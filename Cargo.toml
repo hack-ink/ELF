@@ -1,0 +1,34 @@
+[package]
+authors     = ["Xavier Lau <x@acg.box>"]
+build       = "build.rs"
+categories  = []
+description = "<DESCRIPTION>"
+edition     = "2024"
+homepage    = "https://hack.ink/<NAME>"
+keywords    = []
+license     = "GPL-3.0"
+name        = "vibe-mono"
+readme      = "README.md"
+repository  = "https://github.com/hack-ink/<NAME>"
+resolver    = "3"
+version     = "0.1.0"
+
+[package.metadata.docs.rs]
+all-features = true
+
+[profile.final-release]
+inherits = "release"
+lto      = true
+
+[build-dependencies]
+# crates.io
+vergen-gitcl = { version = "9.1", features = ["cargo"] }
+
+[dependencies]
+# crates.io
+clap               = { version = "4.5", features = ["derive"] }
+color-eyre         = { version = "0.6" }
+directories        = { version = "6.0" }
+tracing            = { version = "0.1" }
+tracing-appender   = { version = "0.2" }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
