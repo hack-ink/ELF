@@ -1,34 +1,32 @@
-[package]
-authors     = ["Xavier Lau <x@acg.box>"]
-build       = "build.rs"
-categories  = []
-description = "<DESCRIPTION>"
-edition     = "2024"
-homepage    = "https://hack.ink/<NAME>"
-keywords    = []
-license     = "GPL-3.0"
-name        = "vibe-mono"
-readme      = "README.md"
-repository  = "https://github.com/hack-ink/<NAME>"
-resolver    = "3"
-version     = "0.1.0"
+[workspace]
+resolver = "3"
+members = [
+  "apps/elf-api",
+  "apps/elf-worker",
+  "apps/elf-mcp",
+  "crates/elf-config",
+  "crates/elf-domain",
+  "crates/elf-storage",
+  "crates/elf-providers",
+  "crates/elf-service",
+]
 
-[package.metadata.docs.rs]
-all-features = true
+[workspace.package]
+edition = "2024"
+license = "GPL-3.0"
 
-[profile.final-release]
-inherits = "release"
-lto      = true
-
-[build-dependencies]
-# crates.io
-vergen-gitcl = { version = "9.1", features = ["cargo"] }
-
-[dependencies]
-# crates.io
-clap               = { version = "4.5", features = ["derive"] }
-color-eyre         = { version = "0.6" }
-directories        = { version = "6.0" }
-tracing            = { version = "0.1" }
-tracing-appender   = { version = "0.2" }
+[workspace.dependencies]
+axum = { version = "0.7" }
+clap = { version = "4.5", features = ["derive"] }
+color-eyre = "0.6"
+reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
+toml = "0.8"
+tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono", "json"] }
+qdrant-client = "1"
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
