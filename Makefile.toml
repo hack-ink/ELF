@@ -1,0 +1,103 @@
+# Rust workspace tasks.
+
+# Lint
+# | task          | type      | cwd |
+# | ------------- | --------- | --- |
+# | lint          | composite |     |
+# | lint-fix      | composite |     |
+# | lint-rust     | command   |     |
+# | lint-fix-rust | extend    |     |
+
+[tasks.lint]
+workspace = false
+dependencies = ["lint-rust"]
+
+[tasks.lint-fix]
+workspace = false
+dependencies = ["lint-fix-rust"]
+
+[tasks.lint-rust]
+workspace = false
+command = "cargo"
+args = [
+  "clippy",
+  "--workspace",
+  "--all-targets",
+  "--all-features",
+  "--",
+  "-D",
+  "warnings",
+]
+
+[tasks.lint-fix-rust]
+extend = "lint-rust"
+args = [
+  "clippy",
+  "--fix",
+  "--allow-dirty",
+  "--workspace",
+  "--all-targets",
+  "--all-features",
+]
+
+
+# Test
+# | task      | type      | cwd |
+# | --------- | --------- | --- |
+# | test      | composite |     |
+# | test-rust | command   |     |
+
+[tasks.test]
+workspace = false
+dependencies = ["test-rust"]
+
+[tasks.test-rust]
+workspace = false
+command = "cargo"
+args = ["nextest", "run", "--workspace", "--all-targets", "--all-features"]
+
+
+# Format
+# | task           | type      | cwd |
+# | -------------- | --------- | --- |
+# | fmt            | composite |     |
+# | fmt-check      | composite |     |
+# | fmt-rust       | command   |     |
+# | fmt-rust-check | extend    |     |
+# | fmt-toml       | command   |     |
+# | fmt-toml-check | extend    |     |
+
+[tasks.fmt]
+workspace = false
+dependencies = ["fmt-rust", "fmt-toml"]
+
+[tasks.fmt-check]
+workspace = false
+dependencies = ["fmt-rust-check", "fmt-toml-check"]
+
+[tasks.fmt-rust]
+workspace = false
+script = "cargo +nightly fmt --all"
+
+[tasks.fmt-rust-check]
+extend = "fmt-rust"
+script = "cargo +nightly fmt --all -- --check"
+
+[tasks.fmt-toml]
+workspace = false
+command = "taplo"
+args = ["fmt"]
+
+[tasks.fmt-toml-check]
+extend = "fmt-toml"
+args = ["fmt", "--check"]
+
+
+# Meta
+# | task   | type      | cwd |
+# | ------ | --------- | --- |
+# | checks | composite |     |
+
+[tasks.checks]
+workspace = false
+dependencies = ["lint", "test", "fmt-check"]
