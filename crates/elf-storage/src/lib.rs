@@ -1,1 +1,1 @@
-pub struct Placeholder;
+pub mod schema;
