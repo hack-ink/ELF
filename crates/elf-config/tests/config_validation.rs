@@ -111,7 +111,12 @@ fn reject_cjk_must_be_true() {
     std::fs::write(&path, payload).expect("Failed to write test config.");
 
     let result = elf_config::load(&path);
-    let _ = std::fs::remove_file(&path);
+    std::fs::remove_file(&path).expect("Failed to remove test config.");
 
-    assert!(result.is_err());
+    let err = result.expect_err("Expected reject_cjk validation error.");
+    let message = err.to_string();
+    assert!(
+        message.contains("security.reject_cjk must be true."),
+        "Unexpected error message: {message}"
+    );
 }
