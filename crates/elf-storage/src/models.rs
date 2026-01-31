@@ -1,0 +1,21 @@
+#[derive(Debug, sqlx::FromRow)]
+pub struct MemoryNote {
+    pub note_id: uuid::Uuid,
+    pub tenant_id: String,
+    pub project_id: String,
+    pub agent_id: String,
+    pub scope: String,
+    pub r#type: String,
+    pub key: Option<String>,
+    pub text: String,
+    pub importance: f32,
+    pub confidence: f32,
+    pub status: String,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+    pub expires_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub embedding_version: String,
+    pub source_ref: serde_json::Value,
+    pub hit_count: i64,
+    pub last_hit_at: Option<chrono::DateTime<chrono::Utc>>,
+}
