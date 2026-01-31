@@ -1,9 +1,7 @@
 #[tokio::test]
 async fn db_connects_and_bootstraps() {
-    let dsn = match std::env::var("ELF_TEST_PG_DSN") {
-        Ok(value) => value,
-        Err(_) => return,
-    };
+    let dsn = std::env::var("ELF_TEST_PG_DSN")
+        .expect("ELF_TEST_PG_DSN must be set for db_smoke test.");
     let cfg = elf_config::Postgres {
         dsn,
         pool_max_conns: 1,
