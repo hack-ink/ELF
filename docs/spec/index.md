@@ -10,6 +10,10 @@ Audience: This documentation is written for LLM consumption and should remain ex
 - Use descriptive file names with stable prefixes (`system_`, `t0_`, `t1_`, `trace_`, `search_`).
 - Link new specs from `docs/index.md` or `docs/guide/index.md` when relevant.
 
+## Specs
+
+- `docs/spec/system_elf_memory_service_v1.md` - ELF Memory Service v1.0 specification.
+
 ## Authoring guidance (LLM-first)
 
 - Use explicit nouns instead of pronouns whenever possible.
