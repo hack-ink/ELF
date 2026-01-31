@@ -19,3 +19,26 @@ pub struct MemoryNote {
     pub hit_count: i64,
     pub last_hit_at: Option<chrono::DateTime<chrono::Utc>>,
 }
+
+#[derive(Debug)]
+pub struct NoteEmbedding {
+    pub note_id: uuid::Uuid,
+    pub embedding_version: String,
+    pub embedding_dim: i32,
+    pub vec: Vec<f32>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug)]
+pub struct IndexingOutboxEntry {
+    pub outbox_id: uuid::Uuid,
+    pub note_id: uuid::Uuid,
+    pub op: String,
+    pub embedding_version: String,
+    pub status: String,
+    pub attempts: i32,
+    pub last_error: Option<String>,
+    pub available_at: chrono::DateTime<chrono::Utc>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}

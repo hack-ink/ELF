@@ -29,3 +29,19 @@ pub async fn insert_note(db: &Db, note: &MemoryNote) -> Result<()> {
     .await?;
     Ok(())
 }
+
+pub async fn update_note(db: &Db, note: &MemoryNote) -> Result<()> {
+    sqlx::query(
+        "UPDATE memory_notes SET text = $1, importance = $2, confidence = $3, updated_at = $4, expires_at = $5, source_ref = $6 WHERE note_id = $7",
+    )
+    .bind(&note.text)
+    .bind(note.importance)
+    .bind(note.confidence)
+    .bind(note.updated_at)
+    .bind(note.expires_at)
+    .bind(&note.source_ref)
+    .bind(note.note_id)
+    .execute(&db.pool)
+    .await?;
+    Ok(())
+}
