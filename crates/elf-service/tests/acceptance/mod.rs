@@ -3,9 +3,11 @@ use std::sync::{
 	Arc,
 	atomic::{AtomicUsize, Ordering},
 };
+use sqlx::Connection;
 use tokio::sync::Mutex;
 
 static TEST_LOCK: Mutex<()> = Mutex::const_new(());
+const TEST_DB_LOCK_KEY: i64 = 0x454C4601;
 
 pub fn test_dsn() -> Option<String> {
 	std::env::var("ELF_PG_DSN").ok()
@@ -35,7 +37,7 @@ pub fn test_config(dsn: String, qdrant_url: String, vector_dim: u32) -> elf_conf
             },
         },
         providers: elf_config::Providers {
-            embedding: dummy_provider(),
+            embedding: dummy_embedding_provider(),
             rerank: dummy_provider(),
             llm_extractor: dummy_llm_provider(),
         },
@@ -113,8 +115,22 @@ pub async fn build_service(
 	Ok(elf_service::ElfService::with_providers(cfg, db, qdrant, providers))
 }
 
-pub async fn test_lock() -> tokio::sync::MutexGuard<'static, ()> {
-	TEST_LOCK.lock().await
+pub struct DbLock {
+	_guard: tokio::sync::MutexGuard<'static, ()>,
+	_conn: sqlx::PgConnection,
+}
+
+pub async fn test_lock(dsn: &str) -> color_eyre::Result<DbLock> {
+	let guard = TEST_LOCK.lock().await;
+	let mut conn = sqlx::PgConnection::connect(dsn).await?;
+	sqlx::query("SELECT pg_advisory_lock($1)")
+		.bind(TEST_DB_LOCK_KEY)
+		.execute(&mut conn)
+		.await?;
+	Ok(DbLock {
+		_guard: guard,
+		_conn: conn,
+	})
 }
 
 pub async fn reset_db(pool: &sqlx::PgPool) -> color_eyre::Result<()> {
@@ -133,7 +149,7 @@ pub struct StubEmbedding {
 impl EmbeddingProvider for StubEmbedding {
     fn embed<'a>(
         &'a self,
-        _cfg: &'a elf_config::ProviderConfig,
+        _cfg: &'a elf_config::EmbeddingProviderConfig,
         texts: &'a [String],
     ) -> elf_service::BoxFuture<'a, color_eyre::Result<Vec<Vec<f32>>>> {
         let dim = self.vector_dim as usize;
@@ -150,7 +166,7 @@ pub struct SpyEmbedding {
 impl EmbeddingProvider for SpyEmbedding {
     fn embed<'a>(
         &'a self,
-        _cfg: &'a elf_config::ProviderConfig,
+        _cfg: &'a elf_config::EmbeddingProviderConfig,
         texts: &'a [String],
     ) -> elf_service::BoxFuture<'a, color_eyre::Result<Vec<Vec<f32>>>> {
         self.calls.fetch_add(1, Ordering::SeqCst);
@@ -188,6 +204,19 @@ impl ExtractorProvider for SpyExtractor {
         let payload = self.payload.clone();
         self.calls.fetch_add(1, Ordering::SeqCst);
         Box::pin(async move { Ok(payload) })
+    }
+}
+
+pub fn dummy_embedding_provider() -> elf_config::EmbeddingProviderConfig {
+    elf_config::EmbeddingProviderConfig {
+        provider_id: "test".to_string(),
+        base_url: "http://127.0.0.1:1".to_string(),
+        api_key: "test-key".to_string(),
+        path: "/".to_string(),
+        model: "test".to_string(),
+        dimensions: 3,
+        timeout_ms: 1000,
+        default_headers: serde_json::Map::new(),
     }
 }
 

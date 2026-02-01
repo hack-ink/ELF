@@ -5,7 +5,26 @@ mod state;
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
+use sqlx::Connection;
 use tower::util::ServiceExt;
+
+const TEST_DB_LOCK_KEY: i64 = 0x454C4601;
+
+struct DbLock {
+	_conn: sqlx::PgConnection,
+}
+
+async fn acquire_db_lock(dsn: &str) -> DbLock {
+	let mut conn = sqlx::PgConnection::connect(dsn)
+		.await
+		.expect("Failed to connect for DB lock.");
+	sqlx::query("SELECT pg_advisory_lock($1)")
+		.bind(TEST_DB_LOCK_KEY)
+		.execute(&mut conn)
+		.await
+		.expect("Failed to acquire DB lock.");
+	DbLock { _conn: conn }
+}
 
 fn test_env() -> Option<(String, String)> {
 	let dsn = match std::env::var("ELF_PG_DSN") {
@@ -45,7 +64,7 @@ fn test_config(dsn: String, qdrant_url: String) -> elf_config::Config {
 			},
 		},
 		providers: elf_config::Providers {
-			embedding: dummy_provider(),
+			embedding: dummy_embedding_provider(),
 			rerank: dummy_provider(),
 			llm_extractor: dummy_llm_provider(),
 		},
@@ -113,6 +132,19 @@ fn test_config(dsn: String, qdrant_url: String) -> elf_config::Config {
 	}
 }
 
+fn dummy_embedding_provider() -> elf_config::EmbeddingProviderConfig {
+	elf_config::EmbeddingProviderConfig {
+		provider_id: "test".to_string(),
+		base_url: "http://127.0.0.1:1".to_string(),
+		api_key: "test-key".to_string(),
+		path: "/".to_string(),
+		model: "test".to_string(),
+		dimensions: 3,
+		timeout_ms: 1000,
+		default_headers: serde_json::Map::new(),
+	}
+}
+
 fn dummy_provider() -> elf_config::ProviderConfig {
 	elf_config::ProviderConfig {
 		provider_id: "test".to_string(),
@@ -143,6 +175,7 @@ async fn health_ok() {
 	let Some((dsn, qdrant_url)) = test_env() else {
 		return;
 	};
+	let _lock = acquire_db_lock(&dsn).await;
 	let config = test_config(dsn, qdrant_url);
 	let state = state::AppState::new(config)
 		.await
@@ -165,6 +198,7 @@ async fn rejects_cjk_in_add_note() {
 	let Some((dsn, qdrant_url)) = test_env() else {
 		return;
 	};
+	let _lock = acquire_db_lock(&dsn).await;
 	let config = test_config(dsn, qdrant_url);
 	let state = state::AppState::new(config)
 		.await
@@ -213,6 +247,7 @@ async fn rejects_cjk_in_add_event() {
 	let Some((dsn, qdrant_url)) = test_env() else {
 		return;
 	};
+	let _lock = acquire_db_lock(&dsn).await;
 	let config = test_config(dsn, qdrant_url);
 	let state = state::AppState::new(config)
 		.await
@@ -257,6 +292,7 @@ async fn rejects_cjk_in_search() {
 	let Some((dsn, qdrant_url)) = test_env() else {
 		return;
 	};
+	let _lock = acquire_db_lock(&dsn).await;
 	let config = test_config(dsn, qdrant_url);
 	let state = state::AppState::new(config)
 		.await

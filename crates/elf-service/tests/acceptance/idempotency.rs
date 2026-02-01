@@ -4,7 +4,6 @@ use super::{SpyExtractor, StubEmbedding, StubRerank, build_service, test_config,
 
 #[tokio::test]
 async fn add_note_is_idempotent() {
-	let _guard = super::test_lock().await;
     let Some(dsn) = test_dsn() else {
         eprintln!("Skipping add_note_is_idempotent; set ELF_PG_DSN to run this test.");
         return;
@@ -13,6 +12,9 @@ async fn add_note_is_idempotent() {
         eprintln!("Skipping add_note_is_idempotent; set ELF_QDRANT_URL to run this test.");
         return;
     };
+	let _guard = super::test_lock(&dsn)
+		.await
+		.expect("Failed to acquire test lock.");
 
     let extractor = SpyExtractor {
         calls: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
