@@ -85,8 +85,17 @@ impl ElfService {
         }
         let now = time::OffsetDateTime::now_utc();
         if let Some(ttl_days) = req.ttl_days {
-            note.expires_at = compute_expires_at(Some(ttl_days), &note.r#type, &self.cfg, now);
-            changed = true;
+            if ttl_days > 0 {
+                let updated_expires_at =
+                    compute_expires_at(Some(ttl_days), &note.r#type, &self.cfg, now);
+                if note.expires_at != updated_expires_at {
+                    note.expires_at = updated_expires_at;
+                    changed = true;
+                }
+            } else if note.expires_at.is_some() {
+                note.expires_at = None;
+                changed = true;
+            }
         }
 
         if !changed {
