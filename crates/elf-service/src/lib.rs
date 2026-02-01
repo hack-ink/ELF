@@ -340,7 +340,7 @@ pub(crate) async fn resolve_update(
     let embed_version = embedding_version(cfg);
 
     let rows = sqlx::query(
-        "SELECT note_id, (1 - (vec <=> $1::vector)) AS similarity \
+        "SELECT note_id, (1 - (vec <=> $1::vector))::real AS similarity \
          FROM note_embeddings WHERE note_id = ANY($2) AND embedding_version = $3",
     )
     .bind(vec_text)
