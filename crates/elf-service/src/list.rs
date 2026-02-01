@@ -6,6 +6,7 @@ use crate::{ElfService, ServiceError, ServiceResult};
 pub struct ListRequest {
     pub tenant_id: String,
     pub project_id: String,
+    pub agent_id: Option<String>,
     pub scope: Option<String>,
     pub status: Option<String>,
     #[serde(rename = "type")]
@@ -40,6 +41,13 @@ impl ElfService {
                 message: "tenant_id and project_id are required.".to_string(),
             });
         }
+        if let Some(agent_id) = req.agent_id.as_ref() {
+            if agent_id.trim().is_empty() {
+                return Err(ServiceError::InvalidRequest {
+                    message: "agent_id must not be empty when provided.".to_string(),
+                });
+            }
+        }
         if let Some(scope) = req.scope.as_ref() {
             if !self.cfg.scopes.allowed.iter().any(|value| value == scope) {
                 return Err(ServiceError::ScopeDenied {
@@ -59,6 +67,16 @@ impl ElfService {
         if let Some(scope) = &req.scope {
             builder.push(" AND scope = ");
             builder.push_bind(scope);
+            if scope == "agent_private" {
+                let agent_id = req.agent_id.as_ref().map(|value| value.trim()).unwrap_or("");
+                if agent_id.is_empty() {
+                    return Err(ServiceError::ScopeDenied {
+                        message: "agent_id is required for agent_private scope.".to_string(),
+                    });
+                }
+                builder.push(" AND agent_id = ");
+                builder.push_bind(agent_id);
+            }
         }
         if let Some(status) = &req.status {
             builder.push(" AND status = ");
