@@ -29,22 +29,19 @@ impl ElfService {
         }
         let mut tx = self.db.pool.begin().await?;
         let mut note: MemoryNote = sqlx::query_as(
-            "SELECT * FROM memory_notes WHERE note_id = $1 FOR UPDATE",
+            "SELECT * FROM memory_notes \
+             WHERE note_id = $1 AND tenant_id = $2 AND project_id = $3 AND agent_id = $4 \
+             FOR UPDATE",
         )
         .bind(req.note_id)
+        .bind(&req.tenant_id)
+        .bind(&req.project_id)
+        .bind(&req.agent_id)
         .fetch_optional(&mut *tx)
         .await?
         .ok_or_else(|| ServiceError::InvalidRequest {
             message: "Note not found.".to_string(),
         })?;
-        if note.tenant_id != req.tenant_id
-            || note.project_id != req.project_id
-            || note.agent_id != req.agent_id
-        {
-            return Err(ServiceError::ScopeDenied {
-                message: "Note does not belong to the requested namespace.".to_string(),
-            });
-        }
 
         let scope_allowed = self
             .cfg
