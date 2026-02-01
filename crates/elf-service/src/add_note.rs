@@ -48,6 +48,15 @@ impl ElfService {
                 message: "Notes list is empty.".to_string(),
             });
         }
+        if req.tenant_id.trim().is_empty()
+            || req.project_id.trim().is_empty()
+            || req.agent_id.trim().is_empty()
+            || req.scope.trim().is_empty()
+        {
+            return Err(ServiceError::InvalidRequest {
+                message: "tenant_id, project_id, agent_id, and scope are required.".to_string(),
+            });
+        }
 
         for (idx, note) in req.notes.iter().enumerate() {
             if contains_cjk(&note.text) {

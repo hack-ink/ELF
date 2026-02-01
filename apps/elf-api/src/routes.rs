@@ -36,10 +36,11 @@ async fn add_note(
     payload: Result<Json<elf_service::AddNoteRequest>, JsonRejection>,
 ) -> Result<Json<elf_service::AddNoteResponse>, ApiError> {
     let Json(payload) = payload.map_err(|err| {
+        tracing::warn!(error = %err, "Invalid request payload.");
         json_error(
             StatusCode::BAD_REQUEST,
             "INVALID_REQUEST",
-            err.to_string(),
+            "Invalid request payload.".to_string(),
             None,
         )
     })?;
@@ -52,10 +53,11 @@ async fn add_event(
     payload: Result<Json<elf_service::AddEventRequest>, JsonRejection>,
 ) -> Result<Json<elf_service::AddEventResponse>, ApiError> {
     let Json(payload) = payload.map_err(|err| {
+        tracing::warn!(error = %err, "Invalid request payload.");
         json_error(
             StatusCode::BAD_REQUEST,
             "INVALID_REQUEST",
-            err.to_string(),
+            "Invalid request payload.".to_string(),
             None,
         )
     })?;
@@ -68,10 +70,11 @@ async fn search(
     payload: Result<Json<elf_service::SearchRequest>, JsonRejection>,
 ) -> Result<Json<elf_service::SearchResponse>, ApiError> {
     let Json(payload) = payload.map_err(|err| {
+        tracing::warn!(error = %err, "Invalid request payload.");
         json_error(
             StatusCode::BAD_REQUEST,
             "INVALID_REQUEST",
-            err.to_string(),
+            "Invalid request payload.".to_string(),
             None,
         )
     })?;
@@ -84,10 +87,11 @@ async fn list(
     query: Result<Query<elf_service::ListRequest>, QueryRejection>,
 ) -> Result<Json<elf_service::ListResponse>, ApiError> {
     let Query(query) = query.map_err(|err| {
+        tracing::warn!(error = %err, "Invalid query parameters.");
         json_error(
             StatusCode::BAD_REQUEST,
             "INVALID_REQUEST",
-            err.to_string(),
+            "Invalid query parameters.".to_string(),
             None,
         )
     })?;
@@ -100,10 +104,11 @@ async fn update(
     payload: Result<Json<elf_service::UpdateRequest>, JsonRejection>,
 ) -> Result<Json<elf_service::UpdateResponse>, ApiError> {
     let Json(payload) = payload.map_err(|err| {
+        tracing::warn!(error = %err, "Invalid request payload.");
         json_error(
             StatusCode::BAD_REQUEST,
             "INVALID_REQUEST",
-            err.to_string(),
+            "Invalid request payload.".to_string(),
             None,
         )
     })?;
@@ -116,10 +121,11 @@ async fn delete(
     payload: Result<Json<elf_service::DeleteRequest>, JsonRejection>,
 ) -> Result<Json<elf_service::DeleteResponse>, ApiError> {
     let Json(payload) = payload.map_err(|err| {
+        tracing::warn!(error = %err, "Invalid request payload.");
         json_error(
             StatusCode::BAD_REQUEST,
             "INVALID_REQUEST",
-            err.to_string(),
+            "Invalid request payload.".to_string(),
             None,
         )
     })?;
@@ -189,10 +195,32 @@ impl From<ServiceError> for ApiError {
             ServiceError::ScopeDenied { message } => {
                 json_error(StatusCode::FORBIDDEN, "SCOPE_DENIED", message, None)
             }
-            ServiceError::Provider { message }
-            | ServiceError::Storage { message }
-            | ServiceError::Qdrant { message } => {
-                json_error(StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", message, None)
+            ServiceError::Provider { message } => {
+                tracing::error!(error = %message, "Provider error.");
+                json_error(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "INTERNAL_ERROR",
+                    "Internal error.".to_string(),
+                    None,
+                )
+            }
+            ServiceError::Storage { message } => {
+                tracing::error!(error = %message, "Storage error.");
+                json_error(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "INTERNAL_ERROR",
+                    "Internal error.".to_string(),
+                    None,
+                )
+            }
+            ServiceError::Qdrant { message } => {
+                tracing::error!(error = %message, "Qdrant error.");
+                json_error(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "INTERNAL_ERROR",
+                    "Internal error.".to_string(),
+                    None,
+                )
             }
         }
     }
