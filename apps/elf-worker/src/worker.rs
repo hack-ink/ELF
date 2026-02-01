@@ -19,7 +19,7 @@ const MAX_BACKOFF_MS: i64 = 30_000;
 pub struct WorkerState {
     pub db: Db,
     pub qdrant: QdrantStore,
-    pub embedding: elf_config::ProviderConfig,
+    pub embedding: elf_config::EmbeddingProviderConfig,
 }
 
 pub async fn run_worker(state: WorkerState) -> Result<()> {

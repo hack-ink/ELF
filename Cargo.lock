@@ -706,6 +706,7 @@ dependencies = [
  "elf-storage",
  "serde",
  "serde_json",
+ "sqlx",
  "tokio",
  "tower 0.5.3",
  "tracing",

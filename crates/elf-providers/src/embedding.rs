@@ -3,14 +3,18 @@ use color_eyre::{eyre::eyre, Result};
 use crate::auth_headers;
 
 pub async fn embed(
-    cfg: &elf_config::ProviderConfig,
+    cfg: &elf_config::EmbeddingProviderConfig,
     texts: &[String],
 ) -> Result<Vec<Vec<f32>>> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_millis(cfg.timeout_ms))
         .build()?;
     let url = format!("{}{}", cfg.base_url, cfg.path);
-    let body = serde_json::json!({ "model": cfg.model, "input": texts });
+    let body = serde_json::json!({
+        "model": cfg.model,
+        "input": texts,
+        "dimensions": cfg.dimensions,
+    });
     let res = client
         .post(url)
         .headers(auth_headers(&cfg.api_key, &cfg.default_headers)?)

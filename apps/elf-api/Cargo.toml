@@ -18,3 +18,4 @@ elf-storage = { path = "../../crates/elf-storage" }
 
 [dev-dependencies]
 tower = "0.5"
+sqlx = { workspace = true }

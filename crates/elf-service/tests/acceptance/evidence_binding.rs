@@ -4,7 +4,6 @@ use super::{SpyExtractor, StubEmbedding, StubRerank, build_service, test_config,
 
 #[tokio::test]
 async fn rejects_invalid_evidence_quote() {
-	let _guard = super::test_lock().await;
     let Some(dsn) = test_dsn() else {
         eprintln!("Skipping rejects_invalid_evidence_quote; set ELF_PG_DSN to run this test.");
         return;
@@ -13,6 +12,9 @@ async fn rejects_invalid_evidence_quote() {
         eprintln!("Skipping rejects_invalid_evidence_quote; set ELF_QDRANT_URL to run this test.");
         return;
     };
+	let _guard = super::test_lock(&dsn)
+		.await
+		.expect("Failed to acquire test lock.");
 
     let extractor_payload = serde_json::json!({
         "notes": [

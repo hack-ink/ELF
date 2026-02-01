@@ -1,7 +1,7 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use elf_config::{Config, LlmProviderConfig, ProviderConfig};
+use elf_config::{Config, EmbeddingProviderConfig, LlmProviderConfig, ProviderConfig};
 use elf_service::{
     AddNoteInput, AddNoteRequest, EmbeddingProvider, ElfService, ExtractorProvider, Providers,
     RerankProvider, ServiceError,
@@ -13,14 +13,10 @@ struct DummyEmbedding;
 impl EmbeddingProvider for DummyEmbedding {
     fn embed<'a>(
         &'a self,
-        cfg: &'a ProviderConfig,
+        cfg: &'a EmbeddingProviderConfig,
         texts: &'a [String],
     ) -> elf_service::BoxFuture<'a, color_eyre::Result<Vec<Vec<f32>>>> {
-        let dim = cfg
-            .model
-            .parse::<usize>()
-            .unwrap_or(3)
-            .max(1);
+        let dim = (cfg.dimensions as usize).max(1);
         let vec = vec![0.0; dim];
         Box::pin(async move { Ok(vec![vec; texts.len()]) })
     }
@@ -87,7 +83,7 @@ fn test_config() -> Config {
             },
         },
         providers: elf_config::Providers {
-            embedding: dummy_provider(),
+            embedding: dummy_embedding_provider(),
             rerank: dummy_provider(),
             llm_extractor: dummy_llm_provider(),
         },
@@ -141,6 +137,19 @@ fn test_config() -> Config {
             evidence_max_quotes: 2,
             evidence_max_quote_chars: 320,
         },
+    }
+}
+
+fn dummy_embedding_provider() -> elf_config::EmbeddingProviderConfig {
+    elf_config::EmbeddingProviderConfig {
+        provider_id: "p".to_string(),
+        base_url: "http://localhost".to_string(),
+        api_key: "key".to_string(),
+        path: "/".to_string(),
+        model: "3".to_string(),
+        dimensions: 3,
+        timeout_ms: 1000,
+        default_headers: serde_json::Map::new(),
     }
 }
 
