@@ -43,7 +43,7 @@ impl ElfService {
         if let Some(text) = text_update.as_ref() {
             if contains_cjk(text) {
                 return Err(ServiceError::NonEnglishInput {
-                    field: "text".to_string(),
+                    field: "$.text".to_string(),
                 });
             }
             let gate = NoteInput {
@@ -120,16 +120,14 @@ impl ElfService {
         )
         .await?;
 
-        if req.text.is_some() {
-            enqueue_outbox_tx(
-                &mut tx,
-                note.note_id,
-                "UPSERT",
-                &note.embedding_version,
-                note.updated_at,
-            )
-            .await?;
-        }
+        enqueue_outbox_tx(
+            &mut tx,
+            note.note_id,
+            "UPSERT",
+            &note.embedding_version,
+            note.updated_at,
+        )
+        .await?;
 
         tx.commit().await?;
 

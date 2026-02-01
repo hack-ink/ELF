@@ -78,7 +78,7 @@ impl ElfService {
         for (idx, msg) in req.messages.iter().enumerate() {
             if contains_cjk(&msg.content) {
                 return Err(ServiceError::NonEnglishInput {
-                    field: format!("messages[{idx}].content"),
+                    field: format!("$.messages[{idx}].content"),
                 });
             }
         }
