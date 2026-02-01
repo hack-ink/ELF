@@ -84,12 +84,34 @@ impl ElfService {
             });
         }
 
-        let filter = Filter::must([
-            Condition::matches("tenant_id", req.tenant_id.clone()),
-            Condition::matches("project_id", req.project_id.clone()),
-            Condition::matches("scope", allowed_scopes.clone()),
-            Condition::matches("status", "active".to_string()),
-        ]);
+        let private_scope = "agent_private".to_string();
+        let non_private_scopes: Vec<String> = allowed_scopes
+            .iter()
+            .filter(|scope| *scope != "agent_private")
+            .cloned()
+            .collect();
+        let mut should = Vec::new();
+        if allowed_scopes.iter().any(|scope| scope == "agent_private") {
+            let private_filter = Filter::all([
+                Condition::matches("scope", private_scope),
+                Condition::matches("agent_id", req.agent_id.clone()),
+            ]);
+            should.push(Condition::from(private_filter));
+        }
+        if !non_private_scopes.is_empty() {
+            should.push(Condition::matches("scope", non_private_scopes));
+        }
+
+        let filter = Filter {
+            must: vec![
+                Condition::matches("tenant_id", req.tenant_id.clone()),
+                Condition::matches("project_id", req.project_id.clone()),
+                Condition::matches("status", "active".to_string()),
+            ],
+            should,
+            must_not: Vec::new(),
+            min_should: None,
+        };
 
         let search = SearchPointsBuilder::new(
             self.qdrant.collection.clone(),
@@ -127,6 +149,12 @@ impl ElfService {
 
         let now = time::OffsetDateTime::now_utc();
         notes.retain(|note| {
+            if note.tenant_id != req.tenant_id || note.project_id != req.project_id {
+                return false;
+            }
+            if note.scope == "agent_private" && note.agent_id != req.agent_id {
+                return false;
+            }
             note.status == "active"
                 && allowed_scopes.contains(&note.scope)
                 && note.expires_at.map(|ts| ts > now).unwrap_or(true)
