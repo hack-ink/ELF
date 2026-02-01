@@ -31,6 +31,11 @@ Do not apply them to non-Rust projects.
 - `expect()` requires a clear message.
 - Never block inside async contexts.
 
+### Time and TLS
+
+- Use the `time` crate for all date and time types. Do not add `chrono`.
+- Prefer rustls for TLS. For SQLx, enable `tls-rustls`. For reqwest, enable `rustls-tls`. Only use native-tls when rustls is not supported.
+
 ## Style Rules
 
 ### Indentation

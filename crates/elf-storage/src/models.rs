@@ -11,13 +11,13 @@ pub struct MemoryNote {
     pub importance: f32,
     pub confidence: f32,
     pub status: String,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-    pub updated_at: chrono::DateTime<chrono::Utc>,
-    pub expires_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub created_at: time::OffsetDateTime,
+    pub updated_at: time::OffsetDateTime,
+    pub expires_at: Option<time::OffsetDateTime>,
     pub embedding_version: String,
     pub source_ref: serde_json::Value,
     pub hit_count: i64,
-    pub last_hit_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub last_hit_at: Option<time::OffsetDateTime>,
 }
 
 #[derive(Debug)]
@@ -26,7 +26,7 @@ pub struct NoteEmbedding {
     pub embedding_version: String,
     pub embedding_dim: i32,
     pub vec: Vec<f32>,
-    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub created_at: time::OffsetDateTime,
 }
 
 #[derive(Debug)]
@@ -38,7 +38,7 @@ pub struct IndexingOutboxEntry {
     pub status: String,
     pub attempts: i32,
     pub last_error: Option<String>,
-    pub available_at: chrono::DateTime<chrono::Utc>,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-    pub updated_at: chrono::DateTime<chrono::Utc>,
+    pub available_at: time::OffsetDateTime,
+    pub created_at: time::OffsetDateTime,
+    pub updated_at: time::OffsetDateTime,
 }
