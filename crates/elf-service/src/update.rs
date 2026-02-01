@@ -26,6 +26,7 @@ pub struct UpdateResponse {
 
 impl ElfService {
     pub async fn update(&self, req: UpdateRequest) -> ServiceResult<UpdateResponse> {
+        // TODO: Enforce tenant/project/agent ownership once update requests include namespace identifiers.
         let text_update = req.text.clone();
         let mut tx = self.db.pool.begin().await?;
         let mut note: MemoryNote = sqlx::query_as(
@@ -85,11 +86,19 @@ impl ElfService {
         }
         let now = time::OffsetDateTime::now_utc();
         if let Some(ttl_days) = req.ttl_days {
-            if ttl_days > 0 {
-                let updated_expires_at =
-                    compute_expires_at(Some(ttl_days), &note.r#type, &self.cfg, now);
-                if note.expires_at != updated_expires_at {
-                    note.expires_at = updated_expires_at;
+            let effective_ttl = if ttl_days > 0 {
+                Some(ttl_days)
+            } else {
+                default_ttl_days(&note.r#type, &self.cfg)
+            };
+
+            if let Some(ttl) = effective_ttl.filter(|value| *value > 0) {
+                let existing_ttl = note.expires_at.map(|expires_at| {
+                    (expires_at - note.updated_at).whole_days() as i64
+                });
+                if existing_ttl != Some(ttl) {
+                    note.expires_at =
+                        compute_expires_at(Some(ttl), &note.r#type, &self.cfg, now);
                     changed = true;
                 }
             } else if note.expires_at.is_some() {
@@ -150,4 +159,17 @@ impl ElfService {
             reason_code: None,
         })
     }
+}
+
+fn default_ttl_days(note_type: &str, cfg: &elf_config::Config) -> Option<i64> {
+    let days = match note_type {
+        "plan" => cfg.lifecycle.ttl_days.plan,
+        "fact" => cfg.lifecycle.ttl_days.fact,
+        "preference" => cfg.lifecycle.ttl_days.preference,
+        "constraint" => cfg.lifecycle.ttl_days.constraint,
+        "decision" => cfg.lifecycle.ttl_days.decision,
+        "profile" => cfg.lifecycle.ttl_days.profile,
+        _ => 0,
+    };
+    if days > 0 { Some(days) } else { None }
 }
