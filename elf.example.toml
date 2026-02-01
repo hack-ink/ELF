@@ -1,0 +1,93 @@
+[service]
+http_bind = "127.0.0.1:8089"
+mcp_bind = "127.0.0.1:8091"
+admin_bind = "127.0.0.1:8090"
+log_level = "info"
+
+[storage.postgres]
+dsn = "postgres://postgres:postgres@127.0.0.1:5432/elf"
+pool_max_conns = 10
+
+[storage.qdrant]
+url = "http://127.0.0.1:6334"
+collection = "mem_notes_v1"
+vector_dim = 4096
+
+[providers.embedding]
+provider_id = "provider-id"
+base_url = "https://provider.example/v1"
+api_key = "REPLACE_ME"
+path = "/embeddings"
+model = "embedding-model"
+dimensions = 4096
+timeout_ms = 20000
+default_headers = {}
+
+[providers.rerank]
+provider_id = "provider-id"
+base_url = "https://provider.example/v1"
+api_key = "REPLACE_ME"
+path = "/rerank"
+model = "rerank-model"
+timeout_ms = 20000
+default_headers = {}
+
+[providers.llm_extractor]
+provider_id = "provider-id"
+base_url = "https://provider.example/v1"
+api_key = "REPLACE_ME"
+path = "/chat/completions"
+model = "llm-model"
+temperature = 0.1
+timeout_ms = 30000
+default_headers = {}
+
+[scopes]
+allowed = ["agent_private", "project_shared", "org_shared"]
+
+[scopes.read_profiles]
+private_only = ["agent_private"]
+private_plus_project = ["agent_private", "project_shared"]
+all_scopes = ["agent_private", "project_shared", "org_shared"]
+
+[scopes.precedence]
+agent_private = 30
+project_shared = 20
+org_shared = 10
+
+[scopes.write_allowed]
+agent_private = true
+project_shared = true
+org_shared = true
+
+[memory]
+max_notes_per_add_event = 3
+max_note_chars = 240
+dup_sim_threshold = 0.92
+update_sim_threshold = 0.85
+candidate_k = 60
+top_k = 12
+
+[ranking]
+recency_tau_days = 60
+tie_breaker_weight = 0.1
+
+[lifecycle.ttl_days]
+plan = 14
+fact = 180
+preference = 0
+constraint = 0
+decision = 0
+profile = 0
+
+[lifecycle]
+purge_deleted_after_days = 30
+purge_deprecated_after_days = 180
+
+[security]
+bind_localhost_only = true
+reject_cjk = true
+redact_secrets_on_write = true
+evidence_min_quotes = 1
+evidence_max_quotes = 2
+evidence_max_quote_chars = 320
