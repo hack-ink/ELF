@@ -1,7 +1,5 @@
 use std::sync::Arc;
-
 use std::sync::atomic::AtomicUsize;
-use std::sync::Arc;
 
 use qdrant_client::qdrant::{CreateCollectionBuilder, Distance, VectorParamsBuilder};
 
@@ -9,18 +7,15 @@ use super::{SpyEmbedding, SpyExtractor, StubRerank, build_service, test_config, 
 
 #[tokio::test]
 async fn rebuild_uses_postgres_vectors_only() {
+	let _guard = super::test_lock().await;
     let Some(dsn) = test_dsn() else {
-        eprintln!("Skipping rebuild_uses_postgres_vectors_only; set ELF_TEST_PG_DSN to run this test.");
+        eprintln!("Skipping rebuild_uses_postgres_vectors_only; set ELF_PG_DSN to run this test.");
         return;
     };
     let Some(qdrant_url) = test_qdrant_url() else {
-        eprintln!("Skipping rebuild_uses_postgres_vectors_only; set ELF_TEST_QDRANT_URL to run this test.");
+        eprintln!("Skipping rebuild_uses_postgres_vectors_only; set ELF_QDRANT_URL to run this test.");
         return;
     };
-    if std::env::var("ELF_TEST_QDRANT_READY").is_err() {
-        eprintln!("Skipping rebuild_uses_postgres_vectors_only; set ELF_TEST_QDRANT_READY once the collection exists.");
-        return;
-    }
     let embed_calls = Arc::new(AtomicUsize::new(0));
     let extractor = SpyExtractor {
         calls: Arc::new(AtomicUsize::new(0)),
@@ -39,6 +34,9 @@ async fn rebuild_uses_postgres_vectors_only() {
     let service = build_service(cfg, providers)
         .await
         .expect("Failed to build service.");
+	super::reset_db(&service.db.pool)
+		.await
+		.expect("Failed to reset test database.");
 
     let _ = service
         .qdrant

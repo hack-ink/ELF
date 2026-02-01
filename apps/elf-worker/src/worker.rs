@@ -22,8 +22,6 @@ pub struct WorkerState {
     pub embedding: elf_config::ProviderConfig,
 }
 
-// TODO: Add integration tests that exercise the worker with Postgres, Qdrant, and a stub embedder.
-
 pub async fn run_worker(state: WorkerState) -> Result<()> {
     loop {
         if let Err(err) = process_once(&state).await {
