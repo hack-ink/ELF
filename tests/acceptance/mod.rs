@@ -185,5 +185,7 @@ pub fn dummy_llm_provider() -> elf_config::LlmProviderConfig {
 mod add_note_no_llm;
 mod english_only_boundary;
 mod evidence_binding;
+mod idempotency;
 mod rebuild_qdrant;
 mod outbox_eventual_consistency;
+mod sot_vectors;
