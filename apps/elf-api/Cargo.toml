@@ -15,3 +15,6 @@ serde_json = { workspace = true }
 elf-config = { path = "../../crates/elf-config" }
 elf-service = { path = "../../crates/elf-service" }
 elf-storage = { path = "../../crates/elf-storage" }
+
+[dev-dependencies]
+tower = "0.5"

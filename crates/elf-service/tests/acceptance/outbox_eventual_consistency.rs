@@ -1,11 +1,217 @@
+#[path = "../../../../apps/elf-worker/src/worker.rs"]
+mod worker;
+
+use axum::extract::State;
+use axum::http::StatusCode;
+use axum::response::IntoResponse;
+use axum::routing;
+use axum::{Json, Router};
+use qdrant_client::qdrant::{CreateCollectionBuilder, Distance, VectorParamsBuilder};
+use std::future::IntoFuture;
+use std::sync::{
+	Arc,
+	atomic::{AtomicUsize, Ordering},
+};
+use std::time::{Duration, Instant};
+use super::{SpyExtractor, StubEmbedding, StubRerank, build_service, test_config, test_dsn, test_qdrant_url};
+
+#[derive(sqlx::FromRow)]
+struct OutboxRow {
+	status: String,
+	attempts: i32,
+	last_error: Option<String>,
+}
+
 #[tokio::test]
 async fn outbox_retries_to_done() {
-    if std::env::var("ELF_TEST_PG_DSN").is_err() || std::env::var("ELF_TEST_QDRANT_URL").is_err()
-    {
-        eprintln!("Skipping outbox_retries_to_done; requires ELF_TEST_PG_DSN and ELF_TEST_QDRANT_URL.");
-        return;
-    }
-    // TODO: Add an integration test that simulates embedding provider failure and verifies
-    // outbox retries to DONE once the provider recovers. This requires a controllable
-    // embedder endpoint or a mock worker harness.
+	let _guard = super::test_lock().await;
+	let Some(dsn) = test_dsn() else {
+		eprintln!("Skipping outbox_retries_to_done; set ELF_PG_DSN to run this test.");
+		return;
+	};
+	let Some(qdrant_url) = test_qdrant_url() else {
+		eprintln!("Skipping outbox_retries_to_done; set ELF_QDRANT_URL to run this test.");
+		return;
+	};
+
+	let request_count = Arc::new(AtomicUsize::new(0));
+	let (base_url, shutdown) = start_embed_server(request_count.clone()).await;
+
+	let extractor = SpyExtractor {
+		calls: Arc::new(AtomicUsize::new(0)),
+		payload: serde_json::json!({ "notes": [] }),
+	};
+	let providers = elf_service::Providers::new(
+		Arc::new(StubEmbedding { vector_dim: 3 }),
+		Arc::new(StubRerank),
+		Arc::new(extractor),
+	);
+
+	let cfg = test_config(dsn.clone(), qdrant_url, 3);
+	let service = build_service(cfg, providers)
+		.await
+		.expect("Failed to build service.");
+	super::reset_db(&service.db.pool)
+		.await
+		.expect("Failed to reset test database.");
+
+	let _ = service
+		.qdrant
+		.client
+		.delete_collection(service.qdrant.collection.clone())
+		.await;
+	service
+		.qdrant
+		.client
+		.create_collection(
+			CreateCollectionBuilder::new(service.qdrant.collection.clone())
+				.vectors_config(VectorParamsBuilder::new(3, Distance::Cosine)),
+		)
+		.await
+		.expect("Failed to create Qdrant collection.");
+
+	let add_response = service
+		.add_note(elf_service::AddNoteRequest {
+			tenant_id: "t".to_string(),
+			project_id: "p".to_string(),
+			agent_id: "a".to_string(),
+			scope: "agent_private".to_string(),
+			notes: vec![elf_service::AddNoteInput {
+				note_type: "fact".to_string(),
+				key: Some("outbox_test".to_string()),
+				text: "Fact: Outbox should retry.".to_string(),
+				importance: 0.4,
+				confidence: 0.9,
+				ttl_days: None,
+				source_ref: serde_json::json!({}),
+			}],
+		})
+		.await
+		.expect("Failed to add note.");
+
+	let note_id = add_response.results[0]
+		.note_id
+		.expect("Expected note_id in add_note result.");
+
+	let worker_state = worker::WorkerState {
+		db: elf_storage::db::Db::connect(&service.cfg.storage.postgres)
+			.await
+			.expect("Failed to connect worker DB."),
+		qdrant: elf_storage::qdrant::QdrantStore::new(&service.cfg.storage.qdrant)
+			.expect("Failed to build Qdrant store."),
+		embedding: elf_config::ProviderConfig {
+			provider_id: "test".to_string(),
+			base_url,
+			api_key: "test-key".to_string(),
+			path: "/embeddings".to_string(),
+			model: "test".to_string(),
+			timeout_ms: 1_000,
+			default_headers: serde_json::Map::new(),
+		},
+	};
+
+	let handle = tokio::spawn(async move {
+		let _ = worker::run_worker(worker_state).await;
+	});
+
+	let failed = wait_for_status(&service.db.pool, note_id, "FAILED", Duration::from_secs(5))
+		.await
+		.expect("Expected FAILED outbox status.");
+	assert_eq!(failed.attempts, 1);
+	assert!(failed.last_error.is_some());
+	assert!(request_count.load(Ordering::SeqCst) >= 1);
+
+	let now = time::OffsetDateTime::now_utc();
+	sqlx::query("UPDATE indexing_outbox SET available_at = $1 WHERE note_id = $2")
+		.bind(now)
+		.bind(note_id)
+		.execute(&service.db.pool)
+		.await
+		.expect("Failed to update available_at.");
+
+	let done = wait_for_status(&service.db.pool, note_id, "DONE", Duration::from_secs(5))
+		.await
+		.expect("Expected DONE outbox status.");
+	assert!(done.attempts >= 1);
+
+	handle.abort();
+	let _ = shutdown.send(());
+}
+
+async fn wait_for_status(
+	pool: &sqlx::PgPool,
+	note_id: uuid::Uuid,
+	status: &str,
+	timeout: Duration,
+) -> Option<OutboxRow> {
+	let deadline = Instant::now() + timeout;
+	loop {
+		let row: Option<OutboxRow> = sqlx::query_as(
+			"SELECT status, attempts, last_error FROM indexing_outbox WHERE note_id = $1",
+		)
+		.bind(note_id)
+		.fetch_optional(pool)
+		.await
+		.ok()
+		.flatten();
+
+		if let Some(row) = row {
+			if row.status == status {
+				return Some(row);
+			}
+		}
+		if Instant::now() >= deadline {
+			return None;
+		}
+		tokio::time::sleep(Duration::from_millis(200)).await;
+	}
+}
+
+async fn start_embed_server(
+	request_count: Arc<AtomicUsize>,
+) -> (String, tokio::sync::oneshot::Sender<()>) {
+	let app = Router::new()
+		.route("/embeddings", routing::post(embed_handler))
+		.with_state(request_count);
+	let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+		.await
+		.expect("Failed to bind embed server.");
+	let addr = listener
+		.local_addr()
+		.expect("Failed to read embed server address.");
+	let (tx, rx) = tokio::sync::oneshot::channel();
+	let server = axum::serve(listener, app).with_graceful_shutdown(async move {
+		let _ = rx.await;
+	});
+	tokio::spawn(async move {
+		let _ = server.into_future().await;
+	});
+	(format!("http://{addr}"), tx)
+}
+
+async fn embed_handler(
+	State(counter): State<Arc<AtomicUsize>>,
+	Json(payload): Json<serde_json::Value>,
+) -> impl IntoResponse {
+	let call_index = counter.fetch_add(1, Ordering::SeqCst);
+	if call_index == 0 {
+		return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+	}
+
+	let inputs = payload
+		.get("input")
+		.and_then(|value| value.as_array())
+		.cloned()
+		.unwrap_or_default();
+	let data: Vec<_> = inputs
+		.iter()
+		.enumerate()
+		.map(|(index, _)| {
+			serde_json::json!({
+				"index": index,
+				"embedding": [0.1, 0.2, 0.3]
+			})
+		})
+		.collect();
+	(StatusCode::OK, Json(serde_json::json!({ "data": data }))).into_response()
 }

@@ -4,12 +4,13 @@ use super::{SpyExtractor, StubEmbedding, StubRerank, build_service, test_config,
 
 #[tokio::test]
 async fn add_note_is_idempotent() {
+	let _guard = super::test_lock().await;
     let Some(dsn) = test_dsn() else {
-        eprintln!("Skipping add_note_is_idempotent; set ELF_TEST_PG_DSN to run this test.");
+        eprintln!("Skipping add_note_is_idempotent; set ELF_PG_DSN to run this test.");
         return;
     };
     let Some(qdrant_url) = test_qdrant_url() else {
-        eprintln!("Skipping add_note_is_idempotent; set ELF_TEST_QDRANT_URL to run this test.");
+        eprintln!("Skipping add_note_is_idempotent; set ELF_QDRANT_URL to run this test.");
         return;
     };
 
@@ -27,6 +28,9 @@ async fn add_note_is_idempotent() {
     let service = build_service(cfg, providers)
         .await
         .expect("Failed to build service.");
+	super::reset_db(&service.db.pool)
+		.await
+		.expect("Failed to reset test database.");
 
     let request = elf_service::AddNoteRequest {
         tenant_id: "t".to_string(),

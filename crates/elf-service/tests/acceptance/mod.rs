@@ -1,16 +1,18 @@
-use std::sync::{
-    Arc,
-    atomic::{AtomicUsize, Ordering},
-};
-
 use elf_service::{EmbeddingProvider, ExtractorProvider, Providers, RerankProvider};
+use std::sync::{
+	Arc,
+	atomic::{AtomicUsize, Ordering},
+};
+use tokio::sync::Mutex;
+
+static TEST_LOCK: Mutex<()> = Mutex::const_new(());
 
 pub fn test_dsn() -> Option<String> {
-    std::env::var("ELF_TEST_PG_DSN").ok()
+	std::env::var("ELF_PG_DSN").ok()
 }
 
 pub fn test_qdrant_url() -> Option<String> {
-    std::env::var("ELF_TEST_QDRANT_URL").ok()
+    std::env::var("ELF_QDRANT_URL").ok()
 }
 
 pub fn test_config(dsn: String, qdrant_url: String, vector_dim: u32) -> elf_config::Config {
@@ -101,13 +103,26 @@ pub fn test_config(dsn: String, qdrant_url: String, vector_dim: u32) -> elf_conf
 }
 
 pub async fn build_service(
-    cfg: elf_config::Config,
-    providers: Providers,
+	cfg: elf_config::Config,
+	providers: Providers,
 ) -> color_eyre::Result<elf_service::ElfService> {
     let db = elf_storage::db::Db::connect(&cfg.storage.postgres).await?;
     db.ensure_schema(cfg.storage.qdrant.vector_dim).await?;
     let qdrant = elf_storage::qdrant::QdrantStore::new(&cfg.storage.qdrant)?;
-    Ok(elf_service::ElfService::with_providers(cfg, db, qdrant, providers))
+	Ok(elf_service::ElfService::with_providers(cfg, db, qdrant, providers))
+}
+
+pub async fn test_lock() -> tokio::sync::MutexGuard<'static, ()> {
+	TEST_LOCK.lock().await
+}
+
+pub async fn reset_db(pool: &sqlx::PgPool) -> color_eyre::Result<()> {
+	sqlx::query(
+		"TRUNCATE memory_hits, memory_note_versions, note_embeddings, indexing_outbox, memory_notes",
+	)
+	.execute(pool)
+	.await?;
+	Ok(())
 }
 
 pub struct StubEmbedding {

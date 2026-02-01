@@ -2,10 +2,9 @@ use std::sync::Arc;
 
 use super::{SpyExtractor, StubEmbedding, StubRerank, build_service, test_config, test_dsn, test_qdrant_url};
 
-// TODO: Add HTTP-level tests to verify 422 responses and error payloads.
-
 #[tokio::test]
 async fn rejects_cjk_in_add_note() {
+	let _guard = super::test_lock().await;
     let Some(service) = build_test_service().await else {
         return;
     };
@@ -37,6 +36,7 @@ async fn rejects_cjk_in_add_note() {
 
 #[tokio::test]
 async fn rejects_cjk_in_add_event() {
+	let _guard = super::test_lock().await;
     let Some(service) = build_test_service().await else {
         return;
     };
@@ -66,6 +66,7 @@ async fn rejects_cjk_in_add_event() {
 
 #[tokio::test]
 async fn rejects_cjk_in_search() {
+	let _guard = super::test_lock().await;
     let Some(service) = build_test_service().await else {
         return;
     };
@@ -92,11 +93,11 @@ async fn rejects_cjk_in_search() {
 
 async fn build_test_service() -> Option<elf_service::ElfService> {
     let Some(dsn) = test_dsn() else {
-        eprintln!("Skipping english_only_boundary; set ELF_TEST_PG_DSN to run this test.");
+        eprintln!("Skipping english_only_boundary; set ELF_PG_DSN to run this test.");
         return None;
     };
     let Some(qdrant_url) = test_qdrant_url() else {
-        eprintln!("Skipping english_only_boundary; set ELF_TEST_QDRANT_URL to run this test.");
+        eprintln!("Skipping english_only_boundary; set ELF_QDRANT_URL to run this test.");
         return None;
     };
 
@@ -111,9 +112,11 @@ async fn build_test_service() -> Option<elf_service::ElfService> {
     );
 
     let cfg = test_config(dsn, qdrant_url, 3);
-    Some(
-        build_service(cfg, providers)
-            .await
-            .expect("Failed to build service."),
-    )
+    let service = build_service(cfg, providers)
+        .await
+        .expect("Failed to build service.");
+	super::reset_db(&service.db.pool)
+		.await
+		.expect("Failed to reset test database.");
+    Some(service)
 }
