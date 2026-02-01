@@ -16,10 +16,15 @@ async fn main() -> color_eyre::Result<()> {
 	let args = Args::parse();
 	let config = elf_config::load(&args.config)?;
 	init_tracing(&config)?;
-	let state = state::AppState::new(config);
+	let state = state::AppState::new(config).await?;
 
-	let http_addr: SocketAddr = state.config.service.http_bind.parse()?;
-	let admin_addr: SocketAddr = state.config.service.admin_bind.parse()?;
+	let http_addr: SocketAddr = state.service.cfg.service.http_bind.parse()?;
+	let admin_addr: SocketAddr = state.service.cfg.service.admin_bind.parse()?;
+	if state.service.cfg.security.bind_localhost_only && !admin_addr.ip().is_loopback() {
+		return Err(color_eyre::eyre::eyre!(
+			"admin_bind must be loopback when bind_localhost_only is true."
+		));
+	}
 	let app = routes::router(state.clone());
 	let admin_app = routes::admin_router(state);
 

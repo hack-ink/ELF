@@ -6,6 +6,7 @@ use elf_storage::models::{IndexingOutboxEntry, MemoryNote};
 use elf_storage::qdrant::QdrantStore;
 use qdrant_client::client::Payload;
 use qdrant_client::qdrant::{DeletePointsBuilder, PointStruct, UpsertPointsBuilder, Value};
+use serde_json::Value as JsonValue;
 use sqlx::Row;
 use time::{Duration, OffsetDateTime};
 use tracing::{error, info};
@@ -258,15 +259,48 @@ async fn upsert_qdrant(state: &WorkerState, note: &MemoryNote, vec: &[f32]) -> R
     payload_map.insert("scope".to_string(), Value::from(note.scope.clone()));
     payload_map.insert("status".to_string(), Value::from(note.status.clone()));
     payload_map.insert("type".to_string(), Value::from(note.r#type.clone()));
-    if let Some(key) = &note.key {
-        payload_map.insert("key".to_string(), Value::from(key.clone()));
-    }
+    payload_map.insert(
+        "key".to_string(),
+        note.key
+            .as_ref()
+            .map(|key| Value::from(key.clone()))
+            .unwrap_or_else(|| Value::from(JsonValue::Null)),
+    );
+    payload_map.insert(
+        "updated_at".to_string(),
+        Value::from(JsonValue::String(format_timestamp(note.updated_at)?)),
+    );
+    payload_map.insert(
+        "expires_at".to_string(),
+        Value::from(match note.expires_at {
+            Some(ts) => JsonValue::String(format_timestamp(ts)?),
+            None => JsonValue::Null,
+        }),
+    );
+    payload_map.insert(
+        "importance".to_string(),
+        Value::from(JsonValue::from(note.importance as f64)),
+    );
+    payload_map.insert(
+        "confidence".to_string(),
+        Value::from(JsonValue::from(note.confidence as f64)),
+    );
+    payload_map.insert(
+        "embedding_version".to_string(),
+        Value::from(note.embedding_version.clone()),
+    );
 
     let payload = Payload::from(payload_map);
     let point = PointStruct::new(note.note_id.to_string(), vec.to_vec(), payload);
     let upsert = UpsertPointsBuilder::new(state.qdrant.collection.clone(), vec![point]).wait(true);
     state.qdrant.client.upsert_points(upsert).await?;
     Ok(())
+}
+
+fn format_timestamp(ts: OffsetDateTime) -> Result<String> {
+    use time::format_description::well_known::Rfc3339;
+    ts.format(&Rfc3339)
+        .map_err(|_| eyre!("Failed to format timestamp."))
 }
 
 fn validate_vector_dim(vec: &[f32], expected_dim: u32) -> Result<()> {
