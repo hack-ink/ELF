@@ -154,7 +154,10 @@ async fn handle_delete(state: &WorkerState, job: &IndexingOutboxEntry) -> Result
 
 fn is_not_found_error(err: &qdrant_client::QdrantError) -> bool {
     let message = err.to_string().to_lowercase();
-    (message.contains("not found") || message.contains("404")) && message.contains("point")
+    let point_not_found = (message.contains("not found") || message.contains("404"))
+        && message.contains("point");
+    let no_point_found = message.contains("no point") && message.contains("found");
+    point_not_found || no_point_found
 }
 
 async fn fetch_note(db: &Db, note_id: uuid::Uuid) -> Result<Option<MemoryNote>> {
