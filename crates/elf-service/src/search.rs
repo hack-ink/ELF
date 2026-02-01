@@ -42,6 +42,14 @@ pub struct SearchResponse {
 
 impl ElfService {
     pub async fn search(&self, req: SearchRequest) -> ServiceResult<SearchResponse> {
+        if req.tenant_id.trim().is_empty()
+            || req.project_id.trim().is_empty()
+            || req.agent_id.trim().is_empty()
+        {
+            return Err(ServiceError::InvalidRequest {
+                message: "tenant_id, project_id, and agent_id are required.".to_string(),
+            });
+        }
         if contains_cjk(&req.query) {
             return Err(ServiceError::NonEnglishInput {
                 field: "$.query".to_string(),

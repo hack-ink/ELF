@@ -16,11 +16,9 @@ async fn main() -> color_eyre::Result<()> {
 	let args = Args::parse();
 	let config = elf_config::load(&args.config)?;
 	init_tracing(&config)?;
-	let state = state::AppState::new(config).await?;
-
-	let http_addr: SocketAddr = state.service.cfg.service.http_bind.parse()?;
-	let admin_addr: SocketAddr = state.service.cfg.service.admin_bind.parse()?;
-	if state.service.cfg.security.bind_localhost_only && !http_addr.ip().is_loopback() {
+	let http_addr: SocketAddr = config.service.http_bind.parse()?;
+	let admin_addr: SocketAddr = config.service.admin_bind.parse()?;
+	if config.security.bind_localhost_only && !http_addr.ip().is_loopback() {
 		return Err(color_eyre::eyre::eyre!(
 			"http_bind must be a loopback address when bind_localhost_only is true."
 		));
@@ -30,6 +28,7 @@ async fn main() -> color_eyre::Result<()> {
 			"admin_bind must be a loopback address."
 		));
 	}
+	let state = state::AppState::new(config).await?;
 	let app = routes::router(state.clone());
 	let admin_app = routes::admin_router(state);
 
