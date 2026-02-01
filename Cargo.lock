@@ -588,6 +588,7 @@ dependencies = [
  "color-eyre",
  "elf-config",
  "elf-service",
+ "elf-storage",
  "serde",
  "serde_json",
  "tokio",
@@ -640,6 +641,19 @@ dependencies = [
 [[package]]
 name = "elf-service"
 version = "0.1.0"
+dependencies = [
+ "color-eyre",
+ "elf-config",
+ "elf-domain",
+ "elf-providers",
+ "elf-storage",
+ "qdrant-client",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "time",
+ "uuid",
+]
 
 [[package]]
 name = "elf-storage"
@@ -662,7 +676,16 @@ dependencies = [
  "clap",
  "color-eyre",
  "elf-config",
+ "elf-providers",
+ "elf-storage",
+ "qdrant-client",
+ "serde_json",
+ "sqlx",
+ "time",
  "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]

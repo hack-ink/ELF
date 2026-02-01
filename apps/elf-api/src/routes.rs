@@ -1,15 +1,13 @@
-use axum::extract::State;
+use axum::extract::{Query, State};
+use axum::extract::rejection::QueryRejection;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde::Serialize;
 
-use crate::state::{
-    AddEventRequest, AddEventResponse, AddNoteRequest, AddNoteResponse, AppState, DeleteRequest,
-    DeleteResponse, ListResponse, RebuildReport, SearchRequest, SearchResponse, ServiceError,
-    UpdateRequest, UpdateResponse,
-};
+use crate::state::AppState;
+use elf_service::ServiceError;
 
 pub fn router(state: AppState) -> Router {
     Router::new()
@@ -35,52 +33,63 @@ async fn health() -> StatusCode {
 
 async fn add_note(
     State(state): State<AppState>,
-    Json(payload): Json<AddNoteRequest>,
-) -> Result<Json<AddNoteResponse>, ApiError> {
+    Json(payload): Json<elf_service::AddNoteRequest>,
+) -> Result<Json<elf_service::AddNoteResponse>, ApiError> {
     let response = state.service.add_note(payload).await?;
     Ok(Json(response))
 }
 
 async fn add_event(
     State(state): State<AppState>,
-    Json(payload): Json<AddEventRequest>,
-) -> Result<Json<AddEventResponse>, ApiError> {
+    Json(payload): Json<elf_service::AddEventRequest>,
+) -> Result<Json<elf_service::AddEventResponse>, ApiError> {
     let response = state.service.add_event(payload).await?;
     Ok(Json(response))
 }
 
 async fn search(
     State(state): State<AppState>,
-    Json(payload): Json<SearchRequest>,
-) -> Result<Json<SearchResponse>, ApiError> {
+    Json(payload): Json<elf_service::SearchRequest>,
+) -> Result<Json<elf_service::SearchResponse>, ApiError> {
     let response = state.service.search(payload).await?;
     Ok(Json(response))
 }
 
-async fn list(State(state): State<AppState>) -> Result<Json<ListResponse>, ApiError> {
-    let response = state.service.list().await?;
+async fn list(
+    State(state): State<AppState>,
+    query: Result<Query<elf_service::ListRequest>, QueryRejection>,
+) -> Result<Json<elf_service::ListResponse>, ApiError> {
+    let Query(query) = query.map_err(|err| {
+        json_error(
+            StatusCode::BAD_REQUEST,
+            "INVALID_REQUEST",
+            err.to_string(),
+            None,
+        )
+    })?;
+    let response = state.service.list(query).await?;
     Ok(Json(response))
 }
 
 async fn update(
     State(state): State<AppState>,
-    Json(payload): Json<UpdateRequest>,
-) -> Result<Json<UpdateResponse>, ApiError> {
+    Json(payload): Json<elf_service::UpdateRequest>,
+) -> Result<Json<elf_service::UpdateResponse>, ApiError> {
     let response = state.service.update(payload).await?;
     Ok(Json(response))
 }
 
 async fn delete(
     State(state): State<AppState>,
-    Json(payload): Json<DeleteRequest>,
-) -> Result<Json<DeleteResponse>, ApiError> {
+    Json(payload): Json<elf_service::DeleteRequest>,
+) -> Result<Json<elf_service::DeleteResponse>, ApiError> {
     let response = state.service.delete(payload).await?;
     Ok(Json(response))
 }
 
 async fn rebuild_qdrant(
     State(state): State<AppState>,
-) -> Result<Json<RebuildReport>, ApiError> {
+) -> Result<Json<elf_service::RebuildReport>, ApiError> {
     let response = state.service.rebuild_qdrant().await?;
     Ok(Json(response))
 }
@@ -128,12 +137,20 @@ pub fn json_error(
 impl From<ServiceError> for ApiError {
     fn from(err: ServiceError) -> Self {
         match err {
-            ServiceError::NotImplemented { operation } => json_error(
-                StatusCode::NOT_IMPLEMENTED,
-                "not_implemented",
-                format!("{operation} is not implemented."),
-                None,
+            ServiceError::NonEnglishInput { field } => json_error(
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "NON_ENGLISH_INPUT",
+                "CJK detected; upstream must canonicalize to English before calling ELF.",
+                Some(vec![field]),
             ),
+            ServiceError::InvalidRequest { message } => {
+                json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", message, None)
+            }
+            ServiceError::Provider { message }
+            | ServiceError::Storage { message }
+            | ServiceError::Qdrant { message } => {
+                json_error(StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", message, None)
+            }
         }
     }
 }

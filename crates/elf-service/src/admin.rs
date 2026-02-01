@@ -1,7 +1,7 @@
 use qdrant_client::client::Payload;
 use qdrant_client::qdrant::{PointStruct, UpsertPointsBuilder};
 
-use crate::{ElfService, ServiceResult, parse_pg_vector};
+use crate::{ElfService, ServiceError, ServiceResult, parse_pg_vector};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct RebuildReport {
@@ -15,8 +15,16 @@ struct RebuildRow {
     note_id: uuid::Uuid,
     tenant_id: String,
     project_id: String,
+    agent_id: String,
     scope: String,
+    #[sqlx(rename = "type")]
+    note_type: String,
+    key: Option<String>,
     status: String,
+    updated_at: time::OffsetDateTime,
+    expires_at: Option<time::OffsetDateTime>,
+    importance: f32,
+    confidence: f32,
     embedding_version: String,
     vec_text: Option<String>,
 }
@@ -25,7 +33,8 @@ impl ElfService {
     pub async fn rebuild_qdrant(&self) -> ServiceResult<RebuildReport> {
         let now = time::OffsetDateTime::now_utc();
         let rows: Vec<RebuildRow> = sqlx::query_as(
-            "SELECT n.note_id, n.tenant_id, n.project_id, n.scope, n.status, n.embedding_version, \
+            "SELECT n.note_id, n.tenant_id, n.project_id, n.agent_id, n.scope, n.type, n.key, n.status, \
+             n.updated_at, n.expires_at, n.importance, n.confidence, n.embedding_version, \
              e.vec::text AS vec_text \
              FROM memory_notes n \
              LEFT JOIN note_embeddings e \
@@ -60,8 +69,28 @@ impl ElfService {
             let mut payload = Payload::new();
             payload.insert("tenant_id", row.tenant_id);
             payload.insert("project_id", row.project_id);
+            payload.insert("agent_id", row.agent_id);
             payload.insert("scope", row.scope);
+            payload.insert("type", row.note_type);
+            payload.insert(
+                "key",
+                row.key
+                    .map(serde_json::Value::String)
+                    .unwrap_or(serde_json::Value::Null),
+            );
             payload.insert("status", row.status);
+            payload.insert(
+                "updated_at",
+                serde_json::Value::String(format_timestamp(row.updated_at)?),
+            );
+            let expires_value = match row.expires_at {
+                Some(ts) => serde_json::Value::String(format_timestamp(ts)?),
+                None => serde_json::Value::Null,
+            };
+            payload.insert("expires_at", expires_value);
+            payload.insert("importance", serde_json::Value::from(row.importance as f64));
+            payload.insert("confidence", serde_json::Value::from(row.confidence as f64));
+            payload.insert("embedding_version", row.embedding_version.clone());
 
             let point = PointStruct::new(row.note_id.to_string(), vec, payload);
             let result = self
@@ -87,4 +116,11 @@ impl ElfService {
             error_count,
         })
     }
+}
+
+fn format_timestamp(ts: time::OffsetDateTime) -> ServiceResult<String> {
+    use time::format_description::well_known::Rfc3339;
+    ts.format(&Rfc3339).map_err(|_| ServiceError::InvalidRequest {
+        message: "Failed to format timestamp.".to_string(),
+    })
 }
