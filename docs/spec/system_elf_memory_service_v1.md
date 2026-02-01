@@ -51,6 +51,7 @@ Rules:
 - No default values are allowed in code. Every field below must be present in elf.toml.
 - No environment variables are allowed for configuration. All values are stored in elf.toml.
 - Provider api_key values must be present and non-empty.
+- providers.embedding.dimensions must match storage.qdrant.vector_dim.
 
 Template (all values required):
 
@@ -75,6 +76,7 @@ base_url = "<REQUIRED_URL>"
 api_key = "<REQUIRED_NON_EMPTY>"
 path = "<REQUIRED_PATH>"
 model = "<REQUIRED_MODEL>"
+dimensions = "<REQUIRED_INT>"
 timeout_ms = <REQUIRED_INT>
 # Must exist. Empty map is allowed.
 default_headers = {}
@@ -317,7 +319,7 @@ Contract:
 
 Implementation:
 - POST {base_url}{path}
-  { "model": model, "input": [texts...] }
+  { "model": model, "input": [texts...], "dimensions": dimensions }
 - Send Authorization: Bearer <api_key>.
 - Merge default_headers into the request.
 - Map response to float32[D].

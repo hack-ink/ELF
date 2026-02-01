@@ -4,8 +4,18 @@ use super::{SpyExtractor, StubEmbedding, StubRerank, build_service, test_config,
 
 #[tokio::test]
 async fn rejects_cjk_in_add_note() {
-	let _guard = super::test_lock().await;
-    let Some(service) = build_test_service().await else {
+	let Some(dsn) = test_dsn() else {
+		eprintln!("Skipping english_only_boundary; set ELF_PG_DSN to run this test.");
+		return;
+	};
+	let Some(qdrant_url) = test_qdrant_url() else {
+		eprintln!("Skipping english_only_boundary; set ELF_QDRANT_URL to run this test.");
+		return;
+	};
+	let _guard = super::test_lock(&dsn)
+		.await
+		.expect("Failed to acquire test lock.");
+    let Some(service) = build_test_service(dsn, qdrant_url).await else {
         return;
     };
 
@@ -36,8 +46,18 @@ async fn rejects_cjk_in_add_note() {
 
 #[tokio::test]
 async fn rejects_cjk_in_add_event() {
-	let _guard = super::test_lock().await;
-    let Some(service) = build_test_service().await else {
+	let Some(dsn) = test_dsn() else {
+		eprintln!("Skipping english_only_boundary; set ELF_PG_DSN to run this test.");
+		return;
+	};
+	let Some(qdrant_url) = test_qdrant_url() else {
+		eprintln!("Skipping english_only_boundary; set ELF_QDRANT_URL to run this test.");
+		return;
+	};
+	let _guard = super::test_lock(&dsn)
+		.await
+		.expect("Failed to acquire test lock.");
+    let Some(service) = build_test_service(dsn, qdrant_url).await else {
         return;
     };
 
@@ -66,8 +86,18 @@ async fn rejects_cjk_in_add_event() {
 
 #[tokio::test]
 async fn rejects_cjk_in_search() {
-	let _guard = super::test_lock().await;
-    let Some(service) = build_test_service().await else {
+	let Some(dsn) = test_dsn() else {
+		eprintln!("Skipping english_only_boundary; set ELF_PG_DSN to run this test.");
+		return;
+	};
+	let Some(qdrant_url) = test_qdrant_url() else {
+		eprintln!("Skipping english_only_boundary; set ELF_QDRANT_URL to run this test.");
+		return;
+	};
+	let _guard = super::test_lock(&dsn)
+		.await
+		.expect("Failed to acquire test lock.");
+    let Some(service) = build_test_service(dsn, qdrant_url).await else {
         return;
     };
 
@@ -91,16 +121,7 @@ async fn rejects_cjk_in_search() {
     }
 }
 
-async fn build_test_service() -> Option<elf_service::ElfService> {
-    let Some(dsn) = test_dsn() else {
-        eprintln!("Skipping english_only_boundary; set ELF_PG_DSN to run this test.");
-        return None;
-    };
-    let Some(qdrant_url) = test_qdrant_url() else {
-        eprintln!("Skipping english_only_boundary; set ELF_QDRANT_URL to run this test.");
-        return None;
-    };
-
+async fn build_test_service(dsn: String, qdrant_url: String) -> Option<elf_service::ElfService> {
     let extractor = SpyExtractor {
         calls: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
         payload: serde_json::json!({ "notes": [] }),

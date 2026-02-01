@@ -7,7 +7,6 @@ use super::{SpyEmbedding, SpyExtractor, StubRerank, build_service, test_config, 
 
 #[tokio::test]
 async fn rebuild_uses_postgres_vectors_only() {
-	let _guard = super::test_lock().await;
     let Some(dsn) = test_dsn() else {
         eprintln!("Skipping rebuild_uses_postgres_vectors_only; set ELF_PG_DSN to run this test.");
         return;
@@ -16,6 +15,9 @@ async fn rebuild_uses_postgres_vectors_only() {
         eprintln!("Skipping rebuild_uses_postgres_vectors_only; set ELF_QDRANT_URL to run this test.");
         return;
     };
+	let _guard = super::test_lock(&dsn)
+		.await
+		.expect("Failed to acquire test lock.");
     let embed_calls = Arc::new(AtomicUsize::new(0));
     let extractor = SpyExtractor {
         calls: Arc::new(AtomicUsize::new(0)),

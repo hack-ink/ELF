@@ -41,9 +41,21 @@ pub struct Qdrant {
 
 #[derive(Debug, Deserialize)]
 pub struct Providers {
-    pub embedding: ProviderConfig,
+    pub embedding: EmbeddingProviderConfig,
     pub rerank: ProviderConfig,
     pub llm_extractor: LlmProviderConfig,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct EmbeddingProviderConfig {
+    pub provider_id: String,
+    pub base_url: String,
+    pub api_key: String,
+    pub path: String,
+    pub model: String,
+    pub dimensions: u32,
+    pub timeout_ms: u64,
+    pub default_headers: serde_json::Map<String, serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize)]

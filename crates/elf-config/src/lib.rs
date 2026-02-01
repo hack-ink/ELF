@@ -20,6 +20,16 @@ pub fn validate(cfg: &Config) -> color_eyre::Result<()> {
             "service.mcp_bind must be non-empty."
         ));
     }
+    if cfg.providers.embedding.dimensions == 0 {
+        return Err(color_eyre::eyre::eyre!(
+            "providers.embedding.dimensions must be greater than zero."
+        ));
+    }
+    if cfg.providers.embedding.dimensions != cfg.storage.qdrant.vector_dim {
+        return Err(color_eyre::eyre::eyre!(
+            "providers.embedding.dimensions must match storage.qdrant.vector_dim."
+        ));
+    }
 
     for (label, key) in [
         ("embedding", &cfg.providers.embedding.api_key),

@@ -1,6 +1,5 @@
 #[tokio::test]
 async fn active_notes_have_vectors() {
-	let _guard = super::test_lock().await;
     let dsn = match std::env::var("ELF_PG_DSN") {
         Ok(value) => value,
         Err(_) => {
@@ -15,6 +14,9 @@ async fn active_notes_have_vectors() {
             return;
         }
     };
+	let _guard = super::test_lock(&dsn)
+		.await
+		.expect("Failed to acquire test lock.");
 
     let cfg = super::test_config(dsn, qdrant_url, 3);
     let providers = elf_service::Providers::new(

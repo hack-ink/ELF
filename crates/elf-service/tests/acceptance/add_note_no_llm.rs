@@ -5,15 +5,17 @@ use super::{SpyExtractor, StubEmbedding, StubRerank, build_service, test_config,
 
 #[tokio::test]
 async fn add_note_does_not_call_llm() {
-	let _guard = super::test_lock().await;
-    let Some(dsn) = test_dsn() else {
-        eprintln!("Skipping add_note_does_not_call_llm; set ELF_PG_DSN to run this test.");
-        return;
-    };
-    let Some(qdrant_url) = test_qdrant_url() else {
-        eprintln!("Skipping add_note_does_not_call_llm; set ELF_QDRANT_URL to run this test.");
-        return;
-    };
+	let Some(dsn) = test_dsn() else {
+		eprintln!("Skipping add_note_does_not_call_llm; set ELF_PG_DSN to run this test.");
+		return;
+	};
+	let Some(qdrant_url) = test_qdrant_url() else {
+		eprintln!("Skipping add_note_does_not_call_llm; set ELF_QDRANT_URL to run this test.");
+		return;
+	};
+	let _guard = super::test_lock(&dsn)
+		.await
+		.expect("Failed to acquire test lock.");
 
     let calls = Arc::new(AtomicUsize::new(0));
     let extractor = SpyExtractor {

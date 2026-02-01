@@ -10,7 +10,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use elf_config::{Config, LlmProviderConfig, ProviderConfig};
+use elf_config::{Config, EmbeddingProviderConfig, LlmProviderConfig, ProviderConfig};
 use elf_storage::{db::Db, qdrant::QdrantStore};
 use sqlx::Row;
 
@@ -84,7 +84,7 @@ pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 pub trait EmbeddingProvider: Send + Sync {
     fn embed<'a>(
         &'a self,
-        cfg: &'a ProviderConfig,
+        cfg: &'a EmbeddingProviderConfig,
         texts: &'a [String],
     ) -> BoxFuture<'a, color_eyre::Result<Vec<Vec<f32>>>>;
 }
@@ -111,7 +111,7 @@ struct DefaultProviders;
 impl EmbeddingProvider for DefaultProviders {
     fn embed<'a>(
         &'a self,
-        cfg: &'a ProviderConfig,
+        cfg: &'a EmbeddingProviderConfig,
         texts: &'a [String],
     ) -> BoxFuture<'a, color_eyre::Result<Vec<Vec<f32>>>> {
         Box::pin(elf_providers::embedding::embed(cfg, texts))

@@ -23,6 +23,7 @@ base_url = "http://localhost"
 api_key = "key"
 path = "/embeddings"
 model = "model"
+dimensions = 1536
 timeout_ms = 1000
 default_headers = {{}}
 

@@ -24,7 +24,6 @@ struct OutboxRow {
 
 #[tokio::test]
 async fn outbox_retries_to_done() {
-	let _guard = super::test_lock().await;
 	let Some(dsn) = test_dsn() else {
 		eprintln!("Skipping outbox_retries_to_done; set ELF_PG_DSN to run this test.");
 		return;
@@ -33,6 +32,9 @@ async fn outbox_retries_to_done() {
 		eprintln!("Skipping outbox_retries_to_done; set ELF_QDRANT_URL to run this test.");
 		return;
 	};
+	let _guard = super::test_lock(&dsn)
+		.await
+		.expect("Failed to acquire test lock.");
 
 	let request_count = Arc::new(AtomicUsize::new(0));
 	let (base_url, shutdown) = start_embed_server(request_count.clone()).await;
@@ -99,12 +101,13 @@ async fn outbox_retries_to_done() {
 			.expect("Failed to connect worker DB."),
 		qdrant: elf_storage::qdrant::QdrantStore::new(&service.cfg.storage.qdrant)
 			.expect("Failed to build Qdrant store."),
-		embedding: elf_config::ProviderConfig {
+		embedding: elf_config::EmbeddingProviderConfig {
 			provider_id: "test".to_string(),
 			base_url,
 			api_key: "test-key".to_string(),
 			path: "/embeddings".to_string(),
 			model: "test".to_string(),
+			dimensions: 3,
 			timeout_ms: 1_000,
 			default_headers: serde_json::Map::new(),
 		},
