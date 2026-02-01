@@ -52,19 +52,19 @@ impl ElfService {
         for (idx, note) in req.notes.iter().enumerate() {
             if contains_cjk(&note.text) {
                 return Err(ServiceError::NonEnglishInput {
-                    field: format!("notes[{idx}].text"),
+                    field: format!("$.notes[{idx}].text"),
                 });
             }
             if let Some(key) = &note.key {
                 if contains_cjk(key) {
                     return Err(ServiceError::NonEnglishInput {
-                        field: format!("notes[{idx}].key"),
+                        field: format!("$.notes[{idx}].key"),
                     });
                 }
             }
             if json_contains_cjk(&note.source_ref) {
                 return Err(ServiceError::NonEnglishInput {
-                    field: format!("notes[{idx}].source_ref"),
+                    field: format!("$.notes[{idx}].source_ref"),
                 });
             }
         }
@@ -189,6 +189,22 @@ impl ElfService {
                     .fetch_one(&mut *tx)
                     .await?;
                     let prev_snapshot = note_snapshot(&existing);
+
+                    let unchanged = existing.text == note.text
+                        && (existing.importance - note.importance).abs() <= f32::EPSILON
+                        && (existing.confidence - note.confidence).abs() <= f32::EPSILON
+                        && existing.expires_at == expires_at
+                        && existing.source_ref == note.source_ref;
+
+                    if unchanged {
+                        tx.commit().await?;
+                        results.push(AddNoteResult {
+                            note_id: Some(note_id),
+                            op: NoteOp::None,
+                            reason_code: None,
+                        });
+                        continue;
+                    }
 
                     existing.text = note.text.clone();
                     existing.importance = note.importance;

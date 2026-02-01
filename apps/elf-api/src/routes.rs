@@ -1,5 +1,5 @@
 use axum::extract::{Query, State};
-use axum::extract::rejection::QueryRejection;
+use axum::extract::rejection::{JsonRejection, QueryRejection};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
@@ -33,24 +33,48 @@ async fn health() -> StatusCode {
 
 async fn add_note(
     State(state): State<AppState>,
-    Json(payload): Json<elf_service::AddNoteRequest>,
+    payload: Result<Json<elf_service::AddNoteRequest>, JsonRejection>,
 ) -> Result<Json<elf_service::AddNoteResponse>, ApiError> {
+    let Json(payload) = payload.map_err(|err| {
+        json_error(
+            StatusCode::BAD_REQUEST,
+            "INVALID_REQUEST",
+            err.to_string(),
+            None,
+        )
+    })?;
     let response = state.service.add_note(payload).await?;
     Ok(Json(response))
 }
 
 async fn add_event(
     State(state): State<AppState>,
-    Json(payload): Json<elf_service::AddEventRequest>,
+    payload: Result<Json<elf_service::AddEventRequest>, JsonRejection>,
 ) -> Result<Json<elf_service::AddEventResponse>, ApiError> {
+    let Json(payload) = payload.map_err(|err| {
+        json_error(
+            StatusCode::BAD_REQUEST,
+            "INVALID_REQUEST",
+            err.to_string(),
+            None,
+        )
+    })?;
     let response = state.service.add_event(payload).await?;
     Ok(Json(response))
 }
 
 async fn search(
     State(state): State<AppState>,
-    Json(payload): Json<elf_service::SearchRequest>,
+    payload: Result<Json<elf_service::SearchRequest>, JsonRejection>,
 ) -> Result<Json<elf_service::SearchResponse>, ApiError> {
+    let Json(payload) = payload.map_err(|err| {
+        json_error(
+            StatusCode::BAD_REQUEST,
+            "INVALID_REQUEST",
+            err.to_string(),
+            None,
+        )
+    })?;
     let response = state.service.search(payload).await?;
     Ok(Json(response))
 }
@@ -73,16 +97,32 @@ async fn list(
 
 async fn update(
     State(state): State<AppState>,
-    Json(payload): Json<elf_service::UpdateRequest>,
+    payload: Result<Json<elf_service::UpdateRequest>, JsonRejection>,
 ) -> Result<Json<elf_service::UpdateResponse>, ApiError> {
+    let Json(payload) = payload.map_err(|err| {
+        json_error(
+            StatusCode::BAD_REQUEST,
+            "INVALID_REQUEST",
+            err.to_string(),
+            None,
+        )
+    })?;
     let response = state.service.update(payload).await?;
     Ok(Json(response))
 }
 
 async fn delete(
     State(state): State<AppState>,
-    Json(payload): Json<elf_service::DeleteRequest>,
+    payload: Result<Json<elf_service::DeleteRequest>, JsonRejection>,
 ) -> Result<Json<elf_service::DeleteResponse>, ApiError> {
+    let Json(payload) = payload.map_err(|err| {
+        json_error(
+            StatusCode::BAD_REQUEST,
+            "INVALID_REQUEST",
+            err.to_string(),
+            None,
+        )
+    })?;
     let response = state.service.delete(payload).await?;
     Ok(Json(response))
 }
@@ -145,6 +185,9 @@ impl From<ServiceError> for ApiError {
             ),
             ServiceError::InvalidRequest { message } => {
                 json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", message, None)
+            }
+            ServiceError::ScopeDenied { message } => {
+                json_error(StatusCode::FORBIDDEN, "SCOPE_DENIED", message, None)
             }
             ServiceError::Provider { message }
             | ServiceError::Storage { message }

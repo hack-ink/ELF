@@ -139,8 +139,22 @@ async fn handle_delete(state: &WorkerState, job: &IndexingOutboxEntry) -> Result
     let delete = DeletePointsBuilder::new(state.qdrant.collection.clone())
         .points([point_id])
         .wait(true);
-    state.qdrant.client.delete_points(delete).await?;
+    match state.qdrant.client.delete_points(delete).await {
+        Ok(_) => {}
+        Err(err) => {
+            if is_not_found_error(&err) {
+                info!(outbox_id = %job.outbox_id, "Qdrant point missing during delete.");
+            } else {
+                return Err(eyre!(err.to_string()));
+            }
+        }
+    }
     Ok(())
+}
+
+fn is_not_found_error(err: &qdrant_client::QdrantError) -> bool {
+    let message = err.to_string().to_lowercase();
+    message.contains("not found") || message.contains("404")
 }
 
 async fn fetch_note(db: &Db, note_id: uuid::Uuid) -> Result<Option<MemoryNote>> {

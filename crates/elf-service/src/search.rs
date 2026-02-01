@@ -44,7 +44,7 @@ impl ElfService {
     pub async fn search(&self, req: SearchRequest) -> ServiceResult<SearchResponse> {
         if contains_cjk(&req.query) {
             return Err(ServiceError::NonEnglishInput {
-                field: "query".to_string(),
+                field: "$.query".to_string(),
             });
         }
 

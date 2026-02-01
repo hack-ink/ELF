@@ -40,6 +40,13 @@ impl ElfService {
                 message: "tenant_id and project_id are required.".to_string(),
             });
         }
+        if let Some(scope) = req.scope.as_ref() {
+            if !self.cfg.scopes.allowed.iter().any(|value| value == scope) {
+                return Err(ServiceError::ScopeDenied {
+                    message: "Scope is not allowed.".to_string(),
+                });
+            }
+        }
 
         let mut builder = sqlx::QueryBuilder::new(
             "SELECT note_id, tenant_id, project_id, agent_id, scope, type, key, text, importance, confidence, status, created_at, updated_at, expires_at, embedding_version, source_ref, hit_count, last_hit_at \
