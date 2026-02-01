@@ -196,10 +196,15 @@ impl ElfService {
                         None => existing.expires_at,
                     };
 
+                    let expires_match = if note.ttl_days.is_some() {
+                        true
+                    } else {
+                        existing.expires_at == expires_at
+                    };
                     let unchanged = existing.text == note.text
                         && (existing.importance - note.importance).abs() <= f32::EPSILON
                         && (existing.confidence - note.confidence).abs() <= f32::EPSILON
-                        && existing.expires_at == expires_at
+                        && expires_match
                         && existing.source_ref == note.source_ref;
 
                     if unchanged {
@@ -294,7 +299,7 @@ fn find_cjk_path(value: &serde_json::Value, path: &str) -> Option<String> {
         }
         serde_json::Value::Object(map) => {
             for (key, value) in map.iter() {
-                let child_path = format!("{path}.{key}");
+                let child_path = format!("{path}[\"{}\"]", escape_json_path_key(key));
                 if let Some(found) = find_cjk_path(value, &child_path) {
                     return Some(found);
                 }
@@ -303,4 +308,8 @@ fn find_cjk_path(value: &serde_json::Value, path: &str) -> Option<String> {
         }
         _ => None,
     }
+}
+
+fn escape_json_path_key(key: &str) -> String {
+    key.replace('\\', "\\\\").replace('"', "\\\"")
 }
