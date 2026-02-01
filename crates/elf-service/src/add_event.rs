@@ -74,6 +74,21 @@ impl ElfService {
                 message: "Messages list is empty.".to_string(),
             });
         }
+        if req.tenant_id.trim().is_empty()
+            || req.project_id.trim().is_empty()
+            || req.agent_id.trim().is_empty()
+        {
+            return Err(ServiceError::InvalidRequest {
+                message: "tenant_id, project_id, and agent_id are required.".to_string(),
+            });
+        }
+        if let Some(scope) = req.scope.as_ref() {
+            if scope.trim().is_empty() {
+                return Err(ServiceError::InvalidRequest {
+                    message: "scope must not be empty when provided.".to_string(),
+                });
+            }
+        }
 
         for (idx, msg) in req.messages.iter().enumerate() {
             if contains_cjk(&msg.content) {
@@ -113,6 +128,7 @@ impl ElfService {
         let embed_version = embedding_version(&self.cfg);
         let dry_run = req.dry_run.unwrap_or(false);
         let mut results = Vec::with_capacity(extracted.notes.len());
+        let message_texts: Vec<String> = req.messages.iter().map(|m| m.content.clone()).collect();
 
         for note in extracted.notes {
             let note_type = note.note_type.unwrap_or_default();
@@ -146,11 +162,7 @@ impl ElfService {
                     evidence_ok = false;
                     break;
                 }
-                if !evidence_matches(
-                    &req.messages.iter().map(|m| m.content.clone()).collect::<Vec<_>>(),
-                    quote.message_index,
-                    &quote.quote,
-                ) {
+                if !evidence_matches(&message_texts, quote.message_index, &quote.quote) {
                     evidence_ok = false;
                     break;
                 }
