@@ -29,7 +29,9 @@ pub struct SearchItem {
     pub text: String,
     pub importance: f32,
     pub confidence: f32,
+    #[serde(with = "crate::time_serde")]
     pub updated_at: time::OffsetDateTime,
+    #[serde(with = "crate::time_serde::option")]
     pub expires_at: Option<time::OffsetDateTime>,
     pub final_score: f32,
     pub source_ref: serde_json::Value,
