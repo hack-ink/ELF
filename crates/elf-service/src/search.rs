@@ -2,7 +2,7 @@ use std::hash::Hasher;
 
 use elf_domain::cjk::contains_cjk;
 use elf_storage::models::MemoryNote;
-use qdrant_client::qdrant::{Condition, Filter, SearchPointsBuilder};
+use qdrant_client::qdrant::{Condition, Filter, MinShould, SearchPointsBuilder};
 use qdrant_client::qdrant::point_id::PointIdOptions;
 
 use crate::{ElfService, ServiceError, ServiceResult};
@@ -42,10 +42,10 @@ pub struct SearchResponse {
 
 impl ElfService {
     pub async fn search(&self, req: SearchRequest) -> ServiceResult<SearchResponse> {
-        if req.tenant_id.trim().is_empty()
-            || req.project_id.trim().is_empty()
-            || req.agent_id.trim().is_empty()
-        {
+        let tenant_id = req.tenant_id.trim();
+        let project_id = req.project_id.trim();
+        let agent_id = req.agent_id.trim();
+        if tenant_id.is_empty() || project_id.is_empty() || agent_id.is_empty() {
             return Err(ServiceError::InvalidRequest {
                 message: "tenant_id, project_id, and agent_id are required.".to_string(),
             });
@@ -90,27 +90,39 @@ impl ElfService {
             .filter(|scope| *scope != "agent_private")
             .cloned()
             .collect();
-        let mut should = Vec::new();
+        let mut should_conditions = Vec::new();
         if allowed_scopes.iter().any(|scope| scope == "agent_private") {
             let private_filter = Filter::all([
                 Condition::matches("scope", private_scope),
-                Condition::matches("agent_id", req.agent_id.clone()),
+                Condition::matches("agent_id", agent_id.to_string()),
             ]);
-            should.push(Condition::from(private_filter));
+            should_conditions.push(Condition::from(private_filter));
         }
         if !non_private_scopes.is_empty() {
-            should.push(Condition::matches("scope", non_private_scopes));
+            should_conditions.push(Condition::matches("scope", non_private_scopes));
         }
+
+        let (should, min_should) = if should_conditions.is_empty() {
+            (Vec::new(), None)
+        } else {
+            (
+                Vec::new(),
+                Some(MinShould {
+                    min_count: 1,
+                    conditions: should_conditions,
+                }),
+            )
+        };
 
         let filter = Filter {
             must: vec![
-                Condition::matches("tenant_id", req.tenant_id.clone()),
-                Condition::matches("project_id", req.project_id.clone()),
+                Condition::matches("tenant_id", tenant_id.to_string()),
+                Condition::matches("project_id", project_id.to_string()),
                 Condition::matches("status", "active".to_string()),
             ],
             should,
             must_not: Vec::new(),
-            min_should: None,
+            min_should,
         };
 
         let search = SearchPointsBuilder::new(
@@ -141,18 +153,20 @@ impl ElfService {
         }
 
         let mut notes: Vec<MemoryNote> = sqlx::query_as(
-            "SELECT * FROM memory_notes WHERE note_id = ANY($1)",
+            "SELECT * FROM memory_notes WHERE note_id = ANY($1) AND tenant_id = $2 AND project_id = $3",
         )
         .bind(&candidate_ids)
+        .bind(tenant_id)
+        .bind(project_id)
         .fetch_all(&self.db.pool)
         .await?;
 
         let now = time::OffsetDateTime::now_utc();
         notes.retain(|note| {
-            if note.tenant_id != req.tenant_id || note.project_id != req.project_id {
+            if note.tenant_id != tenant_id || note.project_id != project_id {
                 return false;
             }
-            if note.scope == "agent_private" && note.agent_id != req.agent_id {
+            if note.scope == "agent_private" && note.agent_id != agent_id {
                 return false;
             }
             note.status == "active"

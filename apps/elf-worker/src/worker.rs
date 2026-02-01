@@ -188,11 +188,6 @@ async fn ensure_embedding(
     note: &MemoryNote,
     embedding_version: &str,
 ) -> Result<Vec<f32>> {
-    if let Some(embedding) = fetch_embedding(&state.db, note.note_id, embedding_version).await? {
-        validate_vector_dim(&embedding, state.qdrant.vector_dim)?;
-        return Ok(embedding);
-    }
-
     let vectors = elf_providers::embedding::embed(&state.embedding, &[note.text.clone()]).await?;
     let Some(vector) = vectors.into_iter().next() else {
         return Err(eyre!("Embedding provider returned no vectors."));
@@ -209,39 +204,6 @@ async fn ensure_embedding(
     Ok(vector)
 }
 
-async fn fetch_embedding(
-    db: &Db,
-    note_id: uuid::Uuid,
-    embedding_version: &str,
-) -> Result<Option<Vec<f32>>> {
-    #[derive(sqlx::FromRow)]
-    struct EmbeddingRow {
-        embedding_dim: i32,
-        vec_text: String,
-    }
-
-    let row = sqlx::query_as::<_, EmbeddingRow>(
-        "SELECT embedding_dim, vec::text AS vec_text \
-         FROM note_embeddings WHERE note_id = $1 AND embedding_version = $2",
-    )
-    .bind(note_id)
-    .bind(embedding_version)
-    .fetch_optional(&db.pool)
-    .await?;
-
-    let Some(row) = row else {
-        return Ok(None);
-    };
-
-    let vec = parse_vector_text(&row.vec_text)?;
-    if vec.len() as i32 != row.embedding_dim {
-        return Err(eyre!(
-            "Stored embedding dim does not match vector length."
-        ));
-    }
-    Ok(Some(vec))
-}
-
 async fn insert_embedding(
     db: &Db,
     note_id: uuid::Uuid,
@@ -253,7 +215,8 @@ async fn insert_embedding(
     sqlx::query(
         "INSERT INTO note_embeddings (note_id, embedding_version, embedding_dim, vec) \
          VALUES ($1, $2, $3, $4::vector) \
-         ON CONFLICT (note_id, embedding_version) DO NOTHING",
+         ON CONFLICT (note_id, embedding_version) DO UPDATE \
+         SET embedding_dim = EXCLUDED.embedding_dim, vec = EXCLUDED.vec, created_at = now()",
     )
     .bind(note_id)
     .bind(embedding_version)
@@ -329,28 +292,6 @@ fn validate_vector_dim(vec: &[f32], expected_dim: u32) -> Result<()> {
         ));
     }
     Ok(())
-}
-
-fn parse_vector_text(raw: &str) -> Result<Vec<f32>> {
-    let trimmed = raw.trim();
-    let inner = trimmed
-        .strip_prefix('[')
-        .and_then(|value| value.strip_suffix(']'))
-        .ok_or_else(|| eyre!("Vector text has invalid format."))?;
-    let inner = inner.trim();
-    if inner.is_empty() {
-        return Ok(Vec::new());
-    }
-
-    let mut values = Vec::new();
-    for part in inner.split(',') {
-        let value: f32 = part
-            .trim()
-            .parse()
-            .map_err(|_| eyre!("Vector value is not a valid float."))?;
-        values.push(value);
-    }
-    Ok(values)
 }
 
 fn format_vector_text(vec: &[f32]) -> String {
