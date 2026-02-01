@@ -4,6 +4,7 @@ fn sample_toml(reject_cjk: bool) -> String {
     format!(
         r#"[service]
 http_bind = "127.0.0.1:8080"
+mcp_bind = "127.0.0.1:9090"
 admin_bind = "127.0.0.1:8081"
 log_level = "info"
 
