@@ -1,5 +1,7 @@
 use clap::Parser;
 
+mod server;
+
 #[derive(Debug, Parser)]
 struct Args {
 	#[arg(long, short = 'c', value_name = "FILE")]
@@ -9,6 +11,6 @@ struct Args {
 #[tokio::main]
 async fn main() -> color_eyre::Result<()> {
 	let args = Args::parse();
-	let _config = elf_config::load(&args.config)?;
-	Ok(())
+	let config = elf_config::load(&args.config)?;
+	server::serve_mcp(&config.service.http_bind)
 }
