@@ -55,6 +55,18 @@ impl ElfService {
                     field: format!("notes[{idx}].text"),
                 });
             }
+            if let Some(key) = &note.key {
+                if contains_cjk(key) {
+                    return Err(ServiceError::NonEnglishInput {
+                        field: format!("notes[{idx}].key"),
+                    });
+                }
+            }
+            if json_contains_cjk(&note.source_ref) {
+                return Err(ServiceError::NonEnglishInput {
+                    field: format!("notes[{idx}].source_ref"),
+                });
+            }
         }
 
         let now = time::OffsetDateTime::now_utc();
@@ -237,5 +249,14 @@ impl ElfService {
         }
 
         Ok(AddNoteResponse { results })
+    }
+}
+
+fn json_contains_cjk(value: &serde_json::Value) -> bool {
+    match value {
+        serde_json::Value::String(text) => contains_cjk(text),
+        serde_json::Value::Array(items) => items.iter().any(json_contains_cjk),
+        serde_json::Value::Object(map) => map.values().any(json_contains_cjk),
+        _ => false,
     }
 }

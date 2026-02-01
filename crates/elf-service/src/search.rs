@@ -80,7 +80,7 @@ impl ElfService {
             Condition::matches("tenant_id", req.tenant_id.clone()),
             Condition::matches("project_id", req.project_id.clone()),
             Condition::matches("scope", allowed_scopes.clone()),
-            Condition::matches("status", "active"),
+            Condition::matches("status", "active".to_string()),
         ]);
 
         let search = SearchPointsBuilder::new(

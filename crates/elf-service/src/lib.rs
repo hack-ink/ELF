@@ -1,7 +1,10 @@
 pub mod add_event;
 pub mod add_note;
 pub mod admin;
+pub mod delete;
+pub mod list;
 pub mod search;
+pub mod update;
 
 use std::future::Future;
 use std::pin::Pin;
@@ -14,7 +17,10 @@ use sqlx::Row;
 pub use add_event::{AddEventRequest, AddEventResponse, AddEventResult, EventMessage};
 pub use add_note::{AddNoteInput, AddNoteRequest, AddNoteResponse, AddNoteResult};
 pub use admin::RebuildReport;
+pub use delete::{DeleteRequest, DeleteResponse};
+pub use list::{ListItem, ListRequest, ListResponse};
 pub use search::{SearchItem, SearchRequest, SearchResponse};
+pub use update::{UpdateRequest, UpdateResponse};
 
 pub const REJECT_EVIDENCE_MISMATCH: &str = "REJECT_EVIDENCE_MISMATCH";
 
@@ -26,6 +32,7 @@ pub enum NoteOp {
     Add,
     Update,
     None,
+    Delete,
     Rejected,
 }
 
@@ -284,7 +291,7 @@ pub(crate) async fn resolve_update(
         .bind(note_type)
         .bind(key)
         .bind(now)
-        .fetch_optional(&mut *tx)
+        .fetch_optional(&mut **tx)
         .await?
         {
             return Ok(UpdateDecision::Update { note_id });
@@ -303,7 +310,7 @@ pub(crate) async fn resolve_update(
     .bind(scope)
     .bind(note_type)
     .bind(now)
-    .fetch_all(&mut *tx)
+    .fetch_all(&mut **tx)
     .await?;
 
     if existing_ids.is_empty() {
@@ -336,7 +343,7 @@ pub(crate) async fn resolve_update(
     .bind(vec_text)
     .bind(&existing_ids)
     .bind(embed_version)
-    .fetch_all(&mut *tx)
+    .fetch_all(&mut **tx)
     .await?;
 
     let mut best: Option<(uuid::Uuid, f32)> = None;
@@ -389,7 +396,7 @@ pub(crate) async fn insert_version(
     .bind(reason)
     .bind(actor)
     .bind(ts)
-    .execute(&mut *tx)
+    .execute(&mut **tx)
     .await?;
     Ok(())
 }
@@ -413,7 +420,7 @@ pub(crate) async fn enqueue_outbox_tx(
     .bind(now)
     .bind(now)
     .bind(now)
-    .execute(&mut *tx)
+    .execute(&mut **tx)
     .await?;
     Ok(())
 }
