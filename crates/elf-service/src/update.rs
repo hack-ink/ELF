@@ -27,6 +27,15 @@ pub struct UpdateResponse {
 impl ElfService {
     pub async fn update(&self, req: UpdateRequest) -> ServiceResult<UpdateResponse> {
         // TODO: Enforce tenant/project/agent ownership once update requests include namespace identifiers.
+        if req.text.is_none()
+            && req.importance.is_none()
+            && req.confidence.is_none()
+            && req.ttl_days.is_none()
+        {
+            return Err(ServiceError::InvalidRequest {
+                message: "No updates provided.".to_string(),
+            });
+        }
         let text_update = req.text.clone();
         let mut tx = self.db.pool.begin().await?;
         let mut note: MemoryNote = sqlx::query_as(
@@ -65,47 +74,16 @@ impl ElfService {
             });
         }
 
-        let mut changed = false;
-        if let Some(text) = text_update {
-            if text != note.text {
-                note.text = text;
-                changed = true;
-            }
-        }
-        if let Some(importance) = req.importance {
-            if (importance - note.importance).abs() > f32::EPSILON {
-                note.importance = importance;
-                changed = true;
-            }
-        }
-        if let Some(confidence) = req.confidence {
-            if (confidence - note.confidence).abs() > f32::EPSILON {
-                note.confidence = confidence;
-                changed = true;
-            }
-        }
         let now = time::OffsetDateTime::now_utc();
-        if let Some(ttl_days) = req.ttl_days {
-            let effective_ttl = if ttl_days > 0 {
-                Some(ttl_days)
-            } else {
-                default_ttl_days(&note.r#type, &self.cfg)
-            };
+        let next_text = text_update.unwrap_or_else(|| note.text.clone());
+        let next_importance = req.importance.unwrap_or(note.importance);
+        let next_confidence = req.confidence.unwrap_or(note.confidence);
+        let next_expires_at = compute_expires_at(req.ttl_days, &note.r#type, &self.cfg, now);
 
-            if let Some(ttl) = effective_ttl.filter(|value| *value > 0) {
-                let existing_ttl = note.expires_at.map(|expires_at| {
-                    (expires_at - note.updated_at).whole_days() as i64
-                });
-                if existing_ttl != Some(ttl) {
-                    note.expires_at =
-                        compute_expires_at(Some(ttl), &note.r#type, &self.cfg, now);
-                    changed = true;
-                }
-            } else if note.expires_at.is_some() {
-                note.expires_at = None;
-                changed = true;
-            }
-        }
+        let changed = next_text != note.text
+            || (next_importance - note.importance).abs() > f32::EPSILON
+            || (next_confidence - note.confidence).abs() > f32::EPSILON
+            || next_expires_at != note.expires_at;
 
         if !changed {
             tx.commit().await?;
@@ -116,6 +94,10 @@ impl ElfService {
             });
         }
 
+        note.text = next_text;
+        note.importance = next_importance;
+        note.confidence = next_confidence;
+        note.expires_at = next_expires_at;
         note.updated_at = now;
 
         sqlx::query(
@@ -159,17 +141,4 @@ impl ElfService {
             reason_code: None,
         })
     }
-}
-
-fn default_ttl_days(note_type: &str, cfg: &elf_config::Config) -> Option<i64> {
-    let days = match note_type {
-        "plan" => cfg.lifecycle.ttl_days.plan,
-        "fact" => cfg.lifecycle.ttl_days.fact,
-        "preference" => cfg.lifecycle.ttl_days.preference,
-        "constraint" => cfg.lifecycle.ttl_days.constraint,
-        "decision" => cfg.lifecycle.ttl_days.decision,
-        "profile" => cfg.lifecycle.ttl_days.profile,
-        _ => 0,
-    };
-    if days > 0 { Some(days) } else { None }
 }
