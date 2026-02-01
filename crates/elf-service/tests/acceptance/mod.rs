@@ -126,6 +126,24 @@ impl EmbeddingProvider for StubEmbedding {
     }
 }
 
+pub struct SpyEmbedding {
+    pub vector_dim: u32,
+    pub calls: Arc<AtomicUsize>,
+}
+
+impl EmbeddingProvider for SpyEmbedding {
+    fn embed<'a>(
+        &'a self,
+        _cfg: &'a elf_config::ProviderConfig,
+        texts: &'a [String],
+    ) -> elf_service::BoxFuture<'a, color_eyre::Result<Vec<Vec<f32>>>> {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        let dim = self.vector_dim as usize;
+        let vectors = texts.iter().map(|_| vec![0.0; dim]).collect();
+        Box::pin(async move { Ok(vectors) })
+    }
+}
+
 pub struct StubRerank;
 
 impl RerankProvider for StubRerank {

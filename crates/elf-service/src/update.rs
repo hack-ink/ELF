@@ -40,24 +40,28 @@ impl ElfService {
 
         let prev_snapshot = note_snapshot(&note);
 
-        if let Some(text) = text_update.as_ref() {
+        let candidate_text = if let Some(text) = text_update.as_ref() {
             if contains_cjk(text) {
                 return Err(ServiceError::NonEnglishInput {
                     field: "$.text".to_string(),
                 });
             }
-            let gate = NoteInput {
-                note_type: note.r#type.clone(),
-                scope: note.scope.clone(),
-                text: text.clone(),
-            };
-            if let Err(code) = writegate(&gate, &self.cfg) {
-                return Ok(UpdateResponse {
-                    note_id: note.note_id,
-                    op: NoteOp::Rejected,
-                    reason_code: Some(writegate_reason_code(code).to_string()),
-                });
-            }
+            text.clone()
+        } else {
+            note.text.clone()
+        };
+
+        let gate = NoteInput {
+            note_type: note.r#type.clone(),
+            scope: note.scope.clone(),
+            text: candidate_text,
+        };
+        if let Err(code) = writegate(&gate, &self.cfg) {
+            return Ok(UpdateResponse {
+                note_id: note.note_id,
+                op: NoteOp::Rejected,
+                reason_code: Some(writegate_reason_code(code).to_string()),
+            });
         }
 
         let mut changed = false;

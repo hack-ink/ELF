@@ -1,6 +1,11 @@
 use std::sync::Arc;
 
-use super::{SpyExtractor, StubEmbedding, StubRerank, build_service, test_config, test_dsn, test_qdrant_url};
+use std::sync::atomic::AtomicUsize;
+use std::sync::Arc;
+
+use qdrant_client::qdrant::{CreateCollectionBuilder, Distance, VectorParamsBuilder};
+
+use super::{SpyEmbedding, SpyExtractor, StubRerank, build_service, test_config, test_dsn, test_qdrant_url};
 
 #[tokio::test]
 async fn rebuild_uses_postgres_vectors_only() {
@@ -16,14 +21,16 @@ async fn rebuild_uses_postgres_vectors_only() {
         eprintln!("Skipping rebuild_uses_postgres_vectors_only; set ELF_TEST_QDRANT_READY once the collection exists.");
         return;
     }
-    // TODO: Add collection drop/recreate steps and an embedding provider spy assertion.
-
+    let embed_calls = Arc::new(AtomicUsize::new(0));
     let extractor = SpyExtractor {
-        calls: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+        calls: Arc::new(AtomicUsize::new(0)),
         payload: serde_json::json!({ "notes": [] }),
     };
     let providers = elf_service::Providers::new(
-        Arc::new(StubEmbedding { vector_dim: 3 }),
+        Arc::new(SpyEmbedding {
+            vector_dim: 3,
+            calls: embed_calls.clone(),
+        }),
         Arc::new(StubRerank),
         Arc::new(extractor),
     );
@@ -32,6 +39,21 @@ async fn rebuild_uses_postgres_vectors_only() {
     let service = build_service(cfg, providers)
         .await
         .expect("Failed to build service.");
+
+    let _ = service
+        .qdrant
+        .client
+        .delete_collection(service.qdrant.collection.clone())
+        .await;
+    service
+        .qdrant
+        .client
+        .create_collection(
+            CreateCollectionBuilder::new(service.qdrant.collection.clone())
+                .vectors_config(VectorParamsBuilder::new(3, Distance::Cosine)),
+        )
+        .await
+        .expect("Failed to create Qdrant collection.");
 
     let note_id = uuid::Uuid::new_v4();
     let now = time::OffsetDateTime::now_utc();
@@ -87,4 +109,5 @@ async fn rebuild_uses_postgres_vectors_only() {
         .expect("Rebuild failed.");
     assert_eq!(report.missing_vector_count, 0);
     assert!(report.rebuilt_count >= 1);
+    assert_eq!(embed_calls.load(std::sync::atomic::Ordering::SeqCst), 0);
 }
