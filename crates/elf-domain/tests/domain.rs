@@ -20,6 +20,7 @@ fn computes_ttl_from_defaults() {
     let cfg = elf_config::Config {
         service: elf_config::Service {
             http_bind: "127.0.0.1:8080".to_string(),
+            mcp_bind: "127.0.0.1:8082".to_string(),
             admin_bind: "127.0.0.1:8081".to_string(),
             log_level: "info".to_string(),
         },

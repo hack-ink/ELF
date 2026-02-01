@@ -19,6 +19,7 @@ pub fn test_config(dsn: String, qdrant_url: String, vector_dim: u32) -> elf_conf
     elf_config::Config {
         service: elf_config::Service {
             http_bind: "127.0.0.1:0".to_string(),
+            mcp_bind: "127.0.0.1:0".to_string(),
             admin_bind: "127.0.0.1:0".to_string(),
             log_level: "info".to_string(),
         },

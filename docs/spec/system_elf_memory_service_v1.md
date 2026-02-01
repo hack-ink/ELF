@@ -56,6 +56,7 @@ Template (all values required):
 
 [service]
 http_bind = "<REQUIRED_HOST:PORT>"
+mcp_bind = "<REQUIRED_HOST:PORT>"
 admin_bind = "<REQUIRED_HOST:PORT>"
 log_level = "<REQUIRED_LOG_LEVEL>"
 
