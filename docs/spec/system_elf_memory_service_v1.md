@@ -450,8 +450,8 @@ Worker rules:
 - For UPSERT:
   - Fetch memory_notes row.
   - If not active or expired -> mark outbox DONE and skip indexing.
-  - Ensure note_embeddings vec exists in Postgres:
-    - If missing -> call embedding API -> write note_embeddings.
+  - Ensure note_embeddings vec is updated for the current embedding_version:
+    - Call embedding API and upsert note_embeddings for (note_id, embedding_version).
   - Upsert Qdrant point with vec and payload.
   - Mark outbox DONE.
 - For DELETE:
@@ -474,10 +474,12 @@ Steps:
 2) Resolve allowed_scopes = scopes.read_profiles[read_profile].
 3) Embed query -> query_vec (embedding API).
 4) Qdrant search candidate_k with payload filters:
-   tenant_id, project_id, scope in allowed_scopes, status = active (best-effort).
+   tenant_id, project_id, status = active (best-effort), and scope filters:
+   - If scope = agent_private, require agent_id match.
+   - Otherwise scope in allowed_scopes.
 5) candidate_ids = note_id list.
 6) Fetch authoritative notes from Postgres by ids and re-apply filters:
-   status = active, not expired, scope allowed.
+   status = active, not expired, scope allowed, and if scope = agent_private then agent_id must match.
 7) Rerank:
    scores = rerank(query, docs = [note.text ...]).
 8) Tie-break:
@@ -589,9 +591,46 @@ Response:
   ]
 }
 
-GET /v1/memory/list?tenant_id=...&project_id=...&scope=...&status=...&type=...
+GET /v1/memory/list?tenant_id=...&project_id=...&scope=...&status=...&type=...&agent_id=...
+Notes:
+- If scope = agent_private, agent_id is required.
+- If scope is omitted, agent_private notes are excluded.
+
 POST /v1/memory/update
+Body:
+{
+  "tenant_id": "...",
+  "project_id": "...",
+  "agent_id": "...",
+  "note_id": "uuid",
+  "text": "optional",
+  "importance": 0.0-1.0 optional,
+  "confidence": 0.0-1.0 optional,
+  "ttl_days": number|null
+}
+Notes:
+- If ttl_days is omitted, expires_at remains unchanged.
+- If ttl_days <= 0, apply default TTL rules for the note type.
+Response:
+{
+  "note_id": "uuid",
+  "op": "UPDATE|NONE|REJECTED",
+  "reason_code": "optional"
+}
+
 POST /v1/memory/delete
+Body:
+{
+  "tenant_id": "...",
+  "project_id": "...",
+  "agent_id": "...",
+  "note_id": "uuid"
+}
+Response:
+{
+  "note_id": "uuid",
+  "op": "DELETE|NONE"
+}
 GET /health
 
 Error codes (common):
