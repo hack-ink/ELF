@@ -191,12 +191,13 @@ impl ElfService {
                     .await?;
                     let prev_snapshot = note_snapshot(&existing);
 
-                    let expires_at = match note.ttl_days {
+                    let requested_ttl = note.ttl_days.filter(|days| *days > 0);
+                    let expires_at = match requested_ttl {
                         Some(ttl) => compute_expires_at(Some(ttl), &note.note_type, &self.cfg, now),
                         None => existing.expires_at,
                     };
 
-                    let expires_match = if let Some(ttl_days) = note.ttl_days {
+                    let expires_match = if let Some(ttl_days) = requested_ttl {
                         match existing.expires_at {
                             Some(existing_expires_at) => {
                                 let existing_ttl = (existing_expires_at - existing.updated_at)
