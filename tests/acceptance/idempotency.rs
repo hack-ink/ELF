@@ -1,0 +1,56 @@
+use std::sync::Arc;
+
+use super::{SpyExtractor, StubEmbedding, StubRerank, build_service, test_config, test_dsn, test_qdrant_url};
+
+#[tokio::test]
+async fn add_note_is_idempotent() {
+    let Some(dsn) = test_dsn() else {
+        eprintln!("Skipping add_note_is_idempotent; set ELF_TEST_PG_DSN to run this test.");
+        return;
+    };
+    let Some(qdrant_url) = test_qdrant_url() else {
+        eprintln!("Skipping add_note_is_idempotent; set ELF_TEST_QDRANT_URL to run this test.");
+        return;
+    };
+
+    let extractor = SpyExtractor {
+        calls: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+        payload: serde_json::json!({ "notes": [] }),
+    };
+    let providers = elf_service::Providers::new(
+        Arc::new(StubEmbedding { vector_dim: 3 }),
+        Arc::new(StubRerank),
+        Arc::new(extractor),
+    );
+
+    let cfg = test_config(dsn, qdrant_url, 3);
+    let service = build_service(cfg, providers)
+        .await
+        .expect("Failed to build service.");
+
+    let request = elf_service::AddNoteRequest {
+        tenant_id: "t".to_string(),
+        project_id: "p".to_string(),
+        agent_id: "a".to_string(),
+        scope: "agent_private".to_string(),
+        notes: vec![elf_service::AddNoteInput {
+            note_type: "preference".to_string(),
+            key: Some("preferred_language".to_string()),
+            text: "Preference: Use English.".to_string(),
+            importance: 0.5,
+            confidence: 0.9,
+            ttl_days: None,
+            source_ref: serde_json::json!({}),
+        }],
+    };
+
+    let first = service
+        .add_note(request.clone())
+        .await
+        .expect("First add_note failed.");
+    assert_eq!(first.results.len(), 1);
+
+    let second = service.add_note(request).await.expect("Second add_note failed.");
+    assert_eq!(second.results.len(), 1);
+    assert_eq!(second.results[0].op, elf_service::NoteOp::None);
+}

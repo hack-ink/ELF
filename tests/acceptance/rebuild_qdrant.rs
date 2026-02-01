@@ -16,6 +16,7 @@ async fn rebuild_uses_postgres_vectors_only() {
         eprintln!("Skipping rebuild_uses_postgres_vectors_only; set ELF_TEST_QDRANT_READY once the collection exists.");
         return;
     }
+    // TODO: Add collection drop/recreate steps and an embedding provider spy assertion.
 
     let extractor = SpyExtractor {
         calls: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
