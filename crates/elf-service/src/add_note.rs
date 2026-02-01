@@ -196,8 +196,15 @@ impl ElfService {
                         None => existing.expires_at,
                     };
 
-                    let expires_match = if note.ttl_days.is_some() {
-                        true
+                    let expires_match = if let Some(ttl_days) = note.ttl_days {
+                        match existing.expires_at {
+                            Some(existing_expires_at) => {
+                                let existing_ttl = (existing_expires_at - existing.updated_at)
+                                    .whole_days() as i64;
+                                existing_ttl == ttl_days
+                            }
+                            None => false,
+                        }
                     } else {
                         existing.expires_at == expires_at
                     };
