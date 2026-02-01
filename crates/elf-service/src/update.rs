@@ -10,6 +10,9 @@ use crate::{
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct UpdateRequest {
+    pub tenant_id: String,
+    pub project_id: String,
+    pub agent_id: String,
     pub note_id: uuid::Uuid,
     pub text: Option<String>,
     pub importance: Option<f32>,
@@ -26,7 +29,14 @@ pub struct UpdateResponse {
 
 impl ElfService {
     pub async fn update(&self, req: UpdateRequest) -> ServiceResult<UpdateResponse> {
-        // TODO: Enforce tenant/project/agent ownership once update requests include namespace identifiers.
+        if req.tenant_id.trim().is_empty()
+            || req.project_id.trim().is_empty()
+            || req.agent_id.trim().is_empty()
+        {
+            return Err(ServiceError::InvalidRequest {
+                message: "tenant_id, project_id, and agent_id are required.".to_string(),
+            });
+        }
         if req.text.is_none()
             && req.importance.is_none()
             && req.confidence.is_none()
@@ -47,6 +57,14 @@ impl ElfService {
         .ok_or_else(|| ServiceError::InvalidRequest {
             message: "Note not found.".to_string(),
         })?;
+        if note.tenant_id != req.tenant_id
+            || note.project_id != req.project_id
+            || note.agent_id != req.agent_id
+        {
+            return Err(ServiceError::ScopeDenied {
+                message: "Note does not belong to the requested namespace.".to_string(),
+            });
+        }
 
         let prev_snapshot = note_snapshot(&note);
 

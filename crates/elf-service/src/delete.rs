@@ -4,6 +4,9 @@ use crate::{ElfService, NoteOp, ServiceError, ServiceResult, enqueue_outbox_tx, 
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct DeleteRequest {
+    pub tenant_id: String,
+    pub project_id: String,
+    pub agent_id: String,
     pub note_id: uuid::Uuid,
 }
 
@@ -16,6 +19,14 @@ pub struct DeleteResponse {
 impl ElfService {
     pub async fn delete(&self, req: DeleteRequest) -> ServiceResult<DeleteResponse> {
         let now = time::OffsetDateTime::now_utc();
+        if req.tenant_id.trim().is_empty()
+            || req.project_id.trim().is_empty()
+            || req.agent_id.trim().is_empty()
+        {
+            return Err(ServiceError::InvalidRequest {
+                message: "tenant_id, project_id, and agent_id are required.".to_string(),
+            });
+        }
         let mut tx = self.db.pool.begin().await?;
         let mut note: MemoryNote = sqlx::query_as(
             "SELECT * FROM memory_notes WHERE note_id = $1 FOR UPDATE",
@@ -26,6 +37,14 @@ impl ElfService {
         .ok_or_else(|| ServiceError::InvalidRequest {
             message: "Note not found.".to_string(),
         })?;
+        if note.tenant_id != req.tenant_id
+            || note.project_id != req.project_id
+            || note.agent_id != req.agent_id
+        {
+            return Err(ServiceError::ScopeDenied {
+                message: "Note does not belong to the requested namespace.".to_string(),
+            });
+        }
 
         let scope_allowed = self
             .cfg
