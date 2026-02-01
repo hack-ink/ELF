@@ -592,6 +592,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+ "tower 0.5.3",
  "tracing",
  "tracing-subscriber",
 ]
@@ -642,6 +643,7 @@ dependencies = [
 name = "elf-service"
 version = "0.1.0"
 dependencies = [
+ "axum",
  "color-eyre",
  "elf-config",
  "elf-domain",
@@ -652,6 +654,8 @@ dependencies = [
  "serde_json",
  "sqlx",
  "time",
+ "tokio",
+ "tracing",
  "uuid",
 ]
 

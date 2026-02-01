@@ -1,7 +1,6 @@
 #[tokio::test]
 async fn enqueues_outbox_job() {
-    let dsn = std::env::var("ELF_TEST_PG_DSN")
-        .expect("ELF_TEST_PG_DSN must be set for outbox test.");
+    let dsn = std::env::var("ELF_PG_DSN").expect("ELF_PG_DSN must be set for outbox test.");
     let cfg = elf_config::Postgres {
         dsn,
         pool_max_conns: 1,

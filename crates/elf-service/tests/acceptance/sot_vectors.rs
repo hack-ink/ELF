@@ -1,16 +1,17 @@
 #[tokio::test]
 async fn active_notes_have_vectors() {
-    let dsn = match std::env::var("ELF_TEST_PG_DSN") {
+	let _guard = super::test_lock().await;
+    let dsn = match std::env::var("ELF_PG_DSN") {
         Ok(value) => value,
         Err(_) => {
-            eprintln!("Skipping active_notes_have_vectors; set ELF_TEST_PG_DSN to run this test.");
+            eprintln!("Skipping active_notes_have_vectors; set ELF_PG_DSN to run this test.");
             return;
         }
     };
-    let qdrant_url = match std::env::var("ELF_TEST_QDRANT_URL") {
+    let qdrant_url = match std::env::var("ELF_QDRANT_URL") {
         Ok(value) => value,
         Err(_) => {
-            eprintln!("Skipping active_notes_have_vectors; set ELF_TEST_QDRANT_URL to run this test.");
+            eprintln!("Skipping active_notes_have_vectors; set ELF_QDRANT_URL to run this test.");
             return;
         }
     };
@@ -27,6 +28,9 @@ async fn active_notes_have_vectors() {
     let service = super::build_service(cfg, providers)
         .await
         .expect("Failed to build service.");
+	super::reset_db(&service.db.pool)
+		.await
+		.expect("Failed to reset test database.");
 
     let note_id = uuid::Uuid::new_v4();
     let now = time::OffsetDateTime::now_utc();
@@ -79,8 +83,9 @@ async fn active_notes_have_vectors() {
     let missing: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM memory_notes n \
          LEFT JOIN note_embeddings e ON n.note_id = e.note_id AND n.embedding_version = e.embedding_version \
-         WHERE n.status = 'active' AND e.note_id IS NULL",
+         WHERE n.note_id = $1 AND e.note_id IS NULL",
     )
+    .bind(note_id)
     .fetch_one(&service.db.pool)
     .await
     .expect("Failed to query missing embeddings.");
