@@ -15,6 +15,7 @@ pub struct Config {
 #[derive(Debug, Deserialize)]
 pub struct Service {
     pub http_bind: String,
+    pub mcp_bind: String,
     pub admin_bind: String,
     pub log_level: String,
 }
