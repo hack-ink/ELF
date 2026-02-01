@@ -4,6 +4,7 @@ pub mod admin;
 pub mod delete;
 pub mod list;
 pub mod search;
+pub mod time_serde;
 pub mod update;
 
 use std::future::Future;
