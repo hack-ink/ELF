@@ -20,9 +20,9 @@ async fn main() -> color_eyre::Result<()> {
 
 	let http_addr: SocketAddr = state.service.cfg.service.http_bind.parse()?;
 	let admin_addr: SocketAddr = state.service.cfg.service.admin_bind.parse()?;
-	if state.service.cfg.security.bind_localhost_only && !admin_addr.ip().is_loopback() {
+	if !admin_addr.ip().is_loopback() {
 		return Err(color_eyre::eyre::eyre!(
-			"admin_bind must be loopback when bind_localhost_only is true."
+			"admin_bind must be a loopback address."
 		));
 	}
 	let app = routes::router(state.clone());

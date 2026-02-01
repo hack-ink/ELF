@@ -40,6 +40,7 @@ pub enum NoteOp {
 pub enum ServiceError {
     NonEnglishInput { field: String },
     InvalidRequest { message: String },
+    ScopeDenied { message: String },
     Provider { message: String },
     Storage { message: String },
     Qdrant { message: String },
@@ -52,6 +53,7 @@ impl std::fmt::Display for ServiceError {
                 write!(f, "Non-English input detected at {field}.")
             }
             Self::InvalidRequest { message } => write!(f, "Invalid request: {message}"),
+            Self::ScopeDenied { message } => write!(f, "Scope denied: {message}"),
             Self::Provider { message } => write!(f, "Provider error: {message}"),
             Self::Storage { message } => write!(f, "Storage error: {message}"),
             Self::Qdrant { message } => write!(f, "Qdrant error: {message}"),
