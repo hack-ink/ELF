@@ -36,7 +36,9 @@ pub struct ListResponse {
 
 impl ElfService {
     pub async fn list(&self, req: ListRequest) -> ServiceResult<ListResponse> {
-        if req.tenant_id.trim().is_empty() || req.project_id.trim().is_empty() {
+        let tenant_id = req.tenant_id.trim();
+        let project_id = req.project_id.trim();
+        if tenant_id.is_empty() || project_id.is_empty() {
             return Err(ServiceError::InvalidRequest {
                 message: "tenant_id and project_id are required.".to_string(),
             });
@@ -60,9 +62,9 @@ impl ElfService {
             "SELECT note_id, tenant_id, project_id, agent_id, scope, type, key, text, importance, confidence, status, created_at, updated_at, expires_at, embedding_version, source_ref, hit_count, last_hit_at \
              FROM memory_notes WHERE tenant_id = ",
         );
-        builder.push_bind(&req.tenant_id);
+        builder.push_bind(tenant_id);
         builder.push(" AND project_id = ");
-        builder.push_bind(&req.project_id);
+        builder.push_bind(project_id);
 
         if let Some(scope) = &req.scope {
             builder.push(" AND scope = ");
@@ -77,6 +79,9 @@ impl ElfService {
                 builder.push(" AND agent_id = ");
                 builder.push_bind(agent_id);
             }
+        } else {
+            builder.push(" AND scope != ");
+            builder.push_bind("agent_private");
         }
         if let Some(status) = &req.status {
             builder.push(" AND status = ");

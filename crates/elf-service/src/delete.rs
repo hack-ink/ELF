@@ -19,9 +19,10 @@ pub struct DeleteResponse {
 impl ElfService {
     pub async fn delete(&self, req: DeleteRequest) -> ServiceResult<DeleteResponse> {
         let now = time::OffsetDateTime::now_utc();
-        if req.tenant_id.trim().is_empty()
-            || req.project_id.trim().is_empty()
-            || req.agent_id.trim().is_empty()
+        let tenant_id = req.tenant_id.trim();
+        let project_id = req.project_id.trim();
+        let agent_id = req.agent_id.trim();
+        if tenant_id.is_empty() || project_id.is_empty() || agent_id.is_empty()
         {
             return Err(ServiceError::InvalidRequest {
                 message: "tenant_id, project_id, and agent_id are required.".to_string(),
@@ -34,9 +35,9 @@ impl ElfService {
              FOR UPDATE",
         )
         .bind(req.note_id)
-        .bind(&req.tenant_id)
-        .bind(&req.project_id)
-        .bind(&req.agent_id)
+        .bind(tenant_id)
+        .bind(project_id)
+        .bind(agent_id)
         .fetch_optional(&mut *tx)
         .await?
         .ok_or_else(|| ServiceError::InvalidRequest {
