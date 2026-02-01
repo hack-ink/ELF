@@ -27,6 +27,24 @@ impl ElfService {
             message: "Note not found.".to_string(),
         })?;
 
+        let scope_allowed = self
+            .cfg
+            .scopes
+            .allowed
+            .iter()
+            .any(|scope| scope == &note.scope);
+        let write_allowed = match note.scope.as_str() {
+            "agent_private" => self.cfg.scopes.write_allowed.agent_private,
+            "project_shared" => self.cfg.scopes.write_allowed.project_shared,
+            "org_shared" => self.cfg.scopes.write_allowed.org_shared,
+            _ => false,
+        };
+        if !scope_allowed || !write_allowed {
+            return Err(ServiceError::ScopeDenied {
+                message: "Scope is not allowed.".to_string(),
+            });
+        }
+
         if note.status == "deleted" {
             tx.commit().await?;
             return Ok(DeleteResponse {

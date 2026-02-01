@@ -62,10 +62,10 @@ impl ElfService {
                     });
                 }
             }
-            if json_contains_cjk(&note.source_ref) {
-                return Err(ServiceError::NonEnglishInput {
-                    field: format!("$.notes[{idx}].source_ref"),
-                });
+            if let Some(path) =
+                find_cjk_path(&note.source_ref, &format!("$.notes[{idx}].source_ref"))
+            {
+                return Err(ServiceError::NonEnglishInput { field: path });
             }
         }
 
@@ -88,7 +88,6 @@ impl ElfService {
                 continue;
             }
 
-            let expires_at = compute_expires_at(note.ttl_days, &note.note_type, &self.cfg, now);
             let mut tx = self.db.pool.begin().await?;
             let decision = resolve_update(
                 &mut tx,
@@ -107,6 +106,8 @@ impl ElfService {
 
             match decision {
                 UpdateDecision::Add { note_id } => {
+                    let expires_at =
+                        compute_expires_at(note.ttl_days, &note.note_type, &self.cfg, now);
                     let memory_note = MemoryNote {
                         note_id,
                         tenant_id: req.tenant_id.clone(),
@@ -190,6 +191,11 @@ impl ElfService {
                     .await?;
                     let prev_snapshot = note_snapshot(&existing);
 
+                    let expires_at = match note.ttl_days {
+                        Some(ttl) => compute_expires_at(Some(ttl), &note.note_type, &self.cfg, now),
+                        None => existing.expires_at,
+                    };
+
                     let unchanged = existing.text == note.text
                         && (existing.importance - note.importance).abs() <= f32::EPSILON
                         && (existing.confidence - note.confidence).abs() <= f32::EPSILON
@@ -268,11 +274,33 @@ impl ElfService {
     }
 }
 
-fn json_contains_cjk(value: &serde_json::Value) -> bool {
+fn find_cjk_path(value: &serde_json::Value, path: &str) -> Option<String> {
     match value {
-        serde_json::Value::String(text) => contains_cjk(text),
-        serde_json::Value::Array(items) => items.iter().any(json_contains_cjk),
-        serde_json::Value::Object(map) => map.values().any(json_contains_cjk),
-        _ => false,
+        serde_json::Value::String(text) => {
+            if contains_cjk(text) {
+                Some(path.to_string())
+            } else {
+                None
+            }
+        }
+        serde_json::Value::Array(items) => {
+            for (idx, item) in items.iter().enumerate() {
+                let child_path = format!("{path}[{idx}]");
+                if let Some(found) = find_cjk_path(item, &child_path) {
+                    return Some(found);
+                }
+            }
+            None
+        }
+        serde_json::Value::Object(map) => {
+            for (key, value) in map.iter() {
+                let child_path = format!("{path}.{key}");
+                if let Some(found) = find_cjk_path(value, &child_path) {
+                    return Some(found);
+                }
+            }
+            None
+        }
+        _ => None,
     }
 }

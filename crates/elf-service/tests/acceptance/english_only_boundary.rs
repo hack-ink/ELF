@@ -2,6 +2,8 @@ use std::sync::Arc;
 
 use super::{SpyExtractor, StubEmbedding, StubRerank, build_service, test_config, test_dsn, test_qdrant_url};
 
+// TODO: Add HTTP-level tests to verify 422 responses and error payloads.
+
 #[tokio::test]
 async fn rejects_cjk_in_add_note() {
     let Some(service) = build_test_service().await else {
@@ -26,7 +28,9 @@ async fn rejects_cjk_in_add_note() {
 
     let result = service.add_note(request).await;
     match result {
-        Err(elf_service::ServiceError::NonEnglishInput { .. }) => {}
+        Err(elf_service::ServiceError::NonEnglishInput { field }) => {
+            assert_eq!(field, "$.notes[0].text");
+        }
         other => panic!("Expected NonEnglishInput, got {other:?}"),
     }
 }
@@ -53,7 +57,9 @@ async fn rejects_cjk_in_add_event() {
 
     let result = service.add_event(request).await;
     match result {
-        Err(elf_service::ServiceError::NonEnglishInput { .. }) => {}
+        Err(elf_service::ServiceError::NonEnglishInput { field }) => {
+            assert_eq!(field, "$.messages[0].content");
+        }
         other => panic!("Expected NonEnglishInput, got {other:?}"),
     }
 }
@@ -77,7 +83,9 @@ async fn rejects_cjk_in_search() {
 
     let result = service.search(request).await;
     match result {
-        Err(elf_service::ServiceError::NonEnglishInput { .. }) => {}
+        Err(elf_service::ServiceError::NonEnglishInput { field }) => {
+            assert_eq!(field, "$.query");
+        }
         other => panic!("Expected NonEnglishInput, got {other:?}"),
     }
 }
