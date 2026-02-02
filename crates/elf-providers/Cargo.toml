@@ -1,12 +1,12 @@
 [package]
-name = "elf-providers"
-version = "0.1.0"
 edition = "2024"
+name    = "elf-providers"
+version = "0.1.0"
 
 [dependencies]
 color-eyre = { workspace = true }
 elf-config = { path = "../elf-config" }
-reqwest = { workspace = true }
-serde = { workspace = true }
+reqwest    = { workspace = true }
+serde      = { workspace = true }
 serde_json = { workspace = true }
-tokio = { workspace = true }
+tokio      = { workspace = true }
