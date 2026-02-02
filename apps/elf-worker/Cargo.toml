@@ -8,6 +8,7 @@ clap = { workspace = true }
 color-eyre = { workspace = true }
 tokio = { workspace = true }
 elf-config = { path = "../../crates/elf-config" }
+elf-cli = { path = "../../crates/elf-cli" }
 elf-providers = { path = "../../crates/elf-providers" }
 elf-storage = { path = "../../crates/elf-storage" }
 qdrant-client = { workspace = true }

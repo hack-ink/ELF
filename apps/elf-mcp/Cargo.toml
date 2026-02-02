@@ -8,6 +8,7 @@ axum = { workspace = true }
 clap = { workspace = true }
 color-eyre = { workspace = true }
 elf-config = { path = "../../crates/elf-config" }
+elf-cli = { path = "../../crates/elf-cli" }
 reqwest = { workspace = true }
 rmcp = { version = "0.13", features = ["transport-streamable-http-server"] }
 serde_json = { workspace = true }
