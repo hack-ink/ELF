@@ -26,11 +26,7 @@ async fn main() -> color_eyre::Result<()> {
 	db.ensure_schema(config.storage.qdrant.vector_dim).await?;
 	let qdrant = elf_storage::qdrant::QdrantStore::new(&config.storage.qdrant)?;
 
-	let state = worker::WorkerState {
-		db,
-		qdrant,
-		embedding: config.providers.embedding,
-	};
+	let state = worker::WorkerState { db, qdrant, embedding: config.providers.embedding };
 
 	worker::run_worker(state).await
 }

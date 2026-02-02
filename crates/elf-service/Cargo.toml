@@ -1,22 +1,22 @@
 [package]
-name = "elf-service"
-version = "0.1.0"
 edition = "2024"
+name    = "elf-service"
+version = "0.1.0"
 
 [dependencies]
-color-eyre = { workspace = true }
-elf-config = { path = "../elf-config" }
-elf-domain = { path = "../elf-domain" }
+color-eyre    = { workspace = true }
+elf-config    = { path = "../elf-config" }
+elf-domain    = { path = "../elf-domain" }
 elf-providers = { path = "../elf-providers" }
-elf-storage = { path = "../elf-storage" }
-serde = { workspace = true }
-serde_json = { workspace = true }
+elf-storage   = { path = "../elf-storage" }
 qdrant-client = { workspace = true }
-sqlx = { workspace = true }
-time = { workspace = true }
-uuid = { workspace = true }
+serde         = { workspace = true }
+serde_json    = { workspace = true }
+sqlx          = { workspace = true }
+time          = { workspace = true }
+uuid          = { workspace = true }
 
 [dev-dependencies]
-axum = { workspace = true }
-tokio = { workspace = true }
+axum    = { workspace = true }
+tokio   = { workspace = true }
 tracing = { workspace = true }

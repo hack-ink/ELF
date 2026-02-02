@@ -1,34 +1,34 @@
 [workspace]
-resolver = "3"
 members = [
-  "apps/elf-api",
-  "apps/elf-worker",
-  "apps/elf-mcp",
-  "crates/elf-cli",
-  "crates/elf-config",
-  "crates/elf-domain",
-  "crates/elf-storage",
-  "crates/elf-providers",
-  "crates/elf-service",
+	"apps/elf-api",
+	"apps/elf-mcp",
+	"apps/elf-worker",
+	"crates/elf-cli",
+	"crates/elf-config",
+	"crates/elf-domain",
+	"crates/elf-providers",
+	"crates/elf-service",
+	"crates/elf-storage",
 ]
+resolver = "3"
 
 [workspace.package]
 edition = "2024"
 license = "GPL-3.0"
 
 [workspace.dependencies]
-axum = { version = "0.7" }
-clap = { version = "4.5", features = ["derive"] }
-color-eyre = "0.6"
-reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
-toml = "0.8"
-tracing = "0.1"
+axum               = { version = "0.7" }
+clap               = { version = "4.5", features = ["derive"] }
+color-eyre         = "0.6"
+qdrant-client      = "1"
+reqwest            = { version = "0.12", features = ["json", "rustls-tls"] }
+serde              = { version = "1", features = ["derive"] }
+serde_json         = "1"
+sqlx               = { version = "0.8", features = ["json", "postgres", "runtime-tokio", "time", "tls-rustls", "uuid"] }
+time               = { version = "0.3", features = ["macros", "serde"] }
+tokio              = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
+toml               = "0.8"
+tracing            = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "json", "time", "tls-rustls"] }
-qdrant-client = "1"
-uuid = { version = "1", features = ["v4", "serde"] }
-time = { version = "0.3", features = ["serde", "macros"] }
-vergen-gitcl = { version = "9.1.0", features = ["cargo"] }
+uuid               = { version = "1", features = ["serde", "v4"] }
+vergen-gitcl       = { version = "9.1.0", features = ["cargo"] }

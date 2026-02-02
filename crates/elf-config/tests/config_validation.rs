@@ -1,8 +1,8 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 fn sample_toml(reject_cjk: bool) -> String {
-    format!(
-        r#"[service]
+	format!(
+		r#"[service]
 http_bind = "127.0.0.1:8080"
 mcp_bind = "127.0.0.1:9090"
 admin_bind = "127.0.0.1:8081"
@@ -96,29 +96,29 @@ evidence_min_quotes = 1
 evidence_max_quotes = 2
 evidence_max_quote_chars = 320
 "#,
-        reject_cjk = reject_cjk
-    )
+		reject_cjk = reject_cjk
+	)
 }
 
 #[test]
 fn reject_cjk_must_be_true() {
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("System time must be valid.")
-        .as_nanos();
-    let mut path = std::env::temp_dir();
-    path.push(format!("elf_config_test_{nanos}.toml"));
+	let nanos = SystemTime::now()
+		.duration_since(UNIX_EPOCH)
+		.expect("System time must be valid.")
+		.as_nanos();
+	let mut path = std::env::temp_dir();
+	path.push(format!("elf_config_test_{nanos}.toml"));
 
-    let payload = sample_toml(false);
-    std::fs::write(&path, payload).expect("Failed to write test config.");
+	let payload = sample_toml(false);
+	std::fs::write(&path, payload).expect("Failed to write test config.");
 
-    let result = elf_config::load(&path);
-    std::fs::remove_file(&path).expect("Failed to remove test config.");
+	let result = elf_config::load(&path);
+	std::fs::remove_file(&path).expect("Failed to remove test config.");
 
-    let err = result.expect_err("Expected reject_cjk validation error.");
-    let message = err.to_string();
-    assert!(
-        message.contains("security.reject_cjk must be true."),
-        "Unexpected error message: {message}"
-    );
+	let err = result.expect_err("Expected reject_cjk validation error.");
+	let message = err.to_string();
+	assert!(
+		message.contains("security.reject_cjk must be true."),
+		"Unexpected error message: {message}"
+	);
 }

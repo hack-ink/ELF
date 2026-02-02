@@ -1,10 +1,10 @@
 [package]
-name = "elf-domain"
-version = "0.1.0"
 edition = "2024"
+name    = "elf-domain"
+version = "0.1.0"
 
 [dependencies]
 elf-config = { path = "../elf-config" }
-regex = "1"
+regex      = "1"
 serde_json = { workspace = true }
-time = { workspace = true }
+time       = { workspace = true }

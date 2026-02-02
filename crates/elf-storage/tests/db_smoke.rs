@@ -7,9 +7,7 @@ struct DbLock {
 }
 
 async fn acquire_db_lock(dsn: &str) -> DbLock {
-	let mut conn = sqlx::PgConnection::connect(dsn)
-		.await
-		.expect("Failed to connect for DB lock.");
+	let mut conn = sqlx::PgConnection::connect(dsn).await.expect("Failed to connect for DB lock.");
 	sqlx::query("SELECT pg_advisory_lock($1)")
 		.bind(TEST_DB_LOCK_KEY)
 		.execute(&mut conn)
@@ -20,17 +18,9 @@ async fn acquire_db_lock(dsn: &str) -> DbLock {
 
 #[tokio::test]
 async fn db_connects_and_bootstraps() {
-    let dsn =
-        std::env::var("ELF_PG_DSN").expect("ELF_PG_DSN must be set for db_smoke test.");
+	let dsn = std::env::var("ELF_PG_DSN").expect("ELF_PG_DSN must be set for db_smoke test.");
 	let _lock = acquire_db_lock(&dsn).await;
-    let cfg = elf_config::Postgres {
-        dsn,
-        pool_max_conns: 1,
-    };
-    let db = elf_storage::db::Db::connect(&cfg)
-        .await
-        .expect("Failed to connect to Postgres.");
-    db.ensure_schema(3)
-        .await
-        .expect("Failed to ensure schema.");
+	let cfg = elf_config::Postgres { dsn, pool_max_conns: 1 };
+	let db = elf_storage::db::Db::connect(&cfg).await.expect("Failed to connect to Postgres.");
+	db.ensure_schema(3).await.expect("Failed to ensure schema.");
 }
