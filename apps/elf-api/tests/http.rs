@@ -1,10 +1,10 @@
-#[path = "../src/routes.rs"]
-mod routes;
-#[path = "../src/state.rs"]
-mod state;
+#[path = "../src/routes.rs"] mod routes;
+#[path = "../src/state.rs"] mod state;
 
-use axum::body::Body;
-use axum::http::{Request, StatusCode};
+use axum::{
+	body::Body,
+	http::{Request, StatusCode},
+};
 use sqlx::Connection;
 use tower::util::ServiceExt;
 
@@ -15,9 +15,7 @@ struct DbLock {
 }
 
 async fn acquire_db_lock(dsn: &str) -> DbLock {
-	let mut conn = sqlx::PgConnection::connect(dsn)
-		.await
-		.expect("Failed to connect for DB lock.");
+	let mut conn = sqlx::PgConnection::connect(dsn).await.expect("Failed to connect for DB lock.");
 	sqlx::query("SELECT pg_advisory_lock($1)")
 		.bind(TEST_DB_LOCK_KEY)
 		.execute(&mut conn)
@@ -32,14 +30,14 @@ fn test_env() -> Option<(String, String)> {
 		Err(_) => {
 			eprintln!("Skipping HTTP tests; set ELF_PG_DSN to run this test.");
 			return None;
-		}
+		},
 	};
 	let qdrant_url = match std::env::var("ELF_QDRANT_URL") {
 		Ok(value) => value,
 		Err(_) => {
 			eprintln!("Skipping HTTP tests; set ELF_QDRANT_URL to run this test.");
 			return None;
-		}
+		},
 	};
 	Some((dsn, qdrant_url))
 }
@@ -53,10 +51,7 @@ fn test_config(dsn: String, qdrant_url: String) -> elf_config::Config {
 			log_level: "info".to_string(),
 		},
 		storage: elf_config::Storage {
-			postgres: elf_config::Postgres {
-				dsn,
-				pool_max_conns: 1,
-			},
+			postgres: elf_config::Postgres { dsn, pool_max_conns: 1 },
 			qdrant: elf_config::Qdrant {
 				url: qdrant_url,
 				collection: "elf_notes".to_string(),
@@ -105,10 +100,7 @@ fn test_config(dsn: String, qdrant_url: String) -> elf_config::Config {
 			candidate_k: 60,
 			top_k: 12,
 		},
-		ranking: elf_config::Ranking {
-			recency_tau_days: 60.0,
-			tie_breaker_weight: 0.1,
-		},
+		ranking: elf_config::Ranking { recency_tau_days: 60.0, tie_breaker_weight: 0.1 },
 		lifecycle: elf_config::Lifecycle {
 			ttl_days: elf_config::TtlDays {
 				plan: 14,
@@ -177,10 +169,9 @@ async fn health_ok() {
 	};
 	let _lock = acquire_db_lock(&dsn).await;
 	let config = test_config(dsn, qdrant_url);
-	let state = state::AppState::new(config)
-		.await
-		.expect("Failed to initialize app state.");
-	let app = routes::router(state);
+	let state = state::AppState::new(config).await.expect("Failed to initialize app state.");
+	let app = routes::router(state.clone());
+	let _ = routes::admin_router(state);
 	let response = app
 		.oneshot(
 			Request::builder()
@@ -200,9 +191,7 @@ async fn rejects_cjk_in_add_note() {
 	};
 	let _lock = acquire_db_lock(&dsn).await;
 	let config = test_config(dsn, qdrant_url);
-	let state = state::AppState::new(config)
-		.await
-		.expect("Failed to initialize app state.");
+	let state = state::AppState::new(config).await.expect("Failed to initialize app state.");
 	let app = routes::router(state);
 	let payload = serde_json::json!({
 		"tenant_id": "t",
@@ -236,8 +225,7 @@ async fn rejects_cjk_in_add_note() {
 	let body = axum::body::to_bytes(response.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read response body.");
-	let json: serde_json::Value =
-		serde_json::from_slice(&body).expect("Failed to parse response.");
+	let json: serde_json::Value = serde_json::from_slice(&body).expect("Failed to parse response.");
 	assert_eq!(json["error_code"], "NON_ENGLISH_INPUT");
 	assert_eq!(json["fields"][0], "$.notes[0].text");
 }
@@ -249,9 +237,7 @@ async fn rejects_cjk_in_add_event() {
 	};
 	let _lock = acquire_db_lock(&dsn).await;
 	let config = test_config(dsn, qdrant_url);
-	let state = state::AppState::new(config)
-		.await
-		.expect("Failed to initialize app state.");
+	let state = state::AppState::new(config).await.expect("Failed to initialize app state.");
 	let app = routes::router(state);
 	let payload = serde_json::json!({
 		"tenant_id": "t",
@@ -281,8 +267,7 @@ async fn rejects_cjk_in_add_event() {
 	let body = axum::body::to_bytes(response.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read response body.");
-	let json: serde_json::Value =
-		serde_json::from_slice(&body).expect("Failed to parse response.");
+	let json: serde_json::Value = serde_json::from_slice(&body).expect("Failed to parse response.");
 	assert_eq!(json["error_code"], "NON_ENGLISH_INPUT");
 	assert_eq!(json["fields"][0], "$.messages[0].content");
 }
@@ -294,9 +279,7 @@ async fn rejects_cjk_in_search() {
 	};
 	let _lock = acquire_db_lock(&dsn).await;
 	let config = test_config(dsn, qdrant_url);
-	let state = state::AppState::new(config)
-		.await
-		.expect("Failed to initialize app state.");
+	let state = state::AppState::new(config).await.expect("Failed to initialize app state.");
 	let app = routes::router(state);
 	let payload = serde_json::json!({
 		"tenant_id": "t",
@@ -324,8 +307,7 @@ async fn rejects_cjk_in_search() {
 	let body = axum::body::to_bytes(response.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read response body.");
-	let json: serde_json::Value =
-		serde_json::from_slice(&body).expect("Failed to parse response.");
+	let json: serde_json::Value = serde_json::from_slice(&body).expect("Failed to parse response.");
 	assert_eq!(json["error_code"], "NON_ENGLISH_INPUT");
 	assert_eq!(json["fields"][0], "$.query");
 }
