@@ -1,0 +1,13 @@
+{
+  "vectors": {
+    "dense": {
+      "size": 4096,
+      "distance": "Cosine"
+    }
+  },
+  "sparse_vectors": {
+    "bm25": {
+      "modifier": "idf"
+    }
+  }
+}
