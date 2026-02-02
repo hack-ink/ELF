@@ -1,4 +1,3 @@
-#[cfg(test)] use std::collections::HashMap;
 use std::{net::SocketAddr, sync::Arc};
 
 use axum::Router;
@@ -14,87 +13,8 @@ use rmcp::{
 };
 use serde_json::{Value, json};
 
-#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct ToolDefinition {
-	pub(crate) name: &'static str,
-	pub(crate) method: HttpMethod,
-	pub(crate) path: &'static str,
-	pub(crate) description: &'static str,
-	pub(crate) streaming: bool,
-}
-
-#[cfg(test)]
-impl ToolDefinition {
-	pub const fn new(
-		name: &'static str,
-		method: HttpMethod,
-		path: &'static str,
-		description: &'static str,
-	) -> Self {
-		Self { name, method, path, description, streaming: true }
-	}
-}
-
-#[cfg(test)]
-pub(crate) const TOOL_MEMORY_ADD_NOTE: &str = "memory_add_note";
-#[cfg(test)]
-pub(crate) const TOOL_MEMORY_ADD_EVENT: &str = "memory_add_event";
-#[cfg(test)]
-pub(crate) const TOOL_MEMORY_SEARCH: &str = "memory_search";
-#[cfg(test)]
-pub(crate) const TOOL_MEMORY_LIST: &str = "memory_list";
-#[cfg(test)]
-pub(crate) const TOOL_MEMORY_UPDATE: &str = "memory_update";
-#[cfg(test)]
-pub(crate) const TOOL_MEMORY_DELETE: &str = "memory_delete";
-
-#[cfg(test)]
-pub(crate) fn build_tools() -> HashMap<&'static str, ToolDefinition> {
-	let tools = [
-		ToolDefinition::new(
-			TOOL_MEMORY_ADD_NOTE,
-			HttpMethod::Post,
-			"/v1/memory/add_note",
-			"Add memory notes.",
-		),
-		ToolDefinition::new(
-			TOOL_MEMORY_ADD_EVENT,
-			HttpMethod::Post,
-			"/v1/memory/add_event",
-			"Add memory extracted from event messages.",
-		),
-		ToolDefinition::new(
-			TOOL_MEMORY_SEARCH,
-			HttpMethod::Post,
-			"/v1/memory/search",
-			"Search memory notes.",
-		),
-		ToolDefinition::new(
-			TOOL_MEMORY_LIST,
-			HttpMethod::Get,
-			"/v1/memory/list",
-			"List memory notes.",
-		),
-		ToolDefinition::new(
-			TOOL_MEMORY_UPDATE,
-			HttpMethod::Post,
-			"/v1/memory/update",
-			"Update memory notes.",
-		),
-		ToolDefinition::new(
-			TOOL_MEMORY_DELETE,
-			HttpMethod::Post,
-			"/v1/memory/delete",
-			"Delete memory notes.",
-		),
-	];
-
-	tools.into_iter().map(|tool| (tool.name, tool)).collect()
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum HttpMethod {
+enum HttpMethod {
 	Get,
 	Post,
 }
@@ -271,5 +191,100 @@ async fn handle_response(response: reqwest::Response) -> Result<CallToolResult, 
 		Ok(CallToolResult::structured(parsed))
 	} else {
 		Ok(CallToolResult::structured_error(parsed))
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use std::collections::HashMap;
+
+	#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+	struct ToolDefinition {
+		name: &'static str,
+		method: HttpMethod,
+		path: &'static str,
+		description: &'static str,
+		streaming: bool,
+	}
+
+	impl ToolDefinition {
+		const fn new(
+			name: &'static str,
+			method: HttpMethod,
+			path: &'static str,
+			description: &'static str,
+		) -> Self {
+			Self { name, method, path, description, streaming: true }
+		}
+	}
+
+	const TOOL_MEMORY_ADD_NOTE: &str = "memory_add_note";
+	const TOOL_MEMORY_ADD_EVENT: &str = "memory_add_event";
+	const TOOL_MEMORY_SEARCH: &str = "memory_search";
+	const TOOL_MEMORY_LIST: &str = "memory_list";
+	const TOOL_MEMORY_UPDATE: &str = "memory_update";
+	const TOOL_MEMORY_DELETE: &str = "memory_delete";
+
+	fn build_tools() -> HashMap<&'static str, ToolDefinition> {
+		let tools = [
+			ToolDefinition::new(
+				TOOL_MEMORY_ADD_NOTE,
+				HttpMethod::Post,
+				"/v1/memory/add_note",
+				"Add memory notes.",
+			),
+			ToolDefinition::new(
+				TOOL_MEMORY_ADD_EVENT,
+				HttpMethod::Post,
+				"/v1/memory/add_event",
+				"Add memory extracted from event messages.",
+			),
+			ToolDefinition::new(
+				TOOL_MEMORY_SEARCH,
+				HttpMethod::Post,
+				"/v1/memory/search",
+				"Search memory notes.",
+			),
+			ToolDefinition::new(
+				TOOL_MEMORY_LIST,
+				HttpMethod::Get,
+				"/v1/memory/list",
+				"List memory notes.",
+			),
+			ToolDefinition::new(
+				TOOL_MEMORY_UPDATE,
+				HttpMethod::Post,
+				"/v1/memory/update",
+				"Update memory notes.",
+			),
+			ToolDefinition::new(
+				TOOL_MEMORY_DELETE,
+				HttpMethod::Post,
+				"/v1/memory/delete",
+				"Delete memory notes.",
+			),
+		];
+
+		tools.into_iter().map(|tool| (tool.name, tool)).collect()
+	}
+
+	#[test]
+	fn registers_all_tools() {
+		let tools = build_tools();
+		let expected = [
+			TOOL_MEMORY_ADD_NOTE,
+			TOOL_MEMORY_ADD_EVENT,
+			TOOL_MEMORY_SEARCH,
+			TOOL_MEMORY_LIST,
+			TOOL_MEMORY_UPDATE,
+			TOOL_MEMORY_DELETE,
+		];
+
+		for name in expected {
+			assert!(tools.contains_key(name), "Missing tool registration: {name}.");
+		}
+
+		assert_eq!(tools.len(), expected.len(), "Unexpected tool count for MCP registration.");
 	}
 }
