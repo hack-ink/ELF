@@ -1,0 +1,11 @@
+[package]
+name = "elf-cli"
+version = "0.1.0"
+edition = "2024"
+build = "../../build.rs"
+
+[dependencies]
+clap = { workspace = true }
+
+[build-dependencies]
+vergen-gitcl = { workspace = true }

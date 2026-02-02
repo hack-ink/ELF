@@ -4,6 +4,7 @@ members = [
   "apps/elf-api",
   "apps/elf-worker",
   "apps/elf-mcp",
+  "crates/elf-cli",
   "crates/elf-config",
   "crates/elf-domain",
   "crates/elf-storage",
@@ -30,3 +31,4 @@ sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "json
 qdrant-client = "1"
 uuid = { version = "1", features = ["v4", "serde"] }
 time = { version = "0.3", features = ["serde", "macros"] }
+vergen-gitcl = "10.0.0-beta.5"
