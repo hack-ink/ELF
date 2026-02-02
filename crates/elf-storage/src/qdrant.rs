@@ -1,19 +1,19 @@
 use color_eyre::Result;
 use qdrant_client::Qdrant;
 
+pub const DENSE_VECTOR_NAME: &str = "dense";
+pub const BM25_VECTOR_NAME: &str = "bm25";
+pub const BM25_MODEL: &str = "qdrant/bm25";
+
 pub struct QdrantStore {
-    pub client: Qdrant,
-    pub collection: String,
-    pub vector_dim: u32,
+	pub client: Qdrant,
+	pub collection: String,
+	pub vector_dim: u32,
 }
 
 impl QdrantStore {
-    pub fn new(cfg: &elf_config::Qdrant) -> Result<Self> {
-        let client = Qdrant::from_url(&cfg.url).build()?;
-        Ok(Self {
-            client,
-            collection: cfg.collection.clone(),
-            vector_dim: cfg.vector_dim,
-        })
-    }
+	pub fn new(cfg: &elf_config::Qdrant) -> Result<Self> {
+		let client = Qdrant::from_url(&cfg.url).build()?;
+		Ok(Self { client, collection: cfg.collection.clone(), vector_dim: cfg.vector_dim })
+	}
 }

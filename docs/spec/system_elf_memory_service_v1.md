@@ -218,8 +218,8 @@ Startup must:
 - Execute sql/init.sql.
 
 Schema location:
-- All schema and index DDL must live in sql/init.sql.
-- sql/init.sql must be idempotent.
+- All schema and index DDL must live under sql/ and be orchestrated by sql/init.sql.
+- sql/init.sql must be idempotent and include the per-table files in dependency order.
 
 5.1 memory_notes (authoritative notes)
 Columns:
@@ -297,7 +297,8 @@ Indexes:
 6. QDRANT COLLECTION (DERIVED INDEX ONLY)
 ============================================================
 - Collection: storage.qdrant.collection
-- Vector size: storage.qdrant.vector_dim
+- Dense vector: named `dense` with size storage.qdrant.vector_dim (cosine distance).
+- Sparse vector: named `bm25` with `idf` modifier and model `qdrant/bm25`.
 - Point id: note_id (string UUID)
 - Payload fields (minimum):
   tenant_id, project_id, agent_id, scope, type, key, status,
@@ -476,7 +477,7 @@ Steps:
 1) English-only boundary check.
 2) Resolve allowed_scopes = scopes.read_profiles[read_profile].
 3) Embed query -> query_vec (embedding API).
-4) Qdrant search candidate_k with payload filters:
+4) Qdrant fusion query candidate_k with payload filters (dense + bm25):
    tenant_id, project_id, status = active (best-effort), and scope filters:
    - If scope = agent_private, require agent_id match.
    - Otherwise scope in allowed_scopes.
