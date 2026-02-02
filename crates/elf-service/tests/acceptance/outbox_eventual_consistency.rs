@@ -1,19 +1,21 @@
-#[path = "../../../../apps/elf-worker/src/worker.rs"]
-mod worker;
+#[path = "../../../../apps/elf-worker/src/worker.rs"] mod worker;
 
-use axum::extract::State;
-use axum::http::StatusCode;
-use axum::response::IntoResponse;
-use axum::routing;
-use axum::{Json, Router};
-use qdrant_client::qdrant::{CreateCollectionBuilder, Distance, VectorParamsBuilder};
-use std::future::IntoFuture;
-use std::sync::{
-	Arc,
-	atomic::{AtomicUsize, Ordering},
+use super::{
+	SpyExtractor, StubEmbedding, StubRerank, build_service, test_config, test_dsn, test_qdrant_url,
 };
-use std::time::{Duration, Instant};
-use super::{SpyExtractor, StubEmbedding, StubRerank, build_service, test_config, test_dsn, test_qdrant_url};
+use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing};
+use qdrant_client::qdrant::{
+	CreateCollectionBuilder, Distance, Modifier, SparseVectorParamsBuilder,
+	SparseVectorsConfigBuilder, VectorParamsBuilder, VectorsConfigBuilder,
+};
+use std::{
+	future::IntoFuture,
+	sync::{
+		Arc,
+		atomic::{AtomicUsize, Ordering},
+	},
+	time::{Duration, Instant},
+};
 
 #[derive(sqlx::FromRow)]
 struct OutboxRow {
@@ -32,9 +34,7 @@ async fn outbox_retries_to_done() {
 		eprintln!("Skipping outbox_retries_to_done; set ELF_QDRANT_URL to run this test.");
 		return;
 	};
-	let _guard = super::test_lock(&dsn)
-		.await
-		.expect("Failed to acquire test lock.");
+	let _guard = super::test_lock(&dsn).await.expect("Failed to acquire test lock.");
 
 	let request_count = Arc::new(AtomicUsize::new(0));
 	let (base_url, shutdown) = start_embed_server(request_count.clone()).await;
@@ -50,24 +50,27 @@ async fn outbox_retries_to_done() {
 	);
 
 	let cfg = test_config(dsn.clone(), qdrant_url, 3);
-	let service = build_service(cfg, providers)
-		.await
-		.expect("Failed to build service.");
-	super::reset_db(&service.db.pool)
-		.await
-		.expect("Failed to reset test database.");
+	let service = build_service(cfg, providers).await.expect("Failed to build service.");
+	super::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
 
-	let _ = service
-		.qdrant
-		.client
-		.delete_collection(service.qdrant.collection.clone())
-		.await;
+	let _ = service.qdrant.client.delete_collection(service.qdrant.collection.clone()).await;
+	let mut vectors_config = VectorsConfigBuilder::default();
+	vectors_config.add_named_vector_params(
+		elf_storage::qdrant::DENSE_VECTOR_NAME,
+		VectorParamsBuilder::new(3, Distance::Cosine),
+	);
+	let mut sparse_vectors_config = SparseVectorsConfigBuilder::default();
+	sparse_vectors_config.add_named_vector_params(
+		elf_storage::qdrant::BM25_VECTOR_NAME,
+		SparseVectorParamsBuilder::default().modifier(Modifier::Idf as i32),
+	);
 	service
 		.qdrant
 		.client
 		.create_collection(
 			CreateCollectionBuilder::new(service.qdrant.collection.clone())
-				.vectors_config(VectorParamsBuilder::new(3, Distance::Cosine)),
+				.vectors_config(vectors_config)
+				.sparse_vectors_config(sparse_vectors_config),
 		)
 		.await
 		.expect("Failed to create Qdrant collection.");
@@ -91,9 +94,7 @@ async fn outbox_retries_to_done() {
 		.await
 		.expect("Failed to add note.");
 
-	let note_id = add_response.results[0]
-		.note_id
-		.expect("Expected note_id in add_note result.");
+	let note_id = add_response.results[0].note_id.expect("Expected note_id in add_note result.");
 
 	let worker_state = worker::WorkerState {
 		db: elf_storage::db::Db::connect(&service.cfg.storage.postgres)
@@ -158,10 +159,8 @@ async fn wait_for_status(
 		.ok()
 		.flatten();
 
-		if let Some(row) = row {
-			if row.status == status {
-				return Some(row);
-			}
+		if let Some(row) = row && row.status == status {
+			return Some(row);
 		}
 		if Instant::now() >= deadline {
 			return None;
@@ -173,15 +172,11 @@ async fn wait_for_status(
 async fn start_embed_server(
 	request_count: Arc<AtomicUsize>,
 ) -> (String, tokio::sync::oneshot::Sender<()>) {
-	let app = Router::new()
-		.route("/embeddings", routing::post(embed_handler))
-		.with_state(request_count);
-	let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
-		.await
-		.expect("Failed to bind embed server.");
-	let addr = listener
-		.local_addr()
-		.expect("Failed to read embed server address.");
+	let app =
+		Router::new().route("/embeddings", routing::post(embed_handler)).with_state(request_count);
+	let listener =
+		tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("Failed to bind embed server.");
+	let addr = listener.local_addr().expect("Failed to read embed server address.");
 	let (tx, rx) = tokio::sync::oneshot::channel();
 	let server = axum::serve(listener, app).with_graceful_shutdown(async move {
 		let _ = rx.await;
@@ -201,11 +196,8 @@ async fn embed_handler(
 		return StatusCode::INTERNAL_SERVER_ERROR.into_response();
 	}
 
-	let inputs = payload
-		.get("input")
-		.and_then(|value| value.as_array())
-		.cloned()
-		.unwrap_or_default();
+	let inputs =
+		payload.get("input").and_then(|value| value.as_array()).cloned().unwrap_or_default();
 	let data: Vec<_> = inputs
 		.iter()
 		.enumerate()

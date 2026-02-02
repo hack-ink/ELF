@@ -1,125 +1,122 @@
-use elf_domain::cjk::contains_cjk;
-use elf_domain::ttl::compute_expires_at;
-use elf_domain::writegate::{NoteInput, writegate};
+use elf_domain::{
+	cjk::contains_cjk,
+	ttl::compute_expires_at,
+	writegate::{NoteInput, writegate},
+};
 use elf_storage::models::MemoryNote;
 
 use crate::{
-    ElfService, NoteOp, ServiceError, ServiceResult, enqueue_outbox_tx, insert_version,
-    note_snapshot, writegate_reason_code,
+	ElfService, InsertVersionArgs, NoteOp, ServiceError, ServiceResult, enqueue_outbox_tx,
+	insert_version, note_snapshot, writegate_reason_code,
 };
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct UpdateRequest {
-    pub tenant_id: String,
-    pub project_id: String,
-    pub agent_id: String,
-    pub note_id: uuid::Uuid,
-    pub text: Option<String>,
-    pub importance: Option<f32>,
-    pub confidence: Option<f32>,
-    pub ttl_days: Option<i64>,
+	pub tenant_id: String,
+	pub project_id: String,
+	pub agent_id: String,
+	pub note_id: uuid::Uuid,
+	pub text: Option<String>,
+	pub importance: Option<f32>,
+	pub confidence: Option<f32>,
+	pub ttl_days: Option<i64>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct UpdateResponse {
-    pub note_id: uuid::Uuid,
-    pub op: NoteOp,
-    pub reason_code: Option<String>,
+	pub note_id: uuid::Uuid,
+	pub op: NoteOp,
+	pub reason_code: Option<String>,
 }
 
 impl ElfService {
-    pub async fn update(&self, req: UpdateRequest) -> ServiceResult<UpdateResponse> {
-        let tenant_id = req.tenant_id.trim();
-        let project_id = req.project_id.trim();
-        let agent_id = req.agent_id.trim();
-        if tenant_id.is_empty() || project_id.is_empty() || agent_id.is_empty()
-        {
-            return Err(ServiceError::InvalidRequest {
-                message: "tenant_id, project_id, and agent_id are required.".to_string(),
-            });
-        }
-        if req.text.is_none()
-            && req.importance.is_none()
-            && req.confidence.is_none()
-            && req.ttl_days.is_none()
-        {
-            return Err(ServiceError::InvalidRequest {
-                message: "No updates provided.".to_string(),
-            });
-        }
-        let text_update = req.text.clone();
-        let mut tx = self.db.pool.begin().await?;
-        let mut note: MemoryNote = sqlx::query_as(
-            "SELECT * FROM memory_notes \
+	pub async fn update(&self, req: UpdateRequest) -> ServiceResult<UpdateResponse> {
+		let tenant_id = req.tenant_id.trim();
+		let project_id = req.project_id.trim();
+		let agent_id = req.agent_id.trim();
+		if tenant_id.is_empty() || project_id.is_empty() || agent_id.is_empty() {
+			return Err(ServiceError::InvalidRequest {
+				message: "tenant_id, project_id, and agent_id are required.".to_string(),
+			});
+		}
+		if req.text.is_none()
+			&& req.importance.is_none()
+			&& req.confidence.is_none()
+			&& req.ttl_days.is_none()
+		{
+			return Err(ServiceError::InvalidRequest {
+				message: "No updates provided.".to_string(),
+			});
+		}
+		let text_update = req.text.clone();
+		let mut tx = self.db.pool.begin().await?;
+		let mut note: MemoryNote = sqlx::query_as(
+			"SELECT * FROM memory_notes \
              WHERE note_id = $1 AND tenant_id = $2 AND project_id = $3 AND agent_id = $4 \
              FOR UPDATE",
-        )
-        .bind(req.note_id)
-        .bind(tenant_id)
-        .bind(project_id)
-        .bind(agent_id)
-        .fetch_optional(&mut *tx)
-        .await?
-        .ok_or_else(|| ServiceError::InvalidRequest {
-            message: "Note not found.".to_string(),
-        })?;
+		)
+		.bind(req.note_id)
+		.bind(tenant_id)
+		.bind(project_id)
+		.bind(agent_id)
+		.fetch_optional(&mut *tx)
+		.await?
+		.ok_or_else(|| ServiceError::InvalidRequest { message: "Note not found.".to_string() })?;
 
-        let prev_snapshot = note_snapshot(&note);
+		let prev_snapshot = note_snapshot(&note);
 
-        let candidate_text = if let Some(text) = text_update.as_ref() {
-            if contains_cjk(text) {
-                return Err(ServiceError::NonEnglishInput {
-                    field: "$.text".to_string(),
-                });
-            }
-            text.clone()
-        } else {
-            note.text.clone()
-        };
+		let candidate_text = if let Some(text) = text_update.as_ref() {
+			if contains_cjk(text) {
+				return Err(ServiceError::NonEnglishInput { field: "$.text".to_string() });
+			}
+			text.clone()
+		} else {
+			note.text.clone()
+		};
 
-        let gate = NoteInput {
-            note_type: note.r#type.clone(),
-            scope: note.scope.clone(),
-            text: candidate_text,
-        };
-        if let Err(code) = writegate(&gate, &self.cfg) {
-            return Ok(UpdateResponse {
-                note_id: note.note_id,
-                op: NoteOp::Rejected,
-                reason_code: Some(writegate_reason_code(code).to_string()),
-            });
-        }
+		let gate = NoteInput {
+			note_type: note.r#type.clone(),
+			scope: note.scope.clone(),
+			text: candidate_text,
+		};
+		if let Err(code) = writegate(&gate, &self.cfg) {
+			return Ok(UpdateResponse {
+				note_id: note.note_id,
+				op: NoteOp::Rejected,
+				reason_code: Some(writegate_reason_code(code).to_string()),
+			});
+		}
 
-        let now = time::OffsetDateTime::now_utc();
-        let next_text = text_update.unwrap_or_else(|| note.text.clone());
-        let next_importance = req.importance.unwrap_or(note.importance);
-        let next_confidence = req.confidence.unwrap_or(note.confidence);
-        let next_expires_at = match req.ttl_days {
-            Some(ttl_days) => compute_expires_at(Some(ttl_days), &note.r#type, &self.cfg, now),
-            None => note.expires_at,
-        };
+		let now = time::OffsetDateTime::now_utc();
+		let next_text = text_update.unwrap_or_else(|| note.text.clone());
+		let next_importance = req.importance.unwrap_or(note.importance);
+		let next_confidence = req.confidence.unwrap_or(note.confidence);
+		let next_expires_at = match req.ttl_days {
+			Some(ttl_days) => compute_expires_at(Some(ttl_days), &note.r#type, &self.cfg, now),
+			None => note.expires_at,
+		};
 
-        let changed = next_text != note.text
-            || (next_importance - note.importance).abs() > f32::EPSILON
-            || (next_confidence - note.confidence).abs() > f32::EPSILON
-            || next_expires_at != note.expires_at;
+		let changed = next_text != note.text
+			|| (next_importance - note.importance).abs() > f32::EPSILON
+			|| (next_confidence - note.confidence).abs() > f32::EPSILON
+			|| next_expires_at != note.expires_at;
 
-        if !changed {
-            tx.commit().await?;
-            return Ok(UpdateResponse {
-                note_id: note.note_id,
-                op: NoteOp::None,
-                reason_code: None,
-            });
-        }
+		if !changed {
+			tx.commit().await?;
+			return Ok(UpdateResponse {
+				note_id: note.note_id,
+				op: NoteOp::None,
+				reason_code: None,
+			});
+		}
 
-        note.text = next_text;
-        note.importance = next_importance;
-        note.confidence = next_confidence;
-        note.expires_at = next_expires_at;
-        note.updated_at = now;
+		note.text = next_text;
+		note.importance = next_importance;
+		note.confidence = next_confidence;
+		note.expires_at = next_expires_at;
+		note.updated_at = now;
 
-        sqlx::query(
+		sqlx::query(
             "UPDATE memory_notes SET text = $1, importance = $2, confidence = $3, updated_at = $4, expires_at = $5 WHERE note_id = $6",
         )
         .bind(&note.text)
@@ -131,33 +128,31 @@ impl ElfService {
         .execute(&mut *tx)
         .await?;
 
-        insert_version(
-            &mut tx,
-            note.note_id,
-            "UPDATE",
-            Some(prev_snapshot),
-            Some(note_snapshot(&note)),
-            "update",
-            "update",
-            note.updated_at,
-        )
-        .await?;
+		insert_version(
+			&mut tx,
+			InsertVersionArgs {
+				note_id: note.note_id,
+				op: "UPDATE",
+				prev_snapshot: Some(prev_snapshot),
+				new_snapshot: Some(note_snapshot(&note)),
+				reason: "update",
+				actor: "update",
+				ts: note.updated_at,
+			},
+		)
+		.await?;
 
-        enqueue_outbox_tx(
-            &mut tx,
-            note.note_id,
-            "UPSERT",
-            &note.embedding_version,
-            note.updated_at,
-        )
-        .await?;
+		enqueue_outbox_tx(
+			&mut tx,
+			note.note_id,
+			"UPSERT",
+			&note.embedding_version,
+			note.updated_at,
+		)
+		.await?;
 
-        tx.commit().await?;
+		tx.commit().await?;
 
-        Ok(UpdateResponse {
-            note_id: note.note_id,
-            op: NoteOp::Update,
-            reason_code: None,
-        })
-    }
+		Ok(UpdateResponse { note_id: note.note_id, op: NoteOp::Update, reason_code: None })
+	}
 }
