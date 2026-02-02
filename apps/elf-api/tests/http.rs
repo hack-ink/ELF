@@ -1,10 +1,8 @@
-#[path = "../src/routes.rs"] mod routes;
-#[path = "../src/state.rs"] mod state;
-
 use axum::{
 	body::Body,
 	http::{Request, StatusCode},
 };
+use elf_api::{routes, state};
 use sqlx::Connection;
 use tower::util::ServiceExt;
 
