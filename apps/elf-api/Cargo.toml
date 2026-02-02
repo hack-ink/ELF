@@ -2,6 +2,7 @@
 name = "elf-api"
 version = "0.1.0"
 edition = "2024"
+build = "../../build.rs"
 
 [dependencies]
 clap = { workspace = true }
@@ -16,6 +17,9 @@ elf-config = { path = "../../crates/elf-config" }
 elf-cli = { path = "../../crates/elf-cli" }
 elf-service = { path = "../../crates/elf-service" }
 elf-storage = { path = "../../crates/elf-storage" }
+
+[build-dependencies]
+vergen-gitcl = { workspace = true }
 
 [dev-dependencies]
 tower = "0.5"
