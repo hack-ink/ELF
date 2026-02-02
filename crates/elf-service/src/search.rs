@@ -1,275 +1,266 @@
 use std::hash::Hasher;
 
 use elf_domain::cjk::contains_cjk;
-use elf_storage::models::MemoryNote;
-use qdrant_client::qdrant::{Condition, Filter, MinShould, SearchPointsBuilder};
-use qdrant_client::qdrant::point_id::PointIdOptions;
+use elf_storage::{
+	models::MemoryNote,
+	qdrant::{BM25_MODEL, BM25_VECTOR_NAME, DENSE_VECTOR_NAME},
+};
+use qdrant_client::qdrant::{
+	Condition, Document, Filter, Fusion, MinShould, PrefetchQueryBuilder, Query,
+	QueryPointsBuilder, point_id::PointIdOptions,
+};
 
 use crate::{ElfService, ServiceError, ServiceResult};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SearchRequest {
-    pub tenant_id: String,
-    pub project_id: String,
-    pub agent_id: String,
-    pub read_profile: String,
-    pub query: String,
-    pub top_k: Option<u32>,
-    pub candidate_k: Option<u32>,
-    pub record_hits: Option<bool>,
+	pub tenant_id: String,
+	pub project_id: String,
+	pub agent_id: String,
+	pub read_profile: String,
+	pub query: String,
+	pub top_k: Option<u32>,
+	pub candidate_k: Option<u32>,
+	pub record_hits: Option<bool>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SearchItem {
-    pub note_id: uuid::Uuid,
-    #[serde(rename = "type")]
-    pub note_type: String,
-    pub key: Option<String>,
-    pub scope: String,
-    pub text: String,
-    pub importance: f32,
-    pub confidence: f32,
-    #[serde(with = "crate::time_serde")]
-    pub updated_at: time::OffsetDateTime,
-    #[serde(with = "crate::time_serde::option")]
-    pub expires_at: Option<time::OffsetDateTime>,
-    pub final_score: f32,
-    pub source_ref: serde_json::Value,
+	pub note_id: uuid::Uuid,
+	#[serde(rename = "type")]
+	pub note_type: String,
+	pub key: Option<String>,
+	pub scope: String,
+	pub text: String,
+	pub importance: f32,
+	pub confidence: f32,
+	#[serde(with = "crate::time_serde")]
+	pub updated_at: time::OffsetDateTime,
+	#[serde(with = "crate::time_serde::option")]
+	pub expires_at: Option<time::OffsetDateTime>,
+	pub final_score: f32,
+	pub source_ref: serde_json::Value,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SearchResponse {
-    pub items: Vec<SearchItem>,
+	pub items: Vec<SearchItem>,
 }
 
 impl ElfService {
-    pub async fn search(&self, req: SearchRequest) -> ServiceResult<SearchResponse> {
-        let tenant_id = req.tenant_id.trim();
-        let project_id = req.project_id.trim();
-        let agent_id = req.agent_id.trim();
-        if tenant_id.is_empty() || project_id.is_empty() || agent_id.is_empty() {
-            return Err(ServiceError::InvalidRequest {
-                message: "tenant_id, project_id, and agent_id are required.".to_string(),
-            });
-        }
-        if contains_cjk(&req.query) {
-            return Err(ServiceError::NonEnglishInput {
-                field: "$.query".to_string(),
-            });
-        }
+	pub async fn search(&self, req: SearchRequest) -> ServiceResult<SearchResponse> {
+		let tenant_id = req.tenant_id.trim();
+		let project_id = req.project_id.trim();
+		let agent_id = req.agent_id.trim();
+		if tenant_id.is_empty() || project_id.is_empty() || agent_id.is_empty() {
+			return Err(ServiceError::InvalidRequest {
+				message: "tenant_id, project_id, and agent_id are required.".to_string(),
+			});
+		}
+		if contains_cjk(&req.query) {
+			return Err(ServiceError::NonEnglishInput { field: "$.query".to_string() });
+		}
 
-        let allowed_scopes = resolve_scopes(&self.cfg, &req.read_profile)?;
-        if allowed_scopes.is_empty() {
-            return Ok(SearchResponse { items: Vec::new() });
-        }
+		let allowed_scopes = resolve_scopes(&self.cfg, &req.read_profile)?;
+		if allowed_scopes.is_empty() {
+			return Ok(SearchResponse { items: Vec::new() });
+		}
 
-        let top_k = req.top_k.unwrap_or(self.cfg.memory.top_k).max(1);
-        let candidate_k = req
-            .candidate_k
-            .unwrap_or(self.cfg.memory.candidate_k)
-            .max(top_k);
+		let top_k = req.top_k.unwrap_or(self.cfg.memory.top_k).max(1);
+		let candidate_k = req.candidate_k.unwrap_or(self.cfg.memory.candidate_k).max(top_k);
 
-        let embeddings = self
-            .providers
-            .embedding
-            .embed(&self.cfg.providers.embedding, &[req.query.clone()])
-            .await?;
-        let query_vec = embeddings
-            .into_iter()
-            .next()
-            .ok_or_else(|| ServiceError::Provider {
-                message: "Embedding provider returned no vectors.".to_string(),
-            })?;
-        if query_vec.len() != self.cfg.storage.qdrant.vector_dim as usize {
-            return Err(ServiceError::Provider {
-                message: "Embedding vector dimension mismatch.".to_string(),
-            });
-        }
+		let embeddings = self
+			.providers
+			.embedding
+			.embed(&self.cfg.providers.embedding, std::slice::from_ref(&req.query))
+			.await?;
+		let query_vec = embeddings.into_iter().next().ok_or_else(|| ServiceError::Provider {
+			message: "Embedding provider returned no vectors.".to_string(),
+		})?;
+		if query_vec.len() != self.cfg.storage.qdrant.vector_dim as usize {
+			return Err(ServiceError::Provider {
+				message: "Embedding vector dimension mismatch.".to_string(),
+			});
+		}
 
-        let private_scope = "agent_private".to_string();
-        let non_private_scopes: Vec<String> = allowed_scopes
-            .iter()
-            .filter(|scope| *scope != "agent_private")
-            .cloned()
-            .collect();
-        let mut should_conditions = Vec::new();
-        if allowed_scopes.iter().any(|scope| scope == "agent_private") {
-            let private_filter = Filter::all([
-                Condition::matches("scope", private_scope),
-                Condition::matches("agent_id", agent_id.to_string()),
-            ]);
-            should_conditions.push(Condition::from(private_filter));
-        }
-        if !non_private_scopes.is_empty() {
-            should_conditions.push(Condition::matches("scope", non_private_scopes));
-        }
+		let private_scope = "agent_private".to_string();
+		let non_private_scopes: Vec<String> =
+			allowed_scopes.iter().filter(|scope| *scope != "agent_private").cloned().collect();
+		let mut should_conditions = Vec::new();
+		if allowed_scopes.iter().any(|scope| scope == "agent_private") {
+			let private_filter = Filter::all([
+				Condition::matches("scope", private_scope),
+				Condition::matches("agent_id", agent_id.to_string()),
+			]);
+			should_conditions.push(Condition::from(private_filter));
+		}
+		if !non_private_scopes.is_empty() {
+			should_conditions.push(Condition::matches("scope", non_private_scopes));
+		}
 
-        let (should, min_should) = if should_conditions.is_empty() {
-            (Vec::new(), None)
-        } else {
-            (
-                Vec::new(),
-                Some(MinShould {
-                    min_count: 1,
-                    conditions: should_conditions,
-                }),
-            )
-        };
+		let (should, min_should) = if should_conditions.is_empty() {
+			(Vec::new(), None)
+		} else {
+			(Vec::new(), Some(MinShould { min_count: 1, conditions: should_conditions }))
+		};
 
-        let filter = Filter {
-            must: vec![
-                Condition::matches("tenant_id", tenant_id.to_string()),
-                Condition::matches("project_id", project_id.to_string()),
-                Condition::matches("status", "active".to_string()),
-            ],
-            should,
-            must_not: Vec::new(),
-            min_should,
-        };
+		let filter = Filter {
+			must: vec![
+				Condition::matches("tenant_id", tenant_id.to_string()),
+				Condition::matches("project_id", project_id.to_string()),
+				Condition::matches("status", "active".to_string()),
+			],
+			should,
+			must_not: Vec::new(),
+			min_should,
+		};
 
-        let search = SearchPointsBuilder::new(
-            self.qdrant.collection.clone(),
-            query_vec,
-            candidate_k as u64,
-        )
-        .filter(filter);
+		let dense_prefetch = PrefetchQueryBuilder::default()
+			.query(Query::new_nearest(query_vec))
+			.using(DENSE_VECTOR_NAME)
+			.filter(filter.clone())
+			.limit(candidate_k as u64);
+		let bm25_prefetch = PrefetchQueryBuilder::default()
+			.query(Query::new_nearest(Document::new(req.query.clone(), BM25_MODEL)))
+			.using(BM25_VECTOR_NAME)
+			.filter(filter)
+			.limit(candidate_k as u64);
 
-        let search_response = self
-            .qdrant
-            .client
-            .search_points(search)
-            .await
-            .map_err(|err| ServiceError::Qdrant {
-                message: err.to_string(),
-            })?;
+		let search = QueryPointsBuilder::new(self.qdrant.collection.clone())
+			.add_prefetch(dense_prefetch)
+			.add_prefetch(bm25_prefetch)
+			.query(Fusion::Rrf)
+			.limit(candidate_k as u64);
 
-        let candidate_ids: Vec<uuid::Uuid> = search_response
-            .result
-            .iter()
-            .filter_map(|point| point.id.as_ref())
-            .filter_map(point_id_to_uuid)
-            .collect();
+		let search_response = self
+			.qdrant
+			.client
+			.query(search)
+			.await
+			.map_err(|err| ServiceError::Qdrant { message: err.to_string() })?;
 
-        if candidate_ids.is_empty() {
-            return Ok(SearchResponse { items: Vec::new() });
-        }
+		let candidate_ids: Vec<uuid::Uuid> = search_response
+			.result
+			.iter()
+			.filter_map(|point| point.id.as_ref())
+			.filter_map(point_id_to_uuid)
+			.collect();
 
-        let mut notes: Vec<MemoryNote> = sqlx::query_as(
-            "SELECT * FROM memory_notes WHERE note_id = ANY($1) AND tenant_id = $2 AND project_id = $3",
-        )
-        .bind(&candidate_ids)
-        .bind(tenant_id)
-        .bind(project_id)
-        .fetch_all(&self.db.pool)
-        .await?;
+		if candidate_ids.is_empty() {
+			return Ok(SearchResponse { items: Vec::new() });
+		}
 
-        let now = time::OffsetDateTime::now_utc();
-        notes.retain(|note| {
-            if note.tenant_id != tenant_id || note.project_id != project_id {
-                return false;
-            }
-            if note.scope == "agent_private" && note.agent_id != agent_id {
-                return false;
-            }
-            note.status == "active"
-                && allowed_scopes.contains(&note.scope)
-                && note.expires_at.map(|ts| ts > now).unwrap_or(true)
-        });
+		let mut notes: Vec<MemoryNote> = sqlx::query_as(
+			"SELECT * FROM memory_notes WHERE note_id = ANY($1) AND tenant_id = $2 AND project_id = $3",
+		)
+		.bind(&candidate_ids)
+		.bind(tenant_id)
+		.bind(project_id)
+		.fetch_all(&self.db.pool)
+		.await?;
 
-        if notes.is_empty() {
-            return Ok(SearchResponse { items: Vec::new() });
-        }
+		let now = time::OffsetDateTime::now_utc();
+		notes.retain(|note| {
+			if note.tenant_id != tenant_id || note.project_id != project_id {
+				return false;
+			}
+			if note.scope == "agent_private" && note.agent_id != agent_id {
+				return false;
+			}
+			note.status == "active"
+				&& allowed_scopes.contains(&note.scope)
+				&& note.expires_at.map(|ts| ts > now).unwrap_or(true)
+		});
 
-        let docs: Vec<String> = notes.iter().map(|note| note.text.clone()).collect();
-        let scores = self
-            .providers
-            .rerank
-            .rerank(&self.cfg.providers.rerank, &req.query, &docs)
-            .await?;
-        if scores.len() != notes.len() {
-            return Err(ServiceError::Provider {
-                message: "Rerank provider returned mismatched score count.".to_string(),
-            });
-        }
+		if notes.is_empty() {
+			return Ok(SearchResponse { items: Vec::new() });
+		}
 
-        let mut scored = Vec::with_capacity(notes.len());
-        for (note, rerank_score) in notes.into_iter().zip(scores.into_iter()) {
-            let age_days = (now - note.updated_at).as_seconds_f32() / 86_400.0;
-            let decay = if self.cfg.ranking.recency_tau_days > 0.0 {
-                (-age_days / self.cfg.ranking.recency_tau_days).exp()
-            } else {
-                1.0
-            };
-            let base = (1.0 + 0.6 * note.importance) * decay;
-            let final_score = rerank_score + self.cfg.ranking.tie_breaker_weight * base;
-            scored.push((note, final_score));
-        }
+		let docs: Vec<String> = notes.iter().map(|note| note.text.clone()).collect();
+		let scores =
+			self.providers.rerank.rerank(&self.cfg.providers.rerank, &req.query, &docs).await?;
+		if scores.len() != notes.len() {
+			return Err(ServiceError::Provider {
+				message: "Rerank provider returned mismatched score count.".to_string(),
+			});
+		}
 
-        scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-        scored.truncate(top_k as usize);
+		let mut scored = Vec::with_capacity(notes.len());
+		for (note, rerank_score) in notes.into_iter().zip(scores.into_iter()) {
+			let age_days = (now - note.updated_at).as_seconds_f32() / 86_400.0;
+			let decay = if self.cfg.ranking.recency_tau_days > 0.0 {
+				(-age_days / self.cfg.ranking.recency_tau_days).exp()
+			} else {
+				1.0
+			};
+			let base = (1.0 + 0.6 * note.importance) * decay;
+			let final_score = rerank_score + self.cfg.ranking.tie_breaker_weight * base;
+			scored.push((note, final_score));
+		}
 
-        if req.record_hits.unwrap_or(false) {
-            record_hits(&self.db.pool, &req.query, &scored, now).await?;
-        }
+		scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+		scored.truncate(top_k as usize);
 
-        let items = scored
-            .into_iter()
-            .map(|(note, final_score)| SearchItem {
-                note_id: note.note_id,
-                note_type: note.r#type,
-                key: note.key,
-                scope: note.scope,
-                text: note.text,
-                importance: note.importance,
-                confidence: note.confidence,
-                updated_at: note.updated_at,
-                expires_at: note.expires_at,
-                final_score,
-                source_ref: note.source_ref,
-            })
-            .collect();
+		if req.record_hits.unwrap_or(false) {
+			record_hits(&self.db.pool, &req.query, &scored, now).await?;
+		}
 
-        Ok(SearchResponse { items })
-    }
+		let items = scored
+			.into_iter()
+			.map(|(note, final_score)| SearchItem {
+				note_id: note.note_id,
+				note_type: note.r#type,
+				key: note.key,
+				scope: note.scope,
+				text: note.text,
+				importance: note.importance,
+				confidence: note.confidence,
+				updated_at: note.updated_at,
+				expires_at: note.expires_at,
+				final_score,
+				source_ref: note.source_ref,
+			})
+			.collect();
+
+		Ok(SearchResponse { items })
+	}
 }
 
 fn resolve_scopes(cfg: &elf_config::Config, profile: &str) -> ServiceResult<Vec<String>> {
-    match profile {
-        "private_only" => Ok(cfg.scopes.read_profiles.private_only.clone()),
-        "private_plus_project" => Ok(cfg.scopes.read_profiles.private_plus_project.clone()),
-        "all_scopes" => Ok(cfg.scopes.read_profiles.all_scopes.clone()),
-        _ => Err(ServiceError::InvalidRequest {
-            message: "Unknown read_profile.".to_string(),
-        }),
-    }
+	match profile {
+		"private_only" => Ok(cfg.scopes.read_profiles.private_only.clone()),
+		"private_plus_project" => Ok(cfg.scopes.read_profiles.private_plus_project.clone()),
+		"all_scopes" => Ok(cfg.scopes.read_profiles.all_scopes.clone()),
+		_ => Err(ServiceError::InvalidRequest { message: "Unknown read_profile.".to_string() }),
+	}
 }
 
 fn point_id_to_uuid(point_id: &qdrant_client::qdrant::PointId) -> Option<uuid::Uuid> {
-    match &point_id.point_id_options {
-        Some(PointIdOptions::Uuid(id)) => uuid::Uuid::parse_str(id).ok(),
-        _ => None,
-    }
+	match &point_id.point_id_options {
+		Some(PointIdOptions::Uuid(id)) => uuid::Uuid::parse_str(id).ok(),
+		_ => None,
+	}
 }
 
 async fn record_hits(
-    pool: &sqlx::PgPool,
-    query: &str,
-    scored: &[(MemoryNote, f32)],
-    now: time::OffsetDateTime,
+	pool: &sqlx::PgPool,
+	query: &str,
+	scored: &[(MemoryNote, f32)],
+	now: time::OffsetDateTime,
 ) -> ServiceResult<()> {
-    let query_hash = hash_query(query);
-    let mut tx = pool.begin().await?;
+	let query_hash = hash_query(query);
+	let mut tx = pool.begin().await?;
 
-    for (rank, (note, final_score)) in scored.iter().enumerate() {
-        sqlx::query(
-            "UPDATE memory_notes SET hit_count = hit_count + 1, last_hit_at = $1 WHERE note_id = $2",
-        )
-        .bind(now)
-        .bind(note.note_id)
-        .execute(&mut *tx)
-        .await?;
+	for (rank, (note, final_score)) in scored.iter().enumerate() {
+		sqlx::query(
+			"UPDATE memory_notes SET hit_count = hit_count + 1, last_hit_at = $1 WHERE note_id = $2",
+		)
+		.bind(now)
+		.bind(note.note_id)
+		.execute(&mut *tx)
+		.await?;
 
-        sqlx::query(
+		sqlx::query(
             "INSERT INTO memory_hits (hit_id, note_id, query_hash, rank, final_score, ts) VALUES ($1,$2,$3,$4,$5,$6)",
         )
         .bind(uuid::Uuid::new_v4())
@@ -280,14 +271,14 @@ async fn record_hits(
         .bind(now)
         .execute(&mut *tx)
         .await?;
-    }
+	}
 
-    tx.commit().await?;
-    Ok(())
+	tx.commit().await?;
+	Ok(())
 }
 
 fn hash_query(query: &str) -> String {
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    std::hash::Hash::hash(query, &mut hasher);
-    format!("{:x}", hasher.finish())
+	let mut hasher = std::collections::hash_map::DefaultHasher::new();
+	std::hash::Hash::hash(query, &mut hasher);
+	format!("{:x}", hasher.finish())
 }
