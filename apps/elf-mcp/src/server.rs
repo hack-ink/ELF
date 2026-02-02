@@ -1,287 +1,275 @@
-use std::collections::HashMap;
-use std::net::SocketAddr;
-use std::sync::Arc;
+#[cfg(test)] use std::collections::HashMap;
+use std::{net::SocketAddr, sync::Arc};
 
 use axum::Router;
 use color_eyre::Result;
-use rmcp::handler::server::router::tool::ToolRouter;
-use rmcp::model::{CallToolResult, JsonObject, ServerCapabilities, ServerInfo};
-use rmcp::transport::streamable_http_server::{
-    session::local::LocalSessionManager, StreamableHttpServerConfig, StreamableHttpService,
+use rmcp::{
+	ErrorData as McpError, ServerHandler,
+	handler::server::router::tool::ToolRouter,
+	model::{CallToolResult, JsonObject, ServerCapabilities, ServerInfo},
+	tool, tool_handler, tool_router,
+	transport::streamable_http_server::{
+		StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
+	},
 };
-use rmcp::{ErrorData as McpError, ServerHandler, tool, tool_handler, tool_router};
 use serde_json::{Value, json};
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ToolDefinition {
-    pub name: &'static str,
-    pub method: HttpMethod,
-    pub path: &'static str,
-    pub description: &'static str,
-    pub streaming: bool,
+pub(crate) struct ToolDefinition {
+	pub(crate) name: &'static str,
+	pub(crate) method: HttpMethod,
+	pub(crate) path: &'static str,
+	pub(crate) description: &'static str,
+	pub(crate) streaming: bool,
 }
 
+#[cfg(test)]
 impl ToolDefinition {
-    pub const fn new(
-        name: &'static str,
-        method: HttpMethod,
-        path: &'static str,
-        description: &'static str,
-    ) -> Self {
-        Self {
-            name,
-            method,
-            path,
-            description,
-            streaming: true,
-        }
-    }
+	pub const fn new(
+		name: &'static str,
+		method: HttpMethod,
+		path: &'static str,
+		description: &'static str,
+	) -> Self {
+		Self { name, method, path, description, streaming: true }
+	}
 }
 
-pub const TOOL_MEMORY_ADD_NOTE: &str = "memory_add_note";
-pub const TOOL_MEMORY_ADD_EVENT: &str = "memory_add_event";
-pub const TOOL_MEMORY_SEARCH: &str = "memory_search";
-pub const TOOL_MEMORY_LIST: &str = "memory_list";
-pub const TOOL_MEMORY_UPDATE: &str = "memory_update";
-pub const TOOL_MEMORY_DELETE: &str = "memory_delete";
+#[cfg(test)]
+pub(crate) const TOOL_MEMORY_ADD_NOTE: &str = "memory_add_note";
+#[cfg(test)]
+pub(crate) const TOOL_MEMORY_ADD_EVENT: &str = "memory_add_event";
+#[cfg(test)]
+pub(crate) const TOOL_MEMORY_SEARCH: &str = "memory_search";
+#[cfg(test)]
+pub(crate) const TOOL_MEMORY_LIST: &str = "memory_list";
+#[cfg(test)]
+pub(crate) const TOOL_MEMORY_UPDATE: &str = "memory_update";
+#[cfg(test)]
+pub(crate) const TOOL_MEMORY_DELETE: &str = "memory_delete";
 
-pub fn build_tools() -> HashMap<&'static str, ToolDefinition> {
-    let tools = [
-        ToolDefinition::new(
-            TOOL_MEMORY_ADD_NOTE,
-            HttpMethod::Post,
-            "/v1/memory/add_note",
-            "Add memory notes.",
-        ),
-        ToolDefinition::new(
-            TOOL_MEMORY_ADD_EVENT,
-            HttpMethod::Post,
-            "/v1/memory/add_event",
-            "Add memory extracted from event messages.",
-        ),
-        ToolDefinition::new(
-            TOOL_MEMORY_SEARCH,
-            HttpMethod::Post,
-            "/v1/memory/search",
-            "Search memory notes.",
-        ),
-        ToolDefinition::new(
-            TOOL_MEMORY_LIST,
-            HttpMethod::Get,
-            "/v1/memory/list",
-            "List memory notes.",
-        ),
-        ToolDefinition::new(
-            TOOL_MEMORY_UPDATE,
-            HttpMethod::Post,
-            "/v1/memory/update",
-            "Update memory notes.",
-        ),
-        ToolDefinition::new(
-            TOOL_MEMORY_DELETE,
-            HttpMethod::Post,
-            "/v1/memory/delete",
-            "Delete memory notes.",
-        ),
-    ];
+#[cfg(test)]
+pub(crate) fn build_tools() -> HashMap<&'static str, ToolDefinition> {
+	let tools = [
+		ToolDefinition::new(
+			TOOL_MEMORY_ADD_NOTE,
+			HttpMethod::Post,
+			"/v1/memory/add_note",
+			"Add memory notes.",
+		),
+		ToolDefinition::new(
+			TOOL_MEMORY_ADD_EVENT,
+			HttpMethod::Post,
+			"/v1/memory/add_event",
+			"Add memory extracted from event messages.",
+		),
+		ToolDefinition::new(
+			TOOL_MEMORY_SEARCH,
+			HttpMethod::Post,
+			"/v1/memory/search",
+			"Search memory notes.",
+		),
+		ToolDefinition::new(
+			TOOL_MEMORY_LIST,
+			HttpMethod::Get,
+			"/v1/memory/list",
+			"List memory notes.",
+		),
+		ToolDefinition::new(
+			TOOL_MEMORY_UPDATE,
+			HttpMethod::Post,
+			"/v1/memory/update",
+			"Update memory notes.",
+		),
+		ToolDefinition::new(
+			TOOL_MEMORY_DELETE,
+			HttpMethod::Post,
+			"/v1/memory/delete",
+			"Delete memory notes.",
+		),
+	];
 
-    tools
-        .into_iter()
-        .map(|tool| (tool.name, tool))
-        .collect()
+	tools.into_iter().map(|tool| (tool.name, tool)).collect()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum HttpMethod {
-    Get,
-    Post,
+pub(crate) enum HttpMethod {
+	Get,
+	Post,
 }
 
 #[derive(Clone)]
 struct ElfMcp {
-    base_url: String,
-    client: reqwest::Client,
-    tool_router: ToolRouter<Self>,
+	base_url: String,
+	client: reqwest::Client,
+	tool_router: ToolRouter<Self>,
 }
 
 impl ElfMcp {
-    fn new(base_url: String) -> Self {
-        Self {
-            base_url,
-            client: reqwest::Client::new(),
-            tool_router: Self::tool_router(),
-        }
-    }
+	fn new(base_url: String) -> Self {
+		Self { base_url, client: reqwest::Client::new(), tool_router: Self::tool_router() }
+	}
 
-    async fn forward_post(&self, path: &str, body: Value) -> Result<CallToolResult, McpError> {
-        let url = format!("{}{}", self.base_url, path);
-        let response = self
-            .client
-            .post(url)
-            .json(&body)
-            .send()
-            .await
-            .map_err(|err| McpError::internal_error(format!("ELF API request failed: {err}"), None))?;
-        handle_response(response).await
-    }
+	async fn forward_post(&self, path: &str, body: Value) -> Result<CallToolResult, McpError> {
+		let url = format!("{}{}", self.base_url, path);
+		let response = self.client.post(url).json(&body).send().await.map_err(|err| {
+			McpError::internal_error(format!("ELF API request failed: {err}"), None)
+		})?;
+		handle_response(response).await
+	}
 
-    async fn forward_get(&self, path: &str, params: JsonObject) -> Result<CallToolResult, McpError> {
-        let url = format!("{}{}", self.base_url, path);
-        let query = params_to_query(params);
-        let response = self
-            .client
-            .get(url)
-            .query(&query)
-            .send()
-            .await
-            .map_err(|err| McpError::internal_error(format!("ELF API request failed: {err}"), None))?;
-        handle_response(response).await
-    }
+	async fn forward_get(
+		&self,
+		path: &str,
+		params: JsonObject,
+	) -> Result<CallToolResult, McpError> {
+		let url = format!("{}{}", self.base_url, path);
+		let query = params_to_query(params);
+		let response = self.client.get(url).query(&query).send().await.map_err(|err| {
+			McpError::internal_error(format!("ELF API request failed: {err}"), None)
+		})?;
+		handle_response(response).await
+	}
 
-    async fn forward(
-        &self,
-        method: HttpMethod,
-        path: &str,
-        params: JsonObject,
-    ) -> Result<CallToolResult, McpError> {
-        match method {
-            HttpMethod::Post => self.forward_post(path, Value::Object(params)).await,
-            HttpMethod::Get => self.forward_get(path, params).await,
-        }
-    }
+	async fn forward(
+		&self,
+		method: HttpMethod,
+		path: &str,
+		params: JsonObject,
+	) -> Result<CallToolResult, McpError> {
+		match method {
+			HttpMethod::Post => self.forward_post(path, Value::Object(params)).await,
+			HttpMethod::Get => self.forward_get(path, params).await,
+		}
+	}
 }
 
 #[tool_router]
 impl ElfMcp {
-    #[tool(
+	#[tool(
         name = "memory_add_note",
         description = "Add memory notes.",
         input_schema = any_json_schema()
     )]
-    async fn memory_add_note(&self, params: JsonObject) -> Result<CallToolResult, McpError> {
-        self.forward(HttpMethod::Post, "/v1/memory/add_note", params)
-            .await
-    }
+	async fn memory_add_note(&self, params: JsonObject) -> Result<CallToolResult, McpError> {
+		self.forward(HttpMethod::Post, "/v1/memory/add_note", params).await
+	}
 
-    #[tool(
+	#[tool(
         name = "memory_add_event",
         description = "Add memory extracted from event messages.",
         input_schema = any_json_schema()
     )]
-    async fn memory_add_event(&self, params: JsonObject) -> Result<CallToolResult, McpError> {
-        self.forward(HttpMethod::Post, "/v1/memory/add_event", params)
-            .await
-    }
+	async fn memory_add_event(&self, params: JsonObject) -> Result<CallToolResult, McpError> {
+		self.forward(HttpMethod::Post, "/v1/memory/add_event", params).await
+	}
 
-    #[tool(
+	#[tool(
         name = "memory_search",
         description = "Search memory notes.",
         input_schema = any_json_schema()
     )]
-    async fn memory_search(&self, params: JsonObject) -> Result<CallToolResult, McpError> {
-        self.forward(HttpMethod::Post, "/v1/memory/search", params)
-            .await
-    }
+	async fn memory_search(&self, params: JsonObject) -> Result<CallToolResult, McpError> {
+		self.forward(HttpMethod::Post, "/v1/memory/search", params).await
+	}
 
-    #[tool(
+	#[tool(
         name = "memory_list",
         description = "List memory notes.",
         input_schema = any_json_schema()
     )]
-    async fn memory_list(&self, params: JsonObject) -> Result<CallToolResult, McpError> {
-        self.forward(HttpMethod::Get, "/v1/memory/list", params)
-            .await
-    }
+	async fn memory_list(&self, params: JsonObject) -> Result<CallToolResult, McpError> {
+		self.forward(HttpMethod::Get, "/v1/memory/list", params).await
+	}
 
-    #[tool(
+	#[tool(
         name = "memory_update",
         description = "Update memory notes.",
         input_schema = any_json_schema()
     )]
-    async fn memory_update(&self, params: JsonObject) -> Result<CallToolResult, McpError> {
-        self.forward(HttpMethod::Post, "/v1/memory/update", params)
-            .await
-    }
+	async fn memory_update(&self, params: JsonObject) -> Result<CallToolResult, McpError> {
+		self.forward(HttpMethod::Post, "/v1/memory/update", params).await
+	}
 
-    #[tool(
+	#[tool(
         name = "memory_delete",
         description = "Delete memory notes.",
         input_schema = any_json_schema()
     )]
-    async fn memory_delete(&self, params: JsonObject) -> Result<CallToolResult, McpError> {
-        self.forward(HttpMethod::Post, "/v1/memory/delete", params)
-            .await
-    }
+	async fn memory_delete(&self, params: JsonObject) -> Result<CallToolResult, McpError> {
+		self.forward(HttpMethod::Post, "/v1/memory/delete", params).await
+	}
 }
 
 #[tool_handler]
 impl ServerHandler for ElfMcp {
-    fn get_info(&self) -> ServerInfo {
-        ServerInfo {
-            instructions: Some(
-                "ELF MCP adapter that forwards tool calls to the ELF HTTP API.".to_string(),
-            ),
-            capabilities: ServerCapabilities::builder().enable_tools().build(),
-            ..Default::default()
-        }
-    }
+	fn get_info(&self) -> ServerInfo {
+		ServerInfo {
+			instructions: Some(
+				"ELF MCP adapter that forwards tool calls to the ELF HTTP API.".to_string(),
+			),
+			capabilities: ServerCapabilities::builder().enable_tools().build(),
+			..Default::default()
+		}
+	}
 }
 
 pub async fn serve_mcp(bind_addr: &str, base_url: &str) -> Result<()> {
-    let bind_addr: SocketAddr = bind_addr.parse()?;
-    let base_url = normalize_base_url(base_url);
-    let session_manager: Arc<LocalSessionManager> = Default::default();
-    let service = StreamableHttpService::new(
-        move || Ok(ElfMcp::new(base_url.clone())),
-        session_manager,
-        StreamableHttpServerConfig::default(),
-    );
-    let router = Router::new().fallback_service(service);
-    let listener = tokio::net::TcpListener::bind(bind_addr).await?;
-    axum::serve(listener, router).await?;
-    Ok(())
+	let bind_addr: SocketAddr = bind_addr.parse()?;
+	let base_url = normalize_base_url(base_url);
+	let session_manager: Arc<LocalSessionManager> = Default::default();
+	let service = StreamableHttpService::new(
+		move || Ok(ElfMcp::new(base_url.clone())),
+		session_manager,
+		StreamableHttpServerConfig::default(),
+	);
+	let router = Router::new().fallback_service(service);
+	let listener = tokio::net::TcpListener::bind(bind_addr).await?;
+	axum::serve(listener, router).await?;
+	Ok(())
 }
 
 fn normalize_base_url(raw: &str) -> String {
-    let trimmed = raw.trim_end_matches('/');
-    if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
-        trimmed.to_string()
-    } else {
-        format!("http://{trimmed}")
-    }
+	let trimmed = raw.trim_end_matches('/');
+	if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
+		trimmed.to_string()
+	} else {
+		format!("http://{trimmed}")
+	}
 }
 
 fn params_to_query(params: JsonObject) -> Vec<(String, String)> {
-    params
-        .into_iter()
-        .filter_map(|(key, value)| match value {
-            Value::Null => None,
-            Value::String(text) => Some((key, text)),
-            other => Some((key, other.to_string())),
-        })
-        .collect()
+	params
+		.into_iter()
+		.filter_map(|(key, value)| match value {
+			Value::Null => None,
+			Value::String(text) => Some((key, text)),
+			other => Some((key, other.to_string())),
+		})
+		.collect()
 }
 
 fn any_json_schema() -> Arc<JsonObject> {
-    Arc::new(rmcp::object!({
-        "type": "object",
-        "additionalProperties": true
-    }))
+	Arc::new(rmcp::object!({
+		"type": "object",
+		"additionalProperties": true
+	}))
 }
 
 async fn handle_response(response: reqwest::Response) -> Result<CallToolResult, McpError> {
-    let status = response.status();
-    let bytes = response
-        .bytes()
-        .await
-        .map_err(|err| McpError::internal_error(format!("ELF API response error: {err}"), None))?;
-    let parsed = serde_json::from_slice::<Value>(&bytes).unwrap_or_else(|_| {
-        let raw = String::from_utf8_lossy(&bytes).to_string();
-        json!({ "raw": raw })
-    });
-    if status.is_success() {
-        Ok(CallToolResult::structured(parsed))
-    } else {
-        Ok(CallToolResult::structured_error(parsed))
-    }
+	let status = response.status();
+	let bytes = response
+		.bytes()
+		.await
+		.map_err(|err| McpError::internal_error(format!("ELF API response error: {err}"), None))?;
+	let parsed = serde_json::from_slice::<Value>(&bytes).unwrap_or_else(|_| {
+		let raw = String::from_utf8_lossy(&bytes).to_string();
+		json!({ "raw": raw })
+	});
+	if status.is_success() {
+		Ok(CallToolResult::structured(parsed))
+	} else {
+		Ok(CallToolResult::structured_error(parsed))
+	}
 }
