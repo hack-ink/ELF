@@ -4,6 +4,11 @@ use clap::Parser;
 use tracing_subscriber::EnvFilter;
 
 #[derive(Debug, Parser)]
+#[command(
+	version = elf_cli::VERSION,
+	rename_all = "kebab",
+	styles = elf_cli::styles(),
+)]
 struct Args {
 	#[arg(long, short = 'c', value_name = "FILE")]
 	config: std::path::PathBuf,
