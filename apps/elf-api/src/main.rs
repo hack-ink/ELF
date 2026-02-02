@@ -29,21 +29,20 @@ async fn main() -> color_eyre::Result<()> {
 		));
 	}
 	if !admin_addr.ip().is_loopback() {
-		return Err(color_eyre::eyre::eyre!(
-			"admin_bind must be a loopback address."
-		));
+		return Err(color_eyre::eyre::eyre!("admin_bind must be a loopback address."));
 	}
 	let state = state::AppState::new(config).await?;
 	let app = routes::router(state.clone());
 	let admin_app = routes::admin_router(state);
 
 	let http_listener = tokio::net::TcpListener::bind(http_addr).await?;
-	let admin_listener = tokio::net::TcpListener::bind(admin_addr).await?;
 
 	tracing::info!(%http_addr, "HTTP server listening.");
+	let http_server = axum::serve(http_listener, app);
+	let admin_listener = tokio::net::TcpListener::bind(admin_addr).await?;
+
 	tracing::info!(%admin_addr, "Admin server listening.");
 
-	let http_server = axum::serve(http_listener, app);
 	let admin_server = axum::serve(admin_listener, admin_app);
 
 	tokio::try_join!(http_server, admin_server)?;

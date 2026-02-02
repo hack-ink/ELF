@@ -1,19 +1,19 @@
 [package]
-name = "elf-mcp"
-version = "0.1.0"
+build   = "../../build.rs"
 edition = "2024"
-build = "../../build.rs"
+name    = "elf-mcp"
+version = "0.1.0"
 
 [dependencies]
-axum = { workspace = true }
-clap = { workspace = true }
+axum       = { workspace = true }
+clap       = { workspace = true }
 color-eyre = { workspace = true }
+elf-cli    = { path = "../../crates/elf-cli" }
 elf-config = { path = "../../crates/elf-config" }
-elf-cli = { path = "../../crates/elf-cli" }
-reqwest = { workspace = true }
-rmcp = { version = "0.13", features = ["transport-streamable-http-server"] }
+reqwest    = { workspace = true }
+rmcp       = { version = "0.13", features = ["transport-streamable-http-server"] }
 serde_json = { workspace = true }
-tokio = { workspace = true }
+tokio      = { workspace = true }
 
 [build-dependencies]
 vergen-gitcl = { workspace = true }

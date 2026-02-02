@@ -16,10 +16,7 @@ impl Db {
 	pub async fn ensure_schema(&self, vector_dim: u32) -> Result<()> {
 		let sql = crate::schema::render_schema(vector_dim);
 		let lock_id: i64 = 7_120_114;
-		sqlx::query("SELECT pg_advisory_lock($1)")
-			.bind(lock_id)
-			.execute(&self.pool)
-			.await?;
+		sqlx::query("SELECT pg_advisory_lock($1)").bind(lock_id).execute(&self.pool).await?;
 
 		let mut failure: Option<color_eyre::Report> = None;
 		for statement in sql.split(';') {
@@ -32,10 +29,8 @@ impl Db {
 				break;
 			}
 		}
-		let _ = sqlx::query("SELECT pg_advisory_unlock($1)")
-			.bind(lock_id)
-			.execute(&self.pool)
-			.await;
+		let _ =
+			sqlx::query("SELECT pg_advisory_unlock($1)").bind(lock_id).execute(&self.pool).await;
 		if let Some(err) = failure {
 			return Err(err);
 		}
