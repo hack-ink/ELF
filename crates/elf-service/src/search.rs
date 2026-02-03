@@ -1,4 +1,4 @@
-use std::hash::Hasher;
+use std::{collections::HashSet, hash::Hasher};
 
 use elf_domain::cjk::contains_cjk;
 use elf_storage::{
@@ -7,8 +7,9 @@ use elf_storage::{
 };
 use qdrant_client::qdrant::{
 	Condition, Document, Filter, Fusion, MinShould, PrefetchQueryBuilder, Query,
-	QueryPointsBuilder, point_id::PointIdOptions,
+	QueryPointsBuilder, ScoredPoint, point_id::PointIdOptions,
 };
+use tracing::warn;
 
 use crate::{ElfService, ServiceError, ServiceResult};
 
@@ -47,6 +48,30 @@ pub struct SearchResponse {
 	pub items: Vec<SearchItem>,
 }
 
+#[derive(Debug, Clone)]
+struct QueryEmbedding {
+	text: String,
+	vector: Vec<f32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ExpansionMode {
+	Off,
+	Always,
+	Dynamic,
+}
+
+struct FinishSearchArgs<'a> {
+	query: &'a str,
+	tenant_id: &'a str,
+	project_id: &'a str,
+	agent_id: &'a str,
+	allowed_scopes: &'a [String],
+	candidate_ids: Vec<uuid::Uuid>,
+	top_k: u32,
+	record_hits_enabled: bool,
+}
+
 impl ElfService {
 	pub async fn search(&self, req: SearchRequest) -> ServiceResult<SearchResponse> {
 		let tenant_id = req.tenant_id.trim();
@@ -68,20 +93,9 @@ impl ElfService {
 
 		let top_k = req.top_k.unwrap_or(self.cfg.memory.top_k).max(1);
 		let candidate_k = req.candidate_k.unwrap_or(self.cfg.memory.candidate_k).max(top_k);
-
-		let embeddings = self
-			.providers
-			.embedding
-			.embed(&self.cfg.providers.embedding, std::slice::from_ref(&req.query))
-			.await?;
-		let query_vec = embeddings.into_iter().next().ok_or_else(|| ServiceError::Provider {
-			message: "Embedding provider returned no vectors.".to_string(),
-		})?;
-		if query_vec.len() != self.cfg.storage.qdrant.vector_dim as usize {
-			return Err(ServiceError::Provider {
-				message: "Embedding vector dimension mismatch.".to_string(),
-			});
-		}
+		let query = req.query.clone();
+		let record_hits_enabled = req.record_hits.unwrap_or(false);
+		let expansion_mode = resolve_expansion_mode(&self.cfg);
 
 		let private_scope = "agent_private".to_string();
 		let non_private_scopes: Vec<String> =
@@ -115,37 +129,208 @@ impl ElfService {
 			min_should,
 		};
 
-		let dense_prefetch = PrefetchQueryBuilder::default()
-			.query(Query::new_nearest(query_vec))
-			.using(DENSE_VECTOR_NAME)
-			.filter(filter.clone())
-			.limit(candidate_k as u64);
-		let bm25_prefetch = PrefetchQueryBuilder::default()
-			.query(Query::new_nearest(Document::new(req.query.clone(), BM25_MODEL)))
-			.using(BM25_VECTOR_NAME)
-			.filter(filter)
-			.limit(candidate_k as u64);
+		let mut baseline_vector: Option<Vec<f32>> = None;
+		if expansion_mode == ExpansionMode::Dynamic {
+			let query_vec = self.embed_single_query(&query).await?;
+			baseline_vector = Some(query_vec.clone());
+			let baseline_points = self
+				.run_fusion_query(
+					&[QueryEmbedding { text: query.clone(), vector: query_vec }],
+					&filter,
+					candidate_k,
+				)
+				.await?;
+			let top_score = baseline_points.first().map(|point| point.score).unwrap_or(0.0);
+			let candidate_ids = collect_candidate_ids(
+				&baseline_points,
+				self.cfg.search.prefilter.max_candidates,
+				candidate_k,
+			);
+			let should_expand =
+				should_expand_dynamic(baseline_points.len(), top_score, &self.cfg.search.dynamic);
+			if !should_expand {
+				return self
+					.finish_search(FinishSearchArgs {
+						query: &query,
+						tenant_id,
+						project_id,
+						agent_id,
+						allowed_scopes: &allowed_scopes,
+						candidate_ids,
+						top_k,
+						record_hits_enabled,
+					})
+					.await;
+			}
+		}
 
-		let search = QueryPointsBuilder::new(self.qdrant.collection.clone())
-			.add_prefetch(dense_prefetch)
-			.add_prefetch(bm25_prefetch)
-			.query(Fusion::Rrf)
-			.limit(candidate_k as u64);
+		let queries = match expansion_mode {
+			ExpansionMode::Off => vec![query.clone()],
+			ExpansionMode::Always | ExpansionMode::Dynamic => self.expand_queries(&query).await,
+		};
 
-		let search_response = self
+		let query_embeddings =
+			self.embed_queries(&queries, &query, baseline_vector.as_ref()).await?;
+		let fusion_points = self.run_fusion_query(&query_embeddings, &filter, candidate_k).await?;
+		let candidate_ids = collect_candidate_ids(
+			&fusion_points,
+			self.cfg.search.prefilter.max_candidates,
+			candidate_k,
+		);
+
+		self.finish_search(FinishSearchArgs {
+			query: &query,
+			tenant_id,
+			project_id,
+			agent_id,
+			allowed_scopes: &allowed_scopes,
+			candidate_ids,
+			top_k,
+			record_hits_enabled,
+		})
+		.await
+	}
+
+	async fn embed_single_query(&self, query: &str) -> ServiceResult<Vec<f32>> {
+		let embeddings = self
+			.providers
+			.embedding
+			.embed(&self.cfg.providers.embedding, std::slice::from_ref(&query.to_string()))
+			.await?;
+		let query_vec = embeddings.into_iter().next().ok_or_else(|| ServiceError::Provider {
+			message: "Embedding provider returned no vectors.".to_string(),
+		})?;
+		if query_vec.len() != self.cfg.storage.qdrant.vector_dim as usize {
+			return Err(ServiceError::Provider {
+				message: "Embedding vector dimension mismatch.".to_string(),
+			});
+		}
+		Ok(query_vec)
+	}
+
+	async fn embed_queries(
+		&self,
+		queries: &[String],
+		original_query: &str,
+		baseline_vector: Option<&Vec<f32>>,
+	) -> ServiceResult<Vec<QueryEmbedding>> {
+		let mut extra_queries = Vec::new();
+		for query in queries {
+			if baseline_vector.is_some() && query == original_query {
+				continue;
+			}
+			extra_queries.push(query.clone());
+		}
+
+		let mut embedded_iter = if extra_queries.is_empty() {
+			Vec::new().into_iter()
+		} else {
+			let embedded = self
+				.providers
+				.embedding
+				.embed(&self.cfg.providers.embedding, &extra_queries)
+				.await?;
+			if embedded.len() != extra_queries.len() {
+				return Err(ServiceError::Provider {
+					message: "Embedding provider returned mismatched vector count.".to_string(),
+				});
+			}
+			embedded.into_iter()
+		};
+		let mut out = Vec::with_capacity(queries.len());
+		for query in queries {
+			let vector = if baseline_vector.is_some() && query == original_query {
+				baseline_vector
+					.ok_or_else(|| ServiceError::Provider {
+						message: "Embedding baseline vector is missing.".to_string(),
+					})?
+					.clone()
+			} else {
+				embedded_iter.next().ok_or_else(|| ServiceError::Provider {
+					message: "Embedding provider returned no vectors.".to_string(),
+				})?
+			};
+			if vector.len() != self.cfg.storage.qdrant.vector_dim as usize {
+				return Err(ServiceError::Provider {
+					message: "Embedding vector dimension mismatch.".to_string(),
+				});
+			}
+			out.push(QueryEmbedding { text: query.clone(), vector });
+		}
+		Ok(out)
+	}
+
+	async fn run_fusion_query(
+		&self,
+		queries: &[QueryEmbedding],
+		filter: &Filter,
+		candidate_k: u32,
+	) -> ServiceResult<Vec<ScoredPoint>> {
+		let mut search = QueryPointsBuilder::new(self.qdrant.collection.clone());
+		for query in queries {
+			let dense_prefetch = PrefetchQueryBuilder::default()
+				.query(Query::new_nearest(query.vector.clone()))
+				.using(DENSE_VECTOR_NAME)
+				.filter(filter.clone())
+				.limit(candidate_k as u64);
+			let bm25_prefetch = PrefetchQueryBuilder::default()
+				.query(Query::new_nearest(Document::new(query.text.clone(), BM25_MODEL)))
+				.using(BM25_VECTOR_NAME)
+				.filter(filter.clone())
+				.limit(candidate_k as u64);
+			search = search.add_prefetch(dense_prefetch).add_prefetch(bm25_prefetch);
+		}
+
+		let search = search.query(Fusion::Rrf).limit(candidate_k as u64);
+		let response = self
 			.qdrant
 			.client
 			.query(search)
 			.await
 			.map_err(|err| ServiceError::Qdrant { message: err.to_string() })?;
+		Ok(response.result)
+	}
 
-		let candidate_ids: Vec<uuid::Uuid> = search_response
-			.result
-			.iter()
-			.filter_map(|point| point.id.as_ref())
-			.filter_map(point_id_to_uuid)
-			.collect();
+	async fn expand_queries(&self, query: &str) -> Vec<String> {
+		let cfg = &self.cfg.search.expansion;
+		let messages = build_expansion_messages(query, cfg.max_queries, cfg.include_original);
+		let raw = match self
+			.providers
+			.extractor
+			.extract(&self.cfg.providers.llm_extractor, &messages)
+			.await
+		{
+			Ok(value) => value,
+			Err(err) => {
+				warn!(error = %err, "Query expansion failed; falling back to original query.");
+				return vec![query.to_string()];
+			},
+		};
 
+		let parsed: ExpansionOutput = match serde_json::from_value(raw) {
+			Ok(value) => value,
+			Err(err) => {
+				warn!(error = %err, "Query expansion returned invalid JSON; falling back to original query.");
+				return vec![query.to_string()];
+			},
+		};
+
+		let normalized =
+			normalize_queries(parsed.queries, query, cfg.include_original, cfg.max_queries);
+		if normalized.is_empty() { vec![query.to_string()] } else { normalized }
+	}
+
+	async fn finish_search(&self, args: FinishSearchArgs<'_>) -> ServiceResult<SearchResponse> {
+		let FinishSearchArgs {
+			query,
+			tenant_id,
+			project_id,
+			agent_id,
+			allowed_scopes,
+			candidate_ids,
+			top_k,
+			record_hits_enabled,
+		} = args;
 		if candidate_ids.is_empty() {
 			return Ok(SearchResponse { items: Vec::new() });
 		}
@@ -177,8 +362,7 @@ impl ElfService {
 		}
 
 		let docs: Vec<String> = notes.iter().map(|note| note.text.clone()).collect();
-		let scores =
-			self.providers.rerank.rerank(&self.cfg.providers.rerank, &req.query, &docs).await?;
+		let scores = self.providers.rerank.rerank(&self.cfg.providers.rerank, query, &docs).await?;
 		if scores.len() != notes.len() {
 			return Err(ServiceError::Provider {
 				message: "Rerank provider returned mismatched score count.".to_string(),
@@ -201,8 +385,8 @@ impl ElfService {
 		scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 		scored.truncate(top_k as usize);
 
-		if req.record_hits.unwrap_or(false) {
-			record_hits(&self.db.pool, &req.query, &scored, now).await?;
+		if record_hits_enabled {
+			record_hits(&self.db.pool, query, &scored, now).await?;
 		}
 
 		let items = scored
@@ -224,6 +408,111 @@ impl ElfService {
 
 		Ok(SearchResponse { items })
 	}
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct ExpansionOutput {
+	queries: Vec<String>,
+}
+
+fn resolve_expansion_mode(cfg: &elf_config::Config) -> ExpansionMode {
+	match cfg.search.expansion.mode.as_str() {
+		"off" => ExpansionMode::Off,
+		"always" => ExpansionMode::Always,
+		"dynamic" => ExpansionMode::Dynamic,
+		_ => ExpansionMode::Off,
+	}
+}
+
+fn should_expand_dynamic(
+	candidate_count: usize,
+	top_score: f32,
+	cfg: &elf_config::SearchDynamic,
+) -> bool {
+	candidate_count < cfg.min_candidates as usize || top_score < cfg.min_top_score
+}
+
+fn normalize_queries(
+	queries: Vec<String>,
+	original: &str,
+	include_original: bool,
+	max_queries: u32,
+) -> Vec<String> {
+	let mut out = Vec::new();
+	let mut seen = HashSet::new();
+
+	if include_original {
+		push_query(&mut out, &mut seen, original);
+	}
+	for query in queries {
+		if out.len() >= max_queries as usize {
+			break;
+		}
+		push_query(&mut out, &mut seen, &query);
+	}
+	out.truncate(max_queries as usize);
+	out
+}
+
+fn push_query(out: &mut Vec<String>, seen: &mut HashSet<String>, value: &str) {
+	let trimmed = value.trim();
+	if trimmed.is_empty() || contains_cjk(trimmed) {
+		return;
+	}
+	let key = trimmed.to_lowercase();
+	if seen.insert(key) {
+		out.push(trimmed.to_string());
+	}
+}
+
+fn build_expansion_messages(
+	query: &str,
+	max_queries: u32,
+	include_original: bool,
+) -> Vec<serde_json::Value> {
+	let schema = serde_json::json!({
+		"queries": ["string"]
+	});
+	let schema_text = serde_json::to_string_pretty(&schema)
+		.unwrap_or_else(|_| "{\"queries\": [\"string\"]}".to_string());
+	let system_prompt = "You are a query expansion engine for a memory retrieval system. \
+Output must be valid JSON only and must match the provided schema exactly. \
+Generate short English-only query variations that preserve the original intent. \
+Do not include any CJK characters. Do not add explanations or extra fields.";
+	let user_prompt = format!(
+		"Return JSON matching this exact schema:\n{schema}\nConstraints:\n- MAX_QUERIES = {max}\n- INCLUDE_ORIGINAL = {include}\nOriginal query:\n{query}",
+		schema = schema_text,
+		max = max_queries,
+		include = include_original,
+		query = query
+	);
+	vec![
+		serde_json::json!({ "role": "system", "content": system_prompt }),
+		serde_json::json!({ "role": "user", "content": user_prompt }),
+	]
+}
+
+fn collect_candidate_ids(
+	points: &[ScoredPoint],
+	max_candidates: u32,
+	candidate_k: u32,
+) -> Vec<uuid::Uuid> {
+	let limit = if max_candidates == 0 || max_candidates >= candidate_k {
+		points.len()
+	} else {
+		max_candidates as usize
+	};
+	let mut out = Vec::new();
+	let mut seen = HashSet::new();
+	for point in points.iter().take(limit) {
+		let Some(id) = point.id.as_ref().and_then(point_id_to_uuid) else {
+			continue;
+		};
+		if seen.insert(id) {
+			out.push(id);
+		}
+	}
+	out
 }
 
 fn resolve_scopes(cfg: &elf_config::Config, profile: &str) -> ServiceResult<Vec<String>> {
@@ -281,4 +570,32 @@ fn hash_query(query: &str) -> String {
 	let mut hasher = std::collections::hash_map::DefaultHasher::new();
 	std::hash::Hash::hash(query, &mut hasher);
 	format!("{:x}", hasher.finish())
+}
+
+#[cfg(test)]
+mod tests {
+	use super::{normalize_queries, should_expand_dynamic};
+
+	#[test]
+	fn normalize_queries_includes_original_and_dedupes() {
+		let queries = vec!["alpha".to_string(), "beta".to_string(), "alpha".to_string()];
+		let normalized = normalize_queries(queries, "alpha", true, 4);
+		assert_eq!(normalized, vec!["alpha".to_string(), "beta".to_string()]);
+	}
+
+	#[test]
+	fn normalize_queries_respects_max_queries() {
+		let queries =
+			vec!["one".to_string(), "two".to_string(), "three".to_string(), "four".to_string()];
+		let normalized = normalize_queries(queries, "zero", true, 3);
+		assert_eq!(normalized.len(), 3);
+	}
+
+	#[test]
+	fn dynamic_trigger_checks_candidates_and_score() {
+		let cfg = elf_config::SearchDynamic { min_candidates: 10, min_top_score: 0.2 };
+		assert!(should_expand_dynamic(5, 0.9, &cfg));
+		assert!(should_expand_dynamic(20, 0.1, &cfg));
+		assert!(!should_expand_dynamic(20, 0.9, &cfg));
+	}
 }

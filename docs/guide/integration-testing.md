@@ -65,6 +65,68 @@ temperature     = 0.1
 timeout_ms      = 30000
 
 default_headers = {}
+
+[scopes]
+allowed = ["agent_private", "org_shared", "project_shared"]
+
+[scopes.read_profiles]
+all_scopes           = ["agent_private", "org_shared", "project_shared"]
+private_only         = ["agent_private"]
+private_plus_project = ["agent_private", "project_shared"]
+
+[scopes.precedence]
+agent_private  = 30
+org_shared     = 10
+project_shared = 20
+
+[scopes.write_allowed]
+agent_private  = true
+org_shared     = true
+project_shared = true
+
+[memory]
+candidate_k             = 60
+dup_sim_threshold       = 0.92
+max_note_chars          = 240
+max_notes_per_add_event = 3
+top_k                   = 12
+update_sim_threshold    = 0.85
+
+[search.expansion]
+mode             = "dynamic"
+max_queries      = 4
+include_original = true
+
+[search.dynamic]
+min_candidates = 10
+min_top_score  = 0.12
+
+[search.prefilter]
+max_candidates = 0
+
+[ranking]
+recency_tau_days   = 60
+tie_breaker_weight = 0.1
+
+[lifecycle.ttl_days]
+constraint = 0
+decision   = 0
+fact       = 180
+plan       = 14
+preference = 0
+profile    = 0
+
+[lifecycle]
+purge_deleted_after_days    = 30
+purge_deprecated_after_days = 180
+
+[security]
+bind_localhost_only      = true
+evidence_max_quote_chars = 320
+evidence_max_quotes      = 2
+evidence_min_quotes      = 1
+redact_secrets_on_write  = true
+reject_cjk               = true
 ```
 
 ## Step 2: Start the worker and API

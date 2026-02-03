@@ -72,6 +72,18 @@ update_sim_threshold = 0.85
 candidate_k = 60
 top_k = 12
 
+[search.expansion]
+mode = "dynamic"
+max_queries = 4
+include_original = true
+
+[search.dynamic]
+min_candidates = 10
+min_top_score = 0.12
+
+[search.prefilter]
+max_candidates = 0
+
 [ranking]
 recency_tau_days = 60.0
 tie_breaker_weight = 0.1

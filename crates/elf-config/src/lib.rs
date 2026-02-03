@@ -26,7 +26,27 @@ pub fn validate(cfg: &Config) -> color_eyre::Result<()> {
 			"providers.embedding.dimensions must match storage.qdrant.vector_dim."
 		));
 	}
-
+	let expansion_mode = cfg.search.expansion.mode.as_str();
+	if !matches!(expansion_mode, "off" | "always" | "dynamic") {
+		return Err(color_eyre::eyre::eyre!(
+			"search.expansion.mode must be one of off, always, or dynamic."
+		));
+	}
+	if cfg.search.expansion.max_queries == 0 {
+		return Err(color_eyre::eyre::eyre!(
+			"search.expansion.max_queries must be greater than zero."
+		));
+	}
+	if cfg.search.dynamic.min_candidates == 0 {
+		return Err(color_eyre::eyre::eyre!(
+			"search.dynamic.min_candidates must be greater than zero."
+		));
+	}
+	if cfg.search.dynamic.min_top_score < 0.0 {
+		return Err(color_eyre::eyre::eyre!(
+			"search.dynamic.min_top_score must be zero or greater."
+		));
+	}
 	for (label, key) in [
 		("embedding", &cfg.providers.embedding.api_key),
 		("rerank", &cfg.providers.rerank.api_key),
