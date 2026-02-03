@@ -198,7 +198,7 @@ impl ExtractorProvider for SpyExtractor {
 pub fn dummy_embedding_provider() -> elf_config::EmbeddingProviderConfig {
 	elf_config::EmbeddingProviderConfig {
 		provider_id: "test".to_string(),
-		base_url: "http://127.0.0.1:1".to_string(),
+		api_base: "http://127.0.0.1:1".to_string(),
 		api_key: "test-key".to_string(),
 		path: "/".to_string(),
 		model: "test".to_string(),
@@ -211,7 +211,7 @@ pub fn dummy_embedding_provider() -> elf_config::EmbeddingProviderConfig {
 pub fn dummy_provider() -> elf_config::ProviderConfig {
 	elf_config::ProviderConfig {
 		provider_id: "test".to_string(),
-		base_url: "http://127.0.0.1:1".to_string(),
+		api_base: "http://127.0.0.1:1".to_string(),
 		api_key: "test-key".to_string(),
 		path: "/".to_string(),
 		model: "test".to_string(),
@@ -223,7 +223,7 @@ pub fn dummy_provider() -> elf_config::ProviderConfig {
 pub fn dummy_llm_provider() -> elf_config::LlmProviderConfig {
 	elf_config::LlmProviderConfig {
 		provider_id: "test".to_string(),
-		base_url: "http://127.0.0.1:1".to_string(),
+		api_base: "http://127.0.0.1:1".to_string(),
 		api_key: "test-key".to_string(),
 		path: "/".to_string(),
 		model: "test".to_string(),

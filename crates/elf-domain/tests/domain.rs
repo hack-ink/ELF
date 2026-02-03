@@ -95,7 +95,7 @@ fn computes_ttl_from_defaults() {
 fn dummy_embedding_provider() -> elf_config::EmbeddingProviderConfig {
 	elf_config::EmbeddingProviderConfig {
 		provider_id: "p".to_string(),
-		base_url: "http://localhost".to_string(),
+		api_base: "http://localhost".to_string(),
 		api_key: "key".to_string(),
 		path: "/".to_string(),
 		model: "m".to_string(),
@@ -108,7 +108,7 @@ fn dummy_embedding_provider() -> elf_config::EmbeddingProviderConfig {
 fn dummy_provider() -> elf_config::ProviderConfig {
 	elf_config::ProviderConfig {
 		provider_id: "p".to_string(),
-		base_url: "http://localhost".to_string(),
+		api_base: "http://localhost".to_string(),
 		api_key: "key".to_string(),
 		path: "/".to_string(),
 		model: "m".to_string(),
@@ -120,7 +120,7 @@ fn dummy_provider() -> elf_config::ProviderConfig {
 fn dummy_llm_provider() -> elf_config::LlmProviderConfig {
 	elf_config::LlmProviderConfig {
 		provider_id: "p".to_string(),
-		base_url: "http://localhost".to_string(),
+		api_base: "http://localhost".to_string(),
 		api_key: "key".to_string(),
 		path: "/".to_string(),
 		model: "m".to_string(),

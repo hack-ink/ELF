@@ -21,18 +21,18 @@ enum HttpMethod {
 
 #[derive(Clone)]
 struct ElfMcp {
-	base_url: String,
+	api_base: String,
 	client: reqwest::Client,
 	tool_router: ToolRouter<Self>,
 }
 
 impl ElfMcp {
-	fn new(base_url: String) -> Self {
-		Self { base_url, client: reqwest::Client::new(), tool_router: Self::tool_router() }
+	fn new(api_base: String) -> Self {
+		Self { api_base, client: reqwest::Client::new(), tool_router: Self::tool_router() }
 	}
 
 	async fn forward_post(&self, path: &str, body: Value) -> Result<CallToolResult, McpError> {
-		let url = format!("{}{}", self.base_url, path);
+		let url = format!("{}{}", self.api_base, path);
 		let response = self.client.post(url).json(&body).send().await.map_err(|err| {
 			McpError::internal_error(format!("ELF API request failed: {err}"), None)
 		})?;
@@ -44,7 +44,7 @@ impl ElfMcp {
 		path: &str,
 		params: JsonObject,
 	) -> Result<CallToolResult, McpError> {
-		let url = format!("{}{}", self.base_url, path);
+		let url = format!("{}{}", self.api_base, path);
 		let query = params_to_query(params);
 		let response = self.client.get(url).query(&query).send().await.map_err(|err| {
 			McpError::internal_error(format!("ELF API request failed: {err}"), None)
@@ -135,12 +135,12 @@ impl ServerHandler for ElfMcp {
 	}
 }
 
-pub async fn serve_mcp(bind_addr: &str, base_url: &str) -> Result<()> {
+pub async fn serve_mcp(bind_addr: &str, api_base: &str) -> Result<()> {
 	let bind_addr: SocketAddr = bind_addr.parse()?;
-	let base_url = normalize_base_url(base_url);
+	let api_base = normalize_api_base(api_base);
 	let session_manager: Arc<LocalSessionManager> = Default::default();
 	let service = StreamableHttpService::new(
-		move || Ok(ElfMcp::new(base_url.clone())),
+		move || Ok(ElfMcp::new(api_base.clone())),
 		session_manager,
 		StreamableHttpServerConfig::default(),
 	);
@@ -150,7 +150,7 @@ pub async fn serve_mcp(bind_addr: &str, base_url: &str) -> Result<()> {
 	Ok(())
 }
 
-fn normalize_base_url(raw: &str) -> String {
+fn normalize_api_base(raw: &str) -> String {
 	let trimmed = raw.trim_end_matches('/');
 	if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
 		trimmed.to_string()

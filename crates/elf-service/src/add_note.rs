@@ -6,9 +6,9 @@ use elf_domain::{
 use elf_storage::models::MemoryNote;
 
 use crate::{
-	ElfService, NoteOp, ServiceError, ServiceResult, UpdateDecision, embedding_version,
-	enqueue_outbox_tx, insert_version, InsertVersionArgs, note_snapshot, resolve_update,
-	ResolveUpdateArgs, writegate_reason_code,
+	ElfService, InsertVersionArgs, NoteOp, ResolveUpdateArgs, ServiceError, ServiceResult,
+	UpdateDecision, embedding_version, enqueue_outbox_tx, insert_version, note_snapshot,
+	resolve_update, writegate_reason_code,
 };
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -67,10 +67,10 @@ impl ElfService {
 					field: format!("$.notes[{idx}].text"),
 				});
 			}
-			if let Some(key) = &note.key && contains_cjk(key) {
-				return Err(ServiceError::NonEnglishInput {
-					field: format!("$.notes[{idx}].key"),
-				});
+			if let Some(key) = &note.key
+				&& contains_cjk(key)
+			{
+				return Err(ServiceError::NonEnglishInput { field: format!("$.notes[{idx}].key") });
 			}
 			if let Some(path) =
 				find_cjk_path(&note.source_ref, &format!("$.notes[{idx}].source_ref"))

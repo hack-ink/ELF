@@ -175,7 +175,9 @@ fn note_is_active(note: &MemoryNote, now: OffsetDateTime) -> bool {
 	if !note.status.eq_ignore_ascii_case("active") {
 		return false;
 	}
-	if let Some(expires_at) = note.expires_at && expires_at <= now {
+	if let Some(expires_at) = note.expires_at
+		&& expires_at <= now
+	{
 		return false;
 	}
 	true

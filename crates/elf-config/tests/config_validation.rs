@@ -19,7 +19,7 @@ vector_dim = 1536
 
 [providers.embedding]
 provider_id = "embed"
-base_url = "http://localhost"
+api_base = "http://localhost"
 api_key = "key"
 path = "/embeddings"
 model = "model"
@@ -29,7 +29,7 @@ default_headers = {{}}
 
 [providers.rerank]
 provider_id = "rerank"
-base_url = "http://localhost"
+api_base = "http://localhost"
 api_key = "key"
 path = "/rerank"
 model = "model"
@@ -38,7 +38,7 @@ default_headers = {{}}
 
 [providers.llm_extractor]
 provider_id = "llm"
-base_url = "http://localhost"
+api_base = "http://localhost"
 api_key = "key"
 path = "/chat/completions"
 model = "model"

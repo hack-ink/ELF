@@ -1,0 +1,21 @@
+{
+  "name": "sample",
+  "defaults": {
+    "tenant_id": "tenant-1",
+    "project_id": "project-1",
+    "agent_id": "agent-1",
+    "read_profile": "all_scopes",
+    "top_k": 12,
+    "candidate_k": 60
+  },
+  "queries": [
+    {
+      "id": "q-1",
+      "query": "where do we store embeddings",
+      "expected_note_ids": [
+        "11111111-1111-1111-1111-111111111111",
+        "22222222-2222-2222-2222-222222222222"
+      ]
+    }
+  ]
+}

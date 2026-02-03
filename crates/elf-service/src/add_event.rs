@@ -7,9 +7,9 @@ use elf_domain::{
 use elf_storage::models::MemoryNote;
 
 use crate::{
-	ElfService, NoteOp, REJECT_EVIDENCE_MISMATCH, ServiceError, ServiceResult, UpdateDecision,
-	embedding_version, enqueue_outbox_tx, insert_version, InsertVersionArgs, note_snapshot,
-	resolve_update, ResolveUpdateArgs, writegate_reason_code,
+	ElfService, InsertVersionArgs, NoteOp, REJECT_EVIDENCE_MISMATCH, ResolveUpdateArgs,
+	ServiceError, ServiceResult, UpdateDecision, embedding_version, enqueue_outbox_tx,
+	insert_version, note_snapshot, resolve_update, writegate_reason_code,
 };
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -84,7 +84,9 @@ impl ElfService {
 				message: "tenant_id, project_id, and agent_id are required.".to_string(),
 			});
 		}
-		if let Some(scope) = req.scope.as_ref() && scope.trim().is_empty() {
+		if let Some(scope) = req.scope.as_ref()
+			&& scope.trim().is_empty()
+		{
 			return Err(ServiceError::InvalidRequest {
 				message: "scope must not be empty when provided.".to_string(),
 			});

@@ -37,7 +37,7 @@ async fn outbox_retries_to_done() {
 	let _guard = super::test_lock(&dsn).await.expect("Failed to acquire test lock.");
 
 	let request_count = Arc::new(AtomicUsize::new(0));
-	let (base_url, shutdown) = start_embed_server(request_count.clone()).await;
+	let (api_base, shutdown) = start_embed_server(request_count.clone()).await;
 
 	let extractor = SpyExtractor {
 		calls: Arc::new(AtomicUsize::new(0)),
@@ -104,7 +104,7 @@ async fn outbox_retries_to_done() {
 			.expect("Failed to build Qdrant store."),
 		embedding: elf_config::EmbeddingProviderConfig {
 			provider_id: "test".to_string(),
-			base_url,
+			api_base,
 			api_key: "test-key".to_string(),
 			path: "/embeddings".to_string(),
 			model: "test".to_string(),
@@ -159,7 +159,9 @@ async fn wait_for_status(
 		.ok()
 		.flatten();
 
-		if let Some(row) = row && row.status == status {
+		if let Some(row) = row
+			&& row.status == status
+		{
 			return Some(row);
 		}
 		if Instant::now() >= deadline {
