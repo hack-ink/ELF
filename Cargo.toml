@@ -1,35 +1,33 @@
 [workspace]
 members = [
-	"apps/elf-api",
-	"apps/elf-eval",
-	"apps/elf-mcp",
-	"apps/elf-worker",
-	"crates/elf-cli",
-	"crates/elf-config",
-	"crates/elf-domain",
-	"crates/elf-providers",
-	"crates/elf-service",
-	"crates/elf-storage",
+	"apps/*",
+	"crates/*",
 ]
 resolver = "3"
 
 [workspace.package]
-edition = "2024"
-license = "GPL-3.0"
+authors     = ["Xavier Lau <x@acg.box>"]
+description = "Evidence-linked fact memory for agents."
+edition     = "2024"
+homepage    = "https://github.com/hack-ink/ELF"
+license     = "GPL-3.0"
+readme      = "README.md"
+repository  = "https://github.com/hack-ink/ELF"
+version     = "0.1.0"
 
 [workspace.dependencies]
 axum               = { version = "0.7" }
 clap               = { version = "4.5", features = ["derive"] }
-color-eyre         = "0.6"
-qdrant-client      = "1"
+color-eyre         = { version = "0.6" }
+qdrant-client      = { version = "1.0" }
 reqwest            = { version = "0.12", features = ["json", "rustls-tls"] }
-serde              = { version = "1", features = ["derive"] }
-serde_json         = "1"
+serde              = { version = "1.0", features = ["derive"] }
+serde_json         = { version = "1.0" }
 sqlx               = { version = "0.8", features = ["json", "postgres", "runtime-tokio", "time", "tls-rustls", "uuid"] }
 time               = { version = "0.3", features = ["macros", "serde"] }
-tokio              = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
-toml               = "0.8"
-tracing            = "0.1"
+tokio              = { version = "1.0", features = ["macros", "rt-multi-thread", "time"] }
+toml               = { version = "0.8" }
+tracing            = { version = "0.1" }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-uuid               = { version = "1", features = ["serde", "v4"] }
-vergen-gitcl       = { version = "9.1.0", features = ["cargo"] }
+uuid               = { version = "1.0", features = ["serde", "v4"] }
+vergen-gitcl       = { version = "9.1", features = ["cargo"] }
