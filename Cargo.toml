@@ -1,6 +1,7 @@
 [workspace]
 members = [
 	"apps/elf-api",
+	"apps/elf-eval",
 	"apps/elf-mcp",
 	"apps/elf-worker",
 	"crates/elf-cli",

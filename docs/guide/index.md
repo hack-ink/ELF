@@ -14,3 +14,8 @@ Purpose: Provide the entry point for operational guidance and runbooks.
 
 - `docs/guide/development/languages/index.md` — Language- and stack-specific development rules.
 - `docs/guide/development/languages/rust.md` — Rust development and style rules for this repository.
+
+### Evaluation
+
+- `docs/guide/evaluation.md` — Retrieval evaluation harness and dataset format.
+- `docs/guide/integration-testing.md` — End-to-end memory retrieval integration testing.

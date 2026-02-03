@@ -9,7 +9,7 @@ pub async fn extract(
 	let client = reqwest::Client::builder()
 		.timeout(std::time::Duration::from_millis(cfg.timeout_ms))
 		.build()?;
-	let url = format!("{}{}", cfg.base_url, cfg.path);
+	let url = format!("{}{}", cfg.api_base, cfg.path);
 
 	for _ in 0..3 {
 		let body = serde_json::json!({

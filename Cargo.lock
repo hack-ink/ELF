@@ -777,6 +777,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "elf-eval"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "color-eyre",
+ "elf-cli",
+ "elf-config",
+ "elf-service",
+ "elf-storage",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+ "vergen-gitcl",
+]
+
+[[package]]
 name = "elf-mcp"
 version = "0.1.0"
 dependencies = [

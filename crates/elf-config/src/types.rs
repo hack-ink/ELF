@@ -49,7 +49,7 @@ pub struct Providers {
 #[derive(Debug, Deserialize)]
 pub struct EmbeddingProviderConfig {
 	pub provider_id: String,
-	pub base_url: String,
+	pub api_base: String,
 	pub api_key: String,
 	pub path: String,
 	pub model: String,
@@ -61,7 +61,7 @@ pub struct EmbeddingProviderConfig {
 #[derive(Debug, Deserialize)]
 pub struct ProviderConfig {
 	pub provider_id: String,
-	pub base_url: String,
+	pub api_base: String,
 	pub api_key: String,
 	pub path: String,
 	pub model: String,
@@ -72,7 +72,7 @@ pub struct ProviderConfig {
 #[derive(Debug, Deserialize)]
 pub struct LlmProviderConfig {
 	pub provider_id: String,
-	pub base_url: String,
+	pub api_base: String,
 	pub api_key: String,
 	pub path: String,
 	pub model: String,

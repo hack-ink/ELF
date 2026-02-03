@@ -72,7 +72,7 @@ vector_dim = <REQUIRED_INT>
 
 [providers.embedding]
 provider_id = "<REQUIRED_ID>"
-base_url = "<REQUIRED_URL>"
+api_base = "<REQUIRED_URL>"
 api_key = "<REQUIRED_NON_EMPTY>"
 path = "<REQUIRED_PATH>"
 model = "<REQUIRED_MODEL>"
@@ -83,7 +83,7 @@ default_headers = {}
 
 [providers.rerank]
 provider_id = "<REQUIRED_ID>"
-base_url = "<REQUIRED_URL>"
+api_base = "<REQUIRED_URL>"
 api_key = "<REQUIRED_NON_EMPTY>"
 path = "<REQUIRED_PATH>"
 model = "<REQUIRED_MODEL>"
@@ -93,7 +93,7 @@ default_headers = {}
 
 [providers.llm_extractor]
 provider_id = "<REQUIRED_ID>"
-base_url = "<REQUIRED_URL>"
+api_base = "<REQUIRED_URL>"
 api_key = "<REQUIRED_NON_EMPTY>"
 path = "<REQUIRED_PATH>"
 model = "<REQUIRED_MODEL>"
@@ -319,7 +319,7 @@ Contract:
 - Each vector length equals vector_dim.
 
 Implementation:
-- POST {base_url}{path}
+- POST {api_base}{path}
   { "model": model, "input": [texts...], "dimensions": dimensions }
 - Send Authorization: Bearer <api_key>.
 - Merge default_headers into the request.
@@ -336,7 +336,7 @@ Contract:
 - Scores are aligned to docs indexes.
 
 Implementation:
-- POST {base_url}{path}
+- POST {api_base}{path}
   { "model": model, "query": "...", "documents": ["..."] }
 - Send Authorization: Bearer <api_key>.
 - Merge default_headers into the request.
@@ -352,7 +352,7 @@ Contract:
 - Otherwise enforce JSON-only with at most 2 retries.
 
 Implementation:
-- POST {base_url}{path}
+- POST {api_base}{path}
   { "model": model, "temperature": temperature, "messages": [...] }
 - Send Authorization: Bearer <api_key>.
 - Merge default_headers into the request.

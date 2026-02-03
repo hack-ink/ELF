@@ -45,7 +45,9 @@ impl ElfService {
 				message: "tenant_id and project_id are required.".to_string(),
 			});
 		}
-		if let Some(agent_id) = req.agent_id.as_ref() && agent_id.trim().is_empty() {
+		if let Some(agent_id) = req.agent_id.as_ref()
+			&& agent_id.trim().is_empty()
+		{
 			return Err(ServiceError::InvalidRequest {
 				message: "agent_id must not be empty when provided.".to_string(),
 			});
@@ -53,9 +55,7 @@ impl ElfService {
 		if let Some(scope) = req.scope.as_ref()
 			&& !self.cfg.scopes.allowed.iter().any(|value| value == scope)
 		{
-			return Err(ServiceError::ScopeDenied {
-				message: "Scope is not allowed.".to_string(),
-			});
+			return Err(ServiceError::ScopeDenied { message: "Scope is not allowed.".to_string() });
 		}
 
 		let mut builder = sqlx::QueryBuilder::new(
