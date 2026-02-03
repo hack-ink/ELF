@@ -43,6 +43,27 @@ Requirements for repository artifacts:
 
 **These language rules override any conflicting rules elsewhere for repository artifacts.**
 
+### Commit Message Schema
+
+Commit messages are exempt from the English language and punctuation rules above.
+All commit messages must follow the schema below exactly.
+
+Schema (single line JSON with fixed key order):
+`{"schema":"cmsg/1","type":"feat|fix|refactor|docs|chore|build|ci|perf|revert","scope":"global|<component>","summary":"...","intent":"...","impact":"...","breaking":false,"risk":"low|medium|high","refs":[]}`
+
+Rules:
+
+- The JSON object must be a single line with no extra whitespace.
+- Keys must appear in the exact order shown.
+- Only the keys shown are allowed.
+- `schema` must be `cmsg/1`.
+- `type` must be one of `feat`, `fix`, `refactor`, `docs`, `chore`, `build`, `ci`, `perf`, or `revert`.
+- `scope` must be `global` or a lowercase kebab-case component name.
+- `summary`, `intent`, and `impact` must be short text without double quotes, backslashes, or newlines.
+- `breaking` must be `true` or `false`.
+- `risk` must be `low`, `medium`, or `high`.
+- `refs` must be an array of strings. Each string must use one of the following forms: `gh:<owner>/<repo>#<issue>`, `pr:<number>`, `doc:<slug>`, `url:<https://...>`. Use an empty array when there are no references.
+
 Commenting guidance:
 
 - Avoid redundant comments that restate the code in different words.
