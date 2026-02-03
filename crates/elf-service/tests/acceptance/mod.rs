@@ -75,6 +75,15 @@ pub fn test_config(dsn: String, qdrant_url: String, vector_dim: u32) -> elf_conf
 			candidate_k: 60,
 			top_k: 12,
 		},
+		search: elf_config::Search {
+			expansion: elf_config::SearchExpansion {
+				mode: "off".to_string(),
+				max_queries: 4,
+				include_original: true,
+			},
+			dynamic: elf_config::SearchDynamic { min_candidates: 10, min_top_score: 0.12 },
+			prefilter: elf_config::SearchPrefilter { max_candidates: 0 },
+		},
 		ranking: elf_config::Ranking { recency_tau_days: 60.0, tie_breaker_weight: 0.1 },
 		lifecycle: elf_config::Lifecycle {
 			ttl_days: elf_config::TtlDays {

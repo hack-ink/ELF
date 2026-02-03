@@ -7,6 +7,7 @@ pub struct Config {
 	pub providers: Providers,
 	pub scopes: Scopes,
 	pub memory: Memory,
+	pub search: Search,
 	pub ranking: Ranking,
 	pub lifecycle: Lifecycle,
 	pub security: Security,
@@ -118,6 +119,31 @@ pub struct Memory {
 	pub update_sim_threshold: f32,
 	pub candidate_k: u32,
 	pub top_k: u32,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Search {
+	pub expansion: SearchExpansion,
+	pub dynamic: SearchDynamic,
+	pub prefilter: SearchPrefilter,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SearchExpansion {
+	pub mode: String,
+	pub max_queries: u32,
+	pub include_original: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SearchDynamic {
+	pub min_candidates: u32,
+	pub min_top_score: f32,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SearchPrefilter {
+	pub max_candidates: u32,
 }
 
 #[derive(Debug, Deserialize)]

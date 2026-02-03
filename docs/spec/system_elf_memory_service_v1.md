@@ -473,26 +473,44 @@ Input:
 - query (English only)
 - optional top_k, candidate_k
 
+Config:
+- search.expansion.mode = off|always|dynamic
+- search.expansion.max_queries
+- search.expansion.include_original (default true)
+- search.dynamic.min_candidates
+- search.dynamic.min_top_score
+- search.prefilter.max_candidates (0 or >= candidate_k means no prefilter)
+
 Steps:
 1) English-only boundary check.
 2) Resolve allowed_scopes = scopes.read_profiles[read_profile].
-3) Embed query -> query_vec (embedding API).
-4) Qdrant fusion query candidate_k with payload filters (dense + bm25):
+3) Resolve expansion mode:
+   - off: use only original query.
+   - always: expand with LLM.
+   - dynamic: run a baseline hybrid search for the original query, then expand if
+     candidate_count < min_candidates OR top1_fusion_score < min_top_score.
+4) If expansion is enabled, call the LLM expansion prompt and receive queries[].
+   - Deduplicate, strip CJK, and cap at max_queries.
+   - Ensure original query is present when include_original = true.
+5) For each query, embed -> query_vec (embedding API).
+6) For each query, run Qdrant fusion query candidate_k with payload filters (dense + bm25):
    tenant_id, project_id, status = active (best-effort), and scope filters:
    - If scope = agent_private, require agent_id match.
    - Otherwise scope in allowed_scopes.
-5) candidate_ids = note_id list.
-6) Fetch authoritative notes from Postgres by ids and re-apply filters:
+7) Fuse all query results with RRF to produce candidate_ids.
+8) Prefilter (optional): if max_candidates > 0 and max_candidates < candidate_k,
+   keep only top max_candidates by fusion score.
+9) Fetch authoritative notes from Postgres by ids and re-apply filters:
    status = active, not expired, scope allowed, and if scope = agent_private then agent_id must match.
-7) Rerank:
-   scores = rerank(query, docs = [note.text ...]).
-8) Tie-break:
-   base = (1 + 0.6 * importance) * exp(-age_days / recency_tau_days)
-   final = rerank_score + tie_breaker_weight * base
-9) Sort and take top_k.
-10) Update hits (optional):
+10) Rerank once using the original query:
+    scores = rerank(original_query, docs = [note.text ...]).
+11) Tie-break:
+    base = (1 + 0.6 * importance) * exp(-age_days / recency_tau_days)
+    final = rerank_score + tie_breaker_weight * base
+12) Sort and take top_k.
+13) Update hits (optional):
     hit_count++, last_hit_at, memory_hits insert.
-11) Return results.
+14) Return results.
 
 ============================================================
 14. ADMIN: REBUILD QDRANT FROM POSTGRES (NO EMBED API)
@@ -644,7 +662,38 @@ Error codes (common):
 - INTERNAL_ERROR (500)
 
 ============================================================
-16. MCP ADAPTER (SEPARATE PROCESS)
+16. LLM QUERY EXPANSION PROMPT (search) - APPENDIX
+============================================================
+LLM output must be JSON only and match the schema below.
+
+Schema:
+{
+  "queries": ["string", "..."]
+}
+
+Hard rules:
+- queries.length <= MAX_QUERIES
+- Each query must be English only and must not contain any CJK characters.
+- Each query must be a single sentence.
+- Include the original query unless INCLUDE_ORIGINAL is false.
+
+System prompt (Expansion):
+"You are a query expansion engine for a memory retrieval system.
+Output must be valid JSON only and must match the provided schema exactly.
+Generate short English-only query variations that preserve the original intent.
+Do not include any CJK characters. Do not add explanations or extra fields."
+
+User prompt template:
+"Return JSON matching this exact schema:
+<SCHEMA_JSON>
+Constraints:
+- MAX_QUERIES = <MAX_QUERIES>
+- INCLUDE_ORIGINAL = <INCLUDE_ORIGINAL>
+Original query:
+<QUERY>"
+
+============================================================
+17. MCP ADAPTER (SEPARATE PROCESS)
 ============================================================
 - Separate binary: elf-mcp.
 - Streamable HTTP MCP server.
@@ -654,7 +703,7 @@ Error codes (common):
 - All policy remains in elf-api.
 
 ============================================================
-17. LLM EXTRACTOR PROMPT (add_event) - APPENDIX
+18. LLM EXTRACTOR PROMPT (add_event) - APPENDIX
 ============================================================
 LLM output must be JSON only and match the schema below.
 
@@ -706,7 +755,7 @@ Here are the messages as JSON:
 <MESSAGES_JSON>"
 
 ============================================================
-18. TESTS AND ACCEPTANCE CRITERIA
+19. TESTS AND ACCEPTANCE CRITERIA
 ============================================================
 A. add_note does not call LLM:
 - Instrument LLM client call count. It must remain 0 during add_note tests.
@@ -726,7 +775,7 @@ G. Outbox eventual consistency:
 - Outbox goes FAILED and later retries to DONE after provider recovers.
 
 ============================================================
-19. OUT OF SCOPE (v1.0)
+20. OUT OF SCOPE (v1.0)
 ============================================================
 - Translation or multilingual retrieval (handled by upstream agents).
 - Graph memory backend (reserved for later).

@@ -14,9 +14,9 @@ serde         = { workspace = true }
 serde_json    = { workspace = true }
 sqlx          = { workspace = true }
 time          = { workspace = true }
+tracing       = { workspace = true }
 uuid          = { workspace = true }
 
 [dev-dependencies]
-axum    = { workspace = true }
-tokio   = { workspace = true }
-tracing = { workspace = true }
+axum  = { workspace = true }
+tokio = { workspace = true }
