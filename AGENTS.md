@@ -85,8 +85,6 @@ Language- or stack-specific rules must be documented under `docs/guide/developme
 
 Run verification commands only when requested or when you need evidence before claiming completion.
 
-When a data debugging method is not specified, use `psql` with the `.env`-provided `PUBFI_DATABASE_URL` for the `pubfi_stg` database.
-
 ## 1.1 Workspace Automation (cargo make)
 
 - Use `cargo make` tasks from `Makefile.toml` when they are the best fit for the job.
@@ -97,7 +95,6 @@ When a data debugging method is not specified, use `psql` with the `.env`-provid
   - Tests: `cargo make test` for full workspace, or `cargo make test-rust` for Rust-only.
   - SQLx metadata: `scripts/sqlx-prepare.sh`.
   - Full validation: `cargo make checks`.
-- Do not set `DATABASE_URL` manually when running `cargo make` tasks.
 
 # 2. Implementation Scope
 
