@@ -6,3 +6,6 @@ CREATE TABLE IF NOT EXISTS memory_hits (
     final_score real NOT NULL,
     ts timestamptz NOT NULL DEFAULT now()
 );
+
+ALTER TABLE memory_hits
+    ADD COLUMN IF NOT EXISTS chunk_id uuid NULL;

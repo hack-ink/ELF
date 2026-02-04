@@ -13,6 +13,10 @@ fn expand_includes(sql: &str) -> String {
 				"00_extensions.sql" => out.push_str(include_str!("../../../sql/00_extensions.sql")),
 				"tables/001_memory_notes.sql" =>
 					out.push_str(include_str!("../../../sql/tables/001_memory_notes.sql")),
+				"tables/009_memory_note_chunks.sql" =>
+					out.push_str(include_str!("../../../sql/tables/009_memory_note_chunks.sql")),
+				"tables/010_note_chunk_embeddings.sql" =>
+					out.push_str(include_str!("../../../sql/tables/010_note_chunk_embeddings.sql")),
 				"tables/002_note_embeddings.sql" =>
 					out.push_str(include_str!("../../../sql/tables/002_note_embeddings.sql")),
 				"tables/003_memory_note_versions.sql" =>

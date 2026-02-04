@@ -12,3 +12,19 @@ async fn db_connects_and_bootstraps() {
 	db.ensure_schema(3).await.expect("Failed to ensure schema.");
 	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }
+
+#[test]
+fn chunk_tables_exist_after_bootstrap() {
+	let dsn = std::env::var("ELF_PG_DSN").expect("ELF_PG_DSN required");
+	let rt = tokio::runtime::Runtime::new().unwrap();
+	rt.block_on(async {
+		let db = elf_storage::db::Db::connect(&dsn).await.unwrap();
+		let rows: (i64,) = sqlx::query_as(
+			"SELECT count(*) FROM information_schema.tables WHERE table_name = 'memory_note_chunks'",
+		)
+		.fetch_one(&db.pool)
+		.await
+		.unwrap();
+		assert_eq!(rows.0, 1);
+	});
+}
