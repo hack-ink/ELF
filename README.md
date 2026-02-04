@@ -87,43 +87,43 @@ Comparison focuses on shared capabilities plus ELF strengths.
 
 ### Interfaces And Integration
 
-| Capability | ELF | qmd | claude-mem |
-| --- | --- | --- | --- |
-| Local-first, self-hosted memory | ✅ | ✅ | ✅ |
-| MCP integration | ✅ | ✅ | ✅ |
-| HTTP API service | ✅ | — | ✅ |
-| CLI-first workflow | — | ✅ | — |
-| Web UI viewer | — | — | ✅ |
+| Capability                      | ELF | qmd | claude-mem |
+| ------------------------------- | --- | --- | ---------- |
+| Local-first, self-hosted memory | ✅  | ✅  | ✅         |
+| MCP integration                 | ✅  | ✅  | ✅         |
+| HTTP API service                | ✅  | —   | ✅         |
+| CLI-first workflow              | —   | ✅  | —          |
+| Web UI viewer                   | —   | —   | ✅         |
 
 ### Retrieval Pipeline
 
-| Capability | ELF | qmd | claude-mem |
-| --- | --- | --- | --- |
-| Full-text search (BM25 or FTS) | ✅ | ✅ | ✅ |
-| Vector semantic search | ✅ | ✅ | ✅ |
-| Hybrid dense + sparse fusion | ✅ | ✅ | ✅ |
-| LLM reranking stage | ✅ | ✅ | — |
-| Query expansion | ✅ | ✅ | — |
-| Progressive disclosure workflow | — | — | ✅ |
+| Capability                      | ELF | qmd | claude-mem |
+| ------------------------------- | --- | --- | ---------- |
+| Full-text search (BM25 or FTS)  | ✅  | ✅  | ✅         |
+| Vector semantic search          | ✅  | ✅  | ✅         |
+| Hybrid dense + sparse fusion    | ✅  | ✅  | ✅         |
+| LLM reranking stage             | ✅  | ✅  | —          |
+| Query expansion                 | ✅  | ✅  | —          |
+| Progressive disclosure workflow | —   | —   | ✅         |
 
 ### Quality, Safety, And Memory Semantics
 
-| Capability | ELF | qmd | claude-mem |
-| --- | --- | --- | --- |
-| Evidence-bound notes (verbatim quotes) | ✅ | — | — |
-| Deterministic vs LLM ingestion separation | ✅ | — | — |
-| Source-of-truth DB with rebuildable index | ✅ | — | — |
-| Multi-tenant scoping | ✅ | — | — |
-| TTL and lifecycle policies | ✅ | — | — |
-| English-only boundary enforcement | ✅ | — | — |
-| Redaction on write | ✅ | — | — |
+| Capability                                | ELF | qmd | claude-mem |
+| ----------------------------------------- | --- | --- | ---------- |
+| Evidence-bound notes (verbatim quotes)    | ✅  | —   | —          |
+| Deterministic vs LLM ingestion separation | ✅  | —   | —          |
+| Source-of-truth DB with rebuildable index | ✅  | —   | —          |
+| Multi-tenant scoping                      | ✅  | —   | —          |
+| TTL and lifecycle policies                | ✅  | —   | —          |
+| English-only boundary enforcement         | ✅  | —   | —          |
+| Redaction on write                        | ✅  | —   | —          |
 
 ### Operations And Evaluation
 
-| Capability | ELF | qmd | claude-mem |
-| --- | --- | --- | --- |
-| Retrieval evaluation CLI | ✅ | — | — |
-| Structured JSON outputs | ✅ | ✅ | — |
+| Capability               | ELF | qmd | claude-mem |
+| ------------------------ | --- | --- | ---------- |
+| Retrieval evaluation CLI | ✅  | —   | —          |
+| Structured JSON outputs  | ✅  | ✅  | —          |
 
 ### ELF-Only Advantages
 
