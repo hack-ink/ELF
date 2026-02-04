@@ -87,11 +87,7 @@ if cfg.chunking.overlap_tokens >= cfg.chunking.max_tokens {
         "chunking.overlap_tokens must be less than chunking.max_tokens."
     ));
 }
-if let Some(repo) = cfg.chunking.tokenizer_repo.as_ref() {
-    if repo.trim().is_empty() {
-        return Err(color_eyre::eyre::eyre!("chunking.tokenizer_repo must be non-empty."));
-    }
-}
+// tokenizer_repo may be empty or omitted to inherit providers.embedding.model.
 ```
 
 Update `elf.example.toml`:
