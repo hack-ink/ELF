@@ -129,6 +129,20 @@ enum ExpansionMode {
 }
 
 #[derive(Debug, Clone, Copy)]
+enum CacheKind {
+	Expansion,
+	Rerank,
+}
+impl CacheKind {
+	fn as_str(self) -> &'static str {
+		match self {
+			Self::Expansion => "expansion",
+			Self::Rerank => "rerank",
+		}
+	}
+}
+
+#[derive(Debug, Clone, Copy)]
 struct RetrievalInfo {
 	score: f32,
 	rank: u32,
@@ -148,6 +162,11 @@ struct RerankCacheCandidate {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct ExpansionCachePayload {
+	queries: Vec<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct RerankCacheItem {
 	note_id: uuid::Uuid,
 	updated_at: time::OffsetDateTime,
@@ -157,6 +176,12 @@ struct RerankCacheItem {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct RerankCachePayload {
 	items: Vec<RerankCacheItem>,
+}
+
+#[derive(Debug, Clone)]
+struct CachePayload {
+	value: serde_json::Value,
+	size_bytes: usize,
 }
 
 #[derive(Debug)]
@@ -596,6 +621,80 @@ impl ElfService {
 
 	async fn expand_queries(&self, query: &str) -> Vec<String> {
 		let cfg = &self.cfg.search.expansion;
+		let cache_cfg = &self.cfg.search.cache;
+		let now = time::OffsetDateTime::now_utc();
+		let cache_key = if cache_cfg.enabled {
+			match build_expansion_cache_key(
+				query,
+				cache_cfg.expansion_version.as_str(),
+				cfg.max_queries,
+				cfg.include_original,
+				self.cfg.providers.llm_extractor.provider_id.as_str(),
+				self.cfg.providers.llm_extractor.model.as_str(),
+				self.cfg.providers.llm_extractor.temperature,
+			) {
+				Ok(key) => Some(key),
+				Err(err) => {
+					tracing::warn!(
+						error = %err,
+						cache_kind = CacheKind::Expansion.as_str(),
+						"Cache key build failed."
+					);
+					None
+				},
+			}
+		} else {
+			None
+		};
+
+		if let Some(key) = cache_key.as_ref() {
+			match fetch_cache_payload(&self.db.pool, CacheKind::Expansion, key, now).await {
+				Ok(Some(payload)) => {
+					tracing::info!(
+						cache_kind = CacheKind::Expansion.as_str(),
+						cache_key_prefix = cache_key_prefix(key),
+						hit = true,
+						payload_size = payload.size_bytes,
+						ttl_days = cache_cfg.expansion_ttl_days,
+						"Cache hit."
+					);
+					let cached: ExpansionCachePayload = match serde_json::from_value(payload.value) {
+						Ok(value) => value,
+						Err(err) => {
+							tracing::warn!(
+								error = %err,
+								cache_kind = CacheKind::Expansion.as_str(),
+								cache_key_prefix = cache_key_prefix(key),
+								"Cache payload decode failed."
+							);
+							ExpansionCachePayload { queries: Vec::new() }
+						},
+					};
+					if !cached.queries.is_empty() {
+						return cached.queries;
+					}
+				},
+				Ok(None) => {
+					tracing::info!(
+						cache_kind = CacheKind::Expansion.as_str(),
+						cache_key_prefix = cache_key_prefix(key),
+						hit = false,
+						payload_size = 0_u64,
+						ttl_days = cache_cfg.expansion_ttl_days,
+						"Cache miss."
+					);
+				},
+				Err(err) => {
+					tracing::warn!(
+						error = %err,
+						cache_kind = CacheKind::Expansion.as_str(),
+						cache_key_prefix = cache_key_prefix(key),
+						"Cache read failed."
+					);
+				},
+			}
+		}
+
 		let messages = build_expansion_messages(query, cfg.max_queries, cfg.include_original);
 		let raw = match self
 			.providers
@@ -620,7 +719,67 @@ impl ElfService {
 
 		let normalized =
 			normalize_queries(parsed.queries, query, cfg.include_original, cfg.max_queries);
-		if normalized.is_empty() { vec![query.to_string()] } else { normalized }
+		let result = if normalized.is_empty() { vec![query.to_string()] } else { normalized };
+
+		if let Some(key) = cache_key {
+			let payload = ExpansionCachePayload { queries: result.clone() };
+			let payload_json = match serde_json::to_value(&payload) {
+				Ok(value) => value,
+				Err(err) => {
+					tracing::warn!(
+						error = %err,
+						cache_kind = CacheKind::Expansion.as_str(),
+						cache_key_prefix = cache_key_prefix(&key),
+						"Cache payload encode failed."
+					);
+					return result;
+				},
+			};
+			let stored_at = time::OffsetDateTime::now_utc();
+			let expires_at = stored_at + time::Duration::days(cache_cfg.expansion_ttl_days);
+			match store_cache_payload(
+				&self.db.pool,
+				CacheKind::Expansion,
+				&key,
+				payload_json,
+				stored_at,
+				expires_at,
+				cache_cfg.max_payload_bytes,
+			)
+			.await
+			{
+				Ok(Some(payload_size)) => {
+					tracing::info!(
+						cache_kind = CacheKind::Expansion.as_str(),
+						cache_key_prefix = cache_key_prefix(&key),
+						hit = false,
+						payload_size,
+						ttl_days = cache_cfg.expansion_ttl_days,
+						"Cache stored."
+					);
+				},
+				Ok(None) => {
+					tracing::warn!(
+						cache_kind = CacheKind::Expansion.as_str(),
+						cache_key_prefix = cache_key_prefix(&key),
+						hit = false,
+						payload_size = 0_u64,
+						ttl_days = cache_cfg.expansion_ttl_days,
+						"Cache payload skipped due to size."
+					);
+				},
+				Err(err) => {
+					tracing::warn!(
+						error = %err,
+						cache_kind = CacheKind::Expansion.as_str(),
+						cache_key_prefix = cache_key_prefix(&key),
+						"Cache write failed."
+					);
+				},
+			}
+		}
+
+		result
 	}
 
 	async fn finish_search(&self, args: FinishSearchArgs<'_>) -> ServiceResult<SearchResponse> {
@@ -639,6 +798,7 @@ impl ElfService {
 			record_hits_enabled,
 		} = args;
 		let now = time::OffsetDateTime::now_utc();
+		let cache_cfg = &self.cfg.search.cache;
 		let candidate_ids: Vec<uuid::Uuid> =
 			candidates.iter().map(|candidate| candidate.note_id).collect();
 		let retrieval_map: HashMap<uuid::Uuid, RetrievalInfo> = candidates
@@ -681,14 +841,188 @@ impl ElfService {
 
 		let mut scored: Vec<ScoredNote> = Vec::new();
 		if !notes.is_empty() {
-			let docs: Vec<String> = notes.iter().map(|note| note.text.clone()).collect();
-			let scores =
-				self.providers.rerank.rerank(&self.cfg.providers.rerank, query, &docs).await?;
-			if scores.len() != notes.len() {
-				return Err(ServiceError::Provider {
-					message: "Rerank provider returned mismatched score count.".to_string(),
-				});
+			let mut cached_scores: Option<Vec<f32>> = None;
+			let mut cache_key: Option<String> = None;
+			let mut cache_candidates: Vec<RerankCacheCandidate> = Vec::new();
+
+			if cache_cfg.enabled {
+				let candidates: Vec<RerankCacheCandidate> = notes
+					.iter()
+					.map(|note| RerankCacheCandidate {
+						note_id: note.note_id,
+						updated_at: note.updated_at,
+					})
+					.collect();
+				let signature: Vec<(uuid::Uuid, time::OffsetDateTime)> = candidates
+					.iter()
+					.map(|candidate| (candidate.note_id, candidate.updated_at))
+					.collect();
+				match build_rerank_cache_key(
+					query,
+					cache_cfg.rerank_version.as_str(),
+					self.cfg.providers.rerank.provider_id.as_str(),
+					self.cfg.providers.rerank.model.as_str(),
+					&signature,
+				) {
+					Ok(key) => {
+						cache_key = Some(key.clone());
+						cache_candidates = candidates;
+						match fetch_cache_payload(&self.db.pool, CacheKind::Rerank, &key, now).await
+						{
+							Ok(Some(payload)) => {
+								let decoded: RerankCachePayload =
+									match serde_json::from_value(payload.value) {
+										Ok(value) => value,
+										Err(err) => {
+											tracing::warn!(
+												error = %err,
+												cache_kind = CacheKind::Rerank.as_str(),
+												cache_key_prefix = cache_key_prefix(&key),
+												"Cache payload decode failed."
+											);
+											RerankCachePayload { items: Vec::new() }
+										},
+									};
+								if let Some(scores) =
+									build_cached_scores(&decoded, &cache_candidates)
+								{
+									tracing::info!(
+										cache_kind = CacheKind::Rerank.as_str(),
+										cache_key_prefix = cache_key_prefix(&key),
+										hit = true,
+										payload_size = payload.size_bytes,
+										ttl_days = cache_cfg.rerank_ttl_days,
+										"Cache hit."
+									);
+									cached_scores = Some(scores);
+								} else {
+									tracing::warn!(
+										cache_kind = CacheKind::Rerank.as_str(),
+										cache_key_prefix = cache_key_prefix(&key),
+										hit = false,
+										payload_size = payload.size_bytes,
+										ttl_days = cache_cfg.rerank_ttl_days,
+										"Cache payload did not match candidates."
+									);
+								}
+							},
+							Ok(None) => {
+								tracing::info!(
+									cache_kind = CacheKind::Rerank.as_str(),
+									cache_key_prefix = cache_key_prefix(&key),
+									hit = false,
+									payload_size = 0_u64,
+									ttl_days = cache_cfg.rerank_ttl_days,
+									"Cache miss."
+								);
+							},
+							Err(err) => {
+								tracing::warn!(
+									error = %err,
+									cache_kind = CacheKind::Rerank.as_str(),
+									cache_key_prefix = cache_key_prefix(&key),
+									"Cache read failed."
+								);
+							},
+						}
+					},
+					Err(err) => {
+						tracing::warn!(
+							error = %err,
+							cache_kind = CacheKind::Rerank.as_str(),
+							"Cache key build failed."
+						);
+					},
+				}
 			}
+
+			let scores = if let Some(scores) = cached_scores {
+				scores
+			} else {
+				let docs: Vec<String> = notes.iter().map(|note| note.text.clone()).collect();
+				let scores =
+					self.providers.rerank.rerank(&self.cfg.providers.rerank, query, &docs).await?;
+				if scores.len() != notes.len() {
+					return Err(ServiceError::Provider {
+						message: "Rerank provider returned mismatched score count.".to_string(),
+					});
+				}
+
+				if cache_cfg.enabled {
+					if let Some(key) = cache_key.as_ref() {
+						if !cache_candidates.is_empty() {
+							let payload = RerankCachePayload {
+								items: cache_candidates
+									.iter()
+									.zip(scores.iter())
+									.map(|(candidate, score)| RerankCacheItem {
+										note_id: candidate.note_id,
+										updated_at: candidate.updated_at,
+										score: *score,
+									})
+									.collect(),
+							};
+							match serde_json::to_value(&payload) {
+								Ok(payload_json) => {
+									let stored_at = time::OffsetDateTime::now_utc();
+									let expires_at = stored_at
+										+ time::Duration::days(cache_cfg.rerank_ttl_days);
+									match store_cache_payload(
+										&self.db.pool,
+										CacheKind::Rerank,
+										key,
+										payload_json,
+										stored_at,
+										expires_at,
+										cache_cfg.max_payload_bytes,
+									)
+									.await
+									{
+										Ok(Some(payload_size)) => {
+											tracing::info!(
+												cache_kind = CacheKind::Rerank.as_str(),
+												cache_key_prefix = cache_key_prefix(key),
+												hit = false,
+												payload_size,
+												ttl_days = cache_cfg.rerank_ttl_days,
+												"Cache stored."
+											);
+										},
+										Ok(None) => {
+											tracing::warn!(
+												cache_kind = CacheKind::Rerank.as_str(),
+												cache_key_prefix = cache_key_prefix(key),
+												hit = false,
+												payload_size = 0_u64,
+												ttl_days = cache_cfg.rerank_ttl_days,
+												"Cache payload skipped due to size."
+											);
+										},
+										Err(err) => {
+											tracing::warn!(
+												error = %err,
+												cache_kind = CacheKind::Rerank.as_str(),
+												cache_key_prefix = cache_key_prefix(key),
+												"Cache write failed."
+											);
+										},
+									}
+								},
+								Err(err) => {
+									tracing::warn!(
+										error = %err,
+										cache_kind = CacheKind::Rerank.as_str(),
+										cache_key_prefix = cache_key_prefix(key),
+										"Cache payload encode failed."
+									);
+								},
+							}
+						}
+					}
+				}
+
+				scores
+			};
 
 			scored = Vec::with_capacity(notes.len());
 			for (note, rerank_score) in notes.into_iter().zip(scores.into_iter()) {
@@ -1102,6 +1436,88 @@ fn hash_cache_key(payload: &serde_json::Value) -> ServiceResult<String> {
 	Ok(blake3::hash(&raw).to_hex().to_string())
 }
 
+fn cache_key_prefix(key: &str) -> &str {
+	let len = key.len().min(12);
+	&key[..len]
+}
+
+async fn fetch_cache_payload(
+	pool: &sqlx::PgPool,
+	kind: CacheKind,
+	key: &str,
+	now: time::OffsetDateTime,
+) -> ServiceResult<Option<CachePayload>> {
+	let row = sqlx::query(
+		"SELECT payload FROM llm_cache WHERE cache_kind = $1 AND cache_key = $2 AND expires_at > $3",
+	)
+	.bind(kind.as_str())
+	.bind(key)
+	.bind(now)
+	.fetch_optional(pool)
+	.await?;
+	let Some(row) = row else {
+		return Ok(None);
+	};
+
+	let payload: serde_json::Value = row.try_get("payload")?;
+	let size_bytes = serde_json::to_vec(&payload)
+		.map_err(|err| ServiceError::Storage { message: format!("Failed to encode cache payload: {err}") })?
+		.len();
+
+	sqlx::query(
+		"UPDATE llm_cache \
+         SET last_accessed_at = $1, hit_count = hit_count + 1 \
+         WHERE cache_kind = $2 AND cache_key = $3",
+	)
+	.bind(now)
+	.bind(kind.as_str())
+	.bind(key)
+	.execute(pool)
+	.await?;
+
+	Ok(Some(CachePayload { value: payload, size_bytes }))
+}
+
+async fn store_cache_payload(
+	pool: &sqlx::PgPool,
+	kind: CacheKind,
+	key: &str,
+	payload: serde_json::Value,
+	now: time::OffsetDateTime,
+	expires_at: time::OffsetDateTime,
+	max_payload_bytes: Option<u64>,
+) -> ServiceResult<Option<usize>> {
+	let payload_bytes = serde_json::to_vec(&payload)
+		.map_err(|err| ServiceError::Storage { message: format!("Failed to encode cache payload: {err}") })?;
+	let payload_size = payload_bytes.len();
+	if let Some(max) = max_payload_bytes {
+		if payload_size as u64 > max {
+			return Ok(None);
+		}
+	}
+
+	sqlx::query(
+		"INSERT INTO llm_cache \
+         (cache_id, cache_kind, cache_key, payload, created_at, last_accessed_at, expires_at, hit_count) \
+         VALUES ($1,$2,$3,$4,$5,$5,$6,0) \
+         ON CONFLICT (cache_kind, cache_key) DO UPDATE SET \
+         payload = EXCLUDED.payload, \
+         last_accessed_at = EXCLUDED.last_accessed_at, \
+         expires_at = EXCLUDED.expires_at, \
+         hit_count = 0",
+	)
+	.bind(uuid::Uuid::new_v4())
+	.bind(kind.as_str())
+	.bind(key)
+	.bind(payload)
+	.bind(now)
+	.bind(expires_at)
+	.execute(pool)
+	.await?;
+
+	Ok(Some(payload_size))
+}
+
 fn build_expansion_cache_key(
 	query: &str,
 	version: &str,
@@ -1181,8 +1597,9 @@ fn build_cached_scores(
 #[cfg(test)]
 mod tests {
 	use super::{
-		build_cached_scores, build_expansion_cache_key, build_rerank_cache_key, normalize_queries,
-		should_expand_dynamic, RerankCacheCandidate, RerankCacheItem, RerankCachePayload,
+		build_cached_scores, build_expansion_cache_key, build_rerank_cache_key, cache_key_prefix,
+		normalize_queries, should_expand_dynamic, RerankCacheCandidate, RerankCacheItem,
+		RerankCachePayload,
 	};
 
 	#[test]
@@ -1257,5 +1674,11 @@ mod tests {
 			updated_at: time::OffsetDateTime::from_unix_timestamp(1).expect("Valid timestamp."),
 		}];
 		assert!(build_cached_scores(&payload, &candidates).is_none());
+	}
+
+	#[test]
+	fn cache_key_prefix_is_stable() {
+		let prefix = cache_key_prefix("abcd1234efgh5678");
+		assert_eq!(prefix, "abcd1234efgh");
 	}
 }
