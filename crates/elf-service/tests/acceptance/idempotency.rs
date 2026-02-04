@@ -1,12 +1,13 @@
 use std::sync::Arc;
 
 use super::{
-	SpyExtractor, StubEmbedding, StubRerank, build_service, test_config, test_dsn, test_qdrant_url,
+	SpyExtractor, StubEmbedding, StubRerank, build_service, test_config, test_db, test_qdrant_url,
 };
 
 #[tokio::test]
+#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
 async fn add_note_is_idempotent() {
-	let Some(dsn) = test_dsn() else {
+	let Some(test_db) = test_db().await else {
 		eprintln!("Skipping add_note_is_idempotent; set ELF_PG_DSN to run this test.");
 		return;
 	};
@@ -14,8 +15,6 @@ async fn add_note_is_idempotent() {
 		eprintln!("Skipping add_note_is_idempotent; set ELF_QDRANT_URL to run this test.");
 		return;
 	};
-	let _guard = super::test_lock(&dsn).await.expect("Failed to acquire test lock.");
-
 	let extractor = SpyExtractor {
 		calls: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
 		payload: serde_json::json!({ "notes": [] }),
@@ -26,7 +25,8 @@ async fn add_note_is_idempotent() {
 		Arc::new(extractor),
 	);
 
-	let cfg = test_config(dsn, qdrant_url, 3);
+	let collection = test_db.collection_name("elf_acceptance");
+	let cfg = test_config(test_db.dsn().to_string(), qdrant_url, 3, collection);
 	let service = build_service(cfg, providers).await.expect("Failed to build service.");
 	super::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
 
@@ -52,4 +52,5 @@ async fn add_note_is_idempotent() {
 	let second = service.add_note(request).await.expect("Second add_note failed.");
 	assert_eq!(second.results.len(), 1);
 	assert_eq!(second.results[0].op, elf_service::NoteOp::None);
+	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }

@@ -19,6 +19,7 @@ pub fn router(state: AppState) -> Router {
 		.route("/v1/memory/add_note", post(add_note))
 		.route("/v1/memory/add_event", post(add_event))
 		.route("/v1/memory/search", post(search))
+		.route("/v1/memory/search/explain", get(search_explain))
 		.route("/v1/memory/list", get(list))
 		.route("/v1/memory/update", post(update))
 		.route("/v1/memory/delete", post(delete))
@@ -81,6 +82,23 @@ async fn search(
 		)
 	})?;
 	let response = state.service.search(payload).await?;
+	Ok(Json(response))
+}
+
+async fn search_explain(
+	State(state): State<AppState>,
+	query: Result<Query<elf_service::SearchExplainRequest>, QueryRejection>,
+) -> Result<Json<elf_service::SearchExplainResponse>, ApiError> {
+	let Query(query) = query.map_err(|err| {
+		tracing::warn!(error = %err, "Invalid query parameters.");
+		json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid query parameters.".to_string(),
+			None,
+		)
+	})?;
+	let response = state.service.search_explain(query).await?;
 	Ok(Json(response))
 }
 

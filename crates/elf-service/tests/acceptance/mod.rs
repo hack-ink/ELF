@@ -1,23 +1,26 @@
 use elf_service::{EmbeddingProvider, ExtractorProvider, Providers, RerankProvider};
-use sqlx::Connection;
 use std::sync::{
 	Arc,
 	atomic::{AtomicUsize, Ordering},
 };
-use tokio::sync::Mutex;
-
-static TEST_LOCK: Mutex<()> = Mutex::const_new(());
-const TEST_DB_LOCK_KEY: i64 = 0x454C4601;
-
-pub fn test_dsn() -> Option<String> {
-	std::env::var("ELF_PG_DSN").ok()
-}
 
 pub fn test_qdrant_url() -> Option<String> {
 	std::env::var("ELF_QDRANT_URL").ok()
 }
 
-pub fn test_config(dsn: String, qdrant_url: String, vector_dim: u32) -> elf_config::Config {
+pub async fn test_db() -> Option<elf_testkit::TestDatabase> {
+	let base_dsn = elf_testkit::env_dsn()?;
+	let db =
+		elf_testkit::TestDatabase::new(&base_dsn).await.expect("Failed to create test database.");
+	Some(db)
+}
+
+pub fn test_config(
+	dsn: String,
+	qdrant_url: String,
+	vector_dim: u32,
+	collection: String,
+) -> elf_config::Config {
 	elf_config::Config {
 		service: elf_config::Service {
 			http_bind: "127.0.0.1:0".to_string(),
@@ -27,11 +30,7 @@ pub fn test_config(dsn: String, qdrant_url: String, vector_dim: u32) -> elf_conf
 		},
 		storage: elf_config::Storage {
 			postgres: elf_config::Postgres { dsn, pool_max_conns: 2 },
-			qdrant: elf_config::Qdrant {
-				url: qdrant_url,
-				collection: "elf_acceptance".to_string(),
-				vector_dim,
-			},
+			qdrant: elf_config::Qdrant { url: qdrant_url, collection, vector_dim },
 		},
 		providers: elf_config::Providers {
 			embedding: dummy_embedding_provider(),
@@ -83,6 +82,7 @@ pub fn test_config(dsn: String, qdrant_url: String, vector_dim: u32) -> elf_conf
 			},
 			dynamic: elf_config::SearchDynamic { min_candidates: 10, min_top_score: 0.12 },
 			prefilter: elf_config::SearchPrefilter { max_candidates: 0 },
+			explain: elf_config::SearchExplain { retention_days: 7 },
 		},
 		ranking: elf_config::Ranking { recency_tau_days: 60.0, tie_breaker_weight: 0.1 },
 		lifecycle: elf_config::Lifecycle {
@@ -116,18 +116,6 @@ pub async fn build_service(
 	db.ensure_schema(cfg.storage.qdrant.vector_dim).await?;
 	let qdrant = elf_storage::qdrant::QdrantStore::new(&cfg.storage.qdrant)?;
 	Ok(elf_service::ElfService::with_providers(cfg, db, qdrant, providers))
-}
-
-pub struct DbLock {
-	_guard: tokio::sync::MutexGuard<'static, ()>,
-	_conn: sqlx::PgConnection,
-}
-
-pub async fn test_lock(dsn: &str) -> color_eyre::Result<DbLock> {
-	let guard = TEST_LOCK.lock().await;
-	let mut conn = sqlx::PgConnection::connect(dsn).await?;
-	sqlx::query("SELECT pg_advisory_lock($1)").bind(TEST_DB_LOCK_KEY).execute(&mut conn).await?;
-	Ok(DbLock { _guard: guard, _conn: conn })
 }
 
 pub async fn reset_db(pool: &sqlx::PgPool) -> color_eyre::Result<()> {

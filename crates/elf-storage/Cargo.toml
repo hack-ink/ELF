@@ -13,4 +13,5 @@ time          = { workspace = true }
 uuid          = { workspace = true }
 
 [dev-dependencies]
-tokio = { workspace = true }
+elf-testkit = { path = "../elf-testkit" }
+tokio       = { workspace = true }

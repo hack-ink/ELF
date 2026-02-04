@@ -121,6 +121,7 @@ fn test_config() -> Config {
 			},
 			dynamic: elf_config::SearchDynamic { min_candidates: 10, min_top_score: 0.12 },
 			prefilter: elf_config::SearchPrefilter { max_candidates: 0 },
+			explain: elf_config::SearchExplain { retention_days: 7 },
 		},
 		ranking: elf_config::Ranking { recency_tau_days: 60.0, tie_breaker_weight: 0.1 },
 		lifecycle: elf_config::Lifecycle {

@@ -22,5 +22,6 @@ tracing-subscriber = { workspace = true }
 vergen-gitcl = { workspace = true }
 
 [dev-dependencies]
-sqlx  = { workspace = true }
-tower = { version = "0.5" }
+elf-testkit = { path = "../../crates/elf-testkit" }
+sqlx        = { workspace = true }
+tower       = { version = "0.5" }

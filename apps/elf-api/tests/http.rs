@@ -3,29 +3,12 @@ use axum::{
 	http::{Request, StatusCode},
 };
 use elf_api::{routes, state};
-use sqlx::Connection;
 use tower::util::ServiceExt;
 
-const TEST_DB_LOCK_KEY: i64 = 0x454C4601;
-
-struct DbLock {
-	_conn: sqlx::PgConnection,
-}
-
-async fn acquire_db_lock(dsn: &str) -> DbLock {
-	let mut conn = sqlx::PgConnection::connect(dsn).await.expect("Failed to connect for DB lock.");
-	sqlx::query("SELECT pg_advisory_lock($1)")
-		.bind(TEST_DB_LOCK_KEY)
-		.execute(&mut conn)
-		.await
-		.expect("Failed to acquire DB lock.");
-	DbLock { _conn: conn }
-}
-
-fn test_env() -> Option<(String, String)> {
-	let dsn = match std::env::var("ELF_PG_DSN") {
-		Ok(value) => value,
-		Err(_) => {
+async fn test_env() -> Option<(elf_testkit::TestDatabase, String, String)> {
+	let base_dsn = match elf_testkit::env_dsn() {
+		Some(value) => value,
+		None => {
 			eprintln!("Skipping HTTP tests; set ELF_PG_DSN to run this test.");
 			return None;
 		},
@@ -37,10 +20,13 @@ fn test_env() -> Option<(String, String)> {
 			return None;
 		},
 	};
-	Some((dsn, qdrant_url))
+	let test_db =
+		elf_testkit::TestDatabase::new(&base_dsn).await.expect("Failed to create test database.");
+	let collection = test_db.collection_name("elf_http");
+	Some((test_db, qdrant_url, collection))
 }
 
-fn test_config(dsn: String, qdrant_url: String) -> elf_config::Config {
+fn test_config(dsn: String, qdrant_url: String, collection: String) -> elf_config::Config {
 	elf_config::Config {
 		service: elf_config::Service {
 			http_bind: "127.0.0.1:0".to_string(),
@@ -50,11 +36,7 @@ fn test_config(dsn: String, qdrant_url: String) -> elf_config::Config {
 		},
 		storage: elf_config::Storage {
 			postgres: elf_config::Postgres { dsn, pool_max_conns: 1 },
-			qdrant: elf_config::Qdrant {
-				url: qdrant_url,
-				collection: "elf_notes".to_string(),
-				vector_dim: 3,
-			},
+			qdrant: elf_config::Qdrant { url: qdrant_url, collection, vector_dim: 3 },
 		},
 		providers: elf_config::Providers {
 			embedding: dummy_embedding_provider(),
@@ -106,6 +88,7 @@ fn test_config(dsn: String, qdrant_url: String) -> elf_config::Config {
 			},
 			dynamic: elf_config::SearchDynamic { min_candidates: 10, min_top_score: 0.12 },
 			prefilter: elf_config::SearchPrefilter { max_candidates: 0 },
+			explain: elf_config::SearchExplain { retention_days: 7 },
 		},
 		ranking: elf_config::Ranking { recency_tau_days: 60.0, tie_breaker_weight: 0.1 },
 		lifecycle: elf_config::Lifecycle {
@@ -170,12 +153,12 @@ fn dummy_llm_provider() -> elf_config::LlmProviderConfig {
 }
 
 #[tokio::test]
+#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
 async fn health_ok() {
-	let Some((dsn, qdrant_url)) = test_env() else {
+	let Some((test_db, qdrant_url, collection)) = test_env().await else {
 		return;
 	};
-	let _lock = acquire_db_lock(&dsn).await;
-	let config = test_config(dsn, qdrant_url);
+	let config = test_config(test_db.dsn().to_string(), qdrant_url, collection);
 	let state = state::AppState::new(config).await.expect("Failed to initialize app state.");
 	let app = routes::router(state.clone());
 	let _ = routes::admin_router(state);
@@ -189,15 +172,16 @@ async fn health_ok() {
 		.await
 		.expect("Failed to call /health.");
 	assert_eq!(response.status(), StatusCode::OK);
+	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }
 
 #[tokio::test]
+#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
 async fn rejects_cjk_in_add_note() {
-	let Some((dsn, qdrant_url)) = test_env() else {
+	let Some((test_db, qdrant_url, collection)) = test_env().await else {
 		return;
 	};
-	let _lock = acquire_db_lock(&dsn).await;
-	let config = test_config(dsn, qdrant_url);
+	let config = test_config(test_db.dsn().to_string(), qdrant_url, collection);
 	let state = state::AppState::new(config).await.expect("Failed to initialize app state.");
 	let app = routes::router(state);
 	let payload = serde_json::json!({
@@ -235,15 +219,16 @@ async fn rejects_cjk_in_add_note() {
 	let json: serde_json::Value = serde_json::from_slice(&body).expect("Failed to parse response.");
 	assert_eq!(json["error_code"], "NON_ENGLISH_INPUT");
 	assert_eq!(json["fields"][0], "$.notes[0].text");
+	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }
 
 #[tokio::test]
+#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
 async fn rejects_cjk_in_add_event() {
-	let Some((dsn, qdrant_url)) = test_env() else {
+	let Some((test_db, qdrant_url, collection)) = test_env().await else {
 		return;
 	};
-	let _lock = acquire_db_lock(&dsn).await;
-	let config = test_config(dsn, qdrant_url);
+	let config = test_config(test_db.dsn().to_string(), qdrant_url, collection);
 	let state = state::AppState::new(config).await.expect("Failed to initialize app state.");
 	let app = routes::router(state);
 	let payload = serde_json::json!({
@@ -277,15 +262,16 @@ async fn rejects_cjk_in_add_event() {
 	let json: serde_json::Value = serde_json::from_slice(&body).expect("Failed to parse response.");
 	assert_eq!(json["error_code"], "NON_ENGLISH_INPUT");
 	assert_eq!(json["fields"][0], "$.messages[0].content");
+	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }
 
 #[tokio::test]
+#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
 async fn rejects_cjk_in_search() {
-	let Some((dsn, qdrant_url)) = test_env() else {
+	let Some((test_db, qdrant_url, collection)) = test_env().await else {
 		return;
 	};
-	let _lock = acquire_db_lock(&dsn).await;
-	let config = test_config(dsn, qdrant_url);
+	let config = test_config(test_db.dsn().to_string(), qdrant_url, collection);
 	let state = state::AppState::new(config).await.expect("Failed to initialize app state.");
 	let app = routes::router(state);
 	let payload = serde_json::json!({
@@ -317,4 +303,5 @@ async fn rejects_cjk_in_search() {
 	let json: serde_json::Value = serde_json::from_slice(&body).expect("Failed to parse response.");
 	assert_eq!(json["error_code"], "NON_ENGLISH_INPUT");
 	assert_eq!(json["fields"][0], "$.query");
+	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }

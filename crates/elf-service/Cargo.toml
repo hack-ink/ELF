@@ -18,5 +18,6 @@ tracing       = { workspace = true }
 uuid          = { workspace = true }
 
 [dev-dependencies]
-axum  = { workspace = true }
-tokio = { workspace = true }
+axum        = { workspace = true }
+elf-testkit = { path = "../elf-testkit" }
+tokio       = { workspace = true }

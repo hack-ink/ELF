@@ -10,34 +10,38 @@
 
 [tasks.lint]
 workspace = false
-dependencies = ["lint-rust"]
+dependencies = [
+	"lint-rust",
+]
 
 [tasks.lint-fix]
 workspace = false
-dependencies = ["lint-fix-rust"]
+dependencies = [
+	"lint-fix-rust",
+]
 
 [tasks.lint-rust]
 workspace = false
 command = "cargo"
 args = [
-  "clippy",
-  "--workspace",
-  "--all-targets",
-  "--all-features",
-  "--",
-  "-D",
-  "warnings",
+	"clippy",
+	"--workspace",
+	"--all-targets",
+	"--all-features",
+	"--",
+	"-D",
+	"warnings",
 ]
 
 [tasks.lint-fix-rust]
 extend = "lint-rust"
 args = [
-  "clippy",
-  "--fix",
-  "--allow-dirty",
-  "--workspace",
-  "--all-targets",
-  "--all-features",
+	"clippy",
+	"--fix",
+	"--allow-dirty",
+	"--workspace",
+	"--all-targets",
+	"--all-features",
 ]
 
 
@@ -49,12 +53,20 @@ args = [
 
 [tasks.test]
 workspace = false
-dependencies = ["test-rust"]
+dependencies = [
+	"test-rust",
+]
 
 [tasks.test-rust]
 workspace = false
 command = "cargo"
-args = ["nextest", "run", "--workspace", "--all-targets", "--all-features"]
+args = [
+	"nextest",
+	"run",
+	"--workspace",
+	"--all-targets",
+	"--all-features",
+]
 
 
 # Format
@@ -69,11 +81,17 @@ args = ["nextest", "run", "--workspace", "--all-targets", "--all-features"]
 
 [tasks.fmt]
 workspace = false
-dependencies = ["fmt-rust", "fmt-toml"]
+dependencies = [
+	"fmt-rust",
+	"fmt-toml",
+]
 
 [tasks.fmt-check]
 workspace = false
-dependencies = ["fmt-rust-check", "fmt-toml-check"]
+dependencies = [
+	"fmt-rust-check",
+	"fmt-toml-check",
+]
 
 [tasks.fmt-rust]
 workspace = false
@@ -86,11 +104,16 @@ script = "cargo +nightly fmt --all -- --check"
 [tasks.fmt-toml]
 workspace = false
 command = "taplo"
-args = ["fmt"]
+args = [
+	"fmt",
+]
 
 [tasks.fmt-toml-check]
 extend = "fmt-toml"
-args = ["fmt", "--check"]
+args = [
+	"fmt",
+	"--check",
+]
 
 
 # Meta
@@ -100,4 +123,8 @@ args = ["fmt", "--check"]
 
 [tasks.checks]
 workspace = false
-dependencies = ["lint", "test", "fmt-check"]
+dependencies = [
+	"lint",
+	"test",
+	"fmt-check",
+]

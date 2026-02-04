@@ -738,6 +738,7 @@ dependencies = [
  "elf-config",
  "elf-service",
  "elf-storage",
+ "elf-testkit",
  "serde",
  "serde_json",
  "sqlx",
@@ -833,6 +834,7 @@ dependencies = [
  "elf-domain",
  "elf-providers",
  "elf-storage",
+ "elf-testkit",
  "qdrant-client",
  "serde",
  "serde_json",
@@ -849,10 +851,21 @@ version = "0.1.0"
 dependencies = [
  "color-eyre",
  "elf-config",
+ "elf-testkit",
  "qdrant-client",
  "serde_json",
  "sqlx",
  "time",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "elf-testkit"
+version = "0.1.0"
+dependencies = [
+ "color-eyre",
+ "sqlx",
  "tokio",
  "uuid",
 ]
@@ -868,6 +881,7 @@ dependencies = [
  "elf-providers",
  "elf-storage",
  "qdrant-client",
+ "serde",
  "serde_json",
  "sqlx",
  "time",
