@@ -5,6 +5,7 @@ version = "0.1.0"
 
 [dependencies]
 color-eyre    = { workspace = true }
+blake3        = { workspace = true }
 elf-config    = { path = "../elf-config" }
 elf-domain    = { path = "../elf-domain" }
 elf-providers = { path = "../elf-providers" }
