@@ -68,6 +68,13 @@ max_notes_per_add_event = 3
 top_k                   = 12
 update_sim_threshold    = 0.85
 
+[chunking]
+enabled        = true
+max_tokens     = 512
+overlap_tokens = 128
+# If empty, uses providers.embedding.model
+tokenizer_repo = ""
+
 [search.expansion]
 include_original = true
 max_queries      = 4

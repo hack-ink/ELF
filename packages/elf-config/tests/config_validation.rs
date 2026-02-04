@@ -3,6 +3,8 @@ use std::{
 	time::{SystemTime, UNIX_EPOCH},
 };
 
+use elf_config::validate;
+
 fn sample_toml(reject_cjk: bool) -> String {
 	sample_toml_with_cache(reject_cjk, 7, 7, true, "v1", "v1")
 }
@@ -86,6 +88,12 @@ update_sim_threshold = 0.85
 candidate_k = 60
 top_k = 12
 
+[chunking]
+enabled = true
+max_tokens = 512
+overlap_tokens = 128
+tokenizer_repo = ""
+
 [search.expansion]
 mode = "dynamic"
 max_queries = 4
@@ -153,6 +161,11 @@ fn write_temp_config(payload: String) -> PathBuf {
 	path
 }
 
+fn base_config() -> elf_config::Config {
+	let payload = sample_toml(true);
+	toml::from_str(&payload).expect("Failed to parse test config.")
+}
+
 #[test]
 fn reject_cjk_must_be_true() {
 	let payload = sample_toml(false);
@@ -182,4 +195,22 @@ fn cache_ttl_must_be_positive() {
 		err.to_string().contains("search.cache.expansion_ttl_days must be greater than zero."),
 		"Unexpected error: {err}"
 	);
+}
+
+#[test]
+fn chunking_config_requires_valid_bounds() {
+	let mut cfg = base_config();
+	cfg.chunking.max_tokens = 0;
+	assert!(validate(&cfg).is_err());
+
+	cfg = base_config();
+	cfg.chunking.overlap_tokens = cfg.chunking.max_tokens;
+	assert!(validate(&cfg).is_err());
+}
+
+#[test]
+fn chunking_tokenizer_repo_can_inherit_from_embedding_model() {
+	let mut cfg = base_config();
+	cfg.chunking.tokenizer_repo = None;
+	assert!(validate(&cfg).is_ok());
 }
