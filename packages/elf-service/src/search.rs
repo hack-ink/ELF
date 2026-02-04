@@ -1077,9 +1077,67 @@ fn hash_query(query: &str) -> String {
 	format!("{:x}", hasher.finish())
 }
 
+fn hash_cache_key(payload: &serde_json::Value) -> ServiceResult<String> {
+	let raw = serde_json::to_vec(payload).map_err(|err| ServiceError::Storage {
+		message: format!("Failed to encode cache key payload: {err}"),
+	})?;
+	Ok(blake3::hash(&raw).to_hex().to_string())
+}
+
+fn build_expansion_cache_key(
+	query: &str,
+	version: &str,
+	max_queries: u32,
+	include_original: bool,
+	provider_id: &str,
+	model: &str,
+	temperature: f32,
+) -> ServiceResult<String> {
+	let payload = serde_json::json!({
+		"kind": "expansion",
+		"query": query.trim(),
+		"provider_id": provider_id,
+		"model": model,
+		"temperature": temperature,
+		"version": version,
+		"max_queries": max_queries,
+		"include_original": include_original,
+	});
+	hash_cache_key(&payload)
+}
+
+fn build_rerank_cache_key(
+	query: &str,
+	version: &str,
+	provider_id: &str,
+	model: &str,
+	candidates: &[(uuid::Uuid, time::OffsetDateTime)],
+) -> ServiceResult<String> {
+	let signature: Vec<serde_json::Value> = candidates
+		.iter()
+		.map(|(note_id, updated_at)| {
+			serde_json::json!({
+				"note_id": note_id,
+				"updated_at": updated_at,
+			})
+		})
+		.collect();
+	let payload = serde_json::json!({
+		"kind": "rerank",
+		"query": query.trim(),
+		"provider_id": provider_id,
+		"model": model,
+		"version": version,
+		"candidates": signature,
+	});
+	hash_cache_key(&payload)
+}
+
 #[cfg(test)]
 mod tests {
-	use super::{normalize_queries, should_expand_dynamic};
+	use super::{
+		build_expansion_cache_key, build_rerank_cache_key, normalize_queries, should_expand_dynamic,
+	};
 
 	#[test]
 	fn normalize_queries_includes_original_and_dedupes() {
@@ -1102,5 +1160,40 @@ mod tests {
 		assert!(should_expand_dynamic(5, 0.9, &cfg));
 		assert!(should_expand_dynamic(20, 0.1, &cfg));
 		assert!(!should_expand_dynamic(20, 0.9, &cfg));
+	}
+
+	#[test]
+	fn expansion_cache_key_changes_with_version() {
+		let key_a =
+			build_expansion_cache_key("alpha", "v1", 4, true, "llm", "model", 0.1_f32)
+				.expect("Expected cache key.");
+		let key_b =
+			build_expansion_cache_key("alpha", "v2", 4, true, "llm", "model", 0.1_f32)
+				.expect("Expected cache key.");
+		assert_ne!(key_a, key_b);
+	}
+
+	#[test]
+	fn rerank_cache_key_changes_with_updated_at() {
+		let ts_a = time::OffsetDateTime::from_unix_timestamp(1).expect("Valid timestamp.");
+		let ts_b = time::OffsetDateTime::from_unix_timestamp(2).expect("Valid timestamp.");
+		let note_id = uuid::Uuid::new_v4();
+		let key_a = build_rerank_cache_key(
+			"q",
+			"v1",
+			"rerank",
+			"model",
+			&vec![(note_id, ts_a)],
+		)
+		.expect("Expected cache key.");
+		let key_b = build_rerank_cache_key(
+			"q",
+			"v1",
+			"rerank",
+			"model",
+			&vec![(note_id, ts_b)],
+		)
+		.expect("Expected cache key.");
+		assert_ne!(key_a, key_b);
 	}
 }
