@@ -214,3 +214,14 @@ fn chunking_tokenizer_repo_can_inherit_from_embedding_model() {
 	cfg.chunking.tokenizer_repo = None;
 	assert!(validate(&cfg).is_ok());
 }
+
+#[test]
+fn chunking_tokenizer_repo_empty_string_normalizes_to_none() {
+	let payload = sample_toml(true);
+	let path = write_temp_config(payload);
+
+	let cfg = elf_config::load(&path).expect("Expected config to load.");
+	std::fs::remove_file(&path).expect("Failed to remove test config.");
+
+	assert!(cfg.chunking.tokenizer_repo.is_none());
+}

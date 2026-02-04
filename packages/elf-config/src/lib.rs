@@ -4,9 +4,22 @@ pub use types::*;
 
 pub fn load(path: &std::path::Path) -> color_eyre::Result<Config> {
 	let raw = std::fs::read_to_string(path)?;
-	let cfg: Config = toml::from_str(&raw)?;
+	let mut cfg: Config = toml::from_str(&raw)?;
+	normalize(&mut cfg);
 	validate(&cfg)?;
 	Ok(cfg)
+}
+
+fn normalize(cfg: &mut Config) {
+	if cfg
+		.chunking
+		.tokenizer_repo
+		.as_deref()
+		.map(|repo| repo.trim().is_empty())
+		.unwrap_or(false)
+	{
+		cfg.chunking.tokenizer_repo = None;
+	}
 }
 
 pub fn validate(cfg: &Config) -> color_eyre::Result<()> {
