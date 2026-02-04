@@ -18,7 +18,9 @@ fn chunk_tables_exist_after_bootstrap() {
 	let dsn = std::env::var("ELF_PG_DSN").expect("ELF_PG_DSN required");
 	let rt = tokio::runtime::Runtime::new().unwrap();
 	rt.block_on(async {
-		let db = elf_storage::db::Db::connect(&dsn).await.unwrap();
+		let cfg = elf_config::Postgres { dsn: dsn.clone(), pool_max_conns: 1 };
+		let db = elf_storage::db::Db::connect(&cfg).await.unwrap();
+		db.ensure_schema(3).await.unwrap();
 		let rows: (i64,) = sqlx::query_as(
 			"SELECT count(*) FROM information_schema.tables WHERE table_name = 'memory_note_chunks'",
 		)
