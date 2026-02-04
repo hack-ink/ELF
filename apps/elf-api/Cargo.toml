@@ -8,10 +8,10 @@ version = "0.1.0"
 axum               = { workspace = true }
 clap               = { workspace = true }
 color-eyre         = { workspace = true }
-elf-cli            = { path = "../../crates/elf-cli" }
-elf-config         = { path = "../../crates/elf-config" }
-elf-service        = { path = "../../crates/elf-service" }
-elf-storage        = { path = "../../crates/elf-storage" }
+elf-cli            = { path = "../../packages/elf-cli" }
+elf-config         = { path = "../../packages/elf-config" }
+elf-service        = { path = "../../packages/elf-service" }
+elf-storage        = { path = "../../packages/elf-storage" }
 serde              = { workspace = true }
 serde_json         = { workspace = true }
 tokio              = { workspace = true }
@@ -22,6 +22,6 @@ tracing-subscriber = { workspace = true }
 vergen-gitcl = { workspace = true }
 
 [dev-dependencies]
-elf-testkit = { path = "../../crates/elf-testkit" }
+elf-testkit = { path = "../../packages/elf-testkit" }
 sqlx        = { workspace = true }
 tower       = { version = "0.5" }

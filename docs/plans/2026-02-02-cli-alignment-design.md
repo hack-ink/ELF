@@ -4,7 +4,7 @@
 
 **Goal:** Share CLI style and version formatting across all app binaries, align build metadata injection, and remove the placeholder root CLI.
 
-**Architecture:** Create a small shared crate `crates/elf-cli` that exposes `styles()` and a `VERSION` constant. Each app’s CLI uses these shared items via `#[command(...)]`. Reuse the workspace root `build.rs` for each app to inject `VERGEN_*` environment variables. Remove the root `src/` placeholder once apps are aligned.
+**Architecture:** Create a small shared crate `packages/elf-cli` that exposes `styles()` and a `VERSION` constant. Each app’s CLI uses these shared items via `#[command(...)]`. Reuse the workspace root `build.rs` for each app to inject `VERGEN_*` environment variables. Remove the root `src/` placeholder once apps are aligned.
 
 **Tech Stack:** Rust 2024, `clap`, `vergen-gitcl`, `color-eyre`.
 
@@ -13,20 +13,20 @@
 ### Task 1: Add shared CLI crate
 
 **Files:**
-- Create: `crates/elf-cli/Cargo.toml`
-- Create: `crates/elf-cli/src/lib.rs`
+- Create: `packages/elf-cli/Cargo.toml`
+- Create: `packages/elf-cli/src/lib.rs`
 - Modify: `Cargo.toml`
 
 **Step 1: Write minimal crate manifest**
-Create `crates/elf-cli/Cargo.toml` with a library target, edition 2024, and `clap` dependency from workspace. Add `build = "../../build.rs"` and `[build-dependencies] vergen-gitcl = { workspace = true }` so `VERSION` can use `VERGEN_*` at compile time.
+Create `packages/elf-cli/Cargo.toml` with a library target, edition 2024, and `clap` dependency from workspace. Add `build = "../../build.rs"` and `[build-dependencies] vergen-gitcl = { workspace = true }` so `VERSION` can use `VERGEN_*` at compile time.
 
 **Step 2: Implement shared API**
-Create `crates/elf-cli/src/lib.rs` exporting:
+Create `packages/elf-cli/src/lib.rs` exporting:
 - `pub const VERSION: &str = concat!(env!("CARGO_PKG_VERSION"), "-", env!("VERGEN_GIT_SHA"), "-", env!("VERGEN_CARGO_TARGET_TRIPLE"));`
 - `pub fn styles() -> clap::builder::Styles` using the same styling as the previous root CLI.
 
 **Step 3: Add crate to workspace**
-Add `crates/elf-cli` to `[workspace].members` in `Cargo.toml`.
+Add `packages/elf-cli` to `[workspace].members` in `Cargo.toml`.
 
 ---
 
@@ -41,7 +41,7 @@ Add `crates/elf-cli` to `[workspace].members` in `Cargo.toml`.
 - Modify: `apps/elf-mcp/Cargo.toml`
 
 **Step 1: Add shared dependency**
-Add `elf-cli = { path = "../../crates/elf-cli" }` to each app’s dependencies.
+Add `elf-cli = { path = "../../packages/elf-cli" }` to each app’s dependencies.
 
 **Step 2: Apply clap attributes**
 Update each `Args` struct to include:

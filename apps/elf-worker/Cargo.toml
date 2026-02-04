@@ -7,10 +7,10 @@ version = "0.1.0"
 [dependencies]
 clap               = { workspace = true }
 color-eyre         = { workspace = true }
-elf-cli            = { path = "../../crates/elf-cli" }
-elf-config         = { path = "../../crates/elf-config" }
-elf-providers      = { path = "../../crates/elf-providers" }
-elf-storage        = { path = "../../crates/elf-storage" }
+elf-cli            = { path = "../../packages/elf-cli" }
+elf-config         = { path = "../../packages/elf-config" }
+elf-providers      = { path = "../../packages/elf-providers" }
+elf-storage        = { path = "../../packages/elf-storage" }
 qdrant-client      = { workspace = true }
 serde              = { workspace = true }
 serde_json         = { workspace = true }
