@@ -141,6 +141,24 @@ struct Candidate {
 	retrieval_rank: u32,
 }
 
+#[derive(Debug, Clone)]
+struct RerankCacheCandidate {
+	note_id: uuid::Uuid,
+	updated_at: time::OffsetDateTime,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct RerankCacheItem {
+	note_id: uuid::Uuid,
+	updated_at: time::OffsetDateTime,
+	score: f32,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct RerankCachePayload {
+	items: Vec<RerankCacheItem>,
+}
+
 #[derive(Debug)]
 struct ScoredNote {
 	note: MemoryNote,
@@ -1133,10 +1151,38 @@ fn build_rerank_cache_key(
 	hash_cache_key(&payload)
 }
 
+fn build_cached_scores(
+	payload: &RerankCachePayload,
+	candidates: &[RerankCacheCandidate],
+) -> Option<Vec<f32>> {
+	if payload.items.len() != candidates.len() {
+		return None;
+	}
+
+	let mut map = HashMap::new();
+	for item in &payload.items {
+		let key = (item.note_id, item.updated_at.unix_timestamp(), item.updated_at.nanosecond());
+		map.insert(key, item.score);
+	}
+
+	let mut out = Vec::with_capacity(candidates.len());
+	for candidate in candidates {
+		let key = (
+			candidate.note_id,
+			candidate.updated_at.unix_timestamp(),
+			candidate.updated_at.nanosecond(),
+		);
+		let score = map.get(&key)?;
+		out.push(*score);
+	}
+	Some(out)
+}
+
 #[cfg(test)]
 mod tests {
 	use super::{
-		build_expansion_cache_key, build_rerank_cache_key, normalize_queries, should_expand_dynamic,
+		build_cached_scores, build_expansion_cache_key, build_rerank_cache_key, normalize_queries,
+		should_expand_dynamic, RerankCacheCandidate, RerankCacheItem, RerankCachePayload,
 	};
 
 	#[test]
@@ -1195,5 +1241,21 @@ mod tests {
 		)
 		.expect("Expected cache key.");
 		assert_ne!(key_a, key_b);
+	}
+
+	#[test]
+	fn rerank_cache_payload_rejects_mismatched_counts() {
+		let payload = RerankCachePayload {
+			items: vec![RerankCacheItem {
+				note_id: uuid::Uuid::new_v4(),
+				updated_at: time::OffsetDateTime::from_unix_timestamp(1).expect("Valid timestamp."),
+				score: 0.5,
+			}],
+		};
+		let candidates = vec![RerankCacheCandidate {
+			note_id: uuid::Uuid::new_v4(),
+			updated_at: time::OffsetDateTime::from_unix_timestamp(1).expect("Valid timestamp."),
+		}];
+		assert!(build_cached_scores(&payload, &candidates).is_none());
 	}
 }
