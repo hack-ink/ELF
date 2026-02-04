@@ -7,6 +7,7 @@ pub struct Config {
 	pub providers: Providers,
 	pub scopes: Scopes,
 	pub memory: Memory,
+	pub chunking: Chunking,
 	pub search: Search,
 	pub ranking: Ranking,
 	pub lifecycle: Lifecycle,
@@ -119,6 +120,14 @@ pub struct Memory {
 	pub update_sim_threshold: f32,
 	pub candidate_k: u32,
 	pub top_k: u32,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Chunking {
+	pub enabled: bool,
+	pub max_tokens: u32,
+	pub overlap_tokens: u32,
+	pub tokenizer_repo: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

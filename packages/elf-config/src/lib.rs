@@ -79,6 +79,19 @@ pub fn validate(cfg: &Config) -> color_eyre::Result<()> {
 			"search.explain.retention_days must be greater than zero."
 		));
 	}
+	if !cfg.chunking.enabled {
+		return Err(color_eyre::eyre::eyre!("Chunking.enabled must be true."));
+	}
+	if cfg.chunking.max_tokens == 0 {
+		return Err(color_eyre::eyre::eyre!(
+			"Chunking.max_tokens must be greater than zero."
+		));
+	}
+	if cfg.chunking.overlap_tokens >= cfg.chunking.max_tokens {
+		return Err(color_eyre::eyre::eyre!(
+			"Chunking.overlap_tokens must be less than chunking.max_tokens."
+		));
+	}
 	for (label, key) in [
 		("embedding", &cfg.providers.embedding.api_key),
 		("rerank", &cfg.providers.rerank.api_key),
