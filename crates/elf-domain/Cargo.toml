@@ -5,6 +5,6 @@ version = "0.1.0"
 
 [dependencies]
 elf-config = { path = "../elf-config" }
-regex      = { version = "1.0" }
+regex      = { version = "1.12" }
 serde_json = { workspace = true }
 time       = { workspace = true }
