@@ -1,117 +1,194 @@
 <div align="center">
 
-# <NAME>
+# ELF
 
-<DESCRIPTION>
+Evidence-linked fact memory for agents.
 
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Docs](https://img.shields.io/docsrs/<NAME>)](https://docs.rs/<NAME>)
-[![Language Checks](https://github.com/hack-ink/<NAME>/actions/workflows/language.yml/badge.svg?branch=main)](https://github.com/hack-ink/<NAME>/actions/workflows/language.yml)
-[![Release](https://github.com/hack-ink/<NAME>/actions/workflows/release.yml/badge.svg)](https://github.com/hack-ink/<NAME>/actions/workflows/release.yml)
-[![GitHub tag (latest by date)](https://img.shields.io/github/v/tag/hack-ink/<NAME>)](https://github.com/hack-ink/<NAME>/tags)
-[![GitHub last commit](https://img.shields.io/github/last-commit/hack-ink/<NAME>?color=red&style=plastic)](https://github.com/hack-ink/<NAME>)
-[![GitHub code lines](https://tokei.rs/b1/github/hack-ink/<NAME>)](https://github.com/hack-ink/<NAME>)
+[![Language Checks](https://github.com/hack-ink/ELF/actions/workflows/language.yml/badge.svg?branch=main)](https://github.com/hack-ink/ELF/actions/workflows/language.yml)
+[![Release](https://github.com/hack-ink/ELF/actions/workflows/release.yml/badge.svg)](https://github.com/hack-ink/ELF/actions/workflows/release.yml)
+[![GitHub tag (latest by date)](https://img.shields.io/github/v/tag/hack-ink/ELF)](https://github.com/hack-ink/ELF/tags)
+[![GitHub last commit](https://img.shields.io/github/last-commit/hack-ink/ELF?color=red&style=plastic)](https://github.com/hack-ink/ELF)
+[![GitHub code lines](https://tokei.rs/b1/github/hack-ink/ELF)](https://github.com/hack-ink/ELF)
 
 </div>
 
-## Feature Highlights
+## What Is ELF?
 
-### TODO
+ELF is a memory service that stores short, evidence-linked facts for agents. It separates deterministic writes from LLM extraction, enforces evidence binding, and provides hybrid retrieval with configurable quality and cost controls. Postgres with pgvector is the source of truth; Qdrant is a derived index for fast candidate retrieval. ELF exposes HTTP and MCP interfaces for agent integrations.
 
-TODO
+## Why ELF
 
-## Status
+- Evidence-linked memory. Every extracted note includes verbatim evidence quotes.
+- Deterministic ingestion. `add_note` never calls an LLM; `add_event` always does.
+- Source-of-truth storage. Postgres is authoritative; Qdrant can be rebuilt at any time.
+- Hybrid retrieval. Dense + BM25 candidate retrieval with optional reranking.
+- Query expansion modes. `off`, `always`, or `dynamic` to balance recall and latency.
+- Multi-tenant scoping. Tenant, project, agent, and scope boundaries are enforced.
+- MCP integration. A dedicated `elf-mcp` server for Claude and other MCP clients.
+- Evaluation-ready. `elf-eval` lets you measure retrieval quality quickly.
 
-TODO
+## Architecture
 
-## Usage
+```mermaid
+flowchart TB
+  subgraph Clients
+    Agent[Agent / App]
+    MCPClient[MCP Client]
+    Eval[elf-eval]
+  end
 
-### Installation
+  subgraph Services
+    API[elf-api]
+    MCP[elf-mcp]
+    Worker[elf-worker]
+  end
 
-#### Build from Source
+  subgraph Storage
+    PG[(Postgres + pgvector\nsource of truth)]
+    Qdrant[(Qdrant\nrebuildable index)]
+  end
 
-```sh
-# Clone the repository.
-git clone https://github.com/hack-ink/<NAME>
-cd <NAME>
+  subgraph Providers
+    Embed[Embedding Provider]
+    Rerank[Reranker]
+    Extractor[LLM Extractor]
+  end
 
-# To install Rust on macOS and Unix, run the following command.
-#
-# To install Rust on Windows, download and run the installer from `https://rustup.rs`.
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable
+  Agent -->|HTTP| API
+  MCPClient -->|MCP| MCP
+  MCP -->|HTTP| API
+  Eval -->|HTTP| API
 
-# Install the necessary dependencies. (Unix only)
-# Using Ubuntu as an example, this really depends on your distribution.
-sudo apt-get update
-sudo apt-get install <DEPENDENCIES>
+  API -->|add_note| PG
+  API -->|add_event| Extractor
+  Extractor -->|evidence-bound notes| API
+  API -->|persist| PG
+  PG -->|outbox| Worker
+  Worker -->|index dense + BM25| Qdrant
 
-# Build the project, and the binary will be available at `target/release/<NAME>`.
-cargo build --release
-
-# If you are a macOS user and want to have a `<NAME>.app`, run the following command.
-# Install `cargo-bundle` to pack the binary into an app.
-cargo install cargo-bundle
-# Pack the app, and the it will be available at `target/release/bundle/osx/<NAME>.app`.
-cargo bundle --release
+  API -->|search| Expand{Expand?\noff/always/dynamic}
+  Expand -->|original| Embed
+  Expand -->|LLM variants| Extractor
+  Extractor -->|expanded queries| Embed
+  Embed -->|dense vectors| Qdrant
+  API -->|BM25 query| Qdrant
+  Qdrant -->|RRF fusion candidates| API
+  API -->|scope/TTL filter| PG
+  PG -->|notes| API
+  API -->|rerank + recency| Rerank
+  Rerank -->|scores| API
+  API -->|top-k| Agent
 ```
 
-#### Download Pre-built Binary
+## Comparison (qmd, claude-mem)
 
-- **macOS**
-    - Download the latest pre-built binary from [GitHub Releases](https://github.com/hack-ink/<NAME>/releases/latest).
-- **Windows**
-    - TODO
-- **Unix**
-    - TODO
+Comparison focuses on shared capabilities plus ELF strengths.
 
-### Configuration
+### Interfaces And Integration
 
-#### TODO
+| Capability | ELF | qmd | claude-mem |
+| --- | --- | --- | --- |
+| Local-first, self-hosted memory | ✅ | ✅ | ✅ |
+| MCP integration | ✅ | ✅ | ✅ |
+| HTTP API service | ✅ | — | ✅ |
+| CLI-first workflow | — | ✅ | — |
+| Web UI viewer | — | — | ✅ |
 
-TODO
+### Retrieval Pipeline
 
-### Interaction
+| Capability | ELF | qmd | claude-mem |
+| --- | --- | --- | --- |
+| Full-text search (BM25 or FTS) | ✅ | ✅ | ✅ |
+| Vector semantic search | ✅ | ✅ | ✅ |
+| Hybrid dense + sparse fusion | ✅ | ✅ | ✅ |
+| LLM reranking stage | ✅ | ✅ | — |
+| Query expansion | ✅ | ✅ | — |
+| Progressive disclosure workflow | — | — | ✅ |
 
-TODO
+### Quality, Safety, And Memory Semantics
 
-### Update
+| Capability | ELF | qmd | claude-mem |
+| --- | --- | --- | --- |
+| Evidence-bound notes (verbatim quotes) | ✅ | — | — |
+| Deterministic vs LLM ingestion separation | ✅ | — | — |
+| Source-of-truth DB with rebuildable index | ✅ | — | — |
+| Multi-tenant scoping | ✅ | — | — |
+| TTL and lifecycle policies | ✅ | — | — |
+| English-only boundary enforcement | ✅ | — | — |
+| Redaction on write | ✅ | — | — |
 
-TODO
+### Operations And Evaluation
+
+| Capability | ELF | qmd | claude-mem |
+| --- | --- | --- | --- |
+| Retrieval evaluation CLI | ✅ | — | — |
+| Structured JSON outputs | ✅ | ✅ | — |
+
+### ELF-Only Advantages
+
+- Evidence binding with verbatim quote checks.
+- Postgres is the source of truth; vector index is fully rebuildable.
+- Deterministic `add_note` and LLM-only `add_event` semantics.
+- Query expansion modes (`off`, `always`, `dynamic`) for cost/latency control.
+- Dedicated evaluation CLI to measure retrieval quality.
+
+### Learnings Integrated
+
+- Hybrid retrieval + rerank as a first-class pipeline, inspired by qmd's local hybrid stack.
+- Progressive cost control for retrieval, informed by claude-mem's progressive disclosure approach.
+
+## Quickstart
+
+### Requirements
+
+- Postgres with pgvector
+- Qdrant
+- Provider endpoints for embeddings, rerank, and extraction
+
+### Run
+
+```sh
+cp elf.example.toml elf.toml
+# Fill in providers and storage values in elf.toml
+
+cargo run -p elf-worker -- -c elf.toml
+cargo run -p elf-api -- -c elf.toml
+cargo run -p elf-mcp -- -c elf.toml
+```
+
+### Evaluate
+
+```sh
+cargo run -p elf-eval -- -c elf.toml -i path/to/eval.json
+```
+
+## Configuration
+
+See `elf.example.toml` and `docs/spec/system_elf_memory_service_v1.md` for the full contract. All config is explicit and required; no environment defaults are allowed. Embedding dimensions must match the Qdrant vector dimension.
 
 ## Development
 
-### Architecture
+```sh
+cargo make fmt
+cargo make lint
+cargo make test
+```
 
-TODO
+## Support
 
-## Support Me
+If you find this project helpful and want to support its development:
 
-If you find this project helpful and would like to support its development, you can buy me a coffee!
+- Ko-fi: https://ko-fi.com/hack_ink
+- Afdian: https://afdian.com/a/hack_ink
 
-Your support is greatly appreciated and motivates me to keep improving this project.
-
-- **Fiat**
-    - [Ko-fi](https://ko-fi.com/hack_ink)
-    - [爱发电](https://afdian.com/a/hack_ink)
-- **Crypto**
-    - **Bitcoin**
-        - `bc1pedlrf67ss52md29qqkzr2avma6ghyrt4jx9ecp9457qsl75x247sqcp43c`
-    - **Ethereum**
-        - `0x3e25247CfF03F99a7D83b28F207112234feE73a6`
-    - **Polkadot**
-        - `156HGo9setPcU2qhFMVWLkcmtCEGySLwNqa3DaEiYSWtte4Y`
-
-Thank you for your support!
+- Bitcoin: `bc1pedlrf67ss52md29qqkzr2avma6ghyrt4jx9ecp9457qsl75x247sqcp43c`
+- Ethereum: `0x3e25247CfF03F99a7D83b28F207112234feE73a6`
+- Polkadot: `156HGo9setPcU2qhFMVWLkcmtCEGySLwNqa3DaEiYSWtte4Y`
 
 ## Appreciation
 
-We would like to extend our heartfelt gratitude to the following projects and contributors:
-
 - The Rust community for their continuous support and development of the Rust ecosystem.
-
-## Additional Acknowledgements
-
-- TODO
 
 <div align="right">
 
