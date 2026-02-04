@@ -112,6 +112,9 @@ pub async fn run_worker(state: WorkerState) -> Result<()> {
 			} else {
 				last_trace_cleanup = now;
 			}
+			if let Err(err) = purge_expired_cache(&state.db, now).await {
+				error!(error = %err, "LLM cache cleanup failed.");
+			}
 		}
 		tokio::time::sleep(to_std_duration(Duration::milliseconds(POLL_INTERVAL_MS))).await;
 	}
@@ -378,6 +381,17 @@ async fn purge_expired_traces(db: &Db, now: OffsetDateTime) -> Result<()> {
 		.await?;
 	if result.rows_affected() > 0 {
 		info!(count = result.rows_affected(), "Purged expired search traces.");
+	}
+	Ok(())
+}
+
+async fn purge_expired_cache(db: &Db, now: OffsetDateTime) -> Result<()> {
+	let result = sqlx::query("DELETE FROM llm_cache WHERE expires_at <= $1")
+		.bind(now)
+		.execute(&db.pool)
+		.await?;
+	if result.rows_affected() > 0 {
+		info!(count = result.rows_affected(), "Purged expired LLM cache entries.");
 	}
 	Ok(())
 }
