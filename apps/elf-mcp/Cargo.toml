@@ -8,8 +8,8 @@ version = "0.1.0"
 axum       = { workspace = true }
 clap       = { workspace = true }
 color-eyre = { workspace = true }
-elf-cli    = { path = "../../crates/elf-cli" }
-elf-config = { path = "../../crates/elf-config" }
+elf-cli    = { path = "../../packages/elf-cli" }
+elf-config = { path = "../../packages/elf-config" }
 reqwest    = { workspace = true }
 rmcp       = { version = "0.13", features = ["transport-streamable-http-server"] }
 serde_json = { workspace = true }
