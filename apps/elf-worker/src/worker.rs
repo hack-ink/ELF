@@ -1,9 +1,13 @@
 use std::collections::HashMap;
 
 use color_eyre::{Result, eyre::eyre};
+use tokenizers::Tokenizer;
+
+use crate::chunking::{Chunk, ChunkingConfig, split_text};
 use elf_storage::{
 	db::Db,
 	models::{IndexingOutboxEntry, MemoryNote},
+	queries,
 	qdrant::{BM25_MODEL, BM25_VECTOR_NAME, DENSE_VECTOR_NAME, QdrantStore},
 };
 use qdrant_client::{
@@ -90,10 +94,20 @@ struct TraceItemInsert {
 	matched_fields: SerdeValue,
 }
 
+struct ChunkRecord {
+	chunk_id: uuid::Uuid,
+	chunk_index: i32,
+	start_offset: i32,
+	end_offset: i32,
+	text: String,
+}
+
 pub struct WorkerState {
 	pub db: Db,
 	pub qdrant: QdrantStore,
 	pub embedding: elf_config::EmbeddingProviderConfig,
+	pub chunking: ChunkingConfig,
+	pub tokenizer: Tokenizer,
 }
 
 pub async fn run_worker(state: WorkerState) -> Result<()> {
@@ -276,24 +290,68 @@ async fn handle_upsert(state: &WorkerState, job: &IndexingOutboxEntry) -> Result
 		return Ok(());
 	}
 
-	let embedding = ensure_embedding(state, &note, &job.embedding_version).await?;
-	upsert_qdrant(state, &note, &embedding).await?;
+	let chunks = split_text(&note.text, &state.chunking, &state.tokenizer);
+	if chunks.is_empty() {
+		return Err(eyre!("Chunking produced no chunks."));
+	}
+	let records = build_chunk_records(note.note_id, &chunks)?;
+	let chunk_texts: Vec<String> = records.iter().map(|record| record.text.clone()).collect();
+	let chunk_vectors = elf_providers::embedding::embed(&state.embedding, &chunk_texts).await?;
+	if chunk_vectors.len() != records.len() {
+		return Err(eyre!(
+			"Embedding provider returned {} vectors for {} chunks.",
+			chunk_vectors.len(),
+			records.len()
+		));
+	}
+	for vector in &chunk_vectors {
+		validate_vector_dim(vector, state.qdrant.vector_dim)?;
+	}
+
+	queries::delete_note_chunks(&state.db, note.note_id).await?;
+	for record in &records {
+		queries::insert_note_chunk(
+			&state.db,
+			record.chunk_id,
+			note.note_id,
+			record.chunk_index,
+			record.start_offset,
+			record.end_offset,
+			&record.text,
+			&job.embedding_version,
+		)
+		.await?;
+	}
+	for (record, vector) in records.iter().zip(chunk_vectors.iter()) {
+		let vec_text = format_vector_text(vector);
+		queries::insert_note_chunk_embedding(
+			&state.db,
+			record.chunk_id,
+			&job.embedding_version,
+			vector.len() as i32,
+			&vec_text,
+		)
+		.await?;
+	}
+
+	let pooled = mean_pool(&chunk_vectors)
+		.ok_or_else(|| eyre!("Cannot pool empty chunk vectors."))?;
+	validate_vector_dim(&pooled, state.qdrant.vector_dim)?;
+	insert_embedding(
+		&state.db,
+		note.note_id,
+		&job.embedding_version,
+		pooled.len() as i32,
+		&pooled,
+	)
+	.await?;
+	delete_qdrant_note_points(state, note.note_id).await?;
+	upsert_qdrant_chunks(state, &note, &job.embedding_version, &records, &chunk_vectors).await?;
 	Ok(())
 }
 
 async fn handle_delete(state: &WorkerState, job: &IndexingOutboxEntry) -> Result<()> {
-	let point_id = job.note_id.to_string();
-	let delete =
-		DeletePointsBuilder::new(state.qdrant.collection.clone()).points([point_id]).wait(true);
-	match state.qdrant.client.delete_points(delete).await {
-		Ok(_) => {},
-		Err(err) =>
-			if is_not_found_error(&err) {
-				info!(outbox_id = %job.outbox_id, "Qdrant point missing during delete.");
-			} else {
-				return Err(eyre!(err.to_string()));
-			},
-	}
+	delete_qdrant_note_points(state, job.note_id).await?;
 	Ok(())
 }
 
@@ -427,20 +485,48 @@ fn note_is_active(note: &MemoryNote, now: OffsetDateTime) -> bool {
 	true
 }
 
-async fn ensure_embedding(
-	state: &WorkerState,
-	note: &MemoryNote,
-	embedding_version: &str,
-) -> Result<Vec<f32>> {
-	let vectors =
-		elf_providers::embedding::embed(&state.embedding, std::slice::from_ref(&note.text)).await?;
-	let Some(vector) = vectors.into_iter().next() else {
-		return Err(eyre!("Embedding provider returned no vectors."));
-	};
-	validate_vector_dim(&vector, state.qdrant.vector_dim)?;
-	insert_embedding(&state.db, note.note_id, embedding_version, vector.len() as i32, &vector)
-		.await?;
-	Ok(vector)
+fn build_chunk_records(note_id: uuid::Uuid, chunks: &[Chunk]) -> Result<Vec<ChunkRecord>> {
+	let mut records = Vec::with_capacity(chunks.len());
+	for chunk in chunks {
+		let start_offset = to_i32(chunk.start_offset, "start_offset")?;
+		let end_offset = to_i32(chunk.end_offset, "end_offset")?;
+		records.push(ChunkRecord {
+			chunk_id: chunk_id_for(note_id, chunk.chunk_index),
+			chunk_index: chunk.chunk_index,
+			start_offset,
+			end_offset,
+			text: chunk.text.clone(),
+		});
+	}
+	Ok(records)
+}
+
+fn chunk_id_for(note_id: uuid::Uuid, chunk_index: i32) -> uuid::Uuid {
+	let name = format!("{note_id}:{chunk_index}");
+	uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, name.as_bytes())
+}
+
+fn to_i32(value: usize, label: &str) -> Result<i32> {
+	i32::try_from(value).map_err(|_| {
+		eyre!("Chunk {label} offset {value} exceeds supported range.")
+	})
+}
+
+fn mean_pool(chunks: &[Vec<f32>]) -> Option<Vec<f32>> {
+	if chunks.is_empty() {
+		return None;
+	}
+	let dim = chunks[0].len();
+	let mut out = vec![0.0_f32; dim];
+	for vec in chunks {
+		for (idx, value) in vec.iter().enumerate() {
+			out[idx] += value;
+		}
+	}
+	for value in &mut out {
+		*value /= chunks.len() as f32;
+	}
+	Some(out)
 }
 
 async fn insert_embedding(
@@ -466,49 +552,84 @@ async fn insert_embedding(
 	Ok(())
 }
 
-async fn upsert_qdrant(state: &WorkerState, note: &MemoryNote, vec: &[f32]) -> Result<()> {
-	let mut payload_map = HashMap::new();
-	payload_map.insert("note_id".to_string(), Value::from(note.note_id.to_string()));
-	payload_map.insert("tenant_id".to_string(), Value::from(note.tenant_id.clone()));
-	payload_map.insert("project_id".to_string(), Value::from(note.project_id.clone()));
-	payload_map.insert("agent_id".to_string(), Value::from(note.agent_id.clone()));
-	payload_map.insert("scope".to_string(), Value::from(note.scope.clone()));
-	payload_map.insert("status".to_string(), Value::from(note.status.clone()));
-	payload_map.insert("type".to_string(), Value::from(note.r#type.clone()));
-	payload_map.insert(
-		"key".to_string(),
-		note.key
-			.as_ref()
-			.map(|key| Value::from(key.clone()))
-			.unwrap_or_else(|| Value::from(JsonValue::Null)),
-	);
-	payload_map.insert(
-		"updated_at".to_string(),
-		Value::from(JsonValue::String(format_timestamp(note.updated_at)?)),
-	);
-	payload_map.insert(
-		"expires_at".to_string(),
-		Value::from(match note.expires_at {
-			Some(ts) => JsonValue::String(format_timestamp(ts)?),
-			None => JsonValue::Null,
-		}),
-	);
-	payload_map
-		.insert("importance".to_string(), Value::from(JsonValue::from(note.importance as f64)));
-	payload_map
-		.insert("confidence".to_string(), Value::from(JsonValue::from(note.confidence as f64)));
-	payload_map
-		.insert("embedding_version".to_string(), Value::from(note.embedding_version.clone()));
+async fn delete_qdrant_note_points(state: &WorkerState, note_id: uuid::Uuid) -> Result<()> {
+	let filter = qdrant_client::qdrant::Filter::must([qdrant_client::qdrant::Condition::matches(
+		"note_id",
+		note_id.to_string(),
+	)]);
+	let delete =
+		DeletePointsBuilder::new(state.qdrant.collection.clone()).points(filter).wait(true);
+	match state.qdrant.client.delete_points(delete).await {
+		Ok(_) => {},
+		Err(err) =>
+			if is_not_found_error(&err) {
+				info!(note_id = %note_id, "Qdrant points missing during delete.");
+			} else {
+				return Err(eyre!(err.to_string()));
+			},
+	}
+	Ok(())
+}
 
-	let payload = Payload::from(payload_map);
-	let mut vectors = HashMap::new();
-	vectors.insert(DENSE_VECTOR_NAME.to_string(), Vector::from(vec.to_vec()));
-	vectors.insert(
-		BM25_VECTOR_NAME.to_string(),
-		Vector::from(Document::new(note.text.clone(), BM25_MODEL)),
-	);
-	let point = PointStruct::new(note.note_id.to_string(), vectors, payload);
-	let upsert = UpsertPointsBuilder::new(state.qdrant.collection.clone(), vec![point]).wait(true);
+async fn upsert_qdrant_chunks(
+	state: &WorkerState,
+	note: &MemoryNote,
+	embedding_version: &str,
+	records: &[ChunkRecord],
+	vectors: &[Vec<f32>],
+) -> Result<()> {
+	let mut points = Vec::with_capacity(records.len());
+	for (record, vec) in records.iter().zip(vectors.iter()) {
+		let mut payload_map = HashMap::new();
+		payload_map.insert("note_id".to_string(), Value::from(note.note_id.to_string()));
+		payload_map.insert("chunk_id".to_string(), Value::from(record.chunk_id.to_string()));
+		payload_map.insert("chunk_index".to_string(), Value::from(record.chunk_index as i64));
+		payload_map.insert("start_offset".to_string(), Value::from(record.start_offset as i64));
+		payload_map.insert("end_offset".to_string(), Value::from(record.end_offset as i64));
+		payload_map.insert("tenant_id".to_string(), Value::from(note.tenant_id.clone()));
+		payload_map.insert("project_id".to_string(), Value::from(note.project_id.clone()));
+		payload_map.insert("agent_id".to_string(), Value::from(note.agent_id.clone()));
+		payload_map.insert("scope".to_string(), Value::from(note.scope.clone()));
+		payload_map.insert("status".to_string(), Value::from(note.status.clone()));
+		payload_map.insert("type".to_string(), Value::from(note.r#type.clone()));
+		payload_map.insert(
+			"key".to_string(),
+			note.key
+				.as_ref()
+				.map(|key| Value::from(key.clone()))
+				.unwrap_or_else(|| Value::from(JsonValue::Null)),
+		);
+		payload_map.insert(
+			"updated_at".to_string(),
+			Value::from(JsonValue::String(format_timestamp(note.updated_at)?)),
+		);
+		payload_map.insert(
+			"expires_at".to_string(),
+			Value::from(match note.expires_at {
+				Some(ts) => JsonValue::String(format_timestamp(ts)?),
+				None => JsonValue::Null,
+			}),
+		);
+		payload_map
+			.insert("importance".to_string(), Value::from(JsonValue::from(note.importance as f64)));
+		payload_map
+			.insert("confidence".to_string(), Value::from(JsonValue::from(note.confidence as f64)));
+		payload_map
+			.insert("embedding_version".to_string(), Value::from(embedding_version.to_string()));
+
+		let payload = Payload::from(payload_map);
+		let mut vector_map = HashMap::new();
+		vector_map.insert(DENSE_VECTOR_NAME.to_string(), Vector::from(vec.to_vec()));
+		vector_map.insert(
+			BM25_VECTOR_NAME.to_string(),
+			Vector::from(Document::new(record.text.clone(), BM25_MODEL)),
+		);
+		let point = PointStruct::new(record.chunk_id.to_string(), vector_map, payload);
+		points.push(point);
+	}
+
+	let upsert =
+		UpsertPointsBuilder::new(state.qdrant.collection.clone(), points).wait(true);
 	state.qdrant.client.upsert_points(upsert).await?;
 	Ok(())
 }
@@ -631,4 +752,16 @@ fn to_std_duration(duration: Duration) -> std::time::Duration {
 		return std::time::Duration::from_millis(0);
 	}
 	std::time::Duration::from_millis(millis as u64)
+}
+
+#[cfg(test)]
+mod tests {
+	use super::mean_pool;
+
+	#[test]
+	fn pooled_vector_is_mean_of_chunks() {
+		let chunks = vec![vec![1.0_f32, 3.0_f32], vec![3.0_f32, 5.0_f32]];
+		let pooled = mean_pool(&chunks).expect("Expected pooled vector.");
+		assert_eq!(pooled, vec![2.0_f32, 4.0_f32]);
+	}
 }

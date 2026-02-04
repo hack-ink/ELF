@@ -32,5 +32,5 @@ tracing            = { version = "0.1" }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tokenizers         = { version = "0.20", features = ["http"] }
 unicode-segmentation = { version = "1.11" }
-uuid               = { version = "1.0", features = ["serde", "v4"] }
+uuid               = { version = "1.0", features = ["serde", "v4", "v5"] }
 vergen-gitcl       = { version = "9.1", features = ["cargo"] }
