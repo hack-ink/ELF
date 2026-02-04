@@ -126,6 +126,7 @@ pub struct Search {
 	pub expansion: SearchExpansion,
 	pub dynamic: SearchDynamic,
 	pub prefilter: SearchPrefilter,
+	pub cache: SearchCache,
 	pub explain: SearchExplain,
 }
 
@@ -145,6 +146,16 @@ pub struct SearchDynamic {
 #[derive(Debug, Deserialize)]
 pub struct SearchPrefilter {
 	pub max_candidates: u32,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SearchCache {
+	pub enabled: bool,
+	pub expansion_ttl_days: i64,
+	pub rerank_ttl_days: i64,
+	pub max_payload_bytes: Option<u64>,
+	pub expansion_version: String,
+	pub rerank_version: String,
 }
 
 #[derive(Debug, Deserialize)]

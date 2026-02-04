@@ -47,6 +47,33 @@ pub fn validate(cfg: &Config) -> color_eyre::Result<()> {
 			"search.dynamic.min_top_score must be zero or greater."
 		));
 	}
+	if cfg.search.cache.expansion_ttl_days <= 0 {
+		return Err(color_eyre::eyre::eyre!(
+			"search.cache.expansion_ttl_days must be greater than zero."
+		));
+	}
+	if cfg.search.cache.rerank_ttl_days <= 0 {
+		return Err(color_eyre::eyre::eyre!(
+			"search.cache.rerank_ttl_days must be greater than zero."
+		));
+	}
+	if let Some(max) = cfg.search.cache.max_payload_bytes {
+		if max == 0 {
+			return Err(color_eyre::eyre::eyre!(
+				"search.cache.max_payload_bytes must be greater than zero."
+			));
+		}
+	}
+	if cfg.search.cache.expansion_version.trim().is_empty() {
+		return Err(color_eyre::eyre::eyre!(
+			"search.cache.expansion_version must be non-empty."
+		));
+	}
+	if cfg.search.cache.rerank_version.trim().is_empty() {
+		return Err(color_eyre::eyre::eyre!(
+			"search.cache.rerank_version must be non-empty."
+		));
+	}
 	if cfg.search.explain.retention_days <= 0 {
 		return Err(color_eyre::eyre::eyre!(
 			"search.explain.retention_days must be greater than zero."
