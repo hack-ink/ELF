@@ -45,3 +45,60 @@ pub async fn update_note(db: &Db, note: &MemoryNote) -> Result<()> {
     .await?;
 	Ok(())
 }
+
+pub async fn delete_note_chunks(db: &Db, note_id: uuid::Uuid) -> Result<()> {
+	sqlx::query("DELETE FROM memory_note_chunks WHERE note_id = $1")
+		.bind(note_id)
+		.execute(&db.pool)
+		.await?;
+	Ok(())
+}
+
+pub async fn insert_note_chunk(
+	db: &Db,
+	chunk_id: uuid::Uuid,
+	note_id: uuid::Uuid,
+	chunk_index: i32,
+	start_offset: i32,
+	end_offset: i32,
+	text: &str,
+	embedding_version: &str,
+) -> Result<()> {
+	sqlx::query(
+		"INSERT INTO memory_note_chunks (chunk_id, note_id, chunk_index, start_offset, end_offset, text, embedding_version) \
+         VALUES ($1,$2,$3,$4,$5,$6,$7) \
+         ON CONFLICT (chunk_id) DO UPDATE SET text = EXCLUDED.text, start_offset = EXCLUDED.start_offset, end_offset = EXCLUDED.end_offset",
+	)
+	.bind(chunk_id)
+	.bind(note_id)
+	.bind(chunk_index)
+	.bind(start_offset)
+	.bind(end_offset)
+	.bind(text)
+	.bind(embedding_version)
+	.execute(&db.pool)
+	.await?;
+	Ok(())
+}
+
+pub async fn insert_note_chunk_embedding(
+	db: &Db,
+	chunk_id: uuid::Uuid,
+	embedding_version: &str,
+	embedding_dim: i32,
+	vec: &str,
+) -> Result<()> {
+	sqlx::query(
+		"INSERT INTO note_chunk_embeddings (chunk_id, embedding_version, embedding_dim, vec) \
+         VALUES ($1,$2,$3,$4::vector) \
+         ON CONFLICT (chunk_id, embedding_version) DO UPDATE \
+         SET embedding_dim = EXCLUDED.embedding_dim, vec = EXCLUDED.vec, created_at = now()",
+	)
+	.bind(chunk_id)
+	.bind(embedding_version)
+	.bind(embedding_dim)
+	.bind(vec)
+	.execute(&db.pool)
+	.await?;
+	Ok(())
+}

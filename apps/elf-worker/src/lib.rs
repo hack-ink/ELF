@@ -1,4 +1,5 @@
 use clap::Parser;
+use tokenizers::Tokenizer;
 use tracing_subscriber::EnvFilter;
 
 pub mod worker;
@@ -24,7 +25,25 @@ pub async fn run(args: Args) -> color_eyre::Result<()> {
 	db.ensure_schema(config.storage.qdrant.vector_dim).await?;
 	let qdrant = elf_storage::qdrant::QdrantStore::new(&config.storage.qdrant)?;
 
-	let state = worker::WorkerState { db, qdrant, embedding: config.providers.embedding };
+	let tokenizer_repo = config
+		.chunking
+		.tokenizer_repo
+		.clone()
+		.unwrap_or_else(|| config.providers.embedding.model.clone());
+	let tokenizer =
+		Tokenizer::from_pretrained(tokenizer_repo, None).map_err(|err| color_eyre::eyre::eyre!(err))?;
+	let chunking = chunking::ChunkingConfig {
+		max_tokens: config.chunking.max_tokens,
+		overlap_tokens: config.chunking.overlap_tokens,
+	};
+
+	let state = worker::WorkerState {
+		db,
+		qdrant,
+		embedding: config.providers.embedding,
+		chunking,
+		tokenizer,
+	};
 
 	worker::run_worker(state).await
 }
