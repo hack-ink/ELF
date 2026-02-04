@@ -2,6 +2,7 @@ use clap::Parser;
 use tracing_subscriber::EnvFilter;
 
 pub mod worker;
+pub mod chunking;
 
 #[derive(Debug, Parser)]
 #[command(
