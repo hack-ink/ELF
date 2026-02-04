@@ -20,6 +20,27 @@ pub struct MemoryNote {
 	pub last_hit_at: Option<time::OffsetDateTime>,
 }
 
+#[derive(Debug, sqlx::FromRow)]
+pub struct MemoryNoteChunk {
+	pub chunk_id: uuid::Uuid,
+	pub note_id: uuid::Uuid,
+	pub chunk_index: i32,
+	pub start_offset: i32,
+	pub end_offset: i32,
+	pub text: String,
+	pub embedding_version: String,
+	pub created_at: time::OffsetDateTime,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+pub struct NoteChunkEmbedding {
+	pub chunk_id: uuid::Uuid,
+	pub embedding_version: String,
+	pub embedding_dim: i32,
+	pub vec: Vec<f32>,
+	pub created_at: time::OffsetDateTime,
+}
+
 #[derive(Debug)]
 pub struct NoteEmbedding {
 	pub note_id: uuid::Uuid,

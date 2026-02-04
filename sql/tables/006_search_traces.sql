@@ -36,6 +36,9 @@ CREATE TABLE IF NOT EXISTS search_trace_items (
     matched_fields jsonb NOT NULL
 );
 
+ALTER TABLE search_trace_items
+    ADD COLUMN IF NOT EXISTS chunk_id uuid NULL;
+
 CREATE INDEX IF NOT EXISTS idx_search_trace_items_trace
     ON search_trace_items (trace_id, rank);
 CREATE INDEX IF NOT EXISTS idx_search_trace_items_note
