@@ -95,6 +95,15 @@ impl ElfMcp {
 	}
 
 	#[tool(
+        name = "memory_search_explain",
+        description = "Explain a search result using result_handle.",
+        input_schema = any_json_schema()
+    )]
+	async fn memory_search_explain(&self, params: JsonObject) -> Result<CallToolResult, McpError> {
+		self.forward(HttpMethod::Get, "/v1/memory/search/explain", params).await
+	}
+
+	#[tool(
         name = "memory_list",
         description = "List memory notes.",
         input_schema = any_json_schema()

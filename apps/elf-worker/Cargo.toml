@@ -12,6 +12,7 @@ elf-config         = { path = "../../crates/elf-config" }
 elf-providers      = { path = "../../crates/elf-providers" }
 elf-storage        = { path = "../../crates/elf-storage" }
 qdrant-client      = { workspace = true }
+serde              = { workspace = true }
 serde_json         = { workspace = true }
 sqlx               = { workspace = true }
 time               = { workspace = true }

@@ -1,12 +1,13 @@
 use std::sync::Arc;
 
 use super::{
-	SpyExtractor, StubEmbedding, StubRerank, build_service, test_config, test_dsn, test_qdrant_url,
+	SpyExtractor, StubEmbedding, StubRerank, build_service, test_config, test_db, test_qdrant_url,
 };
 
 #[tokio::test]
+#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
 async fn rejects_cjk_in_add_note() {
-	let Some(dsn) = test_dsn() else {
+	let Some(test_db) = test_db().await else {
 		eprintln!("Skipping english_only_boundary; set ELF_PG_DSN to run this test.");
 		return;
 	};
@@ -14,8 +15,9 @@ async fn rejects_cjk_in_add_note() {
 		eprintln!("Skipping english_only_boundary; set ELF_QDRANT_URL to run this test.");
 		return;
 	};
-	let _guard = super::test_lock(&dsn).await.expect("Failed to acquire test lock.");
-	let Some(service) = build_test_service(dsn, qdrant_url).await else {
+	let collection = test_db.collection_name("elf_acceptance");
+	let Some(service) = build_test_service(test_db.dsn().to_string(), qdrant_url, collection).await
+	else {
 		return;
 	};
 
@@ -42,11 +44,13 @@ async fn rejects_cjk_in_add_note() {
 		},
 		other => panic!("Expected NonEnglishInput, got {other:?}"),
 	}
+	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }
 
 #[tokio::test]
+#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
 async fn rejects_cjk_in_add_event() {
-	let Some(dsn) = test_dsn() else {
+	let Some(test_db) = test_db().await else {
 		eprintln!("Skipping english_only_boundary; set ELF_PG_DSN to run this test.");
 		return;
 	};
@@ -54,8 +58,9 @@ async fn rejects_cjk_in_add_event() {
 		eprintln!("Skipping english_only_boundary; set ELF_QDRANT_URL to run this test.");
 		return;
 	};
-	let _guard = super::test_lock(&dsn).await.expect("Failed to acquire test lock.");
-	let Some(service) = build_test_service(dsn, qdrant_url).await else {
+	let collection = test_db.collection_name("elf_acceptance");
+	let Some(service) = build_test_service(test_db.dsn().to_string(), qdrant_url, collection).await
+	else {
 		return;
 	};
 
@@ -80,11 +85,13 @@ async fn rejects_cjk_in_add_event() {
 		},
 		other => panic!("Expected NonEnglishInput, got {other:?}"),
 	}
+	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }
 
 #[tokio::test]
+#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
 async fn rejects_cjk_in_search() {
-	let Some(dsn) = test_dsn() else {
+	let Some(test_db) = test_db().await else {
 		eprintln!("Skipping english_only_boundary; set ELF_PG_DSN to run this test.");
 		return;
 	};
@@ -92,8 +99,9 @@ async fn rejects_cjk_in_search() {
 		eprintln!("Skipping english_only_boundary; set ELF_QDRANT_URL to run this test.");
 		return;
 	};
-	let _guard = super::test_lock(&dsn).await.expect("Failed to acquire test lock.");
-	let Some(service) = build_test_service(dsn, qdrant_url).await else {
+	let collection = test_db.collection_name("elf_acceptance");
+	let Some(service) = build_test_service(test_db.dsn().to_string(), qdrant_url, collection).await
+	else {
 		return;
 	};
 
@@ -115,9 +123,14 @@ async fn rejects_cjk_in_search() {
 		},
 		other => panic!("Expected NonEnglishInput, got {other:?}"),
 	}
+	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }
 
-async fn build_test_service(dsn: String, qdrant_url: String) -> Option<elf_service::ElfService> {
+async fn build_test_service(
+	dsn: String,
+	qdrant_url: String,
+	collection: String,
+) -> Option<elf_service::ElfService> {
 	let extractor = SpyExtractor {
 		calls: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
 		payload: serde_json::json!({ "notes": [] }),
@@ -128,7 +141,7 @@ async fn build_test_service(dsn: String, qdrant_url: String) -> Option<elf_servi
 		Arc::new(extractor),
 	);
 
-	let cfg = test_config(dsn, qdrant_url, 3);
+	let cfg = test_config(dsn, qdrant_url, 3, collection);
 	let service = build_service(cfg, providers).await.expect("Failed to build service.");
 	super::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
 	Some(service)

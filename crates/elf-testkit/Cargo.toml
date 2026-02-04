@@ -1,0 +1,10 @@
+[package]
+edition = "2024"
+name    = "elf-testkit"
+version = "0.1.0"
+
+[dependencies]
+color-eyre = { workspace = true }
+sqlx       = { workspace = true }
+tokio      = { workspace = true }
+uuid       = { workspace = true }

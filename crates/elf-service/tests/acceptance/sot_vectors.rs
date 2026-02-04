@@ -1,22 +1,17 @@
 #[tokio::test]
+#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
 async fn active_notes_have_vectors() {
-	let dsn = match std::env::var("ELF_PG_DSN") {
-		Ok(value) => value,
-		Err(_) => {
-			eprintln!("Skipping active_notes_have_vectors; set ELF_PG_DSN to run this test.");
-			return;
-		},
+	let Some(test_db) = super::test_db().await else {
+		eprintln!("Skipping active_notes_have_vectors; set ELF_PG_DSN to run this test.");
+		return;
 	};
-	let qdrant_url = match std::env::var("ELF_QDRANT_URL") {
-		Ok(value) => value,
-		Err(_) => {
-			eprintln!("Skipping active_notes_have_vectors; set ELF_QDRANT_URL to run this test.");
-			return;
-		},
+	let Some(qdrant_url) = super::test_qdrant_url() else {
+		eprintln!("Skipping active_notes_have_vectors; set ELF_QDRANT_URL to run this test.");
+		return;
 	};
-	let _guard = super::test_lock(&dsn).await.expect("Failed to acquire test lock.");
 
-	let cfg = super::test_config(dsn, qdrant_url, 3);
+	let collection = test_db.collection_name("elf_acceptance");
+	let cfg = super::test_config(test_db.dsn().to_string(), qdrant_url, 3, collection);
 	let providers = elf_service::Providers::new(
 		std::sync::Arc::new(super::StubEmbedding { vector_dim: 3 }),
 		std::sync::Arc::new(super::StubRerank),
@@ -96,4 +91,5 @@ async fn active_notes_have_vectors() {
 	.await
 	.expect("Failed to query embedding dim.");
 	assert_eq!(dim, 3);
+	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }

@@ -84,6 +84,9 @@ min_top_score = 0.12
 [search.prefilter]
 max_candidates = 0
 
+[search.explain]
+retention_days = 7
+
 [ranking]
 recency_tau_days = 60.0
 tie_breaker_weight = 0.1

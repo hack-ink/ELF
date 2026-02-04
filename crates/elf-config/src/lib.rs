@@ -47,6 +47,11 @@ pub fn validate(cfg: &Config) -> color_eyre::Result<()> {
 			"search.dynamic.min_top_score must be zero or greater."
 		));
 	}
+	if cfg.search.explain.retention_days <= 0 {
+		return Err(color_eyre::eyre::eyre!(
+			"search.explain.retention_days must be greater than zero."
+		));
+	}
 	for (label, key) in [
 		("embedding", &cfg.providers.embedding.api_key),
 		("rerank", &cfg.providers.rerank.api_key),

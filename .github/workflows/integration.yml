@@ -1,0 +1,64 @@
+name: Integration Tests
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Daily at 00:00 UTC. Manual runs use workflow_dispatch.
+    - cron: "0 0 * * *"
+
+jobs:
+  integration:
+    name: Run integration tests
+    runs-on: ubuntu-latest
+    env:
+      ELF_PG_DSN: postgres://postgres:postgres@127.0.0.1:5432/postgres
+      ELF_QDRANT_URL: http://127.0.0.1:6334
+      RUST_BACKTRACE: full
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+      qdrant:
+        image: qdrant/qdrant:v1.16.3
+        ports:
+          - 6333:6333
+          - 6334:6334
+    steps:
+      - name: Fetch latest code
+        uses: actions/checkout@v6
+
+      - name: Set up Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          cache: true
+          rustflags: ''
+
+      - name: Install nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: nextest
+
+      - name: Wait for Qdrant
+        run: |
+          for i in {1..30}; do
+            curl -sSf http://127.0.0.1:6333/collections >/dev/null && exit 0
+            sleep 1
+          done
+          echo "Qdrant did not become ready in time."
+          exit 1
+
+      - name: Run integration tests
+        run: cargo nextest run --workspace --all-targets --all-features --run-ignored=only

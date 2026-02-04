@@ -10,7 +10,8 @@ use qdrant_client::{
 	client::Payload,
 	qdrant::{DeletePointsBuilder, Document, PointStruct, UpsertPointsBuilder, Value, Vector},
 };
-use serde_json::Value as JsonValue;
+use serde::Serialize;
+use serde_json::{Value as JsonValue, Value as SerdeValue};
 use sqlx::Row;
 use time::{Duration, OffsetDateTime};
 use tracing::{error, info};
@@ -19,6 +20,75 @@ const POLL_INTERVAL_MS: i64 = 500;
 const CLAIM_LEASE_SECONDS: i64 = 30;
 const BASE_BACKOFF_MS: i64 = 500;
 const MAX_BACKOFF_MS: i64 = 30_000;
+const TRACE_CLEANUP_INTERVAL_SECONDS: i64 = 900;
+const TRACE_OUTBOX_LEASE_SECONDS: i64 = 30;
+
+#[derive(Debug, serde::Deserialize)]
+struct TracePayload {
+	trace: TraceRecord,
+	items: Vec<TraceItemRecord>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct TraceRecord {
+	trace_id: uuid::Uuid,
+	tenant_id: String,
+	project_id: String,
+	agent_id: String,
+	read_profile: String,
+	query: String,
+	expansion_mode: String,
+	expanded_queries: Vec<String>,
+	allowed_scopes: Vec<String>,
+	candidate_count: u32,
+	top_k: u32,
+	config_snapshot: SerdeValue,
+	trace_version: i32,
+	created_at: OffsetDateTime,
+	expires_at: OffsetDateTime,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct TraceItemRecord {
+	item_id: uuid::Uuid,
+	note_id: uuid::Uuid,
+	rank: u32,
+	retrieval_score: Option<f32>,
+	retrieval_rank: Option<u32>,
+	rerank_score: f32,
+	tie_breaker_score: f32,
+	final_score: f32,
+	boosts: Vec<TraceBoost>,
+	matched_terms: Vec<String>,
+	matched_fields: Vec<String>,
+}
+
+#[derive(Debug, serde::Deserialize, serde::Serialize)]
+struct TraceBoost {
+	name: String,
+	score: f32,
+}
+
+struct TraceOutboxJob {
+	outbox_id: uuid::Uuid,
+	trace_id: uuid::Uuid,
+	payload: SerdeValue,
+	attempts: i32,
+}
+
+struct TraceItemInsert {
+	item_id: uuid::Uuid,
+	note_id: uuid::Uuid,
+	rank: i32,
+	retrieval_score: Option<f32>,
+	retrieval_rank: Option<i32>,
+	rerank_score: f32,
+	tie_breaker_score: f32,
+	final_score: f32,
+	boosts: SerdeValue,
+	matched_terms: SerdeValue,
+	matched_fields: SerdeValue,
+}
 
 pub struct WorkerState {
 	pub db: Db,
@@ -27,15 +97,27 @@ pub struct WorkerState {
 }
 
 pub async fn run_worker(state: WorkerState) -> Result<()> {
+	let mut last_trace_cleanup = OffsetDateTime::now_utc();
 	loop {
-		if let Err(err) = process_once(&state).await {
-			error!(error = %err, "Outbox processing failed.");
+		if let Err(err) = process_indexing_outbox_once(&state).await {
+			error!(error = %err, "Indexing outbox processing failed.");
+		}
+		if let Err(err) = process_trace_outbox_once(&state).await {
+			error!(error = %err, "Search trace outbox processing failed.");
+		}
+		let now = OffsetDateTime::now_utc();
+		if now - last_trace_cleanup >= Duration::seconds(TRACE_CLEANUP_INTERVAL_SECONDS) {
+			if let Err(err) = purge_expired_traces(&state.db, now).await {
+				error!(error = %err, "Search trace cleanup failed.");
+			} else {
+				last_trace_cleanup = now;
+			}
 		}
 		tokio::time::sleep(to_std_duration(Duration::milliseconds(POLL_INTERVAL_MS))).await;
 	}
 }
 
-async fn process_once(state: &WorkerState) -> Result<()> {
+async fn process_indexing_outbox_once(state: &WorkerState) -> Result<()> {
 	let now = OffsetDateTime::now_utc();
 	let job = fetch_next_job(&state.db, now).await?;
 	let Some(job) = job else {
@@ -55,6 +137,27 @@ async fn process_once(state: &WorkerState) -> Result<()> {
 		Err(err) => {
 			mark_failed(&state.db, job.outbox_id, job.attempts, &err).await?;
 			error!(error = %err, outbox_id = %job.outbox_id, "Outbox job failed.");
+		},
+	}
+
+	Ok(())
+}
+
+async fn process_trace_outbox_once(state: &WorkerState) -> Result<()> {
+	let now = OffsetDateTime::now_utc();
+	let job = fetch_next_trace_job(&state.db, now).await?;
+	let Some(job) = job else {
+		return Ok(());
+	};
+
+	let result = handle_trace_job(&state.db, &job).await;
+	match result {
+		Ok(()) => {
+			mark_trace_done(&state.db, job.outbox_id).await?;
+		},
+		Err(err) => {
+			mark_trace_failed(&state.db, job.outbox_id, job.attempts, &err).await?;
+			error!(error = %err, trace_id = %job.trace_id, "Search trace outbox job failed.");
 		},
 	}
 
@@ -118,6 +221,45 @@ async fn fetch_next_job(db: &Db, now: OffsetDateTime) -> Result<Option<IndexingO
 	Ok(job)
 }
 
+async fn fetch_next_trace_job(db: &Db, now: OffsetDateTime) -> Result<Option<TraceOutboxJob>> {
+	let mut tx = db.pool.begin().await?;
+	let row = sqlx::query(
+		"SELECT outbox_id, trace_id, payload, attempts \
+         FROM search_trace_outbox \
+         WHERE status IN ('PENDING','FAILED') AND available_at <= $1 \
+         ORDER BY available_at ASC \
+         LIMIT 1 \
+         FOR UPDATE SKIP LOCKED",
+	)
+	.bind(now)
+	.fetch_optional(&mut *tx)
+	.await?;
+
+	let job = if let Some(row) = row {
+		let outbox_id = row.try_get("outbox_id")?;
+		let trace_id = row.try_get("trace_id")?;
+		let payload = row.try_get("payload")?;
+		let attempts = row.try_get("attempts")?;
+
+		let lease_until = now + Duration::seconds(TRACE_OUTBOX_LEASE_SECONDS);
+		sqlx::query(
+			"UPDATE search_trace_outbox SET available_at = $1, updated_at = $2 WHERE outbox_id = $3",
+		)
+		.bind(lease_until)
+		.bind(now)
+		.bind(outbox_id)
+		.execute(&mut *tx)
+		.await?;
+
+		Some(TraceOutboxJob { outbox_id, trace_id, payload, attempts })
+	} else {
+		None
+	};
+
+	tx.commit().await?;
+	Ok(job)
+}
+
 async fn handle_upsert(state: &WorkerState, job: &IndexingOutboxEntry) -> Result<()> {
 	let note = fetch_note(&state.db, job.note_id).await?;
 	let Some(note) = note else {
@@ -148,6 +290,94 @@ async fn handle_delete(state: &WorkerState, job: &IndexingOutboxEntry) -> Result
 			} else {
 				return Err(eyre!(err.to_string()));
 			},
+	}
+	Ok(())
+}
+
+async fn handle_trace_job(db: &Db, job: &TraceOutboxJob) -> Result<()> {
+	let payload: TracePayload = serde_json::from_value(job.payload.clone())?;
+	let trace = payload.trace;
+	let trace_id = trace.trace_id;
+	let mut tx = db.pool.begin().await?;
+
+	sqlx::query(
+		"INSERT INTO search_traces \
+         (trace_id, tenant_id, project_id, agent_id, read_profile, query, expansion_mode, \
+          expanded_queries, allowed_scopes, candidate_count, top_k, config_snapshot, \
+          trace_version, created_at, expires_at) \
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) \
+         ON CONFLICT (trace_id) DO NOTHING",
+	)
+	.bind(trace_id)
+	.bind(&trace.tenant_id)
+	.bind(&trace.project_id)
+	.bind(&trace.agent_id)
+	.bind(&trace.read_profile)
+	.bind(&trace.query)
+	.bind(&trace.expansion_mode)
+	.bind(encode_json(&trace.expanded_queries, "expanded_queries")?)
+	.bind(encode_json(&trace.allowed_scopes, "allowed_scopes")?)
+	.bind(trace.candidate_count as i32)
+	.bind(trace.top_k as i32)
+	.bind(trace.config_snapshot.clone())
+	.bind(trace.trace_version)
+	.bind(trace.created_at)
+	.bind(trace.expires_at)
+	.execute(&mut *tx)
+	.await?;
+
+	if !payload.items.is_empty() {
+		let mut inserts = Vec::with_capacity(payload.items.len());
+		for item in payload.items {
+			inserts.push(TraceItemInsert {
+				item_id: item.item_id,
+				note_id: item.note_id,
+				rank: item.rank as i32,
+				retrieval_score: item.retrieval_score,
+				retrieval_rank: item.retrieval_rank.map(|rank| rank as i32),
+				rerank_score: item.rerank_score,
+				tie_breaker_score: item.tie_breaker_score,
+				final_score: item.final_score,
+				boosts: encode_json(&item.boosts, "boosts")?,
+				matched_terms: encode_json(&item.matched_terms, "matched_terms")?,
+				matched_fields: encode_json(&item.matched_fields, "matched_fields")?,
+			});
+		}
+
+		let mut builder = sqlx::QueryBuilder::new(
+			"INSERT INTO search_trace_items \
+             (item_id, trace_id, note_id, rank, retrieval_score, retrieval_rank, rerank_score, \
+              tie_breaker_score, final_score, boosts, matched_terms, matched_fields) ",
+		);
+		builder.push_values(inserts, |mut b, item| {
+			b.push_bind(item.item_id)
+				.push_bind(trace_id)
+				.push_bind(item.note_id)
+				.push_bind(item.rank)
+				.push_bind(item.retrieval_score)
+				.push_bind(item.retrieval_rank)
+				.push_bind(item.rerank_score)
+				.push_bind(item.tie_breaker_score)
+				.push_bind(item.final_score)
+				.push_bind(item.boosts)
+				.push_bind(item.matched_terms)
+				.push_bind(item.matched_fields);
+		});
+		builder.push(" ON CONFLICT (item_id) DO NOTHING");
+		builder.build().execute(&mut *tx).await?;
+	}
+
+	tx.commit().await?;
+	Ok(())
+}
+
+async fn purge_expired_traces(db: &Db, now: OffsetDateTime) -> Result<()> {
+	let result = sqlx::query("DELETE FROM search_traces WHERE expires_at <= $1")
+		.bind(now)
+		.execute(&db.pool)
+		.await?;
+	if result.rows_affected() > 0 {
+		info!(count = result.rows_affected(), "Purged expired search traces.");
 	}
 	Ok(())
 }
@@ -297,6 +527,10 @@ fn format_vector_text(vec: &[f32]) -> String {
 	out
 }
 
+fn encode_json<T: Serialize>(value: &T, label: &str) -> Result<SerdeValue> {
+	serde_json::to_value(value).map_err(|err| eyre!("Failed to encode {label}: {err}."))
+}
+
 async fn mark_done(db: &Db, outbox_id: uuid::Uuid) -> Result<()> {
 	let now = OffsetDateTime::now_utc();
 	sqlx::query("UPDATE indexing_outbox SET status = 'DONE', updated_at = $1 WHERE outbox_id = $2")
@@ -304,6 +538,18 @@ async fn mark_done(db: &Db, outbox_id: uuid::Uuid) -> Result<()> {
 		.bind(outbox_id)
 		.execute(&db.pool)
 		.await?;
+	Ok(())
+}
+
+async fn mark_trace_done(db: &Db, outbox_id: uuid::Uuid) -> Result<()> {
+	let now = OffsetDateTime::now_utc();
+	sqlx::query(
+		"UPDATE search_trace_outbox SET status = 'DONE', updated_at = $1 WHERE outbox_id = $2",
+	)
+	.bind(now)
+	.bind(outbox_id)
+	.execute(&db.pool)
+	.await?;
 	Ok(())
 }
 
@@ -319,6 +565,31 @@ async fn mark_failed(
 	let available_at = now + backoff;
 	sqlx::query(
 		"UPDATE indexing_outbox \
+         SET status = 'FAILED', attempts = $1, last_error = $2, available_at = $3, updated_at = $4 \
+         WHERE outbox_id = $5",
+	)
+	.bind(next_attempts)
+	.bind(err.to_string())
+	.bind(available_at)
+	.bind(now)
+	.bind(outbox_id)
+	.execute(&db.pool)
+	.await?;
+	Ok(())
+}
+
+async fn mark_trace_failed(
+	db: &Db,
+	outbox_id: uuid::Uuid,
+	attempts: i32,
+	err: &color_eyre::Report,
+) -> Result<()> {
+	let next_attempts = attempts.saturating_add(1);
+	let backoff = backoff_for_attempt(next_attempts);
+	let now = OffsetDateTime::now_utc();
+	let available_at = now + backoff;
+	sqlx::query(
+		"UPDATE search_trace_outbox \
          SET status = 'FAILED', attempts = $1, last_error = $2, available_at = $3, updated_at = $4 \
          WHERE outbox_id = $5",
 	)

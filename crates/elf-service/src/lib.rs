@@ -18,7 +18,10 @@ pub use add_note::{AddNoteInput, AddNoteRequest, AddNoteResponse, AddNoteResult}
 pub use admin::RebuildReport;
 pub use delete::{DeleteRequest, DeleteResponse};
 pub use list::{ListItem, ListRequest, ListResponse};
-pub use search::{SearchItem, SearchRequest, SearchResponse};
+pub use search::{
+	SearchBoost, SearchExplain, SearchExplainItem, SearchExplainRequest, SearchExplainResponse,
+	SearchItem, SearchRequest, SearchResponse, SearchTrace,
+};
 pub use update::{UpdateRequest, UpdateResponse};
 
 pub const REJECT_EVIDENCE_MISMATCH: &str = "REJECT_EVIDENCE_MISMATCH";

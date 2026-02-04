@@ -1,7 +1,7 @@
 #[path = "../../../../apps/elf-worker/src/worker.rs"] mod worker;
 
 use super::{
-	SpyExtractor, StubEmbedding, StubRerank, build_service, test_config, test_dsn, test_qdrant_url,
+	SpyExtractor, StubEmbedding, StubRerank, build_service, test_config, test_db, test_qdrant_url,
 };
 use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing};
 use qdrant_client::qdrant::{
@@ -25,8 +25,9 @@ struct OutboxRow {
 }
 
 #[tokio::test]
+#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
 async fn outbox_retries_to_done() {
-	let Some(dsn) = test_dsn() else {
+	let Some(test_db) = test_db().await else {
 		eprintln!("Skipping outbox_retries_to_done; set ELF_PG_DSN to run this test.");
 		return;
 	};
@@ -34,8 +35,6 @@ async fn outbox_retries_to_done() {
 		eprintln!("Skipping outbox_retries_to_done; set ELF_QDRANT_URL to run this test.");
 		return;
 	};
-	let _guard = super::test_lock(&dsn).await.expect("Failed to acquire test lock.");
-
 	let request_count = Arc::new(AtomicUsize::new(0));
 	let (api_base, shutdown) = start_embed_server(request_count.clone()).await;
 
@@ -49,7 +48,8 @@ async fn outbox_retries_to_done() {
 		Arc::new(extractor),
 	);
 
-	let cfg = test_config(dsn.clone(), qdrant_url, 3);
+	let collection = test_db.collection_name("elf_acceptance");
+	let cfg = test_config(test_db.dsn().to_string(), qdrant_url, 3, collection);
 	let service = build_service(cfg, providers).await.expect("Failed to build service.");
 	super::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
 
@@ -140,6 +140,7 @@ async fn outbox_retries_to_done() {
 
 	handle.abort();
 	let _ = shutdown.send(());
+	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }
 
 async fn wait_for_status(

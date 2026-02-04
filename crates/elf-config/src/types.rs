@@ -126,6 +126,7 @@ pub struct Search {
 	pub expansion: SearchExpansion,
 	pub dynamic: SearchDynamic,
 	pub prefilter: SearchPrefilter,
+	pub explain: SearchExplain,
 }
 
 #[derive(Debug, Deserialize)]
@@ -144,6 +145,11 @@ pub struct SearchDynamic {
 #[derive(Debug, Deserialize)]
 pub struct SearchPrefilter {
 	pub max_candidates: u32,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SearchExplain {
+	pub retention_days: i64,
 }
 
 #[derive(Debug, Deserialize)]

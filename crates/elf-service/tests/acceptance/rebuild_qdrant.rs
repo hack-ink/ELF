@@ -6,12 +6,13 @@ use qdrant_client::qdrant::{
 };
 
 use super::{
-	SpyEmbedding, SpyExtractor, StubRerank, build_service, test_config, test_dsn, test_qdrant_url,
+	SpyEmbedding, SpyExtractor, StubRerank, build_service, test_config, test_db, test_qdrant_url,
 };
 
 #[tokio::test]
+#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
 async fn rebuild_uses_postgres_vectors_only() {
-	let Some(dsn) = test_dsn() else {
+	let Some(test_db) = test_db().await else {
 		eprintln!("Skipping rebuild_uses_postgres_vectors_only; set ELF_PG_DSN to run this test.");
 		return;
 	};
@@ -21,7 +22,6 @@ async fn rebuild_uses_postgres_vectors_only() {
 		);
 		return;
 	};
-	let _guard = super::test_lock(&dsn).await.expect("Failed to acquire test lock.");
 	let embed_calls = Arc::new(AtomicUsize::new(0));
 	let extractor = SpyExtractor {
 		calls: Arc::new(AtomicUsize::new(0)),
@@ -33,7 +33,8 @@ async fn rebuild_uses_postgres_vectors_only() {
 		Arc::new(extractor),
 	);
 
-	let cfg = test_config(dsn, qdrant_url, 3);
+	let collection = test_db.collection_name("elf_acceptance");
+	let cfg = test_config(test_db.dsn().to_string(), qdrant_url, 3, collection);
 	let service = build_service(cfg, providers).await.expect("Failed to build service.");
 	super::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
 
@@ -111,4 +112,5 @@ async fn rebuild_uses_postgres_vectors_only() {
 	assert_eq!(report.missing_vector_count, 0);
 	assert!(report.rebuilt_count >= 1);
 	assert_eq!(embed_calls.load(std::sync::atomic::Ordering::SeqCst), 0);
+	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }

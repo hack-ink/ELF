@@ -1,12 +1,13 @@
 use std::sync::Arc;
 
 use super::{
-	SpyExtractor, StubEmbedding, StubRerank, build_service, test_config, test_dsn, test_qdrant_url,
+	SpyExtractor, StubEmbedding, StubRerank, build_service, test_config, test_db, test_qdrant_url,
 };
 
 #[tokio::test]
+#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
 async fn rejects_invalid_evidence_quote() {
-	let Some(dsn) = test_dsn() else {
+	let Some(test_db) = test_db().await else {
 		eprintln!("Skipping rejects_invalid_evidence_quote; set ELF_PG_DSN to run this test.");
 		return;
 	};
@@ -14,8 +15,6 @@ async fn rejects_invalid_evidence_quote() {
 		eprintln!("Skipping rejects_invalid_evidence_quote; set ELF_QDRANT_URL to run this test.");
 		return;
 	};
-	let _guard = super::test_lock(&dsn).await.expect("Failed to acquire test lock.");
-
 	let extractor_payload = serde_json::json!({
 		"notes": [
 			{
@@ -44,7 +43,8 @@ async fn rejects_invalid_evidence_quote() {
 		Arc::new(extractor),
 	);
 
-	let cfg = test_config(dsn, qdrant_url, 3);
+	let collection = test_db.collection_name("elf_acceptance");
+	let cfg = test_config(test_db.dsn().to_string(), qdrant_url, 3, collection);
 	let service = build_service(cfg, providers).await.expect("Failed to build service.");
 	super::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
 
@@ -67,4 +67,5 @@ async fn rejects_invalid_evidence_quote() {
 	let result = &response.results[0];
 	assert_eq!(result.op, elf_service::NoteOp::Rejected);
 	assert_eq!(result.reason_code.as_deref(), Some(elf_service::REJECT_EVIDENCE_MISMATCH));
+	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }

@@ -1,4 +1,7 @@
-use std::{collections::HashSet, hash::Hasher};
+use std::{
+	collections::{HashMap, HashSet},
+	hash::Hasher,
+};
 
 use elf_domain::cjk::contains_cjk;
 use elf_storage::{
@@ -9,6 +12,8 @@ use qdrant_client::qdrant::{
 	Condition, Document, Filter, Fusion, MinShould, PrefetchQueryBuilder, Query,
 	QueryPointsBuilder, ScoredPoint, point_id::PointIdOptions,
 };
+use serde::de::DeserializeOwned;
+use sqlx::Row;
 use tracing::warn;
 
 use crate::{ElfService, ServiceError, ServiceResult};
@@ -26,7 +31,26 @@ pub struct SearchRequest {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SearchBoost {
+	pub name: String,
+	pub score: f32,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SearchExplain {
+	pub retrieval_score: Option<f32>,
+	pub retrieval_rank: Option<u32>,
+	pub rerank_score: f32,
+	pub tie_breaker_score: f32,
+	pub final_score: f32,
+	pub boosts: Vec<SearchBoost>,
+	pub matched_terms: Vec<String>,
+	pub matched_fields: Vec<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SearchItem {
+	pub result_handle: uuid::Uuid,
 	pub note_id: uuid::Uuid,
 	#[serde(rename = "type")]
 	pub note_type: String,
@@ -41,12 +65,55 @@ pub struct SearchItem {
 	pub expires_at: Option<time::OffsetDateTime>,
 	pub final_score: f32,
 	pub source_ref: serde_json::Value,
+	pub explain: SearchExplain,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SearchResponse {
+	pub trace_id: uuid::Uuid,
 	pub items: Vec<SearchItem>,
 }
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SearchExplainRequest {
+	pub result_handle: uuid::Uuid,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SearchTrace {
+	pub trace_id: uuid::Uuid,
+	pub tenant_id: String,
+	pub project_id: String,
+	pub agent_id: String,
+	pub read_profile: String,
+	pub query: String,
+	pub expansion_mode: String,
+	pub expanded_queries: Vec<String>,
+	pub allowed_scopes: Vec<String>,
+	pub candidate_count: u32,
+	pub top_k: u32,
+	pub config_snapshot: serde_json::Value,
+	#[serde(with = "crate::time_serde")]
+	pub created_at: time::OffsetDateTime,
+	pub trace_version: i32,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SearchExplainItem {
+	pub result_handle: uuid::Uuid,
+	pub note_id: uuid::Uuid,
+	pub rank: u32,
+	pub explain: SearchExplain,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SearchExplainResponse {
+	pub trace: SearchTrace,
+	pub item: SearchExplainItem,
+}
+
+const TRACE_VERSION: i32 = 1;
+const MAX_MATCHED_TERMS: usize = 8;
 
 #[derive(Debug, Clone)]
 struct QueryEmbedding {
@@ -61,13 +128,128 @@ enum ExpansionMode {
 	Dynamic,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct RetrievalInfo {
+	score: f32,
+	rank: u32,
+}
+
+#[derive(Debug, Clone)]
+struct Candidate {
+	note_id: uuid::Uuid,
+	retrieval_score: f32,
+	retrieval_rank: u32,
+}
+
+#[derive(Debug)]
+struct ScoredNote {
+	note: MemoryNote,
+	rerank_score: f32,
+	tie_breaker_score: f32,
+	final_score: f32,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct TracePayload {
+	trace: TraceRecord,
+	items: Vec<TraceItemRecord>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct TraceRecord {
+	trace_id: uuid::Uuid,
+	tenant_id: String,
+	project_id: String,
+	agent_id: String,
+	read_profile: String,
+	query: String,
+	expansion_mode: String,
+	expanded_queries: Vec<String>,
+	allowed_scopes: Vec<String>,
+	candidate_count: u32,
+	top_k: u32,
+	config_snapshot: serde_json::Value,
+	trace_version: i32,
+	created_at: time::OffsetDateTime,
+	expires_at: time::OffsetDateTime,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct TraceItemRecord {
+	item_id: uuid::Uuid,
+	note_id: uuid::Uuid,
+	rank: u32,
+	retrieval_score: Option<f32>,
+	retrieval_rank: Option<u32>,
+	rerank_score: f32,
+	tie_breaker_score: f32,
+	final_score: f32,
+	boosts: Vec<SearchBoost>,
+	matched_terms: Vec<String>,
+	matched_fields: Vec<String>,
+}
+
+struct TraceContext<'a> {
+	trace_id: uuid::Uuid,
+	tenant_id: &'a str,
+	project_id: &'a str,
+	agent_id: &'a str,
+	read_profile: &'a str,
+	query: &'a str,
+	expansion_mode: ExpansionMode,
+	expanded_queries: Vec<String>,
+	allowed_scopes: &'a [String],
+	candidate_count: usize,
+	top_k: u32,
+}
+
+struct SearchTraceBuilder {
+	trace: TraceRecord,
+	items: Vec<TraceItemRecord>,
+}
+
+impl SearchTraceBuilder {
+	fn new(context: TraceContext<'_>, cfg: &elf_config::Config, now: time::OffsetDateTime) -> Self {
+		let trace = TraceRecord {
+			trace_id: context.trace_id,
+			tenant_id: context.tenant_id.to_string(),
+			project_id: context.project_id.to_string(),
+			agent_id: context.agent_id.to_string(),
+			read_profile: context.read_profile.to_string(),
+			query: context.query.to_string(),
+			expansion_mode: expansion_mode_label(context.expansion_mode).to_string(),
+			expanded_queries: context.expanded_queries,
+			allowed_scopes: context.allowed_scopes.to_vec(),
+			candidate_count: context.candidate_count as u32,
+			top_k: context.top_k,
+			config_snapshot: build_config_snapshot(cfg),
+			trace_version: TRACE_VERSION,
+			created_at: now,
+			expires_at: now + time::Duration::days(cfg.search.explain.retention_days),
+		};
+		Self { trace, items: Vec::new() }
+	}
+
+	fn push_item(&mut self, item: TraceItemRecord) {
+		self.items.push(item);
+	}
+
+	fn build(self) -> TracePayload {
+		TracePayload { trace: self.trace, items: self.items }
+	}
+}
+
 struct FinishSearchArgs<'a> {
+	trace_id: uuid::Uuid,
 	query: &'a str,
 	tenant_id: &'a str,
 	project_id: &'a str,
 	agent_id: &'a str,
+	read_profile: &'a str,
 	allowed_scopes: &'a [String],
-	candidate_ids: Vec<uuid::Uuid>,
+	expanded_queries: Vec<String>,
+	expansion_mode: ExpansionMode,
+	candidates: Vec<Candidate>,
 	top_k: u32,
 	record_hits_enabled: bool,
 }
@@ -86,16 +268,33 @@ impl ElfService {
 			return Err(ServiceError::NonEnglishInput { field: "$.query".to_string() });
 		}
 
-		let allowed_scopes = resolve_scopes(&self.cfg, &req.read_profile)?;
-		if allowed_scopes.is_empty() {
-			return Ok(SearchResponse { items: Vec::new() });
-		}
-
 		let top_k = req.top_k.unwrap_or(self.cfg.memory.top_k).max(1);
 		let candidate_k = req.candidate_k.unwrap_or(self.cfg.memory.candidate_k).max(top_k);
 		let query = req.query.clone();
+		let read_profile = req.read_profile.clone();
 		let record_hits_enabled = req.record_hits.unwrap_or(false);
 		let expansion_mode = resolve_expansion_mode(&self.cfg);
+		let trace_id = uuid::Uuid::new_v4();
+
+		let allowed_scopes = resolve_scopes(&self.cfg, &read_profile)?;
+		if allowed_scopes.is_empty() {
+			return self
+				.finish_search(FinishSearchArgs {
+					trace_id,
+					query: &query,
+					tenant_id,
+					project_id,
+					agent_id,
+					read_profile: &read_profile,
+					allowed_scopes: &allowed_scopes,
+					expanded_queries: vec![query.clone()],
+					expansion_mode,
+					candidates: Vec::new(),
+					top_k,
+					record_hits_enabled,
+				})
+				.await;
+		}
 
 		let private_scope = "agent_private".to_string();
 		let non_private_scopes: Vec<String> =
@@ -141,7 +340,7 @@ impl ElfService {
 				)
 				.await?;
 			let top_score = baseline_points.first().map(|point| point.score).unwrap_or(0.0);
-			let candidate_ids = collect_candidate_ids(
+			let candidates = collect_candidates(
 				&baseline_points,
 				self.cfg.search.prefilter.max_candidates,
 				candidate_k,
@@ -151,12 +350,16 @@ impl ElfService {
 			if !should_expand {
 				return self
 					.finish_search(FinishSearchArgs {
+						trace_id,
 						query: &query,
 						tenant_id,
 						project_id,
 						agent_id,
+						read_profile: &read_profile,
 						allowed_scopes: &allowed_scopes,
-						candidate_ids,
+						expanded_queries: vec![query.clone()],
+						expansion_mode,
+						candidates,
 						top_k,
 						record_hits_enabled,
 					})
@@ -169,26 +372,108 @@ impl ElfService {
 			ExpansionMode::Always | ExpansionMode::Dynamic => self.expand_queries(&query).await,
 		};
 
+		let expanded_queries = queries.clone();
 		let query_embeddings =
 			self.embed_queries(&queries, &query, baseline_vector.as_ref()).await?;
 		let fusion_points = self.run_fusion_query(&query_embeddings, &filter, candidate_k).await?;
-		let candidate_ids = collect_candidate_ids(
+		let candidates = collect_candidates(
 			&fusion_points,
 			self.cfg.search.prefilter.max_candidates,
 			candidate_k,
 		);
 
 		self.finish_search(FinishSearchArgs {
+			trace_id,
 			query: &query,
 			tenant_id,
 			project_id,
 			agent_id,
+			read_profile: &read_profile,
 			allowed_scopes: &allowed_scopes,
-			candidate_ids,
+			expanded_queries,
+			expansion_mode,
+			candidates,
 			top_k,
 			record_hits_enabled,
 		})
 		.await
+	}
+
+	pub async fn search_explain(
+		&self,
+		req: SearchExplainRequest,
+	) -> ServiceResult<SearchExplainResponse> {
+		let row = sqlx::query(
+			"SELECT \
+                t.trace_id, t.tenant_id, t.project_id, t.agent_id, t.read_profile, t.query, \
+                t.expansion_mode, t.expanded_queries, t.allowed_scopes, t.candidate_count, \
+                t.top_k, t.config_snapshot, t.trace_version, t.created_at, \
+                i.item_id, i.note_id, i.rank, i.retrieval_score, i.retrieval_rank, \
+                i.rerank_score, i.tie_breaker_score, i.final_score, i.boosts, \
+                i.matched_terms, i.matched_fields \
+             FROM search_trace_items i \
+             JOIN search_traces t ON i.trace_id = t.trace_id \
+             WHERE i.item_id = $1",
+		)
+		.bind(req.result_handle)
+		.fetch_optional(&self.db.pool)
+		.await?;
+
+		let Some(row) = row else {
+			return Err(ServiceError::InvalidRequest {
+				message: "Unknown result_handle or trace not yet persisted.".to_string(),
+			});
+		};
+
+		let expanded_queries: Vec<String> =
+			decode_json(row.try_get("expanded_queries")?, "expanded_queries")?;
+		let allowed_scopes: Vec<String> =
+			decode_json(row.try_get("allowed_scopes")?, "allowed_scopes")?;
+		let config_snapshot: serde_json::Value = row.try_get("config_snapshot")?;
+		let boosts: Vec<SearchBoost> = decode_json(row.try_get("boosts")?, "boosts")?;
+		let matched_terms: Vec<String> =
+			decode_json(row.try_get("matched_terms")?, "matched_terms")?;
+		let matched_fields: Vec<String> =
+			decode_json(row.try_get("matched_fields")?, "matched_fields")?;
+
+		let trace = SearchTrace {
+			trace_id: row.try_get("trace_id")?,
+			tenant_id: row.try_get("tenant_id")?,
+			project_id: row.try_get("project_id")?,
+			agent_id: row.try_get("agent_id")?,
+			read_profile: row.try_get("read_profile")?,
+			query: row.try_get("query")?,
+			expansion_mode: row.try_get("expansion_mode")?,
+			expanded_queries,
+			allowed_scopes,
+			candidate_count: row.try_get::<i32, _>("candidate_count")? as u32,
+			top_k: row.try_get::<i32, _>("top_k")? as u32,
+			config_snapshot,
+			created_at: row.try_get("created_at")?,
+			trace_version: row.try_get("trace_version")?,
+		};
+
+		let explain = SearchExplain {
+			retrieval_score: row.try_get("retrieval_score")?,
+			retrieval_rank: row
+				.try_get::<Option<i32>, _>("retrieval_rank")?
+				.map(|rank| rank as u32),
+			rerank_score: row.try_get("rerank_score")?,
+			tie_breaker_score: row.try_get("tie_breaker_score")?,
+			final_score: row.try_get("final_score")?,
+			boosts,
+			matched_terms,
+			matched_fields,
+		};
+
+		let item = SearchExplainItem {
+			result_handle: row.try_get("item_id")?,
+			note_id: row.try_get("note_id")?,
+			rank: row.try_get::<i32, _>("rank")? as u32,
+			explain,
+		};
+
+		Ok(SearchExplainResponse { trace, item })
 	}
 
 	async fn embed_single_query(&self, query: &str) -> ServiceResult<Vec<f32>> {
@@ -322,29 +607,48 @@ impl ElfService {
 
 	async fn finish_search(&self, args: FinishSearchArgs<'_>) -> ServiceResult<SearchResponse> {
 		let FinishSearchArgs {
+			trace_id,
 			query,
 			tenant_id,
 			project_id,
 			agent_id,
+			read_profile,
 			allowed_scopes,
-			candidate_ids,
+			expanded_queries,
+			expansion_mode,
+			candidates,
 			top_k,
 			record_hits_enabled,
 		} = args;
-		if candidate_ids.is_empty() {
-			return Ok(SearchResponse { items: Vec::new() });
-		}
-
-		let mut notes: Vec<MemoryNote> = sqlx::query_as(
-			"SELECT * FROM memory_notes WHERE note_id = ANY($1) AND tenant_id = $2 AND project_id = $3",
-		)
-		.bind(&candidate_ids)
-		.bind(tenant_id)
-		.bind(project_id)
-		.fetch_all(&self.db.pool)
-		.await?;
-
 		let now = time::OffsetDateTime::now_utc();
+		let candidate_ids: Vec<uuid::Uuid> =
+			candidates.iter().map(|candidate| candidate.note_id).collect();
+		let retrieval_map: HashMap<uuid::Uuid, RetrievalInfo> = candidates
+			.iter()
+			.map(|candidate| {
+				(
+					candidate.note_id,
+					RetrievalInfo {
+						score: candidate.retrieval_score,
+						rank: candidate.retrieval_rank,
+					},
+				)
+			})
+			.collect();
+
+		let mut notes: Vec<MemoryNote> = if candidate_ids.is_empty() {
+			Vec::new()
+		} else {
+			sqlx::query_as(
+				"SELECT * FROM memory_notes WHERE note_id = ANY($1) AND tenant_id = $2 AND project_id = $3",
+			)
+			.bind(&candidate_ids)
+			.bind(tenant_id)
+			.bind(project_id)
+			.fetch_all(&self.db.pool)
+			.await?
+		};
+
 		notes.retain(|note| {
 			if note.tenant_id != tenant_id || note.project_id != project_id {
 				return false;
@@ -357,41 +661,80 @@ impl ElfService {
 				&& note.expires_at.map(|ts| ts > now).unwrap_or(true)
 		});
 
-		if notes.is_empty() {
-			return Ok(SearchResponse { items: Vec::new() });
-		}
+		let mut scored: Vec<ScoredNote> = Vec::new();
+		if !notes.is_empty() {
+			let docs: Vec<String> = notes.iter().map(|note| note.text.clone()).collect();
+			let scores =
+				self.providers.rerank.rerank(&self.cfg.providers.rerank, query, &docs).await?;
+			if scores.len() != notes.len() {
+				return Err(ServiceError::Provider {
+					message: "Rerank provider returned mismatched score count.".to_string(),
+				});
+			}
 
-		let docs: Vec<String> = notes.iter().map(|note| note.text.clone()).collect();
-		let scores = self.providers.rerank.rerank(&self.cfg.providers.rerank, query, &docs).await?;
-		if scores.len() != notes.len() {
-			return Err(ServiceError::Provider {
-				message: "Rerank provider returned mismatched score count.".to_string(),
+			scored = Vec::with_capacity(notes.len());
+			for (note, rerank_score) in notes.into_iter().zip(scores.into_iter()) {
+				let age_days = (now - note.updated_at).as_seconds_f32() / 86_400.0;
+				let decay = if self.cfg.ranking.recency_tau_days > 0.0 {
+					(-age_days / self.cfg.ranking.recency_tau_days).exp()
+				} else {
+					1.0
+				};
+				let base = (1.0 + 0.6 * note.importance) * decay;
+				let tie_breaker_score = self.cfg.ranking.tie_breaker_weight * base;
+				let final_score = rerank_score + tie_breaker_score;
+				scored.push(ScoredNote { note, rerank_score, tie_breaker_score, final_score });
+			}
+
+			scored.sort_by(|a, b| {
+				b.final_score.partial_cmp(&a.final_score).unwrap_or(std::cmp::Ordering::Equal)
 			});
+			scored.truncate(top_k as usize);
 		}
 
-		let mut scored = Vec::with_capacity(notes.len());
-		for (note, rerank_score) in notes.into_iter().zip(scores.into_iter()) {
-			let age_days = (now - note.updated_at).as_seconds_f32() / 86_400.0;
-			let decay = if self.cfg.ranking.recency_tau_days > 0.0 {
-				(-age_days / self.cfg.ranking.recency_tau_days).exp()
-			} else {
-				1.0
-			};
-			let base = (1.0 + 0.6 * note.importance) * decay;
-			let final_score = rerank_score + self.cfg.ranking.tie_breaker_weight * base;
-			scored.push((note, final_score));
-		}
-
-		scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-		scored.truncate(top_k as usize);
-
-		if record_hits_enabled {
+		if record_hits_enabled && !scored.is_empty() {
 			record_hits(&self.db.pool, query, &scored, now).await?;
 		}
 
-		let items = scored
-			.into_iter()
-			.map(|(note, final_score)| SearchItem {
+		let query_tokens = tokenize_query(query, MAX_MATCHED_TERMS);
+		let mut items = Vec::with_capacity(scored.len());
+		let trace_context = TraceContext {
+			trace_id,
+			tenant_id,
+			project_id,
+			agent_id,
+			read_profile,
+			query,
+			expansion_mode,
+			expanded_queries,
+			allowed_scopes,
+			candidate_count: candidates.len(),
+			top_k,
+		};
+		let mut trace_builder = SearchTraceBuilder::new(trace_context, &self.cfg, now);
+		for (idx, scored_note) in scored.into_iter().enumerate() {
+			let rank = idx as u32 + 1;
+			let retrieval = retrieval_map.get(&scored_note.note.note_id).copied();
+			let (matched_terms, matched_fields) =
+				match_terms(&query_tokens, &scored_note.note, MAX_MATCHED_TERMS);
+			let boosts = vec![SearchBoost {
+				name: "recency_importance".to_string(),
+				score: scored_note.tie_breaker_score,
+			}];
+			let explain = SearchExplain {
+				retrieval_score: retrieval.map(|entry| entry.score),
+				retrieval_rank: retrieval.map(|entry| entry.rank),
+				rerank_score: scored_note.rerank_score,
+				tie_breaker_score: scored_note.tie_breaker_score,
+				final_score: scored_note.final_score,
+				boosts: boosts.clone(),
+				matched_terms: matched_terms.clone(),
+				matched_fields: matched_fields.clone(),
+			};
+			let result_handle = uuid::Uuid::new_v4();
+			let note = scored_note.note;
+			items.push(SearchItem {
+				result_handle,
 				note_id: note.note_id,
 				note_type: note.r#type,
 				key: note.key,
@@ -401,12 +744,31 @@ impl ElfService {
 				confidence: note.confidence,
 				updated_at: note.updated_at,
 				expires_at: note.expires_at,
-				final_score,
+				final_score: scored_note.final_score,
 				source_ref: note.source_ref,
-			})
-			.collect();
+				explain,
+			});
+			trace_builder.push_item(TraceItemRecord {
+				item_id: result_handle,
+				note_id: note.note_id,
+				rank,
+				retrieval_score: retrieval.map(|entry| entry.score),
+				retrieval_rank: retrieval.map(|entry| entry.rank),
+				rerank_score: scored_note.rerank_score,
+				tie_breaker_score: scored_note.tie_breaker_score,
+				final_score: scored_note.final_score,
+				boosts,
+				matched_terms,
+				matched_fields,
+			});
+		}
 
-		Ok(SearchResponse { items })
+		let trace_payload = trace_builder.build();
+		if let Err(err) = enqueue_trace(&self.db.pool, trace_payload).await {
+			tracing::error!(error = %err, trace_id = %trace_id, "Failed to enqueue search trace.");
+		}
+
+		Ok(SearchResponse { trace_id, items })
 	}
 }
 
@@ -492,11 +854,11 @@ Do not include any CJK characters. Do not add explanations or extra fields.";
 	]
 }
 
-fn collect_candidate_ids(
+fn collect_candidates(
 	points: &[ScoredPoint],
 	max_candidates: u32,
 	candidate_k: u32,
-) -> Vec<uuid::Uuid> {
+) -> Vec<Candidate> {
 	let limit = if max_candidates == 0 || max_candidates >= candidate_k {
 		points.len()
 	} else {
@@ -504,15 +866,138 @@ fn collect_candidate_ids(
 	};
 	let mut out = Vec::new();
 	let mut seen = HashSet::new();
-	for point in points.iter().take(limit) {
+	for (idx, point) in points.iter().take(limit).enumerate() {
 		let Some(id) = point.id.as_ref().and_then(point_id_to_uuid) else {
 			continue;
 		};
 		if seen.insert(id) {
-			out.push(id);
+			out.push(Candidate {
+				note_id: id,
+				retrieval_score: point.score,
+				retrieval_rank: idx as u32 + 1,
+			});
 		}
 	}
 	out
+}
+
+fn expansion_mode_label(mode: ExpansionMode) -> &'static str {
+	match mode {
+		ExpansionMode::Off => "off",
+		ExpansionMode::Always => "always",
+		ExpansionMode::Dynamic => "dynamic",
+	}
+}
+
+fn tokenize_query(query: &str, max_terms: usize) -> Vec<String> {
+	let mut normalized = String::with_capacity(query.len());
+	for ch in query.chars() {
+		if ch.is_ascii_alphanumeric() {
+			normalized.push(ch.to_ascii_lowercase());
+		} else {
+			normalized.push(' ');
+		}
+	}
+
+	let mut out = Vec::new();
+	let mut seen = HashSet::new();
+	for token in normalized.split_whitespace() {
+		if token.len() < 2 {
+			continue;
+		}
+		if seen.insert(token) {
+			out.push(token.to_string());
+		}
+		if out.len() >= max_terms {
+			break;
+		}
+	}
+	out
+}
+
+fn match_terms(
+	tokens: &[String],
+	note: &MemoryNote,
+	max_terms: usize,
+) -> (Vec<String>, Vec<String>) {
+	if tokens.is_empty() {
+		return (Vec::new(), Vec::new());
+	}
+	let text = note.text.to_lowercase();
+	let key = note.key.as_ref().map(|value| value.to_lowercase());
+	let mut matched_terms = Vec::new();
+	let mut matched_fields = HashSet::new();
+	for token in tokens {
+		let mut matched = false;
+		if text.contains(token) {
+			matched_fields.insert("text");
+			matched = true;
+		}
+		if let Some(key) = key.as_ref()
+			&& key.contains(token)
+		{
+			matched_fields.insert("key");
+			matched = true;
+		}
+		if matched {
+			matched_terms.push(token.clone());
+		}
+		if matched_terms.len() >= max_terms {
+			break;
+		}
+	}
+	let mut fields: Vec<String> =
+		matched_fields.into_iter().map(|field| field.to_string()).collect();
+	fields.sort();
+	(matched_terms, fields)
+}
+
+fn decode_json<T: DeserializeOwned>(value: serde_json::Value, label: &str) -> ServiceResult<T> {
+	serde_json::from_value(value)
+		.map_err(|err| ServiceError::Storage { message: format!("Invalid {label} value: {err}") })
+}
+
+fn build_config_snapshot(cfg: &elf_config::Config) -> serde_json::Value {
+	serde_json::json!({
+		"search": {
+			"expansion": {
+				"mode": cfg.search.expansion.mode.as_str(),
+				"max_queries": cfg.search.expansion.max_queries,
+				"include_original": cfg.search.expansion.include_original,
+			},
+			"dynamic": {
+				"min_candidates": cfg.search.dynamic.min_candidates,
+				"min_top_score": cfg.search.dynamic.min_top_score,
+			},
+			"prefilter": {
+				"max_candidates": cfg.search.prefilter.max_candidates,
+			},
+			"explain": {
+				"retention_days": cfg.search.explain.retention_days,
+			},
+		},
+		"ranking": {
+			"recency_tau_days": cfg.ranking.recency_tau_days,
+			"tie_breaker_weight": cfg.ranking.tie_breaker_weight,
+		},
+		"providers": {
+			"embedding": {
+				"provider_id": cfg.providers.embedding.provider_id.as_str(),
+				"model": cfg.providers.embedding.model.as_str(),
+				"dimensions": cfg.providers.embedding.dimensions,
+			},
+			"rerank": {
+				"provider_id": cfg.providers.rerank.provider_id.as_str(),
+				"model": cfg.providers.rerank.model.as_str(),
+			},
+		},
+		"storage": {
+			"qdrant": {
+				"vector_dim": cfg.storage.qdrant.vector_dim,
+				"collection": cfg.storage.qdrant.collection.as_str(),
+			},
+		},
+	})
 }
 
 fn resolve_scopes(cfg: &elf_config::Config, profile: &str) -> ServiceResult<Vec<String>> {
@@ -531,16 +1016,36 @@ fn point_id_to_uuid(point_id: &qdrant_client::qdrant::PointId) -> Option<uuid::U
 	}
 }
 
+async fn enqueue_trace(pool: &sqlx::PgPool, payload: TracePayload) -> ServiceResult<()> {
+	let now = time::OffsetDateTime::now_utc();
+	let payload_json = serde_json::to_value(&payload).map_err(|err| ServiceError::Storage {
+		message: format!("Failed to encode search trace payload: {err}"),
+	})?;
+	sqlx::query(
+        "INSERT INTO search_trace_outbox \
+         (outbox_id, trace_id, status, attempts, last_error, available_at, payload, created_at, updated_at) \
+         VALUES ($1,$2,'PENDING',0,NULL,$3,$4,$3,$3)",
+    )
+    .bind(uuid::Uuid::new_v4())
+    .bind(payload.trace.trace_id)
+    .bind(now)
+    .bind(payload_json)
+    .execute(pool)
+    .await?;
+	Ok(())
+}
+
 async fn record_hits(
 	pool: &sqlx::PgPool,
 	query: &str,
-	scored: &[(MemoryNote, f32)],
+	scored: &[ScoredNote],
 	now: time::OffsetDateTime,
 ) -> ServiceResult<()> {
 	let query_hash = hash_query(query);
 	let mut tx = pool.begin().await?;
 
-	for (rank, (note, final_score)) in scored.iter().enumerate() {
+	for (rank, scored_note) in scored.iter().enumerate() {
+		let note = &scored_note.note;
 		sqlx::query(
 			"UPDATE memory_notes SET hit_count = hit_count + 1, last_hit_at = $1 WHERE note_id = $2",
 		)
@@ -556,7 +1061,7 @@ async fn record_hits(
         .bind(note.note_id)
         .bind(&query_hash)
         .bind(rank as i32)
-        .bind(*final_score)
+        .bind(scored_note.final_score)
         .bind(now)
         .execute(&mut *tx)
         .await?;
