@@ -48,7 +48,7 @@ File: elf.toml
 
 Rules:
 - The config file path is required and must be provided with --config or -c.
-- No default values are allowed in code. Every field below must be present in elf.toml.
+- No default values are allowed in code. Every field below must be present in elf.toml unless explicitly marked optional.
 - No environment variables are allowed for configuration. All values are stored in elf.toml.
 - Provider api_key values must be present and non-empty.
 - providers.embedding.dimensions must match storage.qdrant.vector_dim.
@@ -129,6 +129,30 @@ update_sim_threshold = 0.85
 # Retrieval sizes
 candidate_k = 60
 top_k = 12
+
+[search.expansion]
+mode = "off|always|dynamic"
+max_queries = <REQUIRED_INT>
+include_original = <REQUIRED_BOOL>
+
+[search.dynamic]
+min_candidates = <REQUIRED_INT>
+min_top_score = <REQUIRED_FLOAT>
+
+[search.prefilter]
+max_candidates = <REQUIRED_INT>
+
+[search.cache]
+enabled = <REQUIRED_BOOL>
+expansion_ttl_days = <REQUIRED_INT>
+rerank_ttl_days = <REQUIRED_INT>
+# Optional. Omit to disable payload size limits.
+max_payload_bytes = <OPTIONAL_INT>
+expansion_version = "<REQUIRED_NON_EMPTY>"
+rerank_version = "<REQUIRED_NON_EMPTY>"
+
+[search.explain]
+retention_days = <REQUIRED_INT>
 
 [ranking]
 recency_tau_days = 60
@@ -292,6 +316,74 @@ Rules:
 Indexes:
 - idx_outbox_status_available: (status, available_at)
 - idx_outbox_note_op_status: (note_id, op, status)
+
+5.6 search_traces (search explainability)
+- trace_id uuid primary key
+- tenant_id text not null
+- project_id text not null
+- agent_id text not null
+- read_profile text not null
+- query text not null
+- expansion_mode text not null
+- expanded_queries jsonb not null
+- allowed_scopes jsonb not null
+- candidate_count int not null
+- top_k int not null
+- config_snapshot jsonb not null
+- trace_version int not null
+- created_at timestamptz not null
+- expires_at timestamptz not null
+
+Indexes:
+- idx_search_traces_expires: (expires_at)
+- idx_search_traces_context: (tenant_id, project_id, created_at)
+
+5.7 search_trace_items (per-result explain data)
+- item_id uuid primary key
+- trace_id uuid not null references search_traces(trace_id) on delete cascade
+- note_id uuid not null
+- rank int not null
+- retrieval_score real null
+- retrieval_rank int null
+- rerank_score real not null
+- tie_breaker_score real not null
+- final_score real not null
+- boosts jsonb not null
+- matched_terms jsonb not null
+- matched_fields jsonb not null
+
+Indexes:
+- idx_search_trace_items_trace: (trace_id, rank)
+- idx_search_trace_items_note: (note_id)
+
+5.8 search_trace_outbox (async trace persistence)
+- outbox_id uuid primary key
+- trace_id uuid not null
+- status text not null
+- attempts int not null default 0
+- last_error text null
+- available_at timestamptz not null default now()
+- payload jsonb not null
+- created_at timestamptz not null default now()
+- updated_at timestamptz not null default now()
+
+Indexes:
+- idx_trace_outbox_status_available: (status, available_at)
+- idx_trace_outbox_trace_status: (trace_id, status)
+
+5.9 llm_cache (LLM response cache)
+- cache_id uuid primary key
+- cache_kind text not null
+- cache_key text not null
+- payload jsonb not null
+- created_at timestamptz not null
+- last_accessed_at timestamptz not null
+- expires_at timestamptz not null
+- hit_count bigint not null default 0
+
+Indexes:
+- idx_llm_cache_key: (cache_kind, cache_key) unique
+- idx_llm_cache_expires: (expires_at)
 
 ============================================================
 6. QDRANT COLLECTION (DERIVED INDEX ONLY)
@@ -464,6 +556,16 @@ Worker rules:
 - Failures:
   - status = FAILED, attempts += 1, available_at = now + backoff(attempts).
 
+Search trace outbox (best-effort):
+- Search enqueues trace payloads into search_trace_outbox with status = PENDING.
+- Worker leases available jobs, inserts search_traces and search_trace_items, then marks DONE.
+- On failure, status = FAILED, attempts += 1, last_error set, available_at = now + backoff(attempts).
+- Failures must not affect the original search response.
+
+Periodic cleanup:
+- Worker deletes expired search_traces (search_trace_items cascade).
+- Worker deletes expired llm_cache rows.
+
 ============================================================
 13. SEARCH PIPELINE (ONLINE)
 ============================================================
@@ -471,7 +573,7 @@ Input:
 - tenant_id, project_id, agent_id
 - read_profile
 - query (English only)
-- optional top_k, candidate_k
+- optional top_k, candidate_k, record_hits
 
 Config:
 - search.expansion.mode = off|always|dynamic
@@ -480,6 +582,13 @@ Config:
 - search.dynamic.min_candidates
 - search.dynamic.min_top_score
 - search.prefilter.max_candidates (0 or >= candidate_k means no prefilter)
+- search.cache.enabled
+- search.cache.expansion_ttl_days
+- search.cache.rerank_ttl_days
+- search.cache.max_payload_bytes (optional)
+- search.cache.expansion_version
+- search.cache.rerank_version
+- search.explain.retention_days
 
 Steps:
 1) English-only boundary check.
@@ -489,9 +598,15 @@ Steps:
    - always: expand with LLM.
    - dynamic: run a baseline hybrid search for the original query, then expand if
      candidate_count < min_candidates OR top1_fusion_score < min_top_score.
-4) If expansion is enabled, call the LLM expansion prompt and receive queries[].
-   - Deduplicate, strip CJK, and cap at max_queries.
-   - Ensure original query is present when include_original = true.
+4) If expansion is enabled, resolve expanded queries with cache support.
+   - Build an expansion cache key from: query (trimmed), provider_id, model, temperature,
+     expansion_version, max_queries, include_original.
+   - If search.cache.enabled and a non-expired cache entry exists, use cached queries.
+   - On cache miss, call the LLM expansion prompt and receive queries[].
+     - Deduplicate, strip CJK, and cap at max_queries.
+     - Ensure original query is present when include_original = true.
+   - If search.cache.enabled and payload size is within max_payload_bytes (when set),
+     store the expanded queries with TTL = expansion_ttl_days.
 5) For each query, embed -> query_vec (embedding API).
 6) For each query, run Qdrant fusion query candidate_k with payload filters (dense + bm25):
    tenant_id, project_id, status = active (best-effort), and scope filters:
@@ -502,15 +617,29 @@ Steps:
    keep only top max_candidates by fusion score.
 9) Fetch authoritative notes from Postgres by ids and re-apply filters:
    status = active, not expired, scope allowed, and if scope = agent_private then agent_id must match.
-10) Rerank once using the original query:
-    scores = rerank(original_query, docs = [note.text ...]).
+10) Rerank once using the original query, with cache support:
+    - Build a rerank cache key from: query (trimmed), provider_id, model, rerank_version,
+      and the candidate signature [(note_id, updated_at)...].
+    - If search.cache.enabled and a cache entry exists that matches the candidate signature,
+      reuse cached scores.
+    - On cache miss, call the rerank provider:
+      scores = rerank(original_query, docs = [note.text ...]).
+    - If search.cache.enabled and payload size is within max_payload_bytes (when set),
+      store the rerank scores with TTL = rerank_ttl_days.
 11) Tie-break:
     base = (1 + 0.6 * importance) * exp(-age_days / recency_tau_days)
     final = rerank_score + tie_breaker_weight * base
 12) Sort and take top_k.
-13) Update hits (optional):
+13) Update hits (optional, when record_hits is true):
     hit_count++, last_hit_at, memory_hits insert.
-14) Return results.
+14) Build search trace payload with trace_id and per-item result_handle, then enqueue
+    search_trace_outbox (best-effort; failures do not fail the search).
+    - expires_at = now + search.explain.retention_days.
+15) Return results.
+
+Cache notes:
+- Cache key material is serialized as JSON and hashed with BLAKE3 (256-bit hex).
+- Cache read/write failures are treated as misses and must not fail the search request.
 
 ============================================================
 14. ADMIN: REBUILD QDRANT FROM POSTGRES (NO EMBED API)
@@ -592,12 +721,15 @@ Body:
   "read_profile": "private_only|private_plus_project|all_scopes",
   "query": "English-only",
   "top_k": 12,
-  "candidate_k": 60
+  "candidate_k": 60,
+  "record_hits": false
 }
 Response:
 {
+  "trace_id": "uuid",
   "items": [
     {
+      "result_handle": "uuid",
       "note_id": "uuid",
       "type": "...",
       "key": null,
@@ -608,10 +740,61 @@ Response:
       "updated_at": "...",
       "expires_at": "...|null",
       "final_score": 0.0,
-      "source_ref": { ... }
+      "source_ref": { ... },
+      "explain": {
+        "retrieval_score": 0.0|null,
+        "retrieval_rank": 1|null,
+        "rerank_score": 0.0,
+        "tie_breaker_score": 0.0,
+        "final_score": 0.0,
+        "boosts": [{"name": "recency_importance", "score": 0.0}],
+        "matched_terms": ["..."],
+        "matched_fields": ["text","key"]
+      }
     }
   ]
 }
+Notes:
+- result_handle is a stable handle for search explain.
+- record_hits defaults to false when omitted.
+
+GET /v1/memory/search/explain?result_handle=...
+Response:
+{
+  "trace": {
+    "trace_id": "uuid",
+    "tenant_id": "...",
+    "project_id": "...",
+    "agent_id": "...",
+    "read_profile": "...",
+    "query": "...",
+    "expansion_mode": "off|always|dynamic",
+    "expanded_queries": ["..."],
+    "allowed_scopes": ["..."],
+    "candidate_count": 0,
+    "top_k": 0,
+    "config_snapshot": { ... },
+    "trace_version": 1,
+    "created_at": "..."
+  },
+  "item": {
+    "result_handle": "uuid",
+    "note_id": "uuid",
+    "rank": 1,
+    "explain": {
+      "retrieval_score": 0.0|null,
+      "retrieval_rank": 1|null,
+      "rerank_score": 0.0,
+      "tie_breaker_score": 0.0,
+      "final_score": 0.0,
+      "boosts": [{"name": "recency_importance", "score": 0.0}],
+      "matched_terms": ["..."],
+      "matched_fields": ["text","key"]
+    }
+  }
+}
+Notes:
+- If result_handle is unknown or the trace has not been persisted yet, return INVALID_REQUEST.
 
 GET /v1/memory/list?tenant_id=...&project_id=...&scope=...&status=...&type=...&agent_id=...
 Notes:
@@ -658,6 +841,7 @@ GET /health
 Error codes (common):
 - NON_ENGLISH_INPUT (422)
 - SCOPE_DENIED (403)
+- INVALID_REQUEST (400)
 - INVALID_REQUEST (400)
 - INTERNAL_ERROR (500)
 
