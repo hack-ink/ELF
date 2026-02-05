@@ -1,4 +1,5 @@
-#[path = "../../../apps/elf-worker/src/chunking.rs"]
-mod chunking;
+mod chunking {
+	pub use elf_chunking::*;
+}
 
 mod acceptance;

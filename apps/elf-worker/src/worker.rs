@@ -1,14 +1,12 @@
 use std::collections::HashMap;
 
 use color_eyre::{Result, eyre::eyre};
-use tokenizers::Tokenizer;
-
-use crate::chunking::{Chunk, ChunkingConfig, split_text};
+use elf_chunking::{Chunk, ChunkingConfig, Tokenizer, split_text};
 use elf_storage::{
 	db::Db,
 	models::{IndexingOutboxEntry, MemoryNote},
-	queries,
 	qdrant::{BM25_MODEL, BM25_VECTOR_NAME, DENSE_VECTOR_NAME, QdrantStore},
+	queries,
 };
 use qdrant_client::{
 	client::Payload,
@@ -337,17 +335,11 @@ async fn handle_upsert(state: &WorkerState, job: &IndexingOutboxEntry) -> Result
 		.await?;
 	}
 
-	let pooled = mean_pool(&chunk_vectors)
-		.ok_or_else(|| eyre!("Cannot pool empty chunk vectors."))?;
+	let pooled =
+		mean_pool(&chunk_vectors).ok_or_else(|| eyre!("Cannot pool empty chunk vectors."))?;
 	validate_vector_dim(&pooled, state.qdrant.vector_dim)?;
-	insert_embedding(
-		&state.db,
-		note.note_id,
-		&job.embedding_version,
-		pooled.len() as i32,
-		&pooled,
-	)
-	.await?;
+	insert_embedding(&state.db, note.note_id, &job.embedding_version, pooled.len() as i32, &pooled)
+		.await?;
 	delete_qdrant_note_points(state, note.note_id).await?;
 	upsert_qdrant_chunks(state, &note, &job.embedding_version, &records, &chunk_vectors).await?;
 	Ok(())
@@ -512,9 +504,7 @@ fn chunk_id_for(note_id: uuid::Uuid, chunk_index: i32) -> uuid::Uuid {
 }
 
 fn to_i32(value: usize, label: &str) -> Result<i32> {
-	i32::try_from(value).map_err(|_| {
-		eyre!("Chunk {label} offset {value} exceeds supported range.")
-	})
+	i32::try_from(value).map_err(|_| eyre!("Chunk {label} offset {value} exceeds supported range."))
 }
 
 fn mean_pool(chunks: &[Vec<f32>]) -> Option<Vec<f32>> {
@@ -633,8 +623,7 @@ async fn upsert_qdrant_chunks(
 		points.push(point);
 	}
 
-	let upsert =
-		UpsertPointsBuilder::new(state.qdrant.collection.clone(), points).wait(true);
+	let upsert = UpsertPointsBuilder::new(state.qdrant.collection.clone(), points).wait(true);
 	state.qdrant.client.upsert_points(upsert).await?;
 	Ok(())
 }
