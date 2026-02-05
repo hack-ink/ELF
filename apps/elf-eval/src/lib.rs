@@ -1,14 +1,11 @@
-// std
 use std::{collections::HashSet, fs, path::PathBuf, time::Instant};
 
-// crates.io
 use clap::Parser;
 use color_eyre::eyre;
 use serde::{Deserialize, Serialize};
 use tracing_subscriber::EnvFilter;
 use uuid::Uuid;
 
-// self
 use elf_service::ElfService;
 use elf_storage::{db::Db, qdrant::QdrantStore};
 

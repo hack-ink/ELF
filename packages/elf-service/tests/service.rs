@@ -1,14 +1,11 @@
-// std
 use std::sync::{
 	Arc,
 	atomic::{AtomicUsize, Ordering},
 };
 
-// crates.io
 use serde_json::{Map, Value};
 use sqlx::PgPool;
 
-// self
 use elf_config::{Config, EmbeddingProviderConfig, LlmProviderConfig, ProviderConfig};
 use elf_service::{
 	AddNoteInput, AddNoteRequest, ElfService, EmbeddingProvider, ExtractorProvider, Providers,

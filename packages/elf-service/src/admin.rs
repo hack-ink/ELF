@@ -1,7 +1,5 @@
-// std
 use std::collections::HashMap;
 
-// crates.io
 use qdrant_client::{
 	client::Payload,
 	qdrant::{Document, PointStruct, UpsertPointsBuilder, Vector},
@@ -9,7 +7,6 @@ use qdrant_client::{
 use serde_json::Value;
 use time::OffsetDateTime;
 
-// self
 use crate::{ElfService, ServiceError, ServiceResult};
 use elf_storage::qdrant::{BM25_MODEL, BM25_VECTOR_NAME, DENSE_VECTOR_NAME};
 

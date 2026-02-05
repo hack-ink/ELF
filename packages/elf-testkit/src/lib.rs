@@ -1,7 +1,5 @@
-// std
 use std::{env, future::Future, str::FromStr, thread};
 
-// crates.io
 use color_eyre::eyre::{self, WrapErr};
 use sqlx::{
 	ConnectOptions, Connection, Executor,

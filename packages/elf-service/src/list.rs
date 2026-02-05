@@ -1,10 +1,8 @@
-// crates.io
 use serde_json::Value;
 use sqlx::QueryBuilder;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-// self
 use elf_storage::models::MemoryNote;
 
 use crate::{ElfService, ServiceError, ServiceResult};

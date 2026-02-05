@@ -1,4 +1,3 @@
-// crates.io
 use reqwest::header::AUTHORIZATION;
 use serde_json::Map;
 

@@ -1,7 +1,5 @@
-// std
 use std::{net::SocketAddr, sync::Arc};
 
-// crates.io
 use axum::Router;
 use color_eyre::Result;
 use reqwest::Client;

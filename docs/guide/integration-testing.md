@@ -13,8 +13,10 @@ Name: This flow is the E2E test in `docs/guide/testing.md`.
 - Postgres is running and reachable.
 - Qdrant is running and reachable.
 - You have a config file with valid storage and provider settings.
+- You can create and drop a dedicated database named `elf_e2e`.
 
 Note: Use the existing collection configured in your `elf.toml`. Do not create a new collection for this flow. Keep test data isolated by tenant, project, and agent identifiers, then clean it up after the run.
+Note: The local Postgres instance in this repository typically runs on port `51888`. Adjust the DSN if your setup differs.
 
 ## Step 1: Prepare a dedicated integration config
 
@@ -27,7 +29,7 @@ http_bind  = "127.0.0.1:8089"
 log_level  = "info"
 
 [storage.postgres]
-dsn            = "postgres://postgres:postgres@127.0.0.1:5432/elf"
+dsn            = "postgres://postgres:postgres@127.0.0.1:51888/elf_e2e"
 pool_max_conns = 10
 
 [storage.qdrant]

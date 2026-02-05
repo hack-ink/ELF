@@ -1,4 +1,3 @@
-// crates.io
 pub use tokenizers::Tokenizer;
 use unicode_segmentation::UnicodeSegmentation;
 
