@@ -8,7 +8,8 @@ Contract: English-only API inputs and outputs. Reject any CJK at the API boundar
 Implementation target: Rust is recommended. The spec is language agnostic.
 
 Core idea:
-- Postgres with pgvector is the only source of truth for notes, embeddings, audit history, and the indexing outbox.
+- Postgres with pgvector is the only source of truth for notes, chunk embeddings, audit history, and the indexing outbox.
+- Note-level embeddings are derived pooled vectors for update and duplicate checks.
 - Qdrant is a derived index for candidate retrieval only. Qdrant must be rebuildable from Postgres vectors without calling the embedding API.
 - Two write APIs have hard semantic differences:
   - add_note is deterministic and must not call any LLM.
@@ -25,7 +26,9 @@ Optional future work:
 ============================================================
 I1. Postgres with pgvector is the only source of truth for:
     - memory notes
-    - embedding vectors
+    - chunk embedding vectors
+    - chunk metadata
+    - pooled note embeddings (derived)
     - audit and version history
     - hit logs (optional)
     - indexing outbox jobs
@@ -33,7 +36,7 @@ I2. Qdrant is derived and rebuildable:
     - Qdrant may be dropped and recreated at any time.
     - Qdrant must be rebuildable from Postgres vectors without calling the embedding API.
 I3. Online retrieval:
-    - Qdrant returns candidate note_ids.
+    - Qdrant returns candidate chunk_ids.
     - Postgres returns authoritative notes and re-validates status, TTL, and scope.
 I4. English-only contract:
     - Any API input containing CJK must be rejected with HTTP 422.
@@ -52,6 +55,10 @@ Rules:
 - No environment variables are allowed for configuration. All values are stored in elf.toml.
 - Provider api_key values must be present and non-empty.
 - providers.embedding.dimensions must match storage.qdrant.vector_dim.
+- chunking.enabled must be true.
+- chunking.max_tokens must be greater than zero.
+- chunking.overlap_tokens must be less than chunking.max_tokens.
+- chunking.tokenizer_repo may be empty or omitted to inherit providers.embedding.model.
 
 Template (all values required):
 
@@ -129,6 +136,13 @@ update_sim_threshold = 0.85
 # Retrieval sizes
 candidate_k = 60
 top_k = 12
+
+[chunking]
+enabled = true
+max_tokens = <REQUIRED_INT>
+overlap_tokens = <REQUIRED_INT>
+# Optional. Empty or omitted uses providers.embedding.model.
+tokenizer_repo = "<OPTIONAL_STRING>"
 
 [search.expansion]
 mode = "off|always|dynamic"
@@ -271,7 +285,34 @@ Indexes (minimum):
 - idx_notes_key: (tenant_id, project_id, agent_id, scope, type, key) WHERE key IS NOT NULL
 - idx_notes_expires: (expires_at)
 
-5.2 note_embeddings (source of truth vectors; pgvector)
+5.2 memory_note_chunks (chunk metadata)
+Columns:
+- chunk_id uuid primary key
+- note_id uuid not null references memory_notes(note_id) on delete cascade
+- chunk_index int not null
+- start_offset int not null
+- end_offset int not null
+- text text not null
+- embedding_version text not null
+- created_at timestamptz not null default now()
+
+Indexes (minimum):
+- idx_note_chunks_note: (note_id)
+- idx_note_chunks_note_index: (note_id, chunk_index)
+
+5.3 note_chunk_embeddings (source of truth vectors; pgvector)
+- chunk_id uuid references memory_note_chunks(chunk_id) on delete cascade
+- embedding_version text not null
+- embedding_dim int not null
+- vec vector(<vector_dim>) not null
+- created_at timestamptz not null default now()
+primary key(chunk_id, embedding_version)
+
+Rules:
+- Every memory_note_chunks row must have a corresponding note_chunk_embeddings row for its embedding_version.
+- Chunk embeddings are the source of truth for retrieval and rebuild.
+
+5.4 note_embeddings (derived pooled vectors; pgvector)
 - note_id uuid references memory_notes(note_id) on delete cascade
 - embedding_version text not null
 - embedding_dim int not null
@@ -280,10 +321,10 @@ Indexes (minimum):
 primary key(note_id, embedding_version)
 
 Rules:
-- Every active memory_notes row must have a corresponding note_embeddings row for its embedding_version.
-- Updates must keep note_id stable. The vec must be updated for the current embedding_version.
+- note_embeddings is derived by mean pooling chunk embeddings for (note_id, embedding_version).
+- note_embeddings must be refreshed whenever chunk embeddings change.
 
-5.3 memory_note_versions (append-only audit)
+5.5 memory_note_versions (append-only audit)
 - version_id uuid primary key
 - note_id uuid not null
 - op text not null
@@ -293,15 +334,16 @@ Rules:
 - actor text not null
 - ts timestamptz not null default now()
 
-5.4 memory_hits (optional)
+5.6 memory_hits (optional)
 - hit_id uuid primary key
 - note_id uuid not null
+- chunk_id uuid null
 - query_hash text not null
 - rank int not null
 - final_score real not null
 - ts timestamptz not null default now()
 
-5.5 indexing_outbox (guaranteed indexing)
+5.7 indexing_outbox (guaranteed indexing)
 - outbox_id uuid primary key
 - note_id uuid not null
 - op text not null
@@ -317,7 +359,7 @@ Indexes:
 - idx_outbox_status_available: (status, available_at)
 - idx_outbox_note_op_status: (note_id, op, status)
 
-5.6 search_traces (search explainability)
+5.8 search_traces (search explainability)
 - trace_id uuid primary key
 - tenant_id text not null
 - project_id text not null
@@ -338,10 +380,11 @@ Indexes:
 - idx_search_traces_expires: (expires_at)
 - idx_search_traces_context: (tenant_id, project_id, created_at)
 
-5.7 search_trace_items (per-result explain data)
+5.9 search_trace_items (per-result explain data)
 - item_id uuid primary key
 - trace_id uuid not null references search_traces(trace_id) on delete cascade
 - note_id uuid not null
+- chunk_id uuid null
 - rank int not null
 - retrieval_score real null
 - retrieval_rank int null
@@ -356,7 +399,7 @@ Indexes:
 - idx_search_trace_items_trace: (trace_id, rank)
 - idx_search_trace_items_note: (note_id)
 
-5.8 search_trace_outbox (async trace persistence)
+5.10 search_trace_outbox (async trace persistence)
 - outbox_id uuid primary key
 - trace_id uuid not null
 - status text not null
@@ -371,7 +414,7 @@ Indexes:
 - idx_trace_outbox_status_available: (status, available_at)
 - idx_trace_outbox_trace_status: (trace_id, status)
 
-5.9 llm_cache (LLM response cache)
+5.11 llm_cache (LLM response cache)
 - cache_id uuid primary key
 - cache_kind text not null
 - cache_key text not null
@@ -391,10 +434,12 @@ Indexes:
 - Collection: storage.qdrant.collection
 - Dense vector: named `dense` with size storage.qdrant.vector_dim (cosine distance).
 - Sparse vector: named `bm25` with `idf` modifier and model `qdrant/bm25`.
-- Point id: note_id (string UUID)
+- Point id: chunk_id (string UUID)
 - Payload fields (minimum):
+  note_id, chunk_id, chunk_index, start_offset, end_offset,
   tenant_id, project_id, agent_id, scope, type, key, status,
   updated_at, expires_at, importance, confidence, embedding_version
+- Chunk text is not stored in Qdrant payload.
 
 IMPORTANT:
 - Qdrant may be stale. Postgres is authoritative.
@@ -546,12 +591,14 @@ Worker rules:
 - For UPSERT:
   - Fetch memory_notes row.
   - If not active or expired -> mark outbox DONE and skip indexing.
-  - Ensure note_embeddings vec is updated for the current embedding_version:
-    - Call embedding API and upsert note_embeddings for (note_id, embedding_version).
-  - Upsert Qdrant point with vec and payload.
+  - Split note text into sentence-aware chunks.
+  - Upsert memory_note_chunks rows for (note_id, chunk_index).
+  - Call embedding API for chunk text and upsert note_chunk_embeddings.
+  - Compute pooled note vector by mean pooling chunk embeddings and upsert note_embeddings.
+  - Upsert one Qdrant point per chunk with dense and bm25 vectors plus payload.
   - Mark outbox DONE.
 - For DELETE:
-  - Delete Qdrant point (ignore not found).
+  - Delete Qdrant points by note_id filter (ignore not found).
   - Mark DONE.
 - Failures:
   - status = FAILED, attempts += 1, available_at = now + backoff(attempts).
@@ -612,30 +659,32 @@ Steps:
    tenant_id, project_id, status = active (best-effort), and scope filters:
    - If scope = agent_private, require agent_id match.
    - Otherwise scope in allowed_scopes.
-7) Fuse all query results with RRF to produce candidate_ids.
+7) Fuse all query results with RRF to produce candidate chunk_ids.
 8) Prefilter (optional): if max_candidates > 0 and max_candidates < candidate_k,
    keep only top max_candidates by fusion score.
-9) Fetch authoritative notes from Postgres by ids and re-apply filters:
+9) Fetch authoritative notes from Postgres by note_id and re-apply filters:
    status = active, not expired, scope allowed, and if scope = agent_private then agent_id must match.
-10) Rerank once using the original query, with cache support:
+10) Fetch chunk metadata for candidate chunks and immediate neighbors from memory_note_chunks.
+11) Stitch snippets from chunk text (chunk + neighbors).
+12) Rerank once using the original query, with cache support:
     - Build a rerank cache key from: query (trimmed), provider_id, model, rerank_version,
-      and the candidate signature [(note_id, updated_at)...].
+      and the candidate signature [(chunk_id, note_updated_at)...].
     - If search.cache.enabled and a cache entry exists that matches the candidate signature,
       reuse cached scores.
     - On cache miss, call the rerank provider:
-      scores = rerank(original_query, docs = [note.text ...]).
+      scores = rerank(original_query, docs = [snippet ...]).
     - If search.cache.enabled and payload size is within max_payload_bytes (when set),
       store the rerank scores with TTL = rerank_ttl_days.
-11) Tie-break:
+13) Tie-break:
     base = (1 + 0.6 * importance) * exp(-age_days / recency_tau_days)
     final = rerank_score + tie_breaker_weight * base
-12) Sort and take top_k.
-13) Update hits (optional, when record_hits is true):
-    hit_count++, last_hit_at, memory_hits insert.
-14) Build search trace payload with trace_id and per-item result_handle, then enqueue
+14) Aggregate by note using top-1 chunk score, then sort and take top_k.
+15) Update hits (optional, when record_hits is true):
+    hit_count++, last_hit_at, memory_hits insert with chunk_id.
+16) Build search trace payload with trace_id and per-item result_handle, then enqueue
     search_trace_outbox (best-effort; failures do not fail the search).
     - expires_at = now + search.explain.retention_days.
-15) Return results.
+17) Return results.
 
 Cache notes:
 - Cache key material is serialized as JSON and hashed with BLAKE3 (256-bit hex).
@@ -648,10 +697,10 @@ Endpoint (localhost only):
 POST /v1/admin/rebuild_qdrant
 
 Behavior:
-- Scan memory_notes where status = active and not expired (optional filters).
-- For each note:
-  - Load vec from note_embeddings (note_id, embedding_version).
-  - Upsert Qdrant point.
+- Scan memory_note_chunks joined to memory_notes where status = active and not expired.
+- For each chunk:
+  - Load vec from note_chunk_embeddings (chunk_id, embedding_version).
+  - Upsert Qdrant point with chunk vectors and payload.
 - Must not call the embedding API.
 
 Report:
@@ -731,10 +780,14 @@ Response:
     {
       "result_handle": "uuid",
       "note_id": "uuid",
+      "chunk_id": "uuid",
+      "chunk_index": 0,
+      "start_offset": 0,
+      "end_offset": 0,
+      "snippet": "...",
       "type": "...",
       "key": null,
       "scope": "...",
-      "text": "...",
       "importance": 0.0,
       "confidence": 0.0,
       "updated_at": "...",
@@ -780,6 +833,7 @@ Response:
   "item": {
     "result_handle": "uuid",
     "note_id": "uuid",
+    "chunk_id": "uuid",
     "rank": 1,
     "explain": {
       "retrieval_score": 0.0|null,
@@ -795,6 +849,25 @@ Response:
 }
 Notes:
 - If result_handle is unknown or the trace has not been persisted yet, return INVALID_REQUEST.
+
+GET /v1/memory/notes/{note_id}
+Response:
+{
+  "note_id": "uuid",
+  "tenant_id": "...",
+  "project_id": "...",
+  "agent_id": "...",
+  "scope": "...",
+  "type": "...",
+  "key": null,
+  "text": "...",
+  "importance": 0.0,
+  "confidence": 0.0,
+  "status": "...",
+  "updated_at": "...",
+  "expires_at": "...|null",
+  "source_ref": { ... }
+}
 
 GET /v1/memory/list?tenant_id=...&project_id=...&scope=...&status=...&type=...&agent_id=...
 Notes:
@@ -951,7 +1024,8 @@ D. Rebuild:
 - Drop Qdrant collection, recreate, call /admin/rebuild_qdrant.
 - Must succeed without calling embedding API.
 E. Source of truth vectors:
-- For every active note, note_embeddings row exists and vec dim matches config.
+- For every active chunk, note_chunk_embeddings row exists and vec dim matches config.
+- note_embeddings exists for active notes as derived pooled vectors.
 F. Idempotency:
 - add_note same payload twice -> second op = NONE.
 G. Outbox eventual consistency:

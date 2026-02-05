@@ -17,7 +17,7 @@ Note: Use the existing collection configured in your `elf.toml`. Do not create a
 
 ## Step 1: Prepare a dedicated integration config
 
-Create a dedicated config file for integration tests (for example, `tmp/elf.integration.toml`) and point it to your running services. Use `api_base` for provider endpoints.
+Create a dedicated config file for integration tests (for example, `tmp/elf.integration.toml`) and point it to your running services. If `tmp/elf.integration.toml` already exists at the repository root, reuse it and update the DSN and service URLs as needed. Use `api_base` for provider endpoints.
 
 ```toml
 [service]
@@ -91,6 +91,13 @@ max_note_chars          = 240
 max_notes_per_add_event = 3
 top_k                   = 12
 update_sim_threshold    = 0.85
+
+[chunking]
+enabled        = true
+max_tokens     = 512
+overlap_tokens = 128
+# If empty, uses providers.embedding.model.
+tokenizer_repo = ""
 
 [search.expansion]
 mode             = "dynamic"
