@@ -54,6 +54,7 @@ pub async fn delete_note_chunks(db: &Db, note_id: uuid::Uuid) -> Result<()> {
 	Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn insert_note_chunk(
 	db: &Db,
 	chunk_id: uuid::Uuid,

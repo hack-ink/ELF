@@ -16,21 +16,21 @@ repository  = "https://github.com/hack-ink/ELF"
 version     = "0.1.0"
 
 [workspace.dependencies]
-axum               = { version = "0.7" }
-blake3             = { version = "1.5" }
-clap               = { version = "4.5", features = ["derive"] }
-color-eyre         = { version = "0.6" }
-qdrant-client      = { version = "1.0" }
-reqwest            = { version = "0.12", features = ["json", "rustls-tls"] }
-serde              = { version = "1.0", features = ["derive"] }
-serde_json         = { version = "1.0" }
-sqlx               = { version = "0.8", features = ["json", "postgres", "runtime-tokio", "time", "tls-rustls", "uuid"] }
-time               = { version = "0.3", features = ["macros", "serde"] }
-tokio              = { version = "1.0", features = ["macros", "rt-multi-thread", "time"] }
-toml               = { version = "0.8" }
-tracing            = { version = "0.1" }
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-tokenizers         = { version = "0.20", features = ["http"] }
+axum                 = { version = "0.7" }
+blake3               = { version = "1.5" }
+clap                 = { version = "4.5", features = ["derive"] }
+color-eyre           = { version = "0.6" }
+qdrant-client        = { version = "1.0" }
+reqwest              = { version = "0.12", features = ["json", "rustls-tls"] }
+serde                = { version = "1.0", features = ["derive"] }
+serde_json           = { version = "1.0" }
+sqlx                 = { version = "0.8", features = ["json", "postgres", "runtime-tokio", "time", "tls-rustls", "uuid"] }
+time                 = { version = "0.3", features = ["macros", "serde"] }
+tokenizers           = { version = "0.20", features = ["http"] }
+tokio                = { version = "1.0", features = ["macros", "rt-multi-thread", "time"] }
+toml                 = { version = "0.8" }
+tracing              = { version = "0.1" }
+tracing-subscriber   = { version = "0.3", features = ["env-filter"] }
 unicode-segmentation = { version = "1.11" }
-uuid               = { version = "1.0", features = ["serde", "v4", "v5"] }
-vergen-gitcl       = { version = "9.1", features = ["cargo"] }
+uuid                 = { version = "1.0", features = ["serde", "v4", "v5"] }
+vergen-gitcl         = { version = "9.1", features = ["cargo"] }

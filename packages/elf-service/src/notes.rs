@@ -36,9 +36,7 @@ impl ElfService {
 				.fetch_optional(&self.db.pool)
 				.await?;
 		let Some(note) = row else {
-			return Err(ServiceError::InvalidRequest {
-				message: "Unknown note_id.".to_string(),
-			});
+			return Err(ServiceError::InvalidRequest { message: "Unknown note_id.".to_string() });
 		};
 		Ok(NoteFetchResponse {
 			note_id: note.note_id,

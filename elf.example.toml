@@ -88,12 +88,12 @@ min_top_score  = 0.12
 max_candidates = 0
 
 [search.cache]
-enabled = true
+enabled            = true
 expansion_ttl_days = 7
-rerank_ttl_days = 7
-max_payload_bytes = 262144
-expansion_version = "v1"
-rerank_version = "v1"
+expansion_version  = "v1"
+max_payload_bytes  = 262144
+rerank_ttl_days    = 7
+rerank_version     = "v1"
 
 [search.explain]
 retention_days = 7
