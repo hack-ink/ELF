@@ -658,7 +658,7 @@ impl ElfService {
 			search = search.add_prefetch(dense_prefetch).add_prefetch(bm25_prefetch);
 		}
 
-		let search = search.query(Fusion::Rrf).limit(candidate_k as u64);
+		let search = search.with_payload(true).query(Fusion::Rrf).limit(candidate_k as u64);
 		let response = self
 			.qdrant
 			.client
@@ -1427,11 +1427,12 @@ async fn fetch_chunks_by_pair(
 	let mut separated = builder.separated(" OR ");
 	for (note_id, chunk_index) in pairs {
 		separated.push("(");
-		separated.push("note_id = ");
-		separated.push_bind(note_id);
-		separated.push(" AND chunk_index = ");
-		separated.push_bind(chunk_index);
-		separated.push(")");
+		separated
+			.push_unseparated("note_id = ")
+			.push_bind_unseparated(note_id)
+			.push_unseparated(" AND chunk_index = ")
+			.push_bind_unseparated(chunk_index)
+			.push_unseparated(")");
 	}
 	let query = builder.build_query_as();
 	let rows = query.fetch_all(pool).await?;
