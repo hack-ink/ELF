@@ -27,3 +27,4 @@ unicode-segmentation = { workspace = true }
 
 elf-chunking = { workspace = true }
 elf-testkit  = { workspace = true }
+elf-worker   = { workspace = true }
