@@ -1,6 +1,7 @@
 # Integration Testing (Memory Retrieval)
 
-Purpose: Provide a repeatable end-to-end test for memory ingestion, indexing, and retrieval.
+Purpose: Provide a repeatable E2E test for memory ingestion, indexing, and retrieval.
+Name: This flow is the E2E test in `docs/guide/testing.md`.
 
 ## When to use
 
