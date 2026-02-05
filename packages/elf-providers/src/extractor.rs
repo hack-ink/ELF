@@ -1,14 +1,13 @@
-use color_eyre::{Result, eyre::eyre};
+// std
+use std::time::Duration as StdDuration;
 
-use crate::auth_headers;
+// crates.io
+use color_eyre::{Result, eyre};
+use reqwest::Client;
+use serde_json::Value;
 
-pub async fn extract(
-	cfg: &elf_config::LlmProviderConfig,
-	messages: &[serde_json::Value],
-) -> Result<serde_json::Value> {
-	let client = reqwest::Client::builder()
-		.timeout(std::time::Duration::from_millis(cfg.timeout_ms))
-		.build()?;
+pub async fn extract(cfg: &elf_config::LlmProviderConfig, messages: &[Value]) -> Result<Value> {
+	let client = Client::builder().timeout(StdDuration::from_millis(cfg.timeout_ms)).build()?;
 	let url = format!("{}{}", cfg.api_base, cfg.path);
 
 	for _ in 0..3 {
@@ -19,20 +18,20 @@ pub async fn extract(
 		});
 		let res = client
 			.post(&url)
-			.headers(auth_headers(&cfg.api_key, &cfg.default_headers)?)
+			.headers(crate::auth_headers(&cfg.api_key, &cfg.default_headers)?)
 			.json(&body)
 			.send()
 			.await?;
-		let json: serde_json::Value = res.error_for_status()?.json().await?;
+		let json: Value = res.error_for_status()?.json().await?;
 		if let Ok(parsed) = parse_extractor_json(json) {
 			return Ok(parsed);
 		}
 	}
 
-	Err(eyre!("Extractor response is not valid JSON."))
+	Err(eyre::eyre!("Extractor response is not valid JSON."))
 }
 
-fn parse_extractor_json(json: serde_json::Value) -> Result<serde_json::Value> {
+fn parse_extractor_json(json: Value) -> Result<Value> {
 	if let Some(content) = json
 		.get("choices")
 		.and_then(|v| v.as_array())
@@ -41,8 +40,8 @@ fn parse_extractor_json(json: serde_json::Value) -> Result<serde_json::Value> {
 		.and_then(|msg| msg.get("content"))
 		.and_then(|c| c.as_str())
 	{
-		let parsed: serde_json::Value = serde_json::from_str(content)
-			.map_err(|_| eyre!("Extractor content is not valid JSON."))?;
+		let parsed: Value = serde_json::from_str(content)
+			.map_err(|_| eyre::eyre!("Extractor content is not valid JSON."))?;
 		return Ok(parsed);
 	}
 
@@ -50,12 +49,12 @@ fn parse_extractor_json(json: serde_json::Value) -> Result<serde_json::Value> {
 		return Ok(json);
 	}
 
-	Err(eyre!("Extractor response is missing JSON content."))
+	Err(eyre::eyre!("Extractor response is missing JSON content."))
 }
 
 #[cfg(test)]
 mod tests {
-	use super::parse_extractor_json;
+	use super::*;
 
 	#[test]
 	fn parses_choice_content_json() {

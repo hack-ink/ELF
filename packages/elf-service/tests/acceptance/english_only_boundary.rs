@@ -1,5 +1,13 @@
-use std::sync::Arc;
+// std
+use std::sync::{Arc, atomic::AtomicUsize};
 
+// crates.io
+use elf_service::{
+	AddEventRequest, AddNoteInput, AddNoteRequest, ElfService, EventMessage, Providers,
+	SearchRequest, ServiceError,
+};
+
+// self
 use super::{
 	SpyExtractor, StubEmbedding, StubRerank, build_service, test_config, test_db, test_qdrant_url,
 };
@@ -21,12 +29,12 @@ async fn rejects_cjk_in_add_note() {
 		return;
 	};
 
-	let request = elf_service::AddNoteRequest {
+	let request = AddNoteRequest {
 		tenant_id: "t".to_string(),
 		project_id: "p".to_string(),
 		agent_id: "a".to_string(),
 		scope: "agent_private".to_string(),
-		notes: vec![elf_service::AddNoteInput {
+		notes: vec![AddNoteInput {
 			note_type: "fact".to_string(),
 			key: None,
 			text: "你好".to_string(),
@@ -39,7 +47,7 @@ async fn rejects_cjk_in_add_note() {
 
 	let result = service.add_note(request).await;
 	match result {
-		Err(elf_service::ServiceError::NonEnglishInput { field }) => {
+		Err(ServiceError::NonEnglishInput { field }) => {
 			assert_eq!(field, "$.notes[0].text");
 		},
 		other => panic!("Expected NonEnglishInput, got {other:?}"),
@@ -64,13 +72,13 @@ async fn rejects_cjk_in_add_event() {
 		return;
 	};
 
-	let request = elf_service::AddEventRequest {
+	let request = AddEventRequest {
 		tenant_id: "t".to_string(),
 		project_id: "p".to_string(),
 		agent_id: "a".to_string(),
 		scope: Some("agent_private".to_string()),
 		dry_run: Some(true),
-		messages: vec![elf_service::EventMessage {
+		messages: vec![EventMessage {
 			role: "user".to_string(),
 			content: "こんにちは".to_string(),
 			ts: None,
@@ -80,7 +88,7 @@ async fn rejects_cjk_in_add_event() {
 
 	let result = service.add_event(request).await;
 	match result {
-		Err(elf_service::ServiceError::NonEnglishInput { field }) => {
+		Err(ServiceError::NonEnglishInput { field }) => {
 			assert_eq!(field, "$.messages[0].content");
 		},
 		other => panic!("Expected NonEnglishInput, got {other:?}"),
@@ -105,7 +113,7 @@ async fn rejects_cjk_in_search() {
 		return;
 	};
 
-	let request = elf_service::SearchRequest {
+	let request = SearchRequest {
 		tenant_id: "t".to_string(),
 		project_id: "p".to_string(),
 		agent_id: "a".to_string(),
@@ -118,7 +126,7 @@ async fn rejects_cjk_in_search() {
 
 	let result = service.search(request).await;
 	match result {
-		Err(elf_service::ServiceError::NonEnglishInput { field }) => {
+		Err(ServiceError::NonEnglishInput { field }) => {
 			assert_eq!(field, "$.query");
 		},
 		other => panic!("Expected NonEnglishInput, got {other:?}"),
@@ -130,12 +138,12 @@ async fn build_test_service(
 	dsn: String,
 	qdrant_url: String,
 	collection: String,
-) -> Option<elf_service::ElfService> {
+) -> Option<ElfService> {
 	let extractor = SpyExtractor {
-		calls: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+		calls: Arc::new(AtomicUsize::new(0)),
 		payload: serde_json::json!({ "notes": [] }),
 	};
-	let providers = elf_service::Providers::new(
+	let providers = Providers::new(
 		Arc::new(StubEmbedding { vector_dim: 3 }),
 		Arc::new(StubRerank),
 		Arc::new(extractor),

@@ -1,6 +1,10 @@
-use clap::Parser;
-
 pub mod server;
+
+// std
+use std::path::PathBuf;
+
+// crates.io
+use clap::Parser;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -10,7 +14,7 @@ pub mod server;
 )]
 pub struct Args {
 	#[arg(long, short = 'c', value_name = "FILE")]
-	pub config: std::path::PathBuf,
+	pub config: PathBuf,
 }
 
 pub async fn run(args: Args) -> color_eyre::Result<()> {

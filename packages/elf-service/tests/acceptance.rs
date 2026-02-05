@@ -1,17 +1,40 @@
-use elf_service::{EmbeddingProvider, ExtractorProvider, Providers, RerankProvider};
-use std::sync::{
-	Arc,
-	atomic::{AtomicUsize, Ordering},
+mod chunking {
+	pub use elf_chunking::ChunkingConfig;
+}
+
+#[path = "acceptance/add_note_no_llm.rs"] mod add_note_no_llm;
+#[path = "acceptance/chunk_search.rs"] mod chunk_search;
+#[path = "acceptance/english_only_boundary.rs"] mod english_only_boundary;
+#[path = "acceptance/evidence_binding.rs"] mod evidence_binding;
+#[path = "acceptance/idempotency.rs"] mod idempotency;
+#[path = "acceptance/outbox_eventual_consistency.rs"] mod outbox_eventual_consistency;
+#[path = "acceptance/rebuild_qdrant.rs"] mod rebuild_qdrant;
+#[path = "acceptance/sot_vectors.rs"] mod sot_vectors;
+
+// std
+use std::{
+	env,
+	sync::{
+		Arc,
+		atomic::{AtomicUsize, Ordering},
+	},
 };
 
+// crates.io
+use serde_json::{Map, Value};
+
+// self
+use elf_service::{ElfService, EmbeddingProvider, ExtractorProvider, Providers, RerankProvider};
+use elf_storage::{db::Db, qdrant::QdrantStore};
+use elf_testkit::TestDatabase;
+
 pub fn test_qdrant_url() -> Option<String> {
-	std::env::var("ELF_QDRANT_URL").ok()
+	env::var("ELF_QDRANT_URL").ok()
 }
 
 pub async fn test_db() -> Option<elf_testkit::TestDatabase> {
 	let base_dsn = elf_testkit::env_dsn()?;
-	let db =
-		elf_testkit::TestDatabase::new(&base_dsn).await.expect("Failed to create test database.");
+	let db = TestDatabase::new(&base_dsn).await.expect("Failed to create test database.");
 	Some(db)
 }
 
@@ -125,11 +148,11 @@ pub fn test_config(
 pub async fn build_service(
 	cfg: elf_config::Config,
 	providers: Providers,
-) -> color_eyre::Result<elf_service::ElfService> {
-	let db = elf_storage::db::Db::connect(&cfg.storage.postgres).await?;
+) -> color_eyre::Result<ElfService> {
+	let db = Db::connect(&cfg.storage.postgres).await?;
 	db.ensure_schema(cfg.storage.qdrant.vector_dim).await?;
-	let qdrant = elf_storage::qdrant::QdrantStore::new(&cfg.storage.qdrant)?;
-	Ok(elf_service::ElfService::with_providers(cfg, db, qdrant, providers))
+	let qdrant = QdrantStore::new(&cfg.storage.qdrant)?;
+	Ok(ElfService::with_providers(cfg, db, qdrant, providers))
 }
 
 pub async fn reset_db(pool: &sqlx::PgPool) -> color_eyre::Result<()> {
@@ -193,15 +216,15 @@ impl RerankProvider for StubRerank {
 
 pub struct SpyExtractor {
 	pub calls: Arc<AtomicUsize>,
-	pub payload: serde_json::Value,
+	pub payload: Value,
 }
 
 impl ExtractorProvider for SpyExtractor {
 	fn extract<'a>(
 		&'a self,
 		_cfg: &'a elf_config::LlmProviderConfig,
-		_messages: &'a [serde_json::Value],
-	) -> elf_service::BoxFuture<'a, color_eyre::Result<serde_json::Value>> {
+		_messages: &'a [Value],
+	) -> elf_service::BoxFuture<'a, color_eyre::Result<Value>> {
 		let payload = self.payload.clone();
 		self.calls.fetch_add(1, Ordering::SeqCst);
 		Box::pin(async move { Ok(payload) })
@@ -217,7 +240,7 @@ pub fn dummy_embedding_provider() -> elf_config::EmbeddingProviderConfig {
 		model: "test".to_string(),
 		dimensions: 3,
 		timeout_ms: 1000,
-		default_headers: serde_json::Map::new(),
+		default_headers: Map::new(),
 	}
 }
 
@@ -229,7 +252,7 @@ pub fn dummy_provider() -> elf_config::ProviderConfig {
 		path: "/".to_string(),
 		model: "test".to_string(),
 		timeout_ms: 1000,
-		default_headers: serde_json::Map::new(),
+		default_headers: Map::new(),
 	}
 }
 
@@ -242,15 +265,6 @@ pub fn dummy_llm_provider() -> elf_config::LlmProviderConfig {
 		model: "test".to_string(),
 		temperature: 0.1,
 		timeout_ms: 1000,
-		default_headers: serde_json::Map::new(),
+		default_headers: Map::new(),
 	}
 }
-
-mod add_note_no_llm;
-mod chunk_search;
-mod english_only_boundary;
-mod evidence_binding;
-mod idempotency;
-mod outbox_eventual_consistency;
-mod rebuild_qdrant;
-mod sot_vectors;

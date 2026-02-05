@@ -1,16 +1,21 @@
-use elf_domain::{cjk::contains_cjk, evidence::evidence_matches, ttl::compute_expires_at};
+// crates.io
+use serde_json::Map;
+use time::OffsetDateTime;
+
+// self
+use elf_domain::{cjk, evidence, ttl};
 
 #[test]
 fn detects_cjk() {
-	assert!(contains_cjk("\u{4F60}\u{597D}"));
-	assert!(!contains_cjk("hello"));
+	assert!(cjk::contains_cjk("\u{4F60}\u{597D}"));
+	assert!(!cjk::contains_cjk("hello"));
 }
 
 #[test]
 fn evidence_requires_substring() {
 	let messages = vec!["Hello world".to_string()];
-	assert!(evidence_matches(&messages, 0, "world"));
-	assert!(!evidence_matches(&messages, 0, "missing"));
+	assert!(evidence::evidence_matches(&messages, 0, "world"));
+	assert!(!evidence::evidence_matches(&messages, 0, "missing"));
 }
 
 #[test]
@@ -111,8 +116,8 @@ fn computes_ttl_from_defaults() {
 		},
 	};
 
-	let now = time::OffsetDateTime::now_utc();
-	let expires = compute_expires_at(None, "plan", &cfg, now).expect("TTL missing");
+	let now = OffsetDateTime::now_utc();
+	let expires = ttl::compute_expires_at(None, "plan", &cfg, now).expect("TTL missing");
 	assert!(expires > now);
 }
 
@@ -125,7 +130,7 @@ fn dummy_embedding_provider() -> elf_config::EmbeddingProviderConfig {
 		model: "m".to_string(),
 		dimensions: 3,
 		timeout_ms: 1000,
-		default_headers: serde_json::Map::new(),
+		default_headers: Map::new(),
 	}
 }
 
@@ -137,7 +142,7 @@ fn dummy_provider() -> elf_config::ProviderConfig {
 		path: "/".to_string(),
 		model: "m".to_string(),
 		timeout_ms: 1000,
-		default_headers: serde_json::Map::new(),
+		default_headers: Map::new(),
 	}
 }
 
@@ -150,6 +155,6 @@ fn dummy_llm_provider() -> elf_config::LlmProviderConfig {
 		model: "m".to_string(),
 		temperature: 0.1,
 		timeout_ms: 1000,
-		default_headers: serde_json::Map::new(),
+		default_headers: Map::new(),
 	}
 }

@@ -1,9 +1,9 @@
+// std
 use std::{
+	env, fs,
 	path::PathBuf,
 	time::{SystemTime, UNIX_EPOCH},
 };
-
-use elf_config::validate;
 
 fn sample_toml(reject_cjk: bool) -> String {
 	sample_toml_with_cache(reject_cjk, 7, 7, true, "v1", "v1")
@@ -155,9 +155,9 @@ fn write_temp_config(payload: String) -> PathBuf {
 		.duration_since(UNIX_EPOCH)
 		.expect("System time must be valid.")
 		.as_nanos();
-	let mut path = std::env::temp_dir();
+	let mut path = env::temp_dir();
 	path.push(format!("elf_config_test_{nanos}.toml"));
-	std::fs::write(&path, payload).expect("Failed to write test config.");
+	fs::write(&path, payload).expect("Failed to write test config.");
 	path
 }
 
@@ -172,7 +172,7 @@ fn reject_cjk_must_be_true() {
 	let path = write_temp_config(payload);
 
 	let result = elf_config::load(&path);
-	std::fs::remove_file(&path).expect("Failed to remove test config.");
+	fs::remove_file(&path).expect("Failed to remove test config.");
 
 	let err = result.expect_err("Expected reject_cjk validation error.");
 	let message = err.to_string();
@@ -188,7 +188,7 @@ fn cache_ttl_must_be_positive() {
 	let path = write_temp_config(payload);
 
 	let result = elf_config::load(&path);
-	std::fs::remove_file(&path).expect("Failed to remove test config.");
+	fs::remove_file(&path).expect("Failed to remove test config.");
 
 	let err = result.expect_err("Expected cache TTL validation error.");
 	assert!(
@@ -201,18 +201,18 @@ fn cache_ttl_must_be_positive() {
 fn chunking_config_requires_valid_bounds() {
 	let mut cfg = base_config();
 	cfg.chunking.max_tokens = 0;
-	assert!(validate(&cfg).is_err());
+	assert!(elf_config::validate(&cfg).is_err());
 
 	cfg = base_config();
 	cfg.chunking.overlap_tokens = cfg.chunking.max_tokens;
-	assert!(validate(&cfg).is_err());
+	assert!(elf_config::validate(&cfg).is_err());
 }
 
 #[test]
 fn chunking_tokenizer_repo_can_inherit_from_embedding_model() {
 	let mut cfg = base_config();
 	cfg.chunking.tokenizer_repo = None;
-	assert!(validate(&cfg).is_ok());
+	assert!(elf_config::validate(&cfg).is_ok());
 }
 
 #[test]
@@ -221,7 +221,7 @@ fn chunking_tokenizer_repo_empty_string_normalizes_to_none() {
 	let path = write_temp_config(payload);
 
 	let cfg = elf_config::load(&path).expect("Expected config to load.");
-	std::fs::remove_file(&path).expect("Failed to remove test config.");
+	fs::remove_file(&path).expect("Failed to remove test config.");
 
 	assert!(cfg.chunking.tokenizer_repo.is_none());
 }

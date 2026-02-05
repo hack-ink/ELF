@@ -1,3 +1,4 @@
+// crates.io
 use color_eyre::Result;
 use qdrant_client::Qdrant;
 

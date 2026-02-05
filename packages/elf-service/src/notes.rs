@@ -1,15 +1,21 @@
+// crates.io
+use serde_json::Value;
+use time::OffsetDateTime;
+use uuid::Uuid;
+
+// self
 use elf_storage::models::MemoryNote;
 
 use crate::{ElfService, ServiceError, ServiceResult};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct NoteFetchRequest {
-	pub note_id: uuid::Uuid,
+	pub note_id: Uuid,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct NoteFetchResponse {
-	pub note_id: uuid::Uuid,
+	pub note_id: Uuid,
 	pub tenant_id: String,
 	pub project_id: String,
 	pub agent_id: String,
@@ -22,10 +28,10 @@ pub struct NoteFetchResponse {
 	pub confidence: f32,
 	pub status: String,
 	#[serde(with = "crate::time_serde")]
-	pub updated_at: time::OffsetDateTime,
+	pub updated_at: OffsetDateTime,
 	#[serde(with = "crate::time_serde::option")]
-	pub expires_at: Option<time::OffsetDateTime>,
-	pub source_ref: serde_json::Value,
+	pub expires_at: Option<OffsetDateTime>,
+	pub source_ref: Value,
 }
 
 impl ElfService {

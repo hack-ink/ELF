@@ -1,30 +1,44 @@
+// std
+use std::sync::{Arc, atomic::AtomicUsize};
+
+// crates.io
+use time::OffsetDateTime;
+use uuid::Uuid;
+
+// self
+use super::{
+	SpyExtractor, StubEmbedding, StubRerank, build_service, reset_db, test_config, test_db,
+	test_qdrant_url,
+};
+use elf_service::Providers;
+
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
 async fn active_notes_have_vectors() {
-	let Some(test_db) = super::test_db().await else {
+	let Some(test_db) = test_db().await else {
 		eprintln!("Skipping active_notes_have_vectors; set ELF_PG_DSN to run this test.");
 		return;
 	};
-	let Some(qdrant_url) = super::test_qdrant_url() else {
+	let Some(qdrant_url) = test_qdrant_url() else {
 		eprintln!("Skipping active_notes_have_vectors; set ELF_QDRANT_URL to run this test.");
 		return;
 	};
 
 	let collection = test_db.collection_name("elf_acceptance");
-	let cfg = super::test_config(test_db.dsn().to_string(), qdrant_url, 3, collection);
-	let providers = elf_service::Providers::new(
-		std::sync::Arc::new(super::StubEmbedding { vector_dim: 3 }),
-		std::sync::Arc::new(super::StubRerank),
-		std::sync::Arc::new(super::SpyExtractor {
-			calls: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+	let cfg = test_config(test_db.dsn().to_string(), qdrant_url, 3, collection);
+	let providers = Providers::new(
+		Arc::new(StubEmbedding { vector_dim: 3 }),
+		Arc::new(StubRerank),
+		Arc::new(SpyExtractor {
+			calls: Arc::new(AtomicUsize::new(0)),
 			payload: serde_json::json!({ "notes": [] }),
 		}),
 	);
-	let service = super::build_service(cfg, providers).await.expect("Failed to build service.");
-	super::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
+	let service = build_service(cfg, providers).await.expect("Failed to build service.");
+	reset_db(&service.db.pool).await.expect("Failed to reset test database.");
 
-	let note_id = uuid::Uuid::new_v4();
-	let now = time::OffsetDateTime::now_utc();
+	let note_id = Uuid::new_v4();
+	let now = OffsetDateTime::now_utc();
 	let embedding_version = format!(
 		"{}:{}:{}",
 		service.cfg.providers.embedding.provider_id,
@@ -50,11 +64,11 @@ async fn active_notes_have_vectors() {
     .bind("active")
     .bind(now)
     .bind(now)
-    .bind::<Option<time::OffsetDateTime>>(None)
+    .bind::<Option<OffsetDateTime>>(None)
     .bind(&embedding_version)
     .bind(serde_json::json!({}))
     .bind(0_i64)
-    .bind::<Option<time::OffsetDateTime>>(None)
+    .bind::<Option<OffsetDateTime>>(None)
     .execute(&service.db.pool)
     .await
     .expect("Failed to insert memory note.");
@@ -76,10 +90,10 @@ async fn active_notes_have_vectors() {
          LEFT JOIN note_embeddings e ON n.note_id = e.note_id AND n.embedding_version = e.embedding_version \
          WHERE n.note_id = $1 AND e.note_id IS NULL",
     )
-    .bind(note_id)
-    .fetch_one(&service.db.pool)
-    .await
-    .expect("Failed to query missing embeddings.");
+	.bind(note_id)
+	.fetch_one(&service.db.pool)
+	.await
+	.expect("Failed to query missing embeddings.");
 	assert_eq!(missing, 0);
 
 	let dim: i32 = sqlx::query_scalar(

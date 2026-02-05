@@ -1,15 +1,15 @@
-use elf_domain::{
-	cjk::contains_cjk,
-	evidence::evidence_matches,
-	ttl::compute_expires_at,
-	writegate::{NoteInput, writegate},
-};
+// crates.io
+use serde_json::Value;
+use time::OffsetDateTime;
+use uuid::Uuid;
+
+// self
+use elf_domain::{cjk, evidence, ttl, writegate};
 use elf_storage::models::MemoryNote;
 
 use crate::{
 	ElfService, InsertVersionArgs, NoteOp, REJECT_EVIDENCE_MISMATCH, ResolveUpdateArgs,
-	ServiceError, ServiceResult, UpdateDecision, embedding_version, enqueue_outbox_tx,
-	insert_version, note_snapshot, resolve_update, writegate_reason_code,
+	ServiceError, ServiceResult, UpdateDecision,
 };
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -32,7 +32,7 @@ pub struct AddEventRequest {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AddEventResult {
-	pub note_id: Option<uuid::Uuid>,
+	pub note_id: Option<Uuid>,
 	pub op: NoteOp,
 	pub reason_code: Option<String>,
 	pub reason: Option<String>,
@@ -40,7 +40,7 @@ pub struct AddEventResult {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AddEventResponse {
-	pub extracted: serde_json::Value,
+	pub extracted: Value,
 	pub results: Vec<AddEventResult>,
 }
 
@@ -93,7 +93,7 @@ impl ElfService {
 		}
 
 		for (idx, msg) in req.messages.iter().enumerate() {
-			if contains_cjk(&msg.content) {
+			if cjk::contains_cjk(&msg.content) {
 				return Err(ServiceError::NonEnglishInput {
 					field: format!("$.messages[{idx}].content"),
 				});
@@ -127,8 +127,8 @@ impl ElfService {
 				message: "Failed to serialize extracted notes.".to_string(),
 			})?;
 
-		let now = time::OffsetDateTime::now_utc();
-		let embed_version = embedding_version(&self.cfg);
+		let now = OffsetDateTime::now_utc();
+		let embed_version = crate::embedding_version(&self.cfg);
 		let dry_run = req.dry_run.unwrap_or(false);
 		let mut results = Vec::with_capacity(extracted.notes.len());
 		let message_texts: Vec<String> = req.messages.iter().map(|m| m.content.clone()).collect();
@@ -161,7 +161,7 @@ impl ElfService {
 					evidence_ok = false;
 					break;
 				}
-				if !evidence_matches(&message_texts, quote.message_index, &quote.quote) {
+				if !evidence::evidence_matches(&message_texts, quote.message_index, &quote.quote) {
 					evidence_ok = false;
 					break;
 				}
@@ -177,24 +177,24 @@ impl ElfService {
 				continue;
 			}
 
-			let gate_input = NoteInput {
+			let gate_input = writegate::NoteInput {
 				note_type: note_type.clone(),
 				scope: scope.clone(),
 				text: text.clone(),
 			};
-			if let Err(code) = writegate(&gate_input, &self.cfg) {
+			if let Err(code) = writegate::writegate(&gate_input, &self.cfg) {
 				results.push(AddEventResult {
 					note_id: None,
 					op: NoteOp::Rejected,
-					reason_code: Some(writegate_reason_code(code).to_string()),
+					reason_code: Some(crate::writegate_reason_code(code).to_string()),
 					reason: note.reason.clone(),
 				});
 				continue;
 			}
 
-			let expires_at = compute_expires_at(ttl_days, &note_type, &self.cfg, now);
+			let expires_at = ttl::compute_expires_at(ttl_days, &note_type, &self.cfg, now);
 			let mut tx = self.db.pool.begin().await?;
-			let decision = resolve_update(
+			let decision = crate::resolve_update(
 				&mut tx,
 				ResolveUpdateArgs {
 					cfg: &self.cfg,
@@ -281,20 +281,20 @@ impl ElfService {
                     .execute(&mut *tx)
                     .await?;
 
-					insert_version(
+					crate::insert_version(
 						&mut tx,
 						InsertVersionArgs {
 							note_id: memory_note.note_id,
 							op: "ADD",
 							prev_snapshot: None,
-							new_snapshot: Some(note_snapshot(&memory_note)),
+							new_snapshot: Some(crate::note_snapshot(&memory_note)),
 							reason: "add_event",
 							actor: "add_event",
 							ts: now,
 						},
 					)
 					.await?;
-					enqueue_outbox_tx(
+					crate::enqueue_outbox_tx(
 						&mut tx,
 						memory_note.note_id,
 						"UPSERT",
@@ -317,7 +317,7 @@ impl ElfService {
 							.bind(note_id)
 							.fetch_one(&mut *tx)
 							.await?;
-					let prev_snapshot = note_snapshot(&existing);
+					let prev_snapshot = crate::note_snapshot(&existing);
 
 					existing.text = text.clone();
 					existing.importance = importance;
@@ -339,20 +339,20 @@ impl ElfService {
                     .execute(&mut *tx)
                     .await?;
 
-					insert_version(
+					crate::insert_version(
 						&mut tx,
 						InsertVersionArgs {
 							note_id: existing.note_id,
 							op: "UPDATE",
 							prev_snapshot: Some(prev_snapshot),
-							new_snapshot: Some(note_snapshot(&existing)),
+							new_snapshot: Some(crate::note_snapshot(&existing)),
 							reason: "add_event",
 							actor: "add_event",
 							ts: now,
 						},
 					)
 					.await?;
-					enqueue_outbox_tx(
+					crate::enqueue_outbox_tx(
 						&mut tx,
 						existing.note_id,
 						"UPSERT",
@@ -389,7 +389,7 @@ fn build_extractor_messages(
 	messages: &[EventMessage],
 	max_notes: u32,
 	max_note_chars: u32,
-) -> ServiceResult<Vec<serde_json::Value>> {
+) -> ServiceResult<Vec<Value>> {
 	let schema = serde_json::json!({
 		"notes": [
 			{

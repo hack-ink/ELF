@@ -1,8 +1,16 @@
+// std
+use std::{collections::HashSet, fs, path::PathBuf, time::Instant};
+
+// crates.io
 use clap::Parser;
+use color_eyre::eyre;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashSet, path::PathBuf, time::Instant};
 use tracing_subscriber::EnvFilter;
 use uuid::Uuid;
+
+// self
+use elf_service::ElfService;
+use elf_storage::{db::Db, qdrant::QdrantStore};
 
 #[derive(Debug, Parser)]
 #[command(
@@ -103,10 +111,10 @@ pub async fn run(args: Args) -> color_eyre::Result<()> {
 	let filter = EnvFilter::new(config.service.log_level.clone());
 	tracing_subscriber::fmt().with_env_filter(filter).init();
 
-	let db = elf_storage::db::Db::connect(&config.storage.postgres).await?;
+	let db = Db::connect(&config.storage.postgres).await?;
 	db.ensure_schema(config.storage.qdrant.vector_dim).await?;
-	let qdrant = elf_storage::qdrant::QdrantStore::new(&config.storage.qdrant)?;
-	let service = elf_service::ElfService::new(config, db, qdrant);
+	let qdrant = QdrantStore::new(&config.storage.qdrant)?;
+	let service = ElfService::new(config, db, qdrant);
 
 	let dataset = load_dataset(&args.dataset)?;
 	let defaults = dataset.defaults.clone().unwrap_or(EvalDefaults {
@@ -174,10 +182,10 @@ pub async fn run(args: Args) -> color_eyre::Result<()> {
 }
 
 fn load_dataset(path: &PathBuf) -> color_eyre::Result<EvalDataset> {
-	let raw = std::fs::read_to_string(path)?;
+	let raw = fs::read_to_string(path)?;
 	let dataset: EvalDataset = serde_json::from_str(&raw)?;
 	if dataset.queries.is_empty() {
-		return Err(color_eyre::eyre::eyre!("Dataset must include at least one query."));
+		return Err(eyre::eyre!("Dataset must include at least one query."));
 	}
 	Ok(dataset)
 }
@@ -197,27 +205,31 @@ fn merge_query(
 	index: usize,
 ) -> color_eyre::Result<MergedQuery> {
 	if query.expected_note_ids.is_empty() {
-		return Err(color_eyre::eyre::eyre!(
+		return Err(eyre::eyre!(
 			"Query at index {index} must include at least one expected_note_id."
 		));
 	}
 
-	let tenant_id =
-		query.tenant_id.clone().or_else(|| defaults.tenant_id.clone()).ok_or_else(|| {
-			color_eyre::eyre::eyre!("tenant_id is required for query at index {index}.")
-		})?;
-	let project_id =
-		query.project_id.clone().or_else(|| defaults.project_id.clone()).ok_or_else(|| {
-			color_eyre::eyre::eyre!("project_id is required for query at index {index}.")
-		})?;
-	let agent_id =
-		query.agent_id.clone().or_else(|| defaults.agent_id.clone()).ok_or_else(|| {
-			color_eyre::eyre::eyre!("agent_id is required for query at index {index}.")
-		})?;
-	let read_profile =
-		query.read_profile.clone().or_else(|| defaults.read_profile.clone()).ok_or_else(|| {
-			color_eyre::eyre::eyre!("read_profile is required for query at index {index}.")
-		})?;
+	let tenant_id = query
+		.tenant_id
+		.clone()
+		.or_else(|| defaults.tenant_id.clone())
+		.ok_or_else(|| eyre::eyre!("tenant_id is required for query at index {index}."))?;
+	let project_id = query
+		.project_id
+		.clone()
+		.or_else(|| defaults.project_id.clone())
+		.ok_or_else(|| eyre::eyre!("project_id is required for query at index {index}."))?;
+	let agent_id = query
+		.agent_id
+		.clone()
+		.or_else(|| defaults.agent_id.clone())
+		.ok_or_else(|| eyre::eyre!("agent_id is required for query at index {index}."))?;
+	let read_profile = query
+		.read_profile
+		.clone()
+		.or_else(|| defaults.read_profile.clone())
+		.ok_or_else(|| eyre::eyre!("read_profile is required for query at index {index}."))?;
 
 	let top_k = args.top_k.or(query.top_k).or(defaults.top_k).unwrap_or(cfg.memory.top_k).max(1);
 	let candidate_k = args
@@ -246,7 +258,10 @@ fn merge_query(
 	})
 }
 
-fn unique_ids<I: Iterator<Item = Uuid>>(iter: I) -> Vec<Uuid> {
+fn unique_ids<I>(iter: I) -> Vec<Uuid>
+where
+	I: Iterator<Item = Uuid>,
+{
 	let mut seen = HashSet::new();
 	let mut out = Vec::new();
 	for id in iter {

@@ -1,13 +1,23 @@
-use std::sync::{Arc, atomic::AtomicUsize};
+// std
+use std::sync::{
+	Arc,
+	atomic::{AtomicUsize, Ordering},
+};
 
+// crates.io
 use qdrant_client::qdrant::{
 	CreateCollectionBuilder, Distance, Modifier, SparseVectorParamsBuilder,
 	SparseVectorsConfigBuilder, VectorParamsBuilder, VectorsConfigBuilder,
 };
+use time::OffsetDateTime;
+use uuid::Uuid;
 
+// self
 use super::{
 	SpyEmbedding, SpyExtractor, StubRerank, build_service, test_config, test_db, test_qdrant_url,
 };
+use elf_service::Providers;
+use elf_storage::qdrant::{BM25_VECTOR_NAME, DENSE_VECTOR_NAME};
 
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
@@ -27,7 +37,7 @@ async fn rebuild_uses_postgres_vectors_only() {
 		calls: Arc::new(AtomicUsize::new(0)),
 		payload: serde_json::json!({ "notes": [] }),
 	};
-	let providers = elf_service::Providers::new(
+	let providers = Providers::new(
 		Arc::new(SpyEmbedding { vector_dim: 3, calls: embed_calls.clone() }),
 		Arc::new(StubRerank),
 		Arc::new(extractor),
@@ -40,13 +50,11 @@ async fn rebuild_uses_postgres_vectors_only() {
 
 	let _ = service.qdrant.client.delete_collection(service.qdrant.collection.clone()).await;
 	let mut vectors_config = VectorsConfigBuilder::default();
-	vectors_config.add_named_vector_params(
-		elf_storage::qdrant::DENSE_VECTOR_NAME,
-		VectorParamsBuilder::new(3, Distance::Cosine),
-	);
+	vectors_config
+		.add_named_vector_params(DENSE_VECTOR_NAME, VectorParamsBuilder::new(3, Distance::Cosine));
 	let mut sparse_vectors_config = SparseVectorsConfigBuilder::default();
 	sparse_vectors_config.add_named_vector_params(
-		elf_storage::qdrant::BM25_VECTOR_NAME,
+		BM25_VECTOR_NAME,
 		SparseVectorParamsBuilder::default().modifier(Modifier::Idf as i32),
 	);
 	service
@@ -60,8 +68,8 @@ async fn rebuild_uses_postgres_vectors_only() {
 		.await
 		.expect("Failed to create Qdrant collection.");
 
-	let note_id = uuid::Uuid::new_v4();
-	let now = time::OffsetDateTime::now_utc();
+	let note_id = Uuid::new_v4();
+	let now = OffsetDateTime::now_utc();
 	let embedding_version = format!(
 		"{}:{}:{}",
 		service.cfg.providers.embedding.provider_id,
@@ -87,16 +95,16 @@ async fn rebuild_uses_postgres_vectors_only() {
     .bind("active")
     .bind(now)
     .bind(now)
-    .bind::<Option<time::OffsetDateTime>>(None)
+    .bind::<Option<OffsetDateTime>>(None)
     .bind(&embedding_version)
     .bind(serde_json::json!({}))
 	.bind(0_i64)
-	.bind::<Option<time::OffsetDateTime>>(None)
+	.bind::<Option<OffsetDateTime>>(None)
 	.execute(&service.db.pool)
 	.await
 	.expect("Failed to insert memory note.");
 
-	let chunk_id = uuid::Uuid::new_v4();
+	let chunk_id = Uuid::new_v4();
 	let text = "Fact: Rebuild works.";
 	sqlx::query(
 		"INSERT INTO memory_note_chunks \
@@ -129,6 +137,6 @@ async fn rebuild_uses_postgres_vectors_only() {
 	let report = service.rebuild_qdrant().await.expect("Rebuild failed.");
 	assert_eq!(report.missing_vector_count, 0);
 	assert!(report.rebuilt_count >= 1);
-	assert_eq!(embed_calls.load(std::sync::atomic::Ordering::SeqCst), 0);
+	assert_eq!(embed_calls.load(Ordering::SeqCst), 0);
 	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }
