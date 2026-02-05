@@ -1,5 +1,3 @@
-#[path = "../../../../apps/elf-worker/src/worker.rs"] mod worker;
-
 use std::{
 	collections::HashMap,
 	future::IntoFuture,
@@ -30,6 +28,8 @@ use elf_storage::{
 	db::Db,
 	qdrant::{BM25_VECTOR_NAME, DENSE_VECTOR_NAME, QdrantStore},
 };
+
+use elf_worker::worker;
 
 #[derive(sqlx::FromRow)]
 struct OutboxRow {
@@ -122,7 +122,7 @@ async fn outbox_retries_to_done() {
 			timeout_ms: 1_000,
 			default_headers: Map::new(),
 		},
-		chunking: crate::chunking::ChunkingConfig { max_tokens: 64, overlap_tokens: 8 },
+		chunking: super::chunking::ChunkingConfig { max_tokens: 64, overlap_tokens: 8 },
 		tokenizer: {
 			let mut vocab = HashMap::new();
 			vocab.insert("<unk>".to_string(), 0);

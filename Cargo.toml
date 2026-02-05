@@ -46,3 +46,4 @@ elf-providers = { version = "0.1", path = "packages/elf-providers" }
 elf-service   = { version = "0.1", path = "packages/elf-service" }
 elf-storage   = { version = "0.1", path = "packages/elf-storage" }
 elf-testkit   = { version = "0.1", path = "packages/elf-testkit" }
+elf-worker    = { version = "0.1", path = "apps/elf-worker" }
