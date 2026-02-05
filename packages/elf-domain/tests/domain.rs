@@ -103,6 +103,12 @@ fn computes_ttl_from_defaults() {
 			evidence_max_quotes: 2,
 			evidence_max_quote_chars: 320,
 		},
+		chunking: elf_config::Chunking {
+			enabled: true,
+			max_tokens: 512,
+			overlap_tokens: 128,
+			tokenizer_repo: None,
+		},
 	};
 
 	let now = time::OffsetDateTime::now_utc();
