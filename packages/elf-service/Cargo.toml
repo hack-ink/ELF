@@ -22,3 +22,5 @@ uuid          = { workspace = true }
 axum        = { workspace = true }
 elf-testkit = { path = "../elf-testkit" }
 tokio       = { workspace = true }
+tokenizers  = { workspace = true }
+unicode-segmentation = { workspace = true }

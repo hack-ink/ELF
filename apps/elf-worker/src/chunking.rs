@@ -1,4 +1,5 @@
 use tokenizers::Tokenizer;
+use tracing::error;
 use unicode_segmentation::UnicodeSegmentation;
 
 #[derive(Debug, Clone)]
@@ -25,10 +26,13 @@ pub fn split_text(text: &str, cfg: &ChunkingConfig, tokenizer: &Tokenizer) -> Ve
 
 	for (idx, sentence) in sentences {
 		let candidate = format!("{}{}", current, sentence);
-		let token_count = tokenizer
-			.encode(candidate.as_str(), false)
-			.map(|encoding| encoding.len())
-			.unwrap_or(0);
+		let token_count = match tokenizer.encode(candidate.as_str(), false) {
+			Ok(encoding) => encoding.len(),
+			Err(err) => {
+				error!(error = %err, "Tokenizer failed to encode sentence candidate.");
+				0
+			},
+		};
 		if token_count as u32 > cfg.max_tokens && !current.is_empty() {
 			chunks.push(Chunk {
 				chunk_index,
@@ -62,11 +66,23 @@ fn overlap_tail(text: &str, overlap_tokens: u32, tokenizer: &Tokenizer) -> Strin
 	if overlap_tokens == 0 {
 		return String::new();
 	}
-	let encoding = tokenizer.encode(text, false).unwrap();
+	let encoding = match tokenizer.encode(text, false) {
+		Ok(encoding) => encoding,
+		Err(err) => {
+			error!(error = %err, "Tokenizer failed to encode overlap tail.");
+			return String::new();
+		},
+	};
 	let tokens = encoding.get_ids();
 	let start = tokens.len().saturating_sub(overlap_tokens as usize);
 	let tail_ids = &tokens[start..];
-	tokenizer.decode(tail_ids, true).unwrap_or_default()
+	match tokenizer.decode(tail_ids, true) {
+		Ok(decoded) => decoded,
+		Err(err) => {
+			error!(error = %err, "Tokenizer failed to decode overlap tail.");
+			String::new()
+		},
+	}
 }
 
 #[cfg(test)]

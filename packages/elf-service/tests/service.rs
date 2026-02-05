@@ -144,6 +144,12 @@ fn test_config() -> Config {
 			purge_deleted_after_days: 30,
 			purge_deprecated_after_days: 180,
 		},
+		chunking: elf_config::Chunking {
+			enabled: true,
+			max_tokens: 512,
+			overlap_tokens: 128,
+			tokenizer_repo: None,
+		},
 		security: elf_config::Security {
 			bind_localhost_only: true,
 			reject_cjk: true,
