@@ -112,6 +112,17 @@ async fn outbox_retries_to_done() {
 			timeout_ms: 1_000,
 			default_headers: serde_json::Map::new(),
 		},
+		chunking: crate::chunking::ChunkingConfig { max_tokens: 64, overlap_tokens: 8 },
+		tokenizer: {
+			let mut vocab = std::collections::HashMap::new();
+			vocab.insert("<unk>".to_string(), 0);
+			let model = tokenizers::models::wordlevel::WordLevel::builder()
+				.vocab(vocab)
+				.unk_token("<unk>".to_string())
+				.build()
+				.expect("Failed to build test tokenizer.");
+			tokenizers::Tokenizer::new(model)
+		},
 	};
 
 	let handle = tokio::spawn(async move {

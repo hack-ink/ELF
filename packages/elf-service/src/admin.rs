@@ -17,6 +17,11 @@ pub struct RebuildReport {
 
 #[derive(sqlx::FromRow)]
 struct RebuildRow {
+	chunk_id: uuid::Uuid,
+	chunk_index: i32,
+	start_offset: i32,
+	end_offset: i32,
+	chunk_text: String,
 	note_id: uuid::Uuid,
 	tenant_id: String,
 	project_id: String,
@@ -25,7 +30,6 @@ struct RebuildRow {
 	#[sqlx(rename = "type")]
 	note_type: String,
 	key: Option<String>,
-	text: String,
 	status: String,
 	updated_at: time::OffsetDateTime,
 	expires_at: Option<time::OffsetDateTime>,
@@ -39,17 +43,19 @@ impl ElfService {
 	pub async fn rebuild_qdrant(&self) -> ServiceResult<RebuildReport> {
 		let now = time::OffsetDateTime::now_utc();
 		let rows: Vec<RebuildRow> = sqlx::query_as(
-            "SELECT n.note_id, n.tenant_id, n.project_id, n.agent_id, n.scope, n.type, n.key, n.text, n.status, \
-             n.updated_at, n.expires_at, n.importance, n.confidence, n.embedding_version, \
+			"SELECT c.chunk_id, c.chunk_index, c.start_offset, c.end_offset, c.text AS chunk_text, \
+             n.note_id, n.tenant_id, n.project_id, n.agent_id, n.scope, n.type, n.key, n.status, \
+             n.updated_at, n.expires_at, n.importance, n.confidence, c.embedding_version, \
              e.vec::text AS vec_text \
-             FROM memory_notes n \
-             LEFT JOIN note_embeddings e \
-             ON n.note_id = e.note_id AND n.embedding_version = e.embedding_version \
+             FROM memory_note_chunks c \
+             JOIN memory_notes n ON n.note_id = c.note_id \
+             LEFT JOIN note_chunk_embeddings e \
+             ON e.chunk_id = c.chunk_id AND e.embedding_version = c.embedding_version \
              WHERE n.status = 'active' AND (n.expires_at IS NULL OR n.expires_at > $1)",
-        )
-        .bind(now)
-        .fetch_all(&self.db.pool)
-        .await?;
+		)
+		.bind(now)
+		.fetch_all(&self.db.pool)
+		.await?;
 
 		let mut rebuilt_count = 0u64;
 		let mut missing_vector_count = 0u64;
@@ -73,6 +79,11 @@ impl ElfService {
 			}
 
 			let mut payload = Payload::new();
+			payload.insert("note_id", row.note_id.to_string());
+			payload.insert("chunk_id", row.chunk_id.to_string());
+			payload.insert("chunk_index", serde_json::Value::from(row.chunk_index));
+			payload.insert("start_offset", serde_json::Value::from(row.start_offset));
+			payload.insert("end_offset", serde_json::Value::from(row.end_offset));
 			payload.insert("tenant_id", row.tenant_id);
 			payload.insert("project_id", row.project_id);
 			payload.insert("agent_id", row.agent_id);
@@ -98,9 +109,9 @@ impl ElfService {
 			vectors.insert(DENSE_VECTOR_NAME.to_string(), Vector::from(vec));
 			vectors.insert(
 				BM25_VECTOR_NAME.to_string(),
-				Vector::from(Document::new(row.text, BM25_MODEL)),
+				Vector::from(Document::new(row.chunk_text, BM25_MODEL)),
 			);
-			let point = PointStruct::new(row.note_id.to_string(), vectors, payload);
+			let point = PointStruct::new(row.chunk_id.to_string(), vectors, payload);
 			let result = self
 				.qdrant
 				.client

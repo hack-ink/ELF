@@ -932,8 +932,10 @@ dependencies = [
  "serde_json",
  "sqlx",
  "time",
+ "tokenizers",
  "tokio",
  "tracing",
+ "unicode-segmentation",
  "uuid",
 ]
 

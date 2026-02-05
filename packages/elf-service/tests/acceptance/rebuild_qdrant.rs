@@ -90,23 +90,41 @@ async fn rebuild_uses_postgres_vectors_only() {
     .bind::<Option<time::OffsetDateTime>>(None)
     .bind(&embedding_version)
     .bind(serde_json::json!({}))
-    .bind(0_i64)
-    .bind::<Option<time::OffsetDateTime>>(None)
-    .execute(&service.db.pool)
-    .await
-    .expect("Failed to insert memory note.");
+	.bind(0_i64)
+	.bind::<Option<time::OffsetDateTime>>(None)
+	.execute(&service.db.pool)
+	.await
+	.expect("Failed to insert memory note.");
+
+	let chunk_id = uuid::Uuid::new_v4();
+	let text = "Fact: Rebuild works.";
+	sqlx::query(
+		"INSERT INTO memory_note_chunks \
+         (chunk_id, note_id, chunk_index, start_offset, end_offset, text, embedding_version) \
+         VALUES ($1,$2,$3,$4,$5,$6,$7)",
+	)
+	.bind(chunk_id)
+	.bind(note_id)
+	.bind(0_i32)
+	.bind(0_i32)
+	.bind(text.len() as i32)
+	.bind(text)
+	.bind(&embedding_version)
+	.execute(&service.db.pool)
+	.await
+	.expect("Failed to insert chunk metadata.");
 
 	sqlx::query(
-		"INSERT INTO note_embeddings (note_id, embedding_version, embedding_dim, vec) \
+		"INSERT INTO note_chunk_embeddings (chunk_id, embedding_version, embedding_dim, vec) \
          VALUES ($1,$2,$3,$4::vector)",
 	)
-	.bind(note_id)
+	.bind(chunk_id)
 	.bind(&embedding_version)
 	.bind(3_i32)
 	.bind("[0,0,0]")
 	.execute(&service.db.pool)
 	.await
-	.expect("Failed to insert embedding.");
+	.expect("Failed to insert chunk embedding.");
 
 	let report = service.rebuild_qdrant().await.expect("Rebuild failed.");
 	assert_eq!(report.missing_vector_count, 0);

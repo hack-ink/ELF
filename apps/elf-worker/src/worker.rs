@@ -56,6 +56,8 @@ struct TraceRecord {
 struct TraceItemRecord {
 	item_id: uuid::Uuid,
 	note_id: uuid::Uuid,
+	#[serde(default)]
+	chunk_id: Option<uuid::Uuid>,
 	rank: u32,
 	retrieval_score: Option<f32>,
 	retrieval_rank: Option<u32>,
@@ -83,6 +85,7 @@ struct TraceOutboxJob {
 struct TraceItemInsert {
 	item_id: uuid::Uuid,
 	note_id: uuid::Uuid,
+	chunk_id: Option<uuid::Uuid>,
 	rank: i32,
 	retrieval_score: Option<f32>,
 	retrieval_rank: Option<i32>,
@@ -393,6 +396,7 @@ async fn handle_trace_job(db: &Db, job: &TraceOutboxJob) -> Result<()> {
 			inserts.push(TraceItemInsert {
 				item_id: item.item_id,
 				note_id: item.note_id,
+				chunk_id: item.chunk_id,
 				rank: item.rank as i32,
 				retrieval_score: item.retrieval_score,
 				retrieval_rank: item.retrieval_rank.map(|rank| rank as i32),
@@ -407,13 +411,14 @@ async fn handle_trace_job(db: &Db, job: &TraceOutboxJob) -> Result<()> {
 
 		let mut builder = sqlx::QueryBuilder::new(
 			"INSERT INTO search_trace_items \
-             (item_id, trace_id, note_id, rank, retrieval_score, retrieval_rank, rerank_score, \
+             (item_id, trace_id, note_id, chunk_id, rank, retrieval_score, retrieval_rank, rerank_score, \
               tie_breaker_score, final_score, boosts, matched_terms, matched_fields) ",
 		);
 		builder.push_values(inserts, |mut b, item| {
 			b.push_bind(item.item_id)
 				.push_bind(trace_id)
 				.push_bind(item.note_id)
+				.push_bind(item.chunk_id)
 				.push_bind(item.rank)
 				.push_bind(item.retrieval_score)
 				.push_bind(item.retrieval_rank)
@@ -756,7 +761,7 @@ fn to_std_duration(duration: Duration) -> std::time::Duration {
 
 #[cfg(test)]
 mod tests {
-	use super::mean_pool;
+	use super::*;
 
 	#[test]
 	fn pooled_vector_is_mean_of_chunks() {
