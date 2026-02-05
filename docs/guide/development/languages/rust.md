@@ -1,50 +1,53 @@
-# Rust Development and Style Guide
+# Rust Development and LLM-Friendly Style Guide
 
-These rules apply to Rust code and Rust development workflows in this repository.
-All comments and messages must also follow the Global Language Rules in `AGENTS.md`.
+This guide defines the Rust rules for this repository. It is optimized for LLM readability, deterministic diffs, and safe execution. All comments and messages must also follow the Global Language Rules in `AGENTS.md`.
 
 ## Scope
 
-These rules apply to Rust crates, binaries, and tooling in this repository, typically within directories that include a `Cargo.toml`.
-Do not apply them to non-Rust projects.
+These rules apply to Rust crates, binaries, and tooling in this repository. They do not apply to non-Rust projects.
 
-## Rule Keywords and Precedence
+## Rule Levels
 
-- MUST indicates a strict requirement.
-- SHOULD indicates a strong preference.
-- MAY indicates an optional choice.
-- Treat imperative statements without SHOULD or MAY as MUST.
-- `rustfmt` output is always the final authority for formatting.
+- Required: Must be followed. No exceptions without explicit approval.
+- Preferred: Strong default. Exceptions are allowed with a brief justification in code comments.
+- Optional: Suggestions that can be used when helpful.
+- Imperative statements without a label are Required.
+- `rustfmt` output is the final authority for formatting.
 
-## Development Rules
+## Decision Priorities
 
-### Tooling and Toolchain
+Use this priority order when trade-offs appear:
 
-- The Rust toolchain is pinned.
-- Do not modify `rust-toolchain.toml`, `.cargo/config.toml`, or `rustfmt.toml`.
+1. Correctness and safety.
+2. Deterministic behavior and reproducibility.
+3. LLM readability and auditability.
+4. Simplicity of implementation.
+5. Performance.
+
+## Tooling and Workflow (Required)
+
+- The Rust toolchain is pinned. Do not modify `rust-toolchain.toml`, `.cargo/config.toml`, or `.rustfmt.toml`.
 - Do not install, update, or override toolchains.
 - Do not invoke system package managers.
+- Use `cargo make` tasks when they are a good fit for formatting, linting, and testing.
 
-### Runtime Safety
+## Runtime Safety (Required)
 
 - Do not use `unwrap()` in non-test code.
-- `expect()` requires a clear message.
-- Never block inside async contexts.
+- `expect()` requires a clear, user-actionable message.
 
-### Time and TLS
+## Time and TLS (Required)
 
 - Use the `time` crate for all date and time types. Do not add `chrono`.
-- Prefer rustls for TLS. For SQLx, enable `tls-rustls`. For reqwest, enable `rustls-tls`. Only use native-tls when rustls is not supported.
+- Prefer rustls for TLS. Only use native-tls when rustls is not supported.
 
-## Style Rules
-
-### Indentation
+## Formatting and Layout (Required)
 
 - Use tabs (`\t`) for indentation.
 
-### Declaration Order
+### Module Item Order (Required)
 
-At module scope, order items as:
+At module scope, order items as follows:
 
 ```
 mod
@@ -60,210 +63,116 @@ impl
 fn
 ```
 
-Rules:
+Additional rules:
 
 - Within each group, place `pub` items before non-`pub` items.
 - Within the `fn` group at the same visibility, place non-`async` functions before `async` functions.
-- Any tests module, whether inline (`#[cfg(test)] mod tests { ... }`) or declared with `mod tests;`, MUST appear after all other items.
-- Inside `#[cfg(test)] mod tests`, you MUST use `use super::*;`.
+- Tests must be declared last, after all other items.
+- Inside `#[cfg(test)] mod tests`, you must use `use super::*;`.
 
-Example (illustrative):
+### File Structure (Required)
 
-```rust
-pub fn build_request() -> Request {
-	// ...
-}
+- Use a flat module structure. Do not create or keep `mod.rs`. If `mod.rs` exists, flatten it into `a.rs` and `a/xxx.rs` style files.
 
-pub async fn fetch_response() -> Response {
-	// ...
-}
-```
+## Imports and Paths (Required)
 
-### Imports and Headers
+Use only these import headers:
 
-Allowed `use` section headers and meanings:
-
-- `// std` (paths starting with `std::`).
-- `// crates.io` (third-party crates declared in `Cargo.toml`).
-- `// self` (current crate paths starting with `crate::` or `self::`).
+- `// std` for `std::`.
+- `// crates.io` for third-party crates.
+- `// self` for `crate::`, `self::`, `super::`, or workspace member crates.
 
 Rules:
 
-- Preserve existing groups. Do not invent new groups or add headers above non-import items.
-- Within each group, order imports lexicographically by full path text (ASCII order, case-sensitive).
-- Do not import functions directly; import the module and call `module::function(...)`.
-- Keep a single module qualifier in calls. For nested modules, import and alias so calls are `module::function(...)`, not `module::module::function(...)`.
+- Do not import functions directly. Use a single module qualifier for function or macro calls, such as `parent::function(...)`, unless the function or macro is defined in the same file.
 - If `crate::prelude::*` is imported, do not add redundant imports.
+- Avoid glob imports. In tests, prefer `use super::*;` when it is used. Otherwise, avoid glob imports except an existing prelude.
 
-### Module Layout (No mod.rs)
+## Types and `impl` Blocks (Required)
 
-Use a flat structure:
+- Use `Self` instead of the concrete type name in `impl` method signatures.
+- The first `impl` block must appear immediately after the type definition.
+- All `impl` blocks for a type must be contiguous.
+- Order `impl` blocks as: inherent, standard library traits, third-party traits, project traits.
 
-```
-src/foo.rs
-src/foo/bar.rs
-src/foo/baz.rs
-```
+## Generics and Trait Bounds (Required)
 
-Do not create or modify `mod.rs`.
+- All trait bounds must be in a `where` clause.
+- Inline trait bounds are not allowed.
+- You may use `impl Trait` in parameters or return positions.
 
-### Structs, Enums, and Impl Blocks
+## Error Handling (Required)
 
-For each type:
-
-1. The first `impl` block MUST appear immediately after the type definition.
-2. All `impl` blocks MUST be contiguous without blank lines between them.
-3. `impl` order MUST be:
-   1. Inherent `impl`.
-   2. Standard library traits.
-   3. Third-party traits.
-   4. Project or self traits.
-
-Inside `impl Type` blocks, you MUST use `Self` instead of the concrete type name when referring to the implementing type in method signatures (parameters and return types), including references, slices, and generic containers.
-
-Examples (illustrative):
-
-Allowed:
-
-```rust
-struct A;
-impl A {
-	fn new() -> Self {
-		Self
-	}
-
-	fn from_owned(value: Self) -> Self {
-		value
-	}
-
-	fn from_ref(value: &Self) -> &Self {
-		value
-	}
-
-	fn collect_all(values: &[Self]) -> Vec<Self> {
-		values.to_vec()
-	}
-}
-```
-
-Forbidden:
-
-```rust
-struct A;
-impl A {
-	fn new() -> A {
-		A
-	}
-
-	fn from_owned(value: A) -> A {
-		value
-	}
-
-	fn from_ref(value: &A) -> &A {
-		value
-	}
-
-	fn collect_all(values: &[A]) -> Vec<A> {
-		values.to_vec()
-	}
-}
-```
-
-### Generics and Trait Bounds
-
-- All bounds MUST go in a `where` clause.
-- Inline trait bounds MUST NOT be used.
-- You MAY use `impl Trait`.
-
-Allowed:
-
-```rust
-fn render<T>(value: T) -> String
-where
-	T: Display,
-{
-```
-
-Forbidden:
-
-```rust
-fn render<T: Display>(value: T) -> String {
-```
-
-### Logging Rules
-
-- Tracing macros MUST be fully qualified (for example, `tracing::info!`).
-- Tracing macros MUST NOT be imported.
-- Tracing calls MUST use structured fields for dynamic values such as identifiers, names, counts, statuses, sizes, durations, and errors.
-- You MUST NOT encode those values only in the message string.
-- Use a short, action-oriented message alongside structured fields.
-- Do not create temporary variables solely for logging.
-
-Allowed:
-
-```rust
-tracing::info!(user_id, org_id, "User logged in.");
-```
-
-Forbidden:
-
-```rust
-tracing::info!("User {user_id} logged in (org {org_id}).");
-```
-
-### Numeric Literals
-
-- When using a numeric type suffix, you MUST separate the value and suffix with a single underscore.
-- For decimal integer literals with more than three digits (ignoring the sign), you MUST insert an underscore every three digits from the right.
-
-Allowed:
-
-- `10_f64`.
-- `1_u32`.
-- `0_i64`.
-- `1_000`.
-- `10_000`.
-- `1_000_000`.
-
-Forbidden:
-
-- `10f64`.
-- `1u32`.
-- `0i64`.
-- `1000`.
-- `10000`.
-- `1000000`.
-
-### Error Wrapping
-
-- Add contextual messages at crate or module boundaries and keep the original error as the source.
+- Add context at crate or module boundaries and keep the original error as the source.
 - Use `#[error(transparent)]` only for thin wrappers where this crate adds no context and the upstream message is already sufficient for developers.
-- Use short, action-oriented messages that name the operation and include the source error.
+- Use short, action-oriented error messages that include the source error.
+- Use `ok_or_else` to convert `Option` to `Result` with context.
 
-Example (illustrative):
+## Logging (Required)
+
+- Use fully qualified tracing macros, such as `tracing::info!`.
+- Do not import tracing macros.
+- Always use structured fields for dynamic values such as identifiers, names, counts, and errors.
+- Use short, action-oriented messages as complete sentences.
+
+## Numeric Literals (Required)
+
+- Separate numeric literal suffixes with a single underscore, for example `10_f32`.
+- Insert underscores every three digits for integers with more than three digits, for example `1_000_000`.
+
+## Readability Preferences (Preferred)
+
+- Keep one logical operation per line.
+- Prefer functions at or under 100 lines. Extract helpers when a function exceeds 120 lines or the happy path is no longer obvious.
+- Limit nesting depth to two levels. Extract helpers if deeper nesting appears.
+- Prefer guard clauses and early returns to keep the happy path linear.
+- Avoid complex `if let` or `match` guards. Extract a named boolean when logic grows.
+- Use descriptive names and avoid single-letter locals except for trivial indices like `i`.
+- Prefer explicit type annotations when inference spans multiple steps or reduces clarity.
+- Prefer struct literals with named fields over `Default::default()` when fields matter.
+- Avoid struct update syntax (`..`) unless the remaining fields are truly irrelevant.
+- Keep boolean expressions short; extract them into named variables when they grow.
+- Prefer type annotations on `let` bindings or function signatures. Use turbofish only when those locations cannot express the type.
+- When both appear together, place `let` statements before `let mut` statements.
+
+## Functional Style (Preferred)
+
+Functional style is allowed and preferred when it stays simple and readable.
+
+- Limit iterator chains to at most three method calls after the base expression.
+- Closures must be single-expression and side-effect free.
+- If a closure needs `if`, `match`, or multiple statements, extract a named function.
+- Avoid chaining `flat_map`, `filter_map`, `zip`, and `fold` in a single pipeline.
+- Use `for` loops when you need multiple mutable state variables, `break`, or `continue`.
+
+Example (preferred):
 
 ```rust
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-	#[error(transparent)]
-	Utf8(#[from] std::str::Utf8Error),
-
-	#[error("Failed to serialize JetStream payload: {0}.")]
-	Json(#[from] serde_json::Error),
-}
+let filtered: Vec<_> = items.iter().filter(|item| item.is_valid()).collect();
+let mapped: Vec<_> = filtered.into_iter().map(build_item).collect();
 ```
 
-### Borrowing and Ownership
+Example (avoid):
+
+```rust
+let result: Vec<_> = items
+	.iter()
+	.filter(|item| item.is_valid())
+	.map(|item| build_item(item))
+	.filter(|item| item.score > threshold)
+	.collect();
+```
+
+## Borrowing and Ownership (Preferred)
 
 - Prefer borrowing with `&` over `.as_*()` conversions when both are applicable.
-- Avoid `.clone()` unless it is required by ownership or lifetimes, or it clearly improves clarity. Do not pay a cost with no benefit.
+- Avoid `.clone()` unless it is required by ownership or lifetimes, or it clearly improves clarity.
 - Use `into_iter()` when intentionally consuming collections.
 - Do not use scope blocks solely to end a borrow.
 - When an early release is required, use an explicit `drop`.
 - When the value is a reference and you need to end a borrow without a drop warning, use `let _ = value;`.
-- Do not create single-use `let` bindings that only forward a value. Inline the expression unless it improves readability, error handling, or avoids repeated work.
 
-### Vertical Spacing
+## Vertical Spacing (Preferred)
 
 Inside Rust functions:
 
@@ -274,12 +183,36 @@ Inside Rust functions:
 Treat statements as the same type when they share the same syntactic form or call target, such as:
 
 - Multiple `let` statements.
-- Multiple `if` or `if let` statements.
+- Multiple `let mut` statements.
+- Multiple `if` statements.
+- Multiple `if let` statements.
 - Multiple `match` statements.
-- Multiple loop statements (`for`, `while`, `loop`).
-- Multiple macro calls (`println!`, `tracing::...`).
+- Multiple `for` loops.
+- Multiple `while` loops.
+- Multiple `loop` loops.
+- Multiple calls to the same macro name (for example, `println!` with `println!`, or `tracing::...` with `tracing::...`).
 - Multiple `Type::function(...)` calls.
 - Multiple `self.method(...)` calls.
 - Multiple assignment statements like `a = b`.
 
-This list is not exhaustive. Apply the same rule to any repeated statement shape.
+## Comments and Documentation (Required)
+
+- Comments must be full sentences with proper punctuation.
+- Use comments only when intent is not clear from names and types.
+- Public items should have doc comments when the intent is not obvious.
+
+## Tests (Required)
+
+- Use descriptive test names in `snake_case` that encode the behavior and expected outcome.
+- Tests must be deterministic to keep LLM reasoning and CI outcomes stable.
+- Integration tests that require external services must be marked `#[ignore]` with a clear message about required dependencies.
+
+## LLM Readability Checklist (Required)
+
+Before finalizing a Rust change, ensure the following:
+
+- Functions are short, flat, and linear.
+- Iterator chains are short and clear.
+- Error boundaries are explicit.
+- Logging uses structured fields.
+- Names convey intent without relying on comments.
