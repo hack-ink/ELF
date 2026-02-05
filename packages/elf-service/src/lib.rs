@@ -3,6 +3,7 @@ pub mod add_note;
 pub mod admin;
 pub mod delete;
 pub mod list;
+pub mod notes;
 pub mod search;
 pub mod time_serde;
 pub mod update;
@@ -18,6 +19,7 @@ pub use add_note::{AddNoteInput, AddNoteRequest, AddNoteResponse, AddNoteResult}
 pub use admin::RebuildReport;
 pub use delete::{DeleteRequest, DeleteResponse};
 pub use list::{ListItem, ListRequest, ListResponse};
+pub use notes::{NoteFetchRequest, NoteFetchResponse};
 pub use search::{
 	SearchBoost, SearchExplain, SearchExplainItem, SearchExplainRequest, SearchExplainResponse,
 	SearchItem, SearchRequest, SearchResponse, SearchTrace,
