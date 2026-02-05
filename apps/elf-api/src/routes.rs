@@ -1,7 +1,7 @@
 use axum::{
 	Json, Router,
 	extract::{
-		Query, State,
+		Path, Query, State,
 		rejection::{JsonRejection, QueryRejection},
 	},
 	http::StatusCode,
@@ -20,6 +20,7 @@ pub fn router(state: AppState) -> Router {
 		.route("/v1/memory/add_event", post(add_event))
 		.route("/v1/memory/search", post(search))
 		.route("/v1/memory/search/explain", get(search_explain))
+		.route("/v1/memory/notes/:note_id", get(get_note))
 		.route("/v1/memory/list", get(list))
 		.route("/v1/memory/update", post(update))
 		.route("/v1/memory/delete", post(delete))
@@ -99,6 +100,14 @@ async fn search_explain(
 		)
 	})?;
 	let response = state.service.search_explain(query).await?;
+	Ok(Json(response))
+}
+
+async fn get_note(
+	State(state): State<AppState>,
+	Path(note_id): Path<uuid::Uuid>,
+) -> Result<Json<elf_service::NoteFetchResponse>, ApiError> {
+	let response = state.service.get_note(elf_service::NoteFetchRequest { note_id }).await?;
 	Ok(Json(response))
 }
 

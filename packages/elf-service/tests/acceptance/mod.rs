@@ -105,6 +105,12 @@ pub fn test_config(
 			purge_deleted_after_days: 30,
 			purge_deprecated_after_days: 180,
 		},
+		chunking: elf_config::Chunking {
+			enabled: true,
+			max_tokens: 512,
+			overlap_tokens: 128,
+			tokenizer_repo: None,
+		},
 		security: elf_config::Security {
 			bind_localhost_only: true,
 			reject_cjk: true,
@@ -128,7 +134,9 @@ pub async fn build_service(
 
 pub async fn reset_db(pool: &sqlx::PgPool) -> color_eyre::Result<()> {
 	sqlx::query(
-		"TRUNCATE memory_hits, memory_note_versions, note_embeddings, indexing_outbox, memory_notes",
+		"TRUNCATE memory_hits, memory_note_versions, note_chunk_embeddings, memory_note_chunks, \
+         note_embeddings, search_trace_items, search_traces, search_trace_outbox, indexing_outbox, \
+         memory_notes",
 	)
 	.execute(pool)
 	.await?;
@@ -239,6 +247,7 @@ pub fn dummy_llm_provider() -> elf_config::LlmProviderConfig {
 }
 
 mod add_note_no_llm;
+mod chunk_search;
 mod english_only_boundary;
 mod evidence_binding;
 mod idempotency;

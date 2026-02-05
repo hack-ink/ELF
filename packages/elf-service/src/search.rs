@@ -9,8 +9,10 @@ use elf_storage::{
 	qdrant::{BM25_MODEL, BM25_VECTOR_NAME, DENSE_VECTOR_NAME},
 };
 use qdrant_client::qdrant::{
+	point_id::PointIdOptions,
+	value::Kind,
 	Condition, Document, Filter, Fusion, MinShould, PrefetchQueryBuilder, Query,
-	QueryPointsBuilder, ScoredPoint, point_id::PointIdOptions,
+	QueryPointsBuilder, ScoredPoint, Value,
 };
 use serde::de::DeserializeOwned;
 use sqlx::Row;
@@ -52,11 +54,15 @@ pub struct SearchExplain {
 pub struct SearchItem {
 	pub result_handle: uuid::Uuid,
 	pub note_id: uuid::Uuid,
+	pub chunk_id: uuid::Uuid,
+	pub chunk_index: i32,
+	pub start_offset: i32,
+	pub end_offset: i32,
+	pub snippet: String,
 	#[serde(rename = "type")]
 	pub note_type: String,
 	pub key: Option<String>,
 	pub scope: String,
-	pub text: String,
 	pub importance: f32,
 	pub confidence: f32,
 	#[serde(with = "crate::time_serde")]
@@ -102,6 +108,7 @@ pub struct SearchTrace {
 pub struct SearchExplainItem {
 	pub result_handle: uuid::Uuid,
 	pub note_id: uuid::Uuid,
+	pub chunk_id: Option<uuid::Uuid>,
 	pub rank: u32,
 	pub explain: SearchExplain,
 }
@@ -149,16 +156,56 @@ struct RetrievalInfo {
 }
 
 #[derive(Debug, Clone)]
-struct Candidate {
+struct ChunkCandidate {
+	chunk_id: uuid::Uuid,
 	note_id: uuid::Uuid,
+	chunk_index: i32,
 	retrieval_score: f32,
 	retrieval_rank: u32,
 }
 
 #[derive(Debug, Clone)]
 struct RerankCacheCandidate {
-	note_id: uuid::Uuid,
+	chunk_id: uuid::Uuid,
 	updated_at: time::OffsetDateTime,
+}
+
+#[derive(Debug, Clone)]
+struct NoteMeta {
+	note_id: uuid::Uuid,
+	note_type: String,
+	key: Option<String>,
+	scope: String,
+	importance: f32,
+	confidence: f32,
+	updated_at: time::OffsetDateTime,
+	expires_at: Option<time::OffsetDateTime>,
+	source_ref: serde_json::Value,
+}
+
+#[derive(Debug, Clone, sqlx::FromRow)]
+struct ChunkRow {
+	chunk_id: uuid::Uuid,
+	note_id: uuid::Uuid,
+	chunk_index: i32,
+	start_offset: i32,
+	end_offset: i32,
+	text: String,
+}
+
+#[derive(Debug, Clone)]
+struct ChunkMeta {
+	chunk_id: uuid::Uuid,
+	chunk_index: i32,
+	start_offset: i32,
+	end_offset: i32,
+}
+
+#[derive(Debug, Clone)]
+struct ChunkSnippet {
+	note: NoteMeta,
+	chunk: ChunkMeta,
+	snippet: String,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -168,7 +215,7 @@ struct ExpansionCachePayload {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct RerankCacheItem {
-	note_id: uuid::Uuid,
+	chunk_id: uuid::Uuid,
 	updated_at: time::OffsetDateTime,
 	score: f32,
 }
@@ -185,8 +232,8 @@ struct CachePayload {
 }
 
 #[derive(Debug)]
-struct ScoredNote {
-	note: MemoryNote,
+struct ScoredChunk {
+	item: ChunkSnippet,
 	rerank_score: f32,
 	tie_breaker_score: f32,
 	final_score: f32,
@@ -221,6 +268,7 @@ struct TraceRecord {
 struct TraceItemRecord {
 	item_id: uuid::Uuid,
 	note_id: uuid::Uuid,
+	chunk_id: Option<uuid::Uuid>,
 	rank: u32,
 	retrieval_score: Option<f32>,
 	retrieval_rank: Option<u32>,
@@ -292,7 +340,7 @@ struct FinishSearchArgs<'a> {
 	allowed_scopes: &'a [String],
 	expanded_queries: Vec<String>,
 	expansion_mode: ExpansionMode,
-	candidates: Vec<Candidate>,
+	candidates: Vec<ChunkCandidate>,
 	top_k: u32,
 	record_hits_enabled: bool,
 }
@@ -383,7 +431,7 @@ impl ElfService {
 				)
 				.await?;
 			let top_score = baseline_points.first().map(|point| point.score).unwrap_or(0.0);
-			let candidates = collect_candidates(
+			let candidates = collect_chunk_candidates(
 				&baseline_points,
 				self.cfg.search.prefilter.max_candidates,
 				candidate_k,
@@ -419,7 +467,7 @@ impl ElfService {
 		let query_embeddings =
 			self.embed_queries(&queries, &query, baseline_vector.as_ref()).await?;
 		let fusion_points = self.run_fusion_query(&query_embeddings, &filter, candidate_k).await?;
-		let candidates = collect_candidates(
+		let candidates = collect_chunk_candidates(
 			&fusion_points,
 			self.cfg.search.prefilter.max_candidates,
 			candidate_k,
@@ -451,7 +499,7 @@ impl ElfService {
                 t.trace_id, t.tenant_id, t.project_id, t.agent_id, t.read_profile, t.query, \
                 t.expansion_mode, t.expanded_queries, t.allowed_scopes, t.candidate_count, \
                 t.top_k, t.config_snapshot, t.trace_version, t.created_at, \
-                i.item_id, i.note_id, i.rank, i.retrieval_score, i.retrieval_rank, \
+                i.item_id, i.note_id, i.chunk_id, i.rank, i.retrieval_score, i.retrieval_rank, \
                 i.rerank_score, i.tie_breaker_score, i.final_score, i.boosts, \
                 i.matched_terms, i.matched_fields \
              FROM search_trace_items i \
@@ -512,6 +560,7 @@ impl ElfService {
 		let item = SearchExplainItem {
 			result_handle: row.try_get("item_id")?,
 			note_id: row.try_get("note_id")?,
+			chunk_id: row.try_get("chunk_id")?,
 			rank: row.try_get::<i32, _>("rank")? as u32,
 			explain,
 		};
@@ -799,13 +848,12 @@ impl ElfService {
 		} = args;
 		let now = time::OffsetDateTime::now_utc();
 		let cache_cfg = &self.cfg.search.cache;
-		let candidate_ids: Vec<uuid::Uuid> =
-			candidates.iter().map(|candidate| candidate.note_id).collect();
+		let candidate_count = candidates.len();
 		let retrieval_map: HashMap<uuid::Uuid, RetrievalInfo> = candidates
 			.iter()
 			.map(|candidate| {
 				(
-					candidate.note_id,
+					candidate.chunk_id,
 					RetrievalInfo {
 						score: candidate.retrieval_score,
 						rank: candidate.retrieval_rank,
@@ -814,48 +862,118 @@ impl ElfService {
 			})
 			.collect();
 
-		let mut notes: Vec<MemoryNote> = if candidate_ids.is_empty() {
+		let candidate_note_ids: Vec<uuid::Uuid> =
+			candidates.iter().map(|candidate| candidate.note_id).collect();
+		let mut notes: Vec<MemoryNote> = if candidate_note_ids.is_empty() {
 			Vec::new()
 		} else {
 			sqlx::query_as(
 				"SELECT * FROM memory_notes WHERE note_id = ANY($1) AND tenant_id = $2 AND project_id = $3",
 			)
-			.bind(&candidate_ids)
+			.bind(&candidate_note_ids)
 			.bind(tenant_id)
 			.bind(project_id)
 			.fetch_all(&self.db.pool)
 			.await?
 		};
 
-		notes.retain(|note| {
+		let mut note_meta = HashMap::new();
+		for note in notes.drain(..) {
 			if note.tenant_id != tenant_id || note.project_id != project_id {
-				return false;
+				continue;
 			}
 			if note.scope == "agent_private" && note.agent_id != agent_id {
-				return false;
+				continue;
 			}
-			note.status == "active"
-				&& allowed_scopes.contains(&note.scope)
-				&& note.expires_at.map(|ts| ts > now).unwrap_or(true)
-		});
+			if note.status != "active" {
+				continue;
+			}
+			if !allowed_scopes.contains(&note.scope) {
+				continue;
+			}
+			if note.expires_at.map(|ts| ts <= now).unwrap_or(false) {
+				continue;
+			}
+			note_meta.insert(
+				note.note_id,
+				NoteMeta {
+					note_id: note.note_id,
+					note_type: note.r#type,
+					key: note.key,
+					scope: note.scope,
+					importance: note.importance,
+					confidence: note.confidence,
+					updated_at: note.updated_at,
+					expires_at: note.expires_at,
+					source_ref: note.source_ref,
+				},
+			);
+		}
 
-		let mut scored: Vec<ScoredNote> = Vec::new();
-		if !notes.is_empty() {
+		let filtered_candidates: Vec<ChunkCandidate> = candidates
+			.into_iter()
+			.filter(|candidate| note_meta.contains_key(&candidate.note_id))
+			.collect();
+		let snippet_items = if filtered_candidates.is_empty() {
+			Vec::new()
+		} else {
+			let pairs = collect_neighbor_pairs(&filtered_candidates);
+			let chunk_rows = fetch_chunks_by_pair(&self.db.pool, &pairs).await?;
+			let mut chunk_by_id = HashMap::new();
+			let mut chunk_by_note_index = HashMap::new();
+			for row in chunk_rows {
+				chunk_by_note_index.insert((row.note_id, row.chunk_index), row.clone());
+				chunk_by_id.insert(row.chunk_id, row);
+			}
+
+			let mut items = Vec::new();
+			for candidate in &filtered_candidates {
+				let Some(chunk_row) = chunk_by_id.get(&candidate.chunk_id) else {
+					tracing::warn!(
+						chunk_id = %candidate.chunk_id,
+						"Chunk metadata missing for candidate."
+					);
+					continue;
+				};
+				let snippet = stitch_snippet(
+					candidate.note_id,
+					chunk_row.chunk_index,
+					&chunk_by_note_index,
+				);
+				if snippet.is_empty() {
+					continue;
+				}
+				let Some(note) = note_meta.get(&candidate.note_id) else {
+					continue;
+				};
+				let chunk = ChunkMeta {
+					chunk_id: chunk_row.chunk_id,
+					chunk_index: chunk_row.chunk_index,
+					start_offset: chunk_row.start_offset,
+					end_offset: chunk_row.end_offset,
+				};
+				items.push(ChunkSnippet { note: note.clone(), chunk, snippet });
+			}
+			items
+		};
+
+		let mut scored: Vec<ScoredChunk> = Vec::new();
+		if !snippet_items.is_empty() {
 			let mut cached_scores: Option<Vec<f32>> = None;
 			let mut cache_key: Option<String> = None;
 			let mut cache_candidates: Vec<RerankCacheCandidate> = Vec::new();
 
 			if cache_cfg.enabled {
-				let candidates: Vec<RerankCacheCandidate> = notes
+				let candidates: Vec<RerankCacheCandidate> = snippet_items
 					.iter()
-					.map(|note| RerankCacheCandidate {
-						note_id: note.note_id,
-						updated_at: note.updated_at,
+					.map(|item| RerankCacheCandidate {
+						chunk_id: item.chunk.chunk_id,
+						updated_at: item.note.updated_at,
 					})
 					.collect();
 				let signature: Vec<(uuid::Uuid, time::OffsetDateTime)> = candidates
 					.iter()
-					.map(|candidate| (candidate.note_id, candidate.updated_at))
+					.map(|candidate| (candidate.chunk_id, candidate.updated_at))
 					.collect();
 				match build_rerank_cache_key(
 					query,
@@ -939,10 +1057,11 @@ impl ElfService {
 			let scores = if let Some(scores) = cached_scores {
 				scores
 			} else {
-				let docs: Vec<String> = notes.iter().map(|note| note.text.clone()).collect();
+				let docs: Vec<String> =
+					snippet_items.iter().map(|item| item.snippet.clone()).collect();
 				let scores =
 					self.providers.rerank.rerank(&self.cfg.providers.rerank, query, &docs).await?;
-				if scores.len() != notes.len() {
+				if scores.len() != snippet_items.len() {
 					return Err(ServiceError::Provider {
 						message: "Rerank provider returned mismatched score count.".to_string(),
 					});
@@ -956,7 +1075,7 @@ impl ElfService {
 									.iter()
 									.zip(scores.iter())
 									.map(|(candidate, score)| RerankCacheItem {
-										note_id: candidate.note_id,
+										chunk_id: candidate.chunk_id,
 										updated_at: candidate.updated_at,
 										score: *score,
 									})
@@ -1024,32 +1143,44 @@ impl ElfService {
 				scores
 			};
 
-			scored = Vec::with_capacity(notes.len());
-			for (note, rerank_score) in notes.into_iter().zip(scores.into_iter()) {
-				let age_days = (now - note.updated_at).as_seconds_f32() / 86_400.0;
+			scored = Vec::with_capacity(snippet_items.len());
+			for (item, rerank_score) in snippet_items.into_iter().zip(scores.into_iter()) {
+				let age_days = (now - item.note.updated_at).as_seconds_f32() / 86_400.0;
 				let decay = if self.cfg.ranking.recency_tau_days > 0.0 {
 					(-age_days / self.cfg.ranking.recency_tau_days).exp()
 				} else {
 					1.0
 				};
-				let base = (1.0 + 0.6 * note.importance) * decay;
+				let base = (1.0 + 0.6 * item.note.importance) * decay;
 				let tie_breaker_score = self.cfg.ranking.tie_breaker_weight * base;
 				let final_score = rerank_score + tie_breaker_score;
-				scored.push(ScoredNote { note, rerank_score, tie_breaker_score, final_score });
+				scored.push(ScoredChunk { item, rerank_score, tie_breaker_score, final_score });
 			}
-
-			scored.sort_by(|a, b| {
-				b.final_score.partial_cmp(&a.final_score).unwrap_or(std::cmp::Ordering::Equal)
-			});
-			scored.truncate(top_k as usize);
 		}
 
-		if record_hits_enabled && !scored.is_empty() {
-			record_hits(&self.db.pool, query, &scored, now).await?;
+		let mut best_by_note: HashMap<uuid::Uuid, ScoredChunk> = HashMap::new();
+		for scored_item in scored {
+			let note_id = scored_item.item.note.note_id;
+			let replace = match best_by_note.get(&note_id) {
+				Some(existing) => scored_item.final_score > existing.final_score,
+				None => true,
+			};
+			if replace {
+				best_by_note.insert(note_id, scored_item);
+			}
+		}
+		let mut results: Vec<ScoredChunk> = best_by_note.into_values().collect();
+		results.sort_by(|a, b| {
+			b.final_score.partial_cmp(&a.final_score).unwrap_or(std::cmp::Ordering::Equal)
+		});
+		results.truncate(top_k as usize);
+
+		if record_hits_enabled && !results.is_empty() {
+			record_hits(&self.db.pool, query, &results, now).await?;
 		}
 
 		let query_tokens = tokenize_query(query, MAX_MATCHED_TERMS);
-		let mut items = Vec::with_capacity(scored.len());
+		let mut items = Vec::with_capacity(results.len());
 		let trace_context = TraceContext {
 			trace_id,
 			tenant_id,
@@ -1060,55 +1191,65 @@ impl ElfService {
 			expansion_mode,
 			expanded_queries,
 			allowed_scopes,
-			candidate_count: candidates.len(),
+			candidate_count,
 			top_k,
 		};
 		let mut trace_builder = SearchTraceBuilder::new(trace_context, &self.cfg, now);
-		for (idx, scored_note) in scored.into_iter().enumerate() {
+		for (idx, scored_chunk) in results.into_iter().enumerate() {
 			let rank = idx as u32 + 1;
-			let retrieval = retrieval_map.get(&scored_note.note.note_id).copied();
-			let (matched_terms, matched_fields) =
-				match_terms(&query_tokens, &scored_note.note, MAX_MATCHED_TERMS);
+			let retrieval = retrieval_map.get(&scored_chunk.item.chunk.chunk_id).copied();
+			let (matched_terms, matched_fields) = match_terms_in_text(
+				&query_tokens,
+				&scored_chunk.item.snippet,
+				scored_chunk.item.note.key.as_deref(),
+				MAX_MATCHED_TERMS,
+			);
 			let boosts = vec![SearchBoost {
 				name: "recency_importance".to_string(),
-				score: scored_note.tie_breaker_score,
+				score: scored_chunk.tie_breaker_score,
 			}];
 			let explain = SearchExplain {
 				retrieval_score: retrieval.map(|entry| entry.score),
 				retrieval_rank: retrieval.map(|entry| entry.rank),
-				rerank_score: scored_note.rerank_score,
-				tie_breaker_score: scored_note.tie_breaker_score,
-				final_score: scored_note.final_score,
+				rerank_score: scored_chunk.rerank_score,
+				tie_breaker_score: scored_chunk.tie_breaker_score,
+				final_score: scored_chunk.final_score,
 				boosts: boosts.clone(),
 				matched_terms: matched_terms.clone(),
 				matched_fields: matched_fields.clone(),
 			};
 			let result_handle = uuid::Uuid::new_v4();
-			let note = scored_note.note;
+			let note = &scored_chunk.item.note;
+			let chunk = &scored_chunk.item.chunk;
 			items.push(SearchItem {
 				result_handle,
 				note_id: note.note_id,
-				note_type: note.r#type,
-				key: note.key,
-				scope: note.scope,
-				text: note.text,
+				chunk_id: chunk.chunk_id,
+				chunk_index: chunk.chunk_index,
+				start_offset: chunk.start_offset,
+				end_offset: chunk.end_offset,
+				snippet: scored_chunk.item.snippet.clone(),
+				note_type: note.note_type.clone(),
+				key: note.key.clone(),
+				scope: note.scope.clone(),
 				importance: note.importance,
 				confidence: note.confidence,
 				updated_at: note.updated_at,
 				expires_at: note.expires_at,
-				final_score: scored_note.final_score,
-				source_ref: note.source_ref,
+				final_score: scored_chunk.final_score,
+				source_ref: note.source_ref.clone(),
 				explain,
 			});
 			trace_builder.push_item(TraceItemRecord {
 				item_id: result_handle,
 				note_id: note.note_id,
+				chunk_id: Some(chunk.chunk_id),
 				rank,
 				retrieval_score: retrieval.map(|entry| entry.score),
 				retrieval_rank: retrieval.map(|entry| entry.rank),
-				rerank_score: scored_note.rerank_score,
-				tie_breaker_score: scored_note.tie_breaker_score,
-				final_score: scored_note.final_score,
+				rerank_score: scored_chunk.rerank_score,
+				tie_breaker_score: scored_chunk.tie_breaker_score,
+				final_score: scored_chunk.final_score,
 				boosts,
 				matched_terms,
 				matched_fields,
@@ -1206,11 +1347,11 @@ Do not include any CJK characters. Do not add explanations or extra fields.";
 	]
 }
 
-fn collect_candidates(
+fn collect_chunk_candidates(
 	points: &[ScoredPoint],
 	max_candidates: u32,
 	candidate_k: u32,
-) -> Vec<Candidate> {
+) -> Vec<ChunkCandidate> {
 	let limit = if max_candidates == 0 || max_candidates >= candidate_k {
 		points.len()
 	} else {
@@ -1219,18 +1360,101 @@ fn collect_candidates(
 	let mut out = Vec::new();
 	let mut seen = HashSet::new();
 	for (idx, point) in points.iter().take(limit).enumerate() {
-		let Some(id) = point.id.as_ref().and_then(point_id_to_uuid) else {
+		let chunk_id = point
+			.id
+			.as_ref()
+			.and_then(point_id_to_uuid)
+			.or_else(|| payload_uuid(&point.payload, "chunk_id"));
+		let Some(chunk_id) = chunk_id else {
+			warn!("Chunk candidate missing chunk_id.");
 			continue;
 		};
-		if seen.insert(id) {
-			out.push(Candidate {
-				note_id: id,
-				retrieval_score: point.score,
-				retrieval_rank: idx as u32 + 1,
-			});
+		if !seen.insert(chunk_id) {
+			continue;
+		}
+		let Some(note_id) = payload_uuid(&point.payload, "note_id") else {
+			warn!(chunk_id = %chunk_id, "Chunk candidate missing note_id.");
+			continue;
+		};
+		let Some(chunk_index) = payload_i32(&point.payload, "chunk_index") else {
+			warn!(chunk_id = %chunk_id, "Chunk candidate missing chunk_index.");
+			continue;
+		};
+		out.push(ChunkCandidate {
+			chunk_id,
+			note_id,
+			chunk_index,
+			retrieval_score: point.score,
+			retrieval_rank: idx as u32 + 1,
+		});
+	}
+	out
+}
+
+fn collect_neighbor_pairs(candidates: &[ChunkCandidate]) -> Vec<(uuid::Uuid, i32)> {
+	let mut seen = HashSet::new();
+	let mut out = Vec::new();
+	for candidate in candidates {
+		let mut indices = Vec::with_capacity(3);
+		indices.push(candidate.chunk_index);
+		if let Some(prev) = candidate.chunk_index.checked_sub(1) {
+			indices.push(prev);
+		}
+		if let Some(next) = candidate.chunk_index.checked_add(1) {
+			indices.push(next);
+		}
+		for idx in indices {
+			let key = (candidate.note_id, idx);
+			if seen.insert(key) {
+				out.push(key);
+			}
 		}
 	}
 	out
+}
+
+async fn fetch_chunks_by_pair(
+	pool: &sqlx::PgPool,
+	pairs: &[(uuid::Uuid, i32)],
+) -> ServiceResult<Vec<ChunkRow>> {
+	if pairs.is_empty() {
+		return Ok(Vec::new());
+	}
+	let mut builder = sqlx::QueryBuilder::new(
+		"SELECT chunk_id, note_id, chunk_index, start_offset, end_offset, text \
+         FROM memory_note_chunks WHERE ",
+	);
+	let mut separated = builder.separated(" OR ");
+	for (note_id, chunk_index) in pairs {
+		separated.push("(");
+		separated.push("note_id = ");
+		separated.push_bind(note_id);
+		separated.push(" AND chunk_index = ");
+		separated.push_bind(chunk_index);
+		separated.push(")");
+	}
+	let query = builder.build_query_as();
+	let rows = query.fetch_all(pool).await?;
+	Ok(rows)
+}
+
+fn stitch_snippet(
+	note_id: uuid::Uuid,
+	chunk_index: i32,
+	chunks: &HashMap<(uuid::Uuid, i32), ChunkRow>,
+) -> String {
+	let mut out = String::new();
+	let indices = [
+		chunk_index.checked_sub(1),
+		Some(chunk_index),
+		chunk_index.checked_add(1),
+	];
+	for index in indices.into_iter().flatten() {
+		if let Some(chunk) = chunks.get(&(note_id, index)) {
+			out.push_str(chunk.text.as_str());
+		}
+	}
+	out.trim().to_string()
 }
 
 fn expansion_mode_label(mode: ExpansionMode) -> &'static str {
@@ -1267,16 +1491,17 @@ fn tokenize_query(query: &str, max_terms: usize) -> Vec<String> {
 	out
 }
 
-fn match_terms(
+fn match_terms_in_text(
 	tokens: &[String],
-	note: &MemoryNote,
+	text: &str,
+	key: Option<&str>,
 	max_terms: usize,
 ) -> (Vec<String>, Vec<String>) {
 	if tokens.is_empty() {
 		return (Vec::new(), Vec::new());
 	}
-	let text = note.text.to_lowercase();
-	let key = note.key.as_ref().map(|value| value.to_lowercase());
+	let text = text.to_lowercase();
+	let key = key.map(|value| value.to_lowercase());
 	let mut matched_terms = Vec::new();
 	let mut matched_fields = HashSet::new();
 	for token in tokens {
@@ -1368,6 +1593,29 @@ fn point_id_to_uuid(point_id: &qdrant_client::qdrant::PointId) -> Option<uuid::U
 	}
 }
 
+fn payload_uuid(payload: &HashMap<String, Value>, key: &str) -> Option<uuid::Uuid> {
+	let value = payload.get(key)?;
+	match &value.kind {
+		Some(Kind::StringValue(text)) => uuid::Uuid::parse_str(text).ok(),
+		_ => None,
+	}
+}
+
+fn payload_i32(payload: &HashMap<String, Value>, key: &str) -> Option<i32> {
+	let value = payload.get(key)?;
+	match &value.kind {
+		Some(Kind::IntegerValue(value)) => i32::try_from(*value).ok(),
+		Some(Kind::DoubleValue(value)) => {
+			if value.fract() == 0.0 {
+				i32::try_from(*value as i64).ok()
+			} else {
+				None
+			}
+		},
+		_ => None,
+	}
+}
+
 async fn enqueue_trace(pool: &sqlx::PgPool, payload: TracePayload) -> ServiceResult<()> {
 	let now = time::OffsetDateTime::now_utc();
 	let payload_json = serde_json::to_value(&payload).map_err(|err| ServiceError::Storage {
@@ -1390,14 +1638,14 @@ async fn enqueue_trace(pool: &sqlx::PgPool, payload: TracePayload) -> ServiceRes
 async fn record_hits(
 	pool: &sqlx::PgPool,
 	query: &str,
-	scored: &[ScoredNote],
+	scored: &[ScoredChunk],
 	now: time::OffsetDateTime,
 ) -> ServiceResult<()> {
 	let query_hash = hash_query(query);
 	let mut tx = pool.begin().await?;
 
-	for (rank, scored_note) in scored.iter().enumerate() {
-		let note = &scored_note.note;
+	for (rank, scored_chunk) in scored.iter().enumerate() {
+		let note = &scored_chunk.item.note;
 		sqlx::query(
 			"UPDATE memory_notes SET hit_count = hit_count + 1, last_hit_at = $1 WHERE note_id = $2",
 		)
@@ -1407,16 +1655,18 @@ async fn record_hits(
 		.await?;
 
 		sqlx::query(
-            "INSERT INTO memory_hits (hit_id, note_id, query_hash, rank, final_score, ts) VALUES ($1,$2,$3,$4,$5,$6)",
-        )
-        .bind(uuid::Uuid::new_v4())
-        .bind(note.note_id)
-        .bind(&query_hash)
-        .bind(rank as i32)
-        .bind(scored_note.final_score)
-        .bind(now)
-        .execute(&mut *tx)
-        .await?;
+			"INSERT INTO memory_hits (hit_id, note_id, chunk_id, query_hash, rank, final_score, ts) \
+             VALUES ($1,$2,$3,$4,$5,$6,$7)",
+		)
+		.bind(uuid::Uuid::new_v4())
+		.bind(note.note_id)
+		.bind(scored_chunk.item.chunk.chunk_id)
+		.bind(&query_hash)
+		.bind(rank as i32)
+		.bind(scored_chunk.final_score)
+		.bind(now)
+		.execute(&mut *tx)
+		.await?;
 	}
 
 	tx.commit().await?;
@@ -1549,9 +1799,9 @@ fn build_rerank_cache_key(
 ) -> ServiceResult<String> {
 	let signature: Vec<serde_json::Value> = candidates
 		.iter()
-		.map(|(note_id, updated_at)| {
+		.map(|(chunk_id, updated_at)| {
 			serde_json::json!({
-				"note_id": note_id,
+				"chunk_id": chunk_id,
 				"updated_at": updated_at,
 			})
 		})
@@ -1577,14 +1827,14 @@ fn build_cached_scores(
 
 	let mut map = HashMap::new();
 	for item in &payload.items {
-		let key = (item.note_id, item.updated_at.unix_timestamp(), item.updated_at.nanosecond());
+		let key = (item.chunk_id, item.updated_at.unix_timestamp(), item.updated_at.nanosecond());
 		map.insert(key, item.score);
 	}
 
 	let mut out = Vec::with_capacity(candidates.len());
 	for candidate in candidates {
 		let key = (
-			candidate.note_id,
+			candidate.chunk_id,
 			candidate.updated_at.unix_timestamp(),
 			candidate.updated_at.nanosecond(),
 		);
@@ -1640,13 +1890,13 @@ mod tests {
 	fn rerank_cache_key_changes_with_updated_at() {
 		let ts_a = time::OffsetDateTime::from_unix_timestamp(1).expect("Valid timestamp.");
 		let ts_b = time::OffsetDateTime::from_unix_timestamp(2).expect("Valid timestamp.");
-		let note_id = uuid::Uuid::new_v4();
+		let chunk_id = uuid::Uuid::new_v4();
 		let key_a = build_rerank_cache_key(
 			"q",
 			"v1",
 			"rerank",
 			"model",
-			&vec![(note_id, ts_a)],
+			&vec![(chunk_id, ts_a)],
 		)
 		.expect("Expected cache key.");
 		let key_b = build_rerank_cache_key(
@@ -1654,7 +1904,7 @@ mod tests {
 			"v1",
 			"rerank",
 			"model",
-			&vec![(note_id, ts_b)],
+			&vec![(chunk_id, ts_b)],
 		)
 		.expect("Expected cache key.");
 		assert_ne!(key_a, key_b);
@@ -1664,13 +1914,13 @@ mod tests {
 	fn rerank_cache_payload_rejects_mismatched_counts() {
 		let payload = RerankCachePayload {
 			items: vec![RerankCacheItem {
-				note_id: uuid::Uuid::new_v4(),
+				chunk_id: uuid::Uuid::new_v4(),
 				updated_at: time::OffsetDateTime::from_unix_timestamp(1).expect("Valid timestamp."),
 				score: 0.5,
 			}],
 		};
 		let candidates = vec![RerankCacheCandidate {
-			note_id: uuid::Uuid::new_v4(),
+			chunk_id: uuid::Uuid::new_v4(),
 			updated_at: time::OffsetDateTime::from_unix_timestamp(1).expect("Valid timestamp."),
 		}];
 		assert!(build_cached_scores(&payload, &candidates).is_none());
