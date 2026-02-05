@@ -1,7 +1,5 @@
-// std
 use std::sync::Arc;
 
-// self
 use elf_service::ElfService;
 use elf_storage::{db::Db, qdrant::QdrantStore};
 

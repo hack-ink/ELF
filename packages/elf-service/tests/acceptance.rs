@@ -11,7 +11,6 @@ mod chunking {
 #[path = "acceptance/rebuild_qdrant.rs"] mod rebuild_qdrant;
 #[path = "acceptance/sot_vectors.rs"] mod sot_vectors;
 
-// std
 use std::{
 	env,
 	sync::{
@@ -20,10 +19,8 @@ use std::{
 	},
 };
 
-// crates.io
 use serde_json::{Map, Value};
 
-// self
 use elf_service::{ElfService, EmbeddingProvider, ExtractorProvider, Providers, RerankProvider};
 use elf_storage::{db::Db, qdrant::QdrantStore};
 use elf_testkit::TestDatabase;

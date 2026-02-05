@@ -1,14 +1,11 @@
 pub mod worker;
 
-// std
 use std::path::PathBuf;
 
-// crates.io
 use clap::Parser;
 use color_eyre::eyre;
 use tracing_subscriber::EnvFilter;
 
-// self
 use elf_chunking::ChunkingConfig;
 use elf_storage::{db::Db, qdrant::QdrantStore};
 

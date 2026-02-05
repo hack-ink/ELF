@@ -2,7 +2,6 @@ pub mod embedding;
 pub mod extractor;
 pub mod rerank;
 
-// crates.io
 use color_eyre::{Result, eyre};
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderName};
 use serde_json::{Map, Value};

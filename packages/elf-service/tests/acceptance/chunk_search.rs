@@ -1,10 +1,8 @@
-// std
 use std::{
 	collections::HashMap,
 	sync::{Arc, atomic::AtomicUsize},
 };
 
-// crates.io
 use qdrant_client::{
 	client::Payload,
 	qdrant::{
@@ -17,7 +15,6 @@ use serde_json::Value;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-// self
 use super::{
 	SpyExtractor, StubEmbedding, StubRerank, build_service, test_config, test_db, test_qdrant_url,
 };

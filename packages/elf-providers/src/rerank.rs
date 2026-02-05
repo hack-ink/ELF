@@ -1,7 +1,5 @@
-// std
 use std::time::Duration as StdDuration;
 
-// crates.io
 use color_eyre::{Result, eyre};
 use reqwest::Client;
 use serde_json::Value;

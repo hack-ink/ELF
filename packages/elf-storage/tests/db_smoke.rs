@@ -1,7 +1,5 @@
-// crates.io
 use tokio::runtime::Runtime;
 
-// self
 use elf_storage::db::Db;
 use elf_testkit::TestDatabase;
 

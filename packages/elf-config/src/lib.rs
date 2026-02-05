@@ -1,12 +1,9 @@
 mod types;
 
-// std
 use std::{fs, path::Path};
 
-// crates.io
 use color_eyre::eyre;
 
-// self
 pub use types::{
 	Chunking, Config, EmbeddingProviderConfig, Lifecycle, LlmProviderConfig, Memory, Postgres,
 	ProviderConfig, Providers, Qdrant, Ranking, ReadProfiles, ScopePrecedence, ScopeWriteAllowed,

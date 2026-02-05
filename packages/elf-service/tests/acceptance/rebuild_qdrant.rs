@@ -1,10 +1,8 @@
-// std
 use std::sync::{
 	Arc,
 	atomic::{AtomicUsize, Ordering},
 };
 
-// crates.io
 use qdrant_client::qdrant::{
 	CreateCollectionBuilder, Distance, Modifier, SparseVectorParamsBuilder,
 	SparseVectorsConfigBuilder, VectorParamsBuilder, VectorsConfigBuilder,
@@ -12,7 +10,6 @@ use qdrant_client::qdrant::{
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-// self
 use super::{
 	SpyEmbedding, SpyExtractor, StubRerank, build_service, test_config, test_db, test_qdrant_url,
 };

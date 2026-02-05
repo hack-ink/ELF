@@ -8,9 +8,15 @@ Purpose: Provide consistent names for test categories and the commands that run 
 - `integration` — Rust integration tests under `tests/*.rs`. Run with `cargo make test`.
 - `integration (ignored)` — Integration tests that require external services and are marked `#[ignore]`.
 - `acceptance` — The integration suite in `packages/elf-service/tests/acceptance.rs` and `packages/elf-service/tests/acceptance/*.rs`. These are usually `#[ignore]` and require external services.
-- `E2E` — The flow documented in `docs/guide/integration-testing.md` for memory retrieval. This is a manual flow.
+- `E2E` — The flow documented in `docs/guide/integration-testing.md` for memory retrieval. This is a manual flow that uses the `elf_e2e` database.
 
 Note: Some integration tests require external services such as Postgres or Qdrant and are marked `#[ignore]`. When requesting those, say "integration (ignored)" so the ignored set is included.
+
+## Database names
+
+- `elf_e2e` — Dedicated database for the E2E flow.
+- `elf_test_*` — Ephemeral databases created by `elf_testkit::TestDatabase` for integration tests.
+- `elf_verify_4096` — Legacy database name used by earlier manual verification flows. Avoid it for new runs.
 
 ## Usage
 

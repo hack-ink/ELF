@@ -1,4 +1,3 @@
-// crates.io
 use clap::builder::{
 	Styles,
 	styling::{AnsiColor, Effects},

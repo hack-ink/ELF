@@ -1,6 +1,5 @@
-// std
 use std::error::Error;
-// crates.io
+
 use vergen_gitcl::{CargoBuilder, Emitter, GitclBuilder};
 
 fn main() -> Result<(), Box<dyn Error>> {

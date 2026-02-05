@@ -1,8 +1,6 @@
-// crates.io
 use serde_json::Map;
 use time::OffsetDateTime;
 
-// self
 use elf_domain::{cjk, evidence, ttl};
 
 #[test]

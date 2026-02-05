@@ -6,10 +6,6 @@ version = "0.1.0"
 [dependencies]
 blake3        = { workspace = true }
 color-eyre    = { workspace = true }
-elf-config    = { path = "../elf-config" }
-elf-domain    = { path = "../elf-domain" }
-elf-providers = { path = "../elf-providers" }
-elf-storage   = { path = "../elf-storage" }
 qdrant-client = { workspace = true }
 serde         = { workspace = true }
 serde_json    = { workspace = true }
@@ -18,10 +14,16 @@ time          = { workspace = true }
 tracing       = { workspace = true }
 uuid          = { workspace = true }
 
+elf-config    = { workspace = true }
+elf-domain    = { workspace = true }
+elf-providers = { workspace = true }
+elf-storage   = { workspace = true }
+
 [dev-dependencies]
 axum                 = { workspace = true }
-elf-chunking         = { path = "../elf-chunking" }
-elf-testkit          = { path = "../elf-testkit" }
 tokenizers           = { workspace = true }
 tokio                = { workspace = true }
 unicode-segmentation = { workspace = true }
+
+elf-chunking = { workspace = true }
+elf-testkit  = { workspace = true }

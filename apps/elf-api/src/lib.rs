@@ -1,16 +1,13 @@
 pub mod routes;
 pub mod state;
 
-// std
 use std::{net::SocketAddr, path::PathBuf};
 
-// crates.io
 use clap::Parser;
 use color_eyre::eyre;
 use tokio::net::TcpListener;
 use tracing_subscriber::EnvFilter;
 
-// self
 use crate::state::AppState;
 
 #[derive(Debug, Parser)]

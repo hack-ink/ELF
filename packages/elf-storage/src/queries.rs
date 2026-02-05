@@ -1,8 +1,6 @@
-// crates.io
 use color_eyre::Result;
 use uuid::Uuid;
 
-// self
 use crate::{db::Db, models::MemoryNote};
 
 pub async fn insert_note(db: &Db, note: &MemoryNote) -> Result<()> {
