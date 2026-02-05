@@ -11,13 +11,7 @@ pub fn load(path: &std::path::Path) -> color_eyre::Result<Config> {
 }
 
 fn normalize(cfg: &mut Config) {
-	if cfg
-		.chunking
-		.tokenizer_repo
-		.as_deref()
-		.map(|repo| repo.trim().is_empty())
-		.unwrap_or(false)
-	{
+	if cfg.chunking.tokenizer_repo.as_deref().map(|repo| repo.trim().is_empty()).unwrap_or(false) {
 		cfg.chunking.tokenizer_repo = None;
 	}
 }
@@ -70,22 +64,18 @@ pub fn validate(cfg: &Config) -> color_eyre::Result<()> {
 			"search.cache.rerank_ttl_days must be greater than zero."
 		));
 	}
-	if let Some(max) = cfg.search.cache.max_payload_bytes {
-		if max == 0 {
-			return Err(color_eyre::eyre::eyre!(
-				"search.cache.max_payload_bytes must be greater than zero."
-			));
-		}
+	if let Some(max) = cfg.search.cache.max_payload_bytes
+		&& max == 0
+	{
+		return Err(color_eyre::eyre::eyre!(
+			"search.cache.max_payload_bytes must be greater than zero."
+		));
 	}
 	if cfg.search.cache.expansion_version.trim().is_empty() {
-		return Err(color_eyre::eyre::eyre!(
-			"search.cache.expansion_version must be non-empty."
-		));
+		return Err(color_eyre::eyre::eyre!("search.cache.expansion_version must be non-empty."));
 	}
 	if cfg.search.cache.rerank_version.trim().is_empty() {
-		return Err(color_eyre::eyre::eyre!(
-			"search.cache.rerank_version must be non-empty."
-		));
+		return Err(color_eyre::eyre::eyre!("search.cache.rerank_version must be non-empty."));
 	}
 	if cfg.search.explain.retention_days <= 0 {
 		return Err(color_eyre::eyre::eyre!(
@@ -96,9 +86,7 @@ pub fn validate(cfg: &Config) -> color_eyre::Result<()> {
 		return Err(color_eyre::eyre::eyre!("chunking.enabled must be true."));
 	}
 	if cfg.chunking.max_tokens == 0 {
-		return Err(color_eyre::eyre::eyre!(
-			"chunking.max_tokens must be greater than zero."
-		));
+		return Err(color_eyre::eyre::eyre!("chunking.max_tokens must be greater than zero."));
 	}
 	if cfg.chunking.overlap_tokens >= cfg.chunking.max_tokens {
 		return Err(color_eyre::eyre::eyre!(
