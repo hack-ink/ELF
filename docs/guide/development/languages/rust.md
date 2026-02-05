@@ -62,6 +62,7 @@ Additional rules:
 
 - Within each group, place `pub` items before non-`pub` items.
 - Within the `fn` group at the same visibility, place non-`async` functions before `async` functions.
+- For any `struct` or `enum` defined in a module, place its `impl` blocks immediately after the type definition with no blank lines or other items between them.
 - Tests must be declared last, after all other items.
 - Inside `#[cfg(test)] mod tests`, you must use `use super::*;`.
 
@@ -71,9 +72,8 @@ Additional rules:
 
 ## Imports and Paths
 
-Do not add import header comments.
 Group imports by origin in this order: standard library, third-party crates, self or workspace crates.
-Separate groups with a single blank line.
+Separate groups with a blank line and do not add header comments for import groups.
 
 Rules:
 
@@ -86,7 +86,8 @@ Rules:
 ## Types and `impl` Blocks
 
 - Use `Self` instead of the concrete type name in `impl` method signatures.
-- Keep `impl` blocks for a type contiguous in the `impl` section.
+- `impl` blocks for a type must be placed immediately after the type definition with no blank line between them.
+- Keep all `impl` blocks for a type contiguous and grouped immediately after the type definition.
 - Order `impl` blocks as: inherent, standard library traits, third-party traits, project traits.
 
 ## Generics and Trait Bounds
@@ -188,11 +189,14 @@ Treat statements as the same type when they share the same syntactic form or cal
 - Multiple `Type::function(...)` calls.
 - Multiple `self.method(...)` calls.
 - Multiple assignment statements like `a = b`.
+- Multiple `mod` declarations.
+- Multiple `const` declarations.
+- Multiple `static` declarations.
+- Multiple `const`/`static` groups separated by a single blank line.
 
-Additional rules.
+Additional rules:
 
 - Treat `let` and `let mut` as different statement types.
-- Different macro names are different statement types.
 - When both appear together, place `let` statements before `let mut` statements.
 
 ## Comments and Documentation
@@ -216,3 +220,4 @@ Before finalizing a Rust change, ensure the following:
 - Error boundaries are explicit.
 - Logging uses structured fields.
 - Names convey intent without relying on comments.
+- Import structs, enums, and other types directly instead of using fully qualified paths at the call site. When name conflicts make direct imports unclear or ambiguous, use module-qualified paths or explicit renames.
