@@ -6,13 +6,7 @@ This guide defines the Rust rules for this repository. It is optimized for LLM r
 
 These rules apply to Rust crates, binaries, and tooling in this repository. They do not apply to non-Rust projects.
 
-## Rule Levels
-
-- Required: Must be followed. No exceptions without explicit approval.
-- Preferred: Strong default. Exceptions are allowed with a brief justification in code comments.
-- Optional: Suggestions that can be used when helpful.
-- Imperative statements without a label are Required.
-- `rustfmt` output is the final authority for formatting.
+All rules in this guide are mandatory. There is no distinction between required and preferred rules.
 
 ## Decision Priorities
 
@@ -24,28 +18,29 @@ Use this priority order when trade-offs appear:
 4. Simplicity of implementation.
 5. Performance.
 
-## Tooling and Workflow (Required)
+## Tooling and Workflow
 
 - The Rust toolchain is pinned. Do not modify `rust-toolchain.toml`, `.cargo/config.toml`, or `.rustfmt.toml`.
 - Do not install, update, or override toolchains.
 - Do not invoke system package managers.
 - Use `cargo make` tasks when they are a good fit for formatting, linting, and testing.
 
-## Runtime Safety (Required)
+## Runtime Safety
 
 - Do not use `unwrap()` in non-test code.
 - `expect()` requires a clear, user-actionable message.
 
-## Time and TLS (Required)
+## Time and TLS
 
 - Use the `time` crate for all date and time types. Do not add `chrono`.
 - Prefer rustls for TLS. Only use native-tls when rustls is not supported.
 
-## Formatting and Layout (Required)
+## Formatting and Layout
 
+- `rustfmt` output is the final authority for formatting.
 - Use tabs (`\t`) for indentation.
 
-### Module Item Order (Required)
+### Module Item Order
 
 At module scope, order items as follows:
 
@@ -70,11 +65,11 @@ Additional rules:
 - Tests must be declared last, after all other items.
 - Inside `#[cfg(test)] mod tests`, you must use `use super::*;`.
 
-### File Structure (Required)
+### File Structure
 
 - Use a flat module structure. Do not create or keep `mod.rs`. If `mod.rs` exists, flatten it into `a.rs` and `a/xxx.rs` style files.
 
-## Imports and Paths (Required)
+## Imports and Paths
 
 Use only these import headers:
 
@@ -90,19 +85,19 @@ Rules:
 - If `crate::prelude::*` is imported, do not add redundant imports.
 - Avoid glob imports. In tests, prefer `use super::*;` when it is used. Otherwise, avoid glob imports except an existing prelude.
 
-## Types and `impl` Blocks (Required)
+## Types and `impl` Blocks
 
 - Use `Self` instead of the concrete type name in `impl` method signatures.
 - Keep `impl` blocks for a type contiguous in the `impl` section.
 - Order `impl` blocks as: inherent, standard library traits, third-party traits, project traits.
 
-## Generics and Trait Bounds (Required)
+## Generics and Trait Bounds
 
 - All trait bounds must be in a `where` clause.
 - Inline trait bounds are not allowed.
 - You may use `impl Trait` in parameters or return positions.
 
-## Error Handling (Required)
+## Error Handling
 
 - Add context at crate or module boundaries and keep the original error as the source.
 - Boundaries include public APIs, entrypoints, and module-level helpers that are consumed outside the module.
@@ -110,19 +105,19 @@ Rules:
 - Use short, action-oriented error messages that include the source error.
 - Use `ok_or_else` to convert `Option` to `Result` with context.
 
-## Logging (Required)
+## Logging
 
 - Use fully qualified tracing macros, such as `tracing::info!`.
 - Do not import tracing macros.
 - Always use structured fields for dynamic values such as identifiers, names, counts, and errors.
 - Use short, action-oriented messages as complete sentences.
 
-## Numeric Literals (Required)
+## Numeric Literals
 
 - Separate numeric literal suffixes with a single underscore, for example `10_f32`.
 - Insert underscores every three digits for integers with more than three digits, for example `1_000_000`.
 
-## Readability Preferences (Preferred)
+## Readability Rules
 
 - Keep one logical operation per line.
 - Prefer functions at or under 100 lines. Extract helpers when a function exceeds 120 lines or the happy path is no longer obvious.
@@ -136,9 +131,9 @@ Rules:
 - Keep boolean expressions short; extract them into named variables when they grow.
 - Prefer type annotations on `let` bindings or function signatures. Use turbofish only when those locations cannot express the type.
 
-## Functional Style (Preferred)
+## Functional Style
 
-Functional style is allowed and preferred when it stays simple and readable.
+Functional style is allowed when it stays simple and readable.
 
 - Limit iterator chains to at most three method calls after the base expression.
 - Closures must be single-expression and side-effect free.
@@ -146,7 +141,7 @@ Functional style is allowed and preferred when it stays simple and readable.
 - Avoid chaining `flat_map`, `filter_map`, `zip`, and `fold` in a single pipeline.
 - Use `for` loops when you need multiple mutable state variables, `break`, or `continue`.
 
-Example (preferred):
+Example (use):
 
 ```rust
 let filtered: Vec<_> = items.iter().filter(|item| item.is_valid()).collect();
@@ -164,7 +159,7 @@ let result: Vec<_> = items
 	.collect();
 ```
 
-## Borrowing and Ownership (Preferred)
+## Borrowing and Ownership
 
 - Prefer borrowing with `&` over `.as_*()` conversions when both are applicable.
 - Avoid `.clone()` unless it is required by ownership or lifetimes, or it clearly improves clarity.
@@ -173,7 +168,7 @@ let result: Vec<_> = items
 - When an early release is required, use an explicit `drop`.
 - When the value is a reference and you need to end a borrow without a drop warning, use `let _ = value;`.
 
-## Vertical Spacing (Preferred)
+## Vertical Spacing
 
 Inside Rust functions:
 
@@ -202,19 +197,19 @@ Additional rules.
 - Different macro names are different statement types.
 - When both appear together, place `let` statements before `let mut` statements.
 
-## Comments and Documentation (Required)
+## Comments and Documentation
 
 - Comments must be full sentences with proper punctuation.
 - Use comments only when intent is not clear from names and types.
 - Public items should have doc comments when the intent is not obvious.
 
-## Tests (Required)
+## Tests
 
 - Use descriptive test names in `snake_case` that encode the behavior and expected outcome.
 - Tests must be deterministic to keep LLM reasoning and CI outcomes stable.
 - Integration tests that require external services must be marked `#[ignore]` with a clear message about required dependencies.
 
-## LLM Readability Checklist (Required)
+## LLM Readability Checklist
 
 Before finalizing a Rust change, ensure the following:
 
