@@ -1,6 +1,16 @@
-use clap::Parser;
-use tracing_subscriber::EnvFilter;
 pub mod worker;
+
+// std
+use std::path::PathBuf;
+
+// crates.io
+use clap::Parser;
+use color_eyre::eyre;
+use tracing_subscriber::EnvFilter;
+
+// self
+use elf_chunking::ChunkingConfig;
+use elf_storage::{db::Db, qdrant::QdrantStore};
 
 #[derive(Debug, Parser)]
 #[command(
@@ -10,7 +20,7 @@ pub mod worker;
 )]
 pub struct Args {
 	#[arg(long, short = 'c', value_name = "FILE")]
-	pub config: std::path::PathBuf,
+	pub config: PathBuf,
 }
 
 pub async fn run(args: Args) -> color_eyre::Result<()> {
@@ -18,18 +28,18 @@ pub async fn run(args: Args) -> color_eyre::Result<()> {
 	let filter = EnvFilter::new(config.service.log_level.clone());
 	tracing_subscriber::fmt().with_env_filter(filter).init();
 
-	let db = elf_storage::db::Db::connect(&config.storage.postgres).await?;
+	let db = Db::connect(&config.storage.postgres).await?;
 	db.ensure_schema(config.storage.qdrant.vector_dim).await?;
-	let qdrant = elf_storage::qdrant::QdrantStore::new(&config.storage.qdrant)?;
+	let qdrant = QdrantStore::new(&config.storage.qdrant)?;
 
 	let tokenizer_repo = config
 		.chunking
 		.tokenizer_repo
 		.clone()
 		.unwrap_or_else(|| config.providers.embedding.model.clone());
-	let tokenizer = elf_chunking::load_tokenizer(&tokenizer_repo)
-		.map_err(|err| color_eyre::eyre::eyre!(err))?;
-	let chunking = elf_chunking::ChunkingConfig {
+	let tokenizer =
+		elf_chunking::load_tokenizer(&tokenizer_repo).map_err(|err| eyre::eyre!(err))?;
+	let chunking = ChunkingConfig {
 		max_tokens: config.chunking.max_tokens,
 		overlap_tokens: config.chunking.overlap_tokens,
 	};

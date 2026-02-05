@@ -1,17 +1,20 @@
+// std
 use std::{net::SocketAddr, sync::Arc};
 
+// crates.io
 use axum::Router;
 use color_eyre::Result;
+use reqwest::Client;
 use rmcp::{
 	ErrorData as McpError, ServerHandler,
 	handler::server::router::tool::ToolRouter,
 	model::{CallToolResult, JsonObject, ServerCapabilities, ServerInfo},
-	tool, tool_handler, tool_router,
 	transport::streamable_http_server::{
 		StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
 	},
 };
-use serde_json::{Value, json};
+use serde_json::Value;
+use tokio::net::TcpListener;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum HttpMethod {
@@ -22,13 +25,13 @@ enum HttpMethod {
 #[derive(Clone)]
 struct ElfMcp {
 	api_base: String,
-	client: reqwest::Client,
+	client: Client,
 	tool_router: ToolRouter<Self>,
 }
 
 impl ElfMcp {
 	fn new(api_base: String) -> Self {
-		Self { api_base, client: reqwest::Client::new(), tool_router: Self::tool_router() }
+		Self { api_base, client: Client::new(), tool_router: Self::tool_router() }
 	}
 
 	async fn forward_post(&self, path: &str, body: Value) -> Result<CallToolResult, McpError> {
@@ -65,9 +68,9 @@ impl ElfMcp {
 	}
 }
 
-#[tool_router]
+#[rmcp::tool_router]
 impl ElfMcp {
-	#[tool(
+	#[rmcp::tool(
         name = "memory_add_note",
         description = "Add memory notes.",
         input_schema = any_json_schema()
@@ -76,7 +79,7 @@ impl ElfMcp {
 		self.forward(HttpMethod::Post, "/v1/memory/add_note", params).await
 	}
 
-	#[tool(
+	#[rmcp::tool(
         name = "memory_add_event",
         description = "Add memory extracted from event messages.",
         input_schema = any_json_schema()
@@ -85,7 +88,7 @@ impl ElfMcp {
 		self.forward(HttpMethod::Post, "/v1/memory/add_event", params).await
 	}
 
-	#[tool(
+	#[rmcp::tool(
         name = "memory_search",
         description = "Search memory notes.",
         input_schema = any_json_schema()
@@ -94,7 +97,7 @@ impl ElfMcp {
 		self.forward(HttpMethod::Post, "/v1/memory/search", params).await
 	}
 
-	#[tool(
+	#[rmcp::tool(
         name = "memory_search_explain",
         description = "Explain a search result using result_handle.",
         input_schema = any_json_schema()
@@ -103,7 +106,7 @@ impl ElfMcp {
 		self.forward(HttpMethod::Get, "/v1/memory/search/explain", params).await
 	}
 
-	#[tool(
+	#[rmcp::tool(
         name = "memory_list",
         description = "List memory notes.",
         input_schema = any_json_schema()
@@ -112,7 +115,7 @@ impl ElfMcp {
 		self.forward(HttpMethod::Get, "/v1/memory/list", params).await
 	}
 
-	#[tool(
+	#[rmcp::tool(
         name = "memory_update",
         description = "Update memory notes.",
         input_schema = any_json_schema()
@@ -121,7 +124,7 @@ impl ElfMcp {
 		self.forward(HttpMethod::Post, "/v1/memory/update", params).await
 	}
 
-	#[tool(
+	#[rmcp::tool(
         name = "memory_delete",
         description = "Delete memory notes.",
         input_schema = any_json_schema()
@@ -131,7 +134,7 @@ impl ElfMcp {
 	}
 }
 
-#[tool_handler]
+#[rmcp::tool_handler]
 impl ServerHandler for ElfMcp {
 	fn get_info(&self) -> ServerInfo {
 		ServerInfo {
@@ -154,7 +157,7 @@ pub async fn serve_mcp(bind_addr: &str, api_base: &str) -> Result<()> {
 		StreamableHttpServerConfig::default(),
 	);
 	let router = Router::new().fallback_service(service);
-	let listener = tokio::net::TcpListener::bind(bind_addr).await?;
+	let listener = TcpListener::bind(bind_addr).await?;
 	axum::serve(listener, router).await?;
 	Ok(())
 }
@@ -194,7 +197,7 @@ async fn handle_response(response: reqwest::Response) -> Result<CallToolResult, 
 		.map_err(|err| McpError::internal_error(format!("ELF API response error: {err}"), None))?;
 	let parsed = serde_json::from_slice::<Value>(&bytes).unwrap_or_else(|_| {
 		let raw = String::from_utf8_lossy(&bytes).to_string();
-		json!({ "raw": raw })
+		serde_json::json!({ "raw": raw })
 	});
 	if status.is_success() {
 		Ok(CallToolResult::structured(parsed))

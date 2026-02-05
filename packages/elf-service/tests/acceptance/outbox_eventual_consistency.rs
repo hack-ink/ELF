@@ -1,20 +1,37 @@
 #[path = "../../../../apps/elf-worker/src/worker.rs"] mod worker;
 
-use super::{
-	SpyExtractor, StubEmbedding, StubRerank, build_service, test_config, test_db, test_qdrant_url,
-};
-use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing};
-use qdrant_client::qdrant::{
-	CreateCollectionBuilder, Distance, Modifier, SparseVectorParamsBuilder,
-	SparseVectorsConfigBuilder, VectorParamsBuilder, VectorsConfigBuilder,
-};
+// std
 use std::{
+	collections::HashMap,
 	future::IntoFuture,
 	sync::{
 		Arc,
 		atomic::{AtomicUsize, Ordering},
 	},
 	time::{Duration, Instant},
+};
+
+// crates.io
+use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing};
+use qdrant_client::qdrant::{
+	CreateCollectionBuilder, Distance, Modifier, SparseVectorParamsBuilder,
+	SparseVectorsConfigBuilder, VectorParamsBuilder, VectorsConfigBuilder,
+};
+use serde_json::Map;
+use time::OffsetDateTime;
+use tokenizers::{Tokenizer, models::wordlevel::WordLevel};
+use tokio::{net::TcpListener, sync::oneshot, time as tokio_time};
+use uuid::Uuid;
+
+// self
+use super::{
+	SpyExtractor, StubEmbedding, StubRerank, build_service, test_config, test_db, test_qdrant_url,
+};
+use elf_config::EmbeddingProviderConfig;
+use elf_service::{AddNoteInput, AddNoteRequest, Providers};
+use elf_storage::{
+	db::Db,
+	qdrant::{BM25_VECTOR_NAME, DENSE_VECTOR_NAME, QdrantStore},
 };
 
 #[derive(sqlx::FromRow)]
@@ -42,7 +59,7 @@ async fn outbox_retries_to_done() {
 		calls: Arc::new(AtomicUsize::new(0)),
 		payload: serde_json::json!({ "notes": [] }),
 	};
-	let providers = elf_service::Providers::new(
+	let providers = Providers::new(
 		Arc::new(StubEmbedding { vector_dim: 3 }),
 		Arc::new(StubRerank),
 		Arc::new(extractor),
@@ -55,13 +72,11 @@ async fn outbox_retries_to_done() {
 
 	let _ = service.qdrant.client.delete_collection(service.qdrant.collection.clone()).await;
 	let mut vectors_config = VectorsConfigBuilder::default();
-	vectors_config.add_named_vector_params(
-		elf_storage::qdrant::DENSE_VECTOR_NAME,
-		VectorParamsBuilder::new(3, Distance::Cosine),
-	);
+	vectors_config
+		.add_named_vector_params(DENSE_VECTOR_NAME, VectorParamsBuilder::new(3, Distance::Cosine));
 	let mut sparse_vectors_config = SparseVectorsConfigBuilder::default();
 	sparse_vectors_config.add_named_vector_params(
-		elf_storage::qdrant::BM25_VECTOR_NAME,
+		BM25_VECTOR_NAME,
 		SparseVectorParamsBuilder::default().modifier(Modifier::Idf as i32),
 	);
 	service
@@ -76,12 +91,12 @@ async fn outbox_retries_to_done() {
 		.expect("Failed to create Qdrant collection.");
 
 	let add_response = service
-		.add_note(elf_service::AddNoteRequest {
+		.add_note(AddNoteRequest {
 			tenant_id: "t".to_string(),
 			project_id: "p".to_string(),
 			agent_id: "a".to_string(),
 			scope: "agent_private".to_string(),
-			notes: vec![elf_service::AddNoteInput {
+			notes: vec![AddNoteInput {
 				note_type: "fact".to_string(),
 				key: Some("outbox_test".to_string()),
 				text: "Fact: Outbox should retry.".to_string(),
@@ -97,12 +112,10 @@ async fn outbox_retries_to_done() {
 	let note_id = add_response.results[0].note_id.expect("Expected note_id in add_note result.");
 
 	let worker_state = worker::WorkerState {
-		db: elf_storage::db::Db::connect(&service.cfg.storage.postgres)
-			.await
-			.expect("Failed to connect worker DB."),
-		qdrant: elf_storage::qdrant::QdrantStore::new(&service.cfg.storage.qdrant)
+		db: Db::connect(&service.cfg.storage.postgres).await.expect("Failed to connect worker DB."),
+		qdrant: QdrantStore::new(&service.cfg.storage.qdrant)
 			.expect("Failed to build Qdrant store."),
-		embedding: elf_config::EmbeddingProviderConfig {
+		embedding: EmbeddingProviderConfig {
 			provider_id: "test".to_string(),
 			api_base,
 			api_key: "test-key".to_string(),
@@ -110,18 +123,18 @@ async fn outbox_retries_to_done() {
 			model: "test".to_string(),
 			dimensions: 3,
 			timeout_ms: 1_000,
-			default_headers: serde_json::Map::new(),
+			default_headers: Map::new(),
 		},
 		chunking: crate::chunking::ChunkingConfig { max_tokens: 64, overlap_tokens: 8 },
 		tokenizer: {
-			let mut vocab = std::collections::HashMap::new();
+			let mut vocab = HashMap::new();
 			vocab.insert("<unk>".to_string(), 0);
-			let model = tokenizers::models::wordlevel::WordLevel::builder()
+			let model = WordLevel::builder()
 				.vocab(vocab)
 				.unk_token("<unk>".to_string())
 				.build()
 				.expect("Failed to build test tokenizer.");
-			tokenizers::Tokenizer::new(model)
+			Tokenizer::new(model)
 		},
 	};
 
@@ -136,7 +149,7 @@ async fn outbox_retries_to_done() {
 	assert!(failed.last_error.is_some());
 	assert!(request_count.load(Ordering::SeqCst) >= 1);
 
-	let now = time::OffsetDateTime::now_utc();
+	let now = OffsetDateTime::now_utc();
 	sqlx::query("UPDATE indexing_outbox SET available_at = $1 WHERE note_id = $2")
 		.bind(now)
 		.bind(note_id)
@@ -156,7 +169,7 @@ async fn outbox_retries_to_done() {
 
 async fn wait_for_status(
 	pool: &sqlx::PgPool,
-	note_id: uuid::Uuid,
+	note_id: Uuid,
 	status: &str,
 	timeout: Duration,
 ) -> Option<OutboxRow> {
@@ -179,19 +192,16 @@ async fn wait_for_status(
 		if Instant::now() >= deadline {
 			return None;
 		}
-		tokio::time::sleep(Duration::from_millis(200)).await;
+		tokio_time::sleep(Duration::from_millis(200)).await;
 	}
 }
 
-async fn start_embed_server(
-	request_count: Arc<AtomicUsize>,
-) -> (String, tokio::sync::oneshot::Sender<()>) {
+async fn start_embed_server(request_count: Arc<AtomicUsize>) -> (String, oneshot::Sender<()>) {
 	let app =
 		Router::new().route("/embeddings", routing::post(embed_handler)).with_state(request_count);
-	let listener =
-		tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("Failed to bind embed server.");
+	let listener = TcpListener::bind("127.0.0.1:0").await.expect("Failed to bind embed server.");
 	let addr = listener.local_addr().expect("Failed to read embed server address.");
-	let (tx, rx) = tokio::sync::oneshot::channel();
+	let (tx, rx) = oneshot::channel();
 	let server = axum::serve(listener, app).with_graceful_shutdown(async move {
 		let _ = rx.await;
 	});

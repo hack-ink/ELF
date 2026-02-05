@@ -1,9 +1,12 @@
+// crates.io
+use time::{Duration, OffsetDateTime};
+
 pub fn compute_expires_at(
 	ttl_days: Option<i64>,
 	note_type: &str,
 	cfg: &elf_config::Config,
-	now: time::OffsetDateTime,
-) -> Option<time::OffsetDateTime> {
+	now: OffsetDateTime,
+) -> Option<OffsetDateTime> {
 	let days = if let Some(value) = ttl_days.filter(|days| *days > 0) {
 		value
 	} else {
@@ -18,5 +21,5 @@ pub fn compute_expires_at(
 		}
 	};
 
-	if days > 0 { Some(now + time::Duration::days(days)) } else { None }
+	if days > 0 { Some(now + Duration::days(days)) } else { None }
 }

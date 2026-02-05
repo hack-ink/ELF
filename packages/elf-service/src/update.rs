@@ -1,21 +1,19 @@
-use elf_domain::{
-	cjk::contains_cjk,
-	ttl::compute_expires_at,
-	writegate::{NoteInput, writegate},
-};
+// crates.io
+use time::OffsetDateTime;
+use uuid::Uuid;
+
+// self
+use elf_domain::{cjk, ttl, writegate};
 use elf_storage::models::MemoryNote;
 
-use crate::{
-	ElfService, InsertVersionArgs, NoteOp, ServiceError, ServiceResult, enqueue_outbox_tx,
-	insert_version, note_snapshot, writegate_reason_code,
-};
+use crate::{ElfService, InsertVersionArgs, NoteOp, ServiceError, ServiceResult};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct UpdateRequest {
 	pub tenant_id: String,
 	pub project_id: String,
 	pub agent_id: String,
-	pub note_id: uuid::Uuid,
+	pub note_id: Uuid,
 	pub text: Option<String>,
 	pub importance: Option<f32>,
 	pub confidence: Option<f32>,
@@ -24,7 +22,7 @@ pub struct UpdateRequest {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct UpdateResponse {
-	pub note_id: uuid::Uuid,
+	pub note_id: Uuid,
 	pub op: NoteOp,
 	pub reason_code: Option<String>,
 }
@@ -63,10 +61,10 @@ impl ElfService {
 		.await?
 		.ok_or_else(|| ServiceError::InvalidRequest { message: "Note not found.".to_string() })?;
 
-		let prev_snapshot = note_snapshot(&note);
+		let prev_snapshot = crate::note_snapshot(&note);
 
 		let candidate_text = if let Some(text) = text_update.as_ref() {
-			if contains_cjk(text) {
+			if cjk::contains_cjk(text) {
 				return Err(ServiceError::NonEnglishInput { field: "$.text".to_string() });
 			}
 			text.clone()
@@ -74,25 +72,25 @@ impl ElfService {
 			note.text.clone()
 		};
 
-		let gate = NoteInput {
+		let gate = writegate::NoteInput {
 			note_type: note.r#type.clone(),
 			scope: note.scope.clone(),
 			text: candidate_text,
 		};
-		if let Err(code) = writegate(&gate, &self.cfg) {
+		if let Err(code) = writegate::writegate(&gate, &self.cfg) {
 			return Ok(UpdateResponse {
 				note_id: note.note_id,
 				op: NoteOp::Rejected,
-				reason_code: Some(writegate_reason_code(code).to_string()),
+				reason_code: Some(crate::writegate_reason_code(code).to_string()),
 			});
 		}
 
-		let now = time::OffsetDateTime::now_utc();
+		let now = OffsetDateTime::now_utc();
 		let next_text = text_update.unwrap_or_else(|| note.text.clone());
 		let next_importance = req.importance.unwrap_or(note.importance);
 		let next_confidence = req.confidence.unwrap_or(note.confidence);
 		let next_expires_at = match req.ttl_days {
-			Some(ttl_days) => compute_expires_at(Some(ttl_days), &note.r#type, &self.cfg, now),
+			Some(ttl_days) => ttl::compute_expires_at(Some(ttl_days), &note.r#type, &self.cfg, now),
 			None => note.expires_at,
 		};
 
@@ -128,13 +126,13 @@ impl ElfService {
         .execute(&mut *tx)
         .await?;
 
-		insert_version(
+		crate::insert_version(
 			&mut tx,
 			InsertVersionArgs {
 				note_id: note.note_id,
 				op: "UPDATE",
 				prev_snapshot: Some(prev_snapshot),
-				new_snapshot: Some(note_snapshot(&note)),
+				new_snapshot: Some(crate::note_snapshot(&note)),
 				reason: "update",
 				actor: "update",
 				ts: note.updated_at,
@@ -142,7 +140,7 @@ impl ElfService {
 		)
 		.await?;
 
-		enqueue_outbox_tx(
+		crate::enqueue_outbox_tx(
 			&mut tx,
 			note.note_id,
 			"UPSERT",

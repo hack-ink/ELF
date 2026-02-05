@@ -1,20 +1,26 @@
+// std
 use std::{
-	collections::{HashMap, HashSet},
-	hash::Hasher,
+	collections::{HashMap, HashSet, hash_map::DefaultHasher},
+	hash::{Hash, Hasher},
+	slice,
 };
 
-use elf_domain::cjk::contains_cjk;
-use elf_storage::{
-	models::MemoryNote,
-	qdrant::{BM25_MODEL, BM25_VECTOR_NAME, DENSE_VECTOR_NAME},
-};
+// crates.io
 use qdrant_client::qdrant::{
 	Condition, Document, Filter, Fusion, MinShould, PrefetchQueryBuilder, Query,
 	QueryPointsBuilder, ScoredPoint, Value, point_id::PointIdOptions, value::Kind,
 };
 use serde::de::DeserializeOwned;
-use sqlx::Row;
-use tracing::warn;
+use sqlx::{QueryBuilder, Row};
+use time::{Duration, OffsetDateTime};
+use uuid::Uuid;
+
+// self
+use elf_domain::cjk;
+use elf_storage::{
+	models::MemoryNote,
+	qdrant::{BM25_MODEL, BM25_VECTOR_NAME, DENSE_VECTOR_NAME},
+};
 
 use crate::{ElfService, ServiceError, ServiceResult};
 
@@ -50,9 +56,9 @@ pub struct SearchExplain {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SearchItem {
-	pub result_handle: uuid::Uuid,
-	pub note_id: uuid::Uuid,
-	pub chunk_id: uuid::Uuid,
+	pub result_handle: Uuid,
+	pub note_id: Uuid,
+	pub chunk_id: Uuid,
 	pub chunk_index: i32,
 	pub start_offset: i32,
 	pub end_offset: i32,
@@ -64,9 +70,9 @@ pub struct SearchItem {
 	pub importance: f32,
 	pub confidence: f32,
 	#[serde(with = "crate::time_serde")]
-	pub updated_at: time::OffsetDateTime,
+	pub updated_at: OffsetDateTime,
 	#[serde(with = "crate::time_serde::option")]
-	pub expires_at: Option<time::OffsetDateTime>,
+	pub expires_at: Option<OffsetDateTime>,
 	pub final_score: f32,
 	pub source_ref: serde_json::Value,
 	pub explain: SearchExplain,
@@ -74,18 +80,18 @@ pub struct SearchItem {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SearchResponse {
-	pub trace_id: uuid::Uuid,
+	pub trace_id: Uuid,
 	pub items: Vec<SearchItem>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SearchExplainRequest {
-	pub result_handle: uuid::Uuid,
+	pub result_handle: Uuid,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SearchTrace {
-	pub trace_id: uuid::Uuid,
+	pub trace_id: Uuid,
 	pub tenant_id: String,
 	pub project_id: String,
 	pub agent_id: String,
@@ -98,15 +104,15 @@ pub struct SearchTrace {
 	pub top_k: u32,
 	pub config_snapshot: serde_json::Value,
 	#[serde(with = "crate::time_serde")]
-	pub created_at: time::OffsetDateTime,
+	pub created_at: OffsetDateTime,
 	pub trace_version: i32,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SearchExplainItem {
-	pub result_handle: uuid::Uuid,
-	pub note_id: uuid::Uuid,
-	pub chunk_id: Option<uuid::Uuid>,
+	pub result_handle: Uuid,
+	pub note_id: Uuid,
+	pub chunk_id: Option<Uuid>,
 	pub rank: u32,
 	pub explain: SearchExplain,
 }
@@ -155,8 +161,8 @@ struct RetrievalInfo {
 
 #[derive(Debug, Clone)]
 struct ChunkCandidate {
-	chunk_id: uuid::Uuid,
-	note_id: uuid::Uuid,
+	chunk_id: Uuid,
+	note_id: Uuid,
 	chunk_index: i32,
 	retrieval_score: f32,
 	retrieval_rank: u32,
@@ -164,27 +170,27 @@ struct ChunkCandidate {
 
 #[derive(Debug, Clone)]
 struct RerankCacheCandidate {
-	chunk_id: uuid::Uuid,
-	updated_at: time::OffsetDateTime,
+	chunk_id: Uuid,
+	updated_at: OffsetDateTime,
 }
 
 #[derive(Debug, Clone)]
 struct NoteMeta {
-	note_id: uuid::Uuid,
+	note_id: Uuid,
 	note_type: String,
 	key: Option<String>,
 	scope: String,
 	importance: f32,
 	confidence: f32,
-	updated_at: time::OffsetDateTime,
-	expires_at: Option<time::OffsetDateTime>,
+	updated_at: OffsetDateTime,
+	expires_at: Option<OffsetDateTime>,
 	source_ref: serde_json::Value,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
 struct ChunkRow {
-	chunk_id: uuid::Uuid,
-	note_id: uuid::Uuid,
+	chunk_id: Uuid,
+	note_id: Uuid,
 	chunk_index: i32,
 	start_offset: i32,
 	end_offset: i32,
@@ -193,7 +199,7 @@ struct ChunkRow {
 
 #[derive(Debug, Clone)]
 struct ChunkMeta {
-	chunk_id: uuid::Uuid,
+	chunk_id: Uuid,
 	chunk_index: i32,
 	start_offset: i32,
 	end_offset: i32,
@@ -213,8 +219,8 @@ struct ExpansionCachePayload {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct RerankCacheItem {
-	chunk_id: uuid::Uuid,
-	updated_at: time::OffsetDateTime,
+	chunk_id: Uuid,
+	updated_at: OffsetDateTime,
 	score: f32,
 }
 
@@ -245,7 +251,7 @@ struct TracePayload {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct TraceRecord {
-	trace_id: uuid::Uuid,
+	trace_id: Uuid,
 	tenant_id: String,
 	project_id: String,
 	agent_id: String,
@@ -258,15 +264,15 @@ struct TraceRecord {
 	top_k: u32,
 	config_snapshot: serde_json::Value,
 	trace_version: i32,
-	created_at: time::OffsetDateTime,
-	expires_at: time::OffsetDateTime,
+	created_at: OffsetDateTime,
+	expires_at: OffsetDateTime,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct TraceItemRecord {
-	item_id: uuid::Uuid,
-	note_id: uuid::Uuid,
-	chunk_id: Option<uuid::Uuid>,
+	item_id: Uuid,
+	note_id: Uuid,
+	chunk_id: Option<Uuid>,
 	rank: u32,
 	retrieval_score: Option<f32>,
 	retrieval_rank: Option<u32>,
@@ -279,7 +285,7 @@ struct TraceItemRecord {
 }
 
 struct TraceContext<'a> {
-	trace_id: uuid::Uuid,
+	trace_id: Uuid,
 	tenant_id: &'a str,
 	project_id: &'a str,
 	agent_id: &'a str,
@@ -298,7 +304,7 @@ struct SearchTraceBuilder {
 }
 
 impl SearchTraceBuilder {
-	fn new(context: TraceContext<'_>, cfg: &elf_config::Config, now: time::OffsetDateTime) -> Self {
+	fn new(context: TraceContext<'_>, cfg: &elf_config::Config, now: OffsetDateTime) -> Self {
 		let trace = TraceRecord {
 			trace_id: context.trace_id,
 			tenant_id: context.tenant_id.to_string(),
@@ -314,7 +320,7 @@ impl SearchTraceBuilder {
 			config_snapshot: build_config_snapshot(cfg),
 			trace_version: TRACE_VERSION,
 			created_at: now,
-			expires_at: now + time::Duration::days(cfg.search.explain.retention_days),
+			expires_at: now + Duration::days(cfg.search.explain.retention_days),
 		};
 		Self { trace, items: Vec::new() }
 	}
@@ -329,7 +335,7 @@ impl SearchTraceBuilder {
 }
 
 struct FinishSearchArgs<'a> {
-	trace_id: uuid::Uuid,
+	trace_id: Uuid,
 	query: &'a str,
 	tenant_id: &'a str,
 	project_id: &'a str,
@@ -353,7 +359,7 @@ impl ElfService {
 				message: "tenant_id, project_id, and agent_id are required.".to_string(),
 			});
 		}
-		if contains_cjk(&req.query) {
+		if cjk::contains_cjk(&req.query) {
 			return Err(ServiceError::NonEnglishInput { field: "$.query".to_string() });
 		}
 
@@ -363,7 +369,7 @@ impl ElfService {
 		let read_profile = req.read_profile.clone();
 		let record_hits_enabled = req.record_hits.unwrap_or(false);
 		let expansion_mode = resolve_expansion_mode(&self.cfg);
-		let trace_id = uuid::Uuid::new_v4();
+		let trace_id = Uuid::new_v4();
 
 		let allowed_scopes = resolve_scopes(&self.cfg, &read_profile)?;
 		if allowed_scopes.is_empty() {
@@ -570,7 +576,7 @@ impl ElfService {
 		let embeddings = self
 			.providers
 			.embedding
-			.embed(&self.cfg.providers.embedding, std::slice::from_ref(&query.to_string()))
+			.embed(&self.cfg.providers.embedding, slice::from_ref(&query.to_string()))
 			.await?;
 		let query_vec = embeddings.into_iter().next().ok_or_else(|| ServiceError::Provider {
 			message: "Embedding provider returned no vectors.".to_string(),
@@ -669,7 +675,7 @@ impl ElfService {
 	async fn expand_queries(&self, query: &str) -> Vec<String> {
 		let cfg = &self.cfg.search.expansion;
 		let cache_cfg = &self.cfg.search.cache;
-		let now = time::OffsetDateTime::now_utc();
+		let now = OffsetDateTime::now_utc();
 		let cache_key = if cache_cfg.enabled {
 			match build_expansion_cache_key(
 				query,
@@ -752,7 +758,7 @@ impl ElfService {
 		{
 			Ok(value) => value,
 			Err(err) => {
-				warn!(error = %err, "Query expansion failed; falling back to original query.");
+				tracing::warn!(error = %err, "Query expansion failed; falling back to original query.");
 				return vec![query.to_string()];
 			},
 		};
@@ -760,7 +766,7 @@ impl ElfService {
 		let parsed: ExpansionOutput = match serde_json::from_value(raw) {
 			Ok(value) => value,
 			Err(err) => {
-				warn!(error = %err, "Query expansion returned invalid JSON; falling back to original query.");
+				tracing::warn!(error = %err, "Query expansion returned invalid JSON; falling back to original query.");
 				return vec![query.to_string()];
 			},
 		};
@@ -783,8 +789,8 @@ impl ElfService {
 					return result;
 				},
 			};
-			let stored_at = time::OffsetDateTime::now_utc();
-			let expires_at = stored_at + time::Duration::days(cache_cfg.expansion_ttl_days);
+			let stored_at = OffsetDateTime::now_utc();
+			let expires_at = stored_at + Duration::days(cache_cfg.expansion_ttl_days);
 			match store_cache_payload(
 				&self.db.pool,
 				CacheKind::Expansion,
@@ -845,10 +851,10 @@ impl ElfService {
 			top_k,
 			record_hits_enabled,
 		} = args;
-		let now = time::OffsetDateTime::now_utc();
+		let now = OffsetDateTime::now_utc();
 		let cache_cfg = &self.cfg.search.cache;
 		let candidate_count = candidates.len();
-		let retrieval_map: HashMap<uuid::Uuid, RetrievalInfo> = candidates
+		let retrieval_map: HashMap<Uuid, RetrievalInfo> = candidates
 			.iter()
 			.map(|candidate| {
 				(
@@ -861,7 +867,7 @@ impl ElfService {
 			})
 			.collect();
 
-		let candidate_note_ids: Vec<uuid::Uuid> =
+		let candidate_note_ids: Vec<Uuid> =
 			candidates.iter().map(|candidate| candidate.note_id).collect();
 		let mut notes: Vec<MemoryNote> = if candidate_note_ids.is_empty() {
 			Vec::new()
@@ -967,7 +973,7 @@ impl ElfService {
 						updated_at: item.note.updated_at,
 					})
 					.collect();
-				let signature: Vec<(uuid::Uuid, time::OffsetDateTime)> = candidates
+				let signature: Vec<(Uuid, OffsetDateTime)> = candidates
 					.iter()
 					.map(|candidate| (candidate.chunk_id, candidate.updated_at))
 					.collect();
@@ -1080,9 +1086,8 @@ impl ElfService {
 					};
 					match serde_json::to_value(&payload) {
 						Ok(payload_json) => {
-							let stored_at = time::OffsetDateTime::now_utc();
-							let expires_at =
-								stored_at + time::Duration::days(cache_cfg.rerank_ttl_days);
+							let stored_at = OffsetDateTime::now_utc();
+							let expires_at = stored_at + Duration::days(cache_cfg.rerank_ttl_days);
 							match store_cache_payload(
 								&self.db.pool,
 								CacheKind::Rerank,
@@ -1153,7 +1158,7 @@ impl ElfService {
 			}
 		}
 
-		let mut best_by_note: HashMap<uuid::Uuid, ScoredChunk> = HashMap::new();
+		let mut best_by_note: HashMap<Uuid, ScoredChunk> = HashMap::new();
 		for scored_item in scored {
 			let note_id = scored_item.item.note.note_id;
 			let replace = match best_by_note.get(&note_id) {
@@ -1213,7 +1218,7 @@ impl ElfService {
 				matched_terms: matched_terms.clone(),
 				matched_fields: matched_fields.clone(),
 			};
-			let result_handle = uuid::Uuid::new_v4();
+			let result_handle = Uuid::new_v4();
 			let note = &scored_chunk.item.note;
 			let chunk = &scored_chunk.item.chunk;
 			items.push(SearchItem {
@@ -1306,7 +1311,7 @@ fn normalize_queries(
 
 fn push_query(out: &mut Vec<String>, seen: &mut HashSet<String>, value: &str) {
 	let trimmed = value.trim();
-	if trimmed.is_empty() || contains_cjk(trimmed) {
+	if trimmed.is_empty() || cjk::contains_cjk(trimmed) {
 		return;
 	}
 	let key = trimmed.to_lowercase();
@@ -1361,18 +1366,18 @@ fn collect_chunk_candidates(
 			.and_then(point_id_to_uuid)
 			.or_else(|| payload_uuid(&point.payload, "chunk_id"));
 		let Some(chunk_id) = chunk_id else {
-			warn!("Chunk candidate missing chunk_id.");
+			tracing::warn!("Chunk candidate missing chunk_id.");
 			continue;
 		};
 		if !seen.insert(chunk_id) {
 			continue;
 		}
 		let Some(note_id) = payload_uuid(&point.payload, "note_id") else {
-			warn!(chunk_id = %chunk_id, "Chunk candidate missing note_id.");
+			tracing::warn!(chunk_id = %chunk_id, "Chunk candidate missing note_id.");
 			continue;
 		};
 		let Some(chunk_index) = payload_i32(&point.payload, "chunk_index") else {
-			warn!(chunk_id = %chunk_id, "Chunk candidate missing chunk_index.");
+			tracing::warn!(chunk_id = %chunk_id, "Chunk candidate missing chunk_index.");
 			continue;
 		};
 		out.push(ChunkCandidate {
@@ -1386,7 +1391,7 @@ fn collect_chunk_candidates(
 	out
 }
 
-fn collect_neighbor_pairs(candidates: &[ChunkCandidate]) -> Vec<(uuid::Uuid, i32)> {
+fn collect_neighbor_pairs(candidates: &[ChunkCandidate]) -> Vec<(Uuid, i32)> {
 	let mut seen = HashSet::new();
 	let mut out = Vec::new();
 	for candidate in candidates {
@@ -1410,12 +1415,12 @@ fn collect_neighbor_pairs(candidates: &[ChunkCandidate]) -> Vec<(uuid::Uuid, i32
 
 async fn fetch_chunks_by_pair(
 	pool: &sqlx::PgPool,
-	pairs: &[(uuid::Uuid, i32)],
+	pairs: &[(Uuid, i32)],
 ) -> ServiceResult<Vec<ChunkRow>> {
 	if pairs.is_empty() {
 		return Ok(Vec::new());
 	}
-	let mut builder = sqlx::QueryBuilder::new(
+	let mut builder = QueryBuilder::new(
 		"SELECT chunk_id, note_id, chunk_index, start_offset, end_offset, text \
          FROM memory_note_chunks WHERE ",
 	);
@@ -1435,9 +1440,9 @@ async fn fetch_chunks_by_pair(
 }
 
 fn stitch_snippet(
-	note_id: uuid::Uuid,
+	note_id: Uuid,
 	chunk_index: i32,
-	chunks: &HashMap<(uuid::Uuid, i32), ChunkRow>,
+	chunks: &HashMap<(Uuid, i32), ChunkRow>,
 ) -> String {
 	let mut out = String::new();
 	let indices = [chunk_index.checked_sub(1), Some(chunk_index), chunk_index.checked_add(1)];
@@ -1521,7 +1526,10 @@ fn match_terms_in_text(
 	(matched_terms, fields)
 }
 
-fn decode_json<T: DeserializeOwned>(value: serde_json::Value, label: &str) -> ServiceResult<T> {
+fn decode_json<T>(value: serde_json::Value, label: &str) -> ServiceResult<T>
+where
+	T: DeserializeOwned,
+{
 	serde_json::from_value(value)
 		.map_err(|err| ServiceError::Storage { message: format!("Invalid {label} value: {err}") })
 }
@@ -1578,17 +1586,17 @@ fn resolve_scopes(cfg: &elf_config::Config, profile: &str) -> ServiceResult<Vec<
 	}
 }
 
-fn point_id_to_uuid(point_id: &qdrant_client::qdrant::PointId) -> Option<uuid::Uuid> {
+fn point_id_to_uuid(point_id: &qdrant_client::qdrant::PointId) -> Option<Uuid> {
 	match &point_id.point_id_options {
-		Some(PointIdOptions::Uuid(id)) => uuid::Uuid::parse_str(id).ok(),
+		Some(PointIdOptions::Uuid(id)) => Uuid::parse_str(id).ok(),
 		_ => None,
 	}
 }
 
-fn payload_uuid(payload: &HashMap<String, Value>, key: &str) -> Option<uuid::Uuid> {
+fn payload_uuid(payload: &HashMap<String, Value>, key: &str) -> Option<Uuid> {
 	let value = payload.get(key)?;
 	match &value.kind {
-		Some(Kind::StringValue(text)) => uuid::Uuid::parse_str(text).ok(),
+		Some(Kind::StringValue(text)) => Uuid::parse_str(text).ok(),
 		_ => None,
 	}
 }
@@ -1608,7 +1616,7 @@ fn payload_i32(payload: &HashMap<String, Value>, key: &str) -> Option<i32> {
 }
 
 async fn enqueue_trace(pool: &sqlx::PgPool, payload: TracePayload) -> ServiceResult<()> {
-	let now = time::OffsetDateTime::now_utc();
+	let now = OffsetDateTime::now_utc();
 	let payload_json = serde_json::to_value(&payload).map_err(|err| ServiceError::Storage {
 		message: format!("Failed to encode search trace payload: {err}"),
 	})?;
@@ -1617,7 +1625,7 @@ async fn enqueue_trace(pool: &sqlx::PgPool, payload: TracePayload) -> ServiceRes
          (outbox_id, trace_id, status, attempts, last_error, available_at, payload, created_at, updated_at) \
          VALUES ($1,$2,'PENDING',0,NULL,$3,$4,$3,$3)",
     )
-    .bind(uuid::Uuid::new_v4())
+    .bind(Uuid::new_v4())
     .bind(payload.trace.trace_id)
     .bind(now)
     .bind(payload_json)
@@ -1630,7 +1638,7 @@ async fn record_hits(
 	pool: &sqlx::PgPool,
 	query: &str,
 	scored: &[ScoredChunk],
-	now: time::OffsetDateTime,
+	now: OffsetDateTime,
 ) -> ServiceResult<()> {
 	let query_hash = hash_query(query);
 	let mut tx = pool.begin().await?;
@@ -1649,7 +1657,7 @@ async fn record_hits(
 			"INSERT INTO memory_hits (hit_id, note_id, chunk_id, query_hash, rank, final_score, ts) \
              VALUES ($1,$2,$3,$4,$5,$6,$7)",
 		)
-		.bind(uuid::Uuid::new_v4())
+		.bind(Uuid::new_v4())
 		.bind(note.note_id)
 		.bind(scored_chunk.item.chunk.chunk_id)
 		.bind(&query_hash)
@@ -1665,8 +1673,8 @@ async fn record_hits(
 }
 
 fn hash_query(query: &str) -> String {
-	let mut hasher = std::collections::hash_map::DefaultHasher::new();
-	std::hash::Hash::hash(query, &mut hasher);
+	let mut hasher = DefaultHasher::new();
+	Hash::hash(query, &mut hasher);
 	format!("{:x}", hasher.finish())
 }
 
@@ -1686,7 +1694,7 @@ async fn fetch_cache_payload(
 	pool: &sqlx::PgPool,
 	kind: CacheKind,
 	key: &str,
-	now: time::OffsetDateTime,
+	now: OffsetDateTime,
 ) -> ServiceResult<Option<CachePayload>> {
 	let row = sqlx::query(
 		"SELECT payload FROM llm_cache WHERE cache_kind = $1 AND cache_key = $2 AND expires_at > $3",
@@ -1726,8 +1734,8 @@ async fn store_cache_payload(
 	kind: CacheKind,
 	key: &str,
 	payload: serde_json::Value,
-	now: time::OffsetDateTime,
-	expires_at: time::OffsetDateTime,
+	now: OffsetDateTime,
+	expires_at: OffsetDateTime,
 	max_payload_bytes: Option<u64>,
 ) -> ServiceResult<Option<usize>> {
 	let payload_bytes = serde_json::to_vec(&payload).map_err(|err| ServiceError::Storage {
@@ -1750,7 +1758,7 @@ async fn store_cache_payload(
          expires_at = EXCLUDED.expires_at, \
          hit_count = 0",
 	)
-	.bind(uuid::Uuid::new_v4())
+	.bind(Uuid::new_v4())
 	.bind(kind.as_str())
 	.bind(key)
 	.bind(payload)
@@ -1789,7 +1797,7 @@ fn build_rerank_cache_key(
 	version: &str,
 	provider_id: &str,
 	model: &str,
-	candidates: &[(uuid::Uuid, time::OffsetDateTime)],
+	candidates: &[(Uuid, OffsetDateTime)],
 ) -> ServiceResult<String> {
 	let signature: Vec<serde_json::Value> = candidates
 		.iter()
@@ -1840,11 +1848,7 @@ fn build_cached_scores(
 
 #[cfg(test)]
 mod tests {
-	use super::{
-		RerankCacheCandidate, RerankCacheItem, RerankCachePayload, build_cached_scores,
-		build_expansion_cache_key, build_rerank_cache_key, cache_key_prefix, normalize_queries,
-		should_expand_dynamic,
-	};
+	use super::*;
 
 	#[test]
 	fn normalize_queries_includes_original_and_dedupes() {
@@ -1880,9 +1884,9 @@ mod tests {
 
 	#[test]
 	fn rerank_cache_key_changes_with_updated_at() {
-		let ts_a = time::OffsetDateTime::from_unix_timestamp(1).expect("Valid timestamp.");
-		let ts_b = time::OffsetDateTime::from_unix_timestamp(2).expect("Valid timestamp.");
-		let chunk_id = uuid::Uuid::new_v4();
+		let ts_a = OffsetDateTime::from_unix_timestamp(1).expect("Valid timestamp.");
+		let ts_b = OffsetDateTime::from_unix_timestamp(2).expect("Valid timestamp.");
+		let chunk_id = Uuid::new_v4();
 		let key_a = build_rerank_cache_key("q", "v1", "rerank", "model", &[(chunk_id, ts_a)])
 			.expect("Expected cache key.");
 		let key_b = build_rerank_cache_key("q", "v1", "rerank", "model", &[(chunk_id, ts_b)])
@@ -1894,14 +1898,14 @@ mod tests {
 	fn rerank_cache_payload_rejects_mismatched_counts() {
 		let payload = RerankCachePayload {
 			items: vec![RerankCacheItem {
-				chunk_id: uuid::Uuid::new_v4(),
-				updated_at: time::OffsetDateTime::from_unix_timestamp(1).expect("Valid timestamp."),
+				chunk_id: Uuid::new_v4(),
+				updated_at: OffsetDateTime::from_unix_timestamp(1).expect("Valid timestamp."),
 				score: 0.5,
 			}],
 		};
 		let candidates = vec![RerankCacheCandidate {
-			chunk_id: uuid::Uuid::new_v4(),
-			updated_at: time::OffsetDateTime::from_unix_timestamp(1).expect("Valid timestamp."),
+			chunk_id: Uuid::new_v4(),
+			updated_at: OffsetDateTime::from_unix_timestamp(1).expect("Valid timestamp."),
 		}];
 		assert!(build_cached_scores(&payload, &candidates).is_none());
 	}

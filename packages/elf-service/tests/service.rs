@@ -1,8 +1,14 @@
+// std
 use std::sync::{
 	Arc,
 	atomic::{AtomicUsize, Ordering},
 };
 
+// crates.io
+use serde_json::{Map, Value};
+use sqlx::PgPool;
+
+// self
 use elf_config::{Config, EmbeddingProviderConfig, LlmProviderConfig, ProviderConfig};
 use elf_service::{
 	AddNoteInput, AddNoteRequest, ElfService, EmbeddingProvider, ExtractorProvider, Providers,
@@ -56,8 +62,8 @@ impl ExtractorProvider for SpyExtractor {
 	fn extract<'a>(
 		&'a self,
 		_cfg: &'a LlmProviderConfig,
-		_messages: &'a [serde_json::Value],
-	) -> elf_service::BoxFuture<'a, color_eyre::Result<serde_json::Value>> {
+		_messages: &'a [Value],
+	) -> elf_service::BoxFuture<'a, color_eyre::Result<Value>> {
 		self.calls.fetch_add(1, Ordering::SeqCst);
 		Box::pin(async move { Ok(serde_json::json!({ "notes": [] })) })
 	}
@@ -170,7 +176,7 @@ fn dummy_embedding_provider() -> elf_config::EmbeddingProviderConfig {
 		model: "3".to_string(),
 		dimensions: 3,
 		timeout_ms: 1000,
-		default_headers: serde_json::Map::new(),
+		default_headers: Map::new(),
 	}
 }
 
@@ -182,7 +188,7 @@ fn dummy_provider() -> elf_config::ProviderConfig {
 		path: "/".to_string(),
 		model: "3".to_string(),
 		timeout_ms: 1000,
-		default_headers: serde_json::Map::new(),
+		default_headers: Map::new(),
 	}
 }
 
@@ -195,7 +201,7 @@ fn dummy_llm_provider() -> elf_config::LlmProviderConfig {
 		model: "m".to_string(),
 		temperature: 0.1,
 		timeout_ms: 1000,
-		default_headers: serde_json::Map::new(),
+		default_headers: Map::new(),
 	}
 }
 
@@ -203,7 +209,7 @@ fn dummy_llm_provider() -> elf_config::LlmProviderConfig {
 async fn add_note_does_not_call_llm() {
 	let cfg = test_config();
 	let pool =
-		sqlx::PgPool::connect_lazy(&cfg.storage.postgres.dsn).expect("Failed to create lazy pool.");
+		PgPool::connect_lazy(&cfg.storage.postgres.dsn).expect("Failed to create lazy pool.");
 	let db = Db { pool };
 	let qdrant = QdrantStore::new(&cfg.storage.qdrant).expect("Failed to create Qdrant store.");
 
@@ -229,5 +235,30 @@ async fn add_note_does_not_call_llm() {
 
 	let result = service.add_note(req).await;
 	assert!(matches!(result, Err(ServiceError::NonEnglishInput { .. })));
+	assert_eq!(spy.count(), 0);
+}
+
+#[tokio::test]
+async fn add_note_rejects_empty_notes() {
+	let cfg = test_config();
+	let pool =
+		PgPool::connect_lazy(&cfg.storage.postgres.dsn).expect("Failed to create lazy pool.");
+	let db = Db { pool };
+	let qdrant = QdrantStore::new(&cfg.storage.qdrant).expect("Failed to create Qdrant store.");
+
+	let spy = Arc::new(SpyExtractor::new());
+	let providers = Providers::new(Arc::new(DummyEmbedding), Arc::new(DummyRerank), spy.clone());
+
+	let service = ElfService::with_providers(cfg, db, qdrant, providers);
+	let req = AddNoteRequest {
+		tenant_id: "t1".to_string(),
+		project_id: "p1".to_string(),
+		agent_id: "a1".to_string(),
+		scope: "agent_private".to_string(),
+		notes: vec![],
+	};
+
+	let result = service.add_note(req).await;
+	assert!(matches!(result, Err(ServiceError::InvalidRequest { .. })));
 	assert_eq!(spy.count(), 0);
 }

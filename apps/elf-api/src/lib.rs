@@ -1,8 +1,17 @@
 pub mod routes;
 pub mod state;
 
+// std
+use std::{net::SocketAddr, path::PathBuf};
+
+// crates.io
 use clap::Parser;
-use std::net::SocketAddr;
+use color_eyre::eyre;
+use tokio::net::TcpListener;
+use tracing_subscriber::EnvFilter;
+
+// self
+use crate::state::AppState;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -12,7 +21,7 @@ use std::net::SocketAddr;
 )]
 pub struct Args {
 	#[arg(long, short = 'c', value_name = "FILE")]
-	pub config: std::path::PathBuf,
+	pub config: PathBuf,
 }
 
 pub async fn run(args: Args) -> color_eyre::Result<()> {
@@ -21,22 +30,22 @@ pub async fn run(args: Args) -> color_eyre::Result<()> {
 	let http_addr: SocketAddr = config.service.http_bind.parse()?;
 	let admin_addr: SocketAddr = config.service.admin_bind.parse()?;
 	if config.security.bind_localhost_only && !http_addr.ip().is_loopback() {
-		return Err(color_eyre::eyre::eyre!(
+		return Err(eyre::eyre!(
 			"http_bind must be a loopback address when bind_localhost_only is true."
 		));
 	}
 	if !admin_addr.ip().is_loopback() {
-		return Err(color_eyre::eyre::eyre!("admin_bind must be a loopback address."));
+		return Err(eyre::eyre!("admin_bind must be a loopback address."));
 	}
-	let state = state::AppState::new(config).await?;
+	let state = AppState::new(config).await?;
 	let app = routes::router(state.clone());
 	let admin_app = routes::admin_router(state);
 
-	let http_listener = tokio::net::TcpListener::bind(http_addr).await?;
+	let http_listener = TcpListener::bind(http_addr).await?;
 	tracing::info!(%http_addr, "HTTP server listening.");
 	let http_server = axum::serve(http_listener, app);
 
-	let admin_listener = tokio::net::TcpListener::bind(admin_addr).await?;
+	let admin_listener = TcpListener::bind(admin_addr).await?;
 	tracing::info!(%admin_addr, "Admin server listening.");
 	let admin_server = axum::serve(admin_listener, admin_app);
 
@@ -45,8 +54,8 @@ pub async fn run(args: Args) -> color_eyre::Result<()> {
 }
 
 fn init_tracing(config: &elf_config::Config) -> color_eyre::Result<()> {
-	let filter = tracing_subscriber::EnvFilter::try_new(&config.service.log_level)
-		.unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
+	let filter =
+		EnvFilter::try_new(&config.service.log_level).unwrap_or_else(|_| EnvFilter::new("info"));
 	tracing_subscriber::fmt().with_env_filter(filter).init();
 	Ok(())
 }

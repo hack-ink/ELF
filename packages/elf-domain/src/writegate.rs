@@ -1,6 +1,8 @@
+// crates.io
 use regex::Regex;
 
-use crate::cjk::contains_cjk;
+// self
+use crate::cjk;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RejectCode {
@@ -22,7 +24,7 @@ pub fn writegate(note: &NoteInput, cfg: &elf_config::Config) -> Result<(), Rejec
 	if note.text.trim().is_empty() {
 		return Err(RejectCode::RejectEmpty);
 	}
-	if contains_cjk(&note.text) {
+	if cjk::contains_cjk(&note.text) {
 		return Err(RejectCode::RejectCjk);
 	}
 	if note.text.chars().count() as u32 > cfg.memory.max_note_chars {
@@ -79,7 +81,7 @@ fn contains_secrets(text: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-	use super::{NoteInput, RejectCode, contains_secrets, writegate};
+	use super::*;
 
 	fn config() -> elf_config::Config {
 		elf_config::Config {

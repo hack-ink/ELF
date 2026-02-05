@@ -1,7 +1,10 @@
+// crates.io
 use clap::Parser;
+// self
+use elf_worker::Args;
 
 #[tokio::main]
 async fn main() -> color_eyre::Result<()> {
-	let args = elf_worker::Args::parse();
+	let args = Args::parse();
 	elf_worker::run(args).await
 }

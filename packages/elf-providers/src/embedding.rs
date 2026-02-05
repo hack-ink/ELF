@@ -1,14 +1,16 @@
-use color_eyre::{Result, eyre::eyre};
+// std
+use std::time::Duration as StdDuration;
 
-use crate::auth_headers;
+// crates.io
+use color_eyre::{Result, eyre};
+use reqwest::Client;
+use serde_json::Value;
 
 pub async fn embed(
 	cfg: &elf_config::EmbeddingProviderConfig,
 	texts: &[String],
 ) -> Result<Vec<Vec<f32>>> {
-	let client = reqwest::Client::builder()
-		.timeout(std::time::Duration::from_millis(cfg.timeout_ms))
-		.build()?;
+	let client = Client::builder().timeout(StdDuration::from_millis(cfg.timeout_ms)).build()?;
 	let url = format!("{}{}", cfg.api_base, cfg.path);
 	let body = serde_json::json!({
 		"model": cfg.model,
@@ -17,19 +19,19 @@ pub async fn embed(
 	});
 	let res = client
 		.post(url)
-		.headers(auth_headers(&cfg.api_key, &cfg.default_headers)?)
+		.headers(crate::auth_headers(&cfg.api_key, &cfg.default_headers)?)
 		.json(&body)
 		.send()
 		.await?;
-	let json: serde_json::Value = res.error_for_status()?.json().await?;
+	let json: Value = res.error_for_status()?.json().await?;
 	parse_embedding_response(json)
 }
 
-fn parse_embedding_response(json: serde_json::Value) -> Result<Vec<Vec<f32>>> {
+fn parse_embedding_response(json: Value) -> Result<Vec<Vec<f32>>> {
 	let data = json
 		.get("data")
 		.and_then(|v| v.as_array())
-		.ok_or_else(|| eyre!("Embedding response is missing data array."))?;
+		.ok_or_else(|| eyre::eyre!("Embedding response is missing data array."))?;
 
 	let mut indexed: Vec<(usize, Vec<f32>)> = Vec::with_capacity(data.len());
 	for (fallback_index, item) in data.iter().enumerate() {
@@ -41,10 +43,11 @@ fn parse_embedding_response(json: serde_json::Value) -> Result<Vec<Vec<f32>>> {
 		let embedding = item
 			.get("embedding")
 			.and_then(|v| v.as_array())
-			.ok_or_else(|| eyre!("Embedding item missing embedding array."))?;
+			.ok_or_else(|| eyre::eyre!("Embedding item missing embedding array."))?;
 		let mut vec = Vec::with_capacity(embedding.len());
 		for value in embedding {
-			let number = value.as_f64().ok_or_else(|| eyre!("Embedding value must be numeric."))?;
+			let number =
+				value.as_f64().ok_or_else(|| eyre::eyre!("Embedding value must be numeric."))?;
 			vec.push(number as f32);
 		}
 		indexed.push((index, vec));
@@ -56,7 +59,7 @@ fn parse_embedding_response(json: serde_json::Value) -> Result<Vec<Vec<f32>>> {
 
 #[cfg(test)]
 mod tests {
-	use super::parse_embedding_response;
+	use super::*;
 
 	#[test]
 	fn parses_embeddings_in_index_order() {

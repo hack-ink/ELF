@@ -1,3 +1,10 @@
+// std
+use std::{
+	collections::HashMap,
+	sync::{Arc, atomic::AtomicUsize},
+};
+
+// crates.io
 use qdrant_client::{
 	client::Payload,
 	qdrant::{
@@ -6,14 +13,22 @@ use qdrant_client::{
 		VectorParamsBuilder, VectorsConfigBuilder,
 	},
 };
+use serde_json::Value;
+use time::OffsetDateTime;
+use uuid::Uuid;
 
+// self
 use super::{
 	SpyExtractor, StubEmbedding, StubRerank, build_service, test_config, test_db, test_qdrant_url,
 };
+use elf_config::ProviderConfig;
+use elf_service::{BoxFuture, ElfService, Providers, RerankProvider, SearchRequest};
+use elf_storage::qdrant::{BM25_MODEL, BM25_VECTOR_NAME, DENSE_VECTOR_NAME};
+use elf_testkit::TestDatabase;
 
 struct TestContext {
-	service: elf_service::ElfService,
-	test_db: elf_testkit::TestDatabase,
+	service: ElfService,
+	test_db: TestDatabase,
 	embedding_version: String,
 }
 
@@ -21,13 +36,13 @@ struct KeywordRerank {
 	keyword: &'static str,
 }
 
-impl elf_service::RerankProvider for KeywordRerank {
+impl RerankProvider for KeywordRerank {
 	fn rerank<'a>(
 		&'a self,
-		_cfg: &'a elf_config::ProviderConfig,
+		_cfg: &'a ProviderConfig,
 		_query: &'a str,
 		docs: &'a [String],
-	) -> elf_service::BoxFuture<'a, color_eyre::Result<Vec<f32>>> {
+	) -> BoxFuture<'a, color_eyre::Result<Vec<f32>>> {
 		let keyword = self.keyword;
 		Box::pin(async move {
 			Ok(docs.iter().map(|doc| if doc.contains(keyword) { 1.0 } else { 0.1 }).collect())
@@ -35,21 +50,21 @@ impl elf_service::RerankProvider for KeywordRerank {
 	}
 }
 
-fn build_providers<R>(rerank: R) -> elf_service::Providers
+fn build_providers<R>(rerank: R) -> Providers
 where
-	R: elf_service::RerankProvider + Send + Sync + 'static,
+	R: RerankProvider + Send + Sync + 'static,
 {
-	elf_service::Providers::new(
-		std::sync::Arc::new(StubEmbedding { vector_dim: 3 }),
-		std::sync::Arc::new(rerank),
-		std::sync::Arc::new(SpyExtractor {
-			calls: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+	Providers::new(
+		Arc::new(StubEmbedding { vector_dim: 3 }),
+		Arc::new(rerank),
+		Arc::new(SpyExtractor {
+			calls: Arc::new(AtomicUsize::new(0)),
 			payload: serde_json::json!({ "notes": [] }),
 		}),
 	)
 }
 
-async fn setup_context(test_name: &str, providers: elf_service::Providers) -> Option<TestContext> {
+async fn setup_context(test_name: &str, providers: Providers) -> Option<TestContext> {
 	let Some(test_db) = test_db().await else {
 		eprintln!("Skipping {test_name}; set ELF_PG_DSN to run this test.");
 		return None;
@@ -74,16 +89,14 @@ async fn setup_context(test_name: &str, providers: elf_service::Providers) -> Op
 	Some(TestContext { service, test_db, embedding_version })
 }
 
-async fn reset_collection(service: &elf_service::ElfService) {
+async fn reset_collection(service: &ElfService) {
 	let _ = service.qdrant.client.delete_collection(service.qdrant.collection.clone()).await;
 	let mut vectors_config = VectorsConfigBuilder::default();
-	vectors_config.add_named_vector_params(
-		elf_storage::qdrant::DENSE_VECTOR_NAME,
-		VectorParamsBuilder::new(3, Distance::Cosine),
-	);
+	vectors_config
+		.add_named_vector_params(DENSE_VECTOR_NAME, VectorParamsBuilder::new(3, Distance::Cosine));
 	let mut sparse_vectors_config = SparseVectorsConfigBuilder::default();
 	sparse_vectors_config.add_named_vector_params(
-		elf_storage::qdrant::BM25_VECTOR_NAME,
+		BM25_VECTOR_NAME,
 		SparseVectorParamsBuilder::default().modifier(Modifier::Idf as i32),
 	);
 	service
@@ -98,13 +111,8 @@ async fn reset_collection(service: &elf_service::ElfService) {
 		.expect("Failed to create Qdrant collection.");
 }
 
-async fn insert_note(
-	pool: &sqlx::PgPool,
-	note_id: uuid::Uuid,
-	note_text: &str,
-	embedding_version: &str,
-) {
-	let now = time::OffsetDateTime::now_utc();
+async fn insert_note(pool: &sqlx::PgPool, note_id: Uuid, note_text: &str, embedding_version: &str) {
+	let now = OffsetDateTime::now_utc();
 	sqlx::query(
 		"INSERT INTO memory_notes \
          (note_id, tenant_id, project_id, agent_id, scope, type, key, text, importance, confidence, status, created_at, updated_at, expires_at, embedding_version, source_ref, hit_count, last_hit_at) \
@@ -123,11 +131,11 @@ async fn insert_note(
 	.bind("active")
 	.bind(now)
 	.bind(now)
-	.bind::<Option<time::OffsetDateTime>>(None)
+	.bind::<Option<OffsetDateTime>>(None)
 	.bind(embedding_version)
 	.bind(serde_json::json!({}))
 	.bind(0_i64)
-	.bind::<Option<time::OffsetDateTime>>(None)
+	.bind::<Option<OffsetDateTime>>(None)
 	.execute(pool)
 	.await
 	.expect("Failed to insert memory note.");
@@ -136,8 +144,8 @@ async fn insert_note(
 #[allow(clippy::too_many_arguments)]
 async fn insert_chunk(
 	pool: &sqlx::PgPool,
-	chunk_id: uuid::Uuid,
-	note_id: uuid::Uuid,
+	chunk_id: Uuid,
+	note_id: Uuid,
 	chunk_index: i32,
 	start_offset: i32,
 	end_offset: i32,
@@ -162,8 +170,8 @@ async fn insert_chunk(
 }
 
 fn build_payload(
-	note_id: uuid::Uuid,
-	chunk_id: uuid::Uuid,
+	note_id: Uuid,
+	chunk_id: Uuid,
 	chunk_index: i32,
 	start_offset: i32,
 	end_offset: i32,
@@ -171,9 +179,9 @@ fn build_payload(
 	let mut payload = Payload::new();
 	payload.insert("note_id", note_id.to_string());
 	payload.insert("chunk_id", chunk_id.to_string());
-	payload.insert("chunk_index", serde_json::Value::from(chunk_index));
-	payload.insert("start_offset", serde_json::Value::from(start_offset));
-	payload.insert("end_offset", serde_json::Value::from(end_offset));
+	payload.insert("chunk_index", Value::from(chunk_index));
+	payload.insert("start_offset", Value::from(start_offset));
+	payload.insert("end_offset", Value::from(end_offset));
 	payload.insert("tenant_id", "t");
 	payload.insert("project_id", "p");
 	payload.insert("agent_id", "a");
@@ -182,20 +190,20 @@ fn build_payload(
 	payload
 }
 
-fn build_vectors(text: &str) -> std::collections::HashMap<String, Vector> {
-	let mut vectors = std::collections::HashMap::new();
-	vectors.insert(elf_storage::qdrant::DENSE_VECTOR_NAME.to_string(), Vector::from(vec![0.0; 3]));
+fn build_vectors(text: &str) -> HashMap<String, Vector> {
+	let mut vectors = HashMap::new();
+	vectors.insert(DENSE_VECTOR_NAME.to_string(), Vector::from(vec![0.0; 3]));
 	vectors.insert(
-		elf_storage::qdrant::BM25_VECTOR_NAME.to_string(),
-		Vector::from(Document::new(text.to_string(), elf_storage::qdrant::BM25_MODEL)),
+		BM25_VECTOR_NAME.to_string(),
+		Vector::from(Document::new(text.to_string(), BM25_MODEL)),
 	);
 	vectors
 }
 
 async fn upsert_point(
-	service: &elf_service::ElfService,
-	chunk_id: uuid::Uuid,
-	note_id: uuid::Uuid,
+	service: &ElfService,
+	chunk_id: Uuid,
+	note_id: Uuid,
 	chunk_index: i32,
 	start_offset: i32,
 	end_offset: i32,
@@ -222,8 +230,8 @@ async fn search_returns_chunk_items() {
 		return;
 	};
 
-	let note_id = uuid::Uuid::new_v4();
-	let chunk_id = uuid::Uuid::new_v4();
+	let note_id = Uuid::new_v4();
+	let chunk_id = Uuid::new_v4();
 	let note_text = "First sentence. Second sentence.";
 	insert_note(&context.service.db.pool, note_id, note_text, &context.embedding_version).await;
 	insert_chunk(
@@ -242,7 +250,7 @@ async fn search_returns_chunk_items() {
 
 	let response = context
 		.service
-		.search(elf_service::SearchRequest {
+		.search(SearchRequest {
 			tenant_id: "t".to_string(),
 			project_id: "p".to_string(),
 			agent_id: "a".to_string(),
@@ -270,7 +278,7 @@ async fn search_stitches_adjacent_chunks() {
 		return;
 	};
 
-	let note_id = uuid::Uuid::new_v4();
+	let note_id = Uuid::new_v4();
 	let chunk_texts = ["First sentence. ", "Second sentence. ", "Third sentence."];
 	let note_text = chunk_texts.concat();
 	insert_note(&context.service.db.pool, note_id, &note_text, &context.embedding_version).await;
@@ -278,7 +286,7 @@ async fn search_stitches_adjacent_chunks() {
 	let mut offset = 0_i32;
 	let mut chunk_ids = Vec::new();
 	for (index, chunk_text) in chunk_texts.iter().enumerate() {
-		let chunk_id = uuid::Uuid::new_v4();
+		let chunk_id = Uuid::new_v4();
 		let start = offset;
 		let end = start + chunk_text.len() as i32;
 		insert_chunk(
@@ -301,7 +309,7 @@ async fn search_stitches_adjacent_chunks() {
 
 	let response = context
 		.service
-		.search(elf_service::SearchRequest {
+		.search(SearchRequest {
 			tenant_id: "t".to_string(),
 			project_id: "p".to_string(),
 			agent_id: "a".to_string(),
@@ -332,8 +340,8 @@ async fn search_skips_missing_chunk_metadata() {
 		return;
 	};
 
-	let note_id = uuid::Uuid::new_v4();
-	let chunk_id = uuid::Uuid::new_v4();
+	let note_id = Uuid::new_v4();
+	let chunk_id = Uuid::new_v4();
 	let note_text = "Missing chunk metadata.";
 	insert_note(&context.service.db.pool, note_id, note_text, &context.embedding_version).await;
 
@@ -342,7 +350,7 @@ async fn search_skips_missing_chunk_metadata() {
 
 	let response = context
 		.service
-		.search(elf_service::SearchRequest {
+		.search(SearchRequest {
 			tenant_id: "t".to_string(),
 			project_id: "p".to_string(),
 			agent_id: "a".to_string(),
@@ -368,7 +376,7 @@ async fn search_dedupes_note_results() {
 		return;
 	};
 
-	let note_id = uuid::Uuid::new_v4();
+	let note_id = Uuid::new_v4();
 	let chunk_texts = ["preferred alpha. ", "bridge chunk. ", "other alpha."];
 	let note_text = chunk_texts.concat();
 	insert_note(&context.service.db.pool, note_id, &note_text, &context.embedding_version).await;
@@ -376,7 +384,7 @@ async fn search_dedupes_note_results() {
 	let mut offset = 0_i32;
 	let mut chunk_ids = Vec::new();
 	for (index, chunk_text) in chunk_texts.iter().enumerate() {
-		let chunk_id = uuid::Uuid::new_v4();
+		let chunk_id = Uuid::new_v4();
 		let start = offset;
 		let end = start + chunk_text.len() as i32;
 		insert_chunk(
@@ -401,7 +409,7 @@ async fn search_dedupes_note_results() {
 
 	let response = context
 		.service
-		.search(elf_service::SearchRequest {
+		.search(SearchRequest {
 			tenant_id: "t".to_string(),
 			project_id: "p".to_string(),
 			agent_id: "a".to_string(),

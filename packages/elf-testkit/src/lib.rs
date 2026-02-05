@@ -1,15 +1,19 @@
-use color_eyre::eyre::{WrapErr, eyre};
+// std
+use std::{env, future::Future, str::FromStr, thread};
+
+// crates.io
+use color_eyre::eyre::{self, WrapErr};
 use sqlx::{
 	ConnectOptions, Connection, Executor,
 	postgres::{PgConnectOptions, PgConnection},
 };
-use std::{future::Future, str::FromStr};
+use tokio::runtime::Builder;
 use uuid::Uuid;
 
 const ADMIN_DATABASES: [&str; 2] = ["postgres", "template1"];
 
 pub fn env_dsn() -> Option<String> {
-	std::env::var("ELF_PG_DSN").ok()
+	env::var("ELF_PG_DSN").ok()
 }
 
 pub struct TestDatabase {
@@ -68,8 +72,8 @@ impl Drop for TestDatabase {
 		}
 		let name = self.name.clone();
 		let admin_options = self.admin_options.clone();
-		let _ = std::thread::spawn(move || {
-			let runtime = match tokio::runtime::Builder::new_current_thread().enable_all().build() {
+		let _ = thread::spawn(move || {
+			let runtime = match Builder::new_current_thread().enable_all().build() {
 				Ok(runtime) => runtime,
 				Err(err) => {
 					eprintln!("Test database cleanup failed: {err}.");
@@ -112,7 +116,7 @@ async fn connect_admin(
 			},
 		}
 	}
-	Err(eyre!("Failed to connect to an admin database: {:?}", last_err))
+	Err(eyre::eyre!("Failed to connect to an admin database: {:?}", last_err))
 }
 
 async fn cleanup_database(name: &str, admin_options: &PgConnectOptions) -> color_eyre::Result<()> {

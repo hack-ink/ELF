@@ -1,11 +1,12 @@
-use serde::{Deserialize, Deserializer, Serializer};
+// crates.io
+use serde::{Deserialize, Deserializer, Serializer, de::Error as DeError, ser::Error as SerError};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
 pub fn serialize<S>(value: &OffsetDateTime, serializer: S) -> Result<S::Ok, S::Error>
 where
 	S: Serializer,
 {
-	let formatted = value.format(&Rfc3339).map_err(serde::ser::Error::custom)?;
+	let formatted = value.format(&Rfc3339).map_err(SerError::custom)?;
 	serializer.serialize_str(&formatted)
 }
 
@@ -14,7 +15,7 @@ where
 	D: Deserializer<'de>,
 {
 	let raw = String::deserialize(deserializer)?;
-	OffsetDateTime::parse(&raw, &Rfc3339).map_err(serde::de::Error::custom)
+	OffsetDateTime::parse(&raw, &Rfc3339).map_err(DeError::custom)
 }
 
 pub mod option {
@@ -37,7 +38,7 @@ pub mod option {
 		let raw = Option::<String>::deserialize(deserializer)?;
 		match raw {
 			Some(value) =>
-				OffsetDateTime::parse(&value, &Rfc3339).map(Some).map_err(serde::de::Error::custom),
+				OffsetDateTime::parse(&value, &Rfc3339).map(Some).map_err(DeError::custom),
 			None => Ok(None),
 		}
 	}

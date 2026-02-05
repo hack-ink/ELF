@@ -1,3 +1,10 @@
+// crates.io
+use tokio::runtime::Runtime;
+
+// self
+use elf_storage::db::Db;
+use elf_testkit::TestDatabase;
+
 #[tokio::test]
 #[ignore = "Requires external Postgres. Set ELF_PG_DSN to run."]
 async fn db_connects_and_bootstraps() {
@@ -5,28 +12,31 @@ async fn db_connects_and_bootstraps() {
 		eprintln!("Skipping db_connects_and_bootstraps; set ELF_PG_DSN to run this test.");
 		return;
 	};
-	let test_db =
-		elf_testkit::TestDatabase::new(&base_dsn).await.expect("Failed to create test database.");
+	let test_db = TestDatabase::new(&base_dsn).await.expect("Failed to create test database.");
 	let cfg = elf_config::Postgres { dsn: test_db.dsn().to_string(), pool_max_conns: 1 };
-	let db = elf_storage::db::Db::connect(&cfg).await.expect("Failed to connect to Postgres.");
+	let db = Db::connect(&cfg).await.expect("Failed to connect to Postgres.");
 	db.ensure_schema(3).await.expect("Failed to ensure schema.");
 	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }
 
 #[test]
+#[ignore = "Requires external Postgres. Set ELF_PG_DSN to run."]
 fn chunk_tables_exist_after_bootstrap() {
-	let dsn = std::env::var("ELF_PG_DSN").expect("ELF_PG_DSN required");
-	let rt = tokio::runtime::Runtime::new().unwrap();
+	let Some(dsn) = elf_testkit::env_dsn() else {
+		eprintln!("Skipping chunk_tables_exist_after_bootstrap; set ELF_PG_DSN to run this test.");
+		return;
+	};
+	let rt = Runtime::new().expect("Failed to build runtime.");
 	rt.block_on(async {
 		let cfg = elf_config::Postgres { dsn: dsn.clone(), pool_max_conns: 1 };
-		let db = elf_storage::db::Db::connect(&cfg).await.unwrap();
-		db.ensure_schema(3).await.unwrap();
+		let db = Db::connect(&cfg).await.expect("Failed to connect to Postgres.");
+		db.ensure_schema(3).await.expect("Failed to ensure schema.");
 		let rows: (i64,) = sqlx::query_as(
 			"SELECT count(*) FROM information_schema.tables WHERE table_name = 'memory_note_chunks'",
 		)
 		.fetch_one(&db.pool)
 		.await
-		.unwrap();
+		.expect("Failed to query schema tables.");
 		assert_eq!(rows.0, 1);
 	});
 }

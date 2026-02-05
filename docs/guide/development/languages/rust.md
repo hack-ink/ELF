@@ -84,15 +84,16 @@ Use only these import headers:
 
 Rules:
 
-- Do not import functions directly. Use a single module qualifier for function or macro calls, such as `parent::function(...)`, unless the function or macro is defined in the same file.
+- Do not import functions directly. Import the module or type and call `module::function(...)`.
+- Calls to functions or macros must use a single module qualifier, such as `parent::function(...)` or `parent::macro!(...)`, unless the function or macro is defined in the same file.
+- Standard library macros must be used without a `std::` qualifier, such as `vec!`, `format!`, or `println!`.
 - If `crate::prelude::*` is imported, do not add redundant imports.
 - Avoid glob imports. In tests, prefer `use super::*;` when it is used. Otherwise, avoid glob imports except an existing prelude.
 
 ## Types and `impl` Blocks (Required)
 
 - Use `Self` instead of the concrete type name in `impl` method signatures.
-- The first `impl` block must appear immediately after the type definition.
-- All `impl` blocks for a type must be contiguous.
+- Keep `impl` blocks for a type contiguous in the `impl` section.
 - Order `impl` blocks as: inherent, standard library traits, third-party traits, project traits.
 
 ## Generics and Trait Bounds (Required)
@@ -104,6 +105,7 @@ Rules:
 ## Error Handling (Required)
 
 - Add context at crate or module boundaries and keep the original error as the source.
+- Boundaries include public APIs, entrypoints, and module-level helpers that are consumed outside the module.
 - Use `#[error(transparent)]` only for thin wrappers where this crate adds no context and the upstream message is already sufficient for developers.
 - Use short, action-oriented error messages that include the source error.
 - Use `ok_or_else` to convert `Option` to `Result` with context.
@@ -133,7 +135,6 @@ Rules:
 - Avoid struct update syntax (`..`) unless the remaining fields are truly irrelevant.
 - Keep boolean expressions short; extract them into named variables when they grow.
 - Prefer type annotations on `let` bindings or function signatures. Use turbofish only when those locations cannot express the type.
-- When both appear together, place `let` statements before `let mut` statements.
 
 ## Functional Style (Preferred)
 
@@ -194,6 +195,12 @@ Treat statements as the same type when they share the same syntactic form or cal
 - Multiple `Type::function(...)` calls.
 - Multiple `self.method(...)` calls.
 - Multiple assignment statements like `a = b`.
+
+Additional rules.
+
+- Treat `let` and `let mut` as different statement types.
+- Different macro names are different statement types.
+- When both appear together, place `let` statements before `let mut` statements.
 
 ## Comments and Documentation (Required)
 

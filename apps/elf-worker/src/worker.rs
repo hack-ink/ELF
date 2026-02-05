@@ -1,22 +1,31 @@
-use std::collections::HashMap;
+// std
+use std::{collections::HashMap, time::Duration as StdDuration};
 
-use color_eyre::{Result, eyre::eyre};
-use elf_chunking::{Chunk, ChunkingConfig, Tokenizer, split_text};
+// crates.io
+use color_eyre::{Result, eyre};
+use qdrant_client::{
+	client::Payload,
+	qdrant::{
+		Condition, DeletePointsBuilder, Document, Filter, PointStruct, UpsertPointsBuilder, Value,
+		Vector,
+	},
+};
+use serde::Serialize;
+use serde_json::{Value as JsonValue, Value as SerdeValue};
+use sqlx::{QueryBuilder, Row};
+use time::{Duration, OffsetDateTime};
+use tokio::time as tokio_time;
+use uuid::Uuid;
+
+// self
+use elf_chunking::{Chunk, ChunkingConfig, Tokenizer};
+use elf_providers::embedding;
 use elf_storage::{
 	db::Db,
 	models::{IndexingOutboxEntry, MemoryNote},
 	qdrant::{BM25_MODEL, BM25_VECTOR_NAME, DENSE_VECTOR_NAME, QdrantStore},
 	queries,
 };
-use qdrant_client::{
-	client::Payload,
-	qdrant::{DeletePointsBuilder, Document, PointStruct, UpsertPointsBuilder, Value, Vector},
-};
-use serde::Serialize;
-use serde_json::{Value as JsonValue, Value as SerdeValue};
-use sqlx::Row;
-use time::{Duration, OffsetDateTime};
-use tracing::{error, info};
 
 const POLL_INTERVAL_MS: i64 = 500;
 const CLAIM_LEASE_SECONDS: i64 = 30;
@@ -115,23 +124,23 @@ pub async fn run_worker(state: WorkerState) -> Result<()> {
 	let mut last_trace_cleanup = OffsetDateTime::now_utc();
 	loop {
 		if let Err(err) = process_indexing_outbox_once(&state).await {
-			error!(error = %err, "Indexing outbox processing failed.");
+			tracing::error!(error = %err, "Indexing outbox processing failed.");
 		}
 		if let Err(err) = process_trace_outbox_once(&state).await {
-			error!(error = %err, "Search trace outbox processing failed.");
+			tracing::error!(error = %err, "Search trace outbox processing failed.");
 		}
 		let now = OffsetDateTime::now_utc();
 		if now - last_trace_cleanup >= Duration::seconds(TRACE_CLEANUP_INTERVAL_SECONDS) {
 			if let Err(err) = purge_expired_traces(&state.db, now).await {
-				error!(error = %err, "Search trace cleanup failed.");
+				tracing::error!(error = %err, "Search trace cleanup failed.");
 			} else {
 				last_trace_cleanup = now;
 			}
 			if let Err(err) = purge_expired_cache(&state.db, now).await {
-				error!(error = %err, "LLM cache cleanup failed.");
+				tracing::error!(error = %err, "LLM cache cleanup failed.");
 			}
 		}
-		tokio::time::sleep(to_std_duration(Duration::milliseconds(POLL_INTERVAL_MS))).await;
+		tokio_time::sleep(to_std_duration(Duration::milliseconds(POLL_INTERVAL_MS))).await;
 	}
 }
 
@@ -145,7 +154,7 @@ async fn process_indexing_outbox_once(state: &WorkerState) -> Result<()> {
 	let result = match job.op.as_str() {
 		"UPSERT" => handle_upsert(state, &job).await,
 		"DELETE" => handle_delete(state, &job).await,
-		other => Err(eyre!("Unsupported outbox op: {other}.")),
+		other => Err(eyre::eyre!("Unsupported outbox op: {other}.")),
 	};
 
 	match result {
@@ -154,7 +163,7 @@ async fn process_indexing_outbox_once(state: &WorkerState) -> Result<()> {
 		},
 		Err(err) => {
 			mark_failed(&state.db, job.outbox_id, job.attempts, &err).await?;
-			error!(error = %err, outbox_id = %job.outbox_id, "Outbox job failed.");
+			tracing::error!(error = %err, outbox_id = %job.outbox_id, "Outbox job failed.");
 		},
 	}
 
@@ -175,7 +184,7 @@ async fn process_trace_outbox_once(state: &WorkerState) -> Result<()> {
 		},
 		Err(err) => {
 			mark_trace_failed(&state.db, job.outbox_id, job.attempts, &err).await?;
-			error!(error = %err, trace_id = %job.trace_id, "Search trace outbox job failed.");
+			tracing::error!(error = %err, trace_id = %job.trace_id, "Search trace outbox job failed.");
 		},
 	}
 
@@ -281,25 +290,25 @@ async fn fetch_next_trace_job(db: &Db, now: OffsetDateTime) -> Result<Option<Tra
 async fn handle_upsert(state: &WorkerState, job: &IndexingOutboxEntry) -> Result<()> {
 	let note = fetch_note(&state.db, job.note_id).await?;
 	let Some(note) = note else {
-		info!(note_id = %job.note_id, "Note missing for outbox job. Marking done.");
+		tracing::info!(note_id = %job.note_id, "Note missing for outbox job. Marking done.");
 		return Ok(());
 	};
 
 	let now = OffsetDateTime::now_utc();
 	if !note_is_active(&note, now) {
-		info!(note_id = %job.note_id, "Note inactive or expired. Skipping index.");
+		tracing::info!(note_id = %job.note_id, "Note inactive or expired. Skipping index.");
 		return Ok(());
 	}
 
-	let chunks = split_text(&note.text, &state.chunking, &state.tokenizer);
+	let chunks = elf_chunking::split_text(&note.text, &state.chunking, &state.tokenizer);
 	if chunks.is_empty() {
-		return Err(eyre!("Chunking produced no chunks."));
+		return Err(eyre::eyre!("Chunking produced no chunks."));
 	}
 	let records = build_chunk_records(note.note_id, &chunks)?;
 	let chunk_texts: Vec<String> = records.iter().map(|record| record.text.clone()).collect();
-	let chunk_vectors = elf_providers::embedding::embed(&state.embedding, &chunk_texts).await?;
+	let chunk_vectors = embedding::embed(&state.embedding, &chunk_texts).await?;
 	if chunk_vectors.len() != records.len() {
-		return Err(eyre!(
+		return Err(eyre::eyre!(
 			"Embedding provider returned {} vectors for {} chunks.",
 			chunk_vectors.len(),
 			records.len()
@@ -336,7 +345,7 @@ async fn handle_upsert(state: &WorkerState, job: &IndexingOutboxEntry) -> Result
 	}
 
 	let pooled =
-		mean_pool(&chunk_vectors).ok_or_else(|| eyre!("Cannot pool empty chunk vectors."))?;
+		mean_pool(&chunk_vectors).ok_or_else(|| eyre::eyre!("Cannot pool empty chunk vectors."))?;
 	validate_vector_dim(&pooled, state.qdrant.vector_dim)?;
 	insert_embedding(&state.db, note.note_id, &job.embedding_version, pooled.len() as i32, &pooled)
 		.await?;
@@ -401,7 +410,7 @@ async fn handle_trace_job(db: &Db, job: &TraceOutboxJob) -> Result<()> {
 			});
 		}
 
-		let mut builder = sqlx::QueryBuilder::new(
+		let mut builder = QueryBuilder::new(
 			"INSERT INTO search_trace_items \
              (item_id, trace_id, note_id, chunk_id, rank, retrieval_score, retrieval_rank, rerank_score, \
               tie_breaker_score, final_score, boosts, matched_terms, matched_fields) ",
@@ -435,7 +444,7 @@ async fn purge_expired_traces(db: &Db, now: OffsetDateTime) -> Result<()> {
 		.execute(&db.pool)
 		.await?;
 	if result.rows_affected() > 0 {
-		info!(count = result.rows_affected(), "Purged expired search traces.");
+		tracing::info!(count = result.rows_affected(), "Purged expired search traces.");
 	}
 	Ok(())
 }
@@ -446,7 +455,7 @@ async fn purge_expired_cache(db: &Db, now: OffsetDateTime) -> Result<()> {
 		.execute(&db.pool)
 		.await?;
 	if result.rows_affected() > 0 {
-		info!(count = result.rows_affected(), "Purged expired LLM cache entries.");
+		tracing::info!(count = result.rows_affected(), "Purged expired LLM cache entries.");
 	}
 	Ok(())
 }
@@ -500,11 +509,12 @@ fn build_chunk_records(note_id: uuid::Uuid, chunks: &[Chunk]) -> Result<Vec<Chun
 
 fn chunk_id_for(note_id: uuid::Uuid, chunk_index: i32) -> uuid::Uuid {
 	let name = format!("{note_id}:{chunk_index}");
-	uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, name.as_bytes())
+	Uuid::new_v5(&Uuid::NAMESPACE_OID, name.as_bytes())
 }
 
 fn to_i32(value: usize, label: &str) -> Result<i32> {
-	i32::try_from(value).map_err(|_| eyre!("Chunk {label} offset {value} exceeds supported range."))
+	i32::try_from(value)
+		.map_err(|_| eyre::eyre!("Chunk {label} offset {value} exceeds supported range."))
 }
 
 fn mean_pool(chunks: &[Vec<f32>]) -> Option<Vec<f32>> {
@@ -548,19 +558,16 @@ async fn insert_embedding(
 }
 
 async fn delete_qdrant_note_points(state: &WorkerState, note_id: uuid::Uuid) -> Result<()> {
-	let filter = qdrant_client::qdrant::Filter::must([qdrant_client::qdrant::Condition::matches(
-		"note_id",
-		note_id.to_string(),
-	)]);
+	let filter = Filter::must([Condition::matches("note_id", note_id.to_string())]);
 	let delete =
 		DeletePointsBuilder::new(state.qdrant.collection.clone()).points(filter).wait(true);
 	match state.qdrant.client.delete_points(delete).await {
 		Ok(_) => {},
 		Err(err) =>
 			if is_not_found_error(&err) {
-				info!(note_id = %note_id, "Qdrant points missing during delete.");
+				tracing::info!(note_id = %note_id, "Qdrant points missing during delete.");
 			} else {
-				return Err(eyre!(err.to_string()));
+				return Err(eyre::eyre!(err.to_string()));
 			},
 	}
 	Ok(())
@@ -630,12 +637,12 @@ async fn upsert_qdrant_chunks(
 
 fn format_timestamp(ts: OffsetDateTime) -> Result<String> {
 	use time::format_description::well_known::Rfc3339;
-	ts.format(&Rfc3339).map_err(|_| eyre!("Failed to format timestamp."))
+	ts.format(&Rfc3339).map_err(|_| eyre::eyre!("Failed to format timestamp."))
 }
 
 fn validate_vector_dim(vec: &[f32], expected_dim: u32) -> Result<()> {
 	if vec.len() != expected_dim as usize {
-		return Err(eyre!(
+		return Err(eyre::eyre!(
 			"Embedding dimension {} does not match configured vector_dim {}.",
 			vec.len(),
 			expected_dim
@@ -656,8 +663,11 @@ fn format_vector_text(vec: &[f32]) -> String {
 	out
 }
 
-fn encode_json<T: Serialize>(value: &T, label: &str) -> Result<SerdeValue> {
-	serde_json::to_value(value).map_err(|err| eyre!("Failed to encode {label}: {err}."))
+fn encode_json<T>(value: &T, label: &str) -> Result<SerdeValue>
+where
+	T: Serialize,
+{
+	serde_json::to_value(value).map_err(|err| eyre::eyre!("Failed to encode {label}: {err}."))
 }
 
 async fn mark_done(db: &Db, outbox_id: uuid::Uuid) -> Result<()> {
@@ -740,12 +750,12 @@ fn backoff_for_attempt(attempt: i32) -> Duration {
 	Duration::milliseconds(capped)
 }
 
-fn to_std_duration(duration: Duration) -> std::time::Duration {
+fn to_std_duration(duration: Duration) -> StdDuration {
 	let millis = duration.whole_milliseconds();
 	if millis <= 0 {
-		return std::time::Duration::from_millis(0);
+		return StdDuration::from_millis(0);
 	}
-	std::time::Duration::from_millis(millis as u64)
+	StdDuration::from_millis(millis as u64)
 }
 
 #[cfg(test)]

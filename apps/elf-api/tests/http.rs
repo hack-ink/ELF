@@ -1,9 +1,17 @@
+// std
+use std::env;
+
+// crates.io
 use axum::{
-	body::Body,
+	body::{self, Body},
 	http::{Request, StatusCode},
 };
-use elf_api::{routes, state};
+use serde_json::Map;
 use tower::util::ServiceExt;
+
+// self
+use elf_api::{routes, state::AppState};
+use elf_testkit::TestDatabase;
 
 async fn test_env() -> Option<(elf_testkit::TestDatabase, String, String)> {
 	let base_dsn = match elf_testkit::env_dsn() {
@@ -13,15 +21,14 @@ async fn test_env() -> Option<(elf_testkit::TestDatabase, String, String)> {
 			return None;
 		},
 	};
-	let qdrant_url = match std::env::var("ELF_QDRANT_URL") {
+	let qdrant_url = match env::var("ELF_QDRANT_URL") {
 		Ok(value) => value,
 		Err(_) => {
 			eprintln!("Skipping HTTP tests; set ELF_QDRANT_URL to run this test.");
 			return None;
 		},
 	};
-	let test_db =
-		elf_testkit::TestDatabase::new(&base_dsn).await.expect("Failed to create test database.");
+	let test_db = TestDatabase::new(&base_dsn).await.expect("Failed to create test database.");
 	let collection = test_db.collection_name("elf_http");
 	Some((test_db, qdrant_url, collection))
 }
@@ -137,7 +144,7 @@ fn dummy_embedding_provider() -> elf_config::EmbeddingProviderConfig {
 		model: "test".to_string(),
 		dimensions: 3,
 		timeout_ms: 1000,
-		default_headers: serde_json::Map::new(),
+		default_headers: Map::new(),
 	}
 }
 
@@ -149,7 +156,7 @@ fn dummy_provider() -> elf_config::ProviderConfig {
 		path: "/".to_string(),
 		model: "test".to_string(),
 		timeout_ms: 1000,
-		default_headers: serde_json::Map::new(),
+		default_headers: Map::new(),
 	}
 }
 
@@ -162,7 +169,7 @@ fn dummy_llm_provider() -> elf_config::LlmProviderConfig {
 		model: "test".to_string(),
 		temperature: 0.1,
 		timeout_ms: 1000,
-		default_headers: serde_json::Map::new(),
+		default_headers: Map::new(),
 	}
 }
 
@@ -173,7 +180,7 @@ async fn health_ok() {
 		return;
 	};
 	let config = test_config(test_db.dsn().to_string(), qdrant_url, collection);
-	let state = state::AppState::new(config).await.expect("Failed to initialize app state.");
+	let state = AppState::new(config).await.expect("Failed to initialize app state.");
 	let app = routes::router(state.clone());
 	let _ = routes::admin_router(state);
 	let response = app
@@ -196,7 +203,7 @@ async fn rejects_cjk_in_add_note() {
 		return;
 	};
 	let config = test_config(test_db.dsn().to_string(), qdrant_url, collection);
-	let state = state::AppState::new(config).await.expect("Failed to initialize app state.");
+	let state = AppState::new(config).await.expect("Failed to initialize app state.");
 	let app = routes::router(state);
 	let payload = serde_json::json!({
 		"tenant_id": "t",
@@ -227,7 +234,7 @@ async fn rejects_cjk_in_add_note() {
 		.expect("Failed to call add_note.");
 
 	assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
-	let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+	let body = body::to_bytes(response.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read response body.");
 	let json: serde_json::Value = serde_json::from_slice(&body).expect("Failed to parse response.");
@@ -243,7 +250,7 @@ async fn rejects_cjk_in_add_event() {
 		return;
 	};
 	let config = test_config(test_db.dsn().to_string(), qdrant_url, collection);
-	let state = state::AppState::new(config).await.expect("Failed to initialize app state.");
+	let state = AppState::new(config).await.expect("Failed to initialize app state.");
 	let app = routes::router(state);
 	let payload = serde_json::json!({
 		"tenant_id": "t",
@@ -270,7 +277,7 @@ async fn rejects_cjk_in_add_event() {
 		.expect("Failed to call add_event.");
 
 	assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
-	let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+	let body = body::to_bytes(response.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read response body.");
 	let json: serde_json::Value = serde_json::from_slice(&body).expect("Failed to parse response.");
@@ -286,7 +293,7 @@ async fn rejects_cjk_in_search() {
 		return;
 	};
 	let config = test_config(test_db.dsn().to_string(), qdrant_url, collection);
-	let state = state::AppState::new(config).await.expect("Failed to initialize app state.");
+	let state = AppState::new(config).await.expect("Failed to initialize app state.");
 	let app = routes::router(state);
 	let payload = serde_json::json!({
 		"tenant_id": "t",
@@ -311,7 +318,7 @@ async fn rejects_cjk_in_search() {
 		.expect("Failed to call search.");
 
 	assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
-	let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+	let body = body::to_bytes(response.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read response body.");
 	let json: serde_json::Value = serde_json::from_slice(&body).expect("Failed to parse response.");

@@ -1,3 +1,10 @@
+// crates.io
+use serde_json::Value;
+use sqlx::QueryBuilder;
+use time::OffsetDateTime;
+use uuid::Uuid;
+
+// self
 use elf_storage::models::MemoryNote;
 
 use crate::{ElfService, ServiceError, ServiceResult};
@@ -15,7 +22,7 @@ pub struct ListRequest {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ListItem {
-	pub note_id: uuid::Uuid,
+	pub note_id: Uuid,
 	#[serde(rename = "type")]
 	pub note_type: String,
 	pub key: Option<String>,
@@ -25,10 +32,10 @@ pub struct ListItem {
 	pub importance: f32,
 	pub confidence: f32,
 	#[serde(with = "crate::time_serde")]
-	pub updated_at: time::OffsetDateTime,
+	pub updated_at: OffsetDateTime,
 	#[serde(with = "crate::time_serde::option")]
-	pub expires_at: Option<time::OffsetDateTime>,
-	pub source_ref: serde_json::Value,
+	pub expires_at: Option<OffsetDateTime>,
+	pub source_ref: Value,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -58,7 +65,7 @@ impl ElfService {
 			return Err(ServiceError::ScopeDenied { message: "Scope is not allowed.".to_string() });
 		}
 
-		let mut builder = sqlx::QueryBuilder::new(
+		let mut builder = QueryBuilder::new(
 			"SELECT note_id, tenant_id, project_id, agent_id, scope, type, key, text, importance, confidence, status, created_at, updated_at, expires_at, embedding_version, source_ref, hit_count, last_hit_at \
              FROM memory_notes WHERE tenant_id = ",
 		);

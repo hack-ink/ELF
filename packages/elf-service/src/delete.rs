@@ -1,27 +1,29 @@
+// crates.io
+use time::OffsetDateTime;
+use uuid::Uuid;
+
+// self
 use elf_storage::models::MemoryNote;
 
-use crate::{
-	ElfService, InsertVersionArgs, NoteOp, ServiceError, ServiceResult, enqueue_outbox_tx,
-	insert_version, note_snapshot,
-};
+use crate::{ElfService, InsertVersionArgs, NoteOp, ServiceError, ServiceResult};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct DeleteRequest {
 	pub tenant_id: String,
 	pub project_id: String,
 	pub agent_id: String,
-	pub note_id: uuid::Uuid,
+	pub note_id: Uuid,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct DeleteResponse {
-	pub note_id: uuid::Uuid,
+	pub note_id: Uuid,
 	pub op: NoteOp,
 }
 
 impl ElfService {
 	pub async fn delete(&self, req: DeleteRequest) -> ServiceResult<DeleteResponse> {
-		let now = time::OffsetDateTime::now_utc();
+		let now = OffsetDateTime::now_utc();
 		let tenant_id = req.tenant_id.trim();
 		let project_id = req.project_id.trim();
 		let agent_id = req.agent_id.trim();
@@ -60,7 +62,7 @@ impl ElfService {
 			return Ok(DeleteResponse { note_id: note.note_id, op: NoteOp::None });
 		}
 
-		let prev_snapshot = note_snapshot(&note);
+		let prev_snapshot = crate::note_snapshot(&note);
 		note.status = "deleted".to_string();
 		note.updated_at = now;
 
@@ -71,20 +73,21 @@ impl ElfService {
 			.execute(&mut *tx)
 			.await?;
 
-		insert_version(
+		crate::insert_version(
 			&mut tx,
 			InsertVersionArgs {
 				note_id: note.note_id,
 				op: "DELETE",
 				prev_snapshot: Some(prev_snapshot),
-				new_snapshot: Some(note_snapshot(&note)),
+				new_snapshot: Some(crate::note_snapshot(&note)),
 				reason: "delete",
 				actor: "delete",
 				ts: now,
 			},
 		)
 		.await?;
-		enqueue_outbox_tx(&mut tx, note.note_id, "DELETE", &note.embedding_version, now).await?;
+		crate::enqueue_outbox_tx(&mut tx, note.note_id, "DELETE", &note.embedding_version, now)
+			.await?;
 
 		tx.commit().await?;
 

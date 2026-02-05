@@ -1,11 +1,16 @@
+// std
 use std::collections::HashMap;
 
+// crates.io
 use qdrant_client::{
 	client::Payload,
 	qdrant::{Document, PointStruct, UpsertPointsBuilder, Vector},
 };
+use serde_json::Value;
+use time::OffsetDateTime;
 
-use crate::{ElfService, ServiceError, ServiceResult, parse_pg_vector};
+// self
+use crate::{ElfService, ServiceError, ServiceResult};
 use elf_storage::qdrant::{BM25_MODEL, BM25_VECTOR_NAME, DENSE_VECTOR_NAME};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -41,7 +46,7 @@ struct RebuildRow {
 
 impl ElfService {
 	pub async fn rebuild_qdrant(&self) -> ServiceResult<RebuildReport> {
-		let now = time::OffsetDateTime::now_utc();
+		let now = OffsetDateTime::now_utc();
 		let rows: Vec<RebuildRow> = sqlx::query_as(
 			"SELECT c.chunk_id, c.chunk_index, c.start_offset, c.end_offset, c.text AS chunk_text, \
              n.note_id, n.tenant_id, n.project_id, n.agent_id, n.scope, n.type, n.key, n.status, \
@@ -66,7 +71,7 @@ impl ElfService {
 				missing_vector_count += 1;
 				continue;
 			};
-			let vec = match parse_pg_vector(&vec_text) {
+			let vec = match crate::parse_pg_vector(&vec_text) {
 				Ok(vec) => vec,
 				Err(_) => {
 					error_count += 1;
@@ -81,28 +86,24 @@ impl ElfService {
 			let mut payload = Payload::new();
 			payload.insert("note_id", row.note_id.to_string());
 			payload.insert("chunk_id", row.chunk_id.to_string());
-			payload.insert("chunk_index", serde_json::Value::from(row.chunk_index));
-			payload.insert("start_offset", serde_json::Value::from(row.start_offset));
-			payload.insert("end_offset", serde_json::Value::from(row.end_offset));
+			payload.insert("chunk_index", Value::from(row.chunk_index));
+			payload.insert("start_offset", Value::from(row.start_offset));
+			payload.insert("end_offset", Value::from(row.end_offset));
 			payload.insert("tenant_id", row.tenant_id);
 			payload.insert("project_id", row.project_id);
 			payload.insert("agent_id", row.agent_id);
 			payload.insert("scope", row.scope);
 			payload.insert("type", row.note_type);
-			payload.insert(
-				"key",
-				row.key.map(serde_json::Value::String).unwrap_or(serde_json::Value::Null),
-			);
+			payload.insert("key", row.key.map(Value::String).unwrap_or(Value::Null));
 			payload.insert("status", row.status);
-			payload
-				.insert("updated_at", serde_json::Value::String(format_timestamp(row.updated_at)?));
+			payload.insert("updated_at", Value::String(format_timestamp(row.updated_at)?));
 			let expires_value = match row.expires_at {
-				Some(ts) => serde_json::Value::String(format_timestamp(ts)?),
-				None => serde_json::Value::Null,
+				Some(ts) => Value::String(format_timestamp(ts)?),
+				None => Value::Null,
 			};
 			payload.insert("expires_at", expires_value);
-			payload.insert("importance", serde_json::Value::from(row.importance as f64));
-			payload.insert("confidence", serde_json::Value::from(row.confidence as f64));
+			payload.insert("importance", Value::from(row.importance as f64));
+			payload.insert("confidence", Value::from(row.confidence as f64));
 			payload.insert("embedding_version", row.embedding_version.clone());
 
 			let mut vectors = HashMap::new();
@@ -133,7 +134,7 @@ impl ElfService {
 	}
 }
 
-fn format_timestamp(ts: time::OffsetDateTime) -> ServiceResult<String> {
+fn format_timestamp(ts: OffsetDateTime) -> ServiceResult<String> {
 	use time::format_description::well_known::Rfc3339;
 	ts.format(&Rfc3339).map_err(|_| ServiceError::InvalidRequest {
 		message: "Failed to format timestamp.".to_string(),

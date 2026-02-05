@@ -1,7 +1,6 @@
-use tracing::error;
-use unicode_segmentation::UnicodeSegmentation;
-
+// crates.io
 pub use tokenizers::Tokenizer;
+use unicode_segmentation::UnicodeSegmentation;
 
 pub type TokenizerError = tokenizers::Error;
 
@@ -36,7 +35,7 @@ pub fn split_text(text: &str, cfg: &ChunkingConfig, tokenizer: &Tokenizer) -> Ve
 		let token_count = match tokenizer.encode(candidate.as_str(), false) {
 			Ok(encoding) => encoding.len(),
 			Err(err) => {
-				error!(error = %err, "Tokenizer failed to encode sentence candidate.");
+				tracing::error!(error = %err, "Tokenizer failed to encode sentence candidate.");
 				0
 			},
 		};
@@ -76,7 +75,7 @@ fn overlap_tail(text: &str, overlap_tokens: u32, tokenizer: &Tokenizer) -> Strin
 	let encoding = match tokenizer.encode(text, false) {
 		Ok(encoding) => encoding,
 		Err(err) => {
-			error!(error = %err, "Tokenizer failed to encode overlap tail.");
+			tracing::error!(error = %err, "Tokenizer failed to encode overlap tail.");
 			return String::new();
 		},
 	};
@@ -86,7 +85,7 @@ fn overlap_tail(text: &str, overlap_tokens: u32, tokenizer: &Tokenizer) -> Strin
 	match tokenizer.decode(tail_ids, true) {
 		Ok(decoded) => decoded,
 		Err(err) => {
-			error!(error = %err, "Tokenizer failed to decode overlap tail.");
+			tracing::error!(error = %err, "Tokenizer failed to decode overlap tail.");
 			String::new()
 		},
 	}

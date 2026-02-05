@@ -1,14 +1,15 @@
-use elf_domain::{
-	cjk::contains_cjk,
-	ttl::compute_expires_at,
-	writegate::{NoteInput, writegate},
-};
+// crates.io
+use serde_json::Value;
+use time::OffsetDateTime;
+use uuid::Uuid;
+
+// self
+use elf_domain::{cjk, ttl, writegate};
 use elf_storage::models::MemoryNote;
 
 use crate::{
 	ElfService, InsertVersionArgs, NoteOp, ResolveUpdateArgs, ServiceError, ServiceResult,
-	UpdateDecision, embedding_version, enqueue_outbox_tx, insert_version, note_snapshot,
-	resolve_update, writegate_reason_code,
+	UpdateDecision,
 };
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -29,12 +30,12 @@ pub struct AddNoteInput {
 	pub importance: f32,
 	pub confidence: f32,
 	pub ttl_days: Option<i64>,
-	pub source_ref: serde_json::Value,
+	pub source_ref: Value,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AddNoteResult {
-	pub note_id: Option<uuid::Uuid>,
+	pub note_id: Option<Uuid>,
 	pub op: NoteOp,
 	pub reason_code: Option<String>,
 }
@@ -62,13 +63,13 @@ impl ElfService {
 		}
 
 		for (idx, note) in req.notes.iter().enumerate() {
-			if contains_cjk(&note.text) {
+			if cjk::contains_cjk(&note.text) {
 				return Err(ServiceError::NonEnglishInput {
 					field: format!("$.notes[{idx}].text"),
 				});
 			}
 			if let Some(key) = &note.key
-				&& contains_cjk(key)
+				&& cjk::contains_cjk(key)
 			{
 				return Err(ServiceError::NonEnglishInput { field: format!("$.notes[{idx}].key") });
 			}
@@ -79,27 +80,27 @@ impl ElfService {
 			}
 		}
 
-		let now = time::OffsetDateTime::now_utc();
-		let embed_version = embedding_version(&self.cfg);
+		let now = OffsetDateTime::now_utc();
+		let embed_version = crate::embedding_version(&self.cfg);
 		let mut results = Vec::with_capacity(req.notes.len());
 
 		for note in req.notes {
-			let gate_input = NoteInput {
+			let gate_input = writegate::NoteInput {
 				note_type: note.note_type.clone(),
 				scope: req.scope.clone(),
 				text: note.text.clone(),
 			};
-			if let Err(code) = writegate(&gate_input, &self.cfg) {
+			if let Err(code) = writegate::writegate(&gate_input, &self.cfg) {
 				results.push(AddNoteResult {
 					note_id: None,
 					op: NoteOp::Rejected,
-					reason_code: Some(writegate_reason_code(code).to_string()),
+					reason_code: Some(crate::writegate_reason_code(code).to_string()),
 				});
 				continue;
 			}
 
 			let mut tx = self.db.pool.begin().await?;
-			let decision = resolve_update(
+			let decision = crate::resolve_update(
 				&mut tx,
 				ResolveUpdateArgs {
 					cfg: &self.cfg,
@@ -119,7 +120,7 @@ impl ElfService {
 			match decision {
 				UpdateDecision::Add { note_id } => {
 					let expires_at =
-						compute_expires_at(note.ttl_days, &note.note_type, &self.cfg, now);
+						ttl::compute_expires_at(note.ttl_days, &note.note_type, &self.cfg, now);
 					let memory_note = MemoryNote {
 						note_id,
 						tenant_id: req.tenant_id.clone(),
@@ -167,20 +168,20 @@ impl ElfService {
                     .execute(&mut *tx)
                     .await?;
 
-					insert_version(
+					crate::insert_version(
 						&mut tx,
 						InsertVersionArgs {
 							note_id: memory_note.note_id,
 							op: "ADD",
 							prev_snapshot: None,
-							new_snapshot: Some(note_snapshot(&memory_note)),
+							new_snapshot: Some(crate::note_snapshot(&memory_note)),
 							reason: "add_note",
 							actor: "add_note",
 							ts: now,
 						},
 					)
 					.await?;
-					enqueue_outbox_tx(
+					crate::enqueue_outbox_tx(
 						&mut tx,
 						memory_note.note_id,
 						"UPSERT",
@@ -202,11 +203,12 @@ impl ElfService {
 							.bind(note_id)
 							.fetch_one(&mut *tx)
 							.await?;
-					let prev_snapshot = note_snapshot(&existing);
+					let prev_snapshot = crate::note_snapshot(&existing);
 
 					let requested_ttl = note.ttl_days.filter(|days| *days > 0);
 					let expires_at = match requested_ttl {
-						Some(ttl) => compute_expires_at(Some(ttl), &note.note_type, &self.cfg, now),
+						Some(ttl) =>
+							ttl::compute_expires_at(Some(ttl), &note.note_type, &self.cfg, now),
 						None => existing.expires_at,
 					};
 
@@ -257,20 +259,20 @@ impl ElfService {
                     .execute(&mut *tx)
                     .await?;
 
-					insert_version(
+					crate::insert_version(
 						&mut tx,
 						InsertVersionArgs {
 							note_id: existing.note_id,
 							op: "UPDATE",
 							prev_snapshot: Some(prev_snapshot),
-							new_snapshot: Some(note_snapshot(&existing)),
+							new_snapshot: Some(crate::note_snapshot(&existing)),
 							reason: "add_note",
 							actor: "add_note",
 							ts: now,
 						},
 					)
 					.await?;
-					enqueue_outbox_tx(
+					crate::enqueue_outbox_tx(
 						&mut tx,
 						existing.note_id,
 						"UPSERT",
@@ -301,15 +303,15 @@ impl ElfService {
 	}
 }
 
-fn find_cjk_path(value: &serde_json::Value, path: &str) -> Option<String> {
+fn find_cjk_path(value: &Value, path: &str) -> Option<String> {
 	match value {
-		serde_json::Value::String(text) =>
-			if contains_cjk(text) {
+		Value::String(text) =>
+			if cjk::contains_cjk(text) {
 				Some(path.to_string())
 			} else {
 				None
 			},
-		serde_json::Value::Array(items) => {
+		Value::Array(items) => {
 			for (idx, item) in items.iter().enumerate() {
 				let child_path = format!("{path}[{idx}]");
 				if let Some(found) = find_cjk_path(item, &child_path) {
@@ -318,7 +320,7 @@ fn find_cjk_path(value: &serde_json::Value, path: &str) -> Option<String> {
 			}
 			None
 		},
-		serde_json::Value::Object(map) => {
+		Value::Object(map) => {
 			for (key, value) in map.iter() {
 				let child_path = format!("{path}[\"{}\"]", escape_json_path_key(key));
 				if let Some(found) = find_cjk_path(value, &child_path) {

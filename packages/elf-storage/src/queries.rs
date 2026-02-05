@@ -1,5 +1,8 @@
+// crates.io
 use color_eyre::Result;
+use uuid::Uuid;
 
+// self
 use crate::{db::Db, models::MemoryNote};
 
 pub async fn insert_note(db: &Db, note: &MemoryNote) -> Result<()> {
@@ -46,7 +49,7 @@ pub async fn update_note(db: &Db, note: &MemoryNote) -> Result<()> {
 	Ok(())
 }
 
-pub async fn delete_note_chunks(db: &Db, note_id: uuid::Uuid) -> Result<()> {
+pub async fn delete_note_chunks(db: &Db, note_id: Uuid) -> Result<()> {
 	sqlx::query("DELETE FROM memory_note_chunks WHERE note_id = $1")
 		.bind(note_id)
 		.execute(&db.pool)
@@ -57,8 +60,8 @@ pub async fn delete_note_chunks(db: &Db, note_id: uuid::Uuid) -> Result<()> {
 #[allow(clippy::too_many_arguments)]
 pub async fn insert_note_chunk(
 	db: &Db,
-	chunk_id: uuid::Uuid,
-	note_id: uuid::Uuid,
+	chunk_id: Uuid,
+	note_id: Uuid,
 	chunk_index: i32,
 	start_offset: i32,
 	end_offset: i32,
@@ -84,7 +87,7 @@ pub async fn insert_note_chunk(
 
 pub async fn insert_note_chunk_embedding(
 	db: &Db,
-	chunk_id: uuid::Uuid,
+	chunk_id: Uuid,
 	embedding_version: &str,
 	embedding_dim: i32,
 	vec: &str,
