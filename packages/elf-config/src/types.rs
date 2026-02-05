@@ -1,4 +1,3 @@
-// crates.io
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]

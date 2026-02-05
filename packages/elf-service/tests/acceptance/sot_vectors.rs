@@ -1,11 +1,8 @@
-// std
 use std::sync::{Arc, atomic::AtomicUsize};
 
-// crates.io
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-// self
 use super::{
 	SpyExtractor, StubEmbedding, StubRerank, build_service, reset_db, test_config, test_db,
 	test_qdrant_url,

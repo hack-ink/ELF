@@ -1,6 +1,5 @@
 #[path = "../../../../apps/elf-worker/src/worker.rs"] mod worker;
 
-// std
 use std::{
 	collections::HashMap,
 	future::IntoFuture,
@@ -11,7 +10,6 @@ use std::{
 	time::{Duration, Instant},
 };
 
-// crates.io
 use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing};
 use qdrant_client::qdrant::{
 	CreateCollectionBuilder, Distance, Modifier, SparseVectorParamsBuilder,
@@ -23,7 +21,6 @@ use tokenizers::{Tokenizer, models::wordlevel::WordLevel};
 use tokio::{net::TcpListener, sync::oneshot, time as tokio_time};
 use uuid::Uuid;
 
-// self
 use super::{
 	SpyExtractor, StubEmbedding, StubRerank, build_service, test_config, test_db, test_qdrant_url,
 };

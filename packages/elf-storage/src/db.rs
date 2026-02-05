@@ -1,8 +1,6 @@
-// crates.io
 use color_eyre::Result;
 use sqlx::postgres::PgPoolOptions;
 
-// self
 use crate::schema;
 
 pub struct Db {

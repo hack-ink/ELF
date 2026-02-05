@@ -1,7 +1,5 @@
-// crates.io
 use regex::Regex;
 
-// self
 use crate::cjk;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

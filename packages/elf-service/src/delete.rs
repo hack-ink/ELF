@@ -1,8 +1,6 @@
-// crates.io
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-// self
 use elf_storage::models::MemoryNote;
 
 use crate::{ElfService, InsertVersionArgs, NoteOp, ServiceError, ServiceResult};

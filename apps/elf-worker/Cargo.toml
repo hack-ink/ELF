@@ -7,11 +7,6 @@ version = "0.1.0"
 [dependencies]
 clap               = { workspace = true }
 color-eyre         = { workspace = true }
-elf-chunking       = { path = "../../packages/elf-chunking" }
-elf-cli            = { path = "../../packages/elf-cli" }
-elf-config         = { path = "../../packages/elf-config" }
-elf-providers      = { path = "../../packages/elf-providers" }
-elf-storage        = { path = "../../packages/elf-storage" }
 qdrant-client      = { workspace = true }
 serde              = { workspace = true }
 serde_json         = { workspace = true }
@@ -21,6 +16,12 @@ tokio              = { workspace = true }
 tracing            = { workspace = true }
 tracing-subscriber = { workspace = true }
 uuid               = { workspace = true }
+
+elf-chunking  = { workspace = true }
+elf-cli       = { workspace = true }
+elf-config    = { workspace = true }
+elf-providers = { workspace = true }
+elf-storage   = { workspace = true }
 
 [build-dependencies]
 vergen-gitcl = { workspace = true }

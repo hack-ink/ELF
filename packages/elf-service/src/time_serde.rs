@@ -1,4 +1,3 @@
-// crates.io
 use serde::{Deserialize, Deserializer, Serializer, de::Error as DeError, ser::Error as SerError};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 

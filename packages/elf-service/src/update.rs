@@ -1,8 +1,6 @@
-// crates.io
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-// self
 use elf_domain::{cjk, ttl, writegate};
 use elf_storage::models::MemoryNote;
 

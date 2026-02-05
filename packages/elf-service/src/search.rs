@@ -1,11 +1,9 @@
-// std
 use std::{
 	collections::{HashMap, HashSet, hash_map::DefaultHasher},
 	hash::{Hash, Hasher},
 	slice,
 };
 
-// crates.io
 use qdrant_client::qdrant::{
 	Condition, Document, Filter, Fusion, MinShould, PrefetchQueryBuilder, Query,
 	QueryPointsBuilder, ScoredPoint, Value, point_id::PointIdOptions, value::Kind,
@@ -15,7 +13,6 @@ use sqlx::{QueryBuilder, Row};
 use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
-// self
 use elf_domain::cjk;
 use elf_storage::{
 	models::MemoryNote,

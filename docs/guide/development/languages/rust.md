@@ -71,11 +71,9 @@ Additional rules:
 
 ## Imports and Paths
 
-Use only these import headers:
-
-- `// std` for `std::`.
-- `// crates.io` for third-party crates.
-- `// self` for `crate::`, `self::`, `super::`, or workspace member crates.
+Do not add import header comments.
+Group imports by origin in this order: standard library, third-party crates, self or workspace crates.
+Separate groups with a single blank line.
 
 Rules:
 
@@ -83,7 +81,7 @@ Rules:
 - Calls to functions or macros must use a single module qualifier, such as `parent::function(...)` or `parent::macro!(...)`, unless the function or macro is defined in the same file.
 - Standard library macros must be used without a `std::` qualifier, such as `vec!`, `format!`, or `println!`.
 - If `crate::prelude::*` is imported, do not add redundant imports.
-- Avoid glob imports. In tests, prefer `use super::*;` when it is used. Otherwise, avoid glob imports except an existing prelude.
+- In tests, prefer `use super::*;` for ergonomic access to the module under test.
 
 ## Types and `impl` Blocks
 

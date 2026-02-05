@@ -1,7 +1,5 @@
-// std
 use std::env;
 
-// crates.io
 use axum::{
 	body::{self, Body},
 	http::{Request, StatusCode},
@@ -9,7 +7,6 @@ use axum::{
 use serde_json::Map;
 use tower::util::ServiceExt;
 
-// self
 use elf_api::{routes, state::AppState};
 use elf_testkit::TestDatabase;
 

@@ -1,7 +1,5 @@
-// std
 use std::{collections::HashMap, time::Duration as StdDuration};
 
-// crates.io
 use color_eyre::{Result, eyre};
 use qdrant_client::{
 	client::Payload,
@@ -17,7 +15,6 @@ use time::{Duration, OffsetDateTime};
 use tokio::time as tokio_time;
 use uuid::Uuid;
 
-// self
 use elf_chunking::{Chunk, ChunkingConfig, Tokenizer};
 use elf_providers::embedding;
 use elf_storage::{

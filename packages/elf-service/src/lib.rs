@@ -8,15 +8,12 @@ pub mod search;
 pub mod time_serde;
 pub mod update;
 
-// std
 use std::{future::Future, pin::Pin, sync::Arc};
 
-// crates.io
 use serde_json::Value;
 use sqlx::Row;
 use uuid::Uuid;
 
-// self
 pub use add_event::{AddEventRequest, AddEventResponse, AddEventResult, EventMessage};
 pub use add_note::{AddNoteInput, AddNoteRequest, AddNoteResponse, AddNoteResult};
 pub use admin::RebuildReport;

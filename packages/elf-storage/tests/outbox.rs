@@ -1,7 +1,5 @@
-// crates.io
 use uuid::Uuid;
 
-// self
 use elf_storage::{db::Db, outbox};
 use elf_testkit::TestDatabase;
 

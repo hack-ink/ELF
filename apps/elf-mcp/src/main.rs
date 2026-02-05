@@ -1,6 +1,5 @@
-// crates.io
 use clap::Parser;
-// self
+
 use elf_mcp::Args;
 
 #[tokio::main]

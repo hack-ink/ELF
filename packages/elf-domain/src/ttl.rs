@@ -1,4 +1,3 @@
-// crates.io
 use time::{Duration, OffsetDateTime};
 
 pub fn compute_expires_at(

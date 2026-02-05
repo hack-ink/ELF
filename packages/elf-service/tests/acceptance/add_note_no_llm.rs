@@ -1,13 +1,10 @@
-// std
 use std::sync::{
 	Arc,
 	atomic::{AtomicUsize, Ordering},
 };
 
-// crates.io
 use elf_service::{AddNoteInput, AddNoteRequest, Providers};
 
-// self
 use super::{
 	SpyExtractor, StubEmbedding, StubRerank, build_service, test_config, test_db, test_qdrant_url,
 };
