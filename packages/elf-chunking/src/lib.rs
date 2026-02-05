@@ -1,6 +1,9 @@
-use tokenizers::Tokenizer;
 use tracing::error;
 use unicode_segmentation::UnicodeSegmentation;
+
+pub use tokenizers::Tokenizer;
+
+pub type TokenizerError = tokenizers::Error;
 
 #[derive(Debug, Clone)]
 pub struct ChunkingConfig {
@@ -14,6 +17,10 @@ pub struct Chunk {
 	pub start_offset: usize,
 	pub end_offset: usize,
 	pub text: String,
+}
+
+pub fn load_tokenizer(repo: &str) -> Result<Tokenizer, TokenizerError> {
+	Tokenizer::from_pretrained(repo, None)
 }
 
 pub fn split_text(text: &str, cfg: &ChunkingConfig, tokenizer: &Tokenizer) -> Vec<Chunk> {
@@ -91,13 +98,10 @@ mod tests {
 
 	#[test]
 	fn splits_into_chunks_with_overlap() {
-		let cfg = ChunkingConfig {
-			max_tokens: 10,
-			overlap_tokens: 2,
-		};
-		let tokenizer = Tokenizer::from_pretrained("Qwen/Qwen3-Embedding-8B", None).unwrap();
+		let cfg = ChunkingConfig { max_tokens: 10, overlap_tokens: 2 };
+		let tokenizer = load_tokenizer("Qwen/Qwen3-Embedding-8B").unwrap();
 		let chunks = split_text("One. Two. Three. Four.", &cfg, &tokenizer);
-		assert!(chunks.len() >= 1);
+		assert!(!chunks.is_empty());
 		assert!(chunks[0].text.contains("One"));
 	}
 }

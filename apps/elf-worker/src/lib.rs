@@ -1,9 +1,6 @@
 use clap::Parser;
-use tokenizers::Tokenizer;
 use tracing_subscriber::EnvFilter;
-
 pub mod worker;
-pub mod chunking;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -30,9 +27,9 @@ pub async fn run(args: Args) -> color_eyre::Result<()> {
 		.tokenizer_repo
 		.clone()
 		.unwrap_or_else(|| config.providers.embedding.model.clone());
-	let tokenizer =
-		Tokenizer::from_pretrained(tokenizer_repo, None).map_err(|err| color_eyre::eyre::eyre!(err))?;
-	let chunking = chunking::ChunkingConfig {
+	let tokenizer = elf_chunking::load_tokenizer(&tokenizer_repo)
+		.map_err(|err| color_eyre::eyre::eyre!(err))?;
+	let chunking = elf_chunking::ChunkingConfig {
 		max_tokens: config.chunking.max_tokens,
 		overlap_tokens: config.chunking.overlap_tokens,
 	};

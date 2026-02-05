@@ -1,0 +1,9 @@
+[package]
+edition = "2024"
+name    = "elf-chunking"
+version = "0.1.0"
+
+[dependencies]
+tokenizers           = { workspace = true }
+tracing              = { workspace = true }
+unicode-segmentation = { workspace = true }

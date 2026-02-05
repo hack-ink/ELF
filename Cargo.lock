@@ -842,6 +842,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "elf-chunking"
+version = "0.1.0"
+dependencies = [
+ "tokenizers",
+ "tracing",
+ "unicode-segmentation",
+]
+
+[[package]]
 name = "elf-cli"
 version = "0.1.0"
 dependencies = [
@@ -923,6 +932,7 @@ dependencies = [
  "axum 0.7.9",
  "blake3",
  "color-eyre",
+ "elf-chunking",
  "elf-config",
  "elf-domain",
  "elf-providers",
@@ -971,6 +981,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "color-eyre",
+ "elf-chunking",
  "elf-cli",
  "elf-config",
  "elf-providers",
@@ -980,11 +991,9 @@ dependencies = [
  "serde_json",
  "sqlx",
  "time",
- "tokenizers",
  "tokio",
  "tracing",
  "tracing-subscriber",
- "unicode-segmentation",
  "uuid",
  "vergen-gitcl",
 ]
