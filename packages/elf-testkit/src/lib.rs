@@ -1,6 +1,7 @@
-use std::{env, future::Future, str::FromStr, thread};
+use std::{collections::HashSet, env, future::Future, str::FromStr, sync::Mutex, thread};
 
 use color_eyre::eyre::{self, WrapErr};
+use qdrant_client::Qdrant;
 use sqlx::{
 	ConnectOptions, Connection, Executor,
 	postgres::{PgConnectOptions, PgConnection},
@@ -14,11 +15,16 @@ pub fn env_dsn() -> Option<String> {
 	env::var("ELF_PG_DSN").ok()
 }
 
+pub fn env_qdrant_url() -> Option<String> {
+	env::var("ELF_QDRANT_URL").ok()
+}
+
 pub struct TestDatabase {
 	name: String,
 	dsn: String,
 	admin_options: PgConnectOptions,
 	cleaned: bool,
+	collections: Mutex<HashSet<String>>,
 }
 
 impl TestDatabase {
@@ -34,7 +40,13 @@ impl TestDatabase {
 			.wrap_err("Failed to create test database.")?;
 		let dsn = base_options.clone().database(&name).to_url_lossy().to_string();
 
-		Ok(Self { name, dsn, admin_options, cleaned: false })
+		Ok(Self {
+			name,
+			dsn,
+			admin_options,
+			cleaned: false,
+			collections: Mutex::new(HashSet::new()),
+		})
 	}
 
 	pub fn dsn(&self) -> &str {
@@ -46,7 +58,10 @@ impl TestDatabase {
 	}
 
 	pub fn collection_name(&self, prefix: &str) -> String {
-		format!("{prefix}_{}", self.name)
+		let collection = format!("{prefix}_{}", self.name);
+		let mut tracked = self.collections.lock().unwrap_or_else(|err| err.into_inner());
+		tracked.insert(collection.clone());
+		collection
 	}
 
 	pub async fn cleanup(mut self) -> color_eyre::Result<()> {
@@ -57,7 +72,16 @@ impl TestDatabase {
 		if self.cleaned {
 			return Ok(());
 		}
-		cleanup_database(&self.name, &self.admin_options).await?;
+		let collections = {
+			let tracked = self.collections.lock().unwrap_or_else(|err| err.into_inner());
+			tracked.iter().cloned().collect::<Vec<_>>()
+		};
+
+		let db_result = cleanup_database(&self.name, &self.admin_options).await;
+		let qdrant_result = cleanup_qdrant_collections(&collections).await;
+
+		db_result?;
+		qdrant_result?;
 		self.cleaned = true;
 		Ok(())
 	}
@@ -70,6 +94,13 @@ impl Drop for TestDatabase {
 		}
 		let name = self.name.clone();
 		let admin_options = self.admin_options.clone();
+		let collections = self
+			.collections
+			.lock()
+			.unwrap_or_else(|err| err.into_inner())
+			.iter()
+			.cloned()
+			.collect::<Vec<_>>();
 		let _ = thread::spawn(move || {
 			let runtime = match Builder::new_current_thread().enable_all().build() {
 				Ok(runtime) => runtime,
@@ -78,6 +109,9 @@ impl Drop for TestDatabase {
 					return;
 				},
 			};
+			if let Err(err) = runtime.block_on(cleanup_qdrant_collections(&collections)) {
+				eprintln!("Test Qdrant cleanup failed: {err}.");
+			}
 			if let Err(err) = runtime.block_on(cleanup_database(&name, &admin_options)) {
 				eprintln!("Test database cleanup failed: {err}.");
 			}
@@ -133,5 +167,32 @@ async fn cleanup_database(name: &str, admin_options: &PgConnectOptions) -> color
 		.execute(&mut conn)
 		.await
 		.wrap_err("Failed to drop test database.")?;
+	Ok(())
+}
+
+async fn cleanup_qdrant_collections(collections: &[String]) -> color_eyre::Result<()> {
+	if collections.is_empty() {
+		return Ok(());
+	}
+	let Some(qdrant_url) = env_qdrant_url() else {
+		eprintln!("Skipping Qdrant cleanup; set ELF_QDRANT_URL to delete test collections.");
+		return Ok(());
+	};
+
+	let client =
+		Qdrant::from_url(&qdrant_url).build().wrap_err("Failed to build Qdrant client.")?;
+	let existing =
+		client.list_collections().await.wrap_err("Failed to list Qdrant collections.")?;
+	let existing = existing.collections.into_iter().map(|c| c.name).collect::<HashSet<_>>();
+
+	for collection in collections {
+		if !existing.contains(collection) {
+			continue;
+		}
+		client
+			.delete_collection(collection.clone())
+			.await
+			.wrap_err_with(|| format!("Failed to delete Qdrant collection {collection:?}."))?;
+	}
 	Ok(())
 }

@@ -971,6 +971,7 @@ name = "elf-testkit"
 version = "0.1.0"
 dependencies = [
  "color-eyre",
+ "qdrant-client",
  "sqlx",
  "tokio",
  "uuid",
