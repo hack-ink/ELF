@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{collections::HashSet, time::Duration};
 
 use color_eyre::{Result, eyre};
 use reqwest::Client;
@@ -9,6 +9,10 @@ pub async fn rerank(
 	query: &str,
 	docs: &[String],
 ) -> Result<Vec<f32>> {
+	if cfg.provider_id == "local" {
+		return Ok(local_rerank(query, docs));
+	}
+
 	let client = Client::builder().timeout(Duration::from_millis(cfg.timeout_ms)).build()?;
 	let url = format!("{}{}", cfg.api_base, cfg.path);
 	let body = serde_json::json!({ "model": cfg.model, "query": query, "documents": docs });
@@ -20,6 +24,44 @@ pub async fn rerank(
 		.await?;
 	let json: Value = res.error_for_status()?.json().await?;
 	parse_rerank_response(json, docs.len())
+}
+
+fn local_rerank(query: &str, docs: &[String]) -> Vec<f32> {
+	let query_tokens = tokenize_ascii_alnum(query);
+	if query_tokens.is_empty() {
+		return vec![0.0; docs.len()];
+	}
+	let denom = query_tokens.len() as f32;
+
+	let mut scores = Vec::with_capacity(docs.len());
+	for doc in docs {
+		let doc_tokens = tokenize_ascii_alnum(doc);
+		let matched = query_tokens.intersection(&doc_tokens).count() as f32;
+		scores.push(matched / denom);
+	}
+
+	scores
+}
+
+fn tokenize_ascii_alnum(text: &str) -> HashSet<String> {
+	let mut normalized = String::with_capacity(text.len());
+	for ch in text.chars() {
+		if ch.is_ascii_alphanumeric() {
+			normalized.push(ch.to_ascii_lowercase());
+		} else {
+			normalized.push(' ');
+		}
+	}
+
+	let mut out = HashSet::new();
+	for token in normalized.split_whitespace() {
+		if token.len() < 2 {
+			continue;
+		}
+		out.insert(token.to_string());
+	}
+
+	out
 }
 
 fn parse_rerank_response(json: Value, doc_count: usize) -> Result<Vec<f32>> {
@@ -62,5 +104,13 @@ mod tests {
 		});
 		let scores = parse_rerank_response(json, 2).expect("parse failed");
 		assert_eq!(scores, vec![0.9, 0.2]);
+	}
+
+	#[test]
+	fn local_rerank_scores_match_token_overlap_fraction() {
+		let scores = local_rerank("alpha beta", &[String::from("alpha"), String::from("gamma")]);
+		assert_eq!(scores.len(), 2);
+		assert!((scores[0] - 0.5).abs() < 1e-6, "Unexpected score: {}", scores[0]);
+		assert_eq!(scores[1], 0.0);
 	}
 }
