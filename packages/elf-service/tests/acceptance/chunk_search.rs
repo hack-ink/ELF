@@ -3,6 +3,7 @@ use std::{
 	sync::{Arc, atomic::AtomicUsize},
 };
 
+use color_eyre::Result;
 use qdrant_client::{
 	client::Payload,
 	qdrant::{
@@ -12,14 +13,16 @@ use qdrant_client::{
 	},
 };
 use serde_json::Value;
+use sqlx::PgPool;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use super::{
-	SpyExtractor, StubEmbedding, StubRerank, build_service, test_config, test_db, test_qdrant_url,
-};
+use super::{SpyExtractor, StubEmbedding, StubRerank};
 use elf_config::ProviderConfig;
-use elf_service::{BoxFuture, ElfService, Providers, RerankProvider, SearchRequest};
+use elf_service::{
+	BoxFuture, ElfService, Providers, RerankProvider, SearchDetailsRequest, SearchRequest,
+	SearchTimelineRequest,
+};
 use elf_storage::qdrant::{BM25_MODEL, BM25_VECTOR_NAME, DENSE_VECTOR_NAME};
 use elf_testkit::TestDatabase;
 
@@ -32,14 +35,13 @@ struct TestContext {
 struct KeywordRerank {
 	keyword: &'static str,
 }
-
 impl RerankProvider for KeywordRerank {
 	fn rerank<'a>(
 		&'a self,
 		_cfg: &'a ProviderConfig,
 		_query: &'a str,
 		docs: &'a [String],
-	) -> BoxFuture<'a, color_eyre::Result<Vec<f32>>> {
+	) -> BoxFuture<'a, Result<Vec<f32>>> {
 		let keyword = self.keyword;
 		Box::pin(async move {
 			Ok(docs.iter().map(|doc| if doc.contains(keyword) { 1.0 } else { 0.1 }).collect())
@@ -62,18 +64,20 @@ where
 }
 
 async fn setup_context(test_name: &str, providers: Providers) -> Option<TestContext> {
-	let Some(test_db) = test_db().await else {
+	let Some(test_db) = super::test_db().await else {
 		eprintln!("Skipping {test_name}; set ELF_PG_DSN to run this test.");
+
 		return None;
 	};
-	let Some(qdrant_url) = test_qdrant_url() else {
+	let Some(qdrant_url) = super::test_qdrant_url() else {
 		eprintln!("Skipping {test_name}; set ELF_QDRANT_URL to run this test.");
+
 		return None;
 	};
 
 	let collection = test_db.collection_name("elf_acceptance");
-	let cfg = test_config(test_db.dsn().to_string(), qdrant_url, 3, collection);
-	let service = build_service(cfg, providers).await.expect("Failed to build service.");
+	let cfg = super::test_config(test_db.dsn().to_string(), qdrant_url, 3, collection);
+	let service = super::build_service(cfg, providers).await.expect("Failed to build service.");
 	super::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
 	reset_collection(&service).await;
 
@@ -88,10 +92,13 @@ async fn setup_context(test_name: &str, providers: Providers) -> Option<TestCont
 
 async fn reset_collection(service: &ElfService) {
 	let _ = service.qdrant.client.delete_collection(service.qdrant.collection.clone()).await;
+
 	let mut vectors_config = VectorsConfigBuilder::default();
 	vectors_config
 		.add_named_vector_params(DENSE_VECTOR_NAME, VectorParamsBuilder::new(3, Distance::Cosine));
+
 	let mut sparse_vectors_config = SparseVectorsConfigBuilder::default();
+
 	sparse_vectors_config.add_named_vector_params(
 		BM25_VECTOR_NAME,
 		SparseVectorParamsBuilder::default().modifier(Modifier::Idf as i32),
@@ -108,12 +115,51 @@ async fn reset_collection(service: &ElfService) {
 		.expect("Failed to create Qdrant collection.");
 }
 
-async fn insert_note(pool: &sqlx::PgPool, note_id: Uuid, note_text: &str, embedding_version: &str) {
+async fn insert_note(pool: &PgPool, note_id: Uuid, note_text: &str, embedding_version: &str) {
 	let now = OffsetDateTime::now_utc();
+
 	sqlx::query(
-		"INSERT INTO memory_notes \
-         (note_id, tenant_id, project_id, agent_id, scope, type, key, text, importance, confidence, status, created_at, updated_at, expires_at, embedding_version, source_ref, hit_count, last_hit_at) \
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)",
+		"\
+INSERT INTO memory_notes (
+	note_id,
+	tenant_id,
+	project_id,
+	agent_id,
+	scope,
+	type,
+	key,
+	text,
+	importance,
+	confidence,
+	status,
+	created_at,
+	updated_at,
+	expires_at,
+	embedding_version,
+	source_ref,
+	hit_count,
+	last_hit_at
+)
+VALUES (
+	$1,
+	$2,
+	$3,
+	$4,
+	$5,
+	$6,
+	$7,
+	$8,
+	$9,
+	$10,
+	$11,
+	$12,
+	$13,
+	$14,
+	$15,
+	$16,
+	$17,
+	$18
+)",
 	)
 	.bind(note_id)
 	.bind("t")
@@ -140,7 +186,7 @@ async fn insert_note(pool: &sqlx::PgPool, note_id: Uuid, note_text: &str, embedd
 
 #[allow(clippy::too_many_arguments)]
 async fn insert_chunk(
-	pool: &sqlx::PgPool,
+	pool: &PgPool,
 	chunk_id: Uuid,
 	note_id: Uuid,
 	chunk_index: i32,
@@ -150,9 +196,17 @@ async fn insert_chunk(
 	embedding_version: &str,
 ) {
 	sqlx::query(
-		"INSERT INTO memory_note_chunks \
-         (chunk_id, note_id, chunk_index, start_offset, end_offset, text, embedding_version) \
-         VALUES ($1,$2,$3,$4,$5,$6,$7)",
+		"\
+INSERT INTO memory_note_chunks (
+	chunk_id,
+	note_id,
+	chunk_index,
+	start_offset,
+	end_offset,
+	text,
+	embedding_version
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7)",
 	)
 	.bind(chunk_id)
 	.bind(note_id)
@@ -174,6 +228,7 @@ fn build_payload(
 	end_offset: i32,
 ) -> Payload {
 	let mut payload = Payload::new();
+
 	payload.insert("note_id", note_id.to_string());
 	payload.insert("chunk_id", chunk_id.to_string());
 	payload.insert("chunk_index", Value::from(chunk_index));
@@ -189,6 +244,7 @@ fn build_payload(
 
 fn build_vectors(text: &str) -> HashMap<String, Vector> {
 	let mut vectors = HashMap::new();
+
 	vectors.insert(DENSE_VECTOR_NAME.to_string(), Vector::from(vec![0.0; 3]));
 	vectors.insert(
 		BM25_VECTOR_NAME.to_string(),
@@ -261,7 +317,9 @@ async fn search_returns_chunk_items() {
 		.expect("Search failed.");
 
 	let item = response.items.first().expect("Expected search result.");
+
 	assert_eq!(item.chunk_id, chunk_id);
+
 	assert!(!item.snippet.is_empty());
 
 	context.test_db.cleanup().await.expect("Failed to cleanup test database.");
@@ -282,6 +340,7 @@ async fn search_stitches_adjacent_chunks() {
 
 	let mut offset = 0_i32;
 	let mut chunk_ids = Vec::new();
+
 	for (index, chunk_text) in chunk_texts.iter().enumerate() {
 		let chunk_id = Uuid::new_v4();
 		let start = offset;
@@ -320,7 +379,9 @@ async fn search_stitches_adjacent_chunks() {
 		.expect("Search failed.");
 
 	let item = response.items.first().expect("Expected search result.");
+
 	assert_eq!(item.chunk_id, chunk_id);
+
 	assert!(item.snippet.contains("First sentence."));
 	assert!(item.snippet.contains("Second sentence."));
 	assert!(item.snippet.contains("Third sentence."));
@@ -367,6 +428,76 @@ async fn search_skips_missing_chunk_metadata() {
 
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
+async fn progressive_search_returns_index_timeline_and_details() {
+	let providers = build_providers(StubRerank);
+	let Some(context) =
+		setup_context("progressive_search_returns_index_timeline_and_details", providers).await
+	else {
+		return;
+	};
+
+	let note_id = Uuid::new_v4();
+	let chunk_id = Uuid::new_v4();
+	let note_text = "Progressive retrieval works best with staged expansion.";
+	insert_note(&context.service.db.pool, note_id, note_text, &context.embedding_version).await;
+	insert_chunk(
+		&context.service.db.pool,
+		chunk_id,
+		note_id,
+		0,
+		0,
+		note_text.len() as i32,
+		note_text,
+		&context.embedding_version,
+	)
+	.await;
+	upsert_point(&context.service, chunk_id, note_id, 0, 0, note_text.len() as i32, note_text)
+		.await;
+
+	let index = context
+		.service
+		.search_index(SearchRequest {
+			tenant_id: "t".to_string(),
+			project_id: "p".to_string(),
+			agent_id: "a".to_string(),
+			read_profile: "private_only".to_string(),
+			query: "Progressive".to_string(),
+			top_k: Some(5),
+			candidate_k: Some(10),
+			record_hits: Some(false),
+		})
+		.await
+		.expect("Search index failed.");
+
+	assert!(!index.items.is_empty());
+
+	let timeline = context
+		.service
+		.search_timeline(SearchTimelineRequest { search_session_id: index.search_session_id })
+		.await
+		.expect("Search timeline failed.");
+
+	assert!(!timeline.groups.is_empty());
+
+	let details = context
+		.service
+		.search_details(SearchDetailsRequest {
+			search_session_id: index.search_session_id,
+			note_ids: vec![note_id],
+		})
+		.await
+		.expect("Search details failed.");
+
+	let returned = details.notes.first().expect("Expected note details.");
+
+	assert_eq!(returned.note_id, note_id);
+	assert_eq!(returned.text, note_text);
+
+	context.test_db.cleanup().await.expect("Failed to cleanup test database.");
+}
+
+#[tokio::test]
+#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
 async fn search_dedupes_note_results() {
 	let providers = build_providers(KeywordRerank { keyword: "preferred" });
 	let Some(context) = setup_context("search_dedupes_note_results", providers).await else {
@@ -380,6 +511,7 @@ async fn search_dedupes_note_results() {
 
 	let mut offset = 0_i32;
 	let mut chunk_ids = Vec::new();
+
 	for (index, chunk_text) in chunk_texts.iter().enumerate() {
 		let chunk_id = Uuid::new_v4();
 		let start = offset;
@@ -420,6 +552,7 @@ async fn search_dedupes_note_results() {
 		.expect("Search failed.");
 
 	let item = response.items.first().expect("Expected search result.");
+
 	assert_eq!(response.items.len(), 1);
 	assert_eq!(item.chunk_id, chunk_id_a);
 

@@ -75,26 +75,64 @@ async fn rebuild_uses_postgres_vectors_only() {
 	);
 
 	sqlx::query(
-        "INSERT INTO memory_notes \
-         (note_id, tenant_id, project_id, agent_id, scope, type, key, text, importance, confidence, status, created_at, updated_at, expires_at, embedding_version, source_ref, hit_count, last_hit_at) \
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)",
-    )
-    .bind(note_id)
-    .bind("t")
-    .bind("p")
-    .bind("a")
-    .bind("agent_private")
-    .bind("fact")
-    .bind::<Option<String>>(None)
-    .bind("Fact: Rebuild works.")
-    .bind(0.5_f32)
-    .bind(0.9_f32)
-    .bind("active")
-    .bind(now)
-    .bind(now)
-    .bind::<Option<OffsetDateTime>>(None)
-    .bind(&embedding_version)
-    .bind(serde_json::json!({}))
+		"\
+INSERT INTO memory_notes (
+	note_id,
+	tenant_id,
+	project_id,
+	agent_id,
+	scope,
+	type,
+	key,
+	text,
+	importance,
+	confidence,
+	status,
+	created_at,
+	updated_at,
+	expires_at,
+	embedding_version,
+	source_ref,
+	hit_count,
+	last_hit_at
+)
+VALUES (
+	$1,
+	$2,
+	$3,
+	$4,
+	$5,
+	$6,
+	$7,
+	$8,
+	$9,
+	$10,
+	$11,
+	$12,
+	$13,
+	$14,
+	$15,
+	$16,
+	$17,
+	$18
+)",
+	)
+	.bind(note_id)
+	.bind("t")
+	.bind("p")
+	.bind("a")
+	.bind("agent_private")
+	.bind("fact")
+	.bind::<Option<String>>(None)
+	.bind("Fact: Rebuild works.")
+	.bind(0.5_f32)
+	.bind(0.9_f32)
+	.bind("active")
+	.bind(now)
+	.bind(now)
+	.bind::<Option<OffsetDateTime>>(None)
+	.bind(&embedding_version)
+	.bind(serde_json::json!({}))
 	.bind(0_i64)
 	.bind::<Option<OffsetDateTime>>(None)
 	.execute(&service.db.pool)
@@ -103,10 +141,19 @@ async fn rebuild_uses_postgres_vectors_only() {
 
 	let chunk_id = Uuid::new_v4();
 	let text = "Fact: Rebuild works.";
+
 	sqlx::query(
-		"INSERT INTO memory_note_chunks \
-         (chunk_id, note_id, chunk_index, start_offset, end_offset, text, embedding_version) \
-         VALUES ($1,$2,$3,$4,$5,$6,$7)",
+		"\
+INSERT INTO memory_note_chunks (
+	chunk_id,
+	note_id,
+	chunk_index,
+	start_offset,
+	end_offset,
+	text,
+	embedding_version
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7)",
 	)
 	.bind(chunk_id)
 	.bind(note_id)
@@ -120,8 +167,9 @@ async fn rebuild_uses_postgres_vectors_only() {
 	.expect("Failed to insert chunk metadata.");
 
 	sqlx::query(
-		"INSERT INTO note_chunk_embeddings (chunk_id, embedding_version, embedding_dim, vec) \
-         VALUES ($1,$2,$3,$4::vector)",
+		"\
+INSERT INTO note_chunk_embeddings (chunk_id, embedding_version, embedding_dim, vec)
+VALUES ($1, $2, $3, $4::vector)",
 	)
 	.bind(chunk_id)
 	.bind(&embedding_version)
@@ -132,8 +180,12 @@ async fn rebuild_uses_postgres_vectors_only() {
 	.expect("Failed to insert chunk embedding.");
 
 	let report = service.rebuild_qdrant().await.expect("Rebuild failed.");
+
 	assert_eq!(report.missing_vector_count, 0);
+
 	assert!(report.rebuilt_count >= 1);
+
 	assert_eq!(embed_calls.load(Ordering::SeqCst), 0);
+
 	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }

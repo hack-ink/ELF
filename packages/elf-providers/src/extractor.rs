@@ -1,11 +1,11 @@
-use std::time::Duration as StdDuration;
+use std::time::Duration;
 
 use color_eyre::{Result, eyre};
 use reqwest::Client;
 use serde_json::Value;
 
 pub async fn extract(cfg: &elf_config::LlmProviderConfig, messages: &[Value]) -> Result<Value> {
-	let client = Client::builder().timeout(StdDuration::from_millis(cfg.timeout_ms)).build()?;
+	let client = Client::builder().timeout(Duration::from_millis(cfg.timeout_ms)).build()?;
 	let url = format!("{}{}", cfg.api_base, cfg.path);
 
 	for _ in 0..3 {
@@ -40,6 +40,7 @@ fn parse_extractor_json(json: Value) -> Result<Value> {
 	{
 		let parsed: Value = serde_json::from_str(content)
 			.map_err(|_| eyre::eyre!("Extractor content is not valid JSON."))?;
+
 		return Ok(parsed);
 	}
 

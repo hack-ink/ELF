@@ -1,4 +1,4 @@
-use std::time::Duration as StdDuration;
+use std::time::Duration;
 
 use color_eyre::{Result, eyre};
 use reqwest::Client;
@@ -9,7 +9,7 @@ pub async fn rerank(
 	query: &str,
 	docs: &[String],
 ) -> Result<Vec<f32>> {
-	let client = Client::builder().timeout(StdDuration::from_millis(cfg.timeout_ms)).build()?;
+	let client = Client::builder().timeout(Duration::from_millis(cfg.timeout_ms)).build()?;
 	let url = format!("{}{}", cfg.api_base, cfg.path);
 	let body = serde_json::json!({ "model": cfg.model, "query": query, "documents": docs });
 	let res = client
