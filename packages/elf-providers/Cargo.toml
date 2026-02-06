@@ -4,6 +4,7 @@ name    = "elf-providers"
 version = "0.1.0"
 
 [dependencies]
+blake3     = { workspace = true }
 color-eyre = { workspace = true }
 reqwest    = { workspace = true }
 serde      = { workspace = true }
