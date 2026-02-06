@@ -16,7 +16,6 @@ Note: Some integration tests require external services such as Postgres or Qdran
 
 - `elf_e2e` — Dedicated database for the E2E flow.
 - `elf_test_*` — Ephemeral databases created by `elf_testkit::TestDatabase` for integration tests.
-- `elf_verify_4096` — Legacy database name used by earlier manual verification flows. Avoid it for new runs.
 
 ## Usage
 
