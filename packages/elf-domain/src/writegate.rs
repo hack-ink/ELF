@@ -176,6 +176,7 @@ mod tests {
 				overlap_tokens: 128,
 				tokenizer_repo: None,
 			},
+			context: None,
 		}
 	}
 

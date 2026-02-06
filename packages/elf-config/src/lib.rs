@@ -5,10 +5,10 @@ use std::{fs, path::Path};
 use color_eyre::eyre;
 
 pub use types::{
-	Chunking, Config, EmbeddingProviderConfig, Lifecycle, LlmProviderConfig, Memory, Postgres,
-	ProviderConfig, Providers, Qdrant, Ranking, ReadProfiles, ScopePrecedence, ScopeWriteAllowed,
-	Scopes, Search, SearchCache, SearchDynamic, SearchExpansion, SearchExplain, SearchPrefilter,
-	Security, Service, Storage, TtlDays,
+	Chunking, Config, Context, EmbeddingProviderConfig, Lifecycle, LlmProviderConfig, Memory,
+	Postgres, ProviderConfig, Providers, Qdrant, Ranking, ReadProfiles, ScopePrecedence,
+	ScopeWriteAllowed, Scopes, Search, SearchCache, SearchDynamic, SearchExpansion, SearchExplain,
+	SearchPrefilter, Security, Service, Storage, TtlDays,
 };
 
 pub fn load(path: &Path) -> color_eyre::Result<Config> {
@@ -89,6 +89,30 @@ pub fn validate(cfg: &Config) -> color_eyre::Result<()> {
 	] {
 		if key.trim().is_empty() {
 			return Err(eyre::eyre!("Provider {label} api_key must be non-empty."));
+		}
+	}
+	if let Some(context) = cfg.context.as_ref()
+		&& let Some(weight) = context.scope_boost_weight
+	{
+		if !weight.is_finite() {
+			return Err(eyre::eyre!("context.scope_boost_weight must be a finite number."));
+		}
+		if weight < 0.0 {
+			return Err(eyre::eyre!("context.scope_boost_weight must be zero or greater."));
+		}
+		if weight > 1.0 {
+			return Err(eyre::eyre!("context.scope_boost_weight must be 1.0 or less."));
+		}
+		if weight > 0.0
+			&& context
+				.scope_descriptions
+				.as_ref()
+				.map(|descriptions| descriptions.is_empty())
+				.unwrap_or(true)
+		{
+			return Err(eyre::eyre!(
+				"context.scope_descriptions must be non-empty when context.scope_boost_weight is greater than zero."
+			));
 		}
 	}
 	Ok(())
