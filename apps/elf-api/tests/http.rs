@@ -129,6 +129,7 @@ fn test_config(dsn: String, qdrant_url: String, collection: String) -> elf_confi
 			overlap_tokens: 128,
 			tokenizer_repo: None,
 		},
+		context: None,
 	}
 }
 

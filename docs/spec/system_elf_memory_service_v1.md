@@ -193,6 +193,19 @@ evidence_min_quotes = 1
 evidence_max_quotes = 2
 evidence_max_quote_chars = 320
 
+[context]
+# Optional. Context metadata used to disambiguate retrieval across projects and scopes.
+#
+# project_descriptions keys:
+# - "<tenant_id>:<project_id>" (recommended)
+# - "<project_id>" (fallback)
+project_descriptions = { "<OPTIONAL_KEY>" = "<OPTIONAL_STRING>" }
+# scope_descriptions keys are scope labels, e.g. "project_shared".
+scope_descriptions = { "<SCOPE>" = "<OPTIONAL_STRING>" }
+# Optional. Additive score boost applied when query tokens match a scope description.
+# Must be a finite number in the range 0.0-1.0. When greater than zero, scope_descriptions must be present.
+scope_boost_weight = <OPTIONAL_FLOAT>
+
 ============================================================
 2. CLI AND CONFIG LOADING
 ============================================================
@@ -654,19 +667,26 @@ Steps:
      - Ensure original query is present when include_original = true.
    - If search.cache.enabled and payload size is within max_payload_bytes (when set),
      store the expanded queries with TTL = expansion_ttl_days.
-5) For each query, embed -> query_vec (embedding API).
-6) For each query, run Qdrant fusion query candidate_k with payload filters (dense + bm25):
+5) Resolve optional project context description:
+   - If context.project_descriptions is present, look up by key "tenant_id:project_id".
+   - If not found, try key "project_id" as a fallback.
+6) For each query, embed -> query_vec (embedding API).
+   - Dense embedding input is:
+     - query, or
+     - query + "\n\nProject context:\n" + project_context_description (when present).
+   - BM25 input remains the raw query text (no context suffix).
+7) For each query, run Qdrant fusion query candidate_k with payload filters (dense + bm25):
    tenant_id, project_id, status = active (best-effort), and scope filters:
    - If scope = agent_private, require agent_id match.
    - Otherwise scope in allowed_scopes.
-7) Fuse all query results with RRF to produce candidate chunk_ids.
-8) Prefilter (optional): if max_candidates > 0 and max_candidates < candidate_k,
+8) Fuse all query results with RRF to produce candidate chunk_ids.
+9) Prefilter (optional): if max_candidates > 0 and max_candidates < candidate_k,
    keep only top max_candidates by fusion score.
-9) Fetch authoritative notes from Postgres by note_id and re-apply filters:
+10) Fetch authoritative notes from Postgres by note_id and re-apply filters:
    status = active, not expired, scope allowed, and if scope = agent_private then agent_id must match.
-10) Fetch chunk metadata for candidate chunks and immediate neighbors from memory_note_chunks.
-11) Stitch snippets from chunk text (chunk + neighbors).
-12) Rerank once using the original query, with cache support:
+11) Fetch chunk metadata for candidate chunks and immediate neighbors from memory_note_chunks.
+12) Stitch snippets from chunk text (chunk + neighbors).
+13) Rerank once using the original query, with cache support:
     - Build a rerank cache key from: query (trimmed), provider_id, model, rerank_version,
       and the candidate signature [(chunk_id, note_updated_at)...].
     - If search.cache.enabled and a cache entry exists that matches the candidate signature,
@@ -675,16 +695,21 @@ Steps:
       scores = rerank(original_query, docs = [snippet ...]).
     - If search.cache.enabled and payload size is within max_payload_bytes (when set),
       store the rerank scores with TTL = rerank_ttl_days.
-13) Tie-break:
+14) Tie-break:
     base = (1 + 0.6 * importance) * exp(-age_days / recency_tau_days)
     final = rerank_score + tie_breaker_weight * base
-14) Aggregate by note using top-1 chunk score, then sort and take top_k.
-15) Update hits (optional, when record_hits is true):
+15) Optional scope context boost:
+    - If context.scope_boost_weight > 0 and context.scope_descriptions contains scope labels,
+      apply an additive boost to items in that scope based on query token matches.
+    - Token matching uses case-insensitive ASCII alphanumeric tokens (length >= 2).
+    - boost = scope_boost_weight * (matched_token_count / query_token_count).
+16) Aggregate by note using top-1 chunk score, then sort and take top_k.
+17) Update hits (optional, when record_hits is true):
     hit_count++, last_hit_at, memory_hits insert with chunk_id.
-16) Build search trace payload with trace_id and per-item result_handle, then enqueue
+18) Build search trace payload with trace_id and per-item result_handle, then enqueue
     search_trace_outbox (best-effort; failures do not fail the search).
     - expires_at = now + search.explain.retention_days.
-17) Return results.
+19) Return results.
 
 Cache notes:
 - Cache key material is serialized as JSON and hashed with BLAKE3 (256-bit hex).

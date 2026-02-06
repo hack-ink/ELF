@@ -237,6 +237,7 @@ struct ScoredChunk {
 	item: ChunkSnippet,
 	rerank_score: f32,
 	tie_breaker_score: f32,
+	scope_context_boost: f32,
 	final_score: f32,
 }
 
@@ -367,6 +368,8 @@ impl ElfService {
 		let record_hits_enabled = req.record_hits.unwrap_or(false);
 		let expansion_mode = resolve_expansion_mode(&self.cfg);
 		let trace_id = Uuid::new_v4();
+		let project_context_description =
+			self.resolve_project_context_description(tenant_id, project_id);
 
 		let allowed_scopes = resolve_scopes(&self.cfg, &read_profile)?;
 		if allowed_scopes.is_empty() {
@@ -422,7 +425,7 @@ impl ElfService {
 
 		let mut baseline_vector: Option<Vec<f32>> = None;
 		if expansion_mode == ExpansionMode::Dynamic {
-			let query_vec = self.embed_single_query(&query).await?;
+			let query_vec = self.embed_single_query(&query, project_context_description).await?;
 			baseline_vector = Some(query_vec.clone());
 			let baseline_points = self
 				.run_fusion_query(
@@ -465,8 +468,9 @@ impl ElfService {
 		};
 
 		let expanded_queries = queries.clone();
-		let query_embeddings =
-			self.embed_queries(&queries, &query, baseline_vector.as_ref()).await?;
+		let query_embeddings = self
+			.embed_queries(&queries, &query, baseline_vector.as_ref(), project_context_description)
+			.await?;
 		let fusion_points = self.run_fusion_query(&query_embeddings, &filter, candidate_k).await?;
 		let candidates = collect_chunk_candidates(
 			&fusion_points,
@@ -489,6 +493,49 @@ impl ElfService {
 			record_hits_enabled,
 		})
 		.await
+	}
+
+	fn resolve_project_context_description<'a>(
+		&'a self,
+		tenant_id: &str,
+		project_id: &str,
+	) -> Option<&'a str> {
+		let context = self.cfg.context.as_ref()?;
+		let descriptions = context.project_descriptions.as_ref()?;
+		let mut saw_cjk = false;
+
+		let key = format!("{tenant_id}:{project_id}");
+		if let Some(value) = descriptions.get(&key) {
+			let trimmed = value.trim();
+			if !trimmed.is_empty() {
+				if cjk::contains_cjk(trimmed) {
+					saw_cjk = true;
+				} else {
+					return Some(trimmed);
+				}
+			}
+		}
+
+		if let Some(value) = descriptions.get(project_id) {
+			let trimmed = value.trim();
+			if !trimmed.is_empty() {
+				if cjk::contains_cjk(trimmed) {
+					saw_cjk = true;
+				} else {
+					return Some(trimmed);
+				}
+			}
+		}
+
+		if saw_cjk {
+			tracing::warn!(
+				tenant_id,
+				project_id,
+				"Project context description contains CJK. Skipping context."
+			);
+		}
+
+		None
 	}
 
 	pub async fn search_explain(
@@ -569,11 +616,16 @@ impl ElfService {
 		Ok(SearchExplainResponse { trace, item })
 	}
 
-	async fn embed_single_query(&self, query: &str) -> ServiceResult<Vec<f32>> {
+	async fn embed_single_query(
+		&self,
+		query: &str,
+		project_context_description: Option<&str>,
+	) -> ServiceResult<Vec<f32>> {
+		let input = build_dense_embedding_input(query, project_context_description);
 		let embeddings = self
 			.providers
 			.embedding
-			.embed(&self.cfg.providers.embedding, slice::from_ref(&query.to_string()))
+			.embed(&self.cfg.providers.embedding, slice::from_ref(&input))
 			.await?;
 		let query_vec = embeddings.into_iter().next().ok_or_else(|| ServiceError::Provider {
 			message: "Embedding provider returned no vectors.".to_string(),
@@ -591,13 +643,16 @@ impl ElfService {
 		queries: &[String],
 		original_query: &str,
 		baseline_vector: Option<&Vec<f32>>,
+		project_context_description: Option<&str>,
 	) -> ServiceResult<Vec<QueryEmbedding>> {
 		let mut extra_queries = Vec::new();
+		let mut extra_inputs = Vec::new();
 		for query in queries {
 			if baseline_vector.is_some() && query == original_query {
 				continue;
 			}
 			extra_queries.push(query.clone());
+			extra_inputs.push(build_dense_embedding_input(query, project_context_description));
 		}
 
 		let mut embedded_iter = if extra_queries.is_empty() {
@@ -606,7 +661,7 @@ impl ElfService {
 			let embedded = self
 				.providers
 				.embedding
-				.embed(&self.cfg.providers.embedding, &extra_queries)
+				.embed(&self.cfg.providers.embedding, &extra_inputs)
 				.await?;
 			if embedded.len() != extra_queries.len() {
 				return Err(ServiceError::Provider {
@@ -956,6 +1011,10 @@ impl ElfService {
 			items
 		};
 
+		let query_tokens = tokenize_query(query, MAX_MATCHED_TERMS);
+		let scope_context_boost_by_scope =
+			build_scope_context_boost_by_scope(&query_tokens, self.cfg.context.as_ref());
+
 		let mut scored: Vec<ScoredChunk> = Vec::new();
 		if !snippet_items.is_empty() {
 			let mut cached_scores: Option<Vec<f32>> = None;
@@ -1150,8 +1209,18 @@ impl ElfService {
 				};
 				let base = (1.0 + 0.6 * item.note.importance) * decay;
 				let tie_breaker_score = self.cfg.ranking.tie_breaker_weight * base;
-				let final_score = rerank_score + tie_breaker_score;
-				scored.push(ScoredChunk { item, rerank_score, tie_breaker_score, final_score });
+				let scope_context_boost = scope_context_boost_by_scope
+					.get(item.note.scope.as_str())
+					.copied()
+					.unwrap_or(0.0);
+				let final_score = rerank_score + tie_breaker_score + scope_context_boost;
+				scored.push(ScoredChunk {
+					item,
+					rerank_score,
+					tie_breaker_score,
+					scope_context_boost,
+					final_score,
+				});
 			}
 		}
 
@@ -1176,7 +1245,6 @@ impl ElfService {
 			record_hits(&self.db.pool, query, &results, now).await?;
 		}
 
-		let query_tokens = tokenize_query(query, MAX_MATCHED_TERMS);
 		let mut items = Vec::with_capacity(results.len());
 		let trace_context = TraceContext {
 			trace_id,
@@ -1201,10 +1269,16 @@ impl ElfService {
 				scored_chunk.item.note.key.as_deref(),
 				MAX_MATCHED_TERMS,
 			);
-			let boosts = vec![SearchBoost {
+			let mut boosts = vec![SearchBoost {
 				name: "recency_importance".to_string(),
 				score: scored_chunk.tie_breaker_score,
 			}];
+			if scored_chunk.scope_context_boost > 0.0 {
+				boosts.push(SearchBoost {
+					name: "context_scope_description".to_string(),
+					score: scored_chunk.scope_context_boost,
+				});
+			}
 			let explain = SearchExplain {
 				retrieval_score: retrieval.map(|entry| entry.score),
 				retrieval_rank: retrieval.map(|entry| entry.rank),
@@ -1461,6 +1535,89 @@ fn expansion_mode_label(mode: ExpansionMode) -> &'static str {
 	}
 }
 
+fn build_dense_embedding_input(query: &str, project_context_description: Option<&str>) -> String {
+	let Some(description) = project_context_description else {
+		return query.to_string();
+	};
+
+	let trimmed = description.trim();
+	if trimmed.is_empty() {
+		return query.to_string();
+	}
+
+	format!("{query}\n\nProject context:\n{trimmed}")
+}
+
+fn build_scope_context_boost_by_scope<'a>(
+	tokens: &[String],
+	context: Option<&'a elf_config::Context>,
+) -> HashMap<&'a str, f32> {
+	let Some(context) = context else {
+		return HashMap::new();
+	};
+	let Some(weight) = context.scope_boost_weight else {
+		return HashMap::new();
+	};
+	if weight <= 0.0 || tokens.is_empty() {
+		return HashMap::new();
+	}
+	let Some(descriptions) = context.scope_descriptions.as_ref() else {
+		return HashMap::new();
+	};
+
+	let mut out = HashMap::new();
+	for (scope, description) in descriptions {
+		let boost = scope_description_boost(tokens, description, weight);
+		if boost > 0.0 {
+			out.insert(scope.as_str(), boost);
+		}
+	}
+
+	out
+}
+
+fn scope_description_boost(tokens: &[String], description: &str, weight: f32) -> f32 {
+	if weight <= 0.0 || tokens.is_empty() {
+		return 0.0;
+	}
+
+	let trimmed = description.trim();
+	if trimmed.is_empty() || cjk::contains_cjk(trimmed) {
+		return 0.0;
+	}
+
+	let mut normalized = String::with_capacity(trimmed.len());
+	for ch in trimmed.chars() {
+		if ch.is_ascii_alphanumeric() {
+			normalized.push(ch.to_ascii_lowercase());
+		} else {
+			normalized.push(' ');
+		}
+	}
+	let mut description_tokens = HashSet::new();
+	for token in normalized.split_whitespace() {
+		if token.len() < 2 {
+			continue;
+		}
+		description_tokens.insert(token);
+	}
+	if description_tokens.is_empty() {
+		return 0.0;
+	}
+
+	let mut matched = 0usize;
+	for token in tokens {
+		if description_tokens.contains(token.as_str()) {
+			matched += 1;
+		}
+	}
+	if matched == 0 {
+		return 0.0;
+	}
+
+	weight * (matched as f32 / tokens.len() as f32)
+}
+
 fn tokenize_query(query: &str, max_terms: usize) -> Vec<String> {
 	let mut normalized = String::with_capacity(query.len());
 	for ch in query.chars() {
@@ -1572,6 +1729,21 @@ fn build_config_snapshot(cfg: &elf_config::Config) -> serde_json::Value {
 				"vector_dim": cfg.storage.qdrant.vector_dim,
 				"collection": cfg.storage.qdrant.collection.as_str(),
 			},
+		},
+		"context": {
+			"scope_boost_weight": cfg.context.as_ref().and_then(|ctx| ctx.scope_boost_weight),
+			"project_description_count": cfg
+				.context
+				.as_ref()
+				.and_then(|ctx| ctx.project_descriptions.as_ref())
+				.map(|descriptions| descriptions.len())
+				.unwrap_or(0),
+			"scope_description_count": cfg
+				.context
+				.as_ref()
+				.and_then(|ctx| ctx.scope_descriptions.as_ref())
+				.map(|descriptions| descriptions.len())
+				.unwrap_or(0),
 		},
 	})
 }
@@ -1884,6 +2056,34 @@ fn build_cached_scores(
 #[cfg(test)]
 mod tests {
 	use super::*;
+
+	#[test]
+	fn dense_embedding_input_includes_project_context_suffix() {
+		let input =
+			build_dense_embedding_input("Find payments code.", Some("This is a billing API."));
+		assert!(input.starts_with("Find payments code.\n\nProject context:\n"));
+		assert!(input.contains("This is a billing API."));
+	}
+
+	#[test]
+	fn dense_embedding_input_skips_empty_project_context() {
+		let input = build_dense_embedding_input("Find payments code.", Some("   "));
+		assert_eq!(input, "Find payments code.");
+	}
+
+	#[test]
+	fn scope_description_boost_matches_whole_tokens_only() {
+		let tokens = vec!["go".to_string()];
+		let boost = scope_description_boost(&tokens, "MongoDB operational notes.", 0.1);
+		assert_eq!(boost, 0.0);
+	}
+
+	#[test]
+	fn scope_description_boost_scales_by_fraction_of_matched_tokens() {
+		let tokens = vec!["security".to_string(), "policy".to_string(), "deployment".to_string()];
+		let boost = scope_description_boost(&tokens, "Security policy notes.", 0.12);
+		assert!((boost - 0.08).abs() < 1e-4, "Unexpected boost: {boost}");
+	}
 
 	#[test]
 	fn normalize_queries_includes_original_and_dedupes() {
