@@ -69,3 +69,40 @@ The command prints a JSON report containing summary metrics and per-query detail
 
 - The evaluation tool uses the configured embedding and rerank providers.
 - The dataset should avoid secrets and sensitive data.
+
+## Context Misranking Harness
+
+To measure cross-scope misranking before and after enabling context boosting, use the harness
+script:
+
+```bash
+scripts/context-misranking-harness.sh
+```
+
+What it does:
+
+- Creates a dedicated database (default: `elf_e2e`).
+- Starts `elf-worker` and `elf-api` with deterministic local providers:
+  - `providers.embedding.provider_id = "local"` (token-hash embedding).
+  - `providers.rerank.provider_id = "local"` (token overlap rerank).
+- Inserts two notes with identical text in different scopes (`org_shared` and `project_shared`),
+  with importance configured to intentionally produce baseline misranking.
+- Runs `elf-eval` twice:
+  - Baseline: no `[context]`.
+  - Context: `context.scope_descriptions` + `context.scope_boost_weight`.
+- Prints `recall@1` and the top-ranked note ID for both runs, then deletes the notes.
+
+Prerequisites:
+
+- Postgres is running and reachable.
+- Qdrant is running and reachable, and `mem_notes_v1` exists with vector size 4096.
+- Environment variables are set:
+  - `ELF_PG_DSN` (base DSN, typically ending in `/postgres`)
+  - `ELF_QDRANT_URL` (Qdrant gRPC URL, commonly `http://127.0.0.1:51890` in this repository)
+- `psql`, `curl`, and `jaq` (or `jq`) are installed.
+
+Configuration:
+
+- Override the database name with `ELF_HARNESS_DB_NAME`.
+- Override the API binds with `ELF_HARNESS_HTTP_BIND`, `ELF_HARNESS_ADMIN_BIND`,
+  and `ELF_HARNESS_MCP_BIND`.
