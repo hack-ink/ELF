@@ -17,24 +17,20 @@ impl Db {
 	pub async fn ensure_schema(&self, vector_dim: u32) -> Result<()> {
 		let sql = schema::render_schema(vector_dim);
 		let lock_id: i64 = 7_120_114;
-		sqlx::query("SELECT pg_advisory_lock($1)").bind(lock_id).execute(&self.pool).await?;
+		// Advisory locks are held per connection. Use a single transaction so the lock is scoped to
+		// one connection and automatically released when the transaction ends.
+		let mut tx = self.pool.begin().await?;
+		sqlx::query("SELECT pg_advisory_xact_lock($1)").bind(lock_id).execute(&mut *tx).await?;
 
-		let mut failure: Option<color_eyre::Report> = None;
 		for statement in sql.split(';') {
 			let trimmed = statement.trim();
 			if trimmed.is_empty() {
 				continue;
 			}
-			if let Err(err) = sqlx::query(trimmed).execute(&self.pool).await {
-				failure = Some(err.into());
-				break;
-			}
+			sqlx::query(trimmed).execute(&mut *tx).await?;
 		}
-		let _ =
-			sqlx::query("SELECT pg_advisory_unlock($1)").bind(lock_id).execute(&self.pool).await;
-		if let Some(err) = failure {
-			return Err(err);
-		}
+
+		tx.commit().await?;
 		Ok(())
 	}
 }
