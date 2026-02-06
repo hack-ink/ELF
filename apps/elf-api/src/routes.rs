@@ -19,7 +19,8 @@ pub fn router(state: AppState) -> Router {
 		.route("/v1/memory/add_note", post(add_note))
 		.route("/v1/memory/add_event", post(add_event))
 		.route("/v1/memory/search", post(search))
-		.route("/v1/memory/search/explain", get(search_explain))
+		.route("/v1/memory/search/timeline", post(search_timeline))
+		.route("/v1/memory/search/details", post(search_details))
 		.route("/v1/memory/notes/:note_id", get(get_note))
 		.route("/v1/memory/list", get(list))
 		.route("/v1/memory/update", post(update))
@@ -28,7 +29,11 @@ pub fn router(state: AppState) -> Router {
 }
 
 pub fn admin_router(state: AppState) -> Router {
-	Router::new().route("/v1/admin/rebuild_qdrant", post(rebuild_qdrant)).with_state(state)
+	Router::new()
+		.route("/v1/admin/rebuild_qdrant", post(rebuild_qdrant))
+		.route("/v1/admin/memory/search/raw", post(search_raw))
+		.route("/v1/admin/memory/search/explain", get(search_explain))
+		.with_state(state)
 }
 
 async fn health() -> StatusCode {
@@ -72,7 +77,7 @@ async fn add_event(
 async fn search(
 	State(state): State<AppState>,
 	payload: Result<Json<elf_service::SearchRequest>, JsonRejection>,
-) -> Result<Json<elf_service::SearchResponse>, ApiError> {
+) -> Result<Json<elf_service::SearchIndexResponse>, ApiError> {
 	let Json(payload) = payload.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid request payload.");
 		json_error(
@@ -83,6 +88,57 @@ async fn search(
 		)
 	})?;
 	let response = state.service.search(payload).await?;
+	Ok(Json(response))
+}
+
+async fn search_timeline(
+	State(state): State<AppState>,
+	payload: Result<Json<elf_service::SearchTimelineRequest>, JsonRejection>,
+) -> Result<Json<elf_service::SearchTimelineResponse>, ApiError> {
+	let Json(payload) = payload.map_err(|err| {
+		tracing::warn!(error = %err, "Invalid request payload.");
+		json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid request payload.".to_string(),
+			None,
+		)
+	})?;
+	let response = state.service.search_timeline(payload).await?;
+	Ok(Json(response))
+}
+
+async fn search_details(
+	State(state): State<AppState>,
+	payload: Result<Json<elf_service::SearchDetailsRequest>, JsonRejection>,
+) -> Result<Json<elf_service::SearchDetailsResponse>, ApiError> {
+	let Json(payload) = payload.map_err(|err| {
+		tracing::warn!(error = %err, "Invalid request payload.");
+		json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid request payload.".to_string(),
+			None,
+		)
+	})?;
+	let response = state.service.search_details(payload).await?;
+	Ok(Json(response))
+}
+
+async fn search_raw(
+	State(state): State<AppState>,
+	payload: Result<Json<elf_service::SearchRequest>, JsonRejection>,
+) -> Result<Json<elf_service::SearchResponse>, ApiError> {
+	let Json(payload) = payload.map_err(|err| {
+		tracing::warn!(error = %err, "Invalid request payload.");
+		json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid request payload.".to_string(),
+			None,
+		)
+	})?;
+	let response = state.service.search_raw(payload).await?;
 	Ok(Json(response))
 }
 

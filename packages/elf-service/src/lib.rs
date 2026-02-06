@@ -4,6 +4,7 @@ pub mod admin;
 pub mod delete;
 pub mod list;
 pub mod notes;
+pub mod progressive_search;
 pub mod search;
 pub mod time_serde;
 pub mod update;
@@ -23,6 +24,11 @@ use elf_providers::{embedding, extractor, rerank};
 use elf_storage::{db::Db, models::MemoryNote, qdrant::QdrantStore};
 pub use list::{ListItem, ListRequest, ListResponse};
 pub use notes::{NoteFetchRequest, NoteFetchResponse};
+pub use progressive_search::{
+	SearchDetailsError, SearchDetailsRequest, SearchDetailsResponse, SearchDetailsResult,
+	SearchIndexItem, SearchIndexResponse, SearchTimelineGroup, SearchTimelineRequest,
+	SearchTimelineResponse,
+};
 pub use search::{
 	SearchBoost, SearchExplain, SearchExplainItem, SearchExplainRequest, SearchExplainResponse,
 	SearchItem, SearchRequest, SearchResponse, SearchTrace,

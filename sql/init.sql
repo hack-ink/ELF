@@ -9,3 +9,4 @@
 \ir tables/006_search_traces.sql
 \ir tables/007_search_trace_outbox.sql
 \ir tables/008_llm_cache.sql
+\ir tables/011_search_sessions.sql

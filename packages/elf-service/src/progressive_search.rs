@@ -1,0 +1,646 @@
+use std::collections::{BTreeMap, HashMap, HashSet};
+
+use sqlx::Row;
+use time::{Duration, OffsetDateTime};
+use uuid::Uuid;
+
+use elf_domain::cjk;
+use elf_storage::models::MemoryNote;
+
+use crate::{ElfService, NoteFetchResponse, SearchRequest, ServiceError, ServiceResult};
+
+const SESSION_SLIDING_TTL_HOURS: i64 = 6;
+const SESSION_ABSOLUTE_TTL_HOURS: i64 = 24;
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SearchIndexItem {
+	pub note_id: Uuid,
+	#[serde(rename = "type")]
+	pub note_type: String,
+	pub key: Option<String>,
+	pub scope: String,
+	pub importance: f32,
+	pub confidence: f32,
+	#[serde(with = "crate::time_serde")]
+	pub updated_at: OffsetDateTime,
+	#[serde(with = "crate::time_serde::option")]
+	pub expires_at: Option<OffsetDateTime>,
+	pub final_score: f32,
+	pub summary: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SearchIndexResponse {
+	pub trace_id: Uuid,
+	pub search_session_id: Uuid,
+	#[serde(with = "crate::time_serde")]
+	pub expires_at: OffsetDateTime,
+	pub items: Vec<SearchIndexItem>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SearchTimelineRequest {
+	pub search_session_id: Uuid,
+	pub group_by: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SearchTimelineGroup {
+	pub date: String,
+	pub items: Vec<SearchIndexItem>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SearchTimelineResponse {
+	pub search_session_id: Uuid,
+	#[serde(with = "crate::time_serde")]
+	pub expires_at: OffsetDateTime,
+	pub groups: Vec<SearchTimelineGroup>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SearchDetailsRequest {
+	pub search_session_id: Uuid,
+	pub note_ids: Vec<Uuid>,
+	pub record_hits: Option<bool>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SearchDetailsError {
+	pub code: String,
+	pub message: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SearchDetailsResult {
+	pub note_id: Uuid,
+	pub note: Option<NoteFetchResponse>,
+	pub error: Option<SearchDetailsError>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SearchDetailsResponse {
+	pub search_session_id: Uuid,
+	#[serde(with = "crate::time_serde")]
+	pub expires_at: OffsetDateTime,
+	pub results: Vec<SearchDetailsResult>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct SearchSessionItemRecord {
+	rank: u32,
+	note_id: Uuid,
+	chunk_id: Uuid,
+	final_score: f32,
+	#[serde(with = "crate::time_serde")]
+	updated_at: OffsetDateTime,
+	#[serde(with = "crate::time_serde::option")]
+	expires_at: Option<OffsetDateTime>,
+	#[serde(rename = "type")]
+	note_type: String,
+	key: Option<String>,
+	scope: String,
+	importance: f32,
+	confidence: f32,
+	summary: String,
+}
+
+impl SearchSessionItemRecord {
+	fn to_index_item(&self) -> SearchIndexItem {
+		SearchIndexItem {
+			note_id: self.note_id,
+			note_type: self.note_type.clone(),
+			key: self.key.clone(),
+			scope: self.scope.clone(),
+			importance: self.importance,
+			confidence: self.confidence,
+			updated_at: self.updated_at,
+			expires_at: self.expires_at,
+			final_score: self.final_score,
+			summary: self.summary.clone(),
+		}
+	}
+}
+
+struct SearchSession {
+	search_session_id: Uuid,
+	tenant_id: String,
+	project_id: String,
+	agent_id: String,
+	read_profile: String,
+	query: String,
+	items: Vec<SearchSessionItemRecord>,
+	created_at: OffsetDateTime,
+	expires_at: OffsetDateTime,
+}
+
+struct NewSearchSession<'a> {
+	search_session_id: Uuid,
+	trace_id: Uuid,
+	tenant_id: &'a str,
+	project_id: &'a str,
+	agent_id: &'a str,
+	read_profile: &'a str,
+	query: &'a str,
+	items: &'a [SearchSessionItemRecord],
+	created_at: OffsetDateTime,
+	expires_at: OffsetDateTime,
+}
+
+impl ElfService {
+	pub async fn search(&self, req: SearchRequest) -> ServiceResult<SearchIndexResponse> {
+		let top_k = req.top_k.unwrap_or(self.cfg.memory.top_k).max(1);
+		let candidate_k = req.candidate_k.unwrap_or(self.cfg.memory.candidate_k).max(top_k);
+
+		let mut raw_req = req.clone();
+		raw_req.top_k = Some(candidate_k);
+		raw_req.record_hits = Some(false);
+		let raw = self.search_raw(raw_req).await?;
+
+		let now = OffsetDateTime::now_utc();
+		let expires_at = now + Duration::hours(SESSION_SLIDING_TTL_HOURS);
+		let search_session_id = Uuid::new_v4();
+
+		let mut items = Vec::with_capacity(raw.items.len());
+		for (idx, item) in raw.items.iter().enumerate() {
+			let summary = build_summary(&item.snippet, self.cfg.memory.max_note_chars as usize);
+			items.push(SearchSessionItemRecord {
+				rank: idx as u32 + 1,
+				note_id: item.note_id,
+				chunk_id: item.chunk_id,
+				final_score: item.final_score,
+				updated_at: item.updated_at,
+				expires_at: item.expires_at,
+				note_type: item.note_type.clone(),
+				key: item.key.clone(),
+				scope: item.scope.clone(),
+				importance: item.importance,
+				confidence: item.confidence,
+				summary,
+			});
+		}
+
+		store_search_session(
+			&self.db.pool,
+			NewSearchSession {
+				search_session_id,
+				trace_id: raw.trace_id,
+				tenant_id: &req.tenant_id,
+				project_id: &req.project_id,
+				agent_id: &req.agent_id,
+				read_profile: &req.read_profile,
+				query: &req.query,
+				items: &items,
+				created_at: now,
+				expires_at,
+			},
+		)
+		.await?;
+
+		let response_items: Vec<SearchIndexItem> =
+			items.into_iter().take(top_k as usize).map(|item| item.to_index_item()).collect();
+
+		Ok(SearchIndexResponse {
+			trace_id: raw.trace_id,
+			search_session_id,
+			expires_at,
+			items: response_items,
+		})
+	}
+
+	pub async fn search_timeline(
+		&self,
+		req: SearchTimelineRequest,
+	) -> ServiceResult<SearchTimelineResponse> {
+		let now = OffsetDateTime::now_utc();
+		let session = load_search_session(&self.db.pool, req.search_session_id, now).await?;
+		let expires_at = touch_search_session(&self.db.pool, &session, now).await?;
+
+		let group_by = req.group_by.unwrap_or_else(|| "day".to_string());
+		match group_by.as_str() {
+			"day" => build_timeline_by_day(session.search_session_id, expires_at, &session.items),
+			"none" => Ok(SearchTimelineResponse {
+				search_session_id: session.search_session_id,
+				expires_at,
+				groups: vec![SearchTimelineGroup {
+					date: "all".to_string(),
+					items: session
+						.items
+						.iter()
+						.map(SearchSessionItemRecord::to_index_item)
+						.collect(),
+				}],
+			}),
+			_ => Err(ServiceError::InvalidRequest {
+				message: "group_by must be one of: day, none.".to_string(),
+			}),
+		}
+	}
+
+	pub async fn search_details(
+		&self,
+		req: SearchDetailsRequest,
+	) -> ServiceResult<SearchDetailsResponse> {
+		let now = OffsetDateTime::now_utc();
+		let session = load_search_session(&self.db.pool, req.search_session_id, now).await?;
+		let expires_at = touch_search_session(&self.db.pool, &session, now).await?;
+
+		let mut by_note_id: HashMap<Uuid, SearchSessionItemRecord> = HashMap::new();
+		for item in &session.items {
+			by_note_id.insert(item.note_id, item.clone());
+		}
+
+		let mut requested_in_session = Vec::new();
+		let mut seen = HashSet::new();
+		for note_id in &req.note_ids {
+			if by_note_id.contains_key(note_id) && seen.insert(*note_id) {
+				requested_in_session.push(*note_id);
+			}
+		}
+
+		let mut notes_by_id = HashMap::new();
+		if !requested_in_session.is_empty() {
+			let rows: Vec<MemoryNote> = sqlx::query_as(
+				"SELECT * FROM memory_notes WHERE note_id = ANY($1) AND tenant_id = $2 AND project_id = $3",
+			)
+			.bind(&requested_in_session)
+			.bind(&session.tenant_id)
+			.bind(&session.project_id)
+			.fetch_all(&self.db.pool)
+			.await?;
+			for note in rows {
+				notes_by_id.insert(note.note_id, note);
+			}
+		}
+
+		let allowed_scopes = resolve_read_scopes(&self.cfg, &session.read_profile)?;
+
+		let mut results = Vec::with_capacity(req.note_ids.len());
+		let mut hits = Vec::new();
+		let mut hit_seen = HashSet::new();
+		for note_id in req.note_ids {
+			let Some(session_item) = by_note_id.get(&note_id) else {
+				results.push(SearchDetailsResult {
+					note_id,
+					note: None,
+					error: Some(SearchDetailsError {
+						code: "NOT_IN_SESSION".to_string(),
+						message: "Requested note_id is not present in the search session."
+							.to_string(),
+					}),
+				});
+				continue;
+			};
+			let Some(note) = notes_by_id.get(&note_id) else {
+				results.push(SearchDetailsResult {
+					note_id,
+					note: None,
+					error: Some(SearchDetailsError {
+						code: "NOTE_NOT_FOUND".to_string(),
+						message: "Note not found.".to_string(),
+					}),
+				});
+				continue;
+			};
+
+			let error = validate_note_access(note, &session, &allowed_scopes, now);
+			if let Some(error) = error {
+				results.push(SearchDetailsResult { note_id, note: None, error: Some(error) });
+				continue;
+			}
+
+			let note_response = NoteFetchResponse {
+				note_id: note.note_id,
+				tenant_id: note.tenant_id.clone(),
+				project_id: note.project_id.clone(),
+				agent_id: note.agent_id.clone(),
+				scope: note.scope.clone(),
+				note_type: note.r#type.clone(),
+				key: note.key.clone(),
+				text: note.text.clone(),
+				importance: note.importance,
+				confidence: note.confidence,
+				status: note.status.clone(),
+				updated_at: note.updated_at,
+				expires_at: note.expires_at,
+				source_ref: note.source_ref.clone(),
+			};
+			results.push(SearchDetailsResult { note_id, note: Some(note_response), error: None });
+
+			if req.record_hits.unwrap_or(true) && hit_seen.insert(note_id) {
+				hits.push(HitItem {
+					note_id,
+					chunk_id: session_item.chunk_id,
+					rank: session_item.rank,
+					final_score: session_item.final_score,
+				});
+			}
+		}
+
+		if !hits.is_empty() {
+			record_detail_hits(&self.db.pool, &session.query, &hits, now).await?;
+		}
+
+		Ok(SearchDetailsResponse {
+			search_session_id: session.search_session_id,
+			expires_at,
+			results,
+		})
+	}
+}
+
+fn build_timeline_by_day(
+	search_session_id: Uuid,
+	expires_at: OffsetDateTime,
+	items: &[SearchSessionItemRecord],
+) -> ServiceResult<SearchTimelineResponse> {
+	let mut grouped: BTreeMap<String, Vec<SearchIndexItem>> = BTreeMap::new();
+	for item in items {
+		let date = item.updated_at.date().to_string();
+		grouped.entry(date).or_default().push(item.to_index_item());
+	}
+
+	let mut groups = Vec::with_capacity(grouped.len());
+	for (date, mut items) in grouped.into_iter().rev() {
+		items.sort_by(|a, b| {
+			b.updated_at.cmp(&a.updated_at).then_with(|| {
+				b.final_score.partial_cmp(&a.final_score).unwrap_or(std::cmp::Ordering::Equal)
+			})
+		});
+		groups.push(SearchTimelineGroup { date, items });
+	}
+
+	Ok(SearchTimelineResponse { search_session_id, expires_at, groups })
+}
+
+fn build_summary(raw: &str, max_chars: usize) -> String {
+	let normalized = normalize_whitespace(raw);
+	truncate_chars(&normalized, max_chars)
+}
+
+fn normalize_whitespace(raw: &str) -> String {
+	let mut out = String::with_capacity(raw.len());
+	let mut prev_space = false;
+	for ch in raw.chars() {
+		if ch.is_whitespace() {
+			if !prev_space {
+				out.push(' ');
+				prev_space = true;
+			}
+			continue;
+		}
+		out.push(ch);
+		prev_space = false;
+	}
+	out.trim().to_string()
+}
+
+fn truncate_chars(raw: &str, max_chars: usize) -> String {
+	if raw.chars().count() <= max_chars {
+		return raw.to_string();
+	}
+
+	let mut out = String::with_capacity(max_chars + 3);
+	for (idx, ch) in raw.chars().enumerate() {
+		if idx >= max_chars {
+			break;
+		}
+		out.push(ch);
+	}
+	out.push_str("...");
+	out
+}
+
+async fn store_search_session(
+	pool: &sqlx::PgPool,
+	session: NewSearchSession<'_>,
+) -> ServiceResult<()> {
+	let items_json = serde_json::to_value(session.items).map_err(|err| ServiceError::Storage {
+		message: format!("Failed to encode search session items: {err}"),
+	})?;
+	sqlx::query(
+		"\
+INSERT INTO search_sessions (
+	search_session_id,
+	trace_id,
+	tenant_id,
+	project_id,
+	agent_id,
+	read_profile,
+	query,
+	items,
+	created_at,
+	expires_at
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+	)
+	.bind(session.search_session_id)
+	.bind(session.trace_id)
+	.bind(session.tenant_id.trim())
+	.bind(session.project_id.trim())
+	.bind(session.agent_id.trim())
+	.bind(session.read_profile)
+	.bind(session.query)
+	.bind(items_json)
+	.bind(session.created_at)
+	.bind(session.expires_at)
+	.execute(pool)
+	.await?;
+
+	Ok(())
+}
+
+async fn load_search_session(
+	pool: &sqlx::PgPool,
+	search_session_id: Uuid,
+	now: OffsetDateTime,
+) -> ServiceResult<SearchSession> {
+	let row = sqlx::query(
+		"\
+SELECT
+	search_session_id,
+	tenant_id,
+	project_id,
+	agent_id,
+	read_profile,
+	query,
+	items,
+	created_at,
+	expires_at
+FROM search_sessions
+WHERE search_session_id = $1",
+	)
+	.bind(search_session_id)
+	.fetch_optional(pool)
+	.await?;
+
+	let Some(row) = row else {
+		return Err(ServiceError::InvalidRequest {
+			message: "Unknown search_session_id.".to_string(),
+		});
+	};
+
+	let expires_at: OffsetDateTime = row.try_get("expires_at")?;
+	if expires_at <= now {
+		return Err(ServiceError::InvalidRequest {
+			message: "Search session expired.".to_string(),
+		});
+	}
+
+	let items_value: serde_json::Value = row.try_get("items")?;
+	let items: Vec<SearchSessionItemRecord> =
+		serde_json::from_value(items_value).map_err(|err| ServiceError::Storage {
+			message: format!("Failed to decode search session items: {err}"),
+		})?;
+
+	Ok(SearchSession {
+		search_session_id: row.try_get("search_session_id")?,
+		tenant_id: row.try_get("tenant_id")?,
+		project_id: row.try_get("project_id")?,
+		agent_id: row.try_get("agent_id")?,
+		read_profile: row.try_get("read_profile")?,
+		query: row.try_get("query")?,
+		items,
+		created_at: row.try_get("created_at")?,
+		expires_at,
+	})
+}
+
+async fn touch_search_session(
+	pool: &sqlx::PgPool,
+	session: &SearchSession,
+	now: OffsetDateTime,
+) -> ServiceResult<OffsetDateTime> {
+	let absolute_expires_at = session.created_at + Duration::hours(SESSION_ABSOLUTE_TTL_HOURS);
+	let sliding_expires_at = now + Duration::hours(SESSION_SLIDING_TTL_HOURS);
+	let touched = if sliding_expires_at < absolute_expires_at {
+		sliding_expires_at
+	} else {
+		absolute_expires_at
+	};
+	if touched <= session.expires_at {
+		return Ok(session.expires_at);
+	}
+
+	sqlx::query(
+		"UPDATE search_sessions SET expires_at = $1 WHERE search_session_id = $2 AND expires_at < $1",
+	)
+	.bind(touched)
+	.bind(session.search_session_id)
+	.execute(pool)
+	.await?;
+
+	Ok(touched)
+}
+
+fn resolve_read_scopes(cfg: &elf_config::Config, profile: &str) -> ServiceResult<Vec<String>> {
+	match profile {
+		"private_only" => Ok(cfg.scopes.read_profiles.private_only.clone()),
+		"private_plus_project" => Ok(cfg.scopes.read_profiles.private_plus_project.clone()),
+		"all_scopes" => Ok(cfg.scopes.read_profiles.all_scopes.clone()),
+		_ => Err(ServiceError::InvalidRequest { message: "Unknown read_profile.".to_string() }),
+	}
+}
+
+fn validate_note_access(
+	note: &MemoryNote,
+	session: &SearchSession,
+	allowed_scopes: &[String],
+	now: OffsetDateTime,
+) -> Option<SearchDetailsError> {
+	if note.status != "active" {
+		return Some(SearchDetailsError {
+			code: "NOTE_INACTIVE".to_string(),
+			message: "Note is not active.".to_string(),
+		});
+	}
+	if note.expires_at.map(|ts| ts <= now).unwrap_or(false) {
+		return Some(SearchDetailsError {
+			code: "NOTE_EXPIRED".to_string(),
+			message: "Note is expired.".to_string(),
+		});
+	}
+	if !allowed_scopes.iter().any(|scope| scope == &note.scope) {
+		return Some(SearchDetailsError {
+			code: "SCOPE_DENIED".to_string(),
+			message: "Note scope is not allowed for this read_profile.".to_string(),
+		});
+	}
+	if note.scope == "agent_private" && note.agent_id != session.agent_id {
+		return Some(SearchDetailsError {
+			code: "SCOPE_DENIED".to_string(),
+			message: "Note scope is not allowed for this agent_id.".to_string(),
+		});
+	}
+	None
+}
+
+struct HitItem {
+	note_id: Uuid,
+	chunk_id: Uuid,
+	rank: u32,
+	final_score: f32,
+}
+
+async fn record_detail_hits(
+	pool: &sqlx::PgPool,
+	query: &str,
+	items: &[HitItem],
+	now: OffsetDateTime,
+) -> ServiceResult<()> {
+	if cjk::contains_cjk(query) {
+		return Err(ServiceError::NonEnglishInput { field: "$.query".to_string() });
+	}
+
+	let query_hash = hash_query(query);
+	let mut tx = pool.begin().await?;
+
+	for item in items {
+		let rank = i32::try_from(item.rank).map_err(|_| ServiceError::InvalidRequest {
+			message: "Search session rank is out of range.".to_string(),
+		})?;
+		sqlx::query(
+			"UPDATE memory_notes SET hit_count = hit_count + 1, last_hit_at = $1 WHERE note_id = $2",
+		)
+		.bind(now)
+		.bind(item.note_id)
+		.execute(&mut *tx)
+		.await?;
+		sqlx::query(
+			"\
+INSERT INTO memory_hits (
+	hit_id,
+	note_id,
+	chunk_id,
+	query_hash,
+	rank,
+	final_score,
+	ts
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7)",
+		)
+		.bind(Uuid::new_v4())
+		.bind(item.note_id)
+		.bind(item.chunk_id)
+		.bind(&query_hash)
+		.bind(rank)
+		.bind(item.final_score)
+		.bind(now)
+		.execute(&mut *tx)
+		.await?;
+	}
+
+	tx.commit().await?;
+	Ok(())
+}
+
+fn hash_query(query: &str) -> String {
+	use std::{
+		collections::hash_map::DefaultHasher,
+		hash::{Hash, Hasher},
+	};
+
+	let mut hasher = DefaultHasher::new();
+	Hash::hash(query, &mut hasher);
+	format!("{:x}", hasher.finish())
+}
