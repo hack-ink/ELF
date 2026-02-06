@@ -67,7 +67,7 @@ flowchart TB
   Extractor -->|evidence-bound notes| API
   API -->|persist| PG
   PG -->|outbox| Worker
-  Worker -->|index chunks (dense + BM25)| Qdrant
+  Worker -->|index chunks (dense and BM25)| Qdrant
 
   API -->|search| Expand{Expand?\noff/always/dynamic}
   Expand -->|original| Embed
