@@ -96,21 +96,30 @@ impl ElfMcp {
 	}
 
 	#[rmcp::tool(
-        name = "memory_search_explain",
-        description = "Explain a search result using result_handle.",
-        input_schema = any_json_schema()
-    )]
-	async fn memory_search_explain(&self, params: JsonObject) -> Result<CallToolResult, McpError> {
-		self.forward(HttpMethod::Get, "/v1/memory/search/explain", params).await
-	}
-
-	#[rmcp::tool(
         name = "memory_list",
         description = "List memory notes.",
         input_schema = any_json_schema()
     )]
 	async fn memory_list(&self, params: JsonObject) -> Result<CallToolResult, McpError> {
 		self.forward(HttpMethod::Get, "/v1/memory/list", params).await
+	}
+
+	#[rmcp::tool(
+        name = "memory_search_timeline",
+        description = "Build a timeline view from a search session.",
+        input_schema = any_json_schema()
+    )]
+	async fn memory_search_timeline(&self, params: JsonObject) -> Result<CallToolResult, McpError> {
+		self.forward(HttpMethod::Post, "/v1/memory/search/timeline", params).await
+	}
+
+	#[rmcp::tool(
+        name = "memory_search_details",
+        description = "Fetch full note details for selected ids from a search session.",
+        input_schema = any_json_schema()
+    )]
+	async fn memory_search_details(&self, params: JsonObject) -> Result<CallToolResult, McpError> {
+		self.forward(HttpMethod::Post, "/v1/memory/search/details", params).await
 	}
 
 	#[rmcp::tool(
@@ -232,6 +241,8 @@ mod tests {
 	const TOOL_MEMORY_ADD_NOTE: &str = "memory_add_note";
 	const TOOL_MEMORY_ADD_EVENT: &str = "memory_add_event";
 	const TOOL_MEMORY_SEARCH: &str = "memory_search";
+	const TOOL_MEMORY_SEARCH_TIMELINE: &str = "memory_search_timeline";
+	const TOOL_MEMORY_SEARCH_DETAILS: &str = "memory_search_details";
 	const TOOL_MEMORY_LIST: &str = "memory_list";
 	const TOOL_MEMORY_UPDATE: &str = "memory_update";
 	const TOOL_MEMORY_DELETE: &str = "memory_delete";
@@ -255,6 +266,18 @@ mod tests {
 				HttpMethod::Post,
 				"/v1/memory/search",
 				"Search memory notes.",
+			),
+			ToolDefinition::new(
+				TOOL_MEMORY_SEARCH_TIMELINE,
+				HttpMethod::Post,
+				"/v1/memory/search/timeline",
+				"Build a timeline view from a search session.",
+			),
+			ToolDefinition::new(
+				TOOL_MEMORY_SEARCH_DETAILS,
+				HttpMethod::Post,
+				"/v1/memory/search/details",
+				"Fetch full note details for selected ids from a search session.",
 			),
 			ToolDefinition::new(
 				TOOL_MEMORY_LIST,
@@ -286,6 +309,8 @@ mod tests {
 			TOOL_MEMORY_ADD_NOTE,
 			TOOL_MEMORY_ADD_EVENT,
 			TOOL_MEMORY_SEARCH,
+			TOOL_MEMORY_SEARCH_TIMELINE,
+			TOOL_MEMORY_SEARCH_DETAILS,
 			TOOL_MEMORY_LIST,
 			TOOL_MEMORY_UPDATE,
 			TOOL_MEMORY_DELETE,

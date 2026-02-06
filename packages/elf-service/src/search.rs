@@ -347,7 +347,7 @@ struct FinishSearchArgs<'a> {
 }
 
 impl ElfService {
-	pub async fn search(&self, req: SearchRequest) -> ServiceResult<SearchResponse> {
+	pub async fn search_raw(&self, req: SearchRequest) -> ServiceResult<SearchResponse> {
 		let tenant_id = req.tenant_id.trim();
 		let project_id = req.project_id.trim();
 		let agent_id = req.agent_id.trim();

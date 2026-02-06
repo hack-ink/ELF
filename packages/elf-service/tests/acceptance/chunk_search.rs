@@ -303,7 +303,7 @@ async fn search_returns_chunk_items() {
 
 	let response = context
 		.service
-		.search(SearchRequest {
+		.search_raw(SearchRequest {
 			tenant_id: "t".to_string(),
 			project_id: "p".to_string(),
 			agent_id: "a".to_string(),
@@ -365,7 +365,7 @@ async fn search_stitches_adjacent_chunks() {
 
 	let response = context
 		.service
-		.search(SearchRequest {
+		.search_raw(SearchRequest {
 			tenant_id: "t".to_string(),
 			project_id: "p".to_string(),
 			agent_id: "a".to_string(),
@@ -408,7 +408,7 @@ async fn search_skips_missing_chunk_metadata() {
 
 	let response = context
 		.service
-		.search(SearchRequest {
+		.search_raw(SearchRequest {
 			tenant_id: "t".to_string(),
 			project_id: "p".to_string(),
 			agent_id: "a".to_string(),
@@ -456,7 +456,7 @@ async fn progressive_search_returns_index_timeline_and_details() {
 
 	let index = context
 		.service
-		.search_index(SearchRequest {
+		.search(SearchRequest {
 			tenant_id: "t".to_string(),
 			project_id: "p".to_string(),
 			agent_id: "a".to_string(),
@@ -473,7 +473,10 @@ async fn progressive_search_returns_index_timeline_and_details() {
 
 	let timeline = context
 		.service
-		.search_timeline(SearchTimelineRequest { search_session_id: index.search_session_id })
+		.search_timeline(SearchTimelineRequest {
+			search_session_id: index.search_session_id,
+			group_by: None,
+		})
 		.await
 		.expect("Search timeline failed.");
 
@@ -484,11 +487,16 @@ async fn progressive_search_returns_index_timeline_and_details() {
 		.search_details(SearchDetailsRequest {
 			search_session_id: index.search_session_id,
 			note_ids: vec![note_id],
+			record_hits: Some(false),
 		})
 		.await
 		.expect("Search details failed.");
 
-	let returned = details.notes.first().expect("Expected note details.");
+	let returned = details
+		.results
+		.first()
+		.and_then(|result| result.note.as_ref())
+		.expect("Expected note details.");
 
 	assert_eq!(returned.note_id, note_id);
 	assert_eq!(returned.text, note_text);
@@ -538,7 +546,7 @@ async fn search_dedupes_note_results() {
 
 	let response = context
 		.service
-		.search(SearchRequest {
+		.search_raw(SearchRequest {
 			tenant_id: "t".to_string(),
 			project_id: "p".to_string(),
 			agent_id: "a".to_string(),

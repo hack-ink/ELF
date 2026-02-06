@@ -708,6 +708,98 @@ Report:
 - missing_vector_count (notes without vec)
 - error_count
 
+Endpoint (localhost only):
+POST /v1/admin/memory/search/raw
+Body:
+{
+  "tenant_id": "...",
+  "project_id": "...",
+  "agent_id": "...",
+  "read_profile": "private_only|private_plus_project|all_scopes",
+  "query": "English-only",
+  "top_k": 12,
+  "candidate_k": 60,
+  "record_hits": false
+}
+Response:
+{
+  "trace_id": "uuid",
+  "items": [
+    {
+      "result_handle": "uuid",
+      "note_id": "uuid",
+      "chunk_id": "uuid",
+      "chunk_index": 0,
+      "start_offset": 0,
+      "end_offset": 0,
+      "snippet": "...",
+      "type": "...",
+      "key": null,
+      "scope": "...",
+      "importance": 0.0,
+      "confidence": 0.0,
+      "updated_at": "...",
+      "expires_at": "...|null",
+      "final_score": 0.0,
+      "source_ref": { ... },
+      "explain": {
+        "retrieval_score": 0.0|null,
+        "retrieval_rank": 1|null,
+        "rerank_score": 0.0,
+        "tie_breaker_score": 0.0,
+        "final_score": 0.0,
+        "boosts": [{"name": "recency_importance", "score": 0.0}],
+        "matched_terms": ["..."],
+        "matched_fields": ["text","key"]
+      }
+    }
+  ]
+}
+Notes:
+- This endpoint is for debugging and evaluation only and is not exposed on the public bind.
+- result_handle is a stable handle for search explain.
+- record_hits defaults to false when omitted.
+
+Endpoint (localhost only):
+GET /v1/admin/memory/search/explain?result_handle=...
+Response:
+{
+  "trace": {
+    "trace_id": "uuid",
+    "tenant_id": "...",
+    "project_id": "...",
+    "agent_id": "...",
+    "read_profile": "...",
+    "query": "...",
+    "expansion_mode": "off|always|dynamic",
+    "expanded_queries": ["..."],
+    "allowed_scopes": ["..."],
+    "candidate_count": 0,
+    "top_k": 0,
+    "config_snapshot": { ... },
+    "trace_version": 1,
+    "created_at": "..."
+  },
+  "item": {
+    "result_handle": "uuid",
+    "note_id": "uuid",
+    "chunk_id": "uuid",
+    "rank": 1,
+    "explain": {
+      "retrieval_score": 0.0|null,
+      "retrieval_rank": 1|null,
+      "rerank_score": 0.0,
+      "tie_breaker_score": 0.0,
+      "final_score": 0.0,
+      "boosts": [{"name": "recency_importance", "score": 0.0}],
+      "matched_terms": ["..."],
+      "matched_fields": ["text","key"]
+    }
+  }
+}
+Notes:
+- If result_handle is unknown or the trace has not been persisted yet, return INVALID_REQUEST.
+
 ============================================================
 15. HTTP API (PUBLIC)
 ============================================================
@@ -776,15 +868,11 @@ Body:
 Response:
 {
   "trace_id": "uuid",
+  "search_session_id": "uuid",
+  "expires_at": "...",
   "items": [
     {
-      "result_handle": "uuid",
       "note_id": "uuid",
-      "chunk_id": "uuid",
-      "chunk_index": 0,
-      "start_offset": 0,
-      "end_offset": 0,
-      "snippet": "...",
       "type": "...",
       "key": null,
       "scope": "...",
@@ -793,62 +881,87 @@ Response:
       "updated_at": "...",
       "expires_at": "...|null",
       "final_score": 0.0,
-      "source_ref": { ... },
-      "explain": {
-        "retrieval_score": 0.0|null,
-        "retrieval_rank": 1|null,
-        "rerank_score": 0.0,
-        "tie_breaker_score": 0.0,
-        "final_score": 0.0,
-        "boosts": [{"name": "recency_importance", "score": 0.0}],
-        "matched_terms": ["..."],
-        "matched_fields": ["text","key"]
-      }
+      "summary": "..."
     }
   ]
 }
 Notes:
-- result_handle is a stable handle for search explain.
-- record_hits defaults to false when omitted.
+- This endpoint creates a search session and returns a compact index view.
+- items length is top_k.
+- expires_at is the search session expiration timestamp.
+- record_hits is ignored for this endpoint and must be handled by /v1/memory/search/details.
 
-GET /v1/memory/search/explain?result_handle=...
+POST /v1/memory/search/timeline
+Body:
+{
+  "search_session_id": "uuid",
+  "group_by": "day|none"
+}
 Response:
 {
-  "trace": {
-    "trace_id": "uuid",
-    "tenant_id": "...",
-    "project_id": "...",
-    "agent_id": "...",
-    "read_profile": "...",
-    "query": "...",
-    "expansion_mode": "off|always|dynamic",
-    "expanded_queries": ["..."],
-    "allowed_scopes": ["..."],
-    "candidate_count": 0,
-    "top_k": 0,
-    "config_snapshot": { ... },
-    "trace_version": 1,
-    "created_at": "..."
-  },
-  "item": {
-    "result_handle": "uuid",
-    "note_id": "uuid",
-    "chunk_id": "uuid",
-    "rank": 1,
-    "explain": {
-      "retrieval_score": 0.0|null,
-      "retrieval_rank": 1|null,
-      "rerank_score": 0.0,
-      "tie_breaker_score": 0.0,
-      "final_score": 0.0,
-      "boosts": [{"name": "recency_importance", "score": 0.0}],
-      "matched_terms": ["..."],
-      "matched_fields": ["text","key"]
+  "search_session_id": "uuid",
+  "expires_at": "...",
+  "groups": [
+    {
+      "date": "YYYY-MM-DD|all",
+      "items": [
+        {
+          "note_id": "uuid",
+          "type": "...",
+          "key": null,
+          "scope": "...",
+          "importance": 0.0,
+          "confidence": 0.0,
+          "updated_at": "...",
+          "expires_at": "...|null",
+          "final_score": 0.0,
+          "summary": "..."
+        }
+      ]
     }
-  }
+  ]
 }
 Notes:
-- If result_handle is unknown or the trace has not been persisted yet, return INVALID_REQUEST.
+- group_by defaults to day when omitted.
+- This endpoint touches the search session and may extend expires_at.
+
+POST /v1/memory/search/details
+Body:
+{
+  "search_session_id": "uuid",
+  "note_ids": ["uuid"],
+  "record_hits": true
+}
+Response:
+{
+  "search_session_id": "uuid",
+  "expires_at": "...",
+  "results": [
+    {
+      "note_id": "uuid",
+      "note": {
+        "note_id": "uuid",
+        "tenant_id": "...",
+        "project_id": "...",
+        "agent_id": "...",
+        "scope": "...",
+        "type": "...",
+        "key": null,
+        "text": "...",
+        "importance": 0.0,
+        "confidence": 0.0,
+        "status": "...",
+        "updated_at": "...",
+        "expires_at": "...|null",
+        "source_ref": { ... }
+      },
+      "error": null
+    }
+  ]
+}
+Notes:
+- record_hits defaults to true when omitted.
+- This endpoint touches the search session and may extend expires_at.
 
 GET /v1/memory/notes/{note_id}
 Response:
