@@ -158,8 +158,8 @@ mod acceptance {
 	pub async fn reset_db(pool: &sqlx::PgPool) -> color_eyre::Result<()> {
 		sqlx::query(
 			"TRUNCATE memory_hits, memory_note_versions, note_chunk_embeddings, memory_note_chunks, \
-	         note_embeddings, search_trace_items, search_traces, search_trace_outbox, indexing_outbox, \
-	         memory_notes",
+	         note_embeddings, search_trace_items, search_traces, search_trace_outbox, search_sessions, \
+	         indexing_outbox, memory_notes",
 		)
 		.execute(pool)
 		.await?;
