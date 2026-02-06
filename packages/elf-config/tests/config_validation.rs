@@ -154,14 +154,19 @@ fn write_temp_config(payload: String) -> PathBuf {
 		.duration_since(UNIX_EPOCH)
 		.expect("System time must be valid.")
 		.as_nanos();
+
 	let mut path = env::temp_dir();
+
 	path.push(format!("elf_config_test_{nanos}.toml"));
+
 	fs::write(&path, payload).expect("Failed to write test config.");
+
 	path
 }
 
 fn base_config() -> elf_config::Config {
 	let payload = sample_toml(true);
+
 	toml::from_str(&payload).expect("Failed to parse test config.")
 }
 
@@ -171,10 +176,12 @@ fn reject_cjk_must_be_true() {
 	let path = write_temp_config(payload);
 
 	let result = elf_config::load(&path);
+
 	fs::remove_file(&path).expect("Failed to remove test config.");
 
 	let err = result.expect_err("Expected reject_cjk validation error.");
 	let message = err.to_string();
+
 	assert!(
 		message.contains("security.reject_cjk must be true."),
 		"Unexpected error message: {message}"
@@ -187,9 +194,11 @@ fn cache_ttl_must_be_positive() {
 	let path = write_temp_config(payload);
 
 	let result = elf_config::load(&path);
+
 	fs::remove_file(&path).expect("Failed to remove test config.");
 
 	let err = result.expect_err("Expected cache TTL validation error.");
+
 	assert!(
 		err.to_string().contains("search.cache.expansion_ttl_days must be greater than zero."),
 		"Unexpected error: {err}"
@@ -199,18 +208,23 @@ fn cache_ttl_must_be_positive() {
 #[test]
 fn chunking_config_requires_valid_bounds() {
 	let mut cfg = base_config();
+
 	cfg.chunking.max_tokens = 0;
+
 	assert!(elf_config::validate(&cfg).is_err());
 
 	cfg = base_config();
 	cfg.chunking.overlap_tokens = cfg.chunking.max_tokens;
+
 	assert!(elf_config::validate(&cfg).is_err());
 }
 
 #[test]
 fn chunking_tokenizer_repo_can_inherit_from_embedding_model() {
 	let mut cfg = base_config();
+
 	cfg.chunking.tokenizer_repo = None;
+
 	assert!(elf_config::validate(&cfg).is_ok());
 }
 
@@ -220,6 +234,7 @@ fn chunking_tokenizer_repo_empty_string_normalizes_to_none() {
 	let path = write_temp_config(payload);
 
 	let cfg = elf_config::load(&path).expect("Expected config to load.");
+
 	fs::remove_file(&path).expect("Failed to remove test config.");
 
 	assert!(cfg.chunking.tokenizer_repo.is_none());

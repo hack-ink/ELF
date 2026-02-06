@@ -1417,6 +1417,7 @@ async fn fetch_chunks_by_pair(
 	if pairs.is_empty() {
 		return Ok(Vec::new());
 	}
+
 	let mut builder = QueryBuilder::new(
 		"SELECT chunk_id, note_id, chunk_index, start_offset, end_offset, text \
          FROM memory_note_chunks WHERE ",
@@ -1433,6 +1434,7 @@ async fn fetch_chunks_by_pair(
 	}
 	let query = builder.build_query_as();
 	let rows = query.fetch_all(pool).await?;
+
 	Ok(rows)
 }
 
@@ -1617,17 +1619,29 @@ async fn enqueue_trace(pool: &sqlx::PgPool, payload: TracePayload) -> ServiceRes
 	let payload_json = serde_json::to_value(&payload).map_err(|err| ServiceError::Storage {
 		message: format!("Failed to encode search trace payload: {err}"),
 	})?;
+
 	sqlx::query(
-        "INSERT INTO search_trace_outbox \
-         (outbox_id, trace_id, status, attempts, last_error, available_at, payload, created_at, updated_at) \
-         VALUES ($1,$2,'PENDING',0,NULL,$3,$4,$3,$3)",
-    )
-    .bind(Uuid::new_v4())
-    .bind(payload.trace.trace_id)
-    .bind(now)
-    .bind(payload_json)
-    .execute(pool)
-    .await?;
+		"\
+INSERT INTO search_trace_outbox (
+	outbox_id,
+	trace_id,
+	status,
+	attempts,
+	last_error,
+	available_at,
+	payload,
+	created_at,
+	updated_at
+)
+VALUES ($1, $2, 'PENDING', 0, NULL, $3, $4, $3, $3)",
+	)
+	.bind(Uuid::new_v4())
+	.bind(payload.trace.trace_id)
+	.bind(now)
+	.bind(payload_json)
+	.execute(pool)
+	.await?;
+
 	Ok(())
 }
 
@@ -1638,6 +1652,7 @@ async fn record_hits(
 	now: OffsetDateTime,
 ) -> ServiceResult<()> {
 	let query_hash = hash_query(query);
+
 	let mut tx = pool.begin().await?;
 
 	for (rank, scored_chunk) in scored.iter().enumerate() {
@@ -1649,10 +1664,18 @@ async fn record_hits(
 		.bind(note.note_id)
 		.execute(&mut *tx)
 		.await?;
-
 		sqlx::query(
-			"INSERT INTO memory_hits (hit_id, note_id, chunk_id, query_hash, rank, final_score, ts) \
-             VALUES ($1,$2,$3,$4,$5,$6,$7)",
+			"\
+INSERT INTO memory_hits (
+	hit_id,
+	note_id,
+	chunk_id,
+	query_hash,
+	rank,
+	final_score,
+	ts
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7)",
 		)
 		.bind(Uuid::new_v4())
 		.bind(note.note_id)
@@ -1666,6 +1689,7 @@ async fn record_hits(
 	}
 
 	tx.commit().await?;
+
 	Ok(())
 }
 
@@ -1679,6 +1703,7 @@ fn hash_cache_key(payload: &serde_json::Value) -> ServiceResult<String> {
 	let raw = serde_json::to_vec(payload).map_err(|err| ServiceError::Storage {
 		message: format!("Failed to encode cache key payload: {err}"),
 	})?;
+
 	Ok(blake3::hash(&raw).to_hex().to_string())
 }
 
@@ -1713,9 +1738,12 @@ async fn fetch_cache_payload(
 		.len();
 
 	sqlx::query(
-		"UPDATE llm_cache \
-         SET last_accessed_at = $1, hit_count = hit_count + 1 \
-         WHERE cache_kind = $2 AND cache_key = $3",
+		"\
+UPDATE llm_cache
+SET
+	last_accessed_at = $1,
+	hit_count = hit_count + 1
+WHERE cache_kind = $2 AND cache_key = $3",
 	)
 	.bind(now)
 	.bind(kind.as_str())
@@ -1739,6 +1767,7 @@ async fn store_cache_payload(
 		message: format!("Failed to encode cache payload: {err}"),
 	})?;
 	let payload_size = payload_bytes.len();
+
 	if let Some(max) = max_payload_bytes
 		&& payload_size as u64 > max
 	{
@@ -1746,14 +1775,23 @@ async fn store_cache_payload(
 	}
 
 	sqlx::query(
-		"INSERT INTO llm_cache \
-         (cache_id, cache_kind, cache_key, payload, created_at, last_accessed_at, expires_at, hit_count) \
-         VALUES ($1,$2,$3,$4,$5,$5,$6,0) \
-         ON CONFLICT (cache_kind, cache_key) DO UPDATE SET \
-         payload = EXCLUDED.payload, \
-         last_accessed_at = EXCLUDED.last_accessed_at, \
-         expires_at = EXCLUDED.expires_at, \
-         hit_count = 0",
+		"\
+INSERT INTO llm_cache (
+	cache_id,
+	cache_kind,
+	cache_key,
+	payload,
+	created_at,
+	last_accessed_at,
+	expires_at,
+	hit_count
+)
+VALUES ($1, $2, $3, $4, $5, $5, $6, 0)
+ON CONFLICT (cache_kind, cache_key) DO UPDATE SET
+	payload = EXCLUDED.payload,
+	last_accessed_at = EXCLUDED.last_accessed_at,
+	expires_at = EXCLUDED.expires_at,
+	hit_count = 0",
 	)
 	.bind(Uuid::new_v4())
 	.bind(kind.as_str())

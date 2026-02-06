@@ -190,6 +190,7 @@ async fn health_ok() {
 		.await
 		.expect("Failed to call /health.");
 	assert_eq!(response.status(), StatusCode::OK);
+
 	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }
 
@@ -231,12 +232,15 @@ async fn rejects_cjk_in_add_note() {
 		.expect("Failed to call add_note.");
 
 	assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
 	let body = body::to_bytes(response.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read response body.");
 	let json: serde_json::Value = serde_json::from_slice(&body).expect("Failed to parse response.");
+
 	assert_eq!(json["error_code"], "NON_ENGLISH_INPUT");
 	assert_eq!(json["fields"][0], "$.notes[0].text");
+
 	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }
 
@@ -274,12 +278,15 @@ async fn rejects_cjk_in_add_event() {
 		.expect("Failed to call add_event.");
 
 	assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
 	let body = body::to_bytes(response.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read response body.");
 	let json: serde_json::Value = serde_json::from_slice(&body).expect("Failed to parse response.");
+
 	assert_eq!(json["error_code"], "NON_ENGLISH_INPUT");
 	assert_eq!(json["fields"][0], "$.messages[0].content");
+
 	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }
 
@@ -315,11 +322,14 @@ async fn rejects_cjk_in_search() {
 		.expect("Failed to call search.");
 
 	assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
 	let body = body::to_bytes(response.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read response body.");
 	let json: serde_json::Value = serde_json::from_slice(&body).expect("Failed to parse response.");
+
 	assert_eq!(json["error_code"], "NON_ENGLISH_INPUT");
 	assert_eq!(json["fields"][0], "$.query");
+
 	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }
