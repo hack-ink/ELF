@@ -112,6 +112,7 @@ fn computes_ttl_from_defaults() {
 			overlap_tokens: 128,
 			tokenizer_repo: None,
 		},
+		context: None,
 	};
 
 	let now = OffsetDateTime::now_utc();

@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -12,6 +14,18 @@ pub struct Config {
 	pub ranking: Ranking,
 	pub lifecycle: Lifecycle,
 	pub security: Security,
+	pub context: Option<Context>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Context {
+	/// Optional. Map keys are either "<tenant_id>:<project_id>" or "<project_id>".
+	pub project_descriptions: Option<HashMap<String, String>>,
+	/// Optional. Map keys are scope labels, e.g. "project_shared".
+	pub scope_descriptions: Option<HashMap<String, String>>,
+	/// Optional. Additive boost applied to final scores when a query's tokens match a scope
+	/// description.
+	pub scope_boost_weight: Option<f32>,
 }
 
 #[derive(Debug, Deserialize)]

@@ -161,6 +161,7 @@ fn test_config() -> Config {
 			evidence_max_quotes: 2,
 			evidence_max_quote_chars: 320,
 		},
+		context: None,
 	}
 }
 
