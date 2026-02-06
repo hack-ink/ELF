@@ -1,8 +1,8 @@
 [service]
-admin_bind = "127.0.0.1:8090"
-http_bind  = "127.0.0.1:8089"
+admin_bind = "127.0.0.1:51891"
+http_bind  = "127.0.0.1:51892"
 log_level  = "info"
-mcp_bind   = "127.0.0.1:8091"
+mcp_bind   = "127.0.0.1:51893"
 
 [storage.postgres]
 dsn            = "postgres://postgres:postgres@127.0.0.1:5432/elf"
@@ -121,3 +121,22 @@ evidence_max_quotes      = 2
 evidence_min_quotes      = 1
 redact_secrets_on_write  = true
 reject_cjk               = true
+
+[context]
+# Optional. Context metadata used to disambiguate retrieval across projects and scopes.
+#
+# project_descriptions keys:
+# - "<tenant_id>:<project_id>" (recommended)
+# - "<project_id>" (fallback)
+# Optional. Additive score boost applied when query tokens match a scope description.
+# Set to 0.0 to disable.
+# Must be a finite number in the range 0.0-1.0. When greater than zero, scope_descriptions must be present.
+scope_boost_weight = 0.05
+
+[context.project_descriptions]
+"t:p" = "Example project context description."
+
+[context.scope_descriptions]
+agent_private  = "Personal notes for a single agent."
+org_shared     = "Organization-wide policies and shared operating context."
+project_shared = "Project-specific shared notes and technical context."
