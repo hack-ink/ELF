@@ -47,8 +47,8 @@ flowchart TB
   end
 
   subgraph Storage
-    PG[(Postgres + pgvector\nsource of truth)]
-    Qdrant[(Qdrant\nrebuildable index)]
+    PG[(Postgres with pgvector<br/>source of truth)]
+    Qdrant[(Qdrant<br/>rebuildable index)]
   end
 
   subgraph Providers
@@ -67,9 +67,9 @@ flowchart TB
   Extractor -->|evidence-bound notes| API
   API -->|persist| PG
   PG -->|outbox| Worker
-  Worker -->|index chunks (dense and BM25)| Qdrant
+  Worker -->|index chunks, dense and BM25| Qdrant
 
-  API -->|search| Expand{Expand?\noff/always/dynamic}
+  API -->|search| Expand{Expand mode<br/>off, always, dynamic}
   Expand -->|original| Embed
   Expand -->|LLM variants| Extractor
   Extractor -->|expanded queries| Embed
@@ -78,7 +78,7 @@ flowchart TB
   Qdrant -->|RRF fusion candidates| API
   API -->|scope/TTL filter| PG
   PG -->|notes| API
-  API -->|rerank + recency| Rerank
+  API -->|rerank and recency| Rerank
   Rerank -->|scores| API
   API -->|top-k| Agent
 ```
