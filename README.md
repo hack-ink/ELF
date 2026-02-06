@@ -167,7 +167,9 @@ Copy `elf.example.toml` to `elf.toml`, then fill in provider and storage values.
 cp elf.example.toml elf.toml
 psql "<dsn from elf.toml>" -f sql/init.sql
 
-export ELF_QDRANT_HTTP_URL="http://127.0.0.1:6334"
+# Qdrant REST endpoint (default: 6333). In this repository's local setup, it is often mapped to port 51889.
+# ELF uses the gRPC endpoint at runtime (default: 6334, often mapped to port 51890).
+export ELF_QDRANT_HTTP_URL="http://127.0.0.1:51889"
 export ELF_QDRANT_COLLECTION="mem_notes_v1"
 export ELF_QDRANT_VECTOR_DIM="4096"
 ./qdrant/init.sh

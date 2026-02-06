@@ -16,6 +16,7 @@ Name: This flow is the E2E test in `docs/guide/testing.md`.
 - You can create and drop a dedicated database named `elf_e2e`.
 
 Note: Use the existing collection configured in your `elf.toml`. Do not create a new collection for this flow. Keep test data isolated by tenant, project, and agent identifiers, then clean it up after the run.
+Note: Qdrant exposes a REST API (default: 6333) and a gRPC API (default: 6334). The `storage.qdrant.url` field is the gRPC base URL. In this repository's local setup, REST is commonly mapped to port 51889 and gRPC to port 51890.
 Note: The local Postgres instance in this repository typically runs on port `51888`. Adjust the DSN if your setup differs.
 
 ## Step 1: Prepare a dedicated integration config
@@ -24,8 +25,9 @@ Create a dedicated config file for integration tests (for example, `tmp/elf.inte
 
 ```toml
 [service]
-admin_bind = "127.0.0.1:8090"
-http_bind  = "127.0.0.1:8089"
+admin_bind = "127.0.0.1:51891"
+http_bind  = "127.0.0.1:51892"
+mcp_bind   = "127.0.0.1:51893"
 log_level  = "info"
 
 [storage.postgres]
@@ -34,7 +36,7 @@ pool_max_conns = 10
 
 [storage.qdrant]
 collection = "mem_notes_v1"
-url        = "http://127.0.0.1:6334"
+url        = "http://127.0.0.1:51890"
 vector_dim = 4096
 
 [providers.embedding]
@@ -158,7 +160,7 @@ cargo run -p elf-api -- --config tmp/elf.integration.toml
 Use a dedicated tenant, project, and agent to isolate test data.
 
 ```bash
-curl -sS http://127.0.0.1:8089/v1/memory/add_note \
+curl -sS http://127.0.0.1:51892/v1/memory/add_note \
   -H 'content-type: application/json' \
   -d '{
     "tenant_id": "it-tenant",
@@ -247,7 +249,7 @@ Recommended (quality signal):
 Use the returned note IDs from Step 3.
 
 ```bash
-curl -sS http://127.0.0.1:8089/v1/memory/delete \
+curl -sS http://127.0.0.1:51892/v1/memory/delete \
   -H 'content-type: application/json' \
   -d '{
     "tenant_id": "it-tenant",
@@ -256,7 +258,7 @@ curl -sS http://127.0.0.1:8089/v1/memory/delete \
     "note_id": "NOTE_ID_1"
   }'
 
-curl -sS http://127.0.0.1:8089/v1/memory/delete \
+curl -sS http://127.0.0.1:51892/v1/memory/delete \
   -H 'content-type: application/json' \
   -d '{
     "tenant_id": "it-tenant",
