@@ -26,7 +26,7 @@ serde                = { version = "1.0", features = ["derive"] }
 serde_json           = { version = "1.0" }
 sqlx                 = { version = "0.8", features = ["json", "postgres", "runtime-tokio", "time", "tls-rustls", "uuid"] }
 time                 = { version = "0.3", features = ["macros", "serde"] }
-tokenizers           = { version = "0.20", features = ["http"] }
+tokenizers           = { version = "0.22", features = ["http"] }
 tokio                = { version = "1.0", features = ["macros", "rt-multi-thread", "time"] }
 toml                 = { version = "0.8" }
 tracing              = { version = "0.1" }
