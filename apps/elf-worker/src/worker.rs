@@ -242,6 +242,7 @@ async fn fetch_next_job(db: &Db, now: OffsetDateTime) -> Result<Option<IndexingO
 	};
 
 	tx.commit().await?;
+
 	Ok(job)
 }
 
@@ -281,6 +282,7 @@ async fn fetch_next_trace_job(db: &Db, now: OffsetDateTime) -> Result<Option<Tra
 	};
 
 	tx.commit().await?;
+
 	Ok(job)
 }
 
@@ -348,11 +350,13 @@ async fn handle_upsert(state: &WorkerState, job: &IndexingOutboxEntry) -> Result
 		.await?;
 	delete_qdrant_note_points(state, note.note_id).await?;
 	upsert_qdrant_chunks(state, &note, &job.embedding_version, &records, &chunk_vectors).await?;
+
 	Ok(())
 }
 
 async fn handle_delete(state: &WorkerState, job: &IndexingOutboxEntry) -> Result<()> {
 	delete_qdrant_note_points(state, job.note_id).await?;
+
 	Ok(())
 }
 
@@ -360,15 +364,46 @@ async fn handle_trace_job(db: &Db, job: &TraceOutboxJob) -> Result<()> {
 	let payload: TracePayload = serde_json::from_value(job.payload.clone())?;
 	let trace = payload.trace;
 	let trace_id = trace.trace_id;
+
 	let mut tx = db.pool.begin().await?;
 
 	sqlx::query(
-		"INSERT INTO search_traces \
-         (trace_id, tenant_id, project_id, agent_id, read_profile, query, expansion_mode, \
-          expanded_queries, allowed_scopes, candidate_count, top_k, config_snapshot, \
-          trace_version, created_at, expires_at) \
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) \
-         ON CONFLICT (trace_id) DO NOTHING",
+		"\
+INSERT INTO search_traces (
+	trace_id,
+	tenant_id,
+	project_id,
+	agent_id,
+	read_profile,
+	query,
+	expansion_mode,
+	expanded_queries,
+	allowed_scopes,
+	candidate_count,
+	top_k,
+	config_snapshot,
+	trace_version,
+	created_at,
+	expires_at
+)
+VALUES (
+	$1,
+	$2,
+	$3,
+	$4,
+	$5,
+	$6,
+	$7,
+	$8,
+	$9,
+	$10,
+	$11,
+	$12,
+	$13,
+	$14,
+	$15
+)
+ON CONFLICT (trace_id) DO NOTHING",
 	)
 	.bind(trace_id)
 	.bind(&trace.tenant_id)
@@ -390,6 +425,7 @@ async fn handle_trace_job(db: &Db, job: &TraceOutboxJob) -> Result<()> {
 
 	if !payload.items.is_empty() {
 		let mut inserts = Vec::with_capacity(payload.items.len());
+
 		for item in payload.items {
 			inserts.push(TraceItemInsert {
 				item_id: item.item_id,
@@ -408,9 +444,22 @@ async fn handle_trace_job(db: &Db, job: &TraceOutboxJob) -> Result<()> {
 		}
 
 		let mut builder = QueryBuilder::new(
-			"INSERT INTO search_trace_items \
-             (item_id, trace_id, note_id, chunk_id, rank, retrieval_score, retrieval_rank, rerank_score, \
-              tie_breaker_score, final_score, boosts, matched_terms, matched_fields) ",
+			"\
+INSERT INTO search_trace_items (
+	item_id,
+	trace_id,
+	note_id,
+	chunk_id,
+	rank,
+	retrieval_score,
+	retrieval_rank,
+	rerank_score,
+	tie_breaker_score,
+	final_score,
+	boosts,
+	matched_terms,
+	matched_fields
+) ",
 		);
 		builder.push_values(inserts, |mut b, item| {
 			b.push_bind(item.item_id)
@@ -432,6 +481,7 @@ async fn handle_trace_job(db: &Db, job: &TraceOutboxJob) -> Result<()> {
 	}
 
 	tx.commit().await?;
+
 	Ok(())
 }
 
@@ -440,9 +490,11 @@ async fn purge_expired_traces(db: &Db, now: OffsetDateTime) -> Result<()> {
 		.bind(now)
 		.execute(&db.pool)
 		.await?;
+
 	if result.rows_affected() > 0 {
 		tracing::info!(count = result.rows_affected(), "Purged expired search traces.");
 	}
+
 	Ok(())
 }
 
@@ -451,9 +503,11 @@ async fn purge_expired_cache(db: &Db, now: OffsetDateTime) -> Result<()> {
 		.bind(now)
 		.execute(&db.pool)
 		.await?;
+
 	if result.rows_affected() > 0 {
 		tracing::info!(count = result.rows_affected(), "Purged expired LLM cache entries.");
 	}
+
 	Ok(())
 }
 
@@ -467,12 +521,33 @@ fn is_not_found_error(err: &qdrant_client::QdrantError) -> bool {
 
 async fn fetch_note(db: &Db, note_id: uuid::Uuid) -> Result<Option<MemoryNote>> {
 	let note = sqlx::query_as::<_, MemoryNote>(
-        "SELECT note_id, tenant_id, project_id, agent_id, scope, type, key, text, importance, confidence, status, created_at, updated_at, expires_at, embedding_version, source_ref, hit_count, last_hit_at \
-         FROM memory_notes WHERE note_id = $1",
-    )
-    .bind(note_id)
-    .fetch_optional(&db.pool)
-    .await?;
+		"\
+SELECT
+	note_id,
+	tenant_id,
+	project_id,
+	agent_id,
+	scope,
+	type,
+	key,
+	text,
+	importance,
+	confidence,
+	status,
+	created_at,
+	updated_at,
+	expires_at,
+	embedding_version,
+	source_ref,
+	hit_count,
+	last_hit_at
+FROM memory_notes
+WHERE note_id = $1",
+	)
+	.bind(note_id)
+	.fetch_optional(&db.pool)
+	.await?;
+
 	Ok(note)
 }
 
@@ -490,6 +565,7 @@ fn note_is_active(note: &MemoryNote, now: OffsetDateTime) -> bool {
 
 fn build_chunk_records(note_id: uuid::Uuid, chunks: &[Chunk]) -> Result<Vec<ChunkRecord>> {
 	let mut records = Vec::with_capacity(chunks.len());
+
 	for chunk in chunks {
 		let start_offset = to_i32(chunk.start_offset, "start_offset")?;
 		let end_offset = to_i32(chunk.end_offset, "end_offset")?;
@@ -501,6 +577,7 @@ fn build_chunk_records(note_id: uuid::Uuid, chunks: &[Chunk]) -> Result<Vec<Chun
 			text: chunk.text.clone(),
 		});
 	}
+
 	Ok(records)
 }
 
@@ -539,11 +616,21 @@ async fn insert_embedding(
 	vec: &[f32],
 ) -> Result<()> {
 	let vec_text = format_vector_text(vec);
+
 	sqlx::query(
-		"INSERT INTO note_embeddings (note_id, embedding_version, embedding_dim, vec) \
-         VALUES ($1, $2, $3, $4::vector) \
-         ON CONFLICT (note_id, embedding_version) DO UPDATE \
-         SET embedding_dim = EXCLUDED.embedding_dim, vec = EXCLUDED.vec, created_at = now()",
+		"\
+INSERT INTO note_embeddings (
+	note_id,
+	embedding_version,
+	embedding_dim,
+	vec
+)
+VALUES ($1, $2, $3, $4::vector)
+ON CONFLICT (note_id, embedding_version) DO UPDATE
+SET
+	embedding_dim = EXCLUDED.embedding_dim,
+	vec = EXCLUDED.vec,
+	created_at = now()",
 	)
 	.bind(note_id)
 	.bind(embedding_version)
@@ -551,6 +638,7 @@ async fn insert_embedding(
 	.bind(vec_text)
 	.execute(&db.pool)
 	.await?;
+
 	Ok(())
 }
 
@@ -567,6 +655,7 @@ async fn delete_qdrant_note_points(state: &WorkerState, note_id: uuid::Uuid) -> 
 				return Err(eyre::eyre!(err.to_string()));
 			},
 	}
+
 	Ok(())
 }
 
@@ -578,6 +667,7 @@ async fn upsert_qdrant_chunks(
 	vectors: &[Vec<f32>],
 ) -> Result<()> {
 	let mut points = Vec::with_capacity(records.len());
+
 	for (record, vec) in records.iter().zip(vectors.iter()) {
 		let mut payload_map = HashMap::new();
 		payload_map.insert("note_id".to_string(), Value::from(note.note_id.to_string()));
@@ -629,6 +719,7 @@ async fn upsert_qdrant_chunks(
 
 	let upsert = UpsertPointsBuilder::new(state.qdrant.collection.clone(), points).wait(true);
 	state.qdrant.client.upsert_points(upsert).await?;
+
 	Ok(())
 }
 
@@ -645,6 +736,7 @@ fn validate_vector_dim(vec: &[f32], expected_dim: u32) -> Result<()> {
 			expected_dim
 		));
 	}
+
 	Ok(())
 }
 
@@ -669,16 +761,19 @@ where
 
 async fn mark_done(db: &Db, outbox_id: uuid::Uuid) -> Result<()> {
 	let now = OffsetDateTime::now_utc();
+
 	sqlx::query("UPDATE indexing_outbox SET status = 'DONE', updated_at = $1 WHERE outbox_id = $2")
 		.bind(now)
 		.bind(outbox_id)
 		.execute(&db.pool)
 		.await?;
+
 	Ok(())
 }
 
 async fn mark_trace_done(db: &Db, outbox_id: uuid::Uuid) -> Result<()> {
 	let now = OffsetDateTime::now_utc();
+
 	sqlx::query(
 		"UPDATE search_trace_outbox SET status = 'DONE', updated_at = $1 WHERE outbox_id = $2",
 	)
@@ -686,6 +781,7 @@ async fn mark_trace_done(db: &Db, outbox_id: uuid::Uuid) -> Result<()> {
 	.bind(outbox_id)
 	.execute(&db.pool)
 	.await?;
+
 	Ok(())
 }
 
@@ -699,9 +795,10 @@ async fn mark_failed(
 	let backoff = backoff_for_attempt(next_attempts);
 	let now = OffsetDateTime::now_utc();
 	let available_at = now + backoff;
+
 	sqlx::query(
 		"UPDATE indexing_outbox \
-         SET status = 'FAILED', attempts = $1, last_error = $2, available_at = $3, updated_at = $4 \
+	         SET status = 'FAILED', attempts = $1, last_error = $2, available_at = $3, updated_at = $4 \
          WHERE outbox_id = $5",
 	)
 	.bind(next_attempts)
@@ -711,6 +808,7 @@ async fn mark_failed(
 	.bind(outbox_id)
 	.execute(&db.pool)
 	.await?;
+
 	Ok(())
 }
 
@@ -724,9 +822,10 @@ async fn mark_trace_failed(
 	let backoff = backoff_for_attempt(next_attempts);
 	let now = OffsetDateTime::now_utc();
 	let available_at = now + backoff;
+
 	sqlx::query(
 		"UPDATE search_trace_outbox \
-         SET status = 'FAILED', attempts = $1, last_error = $2, available_at = $3, updated_at = $4 \
+	         SET status = 'FAILED', attempts = $1, last_error = $2, available_at = $3, updated_at = $4 \
          WHERE outbox_id = $5",
 	)
 	.bind(next_attempts)
@@ -736,6 +835,7 @@ async fn mark_trace_failed(
 	.bind(outbox_id)
 	.execute(&db.pool)
 	.await?;
+
 	Ok(())
 }
 

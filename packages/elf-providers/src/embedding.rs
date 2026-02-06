@@ -1,4 +1,4 @@
-use std::time::Duration as StdDuration;
+use std::time::Duration;
 
 use color_eyre::{Result, eyre};
 use reqwest::Client;
@@ -8,7 +8,7 @@ pub async fn embed(
 	cfg: &elf_config::EmbeddingProviderConfig,
 	texts: &[String],
 ) -> Result<Vec<Vec<f32>>> {
-	let client = Client::builder().timeout(StdDuration::from_millis(cfg.timeout_ms)).build()?;
+	let client = Client::builder().timeout(Duration::from_millis(cfg.timeout_ms)).build()?;
 	let url = format!("{}{}", cfg.api_base, cfg.path);
 	let body = serde_json::json!({
 		"model": cfg.model,
@@ -22,6 +22,7 @@ pub async fn embed(
 		.send()
 		.await?;
 	let json: Value = res.error_for_status()?.json().await?;
+
 	parse_embedding_response(json)
 }
 
@@ -52,6 +53,7 @@ fn parse_embedding_response(json: Value) -> Result<Vec<Vec<f32>>> {
 	}
 
 	indexed.sort_by_key(|(index, _)| *index);
+
 	Ok(indexed.into_iter().map(|(_, vec)| vec).collect())
 }
 

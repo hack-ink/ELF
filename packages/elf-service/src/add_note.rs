@@ -141,30 +141,68 @@ impl ElfService {
 					};
 
 					sqlx::query(
-                        "INSERT INTO memory_notes \
-                         (note_id, tenant_id, project_id, agent_id, scope, type, key, text, importance, confidence, status, created_at, updated_at, expires_at, embedding_version, source_ref, hit_count, last_hit_at) \
-                         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)",
-                    )
-                    .bind(memory_note.note_id)
-                    .bind(&memory_note.tenant_id)
-                    .bind(&memory_note.project_id)
-                    .bind(&memory_note.agent_id)
-                    .bind(&memory_note.scope)
-                    .bind(&memory_note.r#type)
-                    .bind(&memory_note.key)
-                    .bind(&memory_note.text)
-                    .bind(memory_note.importance)
-                    .bind(memory_note.confidence)
-                    .bind(&memory_note.status)
-                    .bind(memory_note.created_at)
-                    .bind(memory_note.updated_at)
-                    .bind(memory_note.expires_at)
-                    .bind(&memory_note.embedding_version)
-                    .bind(&memory_note.source_ref)
-                    .bind(memory_note.hit_count)
-                    .bind(memory_note.last_hit_at)
-                    .execute(&mut *tx)
-                    .await?;
+						"\
+INSERT INTO memory_notes (
+	note_id,
+	tenant_id,
+	project_id,
+	agent_id,
+	scope,
+	type,
+	key,
+	text,
+	importance,
+	confidence,
+	status,
+	created_at,
+	updated_at,
+	expires_at,
+	embedding_version,
+	source_ref,
+	hit_count,
+	last_hit_at
+)
+VALUES (
+	$1,
+	$2,
+	$3,
+	$4,
+	$5,
+	$6,
+	$7,
+	$8,
+	$9,
+	$10,
+	$11,
+	$12,
+	$13,
+	$14,
+	$15,
+	$16,
+	$17,
+	$18
+)",
+					)
+					.bind(memory_note.note_id)
+					.bind(&memory_note.tenant_id)
+					.bind(&memory_note.project_id)
+					.bind(&memory_note.agent_id)
+					.bind(&memory_note.scope)
+					.bind(&memory_note.r#type)
+					.bind(&memory_note.key)
+					.bind(&memory_note.text)
+					.bind(memory_note.importance)
+					.bind(memory_note.confidence)
+					.bind(&memory_note.status)
+					.bind(memory_note.created_at)
+					.bind(memory_note.updated_at)
+					.bind(memory_note.expires_at)
+					.bind(&memory_note.embedding_version)
+					.bind(&memory_note.source_ref)
+					.bind(memory_note.hit_count)
+					.bind(memory_note.last_hit_at)
+					.execute(&mut *tx)
+					.await?;
 
 					crate::insert_version(
 						&mut tx,
@@ -245,17 +283,26 @@ impl ElfService {
 					existing.source_ref = note.source_ref.clone();
 
 					sqlx::query(
-                        "UPDATE memory_notes SET text = $1, importance = $2, confidence = $3, updated_at = $4, expires_at = $5, source_ref = $6 WHERE note_id = $7",
-                    )
-                    .bind(&existing.text)
-                    .bind(existing.importance)
-                    .bind(existing.confidence)
-                    .bind(existing.updated_at)
-                    .bind(existing.expires_at)
-                    .bind(&existing.source_ref)
-                    .bind(existing.note_id)
-                    .execute(&mut *tx)
-                    .await?;
+						"\
+UPDATE memory_notes
+SET
+	text = $1,
+	importance = $2,
+	confidence = $3,
+	updated_at = $4,
+	expires_at = $5,
+	source_ref = $6
+WHERE note_id = $7",
+					)
+					.bind(&existing.text)
+					.bind(existing.importance)
+					.bind(existing.confidence)
+					.bind(existing.updated_at)
+					.bind(existing.expires_at)
+					.bind(&existing.source_ref)
+					.bind(existing.note_id)
+					.execute(&mut *tx)
+					.await?;
 
 					crate::insert_version(
 						&mut tx,
