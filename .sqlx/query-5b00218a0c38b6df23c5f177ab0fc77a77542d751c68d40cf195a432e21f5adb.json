@@ -1,0 +1,27 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT note_id\nFROM memory_notes\nWHERE tenant_id = $1\n\tAND project_id = $2\n\tAND agent_id = $3\n\tAND scope = $4\n\tAND type = $5\n\tAND status = 'active'\n\tAND (expires_at IS NULL OR expires_at > $6)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "note_id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "5b00218a0c38b6df23c5f177ab0fc77a77542d751c68d40cf195a432e21f5adb"
+}

@@ -17,5 +17,10 @@ pub struct Args {
 
 pub async fn run(args: Args) -> color_eyre::Result<()> {
 	let config = elf_config::load(&args.config)?;
-	server::serve_mcp(&config.service.mcp_bind, &config.service.http_bind).await
+	let mcp = config
+		.mcp
+		.as_ref()
+		.ok_or_else(|| color_eyre::eyre::eyre!("mcp section is required for elf-mcp."))?;
+
+	server::serve_mcp(&config.service.mcp_bind, &config.service.http_bind, mcp).await
 }

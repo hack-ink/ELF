@@ -12,7 +12,7 @@ Audience: This documentation is written for LLM consumption and should remain ex
 
 ## Specs
 
-- `docs/spec/system_elf_memory_service_v1.md` - ELF Memory Service v1.0 specification.
+- `docs/spec/system_elf_memory_service_v2.md` - ELF Memory Service v2.0 specification.
 
 ## Authoring guidance (LLM-first)
 

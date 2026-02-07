@@ -10,7 +10,7 @@ use qdrant_client::{
 };
 use serde::Serialize;
 use serde_json::{Value as JsonValue, Value as SerdeValue};
-use sqlx::{QueryBuilder, Row};
+use sqlx::QueryBuilder;
 use time::{Duration, OffsetDateTime};
 use tokio::time as tokio_time;
 use uuid::Uuid;
@@ -194,52 +194,45 @@ async fn process_trace_outbox_once(state: &WorkerState) -> Result<()> {
 // TODO: Add outbox fetch/update helpers in elf_storage::outbox and use them here.
 async fn fetch_next_job(db: &Db, now: OffsetDateTime) -> Result<Option<IndexingOutboxEntry>> {
 	let mut tx = db.pool.begin().await?;
-	let row = sqlx::query(
-        "SELECT outbox_id, note_id, op, embedding_version, status, attempts, last_error, available_at, created_at, updated_at \
-         FROM indexing_outbox \
-         WHERE status IN ('PENDING','FAILED') AND available_at <= $1 \
-         ORDER BY available_at ASC \
-         LIMIT 1 \
-         FOR UPDATE SKIP LOCKED",
-    )
-    .bind(now)
-    .fetch_optional(&mut *tx)
-    .await?;
+	let row = sqlx::query_as!(
+		IndexingOutboxEntry,
+		"\
+SELECT
+	outbox_id,
+	note_id,
+	op,
+	embedding_version,
+	status,
+	attempts,
+	last_error,
+	available_at,
+	created_at,
+	updated_at
+FROM indexing_outbox
+WHERE status IN ('PENDING','FAILED') AND available_at <= $1
+ORDER BY available_at ASC
+LIMIT 1
+FOR UPDATE SKIP LOCKED",
+		now,
+	)
+	.fetch_optional(&mut *tx)
+	.await?;
 
-	let job = if let Some(row) = row {
-		let outbox_id = row.try_get("outbox_id")?;
-		let note_id = row.try_get("note_id")?;
-		let op = row.try_get("op")?;
-		let embedding_version = row.try_get("embedding_version")?;
-		let status = row.try_get("status")?;
-		let attempts = row.try_get("attempts")?;
-		let last_error = row.try_get("last_error")?;
-		let available_at = row.try_get("available_at")?;
-		let created_at = row.try_get("created_at")?;
-		let updated_at = row.try_get("updated_at")?;
-
+	let job = if let Some(mut job) = row {
 		let lease_until = now + Duration::seconds(CLAIM_LEASE_SECONDS);
-		sqlx::query(
+		sqlx::query!(
 			"UPDATE indexing_outbox SET available_at = $1, updated_at = $2 WHERE outbox_id = $3",
+			lease_until,
+			now,
+			job.outbox_id,
 		)
-		.bind(lease_until)
-		.bind(now)
-		.bind(outbox_id)
 		.execute(&mut *tx)
 		.await?;
 
-		Some(IndexingOutboxEntry {
-			outbox_id,
-			note_id,
-			op,
-			embedding_version,
-			status,
-			attempts,
-			last_error,
-			available_at,
-			created_at,
-			updated_at,
-		})
+		job.available_at = lease_until;
+		job.updated_at = now;
+
+		Some(job)
 	} else {
 		None
 	};
@@ -251,35 +244,36 @@ async fn fetch_next_job(db: &Db, now: OffsetDateTime) -> Result<Option<IndexingO
 
 async fn fetch_next_trace_job(db: &Db, now: OffsetDateTime) -> Result<Option<TraceOutboxJob>> {
 	let mut tx = db.pool.begin().await?;
-	let row = sqlx::query(
-		"SELECT outbox_id, trace_id, payload, attempts \
-         FROM search_trace_outbox \
-         WHERE status IN ('PENDING','FAILED') AND available_at <= $1 \
-         ORDER BY available_at ASC \
-         LIMIT 1 \
-         FOR UPDATE SKIP LOCKED",
+	let row = sqlx::query_as!(
+		TraceOutboxJob,
+		"\
+SELECT
+	outbox_id,
+	trace_id,
+	payload,
+	attempts
+FROM search_trace_outbox
+WHERE status IN ('PENDING','FAILED') AND available_at <= $1
+ORDER BY available_at ASC
+LIMIT 1
+FOR UPDATE SKIP LOCKED",
+		now,
 	)
-	.bind(now)
 	.fetch_optional(&mut *tx)
 	.await?;
 
-	let job = if let Some(row) = row {
-		let outbox_id = row.try_get("outbox_id")?;
-		let trace_id = row.try_get("trace_id")?;
-		let payload = row.try_get("payload")?;
-		let attempts = row.try_get("attempts")?;
-
+	let job = if let Some(job) = row {
 		let lease_until = now + Duration::seconds(TRACE_OUTBOX_LEASE_SECONDS);
-		sqlx::query(
+		sqlx::query!(
 			"UPDATE search_trace_outbox SET available_at = $1, updated_at = $2 WHERE outbox_id = $3",
+			lease_until,
+			now,
+			job.outbox_id,
 		)
-		.bind(lease_until)
-		.bind(now)
-		.bind(outbox_id)
 		.execute(&mut *tx)
 		.await?;
 
-		Some(TraceOutboxJob { outbox_id, trace_id, payload, attempts })
+		Some(job)
 	} else {
 		None
 	};
@@ -293,12 +287,14 @@ async fn handle_upsert(state: &WorkerState, job: &IndexingOutboxEntry) -> Result
 	let note = fetch_note(&state.db, job.note_id).await?;
 	let Some(note) = note else {
 		tracing::info!(note_id = %job.note_id, "Note missing for outbox job. Marking done.");
+
 		return Ok(());
 	};
 
 	let now = OffsetDateTime::now_utc();
 	if !note_is_active(&note, now) {
 		tracing::info!(note_id = %job.note_id, "Note inactive or expired. Skipping index.");
+
 		return Ok(());
 	}
 
@@ -370,7 +366,10 @@ async fn handle_trace_job(db: &Db, job: &TraceOutboxJob) -> Result<()> {
 
 	let mut tx = db.pool.begin().await?;
 
-	sqlx::query(
+	let expanded_queries_json = encode_json(&trace.expanded_queries, "expanded_queries")?;
+	let allowed_scopes_json = encode_json(&trace.allowed_scopes, "allowed_scopes")?;
+
+	sqlx::query!(
 		"\
 INSERT INTO search_traces (
 	trace_id,
@@ -405,24 +404,24 @@ VALUES (
 	$13,
 	$14,
 	$15
-)
-ON CONFLICT (trace_id) DO NOTHING",
 	)
-	.bind(trace_id)
-	.bind(&trace.tenant_id)
-	.bind(&trace.project_id)
-	.bind(&trace.agent_id)
-	.bind(&trace.read_profile)
-	.bind(&trace.query)
-	.bind(&trace.expansion_mode)
-	.bind(encode_json(&trace.expanded_queries, "expanded_queries")?)
-	.bind(encode_json(&trace.allowed_scopes, "allowed_scopes")?)
-	.bind(trace.candidate_count as i32)
-	.bind(trace.top_k as i32)
-	.bind(trace.config_snapshot.clone())
-	.bind(trace.trace_version)
-	.bind(trace.created_at)
-	.bind(trace.expires_at)
+	ON CONFLICT (trace_id) DO NOTHING",
+		trace_id,
+		trace.tenant_id.as_str(),
+		trace.project_id.as_str(),
+		trace.agent_id.as_str(),
+		trace.read_profile.as_str(),
+		trace.query.as_str(),
+		trace.expansion_mode.as_str(),
+		expanded_queries_json,
+		allowed_scopes_json,
+		trace.candidate_count as i32,
+		trace.top_k as i32,
+		trace.config_snapshot,
+		trace.trace_version,
+		trace.created_at,
+		trace.expires_at,
+	)
 	.execute(&mut *tx)
 	.await?;
 
@@ -489,8 +488,7 @@ INSERT INTO search_trace_items (
 }
 
 async fn purge_expired_traces(db: &Db, now: OffsetDateTime) -> Result<()> {
-	let result = sqlx::query("DELETE FROM search_traces WHERE expires_at <= $1")
-		.bind(now)
+	let result = sqlx::query!("DELETE FROM search_traces WHERE expires_at <= $1", now)
 		.execute(&db.pool)
 		.await?;
 
@@ -502,10 +500,8 @@ async fn purge_expired_traces(db: &Db, now: OffsetDateTime) -> Result<()> {
 }
 
 async fn purge_expired_cache(db: &Db, now: OffsetDateTime) -> Result<()> {
-	let result = sqlx::query("DELETE FROM llm_cache WHERE expires_at <= $1")
-		.bind(now)
-		.execute(&db.pool)
-		.await?;
+	let result =
+		sqlx::query!("DELETE FROM llm_cache WHERE expires_at <= $1", now).execute(&db.pool).await?;
 
 	if result.rows_affected() > 0 {
 		tracing::info!(count = result.rows_affected(), "Purged expired LLM cache entries.");
@@ -515,8 +511,7 @@ async fn purge_expired_cache(db: &Db, now: OffsetDateTime) -> Result<()> {
 }
 
 async fn purge_expired_search_sessions(db: &Db, now: OffsetDateTime) -> Result<()> {
-	let result = sqlx::query("DELETE FROM search_sessions WHERE expires_at <= $1")
-		.bind(now)
+	let result = sqlx::query!("DELETE FROM search_sessions WHERE expires_at <= $1", now)
 		.execute(&db.pool)
 		.await?;
 
@@ -536,33 +531,10 @@ fn is_not_found_error(err: &qdrant_client::QdrantError) -> bool {
 }
 
 async fn fetch_note(db: &Db, note_id: uuid::Uuid) -> Result<Option<MemoryNote>> {
-	let note = sqlx::query_as::<_, MemoryNote>(
-		"\
-SELECT
-	note_id,
-	tenant_id,
-	project_id,
-	agent_id,
-	scope,
-	type,
-	key,
-	text,
-	importance,
-	confidence,
-	status,
-	created_at,
-	updated_at,
-	expires_at,
-	embedding_version,
-	source_ref,
-	hit_count,
-	last_hit_at
-FROM memory_notes
-WHERE note_id = $1",
-	)
-	.bind(note_id)
-	.fetch_optional(&db.pool)
-	.await?;
+	let note =
+		sqlx::query_as!(MemoryNote, "SELECT * FROM memory_notes WHERE note_id = $1", note_id,)
+			.fetch_optional(&db.pool)
+			.await?;
 
 	Ok(note)
 }
@@ -633,25 +605,25 @@ async fn insert_embedding(
 ) -> Result<()> {
 	let vec_text = format_vector_text(vec);
 
-	sqlx::query(
+	sqlx::query!(
 		"\
-INSERT INTO note_embeddings (
-	note_id,
+	INSERT INTO note_embeddings (
+		note_id,
 	embedding_version,
-	embedding_dim,
-	vec
-)
-VALUES ($1, $2, $3, $4::vector)
-ON CONFLICT (note_id, embedding_version) DO UPDATE
-SET
-	embedding_dim = EXCLUDED.embedding_dim,
-	vec = EXCLUDED.vec,
-	created_at = now()",
+		embedding_dim,
+		vec
 	)
-	.bind(note_id)
-	.bind(embedding_version)
-	.bind(embedding_dim)
-	.bind(vec_text)
+	VALUES ($1, $2, $3, $4::text::vector)
+	ON CONFLICT (note_id, embedding_version) DO UPDATE
+	SET
+			embedding_dim = EXCLUDED.embedding_dim,
+			vec = EXCLUDED.vec,
+		created_at = now()",
+		note_id,
+		embedding_version,
+		embedding_dim,
+		vec_text.as_str(),
+	)
 	.execute(&db.pool)
 	.await?;
 
@@ -778,11 +750,13 @@ where
 async fn mark_done(db: &Db, outbox_id: uuid::Uuid) -> Result<()> {
 	let now = OffsetDateTime::now_utc();
 
-	sqlx::query("UPDATE indexing_outbox SET status = 'DONE', updated_at = $1 WHERE outbox_id = $2")
-		.bind(now)
-		.bind(outbox_id)
-		.execute(&db.pool)
-		.await?;
+	sqlx::query!(
+		"UPDATE indexing_outbox SET status = 'DONE', updated_at = $1 WHERE outbox_id = $2",
+		now,
+		outbox_id,
+	)
+	.execute(&db.pool)
+	.await?;
 
 	Ok(())
 }
@@ -790,11 +764,11 @@ async fn mark_done(db: &Db, outbox_id: uuid::Uuid) -> Result<()> {
 async fn mark_trace_done(db: &Db, outbox_id: uuid::Uuid) -> Result<()> {
 	let now = OffsetDateTime::now_utc();
 
-	sqlx::query(
+	sqlx::query!(
 		"UPDATE search_trace_outbox SET status = 'DONE', updated_at = $1 WHERE outbox_id = $2",
+		now,
+		outbox_id,
 	)
-	.bind(now)
-	.bind(outbox_id)
 	.execute(&db.pool)
 	.await?;
 
@@ -811,17 +785,23 @@ async fn mark_failed(
 	let backoff = backoff_for_attempt(next_attempts);
 	let now = OffsetDateTime::now_utc();
 	let available_at = now + backoff;
+	let error_text = err.to_string();
 
-	sqlx::query(
-		"UPDATE indexing_outbox \
-	         SET status = 'FAILED', attempts = $1, last_error = $2, available_at = $3, updated_at = $4 \
-         WHERE outbox_id = $5",
+	sqlx::query!(
+		"\
+UPDATE indexing_outbox
+SET status = 'FAILED',
+	attempts = $1,
+	last_error = $2,
+	available_at = $3,
+	updated_at = $4
+WHERE outbox_id = $5",
+		next_attempts,
+		error_text,
+		available_at,
+		now,
+		outbox_id,
 	)
-	.bind(next_attempts)
-	.bind(err.to_string())
-	.bind(available_at)
-	.bind(now)
-	.bind(outbox_id)
 	.execute(&db.pool)
 	.await?;
 
@@ -838,17 +818,23 @@ async fn mark_trace_failed(
 	let backoff = backoff_for_attempt(next_attempts);
 	let now = OffsetDateTime::now_utc();
 	let available_at = now + backoff;
+	let error_text = err.to_string();
 
-	sqlx::query(
-		"UPDATE search_trace_outbox \
-	         SET status = 'FAILED', attempts = $1, last_error = $2, available_at = $3, updated_at = $4 \
-         WHERE outbox_id = $5",
+	sqlx::query!(
+		"\
+UPDATE search_trace_outbox
+SET status = 'FAILED',
+	attempts = $1,
+	last_error = $2,
+	available_at = $3,
+	updated_at = $4
+WHERE outbox_id = $5",
+		next_attempts,
+		error_text,
+		available_at,
+		now,
+		outbox_id,
 	)
-	.bind(next_attempts)
-	.bind(err.to_string())
-	.bind(available_at)
-	.bind(now)
-	.bind(outbox_id)
 	.execute(&db.pool)
 	.await?;
 

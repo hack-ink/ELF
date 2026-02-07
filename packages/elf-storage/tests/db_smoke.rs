@@ -8,6 +8,7 @@ use elf_testkit::TestDatabase;
 async fn db_connects_and_bootstraps() {
 	let Some(base_dsn) = elf_testkit::env_dsn() else {
 		eprintln!("Skipping db_connects_and_bootstraps; set ELF_PG_DSN to run this test.");
+
 		return;
 	};
 	let test_db = TestDatabase::new(&base_dsn).await.expect("Failed to create test database.");
@@ -22,6 +23,7 @@ async fn db_connects_and_bootstraps() {
 fn chunk_tables_exist_after_bootstrap() {
 	let Some(dsn) = elf_testkit::env_dsn() else {
 		eprintln!("Skipping chunk_tables_exist_after_bootstrap; set ELF_PG_DSN to run this test.");
+
 		return;
 	};
 	let rt = Runtime::new().expect("Failed to build runtime.");
@@ -29,12 +31,16 @@ fn chunk_tables_exist_after_bootstrap() {
 		let cfg = elf_config::Postgres { dsn: dsn.clone(), pool_max_conns: 1 };
 		let db = Db::connect(&cfg).await.expect("Failed to connect to Postgres.");
 		db.ensure_schema(3).await.expect("Failed to ensure schema.");
-		let rows: (i64,) = sqlx::query_as(
-			"SELECT count(*) FROM information_schema.tables WHERE table_name = 'memory_note_chunks'",
+		let count: i64 = sqlx::query_scalar!(
+			"\
+SELECT count(*) AS \"count!\"
+FROM information_schema.tables
+WHERE table_name = 'memory_note_chunks'",
 		)
 		.fetch_one(&db.pool)
 		.await
 		.expect("Failed to query schema tables.");
-		assert_eq!(rows.0, 1);
+
+		assert_eq!(count, 1);
 	});
 }

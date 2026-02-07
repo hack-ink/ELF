@@ -1,0 +1,76 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n\tsearch_session_id AS \"search_session_id!\",\n\ttrace_id AS \"trace_id!\",\n\ttenant_id AS \"tenant_id!\",\n\tproject_id AS \"project_id!\",\n\tagent_id AS \"agent_id!\",\n\tread_profile AS \"read_profile!\",\n\tquery AS \"query!\",\n\titems AS \"items!\",\n\tcreated_at AS \"created_at!\",\n\texpires_at AS \"expires_at!\"\nFROM search_sessions\nWHERE search_session_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "search_session_id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "trace_id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "tenant_id!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "project_id!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "agent_id!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "read_profile!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "query!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "items!",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at!",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "expires_at!",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "f75c1cc6cbe85ba9748c59773eafb938ee9639cb19f0ac2295bfb3a51561cf77"
+}

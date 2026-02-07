@@ -6,11 +6,7 @@ use std::{
 use color_eyre::Result;
 use qdrant_client::{
 	client::Payload,
-	qdrant::{
-		CreateCollectionBuilder, Distance, Document, Modifier, PointStruct,
-		SparseVectorParamsBuilder, SparseVectorsConfigBuilder, UpsertPointsBuilder, Vector,
-		VectorParamsBuilder, VectorsConfigBuilder,
-	},
+	qdrant::{Document, PointStruct, UpsertPointsBuilder, Vector},
 };
 use serde_json::Value;
 use sqlx::PgPool;
@@ -87,42 +83,28 @@ async fn setup_context(test_name: &str, providers: Providers) -> Option<TestCont
 		service.cfg.providers.embedding.model,
 		service.cfg.storage.qdrant.vector_dim
 	);
+
 	Some(TestContext { service, test_db, embedding_version })
 }
 
 async fn reset_collection(service: &ElfService) {
-	let _ = service.qdrant.client.delete_collection(service.qdrant.collection.clone()).await;
-
-	let mut vectors_config = VectorsConfigBuilder::default();
-	vectors_config
-		.add_named_vector_params(DENSE_VECTOR_NAME, VectorParamsBuilder::new(3, Distance::Cosine));
-
-	let mut sparse_vectors_config = SparseVectorsConfigBuilder::default();
-
-	sparse_vectors_config.add_named_vector_params(
-		BM25_VECTOR_NAME,
-		SparseVectorParamsBuilder::default().modifier(Modifier::Idf as i32),
-	);
-	service
-		.qdrant
-		.client
-		.create_collection(
-			CreateCollectionBuilder::new(service.qdrant.collection.clone())
-				.vectors_config(vectors_config)
-				.sparse_vectors_config(sparse_vectors_config),
-		)
-		.await
-		.expect("Failed to create Qdrant collection.");
+	super::reset_qdrant_collection(
+		&service.qdrant.client,
+		&service.qdrant.collection,
+		service.qdrant.vector_dim,
+	)
+	.await
+	.expect("Failed to reset Qdrant collection.");
 }
 
 async fn insert_note(pool: &PgPool, note_id: Uuid, note_text: &str, embedding_version: &str) {
 	let now = OffsetDateTime::now_utc();
 
-	sqlx::query(
+	sqlx::query!(
 		"\
-INSERT INTO memory_notes (
-	note_id,
-	tenant_id,
+	INSERT INTO memory_notes (
+		note_id,
+		tenant_id,
 	project_id,
 	agent_id,
 	scope,
@@ -157,28 +139,28 @@ VALUES (
 	$14,
 	$15,
 	$16,
-	$17,
-	$18
-)",
+		$17,
+		$18
+	)",
+		note_id,
+		"t",
+		"p",
+		"a",
+		"agent_private",
+		"fact",
+		None::<String>,
+		note_text,
+		0.4_f32,
+		0.9_f32,
+		"active",
+		now,
+		now,
+		None::<OffsetDateTime>,
+		embedding_version,
+		serde_json::json!({}),
+		0_i64,
+		None::<OffsetDateTime>,
 	)
-	.bind(note_id)
-	.bind("t")
-	.bind("p")
-	.bind("a")
-	.bind("agent_private")
-	.bind("fact")
-	.bind::<Option<String>>(None)
-	.bind(note_text)
-	.bind(0.4_f32)
-	.bind(0.9_f32)
-	.bind("active")
-	.bind(now)
-	.bind(now)
-	.bind::<Option<OffsetDateTime>>(None)
-	.bind(embedding_version)
-	.bind(serde_json::json!({}))
-	.bind(0_i64)
-	.bind::<Option<OffsetDateTime>>(None)
 	.execute(pool)
 	.await
 	.expect("Failed to insert memory note.");
@@ -195,26 +177,26 @@ async fn insert_chunk(
 	text: &str,
 	embedding_version: &str,
 ) {
-	sqlx::query(
+	sqlx::query!(
 		"\
-INSERT INTO memory_note_chunks (
-	chunk_id,
-	note_id,
+	INSERT INTO memory_note_chunks (
+		chunk_id,
+		note_id,
 	chunk_index,
 	start_offset,
 	end_offset,
 	text,
 	embedding_version
-)
-VALUES ($1, $2, $3, $4, $5, $6, $7)",
 	)
-	.bind(chunk_id)
-	.bind(note_id)
-	.bind(chunk_index)
-	.bind(start_offset)
-	.bind(end_offset)
-	.bind(text)
-	.bind(embedding_version)
+	VALUES ($1, $2, $3, $4, $5, $6, $7)",
+		chunk_id,
+		note_id,
+		chunk_index,
+		start_offset,
+		end_offset,
+		text,
+		embedding_version,
+	)
 	.execute(pool)
 	.await
 	.expect("Failed to insert chunk metadata.");
@@ -315,7 +297,6 @@ async fn search_returns_chunk_items() {
 		})
 		.await
 		.expect("Search failed.");
-
 	let item = response.items.first().expect("Expected search result.");
 
 	assert_eq!(item.chunk_id, chunk_id);
@@ -377,7 +358,6 @@ async fn search_stitches_adjacent_chunks() {
 		})
 		.await
 		.expect("Search failed.");
-
 	let item = response.items.first().expect("Expected search result.");
 
 	assert_eq!(item.chunk_id, chunk_id);
@@ -474,6 +454,9 @@ async fn progressive_search_returns_index_timeline_and_details() {
 	let timeline = context
 		.service
 		.search_timeline(SearchTimelineRequest {
+			tenant_id: "t".to_string(),
+			project_id: "p".to_string(),
+			agent_id: "a".to_string(),
 			search_session_id: index.search_session_id,
 			group_by: None,
 		})
@@ -485,13 +468,15 @@ async fn progressive_search_returns_index_timeline_and_details() {
 	let details = context
 		.service
 		.search_details(SearchDetailsRequest {
+			tenant_id: "t".to_string(),
+			project_id: "p".to_string(),
+			agent_id: "a".to_string(),
 			search_session_id: index.search_session_id,
 			note_ids: vec![note_id],
 			record_hits: Some(false),
 		})
 		.await
 		.expect("Search details failed.");
-
 	let returned = details
 		.results
 		.first()
@@ -558,7 +543,6 @@ async fn search_dedupes_note_results() {
 		})
 		.await
 		.expect("Search failed.");
-
 	let item = response.items.first().expect("Expected search result.");
 
 	assert_eq!(response.items.len(), 1);

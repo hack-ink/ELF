@@ -65,7 +65,7 @@ impl ElfService {
 
 		let mut builder = QueryBuilder::new(
 			"SELECT note_id, tenant_id, project_id, agent_id, scope, type, key, text, importance, confidence, status, created_at, updated_at, expires_at, embedding_version, source_ref, hit_count, last_hit_at \
-             FROM memory_notes WHERE tenant_id = ",
+					FROM memory_notes WHERE tenant_id = ",
 		);
 		builder.push_bind(tenant_id);
 		builder.push(" AND project_id = ");

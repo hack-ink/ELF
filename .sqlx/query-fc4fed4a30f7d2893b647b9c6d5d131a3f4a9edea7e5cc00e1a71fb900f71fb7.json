@@ -1,0 +1,126 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT *\nFROM memory_notes\nWHERE note_id = $1 AND tenant_id = $2 AND project_id = $3\nFOR UPDATE",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "note_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "tenant_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "project_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "agent_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "scope",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "text",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "importance",
+        "type_info": "Float4"
+      },
+      {
+        "ordinal": 9,
+        "name": "confidence",
+        "type_info": "Float4"
+      },
+      {
+        "ordinal": 10,
+        "name": "status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 13,
+        "name": "expires_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 14,
+        "name": "embedding_version",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "source_ref",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 16,
+        "name": "hit_count",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 17,
+        "name": "last_hit_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "fc4fed4a30f7d2893b647b9c6d5d131a3f4a9edea7e5cc00e1a71fb900f71fb7"
+}

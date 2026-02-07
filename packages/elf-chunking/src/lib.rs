@@ -35,6 +35,7 @@ pub fn split_text(text: &str, cfg: &ChunkingConfig, tokenizer: &Tokenizer) -> Ve
 			Ok(encoding) => encoding.len(),
 			Err(err) => {
 				tracing::error!(error = %err, "Tokenizer failed to encode sentence candidate.");
+
 				0
 			},
 		};
@@ -75,6 +76,7 @@ fn overlap_tail(text: &str, overlap_tokens: u32, tokenizer: &Tokenizer) -> Strin
 		Ok(encoding) => encoding,
 		Err(err) => {
 			tracing::error!(error = %err, "Tokenizer failed to encode overlap tail.");
+
 			return String::new();
 		},
 	};
@@ -85,6 +87,7 @@ fn overlap_tail(text: &str, overlap_tokens: u32, tokenizer: &Tokenizer) -> Strin
 		Ok(decoded) => decoded,
 		Err(err) => {
 			tracing::error!(error = %err, "Tokenizer failed to decode overlap tail.");
+
 			String::new()
 		},
 	}

@@ -11,10 +11,12 @@ use super::{
 async fn add_note_is_idempotent() {
 	let Some(test_db) = test_db().await else {
 		eprintln!("Skipping add_note_is_idempotent; set ELF_PG_DSN to run this test.");
+
 		return;
 	};
 	let Some(qdrant_url) = test_qdrant_url() else {
 		eprintln!("Skipping add_note_is_idempotent; set ELF_QDRANT_URL to run this test.");
+
 		return;
 	};
 	let extractor = SpyExtractor {
@@ -26,10 +28,10 @@ async fn add_note_is_idempotent() {
 		Arc::new(StubRerank),
 		Arc::new(extractor),
 	);
-
 	let collection = test_db.collection_name("elf_acceptance");
 	let cfg = test_config(test_db.dsn().to_string(), qdrant_url, 3, collection);
 	let service = build_service(cfg, providers).await.expect("Failed to build service.");
+
 	super::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
 
 	let request = AddNoteRequest {
@@ -47,12 +49,12 @@ async fn add_note_is_idempotent() {
 			source_ref: serde_json::json!({}),
 		}],
 	};
-
 	let first = service.add_note(request.clone()).await.expect("First add_note failed.");
-	assert_eq!(first.results.len(), 1);
-
 	let second = service.add_note(request).await.expect("Second add_note failed.");
+
+	assert_eq!(first.results.len(), 1);
 	assert_eq!(second.results.len(), 1);
 	assert_eq!(second.results[0].op, NoteOp::None);
+
 	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }

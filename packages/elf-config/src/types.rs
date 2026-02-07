@@ -15,6 +15,7 @@ pub struct Config {
 	pub lifecycle: Lifecycle,
 	pub security: Security,
 	pub context: Option<Context>,
+	pub mcp: Option<McpContext>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -26,6 +27,15 @@ pub struct Context {
 	/// Optional. Additive boost applied to final scores when a query's tokens match a scope
 	/// description.
 	pub scope_boost_weight: Option<f32>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct McpContext {
+	pub tenant_id: String,
+	pub project_id: String,
+	pub agent_id: String,
+	#[serde(default = "default_read_profile")]
+	pub read_profile: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -177,8 +187,6 @@ pub struct SearchCache {
 	pub expansion_ttl_days: i64,
 	pub rerank_ttl_days: i64,
 	pub max_payload_bytes: Option<u64>,
-	pub expansion_version: String,
-	pub rerank_version: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -217,4 +225,8 @@ pub struct Security {
 	pub evidence_min_quotes: u32,
 	pub evidence_max_quotes: u32,
 	pub evidence_max_quote_chars: u32,
+}
+
+fn default_read_profile() -> String {
+	"private_plus_project".to_string()
 }

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE indexing_outbox SET status = 'DONE', updated_at = $1 WHERE outbox_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a9e1bbf9a3c6210ee2b16438c754018d44cae6746c0e5f7febea82bc8795bbd7"
+}

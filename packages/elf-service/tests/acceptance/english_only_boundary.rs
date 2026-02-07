@@ -9,15 +9,39 @@ use super::{
 	SpyExtractor, StubEmbedding, StubRerank, build_service, test_config, test_db, test_qdrant_url,
 };
 
+async fn build_test_service(
+	dsn: String,
+	qdrant_url: String,
+	collection: String,
+) -> Option<ElfService> {
+	let extractor = SpyExtractor {
+		calls: Arc::new(AtomicUsize::new(0)),
+		payload: serde_json::json!({ "notes": [] }),
+	};
+	let providers = Providers::new(
+		Arc::new(StubEmbedding { vector_dim: 3 }),
+		Arc::new(StubRerank),
+		Arc::new(extractor),
+	);
+	let cfg = test_config(dsn, qdrant_url, 3, collection);
+	let service = build_service(cfg, providers).await.expect("Failed to build service.");
+
+	super::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
+
+	Some(service)
+}
+
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
 async fn rejects_cjk_in_add_note() {
 	let Some(test_db) = test_db().await else {
 		eprintln!("Skipping english_only_boundary; set ELF_PG_DSN to run this test.");
+
 		return;
 	};
 	let Some(qdrant_url) = test_qdrant_url() else {
 		eprintln!("Skipping english_only_boundary; set ELF_QDRANT_URL to run this test.");
+
 		return;
 	};
 	let collection = test_db.collection_name("elf_acceptance");
@@ -25,7 +49,6 @@ async fn rejects_cjk_in_add_note() {
 	else {
 		return;
 	};
-
 	let request = AddNoteRequest {
 		tenant_id: "t".to_string(),
 		project_id: "p".to_string(),
@@ -41,14 +64,15 @@ async fn rejects_cjk_in_add_note() {
 			source_ref: serde_json::json!({}),
 		}],
 	};
-
 	let result = service.add_note(request).await;
+
 	match result {
 		Err(ServiceError::NonEnglishInput { field }) => {
 			assert_eq!(field, "$.notes[0].text");
 		},
 		other => panic!("Expected NonEnglishInput, got {other:?}"),
 	}
+
 	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }
 
@@ -57,10 +81,12 @@ async fn rejects_cjk_in_add_note() {
 async fn rejects_cjk_in_add_event() {
 	let Some(test_db) = test_db().await else {
 		eprintln!("Skipping english_only_boundary; set ELF_PG_DSN to run this test.");
+
 		return;
 	};
 	let Some(qdrant_url) = test_qdrant_url() else {
 		eprintln!("Skipping english_only_boundary; set ELF_QDRANT_URL to run this test.");
+
 		return;
 	};
 	let collection = test_db.collection_name("elf_acceptance");
@@ -68,7 +94,6 @@ async fn rejects_cjk_in_add_event() {
 	else {
 		return;
 	};
-
 	let request = AddEventRequest {
 		tenant_id: "t".to_string(),
 		project_id: "p".to_string(),
@@ -82,14 +107,15 @@ async fn rejects_cjk_in_add_event() {
 			msg_id: None,
 		}],
 	};
-
 	let result = service.add_event(request).await;
+
 	match result {
 		Err(ServiceError::NonEnglishInput { field }) => {
 			assert_eq!(field, "$.messages[0].content");
 		},
 		other => panic!("Expected NonEnglishInput, got {other:?}"),
 	}
+
 	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }
 
@@ -98,10 +124,12 @@ async fn rejects_cjk_in_add_event() {
 async fn rejects_cjk_in_search() {
 	let Some(test_db) = test_db().await else {
 		eprintln!("Skipping english_only_boundary; set ELF_PG_DSN to run this test.");
+
 		return;
 	};
 	let Some(qdrant_url) = test_qdrant_url() else {
 		eprintln!("Skipping english_only_boundary; set ELF_QDRANT_URL to run this test.");
+
 		return;
 	};
 	let collection = test_db.collection_name("elf_acceptance");
@@ -109,7 +137,6 @@ async fn rejects_cjk_in_search() {
 	else {
 		return;
 	};
-
 	let request = SearchRequest {
 		tenant_id: "t".to_string(),
 		project_id: "p".to_string(),
@@ -120,34 +147,14 @@ async fn rejects_cjk_in_search() {
 		candidate_k: Some(10),
 		record_hits: Some(false),
 	};
-
 	let result = service.search(request).await;
+
 	match result {
 		Err(ServiceError::NonEnglishInput { field }) => {
 			assert_eq!(field, "$.query");
 		},
 		other => panic!("Expected NonEnglishInput, got {other:?}"),
 	}
+
 	test_db.cleanup().await.expect("Failed to cleanup test database.");
-}
-
-async fn build_test_service(
-	dsn: String,
-	qdrant_url: String,
-	collection: String,
-) -> Option<ElfService> {
-	let extractor = SpyExtractor {
-		calls: Arc::new(AtomicUsize::new(0)),
-		payload: serde_json::json!({ "notes": [] }),
-	};
-	let providers = Providers::new(
-		Arc::new(StubEmbedding { vector_dim: 3 }),
-		Arc::new(StubRerank),
-		Arc::new(extractor),
-	);
-
-	let cfg = test_config(dsn, qdrant_url, 3, collection);
-	let service = build_service(cfg, providers).await.expect("Failed to build service.");
-	super::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
-	Some(service)
 }

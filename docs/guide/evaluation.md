@@ -76,12 +76,19 @@ To measure cross-scope misranking before and after enabling context boosting, us
 script:
 
 ```bash
+cargo make e2e
+```
+
+Or run the script directly:
+
+```bash
 scripts/context-misranking-harness.sh
 ```
 
 What it does:
 
 - Creates a dedicated database (default: `elf_e2e`).
+- Creates a dedicated Qdrant collection for the run (default: `elf_harness_<run_id>`).
 - Starts `elf-worker` and `elf-api` with deterministic local providers:
   - `providers.embedding.provider_id = "local"` (token-hash embedding).
   - `providers.rerank.provider_id = "local"` (token overlap rerank).
@@ -91,18 +98,23 @@ What it does:
   - Baseline: no `[context]`.
   - Context: `context.scope_descriptions` + `context.scope_boost_weight`.
 - Prints `recall@1` and the top-ranked note ID for both runs, then deletes the notes.
+- Deletes the dedicated database and collection unless `ELF_HARNESS_KEEP_DB=1` or
+  `ELF_HARNESS_KEEP_COLLECTION=1` is set.
 
 Prerequisites:
 
 - Postgres is running and reachable.
-- Qdrant is running and reachable, and `mem_notes_v1` exists with vector size 4096.
+- Qdrant is running and reachable.
 - Environment variables are set:
   - `ELF_PG_DSN` (base DSN, typically ending in `/postgres`)
   - `ELF_QDRANT_URL` (Qdrant gRPC URL, commonly `http://127.0.0.1:51890` in this repository)
-- `psql`, `curl`, and `jaq` (or `jq`) are installed.
+  - `ELF_QDRANT_HTTP_URL` (Qdrant REST URL, commonly `http://127.0.0.1:51889` in this repository)
+- `psql`, `curl`, `taplo`, and `jaq` (or `jq`) are installed.
 
 Configuration:
 
 - Override the database name with `ELF_HARNESS_DB_NAME`.
+- Override the run identifier with `ELF_HARNESS_RUN_ID`.
+- Override the collection name with `ELF_HARNESS_COLLECTION` (must start with `elf_harness_`).
 - Override the API binds with `ELF_HARNESS_HTTP_BIND`, `ELF_HARNESS_ADMIN_BIND`,
   and `ELF_HARNESS_MCP_BIND`.

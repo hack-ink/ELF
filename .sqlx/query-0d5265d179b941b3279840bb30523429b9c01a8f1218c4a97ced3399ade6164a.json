@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n\t\tnote_id AS \"note_id!\",\n\t\t(1 - (vec <=> $1::text::vector))::real AS \"similarity!\"\n\tFROM note_embeddings\n\tWHERE note_id = ANY($2) AND embedding_version = $3",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "note_id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "similarity!",
+        "type_info": "Float4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "UuidArray",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      null
+    ]
+  },
+  "hash": "0d5265d179b941b3279840bb30523429b9c01a8f1218c4a97ced3399ade6164a"
+}
