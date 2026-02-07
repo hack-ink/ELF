@@ -100,11 +100,11 @@ async fn reset_collection(service: &ElfService) {
 async fn insert_note(pool: &PgPool, note_id: Uuid, note_text: &str, embedding_version: &str) {
 	let now = OffsetDateTime::now_utc();
 
-	sqlx::query!(
+	sqlx::query(
 		"\
-	INSERT INTO memory_notes (
-		note_id,
-		tenant_id,
+		INSERT INTO memory_notes (
+			note_id,
+			tenant_id,
 	project_id,
 	agent_id,
 	scope,
@@ -139,28 +139,28 @@ VALUES (
 	$14,
 	$15,
 	$16,
-		$17,
-		$18
-	)",
-		note_id,
-		"t",
-		"p",
-		"a",
-		"agent_private",
-		"fact",
-		None::<String>,
-		note_text,
-		0.4_f32,
-		0.9_f32,
-		"active",
-		now,
-		now,
-		None::<OffsetDateTime>,
-		embedding_version,
-		serde_json::json!({}),
-		0_i64,
-		None::<OffsetDateTime>,
+			$17,
+			$18
+		)",
 	)
+	.bind(note_id)
+	.bind("t")
+	.bind("p")
+	.bind("a")
+	.bind("agent_private")
+	.bind("fact")
+	.bind(Option::<String>::None)
+	.bind(note_text)
+	.bind(0.4_f32)
+	.bind(0.9_f32)
+	.bind("active")
+	.bind(now)
+	.bind(now)
+	.bind(Option::<OffsetDateTime>::None)
+	.bind(embedding_version)
+	.bind(serde_json::json!({}))
+	.bind(0_i64)
+	.bind(Option::<OffsetDateTime>::None)
 	.execute(pool)
 	.await
 	.expect("Failed to insert memory note.");
@@ -177,26 +177,26 @@ async fn insert_chunk(
 	text: &str,
 	embedding_version: &str,
 ) {
-	sqlx::query!(
+	sqlx::query(
 		"\
-	INSERT INTO memory_note_chunks (
-		chunk_id,
+		INSERT INTO memory_note_chunks (
+			chunk_id,
 		note_id,
 	chunk_index,
 	start_offset,
 	end_offset,
 	text,
 	embedding_version
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)",
 	)
-	VALUES ($1, $2, $3, $4, $5, $6, $7)",
-		chunk_id,
-		note_id,
-		chunk_index,
-		start_offset,
-		end_offset,
-		text,
-		embedding_version,
-	)
+	.bind(chunk_id)
+	.bind(note_id)
+	.bind(chunk_index)
+	.bind(start_offset)
+	.bind(end_offset)
+	.bind(text)
+	.bind(embedding_version)
 	.execute(pool)
 	.await
 	.expect("Failed to insert chunk metadata.");

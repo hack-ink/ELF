@@ -31,11 +31,8 @@ fn chunk_tables_exist_after_bootstrap() {
 		let cfg = elf_config::Postgres { dsn: dsn.clone(), pool_max_conns: 1 };
 		let db = Db::connect(&cfg).await.expect("Failed to connect to Postgres.");
 		db.ensure_schema(3).await.expect("Failed to ensure schema.");
-		let count: i64 = sqlx::query_scalar!(
-			"\
-SELECT count(*) AS \"count!\"
-FROM information_schema.tables
-WHERE table_name = 'memory_note_chunks'",
+		let count: i64 = sqlx::query_scalar(
+			"SELECT count(*) FROM information_schema.tables WHERE table_name = 'memory_note_chunks'",
 		)
 		.fetch_one(&db.pool)
 		.await
