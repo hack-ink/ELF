@@ -36,17 +36,16 @@ async fn wait_for_status(
 ) -> Option<OutboxRow> {
 	let deadline = Instant::now() + timeout;
 	loop {
-		let row: Option<OutboxRow> = sqlx::query_as!(
-			OutboxRow,
+		let row: Option<OutboxRow> = sqlx::query_as::<_, OutboxRow>(
 			"\
 SELECT
-	status AS \"status!\",
-	attempts AS \"attempts!\",
+	status,
+	attempts,
 	last_error
 FROM indexing_outbox
 WHERE note_id = $1",
-			note_id,
 		)
+		.bind(note_id)
 		.fetch_optional(pool)
 		.await
 		.ok()
@@ -206,7 +205,9 @@ async fn outbox_retries_to_done() {
 
 	let now = OffsetDateTime::now_utc();
 
-	sqlx::query!("UPDATE indexing_outbox SET available_at = $1 WHERE note_id = $2", now, note_id,)
+	sqlx::query("UPDATE indexing_outbox SET available_at = $1 WHERE note_id = $2")
+		.bind(now)
+		.bind(note_id)
 		.execute(&service.db.pool)
 		.await
 		.expect("Failed to update available_at.");

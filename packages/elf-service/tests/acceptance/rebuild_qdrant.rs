@@ -56,11 +56,11 @@ async fn rebuild_uses_postgres_vectors_only() {
 		service.cfg.storage.qdrant.vector_dim
 	);
 
-	sqlx::query!(
+	sqlx::query(
 		"\
-	INSERT INTO memory_notes (
-		note_id,
-		tenant_id,
+		INSERT INTO memory_notes (
+			note_id,
+			tenant_id,
 	project_id,
 	agent_id,
 	scope,
@@ -95,28 +95,28 @@ VALUES (
 	$14,
 	$15,
 	$16,
-		$17,
-		$18
-	)",
-		note_id,
-		"t",
-		"p",
-		"a",
-		"agent_private",
-		"fact",
-		None::<String>,
-		"Fact: Rebuild works.",
-		0.5_f32,
-		0.9_f32,
-		"active",
-		now,
-		now,
-		None::<OffsetDateTime>,
-		embedding_version.as_str(),
-		serde_json::json!({}),
-		0_i64,
-		None::<OffsetDateTime>,
+			$17,
+			$18
+		)",
 	)
+	.bind(note_id)
+	.bind("t")
+	.bind("p")
+	.bind("a")
+	.bind("agent_private")
+	.bind("fact")
+	.bind(Option::<String>::None)
+	.bind("Fact: Rebuild works.")
+	.bind(0.5_f32)
+	.bind(0.9_f32)
+	.bind("active")
+	.bind(now)
+	.bind(now)
+	.bind(Option::<OffsetDateTime>::None)
+	.bind(embedding_version.as_str())
+	.bind(serde_json::json!({}))
+	.bind(0_i64)
+	.bind(Option::<OffsetDateTime>::None)
 	.execute(&service.db.pool)
 	.await
 	.expect("Failed to insert memory note.");
@@ -124,39 +124,39 @@ VALUES (
 	let chunk_id = Uuid::new_v4();
 	let text = "Fact: Rebuild works.";
 
-	sqlx::query!(
+	sqlx::query(
 		"\
-	INSERT INTO memory_note_chunks (
-		chunk_id,
+		INSERT INTO memory_note_chunks (
+			chunk_id,
 		note_id,
 	chunk_index,
 	start_offset,
 	end_offset,
 	text,
 	embedding_version
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)",
 	)
-	VALUES ($1, $2, $3, $4, $5, $6, $7)",
-		chunk_id,
-		note_id,
-		0_i32,
-		0_i32,
-		text.len() as i32,
-		text,
-		embedding_version.as_str(),
-	)
+	.bind(chunk_id)
+	.bind(note_id)
+	.bind(0_i32)
+	.bind(0_i32)
+	.bind(text.len() as i32)
+	.bind(text)
+	.bind(embedding_version.as_str())
 	.execute(&service.db.pool)
 	.await
 	.expect("Failed to insert chunk metadata.");
 
-	sqlx::query!(
+	sqlx::query(
 		"\
-		INSERT INTO note_chunk_embeddings (chunk_id, embedding_version, embedding_dim, vec)
-		VALUES ($1, $2, $3, $4::text::vector)",
-		chunk_id,
-		embedding_version.as_str(),
-		3_i32,
-		"[0,0,0]",
+			INSERT INTO note_chunk_embeddings (chunk_id, embedding_version, embedding_dim, vec)
+			VALUES ($1, $2, $3, $4::text::vector)",
 	)
+	.bind(chunk_id)
+	.bind(embedding_version.as_str())
+	.bind(3_i32)
+	.bind("[0,0,0]")
 	.execute(&service.db.pool)
 	.await
 	.expect("Failed to insert chunk embedding.");
