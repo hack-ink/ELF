@@ -23,6 +23,7 @@ impl EmbeddingProvider for DummyEmbedding {
 	) -> elf_service::BoxFuture<'a, color_eyre::Result<Vec<Vec<f32>>>> {
 		let dim = (cfg.dimensions as usize).max(1);
 		let vec = vec![0.0; dim];
+
 		Box::pin(async move { Ok(vec![vec; texts.len()]) })
 	}
 }
@@ -37,6 +38,7 @@ impl RerankProvider for DummyRerank {
 		docs: &'a [String],
 	) -> elf_service::BoxFuture<'a, color_eyre::Result<Vec<f32>>> {
 		let scores = vec![0.0; docs.len()];
+
 		Box::pin(async move { Ok(scores) })
 	}
 }
@@ -44,7 +46,6 @@ impl RerankProvider for DummyRerank {
 struct SpyExtractor {
 	calls: Arc<AtomicUsize>,
 }
-
 impl SpyExtractor {
 	fn new() -> Self {
 		Self { calls: Arc::new(AtomicUsize::new(0)) }
@@ -54,7 +55,6 @@ impl SpyExtractor {
 		self.calls.load(Ordering::SeqCst)
 	}
 }
-
 impl ExtractorProvider for SpyExtractor {
 	fn extract<'a>(
 		&'a self,
@@ -62,6 +62,7 @@ impl ExtractorProvider for SpyExtractor {
 		_messages: &'a [Value],
 	) -> elf_service::BoxFuture<'a, color_eyre::Result<Value>> {
 		self.calls.fetch_add(1, Ordering::SeqCst);
+
 		Box::pin(async move { Ok(serde_json::json!({ "notes": [] })) })
 	}
 }
@@ -81,7 +82,7 @@ fn test_config() -> Config {
 			},
 			qdrant: elf_config::Qdrant {
 				url: "http://localhost:6334".to_string(),
-				collection: "mem_notes_v1".to_string(),
+				collection: "mem_notes_v2".to_string(),
 				vector_dim: 3,
 			},
 		},
@@ -129,8 +130,6 @@ fn test_config() -> Config {
 				expansion_ttl_days: 7,
 				rerank_ttl_days: 7,
 				max_payload_bytes: Some(262_144),
-				expansion_version: "v1".to_string(),
-				rerank_version: "v1".to_string(),
 			},
 			explain: elf_config::SearchExplain { retention_days: 7 },
 		},
@@ -162,6 +161,7 @@ fn test_config() -> Config {
 			evidence_max_quote_chars: 320,
 		},
 		context: None,
+		mcp: None,
 	}
 }
 
@@ -210,10 +210,8 @@ async fn add_note_does_not_call_llm() {
 		PgPool::connect_lazy(&cfg.storage.postgres.dsn).expect("Failed to create lazy pool.");
 	let db = Db { pool };
 	let qdrant = QdrantStore::new(&cfg.storage.qdrant).expect("Failed to create Qdrant store.");
-
 	let spy = Arc::new(SpyExtractor::new());
 	let providers = Providers::new(Arc::new(DummyEmbedding), Arc::new(DummyRerank), spy.clone());
-
 	let service = ElfService::with_providers(cfg, db, qdrant, providers);
 	let req = AddNoteRequest {
 		tenant_id: "t1".to_string(),
@@ -230,9 +228,10 @@ async fn add_note_does_not_call_llm() {
 			source_ref: serde_json::json!({}),
 		}],
 	};
-
 	let result = service.add_note(req).await;
+
 	assert!(matches!(result, Err(ServiceError::NonEnglishInput { .. })));
+
 	assert_eq!(spy.count(), 0);
 }
 
@@ -243,10 +242,8 @@ async fn add_note_rejects_empty_notes() {
 		PgPool::connect_lazy(&cfg.storage.postgres.dsn).expect("Failed to create lazy pool.");
 	let db = Db { pool };
 	let qdrant = QdrantStore::new(&cfg.storage.qdrant).expect("Failed to create Qdrant store.");
-
 	let spy = Arc::new(SpyExtractor::new());
 	let providers = Providers::new(Arc::new(DummyEmbedding), Arc::new(DummyRerank), spy.clone());
-
 	let service = ElfService::with_providers(cfg, db, qdrant, providers);
 	let req = AddNoteRequest {
 		tenant_id: "t1".to_string(),
@@ -255,8 +252,9 @@ async fn add_note_rejects_empty_notes() {
 		scope: "agent_private".to_string(),
 		notes: vec![],
 	};
-
 	let result = service.add_note(req).await;
+
 	assert!(matches!(result, Err(ServiceError::InvalidRequest { .. })));
+
 	assert_eq!(spy.count(), 0);
 }

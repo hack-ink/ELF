@@ -8,14 +8,33 @@ Name: This flow is the E2E test in `docs/guide/testing.md`.
 - After adding or changing memory ingestion, ranking, or storage behavior.
 - Before shipping changes that affect retrieval quality or service wiring.
 
+## Fast path (automated)
+
+Run the ignored integration suite (requires external Postgres and Qdrant):
+
+```bash
+ELF_PG_DSN="postgres://postgres:postgres@127.0.0.1:51888/postgres" \
+ELF_QDRANT_URL="http://127.0.0.1:51890" \
+cargo make test-integration
+```
+
+Run the context misranking harness (creates and drops a dedicated database and collection):
+
+```bash
+ELF_PG_DSN="postgres://postgres:postgres@127.0.0.1:51888/postgres" \
+ELF_QDRANT_URL="http://127.0.0.1:51890" \
+ELF_QDRANT_HTTP_URL="http://127.0.0.1:51889" \
+cargo make e2e
+```
+
 ## Preconditions
 
 - Postgres is running and reachable.
 - Qdrant is running and reachable.
 - You have a config file with valid storage and provider settings.
-- You can create and drop a dedicated database named `elf_e2e`.
+- You can create and drop databases on your Postgres instance.
 
-Note: Use the existing collection configured in your `elf.toml`. Do not create a new collection for this flow. Keep test data isolated by tenant, project, and agent identifiers, then clean it up after the run.
+Note: The automated harness creates a dedicated Qdrant collection per run and deletes it on exit. The ignored integration suite uses per-test collections and cleans them up during teardown.
 Note: Qdrant exposes a REST API (default: 6333) and a gRPC API (default: 6334). The `storage.qdrant.url` field is the gRPC base URL. In this repository's local setup, REST is commonly mapped to port 51889 and gRPC to port 51890.
 Note: The local Postgres instance in this repository typically runs on port `51888`. Adjust the DSN if your setup differs.
 
@@ -35,12 +54,12 @@ dsn            = "postgres://postgres:postgres@127.0.0.1:51888/elf_e2e"
 pool_max_conns = 10
 
 [storage.qdrant]
-collection = "mem_notes_v1"
+collection = "mem_notes_v2"
 url        = "http://127.0.0.1:51890"
 vector_dim = 4096
 
 [providers.embedding]
-api_base        = "https://provider.example/v1"
+api_base        = "https://provider.example"
 api_key         = "REPLACE_ME"
 model           = "embedding-model"
 path            = "/embeddings"
@@ -51,7 +70,7 @@ timeout_ms      = 20000
 default_headers = {}
 
 [providers.rerank]
-api_base        = "https://provider.example/v1"
+api_base        = "https://provider.example"
 api_key         = "REPLACE_ME"
 model           = "rerank-model"
 path            = "/rerank"
@@ -61,7 +80,7 @@ timeout_ms      = 20000
 default_headers = {}
 
 [providers.llm_extractor]
-api_base        = "https://provider.example/v1"
+api_base        = "https://provider.example"
 api_key         = "REPLACE_ME"
 model           = "llm-model"
 path            = "/chat/completions"
@@ -160,12 +179,12 @@ cargo run -p elf-api -- --config tmp/elf.integration.toml
 Use a dedicated tenant, project, and agent to isolate test data.
 
 ```bash
-curl -sS http://127.0.0.1:51892/v1/memory/add_note \
+curl -sS http://127.0.0.1:51892/v2/notes/ingest \
   -H 'content-type: application/json' \
+  -H 'X-ELF-Tenant-Id: it-tenant' \
+  -H 'X-ELF-Project-Id: it-project' \
+  -H 'X-ELF-Agent-Id: it-agent' \
   -d '{
-    "tenant_id": "it-tenant",
-    "project_id": "it-project",
-    "agent_id": "it-agent",
     "scope": "project_shared",
     "notes": [
       {
@@ -249,23 +268,15 @@ Recommended (quality signal):
 Use the returned note IDs from Step 3.
 
 ```bash
-curl -sS http://127.0.0.1:51892/v1/memory/delete \
-  -H 'content-type: application/json' \
-  -d '{
-    "tenant_id": "it-tenant",
-    "project_id": "it-project",
-    "agent_id": "it-agent",
-    "note_id": "NOTE_ID_1"
-  }'
+curl -sS -X DELETE http://127.0.0.1:51892/v2/notes/NOTE_ID_1 \
+  -H 'X-ELF-Tenant-Id: it-tenant' \
+  -H 'X-ELF-Project-Id: it-project' \
+  -H 'X-ELF-Agent-Id: it-agent'
 
-curl -sS http://127.0.0.1:51892/v1/memory/delete \
-  -H 'content-type: application/json' \
-  -d '{
-    "tenant_id": "it-tenant",
-    "project_id": "it-project",
-    "agent_id": "it-agent",
-    "note_id": "NOTE_ID_2"
-  }'
+curl -sS -X DELETE http://127.0.0.1:51892/v2/notes/NOTE_ID_2 \
+  -H 'X-ELF-Tenant-Id: it-tenant' \
+  -H 'X-ELF-Project-Id: it-project' \
+  -H 'X-ELF-Agent-Id: it-agent'
 ```
 
 ## Troubleshooting

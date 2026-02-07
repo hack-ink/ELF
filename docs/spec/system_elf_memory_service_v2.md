@@ -1,4 +1,4 @@
-# ELF Memory Service v1.0 Specification
+# ELF Memory Service v2.0 Specification
 
 Description: ELF means Evidence-linked fact memory for agents.
 
@@ -19,7 +19,7 @@ Multi-tenant namespace:
 - tenant_id, project_id, agent_id, scope, read_profile.
 
 Optional future work:
-- Graph memory backend (Neo4j) is reserved and out of scope for v1.0.
+- Graph memory backend (Neo4j) is reserved and out of scope for v2.0.
 
 ============================================================
 0. INVARIANTS (MUST HOLD)
@@ -74,7 +74,7 @@ pool_max_conns = <REQUIRED_INT>
 
 [storage.qdrant]
 url = "<REQUIRED_URL>"
-collection = "mem_notes_v1"
+collection = "mem_notes_v2"
 vector_dim = <REQUIRED_INT>
 
 [providers.embedding]
@@ -83,7 +83,7 @@ api_base = "<REQUIRED_URL>"
 api_key = "<REQUIRED_NON_EMPTY>"
 path = "<REQUIRED_PATH>"
 model = "<REQUIRED_MODEL>"
-dimensions = "<REQUIRED_INT>"
+dimensions = <REQUIRED_INT>
 timeout_ms = <REQUIRED_INT>
 # Must exist. Empty map is allowed.
 default_headers = {}
@@ -162,8 +162,6 @@ expansion_ttl_days = <REQUIRED_INT>
 rerank_ttl_days = <REQUIRED_INT>
 # Optional. Omit to disable payload size limits.
 max_payload_bytes = <OPTIONAL_INT>
-expansion_version = "<REQUIRED_NON_EMPTY>"
-rerank_version = "<REQUIRED_NON_EMPTY>"
 
 [search.explain]
 retention_days = <REQUIRED_INT>
@@ -205,6 +203,15 @@ scope_descriptions = { "<SCOPE>" = "<OPTIONAL_STRING>" }
 # Optional. Additive score boost applied when query tokens match a scope description.
 # Must be a finite number in the range 0.0-1.0. When greater than zero, scope_descriptions must be present.
 scope_boost_weight = <OPTIONAL_FLOAT>
+
+[mcp]
+# Optional. Used by elf-mcp to attach required context headers when forwarding to elf-api.
+# This section is required when running elf-mcp.
+tenant_id = "<REQUIRED_ID>"
+project_id = "<REQUIRED_ID>"
+agent_id = "<REQUIRED_ID>"
+# Optional. Default is private_plus_project.
+read_profile = "private_only|private_plus_project|all_scopes"
 
 ============================================================
 2. CLI AND CONFIG LOADING
@@ -646,8 +653,6 @@ Config:
 - search.cache.expansion_ttl_days
 - search.cache.rerank_ttl_days
 - search.cache.max_payload_bytes (optional)
-- search.cache.expansion_version
-- search.cache.rerank_version
 - search.explain.retention_days
 
 Steps:
@@ -660,7 +665,7 @@ Steps:
      candidate_count < min_candidates OR top1_fusion_score < min_top_score.
 4) If expansion is enabled, resolve expanded queries with cache support.
    - Build an expansion cache key from: query (trimmed), provider_id, model, temperature,
-     expansion_version, max_queries, include_original.
+     and the expansion cache schema version (hardcoded), plus max_queries and include_original.
    - If search.cache.enabled and a non-expired cache entry exists, use cached queries.
    - On cache miss, call the LLM expansion prompt and receive queries[].
      - Deduplicate, strip CJK, and cap at max_queries.
@@ -687,7 +692,7 @@ Steps:
 11) Fetch chunk metadata for candidate chunks and immediate neighbors from memory_note_chunks.
 12) Stitch snippets from chunk text (chunk + neighbors).
 13) Rerank once using the original query, with cache support:
-    - Build a rerank cache key from: query (trimmed), provider_id, model, rerank_version,
+    - Build a rerank cache key from: query (trimmed), provider_id, model, rerank cache schema version (hardcoded),
       and the candidate signature [(chunk_id, note_updated_at)...].
     - If search.cache.enabled and a cache entry exists that matches the candidate signature,
       reuse cached scores.
@@ -716,36 +721,41 @@ Cache notes:
 - Cache read/write failures are treated as misses and must not fail the search request.
 
 ============================================================
-14. ADMIN: REBUILD QDRANT FROM POSTGRES (NO EMBED API)
+14. ADMIN HTTP API (DEBUGGING)
 ============================================================
-Endpoint (localhost only):
-POST /v1/admin/rebuild_qdrant
+Base: http://{service.admin_bind}
+
+Note: Admin endpoints are intended for localhost use only. They are not exposed on the public bind.
+
+POST /v2/admin/qdrant/rebuild
 
 Behavior:
-- Scan memory_note_chunks joined to memory_notes where status = active and not expired.
-- For each chunk:
-  - Load vec from note_chunk_embeddings (chunk_id, embedding_version).
-  - Upsert Qdrant point with chunk vectors and payload.
+- Rebuild the Qdrant chunk index from Postgres chunk vectors.
 - Must not call the embedding API.
+- Qdrant is derived and can be dropped and recreated at any time.
 
-Report:
-- rebuilt_count
-- missing_vector_count (notes without vec)
-- error_count
+Response:
+{
+  "rebuilt_count": 0,
+  "missing_vector_count": 0,
+  "error_count": 0
+}
 
-Endpoint (localhost only):
-POST /v1/admin/memory/search/raw
+POST /v2/admin/searches/raw
+
+Headers:
+- X-ELF-Tenant-Id (required)
+- X-ELF-Project-Id (required)
+- X-ELF-Agent-Id (required)
+- X-ELF-Read-Profile (required): private_only|private_plus_project|all_scopes
+
 Body:
 {
-  "tenant_id": "...",
-  "project_id": "...",
-  "agent_id": "...",
-  "read_profile": "private_only|private_plus_project|all_scopes",
   "query": "English-only",
   "top_k": 12,
-  "candidate_k": 60,
-  "record_hits": false
+  "candidate_k": 60
 }
+
 Response:
 {
   "trace_id": "uuid",
@@ -758,9 +768,9 @@ Response:
       "start_offset": 0,
       "end_offset": 0,
       "snippet": "...",
-      "type": "...",
+      "type": "fact|plan|preference|constraint|decision|profile",
       "key": null,
-      "scope": "...",
+      "scope": "agent_private|project_shared|org_shared",
       "importance": 0.0,
       "confidence": 0.0,
       "updated_at": "...",
@@ -780,120 +790,128 @@ Response:
     }
   ]
 }
-Notes:
-- This endpoint is for debugging and evaluation only and is not exposed on the public bind.
-- result_handle is a stable handle for search explain.
-- record_hits defaults to false when omitted.
 
-Endpoint (localhost only):
-GET /v1/admin/memory/search/explain?result_handle=...
+Notes:
+- This endpoint is intended for debugging and evaluation. It returns chunk-level items and explain components.
+- The public search endpoint returns a compact note-level index view.
+
+GET /v2/admin/traces/{trace_id}
+
+Headers:
+- X-ELF-Tenant-Id (required)
+- X-ELF-Project-Id (required)
+- X-ELF-Agent-Id (required)
+
 Response:
 {
-  "trace": {
-    "trace_id": "uuid",
-    "tenant_id": "...",
-    "project_id": "...",
-    "agent_id": "...",
-    "read_profile": "...",
-    "query": "...",
-    "expansion_mode": "off|always|dynamic",
-    "expanded_queries": ["..."],
-    "allowed_scopes": ["..."],
-    "candidate_count": 0,
-    "top_k": 0,
-    "config_snapshot": { ... },
-    "trace_version": 1,
-    "created_at": "..."
-  },
-  "item": {
-    "result_handle": "uuid",
-    "note_id": "uuid",
-    "chunk_id": "uuid",
-    "rank": 1,
-    "explain": {
-      "retrieval_score": 0.0|null,
-      "retrieval_rank": 1|null,
-      "rerank_score": 0.0,
-      "tie_breaker_score": 0.0,
-      "final_score": 0.0,
-      "boosts": [{"name": "recency_importance", "score": 0.0}],
-      "matched_terms": ["..."],
-      "matched_fields": ["text","key"]
-    }
-  }
+  "trace": { ... },
+  "items": [ ... ]
 }
-Notes:
-- If result_handle is unknown or the trace has not been persisted yet, return INVALID_REQUEST.
+
+GET /v2/admin/trace-items/{item_id}
+
+Headers:
+- X-ELF-Tenant-Id (required)
+- X-ELF-Project-Id (required)
+- X-ELF-Agent-Id (required)
+
+Response:
+{
+  "trace": { ... },
+  "item": { ... }
+}
 
 ============================================================
 15. HTTP API (PUBLIC)
 ============================================================
-Base: service.http_bind
+Base: http://{service.http_bind}
 
-POST /v1/memory/add_note
+All /v2 endpoints except GET /health require context headers:
+- X-ELF-Tenant-Id (required)
+- X-ELF-Project-Id (required)
+- X-ELF-Agent-Id (required)
+
+Search creation endpoints also require:
+- X-ELF-Read-Profile (required): private_only|private_plus_project|all_scopes
+
+Header rules:
+- Headers must be valid UTF-8 strings.
+- Headers must be non-empty and at most 128 characters.
+- Headers must not contain any CJK characters.
+
+POST /v2/notes/ingest
+
+Headers:
+- X-ELF-Tenant-Id, X-ELF-Project-Id, X-ELF-Agent-Id
+
 Body:
 {
-  "tenant_id": "...",
-  "project_id": "...",
-  "agent_id": "...",
   "scope": "agent_private|project_shared|org_shared",
   "notes": [
     {
       "type": "preference|constraint|decision|profile|fact|plan",
       "key": "string|null",
       "text": "English-only sentence",
-      "importance": 0.0-1.0,
-      "confidence": 0.0-1.0,
-      "ttl_days": number|null,
+      "importance": 0.0,
+      "confidence": 0.0,
+      "ttl_days": 180,
       "source_ref": { ... }
     }
   ]
 }
+
 Response:
 {
   "results": [
-    { "note_id": "uuid", "op": "ADD|UPDATE|NONE|REJECTED", "reason_code": "..." }
+    { "note_id": "uuid|null", "op": "ADD|UPDATE|NONE|DELETE|REJECTED", "reason_code": "optional" }
   ]
 }
 
-POST /v1/memory/add_event
+Notes:
+- This endpoint is deterministic and must not call any LLM.
+
+POST /v2/events/ingest
+
+Headers:
+- X-ELF-Tenant-Id, X-ELF-Project-Id, X-ELF-Agent-Id
+
 Body:
 {
-  "tenant_id": "...",
-  "project_id": "...",
-  "agent_id": "...",
   "scope": "optional-scope",
   "dry_run": false,
   "messages": [
     { "role": "user|assistant|tool", "content": "English-only", "ts": "optional", "msg_id": "optional" }
   ]
 }
+
 Response:
 {
-  "extracted": [ ...extractor output... ],
+  "extracted": { ...extractor output... },
   "results": [
-    { "note_id": "uuid|null", "op": "ADD|UPDATE|NONE|REJECTED", "reason_code": "...", "reason": "..." }
+    { "note_id": "uuid|null", "op": "ADD|UPDATE|NONE|DELETE|REJECTED", "reason_code": "optional", "reason": "optional" }
   ]
 }
-Notes:
-- reason_code values include WriteGate rejection codes and REJECT_EVIDENCE_MISMATCH.
 
-POST /v1/memory/search
+Notes:
+- reason_code values include writegate rejection codes and REJECT_EVIDENCE_MISMATCH.
+
+POST /v2/searches
+
+Headers:
+- X-ELF-Tenant-Id, X-ELF-Project-Id, X-ELF-Agent-Id
+- X-ELF-Read-Profile
+
 Body:
 {
-  "tenant_id": "...",
-  "project_id": "...",
-  "agent_id": "...",
-  "read_profile": "private_only|private_plus_project|all_scopes",
   "query": "English-only",
   "top_k": 12,
-  "candidate_k": 60,
-  "record_hits": false
+  "candidate_k": 60
 }
+
 Response:
 {
   "trace_id": "uuid",
-  "search_session_id": "uuid",
+  "search_id": "uuid",
   "expires_at": "...",
   "items": [
     {
@@ -910,151 +928,123 @@ Response:
     }
   ]
 }
-Notes:
-- This endpoint creates a search session and returns a compact index view.
-- items length is top_k.
-- expires_at is the search session expiration timestamp.
-- record_hits is ignored for this endpoint and must be handled by /v1/memory/search/details.
 
-POST /v1/memory/search/timeline
-Body:
-{
-  "search_session_id": "uuid",
-  "group_by": "day|none"
-}
+Notes:
+- This endpoint creates a search session and returns a compact note index view.
+- record_hits is always false for this endpoint.
+
+GET /v2/searches/{search_id}?top_k=12&touch=true
+
+Headers:
+- X-ELF-Tenant-Id, X-ELF-Project-Id, X-ELF-Agent-Id
+
+Query parameters:
+- top_k (optional): Override the number of items returned.
+- touch (optional, default true): When true, extend the search session TTL.
+
+Response: Same as POST /v2/searches.
+
+GET /v2/searches/{search_id}/timeline?group_by=day
+
+Headers:
+- X-ELF-Tenant-Id, X-ELF-Project-Id, X-ELF-Agent-Id
+
+Query parameters:
+- group_by (optional, default day): day|none
+
 Response:
 {
-  "search_session_id": "uuid",
+  "search_id": "uuid",
   "expires_at": "...",
   "groups": [
-    {
-      "date": "YYYY-MM-DD|all",
-      "items": [
-        {
-          "note_id": "uuid",
-          "type": "...",
-          "key": null,
-          "scope": "...",
-          "importance": 0.0,
-          "confidence": 0.0,
-          "updated_at": "...",
-          "expires_at": "...|null",
-          "final_score": 0.0,
-          "summary": "..."
-        }
-      ]
-    }
+    { "date": "YYYY-MM-DD|all", "items": [ ... ] }
   ]
 }
-Notes:
-- group_by defaults to day when omitted.
-- This endpoint touches the search session and may extend expires_at.
 
-POST /v1/memory/search/details
+Notes:
+- This endpoint touches the search session and extends its TTL.
+
+POST /v2/searches/{search_id}/notes
+
+Headers:
+- X-ELF-Tenant-Id, X-ELF-Project-Id, X-ELF-Agent-Id
+
 Body:
 {
-  "search_session_id": "uuid",
   "note_ids": ["uuid"],
   "record_hits": true
 }
+
 Response:
 {
-  "search_session_id": "uuid",
+  "search_id": "uuid",
   "expires_at": "...",
   "results": [
     {
       "note_id": "uuid",
-      "note": {
-        "note_id": "uuid",
-        "tenant_id": "...",
-        "project_id": "...",
-        "agent_id": "...",
-        "scope": "...",
-        "type": "...",
-        "key": null,
-        "text": "...",
-        "importance": 0.0,
-        "confidence": 0.0,
-        "status": "...",
-        "updated_at": "...",
-        "expires_at": "...|null",
-        "source_ref": { ... }
-      },
+      "note": { ...full note... },
       "error": null
     }
   ]
 }
+
 Notes:
 - record_hits defaults to true when omitted.
-- This endpoint touches the search session and may extend expires_at.
+- This endpoint touches the search session and extends its TTL.
 
-GET /v1/memory/notes/{note_id}
-Response:
-{
-  "note_id": "uuid",
-  "tenant_id": "...",
-  "project_id": "...",
-  "agent_id": "...",
-  "scope": "...",
-  "type": "...",
-  "key": null,
-  "text": "...",
-  "importance": 0.0,
-  "confidence": 0.0,
-  "status": "...",
-  "updated_at": "...",
-  "expires_at": "...|null",
-  "source_ref": { ... }
-}
+GET /v2/notes?scope=project_shared&status=active&type=fact
 
-GET /v1/memory/list?tenant_id=...&project_id=...&scope=...&status=...&type=...&agent_id=...
+Headers:
+- X-ELF-Tenant-Id, X-ELF-Project-Id, X-ELF-Agent-Id
+
 Notes:
-- If scope = agent_private, agent_id is required.
 - If scope is omitted, agent_private notes are excluded.
+- If scope is agent_private, the calling agent_id is required and enforced.
 
-POST /v1/memory/update
+GET /v2/notes/{note_id}
+
+Headers:
+- X-ELF-Tenant-Id, X-ELF-Project-Id, X-ELF-Agent-Id
+
+PATCH /v2/notes/{note_id}
+
+Headers:
+- X-ELF-Tenant-Id, X-ELF-Project-Id, X-ELF-Agent-Id
+
 Body:
 {
-  "tenant_id": "...",
-  "project_id": "...",
-  "agent_id": "...",
-  "note_id": "uuid",
   "text": "optional",
-  "importance": 0.0-1.0 optional,
-  "confidence": 0.0-1.0 optional,
-  "ttl_days": number|null
+  "importance": 0.0,
+  "confidence": 0.0,
+  "ttl_days": 180
 }
-Notes:
-- If ttl_days is omitted, expires_at remains unchanged.
-- If ttl_days <= 0, apply default TTL rules for the note type.
+
 Response:
 {
   "note_id": "uuid",
-  "op": "UPDATE|NONE|REJECTED",
+  "op": "ADD|UPDATE|NONE|DELETE|REJECTED",
   "reason_code": "optional"
 }
 
-POST /v1/memory/delete
-Body:
-{
-  "tenant_id": "...",
-  "project_id": "...",
-  "agent_id": "...",
-  "note_id": "uuid"
-}
+DELETE /v2/notes/{note_id}
+
+Headers:
+- X-ELF-Tenant-Id, X-ELF-Project-Id, X-ELF-Agent-Id
+
 Response:
 {
   "note_id": "uuid",
-  "op": "DELETE|NONE"
+  "op": "ADD|UPDATE|NONE|DELETE|REJECTED"
 }
+
 GET /health
 
-Error codes (common):
-- NON_ENGLISH_INPUT (422)
-- SCOPE_DENIED (403)
-- INVALID_REQUEST (400)
-- INVALID_REQUEST (400)
-- INTERNAL_ERROR (500)
+Error body:
+{
+  "error_code": "NON_ENGLISH_INPUT|SCOPE_DENIED|INVALID_REQUEST|INTERNAL_ERROR",
+  "message": "Human readable string.",
+  "fields": ["$.headers.X-ELF-Tenant-Id", "$.notes[0].text"]
+}
 
 ============================================================
 16. LLM QUERY EXPANSION PROMPT (search) - APPENDIX
@@ -1091,11 +1081,25 @@ Original query:
 17. MCP ADAPTER (SEPARATE PROCESS)
 ============================================================
 - Separate binary: elf-mcp.
-- Streamable HTTP MCP server.
-- Tools map 1:1 to HTTP endpoints:
-  memory_add_note, memory_add_event, memory_search, memory_list, memory_update, memory_delete.
+- Streamable HTTP MCP server that forwards tool calls to the public HTTP API.
+- elf-mcp reads the optional [mcp] config section and attaches these headers on every request:
+  - X-ELF-Tenant-Id
+  - X-ELF-Project-Id
+  - X-ELF-Agent-Id
+  - X-ELF-Read-Profile (defaults to mcp.read_profile; may be overridden per tool call)
+- Tools map 1:1 to v2 endpoints:
+  - elf_notes_ingest -> POST /v2/notes/ingest
+  - elf_events_ingest -> POST /v2/events/ingest
+  - elf_searches_create -> POST /v2/searches
+  - elf_searches_get -> GET /v2/searches/{search_id}
+  - elf_searches_timeline -> GET /v2/searches/{search_id}/timeline
+  - elf_searches_notes -> POST /v2/searches/{search_id}/notes
+  - elf_notes_list -> GET /v2/notes
+  - elf_notes_get -> GET /v2/notes/{note_id}
+  - elf_notes_patch -> PATCH /v2/notes/{note_id}
+  - elf_notes_delete -> DELETE /v2/notes/{note_id}
 - The MCP server must contain zero business logic or policy.
-- All policy remains in elf-api.
+- All policy remains in elf-api and elf-service.
 
 ============================================================
 18. LLM EXTRACTOR PROMPT (add_event) - APPENDIX
@@ -1171,8 +1175,8 @@ G. Outbox eventual consistency:
 - Outbox goes FAILED and later retries to DONE after provider recovers.
 
 ============================================================
-20. OUT OF SCOPE (v1.0)
+20. OUT OF SCOPE (v2.0)
 ============================================================
 - Translation or multilingual retrieval (handled by upstream agents).
 - Graph memory backend (reserved for later).
-- Public internet exposure and auth (localhost only in v1.0).
+- Public internet exposure and auth (localhost only in v2.0).

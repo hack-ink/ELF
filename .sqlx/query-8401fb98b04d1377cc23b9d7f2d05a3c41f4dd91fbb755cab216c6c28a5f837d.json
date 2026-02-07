@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO memory_note_versions (\n\tversion_id,\n\tnote_id,\n\top,\n\tprev_snapshot,\n\tnew_snapshot,\n\treason,\n\tactor,\n\tts\n)\nVALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Jsonb",
+        "Jsonb",
+        "Text",
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "8401fb98b04d1377cc23b9d7f2d05a3c41f4dd91fbb755cab216c6c28a5f837d"
+}

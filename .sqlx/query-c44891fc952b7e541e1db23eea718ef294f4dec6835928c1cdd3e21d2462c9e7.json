@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO note_embeddings (\n\t\tnote_id,\n\tembedding_version,\n\t\tembedding_dim,\n\t\tvec\n\t)\n\tVALUES ($1, $2, $3, $4::text::vector)\n\tON CONFLICT (note_id, embedding_version) DO UPDATE\n\tSET\n\t\t\tembedding_dim = EXCLUDED.embedding_dim,\n\t\t\tvec = EXCLUDED.vec,\n\t\tcreated_at = now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Int4",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c44891fc952b7e541e1db23eea718ef294f4dec6835928c1cdd3e21d2462c9e7"
+}

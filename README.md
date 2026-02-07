@@ -15,7 +15,7 @@ Evidence-linked fact memory for agents.
 
 ## What Is ELF?
 
-ELF is a memory service that stores short, evidence-linked facts for agents. It separates deterministic writes from LLM extraction, enforces evidence binding, and provides chunk-first hybrid retrieval with configurable quality and cost controls. Postgres with pgvector is the source of truth for notes and chunk embeddings; Qdrant is a derived, rebuildable chunk index for fast candidate retrieval. ELF exposes HTTP and MCP interfaces for agent integrations, including a progressive search workflow (index view first, details on demand).
+ELF is a memory service that stores short, evidence-linked facts for agents. It separates deterministic writes from LLM extraction, enforces evidence binding, and provides chunk-first hybrid retrieval with configurable quality and cost controls. Postgres with pgvector is the source of truth for notes and chunk embeddings; Qdrant is a derived, rebuildable chunk index for fast candidate retrieval. ELF exposes HTTP and MCP interfaces for agent integrations. The v2 HTTP API uses context headers (`X-ELF-Tenant-Id`, `X-ELF-Project-Id`, `X-ELF-Agent-Id`) to scope requests.
 
 ## Why ELF
 
@@ -24,7 +24,7 @@ ELF is a memory service that stores short, evidence-linked facts for agents. It 
 - Source-of-truth storage. Postgres is authoritative; Qdrant can be rebuilt at any time.
 - Chunk-first hybrid retrieval. Dense + BM25 candidate retrieval over token-aware chunks with optional reranking.
 - Query expansion modes. `off`, `always`, or `dynamic` to balance recall and latency.
-- Progressive disclosure search. `/search` returns a compact index; `/search/details` fetches full notes and can record hits.
+- Progressive disclosure search. `POST /v2/searches` returns a compact index; `POST /v2/searches/{search_id}/notes` fetches full notes and can record hits.
 - Cost and debugging controls. Expansion and rerank caching plus search traces and explain endpoints.
 - Multi-tenant scoping. Tenant, project, agent, and scope boundaries are enforced.
 - MCP integration. A dedicated `elf-mcp` server for Claude and other MCP clients.
@@ -94,7 +94,7 @@ Note: In this section, mem0 refers to the Mem0 ecosystem, including OpenMemory (
 | Aspect            | ELF                             | [qmd](https://github.com/tobi/qmd) | [claude-mem](https://github.com/thedotmack/claude-mem) | [mem0](https://github.com/mem0ai/mem0) |
 | ----------------- | ------------------------------- | --------------------------------- | ------------------------------------------------------ | -------------------------------------- |
 | Primary artifact  | Evidence-bound notes            | Local Markdown index (chunks)     | Session observations and summaries                      | User, session, and agent memories      |
-| Default write path | HTTP `add_note` / `add_event`  | CLI index + search                | Auto-capture via Claude Code plugin hooks              | SDK/API (LLM-assisted)                 |
+| Default write path | HTTP `POST /v2/notes/ingest` / `POST /v2/events/ingest` | CLI index + search                | Auto-capture via Claude Code plugin hooks              | SDK/API (LLM-assisted)                 |
 | Default deployment | API + worker + MCP server      | Local CLI + MCP server            | Local plugin + worker + UI + MCP tools                 | SDK + hosted option; OpenMemory MCP server + UI |
 
 ### Interfaces And Integration
@@ -170,7 +170,7 @@ psql "<dsn from elf.toml>" -f sql/init.sql
 # Qdrant REST endpoint (default: 6333). In this repository's local setup, it is often mapped to port 51889.
 # ELF uses the gRPC endpoint at runtime (default: 6334, often mapped to port 51890).
 export ELF_QDRANT_HTTP_URL="http://127.0.0.1:51889"
-export ELF_QDRANT_COLLECTION="mem_notes_v1"
+export ELF_QDRANT_COLLECTION="mem_notes_v2"
 export ELF_QDRANT_VECTOR_DIM="4096"
 ./qdrant/init.sh
 
@@ -189,7 +189,7 @@ cargo run -p elf-eval -- -c elf.toml -i path/to/eval.json
 
 ## Configuration
 
-See `elf.example.toml` and `docs/spec/system_elf_memory_service_v1.md` for the full contract. All config is explicit and required; no environment defaults are allowed. Embedding dimensions must match the Qdrant vector dimension. Search caching and explain trace retention are configured under `search.cache` and `search.explain`.
+See `elf.example.toml` and `docs/spec/system_elf_memory_service_v2.md` for the full contract. All config is explicit and required; no environment defaults are allowed. Embedding dimensions must match the Qdrant vector dimension. Search caching and explain trace retention are configured under `search.cache` and `search.explain`.
 
 ## Development
 
@@ -197,7 +197,14 @@ See `elf.example.toml` and `docs/spec/system_elf_memory_service_v1.md` for the f
 cargo make fmt
 cargo make lint
 cargo make test
+cargo make test-integration
+cargo make e2e
 ```
+
+Notes:
+
+- `cargo make test-integration` runs ignored tests that require external Postgres and Qdrant. Set `ELF_PG_DSN` and `ELF_QDRANT_URL`.
+- `cargo make e2e` runs the context misranking harness. Set `ELF_PG_DSN`, `ELF_QDRANT_URL`, and `ELF_QDRANT_HTTP_URL`.
 
 ## Support
 

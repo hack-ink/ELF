@@ -3,30 +3,25 @@ use std::sync::{
 	atomic::{AtomicUsize, Ordering},
 };
 
-use qdrant_client::qdrant::{
-	CreateCollectionBuilder, Distance, Modifier, SparseVectorParamsBuilder,
-	SparseVectorsConfigBuilder, VectorParamsBuilder, VectorsConfigBuilder,
-};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use super::{
-	SpyEmbedding, SpyExtractor, StubRerank, build_service, test_config, test_db, test_qdrant_url,
-};
+use super::{SpyEmbedding, SpyExtractor, StubRerank};
 use elf_service::Providers;
-use elf_storage::qdrant::{BM25_VECTOR_NAME, DENSE_VECTOR_NAME};
 
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
 async fn rebuild_uses_postgres_vectors_only() {
-	let Some(test_db) = test_db().await else {
+	let Some(test_db) = super::test_db().await else {
 		eprintln!("Skipping rebuild_uses_postgres_vectors_only; set ELF_PG_DSN to run this test.");
+
 		return;
 	};
-	let Some(qdrant_url) = test_qdrant_url() else {
+	let Some(qdrant_url) = super::test_qdrant_url() else {
 		eprintln!(
 			"Skipping rebuild_uses_postgres_vectors_only; set ELF_QDRANT_URL to run this test."
 		);
+
 		return;
 	};
 	let embed_calls = Arc::new(AtomicUsize::new(0));
@@ -39,31 +34,18 @@ async fn rebuild_uses_postgres_vectors_only() {
 		Arc::new(StubRerank),
 		Arc::new(extractor),
 	);
-
 	let collection = test_db.collection_name("elf_acceptance");
-	let cfg = test_config(test_db.dsn().to_string(), qdrant_url, 3, collection);
-	let service = build_service(cfg, providers).await.expect("Failed to build service.");
-	super::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
+	let cfg = super::test_config(test_db.dsn().to_string(), qdrant_url, 3, collection);
+	let service = super::build_service(cfg, providers).await.expect("Failed to build service.");
 
-	let _ = service.qdrant.client.delete_collection(service.qdrant.collection.clone()).await;
-	let mut vectors_config = VectorsConfigBuilder::default();
-	vectors_config
-		.add_named_vector_params(DENSE_VECTOR_NAME, VectorParamsBuilder::new(3, Distance::Cosine));
-	let mut sparse_vectors_config = SparseVectorsConfigBuilder::default();
-	sparse_vectors_config.add_named_vector_params(
-		BM25_VECTOR_NAME,
-		SparseVectorParamsBuilder::default().modifier(Modifier::Idf as i32),
-	);
-	service
-		.qdrant
-		.client
-		.create_collection(
-			CreateCollectionBuilder::new(service.qdrant.collection.clone())
-				.vectors_config(vectors_config)
-				.sparse_vectors_config(sparse_vectors_config),
-		)
-		.await
-		.expect("Failed to create Qdrant collection.");
+	super::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
+	super::reset_qdrant_collection(
+		&service.qdrant.client,
+		&service.qdrant.collection,
+		service.qdrant.vector_dim,
+	)
+	.await
+	.expect("Failed to reset Qdrant collection.");
 
 	let note_id = Uuid::new_v4();
 	let now = OffsetDateTime::now_utc();
@@ -74,11 +56,11 @@ async fn rebuild_uses_postgres_vectors_only() {
 		service.cfg.storage.qdrant.vector_dim
 	);
 
-	sqlx::query(
+	sqlx::query!(
 		"\
-INSERT INTO memory_notes (
-	note_id,
-	tenant_id,
+	INSERT INTO memory_notes (
+		note_id,
+		tenant_id,
 	project_id,
 	agent_id,
 	scope,
@@ -113,28 +95,28 @@ VALUES (
 	$14,
 	$15,
 	$16,
-	$17,
-	$18
-)",
+		$17,
+		$18
+	)",
+		note_id,
+		"t",
+		"p",
+		"a",
+		"agent_private",
+		"fact",
+		None::<String>,
+		"Fact: Rebuild works.",
+		0.5_f32,
+		0.9_f32,
+		"active",
+		now,
+		now,
+		None::<OffsetDateTime>,
+		embedding_version.as_str(),
+		serde_json::json!({}),
+		0_i64,
+		None::<OffsetDateTime>,
 	)
-	.bind(note_id)
-	.bind("t")
-	.bind("p")
-	.bind("a")
-	.bind("agent_private")
-	.bind("fact")
-	.bind::<Option<String>>(None)
-	.bind("Fact: Rebuild works.")
-	.bind(0.5_f32)
-	.bind(0.9_f32)
-	.bind("active")
-	.bind(now)
-	.bind(now)
-	.bind::<Option<OffsetDateTime>>(None)
-	.bind(&embedding_version)
-	.bind(serde_json::json!({}))
-	.bind(0_i64)
-	.bind::<Option<OffsetDateTime>>(None)
 	.execute(&service.db.pool)
 	.await
 	.expect("Failed to insert memory note.");
@@ -142,39 +124,39 @@ VALUES (
 	let chunk_id = Uuid::new_v4();
 	let text = "Fact: Rebuild works.";
 
-	sqlx::query(
+	sqlx::query!(
 		"\
-INSERT INTO memory_note_chunks (
-	chunk_id,
-	note_id,
+	INSERT INTO memory_note_chunks (
+		chunk_id,
+		note_id,
 	chunk_index,
 	start_offset,
 	end_offset,
 	text,
 	embedding_version
-)
-VALUES ($1, $2, $3, $4, $5, $6, $7)",
 	)
-	.bind(chunk_id)
-	.bind(note_id)
-	.bind(0_i32)
-	.bind(0_i32)
-	.bind(text.len() as i32)
-	.bind(text)
-	.bind(&embedding_version)
+	VALUES ($1, $2, $3, $4, $5, $6, $7)",
+		chunk_id,
+		note_id,
+		0_i32,
+		0_i32,
+		text.len() as i32,
+		text,
+		embedding_version.as_str(),
+	)
 	.execute(&service.db.pool)
 	.await
 	.expect("Failed to insert chunk metadata.");
 
-	sqlx::query(
+	sqlx::query!(
 		"\
-INSERT INTO note_chunk_embeddings (chunk_id, embedding_version, embedding_dim, vec)
-VALUES ($1, $2, $3, $4::vector)",
+		INSERT INTO note_chunk_embeddings (chunk_id, embedding_version, embedding_dim, vec)
+		VALUES ($1, $2, $3, $4::text::vector)",
+		chunk_id,
+		embedding_version.as_str(),
+		3_i32,
+		"[0,0,0]",
 	)
-	.bind(chunk_id)
-	.bind(&embedding_version)
-	.bind(3_i32)
-	.bind("[0,0,0]")
 	.execute(&service.db.pool)
 	.await
 	.expect("Failed to insert chunk embedding.");

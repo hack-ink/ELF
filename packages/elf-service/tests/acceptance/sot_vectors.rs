@@ -14,13 +14,14 @@ use elf_service::Providers;
 async fn active_notes_have_vectors() {
 	let Some(test_db) = test_db().await else {
 		eprintln!("Skipping active_notes_have_vectors; set ELF_PG_DSN to run this test.");
+
 		return;
 	};
 	let Some(qdrant_url) = test_qdrant_url() else {
 		eprintln!("Skipping active_notes_have_vectors; set ELF_QDRANT_URL to run this test.");
+
 		return;
 	};
-
 	let collection = test_db.collection_name("elf_acceptance");
 	let cfg = test_config(test_db.dsn().to_string(), qdrant_url, 3, collection);
 	let providers = Providers::new(
@@ -32,6 +33,7 @@ async fn active_notes_have_vectors() {
 		}),
 	);
 	let service = build_service(cfg, providers).await.expect("Failed to build service.");
+
 	reset_db(&service.db.pool).await.expect("Failed to reset test database.");
 
 	let note_id = Uuid::new_v4();
@@ -43,11 +45,11 @@ async fn active_notes_have_vectors() {
 		service.cfg.storage.qdrant.vector_dim
 	);
 
-	sqlx::query(
+	sqlx::query!(
 		"\
-INSERT INTO memory_notes (
-	note_id,
-	tenant_id,
+	INSERT INTO memory_notes (
+		note_id,
+		tenant_id,
 	project_id,
 	agent_id,
 	scope,
@@ -82,72 +84,72 @@ VALUES (
 	$14,
 	$15,
 	$16,
-	$17,
-	$18
-)",
+		$17,
+		$18
+	)",
+		note_id,
+		"t",
+		"p",
+		"a",
+		"agent_private",
+		"fact",
+		None::<String>,
+		"Fact: Vector row exists.",
+		0.4_f32,
+		0.9_f32,
+		"active",
+		now,
+		now,
+		None::<OffsetDateTime>,
+		embedding_version.as_str(),
+		serde_json::json!({}),
+		0_i64,
+		None::<OffsetDateTime>,
 	)
-	.bind(note_id)
-	.bind("t")
-	.bind("p")
-	.bind("a")
-	.bind("agent_private")
-	.bind("fact")
-	.bind::<Option<String>>(None)
-	.bind("Fact: Vector row exists.")
-	.bind(0.4_f32)
-	.bind(0.9_f32)
-	.bind("active")
-	.bind(now)
-	.bind(now)
-	.bind::<Option<OffsetDateTime>>(None)
-	.bind(&embedding_version)
-	.bind(serde_json::json!({}))
-	.bind(0_i64)
-	.bind::<Option<OffsetDateTime>>(None)
 	.execute(&service.db.pool)
 	.await
 	.expect("Failed to insert memory note.");
 
-	sqlx::query(
+	sqlx::query!(
 		"\
-INSERT INTO note_embeddings (
-	note_id,
-	embedding_version,
-	embedding_dim,
-	vec
-)
-VALUES ($1, $2, $3, $4::vector)",
+		INSERT INTO note_embeddings (
+			note_id,
+			embedding_version,
+		embedding_dim,
+		vec
+		)
+		VALUES ($1, $2, $3, $4::text::vector)",
+		note_id,
+		embedding_version.as_str(),
+		3_i32,
+		"[0,0,0]",
 	)
-	.bind(note_id)
-	.bind(&embedding_version)
-	.bind(3_i32)
-	.bind("[0,0,0]")
 	.execute(&service.db.pool)
 	.await
 	.expect("Failed to insert embedding.");
 
-	let missing: i64 = sqlx::query_scalar(
+	let missing: i64 = sqlx::query_scalar!(
 		"\
-SELECT COUNT(*)
-FROM memory_notes n
-LEFT JOIN note_embeddings e
+	SELECT COUNT(*) AS \"missing!\"
+	FROM memory_notes n
+	LEFT JOIN note_embeddings e
 	ON n.note_id = e.note_id
-	AND n.embedding_version = e.embedding_version
-WHERE n.note_id = $1
-	AND e.note_id IS NULL",
+		AND n.embedding_version = e.embedding_version
+	WHERE n.note_id = $1
+			AND e.note_id IS NULL",
+		note_id,
 	)
-	.bind(note_id)
 	.fetch_one(&service.db.pool)
 	.await
 	.expect("Failed to query missing embeddings.");
 
 	assert_eq!(missing, 0);
 
-	let dim: i32 = sqlx::query_scalar(
+	let dim: i32 = sqlx::query_scalar!(
 		"SELECT embedding_dim FROM note_embeddings WHERE note_id = $1 AND embedding_version = $2",
+		note_id,
+		embedding_version.as_str(),
 	)
-	.bind(note_id)
-	.bind(&embedding_version)
 	.fetch_one(&service.db.pool)
 	.await
 	.expect("Failed to query embedding dim.");

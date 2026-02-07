@@ -1,9 +1,8 @@
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use elf_storage::models::MemoryNote;
-
 use crate::{ElfService, InsertVersionArgs, NoteOp, ServiceError, ServiceResult};
+use elf_storage::models::MemoryNote;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct DeleteRequest {
@@ -31,18 +30,24 @@ impl ElfService {
 			});
 		}
 		let mut tx = self.db.pool.begin().await?;
-		let mut note: MemoryNote = sqlx::query_as(
-			"SELECT * FROM memory_notes \
-             WHERE note_id = $1 AND tenant_id = $2 AND project_id = $3 AND agent_id = $4 \
-             FOR UPDATE",
+		let mut note: MemoryNote = sqlx::query_as!(
+			MemoryNote,
+			"\
+SELECT *
+FROM memory_notes
+WHERE note_id = $1 AND tenant_id = $2 AND project_id = $3
+FOR UPDATE",
+			req.note_id,
+			tenant_id,
+			project_id,
 		)
-		.bind(req.note_id)
-		.bind(tenant_id)
-		.bind(project_id)
-		.bind(agent_id)
 		.fetch_optional(&mut *tx)
 		.await?
 		.ok_or_else(|| ServiceError::InvalidRequest { message: "Note not found.".to_string() })?;
+
+		if note.scope == "agent_private" && note.agent_id != agent_id {
+			return Err(ServiceError::InvalidRequest { message: "Note not found.".to_string() });
+		}
 
 		let scope_allowed = self.cfg.scopes.allowed.iter().any(|scope| scope == &note.scope);
 		let write_allowed = match note.scope.as_str() {
@@ -64,12 +69,14 @@ impl ElfService {
 		note.status = "deleted".to_string();
 		note.updated_at = now;
 
-		sqlx::query("UPDATE memory_notes SET status = $1, updated_at = $2 WHERE note_id = $3")
-			.bind(&note.status)
-			.bind(note.updated_at)
-			.bind(note.note_id)
-			.execute(&mut *tx)
-			.await?;
+		sqlx::query!(
+			"UPDATE memory_notes SET status = $1, updated_at = $2 WHERE note_id = $3",
+			note.status.as_str(),
+			note.updated_at,
+			note.note_id,
+		)
+		.execute(&mut *tx)
+		.await?;
 
 		crate::insert_version(
 			&mut tx,

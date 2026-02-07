@@ -44,18 +44,36 @@ struct RebuildRow {
 impl ElfService {
 	pub async fn rebuild_qdrant(&self) -> ServiceResult<RebuildReport> {
 		let now = OffsetDateTime::now_utc();
-		let rows: Vec<RebuildRow> = sqlx::query_as(
-			"SELECT c.chunk_id, c.chunk_index, c.start_offset, c.end_offset, c.text AS chunk_text, \
-             n.note_id, n.tenant_id, n.project_id, n.agent_id, n.scope, n.type, n.key, n.status, \
-             n.updated_at, n.expires_at, n.importance, n.confidence, c.embedding_version, \
-             e.vec::text AS vec_text \
-             FROM memory_note_chunks c \
-             JOIN memory_notes n ON n.note_id = c.note_id \
-             LEFT JOIN note_chunk_embeddings e \
-             ON e.chunk_id = c.chunk_id AND e.embedding_version = c.embedding_version \
-             WHERE n.status = 'active' AND (n.expires_at IS NULL OR n.expires_at > $1)",
+		let rows: Vec<RebuildRow> = sqlx::query_as!(
+			RebuildRow,
+			"\
+SELECT
+	c.chunk_id,
+	c.chunk_index,
+	c.start_offset,
+	c.end_offset,
+	c.text AS chunk_text,
+	n.note_id,
+	n.tenant_id,
+	n.project_id,
+	n.agent_id,
+	n.scope,
+	n.type AS note_type,
+	n.key,
+	n.status,
+	n.updated_at,
+	n.expires_at,
+	n.importance,
+	n.confidence,
+	c.embedding_version,
+	e.vec::text AS \"vec_text?\"
+FROM memory_note_chunks c
+JOIN memory_notes n ON n.note_id = c.note_id
+LEFT JOIN note_chunk_embeddings e
+	ON e.chunk_id = c.chunk_id AND e.embedding_version = c.embedding_version
+WHERE n.status = 'active' AND (n.expires_at IS NULL OR n.expires_at > $1)",
+			now,
 		)
-		.bind(now)
 		.fetch_all(&self.db.pool)
 		.await?;
 

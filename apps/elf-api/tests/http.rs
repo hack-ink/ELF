@@ -10,26 +10,6 @@ use tower::util::ServiceExt;
 use elf_api::{routes, state::AppState};
 use elf_testkit::TestDatabase;
 
-async fn test_env() -> Option<(elf_testkit::TestDatabase, String, String)> {
-	let base_dsn = match elf_testkit::env_dsn() {
-		Some(value) => value,
-		None => {
-			eprintln!("Skipping HTTP tests; set ELF_PG_DSN to run this test.");
-			return None;
-		},
-	};
-	let qdrant_url = match env::var("ELF_QDRANT_URL") {
-		Ok(value) => value,
-		Err(_) => {
-			eprintln!("Skipping HTTP tests; set ELF_QDRANT_URL to run this test.");
-			return None;
-		},
-	};
-	let test_db = TestDatabase::new(&base_dsn).await.expect("Failed to create test database.");
-	let collection = test_db.collection_name("elf_http");
-	Some((test_db, qdrant_url, collection))
-}
-
 fn test_config(dsn: String, qdrant_url: String, collection: String) -> elf_config::Config {
 	elf_config::Config {
 		service: elf_config::Service {
@@ -97,8 +77,6 @@ fn test_config(dsn: String, qdrant_url: String, collection: String) -> elf_confi
 				expansion_ttl_days: 7,
 				rerank_ttl_days: 7,
 				max_payload_bytes: Some(262_144),
-				expansion_version: "v1".to_string(),
-				rerank_version: "v1".to_string(),
 			},
 			explain: elf_config::SearchExplain { retention_days: 7 },
 		},
@@ -130,6 +108,7 @@ fn test_config(dsn: String, qdrant_url: String, collection: String) -> elf_confi
 			tokenizer_repo: None,
 		},
 		context: None,
+		mcp: None,
 	}
 }
 
@@ -171,6 +150,29 @@ fn dummy_llm_provider() -> elf_config::LlmProviderConfig {
 	}
 }
 
+async fn test_env() -> Option<(elf_testkit::TestDatabase, String, String)> {
+	let base_dsn = match elf_testkit::env_dsn() {
+		Some(value) => value,
+		None => {
+			eprintln!("Skipping HTTP tests; set ELF_PG_DSN to run this test.");
+
+			return None;
+		},
+	};
+	let qdrant_url = match env::var("ELF_QDRANT_URL") {
+		Ok(value) => value,
+		Err(_) => {
+			eprintln!("Skipping HTTP tests; set ELF_QDRANT_URL to run this test.");
+
+			return None;
+		},
+	};
+	let test_db = TestDatabase::new(&base_dsn).await.expect("Failed to create test database.");
+	let collection = test_db.collection_name("elf_http");
+
+	Some((test_db, qdrant_url, collection))
+}
+
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
 async fn health_ok() {
@@ -190,6 +192,7 @@ async fn health_ok() {
 		)
 		.await
 		.expect("Failed to call /health.");
+
 	assert_eq!(response.status(), StatusCode::OK);
 
 	test_db.cleanup().await.expect("Failed to cleanup test database.");
@@ -205,9 +208,6 @@ async fn rejects_cjk_in_add_note() {
 	let state = AppState::new(config).await.expect("Failed to initialize app state.");
 	let app = routes::router(state);
 	let payload = serde_json::json!({
-		"tenant_id": "t",
-		"project_id": "p",
-		"agent_id": "a",
 		"scope": "agent_private",
 		"notes": [{
 			"type": "fact",
@@ -219,12 +219,14 @@ async fn rejects_cjk_in_add_note() {
 			"source_ref": {}
 		}]
 	});
-
 	let response = app
 		.oneshot(
 			Request::builder()
 				.method("POST")
-				.uri("/v1/memory/add_note")
+				.uri("/v2/notes/ingest")
+				.header("X-ELF-Tenant-Id", "t")
+				.header("X-ELF-Project-Id", "p")
+				.header("X-ELF-Agent-Id", "a")
 				.header("content-type", "application/json")
 				.body(Body::from(payload.to_string()))
 				.expect("Failed to build request."),
@@ -255,9 +257,6 @@ async fn rejects_cjk_in_add_event() {
 	let state = AppState::new(config).await.expect("Failed to initialize app state.");
 	let app = routes::router(state);
 	let payload = serde_json::json!({
-		"tenant_id": "t",
-		"project_id": "p",
-		"agent_id": "a",
 		"scope": "agent_private",
 		"dry_run": true,
 		"messages": [{
@@ -265,12 +264,14 @@ async fn rejects_cjk_in_add_event() {
 			"content": "こんにちは"
 		}]
 	});
-
 	let response = app
 		.oneshot(
 			Request::builder()
 				.method("POST")
-				.uri("/v1/memory/add_event")
+				.uri("/v2/events/ingest")
+				.header("X-ELF-Tenant-Id", "t")
+				.header("X-ELF-Project-Id", "p")
+				.header("X-ELF-Agent-Id", "a")
 				.header("content-type", "application/json")
 				.body(Body::from(payload.to_string()))
 				.expect("Failed to build request."),
@@ -301,20 +302,19 @@ async fn rejects_cjk_in_search() {
 	let state = AppState::new(config).await.expect("Failed to initialize app state.");
 	let app = routes::router(state);
 	let payload = serde_json::json!({
-		"tenant_id": "t",
-		"project_id": "p",
-		"agent_id": "a",
-		"read_profile": "private_only",
 		"query": "안녕하세요",
 		"top_k": 5,
 		"candidate_k": 10
 	});
-
 	let response = app
 		.oneshot(
 			Request::builder()
 				.method("POST")
-				.uri("/v1/memory/search")
+				.uri("/v2/searches")
+				.header("X-ELF-Tenant-Id", "t")
+				.header("X-ELF-Project-Id", "p")
+				.header("X-ELF-Agent-Id", "a")
+				.header("X-ELF-Read-Profile", "private_only")
 				.header("content-type", "application/json")
 				.body(Body::from(payload.to_string()))
 				.expect("Failed to build request."),

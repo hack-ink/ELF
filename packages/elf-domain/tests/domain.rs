@@ -3,6 +3,44 @@ use time::OffsetDateTime;
 
 use elf_domain::{cjk, evidence, ttl};
 
+fn dummy_embedding_provider() -> elf_config::EmbeddingProviderConfig {
+	elf_config::EmbeddingProviderConfig {
+		provider_id: "p".to_string(),
+		api_base: "http://localhost".to_string(),
+		api_key: "key".to_string(),
+		path: "/".to_string(),
+		model: "m".to_string(),
+		dimensions: 3,
+		timeout_ms: 1000,
+		default_headers: Map::new(),
+	}
+}
+
+fn dummy_provider() -> elf_config::ProviderConfig {
+	elf_config::ProviderConfig {
+		provider_id: "p".to_string(),
+		api_base: "http://localhost".to_string(),
+		api_key: "key".to_string(),
+		path: "/".to_string(),
+		model: "m".to_string(),
+		timeout_ms: 1000,
+		default_headers: Map::new(),
+	}
+}
+
+fn dummy_llm_provider() -> elf_config::LlmProviderConfig {
+	elf_config::LlmProviderConfig {
+		provider_id: "p".to_string(),
+		api_base: "http://localhost".to_string(),
+		api_key: "key".to_string(),
+		path: "/".to_string(),
+		model: "m".to_string(),
+		temperature: 0.1,
+		timeout_ms: 1000,
+		default_headers: Map::new(),
+	}
+}
+
 #[test]
 fn detects_cjk() {
 	assert!(cjk::contains_cjk("\u{4F60}\u{597D}"));
@@ -12,6 +50,7 @@ fn detects_cjk() {
 #[test]
 fn evidence_requires_substring() {
 	let messages = vec!["Hello world".to_string()];
+
 	assert!(evidence::evidence_matches(&messages, 0, "world"));
 	assert!(!evidence::evidence_matches(&messages, 0, "missing"));
 }
@@ -32,7 +71,7 @@ fn computes_ttl_from_defaults() {
 			},
 			qdrant: elf_config::Qdrant {
 				url: "http://localhost".to_string(),
-				collection: "mem_notes_v1".to_string(),
+				collection: "mem_notes_v2".to_string(),
 				vector_dim: 3,
 			},
 		},
@@ -80,8 +119,6 @@ fn computes_ttl_from_defaults() {
 				expansion_ttl_days: 7,
 				rerank_ttl_days: 7,
 				max_payload_bytes: Some(262_144),
-				expansion_version: "v1".to_string(),
-				rerank_version: "v1".to_string(),
 			},
 			explain: elf_config::SearchExplain { retention_days: 7 },
 		},
@@ -113,47 +150,10 @@ fn computes_ttl_from_defaults() {
 			tokenizer_repo: None,
 		},
 		context: None,
+		mcp: None,
 	};
-
 	let now = OffsetDateTime::now_utc();
 	let expires = ttl::compute_expires_at(None, "plan", &cfg, now).expect("TTL missing");
+
 	assert!(expires > now);
-}
-
-fn dummy_embedding_provider() -> elf_config::EmbeddingProviderConfig {
-	elf_config::EmbeddingProviderConfig {
-		provider_id: "p".to_string(),
-		api_base: "http://localhost".to_string(),
-		api_key: "key".to_string(),
-		path: "/".to_string(),
-		model: "m".to_string(),
-		dimensions: 3,
-		timeout_ms: 1000,
-		default_headers: Map::new(),
-	}
-}
-
-fn dummy_provider() -> elf_config::ProviderConfig {
-	elf_config::ProviderConfig {
-		provider_id: "p".to_string(),
-		api_base: "http://localhost".to_string(),
-		api_key: "key".to_string(),
-		path: "/".to_string(),
-		model: "m".to_string(),
-		timeout_ms: 1000,
-		default_headers: Map::new(),
-	}
-}
-
-fn dummy_llm_provider() -> elf_config::LlmProviderConfig {
-	elf_config::LlmProviderConfig {
-		provider_id: "p".to_string(),
-		api_base: "http://localhost".to_string(),
-		api_key: "key".to_string(),
-		path: "/".to_string(),
-		model: "m".to_string(),
-		temperature: 0.1,
-		timeout_ms: 1000,
-		default_headers: Map::new(),
-	}
 }
