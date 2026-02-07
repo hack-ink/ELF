@@ -10,10 +10,6 @@
 # Language Specifics
 
 ## JavaScript/TypeScript
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
 *.tsbuildinfo
 .next
 .pnp
@@ -22,6 +18,10 @@
 .vercel
 .vite
 .yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
 build
 coverage
 dist
