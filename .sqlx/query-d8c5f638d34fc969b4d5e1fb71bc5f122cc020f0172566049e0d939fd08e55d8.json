@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO search_traces (\n\ttrace_id,\n\ttenant_id,\n\tproject_id,\n\tagent_id,\n\tread_profile,\n\tquery,\n\texpansion_mode,\n\texpanded_queries,\n\tallowed_scopes,\n\tcandidate_count,\n\ttop_k,\n\tconfig_snapshot,\n\ttrace_version,\n\tcreated_at,\n\texpires_at\n)\nVALUES (\n\t$1,\n\t$2,\n\t$3,\n\t$4,\n\t$5,\n\t$6,\n\t$7,\n\t$8,\n\t$9,\n\t$10,\n\t$11,\n\t$12,\n\t$13,\n\t$14,\n\t$15\n\t)\n\tON CONFLICT (trace_id) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Jsonb",
+        "Jsonb",
+        "Int4",
+        "Int4",
+        "Jsonb",
+        "Int4",
+        "Timestamptz",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d8c5f638d34fc969b4d5e1fb71bc5f122cc020f0172566049e0d939fd08e55d8"
+}

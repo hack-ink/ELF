@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO llm_cache (\n\t\t\tcache_id,\n\t\t\tcache_kind,\n\t\tcache_key,\n\t\tpayload,\n\t\tcreated_at,\n\t\tlast_accessed_at,\n\t\texpires_at,\n\t\thit_count\n\t)\n\tVALUES ($1, $2, $3, $4, $5, $5, $6, 0)\n\tON CONFLICT (cache_kind, cache_key) DO UPDATE SET\n\t\tpayload = EXCLUDED.payload,\n\t\t\tlast_accessed_at = EXCLUDED.last_accessed_at,\n\t\t\texpires_at = EXCLUDED.expires_at,\n\t\t\thit_count = 0",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Jsonb",
+        "Timestamptz",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "fc9e5c157f997567e3e633bab69d6b78eab1201fea1746c135edfb67079fe86c"
+}

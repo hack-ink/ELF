@@ -50,7 +50,7 @@ pub struct NoteEmbedding {
 	pub created_at: time::OffsetDateTime,
 }
 
-#[derive(Debug)]
+#[derive(Debug, sqlx::FromRow)]
 pub struct IndexingOutboxEntry {
 	pub outbox_id: uuid::Uuid,
 	pub note_id: uuid::Uuid,

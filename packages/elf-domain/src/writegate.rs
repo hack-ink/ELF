@@ -40,6 +40,7 @@ pub fn writegate(note: &NoteInput, cfg: &elf_config::Config) -> Result<(), Rejec
 	if contains_secrets(&note.text) {
 		return Err(RejectCode::RejectSecret);
 	}
+
 	Ok(())
 }
 
@@ -96,7 +97,7 @@ mod tests {
 				},
 				qdrant: elf_config::Qdrant {
 					url: "http://localhost".to_string(),
-					collection: "mem_notes_v1".to_string(),
+					collection: "mem_notes_v2".to_string(),
 					vector_dim: 3,
 				},
 			},
@@ -144,8 +145,6 @@ mod tests {
 					expansion_ttl_days: 7,
 					rerank_ttl_days: 7,
 					max_payload_bytes: Some(262_144),
-					expansion_version: "v1".to_string(),
-					rerank_version: "v1".to_string(),
 				},
 				explain: elf_config::SearchExplain { retention_days: 7 },
 			},
@@ -177,6 +176,7 @@ mod tests {
 				tokenizer_repo: None,
 			},
 			context: None,
+			mcp: None,
 		}
 	}
 
@@ -226,6 +226,7 @@ mod tests {
 			scope: "agent_private".to_string(),
 			text: "12345678901".to_string(),
 		};
+
 		assert_eq!(writegate(&note, &cfg), Err(RejectCode::RejectTooLong));
 	}
 
@@ -237,6 +238,7 @@ mod tests {
 			scope: "agent_private".to_string(),
 			text: "hello".to_string(),
 		};
+
 		assert_eq!(writegate(&note, &cfg), Err(RejectCode::RejectInvalidType));
 	}
 

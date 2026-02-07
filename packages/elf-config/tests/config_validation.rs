@@ -6,7 +6,7 @@ use std::{
 };
 
 fn sample_toml(reject_cjk: bool) -> String {
-	sample_toml_with_cache(reject_cjk, 7, 7, true, "v1", "v1")
+	sample_toml_with_cache(reject_cjk, 7, 7, true)
 }
 
 fn sample_toml_with_cache(
@@ -14,8 +14,6 @@ fn sample_toml_with_cache(
 	expansion_ttl_days: i64,
 	rerank_ttl_days: i64,
 	cache_enabled: bool,
-	expansion_version: &str,
-	rerank_version: &str,
 ) -> String {
 	format!(
 		r#"[service]
@@ -30,7 +28,7 @@ pool_max_conns = 5
 
 [storage.qdrant]
 url = "http://127.0.0.1:6334"
-collection = "mem_notes_v1"
+collection = "mem_notes_v2"
 vector_dim = 1536
 
 [providers.embedding]
@@ -111,8 +109,6 @@ enabled = {cache_enabled}
 expansion_ttl_days = {expansion_ttl_days}
 rerank_ttl_days = {rerank_ttl_days}
 max_payload_bytes = 262144
-expansion_version = "{expansion_version}"
-rerank_version = "{rerank_version}"
 
 [search.explain]
 retention_days = 7
@@ -144,9 +140,7 @@ evidence_max_quote_chars = 320
 		reject_cjk = reject_cjk,
 		cache_enabled = cache_enabled,
 		expansion_ttl_days = expansion_ttl_days,
-		rerank_ttl_days = rerank_ttl_days,
-		expansion_version = expansion_version,
-		rerank_version = rerank_version
+		rerank_ttl_days = rerank_ttl_days
 	)
 }
 
@@ -175,7 +169,6 @@ fn base_config() -> elf_config::Config {
 fn reject_cjk_must_be_true() {
 	let payload = sample_toml(false);
 	let path = write_temp_config(payload);
-
 	let result = elf_config::load(&path);
 
 	fs::remove_file(&path).expect("Failed to remove test config.");
@@ -191,9 +184,8 @@ fn reject_cjk_must_be_true() {
 
 #[test]
 fn cache_ttl_must_be_positive() {
-	let payload = sample_toml_with_cache(true, 0, 7, true, "v1", "v1");
+	let payload = sample_toml_with_cache(true, 0, 7, true);
 	let path = write_temp_config(payload);
-
 	let result = elf_config::load(&path);
 
 	fs::remove_file(&path).expect("Failed to remove test config.");
@@ -233,7 +225,6 @@ fn chunking_tokenizer_repo_can_inherit_from_embedding_model() {
 fn chunking_tokenizer_repo_empty_string_normalizes_to_none() {
 	let payload = sample_toml(true);
 	let path = write_temp_config(payload);
-
 	let cfg = elf_config::load(&path).expect("Expected config to load.");
 
 	fs::remove_file(&path).expect("Failed to remove test config.");
@@ -252,6 +243,7 @@ fn context_scope_boost_weight_requires_scope_descriptions_when_enabled() {
 	});
 
 	let err = elf_config::validate(&cfg).expect_err("Expected context validation error.");
+
 	assert!(
 		err.to_string().contains(
 			"context.scope_descriptions must be non-empty when context.scope_boost_weight is greater than zero."
@@ -277,6 +269,7 @@ fn context_scope_boost_weight_accepts_zero_without_descriptions() {
 fn context_scope_boost_weight_must_be_finite() {
 	let mut cfg = base_config();
 	let mut scope_descriptions = HashMap::new();
+
 	scope_descriptions.insert("project_shared".to_string(), "Project notes.".to_string());
 
 	cfg.context = Some(elf_config::Context {
@@ -286,6 +279,7 @@ fn context_scope_boost_weight_must_be_finite() {
 	});
 
 	let err = elf_config::validate(&cfg).expect_err("Expected context validation error.");
+
 	assert!(
 		err.to_string().contains("context.scope_boost_weight must be a finite number."),
 		"Unexpected error: {err}"
@@ -296,6 +290,7 @@ fn context_scope_boost_weight_must_be_finite() {
 fn context_scope_boost_weight_must_be_in_range() {
 	let mut cfg = base_config();
 	let mut scope_descriptions = HashMap::new();
+
 	scope_descriptions.insert("project_shared".to_string(), "Project notes.".to_string());
 
 	cfg.context = Some(elf_config::Context {
@@ -305,6 +300,7 @@ fn context_scope_boost_weight_must_be_in_range() {
 	});
 
 	let err = elf_config::validate(&cfg).expect_err("Expected context validation error.");
+
 	assert!(
 		err.to_string().contains("context.scope_boost_weight must be zero or greater."),
 		"Unexpected error: {err}"
@@ -317,6 +313,7 @@ fn context_scope_boost_weight_must_be_in_range() {
 	});
 
 	let err = elf_config::validate(&cfg).expect_err("Expected context validation error.");
+
 	assert!(
 		err.to_string().contains("context.scope_boost_weight must be 1.0 or less."),
 		"Unexpected error: {err}"
@@ -326,6 +323,7 @@ fn context_scope_boost_weight_must_be_in_range() {
 #[test]
 fn elf_example_toml_is_valid() {
 	let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+
 	path.push("../../elf.example.toml");
 
 	elf_config::load(&path).expect("Expected elf.example.toml to be a valid config.");

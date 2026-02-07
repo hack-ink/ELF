@@ -8,6 +8,7 @@ use elf_testkit::TestDatabase;
 async fn enqueues_outbox_job() {
 	let Some(base_dsn) = elf_testkit::env_dsn() else {
 		eprintln!("Skipping enqueues_outbox_job; set ELF_PG_DSN to run this test.");
+
 		return;
 	};
 	let test_db = TestDatabase::new(&base_dsn).await.expect("Failed to create test database.");

@@ -9,12 +9,18 @@ dsn            = "postgres://postgres:postgres@127.0.0.1:5432/elf"
 pool_max_conns = 10
 
 [storage.qdrant]
-collection = "mem_notes_v1"
+collection = "mem_notes_v2"
 url        = "http://127.0.0.1:6334"
 vector_dim = 4096
 
+[mcp]
+agent_id     = "local-agent"
+project_id   = "local-project"
+read_profile = "private_plus_project"
+tenant_id    = "local-tenant"
+
 [providers.embedding]
-api_base        = "https://provider.example/v1"
+api_base        = "https://provider.example"
 api_key         = "REPLACE_ME"
 default_headers = {}
 dimensions      = 4096
@@ -24,7 +30,7 @@ provider_id     = "provider-id"
 timeout_ms      = 20000
 
 [providers.rerank]
-api_base        = "https://provider.example/v1"
+api_base        = "https://provider.example"
 api_key         = "REPLACE_ME"
 default_headers = {}
 model           = "rerank-model"
@@ -33,7 +39,7 @@ provider_id     = "provider-id"
 timeout_ms      = 20000
 
 [providers.llm_extractor]
-api_base        = "https://provider.example/v1"
+api_base        = "https://provider.example"
 api_key         = "REPLACE_ME"
 default_headers = {}
 model           = "llm-model"
@@ -90,10 +96,8 @@ max_candidates = 0
 [search.cache]
 enabled            = true
 expansion_ttl_days = 7
-expansion_version  = "v1"
 max_payload_bytes  = 262144
 rerank_ttl_days    = 7
-rerank_version     = "v1"
 
 [search.explain]
 retention_days = 7

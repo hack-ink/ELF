@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO memory_hits (\n\t\thit_id,\n\t\tnote_id,\n\tchunk_id,\n\tquery_hash,\n\trank,\n\tfinal_score,\n\t\tts\n\t)\n\tVALUES ($1, $2, $3, $4, $5, $6, $7)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Int4",
+        "Float4",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2084ed2884286f0a2b9c1a9b88211f7a9ce27cb65dee2d1e95cecff1778069ee"
+}

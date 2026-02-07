@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO memory_note_chunks (\n\t\tchunk_id,\n\t\tnote_id,\n\tchunk_index,\n\tstart_offset,\n\tend_offset,\n\ttext,\n\tembedding_version\n\t)\n\tVALUES ($1, $2, $3, $4, $5, $6, $7)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6e216e704ae7221d604a6da64a33988bcf32cbef0b533f22c6d9d6c1ebce231e"
+}

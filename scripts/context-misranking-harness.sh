@@ -12,6 +12,7 @@ fi
 
 : "${ELF_PG_DSN:?Set ELF_PG_DSN to a Postgres DSN (usually .../postgres).}"
 : "${ELF_QDRANT_URL:?Set ELF_QDRANT_URL to the Qdrant gRPC base URL, for example http://127.0.0.1:51890 (default: http://127.0.0.1:6334).}"
+: "${ELF_QDRANT_HTTP_URL:?Set ELF_QDRANT_HTTP_URL to the Qdrant REST base URL, for example http://127.0.0.1:51889 (default: http://127.0.0.1:6333).}"
 
 if command -v jaq >/dev/null 2>&1; then
   JSON_TOOL="jaq"
@@ -32,8 +33,15 @@ if ! command -v psql >/dev/null 2>&1; then
   exit 1
 fi
 
+if ! command -v taplo >/dev/null 2>&1; then
+  echo "Missing taplo." >&2
+  exit 1
+fi
+
+RUN_ID="${ELF_HARNESS_RUN_ID:-"$(date +%s)-$$"}"
+
 DB_NAME="${ELF_HARNESS_DB_NAME:-elf_e2e}"
-QDRANT_COLLECTION="${ELF_HARNESS_COLLECTION:-mem_notes_v1}"
+QDRANT_COLLECTION="${ELF_HARNESS_COLLECTION:-elf_harness_${RUN_ID}}"
 VECTOR_DIM="${ELF_HARNESS_VECTOR_DIM:-4096}"
 
 HTTP_BIND="${ELF_HARNESS_HTTP_BIND:-127.0.0.1:18089}"
@@ -53,9 +61,46 @@ OUT_CONTEXT="${ROOT_DIR}/tmp/elf.harness.out.context.json"
 WORKER_LOG="${ROOT_DIR}/tmp/elf.harness.worker.log"
 API_LOG="${ROOT_DIR}/tmp/elf.harness.api.log"
 
+if [[ "${QDRANT_COLLECTION}" != elf_harness_* ]]; then
+  echo "ELF_HARNESS_COLLECTION must start with elf_harness_ to avoid deleting real data." >&2
+  exit 1
+fi
+
+WORKER_PID=""
+API_PID=""
+
+cleanup() {
+  set +e
+
+  if [[ -n "${API_PID}" ]] && kill -0 "${API_PID}" >/dev/null 2>&1; then
+    kill "${API_PID}" >/dev/null 2>&1 || true
+  fi
+  if [[ -n "${WORKER_PID}" ]] && kill -0 "${WORKER_PID}" >/dev/null 2>&1; then
+    kill "${WORKER_PID}" >/dev/null 2>&1 || true
+  fi
+  wait >/dev/null 2>&1 || true
+
+  if [[ "${ELF_HARNESS_KEEP_COLLECTION:-0}" != "1" ]]; then
+    curl -sS -X DELETE "${ELF_QDRANT_HTTP_URL}/collections/${QDRANT_COLLECTION}?wait=true" >/dev/null || true
+  fi
+
+  if [[ "${ELF_HARNESS_KEEP_DB:-0}" != "1" ]]; then
+    psql "${ELF_PG_DSN}" -tAc \
+      "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${DB_NAME}' AND pid <> pg_backend_pid();" \
+      >/dev/null 2>&1 || true
+    psql "${ELF_PG_DSN}" -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS ${DB_NAME};" >/dev/null 2>&1 || true
+  fi
+}
+
+trap cleanup EXIT
+
 echo "Recreating database ${DB_NAME}."
 psql "${ELF_PG_DSN}" -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS ${DB_NAME};" >/dev/null
 psql "${ELF_PG_DSN}" -v ON_ERROR_STOP=1 -c "CREATE DATABASE ${DB_NAME};" >/dev/null
+
+echo "Recreating Qdrant collection ${QDRANT_COLLECTION}."
+curl -sS -X DELETE "${ELF_QDRANT_HTTP_URL}/collections/${QDRANT_COLLECTION}?wait=true" >/dev/null || true
+(cd "${ROOT_DIR}" && ELF_QDRANT_COLLECTION="${QDRANT_COLLECTION}" ELF_QDRANT_VECTOR_DIM="${VECTOR_DIM}" ./qdrant/init.sh >/dev/null)
 
 cat >"${CFG_BASE}" <<TOML
 [service]
@@ -77,7 +122,7 @@ vector_dim = ${VECTOR_DIM}
 api_base    = "http://127.0.0.1"
 api_key     = "local"
 dimensions  = ${VECTOR_DIM}
-model       = "local-hash-v1"
+model       = "local-hash"
 path        = "/embeddings"
 provider_id = "local"
 timeout_ms  = 1000
@@ -87,7 +132,7 @@ default_headers = {}
 [providers.rerank]
 api_base    = "http://127.0.0.1"
 api_key     = "local"
-model       = "local-token-overlap-v1"
+model       = "local-token-overlap"
 path        = "/rerank"
 provider_id = "local"
 timeout_ms  = 1000
@@ -152,9 +197,7 @@ max_candidates = 0
 [search.cache]
 enabled           = false
 expansion_ttl_days = 7
-expansion_version  = "harness"
 rerank_ttl_days    = 7
-rerank_version     = "harness"
 
 [search.explain]
 retention_days = 7
@@ -195,20 +238,7 @@ org_shared     = "Org-wide policies and shared operating context."
 project_shared = "Project-specific deployment steps and runbooks."
 TOML
 
-WORKER_PID=""
-API_PID=""
-
-cleanup() {
-  if [[ -n "${API_PID}" ]] && kill -0 "${API_PID}" >/dev/null 2>&1; then
-    kill "${API_PID}" >/dev/null 2>&1 || true
-  fi
-  if [[ -n "${WORKER_PID}" ]] && kill -0 "${WORKER_PID}" >/dev/null 2>&1; then
-    kill "${WORKER_PID}" >/dev/null 2>&1 || true
-  fi
-  wait >/dev/null 2>&1 || true
-}
-
-trap cleanup EXIT
+taplo fmt "${CFG_BASE}" "${CFG_CONTEXT}" >/dev/null 2>&1
 
 echo "Starting worker and API (logs: ${WORKER_LOG}, ${API_LOG})."
 (cd "${ROOT_DIR}" && cargo run -p elf-worker -- --config "${CFG_BASE}" >"${WORKER_LOG}" 2>&1) &
@@ -218,32 +248,30 @@ API_PID="$!"
 
 echo "Waiting for API health check at ${HTTP_BASE}/health."
 for _ in $(seq 1 120); do
-  status="$(curl -sS -o /dev/null -w '%{http_code}' "${HTTP_BASE}/health" || true)"
+  status="$(curl -s -o /dev/null -w '%{http_code}' "${HTTP_BASE}/health" 2>/dev/null || true)"
   if [[ "${status}" == "200" ]]; then
     break
   fi
   sleep 0.5
 done
 
-status="$(curl -sS -o /dev/null -w '%{http_code}' "${HTTP_BASE}/health" || true)"
+status="$(curl -s -o /dev/null -w '%{http_code}' "${HTTP_BASE}/health" 2>/dev/null || true)"
 if [[ "${status}" != "200" ]]; then
   echo "API did not become healthy in time. Check logs: ${API_LOG}." >&2
   exit 1
 fi
-
-RUN_ID="$(date +%s)"
 TENANT_ID="harness-tenant-${RUN_ID}"
 PROJECT_ID="harness-project-${RUN_ID}"
 AGENT_ID="harness-agent-${RUN_ID}"
 
 echo "Adding confuser notes in org_shared and project_shared."
 NOTE_ORG="$(
-  curl -sS "${HTTP_BASE}/v1/memory/add_note" \
+  curl -sS "${HTTP_BASE}/v2/notes/ingest" \
     -H 'content-type: application/json' \
+    -H "X-ELF-Tenant-Id: ${TENANT_ID}" \
+    -H "X-ELF-Project-Id: ${PROJECT_ID}" \
+    -H "X-ELF-Agent-Id: ${AGENT_ID}" \
     -d "{
-      \"tenant_id\": \"${TENANT_ID}\",
-      \"project_id\": \"${PROJECT_ID}\",
-      \"agent_id\": \"${AGENT_ID}\",
       \"scope\": \"org_shared\",
       \"notes\": [
         {
@@ -260,12 +288,12 @@ NOTE_ORG="$(
 )"
 
 NOTE_PROJECT="$(
-  curl -sS "${HTTP_BASE}/v1/memory/add_note" \
+  curl -sS "${HTTP_BASE}/v2/notes/ingest" \
     -H 'content-type: application/json' \
+    -H "X-ELF-Tenant-Id: ${TENANT_ID}" \
+    -H "X-ELF-Project-Id: ${PROJECT_ID}" \
+    -H "X-ELF-Agent-Id: ${AGENT_ID}" \
     -d "{
-      \"tenant_id\": \"${TENANT_ID}\",
-      \"project_id\": \"${PROJECT_ID}\",
-      \"agent_id\": \"${AGENT_ID}\",
       \"scope\": \"project_shared\",
       \"notes\": [
         {
@@ -359,8 +387,9 @@ echo "expected  note_id=${NOTE_PROJECT}"
 
 echo "Cleaning up notes."
 for id in "${NOTE_ORG}" "${NOTE_PROJECT}"; do
-  curl -sS "${HTTP_BASE}/v1/memory/delete" \
-    -H 'content-type: application/json' \
-    -d "{\"tenant_id\":\"${TENANT_ID}\",\"project_id\":\"${PROJECT_ID}\",\"agent_id\":\"${AGENT_ID}\",\"note_id\":\"${id}\"}" \
+  curl -sS -X DELETE "${HTTP_BASE}/v2/notes/${id}" \
+    -H "X-ELF-Tenant-Id: ${TENANT_ID}" \
+    -H "X-ELF-Project-Id: ${PROJECT_ID}" \
+    -H "X-ELF-Agent-Id: ${AGENT_ID}" \
     >/dev/null
 done

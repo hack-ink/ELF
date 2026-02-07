@@ -4,7 +4,7 @@ use uuid::Uuid;
 use crate::{db::Db, models::MemoryNote};
 
 pub async fn insert_note(db: &Db, note: &MemoryNote) -> Result<()> {
-	sqlx::query(
+	sqlx::query!(
 		"\
 INSERT INTO memory_notes (
 	note_id,
@@ -46,25 +46,25 @@ VALUES (
 	$17,
 	$18
 )",
+		note.note_id,
+		note.tenant_id.as_str(),
+		note.project_id.as_str(),
+		note.agent_id.as_str(),
+		note.scope.as_str(),
+		note.r#type.as_str(),
+		note.key.as_deref(),
+		note.text.as_str(),
+		note.importance,
+		note.confidence,
+		note.status.as_str(),
+		note.created_at,
+		note.updated_at,
+		note.expires_at,
+		note.embedding_version.as_str(),
+		&note.source_ref,
+		note.hit_count,
+		note.last_hit_at,
 	)
-	.bind(note.note_id)
-	.bind(&note.tenant_id)
-	.bind(&note.project_id)
-	.bind(&note.agent_id)
-	.bind(&note.scope)
-	.bind(&note.r#type)
-	.bind(&note.key)
-	.bind(&note.text)
-	.bind(note.importance)
-	.bind(note.confidence)
-	.bind(&note.status)
-	.bind(note.created_at)
-	.bind(note.updated_at)
-	.bind(note.expires_at)
-	.bind(&note.embedding_version)
-	.bind(&note.source_ref)
-	.bind(note.hit_count)
-	.bind(note.last_hit_at)
 	.execute(&db.pool)
 	.await?;
 
@@ -72,7 +72,7 @@ VALUES (
 }
 
 pub async fn update_note(db: &Db, note: &MemoryNote) -> Result<()> {
-	sqlx::query(
+	sqlx::query!(
 		"\
 UPDATE memory_notes
 SET
@@ -83,14 +83,14 @@ SET
 	expires_at = $5,
 	source_ref = $6
 WHERE note_id = $7",
+		note.text.as_str(),
+		note.importance,
+		note.confidence,
+		note.updated_at,
+		note.expires_at,
+		&note.source_ref,
+		note.note_id,
 	)
-	.bind(&note.text)
-	.bind(note.importance)
-	.bind(note.confidence)
-	.bind(note.updated_at)
-	.bind(note.expires_at)
-	.bind(&note.source_ref)
-	.bind(note.note_id)
 	.execute(&db.pool)
 	.await?;
 
@@ -98,8 +98,7 @@ WHERE note_id = $7",
 }
 
 pub async fn delete_note_chunks(db: &Db, note_id: Uuid) -> Result<()> {
-	sqlx::query("DELETE FROM memory_note_chunks WHERE note_id = $1")
-		.bind(note_id)
+	sqlx::query!("DELETE FROM memory_note_chunks WHERE note_id = $1", note_id)
 		.execute(&db.pool)
 		.await?;
 
@@ -117,7 +116,7 @@ pub async fn insert_note_chunk(
 	text: &str,
 	embedding_version: &str,
 ) -> Result<()> {
-	sqlx::query(
+	sqlx::query!(
 		"\
 INSERT INTO memory_note_chunks (
 	chunk_id,
@@ -134,14 +133,14 @@ SET
 	text = EXCLUDED.text,
 	start_offset = EXCLUDED.start_offset,
 	end_offset = EXCLUDED.end_offset",
+		chunk_id,
+		note_id,
+		chunk_index,
+		start_offset,
+		end_offset,
+		text,
+		embedding_version,
 	)
-	.bind(chunk_id)
-	.bind(note_id)
-	.bind(chunk_index)
-	.bind(start_offset)
-	.bind(end_offset)
-	.bind(text)
-	.bind(embedding_version)
 	.execute(&db.pool)
 	.await?;
 
@@ -155,20 +154,20 @@ pub async fn insert_note_chunk_embedding(
 	embedding_dim: i32,
 	vec: &str,
 ) -> Result<()> {
-	sqlx::query(
+	sqlx::query!(
 		"\
-INSERT INTO note_chunk_embeddings (chunk_id, embedding_version, embedding_dim, vec)
-VALUES ($1, $2, $3, $4::vector)
-ON CONFLICT (chunk_id, embedding_version) DO UPDATE
-SET
-	embedding_dim = EXCLUDED.embedding_dim,
-	vec = EXCLUDED.vec,
+	INSERT INTO note_chunk_embeddings (chunk_id, embedding_version, embedding_dim, vec)
+	VALUES ($1, $2, $3, $4::text::vector)
+	ON CONFLICT (chunk_id, embedding_version) DO UPDATE
+	SET
+		embedding_dim = EXCLUDED.embedding_dim,
+		vec = EXCLUDED.vec,
 	created_at = now()",
+		chunk_id,
+		embedding_version,
+		embedding_dim,
+		vec,
 	)
-	.bind(chunk_id)
-	.bind(embedding_version)
-	.bind(embedding_dim)
-	.bind(vec)
 	.execute(&db.pool)
 	.await?;
 

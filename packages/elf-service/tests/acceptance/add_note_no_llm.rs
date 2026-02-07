@@ -10,14 +10,16 @@ use super::{
 };
 
 #[tokio::test]
-#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
+#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run this test."]
 async fn add_note_does_not_call_llm() {
 	let Some(test_db) = test_db().await else {
 		eprintln!("Skipping add_note_does_not_call_llm; set ELF_PG_DSN to run this test.");
+
 		return;
 	};
 	let Some(qdrant_url) = test_qdrant_url() else {
 		eprintln!("Skipping add_note_does_not_call_llm; set ELF_QDRANT_URL to run this test.");
+
 		return;
 	};
 	let calls = Arc::new(AtomicUsize::new(0));
@@ -28,10 +30,10 @@ async fn add_note_does_not_call_llm() {
 		Arc::new(StubRerank),
 		Arc::new(extractor),
 	);
-
 	let collection = test_db.collection_name("elf_acceptance");
 	let cfg = test_config(test_db.dsn().to_string(), qdrant_url, 3, collection);
 	let service = build_service(cfg, providers).await.expect("Failed to build service.");
+
 	super::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
 
 	let request = AddNoteRequest {
@@ -49,8 +51,9 @@ async fn add_note_does_not_call_llm() {
 			source_ref: serde_json::json!({}),
 		}],
 	};
+	let _ = service.add_note(request).await.expect("add_note failed.");
 
-	service.add_note(request).await.expect("add_note failed.");
 	assert_eq!(calls.load(Ordering::SeqCst), 0);
+
 	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }

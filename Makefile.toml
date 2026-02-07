@@ -23,6 +23,7 @@ dependencies = [
 [tasks.lint-rust]
 workspace = false
 command = "cargo"
+env = { SQLX_OFFLINE = "true" }
 args = [
 	"clippy",
 	"--workspace",
@@ -35,6 +36,7 @@ args = [
 
 [tasks.lint-fix-rust]
 extend = "lint-rust"
+env = { SQLX_OFFLINE = "true" }
 args = [
 	"clippy",
 	"--fix",
@@ -46,10 +48,12 @@ args = [
 
 
 # Test
-# | task      | type      | cwd |
-# | --------- | --------- | --- |
-# | test      | composite |     |
-# | test-rust | command   |     |
+# | task      | type      | cwd       |
+# | --------- | --------- | ---       |
+# | test      | composite |           |
+# | test-rust | command   |           |
+# | test-integration      | composite |
+# | test-integration-rust | command   |
 
 [tasks.test]
 workspace = false
@@ -60,12 +64,33 @@ dependencies = [
 [tasks.test-rust]
 workspace = false
 command = "cargo"
+env = { SQLX_OFFLINE = "true" }
 args = [
 	"nextest",
 	"run",
 	"--workspace",
 	"--all-targets",
 	"--all-features",
+]
+
+[tasks.test-integration]
+workspace = false
+dependencies = [
+	"test-integration-rust",
+]
+
+[tasks.test-integration-rust]
+workspace = false
+command = "cargo"
+env = { SQLX_OFFLINE = "true" }
+args = [
+	"nextest",
+	"run",
+	"--workspace",
+	"--all-targets",
+	"--all-features",
+	"--run-ignored",
+	"only",
 ]
 
 
@@ -95,11 +120,27 @@ dependencies = [
 
 [tasks.fmt-rust]
 workspace = false
-script = "cargo +nightly fmt --all"
+command = "rustup"
+args = [
+	"run",
+	"nightly",
+	"cargo",
+	"fmt",
+	"--all",
+]
 
 [tasks.fmt-rust-check]
-extend = "fmt-rust"
-script = "cargo +nightly fmt --all -- --check"
+workspace = false
+command = "rustup"
+args = [
+	"run",
+	"nightly",
+	"cargo",
+	"fmt",
+	"--all",
+	"--",
+	"--check",
+]
 
 [tasks.fmt-toml]
 workspace = false
@@ -113,6 +154,25 @@ extend = "fmt-toml"
 args = [
 	"fmt",
 	"--check",
+]
+
+# E2E
+# | task                           | type      | cwd |
+# | ------------------------------ | --------- | --- |
+# | e2e                            | composite |     |
+# | e2e-context-misranking-harness | command   |     |
+
+[tasks.e2e]
+workspace = false
+dependencies = [
+	"e2e-context-misranking-harness",
+]
+
+[tasks.e2e-context-misranking-harness]
+workspace = false
+command = "bash"
+args = [
+	"scripts/context-misranking-harness.sh",
 ]
 
 

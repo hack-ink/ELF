@@ -103,16 +103,33 @@ struct QueryReport {
 	retrieved_note_ids: Vec<Uuid>,
 }
 
+struct MergedQuery {
+	id: String,
+	query: String,
+	expected_note_ids: Vec<Uuid>,
+	request: elf_service::SearchRequest,
+}
+
+struct Metrics {
+	recall_at_k: f64,
+	precision_at_k: f64,
+	rr: f64,
+	ndcg: f64,
+	relevant_count: usize,
+}
+
 pub async fn run(args: Args) -> color_eyre::Result<()> {
 	let config = elf_config::load(&args.config)?;
 	let filter = EnvFilter::new(config.service.log_level.clone());
+
 	tracing_subscriber::fmt().with_env_filter(filter).init();
 
 	let db = Db::connect(&config.storage.postgres).await?;
+
 	db.ensure_schema(config.storage.qdrant.vector_dim).await?;
+
 	let qdrant = QdrantStore::new(&config.storage.qdrant)?;
 	let service = ElfService::new(config, db, qdrant);
-
 	let dataset = load_dataset(&args.dataset)?;
 	let defaults = dataset.defaults.clone().unwrap_or(EvalDefaults {
 		tenant_id: None,
@@ -149,6 +166,7 @@ pub async fn run(args: Args) -> color_eyre::Result<()> {
 			expected_note_ids: merged.expected_note_ids,
 			retrieved_note_ids: retrieved,
 		});
+
 		latencies_ms.push(latency_ms);
 	}
 
@@ -172,26 +190,22 @@ pub async fn run(args: Args) -> color_eyre::Result<()> {
 		summary,
 		queries: reports,
 	};
-
 	let json = serde_json::to_string_pretty(&output)?;
+
 	println!("{json}");
+
 	Ok(())
 }
 
 fn load_dataset(path: &PathBuf) -> color_eyre::Result<EvalDataset> {
 	let raw = fs::read_to_string(path)?;
 	let dataset: EvalDataset = serde_json::from_str(&raw)?;
+
 	if dataset.queries.is_empty() {
 		return Err(eyre::eyre!("Dataset must include at least one query."));
 	}
-	Ok(dataset)
-}
 
-struct MergedQuery {
-	id: String,
-	query: String,
-	expected_note_ids: Vec<Uuid>,
-	request: elf_service::SearchRequest,
+	Ok(dataset)
 }
 
 fn merge_query(
@@ -227,7 +241,6 @@ fn merge_query(
 		.clone()
 		.or_else(|| defaults.read_profile.clone())
 		.ok_or_else(|| eyre::eyre!("read_profile is required for query at index {index}."))?;
-
 	let top_k = args.top_k.or(query.top_k).or(defaults.top_k).unwrap_or(cfg.memory.top_k).max(1);
 	let candidate_k = args
 		.candidate_k
@@ -235,7 +248,6 @@ fn merge_query(
 		.or(defaults.candidate_k)
 		.unwrap_or(cfg.memory.candidate_k)
 		.max(top_k);
-
 	let id = query.id.clone().unwrap_or_else(|| format!("query-{index}"));
 
 	Ok(MergedQuery {
@@ -261,24 +273,19 @@ where
 {
 	let mut seen = HashSet::new();
 	let mut out = Vec::new();
+
 	for id in iter {
 		if seen.insert(id) {
 			out.push(id);
 		}
 	}
-	out
-}
 
-struct Metrics {
-	recall_at_k: f64,
-	precision_at_k: f64,
-	rr: f64,
-	ndcg: f64,
-	relevant_count: usize,
+	out
 }
 
 fn compute_metrics(retrieved: &[Uuid], expected: &HashSet<Uuid>) -> Metrics {
 	let expected_count = expected.len();
+
 	let mut relevant_count = 0usize;
 	let mut dcg = 0.0_f64;
 	let mut rr = 0.0_f64;
@@ -300,8 +307,10 @@ fn compute_metrics(retrieved: &[Uuid], expected: &HashSet<Uuid>) -> Metrics {
 		rr = 1.0 / rank as f64;
 	}
 
-	let mut idcg = 0.0_f64;
 	let ideal_hits = expected_count.min(retrieved.len());
+
+	let mut idcg = 0.0_f64;
+
 	for idx in 0..ideal_hits {
 		let rank = idx + 1;
 		let denom = (rank as f64 + 1.0).log2();
@@ -325,7 +334,9 @@ fn summarize(reports: &[QueryReport], latencies_ms: &[f64]) -> EvalSummary {
 	let mean_ndcg = reports.iter().map(|r| r.ndcg).sum::<f64>() / count;
 
 	let mut sorted = latencies_ms.to_vec();
+
 	sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+
 	let p50 = percentile(&sorted, 0.50);
 	let p95 = percentile(&sorted, 0.95);
 
@@ -343,10 +354,12 @@ fn percentile(values: &[f64], percentile: f64) -> f64 {
 	if values.is_empty() {
 		return 0.0;
 	}
+
 	let clamped = percentile.clamp(0.0, 1.0);
 	let pos = clamped * (values.len() as f64 - 1.0);
 	let lower = pos.floor() as usize;
 	let upper = pos.ceil() as usize;
+
 	if lower == upper {
 		values[lower]
 	} else {

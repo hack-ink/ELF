@@ -18,24 +18,96 @@ mod acceptance {
 			Arc,
 			atomic::{AtomicUsize, Ordering},
 		},
+		time::Duration,
 	};
 
+	use color_eyre::eyre;
+	use qdrant_client::{
+		Qdrant,
+		qdrant::{
+			CreateCollectionBuilder, Distance, Modifier, SparseVectorParamsBuilder,
+			SparseVectorsConfigBuilder, VectorParamsBuilder, VectorsConfigBuilder,
+		},
+	};
 	use serde_json::{Map, Value};
+	use tokio::time;
 
 	use elf_service::{
 		ElfService, EmbeddingProvider, ExtractorProvider, Providers, RerankProvider,
 	};
-	use elf_storage::{db::Db, qdrant::QdrantStore};
+	use elf_storage::{
+		db::Db,
+		qdrant::{BM25_VECTOR_NAME, DENSE_VECTOR_NAME, QdrantStore},
+	};
 	use elf_testkit::TestDatabase;
+
+	pub struct StubEmbedding {
+		pub vector_dim: u32,
+	}
+
+	impl EmbeddingProvider for StubEmbedding {
+		fn embed<'a>(
+			&'a self,
+			_cfg: &'a elf_config::EmbeddingProviderConfig,
+			texts: &'a [String],
+		) -> elf_service::BoxFuture<'a, color_eyre::Result<Vec<Vec<f32>>>> {
+			let dim = self.vector_dim as usize;
+			let vectors = texts.iter().map(|_| vec![0.0; dim]).collect();
+			Box::pin(async move { Ok(vectors) })
+		}
+	}
+
+	pub struct SpyEmbedding {
+		pub vector_dim: u32,
+		pub calls: Arc<AtomicUsize>,
+	}
+
+	impl EmbeddingProvider for SpyEmbedding {
+		fn embed<'a>(
+			&'a self,
+			_cfg: &'a elf_config::EmbeddingProviderConfig,
+			texts: &'a [String],
+		) -> elf_service::BoxFuture<'a, color_eyre::Result<Vec<Vec<f32>>>> {
+			self.calls.fetch_add(1, Ordering::SeqCst);
+			let dim = self.vector_dim as usize;
+			let vectors = texts.iter().map(|_| vec![0.0; dim]).collect();
+			Box::pin(async move { Ok(vectors) })
+		}
+	}
+
+	pub struct StubRerank;
+
+	impl RerankProvider for StubRerank {
+		fn rerank<'a>(
+			&'a self,
+			_cfg: &'a elf_config::ProviderConfig,
+			_query: &'a str,
+			docs: &'a [String],
+		) -> elf_service::BoxFuture<'a, color_eyre::Result<Vec<f32>>> {
+			let scores = vec![0.5; docs.len()];
+			Box::pin(async move { Ok(scores) })
+		}
+	}
+
+	pub struct SpyExtractor {
+		pub calls: Arc<AtomicUsize>,
+		pub payload: Value,
+	}
+
+	impl ExtractorProvider for SpyExtractor {
+		fn extract<'a>(
+			&'a self,
+			_cfg: &'a elf_config::LlmProviderConfig,
+			_messages: &'a [Value],
+		) -> elf_service::BoxFuture<'a, color_eyre::Result<Value>> {
+			let payload = self.payload.clone();
+			self.calls.fetch_add(1, Ordering::SeqCst);
+			Box::pin(async move { Ok(payload) })
+		}
+	}
 
 	pub fn test_qdrant_url() -> Option<String> {
 		env::var("ELF_QDRANT_URL").ok()
-	}
-
-	pub async fn test_db() -> Option<elf_testkit::TestDatabase> {
-		let base_dsn = elf_testkit::env_dsn()?;
-		let db = TestDatabase::new(&base_dsn).await.expect("Failed to create test database.");
-		Some(db)
 	}
 
 	pub fn test_config(
@@ -110,8 +182,6 @@ mod acceptance {
 					expansion_ttl_days: 7,
 					rerank_ttl_days: 7,
 					max_payload_bytes: Some(262_144),
-					expansion_version: "v1".to_string(),
-					rerank_version: "v1".to_string(),
 				},
 				explain: elf_config::SearchExplain { retention_days: 7 },
 			},
@@ -143,92 +213,7 @@ mod acceptance {
 				evidence_max_quote_chars: 320,
 			},
 			context: None,
-		}
-	}
-
-	pub async fn build_service(
-		cfg: elf_config::Config,
-		providers: Providers,
-	) -> color_eyre::Result<ElfService> {
-		let db = Db::connect(&cfg.storage.postgres).await?;
-		db.ensure_schema(cfg.storage.qdrant.vector_dim).await?;
-		let qdrant = QdrantStore::new(&cfg.storage.qdrant)?;
-		Ok(ElfService::with_providers(cfg, db, qdrant, providers))
-	}
-
-	pub async fn reset_db(pool: &sqlx::PgPool) -> color_eyre::Result<()> {
-		sqlx::query(
-			"TRUNCATE memory_hits, memory_note_versions, note_chunk_embeddings, memory_note_chunks, \
-	         note_embeddings, search_trace_items, search_traces, search_trace_outbox, search_sessions, \
-	         indexing_outbox, memory_notes",
-		)
-		.execute(pool)
-		.await?;
-		Ok(())
-	}
-
-	pub struct StubEmbedding {
-		pub vector_dim: u32,
-	}
-
-	impl EmbeddingProvider for StubEmbedding {
-		fn embed<'a>(
-			&'a self,
-			_cfg: &'a elf_config::EmbeddingProviderConfig,
-			texts: &'a [String],
-		) -> elf_service::BoxFuture<'a, color_eyre::Result<Vec<Vec<f32>>>> {
-			let dim = self.vector_dim as usize;
-			let vectors = texts.iter().map(|_| vec![0.0; dim]).collect();
-			Box::pin(async move { Ok(vectors) })
-		}
-	}
-
-	pub struct SpyEmbedding {
-		pub vector_dim: u32,
-		pub calls: Arc<AtomicUsize>,
-	}
-
-	impl EmbeddingProvider for SpyEmbedding {
-		fn embed<'a>(
-			&'a self,
-			_cfg: &'a elf_config::EmbeddingProviderConfig,
-			texts: &'a [String],
-		) -> elf_service::BoxFuture<'a, color_eyre::Result<Vec<Vec<f32>>>> {
-			self.calls.fetch_add(1, Ordering::SeqCst);
-			let dim = self.vector_dim as usize;
-			let vectors = texts.iter().map(|_| vec![0.0; dim]).collect();
-			Box::pin(async move { Ok(vectors) })
-		}
-	}
-
-	pub struct StubRerank;
-
-	impl RerankProvider for StubRerank {
-		fn rerank<'a>(
-			&'a self,
-			_cfg: &'a elf_config::ProviderConfig,
-			_query: &'a str,
-			docs: &'a [String],
-		) -> elf_service::BoxFuture<'a, color_eyre::Result<Vec<f32>>> {
-			let scores = vec![0.5; docs.len()];
-			Box::pin(async move { Ok(scores) })
-		}
-	}
-
-	pub struct SpyExtractor {
-		pub calls: Arc<AtomicUsize>,
-		pub payload: Value,
-	}
-
-	impl ExtractorProvider for SpyExtractor {
-		fn extract<'a>(
-			&'a self,
-			_cfg: &'a elf_config::LlmProviderConfig,
-			_messages: &'a [Value],
-		) -> elf_service::BoxFuture<'a, color_eyre::Result<Value>> {
-			let payload = self.payload.clone();
-			self.calls.fetch_add(1, Ordering::SeqCst);
-			Box::pin(async move { Ok(payload) })
+			mcp: None,
 		}
 	}
 
@@ -268,5 +253,79 @@ mod acceptance {
 			timeout_ms: 1000,
 			default_headers: Map::new(),
 		}
+	}
+
+	pub async fn test_db() -> Option<elf_testkit::TestDatabase> {
+		let base_dsn = elf_testkit::env_dsn()?;
+		let db = TestDatabase::new(&base_dsn).await.expect("Failed to create test database.");
+		Some(db)
+	}
+
+	pub async fn reset_qdrant_collection(
+		client: &Qdrant,
+		collection: &str,
+		vector_dim: u32,
+	) -> color_eyre::Result<()> {
+		let _ = client.delete_collection(collection.to_string()).await;
+		let max_attempts = 8;
+
+		let mut backoff = Duration::from_millis(100);
+		let mut last_err = None;
+
+		for attempt in 1..=max_attempts {
+			let mut vectors_config = VectorsConfigBuilder::default();
+			vectors_config.add_named_vector_params(
+				DENSE_VECTOR_NAME,
+				VectorParamsBuilder::new(vector_dim.into(), Distance::Cosine),
+			);
+			let mut sparse_vectors_config = SparseVectorsConfigBuilder::default();
+			sparse_vectors_config.add_named_vector_params(
+				BM25_VECTOR_NAME,
+				SparseVectorParamsBuilder::default().modifier(Modifier::Idf as i32),
+			);
+
+			let builder = CreateCollectionBuilder::new(collection.to_string())
+				.vectors_config(vectors_config)
+				.sparse_vectors_config(sparse_vectors_config);
+
+			match client.create_collection(builder).await {
+				Ok(_) => return Ok(()),
+				Err(err) => {
+					last_err = Some(err);
+					if attempt == max_attempts {
+						break;
+					}
+					time::sleep(backoff).await;
+					backoff = backoff.saturating_mul(2).min(Duration::from_secs(2));
+				},
+			}
+		}
+
+		Err(eyre::eyre!(
+			"Failed to create Qdrant collection {collection:?} after {max_attempts} attempts: {last_err:?}."
+		))
+	}
+
+	pub async fn build_service(
+		cfg: elf_config::Config,
+		providers: Providers,
+	) -> color_eyre::Result<ElfService> {
+		let db = Db::connect(&cfg.storage.postgres).await?;
+		db.ensure_schema(cfg.storage.qdrant.vector_dim).await?;
+		let qdrant = QdrantStore::new(&cfg.storage.qdrant)?;
+		Ok(ElfService::with_providers(cfg, db, qdrant, providers))
+	}
+
+	pub async fn reset_db(pool: &sqlx::PgPool) -> color_eyre::Result<()> {
+		sqlx::query!(
+			"\
+TRUNCATE memory_hits, memory_note_versions, note_chunk_embeddings, memory_note_chunks, \
+note_embeddings, search_trace_items, search_traces, search_trace_outbox, search_sessions, \
+indexing_outbox, memory_notes",
+		)
+		.execute(pool)
+		.await?;
+
+		Ok(())
 	}
 }

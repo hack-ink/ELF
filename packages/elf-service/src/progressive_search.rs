@@ -1,13 +1,11 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use sqlx::Row;
 use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
+use crate::{ElfService, NoteFetchResponse, SearchRequest, ServiceError, ServiceResult};
 use elf_domain::cjk;
 use elf_storage::models::MemoryNote;
-
-use crate::{ElfService, NoteFetchResponse, SearchRequest, ServiceError, ServiceResult};
 
 const SESSION_SLIDING_TTL_HOURS: i64 = 6;
 const SESSION_ABSOLUTE_TTL_HOURS: i64 = 24;
@@ -39,7 +37,20 @@ pub struct SearchIndexResponse {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SearchSessionGetRequest {
+	pub tenant_id: String,
+	pub project_id: String,
+	pub agent_id: String,
+	pub search_session_id: Uuid,
+	pub top_k: Option<u32>,
+	pub touch: Option<bool>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SearchTimelineRequest {
+	pub tenant_id: String,
+	pub project_id: String,
+	pub agent_id: String,
 	pub search_session_id: Uuid,
 	pub group_by: Option<String>,
 }
@@ -60,6 +71,9 @@ pub struct SearchTimelineResponse {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SearchDetailsRequest {
+	pub tenant_id: String,
+	pub project_id: String,
+	pub agent_id: String,
 	pub search_session_id: Uuid,
 	pub note_ids: Vec<Uuid>,
 	pub record_hits: Option<bool>,
@@ -84,6 +98,13 @@ pub struct SearchDetailsResponse {
 	#[serde(with = "crate::time_serde")]
 	pub expires_at: OffsetDateTime,
 	pub results: Vec<SearchDetailsResult>,
+}
+
+struct HitItem {
+	note_id: Uuid,
+	chunk_id: Uuid,
+	rank: u32,
+	final_score: f32,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -124,6 +145,7 @@ impl SearchSessionItemRecord {
 
 struct SearchSession {
 	search_session_id: Uuid,
+	trace_id: Uuid,
 	tenant_id: String,
 	project_id: String,
 	agent_id: String,
@@ -153,15 +175,17 @@ impl ElfService {
 		let candidate_k = req.candidate_k.unwrap_or(self.cfg.memory.candidate_k).max(top_k);
 
 		let mut raw_req = req.clone();
+
 		raw_req.top_k = Some(candidate_k);
 		raw_req.record_hits = Some(false);
-		let raw = self.search_raw(raw_req).await?;
 
+		let raw = self.search_raw(raw_req).await?;
 		let now = OffsetDateTime::now_utc();
 		let expires_at = now + Duration::hours(SESSION_SLIDING_TTL_HOURS);
 		let search_session_id = Uuid::new_v4();
 
 		let mut items = Vec::with_capacity(raw.items.len());
+
 		for (idx, item) in raw.items.iter().enumerate() {
 			let summary = build_summary(&item.snippet, self.cfg.memory.max_note_chars as usize);
 			items.push(SearchSessionItemRecord {
@@ -208,14 +232,67 @@ impl ElfService {
 		})
 	}
 
+	pub async fn search_session_get(
+		&self,
+		req: SearchSessionGetRequest,
+	) -> ServiceResult<SearchIndexResponse> {
+		let tenant_id = req.tenant_id.trim();
+		let project_id = req.project_id.trim();
+		let agent_id = req.agent_id.trim();
+
+		if tenant_id.is_empty() || project_id.is_empty() || agent_id.is_empty() {
+			return Err(ServiceError::InvalidRequest {
+				message: "tenant_id, project_id, and agent_id are required.".to_string(),
+			});
+		}
+
+		let now = OffsetDateTime::now_utc();
+		let session = load_search_session(&self.db.pool, req.search_session_id, now).await?;
+
+		validate_search_session_access(&session, tenant_id, project_id, agent_id)?;
+
+		let touch = req.touch.unwrap_or(true);
+		let expires_at = if touch {
+			touch_search_session(&self.db.pool, &session, now).await?
+		} else {
+			session.expires_at
+		};
+		let top_k = req.top_k.unwrap_or(self.cfg.memory.top_k).max(1);
+		let items: Vec<SearchIndexItem> = session
+			.items
+			.into_iter()
+			.take(top_k as usize)
+			.map(|item| item.to_index_item())
+			.collect();
+
+		Ok(SearchIndexResponse {
+			trace_id: session.trace_id,
+			search_session_id: session.search_session_id,
+			expires_at,
+			items,
+		})
+	}
+
 	pub async fn search_timeline(
 		&self,
 		req: SearchTimelineRequest,
 	) -> ServiceResult<SearchTimelineResponse> {
+		let tenant_id = req.tenant_id.trim();
+		let project_id = req.project_id.trim();
+		let agent_id = req.agent_id.trim();
+
+		if tenant_id.is_empty() || project_id.is_empty() || agent_id.is_empty() {
+			return Err(ServiceError::InvalidRequest {
+				message: "tenant_id, project_id, and agent_id are required.".to_string(),
+			});
+		}
+
 		let now = OffsetDateTime::now_utc();
 		let session = load_search_session(&self.db.pool, req.search_session_id, now).await?;
-		let expires_at = touch_search_session(&self.db.pool, &session, now).await?;
 
+		validate_search_session_access(&session, tenant_id, project_id, agent_id)?;
+
+		let expires_at = touch_search_session(&self.db.pool, &session, now).await?;
 		let group_by = req.group_by.unwrap_or_else(|| "day".to_string());
 		match group_by.as_str() {
 			"day" => build_timeline_by_day(session.search_session_id, expires_at, &session.items),
@@ -241,8 +318,18 @@ impl ElfService {
 		&self,
 		req: SearchDetailsRequest,
 	) -> ServiceResult<SearchDetailsResponse> {
+		let tenant_id = req.tenant_id.trim();
+		let project_id = req.project_id.trim();
+		let agent_id = req.agent_id.trim();
+		if tenant_id.is_empty() || project_id.is_empty() || agent_id.is_empty() {
+			return Err(ServiceError::InvalidRequest {
+				message: "tenant_id, project_id, and agent_id are required.".to_string(),
+			});
+		}
+
 		let now = OffsetDateTime::now_utc();
 		let session = load_search_session(&self.db.pool, req.search_session_id, now).await?;
+		validate_search_session_access(&session, tenant_id, project_id, agent_id)?;
 		let expires_at = touch_search_session(&self.db.pool, &session, now).await?;
 
 		let mut by_note_id: HashMap<Uuid, SearchSessionItemRecord> = HashMap::new();
@@ -260,14 +347,15 @@ impl ElfService {
 
 		let mut notes_by_id = HashMap::new();
 		if !requested_in_session.is_empty() {
-			let rows: Vec<MemoryNote> = sqlx::query_as(
-				"SELECT * FROM memory_notes WHERE note_id = ANY($1) AND tenant_id = $2 AND project_id = $3",
-			)
-			.bind(&requested_in_session)
-			.bind(&session.tenant_id)
-			.bind(&session.project_id)
-			.fetch_all(&self.db.pool)
-			.await?;
+			let rows: Vec<MemoryNote> = sqlx::query_as!(
+					MemoryNote,
+					"SELECT * FROM memory_notes WHERE note_id = ANY($1::uuid[]) AND tenant_id = $2 AND project_id = $3",
+					requested_in_session.as_slice(),
+					session.tenant_id.as_str(),
+					session.project_id.as_str(),
+				)
+				.fetch_all(&self.db.pool)
+				.await?;
 			for note in rows {
 				notes_by_id.insert(note.note_id, note);
 			}
@@ -355,12 +443,14 @@ fn build_timeline_by_day(
 	items: &[SearchSessionItemRecord],
 ) -> ServiceResult<SearchTimelineResponse> {
 	let mut grouped: BTreeMap<String, Vec<SearchIndexItem>> = BTreeMap::new();
+
 	for item in items {
 		let date = item.updated_at.date().to_string();
 		grouped.entry(date).or_default().push(item.to_index_item());
 	}
 
 	let mut groups = Vec::with_capacity(grouped.len());
+
 	for (date, mut items) in grouped.into_iter().rev() {
 		items.sort_by(|a, b| {
 			b.updated_at.cmp(&a.updated_at).then_with(|| {
@@ -375,12 +465,14 @@ fn build_timeline_by_day(
 
 fn build_summary(raw: &str, max_chars: usize) -> String {
 	let normalized = normalize_whitespace(raw);
+
 	truncate_chars(&normalized, max_chars)
 }
 
 fn normalize_whitespace(raw: &str) -> String {
 	let mut out = String::with_capacity(raw.len());
 	let mut prev_space = false;
+
 	for ch in raw.chars() {
 		if ch.is_whitespace() {
 			if !prev_space {
@@ -392,6 +484,7 @@ fn normalize_whitespace(raw: &str) -> String {
 		out.push(ch);
 		prev_space = false;
 	}
+
 	out.trim().to_string()
 }
 
@@ -401,13 +494,16 @@ fn truncate_chars(raw: &str, max_chars: usize) -> String {
 	}
 
 	let mut out = String::with_capacity(max_chars + 3);
+
 	for (idx, ch) in raw.chars().enumerate() {
 		if idx >= max_chars {
 			break;
 		}
 		out.push(ch);
 	}
+
 	out.push_str("...");
+
 	out
 }
 
@@ -418,7 +514,7 @@ async fn store_search_session(
 	let items_json = serde_json::to_value(session.items).map_err(|err| ServiceError::Storage {
 		message: format!("Failed to encode search session items: {err}"),
 	})?;
-	sqlx::query(
+	sqlx::query!(
 		"\
 INSERT INTO search_sessions (
 	search_session_id,
@@ -433,17 +529,17 @@ INSERT INTO search_sessions (
 	expires_at
 )
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+		session.search_session_id,
+		session.trace_id,
+		session.tenant_id.trim(),
+		session.project_id.trim(),
+		session.agent_id.trim(),
+		session.read_profile,
+		session.query,
+		items_json,
+		session.created_at,
+		session.expires_at,
 	)
-	.bind(session.search_session_id)
-	.bind(session.trace_id)
-	.bind(session.tenant_id.trim())
-	.bind(session.project_id.trim())
-	.bind(session.agent_id.trim())
-	.bind(session.read_profile)
-	.bind(session.query)
-	.bind(items_json)
-	.bind(session.created_at)
-	.bind(session.expires_at)
 	.execute(pool)
 	.await?;
 
@@ -455,53 +551,53 @@ async fn load_search_session(
 	search_session_id: Uuid,
 	now: OffsetDateTime,
 ) -> ServiceResult<SearchSession> {
-	let row = sqlx::query(
+	let row = sqlx::query!(
 		"\
 SELECT
-	search_session_id,
-	tenant_id,
-	project_id,
-	agent_id,
-	read_profile,
-	query,
-	items,
-	created_at,
-	expires_at
+	search_session_id AS \"search_session_id!\",
+	trace_id AS \"trace_id!\",
+	tenant_id AS \"tenant_id!\",
+	project_id AS \"project_id!\",
+	agent_id AS \"agent_id!\",
+	read_profile AS \"read_profile!\",
+	query AS \"query!\",
+	items AS \"items!\",
+	created_at AS \"created_at!\",
+	expires_at AS \"expires_at!\"
 FROM search_sessions
 WHERE search_session_id = $1",
+		search_session_id,
 	)
-	.bind(search_session_id)
 	.fetch_optional(pool)
 	.await?;
-
 	let Some(row) = row else {
 		return Err(ServiceError::InvalidRequest {
 			message: "Unknown search_session_id.".to_string(),
 		});
 	};
 
-	let expires_at: OffsetDateTime = row.try_get("expires_at")?;
+	let expires_at: OffsetDateTime = row.expires_at;
+
 	if expires_at <= now {
 		return Err(ServiceError::InvalidRequest {
 			message: "Search session expired.".to_string(),
 		});
 	}
 
-	let items_value: serde_json::Value = row.try_get("items")?;
-	let items: Vec<SearchSessionItemRecord> =
-		serde_json::from_value(items_value).map_err(|err| ServiceError::Storage {
-			message: format!("Failed to decode search session items: {err}"),
-		})?;
+	let items: Vec<SearchSessionItemRecord> = serde_json::from_value(row.items).map_err(|err| {
+		ServiceError::Storage { message: format!("Failed to decode search session items: {err}") }
+	})?;
 
 	Ok(SearchSession {
-		search_session_id: row.try_get("search_session_id")?,
-		tenant_id: row.try_get("tenant_id")?,
-		project_id: row.try_get("project_id")?,
-		agent_id: row.try_get("agent_id")?,
-		read_profile: row.try_get("read_profile")?,
-		query: row.try_get("query")?,
+		search_session_id: row.search_session_id,
+		trace_id: row.trace_id,
+		tenant_id: row.tenant_id,
+		project_id: row.project_id,
+		agent_id: row.agent_id,
+		read_profile: row.read_profile,
+		query: row.query,
 		items,
-		created_at: row.try_get("created_at")?,
+		created_at: row.created_at,
 		expires_at,
 	})
 }
@@ -518,15 +614,16 @@ async fn touch_search_session(
 	} else {
 		absolute_expires_at
 	};
+
 	if touched <= session.expires_at {
 		return Ok(session.expires_at);
 	}
 
-	sqlx::query(
+	sqlx::query!(
 		"UPDATE search_sessions SET expires_at = $1 WHERE search_session_id = $2 AND expires_at < $1",
+		touched,
+		session.search_session_id,
 	)
-	.bind(touched)
-	.bind(session.search_session_id)
 	.execute(pool)
 	.await?;
 
@@ -540,6 +637,24 @@ fn resolve_read_scopes(cfg: &elf_config::Config, profile: &str) -> ServiceResult
 		"all_scopes" => Ok(cfg.scopes.read_profiles.all_scopes.clone()),
 		_ => Err(ServiceError::InvalidRequest { message: "Unknown read_profile.".to_string() }),
 	}
+}
+
+fn validate_search_session_access(
+	session: &SearchSession,
+	tenant_id: &str,
+	project_id: &str,
+	agent_id: &str,
+) -> ServiceResult<()> {
+	if session.tenant_id != tenant_id
+		|| session.project_id != project_id
+		|| session.agent_id != agent_id
+	{
+		return Err(ServiceError::InvalidRequest {
+			message: "Unknown search_session_id.".to_string(),
+		});
+	}
+
+	Ok(())
 }
 
 fn validate_note_access(
@@ -575,13 +690,6 @@ fn validate_note_access(
 	None
 }
 
-struct HitItem {
-	note_id: Uuid,
-	chunk_id: Uuid,
-	rank: u32,
-	final_score: f32,
-}
-
 async fn record_detail_hits(
 	pool: &sqlx::PgPool,
 	query: &str,
@@ -593,44 +701,46 @@ async fn record_detail_hits(
 	}
 
 	let query_hash = hash_query(query);
+
 	let mut tx = pool.begin().await?;
 
 	for item in items {
 		let rank = i32::try_from(item.rank).map_err(|_| ServiceError::InvalidRequest {
 			message: "Search session rank is out of range.".to_string(),
 		})?;
-		sqlx::query(
+		sqlx::query!(
 			"UPDATE memory_notes SET hit_count = hit_count + 1, last_hit_at = $1 WHERE note_id = $2",
+			now,
+			item.note_id,
 		)
-		.bind(now)
-		.bind(item.note_id)
 		.execute(&mut *tx)
 		.await?;
-		sqlx::query(
+		sqlx::query!(
 			"\
-INSERT INTO memory_hits (
-	hit_id,
-	note_id,
+	INSERT INTO memory_hits (
+		hit_id,
+		note_id,
 	chunk_id,
 	query_hash,
 	rank,
 	final_score,
-	ts
-)
-VALUES ($1, $2, $3, $4, $5, $6, $7)",
+		ts
+	)
+	VALUES ($1, $2, $3, $4, $5, $6, $7)",
+			Uuid::new_v4(),
+			item.note_id,
+			item.chunk_id,
+			&query_hash,
+			rank,
+			item.final_score,
+			now,
 		)
-		.bind(Uuid::new_v4())
-		.bind(item.note_id)
-		.bind(item.chunk_id)
-		.bind(&query_hash)
-		.bind(rank)
-		.bind(item.final_score)
-		.bind(now)
 		.execute(&mut *tx)
 		.await?;
 	}
 
 	tx.commit().await?;
+
 	Ok(())
 }
 

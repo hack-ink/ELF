@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT COUNT(*) AS \"missing!\"\n\tFROM memory_notes n\n\tLEFT JOIN note_embeddings e\n\tON n.note_id = e.note_id\n\t\tAND n.embedding_version = e.embedding_version\n\tWHERE n.note_id = $1\n\t\t\tAND e.note_id IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "missing!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "2a785fa1c154c18712648e00d2b28a0a7c7064c5c14be0c201bd4f5f6b2eeb5b"
+}

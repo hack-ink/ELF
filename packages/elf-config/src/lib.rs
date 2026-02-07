@@ -5,17 +5,21 @@ use std::{fs, path::Path};
 use color_eyre::eyre;
 
 pub use types::{
-	Chunking, Config, Context, EmbeddingProviderConfig, Lifecycle, LlmProviderConfig, Memory,
-	Postgres, ProviderConfig, Providers, Qdrant, Ranking, ReadProfiles, ScopePrecedence,
+	Chunking, Config, Context, EmbeddingProviderConfig, Lifecycle, LlmProviderConfig, McpContext,
+	Memory, Postgres, ProviderConfig, Providers, Qdrant, Ranking, ReadProfiles, ScopePrecedence,
 	ScopeWriteAllowed, Scopes, Search, SearchCache, SearchDynamic, SearchExpansion, SearchExplain,
 	SearchPrefilter, Security, Service, Storage, TtlDays,
 };
 
 pub fn load(path: &Path) -> color_eyre::Result<Config> {
 	let raw = fs::read_to_string(path)?;
+
 	let mut cfg: Config = toml::from_str(&raw)?;
+
 	normalize(&mut cfg);
+
 	validate(&cfg)?;
+
 	Ok(cfg)
 }
 
@@ -40,7 +44,9 @@ pub fn validate(cfg: &Config) -> color_eyre::Result<()> {
 			"providers.embedding.dimensions must match storage.qdrant.vector_dim."
 		));
 	}
+
 	let expansion_mode = cfg.search.expansion.mode.as_str();
+
 	if !matches!(expansion_mode, "off" | "always" | "dynamic") {
 		return Err(eyre::eyre!("search.expansion.mode must be one of off, always, or dynamic."));
 	}
@@ -59,17 +65,13 @@ pub fn validate(cfg: &Config) -> color_eyre::Result<()> {
 	if cfg.search.cache.rerank_ttl_days <= 0 {
 		return Err(eyre::eyre!("search.cache.rerank_ttl_days must be greater than zero."));
 	}
+
 	if let Some(max) = cfg.search.cache.max_payload_bytes
 		&& max == 0
 	{
 		return Err(eyre::eyre!("search.cache.max_payload_bytes must be greater than zero."));
 	}
-	if cfg.search.cache.expansion_version.trim().is_empty() {
-		return Err(eyre::eyre!("search.cache.expansion_version must be non-empty."));
-	}
-	if cfg.search.cache.rerank_version.trim().is_empty() {
-		return Err(eyre::eyre!("search.cache.rerank_version must be non-empty."));
-	}
+
 	if cfg.search.explain.retention_days <= 0 {
 		return Err(eyre::eyre!("search.explain.retention_days must be greater than zero."));
 	}
@@ -82,6 +84,7 @@ pub fn validate(cfg: &Config) -> color_eyre::Result<()> {
 	if cfg.chunking.overlap_tokens >= cfg.chunking.max_tokens {
 		return Err(eyre::eyre!("chunking.overlap_tokens must be less than chunking.max_tokens."));
 	}
+
 	for (label, key) in [
 		("embedding", &cfg.providers.embedding.api_key),
 		("rerank", &cfg.providers.rerank.api_key),
@@ -91,6 +94,7 @@ pub fn validate(cfg: &Config) -> color_eyre::Result<()> {
 			return Err(eyre::eyre!("Provider {label} api_key must be non-empty."));
 		}
 	}
+
 	if let Some(context) = cfg.context.as_ref()
 		&& let Some(weight) = context.scope_boost_weight
 	{
@@ -115,5 +119,27 @@ pub fn validate(cfg: &Config) -> color_eyre::Result<()> {
 			));
 		}
 	}
+	if let Some(mcp) = cfg.mcp.as_ref() {
+		for (label, value) in [
+			("mcp.tenant_id", &mcp.tenant_id),
+			("mcp.project_id", &mcp.project_id),
+			("mcp.agent_id", &mcp.agent_id),
+			("mcp.read_profile", &mcp.read_profile),
+		] {
+			if value.trim().is_empty() {
+				return Err(eyre::eyre!("{label} must be non-empty."));
+			}
+		}
+
+		if !matches!(
+			mcp.read_profile.as_str(),
+			"private_only" | "private_plus_project" | "all_scopes"
+		) {
+			return Err(eyre::eyre!(
+				"mcp.read_profile must be one of private_only, private_plus_project, or all_scopes."
+			));
+		}
+	}
+
 	Ok(())
 }

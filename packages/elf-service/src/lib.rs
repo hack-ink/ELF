@@ -12,7 +12,6 @@ pub mod update;
 use std::{future::Future, pin::Pin, sync::Arc};
 
 use serde_json::Value;
-use sqlx::Row;
 use uuid::Uuid;
 
 pub use add_event::{AddEventRequest, AddEventResponse, AddEventResult, EventMessage};
@@ -26,12 +25,12 @@ pub use list::{ListItem, ListRequest, ListResponse};
 pub use notes::{NoteFetchRequest, NoteFetchResponse};
 pub use progressive_search::{
 	SearchDetailsError, SearchDetailsRequest, SearchDetailsResponse, SearchDetailsResult,
-	SearchIndexItem, SearchIndexResponse, SearchTimelineGroup, SearchTimelineRequest,
-	SearchTimelineResponse,
+	SearchIndexItem, SearchIndexResponse, SearchSessionGetRequest, SearchTimelineGroup,
+	SearchTimelineRequest, SearchTimelineResponse,
 };
 pub use search::{
 	SearchBoost, SearchExplain, SearchExplainItem, SearchExplainRequest, SearchExplainResponse,
-	SearchItem, SearchRequest, SearchResponse, SearchTrace,
+	SearchItem, SearchRequest, SearchResponse, SearchTrace, TraceGetRequest, TraceGetResponse,
 };
 pub use update::{UpdateRequest, UpdateResponse};
 
@@ -252,13 +251,16 @@ pub(crate) fn writegate_reason_code(code: elf_domain::writegate::RejectCode) -> 
 pub(crate) fn vector_to_pg(vec: &[f32]) -> String {
 	let mut out = String::with_capacity(vec.len() * 8);
 	out.push('[');
+
 	for (i, value) in vec.iter().enumerate() {
 		if i > 0 {
 			out.push(',');
 		}
 		out.push_str(&value.to_string());
 	}
+
 	out.push(']');
+
 	out
 }
 
@@ -268,16 +270,20 @@ pub(crate) fn parse_pg_vector(text: &str) -> Result<Vec<f32>, ServiceError> {
 		trimmed.strip_prefix('[').and_then(|s| s.strip_suffix(']')).ok_or_else(|| {
 			ServiceError::InvalidRequest { message: "Vector text is not bracketed.".to_string() }
 		})?;
+
 	if without_brackets.trim().is_empty() {
 		return Ok(Vec::new());
 	}
+
 	let mut vec = Vec::new();
+
 	for part in without_brackets.split(',') {
 		let value: f32 = part.trim().parse().map_err(|_| ServiceError::InvalidRequest {
 			message: "Vector text contains a non-numeric value.".to_string(),
 		})?;
 		vec.push(value);
 	}
+
 	Ok(vec)
 }
 
@@ -299,38 +305,51 @@ pub(crate) async fn resolve_update(
 	} = args;
 
 	if let Some(key) = key.filter(|value| !value.trim().is_empty())
-		&& let Some(note_id) = sqlx::query_scalar::<_, Uuid>(
-			"SELECT note_id FROM memory_notes \
-             WHERE tenant_id = $1 AND project_id = $2 AND agent_id = $3 AND scope = $4 \
-             AND type = $5 AND key = $6 AND status = 'active' \
-             AND (expires_at IS NULL OR expires_at > $7) \
-             LIMIT 1",
+		&& let Some(note_id) = sqlx::query_scalar!(
+			"\
+SELECT note_id
+FROM memory_notes
+WHERE tenant_id = $1
+	AND project_id = $2
+	AND agent_id = $3
+	AND scope = $4
+	AND type = $5
+	AND key = $6
+	AND status = 'active'
+	AND (expires_at IS NULL OR expires_at > $7)
+LIMIT 1",
+			tenant_id,
+			project_id,
+			agent_id,
+			scope,
+			note_type,
+			key,
+			now,
 		)
-		.bind(tenant_id)
-		.bind(project_id)
-		.bind(agent_id)
-		.bind(scope)
-		.bind(note_type)
-		.bind(key)
-		.bind(now)
 		.fetch_optional(&mut **tx)
 		.await?
 	{
 		return Ok(UpdateDecision::Update { note_id });
 	}
 
-	let existing_ids: Vec<Uuid> = sqlx::query_scalar(
-		"SELECT note_id FROM memory_notes \
-         WHERE tenant_id = $1 AND project_id = $2 AND agent_id = $3 AND scope = $4 \
-         AND type = $5 AND status = 'active' \
-         AND (expires_at IS NULL OR expires_at > $6)",
+	let existing_ids: Vec<Uuid> = sqlx::query_scalar!(
+		"\
+SELECT note_id
+FROM memory_notes
+WHERE tenant_id = $1
+	AND project_id = $2
+	AND agent_id = $3
+	AND scope = $4
+	AND type = $5
+	AND status = 'active'
+	AND (expires_at IS NULL OR expires_at > $6)",
+		tenant_id,
+		project_id,
+		agent_id,
+		scope,
+		note_type,
+		now,
 	)
-	.bind(tenant_id)
-	.bind(project_id)
-	.bind(agent_id)
-	.bind(scope)
-	.bind(note_type)
-	.bind(now)
 	.fetch_all(&mut **tx)
 	.await?;
 
@@ -345,30 +364,34 @@ pub(crate) async fn resolve_update(
 			message: "Embedding provider returned no vectors.".to_string(),
 		});
 	};
+
 	if vec.len() != cfg.storage.qdrant.vector_dim as usize {
 		return Err(ServiceError::Provider {
 			message: "Embedding vector dimension mismatch.".to_string(),
 		});
 	}
+
 	let vec_text = vector_to_pg(&vec);
 	let embed_version = embedding_version(cfg);
-
-	let rows = sqlx::query(
-		"SELECT note_id, (1 - (vec <=> $1::vector))::real AS similarity \
-         FROM note_embeddings WHERE note_id = ANY($2) AND embedding_version = $3",
+	let rows = sqlx::query!(
+		"\
+	SELECT
+		note_id AS \"note_id!\",
+		(1 - (vec <=> $1::text::vector))::real AS \"similarity!\"
+	FROM note_embeddings
+	WHERE note_id = ANY($2) AND embedding_version = $3",
+		vec_text.as_str(),
+		existing_ids.as_slice(),
+		embed_version.as_str(),
 	)
-	.bind(vec_text)
-	.bind(&existing_ids)
-	.bind(embed_version)
 	.fetch_all(&mut **tx)
 	.await?;
 
 	let mut best: Option<(Uuid, f32)> = None;
+
 	for row in rows {
-		let note_id: Uuid = row.try_get("note_id")?;
-		let similarity: f32 = row.try_get("similarity")?;
-		if best.map(|(_, score)| similarity > score).unwrap_or(true) {
-			best = Some((note_id, similarity));
+		if best.map(|(_, score)| row.similarity > score).unwrap_or(true) {
+			best = Some((row.note_id, row.similarity));
 		}
 	}
 
@@ -391,21 +414,32 @@ pub(crate) async fn insert_version(
 	args: InsertVersionArgs<'_>,
 ) -> ServiceResult<()> {
 	let InsertVersionArgs { note_id, op, prev_snapshot, new_snapshot, reason, actor, ts } = args;
-	sqlx::query(
-		"INSERT INTO memory_note_versions \
-         (version_id, note_id, op, prev_snapshot, new_snapshot, reason, actor, ts) \
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
+
+	sqlx::query!(
+		"\
+INSERT INTO memory_note_versions (
+	version_id,
+	note_id,
+	op,
+	prev_snapshot,
+	new_snapshot,
+	reason,
+	actor,
+	ts
+)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
+		Uuid::new_v4(),
+		note_id,
+		op,
+		prev_snapshot,
+		new_snapshot,
+		reason,
+		actor,
+		ts,
 	)
-	.bind(Uuid::new_v4())
-	.bind(note_id)
-	.bind(op)
-	.bind(prev_snapshot)
-	.bind(new_snapshot)
-	.bind(reason)
-	.bind(actor)
-	.bind(ts)
 	.execute(&mut **tx)
 	.await?;
+
 	Ok(())
 }
 
@@ -416,20 +450,30 @@ pub(crate) async fn enqueue_outbox_tx(
 	embedding_version: &str,
 	now: time::OffsetDateTime,
 ) -> ServiceResult<()> {
-	sqlx::query(
-		"INSERT INTO indexing_outbox \
-         (outbox_id, note_id, op, embedding_version, status, created_at, updated_at, available_at) \
-         VALUES ($1,$2,$3,$4,'PENDING',$5,$6,$7)",
+	sqlx::query!(
+		"\
+INSERT INTO indexing_outbox (
+	outbox_id,
+	note_id,
+	op,
+	embedding_version,
+	status,
+	created_at,
+	updated_at,
+	available_at
+)
+VALUES ($1,$2,$3,$4,'PENDING',$5,$6,$7)",
+		Uuid::new_v4(),
+		note_id,
+		op,
+		embedding_version,
+		now,
+		now,
+		now,
 	)
-	.bind(Uuid::new_v4())
-	.bind(note_id)
-	.bind(op)
-	.bind(embedding_version)
-	.bind(now)
-	.bind(now)
-	.bind(now)
 	.execute(&mut **tx)
 	.await?;
+
 	Ok(())
 }
 

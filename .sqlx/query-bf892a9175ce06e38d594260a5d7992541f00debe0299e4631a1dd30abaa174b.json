@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE search_trace_outbox SET available_at = $1, updated_at = $2 WHERE outbox_id = $3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Timestamptz",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "bf892a9175ce06e38d594260a5d7992541f00debe0299e4631a1dd30abaa174b"
+}
