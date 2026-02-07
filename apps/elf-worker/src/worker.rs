@@ -63,20 +63,8 @@ struct TraceItemRecord {
 	#[serde(default)]
 	chunk_id: Option<uuid::Uuid>,
 	rank: u32,
-	retrieval_score: Option<f32>,
-	retrieval_rank: Option<u32>,
-	rerank_score: f32,
-	tie_breaker_score: f32,
 	final_score: f32,
-	boosts: Vec<TraceBoost>,
-	matched_terms: Vec<String>,
-	matched_fields: Vec<String>,
-}
-
-#[derive(Debug, serde::Deserialize, serde::Serialize)]
-struct TraceBoost {
-	name: String,
-	score: f32,
+	explain: SerdeValue,
 }
 
 struct TraceOutboxJob {
@@ -91,14 +79,8 @@ struct TraceItemInsert {
 	note_id: uuid::Uuid,
 	chunk_id: Option<uuid::Uuid>,
 	rank: i32,
-	retrieval_score: Option<f32>,
-	retrieval_rank: Option<i32>,
-	rerank_score: f32,
-	tie_breaker_score: f32,
 	final_score: f32,
-	boosts: SerdeValue,
-	matched_terms: SerdeValue,
-	matched_fields: SerdeValue,
+	explain: SerdeValue,
 }
 
 struct ChunkRecord {
@@ -434,14 +416,8 @@ VALUES (
 				note_id: item.note_id,
 				chunk_id: item.chunk_id,
 				rank: item.rank as i32,
-				retrieval_score: item.retrieval_score,
-				retrieval_rank: item.retrieval_rank.map(|rank| rank as i32),
-				rerank_score: item.rerank_score,
-				tie_breaker_score: item.tie_breaker_score,
 				final_score: item.final_score,
-				boosts: encode_json(&item.boosts, "boosts")?,
-				matched_terms: encode_json(&item.matched_terms, "matched_terms")?,
-				matched_fields: encode_json(&item.matched_fields, "matched_fields")?,
+				explain: item.explain,
 			});
 		}
 
@@ -453,14 +429,8 @@ INSERT INTO search_trace_items (
 	note_id,
 	chunk_id,
 	rank,
-	retrieval_score,
-	retrieval_rank,
-	rerank_score,
-	tie_breaker_score,
 	final_score,
-	boosts,
-	matched_terms,
-	matched_fields
+	explain
 ) ",
 		);
 		builder.push_values(inserts, |mut b, item| {
@@ -469,14 +439,8 @@ INSERT INTO search_trace_items (
 				.push_bind(item.note_id)
 				.push_bind(item.chunk_id)
 				.push_bind(item.rank)
-				.push_bind(item.retrieval_score)
-				.push_bind(item.retrieval_rank)
-				.push_bind(item.rerank_score)
-				.push_bind(item.tie_breaker_score)
 				.push_bind(item.final_score)
-				.push_bind(item.boosts)
-				.push_bind(item.matched_terms)
-				.push_bind(item.matched_fields);
+				.push_bind(item.explain);
 		});
 		builder.push(" ON CONFLICT (item_id) DO NOTHING");
 		builder.build().execute(&mut *tx).await?;

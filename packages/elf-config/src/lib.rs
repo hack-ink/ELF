@@ -6,9 +6,10 @@ use color_eyre::eyre;
 
 pub use types::{
 	Chunking, Config, Context, EmbeddingProviderConfig, Lifecycle, LlmProviderConfig, McpContext,
-	Memory, Postgres, ProviderConfig, Providers, Qdrant, Ranking, ReadProfiles, ScopePrecedence,
-	ScopeWriteAllowed, Scopes, Search, SearchCache, SearchDynamic, SearchExpansion, SearchExplain,
-	SearchPrefilter, Security, Service, Storage, TtlDays,
+	Memory, Postgres, ProviderConfig, Providers, Qdrant, Ranking, RankingBlend,
+	RankingBlendSegment, ReadProfiles, ScopePrecedence, ScopeWriteAllowed, Scopes, Search,
+	SearchCache, SearchDynamic, SearchExpansion, SearchExplain, SearchPrefilter, Security, Service,
+	Storage, TtlDays,
 };
 
 pub fn load(path: &Path) -> color_eyre::Result<Config> {
@@ -74,6 +75,42 @@ pub fn validate(cfg: &Config) -> color_eyre::Result<()> {
 
 	if cfg.search.explain.retention_days <= 0 {
 		return Err(eyre::eyre!("search.explain.retention_days must be greater than zero."));
+	}
+
+	if cfg.ranking.tie_breaker_weight < 0.0 {
+		return Err(eyre::eyre!("ranking.tie_breaker_weight must be zero or greater."));
+	}
+	if !cfg.ranking.tie_breaker_weight.is_finite() {
+		return Err(eyre::eyre!("ranking.tie_breaker_weight must be a finite number."));
+	}
+	if cfg.ranking.recency_tau_days < 0.0 {
+		return Err(eyre::eyre!("ranking.recency_tau_days must be zero or greater."));
+	}
+	if !cfg.ranking.recency_tau_days.is_finite() {
+		return Err(eyre::eyre!("ranking.recency_tau_days must be a finite number."));
+	}
+	if cfg.ranking.blend.enabled {
+		if cfg.ranking.blend.segments.is_empty() {
+			return Err(eyre::eyre!("ranking.blend.segments must be non-empty when enabled."));
+		}
+
+		for segment in &cfg.ranking.blend.segments {
+			if !segment.retrieval_weight.is_finite() {
+				return Err(eyre::eyre!(
+					"ranking.blend.segments.retrieval_weight must be a finite number."
+				));
+			}
+			if !(0.0..=1.0).contains(&segment.retrieval_weight) {
+				return Err(eyre::eyre!(
+					"ranking.blend.segments.retrieval_weight must be in the range 0.0-1.0."
+				));
+			}
+			if segment.max_retrieval_rank == 0 {
+				return Err(eyre::eyre!(
+					"ranking.blend.segments.max_retrieval_rank must be greater than zero."
+				));
+			}
+		}
 	}
 	if !cfg.chunking.enabled {
 		return Err(eyre::eyre!("chunking.enabled must be true."));

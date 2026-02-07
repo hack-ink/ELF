@@ -1,5 +1,5 @@
 use std::{
-	collections::{HashMap, HashSet, hash_map::DefaultHasher},
+	collections::{BTreeMap, HashMap, HashSet, hash_map::DefaultHasher},
 	hash::{Hash, Hasher},
 	slice,
 };
@@ -20,10 +20,11 @@ use elf_storage::{
 	qdrant::{BM25_MODEL, BM25_VECTOR_NAME, DENSE_VECTOR_NAME},
 };
 
-const TRACE_VERSION: i32 = 1;
+const TRACE_VERSION: i32 = 2;
 const MAX_MATCHED_TERMS: usize = 8;
 const EXPANSION_CACHE_SCHEMA_VERSION: i32 = 1;
 const RERANK_CACHE_SCHEMA_VERSION: i32 = 1;
+const SEARCH_RANKING_EXPLAIN_SCHEMA_V1: &str = "search_ranking_explain/v1";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ExpansionMode {
@@ -56,24 +57,50 @@ pub struct SearchRequest {
 	pub top_k: Option<u32>,
 	pub candidate_k: Option<u32>,
 	pub record_hits: Option<bool>,
+	#[serde(default)]
+	pub ranking: Option<RankingRequestOverride>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct SearchBoost {
-	pub name: String,
-	pub score: f32,
+pub struct RankingRequestOverride {
+	#[serde(default)]
+	pub blend: Option<BlendRankingOverride>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct BlendRankingOverride {
+	pub enabled: Option<bool>,
+	pub rerank_normalization: Option<String>,
+	pub retrieval_normalization: Option<String>,
+	pub segments: Option<Vec<BlendSegmentOverride>>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct BlendSegmentOverride {
+	pub max_retrieval_rank: u32,
+	pub retrieval_weight: f32,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SearchExplain {
-	pub retrieval_score: Option<f32>,
-	pub retrieval_rank: Option<u32>,
-	pub rerank_score: f32,
-	pub tie_breaker_score: f32,
-	pub final_score: f32,
-	pub boosts: Vec<SearchBoost>,
+	pub r#match: SearchMatchExplain,
+	pub ranking: SearchRankingExplain,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SearchMatchExplain {
 	pub matched_terms: Vec<String>,
 	pub matched_fields: Vec<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SearchRankingExplain {
+	pub schema: String,
+	pub policy_id: String,
+	#[serde(default)]
+	pub signals: BTreeMap<String, serde_json::Value>,
+	#[serde(default)]
+	pub components: BTreeMap<String, f32>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -169,17 +196,10 @@ struct QueryEmbedding {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct RetrievalInfo {
-	score: f32,
-	rank: u32,
-}
-
-#[derive(Debug, Clone)]
 struct ChunkCandidate {
 	chunk_id: Uuid,
 	note_id: Uuid,
 	chunk_index: i32,
-	retrieval_score: f32,
 	retrieval_rank: u32,
 }
 
@@ -225,6 +245,7 @@ struct ChunkSnippet {
 	note: NoteMeta,
 	chunk: ChunkMeta,
 	snippet: String,
+	retrieval_rank: u32,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -258,10 +279,18 @@ struct CachePayload {
 #[derive(Debug)]
 struct ScoredChunk {
 	item: ChunkSnippet,
+	final_score: f32,
 	rerank_score: f32,
+	rerank_rank: u32,
+	rerank_norm: f32,
+	retrieval_norm: f32,
+	blend_retrieval_weight: f32,
+	retrieval_term: f32,
+	rerank_term: f32,
 	tie_breaker_score: f32,
 	scope_context_boost: f32,
-	final_score: f32,
+	age_days: f32,
+	importance: f32,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -295,14 +324,8 @@ struct TraceItemRecord {
 	note_id: Uuid,
 	chunk_id: Option<Uuid>,
 	rank: u32,
-	retrieval_score: Option<f32>,
-	retrieval_rank: Option<u32>,
-	rerank_score: f32,
-	tie_breaker_score: f32,
 	final_score: f32,
-	boosts: Vec<SearchBoost>,
-	matched_terms: Vec<String>,
-	matched_fields: Vec<String>,
+	explain: SearchExplain,
 }
 
 struct TraceContext<'a> {
@@ -324,7 +347,12 @@ struct SearchTraceBuilder {
 	items: Vec<TraceItemRecord>,
 }
 impl SearchTraceBuilder {
-	fn new(context: TraceContext<'_>, cfg: &elf_config::Config, now: OffsetDateTime) -> Self {
+	fn new(
+		context: TraceContext<'_>,
+		config_snapshot: serde_json::Value,
+		retention_days: i64,
+		now: OffsetDateTime,
+	) -> Self {
 		let trace = TraceRecord {
 			trace_id: context.trace_id,
 			tenant_id: context.tenant_id.to_string(),
@@ -337,10 +365,10 @@ impl SearchTraceBuilder {
 			allowed_scopes: context.allowed_scopes.to_vec(),
 			candidate_count: context.candidate_count as u32,
 			top_k: context.top_k,
-			config_snapshot: build_config_snapshot(cfg),
+			config_snapshot,
 			trace_version: TRACE_VERSION,
 			created_at: now,
-			expires_at: now + Duration::days(cfg.search.explain.retention_days),
+			expires_at: now + Duration::days(retention_days),
 		};
 		Self { trace, items: Vec::new() }
 	}
@@ -367,6 +395,7 @@ struct FinishSearchArgs<'a> {
 	candidates: Vec<ChunkCandidate>,
 	top_k: u32,
 	record_hits_enabled: bool,
+	ranking_override: Option<RankingRequestOverride>,
 }
 
 impl ElfService {
@@ -389,6 +418,7 @@ impl ElfService {
 		let query = req.query.clone();
 		let read_profile = req.read_profile.clone();
 		let record_hits_enabled = req.record_hits.unwrap_or(false);
+		let ranking_override = req.ranking.clone();
 		let expansion_mode = resolve_expansion_mode(&self.cfg);
 		let trace_id = Uuid::new_v4();
 		let project_context_description =
@@ -410,6 +440,7 @@ impl ElfService {
 					candidates: Vec::new(),
 					top_k,
 					record_hits_enabled,
+					ranking_override: ranking_override.clone(),
 				})
 				.await;
 		}
@@ -485,6 +516,7 @@ impl ElfService {
 						candidates,
 						top_k,
 						record_hits_enabled,
+						ranking_override: ranking_override.clone(),
 					})
 					.await;
 			}
@@ -518,6 +550,7 @@ impl ElfService {
 			candidates,
 			top_k,
 			record_hits_enabled,
+			ranking_override,
 		})
 		.await
 	}
@@ -602,14 +635,8 @@ SELECT
 	i.note_id AS \"note_id!\",
 	i.chunk_id,
 	i.rank AS \"rank!\",
-	i.retrieval_score,
-	i.retrieval_rank,
-	i.rerank_score AS \"rerank_score!\",
-	i.tie_breaker_score AS \"tie_breaker_score!\",
 	i.final_score AS \"final_score!\",
-	i.boosts AS \"boosts!\",
-	i.matched_terms AS \"matched_terms!\",
-	i.matched_fields AS \"matched_fields!\"
+	i.explain AS \"explain!\"
 FROM search_trace_items i
 JOIN search_traces t ON i.trace_id = t.trace_id
 WHERE i.item_id = $1 AND t.tenant_id = $2 AND t.project_id = $3 AND t.agent_id = $4",
@@ -629,9 +656,7 @@ WHERE i.item_id = $1 AND t.tenant_id = $2 AND t.project_id = $3 AND t.agent_id =
 		let expanded_queries: Vec<String> = decode_json(row.expanded_queries, "expanded_queries")?;
 		let allowed_scopes: Vec<String> = decode_json(row.allowed_scopes, "allowed_scopes")?;
 		let config_snapshot = row.config_snapshot;
-		let boosts: Vec<SearchBoost> = decode_json(row.boosts, "boosts")?;
-		let matched_terms: Vec<String> = decode_json(row.matched_terms, "matched_terms")?;
-		let matched_fields: Vec<String> = decode_json(row.matched_fields, "matched_fields")?;
+		let explain: SearchExplain = decode_json(row.explain, "explain")?;
 		let trace = SearchTrace {
 			trace_id: row.trace_id,
 			tenant_id: row.tenant_id,
@@ -647,16 +672,6 @@ WHERE i.item_id = $1 AND t.tenant_id = $2 AND t.project_id = $3 AND t.agent_id =
 			config_snapshot,
 			created_at: row.created_at,
 			trace_version: row.trace_version,
-		};
-		let explain = SearchExplain {
-			retrieval_score: row.retrieval_score,
-			retrieval_rank: row.retrieval_rank.map(|rank| rank as u32),
-			rerank_score: row.rerank_score,
-			tie_breaker_score: row.tie_breaker_score,
-			final_score: row.final_score,
-			boosts,
-			matched_terms,
-			matched_fields,
 		};
 		let item = SearchExplainItem {
 			result_handle: row.item_id,
@@ -736,14 +751,8 @@ SELECT
 	note_id AS \"note_id!\",
 	chunk_id,
 	rank AS \"rank!\",
-	retrieval_score,
-	retrieval_rank,
-	rerank_score AS \"rerank_score!\",
-	tie_breaker_score AS \"tie_breaker_score!\",
 	final_score AS \"final_score!\",
-	boosts AS \"boosts!\",
-	matched_terms AS \"matched_terms!\",
-	matched_fields AS \"matched_fields!\"
+	explain AS \"explain!\"
 FROM search_trace_items
 WHERE trace_id = $1
 ORDER BY rank ASC",
@@ -753,20 +762,9 @@ ORDER BY rank ASC",
 		.await?;
 
 		let mut items = Vec::with_capacity(item_rows.len());
+
 		for row in item_rows {
-			let boosts: Vec<SearchBoost> = decode_json(row.boosts, "boosts")?;
-			let matched_terms: Vec<String> = decode_json(row.matched_terms, "matched_terms")?;
-			let matched_fields: Vec<String> = decode_json(row.matched_fields, "matched_fields")?;
-			let explain = SearchExplain {
-				retrieval_score: row.retrieval_score,
-				retrieval_rank: row.retrieval_rank.map(|rank| rank as u32),
-				rerank_score: row.rerank_score,
-				tie_breaker_score: row.tie_breaker_score,
-				final_score: row.final_score,
-				boosts,
-				matched_terms,
-				matched_fields,
-			};
+			let explain: SearchExplain = decode_json(row.explain, "explain")?;
 
 			items.push(SearchExplainItem {
 				result_handle: row.item_id,
@@ -1070,22 +1068,11 @@ ORDER BY rank ASC",
 			candidates,
 			top_k,
 			record_hits_enabled,
+			ranking_override,
 		} = args;
 		let now = OffsetDateTime::now_utc();
 		let cache_cfg = &self.cfg.search.cache;
 		let candidate_count = candidates.len();
-		let retrieval_map: HashMap<Uuid, RetrievalInfo> = candidates
-			.iter()
-			.map(|candidate| {
-				(
-					candidate.chunk_id,
-					RetrievalInfo {
-						score: candidate.retrieval_score,
-						rank: candidate.retrieval_rank,
-					},
-				)
-			})
-			.collect();
 		let candidate_note_ids: Vec<Uuid> =
 			candidates.iter().map(|candidate| candidate.note_id).collect();
 
@@ -1177,14 +1164,22 @@ ORDER BY rank ASC",
 					start_offset: chunk_row.start_offset,
 					end_offset: chunk_row.end_offset,
 				};
-				items.push(ChunkSnippet { note: note.clone(), chunk, snippet });
+				items.push(ChunkSnippet {
+					note: note.clone(),
+					chunk,
+					snippet,
+					retrieval_rank: candidate.retrieval_rank,
+				});
 			}
 			items
 		};
-
 		let query_tokens = tokenize_query(query, MAX_MATCHED_TERMS);
 		let scope_context_boost_by_scope =
 			build_scope_context_boost_by_scope(&query_tokens, self.cfg.context.as_ref());
+		let blend_policy = resolve_blend_policy(
+			&self.cfg.ranking.blend,
+			ranking_override.as_ref().and_then(|override_| override_.blend.as_ref()),
+		)?;
 
 		let mut scored: Vec<ScoredChunk> = Vec::new();
 
@@ -1372,26 +1367,57 @@ ORDER BY rank ASC",
 
 			scored = Vec::with_capacity(snippet_items.len());
 
-			for (item, rerank_score) in snippet_items.into_iter().zip(scores.into_iter()) {
+			let rerank_ranks = build_rerank_ranks(&snippet_items, &scores);
+			let total_rerank = u32::try_from(scores.len()).unwrap_or(1).max(1);
+			let total_retrieval = u32::try_from(candidate_count).unwrap_or(1).max(1);
+
+			for ((item, rerank_score), rerank_rank) in
+				snippet_items.into_iter().zip(scores.into_iter()).zip(rerank_ranks.into_iter())
+			{
+				let importance = item.note.importance;
+				let retrieval_rank = item.retrieval_rank;
 				let age_days = (now - item.note.updated_at).as_seconds_f32() / 86_400.0;
 				let decay = if self.cfg.ranking.recency_tau_days > 0.0 {
 					(-age_days / self.cfg.ranking.recency_tau_days).exp()
 				} else {
 					1.0
 				};
-				let base = (1.0 + 0.6 * item.note.importance) * decay;
+				let base = (1.0 + 0.6 * importance) * decay;
 				let tie_breaker_score = self.cfg.ranking.tie_breaker_weight * base;
 				let scope_context_boost = scope_context_boost_by_scope
 					.get(item.note.scope.as_str())
 					.copied()
 					.unwrap_or(0.0);
-				let final_score = rerank_score + tie_breaker_score + scope_context_boost;
+				let rerank_norm = match blend_policy.rerank_normalization {
+					NormalizationKind::Rank => rank_normalize(rerank_rank, total_rerank),
+				};
+				let retrieval_norm = match blend_policy.retrieval_normalization {
+					NormalizationKind::Rank => rank_normalize(retrieval_rank, total_retrieval),
+				};
+				let blend_retrieval_weight = if blend_policy.enabled {
+					retrieval_weight_for_rank(retrieval_rank, &blend_policy.segments)
+				} else {
+					0.0
+				};
+				let retrieval_term = blend_retrieval_weight * retrieval_norm;
+				let rerank_term = (1.0 - blend_retrieval_weight) * rerank_norm;
+				let final_score =
+					retrieval_term + rerank_term + tie_breaker_score + scope_context_boost;
+
 				scored.push(ScoredChunk {
 					item,
+					final_score,
 					rerank_score,
+					rerank_rank,
+					rerank_norm,
+					retrieval_norm,
+					blend_retrieval_weight,
+					retrieval_term,
+					rerank_term,
 					tie_breaker_score,
 					scope_context_boost,
-					final_score,
+					age_days,
+					importance,
 				});
 			}
 		}
@@ -1434,12 +1460,19 @@ ORDER BY rank ASC",
 			top_k,
 		};
 
+		let config_snapshot =
+			build_config_snapshot(&self.cfg, &blend_policy, ranking_override.as_ref());
+
 		let mut items = Vec::with_capacity(results.len());
-		let mut trace_builder = SearchTraceBuilder::new(trace_context, &self.cfg, now);
+		let mut trace_builder = SearchTraceBuilder::new(
+			trace_context,
+			config_snapshot,
+			self.cfg.search.explain.retention_days,
+			now,
+		);
 
 		for (idx, scored_chunk) in results.into_iter().enumerate() {
 			let rank = idx as u32 + 1;
-			let retrieval = retrieval_map.get(&scored_chunk.item.chunk.chunk_id).copied();
 			let (matched_terms, matched_fields) = match_terms_in_text(
 				&query_tokens,
 				&scored_chunk.item.snippet,
@@ -1447,27 +1480,66 @@ ORDER BY rank ASC",
 				MAX_MATCHED_TERMS,
 			);
 
-			let mut boosts = vec![SearchBoost {
-				name: "recency_importance".to_string(),
-				score: scored_chunk.tie_breaker_score,
-			}];
+			let mut signals = BTreeMap::new();
 
-			if scored_chunk.scope_context_boost > 0.0 {
-				boosts.push(SearchBoost {
-					name: "context_scope_description".to_string(),
-					score: scored_chunk.scope_context_boost,
-				});
-			}
+			signals.insert("blend.enabled".to_string(), serde_json::json!(blend_policy.enabled));
+			signals.insert(
+				"blend.retrieval_weight".to_string(),
+				serde_json::json!(scored_chunk.blend_retrieval_weight),
+			);
+			signals.insert(
+				"retrieval.rank".to_string(),
+				serde_json::json!(scored_chunk.item.retrieval_rank),
+			);
+			signals.insert(
+				"retrieval.norm".to_string(),
+				serde_json::json!(scored_chunk.retrieval_norm),
+			);
+			signals
+				.insert("rerank.score".to_string(), serde_json::json!(scored_chunk.rerank_score));
+			signals.insert("rerank.rank".to_string(), serde_json::json!(scored_chunk.rerank_rank));
+			signals.insert("rerank.norm".to_string(), serde_json::json!(scored_chunk.rerank_norm));
+			signals.insert(
+				"normalization.retrieval".to_string(),
+				serde_json::json!(blend_policy.retrieval_normalization.as_str()),
+			);
+			signals.insert(
+				"normalization.rerank".to_string(),
+				serde_json::json!(blend_policy.rerank_normalization.as_str()),
+			);
+			signals.insert(
+				"recency.tau_days".to_string(),
+				serde_json::json!(self.cfg.ranking.recency_tau_days),
+			);
+			signals.insert(
+				"tie_breaker.weight".to_string(),
+				serde_json::json!(self.cfg.ranking.tie_breaker_weight),
+			);
+			signals.insert("age.days".to_string(), serde_json::json!(scored_chunk.age_days));
+			signals.insert("importance".to_string(), serde_json::json!(scored_chunk.importance));
+			signals.insert(
+				"context.scope_boost".to_string(),
+				serde_json::json!(scored_chunk.scope_context_boost),
+			);
+
+			let mut components = BTreeMap::new();
+
+			components.insert("blend.retrieval".to_string(), scored_chunk.retrieval_term);
+			components.insert("blend.rerank".to_string(), scored_chunk.rerank_term);
+			components.insert("tie_breaker".to_string(), scored_chunk.tie_breaker_score);
+			components.insert("context.scope_boost".to_string(), scored_chunk.scope_context_boost);
 
 			let explain = SearchExplain {
-				retrieval_score: retrieval.map(|entry| entry.score),
-				retrieval_rank: retrieval.map(|entry| entry.rank),
-				rerank_score: scored_chunk.rerank_score,
-				tie_breaker_score: scored_chunk.tie_breaker_score,
-				final_score: scored_chunk.final_score,
-				boosts: boosts.clone(),
-				matched_terms: matched_terms.clone(),
-				matched_fields: matched_fields.clone(),
+				r#match: SearchMatchExplain {
+					matched_terms: matched_terms.clone(),
+					matched_fields: matched_fields.clone(),
+				},
+				ranking: SearchRankingExplain {
+					schema: SEARCH_RANKING_EXPLAIN_SCHEMA_V1.to_string(),
+					policy_id: "blend_v1".to_string(),
+					signals,
+					components,
+				},
 			};
 			let result_handle = Uuid::new_v4();
 			let note = &scored_chunk.item.note;
@@ -1490,21 +1562,15 @@ ORDER BY rank ASC",
 				expires_at: note.expires_at,
 				final_score: scored_chunk.final_score,
 				source_ref: note.source_ref.clone(),
-				explain,
+				explain: explain.clone(),
 			});
 			trace_builder.push_item(TraceItemRecord {
 				item_id: result_handle,
 				note_id: note.note_id,
 				chunk_id: Some(chunk.chunk_id),
 				rank,
-				retrieval_score: retrieval.map(|entry| entry.score),
-				retrieval_rank: retrieval.map(|entry| entry.rank),
-				rerank_score: scored_chunk.rerank_score,
-				tie_breaker_score: scored_chunk.tie_breaker_score,
 				final_score: scored_chunk.final_score,
-				boosts,
-				matched_terms,
-				matched_fields,
+				explain,
 			});
 		}
 
@@ -1636,13 +1702,7 @@ fn collect_chunk_candidates(
 			tracing::warn!(chunk_id = %chunk_id, "Chunk candidate missing chunk_index.");
 			continue;
 		};
-		out.push(ChunkCandidate {
-			chunk_id,
-			note_id,
-			chunk_index,
-			retrieval_score: point.score,
-			retrieval_rank: idx as u32 + 1,
-		});
+		out.push(ChunkCandidate { chunk_id, note_id, chunk_index, retrieval_rank: idx as u32 + 1 });
 	}
 
 	out
@@ -1872,7 +1932,38 @@ where
 		.map_err(|err| ServiceError::Storage { message: format!("Invalid {label} value: {err}") })
 }
 
-fn build_config_snapshot(cfg: &elf_config::Config) -> serde_json::Value {
+#[derive(Debug, Clone, Copy)]
+enum NormalizationKind {
+	Rank,
+}
+impl NormalizationKind {
+	fn as_str(self) -> &'static str {
+		match self {
+			Self::Rank => "rank",
+		}
+	}
+}
+
+#[derive(Debug, Clone)]
+struct BlendSegment {
+	max_retrieval_rank: u32,
+	retrieval_weight: f32,
+}
+
+#[derive(Debug, Clone)]
+struct ResolvedBlendPolicy {
+	enabled: bool,
+	rerank_normalization: NormalizationKind,
+	retrieval_normalization: NormalizationKind,
+	segments: Vec<BlendSegment>,
+}
+
+fn build_config_snapshot(
+	cfg: &elf_config::Config,
+	blend_policy: &ResolvedBlendPolicy,
+	ranking_override: Option<&RankingRequestOverride>,
+) -> serde_json::Value {
+	let override_json = ranking_override.and_then(|value| serde_json::to_value(value).ok());
 	serde_json::json!({
 		"search": {
 			"expansion": {
@@ -1894,6 +1985,22 @@ fn build_config_snapshot(cfg: &elf_config::Config) -> serde_json::Value {
 		"ranking": {
 			"recency_tau_days": cfg.ranking.recency_tau_days,
 			"tie_breaker_weight": cfg.ranking.tie_breaker_weight,
+			"blend": {
+				"enabled": blend_policy.enabled,
+				"rerank_normalization": blend_policy.rerank_normalization.as_str(),
+				"retrieval_normalization": blend_policy.retrieval_normalization.as_str(),
+				"segments": blend_policy
+					.segments
+					.iter()
+					.map(|segment| {
+						serde_json::json!({
+							"max_retrieval_rank": segment.max_retrieval_rank,
+							"retrieval_weight": segment.retrieval_weight,
+						})
+					})
+					.collect::<Vec<_>>(),
+			},
+			"override": override_json,
 		},
 		"providers": {
 			"embedding": {
@@ -1928,6 +2035,155 @@ fn build_config_snapshot(cfg: &elf_config::Config) -> serde_json::Value {
 				.unwrap_or(0),
 		},
 	})
+}
+
+fn resolve_blend_policy(
+	cfg: &elf_config::RankingBlend,
+	override_: Option<&BlendRankingOverride>,
+) -> ServiceResult<ResolvedBlendPolicy> {
+	let enabled = override_.and_then(|value| value.enabled).unwrap_or(cfg.enabled);
+	let rerank_norm = override_
+		.and_then(|value| value.rerank_normalization.as_deref())
+		.unwrap_or(cfg.rerank_normalization.as_str());
+	let retrieval_norm = override_
+		.and_then(|value| value.retrieval_normalization.as_deref())
+		.unwrap_or(cfg.retrieval_normalization.as_str());
+	let rerank_normalization =
+		parse_normalization_kind(rerank_norm, "ranking.blend.rerank_normalization")?;
+	let retrieval_normalization =
+		parse_normalization_kind(retrieval_norm, "ranking.blend.retrieval_normalization")?;
+	let segments: Vec<BlendSegment> =
+		if let Some(override_segments) = override_.and_then(|value| value.segments.as_ref()) {
+			override_segments
+				.iter()
+				.map(|segment| BlendSegment {
+					max_retrieval_rank: segment.max_retrieval_rank,
+					retrieval_weight: segment.retrieval_weight,
+				})
+				.collect::<Vec<_>>()
+		} else {
+			cfg.segments
+				.iter()
+				.map(|segment| BlendSegment {
+					max_retrieval_rank: segment.max_retrieval_rank,
+					retrieval_weight: segment.retrieval_weight,
+				})
+				.collect::<Vec<_>>()
+		};
+
+	validate_blend_segments(&segments)?;
+
+	Ok(ResolvedBlendPolicy { enabled, rerank_normalization, retrieval_normalization, segments })
+}
+
+fn parse_normalization_kind(value: &str, label: &str) -> ServiceResult<NormalizationKind> {
+	match value.trim().to_ascii_lowercase().as_str() {
+		"rank" => Ok(NormalizationKind::Rank),
+		other => Err(ServiceError::InvalidRequest {
+			message: format!("{label} must be one of: rank. Got {other}."),
+		}),
+	}
+}
+
+fn validate_blend_segments(segments: &[BlendSegment]) -> ServiceResult<()> {
+	if segments.is_empty() {
+		return Err(ServiceError::InvalidRequest {
+			message: "ranking.blend.segments must be non-empty.".to_string(),
+		});
+	}
+
+	let mut last_max = 0_u32;
+
+	for (idx, segment) in segments.iter().enumerate() {
+		if segment.max_retrieval_rank == 0 {
+			return Err(ServiceError::InvalidRequest {
+				message: "ranking.blend.segments.max_retrieval_rank must be greater than zero."
+					.to_string(),
+			});
+		}
+		if idx > 0 && segment.max_retrieval_rank <= last_max {
+			return Err(ServiceError::InvalidRequest {
+				message: "ranking.blend.segments.max_retrieval_rank must be strictly increasing."
+					.to_string(),
+			});
+		}
+		if !segment.retrieval_weight.is_finite() {
+			return Err(ServiceError::InvalidRequest {
+				message: "ranking.blend.segments.retrieval_weight must be a finite number."
+					.to_string(),
+			});
+		}
+		if !(0.0..=1.0).contains(&segment.retrieval_weight) {
+			return Err(ServiceError::InvalidRequest {
+				message: "ranking.blend.segments.retrieval_weight must be in the range 0.0-1.0."
+					.to_string(),
+			});
+		}
+
+		last_max = segment.max_retrieval_rank;
+	}
+
+	Ok(())
+}
+
+fn retrieval_weight_for_rank(rank: u32, segments: &[BlendSegment]) -> f32 {
+	for segment in segments {
+		if rank <= segment.max_retrieval_rank {
+			return segment.retrieval_weight;
+		}
+	}
+	segments.last().map(|segment| segment.retrieval_weight).unwrap_or(0.5)
+}
+
+fn rank_normalize(rank: u32, total: u32) -> f32 {
+	if total <= 1 {
+		return 1.0;
+	}
+	if rank == 0 {
+		return 0.0;
+	}
+
+	let denom = (total - 1) as f32;
+	let pos = (rank.saturating_sub(1)) as f32;
+
+	(1.0 - pos / denom).clamp(0.0, 1.0)
+}
+
+fn build_rerank_ranks(items: &[ChunkSnippet], scores: &[f32]) -> Vec<u32> {
+	let n = items.len();
+
+	if n == 0 {
+		return Vec::new();
+	}
+
+	let mut idxs: Vec<usize> = (0..n).collect();
+
+	idxs.sort_by(|&a, &b| {
+		let ord = cmp_f32_desc(
+			scores.get(a).copied().unwrap_or(f32::NAN),
+			scores.get(b).copied().unwrap_or(f32::NAN),
+		);
+		if ord != std::cmp::Ordering::Equal {
+			return ord;
+		}
+		items[a].chunk.chunk_id.cmp(&items[b].chunk.chunk_id)
+	});
+
+	let mut ranks = vec![0_u32; n];
+
+	for (pos, idx) in idxs.into_iter().enumerate() {
+		ranks[idx] = pos as u32 + 1;
+	}
+	ranks
+}
+
+fn cmp_f32_desc(a: f32, b: f32) -> std::cmp::Ordering {
+	match (a.is_nan(), b.is_nan()) {
+		(true, true) => std::cmp::Ordering::Equal,
+		(true, false) => std::cmp::Ordering::Greater,
+		(false, true) => std::cmp::Ordering::Less,
+		(false, false) => b.partial_cmp(&a).unwrap_or(std::cmp::Ordering::Equal),
+	}
 }
 
 fn resolve_scopes(cfg: &elf_config::Config, profile: &str) -> ServiceResult<Vec<String>> {
@@ -2323,6 +2579,54 @@ mod tests {
 		assert!(should_expand_dynamic(5, 0.9, &cfg));
 		assert!(should_expand_dynamic(20, 0.1, &cfg));
 		assert!(!should_expand_dynamic(20, 0.9, &cfg));
+	}
+
+	#[test]
+	fn rank_normalize_maps_rank_to_unit_interval() {
+		assert!((rank_normalize(1, 1) - 1.0).abs() < 1e-6);
+		assert!((rank_normalize(1, 5) - 1.0).abs() < 1e-6);
+		assert!((rank_normalize(3, 5) - 0.5).abs() < 1e-6);
+		assert!((rank_normalize(5, 5) - 0.0).abs() < 1e-6);
+		assert!((rank_normalize(0, 5) - 0.0).abs() < 1e-6);
+	}
+
+	#[test]
+	fn retrieval_weight_for_rank_uses_first_matching_segment_or_last() {
+		let segments = vec![
+			BlendSegment { max_retrieval_rank: 3, retrieval_weight: 0.7 },
+			BlendSegment { max_retrieval_rank: 10, retrieval_weight: 0.2 },
+		];
+
+		assert!((retrieval_weight_for_rank(1, &segments) - 0.7).abs() < 1e-6);
+		assert!((retrieval_weight_for_rank(3, &segments) - 0.7).abs() < 1e-6);
+		assert!((retrieval_weight_for_rank(4, &segments) - 0.2).abs() < 1e-6);
+		assert!((retrieval_weight_for_rank(999, &segments) - 0.2).abs() < 1e-6);
+	}
+
+	#[test]
+	fn blend_math_is_linear_and_additive() {
+		let segments = vec![
+			BlendSegment { max_retrieval_rank: 2, retrieval_weight: 0.7 },
+			BlendSegment { max_retrieval_rank: 10, retrieval_weight: 0.2 },
+		];
+		let retrieval_rank = 3;
+		let rerank_rank = 2;
+		let retrieval_norm = rank_normalize(retrieval_rank, 10);
+		let rerank_norm = rank_normalize(rerank_rank, 4);
+		let blend_retrieval_weight = retrieval_weight_for_rank(retrieval_rank, &segments);
+
+		assert!((blend_retrieval_weight - 0.2).abs() < 1e-6);
+		assert!((retrieval_norm - (7.0 / 9.0)).abs() < 1e-6);
+		assert!((rerank_norm - (2.0 / 3.0)).abs() < 1e-6);
+
+		let retrieval_term = blend_retrieval_weight * retrieval_norm;
+		let rerank_term = (1.0 - blend_retrieval_weight) * rerank_norm;
+		let tie_breaker_score = 0.1;
+		let scope_context_boost = 0.0;
+		let final_score = retrieval_term + rerank_term + tie_breaker_score + scope_context_boost;
+		let expected = (0.2 * (7.0 / 9.0)) + (0.8 * (2.0 / 3.0)) + 0.1;
+
+		assert!((final_score - expected).abs() < 1e-6, "Unexpected final_score: {final_score}");
 	}
 
 	#[test]

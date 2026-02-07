@@ -198,6 +198,37 @@ pub struct SearchExplain {
 pub struct Ranking {
 	pub recency_tau_days: f32,
 	pub tie_breaker_weight: f32,
+	#[serde(default)]
+	pub blend: RankingBlend,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(default)]
+pub struct RankingBlend {
+	pub enabled: bool,
+	pub rerank_normalization: String,
+	pub retrieval_normalization: String,
+	pub segments: Vec<RankingBlendSegment>,
+}
+impl Default for RankingBlend {
+	fn default() -> Self {
+		Self {
+			enabled: true,
+			rerank_normalization: "rank".to_string(),
+			retrieval_normalization: "rank".to_string(),
+			segments: vec![
+				RankingBlendSegment { max_retrieval_rank: 3, retrieval_weight: 0.8 },
+				RankingBlendSegment { max_retrieval_rank: 10, retrieval_weight: 0.5 },
+				RankingBlendSegment { max_retrieval_rank: 1_000_000, retrieval_weight: 0.2 },
+			],
+		}
+	}
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RankingBlendSegment {
+	pub max_retrieval_rank: u32,
+	pub retrieval_weight: f32,
 }
 
 #[derive(Debug, Deserialize)]
