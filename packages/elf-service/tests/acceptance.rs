@@ -266,13 +266,13 @@ mod acceptance {
 		collection: &str,
 		vector_dim: u32,
 	) -> color_eyre::Result<()> {
-		let _ = client.delete_collection(collection.to_string()).await;
 		let max_attempts = 8;
 
 		let mut backoff = Duration::from_millis(100);
 		let mut last_err = None;
 
 		for attempt in 1..=max_attempts {
+			let _ = client.delete_collection(collection.to_string()).await;
 			let mut vectors_config = VectorsConfigBuilder::default();
 			vectors_config.add_named_vector_params(
 				DENSE_VECTOR_NAME,
@@ -317,7 +317,7 @@ mod acceptance {
 	}
 
 	pub async fn reset_db(pool: &sqlx::PgPool) -> color_eyre::Result<()> {
-		sqlx::query!(
+		sqlx::query(
 			"\
 TRUNCATE memory_hits, memory_note_versions, note_chunk_embeddings, memory_note_chunks, \
 note_embeddings, search_trace_items, search_traces, search_trace_outbox, search_sessions, \
