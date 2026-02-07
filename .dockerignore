@@ -1,5 +1,5 @@
-.git
-**/node_modules
-**/npm-debug.log
 **/.env*
 **/.next
+**/node_modules
+**/npm-debug.log
+.git
