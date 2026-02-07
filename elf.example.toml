@@ -106,6 +106,23 @@ retention_days = 7
 recency_tau_days   = 60
 tie_breaker_weight = 0.1
 
+[ranking.blend]
+enabled                 = true
+rerank_normalization    = "rank"
+retrieval_normalization = "rank"
+
+[[ranking.blend.segments]]
+max_retrieval_rank = 3
+retrieval_weight   = 0.8
+
+[[ranking.blend.segments]]
+max_retrieval_rank = 10
+retrieval_weight   = 0.5
+
+[[ranking.blend.segments]]
+max_retrieval_rank = 1000000
+retrieval_weight   = 0.2
+
 [lifecycle.ttl_days]
 constraint = 0
 decision   = 0

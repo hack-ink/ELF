@@ -146,6 +146,7 @@ async fn rejects_cjk_in_search() {
 		top_k: Some(5),
 		candidate_k: Some(10),
 		record_hits: Some(false),
+		ranking: None,
 	};
 	let result = service.search(request).await;
 

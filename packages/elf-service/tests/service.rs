@@ -133,7 +133,11 @@ fn test_config() -> Config {
 			},
 			explain: elf_config::SearchExplain { retention_days: 7 },
 		},
-		ranking: elf_config::Ranking { recency_tau_days: 60.0, tie_breaker_weight: 0.1 },
+		ranking: elf_config::Ranking {
+			recency_tau_days: 60.0,
+			tie_breaker_weight: 0.1,
+			blend: Default::default(),
+		},
 		lifecycle: elf_config::Lifecycle {
 			ttl_days: elf_config::TtlDays {
 				plan: 1,
