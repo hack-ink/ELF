@@ -15,10 +15,11 @@ use crate::state::AppState;
 use elf_service::{
 	AddEventRequest, AddEventResponse, AddNoteInput, AddNoteRequest, AddNoteResponse,
 	DeleteRequest, DeleteResponse, EventMessage, ListRequest, ListResponse, NoteFetchRequest,
-	NoteFetchResponse, RebuildReport, SearchDetailsRequest, SearchDetailsResult,
-	SearchExplainRequest, SearchExplainResponse, SearchIndexItem, SearchRequest, SearchResponse,
-	SearchSessionGetRequest, SearchTimelineGroup, SearchTimelineRequest, ServiceError,
-	TraceGetRequest, TraceGetResponse, UpdateRequest, UpdateResponse,
+	NoteFetchResponse, RankingRequestOverride, RebuildReport, SearchDetailsRequest,
+	SearchDetailsResult, SearchExplainRequest, SearchExplainResponse, SearchIndexItem,
+	SearchRequest, SearchResponse, SearchSessionGetRequest, SearchTimelineGroup,
+	SearchTimelineRequest, ServiceError, TraceGetRequest, TraceGetResponse, UpdateRequest,
+	UpdateResponse,
 };
 
 const HEADER_TENANT_ID: &str = "X-ELF-Tenant-Id";
@@ -61,6 +62,8 @@ struct SearchCreateRequest {
 	query: String,
 	top_k: Option<u32>,
 	candidate_k: Option<u32>,
+	#[serde(default)]
+	ranking: Option<RankingRequestOverride>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -353,6 +356,16 @@ async fn searches_create(
 
 		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
 	})?;
+
+	if payload.ranking.is_some() {
+		return Err(json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Ranking overrides are only supported on admin endpoints.".to_string(),
+			None,
+		));
+	}
+
 	let response = state
 		.service
 		.search(SearchRequest {
@@ -364,6 +377,7 @@ async fn searches_create(
 			top_k: payload.top_k,
 			candidate_k: payload.candidate_k,
 			record_hits: Some(false),
+			ranking: None,
 		})
 		.await?;
 
@@ -605,6 +619,7 @@ async fn searches_raw(
 			top_k: payload.top_k,
 			candidate_k: payload.candidate_k,
 			record_hits: Some(false),
+			ranking: payload.ranking,
 		})
 		.await?;
 

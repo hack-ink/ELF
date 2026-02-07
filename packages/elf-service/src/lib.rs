@@ -29,8 +29,9 @@ pub use progressive_search::{
 	SearchTimelineRequest, SearchTimelineResponse,
 };
 pub use search::{
-	SearchBoost, SearchExplain, SearchExplainItem, SearchExplainRequest, SearchExplainResponse,
-	SearchItem, SearchRequest, SearchResponse, SearchTrace, TraceGetRequest, TraceGetResponse,
+	BlendRankingOverride, BlendSegmentOverride, RankingRequestOverride, SearchExplain,
+	SearchExplainItem, SearchExplainRequest, SearchExplainResponse, SearchItem, SearchRequest,
+	SearchResponse, SearchTrace, TraceGetRequest, TraceGetResponse,
 };
 pub use update::{UpdateRequest, UpdateResponse};
 

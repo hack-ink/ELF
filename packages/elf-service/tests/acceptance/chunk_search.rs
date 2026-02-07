@@ -294,6 +294,7 @@ async fn search_returns_chunk_items() {
 			top_k: Some(5),
 			candidate_k: Some(10),
 			record_hits: Some(false),
+			ranking: None,
 		})
 		.await
 		.expect("Search failed.");
@@ -355,6 +356,7 @@ async fn search_stitches_adjacent_chunks() {
 			top_k: Some(5),
 			candidate_k: Some(10),
 			record_hits: Some(false),
+			ranking: None,
 		})
 		.await
 		.expect("Search failed.");
@@ -397,6 +399,7 @@ async fn search_skips_missing_chunk_metadata() {
 			top_k: Some(5),
 			candidate_k: Some(10),
 			record_hits: Some(false),
+			ranking: None,
 		})
 		.await
 		.expect("Search failed.");
@@ -445,6 +448,7 @@ async fn progressive_search_returns_index_timeline_and_details() {
 			top_k: Some(5),
 			candidate_k: Some(10),
 			record_hits: Some(false),
+			ranking: None,
 		})
 		.await
 		.expect("Search index failed.");
@@ -540,6 +544,7 @@ async fn search_dedupes_note_results() {
 			top_k: Some(5),
 			candidate_k: Some(10),
 			record_hits: Some(false),
+			ranking: None,
 		})
 		.await
 		.expect("Search failed.");
