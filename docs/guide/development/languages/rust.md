@@ -63,8 +63,9 @@ Additional rules:
 - Within each group, place `pub` items before non-`pub` items.
 - Within the `fn` group at the same visibility, place non-`async` functions before `async` functions.
 - For any `struct` or `enum` defined in a module, place its `impl` blocks immediately after the type definition with no blank lines or other items between them.
+- For extension traits (for example, traits named `FooExt`), place the trait definition immediately followed by its `impl` blocks.
 - Tests must be declared last, after all other items.
-- Inside `#[cfg(test)] mod tests`, you must use `use super::*;`.
+- Inside `#[cfg(test)] mod tests`, use `use super::*;` unless the module exists only to mark dev-dependencies as used (for example, `#[cfg(test)] mod _test` with `use some_crate as _;`).
 
 ### File Structure
 
@@ -73,12 +74,17 @@ Additional rules:
 ## Imports and Paths
 
 Group imports by origin in this order: standard library, third-party crates, self or workspace crates.
+Treat workspace member crates as part of the self/workspace group, alongside `crate::` and `super::` paths.
 Separate groups with a blank line and do not add header comments for import groups.
 
 Rules:
 
-- Do not import functions directly. Import the module or type and call `module::function(...)`.
-- Calls to functions or macros must use a single module qualifier, such as `parent::function(...)` or `parent::macro!(...)`, unless the function or macro is defined in the same file.
+- Do not use `use ... as ...` imports. The only exception is `use some_crate as _;` inside `#[cfg(test)] mod _test` to mark dev-dependencies as used for `unused_crate_dependencies` and similar lints. When name conflicts exist, prefer module-qualified or fully qualified paths at the usage site instead of aliasing.
+- Do not import functions directly with `use`. Import the module or type and call `module::function(...)`.
+- You may re-export functions with `pub use` when you need them in a crate's public API, for example `pub use crate::module::function;`.
+- You may use `use super::*;` when the parent module is intentionally designed as a module prelude. Do not use it to avoid module qualifiers for function calls.
+- In files named `error.rs`, do not add `use` imports. Use fully qualified paths at call and type sites.
+- Calls to functions or macros must use a module qualifier, such as `parent::function(...)` or `parent::macro!(...)`, unless the function or macro is defined in the same file. Prefer a single qualifier by importing the module, but when name conflicts exist, use a more qualified path instead of an import alias.
 - Standard library macros must be used without a `std::` qualifier, such as `vec!`, `format!`, or `println!`.
 - If `crate::prelude::*` is imported, do not add redundant imports.
 - In tests, prefer `use super::*;` for ergonomic access to the module under test.
@@ -120,6 +126,7 @@ Rules:
 
 - Keep one logical operation per line.
 - Prefer functions at or under 100 lines. Extract helpers when a function exceeds 120 lines or the happy path is no longer obvious.
+- Do not introduce a new helper function when the code is a single expression and the helper is used only once. Inline it at the call site unless the helper name encodes a meaningful domain concept or isolates non-trivial logic.
 - Limit nesting depth to two levels. Extract helpers if deeper nesting appears.
 - Prefer guard clauses and early returns to keep the happy path linear.
 - Avoid complex `if let` or `match` guards. Extract a named boolean when logic grows.
@@ -184,7 +191,7 @@ Treat statements as the same type when they share the same syntactic form or cal
 - Multiple `match` statements.
 - Multiple `for` loops.
 - Multiple `while` loops.
-- Multiple `loop` loops.
+- Multiple `loop` statements.
 - Multiple calls to the same macro name (for example, `println!` with `println!`, or `tracing::...` with `tracing::...`).
 - Multiple `Type::function(...)` calls.
 - Multiple `self.method(...)` calls.
@@ -210,6 +217,7 @@ Additional rules:
 - Use descriptive test names in `snake_case` that encode the behavior and expected outcome.
 - Tests must be deterministic to keep LLM reasoning and CI outcomes stable.
 - Integration tests that require external services must be marked `#[ignore]` with a clear message about required dependencies.
+- `#[cfg(test)] mod _test` is reserved for dev-dependency keep-alive imports such as `use some_crate as _;`. Do not place behavior tests in `_test`.
 
 ## LLM Readability Checklist
 
@@ -220,4 +228,4 @@ Before finalizing a Rust change, ensure the following:
 - Error boundaries are explicit.
 - Logging uses structured fields.
 - Names convey intent without relying on comments.
-- Import structs, enums, and other types directly instead of using fully qualified paths at the call site. When name conflicts make direct imports unclear or ambiguous, use module-qualified paths or explicit renames.
+- Import structs, enums, and other types directly in regular modules instead of using fully qualified paths at the call site. In `error.rs`, use fully qualified paths and avoid `use` imports. When name conflicts make direct imports unclear or ambiguous, use module-qualified paths at the call site instead of import aliases.
