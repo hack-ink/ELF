@@ -30,6 +30,11 @@ fi
 DB_NAME="${ELF_SQLX_PREPARE_DB:-elf_sqlx_prepare}"
 VECTOR_DIM="${ELF_SQLX_VECTOR_DIM:-4096}"
 
+if [[ "${DB_NAME}" != elf_* ]]; then
+  echo "ELF_SQLX_PREPARE_DB must start with elf_ to avoid deleting real data." >&2
+  exit 1
+fi
+
 PG_DSN_BASE="${ELF_PG_DSN%/*}"
 DATABASE_URL="${PG_DSN_BASE}/${DB_NAME}"
 

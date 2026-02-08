@@ -110,12 +110,12 @@ Chunk text is not stored in Qdrant payload.
 ## API Changes
 
 Search is chunk-first:
-- `POST /v1/memory/search` returns chunk items and snippets.
+- `POST /v2/searches` returns chunk items and snippets.
 - Snippets are stitched from the top chunk plus immediate neighbors.
-- A new endpoint returns full notes by ID: `GET /v1/memory/notes/{note_id}`.
+- Full notes are fetched separately via `POST /v2/searches/{search_id}/notes` or `GET /v2/notes/{note_id}`.
 
 Search explain:
-- `GET /v1/memory/search/explain` returns `chunk_id` alongside scores.
+- `GET /v2/admin/trace-items/{item_id}` returns per-item explain data, including `chunk_id` alongside scores.
 
 ## Rebuild and Indexing
 
@@ -141,7 +141,7 @@ Add tests to cover:
 
 ## Spec Updates
 
-Update `docs/spec/system_elf_memory_service_v1.md` to reflect:
+Update `docs/spec/system_elf_memory_service_v2.md` to reflect:
 - Chunk embeddings as the source-of-truth vectors.
 - `note_embeddings` as derived pooled vectors.
 - New tables and search explain fields.
