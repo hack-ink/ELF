@@ -50,7 +50,7 @@ where
 	R: RerankProvider + Send + Sync + 'static,
 {
 	Providers::new(
-		Arc::new(StubEmbedding { vector_dim: 3 }),
+		Arc::new(StubEmbedding { vector_dim: 4_096 }),
 		Arc::new(rerank),
 		Arc::new(SpyExtractor {
 			calls: Arc::new(AtomicUsize::new(0)),

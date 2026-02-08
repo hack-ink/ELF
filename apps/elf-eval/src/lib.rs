@@ -396,7 +396,7 @@ async fn run_query_n_times(
 	for run_idx in 0..runs {
 		let start = Instant::now();
 		let response = service.search(request.clone()).await?;
-		let latency_ms = start.elapsed().as_secs_f64() * 1000.0;
+		let latency_ms = start.elapsed().as_secs_f64() * 1_000.0;
 
 		latency_total_ms += latency_ms;
 

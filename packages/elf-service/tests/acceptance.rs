@@ -234,7 +234,7 @@ mod acceptance {
 			path: "/".to_string(),
 			model: "test".to_string(),
 			dimensions: 3,
-			timeout_ms: 1000,
+			timeout_ms: 1_000,
 			default_headers: Map::new(),
 		}
 	}
@@ -246,7 +246,7 @@ mod acceptance {
 			api_key: "test-key".to_string(),
 			path: "/".to_string(),
 			model: "test".to_string(),
-			timeout_ms: 1000,
+			timeout_ms: 1_000,
 			default_headers: Map::new(),
 		}
 	}
@@ -259,7 +259,7 @@ mod acceptance {
 			path: "/".to_string(),
 			model: "test".to_string(),
 			temperature: 0.1,
-			timeout_ms: 1000,
+			timeout_ms: 1_000,
 			default_headers: Map::new(),
 		}
 	}
