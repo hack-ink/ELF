@@ -44,6 +44,14 @@ DB_NAME="${ELF_HARNESS_DB_NAME:-elf_e2e}"
 QDRANT_COLLECTION="${ELF_HARNESS_COLLECTION:-elf_harness_${RUN_ID}}"
 VECTOR_DIM="${ELF_HARNESS_VECTOR_DIM:-4096}"
 
+if [[ ! "${VECTOR_DIM}" =~ ^[0-9]+$ ]]; then
+  echo "ELF_HARNESS_VECTOR_DIM must be an integer." >&2
+  exit 1
+fi
+
+# Keep VECTOR_DIM numeric for JSON and SQL usage; use an underscore-formatted variant for TOML.
+VECTOR_DIM_TOML="$(echo "${VECTOR_DIM}" | perl -pe '1 while s/^([0-9]+)([0-9]{3})/$1_$2/')"
+
 if [[ "${DB_NAME}" != elf_* ]]; then
   echo "ELF_HARNESS_DB_NAME must start with elf_ to avoid deleting real data." >&2
   exit 1
@@ -121,16 +129,16 @@ pool_max_conns = 10
 [storage.qdrant]
 collection = "${QDRANT_COLLECTION}"
 url        = "${ELF_QDRANT_URL}"
-vector_dim = ${VECTOR_DIM}
+vector_dim = ${VECTOR_DIM_TOML}
 
 [providers.embedding]
 api_base    = "http://127.0.0.1"
 api_key     = "local"
-dimensions  = ${VECTOR_DIM}
+dimensions  = ${VECTOR_DIM_TOML}
 model       = "local-hash"
 path        = "/embeddings"
 provider_id = "local"
-timeout_ms  = 1000
+timeout_ms  = 1_000
 
 default_headers = {}
 
@@ -140,7 +148,7 @@ api_key     = "local"
 model       = "local-token-overlap"
 path        = "/rerank"
 provider_id = "local"
-timeout_ms  = 1000
+timeout_ms  = 1_000
 
 default_headers = {}
 
@@ -151,7 +159,7 @@ model         = "local-disabled"
 path          = "/chat/completions"
 provider_id   = "local"
 temperature   = 0.0
-timeout_ms    = 1000
+timeout_ms    = 1_000
 
 default_headers = {}
 
