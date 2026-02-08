@@ -1,6 +1,6 @@
 use std::{net::SocketAddr, sync::Arc};
 
-use axum::Router;
+use axum::{Router, extract::State, middleware, response::IntoResponse};
 use color_eyre::Result;
 use reqwest::Client;
 use rmcp::{
@@ -20,6 +20,8 @@ const HEADER_TENANT_ID: &str = "X-ELF-Tenant-Id";
 const HEADER_PROJECT_ID: &str = "X-ELF-Project-Id";
 const HEADER_AGENT_ID: &str = "X-ELF-Agent-Id";
 const HEADER_READ_PROFILE: &str = "X-ELF-Read-Profile";
+const HEADER_AUTHORIZATION: &str = "Authorization";
+const HEADER_AUTH_TOKEN: &str = "X-ELF-Auth-Token";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum HttpMethod {
@@ -52,11 +54,18 @@ struct ElfMcp {
 	api_base: String,
 	client: Client,
 	context: ElfContextHeaders,
+	auth_token: Option<String>,
 	tool_router: ToolRouter<Self>,
 }
 impl ElfMcp {
-	fn new(api_base: String, context: ElfContextHeaders) -> Self {
-		Self { api_base, client: Client::new(), context, tool_router: Self::tool_router() }
+	fn new(api_base: String, context: ElfContextHeaders, auth_token: Option<String>) -> Self {
+		Self {
+			api_base,
+			client: Client::new(),
+			context,
+			auth_token,
+			tool_router: Self::tool_router(),
+		}
 	}
 
 	fn apply_context_headers(
@@ -65,12 +74,17 @@ impl ElfMcp {
 		read_profile_override: Option<&str>,
 	) -> reqwest::RequestBuilder {
 		let read_profile = read_profile_override.unwrap_or(self.context.read_profile.as_str());
-
-		builder
+		let builder = builder
 			.header(HEADER_TENANT_ID, self.context.tenant_id.as_str())
 			.header(HEADER_PROJECT_ID, self.context.project_id.as_str())
 			.header(HEADER_AGENT_ID, self.context.agent_id.as_str())
-			.header(HEADER_READ_PROFILE, read_profile)
+			.header(HEADER_READ_PROFILE, read_profile);
+
+		if let Some(token) = self.auth_token.as_deref() {
+			builder.header(HEADER_AUTHORIZATION, format!("Bearer {token}"))
+		} else {
+			builder
+		}
 	}
 
 	async fn forward_post(
@@ -192,10 +206,10 @@ impl ElfMcp {
 		&self,
 		mut params: JsonObject,
 	) -> Result<CallToolResult, McpError> {
-		let read_profile_override = take_optional_string(&mut params, "read_profile")?;
+		// read_profile is part of the MCP server configuration and is not client-controlled.
+		let _ = take_optional_string(&mut params, "read_profile")?;
 
-		self.forward(HttpMethod::Post, "/v2/searches", params, read_profile_override.as_deref())
-			.await
+		self.forward(HttpMethod::Post, "/v2/searches", params, None).await
 	}
 
 	#[rmcp::tool(
@@ -296,22 +310,55 @@ impl ServerHandler for ElfMcp {
 	}
 }
 
-pub async fn serve_mcp(bind_addr: &str, api_base: &str, mcp_context: &McpContext) -> Result<()> {
+pub async fn serve_mcp(
+	bind_addr: &str,
+	api_base: &str,
+	api_auth_token: Option<&str>,
+	mcp_context: &McpContext,
+) -> Result<()> {
 	let bind_addr: SocketAddr = bind_addr.parse()?;
 	let api_base = normalize_api_base(api_base);
 	let context = ElfContextHeaders::new(mcp_context);
+	let api_auth_token = api_auth_token.map(|value| value.to_string());
+	let auth_state = api_auth_token.clone();
+	let client_token = api_auth_token.clone();
 	let session_manager: Arc<LocalSessionManager> = Default::default();
 	let service = StreamableHttpService::new(
-		move || Ok(ElfMcp::new(api_base.clone(), context.clone())),
+		move || Ok(ElfMcp::new(api_base.clone(), context.clone(), client_token.clone())),
 		session_manager,
 		StreamableHttpServerConfig::default(),
 	);
-	let router = Router::new().fallback_service(service);
+	let router = Router::new()
+		.fallback_service(service)
+		.layer(middleware::from_fn_with_state(auth_state, mcp_auth_middleware));
 	let listener = TcpListener::bind(bind_addr).await?;
 
 	axum::serve(listener, router).await?;
 
 	Ok(())
+}
+
+fn is_authorized(headers: &axum::http::HeaderMap, expected: Option<&str>) -> bool {
+	let Some(expected) = expected else { return true };
+
+	if let Some(raw) = headers.get(HEADER_AUTH_TOKEN)
+		&& let Ok(value) = raw.to_str()
+		&& value.trim() == expected
+	{
+		return true;
+	}
+	if let Some(raw) = headers.get(HEADER_AUTHORIZATION)
+		&& let Ok(value) = raw.to_str()
+	{
+		let value = value.trim();
+
+		if let Some(token) = value.strip_prefix("Bearer ").or_else(|| value.strip_prefix("bearer "))
+		{
+			return token.trim() == expected;
+		}
+	}
+
+	false
 }
 
 fn normalize_api_base(raw: &str) -> String {
@@ -543,6 +590,20 @@ async fn handle_response(response: reqwest::Response) -> Result<CallToolResult, 
 	} else {
 		Ok(CallToolResult::structured_error(parsed))
 	}
+}
+
+async fn mcp_auth_middleware(
+	State(expected): State<Option<String>>,
+	req: axum::http::Request<axum::body::Body>,
+	next: middleware::Next,
+) -> axum::response::Response {
+	let expected = expected.as_deref();
+
+	if expected.is_some() && !is_authorized(req.headers(), expected) {
+		return (axum::http::StatusCode::UNAUTHORIZED, "Authentication required.").into_response();
+	}
+
+	next.run(req).await
 }
 
 #[cfg(test)]

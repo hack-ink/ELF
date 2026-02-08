@@ -11,7 +11,7 @@ use qdrant_client::{
 use serde::Serialize;
 use serde_json::{Value as JsonValue, Value as SerdeValue};
 use sqlx::QueryBuilder;
-use time::{Duration, OffsetDateTime};
+use time::{Duration, OffsetDateTime, format_description::well_known::Rfc3339};
 use tokio::time as tokio_time;
 use uuid::Uuid;
 
@@ -30,6 +30,7 @@ const BASE_BACKOFF_MS: i64 = 500;
 const MAX_BACKOFF_MS: i64 = 30_000;
 const TRACE_CLEANUP_INTERVAL_SECONDS: i64 = 900;
 const TRACE_OUTBOX_LEASE_SECONDS: i64 = 30;
+const MAX_OUTBOX_ERROR_CHARS: usize = 1_024;
 
 #[derive(Debug, serde::Deserialize)]
 struct TracePayload {
@@ -101,6 +102,7 @@ pub struct WorkerState {
 
 pub async fn run_worker(state: WorkerState) -> Result<()> {
 	let mut last_trace_cleanup = OffsetDateTime::now_utc();
+
 	loop {
 		if let Err(err) = process_indexing_outbox_once(&state).await {
 			tracing::error!(error = %err, "Indexing outbox processing failed.");
@@ -108,7 +110,9 @@ pub async fn run_worker(state: WorkerState) -> Result<()> {
 		if let Err(err) = process_trace_outbox_once(&state).await {
 			tracing::error!(error = %err, "Search trace outbox processing failed.");
 		}
+
 		let now = OffsetDateTime::now_utc();
+
 		if now - last_trace_cleanup >= Duration::seconds(TRACE_CLEANUP_INTERVAL_SECONDS) {
 			if let Err(err) = purge_expired_traces(&state.db, now).await {
 				tracing::error!(error = %err, "Search trace cleanup failed.");
@@ -122,8 +126,183 @@ pub async fn run_worker(state: WorkerState) -> Result<()> {
 				tracing::error!(error = %err, "Search session cleanup failed.");
 			}
 		}
+
 		tokio_time::sleep(to_std_duration(Duration::milliseconds(POLL_INTERVAL_MS))).await;
 	}
+}
+
+fn is_not_found_error(err: &qdrant_client::QdrantError) -> bool {
+	let message = err.to_string().to_lowercase();
+	let point_not_found =
+		(message.contains("not found") || message.contains("404")) && message.contains("point");
+	let no_point_found = message.contains("no point") && message.contains("found");
+	point_not_found || no_point_found
+}
+
+fn note_is_active(note: &MemoryNote, now: OffsetDateTime) -> bool {
+	if !note.status.eq_ignore_ascii_case("active") {
+		return false;
+	}
+
+	if let Some(expires_at) = note.expires_at
+		&& expires_at <= now
+	{
+		return false;
+	}
+
+	true
+}
+
+fn build_chunk_records(note_id: uuid::Uuid, chunks: &[Chunk]) -> Result<Vec<ChunkRecord>> {
+	let mut records = Vec::with_capacity(chunks.len());
+
+	for chunk in chunks {
+		let start_offset = to_i32(chunk.start_offset, "start_offset")?;
+		let end_offset = to_i32(chunk.end_offset, "end_offset")?;
+
+		records.push(ChunkRecord {
+			chunk_id: chunk_id_for(note_id, chunk.chunk_index),
+			chunk_index: chunk.chunk_index,
+			start_offset,
+			end_offset,
+			text: chunk.text.clone(),
+		});
+	}
+
+	Ok(records)
+}
+
+fn chunk_id_for(note_id: uuid::Uuid, chunk_index: i32) -> uuid::Uuid {
+	let name = format!("{note_id}:{chunk_index}");
+
+	Uuid::new_v5(&Uuid::NAMESPACE_OID, name.as_bytes())
+}
+
+fn to_i32(value: usize, label: &str) -> Result<i32> {
+	i32::try_from(value)
+		.map_err(|_| eyre::eyre!("Chunk {label} offset {value} exceeds supported range."))
+}
+
+fn mean_pool(chunks: &[Vec<f32>]) -> Option<Vec<f32>> {
+	if chunks.is_empty() {
+		return None;
+	}
+
+	let dim = chunks[0].len();
+
+	let mut out = vec![0.0_f32; dim];
+
+	for vec in chunks {
+		for (idx, value) in vec.iter().enumerate() {
+			out[idx] += value;
+		}
+	}
+	for value in &mut out {
+		*value /= chunks.len() as f32;
+	}
+
+	Some(out)
+}
+
+fn format_timestamp(ts: OffsetDateTime) -> Result<String> {
+	ts.format(&Rfc3339).map_err(|_| eyre::eyre!("Failed to format timestamp."))
+}
+
+fn validate_vector_dim(vec: &[f32], expected_dim: u32) -> Result<()> {
+	if vec.len() != expected_dim as usize {
+		return Err(eyre::eyre!(
+			"Embedding dimension {} does not match configured vector_dim {}.",
+			vec.len(),
+			expected_dim
+		));
+	}
+
+	Ok(())
+}
+
+fn format_vector_text(vec: &[f32]) -> String {
+	let mut out = String::from("[");
+
+	for (idx, value) in vec.iter().enumerate() {
+		if idx > 0 {
+			out.push(',');
+		}
+		out.push_str(&value.to_string());
+	}
+
+	out.push(']');
+
+	out
+}
+
+fn encode_json<T>(value: &T, label: &str) -> Result<SerdeValue>
+where
+	T: Serialize,
+{
+	serde_json::to_value(value).map_err(|err| eyre::eyre!("Failed to encode {label}: {err}."))
+}
+
+fn sanitize_outbox_error(text: &str) -> String {
+	let mut parts = Vec::new();
+	let mut redact_next = false;
+
+	for raw in text.split_whitespace() {
+		let mut word = raw.to_string();
+
+		if redact_next {
+			word = "[REDACTED]".to_string();
+			redact_next = false;
+		}
+		if raw.eq_ignore_ascii_case("bearer") {
+			redact_next = true;
+		}
+
+		let lowered = raw.to_ascii_lowercase();
+
+		for key in ["api_key", "apikey", "password", "secret", "token"] {
+			if lowered.contains(key) && (lowered.contains('=') || lowered.contains(':')) {
+				let sep = if raw.contains('=') { '=' } else { ':' };
+				let prefix = match raw.split(sep).next() {
+					Some(prefix) => prefix,
+					None => raw,
+				};
+
+				word = format!("{prefix}{sep}[REDACTED]");
+
+				break;
+			}
+		}
+
+		parts.push(word);
+	}
+
+	let mut out = parts.join(" ");
+
+	if out.chars().count() > MAX_OUTBOX_ERROR_CHARS {
+		out = out.chars().take(MAX_OUTBOX_ERROR_CHARS).collect();
+		out.push_str("...");
+	}
+
+	out
+}
+
+fn backoff_for_attempt(attempt: i32) -> Duration {
+	let attempts = attempt.max(1) as u32;
+	let exp = attempts.saturating_sub(1).min(6);
+	let base = BASE_BACKOFF_MS.saturating_mul(1 << exp);
+	let capped = base.min(MAX_BACKOFF_MS);
+
+	Duration::milliseconds(capped)
+}
+
+fn to_std_duration(duration: Duration) -> StdDuration {
+	let millis = duration.whole_milliseconds();
+
+	if millis <= 0 {
+		return StdDuration::from_millis(0);
+	}
+
+	StdDuration::from_millis(millis as u64)
 }
 
 async fn process_indexing_outbox_once(state: &WorkerState) -> Result<()> {
@@ -132,7 +311,6 @@ async fn process_indexing_outbox_once(state: &WorkerState) -> Result<()> {
 	let Some(job) = job else {
 		return Ok(());
 	};
-
 	let result = match job.op.as_str() {
 		"UPSERT" => handle_upsert(state, &job).await,
 		"DELETE" => handle_delete(state, &job).await,
@@ -158,8 +336,8 @@ async fn process_trace_outbox_once(state: &WorkerState) -> Result<()> {
 	let Some(job) = job else {
 		return Ok(());
 	};
-
 	let result = handle_trace_job(&state.db, &job).await;
+
 	match result {
 		Ok(()) => {
 			mark_trace_done(&state.db, job.outbox_id).await?;
@@ -243,7 +421,6 @@ FOR UPDATE SKIP LOCKED",
 	)
 	.fetch_optional(&mut *tx)
 	.await?;
-
 	let job = if let Some(job) = row {
 		let lease_until = now + Duration::seconds(TRACE_OUTBOX_LEASE_SECONDS);
 		sqlx::query!(
@@ -272,8 +449,8 @@ async fn handle_upsert(state: &WorkerState, job: &IndexingOutboxEntry) -> Result
 
 		return Ok(());
 	};
-
 	let now = OffsetDateTime::now_utc();
+
 	if !note_is_active(&note, now) {
 		tracing::info!(note_id = %job.note_id, "Note inactive or expired. Skipping index.");
 
@@ -281,12 +458,15 @@ async fn handle_upsert(state: &WorkerState, job: &IndexingOutboxEntry) -> Result
 	}
 
 	let chunks = elf_chunking::split_text(&note.text, &state.chunking, &state.tokenizer);
+
 	if chunks.is_empty() {
 		return Err(eyre::eyre!("Chunking produced no chunks."));
 	}
+
 	let records = build_chunk_records(note.note_id, &chunks)?;
 	let chunk_texts: Vec<String> = records.iter().map(|record| record.text.clone()).collect();
 	let chunk_vectors = embedding::embed(&state.embedding, &chunk_texts).await?;
+
 	if chunk_vectors.len() != records.len() {
 		return Err(eyre::eyre!(
 			"Embedding provider returned {} vectors for {} chunks.",
@@ -294,41 +474,58 @@ async fn handle_upsert(state: &WorkerState, job: &IndexingOutboxEntry) -> Result
 			records.len()
 		));
 	}
+
 	for vector in &chunk_vectors {
 		validate_vector_dim(vector, state.qdrant.vector_dim)?;
 	}
 
-	queries::delete_note_chunks(&state.db, note.note_id).await?;
-	for record in &records {
-		queries::insert_note_chunk(
-			&state.db,
-			record.chunk_id,
-			note.note_id,
-			record.chunk_index,
-			record.start_offset,
-			record.end_offset,
-			&record.text,
-			&job.embedding_version,
-		)
-		.await?;
-	}
-	for (record, vector) in records.iter().zip(chunk_vectors.iter()) {
-		let vec_text = format_vector_text(vector);
-		queries::insert_note_chunk_embedding(
-			&state.db,
-			record.chunk_id,
-			&job.embedding_version,
-			vector.len() as i32,
-			&vec_text,
-		)
-		.await?;
-	}
+	{
+		let mut tx = state.db.pool.begin().await?;
 
-	let pooled =
-		mean_pool(&chunk_vectors).ok_or_else(|| eyre::eyre!("Cannot pool empty chunk vectors."))?;
-	validate_vector_dim(&pooled, state.qdrant.vector_dim)?;
-	insert_embedding(&state.db, note.note_id, &job.embedding_version, pooled.len() as i32, &pooled)
+		queries::delete_note_chunks_tx(&mut tx, note.note_id).await?;
+
+		for record in &records {
+			queries::insert_note_chunk_tx(
+				&mut tx,
+				record.chunk_id,
+				note.note_id,
+				record.chunk_index,
+				record.start_offset,
+				record.end_offset,
+				record.text.as_str(),
+				&job.embedding_version,
+			)
+			.await?;
+		}
+
+		for (record, vector) in records.iter().zip(chunk_vectors.iter()) {
+			let vec_text = format_vector_text(vector);
+
+			queries::insert_note_chunk_embedding_tx(
+				&mut tx,
+				record.chunk_id,
+				&job.embedding_version,
+				vector.len() as i32,
+				vec_text.as_str(),
+			)
+			.await?;
+		}
+
+		let pooled = mean_pool(&chunk_vectors)
+			.ok_or_else(|| eyre::eyre!("Cannot pool empty chunk vectors."))?;
+
+		validate_vector_dim(&pooled, state.qdrant.vector_dim)?;
+		insert_embedding_tx(
+			&mut tx,
+			note.note_id,
+			&job.embedding_version,
+			pooled.len() as i32,
+			&pooled,
+		)
 		.await?;
+
+		tx.commit().await?;
+	}
 	delete_qdrant_note_points(state, note.note_id).await?;
 	upsert_qdrant_chunks(state, &note, &job.embedding_version, &records, &chunk_vectors).await?;
 
@@ -345,11 +542,10 @@ async fn handle_trace_job(db: &Db, job: &TraceOutboxJob) -> Result<()> {
 	let payload: TracePayload = serde_json::from_value(job.payload.clone())?;
 	let trace = payload.trace;
 	let trace_id = trace.trace_id;
-
-	let mut tx = db.pool.begin().await?;
-
 	let expanded_queries_json = encode_json(&trace.expanded_queries, "expanded_queries")?;
 	let allowed_scopes_json = encode_json(&trace.allowed_scopes, "allowed_scopes")?;
+
+	let mut tx = db.pool.begin().await?;
 
 	sqlx::query!(
 		"\
@@ -486,14 +682,6 @@ async fn purge_expired_search_sessions(db: &Db, now: OffsetDateTime) -> Result<(
 	Ok(())
 }
 
-fn is_not_found_error(err: &qdrant_client::QdrantError) -> bool {
-	let message = err.to_string().to_lowercase();
-	let point_not_found =
-		(message.contains("not found") || message.contains("404")) && message.contains("point");
-	let no_point_found = message.contains("no point") && message.contains("found");
-	point_not_found || no_point_found
-}
-
 async fn fetch_note(db: &Db, note_id: uuid::Uuid) -> Result<Option<MemoryNote>> {
 	let note =
 		sqlx::query_as!(MemoryNote, "SELECT * FROM memory_notes WHERE note_id = $1", note_id,)
@@ -503,65 +691,8 @@ async fn fetch_note(db: &Db, note_id: uuid::Uuid) -> Result<Option<MemoryNote>> 
 	Ok(note)
 }
 
-fn note_is_active(note: &MemoryNote, now: OffsetDateTime) -> bool {
-	if !note.status.eq_ignore_ascii_case("active") {
-		return false;
-	}
-	if let Some(expires_at) = note.expires_at
-		&& expires_at <= now
-	{
-		return false;
-	}
-	true
-}
-
-fn build_chunk_records(note_id: uuid::Uuid, chunks: &[Chunk]) -> Result<Vec<ChunkRecord>> {
-	let mut records = Vec::with_capacity(chunks.len());
-
-	for chunk in chunks {
-		let start_offset = to_i32(chunk.start_offset, "start_offset")?;
-		let end_offset = to_i32(chunk.end_offset, "end_offset")?;
-		records.push(ChunkRecord {
-			chunk_id: chunk_id_for(note_id, chunk.chunk_index),
-			chunk_index: chunk.chunk_index,
-			start_offset,
-			end_offset,
-			text: chunk.text.clone(),
-		});
-	}
-
-	Ok(records)
-}
-
-fn chunk_id_for(note_id: uuid::Uuid, chunk_index: i32) -> uuid::Uuid {
-	let name = format!("{note_id}:{chunk_index}");
-	Uuid::new_v5(&Uuid::NAMESPACE_OID, name.as_bytes())
-}
-
-fn to_i32(value: usize, label: &str) -> Result<i32> {
-	i32::try_from(value)
-		.map_err(|_| eyre::eyre!("Chunk {label} offset {value} exceeds supported range."))
-}
-
-fn mean_pool(chunks: &[Vec<f32>]) -> Option<Vec<f32>> {
-	if chunks.is_empty() {
-		return None;
-	}
-	let dim = chunks[0].len();
-	let mut out = vec![0.0_f32; dim];
-	for vec in chunks {
-		for (idx, value) in vec.iter().enumerate() {
-			out[idx] += value;
-		}
-	}
-	for value in &mut out {
-		*value /= chunks.len() as f32;
-	}
-	Some(out)
-}
-
-async fn insert_embedding(
-	db: &Db,
+async fn insert_embedding_tx(
+	tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
 	note_id: uuid::Uuid,
 	embedding_version: &str,
 	embedding_dim: i32,
@@ -588,7 +719,7 @@ async fn insert_embedding(
 		embedding_dim,
 		vec_text.as_str(),
 	)
-	.execute(&db.pool)
+	.execute(&mut **tx)
 	.await?;
 
 	Ok(())
@@ -622,6 +753,7 @@ async fn upsert_qdrant_chunks(
 
 	for (record, vec) in records.iter().zip(vectors.iter()) {
 		let mut payload_map = HashMap::new();
+
 		payload_map.insert("note_id".to_string(), Value::from(note.note_id.to_string()));
 		payload_map.insert("chunk_id".to_string(), Value::from(record.chunk_id.to_string()));
 		payload_map.insert("chunk_index".to_string(), Value::from(record.chunk_index as i64));
@@ -660,12 +792,14 @@ async fn upsert_qdrant_chunks(
 
 		let payload = Payload::from(payload_map);
 		let mut vector_map = HashMap::new();
+
 		vector_map.insert(DENSE_VECTOR_NAME.to_string(), Vector::from(vec.to_vec()));
 		vector_map.insert(
 			BM25_VECTOR_NAME.to_string(),
 			Vector::from(Document::new(record.text.clone(), BM25_MODEL)),
 		);
 		let point = PointStruct::new(record.chunk_id.to_string(), vector_map, payload);
+
 		points.push(point);
 	}
 
@@ -673,42 +807,6 @@ async fn upsert_qdrant_chunks(
 	state.qdrant.client.upsert_points(upsert).await?;
 
 	Ok(())
-}
-
-fn format_timestamp(ts: OffsetDateTime) -> Result<String> {
-	use time::format_description::well_known::Rfc3339;
-	ts.format(&Rfc3339).map_err(|_| eyre::eyre!("Failed to format timestamp."))
-}
-
-fn validate_vector_dim(vec: &[f32], expected_dim: u32) -> Result<()> {
-	if vec.len() != expected_dim as usize {
-		return Err(eyre::eyre!(
-			"Embedding dimension {} does not match configured vector_dim {}.",
-			vec.len(),
-			expected_dim
-		));
-	}
-
-	Ok(())
-}
-
-fn format_vector_text(vec: &[f32]) -> String {
-	let mut out = String::from("[");
-	for (idx, value) in vec.iter().enumerate() {
-		if idx > 0 {
-			out.push(',');
-		}
-		out.push_str(&value.to_string());
-	}
-	out.push(']');
-	out
-}
-
-fn encode_json<T>(value: &T, label: &str) -> Result<SerdeValue>
-where
-	T: Serialize,
-{
-	serde_json::to_value(value).map_err(|err| eyre::eyre!("Failed to encode {label}: {err}."))
 }
 
 async fn mark_done(db: &Db, outbox_id: uuid::Uuid) -> Result<()> {
@@ -749,7 +847,7 @@ async fn mark_failed(
 	let backoff = backoff_for_attempt(next_attempts);
 	let now = OffsetDateTime::now_utc();
 	let available_at = now + backoff;
-	let error_text = err.to_string();
+	let error_text = sanitize_outbox_error(&err.to_string());
 
 	sqlx::query!(
 		"\
@@ -782,7 +880,7 @@ async fn mark_trace_failed(
 	let backoff = backoff_for_attempt(next_attempts);
 	let now = OffsetDateTime::now_utc();
 	let available_at = now + backoff;
-	let error_text = err.to_string();
+	let error_text = sanitize_outbox_error(&err.to_string());
 
 	sqlx::query!(
 		"\
@@ -803,22 +901,6 @@ WHERE outbox_id = $5",
 	.await?;
 
 	Ok(())
-}
-
-fn backoff_for_attempt(attempt: i32) -> Duration {
-	let attempts = attempt.max(1) as u32;
-	let exp = attempts.saturating_sub(1).min(6);
-	let base = BASE_BACKOFF_MS.saturating_mul(1 << exp);
-	let capped = base.min(MAX_BACKOFF_MS);
-	Duration::milliseconds(capped)
-}
-
-fn to_std_duration(duration: Duration) -> StdDuration {
-	let millis = duration.whole_milliseconds();
-	if millis <= 0 {
-		return StdDuration::from_millis(0);
-	}
-	StdDuration::from_millis(millis as u64)
 }
 
 #[cfg(test)]

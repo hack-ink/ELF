@@ -26,6 +26,7 @@ pub struct UpdateResponse {
 
 impl ElfService {
 	pub async fn update(&self, req: UpdateRequest) -> ServiceResult<UpdateResponse> {
+		let now = OffsetDateTime::now_utc();
 		let tenant_id = req.tenant_id.trim();
 		let project_id = req.project_id.trim();
 		let agent_id = req.agent_id.trim();
@@ -35,6 +36,7 @@ impl ElfService {
 				message: "tenant_id, project_id, and agent_id are required.".to_string(),
 			});
 		}
+
 		if req.text.is_none()
 			&& req.importance.is_none()
 			&& req.confidence.is_none()
@@ -46,7 +48,6 @@ impl ElfService {
 		}
 
 		let text_update = req.text.clone();
-
 		let mut tx = self.db.pool.begin().await?;
 		let mut note: MemoryNote = sqlx::query_as!(
 			MemoryNote,
@@ -64,6 +65,15 @@ FOR UPDATE",
 		.ok_or_else(|| ServiceError::InvalidRequest { message: "Note not found.".to_string() })?;
 
 		if note.scope == "agent_private" && note.agent_id != agent_id {
+			return Err(ServiceError::InvalidRequest { message: "Note not found.".to_string() });
+		}
+		if !note.status.eq_ignore_ascii_case("active") {
+			return Err(ServiceError::InvalidRequest { message: "Note not found.".to_string() });
+		}
+
+		if let Some(expires_at) = note.expires_at
+			&& expires_at <= now
+		{
 			return Err(ServiceError::InvalidRequest { message: "Note not found.".to_string() });
 		}
 
@@ -90,7 +100,6 @@ FOR UPDATE",
 			});
 		}
 
-		let now = OffsetDateTime::now_utc();
 		let next_text = text_update.unwrap_or_else(|| note.text.clone());
 		let next_importance = req.importance.unwrap_or(note.importance);
 		let next_confidence = req.confidence.unwrap_or(note.confidence);
@@ -105,6 +114,7 @@ FOR UPDATE",
 
 		if !changed {
 			tx.commit().await?;
+
 			return Ok(UpdateResponse {
 				note_id: note.note_id,
 				op: NoteOp::None,

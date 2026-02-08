@@ -10,7 +10,7 @@ use qdrant_client::qdrant::{
 };
 use serde::de::DeserializeOwned;
 use sqlx::QueryBuilder;
-use time::{Duration, OffsetDateTime};
+use time::{Duration, OffsetDateTime, format_description::well_known::Rfc3339};
 use uuid::Uuid;
 
 use crate::{ElfService, ServiceError, ServiceResult};
@@ -195,12 +195,14 @@ struct QueryEmbedding {
 	vector: Vec<f32>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct ChunkCandidate {
 	chunk_id: Uuid,
 	note_id: Uuid,
 	chunk_index: i32,
 	retrieval_rank: u32,
+	updated_at: Option<OffsetDateTime>,
+	embedding_version: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -220,6 +222,7 @@ struct NoteMeta {
 	updated_at: OffsetDateTime,
 	expires_at: Option<OffsetDateTime>,
 	source_ref: serde_json::Value,
+	embedding_version: String,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -811,6 +814,7 @@ ORDER BY rank ASC",
 	) -> ServiceResult<Vec<QueryEmbedding>> {
 		let mut extra_queries = Vec::new();
 		let mut extra_inputs = Vec::new();
+
 		for query in queries {
 			if baseline_vector.is_some() && query == original_query {
 				continue;
@@ -827,6 +831,7 @@ ORDER BY rank ASC",
 				.embedding
 				.embed(&self.cfg.providers.embedding, &extra_inputs)
 				.await?;
+
 			if embedded.len() != extra_queries.len() {
 				return Err(ServiceError::Provider {
 					message: "Embedding provider returned mismatched vector count.".to_string(),
@@ -835,6 +840,7 @@ ORDER BY rank ASC",
 			embedded.into_iter()
 		};
 		let mut out = Vec::with_capacity(queries.len());
+
 		for query in queries {
 			let vector = if baseline_vector.is_some() && query == original_query {
 				baseline_vector
@@ -847,6 +853,7 @@ ORDER BY rank ASC",
 					message: "Embedding provider returned no vectors.".to_string(),
 				})?
 			};
+
 			if vector.len() != self.cfg.storage.qdrant.vector_dim as usize {
 				return Err(ServiceError::Provider {
 					message: "Embedding vector dimension mismatch.".to_string(),
@@ -864,6 +871,7 @@ ORDER BY rank ASC",
 		candidate_k: u32,
 	) -> ServiceResult<Vec<ScoredPoint>> {
 		let mut search = QueryPointsBuilder::new(self.qdrant.collection.clone());
+
 		for query in queries {
 			let dense_prefetch = PrefetchQueryBuilder::default()
 				.query(Query::new_nearest(query.vector.clone()))
@@ -1009,6 +1017,7 @@ ORDER BY rank ASC",
 			};
 			let stored_at = OffsetDateTime::now_utc();
 			let expires_at = stored_at + Duration::days(cache_cfg.expansion_ttl_days);
+
 			match store_cache_payload(
 				&self.db.pool,
 				CacheKind::Expansion,
@@ -1119,13 +1128,14 @@ ORDER BY rank ASC",
 					updated_at: note.updated_at,
 					expires_at: note.expires_at,
 					source_ref: note.source_ref,
+					embedding_version: note.embedding_version,
 				},
 			);
 		}
 
 		let filtered_candidates: Vec<ChunkCandidate> = candidates
 			.into_iter()
-			.filter(|candidate| note_meta.contains_key(&candidate.note_id))
+			.filter(|candidate| candidate_matches_note(&note_meta, candidate))
 			.collect();
 		let snippet_items = if filtered_candidates.is_empty() {
 			Vec::new()
@@ -1142,19 +1152,23 @@ ORDER BY rank ASC",
 			}
 
 			let mut items = Vec::new();
+
 			for candidate in &filtered_candidates {
 				let Some(chunk_row) = chunk_by_id.get(&candidate.chunk_id) else {
 					tracing::warn!(
 						chunk_id = %candidate.chunk_id,
 						"Chunk metadata missing for candidate."
 					);
+
 					continue;
 				};
 				let snippet =
 					stitch_snippet(candidate.note_id, chunk_row.chunk_index, &chunk_by_note_index);
+
 				if snippet.is_empty() {
 					continue;
 				}
+
 				let Some(note) = note_meta.get(&candidate.note_id) else {
 					continue;
 				};
@@ -1164,6 +1178,7 @@ ORDER BY rank ASC",
 					start_offset: chunk_row.start_offset,
 					end_offset: chunk_row.end_offset,
 				};
+
 				items.push(ChunkSnippet {
 					note: note.clone(),
 					chunk,
@@ -1171,6 +1186,7 @@ ORDER BY rank ASC",
 					retrieval_rank: candidate.retrieval_rank,
 				});
 			}
+
 			items
 		};
 		let query_tokens = tokenize_query(query, MAX_MATCHED_TERMS);
@@ -1200,6 +1216,7 @@ ORDER BY rank ASC",
 					.iter()
 					.map(|candidate| (candidate.chunk_id, candidate.updated_at))
 					.collect();
+
 				match build_rerank_cache_key(
 					query,
 					self.cfg.providers.rerank.provider_id.as_str(),
@@ -1225,6 +1242,7 @@ ORDER BY rank ASC",
 											RerankCachePayload { items: Vec::new() }
 										},
 									};
+
 								if let Some(scores) =
 									build_cached_scores(&decoded, &cache_candidates)
 								{
@@ -1285,12 +1303,12 @@ ORDER BY rank ASC",
 					snippet_items.iter().map(|item| item.snippet.clone()).collect();
 				let scores =
 					self.providers.rerank.rerank(&self.cfg.providers.rerank, query, &docs).await?;
+
 				if scores.len() != snippet_items.len() {
 					return Err(ServiceError::Provider {
 						message: "Rerank provider returned mismatched score count.".to_string(),
 					});
 				}
-
 				if cache_cfg.enabled
 					&& let Some(key) = cache_key.as_ref()
 					&& !cache_candidates.is_empty()
@@ -1310,6 +1328,7 @@ ORDER BY rank ASC",
 						Ok(payload_json) => {
 							let stored_at = OffsetDateTime::now_utc();
 							let expires_at = stored_at + Duration::days(cache_cfg.rerank_ttl_days);
+
 							match store_cache_payload(
 								&self.db.pool,
 								CacheKind::Rerank,
@@ -1430,6 +1449,7 @@ ORDER BY rank ASC",
 				Some(existing) => scored_item.final_score > existing.final_score,
 				None => true,
 			};
+
 			if replace {
 				best_by_note.insert(note_id, scored_item);
 			}
@@ -1702,10 +1722,39 @@ fn collect_chunk_candidates(
 			tracing::warn!(chunk_id = %chunk_id, "Chunk candidate missing chunk_index.");
 			continue;
 		};
-		out.push(ChunkCandidate { chunk_id, note_id, chunk_index, retrieval_rank: idx as u32 + 1 });
+		let updated_at = payload_rfc3339(&point.payload, "updated_at");
+		let embedding_version = payload_string(&point.payload, "embedding_version");
+
+		out.push(ChunkCandidate {
+			chunk_id,
+			note_id,
+			chunk_index,
+			retrieval_rank: idx as u32 + 1,
+			updated_at,
+			embedding_version,
+		});
 	}
 
 	out
+}
+
+fn candidate_matches_note(note_meta: &HashMap<Uuid, NoteMeta>, candidate: &ChunkCandidate) -> bool {
+	let Some(note) = note_meta.get(&candidate.note_id) else {
+		return false;
+	};
+
+	if let Some(version) = candidate.embedding_version.as_deref()
+		&& version != note.embedding_version.as_str()
+	{
+		return false;
+	}
+	if let Some(ts) = candidate.updated_at
+		&& ts != note.updated_at
+	{
+		return false;
+	}
+
+	true
 }
 
 fn collect_neighbor_pairs(candidates: &[ChunkCandidate]) -> Vec<(Uuid, i32)> {
@@ -1714,7 +1763,9 @@ fn collect_neighbor_pairs(candidates: &[ChunkCandidate]) -> Vec<(Uuid, i32)> {
 
 	for candidate in candidates {
 		let mut indices = Vec::with_capacity(3);
+
 		indices.push(candidate.chunk_index);
+
 		if let Some(prev) = candidate.chunk_index.checked_sub(1) {
 			indices.push(prev);
 		}
@@ -1723,6 +1774,7 @@ fn collect_neighbor_pairs(candidates: &[ChunkCandidate]) -> Vec<(Uuid, i32)> {
 		}
 		for idx in indices {
 			let key = (candidate.note_id, idx);
+
 			if seen.insert(key) {
 				out.push(key);
 			}
@@ -1794,6 +1846,7 @@ fn build_scope_context_boost_by_scope<'a>(
 
 	for (scope, description) in descriptions {
 		let boost = scope_description_boost(tokens, description, weight);
+
 		if boost > 0.0 {
 			out.insert(scope.as_str(), boost);
 		}
@@ -1898,6 +1951,7 @@ fn match_terms_in_text(
 
 	for token in tokens {
 		let mut matched = false;
+
 		if text.contains(token) {
 			matched_fields.insert("text");
 			matched = true;
@@ -2162,16 +2216,19 @@ fn build_rerank_ranks(items: &[ChunkSnippet], scores: &[f32]) -> Vec<u32> {
 		let score_a = scores.get(a).copied().unwrap_or(f32::NAN);
 		let score_b = scores.get(b).copied().unwrap_or(f32::NAN);
 		let ord = cmp_f32_desc(score_a, score_b);
+
 		if ord != std::cmp::Ordering::Equal {
 			return ord;
 		}
 		if items[a].note.note_id == items[b].note.note_id {
 			let ord = items[a].chunk.chunk_index.cmp(&items[b].chunk.chunk_index);
+
 			if ord != std::cmp::Ordering::Equal {
 				return ord;
 			}
 		}
 		let ord = items[a].retrieval_rank.cmp(&items[b].retrieval_rank);
+
 		if ord != std::cmp::Ordering::Equal {
 			return ord;
 		}
@@ -2213,14 +2270,31 @@ fn point_id_to_uuid(point_id: &qdrant_client::qdrant::PointId) -> Option<Uuid> {
 
 fn payload_uuid(payload: &HashMap<String, Value>, key: &str) -> Option<Uuid> {
 	let value = payload.get(key)?;
+
 	match &value.kind {
 		Some(Kind::StringValue(text)) => Uuid::parse_str(text).ok(),
 		_ => None,
 	}
 }
 
+fn payload_string(payload: &HashMap<String, Value>, key: &str) -> Option<String> {
+	let value = payload.get(key)?;
+
+	match &value.kind {
+		Some(Kind::StringValue(text)) => Some(text.to_string()),
+		_ => None,
+	}
+}
+
+fn payload_rfc3339(payload: &HashMap<String, Value>, key: &str) -> Option<OffsetDateTime> {
+	let text = payload_string(payload, key)?;
+
+	OffsetDateTime::parse(text.as_str(), &Rfc3339).ok()
+}
+
 fn payload_i32(payload: &HashMap<String, Value>, key: &str) -> Option<i32> {
 	let value = payload.get(key)?;
+
 	match &value.kind {
 		Some(Kind::IntegerValue(value)) => i32::try_from(*value).ok(),
 		Some(Kind::DoubleValue(value)) =>
@@ -2235,7 +2309,9 @@ fn payload_i32(payload: &HashMap<String, Value>, key: &str) -> Option<i32> {
 
 fn hash_query(query: &str) -> String {
 	let mut hasher = DefaultHasher::new();
+
 	Hash::hash(query, &mut hasher);
+
 	format!("{:x}", hasher.finish())
 }
 
@@ -2308,12 +2384,15 @@ fn build_cached_scores(
 	}
 
 	let mut map = HashMap::new();
+
 	for item in &payload.items {
 		let key = (item.chunk_id, item.updated_at.unix_timestamp(), item.updated_at.nanosecond());
+
 		map.insert(key, item.score);
 	}
 
 	let mut out = Vec::with_capacity(candidates.len());
+
 	for candidate in candidates {
 		let key = (
 			candidate.chunk_id,
@@ -2321,8 +2400,10 @@ fn build_cached_scores(
 			candidate.updated_at.nanosecond(),
 		);
 		let score = map.get(&key)?;
+
 		out.push(*score);
 	}
+
 	Some(out)
 }
 

@@ -24,12 +24,6 @@ pub fn load(path: &Path) -> color_eyre::Result<Config> {
 	Ok(cfg)
 }
 
-fn normalize(cfg: &mut Config) {
-	if cfg.chunking.tokenizer_repo.as_deref().map(|repo| repo.trim().is_empty()).unwrap_or(false) {
-		cfg.chunking.tokenizer_repo = None;
-	}
-}
-
 pub fn validate(cfg: &Config) -> color_eyre::Result<()> {
 	if !cfg.security.reject_cjk {
 		return Err(eyre::eyre!("security.reject_cjk must be true."));
@@ -76,7 +70,6 @@ pub fn validate(cfg: &Config) -> color_eyre::Result<()> {
 	if cfg.search.explain.retention_days <= 0 {
 		return Err(eyre::eyre!("search.explain.retention_days must be greater than zero."));
 	}
-
 	if cfg.ranking.tie_breaker_weight < 0.0 {
 		return Err(eyre::eyre!("ranking.tie_breaker_weight must be zero or greater."));
 	}
@@ -179,4 +172,23 @@ pub fn validate(cfg: &Config) -> color_eyre::Result<()> {
 	}
 
 	Ok(())
+}
+
+fn normalize(cfg: &mut Config) {
+	if cfg.chunking.tokenizer_repo.as_deref().map(|repo| repo.trim().is_empty()).unwrap_or(false) {
+		cfg.chunking.tokenizer_repo = None;
+	}
+	if cfg.security.api_auth_token.as_deref().map(|token| token.trim().is_empty()).unwrap_or(false)
+	{
+		cfg.security.api_auth_token = None;
+	}
+	if cfg
+		.security
+		.admin_auth_token
+		.as_deref()
+		.map(|token| token.trim().is_empty())
+		.unwrap_or(false)
+	{
+		cfg.security.admin_auth_token = None;
+	}
 }

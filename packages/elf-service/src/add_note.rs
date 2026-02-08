@@ -80,6 +80,7 @@ impl ElfService {
 
 		let now = OffsetDateTime::now_utc();
 		let embed_version = crate::embedding_version(&self.cfg);
+
 		let mut results = Vec::with_capacity(req.notes.len());
 
 		for note in req.notes {
@@ -88,6 +89,7 @@ impl ElfService {
 				scope: req.scope.clone(),
 				text: note.text.clone(),
 			};
+
 			if let Err(code) = writegate::writegate(&gate_input, &self.cfg) {
 				results.push(AddNoteResult {
 					note_id: None,
@@ -242,7 +244,6 @@ impl ElfService {
 					.fetch_one(&mut *tx)
 					.await?;
 					let prev_snapshot = crate::note_snapshot(&existing);
-
 					let requested_ttl = note.ttl_days.filter(|days| *days > 0);
 					let expires_at = match requested_ttl {
 						Some(ttl) =>
