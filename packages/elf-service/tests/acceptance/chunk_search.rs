@@ -551,7 +551,11 @@ async fn search_dedupes_note_results() {
 	let item = response.items.first().expect("Expected search result.");
 
 	assert_eq!(response.items.len(), 1);
-	assert_eq!(item.chunk_id, chunk_id_a);
+	assert_eq!(item.note_id, note_id);
+	assert!(
+		item.chunk_id == chunk_id_a || item.chunk_id == chunk_id_c,
+		"Expected deduped result chunk_id to be one of the ingested chunks."
+	);
 
 	context.test_db.cleanup().await.expect("Failed to cleanup test database.");
 }

@@ -1,121 +1,120 @@
 [service]
-http_bind = "127.0.0.1:8080"
-mcp_bind = "127.0.0.1:9090"
 admin_bind = "127.0.0.1:8081"
-log_level = "info"
+http_bind  = "127.0.0.1:8080"
+log_level  = "info"
+mcp_bind   = "127.0.0.1:9090"
 
 [storage.postgres]
-dsn = "postgres://user:pass@127.0.0.1:5432/elf"
+dsn            = "postgres://user:pass@127.0.0.1:5432/elf"
 pool_max_conns = 5
 
 [storage.qdrant]
-url = "http://127.0.0.1:6334"
 collection = "mem_notes_v2"
+url        = "http://127.0.0.1:6334"
 vector_dim = 1536
 
 [providers.embedding]
-provider_id = "embed"
-api_base = "http://localhost"
-api_key = "key"
-path = "/embeddings"
-model = "model"
-dimensions = 1536
-timeout_ms = 1000
+api_base        = "http://localhost"
+api_key         = "key"
 default_headers = {}
+dimensions      = 1536
+model           = "model"
+path            = "/embeddings"
+provider_id     = "embed"
+timeout_ms      = 1000
 
 [providers.rerank]
-provider_id = "rerank"
-api_base = "http://localhost"
-api_key = "key"
-path = "/rerank"
-model = "model"
-timeout_ms = 1000
+api_base        = "http://localhost"
+api_key         = "key"
 default_headers = {}
+model           = "model"
+path            = "/rerank"
+provider_id     = "rerank"
+timeout_ms      = 1000
 
 [providers.llm_extractor]
-provider_id = "llm"
-api_base = "http://localhost"
-api_key = "key"
-path = "/chat/completions"
-model = "model"
-temperature = 0.1
-timeout_ms = 1000
+api_base        = "http://localhost"
+api_key         = "key"
 default_headers = {}
+model           = "model"
+path            = "/chat/completions"
+provider_id     = "llm"
+temperature     = 0.1
+timeout_ms      = 1000
 
 [scopes]
 allowed = ["agent_private"]
 
 [scopes.read_profiles]
-private_only = ["agent_private"]
+all_scopes           = ["agent_private"]
+private_only         = ["agent_private"]
 private_plus_project = ["agent_private"]
-all_scopes = ["agent_private"]
 
 [scopes.precedence]
-agent_private = 30
+agent_private  = 30
+org_shared     = 10
 project_shared = 20
-org_shared = 10
 
 [scopes.write_allowed]
-agent_private = true
+agent_private  = true
+org_shared     = true
 project_shared = true
-org_shared = true
 
 [memory]
+candidate_k             = 60
+dup_sim_threshold       = 0.92
+max_note_chars          = 240
 max_notes_per_add_event = 3
-max_note_chars = 240
-dup_sim_threshold = 0.92
-update_sim_threshold = 0.85
-candidate_k = 60
-top_k = 12
+top_k                   = 12
+update_sim_threshold    = 0.85
 
 [chunking]
-enabled = true
-max_tokens = 512
+enabled        = true
+max_tokens     = 512
 overlap_tokens = 128
 tokenizer_repo = ""
 
 [search.expansion]
-mode = "dynamic"
-max_queries = 4
 include_original = true
+max_queries      = 4
+mode             = "dynamic"
 
 [search.dynamic]
 min_candidates = 10
-min_top_score = 0.12
+min_top_score  = 0.12
 
 [search.prefilter]
 max_candidates = 0
 
 [search.cache]
-enabled = __CACHE_ENABLED__
-expansion_ttl_days = __EXPANSION_TTL_DAYS__
-rerank_ttl_days = __RERANK_TTL_DAYS__
-max_payload_bytes = 262144
+enabled            = true
+expansion_ttl_days = 7
+max_payload_bytes  = 262144
+rerank_ttl_days    = 7
 
 [search.explain]
 retention_days = 7
 
 [ranking]
-recency_tau_days = 60.0
+recency_tau_days   = 60.0
 tie_breaker_weight = 0.1
 
 [lifecycle.ttl_days]
-plan = 14
-fact = 180
-preference = 0
 constraint = 0
-decision = 0
-profile = 0
+decision   = 0
+fact       = 180
+plan       = 14
+preference = 0
+profile    = 0
 
 [lifecycle]
-purge_deleted_after_days = 30
+purge_deleted_after_days    = 30
 purge_deprecated_after_days = 180
 
 [security]
-bind_localhost_only = true
-reject_cjk = __REJECT_CJK__
-redact_secrets_on_write = true
-evidence_min_quotes = 1
-evidence_max_quotes = 2
+bind_localhost_only      = true
 evidence_max_quote_chars = 320
-
+evidence_max_quotes      = 2
+evidence_min_quotes      = 1
+redact_secrets_on_write  = true
+reject_cjk               = true
