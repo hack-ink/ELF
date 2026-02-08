@@ -11,7 +11,7 @@ pool_max_conns = 10
 [storage.qdrant]
 collection = "mem_notes_v2"
 url        = "http://127.0.0.1:6334"
-vector_dim = 4096
+vector_dim = 4_096
 
 [mcp]
 agent_id     = "local-agent"
@@ -23,11 +23,11 @@ tenant_id    = "local-tenant"
 api_base        = "https://provider.example"
 api_key         = "REPLACE_ME"
 default_headers = {}
-dimensions      = 4096
+dimensions      = 4_096
 model           = "embedding-model"
 path            = "/embeddings"
 provider_id     = "provider-id"
-timeout_ms      = 20000
+timeout_ms      = 20_000
 
 [providers.rerank]
 api_base        = "https://provider.example"
@@ -36,7 +36,7 @@ default_headers = {}
 model           = "rerank-model"
 path            = "/rerank"
 provider_id     = "provider-id"
-timeout_ms      = 20000
+timeout_ms      = 20_000
 
 [providers.llm_extractor]
 api_base        = "https://provider.example"
@@ -46,7 +46,7 @@ model           = "llm-model"
 path            = "/chat/completions"
 provider_id     = "provider-id"
 temperature     = 0.1
-timeout_ms      = 30000
+timeout_ms      = 30_000
 
 [scopes]
 allowed = ["agent_private", "org_shared", "project_shared"]
@@ -96,7 +96,7 @@ max_candidates = 0
 [search.cache]
 enabled            = true
 expansion_ttl_days = 7
-max_payload_bytes  = 262144
+max_payload_bytes  = 262_144
 rerank_ttl_days    = 7
 
 [search.explain]
@@ -120,7 +120,7 @@ max_retrieval_rank = 10
 retrieval_weight   = 0.5
 
 [[ranking.blend.segments]]
-max_retrieval_rank = 1000000
+max_retrieval_rank = 1_000_000
 retrieval_weight   = 0.2
 
 [lifecycle.ttl_days]

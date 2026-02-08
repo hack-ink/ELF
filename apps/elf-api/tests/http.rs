@@ -20,7 +20,7 @@ fn test_config(dsn: String, qdrant_url: String, collection: String) -> elf_confi
 		},
 		storage: elf_config::Storage {
 			postgres: elf_config::Postgres { dsn, pool_max_conns: 1 },
-			qdrant: elf_config::Qdrant { url: qdrant_url, collection, vector_dim: 3 },
+			qdrant: elf_config::Qdrant { url: qdrant_url, collection, vector_dim: 4_096 },
 		},
 		providers: elf_config::Providers {
 			embedding: dummy_embedding_provider(),
@@ -126,7 +126,7 @@ fn dummy_embedding_provider() -> elf_config::EmbeddingProviderConfig {
 		path: "/".to_string(),
 		model: "test".to_string(),
 		dimensions: 3,
-		timeout_ms: 1000,
+		timeout_ms: 1_000,
 		default_headers: Map::new(),
 	}
 }
@@ -138,7 +138,7 @@ fn dummy_provider() -> elf_config::ProviderConfig {
 		api_key: "test-key".to_string(),
 		path: "/".to_string(),
 		model: "test".to_string(),
-		timeout_ms: 1000,
+		timeout_ms: 1_000,
 		default_headers: Map::new(),
 	}
 }
@@ -151,7 +151,7 @@ fn dummy_llm_provider() -> elf_config::LlmProviderConfig {
 		path: "/".to_string(),
 		model: "test".to_string(),
 		temperature: 0.1,
-		timeout_ms: 1000,
+		timeout_ms: 1_000,
 		default_headers: Map::new(),
 	}
 }

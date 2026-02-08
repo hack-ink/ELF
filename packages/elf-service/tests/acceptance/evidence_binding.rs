@@ -39,7 +39,7 @@ async fn rejects_invalid_evidence_quote() {
 	let extractor =
 		SpyExtractor { calls: Arc::new(AtomicUsize::new(0)), payload: extractor_payload };
 	let providers = Providers::new(
-		Arc::new(StubEmbedding { vector_dim: 3 }),
+		Arc::new(StubEmbedding { vector_dim: 4_096 }),
 		Arc::new(StubRerank),
 		Arc::new(extractor),
 	);

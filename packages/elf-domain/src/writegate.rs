@@ -98,7 +98,7 @@ mod tests {
 				qdrant: elf_config::Qdrant {
 					url: "http://localhost".to_string(),
 					collection: "mem_notes_v2".to_string(),
-					vector_dim: 3,
+					vector_dim: 4_096,
 				},
 			},
 			providers: elf_config::Providers {
@@ -194,7 +194,7 @@ mod tests {
 			path: "/".to_string(),
 			model: "m".to_string(),
 			dimensions: 3,
-			timeout_ms: 1000,
+			timeout_ms: 1_000,
 			default_headers: serde_json::Map::new(),
 		}
 	}
@@ -206,7 +206,7 @@ mod tests {
 			api_key: "key".to_string(),
 			path: "/".to_string(),
 			model: "m".to_string(),
-			timeout_ms: 1000,
+			timeout_ms: 1_000,
 			default_headers: serde_json::Map::new(),
 		}
 	}
@@ -219,7 +219,7 @@ mod tests {
 			path: "/".to_string(),
 			model: "m".to_string(),
 			temperature: 0.1,
-			timeout_ms: 1000,
+			timeout_ms: 1_000,
 			default_headers: serde_json::Map::new(),
 		}
 	}
