@@ -33,7 +33,7 @@ jobs:
           ]
     steps:
       - name: Fetch latest code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -78,7 +78,7 @@ jobs:
           Compress-Archive -Path dist/* -DestinationPath "elf-${{ matrix.target.name }}.zip"
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: elf-${{ matrix.target.name }}
           path: elf-${{ matrix.target.name }}.*
@@ -100,7 +100,7 @@ jobs:
     needs: [build]
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
 
       - name: Hash
         run: |
