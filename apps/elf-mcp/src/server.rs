@@ -167,11 +167,13 @@ impl ElfMcp {
 		read_profile_override: Option<&str>,
 	) -> Result<CallToolResult, McpError> {
 		match method {
-			HttpMethod::Post =>
-				self.forward_post(path, Value::Object(params), read_profile_override).await,
+			HttpMethod::Post => {
+				self.forward_post(path, Value::Object(params), read_profile_override).await
+			},
 			HttpMethod::Get => self.forward_get(path, params, read_profile_override).await,
-			HttpMethod::Patch =>
-				self.forward_patch(path, Value::Object(params), read_profile_override).await,
+			HttpMethod::Patch => {
+				self.forward_patch(path, Value::Object(params), read_profile_override).await
+			},
 			HttpMethod::Delete => self.forward_delete(path, read_profile_override).await,
 		}
 	}
@@ -287,7 +289,7 @@ impl ElfMcp {
 	#[rmcp::tool(
 		name = "elf_notes_delete",
 		description = "Delete a note by note_id.",
-		input_schema = notes_delete_schema()
+		input_schema = notes_get_schema()
 	)]
 	async fn elf_notes_delete(&self, mut params: JsonObject) -> Result<CallToolResult, McpError> {
 		let note_id = take_required_string(&mut params, "note_id")?;
@@ -558,19 +560,15 @@ fn notes_patch_schema() -> Arc<JsonObject> {
 	Arc::new(rmcp::object!({
 		"type": "object",
 		"additionalProperties": true,
-		"required": ["note_id"],
-		"properties": {
-			"note_id": { "type": "string" },
-			"text": { "type": ["string", "null"] },
-			"importance": { "type": ["number", "null"] },
-			"confidence": { "type": ["number", "null"] },
-			"ttl_days": { "type": ["integer", "null"] }
-		}
+	"required": ["note_id"],
+	"properties": {
+		"note_id": { "type": "string" },
+		"text": { "type": ["string", "null"] },
+		"importance": { "type": ["number", "null"] },
+		"confidence": { "type": ["number", "null"] },
+		"ttl_days": { "type": ["integer", "null"] }
+	}
 	}))
-}
-
-fn notes_delete_schema() -> Arc<JsonObject> {
-	notes_get_schema()
 }
 
 async fn handle_response(response: reqwest::Response) -> Result<CallToolResult, McpError> {
@@ -608,8 +606,9 @@ async fn mcp_auth_middleware(
 
 #[cfg(test)]
 mod tests {
-	use super::*;
 	use std::collections::HashMap;
+
+	use super::*;
 
 	#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 	struct ToolDefinition {
