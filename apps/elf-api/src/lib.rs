@@ -23,30 +23,41 @@ pub struct Args {
 
 pub async fn run(args: Args) -> color_eyre::Result<()> {
 	let config = elf_config::load(&args.config)?;
-	init_tracing(&config)?;
 	let http_addr: SocketAddr = config.service.http_bind.parse()?;
 	let admin_addr: SocketAddr = config.service.admin_bind.parse()?;
+
+	init_tracing(&config)?;
+
 	if config.security.bind_localhost_only && !http_addr.ip().is_loopback() {
 		return Err(eyre::eyre!(
 			"http_bind must be a loopback address when bind_localhost_only is true."
 		));
 	}
+	if !http_addr.ip().is_loopback() && config.security.api_auth_token.is_none() {
+		return Err(eyre::eyre!(
+			"security.api_auth_token is required when http_bind is not a loopback address."
+		));
+	}
 	if !admin_addr.ip().is_loopback() {
 		return Err(eyre::eyre!("admin_bind must be a loopback address."));
 	}
+
 	let state = AppState::new(config).await?;
 	let app = routes::router(state.clone());
 	let admin_app = routes::admin_router(state);
-
 	let http_listener = TcpListener::bind(http_addr).await?;
-	tracing::info!(%http_addr, "HTTP server listening.");
-	let http_server = axum::serve(http_listener, app);
 
+	tracing::info!(%http_addr, "HTTP server listening.");
+
+	let http_server = axum::serve(http_listener, app);
 	let admin_listener = TcpListener::bind(admin_addr).await?;
+
 	tracing::info!(%admin_addr, "Admin server listening.");
+
 	let admin_server = axum::serve(admin_listener, admin_app);
 
 	tokio::try_join!(http_server, admin_server)?;
+
 	Ok(())
 }
 
