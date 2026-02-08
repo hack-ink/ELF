@@ -5,7 +5,7 @@ use qdrant_client::{
 	qdrant::{Document, PointStruct, UpsertPointsBuilder, Vector},
 };
 use serde_json::Value;
-use time::OffsetDateTime;
+use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
 use crate::{ElfService, ServiceError, ServiceResult};
 use elf_storage::qdrant::{BM25_MODEL, BM25_VECTOR_NAME, DENSE_VECTOR_NAME};
@@ -150,7 +150,6 @@ WHERE n.status = 'active' AND (n.expires_at IS NULL OR n.expires_at > $1)",
 }
 
 fn format_timestamp(ts: OffsetDateTime) -> ServiceResult<String> {
-	use time::format_description::well_known::Rfc3339;
 	ts.format(&Rfc3339).map_err(|_| ServiceError::InvalidRequest {
 		message: "Failed to format timestamp.".to_string(),
 	})
