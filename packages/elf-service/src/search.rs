@@ -2159,10 +2159,19 @@ fn build_rerank_ranks(items: &[ChunkSnippet], scores: &[f32]) -> Vec<u32> {
 	let mut idxs: Vec<usize> = (0..n).collect();
 
 	idxs.sort_by(|&a, &b| {
-		let ord = cmp_f32_desc(
-			scores.get(a).copied().unwrap_or(f32::NAN),
-			scores.get(b).copied().unwrap_or(f32::NAN),
-		);
+		let score_a = scores.get(a).copied().unwrap_or(f32::NAN);
+		let score_b = scores.get(b).copied().unwrap_or(f32::NAN);
+		let ord = cmp_f32_desc(score_a, score_b);
+		if ord != std::cmp::Ordering::Equal {
+			return ord;
+		}
+		if items[a].note.note_id == items[b].note.note_id {
+			let ord = items[a].chunk.chunk_index.cmp(&items[b].chunk.chunk_index);
+			if ord != std::cmp::Ordering::Equal {
+				return ord;
+			}
+		}
+		let ord = items[a].retrieval_rank.cmp(&items[b].retrieval_rank);
 		if ord != std::cmp::Ordering::Equal {
 			return ord;
 		}

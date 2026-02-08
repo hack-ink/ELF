@@ -17,16 +17,30 @@ fn sample_toml_with_cache(
 	rerank_ttl_days: i64,
 	cache_enabled: bool,
 ) -> String {
-	let reject_cjk = if reject_cjk { "true" } else { "false" };
-	let cache_enabled = if cache_enabled { "true" } else { "false" };
-	let expansion_ttl_days = expansion_ttl_days.to_string();
-	let rerank_ttl_days = rerank_ttl_days.to_string();
+	let mut value: toml::Value =
+		toml::from_str(SAMPLE_CONFIG_TEMPLATE_TOML).expect("Failed to parse template config.");
 
-	SAMPLE_CONFIG_TEMPLATE_TOML
-		.replace("__REJECT_CJK__", reject_cjk)
-		.replace("__CACHE_ENABLED__", cache_enabled)
-		.replace("__EXPANSION_TTL_DAYS__", &expansion_ttl_days)
-		.replace("__RERANK_TTL_DAYS__", &rerank_ttl_days)
+	let root = value.as_table_mut().expect("Template config must be a table.");
+	let search = root
+		.get_mut("search")
+		.and_then(toml::Value::as_table_mut)
+		.expect("Template config must include [search].");
+	let cache = search
+		.get_mut("cache")
+		.and_then(toml::Value::as_table_mut)
+		.expect("Template config must include [search.cache].");
+
+	cache.insert("enabled".to_string(), toml::Value::Boolean(cache_enabled));
+	cache.insert("expansion_ttl_days".to_string(), toml::Value::Integer(expansion_ttl_days));
+	cache.insert("rerank_ttl_days".to_string(), toml::Value::Integer(rerank_ttl_days));
+
+	let security = root
+		.get_mut("security")
+		.and_then(toml::Value::as_table_mut)
+		.expect("Template config must include [security].");
+	security.insert("reject_cjk".to_string(), toml::Value::Boolean(reject_cjk));
+
+	toml::to_string(&value).expect("Failed to render template config.")
 }
 
 fn write_temp_config(payload: String) -> PathBuf {
