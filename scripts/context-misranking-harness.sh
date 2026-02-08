@@ -44,6 +44,11 @@ DB_NAME="${ELF_HARNESS_DB_NAME:-elf_e2e}"
 QDRANT_COLLECTION="${ELF_HARNESS_COLLECTION:-elf_harness_${RUN_ID}}"
 VECTOR_DIM="${ELF_HARNESS_VECTOR_DIM:-4096}"
 
+if [[ "${DB_NAME}" != elf_* ]]; then
+  echo "ELF_HARNESS_DB_NAME must start with elf_ to avoid deleting real data." >&2
+  exit 1
+fi
+
 HTTP_BIND="${ELF_HARNESS_HTTP_BIND:-127.0.0.1:18089}"
 ADMIN_BIND="${ELF_HARNESS_ADMIN_BIND:-127.0.0.1:18090}"
 MCP_BIND="${ELF_HARNESS_MCP_BIND:-127.0.0.1:18091}"

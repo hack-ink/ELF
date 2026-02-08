@@ -26,6 +26,8 @@ pub struct UpdateResponse {
 
 impl ElfService {
 	pub async fn update(&self, req: UpdateRequest) -> ServiceResult<UpdateResponse> {
+		let now = OffsetDateTime::now_utc();
+
 		let tenant_id = req.tenant_id.trim();
 		let project_id = req.project_id.trim();
 		let agent_id = req.agent_id.trim();
@@ -66,6 +68,14 @@ FOR UPDATE",
 		if note.scope == "agent_private" && note.agent_id != agent_id {
 			return Err(ServiceError::InvalidRequest { message: "Note not found.".to_string() });
 		}
+		if !note.status.eq_ignore_ascii_case("active") {
+			return Err(ServiceError::InvalidRequest { message: "Note not found.".to_string() });
+		}
+		if let Some(expires_at) = note.expires_at
+			&& expires_at <= now
+		{
+			return Err(ServiceError::InvalidRequest { message: "Note not found.".to_string() });
+		}
 
 		let prev_snapshot = crate::note_snapshot(&note);
 		let candidate_text = if let Some(text) = text_update.as_ref() {
@@ -90,7 +100,6 @@ FOR UPDATE",
 			});
 		}
 
-		let now = OffsetDateTime::now_utc();
 		let next_text = text_update.unwrap_or_else(|| note.text.clone());
 		let next_importance = req.importance.unwrap_or(note.importance);
 		let next_confidence = req.confidence.unwrap_or(note.confidence);

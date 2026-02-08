@@ -172,6 +172,8 @@ mod tests {
 				evidence_min_quotes: 1,
 				evidence_max_quotes: 2,
 				evidence_max_quote_chars: 320,
+				api_auth_token: None,
+				admin_auth_token: None,
 			},
 			chunking: elf_config::Chunking {
 				enabled: true,

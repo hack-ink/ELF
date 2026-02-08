@@ -31,6 +31,11 @@ pub async fn run(args: Args) -> color_eyre::Result<()> {
 			"http_bind must be a loopback address when bind_localhost_only is true."
 		));
 	}
+	if !http_addr.ip().is_loopback() && config.security.api_auth_token.is_none() {
+		return Err(eyre::eyre!(
+			"security.api_auth_token is required when http_bind is not a loopback address."
+		));
+	}
 	if !admin_addr.ip().is_loopback() {
 		return Err(eyre::eyre!("admin_bind must be a loopback address."));
 	}

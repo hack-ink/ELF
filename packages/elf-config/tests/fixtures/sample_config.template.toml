@@ -116,5 +116,7 @@ bind_localhost_only      = true
 evidence_max_quote_chars = 320
 evidence_max_quotes      = 2
 evidence_min_quotes      = 1
+api_auth_token           = ""
+admin_auth_token         = ""
 redact_secrets_on_write  = true
 reject_cjk               = true

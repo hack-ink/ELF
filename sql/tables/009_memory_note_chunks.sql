@@ -13,3 +13,16 @@ CREATE INDEX IF NOT EXISTS idx_note_chunks_note
     ON memory_note_chunks (note_id);
 CREATE INDEX IF NOT EXISTS idx_note_chunks_note_index
     ON memory_note_chunks (note_id, chunk_index);
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'uq_memory_note_chunks_note_id_chunk_index'
+    ) THEN
+        ALTER TABLE memory_note_chunks
+            ADD CONSTRAINT uq_memory_note_chunks_note_id_chunk_index
+                UNIQUE (note_id, chunk_index);
+    END IF;
+END $$;

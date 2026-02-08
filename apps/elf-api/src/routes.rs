@@ -1,10 +1,11 @@
 use axum::{
 	Json, Router,
 	extract::{
-		Path, Query, State,
+		DefaultBodyLimit, Path, Query, State,
 		rejection::{JsonRejection, QueryRejection},
 	},
 	http::{HeaderMap, StatusCode},
+	middleware,
 	response::{IntoResponse, Response},
 	routing,
 };
@@ -26,7 +27,17 @@ const HEADER_TENANT_ID: &str = "X-ELF-Tenant-Id";
 const HEADER_PROJECT_ID: &str = "X-ELF-Project-Id";
 const HEADER_AGENT_ID: &str = "X-ELF-Agent-Id";
 const HEADER_READ_PROFILE: &str = "X-ELF-Read-Profile";
+const HEADER_AUTH_TOKEN: &str = "X-ELF-Auth-Token";
+const HEADER_AUTHORIZATION: &str = "Authorization";
 const MAX_CONTEXT_HEADER_CHARS: usize = 128;
+const MAX_REQUEST_BYTES: usize = 1_048_576;
+const MAX_NOTES_PER_INGEST: usize = 256;
+const MAX_MESSAGES_PER_EVENT: usize = 256;
+const MAX_MESSAGE_CHARS: usize = 16_384;
+const MAX_QUERY_CHARS: usize = 2_048;
+const MAX_NOTE_IDS_PER_DETAILS: usize = 256;
+const MAX_TOP_K: u32 = 100;
+const MAX_CANDIDATE_K: u32 = 1_000;
 
 #[derive(Debug, Clone)]
 struct RequestContext {
@@ -157,12 +168,15 @@ impl From<ServiceError> for ApiError {
 				"CJK detected; upstream must canonicalize to English before calling ELF.",
 				Some(vec![field]),
 			),
-			ServiceError::InvalidRequest { message } =>
-				json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", message, None),
-			ServiceError::ScopeDenied { message } =>
-				json_error(StatusCode::FORBIDDEN, "SCOPE_DENIED", message, None),
+			ServiceError::InvalidRequest { message } => {
+				json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", message, None)
+			},
+			ServiceError::ScopeDenied { message } => {
+				json_error(StatusCode::FORBIDDEN, "SCOPE_DENIED", message, None)
+			},
 			ServiceError::Provider { message } => {
-				tracing::error!(error = %message, "Provider error.");
+				let _ = message;
+				tracing::error!("Provider error.");
 
 				json_error(
 					StatusCode::INTERNAL_SERVER_ERROR,
@@ -172,7 +186,8 @@ impl From<ServiceError> for ApiError {
 				)
 			},
 			ServiceError::Storage { message } => {
-				tracing::error!(error = %message, "Storage error.");
+				let _ = message;
+				tracing::error!("Storage error.");
 
 				json_error(
 					StatusCode::INTERNAL_SERVER_ERROR,
@@ -182,7 +197,8 @@ impl From<ServiceError> for ApiError {
 				)
 			},
 			ServiceError::Qdrant { message } => {
-				tracing::error!(error = %message, "Qdrant error.");
+				let _ = message;
+				tracing::error!("Qdrant error.");
 
 				json_error(
 					StatusCode::INTERNAL_SERVER_ERROR,
@@ -204,6 +220,7 @@ impl IntoResponse for ApiError {
 }
 
 pub fn router(state: AppState) -> Router {
+	let auth_state = state.clone();
 	Router::new()
 		.route("/health", routing::get(health))
 		.route("/v2/notes/ingest", routing::post(notes_ingest))
@@ -218,15 +235,20 @@ pub fn router(state: AppState) -> Router {
 			routing::get(notes_get).patch(notes_patch).delete(notes_delete),
 		)
 		.with_state(state)
+		.layer(DefaultBodyLimit::max(MAX_REQUEST_BYTES))
+		.layer(middleware::from_fn_with_state(auth_state, api_auth_middleware))
 }
 
 pub fn admin_router(state: AppState) -> Router {
+	let auth_state = state.clone();
 	Router::new()
 		.route("/v2/admin/qdrant/rebuild", routing::post(rebuild_qdrant))
 		.route("/v2/admin/searches/raw", routing::post(searches_raw))
 		.route("/v2/admin/traces/:trace_id", routing::get(trace_get))
 		.route("/v2/admin/trace-items/:item_id", routing::get(trace_item_get))
 		.with_state(state)
+		.layer(DefaultBodyLimit::max(MAX_REQUEST_BYTES))
+		.layer(middleware::from_fn_with_state(auth_state, admin_auth_middleware))
 }
 
 fn json_error(
@@ -289,6 +311,72 @@ fn required_read_profile(headers: &HeaderMap) -> Result<String, ApiError> {
 	required_header(headers, HEADER_READ_PROFILE)
 }
 
+async fn api_auth_middleware(
+	State(state): State<AppState>,
+	req: axum::http::Request<axum::body::Body>,
+	next: middleware::Next,
+) -> Response {
+	let expected = state.service.cfg.security.api_auth_token.as_deref();
+	if expected.is_some() && !is_authorized(req.headers(), expected) {
+		return json_error(
+			StatusCode::UNAUTHORIZED,
+			"UNAUTHORIZED",
+			"Authentication required.",
+			None,
+		)
+		.into_response();
+	}
+
+	next.run(req).await
+}
+
+async fn admin_auth_middleware(
+	State(state): State<AppState>,
+	req: axum::http::Request<axum::body::Body>,
+	next: middleware::Next,
+) -> Response {
+	let expected = state.service.cfg.security.admin_auth_token.as_deref().or(state
+		.service
+		.cfg
+		.security
+		.api_auth_token
+		.as_deref());
+	if expected.is_some() && !is_authorized(req.headers(), expected) {
+		return json_error(
+			StatusCode::UNAUTHORIZED,
+			"UNAUTHORIZED",
+			"Authentication required.",
+			None,
+		)
+		.into_response();
+	}
+
+	next.run(req).await
+}
+
+fn is_authorized(headers: &HeaderMap, expected: Option<&str>) -> bool {
+	let Some(expected) = expected else { return true };
+
+	if let Some(raw) = headers.get(HEADER_AUTH_TOKEN)
+		&& let Ok(value) = raw.to_str()
+		&& value.trim() == expected
+	{
+		return true;
+	}
+
+	if let Some(raw) = headers.get(HEADER_AUTHORIZATION)
+		&& let Ok(value) = raw.to_str()
+	{
+		let value = value.trim();
+		if let Some(token) = value.strip_prefix("Bearer ").or_else(|| value.strip_prefix("bearer "))
+		{
+			return token.trim() == expected;
+		}
+	}
+
+	false
+}
+
 async fn health() -> StatusCode {
 	StatusCode::OK
 }
@@ -304,6 +392,14 @@ async fn notes_ingest(
 
 		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
 	})?;
+	if payload.notes.len() > MAX_NOTES_PER_INGEST {
+		return Err(json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Notes list is too large.",
+			Some(vec!["$.notes".to_string()]),
+		));
+	}
 	let response = state
 		.service
 		.add_note(AddNoteRequest {
@@ -329,6 +425,24 @@ async fn events_ingest(
 
 		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
 	})?;
+	if payload.messages.len() > MAX_MESSAGES_PER_EVENT {
+		return Err(json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Messages list is too large.",
+			Some(vec!["$.messages".to_string()]),
+		));
+	}
+	for (idx, msg) in payload.messages.iter().enumerate() {
+		if msg.content.chars().count() > MAX_MESSAGE_CHARS {
+			return Err(json_error(
+				StatusCode::BAD_REQUEST,
+				"INVALID_REQUEST",
+				"Message content is too long.",
+				Some(vec![format!("$.messages[{idx}].content")]),
+			));
+		}
+	}
 	let response = state
 		.service
 		.add_event(AddEventRequest {
@@ -356,6 +470,30 @@ async fn searches_create(
 
 		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
 	})?;
+	if payload.query.chars().count() > MAX_QUERY_CHARS {
+		return Err(json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Query is too long.",
+			Some(vec!["$.query".to_string()]),
+		));
+	}
+	if payload.top_k.unwrap_or(state.service.cfg.memory.top_k) > MAX_TOP_K {
+		return Err(json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"top_k is too large.",
+			Some(vec!["$.top_k".to_string()]),
+		));
+	}
+	if payload.candidate_k.unwrap_or(state.service.cfg.memory.candidate_k) > MAX_CANDIDATE_K {
+		return Err(json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"candidate_k is too large.",
+			Some(vec!["$.candidate_k".to_string()]),
+		));
+	}
 
 	if payload.ranking.is_some() {
 		return Err(json_error(
@@ -473,6 +611,14 @@ async fn searches_notes(
 
 		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
 	})?;
+	if payload.note_ids.len() > MAX_NOTE_IDS_PER_DETAILS {
+		return Err(json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"note_ids list is too large.",
+			Some(vec!["$.note_ids".to_string()]),
+		));
+	}
 	let response = state
 		.service
 		.search_details(SearchDetailsRequest {
@@ -608,6 +754,30 @@ async fn searches_raw(
 
 		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
 	})?;
+	if payload.query.chars().count() > MAX_QUERY_CHARS {
+		return Err(json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Query is too long.",
+			Some(vec!["$.query".to_string()]),
+		));
+	}
+	if payload.top_k.unwrap_or(state.service.cfg.memory.top_k) > MAX_TOP_K {
+		return Err(json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"top_k is too large.",
+			Some(vec!["$.top_k".to_string()]),
+		));
+	}
+	if payload.candidate_k.unwrap_or(state.service.cfg.memory.candidate_k) > MAX_CANDIDATE_K {
+		return Err(json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"candidate_k is too large.",
+			Some(vec!["$.candidate_k".to_string()]),
+		));
+	}
 	let response = state
 		.service
 		.search_raw(SearchRequest {

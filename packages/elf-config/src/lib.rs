@@ -28,6 +28,19 @@ fn normalize(cfg: &mut Config) {
 	if cfg.chunking.tokenizer_repo.as_deref().map(|repo| repo.trim().is_empty()).unwrap_or(false) {
 		cfg.chunking.tokenizer_repo = None;
 	}
+	if cfg.security.api_auth_token.as_deref().map(|token| token.trim().is_empty()).unwrap_or(false)
+	{
+		cfg.security.api_auth_token = None;
+	}
+	if cfg
+		.security
+		.admin_auth_token
+		.as_deref()
+		.map(|token| token.trim().is_empty())
+		.unwrap_or(false)
+	{
+		cfg.security.admin_auth_token = None;
+	}
 }
 
 pub fn validate(cfg: &Config) -> color_eyre::Result<()> {

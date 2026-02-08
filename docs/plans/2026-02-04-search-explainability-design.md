@@ -22,8 +22,9 @@ This design adds persistent, query-scoped explainability for search results whil
 - Traces are retained for `search.explain.retention_days` and cleaned by the worker.
 
 ## API
-- `POST /v1/memory/search` response includes `trace_id`, `result_handle`, and `explain` with component scores and matches.
-- `GET /v1/memory/search/explain?result_handle=...` returns the trace metadata plus the item explanation.
+- `POST /v2/searches` response includes `trace_id`, per-item `result_handle`, and `explain` with component scores and matches.
+- `GET /v2/admin/trace-items/{item_id}` returns the trace metadata plus the item explanation.
+- `GET /v2/admin/traces/{trace_id}` returns the full trace metadata and items.
 
 ## Data Flow
 1. Resolve scopes and expansion mode.

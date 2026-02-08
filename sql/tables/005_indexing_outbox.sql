@@ -11,6 +11,21 @@ CREATE TABLE IF NOT EXISTS indexing_outbox (
     updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'fk_indexing_outbox_note_id'
+    ) THEN
+        ALTER TABLE indexing_outbox
+            ADD CONSTRAINT fk_indexing_outbox_note_id
+                FOREIGN KEY (note_id)
+                REFERENCES memory_notes(note_id)
+                ON DELETE CASCADE;
+    END IF;
+END $$;
+
 CREATE INDEX IF NOT EXISTS idx_outbox_status_available
     ON indexing_outbox (status, available_at);
 CREATE INDEX IF NOT EXISTS idx_outbox_note_op_status

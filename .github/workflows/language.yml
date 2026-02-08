@@ -42,9 +42,6 @@ jobs:
           rustflags: ''
           components: rustfmt, clippy
 
-      - name: Install nightly rustfmt
-        run: rustup toolchain install nightly --component rustfmt
-
       - name: Install cargo-make
         uses: taiki-e/install-action@v2
         with:

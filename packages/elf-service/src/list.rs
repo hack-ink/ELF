@@ -43,6 +43,8 @@ pub struct ListResponse {
 
 impl ElfService {
 	pub async fn list(&self, req: ListRequest) -> ServiceResult<ListResponse> {
+		let now = OffsetDateTime::now_utc();
+
 		let tenant_id = req.tenant_id.trim();
 		let project_id = req.project_id.trim();
 		if tenant_id.is_empty() || project_id.is_empty() {
@@ -88,9 +90,21 @@ impl ElfService {
 			builder.push(" AND scope != ");
 			builder.push_bind("agent_private");
 		}
-		if let Some(status) = &req.status {
+
+		let requested_status = req.status.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty());
+		if let Some(status) = requested_status {
 			builder.push(" AND status = ");
 			builder.push_bind(status);
+		} else {
+			builder.push(" AND status = ");
+			builder.push_bind("active");
+		}
+
+		// Expiry only applies to active notes. Deleted notes may also have expires_at set by GC.
+		if requested_status.unwrap_or("active").eq_ignore_ascii_case("active") {
+			builder.push(" AND (expires_at IS NULL OR expires_at > ");
+			builder.push_bind(now);
+			builder.push(")");
 		}
 		if let Some(note_type) = &req.note_type {
 			builder.push(" AND type = ");

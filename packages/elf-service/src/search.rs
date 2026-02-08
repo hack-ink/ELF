@@ -195,12 +195,14 @@ struct QueryEmbedding {
 	vector: Vec<f32>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct ChunkCandidate {
 	chunk_id: Uuid,
 	note_id: Uuid,
 	chunk_index: i32,
 	retrieval_rank: u32,
+	updated_at: Option<OffsetDateTime>,
+	embedding_version: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -220,6 +222,7 @@ struct NoteMeta {
 	updated_at: OffsetDateTime,
 	expires_at: Option<OffsetDateTime>,
 	source_ref: serde_json::Value,
+	embedding_version: String,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -1119,13 +1122,14 @@ ORDER BY rank ASC",
 					updated_at: note.updated_at,
 					expires_at: note.expires_at,
 					source_ref: note.source_ref,
+					embedding_version: note.embedding_version,
 				},
 			);
 		}
 
 		let filtered_candidates: Vec<ChunkCandidate> = candidates
 			.into_iter()
-			.filter(|candidate| note_meta.contains_key(&candidate.note_id))
+			.filter(|candidate| candidate_matches_note(&note_meta, candidate))
 			.collect();
 		let snippet_items = if filtered_candidates.is_empty() {
 			Vec::new()
@@ -1702,10 +1706,39 @@ fn collect_chunk_candidates(
 			tracing::warn!(chunk_id = %chunk_id, "Chunk candidate missing chunk_index.");
 			continue;
 		};
-		out.push(ChunkCandidate { chunk_id, note_id, chunk_index, retrieval_rank: idx as u32 + 1 });
+		let updated_at = payload_rfc3339(&point.payload, "updated_at");
+		let embedding_version = payload_string(&point.payload, "embedding_version");
+		out.push(ChunkCandidate {
+			chunk_id,
+			note_id,
+			chunk_index,
+			retrieval_rank: idx as u32 + 1,
+			updated_at,
+			embedding_version,
+		});
 	}
 
 	out
+}
+
+fn candidate_matches_note(note_meta: &HashMap<Uuid, NoteMeta>, candidate: &ChunkCandidate) -> bool {
+	let Some(note) = note_meta.get(&candidate.note_id) else {
+		return false;
+	};
+
+	if let Some(version) = candidate.embedding_version.as_deref()
+		&& version != note.embedding_version.as_str()
+	{
+		return false;
+	}
+
+	if let Some(ts) = candidate.updated_at
+		&& ts != note.updated_at
+	{
+		return false;
+	}
+
+	true
 }
 
 fn collect_neighbor_pairs(candidates: &[ChunkCandidate]) -> Vec<(Uuid, i32)> {
@@ -2219,16 +2252,31 @@ fn payload_uuid(payload: &HashMap<String, Value>, key: &str) -> Option<Uuid> {
 	}
 }
 
+fn payload_string(payload: &HashMap<String, Value>, key: &str) -> Option<String> {
+	let value = payload.get(key)?;
+	match &value.kind {
+		Some(Kind::StringValue(text)) => Some(text.to_string()),
+		_ => None,
+	}
+}
+
+fn payload_rfc3339(payload: &HashMap<String, Value>, key: &str) -> Option<OffsetDateTime> {
+	use time::format_description::well_known::Rfc3339;
+	let text = payload_string(payload, key)?;
+	OffsetDateTime::parse(text.as_str(), &Rfc3339).ok()
+}
+
 fn payload_i32(payload: &HashMap<String, Value>, key: &str) -> Option<i32> {
 	let value = payload.get(key)?;
 	match &value.kind {
 		Some(Kind::IntegerValue(value)) => i32::try_from(*value).ok(),
-		Some(Kind::DoubleValue(value)) =>
+		Some(Kind::DoubleValue(value)) => {
 			if value.fract() == 0.0 {
 				i32::try_from(*value as i64).ok()
 			} else {
 				None
-			},
+			}
+		},
 		_ => None,
 	}
 }

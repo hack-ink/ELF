@@ -234,20 +234,22 @@ async fn cleanup_qdrant_collections(collections: &[String]) -> color_eyre::Resul
 
 			match result {
 				Ok(Ok(_)) => {},
-				Ok(Err(err)) =>
+				Ok(Err(err)) => {
 					if attempt == max_attempts {
 						return Err(err).wrap_err_with(|| {
 							format!(
 								"Failed to delete Qdrant collection {collection:?} after {attempt} attempts."
 							)
 						});
-					},
-				Err(_) =>
+					}
+				},
+				Err(_) => {
 					if attempt == max_attempts {
 						return Err(eyre::eyre!(
 							"Timed out deleting Qdrant collection {collection:?} after {attempt} attempts."
 						));
-					},
+					}
+				},
 			}
 		}
 

@@ -22,5 +22,11 @@ pub async fn run(args: Args) -> color_eyre::Result<()> {
 		.as_ref()
 		.ok_or_else(|| color_eyre::eyre::eyre!("mcp section is required for elf-mcp."))?;
 
-	server::serve_mcp(&config.service.mcp_bind, &config.service.http_bind, mcp).await
+	server::serve_mcp(
+		&config.service.mcp_bind,
+		&config.service.http_bind,
+		config.security.api_auth_token.as_deref(),
+		mcp,
+	)
+	.await
 }

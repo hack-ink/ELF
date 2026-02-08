@@ -30,6 +30,7 @@ const BASE_BACKOFF_MS: i64 = 500;
 const MAX_BACKOFF_MS: i64 = 30_000;
 const TRACE_CLEANUP_INTERVAL_SECONDS: i64 = 900;
 const TRACE_OUTBOX_LEASE_SECONDS: i64 = 30;
+const MAX_OUTBOX_ERROR_CHARS: usize = 1_024;
 
 #[derive(Debug, serde::Deserialize)]
 struct TracePayload {
@@ -298,37 +299,50 @@ async fn handle_upsert(state: &WorkerState, job: &IndexingOutboxEntry) -> Result
 		validate_vector_dim(vector, state.qdrant.vector_dim)?;
 	}
 
-	queries::delete_note_chunks(&state.db, note.note_id).await?;
-	for record in &records {
-		queries::insert_note_chunk(
-			&state.db,
-			record.chunk_id,
-			note.note_id,
-			record.chunk_index,
-			record.start_offset,
-			record.end_offset,
-			&record.text,
-			&job.embedding_version,
-		)
-		.await?;
-	}
-	for (record, vector) in records.iter().zip(chunk_vectors.iter()) {
-		let vec_text = format_vector_text(vector);
-		queries::insert_note_chunk_embedding(
-			&state.db,
-			record.chunk_id,
-			&job.embedding_version,
-			vector.len() as i32,
-			&vec_text,
-		)
-		.await?;
-	}
+	{
+		let mut tx = state.db.pool.begin().await?;
 
-	let pooled =
-		mean_pool(&chunk_vectors).ok_or_else(|| eyre::eyre!("Cannot pool empty chunk vectors."))?;
-	validate_vector_dim(&pooled, state.qdrant.vector_dim)?;
-	insert_embedding(&state.db, note.note_id, &job.embedding_version, pooled.len() as i32, &pooled)
+		queries::delete_note_chunks_tx(&mut tx, note.note_id).await?;
+		for record in &records {
+			queries::insert_note_chunk_tx(
+				&mut tx,
+				record.chunk_id,
+				note.note_id,
+				record.chunk_index,
+				record.start_offset,
+				record.end_offset,
+				record.text.as_str(),
+				&job.embedding_version,
+			)
+			.await?;
+		}
+
+		for (record, vector) in records.iter().zip(chunk_vectors.iter()) {
+			let vec_text = format_vector_text(vector);
+			queries::insert_note_chunk_embedding_tx(
+				&mut tx,
+				record.chunk_id,
+				&job.embedding_version,
+				vector.len() as i32,
+				vec_text.as_str(),
+			)
+			.await?;
+		}
+
+		let pooled = mean_pool(&chunk_vectors)
+			.ok_or_else(|| eyre::eyre!("Cannot pool empty chunk vectors."))?;
+		validate_vector_dim(&pooled, state.qdrant.vector_dim)?;
+		insert_embedding_tx(
+			&mut tx,
+			note.note_id,
+			&job.embedding_version,
+			pooled.len() as i32,
+			&pooled,
+		)
 		.await?;
+
+		tx.commit().await?;
+	}
 	delete_qdrant_note_points(state, note.note_id).await?;
 	upsert_qdrant_chunks(state, &note, &job.embedding_version, &records, &chunk_vectors).await?;
 
@@ -560,8 +574,8 @@ fn mean_pool(chunks: &[Vec<f32>]) -> Option<Vec<f32>> {
 	Some(out)
 }
 
-async fn insert_embedding(
-	db: &Db,
+async fn insert_embedding_tx(
+	tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
 	note_id: uuid::Uuid,
 	embedding_version: &str,
 	embedding_dim: i32,
@@ -588,7 +602,7 @@ async fn insert_embedding(
 		embedding_dim,
 		vec_text.as_str(),
 	)
-	.execute(&db.pool)
+	.execute(&mut **tx)
 	.await?;
 
 	Ok(())
@@ -600,12 +614,13 @@ async fn delete_qdrant_note_points(state: &WorkerState, note_id: uuid::Uuid) -> 
 		DeletePointsBuilder::new(state.qdrant.collection.clone()).points(filter).wait(true);
 	match state.qdrant.client.delete_points(delete).await {
 		Ok(_) => {},
-		Err(err) =>
+		Err(err) => {
 			if is_not_found_error(&err) {
 				tracing::info!(note_id = %note_id, "Qdrant points missing during delete.");
 			} else {
 				return Err(eyre::eyre!(err.to_string()));
-			},
+			}
+		},
 	}
 
 	Ok(())
@@ -749,7 +764,7 @@ async fn mark_failed(
 	let backoff = backoff_for_attempt(next_attempts);
 	let now = OffsetDateTime::now_utc();
 	let available_at = now + backoff;
-	let error_text = err.to_string();
+	let error_text = sanitize_outbox_error(&err.to_string());
 
 	sqlx::query!(
 		"\
@@ -782,7 +797,7 @@ async fn mark_trace_failed(
 	let backoff = backoff_for_attempt(next_attempts);
 	let now = OffsetDateTime::now_utc();
 	let available_at = now + backoff;
-	let error_text = err.to_string();
+	let error_text = sanitize_outbox_error(&err.to_string());
 
 	sqlx::query!(
 		"\
@@ -803,6 +818,44 @@ WHERE outbox_id = $5",
 	.await?;
 
 	Ok(())
+}
+
+fn sanitize_outbox_error(text: &str) -> String {
+	let mut parts = Vec::new();
+	let mut redact_next = false;
+
+	for raw in text.split_whitespace() {
+		let mut word = raw.to_string();
+		if redact_next {
+			word = "[REDACTED]".to_string();
+			redact_next = false;
+		}
+		if raw.eq_ignore_ascii_case("bearer") {
+			redact_next = true;
+		}
+
+		let lowered = raw.to_ascii_lowercase();
+		for key in ["api_key", "apikey", "password", "secret", "token"] {
+			if lowered.contains(key) && (lowered.contains('=') || lowered.contains(':')) {
+				let sep = if raw.contains('=') { '=' } else { ':' };
+				let prefix = match raw.split(sep).next() {
+					Some(prefix) => prefix,
+					None => raw,
+				};
+				word = format!("{prefix}{sep}[REDACTED]");
+				break;
+			}
+		}
+
+		parts.push(word);
+	}
+
+	let mut out = parts.join(" ");
+	if out.chars().count() > MAX_OUTBOX_ERROR_CHARS {
+		out = out.chars().take(MAX_OUTBOX_ERROR_CHARS).collect();
+		out.push_str("...");
+	}
+	out
 }
 
 fn backoff_for_attempt(attempt: i32) -> Duration {
