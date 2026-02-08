@@ -24,7 +24,7 @@ async fn add_note_is_idempotent() {
 		payload: serde_json::json!({ "notes": [] }),
 	};
 	let providers = Providers::new(
-		Arc::new(StubEmbedding { vector_dim: 3 }),
+		Arc::new(StubEmbedding { vector_dim: 4_096 }),
 		Arc::new(StubRerank),
 		Arc::new(extractor),
 	);

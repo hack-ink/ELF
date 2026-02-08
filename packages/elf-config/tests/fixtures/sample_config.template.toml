@@ -11,17 +11,17 @@ pool_max_conns = 5
 [storage.qdrant]
 collection = "mem_notes_v2"
 url        = "http://127.0.0.1:6334"
-vector_dim = 1536
+vector_dim = 4_096
 
 [providers.embedding]
 api_base        = "http://localhost"
 api_key         = "key"
 default_headers = {}
-dimensions      = 1536
+dimensions      = 4_096
 model           = "model"
 path            = "/embeddings"
 provider_id     = "embed"
-timeout_ms      = 1000
+timeout_ms      = 1_000
 
 [providers.rerank]
 api_base        = "http://localhost"
@@ -30,7 +30,7 @@ default_headers = {}
 model           = "model"
 path            = "/rerank"
 provider_id     = "rerank"
-timeout_ms      = 1000
+timeout_ms      = 1_000
 
 [providers.llm_extractor]
 api_base        = "http://localhost"
@@ -40,7 +40,7 @@ model           = "model"
 path            = "/chat/completions"
 provider_id     = "llm"
 temperature     = 0.1
-timeout_ms      = 1000
+timeout_ms      = 1_000
 
 [scopes]
 allowed = ["agent_private"]
@@ -89,7 +89,7 @@ max_candidates = 0
 [search.cache]
 enabled            = true
 expansion_ttl_days = 7
-max_payload_bytes  = 262144
+max_payload_bytes  = 262_144
 rerank_ttl_days    = 7
 
 [search.explain]

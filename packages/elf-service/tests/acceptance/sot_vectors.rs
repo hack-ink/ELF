@@ -25,7 +25,7 @@ async fn active_notes_have_vectors() {
 	let collection = test_db.collection_name("elf_acceptance");
 	let cfg = test_config(test_db.dsn().to_string(), qdrant_url, 3, collection);
 	let providers = Providers::new(
-		Arc::new(StubEmbedding { vector_dim: 3 }),
+		Arc::new(StubEmbedding { vector_dim: 4_096 }),
 		Arc::new(StubRerank),
 		Arc::new(SpyExtractor {
 			calls: Arc::new(AtomicUsize::new(0)),

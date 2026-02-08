@@ -30,7 +30,7 @@ async fn rebuild_uses_postgres_vectors_only() {
 		payload: serde_json::json!({ "notes": [] }),
 	};
 	let providers = Providers::new(
-		Arc::new(SpyEmbedding { vector_dim: 3, calls: embed_calls.clone() }),
+		Arc::new(SpyEmbedding { vector_dim: 4_096, calls: embed_calls.clone() }),
 		Arc::new(StubRerank),
 		Arc::new(extractor),
 	);

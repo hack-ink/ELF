@@ -11,7 +11,7 @@ fn dummy_embedding_provider() -> elf_config::EmbeddingProviderConfig {
 		path: "/".to_string(),
 		model: "m".to_string(),
 		dimensions: 3,
-		timeout_ms: 1000,
+		timeout_ms: 1_000,
 		default_headers: Map::new(),
 	}
 }
@@ -23,7 +23,7 @@ fn dummy_provider() -> elf_config::ProviderConfig {
 		api_key: "key".to_string(),
 		path: "/".to_string(),
 		model: "m".to_string(),
-		timeout_ms: 1000,
+		timeout_ms: 1_000,
 		default_headers: Map::new(),
 	}
 }
@@ -36,7 +36,7 @@ fn dummy_llm_provider() -> elf_config::LlmProviderConfig {
 		path: "/".to_string(),
 		model: "m".to_string(),
 		temperature: 0.1,
-		timeout_ms: 1000,
+		timeout_ms: 1_000,
 		default_headers: Map::new(),
 	}
 }
@@ -80,7 +80,7 @@ fn computes_ttl_from_defaults() {
 			qdrant: elf_config::Qdrant {
 				url: "http://localhost".to_string(),
 				collection: "mem_notes_v2".to_string(),
-				vector_dim: 3,
+				vector_dim: 4_096,
 			},
 		},
 		providers: elf_config::Providers {
