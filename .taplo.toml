@@ -1,5 +1,4 @@
 exclude = [
-	"**/*.template.toml",
 	".worktrees",
 	"Makefile.toml",
 ]
