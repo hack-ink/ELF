@@ -36,9 +36,11 @@ pub struct NoteFetchResponse {
 
 impl ElfService {
 	pub async fn get_note(&self, req: NoteFetchRequest) -> ServiceResult<NoteFetchResponse> {
+		let now = OffsetDateTime::now_utc();
 		let tenant_id = req.tenant_id.trim();
 		let project_id = req.project_id.trim();
 		let agent_id = req.agent_id.trim();
+
 		if tenant_id.is_empty() || project_id.is_empty() || agent_id.is_empty() {
 			return Err(ServiceError::InvalidRequest {
 				message: "tenant_id, project_id, and agent_id are required.".to_string(),
@@ -57,9 +59,20 @@ impl ElfService {
 		let Some(note) = row else {
 			return Err(ServiceError::InvalidRequest { message: "Note not found.".to_string() });
 		};
+
 		if note.scope == "agent_private" && note.agent_id != agent_id {
 			return Err(ServiceError::InvalidRequest { message: "Note not found.".to_string() });
 		}
+		if !note.status.eq_ignore_ascii_case("active") {
+			return Err(ServiceError::InvalidRequest { message: "Note not found.".to_string() });
+		}
+
+		if let Some(expires_at) = note.expires_at
+			&& expires_at <= now
+		{
+			return Err(ServiceError::InvalidRequest { message: "Note not found.".to_string() });
+		}
+
 		Ok(NoteFetchResponse {
 			note_id: note.note_id,
 			tenant_id: note.tenant_id,

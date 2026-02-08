@@ -56,6 +56,14 @@ fn evidence_requires_substring() {
 }
 
 #[test]
+fn evidence_rejects_empty_quote() {
+	let messages = vec!["Hello world".to_string()];
+
+	assert!(!evidence::evidence_matches(&messages, 0, ""));
+	assert!(!evidence::evidence_matches(&messages, 0, "   "));
+}
+
+#[test]
 fn computes_ttl_from_defaults() {
 	let cfg = elf_config::Config {
 		service: elf_config::Service {
@@ -146,6 +154,8 @@ fn computes_ttl_from_defaults() {
 			evidence_min_quotes: 1,
 			evidence_max_quotes: 2,
 			evidence_max_quote_chars: 320,
+			api_auth_token: None,
+			admin_auth_token: None,
 		},
 		chunking: elf_config::Chunking {
 			enabled: true,

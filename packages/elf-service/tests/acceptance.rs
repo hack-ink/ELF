@@ -53,6 +53,7 @@ mod acceptance {
 		) -> elf_service::BoxFuture<'a, color_eyre::Result<Vec<Vec<f32>>>> {
 			let dim = self.vector_dim as usize;
 			let vectors = texts.iter().map(|_| vec![0.0; dim]).collect();
+
 			Box::pin(async move { Ok(vectors) })
 		}
 	}
@@ -71,6 +72,7 @@ mod acceptance {
 			self.calls.fetch_add(1, Ordering::SeqCst);
 			let dim = self.vector_dim as usize;
 			let vectors = texts.iter().map(|_| vec![0.0; dim]).collect();
+
 			Box::pin(async move { Ok(vectors) })
 		}
 	}
@@ -85,6 +87,7 @@ mod acceptance {
 			docs: &'a [String],
 		) -> elf_service::BoxFuture<'a, color_eyre::Result<Vec<f32>>> {
 			let scores = vec![0.5; docs.len()];
+
 			Box::pin(async move { Ok(scores) })
 		}
 	}
@@ -215,6 +218,8 @@ mod acceptance {
 				evidence_min_quotes: 1,
 				evidence_max_quotes: 2,
 				evidence_max_quote_chars: 320,
+				api_auth_token: None,
+				admin_auth_token: None,
 			},
 			context: None,
 			mcp: None,
@@ -262,6 +267,7 @@ mod acceptance {
 	pub async fn test_db() -> Option<elf_testkit::TestDatabase> {
 		let base_dsn = elf_testkit::env_dsn()?;
 		let db = TestDatabase::new(&base_dsn).await.expect("Failed to create test database.");
+
 		Some(db)
 	}
 
@@ -278,11 +284,13 @@ mod acceptance {
 		for attempt in 1..=max_attempts {
 			let _ = client.delete_collection(collection.to_string()).await;
 			let mut vectors_config = VectorsConfigBuilder::default();
+
 			vectors_config.add_named_vector_params(
 				DENSE_VECTOR_NAME,
 				VectorParamsBuilder::new(vector_dim.into(), Distance::Cosine),
 			);
 			let mut sparse_vectors_config = SparseVectorsConfigBuilder::default();
+
 			sparse_vectors_config.add_named_vector_params(
 				BM25_VECTOR_NAME,
 				SparseVectorParamsBuilder::default().modifier(Modifier::Idf as i32),
@@ -315,8 +323,10 @@ mod acceptance {
 		providers: Providers,
 	) -> color_eyre::Result<ElfService> {
 		let db = Db::connect(&cfg.storage.postgres).await?;
+
 		db.ensure_schema(cfg.storage.qdrant.vector_dim).await?;
 		let qdrant = QdrantStore::new(&cfg.storage.qdrant)?;
+
 		Ok(ElfService::with_providers(cfg, db, qdrant, providers))
 	}
 
