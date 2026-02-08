@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
   schedule:
     # Daily at 00:00 UTC. Manual runs use workflow_dispatch.
-    - cron: "0 0 * * *"
+    - cron: '0 0 * * *'
 
 jobs:
   integration:
@@ -19,7 +19,7 @@ jobs:
       RUST_BACKTRACE: full
     services:
       postgres:
-        image: pgvector/pgvector:pg16
+        image: pgvector/pgvector:pg18
         env:
           POSTGRES_PASSWORD: postgres
           POSTGRES_USER: postgres
