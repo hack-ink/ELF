@@ -11,39 +11,28 @@ fn expand_includes(sql: &str) -> String {
 		if let Some(path) = trimmed.strip_prefix("\\ir ") {
 			match path.trim() {
 				"00_extensions.sql" => out.push_str(include_str!("../../../sql/00_extensions.sql")),
-				"tables/001_memory_notes.sql" => {
-					out.push_str(include_str!("../../../sql/tables/001_memory_notes.sql"))
-				},
-				"tables/009_memory_note_chunks.sql" => {
-					out.push_str(include_str!("../../../sql/tables/009_memory_note_chunks.sql"))
-				},
-				"tables/010_note_chunk_embeddings.sql" => {
-					out.push_str(include_str!("../../../sql/tables/010_note_chunk_embeddings.sql"))
-				},
-				"tables/002_note_embeddings.sql" => {
-					out.push_str(include_str!("../../../sql/tables/002_note_embeddings.sql"))
-				},
-				"tables/003_memory_note_versions.sql" => {
-					out.push_str(include_str!("../../../sql/tables/003_memory_note_versions.sql"))
-				},
-				"tables/004_memory_hits.sql" => {
-					out.push_str(include_str!("../../../sql/tables/004_memory_hits.sql"))
-				},
-				"tables/005_indexing_outbox.sql" => {
-					out.push_str(include_str!("../../../sql/tables/005_indexing_outbox.sql"))
-				},
-				"tables/006_search_traces.sql" => {
-					out.push_str(include_str!("../../../sql/tables/006_search_traces.sql"))
-				},
-				"tables/007_search_trace_outbox.sql" => {
-					out.push_str(include_str!("../../../sql/tables/007_search_trace_outbox.sql"))
-				},
-				"tables/008_llm_cache.sql" => {
-					out.push_str(include_str!("../../../sql/tables/008_llm_cache.sql"))
-				},
-				"tables/011_search_sessions.sql" => {
-					out.push_str(include_str!("../../../sql/tables/011_search_sessions.sql"))
-				},
+				"tables/001_memory_notes.sql" =>
+					out.push_str(include_str!("../../../sql/tables/001_memory_notes.sql")),
+				"tables/009_memory_note_chunks.sql" =>
+					out.push_str(include_str!("../../../sql/tables/009_memory_note_chunks.sql")),
+				"tables/010_note_chunk_embeddings.sql" =>
+					out.push_str(include_str!("../../../sql/tables/010_note_chunk_embeddings.sql")),
+				"tables/002_note_embeddings.sql" =>
+					out.push_str(include_str!("../../../sql/tables/002_note_embeddings.sql")),
+				"tables/003_memory_note_versions.sql" =>
+					out.push_str(include_str!("../../../sql/tables/003_memory_note_versions.sql")),
+				"tables/004_memory_hits.sql" =>
+					out.push_str(include_str!("../../../sql/tables/004_memory_hits.sql")),
+				"tables/005_indexing_outbox.sql" =>
+					out.push_str(include_str!("../../../sql/tables/005_indexing_outbox.sql")),
+				"tables/006_search_traces.sql" =>
+					out.push_str(include_str!("../../../sql/tables/006_search_traces.sql")),
+				"tables/007_search_trace_outbox.sql" =>
+					out.push_str(include_str!("../../../sql/tables/007_search_trace_outbox.sql")),
+				"tables/008_llm_cache.sql" =>
+					out.push_str(include_str!("../../../sql/tables/008_llm_cache.sql")),
+				"tables/011_search_sessions.sql" =>
+					out.push_str(include_str!("../../../sql/tables/011_search_sessions.sql")),
 				_ => out.push_str(line),
 			}
 		} else {
