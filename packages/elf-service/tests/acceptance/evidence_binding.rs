@@ -44,7 +44,7 @@ async fn rejects_invalid_evidence_quote() {
 		Arc::new(extractor),
 	);
 	let collection = test_db.collection_name("elf_acceptance");
-	let cfg = test_config(test_db.dsn().to_string(), qdrant_url, 3, collection);
+	let cfg = test_config(test_db.dsn().to_string(), qdrant_url, 4_096, collection);
 	let service = build_service(cfg, providers).await.expect("Failed to build service.");
 
 	super::reset_db(&service.db.pool).await.expect("Failed to reset test database.");

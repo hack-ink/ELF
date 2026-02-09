@@ -35,7 +35,7 @@ async fn rebuild_uses_postgres_vectors_only() {
 		Arc::new(extractor),
 	);
 	let collection = test_db.collection_name("elf_acceptance");
-	let cfg = super::test_config(test_db.dsn().to_string(), qdrant_url, 3, collection);
+	let cfg = super::test_config(test_db.dsn().to_string(), qdrant_url, 4_096, collection);
 	let service = super::build_service(cfg, providers).await.expect("Failed to build service.");
 
 	super::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
@@ -148,15 +148,28 @@ VALUES (
 	.await
 	.expect("Failed to insert chunk metadata.");
 
+	let vec_text = {
+		let mut buf = String::with_capacity(2 + (4_096 * 2));
+		buf.push('[');
+		for i in 0..4_096 {
+			if i > 0 {
+				buf.push(',');
+			}
+			buf.push('0');
+		}
+		buf.push(']');
+		buf
+	};
+
 	sqlx::query(
 		"\
-				INSERT INTO note_chunk_embeddings (chunk_id, embedding_version, embedding_dim, vec)
-				VALUES ($1, $2, $3, $4::text::vector)",
+					INSERT INTO note_chunk_embeddings (chunk_id, embedding_version, embedding_dim, vec)
+					VALUES ($1, $2, $3, $4::text::vector)",
 	)
 	.bind(chunk_id)
 	.bind(embedding_version.as_str())
-	.bind(3_i32)
-	.bind("[0,0,0]")
+	.bind(4_096_i32)
+	.bind(vec_text.as_str())
 	.execute(&service.db.pool)
 	.await
 	.expect("Failed to insert chunk embedding.");

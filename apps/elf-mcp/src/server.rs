@@ -167,11 +167,13 @@ impl ElfMcp {
 		read_profile_override: Option<&str>,
 	) -> Result<CallToolResult, McpError> {
 		match method {
-			HttpMethod::Post =>
-				self.forward_post(path, Value::Object(params), read_profile_override).await,
+			HttpMethod::Post => {
+				self.forward_post(path, Value::Object(params), read_profile_override).await
+			},
 			HttpMethod::Get => self.forward_get(path, params, read_profile_override).await,
-			HttpMethod::Patch =>
-				self.forward_patch(path, Value::Object(params), read_profile_override).await,
+			HttpMethod::Patch => {
+				self.forward_patch(path, Value::Object(params), read_profile_override).await
+			},
 			HttpMethod::Delete => self.forward_delete(path, read_profile_override).await,
 		}
 	}
