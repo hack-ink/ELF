@@ -241,8 +241,9 @@ impl ElfService {
 					let prev_snapshot = crate::note_snapshot(&existing);
 					let requested_ttl = note.ttl_days.filter(|days| *days > 0);
 					let expires_at = match requested_ttl {
-						Some(ttl) =>
-							ttl::compute_expires_at(Some(ttl), &note.note_type, &self.cfg, now),
+						Some(ttl) => {
+							ttl::compute_expires_at(Some(ttl), &note.note_type, &self.cfg, now)
+						},
 						None => existing.expires_at,
 					};
 
@@ -348,12 +349,13 @@ impl ElfService {
 
 fn find_cjk_path(value: &Value, path: &str) -> Option<String> {
 	match value {
-		Value::String(text) =>
+		Value::String(text) => {
 			if cjk::contains_cjk(text) {
 				Some(path.to_string())
 			} else {
 				None
-			},
+			}
+		},
 		Value::Array(items) => {
 			for (idx, item) in items.iter().enumerate() {
 				let child_path = format!("{path}[{idx}]");

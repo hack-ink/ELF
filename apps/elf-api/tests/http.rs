@@ -125,7 +125,7 @@ fn dummy_embedding_provider() -> elf_config::EmbeddingProviderConfig {
 		api_key: "test-key".to_string(),
 		path: "/".to_string(),
 		model: "test".to_string(),
-		dimensions: 3,
+		dimensions: 4_096,
 		timeout_ms: 1_000,
 		default_headers: Map::new(),
 	}

@@ -135,7 +135,7 @@ async fn outbox_retries_to_done() {
 		Arc::new(extractor),
 	);
 	let collection = test_db.collection_name("elf_acceptance");
-	let cfg = super::test_config(test_db.dsn().to_string(), qdrant_url, 3, collection);
+	let cfg = super::test_config(test_db.dsn().to_string(), qdrant_url, 4_096, collection);
 	let service = super::build_service(cfg, providers).await.expect("Failed to build service.");
 
 	super::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
@@ -176,7 +176,7 @@ async fn outbox_retries_to_done() {
 			api_key: "test-key".to_string(),
 			path: "/embeddings".to_string(),
 			model: "test".to_string(),
-			dimensions: 3,
+			dimensions: 4_096,
 			timeout_ms: 1_000,
 			default_headers: Map::new(),
 		},

@@ -168,10 +168,12 @@ impl From<Error> for ApiError {
 				"CJK detected; upstream must canonicalize to English before calling ELF.",
 				Some(vec![field]),
 			),
-			Error::InvalidRequest { message } =>
-				json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", message, None),
-			Error::ScopeDenied { message } =>
-				json_error(StatusCode::FORBIDDEN, "SCOPE_DENIED", message, None),
+			Error::InvalidRequest { message } => {
+				json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", message, None)
+			},
+			Error::ScopeDenied { message } => {
+				json_error(StatusCode::FORBIDDEN, "SCOPE_DENIED", message, None)
+			},
 			Error::Provider { message } => {
 				let sanitized = sanitize_log_text(message.as_str());
 

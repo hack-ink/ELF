@@ -71,7 +71,7 @@ async fn setup_context(test_name: &str, providers: Providers) -> Option<TestCont
 	};
 
 	let collection = test_db.collection_name("elf_acceptance");
-	let cfg = super::test_config(test_db.dsn().to_string(), qdrant_url, 3, collection);
+	let cfg = super::test_config(test_db.dsn().to_string(), qdrant_url, 4_096, collection);
 	let service = super::build_service(cfg, providers).await.expect("Failed to build service.");
 	super::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
 	reset_collection(&service).await;

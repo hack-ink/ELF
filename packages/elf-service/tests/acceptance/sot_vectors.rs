@@ -23,7 +23,7 @@ async fn active_notes_have_vectors() {
 		return;
 	};
 	let collection = test_db.collection_name("elf_acceptance");
-	let cfg = test_config(test_db.dsn().to_string(), qdrant_url, 3, collection);
+	let cfg = test_config(test_db.dsn().to_string(), qdrant_url, 4_096, collection);
 	let providers = Providers::new(
 		Arc::new(StubEmbedding { vector_dim: 4_096 }),
 		Arc::new(StubRerank),
@@ -110,20 +110,33 @@ VALUES (
 	.await
 	.expect("Failed to insert memory note.");
 
+	let vec_text = {
+		let mut buf = String::with_capacity(2 + (4_096 * 2));
+		buf.push('[');
+		for i in 0..4_096 {
+			if i > 0 {
+				buf.push(',');
+			}
+			buf.push('0');
+		}
+		buf.push(']');
+		buf
+	};
+
 	sqlx::query(
 		"\
-				INSERT INTO note_embeddings (
-					note_id,
-					embedding_version,
-				embedding_dim,
-				vec
-				)
-				VALUES ($1, $2, $3, $4::text::vector)",
+					INSERT INTO note_embeddings (
+						note_id,
+						embedding_version,
+					embedding_dim,
+					vec
+					)
+					VALUES ($1, $2, $3, $4::text::vector)",
 	)
 	.bind(note_id)
 	.bind(embedding_version.as_str())
-	.bind(3_i32)
-	.bind("[0,0,0]")
+	.bind(4_096_i32)
+	.bind(vec_text.as_str())
 	.execute(&service.db.pool)
 	.await
 	.expect("Failed to insert embedding.");
@@ -154,7 +167,7 @@ VALUES (
 	.await
 	.expect("Failed to query embedding dim.");
 
-	assert_eq!(dim, 3);
+	assert_eq!(dim, 4_096);
 
 	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }

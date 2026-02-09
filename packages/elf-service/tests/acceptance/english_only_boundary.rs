@@ -23,7 +23,7 @@ async fn build_test_service(
 		Arc::new(StubRerank),
 		Arc::new(extractor),
 	);
-	let cfg = test_config(dsn, qdrant_url, 3, collection);
+	let cfg = test_config(dsn, qdrant_url, 4_096, collection);
 	let service = build_service(cfg, providers).await.expect("Failed to build service.");
 
 	super::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
