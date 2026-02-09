@@ -1,10 +1,12 @@
-use color_eyre::Result;
-use sqlx::{Executor, Postgres, Transaction};
+use sqlx::PgExecutor;
 use uuid::Uuid;
 
-use crate::{db::Db, models::MemoryNote};
+use crate::{Result, models::MemoryNote};
 
-pub async fn insert_note(db: &Db, note: &MemoryNote) -> Result<()> {
+pub async fn insert_note<'e, E>(executor: E, note: &MemoryNote) -> Result<()>
+where
+	E: PgExecutor<'e>,
+{
 	sqlx::query!(
 		"\
 INSERT INTO memory_notes (
@@ -66,13 +68,16 @@ VALUES (
 		note.hit_count,
 		note.last_hit_at,
 	)
-	.execute(&db.pool)
+	.execute(executor)
 	.await?;
 
 	Ok(())
 }
 
-pub async fn update_note(db: &Db, note: &MemoryNote) -> Result<()> {
+pub async fn update_note<'e, E>(executor: E, note: &MemoryNote) -> Result<()>
+where
+	E: PgExecutor<'e>,
+{
 	sqlx::query!(
 		"\
 UPDATE memory_notes
@@ -92,108 +97,15 @@ WHERE note_id = $7",
 		&note.source_ref,
 		note.note_id,
 	)
-	.execute(&db.pool)
+	.execute(executor)
 	.await?;
 
 	Ok(())
 }
 
-pub async fn delete_note_chunks(db: &Db, note_id: Uuid) -> Result<()> {
-	delete_note_chunks_exec(&db.pool, note_id).await?;
-
-	Ok(())
-}
-
-pub async fn delete_note_chunks_tx(
-	tx: &mut Transaction<'_, Postgres>,
-	note_id: Uuid,
-) -> Result<()> {
-	delete_note_chunks_exec(&mut **tx, note_id).await?;
-
-	Ok(())
-}
-
-#[allow(clippy::too_many_arguments)]
-pub async fn insert_note_chunk(
-	db: &Db,
-	chunk_id: Uuid,
-	note_id: Uuid,
-	chunk_index: i32,
-	start_offset: i32,
-	end_offset: i32,
-	text: &str,
-	embedding_version: &str,
-) -> Result<()> {
-	insert_note_chunk_exec(
-		&db.pool,
-		chunk_id,
-		note_id,
-		chunk_index,
-		start_offset,
-		end_offset,
-		text,
-		embedding_version,
-	)
-	.await?;
-
-	Ok(())
-}
-
-#[allow(clippy::too_many_arguments)]
-pub async fn insert_note_chunk_tx(
-	tx: &mut Transaction<'_, Postgres>,
-	chunk_id: Uuid,
-	note_id: Uuid,
-	chunk_index: i32,
-	start_offset: i32,
-	end_offset: i32,
-	text: &str,
-	embedding_version: &str,
-) -> Result<()> {
-	insert_note_chunk_exec(
-		&mut **tx,
-		chunk_id,
-		note_id,
-		chunk_index,
-		start_offset,
-		end_offset,
-		text,
-		embedding_version,
-	)
-	.await?;
-
-	Ok(())
-}
-
-pub async fn insert_note_chunk_embedding(
-	db: &Db,
-	chunk_id: Uuid,
-	embedding_version: &str,
-	embedding_dim: i32,
-	vec: &str,
-) -> Result<()> {
-	insert_note_chunk_embedding_exec(&db.pool, chunk_id, embedding_version, embedding_dim, vec)
-		.await?;
-
-	Ok(())
-}
-
-pub async fn insert_note_chunk_embedding_tx(
-	tx: &mut Transaction<'_, Postgres>,
-	chunk_id: Uuid,
-	embedding_version: &str,
-	embedding_dim: i32,
-	vec: &str,
-) -> Result<()> {
-	insert_note_chunk_embedding_exec(&mut **tx, chunk_id, embedding_version, embedding_dim, vec)
-		.await?;
-
-	Ok(())
-}
-
-async fn delete_note_chunks_exec<'e, E>(executor: E, note_id: Uuid) -> Result<()>
+pub async fn delete_note_chunks<'e, E>(executor: E, note_id: Uuid) -> Result<()>
 where
-	E: Executor<'e, Database = Postgres>,
+	E: PgExecutor<'e>,
 {
 	sqlx::query!("DELETE FROM memory_note_chunks WHERE note_id = $1", note_id)
 		.execute(executor)
@@ -203,7 +115,7 @@ where
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn insert_note_chunk_exec<'e, E>(
+pub async fn insert_note_chunk<'e, E>(
 	executor: E,
 	chunk_id: Uuid,
 	note_id: Uuid,
@@ -214,7 +126,7 @@ async fn insert_note_chunk_exec<'e, E>(
 	embedding_version: &str,
 ) -> Result<()>
 where
-	E: Executor<'e, Database = Postgres>,
+	E: PgExecutor<'e>,
 {
 	sqlx::query!(
 		"\
@@ -247,7 +159,7 @@ SET
 	Ok(())
 }
 
-async fn insert_note_chunk_embedding_exec<'e, E>(
+pub async fn insert_note_chunk_embedding<'e, E>(
 	executor: E,
 	chunk_id: Uuid,
 	embedding_version: &str,
@@ -255,7 +167,7 @@ async fn insert_note_chunk_embedding_exec<'e, E>(
 	vec: &str,
 ) -> Result<()>
 where
-	E: Executor<'e, Database = Postgres>,
+	E: PgExecutor<'e>,
 {
 	sqlx::query!(
 		"\

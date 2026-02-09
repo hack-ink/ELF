@@ -8,8 +8,8 @@ use sqlx::PgPool;
 
 use elf_config::{Config, EmbeddingProviderConfig, LlmProviderConfig, ProviderConfig};
 use elf_service::{
-	AddNoteInput, AddNoteRequest, ElfService, EmbeddingProvider, ExtractorProvider, Providers,
-	RerankProvider, ServiceError,
+	AddNoteInput, AddNoteRequest, ElfService, EmbeddingProvider, Error, ExtractorProvider,
+	Providers, RerankProvider,
 };
 use elf_storage::{db::Db, qdrant::QdrantStore};
 
@@ -20,7 +20,7 @@ impl EmbeddingProvider for DummyEmbedding {
 		&'a self,
 		cfg: &'a EmbeddingProviderConfig,
 		texts: &'a [String],
-	) -> elf_service::BoxFuture<'a, color_eyre::Result<Vec<Vec<f32>>>> {
+	) -> elf_service::BoxFuture<'a, elf_service::Result<Vec<Vec<f32>>>> {
 		let dim = (cfg.dimensions as usize).max(1);
 		let vec = vec![0.0; dim];
 
@@ -36,7 +36,7 @@ impl RerankProvider for DummyRerank {
 		_cfg: &'a ProviderConfig,
 		_query: &'a str,
 		docs: &'a [String],
-	) -> elf_service::BoxFuture<'a, color_eyre::Result<Vec<f32>>> {
+	) -> elf_service::BoxFuture<'a, elf_service::Result<Vec<f32>>> {
 		let scores = vec![0.0; docs.len()];
 
 		Box::pin(async move { Ok(scores) })
@@ -60,7 +60,7 @@ impl ExtractorProvider for SpyExtractor {
 		&'a self,
 		_cfg: &'a LlmProviderConfig,
 		_messages: &'a [Value],
-	) -> elf_service::BoxFuture<'a, color_eyre::Result<Value>> {
+	) -> elf_service::BoxFuture<'a, elf_service::Result<Value>> {
 		self.calls.fetch_add(1, Ordering::SeqCst);
 
 		Box::pin(async move { Ok(serde_json::json!({ "notes": [] })) })
@@ -236,7 +236,7 @@ async fn add_note_does_not_call_llm() {
 	};
 	let result = service.add_note(req).await;
 
-	assert!(matches!(result, Err(ServiceError::NonEnglishInput { .. })));
+	assert!(matches!(result, Err(Error::NonEnglishInput { .. })));
 
 	assert_eq!(spy.count(), 0);
 }
@@ -260,7 +260,7 @@ async fn add_note_rejects_empty_notes() {
 	};
 	let result = service.add_note(req).await;
 
-	assert!(matches!(result, Err(ServiceError::InvalidRequest { .. })));
+	assert!(matches!(result, Err(Error::InvalidRequest { .. })));
 
 	assert_eq!(spy.count(), 0);
 }

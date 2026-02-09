@@ -1,7 +1,7 @@
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::{ElfService, InsertVersionArgs, NoteOp, ServiceError, ServiceResult};
+use crate::{ElfService, Error, InsertVersionArgs, NoteOp, Result};
 use elf_domain::{cjk, ttl, writegate};
 use elf_storage::models::MemoryNote;
 
@@ -25,14 +25,14 @@ pub struct UpdateResponse {
 }
 
 impl ElfService {
-	pub async fn update(&self, req: UpdateRequest) -> ServiceResult<UpdateResponse> {
+	pub async fn update(&self, req: UpdateRequest) -> Result<UpdateResponse> {
 		let now = OffsetDateTime::now_utc();
 		let tenant_id = req.tenant_id.trim();
 		let project_id = req.project_id.trim();
 		let agent_id = req.agent_id.trim();
 
 		if tenant_id.is_empty() || project_id.is_empty() || agent_id.is_empty() {
-			return Err(ServiceError::InvalidRequest {
+			return Err(Error::InvalidRequest {
 				message: "tenant_id, project_id, and agent_id are required.".to_string(),
 			});
 		}
@@ -42,9 +42,7 @@ impl ElfService {
 			&& req.confidence.is_none()
 			&& req.ttl_days.is_none()
 		{
-			return Err(ServiceError::InvalidRequest {
-				message: "No updates provided.".to_string(),
-			});
+			return Err(Error::InvalidRequest { message: "No updates provided.".to_string() });
 		}
 
 		let text_update = req.text.clone();
@@ -62,25 +60,25 @@ FOR UPDATE",
 		)
 		.fetch_optional(&mut *tx)
 		.await?
-		.ok_or_else(|| ServiceError::InvalidRequest { message: "Note not found.".to_string() })?;
+		.ok_or_else(|| Error::InvalidRequest { message: "Note not found.".to_string() })?;
 
 		if note.scope == "agent_private" && note.agent_id != agent_id {
-			return Err(ServiceError::InvalidRequest { message: "Note not found.".to_string() });
+			return Err(Error::InvalidRequest { message: "Note not found.".to_string() });
 		}
 		if !note.status.eq_ignore_ascii_case("active") {
-			return Err(ServiceError::InvalidRequest { message: "Note not found.".to_string() });
+			return Err(Error::InvalidRequest { message: "Note not found.".to_string() });
 		}
 
 		if let Some(expires_at) = note.expires_at
 			&& expires_at <= now
 		{
-			return Err(ServiceError::InvalidRequest { message: "Note not found.".to_string() });
+			return Err(Error::InvalidRequest { message: "Note not found.".to_string() });
 		}
 
 		let prev_snapshot = crate::note_snapshot(&note);
 		let candidate_text = if let Some(text) = text_update.as_ref() {
 			if cjk::contains_cjk(text) {
-				return Err(ServiceError::NonEnglishInput { field: "$.text".to_string() });
+				return Err(Error::NonEnglishInput { field: "$.text".to_string() });
 			}
 			text.clone()
 		} else {
@@ -148,7 +146,7 @@ WHERE note_id = $6",
 		.execute(&mut *tx)
 		.await?;
 		crate::insert_version(
-			&mut tx,
+			&mut *tx,
 			InsertVersionArgs {
 				note_id: note.note_id,
 				op: "UPDATE",
@@ -161,7 +159,7 @@ WHERE note_id = $6",
 		)
 		.await?;
 		crate::enqueue_outbox_tx(
-			&mut tx,
+			&mut *tx,
 			note.note_id,
 			"UPSERT",
 			&note.embedding_version,

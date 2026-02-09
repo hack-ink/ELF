@@ -3,13 +3,12 @@ use std::{
 	sync::{Arc, atomic::AtomicUsize},
 };
 
-use color_eyre::Result;
 use qdrant_client::{
 	client::Payload,
 	qdrant::{Document, PointStruct, UpsertPointsBuilder, Vector},
 };
 use serde_json::Value;
-use sqlx::PgPool;
+use sqlx::PgExecutor;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
@@ -37,7 +36,7 @@ impl RerankProvider for KeywordRerank {
 		_cfg: &'a ProviderConfig,
 		_query: &'a str,
 		docs: &'a [String],
-	) -> BoxFuture<'a, Result<Vec<f32>>> {
+	) -> BoxFuture<'a, elf_service::Result<Vec<f32>>> {
 		let keyword = self.keyword;
 		Box::pin(async move {
 			Ok(docs.iter().map(|doc| if doc.contains(keyword) { 1.0 } else { 0.1 }).collect())
@@ -97,14 +96,17 @@ async fn reset_collection(service: &ElfService) {
 	.expect("Failed to reset Qdrant collection.");
 }
 
-async fn insert_note(pool: &PgPool, note_id: Uuid, note_text: &str, embedding_version: &str) {
+async fn insert_note<'e, E>(executor: E, note_id: Uuid, note_text: &str, embedding_version: &str)
+where
+	E: PgExecutor<'e>,
+{
 	let now = OffsetDateTime::now_utc();
 
 	sqlx::query(
 		"\
-		INSERT INTO memory_notes (
-			note_id,
-			tenant_id,
+			INSERT INTO memory_notes (
+				note_id,
+				tenant_id,
 	project_id,
 	agent_id,
 	scope,
@@ -140,8 +142,8 @@ VALUES (
 	$15,
 	$16,
 			$17,
-			$18
-		)",
+				$18
+			)",
 	)
 	.bind(note_id)
 	.bind("t")
@@ -161,14 +163,14 @@ VALUES (
 	.bind(serde_json::json!({}))
 	.bind(0_i64)
 	.bind(Option::<OffsetDateTime>::None)
-	.execute(pool)
+	.execute(executor)
 	.await
 	.expect("Failed to insert memory note.");
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn insert_chunk(
-	pool: &PgPool,
+async fn insert_chunk<'e, E>(
+	executor: E,
 	chunk_id: Uuid,
 	note_id: Uuid,
 	chunk_index: i32,
@@ -176,19 +178,21 @@ async fn insert_chunk(
 	end_offset: i32,
 	text: &str,
 	embedding_version: &str,
-) {
+) where
+	E: PgExecutor<'e>,
+{
 	sqlx::query(
 		"\
-		INSERT INTO memory_note_chunks (
-			chunk_id,
-		note_id,
+			INSERT INTO memory_note_chunks (
+				chunk_id,
+			note_id,
 	chunk_index,
 	start_offset,
 	end_offset,
 	text,
 	embedding_version
-		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)",
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)",
 	)
 	.bind(chunk_id)
 	.bind(note_id)
@@ -197,7 +201,7 @@ async fn insert_chunk(
 	.bind(end_offset)
 	.bind(text)
 	.bind(embedding_version)
-	.execute(pool)
+	.execute(executor)
 	.await
 	.expect("Failed to insert chunk metadata.");
 }
@@ -227,7 +231,7 @@ fn build_payload(
 fn build_vectors(text: &str) -> HashMap<String, Vector> {
 	let mut vectors = HashMap::new();
 
-	vectors.insert(DENSE_VECTOR_NAME.to_string(), Vector::from(vec![0.0; 3]));
+	vectors.insert(DENSE_VECTOR_NAME.to_string(), Vector::from(vec![0.0_f32; 4_096]));
 	vectors.insert(
 		BM25_VECTOR_NAME.to_string(),
 		Vector::from(Document::new(text.to_string(), BM25_MODEL)),

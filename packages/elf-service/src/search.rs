@@ -9,11 +9,11 @@ use qdrant_client::qdrant::{
 	QueryPointsBuilder, ScoredPoint, Value, point_id::PointIdOptions, value::Kind,
 };
 use serde::de::DeserializeOwned;
-use sqlx::QueryBuilder;
+use sqlx::{PgExecutor, QueryBuilder};
 use time::{Duration, OffsetDateTime, format_description::well_known::Rfc3339};
 use uuid::Uuid;
 
-use crate::{ElfService, ServiceError, ServiceResult};
+use crate::{ElfService, Error, Result};
 use elf_domain::cjk;
 use elf_storage::{
 	models::MemoryNote,
@@ -402,18 +402,18 @@ struct FinishSearchArgs<'a> {
 }
 
 impl ElfService {
-	pub async fn search_raw(&self, req: SearchRequest) -> ServiceResult<SearchResponse> {
+	pub async fn search_raw(&self, req: SearchRequest) -> Result<SearchResponse> {
 		let tenant_id = req.tenant_id.trim();
 		let project_id = req.project_id.trim();
 		let agent_id = req.agent_id.trim();
 
 		if tenant_id.is_empty() || project_id.is_empty() || agent_id.is_empty() {
-			return Err(ServiceError::InvalidRequest {
+			return Err(Error::InvalidRequest {
 				message: "tenant_id, project_id, and agent_id are required.".to_string(),
 			});
 		}
 		if cjk::contains_cjk(&req.query) {
-			return Err(ServiceError::NonEnglishInput { field: "$.query".to_string() });
+			return Err(Error::NonEnglishInput { field: "$.query".to_string() });
 		}
 
 		let top_k = req.top_k.unwrap_or(self.cfg.memory.top_k).max(1);
@@ -603,16 +603,13 @@ impl ElfService {
 		None
 	}
 
-	pub async fn search_explain(
-		&self,
-		req: SearchExplainRequest,
-	) -> ServiceResult<SearchExplainResponse> {
+	pub async fn search_explain(&self, req: SearchExplainRequest) -> Result<SearchExplainResponse> {
 		let tenant_id = req.tenant_id.trim();
 		let project_id = req.project_id.trim();
 		let agent_id = req.agent_id.trim();
 
 		if tenant_id.is_empty() || project_id.is_empty() || agent_id.is_empty() {
-			return Err(ServiceError::InvalidRequest {
+			return Err(Error::InvalidRequest {
 				message: "tenant_id, project_id, and agent_id are required.".to_string(),
 			});
 		}
@@ -651,7 +648,7 @@ WHERE i.item_id = $1 AND t.tenant_id = $2 AND t.project_id = $3 AND t.agent_id =
 		.fetch_optional(&self.db.pool)
 		.await?;
 		let Some(row) = row else {
-			return Err(ServiceError::InvalidRequest {
+			return Err(Error::InvalidRequest {
 				message: "Unknown result_handle or trace not yet persisted.".to_string(),
 			});
 		};
@@ -687,13 +684,13 @@ WHERE i.item_id = $1 AND t.tenant_id = $2 AND t.project_id = $3 AND t.agent_id =
 		Ok(SearchExplainResponse { trace, item })
 	}
 
-	pub async fn trace_get(&self, req: TraceGetRequest) -> ServiceResult<TraceGetResponse> {
+	pub async fn trace_get(&self, req: TraceGetRequest) -> Result<TraceGetResponse> {
 		let tenant_id = req.tenant_id.trim();
 		let project_id = req.project_id.trim();
 		let agent_id = req.agent_id.trim();
 
 		if tenant_id.is_empty() || project_id.is_empty() || agent_id.is_empty() {
-			return Err(ServiceError::InvalidRequest {
+			return Err(Error::InvalidRequest {
 				message: "tenant_id, project_id, and agent_id are required.".to_string(),
 			});
 		}
@@ -725,7 +722,7 @@ WHERE trace_id = $1 AND tenant_id = $2 AND project_id = $3 AND agent_id = $4",
 		.fetch_optional(&self.db.pool)
 		.await?;
 		let Some(row) = row else {
-			return Err(ServiceError::InvalidRequest { message: "Unknown trace_id.".to_string() });
+			return Err(Error::InvalidRequest { message: "Unknown trace_id.".to_string() });
 		};
 
 		let expanded_queries: Vec<String> = decode_json(row.expanded_queries, "expanded_queries")?;
@@ -785,19 +782,19 @@ ORDER BY rank ASC",
 		&self,
 		query: &str,
 		project_context_description: Option<&str>,
-	) -> ServiceResult<Vec<f32>> {
+	) -> Result<Vec<f32>> {
 		let input = build_dense_embedding_input(query, project_context_description);
 		let embeddings = self
 			.providers
 			.embedding
 			.embed(&self.cfg.providers.embedding, slice::from_ref(&input))
 			.await?;
-		let query_vec = embeddings.into_iter().next().ok_or_else(|| ServiceError::Provider {
+		let query_vec = embeddings.into_iter().next().ok_or_else(|| Error::Provider {
 			message: "Embedding provider returned no vectors.".to_string(),
 		})?;
 
 		if query_vec.len() != self.cfg.storage.qdrant.vector_dim as usize {
-			return Err(ServiceError::Provider {
+			return Err(Error::Provider {
 				message: "Embedding vector dimension mismatch.".to_string(),
 			});
 		}
@@ -811,7 +808,7 @@ ORDER BY rank ASC",
 		original_query: &str,
 		baseline_vector: Option<&Vec<f32>>,
 		project_context_description: Option<&str>,
-	) -> ServiceResult<Vec<QueryEmbedding>> {
+	) -> Result<Vec<QueryEmbedding>> {
 		let mut extra_queries = Vec::new();
 		let mut extra_inputs = Vec::new();
 
@@ -833,7 +830,7 @@ ORDER BY rank ASC",
 				.await?;
 
 			if embedded.len() != extra_queries.len() {
-				return Err(ServiceError::Provider {
+				return Err(Error::Provider {
 					message: "Embedding provider returned mismatched vector count.".to_string(),
 				});
 			}
@@ -844,18 +841,18 @@ ORDER BY rank ASC",
 		for query in queries {
 			let vector = if baseline_vector.is_some() && query == original_query {
 				baseline_vector
-					.ok_or_else(|| ServiceError::Provider {
+					.ok_or_else(|| Error::Provider {
 						message: "Embedding baseline vector is missing.".to_string(),
 					})?
 					.clone()
 			} else {
-				embedded_iter.next().ok_or_else(|| ServiceError::Provider {
+				embedded_iter.next().ok_or_else(|| Error::Provider {
 					message: "Embedding provider returned no vectors.".to_string(),
 				})?
 			};
 
 			if vector.len() != self.cfg.storage.qdrant.vector_dim as usize {
-				return Err(ServiceError::Provider {
+				return Err(Error::Provider {
 					message: "Embedding vector dimension mismatch.".to_string(),
 				});
 			}
@@ -869,7 +866,7 @@ ORDER BY rank ASC",
 		queries: &[QueryEmbedding],
 		filter: &Filter,
 		candidate_k: u32,
-	) -> ServiceResult<Vec<ScoredPoint>> {
+	) -> Result<Vec<ScoredPoint>> {
 		let mut search = QueryPointsBuilder::new(self.qdrant.collection.clone());
 
 		for query in queries {
@@ -892,7 +889,7 @@ ORDER BY rank ASC",
 			.client
 			.query(search)
 			.await
-			.map_err(|err| ServiceError::Qdrant { message: err.to_string() })?;
+			.map_err(|err| Error::Qdrant { message: err.to_string() })?;
 		Ok(response.result)
 	}
 
@@ -1063,7 +1060,7 @@ ORDER BY rank ASC",
 		result
 	}
 
-	async fn finish_search(&self, args: FinishSearchArgs<'_>) -> ServiceResult<SearchResponse> {
+	async fn finish_search(&self, args: FinishSearchArgs<'_>) -> Result<SearchResponse> {
 		let FinishSearchArgs {
 			trace_id,
 			query,
@@ -1305,7 +1302,7 @@ ORDER BY rank ASC",
 					self.providers.rerank.rerank(&self.cfg.providers.rerank, query, &docs).await?;
 
 				if scores.len() != snippet_items.len() {
-					return Err(ServiceError::Provider {
+					return Err(Error::Provider {
 						message: "Rerank provider returned mismatched score count.".to_string(),
 					});
 				}
@@ -1463,7 +1460,9 @@ ORDER BY rank ASC",
 		results.truncate(top_k as usize);
 
 		if record_hits_enabled && !results.is_empty() {
-			record_hits(&self.db.pool, query, &results, now).await?;
+			let mut tx = self.db.pool.begin().await?;
+			record_hits(&mut *tx, query, &results, now).await?;
+			tx.commit().await?;
 		}
 
 		let trace_context = TraceContext {
@@ -1978,12 +1977,12 @@ fn match_terms_in_text(
 	(matched_terms, fields)
 }
 
-fn decode_json<T>(value: serde_json::Value, label: &str) -> ServiceResult<T>
+fn decode_json<T>(value: serde_json::Value, label: &str) -> Result<T>
 where
 	T: DeserializeOwned,
 {
 	serde_json::from_value(value)
-		.map_err(|err| ServiceError::Storage { message: format!("Invalid {label} value: {err}") })
+		.map_err(|err| Error::Storage { message: format!("Invalid {label} value: {err}") })
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -2094,7 +2093,7 @@ fn build_config_snapshot(
 fn resolve_blend_policy(
 	cfg: &elf_config::RankingBlend,
 	override_: Option<&BlendRankingOverride>,
-) -> ServiceResult<ResolvedBlendPolicy> {
+) -> Result<ResolvedBlendPolicy> {
 	let enabled = override_.and_then(|value| value.enabled).unwrap_or(cfg.enabled);
 	let rerank_norm = override_
 		.and_then(|value| value.rerank_normalization.as_deref())
@@ -2130,18 +2129,18 @@ fn resolve_blend_policy(
 	Ok(ResolvedBlendPolicy { enabled, rerank_normalization, retrieval_normalization, segments })
 }
 
-fn parse_normalization_kind(value: &str, label: &str) -> ServiceResult<NormalizationKind> {
+fn parse_normalization_kind(value: &str, label: &str) -> Result<NormalizationKind> {
 	match value.trim().to_ascii_lowercase().as_str() {
 		"rank" => Ok(NormalizationKind::Rank),
-		other => Err(ServiceError::InvalidRequest {
+		other => Err(Error::InvalidRequest {
 			message: format!("{label} must be one of: rank. Got {other}."),
 		}),
 	}
 }
 
-fn validate_blend_segments(segments: &[BlendSegment]) -> ServiceResult<()> {
+fn validate_blend_segments(segments: &[BlendSegment]) -> Result<()> {
 	if segments.is_empty() {
-		return Err(ServiceError::InvalidRequest {
+		return Err(Error::InvalidRequest {
 			message: "ranking.blend.segments must be non-empty.".to_string(),
 		});
 	}
@@ -2150,25 +2149,25 @@ fn validate_blend_segments(segments: &[BlendSegment]) -> ServiceResult<()> {
 
 	for (idx, segment) in segments.iter().enumerate() {
 		if segment.max_retrieval_rank == 0 {
-			return Err(ServiceError::InvalidRequest {
+			return Err(Error::InvalidRequest {
 				message: "ranking.blend.segments.max_retrieval_rank must be greater than zero."
 					.to_string(),
 			});
 		}
 		if idx > 0 && segment.max_retrieval_rank <= last_max {
-			return Err(ServiceError::InvalidRequest {
+			return Err(Error::InvalidRequest {
 				message: "ranking.blend.segments.max_retrieval_rank must be strictly increasing."
 					.to_string(),
 			});
 		}
 		if !segment.retrieval_weight.is_finite() {
-			return Err(ServiceError::InvalidRequest {
+			return Err(Error::InvalidRequest {
 				message: "ranking.blend.segments.retrieval_weight must be a finite number."
 					.to_string(),
 			});
 		}
 		if !(0.0..=1.0).contains(&segment.retrieval_weight) {
-			return Err(ServiceError::InvalidRequest {
+			return Err(Error::InvalidRequest {
 				message: "ranking.blend.segments.retrieval_weight must be in the range 0.0-1.0."
 					.to_string(),
 			});
@@ -2252,12 +2251,12 @@ fn cmp_f32_desc(a: f32, b: f32) -> std::cmp::Ordering {
 	}
 }
 
-fn resolve_scopes(cfg: &elf_config::Config, profile: &str) -> ServiceResult<Vec<String>> {
+fn resolve_scopes(cfg: &elf_config::Config, profile: &str) -> Result<Vec<String>> {
 	match profile {
 		"private_only" => Ok(cfg.scopes.read_profiles.private_only.clone()),
 		"private_plus_project" => Ok(cfg.scopes.read_profiles.private_plus_project.clone()),
 		"all_scopes" => Ok(cfg.scopes.read_profiles.all_scopes.clone()),
-		_ => Err(ServiceError::InvalidRequest { message: "Unknown read_profile.".to_string() }),
+		_ => Err(Error::InvalidRequest { message: "Unknown read_profile.".to_string() }),
 	}
 }
 
@@ -2315,8 +2314,8 @@ fn hash_query(query: &str) -> String {
 	format!("{:x}", hasher.finish())
 }
 
-fn hash_cache_key(payload: &serde_json::Value) -> ServiceResult<String> {
-	let raw = serde_json::to_vec(payload).map_err(|err| ServiceError::Storage {
+fn hash_cache_key(payload: &serde_json::Value) -> Result<String> {
+	let raw = serde_json::to_vec(payload).map_err(|err| Error::Storage {
 		message: format!("Failed to encode cache key payload: {err}"),
 	})?;
 
@@ -2335,7 +2334,7 @@ fn build_expansion_cache_key(
 	provider_id: &str,
 	model: &str,
 	temperature: f32,
-) -> ServiceResult<String> {
+) -> Result<String> {
 	let payload = serde_json::json!({
 		"kind": "expansion",
 		"schema_version": EXPANSION_CACHE_SCHEMA_VERSION,
@@ -2354,7 +2353,7 @@ fn build_rerank_cache_key(
 	provider_id: &str,
 	model: &str,
 	candidates: &[(Uuid, OffsetDateTime)],
-) -> ServiceResult<String> {
+) -> Result<String> {
 	let signature: Vec<serde_json::Value> = candidates
 		.iter()
 		.map(|(chunk_id, updated_at)| {
@@ -2407,10 +2406,10 @@ fn build_cached_scores(
 	Some(out)
 }
 
-async fn fetch_chunks_by_pair(
-	pool: &sqlx::PgPool,
-	pairs: &[(Uuid, i32)],
-) -> ServiceResult<Vec<ChunkRow>> {
+async fn fetch_chunks_by_pair<'e, E>(executor: E, pairs: &[(Uuid, i32)]) -> Result<Vec<ChunkRow>>
+where
+	E: PgExecutor<'e>,
+{
 	if pairs.is_empty() {
 		return Ok(Vec::new());
 	}
@@ -2432,14 +2431,17 @@ async fn fetch_chunks_by_pair(
 	}
 
 	let query = builder.build_query_as();
-	let rows = query.fetch_all(pool).await?;
+	let rows = query.fetch_all(executor).await?;
 
 	Ok(rows)
 }
 
-async fn enqueue_trace(pool: &sqlx::PgPool, payload: TracePayload) -> ServiceResult<()> {
+async fn enqueue_trace<'e, E>(executor: E, payload: TracePayload) -> Result<()>
+where
+	E: PgExecutor<'e>,
+{
 	let now = OffsetDateTime::now_utc();
-	let payload_json = serde_json::to_value(&payload).map_err(|err| ServiceError::Storage {
+	let payload_json = serde_json::to_value(&payload).map_err(|err| Error::Storage {
 		message: format!("Failed to encode search trace payload: {err}"),
 	})?;
 
@@ -2462,112 +2464,148 @@ async fn enqueue_trace(pool: &sqlx::PgPool, payload: TracePayload) -> ServiceRes
 		now,
 		payload_json,
 	)
-	.execute(pool)
+	.execute(executor)
 	.await?;
 
 	Ok(())
 }
 
-async fn record_hits(
-	pool: &sqlx::PgPool,
+async fn record_hits<'e, E>(
+	executor: E,
 	query: &str,
 	scored: &[ScoredChunk],
 	now: OffsetDateTime,
-) -> ServiceResult<()> {
-	let query_hash = hash_query(query);
-
-	let mut tx = pool.begin().await?;
-
-	for (rank, scored_chunk) in scored.iter().enumerate() {
-		let note = &scored_chunk.item.note;
-
-		sqlx::query!(
-			"UPDATE memory_notes SET hit_count = hit_count + 1, last_hit_at = $1 WHERE note_id = $2",
-			now,
-			note.note_id,
-		)
-		.execute(&mut *tx)
-		.await?;
-		sqlx::query!(
-			"\
-		INSERT INTO memory_hits (
-			hit_id,
-			note_id,
-		chunk_id,
-		query_hash,
-		rank,
-		final_score,
-			ts
-		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)",
-			Uuid::new_v4(),
-			note.note_id,
-			scored_chunk.item.chunk.chunk_id,
-			&query_hash,
-			rank as i32,
-			scored_chunk.final_score,
-			now,
-		)
-		.execute(&mut *tx)
-		.await?;
+) -> Result<()>
+where
+	E: PgExecutor<'e>,
+{
+	if scored.is_empty() {
+		return Ok(());
 	}
 
-	tx.commit().await?;
+	let query_hash = hash_query(query);
+	let mut hit_ids = Vec::with_capacity(scored.len());
+	let mut note_ids = Vec::with_capacity(scored.len());
+	let mut chunk_ids = Vec::with_capacity(scored.len());
+	let mut ranks = Vec::with_capacity(scored.len());
+	let mut final_scores = Vec::with_capacity(scored.len());
+
+	for (rank, scored_chunk) in scored.iter().enumerate() {
+		hit_ids.push(Uuid::new_v4());
+		note_ids.push(scored_chunk.item.note.note_id);
+		chunk_ids.push(scored_chunk.item.chunk.chunk_id);
+		ranks.push(rank as i32);
+		final_scores.push(scored_chunk.final_score);
+	}
+
+	sqlx::query!(
+		"\
+WITH hits AS (
+	SELECT *
+	FROM unnest(
+		$1::uuid[],
+		$2::uuid[],
+		$3::uuid[],
+		$4::int4[],
+		$5::real[]
+	) AS t(hit_id, note_id, chunk_id, rank, final_score)
+),
+updated AS (
+	UPDATE memory_notes
+	SET
+		hit_count = hit_count + 1,
+		last_hit_at = $6
+	WHERE note_id = ANY($2)
+)
+INSERT INTO memory_hits (
+	hit_id,
+	note_id,
+	chunk_id,
+	query_hash,
+	rank,
+	final_score,
+	ts
+)
+SELECT
+	hit_id,
+	note_id,
+	chunk_id,
+	$7,
+	rank,
+	final_score,
+	$6
+FROM hits",
+		&hit_ids,
+		&note_ids,
+		&chunk_ids,
+		&ranks,
+		&final_scores,
+		now,
+		query_hash.as_str(),
+	)
+	.execute(executor)
+	.await?;
 
 	Ok(())
 }
 
-async fn fetch_cache_payload(
-	pool: &sqlx::PgPool,
+async fn fetch_cache_payload<'e, E>(
+	executor: E,
 	kind: CacheKind,
 	key: &str,
 	now: OffsetDateTime,
-) -> ServiceResult<Option<CachePayload>> {
-	let payload = sqlx::query_scalar!(
-		"SELECT payload FROM llm_cache WHERE cache_kind = $1 AND cache_key = $2 AND expires_at > $3",
+) -> Result<Option<CachePayload>>
+where
+	E: PgExecutor<'e>,
+{
+	let row = sqlx::query!(
+		"\
+WITH updated AS (
+	UPDATE llm_cache
+	SET
+		last_accessed_at = $3,
+		hit_count = hit_count + 1
+	WHERE
+		cache_kind = $1
+		AND cache_key = $2
+		AND expires_at > $3
+	RETURNING payload
+)
+SELECT payload
+FROM updated",
 		kind.as_str(),
 		key,
 		now,
 	)
-	.fetch_optional(pool)
+	.fetch_optional(executor)
 	.await?;
-	let Some(payload) = payload else {
+	let Some(row) = row else {
 		return Ok(None);
 	};
+	let payload = row.payload;
 
 	let size_bytes = serde_json::to_vec(&payload)
-		.map_err(|err| ServiceError::Storage {
+		.map_err(|err| Error::Storage {
 			message: format!("Failed to encode cache payload: {err}"),
 		})?
 		.len();
 
-	sqlx::query!(
-		"\
-		UPDATE llm_cache
-		SET
-			last_accessed_at = $1,
-			hit_count = hit_count + 1
-		WHERE cache_kind = $2 AND cache_key = $3",
-		now,
-		kind.as_str(),
-		key,
-	)
-	.execute(pool)
-	.await?;
-
 	Ok(Some(CachePayload { value: payload, size_bytes }))
 }
 
-async fn store_cache_payload(
-	pool: &sqlx::PgPool,
+async fn store_cache_payload<'e, E>(
+	executor: E,
 	kind: CacheKind,
 	key: &str,
 	payload: serde_json::Value,
 	now: OffsetDateTime,
 	expires_at: OffsetDateTime,
 	max_payload_bytes: Option<u64>,
-) -> ServiceResult<Option<usize>> {
-	let payload_bytes = serde_json::to_vec(&payload).map_err(|err| ServiceError::Storage {
+) -> Result<Option<usize>>
+where
+	E: PgExecutor<'e>,
+{
+	let payload_bytes = serde_json::to_vec(&payload).map_err(|err| Error::Storage {
 		message: format!("Failed to encode cache payload: {err}"),
 	})?;
 	let payload_size = payload_bytes.len();
@@ -2603,7 +2641,7 @@ async fn store_cache_payload(
 		now,
 		expires_at,
 	)
-	.execute(pool)
+	.execute(executor)
 	.await?;
 
 	Ok(Some(payload_size))

@@ -4,8 +4,8 @@ name    = "elf-testkit"
 version = "0.1.0"
 
 [dependencies]
-color-eyre    = { workspace = true }
 qdrant-client = { workspace = true }
 sqlx          = { workspace = true }
+thiserror     = { workspace = true }
 tokio         = { workspace = true }
 uuid          = { workspace = true }

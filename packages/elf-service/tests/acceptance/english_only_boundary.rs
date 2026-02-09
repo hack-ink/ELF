@@ -1,8 +1,8 @@
 use std::sync::{Arc, atomic::AtomicUsize};
 
 use elf_service::{
-	AddEventRequest, AddNoteInput, AddNoteRequest, ElfService, EventMessage, Providers,
-	SearchRequest, ServiceError,
+	AddEventRequest, AddNoteInput, AddNoteRequest, ElfService, Error, EventMessage, Providers,
+	SearchRequest,
 };
 
 use super::{
@@ -67,7 +67,7 @@ async fn rejects_cjk_in_add_note() {
 	let result = service.add_note(request).await;
 
 	match result {
-		Err(ServiceError::NonEnglishInput { field }) => {
+		Err(Error::NonEnglishInput { field }) => {
 			assert_eq!(field, "$.notes[0].text");
 		},
 		other => panic!("Expected NonEnglishInput, got {other:?}"),
@@ -110,7 +110,7 @@ async fn rejects_cjk_in_add_event() {
 	let result = service.add_event(request).await;
 
 	match result {
-		Err(ServiceError::NonEnglishInput { field }) => {
+		Err(Error::NonEnglishInput { field }) => {
 			assert_eq!(field, "$.messages[0].content");
 		},
 		other => panic!("Expected NonEnglishInput, got {other:?}"),
@@ -151,7 +151,7 @@ async fn rejects_cjk_in_search() {
 	let result = service.search(request).await;
 
 	match result {
-		Err(ServiceError::NonEnglishInput { field }) => {
+		Err(Error::NonEnglishInput { field }) => {
 			assert_eq!(field, "$.query");
 		},
 		other => panic!("Expected NonEnglishInput, got {other:?}"),

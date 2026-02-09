@@ -1,8 +1,9 @@
 use std::time::Duration;
 
-use color_eyre::{Result, eyre};
 use reqwest::Client;
 use serde_json::Value;
+
+use crate::{Error, Result};
 
 pub async fn embed(
 	cfg: &elf_config::EmbeddingProviderConfig,
@@ -87,10 +88,9 @@ fn l2_normalize(vec: &mut [f32]) {
 }
 
 fn parse_embedding_response(json: Value) -> Result<Vec<Vec<f32>>> {
-	let data = json
-		.get("data")
-		.and_then(|v| v.as_array())
-		.ok_or_else(|| eyre::eyre!("Embedding response is missing data array."))?;
+	let data = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
+		Error::InvalidResponse { message: "Embedding response is missing data array.".to_string() }
+	})?;
 
 	let mut indexed: Vec<(usize, Vec<f32>)> = Vec::with_capacity(data.len());
 	for (fallback_index, item) in data.iter().enumerate() {
@@ -99,14 +99,16 @@ fn parse_embedding_response(json: Value) -> Result<Vec<Vec<f32>>> {
 			.and_then(|v| v.as_u64())
 			.map(|v| v as usize)
 			.unwrap_or(fallback_index);
-		let embedding = item
-			.get("embedding")
-			.and_then(|v| v.as_array())
-			.ok_or_else(|| eyre::eyre!("Embedding item missing embedding array."))?;
+		let embedding = item.get("embedding").and_then(|v| v.as_array()).ok_or_else(|| {
+			Error::InvalidResponse {
+				message: "Embedding item missing embedding array.".to_string(),
+			}
+		})?;
 		let mut vec = Vec::with_capacity(embedding.len());
 		for value in embedding {
-			let number =
-				value.as_f64().ok_or_else(|| eyre::eyre!("Embedding value must be numeric."))?;
+			let number = value.as_f64().ok_or_else(|| Error::InvalidResponse {
+				message: "Embedding value must be numeric.".to_string(),
+			})?;
 			vec.push(number as f32);
 		}
 		indexed.push((index, vec));

@@ -21,15 +21,15 @@ mod acceptance {
 		time::Duration,
 	};
 
-	use color_eyre::eyre;
 	use qdrant_client::{
-		Qdrant,
+		Qdrant, QdrantError,
 		qdrant::{
 			CreateCollectionBuilder, Distance, Modifier, SparseVectorParamsBuilder,
 			SparseVectorsConfigBuilder, VectorParamsBuilder, VectorsConfigBuilder,
 		},
 	};
 	use serde_json::{Map, Value};
+	use sqlx::PgExecutor;
 	use tokio::time;
 
 	use elf_service::{
@@ -41,6 +41,20 @@ mod acceptance {
 	};
 	use elf_testkit::TestDatabase;
 
+	#[derive(Debug, thiserror::Error)]
+	enum TestError {
+		#[error(transparent)]
+		Storage(#[from] elf_storage::Error),
+		#[error(transparent)]
+		Sqlx(#[from] sqlx::Error),
+		#[error(transparent)]
+		Qdrant(#[from] QdrantError),
+		#[error("{0}")]
+		Message(String),
+	}
+
+	type TestResult<T> = Result<T, TestError>;
+
 	pub struct StubEmbedding {
 		pub vector_dim: u32,
 	}
@@ -50,7 +64,7 @@ mod acceptance {
 			&'a self,
 			_cfg: &'a elf_config::EmbeddingProviderConfig,
 			texts: &'a [String],
-		) -> elf_service::BoxFuture<'a, color_eyre::Result<Vec<Vec<f32>>>> {
+		) -> elf_service::BoxFuture<'a, elf_service::Result<Vec<Vec<f32>>>> {
 			let dim = self.vector_dim as usize;
 			let vectors = texts.iter().map(|_| vec![0.0; dim]).collect();
 
@@ -68,7 +82,7 @@ mod acceptance {
 			&'a self,
 			_cfg: &'a elf_config::EmbeddingProviderConfig,
 			texts: &'a [String],
-		) -> elf_service::BoxFuture<'a, color_eyre::Result<Vec<Vec<f32>>>> {
+		) -> elf_service::BoxFuture<'a, elf_service::Result<Vec<Vec<f32>>>> {
 			self.calls.fetch_add(1, Ordering::SeqCst);
 			let dim = self.vector_dim as usize;
 			let vectors = texts.iter().map(|_| vec![0.0; dim]).collect();
@@ -85,7 +99,7 @@ mod acceptance {
 			_cfg: &'a elf_config::ProviderConfig,
 			_query: &'a str,
 			docs: &'a [String],
-		) -> elf_service::BoxFuture<'a, color_eyre::Result<Vec<f32>>> {
+		) -> elf_service::BoxFuture<'a, elf_service::Result<Vec<f32>>> {
 			let scores = vec![0.5; docs.len()];
 
 			Box::pin(async move { Ok(scores) })
@@ -102,7 +116,7 @@ mod acceptance {
 			&'a self,
 			_cfg: &'a elf_config::LlmProviderConfig,
 			_messages: &'a [Value],
-		) -> elf_service::BoxFuture<'a, color_eyre::Result<Value>> {
+		) -> elf_service::BoxFuture<'a, elf_service::Result<Value>> {
 			let payload = self.payload.clone();
 			self.calls.fetch_add(1, Ordering::SeqCst);
 			Box::pin(async move { Ok(payload) })
@@ -271,11 +285,11 @@ mod acceptance {
 		Some(db)
 	}
 
-	pub async fn reset_qdrant_collection(
+	async fn reset_qdrant_collection(
 		client: &Qdrant,
 		collection: &str,
 		vector_dim: u32,
-	) -> color_eyre::Result<()> {
+	) -> TestResult<()> {
 		let max_attempts = 8;
 
 		let mut backoff = Duration::from_millis(100);
@@ -313,15 +327,15 @@ mod acceptance {
 			}
 		}
 
-		Err(eyre::eyre!(
+		Err(TestError::Message(format!(
 			"Failed to create Qdrant collection {collection:?} after {max_attempts} attempts: {last_err:?}."
-		))
+		)))
 	}
 
-	pub async fn build_service(
+	async fn build_service(
 		cfg: elf_config::Config,
 		providers: Providers,
-	) -> color_eyre::Result<ElfService> {
+	) -> TestResult<ElfService> {
 		let db = Db::connect(&cfg.storage.postgres).await?;
 
 		db.ensure_schema(cfg.storage.qdrant.vector_dim).await?;
@@ -330,14 +344,17 @@ mod acceptance {
 		Ok(ElfService::with_providers(cfg, db, qdrant, providers))
 	}
 
-	pub async fn reset_db(pool: &sqlx::PgPool) -> color_eyre::Result<()> {
+	async fn reset_db<'e, E>(executor: E) -> TestResult<()>
+	where
+		E: PgExecutor<'e>,
+	{
 		sqlx::query(
 			"\
-TRUNCATE memory_hits, memory_note_versions, note_chunk_embeddings, memory_note_chunks, \
-note_embeddings, search_trace_items, search_traces, search_trace_outbox, search_sessions, \
+		TRUNCATE memory_hits, memory_note_versions, note_chunk_embeddings, memory_note_chunks, \
+		note_embeddings, search_trace_items, search_traces, search_trace_outbox, search_sessions, \
 indexing_outbox, memory_notes",
 		)
-		.execute(pool)
+		.execute(executor)
 		.await?;
 
 		Ok(())

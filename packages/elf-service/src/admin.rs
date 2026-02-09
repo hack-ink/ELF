@@ -7,7 +7,7 @@ use qdrant_client::{
 use serde_json::Value;
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
-use crate::{ElfService, ServiceError, ServiceResult};
+use crate::{ElfService, Error, Result};
 use elf_storage::qdrant::{BM25_MODEL, BM25_VECTOR_NAME, DENSE_VECTOR_NAME};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -42,7 +42,7 @@ struct RebuildRow {
 }
 
 impl ElfService {
-	pub async fn rebuild_qdrant(&self) -> ServiceResult<RebuildReport> {
+	pub async fn rebuild_qdrant(&self) -> Result<RebuildReport> {
 		let now = OffsetDateTime::now_utc();
 		let rows: Vec<RebuildRow> = sqlx::query_as!(
 			RebuildRow,
@@ -149,8 +149,7 @@ WHERE n.status = 'active' AND (n.expires_at IS NULL OR n.expires_at > $1)",
 	}
 }
 
-fn format_timestamp(ts: OffsetDateTime) -> ServiceResult<String> {
-	ts.format(&Rfc3339).map_err(|_| ServiceError::InvalidRequest {
-		message: "Failed to format timestamp.".to_string(),
-	})
+fn format_timestamp(ts: OffsetDateTime) -> Result<String> {
+	ts.format(&Rfc3339)
+		.map_err(|_| Error::InvalidRequest { message: "Failed to format timestamp.".to_string() })
 }

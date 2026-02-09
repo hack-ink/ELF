@@ -15,12 +15,11 @@ use uuid::Uuid;
 use crate::state::AppState;
 use elf_service::{
 	AddEventRequest, AddEventResponse, AddNoteInput, AddNoteRequest, AddNoteResponse,
-	DeleteRequest, DeleteResponse, EventMessage, ListRequest, ListResponse, NoteFetchRequest,
-	NoteFetchResponse, RankingRequestOverride, RebuildReport, SearchDetailsRequest,
-	SearchDetailsResult, SearchExplainRequest, SearchExplainResponse, SearchIndexItem,
-	SearchRequest, SearchResponse, SearchSessionGetRequest, SearchTimelineGroup,
-	SearchTimelineRequest, ServiceError, TraceGetRequest, TraceGetResponse, UpdateRequest,
-	UpdateResponse,
+	DeleteRequest, DeleteResponse, Error, EventMessage, ListRequest, ListResponse,
+	NoteFetchRequest, NoteFetchResponse, RankingRequestOverride, RebuildReport,
+	SearchDetailsRequest, SearchDetailsResult, SearchExplainRequest, SearchExplainResponse,
+	SearchIndexItem, SearchRequest, SearchResponse, SearchSessionGetRequest, SearchTimelineGroup,
+	SearchTimelineRequest, TraceGetRequest, TraceGetResponse, UpdateRequest, UpdateResponse,
 };
 
 const HEADER_TENANT_ID: &str = "X-ELF-Tenant-Id";
@@ -160,20 +159,20 @@ impl ApiError {
 		Self { status, error_code: error_code.into(), message: message.into(), fields }
 	}
 }
-impl From<ServiceError> for ApiError {
-	fn from(err: ServiceError) -> Self {
+impl From<Error> for ApiError {
+	fn from(err: Error) -> Self {
 		match err {
-			ServiceError::NonEnglishInput { field } => json_error(
+			Error::NonEnglishInput { field } => json_error(
 				StatusCode::UNPROCESSABLE_ENTITY,
 				"NON_ENGLISH_INPUT",
 				"CJK detected; upstream must canonicalize to English before calling ELF.",
 				Some(vec![field]),
 			),
-			ServiceError::InvalidRequest { message } =>
+			Error::InvalidRequest { message } =>
 				json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", message, None),
-			ServiceError::ScopeDenied { message } =>
+			Error::ScopeDenied { message } =>
 				json_error(StatusCode::FORBIDDEN, "SCOPE_DENIED", message, None),
-			ServiceError::Provider { message } => {
+			Error::Provider { message } => {
 				let sanitized = sanitize_log_text(message.as_str());
 
 				tracing::error!(error = %sanitized, "Provider error.");
@@ -185,7 +184,7 @@ impl From<ServiceError> for ApiError {
 					None,
 				)
 			},
-			ServiceError::Storage { message } => {
+			Error::Storage { message } => {
 				let sanitized = sanitize_log_text(message.as_str());
 
 				tracing::error!(error = %sanitized, "Storage error.");
@@ -197,7 +196,7 @@ impl From<ServiceError> for ApiError {
 					None,
 				)
 			},
-			ServiceError::Qdrant { message } => {
+			Error::Qdrant { message } => {
 				let sanitized = sanitize_log_text(message.as_str());
 
 				tracing::error!(error = %sanitized, "Qdrant error.");

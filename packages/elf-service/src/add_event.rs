@@ -6,8 +6,8 @@ use elf_domain::{cjk, evidence, ttl, writegate};
 use elf_storage::models::MemoryNote;
 
 use crate::{
-	ElfService, InsertVersionArgs, NoteOp, REJECT_EVIDENCE_MISMATCH, ResolveUpdateArgs,
-	ServiceError, ServiceResult, UpdateDecision,
+	ElfService, Error, InsertVersionArgs, NoteOp, REJECT_EVIDENCE_MISMATCH, ResolveUpdateArgs,
+	Result, UpdateDecision,
 };
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -68,33 +68,29 @@ struct EvidenceQuote {
 }
 
 impl ElfService {
-	pub async fn add_event(&self, req: AddEventRequest) -> ServiceResult<AddEventResponse> {
+	pub async fn add_event(&self, req: AddEventRequest) -> Result<AddEventResponse> {
 		if req.messages.is_empty() {
-			return Err(ServiceError::InvalidRequest {
-				message: "Messages list is empty.".to_string(),
-			});
+			return Err(Error::InvalidRequest { message: "Messages list is empty.".to_string() });
 		}
 		if req.tenant_id.trim().is_empty()
 			|| req.project_id.trim().is_empty()
 			|| req.agent_id.trim().is_empty()
 		{
-			return Err(ServiceError::InvalidRequest {
+			return Err(Error::InvalidRequest {
 				message: "tenant_id, project_id, and agent_id are required.".to_string(),
 			});
 		}
 		if let Some(scope) = req.scope.as_ref()
 			&& scope.trim().is_empty()
 		{
-			return Err(ServiceError::InvalidRequest {
+			return Err(Error::InvalidRequest {
 				message: "scope must not be empty when provided.".to_string(),
 			});
 		}
 
 		for (idx, msg) in req.messages.iter().enumerate() {
 			if cjk::contains_cjk(&msg.content) {
-				return Err(ServiceError::NonEnglishInput {
-					field: format!("$.messages[{idx}].content"),
-				});
+				return Err(Error::NonEnglishInput { field: format!("$.messages[{idx}].content") });
 			}
 		}
 
@@ -111,7 +107,7 @@ impl ElfService {
 			.await?;
 
 		let mut extracted: ExtractorOutput = serde_json::from_value(extracted_raw.clone())
-			.map_err(|_| ServiceError::InvalidRequest {
+			.map_err(|_| Error::InvalidRequest {
 				message: "Extractor output is missing notes array.".to_string(),
 			})?;
 
@@ -120,10 +116,9 @@ impl ElfService {
 			extracted.notes.truncate(max_notes);
 		}
 
-		let extracted_json =
-			serde_json::to_value(&extracted).map_err(|_| ServiceError::InvalidRequest {
-				message: "Failed to serialize extracted notes.".to_string(),
-			})?;
+		let extracted_json = serde_json::to_value(&extracted).map_err(|_| {
+			Error::InvalidRequest { message: "Failed to serialize extracted notes.".to_string() }
+		})?;
 
 		let now = OffsetDateTime::now_utc();
 		let embed_version = crate::embedding_version(&self.cfg);
@@ -193,7 +188,7 @@ impl ElfService {
 			let expires_at = ttl::compute_expires_at(ttl_days, &note_type, &self.cfg, now);
 			let mut tx = self.db.pool.begin().await?;
 			let decision = crate::resolve_update(
-				&mut tx,
+				&mut *tx,
 				ResolveUpdateArgs {
 					cfg: &self.cfg,
 					providers: &self.providers,
@@ -318,7 +313,7 @@ impl ElfService {
 					.await?;
 
 					crate::insert_version(
-						&mut tx,
+						&mut *tx,
 						InsertVersionArgs {
 							note_id: memory_note.note_id,
 							op: "ADD",
@@ -331,7 +326,7 @@ impl ElfService {
 					)
 					.await?;
 					crate::enqueue_outbox_tx(
-						&mut tx,
+						&mut *tx,
 						memory_note.note_id,
 						"UPSERT",
 						&memory_note.embedding_version,
@@ -387,7 +382,7 @@ impl ElfService {
 					.await?;
 
 					crate::insert_version(
-						&mut tx,
+						&mut *tx,
 						InsertVersionArgs {
 							note_id: existing.note_id,
 							op: "UPDATE",
@@ -400,7 +395,7 @@ impl ElfService {
 					)
 					.await?;
 					crate::enqueue_outbox_tx(
-						&mut tx,
+						&mut *tx,
 						existing.note_id,
 						"UPSERT",
 						&existing.embedding_version,
@@ -436,7 +431,7 @@ fn build_extractor_messages(
 	messages: &[EventMessage],
 	max_notes: u32,
 	max_note_chars: u32,
-) -> ServiceResult<Vec<Value>> {
+) -> Result<Vec<Value>> {
 	let schema = serde_json::json!({
 		"notes": [
 			{
@@ -465,10 +460,9 @@ For every note, provide 1 to 2 evidence quotes copied verbatim from the input me
 If you cannot provide verbatim evidence, omit the note. \
 If content is ephemeral or not useful long-term, return an empty notes array.";
 
-	let messages_json =
-		serde_json::to_string(messages).map_err(|_| ServiceError::InvalidRequest {
-			message: "Failed to serialize messages for extractor.".to_string(),
-		})?;
+	let messages_json = serde_json::to_string(messages).map_err(|_| Error::InvalidRequest {
+		message: "Failed to serialize messages for extractor.".to_string(),
+	})?;
 
 	let user_prompt = format!(
 		"Return JSON matching this exact schema:\n{schema}\nConstraints:\n- MAX_NOTES = {max_notes}\n- MAX_NOTE_CHARS = {max_note_chars}\nHere are the messages as JSON:\n{messages_json}"

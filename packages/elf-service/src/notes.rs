@@ -2,7 +2,7 @@ use serde_json::Value;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::{ElfService, ServiceError, ServiceResult};
+use crate::{ElfService, Error, Result};
 use elf_storage::models::MemoryNote;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -35,14 +35,14 @@ pub struct NoteFetchResponse {
 }
 
 impl ElfService {
-	pub async fn get_note(&self, req: NoteFetchRequest) -> ServiceResult<NoteFetchResponse> {
+	pub async fn get_note(&self, req: NoteFetchRequest) -> Result<NoteFetchResponse> {
 		let now = OffsetDateTime::now_utc();
 		let tenant_id = req.tenant_id.trim();
 		let project_id = req.project_id.trim();
 		let agent_id = req.agent_id.trim();
 
 		if tenant_id.is_empty() || project_id.is_empty() || agent_id.is_empty() {
-			return Err(ServiceError::InvalidRequest {
+			return Err(Error::InvalidRequest {
 				message: "tenant_id, project_id, and agent_id are required.".to_string(),
 			});
 		}
@@ -57,20 +57,20 @@ impl ElfService {
 		.fetch_optional(&self.db.pool)
 		.await?;
 		let Some(note) = row else {
-			return Err(ServiceError::InvalidRequest { message: "Note not found.".to_string() });
+			return Err(Error::InvalidRequest { message: "Note not found.".to_string() });
 		};
 
 		if note.scope == "agent_private" && note.agent_id != agent_id {
-			return Err(ServiceError::InvalidRequest { message: "Note not found.".to_string() });
+			return Err(Error::InvalidRequest { message: "Note not found.".to_string() });
 		}
 		if !note.status.eq_ignore_ascii_case("active") {
-			return Err(ServiceError::InvalidRequest { message: "Note not found.".to_string() });
+			return Err(Error::InvalidRequest { message: "Note not found.".to_string() });
 		}
 
 		if let Some(expires_at) = note.expires_at
 			&& expires_at <= now
 		{
-			return Err(ServiceError::InvalidRequest { message: "Note not found.".to_string() });
+			return Err(Error::InvalidRequest { message: "Note not found.".to_string() });
 		}
 
 		Ok(NoteFetchResponse {

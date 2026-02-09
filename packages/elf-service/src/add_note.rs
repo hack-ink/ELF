@@ -6,8 +6,7 @@ use elf_domain::{cjk, ttl, writegate};
 use elf_storage::models::MemoryNote;
 
 use crate::{
-	ElfService, InsertVersionArgs, NoteOp, ResolveUpdateArgs, ServiceError, ServiceResult,
-	UpdateDecision,
+	ElfService, Error, InsertVersionArgs, NoteOp, ResolveUpdateArgs, Result, UpdateDecision,
 };
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -44,37 +43,33 @@ pub struct AddNoteResponse {
 }
 
 impl ElfService {
-	pub async fn add_note(&self, req: AddNoteRequest) -> ServiceResult<AddNoteResponse> {
+	pub async fn add_note(&self, req: AddNoteRequest) -> Result<AddNoteResponse> {
 		if req.notes.is_empty() {
-			return Err(ServiceError::InvalidRequest {
-				message: "Notes list is empty.".to_string(),
-			});
+			return Err(Error::InvalidRequest { message: "Notes list is empty.".to_string() });
 		}
 		if req.tenant_id.trim().is_empty()
 			|| req.project_id.trim().is_empty()
 			|| req.agent_id.trim().is_empty()
 			|| req.scope.trim().is_empty()
 		{
-			return Err(ServiceError::InvalidRequest {
+			return Err(Error::InvalidRequest {
 				message: "tenant_id, project_id, agent_id, and scope are required.".to_string(),
 			});
 		}
 
 		for (idx, note) in req.notes.iter().enumerate() {
 			if cjk::contains_cjk(&note.text) {
-				return Err(ServiceError::NonEnglishInput {
-					field: format!("$.notes[{idx}].text"),
-				});
+				return Err(Error::NonEnglishInput { field: format!("$.notes[{idx}].text") });
 			}
 			if let Some(key) = &note.key
 				&& cjk::contains_cjk(key)
 			{
-				return Err(ServiceError::NonEnglishInput { field: format!("$.notes[{idx}].key") });
+				return Err(Error::NonEnglishInput { field: format!("$.notes[{idx}].key") });
 			}
 			if let Some(path) =
 				find_cjk_path(&note.source_ref, &format!("$.notes[{idx}].source_ref"))
 			{
-				return Err(ServiceError::NonEnglishInput { field: path });
+				return Err(Error::NonEnglishInput { field: path });
 			}
 		}
 
@@ -101,7 +96,7 @@ impl ElfService {
 
 			let mut tx = self.db.pool.begin().await?;
 			let decision = crate::resolve_update(
-				&mut tx,
+				&mut *tx,
 				ResolveUpdateArgs {
 					cfg: &self.cfg,
 					providers: &self.providers,
@@ -207,7 +202,7 @@ impl ElfService {
 					.await?;
 
 					crate::insert_version(
-						&mut tx,
+						&mut *tx,
 						InsertVersionArgs {
 							note_id: memory_note.note_id,
 							op: "ADD",
@@ -220,7 +215,7 @@ impl ElfService {
 					)
 					.await?;
 					crate::enqueue_outbox_tx(
-						&mut tx,
+						&mut *tx,
 						memory_note.note_id,
 						"UPSERT",
 						&memory_note.embedding_version,
@@ -308,7 +303,7 @@ impl ElfService {
 					.await?;
 
 					crate::insert_version(
-						&mut tx,
+						&mut *tx,
 						InsertVersionArgs {
 							note_id: existing.note_id,
 							op: "UPDATE",
@@ -321,7 +316,7 @@ impl ElfService {
 					)
 					.await?;
 					crate::enqueue_outbox_tx(
-						&mut tx,
+						&mut *tx,
 						existing.note_id,
 						"UPSERT",
 						&existing.embedding_version,

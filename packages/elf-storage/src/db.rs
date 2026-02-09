@@ -1,7 +1,6 @@
-use color_eyre::Result;
 use sqlx::postgres::PgPoolOptions;
 
-use crate::schema;
+use crate::{Result, schema};
 
 pub struct Db {
 	pub pool: sqlx::PgPool,
