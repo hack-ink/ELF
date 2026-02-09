@@ -192,6 +192,20 @@ pub struct SearchCache {
 #[derive(Debug, Deserialize)]
 pub struct SearchExplain {
 	pub retention_days: i64,
+	#[serde(default)]
+	pub capture_candidates: bool,
+	#[serde(default = "default_candidate_retention_days")]
+	pub candidate_retention_days: i64,
+	#[serde(default = "default_explain_write_mode")]
+	pub write_mode: String,
+}
+
+fn default_candidate_retention_days() -> i64 {
+	2
+}
+
+fn default_explain_write_mode() -> String {
+	"outbox".to_string()
 }
 
 #[derive(Debug, Deserialize)]

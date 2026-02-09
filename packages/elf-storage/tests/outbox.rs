@@ -1,5 +1,6 @@
 use uuid::Uuid;
 
+use elf_config::Postgres;
 use elf_storage::{db::Db, outbox};
 use elf_testkit::TestDatabase;
 
@@ -12,7 +13,7 @@ async fn enqueues_outbox_job() {
 		return;
 	};
 	let test_db = TestDatabase::new(&base_dsn).await.expect("Failed to create test database.");
-	let cfg = elf_config::Postgres { dsn: test_db.dsn().to_string(), pool_max_conns: 1 };
+	let cfg = Postgres { dsn: test_db.dsn().to_string(), pool_max_conns: 1 };
 	let db = Db::connect(&cfg).await.expect("Failed to connect to Postgres.");
 	db.ensure_schema(4_096).await.expect("Failed to ensure schema.");
 

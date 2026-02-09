@@ -3,27 +3,24 @@ use std::sync::{Arc, atomic::AtomicUsize};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use super::{
-	SpyExtractor, StubEmbedding, StubRerank, build_service, reset_db, test_config, test_db,
-	test_qdrant_url,
-};
+use super::{SpyExtractor, StubEmbedding, StubRerank};
 use elf_service::Providers;
 
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
 async fn active_notes_have_vectors() {
-	let Some(test_db) = test_db().await else {
+	let Some(test_db) = super::test_db().await else {
 		eprintln!("Skipping active_notes_have_vectors; set ELF_PG_DSN to run this test.");
 
 		return;
 	};
-	let Some(qdrant_url) = test_qdrant_url() else {
+	let Some(qdrant_url) = super::test_qdrant_url() else {
 		eprintln!("Skipping active_notes_have_vectors; set ELF_QDRANT_URL to run this test.");
 
 		return;
 	};
 	let collection = test_db.collection_name("elf_acceptance");
-	let cfg = test_config(test_db.dsn().to_string(), qdrant_url, 4_096, collection);
+	let cfg = super::test_config(test_db.dsn().to_string(), qdrant_url, 4_096, collection);
 	let providers = Providers::new(
 		Arc::new(StubEmbedding { vector_dim: 4_096 }),
 		Arc::new(StubRerank),
@@ -32,9 +29,9 @@ async fn active_notes_have_vectors() {
 			payload: serde_json::json!({ "notes": [] }),
 		}),
 	);
-	let service = build_service(cfg, providers).await.expect("Failed to build service.");
+	let service = super::build_service(cfg, providers).await.expect("Failed to build service.");
 
-	reset_db(&service.db.pool).await.expect("Failed to reset test database.");
+	super::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
 
 	let note_id = Uuid::new_v4();
 	let now = OffsetDateTime::now_utc();

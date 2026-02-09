@@ -6,6 +6,8 @@ use std::{
 	time::{SystemTime, UNIX_EPOCH},
 };
 
+use elf_config::{Config, Context};
+
 const SAMPLE_CONFIG_TEMPLATE_TOML: &str = include_str!("fixtures/sample_config.template.toml");
 
 fn sample_toml(reject_cjk: bool) -> String {
@@ -63,7 +65,7 @@ fn write_temp_config(payload: String) -> PathBuf {
 	path
 }
 
-fn base_config() -> elf_config::Config {
+fn base_config() -> Config {
 	let payload = sample_toml(true);
 
 	toml::from_str(&payload).expect("Failed to parse test config.")
@@ -140,7 +142,7 @@ fn chunking_tokenizer_repo_empty_string_normalizes_to_none() {
 fn context_scope_boost_weight_requires_scope_descriptions_when_enabled() {
 	let mut cfg = base_config();
 
-	cfg.context = Some(elf_config::Context {
+	cfg.context = Some(Context {
 		project_descriptions: None,
 		scope_descriptions: None,
 		scope_boost_weight: Some(0.1),
@@ -160,7 +162,7 @@ fn context_scope_boost_weight_requires_scope_descriptions_when_enabled() {
 fn context_scope_boost_weight_accepts_zero_without_descriptions() {
 	let mut cfg = base_config();
 
-	cfg.context = Some(elf_config::Context {
+	cfg.context = Some(Context {
 		project_descriptions: None,
 		scope_descriptions: None,
 		scope_boost_weight: Some(0.0),
@@ -176,7 +178,7 @@ fn context_scope_boost_weight_must_be_finite() {
 
 	scope_descriptions.insert("project_shared".to_string(), "Project notes.".to_string());
 
-	cfg.context = Some(elf_config::Context {
+	cfg.context = Some(Context {
 		project_descriptions: None,
 		scope_descriptions: Some(scope_descriptions),
 		scope_boost_weight: Some(f32::NAN),
@@ -197,7 +199,7 @@ fn context_scope_boost_weight_must_be_in_range() {
 
 	scope_descriptions.insert("project_shared".to_string(), "Project notes.".to_string());
 
-	cfg.context = Some(elf_config::Context {
+	cfg.context = Some(Context {
 		project_descriptions: None,
 		scope_descriptions: Some(scope_descriptions.clone()),
 		scope_boost_weight: Some(-0.01),
@@ -210,7 +212,7 @@ fn context_scope_boost_weight_must_be_in_range() {
 		"Unexpected error: {err}"
 	);
 
-	cfg.context = Some(elf_config::Context {
+	cfg.context = Some(Context {
 		project_descriptions: None,
 		scope_descriptions: Some(scope_descriptions),
 		scope_boost_weight: Some(1.01),

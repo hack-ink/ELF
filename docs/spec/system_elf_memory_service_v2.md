@@ -165,6 +165,9 @@ max_payload_bytes = <OPTIONAL_INT>
 
 [search.explain]
 retention_days = <REQUIRED_INT>
+capture_candidates = <OPTIONAL_BOOL>
+candidate_retention_days = <OPTIONAL_INT>
+write_mode = <OPTIONAL_STRING>
 
 [ranking]
 recency_tau_days = 60
