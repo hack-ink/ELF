@@ -290,7 +290,7 @@ NOTE_ORG="$(
         {
           \"type\": \"fact\",
           \"key\": \"deployment_steps\",
-          \"text\": \"Deployment steps for service.\",
+          \"text\": \"Deployment steps.\",
           \"importance\": 0.9,
           \"confidence\": 0.9,
           \"ttl_days\": 180,
@@ -313,7 +313,7 @@ NOTE_PROJECT="$(
           \"type\": \"fact\",
           \"key\": \"deployment_steps\",
           \"text\": \"Deployment steps for service.\",
-          \"importance\": 0.0,
+          \"importance\": 0.6,
           \"confidence\": 0.9,
           \"ttl_days\": 180,
           \"source_ref\": {\"run\": \"context-harness\"}
@@ -322,7 +322,34 @@ NOTE_PROJECT="$(
     }" | "${JSON_TOOL}" -r '.results[0].note_id'
 )"
 
-if [[ "${NOTE_ORG}" == "null" ]] || [[ "${NOTE_PROJECT}" == "null" ]]; then
+echo "Adding filler notes to increase candidate set size."
+FILLER_PAYLOAD="$(
+  "${JSON_TOOL}" -n --arg run "context-harness" '{
+    scope: "agent_private",
+    notes: [range(1; 26) as $i | {
+      type: "fact",
+      key: ("filler_" + ($i|tostring)),
+      text: ("Filler note " + ($i|tostring) + ": alpha beta gamma delta epsilon."),
+      importance: 0.1,
+      confidence: 0.5,
+      ttl_days: 180,
+      source_ref: {run: $run}
+    }]
+  }'
+)"
+
+FILLER_IDS_RAW="$(
+  curl -sS "${HTTP_BASE}/v2/notes/ingest" \
+    -H 'content-type: application/json' \
+    -H "X-ELF-Tenant-Id: ${TENANT_ID}" \
+    -H "X-ELF-Project-Id: ${PROJECT_ID}" \
+    -H "X-ELF-Agent-Id: ${AGENT_ID}" \
+    -d "${FILLER_PAYLOAD}" | "${JSON_TOOL}" -r '.results[].note_id'
+)"
+
+mapfile -t FILLER_IDS <<<"${FILLER_IDS_RAW}"
+
+if [[ "${NOTE_ORG}" == "null" ]] || [[ "${NOTE_PROJECT}" == "null" ]] || [[ "${#FILLER_IDS[@]}" -lt 10 ]]; then
   echo "Add-note failed. Check logs: ${API_LOG}." >&2
   exit 1
 fi
@@ -352,6 +379,12 @@ if ! wait_for_outbox_done "${NOTE_PROJECT}"; then
   echo "Timed out waiting for project_shared note to index. Check logs: ${WORKER_LOG}." >&2
   exit 1
 fi
+for id in "${FILLER_IDS[@]}"; do
+  if ! wait_for_outbox_done "${id}"; then
+    echo "Timed out waiting for filler note to index. Check logs: ${WORKER_LOG}." >&2
+    exit 1
+  fi
+done
 
 cat >"${DATASET}" <<JSON
 {
@@ -398,8 +431,18 @@ echo "baseline  recall@1=${RECALL_BASE} top_note_id=${TOP_BASE}"
 echo "context   recall@1=${RECALL_CONTEXT} top_note_id=${TOP_CONTEXT}"
 echo "expected  note_id=${NOTE_PROJECT}"
 
+if [[ "${TOP_BASE}" == "${NOTE_PROJECT}" ]]; then
+  echo "Expected baseline to misrank (top_note_id != expected), but it matched expected." >&2
+  exit 1
+fi
+
+if [[ "${TOP_CONTEXT}" != "${NOTE_PROJECT}" ]]; then
+  echo "Expected context to correct the misranking (top_note_id == expected), but it did not." >&2
+  exit 1
+fi
+
 echo "Cleaning up notes."
-for id in "${NOTE_ORG}" "${NOTE_PROJECT}"; do
+for id in "${NOTE_ORG}" "${NOTE_PROJECT}" "${FILLER_IDS[@]}"; do
   curl -sS -X DELETE "${HTTP_BASE}/v2/notes/${id}" \
     -H "X-ELF-Tenant-Id: ${TENANT_ID}" \
     -H "X-ELF-Project-Id: ${PROJECT_ID}" \
