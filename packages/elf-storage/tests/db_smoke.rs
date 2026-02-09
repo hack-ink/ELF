@@ -1,5 +1,6 @@
 use tokio::runtime::Runtime;
 
+use elf_config::Postgres;
 use elf_storage::db::Db;
 use elf_testkit::TestDatabase;
 
@@ -12,7 +13,7 @@ async fn db_connects_and_bootstraps() {
 		return;
 	};
 	let test_db = TestDatabase::new(&base_dsn).await.expect("Failed to create test database.");
-	let cfg = elf_config::Postgres { dsn: test_db.dsn().to_string(), pool_max_conns: 1 };
+	let cfg = Postgres { dsn: test_db.dsn().to_string(), pool_max_conns: 1 };
 	let db = Db::connect(&cfg).await.expect("Failed to connect to Postgres.");
 	db.ensure_schema(4_096).await.expect("Failed to ensure schema.");
 	test_db.cleanup().await.expect("Failed to cleanup test database.");
@@ -28,7 +29,7 @@ fn chunk_tables_exist_after_bootstrap() {
 	};
 	let rt = Runtime::new().expect("Failed to build runtime.");
 	rt.block_on(async {
-		let cfg = elf_config::Postgres { dsn: dsn.clone(), pool_max_conns: 1 };
+		let cfg = Postgres { dsn: dsn.clone(), pool_max_conns: 1 };
 		let db = Db::connect(&cfg).await.expect("Failed to connect to Postgres.");
 		db.ensure_schema(4_096).await.expect("Failed to ensure schema.");
 		let count: i64 = sqlx::query_scalar(

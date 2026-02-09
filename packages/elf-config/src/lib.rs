@@ -93,6 +93,31 @@ pub fn validate(cfg: &Config) -> Result<()> {
 			message: "search.explain.retention_days must be greater than zero.".to_string(),
 		});
 	}
+	if cfg.search.explain.candidate_retention_days <= 0 {
+		return Err(Error::Validation {
+			message: "search.explain.candidate_retention_days must be greater than zero."
+				.to_string(),
+		});
+	}
+	if cfg.search.explain.candidate_retention_days > cfg.search.explain.retention_days {
+		return Err(Error::Validation {
+			message:
+				"search.explain.candidate_retention_days must be less than or equal to search.explain.retention_days."
+					.to_string(),
+		});
+	}
+
+	match cfg.search.explain.write_mode.trim().to_ascii_lowercase().as_str() {
+		"outbox" | "inline" => {},
+		other => {
+			return Err(Error::Validation {
+				message: format!(
+					"search.explain.write_mode must be one of: outbox, inline. Got {other}."
+				),
+			});
+		},
+	}
+
 	if cfg.ranking.tie_breaker_weight < 0.0 {
 		return Err(Error::Validation {
 			message: "ranking.tie_breaker_weight must be zero or greater.".to_string(),

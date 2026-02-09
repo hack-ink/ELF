@@ -6,10 +6,15 @@ use std::sync::{
 use serde_json::{Map, Value};
 use sqlx::PgPool;
 
-use elf_config::{Config, EmbeddingProviderConfig, LlmProviderConfig, ProviderConfig};
+use elf_config::{
+	Chunking, Config, EmbeddingProviderConfig, Lifecycle, LlmProviderConfig, Memory, Postgres,
+	ProviderConfig, Providers, Qdrant, Ranking, ReadProfiles, ScopePrecedence, ScopeWriteAllowed,
+	Scopes, Search, SearchCache, SearchDynamic, SearchExpansion, SearchExplain, SearchPrefilter,
+	Security, Service, Storage, TtlDays,
+};
 use elf_service::{
 	AddNoteInput, AddNoteRequest, ElfService, EmbeddingProvider, Error, ExtractorProvider,
-	Providers, RerankProvider,
+	RerankProvider,
 };
 use elf_storage::{db::Db, qdrant::QdrantStore};
 
@@ -69,47 +74,43 @@ impl ExtractorProvider for SpyExtractor {
 
 fn test_config() -> Config {
 	Config {
-		service: elf_config::Service {
+		service: Service {
 			http_bind: "127.0.0.1:8080".to_string(),
 			mcp_bind: "127.0.0.1:8082".to_string(),
 			admin_bind: "127.0.0.1:8081".to_string(),
 			log_level: "info".to_string(),
 		},
-		storage: elf_config::Storage {
-			postgres: elf_config::Postgres {
+		storage: Storage {
+			postgres: Postgres {
 				dsn: "postgres://user:pass@localhost/db".to_string(),
 				pool_max_conns: 1,
 			},
-			qdrant: elf_config::Qdrant {
+			qdrant: Qdrant {
 				url: "http://localhost:6334".to_string(),
 				collection: "mem_notes_v2".to_string(),
 				vector_dim: 4_096,
 			},
 		},
-		providers: elf_config::Providers {
+		providers: Providers {
 			embedding: dummy_embedding_provider(),
 			rerank: dummy_provider(),
 			llm_extractor: dummy_llm_provider(),
 		},
-		scopes: elf_config::Scopes {
+		scopes: Scopes {
 			allowed: vec!["agent_private".to_string()],
-			read_profiles: elf_config::ReadProfiles {
+			read_profiles: ReadProfiles {
 				private_only: vec!["agent_private".to_string()],
 				private_plus_project: vec!["agent_private".to_string()],
 				all_scopes: vec!["agent_private".to_string()],
 			},
-			precedence: elf_config::ScopePrecedence {
-				agent_private: 30,
-				project_shared: 20,
-				org_shared: 10,
-			},
-			write_allowed: elf_config::ScopeWriteAllowed {
+			precedence: ScopePrecedence { agent_private: 30, project_shared: 20, org_shared: 10 },
+			write_allowed: ScopeWriteAllowed {
 				agent_private: true,
 				project_shared: false,
 				org_shared: false,
 			},
 		},
-		memory: elf_config::Memory {
+		memory: Memory {
 			max_notes_per_add_event: 3,
 			max_note_chars: 500,
 			dup_sim_threshold: 0.9,
@@ -117,29 +118,34 @@ fn test_config() -> Config {
 			candidate_k: 10,
 			top_k: 5,
 		},
-		search: elf_config::Search {
-			expansion: elf_config::SearchExpansion {
+		search: Search {
+			expansion: SearchExpansion {
 				mode: "off".to_string(),
 				max_queries: 4,
 				include_original: true,
 			},
-			dynamic: elf_config::SearchDynamic { min_candidates: 10, min_top_score: 0.12 },
-			prefilter: elf_config::SearchPrefilter { max_candidates: 0 },
-			cache: elf_config::SearchCache {
+			dynamic: SearchDynamic { min_candidates: 10, min_top_score: 0.12 },
+			prefilter: SearchPrefilter { max_candidates: 0 },
+			cache: SearchCache {
 				enabled: true,
 				expansion_ttl_days: 7,
 				rerank_ttl_days: 7,
 				max_payload_bytes: Some(262_144),
 			},
-			explain: elf_config::SearchExplain { retention_days: 7 },
+			explain: SearchExplain {
+				retention_days: 7,
+				capture_candidates: false,
+				candidate_retention_days: 2,
+				write_mode: "outbox".to_string(),
+			},
 		},
-		ranking: elf_config::Ranking {
+		ranking: Ranking {
 			recency_tau_days: 60.0,
 			tie_breaker_weight: 0.1,
 			blend: Default::default(),
 		},
-		lifecycle: elf_config::Lifecycle {
-			ttl_days: elf_config::TtlDays {
+		lifecycle: Lifecycle {
+			ttl_days: TtlDays {
 				plan: 1,
 				fact: 2,
 				preference: 0,
@@ -150,13 +156,13 @@ fn test_config() -> Config {
 			purge_deleted_after_days: 30,
 			purge_deprecated_after_days: 180,
 		},
-		chunking: elf_config::Chunking {
+		chunking: Chunking {
 			enabled: true,
 			max_tokens: 512,
 			overlap_tokens: 128,
 			tokenizer_repo: None,
 		},
-		security: elf_config::Security {
+		security: Security {
 			bind_localhost_only: true,
 			reject_cjk: true,
 			redact_secrets_on_write: true,
@@ -171,8 +177,8 @@ fn test_config() -> Config {
 	}
 }
 
-fn dummy_embedding_provider() -> elf_config::EmbeddingProviderConfig {
-	elf_config::EmbeddingProviderConfig {
+fn dummy_embedding_provider() -> EmbeddingProviderConfig {
+	EmbeddingProviderConfig {
 		provider_id: "p".to_string(),
 		api_base: "http://localhost".to_string(),
 		api_key: "key".to_string(),
@@ -184,8 +190,8 @@ fn dummy_embedding_provider() -> elf_config::EmbeddingProviderConfig {
 	}
 }
 
-fn dummy_provider() -> elf_config::ProviderConfig {
-	elf_config::ProviderConfig {
+fn dummy_provider() -> ProviderConfig {
+	ProviderConfig {
 		provider_id: "p".to_string(),
 		api_base: "http://localhost".to_string(),
 		api_key: "key".to_string(),
@@ -196,8 +202,8 @@ fn dummy_provider() -> elf_config::ProviderConfig {
 	}
 }
 
-fn dummy_llm_provider() -> elf_config::LlmProviderConfig {
-	elf_config::LlmProviderConfig {
+fn dummy_llm_provider() -> LlmProviderConfig {
+	LlmProviderConfig {
 		provider_id: "p".to_string(),
 		api_base: "http://localhost".to_string(),
 		api_key: "key".to_string(),
@@ -217,7 +223,8 @@ async fn add_note_does_not_call_llm() {
 	let db = Db { pool };
 	let qdrant = QdrantStore::new(&cfg.storage.qdrant).expect("Failed to create Qdrant store.");
 	let spy = Arc::new(SpyExtractor::new());
-	let providers = Providers::new(Arc::new(DummyEmbedding), Arc::new(DummyRerank), spy.clone());
+	let providers =
+		elf_service::Providers::new(Arc::new(DummyEmbedding), Arc::new(DummyRerank), spy.clone());
 	let service = ElfService::with_providers(cfg, db, qdrant, providers);
 	let req = AddNoteRequest {
 		tenant_id: "t1".to_string(),
@@ -249,7 +256,8 @@ async fn add_note_rejects_empty_notes() {
 	let db = Db { pool };
 	let qdrant = QdrantStore::new(&cfg.storage.qdrant).expect("Failed to create Qdrant store.");
 	let spy = Arc::new(SpyExtractor::new());
-	let providers = Providers::new(Arc::new(DummyEmbedding), Arc::new(DummyRerank), spy.clone());
+	let providers =
+		elf_service::Providers::new(Arc::new(DummyEmbedding), Arc::new(DummyRerank), spy.clone());
 	let service = ElfService::with_providers(cfg, db, qdrant, providers);
 	let req = AddNoteRequest {
 		tenant_id: "t1".to_string(),

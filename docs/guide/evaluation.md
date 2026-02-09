@@ -47,6 +47,8 @@ Each query supports these fields:
 - `expected_note_ids` (required): One or more note IDs expected in the results.
 - `tenant_id`, `project_id`, `agent_id`, `read_profile` (optional): Override defaults.
 - `top_k`, `candidate_k` (optional): Override defaults.
+- `ranking` (optional): A request-scoped ranking override (for example, `ranking.blend.enabled`,
+  `ranking.blend.segments`, or normalization settings).
 
 Resolution order for `top_k` and `candidate_k` is:
 
@@ -64,11 +66,14 @@ The command prints a JSON report containing summary metrics and per-query detail
 - `mean_rr`
 - `mean_ndcg`
 - `latency_ms_p50` and `latency_ms_p95`
+- `queries[].trace_id` (and `queries[].trace_ids` when `runs_per_query > 1`) for trace-based replay.
 
 ## Notes
 
 - The evaluation tool uses the configured embedding and rerank providers.
 - The dataset should avoid secrets and sensitive data.
+- To persist traces for later replay without running `elf-worker`, set `search.explain.write_mode = "inline"`
+  in the config used by `elf-eval`.
 
 ## Context Misranking Harness
 
