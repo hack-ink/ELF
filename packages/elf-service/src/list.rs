@@ -3,7 +3,7 @@ use sqlx::QueryBuilder;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::{ElfService, ServiceError, ServiceResult};
+use crate::{ElfService, Error, Result};
 use elf_storage::models::MemoryNote;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -41,13 +41,13 @@ pub struct ListResponse {
 }
 
 impl ElfService {
-	pub async fn list(&self, req: ListRequest) -> ServiceResult<ListResponse> {
+	pub async fn list(&self, req: ListRequest) -> Result<ListResponse> {
 		let now = OffsetDateTime::now_utc();
 		let tenant_id = req.tenant_id.trim();
 		let project_id = req.project_id.trim();
 
 		if tenant_id.is_empty() || project_id.is_empty() {
-			return Err(ServiceError::InvalidRequest {
+			return Err(Error::InvalidRequest {
 				message: "tenant_id and project_id are required.".to_string(),
 			});
 		}
@@ -55,14 +55,14 @@ impl ElfService {
 		if let Some(agent_id) = req.agent_id.as_ref()
 			&& agent_id.trim().is_empty()
 		{
-			return Err(ServiceError::InvalidRequest {
+			return Err(Error::InvalidRequest {
 				message: "agent_id must not be empty when provided.".to_string(),
 			});
 		}
 		if let Some(scope) = req.scope.as_ref()
 			&& !self.cfg.scopes.allowed.iter().any(|value| value == scope)
 		{
-			return Err(ServiceError::ScopeDenied { message: "Scope is not allowed.".to_string() });
+			return Err(Error::ScopeDenied { message: "Scope is not allowed.".to_string() });
 		}
 
 		let mut builder = QueryBuilder::new(
@@ -80,7 +80,7 @@ impl ElfService {
 				let agent_id = req.agent_id.as_ref().map(|value| value.trim()).unwrap_or("");
 
 				if agent_id.is_empty() {
-					return Err(ServiceError::ScopeDenied {
+					return Err(Error::ScopeDenied {
 						message: "agent_id is required for agent_private scope.".to_string(),
 					});
 				}

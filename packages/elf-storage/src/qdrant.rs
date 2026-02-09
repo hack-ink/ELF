@@ -1,5 +1,6 @@
-use color_eyre::Result;
 use qdrant_client::Qdrant;
+
+use crate::Result;
 
 pub const DENSE_VECTOR_NAME: &str = "dense";
 pub const BM25_VECTOR_NAME: &str = "bm25";

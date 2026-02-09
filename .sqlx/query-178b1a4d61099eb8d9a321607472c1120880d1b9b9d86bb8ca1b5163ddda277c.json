@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO note_chunk_embeddings (chunk_id, embedding_version, embedding_dim, vec)\n\t\t\t\tVALUES ($1, $2, $3, $4::text::vector)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Int4",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "178b1a4d61099eb8d9a321607472c1120880d1b9b9d86bb8ca1b5163ddda277c"
+}

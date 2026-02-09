@@ -1,0 +1,31 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO memory_notes (\n\t\t\t\tnote_id,\n\t\t\t\ttenant_id,\n\tproject_id,\n\tagent_id,\n\tscope,\n\ttype,\n\tkey,\n\ttext,\n\timportance,\n\tconfidence,\n\tstatus,\n\tcreated_at,\n\tupdated_at,\n\texpires_at,\n\tembedding_version,\n\tsource_ref,\n\thit_count,\n\tlast_hit_at\n)\nVALUES (\n\t$1,\n\t$2,\n\t$3,\n\t$4,\n\t$5,\n\t$6,\n\t$7,\n\t$8,\n\t$9,\n\t$10,\n\t$11,\n\t$12,\n\t$13,\n\t$14,\n\t$15,\n\t$16,\n\t\t\t$17,\n\t\t\t\t$18\n\t\t\t)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Float4",
+        "Float4",
+        "Text",
+        "Timestamptz",
+        "Timestamptz",
+        "Timestamptz",
+        "Text",
+        "Jsonb",
+        "Int8",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "dafd59a0a0c02f54df0c5d19c60e639e485a0966489c5769e7cae41d94cee0d1"
+}

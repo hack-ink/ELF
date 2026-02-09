@@ -1,9 +1,12 @@
 pub mod worker;
 
+mod error;
+
+pub use error::{Error, Result};
+
 use std::path::PathBuf;
 
 use clap::Parser;
-use color_eyre::eyre;
 use tracing_subscriber::EnvFilter;
 
 use elf_chunking::ChunkingConfig;
@@ -20,8 +23,8 @@ pub struct Args {
 	pub config: PathBuf,
 }
 
-pub async fn run(args: Args) -> color_eyre::Result<()> {
-	let config = elf_config::load(&args.config)?;
+pub async fn run(args: Args) -> Result<()> {
+	let config = elf_config::load(&args.config).map_err(|err| Error::Message(err.to_string()))?;
 	let filter = EnvFilter::new(config.service.log_level.clone());
 	tracing_subscriber::fmt().with_env_filter(filter).init();
 
@@ -34,8 +37,7 @@ pub async fn run(args: Args) -> color_eyre::Result<()> {
 		.tokenizer_repo
 		.clone()
 		.unwrap_or_else(|| config.providers.embedding.model.clone());
-	let tokenizer =
-		elf_chunking::load_tokenizer(&tokenizer_repo).map_err(|err| eyre::eyre!(err))?;
+	let tokenizer = elf_chunking::load_tokenizer(&tokenizer_repo)?;
 	let chunking = ChunkingConfig {
 		max_tokens: config.chunking.max_tokens,
 		overlap_tokens: config.chunking.overlap_tokens,

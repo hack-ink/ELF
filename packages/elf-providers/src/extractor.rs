@@ -1,8 +1,9 @@
 use std::time::Duration;
 
-use color_eyre::{Result, eyre};
 use reqwest::Client;
 use serde_json::Value;
+
+use crate::{Error, Result};
 
 pub async fn extract(cfg: &elf_config::LlmProviderConfig, messages: &[Value]) -> Result<Value> {
 	let client = Client::builder().timeout(Duration::from_millis(cfg.timeout_ms)).build()?;
@@ -26,7 +27,7 @@ pub async fn extract(cfg: &elf_config::LlmProviderConfig, messages: &[Value]) ->
 		}
 	}
 
-	Err(eyre::eyre!("Extractor response is not valid JSON."))
+	Err(Error::InvalidResponse { message: "Extractor response is not valid JSON.".to_string() })
 }
 
 fn parse_extractor_json(json: Value) -> Result<Value> {
@@ -38,8 +39,9 @@ fn parse_extractor_json(json: Value) -> Result<Value> {
 		.and_then(|msg| msg.get("content"))
 		.and_then(|c| c.as_str())
 	{
-		let parsed: Value = serde_json::from_str(content)
-			.map_err(|_| eyre::eyre!("Extractor content is not valid JSON."))?;
+		let parsed: Value = serde_json::from_str(content).map_err(|_| Error::InvalidResponse {
+			message: "Extractor content is not valid JSON.".to_string(),
+		})?;
 
 		return Ok(parsed);
 	}
@@ -48,7 +50,9 @@ fn parse_extractor_json(json: Value) -> Result<Value> {
 		return Ok(json);
 	}
 
-	Err(eyre::eyre!("Extractor response is missing JSON content."))
+	Err(Error::InvalidResponse {
+		message: "Extractor response is missing JSON content.".to_string(),
+	})
 }
 
 #[cfg(test)]
