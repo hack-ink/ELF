@@ -28,12 +28,15 @@ struct OutboxRow {
 	last_error: Option<String>,
 }
 
-async fn wait_for_status(
-	pool: &sqlx::PgPool,
+async fn wait_for_status<'e, E>(
+	executor: E,
 	note_id: Uuid,
 	status: &str,
 	timeout: Duration,
-) -> Option<OutboxRow> {
+) -> Option<OutboxRow>
+where
+	E: sqlx::Executor<'e, Database = sqlx::Postgres> + Copy,
+{
 	let deadline = Instant::now() + timeout;
 	loop {
 		let row: Option<OutboxRow> = sqlx::query_as::<_, OutboxRow>(
@@ -46,7 +49,7 @@ FROM indexing_outbox
 WHERE note_id = $1",
 		)
 		.bind(note_id)
-		.fetch_optional(pool)
+		.fetch_optional(executor)
 		.await
 		.ok()
 		.flatten();
@@ -96,9 +99,10 @@ async fn embed_handler(
 		.iter()
 		.enumerate()
 		.map(|(index, _)| {
+			let embedding: Vec<f32> = vec![0.1_f32; 4_096];
 			serde_json::json!({
 				"index": index,
-				"embedding": [0.1, 0.2, 0.3]
+				"embedding": embedding
 			})
 		})
 		.collect();

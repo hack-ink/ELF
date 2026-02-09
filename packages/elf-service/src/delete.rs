@@ -1,7 +1,7 @@
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::{ElfService, InsertVersionArgs, NoteOp, ServiceError, ServiceResult};
+use crate::{ElfService, Error, InsertVersionArgs, NoteOp, Result};
 use elf_storage::models::MemoryNote;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -19,13 +19,13 @@ pub struct DeleteResponse {
 }
 
 impl ElfService {
-	pub async fn delete(&self, req: DeleteRequest) -> ServiceResult<DeleteResponse> {
+	pub async fn delete(&self, req: DeleteRequest) -> Result<DeleteResponse> {
 		let now = OffsetDateTime::now_utc();
 		let tenant_id = req.tenant_id.trim();
 		let project_id = req.project_id.trim();
 		let agent_id = req.agent_id.trim();
 		if tenant_id.is_empty() || project_id.is_empty() || agent_id.is_empty() {
-			return Err(ServiceError::InvalidRequest {
+			return Err(Error::InvalidRequest {
 				message: "tenant_id, project_id, and agent_id are required.".to_string(),
 			});
 		}
@@ -43,10 +43,10 @@ FOR UPDATE",
 		)
 		.fetch_optional(&mut *tx)
 		.await?
-		.ok_or_else(|| ServiceError::InvalidRequest { message: "Note not found.".to_string() })?;
+		.ok_or_else(|| Error::InvalidRequest { message: "Note not found.".to_string() })?;
 
 		if note.scope == "agent_private" && note.agent_id != agent_id {
-			return Err(ServiceError::InvalidRequest { message: "Note not found.".to_string() });
+			return Err(Error::InvalidRequest { message: "Note not found.".to_string() });
 		}
 
 		let scope_allowed = self.cfg.scopes.allowed.iter().any(|scope| scope == &note.scope);
@@ -57,7 +57,7 @@ FOR UPDATE",
 			_ => false,
 		};
 		if !scope_allowed || !write_allowed {
-			return Err(ServiceError::ScopeDenied { message: "Scope is not allowed.".to_string() });
+			return Err(Error::ScopeDenied { message: "Scope is not allowed.".to_string() });
 		}
 
 		if note.status == "deleted" {
@@ -79,7 +79,7 @@ FOR UPDATE",
 		.await?;
 
 		crate::insert_version(
-			&mut tx,
+			&mut *tx,
 			InsertVersionArgs {
 				note_id: note.note_id,
 				op: "DELETE",
@@ -91,7 +91,7 @@ FOR UPDATE",
 			},
 		)
 		.await?;
-		crate::enqueue_outbox_tx(&mut tx, note.note_id, "DELETE", &note.embedding_version, now)
+		crate::enqueue_outbox_tx(&mut *tx, note.note_id, "DELETE", &note.embedding_version, now)
 			.await?;
 
 		tx.commit().await?;

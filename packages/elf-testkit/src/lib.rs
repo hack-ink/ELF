@@ -1,8 +1,11 @@
+mod error;
+
+pub use error::{Error, Result};
+
 use std::{
 	collections::HashSet, env, future::Future, str::FromStr, sync::Mutex, thread, time::Duration,
 };
 
-use color_eyre::eyre::{self, WrapErr};
 use qdrant_client::Qdrant;
 use sqlx::{
 	ConnectOptions, Connection, Executor,
@@ -21,9 +24,9 @@ pub struct TestDatabase {
 	collections: Mutex<HashSet<String>>,
 }
 impl TestDatabase {
-	pub async fn new(base_dsn: &str) -> color_eyre::Result<Self> {
-		let base_options: PgConnectOptions =
-			PgConnectOptions::from_str(base_dsn).wrap_err("Failed to parse ELF_PG_DSN.")?;
+	pub async fn new(base_dsn: &str) -> Result<Self> {
+		let base_options: PgConnectOptions = PgConnectOptions::from_str(base_dsn)
+			.map_err(|err| Error::Message(format!("Failed to parse ELF_PG_DSN: {err}.")))?;
 		let (admin_options, mut admin_conn) = connect_admin(&base_options).await?;
 		let name = format!("elf_test_{}", Uuid::new_v4().simple());
 		let create_sql = format!(r#"CREATE DATABASE "{}""#, name);
@@ -31,7 +34,7 @@ impl TestDatabase {
 		admin_conn
 			.execute(create_sql.as_str())
 			.await
-			.wrap_err("Failed to create test database.")?;
+			.map_err(|err| Error::Message(format!("Failed to create test database: {err}.")))?;
 
 		let dsn = base_options.clone().database(&name).to_url_lossy().to_string();
 
@@ -61,11 +64,11 @@ impl TestDatabase {
 		collection
 	}
 
-	pub async fn cleanup(mut self) -> color_eyre::Result<()> {
+	pub async fn cleanup(mut self) -> Result<()> {
 		self.cleanup_inner().await
 	}
 
-	async fn cleanup_inner(&mut self) -> color_eyre::Result<()> {
+	async fn cleanup_inner(&mut self) -> Result<()> {
 		if self.cleaned {
 			return Ok(());
 		}
@@ -130,10 +133,10 @@ pub fn env_qdrant_url() -> Option<String> {
 	env::var("ELF_QDRANT_URL").ok()
 }
 
-pub async fn with_test_db<F, Fut, T>(base_dsn: &str, f: F) -> color_eyre::Result<T>
+pub async fn with_test_db<F, Fut, T>(base_dsn: &str, f: F) -> Result<T>
 where
 	F: FnOnce(&TestDatabase) -> Fut,
-	Fut: Future<Output = color_eyre::Result<T>>,
+	Fut: Future<Output = Result<T>>,
 {
 	let db = TestDatabase::new(base_dsn).await?;
 	let result = f(&db).await;
@@ -153,7 +156,7 @@ where
 
 async fn connect_admin(
 	base_options: &PgConnectOptions,
-) -> color_eyre::Result<(PgConnectOptions, PgConnection)> {
+) -> Result<(PgConnectOptions, PgConnection)> {
 	let mut last_err = None;
 
 	for database in ADMIN_DATABASES {
@@ -166,13 +169,13 @@ async fn connect_admin(
 		}
 	}
 
-	Err(eyre::eyre!("Failed to connect to an admin database: {:?}", last_err))
+	Err(Error::Message(format!("Failed to connect to an admin database: {last_err:?}.")))
 }
 
-async fn cleanup_database(name: &str, admin_options: &PgConnectOptions) -> color_eyre::Result<()> {
-	let conn = PgConnection::connect_with(admin_options)
-		.await
-		.wrap_err("Failed to connect to admin database for cleanup.")?;
+async fn cleanup_database(name: &str, admin_options: &PgConnectOptions) -> Result<()> {
+	let conn = PgConnection::connect_with(admin_options).await.map_err(|err| {
+		Error::Message(format!("Failed to connect to admin database for cleanup: {err}."))
+	})?;
 	let drop_sql = format!(r#"DROP DATABASE IF EXISTS "{}""#, name);
 
 	let mut conn = conn;
@@ -190,12 +193,12 @@ WHERE datname = $1 AND pid <> pg_backend_pid()",
 	sqlx::query(drop_sql.as_str())
 		.execute(&mut conn)
 		.await
-		.wrap_err("Failed to drop test database.")?;
+		.map_err(|err| Error::Message(format!("Failed to drop test database: {err}.")))?;
 
 	Ok(())
 }
 
-async fn cleanup_qdrant_collections(collections: &[String]) -> color_eyre::Result<()> {
+async fn cleanup_qdrant_collections(collections: &[String]) -> Result<()> {
 	if collections.is_empty() {
 		return Ok(());
 	}
@@ -205,8 +208,9 @@ async fn cleanup_qdrant_collections(collections: &[String]) -> color_eyre::Resul
 
 		return Ok(());
 	};
-	let client =
-		Qdrant::from_url(&qdrant_url).build().wrap_err("Failed to build Qdrant client.")?;
+	let client = Qdrant::from_url(&qdrant_url)
+		.build()
+		.map_err(|err| Error::Message(format!("Failed to build Qdrant client: {err}.")))?;
 	let max_attempts = 6;
 
 	let mut remaining = collections.iter().cloned().collect::<HashSet<_>>();
@@ -215,8 +219,8 @@ async fn cleanup_qdrant_collections(collections: &[String]) -> color_eyre::Resul
 	for attempt in 1..=max_attempts {
 		let existing = time::timeout(Duration::from_secs(10), client.list_collections())
 			.await
-			.wrap_err("Qdrant list_collections timed out.")?
-			.wrap_err("Failed to list Qdrant collections.")?;
+			.map_err(|_| Error::Message("Qdrant list_collections timed out.".to_string()))?
+			.map_err(|err| Error::Message(format!("Failed to list Qdrant collections: {err}.")))?;
 		let existing = existing.collections.into_iter().map(|c| c.name).collect::<HashSet<_>>();
 
 		remaining.retain(|collection| existing.contains(collection));
@@ -236,17 +240,15 @@ async fn cleanup_qdrant_collections(collections: &[String]) -> color_eyre::Resul
 				Ok(Ok(_)) => {},
 				Ok(Err(err)) =>
 					if attempt == max_attempts {
-						return Err(err).wrap_err_with(|| {
-							format!(
-								"Failed to delete Qdrant collection {collection:?} after {attempt} attempts."
-							)
-						});
+						return Err(Error::Message(format!(
+							"Failed to delete Qdrant collection {collection:?} after {attempt} attempts: {err}."
+						)));
 					},
 				Err(_) =>
 					if attempt == max_attempts {
-						return Err(eyre::eyre!(
+						return Err(Error::Message(format!(
 							"Timed out deleting Qdrant collection {collection:?} after {attempt} attempts."
-						));
+						)));
 					},
 			}
 		}

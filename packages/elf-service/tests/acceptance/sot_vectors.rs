@@ -47,9 +47,9 @@ async fn active_notes_have_vectors() {
 
 	sqlx::query(
 		"\
-		INSERT INTO memory_notes (
-			note_id,
-			tenant_id,
+			INSERT INTO memory_notes (
+				note_id,
+				tenant_id,
 	project_id,
 	agent_id,
 	scope,
@@ -85,8 +85,8 @@ VALUES (
 	$15,
 	$16,
 			$17,
-			$18
-		)",
+				$18
+			)",
 	)
 	.bind(note_id)
 	.bind("t")
@@ -112,13 +112,13 @@ VALUES (
 
 	sqlx::query(
 		"\
-			INSERT INTO note_embeddings (
-				note_id,
-				embedding_version,
-			embedding_dim,
-			vec
-			)
-			VALUES ($1, $2, $3, $4::text::vector)",
+				INSERT INTO note_embeddings (
+					note_id,
+					embedding_version,
+				embedding_dim,
+				vec
+				)
+				VALUES ($1, $2, $3, $4::text::vector)",
 	)
 	.bind(note_id)
 	.bind(embedding_version.as_str())
@@ -130,13 +130,13 @@ VALUES (
 
 	let missing: i64 = sqlx::query_scalar(
 		"\
-		SELECT COUNT(*) AS \"missing!\"
-		FROM memory_notes n
-		LEFT JOIN note_embeddings e
+			SELECT COUNT(*) AS \"missing!\"
+			FROM memory_notes n
+			LEFT JOIN note_embeddings e
 	ON n.note_id = e.note_id
-		AND n.embedding_version = e.embedding_version
-		WHERE n.note_id = $1
-				AND e.note_id IS NULL",
+			AND n.embedding_version = e.embedding_version
+			WHERE n.note_id = $1
+					AND e.note_id IS NULL",
 	)
 	.bind(note_id)
 	.fetch_one(&service.db.pool)

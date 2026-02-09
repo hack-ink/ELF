@@ -1,14 +1,17 @@
-use color_eyre::Result;
+use sqlx::PgExecutor;
 use uuid::Uuid;
 
-use crate::db::Db;
+use crate::Result;
 
-pub async fn enqueue_outbox(
-	db: &Db,
+pub async fn enqueue_outbox<'e, E>(
+	executor: E,
 	note_id: Uuid,
 	op: &str,
 	embedding_version: &str,
-) -> Result<()> {
+) -> Result<()>
+where
+	E: PgExecutor<'e>,
+{
 	sqlx::query!(
 		"INSERT INTO indexing_outbox (outbox_id, note_id, op, embedding_version, status) \
 VALUES ($1,$2,$3,$4,'PENDING')",
@@ -17,7 +20,7 @@ VALUES ($1,$2,$3,$4,'PENDING')",
 		op,
 		embedding_version,
 	)
-	.execute(&db.pool)
+	.execute(executor)
 	.await?;
 
 	Ok(())

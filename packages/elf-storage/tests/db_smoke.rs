@@ -14,7 +14,7 @@ async fn db_connects_and_bootstraps() {
 	let test_db = TestDatabase::new(&base_dsn).await.expect("Failed to create test database.");
 	let cfg = elf_config::Postgres { dsn: test_db.dsn().to_string(), pool_max_conns: 1 };
 	let db = Db::connect(&cfg).await.expect("Failed to connect to Postgres.");
-	db.ensure_schema(3).await.expect("Failed to ensure schema.");
+	db.ensure_schema(4_096).await.expect("Failed to ensure schema.");
 	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }
 
@@ -30,7 +30,7 @@ fn chunk_tables_exist_after_bootstrap() {
 	rt.block_on(async {
 		let cfg = elf_config::Postgres { dsn: dsn.clone(), pool_max_conns: 1 };
 		let db = Db::connect(&cfg).await.expect("Failed to connect to Postgres.");
-		db.ensure_schema(3).await.expect("Failed to ensure schema.");
+		db.ensure_schema(4_096).await.expect("Failed to ensure schema.");
 		let count: i64 = sqlx::query_scalar(
 			"SELECT count(*) FROM information_schema.tables WHERE table_name = 'memory_note_chunks'",
 		)

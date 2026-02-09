@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH updated AS (\n\tUPDATE llm_cache\n\tSET\n\t\tlast_accessed_at = $3,\n\t\thit_count = hit_count + 1\n\tWHERE\n\t\tcache_kind = $1\n\t\tAND cache_key = $2\n\t\tAND expires_at > $3\n\tRETURNING payload\n)\nSELECT payload\nFROM updated",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "payload",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "e058cec78ecf839545af928794ceb72764ad04c48e49870b1829096c2220b59b"
+}
