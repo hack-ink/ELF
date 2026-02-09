@@ -2296,13 +2296,12 @@ fn payload_i32(payload: &HashMap<String, Value>, key: &str) -> Option<i32> {
 
 	match &value.kind {
 		Some(Kind::IntegerValue(value)) => i32::try_from(*value).ok(),
-		Some(Kind::DoubleValue(value)) => {
+		Some(Kind::DoubleValue(value)) =>
 			if value.fract() == 0.0 {
 				i32::try_from(*value as i64).ok()
 			} else {
 				None
-			}
-		},
+			},
 		_ => None,
 	}
 }
