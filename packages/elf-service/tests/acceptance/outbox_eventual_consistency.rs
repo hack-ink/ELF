@@ -1,5 +1,4 @@
 use std::{
-	collections::HashMap,
 	future::IntoFuture,
 	sync::{
 		Arc,
@@ -8,6 +7,7 @@ use std::{
 	time::{Duration, Instant},
 };
 
+use ahash::AHashMap;
 use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing};
 use serde_json::Map;
 use time::OffsetDateTime;
@@ -182,9 +182,9 @@ async fn outbox_retries_to_done() {
 		},
 		chunking: super::chunking::ChunkingConfig { max_tokens: 64, overlap_tokens: 8 },
 		tokenizer: {
-			let mut vocab = HashMap::new();
+			let mut vocab = AHashMap::new();
 
-			vocab.insert("<unk>".to_string(), 0);
+			vocab.insert("<unk>".to_string(), 0_u32);
 
 			let model = WordLevel::builder()
 				.vocab(vocab)

@@ -2,6 +2,7 @@ use std::{
 	collections::HashMap,
 	env, fs,
 	path::PathBuf,
+	sync::atomic::{AtomicU64, Ordering},
 	time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -44,14 +45,18 @@ fn sample_toml_with_cache(
 }
 
 fn write_temp_config(payload: String) -> PathBuf {
+	static COUNTER: AtomicU64 = AtomicU64::new(0);
+
 	let nanos = SystemTime::now()
 		.duration_since(UNIX_EPOCH)
 		.expect("System time must be valid.")
 		.as_nanos();
+	let ordinal = COUNTER.fetch_add(1, Ordering::SeqCst);
+	let pid = std::process::id();
 
 	let mut path = env::temp_dir();
 
-	path.push(format!("elf_config_test_{nanos}.toml"));
+	path.push(format!("elf_config_test_{nanos}_{pid}_{ordinal}.toml"));
 
 	fs::write(&path, payload).expect("Failed to write test config.");
 
