@@ -20,6 +20,7 @@ elf-providers = { workspace = true }
 elf-storage   = { workspace = true }
 
 [dev-dependencies]
+ahash                = { workspace = true }
 axum                 = { workspace = true }
 tokenizers           = { workspace = true }
 tokio                = { workspace = true }
