@@ -238,20 +238,18 @@ async fn cleanup_qdrant_collections(collections: &[String]) -> Result<()> {
 
 			match result {
 				Ok(Ok(_)) => {},
-				Ok(Err(err)) => {
+				Ok(Err(err)) =>
 					if attempt == max_attempts {
 						return Err(Error::Message(format!(
 							"Failed to delete Qdrant collection {collection:?} after {attempt} attempts: {err}."
 						)));
-					}
-				},
-				Err(_) => {
+					},
+				Err(_) =>
 					if attempt == max_attempts {
 						return Err(Error::Message(format!(
 							"Timed out deleting Qdrant collection {collection:?} after {attempt} attempts."
 						)));
-					}
-				},
+					},
 			}
 		}
 
