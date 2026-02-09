@@ -27,6 +27,8 @@ fn expand_includes(sql: &str) -> String {
 					out.push_str(include_str!("../../../sql/tables/005_indexing_outbox.sql")),
 				"tables/006_search_traces.sql" =>
 					out.push_str(include_str!("../../../sql/tables/006_search_traces.sql")),
+				"tables/012_search_trace_candidates.sql" => out
+					.push_str(include_str!("../../../sql/tables/012_search_trace_candidates.sql")),
 				"tables/007_search_trace_outbox.sql" =>
 					out.push_str(include_str!("../../../sql/tables/007_search_trace_outbox.sql")),
 				"tables/008_llm_cache.sql" =>

@@ -34,6 +34,8 @@ const MAX_OUTBOX_ERROR_CHARS: usize = 1_024;
 struct TracePayload {
 	trace: TraceRecord,
 	items: Vec<TraceItemRecord>,
+	#[serde(default)]
+	candidates: Vec<TraceCandidateRecord>,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -66,6 +68,20 @@ struct TraceItemRecord {
 	explain: serde_json::Value,
 }
 
+#[derive(Debug, serde::Deserialize)]
+struct TraceCandidateRecord {
+	candidate_id: uuid::Uuid,
+	note_id: uuid::Uuid,
+	chunk_id: uuid::Uuid,
+	retrieval_rank: u32,
+	rerank_score: f32,
+	note_scope: String,
+	note_importance: f32,
+	note_updated_at: OffsetDateTime,
+	created_at: OffsetDateTime,
+	expires_at: OffsetDateTime,
+}
+
 struct TraceOutboxJob {
 	outbox_id: uuid::Uuid,
 	trace_id: uuid::Uuid,
@@ -80,6 +96,19 @@ struct TraceItemInsert {
 	rank: i32,
 	final_score: f32,
 	explain: serde_json::Value,
+}
+
+struct TraceCandidateInsert {
+	candidate_id: uuid::Uuid,
+	note_id: uuid::Uuid,
+	chunk_id: uuid::Uuid,
+	retrieval_rank: i32,
+	rerank_score: f32,
+	note_scope: String,
+	note_importance: f32,
+	note_updated_at: OffsetDateTime,
+	created_at: OffsetDateTime,
+	expires_at: OffsetDateTime,
 }
 
 struct ChunkRecord {
@@ -112,6 +141,9 @@ pub async fn run_worker(state: WorkerState) -> Result<()> {
 		let now = OffsetDateTime::now_utc();
 
 		if now - last_trace_cleanup >= Duration::seconds(TRACE_CLEANUP_INTERVAL_SECONDS) {
+			if let Err(err) = purge_expired_trace_candidates(&state.db, now).await {
+				tracing::error!(error = %err, "Search trace candidate cleanup failed.");
+			}
 			if let Err(err) = purge_expired_traces(&state.db, now).await {
 				tracing::error!(error = %err, "Search trace cleanup failed.");
 			} else {
@@ -644,7 +676,71 @@ INSERT INTO search_trace_items (
 		builder.build().execute(&mut *tx).await?;
 	}
 
+	if !payload.candidates.is_empty() {
+		let mut inserts = Vec::with_capacity(payload.candidates.len());
+
+		for candidate in payload.candidates {
+			inserts.push(TraceCandidateInsert {
+				candidate_id: candidate.candidate_id,
+				note_id: candidate.note_id,
+				chunk_id: candidate.chunk_id,
+				retrieval_rank: candidate.retrieval_rank as i32,
+				rerank_score: candidate.rerank_score,
+				note_scope: candidate.note_scope,
+				note_importance: candidate.note_importance,
+				note_updated_at: candidate.note_updated_at,
+				created_at: candidate.created_at,
+				expires_at: candidate.expires_at,
+			});
+		}
+
+		let mut builder = QueryBuilder::new(
+			"\
+INSERT INTO search_trace_candidates (
+	candidate_id,
+	trace_id,
+	note_id,
+	chunk_id,
+	retrieval_rank,
+	rerank_score,
+	note_scope,
+	note_importance,
+	note_updated_at,
+	created_at,
+	expires_at
+) ",
+		);
+		builder.push_values(inserts, |mut b, candidate| {
+			b.push_bind(candidate.candidate_id)
+				.push_bind(trace_id)
+				.push_bind(candidate.note_id)
+				.push_bind(candidate.chunk_id)
+				.push_bind(candidate.retrieval_rank)
+				.push_bind(candidate.rerank_score)
+				.push_bind(candidate.note_scope)
+				.push_bind(candidate.note_importance)
+				.push_bind(candidate.note_updated_at)
+				.push_bind(candidate.created_at)
+				.push_bind(candidate.expires_at);
+		});
+		builder.push(" ON CONFLICT (candidate_id) DO NOTHING");
+		builder.build().execute(&mut *tx).await?;
+	}
+
 	tx.commit().await?;
+
+	Ok(())
+}
+
+async fn purge_expired_trace_candidates(db: &Db, now: OffsetDateTime) -> Result<()> {
+	let result = sqlx::query("DELETE FROM search_trace_candidates WHERE expires_at <= $1")
+		.bind(now)
+		.execute(&db.pool)
+		.await?;
+
+	if result.rows_affected() > 0 {
+		tracing::info!(count = result.rows_affected(), "Purged expired search trace candidates.");
+	}
 
 	Ok(())
 }

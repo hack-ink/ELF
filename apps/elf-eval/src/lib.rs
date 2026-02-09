@@ -11,7 +11,8 @@ use serde::{Deserialize, Serialize};
 use tracing_subscriber::EnvFilter;
 use uuid::Uuid;
 
-use elf_service::{ElfService, SearchIndexResponse, SearchRequest};
+use elf_config::Config;
+use elf_service::{ElfService, RankingRequestOverride, SearchIndexResponse, SearchRequest};
 use elf_storage::{db::Db, qdrant::QdrantStore};
 
 #[derive(Debug, Parser)]
@@ -50,6 +51,7 @@ struct EvalDefaults {
 	read_profile: Option<String>,
 	top_k: Option<u32>,
 	candidate_k: Option<u32>,
+	ranking: Option<RankingRequestOverride>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -63,6 +65,7 @@ struct EvalQuery {
 	top_k: Option<u32>,
 	candidate_k: Option<u32>,
 	expected_note_ids: Vec<Uuid>,
+	ranking: Option<RankingRequestOverride>,
 }
 
 #[derive(Debug, Serialize)]
@@ -111,6 +114,9 @@ struct StabilitySummary {
 struct QueryReport {
 	id: String,
 	query: String,
+	trace_id: Uuid,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	trace_ids: Option<Vec<Uuid>>,
 	expected_count: usize,
 	retrieved_count: usize,
 	relevant_count: usize,
@@ -174,6 +180,9 @@ struct CompareQueryReport {
 
 #[derive(Debug, Serialize)]
 struct QueryVariantReport {
+	trace_id: Uuid,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	trace_ids: Option<Vec<Uuid>>,
 	retrieved_count: usize,
 	relevant_count: usize,
 	recall_at_k: f64,
@@ -283,7 +292,7 @@ fn load_dataset(path: &Path) -> color_eyre::Result<EvalDataset> {
 
 async fn eval_config(
 	config_path: &Path,
-	config: elf_config::Config,
+	config: Config,
 	dataset: &EvalDataset,
 	args: &Args,
 ) -> color_eyre::Result<EvalRun> {
@@ -301,6 +310,7 @@ async fn eval_config(
 		read_profile: None,
 		top_k: None,
 		candidate_k: None,
+		ranking: None,
 	});
 
 	let mut reports = Vec::with_capacity(dataset.queries.len());
@@ -313,7 +323,7 @@ async fn eval_config(
 	for (index, query) in dataset.queries.iter().enumerate() {
 		let merged = merge_query(&defaults, query, args, &service.cfg, index)?;
 		let expected: HashSet<Uuid> = merged.expected_note_ids.iter().copied().collect();
-		let (first, latency_ms, stability) =
+		let (first, latency_ms, stability, trace_ids) =
 			run_query_n_times(&service, merged.request, runs_per_query).await?;
 		let retrieved = unique_ids(first.items.iter().map(|item| item.note_id));
 		let metrics = compute_metrics(&retrieved, &expected);
@@ -326,6 +336,8 @@ async fn eval_config(
 		reports.push(QueryReport {
 			id: merged.id,
 			query: merged.query,
+			trace_id: first.trace_id,
+			trace_ids: (trace_ids.len() > 1).then_some(trace_ids),
 			expected_count: expected.len(),
 			retrieved_count: retrieved.len(),
 			relevant_count: metrics.relevant_count,
@@ -382,12 +394,13 @@ async fn run_query_n_times(
 	service: &ElfService,
 	request: SearchRequest,
 	runs_per_query: u32,
-) -> color_eyre::Result<(SearchIndexResponse, f64, Option<QueryStability>)> {
+) -> color_eyre::Result<(SearchIndexResponse, f64, Option<QueryStability>, Vec<Uuid>)> {
 	let k = request.top_k.unwrap_or(1).max(1) as usize;
 	let runs = runs_per_query.max(1);
 
 	let mut first_response: Option<SearchIndexResponse> = None;
 	let mut first_retrieved: Vec<Uuid> = Vec::new();
+	let mut trace_ids: Vec<Uuid> = Vec::with_capacity(runs as usize);
 	let mut latency_total_ms = 0.0_f64;
 	let mut positional_churn_sum = 0.0_f64;
 	let mut set_churn_sum = 0.0_f64;
@@ -399,6 +412,7 @@ async fn run_query_n_times(
 		let latency_ms = start.elapsed().as_secs_f64() * 1_000.0;
 
 		latency_total_ms += latency_ms;
+		trace_ids.push(response.trace_id);
 
 		let retrieved = unique_ids(response.items.iter().map(|item| item.note_id));
 
@@ -431,6 +445,7 @@ async fn run_query_n_times(
 		first_response.ok_or_else(|| eyre::eyre!("No search responses were collected."))?,
 		latency_ms_mean,
 		stability,
+		trace_ids,
 	))
 }
 
@@ -493,6 +508,8 @@ fn build_compare_queries(a: &[QueryReport], b: &[QueryReport]) -> Vec<CompareQue
 				expected_count: qa.expected_count,
 				expected_note_ids: qa.expected_note_ids.clone(),
 				a: QueryVariantReport {
+					trace_id: qa.trace_id,
+					trace_ids: qa.trace_ids.clone(),
 					retrieved_count: qa.retrieved_count,
 					relevant_count: qa.relevant_count,
 					recall_at_k: qa.recall_at_k,
@@ -504,6 +521,8 @@ fn build_compare_queries(a: &[QueryReport], b: &[QueryReport]) -> Vec<CompareQue
 					stability: qa.stability,
 				},
 				b: QueryVariantReport {
+					trace_id: qb.trace_id,
+					trace_ids: qb.trace_ids.clone(),
 					retrieved_count: qb.retrieved_count,
 					relevant_count: qb.relevant_count,
 					recall_at_k: qb.recall_at_k,
@@ -533,7 +552,7 @@ fn merge_query(
 	defaults: &EvalDefaults,
 	query: &EvalQuery,
 	args: &Args,
-	cfg: &elf_config::Config,
+	cfg: &Config,
 	index: usize,
 ) -> color_eyre::Result<MergedQuery> {
 	if query.expected_note_ids.is_empty() {
@@ -570,6 +589,7 @@ fn merge_query(
 		.unwrap_or(cfg.memory.candidate_k)
 		.max(top_k);
 	let id = query.id.clone().unwrap_or_else(|| format!("query-{index}"));
+	let ranking = query.ranking.clone().or_else(|| defaults.ranking.clone());
 
 	Ok(MergedQuery {
 		id,
@@ -584,7 +604,7 @@ fn merge_query(
 			top_k: Some(top_k),
 			candidate_k: Some(candidate_k),
 			record_hits: Some(false),
-			ranking: None,
+			ranking,
 		},
 	})
 }

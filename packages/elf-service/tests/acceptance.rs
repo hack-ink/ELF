@@ -22,7 +22,7 @@ mod acceptance {
 	};
 
 	use qdrant_client::{
-		Qdrant, QdrantError,
+		QdrantError,
 		qdrant::{
 			CreateCollectionBuilder, Distance, Modifier, SparseVectorParamsBuilder,
 			SparseVectorsConfigBuilder, VectorParamsBuilder, VectorsConfigBuilder,
@@ -32,9 +32,13 @@ mod acceptance {
 	use sqlx::PgExecutor;
 	use tokio::time;
 
-	use elf_service::{
-		ElfService, EmbeddingProvider, ExtractorProvider, Providers, RerankProvider,
+	use elf_config::{
+		Chunking, Config, EmbeddingProviderConfig, Lifecycle, LlmProviderConfig, Memory, Postgres,
+		ProviderConfig, Providers, Ranking, ReadProfiles, ScopePrecedence, ScopeWriteAllowed,
+		Scopes, Search, SearchCache, SearchDynamic, SearchExpansion, SearchExplain,
+		SearchPrefilter, Security, Service, Storage, TtlDays,
 	};
+	use elf_service::{ElfService, EmbeddingProvider, ExtractorProvider, RerankProvider};
 	use elf_storage::{
 		db::Db,
 		qdrant::{BM25_VECTOR_NAME, DENSE_VECTOR_NAME, QdrantStore},
@@ -62,7 +66,7 @@ mod acceptance {
 	impl EmbeddingProvider for StubEmbedding {
 		fn embed<'a>(
 			&'a self,
-			_cfg: &'a elf_config::EmbeddingProviderConfig,
+			_cfg: &'a EmbeddingProviderConfig,
 			texts: &'a [String],
 		) -> elf_service::BoxFuture<'a, elf_service::Result<Vec<Vec<f32>>>> {
 			let dim = self.vector_dim as usize;
@@ -80,7 +84,7 @@ mod acceptance {
 	impl EmbeddingProvider for SpyEmbedding {
 		fn embed<'a>(
 			&'a self,
-			_cfg: &'a elf_config::EmbeddingProviderConfig,
+			_cfg: &'a EmbeddingProviderConfig,
 			texts: &'a [String],
 		) -> elf_service::BoxFuture<'a, elf_service::Result<Vec<Vec<f32>>>> {
 			self.calls.fetch_add(1, Ordering::SeqCst);
@@ -96,7 +100,7 @@ mod acceptance {
 	impl RerankProvider for StubRerank {
 		fn rerank<'a>(
 			&'a self,
-			_cfg: &'a elf_config::ProviderConfig,
+			_cfg: &'a ProviderConfig,
 			_query: &'a str,
 			docs: &'a [String],
 		) -> elf_service::BoxFuture<'a, elf_service::Result<Vec<f32>>> {
@@ -114,7 +118,7 @@ mod acceptance {
 	impl ExtractorProvider for SpyExtractor {
 		fn extract<'a>(
 			&'a self,
-			_cfg: &'a elf_config::LlmProviderConfig,
+			_cfg: &'a LlmProviderConfig,
 			_messages: &'a [Value],
 		) -> elf_service::BoxFuture<'a, elf_service::Result<Value>> {
 			let payload = self.payload.clone();
@@ -132,33 +136,33 @@ mod acceptance {
 		qdrant_url: String,
 		vector_dim: u32,
 		collection: String,
-	) -> elf_config::Config {
+	) -> Config {
 		let mut embedding = dummy_embedding_provider();
 		embedding.dimensions = vector_dim;
 
-		elf_config::Config {
-			service: elf_config::Service {
+		Config {
+			service: Service {
 				http_bind: "127.0.0.1:0".to_string(),
 				mcp_bind: "127.0.0.1:0".to_string(),
 				admin_bind: "127.0.0.1:0".to_string(),
 				log_level: "info".to_string(),
 			},
-			storage: elf_config::Storage {
-				postgres: elf_config::Postgres { dsn, pool_max_conns: 2 },
+			storage: Storage {
+				postgres: Postgres { dsn, pool_max_conns: 2 },
 				qdrant: elf_config::Qdrant { url: qdrant_url, collection, vector_dim },
 			},
-			providers: elf_config::Providers {
+			providers: Providers {
 				embedding,
 				rerank: dummy_provider(),
 				llm_extractor: dummy_llm_provider(),
 			},
-			scopes: elf_config::Scopes {
+			scopes: Scopes {
 				allowed: vec![
 					"agent_private".to_string(),
 					"project_shared".to_string(),
 					"org_shared".to_string(),
 				],
-				read_profiles: elf_config::ReadProfiles {
+				read_profiles: ReadProfiles {
 					private_only: vec!["agent_private".to_string()],
 					private_plus_project: vec![
 						"agent_private".to_string(),
@@ -170,18 +174,18 @@ mod acceptance {
 						"org_shared".to_string(),
 					],
 				},
-				precedence: elf_config::ScopePrecedence {
+				precedence: ScopePrecedence {
 					agent_private: 30,
 					project_shared: 20,
 					org_shared: 10,
 				},
-				write_allowed: elf_config::ScopeWriteAllowed {
+				write_allowed: ScopeWriteAllowed {
 					agent_private: true,
 					project_shared: true,
 					org_shared: true,
 				},
 			},
-			memory: elf_config::Memory {
+			memory: Memory {
 				max_notes_per_add_event: 3,
 				max_note_chars: 240,
 				dup_sim_threshold: 0.92,
@@ -189,29 +193,34 @@ mod acceptance {
 				candidate_k: 60,
 				top_k: 12,
 			},
-			search: elf_config::Search {
-				expansion: elf_config::SearchExpansion {
+			search: Search {
+				expansion: SearchExpansion {
 					mode: "off".to_string(),
 					max_queries: 4,
 					include_original: true,
 				},
-				dynamic: elf_config::SearchDynamic { min_candidates: 10, min_top_score: 0.12 },
-				prefilter: elf_config::SearchPrefilter { max_candidates: 0 },
-				cache: elf_config::SearchCache {
+				dynamic: SearchDynamic { min_candidates: 10, min_top_score: 0.12 },
+				prefilter: SearchPrefilter { max_candidates: 0 },
+				cache: SearchCache {
 					enabled: true,
 					expansion_ttl_days: 7,
 					rerank_ttl_days: 7,
 					max_payload_bytes: Some(262_144),
 				},
-				explain: elf_config::SearchExplain { retention_days: 7 },
+				explain: SearchExplain {
+					retention_days: 7,
+					capture_candidates: false,
+					candidate_retention_days: 2,
+					write_mode: "outbox".to_string(),
+				},
 			},
-			ranking: elf_config::Ranking {
+			ranking: Ranking {
 				recency_tau_days: 60.0,
 				tie_breaker_weight: 0.1,
 				blend: Default::default(),
 			},
-			lifecycle: elf_config::Lifecycle {
-				ttl_days: elf_config::TtlDays {
+			lifecycle: Lifecycle {
+				ttl_days: TtlDays {
 					plan: 14,
 					fact: 180,
 					preference: 0,
@@ -222,13 +231,13 @@ mod acceptance {
 				purge_deleted_after_days: 30,
 				purge_deprecated_after_days: 180,
 			},
-			chunking: elf_config::Chunking {
+			chunking: Chunking {
 				enabled: true,
 				max_tokens: 512,
 				overlap_tokens: 128,
 				tokenizer_repo: None,
 			},
-			security: elf_config::Security {
+			security: Security {
 				bind_localhost_only: true,
 				reject_cjk: true,
 				redact_secrets_on_write: true,
@@ -243,8 +252,8 @@ mod acceptance {
 		}
 	}
 
-	pub fn dummy_embedding_provider() -> elf_config::EmbeddingProviderConfig {
-		elf_config::EmbeddingProviderConfig {
+	pub fn dummy_embedding_provider() -> EmbeddingProviderConfig {
+		EmbeddingProviderConfig {
 			provider_id: "test".to_string(),
 			api_base: "http://127.0.0.1:1".to_string(),
 			api_key: "test-key".to_string(),
@@ -256,8 +265,8 @@ mod acceptance {
 		}
 	}
 
-	pub fn dummy_provider() -> elf_config::ProviderConfig {
-		elf_config::ProviderConfig {
+	pub fn dummy_provider() -> ProviderConfig {
+		ProviderConfig {
 			provider_id: "test".to_string(),
 			api_base: "http://127.0.0.1:1".to_string(),
 			api_key: "test-key".to_string(),
@@ -268,8 +277,8 @@ mod acceptance {
 		}
 	}
 
-	pub fn dummy_llm_provider() -> elf_config::LlmProviderConfig {
-		elf_config::LlmProviderConfig {
+	pub fn dummy_llm_provider() -> LlmProviderConfig {
+		LlmProviderConfig {
 			provider_id: "test".to_string(),
 			api_base: "http://127.0.0.1:1".to_string(),
 			api_key: "test-key".to_string(),
@@ -289,7 +298,7 @@ mod acceptance {
 	}
 
 	async fn reset_qdrant_collection(
-		client: &Qdrant,
+		client: &qdrant_client::Qdrant,
 		collection: &str,
 		vector_dim: u32,
 	) -> TestResult<()> {
@@ -336,8 +345,8 @@ mod acceptance {
 	}
 
 	async fn build_service(
-		cfg: elf_config::Config,
-		providers: Providers,
+		cfg: Config,
+		providers: elf_service::Providers,
 	) -> TestResult<ElfService> {
 		let db = Db::connect(&cfg.storage.postgres).await?;
 
@@ -355,7 +364,7 @@ mod acceptance {
 			"\
 		TRUNCATE memory_hits, memory_note_versions, note_chunk_embeddings, memory_note_chunks, \
 		note_embeddings, search_trace_items, search_traces, search_trace_outbox, search_sessions, \
-indexing_outbox, memory_notes",
+search_trace_candidates, indexing_outbox, memory_notes",
 		)
 		.execute(executor)
 		.await?;

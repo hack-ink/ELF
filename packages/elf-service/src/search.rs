@@ -300,6 +300,8 @@ struct ScoredChunk {
 struct TracePayload {
 	trace: TraceRecord,
 	items: Vec<TraceItemRecord>,
+	#[serde(default)]
+	candidates: Vec<TraceCandidateRecord>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -331,6 +333,20 @@ struct TraceItemRecord {
 	explain: SearchExplain,
 }
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct TraceCandidateRecord {
+	candidate_id: Uuid,
+	note_id: Uuid,
+	chunk_id: Uuid,
+	retrieval_rank: u32,
+	rerank_score: f32,
+	note_scope: String,
+	note_importance: f32,
+	note_updated_at: OffsetDateTime,
+	created_at: OffsetDateTime,
+	expires_at: OffsetDateTime,
+}
+
 struct TraceContext<'a> {
 	trace_id: Uuid,
 	tenant_id: &'a str,
@@ -348,6 +364,7 @@ struct TraceContext<'a> {
 struct SearchTraceBuilder {
 	trace: TraceRecord,
 	items: Vec<TraceItemRecord>,
+	candidates: Vec<TraceCandidateRecord>,
 }
 impl SearchTraceBuilder {
 	fn new(
@@ -373,15 +390,19 @@ impl SearchTraceBuilder {
 			created_at: now,
 			expires_at: now + Duration::days(retention_days),
 		};
-		Self { trace, items: Vec::new() }
+		Self { trace, items: Vec::new(), candidates: Vec::new() }
 	}
 
 	fn push_item(&mut self, item: TraceItemRecord) {
 		self.items.push(item);
 	}
 
+	fn push_candidate(&mut self, candidate: TraceCandidateRecord) {
+		self.candidates.push(candidate);
+	}
+
 	fn build(self) -> TracePayload {
-		TracePayload { trace: self.trace, items: self.items }
+		TracePayload { trace: self.trace, items: self.items, candidates: self.candidates }
 	}
 }
 
@@ -1440,6 +1461,31 @@ ORDER BY rank ASC",
 
 		let mut best_by_note: HashMap<Uuid, ScoredChunk> = HashMap::new();
 
+		let trace_candidates = if self.cfg.search.explain.capture_candidates {
+			let candidate_expires_at =
+				now + Duration::days(self.cfg.search.explain.candidate_retention_days);
+			scored
+				.iter()
+				.map(|scored_chunk| {
+					let note = &scored_chunk.item.note;
+					TraceCandidateRecord {
+						candidate_id: Uuid::new_v4(),
+						note_id: note.note_id,
+						chunk_id: scored_chunk.item.chunk.chunk_id,
+						retrieval_rank: scored_chunk.item.retrieval_rank,
+						rerank_score: scored_chunk.rerank_score,
+						note_scope: note.scope.clone(),
+						note_importance: note.importance,
+						note_updated_at: note.updated_at,
+						created_at: now,
+						expires_at: candidate_expires_at,
+					}
+				})
+				.collect::<Vec<_>>()
+		} else {
+			Vec::new()
+		};
+
 		for scored_item in scored {
 			let note_id = scored_item.item.note.note_id;
 			let replace = match best_by_note.get(&note_id) {
@@ -1489,6 +1535,10 @@ ORDER BY rank ASC",
 			self.cfg.search.explain.retention_days,
 			now,
 		);
+
+		for candidate in trace_candidates {
+			trace_builder.push_candidate(candidate);
+		}
 
 		for (idx, scored_chunk) in results.into_iter().enumerate() {
 			let rank = idx as u32 + 1;
@@ -1595,8 +1645,20 @@ ORDER BY rank ASC",
 
 		let trace_payload = trace_builder.build();
 
-		if let Err(err) = enqueue_trace(&self.db.pool, trace_payload).await {
-			tracing::error!(error = %err, trace_id = %trace_id, "Failed to enqueue search trace.");
+		match self.cfg.search.explain.write_mode.trim().to_ascii_lowercase().as_str() {
+			"inline" => {
+				let mut tx = self.db.pool.begin().await?;
+				persist_trace_inline(&mut *tx, trace_payload).await?;
+				tx.commit().await?;
+			},
+			_ =>
+				if let Err(err) = enqueue_trace(&self.db.pool, trace_payload).await {
+					tracing::error!(
+						error = %err,
+						trace_id = %trace_id,
+						"Failed to enqueue search trace."
+					);
+				},
 		}
 
 		Ok(SearchResponse { trace_id, items })
@@ -2470,6 +2532,143 @@ where
 	Ok(())
 }
 
+async fn persist_trace_inline(
+	executor: &mut sqlx::PgConnection,
+	payload: TracePayload,
+) -> Result<()> {
+	let trace = payload.trace;
+	let items = payload.items;
+	let candidates = payload.candidates;
+	let trace_id = trace.trace_id;
+
+	let expanded_queries_json = serde_json::to_value(&trace.expanded_queries).map_err(|err| {
+		Error::Storage { message: format!("Failed to encode expanded_queries: {err}") }
+	})?;
+	let allowed_scopes_json = serde_json::to_value(&trace.allowed_scopes).map_err(|err| {
+		Error::Storage { message: format!("Failed to encode allowed_scopes: {err}") }
+	})?;
+
+	sqlx::query(
+		"\
+INSERT INTO search_traces (
+	trace_id,
+	tenant_id,
+	project_id,
+	agent_id,
+	read_profile,
+	query,
+	expansion_mode,
+	expanded_queries,
+	allowed_scopes,
+	candidate_count,
+	top_k,
+	config_snapshot,
+	trace_version,
+	created_at,
+	expires_at
+)
+VALUES (
+	$1,
+	$2,
+	$3,
+	$4,
+	$5,
+	$6,
+	$7,
+	$8,
+	$9,
+	$10,
+	$11,
+	$12,
+	$13,
+	$14,
+	$15
+)
+ON CONFLICT (trace_id) DO NOTHING",
+	)
+	.bind(trace_id)
+	.bind(trace.tenant_id.as_str())
+	.bind(trace.project_id.as_str())
+	.bind(trace.agent_id.as_str())
+	.bind(trace.read_profile.as_str())
+	.bind(trace.query.as_str())
+	.bind(trace.expansion_mode.as_str())
+	.bind(expanded_queries_json)
+	.bind(allowed_scopes_json)
+	.bind(trace.candidate_count as i32)
+	.bind(trace.top_k as i32)
+	.bind(trace.config_snapshot)
+	.bind(trace.trace_version)
+	.bind(trace.created_at)
+	.bind(trace.expires_at)
+	.execute(&mut *executor)
+	.await?;
+
+	if !items.is_empty() {
+		let mut builder = QueryBuilder::new(
+			"\
+INSERT INTO search_trace_items (
+	item_id,
+	trace_id,
+	note_id,
+	chunk_id,
+	rank,
+	final_score,
+	explain
+) ",
+		);
+		builder.push_values(items, |mut b, item| {
+			let explain_json = serde_json::to_value(item.explain)
+				.expect("SearchExplain must be JSON-serializable.");
+			b.push_bind(item.item_id)
+				.push_bind(trace_id)
+				.push_bind(item.note_id)
+				.push_bind(item.chunk_id)
+				.push_bind(item.rank as i32)
+				.push_bind(item.final_score)
+				.push_bind(explain_json);
+		});
+		builder.push(" ON CONFLICT (item_id) DO NOTHING");
+		builder.build().execute(&mut *executor).await?;
+	}
+
+	if !candidates.is_empty() {
+		let mut builder = QueryBuilder::new(
+			"\
+INSERT INTO search_trace_candidates (
+	candidate_id,
+	trace_id,
+	note_id,
+	chunk_id,
+	retrieval_rank,
+	rerank_score,
+	note_scope,
+	note_importance,
+	note_updated_at,
+	created_at,
+	expires_at
+) ",
+		);
+		builder.push_values(candidates, |mut b, candidate| {
+			b.push_bind(candidate.candidate_id)
+				.push_bind(trace_id)
+				.push_bind(candidate.note_id)
+				.push_bind(candidate.chunk_id)
+				.push_bind(candidate.retrieval_rank as i32)
+				.push_bind(candidate.rerank_score)
+				.push_bind(candidate.note_scope)
+				.push_bind(candidate.note_importance)
+				.push_bind(candidate.note_updated_at)
+				.push_bind(candidate.created_at)
+				.push_bind(candidate.expires_at);
+		});
+		builder.push(" ON CONFLICT (candidate_id) DO NOTHING");
+		builder.build().execute(&mut *executor).await?;
+	}
+
+	Ok(())
+}
+
 async fn record_hits<'e, E>(
 	executor: E,
 	query: &str,
@@ -2650,6 +2849,7 @@ where
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use elf_config::SearchDynamic;
 
 	#[test]
 	fn dense_embedding_input_includes_project_context_suffix() {
@@ -2702,7 +2902,7 @@ mod tests {
 
 	#[test]
 	fn dynamic_trigger_checks_candidates_and_score() {
-		let cfg = elf_config::SearchDynamic { min_candidates: 10, min_top_score: 0.2 };
+		let cfg = SearchDynamic { min_candidates: 10, min_top_score: 0.2 };
 
 		assert!(should_expand_dynamic(5, 0.9, &cfg));
 		assert!(should_expand_dynamic(20, 0.1, &cfg));

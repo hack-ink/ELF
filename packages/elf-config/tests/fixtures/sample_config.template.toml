@@ -93,7 +93,10 @@ max_payload_bytes  = 262_144
 rerank_ttl_days    = 7
 
 [search.explain]
-retention_days = 7
+candidate_retention_days = 2
+capture_candidates       = false
+retention_days           = 7
+write_mode               = "outbox"
 
 [ranking]
 recency_tau_days   = 60.0

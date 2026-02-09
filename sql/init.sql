@@ -7,6 +7,7 @@
 \ir tables/004_memory_hits.sql
 \ir tables/005_indexing_outbox.sql
 \ir tables/006_search_traces.sql
+\ir tables/012_search_trace_candidates.sql
 \ir tables/007_search_trace_outbox.sql
 \ir tables/008_llm_cache.sql
 \ir tables/011_search_sessions.sql
