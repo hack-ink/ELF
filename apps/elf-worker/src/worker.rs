@@ -736,12 +736,13 @@ async fn delete_qdrant_note_points(state: &WorkerState, note_id: uuid::Uuid) -> 
 		DeletePointsBuilder::new(state.qdrant.collection.clone()).points(filter).wait(true);
 	match state.qdrant.client.delete_points(delete).await {
 		Ok(_) => {},
-		Err(err) =>
+		Err(err) => {
 			if is_not_found_error(&err) {
 				tracing::info!(note_id = %note_id, "Qdrant points missing during delete.");
 			} else {
 				return Err(err.into());
-			},
+			}
+		},
 	}
 
 	Ok(())

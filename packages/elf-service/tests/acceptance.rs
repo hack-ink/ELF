@@ -133,6 +133,9 @@ mod acceptance {
 		vector_dim: u32,
 		collection: String,
 	) -> elf_config::Config {
+		let mut embedding = dummy_embedding_provider();
+		embedding.dimensions = vector_dim;
+
 		elf_config::Config {
 			service: elf_config::Service {
 				http_bind: "127.0.0.1:0".to_string(),
@@ -145,7 +148,7 @@ mod acceptance {
 				qdrant: elf_config::Qdrant { url: qdrant_url, collection, vector_dim },
 			},
 			providers: elf_config::Providers {
-				embedding: dummy_embedding_provider(),
+				embedding,
 				rerank: dummy_provider(),
 				llm_extractor: dummy_llm_provider(),
 			},
@@ -247,7 +250,7 @@ mod acceptance {
 			api_key: "test-key".to_string(),
 			path: "/".to_string(),
 			model: "test".to_string(),
-			dimensions: 3,
+			dimensions: 4_096,
 			timeout_ms: 1_000,
 			default_headers: Map::new(),
 		}
