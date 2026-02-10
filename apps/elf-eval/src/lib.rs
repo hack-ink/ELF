@@ -149,7 +149,15 @@ struct CompareOutput {
 	summary_a: EvalSummary,
 	summary_b: EvalSummary,
 	summary_delta: EvalSummaryDelta,
+	policy_stability: PolicyStabilitySummary,
 	queries: Vec<CompareQueryReport>,
+}
+
+#[derive(Debug, Serialize)]
+struct PolicyStabilitySummary {
+	k: u32,
+	avg_positional_churn_at_k: f64,
+	avg_set_churn_at_k: f64,
 }
 
 #[derive(Debug, Serialize)]
@@ -179,6 +187,13 @@ struct CompareQueryReport {
 	a: QueryVariantReport,
 	b: QueryVariantReport,
 	delta: QueryVariantDelta,
+	policy_churn: PolicyChurn,
+}
+
+#[derive(Debug, Serialize)]
+struct PolicyChurn {
+	positional_churn_at_k: f64,
+	set_churn_at_k: f64,
 }
 
 #[derive(Debug, Serialize)]
@@ -241,6 +256,9 @@ struct TraceCompareSummary {
 	trace_count: usize,
 	avg_positional_churn_at_k: f64,
 	avg_set_churn_at_k: f64,
+	avg_a_retrieval_top3_retention: f64,
+	avg_b_retrieval_top3_retention: f64,
+	avg_retrieval_top3_retention_delta: f64,
 }
 
 #[derive(Debug, Serialize)]
@@ -253,6 +271,7 @@ struct TraceCompareTrace {
 	a: TraceCompareVariant,
 	b: TraceCompareVariant,
 	churn: TraceCompareChurn,
+	guardrails: TraceCompareGuardrails,
 }
 
 #[derive(Debug, Serialize)]
@@ -265,6 +284,16 @@ struct TraceCompareVariant {
 struct TraceCompareChurn {
 	positional_churn_at_k: f64,
 	set_churn_at_k: f64,
+}
+
+#[derive(Debug, Serialize)]
+struct TraceCompareGuardrails {
+	retrieval_top3_total: usize,
+	a_retrieval_top3_retained: usize,
+	a_retrieval_top3_retention: f64,
+	b_retrieval_top3_retained: usize,
+	b_retrieval_top3_retention: f64,
+	retrieval_top3_retention_delta: f64,
 }
 
 #[derive(sqlx::FromRow)]
@@ -343,7 +372,8 @@ pub async fn run(args: Args) -> color_eyre::Result<()> {
 	if let Some(config_b_path) = &args.config_b {
 		let config_b = elf_config::load(config_b_path)?;
 		let run_b = eval_config(config_b_path.as_path(), config_b, &dataset, &args).await?;
-		let queries = build_compare_queries(&run_a.queries, &run_b.queries);
+		let k = run_a.settings.top_k.min(run_b.settings.top_k).max(1);
+		let (queries, policy_stability) = build_compare_queries(&run_a.queries, &run_b.queries, k);
 		let summary_delta = diff_summary(&run_a.summary, &run_b.summary);
 		let output = CompareOutput {
 			dataset: run_a.dataset,
@@ -352,6 +382,7 @@ pub async fn run(args: Args) -> color_eyre::Result<()> {
 			summary_a: run_a.summary,
 			summary_b: run_b.summary,
 			summary_delta,
+			policy_stability,
 			queries,
 		};
 		let json = serde_json::to_string_pretty(&output)?;
@@ -389,6 +420,8 @@ async fn trace_compare(
 	let mut traces = Vec::with_capacity(args.trace_id.len());
 	let mut positional_sum = 0.0_f64;
 	let mut set_sum = 0.0_f64;
+	let mut top3_retention_a_sum = 0.0_f64;
+	let mut top3_retention_b_sum = 0.0_f64;
 
 	for trace_id in &args.trace_id {
 		let trace_row: TraceCompareTraceRow = sqlx::query_as(
@@ -467,9 +500,16 @@ ORDER BY retrieval_rank ASC",
 		let note_ids_b: Vec<Uuid> = items_b.iter().map(|item| item.note_id).collect();
 		let (positional_churn_at_k, set_churn_at_k) =
 			churn_against_baseline_at_k(&note_ids_a, &note_ids_b, top_k as usize);
+		let (retrieval_top3_total, a_retained, a_retention) =
+			retrieval_top_rank_retention(&candidates, &note_ids_a, 3);
+		let (_, b_retained, b_retention) =
+			retrieval_top_rank_retention(&candidates, &note_ids_b, 3);
+		let retention_delta = b_retention - a_retention;
 
 		positional_sum += positional_churn_at_k;
 		set_sum += set_churn_at_k;
+		top3_retention_a_sum += a_retention;
+		top3_retention_b_sum += b_retention;
 
 		traces.push(TraceCompareTrace {
 			trace_id: context.trace_id,
@@ -480,6 +520,14 @@ ORDER BY retrieval_rank ASC",
 			a: TraceCompareVariant { policy_id: policy_id_a.clone(), items: items_a },
 			b: TraceCompareVariant { policy_id: policy_id_b.clone(), items: items_b },
 			churn: TraceCompareChurn { positional_churn_at_k, set_churn_at_k },
+			guardrails: TraceCompareGuardrails {
+				retrieval_top3_total,
+				a_retrieval_top3_retained: a_retained,
+				a_retrieval_top3_retention: a_retention,
+				b_retrieval_top3_retained: b_retained,
+				b_retrieval_top3_retention: b_retention,
+				retrieval_top3_retention_delta: retention_delta,
+			},
 		});
 	}
 
@@ -488,6 +536,9 @@ ORDER BY retrieval_rank ASC",
 		trace_count: traces.len(),
 		avg_positional_churn_at_k: positional_sum / count,
 		avg_set_churn_at_k: set_sum / count,
+		avg_a_retrieval_top3_retention: top3_retention_a_sum / count,
+		avg_b_retrieval_top3_retention: top3_retention_b_sum / count,
+		avg_retrieval_top3_retention_delta: (top3_retention_b_sum - top3_retention_a_sum) / count,
 	};
 
 	Ok(TraceCompareOutput {
@@ -504,6 +555,34 @@ ORDER BY retrieval_rank ASC",
 		summary,
 		traces,
 	})
+}
+
+fn retrieval_top_rank_retention(
+	candidates: &[elf_service::search::TraceReplayCandidate],
+	note_ids: &[Uuid],
+	max_retrieval_rank: u32,
+) -> (usize, usize, f64) {
+	let mut top_notes = HashSet::new();
+
+	for candidate in candidates {
+		if candidate.retrieval_rank == 0 || candidate.retrieval_rank > max_retrieval_rank {
+			continue;
+		}
+
+		top_notes.insert(candidate.note_id);
+	}
+
+	let total = top_notes.len();
+
+	if total == 0 {
+		return (0, 0, 0.0);
+	}
+
+	let out_set: HashSet<Uuid> = note_ids.iter().copied().collect();
+	let retained = top_notes.intersection(&out_set).count();
+	let retention = retained as f64 / total as f64;
+
+	(total, retained, retention)
 }
 
 fn load_dataset(path: &Path) -> color_eyre::Result<EvalDataset> {
@@ -717,8 +796,16 @@ fn diff_summary(a: &EvalSummary, b: &EvalSummary) -> EvalSummaryDelta {
 	}
 }
 
-fn build_compare_queries(a: &[QueryReport], b: &[QueryReport]) -> Vec<CompareQueryReport> {
-	a.iter()
+fn build_compare_queries(
+	a: &[QueryReport],
+	b: &[QueryReport],
+	k: u32,
+) -> (Vec<CompareQueryReport>, PolicyStabilitySummary) {
+	let k_usize = k.max(1) as usize;
+	let mut positional_sum = 0.0_f64;
+	let mut set_sum = 0.0_f64;
+	let queries: Vec<CompareQueryReport> = a
+		.iter()
 		.zip(b.iter())
 		.map(|(qa, qb)| {
 			let delta_stability = match (qa.stability, qb.stability) {
@@ -728,6 +815,14 @@ fn build_compare_queries(a: &[QueryReport], b: &[QueryReport]) -> Vec<CompareQue
 				}),
 				_ => None,
 			};
+			let (positional_churn_at_k, set_churn_at_k) = churn_against_baseline_at_k(
+				&qa.retrieved_note_ids,
+				&qb.retrieved_note_ids,
+				k_usize,
+			);
+
+			positional_sum += positional_churn_at_k;
+			set_sum += set_churn_at_k;
 
 			CompareQueryReport {
 				id: qa.id.clone(),
@@ -770,9 +865,18 @@ fn build_compare_queries(a: &[QueryReport], b: &[QueryReport]) -> Vec<CompareQue
 					latency_ms: qb.latency_ms - qa.latency_ms,
 					stability: delta_stability,
 				},
+				policy_churn: PolicyChurn { positional_churn_at_k, set_churn_at_k },
 			}
 		})
-		.collect()
+		.collect();
+	let count = queries.len().max(1) as f64;
+	let summary = PolicyStabilitySummary {
+		k,
+		avg_positional_churn_at_k: positional_sum / count,
+		avg_set_churn_at_k: set_sum / count,
+	};
+
+	(queries, summary)
 }
 
 fn merge_query(

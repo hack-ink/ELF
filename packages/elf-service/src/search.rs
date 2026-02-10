@@ -1247,6 +1247,10 @@ ORDER BY rank ASC",
 			&self.cfg.ranking.blend,
 			ranking_override.as_ref().and_then(|override_| override_.blend.as_ref()),
 		)?;
+		let policy_snapshot =
+			build_policy_snapshot(&self.cfg, &blend_policy, ranking_override.as_ref());
+		let policy_hash = hash_policy_snapshot(&policy_snapshot)?;
+		let policy_id = format!("blend_v1:{}", &policy_hash[..12.min(policy_hash.len())]);
 
 		let mut scored: Vec<ScoredChunk> = Vec::new();
 
@@ -1556,10 +1560,13 @@ ORDER BY rank ASC",
 			candidate_count,
 			top_k,
 		};
-
-		let config_snapshot =
-			build_config_snapshot(&self.cfg, &blend_policy, ranking_override.as_ref());
-
+		let config_snapshot = build_config_snapshot(
+			&self.cfg,
+			&blend_policy,
+			ranking_override.as_ref(),
+			policy_id.as_str(),
+			&policy_snapshot,
+		);
 		let mut items = Vec::with_capacity(results.len());
 		let mut trace_builder = SearchTraceBuilder::new(
 			trace_context,
@@ -1637,7 +1644,7 @@ ORDER BY rank ASC",
 				},
 				ranking: SearchRankingExplain {
 					schema: SEARCH_RANKING_EXPLAIN_SCHEMA_V1.to_string(),
-					policy_id: "blend_v1".to_string(),
+					policy_id: policy_id.clone(),
 					signals,
 					components,
 				},
@@ -1678,11 +1685,11 @@ ORDER BY rank ASC",
 		let trace_payload = trace_builder.build();
 
 		match self.cfg.search.explain.write_mode.trim().to_ascii_lowercase().as_str() {
-				"inline" => {
-					let mut tx = self.db.pool.begin().await?;
-					persist_trace_inline(&mut tx, trace_payload).await?;
-					tx.commit().await?;
-				},
+			"inline" => {
+				let mut tx = self.db.pool.begin().await?;
+				persist_trace_inline(&mut tx, trace_payload).await?;
+				tx.commit().await?;
+			},
 			_ =>
 				if let Err(err) = enqueue_trace(&self.db.pool, trace_payload).await {
 					tracing::error!(
@@ -2323,6 +2330,8 @@ fn build_config_snapshot(
 	cfg: &Config,
 	blend_policy: &ResolvedBlendPolicy,
 	ranking_override: Option<&RankingRequestOverride>,
+	policy_id: &str,
+	policy_snapshot: &serde_json::Value,
 ) -> serde_json::Value {
 	let override_json = ranking_override.and_then(|value| serde_json::to_value(value).ok());
 	serde_json::json!({
@@ -2344,6 +2353,8 @@ fn build_config_snapshot(
 			},
 		},
 		"ranking": {
+			"policy_id": policy_id,
+			"policy_snapshot": policy_snapshot.clone(),
 			"recency_tau_days": cfg.ranking.recency_tau_days,
 			"tie_breaker_weight": cfg.ranking.tie_breaker_weight,
 			"blend": {
