@@ -4,7 +4,10 @@ use sqlx::PgExecutor;
 use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
-use crate::{ElfService, Error, NoteFetchResponse, Result, SearchRequest};
+use crate::{
+	ElfService, Error, NoteFetchResponse, Result, SearchRequest,
+	structured_fields::fetch_structured_fields,
+};
 use elf_domain::cjk;
 use elf_storage::models::MemoryNote;
 
@@ -185,10 +188,18 @@ impl ElfService {
 		let expires_at = now + Duration::hours(SESSION_SLIDING_TTL_HOURS);
 		let search_session_id = Uuid::new_v4();
 
+		let note_ids: Vec<Uuid> = raw.items.iter().map(|item| item.note_id).collect();
+		let structured_by_note = fetch_structured_fields(&self.db.pool, &note_ids).await?;
+
 		let mut items = Vec::with_capacity(raw.items.len());
 
 		for (idx, item) in raw.items.iter().enumerate() {
-			let summary = build_summary(&item.snippet, self.cfg.memory.max_note_chars as usize);
+			let summary = structured_by_note
+				.get(&item.note_id)
+				.and_then(|value| value.summary.clone())
+				.unwrap_or_else(|| {
+					build_summary(&item.snippet, self.cfg.memory.max_note_chars as usize)
+				});
 			items.push(SearchSessionItemRecord {
 				rank: idx as u32 + 1,
 				note_id: item.note_id,
@@ -359,6 +370,9 @@ impl ElfService {
 			}
 		}
 
+		let structured_by_note =
+			fetch_structured_fields(&self.db.pool, requested_in_session.as_slice()).await?;
+
 		let allowed_scopes = resolve_read_scopes(&self.cfg, &session.read_profile)?;
 
 		let mut results = Vec::with_capacity(req.note_ids.len());
@@ -410,6 +424,7 @@ impl ElfService {
 				updated_at: note.updated_at,
 				expires_at: note.expires_at,
 				source_ref: note.source_ref.clone(),
+				structured: structured_by_note.get(&note.note_id).cloned(),
 			};
 			results.push(SearchDetailsResult { note_id, note: Some(note_response), error: None });
 

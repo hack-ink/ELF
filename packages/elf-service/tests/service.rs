@@ -236,6 +236,7 @@ async fn add_note_does_not_call_llm() {
 			note_type: "fact".to_string(),
 			key: None,
 			text: "こんにちは".to_string(),
+			structured: None,
 			importance: 0.5,
 			confidence: 0.5,
 			ttl_days: None,
