@@ -1041,3 +1041,61 @@ fn percentile(values: &[f64], percentile: f64) -> f64 {
 		values[lower] * (1.0 - weight) + values[upper] * weight
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn retrieval_top_rank_retention_counts_unique_notes_and_retained_notes() {
+		let now = OffsetDateTime::from_unix_timestamp(0).expect("Valid timestamp.");
+		let note_a = Uuid::new_v4();
+		let note_b = Uuid::new_v4();
+		let note_c = Uuid::new_v4();
+		let candidates = vec![
+			elf_service::search::TraceReplayCandidate {
+				note_id: note_a,
+				chunk_id: Uuid::new_v4(),
+				retrieval_rank: 1,
+				rerank_score: 0.1,
+				note_scope: "project_shared".to_string(),
+				note_importance: 0.1,
+				note_updated_at: now,
+			},
+			elf_service::search::TraceReplayCandidate {
+				note_id: note_a,
+				chunk_id: Uuid::new_v4(),
+				retrieval_rank: 2,
+				rerank_score: 0.2,
+				note_scope: "project_shared".to_string(),
+				note_importance: 0.1,
+				note_updated_at: now,
+			},
+			elf_service::search::TraceReplayCandidate {
+				note_id: note_b,
+				chunk_id: Uuid::new_v4(),
+				retrieval_rank: 3,
+				rerank_score: 0.3,
+				note_scope: "org_shared".to_string(),
+				note_importance: 0.1,
+				note_updated_at: now,
+			},
+			elf_service::search::TraceReplayCandidate {
+				note_id: note_c,
+				chunk_id: Uuid::new_v4(),
+				retrieval_rank: 4,
+				rerank_score: 0.4,
+				note_scope: "org_shared".to_string(),
+				note_importance: 0.1,
+				note_updated_at: now,
+			},
+		];
+		let note_ids = vec![note_a, note_c];
+
+		let (total, retained, retention) = retrieval_top_rank_retention(&candidates, &note_ids, 3);
+
+		assert_eq!(total, 2);
+		assert_eq!(retained, 1);
+		assert!((retention - 0.5).abs() < 1e-12, "Unexpected retention: {retention}");
+	}
+}

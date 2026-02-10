@@ -253,6 +253,9 @@ TOML
 
 taplo fmt "${CFG_BASE}" "${CFG_CONTEXT}" >/dev/null 2>&1
 
+echo "Building harness binaries."
+(cd "${ROOT_DIR}" && cargo build -p elf-worker -p elf-api -p elf-eval >/dev/null)
+
 echo "Starting worker and API (logs: ${WORKER_LOG}, ${API_LOG})."
 (cd "${ROOT_DIR}" && cargo run -p elf-worker -- --config "${CFG_BASE}" >"${WORKER_LOG}" 2>&1) &
 WORKER_PID="$!"
