@@ -7,9 +7,9 @@ use qdrant_client::{
 		Vector,
 	},
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sqlx::{PgExecutor, QueryBuilder};
-use time::{Duration, OffsetDateTime, format_description::well_known::Rfc3339};
+use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use uuid::Uuid;
 
 use crate::{Error, Result};
@@ -30,7 +30,7 @@ const TRACE_CLEANUP_INTERVAL_SECONDS: i64 = 900;
 const TRACE_OUTBOX_LEASE_SECONDS: i64 = 30;
 const MAX_OUTBOX_ERROR_CHARS: usize = 1_024;
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, Deserialize)]
 struct TracePayload {
 	trace: TraceRecord,
 	items: Vec<TraceItemRecord>,
@@ -38,7 +38,7 @@ struct TracePayload {
 	candidates: Vec<TraceCandidateRecord>,
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, Deserialize)]
 struct TraceRecord {
 	trace_id: uuid::Uuid,
 	tenant_id: String,
@@ -57,7 +57,7 @@ struct TraceRecord {
 	expires_at: OffsetDateTime,
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, Deserialize)]
 struct TraceItemRecord {
 	item_id: uuid::Uuid,
 	note_id: uuid::Uuid,
@@ -68,7 +68,7 @@ struct TraceItemRecord {
 	explain: serde_json::Value,
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, Deserialize)]
 struct TraceCandidateRecord {
 	candidate_id: uuid::Uuid,
 	note_id: uuid::Uuid,
@@ -155,7 +155,7 @@ pub async fn run_worker(state: WorkerState) -> Result<()> {
 
 		let now = OffsetDateTime::now_utc();
 
-		if now - last_trace_cleanup >= Duration::seconds(TRACE_CLEANUP_INTERVAL_SECONDS) {
+		if now - last_trace_cleanup >= time::Duration::seconds(TRACE_CLEANUP_INTERVAL_SECONDS) {
 			if let Err(err) = purge_expired_trace_candidates(&state.db, now).await {
 				tracing::error!(error = %err, "Search trace candidate cleanup failed.");
 			}
@@ -172,7 +172,7 @@ pub async fn run_worker(state: WorkerState) -> Result<()> {
 			}
 		}
 
-		tokio::time::sleep(to_std_duration(Duration::milliseconds(POLL_INTERVAL_MS))).await;
+		tokio::time::sleep(to_std_duration(time::Duration::milliseconds(POLL_INTERVAL_MS))).await;
 	}
 }
 
@@ -181,6 +181,7 @@ fn is_not_found_error(err: &qdrant_client::QdrantError) -> bool {
 	let point_not_found =
 		(message.contains("not found") || message.contains("404")) && message.contains("point");
 	let no_point_found = message.contains("no point") && message.contains("found");
+
 	point_not_found || no_point_found
 }
 
@@ -235,7 +236,6 @@ fn mean_pool(chunks: &[Vec<f32>]) -> Option<Vec<f32>> {
 	}
 
 	let dim = chunks[0].len();
-
 	let mut out = vec![0.0_f32; dim];
 
 	for vec in chunks {
@@ -333,16 +333,16 @@ fn sanitize_outbox_error(text: &str) -> String {
 	out
 }
 
-fn backoff_for_attempt(attempt: i32) -> Duration {
+fn backoff_for_attempt(attempt: i32) -> time::Duration {
 	let attempts = attempt.max(1) as u32;
 	let exp = attempts.saturating_sub(1).min(6);
 	let base = BASE_BACKOFF_MS.saturating_mul(1 << exp);
 	let capped = base.min(MAX_BACKOFF_MS);
 
-	Duration::milliseconds(capped)
+	time::Duration::milliseconds(capped)
 }
 
-fn to_std_duration(duration: Duration) -> std::time::Duration {
+fn to_std_duration(duration: time::Duration) -> std::time::Duration {
 	let millis = duration.whole_milliseconds();
 
 	if millis <= 0 {
@@ -355,9 +355,7 @@ fn to_std_duration(duration: Duration) -> std::time::Duration {
 async fn process_indexing_outbox_once(state: &WorkerState) -> Result<()> {
 	let now = OffsetDateTime::now_utc();
 	let job = fetch_next_job(&state.db, now).await?;
-	let Some(job) = job else {
-		return Ok(());
-	};
+	let Some(job) = job else { return Ok(()) };
 	let result = match job.op.as_str() {
 		"UPSERT" => handle_upsert(state, &job).await,
 		"DELETE" => handle_delete(state, &job).await,
@@ -380,9 +378,7 @@ async fn process_indexing_outbox_once(state: &WorkerState) -> Result<()> {
 async fn process_trace_outbox_once(state: &WorkerState) -> Result<()> {
 	let now = OffsetDateTime::now_utc();
 	let job = fetch_next_trace_job(&state.db, now).await?;
-	let Some(job) = job else {
-		return Ok(());
-	};
+	let Some(job) = job else { return Ok(()) };
 	let result = handle_trace_job(&state.db, &job).await;
 
 	match result {
@@ -424,9 +420,9 @@ FOR UPDATE SKIP LOCKED",
 	)
 	.fetch_optional(&mut *tx)
 	.await?;
-
 	let job = if let Some(mut job) = row {
-		let lease_until = now + Duration::seconds(CLAIM_LEASE_SECONDS);
+		let lease_until = now + time::Duration::seconds(CLAIM_LEASE_SECONDS);
+
 		sqlx::query!(
 			"UPDATE indexing_outbox SET available_at = $1, updated_at = $2 WHERE outbox_id = $3",
 			lease_until,
@@ -469,7 +465,8 @@ FOR UPDATE SKIP LOCKED",
 	.fetch_optional(&mut *tx)
 	.await?;
 	let job = if let Some(job) = row {
-		let lease_until = now + Duration::seconds(TRACE_OUTBOX_LEASE_SECONDS);
+		let lease_until = now + time::Duration::seconds(TRACE_OUTBOX_LEASE_SECONDS);
+
 		sqlx::query!(
 			"UPDATE search_trace_outbox SET available_at = $1, updated_at = $2 WHERE outbox_id = $3",
 			lease_until,
@@ -493,19 +490,16 @@ async fn handle_upsert(state: &WorkerState, job: &IndexingOutboxEntry) -> Result
 	let note = fetch_note(&state.db, job.note_id).await?;
 	let Some(note) = note else {
 		tracing::info!(note_id = %job.note_id, "Note missing for outbox job. Marking done.");
-
 		return Ok(());
 	};
 	let now = OffsetDateTime::now_utc();
 
 	if !note_is_active(&note, now) {
 		tracing::info!(note_id = %job.note_id, "Note inactive or expired. Skipping index.");
-
 		return Ok(());
 	}
 
 	let fields = fetch_note_fields(&state.db, note.note_id).await?;
-
 	let chunks = elf_chunking::split_text(&note.text, &state.chunking, &state.tokenizer);
 
 	if chunks.is_empty() {
@@ -516,6 +510,7 @@ async fn handle_upsert(state: &WorkerState, job: &IndexingOutboxEntry) -> Result
 	let chunk_texts: Vec<String> = records.iter().map(|record| record.text.clone()).collect();
 	let field_texts: Vec<String> = fields.iter().map(|field| field.text.clone()).collect();
 	let mut embed_inputs = Vec::with_capacity(chunk_texts.len() + field_texts.len());
+
 	embed_inputs.extend(chunk_texts);
 	embed_inputs.extend(field_texts);
 
@@ -555,7 +550,6 @@ async fn handle_upsert(state: &WorkerState, job: &IndexingOutboxEntry) -> Result
 			)
 			.await?;
 		}
-
 		for (record, vector) in records.iter().zip(chunk_vectors.iter()) {
 			let vec_text = format_vector_text(vector);
 
@@ -595,6 +589,7 @@ async fn handle_upsert(state: &WorkerState, job: &IndexingOutboxEntry) -> Result
 
 		tx.commit().await?;
 	}
+
 	delete_qdrant_note_points(state, note.note_id).await?;
 	upsert_qdrant_chunks(state, &note, &job.embedding_version, &records, chunk_vectors).await?;
 
@@ -613,7 +608,6 @@ async fn handle_trace_job(db: &Db, job: &TraceOutboxJob) -> Result<()> {
 	let trace_id = trace.trace_id;
 	let expanded_queries_json = encode_json(&trace.expanded_queries, "expanded_queries")?;
 	let allowed_scopes_json = encode_json(&trace.allowed_scopes, "allowed_scopes")?;
-
 	let mut tx = db.pool.begin().await?;
 
 	sqlx::query!(
@@ -783,8 +777,7 @@ INSERT INTO search_trace_candidates (
 }
 
 async fn purge_expired_trace_candidates(db: &Db, now: OffsetDateTime) -> Result<()> {
-	let result = sqlx::query("DELETE FROM search_trace_candidates WHERE expires_at <= $1")
-		.bind(now)
+	let result = sqlx::query!("DELETE FROM search_trace_candidates WHERE expires_at <= $1", now)
 		.execute(&db.pool)
 		.await?;
 
@@ -875,18 +868,18 @@ where
 
 	sqlx::query!(
 		"\
-	INSERT INTO note_embeddings (
-		note_id,
+INSERT INTO note_embeddings (
+	note_id,
 	embedding_version,
-		embedding_dim,
-		vec
-	)
-	VALUES ($1, $2, $3, $4::text::vector)
-	ON CONFLICT (note_id, embedding_version) DO UPDATE
-	SET
-			embedding_dim = EXCLUDED.embedding_dim,
-			vec = EXCLUDED.vec,
-		created_at = now()",
+	embedding_dim,
+	vec
+)
+VALUES ($1, $2, $3, $4::text::vector)
+ON CONFLICT (note_id, embedding_version) DO UPDATE
+SET
+	embedding_dim = EXCLUDED.embedding_dim,
+	vec = EXCLUDED.vec,
+	created_at = now()",
 		note_id,
 		embedding_version,
 		embedding_dim,
@@ -1012,12 +1005,14 @@ async fn upsert_qdrant_chunks(
 			BM25_VECTOR_NAME.to_string(),
 			Vector::from(Document::new(record.text.clone(), BM25_MODEL)),
 		);
+
 		let point = PointStruct::new(record.chunk_id.to_string(), vector_map, payload);
 
 		points.push(point);
 	}
 
 	let upsert = UpsertPointsBuilder::new(state.qdrant.collection.clone(), points).wait(true);
+
 	state.qdrant.client.upsert_points(upsert).await?;
 
 	Ok(())
@@ -1120,6 +1115,7 @@ mod tests {
 	fn pooled_vector_is_mean_of_chunks() {
 		let chunks = vec![vec![1.0_f32, 3.0_f32], vec![3.0_f32, 5.0_f32]];
 		let pooled = mean_pool(&chunks).expect("Expected pooled vector.");
+
 		assert_eq!(pooled, vec![2.0_f32, 4.0_f32]);
 	}
 }

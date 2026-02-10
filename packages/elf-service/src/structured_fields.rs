@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -11,13 +12,12 @@ use crate::{Error, Result};
 const MAX_LIST_ITEMS: usize = 64;
 const MAX_ITEM_CHARS: usize = 1_000;
 
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct StructuredFields {
 	pub summary: Option<String>,
 	pub facts: Option<Vec<String>>,
 	pub concepts: Option<Vec<String>>,
 }
-
 impl StructuredFields {
 	pub fn is_effectively_empty(&self) -> bool {
 		let summary_empty = self.summary.as_ref().map(|v| v.trim().is_empty()).unwrap_or(true);
@@ -36,7 +36,7 @@ impl StructuredFields {
 	}
 }
 
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 struct SourceRefEvidenceQuote {
 	quote: String,
 }
@@ -61,6 +61,7 @@ pub fn validate_structured_fields(
 
 		for (idx, fact) in facts.iter().enumerate() {
 			validate_text_field(fact, &format!("structured.facts[{idx}]"))?;
+
 			if !fact_is_evidence_bound(fact, note_text, &evidence_quotes) {
 				return Err(Error::InvalidRequest {
 					message: format!(
@@ -72,6 +73,7 @@ pub fn validate_structured_fields(
 	}
 	if let Some(concepts) = structured.concepts.as_ref() {
 		validate_list_field(concepts, "structured.concepts")?;
+
 		for (idx, concept) in concepts.iter().enumerate() {
 			validate_text_field(concept, &format!("structured.concepts[{idx}]"))?;
 		}
@@ -86,11 +88,13 @@ fn validate_list_field(items: &[String], label: &str) -> Result<()> {
 			message: format!("{label} must have at most {MAX_LIST_ITEMS} items."),
 		});
 	}
+
 	Ok(())
 }
 
 fn validate_text_field(value: &str, label: &str) -> Result<()> {
 	let trimmed = value.trim();
+
 	if trimmed.is_empty() {
 		return Err(Error::InvalidRequest { message: format!("{label} must not be empty.") });
 	}
@@ -102,16 +106,16 @@ fn validate_text_field(value: &str, label: &str) -> Result<()> {
 	if cjk::contains_cjk(trimmed) {
 		return Err(Error::NonEnglishInput { field: label.to_string() });
 	}
+
 	Ok(())
 }
 
 fn extract_source_ref_quotes(source_ref: &Value) -> Vec<String> {
-	let Some(evidence) = source_ref.get("evidence") else {
-		return Vec::new();
-	};
+	let Some(evidence) = source_ref.get("evidence") else { return Vec::new() };
 	let Ok(quotes) = serde_json::from_value::<Vec<SourceRefEvidenceQuote>>(evidence.clone()) else {
 		return Vec::new();
 	};
+
 	quotes.into_iter().map(|q| q.quote).collect()
 }
 
@@ -244,6 +248,7 @@ ORDER BY note_id ASC, field_kind ASC, item_index ASC",
 
 	for row in rows {
 		let entry = out.entry(row.note_id).or_default();
+
 		match row.field_kind.as_str() {
 			"summary" =>
 				if entry.summary.is_none() && !row.text.trim().is_empty() {
@@ -281,6 +286,7 @@ mod tests {
 			&serde_json::json!({}),
 			None,
 		);
+
 		assert!(res.is_ok());
 	}
 
@@ -293,6 +299,7 @@ mod tests {
 		};
 		let res =
 			validate_structured_fields(&structured, "Some note.", &serde_json::json!({}), None);
+
 		assert!(res.is_err());
 	}
 }

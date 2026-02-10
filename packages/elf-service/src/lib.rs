@@ -14,12 +14,6 @@ mod ranking_explain_v2;
 
 mod error;
 
-use std::{future::Future, pin::Pin, sync::Arc};
-
-use serde_json::Value;
-use sqlx::PgExecutor;
-use uuid::Uuid;
-
 pub use add_event::{AddEventRequest, AddEventResponse, AddEventResult, EventMessage};
 pub use add_note::{AddNoteInput, AddNoteRequest, AddNoteResponse, AddNoteResult};
 pub use admin::RebuildReport;
@@ -40,7 +34,15 @@ pub use search::{
 pub use structured_fields::StructuredFields;
 pub use update::{UpdateRequest, UpdateResponse};
 
+use std::{future::Future, pin::Pin, sync::Arc};
+
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use sqlx::PgExecutor;
+use uuid::Uuid;
+
 use elf_config::{Config, EmbeddingProviderConfig, LlmProviderConfig, ProviderConfig};
+use elf_domain::writegate::RejectCode;
 use elf_providers::{embedding, extractor, rerank};
 use elf_storage::{db::Db, models::MemoryNote, qdrant::QdrantStore};
 
@@ -82,7 +84,7 @@ where
 	) -> BoxFuture<'a, Result<Value>>;
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum NoteOp {
 	Add,
@@ -92,7 +94,7 @@ pub enum NoteOp {
 	Rejected,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub(crate) enum UpdateDecision {
 	Add { note_id: Uuid },
 	Update { note_id: Uuid },
@@ -218,7 +220,6 @@ pub(crate) fn embedding_version(cfg: &Config) -> String {
 }
 
 pub(crate) fn writegate_reason_code(code: elf_domain::writegate::RejectCode) -> &'static str {
-	use elf_domain::writegate::RejectCode;
 	match code {
 		RejectCode::RejectCjk => "REJECT_CJK",
 		RejectCode::RejectTooLong => "REJECT_TOO_LONG",
@@ -231,12 +232,14 @@ pub(crate) fn writegate_reason_code(code: elf_domain::writegate::RejectCode) -> 
 
 pub(crate) fn vector_to_pg(vec: &[f32]) -> String {
 	let mut out = String::with_capacity(vec.len() * 8);
+
 	out.push('[');
 
 	for (i, value) in vec.iter().enumerate() {
 		if i > 0 {
 			out.push(',');
 		}
+
 		out.push_str(&value.to_string());
 	}
 
@@ -262,6 +265,7 @@ pub(crate) fn parse_pg_vector(text: &str) -> Result<Vec<f32>> {
 		let value: f32 = part.trim().parse().map_err(|_| Error::InvalidRequest {
 			message: "Vector text contains a non-numeric value.".to_string(),
 		})?;
+
 		vec.push(value);
 	}
 
@@ -307,9 +311,9 @@ where
 	let key = key.map(|value| value.trim()).filter(|value| !value.is_empty());
 	let row = sqlx::query!(
 		"\
-	WITH key_match AS (
-		SELECT note_id
-		FROM memory_notes
+WITH key_match AS (
+	SELECT note_id
+	FROM memory_notes
 	WHERE tenant_id = $1
 		AND project_id = $2
 		AND agent_id = $3
@@ -365,7 +369,6 @@ best AS (
 
 	let best_note_id = row.best_note_id;
 	let best_similarity = row.best_similarity;
-
 	let Some(best_id) = best_note_id else {
 		return Ok(UpdateDecision::Add { note_id: Uuid::new_v4() });
 	};
@@ -429,7 +432,7 @@ where
 {
 	sqlx::query!(
 		"\
-	INSERT INTO indexing_outbox (
+INSERT INTO indexing_outbox (
 	outbox_id,
 	note_id,
 	op,

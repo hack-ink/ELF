@@ -1,10 +1,11 @@
+use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
 use crate::{ElfService, Error, InsertVersionArgs, NoteOp, Result};
 use elf_storage::models::MemoryNote;
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DeleteRequest {
 	pub tenant_id: String,
 	pub project_id: String,
@@ -12,7 +13,7 @@ pub struct DeleteRequest {
 	pub note_id: Uuid,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DeleteResponse {
 	pub note_id: Uuid,
 	pub op: NoteOp,

@@ -4,13 +4,14 @@ use qdrant_client::{
 	client::Payload,
 	qdrant::{Document, PointStruct, UpsertPointsBuilder, Vector},
 };
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
 use crate::{ElfService, Error, Result};
 use elf_storage::qdrant::{BM25_MODEL, BM25_VECTOR_NAME, DENSE_VECTOR_NAME};
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RebuildReport {
 	pub rebuilt_count: u64,
 	pub missing_vector_count: u64,

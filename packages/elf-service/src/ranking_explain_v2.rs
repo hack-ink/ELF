@@ -1,10 +1,12 @@
 use std::collections::BTreeMap;
 
+use serde::{Deserialize, Serialize};
+
 use elf_config::Config;
 
 pub const SEARCH_RANKING_EXPLAIN_SCHEMA_V2: &str = "search_ranking_explain/v2";
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SearchRankingTerm {
 	pub name: String,
 	pub value: f32,
@@ -12,7 +14,7 @@ pub struct SearchRankingTerm {
 	pub inputs: Option<BTreeMap<String, serde_json::Value>>,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SearchRankingExplain {
 	pub schema: String,
 	pub policy_id: String,

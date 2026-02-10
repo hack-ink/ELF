@@ -104,9 +104,9 @@ where
 
 	sqlx::query(
 		"\
-			INSERT INTO memory_notes (
-				note_id,
-				tenant_id,
+INSERT INTO memory_notes (
+	note_id,
+	tenant_id,
 	project_id,
 	agent_id,
 	scope,
@@ -141,9 +141,9 @@ VALUES (
 	$14,
 	$15,
 	$16,
-			$17,
-				$18
-			)",
+	$17,
+	$18
+)",
 	)
 	.bind(note_id)
 	.bind("t")
@@ -183,16 +183,16 @@ async fn insert_chunk<'e, E>(
 {
 	sqlx::query(
 		"\
-			INSERT INTO memory_note_chunks (
-				chunk_id,
-			note_id,
+INSERT INTO memory_note_chunks (
+	chunk_id,
+	note_id,
 	chunk_index,
 	start_offset,
 	end_offset,
 	text,
 	embedding_version
-			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7)",
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7)",
 	)
 	.bind(chunk_id)
 	.bind(note_id)

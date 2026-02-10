@@ -55,20 +55,20 @@ impl RequestContext {
 	}
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 struct NotesIngestRequest {
 	scope: String,
 	notes: Vec<AddNoteInput>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 struct EventsIngestRequest {
 	scope: Option<String>,
 	dry_run: Option<bool>,
 	messages: Vec<EventMessage>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 struct SearchCreateRequest {
 	query: String,
 	top_k: Option<u32>,
@@ -77,7 +77,7 @@ struct SearchCreateRequest {
 	ranking: Option<RankingRequestOverride>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 struct SearchIndexResponseV2 {
 	trace_id: Uuid,
 	search_id: Uuid,
@@ -86,18 +86,18 @@ struct SearchIndexResponseV2 {
 	items: Vec<SearchIndexItem>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 struct SearchSessionGetQuery {
 	top_k: Option<u32>,
 	touch: Option<bool>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 struct SearchTimelineQuery {
 	group_by: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 struct SearchTimelineResponseV2 {
 	search_id: Uuid,
 	#[serde(with = "elf_service::time_serde")]
@@ -105,13 +105,13 @@ struct SearchTimelineResponseV2 {
 	groups: Vec<SearchTimelineGroup>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 struct SearchDetailsBody {
 	note_ids: Vec<Uuid>,
 	record_hits: Option<bool>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 struct SearchDetailsResponseV2 {
 	search_id: Uuid,
 	#[serde(with = "elf_service::time_serde")]
@@ -119,15 +119,14 @@ struct SearchDetailsResponseV2 {
 	results: Vec<SearchDetailsResult>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 struct NotesListQuery {
 	scope: Option<String>,
 	status: Option<String>,
-	#[serde(rename = "type")]
-	note_type: Option<String>,
+	r#type: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 struct NotePatchRequest {
 	text: Option<String>,
 	importance: Option<f32>,
@@ -719,7 +718,7 @@ async fn notes_list(
 			agent_id: Some(ctx.agent_id),
 			scope: query.scope,
 			status: query.status,
-			note_type: query.note_type,
+			r#type: query.r#type,
 		})
 		.await?;
 

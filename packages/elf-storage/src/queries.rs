@@ -171,13 +171,13 @@ where
 {
 	sqlx::query!(
 		"\
-	INSERT INTO note_chunk_embeddings (chunk_id, embedding_version, embedding_dim, vec)
-	VALUES ($1, $2, $3, $4::text::vector)
-	ON CONFLICT (chunk_id, embedding_version) DO UPDATE
-	SET
-		embedding_dim = EXCLUDED.embedding_dim,
-		vec = EXCLUDED.vec,
-	created_at = now()",
+INSERT INTO note_chunk_embeddings (chunk_id, embedding_version, embedding_dim, vec)
+VALUES ($1, $2, $3, $4::text::vector)
+ON CONFLICT (chunk_id, embedding_version) DO UPDATE
+SET
+	embedding_dim = EXCLUDED.embedding_dim,
+	vec = EXCLUDED.vec,
+created_at = now()",
 		chunk_id,
 		embedding_version,
 		embedding_dim,

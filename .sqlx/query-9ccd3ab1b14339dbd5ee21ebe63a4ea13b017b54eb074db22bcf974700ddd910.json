@@ -1,0 +1,88 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n\tcandidate_snapshot,\n\tnote_id,\n\tchunk_id,\n\tchunk_index,\n\tsnippet,\n\tretrieval_rank,\n\trerank_score,\n\tnote_scope,\n\tnote_importance,\n\tnote_updated_at,\n\tnote_hit_count,\n\tnote_last_hit_at\nFROM search_trace_candidates\nWHERE trace_id = $1\nORDER BY retrieval_rank ASC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "candidate_snapshot",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 1,
+        "name": "note_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "chunk_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "chunk_index",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "snippet",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "retrieval_rank",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "rerank_score",
+        "type_info": "Float4"
+      },
+      {
+        "ordinal": 7,
+        "name": "note_scope",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "note_importance",
+        "type_info": "Float4"
+      },
+      {
+        "ordinal": 9,
+        "name": "note_updated_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "note_hit_count",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 11,
+        "name": "note_last_hit_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "9ccd3ab1b14339dbd5ee21ebe63a4ea13b017b54eb074db22bcf974700ddd910"
+}

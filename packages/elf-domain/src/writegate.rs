@@ -3,7 +3,7 @@ use regex::Regex;
 use crate::cjk;
 use elf_config::Config;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RejectCode {
 	RejectCjk,
 	RejectTooLong,
