@@ -3441,7 +3441,6 @@ mod tests {
 				note_updated_at: now,
 			},
 		];
-
 		let out = replay_ranking_from_candidates(&cfg, &trace, None, &candidates, 2)
 			.expect("Expected replay output.");
 
