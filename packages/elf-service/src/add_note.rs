@@ -92,18 +92,17 @@ impl ElfService {
 		let mut results = Vec::with_capacity(req.notes.len());
 
 		for note in req.notes {
-			if let Some(structured) = note.structured.as_ref() {
-				if let Err(err) =
+			if let Some(structured) = note.structured.as_ref()
+				&& let Err(err) =
 					validate_structured_fields(structured, &note.text, &note.source_ref, None)
-				{
-					results.push(AddNoteResult {
-						note_id: None,
-						op: NoteOp::Rejected,
-						reason_code: Some(REJECT_STRUCTURED_INVALID.to_string()),
-					});
-					tracing::info!(error = %err, "Rejecting note due to invalid structured fields.");
-					continue;
-				}
+			{
+				results.push(AddNoteResult {
+					note_id: None,
+					op: NoteOp::Rejected,
+					reason_code: Some(REJECT_STRUCTURED_INVALID.to_string()),
+				});
+				tracing::info!(error = %err, "Rejecting note due to invalid structured fields.");
+				continue;
 			}
 
 			let gate_input = writegate::NoteInput {
@@ -245,7 +244,7 @@ impl ElfService {
 					if let Some(structured) = note.structured.as_ref()
 						&& !structured.is_effectively_empty()
 					{
-						upsert_structured_fields_tx(&mut *tx, memory_note.note_id, structured, now)
+						upsert_structured_fields_tx(&mut tx, memory_note.note_id, structured, now)
 							.await?;
 					}
 					crate::enqueue_outbox_tx(
@@ -353,7 +352,7 @@ impl ElfService {
 					if let Some(structured) = note.structured.as_ref()
 						&& !structured.is_effectively_empty()
 					{
-						upsert_structured_fields_tx(&mut *tx, existing.note_id, structured, now)
+						upsert_structured_fields_tx(&mut tx, existing.note_id, structured, now)
 							.await?;
 					}
 					crate::enqueue_outbox_tx(
@@ -376,7 +375,7 @@ impl ElfService {
 					if let Some(structured) = note.structured.as_ref()
 						&& !structured.is_effectively_empty()
 					{
-						upsert_structured_fields_tx(&mut *tx, note_id, structured, now).await?;
+						upsert_structured_fields_tx(&mut tx, note_id, structured, now).await?;
 						crate::enqueue_outbox_tx(
 							&mut *tx,
 							note_id,
@@ -411,9 +410,7 @@ fn find_cjk_path_in_structured(
 	structured: Option<&StructuredFields>,
 	base: &str,
 ) -> Option<String> {
-	let Some(structured) = structured else {
-		return None;
-	};
+	let structured = structured?;
 	if let Some(summary) = structured.summary.as_ref()
 		&& cjk::contains_cjk(summary)
 	{
