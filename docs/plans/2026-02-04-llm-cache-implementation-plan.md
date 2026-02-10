@@ -271,14 +271,14 @@ Expected: FAIL due to missing types and helper.
 Add payload structs and a validator that returns `Option<Vec<f32>>`.
 
 ```rust
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug serde::Serialize, serde::Deserialize)]
 struct RerankCacheItem {
 	note_id: uuid::Uuid,
 	updated_at: time::OffsetDateTime,
 	score: f32,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug serde::Serialize, serde::Deserialize)]
 struct RerankCachePayload {
 	items: Vec<RerankCacheItem>,
 }
