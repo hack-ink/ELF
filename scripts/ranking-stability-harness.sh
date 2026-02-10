@@ -336,7 +336,11 @@ echo "Boosting hit_count for the first ${TARGET_TOP_K} notes to create a stable 
 TARGET_LIST="$(
   printf "%s\n" "${TARGET_IDS[@]}" | "${JSON_TOOL}" -R -s -c 'split("\n")[:-1]'
 )"
-TARGET_ARRAY_SQL="{${TARGET_IDS[*]// /,}}"
+TARGET_ARRAY_SQL="{"
+for id in "${TARGET_IDS[@]}"; do
+  TARGET_ARRAY_SQL+="${id},"
+done
+TARGET_ARRAY_SQL="${TARGET_ARRAY_SQL%,}}"
 psql "${PG_DSN}" -v ON_ERROR_STOP=1 -c \
   "UPDATE memory_notes SET hit_count = 100, last_hit_at = now() WHERE note_id = ANY ('${TARGET_ARRAY_SQL}'::uuid[]);" \
   >/dev/null
