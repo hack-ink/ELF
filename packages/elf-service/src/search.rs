@@ -3209,7 +3209,7 @@ where
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use elf_config::SearchDynamic;
+	use elf_config::{Config, SearchDynamic};
 
 	#[test]
 	fn dense_embedding_input_includes_project_context_suffix() {
@@ -3362,5 +3362,91 @@ mod tests {
 		let prefix = cache_key_prefix("abcd1234efgh5678");
 
 		assert_eq!(prefix, "abcd1234efgh");
+	}
+
+	fn parse_example_config() -> Config {
+		let root_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+		let path = root_dir.join("elf.example.toml");
+
+		elf_config::load(&path).expect("elf.example.toml must remain parseable and valid.")
+	}
+
+	#[test]
+	fn ranking_policy_id_is_stable_and_has_expected_format() {
+		let cfg = parse_example_config();
+		let id_a = ranking_policy_id(&cfg, None).expect("Expected policy id.");
+		let id_b = ranking_policy_id(&cfg, None).expect("Expected policy id.");
+
+		assert_eq!(id_a, id_b);
+		assert!(id_a.starts_with("blend_v1:"), "Unexpected policy id: {id_a}");
+		assert_eq!(id_a.len(), "blend_v1:".len() + 12, "Unexpected policy id: {id_a}");
+	}
+
+	#[test]
+	fn ranking_policy_id_changes_with_override() {
+		let cfg = parse_example_config();
+		let base = ranking_policy_id(&cfg, None).expect("Expected base policy id.");
+		let override_ = RankingRequestOverride {
+			blend: Some(BlendRankingOverride {
+				enabled: Some(false),
+				rerank_normalization: None,
+				retrieval_normalization: None,
+				segments: None,
+			}),
+		};
+		let overridden =
+			ranking_policy_id(&cfg, Some(&override_)).expect("Expected overridden policy id.");
+
+		assert_ne!(base, overridden);
+	}
+
+	#[test]
+	fn replay_ranking_policy_id_matches_ranking_policy_id() {
+		let cfg = parse_example_config();
+		let expected = ranking_policy_id(&cfg, None).expect("Expected policy id.");
+		let now = OffsetDateTime::from_unix_timestamp(0).expect("Valid timestamp.");
+		let trace = TraceReplayContext {
+			trace_id: Uuid::new_v4(),
+			query: "deployment steps".to_string(),
+			candidate_count: 3,
+			top_k: 2,
+			created_at: now,
+		};
+		let candidates = vec![
+			TraceReplayCandidate {
+				note_id: Uuid::new_v4(),
+				chunk_id: Uuid::new_v4(),
+				retrieval_rank: 1,
+				rerank_score: 0.1,
+				note_scope: "project_shared".to_string(),
+				note_importance: 0.1,
+				note_updated_at: now,
+			},
+			TraceReplayCandidate {
+				note_id: Uuid::new_v4(),
+				chunk_id: Uuid::new_v4(),
+				retrieval_rank: 2,
+				rerank_score: 0.9,
+				note_scope: "project_shared".to_string(),
+				note_importance: 0.1,
+				note_updated_at: now,
+			},
+			TraceReplayCandidate {
+				note_id: Uuid::new_v4(),
+				chunk_id: Uuid::new_v4(),
+				retrieval_rank: 3,
+				rerank_score: 0.2,
+				note_scope: "org_shared".to_string(),
+				note_importance: 0.1,
+				note_updated_at: now,
+			},
+		];
+
+		let out = replay_ranking_from_candidates(&cfg, &trace, None, &candidates, 2)
+			.expect("Expected replay output.");
+
+		for item in out {
+			assert_eq!(item.explain.ranking.policy_id, expected);
+		}
 	}
 }
