@@ -367,7 +367,7 @@ impl ElfService {
 					if let Some(structured) = structured.as_ref()
 						&& !structured.is_effectively_empty()
 					{
-						upsert_structured_fields_tx(&mut *tx, memory_note.note_id, structured, now)
+						upsert_structured_fields_tx(&mut tx, memory_note.note_id, structured, now)
 							.await?;
 					}
 					tx.commit().await?;
@@ -443,7 +443,7 @@ impl ElfService {
 					if let Some(structured) = structured.as_ref()
 						&& !structured.is_effectively_empty()
 					{
-						upsert_structured_fields_tx(&mut *tx, existing.note_id, structured, now)
+						upsert_structured_fields_tx(&mut tx, existing.note_id, structured, now)
 							.await?;
 					}
 					tx.commit().await?;
@@ -459,7 +459,7 @@ impl ElfService {
 					if let Some(structured) = structured.as_ref()
 						&& !structured.is_effectively_empty()
 					{
-						upsert_structured_fields_tx(&mut *tx, note_id, structured, now).await?;
+						upsert_structured_fields_tx(&mut tx, note_id, structured, now).await?;
 						crate::enqueue_outbox_tx(
 							&mut *tx,
 							note_id,
