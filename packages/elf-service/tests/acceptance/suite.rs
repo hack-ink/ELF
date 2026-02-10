@@ -353,6 +353,8 @@ where
 TRUNCATE
 	memory_hits,
 	memory_note_versions,
+	note_field_embeddings,
+	memory_note_fields,
 	note_chunk_embeddings,
 	memory_note_chunks,
 	note_embeddings,
