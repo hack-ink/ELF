@@ -120,6 +120,31 @@ Prerequisites:
   - `ELF_QDRANT_HTTP_URL` (Qdrant REST URL, commonly `http://127.0.0.1:51889` in this repository)
 - `psql`, `curl`, `taplo`, and `jaq` (or `jq`) are installed.
 
+## Ranking Stability Harness
+
+To empirically measure rank churn reduction from deterministic ranking terms, use the harness
+script:
+
+```bash
+ELF_PG_DSN="postgres://postgres:postgres@127.0.0.1:51888/postgres" \
+ELF_QDRANT_URL="http://127.0.0.1:51890" \
+ELF_QDRANT_HTTP_URL="http://127.0.0.1:51889" \
+scripts/ranking-stability-harness.sh
+```
+
+What it does:
+
+- Creates a dedicated database and Qdrant collection for the run.
+- Ingests a synthetic dataset with many near-tied candidates.
+- Enables a local noisy rerank model to simulate reranker instability.
+- Compares `elf-eval` stability metrics with deterministic ranking disabled vs enabled.
+
+Configuration:
+
+- Control rerank noise with `ELF_HARNESS_NOISE_STD`.
+- Control stability sampling with `ELF_HARNESS_RUNS_PER_QUERY`.
+- Control ranking cutoffs with `ELF_HARNESS_TOP_K` and `ELF_HARNESS_CANDIDATE_K`.
+
 Configuration:
 
 - Override the database name with `ELF_HARNESS_DB_NAME`.
