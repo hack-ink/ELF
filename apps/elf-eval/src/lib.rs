@@ -1091,7 +1091,6 @@ mod tests {
 			},
 		];
 		let note_ids = vec![note_a, note_c];
-
 		let (total, retained, retention) = retrieval_top_rank_retention(&candidates, &note_ids, 3);
 
 		assert_eq!(total, 2);
