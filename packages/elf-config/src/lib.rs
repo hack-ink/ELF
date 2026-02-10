@@ -167,6 +167,98 @@ pub fn validate(cfg: &Config) -> Result<()> {
 			}
 		}
 	}
+
+	let det = &cfg.ranking.deterministic;
+	let det_lex = &det.lexical;
+	let det_hits = &det.hits;
+	let det_decay = &det.decay;
+
+	for (path, weight) in [
+		("ranking.deterministic.lexical", det_lex.weight),
+		("ranking.deterministic.hits", det_hits.weight),
+		("ranking.deterministic.decay", det_decay.weight),
+	] {
+		if weight < 0.0 {
+			return Err(Error::Validation {
+				message: format!("{path}.weight must be zero or greater."),
+			});
+		}
+		if !weight.is_finite() {
+			return Err(Error::Validation {
+				message: format!("{path}.weight must be a finite number."),
+			});
+		}
+	}
+
+	if det.enabled && det_lex.enabled {
+		if !det_lex.min_ratio.is_finite() {
+			return Err(Error::Validation {
+				message: "ranking.deterministic.lexical.min_ratio must be a finite number."
+					.to_string(),
+			});
+		}
+		if !(0.0..=1.0).contains(&det_lex.min_ratio) {
+			return Err(Error::Validation {
+				message: "ranking.deterministic.lexical.min_ratio must be in the range 0.0-1.0."
+					.to_string(),
+			});
+		}
+		if det_lex.max_query_terms == 0 {
+			return Err(Error::Validation {
+				message: "ranking.deterministic.lexical.max_query_terms must be greater than zero."
+					.to_string(),
+			});
+		}
+		if det_lex.max_text_terms == 0 {
+			return Err(Error::Validation {
+				message: "ranking.deterministic.lexical.max_text_terms must be greater than zero."
+					.to_string(),
+			});
+		}
+	}
+
+	if det.enabled && det_hits.enabled {
+		if !det_hits.half_saturation.is_finite() {
+			return Err(Error::Validation {
+				message: "ranking.deterministic.hits.half_saturation must be a finite number."
+					.to_string(),
+			});
+		}
+		if det_hits.half_saturation <= 0.0 {
+			return Err(Error::Validation {
+				message: "ranking.deterministic.hits.half_saturation must be greater than zero."
+					.to_string(),
+			});
+		}
+		if !det_hits.last_hit_tau_days.is_finite() {
+			return Err(Error::Validation {
+				message: "ranking.deterministic.hits.last_hit_tau_days must be a finite number."
+					.to_string(),
+			});
+		}
+		if det_hits.last_hit_tau_days < 0.0 {
+			return Err(Error::Validation {
+				message: "ranking.deterministic.hits.last_hit_tau_days must be zero or greater."
+					.to_string(),
+			});
+		}
+	}
+
+	if det.enabled && det_decay.enabled {
+		if !det_decay.tau_days.is_finite() {
+			return Err(Error::Validation {
+				message: "ranking.deterministic.decay.tau_days must be a finite number."
+					.to_string(),
+			});
+		}
+		if det_decay.tau_days <= 0.0 {
+			return Err(Error::Validation {
+				message: "ranking.deterministic.decay.tau_days must be greater than zero."
+					.to_string(),
+			});
+		}
+	}
+
 	if !cfg.chunking.enabled {
 		return Err(Error::Validation { message: "chunking.enabled must be true.".to_string() });
 	}

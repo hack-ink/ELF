@@ -31,32 +31,6 @@ CREATE TABLE IF NOT EXISTS search_trace_items (
 	explain jsonb NOT NULL
 );
 
-ALTER TABLE search_trace_items
-	ADD COLUMN IF NOT EXISTS chunk_id uuid NULL;
-ALTER TABLE search_trace_items
-	ADD COLUMN IF NOT EXISTS final_score real NOT NULL DEFAULT 0;
-ALTER TABLE search_trace_items
-	ADD COLUMN IF NOT EXISTS explain jsonb NOT NULL DEFAULT '{}'::jsonb;
-ALTER TABLE search_trace_items
-	DROP COLUMN IF EXISTS retrieval_score;
-ALTER TABLE search_trace_items
-	DROP COLUMN IF EXISTS retrieval_rank;
-ALTER TABLE search_trace_items
-	DROP COLUMN IF EXISTS rerank_score;
-ALTER TABLE search_trace_items
-	DROP COLUMN IF EXISTS tie_breaker_score;
-ALTER TABLE search_trace_items
-	DROP COLUMN IF EXISTS boosts;
-ALTER TABLE search_trace_items
-	DROP COLUMN IF EXISTS matched_terms;
-ALTER TABLE search_trace_items
-	DROP COLUMN IF EXISTS matched_fields;
-
-ALTER TABLE search_trace_items
-	ALTER COLUMN final_score DROP DEFAULT;
-ALTER TABLE search_trace_items
-	ALTER COLUMN explain DROP DEFAULT;
-
 CREATE INDEX IF NOT EXISTS idx_search_trace_items_trace
 	ON search_trace_items (trace_id, rank);
 CREATE INDEX IF NOT EXISTS idx_search_trace_items_note
