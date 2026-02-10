@@ -952,6 +952,8 @@ dependencies = [
  "elf-storage",
  "serde",
  "serde_json",
+ "sqlx",
+ "time",
  "tokio",
  "tracing",
  "tracing-subscriber",
