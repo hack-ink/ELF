@@ -1,2 +1,1 @@
-#[path = "acceptance/suite.rs"]
-mod acceptance;
+#[path = "acceptance/suite.rs"] mod acceptance;

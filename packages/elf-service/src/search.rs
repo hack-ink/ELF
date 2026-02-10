@@ -1,4 +1,5 @@
 use std::{
+	cmp::Ordering,
 	collections::{BTreeMap, HashMap, HashSet, hash_map::DefaultHasher},
 	hash::{Hash, Hasher},
 	slice,
@@ -14,6 +15,7 @@ use time::{Duration, OffsetDateTime, format_description::well_known::Rfc3339};
 use uuid::Uuid;
 
 use crate::{ElfService, Error, Result};
+use elf_config::Config;
 use elf_domain::cjk;
 use elf_storage::{
 	models::MemoryNote,
@@ -187,6 +189,37 @@ pub struct TraceGetRequest {
 pub struct TraceGetResponse {
 	pub trace: SearchTrace,
 	pub items: Vec<SearchExplainItem>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct TraceReplayContext {
+	pub trace_id: Uuid,
+	pub query: String,
+	pub candidate_count: u32,
+	pub top_k: u32,
+	#[serde(with = "crate::time_serde")]
+	pub created_at: OffsetDateTime,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct TraceReplayCandidate {
+	pub note_id: Uuid,
+	pub chunk_id: Uuid,
+	pub retrieval_rank: u32,
+	pub rerank_score: f32,
+	pub note_scope: String,
+	pub note_importance: f32,
+	#[serde(with = "crate::time_serde")]
+	pub note_updated_at: OffsetDateTime,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct TraceReplayItem {
+	pub note_id: Uuid,
+	pub chunk_id: Uuid,
+	pub retrieval_rank: u32,
+	pub final_score: f32,
+	pub explain: SearchExplain,
 }
 
 #[derive(Debug, Clone)]
@@ -1500,9 +1533,8 @@ ORDER BY rank ASC",
 
 		let mut results: Vec<ScoredChunk> = best_by_note.into_values().collect();
 
-		results.sort_by(|a, b| {
-			b.final_score.partial_cmp(&a.final_score).unwrap_or(std::cmp::Ordering::Equal)
-		});
+		results
+			.sort_by(|a, b| b.final_score.partial_cmp(&a.final_score).unwrap_or(Ordering::Equal));
 		results.truncate(top_k as usize);
 
 		if record_hits_enabled && !results.is_empty() {
@@ -1646,11 +1678,11 @@ ORDER BY rank ASC",
 		let trace_payload = trace_builder.build();
 
 		match self.cfg.search.explain.write_mode.trim().to_ascii_lowercase().as_str() {
-			"inline" => {
-				let mut tx = self.db.pool.begin().await?;
-				persist_trace_inline(&mut *tx, trace_payload).await?;
-				tx.commit().await?;
-			},
+				"inline" => {
+					let mut tx = self.db.pool.begin().await?;
+					persist_trace_inline(&mut tx, trace_payload).await?;
+					tx.commit().await?;
+				},
 			_ =>
 				if let Err(err) = enqueue_trace(&self.db.pool, trace_payload).await {
 					tracing::error!(
@@ -1665,7 +1697,221 @@ ORDER BY rank ASC",
 	}
 }
 
-fn resolve_expansion_mode(cfg: &elf_config::Config) -> ExpansionMode {
+pub fn ranking_policy_id(
+	cfg: &Config,
+	ranking_override: Option<&RankingRequestOverride>,
+) -> Result<String> {
+	let blend_policy = resolve_blend_policy(
+		&cfg.ranking.blend,
+		ranking_override.and_then(|value| value.blend.as_ref()),
+	)?;
+	let snapshot = build_policy_snapshot(cfg, &blend_policy, ranking_override);
+	let hash = hash_policy_snapshot(&snapshot)?;
+	let prefix = &hash[..12.min(hash.len())];
+
+	Ok(format!("blend_v1:{prefix}"))
+}
+
+pub fn replay_ranking_from_candidates(
+	cfg: &Config,
+	trace: &TraceReplayContext,
+	ranking_override: Option<&RankingRequestOverride>,
+	candidates: &[TraceReplayCandidate],
+	top_k: u32,
+) -> Result<Vec<TraceReplayItem>> {
+	#[derive(Debug, Clone)]
+	struct ScoredReplay {
+		note_id: Uuid,
+		chunk_id: Uuid,
+		retrieval_rank: u32,
+		final_score: f32,
+		rerank_score: f32,
+		rerank_rank: u32,
+		rerank_norm: f32,
+		retrieval_norm: f32,
+		blend_retrieval_weight: f32,
+		retrieval_term: f32,
+		rerank_term: f32,
+		tie_breaker_score: f32,
+		scope_context_boost: f32,
+		age_days: f32,
+		importance: f32,
+		note_scope: String,
+	}
+
+	let query_tokens = tokenize_query(trace.query.as_str(), MAX_MATCHED_TERMS);
+	let scope_context_boost_by_scope =
+		build_scope_context_boost_by_scope(&query_tokens, cfg.context.as_ref());
+	let blend_policy = resolve_blend_policy(
+		&cfg.ranking.blend,
+		ranking_override.and_then(|override_| override_.blend.as_ref()),
+	)?;
+	let policy_snapshot = build_policy_snapshot(cfg, &blend_policy, ranking_override);
+	let policy_hash = hash_policy_snapshot(&policy_snapshot)?;
+	let policy_id = format!("blend_v1:{}", &policy_hash[..12.min(policy_hash.len())]);
+	let now = trace.created_at;
+	let total_rerank = u32::try_from(candidates.len()).unwrap_or(1).max(1);
+	let total_retrieval = trace.candidate_count.max(1);
+	let rerank_ranks = build_rerank_ranks_for_replay(candidates);
+	let mut best_by_note: BTreeMap<Uuid, ScoredReplay> = BTreeMap::new();
+
+	for (candidate, rerank_rank) in candidates.iter().zip(rerank_ranks) {
+		let importance = candidate.note_importance;
+		let retrieval_rank = candidate.retrieval_rank;
+		let age_days = (now - candidate.note_updated_at).as_seconds_f32() / 86_400.0;
+		let decay = if cfg.ranking.recency_tau_days > 0.0 {
+			(-age_days / cfg.ranking.recency_tau_days).exp()
+		} else {
+			1.0
+		};
+		let base = (1.0 + 0.6 * importance) * decay;
+		let tie_breaker_score = cfg.ranking.tie_breaker_weight * base;
+		let scope_context_boost =
+			scope_context_boost_by_scope.get(candidate.note_scope.as_str()).copied().unwrap_or(0.0);
+		let rerank_norm = match blend_policy.rerank_normalization {
+			NormalizationKind::Rank => rank_normalize(rerank_rank, total_rerank),
+		};
+		let retrieval_norm = match blend_policy.retrieval_normalization {
+			NormalizationKind::Rank => rank_normalize(retrieval_rank, total_retrieval),
+		};
+		let blend_retrieval_weight = if blend_policy.enabled {
+			retrieval_weight_for_rank(retrieval_rank, &blend_policy.segments)
+		} else {
+			0.0
+		};
+		let retrieval_term = blend_retrieval_weight * retrieval_norm;
+		let rerank_term = (1.0 - blend_retrieval_weight) * rerank_norm;
+		let final_score = retrieval_term + rerank_term + tie_breaker_score + scope_context_boost;
+		let scored = ScoredReplay {
+			note_id: candidate.note_id,
+			chunk_id: candidate.chunk_id,
+			retrieval_rank,
+			final_score,
+			rerank_score: candidate.rerank_score,
+			rerank_rank,
+			rerank_norm,
+			retrieval_norm,
+			blend_retrieval_weight,
+			retrieval_term,
+			rerank_term,
+			tie_breaker_score,
+			scope_context_boost,
+			age_days,
+			importance,
+			note_scope: candidate.note_scope.clone(),
+		};
+		let replace = match best_by_note.get(&candidate.note_id) {
+			None => true,
+			Some(existing) => {
+				let ord = cmp_f32_desc(scored.final_score, existing.final_score);
+				if ord != Ordering::Equal {
+					ord == Ordering::Less
+				} else {
+					scored.retrieval_rank < existing.retrieval_rank
+				}
+			},
+		};
+
+		if replace {
+			best_by_note.insert(candidate.note_id, scored);
+		}
+	}
+
+	let mut results: Vec<ScoredReplay> = best_by_note.into_values().collect();
+
+	results.sort_by(|a, b| {
+		let ord = cmp_f32_desc(a.final_score, b.final_score);
+
+		if ord != Ordering::Equal {
+			return ord;
+		}
+
+		let ord = a.retrieval_rank.cmp(&b.retrieval_rank);
+
+		if ord != Ordering::Equal {
+			return ord;
+		}
+
+		let ord = a.note_id.cmp(&b.note_id);
+
+		if ord != Ordering::Equal {
+			return ord;
+		}
+
+		a.chunk_id.cmp(&b.chunk_id)
+	});
+
+	results.truncate(top_k.max(1) as usize);
+
+	let mut out = Vec::with_capacity(results.len());
+
+	for scored in results {
+		let mut signals = BTreeMap::new();
+
+		signals.insert("blend.enabled".to_string(), serde_json::json!(blend_policy.enabled));
+		signals.insert(
+			"blend.retrieval_weight".to_string(),
+			serde_json::json!(scored.blend_retrieval_weight),
+		);
+		signals.insert("retrieval.rank".to_string(), serde_json::json!(scored.retrieval_rank));
+		signals.insert("retrieval.norm".to_string(), serde_json::json!(scored.retrieval_norm));
+		signals.insert("rerank.score".to_string(), serde_json::json!(scored.rerank_score));
+		signals.insert("rerank.rank".to_string(), serde_json::json!(scored.rerank_rank));
+		signals.insert("rerank.norm".to_string(), serde_json::json!(scored.rerank_norm));
+		signals.insert(
+			"normalization.retrieval".to_string(),
+			serde_json::json!(blend_policy.retrieval_normalization.as_str()),
+		);
+		signals.insert(
+			"normalization.rerank".to_string(),
+			serde_json::json!(blend_policy.rerank_normalization.as_str()),
+		);
+		signals.insert(
+			"recency.tau_days".to_string(),
+			serde_json::json!(cfg.ranking.recency_tau_days),
+		);
+		signals.insert(
+			"tie_breaker.weight".to_string(),
+			serde_json::json!(cfg.ranking.tie_breaker_weight),
+		);
+		signals.insert("age.days".to_string(), serde_json::json!(scored.age_days));
+		signals.insert("importance".to_string(), serde_json::json!(scored.importance));
+		signals.insert(
+			"context.scope_boost".to_string(),
+			serde_json::json!(scored.scope_context_boost),
+		);
+		signals.insert("note.scope".to_string(), serde_json::json!(scored.note_scope));
+
+		let mut components = BTreeMap::new();
+
+		components.insert("blend.retrieval".to_string(), scored.retrieval_term);
+		components.insert("blend.rerank".to_string(), scored.rerank_term);
+		components.insert("tie_breaker".to_string(), scored.tie_breaker_score);
+		components.insert("context.scope_boost".to_string(), scored.scope_context_boost);
+
+		let explain = SearchExplain {
+			r#match: SearchMatchExplain { matched_terms: Vec::new(), matched_fields: Vec::new() },
+			ranking: SearchRankingExplain {
+				schema: SEARCH_RANKING_EXPLAIN_SCHEMA_V1.to_string(),
+				policy_id: policy_id.clone(),
+				signals,
+				components,
+			},
+		};
+
+		out.push(TraceReplayItem {
+			note_id: scored.note_id,
+			chunk_id: scored.chunk_id,
+			retrieval_rank: scored.retrieval_rank,
+			final_score: scored.final_score,
+			explain,
+		});
+	}
+
+	Ok(out)
+}
+
+fn resolve_expansion_mode(cfg: &Config) -> ExpansionMode {
 	match cfg.search.expansion.mode.as_str() {
 		"off" => ExpansionMode::Off,
 		"always" => ExpansionMode::Always,
@@ -2074,7 +2320,7 @@ struct ResolvedBlendPolicy {
 }
 
 fn build_config_snapshot(
-	cfg: &elf_config::Config,
+	cfg: &Config,
 	blend_policy: &ResolvedBlendPolicy,
 	ranking_override: Option<&RankingRequestOverride>,
 ) -> serde_json::Value {
@@ -2150,6 +2396,60 @@ fn build_config_snapshot(
 				.unwrap_or(0),
 		},
 	})
+}
+
+fn build_policy_snapshot(
+	cfg: &Config,
+	blend_policy: &ResolvedBlendPolicy,
+	ranking_override: Option<&RankingRequestOverride>,
+) -> serde_json::Value {
+	let override_json = ranking_override.and_then(|value| serde_json::to_value(value).ok());
+
+	serde_json::json!({
+		"ranking": {
+			"recency_tau_days": cfg.ranking.recency_tau_days,
+			"tie_breaker_weight": cfg.ranking.tie_breaker_weight,
+			"blend": {
+				"enabled": blend_policy.enabled,
+				"rerank_normalization": blend_policy.rerank_normalization.as_str(),
+				"retrieval_normalization": blend_policy.retrieval_normalization.as_str(),
+				"segments": blend_policy
+					.segments
+					.iter()
+					.map(|segment| {
+						serde_json::json!({
+							"max_retrieval_rank": segment.max_retrieval_rank,
+							"retrieval_weight": segment.retrieval_weight,
+						})
+					})
+					.collect::<Vec<_>>(),
+			},
+			"override": override_json,
+		},
+		"context": {
+			"scope_boost_weight": cfg.context.as_ref().and_then(|ctx| ctx.scope_boost_weight),
+			"project_description_count": cfg
+				.context
+				.as_ref()
+				.and_then(|ctx| ctx.project_descriptions.as_ref())
+				.map(|descriptions| descriptions.len())
+				.unwrap_or(0),
+			"scope_description_count": cfg
+				.context
+				.as_ref()
+				.and_then(|ctx| ctx.scope_descriptions.as_ref())
+				.map(|descriptions| descriptions.len())
+				.unwrap_or(0),
+		},
+	})
+}
+
+fn hash_policy_snapshot(payload: &serde_json::Value) -> Result<String> {
+	let raw = serde_json::to_vec(payload).map_err(|err| Error::Storage {
+		message: format!("Failed to encode policy snapshot: {err}"),
+	})?;
+
+	Ok(blake3::hash(&raw).to_hex().to_string())
 }
 
 fn resolve_blend_policy(
@@ -2278,19 +2578,19 @@ fn build_rerank_ranks(items: &[ChunkSnippet], scores: &[f32]) -> Vec<u32> {
 		let score_b = scores.get(b).copied().unwrap_or(f32::NAN);
 		let ord = cmp_f32_desc(score_a, score_b);
 
-		if ord != std::cmp::Ordering::Equal {
+		if ord != Ordering::Equal {
 			return ord;
 		}
 		if items[a].note.note_id == items[b].note.note_id {
 			let ord = items[a].chunk.chunk_index.cmp(&items[b].chunk.chunk_index);
 
-			if ord != std::cmp::Ordering::Equal {
+			if ord != Ordering::Equal {
 				return ord;
 			}
 		}
 		let ord = items[a].retrieval_rank.cmp(&items[b].retrieval_rank);
 
-		if ord != std::cmp::Ordering::Equal {
+		if ord != Ordering::Equal {
 			return ord;
 		}
 		items[a].chunk.chunk_id.cmp(&items[b].chunk.chunk_id)
@@ -2304,16 +2604,65 @@ fn build_rerank_ranks(items: &[ChunkSnippet], scores: &[f32]) -> Vec<u32> {
 	ranks
 }
 
-fn cmp_f32_desc(a: f32, b: f32) -> std::cmp::Ordering {
+fn build_rerank_ranks_for_replay(candidates: &[TraceReplayCandidate]) -> Vec<u32> {
+	let n = candidates.len();
+
+	if n == 0 {
+		return Vec::new();
+	}
+
+	let mut idxs: Vec<usize> = (0..n).collect();
+
+	idxs.sort_by(|&a, &b| {
+		let score_a = candidates.get(a).map(|candidate| candidate.rerank_score).unwrap_or(f32::NAN);
+		let score_b = candidates.get(b).map(|candidate| candidate.rerank_score).unwrap_or(f32::NAN);
+		let ord = cmp_f32_desc(score_a, score_b);
+
+		if ord != Ordering::Equal {
+			return ord;
+		}
+
+		let ra = candidates.get(a).map(|candidate| candidate.retrieval_rank).unwrap_or(0);
+		let rb = candidates.get(b).map(|candidate| candidate.retrieval_rank).unwrap_or(0);
+		let ord = ra.cmp(&rb);
+
+		if ord != Ordering::Equal {
+			return ord;
+		}
+
+		let na = candidates.get(a).map(|candidate| candidate.note_id).unwrap_or(Uuid::nil());
+		let nb = candidates.get(b).map(|candidate| candidate.note_id).unwrap_or(Uuid::nil());
+		let ord = na.cmp(&nb);
+
+		if ord != Ordering::Equal {
+			return ord;
+		}
+
+		let ca = candidates.get(a).map(|candidate| candidate.chunk_id).unwrap_or(Uuid::nil());
+		let cb = candidates.get(b).map(|candidate| candidate.chunk_id).unwrap_or(Uuid::nil());
+
+		ca.cmp(&cb)
+	});
+
+	let mut ranks = vec![0_u32; n];
+
+	for (pos, idx) in idxs.into_iter().enumerate() {
+		ranks[idx] = pos as u32 + 1;
+	}
+
+	ranks
+}
+
+fn cmp_f32_desc(a: f32, b: f32) -> Ordering {
 	match (a.is_nan(), b.is_nan()) {
-		(true, true) => std::cmp::Ordering::Equal,
-		(true, false) => std::cmp::Ordering::Greater,
-		(false, true) => std::cmp::Ordering::Less,
-		(false, false) => b.partial_cmp(&a).unwrap_or(std::cmp::Ordering::Equal),
+		(true, true) => Ordering::Equal,
+		(true, false) => Ordering::Greater,
+		(false, true) => Ordering::Less,
+		(false, false) => b.partial_cmp(&a).unwrap_or(Ordering::Equal),
 	}
 }
 
-fn resolve_scopes(cfg: &elf_config::Config, profile: &str) -> Result<Vec<String>> {
+fn resolve_scopes(cfg: &Config, profile: &str) -> Result<Vec<String>> {
 	match profile {
 		"private_only" => Ok(cfg.scopes.read_profiles.private_only.clone()),
 		"private_plus_project" => Ok(cfg.scopes.read_profiles.private_plus_project.clone()),
