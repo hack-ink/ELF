@@ -488,6 +488,17 @@ struct FinishSearchArgs<'a> {
 	ranking_override: Option<RankingRequestOverride>,
 }
 
+struct StructuredFieldRetrievalArgs<'a> {
+	tenant_id: &'a str,
+	project_id: &'a str,
+	agent_id: &'a str,
+	allowed_scopes: &'a [String],
+	query_vec: &'a [f32],
+	candidates: Vec<ChunkCandidate>,
+	candidate_k: u32,
+	now: OffsetDateTime,
+}
+
 impl ElfService {
 	pub async fn search_raw(&self, req: SearchRequest) -> Result<SearchResponse> {
 		let tenant_id = req.tenant_id.trim();
@@ -595,14 +606,16 @@ impl ElfService {
 			if !should_expand {
 				let (augmented, structured_matches) = self
 					.augment_candidates_with_structured_field_retrieval(
-						tenant_id,
-						project_id,
-						agent_id,
-						&allowed_scopes,
-						query_vec.as_slice(),
-						candidates,
-						candidate_k,
-						OffsetDateTime::now_utc(),
+						StructuredFieldRetrievalArgs {
+							tenant_id,
+							project_id,
+							agent_id,
+							allowed_scopes: &allowed_scopes,
+							query_vec: query_vec.as_slice(),
+							candidates,
+							candidate_k,
+							now: OffsetDateTime::now_utc(),
+						},
 					)
 					.await?;
 
@@ -653,16 +666,16 @@ impl ElfService {
 			original_query_vec
 		};
 		let (augmented, structured_matches) = self
-			.augment_candidates_with_structured_field_retrieval(
+			.augment_candidates_with_structured_field_retrieval(StructuredFieldRetrievalArgs {
 				tenant_id,
 				project_id,
 				agent_id,
-				&allowed_scopes,
-				original_query_vec.as_slice(),
+				allowed_scopes: &allowed_scopes,
+				query_vec: original_query_vec.as_slice(),
 				candidates,
 				candidate_k,
-				OffsetDateTime::now_utc(),
-			)
+				now: OffsetDateTime::now_utc(),
+			})
 			.await?;
 
 		self.finish_search(FinishSearchArgs {
@@ -1188,15 +1201,18 @@ ORDER BY rank ASC",
 
 	async fn augment_candidates_with_structured_field_retrieval(
 		&self,
-		tenant_id: &str,
-		project_id: &str,
-		agent_id: &str,
-		allowed_scopes: &[String],
-		query_vec: &[f32],
-		candidates: Vec<ChunkCandidate>,
-		candidate_k: u32,
-		now: OffsetDateTime,
+		args: StructuredFieldRetrievalArgs<'_>,
 	) -> Result<(Vec<ChunkCandidate>, HashMap<Uuid, Vec<String>>)> {
+		let StructuredFieldRetrievalArgs {
+			tenant_id,
+			project_id,
+			agent_id,
+			allowed_scopes,
+			query_vec,
+			candidates,
+			candidate_k,
+			now,
+		} = args;
 		if query_vec.is_empty() {
 			return Ok((candidates, HashMap::new()));
 		}
@@ -1328,10 +1344,7 @@ LIMIT $8",
 				_ => continue,
 			};
 
-			structured_matches
-				.entry(row.note_id)
-				.or_insert_with(HashSet::new)
-				.insert(label.to_string());
+			structured_matches.entry(row.note_id).or_default().insert(label.to_string());
 
 			if seen_notes.insert(row.note_id) {
 				ordered_note_ids.push(row.note_id);

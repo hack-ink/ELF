@@ -218,23 +218,13 @@ pub struct Ranking {
 	pub deterministic: RankingDeterministic,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 #[serde(default)]
 pub struct RankingDeterministic {
 	pub enabled: bool,
 	pub lexical: RankingDeterministicLexical,
 	pub hits: RankingDeterministicHits,
 	pub decay: RankingDeterministicDecay,
-}
-impl Default for RankingDeterministic {
-	fn default() -> Self {
-		Self {
-			enabled: false,
-			lexical: RankingDeterministicLexical::default(),
-			hits: RankingDeterministicHits::default(),
-			decay: RankingDeterministicDecay::default(),
-		}
-	}
 }
 
 #[derive(Debug, Deserialize)]

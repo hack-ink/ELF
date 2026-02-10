@@ -243,7 +243,7 @@ ORDER BY note_id ASC, field_kind ASC, item_index ASC",
 	let mut out: HashMap<Uuid, StructuredFields> = HashMap::new();
 
 	for row in rows {
-		let entry = out.entry(row.note_id).or_insert_with(StructuredFields::default);
+		let entry = out.entry(row.note_id).or_default();
 		match row.field_kind.as_str() {
 			"summary" =>
 				if entry.summary.is_none() && !row.text.trim().is_empty() {
