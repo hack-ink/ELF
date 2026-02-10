@@ -307,13 +307,18 @@ struct TraceCompareTraceRow {
 
 #[derive(sqlx::FromRow)]
 struct TraceCompareCandidateRow {
+	candidate_snapshot: serde_json::Value,
 	note_id: Uuid,
 	chunk_id: Uuid,
+	chunk_index: i32,
+	snippet: String,
 	retrieval_rank: i32,
 	rerank_score: f32,
 	note_scope: String,
 	note_importance: f32,
 	note_updated_at: OffsetDateTime,
+	note_hit_count: i64,
+	note_last_hit_at: Option<OffsetDateTime>,
 }
 
 struct MergedQuery {
@@ -417,6 +422,9 @@ async fn trace_compare(
 	let policy_id_b = elf_service::search::ranking_policy_id(&config_b, None)
 		.map_err(|err| eyre::eyre!("{err}"))?;
 	let db = Db::connect(&config_a.storage.postgres).await?;
+
+	db.ensure_schema(config_a.storage.qdrant.vector_dim).await?;
+
 	let mut traces = Vec::with_capacity(args.trace_id.len());
 	let mut positional_sum = 0.0_f64;
 	let mut set_sum = 0.0_f64;
@@ -442,13 +450,18 @@ WHERE trace_id = $1",
 		let candidate_rows: Vec<TraceCompareCandidateRow> = sqlx::query_as(
 			"\
 SELECT
+	candidate_snapshot,
 	note_id,
 	chunk_id,
+	chunk_index,
+	snippet,
 	retrieval_rank,
 	rerank_score,
 	note_scope,
 	note_importance,
-	note_updated_at
+	note_updated_at,
+	note_hit_count,
+	note_last_hit_at
 FROM search_trace_candidates
 WHERE trace_id = $1
 ORDER BY retrieval_rank ASC",
@@ -469,14 +482,26 @@ ORDER BY retrieval_rank ASC",
 			.map_err(|err| eyre::eyre!("Failed to format trace created_at: {err}"))?;
 		let candidates: Vec<elf_service::search::TraceReplayCandidate> = candidate_rows
 			.into_iter()
-			.map(|row| elf_service::search::TraceReplayCandidate {
-				note_id: row.note_id,
-				chunk_id: row.chunk_id,
-				retrieval_rank: u32::try_from(row.retrieval_rank).unwrap_or(0),
-				rerank_score: row.rerank_score,
-				note_scope: row.note_scope,
-				note_importance: row.note_importance,
-				note_updated_at: row.note_updated_at,
+			.map(|row| {
+				let decoded = serde_json::from_value::<elf_service::search::TraceReplayCandidate>(
+					row.candidate_snapshot.clone(),
+				)
+				.ok()
+				.filter(|value| value.note_id != Uuid::nil() && value.chunk_id != Uuid::nil());
+
+				decoded.unwrap_or_else(|| elf_service::search::TraceReplayCandidate {
+					note_id: row.note_id,
+					chunk_id: row.chunk_id,
+					chunk_index: row.chunk_index,
+					snippet: row.snippet,
+					retrieval_rank: u32::try_from(row.retrieval_rank).unwrap_or(0),
+					rerank_score: row.rerank_score,
+					note_scope: row.note_scope,
+					note_importance: row.note_importance,
+					note_updated_at: row.note_updated_at,
+					note_hit_count: row.note_hit_count,
+					note_last_hit_at: row.note_last_hit_at,
+				})
 			})
 			.collect();
 		let top_k = args.top_k.unwrap_or(context.top_k).max(1);
@@ -1056,38 +1081,54 @@ mod tests {
 			elf_service::search::TraceReplayCandidate {
 				note_id: note_a,
 				chunk_id: Uuid::new_v4(),
+				chunk_index: 0,
+				snippet: "a".to_string(),
 				retrieval_rank: 1,
 				rerank_score: 0.1,
 				note_scope: "project_shared".to_string(),
 				note_importance: 0.1,
 				note_updated_at: now,
+				note_hit_count: 0,
+				note_last_hit_at: None,
 			},
 			elf_service::search::TraceReplayCandidate {
 				note_id: note_a,
 				chunk_id: Uuid::new_v4(),
+				chunk_index: 1,
+				snippet: "a".to_string(),
 				retrieval_rank: 2,
 				rerank_score: 0.2,
 				note_scope: "project_shared".to_string(),
 				note_importance: 0.1,
 				note_updated_at: now,
+				note_hit_count: 0,
+				note_last_hit_at: None,
 			},
 			elf_service::search::TraceReplayCandidate {
 				note_id: note_b,
 				chunk_id: Uuid::new_v4(),
+				chunk_index: 0,
+				snippet: "b".to_string(),
 				retrieval_rank: 3,
 				rerank_score: 0.3,
 				note_scope: "org_shared".to_string(),
 				note_importance: 0.1,
 				note_updated_at: now,
+				note_hit_count: 0,
+				note_last_hit_at: None,
 			},
 			elf_service::search::TraceReplayCandidate {
 				note_id: note_c,
 				chunk_id: Uuid::new_v4(),
+				chunk_index: 0,
+				snippet: "c".to_string(),
 				retrieval_rank: 4,
 				rerank_score: 0.4,
 				note_scope: "org_shared".to_string(),
 				note_importance: 0.1,
 				note_updated_at: now,
+				note_hit_count: 0,
+				note_last_hit_at: None,
 			},
 		];
 		let note_ids = vec![note_a, note_c];

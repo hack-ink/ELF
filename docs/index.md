@@ -18,6 +18,7 @@ Purpose: Provide the canonical entry point and reading order for repository docu
 - Use for: System contracts, data models, pipeline behavior, and required invariants.
 - Entry point: `docs/spec/index.md`.
 - Core spec: `docs/spec/system_elf_memory_service_v2.md`.
+- Version registry: `docs/spec/system_version_registry.md`.
 
 ### Operational and pipeline docs (implementation guides)
 

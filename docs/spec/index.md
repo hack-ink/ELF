@@ -13,6 +13,7 @@ Audience: This documentation is written for LLM consumption and should remain ex
 ## Specs
 
 - `docs/spec/system_elf_memory_service_v2.md` - ELF Memory Service v2.0 specification.
+- `docs/spec/system_version_registry.md` - Registry of versioned identifiers and schema versions.
 
 ## Authoring guidance (LLM-first)
 

@@ -14,7 +14,7 @@ use sqlx::{PgExecutor, QueryBuilder};
 use time::{Duration, OffsetDateTime, format_description::well_known::Rfc3339};
 use uuid::Uuid;
 
-use crate::{ElfService, Error, Result};
+use crate::{ElfService, Error, Result, ranking_explain_v2};
 use elf_config::Config;
 use elf_domain::cjk;
 use elf_storage::{
@@ -26,7 +26,6 @@ const TRACE_VERSION: i32 = 2;
 const MAX_MATCHED_TERMS: usize = 8;
 const EXPANSION_CACHE_SCHEMA_VERSION: i32 = 1;
 const RERANK_CACHE_SCHEMA_VERSION: i32 = 1;
-const SEARCH_RANKING_EXPLAIN_SCHEMA_V1: &str = "search_ranking_explain/v1";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ExpansionMode {
@@ -95,15 +94,7 @@ pub struct SearchMatchExplain {
 	pub matched_fields: Vec<String>,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct SearchRankingExplain {
-	pub schema: String,
-	pub policy_id: String,
-	#[serde(default)]
-	pub signals: BTreeMap<String, serde_json::Value>,
-	#[serde(default)]
-	pub components: BTreeMap<String, f32>,
-}
+pub use crate::ranking_explain_v2::{SearchRankingExplain, SearchRankingTerm};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SearchItem {
@@ -205,12 +196,17 @@ pub struct TraceReplayContext {
 pub struct TraceReplayCandidate {
 	pub note_id: Uuid,
 	pub chunk_id: Uuid,
+	pub chunk_index: i32,
+	pub snippet: String,
 	pub retrieval_rank: u32,
 	pub rerank_score: f32,
 	pub note_scope: String,
 	pub note_importance: f32,
 	#[serde(with = "crate::time_serde")]
 	pub note_updated_at: OffsetDateTime,
+	pub note_hit_count: i64,
+	#[serde(with = "crate::time_serde::option")]
+	pub note_last_hit_at: Option<OffsetDateTime>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -256,6 +252,8 @@ struct NoteMeta {
 	expires_at: Option<OffsetDateTime>,
 	source_ref: serde_json::Value,
 	embedding_version: String,
+	hit_count: i64,
+	last_hit_at: Option<OffsetDateTime>,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -327,6 +325,34 @@ struct ScoredChunk {
 	scope_context_boost: f32,
 	age_days: f32,
 	importance: f32,
+	deterministic_lexical_overlap_ratio: f32,
+	deterministic_lexical_bonus: f32,
+	deterministic_hit_count: i64,
+	deterministic_last_hit_age_days: Option<f32>,
+	deterministic_hit_boost: f32,
+	deterministic_decay_penalty: f32,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct DeterministicRankingTerms {
+	lexical_overlap_ratio: f32,
+	lexical_bonus: f32,
+	hit_count: i64,
+	last_hit_age_days: Option<f32>,
+	hit_boost: f32,
+	decay_penalty: f32,
+}
+impl Default for DeterministicRankingTerms {
+	fn default() -> Self {
+		Self {
+			lexical_overlap_ratio: 0.0,
+			lexical_bonus: 0.0,
+			hit_count: 0,
+			last_hit_age_days: None,
+			hit_boost: 0.0,
+			decay_penalty: 0.0,
+		}
+	}
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -371,11 +397,17 @@ struct TraceCandidateRecord {
 	candidate_id: Uuid,
 	note_id: Uuid,
 	chunk_id: Uuid,
+	chunk_index: i32,
+	snippet: String,
+	#[serde(default)]
+	candidate_snapshot: serde_json::Value,
 	retrieval_rank: u32,
 	rerank_score: f32,
 	note_scope: String,
 	note_importance: f32,
 	note_updated_at: OffsetDateTime,
+	note_hit_count: i64,
+	note_last_hit_at: Option<OffsetDateTime>,
 	created_at: OffsetDateTime,
 	expires_at: OffsetDateTime,
 }
@@ -1180,6 +1212,8 @@ ORDER BY rank ASC",
 					expires_at: note.expires_at,
 					source_ref: note.source_ref,
 					embedding_version: note.embedding_version,
+					hit_count: note.hit_count,
+					last_hit_at: note.last_hit_at,
 				},
 			);
 		}
@@ -1243,6 +1277,14 @@ ORDER BY rank ASC",
 		let query_tokens = tokenize_query(query, MAX_MATCHED_TERMS);
 		let scope_context_boost_by_scope =
 			build_scope_context_boost_by_scope(&query_tokens, self.cfg.context.as_ref());
+		let det_query_tokens = if self.cfg.ranking.deterministic.enabled
+			&& self.cfg.ranking.deterministic.lexical.enabled
+			&& self.cfg.ranking.deterministic.lexical.max_query_terms > 0
+		{
+			tokenize_query(query, self.cfg.ranking.deterministic.lexical.max_query_terms as usize)
+		} else {
+			Vec::new()
+		};
 		let blend_policy = resolve_blend_policy(
 			&self.cfg.ranking.blend,
 			ranking_override.as_ref().and_then(|override_| override_.blend.as_ref()),
@@ -1475,8 +1517,21 @@ ORDER BY rank ASC",
 				};
 				let retrieval_term = blend_retrieval_weight * retrieval_norm;
 				let rerank_term = (1.0 - blend_retrieval_weight) * rerank_norm;
-				let final_score =
-					retrieval_term + rerank_term + tie_breaker_score + scope_context_boost;
+				let det_terms = compute_deterministic_ranking_terms(
+					&self.cfg,
+					&det_query_tokens,
+					item.snippet.as_str(),
+					item.note.hit_count,
+					item.note.last_hit_at,
+					age_days,
+					now,
+				);
+				let final_score = retrieval_term
+					+ rerank_term + tie_breaker_score
+					+ scope_context_boost
+					+ det_terms.lexical_bonus
+					+ det_terms.hit_boost
+					+ det_terms.decay_penalty;
 
 				scored.push(ScoredChunk {
 					item,
@@ -1492,6 +1547,12 @@ ORDER BY rank ASC",
 					scope_context_boost,
 					age_days,
 					importance,
+					deterministic_lexical_overlap_ratio: det_terms.lexical_overlap_ratio,
+					deterministic_lexical_bonus: det_terms.lexical_bonus,
+					deterministic_hit_count: det_terms.hit_count,
+					deterministic_last_hit_age_days: det_terms.last_hit_age_days,
+					deterministic_hit_boost: det_terms.hit_boost,
+					deterministic_decay_penalty: det_terms.decay_penalty,
 				});
 			}
 		}
@@ -1509,11 +1570,29 @@ ORDER BY rank ASC",
 						candidate_id: Uuid::new_v4(),
 						note_id: note.note_id,
 						chunk_id: scored_chunk.item.chunk.chunk_id,
+						chunk_index: scored_chunk.item.chunk.chunk_index,
+						snippet: scored_chunk.item.snippet.clone(),
+						candidate_snapshot: serde_json::to_value(TraceReplayCandidate {
+							note_id: note.note_id,
+							chunk_id: scored_chunk.item.chunk.chunk_id,
+							chunk_index: scored_chunk.item.chunk.chunk_index,
+							snippet: scored_chunk.item.snippet.clone(),
+							retrieval_rank: scored_chunk.item.retrieval_rank,
+							rerank_score: scored_chunk.rerank_score,
+							note_scope: note.scope.clone(),
+							note_importance: note.importance,
+							note_updated_at: note.updated_at,
+							note_hit_count: note.hit_count,
+							note_last_hit_at: note.last_hit_at,
+						})
+						.unwrap_or_else(|_| serde_json::json!({})),
 						retrieval_rank: scored_chunk.item.retrieval_rank,
 						rerank_score: scored_chunk.rerank_score,
 						note_scope: note.scope.clone(),
 						note_importance: note.importance,
 						note_updated_at: note.updated_at,
+						note_hit_count: note.hit_count,
+						note_last_hit_at: note.last_hit_at,
 						created_at: now,
 						expires_at: candidate_expires_at,
 					}
@@ -1537,8 +1616,27 @@ ORDER BY rank ASC",
 
 		let mut results: Vec<ScoredChunk> = best_by_note.into_values().collect();
 
-		results
-			.sort_by(|a, b| b.final_score.partial_cmp(&a.final_score).unwrap_or(Ordering::Equal));
+		results.sort_by(|a, b| {
+			let ord = cmp_f32_desc(a.final_score, b.final_score);
+
+			if ord != Ordering::Equal {
+				return ord;
+			}
+
+			let ord = a.item.retrieval_rank.cmp(&b.item.retrieval_rank);
+
+			if ord != Ordering::Equal {
+				return ord;
+			}
+
+			let ord = a.item.note.note_id.cmp(&b.item.note.note_id);
+
+			if ord != Ordering::Equal {
+				return ord;
+			}
+
+			a.item.chunk.chunk_id.cmp(&b.item.chunk.chunk_id)
+		});
 		results.truncate(top_k as usize);
 
 		if record_hits_enabled && !results.is_empty() {
@@ -1588,65 +1686,54 @@ ORDER BY rank ASC",
 				MAX_MATCHED_TERMS,
 			);
 
-			let mut signals = BTreeMap::new();
+			let trace_terms =
+				ranking_explain_v2::build_trace_terms_v2(ranking_explain_v2::TraceTermsArgs {
+					cfg: &self.cfg,
+					blend_enabled: blend_policy.enabled,
+					retrieval_normalization: blend_policy.retrieval_normalization.as_str(),
+					rerank_normalization: blend_policy.rerank_normalization.as_str(),
+					blend_retrieval_weight: scored_chunk.blend_retrieval_weight,
+					retrieval_rank: scored_chunk.item.retrieval_rank,
+					retrieval_norm: scored_chunk.retrieval_norm,
+					retrieval_term: scored_chunk.retrieval_term,
+					rerank_score: scored_chunk.rerank_score,
+					rerank_rank: scored_chunk.rerank_rank,
+					rerank_norm: scored_chunk.rerank_norm,
+					rerank_term: scored_chunk.rerank_term,
+					tie_breaker_score: scored_chunk.tie_breaker_score,
+					importance: scored_chunk.importance,
+					age_days: scored_chunk.age_days,
+					scope: scored_chunk.item.note.scope.as_str(),
+					scope_context_boost: scored_chunk.scope_context_boost,
+					deterministic_lexical_overlap_ratio: scored_chunk
+						.deterministic_lexical_overlap_ratio,
+					deterministic_lexical_bonus: scored_chunk.deterministic_lexical_bonus,
+					deterministic_hit_count: scored_chunk.deterministic_hit_count,
+					deterministic_last_hit_age_days: scored_chunk.deterministic_last_hit_age_days,
+					deterministic_hit_boost: scored_chunk.deterministic_hit_boost,
+					deterministic_decay_penalty: scored_chunk.deterministic_decay_penalty,
+				});
+			let response_terms = ranking_explain_v2::strip_term_inputs(&trace_terms);
 
-			signals.insert("blend.enabled".to_string(), serde_json::json!(blend_policy.enabled));
-			signals.insert(
-				"blend.retrieval_weight".to_string(),
-				serde_json::json!(scored_chunk.blend_retrieval_weight),
-			);
-			signals.insert(
-				"retrieval.rank".to_string(),
-				serde_json::json!(scored_chunk.item.retrieval_rank),
-			);
-			signals.insert(
-				"retrieval.norm".to_string(),
-				serde_json::json!(scored_chunk.retrieval_norm),
-			);
-			signals
-				.insert("rerank.score".to_string(), serde_json::json!(scored_chunk.rerank_score));
-			signals.insert("rerank.rank".to_string(), serde_json::json!(scored_chunk.rerank_rank));
-			signals.insert("rerank.norm".to_string(), serde_json::json!(scored_chunk.rerank_norm));
-			signals.insert(
-				"normalization.retrieval".to_string(),
-				serde_json::json!(blend_policy.retrieval_normalization.as_str()),
-			);
-			signals.insert(
-				"normalization.rerank".to_string(),
-				serde_json::json!(blend_policy.rerank_normalization.as_str()),
-			);
-			signals.insert(
-				"recency.tau_days".to_string(),
-				serde_json::json!(self.cfg.ranking.recency_tau_days),
-			);
-			signals.insert(
-				"tie_breaker.weight".to_string(),
-				serde_json::json!(self.cfg.ranking.tie_breaker_weight),
-			);
-			signals.insert("age.days".to_string(), serde_json::json!(scored_chunk.age_days));
-			signals.insert("importance".to_string(), serde_json::json!(scored_chunk.importance));
-			signals.insert(
-				"context.scope_boost".to_string(),
-				serde_json::json!(scored_chunk.scope_context_boost),
-			);
-
-			let mut components = BTreeMap::new();
-
-			components.insert("blend.retrieval".to_string(), scored_chunk.retrieval_term);
-			components.insert("blend.rerank".to_string(), scored_chunk.rerank_term);
-			components.insert("tie_breaker".to_string(), scored_chunk.tie_breaker_score);
-			components.insert("context.scope_boost".to_string(), scored_chunk.scope_context_boost);
-
-			let explain = SearchExplain {
+			let response_explain = SearchExplain {
 				r#match: SearchMatchExplain {
 					matched_terms: matched_terms.clone(),
 					matched_fields: matched_fields.clone(),
 				},
 				ranking: SearchRankingExplain {
-					schema: SEARCH_RANKING_EXPLAIN_SCHEMA_V1.to_string(),
+					schema: ranking_explain_v2::SEARCH_RANKING_EXPLAIN_SCHEMA_V2.to_string(),
 					policy_id: policy_id.clone(),
-					signals,
-					components,
+					final_score: scored_chunk.final_score,
+					terms: response_terms,
+				},
+			};
+			let trace_explain = SearchExplain {
+				r#match: SearchMatchExplain { matched_terms, matched_fields },
+				ranking: SearchRankingExplain {
+					schema: ranking_explain_v2::SEARCH_RANKING_EXPLAIN_SCHEMA_V2.to_string(),
+					policy_id: policy_id.clone(),
+					final_score: scored_chunk.final_score,
+					terms: trace_terms,
 				},
 			};
 			let result_handle = Uuid::new_v4();
@@ -1670,7 +1757,7 @@ ORDER BY rank ASC",
 				expires_at: note.expires_at,
 				final_score: scored_chunk.final_score,
 				source_ref: note.source_ref.clone(),
-				explain: explain.clone(),
+				explain: response_explain.clone(),
 			});
 			trace_builder.push_item(TraceItemRecord {
 				item_id: result_handle,
@@ -1678,7 +1765,7 @@ ORDER BY rank ASC",
 				chunk_id: Some(chunk.chunk_id),
 				rank,
 				final_score: scored_chunk.final_score,
-				explain,
+				explain: trace_explain,
 			});
 		}
 
@@ -1744,11 +1831,28 @@ pub fn replay_ranking_from_candidates(
 		age_days: f32,
 		importance: f32,
 		note_scope: String,
+		deterministic_lexical_overlap_ratio: f32,
+		deterministic_lexical_bonus: f32,
+		deterministic_hit_count: i64,
+		deterministic_last_hit_age_days: Option<f32>,
+		deterministic_hit_boost: f32,
+		deterministic_decay_penalty: f32,
 	}
 
 	let query_tokens = tokenize_query(trace.query.as_str(), MAX_MATCHED_TERMS);
 	let scope_context_boost_by_scope =
 		build_scope_context_boost_by_scope(&query_tokens, cfg.context.as_ref());
+	let det_query_tokens = if cfg.ranking.deterministic.enabled
+		&& cfg.ranking.deterministic.lexical.enabled
+		&& cfg.ranking.deterministic.lexical.max_query_terms > 0
+	{
+		tokenize_query(
+			trace.query.as_str(),
+			cfg.ranking.deterministic.lexical.max_query_terms as usize,
+		)
+	} else {
+		Vec::new()
+	};
 	let blend_policy = resolve_blend_policy(
 		&cfg.ranking.blend,
 		ranking_override.and_then(|override_| override_.blend.as_ref()),
@@ -1788,7 +1892,22 @@ pub fn replay_ranking_from_candidates(
 		};
 		let retrieval_term = blend_retrieval_weight * retrieval_norm;
 		let rerank_term = (1.0 - blend_retrieval_weight) * rerank_norm;
-		let final_score = retrieval_term + rerank_term + tie_breaker_score + scope_context_boost;
+		let det_terms = compute_deterministic_ranking_terms(
+			cfg,
+			&det_query_tokens,
+			candidate.snippet.as_str(),
+			candidate.note_hit_count,
+			candidate.note_last_hit_at,
+			age_days,
+			now,
+		);
+		let final_score = retrieval_term
+			+ rerank_term
+			+ tie_breaker_score
+			+ scope_context_boost
+			+ det_terms.lexical_bonus
+			+ det_terms.hit_boost
+			+ det_terms.decay_penalty;
 		let scored = ScoredReplay {
 			note_id: candidate.note_id,
 			chunk_id: candidate.chunk_id,
@@ -1806,6 +1925,12 @@ pub fn replay_ranking_from_candidates(
 			age_days,
 			importance,
 			note_scope: candidate.note_scope.clone(),
+			deterministic_lexical_overlap_ratio: det_terms.lexical_overlap_ratio,
+			deterministic_lexical_bonus: det_terms.lexical_bonus,
+			deterministic_hit_count: det_terms.hit_count,
+			deterministic_last_hit_age_days: det_terms.last_hit_age_days,
+			deterministic_hit_boost: det_terms.hit_boost,
+			deterministic_decay_penalty: det_terms.decay_penalty,
 		};
 		let replace = match best_by_note.get(&candidate.note_id) {
 			None => true,
@@ -1853,56 +1978,39 @@ pub fn replay_ranking_from_candidates(
 	let mut out = Vec::with_capacity(results.len());
 
 	for scored in results {
-		let mut signals = BTreeMap::new();
-
-		signals.insert("blend.enabled".to_string(), serde_json::json!(blend_policy.enabled));
-		signals.insert(
-			"blend.retrieval_weight".to_string(),
-			serde_json::json!(scored.blend_retrieval_weight),
-		);
-		signals.insert("retrieval.rank".to_string(), serde_json::json!(scored.retrieval_rank));
-		signals.insert("retrieval.norm".to_string(), serde_json::json!(scored.retrieval_norm));
-		signals.insert("rerank.score".to_string(), serde_json::json!(scored.rerank_score));
-		signals.insert("rerank.rank".to_string(), serde_json::json!(scored.rerank_rank));
-		signals.insert("rerank.norm".to_string(), serde_json::json!(scored.rerank_norm));
-		signals.insert(
-			"normalization.retrieval".to_string(),
-			serde_json::json!(blend_policy.retrieval_normalization.as_str()),
-		);
-		signals.insert(
-			"normalization.rerank".to_string(),
-			serde_json::json!(blend_policy.rerank_normalization.as_str()),
-		);
-		signals.insert(
-			"recency.tau_days".to_string(),
-			serde_json::json!(cfg.ranking.recency_tau_days),
-		);
-		signals.insert(
-			"tie_breaker.weight".to_string(),
-			serde_json::json!(cfg.ranking.tie_breaker_weight),
-		);
-		signals.insert("age.days".to_string(), serde_json::json!(scored.age_days));
-		signals.insert("importance".to_string(), serde_json::json!(scored.importance));
-		signals.insert(
-			"context.scope_boost".to_string(),
-			serde_json::json!(scored.scope_context_boost),
-		);
-		signals.insert("note.scope".to_string(), serde_json::json!(scored.note_scope));
-
-		let mut components = BTreeMap::new();
-
-		components.insert("blend.retrieval".to_string(), scored.retrieval_term);
-		components.insert("blend.rerank".to_string(), scored.rerank_term);
-		components.insert("tie_breaker".to_string(), scored.tie_breaker_score);
-		components.insert("context.scope_boost".to_string(), scored.scope_context_boost);
+		let terms = ranking_explain_v2::build_trace_terms_v2(ranking_explain_v2::TraceTermsArgs {
+			cfg,
+			blend_enabled: blend_policy.enabled,
+			retrieval_normalization: blend_policy.retrieval_normalization.as_str(),
+			rerank_normalization: blend_policy.rerank_normalization.as_str(),
+			blend_retrieval_weight: scored.blend_retrieval_weight,
+			retrieval_rank: scored.retrieval_rank,
+			retrieval_norm: scored.retrieval_norm,
+			retrieval_term: scored.retrieval_term,
+			rerank_score: scored.rerank_score,
+			rerank_rank: scored.rerank_rank,
+			rerank_norm: scored.rerank_norm,
+			rerank_term: scored.rerank_term,
+			tie_breaker_score: scored.tie_breaker_score,
+			importance: scored.importance,
+			age_days: scored.age_days,
+			scope: scored.note_scope.as_str(),
+			scope_context_boost: scored.scope_context_boost,
+			deterministic_lexical_overlap_ratio: scored.deterministic_lexical_overlap_ratio,
+			deterministic_lexical_bonus: scored.deterministic_lexical_bonus,
+			deterministic_hit_count: scored.deterministic_hit_count,
+			deterministic_last_hit_age_days: scored.deterministic_last_hit_age_days,
+			deterministic_hit_boost: scored.deterministic_hit_boost,
+			deterministic_decay_penalty: scored.deterministic_decay_penalty,
+		});
 
 		let explain = SearchExplain {
 			r#match: SearchMatchExplain { matched_terms: Vec::new(), matched_fields: Vec::new() },
 			ranking: SearchRankingExplain {
-				schema: SEARCH_RANKING_EXPLAIN_SCHEMA_V1.to_string(),
+				schema: ranking_explain_v2::SEARCH_RANKING_EXPLAIN_SCHEMA_V2.to_string(),
 				policy_id: policy_id.clone(),
-				signals,
-				components,
+				final_score: scored.final_score,
+				terms,
 			},
 		};
 
@@ -2247,6 +2355,135 @@ fn tokenize_query(query: &str, max_terms: usize) -> Vec<String> {
 	out
 }
 
+fn tokenize_text_terms(text: &str, max_terms: usize) -> HashSet<String> {
+	if max_terms == 0 {
+		return HashSet::new();
+	}
+
+	let mut normalized = String::with_capacity(text.len());
+
+	for ch in text.chars() {
+		if ch.is_ascii_alphanumeric() {
+			normalized.push(ch.to_ascii_lowercase());
+		} else {
+			normalized.push(' ');
+		}
+	}
+
+	let mut out = HashSet::new();
+
+	for token in normalized.split_whitespace() {
+		if token.len() < 2 {
+			continue;
+		}
+		out.insert(token.to_string());
+		if out.len() >= max_terms {
+			break;
+		}
+	}
+
+	out
+}
+
+fn lexical_overlap_ratio(query_tokens: &[String], text: &str, max_text_terms: usize) -> f32 {
+	if query_tokens.is_empty() {
+		return 0.0;
+	}
+
+	let text_terms = tokenize_text_terms(text, max_text_terms);
+
+	if text_terms.is_empty() {
+		return 0.0;
+	}
+
+	let mut matched = 0usize;
+
+	for token in query_tokens {
+		if text_terms.contains(token.as_str()) {
+			matched += 1;
+		}
+	}
+
+	matched as f32 / query_tokens.len() as f32
+}
+
+fn compute_deterministic_ranking_terms(
+	cfg: &Config,
+	query_tokens: &[String],
+	snippet: &str,
+	note_hit_count: i64,
+	note_last_hit_at: Option<OffsetDateTime>,
+	age_days: f32,
+	now: OffsetDateTime,
+) -> DeterministicRankingTerms {
+	let det = &cfg.ranking.deterministic;
+
+	if !det.enabled {
+		return DeterministicRankingTerms::default();
+	}
+
+	let mut out = DeterministicRankingTerms::default();
+
+	if det.lexical.enabled && det.lexical.weight > 0.0 && !query_tokens.is_empty() {
+		let ratio =
+			lexical_overlap_ratio(query_tokens, snippet, det.lexical.max_text_terms as usize);
+
+		out.lexical_overlap_ratio = ratio;
+
+		let min_ratio = det.lexical.min_ratio.clamp(0.0, 1.0);
+		let scaled = if ratio >= min_ratio && min_ratio < 1.0 {
+			((ratio - min_ratio) / (1.0 - min_ratio)).clamp(0.0, 1.0)
+		} else if ratio >= 1.0 && min_ratio >= 1.0 {
+			1.0
+		} else {
+			0.0
+		};
+
+		out.lexical_bonus = det.lexical.weight * scaled;
+	}
+
+	if det.hits.enabled && det.hits.weight > 0.0 {
+		let hit_count = note_hit_count.max(0);
+
+		out.hit_count = hit_count;
+
+		let half = det.hits.half_saturation;
+		let hit_saturation = if half > 0.0 && hit_count > 0 {
+			let hc = hit_count as f32;
+			(hc / (hc + half)).clamp(0.0, 1.0)
+		} else {
+			0.0
+		};
+
+		let last_hit_age_days =
+			note_last_hit_at.map(|ts| ((now - ts).as_seconds_f32() / 86_400.0).max(0.0));
+
+		out.last_hit_age_days = last_hit_age_days;
+
+		let tau = det.hits.last_hit_tau_days;
+		let recency = if tau > 0.0 {
+			match last_hit_age_days {
+				Some(days) => (-days / tau).exp(),
+				None => 1.0,
+			}
+		} else {
+			1.0
+		};
+
+		out.hit_boost = det.hits.weight * hit_saturation * recency;
+	}
+
+	if det.decay.enabled && det.decay.weight > 0.0 {
+		let age_days = age_days.max(0.0);
+		let tau = det.decay.tau_days;
+		let staleness = if tau > 0.0 { 1.0 - (-age_days / tau).exp() } else { 0.0 };
+
+		out.decay_penalty = -det.decay.weight * staleness.clamp(0.0, 1.0);
+	}
+
+	out
+}
+
 fn match_terms_in_text(
 	tokens: &[String],
 	text: &str,
@@ -2357,6 +2594,27 @@ fn build_config_snapshot(
 			"policy_snapshot": policy_snapshot.clone(),
 			"recency_tau_days": cfg.ranking.recency_tau_days,
 			"tie_breaker_weight": cfg.ranking.tie_breaker_weight,
+			"deterministic": {
+				"enabled": cfg.ranking.deterministic.enabled,
+				"lexical": {
+					"enabled": cfg.ranking.deterministic.lexical.enabled,
+					"weight": cfg.ranking.deterministic.lexical.weight,
+					"min_ratio": cfg.ranking.deterministic.lexical.min_ratio,
+					"max_query_terms": cfg.ranking.deterministic.lexical.max_query_terms,
+					"max_text_terms": cfg.ranking.deterministic.lexical.max_text_terms,
+				},
+				"hits": {
+					"enabled": cfg.ranking.deterministic.hits.enabled,
+					"weight": cfg.ranking.deterministic.hits.weight,
+					"half_saturation": cfg.ranking.deterministic.hits.half_saturation,
+					"last_hit_tau_days": cfg.ranking.deterministic.hits.last_hit_tau_days,
+				},
+				"decay": {
+					"enabled": cfg.ranking.deterministic.decay.enabled,
+					"weight": cfg.ranking.deterministic.decay.weight,
+					"tau_days": cfg.ranking.deterministic.decay.tau_days,
+				},
+			},
 			"blend": {
 				"enabled": blend_policy.enabled,
 				"rerank_normalization": blend_policy.rerank_normalization.as_str(),
@@ -2420,6 +2678,27 @@ fn build_policy_snapshot(
 		"ranking": {
 			"recency_tau_days": cfg.ranking.recency_tau_days,
 			"tie_breaker_weight": cfg.ranking.tie_breaker_weight,
+			"deterministic": {
+				"enabled": cfg.ranking.deterministic.enabled,
+				"lexical": {
+					"enabled": cfg.ranking.deterministic.lexical.enabled,
+					"weight": cfg.ranking.deterministic.lexical.weight,
+					"min_ratio": cfg.ranking.deterministic.lexical.min_ratio,
+					"max_query_terms": cfg.ranking.deterministic.lexical.max_query_terms,
+					"max_text_terms": cfg.ranking.deterministic.lexical.max_text_terms,
+				},
+				"hits": {
+					"enabled": cfg.ranking.deterministic.hits.enabled,
+					"weight": cfg.ranking.deterministic.hits.weight,
+					"half_saturation": cfg.ranking.deterministic.hits.half_saturation,
+					"last_hit_tau_days": cfg.ranking.deterministic.hits.last_hit_tau_days,
+				},
+				"decay": {
+					"enabled": cfg.ranking.deterministic.decay.enabled,
+					"weight": cfg.ranking.deterministic.decay.weight,
+					"tau_days": cfg.ranking.deterministic.decay.tau_days,
+				},
+			},
 			"blend": {
 				"enabled": blend_policy.enabled,
 				"rerank_normalization": blend_policy.rerank_normalization.as_str(),
@@ -3000,11 +3279,16 @@ INSERT INTO search_trace_candidates (
 	trace_id,
 	note_id,
 	chunk_id,
+	chunk_index,
+	snippet,
+	candidate_snapshot,
 	retrieval_rank,
 	rerank_score,
 	note_scope,
 	note_importance,
 	note_updated_at,
+	note_hit_count,
+	note_last_hit_at,
 	created_at,
 	expires_at
 ) ",
@@ -3014,11 +3298,16 @@ INSERT INTO search_trace_candidates (
 				.push_bind(trace_id)
 				.push_bind(candidate.note_id)
 				.push_bind(candidate.chunk_id)
+				.push_bind(candidate.chunk_index)
+				.push_bind(candidate.snippet)
+				.push_bind(candidate.candidate_snapshot)
 				.push_bind(candidate.retrieval_rank as i32)
 				.push_bind(candidate.rerank_score)
 				.push_bind(candidate.note_scope)
 				.push_bind(candidate.note_importance)
 				.push_bind(candidate.note_updated_at)
+				.push_bind(candidate.note_hit_count)
+				.push_bind(candidate.note_last_hit_at)
 				.push_bind(candidate.created_at)
 				.push_bind(candidate.expires_at);
 		});
@@ -3364,6 +3653,178 @@ mod tests {
 		assert_eq!(prefix, "abcd1234efgh");
 	}
 
+	#[test]
+	fn lexical_overlap_ratio_is_deterministic_and_bounded() {
+		let query_tokens = vec!["deploy".to_string(), "steps".to_string()];
+		let ratio = lexical_overlap_ratio(&query_tokens, "Deploy steps for staging.", 128);
+
+		assert!((ratio - 1.0).abs() < 1e-6, "Unexpected ratio: {ratio}");
+
+		let ratio = lexical_overlap_ratio(&query_tokens, "Deploy only.", 128);
+
+		assert!((ratio - 0.5).abs() < 1e-6, "Unexpected ratio: {ratio}");
+		assert!((0.0..=1.0).contains(&ratio), "Ratio must be in [0, 1].");
+	}
+
+	#[test]
+	fn deterministic_ranking_terms_do_not_apply_when_disabled() {
+		let mut cfg = parse_example_config();
+		cfg.ranking.deterministic.enabled = false;
+		cfg.ranking.deterministic.lexical.enabled = true;
+		cfg.ranking.deterministic.hits.enabled = true;
+		cfg.ranking.deterministic.decay.enabled = true;
+
+		let now = OffsetDateTime::from_unix_timestamp(1_000_000).expect("Valid timestamp.");
+		let note = NoteMeta {
+			note_id: Uuid::new_v4(),
+			note_type: "fact".to_string(),
+			key: None,
+			scope: "project_shared".to_string(),
+			importance: 0.1,
+			confidence: 0.9,
+			updated_at: now,
+			expires_at: None,
+			source_ref: serde_json::json!({}),
+			embedding_version: "v1".to_string(),
+			hit_count: 8,
+			last_hit_at: Some(now),
+		};
+		let chunk =
+			ChunkMeta { chunk_id: Uuid::new_v4(), chunk_index: 0, start_offset: 0, end_offset: 10 };
+		let item =
+			ChunkSnippet { note, chunk, snippet: "deploy steps".to_string(), retrieval_rank: 1 };
+		let mut scored = ScoredChunk {
+			item,
+			final_score: 1.0,
+			rerank_score: 0.5,
+			rerank_rank: 1,
+			rerank_norm: 1.0,
+			retrieval_norm: 1.0,
+			blend_retrieval_weight: 0.5,
+			retrieval_term: 0.5,
+			rerank_term: 0.5,
+			tie_breaker_score: 0.0,
+			scope_context_boost: 0.0,
+			age_days: 30.0,
+			importance: 0.1,
+			deterministic_lexical_overlap_ratio: 0.0,
+			deterministic_lexical_bonus: 0.0,
+			deterministic_hit_count: 0,
+			deterministic_last_hit_age_days: None,
+			deterministic_hit_boost: 0.0,
+			deterministic_decay_penalty: 0.0,
+		};
+		let terms = compute_deterministic_ranking_terms(
+			&cfg,
+			&tokenize_query(
+				"deploy steps",
+				cfg.ranking.deterministic.lexical.max_query_terms as usize,
+			),
+			scored.item.snippet.as_str(),
+			scored.item.note.hit_count,
+			scored.item.note.last_hit_at,
+			scored.age_days,
+			now,
+		);
+		scored.final_score += terms.lexical_bonus + terms.hit_boost + terms.decay_penalty;
+		scored.deterministic_lexical_overlap_ratio = terms.lexical_overlap_ratio;
+		scored.deterministic_lexical_bonus = terms.lexical_bonus;
+		scored.deterministic_hit_count = terms.hit_count;
+		scored.deterministic_last_hit_age_days = terms.last_hit_age_days;
+		scored.deterministic_hit_boost = terms.hit_boost;
+		scored.deterministic_decay_penalty = terms.decay_penalty;
+
+		assert!((scored.final_score - 1.0).abs() < 1e-6, "Score must not change.");
+		assert!((scored.deterministic_lexical_bonus - 0.0).abs() < 1e-6);
+		assert!((scored.deterministic_hit_boost - 0.0).abs() < 1e-6);
+		assert!((scored.deterministic_decay_penalty - 0.0).abs() < 1e-6);
+	}
+
+	#[test]
+	fn deterministic_ranking_terms_apply_and_are_bounded() {
+		let mut cfg = parse_example_config();
+
+		cfg.ranking.deterministic.enabled = true;
+		cfg.ranking.deterministic.lexical.enabled = true;
+		cfg.ranking.deterministic.hits.enabled = true;
+		cfg.ranking.deterministic.decay.enabled = true;
+
+		let now = OffsetDateTime::from_unix_timestamp(1_000_000).expect("Valid timestamp.");
+		let note = NoteMeta {
+			note_id: Uuid::new_v4(),
+			note_type: "fact".to_string(),
+			key: None,
+			scope: "project_shared".to_string(),
+			importance: 0.1,
+			confidence: 0.9,
+			updated_at: now,
+			expires_at: None,
+			source_ref: serde_json::json!({}),
+			embedding_version: "v1".to_string(),
+			hit_count: 8,
+			last_hit_at: Some(now),
+		};
+		let chunk =
+			ChunkMeta { chunk_id: Uuid::new_v4(), chunk_index: 0, start_offset: 0, end_offset: 10 };
+		let item =
+			ChunkSnippet { note, chunk, snippet: "deploy steps".to_string(), retrieval_rank: 1 };
+		let mut scored = ScoredChunk {
+			item,
+			final_score: 1.0,
+			rerank_score: 0.5,
+			rerank_rank: 1,
+			rerank_norm: 1.0,
+			retrieval_norm: 1.0,
+			blend_retrieval_weight: 0.5,
+			retrieval_term: 0.5,
+			rerank_term: 0.5,
+			tie_breaker_score: 0.0,
+			scope_context_boost: 0.0,
+			age_days: 30.0,
+			importance: 0.1,
+			deterministic_lexical_overlap_ratio: 0.0,
+			deterministic_lexical_bonus: 0.0,
+			deterministic_hit_count: 0,
+			deterministic_last_hit_age_days: None,
+			deterministic_hit_boost: 0.0,
+			deterministic_decay_penalty: 0.0,
+		};
+		let terms = compute_deterministic_ranking_terms(
+			&cfg,
+			&tokenize_query(
+				"deploy steps",
+				cfg.ranking.deterministic.lexical.max_query_terms as usize,
+			),
+			scored.item.snippet.as_str(),
+			scored.item.note.hit_count,
+			scored.item.note.last_hit_at,
+			scored.age_days,
+			now,
+		);
+
+		scored.final_score += terms.lexical_bonus + terms.hit_boost + terms.decay_penalty;
+		scored.deterministic_lexical_overlap_ratio = terms.lexical_overlap_ratio;
+		scored.deterministic_lexical_bonus = terms.lexical_bonus;
+		scored.deterministic_hit_count = terms.hit_count;
+		scored.deterministic_last_hit_age_days = terms.last_hit_age_days;
+		scored.deterministic_hit_boost = terms.hit_boost;
+		scored.deterministic_decay_penalty = terms.decay_penalty;
+
+		assert!(scored.final_score.is_finite(), "Score must be finite.");
+		assert!((0.0..=1.0).contains(&scored.deterministic_lexical_overlap_ratio));
+		assert!(scored.deterministic_lexical_bonus >= 0.0);
+		assert!(scored.deterministic_hit_boost >= 0.0);
+		assert!(scored.deterministic_decay_penalty <= 0.0);
+
+		let expected_lex = cfg.ranking.deterministic.lexical.weight;
+
+		assert!((scored.deterministic_lexical_bonus - expected_lex).abs() < 1e-6);
+
+		let expected_hit = cfg.ranking.deterministic.hits.weight * 0.5;
+
+		assert!((scored.deterministic_hit_boost - expected_hit).abs() < 1e-6);
+	}
+
 	fn parse_example_config() -> Config {
 		let root_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
 		let path = root_dir.join("elf.example.toml");
@@ -3416,29 +3877,41 @@ mod tests {
 			TraceReplayCandidate {
 				note_id: Uuid::new_v4(),
 				chunk_id: Uuid::new_v4(),
+				chunk_index: 0,
+				snippet: "deployment steps".to_string(),
 				retrieval_rank: 1,
 				rerank_score: 0.1,
 				note_scope: "project_shared".to_string(),
 				note_importance: 0.1,
 				note_updated_at: now,
+				note_hit_count: 0,
+				note_last_hit_at: None,
 			},
 			TraceReplayCandidate {
 				note_id: Uuid::new_v4(),
 				chunk_id: Uuid::new_v4(),
+				chunk_index: 0,
+				snippet: "deployment steps".to_string(),
 				retrieval_rank: 2,
 				rerank_score: 0.9,
 				note_scope: "project_shared".to_string(),
 				note_importance: 0.1,
 				note_updated_at: now,
+				note_hit_count: 0,
+				note_last_hit_at: None,
 			},
 			TraceReplayCandidate {
 				note_id: Uuid::new_v4(),
 				chunk_id: Uuid::new_v4(),
+				chunk_index: 0,
+				snippet: "deployment steps".to_string(),
 				retrieval_rank: 3,
 				rerank_score: 0.2,
 				note_scope: "org_shared".to_string(),
 				note_importance: 0.1,
 				note_updated_at: now,
+				note_hit_count: 0,
+				note_last_hit_at: None,
 			},
 		];
 		let out = replay_ranking_from_candidates(&cfg, &trace, None, &candidates, 2)

@@ -102,6 +102,27 @@ write_mode               = "outbox"
 recency_tau_days   = 60.0
 tie_breaker_weight = 0.1
 
+[ranking.deterministic]
+enabled = false
+
+[ranking.deterministic.lexical]
+enabled         = false
+max_query_terms = 16
+max_text_terms  = 1024
+min_ratio       = 0.3
+weight          = 0.05
+
+[ranking.deterministic.hits]
+enabled           = false
+half_saturation   = 8.0
+last_hit_tau_days = 14.0
+weight            = 0.05
+
+[ranking.deterministic.decay]
+enabled  = false
+tau_days = 30.0
+weight   = 0.05
+
 [lifecycle.ttl_days]
 constraint = 0
 decision   = 0

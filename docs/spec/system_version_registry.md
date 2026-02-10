@@ -1,0 +1,67 @@
+# System Version Registry
+
+Purpose: Provide a single registry for versioned identifiers used across ELF.
+
+This document is normative. When a new versioned identifier is introduced, it must be added here.
+
+## Registry
+
+### HTTP API version
+
+- Identifier: `/v2` (URL path prefix).
+- Type: HTTP API version.
+- Defined in: `apps/elf-api/src/routes.rs`, `docs/spec/system_elf_memory_service_v2.md`.
+- Consumers: Clients calling the ELF Memory Service API, `apps/elf-mcp`.
+- Bump rule: Introduce a new prefix (for example, `/v3`) only for breaking API contract changes. Add a new spec file and keep old specs stable.
+
+### Search ranking explain schema
+
+- Identifier: `search_ranking_explain/v2`.
+- Type: JSON schema identifier for `SearchExplain.ranking`.
+- Defined in: `packages/elf-service/src/ranking_explain_v2.rs`.
+- Consumers: Search responses, trace items (`explain` JSON), evaluation harness.
+- Bump rule: Change the identifier only when the payload becomes incompatible with the previous version. Do not reuse older identifiers.
+- Notes: The v2 model is additive. `final_score` must equal the sum of `terms[].value`.
+
+### Ranking blend policy identifier
+
+- Identifier: `blend_v1:<hash>`.
+- Type: Ranking policy identifier recorded in traces.
+- Defined in: `packages/elf-service/src/search.rs`, `docs/spec/system_elf_memory_service_v2.md`.
+- Consumers: Trace inspection, evaluation replay, debugging.
+- Bump rule: If the policy encoding or semantics change in a way that makes old and new policies non-comparable, introduce a new prefix (for example, `blend_v2:`).
+
+### Search trace version
+
+- Identifier: `trace_version` (integer), current value `2`.
+- Type: Trace schema version for search traces.
+- Defined in: `packages/elf-service/src/search.rs` (`TRACE_VERSION`), `sql/tables/006_search_traces.sql`.
+- Consumers: Worker trace persistence, trace readers, evaluation harness.
+- Bump rule: Increment only when a trace schema change requires explicit version gating in readers or replay logic.
+
+### Embedding version
+
+- Identifier: `embedding_version` (string), format `{provider_id}:{model}:{vector_dim}`.
+- Type: Embedding compatibility identifier.
+- Defined in: `packages/elf-service/src/lib.rs` (`embedding_version(cfg)`).
+- Consumers: Postgres keys (`note_embeddings`, `note_chunk_embeddings`, outbox), Qdrant payload filtering, rebuild flows.
+- Bump rule: This is not a numeric version. Treat the full string as an immutable identifier. A change to any component (`provider_id`, `model`, or `vector_dim`) produces a new `embedding_version`.
+
+### LLM cache payload schema versions
+
+- Identifier: `schema_version` (integer), `expansion` current value `1`, `rerank` current value `1`.
+- Type: Cache payload schema version.
+- Defined in: `packages/elf-service/src/search.rs` (`EXPANSION_CACHE_SCHEMA_VERSION`, `RERANK_CACHE_SCHEMA_VERSION`).
+- Consumers: Search cache read and write paths.
+- Bump rule: Increment when the cached payload shape changes such that older entries must be rejected or migrated.
+
+## Repository process identifiers
+
+### Commit message schema
+
+- Identifier: `cmsg/1`.
+- Type: Commit message schema identifier.
+- Defined in: `AGENTS.md`.
+- Consumers: Automated agents and repository tooling.
+- Bump rule: Introduce `cmsg/2` only when the schema becomes incompatible with existing automation.
+

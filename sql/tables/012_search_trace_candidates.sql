@@ -3,11 +3,16 @@ CREATE TABLE IF NOT EXISTS search_trace_candidates (
 	trace_id uuid NOT NULL REFERENCES search_traces(trace_id) ON DELETE CASCADE,
 	note_id uuid NOT NULL,
 	chunk_id uuid NOT NULL,
+	chunk_index int NOT NULL,
+	snippet text NOT NULL,
+	candidate_snapshot jsonb NOT NULL,
 	retrieval_rank int NOT NULL,
 	rerank_score real NOT NULL,
 	note_scope text NOT NULL,
 	note_importance real NOT NULL,
 	note_updated_at timestamptz NOT NULL,
+	note_hit_count bigint NOT NULL,
+	note_last_hit_at timestamptz,
 	created_at timestamptz NOT NULL,
 	expires_at timestamptz NOT NULL
 );
@@ -16,4 +21,3 @@ CREATE INDEX IF NOT EXISTS idx_search_trace_candidates_expires
 	ON search_trace_candidates (expires_at);
 CREATE INDEX IF NOT EXISTS idx_search_trace_candidates_trace
 	ON search_trace_candidates (trace_id, retrieval_rank);
-
