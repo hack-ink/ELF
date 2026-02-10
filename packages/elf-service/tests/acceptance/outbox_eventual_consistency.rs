@@ -157,6 +157,7 @@ async fn outbox_retries_to_done() {
 				note_type: "fact".to_string(),
 				key: Some("outbox_test".to_string()),
 				text: "Fact: Outbox should retry.".to_string(),
+				structured: None,
 				importance: 0.4,
 				confidence: 0.9,
 				ttl_days: None,

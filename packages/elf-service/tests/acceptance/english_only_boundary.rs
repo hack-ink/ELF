@@ -56,6 +56,7 @@ async fn rejects_cjk_in_add_note() {
 			note_type: "fact".to_string(),
 			key: None,
 			text: "你好".to_string(),
+			structured: None,
 			importance: 0.4,
 			confidence: 0.9,
 			ttl_days: None,

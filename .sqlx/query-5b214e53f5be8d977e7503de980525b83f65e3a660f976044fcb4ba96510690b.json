@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n\tf.note_id AS \"note_id!\",\n\tf.field_kind AS \"field_kind!\"\nFROM memory_note_fields f\nJOIN note_field_embeddings e\n\tON e.field_id = f.field_id\n\tAND e.embedding_version = $1\nJOIN memory_notes n\n\tON n.note_id = f.note_id\nWHERE n.tenant_id = $2\n\tAND n.project_id = $3\n\tAND n.status = 'active'\n\tAND (n.expires_at IS NULL OR n.expires_at > $4)\n\tAND (\n\t\t(n.scope = 'agent_private' AND n.agent_id = $5)\n\t\tOR n.scope = ANY($6::text[])\n\t)\nORDER BY e.vec <=> $7::text::vector ASC\nLIMIT $8",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "note_id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "field_kind!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Timestamptz",
+        "Text",
+        "TextArray",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "5b214e53f5be8d977e7503de980525b83f65e3a660f976044fcb4ba96510690b"
+}

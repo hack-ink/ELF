@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT field_id, text\nFROM memory_note_fields\nWHERE note_id = $1\nORDER BY field_kind ASC, item_index ASC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "field_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "text",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "ce9e6cd2ad68d5a1dc15fd6effe4ab5108617db7f7466f014878c29caa95292a"
+}

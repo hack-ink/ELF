@@ -504,6 +504,8 @@ async fn handle_upsert(state: &WorkerState, job: &IndexingOutboxEntry) -> Result
 		return Ok(());
 	}
 
+	let fields = fetch_note_fields(&state.db, note.note_id).await?;
+
 	let chunks = elf_chunking::split_text(&note.text, &state.chunking, &state.tokenizer);
 
 	if chunks.is_empty() {
@@ -512,19 +514,26 @@ async fn handle_upsert(state: &WorkerState, job: &IndexingOutboxEntry) -> Result
 
 	let records = build_chunk_records(note.note_id, &chunks)?;
 	let chunk_texts: Vec<String> = records.iter().map(|record| record.text.clone()).collect();
-	let chunk_vectors = embedding::embed(&state.embedding, &chunk_texts)
+	let field_texts: Vec<String> = fields.iter().map(|field| field.text.clone()).collect();
+	let mut embed_inputs = Vec::with_capacity(chunk_texts.len() + field_texts.len());
+	embed_inputs.extend(chunk_texts);
+	embed_inputs.extend(field_texts);
+
+	let vectors = embedding::embed(&state.embedding, &embed_inputs)
 		.await
 		.map_err(|err| Error::Message(err.to_string()))?;
 
-	if chunk_vectors.len() != records.len() {
+	if vectors.len() != records.len() + fields.len() {
 		return Err(Error::Validation(format!(
-			"Embedding provider returned {} vectors for {} chunks.",
-			chunk_vectors.len(),
-			records.len()
+			"Embedding provider returned {} vectors for {} items.",
+			vectors.len(),
+			records.len() + fields.len()
 		)));
 	}
 
-	for vector in &chunk_vectors {
+	let (chunk_vectors, field_vectors) = vectors.split_at(records.len());
+
+	for vector in chunk_vectors.iter().chain(field_vectors.iter()) {
 		validate_vector_dim(vector, state.qdrant.vector_dim)?;
 	}
 
@@ -560,7 +569,7 @@ async fn handle_upsert(state: &WorkerState, job: &IndexingOutboxEntry) -> Result
 			.await?;
 		}
 
-		let pooled = mean_pool(&chunk_vectors)
+		let pooled = mean_pool(chunk_vectors)
 			.ok_or_else(|| Error::Message("Cannot pool empty chunk vectors.".to_string()))?;
 
 		validate_vector_dim(&pooled, state.qdrant.vector_dim)?;
@@ -573,10 +582,21 @@ async fn handle_upsert(state: &WorkerState, job: &IndexingOutboxEntry) -> Result
 		)
 		.await?;
 
+		for (field, vector) in fields.iter().zip(field_vectors.iter()) {
+			insert_note_field_embedding_tx(
+				&mut *tx,
+				field.field_id,
+				&job.embedding_version,
+				vector.len() as i32,
+				vector,
+			)
+			.await?;
+		}
+
 		tx.commit().await?;
 	}
 	delete_qdrant_note_points(state, note.note_id).await?;
-	upsert_qdrant_chunks(state, &note, &job.embedding_version, &records, &chunk_vectors).await?;
+	upsert_qdrant_chunks(state, &note, &job.embedding_version, &records, chunk_vectors).await?;
 
 	Ok(())
 }
@@ -819,6 +839,28 @@ async fn fetch_note(db: &Db, note_id: uuid::Uuid) -> Result<Option<MemoryNote>> 
 	Ok(note)
 }
 
+#[derive(Debug)]
+struct NoteFieldRow {
+	field_id: uuid::Uuid,
+	text: String,
+}
+
+async fn fetch_note_fields(db: &Db, note_id: uuid::Uuid) -> Result<Vec<NoteFieldRow>> {
+	let rows = sqlx::query_as!(
+		NoteFieldRow,
+		"\
+SELECT field_id, text
+FROM memory_note_fields
+WHERE note_id = $1
+ORDER BY field_kind ASC, item_index ASC",
+		note_id,
+	)
+	.fetch_all(&db.pool)
+	.await?;
+
+	Ok(rows)
+}
+
 async fn insert_embedding_tx<'e, E>(
 	executor: E,
 	note_id: uuid::Uuid,
@@ -846,6 +888,43 @@ where
 			vec = EXCLUDED.vec,
 		created_at = now()",
 		note_id,
+		embedding_version,
+		embedding_dim,
+		vec_text.as_str(),
+	)
+	.execute(executor)
+	.await?;
+
+	Ok(())
+}
+
+async fn insert_note_field_embedding_tx<'e, E>(
+	executor: E,
+	field_id: uuid::Uuid,
+	embedding_version: &str,
+	embedding_dim: i32,
+	vec: &[f32],
+) -> Result<()>
+where
+	E: PgExecutor<'e>,
+{
+	let vec_text = format_vector_text(vec);
+
+	sqlx::query!(
+		"\
+INSERT INTO note_field_embeddings (
+	field_id,
+	embedding_version,
+	embedding_dim,
+	vec
+)
+VALUES ($1, $2, $3, $4::text::vector)
+ON CONFLICT (field_id, embedding_version) DO UPDATE
+SET
+	embedding_dim = EXCLUDED.embedding_dim,
+	vec = EXCLUDED.vec,
+	created_at = now()",
+		field_id,
 		embedding_version,
 		embedding_dim,
 		vec_text.as_str(),

@@ -7,7 +7,12 @@ use elf_storage::models::MemoryNote;
 
 use crate::{
 	ElfService, Error, InsertVersionArgs, NoteOp, ResolveUpdateArgs, Result, UpdateDecision,
+	structured_fields::{
+		StructuredFields, upsert_structured_fields_tx, validate_structured_fields,
+	},
 };
+
+const REJECT_STRUCTURED_INVALID: &str = "REJECT_STRUCTURED_INVALID";
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AddNoteRequest {
@@ -24,6 +29,8 @@ pub struct AddNoteInput {
 	pub note_type: String,
 	pub key: Option<String>,
 	pub text: String,
+	#[serde(default)]
+	pub structured: Option<StructuredFields>,
 	pub importance: f32,
 	pub confidence: f32,
 	pub ttl_days: Option<i64>,
@@ -66,6 +73,12 @@ impl ElfService {
 			{
 				return Err(Error::NonEnglishInput { field: format!("$.notes[{idx}].key") });
 			}
+			if let Some(path) = find_cjk_path_in_structured(
+				note.structured.as_ref(),
+				&format!("$.notes[{idx}].structured"),
+			) {
+				return Err(Error::NonEnglishInput { field: path });
+			}
 			if let Some(path) =
 				find_cjk_path(&note.source_ref, &format!("$.notes[{idx}].source_ref"))
 			{
@@ -79,6 +92,20 @@ impl ElfService {
 		let mut results = Vec::with_capacity(req.notes.len());
 
 		for note in req.notes {
+			if let Some(structured) = note.structured.as_ref() {
+				if let Err(err) =
+					validate_structured_fields(structured, &note.text, &note.source_ref, None)
+				{
+					results.push(AddNoteResult {
+						note_id: None,
+						op: NoteOp::Rejected,
+						reason_code: Some(REJECT_STRUCTURED_INVALID.to_string()),
+					});
+					tracing::info!(error = %err, "Rejecting note due to invalid structured fields.");
+					continue;
+				}
+			}
+
 			let gate_input = writegate::NoteInput {
 				note_type: note.note_type.clone(),
 				scope: req.scope.clone(),
@@ -214,6 +241,13 @@ impl ElfService {
 						},
 					)
 					.await?;
+
+					if let Some(structured) = note.structured.as_ref()
+						&& !structured.is_effectively_empty()
+					{
+						upsert_structured_fields_tx(&mut *tx, memory_note.note_id, structured, now)
+							.await?;
+					}
 					crate::enqueue_outbox_tx(
 						&mut *tx,
 						memory_note.note_id,
@@ -315,6 +349,13 @@ impl ElfService {
 						},
 					)
 					.await?;
+
+					if let Some(structured) = note.structured.as_ref()
+						&& !structured.is_effectively_empty()
+					{
+						upsert_structured_fields_tx(&mut *tx, existing.note_id, structured, now)
+							.await?;
+					}
 					crate::enqueue_outbox_tx(
 						&mut *tx,
 						existing.note_id,
@@ -332,6 +373,26 @@ impl ElfService {
 					});
 				},
 				UpdateDecision::None { note_id } => {
+					if let Some(structured) = note.structured.as_ref()
+						&& !structured.is_effectively_empty()
+					{
+						upsert_structured_fields_tx(&mut *tx, note_id, structured, now).await?;
+						crate::enqueue_outbox_tx(
+							&mut *tx,
+							note_id,
+							"UPSERT",
+							embed_version.as_str(),
+							now,
+						)
+						.await?;
+						tx.commit().await?;
+						results.push(AddNoteResult {
+							note_id: Some(note_id),
+							op: NoteOp::Update,
+							reason_code: None,
+						});
+						continue;
+					}
 					tx.commit().await?;
 					results.push(AddNoteResult {
 						note_id: Some(note_id),
@@ -344,6 +405,35 @@ impl ElfService {
 
 		Ok(AddNoteResponse { results })
 	}
+}
+
+fn find_cjk_path_in_structured(
+	structured: Option<&StructuredFields>,
+	base: &str,
+) -> Option<String> {
+	let Some(structured) = structured else {
+		return None;
+	};
+	if let Some(summary) = structured.summary.as_ref()
+		&& cjk::contains_cjk(summary)
+	{
+		return Some(format!("{base}.summary"));
+	}
+	if let Some(items) = structured.facts.as_ref() {
+		for (idx, item) in items.iter().enumerate() {
+			if cjk::contains_cjk(item) {
+				return Some(format!("{base}.facts[{idx}]"));
+			}
+		}
+	}
+	if let Some(items) = structured.concepts.as_ref() {
+		for (idx, item) in items.iter().enumerate() {
+			if cjk::contains_cjk(item) {
+				return Some(format!("{base}.concepts[{idx}]"));
+			}
+		}
+	}
+	None
 }
 
 fn find_cjk_path(value: &Value, path: &str) -> Option<String> {
