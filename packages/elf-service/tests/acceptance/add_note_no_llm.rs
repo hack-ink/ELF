@@ -43,6 +43,7 @@ async fn add_note_does_not_call_llm() {
 			note_type: "preference".to_string(),
 			key: Some("preferred_language".to_string()),
 			text: "Preference: Use English.".to_string(),
+			structured: None,
 			importance: 0.5,
 			confidence: 0.9,
 			ttl_days: None,

@@ -482,6 +482,7 @@ struct FinishSearchArgs<'a> {
 	expanded_queries: Vec<String>,
 	expansion_mode: ExpansionMode,
 	candidates: Vec<ChunkCandidate>,
+	structured_matches: HashMap<Uuid, Vec<String>>,
 	top_k: u32,
 	record_hits_enabled: bool,
 	ranking_override: Option<RankingRequestOverride>,
@@ -527,6 +528,7 @@ impl ElfService {
 					expanded_queries: vec![query.clone()],
 					expansion_mode,
 					candidates: Vec::new(),
+					structured_matches: HashMap::new(),
 					top_k,
 					record_hits_enabled,
 					ranking_override: ranking_override.clone(),
@@ -576,7 +578,7 @@ impl ElfService {
 
 			let baseline_points = self
 				.run_fusion_query(
-					&[QueryEmbedding { text: query.clone(), vector: query_vec }],
+					&[QueryEmbedding { text: query.clone(), vector: query_vec.clone() }],
 					&filter,
 					candidate_k,
 				)
@@ -591,6 +593,19 @@ impl ElfService {
 				should_expand_dynamic(baseline_points.len(), top_score, &self.cfg.search.dynamic);
 
 			if !should_expand {
+				let (augmented, structured_matches) = self
+					.augment_candidates_with_structured_field_retrieval(
+						tenant_id,
+						project_id,
+						agent_id,
+						&allowed_scopes,
+						query_vec.as_slice(),
+						candidates,
+						candidate_k,
+						OffsetDateTime::now_utc(),
+					)
+					.await?;
+
 				return self
 					.finish_search(FinishSearchArgs {
 						trace_id,
@@ -602,7 +617,8 @@ impl ElfService {
 						allowed_scopes: &allowed_scopes,
 						expanded_queries: vec![query.clone()],
 						expansion_mode,
-						candidates,
+						candidates: augmented,
+						structured_matches,
 						top_k,
 						record_hits_enabled,
 						ranking_override: ranking_override.clone(),
@@ -626,6 +642,29 @@ impl ElfService {
 			candidate_k,
 		);
 
+		let original_query_vec = query_embeddings
+			.iter()
+			.find(|embedded| embedded.text == query)
+			.map(|embedded| embedded.vector.clone())
+			.unwrap_or_else(Vec::new);
+		let original_query_vec = if original_query_vec.is_empty() {
+			self.embed_single_query(&query, project_context_description).await?
+		} else {
+			original_query_vec
+		};
+		let (augmented, structured_matches) = self
+			.augment_candidates_with_structured_field_retrieval(
+				tenant_id,
+				project_id,
+				agent_id,
+				&allowed_scopes,
+				original_query_vec.as_slice(),
+				candidates,
+				candidate_k,
+				OffsetDateTime::now_utc(),
+			)
+			.await?;
+
 		self.finish_search(FinishSearchArgs {
 			trace_id,
 			query: &query,
@@ -636,7 +675,8 @@ impl ElfService {
 			allowed_scopes: &allowed_scopes,
 			expanded_queries,
 			expansion_mode,
-			candidates,
+			candidates: augmented,
+			structured_matches,
 			top_k,
 			record_hits_enabled,
 			ranking_override,
@@ -1146,6 +1186,226 @@ ORDER BY rank ASC",
 		result
 	}
 
+	async fn augment_candidates_with_structured_field_retrieval(
+		&self,
+		tenant_id: &str,
+		project_id: &str,
+		agent_id: &str,
+		allowed_scopes: &[String],
+		query_vec: &[f32],
+		candidates: Vec<ChunkCandidate>,
+		candidate_k: u32,
+		now: OffsetDateTime,
+	) -> Result<(Vec<ChunkCandidate>, HashMap<Uuid, Vec<String>>)> {
+		if query_vec.is_empty() {
+			return Ok((candidates, HashMap::new()));
+		}
+
+		#[derive(Debug)]
+		struct FieldHit {
+			note_id: Uuid,
+			field_kind: String,
+		}
+
+		let embed_version = crate::embedding_version(&self.cfg);
+		let vec_text = crate::vector_to_pg(query_vec);
+		let private_allowed = allowed_scopes.iter().any(|scope| scope == "agent_private");
+		let non_private_scopes: Vec<String> =
+			allowed_scopes.iter().filter(|scope| *scope != "agent_private").cloned().collect();
+
+		let rows: Vec<FieldHit> = if private_allowed && non_private_scopes.is_empty() {
+			let raw = sqlx::query!(
+				"\
+SELECT
+	f.note_id AS \"note_id!\",
+	f.field_kind AS \"field_kind!\"
+FROM memory_note_fields f
+JOIN note_field_embeddings e
+	ON e.field_id = f.field_id
+	AND e.embedding_version = $1
+JOIN memory_notes n
+	ON n.note_id = f.note_id
+WHERE n.tenant_id = $2
+	AND n.project_id = $3
+	AND n.status = 'active'
+	AND (n.expires_at IS NULL OR n.expires_at > $4)
+	AND n.scope = 'agent_private'
+	AND n.agent_id = $5
+ORDER BY e.vec <=> $6::text::vector ASC
+LIMIT $7",
+				embed_version,
+				tenant_id,
+				project_id,
+				now,
+				agent_id,
+				vec_text.as_str(),
+				i64::from(candidate_k.min(200)),
+			)
+			.fetch_all(&self.db.pool)
+			.await?;
+			raw.into_iter()
+				.map(|row| FieldHit { note_id: row.note_id, field_kind: row.field_kind })
+				.collect()
+		} else if !private_allowed {
+			let raw = sqlx::query!(
+				"\
+SELECT
+	f.note_id AS \"note_id!\",
+	f.field_kind AS \"field_kind!\"
+FROM memory_note_fields f
+JOIN note_field_embeddings e
+	ON e.field_id = f.field_id
+	AND e.embedding_version = $1
+JOIN memory_notes n
+	ON n.note_id = f.note_id
+WHERE n.tenant_id = $2
+	AND n.project_id = $3
+	AND n.status = 'active'
+	AND (n.expires_at IS NULL OR n.expires_at > $4)
+	AND n.scope = ANY($5::text[])
+ORDER BY e.vec <=> $6::text::vector ASC
+LIMIT $7",
+				embed_version,
+				tenant_id,
+				project_id,
+				now,
+				non_private_scopes.as_slice(),
+				vec_text.as_str(),
+				i64::from(candidate_k.min(200)),
+			)
+			.fetch_all(&self.db.pool)
+			.await?;
+			raw.into_iter()
+				.map(|row| FieldHit { note_id: row.note_id, field_kind: row.field_kind })
+				.collect()
+		} else {
+			let raw = sqlx::query!(
+				"\
+SELECT
+	f.note_id AS \"note_id!\",
+	f.field_kind AS \"field_kind!\"
+FROM memory_note_fields f
+JOIN note_field_embeddings e
+	ON e.field_id = f.field_id
+	AND e.embedding_version = $1
+JOIN memory_notes n
+	ON n.note_id = f.note_id
+WHERE n.tenant_id = $2
+	AND n.project_id = $3
+	AND n.status = 'active'
+	AND (n.expires_at IS NULL OR n.expires_at > $4)
+	AND (
+		(n.scope = 'agent_private' AND n.agent_id = $5)
+		OR n.scope = ANY($6::text[])
+	)
+ORDER BY e.vec <=> $7::text::vector ASC
+LIMIT $8",
+				embed_version,
+				tenant_id,
+				project_id,
+				now,
+				agent_id,
+				non_private_scopes.as_slice(),
+				vec_text.as_str(),
+				i64::from(candidate_k.min(200)),
+			)
+			.fetch_all(&self.db.pool)
+			.await?;
+			raw.into_iter()
+				.map(|row| FieldHit { note_id: row.note_id, field_kind: row.field_kind })
+				.collect()
+		};
+
+		let mut structured_matches: HashMap<Uuid, HashSet<String>> = HashMap::new();
+		let mut ordered_note_ids = Vec::new();
+		let mut seen_notes = HashSet::new();
+
+		for row in rows {
+			let label = match row.field_kind.as_str() {
+				"summary" => "summary",
+				"fact" => "facts",
+				"concept" => "concepts",
+				_ => continue,
+			};
+
+			structured_matches
+				.entry(row.note_id)
+				.or_insert_with(HashSet::new)
+				.insert(label.to_string());
+
+			if seen_notes.insert(row.note_id) {
+				ordered_note_ids.push(row.note_id);
+			}
+		}
+
+		let mut structured_matches_out: HashMap<Uuid, Vec<String>> = HashMap::new();
+
+		for (note_id, fields) in structured_matches {
+			let mut fields: Vec<String> = fields.into_iter().collect();
+			fields.sort();
+			structured_matches_out.insert(note_id, fields);
+		}
+
+		let mut existing = HashSet::new();
+		for candidate in &candidates {
+			existing.insert(candidate.note_id);
+		}
+
+		let extra_note_ids: Vec<Uuid> =
+			ordered_note_ids.into_iter().filter(|note_id| !existing.contains(note_id)).collect();
+
+		if extra_note_ids.is_empty() {
+			return Ok((candidates, structured_matches_out));
+		}
+
+		let best_chunks = sqlx::query!(
+			"\
+SELECT DISTINCT ON (c.note_id)
+	c.note_id AS \"note_id!\",
+	c.chunk_id AS \"chunk_id!\",
+	c.chunk_index AS \"chunk_index!\"
+FROM memory_note_chunks c
+JOIN note_chunk_embeddings e
+	ON e.chunk_id = c.chunk_id
+	AND e.embedding_version = $1
+WHERE c.note_id = ANY($2::uuid[])
+ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
+			embed_version,
+			extra_note_ids.as_slice(),
+			vec_text.as_str(),
+		)
+		.fetch_all(&self.db.pool)
+		.await?;
+
+		let mut best_by_note = HashMap::new();
+		for row in best_chunks {
+			best_by_note.insert(row.note_id, (row.chunk_id, row.chunk_index));
+		}
+
+		let mut out = candidates;
+		let mut next_rank = out.len() as u32 + 1;
+
+		for note_id in extra_note_ids {
+			if out.len() >= candidate_k as usize {
+				break;
+			}
+			let Some((chunk_id, chunk_index)) = best_by_note.get(&note_id) else {
+				continue;
+			};
+			out.push(ChunkCandidate {
+				chunk_id: *chunk_id,
+				note_id,
+				chunk_index: *chunk_index,
+				retrieval_rank: next_rank,
+				updated_at: None,
+				embedding_version: Some(embed_version.clone()),
+			});
+			next_rank = next_rank.saturating_add(1);
+		}
+
+		Ok((out, structured_matches_out))
+	}
+
 	async fn finish_search(&self, args: FinishSearchArgs<'_>) -> Result<SearchResponse> {
 		let FinishSearchArgs {
 			trace_id,
@@ -1158,6 +1418,7 @@ ORDER BY rank ASC",
 			expanded_queries,
 			expansion_mode,
 			candidates,
+			structured_matches,
 			top_k,
 			record_hits_enabled,
 			ranking_override,
@@ -1684,6 +1945,10 @@ ORDER BY rank ASC",
 				&scored_chunk.item.snippet,
 				scored_chunk.item.note.key.as_deref(),
 				MAX_MATCHED_TERMS,
+			);
+			let matched_fields = merge_matched_fields(
+				matched_fields,
+				structured_matches.get(&scored_chunk.item.note.note_id),
 			);
 
 			let trace_terms =
@@ -2527,6 +2792,17 @@ fn match_terms_in_text(
 	fields.sort();
 
 	(matched_terms, fields)
+}
+
+fn merge_matched_fields(mut base: Vec<String>, extra: Option<&Vec<String>>) -> Vec<String> {
+	if let Some(extra) = extra {
+		for field in extra {
+			base.push(field.clone());
+		}
+		base.sort();
+		base.dedup();
+	}
+	base
 }
 
 fn decode_json<T>(value: serde_json::Value, label: &str) -> Result<T>

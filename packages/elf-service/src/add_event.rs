@@ -8,7 +8,12 @@ use elf_storage::models::MemoryNote;
 use crate::{
 	ElfService, Error, InsertVersionArgs, NoteOp, REJECT_EVIDENCE_MISMATCH, ResolveUpdateArgs,
 	Result, UpdateDecision,
+	structured_fields::{
+		StructuredFields, upsert_structured_fields_tx, validate_structured_fields,
+	},
 };
+
+const REJECT_STRUCTURED_INVALID: &str = "REJECT_STRUCTURED_INVALID";
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct EventMessage {
@@ -53,6 +58,8 @@ struct ExtractedNote {
 	pub note_type: Option<String>,
 	pub key: Option<String>,
 	pub text: Option<String>,
+	#[serde(default)]
+	pub structured: Option<StructuredFields>,
 	pub importance: Option<f32>,
 	pub confidence: Option<f32>,
 	pub ttl_days: Option<i64>,
@@ -129,6 +136,7 @@ impl ElfService {
 		for note in extracted.notes {
 			let note_type = note.note_type.unwrap_or_default();
 			let text = note.text.unwrap_or_default();
+			let structured = note.structured.clone();
 			let importance = note.importance.unwrap_or(0.0);
 			let confidence = note.confidence.unwrap_or(0.0);
 			let ttl_days = note.ttl_days;
@@ -168,6 +176,28 @@ impl ElfService {
 					reason: note.reason.clone(),
 				});
 				continue;
+			}
+
+			if let Some(structured) = structured.as_ref()
+				&& !structured.is_effectively_empty()
+			{
+				let event_evidence: Vec<(usize, String)> =
+					evidence.iter().map(|q| (q.message_index, q.quote.clone())).collect();
+				if let Err(err) = validate_structured_fields(
+					structured,
+					&text,
+					&serde_json::json!({}),
+					Some(event_evidence.as_slice()),
+				) {
+					tracing::info!(error = %err, "Rejecting extracted note due to invalid structured fields.");
+					results.push(AddEventResult {
+						note_id: None,
+						op: NoteOp::Rejected,
+						reason_code: Some(REJECT_STRUCTURED_INVALID.to_string()),
+						reason: note.reason.clone(),
+					});
+					continue;
+				}
 			}
 
 			let gate_input = writegate::NoteInput {
@@ -333,6 +363,13 @@ impl ElfService {
 						now,
 					)
 					.await?;
+
+					if let Some(structured) = structured.as_ref()
+						&& !structured.is_effectively_empty()
+					{
+						upsert_structured_fields_tx(&mut *tx, memory_note.note_id, structured, now)
+							.await?;
+					}
 					tx.commit().await?;
 
 					results.push(AddEventResult {
@@ -402,6 +439,13 @@ impl ElfService {
 						now,
 					)
 					.await?;
+
+					if let Some(structured) = structured.as_ref()
+						&& !structured.is_effectively_empty()
+					{
+						upsert_structured_fields_tx(&mut *tx, existing.note_id, structured, now)
+							.await?;
+					}
 					tx.commit().await?;
 
 					results.push(AddEventResult {
@@ -412,13 +456,34 @@ impl ElfService {
 					});
 				},
 				UpdateDecision::None { note_id } => {
-					tx.commit().await?;
-					results.push(AddEventResult {
-						note_id: Some(note_id),
-						op: NoteOp::None,
-						reason_code: None,
-						reason: note.reason.clone(),
-					});
+					if let Some(structured) = structured.as_ref()
+						&& !structured.is_effectively_empty()
+					{
+						upsert_structured_fields_tx(&mut *tx, note_id, structured, now).await?;
+						crate::enqueue_outbox_tx(
+							&mut *tx,
+							note_id,
+							"UPSERT",
+							embed_version.as_str(),
+							now,
+						)
+						.await?;
+						tx.commit().await?;
+						results.push(AddEventResult {
+							note_id: Some(note_id),
+							op: NoteOp::Update,
+							reason_code: None,
+							reason: note.reason.clone(),
+						});
+					} else {
+						tx.commit().await?;
+						results.push(AddEventResult {
+							note_id: Some(note_id),
+							op: NoteOp::None,
+							reason_code: None,
+							reason: note.reason.clone(),
+						});
+					}
 				},
 			}
 		}
@@ -438,6 +503,11 @@ fn build_extractor_messages(
 				"type": "preference|constraint|decision|profile|fact|plan",
 				"key": "string|null",
 				"text": "English-only sentence <= MAX_NOTE_CHARS",
+				"structured": {
+					"summary": "string|null",
+					"facts": "string[]|null",
+					"concepts": "string[]|null"
+				},
 				"importance": 0.0,
 				"confidence": 0.0,
 				"ttl_days": "number|null",
@@ -454,6 +524,7 @@ fn build_extractor_messages(
 Output must be valid JSON only and must match the provided schema exactly. \
 Extract at most MAX_NOTES high-signal, cross-session reusable memory notes from the given messages. \
 Each note must be one English sentence and must not contain any CJK characters. \
+The structured field is optional. If present, summary must be short, facts must be short sentences supported by the evidence quotes, and concepts must be short phrases. \
 Preserve numbers, dates, percentages, currency amounts, tickers, URLs, and code snippets exactly. \
 Never store secrets or PII: API keys, tokens, private keys, seed phrases, passwords, bank IDs, personal addresses. \
 For every note, provide 1 to 2 evidence quotes copied verbatim from the input messages and include the message_index. \

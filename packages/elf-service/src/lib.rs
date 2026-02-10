@@ -6,6 +6,7 @@ pub mod list;
 pub mod notes;
 pub mod progressive_search;
 pub mod search;
+pub mod structured_fields;
 pub mod time_serde;
 pub mod update;
 
@@ -36,6 +37,7 @@ pub use search::{
 	SearchExplainItem, SearchExplainRequest, SearchExplainResponse, SearchItem, SearchRequest,
 	SearchResponse, SearchTrace, TraceGetRequest, TraceGetResponse,
 };
+pub use structured_fields::StructuredFields;
 pub use update::{UpdateRequest, UpdateResponse};
 
 use elf_config::{Config, EmbeddingProviderConfig, LlmProviderConfig, ProviderConfig};

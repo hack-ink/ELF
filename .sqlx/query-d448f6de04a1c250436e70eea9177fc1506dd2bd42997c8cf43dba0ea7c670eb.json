@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM memory_note_fields WHERE note_id = $1 AND field_kind = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d448f6de04a1c250436e70eea9177fc1506dd2bd42997c8cf43dba0ea7c670eb"
+}
