@@ -73,11 +73,21 @@ struct TraceCandidateRecord {
 	candidate_id: uuid::Uuid,
 	note_id: uuid::Uuid,
 	chunk_id: uuid::Uuid,
+	#[serde(default)]
+	chunk_index: i32,
+	#[serde(default)]
+	snippet: String,
+	#[serde(default)]
+	candidate_snapshot: serde_json::Value,
 	retrieval_rank: u32,
 	rerank_score: f32,
 	note_scope: String,
 	note_importance: f32,
 	note_updated_at: OffsetDateTime,
+	#[serde(default)]
+	note_hit_count: i64,
+	#[serde(default)]
+	note_last_hit_at: Option<OffsetDateTime>,
 	created_at: OffsetDateTime,
 	expires_at: OffsetDateTime,
 }
@@ -102,11 +112,16 @@ struct TraceCandidateInsert {
 	candidate_id: uuid::Uuid,
 	note_id: uuid::Uuid,
 	chunk_id: uuid::Uuid,
+	chunk_index: i32,
+	snippet: String,
+	candidate_snapshot: serde_json::Value,
 	retrieval_rank: i32,
 	rerank_score: f32,
 	note_scope: String,
 	note_importance: f32,
 	note_updated_at: OffsetDateTime,
+	note_hit_count: i64,
+	note_last_hit_at: Option<OffsetDateTime>,
 	created_at: OffsetDateTime,
 	expires_at: OffsetDateTime,
 }
@@ -684,11 +699,16 @@ INSERT INTO search_trace_items (
 				candidate_id: candidate.candidate_id,
 				note_id: candidate.note_id,
 				chunk_id: candidate.chunk_id,
+				chunk_index: candidate.chunk_index,
+				snippet: candidate.snippet,
+				candidate_snapshot: candidate.candidate_snapshot,
 				retrieval_rank: candidate.retrieval_rank as i32,
 				rerank_score: candidate.rerank_score,
 				note_scope: candidate.note_scope,
 				note_importance: candidate.note_importance,
 				note_updated_at: candidate.note_updated_at,
+				note_hit_count: candidate.note_hit_count,
+				note_last_hit_at: candidate.note_last_hit_at,
 				created_at: candidate.created_at,
 				expires_at: candidate.expires_at,
 			});
@@ -701,11 +721,16 @@ INSERT INTO search_trace_candidates (
 	trace_id,
 	note_id,
 	chunk_id,
+	chunk_index,
+	snippet,
+	candidate_snapshot,
 	retrieval_rank,
 	rerank_score,
 	note_scope,
 	note_importance,
 	note_updated_at,
+	note_hit_count,
+	note_last_hit_at,
 	created_at,
 	expires_at
 ) ",
@@ -715,11 +740,16 @@ INSERT INTO search_trace_candidates (
 				.push_bind(trace_id)
 				.push_bind(candidate.note_id)
 				.push_bind(candidate.chunk_id)
+				.push_bind(candidate.chunk_index)
+				.push_bind(candidate.snippet)
+				.push_bind(candidate.candidate_snapshot)
 				.push_bind(candidate.retrieval_rank)
 				.push_bind(candidate.rerank_score)
 				.push_bind(candidate.note_scope)
 				.push_bind(candidate.note_importance)
 				.push_bind(candidate.note_updated_at)
+				.push_bind(candidate.note_hit_count)
+				.push_bind(candidate.note_last_hit_at)
 				.push_bind(candidate.created_at)
 				.push_bind(candidate.expires_at);
 		});

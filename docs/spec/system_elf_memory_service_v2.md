@@ -409,14 +409,8 @@ Indexes:
 - note_id uuid not null
 - chunk_id uuid null
 - rank int not null
-- retrieval_score real null
-- retrieval_rank int null
-- rerank_score real not null
-- tie_breaker_score real not null
 - final_score real not null
-- boosts jsonb not null
-- matched_terms jsonb not null
-- matched_fields jsonb not null
+- explain jsonb not null
 
 Indexes:
 - idx_search_trace_items_trace: (trace_id, rank)
@@ -787,14 +781,24 @@ Response:
       "final_score": 0.0,
       "source_ref": { ... },
       "explain": {
-        "retrieval_score": 0.0|null,
-        "retrieval_rank": 1|null,
-        "rerank_score": 0.0,
-        "tie_breaker_score": 0.0,
-        "final_score": 0.0,
-        "boosts": [{"name": "recency_importance", "score": 0.0}],
-        "matched_terms": ["..."],
-        "matched_fields": ["text","key"]
+        "match": {
+          "matched_terms": ["..."],
+          "matched_fields": ["text", "key"]
+        },
+        "ranking": {
+          "schema": "search_ranking_explain/v2",
+          "policy_id": "blend_v1:...",
+          "final_score": 0.0,
+          "terms": [
+            { "name": "blend.retrieval", "value": 0.0 },
+            { "name": "blend.rerank", "value": 0.0 },
+            { "name": "tie_breaker", "value": 0.0 },
+            { "name": "context.scope_boost", "value": 0.0 },
+            { "name": "deterministic.lexical_bonus", "value": 0.0 },
+            { "name": "deterministic.hit_boost", "value": 0.0 },
+            { "name": "deterministic.decay_penalty", "value": 0.0 }
+          ]
+        }
       }
     }
   ]

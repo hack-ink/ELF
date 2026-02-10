@@ -214,6 +214,75 @@ pub struct Ranking {
 	pub tie_breaker_weight: f32,
 	#[serde(default)]
 	pub blend: RankingBlend,
+	#[serde(default)]
+	pub deterministic: RankingDeterministic,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(default)]
+pub struct RankingDeterministic {
+	pub enabled: bool,
+	pub lexical: RankingDeterministicLexical,
+	pub hits: RankingDeterministicHits,
+	pub decay: RankingDeterministicDecay,
+}
+impl Default for RankingDeterministic {
+	fn default() -> Self {
+		Self {
+			enabled: false,
+			lexical: RankingDeterministicLexical::default(),
+			hits: RankingDeterministicHits::default(),
+			decay: RankingDeterministicDecay::default(),
+		}
+	}
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(default)]
+pub struct RankingDeterministicLexical {
+	pub enabled: bool,
+	pub weight: f32,
+	pub min_ratio: f32,
+	pub max_query_terms: u32,
+	pub max_text_terms: u32,
+}
+impl Default for RankingDeterministicLexical {
+	fn default() -> Self {
+		Self {
+			enabled: false,
+			weight: 0.05,
+			min_ratio: 0.3,
+			max_query_terms: 16,
+			max_text_terms: 1024,
+		}
+	}
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(default)]
+pub struct RankingDeterministicHits {
+	pub enabled: bool,
+	pub weight: f32,
+	pub half_saturation: f32,
+	pub last_hit_tau_days: f32,
+}
+impl Default for RankingDeterministicHits {
+	fn default() -> Self {
+		Self { enabled: false, weight: 0.05, half_saturation: 8.0, last_hit_tau_days: 14.0 }
+	}
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(default)]
+pub struct RankingDeterministicDecay {
+	pub enabled: bool,
+	pub weight: f32,
+	pub tau_days: f32,
+}
+impl Default for RankingDeterministicDecay {
+	fn default() -> Self {
+		Self { enabled: false, weight: 0.05, tau_days: 30.0 }
+	}
 }
 
 #[derive(Debug, Deserialize)]

@@ -9,6 +9,8 @@ pub mod search;
 pub mod time_serde;
 pub mod update;
 
+mod ranking_explain_v2;
+
 mod error;
 
 use std::{future::Future, pin::Pin, sync::Arc};

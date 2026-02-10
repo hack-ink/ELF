@@ -90,6 +90,7 @@ fn test_config(dsn: String, qdrant_url: String, collection: String) -> Config {
 		ranking: Ranking {
 			recency_tau_days: 60.0,
 			tie_breaker_weight: 0.1,
+			deterministic: Default::default(),
 			blend: Default::default(),
 		},
 		lifecycle: Lifecycle {

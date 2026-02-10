@@ -38,7 +38,7 @@ Provide a fast and reproducible harness that can:
 
 2. Implement a pure “re-rank from candidates” function in `elf-service` (library-only).
    - Inputs: candidate rows (including retrieval rank and rerank score), config snapshot or override.
-   - Output: ordered results with the same explain schema (`search_ranking_explain/v1`).
+   - Output: ordered results with the same explain schema (`search_ranking_explain/v2`).
    - Constraints:
      - Must not touch Qdrant, providers, or caches.
      - Must be deterministic for a given input set.
@@ -73,4 +73,3 @@ Provide a fast and reproducible harness that can:
 - Storage growth if `capture_candidates` is enabled broadly in production.
 - Some future signals may require additional inputs that are not currently persisted.
 - Inline trace writes increase request latency and should remain evaluation-focused by default.
-
