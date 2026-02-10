@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE memory_notes\n\tSET\n\t\ttext = $1,\n\timportance = $2,\n\tconfidence = $3,\n\tupdated_at = $4,\n\t\texpires_at = $5,\n\t\tsource_ref = $6\n\tWHERE note_id = $7",
+  "query": "UPDATE memory_notes\nSET\n\ttext = $1,\nimportance = $2,\nconfidence = $3,\nupdated_at = $4,\n\texpires_at = $5,\n\tsource_ref = $6\nWHERE note_id = $7",
   "describe": {
     "columns": [],
     "parameters": {
@@ -16,5 +16,5 @@
     },
     "nullable": []
   },
-  "hash": "e6cd43744e9e753ba5e0dd720afe2861a121b0ad9c66d8aac729cbc208d21739"
+  "hash": "5450fbf8a258bf1b700eff3abc2da170d746a3c788c755b462ac091c1c26e244"
 }

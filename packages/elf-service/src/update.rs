@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
@@ -5,7 +6,7 @@ use crate::{ElfService, Error, InsertVersionArgs, NoteOp, Result};
 use elf_domain::{cjk, ttl, writegate};
 use elf_storage::models::MemoryNote;
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct UpdateRequest {
 	pub tenant_id: String,
 	pub project_id: String,
@@ -17,7 +18,7 @@ pub struct UpdateRequest {
 	pub ttl_days: Option<i64>,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct UpdateResponse {
 	pub note_id: Uuid,
 	pub op: NoteOp,

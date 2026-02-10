@@ -233,7 +233,7 @@ async fn add_note_does_not_call_llm() {
 		agent_id: "a1".to_string(),
 		scope: "agent_private".to_string(),
 		notes: vec![AddNoteInput {
-			note_type: "fact".to_string(),
+			r#type: "fact".to_string(),
 			key: None,
 			text: "こんにちは".to_string(),
 			structured: None,

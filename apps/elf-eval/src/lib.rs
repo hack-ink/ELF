@@ -432,7 +432,8 @@ async fn trace_compare(
 	let mut top3_retention_b_sum = 0.0_f64;
 
 	for trace_id in &args.trace_id {
-		let trace_row: TraceCompareTraceRow = sqlx::query_as(
+		let trace_row: TraceCompareTraceRow = sqlx::query_as!(
+			TraceCompareTraceRow,
 			"\
 SELECT
 	trace_id,
@@ -442,12 +443,13 @@ SELECT
 	created_at
 FROM search_traces
 WHERE trace_id = $1",
+			trace_id,
 		)
-		.bind(trace_id)
 		.fetch_one(&db.pool)
 		.await?;
 
-		let candidate_rows: Vec<TraceCompareCandidateRow> = sqlx::query_as(
+		let candidate_rows: Vec<TraceCompareCandidateRow> = sqlx::query_as!(
+			TraceCompareCandidateRow,
 			"\
 SELECT
 	candidate_snapshot,
@@ -465,8 +467,8 @@ SELECT
 FROM search_trace_candidates
 WHERE trace_id = $1
 ORDER BY retrieval_rank ASC",
+			trace_id,
 		)
-		.bind(trace_id)
 		.fetch_all(&db.pool)
 		.await?;
 		let context = elf_service::search::TraceReplayContext {
@@ -686,6 +688,7 @@ async fn eval_config(
 	}
 
 	let mut summary = summarize(&reports, &latencies_ms);
+
 	if runs_per_query > 1 && !stability_positional.is_empty() {
 		let count = stability_positional.len().max(1) as f64;
 		let avg_positional_churn_at_k = stability_positional.iter().sum::<f64>() / count;

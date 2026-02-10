@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -8,7 +9,7 @@ use crate::{
 };
 use elf_storage::models::MemoryNote;
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct NoteFetchRequest {
 	pub tenant_id: String,
 	pub project_id: String,
@@ -16,15 +17,14 @@ pub struct NoteFetchRequest {
 	pub note_id: Uuid,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct NoteFetchResponse {
 	pub note_id: Uuid,
 	pub tenant_id: String,
 	pub project_id: String,
 	pub agent_id: String,
 	pub scope: String,
-	#[serde(rename = "type")]
-	pub note_type: String,
+	pub r#type: String,
 	pub key: Option<String>,
 	pub text: String,
 	pub importance: f32,
@@ -89,7 +89,7 @@ impl ElfService {
 			project_id: note.project_id,
 			agent_id: note.agent_id,
 			scope: note.scope,
-			note_type: note.r#type,
+			r#type: note.r#type,
 			key: note.key,
 			text: note.text,
 			importance: note.importance,

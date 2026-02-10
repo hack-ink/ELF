@@ -38,7 +38,7 @@ async fn add_note_is_idempotent() {
 		agent_id: "a".to_string(),
 		scope: "agent_private".to_string(),
 		notes: vec![AddNoteInput {
-			note_type: "preference".to_string(),
+			r#type: "preference".to_string(),
 			key: Some("preferred_language".to_string()),
 			text: "Preference: Use English.".to_string(),
 			structured: None,

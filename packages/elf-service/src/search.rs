@@ -9,7 +9,7 @@ use qdrant_client::qdrant::{
 	Condition, Document, Filter, Fusion, MinShould, PrefetchQueryBuilder, Query,
 	QueryPointsBuilder, ScoredPoint, Value, point_id::PointIdOptions, value::Kind,
 };
-use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use sqlx::{PgExecutor, QueryBuilder};
 use time::{Duration, OffsetDateTime, format_description::well_known::Rfc3339};
 use uuid::Uuid;
@@ -27,14 +27,14 @@ const MAX_MATCHED_TERMS: usize = 8;
 const EXPANSION_CACHE_SCHEMA_VERSION: i32 = 1;
 const RERANK_CACHE_SCHEMA_VERSION: i32 = 1;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ExpansionMode {
 	Off,
 	Always,
 	Dynamic,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 enum CacheKind {
 	Expansion,
 	Rerank,
@@ -48,7 +48,7 @@ impl CacheKind {
 	}
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SearchRequest {
 	pub tenant_id: String,
 	pub project_id: String,
@@ -62,13 +62,13 @@ pub struct SearchRequest {
 	pub ranking: Option<RankingRequestOverride>,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RankingRequestOverride {
 	#[serde(default)]
 	pub blend: Option<BlendRankingOverride>,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BlendRankingOverride {
 	pub enabled: Option<bool>,
 	pub rerank_normalization: Option<String>,
@@ -76,19 +76,19 @@ pub struct BlendRankingOverride {
 	pub segments: Option<Vec<BlendSegmentOverride>>,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BlendSegmentOverride {
 	pub max_retrieval_rank: u32,
 	pub retrieval_weight: f32,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SearchExplain {
 	pub r#match: SearchMatchExplain,
 	pub ranking: SearchRankingExplain,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SearchMatchExplain {
 	pub matched_terms: Vec<String>,
 	pub matched_fields: Vec<String>,
@@ -96,7 +96,7 @@ pub struct SearchMatchExplain {
 
 pub use crate::ranking_explain_v2::{SearchRankingExplain, SearchRankingTerm};
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SearchItem {
 	pub result_handle: Uuid,
 	pub note_id: Uuid,
@@ -105,8 +105,7 @@ pub struct SearchItem {
 	pub start_offset: i32,
 	pub end_offset: i32,
 	pub snippet: String,
-	#[serde(rename = "type")]
-	pub note_type: String,
+	pub r#type: String,
 	pub key: Option<String>,
 	pub scope: String,
 	pub importance: f32,
@@ -120,13 +119,13 @@ pub struct SearchItem {
 	pub explain: SearchExplain,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SearchResponse {
 	pub trace_id: Uuid,
 	pub items: Vec<SearchItem>,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SearchExplainRequest {
 	pub tenant_id: String,
 	pub project_id: String,
@@ -134,7 +133,7 @@ pub struct SearchExplainRequest {
 	pub result_handle: Uuid,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SearchTrace {
 	pub trace_id: Uuid,
 	pub tenant_id: String,
@@ -153,7 +152,7 @@ pub struct SearchTrace {
 	pub trace_version: i32,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SearchExplainItem {
 	pub result_handle: Uuid,
 	pub note_id: Uuid,
@@ -162,13 +161,13 @@ pub struct SearchExplainItem {
 	pub explain: SearchExplain,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SearchExplainResponse {
 	pub trace: SearchTrace,
 	pub item: SearchExplainItem,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TraceGetRequest {
 	pub tenant_id: String,
 	pub project_id: String,
@@ -176,13 +175,13 @@ pub struct TraceGetRequest {
 	pub trace_id: Uuid,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TraceGetResponse {
 	pub trace: SearchTrace,
 	pub items: Vec<SearchExplainItem>,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TraceReplayContext {
 	pub trace_id: Uuid,
 	pub query: String,
@@ -192,7 +191,7 @@ pub struct TraceReplayContext {
 	pub created_at: OffsetDateTime,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TraceReplayCandidate {
 	pub note_id: Uuid,
 	pub chunk_id: Uuid,
@@ -209,7 +208,7 @@ pub struct TraceReplayCandidate {
 	pub note_last_hit_at: Option<OffsetDateTime>,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TraceReplayItem {
 	pub note_id: Uuid,
 	pub chunk_id: Uuid,
@@ -256,7 +255,7 @@ struct NoteMeta {
 	last_hit_at: Option<OffsetDateTime>,
 }
 
-#[derive(Debug, Clone, sqlx::FromRow)]
+#[derive(Clone, Debug, sqlx::FromRow)]
 struct ChunkRow {
 	chunk_id: Uuid,
 	note_id: Uuid,
@@ -282,24 +281,24 @@ struct ChunkSnippet {
 	retrieval_rank: u32,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 struct ExpansionCachePayload {
 	queries: Vec<String>,
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, Deserialize)]
 struct ExpansionOutput {
 	queries: Vec<String>,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 struct RerankCacheItem {
 	chunk_id: Uuid,
 	updated_at: OffsetDateTime,
 	score: f32,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 struct RerankCachePayload {
 	items: Vec<RerankCacheItem>,
 }
@@ -333,7 +332,7 @@ struct ScoredChunk {
 	deterministic_decay_penalty: f32,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 struct DeterministicRankingTerms {
 	lexical_overlap_ratio: f32,
 	lexical_bonus: f32,
@@ -355,7 +354,7 @@ impl Default for DeterministicRankingTerms {
 	}
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 struct TracePayload {
 	trace: TraceRecord,
 	items: Vec<TraceItemRecord>,
@@ -363,7 +362,7 @@ struct TracePayload {
 	candidates: Vec<TraceCandidateRecord>,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 struct TraceRecord {
 	trace_id: Uuid,
 	tenant_id: String,
@@ -382,7 +381,7 @@ struct TraceRecord {
 	expires_at: OffsetDateTime,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 struct TraceItemRecord {
 	item_id: Uuid,
 	note_id: Uuid,
@@ -392,7 +391,7 @@ struct TraceItemRecord {
 	explain: SearchExplain,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 struct TraceCandidateRecord {
 	candidate_id: Uuid,
 	note_id: Uuid,
@@ -550,7 +549,6 @@ impl ElfService {
 		let private_scope = "agent_private".to_string();
 		let non_private_scopes: Vec<String> =
 			allowed_scopes.iter().filter(|scope| *scope != "agent_private").cloned().collect();
-
 		let mut should_conditions = Vec::new();
 
 		if allowed_scopes.iter().any(|scope| scope == "agent_private") {
@@ -558,6 +556,7 @@ impl ElfService {
 				Condition::matches("scope", private_scope),
 				Condition::matches("agent_id", agent_id.to_string()),
 			]);
+
 			should_conditions.push(Condition::from(private_filter));
 		}
 		if !non_private_scopes.is_empty() {
@@ -579,7 +578,6 @@ impl ElfService {
 			must_not: Vec::new(),
 			min_should,
 		};
-
 		let mut baseline_vector: Option<Vec<f32>> = None;
 
 		if expansion_mode == ExpansionMode::Dynamic {
@@ -654,7 +652,6 @@ impl ElfService {
 			self.cfg.search.prefilter.max_candidates,
 			candidate_k,
 		);
-
 		let original_query_vec = query_embeddings
 			.iter()
 			.find(|embedded| embedded.text == query)
@@ -705,7 +702,6 @@ impl ElfService {
 		let context = self.cfg.context.as_ref()?;
 		let descriptions = context.project_descriptions.as_ref()?;
 		let key = format!("{tenant_id}:{project_id}");
-
 		let mut saw_cjk = false;
 
 		if let Some(value) = descriptions.get(&key) {
@@ -791,7 +787,6 @@ WHERE i.item_id = $1 AND t.tenant_id = $2 AND t.project_id = $3 AND t.agent_id =
 				message: "Unknown result_handle or trace not yet persisted.".to_string(),
 			});
 		};
-
 		let expanded_queries: Vec<String> = decode_json(row.expanded_queries, "expanded_queries")?;
 		let allowed_scopes: Vec<String> = decode_json(row.allowed_scopes, "allowed_scopes")?;
 		let config_snapshot = row.config_snapshot;
@@ -863,7 +858,6 @@ WHERE trace_id = $1 AND tenant_id = $2 AND project_id = $3 AND agent_id = $4",
 		let Some(row) = row else {
 			return Err(Error::InvalidRequest { message: "Unknown trace_id.".to_string() });
 		};
-
 		let expanded_queries: Vec<String> = decode_json(row.expanded_queries, "expanded_queries")?;
 		let allowed_scopes: Vec<String> = decode_json(row.allowed_scopes, "allowed_scopes")?;
 		let config_snapshot = row.config_snapshot;
@@ -899,7 +893,6 @@ ORDER BY rank ASC",
 		)
 		.fetch_all(&self.db.pool)
 		.await?;
-
 		let mut items = Vec::with_capacity(item_rows.len());
 
 		for row in item_rows {
@@ -1019,6 +1012,7 @@ ORDER BY rank ASC",
 				.using(BM25_VECTOR_NAME)
 				.filter(filter.clone())
 				.limit(candidate_k as u64);
+
 			search = search.add_prefetch(dense_prefetch).add_prefetch(bm25_prefetch);
 		}
 
@@ -1029,6 +1023,7 @@ ORDER BY rank ASC",
 			.query(search)
 			.await
 			.map_err(|err| Error::Qdrant { message: err.to_string() })?;
+
 		Ok(response.result)
 	}
 
@@ -1083,6 +1078,7 @@ ORDER BY rank ASC",
 							ExpansionCachePayload { queries: Vec::new() }
 						},
 					};
+
 					if !cached.queries.is_empty() {
 						return cached.queries;
 					}
@@ -1122,7 +1118,6 @@ ORDER BY rank ASC",
 				return vec![query.to_string()];
 			},
 		};
-
 		let parsed: ExpansionOutput = match serde_json::from_value(raw) {
 			Ok(value) => value,
 			Err(err) => {
@@ -1203,6 +1198,12 @@ ORDER BY rank ASC",
 		&self,
 		args: StructuredFieldRetrievalArgs<'_>,
 	) -> Result<(Vec<ChunkCandidate>, HashMap<Uuid, Vec<String>>)> {
+		#[derive(Debug)]
+		struct FieldHit {
+			note_id: Uuid,
+			field_kind: String,
+		}
+
 		let StructuredFieldRetrievalArgs {
 			tenant_id,
 			project_id,
@@ -1213,14 +1214,9 @@ ORDER BY rank ASC",
 			candidate_k,
 			now,
 		} = args;
+
 		if query_vec.is_empty() {
 			return Ok((candidates, HashMap::new()));
-		}
-
-		#[derive(Debug)]
-		struct FieldHit {
-			note_id: Uuid,
-			field_kind: String,
 		}
 
 		let embed_version = crate::embedding_version(&self.cfg);
@@ -1228,7 +1224,6 @@ ORDER BY rank ASC",
 		let private_allowed = allowed_scopes.iter().any(|scope| scope == "agent_private");
 		let non_private_scopes: Vec<String> =
 			allowed_scopes.iter().filter(|scope| *scope != "agent_private").cloned().collect();
-
 		let rows: Vec<FieldHit> = if private_allowed && non_private_scopes.is_empty() {
 			let raw = sqlx::query!(
 				"\
@@ -1259,6 +1254,7 @@ LIMIT $7",
 			)
 			.fetch_all(&self.db.pool)
 			.await?;
+
 			raw.into_iter()
 				.map(|row| FieldHit { note_id: row.note_id, field_kind: row.field_kind })
 				.collect()
@@ -1291,6 +1287,7 @@ LIMIT $7",
 			)
 			.fetch_all(&self.db.pool)
 			.await?;
+
 			raw.into_iter()
 				.map(|row| FieldHit { note_id: row.note_id, field_kind: row.field_kind })
 				.collect()
@@ -1327,6 +1324,7 @@ LIMIT $8",
 			)
 			.fetch_all(&self.db.pool)
 			.await?;
+
 			raw.into_iter()
 				.map(|row| FieldHit { note_id: row.note_id, field_kind: row.field_kind })
 				.collect()
@@ -1355,6 +1353,7 @@ LIMIT $8",
 
 		for (note_id, fields) in structured_matches {
 			let mut fields: Vec<String> = fields.into_iter().collect();
+
 			fields.sort();
 			structured_matches_out.insert(note_id, fields);
 		}
@@ -1389,8 +1388,8 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 		)
 		.fetch_all(&self.db.pool)
 		.await?;
-
 		let mut best_by_note = HashMap::new();
+
 		for row in best_chunks {
 			best_by_note.insert(row.note_id, (row.chunk_id, row.chunk_index));
 		}
@@ -1402,9 +1401,9 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 			if out.len() >= candidate_k as usize {
 				break;
 			}
-			let Some((chunk_id, chunk_index)) = best_by_note.get(&note_id) else {
-				continue;
-			};
+
+			let Some((chunk_id, chunk_index)) = best_by_note.get(&note_id) else { continue };
+
 			out.push(ChunkCandidate {
 				chunk_id: *chunk_id,
 				note_id,
@@ -1413,6 +1412,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 				updated_at: None,
 				embedding_version: Some(embed_version.clone()),
 			});
+
 			next_rank = next_rank.saturating_add(1);
 		}
 
@@ -1441,7 +1441,6 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 		let candidate_count = candidates.len();
 		let candidate_note_ids: Vec<Uuid> =
 			candidates.iter().map(|candidate| candidate.note_id).collect();
-
 		let mut notes: Vec<MemoryNote> = if candidate_note_ids.is_empty() {
 			Vec::new()
 		} else {
@@ -1473,6 +1472,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 			if note.expires_at.map(|ts| ts <= now).unwrap_or(false) {
 				continue;
 			}
+
 			note_meta.insert(
 				note.note_id,
 				NoteMeta {
@@ -1501,7 +1501,6 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 		} else {
 			let pairs = collect_neighbor_pairs(&filtered_candidates);
 			let chunk_rows = fetch_chunks_by_pair(&self.db.pool, &pairs).await?;
-
 			let mut chunk_by_id = HashMap::new();
 			let mut chunk_by_note_index = HashMap::new();
 
@@ -1528,9 +1527,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 					continue;
 				}
 
-				let Some(note) = note_meta.get(&candidate.note_id) else {
-					continue;
-				};
+				let Some(note) = note_meta.get(&candidate.note_id) else { continue };
 				let chunk = ChunkMeta {
 					chunk_id: chunk_row.chunk_id,
 					chunk_index: chunk_row.chunk_index,
@@ -1567,7 +1564,6 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 			build_policy_snapshot(&self.cfg, &blend_policy, ranking_override.as_ref());
 		let policy_hash = hash_policy_snapshot(&policy_snapshot)?;
 		let policy_id = format!("blend_v1:{}", &policy_hash[..12.min(policy_hash.len())]);
-
 		let mut scored: Vec<ScoredChunk> = Vec::new();
 
 		if !snippet_items.is_empty() {
@@ -1597,6 +1593,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 					Ok(key) => {
 						cache_key = Some(key.clone());
 						cache_candidates = candidates;
+
 						match fetch_cache_payload(&self.db.pool, CacheKind::Rerank, &key, now).await
 						{
 							Ok(Some(payload)) => {
@@ -1610,6 +1607,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 												cache_key_prefix = cache_key_prefix(&key),
 												"Cache payload decode failed."
 											);
+
 											RerankCachePayload { items: Vec::new() }
 										},
 									};
@@ -1625,6 +1623,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 										ttl_days = cache_cfg.rerank_ttl_days,
 										"Cache hit."
 									);
+
 									cached_scores = Some(scores);
 								} else {
 									tracing::warn!(
@@ -1695,6 +1694,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 							})
 							.collect(),
 					};
+
 					match serde_json::to_value(&payload) {
 						Ok(payload_json) => {
 							let stored_at = OffsetDateTime::now_utc();
@@ -1832,14 +1832,15 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 		}
 
 		let mut best_by_note: HashMap<Uuid, ScoredChunk> = HashMap::new();
-
 		let trace_candidates = if self.cfg.search.explain.capture_candidates {
 			let candidate_expires_at =
 				now + Duration::days(self.cfg.search.explain.candidate_retention_days);
+
 			scored
 				.iter()
 				.map(|scored_chunk| {
 					let note = &scored_chunk.item.note;
+
 					TraceCandidateRecord {
 						candidate_id: Uuid::new_v4(),
 						note_id: note.note_id,
@@ -1915,6 +1916,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 
 		if record_hits_enabled && !results.is_empty() {
 			let mut tx = self.db.pool.begin().await?;
+
 			record_hits(&mut *tx, query, &results, now).await?;
 			tx.commit().await?;
 		}
@@ -1963,7 +1965,6 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 				matched_fields,
 				structured_matches.get(&scored_chunk.item.note.note_id),
 			);
-
 			let trace_terms =
 				ranking_explain_v2::build_trace_terms_v2(ranking_explain_v2::TraceTermsArgs {
 					cfg: &self.cfg,
@@ -1992,7 +1993,6 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 					deterministic_decay_penalty: scored_chunk.deterministic_decay_penalty,
 				});
 			let response_terms = ranking_explain_v2::strip_term_inputs(&trace_terms);
-
 			let response_explain = SearchExplain {
 				r#match: SearchMatchExplain {
 					matched_terms: matched_terms.clone(),
@@ -2026,7 +2026,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 				start_offset: chunk.start_offset,
 				end_offset: chunk.end_offset,
 				snippet: scored_chunk.item.snippet.clone(),
-				note_type: note.note_type.clone(),
+				r#type: note.note_type.clone(),
 				key: note.key.clone(),
 				scope: note.scope.clone(),
 				importance: note.importance,
@@ -2052,6 +2052,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 		match self.cfg.search.explain.write_mode.trim().to_ascii_lowercase().as_str() {
 			"inline" => {
 				let mut tx = self.db.pool.begin().await?;
+
 				persist_trace_inline(&mut tx, trace_payload).await?;
 				tx.commit().await?;
 			},
@@ -2281,7 +2282,6 @@ pub fn replay_ranking_from_candidates(
 			deterministic_hit_boost: scored.deterministic_hit_boost,
 			deterministic_decay_penalty: scored.deterministic_decay_penalty,
 		});
-
 		let explain = SearchExplain {
 			r#match: SearchMatchExplain { matched_terms: Vec::new(), matched_fields: Vec::new() },
 			ranking: SearchRankingExplain {
@@ -2338,6 +2338,7 @@ fn normalize_queries(
 		if out.len() >= max_queries as usize {
 			break;
 		}
+
 		push_query(&mut out, &mut seen, &query);
 	}
 
@@ -2381,6 +2382,7 @@ Do not include any CJK characters. Do not add explanations or extra fields.";
 		include = include_original,
 		query = query
 	);
+
 	vec![
 		serde_json::json!({ "role": "system", "content": system_prompt }),
 		serde_json::json!({ "role": "user", "content": user_prompt }),
@@ -2411,9 +2413,11 @@ fn collect_chunk_candidates(
 			tracing::warn!("Chunk candidate missing chunk_id.");
 			continue;
 		};
+
 		if !seen.insert(chunk_id) {
 			continue;
 		}
+
 		let Some(note_id) = payload_uuid(&point.payload, "note_id") else {
 			tracing::warn!(chunk_id = %chunk_id, "Chunk candidate missing note_id.");
 			continue;
@@ -2439,9 +2443,7 @@ fn collect_chunk_candidates(
 }
 
 fn candidate_matches_note(note_meta: &HashMap<Uuid, NoteMeta>, candidate: &ChunkCandidate) -> bool {
-	let Some(note) = note_meta.get(&candidate.note_id) else {
-		return false;
-	};
+	let Some(note) = note_meta.get(&candidate.note_id) else { return false };
 
 	if let Some(version) = candidate.embedding_version.as_deref()
 		&& version != note.embedding_version.as_str()
@@ -2472,6 +2474,7 @@ fn collect_neighbor_pairs(candidates: &[ChunkCandidate]) -> Vec<(Uuid, i32)> {
 		if let Some(next) = candidate.chunk_index.checked_add(1) {
 			indices.push(next);
 		}
+
 		for idx in indices {
 			let key = (candidate.note_id, idx);
 
@@ -2511,9 +2514,7 @@ fn expansion_mode_label(mode: ExpansionMode) -> &'static str {
 }
 
 fn build_dense_embedding_input(query: &str, project_context_description: Option<&str>) -> String {
-	let Some(description) = project_context_description else {
-		return query.to_string();
-	};
+	let Some(description) = project_context_description else { return query.to_string() };
 	let trimmed = description.trim();
 
 	if trimmed.is_empty() {
@@ -2527,21 +2528,14 @@ fn build_scope_context_boost_by_scope<'a>(
 	tokens: &[String],
 	context: Option<&'a elf_config::Context>,
 ) -> HashMap<&'a str, f32> {
-	let Some(context) = context else {
-		return HashMap::new();
-	};
-	let Some(weight) = context.scope_boost_weight else {
-		return HashMap::new();
-	};
+	let Some(context) = context else { return HashMap::new() };
+	let Some(weight) = context.scope_boost_weight else { return HashMap::new() };
 
 	if weight <= 0.0 || tokens.is_empty() {
 		return HashMap::new();
 	}
 
-	let Some(descriptions) = context.scope_descriptions.as_ref() else {
-		return HashMap::new();
-	};
-
+	let Some(descriptions) = context.scope_descriptions.as_ref() else { return HashMap::new() };
 	let mut out = HashMap::new();
 
 	for (scope, description) in descriptions {
@@ -2582,6 +2576,7 @@ fn scope_description_boost(tokens: &[String], description: &str, weight: f32) ->
 		if token.len() < 2 {
 			continue;
 		}
+
 		description_tokens.insert(token);
 	}
 
@@ -2654,7 +2649,9 @@ fn tokenize_text_terms(text: &str, max_terms: usize) -> HashSet<String> {
 		if token.len() < 2 {
 			continue;
 		}
+
 		out.insert(token.to_string());
+
 		if out.len() >= max_terms {
 			break;
 		}
@@ -2728,6 +2725,7 @@ fn compute_deterministic_ranking_terms(
 		let half = det.hits.half_saturation;
 		let hit_saturation = if half > 0.0 && hit_count > 0 {
 			let hc = hit_count as f32;
+
 			(hc / (hc + half)).clamp(0.0, 1.0)
 		} else {
 			0.0
@@ -2774,7 +2772,6 @@ fn match_terms_in_text(
 
 	let text = text.to_lowercase();
 	let key = key.map(|value| value.to_lowercase());
-
 	let mut matched_terms = Vec::new();
 	let mut matched_fields = HashSet::new();
 
@@ -2785,12 +2782,14 @@ fn match_terms_in_text(
 			matched_fields.insert("text");
 			matched = true;
 		}
+
 		if let Some(key) = key.as_ref()
 			&& key.contains(token)
 		{
 			matched_fields.insert("key");
 			matched = true;
 		}
+
 		if matched {
 			matched_terms.push(token.clone());
 		}
@@ -2812,9 +2811,11 @@ fn merge_matched_fields(mut base: Vec<String>, extra: Option<&Vec<String>>) -> V
 		for field in extra {
 			base.push(field.clone());
 		}
+
 		base.sort();
 		base.dedup();
 	}
+
 	base
 }
 
@@ -2826,7 +2827,7 @@ where
 		.map_err(|err| Error::Storage { message: format!("Invalid {label} value: {err}") })
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 enum NormalizationKind {
 	Rank,
 }
@@ -3126,6 +3127,7 @@ fn retrieval_weight_for_rank(rank: u32, segments: &[BlendSegment]) -> f32 {
 			return segment.retrieval_weight;
 		}
 	}
+
 	segments.last().map(|segment| segment.retrieval_weight).unwrap_or(0.5)
 }
 
@@ -3167,6 +3169,7 @@ fn build_rerank_ranks(items: &[ChunkSnippet], scores: &[f32]) -> Vec<u32> {
 				return ord;
 			}
 		}
+
 		let ord = items[a].retrieval_rank.cmp(&items[b].retrieval_rank);
 
 		if ord != Ordering::Equal {
@@ -3180,6 +3183,7 @@ fn build_rerank_ranks(items: &[ChunkSnippet], scores: &[f32]) -> Vec<u32> {
 	for (pos, idx) in idxs.into_iter().enumerate() {
 		ranks[idx] = pos as u32 + 1;
 	}
+
 	ranks
 }
 
@@ -3314,6 +3318,7 @@ fn hash_cache_key(payload: &serde_json::Value) -> Result<String> {
 
 fn cache_key_prefix(key: &str) -> &str {
 	let len = key.len().min(12);
+
 	&key[..len]
 }
 
@@ -3335,6 +3340,7 @@ fn build_expansion_cache_key(
 		"max_queries": max_queries,
 		"include_original": include_original,
 	});
+
 	hash_cache_key(&payload)
 }
 
@@ -3361,6 +3367,7 @@ fn build_rerank_cache_key(
 		"model": model,
 		"candidates": signature,
 	});
+
 	hash_cache_key(&payload)
 }
 
@@ -3437,18 +3444,18 @@ where
 
 	sqlx::query!(
 		"\
-	INSERT INTO search_trace_outbox (
-		outbox_id,
-		trace_id,
-		status,
-		attempts,
-		last_error,
-		available_at,
-		payload,
-		created_at,
-		updated_at
-	)
-	VALUES ($1, $2, 'PENDING', 0, NULL, $3, $4, $3, $3)",
+INSERT INTO search_trace_outbox (
+	outbox_id,
+	trace_id,
+	status,
+	attempts,
+	last_error,
+	available_at,
+	payload,
+	created_at,
+	updated_at
+)
+VALUES ($1, $2, 'PENDING', 0, NULL, $3, $4, $3, $3)",
 		Uuid::new_v4(),
 		payload.trace.trace_id,
 		now,
@@ -3468,7 +3475,6 @@ async fn persist_trace_inline(
 	let items = payload.items;
 	let candidates = payload.candidates;
 	let trace_id = trace.trace_id;
-
 	let expanded_queries_json = serde_json::to_value(&trace.expanded_queries).map_err(|err| {
 		Error::Storage { message: format!("Failed to encode expanded_queries: {err}") }
 	})?;
@@ -3476,7 +3482,7 @@ async fn persist_trace_inline(
 		Error::Storage { message: format!("Failed to encode allowed_scopes: {err}") }
 	})?;
 
-	sqlx::query(
+	sqlx::query!(
 		"\
 INSERT INTO search_traces (
 	trace_id,
@@ -3513,22 +3519,22 @@ VALUES (
 	$15
 )
 ON CONFLICT (trace_id) DO NOTHING",
+		trace_id,
+		trace.tenant_id,
+		trace.project_id,
+		trace.agent_id,
+		trace.read_profile,
+		trace.query,
+		trace.expansion_mode,
+		expanded_queries_json,
+		allowed_scopes_json,
+		trace.candidate_count as i32,
+		trace.top_k as i32,
+		trace.config_snapshot,
+		trace.trace_version,
+		trace.created_at,
+		trace.expires_at,
 	)
-	.bind(trace_id)
-	.bind(trace.tenant_id.as_str())
-	.bind(trace.project_id.as_str())
-	.bind(trace.agent_id.as_str())
-	.bind(trace.read_profile.as_str())
-	.bind(trace.query.as_str())
-	.bind(trace.expansion_mode.as_str())
-	.bind(expanded_queries_json)
-	.bind(allowed_scopes_json)
-	.bind(trace.candidate_count as i32)
-	.bind(trace.top_k as i32)
-	.bind(trace.config_snapshot)
-	.bind(trace.trace_version)
-	.bind(trace.created_at)
-	.bind(trace.expires_at)
 	.execute(&mut *executor)
 	.await?;
 
@@ -3548,6 +3554,7 @@ INSERT INTO search_trace_items (
 		builder.push_values(items, |mut b, item| {
 			let explain_json = serde_json::to_value(item.explain)
 				.expect("SearchExplain must be JSON-serializable.");
+
 			b.push_bind(item.item_id)
 				.push_bind(trace_id)
 				.push_bind(item.note_id)
@@ -3755,22 +3762,22 @@ where
 
 	sqlx::query!(
 		"\
-		INSERT INTO llm_cache (
-			cache_id,
-			cache_kind,
-		cache_key,
-		payload,
-		created_at,
-		last_accessed_at,
-		expires_at,
-		hit_count
-	)
-	VALUES ($1, $2, $3, $4, $5, $5, $6, 0)
-	ON CONFLICT (cache_kind, cache_key) DO UPDATE SET
-		payload = EXCLUDED.payload,
-			last_accessed_at = EXCLUDED.last_accessed_at,
-			expires_at = EXCLUDED.expires_at,
-			hit_count = 0",
+INSERT INTO llm_cache (
+	cache_id,
+	cache_kind,
+	cache_key,
+	payload,
+	created_at,
+	last_accessed_at,
+	expires_at,
+	hit_count
+)
+VALUES ($1, $2, $3, $4, $5, $5, $6, 0)
+ON CONFLICT (cache_kind, cache_key) DO UPDATE SET
+payload = EXCLUDED.payload,
+	last_accessed_at = EXCLUDED.last_accessed_at,
+	expires_at = EXCLUDED.expires_at,
+	hit_count = 0",
 		Uuid::new_v4(),
 		kind.as_str(),
 		key,
@@ -4015,6 +4022,7 @@ mod tests {
 			scored.age_days,
 			now,
 		);
+
 		scored.final_score += terms.lexical_bonus + terms.hit_boost + terms.decay_penalty;
 		scored.deterministic_lexical_overlap_ratio = terms.lexical_overlap_ratio;
 		scored.deterministic_lexical_bonus = terms.lexical_bonus;

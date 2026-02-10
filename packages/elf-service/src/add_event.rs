@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -15,7 +16,7 @@ use crate::{
 
 const REJECT_STRUCTURED_INVALID: &str = "REJECT_STRUCTURED_INVALID";
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EventMessage {
 	pub role: String,
 	pub content: String,
@@ -23,7 +24,7 @@ pub struct EventMessage {
 	pub msg_id: Option<String>,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AddEventRequest {
 	pub tenant_id: String,
 	pub project_id: String,
@@ -33,7 +34,7 @@ pub struct AddEventRequest {
 	pub messages: Vec<EventMessage>,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AddEventResult {
 	pub note_id: Option<Uuid>,
 	pub op: NoteOp,
@@ -41,21 +42,20 @@ pub struct AddEventResult {
 	pub reason: Option<String>,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AddEventResponse {
 	pub extracted: Value,
 	pub results: Vec<AddEventResult>,
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 struct ExtractorOutput {
 	pub notes: Vec<ExtractedNote>,
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 struct ExtractedNote {
-	#[serde(rename = "type")]
-	pub note_type: Option<String>,
+	pub r#type: Option<String>,
 	pub key: Option<String>,
 	pub text: Option<String>,
 	#[serde(default)]
@@ -68,7 +68,7 @@ struct ExtractedNote {
 	pub reason: Option<String>,
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 struct EvidenceQuote {
 	pub message_index: usize,
 	pub quote: String,
@@ -87,6 +87,7 @@ impl ElfService {
 				message: "tenant_id, project_id, and agent_id are required.".to_string(),
 			});
 		}
+
 		if let Some(scope) = req.scope.as_ref()
 			&& scope.trim().is_empty()
 		{
@@ -117,8 +118,8 @@ impl ElfService {
 			.map_err(|_| Error::InvalidRequest {
 				message: "Extractor output is missing notes array.".to_string(),
 			})?;
-
 		let max_notes = self.cfg.memory.max_notes_per_add_event as usize;
+
 		if extracted.notes.len() > max_notes {
 			extracted.notes.truncate(max_notes);
 		}
@@ -126,7 +127,6 @@ impl ElfService {
 		let extracted_json = serde_json::to_value(&extracted).map_err(|_| {
 			Error::InvalidRequest { message: "Failed to serialize extracted notes.".to_string() }
 		})?;
-
 		let now = OffsetDateTime::now_utc();
 		let embed_version = crate::embedding_version(&self.cfg);
 		let dry_run = req.dry_run.unwrap_or(false);
@@ -134,7 +134,7 @@ impl ElfService {
 		let message_texts: Vec<String> = req.messages.iter().map(|m| m.content.clone()).collect();
 
 		for note in extracted.notes {
-			let note_type = note.note_type.unwrap_or_default();
+			let note_type = note.r#type.unwrap_or_default();
 			let text = note.text.unwrap_or_default();
 			let structured = note.structured.clone();
 			let importance = note.importance.unwrap_or(0.0);
@@ -157,13 +157,16 @@ impl ElfService {
 			}
 
 			let mut evidence_ok = true;
+
 			for quote in &evidence {
 				if quote.quote.len() > self.cfg.security.evidence_max_quote_chars as usize {
 					evidence_ok = false;
+
 					break;
 				}
 				if !evidence::evidence_matches(&message_texts, quote.message_index, &quote.quote) {
 					evidence_ok = false;
+
 					break;
 				}
 			}
@@ -175,6 +178,7 @@ impl ElfService {
 					reason_code: Some(REJECT_EVIDENCE_MISMATCH.to_string()),
 					reason: note.reason.clone(),
 				});
+
 				continue;
 			}
 
@@ -183,6 +187,7 @@ impl ElfService {
 			{
 				let event_evidence: Vec<(usize, String)> =
 					evidence.iter().map(|q| (q.message_index, q.quote.clone())).collect();
+
 				if let Err(err) = validate_structured_fields(
 					structured,
 					&text,
@@ -196,6 +201,7 @@ impl ElfService {
 						reason_code: Some(REJECT_STRUCTURED_INVALID.to_string()),
 						reason: note.reason.clone(),
 					});
+
 					continue;
 				}
 			}
@@ -205,6 +211,7 @@ impl ElfService {
 				scope: scope.clone(),
 				text: text.clone(),
 			};
+
 			if let Err(code) = writegate::writegate(&gate_input, &self.cfg) {
 				results.push(AddEventResult {
 					note_id: None,
@@ -212,6 +219,7 @@ impl ElfService {
 					reason_code: Some(crate::writegate_reason_code(code).to_string()),
 					reason: note.reason.clone(),
 				});
+
 				continue;
 			}
 
@@ -236,17 +244,20 @@ impl ElfService {
 
 			if dry_run {
 				tx.commit().await?;
+
 				let (note_id, op) = match decision {
 					UpdateDecision::Add { note_id } => (Some(note_id), NoteOp::Add),
 					UpdateDecision::Update { note_id } => (Some(note_id), NoteOp::Update),
 					UpdateDecision::None { note_id } => (Some(note_id), NoteOp::None),
 				};
+
 				results.push(AddEventResult {
 					note_id,
 					op,
 					reason_code: None,
 					reason: note.reason.clone(),
 				});
+
 				continue;
 			}
 
@@ -280,9 +291,9 @@ impl ElfService {
 
 					sqlx::query!(
 						"\
-	INSERT INTO memory_notes (
-		note_id,
-		tenant_id,
+INSERT INTO memory_notes (
+	note_id,
+	tenant_id,
 	project_id,
 	agent_id,
 	scope,
@@ -298,9 +309,9 @@ impl ElfService {
 	embedding_version,
 	source_ref,
 	hit_count,
-		last_hit_at
-	)
-	VALUES (
+	last_hit_at
+)
+VALUES (
 	$1,
 	$2,
 	$3,
@@ -317,9 +328,9 @@ impl ElfService {
 	$14,
 	$15,
 	$16,
-		$17,
-		$18
-	)",
+	$17,
+	$18
+)",
 						memory_note.note_id,
 						memory_note.tenant_id.as_str(),
 						memory_note.project_id.as_str(),
@@ -370,8 +381,8 @@ impl ElfService {
 						upsert_structured_fields_tx(&mut tx, memory_note.note_id, structured, now)
 							.await?;
 					}
-					tx.commit().await?;
 
+					tx.commit().await?;
 					results.push(AddEventResult {
 						note_id: Some(note_id),
 						op: NoteOp::Add,
@@ -398,15 +409,15 @@ impl ElfService {
 
 					sqlx::query!(
 						"\
-	UPDATE memory_notes
-	SET
-		text = $1,
-	importance = $2,
-	confidence = $3,
-	updated_at = $4,
-		expires_at = $5,
-		source_ref = $6
-	WHERE note_id = $7",
+UPDATE memory_notes
+SET
+	text = $1,
+importance = $2,
+confidence = $3,
+updated_at = $4,
+	expires_at = $5,
+	source_ref = $6
+WHERE note_id = $7",
 						existing.text.as_str(),
 						existing.importance,
 						existing.confidence,
@@ -446,6 +457,7 @@ impl ElfService {
 						upsert_structured_fields_tx(&mut tx, existing.note_id, structured, now)
 							.await?;
 					}
+
 					tx.commit().await?;
 
 					results.push(AddEventResult {
@@ -460,6 +472,7 @@ impl ElfService {
 						&& !structured.is_effectively_empty()
 					{
 						upsert_structured_fields_tx(&mut tx, note_id, structured, now).await?;
+
 						crate::enqueue_outbox_tx(
 							&mut *tx,
 							note_id,
@@ -468,6 +481,7 @@ impl ElfService {
 							now,
 						)
 						.await?;
+
 						tx.commit().await?;
 						results.push(AddEventResult {
 							note_id: Some(note_id),
@@ -519,7 +533,6 @@ fn build_extractor_messages(
 			}
 		]
 	});
-
 	let system_prompt = "You are a memory extraction engine for an agent memory system. \
 Output must be valid JSON only and must match the provided schema exactly. \
 Extract at most MAX_NOTES high-signal, cross-session reusable memory notes from the given messages. \
@@ -530,11 +543,9 @@ Never store secrets or PII: API keys, tokens, private keys, seed phrases, passwo
 For every note, provide 1 to 2 evidence quotes copied verbatim from the input messages and include the message_index. \
 If you cannot provide verbatim evidence, omit the note. \
 If content is ephemeral or not useful long-term, return an empty notes array.";
-
 	let messages_json = serde_json::to_string(messages).map_err(|_| Error::InvalidRequest {
 		message: "Failed to serialize messages for extractor.".to_string(),
 	})?;
-
 	let user_prompt = format!(
 		"Return JSON matching this exact schema:\n{schema}\nConstraints:\n- MAX_NOTES = {max_notes}\n- MAX_NOTE_CHARS = {max_note_chars}\nHere are the messages as JSON:\n{messages_json}"
 	);

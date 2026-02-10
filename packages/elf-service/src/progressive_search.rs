@@ -1,5 +1,9 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::{
+	collections::{BTreeMap, HashMap, HashSet, hash_map::DefaultHasher},
+	hash::{Hash, Hasher},
+};
 
+use serde::{Deserialize, Serialize};
 use sqlx::PgExecutor;
 use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
@@ -14,11 +18,10 @@ use elf_storage::models::MemoryNote;
 const SESSION_SLIDING_TTL_HOURS: i64 = 6;
 const SESSION_ABSOLUTE_TTL_HOURS: i64 = 24;
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SearchIndexItem {
 	pub note_id: Uuid,
-	#[serde(rename = "type")]
-	pub note_type: String,
+	pub r#type: String,
 	pub key: Option<String>,
 	pub scope: String,
 	pub importance: f32,
@@ -31,7 +34,7 @@ pub struct SearchIndexItem {
 	pub summary: String,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SearchIndexResponse {
 	pub trace_id: Uuid,
 	pub search_session_id: Uuid,
@@ -40,7 +43,7 @@ pub struct SearchIndexResponse {
 	pub items: Vec<SearchIndexItem>,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SearchSessionGetRequest {
 	pub tenant_id: String,
 	pub project_id: String,
@@ -50,7 +53,7 @@ pub struct SearchSessionGetRequest {
 	pub touch: Option<bool>,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SearchTimelineRequest {
 	pub tenant_id: String,
 	pub project_id: String,
@@ -59,13 +62,13 @@ pub struct SearchTimelineRequest {
 	pub group_by: Option<String>,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SearchTimelineGroup {
 	pub date: String,
 	pub items: Vec<SearchIndexItem>,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SearchTimelineResponse {
 	pub search_session_id: Uuid,
 	#[serde(with = "crate::time_serde")]
@@ -73,7 +76,7 @@ pub struct SearchTimelineResponse {
 	pub groups: Vec<SearchTimelineGroup>,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SearchDetailsRequest {
 	pub tenant_id: String,
 	pub project_id: String,
@@ -83,20 +86,20 @@ pub struct SearchDetailsRequest {
 	pub record_hits: Option<bool>,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SearchDetailsError {
 	pub code: String,
 	pub message: String,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SearchDetailsResult {
 	pub note_id: Uuid,
 	pub note: Option<NoteFetchResponse>,
 	pub error: Option<SearchDetailsError>,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SearchDetailsResponse {
 	pub search_session_id: Uuid,
 	#[serde(with = "crate::time_serde")]
@@ -111,7 +114,7 @@ struct HitItem {
 	final_score: f32,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 struct SearchSessionItemRecord {
 	rank: u32,
 	note_id: Uuid,
@@ -121,8 +124,7 @@ struct SearchSessionItemRecord {
 	updated_at: OffsetDateTime,
 	#[serde(with = "crate::time_serde::option")]
 	expires_at: Option<OffsetDateTime>,
-	#[serde(rename = "type")]
-	note_type: String,
+	r#type: String,
 	key: Option<String>,
 	scope: String,
 	importance: f32,
@@ -134,7 +136,7 @@ impl SearchSessionItemRecord {
 	fn to_index_item(&self) -> SearchIndexItem {
 		SearchIndexItem {
 			note_id: self.note_id,
-			note_type: self.note_type.clone(),
+			r#type: self.r#type.clone(),
 			key: self.key.clone(),
 			scope: self.scope.clone(),
 			importance: self.importance,
@@ -187,10 +189,8 @@ impl ElfService {
 		let now = OffsetDateTime::now_utc();
 		let expires_at = now + Duration::hours(SESSION_SLIDING_TTL_HOURS);
 		let search_session_id = Uuid::new_v4();
-
 		let note_ids: Vec<Uuid> = raw.items.iter().map(|item| item.note_id).collect();
 		let structured_by_note = fetch_structured_fields(&self.db.pool, &note_ids).await?;
-
 		let mut items = Vec::with_capacity(raw.items.len());
 
 		for (idx, item) in raw.items.iter().enumerate() {
@@ -200,6 +200,7 @@ impl ElfService {
 				.unwrap_or_else(|| {
 					build_summary(&item.snippet, self.cfg.memory.max_note_chars as usize)
 				});
+
 			items.push(SearchSessionItemRecord {
 				rank: idx as u32 + 1,
 				note_id: item.note_id,
@@ -207,7 +208,7 @@ impl ElfService {
 				final_score: item.final_score,
 				updated_at: item.updated_at,
 				expires_at: item.expires_at,
-				note_type: item.note_type.clone(),
+				r#type: item.r#type.clone(),
 				key: item.key.clone(),
 				scope: item.scope.clone(),
 				importance: item.importance,
@@ -306,6 +307,7 @@ impl ElfService {
 
 		let expires_at = touch_search_session(&self.db.pool, &session, now).await?;
 		let group_by = req.group_by.unwrap_or_else(|| "day".to_string());
+
 		match group_by.as_str() {
 			"day" => build_timeline_by_day(session.search_session_id, expires_at, &session.items),
 			"none" => Ok(SearchTimelineResponse {
@@ -330,6 +332,7 @@ impl ElfService {
 		let tenant_id = req.tenant_id.trim();
 		let project_id = req.project_id.trim();
 		let agent_id = req.agent_id.trim();
+
 		if tenant_id.is_empty() || project_id.is_empty() || agent_id.is_empty() {
 			return Err(Error::InvalidRequest {
 				message: "tenant_id, project_id, and agent_id are required.".to_string(),
@@ -338,16 +341,19 @@ impl ElfService {
 
 		let now = OffsetDateTime::now_utc();
 		let session = load_search_session(&self.db.pool, req.search_session_id, now).await?;
-		validate_search_session_access(&session, tenant_id, project_id, agent_id)?;
-		let expires_at = touch_search_session(&self.db.pool, &session, now).await?;
 
+		validate_search_session_access(&session, tenant_id, project_id, agent_id)?;
+
+		let expires_at = touch_search_session(&self.db.pool, &session, now).await?;
 		let mut by_note_id: HashMap<Uuid, SearchSessionItemRecord> = HashMap::new();
+
 		for item in &session.items {
 			by_note_id.insert(item.note_id, item.clone());
 		}
 
 		let mut requested_in_session = Vec::new();
 		let mut seen = HashSet::new();
+
 		for note_id in &req.note_ids {
 			if by_note_id.contains_key(note_id) && seen.insert(*note_id) {
 				requested_in_session.push(*note_id);
@@ -355,6 +361,7 @@ impl ElfService {
 		}
 
 		let mut notes_by_id = HashMap::new();
+
 		if !requested_in_session.is_empty() {
 			let rows: Vec<MemoryNote> = sqlx::query_as!(
 					MemoryNote,
@@ -365,6 +372,7 @@ impl ElfService {
 				)
 				.fetch_all(&self.db.pool)
 				.await?;
+
 			for note in rows {
 				notes_by_id.insert(note.note_id, note);
 			}
@@ -372,12 +380,11 @@ impl ElfService {
 
 		let structured_by_note =
 			fetch_structured_fields(&self.db.pool, requested_in_session.as_slice()).await?;
-
 		let allowed_scopes = resolve_read_scopes(&self.cfg, &session.read_profile)?;
-
 		let mut results = Vec::with_capacity(req.note_ids.len());
 		let mut hits = Vec::new();
 		let mut hit_seen = HashSet::new();
+
 		for note_id in req.note_ids {
 			let Some(session_item) = by_note_id.get(&note_id) else {
 				results.push(SearchDetailsResult {
@@ -389,6 +396,7 @@ impl ElfService {
 							.to_string(),
 					}),
 				});
+
 				continue;
 			};
 			let Some(note) = notes_by_id.get(&note_id) else {
@@ -400,12 +408,14 @@ impl ElfService {
 						message: "Note not found.".to_string(),
 					}),
 				});
+
 				continue;
 			};
-
 			let error = validate_note_access(note, &session, &allowed_scopes, now);
+
 			if let Some(error) = error {
 				results.push(SearchDetailsResult { note_id, note: None, error: Some(error) });
+
 				continue;
 			}
 
@@ -415,7 +425,7 @@ impl ElfService {
 				project_id: note.project_id.clone(),
 				agent_id: note.agent_id.clone(),
 				scope: note.scope.clone(),
-				note_type: note.r#type.clone(),
+				r#type: note.r#type.clone(),
 				key: note.key.clone(),
 				text: note.text.clone(),
 				importance: note.importance,
@@ -426,6 +436,7 @@ impl ElfService {
 				source_ref: note.source_ref.clone(),
 				structured: structured_by_note.get(&note.note_id).cloned(),
 			};
+
 			results.push(SearchDetailsResult { note_id, note: Some(note_response), error: None });
 
 			if req.record_hits.unwrap_or(true) && hit_seen.insert(note_id) {
@@ -461,6 +472,7 @@ fn build_timeline_by_day(
 
 	for item in items {
 		let date = item.updated_at.date().to_string();
+
 		grouped.entry(date).or_default().push(item.to_index_item());
 	}
 
@@ -492,11 +504,15 @@ fn normalize_whitespace(raw: &str) -> String {
 		if ch.is_whitespace() {
 			if !prev_space {
 				out.push(' ');
+
 				prev_space = true;
 			}
+
 			continue;
 		}
+
 		out.push(ch);
+
 		prev_space = false;
 	}
 
@@ -514,6 +530,7 @@ fn truncate_chars(raw: &str, max_chars: usize) -> String {
 		if idx >= max_chars {
 			break;
 		}
+
 		out.push(ch);
 	}
 
@@ -738,22 +755,22 @@ where
 
 	sqlx::query!(
 		"\
-	WITH hits AS (
-		SELECT *
-		FROM unnest(
-		$1::uuid[],
-		$2::uuid[],
-		$3::uuid[],
-		$4::int4[],
-		$5::real[]
-	) AS t(hit_id, note_id, chunk_id, rank, final_score)
+WITH hits AS (
+	SELECT *
+	FROM unnest(
+	$1::uuid[],
+	$2::uuid[],
+	$3::uuid[],
+	$4::int4[],
+	$5::real[]
+) AS t(hit_id, note_id, chunk_id, rank, final_score)
 ),
 updated AS (
-	UPDATE memory_notes
-	SET
-		hit_count = hit_count + 1,
-		last_hit_at = $6
-	WHERE note_id = ANY($2)
+UPDATE memory_notes
+SET
+	hit_count = hit_count + 1,
+	last_hit_at = $6
+WHERE note_id = ANY($2)
 )
 INSERT INTO memory_hits (
 	hit_id,
@@ -772,7 +789,7 @@ SELECT
 	rank,
 	final_score,
 	$6
-	FROM hits",
+FROM hits",
 		&hit_ids,
 		&note_ids,
 		&chunk_ids,
@@ -788,12 +805,9 @@ SELECT
 }
 
 fn hash_query(query: &str) -> String {
-	use std::{
-		collections::hash_map::DefaultHasher,
-		hash::{Hash, Hasher},
-	};
-
 	let mut hasher = DefaultHasher::new();
+
 	Hash::hash(query, &mut hasher);
+
 	format!("{:x}", hasher.finish())
 }

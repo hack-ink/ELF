@@ -218,7 +218,7 @@ pub struct Ranking {
 	pub deterministic: RankingDeterministic,
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Default, Deserialize)]
 #[serde(default)]
 pub struct RankingDeterministic {
 	pub enabled: bool,
