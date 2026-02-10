@@ -8,6 +8,7 @@ use std::{
 use clap::Parser;
 use color_eyre::eyre;
 use serde::{Deserialize, Serialize};
+use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use tracing_subscriber::EnvFilter;
 use uuid::Uuid;
 
@@ -26,14 +27,16 @@ pub struct Args {
 	pub config_a: PathBuf,
 	#[arg(long = "config-b", value_name = "FILE")]
 	pub config_b: Option<PathBuf>,
-	#[arg(long, short = 'd', value_name = "FILE")]
-	pub dataset: PathBuf,
+	#[arg(long, short = 'd', value_name = "FILE", required_unless_present = "trace_id")]
+	pub dataset: Option<PathBuf>,
 	#[arg(long, value_name = "N")]
 	pub top_k: Option<u32>,
 	#[arg(long, value_name = "N")]
 	pub candidate_k: Option<u32>,
 	#[arg(long, value_name = "N", default_value_t = 1)]
 	pub runs_per_query: u32,
+	#[arg(long = "trace-id", value_name = "UUID", num_args = 1..)]
+	pub trace_id: Vec<Uuid>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -214,6 +217,76 @@ struct QueryStabilityDelta {
 	set_churn_at_k: f64,
 }
 
+#[derive(Debug, Serialize)]
+struct TraceCompareOutput {
+	policies: TraceComparePolicies,
+	summary: TraceCompareSummary,
+	traces: Vec<TraceCompareTrace>,
+}
+
+#[derive(Debug, Serialize)]
+struct TraceComparePolicies {
+	a: TraceComparePolicy,
+	b: TraceComparePolicy,
+}
+
+#[derive(Debug, Serialize)]
+struct TraceComparePolicy {
+	config_path: String,
+	policy_id: String,
+}
+
+#[derive(Debug, Serialize)]
+struct TraceCompareSummary {
+	trace_count: usize,
+	avg_positional_churn_at_k: f64,
+	avg_set_churn_at_k: f64,
+}
+
+#[derive(Debug, Serialize)]
+struct TraceCompareTrace {
+	trace_id: Uuid,
+	query: String,
+	candidate_count: u32,
+	top_k: u32,
+	created_at: String,
+	a: TraceCompareVariant,
+	b: TraceCompareVariant,
+	churn: TraceCompareChurn,
+}
+
+#[derive(Debug, Serialize)]
+struct TraceCompareVariant {
+	policy_id: String,
+	items: Vec<elf_service::search::TraceReplayItem>,
+}
+
+#[derive(Debug, Serialize)]
+struct TraceCompareChurn {
+	positional_churn_at_k: f64,
+	set_churn_at_k: f64,
+}
+
+#[derive(sqlx::FromRow)]
+struct TraceCompareTraceRow {
+	trace_id: Uuid,
+	query: String,
+	candidate_count: i32,
+	top_k: i32,
+	created_at: OffsetDateTime,
+}
+
+#[derive(sqlx::FromRow)]
+struct TraceCompareCandidateRow {
+	note_id: Uuid,
+	chunk_id: Uuid,
+	retrieval_rank: i32,
+	rerank_score: f32,
+	note_scope: String,
+	note_importance: f32,
+	note_updated_at: OffsetDateTime,
+}
+
 struct MergedQuery {
 	id: String,
 	query: String,
@@ -242,7 +315,29 @@ pub async fn run(args: Args) -> color_eyre::Result<()> {
 
 	tracing_subscriber::fmt().with_env_filter(filter).init();
 
-	let dataset = load_dataset(args.dataset.as_path())?;
+	if !args.trace_id.is_empty() {
+		let Some(config_b_path) = &args.config_b else {
+			return Err(eyre::eyre!("Trace compare mode requires --config-b."));
+		};
+		let config_b = elf_config::load(config_b_path)?;
+		let output = trace_compare(
+			args.config_a.as_path(),
+			config_a,
+			config_b_path.as_path(),
+			config_b,
+			&args,
+		)
+		.await?;
+		let json = serde_json::to_string_pretty(&output)?;
+
+		println!("{json}");
+
+		return Ok(());
+	}
+
+	let dataset_path =
+		args.dataset.as_ref().ok_or_else(|| eyre::eyre!("--dataset is required."))?;
+	let dataset = load_dataset(dataset_path.as_path())?;
 	let run_a = eval_config(args.config_a.as_path(), config_a, &dataset, &args).await?;
 
 	if let Some(config_b_path) = &args.config_b {
@@ -277,6 +372,138 @@ pub async fn run(args: Args) -> color_eyre::Result<()> {
 	println!("{json}");
 
 	Ok(())
+}
+
+async fn trace_compare(
+	config_a_path: &Path,
+	config_a: Config,
+	config_b_path: &Path,
+	config_b: Config,
+	args: &Args,
+) -> color_eyre::Result<TraceCompareOutput> {
+	let policy_id_a = elf_service::search::ranking_policy_id(&config_a, None)
+		.map_err(|err| eyre::eyre!("{err}"))?;
+	let policy_id_b = elf_service::search::ranking_policy_id(&config_b, None)
+		.map_err(|err| eyre::eyre!("{err}"))?;
+	let db = Db::connect(&config_a.storage.postgres).await?;
+	let mut traces = Vec::with_capacity(args.trace_id.len());
+	let mut positional_sum = 0.0_f64;
+	let mut set_sum = 0.0_f64;
+
+	for trace_id in &args.trace_id {
+		let trace_row: TraceCompareTraceRow = sqlx::query_as(
+			"\
+SELECT
+	trace_id,
+	query,
+	candidate_count,
+	top_k,
+	created_at
+FROM search_traces
+WHERE trace_id = $1",
+		)
+		.bind(trace_id)
+		.fetch_one(&db.pool)
+		.await?;
+
+		let candidate_rows: Vec<TraceCompareCandidateRow> = sqlx::query_as(
+			"\
+SELECT
+	note_id,
+	chunk_id,
+	retrieval_rank,
+	rerank_score,
+	note_scope,
+	note_importance,
+	note_updated_at
+FROM search_trace_candidates
+WHERE trace_id = $1
+ORDER BY retrieval_rank ASC",
+		)
+		.bind(trace_id)
+		.fetch_all(&db.pool)
+		.await?;
+		let context = elf_service::search::TraceReplayContext {
+			trace_id: trace_row.trace_id,
+			query: trace_row.query.clone(),
+			candidate_count: u32::try_from(trace_row.candidate_count).unwrap_or(0),
+			top_k: u32::try_from(trace_row.top_k).unwrap_or(0),
+			created_at: trace_row.created_at,
+		};
+		let created_at = context
+			.created_at
+			.format(&Rfc3339)
+			.map_err(|err| eyre::eyre!("Failed to format trace created_at: {err}"))?;
+		let candidates: Vec<elf_service::search::TraceReplayCandidate> = candidate_rows
+			.into_iter()
+			.map(|row| elf_service::search::TraceReplayCandidate {
+				note_id: row.note_id,
+				chunk_id: row.chunk_id,
+				retrieval_rank: u32::try_from(row.retrieval_rank).unwrap_or(0),
+				rerank_score: row.rerank_score,
+				note_scope: row.note_scope,
+				note_importance: row.note_importance,
+				note_updated_at: row.note_updated_at,
+			})
+			.collect();
+		let top_k = args.top_k.unwrap_or(context.top_k).max(1);
+		let items_a = elf_service::search::replay_ranking_from_candidates(
+			&config_a,
+			&context,
+			None,
+			&candidates,
+			top_k,
+		)
+		.map_err(|err| eyre::eyre!("{err}"))?;
+		let items_b = elf_service::search::replay_ranking_from_candidates(
+			&config_b,
+			&context,
+			None,
+			&candidates,
+			top_k,
+		)
+		.map_err(|err| eyre::eyre!("{err}"))?;
+		let note_ids_a: Vec<Uuid> = items_a.iter().map(|item| item.note_id).collect();
+		let note_ids_b: Vec<Uuid> = items_b.iter().map(|item| item.note_id).collect();
+		let (positional_churn_at_k, set_churn_at_k) =
+			churn_against_baseline_at_k(&note_ids_a, &note_ids_b, top_k as usize);
+
+		positional_sum += positional_churn_at_k;
+		set_sum += set_churn_at_k;
+
+		traces.push(TraceCompareTrace {
+			trace_id: context.trace_id,
+			query: context.query,
+			candidate_count: context.candidate_count,
+			top_k,
+			created_at,
+			a: TraceCompareVariant { policy_id: policy_id_a.clone(), items: items_a },
+			b: TraceCompareVariant { policy_id: policy_id_b.clone(), items: items_b },
+			churn: TraceCompareChurn { positional_churn_at_k, set_churn_at_k },
+		});
+	}
+
+	let count = traces.len().max(1) as f64;
+	let summary = TraceCompareSummary {
+		trace_count: traces.len(),
+		avg_positional_churn_at_k: positional_sum / count,
+		avg_set_churn_at_k: set_sum / count,
+	};
+
+	Ok(TraceCompareOutput {
+		policies: TraceComparePolicies {
+			a: TraceComparePolicy {
+				config_path: config_a_path.display().to_string(),
+				policy_id: policy_id_a,
+			},
+			b: TraceComparePolicy {
+				config_path: config_b_path.display().to_string(),
+				policy_id: policy_id_b,
+			},
+		},
+		summary,
+		traces,
+	})
 }
 
 fn load_dataset(path: &Path) -> color_eyre::Result<EvalDataset> {
