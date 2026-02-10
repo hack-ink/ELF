@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -14,7 +15,7 @@ use crate::{
 
 const REJECT_STRUCTURED_INVALID: &str = "REJECT_STRUCTURED_INVALID";
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AddNoteRequest {
 	pub tenant_id: String,
 	pub project_id: String,
@@ -23,10 +24,9 @@ pub struct AddNoteRequest {
 	pub notes: Vec<AddNoteInput>,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AddNoteInput {
-	#[serde(rename = "type")]
-	pub note_type: String,
+	pub r#type: String,
 	pub key: Option<String>,
 	pub text: String,
 	#[serde(default)]
@@ -37,14 +37,14 @@ pub struct AddNoteInput {
 	pub source_ref: Value,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AddNoteResult {
 	pub note_id: Option<Uuid>,
 	pub op: NoteOp,
 	pub reason_code: Option<String>,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AddNoteResponse {
 	pub results: Vec<AddNoteResult>,
 }
@@ -68,6 +68,7 @@ impl ElfService {
 			if cjk::contains_cjk(&note.text) {
 				return Err(Error::NonEnglishInput { field: format!("$.notes[{idx}].text") });
 			}
+
 			if let Some(key) = &note.key
 				&& cjk::contains_cjk(key)
 			{
@@ -88,7 +89,6 @@ impl ElfService {
 
 		let now = OffsetDateTime::now_utc();
 		let embed_version = crate::embedding_version(&self.cfg);
-
 		let mut results = Vec::with_capacity(req.notes.len());
 
 		for note in req.notes {
@@ -102,11 +102,12 @@ impl ElfService {
 					reason_code: Some(REJECT_STRUCTURED_INVALID.to_string()),
 				});
 				tracing::info!(error = %err, "Rejecting note due to invalid structured fields.");
+
 				continue;
 			}
 
 			let gate_input = writegate::NoteInput {
-				note_type: note.note_type.clone(),
+				note_type: note.r#type.clone(),
 				scope: req.scope.clone(),
 				text: note.text.clone(),
 			};
@@ -117,6 +118,7 @@ impl ElfService {
 					op: NoteOp::Rejected,
 					reason_code: Some(crate::writegate_reason_code(code).to_string()),
 				});
+
 				continue;
 			}
 
@@ -130,7 +132,7 @@ impl ElfService {
 					project_id: &req.project_id,
 					agent_id: &req.agent_id,
 					scope: &req.scope,
-					note_type: &note.note_type,
+					note_type: &note.r#type,
 					key: note.key.as_deref(),
 					text: &note.text,
 					now,
@@ -141,14 +143,14 @@ impl ElfService {
 			match decision {
 				UpdateDecision::Add { note_id } => {
 					let expires_at =
-						ttl::compute_expires_at(note.ttl_days, &note.note_type, &self.cfg, now);
+						ttl::compute_expires_at(note.ttl_days, &note.r#type, &self.cfg, now);
 					let memory_note = MemoryNote {
 						note_id,
 						tenant_id: req.tenant_id.clone(),
 						project_id: req.project_id.clone(),
 						agent_id: req.agent_id.clone(),
 						scope: req.scope.clone(),
-						r#type: note.note_type.clone(),
+						r#type: note.r#type.clone(),
 						key: note.key.clone(),
 						text: note.text.clone(),
 						importance: note.importance,
@@ -165,9 +167,9 @@ impl ElfService {
 
 					sqlx::query!(
 						"\
-	INSERT INTO memory_notes (
-		note_id,
-		tenant_id,
+INSERT INTO memory_notes (
+	note_id,
+	tenant_id,
 	project_id,
 	agent_id,
 	scope,
@@ -183,9 +185,9 @@ impl ElfService {
 	embedding_version,
 	source_ref,
 	hit_count,
-		last_hit_at
-	)
-	VALUES (
+	last_hit_at
+)
+VALUES (
 	$1,
 	$2,
 	$3,
@@ -202,9 +204,9 @@ impl ElfService {
 	$14,
 	$15,
 	$16,
-		$17,
-		$18
-	)",
+	$17,
+	$18
+)",
 						memory_note.note_id,
 						memory_note.tenant_id.as_str(),
 						memory_note.project_id.as_str(),
@@ -247,6 +249,7 @@ impl ElfService {
 						upsert_structured_fields_tx(&mut tx, memory_note.note_id, structured, now)
 							.await?;
 					}
+
 					crate::enqueue_outbox_tx(
 						&mut *tx,
 						memory_note.note_id,
@@ -255,8 +258,8 @@ impl ElfService {
 						now,
 					)
 					.await?;
-					tx.commit().await?;
 
+					tx.commit().await?;
 					results.push(AddNoteResult {
 						note_id: Some(note_id),
 						op: NoteOp::Add,
@@ -275,7 +278,7 @@ impl ElfService {
 					let requested_ttl = note.ttl_days.filter(|days| *days > 0);
 					let expires_at = match requested_ttl {
 						Some(ttl) =>
-							ttl::compute_expires_at(Some(ttl), &note.note_type, &self.cfg, now),
+							ttl::compute_expires_at(Some(ttl), &note.r#type, &self.cfg, now),
 						None => existing.expires_at,
 					};
 
@@ -303,6 +306,7 @@ impl ElfService {
 							op: NoteOp::None,
 							reason_code: None,
 						});
+
 						continue;
 					}
 
@@ -315,15 +319,15 @@ impl ElfService {
 
 					sqlx::query!(
 						"\
-	UPDATE memory_notes
-	SET
-		text = $1,
-	importance = $2,
-	confidence = $3,
-	updated_at = $4,
-		expires_at = $5,
-		source_ref = $6
-	WHERE note_id = $7",
+UPDATE memory_notes
+SET
+	text = $1,
+importance = $2,
+confidence = $3,
+updated_at = $4,
+	expires_at = $5,
+	source_ref = $6
+WHERE note_id = $7",
 						existing.text.as_str(),
 						existing.importance,
 						existing.confidence,
@@ -355,6 +359,7 @@ impl ElfService {
 						upsert_structured_fields_tx(&mut tx, existing.note_id, structured, now)
 							.await?;
 					}
+
 					crate::enqueue_outbox_tx(
 						&mut *tx,
 						existing.note_id,
@@ -363,8 +368,8 @@ impl ElfService {
 						now,
 					)
 					.await?;
-					tx.commit().await?;
 
+					tx.commit().await?;
 					results.push(AddNoteResult {
 						note_id: Some(note_id),
 						op: NoteOp::Update,
@@ -376,6 +381,7 @@ impl ElfService {
 						&& !structured.is_effectively_empty()
 					{
 						upsert_structured_fields_tx(&mut tx, note_id, structured, now).await?;
+
 						crate::enqueue_outbox_tx(
 							&mut *tx,
 							note_id,
@@ -384,6 +390,7 @@ impl ElfService {
 							now,
 						)
 						.await?;
+
 						tx.commit().await?;
 						results.push(AddNoteResult {
 							note_id: Some(note_id),
@@ -392,6 +399,7 @@ impl ElfService {
 						});
 						continue;
 					}
+
 					tx.commit().await?;
 					results.push(AddNoteResult {
 						note_id: Some(note_id),
@@ -411,6 +419,7 @@ fn find_cjk_path_in_structured(
 	base: &str,
 ) -> Option<String> {
 	let structured = structured?;
+
 	if let Some(summary) = structured.summary.as_ref()
 		&& cjk::contains_cjk(summary)
 	{
@@ -430,6 +439,7 @@ fn find_cjk_path_in_structured(
 			}
 		}
 	}
+
 	None
 }
 
@@ -444,6 +454,7 @@ fn find_cjk_path(value: &Value, path: &str) -> Option<String> {
 		Value::Array(items) => {
 			for (idx, item) in items.iter().enumerate() {
 				let child_path = format!("{path}[{idx}]");
+
 				if let Some(found) = find_cjk_path(item, &child_path) {
 					return Some(found);
 				}
@@ -453,6 +464,7 @@ fn find_cjk_path(value: &Value, path: &str) -> Option<String> {
 		Value::Object(map) => {
 			for (key, value) in map.iter() {
 				let child_path = format!("{path}[\"{}\"]", escape_json_path_key(key));
+
 				if let Some(found) = find_cjk_path(value, &child_path) {
 					return Some(found);
 				}

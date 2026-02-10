@@ -1,0 +1,42 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH key_match AS (\n\tSELECT note_id\n\tFROM memory_notes\n\tWHERE tenant_id = $1\n\t\tAND project_id = $2\n\t\tAND agent_id = $3\n\t\tAND scope = $4\n\t\tAND type = $5\n\t\tAND $6::text IS NOT NULL\n\t\tAND key = $6\n\t\tAND status = 'active'\n\t\tAND (expires_at IS NULL OR expires_at > $7)\n\tLIMIT 1\n),\nexisting AS (\n\tSELECT note_id\n\tFROM memory_notes\n\tWHERE tenant_id = $1\n\t\tAND project_id = $2\n\t\tAND agent_id = $3\n\t\tAND scope = $4\n\t\tAND type = $5\n\t\tAND status = 'active'\n\t\tAND (expires_at IS NULL OR expires_at > $7)\n),\nbest AS (\n\tSELECT\n\t\tnote_id,\n\t\t(1 - (vec <=> $8::text::vector))::real AS similarity\n\tFROM note_embeddings\n\tWHERE note_id = ANY(ARRAY(SELECT note_id FROM existing))\n\t\tAND embedding_version = $9\n\tORDER BY similarity DESC\n\tLIMIT 1\n)\n\tSELECT\n\t\t(SELECT note_id FROM key_match) AS key_note_id,\n\t\t(SELECT note_id FROM best) AS best_note_id,\n\t\t(SELECT similarity FROM best) AS best_similarity",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "key_note_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "best_note_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "best_similarity",
+        "type_info": "Float4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Timestamptz",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "1d7cc617177546a360fc0ac5e63d15c3bc43d5b9f216f9d3f13080cc839a1489"
+}

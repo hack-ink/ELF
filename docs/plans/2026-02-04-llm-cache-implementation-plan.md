@@ -439,4 +439,3 @@ Expected: PASS (external integration tests may be ignored without Postgres/Qdran
 **Step 2: Summarize behavior changes**
 
 Document cache defaults, TTLs, and invalidation rules in the PR summary.
-

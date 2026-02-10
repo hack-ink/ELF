@@ -154,7 +154,7 @@ async fn outbox_retries_to_done() {
 			agent_id: "a".to_string(),
 			scope: "agent_private".to_string(),
 			notes: vec![AddNoteInput {
-				note_type: "fact".to_string(),
+				r#type: "fact".to_string(),
 				key: Some("outbox_test".to_string()),
 				text: "Fact: Outbox should retry.".to_string(),
 				structured: None,

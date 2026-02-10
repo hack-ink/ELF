@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sqlx::QueryBuilder;
 use time::OffsetDateTime;
@@ -6,22 +7,20 @@ use uuid::Uuid;
 use crate::{ElfService, Error, Result};
 use elf_storage::models::MemoryNote;
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ListRequest {
 	pub tenant_id: String,
 	pub project_id: String,
 	pub agent_id: Option<String>,
 	pub scope: Option<String>,
 	pub status: Option<String>,
-	#[serde(rename = "type")]
-	pub note_type: Option<String>,
+	pub r#type: Option<String>,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ListItem {
 	pub note_id: Uuid,
-	#[serde(rename = "type")]
-	pub note_type: String,
+	pub r#type: String,
 	pub key: Option<String>,
 	pub scope: String,
 	pub status: String,
@@ -35,7 +34,7 @@ pub struct ListItem {
 	pub source_ref: Value,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ListResponse {
 	pub items: Vec<ListItem>,
 }
@@ -107,7 +106,7 @@ impl ElfService {
 			builder.push_bind(now);
 			builder.push(")");
 		}
-		if let Some(note_type) = &req.note_type {
+		if let Some(note_type) = &req.r#type {
 			builder.push(" AND type = ");
 			builder.push_bind(note_type);
 		}
@@ -117,7 +116,7 @@ impl ElfService {
 			.into_iter()
 			.map(|note| ListItem {
 				note_id: note.note_id,
-				note_type: note.r#type,
+				r#type: note.r#type,
 				key: note.key,
 				scope: note.scope,
 				status: note.status,

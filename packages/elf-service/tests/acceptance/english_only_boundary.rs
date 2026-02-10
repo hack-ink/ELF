@@ -53,7 +53,7 @@ async fn rejects_cjk_in_add_note() {
 		agent_id: "a".to_string(),
 		scope: "agent_private".to_string(),
 		notes: vec![AddNoteInput {
-			note_type: "fact".to_string(),
+			r#type: "fact".to_string(),
 			key: None,
 			text: "你好".to_string(),
 			structured: None,

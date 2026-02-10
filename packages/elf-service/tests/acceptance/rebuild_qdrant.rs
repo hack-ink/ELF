@@ -58,9 +58,9 @@ async fn rebuild_uses_postgres_vectors_only() {
 
 	sqlx::query(
 		"\
-			INSERT INTO memory_notes (
-				note_id,
-				tenant_id,
+INSERT INTO memory_notes (
+	note_id,
+	tenant_id,
 	project_id,
 	agent_id,
 	scope,
@@ -95,9 +95,9 @@ VALUES (
 	$14,
 	$15,
 	$16,
-			$17,
-				$18
-			)",
+	$17,
+	$18
+)",
 	)
 	.bind(note_id)
 	.bind("t")
@@ -126,16 +126,16 @@ VALUES (
 
 	sqlx::query(
 		"\
-			INSERT INTO memory_note_chunks (
-				chunk_id,
-			note_id,
+INSERT INTO memory_note_chunks (
+	chunk_id,
+	note_id,
 	chunk_index,
 	start_offset,
 	end_offset,
 	text,
 	embedding_version
-			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7)",
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7)",
 	)
 	.bind(chunk_id)
 	.bind(note_id)
@@ -163,8 +163,8 @@ VALUES (
 
 	sqlx::query(
 		"\
-					INSERT INTO note_chunk_embeddings (chunk_id, embedding_version, embedding_dim, vec)
-					VALUES ($1, $2, $3, $4::text::vector)",
+INSERT INTO note_chunk_embeddings (chunk_id, embedding_version, embedding_dim, vec)
+VALUES ($1, $2, $3, $4::text::vector)",
 	)
 	.bind(chunk_id)
 	.bind(embedding_version.as_str())
