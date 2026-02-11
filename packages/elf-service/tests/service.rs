@@ -144,6 +144,8 @@ fn test_config() -> Config {
 			tie_breaker_weight: 0.1,
 			deterministic: Default::default(),
 			blend: Default::default(),
+			diversity: Default::default(),
+			retrieval_sources: Default::default(),
 		},
 		lifecycle: Lifecycle {
 			ttl_days: TtlDays {

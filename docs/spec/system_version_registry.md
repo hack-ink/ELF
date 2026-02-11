@@ -23,13 +23,13 @@ This document is normative. When a new versioned identifier is introduced, it mu
 - Bump rule: Change the identifier only when the payload becomes incompatible with the previous version. Do not reuse older identifiers.
 - Notes: The v2 model is additive. `final_score` must equal the sum of `terms[].value`.
 
-### Ranking blend policy identifier
+### Ranking policy identifier
 
-- Identifier: `blend_v1:<hash>`.
+- Identifier: `ranking_v2:<hash>`.
 - Type: Ranking policy identifier recorded in traces.
 - Defined in: `packages/elf-service/src/search.rs`, `docs/spec/system_elf_memory_service_v2.md`.
 - Consumers: Trace inspection, evaluation replay, debugging.
-- Bump rule: If the policy encoding or semantics change in a way that makes old and new policies non-comparable, introduce a new prefix (for example, `blend_v2:`).
+- Bump rule: If the policy encoding or semantics change in a way that makes old and new policies non-comparable, introduce a new prefix (for example, `ranking_v3:`).
 
 ### Search trace version
 
@@ -64,4 +64,3 @@ This document is normative. When a new versioned identifier is introduced, it mu
 - Defined in: `AGENTS.md`.
 - Consumers: Automated agents and repository tooling.
 - Bump rule: Introduce `cmsg/2` only when the schema becomes incompatible with existing automation.
-

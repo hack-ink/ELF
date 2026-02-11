@@ -216,6 +216,10 @@ pub struct Ranking {
 	pub blend: RankingBlend,
 	#[serde(default)]
 	pub deterministic: RankingDeterministic,
+	#[serde(default)]
+	pub diversity: RankingDiversity,
+	#[serde(default)]
+	pub retrieval_sources: RankingRetrievalSources,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -302,6 +306,39 @@ impl Default for RankingBlend {
 pub struct RankingBlendSegment {
 	pub max_retrieval_rank: u32,
 	pub retrieval_weight: f32,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(default)]
+pub struct RankingDiversity {
+	pub enabled: bool,
+	pub sim_threshold: f32,
+	pub mmr_lambda: f32,
+	pub max_skips: u32,
+}
+impl Default for RankingDiversity {
+	fn default() -> Self {
+		Self { enabled: true, sim_threshold: 0.88, mmr_lambda: 0.7, max_skips: 64 }
+	}
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(default)]
+pub struct RankingRetrievalSources {
+	pub fusion_weight: f32,
+	pub structured_field_weight: f32,
+	pub fusion_priority: u32,
+	pub structured_field_priority: u32,
+}
+impl Default for RankingRetrievalSources {
+	fn default() -> Self {
+		Self {
+			fusion_weight: 1.0,
+			structured_field_weight: 1.0,
+			fusion_priority: 1,
+			structured_field_priority: 0,
+		}
+	}
 }
 
 #[derive(Debug, Deserialize)]

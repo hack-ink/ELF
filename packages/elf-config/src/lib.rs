@@ -5,9 +5,9 @@ pub use error::{Error, Result};
 pub use types::{
 	Chunking, Config, Context, EmbeddingProviderConfig, Lifecycle, LlmProviderConfig, McpContext,
 	Memory, Postgres, ProviderConfig, Providers, Qdrant, Ranking, RankingBlend,
-	RankingBlendSegment, ReadProfiles, ScopePrecedence, ScopeWriteAllowed, Scopes, Search,
-	SearchCache, SearchDynamic, SearchExpansion, SearchExplain, SearchPrefilter, Security, Service,
-	Storage, TtlDays,
+	RankingBlendSegment, RankingDiversity, RankingRetrievalSources, ReadProfiles, ScopePrecedence,
+	ScopeWriteAllowed, Scopes, Search, SearchCache, SearchDynamic, SearchExpansion, SearchExplain,
+	SearchPrefilter, Security, Service, Storage, TtlDays,
 };
 
 use std::{fs, path::Path};
@@ -166,6 +166,51 @@ pub fn validate(cfg: &Config) -> Result<()> {
 				});
 			}
 		}
+	}
+
+	let diversity = &cfg.ranking.diversity;
+
+	if !diversity.sim_threshold.is_finite() {
+		return Err(Error::Validation {
+			message: "ranking.diversity.sim_threshold must be a finite number.".to_string(),
+		});
+	}
+	if !(0.0..=1.0).contains(&diversity.sim_threshold) {
+		return Err(Error::Validation {
+			message: "ranking.diversity.sim_threshold must be in the range 0.0-1.0.".to_string(),
+		});
+	}
+	if !diversity.mmr_lambda.is_finite() {
+		return Err(Error::Validation {
+			message: "ranking.diversity.mmr_lambda must be a finite number.".to_string(),
+		});
+	}
+	if !(0.0..=1.0).contains(&diversity.mmr_lambda) {
+		return Err(Error::Validation {
+			message: "ranking.diversity.mmr_lambda must be in the range 0.0-1.0.".to_string(),
+		});
+	}
+
+	let retrieval_sources = &cfg.ranking.retrieval_sources;
+
+	for (path, value) in [
+		("ranking.retrieval_sources.fusion_weight", retrieval_sources.fusion_weight),
+		(
+			"ranking.retrieval_sources.structured_field_weight",
+			retrieval_sources.structured_field_weight,
+		),
+	] {
+		if !value.is_finite() {
+			return Err(Error::Validation { message: format!("{path} must be a finite number.") });
+		}
+		if value < 0.0 {
+			return Err(Error::Validation { message: format!("{path} must be zero or greater.") });
+		}
+	}
+	if retrieval_sources.fusion_weight <= 0.0 && retrieval_sources.structured_field_weight <= 0.0 {
+		return Err(Error::Validation {
+			message: "At least one retrieval source weight must be greater than zero.".to_string(),
+		});
 	}
 
 	let det = &cfg.ranking.deterministic;
