@@ -59,128 +59,159 @@ pub fn build_trace_terms_v2(args: TraceTermsArgs<'_>) -> Vec<SearchRankingTerm> 
 	let cfg = args.cfg;
 	let blend_enabled = args.blend_enabled;
 	let det = &cfg.ranking.deterministic;
-	let mut terms = Vec::new();
-	let mut blend_retrieval_inputs = BTreeMap::new();
+	vec![
+		build_blend_retrieval_term(&args, blend_enabled),
+		build_blend_rerank_term(&args, blend_enabled),
+		build_tie_breaker_term(&args, cfg),
+		build_scope_boost_term(&args, cfg),
+		build_deterministic_lexical_term(&args, det),
+		build_deterministic_hit_term(&args, det),
+		build_deterministic_decay_term(&args, det),
+	]
+}
 
-	blend_retrieval_inputs.insert("enabled".to_string(), serde_json::json!(blend_enabled));
-	blend_retrieval_inputs
-		.insert("retrieval_rank".to_string(), serde_json::json!(args.retrieval_rank));
-	blend_retrieval_inputs
-		.insert("retrieval_norm".to_string(), serde_json::json!(args.retrieval_norm));
-	blend_retrieval_inputs.insert(
+fn build_blend_retrieval_term(args: &TraceTermsArgs<'_>, blend_enabled: bool) -> SearchRankingTerm {
+	let mut inputs = BTreeMap::new();
+
+	inputs.insert("enabled".to_string(), serde_json::json!(blend_enabled));
+	inputs.insert("retrieval_rank".to_string(), serde_json::json!(args.retrieval_rank));
+	inputs.insert("retrieval_norm".to_string(), serde_json::json!(args.retrieval_norm));
+	inputs.insert(
 		"retrieval_normalization".to_string(),
 		serde_json::json!(args.retrieval_normalization),
 	);
-	blend_retrieval_inputs.insert(
+	inputs.insert(
 		"blend_retrieval_weight".to_string(),
 		serde_json::json!(args.blend_retrieval_weight),
 	);
-	terms.push(SearchRankingTerm {
+
+	SearchRankingTerm {
 		name: "blend.retrieval".to_string(),
 		value: args.retrieval_term,
-		inputs: Some(blend_retrieval_inputs),
-	});
+		inputs: Some(inputs),
+	}
+}
 
-	let mut blend_rerank_inputs = BTreeMap::new();
+fn build_blend_rerank_term(args: &TraceTermsArgs<'_>, blend_enabled: bool) -> SearchRankingTerm {
+	let mut inputs = BTreeMap::new();
 
-	blend_rerank_inputs.insert("enabled".to_string(), serde_json::json!(blend_enabled));
-	blend_rerank_inputs.insert("rerank_score".to_string(), serde_json::json!(args.rerank_score));
-	blend_rerank_inputs.insert("rerank_rank".to_string(), serde_json::json!(args.rerank_rank));
-	blend_rerank_inputs.insert("rerank_norm".to_string(), serde_json::json!(args.rerank_norm));
-	blend_rerank_inputs
-		.insert("rerank_normalization".to_string(), serde_json::json!(args.rerank_normalization));
-	blend_rerank_inputs.insert(
+	inputs.insert("enabled".to_string(), serde_json::json!(blend_enabled));
+	inputs.insert("rerank_score".to_string(), serde_json::json!(args.rerank_score));
+	inputs.insert("rerank_rank".to_string(), serde_json::json!(args.rerank_rank));
+	inputs.insert("rerank_norm".to_string(), serde_json::json!(args.rerank_norm));
+	inputs.insert("rerank_normalization".to_string(), serde_json::json!(args.rerank_normalization));
+	inputs.insert(
 		"blend_retrieval_weight".to_string(),
 		serde_json::json!(args.blend_retrieval_weight),
 	);
-	terms.push(SearchRankingTerm {
+
+	SearchRankingTerm {
 		name: "blend.rerank".to_string(),
 		value: args.rerank_term,
-		inputs: Some(blend_rerank_inputs),
-	});
+		inputs: Some(inputs),
+	}
+}
 
+fn build_tie_breaker_term(args: &TraceTermsArgs<'_>, cfg: &Config) -> SearchRankingTerm {
 	let recency_decay = if cfg.ranking.recency_tau_days > 0.0 {
 		(-args.age_days / cfg.ranking.recency_tau_days).exp()
 	} else {
 		1.0
 	};
-	let mut tie_breaker_inputs = BTreeMap::new();
+	let mut inputs = BTreeMap::new();
 
-	tie_breaker_inputs.insert(
+	inputs.insert(
 		"tie_breaker_weight".to_string(),
 		serde_json::json!(cfg.ranking.tie_breaker_weight),
 	);
-	tie_breaker_inputs.insert("importance".to_string(), serde_json::json!(args.importance));
-	tie_breaker_inputs.insert("age_days".to_string(), serde_json::json!(args.age_days));
-	tie_breaker_inputs
-		.insert("recency_tau_days".to_string(), serde_json::json!(cfg.ranking.recency_tau_days));
-	tie_breaker_inputs.insert("recency_decay".to_string(), serde_json::json!(recency_decay));
-	terms.push(SearchRankingTerm {
+	inputs.insert("importance".to_string(), serde_json::json!(args.importance));
+	inputs.insert("age_days".to_string(), serde_json::json!(args.age_days));
+	inputs.insert("recency_tau_days".to_string(), serde_json::json!(cfg.ranking.recency_tau_days));
+	inputs.insert("recency_decay".to_string(), serde_json::json!(recency_decay));
+
+	SearchRankingTerm {
 		name: "tie_breaker".to_string(),
 		value: args.tie_breaker_score,
-		inputs: Some(tie_breaker_inputs),
-	});
+		inputs: Some(inputs),
+	}
+}
 
-	let mut scope_boost_inputs = BTreeMap::new();
+fn build_scope_boost_term(args: &TraceTermsArgs<'_>, cfg: &Config) -> SearchRankingTerm {
+	let mut inputs = BTreeMap::new();
 
-	scope_boost_inputs.insert("scope".to_string(), serde_json::json!(args.scope));
-	scope_boost_inputs.insert(
+	inputs.insert("scope".to_string(), serde_json::json!(args.scope));
+	inputs.insert(
 		"scope_boost_weight".to_string(),
 		serde_json::json!(cfg.context.as_ref().and_then(|ctx| ctx.scope_boost_weight)),
 	);
-	terms.push(SearchRankingTerm {
+
+	SearchRankingTerm {
 		name: "context.scope_boost".to_string(),
 		value: args.scope_context_boost,
-		inputs: Some(scope_boost_inputs),
-	});
+		inputs: Some(inputs),
+	}
+}
 
-	let mut lex_inputs = BTreeMap::new();
+fn build_deterministic_lexical_term(
+	args: &TraceTermsArgs<'_>,
+	det: &elf_config::RankingDeterministic,
+) -> SearchRankingTerm {
+	let mut inputs = BTreeMap::new();
 
-	lex_inputs.insert("enabled".to_string(), serde_json::json!(det.enabled && det.lexical.enabled));
-	lex_inputs.insert("weight".to_string(), serde_json::json!(det.lexical.weight));
-	lex_inputs.insert("min_ratio".to_string(), serde_json::json!(det.lexical.min_ratio));
-	lex_inputs
-		.insert("max_query_terms".to_string(), serde_json::json!(det.lexical.max_query_terms));
-	lex_inputs.insert("max_text_terms".to_string(), serde_json::json!(det.lexical.max_text_terms));
-	lex_inputs.insert(
+	inputs.insert("enabled".to_string(), serde_json::json!(det.enabled && det.lexical.enabled));
+	inputs.insert("weight".to_string(), serde_json::json!(det.lexical.weight));
+	inputs.insert("min_ratio".to_string(), serde_json::json!(det.lexical.min_ratio));
+	inputs.insert("max_query_terms".to_string(), serde_json::json!(det.lexical.max_query_terms));
+	inputs.insert("max_text_terms".to_string(), serde_json::json!(det.lexical.max_text_terms));
+	inputs.insert(
 		"overlap_ratio".to_string(),
 		serde_json::json!(args.deterministic_lexical_overlap_ratio),
 	);
-	terms.push(SearchRankingTerm {
+
+	SearchRankingTerm {
 		name: "deterministic.lexical_bonus".to_string(),
 		value: args.deterministic_lexical_bonus,
-		inputs: Some(lex_inputs),
-	});
+		inputs: Some(inputs),
+	}
+}
 
-	let mut hits_inputs = BTreeMap::new();
+fn build_deterministic_hit_term(
+	args: &TraceTermsArgs<'_>,
+	det: &elf_config::RankingDeterministic,
+) -> SearchRankingTerm {
+	let mut inputs = BTreeMap::new();
 
-	hits_inputs.insert("enabled".to_string(), serde_json::json!(det.enabled && det.hits.enabled));
-	hits_inputs.insert("weight".to_string(), serde_json::json!(det.hits.weight));
-	hits_inputs.insert("half_saturation".to_string(), serde_json::json!(det.hits.half_saturation));
-	hits_inputs
-		.insert("last_hit_tau_days".to_string(), serde_json::json!(det.hits.last_hit_tau_days));
-	hits_inputs.insert("hit_count".to_string(), serde_json::json!(args.deterministic_hit_count));
-	hits_inputs.insert(
+	inputs.insert("enabled".to_string(), serde_json::json!(det.enabled && det.hits.enabled));
+	inputs.insert("weight".to_string(), serde_json::json!(det.hits.weight));
+	inputs.insert("half_saturation".to_string(), serde_json::json!(det.hits.half_saturation));
+	inputs.insert("last_hit_tau_days".to_string(), serde_json::json!(det.hits.last_hit_tau_days));
+	inputs.insert("hit_count".to_string(), serde_json::json!(args.deterministic_hit_count));
+	inputs.insert(
 		"last_hit_age_days".to_string(),
 		serde_json::json!(args.deterministic_last_hit_age_days),
 	);
-	terms.push(SearchRankingTerm {
+
+	SearchRankingTerm {
 		name: "deterministic.hit_boost".to_string(),
 		value: args.deterministic_hit_boost,
-		inputs: Some(hits_inputs),
-	});
+		inputs: Some(inputs),
+	}
+}
 
-	let mut decay_inputs = BTreeMap::new();
+fn build_deterministic_decay_term(
+	args: &TraceTermsArgs<'_>,
+	det: &elf_config::RankingDeterministic,
+) -> SearchRankingTerm {
+	let mut inputs = BTreeMap::new();
 
-	decay_inputs.insert("enabled".to_string(), serde_json::json!(det.enabled && det.decay.enabled));
-	decay_inputs.insert("weight".to_string(), serde_json::json!(det.decay.weight));
-	decay_inputs.insert("tau_days".to_string(), serde_json::json!(det.decay.tau_days));
-	decay_inputs.insert("age_days".to_string(), serde_json::json!(args.age_days));
-	terms.push(SearchRankingTerm {
+	inputs.insert("enabled".to_string(), serde_json::json!(det.enabled && det.decay.enabled));
+	inputs.insert("weight".to_string(), serde_json::json!(det.decay.weight));
+	inputs.insert("tau_days".to_string(), serde_json::json!(det.decay.tau_days));
+	inputs.insert("age_days".to_string(), serde_json::json!(args.age_days));
+
+	SearchRankingTerm {
 		name: "deterministic.decay_penalty".to_string(),
 		value: args.deterministic_decay_penalty,
-		inputs: Some(decay_inputs),
-	});
-
-	terms
+		inputs: Some(inputs),
+	}
 }
