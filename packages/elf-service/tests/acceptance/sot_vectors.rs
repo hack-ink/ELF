@@ -119,6 +119,7 @@ VALUES (
 			buf.push('0');
 		}
 		buf.push(']');
+
 		buf
 	};
 

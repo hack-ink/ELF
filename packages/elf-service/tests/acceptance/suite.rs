@@ -118,6 +118,7 @@ impl ExtractorProvider for SpyExtractor {
 		let payload = self.payload.clone();
 
 		self.calls.fetch_add(1, Ordering::SeqCst);
+
 		Box::pin(async move { Ok(payload) })
 	}
 }

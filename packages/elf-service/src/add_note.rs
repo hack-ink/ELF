@@ -286,6 +286,7 @@ VALUES (
 							Some(existing_expires_at) => {
 								let existing_ttl =
 									(existing_expires_at - existing.updated_at).whole_days() as i64;
+
 								existing_ttl == ttl_days
 							},
 							None => false,
@@ -459,6 +460,7 @@ fn find_cjk_path(value: &Value, path: &str) -> Option<String> {
 					return Some(found);
 				}
 			}
+
 			None
 		},
 		Value::Object(map) => {
@@ -469,6 +471,7 @@ fn find_cjk_path(value: &Value, path: &str) -> Option<String> {
 					return Some(found);
 				}
 			}
+
 			None
 		},
 		_ => None,

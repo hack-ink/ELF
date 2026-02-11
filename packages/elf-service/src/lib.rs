@@ -196,6 +196,7 @@ impl Providers {
 impl Default for Providers {
 	fn default() -> Self {
 		let provider = Arc::new(DefaultProviders);
+
 		Self { embedding: provider.clone(), rerank: provider.clone(), extractor: provider }
 	}
 }

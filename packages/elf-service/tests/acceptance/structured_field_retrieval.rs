@@ -42,6 +42,7 @@ impl RerankProvider for KeywordRerank {
 		docs: &'a [String],
 	) -> BoxFuture<'a, elf_service::Result<Vec<f32>>> {
 		let keyword = self.keyword;
+
 		Box::pin(async move {
 			Ok(docs.iter().map(|doc| if doc.contains(keyword) { 1.0 } else { 0.1 }).collect())
 		})
@@ -85,6 +86,7 @@ fn build_payload(
 	payload.insert("agent_id", "a");
 	payload.insert("scope", "agent_private");
 	payload.insert("status", "active");
+
 	payload
 }
 

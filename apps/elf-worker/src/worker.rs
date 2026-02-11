@@ -492,12 +492,14 @@ async fn handle_upsert(state: &WorkerState, job: &IndexingOutboxEntry) -> Result
 	let note = fetch_note(&state.db, job.note_id).await?;
 	let Some(note) = note else {
 		tracing::info!(note_id = %job.note_id, "Note missing for outbox job. Marking done.");
+
 		return Ok(());
 	};
 	let now = OffsetDateTime::now_utc();
 
 	if !note_is_active(&note, now) {
 		tracing::info!(note_id = %job.note_id, "Note inactive or expired. Skipping index.");
+
 		return Ok(());
 	}
 

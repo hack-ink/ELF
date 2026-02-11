@@ -16,6 +16,7 @@ impl AppState {
 
 		let qdrant = QdrantStore::new(&config.storage.qdrant)?;
 		let service = ElfService::new(config, db, qdrant);
+
 		Ok(Self { service: Arc::new(service) })
 	}
 }
