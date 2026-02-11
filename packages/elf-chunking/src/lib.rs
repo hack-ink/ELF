@@ -3,13 +3,13 @@ use unicode_segmentation::UnicodeSegmentation;
 
 pub type TokenizerError = tokenizers::Error;
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct ChunkingConfig {
 	pub max_tokens: u32,
 	pub overlap_tokens: u32,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct Chunk {
 	pub chunk_index: i32,
 	pub start_offset: usize,
