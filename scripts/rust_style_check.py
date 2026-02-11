@@ -925,6 +925,11 @@ def check_import_rules(file: Path, lines: list[str], items: list[TopItem]) -> li
 def check_module_order(file: Path, items: list[TopItem]) -> list[Violation]:
     violations: list[Violation] = []
 
+    def is_cfg_test_mod(item: TopItem) -> bool:
+        if item.kind != "mod":
+            return False
+        return any(CFG_TEST_RE.match(attr) for attr in item.attrs)
+
     def order_bucket(kind: str) -> int | None:
         # Keep types and impls in one stage so we can enforce per-type adjacency
         # in MOD-005 without conflicting with MOD-001.
@@ -932,8 +937,10 @@ def check_module_order(file: Path, items: list[TopItem]) -> list[Violation]:
             return 8
         return ITEM_ORDER.get(kind)
 
+    items_for_order = [item for item in items if not is_cfg_test_mod(item)]
+
     order_seen: list[int] = []
-    for item in items:
+    for item in items_for_order:
         order = order_bucket(item.kind)
         if order is None:
             continue
@@ -949,7 +956,7 @@ def check_module_order(file: Path, items: list[TopItem]) -> list[Violation]:
         order_seen.append(order)
 
     non_pub_seen: dict[str, bool] = {}
-    for item in items:
+    for item in items_for_order:
         seen_non_pub = non_pub_seen.get(item.kind, False)
         if item.is_pub:
             if seen_non_pub:
@@ -965,7 +972,7 @@ def check_module_order(file: Path, items: list[TopItem]) -> list[Violation]:
             non_pub_seen[item.kind] = True
 
     async_seen = {True: False, False: False}
-    for item in items:
+    for item in items_for_order:
         if item.kind != "fn":
             continue
         key = item.is_pub
@@ -978,6 +985,23 @@ def check_module_order(file: Path, items: list[TopItem]) -> list[Violation]:
                     line=item.line,
                     rule="RUST-STYLE-MOD-003",
                     message="Place non-async functions before async functions at the same visibility.",
+                )
+            )
+
+    last_non_test_index = -1
+    for idx, item in enumerate(items):
+        if not is_cfg_test_mod(item):
+            last_non_test_index = idx
+    for idx, item in enumerate(items):
+        if not is_cfg_test_mod(item):
+            continue
+        if idx < last_non_test_index:
+            violations.append(
+                Violation(
+                    file=file,
+                    line=item.line,
+                    rule="RUST-STYLE-MOD-001",
+                    message="Place #[cfg(test)] modules after all non-test items.",
                 )
             )
 

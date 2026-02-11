@@ -1,8 +1,8 @@
+use crate::Result;
+
 pub const DENSE_VECTOR_NAME: &str = "dense";
 pub const BM25_VECTOR_NAME: &str = "bm25";
 pub const BM25_MODEL: &str = "qdrant/bm25";
-
-use crate::Result;
 
 pub struct QdrantStore {
 	pub client: qdrant_client::Qdrant,
