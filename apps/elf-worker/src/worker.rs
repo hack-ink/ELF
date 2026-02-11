@@ -140,6 +140,12 @@ struct ChunkRecord {
 	text: String,
 }
 
+#[derive(Debug)]
+struct NoteFieldRow {
+	field_id: Uuid,
+	text: String,
+}
+
 pub async fn run_worker(state: WorkerState) -> Result<()> {
 	let mut last_trace_cleanup = OffsetDateTime::now_utc();
 
@@ -835,12 +841,6 @@ async fn fetch_note(db: &Db, note_id: Uuid) -> Result<Option<MemoryNote>> {
 			.await?;
 
 	Ok(note)
-}
-
-#[derive(Debug)]
-struct NoteFieldRow {
-	field_id: Uuid,
-	text: String,
 }
 
 async fn fetch_note_fields(db: &Db, note_id: Uuid) -> Result<Vec<NoteFieldRow>> {
