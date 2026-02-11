@@ -46,6 +46,14 @@ args = [
 	"--all-features",
 ]
 
+[tasks.style-check-rust]
+workspace = false
+command = "python3"
+args = [
+	"scripts/rust_style_check.py",
+	"--check",
+]
+
 
 # Test
 # | task      | type      | cwd       |
@@ -103,6 +111,7 @@ args = [
 # | fmt-rust-check | extend    |     |
 # | fmt-toml       | command   |     |
 # | fmt-toml-check | extend    |     |
+# | style-check-rust | command |     |
 
 [tasks.fmt]
 workspace = false
@@ -116,6 +125,7 @@ workspace = false
 dependencies = [
 	"fmt-rust-check",
 	"fmt-toml-check",
+	"style-check-rust",
 ]
 
 [tasks.fmt-rust]
