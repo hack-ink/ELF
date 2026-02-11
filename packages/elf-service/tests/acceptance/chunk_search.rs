@@ -58,6 +58,39 @@ where
 	)
 }
 
+fn build_payload(
+	note_id: Uuid,
+	chunk_id: Uuid,
+	chunk_index: i32,
+	start_offset: i32,
+	end_offset: i32,
+) -> Payload {
+	let mut payload = Payload::new();
+
+	payload.insert("note_id", note_id.to_string());
+	payload.insert("chunk_id", chunk_id.to_string());
+	payload.insert("chunk_index", Value::from(chunk_index));
+	payload.insert("start_offset", Value::from(start_offset));
+	payload.insert("end_offset", Value::from(end_offset));
+	payload.insert("tenant_id", "t");
+	payload.insert("project_id", "p");
+	payload.insert("agent_id", "a");
+	payload.insert("scope", "agent_private");
+	payload.insert("status", "active");
+	payload
+}
+
+fn build_vectors(text: &str) -> HashMap<String, Vector> {
+	let mut vectors = HashMap::new();
+
+	vectors.insert(DENSE_VECTOR_NAME.to_string(), Vector::from(vec![0.0_f32; 4_096]));
+	vectors.insert(
+		BM25_VECTOR_NAME.to_string(),
+		Vector::from(Document::new(text.to_string(), BM25_MODEL)),
+	);
+	vectors
+}
+
 async fn setup_context(test_name: &str, providers: Providers) -> Option<TestContext> {
 	let Some(test_db) = super::test_db().await else {
 		eprintln!("Skipping {test_name}; set ELF_PG_DSN to run this test.");
@@ -204,39 +237,6 @@ VALUES ($1, $2, $3, $4, $5, $6, $7)",
 	.execute(executor)
 	.await
 	.expect("Failed to insert chunk metadata.");
-}
-
-fn build_payload(
-	note_id: Uuid,
-	chunk_id: Uuid,
-	chunk_index: i32,
-	start_offset: i32,
-	end_offset: i32,
-) -> Payload {
-	let mut payload = Payload::new();
-
-	payload.insert("note_id", note_id.to_string());
-	payload.insert("chunk_id", chunk_id.to_string());
-	payload.insert("chunk_index", Value::from(chunk_index));
-	payload.insert("start_offset", Value::from(start_offset));
-	payload.insert("end_offset", Value::from(end_offset));
-	payload.insert("tenant_id", "t");
-	payload.insert("project_id", "p");
-	payload.insert("agent_id", "a");
-	payload.insert("scope", "agent_private");
-	payload.insert("status", "active");
-	payload
-}
-
-fn build_vectors(text: &str) -> HashMap<String, Vector> {
-	let mut vectors = HashMap::new();
-
-	vectors.insert(DENSE_VECTOR_NAME.to_string(), Vector::from(vec![0.0_f32; 4_096]));
-	vectors.insert(
-		BM25_VECTOR_NAME.to_string(),
-		Vector::from(Document::new(text.to_string(), BM25_MODEL)),
-	);
-	vectors
 }
 
 async fn upsert_point(
