@@ -81,6 +81,89 @@ pub fn validate_structured_fields(
 	Ok(())
 }
 
+pub fn event_evidence_quotes(messages: &[String], evidence: &[(usize, String)]) -> Result<()> {
+	for (idx, (message_index, quote)) in evidence.iter().enumerate() {
+		if quote.trim().is_empty() {
+			return Err(Error::InvalidRequest {
+				message: format!("evidence[{idx}].quote must not be empty."),
+			});
+		}
+		if !evidence::evidence_matches(messages, *message_index, quote) {
+			return Err(Error::InvalidRequest {
+				message: format!("evidence[{idx}] does not match its source message."),
+			});
+		}
+	}
+
+	Ok(())
+}
+
+pub async fn upsert_structured_fields_tx(
+	executor: &mut sqlx::PgConnection,
+	note_id: Uuid,
+	structured: &StructuredFields,
+	now: OffsetDateTime,
+) -> Result<()> {
+	if let Some(summary) = structured.summary.as_ref() {
+		replace_kind(executor, note_id, "summary", slice_single(summary), now).await?;
+	}
+	if let Some(facts) = structured.facts.as_ref() {
+		replace_kind(executor, note_id, "fact", facts.as_slice(), now).await?;
+	}
+	if let Some(concepts) = structured.concepts.as_ref() {
+		replace_kind(executor, note_id, "concept", concepts.as_slice(), now).await?;
+	}
+
+	Ok(())
+}
+
+pub async fn fetch_structured_fields(
+	pool: &sqlx::PgPool,
+	note_ids: &[Uuid],
+) -> Result<HashMap<Uuid, StructuredFields>> {
+	if note_ids.is_empty() {
+		return Ok(HashMap::new());
+	}
+
+	let rows = sqlx::query!(
+		"\
+SELECT
+	note_id AS \"note_id!\",
+	field_kind AS \"field_kind!\",
+	item_index AS \"item_index!\",
+	text AS \"text!\"
+FROM memory_note_fields
+WHERE note_id = ANY($1::uuid[])
+ORDER BY note_id ASC, field_kind ASC, item_index ASC",
+		note_ids,
+	)
+	.fetch_all(pool)
+	.await?;
+	let mut out: HashMap<Uuid, StructuredFields> = HashMap::new();
+
+	for row in rows {
+		let entry = out.entry(row.note_id).or_default();
+
+		match row.field_kind.as_str() {
+			"summary" =>
+				if entry.summary.is_none() && !row.text.trim().is_empty() {
+					entry.summary = Some(row.text);
+				},
+			"fact" => {
+				entry.facts.get_or_insert_with(Vec::new).push(row.text);
+			},
+			"concept" => {
+				entry.concepts.get_or_insert_with(Vec::new).push(row.text);
+			},
+			_ => {},
+		}
+	}
+
+	out.retain(|_, value| !value.is_effectively_empty());
+
+	Ok(out)
+}
+
 fn validate_list_field(items: &[String], label: &str) -> Result<()> {
 	if items.len() > MAX_LIST_ITEMS {
 		return Err(Error::InvalidRequest {
@@ -137,42 +220,6 @@ fn fact_is_evidence_bound(fact: &str, note_text: &str, evidence_quotes: &[String
 	false
 }
 
-pub fn event_evidence_quotes(messages: &[String], evidence: &[(usize, String)]) -> Result<()> {
-	for (idx, (message_index, quote)) in evidence.iter().enumerate() {
-		if quote.trim().is_empty() {
-			return Err(Error::InvalidRequest {
-				message: format!("evidence[{idx}].quote must not be empty."),
-			});
-		}
-		if !evidence::evidence_matches(messages, *message_index, quote) {
-			return Err(Error::InvalidRequest {
-				message: format!("evidence[{idx}] does not match its source message."),
-			});
-		}
-	}
-
-	Ok(())
-}
-
-pub async fn upsert_structured_fields_tx(
-	executor: &mut sqlx::PgConnection,
-	note_id: Uuid,
-	structured: &StructuredFields,
-	now: OffsetDateTime,
-) -> Result<()> {
-	if let Some(summary) = structured.summary.as_ref() {
-		replace_kind(executor, note_id, "summary", slice_single(summary), now).await?;
-	}
-	if let Some(facts) = structured.facts.as_ref() {
-		replace_kind(executor, note_id, "fact", facts.as_slice(), now).await?;
-	}
-	if let Some(concepts) = structured.concepts.as_ref() {
-		replace_kind(executor, note_id, "concept", concepts.as_slice(), now).await?;
-	}
-
-	Ok(())
-}
-
 fn slice_single(value: &String) -> &[String] {
 	std::slice::from_ref(value)
 }
@@ -224,53 +271,6 @@ VALUES ($1,$2,$3,$4,$5,$6,$7)",
 	}
 
 	Ok(())
-}
-
-pub async fn fetch_structured_fields(
-	pool: &sqlx::PgPool,
-	note_ids: &[Uuid],
-) -> Result<HashMap<Uuid, StructuredFields>> {
-	if note_ids.is_empty() {
-		return Ok(HashMap::new());
-	}
-
-	let rows = sqlx::query!(
-		"\
-SELECT
-	note_id AS \"note_id!\",
-	field_kind AS \"field_kind!\",
-	item_index AS \"item_index!\",
-	text AS \"text!\"
-FROM memory_note_fields
-WHERE note_id = ANY($1::uuid[])
-ORDER BY note_id ASC, field_kind ASC, item_index ASC",
-		note_ids,
-	)
-	.fetch_all(pool)
-	.await?;
-	let mut out: HashMap<Uuid, StructuredFields> = HashMap::new();
-
-	for row in rows {
-		let entry = out.entry(row.note_id).or_default();
-
-		match row.field_kind.as_str() {
-			"summary" =>
-				if entry.summary.is_none() && !row.text.trim().is_empty() {
-					entry.summary = Some(row.text);
-				},
-			"fact" => {
-				entry.facts.get_or_insert_with(Vec::new).push(row.text);
-			},
-			"concept" => {
-				entry.concepts.get_or_insert_with(Vec::new).push(row.text);
-			},
-			_ => {},
-		}
-	}
-
-	out.retain(|_, value| !value.is_effectively_empty());
-
-	Ok(out)
 }
 
 #[cfg(test)]

@@ -1,11 +1,13 @@
-use serde::{Deserialize, Deserializer, Serializer, de::Error as DeError, ser::Error as SerError};
+use serde::{Deserialize, Deserializer, Serializer};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
 pub fn serialize<S>(value: &OffsetDateTime, serializer: S) -> Result<S::Ok, S::Error>
 where
 	S: Serializer,
 {
-	let formatted = value.format(&Rfc3339).map_err(SerError::custom)?;
+	let formatted = value
+		.format(&Rfc3339)
+		.map_err(|err| <S::Error as serde::ser::Error>::custom(err))?;
 
 	serializer.serialize_str(&formatted)
 }
@@ -16,7 +18,8 @@ where
 {
 	let raw = String::deserialize(deserializer)?;
 
-	OffsetDateTime::parse(&raw, &Rfc3339).map_err(DeError::custom)
+	OffsetDateTime::parse(&raw, &Rfc3339)
+		.map_err(|err| <D::Error as serde::de::Error>::custom(err))
 }
 
 pub mod option {
@@ -39,8 +42,9 @@ pub mod option {
 		let raw = Option::<String>::deserialize(deserializer)?;
 
 		match raw {
-			Some(value) =>
-				OffsetDateTime::parse(&value, &Rfc3339).map(Some).map_err(DeError::custom),
+				Some(value) => OffsetDateTime::parse(&value, &Rfc3339)
+					.map(Some)
+					.map_err(|err| <D::Error as serde::de::Error>::custom(err)),
 			None => Ok(None),
 		}
 	}

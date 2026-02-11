@@ -131,7 +131,6 @@ struct SearchSessionItemRecord {
 	confidence: f32,
 	summary: String,
 }
-
 impl SearchSessionItemRecord {
 	fn to_index_item(&self) -> SearchIndexItem {
 		SearchIndexItem {

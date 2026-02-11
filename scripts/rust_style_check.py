@@ -15,7 +15,7 @@ FN_START_RE = re.compile(
     r"^\s*(pub(?:\([^)]*\))?\s+)?(?:async\s+)?(?:const\s+)?(?:unsafe\s+)?fn\s+\w+"
 )
 INLINE_BOUNDS_RE = re.compile(
-    r"^\s*(?:pub(?:\([^)]*\))?\s+)?(?:fn|impl|struct|enum|trait)\b[^\n{;]*<[^>{}]*:[^>{}]*>"
+    r"^\s*(?:pub(?:\([^)]*\))?\s+)?(?:fn|impl|struct|enum|trait)\b[^\n{;]*<[^>{}]*\b(?:[A-Za-z_][A-Za-z0-9_]*|'[A-Za-z_][A-Za-z0-9_]*)\s*:(?!:)[^>{}]*>"
 )
 STD_QUALIFIED_MACRO_RE = re.compile(r"\bstd::(vec|format|println|eprintln|dbg|write|writeln)!\s*\(")
 EXPECT_CALL_RE = re.compile(r"\.expect\s*\((.*?)\)")
@@ -925,9 +925,16 @@ def check_import_rules(file: Path, lines: list[str], items: list[TopItem]) -> li
 def check_module_order(file: Path, items: list[TopItem]) -> list[Violation]:
     violations: list[Violation] = []
 
+    def order_bucket(kind: str) -> int | None:
+        # Keep types and impls in one stage so we can enforce per-type adjacency
+        # in MOD-005 without conflicting with MOD-001.
+        if kind in {"enum", "struct", "impl"}:
+            return 8
+        return ITEM_ORDER.get(kind)
+
     order_seen: list[int] = []
     for item in items:
-        order = ITEM_ORDER.get(item.kind)
+        order = order_bucket(item.kind)
         if order is None:
             continue
         if order_seen and order < order_seen[-1]:
@@ -1030,13 +1037,37 @@ def check_cfg_test_mod_tests_use_super(file: Path, lines: list[str]) -> list[Vio
     return violations
 
 
-def check_impl_adjacency(file: Path, items: list[TopItem]) -> list[Violation]:
+def find_top_level_item_end_line(lines: list[str], start_idx: int) -> int:
+    depth = 0
+    seen_open = False
+
+    for idx in range(start_idx, len(lines)):
+        code = strip_string_and_line_comment(lines[idx])
+        stripped = code.strip()
+
+        if not seen_open and "{" in code:
+            seen_open = True
+
+        depth += code.count("{")
+        depth -= code.count("}")
+
+        if seen_open:
+            if depth <= 0:
+                return idx
+        elif stripped.endswith(";"):
+            return idx
+
+    return start_idx
+
+
+def check_impl_adjacency(file: Path, lines: list[str], items: list[TopItem]) -> list[Violation]:
     violations: list[Violation] = []
 
     type_indices: dict[str, int] = {}
     for idx, item in enumerate(items):
-        if item.kind in {"struct", "enum", "trait"} and item.name:
-            type_indices[item.name] = idx
+        if item.kind not in {"struct", "enum"} or not item.name:
+            continue
+        type_indices[item.name] = idx
 
     impl_by_target: dict[str, list[int]] = {}
     for idx, item in enumerate(items):
@@ -1071,7 +1102,7 @@ def check_impl_adjacency(file: Path, items: list[TopItem]) -> list[Violation]:
                         rule="RUST-STYLE-IMPL-003",
                         message=(
                             f"impl block order for `{target}` must be inherent, std traits, "
-                            "third-party traits, then project traits."
+                            "third-party traits, then workspace-member traits."
                         ),
                     )
                 )
@@ -1090,6 +1121,22 @@ def check_impl_adjacency(file: Path, items: list[TopItem]) -> list[Violation]:
                     line=items[first_impl].line,
                     rule="RUST-STYLE-MOD-005",
                     message=f"Keep `{type_name}` definitions and related impl blocks adjacent.",
+                )
+            )
+            continue
+
+        type_end = find_top_level_item_end_line(lines, items[type_idx].line - 1)
+        impl_start = items[first_impl].line - 1
+        between = lines[type_end + 1 : impl_start]
+        if any(not line.strip() for line in between):
+            violations.append(
+                Violation(
+                    file=file,
+                    line=items[first_impl].line,
+                    rule="RUST-STYLE-MOD-005",
+                    message=(
+                        f"Do not insert blank lines between `{type_name}` and its first impl block."
+                    ),
                 )
             )
 
@@ -1493,6 +1540,12 @@ def check_impl_rules(file: Path, lines: list[str], items: list[TopItem]) -> list
         impl_by_target.setdefault(item.impl_target, []).append(item)
 
     for target, impls in impl_by_target.items():
+        qualified_target = (
+            rf"(?:{re.escape(target)}\b|(?:crate|self|super)::(?:[A-Za-z_][A-Za-z0-9_]*::)*{re.escape(target)}\b)"
+        )
+        return_self_type_re = re.compile(rf"->\s*{qualified_target}")
+        param_self_type_re = re.compile(rf"(?<!:):\s*{qualified_target}")
+
         for item in impls:
             start = item.line - 1
             end = find_impl_block_end(lines, start)
@@ -1500,7 +1553,7 @@ def check_impl_rules(file: Path, lines: list[str], items: list[TopItem]) -> list
                 code = strip_string_and_line_comment(lines[idx]).strip()
                 if "fn " not in code:
                     continue
-                if re.search(rf"->\s*{re.escape(target)}\b", code):
+                if return_self_type_re.search(code):
                     violations.append(
                         Violation(
                             file=file,
@@ -1509,7 +1562,7 @@ def check_impl_rules(file: Path, lines: list[str], items: list[TopItem]) -> list
                             message=f"Use Self instead of concrete type `{target}` in impl method signatures.",
                         )
                     )
-                if re.search(rf":\s*{re.escape(target)}\b", code):
+                if param_self_type_re.search(code):
                     violations.append(
                         Violation(
                             file=file,
@@ -1891,7 +1944,7 @@ def collect_violations(file: Path) -> list[Violation]:
     violations.extend(check_import_rules(file, lines, items))
     violations.extend(check_module_order(file, items))
     violations.extend(check_cfg_test_mod_tests_use_super(file, lines))
-    violations.extend(check_impl_adjacency(file, items))
+    violations.extend(check_impl_adjacency(file, lines, items))
     violations.extend(check_impl_rules(file, lines, items))
     violations.extend(check_inline_trait_bounds(file, lines))
     violations.extend(check_std_macro_calls(file, lines))

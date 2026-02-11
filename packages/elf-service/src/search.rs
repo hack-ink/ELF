@@ -1,5 +1,7 @@
 mod ranking;
 
+pub use crate::ranking_explain_v2::{SearchRankingExplain, SearchRankingTerm};
+
 use std::{
 	cmp::Ordering,
 	collections::{BTreeMap, HashMap, HashSet},
@@ -15,7 +17,6 @@ use sqlx::{PgExecutor, QueryBuilder};
 use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
-pub use crate::ranking_explain_v2::{SearchRankingExplain, SearchRankingTerm};
 use crate::{ElfService, Error, Result, ranking_explain_v2};
 use elf_config::Config;
 use elf_domain::cjk;
