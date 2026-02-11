@@ -25,9 +25,9 @@ pub fn split_text(text: &str, cfg: &ChunkingConfig, tokenizer: &Tokenizer) -> Ve
 	let sentences: Vec<(usize, &str)> = text.split_sentence_bound_indices().collect();
 	let mut chunks = Vec::new();
 	let mut current = String::new();
-	let mut current_start = 0usize;
-	let mut last_end = 0usize;
-	let mut chunk_index = 0i32;
+	let mut current_start = 0_usize;
+	let mut last_end = 0_usize;
+	let mut chunk_index = 0_i32;
 
 	for (idx, sentence) in sentences {
 		let candidate = format!("{}{}", current, sentence);
