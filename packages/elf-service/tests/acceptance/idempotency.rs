@@ -1,8 +1,7 @@
 use std::sync::{Arc, atomic::AtomicUsize};
 
-use elf_service::{AddNoteInput, AddNoteRequest, NoteOp, Providers};
-
 use super::{SpyExtractor, StubEmbedding, StubRerank};
+use elf_service::{AddNoteInput, AddNoteRequest, NoteOp, Providers};
 
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
