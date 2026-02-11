@@ -61,6 +61,7 @@ pub fn build_config_snapshot(
 	policy_snapshot: &Value,
 ) -> Value {
 	let override_json = ranking_override.and_then(|value| serde_json::to_value(value).ok());
+
 	serde_json::json!({
 		"search": {
 			"expansion": {

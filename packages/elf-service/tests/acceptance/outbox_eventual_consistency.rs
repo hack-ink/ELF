@@ -100,6 +100,7 @@ async fn embed_handler(
 		.enumerate()
 		.map(|(index, _)| {
 			let embedding: Vec<f32> = vec![0.1_f32; 4_096];
+
 			serde_json::json!({
 				"index": index,
 				"embedding": embedding

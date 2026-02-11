@@ -23,5 +23,6 @@ pub fn auth_headers(api_key: &str, default_headers: &Map<String, Value>) -> Resu
 
 		headers.insert(HeaderName::from_bytes(key.as_bytes())?, raw.parse()?);
 	}
+
 	Ok(headers)
 }

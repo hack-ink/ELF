@@ -720,6 +720,7 @@ fn validate_note_access(
 			message: "Note scope is not allowed for this agent_id.".to_string(),
 		});
 	}
+
 	None
 }
 

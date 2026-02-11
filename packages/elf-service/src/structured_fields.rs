@@ -134,6 +134,7 @@ fn fact_is_evidence_bound(fact: &str, note_text: &str, evidence_quotes: &[String
 			return true;
 		}
 	}
+
 	false
 }
 
@@ -150,6 +151,7 @@ pub fn event_evidence_quotes(messages: &[String], evidence: &[(usize, String)]) 
 			});
 		}
 	}
+
 	Ok(())
 }
 

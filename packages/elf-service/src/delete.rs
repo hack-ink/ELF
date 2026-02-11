@@ -65,6 +65,7 @@ FOR UPDATE",
 		}
 		if note.status == "deleted" {
 			tx.commit().await?;
+
 			return Ok(DeleteResponse { note_id: note.note_id, op: NoteOp::None });
 		}
 
