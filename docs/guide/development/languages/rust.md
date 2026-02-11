@@ -389,8 +389,7 @@ When you claim a Rust change is complete, run the following tasks:
 - `RUST-STYLE-SPACE-003`: Do not insert blank lines within the same statement type, and insert exactly one blank line between different statement types.
 - `RUST-STYLE-SPACE-004`: Insert exactly one blank line before each `return` statement and before the final tail expression (unless the body is a single expression).
 
-### Comments and Tests
+### Tests
 
-- `RUST-STYLE-COMMENT-001`: Keep comments as full sentences with capitalization and punctuation.
 - `RUST-STYLE-TEST-001`: Use descriptive `snake_case` test names.
 - `RUST-STYLE-TEST-002`: Reserve `#[cfg(test)] mod _test` for keep-alive imports only.
