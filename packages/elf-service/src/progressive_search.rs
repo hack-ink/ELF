@@ -107,6 +107,12 @@ pub struct SearchDetailsResponse {
 	pub results: Vec<SearchDetailsResult>,
 }
 
+struct SearchDetailsResolution {
+	by_note_id: HashMap<Uuid, SearchSessionItemRecord>,
+	notes_by_id: HashMap<Uuid, MemoryNote>,
+	structured_by_note: HashMap<Uuid, crate::structured_fields::StructuredFields>,
+}
+
 struct HitItem {
 	note_id: Uuid,
 	chunk_id: Uuid,
@@ -343,48 +349,15 @@ impl ElfService {
 		validate_search_session_access(&session, tenant_id, project_id, agent_id)?;
 
 		let expires_at = touch_search_session(&self.db.pool, &session, now).await?;
-		let mut by_note_id: HashMap<Uuid, SearchSessionItemRecord> = HashMap::new();
-
-		for item in &session.items {
-			by_note_id.insert(item.note_id, item.clone());
-		}
-
-		let mut requested_in_session = Vec::new();
-		let mut seen = HashSet::new();
-
-		for note_id in &req.note_ids {
-			if by_note_id.contains_key(note_id) && seen.insert(*note_id) {
-				requested_in_session.push(*note_id);
-			}
-		}
-
-		let mut notes_by_id = HashMap::new();
-
-		if !requested_in_session.is_empty() {
-			let rows: Vec<MemoryNote> = sqlx::query_as!(
-					MemoryNote,
-					"SELECT * FROM memory_notes WHERE note_id = ANY($1::uuid[]) AND tenant_id = $2 AND project_id = $3",
-					requested_in_session.as_slice(),
-					session.tenant_id.as_str(),
-					session.project_id.as_str(),
-				)
-				.fetch_all(&self.db.pool)
-				.await?;
-
-			for note in rows {
-				notes_by_id.insert(note.note_id, note);
-			}
-		}
-
-		let structured_by_note =
-			fetch_structured_fields(&self.db.pool, requested_in_session.as_slice()).await?;
+		let resolution =
+			load_search_details_resolution(&self.db.pool, &session, &req.note_ids).await?;
 		let allowed_scopes = resolve_read_scopes(&self.cfg, &session.read_profile)?;
 		let mut results = Vec::with_capacity(req.note_ids.len());
 		let mut hits = Vec::new();
 		let mut hit_seen = HashSet::new();
 
 		for note_id in req.note_ids {
-			let Some(session_item) = by_note_id.get(&note_id) else {
+			let Some(session_item) = resolution.by_note_id.get(&note_id) else {
 				results.push(SearchDetailsResult {
 					note_id,
 					note: None,
@@ -397,7 +370,7 @@ impl ElfService {
 
 				continue;
 			};
-			let Some(note) = notes_by_id.get(&note_id) else {
+			let Some(note) = resolution.notes_by_id.get(&note_id) else {
 				results.push(SearchDetailsResult {
 					note_id,
 					note: None,
@@ -432,7 +405,7 @@ impl ElfService {
 				updated_at: note.updated_at,
 				expires_at: note.expires_at,
 				source_ref: note.source_ref.clone(),
-				structured: structured_by_note.get(&note.note_id).cloned(),
+				structured: resolution.structured_by_note.get(&note.note_id).cloned(),
 			};
 
 			results.push(SearchDetailsResult { note_id, note: Some(note_response), error: None });
@@ -447,13 +420,7 @@ impl ElfService {
 			}
 		}
 
-		if !hits.is_empty() {
-			let mut tx = self.db.pool.begin().await?;
-
-			record_detail_hits(&mut *tx, &session.query, &hits, now).await?;
-
-			tx.commit().await?;
-		}
+		persist_search_details_hits(&self.db.pool, &session.query, &hits, now).await?;
 
 		Ok(SearchDetailsResponse {
 			search_session_id: session.search_session_id,
@@ -604,6 +571,64 @@ fn hash_query(query: &str) -> String {
 	Hash::hash(query, &mut hasher);
 
 	format!("{:x}", hasher.finish())
+}
+
+async fn load_search_details_resolution(
+	pool: &sqlx::PgPool,
+	session: &SearchSession,
+	note_ids: &[Uuid],
+) -> Result<SearchDetailsResolution> {
+	let by_note_id: HashMap<Uuid, SearchSessionItemRecord> =
+		session.items.iter().map(|item| (item.note_id, item.clone())).collect();
+	let mut requested_in_session = Vec::new();
+	let mut seen = HashSet::new();
+
+	for note_id in note_ids {
+		if by_note_id.contains_key(note_id) && seen.insert(*note_id) {
+			requested_in_session.push(*note_id);
+		}
+	}
+
+	let mut notes_by_id = HashMap::new();
+
+	if !requested_in_session.is_empty() {
+		let rows: Vec<MemoryNote> = sqlx::query_as!(
+			MemoryNote,
+			"SELECT * FROM memory_notes WHERE note_id = ANY($1::uuid[]) AND tenant_id = $2 AND project_id = $3",
+			requested_in_session.as_slice(),
+			session.tenant_id.as_str(),
+			session.project_id.as_str(),
+		)
+		.fetch_all(pool)
+		.await?;
+
+		for note in rows {
+			notes_by_id.insert(note.note_id, note);
+		}
+	}
+
+	let structured_by_note = fetch_structured_fields(pool, requested_in_session.as_slice()).await?;
+
+	Ok(SearchDetailsResolution { by_note_id, notes_by_id, structured_by_note })
+}
+
+async fn persist_search_details_hits(
+	pool: &sqlx::PgPool,
+	query: &str,
+	hits: &[HitItem],
+	now: OffsetDateTime,
+) -> Result<()> {
+	if hits.is_empty() {
+		return Ok(());
+	}
+
+	let mut tx = pool.begin().await?;
+
+	record_detail_hits(&mut *tx, query, hits, now).await?;
+
+	tx.commit().await?;
+
+	Ok(())
 }
 
 async fn store_search_session<'e, E>(executor: E, session: NewSearchSession<'_>) -> Result<()>
