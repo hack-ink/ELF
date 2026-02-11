@@ -12,7 +12,7 @@ All rules in this guide are mandatory.
 
 Before you start a Rust change:
 
-- Identify which sections apply (Imports and Paths, Error Handling, Logging, Functional Style, Vertical Spacing).
+- Identify which sections apply (Imports and Paths, Error Handling, Logging, Vertical Spacing).
 - Ensure your change can follow the Completion Checklist tasks.
 
 Before you claim a Rust change is complete:
@@ -20,7 +20,7 @@ Before you claim a Rust change is complete:
 - Follow the Completion Checklist section.
 - Ensure errors use `color_eyre::eyre::Result` and add boundary context with `WrapErr`.
 - Ensure logs use `tracing::...!` with structured fields.
-- Ensure function bodies follow the Vertical Spacing phases and declaration ordering rules.
+- Ensure function bodies follow the Vertical Spacing statement-type rules.
 
 ## Decision Priorities
 
@@ -211,17 +211,14 @@ tracing::info!("Created session for user {user_id}.");
 
 In this section, the happy path is the main success flow and excludes error-handling branches.
 
-- Keep one logical operation per line.
 - Keep functions at or under 120 lines. Extract helpers when a function exceeds 120 lines or the happy path is no longer obvious.
 - Do not introduce a new helper function when the code is a single expression and the helper is used only once. Inline it at the call site unless the helper name encodes a meaningful domain concept or isolates non-trivial logic.
 - Limit control-flow nesting depth to two levels in the happy path. Count one level for each `if`/`if let`/`match`/loop that contains other control flow.
 - When nesting exceeds two levels, reduce it using one or more of: guard clauses and early returns to invert conditions, extracting an inner block into a helper that returns `Result` or `Option`, or using `continue` to skip work in loops instead of wrapping the rest of the loop body.
 - Use guard clauses and early returns to keep the happy path linear.
 - Avoid complex `if let` or `match` guards. Extract a named boolean when logic grows.
-- Use descriptive names and avoid single-letter locals except for trivial indices like `i`.
 - Add explicit type annotations when inference spans multiple steps or reduces clarity.
 - Use struct literals with named fields over `Default::default()` when fields matter.
-- Avoid struct update syntax (`..`) unless the remaining fields are truly irrelevant.
 - Keep boolean expressions short; extract them into named variables when they grow.
 - When you need to specify a type explicitly, do so on `let` bindings or in function signatures. Use turbofish only when those locations cannot express the type.
 
@@ -258,42 +255,6 @@ for item in items {
 }
 ```
 
-## Functional Style
-
-Default to functional style for collection transformations and queries.
-
-- Iterator chains have no fixed maximum length.
-- Do not split a pipeline solely because of its length.
-- Closures must be single-expression and side-effect free.
-- If a closure needs `if`, `match`, or multiple statements, extract a named function.
-- Avoid combining `flat_map`, `zip`, and `fold`/`reduce` in a single iterator pipeline. Split the pipeline into named steps or a `for` loop.
-- Do not use `.for_each(...)` for side effects. Use a `for` loop.
-- Use `for` loops when iterator-based code would require complex control flow (`break` or `continue`), multiple mutable state variables, or multi-statement closures.
-
-Example (use):
-
-```rust
-let result: Vec<_> = items
-	.iter()
-	.filter(|item| item.is_valid())
-	.map(|item| build_item(item))
-	.filter(|item| item.score > threshold)
-	.collect();
-```
-
-Example (avoid):
-
-```rust
-let total: i64 = items
-	.iter()
-	.flat_map(|item| item.children())
-	.zip(weights.iter())
-	.map(|(child, weight)| score(child) * weight)
-	.filter(|score| *score > threshold)
-	.take(limit)
-	.fold(0_i64, |acc, score| acc + score);
-```
-
 ## Borrowing and Ownership
 
 - Use borrowing with `&` over `.as_*()` conversions when both are applicable.
@@ -307,92 +268,35 @@ let total: i64 = items
 
 This section exists because `rustfmt` does not enforce blank-line layout inside function bodies, and inconsistent spacing makes diffs hard to audit.
 
-### Function Bodies
+Inside Rust functions:
 
-Rules:
+- Do not insert blank lines within the same statement type.
+- Insert exactly one blank line between different statement types.
+- Insert exactly one blank line before each `return` statement when it has preceding statements in the same block.
+- Insert exactly one blank line before the final tail expression, unless the body is a single expression.
 
-- Use blank lines only to separate phases. Do not use blank lines as decoration.
-- Never use more than one consecutive blank line.
-- Do not add a blank line immediately after `{` or immediately before `}`.
-- Within a phase, do not insert blank lines.
-- If a function body has multiple phases, insert exactly one blank line before the final `return ...;` statement or the tail expression.
+Treat statements as the same type when they share the same syntactic form or call shape. Examples include:
 
-Phases (in order):
+- Multiple `let` statements.
+- Multiple `if` statements.
+- Multiple `if let` statements.
+- Multiple `match` statements.
+- Multiple `for` statements.
+- Multiple `while` statements.
+- Multiple `loop` statements.
+- Multiple plain macro calls with the same target, such as `println!` grouped with `println!`.
+- Multiple `::` macro calls with the same target path, such as `tracing::info!` grouped with `tracing::info!`.
+- Multiple `::` function calls with the same target path, such as `A::fn(...)` grouped with `A::fn(...)`.
+- Multiple `.` method calls are one group, such as `a.fn(...)`, `a.g(...)`, and `b.fn(...)`.
+- Multiple assignment statements, including compound assignments such as `a = b`, `a += b`, and `a /= b`.
 
-1. **Declarations:** `let` and `let mut` bindings and simple derived values.
-2. **Guards:** validations and early-exit checks (`if`, `if let`, `match`) that return, break, or continue.
-3. **Work:** the main control flow and side effects (loops, I/O, calls that perform the primary action).
-4. **Return:** the final `return ...;` or tail expression.
+Calls with different targets are different statement types for `::` calls and `::` macros. For example, `A::fn(...)` and `aa::fn(...)` are different groups, and `tracing::info!` and `tracing::warn!` are different groups. This distinction does not apply to `.` method calls, which are treated as one group.
+Calls with and without turbofish are treated as the same group target, such as `A::f(...)` and `A::<T>::f(...)`.
+UFCS calls are grouped as `::` targets, such as `<T as A>::f(...)` treated the same as `A::f(...)`.
+Comment lines are ignored for spacing classification. They neither form a statement type nor count as blank lines.
+The checker applies these spacing rules recursively to nested `{}` blocks, except data-like blocks used for literals or field-style item lists.
 
-Additional rules:
-
-- Order declarations by data dependencies. A binding must appear after any binding it reads.
-- Within that constraint, place immutable bindings before mutable bindings.
-- Keep related `tracing::...!` calls contiguous with no blank lines between them, and keep them adjacent to the operation they describe.
-
-Example (use, dependency order):
-
-```rust
-let mut buffer = Vec::new();
-read_into(&mut buffer)?;
-let size = buffer.len();
-```
-
-Example (use):
-
-```rust
-pub fn handle(input: &str) -> color_eyre::eyre::Result<()> {
-	let parsed = parse(input)?;
-	let normalized = normalize(&parsed);
-	let mut stats = Stats::default();
-
-	if normalized.is_empty() {
-		return Err(color_eyre::eyre::eyre!(
-			"Input must not be empty after normalization."
-		));
-	}
-
-	tracing::info!(len = normalized.len(), "Processing input.");
-	process(&normalized, &mut stats)?;
-	tracing::info!(?stats, "Processing completed.");
-
-	Ok(())
-}
-```
-
-Example (avoid):
-
-```rust
-pub fn handle(input: &str) -> color_eyre::eyre::Result<()> {
-
-	let parsed = parse(input)?;
-
-	let normalized = normalize(&parsed);
-
-	let mut stats = Stats::default();
-	if normalized.is_empty() {
-		return Err(color_eyre::eyre::eyre!(
-			"Input must not be empty after normalization."
-		));
-	}
-
-	tracing::info!(len = normalized.len(), "Processing input.");
-
-	process(&normalized, &mut stats)?;
-
-	tracing::info!(?stats, "Processing completed.");
-
-	Ok(())
-}
-```
-
-### Editing Checklist
-
-When you edit a function body, apply this sequence:
-
-1. Remove any decorative blank lines and collapse multiple blank lines to a single blank line.
-2. Re-group the body into the phases above.
-3. Ensure the final `return` or tail expression has exactly one blank line before it (unless the body is a single expression).
+This list is not exhaustive. Apply the same rule to any repeated statement shape.
 
 ## Comments and Documentation
 
@@ -412,7 +316,6 @@ When you edit a function body, apply this sequence:
 Before finalizing a Rust change, ensure the following:
 
 - Functions follow the Readability Rules section.
-- Iterator pipelines follow the Functional Style section.
 - Error boundaries are explicit.
 - Logging uses structured fields.
 - Names convey intent without relying on comments.
@@ -425,3 +328,69 @@ When you claim a Rust change is complete, run the following tasks:
 1. `cargo make fmt-rust`
 2. `cargo make lint-rust`
 3. `cargo make test-rust` when the change affects behavior, not just formatting or comments.
+
+## Style Rule IDs (Checker Mapping)
+
+`scripts/rust_style_check.py` uses the following IDs. Keep these IDs stable so CI output and documentation remain aligned.
+
+### File Structure
+
+- `RUST-STYLE-FILE-001`: Do not use `mod.rs`; use flat module files.
+
+### Module Layout
+
+- `RUST-STYLE-MOD-001`: Keep top-level item order as `mod`, `use`, `macro_rules!`, `type`, `const`, `static`, `trait`, `enum`, `struct`, `impl`, `fn`.
+- `RUST-STYLE-MOD-002`: Place `pub` items before non-`pub` items within the same group.
+- `RUST-STYLE-MOD-003`: Place non-`async` functions before `async` functions at the same visibility.
+- `RUST-STYLE-MOD-005`: Keep type or extension-trait definitions adjacent to related `impl` blocks.
+- `RUST-STYLE-MOD-007`: In `#[cfg(test)] mod tests`, use `use super::*;` unless it is a keep-alive module.
+
+### Serde
+
+- `RUST-STYLE-SERDE-001`: Do not use `#[serde(default)]` on `Option<T>` fields.
+
+### Imports and Paths
+
+- `RUST-STYLE-IMPORT-001`: Group imports by origin in order: standard library, third-party crates, self/workspace crates.
+- `RUST-STYLE-IMPORT-002`: Use exactly one blank line between import groups and no header comments.
+- `RUST-STYLE-IMPORT-003`: Do not alias imports except `as _` in keep-alive test modules.
+- `RUST-STYLE-IMPORT-004`: Do not import free functions or macros into scope; use qualified paths.
+- `RUST-STYLE-IMPORT-005`: In `error.rs`, do not add `use` imports.
+- `RUST-STYLE-IMPORT-006`: Do not qualify standard macros with `std::`.
+- `RUST-STYLE-IMPORT-007`: Avoid redundant `crate::...` imports when `crate::prelude::*` is imported.
+
+### Types and Generics
+
+- `RUST-STYLE-IMPL-001`: In `impl` method signatures, use `Self` instead of the concrete type name.
+- `RUST-STYLE-IMPL-003`: Keep `impl` blocks contiguous and ordered as inherent, standard library traits, third-party traits, then project traits.
+- `RUST-STYLE-GENERICS-001`: Move trait bounds to `where` clauses; do not use inline bounds.
+
+### Logging
+
+- `RUST-STYLE-LOG-002`: Prefer structured logging fields and complete-sentence log messages.
+
+### Runtime Safety
+
+- `RUST-STYLE-RUNTIME-001`: Do not use `unwrap()` in non-test code.
+- `RUST-STYLE-RUNTIME-002`: `expect()` must use a clear, user-actionable string literal message.
+
+### Numeric Literals
+
+- `RUST-STYLE-NUM-001`: Separate numeric literal suffixes with an underscore.
+- `RUST-STYLE-NUM-002`: Use underscore separators for integers with more than three digits.
+
+### Readability
+
+- `RUST-STYLE-READ-002`: Keep functions at or under 120 lines.
+- `RUST-STYLE-READ-003`: Keep happy-path control-flow nesting depth at two levels or less. Extract helpers instead of adding deeper nesting.
+
+### Vertical Spacing
+
+- `RUST-STYLE-SPACE-003`: Do not insert blank lines within the same statement type, and insert exactly one blank line between different statement types.
+- `RUST-STYLE-SPACE-004`: Insert exactly one blank line before each `return` statement and before the final tail expression (unless the body is a single expression).
+
+### Comments and Tests
+
+- `RUST-STYLE-COMMENT-001`: Keep comments as full sentences with capitalization and punctuation.
+- `RUST-STYLE-TEST-001`: Use descriptive `snake_case` test names.
+- `RUST-STYLE-TEST-002`: Reserve `#[cfg(test)] mod _test` for keep-alive imports only.
