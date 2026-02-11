@@ -4,22 +4,6 @@ use elf_config::Postgres;
 use elf_storage::db::Db;
 use elf_testkit::TestDatabase;
 
-#[tokio::test]
-#[ignore = "Requires external Postgres. Set ELF_PG_DSN to run."]
-async fn db_connects_and_bootstraps() {
-	let Some(base_dsn) = elf_testkit::env_dsn() else {
-		eprintln!("Skipping db_connects_and_bootstraps; set ELF_PG_DSN to run this test.");
-
-		return;
-	};
-	let test_db = TestDatabase::new(&base_dsn).await.expect("Failed to create test database.");
-	let cfg = Postgres { dsn: test_db.dsn().to_string(), pool_max_conns: 1 };
-	let db = Db::connect(&cfg).await.expect("Failed to connect to Postgres.");
-
-	db.ensure_schema(4_096).await.expect("Failed to ensure schema.");
-	test_db.cleanup().await.expect("Failed to cleanup test database.");
-}
-
 #[test]
 #[ignore = "Requires external Postgres. Set ELF_PG_DSN to run."]
 fn chunk_tables_exist_after_bootstrap() {
@@ -45,4 +29,20 @@ fn chunk_tables_exist_after_bootstrap() {
 
 		assert_eq!(count, 1);
 	});
+}
+
+#[tokio::test]
+#[ignore = "Requires external Postgres. Set ELF_PG_DSN to run."]
+async fn db_connects_and_bootstraps() {
+	let Some(base_dsn) = elf_testkit::env_dsn() else {
+		eprintln!("Skipping db_connects_and_bootstraps; set ELF_PG_DSN to run this test.");
+
+		return;
+	};
+	let test_db = TestDatabase::new(&base_dsn).await.expect("Failed to create test database.");
+	let cfg = Postgres { dsn: test_db.dsn().to_string(), pool_max_conns: 1 };
+	let db = Db::connect(&cfg).await.expect("Failed to connect to Postgres.");
+
+	db.ensure_schema(4_096).await.expect("Failed to ensure schema.");
+	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }

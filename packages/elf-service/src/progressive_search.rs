@@ -539,6 +539,73 @@ fn truncate_chars(raw: &str, max_chars: usize) -> String {
 	out
 }
 
+fn resolve_read_scopes(cfg: &elf_config::Config, profile: &str) -> Result<Vec<String>> {
+	match profile {
+		"private_only" => Ok(cfg.scopes.read_profiles.private_only.clone()),
+		"private_plus_project" => Ok(cfg.scopes.read_profiles.private_plus_project.clone()),
+		"all_scopes" => Ok(cfg.scopes.read_profiles.all_scopes.clone()),
+		_ => Err(Error::InvalidRequest { message: "Unknown read_profile.".to_string() }),
+	}
+}
+
+fn validate_search_session_access(
+	session: &SearchSession,
+	tenant_id: &str,
+	project_id: &str,
+	agent_id: &str,
+) -> Result<()> {
+	if session.tenant_id != tenant_id
+		|| session.project_id != project_id
+		|| session.agent_id != agent_id
+	{
+		return Err(Error::InvalidRequest { message: "Unknown search_session_id.".to_string() });
+	}
+
+	Ok(())
+}
+
+fn validate_note_access(
+	note: &MemoryNote,
+	session: &SearchSession,
+	allowed_scopes: &[String],
+	now: OffsetDateTime,
+) -> Option<SearchDetailsError> {
+	if note.status != "active" {
+		return Some(SearchDetailsError {
+			code: "NOTE_INACTIVE".to_string(),
+			message: "Note is not active.".to_string(),
+		});
+	}
+	if note.expires_at.map(|ts| ts <= now).unwrap_or(false) {
+		return Some(SearchDetailsError {
+			code: "NOTE_EXPIRED".to_string(),
+			message: "Note is expired.".to_string(),
+		});
+	}
+	if !allowed_scopes.iter().any(|scope| scope == &note.scope) {
+		return Some(SearchDetailsError {
+			code: "SCOPE_DENIED".to_string(),
+			message: "Note scope is not allowed for this read_profile.".to_string(),
+		});
+	}
+	if note.scope == "agent_private" && note.agent_id != session.agent_id {
+		return Some(SearchDetailsError {
+			code: "SCOPE_DENIED".to_string(),
+			message: "Note scope is not allowed for this agent_id.".to_string(),
+		});
+	}
+
+	None
+}
+
+fn hash_query(query: &str) -> String {
+	let mut hasher = DefaultHasher::new();
+
+	Hash::hash(query, &mut hasher);
+
+	format!("{:x}", hasher.finish())
+}
+
 async fn store_search_session<'e, E>(executor: E, session: NewSearchSession<'_>) -> Result<()>
 where
 	E: PgExecutor<'e>,
@@ -664,65 +731,6 @@ where
 	Ok(touched)
 }
 
-fn resolve_read_scopes(cfg: &elf_config::Config, profile: &str) -> Result<Vec<String>> {
-	match profile {
-		"private_only" => Ok(cfg.scopes.read_profiles.private_only.clone()),
-		"private_plus_project" => Ok(cfg.scopes.read_profiles.private_plus_project.clone()),
-		"all_scopes" => Ok(cfg.scopes.read_profiles.all_scopes.clone()),
-		_ => Err(Error::InvalidRequest { message: "Unknown read_profile.".to_string() }),
-	}
-}
-
-fn validate_search_session_access(
-	session: &SearchSession,
-	tenant_id: &str,
-	project_id: &str,
-	agent_id: &str,
-) -> Result<()> {
-	if session.tenant_id != tenant_id
-		|| session.project_id != project_id
-		|| session.agent_id != agent_id
-	{
-		return Err(Error::InvalidRequest { message: "Unknown search_session_id.".to_string() });
-	}
-
-	Ok(())
-}
-
-fn validate_note_access(
-	note: &MemoryNote,
-	session: &SearchSession,
-	allowed_scopes: &[String],
-	now: OffsetDateTime,
-) -> Option<SearchDetailsError> {
-	if note.status != "active" {
-		return Some(SearchDetailsError {
-			code: "NOTE_INACTIVE".to_string(),
-			message: "Note is not active.".to_string(),
-		});
-	}
-	if note.expires_at.map(|ts| ts <= now).unwrap_or(false) {
-		return Some(SearchDetailsError {
-			code: "NOTE_EXPIRED".to_string(),
-			message: "Note is expired.".to_string(),
-		});
-	}
-	if !allowed_scopes.iter().any(|scope| scope == &note.scope) {
-		return Some(SearchDetailsError {
-			code: "SCOPE_DENIED".to_string(),
-			message: "Note scope is not allowed for this read_profile.".to_string(),
-		});
-	}
-	if note.scope == "agent_private" && note.agent_id != session.agent_id {
-		return Some(SearchDetailsError {
-			code: "SCOPE_DENIED".to_string(),
-			message: "Note scope is not allowed for this agent_id.".to_string(),
-		});
-	}
-
-	None
-}
-
 async fn record_detail_hits<'e, E>(
 	executor: E,
 	query: &str,
@@ -804,12 +812,4 @@ FROM hits",
 	.await?;
 
 	Ok(())
-}
-
-fn hash_query(query: &str) -> String {
-	let mut hasher = DefaultHasher::new();
-
-	Hash::hash(query, &mut hasher);
-
-	format!("{:x}", hasher.finish())
 }
