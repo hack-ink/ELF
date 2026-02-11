@@ -245,7 +245,8 @@ fn retrieval_source_weights_must_be_non_negative() {
 		elf_config::validate(&cfg).expect_err("Expected retrieval source weight validation error.");
 
 	assert!(
-		err.to_string().contains("ranking.retrieval_sources.fusion_weight must be zero or greater."),
+		err.to_string()
+			.contains("ranking.retrieval_sources.fusion_weight must be zero or greater."),
 		"Unexpected error: {err}"
 	);
 }
