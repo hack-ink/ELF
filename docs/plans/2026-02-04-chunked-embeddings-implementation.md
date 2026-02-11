@@ -13,6 +13,7 @@
 ### Task 1: Add chunking config and validation
 
 **Files:**
+
 - Modify: `packages/elf-config/src/types.rs`
 - Modify: `packages/elf-config/src/lib.rs`
 - Modify: `elf.example.toml`
@@ -118,6 +119,7 @@ git commit -m '{"schema":"cmsg/1","type":"feat","scope":"config","summary":"Add 
 ### Task 2: Add chunk tables and adjust schema
 
 **Files:**
+
 - Create: `sql/tables/009_memory_note_chunks.sql`
 - Create: `sql/tables/010_note_chunk_embeddings.sql`
 - Modify: `sql/tables/004_memory_hits.sql`
@@ -251,6 +253,7 @@ git commit -m '{"schema":"cmsg/1","type":"feat","scope":"storage","summary":"Add
 ### Task 3: Add chunking utilities and dependencies
 
 **Files:**
+
 - Modify: `Cargo.toml`
 - Modify: `apps/elf-worker/Cargo.toml`
 - Create: `apps/elf-worker/src/chunking.rs`
@@ -302,13 +305,13 @@ Create `apps/elf-worker/src/chunking.rs`:
 use unicode_segmentation::UnicodeSegmentation;
 use tokenizers::Tokenizer;
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct ChunkingConfig {
     pub max_tokens: u32,
     pub overlap_tokens: u32,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct Chunk {
     pub chunk_index: i32,
     pub start_offset: usize,
@@ -381,6 +384,7 @@ git commit -m '{"schema":"cmsg/1","type":"feat","scope":"worker","summary":"Add 
 ### Task 4: Implement chunk-first indexing in worker
 
 **Files:**
+
 - Modify: `apps/elf-worker/src/worker.rs`
 - Modify: `packages/elf-storage/src/models.rs`
 - Modify: `packages/elf-storage/src/queries.rs`
@@ -478,6 +482,7 @@ git commit -m '{"schema":"cmsg/1","type":"feat","scope":"worker","summary":"Inde
 ### Task 5: Update rebuild and search traces for chunks
 
 **Files:**
+
 - Modify: `packages/elf-service/src/admin.rs`
 - Modify: `apps/elf-worker/src/worker.rs`
 - Modify: `sql/tables/006_search_traces.sql`
@@ -524,6 +529,7 @@ git commit -m '{"schema":"cmsg/1","type":"feat","scope":"search","summary":"Rebu
 ### Task 6: Make search chunk-first and add note fetch endpoint
 
 **Files:**
+
 - Modify: `packages/elf-service/src/search.rs`
 - Modify: `packages/elf-service/src/list.rs`
 - Create: `packages/elf-service/src/notes.rs`
@@ -572,6 +578,7 @@ pub struct SearchItem {
 ```
 
 Adjust search pipeline:
+
 - Parse Qdrant payload for `chunk_id`, `chunk_index`, `start_offset`, `end_offset`.
 - Load chunk text from `memory_note_chunks` for snippet stitching.
 - Rerank chunk snippets (chunk + neighbors).
@@ -608,6 +615,7 @@ git commit -m '{"schema":"cmsg/1","type":"feat","scope":"api","summary":"Return 
 ### Task 7: Update specs and docs
 
 **Files:**
+
 - Modify: `docs/spec/system_elf_memory_service_v1.md`
 - Modify: `docs/guide/integration-testing.md`
 
