@@ -512,6 +512,7 @@ impl SearchTraceBuilder {
 			created_at: now,
 			expires_at: now + Duration::days(retention_days),
 		};
+
 		Self { trace, items: Vec::new(), candidates: Vec::new() }
 	}
 
@@ -1075,6 +1076,7 @@ ORDER BY rank ASC",
 					message: "Embedding provider returned mismatched vector count.".to_string(),
 				});
 			}
+
 			embedded.into_iter()
 		};
 		let mut out = Vec::with_capacity(queries.len());
@@ -1100,6 +1102,7 @@ ORDER BY rank ASC",
 
 			out.push(QueryEmbedding { text: query.clone(), vector });
 		}
+
 		Ok(out)
 	}
 
@@ -1157,6 +1160,7 @@ ORDER BY rank ASC",
 						cache_kind = CacheKind::Expansion.as_str(),
 						"Cache key build failed."
 					);
+
 					None
 				},
 			}
@@ -1186,6 +1190,7 @@ ORDER BY rank ASC",
 								cache_key_prefix = ranking::cache_key_prefix(key),
 								"Cache payload decode failed."
 							);
+
 							ExpansionCachePayload { queries: Vec::new() }
 						},
 					};

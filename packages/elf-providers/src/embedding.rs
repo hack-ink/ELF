@@ -11,6 +11,7 @@ pub async fn embed(
 ) -> Result<Vec<Vec<f32>>> {
 	if cfg.provider_id == "local" {
 		let dim = cfg.dimensions as usize;
+
 		return Ok(texts.iter().map(|text| local_embed(dim, text)).collect());
 	}
 
@@ -63,6 +64,7 @@ fn local_embed(dim: usize, text: &str) -> Vec<f32> {
 	}
 
 	l2_normalize(&mut vec);
+
 	vec
 }
 
@@ -76,6 +78,7 @@ fn normalize_ascii_alnum_lowercase(text: &str) -> String {
 			normalized.push(' ');
 		}
 	}
+
 	normalized
 }
 

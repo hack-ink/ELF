@@ -80,6 +80,7 @@ FOR UPDATE",
 			if cjk::contains_cjk(text) {
 				return Err(Error::NonEnglishInput { field: "$.text".to_string() });
 			}
+
 			text.clone()
 		} else {
 			note.text.clone()

@@ -72,6 +72,7 @@ pub fn split_text(text: &str, cfg: &ChunkingConfig, tokenizer: &Tokenizer) -> Ve
 			text: current,
 		});
 	}
+
 	chunks
 }
 

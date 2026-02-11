@@ -405,6 +405,7 @@ pub fn build_rerank_ranks(items: &[ChunkSnippet], scores: &[f32]) -> Vec<u32> {
 		if ord != Ordering::Equal {
 			return ord;
 		}
+
 		items[a].chunk.chunk_id.cmp(&items[b].chunk.chunk_id)
 	});
 

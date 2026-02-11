@@ -6,6 +6,7 @@ where
 	S: Serializer,
 {
 	let formatted = value.format(&Rfc3339).map_err(SerError::custom)?;
+
 	serializer.serialize_str(&formatted)
 }
 
@@ -14,6 +15,7 @@ where
 	D: Deserializer<'de>,
 {
 	let raw = String::deserialize(deserializer)?;
+
 	OffsetDateTime::parse(&raw, &Rfc3339).map_err(DeError::custom)
 }
 

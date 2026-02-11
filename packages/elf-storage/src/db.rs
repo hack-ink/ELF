@@ -10,6 +10,7 @@ impl Db {
 	pub async fn connect(cfg: &elf_config::Postgres) -> Result<Self> {
 		let pool =
 			PgPoolOptions::new().max_connections(cfg.pool_max_conns).connect(&cfg.dsn).await?;
+
 		Ok(Self { pool })
 	}
 
@@ -33,6 +34,7 @@ impl Db {
 		}
 
 		tx.commit().await?;
+
 		Ok(())
 	}
 }

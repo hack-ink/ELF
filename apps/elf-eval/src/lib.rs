@@ -1072,6 +1072,7 @@ fn percentile(values: &[f64], percentile: f64) -> f64 {
 		values[lower]
 	} else {
 		let weight = pos - lower as f64;
+
 		values[lower] * (1.0 - weight) + values[upper] * weight
 	}
 }
