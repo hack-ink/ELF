@@ -35,7 +35,6 @@ pub struct NoteFetchResponse {
 	#[serde(with = "crate::time_serde::option")]
 	pub expires_at: Option<OffsetDateTime>,
 	pub source_ref: Value,
-	#[serde(default)]
 	pub structured: Option<StructuredFields>,
 }
 

@@ -40,7 +40,7 @@ struct TracePayload {
 
 #[derive(Debug, Deserialize)]
 struct TraceRecord {
-	trace_id: uuid::Uuid,
+	trace_id: Uuid,
 	tenant_id: String,
 	project_id: String,
 	agent_id: String,
@@ -59,10 +59,9 @@ struct TraceRecord {
 
 #[derive(Debug, Deserialize)]
 struct TraceItemRecord {
-	item_id: uuid::Uuid,
-	note_id: uuid::Uuid,
-	#[serde(default)]
-	chunk_id: Option<uuid::Uuid>,
+	item_id: Uuid,
+	note_id: Uuid,
+	chunk_id: Option<Uuid>,
 	rank: u32,
 	final_score: f32,
 	explain: serde_json::Value,
@@ -70,9 +69,9 @@ struct TraceItemRecord {
 
 #[derive(Debug, Deserialize)]
 struct TraceCandidateRecord {
-	candidate_id: uuid::Uuid,
-	note_id: uuid::Uuid,
-	chunk_id: uuid::Uuid,
+	candidate_id: Uuid,
+	note_id: Uuid,
+	chunk_id: Uuid,
 	#[serde(default)]
 	chunk_index: i32,
 	#[serde(default)]
@@ -86,32 +85,31 @@ struct TraceCandidateRecord {
 	note_updated_at: OffsetDateTime,
 	#[serde(default)]
 	note_hit_count: i64,
-	#[serde(default)]
 	note_last_hit_at: Option<OffsetDateTime>,
 	created_at: OffsetDateTime,
 	expires_at: OffsetDateTime,
 }
 
 struct TraceOutboxJob {
-	outbox_id: uuid::Uuid,
-	trace_id: uuid::Uuid,
+	outbox_id: Uuid,
+	trace_id: Uuid,
 	payload: serde_json::Value,
 	attempts: i32,
 }
 
 struct TraceItemInsert {
-	item_id: uuid::Uuid,
-	note_id: uuid::Uuid,
-	chunk_id: Option<uuid::Uuid>,
+	item_id: Uuid,
+	note_id: Uuid,
+	chunk_id: Option<Uuid>,
 	rank: i32,
 	final_score: f32,
 	explain: serde_json::Value,
 }
 
 struct TraceCandidateInsert {
-	candidate_id: uuid::Uuid,
-	note_id: uuid::Uuid,
-	chunk_id: uuid::Uuid,
+	candidate_id: Uuid,
+	note_id: Uuid,
+	chunk_id: Uuid,
 	chunk_index: i32,
 	snippet: String,
 	candidate_snapshot: serde_json::Value,
@@ -127,7 +125,7 @@ struct TraceCandidateInsert {
 }
 
 struct ChunkRecord {
-	chunk_id: uuid::Uuid,
+	chunk_id: Uuid,
 	chunk_index: i32,
 	start_offset: i32,
 	end_offset: i32,
@@ -199,7 +197,7 @@ fn note_is_active(note: &MemoryNote, now: OffsetDateTime) -> bool {
 	true
 }
 
-fn build_chunk_records(note_id: uuid::Uuid, chunks: &[Chunk]) -> Result<Vec<ChunkRecord>> {
+fn build_chunk_records(note_id: Uuid, chunks: &[Chunk]) -> Result<Vec<ChunkRecord>> {
 	let mut records = Vec::with_capacity(chunks.len());
 
 	for chunk in chunks {
@@ -218,7 +216,7 @@ fn build_chunk_records(note_id: uuid::Uuid, chunks: &[Chunk]) -> Result<Vec<Chun
 	Ok(records)
 }
 
-fn chunk_id_for(note_id: uuid::Uuid, chunk_index: i32) -> uuid::Uuid {
+fn chunk_id_for(note_id: Uuid, chunk_index: i32) -> Uuid {
 	let name = format!("{note_id}:{chunk_index}");
 
 	Uuid::new_v5(&Uuid::NAMESPACE_OID, name.as_bytes())
@@ -327,6 +325,7 @@ fn sanitize_outbox_error(text: &str) -> String {
 
 	if out.chars().count() > MAX_OUTBOX_ERROR_CHARS {
 		out = out.chars().take(MAX_OUTBOX_ERROR_CHARS).collect();
+
 		out.push_str("...");
 	}
 
@@ -367,8 +366,9 @@ async fn process_indexing_outbox_once(state: &WorkerState) -> Result<()> {
 			mark_done(&state.db, job.outbox_id).await?;
 		},
 		Err(err) => {
-			mark_failed(&state.db, job.outbox_id, job.attempts, &err).await?;
 			tracing::error!(error = %err, outbox_id = %job.outbox_id, "Outbox job failed.");
+
+			mark_failed(&state.db, job.outbox_id, job.attempts, &err).await?;
 		},
 	}
 
@@ -386,8 +386,9 @@ async fn process_trace_outbox_once(state: &WorkerState) -> Result<()> {
 			mark_trace_done(&state.db, job.outbox_id).await?;
 		},
 		Err(err) => {
-			mark_trace_failed(&state.db, job.outbox_id, job.attempts, &err).await?;
 			tracing::error!(error = %err, trace_id = %job.trace_id, "Search trace outbox job failed.");
+
+			mark_trace_failed(&state.db, job.outbox_id, job.attempts, &err).await?;
 		},
 	}
 
@@ -823,7 +824,7 @@ async fn purge_expired_search_sessions(db: &Db, now: OffsetDateTime) -> Result<(
 	Ok(())
 }
 
-async fn fetch_note(db: &Db, note_id: uuid::Uuid) -> Result<Option<MemoryNote>> {
+async fn fetch_note(db: &Db, note_id: Uuid) -> Result<Option<MemoryNote>> {
 	let note =
 		sqlx::query_as!(MemoryNote, "SELECT * FROM memory_notes WHERE note_id = $1", note_id,)
 			.fetch_optional(&db.pool)
@@ -834,11 +835,11 @@ async fn fetch_note(db: &Db, note_id: uuid::Uuid) -> Result<Option<MemoryNote>> 
 
 #[derive(Debug)]
 struct NoteFieldRow {
-	field_id: uuid::Uuid,
+	field_id: Uuid,
 	text: String,
 }
 
-async fn fetch_note_fields(db: &Db, note_id: uuid::Uuid) -> Result<Vec<NoteFieldRow>> {
+async fn fetch_note_fields(db: &Db, note_id: Uuid) -> Result<Vec<NoteFieldRow>> {
 	let rows = sqlx::query_as!(
 		NoteFieldRow,
 		"\
@@ -856,7 +857,7 @@ ORDER BY field_kind ASC, item_index ASC",
 
 async fn insert_embedding_tx<'e, E>(
 	executor: E,
-	note_id: uuid::Uuid,
+	note_id: Uuid,
 	embedding_version: &str,
 	embedding_dim: i32,
 	vec: &[f32],
@@ -893,7 +894,7 @@ SET
 
 async fn insert_note_field_embedding_tx<'e, E>(
 	executor: E,
-	field_id: uuid::Uuid,
+	field_id: Uuid,
 	embedding_version: &str,
 	embedding_dim: i32,
 	vec: &[f32],
@@ -928,7 +929,7 @@ SET
 	Ok(())
 }
 
-async fn delete_qdrant_note_points(state: &WorkerState, note_id: uuid::Uuid) -> Result<()> {
+async fn delete_qdrant_note_points(state: &WorkerState, note_id: Uuid) -> Result<()> {
 	let filter = Filter::must([Condition::matches("note_id", note_id.to_string())]);
 	let delete =
 		DeletePointsBuilder::new(state.qdrant.collection.clone()).points(filter).wait(true);
@@ -1018,7 +1019,7 @@ async fn upsert_qdrant_chunks(
 	Ok(())
 }
 
-async fn mark_done(db: &Db, outbox_id: uuid::Uuid) -> Result<()> {
+async fn mark_done(db: &Db, outbox_id: Uuid) -> Result<()> {
 	let now = OffsetDateTime::now_utc();
 
 	sqlx::query!(
@@ -1032,7 +1033,7 @@ async fn mark_done(db: &Db, outbox_id: uuid::Uuid) -> Result<()> {
 	Ok(())
 }
 
-async fn mark_trace_done(db: &Db, outbox_id: uuid::Uuid) -> Result<()> {
+async fn mark_trace_done(db: &Db, outbox_id: Uuid) -> Result<()> {
 	let now = OffsetDateTime::now_utc();
 
 	sqlx::query!(
@@ -1046,7 +1047,7 @@ async fn mark_trace_done(db: &Db, outbox_id: uuid::Uuid) -> Result<()> {
 	Ok(())
 }
 
-async fn mark_failed(db: &Db, outbox_id: uuid::Uuid, attempts: i32, err: &Error) -> Result<()> {
+async fn mark_failed(db: &Db, outbox_id: Uuid, attempts: i32, err: &Error) -> Result<()> {
 	let next_attempts = attempts.saturating_add(1);
 	let backoff = backoff_for_attempt(next_attempts);
 	let now = OffsetDateTime::now_utc();
@@ -1074,12 +1075,7 @@ WHERE outbox_id = $5",
 	Ok(())
 }
 
-async fn mark_trace_failed(
-	db: &Db,
-	outbox_id: uuid::Uuid,
-	attempts: i32,
-	err: &Error,
-) -> Result<()> {
+async fn mark_trace_failed(db: &Db, outbox_id: Uuid, attempts: i32, err: &Error) -> Result<()> {
 	let next_attempts = attempts.saturating_add(1);
 	let backoff = backoff_for_attempt(next_attempts);
 	let now = OffsetDateTime::now_utc();

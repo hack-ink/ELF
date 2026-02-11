@@ -366,9 +366,7 @@ pub struct Security {
 	pub evidence_min_quotes: u32,
 	pub evidence_max_quotes: u32,
 	pub evidence_max_quote_chars: u32,
-	#[serde(default)]
 	pub api_auth_token: Option<String>,
-	#[serde(default)]
 	pub admin_auth_token: Option<String>,
 }
 

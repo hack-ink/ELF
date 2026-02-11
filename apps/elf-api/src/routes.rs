@@ -73,7 +73,6 @@ struct SearchCreateRequest {
 	query: String,
 	top_k: Option<u32>,
 	candidate_k: Option<u32>,
-	#[serde(default)]
 	ranking: Option<RankingRequestOverride>,
 }
 
