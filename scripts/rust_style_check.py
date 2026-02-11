@@ -18,7 +18,7 @@ INLINE_BOUNDS_RE = re.compile(
     r"^\s*(?:pub(?:\([^)]*\))?\s+)?(?:fn|impl|struct|enum|trait)\b[^\n{;]*<[^>{}]*:[^>{}]*>"
 )
 STD_QUALIFIED_MACRO_RE = re.compile(r"\bstd::(vec|format|println|eprintln|dbg|write|writeln)!\s*\(")
-EXPECT_CALL_RE = re.compile(r"\.expect\s*\((.*)\)")
+EXPECT_CALL_RE = re.compile(r"\.expect\s*\((.*?)\)")
 UNWRAP_CALL_RE = re.compile(r"\.unwrap\s*\(")
 NUM_SUFFIX_RE = re.compile(r"\b\d+(?:\.\d+)?(f32|f64|i8|i16|i32|i64|i128|isize|u8|u16|u32|u64|u128|usize)\b")
 PLAIN_INT_RE = re.compile(r"\b[1-9]\d{3,}\b")
@@ -184,6 +184,42 @@ def strip_string_and_line_comment_with_state(line: str, in_str: bool) -> tuple[s
         i += 1
 
     return "".join(out), in_str
+
+
+def strip_line_comment_preserve_strings(line: str) -> str:
+    out: list[str] = []
+    in_str = False
+    escape = False
+    i = 0
+
+    while i < len(line):
+        ch = line[i]
+        nxt = line[i + 1] if i + 1 < len(line) else ""
+
+        if in_str:
+            if escape:
+                escape = False
+            elif ch == "\\":
+                escape = True
+            elif ch == '"':
+                in_str = False
+            out.append(ch)
+            i += 1
+            continue
+
+        if ch == '"':
+            in_str = True
+            out.append(ch)
+            i += 1
+            continue
+
+        if ch == "/" and nxt == "/":
+            break
+
+        out.append(ch)
+        i += 1
+
+    return "".join(out)
 
 
 def strip_string_and_line_comment(line: str) -> str:
@@ -1577,6 +1613,7 @@ def check_expect_unwrap(file: Path, lines: list[str]) -> list[Violation]:
 
     for idx, line in enumerate(lines, start=1):
         code = strip_string_and_line_comment(line)
+        code_with_strings = strip_line_comment_preserve_strings(line)
 
         if UNWRAP_CALL_RE.search(code):
             violations.append(
@@ -1588,7 +1625,7 @@ def check_expect_unwrap(file: Path, lines: list[str]) -> list[Violation]:
                 )
             )
 
-        expect_match = EXPECT_CALL_RE.search(code)
+        expect_match = EXPECT_CALL_RE.search(code_with_strings)
         if expect_match:
             msg = expect_match.group(1).strip()
             if not (msg.startswith('"') and msg.endswith('"')):

@@ -3607,7 +3607,7 @@ mod tests {
 		let root_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
 		let path = root_dir.join("elf.example.toml");
 
-		elf_config::load(&path).expect("elf.example.toml must remain parseable and valid.")
+		elf_config::load(&path).expect("The elf.example.toml file must remain parseable and valid.")
 	}
 
 	#[test]
