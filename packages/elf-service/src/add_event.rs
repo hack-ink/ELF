@@ -58,7 +58,6 @@ struct ExtractedNote {
 	pub r#type: Option<String>,
 	pub key: Option<String>,
 	pub text: Option<String>,
-	#[serde(default)]
 	pub structured: Option<StructuredFields>,
 	pub importance: Option<f32>,
 	pub confidence: Option<f32>,

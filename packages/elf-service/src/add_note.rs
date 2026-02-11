@@ -29,7 +29,6 @@ pub struct AddNoteInput {
 	pub r#type: String,
 	pub key: Option<String>,
 	pub text: String,
-	#[serde(default)]
 	pub structured: Option<StructuredFields>,
 	pub importance: f32,
 	pub confidence: f32,

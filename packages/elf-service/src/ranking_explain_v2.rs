@@ -10,7 +10,7 @@ pub const SEARCH_RANKING_EXPLAIN_SCHEMA_V2: &str = "search_ranking_explain/v2";
 pub struct SearchRankingTerm {
 	pub name: String,
 	pub value: f32,
-	#[serde(default, skip_serializing_if = "Option::is_none")]
+	#[serde(skip_serializing_if = "Option::is_none")]
 	pub inputs: Option<BTreeMap<String, serde_json::Value>>,
 }
 

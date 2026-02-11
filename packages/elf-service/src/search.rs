@@ -58,17 +58,13 @@ pub struct SearchRequest {
 	pub top_k: Option<u32>,
 	pub candidate_k: Option<u32>,
 	pub record_hits: Option<bool>,
-	#[serde(default)]
 	pub ranking: Option<RankingRequestOverride>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RankingRequestOverride {
-	#[serde(default)]
 	pub blend: Option<BlendRankingOverride>,
-	#[serde(default)]
 	pub diversity: Option<DiversityRankingOverride>,
-	#[serde(default)]
 	pub retrieval_sources: Option<RetrievalSourcesRankingOverride>,
 }
 
@@ -106,7 +102,7 @@ pub struct RetrievalSourcesRankingOverride {
 pub struct SearchExplain {
 	pub r#match: SearchMatchExplain,
 	pub ranking: SearchRankingExplain,
-	#[serde(default, skip_serializing_if = "Option::is_none")]
+	#[serde(skip_serializing_if = "Option::is_none")]
 	pub diversity: Option<SearchDiversityExplain>,
 }
 
@@ -120,13 +116,13 @@ pub struct SearchMatchExplain {
 pub struct SearchDiversityExplain {
 	pub enabled: bool,
 	pub selected_reason: String,
-	#[serde(default, skip_serializing_if = "Option::is_none")]
+	#[serde(skip_serializing_if = "Option::is_none")]
 	pub skipped_reason: Option<String>,
-	#[serde(default, skip_serializing_if = "Option::is_none")]
+	#[serde(skip_serializing_if = "Option::is_none")]
 	pub nearest_selected_note_id: Option<Uuid>,
-	#[serde(default, skip_serializing_if = "Option::is_none")]
+	#[serde(skip_serializing_if = "Option::is_none")]
 	pub similarity: Option<f32>,
-	#[serde(default, skip_serializing_if = "Option::is_none")]
+	#[serde(skip_serializing_if = "Option::is_none")]
 	pub mmr_score: Option<f32>,
 	#[serde(default)]
 	pub missing_embedding: bool,
@@ -242,21 +238,13 @@ pub struct TraceReplayCandidate {
 	pub note_hit_count: i64,
 	#[serde(with = "crate::time_serde::option")]
 	pub note_last_hit_at: Option<OffsetDateTime>,
-	#[serde(default)]
 	pub diversity_selected: Option<bool>,
-	#[serde(default)]
 	pub diversity_selected_rank: Option<u32>,
-	#[serde(default)]
 	pub diversity_selected_reason: Option<String>,
-	#[serde(default)]
 	pub diversity_skipped_reason: Option<String>,
-	#[serde(default)]
 	pub diversity_nearest_selected_note_id: Option<Uuid>,
-	#[serde(default)]
 	pub diversity_similarity: Option<f32>,
-	#[serde(default)]
 	pub diversity_mmr_score: Option<f32>,
-	#[serde(default)]
 	pub diversity_missing_embedding: Option<bool>,
 }
 
