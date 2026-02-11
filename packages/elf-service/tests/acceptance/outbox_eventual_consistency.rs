@@ -28,15 +28,12 @@ struct OutboxRow {
 	last_error: Option<String>,
 }
 
-async fn wait_for_status<'e, E>(
-	executor: E,
+async fn wait_for_status(
+	pool: &sqlx::PgPool,
 	note_id: Uuid,
 	status: &str,
 	timeout: Duration,
-) -> Option<OutboxRow>
-where
-	E: sqlx::Executor<'e, Database = sqlx::Postgres> + Copy,
-{
+) -> Option<OutboxRow> {
 	let deadline = Instant::now() + timeout;
 	loop {
 		let row: Option<OutboxRow> = sqlx::query_as::<_, OutboxRow>(
@@ -49,7 +46,7 @@ FROM indexing_outbox
 WHERE note_id = $1",
 		)
 		.bind(note_id)
-		.fetch_optional(executor)
+		.fetch_optional(pool)
 		.await
 		.ok()
 		.flatten();
