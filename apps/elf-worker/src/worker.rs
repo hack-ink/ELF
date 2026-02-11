@@ -30,6 +30,14 @@ const TRACE_CLEANUP_INTERVAL_SECONDS: i64 = 900;
 const TRACE_OUTBOX_LEASE_SECONDS: i64 = 30;
 const MAX_OUTBOX_ERROR_CHARS: usize = 1_024;
 
+pub struct WorkerState {
+	pub db: Db,
+	pub qdrant: QdrantStore,
+	pub embedding: elf_config::EmbeddingProviderConfig,
+	pub chunking: ChunkingConfig,
+	pub tokenizer: Tokenizer,
+}
+
 #[derive(Debug, Deserialize)]
 struct TracePayload {
 	trace: TraceRecord,
@@ -130,14 +138,6 @@ struct ChunkRecord {
 	start_offset: i32,
 	end_offset: i32,
 	text: String,
-}
-
-pub struct WorkerState {
-	pub db: Db,
-	pub qdrant: QdrantStore,
-	pub embedding: elf_config::EmbeddingProviderConfig,
-	pub chunking: ChunkingConfig,
-	pub tokenizer: Tokenizer,
 }
 
 pub async fn run_worker(state: WorkerState) -> Result<()> {

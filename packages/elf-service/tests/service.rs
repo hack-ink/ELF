@@ -19,7 +19,6 @@ use elf_service::{
 use elf_storage::{db::Db, qdrant::QdrantStore};
 
 struct DummyEmbedding;
-
 impl EmbeddingProvider for DummyEmbedding {
 	fn embed<'a>(
 		&'a self,
@@ -34,7 +33,6 @@ impl EmbeddingProvider for DummyEmbedding {
 }
 
 struct DummyRerank;
-
 impl RerankProvider for DummyRerank {
 	fn rerank<'a>(
 		&'a self,
