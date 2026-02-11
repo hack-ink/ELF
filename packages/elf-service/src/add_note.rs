@@ -100,6 +100,7 @@ impl ElfService {
 					op: NoteOp::Rejected,
 					reason_code: Some(REJECT_STRUCTURED_INVALID.to_string()),
 				});
+
 				tracing::info!(error = %err, "Rejecting note due to invalid structured fields.");
 
 				continue;
@@ -280,7 +281,6 @@ VALUES (
 							ttl::compute_expires_at(Some(ttl), &note.r#type, &self.cfg, now),
 						None => existing.expires_at,
 					};
-
 					let expires_match = if let Some(ttl_days) = requested_ttl {
 						match existing.expires_at {
 							Some(existing_expires_at) => {
@@ -396,6 +396,7 @@ WHERE note_id = $7",
 							op: NoteOp::Update,
 							reason_code: None,
 						});
+
 						continue;
 					}
 

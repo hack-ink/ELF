@@ -361,6 +361,7 @@ pub fn resolve_retrieval_sources_policy(
 			});
 		}
 	}
+
 	if fusion_weight <= 0.0 && structured_field_weight <= 0.0 {
 		return Err(Error::InvalidRequest {
 			message: "At least one retrieval source weight must be greater than zero.".to_string(),

@@ -447,7 +447,6 @@ WHERE trace_id = $1",
 		)
 		.fetch_one(&db.pool)
 		.await?;
-
 		let candidate_rows: Vec<TraceCompareCandidateRow> = sqlx::query_as!(
 			TraceCompareCandidateRow,
 			"\
@@ -643,7 +642,6 @@ async fn eval_config(
 
 	let qdrant = QdrantStore::new(&config.storage.qdrant)?;
 	let service = ElfService::new(config, db, qdrant);
-
 	let defaults = dataset.defaults.clone().unwrap_or(EvalDefaults {
 		tenant_id: None,
 		project_id: None,
@@ -653,12 +651,10 @@ async fn eval_config(
 		candidate_k: None,
 		ranking: None,
 	});
-
 	let mut reports = Vec::with_capacity(dataset.queries.len());
 	let mut latencies_ms = Vec::with_capacity(dataset.queries.len());
 	let mut stability_positional = Vec::new();
 	let mut stability_set = Vec::new();
-
 	let runs_per_query = args.runs_per_query.max(1);
 
 	for (index, query) in dataset.queries.iter().enumerate() {
@@ -691,7 +687,6 @@ async fn eval_config(
 			retrieved_note_ids: retrieved,
 			stability,
 		});
-
 		latencies_ms.push(latency_ms);
 	}
 
@@ -701,6 +696,7 @@ async fn eval_config(
 		let count = stability_positional.len().max(1) as f64;
 		let avg_positional_churn_at_k = stability_positional.iter().sum::<f64>() / count;
 		let avg_set_churn_at_k = stability_set.iter().sum::<f64>() / count;
+
 		summary.stability = Some(StabilitySummary {
 			runs_per_query,
 			avg_positional_churn_at_k,
@@ -739,7 +735,6 @@ async fn run_query_n_times(
 ) -> color_eyre::Result<(SearchIndexResponse, f64, Option<QueryStability>, Vec<Uuid>)> {
 	let k = request.top_k.unwrap_or(1).max(1) as usize;
 	let runs = runs_per_query.max(1);
-
 	let mut first_response: Option<SearchIndexResponse> = None;
 	let mut first_retrieved: Vec<Uuid> = Vec::new();
 	let mut trace_ids: Vec<Uuid> = Vec::with_capacity(runs as usize);
@@ -754,6 +749,7 @@ async fn run_query_n_times(
 		let latency_ms = start.elapsed().as_secs_f64() * 1_000.0;
 
 		latency_total_ms += latency_ms;
+
 		trace_ids.push(response.trace_id);
 
 		let retrieved = unique_ids(response.items.iter().map(|item| item.note_id));
@@ -761,6 +757,7 @@ async fn run_query_n_times(
 		if run_idx == 0 {
 			first_retrieved = retrieved;
 			first_response = Some(response);
+
 			continue;
 		}
 
@@ -793,12 +790,12 @@ async fn run_query_n_times(
 
 fn churn_against_baseline_at_k(baseline: &[Uuid], other: &[Uuid], k: usize) -> (f64, f64) {
 	let k = k.max(1);
-
 	let mut positional_diff = 0usize;
 
 	for idx in 0..k {
 		let a = baseline.get(idx);
 		let b = other.get(idx);
+
 		if a != b {
 			positional_diff += 1;
 		}
@@ -994,7 +991,6 @@ where
 
 fn compute_metrics(retrieved: &[Uuid], expected: &HashSet<Uuid>) -> Metrics {
 	let expected_count = expected.len();
-
 	let mut relevant_count = 0usize;
 	let mut dcg = 0.0_f64;
 	let mut rr = 0.0_f64;
@@ -1003,9 +999,12 @@ fn compute_metrics(retrieved: &[Uuid], expected: &HashSet<Uuid>) -> Metrics {
 	for (idx, id) in retrieved.iter().enumerate() {
 		if expected.contains(id) {
 			relevant_count += 1;
+
 			let rank = idx + 1;
 			let denom = (rank as f64 + 1.0).log2();
+
 			dcg += 1.0 / denom;
+
 			if first_hit.is_none() {
 				first_hit = Some(rank);
 			}
@@ -1017,12 +1016,12 @@ fn compute_metrics(retrieved: &[Uuid], expected: &HashSet<Uuid>) -> Metrics {
 	}
 
 	let ideal_hits = expected_count.min(retrieved.len());
-
 	let mut idcg = 0.0_f64;
 
 	for idx in 0..ideal_hits {
 		let rank = idx + 1;
 		let denom = (rank as f64 + 1.0).log2();
+
 		idcg += 1.0 / denom;
 	}
 
@@ -1041,7 +1040,6 @@ fn summarize(reports: &[QueryReport], latencies_ms: &[f64]) -> EvalSummary {
 	let avg_precision_at_k = reports.iter().map(|r| r.precision_at_k).sum::<f64>() / count;
 	let mean_rr = reports.iter().map(|r| r.rr).sum::<f64>() / count;
 	let mean_ndcg = reports.iter().map(|r| r.ndcg).sum::<f64>() / count;
-
 	let mut sorted = latencies_ms.to_vec();
 
 	sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));

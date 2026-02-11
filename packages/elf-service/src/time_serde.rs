@@ -35,6 +35,7 @@ pub mod option {
 		D: Deserializer<'de>,
 	{
 		let raw = Option::<String>::deserialize(deserializer)?;
+
 		match raw {
 			Some(value) =>
 				OffsetDateTime::parse(&value, &Rfc3339).map(Some).map_err(DeError::custom),

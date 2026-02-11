@@ -37,7 +37,6 @@ impl ElfService {
 				message: "tenant_id, project_id, and agent_id are required.".to_string(),
 			});
 		}
-
 		if req.text.is_none()
 			&& req.importance.is_none()
 			&& req.confidence.is_none()
@@ -146,6 +145,7 @@ WHERE note_id = $6",
 		)
 		.execute(&mut *tx)
 		.await?;
+
 		crate::insert_version(
 			&mut *tx,
 			InsertVersionArgs {

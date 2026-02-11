@@ -150,11 +150,13 @@ VALUES ($1, $2, $3, $4, $5, $6, $7)",
 
 	let vec_text = {
 		let mut buf = String::with_capacity(2 + (4_096 * 2));
+
 		buf.push('[');
 		for i in 0..4_096 {
 			if i > 0 {
 				buf.push(',');
 			}
+
 			buf.push('0');
 		}
 		buf.push(']');
@@ -177,9 +179,7 @@ VALUES ($1, $2, $3, $4::text::vector)",
 	let report = service.rebuild_qdrant().await.expect("Rebuild failed.");
 
 	assert_eq!(report.missing_vector_count, 0);
-
 	assert!(report.rebuilt_count >= 1);
-
 	assert_eq!(embed_calls.load(Ordering::SeqCst), 0);
 
 	test_db.cleanup().await.expect("Failed to cleanup test database.");

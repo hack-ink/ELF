@@ -116,6 +116,7 @@ impl ExtractorProvider for SpyExtractor {
 		_messages: &'a [Value],
 	) -> elf_service::BoxFuture<'a, elf_service::Result<Value>> {
 		let payload = self.payload.clone();
+
 		self.calls.fetch_add(1, Ordering::SeqCst);
 		Box::pin(async move { Ok(payload) })
 	}
@@ -292,7 +293,6 @@ async fn reset_qdrant_collection(
 	vector_dim: u32,
 ) -> AcceptanceResult<()> {
 	let max_attempts = 8;
-
 	let mut backoff = Duration::from_millis(100);
 	let mut last_err = None;
 
@@ -320,10 +320,13 @@ async fn reset_qdrant_collection(
 			Ok(_) => return Ok(()),
 			Err(err) => {
 				last_err = Some(err);
+
 				if attempt == max_attempts {
 					break;
 				}
+
 				time::sleep(backoff).await;
+
 				backoff = backoff.saturating_mul(2).min(Duration::from_secs(2));
 			},
 		}

@@ -77,7 +77,6 @@ WHERE n.status = 'active' AND (n.expires_at IS NULL OR n.expires_at > $1)",
 		)
 		.fetch_all(&self.db.pool)
 		.await?;
-
 		let mut rebuilt_count = 0u64;
 		let mut missing_vector_count = 0u64;
 		let mut error_count = 0u64;
@@ -85,21 +84,26 @@ WHERE n.status = 'active' AND (n.expires_at IS NULL OR n.expires_at > $1)",
 		for row in rows {
 			let Some(vec_text) = row.vec_text else {
 				missing_vector_count += 1;
+
 				continue;
 			};
 			let vec = match crate::parse_pg_vector(&vec_text) {
 				Ok(vec) => vec,
 				Err(_) => {
 					error_count += 1;
+
 					continue;
 				},
 			};
+
 			if vec.len() != self.cfg.storage.qdrant.vector_dim as usize {
 				error_count += 1;
+
 				continue;
 			}
 
 			let mut payload = Payload::new();
+
 			payload.insert("note_id", row.note_id.to_string());
 			payload.insert("chunk_id", row.chunk_id.to_string());
 			payload.insert("chunk_index", Value::from(row.chunk_index));
@@ -113,21 +117,25 @@ WHERE n.status = 'active' AND (n.expires_at IS NULL OR n.expires_at > $1)",
 			payload.insert("key", row.key.map(Value::String).unwrap_or(Value::Null));
 			payload.insert("status", row.status);
 			payload.insert("updated_at", Value::String(format_timestamp(row.updated_at)?));
+
 			let expires_value = match row.expires_at {
 				Some(ts) => Value::String(format_timestamp(ts)?),
 				None => Value::Null,
 			};
+
 			payload.insert("expires_at", expires_value);
 			payload.insert("importance", Value::from(row.importance as f64));
 			payload.insert("confidence", Value::from(row.confidence as f64));
 			payload.insert("embedding_version", row.embedding_version.clone());
 
 			let mut vectors = HashMap::new();
+
 			vectors.insert(DENSE_VECTOR_NAME.to_string(), Vector::from(vec));
 			vectors.insert(
 				BM25_VECTOR_NAME.to_string(),
 				Vector::from(Document::new(row.chunk_text, BM25_MODEL)),
 			);
+
 			let point = PointStruct::new(row.chunk_id.to_string(), vectors, payload);
 			let result = self
 				.qdrant
@@ -140,6 +148,7 @@ WHERE n.status = 'active' AND (n.expires_at IS NULL OR n.expires_at > $1)",
 
 			if result.is_err() {
 				error_count += 1;
+
 				continue;
 			}
 

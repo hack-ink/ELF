@@ -102,11 +102,12 @@ async fn setup_context(test_name: &str, providers: Providers) -> Option<TestCont
 
 		return None;
 	};
-
 	let collection = test_db.collection_name("elf_acceptance");
 	let cfg = super::test_config(test_db.dsn().to_string(), qdrant_url, 4_096, collection);
 	let service = super::build_service(cfg, providers).await.expect("Failed to build service.");
+
 	super::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
+
 	reset_collection(&service).await;
 
 	let embedding_version = format!(
@@ -251,6 +252,7 @@ async fn upsert_point(
 	let payload = build_payload(note_id, chunk_id, chunk_index, start_offset, end_offset);
 	let vectors = build_vectors(text);
 	let point = PointStruct::new(chunk_id.to_string(), vectors, payload);
+
 	service
 		.qdrant
 		.client
@@ -268,10 +270,10 @@ async fn search_returns_chunk_items() {
 	let Some(context) = setup_context("search_returns_chunk_items", providers).await else {
 		return;
 	};
-
 	let note_id = Uuid::new_v4();
 	let chunk_id = Uuid::new_v4();
 	let note_text = "First sentence. Second sentence.";
+
 	insert_note(&context.service.db.pool, note_id, note_text, &context.embedding_version).await;
 	insert_chunk(
 		&context.service.db.pool,
@@ -305,7 +307,6 @@ async fn search_returns_chunk_items() {
 	let item = response.items.first().expect("Expected search result.");
 
 	assert_eq!(item.chunk_id, chunk_id);
-
 	assert!(!item.snippet.is_empty());
 
 	context.test_db.cleanup().await.expect("Failed to cleanup test database.");
@@ -318,10 +319,10 @@ async fn search_stitches_adjacent_chunks() {
 	let Some(context) = setup_context("search_stitches_adjacent_chunks", providers).await else {
 		return;
 	};
-
 	let note_id = Uuid::new_v4();
 	let chunk_texts = ["First sentence. ", "Second sentence. ", "Third sentence."];
 	let note_text = chunk_texts.concat();
+
 	insert_note(&context.service.db.pool, note_id, &note_text, &context.embedding_version).await;
 
 	let mut offset = 0_i32;
@@ -331,6 +332,7 @@ async fn search_stitches_adjacent_chunks() {
 		let chunk_id = Uuid::new_v4();
 		let start = offset;
 		let end = start + chunk_text.len() as i32;
+
 		insert_chunk(
 			&context.service.db.pool,
 			chunk_id,
@@ -342,11 +344,14 @@ async fn search_stitches_adjacent_chunks() {
 			&context.embedding_version,
 		)
 		.await;
+
 		chunk_ids.push((chunk_id, start, end, *chunk_text));
+
 		offset = end;
 	}
 
 	let (chunk_id, start, end, text) = chunk_ids[1];
+
 	upsert_point(&context.service, chunk_id, note_id, 1, start, end, text).await;
 
 	let response = context
@@ -367,7 +372,6 @@ async fn search_stitches_adjacent_chunks() {
 	let item = response.items.first().expect("Expected search result.");
 
 	assert_eq!(item.chunk_id, chunk_id);
-
 	assert!(item.snippet.contains("First sentence."));
 	assert!(item.snippet.contains("Second sentence."));
 	assert!(item.snippet.contains("Third sentence."));
@@ -383,12 +387,11 @@ async fn search_skips_missing_chunk_metadata() {
 	else {
 		return;
 	};
-
 	let note_id = Uuid::new_v4();
 	let chunk_id = Uuid::new_v4();
 	let note_text = "Missing chunk metadata.";
-	insert_note(&context.service.db.pool, note_id, note_text, &context.embedding_version).await;
 
+	insert_note(&context.service.db.pool, note_id, note_text, &context.embedding_version).await;
 	upsert_point(&context.service, chunk_id, note_id, 0, 0, note_text.len() as i32, note_text)
 		.await;
 
@@ -422,10 +425,10 @@ async fn progressive_search_returns_index_timeline_and_details() {
 	else {
 		return;
 	};
-
 	let note_id = Uuid::new_v4();
 	let chunk_id = Uuid::new_v4();
 	let note_text = "Progressive retrieval works best with staged expansion.";
+
 	insert_note(&context.service.db.pool, note_id, note_text, &context.embedding_version).await;
 	insert_chunk(
 		&context.service.db.pool,
@@ -504,10 +507,10 @@ async fn search_dedupes_note_results() {
 	let Some(context) = setup_context("search_dedupes_note_results", providers).await else {
 		return;
 	};
-
 	let note_id = Uuid::new_v4();
 	let chunk_texts = ["preferred alpha. ", "bridge chunk. ", "other alpha."];
 	let note_text = chunk_texts.concat();
+
 	insert_note(&context.service.db.pool, note_id, &note_text, &context.embedding_version).await;
 
 	let mut offset = 0_i32;
@@ -517,6 +520,7 @@ async fn search_dedupes_note_results() {
 		let chunk_id = Uuid::new_v4();
 		let start = offset;
 		let end = start + chunk_text.len() as i32;
+
 		insert_chunk(
 			&context.service.db.pool,
 			chunk_id,
@@ -528,12 +532,15 @@ async fn search_dedupes_note_results() {
 			&context.embedding_version,
 		)
 		.await;
+
 		chunk_ids.push((chunk_id, start, end, *chunk_text));
+
 		offset = end;
 	}
 
 	let (chunk_id_a, start_a, end_a, text_a) = chunk_ids[0];
 	let (chunk_id_c, start_c, end_c, text_c) = chunk_ids[2];
+
 	upsert_point(&context.service, chunk_id_a, note_id, 0, start_a, end_a, text_a).await;
 	upsert_point(&context.service, chunk_id_c, note_id, 2, start_c, end_c, text_c).await;
 

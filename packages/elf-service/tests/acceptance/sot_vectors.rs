@@ -109,11 +109,13 @@ VALUES (
 
 	let vec_text = {
 		let mut buf = String::with_capacity(2 + (4_096 * 2));
+
 		buf.push('[');
 		for i in 0..4_096 {
 			if i > 0 {
 				buf.push(',');
 			}
+
 			buf.push('0');
 		}
 		buf.push(']');

@@ -212,7 +212,6 @@ pub fn compute_deterministic_ranking_terms(
 
 		out.lexical_bonus = det.lexical.weight * scaled;
 	}
-
 	if det.hits.enabled && det.hits.weight > 0.0 {
 		let hit_count = note_hit_count.max(0);
 
@@ -226,7 +225,6 @@ pub fn compute_deterministic_ranking_terms(
 		} else {
 			0.0
 		};
-
 		let last_hit_age_days =
 			note_last_hit_at.map(|ts| ((now - ts).as_seconds_f32() / 86_400.0).max(0.0));
 
@@ -244,7 +242,6 @@ pub fn compute_deterministic_ranking_terms(
 
 		out.hit_boost = det.hits.weight * hit_saturation * recency;
 	}
-
 	if det.decay.enabled && det.decay.weight > 0.0 {
 		let age_days = age_days.max(0.0);
 		let tau = det.decay.tau_days;
@@ -276,6 +273,7 @@ pub fn match_terms_in_text(
 
 		if text.contains(token) {
 			matched_fields.insert("text");
+
 			matched = true;
 		}
 
@@ -283,6 +281,7 @@ pub fn match_terms_in_text(
 			&& key.contains(token)
 		{
 			matched_fields.insert("key");
+
 			matched = true;
 		}
 

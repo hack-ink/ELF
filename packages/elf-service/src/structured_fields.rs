@@ -121,12 +121,14 @@ fn extract_source_ref_quotes(source_ref: &Value) -> Vec<String> {
 
 fn fact_is_evidence_bound(fact: &str, note_text: &str, evidence_quotes: &[String]) -> bool {
 	let trimmed = fact.trim();
+
 	if trimmed.is_empty() {
 		return false;
 	}
 	if note_text.contains(trimmed) {
 		return true;
 	}
+
 	for quote in evidence_quotes {
 		if quote.contains(trimmed) {
 			return true;
@@ -191,9 +193,11 @@ async fn replace_kind(
 
 	for (idx, value) in items.iter().enumerate() {
 		let trimmed = value.trim();
+
 		if trimmed.is_empty() {
 			continue;
 		}
+
 		sqlx::query!(
 			"\
 INSERT INTO memory_note_fields (
@@ -243,7 +247,6 @@ ORDER BY note_id ASC, field_kind ASC, item_index ASC",
 	)
 	.fetch_all(pool)
 	.await?;
-
 	let mut out: HashMap<Uuid, StructuredFields> = HashMap::new();
 
 	for row in rows {
