@@ -787,7 +787,7 @@ Response:
         },
         "ranking": {
           "schema": "search_ranking_explain/v2",
-          "policy_id": "blend_v1:...",
+          "policy_id": "ranking_v2:...",
           "final_score": 0.0,
           "terms": [
             { "name": "blend.retrieval", "value": 0.0 },

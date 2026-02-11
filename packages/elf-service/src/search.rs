@@ -66,6 +66,10 @@ pub struct SearchRequest {
 pub struct RankingRequestOverride {
 	#[serde(default)]
 	pub blend: Option<BlendRankingOverride>,
+	#[serde(default)]
+	pub diversity: Option<DiversityRankingOverride>,
+	#[serde(default)]
+	pub retrieval_sources: Option<RetrievalSourcesRankingOverride>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -83,15 +87,49 @@ pub struct BlendSegmentOverride {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct DiversityRankingOverride {
+	pub enabled: Option<bool>,
+	pub sim_threshold: Option<f32>,
+	pub mmr_lambda: Option<f32>,
+	pub max_skips: Option<u32>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RetrievalSourcesRankingOverride {
+	pub fusion_weight: Option<f32>,
+	pub structured_field_weight: Option<f32>,
+	pub fusion_priority: Option<u32>,
+	pub structured_field_priority: Option<u32>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SearchExplain {
 	pub r#match: SearchMatchExplain,
 	pub ranking: SearchRankingExplain,
+	#[serde(default, skip_serializing_if = "Option::is_none")]
+	pub diversity: Option<SearchDiversityExplain>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SearchMatchExplain {
 	pub matched_terms: Vec<String>,
 	pub matched_fields: Vec<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SearchDiversityExplain {
+	pub enabled: bool,
+	pub selected_reason: String,
+	#[serde(default, skip_serializing_if = "Option::is_none")]
+	pub skipped_reason: Option<String>,
+	#[serde(default, skip_serializing_if = "Option::is_none")]
+	pub nearest_selected_note_id: Option<Uuid>,
+	#[serde(default, skip_serializing_if = "Option::is_none")]
+	pub similarity: Option<f32>,
+	#[serde(default, skip_serializing_if = "Option::is_none")]
+	pub mmr_score: Option<f32>,
+	#[serde(default)]
+	pub missing_embedding: bool,
 }
 
 pub use crate::ranking_explain_v2::{SearchRankingExplain, SearchRankingTerm};
@@ -206,6 +244,22 @@ pub struct TraceReplayCandidate {
 	pub note_hit_count: i64,
 	#[serde(with = "crate::time_serde::option")]
 	pub note_last_hit_at: Option<OffsetDateTime>,
+	#[serde(default)]
+	pub diversity_selected: Option<bool>,
+	#[serde(default)]
+	pub diversity_selected_rank: Option<u32>,
+	#[serde(default)]
+	pub diversity_selected_reason: Option<String>,
+	#[serde(default)]
+	pub diversity_skipped_reason: Option<String>,
+	#[serde(default)]
+	pub diversity_nearest_selected_note_id: Option<Uuid>,
+	#[serde(default)]
+	pub diversity_similarity: Option<f32>,
+	#[serde(default)]
+	pub diversity_mmr_score: Option<f32>,
+	#[serde(default)]
+	pub diversity_missing_embedding: Option<bool>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -217,13 +271,13 @@ pub struct TraceReplayItem {
 	pub explain: SearchExplain,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 struct QueryEmbedding {
 	text: String,
 	vector: Vec<f32>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 struct ChunkCandidate {
 	chunk_id: Uuid,
 	note_id: Uuid,
@@ -233,13 +287,13 @@ struct ChunkCandidate {
 	embedding_version: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 struct RerankCacheCandidate {
 	chunk_id: Uuid,
 	updated_at: OffsetDateTime,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 struct NoteMeta {
 	note_id: Uuid,
 	note_type: String,
@@ -265,7 +319,13 @@ struct ChunkRow {
 	text: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, sqlx::FromRow)]
+struct NoteVectorRow {
+	note_id: Uuid,
+	vec_text: String,
+}
+
+#[derive(Clone, Debug)]
 struct ChunkMeta {
 	chunk_id: Uuid,
 	chunk_index: i32,
@@ -273,7 +333,7 @@ struct ChunkMeta {
 	end_offset: i32,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 struct ChunkSnippet {
 	note: NoteMeta,
 	chunk: ChunkMeta,
@@ -303,13 +363,13 @@ struct RerankCachePayload {
 	items: Vec<RerankCacheItem>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 struct CachePayload {
 	value: serde_json::Value,
 	size_bytes: usize,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct ScoredChunk {
 	item: ChunkSnippet,
 	final_score: f32,
@@ -330,6 +390,18 @@ struct ScoredChunk {
 	deterministic_last_hit_age_days: Option<f32>,
 	deterministic_hit_boost: f32,
 	deterministic_decay_penalty: f32,
+}
+
+#[derive(Clone, Debug)]
+struct DiversityDecision {
+	selected: bool,
+	selected_rank: Option<u32>,
+	selected_reason: String,
+	skipped_reason: Option<String>,
+	nearest_selected_note_id: Option<Uuid>,
+	similarity: Option<f32>,
+	mmr_score: Option<f32>,
+	missing_embedding: bool,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -493,9 +565,26 @@ struct StructuredFieldRetrievalArgs<'a> {
 	agent_id: &'a str,
 	allowed_scopes: &'a [String],
 	query_vec: &'a [f32],
-	candidates: Vec<ChunkCandidate>,
 	candidate_k: u32,
 	now: OffsetDateTime,
+}
+
+#[derive(Clone, Debug)]
+struct StructuredFieldRetrievalResult {
+	candidates: Vec<ChunkCandidate>,
+	structured_matches: HashMap<Uuid, Vec<String>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum RetrievalSourceKind {
+	Fusion,
+	StructuredField,
+}
+
+#[derive(Debug, Clone)]
+struct RetrievalSourceCandidates {
+	source: RetrievalSourceKind,
+	candidates: Vec<ChunkCandidate>,
 }
 
 impl ElfService {
@@ -519,6 +608,10 @@ impl ElfService {
 		let read_profile = req.read_profile.clone();
 		let record_hits_enabled = req.record_hits.unwrap_or(false);
 		let ranking_override = req.ranking.clone();
+		let retrieval_sources_policy = resolve_retrieval_sources_policy(
+			&self.cfg.ranking.retrieval_sources,
+			ranking_override.as_ref().and_then(|override_| override_.retrieval_sources.as_ref()),
+		)?;
 		let expansion_mode = resolve_expansion_mode(&self.cfg);
 		let trace_id = Uuid::new_v4();
 		let project_context_description =
@@ -602,20 +695,31 @@ impl ElfService {
 				should_expand_dynamic(baseline_points.len(), top_score, &self.cfg.search.dynamic);
 
 			if !should_expand {
-				let (augmented, structured_matches) = self
-					.augment_candidates_with_structured_field_retrieval(
-						StructuredFieldRetrievalArgs {
-							tenant_id,
-							project_id,
-							agent_id,
-							allowed_scopes: &allowed_scopes,
-							query_vec: query_vec.as_slice(),
-							candidates,
-							candidate_k,
-							now: OffsetDateTime::now_utc(),
-						},
-					)
+				let structured = self
+					.retrieve_structured_field_candidates(StructuredFieldRetrievalArgs {
+						tenant_id,
+						project_id,
+						agent_id,
+						allowed_scopes: &allowed_scopes,
+						query_vec: query_vec.as_slice(),
+						candidate_k,
+						now: OffsetDateTime::now_utc(),
+					})
 					.await?;
+				let merged_candidates = merge_retrieval_candidates(
+					vec![
+						RetrievalSourceCandidates {
+							source: RetrievalSourceKind::Fusion,
+							candidates,
+						},
+						RetrievalSourceCandidates {
+							source: RetrievalSourceKind::StructuredField,
+							candidates: structured.candidates,
+						},
+					],
+					&retrieval_sources_policy,
+					candidate_k,
+				);
 
 				return self
 					.finish_search(FinishSearchArgs {
@@ -628,8 +732,8 @@ impl ElfService {
 						allowed_scopes: &allowed_scopes,
 						expanded_queries: vec![query.clone()],
 						expansion_mode,
-						candidates: augmented,
-						structured_matches,
+						candidates: merged_candidates,
+						structured_matches: structured.structured_matches,
 						top_k,
 						record_hits_enabled,
 						ranking_override: ranking_override.clone(),
@@ -662,18 +766,28 @@ impl ElfService {
 		} else {
 			original_query_vec
 		};
-		let (augmented, structured_matches) = self
-			.augment_candidates_with_structured_field_retrieval(StructuredFieldRetrievalArgs {
+		let structured = self
+			.retrieve_structured_field_candidates(StructuredFieldRetrievalArgs {
 				tenant_id,
 				project_id,
 				agent_id,
 				allowed_scopes: &allowed_scopes,
 				query_vec: original_query_vec.as_slice(),
-				candidates,
 				candidate_k,
 				now: OffsetDateTime::now_utc(),
 			})
 			.await?;
+		let merged_candidates = merge_retrieval_candidates(
+			vec![
+				RetrievalSourceCandidates { source: RetrievalSourceKind::Fusion, candidates },
+				RetrievalSourceCandidates {
+					source: RetrievalSourceKind::StructuredField,
+					candidates: structured.candidates,
+				},
+			],
+			&retrieval_sources_policy,
+			candidate_k,
+		);
 
 		self.finish_search(FinishSearchArgs {
 			trace_id,
@@ -685,8 +799,8 @@ impl ElfService {
 			allowed_scopes: &allowed_scopes,
 			expanded_queries,
 			expansion_mode,
-			candidates: augmented,
-			structured_matches,
+			candidates: merged_candidates,
+			structured_matches: structured.structured_matches,
 			top_k,
 			record_hits_enabled,
 			ranking_override,
@@ -1194,10 +1308,10 @@ ORDER BY rank ASC",
 		result
 	}
 
-	async fn augment_candidates_with_structured_field_retrieval(
+	async fn retrieve_structured_field_candidates(
 		&self,
 		args: StructuredFieldRetrievalArgs<'_>,
-	) -> Result<(Vec<ChunkCandidate>, HashMap<Uuid, Vec<String>>)> {
+	) -> Result<StructuredFieldRetrievalResult> {
 		#[derive(Debug)]
 		struct FieldHit {
 			note_id: Uuid,
@@ -1210,13 +1324,15 @@ ORDER BY rank ASC",
 			agent_id,
 			allowed_scopes,
 			query_vec,
-			candidates,
 			candidate_k,
 			now,
 		} = args;
 
 		if query_vec.is_empty() {
-			return Ok((candidates, HashMap::new()));
+			return Ok(StructuredFieldRetrievalResult {
+				candidates: Vec::new(),
+				structured_matches: HashMap::new(),
+			});
 		}
 
 		let embed_version = crate::embedding_version(&self.cfg);
@@ -1224,6 +1340,7 @@ ORDER BY rank ASC",
 		let private_allowed = allowed_scopes.iter().any(|scope| scope == "agent_private");
 		let non_private_scopes: Vec<String> =
 			allowed_scopes.iter().filter(|scope| *scope != "agent_private").cloned().collect();
+		let retrieval_limit = i64::from(candidate_k.saturating_mul(4).clamp(16, 400));
 		let rows: Vec<FieldHit> = if private_allowed && non_private_scopes.is_empty() {
 			let raw = sqlx::query!(
 				"\
@@ -1250,7 +1367,7 @@ LIMIT $7",
 				now,
 				agent_id,
 				vec_text.as_str(),
-				i64::from(candidate_k.min(200)),
+				retrieval_limit,
 			)
 			.fetch_all(&self.db.pool)
 			.await?;
@@ -1283,7 +1400,7 @@ LIMIT $7",
 				now,
 				non_private_scopes.as_slice(),
 				vec_text.as_str(),
-				i64::from(candidate_k.min(200)),
+				retrieval_limit,
 			)
 			.fetch_all(&self.db.pool)
 			.await?;
@@ -1320,7 +1437,7 @@ LIMIT $8",
 				agent_id,
 				non_private_scopes.as_slice(),
 				vec_text.as_str(),
-				i64::from(candidate_k.min(200)),
+				retrieval_limit,
 			)
 			.fetch_all(&self.db.pool)
 			.await?;
@@ -1358,16 +1475,11 @@ LIMIT $8",
 			structured_matches_out.insert(note_id, fields);
 		}
 
-		let mut existing = HashSet::new();
-		for candidate in &candidates {
-			existing.insert(candidate.note_id);
-		}
-
-		let extra_note_ids: Vec<Uuid> =
-			ordered_note_ids.into_iter().filter(|note_id| !existing.contains(note_id)).collect();
-
-		if extra_note_ids.is_empty() {
-			return Ok((candidates, structured_matches_out));
+		if ordered_note_ids.is_empty() {
+			return Ok(StructuredFieldRetrievalResult {
+				candidates: Vec::new(),
+				structured_matches: structured_matches_out,
+			});
 		}
 
 		let best_chunks = sqlx::query!(
@@ -1383,7 +1495,7 @@ JOIN note_chunk_embeddings e
 WHERE c.note_id = ANY($2::uuid[])
 ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 			embed_version,
-			extra_note_ids.as_slice(),
+			ordered_note_ids.as_slice(),
 			vec_text.as_str(),
 		)
 		.fetch_all(&self.db.pool)
@@ -1394,17 +1506,17 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 			best_by_note.insert(row.note_id, (row.chunk_id, row.chunk_index));
 		}
 
-		let mut out = candidates;
-		let mut next_rank = out.len() as u32 + 1;
+		let mut structured_candidates = Vec::new();
+		let mut next_rank = 1_u32;
 
-		for note_id in extra_note_ids {
-			if out.len() >= candidate_k as usize {
+		for note_id in ordered_note_ids {
+			if structured_candidates.len() >= candidate_k as usize {
 				break;
 			}
 
 			let Some((chunk_id, chunk_index)) = best_by_note.get(&note_id) else { continue };
 
-			out.push(ChunkCandidate {
+			structured_candidates.push(ChunkCandidate {
 				chunk_id: *chunk_id,
 				note_id,
 				chunk_index: *chunk_index,
@@ -1416,7 +1528,10 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 			next_rank = next_rank.saturating_add(1);
 		}
 
-		Ok((out, structured_matches_out))
+		Ok(StructuredFieldRetrievalResult {
+			candidates: structured_candidates,
+			structured_matches: structured_matches_out,
+		})
 	}
 
 	async fn finish_search(&self, args: FinishSearchArgs<'_>) -> Result<SearchResponse> {
@@ -1560,10 +1675,23 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 			&self.cfg.ranking.blend,
 			ranking_override.as_ref().and_then(|override_| override_.blend.as_ref()),
 		)?;
-		let policy_snapshot =
-			build_policy_snapshot(&self.cfg, &blend_policy, ranking_override.as_ref());
+		let diversity_policy = resolve_diversity_policy(
+			&self.cfg.ranking.diversity,
+			ranking_override.as_ref().and_then(|override_| override_.diversity.as_ref()),
+		)?;
+		let retrieval_sources_policy = resolve_retrieval_sources_policy(
+			&self.cfg.ranking.retrieval_sources,
+			ranking_override.as_ref().and_then(|override_| override_.retrieval_sources.as_ref()),
+		)?;
+		let policy_snapshot = build_policy_snapshot(
+			&self.cfg,
+			&blend_policy,
+			&diversity_policy,
+			&retrieval_sources_policy,
+			ranking_override.as_ref(),
+		);
 		let policy_hash = hash_policy_snapshot(&policy_snapshot)?;
-		let policy_id = format!("blend_v1:{}", &policy_hash[..12.min(policy_hash.len())]);
+		let policy_id = format!("ranking_v2:{}", &policy_hash[..12.min(policy_hash.len())]);
 		let mut scored: Vec<ScoredChunk> = Vec::new();
 
 		if !snippet_items.is_empty() {
@@ -1832,7 +1960,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 		}
 
 		let mut best_by_note: HashMap<Uuid, ScoredChunk> = HashMap::new();
-		let trace_candidates = if self.cfg.search.explain.capture_candidates {
+		let mut trace_candidates = if self.cfg.search.explain.capture_candidates {
 			let candidate_expires_at =
 				now + Duration::days(self.cfg.search.explain.candidate_retention_days);
 
@@ -1859,6 +1987,14 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 							note_updated_at: note.updated_at,
 							note_hit_count: note.hit_count,
 							note_last_hit_at: note.last_hit_at,
+							diversity_selected: None,
+							diversity_selected_rank: None,
+							diversity_selected_reason: None,
+							diversity_skipped_reason: None,
+							diversity_nearest_selected_note_id: None,
+							diversity_similarity: None,
+							diversity_mmr_score: None,
+							diversity_missing_embedding: None,
 						})
 						.unwrap_or_else(|_| serde_json::json!({})),
 						retrieval_rank: scored_chunk.item.retrieval_rank,
@@ -1912,12 +2048,19 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 
 			a.item.chunk.chunk_id.cmp(&b.item.chunk.chunk_id)
 		});
-		results.truncate(top_k as usize);
+		let note_vectors = if diversity_policy.enabled {
+			fetch_note_vectors_for_diversity(&self.db.pool, &results).await?
+		} else {
+			HashMap::new()
+		};
+		let (selected_results, diversity_decisions) =
+			select_diverse_results(results, top_k, &diversity_policy, &note_vectors);
+		attach_diversity_decisions_to_trace_candidates(&mut trace_candidates, &diversity_decisions);
 
-		if record_hits_enabled && !results.is_empty() {
+		if record_hits_enabled && !selected_results.is_empty() {
 			let mut tx = self.db.pool.begin().await?;
 
-			record_hits(&mut *tx, query, &results, now).await?;
+			record_hits(&mut *tx, query, &selected_results, now).await?;
 			tx.commit().await?;
 		}
 
@@ -1937,11 +2080,13 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 		let config_snapshot = build_config_snapshot(
 			&self.cfg,
 			&blend_policy,
+			&diversity_policy,
+			&retrieval_sources_policy,
 			ranking_override.as_ref(),
 			policy_id.as_str(),
 			&policy_snapshot,
 		);
-		let mut items = Vec::with_capacity(results.len());
+		let mut items = Vec::with_capacity(selected_results.len());
 		let mut trace_builder = SearchTraceBuilder::new(
 			trace_context,
 			config_snapshot,
@@ -1953,7 +2098,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 			trace_builder.push_candidate(candidate);
 		}
 
-		for (idx, scored_chunk) in results.into_iter().enumerate() {
+		for (idx, scored_chunk) in selected_results.into_iter().enumerate() {
 			let rank = idx as u32 + 1;
 			let (matched_terms, matched_fields) = match_terms_in_text(
 				&query_tokens,
@@ -2004,6 +2149,13 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 					final_score: scored_chunk.final_score,
 					terms: response_terms,
 				},
+				diversity: if diversity_policy.enabled {
+					diversity_decisions
+						.get(&scored_chunk.item.note.note_id)
+						.map(build_diversity_explain)
+				} else {
+					None
+				},
 			};
 			let trace_explain = SearchExplain {
 				r#match: SearchMatchExplain { matched_terms, matched_fields },
@@ -2012,6 +2164,13 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 					policy_id: policy_id.clone(),
 					final_score: scored_chunk.final_score,
 					terms: trace_terms,
+				},
+				diversity: if diversity_policy.enabled {
+					diversity_decisions
+						.get(&scored_chunk.item.note.note_id)
+						.map(build_diversity_explain)
+				} else {
+					None
 				},
 			};
 			let result_handle = Uuid::new_v4();
@@ -2078,11 +2237,25 @@ pub fn ranking_policy_id(
 		&cfg.ranking.blend,
 		ranking_override.and_then(|value| value.blend.as_ref()),
 	)?;
-	let snapshot = build_policy_snapshot(cfg, &blend_policy, ranking_override);
+	let diversity_policy = resolve_diversity_policy(
+		&cfg.ranking.diversity,
+		ranking_override.and_then(|value| value.diversity.as_ref()),
+	)?;
+	let retrieval_sources_policy = resolve_retrieval_sources_policy(
+		&cfg.ranking.retrieval_sources,
+		ranking_override.and_then(|value| value.retrieval_sources.as_ref()),
+	)?;
+	let snapshot = build_policy_snapshot(
+		cfg,
+		&blend_policy,
+		&diversity_policy,
+		&retrieval_sources_policy,
+		ranking_override,
+	);
 	let hash = hash_policy_snapshot(&snapshot)?;
 	let prefix = &hash[..12.min(hash.len())];
 
-	Ok(format!("blend_v1:{prefix}"))
+	Ok(format!("ranking_v2:{prefix}"))
 }
 
 pub fn replay_ranking_from_candidates(
@@ -2092,7 +2265,7 @@ pub fn replay_ranking_from_candidates(
 	candidates: &[TraceReplayCandidate],
 	top_k: u32,
 ) -> Result<Vec<TraceReplayItem>> {
-	#[derive(Debug, Clone)]
+	#[derive(Clone, Debug)]
 	struct ScoredReplay {
 		note_id: Uuid,
 		chunk_id: Uuid,
@@ -2136,13 +2309,28 @@ pub fn replay_ranking_from_candidates(
 		&cfg.ranking.blend,
 		ranking_override.and_then(|override_| override_.blend.as_ref()),
 	)?;
-	let policy_snapshot = build_policy_snapshot(cfg, &blend_policy, ranking_override);
+	let diversity_policy = resolve_diversity_policy(
+		&cfg.ranking.diversity,
+		ranking_override.and_then(|override_| override_.diversity.as_ref()),
+	)?;
+	let retrieval_sources_policy = resolve_retrieval_sources_policy(
+		&cfg.ranking.retrieval_sources,
+		ranking_override.and_then(|override_| override_.retrieval_sources.as_ref()),
+	)?;
+	let policy_snapshot = build_policy_snapshot(
+		cfg,
+		&blend_policy,
+		&diversity_policy,
+		&retrieval_sources_policy,
+		ranking_override,
+	);
 	let policy_hash = hash_policy_snapshot(&policy_snapshot)?;
-	let policy_id = format!("blend_v1:{}", &policy_hash[..12.min(policy_hash.len())]);
+	let policy_id = format!("ranking_v2:{}", &policy_hash[..12.min(policy_hash.len())]);
 	let now = trace.created_at;
 	let total_rerank = u32::try_from(candidates.len()).unwrap_or(1).max(1);
 	let total_retrieval = trace.candidate_count.max(1);
 	let rerank_ranks = build_rerank_ranks_for_replay(candidates);
+	let replay_diversity_decisions = extract_replay_diversity_decisions(candidates);
 	let mut best_by_note: BTreeMap<Uuid, ScoredReplay> = BTreeMap::new();
 
 	for (candidate, rerank_rank) in candidates.iter().zip(rerank_ranks) {
@@ -2252,6 +2440,40 @@ pub fn replay_ranking_from_candidates(
 		a.chunk_id.cmp(&b.chunk_id)
 	});
 
+	if diversity_policy.enabled && !replay_diversity_decisions.is_empty() {
+		let mut selected: Vec<ScoredReplay> = results
+			.iter()
+			.filter(|scored| {
+				replay_diversity_decisions
+					.get(&scored.note_id)
+					.map(|decision| decision.selected)
+					.unwrap_or(false)
+			})
+			.cloned()
+			.collect();
+
+		selected.sort_by(|a, b| {
+			let rank_a = replay_diversity_decisions
+				.get(&a.note_id)
+				.and_then(|decision| decision.selected_rank)
+				.unwrap_or(u32::MAX);
+			let rank_b = replay_diversity_decisions
+				.get(&b.note_id)
+				.and_then(|decision| decision.selected_rank)
+				.unwrap_or(u32::MAX);
+			let ord = rank_a.cmp(&rank_b);
+
+			if ord != Ordering::Equal {
+				return ord;
+			}
+
+			a.note_id.cmp(&b.note_id)
+		});
+		if !selected.is_empty() {
+			results = selected;
+		}
+	}
+
 	results.truncate(top_k.max(1) as usize);
 
 	let mut out = Vec::with_capacity(results.len());
@@ -2289,6 +2511,11 @@ pub fn replay_ranking_from_candidates(
 				policy_id: policy_id.clone(),
 				final_score: scored.final_score,
 				terms,
+			},
+			diversity: if diversity_policy.enabled {
+				replay_diversity_decisions.get(&scored.note_id).map(build_diversity_explain)
+			} else {
+				None
 			},
 		};
 
@@ -2440,6 +2667,153 @@ fn collect_chunk_candidates(
 	}
 
 	out
+}
+
+fn retrieval_source_weight(
+	policy: &ResolvedRetrievalSourcesPolicy,
+	source: RetrievalSourceKind,
+) -> f32 {
+	match source {
+		RetrievalSourceKind::Fusion => policy.fusion_weight,
+		RetrievalSourceKind::StructuredField => policy.structured_field_weight,
+	}
+}
+
+fn retrieval_source_priority(
+	policy: &ResolvedRetrievalSourcesPolicy,
+	source: RetrievalSourceKind,
+) -> u32 {
+	match source {
+		RetrievalSourceKind::StructuredField => policy.structured_field_priority,
+		RetrievalSourceKind::Fusion => policy.fusion_priority,
+	}
+}
+
+fn retrieval_source_kind_order(source: RetrievalSourceKind) -> u8 {
+	match source {
+		RetrievalSourceKind::StructuredField => 0,
+		RetrievalSourceKind::Fusion => 1,
+	}
+}
+
+fn merge_retrieval_candidates(
+	sources: Vec<RetrievalSourceCandidates>,
+	policy: &ResolvedRetrievalSourcesPolicy,
+	candidate_k: u32,
+) -> Vec<ChunkCandidate> {
+	if candidate_k == 0 {
+		return Vec::new();
+	}
+
+	#[derive(Debug)]
+	struct MergedRetrievalCandidate {
+		candidate: ChunkCandidate,
+		source_ranks: HashMap<RetrievalSourceKind, u32>,
+		combined_score: f32,
+	}
+
+	let mut by_chunk: HashMap<Uuid, MergedRetrievalCandidate> = HashMap::new();
+	let mut source_totals: HashMap<RetrievalSourceKind, u32> = HashMap::new();
+
+	for source in sources {
+		let mut seen_for_source = HashSet::new();
+
+		for candidate in &source.candidates {
+			if seen_for_source.insert(candidate.chunk_id) {
+				*source_totals.entry(source.source).or_insert(0) += 1;
+			}
+		}
+
+		for candidate in source.candidates {
+			let chunk_id = candidate.chunk_id;
+			let rank = candidate.retrieval_rank;
+
+			match by_chunk.get_mut(&chunk_id) {
+				Some(existing) => {
+					let entry = existing.source_ranks.entry(source.source).or_insert(rank);
+
+					*entry = (*entry).min(rank);
+				},
+				None => {
+					let mut source_ranks = HashMap::new();
+
+					source_ranks.insert(source.source, rank);
+					by_chunk.insert(
+						chunk_id,
+						MergedRetrievalCandidate { candidate, source_ranks, combined_score: 0.0 },
+					);
+				},
+			}
+		}
+	}
+
+	if by_chunk.is_empty() {
+		return Vec::new();
+	}
+
+	for total in source_totals.values_mut() {
+		*total = (*total).max(1);
+	}
+
+	let mut source_order: Vec<RetrievalSourceKind> = source_totals.keys().copied().collect();
+
+	source_order.sort_by(|left, right| {
+		retrieval_source_priority(policy, *left)
+			.cmp(&retrieval_source_priority(policy, *right))
+			.then_with(|| {
+				retrieval_source_kind_order(*left).cmp(&retrieval_source_kind_order(*right))
+			})
+	});
+
+	let mut merged: Vec<MergedRetrievalCandidate> = by_chunk.into_values().collect();
+
+	for candidate in &mut merged {
+		let mut combined_score = 0.0_f32;
+
+		for (source, rank) in &candidate.source_ranks {
+			let total = source_totals.get(source).copied().unwrap_or(1);
+
+			combined_score +=
+				retrieval_source_weight(policy, *source) * rank_normalize(*rank, total);
+		}
+		candidate.combined_score = combined_score;
+	}
+
+	merged.sort_by(|left, right| {
+		cmp_f32_desc(left.combined_score, right.combined_score)
+			.then_with(|| right.source_ranks.len().cmp(&left.source_ranks.len()))
+			.then_with(|| {
+				for source in &source_order {
+					let lhs = left.source_ranks.get(source).copied();
+					let rhs = right.source_ranks.get(source).copied();
+					let ord = rank_asc(lhs, rhs);
+
+					if ord != Ordering::Equal {
+						return ord;
+					}
+				}
+
+				Ordering::Equal
+			})
+			.then_with(|| left.candidate.chunk_id.cmp(&right.candidate.chunk_id))
+	});
+
+	let mut out = Vec::new();
+
+	for (idx, mut candidate) in merged.into_iter().take(candidate_k as usize).enumerate() {
+		candidate.candidate.retrieval_rank = idx as u32 + 1;
+
+		out.push(candidate.candidate);
+	}
+
+	out
+}
+
+fn rank_asc(left: Option<u32>, right: Option<u32>) -> Ordering {
+	let lhs = left.unwrap_or(u32::MAX);
+	let rhs = right.unwrap_or(u32::MAX);
+
+	lhs.cmp(&rhs)
 }
 
 fn candidate_matches_note(note_meta: &HashMap<Uuid, NoteMeta>, candidate: &ChunkCandidate) -> bool {
@@ -2839,13 +3213,13 @@ impl NormalizationKind {
 	}
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 struct BlendSegment {
 	max_retrieval_rank: u32,
 	retrieval_weight: f32,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 struct ResolvedBlendPolicy {
 	enabled: bool,
 	rerank_normalization: NormalizationKind,
@@ -2853,9 +3227,27 @@ struct ResolvedBlendPolicy {
 	segments: Vec<BlendSegment>,
 }
 
+#[derive(Clone, Debug)]
+struct ResolvedDiversityPolicy {
+	enabled: bool,
+	sim_threshold: f32,
+	mmr_lambda: f32,
+	max_skips: u32,
+}
+
+#[derive(Clone, Debug)]
+struct ResolvedRetrievalSourcesPolicy {
+	fusion_weight: f32,
+	structured_field_weight: f32,
+	fusion_priority: u32,
+	structured_field_priority: u32,
+}
+
 fn build_config_snapshot(
 	cfg: &Config,
 	blend_policy: &ResolvedBlendPolicy,
+	diversity_policy: &ResolvedDiversityPolicy,
+	retrieval_sources_policy: &ResolvedRetrievalSourcesPolicy,
 	ranking_override: Option<&RankingRequestOverride>,
 	policy_id: &str,
 	policy_snapshot: &serde_json::Value,
@@ -2905,7 +3297,7 @@ fn build_config_snapshot(
 					"tau_days": cfg.ranking.deterministic.decay.tau_days,
 				},
 			},
-			"blend": {
+				"blend": {
 				"enabled": blend_policy.enabled,
 				"rerank_normalization": blend_policy.rerank_normalization.as_str(),
 				"retrieval_normalization": blend_policy.retrieval_normalization.as_str(),
@@ -2918,10 +3310,22 @@ fn build_config_snapshot(
 							"retrieval_weight": segment.retrieval_weight,
 						})
 					})
-					.collect::<Vec<_>>(),
+						.collect::<Vec<_>>(),
+				},
+				"diversity": {
+					"enabled": diversity_policy.enabled,
+					"sim_threshold": diversity_policy.sim_threshold,
+					"mmr_lambda": diversity_policy.mmr_lambda,
+					"max_skips": diversity_policy.max_skips,
+				},
+				"retrieval_sources": {
+					"fusion_weight": retrieval_sources_policy.fusion_weight,
+					"structured_field_weight": retrieval_sources_policy.structured_field_weight,
+					"fusion_priority": retrieval_sources_policy.fusion_priority,
+					"structured_field_priority": retrieval_sources_policy.structured_field_priority,
+				},
+				"override": override_json,
 			},
-			"override": override_json,
-		},
 		"providers": {
 			"embedding": {
 				"provider_id": cfg.providers.embedding.provider_id.as_str(),
@@ -2960,6 +3364,8 @@ fn build_config_snapshot(
 fn build_policy_snapshot(
 	cfg: &Config,
 	blend_policy: &ResolvedBlendPolicy,
+	diversity_policy: &ResolvedDiversityPolicy,
+	retrieval_sources_policy: &ResolvedRetrievalSourcesPolicy,
 	ranking_override: Option<&RankingRequestOverride>,
 ) -> serde_json::Value {
 	let override_json = ranking_override.and_then(|value| serde_json::to_value(value).ok());
@@ -2989,7 +3395,7 @@ fn build_policy_snapshot(
 					"tau_days": cfg.ranking.deterministic.decay.tau_days,
 				},
 			},
-			"blend": {
+				"blend": {
 				"enabled": blend_policy.enabled,
 				"rerank_normalization": blend_policy.rerank_normalization.as_str(),
 				"retrieval_normalization": blend_policy.retrieval_normalization.as_str(),
@@ -3002,10 +3408,22 @@ fn build_policy_snapshot(
 							"retrieval_weight": segment.retrieval_weight,
 						})
 					})
-					.collect::<Vec<_>>(),
+						.collect::<Vec<_>>(),
+				},
+				"diversity": {
+					"enabled": diversity_policy.enabled,
+					"sim_threshold": diversity_policy.sim_threshold,
+					"mmr_lambda": diversity_policy.mmr_lambda,
+					"max_skips": diversity_policy.max_skips,
+				},
+				"retrieval_sources": {
+					"fusion_weight": retrieval_sources_policy.fusion_weight,
+					"structured_field_weight": retrieval_sources_policy.structured_field_weight,
+					"fusion_priority": retrieval_sources_policy.fusion_priority,
+					"structured_field_priority": retrieval_sources_policy.structured_field_priority,
+				},
+				"override": override_json,
 			},
-			"override": override_json,
-		},
 		"context": {
 			"scope_boost_weight": cfg.context.as_ref().and_then(|ctx| ctx.scope_boost_weight),
 			"project_description_count": cfg
@@ -3069,6 +3487,84 @@ fn resolve_blend_policy(
 	validate_blend_segments(&segments)?;
 
 	Ok(ResolvedBlendPolicy { enabled, rerank_normalization, retrieval_normalization, segments })
+}
+
+fn resolve_diversity_policy(
+	cfg: &elf_config::RankingDiversity,
+	override_: Option<&DiversityRankingOverride>,
+) -> Result<ResolvedDiversityPolicy> {
+	let enabled = override_.and_then(|value| value.enabled).unwrap_or(cfg.enabled);
+	let sim_threshold =
+		override_.and_then(|value| value.sim_threshold).unwrap_or(cfg.sim_threshold);
+	let mmr_lambda = override_.and_then(|value| value.mmr_lambda).unwrap_or(cfg.mmr_lambda);
+	let max_skips = override_.and_then(|value| value.max_skips).unwrap_or(cfg.max_skips);
+
+	if !sim_threshold.is_finite() {
+		return Err(Error::InvalidRequest {
+			message: "ranking.diversity.sim_threshold must be a finite number.".to_string(),
+		});
+	}
+	if !(0.0..=1.0).contains(&sim_threshold) {
+		return Err(Error::InvalidRequest {
+			message: "ranking.diversity.sim_threshold must be in the range 0.0-1.0.".to_string(),
+		});
+	}
+	if !mmr_lambda.is_finite() {
+		return Err(Error::InvalidRequest {
+			message: "ranking.diversity.mmr_lambda must be a finite number.".to_string(),
+		});
+	}
+	if !(0.0..=1.0).contains(&mmr_lambda) {
+		return Err(Error::InvalidRequest {
+			message: "ranking.diversity.mmr_lambda must be in the range 0.0-1.0.".to_string(),
+		});
+	}
+
+	Ok(ResolvedDiversityPolicy { enabled, sim_threshold, mmr_lambda, max_skips })
+}
+
+fn resolve_retrieval_sources_policy(
+	cfg: &elf_config::RankingRetrievalSources,
+	override_: Option<&RetrievalSourcesRankingOverride>,
+) -> Result<ResolvedRetrievalSourcesPolicy> {
+	let fusion_weight =
+		override_.and_then(|value| value.fusion_weight).unwrap_or(cfg.fusion_weight);
+	let structured_field_weight = override_
+		.and_then(|value| value.structured_field_weight)
+		.unwrap_or(cfg.structured_field_weight);
+	let fusion_priority =
+		override_.and_then(|value| value.fusion_priority).unwrap_or(cfg.fusion_priority);
+	let structured_field_priority = override_
+		.and_then(|value| value.structured_field_priority)
+		.unwrap_or(cfg.structured_field_priority);
+
+	for (path, value) in [
+		("ranking.retrieval_sources.fusion_weight", fusion_weight),
+		("ranking.retrieval_sources.structured_field_weight", structured_field_weight),
+	] {
+		if !value.is_finite() {
+			return Err(Error::InvalidRequest {
+				message: format!("{path} must be a finite number."),
+			});
+		}
+		if value < 0.0 {
+			return Err(Error::InvalidRequest {
+				message: format!("{path} must be zero or greater."),
+			});
+		}
+	}
+	if fusion_weight <= 0.0 && structured_field_weight <= 0.0 {
+		return Err(Error::InvalidRequest {
+			message: "At least one retrieval source weight must be greater than zero.".to_string(),
+		});
+	}
+
+	Ok(ResolvedRetrievalSourcesPolicy {
+		fusion_weight,
+		structured_field_weight,
+		fusion_priority,
+		structured_field_priority,
+	})
 }
 
 fn parse_normalization_kind(value: &str, label: &str) -> Result<NormalizationKind> {
@@ -3143,6 +3639,376 @@ fn rank_normalize(rank: u32, total: u32) -> f32 {
 	let pos = (rank.saturating_sub(1)) as f32;
 
 	(1.0 - pos / denom).clamp(0.0, 1.0)
+}
+
+fn build_diversity_explain(decision: &DiversityDecision) -> SearchDiversityExplain {
+	SearchDiversityExplain {
+		enabled: true,
+		selected_reason: decision.selected_reason.clone(),
+		skipped_reason: decision.skipped_reason.clone(),
+		nearest_selected_note_id: decision.nearest_selected_note_id,
+		similarity: decision.similarity,
+		mmr_score: decision.mmr_score,
+		missing_embedding: decision.missing_embedding,
+	}
+}
+
+fn cosine_similarity(lhs: &[f32], rhs: &[f32]) -> Option<f32> {
+	if lhs.is_empty() || lhs.len() != rhs.len() {
+		return None;
+	}
+
+	let mut dot = 0.0_f32;
+	let mut lhs_norm = 0.0_f32;
+	let mut rhs_norm = 0.0_f32;
+
+	for (l, r) in lhs.iter().zip(rhs.iter()) {
+		dot += l * r;
+		lhs_norm += l * l;
+		rhs_norm += r * r;
+	}
+
+	if lhs_norm <= f32::EPSILON || rhs_norm <= f32::EPSILON {
+		return None;
+	}
+
+	Some((dot / (lhs_norm.sqrt() * rhs_norm.sqrt())).clamp(-1.0, 1.0))
+}
+
+fn nearest_selected_similarity(
+	note_id: Uuid,
+	candidates: &[ScoredChunk],
+	selected_indices: &[usize],
+	note_vectors: &HashMap<Uuid, Vec<f32>>,
+) -> (Option<f32>, Option<Uuid>, bool) {
+	let Some(candidate_vec) = note_vectors.get(&note_id) else {
+		return (None, None, true);
+	};
+
+	let mut best_similarity: Option<f32> = None;
+	let mut nearest_note_id: Option<Uuid> = None;
+
+	for selected_idx in selected_indices {
+		let selected_note_id = candidates[*selected_idx].item.note.note_id;
+		let Some(selected_vec) = note_vectors.get(&selected_note_id) else {
+			continue;
+		};
+		let Some(similarity) = cosine_similarity(candidate_vec, selected_vec) else {
+			continue;
+		};
+
+		if best_similarity.map(|value| similarity > value).unwrap_or(true) {
+			best_similarity = Some(similarity);
+			nearest_note_id = Some(selected_note_id);
+		}
+	}
+
+	(best_similarity, nearest_note_id, false)
+}
+
+#[derive(Clone, Copy)]
+struct DiversityPick {
+	remaining_pos: usize,
+	mmr_score: f32,
+	nearest_note_id: Option<Uuid>,
+	similarity: Option<f32>,
+	missing_embedding: bool,
+	retrieval_rank: u32,
+}
+
+impl DiversityPick {
+	fn better_than(self, other: &Self) -> bool {
+		self.mmr_score > other.mmr_score
+			|| (self.mmr_score == other.mmr_score && self.retrieval_rank < other.retrieval_rank)
+	}
+}
+
+fn select_diverse_results(
+	candidates: Vec<ScoredChunk>,
+	top_k: u32,
+	policy: &ResolvedDiversityPolicy,
+	note_vectors: &HashMap<Uuid, Vec<f32>>,
+) -> (Vec<ScoredChunk>, HashMap<Uuid, DiversityDecision>) {
+	if candidates.is_empty() || top_k == 0 {
+		return (Vec::new(), HashMap::new());
+	}
+
+	if !policy.enabled {
+		let mut decisions = HashMap::new();
+		let mut selected = Vec::new();
+
+		for (idx, candidate) in candidates.into_iter().enumerate() {
+			let selected_rank = (idx < top_k as usize).then_some(idx as u32 + 1);
+			let is_selected = selected_rank.is_some();
+			let note_id = candidate.item.note.note_id;
+			let missing_embedding = !note_vectors.contains_key(&note_id);
+
+			decisions.insert(
+				note_id,
+				DiversityDecision {
+					selected: is_selected,
+					selected_rank,
+					selected_reason: if is_selected {
+						"disabled_passthrough".to_string()
+					} else {
+						"disabled_truncate".to_string()
+					},
+					skipped_reason: if is_selected {
+						None
+					} else {
+						Some("disabled_truncate".to_string())
+					},
+					nearest_selected_note_id: None,
+					similarity: None,
+					mmr_score: None,
+					missing_embedding,
+				},
+			);
+
+			if is_selected {
+				selected.push(candidate);
+			}
+		}
+
+		return (selected, decisions);
+	}
+
+	let total = u32::try_from(candidates.len()).unwrap_or(1).max(1);
+	let relevance_by_idx: Vec<f32> =
+		(0..candidates.len()).map(|idx| rank_normalize(idx as u32 + 1, total)).collect();
+	let mut remaining_indices: Vec<usize> = (0..candidates.len()).collect();
+	let mut selected_indices: Vec<usize> = Vec::new();
+	let mut decisions: HashMap<Uuid, DiversityDecision> = HashMap::new();
+	let first_idx = remaining_indices.remove(0);
+	let first_note_id = candidates[first_idx].item.note.note_id;
+	let first_missing_embedding = !note_vectors.contains_key(&first_note_id);
+
+	selected_indices.push(first_idx);
+	decisions.insert(
+		first_note_id,
+		DiversityDecision {
+			selected: true,
+			selected_rank: Some(1),
+			selected_reason: "top_relevance".to_string(),
+			skipped_reason: None,
+			nearest_selected_note_id: None,
+			similarity: None,
+			mmr_score: Some(relevance_by_idx[first_idx]),
+			missing_embedding: first_missing_embedding,
+		},
+	);
+
+	while selected_indices.len() < top_k as usize && !remaining_indices.is_empty() {
+		let mut best_non_filtered: Option<DiversityPick> = None;
+		let mut best_filtered: Option<DiversityPick> = None;
+		let mut best_any: Option<DiversityPick> = None;
+		let mut filtered_count = 0_u32;
+
+		for (remaining_pos, candidate_idx) in remaining_indices.iter().copied().enumerate() {
+			let note_id = candidates[candidate_idx].item.note.note_id;
+			let (similarity, nearest_note_id, missing_embedding) =
+				nearest_selected_similarity(note_id, &candidates, &selected_indices, note_vectors);
+			let redundancy = similarity.unwrap_or(0.0);
+			let mmr_score = policy.mmr_lambda * relevance_by_idx[candidate_idx]
+				- (1.0 - policy.mmr_lambda) * redundancy;
+			let high_similarity =
+				similarity.map(|value| value > policy.sim_threshold).unwrap_or(false);
+
+			if high_similarity {
+				filtered_count += 1;
+			}
+
+			let candidate_pick = DiversityPick {
+				remaining_pos,
+				mmr_score,
+				nearest_note_id,
+				similarity,
+				missing_embedding,
+				retrieval_rank: candidates[candidate_idx].item.retrieval_rank,
+			};
+
+			if best_any.as_ref().map(|current| candidate_pick.better_than(current)).unwrap_or(true)
+			{
+				best_any = Some(candidate_pick);
+			}
+			if high_similarity {
+				if best_filtered
+					.as_ref()
+					.map(|current| candidate_pick.better_than(current))
+					.unwrap_or(true)
+				{
+					best_filtered = Some(candidate_pick);
+				}
+
+				continue;
+			}
+			if best_non_filtered
+				.as_ref()
+				.map(|current| candidate_pick.better_than(current))
+				.unwrap_or(true)
+			{
+				best_non_filtered = Some(candidate_pick);
+			}
+		}
+
+		let (selected_pick, selected_reason) = if let Some(best) = best_non_filtered {
+			(best, "mmr")
+		} else if filtered_count >= policy.max_skips {
+			if let Some(best) = best_any {
+				(best, "max_skips_backfill")
+			} else {
+				break;
+			}
+		} else if let Some(best) = best_filtered {
+			(best, "threshold_backfill")
+		} else {
+			break;
+		};
+
+		let picked_idx = remaining_indices.remove(selected_pick.remaining_pos);
+
+		selected_indices.push(picked_idx);
+
+		let selected_note_id = candidates[picked_idx].item.note.note_id;
+
+		decisions.insert(
+			selected_note_id,
+			DiversityDecision {
+				selected: true,
+				selected_rank: Some(selected_indices.len() as u32),
+				selected_reason: selected_reason.to_string(),
+				skipped_reason: None,
+				nearest_selected_note_id: selected_pick.nearest_note_id,
+				similarity: selected_pick.similarity,
+				mmr_score: Some(selected_pick.mmr_score),
+				missing_embedding: selected_pick.missing_embedding,
+			},
+		);
+	}
+
+	for candidate_idx in remaining_indices {
+		let note_id = candidates[candidate_idx].item.note.note_id;
+		let (similarity, nearest_note_id, missing_embedding) =
+			nearest_selected_similarity(note_id, &candidates, &selected_indices, note_vectors);
+		let skipped_reason =
+			if similarity.map(|value| value > policy.sim_threshold).unwrap_or(false) {
+				"similarity_threshold"
+			} else {
+				"lower_mmr"
+			};
+		let redundancy = similarity.unwrap_or(0.0);
+		let mmr_score = policy.mmr_lambda * relevance_by_idx[candidate_idx]
+			- (1.0 - policy.mmr_lambda) * redundancy;
+
+		decisions.insert(
+			note_id,
+			DiversityDecision {
+				selected: false,
+				selected_rank: None,
+				selected_reason: "not_selected".to_string(),
+				skipped_reason: Some(skipped_reason.to_string()),
+				nearest_selected_note_id: nearest_note_id,
+				similarity,
+				mmr_score: Some(mmr_score),
+				missing_embedding,
+			},
+		);
+	}
+
+	let selected = selected_indices.into_iter().map(|idx| candidates[idx].clone()).collect();
+
+	(selected, decisions)
+}
+
+fn attach_diversity_decisions_to_trace_candidates(
+	candidates: &mut [TraceCandidateRecord],
+	decisions: &HashMap<Uuid, DiversityDecision>,
+) {
+	for candidate in candidates {
+		let Some(decision) = decisions.get(&candidate.note_id) else { continue };
+		let mut snapshot = candidate.candidate_snapshot.clone();
+		let Some(object) = snapshot.as_object_mut() else { continue };
+
+		object.insert("diversity_selected".to_string(), serde_json::json!(decision.selected));
+		object.insert(
+			"diversity_selected_rank".to_string(),
+			serde_json::json!(decision.selected_rank),
+		);
+		object.insert(
+			"diversity_selected_reason".to_string(),
+			serde_json::json!(decision.selected_reason),
+		);
+		object.insert(
+			"diversity_skipped_reason".to_string(),
+			serde_json::json!(decision.skipped_reason),
+		);
+		object.insert(
+			"diversity_nearest_selected_note_id".to_string(),
+			serde_json::json!(decision.nearest_selected_note_id),
+		);
+		object.insert("diversity_similarity".to_string(), serde_json::json!(decision.similarity));
+		object.insert("diversity_mmr_score".to_string(), serde_json::json!(decision.mmr_score));
+		object.insert(
+			"diversity_missing_embedding".to_string(),
+			serde_json::json!(decision.missing_embedding),
+		);
+
+		candidate.candidate_snapshot = snapshot;
+	}
+}
+
+fn extract_replay_diversity_decisions(
+	candidates: &[TraceReplayCandidate],
+) -> HashMap<Uuid, DiversityDecision> {
+	let mut out: HashMap<Uuid, DiversityDecision> = HashMap::new();
+
+	for candidate in candidates {
+		let has_diversity = candidate.diversity_selected.is_some()
+			|| candidate.diversity_selected_rank.is_some()
+			|| candidate.diversity_selected_reason.is_some()
+			|| candidate.diversity_skipped_reason.is_some()
+			|| candidate.diversity_nearest_selected_note_id.is_some()
+			|| candidate.diversity_similarity.is_some()
+			|| candidate.diversity_mmr_score.is_some()
+			|| candidate.diversity_missing_embedding.is_some();
+
+		if !has_diversity {
+			continue;
+		}
+
+		let selected = candidate.diversity_selected.unwrap_or(false);
+		let decision = DiversityDecision {
+			selected,
+			selected_rank: candidate.diversity_selected_rank,
+			selected_reason: candidate
+				.diversity_selected_reason
+				.clone()
+				.unwrap_or_else(|| "replay_selected".to_string()),
+			skipped_reason: candidate.diversity_skipped_reason.clone(),
+			nearest_selected_note_id: candidate.diversity_nearest_selected_note_id,
+			similarity: candidate.diversity_similarity,
+			mmr_score: candidate.diversity_mmr_score,
+			missing_embedding: candidate.diversity_missing_embedding.unwrap_or(false),
+		};
+		let replace = match out.get(&candidate.note_id) {
+			None => true,
+			Some(existing) =>
+				if decision.selected != existing.selected {
+					decision.selected
+				} else {
+					let lhs = decision.selected_rank.unwrap_or(u32::MAX);
+					let rhs = existing.selected_rank.unwrap_or(u32::MAX);
+
+					lhs < rhs
+				},
+		};
+
+		if replace {
+			out.insert(candidate.note_id, decision);
+		}
+	}
+
+	out
 }
 
 fn build_rerank_ranks(items: &[ChunkSnippet], scores: &[f32]) -> Vec<u32> {
@@ -3431,6 +4297,59 @@ where
 	let rows = query.fetch_all(executor).await?;
 
 	Ok(rows)
+}
+
+async fn fetch_note_vectors_for_diversity<'e, E>(
+	executor: E,
+	scored: &[ScoredChunk],
+) -> Result<HashMap<Uuid, Vec<f32>>>
+where
+	E: PgExecutor<'e>,
+{
+	if scored.is_empty() {
+		return Ok(HashMap::new());
+	}
+
+	let mut note_ids = Vec::new();
+	let mut embedding_versions = Vec::new();
+	let mut seen = HashSet::new();
+
+	for scored_chunk in scored {
+		let note_id = scored_chunk.item.note.note_id;
+
+		if seen.insert(note_id) {
+			note_ids.push(note_id);
+			embedding_versions.push(scored_chunk.item.note.embedding_version.clone());
+		}
+	}
+
+	let rows = sqlx::query_as::<_, NoteVectorRow>(
+		"\
+WITH expected AS (
+	SELECT *
+	FROM unnest($1::uuid[], $2::text[]) AS t(note_id, embedding_version)
+)
+SELECT
+	e.note_id AS note_id,
+	n.vec::text AS vec_text
+FROM expected e
+JOIN note_embeddings n
+	ON n.note_id = e.note_id
+	AND n.embedding_version = e.embedding_version",
+	)
+	.bind(note_ids.as_slice())
+	.bind(embedding_versions.as_slice())
+	.fetch_all(executor)
+	.await?;
+
+	let mut out = HashMap::new();
+
+	for row in rows {
+		let vec = crate::parse_pg_vector(row.vec_text.as_str())?;
+		out.insert(row.note_id, vec);
+	}
+
+	Ok(out)
 }
 
 async fn enqueue_trace<'e, E>(executor: E, payload: TracePayload) -> Result<()>
@@ -3863,6 +4782,110 @@ mod tests {
 		assert!((rank_normalize(0, 5) - 0.0).abs() < 1e-6);
 	}
 
+	fn test_chunk_candidate(note_id: Uuid, retrieval_rank: u32) -> ChunkCandidate {
+		ChunkCandidate {
+			chunk_id: Uuid::new_v4(),
+			note_id,
+			chunk_index: 0,
+			retrieval_rank,
+			updated_at: None,
+			embedding_version: Some("v1".to_string()),
+		}
+	}
+
+	fn default_retrieval_sources_policy() -> ResolvedRetrievalSourcesPolicy {
+		ResolvedRetrievalSourcesPolicy {
+			fusion_weight: 1.0,
+			structured_field_weight: 1.0,
+			fusion_priority: 1,
+			structured_field_priority: 0,
+		}
+	}
+
+	#[test]
+	fn merge_retrieval_candidates_keeps_structured_hits_under_full_fusion_capacity() {
+		let mut fusion = Vec::new();
+
+		for rank in 1..=10 {
+			fusion.push(test_chunk_candidate(Uuid::new_v4(), rank));
+		}
+
+		let structured = vec![test_chunk_candidate(Uuid::new_v4(), 1)];
+		let structured_chunk_id = structured[0].chunk_id;
+		let merged = merge_retrieval_candidates(
+			vec![
+				RetrievalSourceCandidates {
+					source: RetrievalSourceKind::Fusion,
+					candidates: fusion,
+				},
+				RetrievalSourceCandidates {
+					source: RetrievalSourceKind::StructuredField,
+					candidates: structured,
+				},
+			],
+			&default_retrieval_sources_policy(),
+			10,
+		);
+		let merged_chunk_ids: Vec<Uuid> =
+			merged.iter().map(|candidate| candidate.chunk_id).collect();
+
+		assert!(
+			merged_chunk_ids.contains(&structured_chunk_id),
+			"Structured candidate was dropped by retrieval fusion."
+		);
+	}
+
+	#[test]
+	fn merge_retrieval_candidates_prefers_dual_source_signal_on_tie() {
+		let shared_note_id = Uuid::new_v4();
+		let shared_chunk_id = Uuid::new_v4();
+		let fusion_only_note_id = Uuid::new_v4();
+		let fusion_only_chunk_id = Uuid::new_v4();
+		let fusion = vec![
+			ChunkCandidate {
+				chunk_id: shared_chunk_id,
+				note_id: shared_note_id,
+				chunk_index: 0,
+				retrieval_rank: 9,
+				updated_at: None,
+				embedding_version: Some("v1".to_string()),
+			},
+			ChunkCandidate {
+				chunk_id: fusion_only_chunk_id,
+				note_id: fusion_only_note_id,
+				chunk_index: 0,
+				retrieval_rank: 1,
+				updated_at: None,
+				embedding_version: Some("v1".to_string()),
+			},
+		];
+		let structured = vec![ChunkCandidate {
+			chunk_id: shared_chunk_id,
+			note_id: shared_note_id,
+			chunk_index: 0,
+			retrieval_rank: 1,
+			updated_at: None,
+			embedding_version: Some("v1".to_string()),
+		}];
+		let merged = merge_retrieval_candidates(
+			vec![
+				RetrievalSourceCandidates {
+					source: RetrievalSourceKind::Fusion,
+					candidates: fusion,
+				},
+				RetrievalSourceCandidates {
+					source: RetrievalSourceKind::StructuredField,
+					candidates: structured,
+				},
+			],
+			&default_retrieval_sources_policy(),
+			1,
+		);
+		let first = merged.first().expect("Expected merged candidate.");
+
+		assert_eq!(first.chunk_id, shared_chunk_id);
+	}
+
 	#[test]
 	fn retrieval_weight_for_rank_uses_first_matching_segment_or_last() {
 		let segments = vec![
@@ -4122,6 +5145,171 @@ mod tests {
 		assert!((scored.deterministic_hit_boost - expected_hit).abs() < 1e-6);
 	}
 
+	fn test_scored_chunk(note_id: Uuid, retrieval_rank: u32, now: OffsetDateTime) -> ScoredChunk {
+		let note = NoteMeta {
+			note_id,
+			note_type: "fact".to_string(),
+			key: None,
+			scope: "project_shared".to_string(),
+			importance: 0.1,
+			confidence: 0.9,
+			updated_at: now,
+			expires_at: None,
+			source_ref: serde_json::json!({}),
+			embedding_version: "v1".to_string(),
+			hit_count: 0,
+			last_hit_at: None,
+		};
+		let chunk = ChunkMeta {
+			chunk_id: Uuid::new_v4(),
+			chunk_index: i32::try_from(retrieval_rank.saturating_sub(1)).unwrap_or(0),
+			start_offset: 0,
+			end_offset: 16,
+		};
+		let item = ChunkSnippet {
+			note,
+			chunk,
+			snippet: format!("snippet-{retrieval_rank}"),
+			retrieval_rank,
+		};
+
+		ScoredChunk {
+			item,
+			final_score: 0.0,
+			rerank_score: 0.0,
+			rerank_rank: retrieval_rank,
+			rerank_norm: 0.0,
+			retrieval_norm: 0.0,
+			blend_retrieval_weight: 0.5,
+			retrieval_term: 0.0,
+			rerank_term: 0.0,
+			tie_breaker_score: 0.0,
+			scope_context_boost: 0.0,
+			age_days: 0.0,
+			importance: 0.1,
+			deterministic_lexical_overlap_ratio: 0.0,
+			deterministic_lexical_bonus: 0.0,
+			deterministic_hit_count: 0,
+			deterministic_last_hit_age_days: None,
+			deterministic_hit_boost: 0.0,
+			deterministic_decay_penalty: 0.0,
+		}
+	}
+
+	#[test]
+	fn diversity_selection_skips_high_similarity_when_alternative_exists() {
+		let now = OffsetDateTime::from_unix_timestamp(0).expect("Valid timestamp.");
+		let note_a = Uuid::new_v4();
+		let note_b = Uuid::new_v4();
+		let note_c = Uuid::new_v4();
+		let candidates = vec![
+			test_scored_chunk(note_a, 1, now),
+			test_scored_chunk(note_b, 2, now),
+			test_scored_chunk(note_c, 3, now),
+		];
+		let mut vectors = HashMap::new();
+
+		vectors.insert(note_a, vec![1.0, 0.0]);
+		vectors.insert(note_b, vec![0.99, 0.01]);
+		vectors.insert(note_c, vec![0.0, 1.0]);
+
+		let policy = ResolvedDiversityPolicy {
+			enabled: true,
+			sim_threshold: 0.9,
+			mmr_lambda: 0.7,
+			max_skips: 64,
+		};
+		let (selected, decisions) = select_diverse_results(candidates, 2, &policy, &vectors);
+		let selected_ids: Vec<Uuid> = selected.iter().map(|item| item.item.note.note_id).collect();
+
+		assert_eq!(selected_ids, vec![note_a, note_c]);
+		assert_eq!(
+			decisions.get(&note_b).and_then(|decision| decision.skipped_reason.as_deref()),
+			Some("similarity_threshold")
+		);
+	}
+
+	#[test]
+	fn diversity_selection_backfills_when_max_skips_is_reached() {
+		let now = OffsetDateTime::from_unix_timestamp(0).expect("Valid timestamp.");
+		let note_a = Uuid::new_v4();
+		let note_b = Uuid::new_v4();
+		let candidates = vec![test_scored_chunk(note_a, 1, now), test_scored_chunk(note_b, 2, now)];
+		let mut vectors = HashMap::new();
+
+		vectors.insert(note_a, vec![1.0, 0.0]);
+		vectors.insert(note_b, vec![0.99, 0.01]);
+
+		let policy = ResolvedDiversityPolicy {
+			enabled: true,
+			sim_threshold: 0.9,
+			mmr_lambda: 0.7,
+			max_skips: 0,
+		};
+		let (selected, decisions) = select_diverse_results(candidates, 2, &policy, &vectors);
+		let selected_ids: Vec<Uuid> = selected.iter().map(|item| item.item.note.note_id).collect();
+		let selected_reason =
+			decisions.get(&note_b).map(|decision| decision.selected_reason.as_str());
+
+		assert_eq!(selected_ids, vec![note_a, note_b]);
+		assert_eq!(selected_reason, Some("max_skips_backfill"));
+	}
+
+	#[test]
+	fn replay_diversity_decisions_prefer_selected_entry_for_same_note() {
+		let now = OffsetDateTime::from_unix_timestamp(0).expect("Valid timestamp.");
+		let note_id = Uuid::new_v4();
+		let first = TraceReplayCandidate {
+			note_id,
+			chunk_id: Uuid::new_v4(),
+			chunk_index: 0,
+			snippet: "first".to_string(),
+			retrieval_rank: 2,
+			rerank_score: 0.2,
+			note_scope: "project_shared".to_string(),
+			note_importance: 0.1,
+			note_updated_at: now,
+			note_hit_count: 0,
+			note_last_hit_at: None,
+			diversity_selected: Some(false),
+			diversity_selected_rank: None,
+			diversity_selected_reason: Some("not_selected".to_string()),
+			diversity_skipped_reason: Some("lower_mmr".to_string()),
+			diversity_nearest_selected_note_id: None,
+			diversity_similarity: Some(0.95),
+			diversity_mmr_score: Some(0.12),
+			diversity_missing_embedding: Some(false),
+		};
+		let second = TraceReplayCandidate {
+			note_id,
+			chunk_id: Uuid::new_v4(),
+			chunk_index: 1,
+			snippet: "second".to_string(),
+			retrieval_rank: 1,
+			rerank_score: 0.3,
+			note_scope: "project_shared".to_string(),
+			note_importance: 0.1,
+			note_updated_at: now,
+			note_hit_count: 0,
+			note_last_hit_at: None,
+			diversity_selected: Some(true),
+			diversity_selected_rank: Some(2),
+			diversity_selected_reason: Some("mmr".to_string()),
+			diversity_skipped_reason: None,
+			diversity_nearest_selected_note_id: None,
+			diversity_similarity: Some(0.35),
+			diversity_mmr_score: Some(0.44),
+			diversity_missing_embedding: Some(false),
+		};
+
+		let decisions = extract_replay_diversity_decisions(&[first, second]);
+		let decision = decisions.get(&note_id).expect("Expected merged decision.");
+
+		assert!(decision.selected);
+		assert_eq!(decision.selected_rank, Some(2));
+		assert_eq!(decision.selected_reason, "mmr");
+	}
+
 	fn parse_example_config() -> Config {
 		let root_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
 		let path = root_dir.join("elf.example.toml");
@@ -4136,8 +5324,8 @@ mod tests {
 		let id_b = ranking_policy_id(&cfg, None).expect("Expected policy id.");
 
 		assert_eq!(id_a, id_b);
-		assert!(id_a.starts_with("blend_v1:"), "Unexpected policy id: {id_a}");
-		assert_eq!(id_a.len(), "blend_v1:".len() + 12, "Unexpected policy id: {id_a}");
+		assert!(id_a.starts_with("ranking_v2:"), "Unexpected policy id: {id_a}");
+		assert_eq!(id_a.len(), "ranking_v2:".len() + 12, "Unexpected policy id: {id_a}");
 	}
 
 	#[test]
@@ -4150,6 +5338,28 @@ mod tests {
 				rerank_normalization: None,
 				retrieval_normalization: None,
 				segments: None,
+			}),
+			diversity: None,
+			retrieval_sources: None,
+		};
+		let overridden =
+			ranking_policy_id(&cfg, Some(&override_)).expect("Expected overridden policy id.");
+
+		assert_ne!(base, overridden);
+	}
+
+	#[test]
+	fn ranking_policy_id_changes_with_retrieval_source_override() {
+		let cfg = parse_example_config();
+		let base = ranking_policy_id(&cfg, None).expect("Expected base policy id.");
+		let override_ = RankingRequestOverride {
+			blend: None,
+			diversity: None,
+			retrieval_sources: Some(RetrievalSourcesRankingOverride {
+				fusion_weight: Some(0.75),
+				structured_field_weight: Some(1.25),
+				fusion_priority: Some(2),
+				structured_field_priority: Some(1),
 			}),
 		};
 		let overridden =
@@ -4183,6 +5393,14 @@ mod tests {
 				note_updated_at: now,
 				note_hit_count: 0,
 				note_last_hit_at: None,
+				diversity_selected: None,
+				diversity_selected_rank: None,
+				diversity_selected_reason: None,
+				diversity_skipped_reason: None,
+				diversity_nearest_selected_note_id: None,
+				diversity_similarity: None,
+				diversity_mmr_score: None,
+				diversity_missing_embedding: None,
 			},
 			TraceReplayCandidate {
 				note_id: Uuid::new_v4(),
@@ -4196,6 +5414,14 @@ mod tests {
 				note_updated_at: now,
 				note_hit_count: 0,
 				note_last_hit_at: None,
+				diversity_selected: None,
+				diversity_selected_rank: None,
+				diversity_selected_reason: None,
+				diversity_skipped_reason: None,
+				diversity_nearest_selected_note_id: None,
+				diversity_similarity: None,
+				diversity_mmr_score: None,
+				diversity_missing_embedding: None,
 			},
 			TraceReplayCandidate {
 				note_id: Uuid::new_v4(),
@@ -4209,6 +5435,14 @@ mod tests {
 				note_updated_at: now,
 				note_hit_count: 0,
 				note_last_hit_at: None,
+				diversity_selected: None,
+				diversity_selected_rank: None,
+				diversity_selected_reason: None,
+				diversity_skipped_reason: None,
+				diversity_nearest_selected_note_id: None,
+				diversity_similarity: None,
+				diversity_mmr_score: None,
+				diversity_missing_embedding: None,
 			},
 		];
 		let out = replay_ranking_from_candidates(&cfg, &trace, None, &candidates, 2)
