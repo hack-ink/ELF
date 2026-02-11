@@ -1,13 +1,16 @@
 pub fn render_schema(vector_dim: u32) -> String {
 	let init = include_str!("../../../sql/init.sql");
 	let expanded = expand_includes(init);
+
 	expanded.replace("<VECTOR_DIM>", &vector_dim.to_string())
 }
 
 fn expand_includes(sql: &str) -> String {
 	let mut out = String::new();
+
 	for line in sql.lines() {
 		let trimmed = line.trim();
+
 		if let Some(path) = trimmed.strip_prefix("\\ir ") {
 			match path.trim() {
 				"00_extensions.sql" => out.push_str(include_str!("../../../sql/00_extensions.sql")),
@@ -44,7 +47,9 @@ fn expand_includes(sql: &str) -> String {
 		} else {
 			out.push_str(line);
 		}
+
 		out.push('\n');
 	}
+
 	out
 }
