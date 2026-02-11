@@ -53,6 +53,9 @@ jobs:
       - name: Run lint
         run: cargo make lint-rust
 
+      - name: Run Rust style checks
+        run: cargo make style-check-rust
+
       - name: Run Rust format checks
         run: cargo make fmt-rust-check
 
