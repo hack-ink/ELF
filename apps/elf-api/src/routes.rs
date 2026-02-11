@@ -39,7 +39,7 @@ const MAX_TOP_K: u32 = 100;
 const MAX_CANDIDATE_K: u32 = 1_000;
 const MAX_ERROR_LOG_CHARS: usize = 1_024;
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 struct RequestContext {
 	tenant_id: String,
 	project_id: String,
