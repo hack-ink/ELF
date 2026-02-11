@@ -789,7 +789,8 @@ def check_error_rs_no_use(file: Path, lines: list[str]) -> list[Violation]:
 def check_import_rules(file: Path, lines: list[str], items: list[TopItem]) -> list[Violation]:
     violations: list[Violation] = []
 
-    use_items = [item for item in items if item.kind == "use"]
+    # Import grouping rules apply to local imports, not public re-exports.
+    use_items = [item for item in items if item.kind == "use" and not item.is_pub]
     has_prelude_glob = any(
         (extract_use_path(lines[item.line - 1]) or "").replace(" ", "") == "crate::prelude::*"
         for item in use_items

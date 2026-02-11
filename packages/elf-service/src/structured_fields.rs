@@ -5,9 +5,8 @@ use serde_json::Value;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use elf_domain::{cjk, evidence};
-
 use crate::{Error, Result};
+use elf_domain::{cjk, evidence};
 
 const MAX_LIST_ITEMS: usize = 64;
 const MAX_ITEM_CHARS: usize = 1_000;

@@ -247,7 +247,7 @@ impl Default for RankingDeterministicLexical {
 			weight: 0.05,
 			min_ratio: 0.3,
 			max_query_terms: 16,
-			max_text_terms: 1024,
+			max_text_terms: 1_024,
 		}
 	}
 }

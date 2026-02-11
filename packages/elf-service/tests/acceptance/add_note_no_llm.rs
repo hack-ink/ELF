@@ -3,9 +3,8 @@ use std::sync::{
 	atomic::{AtomicUsize, Ordering},
 };
 
-use elf_service::{AddNoteInput, AddNoteRequest, Providers};
-
 use super::{SpyExtractor, StubEmbedding, StubRerank};
+use elf_service::{AddNoteInput, AddNoteRequest, Providers};
 
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run this test."]
