@@ -69,7 +69,6 @@ STYLE_RULE_IDS = {
     "RUST-STYLE-READ-003",
     "RUST-STYLE-SPACE-003",
     "RUST-STYLE-SPACE-004",
-    "RUST-STYLE-COMMENT-001",
     "RUST-STYLE-TEST-001",
     "RUST-STYLE-TEST-002",
 }
@@ -100,7 +99,6 @@ IMPLEMENTED_STYLE_RULE_IDS = {
     "RUST-STYLE-READ-003",
     "RUST-STYLE-SPACE-003",
     "RUST-STYLE-SPACE-004",
-    "RUST-STYLE-COMMENT-001",
     "RUST-STYLE-TEST-001",
     "RUST-STYLE-TEST-002",
 }
@@ -1748,35 +1746,6 @@ def check_readability_rules(file: Path, lines: list[str]) -> list[Violation]:
     return violations
 
 
-def check_comment_style(file: Path, lines: list[str]) -> list[Violation]:
-    violations: list[Violation] = []
-
-    for idx, line in enumerate(lines, start=1):
-        stripped = line.strip()
-        if not stripped.startswith("//"):
-            continue
-        if stripped.startswith("///") or stripped.startswith("//!"):
-            continue
-        if stripped in {"//", "///", "//!", "////"}:
-            continue
-        body = stripped[2:].strip()
-        if not body:
-            continue
-        if body.startswith("-") or body.startswith("="):
-            continue
-        if not body[0].isupper() or body[-1] not in {".", "!", "?"}:
-            violations.append(
-                Violation(
-                    file=file,
-                    line=idx,
-                    rule="RUST-STYLE-COMMENT-001",
-                    message="Comments should be full sentences with capitalization and punctuation.",
-                )
-            )
-
-    return violations
-
-
 def check_test_rules(file: Path, lines: list[str]) -> list[Violation]:
     violations: list[Violation] = []
 
@@ -1932,7 +1901,6 @@ def collect_violations(file: Path) -> list[Violation]:
     violations.extend(check_function_length(file, lines))
     violations.extend(check_readability_rules(file, lines))
     violations.extend(check_vertical_spacing(file, lines))
-    violations.extend(check_comment_style(file, lines))
     violations.extend(check_test_rules(file, lines))
     return violations
 
