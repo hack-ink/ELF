@@ -110,7 +110,8 @@ mod tests {
 	#[test]
 	fn splits_into_chunks_with_overlap() {
 		let cfg = ChunkingConfig { max_tokens: 10, overlap_tokens: 2 };
-		let tokenizer = load_tokenizer("Qwen/Qwen3-Embedding-8B").unwrap();
+		let tokenizer =
+			load_tokenizer("Qwen/Qwen3-Embedding-8B").expect("Tokenizer loading should succeed.");
 		let chunks = split_text("One. Two. Three. Four.", &cfg, &tokenizer);
 
 		assert!(!chunks.is_empty());
