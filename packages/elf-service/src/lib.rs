@@ -107,12 +107,37 @@ pub struct Providers {
 	pub rerank: Arc<dyn RerankProvider>,
 	pub extractor: Arc<dyn ExtractorProvider>,
 }
+impl Providers {
+	pub fn new(
+		embedding: Arc<dyn EmbeddingProvider>,
+		rerank: Arc<dyn RerankProvider>,
+		extractor: Arc<dyn ExtractorProvider>,
+	) -> Self {
+		Self { embedding, rerank, extractor }
+	}
+}
+impl Default for Providers {
+	fn default() -> Self {
+		let provider = Arc::new(DefaultProviders);
+
+		Self { embedding: provider.clone(), rerank: provider.clone(), extractor: provider }
+	}
+}
 
 pub struct ElfService {
 	pub cfg: Config,
 	pub db: Db,
 	pub qdrant: QdrantStore,
 	pub providers: Providers,
+}
+impl ElfService {
+	pub fn new(cfg: Config, db: Db, qdrant: QdrantStore) -> Self {
+		Self { cfg, db, qdrant, providers: Providers::default() }
+	}
+
+	pub fn with_providers(cfg: Config, db: Db, qdrant: QdrantStore, providers: Providers) -> Self {
+		Self { cfg, db, qdrant, providers }
+	}
 }
 
 pub(crate) struct ResolveUpdateArgs<'a> {
@@ -139,7 +164,6 @@ pub(crate) struct InsertVersionArgs<'a> {
 }
 
 struct DefaultProviders;
-
 impl EmbeddingProvider for DefaultProviders {
 	fn embed<'a>(
 		&'a self,
@@ -180,34 +204,6 @@ impl ExtractorProvider for DefaultProviders {
 				.await
 				.map_err(|err| Error::Provider { message: err.to_string() })
 		})
-	}
-}
-
-impl Providers {
-	pub fn new(
-		embedding: Arc<dyn EmbeddingProvider>,
-		rerank: Arc<dyn RerankProvider>,
-		extractor: Arc<dyn ExtractorProvider>,
-	) -> Self {
-		Self { embedding, rerank, extractor }
-	}
-}
-
-impl Default for Providers {
-	fn default() -> Self {
-		let provider = Arc::new(DefaultProviders);
-
-		Self { embedding: provider.clone(), rerank: provider.clone(), extractor: provider }
-	}
-}
-
-impl ElfService {
-	pub fn new(cfg: Config, db: Db, qdrant: QdrantStore) -> Self {
-		Self { cfg, db, qdrant, providers: Providers::default() }
-	}
-
-	pub fn with_providers(cfg: Config, db: Db, qdrant: QdrantStore, providers: Providers) -> Self {
-		Self { cfg, db, qdrant, providers }
 	}
 }
 

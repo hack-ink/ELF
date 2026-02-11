@@ -7,7 +7,6 @@ use elf_storage::{db::Db, qdrant::QdrantStore};
 pub struct AppState {
 	pub service: Arc<ElfService>,
 }
-
 impl AppState {
 	pub async fn new(config: elf_config::Config) -> color_eyre::Result<Self> {
 		let db = Db::connect(&config.storage.postgres).await?;

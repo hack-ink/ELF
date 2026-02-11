@@ -5,7 +5,6 @@ use crate::{Result, schema};
 pub struct Db {
 	pub pool: sqlx::PgPool,
 }
-
 impl Db {
 	pub async fn connect(cfg: &elf_config::Postgres) -> Result<Self> {
 		let pool =

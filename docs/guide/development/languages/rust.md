@@ -76,15 +76,15 @@ Additional rules:
 
 - Within each group, place `pub` items before non-`pub` items.
 - Within the `fn` group at the same visibility, place non-`async` functions before `async` functions.
-- For extension traits (for example, traits named `FooExt`), place the trait definition immediately followed by its `impl` blocks.
-- Keep `impl` blocks adjacent to their type definitions. See Types and `impl` Blocks.
+- Treat `enum`, `struct`, and `impl` as one ordering stage for module layout checks.
+- For each type, place its related `impl` blocks immediately after the type definition, with no blank line between them.
 - Tests must be declared last, after all other items.
 - Inside `#[cfg(test)] mod tests`, use `use super::*;` unless the module exists only to mark dev-dependencies as used (for example, `#[cfg(test)] mod _test` with `use some_crate as _;`).
 
 Editing checklist:
 
 1. Ensure the top-level groups match the required order (mod, use, macro_rules!, type, const, static, trait, enum, struct, impl, fn).
-2. Keep a type definition immediately followed by its `impl` blocks.
+2. Keep each type definition immediately followed by related `impl` blocks.
 3. Keep `#[cfg(test)] mod tests` as the last item in the module.
 
 ### File Structure
@@ -141,9 +141,8 @@ pub fn run_worker() {
 ## Types and `impl` Blocks
 
 - Use `Self` instead of the concrete type name in `impl` method signatures.
-- `impl` blocks for a type must be placed immediately after the type definition with no blank line between them.
-- Keep all `impl` blocks for a type contiguous and grouped immediately after the type definition.
-- Order `impl` blocks as: inherent, standard library traits, third-party traits, project traits.
+- Place `impl` blocks for a type immediately after that type definition and keep them contiguous.
+- Order `impl` blocks as: inherent, standard library traits, third-party traits, workspace-member traits.
 
 ## Generics and Trait Bounds
 
@@ -342,7 +341,7 @@ When you claim a Rust change is complete, run the following tasks:
 - `RUST-STYLE-MOD-001`: Keep top-level item order as `mod`, `use`, `macro_rules!`, `type`, `const`, `static`, `trait`, `enum`, `struct`, `impl`, `fn`.
 - `RUST-STYLE-MOD-002`: Place `pub` items before non-`pub` items within the same group.
 - `RUST-STYLE-MOD-003`: Place non-`async` functions before `async` functions at the same visibility.
-- `RUST-STYLE-MOD-005`: Keep type or extension-trait definitions adjacent to related `impl` blocks.
+- `RUST-STYLE-MOD-005`: Keep each type definition adjacent to its related `impl` blocks, with no blank line between them.
 - `RUST-STYLE-MOD-007`: In `#[cfg(test)] mod tests`, use `use super::*;` unless it is a keep-alive module.
 
 ### Serde
@@ -362,7 +361,7 @@ When you claim a Rust change is complete, run the following tasks:
 ### Types and Generics
 
 - `RUST-STYLE-IMPL-001`: In `impl` method signatures, use `Self` instead of the concrete type name.
-- `RUST-STYLE-IMPL-003`: Keep `impl` blocks contiguous and ordered as inherent, standard library traits, third-party traits, then project traits.
+- `RUST-STYLE-IMPL-003`: Keep `impl` blocks contiguous and ordered as inherent, standard library traits, third-party traits, then workspace-member traits.
 - `RUST-STYLE-GENERICS-001`: Move trait bounds to `where` clauses; do not use inline bounds.
 
 ### Logging

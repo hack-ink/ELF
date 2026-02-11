@@ -4,10 +4,10 @@ pub mod rerank;
 
 mod error;
 
+pub use error::{Error, Result};
+
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderName};
 use serde_json::{Map, Value};
-
-pub use error::{Error, Result};
 
 pub fn auth_headers(api_key: &str, default_headers: &Map<String, Value>) -> Result<HeaderMap> {
 	let mut headers = HeaderMap::new();

@@ -17,7 +17,6 @@ struct DiversityPick {
 	missing_embedding: bool,
 	retrieval_rank: u32,
 }
-
 impl DiversityPick {
 	fn better_than(self, other: &Self) -> bool {
 		self.mmr_score > other.mmr_score
