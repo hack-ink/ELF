@@ -106,13 +106,11 @@ impl ElfService {
 			self.cfg.memory.max_notes_per_add_event,
 			self.cfg.memory.max_note_chars,
 		)?;
-
 		let extracted_raw = self
 			.providers
 			.extractor
 			.extract(&self.cfg.providers.llm_extractor, &messages_json)
 			.await?;
-
 		let mut extracted: ExtractorOutput = serde_json::from_value(extracted_raw.clone())
 			.map_err(|_| Error::InvalidRequest {
 				message: "Extractor output is missing notes array.".to_string(),
@@ -152,6 +150,7 @@ impl ElfService {
 					reason_code: Some(REJECT_EVIDENCE_MISMATCH.to_string()),
 					reason: note.reason.clone(),
 				});
+
 				continue;
 			}
 
@@ -194,6 +193,7 @@ impl ElfService {
 					Some(event_evidence.as_slice()),
 				) {
 					tracing::info!(error = %err, "Rejecting extracted note due to invalid structured fields.");
+
 					results.push(AddEventResult {
 						note_id: None,
 						op: NoteOp::Rejected,
@@ -458,7 +458,6 @@ WHERE note_id = $7",
 					}
 
 					tx.commit().await?;
-
 					results.push(AddEventResult {
 						note_id: Some(note_id),
 						op: NoteOp::Update,

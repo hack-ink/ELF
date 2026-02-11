@@ -370,7 +370,6 @@ fn normalize_api_base(raw: &str) -> String {
 	} else {
 		("http://", trimmed)
 	};
-
 	// elf-mcp runs on the same host as elf-api. If elf-api binds to a wildcard address, use
 	// loopback for forwarding.
 	let rest = if let Some(value) = rest.strip_prefix("0.0.0.0:") {

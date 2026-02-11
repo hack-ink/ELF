@@ -1055,6 +1055,7 @@ ORDER BY rank ASC",
 			if baseline_vector.is_some() && query == original_query {
 				continue;
 			}
+
 			extra_queries.push(query.clone());
 			extra_inputs
 				.push(ranking::build_dense_embedding_input(query, project_context_description));
@@ -1096,6 +1097,7 @@ ORDER BY rank ASC",
 					message: "Embedding vector dimension mismatch.".to_string(),
 				});
 			}
+
 			out.push(QueryEmbedding { text: query.clone(), vector });
 		}
 		Ok(out)
@@ -1173,6 +1175,7 @@ ORDER BY rank ASC",
 						ttl_days = cache_cfg.expansion_ttl_days,
 						"Cache hit."
 					);
+
 					let cached: ExpansionCachePayload = match serde_json::from_value(payload.value)
 					{
 						Ok(value) => value,
@@ -1444,7 +1447,6 @@ LIMIT $8",
 				.map(|row| FieldHit { note_id: row.note_id, field_kind: row.field_kind })
 				.collect()
 		};
-
 		let mut structured_matches: HashMap<Uuid, HashSet<String>> = HashMap::new();
 		let mut ordered_note_ids = Vec::new();
 		let mut seen_notes = HashSet::new();
@@ -1755,7 +1757,6 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 										ttl_days = cache_cfg.rerank_ttl_days,
 										"Cache hit."
 									);
-
 									cached_scores = Some(scores);
 								} else {
 									tracing::warn!(
@@ -2072,6 +2073,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 			let mut tx = self.db.pool.begin().await?;
 
 			record_hits(&mut *tx, query, &selected_results, now).await?;
+
 			tx.commit().await?;
 		}
 
@@ -2223,6 +2225,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 				let mut tx = self.db.pool.begin().await?;
 
 				persist_trace_inline(&mut tx, trace_payload).await?;
+
 				tx.commit().await?;
 			},
 			_ =>
@@ -2414,6 +2417,7 @@ pub fn replay_ranking_from_candidates(
 			None => true,
 			Some(existing) => {
 				let ord = ranking::cmp_f32_desc(scored.final_score, existing.final_score);
+
 				if ord != Ordering::Equal {
 					ord == Ordering::Less
 				} else {
@@ -2480,6 +2484,7 @@ pub fn replay_ranking_from_candidates(
 
 			a.note_id.cmp(&b.note_id)
 		});
+
 		if !selected.is_empty() {
 			results = selected;
 		}
@@ -2616,11 +2621,11 @@ JOIN note_embeddings n
 	.bind(embedding_versions.as_slice())
 	.fetch_all(executor)
 	.await?;
-
 	let mut out = HashMap::new();
 
 	for row in rows {
 		let vec = crate::parse_pg_vector(row.vec_text.as_str())?;
+
 		out.insert(row.note_id, vec);
 	}
 
@@ -2745,6 +2750,7 @@ INSERT INTO search_trace_items (
 	explain
 ) ",
 		);
+
 		builder.push_values(items, |mut b, item| {
 			let explain_json = serde_json::to_value(item.explain)
 				.expect("SearchExplain must be JSON-serializable.");
@@ -2757,10 +2763,10 @@ INSERT INTO search_trace_items (
 				.push_bind(item.final_score)
 				.push_bind(explain_json);
 		});
+
 		builder.push(" ON CONFLICT (item_id) DO NOTHING");
 		builder.build().execute(&mut *executor).await?;
 	}
-
 	if !candidates.is_empty() {
 		let mut builder = QueryBuilder::new(
 			"\
@@ -2783,6 +2789,7 @@ INSERT INTO search_trace_candidates (
 	expires_at
 ) ",
 		);
+
 		builder.push_values(candidates, |mut b, candidate| {
 			b.push_bind(candidate.candidate_id)
 				.push_bind(trace_id)
@@ -2921,7 +2928,6 @@ FROM updated",
 		return Ok(None);
 	};
 	let payload = row.payload;
-
 	let size_bytes = serde_json::to_vec(&payload)
 		.map_err(|err| Error::Storage {
 			message: format!("Failed to encode cache payload: {err}"),
@@ -3259,12 +3265,14 @@ mod tests {
 		let ratio = ranking::lexical_overlap_ratio(&query_tokens, "Deploy only.", 128);
 
 		assert!((ratio - 0.5).abs() < 1e-6, "Unexpected ratio: {ratio}");
+
 		assert!((0.0..=1.0).contains(&ratio), "Ratio must be in [0, 1].");
 	}
 
 	#[test]
 	fn deterministic_ranking_terms_do_not_apply_when_disabled() {
 		let mut cfg = parse_example_config();
+
 		cfg.ranking.deterministic.enabled = false;
 		cfg.ranking.deterministic.lexical.enabled = true;
 		cfg.ranking.deterministic.hits.enabled = true;
@@ -3408,7 +3416,9 @@ mod tests {
 		scored.deterministic_decay_penalty = terms.decay_penalty;
 
 		assert!(scored.final_score.is_finite(), "Score must be finite.");
+
 		assert!((0.0..=1.0).contains(&scored.deterministic_lexical_overlap_ratio));
+
 		assert!(scored.deterministic_lexical_bonus >= 0.0);
 		assert!(scored.deterministic_hit_boost >= 0.0);
 		assert!(scored.deterministic_decay_penalty <= 0.0);
@@ -3580,7 +3590,6 @@ mod tests {
 			diversity_mmr_score: Some(0.44),
 			diversity_missing_embedding: Some(false),
 		};
-
 		let decisions = ranking::extract_replay_diversity_decisions(&[first, second]);
 		let decision = decisions.get(&note_id).expect("Expected merged decision.");
 

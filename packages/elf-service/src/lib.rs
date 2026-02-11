@@ -291,7 +291,6 @@ where
 		text,
 		now,
 	} = args;
-
 	let embeddings =
 		providers.embedding.embed(&cfg.providers.embedding, &[text.to_string()]).await?;
 	let Some(vec) = embeddings.into_iter().next() else {

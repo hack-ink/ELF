@@ -34,19 +34,23 @@ pub async fn embed(
 
 fn local_embed(dim: usize, text: &str) -> Vec<f32> {
 	let mut vec = vec![0.0f32; dim];
+
 	if dim == 0 {
 		return vec;
 	}
 
 	let normalized = normalize_ascii_alnum_lowercase(text);
+
 	for token in normalized.split_whitespace() {
 		if token.len() < 2 {
 			continue;
 		}
+
 		let hash = blake3::hash(token.as_bytes());
 		let bytes = hash.as_bytes();
 		let index = (u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]) as usize) % dim;
 		let sign = if bytes[4] & 1 == 0 { 1.0 } else { -1.0 };
+
 		vec[index] += sign;
 	}
 
@@ -54,6 +58,7 @@ fn local_embed(dim: usize, text: &str) -> Vec<f32> {
 		let hash = blake3::hash(text.as_bytes());
 		let bytes = hash.as_bytes();
 		let index = (u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]) as usize) % dim;
+
 		vec[index] = 1.0;
 	}
 
@@ -63,6 +68,7 @@ fn local_embed(dim: usize, text: &str) -> Vec<f32> {
 
 fn normalize_ascii_alnum_lowercase(text: &str) -> String {
 	let mut normalized = String::with_capacity(text.len());
+
 	for ch in text.chars() {
 		if ch.is_ascii_alphanumeric() {
 			normalized.push(ch.to_ascii_lowercase());
@@ -75,13 +81,17 @@ fn normalize_ascii_alnum_lowercase(text: &str) -> String {
 
 fn l2_normalize(vec: &mut [f32]) {
 	let mut norm = 0.0f32;
+
 	for value in vec.iter() {
 		norm += value * value;
 	}
+
 	if norm <= 0.0 {
 		return;
 	}
+
 	let inv = 1.0 / norm.sqrt();
+
 	for value in vec.iter_mut() {
 		*value *= inv;
 	}
@@ -91,8 +101,8 @@ fn parse_embedding_response(json: Value) -> Result<Vec<Vec<f32>>> {
 	let data = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
 		Error::InvalidResponse { message: "Embedding response is missing data array.".to_string() }
 	})?;
-
 	let mut indexed: Vec<(usize, Vec<f32>)> = Vec::with_capacity(data.len());
+
 	for (fallback_index, item) in data.iter().enumerate() {
 		let index = item
 			.get("index")
@@ -105,12 +115,15 @@ fn parse_embedding_response(json: Value) -> Result<Vec<Vec<f32>>> {
 			}
 		})?;
 		let mut vec = Vec::with_capacity(embedding.len());
+
 		for value in embedding {
 			let number = value.as_f64().ok_or_else(|| Error::InvalidResponse {
 				message: "Embedding value must be numeric.".to_string(),
 			})?;
+
 			vec.push(number as f32);
 		}
+
 		indexed.push((index, vec));
 	}
 
@@ -132,6 +145,7 @@ mod tests {
 			]
 		});
 		let parsed = parse_embedding_response(json).expect("parse failed");
+
 		assert_eq!(parsed.len(), 2);
 		assert_eq!(parsed[0], vec![0.5, 1.5]);
 		assert_eq!(parsed[1], vec![2.0, 3.0]);
@@ -141,6 +155,7 @@ mod tests {
 	fn local_embedding_is_deterministic_and_has_expected_dimension() {
 		let a = local_embed(64, "Embeddings are stored in Postgres.");
 		let b = local_embed(64, "Embeddings are stored in Postgres.");
+
 		assert_eq!(a.len(), 64);
 		assert_eq!(a, b);
 	}
@@ -150,7 +165,6 @@ mod tests {
 		let a = local_embed(512, "alpha beta");
 		let b = local_embed(512, "alpha gamma");
 		let c = local_embed(512, "delta epsilon");
-
 		let sim_ab = dot(&a, &b);
 		let sim_ac = dot(&a, &c);
 
