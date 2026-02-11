@@ -111,7 +111,6 @@ async fn setup_context(test_name: &str) -> Option<TestContext> {
 
 		return None;
 	};
-
 	let providers = Providers::new(
 		std::sync::Arc::new(super::StubEmbedding { vector_dim: 4_096 }),
 		std::sync::Arc::new(KeywordRerank { keyword: "ZEBRA" }),
@@ -120,7 +119,6 @@ async fn setup_context(test_name: &str) -> Option<TestContext> {
 			payload: serde_json::json!({ "notes": [] }),
 		}),
 	);
-
 	let collection = test_db.collection_name("elf_acceptance");
 	let cfg = test_config(test_db.dsn().to_string(), qdrant_url, 4_096, collection);
 	let service = build_service(cfg, providers).await.expect("Failed to build service.");

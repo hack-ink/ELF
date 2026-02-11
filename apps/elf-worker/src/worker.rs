@@ -271,6 +271,7 @@ fn format_vector_text(vec: &[f32]) -> String {
 		if idx > 0 {
 			out.push(',');
 		}
+
 		out.push_str(&value.to_string());
 	}
 
@@ -693,6 +694,7 @@ INSERT INTO search_trace_items (
 	explain
 ) ",
 		);
+
 		builder.push_values(inserts, |mut b, item| {
 			b.push_bind(item.item_id)
 				.push_bind(trace_id)
@@ -705,7 +707,6 @@ INSERT INTO search_trace_items (
 		builder.push(" ON CONFLICT (item_id) DO NOTHING");
 		builder.build().execute(&mut *tx).await?;
 	}
-
 	if !payload.candidates.is_empty() {
 		let mut inserts = Vec::with_capacity(payload.candidates.len());
 
@@ -750,6 +751,7 @@ INSERT INTO search_trace_candidates (
 	expires_at
 ) ",
 		);
+
 		builder.push_values(inserts, |mut b, candidate| {
 			b.push_bind(candidate.candidate_id)
 				.push_bind(trace_id)
@@ -933,6 +935,7 @@ async fn delete_qdrant_note_points(state: &WorkerState, note_id: Uuid) -> Result
 	let filter = Filter::must([Condition::matches("note_id", note_id.to_string())]);
 	let delete =
 		DeletePointsBuilder::new(state.qdrant.collection.clone()).points(filter).wait(true);
+
 	match state.qdrant.client.delete_points(delete).await {
 		Ok(_) => {},
 		Err(err) =>
@@ -980,6 +983,7 @@ async fn upsert_qdrant_chunks(
 			"updated_at".to_string(),
 			Value::from(serde_json::Value::String(format_timestamp(note.updated_at)?)),
 		);
+
 		payload_map.insert(
 			"expires_at".to_string(),
 			Value::from(match note.expires_at {
@@ -987,6 +991,7 @@ async fn upsert_qdrant_chunks(
 				None => serde_json::Value::Null,
 			}),
 		);
+
 		payload_map.insert(
 			"importance".to_string(),
 			Value::from(serde_json::Value::from(note.importance as f64)),

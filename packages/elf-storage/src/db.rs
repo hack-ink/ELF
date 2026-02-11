@@ -19,13 +19,16 @@ impl Db {
 		// Advisory locks are held per connection. Use a single transaction so the lock is scoped to
 		// one connection and automatically released when the transaction ends.
 		let mut tx = self.pool.begin().await?;
+
 		sqlx::query!("SELECT pg_advisory_xact_lock($1)", lock_id).execute(&mut *tx).await?;
 
 		for statement in sql.split(';') {
 			let trimmed = statement.trim();
+
 			if trimmed.is_empty() {
 				continue;
 			}
+
 			sqlx::query(trimmed).execute(&mut *tx).await?;
 		}
 

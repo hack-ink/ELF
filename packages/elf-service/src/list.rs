@@ -68,6 +68,7 @@ impl ElfService {
 			"SELECT note_id, tenant_id, project_id, agent_id, scope, type, key, text, importance, confidence, status, created_at, updated_at, expires_at, embedding_version, source_ref, hit_count, last_hit_at \
 					FROM memory_notes WHERE tenant_id = ",
 		);
+
 		builder.push_bind(tenant_id);
 		builder.push(" AND project_id = ");
 		builder.push_bind(project_id);
@@ -75,6 +76,7 @@ impl ElfService {
 		if let Some(scope) = &req.scope {
 			builder.push(" AND scope = ");
 			builder.push_bind(scope);
+
 			if scope == "agent_private" {
 				let agent_id = req.agent_id.as_ref().map(|value| value.trim()).unwrap_or("");
 
@@ -83,6 +85,7 @@ impl ElfService {
 						message: "agent_id is required for agent_private scope.".to_string(),
 					});
 				}
+
 				builder.push(" AND agent_id = ");
 				builder.push_bind(agent_id);
 			}
@@ -100,12 +103,14 @@ impl ElfService {
 			builder.push(" AND status = ");
 			builder.push_bind("active");
 		}
+
 		// Expiry only applies to active notes. Deleted notes may also have expires_at set by GC.
 		if requested_status.unwrap_or("active").eq_ignore_ascii_case("active") {
 			builder.push(" AND (expires_at IS NULL OR expires_at > ");
 			builder.push_bind(now);
 			builder.push(")");
 		}
+
 		if let Some(note_type) = &req.r#type {
 			builder.push(" AND type = ");
 			builder.push_bind(note_type);

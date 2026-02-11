@@ -20,6 +20,7 @@ impl XorShift64 {
 
 	fn next_u64(&mut self) -> u64 {
 		let mut x = self.state;
+
 		x ^= x << 13;
 		x ^= x >> 7;
 		x ^= x << 17;
@@ -106,8 +107,8 @@ fn local_rerank_noisy(query: &str, docs: &[String], noise_std: f32) -> Vec<f32> 
 	let mut seed_bytes = [0_u8; 8];
 
 	seed_bytes.copy_from_slice(&query_hash.as_bytes()[..8]);
-	// Vary the noise across calls to simulate reranker instability.
 
+	// Vary the noise across calls to simulate reranker instability.
 	let call_idx = LOCAL_NOISE_CALL_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 	let mut seed = u64::from_le_bytes(seed_bytes);
 
@@ -228,6 +229,7 @@ mod tests {
 			let next = local_rerank_dispatch("local-token-overlap-noisy@0.1", "alpha beta", &docs);
 
 			assert_eq!(first.len(), next.len());
+
 			assert!(next.iter().all(|v| (0.0..=1.0).contains(v)));
 
 			if next != first {

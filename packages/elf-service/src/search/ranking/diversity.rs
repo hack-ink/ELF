@@ -68,7 +68,6 @@ pub fn nearest_selected_similarity(
 	let Some(candidate_vec) = note_vectors.get(&note_id) else {
 		return (None, None, true);
 	};
-
 	let mut best_similarity: Option<f32> = None;
 	let mut nearest_note_id: Option<Uuid> = None;
 
@@ -99,7 +98,6 @@ pub fn select_diverse_results(
 	if candidates.is_empty() || top_k == 0 {
 		return (Vec::new(), HashMap::new());
 	}
-
 	if !policy.enabled {
 		let mut decisions = HashMap::new();
 		let mut selected = Vec::new();
@@ -231,7 +229,6 @@ pub fn select_diverse_results(
 		} else {
 			break;
 		};
-
 		let picked_idx = remaining_indices.remove(selected_pick.remaining_pos);
 
 		selected_indices.push(picked_idx);

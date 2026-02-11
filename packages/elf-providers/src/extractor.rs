@@ -22,6 +22,7 @@ pub async fn extract(cfg: &elf_config::LlmProviderConfig, messages: &[Value]) ->
 			.send()
 			.await?;
 		let json: Value = res.error_for_status()?.json().await?;
+
 		if let Ok(parsed) = parse_extractor_json(json) {
 			return Ok(parsed);
 		}
@@ -67,6 +68,7 @@ mod tests {
 			]
 		});
 		let parsed = parse_extractor_json(json).expect("parse failed");
+
 		assert!(parsed.get("notes").is_some());
 	}
 }

@@ -248,7 +248,6 @@ async fn add_note_does_not_call_llm() {
 	let result = service.add_note(req).await;
 
 	assert!(matches!(result, Err(Error::NonEnglishInput { .. })));
-
 	assert_eq!(spy.count(), 0);
 }
 
@@ -273,6 +272,5 @@ async fn add_note_rejects_empty_notes() {
 	let result = service.add_note(req).await;
 
 	assert!(matches!(result, Err(Error::InvalidRequest { .. })));
-
 	assert_eq!(spy.count(), 0);
 }

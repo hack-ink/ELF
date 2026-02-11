@@ -179,7 +179,6 @@ impl ElfService {
 	pub async fn search(&self, req: SearchRequest) -> Result<SearchIndexResponse> {
 		let top_k = req.top_k.unwrap_or(self.cfg.memory.top_k).max(1);
 		let candidate_k = req.candidate_k.unwrap_or(self.cfg.memory.candidate_k).max(top_k);
-
 		let mut raw_req = req.clone();
 
 		raw_req.top_k = Some(candidate_k);
@@ -451,7 +450,9 @@ impl ElfService {
 
 		if !hits.is_empty() {
 			let mut tx = self.db.pool.begin().await?;
+
 			record_detail_hits(&mut *tx, &session.query, &hits, now).await?;
+
 			tx.commit().await?;
 		}
 
@@ -546,6 +547,7 @@ where
 	let items_json = serde_json::to_value(session.items).map_err(|err| Error::Storage {
 		message: format!("Failed to encode search session items: {err}"),
 	})?;
+
 	sqlx::query!(
 		"\
 INSERT INTO search_sessions (
@@ -608,7 +610,6 @@ WHERE search_session_id = $1",
 	let Some(row) = row else {
 		return Err(Error::InvalidRequest { message: "Unknown search_session_id.".to_string() });
 	};
-
 	let expires_at: OffsetDateTime = row.expires_at;
 
 	if expires_at <= now {
@@ -746,6 +747,7 @@ where
 		let rank = i32::try_from(item.rank).map_err(|_| Error::InvalidRequest {
 			message: "Search session rank is out of range.".to_string(),
 		})?;
+
 		hit_ids.push(Uuid::new_v4());
 		note_ids.push(item.note_id);
 		chunk_ids.push(item.chunk_id);

@@ -39,6 +39,7 @@ pub fn split_text(text: &str, cfg: &ChunkingConfig, tokenizer: &Tokenizer) -> Ve
 				0
 			},
 		};
+
 		if token_count as u32 > cfg.max_tokens && !current.is_empty() {
 			chunks.push(Chunk {
 				chunk_index,
@@ -46,17 +47,23 @@ pub fn split_text(text: &str, cfg: &ChunkingConfig, tokenizer: &Tokenizer) -> Ve
 				end_offset: last_end,
 				text: current.clone(),
 			});
+
 			chunk_index += 1;
+
 			let overlap = overlap_tail(&current, cfg.overlap_tokens, tokenizer);
+
 			current_start = last_end.saturating_sub(overlap.len());
 			current = overlap;
 		}
 		if current.is_empty() {
 			current_start = idx;
 		}
+
 		current.push_str(sentence);
+
 		last_end = idx + sentence.len();
 	}
+
 	if !current.is_empty() {
 		chunks.push(Chunk {
 			chunk_index,
@@ -72,6 +79,7 @@ fn overlap_tail(text: &str, overlap_tokens: u32, tokenizer: &Tokenizer) -> Strin
 	if overlap_tokens == 0 {
 		return String::new();
 	}
+
 	let encoding = match tokenizer.encode(text, false) {
 		Ok(encoding) => encoding,
 		Err(err) => {
@@ -83,6 +91,7 @@ fn overlap_tail(text: &str, overlap_tokens: u32, tokenizer: &Tokenizer) -> Strin
 	let tokens = encoding.get_ids();
 	let start = tokens.len().saturating_sub(overlap_tokens as usize);
 	let tail_ids = &tokens[start..];
+
 	match tokenizer.decode(tail_ids, true) {
 		Ok(decoded) => decoded,
 		Err(err) => {
@@ -102,6 +111,7 @@ mod tests {
 		let cfg = ChunkingConfig { max_tokens: 10, overlap_tokens: 2 };
 		let tokenizer = load_tokenizer("Qwen/Qwen3-Embedding-8B").unwrap();
 		let chunks = split_text("One. Two. Three. Four.", &cfg, &tokenizer);
+
 		assert!(!chunks.is_empty());
 		assert!(chunks[0].text.contains("One"));
 	}

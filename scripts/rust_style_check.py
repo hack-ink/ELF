@@ -151,9 +151,8 @@ def line_indent_width(line: str) -> int:
     return width
 
 
-def strip_string_and_line_comment(line: str) -> str:
+def strip_string_and_line_comment_with_state(line: str, in_str: bool) -> tuple[str, bool]:
     out: list[str] = []
-    in_str = False
     escape = False
     i = 0
 
@@ -184,7 +183,12 @@ def strip_string_and_line_comment(line: str) -> str:
         out.append(ch)
         i += 1
 
-    return "".join(out)
+    return "".join(out), in_str
+
+
+def strip_string_and_line_comment(line: str) -> str:
+    stripped, _ = strip_string_and_line_comment_with_state(line, in_str=False)
+    return stripped
 
 
 def next_non_attribute_line(lines: list[str], idx: int) -> int | None:
@@ -412,8 +416,10 @@ def last_significant_statement_line(lines: list[str]) -> str | None:
 
 def normalize_statement_text(statement_lines: list[str]) -> str:
     parts: list[str] = []
+    in_str = False
     for raw in statement_lines:
-        code = strip_string_and_line_comment(raw).strip()
+        code, in_str = strip_string_and_line_comment_with_state(raw, in_str)
+        code = code.strip()
         if not code:
             continue
         if code.startswith("#"):
@@ -504,36 +510,39 @@ def classify_statement_type(statement_lines: list[str]) -> str:
         return "while"
     if re.match(r"^loop\b", first):
         return "loop"
+    if re.match(
+        r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*(?:\.await)?\?\s*;?$",
+        first,
+    ):
+        return "try-expr"
+    if re.search(ASSIGNMENT_STMT_RE, first):
+        return "assign"
 
     macro_match = re.match(r"^(?P<name>[A-Za-z_][A-Za-z0-9_:]*)!\s*\(", first)
     if macro_match:
         macro_name = macro_match.group("name")
         if "::" in macro_name:
-            return f"macro-path:{macro_name}"
-        return f"macro:{macro_name}"
-
-    method_match = re.match(r"^[^;]*\.(?P<method>[A-Za-z_][A-Za-z0-9_]*)\s*\(", first)
-    if method_match:
-        return "method"
+            return "macro-path"
+        return "macro"
 
     ufcs_call = parse_ufcs_target_call(first)
     if ufcs_call:
-        target, func = ufcs_call
-        return f"path-call:{target}::{func}"
+        return "path-call"
 
     path_call_match = re.match(
         r"^(?P<target>[A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)+)\s*\(",
         first,
     )
     if path_call_match:
-        return f"path-call:{path_call_match.group('target')}"
+        return "path-call"
 
     fn_call_match = re.match(r"^(?P<target>[A-Za-z_][A-Za-z0-9_]*)\s*\(", first)
     if fn_call_match:
-        return f"call:{fn_call_match.group('target')}"
+        return "call"
 
-    if re.search(ASSIGNMENT_STMT_RE, first):
-        return "assign"
+    method_match = re.match(r"^[^;]*\.(?P<method>[A-Za-z_][A-Za-z0-9_]*)\s*\(", first)
+    if method_match:
+        return "method"
 
     token = re.split(r"[\s({;]", first, maxsplit=1)[0]
     if token:
