@@ -77,9 +77,9 @@ WHERE n.status = 'active' AND (n.expires_at IS NULL OR n.expires_at > $1)",
 		)
 		.fetch_all(&self.db.pool)
 		.await?;
-		let mut rebuilt_count = 0u64;
-		let mut missing_vector_count = 0u64;
-		let mut error_count = 0u64;
+		let mut rebuilt_count = 0_u64;
+		let mut missing_vector_count = 0_u64;
+		let mut error_count = 0_u64;
 
 		for row in rows {
 			let Some(vec_text) = row.vec_text else {

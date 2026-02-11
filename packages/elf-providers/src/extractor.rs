@@ -67,7 +67,7 @@ mod tests {
 				{ "message": { "content": "{\"notes\": []}" } }
 			]
 		});
-		let parsed = parse_extractor_json(json).expect("parse failed");
+		let parsed = parse_extractor_json(json).expect("Parsing should succeed.");
 
 		assert!(parsed.get("notes").is_some());
 	}

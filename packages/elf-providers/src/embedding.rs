@@ -34,7 +34,7 @@ pub async fn embed(
 }
 
 fn local_embed(dim: usize, text: &str) -> Vec<f32> {
-	let mut vec = vec![0.0f32; dim];
+	let mut vec = vec![0.0_f32; dim];
 
 	if dim == 0 {
 		return vec;
@@ -83,7 +83,7 @@ fn normalize_ascii_alnum_lowercase(text: &str) -> String {
 }
 
 fn l2_normalize(vec: &mut [f32]) {
-	let mut norm = 0.0f32;
+	let mut norm = 0.0_f32;
 
 	for value in vec.iter() {
 		norm += value * value;
@@ -147,7 +147,7 @@ mod tests {
 				{ "index": 0, "embedding": [0.5, 1.5] }
 			]
 		});
-		let parsed = parse_embedding_response(json).expect("parse failed");
+		let parsed = parse_embedding_response(json).expect("Parsing should succeed.");
 
 		assert_eq!(parsed.len(), 2);
 		assert_eq!(parsed[0], vec![0.5, 1.5]);

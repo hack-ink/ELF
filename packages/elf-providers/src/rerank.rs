@@ -33,7 +33,7 @@ impl XorShift64 {
 		// Map to [0, 1). Keep 24 bits of precision for a stable f32.
 		let bits = (self.next_u64() >> 40) as u32;
 
-		(bits as f32) / ((1u32 << 24) as f32)
+		(bits as f32) / ((1_u32 << 24) as f32)
 	}
 }
 
@@ -153,7 +153,7 @@ fn tokenize_ascii_alnum(text: &str) -> HashSet<String> {
 }
 
 fn parse_rerank_response(json: Value, doc_count: usize) -> Result<Vec<f32>> {
-	let mut scores = vec![0.0f32; doc_count];
+	let mut scores = vec![0.0_f32; doc_count];
 	let results =
 		json.get("results").or_else(|| json.get("data")).and_then(|v| v.as_array()).ok_or_else(
 			|| Error::InvalidResponse {

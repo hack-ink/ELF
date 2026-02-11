@@ -80,7 +80,7 @@ pub fn scope_description_boost(tokens: &[String], description: &str, weight: f32
 		return 0.0;
 	}
 
-	let mut matched = 0usize;
+	let mut matched = 0_usize;
 
 	for token in tokens {
 		if description_tokens.contains(token.as_str()) {
@@ -167,7 +167,7 @@ pub fn lexical_overlap_ratio(query_tokens: &[String], text: &str, max_text_terms
 		return 0.0;
 	}
 
-	let mut matched = 0usize;
+	let mut matched = 0_usize;
 
 	for token in query_tokens {
 		if text_terms.contains(token.as_str()) {

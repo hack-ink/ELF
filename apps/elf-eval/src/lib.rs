@@ -741,7 +741,7 @@ async fn run_query_n_times(
 	let mut latency_total_ms = 0.0_f64;
 	let mut positional_churn_sum = 0.0_f64;
 	let mut set_churn_sum = 0.0_f64;
-	let mut churn_count = 0u32;
+	let mut churn_count = 0_u32;
 
 	for run_idx in 0..runs {
 		let start = Instant::now();
@@ -790,7 +790,7 @@ async fn run_query_n_times(
 
 fn churn_against_baseline_at_k(baseline: &[Uuid], other: &[Uuid], k: usize) -> (f64, f64) {
 	let k = k.max(1);
-	let mut positional_diff = 0usize;
+	let mut positional_diff = 0_usize;
 
 	for idx in 0..k {
 		let a = baseline.get(idx);
@@ -991,7 +991,7 @@ where
 
 fn compute_metrics(retrieved: &[Uuid], expected: &HashSet<Uuid>) -> Metrics {
 	let expected_count = expected.len();
-	let mut relevant_count = 0usize;
+	let mut relevant_count = 0_usize;
 	let mut dcg = 0.0_f64;
 	let mut rr = 0.0_f64;
 	let mut first_hit: Option<usize> = None;
