@@ -83,60 +83,91 @@ flowchart TB
   API -->|top-k| Agent
 ```
 
-## Comparison (qmd, claude-mem, mem0)
+## Comparison (memsearch, qmd, claude-mem, mem0)
 
-Comparison focuses on shared capabilities plus ELF strengths. These projects solve adjacent problems, but their primary units of storage and default workflows differ.
+Comparison focuses on shared capabilities plus ELF strengths. These projects solve adjacent problems, but their primary storage units and default workflows differ.
+
+Legend:
+
+- `✅`: Built-in and explicitly documented.
+- `⚠️`: Partial, optional, transport-specific, or plugin-level support.
+- `—`: Not explicitly documented in public docs/readme (as of February 12, 2026).
+
+### Research Method And Confidence
+
+- This comparison is documentation-grounded, not benchmark-grounded.
+- Primary evidence is limited to official public READMEs and official docs from each project.
+- A capability is marked `✅` only when explicitly documented as first-class behavior.
+- A capability is marked `⚠️` when it exists but is optional, transport-specific, plugin-scoped, or requires extra configuration.
+- A capability is marked `—` when no explicit public documentation was found during this review window.
+- Snapshot date for all claims in this section: February 12, 2026.
 
 Note: In this section, mem0 refers to the Mem0 ecosystem, including OpenMemory (an MCP memory server with a built-in UI).
 
 ### Scope And Intended Use
 
-| Aspect            | ELF                             | [qmd](https://github.com/tobi/qmd) | [claude-mem](https://github.com/thedotmack/claude-mem) | [mem0](https://github.com/mem0ai/mem0) |
-| ----------------- | ------------------------------- | --------------------------------- | ------------------------------------------------------ | -------------------------------------- |
-| Primary artifact  | Evidence-bound notes            | Local Markdown index (chunks)     | Session observations and summaries                      | User, session, and agent memories      |
-| Default write path | HTTP `POST /v2/notes/ingest` / `POST /v2/events/ingest` | CLI index + search                | Auto-capture via Claude Code plugin hooks              | SDK/API (LLM-assisted)                 |
-| Default deployment | API + worker + MCP server      | Local CLI + MCP server            | Local plugin + worker + UI + MCP tools                 | SDK + hosted option; OpenMemory MCP server + UI |
+| Aspect             | ELF                                                   | [memsearch](https://github.com/zilliztech/memsearch) | [qmd](https://github.com/tobi/qmd) | [claude-mem](https://github.com/thedotmack/claude-mem) | [mem0](https://github.com/mem0ai/mem0) |
+| ------------------ | ----------------------------------------------------- | ---------------------------------------------------- | ---------------------------------- | ------------------------------------------------------ | -------------------------------------- |
+| Primary artifact   | Evidence-bound notes                                  | Markdown memory files + Milvus index                | Local Markdown index (chunks)      | Session observations and summaries                      | User, session, and agent memories      |
+| Default write path | HTTP `POST /v2/notes/ingest` / `POST /v2/events/ingest` | CLI hooks + Python API (Markdown-first)             | CLI index + search                 | Auto-capture via Claude Code plugin hooks              | SDK/API (LLM-assisted)                 |
+| Default deployment | API + worker + MCP server                             | Local package + Milvus (Lite/Server/Cloud) + plugin | Local CLI + MCP server             | Local plugin + worker + UI + MCP tools                 | SDK + hosted option; OpenMemory MCP server + UI |
 
 ### Interfaces And Integration
 
-| Capability                      | ELF | qmd | claude-mem | mem0 |
-| ------------------------------- | --- | --- | ---------- | ---- |
-| Local-first, self-hosted memory | ✅  | ✅  | ✅         | ✅ (OpenMemory) |
-| MCP integration                 | ✅  | ✅  | ✅         | ✅ (OpenMemory) |
-| HTTP API service                | ✅  | —   | ✅         | ✅ (SDK/API) |
-| CLI-first workflow              | —   | ✅  | —          | —    |
-| Web UI viewer                   | —   | —   | ✅         | ✅ (OpenMemory) |
-| Hosted option                   | —   | —   | —          | ✅    |
+| Capability                      | ELF | memsearch | qmd | claude-mem | mem0 |
+| ------------------------------- | --- | --------- | --- | ---------- | ---- |
+| Local-first, self-hosted memory | ✅  | ✅        | ✅  | ✅         | ✅ (OpenMemory) |
+| MCP integration                 | ✅  | ⚠️        | ✅  | ✅         | ✅ (OpenMemory) |
+| HTTP API service                | ✅  | —         | ⚠️  | ✅         | ✅ (SDK/API) |
+| CLI-first workflow              | —   | ✅        | ✅  | ⚠️         | —    |
+| Web UI viewer                   | —   | —         | —   | ✅         | ✅ (OpenMemory) |
+| Hosted option                   | —   | —         | —   | —          | ✅    |
 
 ### Retrieval Pipeline
 
-| Capability                      | ELF | qmd | claude-mem | mem0 |
-| ------------------------------- | --- | --- | ---------- | ---- |
-| Full-text search (BM25 or FTS)  | ✅  | ✅  | ✅         | —    |
-| Vector semantic search          | ✅  | ✅  | ✅         | ✅    |
-| Hybrid dense + sparse fusion    | ✅  | ✅  | ✅         | —    |
-| LLM reranking stage             | ✅  | ✅  | —          | —    |
-| Query expansion                 | ✅  | ✅  | —          | —    |
-| Progressive disclosure workflow | ✅  | —   | ✅         | —    |
+| Capability                                  | ELF | memsearch | qmd | claude-mem | mem0 |
+| ------------------------------------------- | --- | --------- | --- | ---------- | ---- |
+| Full-text search (BM25/FTS/keyword modes)  | ✅  | ✅        | ✅  | ✅         | ⚠️   |
+| Vector semantic search                      | ✅  | ✅        | ✅  | ✅         | ✅    |
+| Hybrid dense + sparse fusion                | ✅  | ✅        | ✅  | ✅         | ⚠️   |
+| LLM reranking stage                         | ✅  | —         | ✅  | —          | ⚠️   |
+| Query expansion or query rewriting          | ✅  | —         | ✅  | —          | ⚠️   |
+| Progressive disclosure workflow             | ✅  | ⚠️        | —   | ✅         | —    |
 
 ### Quality, Safety, And Memory Semantics
 
-| Capability                                | ELF | qmd | claude-mem | mem0 |
-| ----------------------------------------- | --- | --- | ---------- | ---- |
-| Evidence-bound notes (verbatim quotes)    | ✅  | —   | —          | —    |
-| Deterministic vs LLM ingestion separation | ✅  | —   | —          | —    |
-| Source-of-truth DB with rebuildable index | ✅  | —   | —          | —    |
-| Multi-tenant scoping                      | ✅  | —   | —          | ✅ (user_id) |
-| TTL and lifecycle policies                | ✅  | —   | —          | —    |
-| English-only boundary enforcement         | ✅  | —   | —          | —    |
-| Redaction on write                        | ✅  | —   | —          | —    |
+| Capability                                    | ELF | memsearch | qmd | claude-mem | mem0 |
+| --------------------------------------------- | --- | --------- | --- | ---------- | ---- |
+| Evidence-bound notes (verbatim quotes)        | ✅  | —         | —   | —          | —    |
+| Deterministic vs LLM ingestion separation     | ✅  | —         | —   | —          | —    |
+| Source-of-truth storage with rebuildable index | ✅  | ✅        | —   | —          | —    |
+| Multi-tenant scoping                          | ✅  | —         | —   | —          | ✅    |
+| TTL and lifecycle policies                    | ✅  | —         | —   | —          | ✅    |
+| English-only boundary enforcement             | ✅  | —         | —   | —          | —    |
+| Redaction or write-time exclusion controls    | ✅  | —         | —   | ⚠️         | ⚠️   |
 
 ### Operations And Evaluation
 
-| Capability               | ELF | qmd | claude-mem | mem0 |
-| ------------------------ | --- | --- | ---------- | ---- |
-| Retrieval evaluation CLI | ✅  | —   | —          | —    |
-| Structured JSON outputs  | ✅  | ✅  | ✅         | ✅    |
+| Capability               | ELF | memsearch | qmd | claude-mem | mem0 |
+| ------------------------ | --- | --------- | --- | ---------- | ---- |
+| Retrieval evaluation CLI | ✅  | —         | —   | —          | —    |
+| Structured JSON outputs  | ✅  | ⚠️        | ✅  | ✅         | ✅    |
+
+Capability notes:
+
+- qmd HTTP support is MCP Streamable HTTP (`POST /mcp`) rather than a separate REST memory API ([source](https://github.com/tobi/qmd?tab=readme-ov-file#streamable-http)).
+- memsearch integration is currently plugin/CLI-centric; no standalone MCP server is documented ([source](https://github.com/zilliztech/memsearch)).
+- memsearch progressive disclosure is described in the Claude plugin workflow docs, not as a generic service contract ([source](https://github.com/zilliztech/memsearch/tree/main/ccplugin)).
+- mem0 search docs describe optional reranking, query optimization, and keyword-search toggles ([source](https://docs.mem0.ai/platform/features/search)).
+- mem0 lifecycle docs describe `expiration_date` and automatic exclusion of expired memories from retrieval ([source](https://docs.mem0.ai/cookbooks/essentials/memory-expiration-short-and-long-term)).
+- claude-mem supports `<private>` tags to exclude selected content from storage ([source](https://github.com/thedotmack/claude-mem?tab=readme-ov-file#memory-privacy-controls)).
+
+### Project Strengths And Trade-offs
+
+- [memsearch](https://github.com/zilliztech/memsearch): Strong Markdown-first transparency, smart dedup, and live file-watch sync. Trade-off: integration is centered on plugin/CLI workflows rather than a general MCP + HTTP service surface.
+- [qmd](https://github.com/tobi/qmd): Strong local-first retrieval quality (BM25 + vector + rerank + query expansion) with practical CLI and MCP tooling. Trade-off: focused on document retrieval workflows more than memory-specific safety/lifecycle semantics.
+- [claude-mem](https://github.com/thedotmack/claude-mem): Strong automatic capture and progressive disclosure UX, plus a practical local web viewer for inspection. Trade-off: optimized for Claude session continuity, with fewer explicit deterministic ingestion boundaries.
+- [mem0](https://github.com/mem0ai/mem0): Strong ecosystem reach (SDK + hosted + OpenMemory), multi-entity scoping, and lifecycle controls like `expiration_date`. Trade-off: ingestion and retrieval behavior depends heavily on configurable LLM-assisted flows, which can be less deterministic by default.
 
 ### ELF-Only Advantages
 
@@ -146,10 +177,12 @@ Note: In this section, mem0 refers to the Mem0 ecosystem, including OpenMemory (
 - Query expansion modes (`off`, `always`, `dynamic`) for cost/latency control.
 - Dedicated evaluation CLI to measure retrieval quality.
 
-### Learnings Integrated
+### What ELF Can Borrow Next
 
-- Hybrid retrieval + rerank as a first-class pipeline, inspired by qmd's local hybrid stack.
-- Progressive cost control for retrieval, informed by claude-mem's progressive disclosure approach.
+- Add an optional Markdown-native operating mode for teams that want direct file-level review and Git workflows.
+- Provide a lightweight web memory viewer for local debugging and inspection.
+- Expose first-class ingestion policy controls (for example, confidence gates and exclusion rules) as a documented API surface.
+- Add lifecycle policy presets (for example, session memory expiry) on top of the existing TTL primitives.
 
 ## Quickstart
 
