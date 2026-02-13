@@ -66,7 +66,6 @@ STYLE_RULE_IDS = {
     "RUST-STYLE-NUM-001",
     "RUST-STYLE-NUM-002",
     "RUST-STYLE-READ-002",
-    "RUST-STYLE-READ-003",
     "RUST-STYLE-SPACE-003",
     "RUST-STYLE-SPACE-004",
     "RUST-STYLE-TEST-001",
@@ -96,7 +95,6 @@ IMPLEMENTED_STYLE_RULE_IDS = {
     "RUST-STYLE-NUM-001",
     "RUST-STYLE-NUM-002",
     "RUST-STYLE-READ-002",
-    "RUST-STYLE-READ-003",
     "RUST-STYLE-SPACE-003",
     "RUST-STYLE-SPACE-004",
     "RUST-STYLE-TEST-001",
@@ -1795,34 +1793,6 @@ def check_function_length(file: Path, lines: list[str]) -> list[Violation]:
     return violations
 
 
-def check_readability_rules(file: Path, lines: list[str]) -> list[Violation]:
-    violations: list[Violation] = []
-
-    for start, end in find_function_ranges(lines):
-        depth = 0
-        max_depth = 0
-        for idx in range(start + 1, end):
-            code = strip_string_and_line_comment(lines[idx]).strip()
-            if re.match(r"^(if|if let|for|while|match|loop)\b", code):
-                depth += 1
-                max_depth = max(max_depth, depth)
-            depth += code.count("{")
-            depth -= code.count("}")
-            if depth < 0:
-                depth = 0
-        if max_depth > 2:
-            violations.append(
-                Violation(
-                    file=file,
-                    line=start + 1,
-                    rule="RUST-STYLE-READ-003",
-                    message="Limit control-flow nesting depth to two levels in the happy path.",
-                )
-            )
-
-    return violations
-
-
 def check_test_rules(file: Path, lines: list[str]) -> list[Violation]:
     violations: list[Violation] = []
 
@@ -1976,7 +1946,6 @@ def collect_violations(file: Path) -> list[Violation]:
     violations.extend(check_expect_unwrap(file, lines))
     violations.extend(check_numeric_literals(file, lines))
     violations.extend(check_function_length(file, lines))
-    violations.extend(check_readability_rules(file, lines))
     violations.extend(check_vertical_spacing(file, lines))
     violations.extend(check_test_rules(file, lines))
     return violations

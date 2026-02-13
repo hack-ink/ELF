@@ -1,46 +1,77 @@
 use std::sync::{Arc, atomic::AtomicUsize};
 
+use sqlx::PgExecutor;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
 use super::{SpyExtractor, StubEmbedding, StubRerank};
-use elf_service::Providers;
+use elf_service::{ElfService, Providers};
 
-#[tokio::test]
-#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
-async fn active_notes_have_vectors() {
-	let Some(test_db) = super::test_db().await else {
-		eprintln!("Skipping active_notes_have_vectors; set ELF_PG_DSN to run this test.");
+const VECTOR_DIM: i32 = 4_096;
 
-		return;
-	};
-	let Some(qdrant_url) = super::test_qdrant_url() else {
-		eprintln!("Skipping active_notes_have_vectors; set ELF_QDRANT_URL to run this test.");
-
-		return;
-	};
-	let collection = test_db.collection_name("elf_acceptance");
-	let cfg = super::test_config(test_db.dsn().to_string(), qdrant_url, 4_096, collection);
-	let providers = Providers::new(
-		Arc::new(StubEmbedding { vector_dim: 4_096 }),
+fn build_providers() -> Providers {
+	Providers::new(
+		Arc::new(StubEmbedding { vector_dim: VECTOR_DIM as usize }),
 		Arc::new(StubRerank),
 		Arc::new(SpyExtractor {
 			calls: Arc::new(AtomicUsize::new(0)),
 			payload: serde_json::json!({ "notes": [] }),
 		}),
-	);
-	let service = super::build_service(cfg, providers).await.expect("Failed to build service.");
+	)
+}
 
-	super::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
-
-	let note_id = Uuid::new_v4();
-	let now = OffsetDateTime::now_utc();
-	let embedding_version = format!(
+fn embedding_version(service: &ElfService) -> String {
+	format!(
 		"{}:{}:{}",
 		service.cfg.providers.embedding.provider_id,
 		service.cfg.providers.embedding.model,
 		service.cfg.storage.qdrant.vector_dim
-	);
+	)
+}
+
+fn zero_vector_text(vector_dim: usize) -> String {
+	let mut buf = String::with_capacity(2 + (vector_dim * 2));
+
+	buf.push('[');
+	for i in 0..vector_dim {
+		if i > 0 {
+			buf.push(',');
+		}
+
+		buf.push('0');
+	}
+	buf.push(']');
+
+	buf
+}
+
+async fn setup_context(test_name: &str) -> Option<(elf_testkit::TestDatabase, ElfService)> {
+	let Some(test_db) = super::test_db().await else {
+		eprintln!("Skipping {test_name}; set ELF_PG_DSN to run this test.");
+
+		return None;
+	};
+	let Some(qdrant_url) = super::test_qdrant_url() else {
+		eprintln!("Skipping {test_name}; set ELF_QDRANT_URL to run this test.");
+
+		return None;
+	};
+	let collection = test_db.collection_name("elf_acceptance");
+	let cfg =
+		super::test_config(test_db.dsn().to_string(), qdrant_url, VECTOR_DIM as usize, collection);
+	let service =
+		super::build_service(cfg, build_providers()).await.expect("Failed to build service.");
+
+	super::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
+
+	Some((test_db, service))
+}
+
+async fn insert_active_note<'e, E>(executor: E, note_id: Uuid, embedding_version: &str)
+where
+	E: PgExecutor<'e>,
+{
+	let now = OffsetDateTime::now_utc();
 
 	sqlx::query(
 		"\
@@ -99,29 +130,24 @@ VALUES (
 	.bind(now)
 	.bind(now)
 	.bind(Option::<OffsetDateTime>::None)
-	.bind(embedding_version.as_str())
+	.bind(embedding_version)
 	.bind(serde_json::json!({}))
 	.bind(0_i64)
 	.bind(Option::<OffsetDateTime>::None)
-	.execute(&service.db.pool)
+	.execute(executor)
 	.await
 	.expect("Failed to insert memory note.");
+}
 
-	let vec_text = {
-		let mut buf = String::with_capacity(2 + (4_096 * 2));
-
-		buf.push('[');
-		for i in 0..4_096 {
-			if i > 0 {
-				buf.push(',');
-			}
-
-			buf.push('0');
-		}
-		buf.push(']');
-
-		buf
-	};
+async fn insert_embedding<'e, E>(
+	executor: E,
+	note_id: Uuid,
+	embedding_version: &str,
+	vector_dim: i32,
+) where
+	E: PgExecutor<'e>,
+{
+	let vec_text = zero_vector_text(vector_dim as usize);
 
 	sqlx::query(
 		"\
@@ -134,14 +160,19 @@ INSERT INTO note_embeddings (
 VALUES ($1, $2, $3, $4::text::vector)",
 	)
 	.bind(note_id)
-	.bind(embedding_version.as_str())
-	.bind(4_096_i32)
+	.bind(embedding_version)
+	.bind(vector_dim)
 	.bind(vec_text.as_str())
-	.execute(&service.db.pool)
+	.execute(executor)
 	.await
 	.expect("Failed to insert embedding.");
+}
 
-	let missing: i64 = sqlx::query_scalar(
+async fn count_missing_embeddings<'e, E>(executor: E, note_id: Uuid) -> i64
+where
+	E: PgExecutor<'e>,
+{
+	sqlx::query_scalar(
 		"\
 SELECT COUNT(*) AS \"missing!\"
 FROM memory_notes n
@@ -152,22 +183,44 @@ WHERE n.note_id = $1
 		AND e.note_id IS NULL",
 	)
 	.bind(note_id)
-	.fetch_one(&service.db.pool)
+	.fetch_one(executor)
 	.await
-	.expect("Failed to query missing embeddings.");
+	.expect("Failed to query missing embeddings.")
+}
 
-	assert_eq!(missing, 0);
-
-	let dim: i32 = sqlx::query_scalar(
+async fn embedding_dim<'e, E>(executor: E, note_id: Uuid, embedding_version: &str) -> i32
+where
+	E: PgExecutor<'e>,
+{
+	sqlx::query_scalar(
 		"SELECT embedding_dim FROM note_embeddings WHERE note_id = $1 AND embedding_version = $2",
 	)
 	.bind(note_id)
-	.bind(embedding_version.as_str())
-	.fetch_one(&service.db.pool)
+	.bind(embedding_version)
+	.fetch_one(executor)
 	.await
-	.expect("Failed to query embedding dim.");
+	.expect("Failed to query embedding dim.")
+}
 
-	assert_eq!(dim, 4_096);
+#[tokio::test]
+#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
+async fn active_notes_have_vectors() {
+	let Some((test_db, service)) = setup_context("active_notes_have_vectors").await else {
+		return;
+	};
+	let note_id = Uuid::new_v4();
+	let embedding_version = embedding_version(&service);
+
+	insert_active_note(&service.db.pool, note_id, &embedding_version).await;
+	insert_embedding(&service.db.pool, note_id, &embedding_version, VECTOR_DIM).await;
+
+	let missing = count_missing_embeddings(&service.db.pool, note_id).await;
+
+	assert_eq!(missing, 0);
+
+	let dim = embedding_dim(&service.db.pool, note_id, &embedding_version).await;
+
+	assert_eq!(dim, VECTOR_DIM);
 
 	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }
