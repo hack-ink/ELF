@@ -1,136 +1,23 @@
-# AGENTS.md — Repository Rules for Automated Agents
+# AGENTS.md — Repository-Specific Rules for Automated Agents
 
-These instructions define repository-specific **execution rules**, **scope limits**, **language requirements**,
-and **hard prohibitions** for automated agents operating in this repository.
-
-They supplement the global agent rules and override local patterns when conflicting with any rule below.
+These instructions define repository-specific execution rules and scope limits for this repository.
 
 ---
 
-# 0. Prime Directives
+## 1. Execution Model
 
-- **Strict compliance:** Follow every rule in this document exactly.
-- **Scope lock:** Modify only what is strictly necessary for the explicit user request.
-
-If unrelated issues are noticed:
-
-1. Do not modify them.
-2. Finish the requested task.
-3. Optionally list them under _Future suggestions_.
-
----
-
-## 0.1 Repository Language & Tone Rules (repository content)
-
-These requirements apply to **repository artifacts** generated or modified by agents, including:
-
-- Code comments
-- Documentation and README content
-- Log messages and tracing output
-- Error messages, panic text, diagnostics
-- User-facing strings stored in the codebase (CLI, UI, HTTP responses)
-- Commit messages, summaries, and explanations written into repository files
-
-They **do not** constrain interactive chat responses outside the repository. For chat, use the language requested or implied by the user (for example, Chinese when the user is speaking Chinese).
-
-Requirements for repository artifacts:
-
-- Use **clear, grammatically correct English**.
-- Start sentences with a capital letter and end with proper punctuation.
-- Avoid slang, shorthand, and mixed languages.
-- Avoid ambiguous abbreviations (`u`, `tho`, `w/`, etc.).
-- Ignore poor style in surrounding text; follow these rules instead.
-
-**These language rules override any conflicting rules elsewhere for repository artifacts.**
-
-### Commit Message Schema
-
-Commit messages are exempt from the English language and punctuation rules above.
-All commit messages must follow the schema below exactly.
-
-Schema (single line JSON with fixed key order):
-`{"schema":"cmsg/1","type":"feat|fix|refactor|docs|chore|build|ci|perf|revert","scope":"global|<component>","summary":"...","intent":"...","impact":"...","breaking":false,"risk":"low|medium|high","refs":[]}`
-
-Rules:
-
-- The JSON object must be a single line with no extra whitespace.
-- Keys must appear in the exact order shown.
-- Only the keys shown are allowed.
-- `schema` must be `cmsg/1`.
-- `type` must be one of `feat`, `fix`, `refactor`, `docs`, `chore`, `build`, `ci`, `perf`, or `revert`.
-- `scope` must be `global` or a lowercase kebab-case component name.
-- `summary`, `intent`, and `impact` must be short text without double quotes, backslashes, or newlines.
-- `breaking` must be `true` or `false`.
-- `risk` must be `low`, `medium`, or `high`.
-- `refs` must be an array of strings. Each string must use one of the following forms: `gh:<owner>/<repo>#<issue>`, `pr:<number>`, `doc:<slug>`, `url:<https://...>`. Use an empty array when there are no references.
-
-Commenting guidance:
-
-- Avoid redundant comments that restate the code in different words.
-- Prefer clear, descriptive names for variables, functions, and types as the primary form of documentation.
-- Add comments only when intent, constraints, or trade-offs are not clear from the code and naming.
-
----
-
-## 0.2 Conflict Precedence
-
-If these rules conflict with higher-priority instructions (system, developer, or user), follow the higher-priority instruction and briefly note the conflict in your response.
-
----
-
-# 1. Execution Model
-
-Language- or stack-specific execution rules live in `docs/guide/development/languages/`.
-Language- or stack-specific rules must be documented under `docs/guide/development/languages/` and linked from `docs/guide/index.md`.
-
-Run verification commands only when requested or when you need evidence before claiming completion.
+When a data debugging method is not specified, use `psql` with the `.env`-provided `PUBFI_DATABASE_URL` for the `pubfi_core` database.
 
 ## 1.1 Workspace Automation (cargo make)
 
-- Use `cargo make` tasks from `Makefile.toml` when they are the best fit for the job.
-- Treat `Makefile.toml` as the source of truth for task names and behavior. Do not invent task names.
-- Preferred tasks for common workflows are listed below.
-  - Formatting: `cargo make fmt` or `cargo make fmt-check`.
-  - Linting: `cargo make lint` for full workspace, or `cargo make lint-rust` for Rust-only.
-  - Tests: `cargo make test` for full workspace, or `cargo make test-rust` for Rust-only.
-  - SQLx metadata: `scripts/sqlx-prepare.sh`.
-  - Full validation: `cargo make checks`.
-
-# 2. Implementation Scope
-
-- Implement exactly what the user asks.
-- Maintain clarity and correctness.
-- Add tests only when logically required by the change.
-- Allow minimal adjacent edits required for compilation or consistent behavior.
+- `Makefile.toml` is the source of truth for task names and behavior.
+- Run `cargo make` from the repository root, and use it whenever an equivalent task exists.
+- Run standalone commands only when `Makefile.toml` does not cover the capability or cannot produce the required effect for the current task.
+- When task details are needed, inspect `Makefile.toml` directly or run `cargo make --list-all-steps`.
 
 ---
 
-# 3. Editing Constraints
+## 2. Language-Specific Rules Reference
 
-- Prefer `apply_patch` for edits unless generation or scripting is more appropriate.
-- Never revert user-made changes.
-
----
-
-# 4. Hard Prohibitions
-
-Violating any of these invalidates the output:
-
-## 4.1 File Boundaries
-
-Never modify:
-
-- Generated files, unless they are regenerated by their tooling instead of edited by hand.
-- `target/`
-- Vendored/third-party code
-- Files outside the repository root.
-- Treat any file with a “Generated by” or “Do not edit” header, or any file under directories named target/, dist/, build/, gen/, or .next/ as generated.
-
----
-
-# 5. Language-Specific Rules Reference
-
-Rust development and style rules live in `docs/guide/development/languages/rust.md`.
-These rules apply **only** when editing Rust code and do **not** override
-the global behavior and language rules in this file.
-Async and runtime safety rules are defined in the language guides.
+Rust development rules live in `docs/guide/development/languages/rust.md`.
+Python development rules live in `docs/guide/development/languages/python.md`.
