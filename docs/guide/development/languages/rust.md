@@ -212,8 +212,6 @@ In this section, the happy path is the main success flow and excludes error-hand
 
 - Keep functions at or under 120 lines. Extract helpers when a function exceeds 120 lines or the happy path is no longer obvious.
 - Do not introduce a new helper function when the code is a single expression and the helper is used only once. Inline it at the call site unless the helper name encodes a meaningful domain concept or isolates non-trivial logic.
-- Limit control-flow nesting depth to two levels in the happy path. Count one level for each `if`/`if let`/`match`/loop that contains other control flow.
-- When nesting exceeds two levels, reduce it using one or more of: guard clauses and early returns to invert conditions, extracting an inner block into a helper that returns `Result` or `Option`, or using `continue` to skip work in loops instead of wrapping the rest of the loop body.
 - Use guard clauses and early returns to keep the happy path linear.
 - Avoid complex `if let` or `match` guards. Extract a named boolean when logic grows.
 - Add explicit type annotations when inference spans multiple steps or reduces clarity.
@@ -381,7 +379,6 @@ When you claim a Rust change is complete, run the following tasks:
 ### Readability
 
 - `RUST-STYLE-READ-002`: Keep functions at or under 120 lines.
-- `RUST-STYLE-READ-003`: Keep happy-path control-flow nesting depth at two levels or less. Extract helpers instead of adding deeper nesting.
 
 ### Vertical Spacing
 

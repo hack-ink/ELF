@@ -59,6 +59,7 @@ pub fn build_trace_terms_v2(args: TraceTermsArgs<'_>) -> Vec<SearchRankingTerm> 
 	let cfg = args.cfg;
 	let blend_enabled = args.blend_enabled;
 	let det = &cfg.ranking.deterministic;
+
 	vec![
 		build_blend_retrieval_term(&args, blend_enabled),
 		build_blend_rerank_term(&args, blend_enabled),
@@ -84,7 +85,6 @@ fn build_blend_retrieval_term(args: &TraceTermsArgs<'_>, blend_enabled: bool) ->
 		"blend_retrieval_weight".to_string(),
 		serde_json::json!(args.blend_retrieval_weight),
 	);
-
 	SearchRankingTerm {
 		name: "blend.retrieval".to_string(),
 		value: args.retrieval_term,
@@ -104,7 +104,6 @@ fn build_blend_rerank_term(args: &TraceTermsArgs<'_>, blend_enabled: bool) -> Se
 		"blend_retrieval_weight".to_string(),
 		serde_json::json!(args.blend_retrieval_weight),
 	);
-
 	SearchRankingTerm {
 		name: "blend.rerank".to_string(),
 		value: args.rerank_term,
@@ -128,7 +127,6 @@ fn build_tie_breaker_term(args: &TraceTermsArgs<'_>, cfg: &Config) -> SearchRank
 	inputs.insert("age_days".to_string(), serde_json::json!(args.age_days));
 	inputs.insert("recency_tau_days".to_string(), serde_json::json!(cfg.ranking.recency_tau_days));
 	inputs.insert("recency_decay".to_string(), serde_json::json!(recency_decay));
-
 	SearchRankingTerm {
 		name: "tie_breaker".to_string(),
 		value: args.tie_breaker_score,
@@ -144,7 +142,6 @@ fn build_scope_boost_term(args: &TraceTermsArgs<'_>, cfg: &Config) -> SearchRank
 		"scope_boost_weight".to_string(),
 		serde_json::json!(cfg.context.as_ref().and_then(|ctx| ctx.scope_boost_weight)),
 	);
-
 	SearchRankingTerm {
 		name: "context.scope_boost".to_string(),
 		value: args.scope_context_boost,
@@ -167,7 +164,6 @@ fn build_deterministic_lexical_term(
 		"overlap_ratio".to_string(),
 		serde_json::json!(args.deterministic_lexical_overlap_ratio),
 	);
-
 	SearchRankingTerm {
 		name: "deterministic.lexical_bonus".to_string(),
 		value: args.deterministic_lexical_bonus,
@@ -190,7 +186,6 @@ fn build_deterministic_hit_term(
 		"last_hit_age_days".to_string(),
 		serde_json::json!(args.deterministic_last_hit_age_days),
 	);
-
 	SearchRankingTerm {
 		name: "deterministic.hit_boost".to_string(),
 		value: args.deterministic_hit_boost,
@@ -208,7 +203,6 @@ fn build_deterministic_decay_term(
 	inputs.insert("weight".to_string(), serde_json::json!(det.decay.weight));
 	inputs.insert("tau_days".to_string(), serde_json::json!(det.decay.tau_days));
 	inputs.insert("age_days".to_string(), serde_json::json!(args.age_days));
-
 	SearchRankingTerm {
 		name: "deterministic.decay_penalty".to_string(),
 		value: args.deterministic_decay_penalty,
