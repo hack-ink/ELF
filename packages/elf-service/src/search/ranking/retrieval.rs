@@ -22,6 +22,7 @@ pub fn collect_chunk_candidates(
 	} else {
 		max_candidates as usize
 	};
+
 	let mut out = Vec::new();
 	let mut seen = HashSet::new();
 
@@ -121,6 +122,7 @@ pub fn merge_retrieval_candidates(
 				*source_totals.entry(source.source).or_insert(0) += 1;
 			}
 		}
+
 		for candidate in source.candidates {
 			let chunk_id = candidate.chunk_id;
 			let rank = candidate.retrieval_rank;
@@ -173,7 +175,6 @@ pub fn merge_retrieval_candidates(
 			combined_score +=
 				retrieval_source_weight(policy, *source) * rank_normalize(*rank, total);
 		}
-
 		candidate.combined_score = combined_score;
 	}
 

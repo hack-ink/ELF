@@ -200,6 +200,14 @@ pub struct SearchExplain {
 	pub write_mode: String,
 }
 
+fn default_candidate_retention_days() -> i64 {
+	2
+}
+
+fn default_explain_write_mode() -> String {
+	"outbox".to_string()
+}
+
 #[derive(Debug, Deserialize)]
 pub struct Ranking {
 	pub recency_tau_days: f32,
@@ -239,7 +247,7 @@ impl Default for RankingDeterministicLexical {
 			weight: 0.05,
 			min_ratio: 0.3,
 			max_query_terms: 16,
-			max_text_terms: 1_024,
+			max_text_terms: 1024,
 		}
 	}
 }
@@ -360,14 +368,6 @@ pub struct Security {
 	pub evidence_max_quote_chars: u32,
 	pub api_auth_token: Option<String>,
 	pub admin_auth_token: Option<String>,
-}
-
-fn default_candidate_retention_days() -> i64 {
-	2
-}
-
-fn default_explain_write_mode() -> String {
-	"outbox".to_string()
 }
 
 fn default_read_profile() -> String {

@@ -410,6 +410,188 @@ pub async fn run(args: Args) -> color_eyre::Result<()> {
 	Ok(())
 }
 
+async fn trace_compare(
+	config_a_path: &Path,
+	config_a: Config,
+	config_b_path: &Path,
+	config_b: Config,
+	args: &Args,
+) -> color_eyre::Result<TraceCompareOutput> {
+	let policy_id_a = elf_service::search::ranking_policy_id(&config_a, None)
+		.map_err(|err| eyre::eyre!("{err}"))?;
+	let policy_id_b = elf_service::search::ranking_policy_id(&config_b, None)
+		.map_err(|err| eyre::eyre!("{err}"))?;
+	let db = Db::connect(&config_a.storage.postgres).await?;
+
+	db.ensure_schema(config_a.storage.qdrant.vector_dim).await?;
+
+	let mut traces = Vec::with_capacity(args.trace_id.len());
+	let mut positional_sum = 0.0_f64;
+	let mut set_sum = 0.0_f64;
+	let mut top3_retention_a_sum = 0.0_f64;
+	let mut top3_retention_b_sum = 0.0_f64;
+
+	for trace_id in &args.trace_id {
+		let trace_row: TraceCompareTraceRow = sqlx::query_as!(
+			TraceCompareTraceRow,
+			"\
+SELECT
+	trace_id,
+	query,
+	candidate_count,
+	top_k,
+	created_at
+FROM search_traces
+WHERE trace_id = $1",
+			trace_id,
+		)
+		.fetch_one(&db.pool)
+		.await?;
+
+		let candidate_rows: Vec<TraceCompareCandidateRow> = sqlx::query_as!(
+			TraceCompareCandidateRow,
+			"\
+SELECT
+	candidate_snapshot,
+	note_id,
+	chunk_id,
+	chunk_index,
+	snippet,
+	retrieval_rank,
+	rerank_score,
+	note_scope,
+	note_importance,
+	note_updated_at,
+	note_hit_count,
+	note_last_hit_at
+FROM search_trace_candidates
+WHERE trace_id = $1
+ORDER BY retrieval_rank ASC",
+			trace_id,
+		)
+		.fetch_all(&db.pool)
+		.await?;
+		let context = elf_service::search::TraceReplayContext {
+			trace_id: trace_row.trace_id,
+			query: trace_row.query.clone(),
+			candidate_count: u32::try_from(trace_row.candidate_count).unwrap_or(0),
+			top_k: u32::try_from(trace_row.top_k).unwrap_or(0),
+			created_at: trace_row.created_at,
+		};
+		let created_at = context
+			.created_at
+			.format(&Rfc3339)
+			.map_err(|err| eyre::eyre!("Failed to format trace created_at: {err}"))?;
+		let candidates: Vec<elf_service::search::TraceReplayCandidate> = candidate_rows
+			.into_iter()
+			.map(|row| {
+				let decoded = serde_json::from_value::<elf_service::search::TraceReplayCandidate>(
+					row.candidate_snapshot.clone(),
+				)
+				.ok()
+				.filter(|value| value.note_id != Uuid::nil() && value.chunk_id != Uuid::nil());
+
+				decoded.unwrap_or_else(|| elf_service::search::TraceReplayCandidate {
+					note_id: row.note_id,
+					chunk_id: row.chunk_id,
+					chunk_index: row.chunk_index,
+					snippet: row.snippet,
+					retrieval_rank: u32::try_from(row.retrieval_rank).unwrap_or(0),
+					rerank_score: row.rerank_score,
+					note_scope: row.note_scope,
+					note_importance: row.note_importance,
+					note_updated_at: row.note_updated_at,
+					note_hit_count: row.note_hit_count,
+					note_last_hit_at: row.note_last_hit_at,
+					diversity_selected: None,
+					diversity_selected_rank: None,
+					diversity_selected_reason: None,
+					diversity_skipped_reason: None,
+					diversity_nearest_selected_note_id: None,
+					diversity_similarity: None,
+					diversity_mmr_score: None,
+					diversity_missing_embedding: None,
+				})
+			})
+			.collect();
+		let top_k = args.top_k.unwrap_or(context.top_k).max(1);
+		let items_a = elf_service::search::replay_ranking_from_candidates(
+			&config_a,
+			&context,
+			None,
+			&candidates,
+			top_k,
+		)
+		.map_err(|err| eyre::eyre!("{err}"))?;
+		let items_b = elf_service::search::replay_ranking_from_candidates(
+			&config_b,
+			&context,
+			None,
+			&candidates,
+			top_k,
+		)
+		.map_err(|err| eyre::eyre!("{err}"))?;
+		let note_ids_a: Vec<Uuid> = items_a.iter().map(|item| item.note_id).collect();
+		let note_ids_b: Vec<Uuid> = items_b.iter().map(|item| item.note_id).collect();
+		let (positional_churn_at_k, set_churn_at_k) =
+			churn_against_baseline_at_k(&note_ids_a, &note_ids_b, top_k as usize);
+		let (retrieval_top3_total, a_retained, a_retention) =
+			retrieval_top_rank_retention(&candidates, &note_ids_a, 3);
+		let (_, b_retained, b_retention) =
+			retrieval_top_rank_retention(&candidates, &note_ids_b, 3);
+		let retention_delta = b_retention - a_retention;
+
+		positional_sum += positional_churn_at_k;
+		set_sum += set_churn_at_k;
+		top3_retention_a_sum += a_retention;
+		top3_retention_b_sum += b_retention;
+
+		traces.push(TraceCompareTrace {
+			trace_id: context.trace_id,
+			query: context.query,
+			candidate_count: context.candidate_count,
+			top_k,
+			created_at,
+			a: TraceCompareVariant { policy_id: policy_id_a.clone(), items: items_a },
+			b: TraceCompareVariant { policy_id: policy_id_b.clone(), items: items_b },
+			churn: TraceCompareChurn { positional_churn_at_k, set_churn_at_k },
+			guardrails: TraceCompareGuardrails {
+				retrieval_top3_total,
+				a_retrieval_top3_retained: a_retained,
+				a_retrieval_top3_retention: a_retention,
+				b_retrieval_top3_retained: b_retained,
+				b_retrieval_top3_retention: b_retention,
+				retrieval_top3_retention_delta: retention_delta,
+			},
+		});
+	}
+
+	let count = traces.len().max(1) as f64;
+	let summary = TraceCompareSummary {
+		trace_count: traces.len(),
+		avg_positional_churn_at_k: positional_sum / count,
+		avg_set_churn_at_k: set_sum / count,
+		avg_a_retrieval_top3_retention: top3_retention_a_sum / count,
+		avg_b_retrieval_top3_retention: top3_retention_b_sum / count,
+		avg_retrieval_top3_retention_delta: (top3_retention_b_sum - top3_retention_a_sum) / count,
+	};
+
+	Ok(TraceCompareOutput {
+		policies: TraceComparePolicies {
+			a: TraceComparePolicy {
+				config_path: config_a_path.display().to_string(),
+				policy_id: policy_id_a,
+			},
+			b: TraceComparePolicy {
+				config_path: config_b_path.display().to_string(),
+				policy_id: policy_id_b,
+			},
+		},
+		summary,
+		traces,
+	})
+}
+
 fn retrieval_top_rank_retention(
 	candidates: &[elf_service::search::TraceReplayCandidate],
 	note_ids: &[Uuid],
@@ -449,14 +631,174 @@ fn load_dataset(path: &Path) -> color_eyre::Result<EvalDataset> {
 	Ok(dataset)
 }
 
+async fn eval_config(
+	config_path: &Path,
+	config: Config,
+	dataset: &EvalDataset,
+	args: &Args,
+) -> color_eyre::Result<EvalRun> {
+	let db = Db::connect(&config.storage.postgres).await?;
+
+	db.ensure_schema(config.storage.qdrant.vector_dim).await?;
+
+	let qdrant = QdrantStore::new(&config.storage.qdrant)?;
+	let service = ElfService::new(config, db, qdrant);
+
+	let defaults = dataset.defaults.clone().unwrap_or(EvalDefaults {
+		tenant_id: None,
+		project_id: None,
+		agent_id: None,
+		read_profile: None,
+		top_k: None,
+		candidate_k: None,
+		ranking: None,
+	});
+
+	let mut reports = Vec::with_capacity(dataset.queries.len());
+	let mut latencies_ms = Vec::with_capacity(dataset.queries.len());
+	let mut stability_positional = Vec::new();
+	let mut stability_set = Vec::new();
+
+	let runs_per_query = args.runs_per_query.max(1);
+
+	for (index, query) in dataset.queries.iter().enumerate() {
+		let merged = merge_query(&defaults, query, args, &service.cfg, index)?;
+		let expected: HashSet<Uuid> = merged.expected_note_ids.iter().copied().collect();
+		let (first, latency_ms, stability, trace_ids) =
+			run_query_n_times(&service, merged.request, runs_per_query).await?;
+		let retrieved = unique_ids(first.items.iter().map(|item| item.note_id));
+		let metrics = compute_metrics(&retrieved, &expected);
+
+		if let Some(s) = stability {
+			stability_positional.push(s.positional_churn_at_k);
+			stability_set.push(s.set_churn_at_k);
+		}
+
+		reports.push(QueryReport {
+			id: merged.id,
+			query: merged.query,
+			trace_id: first.trace_id,
+			trace_ids: (trace_ids.len() > 1).then_some(trace_ids),
+			expected_count: expected.len(),
+			retrieved_count: retrieved.len(),
+			relevant_count: metrics.relevant_count,
+			recall_at_k: metrics.recall_at_k,
+			precision_at_k: metrics.precision_at_k,
+			rr: metrics.rr,
+			ndcg: metrics.ndcg,
+			latency_ms,
+			expected_note_ids: merged.expected_note_ids,
+			retrieved_note_ids: retrieved,
+			stability,
+		});
+
+		latencies_ms.push(latency_ms);
+	}
+
+	let mut summary = summarize(&reports, &latencies_ms);
+
+	if runs_per_query > 1 && !stability_positional.is_empty() {
+		let count = stability_positional.len().max(1) as f64;
+		let avg_positional_churn_at_k = stability_positional.iter().sum::<f64>() / count;
+		let avg_set_churn_at_k = stability_set.iter().sum::<f64>() / count;
+		summary.stability = Some(StabilitySummary {
+			runs_per_query,
+			avg_positional_churn_at_k,
+			avg_set_churn_at_k,
+		});
+	}
+
+	let settings = EvalSettings {
+		config_path: config_path.display().to_string(),
+		candidate_k: args
+			.candidate_k
+			.or(dataset.defaults.as_ref().and_then(|d| d.candidate_k))
+			.unwrap_or(service.cfg.memory.candidate_k),
+		top_k: args
+			.top_k
+			.or(dataset.defaults.as_ref().and_then(|d| d.top_k))
+			.unwrap_or(service.cfg.memory.top_k),
+		runs_per_query: (runs_per_query > 1).then_some(runs_per_query),
+	};
+
+	Ok(EvalRun {
+		dataset: EvalDatasetInfo {
+			name: dataset.name.clone().unwrap_or_else(|| "eval".to_string()),
+			query_count: reports.len(),
+		},
+		settings,
+		summary,
+		queries: reports,
+	})
+}
+
+async fn run_query_n_times(
+	service: &ElfService,
+	request: SearchRequest,
+	runs_per_query: u32,
+) -> color_eyre::Result<(SearchIndexResponse, f64, Option<QueryStability>, Vec<Uuid>)> {
+	let k = request.top_k.unwrap_or(1).max(1) as usize;
+	let runs = runs_per_query.max(1);
+
+	let mut first_response: Option<SearchIndexResponse> = None;
+	let mut first_retrieved: Vec<Uuid> = Vec::new();
+	let mut trace_ids: Vec<Uuid> = Vec::with_capacity(runs as usize);
+	let mut latency_total_ms = 0.0_f64;
+	let mut positional_churn_sum = 0.0_f64;
+	let mut set_churn_sum = 0.0_f64;
+	let mut churn_count = 0u32;
+
+	for run_idx in 0..runs {
+		let start = Instant::now();
+		let response = service.search(request.clone()).await?;
+		let latency_ms = start.elapsed().as_secs_f64() * 1_000.0;
+
+		latency_total_ms += latency_ms;
+		trace_ids.push(response.trace_id);
+
+		let retrieved = unique_ids(response.items.iter().map(|item| item.note_id));
+
+		if run_idx == 0 {
+			first_retrieved = retrieved;
+			first_response = Some(response);
+			continue;
+		}
+
+		let (positional_churn_at_k, set_churn_at_k) =
+			churn_against_baseline_at_k(&first_retrieved, &retrieved, k);
+
+		positional_churn_sum += positional_churn_at_k;
+		set_churn_sum += set_churn_at_k;
+		churn_count += 1;
+	}
+
+	let latency_ms_mean = latency_total_ms / runs as f64;
+	let stability = if churn_count > 0 {
+		Some(QueryStability {
+			runs_per_query: runs,
+			positional_churn_at_k: positional_churn_sum / churn_count as f64,
+			set_churn_at_k: set_churn_sum / churn_count as f64,
+		})
+	} else {
+		None
+	};
+
+	Ok((
+		first_response.ok_or_else(|| eyre::eyre!("No search responses were collected."))?,
+		latency_ms_mean,
+		stability,
+		trace_ids,
+	))
+}
+
 fn churn_against_baseline_at_k(baseline: &[Uuid], other: &[Uuid], k: usize) -> (f64, f64) {
 	let k = k.max(1);
-	let mut positional_diff = 0_usize;
+
+	let mut positional_diff = 0usize;
 
 	for idx in 0..k {
 		let a = baseline.get(idx);
 		let b = other.get(idx);
-
 		if a != b {
 			positional_diff += 1;
 		}
@@ -652,7 +994,8 @@ where
 
 fn compute_metrics(retrieved: &[Uuid], expected: &HashSet<Uuid>) -> Metrics {
 	let expected_count = expected.len();
-	let mut relevant_count = 0_usize;
+
+	let mut relevant_count = 0usize;
 	let mut dcg = 0.0_f64;
 	let mut rr = 0.0_f64;
 	let mut first_hit: Option<usize> = None;
@@ -660,12 +1003,9 @@ fn compute_metrics(retrieved: &[Uuid], expected: &HashSet<Uuid>) -> Metrics {
 	for (idx, id) in retrieved.iter().enumerate() {
 		if expected.contains(id) {
 			relevant_count += 1;
-
 			let rank = idx + 1;
 			let denom = (rank as f64 + 1.0).log2();
-
 			dcg += 1.0 / denom;
-
 			if first_hit.is_none() {
 				first_hit = Some(rank);
 			}
@@ -677,12 +1017,12 @@ fn compute_metrics(retrieved: &[Uuid], expected: &HashSet<Uuid>) -> Metrics {
 	}
 
 	let ideal_hits = expected_count.min(retrieved.len());
+
 	let mut idcg = 0.0_f64;
 
 	for idx in 0..ideal_hits {
 		let rank = idx + 1;
 		let denom = (rank as f64 + 1.0).log2();
-
 		idcg += 1.0 / denom;
 	}
 
@@ -701,6 +1041,7 @@ fn summarize(reports: &[QueryReport], latencies_ms: &[f64]) -> EvalSummary {
 	let avg_precision_at_k = reports.iter().map(|r| r.precision_at_k).sum::<f64>() / count;
 	let mean_rr = reports.iter().map(|r| r.rr).sum::<f64>() / count;
 	let mean_ndcg = reports.iter().map(|r| r.ndcg).sum::<f64>() / count;
+
 	let mut sorted = latencies_ms.to_vec();
 
 	sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
@@ -733,392 +1074,10 @@ fn percentile(values: &[f64], percentile: f64) -> f64 {
 		values[lower]
 	} else {
 		let weight = pos - lower as f64;
-
 		values[lower] * (1.0 - weight) + values[upper] * weight
 	}
 }
 
-async fn fetch_trace_replay_data(
-	db: &Db,
-	trace_id: Uuid,
-) -> color_eyre::Result<(
-	elf_service::search::TraceReplayContext,
-	Vec<elf_service::search::TraceReplayCandidate>,
-)> {
-	let trace_row: TraceCompareTraceRow = sqlx::query_as!(
-		TraceCompareTraceRow,
-		"\
-SELECT
-	trace_id,
-	query,
-	candidate_count,
-	top_k,
-	created_at
-FROM search_traces
-WHERE trace_id = $1",
-		trace_id,
-	)
-	.fetch_one(&db.pool)
-	.await?;
-	let candidate_rows: Vec<TraceCompareCandidateRow> = sqlx::query_as!(
-		TraceCompareCandidateRow,
-		"\
-SELECT
-	candidate_snapshot,
-	note_id,
-	chunk_id,
-	chunk_index,
-	snippet,
-	retrieval_rank,
-	rerank_score,
-	note_scope,
-	note_importance,
-	note_updated_at,
-	note_hit_count,
-	note_last_hit_at
-FROM search_trace_candidates
-WHERE trace_id = $1
-ORDER BY retrieval_rank ASC",
-		trace_id,
-	)
-	.fetch_all(&db.pool)
-	.await?;
-	let context = elf_service::search::TraceReplayContext {
-		trace_id: trace_row.trace_id,
-		query: trace_row.query,
-		candidate_count: u32::try_from(trace_row.candidate_count).unwrap_or(0),
-		top_k: u32::try_from(trace_row.top_k).unwrap_or(0),
-		created_at: trace_row.created_at,
-	};
-	let candidates = candidate_rows
-		.into_iter()
-		.map(|row| {
-			let decoded = serde_json::from_value::<elf_service::search::TraceReplayCandidate>(
-				row.candidate_snapshot.clone(),
-			)
-			.ok()
-			.filter(|value| value.note_id != Uuid::nil() && value.chunk_id != Uuid::nil());
-
-			decoded.unwrap_or_else(|| elf_service::search::TraceReplayCandidate {
-				note_id: row.note_id,
-				chunk_id: row.chunk_id,
-				chunk_index: row.chunk_index,
-				snippet: row.snippet,
-				retrieval_rank: u32::try_from(row.retrieval_rank).unwrap_or(0),
-				rerank_score: row.rerank_score,
-				note_scope: row.note_scope,
-				note_importance: row.note_importance,
-				note_updated_at: row.note_updated_at,
-				note_hit_count: row.note_hit_count,
-				note_last_hit_at: row.note_last_hit_at,
-				diversity_selected: None,
-				diversity_selected_rank: None,
-				diversity_selected_reason: None,
-				diversity_skipped_reason: None,
-				diversity_nearest_selected_note_id: None,
-				diversity_similarity: None,
-				diversity_mmr_score: None,
-				diversity_missing_embedding: None,
-			})
-		})
-		.collect();
-
-	Ok((context, candidates))
-}
-
-async fn compute_per_trace_comparison(
-	config_a: &Config,
-	config_b: &Config,
-	context: elf_service::search::TraceReplayContext,
-	candidates: Vec<elf_service::search::TraceReplayCandidate>,
-	top_k: u32,
-	policy_id_a: &str,
-	policy_id_b: &str,
-) -> color_eyre::Result<(TraceCompareTrace, f64, f64, f64, f64)> {
-	let items_a = elf_service::search::replay_ranking_from_candidates(
-		config_a,
-		&context,
-		None,
-		&candidates,
-		top_k,
-	)
-	.map_err(|err| eyre::eyre!("{err}"))?;
-	let items_b = elf_service::search::replay_ranking_from_candidates(
-		config_b,
-		&context,
-		None,
-		&candidates,
-		top_k,
-	)
-	.map_err(|err| eyre::eyre!("{err}"))?;
-	let note_ids_a: Vec<Uuid> = items_a.iter().map(|item| item.note_id).collect();
-	let note_ids_b: Vec<Uuid> = items_b.iter().map(|item| item.note_id).collect();
-	let (positional_churn_at_k, set_churn_at_k) =
-		churn_against_baseline_at_k(&note_ids_a, &note_ids_b, top_k as usize);
-	let (retrieval_top3_total, a_retained, a_retention) =
-		retrieval_top_rank_retention(&candidates, &note_ids_a, 3);
-	let (_, b_retained, b_retention) = retrieval_top_rank_retention(&candidates, &note_ids_b, 3);
-	let created_at = context
-		.created_at
-		.format(&Rfc3339)
-		.map_err(|err| eyre::eyre!("Failed to format trace created_at: {err}"))?;
-
-	Ok((
-		TraceCompareTrace {
-			trace_id: context.trace_id,
-			query: context.query,
-			candidate_count: context.candidate_count,
-			top_k,
-			created_at,
-			a: TraceCompareVariant { policy_id: policy_id_a.to_owned(), items: items_a },
-			b: TraceCompareVariant { policy_id: policy_id_b.to_owned(), items: items_b },
-			churn: TraceCompareChurn { positional_churn_at_k, set_churn_at_k },
-			guardrails: TraceCompareGuardrails {
-				retrieval_top3_total,
-				a_retrieval_top3_retained: a_retained,
-				a_retrieval_top3_retention: a_retention,
-				b_retrieval_top3_retained: b_retained,
-				b_retrieval_top3_retention: b_retention,
-				retrieval_top3_retention_delta: b_retention - a_retention,
-			},
-		},
-		positional_churn_at_k,
-		set_churn_at_k,
-		a_retention,
-		b_retention,
-	))
-}
-
-async fn trace_compare(
-	config_a_path: &Path,
-	config_a: Config,
-	config_b_path: &Path,
-	config_b: Config,
-	args: &Args,
-) -> color_eyre::Result<TraceCompareOutput> {
-	let policy_id_a = elf_service::search::ranking_policy_id(&config_a, None)
-		.map_err(|err| eyre::eyre!("{err}"))?;
-	let policy_id_b = elf_service::search::ranking_policy_id(&config_b, None)
-		.map_err(|err| eyre::eyre!("{err}"))?;
-	let db = Db::connect(&config_a.storage.postgres).await?;
-
-	db.ensure_schema(config_a.storage.qdrant.vector_dim).await?;
-
-	let mut traces = Vec::with_capacity(args.trace_id.len());
-	let mut positional_sum = 0.0_f64;
-	let mut set_sum = 0.0_f64;
-	let mut top3_retention_a_sum = 0.0_f64;
-	let mut top3_retention_b_sum = 0.0_f64;
-
-	for trace_id in &args.trace_id {
-		let (context, candidates) = fetch_trace_replay_data(&db, *trace_id).await?;
-		let top_k = args.top_k.unwrap_or(context.top_k).max(1);
-		let (
-			trace,
-			positional_churn_at_k,
-			set_churn_at_k,
-			a_retrieval_top3_retention,
-			b_retrieval_top3_retention,
-		) = compute_per_trace_comparison(
-			&config_a,
-			&config_b,
-			context,
-			candidates,
-			top_k,
-			&policy_id_a,
-			&policy_id_b,
-		)
-		.await?;
-
-		positional_sum += positional_churn_at_k;
-		set_sum += set_churn_at_k;
-		top3_retention_a_sum += a_retrieval_top3_retention;
-		top3_retention_b_sum += b_retrieval_top3_retention;
-
-		traces.push(trace);
-	}
-
-	let count = traces.len().max(1) as f64;
-	let summary = TraceCompareSummary {
-		trace_count: traces.len(),
-		avg_positional_churn_at_k: positional_sum / count,
-		avg_set_churn_at_k: set_sum / count,
-		avg_a_retrieval_top3_retention: top3_retention_a_sum / count,
-		avg_b_retrieval_top3_retention: top3_retention_b_sum / count,
-		avg_retrieval_top3_retention_delta: (top3_retention_b_sum - top3_retention_a_sum) / count,
-	};
-
-	Ok(TraceCompareOutput {
-		policies: TraceComparePolicies {
-			a: TraceComparePolicy {
-				config_path: config_a_path.display().to_string(),
-				policy_id: policy_id_a,
-			},
-			b: TraceComparePolicy {
-				config_path: config_b_path.display().to_string(),
-				policy_id: policy_id_b,
-			},
-		},
-		summary,
-		traces,
-	})
-}
-async fn eval_config(
-	config_path: &Path,
-	config: Config,
-	dataset: &EvalDataset,
-	args: &Args,
-) -> color_eyre::Result<EvalRun> {
-	let db = Db::connect(&config.storage.postgres).await?;
-
-	db.ensure_schema(config.storage.qdrant.vector_dim).await?;
-
-	let qdrant = QdrantStore::new(&config.storage.qdrant)?;
-	let service = ElfService::new(config, db, qdrant);
-	let defaults = dataset.defaults.clone().unwrap_or(EvalDefaults {
-		tenant_id: None,
-		project_id: None,
-		agent_id: None,
-		read_profile: None,
-		top_k: None,
-		candidate_k: None,
-		ranking: None,
-	});
-	let mut reports = Vec::with_capacity(dataset.queries.len());
-	let mut latencies_ms = Vec::with_capacity(dataset.queries.len());
-	let mut stability_positional = Vec::new();
-	let mut stability_set = Vec::new();
-	let runs_per_query = args.runs_per_query.max(1);
-
-	for (index, query) in dataset.queries.iter().enumerate() {
-		let merged = merge_query(&defaults, query, args, &service.cfg, index)?;
-		let expected: HashSet<Uuid> = merged.expected_note_ids.iter().copied().collect();
-		let (first, latency_ms, stability, trace_ids) =
-			run_query_n_times(&service, merged.request, runs_per_query).await?;
-		let retrieved = unique_ids(first.items.iter().map(|item| item.note_id));
-		let metrics = compute_metrics(&retrieved, &expected);
-
-		if let Some(s) = stability {
-			stability_positional.push(s.positional_churn_at_k);
-			stability_set.push(s.set_churn_at_k);
-		}
-
-		reports.push(QueryReport {
-			id: merged.id,
-			query: merged.query,
-			trace_id: first.trace_id,
-			trace_ids: (trace_ids.len() > 1).then_some(trace_ids),
-			expected_count: expected.len(),
-			retrieved_count: retrieved.len(),
-			relevant_count: metrics.relevant_count,
-			recall_at_k: metrics.recall_at_k,
-			precision_at_k: metrics.precision_at_k,
-			rr: metrics.rr,
-			ndcg: metrics.ndcg,
-			latency_ms,
-			expected_note_ids: merged.expected_note_ids,
-			retrieved_note_ids: retrieved,
-			stability,
-		});
-		latencies_ms.push(latency_ms);
-	}
-
-	let mut summary = summarize(&reports, &latencies_ms);
-
-	if runs_per_query > 1 && !stability_positional.is_empty() {
-		let count = stability_positional.len().max(1) as f64;
-		let avg_positional_churn_at_k = stability_positional.iter().sum::<f64>() / count;
-		let avg_set_churn_at_k = stability_set.iter().sum::<f64>() / count;
-
-		summary.stability = Some(StabilitySummary {
-			runs_per_query,
-			avg_positional_churn_at_k,
-			avg_set_churn_at_k,
-		});
-	}
-
-	let settings = EvalSettings {
-		config_path: config_path.display().to_string(),
-		candidate_k: args
-			.candidate_k
-			.or(dataset.defaults.as_ref().and_then(|d| d.candidate_k))
-			.unwrap_or(service.cfg.memory.candidate_k),
-		top_k: args
-			.top_k
-			.or(dataset.defaults.as_ref().and_then(|d| d.top_k))
-			.unwrap_or(service.cfg.memory.top_k),
-		runs_per_query: (runs_per_query > 1).then_some(runs_per_query),
-	};
-
-	Ok(EvalRun {
-		dataset: EvalDatasetInfo {
-			name: dataset.name.clone().unwrap_or_else(|| "eval".to_string()),
-			query_count: reports.len(),
-		},
-		settings,
-		summary,
-		queries: reports,
-	})
-}
-async fn run_query_n_times(
-	service: &ElfService,
-	request: SearchRequest,
-	runs_per_query: u32,
-) -> color_eyre::Result<(SearchIndexResponse, f64, Option<QueryStability>, Vec<Uuid>)> {
-	let k = request.top_k.unwrap_or(1).max(1) as usize;
-	let runs = runs_per_query.max(1);
-	let mut first_response: Option<SearchIndexResponse> = None;
-	let mut first_retrieved: Vec<Uuid> = Vec::new();
-	let mut trace_ids: Vec<Uuid> = Vec::with_capacity(runs as usize);
-	let mut latency_total_ms = 0.0_f64;
-	let mut positional_churn_sum = 0.0_f64;
-	let mut set_churn_sum = 0.0_f64;
-	let mut churn_count = 0_u32;
-
-	for run_idx in 0..runs {
-		let start = Instant::now();
-		let response = service.search(request.clone()).await?;
-		let latency_ms = start.elapsed().as_secs_f64() * 1_000.0;
-
-		latency_total_ms += latency_ms;
-
-		trace_ids.push(response.trace_id);
-
-		let retrieved = unique_ids(response.items.iter().map(|item| item.note_id));
-
-		if run_idx == 0 {
-			first_retrieved = retrieved;
-			first_response = Some(response);
-
-			continue;
-		}
-
-		let (positional_churn_at_k, set_churn_at_k) =
-			churn_against_baseline_at_k(&first_retrieved, &retrieved, k);
-
-		positional_churn_sum += positional_churn_at_k;
-		set_churn_sum += set_churn_at_k;
-		churn_count += 1;
-	}
-
-	let latency_ms_mean = latency_total_ms / runs as f64;
-	let stability = if churn_count > 0 {
-		Some(QueryStability {
-			runs_per_query: runs,
-			positional_churn_at_k: positional_churn_sum / churn_count as f64,
-			set_churn_at_k: set_churn_sum / churn_count as f64,
-		})
-	} else {
-		None
-	};
-
-	Ok((
-		first_response.ok_or_else(|| eyre::eyre!("No search responses were collected."))?,
-		latency_ms_mean,
-		stability,
-		trace_ids,
-	))
-}
 #[cfg(test)]
 mod tests {
 	use super::*;
