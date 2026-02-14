@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use crate::{
 	ElfService, Error, NoteFetchResponse, Result, SearchRequest,
-	structured_fields::fetch_structured_fields,
+	structured_fields::StructuredFields,
 };
 use elf_config::Config;
 use elf_domain::cjk;
@@ -189,7 +189,8 @@ impl ElfService {
 		let expires_at = now + Duration::hours(SESSION_SLIDING_TTL_HOURS);
 		let search_session_id = Uuid::new_v4();
 		let note_ids: Vec<Uuid> = raw.items.iter().map(|item| item.note_id).collect();
-		let structured_by_note = fetch_structured_fields(&self.db.pool, &note_ids).await?;
+		let structured_by_note =
+			crate::structured_fields::fetch_structured_fields(&self.db.pool, &note_ids).await?;
 		let mut items = Vec::with_capacity(raw.items.len());
 
 		for (idx, item) in raw.items.iter().enumerate() {
@@ -377,76 +378,23 @@ impl ElfService {
 			}
 		}
 
-		let structured_by_note =
-			fetch_structured_fields(&self.db.pool, requested_in_session.as_slice()).await?;
+		let structured_by_note = crate::structured_fields::fetch_structured_fields(
+			&self.db.pool,
+			requested_in_session.as_slice(),
+		)
+		.await?;
 		let allowed_scopes = resolve_read_scopes(&self.cfg, &session.read_profile)?;
-		let mut results = Vec::with_capacity(req.note_ids.len());
-		let mut hits = Vec::new();
-		let mut hit_seen = HashSet::new();
-
-		for note_id in req.note_ids {
-			let Some(session_item) = by_note_id.get(&note_id) else {
-				results.push(SearchDetailsResult {
-					note_id,
-					note: None,
-					error: Some(SearchDetailsError {
-						code: "NOT_IN_SESSION".to_string(),
-						message: "Requested note_id is not present in the search session."
-							.to_string(),
-					}),
-				});
-
-				continue;
-			};
-			let Some(note) = notes_by_id.get(&note_id) else {
-				results.push(SearchDetailsResult {
-					note_id,
-					note: None,
-					error: Some(SearchDetailsError {
-						code: "NOTE_NOT_FOUND".to_string(),
-						message: "Note not found.".to_string(),
-					}),
-				});
-
-				continue;
-			};
-			let error = validate_note_access(note, &session, &allowed_scopes, now);
-
-			if let Some(error) = error {
-				results.push(SearchDetailsResult { note_id, note: None, error: Some(error) });
-
-				continue;
-			}
-
-			let note_response = NoteFetchResponse {
-				note_id: note.note_id,
-				tenant_id: note.tenant_id.clone(),
-				project_id: note.project_id.clone(),
-				agent_id: note.agent_id.clone(),
-				scope: note.scope.clone(),
-				r#type: note.r#type.clone(),
-				key: note.key.clone(),
-				text: note.text.clone(),
-				importance: note.importance,
-				confidence: note.confidence,
-				status: note.status.clone(),
-				updated_at: note.updated_at,
-				expires_at: note.expires_at,
-				source_ref: note.source_ref.clone(),
-				structured: structured_by_note.get(&note.note_id).cloned(),
-			};
-
-			results.push(SearchDetailsResult { note_id, note: Some(note_response), error: None });
-
-			if req.record_hits.unwrap_or(true) && hit_seen.insert(note_id) {
-				hits.push(HitItem {
-					note_id,
-					chunk_id: session_item.chunk_id,
-					rank: session_item.rank,
-					final_score: session_item.final_score,
-				});
-			}
-		}
+		let record_hits = req.record_hits.unwrap_or(true);
+		let details_args = SearchDetailsBuildArgs {
+			session_items_by_note_id: &by_note_id,
+			notes_by_id: &notes_by_id,
+			structured_by_note: &structured_by_note,
+			session: &session,
+			allowed_scopes: &allowed_scopes,
+			now,
+			record_hits_enabled: record_hits,
+		};
+		let (results, hits) = build_search_details_results(req.note_ids, details_args);
 
 		if !hits.is_empty() {
 			let mut tx = self.db.pool.begin().await?;
@@ -462,6 +410,90 @@ impl ElfService {
 			results,
 		})
 	}
+}
+
+struct SearchDetailsBuildArgs<'a> {
+	session_items_by_note_id: &'a HashMap<Uuid, SearchSessionItemRecord>,
+	notes_by_id: &'a HashMap<Uuid, MemoryNote>,
+	structured_by_note: &'a HashMap<Uuid, StructuredFields>,
+	session: &'a SearchSession,
+	allowed_scopes: &'a [String],
+	now: OffsetDateTime,
+	record_hits_enabled: bool,
+}
+
+fn build_search_details_results(
+	requested_note_ids: Vec<Uuid>,
+	args: SearchDetailsBuildArgs<'_>,
+) -> (Vec<SearchDetailsResult>, Vec<HitItem>) {
+	let mut results = Vec::with_capacity(requested_note_ids.len());
+	let mut hits = Vec::new();
+	let mut hit_seen = HashSet::new();
+
+	for note_id in requested_note_ids {
+		let Some(session_item) = args.session_items_by_note_id.get(&note_id) else {
+			results.push(SearchDetailsResult {
+				note_id,
+				note: None,
+				error: Some(SearchDetailsError {
+					code: "NOT_IN_SESSION".to_string(),
+					message: "Requested note_id is not present in the search session.".to_string(),
+				}),
+			});
+
+			continue;
+		};
+		let Some(note) = args.notes_by_id.get(&note_id) else {
+			results.push(SearchDetailsResult {
+				note_id,
+				note: None,
+				error: Some(SearchDetailsError {
+					code: "NOTE_NOT_FOUND".to_string(),
+					message: "Note not found.".to_string(),
+				}),
+			});
+
+			continue;
+		};
+		let error = validate_note_access(note, args.session, args.allowed_scopes, args.now);
+
+		if let Some(error) = error {
+			results.push(SearchDetailsResult { note_id, note: None, error: Some(error) });
+
+			continue;
+		}
+
+		let note_response = NoteFetchResponse {
+			note_id: note.note_id,
+			tenant_id: note.tenant_id.clone(),
+			project_id: note.project_id.clone(),
+			agent_id: note.agent_id.clone(),
+			scope: note.scope.clone(),
+			r#type: note.r#type.clone(),
+			key: note.key.clone(),
+			text: note.text.clone(),
+			importance: note.importance,
+			confidence: note.confidence,
+			status: note.status.clone(),
+			updated_at: note.updated_at,
+			expires_at: note.expires_at,
+			source_ref: note.source_ref.clone(),
+			structured: args.structured_by_note.get(&note.note_id).cloned(),
+		};
+
+		results.push(SearchDetailsResult { note_id, note: Some(note_response), error: None });
+
+		if args.record_hits_enabled && hit_seen.insert(note_id) {
+			hits.push(HitItem {
+				note_id,
+				chunk_id: session_item.chunk_id,
+				rank: session_item.rank,
+				final_score: session_item.final_score,
+			});
+		}
+	}
+
+	(results, hits)
 }
 
 fn build_timeline_by_day(

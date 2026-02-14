@@ -742,6 +742,41 @@ fn percentile(values: &[f64], percentile: f64) -> f64 {
 	}
 }
 
+fn decode_trace_replay_candidates(
+	rows: Vec<TraceCompareCandidateRow>,
+) -> Vec<TraceReplayCandidate> {
+	rows.into_iter()
+		.map(|row| {
+			let decoded =
+				serde_json::from_value::<TraceReplayCandidate>(row.candidate_snapshot.clone())
+					.ok()
+					.filter(|value| value.note_id != Uuid::nil() && value.chunk_id != Uuid::nil());
+
+			decoded.unwrap_or_else(|| elf_service::search::TraceReplayCandidate {
+				note_id: row.note_id,
+				chunk_id: row.chunk_id,
+				chunk_index: row.chunk_index,
+				snippet: row.snippet,
+				retrieval_rank: u32::try_from(row.retrieval_rank).unwrap_or(0),
+				rerank_score: row.rerank_score,
+				note_scope: row.note_scope,
+				note_importance: row.note_importance,
+				note_updated_at: row.note_updated_at,
+				note_hit_count: row.note_hit_count,
+				note_last_hit_at: row.note_last_hit_at,
+				diversity_selected: None,
+				diversity_selected_rank: None,
+				diversity_selected_reason: None,
+				diversity_skipped_reason: None,
+				diversity_nearest_selected_note_id: None,
+				diversity_similarity: None,
+				diversity_mmr_score: None,
+				diversity_missing_embedding: None,
+			})
+		})
+		.collect()
+}
+
 async fn trace_compare(
 	config_a_path: &Path,
 	config_a: Config,
@@ -764,138 +799,23 @@ async fn trace_compare(
 	let mut top3_retention_b_sum = 0.0_f64;
 
 	for trace_id in &args.trace_id {
-		let trace_row: TraceCompareTraceRow = sqlx::query_as!(
-			TraceCompareTraceRow,
-			"\
-SELECT
-	trace_id,
-	query,
-	candidate_count,
-	top_k,
-	created_at
-FROM search_traces
-WHERE trace_id = $1",
-			trace_id,
-		)
-		.fetch_one(&db.pool)
-		.await?;
-		let candidate_rows: Vec<TraceCompareCandidateRow> = sqlx::query_as!(
-			TraceCompareCandidateRow,
-			"\
-SELECT
-	candidate_snapshot,
-	note_id,
-	chunk_id,
-	chunk_index,
-	snippet,
-	retrieval_rank,
-	rerank_score,
-	note_scope,
-	note_importance,
-	note_updated_at,
-	note_hit_count,
-	note_last_hit_at
-FROM search_trace_candidates
-WHERE trace_id = $1
-ORDER BY retrieval_rank ASC",
-			trace_id,
-		)
-		.fetch_all(&db.pool)
-		.await?;
-		let context = elf_service::search::TraceReplayContext {
-			trace_id: trace_row.trace_id,
-			query: trace_row.query.clone(),
-			candidate_count: u32::try_from(trace_row.candidate_count).unwrap_or(0),
-			top_k: u32::try_from(trace_row.top_k).unwrap_or(0),
-			created_at: trace_row.created_at,
-		};
-		let created_at = context
-			.created_at
-			.format(&Rfc3339)
-			.map_err(|err| eyre::eyre!("Failed to format trace created_at: {err}"))?;
-		let candidates: Vec<TraceReplayCandidate> = candidate_rows
-			.into_iter()
-			.map(|row| {
-				let decoded =
-					serde_json::from_value::<TraceReplayCandidate>(row.candidate_snapshot.clone())
-						.ok()
-						.filter(|value| {
-							value.note_id != Uuid::nil() && value.chunk_id != Uuid::nil()
-						});
-
-				decoded.unwrap_or_else(|| elf_service::search::TraceReplayCandidate {
-					note_id: row.note_id,
-					chunk_id: row.chunk_id,
-					chunk_index: row.chunk_index,
-					snippet: row.snippet,
-					retrieval_rank: u32::try_from(row.retrieval_rank).unwrap_or(0),
-					rerank_score: row.rerank_score,
-					note_scope: row.note_scope,
-					note_importance: row.note_importance,
-					note_updated_at: row.note_updated_at,
-					note_hit_count: row.note_hit_count,
-					note_last_hit_at: row.note_last_hit_at,
-					diversity_selected: None,
-					diversity_selected_rank: None,
-					diversity_selected_reason: None,
-					diversity_skipped_reason: None,
-					diversity_nearest_selected_note_id: None,
-					diversity_similarity: None,
-					diversity_mmr_score: None,
-					diversity_missing_embedding: None,
-				})
-			})
-			.collect();
-		let top_k = args.top_k.unwrap_or(context.top_k).max(1);
-		let items_a = elf_service::search::replay_ranking_from_candidates(
+		let trace = compare_trace_id(
+			&db,
 			&config_a,
-			&context,
-			None,
-			&candidates,
-			top_k,
-		)
-		.map_err(|err| eyre::eyre!("{err}"))?;
-		let items_b = elf_service::search::replay_ranking_from_candidates(
 			&config_b,
-			&context,
-			None,
-			&candidates,
-			top_k,
+			policy_id_a.as_str(),
+			policy_id_b.as_str(),
+			trace_id,
+			args,
 		)
-		.map_err(|err| eyre::eyre!("{err}"))?;
-		let note_ids_a: Vec<Uuid> = items_a.iter().map(|item| item.note_id).collect();
-		let note_ids_b: Vec<Uuid> = items_b.iter().map(|item| item.note_id).collect();
-		let (positional_churn_at_k, set_churn_at_k) =
-			churn_against_baseline_at_k(&note_ids_a, &note_ids_b, top_k as usize);
-		let (retrieval_top3_total, a_retained, a_retention) =
-			retrieval_top_rank_retention(&candidates, &note_ids_a, 3);
-		let (_, b_retained, b_retention) =
-			retrieval_top_rank_retention(&candidates, &note_ids_b, 3);
-		let retention_delta = b_retention - a_retention;
+		.await?;
 
-		positional_sum += positional_churn_at_k;
-		set_sum += set_churn_at_k;
-		top3_retention_a_sum += a_retention;
-		top3_retention_b_sum += b_retention;
+		positional_sum += trace.churn.positional_churn_at_k;
+		set_sum += trace.churn.set_churn_at_k;
+		top3_retention_a_sum += trace.guardrails.a_retrieval_top3_retention;
+		top3_retention_b_sum += trace.guardrails.b_retrieval_top3_retention;
 
-		traces.push(TraceCompareTrace {
-			trace_id: context.trace_id,
-			query: context.query,
-			candidate_count: context.candidate_count,
-			top_k,
-			created_at,
-			a: TraceCompareVariant { policy_id: policy_id_a.clone(), items: items_a },
-			b: TraceCompareVariant { policy_id: policy_id_b.clone(), items: items_b },
-			churn: TraceCompareChurn { positional_churn_at_k, set_churn_at_k },
-			guardrails: TraceCompareGuardrails {
-				retrieval_top3_total,
-				a_retrieval_top3_retained: a_retained,
-				a_retrieval_top3_retention: a_retention,
-				b_retrieval_top3_retained: b_retained,
-				b_retrieval_top3_retention: b_retention,
-				retrieval_top3_retention_delta: retention_delta,
-			},
-		});
+		traces.push(trace);
 	}
 
 	let count = traces.len().max(1) as f64;
@@ -922,6 +842,125 @@ ORDER BY retrieval_rank ASC",
 		summary,
 		traces,
 	})
+}
+
+async fn compare_trace_id(
+	db: &Db,
+	config_a: &Config,
+	config_b: &Config,
+	policy_id_a: &str,
+	policy_id_b: &str,
+	trace_id: &Uuid,
+	args: &Args,
+) -> Result<TraceCompareTrace> {
+	let trace_row = fetch_trace_compare_trace_row(db, trace_id).await?;
+	let candidate_rows = fetch_trace_compare_candidate_rows(db, trace_id).await?;
+	let context = elf_service::search::TraceReplayContext {
+		trace_id: trace_row.trace_id,
+		query: trace_row.query.clone(),
+		candidate_count: u32::try_from(trace_row.candidate_count).unwrap_or(0),
+		top_k: u32::try_from(trace_row.top_k).unwrap_or(0),
+		created_at: trace_row.created_at,
+	};
+	let created_at = context
+		.created_at
+		.format(&Rfc3339)
+		.map_err(|err| eyre::eyre!("Failed to format trace created_at: {err}"))?;
+	let candidates = decode_trace_replay_candidates(candidate_rows);
+	let top_k = args.top_k.unwrap_or(context.top_k).max(1);
+	let items_a = elf_service::search::replay_ranking_from_candidates(
+		config_a,
+		&context,
+		None,
+		&candidates,
+		top_k,
+	)
+	.map_err(|err| eyre::eyre!("{err}"))?;
+	let items_b = elf_service::search::replay_ranking_from_candidates(
+		config_b,
+		&context,
+		None,
+		&candidates,
+		top_k,
+	)
+	.map_err(|err| eyre::eyre!("{err}"))?;
+	let note_ids_a: Vec<Uuid> = items_a.iter().map(|item| item.note_id).collect();
+	let note_ids_b: Vec<Uuid> = items_b.iter().map(|item| item.note_id).collect();
+	let (positional_churn_at_k, set_churn_at_k) =
+		churn_against_baseline_at_k(&note_ids_a, &note_ids_b, top_k as usize);
+	let (retrieval_top3_total, a_retained, a_retention) =
+		retrieval_top_rank_retention(&candidates, &note_ids_a, 3);
+	let (_, b_retained, b_retention) = retrieval_top_rank_retention(&candidates, &note_ids_b, 3);
+
+	Ok(TraceCompareTrace {
+		trace_id: context.trace_id,
+		query: context.query,
+		candidate_count: context.candidate_count,
+		top_k,
+		created_at,
+		a: TraceCompareVariant { policy_id: policy_id_a.to_string(), items: items_a },
+		b: TraceCompareVariant { policy_id: policy_id_b.to_string(), items: items_b },
+		churn: TraceCompareChurn { positional_churn_at_k, set_churn_at_k },
+		guardrails: TraceCompareGuardrails {
+			retrieval_top3_total,
+			a_retrieval_top3_retained: a_retained,
+			a_retrieval_top3_retention: a_retention,
+			b_retrieval_top3_retained: b_retained,
+			b_retrieval_top3_retention: b_retention,
+			retrieval_top3_retention_delta: b_retention - a_retention,
+		},
+	})
+}
+
+async fn fetch_trace_compare_trace_row(db: &Db, trace_id: &Uuid) -> Result<TraceCompareTraceRow> {
+	let row: TraceCompareTraceRow = sqlx::query_as!(
+		TraceCompareTraceRow,
+		"\
+SELECT
+	trace_id,
+	query,
+	candidate_count,
+	top_k,
+	created_at
+FROM search_traces
+WHERE trace_id = $1",
+		trace_id,
+	)
+	.fetch_one(&db.pool)
+	.await?;
+
+	Ok(row)
+}
+
+async fn fetch_trace_compare_candidate_rows(
+	db: &Db,
+	trace_id: &Uuid,
+) -> Result<Vec<TraceCompareCandidateRow>> {
+	let rows: Vec<TraceCompareCandidateRow> = sqlx::query_as!(
+		TraceCompareCandidateRow,
+		"\
+SELECT
+	candidate_snapshot,
+	note_id,
+	chunk_id,
+	chunk_index,
+	snippet,
+	retrieval_rank,
+	rerank_score,
+	note_scope,
+	note_importance,
+	note_updated_at,
+	note_hit_count,
+	note_last_hit_at
+FROM search_trace_candidates
+WHERE trace_id = $1
+ORDER BY retrieval_rank ASC",
+		trace_id,
+	)
+	.fetch_all(&db.pool)
+	.await?;
+
+	Ok(rows)
 }
 
 async fn eval_config(

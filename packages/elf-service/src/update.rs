@@ -1,5 +1,6 @@
-use elf_domain::writegate;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use sqlx::{Postgres, Transaction};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
@@ -48,33 +49,9 @@ impl ElfService {
 
 		let text_update = req.text.clone();
 		let mut tx = self.db.pool.begin().await?;
-		let mut note: MemoryNote = sqlx::query_as!(
-			MemoryNote,
-			"\
-SELECT *
-FROM memory_notes
-WHERE note_id = $1 AND tenant_id = $2 AND project_id = $3
-FOR UPDATE",
-			req.note_id,
-			tenant_id,
-			project_id,
-		)
-		.fetch_optional(&mut *tx)
-		.await?
-		.ok_or_else(|| Error::InvalidRequest { message: "Note not found.".to_string() })?;
+		let mut note = load_note_for_update(&mut tx, req.note_id, tenant_id, project_id).await?;
 
-		if note.scope == "agent_private" && note.agent_id != agent_id {
-			return Err(Error::InvalidRequest { message: "Note not found.".to_string() });
-		}
-		if !note.status.eq_ignore_ascii_case("active") {
-			return Err(Error::InvalidRequest { message: "Note not found.".to_string() });
-		}
-
-		if let Some(expires_at) = note.expires_at
-			&& expires_at <= now
-		{
-			return Err(Error::InvalidRequest { message: "Note not found.".to_string() });
-		}
+		validate_note_is_updatable(&note, agent_id, now)?;
 
 		let prev_snapshot = crate::note_snapshot(&note);
 		let candidate_text = if let Some(text) = text_update.as_ref() {
@@ -86,7 +63,7 @@ FOR UPDATE",
 		} else {
 			note.text.clone()
 		};
-		let gate = writegate::NoteInput {
+		let gate = elf_domain::writegate::NoteInput {
 			note_type: note.r#type.clone(),
 			scope: note.scope.clone(),
 			text: candidate_text,
@@ -128,8 +105,64 @@ FOR UPDATE",
 		note.expires_at = next_expires_at;
 		note.updated_at = now;
 
-		sqlx::query!(
-			"\
+		persist_note_update(&mut tx, &note, prev_snapshot).await?;
+
+		tx.commit().await?;
+
+		Ok(UpdateResponse { note_id: note.note_id, op: NoteOp::Update, reason_code: None })
+	}
+}
+
+fn validate_note_is_updatable(
+	note: &MemoryNote,
+	agent_id: &str,
+	now: OffsetDateTime,
+) -> Result<()> {
+	if note.scope == "agent_private" && note.agent_id != agent_id {
+		return Err(Error::InvalidRequest { message: "Note not found.".to_string() });
+	}
+	if !note.status.eq_ignore_ascii_case("active") {
+		return Err(Error::InvalidRequest { message: "Note not found.".to_string() });
+	}
+
+	if let Some(expires_at) = note.expires_at
+		&& expires_at <= now
+	{
+		return Err(Error::InvalidRequest { message: "Note not found.".to_string() });
+	}
+
+	Ok(())
+}
+
+async fn load_note_for_update(
+	tx: &mut Transaction<'_, Postgres>,
+	note_id: Uuid,
+	tenant_id: &str,
+	project_id: &str,
+) -> Result<MemoryNote> {
+	sqlx::query_as!(
+		MemoryNote,
+		"\
+SELECT *
+FROM memory_notes
+WHERE note_id = $1 AND tenant_id = $2 AND project_id = $3
+FOR UPDATE",
+		note_id,
+		tenant_id,
+		project_id,
+	)
+	.fetch_optional(&mut **tx)
+	.await?
+	.ok_or_else(|| Error::InvalidRequest { message: "Note not found.".to_string() })
+}
+
+async fn persist_note_update(
+	tx: &mut Transaction<'_, Postgres>,
+	note: &MemoryNote,
+	prev_snapshot: Value,
+) -> Result<()> {
+	sqlx::query!(
+		"\
 UPDATE memory_notes
 SET
 	text = $1,
@@ -138,40 +171,37 @@ SET
 	updated_at = $4,
 	expires_at = $5
 WHERE note_id = $6",
-			note.text.as_str(),
-			note.importance,
-			note.confidence,
-			note.updated_at,
-			note.expires_at,
-			note.note_id,
-		)
-		.execute(&mut *tx)
-		.await?;
+		note.text.as_str(),
+		note.importance,
+		note.confidence,
+		note.updated_at,
+		note.expires_at,
+		note.note_id,
+	)
+	.execute(&mut **tx)
+	.await?;
 
-		crate::insert_version(
-			&mut *tx,
-			InsertVersionArgs {
-				note_id: note.note_id,
-				op: "UPDATE",
-				prev_snapshot: Some(prev_snapshot),
-				new_snapshot: Some(crate::note_snapshot(&note)),
-				reason: "update",
-				actor: "update",
-				ts: note.updated_at,
-			},
-		)
-		.await?;
-		crate::enqueue_outbox_tx(
-			&mut *tx,
-			note.note_id,
-			"UPSERT",
-			&note.embedding_version,
-			note.updated_at,
-		)
-		.await?;
+	crate::insert_version(
+		&mut **tx,
+		InsertVersionArgs {
+			note_id: note.note_id,
+			op: "UPDATE",
+			prev_snapshot: Some(prev_snapshot),
+			new_snapshot: Some(crate::note_snapshot(note)),
+			reason: "update",
+			actor: "update",
+			ts: note.updated_at,
+		},
+	)
+	.await?;
+	crate::enqueue_outbox_tx(
+		&mut **tx,
+		note.note_id,
+		"UPSERT",
+		&note.embedding_version,
+		note.updated_at,
+	)
+	.await?;
 
-		tx.commit().await?;
-
-		Ok(UpdateResponse { note_id: note.note_id, op: NoteOp::Update, reason_code: None })
-	}
+	Ok(())
 }
