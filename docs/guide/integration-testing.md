@@ -27,6 +27,10 @@ ELF_QDRANT_HTTP_URL="http://127.0.0.1:51889" \
 cargo make e2e
 ```
 
+Note: The harness builds binaries first and then starts `elf-worker` and `elf-api` by executing the
+compiled artifacts under `target/debug/`. This avoids slow startup and Cargo lock contention that can
+happen when running multiple `cargo run` processes concurrently.
+
 ## Preconditions
 
 - Postgres is running and reachable.
@@ -173,6 +177,11 @@ In a second terminal:
 ```bash
 cargo run -p elf-api -- --config tmp/elf.integration.toml
 ```
+
+Note: If you see long "waiting for file lock" messages or slow startup, build once and run the
+binaries directly:
+`cargo build -p elf-worker -p elf-api`, then `target/debug/elf-worker --config ...` and
+`target/debug/elf-api --config ...`.
 
 ## Step 3: Add test notes
 
