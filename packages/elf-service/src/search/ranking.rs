@@ -14,9 +14,10 @@ pub(super) use diversity::{
 	build_rerank_ranks_for_replay, extract_replay_diversity_decisions, select_diverse_results,
 };
 pub(super) use policy::{
-	NormalizationKind, build_config_snapshot, build_policy_snapshot, hash_policy_snapshot,
-	resolve_blend_policy, resolve_diversity_policy, resolve_retrieval_sources_policy,
-	resolve_scopes, retrieval_weight_for_rank,
+	NormalizationKind, ResolvedBlendPolicy, ResolvedDiversityPolicy,
+	ResolvedRetrievalSourcesPolicy, build_config_snapshot, build_policy_snapshot,
+	hash_policy_snapshot, resolve_blend_policy, resolve_diversity_policy,
+	resolve_retrieval_sources_policy, resolve_scopes, retrieval_weight_for_rank,
 };
 pub(super) use query::{
 	build_expansion_messages, expansion_mode_label, normalize_queries, resolve_expansion_mode,
@@ -31,6 +32,5 @@ pub(super) use text::{
 	compute_deterministic_ranking_terms, match_terms_in_text, merge_matched_fields, tokenize_query,
 };
 
-#[cfg(test)]
-pub(super) use policy::{BlendSegment, ResolvedDiversityPolicy, ResolvedRetrievalSourcesPolicy};
+#[cfg(test)] pub(super) use policy::BlendSegment;
 #[cfg(test)] pub(super) use text::{lexical_overlap_ratio, scope_description_boost};

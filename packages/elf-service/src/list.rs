@@ -104,6 +104,7 @@ impl ElfService {
 			builder.push_bind("active");
 		}
 		// Expiry only applies to active notes. Deleted notes may also have expires_at set by GC.
+
 		if requested_status.unwrap_or("active").eq_ignore_ascii_case("active") {
 			builder.push(" AND (expires_at IS NULL OR expires_at > ");
 			builder.push_bind(now);
