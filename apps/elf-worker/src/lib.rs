@@ -26,12 +26,14 @@ pub struct Args {
 pub async fn run(args: Args) -> Result<()> {
 	let config = elf_config::load(&args.config).map_err(|err| Error::Message(err.to_string()))?;
 	let filter = EnvFilter::new(config.service.log_level.clone());
+
 	tracing_subscriber::fmt().with_env_filter(filter).init();
 
 	let db = Db::connect(&config.storage.postgres).await?;
-	db.ensure_schema(config.storage.qdrant.vector_dim).await?;
-	let qdrant = QdrantStore::new(&config.storage.qdrant)?;
 
+	db.ensure_schema(config.storage.qdrant.vector_dim).await?;
+
+	let qdrant = QdrantStore::new(&config.storage.qdrant)?;
 	let tokenizer_repo = config
 		.chunking
 		.tokenizer_repo
@@ -42,7 +44,6 @@ pub async fn run(args: Args) -> Result<()> {
 		max_tokens: config.chunking.max_tokens,
 		overlap_tokens: config.chunking.overlap_tokens,
 	};
-
 	let state = worker::WorkerState {
 		db,
 		qdrant,

@@ -1,5 +1,7 @@
 mod ranking;
 
+pub use crate::ranking_explain_v2::{SearchRankingExplain, SearchRankingTerm};
+
 use std::{
 	cmp::Ordering,
 	collections::{BTreeMap, HashMap, HashSet},
@@ -11,11 +13,11 @@ use qdrant_client::qdrant::{
 	QueryPointsBuilder, ScoredPoint,
 };
 use serde::{Deserialize, Serialize};
-use sqlx::{PgExecutor, QueryBuilder};
+use serde_json::Value;
+use sqlx::{PgConnection, PgExecutor, QueryBuilder};
 use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
-pub use crate::ranking_explain_v2::{SearchRankingExplain, SearchRankingTerm};
 use crate::{ElfService, Error, Result, ranking_explain_v2};
 use elf_config::Config;
 use elf_domain::cjk;
@@ -48,529 +50,10 @@ impl CacheKind {
 	}
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SearchRequest {
-	pub tenant_id: String,
-	pub project_id: String,
-	pub agent_id: String,
-	pub read_profile: String,
-	pub query: String,
-	pub top_k: Option<u32>,
-	pub candidate_k: Option<u32>,
-	pub record_hits: Option<bool>,
-	pub ranking: Option<RankingRequestOverride>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct RankingRequestOverride {
-	pub blend: Option<BlendRankingOverride>,
-	pub diversity: Option<DiversityRankingOverride>,
-	pub retrieval_sources: Option<RetrievalSourcesRankingOverride>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct BlendRankingOverride {
-	pub enabled: Option<bool>,
-	pub rerank_normalization: Option<String>,
-	pub retrieval_normalization: Option<String>,
-	pub segments: Option<Vec<BlendSegmentOverride>>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct BlendSegmentOverride {
-	pub max_retrieval_rank: u32,
-	pub retrieval_weight: f32,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct DiversityRankingOverride {
-	pub enabled: Option<bool>,
-	pub sim_threshold: Option<f32>,
-	pub mmr_lambda: Option<f32>,
-	pub max_skips: Option<u32>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct RetrievalSourcesRankingOverride {
-	pub fusion_weight: Option<f32>,
-	pub structured_field_weight: Option<f32>,
-	pub fusion_priority: Option<u32>,
-	pub structured_field_priority: Option<u32>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SearchExplain {
-	pub r#match: SearchMatchExplain,
-	pub ranking: SearchRankingExplain,
-	#[serde(skip_serializing_if = "Option::is_none")]
-	pub diversity: Option<SearchDiversityExplain>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SearchMatchExplain {
-	pub matched_terms: Vec<String>,
-	pub matched_fields: Vec<String>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SearchDiversityExplain {
-	pub enabled: bool,
-	pub selected_reason: String,
-	#[serde(skip_serializing_if = "Option::is_none")]
-	pub skipped_reason: Option<String>,
-	#[serde(skip_serializing_if = "Option::is_none")]
-	pub nearest_selected_note_id: Option<Uuid>,
-	#[serde(skip_serializing_if = "Option::is_none")]
-	pub similarity: Option<f32>,
-	#[serde(skip_serializing_if = "Option::is_none")]
-	pub mmr_score: Option<f32>,
-	#[serde(default)]
-	pub missing_embedding: bool,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SearchItem {
-	pub result_handle: Uuid,
-	pub note_id: Uuid,
-	pub chunk_id: Uuid,
-	pub chunk_index: i32,
-	pub start_offset: i32,
-	pub end_offset: i32,
-	pub snippet: String,
-	pub r#type: String,
-	pub key: Option<String>,
-	pub scope: String,
-	pub importance: f32,
-	pub confidence: f32,
-	#[serde(with = "crate::time_serde")]
-	pub updated_at: OffsetDateTime,
-	#[serde(with = "crate::time_serde::option")]
-	pub expires_at: Option<OffsetDateTime>,
-	pub final_score: f32,
-	pub source_ref: serde_json::Value,
-	pub explain: SearchExplain,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SearchResponse {
-	pub trace_id: Uuid,
-	pub items: Vec<SearchItem>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SearchExplainRequest {
-	pub tenant_id: String,
-	pub project_id: String,
-	pub agent_id: String,
-	pub result_handle: Uuid,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SearchTrace {
-	pub trace_id: Uuid,
-	pub tenant_id: String,
-	pub project_id: String,
-	pub agent_id: String,
-	pub read_profile: String,
-	pub query: String,
-	pub expansion_mode: String,
-	pub expanded_queries: Vec<String>,
-	pub allowed_scopes: Vec<String>,
-	pub candidate_count: u32,
-	pub top_k: u32,
-	pub config_snapshot: serde_json::Value,
-	#[serde(with = "crate::time_serde")]
-	pub created_at: OffsetDateTime,
-	pub trace_version: i32,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SearchExplainItem {
-	pub result_handle: Uuid,
-	pub note_id: Uuid,
-	pub chunk_id: Option<Uuid>,
-	pub rank: u32,
-	pub explain: SearchExplain,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SearchExplainResponse {
-	pub trace: SearchTrace,
-	pub item: SearchExplainItem,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct TraceGetRequest {
-	pub tenant_id: String,
-	pub project_id: String,
-	pub agent_id: String,
-	pub trace_id: Uuid,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct TraceGetResponse {
-	pub trace: SearchTrace,
-	pub items: Vec<SearchExplainItem>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct TraceReplayContext {
-	pub trace_id: Uuid,
-	pub query: String,
-	pub candidate_count: u32,
-	pub top_k: u32,
-	#[serde(with = "crate::time_serde")]
-	pub created_at: OffsetDateTime,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct TraceReplayCandidate {
-	pub note_id: Uuid,
-	pub chunk_id: Uuid,
-	pub chunk_index: i32,
-	pub snippet: String,
-	pub retrieval_rank: u32,
-	pub rerank_score: f32,
-	pub note_scope: String,
-	pub note_importance: f32,
-	#[serde(with = "crate::time_serde")]
-	pub note_updated_at: OffsetDateTime,
-	pub note_hit_count: i64,
-	#[serde(with = "crate::time_serde::option")]
-	pub note_last_hit_at: Option<OffsetDateTime>,
-	pub diversity_selected: Option<bool>,
-	pub diversity_selected_rank: Option<u32>,
-	pub diversity_selected_reason: Option<String>,
-	pub diversity_skipped_reason: Option<String>,
-	pub diversity_nearest_selected_note_id: Option<Uuid>,
-	pub diversity_similarity: Option<f32>,
-	pub diversity_mmr_score: Option<f32>,
-	pub diversity_missing_embedding: Option<bool>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct TraceReplayItem {
-	pub note_id: Uuid,
-	pub chunk_id: Uuid,
-	pub retrieval_rank: u32,
-	pub final_score: f32,
-	pub explain: SearchExplain,
-}
-
-#[derive(Clone, Debug)]
-struct QueryEmbedding {
-	text: String,
-	vector: Vec<f32>,
-}
-
-#[derive(Clone, Debug)]
-struct ChunkCandidate {
-	chunk_id: Uuid,
-	note_id: Uuid,
-	chunk_index: i32,
-	retrieval_rank: u32,
-	updated_at: Option<OffsetDateTime>,
-	embedding_version: Option<String>,
-}
-
-#[derive(Clone, Debug)]
-struct RerankCacheCandidate {
-	chunk_id: Uuid,
-	updated_at: OffsetDateTime,
-}
-
-#[derive(Clone, Debug)]
-struct NoteMeta {
-	note_id: Uuid,
-	note_type: String,
-	key: Option<String>,
-	scope: String,
-	importance: f32,
-	confidence: f32,
-	updated_at: OffsetDateTime,
-	expires_at: Option<OffsetDateTime>,
-	source_ref: serde_json::Value,
-	embedding_version: String,
-	hit_count: i64,
-	last_hit_at: Option<OffsetDateTime>,
-}
-
-#[derive(Clone, Debug, sqlx::FromRow)]
-struct ChunkRow {
-	chunk_id: Uuid,
-	note_id: Uuid,
-	chunk_index: i32,
-	start_offset: i32,
-	end_offset: i32,
-	text: String,
-}
-
-#[derive(Clone, Debug, sqlx::FromRow)]
-struct NoteVectorRow {
-	note_id: Uuid,
-	vec_text: String,
-}
-
-#[derive(Clone, Debug)]
-struct ChunkMeta {
-	chunk_id: Uuid,
-	chunk_index: i32,
-	start_offset: i32,
-	end_offset: i32,
-}
-
-#[derive(Clone, Debug)]
-struct ChunkSnippet {
-	note: NoteMeta,
-	chunk: ChunkMeta,
-	snippet: String,
-	retrieval_rank: u32,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-struct ExpansionCachePayload {
-	queries: Vec<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct ExpansionOutput {
-	queries: Vec<String>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-struct RerankCacheItem {
-	chunk_id: Uuid,
-	updated_at: OffsetDateTime,
-	score: f32,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-struct RerankCachePayload {
-	items: Vec<RerankCacheItem>,
-}
-
-#[derive(Clone, Debug)]
-struct CachePayload {
-	value: serde_json::Value,
-	size_bytes: usize,
-}
-
-#[derive(Clone, Debug)]
-struct ScoredChunk {
-	item: ChunkSnippet,
-	final_score: f32,
-	rerank_score: f32,
-	rerank_rank: u32,
-	rerank_norm: f32,
-	retrieval_norm: f32,
-	blend_retrieval_weight: f32,
-	retrieval_term: f32,
-	rerank_term: f32,
-	tie_breaker_score: f32,
-	scope_context_boost: f32,
-	age_days: f32,
-	importance: f32,
-	deterministic_lexical_overlap_ratio: f32,
-	deterministic_lexical_bonus: f32,
-	deterministic_hit_count: i64,
-	deterministic_last_hit_age_days: Option<f32>,
-	deterministic_hit_boost: f32,
-	deterministic_decay_penalty: f32,
-}
-
-#[derive(Clone, Debug)]
-struct DiversityDecision {
-	selected: bool,
-	selected_rank: Option<u32>,
-	selected_reason: String,
-	skipped_reason: Option<String>,
-	nearest_selected_note_id: Option<Uuid>,
-	similarity: Option<f32>,
-	mmr_score: Option<f32>,
-	missing_embedding: bool,
-}
-
-#[derive(Clone, Copy, Debug)]
-struct DeterministicRankingTerms {
-	lexical_overlap_ratio: f32,
-	lexical_bonus: f32,
-	hit_count: i64,
-	last_hit_age_days: Option<f32>,
-	hit_boost: f32,
-	decay_penalty: f32,
-}
-impl Default for DeterministicRankingTerms {
-	fn default() -> Self {
-		Self {
-			lexical_overlap_ratio: 0.0,
-			lexical_bonus: 0.0,
-			hit_count: 0,
-			last_hit_age_days: None,
-			hit_boost: 0.0,
-			decay_penalty: 0.0,
-		}
-	}
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-struct TracePayload {
-	trace: TraceRecord,
-	items: Vec<TraceItemRecord>,
-	#[serde(default)]
-	candidates: Vec<TraceCandidateRecord>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-struct TraceRecord {
-	trace_id: Uuid,
-	tenant_id: String,
-	project_id: String,
-	agent_id: String,
-	read_profile: String,
-	query: String,
-	expansion_mode: String,
-	expanded_queries: Vec<String>,
-	allowed_scopes: Vec<String>,
-	candidate_count: u32,
-	top_k: u32,
-	config_snapshot: serde_json::Value,
-	trace_version: i32,
-	created_at: OffsetDateTime,
-	expires_at: OffsetDateTime,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-struct TraceItemRecord {
-	item_id: Uuid,
-	note_id: Uuid,
-	chunk_id: Option<Uuid>,
-	rank: u32,
-	final_score: f32,
-	explain: SearchExplain,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-struct TraceCandidateRecord {
-	candidate_id: Uuid,
-	note_id: Uuid,
-	chunk_id: Uuid,
-	chunk_index: i32,
-	snippet: String,
-	#[serde(default)]
-	candidate_snapshot: serde_json::Value,
-	retrieval_rank: u32,
-	rerank_score: f32,
-	note_scope: String,
-	note_importance: f32,
-	note_updated_at: OffsetDateTime,
-	note_hit_count: i64,
-	note_last_hit_at: Option<OffsetDateTime>,
-	created_at: OffsetDateTime,
-	expires_at: OffsetDateTime,
-}
-
-struct TraceContext<'a> {
-	trace_id: Uuid,
-	tenant_id: &'a str,
-	project_id: &'a str,
-	agent_id: &'a str,
-	read_profile: &'a str,
-	query: &'a str,
-	expansion_mode: ExpansionMode,
-	expanded_queries: Vec<String>,
-	allowed_scopes: &'a [String],
-	candidate_count: usize,
-	top_k: u32,
-}
-
-struct SearchTraceBuilder {
-	trace: TraceRecord,
-	items: Vec<TraceItemRecord>,
-	candidates: Vec<TraceCandidateRecord>,
-}
-impl SearchTraceBuilder {
-	fn new(
-		context: TraceContext<'_>,
-		config_snapshot: serde_json::Value,
-		retention_days: i64,
-		now: OffsetDateTime,
-	) -> Self {
-		let trace = TraceRecord {
-			trace_id: context.trace_id,
-			tenant_id: context.tenant_id.to_string(),
-			project_id: context.project_id.to_string(),
-			agent_id: context.agent_id.to_string(),
-			read_profile: context.read_profile.to_string(),
-			query: context.query.to_string(),
-			expansion_mode: ranking::expansion_mode_label(context.expansion_mode).to_string(),
-			expanded_queries: context.expanded_queries,
-			allowed_scopes: context.allowed_scopes.to_vec(),
-			candidate_count: context.candidate_count as u32,
-			top_k: context.top_k,
-			config_snapshot,
-			trace_version: TRACE_VERSION,
-			created_at: now,
-			expires_at: now + Duration::days(retention_days),
-		};
-		Self { trace, items: Vec::new(), candidates: Vec::new() }
-	}
-
-	fn push_item(&mut self, item: TraceItemRecord) {
-		self.items.push(item);
-	}
-
-	fn push_candidate(&mut self, candidate: TraceCandidateRecord) {
-		self.candidates.push(candidate);
-	}
-
-	fn build(self) -> TracePayload {
-		TracePayload { trace: self.trace, items: self.items, candidates: self.candidates }
-	}
-}
-
-struct FinishSearchArgs<'a> {
-	trace_id: Uuid,
-	query: &'a str,
-	tenant_id: &'a str,
-	project_id: &'a str,
-	agent_id: &'a str,
-	read_profile: &'a str,
-	allowed_scopes: &'a [String],
-	expanded_queries: Vec<String>,
-	expansion_mode: ExpansionMode,
-	candidates: Vec<ChunkCandidate>,
-	structured_matches: HashMap<Uuid, Vec<String>>,
-	top_k: u32,
-	record_hits_enabled: bool,
-	ranking_override: Option<RankingRequestOverride>,
-}
-
-struct StructuredFieldRetrievalArgs<'a> {
-	tenant_id: &'a str,
-	project_id: &'a str,
-	agent_id: &'a str,
-	allowed_scopes: &'a [String],
-	query_vec: &'a [f32],
-	candidate_k: u32,
-	now: OffsetDateTime,
-}
-
-#[derive(Clone, Debug)]
-struct StructuredFieldRetrievalResult {
-	candidates: Vec<ChunkCandidate>,
-	structured_matches: HashMap<Uuid, Vec<String>>,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum RetrievalSourceKind {
 	Fusion,
 	StructuredField,
-}
-
-#[derive(Debug, Clone)]
-struct RetrievalSourceCandidates {
-	source: RetrievalSourceKind,
-	candidates: Vec<ChunkCandidate>,
 }
 
 impl ElfService {
@@ -1055,6 +538,7 @@ ORDER BY rank ASC",
 			if baseline_vector.is_some() && query == original_query {
 				continue;
 			}
+
 			extra_queries.push(query.clone());
 			extra_inputs
 				.push(ranking::build_dense_embedding_input(query, project_context_description));
@@ -1074,6 +558,7 @@ ORDER BY rank ASC",
 					message: "Embedding provider returned mismatched vector count.".to_string(),
 				});
 			}
+
 			embedded.into_iter()
 		};
 		let mut out = Vec::with_capacity(queries.len());
@@ -1096,8 +581,10 @@ ORDER BY rank ASC",
 					message: "Embedding vector dimension mismatch.".to_string(),
 				});
 			}
+
 			out.push(QueryEmbedding { text: query.clone(), vector });
 		}
+
 		Ok(out)
 	}
 
@@ -1155,6 +642,7 @@ ORDER BY rank ASC",
 						cache_kind = CacheKind::Expansion.as_str(),
 						"Cache key build failed."
 					);
+
 					None
 				},
 			}
@@ -1173,6 +661,7 @@ ORDER BY rank ASC",
 						ttl_days = cache_cfg.expansion_ttl_days,
 						"Cache hit."
 					);
+
 					let cached: ExpansionCachePayload = match serde_json::from_value(payload.value)
 					{
 						Ok(value) => value,
@@ -1183,6 +672,7 @@ ORDER BY rank ASC",
 								cache_key_prefix = ranking::cache_key_prefix(key),
 								"Cache payload decode failed."
 							);
+
 							ExpansionCachePayload { queries: Vec::new() }
 						},
 					};
@@ -1444,7 +934,6 @@ LIMIT $8",
 				.map(|row| FieldHit { note_id: row.note_id, field_kind: row.field_kind })
 				.collect()
 		};
-
 		let mut structured_matches: HashMap<Uuid, HashSet<String>> = HashMap::new();
 		let mut ordered_note_ids = Vec::new();
 		let mut seen_notes = HashSet::new();
@@ -2072,6 +1561,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 			let mut tx = self.db.pool.begin().await?;
 
 			record_hits(&mut *tx, query, &selected_results, now).await?;
+
 			tx.commit().await?;
 		}
 
@@ -2223,6 +1713,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 				let mut tx = self.db.pool.begin().await?;
 
 				persist_trace_inline(&mut tx, trace_payload).await?;
+
 				tx.commit().await?;
 			},
 			_ =>
@@ -2237,6 +1728,526 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 
 		Ok(SearchResponse { trace_id, items })
 	}
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SearchRequest {
+	pub tenant_id: String,
+	pub project_id: String,
+	pub agent_id: String,
+	pub read_profile: String,
+	pub query: String,
+	pub top_k: Option<u32>,
+	pub candidate_k: Option<u32>,
+	pub record_hits: Option<bool>,
+	pub ranking: Option<RankingRequestOverride>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RankingRequestOverride {
+	pub blend: Option<BlendRankingOverride>,
+	pub diversity: Option<DiversityRankingOverride>,
+	pub retrieval_sources: Option<RetrievalSourcesRankingOverride>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct BlendRankingOverride {
+	pub enabled: Option<bool>,
+	pub rerank_normalization: Option<String>,
+	pub retrieval_normalization: Option<String>,
+	pub segments: Option<Vec<BlendSegmentOverride>>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct BlendSegmentOverride {
+	pub max_retrieval_rank: u32,
+	pub retrieval_weight: f32,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct DiversityRankingOverride {
+	pub enabled: Option<bool>,
+	pub sim_threshold: Option<f32>,
+	pub mmr_lambda: Option<f32>,
+	pub max_skips: Option<u32>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RetrievalSourcesRankingOverride {
+	pub fusion_weight: Option<f32>,
+	pub structured_field_weight: Option<f32>,
+	pub fusion_priority: Option<u32>,
+	pub structured_field_priority: Option<u32>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SearchExplain {
+	pub r#match: SearchMatchExplain,
+	pub ranking: SearchRankingExplain,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub diversity: Option<SearchDiversityExplain>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SearchMatchExplain {
+	pub matched_terms: Vec<String>,
+	pub matched_fields: Vec<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SearchDiversityExplain {
+	pub enabled: bool,
+	pub selected_reason: String,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub skipped_reason: Option<String>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub nearest_selected_note_id: Option<Uuid>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub similarity: Option<f32>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub mmr_score: Option<f32>,
+	#[serde(default)]
+	pub missing_embedding: bool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SearchItem {
+	pub result_handle: Uuid,
+	pub note_id: Uuid,
+	pub chunk_id: Uuid,
+	pub chunk_index: i32,
+	pub start_offset: i32,
+	pub end_offset: i32,
+	pub snippet: String,
+	pub r#type: String,
+	pub key: Option<String>,
+	pub scope: String,
+	pub importance: f32,
+	pub confidence: f32,
+	#[serde(with = "crate::time_serde")]
+	pub updated_at: OffsetDateTime,
+	#[serde(with = "crate::time_serde::option")]
+	pub expires_at: Option<OffsetDateTime>,
+	pub final_score: f32,
+	pub source_ref: Value,
+	pub explain: SearchExplain,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SearchResponse {
+	pub trace_id: Uuid,
+	pub items: Vec<SearchItem>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SearchExplainRequest {
+	pub tenant_id: String,
+	pub project_id: String,
+	pub agent_id: String,
+	pub result_handle: Uuid,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SearchTrace {
+	pub trace_id: Uuid,
+	pub tenant_id: String,
+	pub project_id: String,
+	pub agent_id: String,
+	pub read_profile: String,
+	pub query: String,
+	pub expansion_mode: String,
+	pub expanded_queries: Vec<String>,
+	pub allowed_scopes: Vec<String>,
+	pub candidate_count: u32,
+	pub top_k: u32,
+	pub config_snapshot: Value,
+	#[serde(with = "crate::time_serde")]
+	pub created_at: OffsetDateTime,
+	pub trace_version: i32,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SearchExplainItem {
+	pub result_handle: Uuid,
+	pub note_id: Uuid,
+	pub chunk_id: Option<Uuid>,
+	pub rank: u32,
+	pub explain: SearchExplain,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SearchExplainResponse {
+	pub trace: SearchTrace,
+	pub item: SearchExplainItem,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TraceGetRequest {
+	pub tenant_id: String,
+	pub project_id: String,
+	pub agent_id: String,
+	pub trace_id: Uuid,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TraceGetResponse {
+	pub trace: SearchTrace,
+	pub items: Vec<SearchExplainItem>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TraceReplayContext {
+	pub trace_id: Uuid,
+	pub query: String,
+	pub candidate_count: u32,
+	pub top_k: u32,
+	#[serde(with = "crate::time_serde")]
+	pub created_at: OffsetDateTime,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TraceReplayCandidate {
+	pub note_id: Uuid,
+	pub chunk_id: Uuid,
+	pub chunk_index: i32,
+	pub snippet: String,
+	pub retrieval_rank: u32,
+	pub rerank_score: f32,
+	pub note_scope: String,
+	pub note_importance: f32,
+	#[serde(with = "crate::time_serde")]
+	pub note_updated_at: OffsetDateTime,
+	pub note_hit_count: i64,
+	#[serde(with = "crate::time_serde::option")]
+	pub note_last_hit_at: Option<OffsetDateTime>,
+	pub diversity_selected: Option<bool>,
+	pub diversity_selected_rank: Option<u32>,
+	pub diversity_selected_reason: Option<String>,
+	pub diversity_skipped_reason: Option<String>,
+	pub diversity_nearest_selected_note_id: Option<Uuid>,
+	pub diversity_similarity: Option<f32>,
+	pub diversity_mmr_score: Option<f32>,
+	pub diversity_missing_embedding: Option<bool>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TraceReplayItem {
+	pub note_id: Uuid,
+	pub chunk_id: Uuid,
+	pub retrieval_rank: u32,
+	pub final_score: f32,
+	pub explain: SearchExplain,
+}
+
+#[derive(Clone, Debug)]
+struct QueryEmbedding {
+	text: String,
+	vector: Vec<f32>,
+}
+
+#[derive(Clone, Debug)]
+struct ChunkCandidate {
+	chunk_id: Uuid,
+	note_id: Uuid,
+	chunk_index: i32,
+	retrieval_rank: u32,
+	updated_at: Option<OffsetDateTime>,
+	embedding_version: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+struct RerankCacheCandidate {
+	chunk_id: Uuid,
+	updated_at: OffsetDateTime,
+}
+
+#[derive(Clone, Debug)]
+struct NoteMeta {
+	note_id: Uuid,
+	note_type: String,
+	key: Option<String>,
+	scope: String,
+	importance: f32,
+	confidence: f32,
+	updated_at: OffsetDateTime,
+	expires_at: Option<OffsetDateTime>,
+	source_ref: Value,
+	embedding_version: String,
+	hit_count: i64,
+	last_hit_at: Option<OffsetDateTime>,
+}
+
+#[derive(Clone, Debug, sqlx::FromRow)]
+struct ChunkRow {
+	chunk_id: Uuid,
+	note_id: Uuid,
+	chunk_index: i32,
+	start_offset: i32,
+	end_offset: i32,
+	text: String,
+}
+
+#[derive(Clone, Debug, sqlx::FromRow)]
+struct NoteVectorRow {
+	note_id: Uuid,
+	vec_text: String,
+}
+
+#[derive(Clone, Debug)]
+struct ChunkMeta {
+	chunk_id: Uuid,
+	chunk_index: i32,
+	start_offset: i32,
+	end_offset: i32,
+}
+
+#[derive(Clone, Debug)]
+struct ChunkSnippet {
+	note: NoteMeta,
+	chunk: ChunkMeta,
+	snippet: String,
+	retrieval_rank: u32,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct ExpansionCachePayload {
+	queries: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ExpansionOutput {
+	queries: Vec<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct RerankCacheItem {
+	chunk_id: Uuid,
+	updated_at: OffsetDateTime,
+	score: f32,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct RerankCachePayload {
+	items: Vec<RerankCacheItem>,
+}
+
+#[derive(Clone, Debug)]
+struct CachePayload {
+	value: Value,
+	size_bytes: usize,
+}
+
+#[derive(Clone, Debug)]
+struct ScoredChunk {
+	item: ChunkSnippet,
+	final_score: f32,
+	rerank_score: f32,
+	rerank_rank: u32,
+	rerank_norm: f32,
+	retrieval_norm: f32,
+	blend_retrieval_weight: f32,
+	retrieval_term: f32,
+	rerank_term: f32,
+	tie_breaker_score: f32,
+	scope_context_boost: f32,
+	age_days: f32,
+	importance: f32,
+	deterministic_lexical_overlap_ratio: f32,
+	deterministic_lexical_bonus: f32,
+	deterministic_hit_count: i64,
+	deterministic_last_hit_age_days: Option<f32>,
+	deterministic_hit_boost: f32,
+	deterministic_decay_penalty: f32,
+}
+
+#[derive(Clone, Debug)]
+struct DiversityDecision {
+	selected: bool,
+	selected_rank: Option<u32>,
+	selected_reason: String,
+	skipped_reason: Option<String>,
+	nearest_selected_note_id: Option<Uuid>,
+	similarity: Option<f32>,
+	mmr_score: Option<f32>,
+	missing_embedding: bool,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct DeterministicRankingTerms {
+	lexical_overlap_ratio: f32,
+	lexical_bonus: f32,
+	hit_count: i64,
+	last_hit_age_days: Option<f32>,
+	hit_boost: f32,
+	decay_penalty: f32,
+}
+impl Default for DeterministicRankingTerms {
+	fn default() -> Self {
+		Self {
+			lexical_overlap_ratio: 0.0,
+			lexical_bonus: 0.0,
+			hit_count: 0,
+			last_hit_age_days: None,
+			hit_boost: 0.0,
+			decay_penalty: 0.0,
+		}
+	}
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct TracePayload {
+	trace: TraceRecord,
+	items: Vec<TraceItemRecord>,
+	#[serde(default)]
+	candidates: Vec<TraceCandidateRecord>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct TraceRecord {
+	trace_id: Uuid,
+	tenant_id: String,
+	project_id: String,
+	agent_id: String,
+	read_profile: String,
+	query: String,
+	expansion_mode: String,
+	expanded_queries: Vec<String>,
+	allowed_scopes: Vec<String>,
+	candidate_count: u32,
+	top_k: u32,
+	config_snapshot: Value,
+	trace_version: i32,
+	created_at: OffsetDateTime,
+	expires_at: OffsetDateTime,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct TraceItemRecord {
+	item_id: Uuid,
+	note_id: Uuid,
+	chunk_id: Option<Uuid>,
+	rank: u32,
+	final_score: f32,
+	explain: SearchExplain,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct TraceCandidateRecord {
+	candidate_id: Uuid,
+	note_id: Uuid,
+	chunk_id: Uuid,
+	chunk_index: i32,
+	snippet: String,
+	#[serde(default)]
+	candidate_snapshot: Value,
+	retrieval_rank: u32,
+	rerank_score: f32,
+	note_scope: String,
+	note_importance: f32,
+	note_updated_at: OffsetDateTime,
+	note_hit_count: i64,
+	note_last_hit_at: Option<OffsetDateTime>,
+	created_at: OffsetDateTime,
+	expires_at: OffsetDateTime,
+}
+
+struct TraceContext<'a> {
+	trace_id: Uuid,
+	tenant_id: &'a str,
+	project_id: &'a str,
+	agent_id: &'a str,
+	read_profile: &'a str,
+	query: &'a str,
+	expansion_mode: ExpansionMode,
+	expanded_queries: Vec<String>,
+	allowed_scopes: &'a [String],
+	candidate_count: usize,
+	top_k: u32,
+}
+
+struct SearchTraceBuilder {
+	trace: TraceRecord,
+	items: Vec<TraceItemRecord>,
+	candidates: Vec<TraceCandidateRecord>,
+}
+impl SearchTraceBuilder {
+	fn new(
+		context: TraceContext<'_>,
+		config_snapshot: Value,
+		retention_days: i64,
+		now: OffsetDateTime,
+	) -> Self {
+		let trace = TraceRecord {
+			trace_id: context.trace_id,
+			tenant_id: context.tenant_id.to_string(),
+			project_id: context.project_id.to_string(),
+			agent_id: context.agent_id.to_string(),
+			read_profile: context.read_profile.to_string(),
+			query: context.query.to_string(),
+			expansion_mode: ranking::expansion_mode_label(context.expansion_mode).to_string(),
+			expanded_queries: context.expanded_queries,
+			allowed_scopes: context.allowed_scopes.to_vec(),
+			candidate_count: context.candidate_count as u32,
+			top_k: context.top_k,
+			config_snapshot,
+			trace_version: TRACE_VERSION,
+			created_at: now,
+			expires_at: now + Duration::days(retention_days),
+		};
+
+		Self { trace, items: Vec::new(), candidates: Vec::new() }
+	}
+
+	fn push_item(&mut self, item: TraceItemRecord) {
+		self.items.push(item);
+	}
+
+	fn push_candidate(&mut self, candidate: TraceCandidateRecord) {
+		self.candidates.push(candidate);
+	}
+
+	fn build(self) -> TracePayload {
+		TracePayload { trace: self.trace, items: self.items, candidates: self.candidates }
+	}
+}
+
+struct FinishSearchArgs<'a> {
+	trace_id: Uuid,
+	query: &'a str,
+	tenant_id: &'a str,
+	project_id: &'a str,
+	agent_id: &'a str,
+	read_profile: &'a str,
+	allowed_scopes: &'a [String],
+	expanded_queries: Vec<String>,
+	expansion_mode: ExpansionMode,
+	candidates: Vec<ChunkCandidate>,
+	structured_matches: HashMap<Uuid, Vec<String>>,
+	top_k: u32,
+	record_hits_enabled: bool,
+	ranking_override: Option<RankingRequestOverride>,
+}
+
+struct StructuredFieldRetrievalArgs<'a> {
+	tenant_id: &'a str,
+	project_id: &'a str,
+	agent_id: &'a str,
+	allowed_scopes: &'a [String],
+	query_vec: &'a [f32],
+	candidate_k: u32,
+	now: OffsetDateTime,
+}
+
+#[derive(Clone, Debug)]
+struct StructuredFieldRetrievalResult {
+	candidates: Vec<ChunkCandidate>,
+	structured_matches: HashMap<Uuid, Vec<String>>,
+}
+
+#[derive(Debug, Clone)]
+struct RetrievalSourceCandidates {
+	source: RetrievalSourceKind,
+	candidates: Vec<ChunkCandidate>,
 }
 
 pub fn ranking_policy_id(
@@ -2414,6 +2425,7 @@ pub fn replay_ranking_from_candidates(
 			None => true,
 			Some(existing) => {
 				let ord = ranking::cmp_f32_desc(scored.final_score, existing.final_score);
+
 				if ord != Ordering::Equal {
 					ord == Ordering::Less
 				} else {
@@ -2480,6 +2492,7 @@ pub fn replay_ranking_from_candidates(
 
 			a.note_id.cmp(&b.note_id)
 		});
+
 		if !selected.is_empty() {
 			results = selected;
 		}
@@ -2616,11 +2629,11 @@ JOIN note_embeddings n
 	.bind(embedding_versions.as_slice())
 	.fetch_all(executor)
 	.await?;
-
 	let mut out = HashMap::new();
 
 	for row in rows {
 		let vec = crate::parse_pg_vector(row.vec_text.as_str())?;
+
 		out.insert(row.note_id, vec);
 	}
 
@@ -2661,10 +2674,7 @@ VALUES ($1, $2, 'PENDING', 0, NULL, $3, $4, $3, $3)",
 	Ok(())
 }
 
-async fn persist_trace_inline(
-	executor: &mut sqlx::PgConnection,
-	payload: TracePayload,
-) -> Result<()> {
+async fn persist_trace_inline(executor: &mut PgConnection, payload: TracePayload) -> Result<()> {
 	let trace = payload.trace;
 	let items = payload.items;
 	let candidates = payload.candidates;
@@ -2745,6 +2755,7 @@ INSERT INTO search_trace_items (
 	explain
 ) ",
 		);
+
 		builder.push_values(items, |mut b, item| {
 			let explain_json = serde_json::to_value(item.explain)
 				.expect("SearchExplain must be JSON-serializable.");
@@ -2757,10 +2768,10 @@ INSERT INTO search_trace_items (
 				.push_bind(item.final_score)
 				.push_bind(explain_json);
 		});
+
 		builder.push(" ON CONFLICT (item_id) DO NOTHING");
 		builder.build().execute(&mut *executor).await?;
 	}
-
 	if !candidates.is_empty() {
 		let mut builder = QueryBuilder::new(
 			"\
@@ -2783,6 +2794,7 @@ INSERT INTO search_trace_candidates (
 	expires_at
 ) ",
 		);
+
 		builder.push_values(candidates, |mut b, candidate| {
 			b.push_bind(candidate.candidate_id)
 				.push_bind(trace_id)
@@ -2921,7 +2933,6 @@ FROM updated",
 		return Ok(None);
 	};
 	let payload = row.payload;
-
 	let size_bytes = serde_json::to_vec(&payload)
 		.map_err(|err| Error::Storage {
 			message: format!("Failed to encode cache payload: {err}"),
@@ -2935,7 +2946,7 @@ async fn store_cache_payload<'e, E>(
 	executor: E,
 	kind: CacheKind,
 	key: &str,
-	payload: serde_json::Value,
+	payload: Value,
 	now: OffsetDateTime,
 	expires_at: OffsetDateTime,
 	max_payload_bytes: Option<u64>,
@@ -2987,7 +2998,13 @@ payload = EXCLUDED.payload,
 
 #[cfg(test)]
 mod tests {
-	use super::*;
+	use crate::search::{
+		BlendRankingOverride, ChunkCandidate, ChunkMeta, ChunkSnippet, HashMap, NoteMeta,
+		OffsetDateTime, RankingRequestOverride, RerankCacheCandidate, RerankCacheItem,
+		RerankCachePayload, RetrievalSourceCandidates, RetrievalSourceKind,
+		RetrievalSourcesRankingOverride, ScoredChunk, TraceReplayCandidate, TraceReplayContext,
+		Uuid, ranking, ranking_policy_id, replay_ranking_from_candidates,
+	};
 	use elf_config::{Config, SearchDynamic};
 
 	#[test]
@@ -3265,6 +3282,7 @@ mod tests {
 	#[test]
 	fn deterministic_ranking_terms_do_not_apply_when_disabled() {
 		let mut cfg = parse_example_config();
+
 		cfg.ranking.deterministic.enabled = false;
 		cfg.ranking.deterministic.lexical.enabled = true;
 		cfg.ranking.deterministic.hits.enabled = true;
@@ -3580,7 +3598,6 @@ mod tests {
 			diversity_mmr_score: Some(0.44),
 			diversity_missing_embedding: Some(false),
 		};
-
 		let decisions = ranking::extract_replay_diversity_decisions(&[first, second]);
 		let decision = decisions.get(&note_id).expect("Expected merged decision.");
 

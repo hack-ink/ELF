@@ -4,8 +4,9 @@ use reqwest::Client;
 use serde_json::Value;
 
 use crate::{Error, Result};
+use elf_config::LlmProviderConfig;
 
-pub async fn extract(cfg: &elf_config::LlmProviderConfig, messages: &[Value]) -> Result<Value> {
+pub async fn extract(cfg: &LlmProviderConfig, messages: &[Value]) -> Result<Value> {
 	let client = Client::builder().timeout(Duration::from_millis(cfg.timeout_ms)).build()?;
 	let url = format!("{}{}", cfg.api_base, cfg.path);
 
@@ -22,6 +23,7 @@ pub async fn extract(cfg: &elf_config::LlmProviderConfig, messages: &[Value]) ->
 			.send()
 			.await?;
 		let json: Value = res.error_for_status()?.json().await?;
+
 		if let Ok(parsed) = parse_extractor_json(json) {
 			return Ok(parsed);
 		}
@@ -57,7 +59,7 @@ fn parse_extractor_json(json: Value) -> Result<Value> {
 
 #[cfg(test)]
 mod tests {
-	use super::*;
+	use crate::extractor::parse_extractor_json;
 
 	#[test]
 	fn parses_choice_content_json() {
@@ -67,6 +69,7 @@ mod tests {
 			]
 		});
 		let parsed = parse_extractor_json(json).expect("parse failed");
+
 		assert!(parsed.get("notes").is_some());
 	}
 }

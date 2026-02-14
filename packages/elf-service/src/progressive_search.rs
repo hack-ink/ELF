@@ -12,6 +12,7 @@ use crate::{
 	ElfService, Error, NoteFetchResponse, Result, SearchRequest,
 	structured_fields::fetch_structured_fields,
 };
+use elf_config::Config;
 use elf_domain::cjk;
 use elf_storage::models::MemoryNote;
 
@@ -131,7 +132,6 @@ struct SearchSessionItemRecord {
 	confidence: f32,
 	summary: String,
 }
-
 impl SearchSessionItemRecord {
 	fn to_index_item(&self) -> SearchIndexItem {
 		SearchIndexItem {
@@ -179,7 +179,6 @@ impl ElfService {
 	pub async fn search(&self, req: SearchRequest) -> Result<SearchIndexResponse> {
 		let top_k = req.top_k.unwrap_or(self.cfg.memory.top_k).max(1);
 		let candidate_k = req.candidate_k.unwrap_or(self.cfg.memory.candidate_k).max(top_k);
-
 		let mut raw_req = req.clone();
 
 		raw_req.top_k = Some(candidate_k);
@@ -451,7 +450,9 @@ impl ElfService {
 
 		if !hits.is_empty() {
 			let mut tx = self.db.pool.begin().await?;
+
 			record_detail_hits(&mut *tx, &session.query, &hits, now).await?;
+
 			tx.commit().await?;
 		}
 
@@ -539,6 +540,73 @@ fn truncate_chars(raw: &str, max_chars: usize) -> String {
 	out
 }
 
+fn resolve_read_scopes(cfg: &Config, profile: &str) -> Result<Vec<String>> {
+	match profile {
+		"private_only" => Ok(cfg.scopes.read_profiles.private_only.clone()),
+		"private_plus_project" => Ok(cfg.scopes.read_profiles.private_plus_project.clone()),
+		"all_scopes" => Ok(cfg.scopes.read_profiles.all_scopes.clone()),
+		_ => Err(Error::InvalidRequest { message: "Unknown read_profile.".to_string() }),
+	}
+}
+
+fn validate_search_session_access(
+	session: &SearchSession,
+	tenant_id: &str,
+	project_id: &str,
+	agent_id: &str,
+) -> Result<()> {
+	if session.tenant_id != tenant_id
+		|| session.project_id != project_id
+		|| session.agent_id != agent_id
+	{
+		return Err(Error::InvalidRequest { message: "Unknown search_session_id.".to_string() });
+	}
+
+	Ok(())
+}
+
+fn validate_note_access(
+	note: &MemoryNote,
+	session: &SearchSession,
+	allowed_scopes: &[String],
+	now: OffsetDateTime,
+) -> Option<SearchDetailsError> {
+	if note.status != "active" {
+		return Some(SearchDetailsError {
+			code: "NOTE_INACTIVE".to_string(),
+			message: "Note is not active.".to_string(),
+		});
+	}
+	if note.expires_at.map(|ts| ts <= now).unwrap_or(false) {
+		return Some(SearchDetailsError {
+			code: "NOTE_EXPIRED".to_string(),
+			message: "Note is expired.".to_string(),
+		});
+	}
+	if !allowed_scopes.iter().any(|scope| scope == &note.scope) {
+		return Some(SearchDetailsError {
+			code: "SCOPE_DENIED".to_string(),
+			message: "Note scope is not allowed for this read_profile.".to_string(),
+		});
+	}
+	if note.scope == "agent_private" && note.agent_id != session.agent_id {
+		return Some(SearchDetailsError {
+			code: "SCOPE_DENIED".to_string(),
+			message: "Note scope is not allowed for this agent_id.".to_string(),
+		});
+	}
+
+	None
+}
+
+fn hash_query(query: &str) -> String {
+	let mut hasher = DefaultHasher::new();
+
+	Hash::hash(query, &mut hasher);
+
+	format!("{:x}", hasher.finish())
+}
+
 async fn store_search_session<'e, E>(executor: E, session: NewSearchSession<'_>) -> Result<()>
 where
 	E: PgExecutor<'e>,
@@ -546,6 +614,7 @@ where
 	let items_json = serde_json::to_value(session.items).map_err(|err| Error::Storage {
 		message: format!("Failed to encode search session items: {err}"),
 	})?;
+
 	sqlx::query!(
 		"\
 INSERT INTO search_sessions (
@@ -608,7 +677,6 @@ WHERE search_session_id = $1",
 	let Some(row) = row else {
 		return Err(Error::InvalidRequest { message: "Unknown search_session_id.".to_string() });
 	};
-
 	let expires_at: OffsetDateTime = row.expires_at;
 
 	if expires_at <= now {
@@ -664,64 +732,6 @@ where
 	Ok(touched)
 }
 
-fn resolve_read_scopes(cfg: &elf_config::Config, profile: &str) -> Result<Vec<String>> {
-	match profile {
-		"private_only" => Ok(cfg.scopes.read_profiles.private_only.clone()),
-		"private_plus_project" => Ok(cfg.scopes.read_profiles.private_plus_project.clone()),
-		"all_scopes" => Ok(cfg.scopes.read_profiles.all_scopes.clone()),
-		_ => Err(Error::InvalidRequest { message: "Unknown read_profile.".to_string() }),
-	}
-}
-
-fn validate_search_session_access(
-	session: &SearchSession,
-	tenant_id: &str,
-	project_id: &str,
-	agent_id: &str,
-) -> Result<()> {
-	if session.tenant_id != tenant_id
-		|| session.project_id != project_id
-		|| session.agent_id != agent_id
-	{
-		return Err(Error::InvalidRequest { message: "Unknown search_session_id.".to_string() });
-	}
-
-	Ok(())
-}
-
-fn validate_note_access(
-	note: &MemoryNote,
-	session: &SearchSession,
-	allowed_scopes: &[String],
-	now: OffsetDateTime,
-) -> Option<SearchDetailsError> {
-	if note.status != "active" {
-		return Some(SearchDetailsError {
-			code: "NOTE_INACTIVE".to_string(),
-			message: "Note is not active.".to_string(),
-		});
-	}
-	if note.expires_at.map(|ts| ts <= now).unwrap_or(false) {
-		return Some(SearchDetailsError {
-			code: "NOTE_EXPIRED".to_string(),
-			message: "Note is expired.".to_string(),
-		});
-	}
-	if !allowed_scopes.iter().any(|scope| scope == &note.scope) {
-		return Some(SearchDetailsError {
-			code: "SCOPE_DENIED".to_string(),
-			message: "Note scope is not allowed for this read_profile.".to_string(),
-		});
-	}
-	if note.scope == "agent_private" && note.agent_id != session.agent_id {
-		return Some(SearchDetailsError {
-			code: "SCOPE_DENIED".to_string(),
-			message: "Note scope is not allowed for this agent_id.".to_string(),
-		});
-	}
-	None
-}
-
 async fn record_detail_hits<'e, E>(
 	executor: E,
 	query: &str,
@@ -746,6 +756,7 @@ where
 		let rank = i32::try_from(item.rank).map_err(|_| Error::InvalidRequest {
 			message: "Search session rank is out of range.".to_string(),
 		})?;
+
 		hit_ids.push(Uuid::new_v4());
 		note_ids.push(item.note_id);
 		chunk_ids.push(item.chunk_id);
@@ -802,12 +813,4 @@ FROM hits",
 	.await?;
 
 	Ok(())
-}
-
-fn hash_query(query: &str) -> String {
-	let mut hasher = DefaultHasher::new();
-
-	Hash::hash(query, &mut hasher);
-
-	format!("{:x}", hasher.finish())
 }

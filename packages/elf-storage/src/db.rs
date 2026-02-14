@@ -1,15 +1,16 @@
-use sqlx::postgres::PgPoolOptions;
+use sqlx::{PgPool, postgres::PgPoolOptions};
 
 use crate::{Result, schema};
+use elf_config::Postgres;
 
 pub struct Db {
-	pub pool: sqlx::PgPool,
+	pub pool: PgPool,
 }
-
 impl Db {
-	pub async fn connect(cfg: &elf_config::Postgres) -> Result<Self> {
+	pub async fn connect(cfg: &Postgres) -> Result<Self> {
 		let pool =
 			PgPoolOptions::new().max_connections(cfg.pool_max_conns).connect(&cfg.dsn).await?;
+
 		Ok(Self { pool })
 	}
 
@@ -19,17 +20,21 @@ impl Db {
 		// Advisory locks are held per connection. Use a single transaction so the lock is scoped to
 		// one connection and automatically released when the transaction ends.
 		let mut tx = self.pool.begin().await?;
+
 		sqlx::query!("SELECT pg_advisory_xact_lock($1)", lock_id).execute(&mut *tx).await?;
 
 		for statement in sql.split(';') {
 			let trimmed = statement.trim();
+
 			if trimmed.is_empty() {
 				continue;
 			}
+
 			sqlx::query(trimmed).execute(&mut *tx).await?;
 		}
 
 		tx.commit().await?;
+
 		Ok(())
 	}
 }

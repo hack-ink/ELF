@@ -1,17 +1,15 @@
+use elf_domain::writegate;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use elf_domain::{cjk, ttl, writegate};
-use elf_storage::models::MemoryNote;
-
 use crate::{
 	ElfService, Error, InsertVersionArgs, NoteOp, ResolveUpdateArgs, Result, UpdateDecision,
-	structured_fields::{
-		StructuredFields, upsert_structured_fields_tx, validate_structured_fields,
-	},
+	structured_fields::StructuredFields,
 };
+use elf_domain::{cjk, ttl};
+use elf_storage::models::MemoryNote;
 
 const REJECT_STRUCTURED_INVALID: &str = "REJECT_STRUCTURED_INVALID";
 
@@ -92,14 +90,18 @@ impl ElfService {
 
 		for note in req.notes {
 			if let Some(structured) = note.structured.as_ref()
-				&& let Err(err) =
-					validate_structured_fields(structured, &note.text, &note.source_ref, None)
-			{
+				&& let Err(err) = crate::structured_fields::validate_structured_fields(
+					structured,
+					&note.text,
+					&note.source_ref,
+					None,
+				) {
 				results.push(AddNoteResult {
 					note_id: None,
 					op: NoteOp::Rejected,
 					reason_code: Some(REJECT_STRUCTURED_INVALID.to_string()),
 				});
+
 				tracing::info!(error = %err, "Rejecting note due to invalid structured fields.");
 
 				continue;
@@ -111,7 +113,7 @@ impl ElfService {
 				text: note.text.clone(),
 			};
 
-			if let Err(code) = writegate::writegate(&gate_input, &self.cfg) {
+			if let Err(code) = elf_domain::writegate::writegate(&gate_input, &self.cfg) {
 				results.push(AddNoteResult {
 					note_id: None,
 					op: NoteOp::Rejected,
@@ -245,8 +247,13 @@ VALUES (
 					if let Some(structured) = note.structured.as_ref()
 						&& !structured.is_effectively_empty()
 					{
-						upsert_structured_fields_tx(&mut tx, memory_note.note_id, structured, now)
-							.await?;
+						crate::structured_fields::upsert_structured_fields_tx(
+							&mut tx,
+							memory_note.note_id,
+							structured,
+							now,
+						)
+						.await?;
 					}
 
 					crate::enqueue_outbox_tx(
@@ -280,12 +287,12 @@ VALUES (
 							ttl::compute_expires_at(Some(ttl), &note.r#type, &self.cfg, now),
 						None => existing.expires_at,
 					};
-
 					let expires_match = if let Some(ttl_days) = requested_ttl {
 						match existing.expires_at {
 							Some(existing_expires_at) => {
 								let existing_ttl =
 									(existing_expires_at - existing.updated_at).whole_days() as i64;
+
 								existing_ttl == ttl_days
 							},
 							None => false,
@@ -355,8 +362,13 @@ WHERE note_id = $7",
 					if let Some(structured) = note.structured.as_ref()
 						&& !structured.is_effectively_empty()
 					{
-						upsert_structured_fields_tx(&mut tx, existing.note_id, structured, now)
-							.await?;
+						crate::structured_fields::upsert_structured_fields_tx(
+							&mut tx,
+							existing.note_id,
+							structured,
+							now,
+						)
+						.await?;
 					}
 
 					crate::enqueue_outbox_tx(
@@ -379,8 +391,10 @@ WHERE note_id = $7",
 					if let Some(structured) = note.structured.as_ref()
 						&& !structured.is_effectively_empty()
 					{
-						upsert_structured_fields_tx(&mut tx, note_id, structured, now).await?;
-
+						crate::structured_fields::upsert_structured_fields_tx(
+							&mut tx, note_id, structured, now,
+						)
+						.await?;
 						crate::enqueue_outbox_tx(
 							&mut *tx,
 							note_id,
@@ -396,6 +410,7 @@ WHERE note_id = $7",
 							op: NoteOp::Update,
 							reason_code: None,
 						});
+
 						continue;
 					}
 
@@ -458,6 +473,7 @@ fn find_cjk_path(value: &Value, path: &str) -> Option<String> {
 					return Some(found);
 				}
 			}
+
 			None
 		},
 		Value::Object(map) => {
@@ -468,6 +484,7 @@ fn find_cjk_path(value: &Value, path: &str) -> Option<String> {
 					return Some(found);
 				}
 			}
+
 			None
 		},
 		_ => None,

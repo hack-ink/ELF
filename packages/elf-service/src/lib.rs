@@ -15,23 +15,33 @@ mod ranking_explain_v2;
 mod error;
 
 pub use add_event::{AddEventRequest, AddEventResponse, AddEventResult, EventMessage};
+
 pub use add_note::{AddNoteInput, AddNoteRequest, AddNoteResponse, AddNoteResult};
+
 pub use admin::RebuildReport;
+
 pub use delete::{DeleteRequest, DeleteResponse};
+
 pub use error::{Error, Result};
+
 pub use list::{ListItem, ListRequest, ListResponse};
+
 pub use notes::{NoteFetchRequest, NoteFetchResponse};
+
 pub use progressive_search::{
 	SearchDetailsError, SearchDetailsRequest, SearchDetailsResponse, SearchDetailsResult,
 	SearchIndexItem, SearchIndexResponse, SearchSessionGetRequest, SearchTimelineGroup,
 	SearchTimelineRequest, SearchTimelineResponse,
 };
+
 pub use search::{
 	BlendRankingOverride, BlendSegmentOverride, RankingRequestOverride, SearchExplain,
 	SearchExplainItem, SearchExplainRequest, SearchExplainResponse, SearchItem, SearchRequest,
 	SearchResponse, SearchTrace, TraceGetRequest, TraceGetResponse,
 };
+
 pub use structured_fields::StructuredFields;
+
 pub use update::{UpdateRequest, UpdateResponse};
 
 use std::{future::Future, pin::Pin, sync::Arc};
@@ -39,6 +49,7 @@ use std::{future::Future, pin::Pin, sync::Arc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sqlx::PgExecutor;
+use time::OffsetDateTime;
 use uuid::Uuid;
 
 use elf_config::{Config, EmbeddingProviderConfig, LlmProviderConfig, ProviderConfig};
@@ -107,12 +118,38 @@ pub struct Providers {
 	pub rerank: Arc<dyn RerankProvider>,
 	pub extractor: Arc<dyn ExtractorProvider>,
 }
+impl Providers {
+	pub fn new(
+		embedding: Arc<dyn EmbeddingProvider>,
+		rerank: Arc<dyn RerankProvider>,
+		extractor: Arc<dyn ExtractorProvider>,
+	) -> Self {
+		Self { embedding, rerank, extractor }
+	}
+}
+
+impl Default for Providers {
+	fn default() -> Self {
+		let provider = Arc::new(DefaultProviders);
+
+		Self { embedding: provider.clone(), rerank: provider.clone(), extractor: provider }
+	}
+}
 
 pub struct ElfService {
 	pub cfg: Config,
 	pub db: Db,
 	pub qdrant: QdrantStore,
 	pub providers: Providers,
+}
+impl ElfService {
+	pub fn new(cfg: Config, db: Db, qdrant: QdrantStore) -> Self {
+		Self { cfg, db, qdrant, providers: Providers::default() }
+	}
+
+	pub fn with_providers(cfg: Config, db: Db, qdrant: QdrantStore, providers: Providers) -> Self {
+		Self { cfg, db, qdrant, providers }
+	}
 }
 
 pub(crate) struct ResolveUpdateArgs<'a> {
@@ -125,7 +162,7 @@ pub(crate) struct ResolveUpdateArgs<'a> {
 	pub(crate) note_type: &'a str,
 	pub(crate) key: Option<&'a str>,
 	pub(crate) text: &'a str,
-	pub(crate) now: time::OffsetDateTime,
+	pub(crate) now: OffsetDateTime,
 }
 
 pub(crate) struct InsertVersionArgs<'a> {
@@ -135,11 +172,10 @@ pub(crate) struct InsertVersionArgs<'a> {
 	pub(crate) new_snapshot: Option<Value>,
 	pub(crate) reason: &'a str,
 	pub(crate) actor: &'a str,
-	pub(crate) ts: time::OffsetDateTime,
+	pub(crate) ts: OffsetDateTime,
 }
 
 struct DefaultProviders;
-
 impl EmbeddingProvider for DefaultProviders {
 	fn embed<'a>(
 		&'a self,
@@ -183,33 +219,6 @@ impl ExtractorProvider for DefaultProviders {
 	}
 }
 
-impl Providers {
-	pub fn new(
-		embedding: Arc<dyn EmbeddingProvider>,
-		rerank: Arc<dyn RerankProvider>,
-		extractor: Arc<dyn ExtractorProvider>,
-	) -> Self {
-		Self { embedding, rerank, extractor }
-	}
-}
-
-impl Default for Providers {
-	fn default() -> Self {
-		let provider = Arc::new(DefaultProviders);
-		Self { embedding: provider.clone(), rerank: provider.clone(), extractor: provider }
-	}
-}
-
-impl ElfService {
-	pub fn new(cfg: Config, db: Db, qdrant: QdrantStore) -> Self {
-		Self { cfg, db, qdrant, providers: Providers::default() }
-	}
-
-	pub fn with_providers(cfg: Config, db: Db, qdrant: QdrantStore, providers: Providers) -> Self {
-		Self { cfg, db, qdrant, providers }
-	}
-}
-
 pub(crate) fn embedding_version(cfg: &Config) -> String {
 	format!(
 		"{}:{}:{}",
@@ -219,7 +228,7 @@ pub(crate) fn embedding_version(cfg: &Config) -> String {
 	)
 }
 
-pub(crate) fn writegate_reason_code(code: elf_domain::writegate::RejectCode) -> &'static str {
+pub(crate) fn writegate_reason_code(code: RejectCode) -> &'static str {
 	match code {
 		RejectCode::RejectCjk => "REJECT_CJK",
 		RejectCode::RejectTooLong => "REJECT_TOO_LONG",
@@ -272,6 +281,29 @@ pub(crate) fn parse_pg_vector(text: &str) -> Result<Vec<f32>> {
 	Ok(vec)
 }
 
+pub(crate) fn note_snapshot(note: &MemoryNote) -> Value {
+	serde_json::json!({
+		"note_id": note.note_id,
+		"tenant_id": note.tenant_id,
+		"project_id": note.project_id,
+		"agent_id": note.agent_id,
+		"scope": note.scope,
+		"type": note.r#type,
+		"key": note.key,
+		"text": note.text,
+		"importance": note.importance,
+		"confidence": note.confidence,
+		"status": note.status,
+		"created_at": note.created_at,
+		"updated_at": note.updated_at,
+		"expires_at": note.expires_at,
+		"embedding_version": note.embedding_version,
+		"source_ref": note.source_ref,
+		"hit_count": note.hit_count,
+		"last_hit_at": note.last_hit_at,
+	})
+}
+
 pub(crate) async fn resolve_update<'e, E>(
 	executor: E,
 	args: ResolveUpdateArgs<'_>,
@@ -291,7 +323,6 @@ where
 		text,
 		now,
 	} = args;
-
 	let embeddings =
 		providers.embedding.embed(&cfg.providers.embedding, &[text.to_string()]).await?;
 	let Some(vec) = embeddings.into_iter().next() else {
@@ -425,7 +456,7 @@ pub(crate) async fn enqueue_outbox_tx<'e, E>(
 	note_id: Uuid,
 	op: &str,
 	embedding_version: &str,
-	now: time::OffsetDateTime,
+	now: OffsetDateTime,
 ) -> Result<()>
 where
 	E: PgExecutor<'e>,
@@ -455,27 +486,4 @@ VALUES ($1,$2,$3,$4,'PENDING',$5,$6,$7)",
 	.await?;
 
 	Ok(())
-}
-
-pub(crate) fn note_snapshot(note: &MemoryNote) -> Value {
-	serde_json::json!({
-		"note_id": note.note_id,
-		"tenant_id": note.tenant_id,
-		"project_id": note.project_id,
-		"agent_id": note.agent_id,
-		"scope": note.scope,
-		"type": note.r#type,
-		"key": note.key,
-		"text": note.text,
-		"importance": note.importance,
-		"confidence": note.confidence,
-		"status": note.status,
-		"created_at": note.created_at,
-		"updated_at": note.updated_at,
-		"expires_at": note.expires_at,
-		"embedding_version": note.embedding_version,
-		"source_ref": note.source_ref,
-		"hit_count": note.hit_count,
-		"last_hit_at": note.last_hit_at,
-	})
 }
