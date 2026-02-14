@@ -3,6 +3,7 @@ pub mod server;
 use std::path::PathBuf;
 
 use clap::Parser;
+use color_eyre::{Result, eyre};
 
 #[derive(Debug, Parser)]
 #[command(
@@ -15,12 +16,10 @@ pub struct Args {
 	pub config: PathBuf,
 }
 
-pub async fn run(args: Args) -> color_eyre::Result<()> {
+pub async fn run(args: Args) -> Result<()> {
 	let config = elf_config::load(&args.config)?;
-	let mcp = config
-		.mcp
-		.as_ref()
-		.ok_or_else(|| color_eyre::eyre::eyre!("mcp section is required for elf-mcp."))?;
+	let mcp =
+		config.mcp.as_ref().ok_or_else(|| eyre::eyre!("mcp section is required for elf-mcp."))?;
 
 	server::serve_mcp(
 		&config.service.mcp_bind,

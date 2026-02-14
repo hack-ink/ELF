@@ -19,7 +19,7 @@ use std::{
 };
 
 use qdrant_client::{
-	QdrantError,
+	Qdrant, QdrantError,
 	qdrant::{
 		CreateCollectionBuilder, Distance, Modifier, SparseVectorParamsBuilder,
 		SparseVectorsConfigBuilder, VectorParamsBuilder, VectorsConfigBuilder,
@@ -35,7 +35,9 @@ use elf_config::{
 	Search, SearchCache, SearchDynamic, SearchExpansion, SearchExplain, SearchPrefilter, Security,
 	Service, Storage, TtlDays,
 };
-use elf_service::{ElfService, EmbeddingProvider, ExtractorProvider, RerankProvider};
+use elf_service::{
+	BoxFuture, ElfService, EmbeddingProvider, ExtractorProvider, RerankProvider, Result,
+};
 use elf_storage::{
 	db::Db,
 	qdrant::{BM25_VECTOR_NAME, DENSE_VECTOR_NAME, QdrantStore},
@@ -64,7 +66,7 @@ impl EmbeddingProvider for StubEmbedding {
 		&'a self,
 		_cfg: &'a EmbeddingProviderConfig,
 		texts: &'a [String],
-	) -> elf_service::BoxFuture<'a, elf_service::Result<Vec<Vec<f32>>>> {
+	) -> BoxFuture<'a, Result<Vec<Vec<f32>>>> {
 		let dim = self.vector_dim as usize;
 		let vectors = texts.iter().map(|_| vec![0.0; dim]).collect();
 
@@ -81,7 +83,7 @@ impl EmbeddingProvider for SpyEmbedding {
 		&'a self,
 		_cfg: &'a EmbeddingProviderConfig,
 		texts: &'a [String],
-	) -> elf_service::BoxFuture<'a, elf_service::Result<Vec<Vec<f32>>>> {
+	) -> BoxFuture<'a, Result<Vec<Vec<f32>>>> {
 		self.calls.fetch_add(1, Ordering::SeqCst);
 
 		let dim = self.vector_dim as usize;
@@ -98,7 +100,7 @@ impl RerankProvider for StubRerank {
 		_cfg: &'a ProviderConfig,
 		_query: &'a str,
 		docs: &'a [String],
-	) -> elf_service::BoxFuture<'a, elf_service::Result<Vec<f32>>> {
+	) -> BoxFuture<'a, Result<Vec<f32>>> {
 		let scores = vec![0.5; docs.len()];
 
 		Box::pin(async move { Ok(scores) })
@@ -114,9 +116,11 @@ impl ExtractorProvider for SpyExtractor {
 		&'a self,
 		_cfg: &'a LlmProviderConfig,
 		_messages: &'a [Value],
-	) -> elf_service::BoxFuture<'a, elf_service::Result<Value>> {
+	) -> BoxFuture<'a, Result<Value>> {
 		let payload = self.payload.clone();
+
 		self.calls.fetch_add(1, Ordering::SeqCst);
+
 		Box::pin(async move { Ok(payload) })
 	}
 }
@@ -279,7 +283,7 @@ pub fn dummy_llm_provider() -> LlmProviderConfig {
 	}
 }
 
-pub async fn test_db() -> Option<elf_testkit::TestDatabase> {
+pub async fn test_db() -> Option<TestDatabase> {
 	let base_dsn = elf_testkit::env_dsn()?;
 	let db = TestDatabase::new(&base_dsn).await.expect("Failed to create test database.");
 
@@ -287,12 +291,11 @@ pub async fn test_db() -> Option<elf_testkit::TestDatabase> {
 }
 
 async fn reset_qdrant_collection(
-	client: &qdrant_client::Qdrant,
+	client: &Qdrant,
 	collection: &str,
 	vector_dim: u32,
 ) -> AcceptanceResult<()> {
 	let max_attempts = 8;
-
 	let mut backoff = Duration::from_millis(100);
 	let mut last_err = None;
 
@@ -320,10 +323,13 @@ async fn reset_qdrant_collection(
 			Ok(_) => return Ok(()),
 			Err(err) => {
 				last_err = Some(err);
+
 				if attempt == max_attempts {
 					break;
 				}
+
 				time::sleep(backoff).await;
+
 				backoff = backoff.saturating_mul(2).min(Duration::from_secs(2));
 			},
 		}

@@ -1,15 +1,17 @@
 use axum::{
 	Json, Router,
+	body::Body,
 	extract::{
 		DefaultBodyLimit, Path, Query, State,
 		rejection::{JsonRejection, QueryRejection},
 	},
-	http::{HeaderMap, StatusCode},
-	middleware,
+	http::{HeaderMap, Request, StatusCode},
+	middleware::{self, Next},
 	response::{IntoResponse, Response},
 	routing,
 };
 use serde::{Deserialize, Serialize};
+use time::OffsetDateTime;
 use uuid::Uuid;
 
 use crate::state::AppState;
@@ -81,7 +83,7 @@ struct SearchIndexResponseV2 {
 	trace_id: Uuid,
 	search_id: Uuid,
 	#[serde(with = "elf_service::time_serde")]
-	expires_at: time::OffsetDateTime,
+	expires_at: OffsetDateTime,
 	items: Vec<SearchIndexItem>,
 }
 
@@ -100,7 +102,7 @@ struct SearchTimelineQuery {
 struct SearchTimelineResponseV2 {
 	search_id: Uuid,
 	#[serde(with = "elf_service::time_serde")]
-	expires_at: time::OffsetDateTime,
+	expires_at: OffsetDateTime,
 	groups: Vec<SearchTimelineGroup>,
 }
 
@@ -114,7 +116,7 @@ struct SearchDetailsBody {
 struct SearchDetailsResponseV2 {
 	search_id: Uuid,
 	#[serde(with = "elf_service::time_serde")]
-	expires_at: time::OffsetDateTime,
+	expires_at: OffsetDateTime,
 	results: Vec<SearchDetailsResult>,
 }
 
@@ -382,8 +384,8 @@ fn is_authorized(headers: &HeaderMap, expected: Option<&str>) -> bool {
 
 async fn api_auth_middleware(
 	State(state): State<AppState>,
-	req: axum::http::Request<axum::body::Body>,
-	next: middleware::Next,
+	req: Request<Body>,
+	next: Next,
 ) -> Response {
 	let expected = state.service.cfg.security.api_auth_token.as_deref();
 
@@ -402,8 +404,8 @@ async fn api_auth_middleware(
 
 async fn admin_auth_middleware(
 	State(state): State<AppState>,
-	req: axum::http::Request<axum::body::Body>,
-	next: middleware::Next,
+	req: Request<Body>,
+	next: Next,
 ) -> Response {
 	let expected = state.service.cfg.security.admin_auth_token.as_deref().or(state
 		.service

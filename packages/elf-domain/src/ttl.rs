@@ -1,9 +1,11 @@
 use time::{Duration, OffsetDateTime};
 
+use elf_config::Config;
+
 pub fn compute_expires_at(
 	ttl_days: Option<i64>,
 	note_type: &str,
-	cfg: &elf_config::Config,
+	cfg: &Config,
 	now: OffsetDateTime,
 ) -> Option<OffsetDateTime> {
 	let days = if let Some(value) = ttl_days.filter(|days| *days > 0) {

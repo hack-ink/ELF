@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use elf_config::Config;
 
@@ -11,7 +12,7 @@ pub struct SearchRankingTerm {
 	pub name: String,
 	pub value: f32,
 	#[serde(skip_serializing_if = "Option::is_none")]
-	pub inputs: Option<BTreeMap<String, serde_json::Value>>,
+	pub inputs: Option<BTreeMap<String, Value>>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

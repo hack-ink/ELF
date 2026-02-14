@@ -1,12 +1,12 @@
-use std::{collections::HashSet, time::Duration};
+use std::{collections::HashSet, sync::atomic::AtomicU64, time::Duration};
 
 use reqwest::Client;
 use serde_json::Value;
 
 use crate::{Error, Result};
+use elf_config::ProviderConfig;
 
-static LOCAL_NOISE_CALL_COUNTER: std::sync::atomic::AtomicU64 =
-	std::sync::atomic::AtomicU64::new(0);
+static LOCAL_NOISE_CALL_COUNTER: AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 struct XorShift64 {
 	state: u64,
@@ -20,6 +20,7 @@ impl XorShift64 {
 
 	fn next_u64(&mut self) -> u64 {
 		let mut x = self.state;
+
 		x ^= x << 13;
 		x ^= x >> 7;
 		x ^= x << 17;
@@ -32,15 +33,11 @@ impl XorShift64 {
 		// Map to [0, 1). Keep 24 bits of precision for a stable f32.
 		let bits = (self.next_u64() >> 40) as u32;
 
-		(bits as f32) / ((1u32 << 24) as f32)
+		(bits as f32) / ((1_u32 << 24) as f32)
 	}
 }
 
-pub async fn rerank(
-	cfg: &elf_config::ProviderConfig,
-	query: &str,
-	docs: &[String],
-) -> Result<Vec<f32>> {
+pub async fn rerank(cfg: &ProviderConfig, query: &str, docs: &[String]) -> Result<Vec<f32>> {
 	if cfg.provider_id == "local" {
 		return Ok(local_rerank_dispatch(cfg.model.as_str(), query, docs));
 	}
@@ -182,7 +179,9 @@ fn parse_rerank_response(json: Value, doc_count: usize) -> Result<Vec<f32>> {
 
 #[cfg(test)]
 mod tests {
-	use super::*;
+	use crate::rerank::{
+		local_rerank, local_rerank_dispatch, parse_local_noisy_model, parse_rerank_response,
+	};
 
 	#[test]
 	fn aligns_scores_by_index() {

@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
 use qdrant_client::{
+	QdrantError,
 	client::Payload,
 	qdrant::{
-		Condition, DeletePointsBuilder, Document, Filter, PointStruct, UpsertPointsBuilder, Value,
-		Vector,
+		Condition, DeletePointsBuilder, Document, Filter, PointStruct, UpsertPointsBuilder, Vector,
 	},
 };
 use serde::{Deserialize, Serialize};
@@ -14,6 +14,7 @@ use uuid::Uuid;
 
 use crate::{Error, Result};
 use elf_chunking::{Chunk, ChunkingConfig, Tokenizer};
+use elf_config::EmbeddingProviderConfig;
 use elf_providers::embedding;
 use elf_storage::{
 	db::Db,
@@ -22,6 +23,8 @@ use elf_storage::{
 	queries,
 };
 
+use serde_json::Value;
+
 const POLL_INTERVAL_MS: i64 = 500;
 const CLAIM_LEASE_SECONDS: i64 = 30;
 const BASE_BACKOFF_MS: i64 = 500;
@@ -29,6 +32,14 @@ const MAX_BACKOFF_MS: i64 = 30_000;
 const TRACE_CLEANUP_INTERVAL_SECONDS: i64 = 900;
 const TRACE_OUTBOX_LEASE_SECONDS: i64 = 30;
 const MAX_OUTBOX_ERROR_CHARS: usize = 1_024;
+
+pub struct WorkerState {
+	pub db: Db,
+	pub qdrant: QdrantStore,
+	pub embedding: EmbeddingProviderConfig,
+	pub chunking: ChunkingConfig,
+	pub tokenizer: Tokenizer,
+}
 
 #[derive(Debug, Deserialize)]
 struct TracePayload {
@@ -51,7 +62,7 @@ struct TraceRecord {
 	allowed_scopes: Vec<String>,
 	candidate_count: u32,
 	top_k: u32,
-	config_snapshot: serde_json::Value,
+	config_snapshot: Value,
 	trace_version: i32,
 	created_at: OffsetDateTime,
 	expires_at: OffsetDateTime,
@@ -64,7 +75,7 @@ struct TraceItemRecord {
 	chunk_id: Option<Uuid>,
 	rank: u32,
 	final_score: f32,
-	explain: serde_json::Value,
+	explain: Value,
 }
 
 #[derive(Debug, Deserialize)]
@@ -77,7 +88,7 @@ struct TraceCandidateRecord {
 	#[serde(default)]
 	snippet: String,
 	#[serde(default)]
-	candidate_snapshot: serde_json::Value,
+	candidate_snapshot: Value,
 	retrieval_rank: u32,
 	rerank_score: f32,
 	note_scope: String,
@@ -93,7 +104,7 @@ struct TraceCandidateRecord {
 struct TraceOutboxJob {
 	outbox_id: Uuid,
 	trace_id: Uuid,
-	payload: serde_json::Value,
+	payload: Value,
 	attempts: i32,
 }
 
@@ -103,7 +114,7 @@ struct TraceItemInsert {
 	chunk_id: Option<Uuid>,
 	rank: i32,
 	final_score: f32,
-	explain: serde_json::Value,
+	explain: Value,
 }
 
 struct TraceCandidateInsert {
@@ -112,7 +123,7 @@ struct TraceCandidateInsert {
 	chunk_id: Uuid,
 	chunk_index: i32,
 	snippet: String,
-	candidate_snapshot: serde_json::Value,
+	candidate_snapshot: Value,
 	retrieval_rank: i32,
 	rerank_score: f32,
 	note_scope: String,
@@ -132,12 +143,10 @@ struct ChunkRecord {
 	text: String,
 }
 
-pub struct WorkerState {
-	pub db: Db,
-	pub qdrant: QdrantStore,
-	pub embedding: elf_config::EmbeddingProviderConfig,
-	pub chunking: ChunkingConfig,
-	pub tokenizer: Tokenizer,
+#[derive(Debug)]
+struct NoteFieldRow {
+	field_id: Uuid,
+	text: String,
 }
 
 pub async fn run_worker(state: WorkerState) -> Result<()> {
@@ -174,7 +183,7 @@ pub async fn run_worker(state: WorkerState) -> Result<()> {
 	}
 }
 
-fn is_not_found_error(err: &qdrant_client::QdrantError) -> bool {
+fn is_not_found_error(err: &QdrantError) -> bool {
 	let message = err.to_string().to_lowercase();
 	let point_not_found =
 		(message.contains("not found") || message.contains("404")) && message.contains("point");
@@ -271,6 +280,7 @@ fn format_vector_text(vec: &[f32]) -> String {
 		if idx > 0 {
 			out.push(',');
 		}
+
 		out.push_str(&value.to_string());
 	}
 
@@ -279,7 +289,7 @@ fn format_vector_text(vec: &[f32]) -> String {
 	out
 }
 
-fn encode_json<T>(value: &T, label: &str) -> Result<serde_json::Value>
+fn encode_json<T>(value: &T, label: &str) -> Result<Value>
 where
 	T: Serialize,
 {
@@ -491,12 +501,14 @@ async fn handle_upsert(state: &WorkerState, job: &IndexingOutboxEntry) -> Result
 	let note = fetch_note(&state.db, job.note_id).await?;
 	let Some(note) = note else {
 		tracing::info!(note_id = %job.note_id, "Note missing for outbox job. Marking done.");
+
 		return Ok(());
 	};
 	let now = OffsetDateTime::now_utc();
 
 	if !note_is_active(&note, now) {
 		tracing::info!(note_id = %job.note_id, "Note inactive or expired. Skipping index.");
+
 		return Ok(());
 	}
 
@@ -693,6 +705,7 @@ INSERT INTO search_trace_items (
 	explain
 ) ",
 		);
+
 		builder.push_values(inserts, |mut b, item| {
 			b.push_bind(item.item_id)
 				.push_bind(trace_id)
@@ -705,7 +718,6 @@ INSERT INTO search_trace_items (
 		builder.push(" ON CONFLICT (item_id) DO NOTHING");
 		builder.build().execute(&mut *tx).await?;
 	}
-
 	if !payload.candidates.is_empty() {
 		let mut inserts = Vec::with_capacity(payload.candidates.len());
 
@@ -750,6 +762,7 @@ INSERT INTO search_trace_candidates (
 	expires_at
 ) ",
 		);
+
 		builder.push_values(inserts, |mut b, candidate| {
 			b.push_bind(candidate.candidate_id)
 				.push_bind(trace_id)
@@ -831,12 +844,6 @@ async fn fetch_note(db: &Db, note_id: Uuid) -> Result<Option<MemoryNote>> {
 			.await?;
 
 	Ok(note)
-}
-
-#[derive(Debug)]
-struct NoteFieldRow {
-	field_id: Uuid,
-	text: String,
 }
 
 async fn fetch_note_fields(db: &Db, note_id: Uuid) -> Result<Vec<NoteFieldRow>> {
@@ -933,6 +940,7 @@ async fn delete_qdrant_note_points(state: &WorkerState, note_id: Uuid) -> Result
 	let filter = Filter::must([Condition::matches("note_id", note_id.to_string())]);
 	let delete =
 		DeletePointsBuilder::new(state.qdrant.collection.clone()).points(filter).wait(true);
+
 	match state.qdrant.client.delete_points(delete).await {
 		Ok(_) => {},
 		Err(err) =>
@@ -958,45 +966,76 @@ async fn upsert_qdrant_chunks(
 	for (record, vec) in records.iter().zip(vectors.iter()) {
 		let mut payload_map = HashMap::new();
 
-		payload_map.insert("note_id".to_string(), Value::from(note.note_id.to_string()));
-		payload_map.insert("chunk_id".to_string(), Value::from(record.chunk_id.to_string()));
-		payload_map.insert("chunk_index".to_string(), Value::from(record.chunk_index as i64));
-		payload_map.insert("start_offset".to_string(), Value::from(record.start_offset as i64));
-		payload_map.insert("end_offset".to_string(), Value::from(record.end_offset as i64));
-		payload_map.insert("tenant_id".to_string(), Value::from(note.tenant_id.clone()));
-		payload_map.insert("project_id".to_string(), Value::from(note.project_id.clone()));
-		payload_map.insert("agent_id".to_string(), Value::from(note.agent_id.clone()));
-		payload_map.insert("scope".to_string(), Value::from(note.scope.clone()));
-		payload_map.insert("status".to_string(), Value::from(note.status.clone()));
-		payload_map.insert("type".to_string(), Value::from(note.r#type.clone()));
+		payload_map.insert(
+			"note_id".to_string(),
+			qdrant_client::qdrant::Value::from(note.note_id.to_string()),
+		);
+		payload_map.insert(
+			"chunk_id".to_string(),
+			qdrant_client::qdrant::Value::from(record.chunk_id.to_string()),
+		);
+		payload_map.insert(
+			"chunk_index".to_string(),
+			qdrant_client::qdrant::Value::from(record.chunk_index as i64),
+		);
+		payload_map.insert(
+			"start_offset".to_string(),
+			qdrant_client::qdrant::Value::from(record.start_offset as i64),
+		);
+		payload_map.insert(
+			"end_offset".to_string(),
+			qdrant_client::qdrant::Value::from(record.end_offset as i64),
+		);
+		payload_map.insert(
+			"tenant_id".to_string(),
+			qdrant_client::qdrant::Value::from(note.tenant_id.clone()),
+		);
+		payload_map.insert(
+			"project_id".to_string(),
+			qdrant_client::qdrant::Value::from(note.project_id.clone()),
+		);
+		payload_map.insert(
+			"agent_id".to_string(),
+			qdrant_client::qdrant::Value::from(note.agent_id.clone()),
+		);
+		payload_map
+			.insert("scope".to_string(), qdrant_client::qdrant::Value::from(note.scope.clone()));
+		payload_map
+			.insert("status".to_string(), qdrant_client::qdrant::Value::from(note.status.clone()));
+		payload_map
+			.insert("type".to_string(), qdrant_client::qdrant::Value::from(note.r#type.clone()));
 		payload_map.insert(
 			"key".to_string(),
 			note.key
 				.as_ref()
-				.map(|key| Value::from(key.clone()))
-				.unwrap_or_else(|| Value::from(serde_json::Value::Null)),
+				.map(|key| qdrant_client::qdrant::Value::from(key.clone()))
+				.unwrap_or_else(|| qdrant_client::qdrant::Value::from(serde_json::Value::Null)),
 		);
 		payload_map.insert(
 			"updated_at".to_string(),
-			Value::from(serde_json::Value::String(format_timestamp(note.updated_at)?)),
+			qdrant_client::qdrant::Value::from(serde_json::Value::String(format_timestamp(
+				note.updated_at,
+			)?)),
 		);
 		payload_map.insert(
 			"expires_at".to_string(),
-			Value::from(match note.expires_at {
+			qdrant_client::qdrant::Value::from(match note.expires_at {
 				Some(ts) => serde_json::Value::String(format_timestamp(ts)?),
 				None => serde_json::Value::Null,
 			}),
 		);
 		payload_map.insert(
 			"importance".to_string(),
-			Value::from(serde_json::Value::from(note.importance as f64)),
+			qdrant_client::qdrant::Value::from(serde_json::Value::from(note.importance as f64)),
 		);
 		payload_map.insert(
 			"confidence".to_string(),
-			Value::from(serde_json::Value::from(note.confidence as f64)),
+			qdrant_client::qdrant::Value::from(serde_json::Value::from(note.confidence as f64)),
 		);
-		payload_map
-			.insert("embedding_version".to_string(), Value::from(embedding_version.to_string()));
+		payload_map.insert(
+			"embedding_version".to_string(),
+			qdrant_client::qdrant::Value::from(embedding_version.to_string()),
+		);
 
 		let payload = Payload::from(payload_map);
 		let mut vector_map = HashMap::new();
@@ -1105,7 +1144,7 @@ WHERE outbox_id = $5",
 
 #[cfg(test)]
 mod tests {
-	use super::*;
+	use crate::worker::mean_pool;
 
 	#[test]
 	fn pooled_vector_is_mean_of_chunks() {

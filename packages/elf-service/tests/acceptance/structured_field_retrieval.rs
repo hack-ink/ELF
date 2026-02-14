@@ -8,16 +8,14 @@ use sqlx::PgExecutor;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use super::{
-	build_service, reset_db, reset_qdrant_collection, test_config, test_db, test_qdrant_url,
-};
 use elf_config::ProviderConfig;
-use elf_service::{BoxFuture, ElfService, Providers, RerankProvider, SearchRequest};
+use elf_service::{BoxFuture, ElfService, Providers, RerankProvider, Result, SearchRequest};
 use elf_storage::qdrant::{BM25_MODEL, BM25_VECTOR_NAME, DENSE_VECTOR_NAME};
+use elf_testkit::TestDatabase;
 
 struct TestContext {
 	service: ElfService,
-	test_db: elf_testkit::TestDatabase,
+	test_db: TestDatabase,
 	embedding_version: String,
 }
 
@@ -40,8 +38,9 @@ impl RerankProvider for KeywordRerank {
 		_cfg: &'a ProviderConfig,
 		_query: &'a str,
 		docs: &'a [String],
-	) -> BoxFuture<'a, elf_service::Result<Vec<f32>>> {
+	) -> BoxFuture<'a, Result<Vec<f32>>> {
 		let keyword = self.keyword;
+
 		Box::pin(async move {
 			Ok(docs.iter().map(|doc| if doc.contains(keyword) { 1.0 } else { 0.1 }).collect())
 		})
@@ -85,6 +84,7 @@ fn build_payload(
 	payload.insert("agent_id", "a");
 	payload.insert("scope", "agent_private");
 	payload.insert("status", "active");
+
 	payload
 }
 
@@ -101,17 +101,16 @@ fn build_vectors(text: &str, dense: Vec<f32>) -> HashMap<String, Vector> {
 }
 
 async fn setup_context(test_name: &str) -> Option<TestContext> {
-	let Some(test_db) = test_db().await else {
+	let Some(test_db) = super::test_db().await else {
 		eprintln!("Skipping {test_name}; set ELF_PG_DSN to run this test.");
 
 		return None;
 	};
-	let Some(qdrant_url) = test_qdrant_url() else {
+	let Some(qdrant_url) = super::test_qdrant_url() else {
 		eprintln!("Skipping {test_name}; set ELF_QDRANT_URL to run this test.");
 
 		return None;
 	};
-
 	let providers = Providers::new(
 		std::sync::Arc::new(super::StubEmbedding { vector_dim: 4_096 }),
 		std::sync::Arc::new(KeywordRerank { keyword: "ZEBRA" }),
@@ -120,13 +119,12 @@ async fn setup_context(test_name: &str) -> Option<TestContext> {
 			payload: serde_json::json!({ "notes": [] }),
 		}),
 	);
-
 	let collection = test_db.collection_name("elf_acceptance");
-	let cfg = test_config(test_db.dsn().to_string(), qdrant_url, 4_096, collection);
-	let service = build_service(cfg, providers).await.expect("Failed to build service.");
+	let cfg = super::test_config(test_db.dsn().to_string(), qdrant_url, 4_096, collection);
+	let service = super::build_service(cfg, providers).await.expect("Failed to build service.");
 
-	reset_db(&service.db.pool).await.expect("Failed to reset test database.");
-	reset_qdrant_collection(
+	super::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
+	super::reset_qdrant_collection(
 		&service.qdrant.client,
 		&service.qdrant.collection,
 		service.qdrant.vector_dim,

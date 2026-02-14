@@ -4,11 +4,12 @@ pub mod state;
 use std::{net::SocketAddr, path::PathBuf};
 
 use clap::Parser;
-use color_eyre::eyre;
+use color_eyre::{Result, eyre};
 use tokio::net::TcpListener;
 use tracing_subscriber::EnvFilter;
 
 use crate::state::AppState;
+use elf_config::Config;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -21,7 +22,7 @@ pub struct Args {
 	pub config: PathBuf,
 }
 
-pub async fn run(args: Args) -> color_eyre::Result<()> {
+pub async fn run(args: Args) -> Result<()> {
 	let config = elf_config::load(&args.config)?;
 	let http_addr: SocketAddr = config.service.http_bind.parse()?;
 	let admin_addr: SocketAddr = config.service.admin_bind.parse()?;
@@ -61,9 +62,11 @@ pub async fn run(args: Args) -> color_eyre::Result<()> {
 	Ok(())
 }
 
-fn init_tracing(config: &elf_config::Config) -> color_eyre::Result<()> {
+fn init_tracing(config: &Config) -> Result<()> {
 	let filter =
 		EnvFilter::try_new(&config.service.log_level).unwrap_or_else(|_| EnvFilter::new("info"));
+
 	tracing_subscriber::fmt().with_env_filter(filter).init();
+
 	Ok(())
 }
