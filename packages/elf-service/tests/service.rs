@@ -13,19 +13,18 @@ use elf_config::{
 	Security, Service, Storage, TtlDays,
 };
 use elf_service::{
-	AddNoteInput, AddNoteRequest, ElfService, EmbeddingProvider, Error, ExtractorProvider,
-	RerankProvider,
+	AddNoteInput, AddNoteRequest, BoxFuture, ElfService, EmbeddingProvider, Error,
+	ExtractorProvider, RerankProvider, Result,
 };
 use elf_storage::{db::Db, qdrant::QdrantStore};
 
 struct DummyEmbedding;
-
 impl EmbeddingProvider for DummyEmbedding {
 	fn embed<'a>(
 		&'a self,
 		cfg: &'a EmbeddingProviderConfig,
 		texts: &'a [String],
-	) -> elf_service::BoxFuture<'a, elf_service::Result<Vec<Vec<f32>>>> {
+	) -> BoxFuture<'a, Result<Vec<Vec<f32>>>> {
 		let dim = (cfg.dimensions as usize).max(1);
 		let vec = vec![0.0; dim];
 
@@ -34,14 +33,13 @@ impl EmbeddingProvider for DummyEmbedding {
 }
 
 struct DummyRerank;
-
 impl RerankProvider for DummyRerank {
 	fn rerank<'a>(
 		&'a self,
 		_cfg: &'a ProviderConfig,
 		_query: &'a str,
 		docs: &'a [String],
-	) -> elf_service::BoxFuture<'a, elf_service::Result<Vec<f32>>> {
+	) -> BoxFuture<'a, Result<Vec<f32>>> {
 		let scores = vec![0.0; docs.len()];
 
 		Box::pin(async move { Ok(scores) })
@@ -65,7 +63,7 @@ impl ExtractorProvider for SpyExtractor {
 		&'a self,
 		_cfg: &'a LlmProviderConfig,
 		_messages: &'a [Value],
-	) -> elf_service::BoxFuture<'a, elf_service::Result<Value>> {
+	) -> BoxFuture<'a, Result<Value>> {
 		self.calls.fetch_add(1, Ordering::SeqCst);
 
 		Box::pin(async move { Ok(serde_json::json!({ "notes": [] })) })
@@ -248,7 +246,6 @@ async fn add_note_does_not_call_llm() {
 	let result = service.add_note(req).await;
 
 	assert!(matches!(result, Err(Error::NonEnglishInput { .. })));
-
 	assert_eq!(spy.count(), 0);
 }
 
@@ -273,6 +270,5 @@ async fn add_note_rejects_empty_notes() {
 	let result = service.add_note(req).await;
 
 	assert!(matches!(result, Err(Error::InvalidRequest { .. })));
-
 	assert_eq!(spy.count(), 0);
 }

@@ -1,9 +1,10 @@
+use elf_domain::writegate;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
 use crate::{ElfService, Error, InsertVersionArgs, NoteOp, Result};
-use elf_domain::{cjk, ttl, writegate};
+use elf_domain::{cjk, ttl};
 use elf_storage::models::MemoryNote;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -37,7 +38,6 @@ impl ElfService {
 				message: "tenant_id, project_id, and agent_id are required.".to_string(),
 			});
 		}
-
 		if req.text.is_none()
 			&& req.importance.is_none()
 			&& req.confidence.is_none()
@@ -81,6 +81,7 @@ FOR UPDATE",
 			if cjk::contains_cjk(text) {
 				return Err(Error::NonEnglishInput { field: "$.text".to_string() });
 			}
+
 			text.clone()
 		} else {
 			note.text.clone()
@@ -91,7 +92,7 @@ FOR UPDATE",
 			text: candidate_text,
 		};
 
-		if let Err(code) = writegate::writegate(&gate, &self.cfg) {
+		if let Err(code) = elf_domain::writegate::writegate(&gate, &self.cfg) {
 			return Ok(UpdateResponse {
 				note_id: note.note_id,
 				op: NoteOp::Rejected,
@@ -146,6 +147,7 @@ WHERE note_id = $6",
 		)
 		.execute(&mut *tx)
 		.await?;
+
 		crate::insert_version(
 			&mut *tx,
 			InsertVersionArgs {

@@ -57,8 +57,8 @@ impl TestDatabase {
 
 	pub fn collection_name(&self, prefix: &str) -> String {
 		let collection = format!("{prefix}_{}", self.name);
-
 		let mut tracked = self.collections.lock().unwrap_or_else(|err| err.into_inner());
+
 		tracked.insert(collection.clone());
 
 		collection
@@ -140,7 +140,6 @@ where
 {
 	let db = TestDatabase::new(base_dsn).await?;
 	let result = f(&db).await;
-
 	let mut db = db;
 
 	if let Err(err) = db.cleanup_inner().await {
@@ -161,6 +160,7 @@ async fn connect_admin(
 
 	for database in ADMIN_DATABASES {
 		let options = base_options.clone().database(database);
+
 		match PgConnection::connect_with(&options).await {
 			Ok(conn) => return Ok((options, conn)),
 			Err(err) => {
@@ -177,9 +177,7 @@ async fn cleanup_database(name: &str, admin_options: &PgConnectOptions) -> Resul
 		Error::Message(format!("Failed to connect to admin database for cleanup: {err}."))
 	})?;
 	let drop_sql = format!(r#"DROP DATABASE IF EXISTS "{}""#, name);
-
 	let mut conn = conn;
-
 	let _ = sqlx::query!(
 		"\
 SELECT pg_terminate_backend(pid)
@@ -212,7 +210,6 @@ async fn cleanup_qdrant_collections(collections: &[String]) -> Result<()> {
 		.build()
 		.map_err(|err| Error::Message(format!("Failed to build Qdrant client: {err}.")))?;
 	let max_attempts = 6;
-
 	let mut remaining = collections.iter().cloned().collect::<HashSet<_>>();
 	let mut backoff = Duration::from_millis(100);
 

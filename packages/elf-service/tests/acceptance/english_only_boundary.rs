@@ -1,11 +1,10 @@
 use std::sync::{Arc, atomic::AtomicUsize};
 
+use super::{SpyExtractor, StubEmbedding, StubRerank};
 use elf_service::{
 	AddEventRequest, AddNoteInput, AddNoteRequest, ElfService, Error, EventMessage, Providers,
 	SearchRequest,
 };
-
-use super::{SpyExtractor, StubEmbedding, StubRerank};
 
 async fn build_test_service(
 	dsn: String,

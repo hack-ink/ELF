@@ -9,10 +9,14 @@ use std::{
 
 use ahash::AHashMap;
 use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing};
-use serde_json::Map;
+use serde_json::{Map, Value};
+use sqlx::PgPool;
 use time::OffsetDateTime;
 use tokenizers::{Tokenizer, models::wordlevel::WordLevel};
-use tokio::{net::TcpListener, sync::oneshot};
+use tokio::{
+	net::TcpListener,
+	sync::{oneshot, oneshot::Sender},
+};
 use uuid::Uuid;
 
 use super::{SpyExtractor, StubEmbedding, StubRerank};
@@ -29,12 +33,13 @@ struct OutboxRow {
 }
 
 async fn wait_for_status(
-	pool: &sqlx::PgPool,
+	pool: &PgPool,
 	note_id: Uuid,
 	status: &str,
 	timeout: Duration,
 ) -> Option<OutboxRow> {
 	let deadline = Instant::now() + timeout;
+
 	loop {
 		let row: Option<OutboxRow> = sqlx::query_as::<_, OutboxRow>(
 			"\
@@ -56,14 +61,16 @@ WHERE note_id = $1",
 		{
 			return Some(row);
 		}
+
 		if Instant::now() >= deadline {
 			return None;
 		}
+
 		tokio::time::sleep(Duration::from_millis(200)).await;
 	}
 }
 
-async fn start_embed_server(request_count: Arc<AtomicUsize>) -> (String, oneshot::Sender<()>) {
+async fn start_embed_server(request_count: Arc<AtomicUsize>) -> (String, Sender<()>) {
 	let app =
 		Router::new().route("/embeddings", routing::post(embed_handler)).with_state(request_count);
 	let listener = TcpListener::bind("127.0.0.1:0").await.expect("Failed to bind embed server.");
@@ -82,7 +89,7 @@ async fn start_embed_server(request_count: Arc<AtomicUsize>) -> (String, oneshot
 
 async fn embed_handler(
 	State(counter): State<Arc<AtomicUsize>>,
-	Json(payload): Json<serde_json::Value>,
+	Json(payload): Json<Value>,
 ) -> impl IntoResponse {
 	let call_index = counter.fetch_add(1, Ordering::SeqCst);
 
@@ -97,6 +104,7 @@ async fn embed_handler(
 		.enumerate()
 		.map(|(index, _)| {
 			let embedding: Vec<f32> = vec![0.1_f32; 4_096];
+
 			serde_json::json!({
 				"index": index,
 				"embedding": embedding
@@ -201,7 +209,6 @@ async fn outbox_retries_to_done() {
 		.expect("Expected FAILED outbox status.");
 
 	assert_eq!(failed.attempts, 1);
-
 	assert!(failed.last_error.is_some());
 	assert!(request_count.load(Ordering::SeqCst) >= 1);
 

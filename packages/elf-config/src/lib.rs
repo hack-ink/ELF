@@ -15,12 +15,10 @@ use std::{fs, path::Path};
 pub fn load(path: &Path) -> Result<Config> {
 	let raw = fs::read_to_string(path)
 		.map_err(|err| Error::ReadConfig { path: path.to_path_buf(), source: err })?;
-
 	let mut cfg: Config = toml::from_str(&raw)
 		.map_err(|err| Error::ParseConfig { path: path.to_path_buf(), source: err })?;
 
 	normalize(&mut cfg);
-
 	validate(&cfg)?;
 
 	Ok(cfg)
@@ -207,6 +205,7 @@ pub fn validate(cfg: &Config) -> Result<()> {
 			return Err(Error::Validation { message: format!("{path} must be zero or greater.") });
 		}
 	}
+
 	if retrieval_sources.fusion_weight <= 0.0 && retrieval_sources.structured_field_weight <= 0.0 {
 		return Err(Error::Validation {
 			message: "At least one retrieval source weight must be greater than zero.".to_string(),
@@ -261,7 +260,6 @@ pub fn validate(cfg: &Config) -> Result<()> {
 			});
 		}
 	}
-
 	if det.enabled && det_hits.enabled {
 		if !det_hits.half_saturation.is_finite() {
 			return Err(Error::Validation {
@@ -288,7 +286,6 @@ pub fn validate(cfg: &Config) -> Result<()> {
 			});
 		}
 	}
-
 	if det.enabled && det_decay.enabled {
 		if !det_decay.tau_days.is_finite() {
 			return Err(Error::Validation {
@@ -303,7 +300,6 @@ pub fn validate(cfg: &Config) -> Result<()> {
 			});
 		}
 	}
-
 	if !cfg.chunking.enabled {
 		return Err(Error::Validation { message: "chunking.enabled must be true.".to_string() });
 	}

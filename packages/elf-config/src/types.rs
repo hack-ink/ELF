@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use serde::Deserialize;
+use serde_json::{Map, Value};
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
@@ -81,7 +82,7 @@ pub struct EmbeddingProviderConfig {
 	pub model: String,
 	pub dimensions: u32,
 	pub timeout_ms: u64,
-	pub default_headers: serde_json::Map<String, serde_json::Value>,
+	pub default_headers: Map<String, Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -92,7 +93,7 @@ pub struct ProviderConfig {
 	pub path: String,
 	pub model: String,
 	pub timeout_ms: u64,
-	pub default_headers: serde_json::Map<String, serde_json::Value>,
+	pub default_headers: Map<String, Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -104,7 +105,7 @@ pub struct LlmProviderConfig {
 	pub model: String,
 	pub temperature: f32,
 	pub timeout_ms: u64,
-	pub default_headers: serde_json::Map<String, serde_json::Value>,
+	pub default_headers: Map<String, Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -200,14 +201,6 @@ pub struct SearchExplain {
 	pub write_mode: String,
 }
 
-fn default_candidate_retention_days() -> i64 {
-	2
-}
-
-fn default_explain_write_mode() -> String {
-	"outbox".to_string()
-}
-
 #[derive(Debug, Deserialize)]
 pub struct Ranking {
 	pub recency_tau_days: f32,
@@ -247,7 +240,7 @@ impl Default for RankingDeterministicLexical {
 			weight: 0.05,
 			min_ratio: 0.3,
 			max_query_terms: 16,
-			max_text_terms: 1024,
+			max_text_terms: 1_024,
 		}
 	}
 }
@@ -368,6 +361,14 @@ pub struct Security {
 	pub evidence_max_quote_chars: u32,
 	pub api_auth_token: Option<String>,
 	pub admin_auth_token: Option<String>,
+}
+
+fn default_candidate_retention_days() -> i64 {
+	2
+}
+
+fn default_explain_write_mode() -> String {
+	"outbox".to_string()
 }
 
 fn default_read_profile() -> String {

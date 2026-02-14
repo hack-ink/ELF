@@ -3,10 +3,7 @@ use serde_json::Value;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::{
-	ElfService, Error, Result,
-	structured_fields::{StructuredFields, fetch_structured_fields},
-};
+use crate::{ElfService, Error, Result, structured_fields::StructuredFields};
 use elf_storage::models::MemoryNote;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -77,10 +74,12 @@ impl ElfService {
 			return Err(Error::InvalidRequest { message: "Note not found.".to_string() });
 		}
 
-		let structured =
-			fetch_structured_fields(&self.db.pool, std::slice::from_ref(&note.note_id))
-				.await?
-				.remove(&note.note_id);
+		let structured = crate::structured_fields::fetch_structured_fields(
+			&self.db.pool,
+			std::slice::from_ref(&note.note_id),
+		)
+		.await?
+		.remove(&note.note_id);
 
 		Ok(NoteFetchResponse {
 			note_id: note.note_id,

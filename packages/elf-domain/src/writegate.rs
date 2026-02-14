@@ -81,7 +81,7 @@ fn contains_secrets(text: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-	use super::*;
+	use crate::writegate::{NoteInput, RejectCode, contains_secrets, writegate};
 	use elf_config::{
 		Chunking, Config, EmbeddingProviderConfig, Lifecycle, LlmProviderConfig, Memory, Postgres,
 		ProviderConfig, Providers, Qdrant, Ranking, ReadProfiles, ScopePrecedence,

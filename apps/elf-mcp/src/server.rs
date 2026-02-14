@@ -1,8 +1,15 @@
 use std::{net::SocketAddr, sync::Arc};
 
-use axum::{Router, extract::State, middleware, response::IntoResponse};
+use axum::{
+	Router,
+	body::Body,
+	extract::State,
+	http::{HeaderMap, Request},
+	middleware::{self, Next},
+	response::IntoResponse,
+};
 use color_eyre::Result;
-use reqwest::Client;
+use reqwest::{Client, RequestBuilder};
 use rmcp::{
 	ErrorData as McpError, ServerHandler,
 	handler::server::router::tool::ToolRouter,
@@ -70,9 +77,9 @@ impl ElfMcp {
 
 	fn apply_context_headers(
 		&self,
-		builder: reqwest::RequestBuilder,
+		builder: RequestBuilder,
 		read_profile_override: Option<&str>,
-	) -> reqwest::RequestBuilder {
+	) -> RequestBuilder {
 		let read_profile = read_profile_override.unwrap_or(self.context.read_profile.as_str());
 		let builder = builder
 			.header(HEADER_TENANT_ID, self.context.tenant_id.as_str())
@@ -338,7 +345,7 @@ pub async fn serve_mcp(
 	Ok(())
 }
 
-fn is_authorized(headers: &axum::http::HeaderMap, expected: Option<&str>) -> bool {
+fn is_authorized(headers: &HeaderMap, expected: Option<&str>) -> bool {
 	let Some(expected) = expected else { return true };
 
 	if let Some(raw) = headers.get(HEADER_AUTH_TOKEN)
@@ -370,7 +377,6 @@ fn normalize_api_base(raw: &str) -> String {
 	} else {
 		("http://", trimmed)
 	};
-
 	// elf-mcp runs on the same host as elf-api. If elf-api binds to a wildcard address, use
 	// loopback for forwarding.
 	let rest = if let Some(value) = rest.strip_prefix("0.0.0.0:") {
@@ -590,8 +596,8 @@ async fn handle_response(response: reqwest::Response) -> Result<CallToolResult, 
 
 async fn mcp_auth_middleware(
 	State(expected): State<Option<String>>,
-	req: axum::http::Request<axum::body::Body>,
-	next: middleware::Next,
+	req: Request<Body>,
+	next: Next,
 ) -> axum::response::Response {
 	let expected = expected.as_deref();
 
@@ -606,7 +612,7 @@ async fn mcp_auth_middleware(
 mod tests {
 	use std::collections::HashMap;
 
-	use super::*;
+	use crate::server::HttpMethod;
 
 	#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 	struct ToolDefinition {

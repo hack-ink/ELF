@@ -1,18 +1,15 @@
+use elf_domain::writegate;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use elf_domain::{cjk, evidence, ttl, writegate};
-use elf_storage::models::MemoryNote;
-
 use crate::{
 	ElfService, Error, InsertVersionArgs, NoteOp, REJECT_EVIDENCE_MISMATCH, ResolveUpdateArgs,
-	Result, UpdateDecision,
-	structured_fields::{
-		StructuredFields, upsert_structured_fields_tx, validate_structured_fields,
-	},
+	Result, UpdateDecision, structured_fields::StructuredFields,
 };
+use elf_domain::{cjk, evidence, ttl};
+use elf_storage::models::MemoryNote;
 
 const REJECT_STRUCTURED_INVALID: &str = "REJECT_STRUCTURED_INVALID";
 
@@ -106,13 +103,11 @@ impl ElfService {
 			self.cfg.memory.max_notes_per_add_event,
 			self.cfg.memory.max_note_chars,
 		)?;
-
 		let extracted_raw = self
 			.providers
 			.extractor
 			.extract(&self.cfg.providers.llm_extractor, &messages_json)
 			.await?;
-
 		let mut extracted: ExtractorOutput = serde_json::from_value(extracted_raw.clone())
 			.map_err(|_| Error::InvalidRequest {
 				message: "Extractor output is missing notes array.".to_string(),
@@ -152,6 +147,7 @@ impl ElfService {
 					reason_code: Some(REJECT_EVIDENCE_MISMATCH.to_string()),
 					reason: note.reason.clone(),
 				});
+
 				continue;
 			}
 
@@ -187,13 +183,14 @@ impl ElfService {
 				let event_evidence: Vec<(usize, String)> =
 					evidence.iter().map(|q| (q.message_index, q.quote.clone())).collect();
 
-				if let Err(err) = validate_structured_fields(
+				if let Err(err) = crate::structured_fields::validate_structured_fields(
 					structured,
 					&text,
 					&serde_json::json!({}),
 					Some(event_evidence.as_slice()),
 				) {
 					tracing::info!(error = %err, "Rejecting extracted note due to invalid structured fields.");
+
 					results.push(AddEventResult {
 						note_id: None,
 						op: NoteOp::Rejected,
@@ -211,7 +208,7 @@ impl ElfService {
 				text: text.clone(),
 			};
 
-			if let Err(code) = writegate::writegate(&gate_input, &self.cfg) {
+			if let Err(code) = elf_domain::writegate::writegate(&gate_input, &self.cfg) {
 				results.push(AddEventResult {
 					note_id: None,
 					op: NoteOp::Rejected,
@@ -377,8 +374,13 @@ VALUES (
 					if let Some(structured) = structured.as_ref()
 						&& !structured.is_effectively_empty()
 					{
-						upsert_structured_fields_tx(&mut tx, memory_note.note_id, structured, now)
-							.await?;
+						crate::structured_fields::upsert_structured_fields_tx(
+							&mut tx,
+							memory_note.note_id,
+							structured,
+							now,
+						)
+						.await?;
 					}
 
 					tx.commit().await?;
@@ -453,12 +455,16 @@ WHERE note_id = $7",
 					if let Some(structured) = structured.as_ref()
 						&& !structured.is_effectively_empty()
 					{
-						upsert_structured_fields_tx(&mut tx, existing.note_id, structured, now)
-							.await?;
+						crate::structured_fields::upsert_structured_fields_tx(
+							&mut tx,
+							existing.note_id,
+							structured,
+							now,
+						)
+						.await?;
 					}
 
 					tx.commit().await?;
-
 					results.push(AddEventResult {
 						note_id: Some(note_id),
 						op: NoteOp::Update,
@@ -470,8 +476,10 @@ WHERE note_id = $7",
 					if let Some(structured) = structured.as_ref()
 						&& !structured.is_effectively_empty()
 					{
-						upsert_structured_fields_tx(&mut tx, note_id, structured, now).await?;
-
+						crate::structured_fields::upsert_structured_fields_tx(
+							&mut tx, note_id, structured, now,
+						)
+						.await?;
 						crate::enqueue_outbox_tx(
 							&mut *tx,
 							note_id,

@@ -1,7 +1,9 @@
 pub use tokenizers::Tokenizer;
+
+use tokenizers::Error;
 use unicode_segmentation::UnicodeSegmentation;
 
-pub type TokenizerError = tokenizers::Error;
+pub type TokenizerError = Error;
 
 #[derive(Clone, Debug)]
 pub struct ChunkingConfig {
@@ -25,9 +27,9 @@ pub fn split_text(text: &str, cfg: &ChunkingConfig, tokenizer: &Tokenizer) -> Ve
 	let sentences: Vec<(usize, &str)> = text.split_sentence_bound_indices().collect();
 	let mut chunks = Vec::new();
 	let mut current = String::new();
-	let mut current_start = 0usize;
-	let mut last_end = 0usize;
-	let mut chunk_index = 0i32;
+	let mut current_start = 0_usize;
+	let mut last_end = 0_usize;
+	let mut chunk_index = 0_i32;
 
 	for (idx, sentence) in sentences {
 		let candidate = format!("{}{}", current, sentence);
@@ -39,6 +41,7 @@ pub fn split_text(text: &str, cfg: &ChunkingConfig, tokenizer: &Tokenizer) -> Ve
 				0
 			},
 		};
+
 		if token_count as u32 > cfg.max_tokens && !current.is_empty() {
 			chunks.push(Chunk {
 				chunk_index,
@@ -46,17 +49,23 @@ pub fn split_text(text: &str, cfg: &ChunkingConfig, tokenizer: &Tokenizer) -> Ve
 				end_offset: last_end,
 				text: current.clone(),
 			});
+
 			chunk_index += 1;
+
 			let overlap = overlap_tail(&current, cfg.overlap_tokens, tokenizer);
+
 			current_start = last_end.saturating_sub(overlap.len());
 			current = overlap;
 		}
 		if current.is_empty() {
 			current_start = idx;
 		}
+
 		current.push_str(sentence);
+
 		last_end = idx + sentence.len();
 	}
+
 	if !current.is_empty() {
 		chunks.push(Chunk {
 			chunk_index,
@@ -65,6 +74,7 @@ pub fn split_text(text: &str, cfg: &ChunkingConfig, tokenizer: &Tokenizer) -> Ve
 			text: current,
 		});
 	}
+
 	chunks
 }
 
@@ -72,6 +82,7 @@ fn overlap_tail(text: &str, overlap_tokens: u32, tokenizer: &Tokenizer) -> Strin
 	if overlap_tokens == 0 {
 		return String::new();
 	}
+
 	let encoding = match tokenizer.encode(text, false) {
 		Ok(encoding) => encoding,
 		Err(err) => {
@@ -83,6 +94,7 @@ fn overlap_tail(text: &str, overlap_tokens: u32, tokenizer: &Tokenizer) -> Strin
 	let tokens = encoding.get_ids();
 	let start = tokens.len().saturating_sub(overlap_tokens as usize);
 	let tail_ids = &tokens[start..];
+
 	match tokenizer.decode(tail_ids, true) {
 		Ok(decoded) => decoded,
 		Err(err) => {
@@ -95,13 +107,14 @@ fn overlap_tail(text: &str, overlap_tokens: u32, tokenizer: &Tokenizer) -> Strin
 
 #[cfg(test)]
 mod tests {
-	use super::*;
+	use crate::{ChunkingConfig, load_tokenizer, split_text};
 
 	#[test]
 	fn splits_into_chunks_with_overlap() {
 		let cfg = ChunkingConfig { max_tokens: 10, overlap_tokens: 2 };
 		let tokenizer = load_tokenizer("Qwen/Qwen3-Embedding-8B").unwrap();
 		let chunks = split_text("One. Two. Three. Four.", &cfg, &tokenizer);
+
 		assert!(!chunks.is_empty());
 		assert!(chunks[0].text.contains("One"));
 	}

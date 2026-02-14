@@ -1,6 +1,7 @@
 pub fn contains_cjk(input: &str) -> bool {
 	input.chars().any(|c| {
 		let code = c as u32;
+
 		matches!(
 			code,
 			0x3000..=0x303F

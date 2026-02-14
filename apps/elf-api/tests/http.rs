@@ -4,8 +4,8 @@ use axum::{
 	body::{self, Body},
 	http::{Request, StatusCode},
 };
-use serde_json::Map;
-use tower::util::ServiceExt;
+use serde_json::{Map, Value};
+use tower::util::ServiceExt as _;
 
 use elf_api::{routes, state::AppState};
 use elf_config::{
@@ -166,7 +166,7 @@ fn dummy_llm_provider() -> LlmProviderConfig {
 	}
 }
 
-async fn test_env() -> Option<(elf_testkit::TestDatabase, String, String)> {
+async fn test_env() -> Option<(TestDatabase, String, String)> {
 	let base_dsn = match elf_testkit::env_dsn() {
 		Some(value) => value,
 		None => {
@@ -255,7 +255,7 @@ async fn rejects_cjk_in_add_note() {
 	let body = body::to_bytes(response.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read response body.");
-	let json: serde_json::Value = serde_json::from_slice(&body).expect("Failed to parse response.");
+	let json: Value = serde_json::from_slice(&body).expect("Failed to parse response.");
 
 	assert_eq!(json["error_code"], "NON_ENGLISH_INPUT");
 	assert_eq!(json["fields"][0], "$.notes[0].text");
@@ -298,7 +298,7 @@ async fn rejects_cjk_in_add_event() {
 	let body = body::to_bytes(response.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read response body.");
-	let json: serde_json::Value = serde_json::from_slice(&body).expect("Failed to parse response.");
+	let json: Value = serde_json::from_slice(&body).expect("Failed to parse response.");
 
 	assert_eq!(json["error_code"], "NON_ENGLISH_INPUT");
 	assert_eq!(json["fields"][0], "$.messages[0].content");
@@ -341,7 +341,7 @@ async fn rejects_cjk_in_search() {
 	let body = body::to_bytes(response.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read response body.");
-	let json: serde_json::Value = serde_json::from_slice(&body).expect("Failed to parse response.");
+	let json: Value = serde_json::from_slice(&body).expect("Failed to parse response.");
 
 	assert_eq!(json["error_code"], "NON_ENGLISH_INPUT");
 	assert_eq!(json["fields"][0], "$.query");

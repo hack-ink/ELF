@@ -8,6 +8,8 @@ use std::{
 
 use elf_config::{Config, Context};
 
+use toml::Value;
+
 const SAMPLE_CONFIG_TEMPLATE_TOML: &str = include_str!("fixtures/sample_config.template.toml");
 
 fn sample_toml(reject_cjk: bool) -> String {
@@ -20,9 +22,8 @@ fn sample_toml_with_cache(
 	rerank_ttl_days: i64,
 	cache_enabled: bool,
 ) -> String {
-	let mut value: toml::Value =
+	let mut value: Value =
 		toml::from_str(SAMPLE_CONFIG_TEMPLATE_TOML).expect("Failed to parse template config.");
-
 	let root = value.as_table_mut().expect("Template config must be a table.");
 	let search = root
 		.get_mut("search")
@@ -41,6 +42,7 @@ fn sample_toml_with_cache(
 		.get_mut("security")
 		.and_then(toml::Value::as_table_mut)
 		.expect("Template config must include [security].");
+
 	security.insert("reject_cjk".to_string(), toml::Value::Boolean(reject_cjk));
 
 	toml::to_string(&value).expect("Failed to render template config.")
@@ -55,7 +57,6 @@ fn write_temp_config(payload: String) -> PathBuf {
 		.as_nanos();
 	let ordinal = COUNTER.fetch_add(1, Ordering::SeqCst);
 	let pid = std::process::id();
-
 	let mut path = env::temp_dir();
 
 	path.push(format!("elf_config_test_{nanos}_{pid}_{ordinal}.toml"));
