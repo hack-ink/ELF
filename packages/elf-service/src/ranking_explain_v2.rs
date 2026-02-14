@@ -59,7 +59,6 @@ pub fn strip_term_inputs(terms: &[SearchRankingTerm]) -> Vec<SearchRankingTerm> 
 pub fn build_trace_terms_v2(args: TraceTermsArgs<'_>) -> Vec<SearchRankingTerm> {
 	let cfg = args.cfg;
 	let blend_enabled = args.blend_enabled;
-	let det = &cfg.ranking.deterministic;
 	let mut terms = Vec::new();
 	let mut blend_retrieval_inputs = BTreeMap::new();
 
@@ -135,6 +134,17 @@ pub fn build_trace_terms_v2(args: TraceTermsArgs<'_>) -> Vec<SearchRankingTerm> 
 		inputs: Some(scope_boost_inputs),
 	});
 
+	push_deterministic_terms(&mut terms, cfg, &args);
+
+	terms
+}
+
+fn push_deterministic_terms(
+	terms: &mut Vec<SearchRankingTerm>,
+	cfg: &Config,
+	args: &TraceTermsArgs<'_>,
+) {
+	let det = &cfg.ranking.deterministic;
 	let mut lex_inputs = BTreeMap::new();
 
 	lex_inputs.insert("enabled".to_string(), serde_json::json!(det.enabled && det.lexical.enabled));
@@ -182,6 +192,4 @@ pub fn build_trace_terms_v2(args: TraceTermsArgs<'_>) -> Vec<SearchRankingTerm> 
 		value: args.deterministic_decay_penalty,
 		inputs: Some(decay_inputs),
 	});
-
-	terms
 }

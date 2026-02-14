@@ -54,7 +54,7 @@ use uuid::Uuid;
 
 use elf_config::{Config, EmbeddingProviderConfig, LlmProviderConfig, ProviderConfig};
 use elf_domain::writegate::RejectCode;
-use elf_providers::{embedding, extractor, rerank};
+use elf_providers::{embedding, extractor};
 use elf_storage::{db::Db, models::MemoryNote, qdrant::QdrantStore};
 
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
@@ -198,7 +198,7 @@ impl RerankProvider for DefaultProviders {
 		docs: &'a [String],
 	) -> BoxFuture<'a, Result<Vec<f32>>> {
 		Box::pin(async move {
-			rerank::rerank(cfg, query, docs)
+			elf_providers::rerank::rerank(cfg, query, docs)
 				.await
 				.map_err(|err| Error::Provider { message: err.to_string() })
 		})

@@ -6,9 +6,9 @@ use std::{
 	time::{SystemTime, UNIX_EPOCH},
 };
 
-use elf_config::{Config, Context};
-
 use toml::Value;
+
+use elf_config::{Config, Context};
 
 const SAMPLE_CONFIG_TEMPLATE_TOML: &str = include_str!("fixtures/sample_config.template.toml");
 
@@ -27,23 +27,23 @@ fn sample_toml_with_cache(
 	let root = value.as_table_mut().expect("Template config must be a table.");
 	let search = root
 		.get_mut("search")
-		.and_then(toml::Value::as_table_mut)
+		.and_then(Value::as_table_mut)
 		.expect("Template config must include [search].");
 	let cache = search
 		.get_mut("cache")
-		.and_then(toml::Value::as_table_mut)
+		.and_then(Value::as_table_mut)
 		.expect("Template config must include [search.cache].");
 
-	cache.insert("enabled".to_string(), toml::Value::Boolean(cache_enabled));
-	cache.insert("expansion_ttl_days".to_string(), toml::Value::Integer(expansion_ttl_days));
-	cache.insert("rerank_ttl_days".to_string(), toml::Value::Integer(rerank_ttl_days));
+	cache.insert("enabled".to_string(), Value::Boolean(cache_enabled));
+	cache.insert("expansion_ttl_days".to_string(), Value::Integer(expansion_ttl_days));
+	cache.insert("rerank_ttl_days".to_string(), Value::Integer(rerank_ttl_days));
 
 	let security = root
 		.get_mut("security")
-		.and_then(toml::Value::as_table_mut)
+		.and_then(Value::as_table_mut)
 		.expect("Template config must include [security].");
 
-	security.insert("reject_cjk".to_string(), toml::Value::Boolean(reject_cjk));
+	security.insert("reject_cjk".to_string(), Value::Boolean(reject_cjk));
 
 	toml::to_string(&value).expect("Failed to render template config.")
 }

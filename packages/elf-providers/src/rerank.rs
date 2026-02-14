@@ -6,7 +6,7 @@ use serde_json::Value;
 use crate::{Error, Result};
 use elf_config::ProviderConfig;
 
-static LOCAL_NOISE_CALL_COUNTER: AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static LOCAL_NOISE_CALL_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 struct XorShift64 {
 	state: u64,

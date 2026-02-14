@@ -19,15 +19,681 @@ use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
 use crate::{ElfService, Error, Result, ranking_explain_v2};
-use elf_config::Config;
+use elf_config::{Config, SearchCache};
 use elf_domain::cjk;
 use elf_storage::{
 	models::MemoryNote,
 	qdrant::{BM25_MODEL, BM25_VECTOR_NAME, DENSE_VECTOR_NAME},
 };
+use ranking::{ResolvedBlendPolicy, ResolvedDiversityPolicy, ResolvedRetrievalSourcesPolicy};
 
 const TRACE_VERSION: i32 = 2;
 const MAX_MATCHED_TERMS: usize = 8;
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SearchRequest {
+	pub tenant_id: String,
+	pub project_id: String,
+	pub agent_id: String,
+	pub read_profile: String,
+	pub query: String,
+	pub top_k: Option<u32>,
+	pub candidate_k: Option<u32>,
+	pub record_hits: Option<bool>,
+	pub ranking: Option<RankingRequestOverride>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RankingRequestOverride {
+	pub blend: Option<BlendRankingOverride>,
+	pub diversity: Option<DiversityRankingOverride>,
+	pub retrieval_sources: Option<RetrievalSourcesRankingOverride>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct BlendRankingOverride {
+	pub enabled: Option<bool>,
+	pub rerank_normalization: Option<String>,
+	pub retrieval_normalization: Option<String>,
+	pub segments: Option<Vec<BlendSegmentOverride>>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct BlendSegmentOverride {
+	pub max_retrieval_rank: u32,
+	pub retrieval_weight: f32,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct DiversityRankingOverride {
+	pub enabled: Option<bool>,
+	pub sim_threshold: Option<f32>,
+	pub mmr_lambda: Option<f32>,
+	pub max_skips: Option<u32>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RetrievalSourcesRankingOverride {
+	pub fusion_weight: Option<f32>,
+	pub structured_field_weight: Option<f32>,
+	pub fusion_priority: Option<u32>,
+	pub structured_field_priority: Option<u32>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SearchExplain {
+	pub r#match: SearchMatchExplain,
+	pub ranking: SearchRankingExplain,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub diversity: Option<SearchDiversityExplain>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SearchMatchExplain {
+	pub matched_terms: Vec<String>,
+	pub matched_fields: Vec<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SearchDiversityExplain {
+	pub enabled: bool,
+	pub selected_reason: String,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub skipped_reason: Option<String>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub nearest_selected_note_id: Option<Uuid>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub similarity: Option<f32>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub mmr_score: Option<f32>,
+	#[serde(default)]
+	pub missing_embedding: bool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SearchItem {
+	pub result_handle: Uuid,
+	pub note_id: Uuid,
+	pub chunk_id: Uuid,
+	pub chunk_index: i32,
+	pub start_offset: i32,
+	pub end_offset: i32,
+	pub snippet: String,
+	pub r#type: String,
+	pub key: Option<String>,
+	pub scope: String,
+	pub importance: f32,
+	pub confidence: f32,
+	#[serde(with = "crate::time_serde")]
+	pub updated_at: OffsetDateTime,
+	#[serde(with = "crate::time_serde::option")]
+	pub expires_at: Option<OffsetDateTime>,
+	pub final_score: f32,
+	pub source_ref: Value,
+	pub explain: SearchExplain,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SearchResponse {
+	pub trace_id: Uuid,
+	pub items: Vec<SearchItem>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SearchExplainRequest {
+	pub tenant_id: String,
+	pub project_id: String,
+	pub agent_id: String,
+	pub result_handle: Uuid,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SearchTrace {
+	pub trace_id: Uuid,
+	pub tenant_id: String,
+	pub project_id: String,
+	pub agent_id: String,
+	pub read_profile: String,
+	pub query: String,
+	pub expansion_mode: String,
+	pub expanded_queries: Vec<String>,
+	pub allowed_scopes: Vec<String>,
+	pub candidate_count: u32,
+	pub top_k: u32,
+	pub config_snapshot: Value,
+	#[serde(with = "crate::time_serde")]
+	pub created_at: OffsetDateTime,
+	pub trace_version: i32,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SearchExplainItem {
+	pub result_handle: Uuid,
+	pub note_id: Uuid,
+	pub chunk_id: Option<Uuid>,
+	pub rank: u32,
+	pub explain: SearchExplain,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SearchExplainResponse {
+	pub trace: SearchTrace,
+	pub item: SearchExplainItem,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TraceGetRequest {
+	pub tenant_id: String,
+	pub project_id: String,
+	pub agent_id: String,
+	pub trace_id: Uuid,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TraceGetResponse {
+	pub trace: SearchTrace,
+	pub items: Vec<SearchExplainItem>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TraceReplayContext {
+	pub trace_id: Uuid,
+	pub query: String,
+	pub candidate_count: u32,
+	pub top_k: u32,
+	#[serde(with = "crate::time_serde")]
+	pub created_at: OffsetDateTime,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TraceReplayCandidate {
+	pub note_id: Uuid,
+	pub chunk_id: Uuid,
+	pub chunk_index: i32,
+	pub snippet: String,
+	pub retrieval_rank: u32,
+	pub rerank_score: f32,
+	pub note_scope: String,
+	pub note_importance: f32,
+	#[serde(with = "crate::time_serde")]
+	pub note_updated_at: OffsetDateTime,
+	pub note_hit_count: i64,
+	#[serde(with = "crate::time_serde::option")]
+	pub note_last_hit_at: Option<OffsetDateTime>,
+	pub diversity_selected: Option<bool>,
+	pub diversity_selected_rank: Option<u32>,
+	pub diversity_selected_reason: Option<String>,
+	pub diversity_skipped_reason: Option<String>,
+	pub diversity_nearest_selected_note_id: Option<Uuid>,
+	pub diversity_similarity: Option<f32>,
+	pub diversity_mmr_score: Option<f32>,
+	pub diversity_missing_embedding: Option<bool>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TraceReplayItem {
+	pub note_id: Uuid,
+	pub chunk_id: Uuid,
+	pub retrieval_rank: u32,
+	pub final_score: f32,
+	pub explain: SearchExplain,
+}
+
+struct ScoreSnippetArgs<'a, 'k> {
+	query: &'a str,
+	snippet_items: Vec<ChunkSnippet>,
+	scope_context_boost_by_scope: &'a HashMap<&'k str, f32>,
+	det_query_tokens: &'a [String],
+	blend_policy: &'a ResolvedBlendPolicy,
+	cache_cfg: &'a SearchCache,
+	now: OffsetDateTime,
+	candidate_count: usize,
+}
+
+struct ScoreCandidateCtx<'a, 'k> {
+	cfg: &'a Config,
+	blend_policy: &'a ResolvedBlendPolicy,
+	scope_context_boost_by_scope: &'a HashMap<&'k str, f32>,
+	det_query_tokens: &'a [String],
+	now: OffsetDateTime,
+	total_rerank: u32,
+	total_retrieval: u32,
+}
+
+struct MaybeDynamicSearchArgs<'a> {
+	enabled: bool,
+	trace_id: Uuid,
+	query: &'a str,
+	tenant_id: &'a str,
+	project_id: &'a str,
+	agent_id: &'a str,
+	read_profile: &'a str,
+	allowed_scopes: &'a [String],
+	project_context_description: Option<&'a str>,
+	filter: &'a Filter,
+	candidate_k: u32,
+	top_k: u32,
+	record_hits_enabled: bool,
+	ranking_override: Option<&'a RankingRequestOverride>,
+	retrieval_sources_policy: &'a ResolvedRetrievalSourcesPolicy,
+}
+
+struct SearchRetrievalArgs<'a> {
+	query: &'a str,
+	expansion_mode: ExpansionMode,
+	project_context_description: Option<&'a str>,
+	filter: &'a Filter,
+	candidate_k: u32,
+	baseline_vector: Option<&'a Vec<f32>>,
+	tenant_id: &'a str,
+	project_id: &'a str,
+	agent_id: &'a str,
+	allowed_scopes: &'a [String],
+	retrieval_sources_policy: &'a ResolvedRetrievalSourcesPolicy,
+}
+
+struct SearchRetrievalResult {
+	expanded_queries: Vec<String>,
+	candidates: Vec<ChunkCandidate>,
+	structured_matches: HashMap<Uuid, Vec<String>>,
+}
+
+#[derive(Clone, Debug)]
+struct QueryEmbedding {
+	text: String,
+	vector: Vec<f32>,
+}
+
+#[derive(Clone, Debug)]
+struct ChunkCandidate {
+	chunk_id: Uuid,
+	note_id: Uuid,
+	chunk_index: i32,
+	retrieval_rank: u32,
+	updated_at: Option<OffsetDateTime>,
+	embedding_version: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+struct RerankCacheCandidate {
+	chunk_id: Uuid,
+	updated_at: OffsetDateTime,
+}
+
+#[derive(Clone, Debug)]
+struct NoteMeta {
+	note_id: Uuid,
+	note_type: String,
+	key: Option<String>,
+	scope: String,
+	importance: f32,
+	confidence: f32,
+	updated_at: OffsetDateTime,
+	expires_at: Option<OffsetDateTime>,
+	source_ref: Value,
+	embedding_version: String,
+	hit_count: i64,
+	last_hit_at: Option<OffsetDateTime>,
+}
+
+#[derive(Clone, Debug, sqlx::FromRow)]
+struct ChunkRow {
+	chunk_id: Uuid,
+	note_id: Uuid,
+	chunk_index: i32,
+	start_offset: i32,
+	end_offset: i32,
+	text: String,
+}
+
+#[derive(Clone, Debug, sqlx::FromRow)]
+struct NoteVectorRow {
+	note_id: Uuid,
+	vec_text: String,
+}
+
+#[derive(Clone, Debug)]
+struct ChunkMeta {
+	chunk_id: Uuid,
+	chunk_index: i32,
+	start_offset: i32,
+	end_offset: i32,
+}
+
+#[derive(Clone, Debug)]
+struct ChunkSnippet {
+	note: NoteMeta,
+	chunk: ChunkMeta,
+	snippet: String,
+	retrieval_rank: u32,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct ExpansionCachePayload {
+	queries: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ExpansionOutput {
+	queries: Vec<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct RerankCacheItem {
+	chunk_id: Uuid,
+	updated_at: OffsetDateTime,
+	score: f32,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct RerankCachePayload {
+	items: Vec<RerankCacheItem>,
+}
+
+#[derive(Clone, Debug)]
+struct CachePayload {
+	value: Value,
+	size_bytes: usize,
+}
+
+#[derive(Clone, Debug)]
+struct ScoredChunk {
+	item: ChunkSnippet,
+	final_score: f32,
+	rerank_score: f32,
+	rerank_rank: u32,
+	rerank_norm: f32,
+	retrieval_norm: f32,
+	blend_retrieval_weight: f32,
+	retrieval_term: f32,
+	rerank_term: f32,
+	tie_breaker_score: f32,
+	scope_context_boost: f32,
+	age_days: f32,
+	importance: f32,
+	deterministic_lexical_overlap_ratio: f32,
+	deterministic_lexical_bonus: f32,
+	deterministic_hit_count: i64,
+	deterministic_last_hit_age_days: Option<f32>,
+	deterministic_hit_boost: f32,
+	deterministic_decay_penalty: f32,
+}
+
+#[derive(Clone, Debug)]
+struct DiversityDecision {
+	selected: bool,
+	selected_rank: Option<u32>,
+	selected_reason: String,
+	skipped_reason: Option<String>,
+	nearest_selected_note_id: Option<Uuid>,
+	similarity: Option<f32>,
+	mmr_score: Option<f32>,
+	missing_embedding: bool,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct DeterministicRankingTerms {
+	lexical_overlap_ratio: f32,
+	lexical_bonus: f32,
+	hit_count: i64,
+	last_hit_age_days: Option<f32>,
+	hit_boost: f32,
+	decay_penalty: f32,
+}
+impl Default for DeterministicRankingTerms {
+	fn default() -> Self {
+		Self {
+			lexical_overlap_ratio: 0.0,
+			lexical_bonus: 0.0,
+			hit_count: 0,
+			last_hit_age_days: None,
+			hit_boost: 0.0,
+			decay_penalty: 0.0,
+		}
+	}
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct TracePayload {
+	trace: TraceRecord,
+	items: Vec<TraceItemRecord>,
+	#[serde(default)]
+	candidates: Vec<TraceCandidateRecord>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct TraceRecord {
+	trace_id: Uuid,
+	tenant_id: String,
+	project_id: String,
+	agent_id: String,
+	read_profile: String,
+	query: String,
+	expansion_mode: String,
+	expanded_queries: Vec<String>,
+	allowed_scopes: Vec<String>,
+	candidate_count: u32,
+	top_k: u32,
+	config_snapshot: Value,
+	trace_version: i32,
+	created_at: OffsetDateTime,
+	expires_at: OffsetDateTime,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct TraceItemRecord {
+	item_id: Uuid,
+	note_id: Uuid,
+	chunk_id: Option<Uuid>,
+	rank: u32,
+	final_score: f32,
+	explain: SearchExplain,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct TraceCandidateRecord {
+	candidate_id: Uuid,
+	note_id: Uuid,
+	chunk_id: Uuid,
+	chunk_index: i32,
+	snippet: String,
+	#[serde(default)]
+	candidate_snapshot: Value,
+	retrieval_rank: u32,
+	rerank_score: f32,
+	note_scope: String,
+	note_importance: f32,
+	note_updated_at: OffsetDateTime,
+	note_hit_count: i64,
+	note_last_hit_at: Option<OffsetDateTime>,
+	created_at: OffsetDateTime,
+	expires_at: OffsetDateTime,
+}
+
+struct TraceContext<'a> {
+	trace_id: Uuid,
+	tenant_id: &'a str,
+	project_id: &'a str,
+	agent_id: &'a str,
+	read_profile: &'a str,
+	query: &'a str,
+	expansion_mode: ExpansionMode,
+	expanded_queries: Vec<String>,
+	allowed_scopes: &'a [String],
+	candidate_count: usize,
+	top_k: u32,
+}
+
+struct SearchTraceBuilder {
+	trace: TraceRecord,
+	items: Vec<TraceItemRecord>,
+	candidates: Vec<TraceCandidateRecord>,
+}
+impl SearchTraceBuilder {
+	fn new(
+		context: TraceContext<'_>,
+		config_snapshot: Value,
+		retention_days: i64,
+		now: OffsetDateTime,
+	) -> Self {
+		let trace = TraceRecord {
+			trace_id: context.trace_id,
+			tenant_id: context.tenant_id.to_string(),
+			project_id: context.project_id.to_string(),
+			agent_id: context.agent_id.to_string(),
+			read_profile: context.read_profile.to_string(),
+			query: context.query.to_string(),
+			expansion_mode: ranking::expansion_mode_label(context.expansion_mode).to_string(),
+			expanded_queries: context.expanded_queries,
+			allowed_scopes: context.allowed_scopes.to_vec(),
+			candidate_count: context.candidate_count as u32,
+			top_k: context.top_k,
+			config_snapshot,
+			trace_version: TRACE_VERSION,
+			created_at: now,
+			expires_at: now + Duration::days(retention_days),
+		};
+
+		Self { trace, items: Vec::new(), candidates: Vec::new() }
+	}
+
+	fn push_item(&mut self, item: TraceItemRecord) {
+		self.items.push(item);
+	}
+
+	fn push_candidate(&mut self, candidate: TraceCandidateRecord) {
+		self.candidates.push(candidate);
+	}
+
+	fn build(self) -> TracePayload {
+		TracePayload { trace: self.trace, items: self.items, candidates: self.candidates }
+	}
+}
+
+struct FinishSearchArgs<'a> {
+	trace_id: Uuid,
+	query: &'a str,
+	tenant_id: &'a str,
+	project_id: &'a str,
+	agent_id: &'a str,
+	read_profile: &'a str,
+	allowed_scopes: &'a [String],
+	expanded_queries: Vec<String>,
+	expansion_mode: ExpansionMode,
+	candidates: Vec<ChunkCandidate>,
+	structured_matches: HashMap<Uuid, Vec<String>>,
+	top_k: u32,
+	record_hits_enabled: bool,
+	ranking_override: Option<RankingRequestOverride>,
+}
+
+struct FinishSearchPolicies {
+	blend_policy: ResolvedBlendPolicy,
+	diversity_policy: ResolvedDiversityPolicy,
+	retrieval_sources_policy: ResolvedRetrievalSourcesPolicy,
+	policy_snapshot: Value,
+	policy_id: String,
+}
+
+struct BuildTraceArgs<'a> {
+	trace_id: Uuid,
+	query: &'a str,
+	tenant_id: &'a str,
+	project_id: &'a str,
+	agent_id: &'a str,
+	read_profile: &'a str,
+	expansion_mode: ExpansionMode,
+	expanded_queries: Vec<String>,
+	allowed_scopes: &'a [String],
+	candidate_count: usize,
+	top_k: u32,
+	query_tokens: &'a [String],
+	structured_matches: &'a HashMap<Uuid, Vec<String>>,
+	policies: &'a FinishSearchPolicies,
+	diversity_decisions: &'a HashMap<Uuid, DiversityDecision>,
+	selected_results: Vec<ScoredChunk>,
+	trace_candidates: Vec<TraceCandidateRecord>,
+	now: OffsetDateTime,
+	ranking_override: &'a Option<RankingRequestOverride>,
+}
+
+struct BuildSearchItemArgs<'a> {
+	cfg: &'a Config,
+	policy_id: &'a str,
+	blend_policy: &'a ResolvedBlendPolicy,
+	diversity_policy: &'a ResolvedDiversityPolicy,
+	diversity_decisions: &'a HashMap<Uuid, DiversityDecision>,
+	query_tokens: &'a [String],
+	structured_matches: &'a HashMap<Uuid, Vec<String>>,
+	scored_chunk: ScoredChunk,
+	rank: u32,
+}
+
+struct StructuredFieldRetrievalArgs<'a> {
+	tenant_id: &'a str,
+	project_id: &'a str,
+	agent_id: &'a str,
+	allowed_scopes: &'a [String],
+	query_vec: &'a [f32],
+	candidate_k: u32,
+	now: OffsetDateTime,
+}
+
+#[derive(Debug)]
+struct FieldHit {
+	note_id: Uuid,
+	field_kind: String,
+}
+
+struct StructuredFieldHitArgs<'a> {
+	embed_version: &'a str,
+	tenant_id: &'a str,
+	project_id: &'a str,
+	agent_id: &'a str,
+	now: OffsetDateTime,
+	vec_text: &'a str,
+	retrieval_limit: i64,
+	private_allowed: bool,
+	non_private_scopes: &'a [String],
+}
+
+#[derive(Clone, Debug)]
+struct StructuredFieldRetrievalResult {
+	candidates: Vec<ChunkCandidate>,
+	structured_matches: HashMap<Uuid, Vec<String>>,
+}
+
+#[derive(Debug, Clone)]
+struct RetrievalSourceCandidates {
+	source: RetrievalSourceKind,
+	candidates: Vec<ChunkCandidate>,
+}
+
+#[derive(Clone, Debug)]
+struct ScoredReplay {
+	note_id: Uuid,
+	chunk_id: Uuid,
+	retrieval_rank: u32,
+	final_score: f32,
+	rerank_score: f32,
+	rerank_rank: u32,
+	rerank_norm: f32,
+	retrieval_norm: f32,
+	blend_retrieval_weight: f32,
+	retrieval_term: f32,
+	rerank_term: f32,
+	tie_breaker_score: f32,
+	scope_context_boost: f32,
+	age_days: f32,
+	importance: f32,
+	note_scope: String,
+	deterministic_lexical_overlap_ratio: f32,
+	deterministic_lexical_bonus: f32,
+	deterministic_hit_count: i64,
+	deterministic_last_hit_age_days: Option<f32>,
+	deterministic_hit_boost: f32,
+	deterministic_decay_penalty: f32,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ExpansionMode {
@@ -62,14 +728,7 @@ impl ElfService {
 		let project_id = req.project_id.trim();
 		let agent_id = req.agent_id.trim();
 
-		if tenant_id.is_empty() || project_id.is_empty() || agent_id.is_empty() {
-			return Err(Error::InvalidRequest {
-				message: "tenant_id, project_id, and agent_id are required.".to_string(),
-			});
-		}
-		if cjk::contains_cjk(&req.query) {
-			return Err(Error::NonEnglishInput { field: "$.query".to_string() });
-		}
+		validate_search_request_inputs(tenant_id, project_id, agent_id, req.query.as_str())?;
 
 		let top_k = req.top_k.unwrap_or(self.cfg.memory.top_k).max(1);
 		let candidate_k = req.candidate_k.unwrap_or(self.cfg.memory.candidate_k).max(top_k);
@@ -108,144 +767,107 @@ impl ElfService {
 				.await;
 		}
 
-		let private_scope = "agent_private".to_string();
-		let non_private_scopes: Vec<String> =
-			allowed_scopes.iter().filter(|scope| *scope != "agent_private").cloned().collect();
-		let mut should_conditions = Vec::new();
-
-		if allowed_scopes.iter().any(|scope| scope == "agent_private") {
-			let private_filter = Filter::all([
-				Condition::matches("scope", private_scope),
-				Condition::matches("agent_id", agent_id.to_string()),
-			]);
-
-			should_conditions.push(Condition::from(private_filter));
-		}
-		if !non_private_scopes.is_empty() {
-			should_conditions.push(Condition::matches("scope", non_private_scopes));
-		}
-
-		let (should, min_should) = if should_conditions.is_empty() {
-			(Vec::new(), None)
-		} else {
-			(Vec::new(), Some(MinShould { min_count: 1, conditions: should_conditions }))
-		};
-		let filter = Filter {
-			must: vec![
-				Condition::matches("tenant_id", tenant_id.to_string()),
-				Condition::matches("project_id", project_id.to_string()),
-				Condition::matches("status", "active".to_string()),
-			],
-			should,
-			must_not: Vec::new(),
-			min_should,
-		};
-		let mut baseline_vector: Option<Vec<f32>> = None;
-
-		if expansion_mode == ExpansionMode::Dynamic {
-			let query_vec = self.embed_single_query(&query, project_context_description).await?;
-
-			baseline_vector = Some(query_vec.clone());
-
-			let baseline_points = self
-				.run_fusion_query(
-					&[QueryEmbedding { text: query.clone(), vector: query_vec.clone() }],
-					&filter,
-					candidate_k,
-				)
-				.await?;
-			let top_score = baseline_points.first().map(|point| point.score).unwrap_or(0.0);
-			let candidates = ranking::collect_chunk_candidates(
-				&baseline_points,
-				self.cfg.search.prefilter.max_candidates,
+		let filter = build_search_filter(tenant_id, project_id, agent_id, &allowed_scopes);
+		let (baseline_vector, early_response) = self
+			.maybe_finish_dynamic_search(MaybeDynamicSearchArgs {
+				enabled: expansion_mode == ExpansionMode::Dynamic,
+				trace_id,
+				query: query.as_str(),
+				tenant_id,
+				project_id,
+				agent_id,
+				read_profile: read_profile.as_str(),
+				allowed_scopes: &allowed_scopes,
+				project_context_description,
+				filter: &filter,
 				candidate_k,
-			);
-			let should_expand = ranking::should_expand_dynamic(
-				baseline_points.len(),
-				top_score,
-				&self.cfg.search.dynamic,
-			);
+				top_k,
+				record_hits_enabled,
+				ranking_override: ranking_override.as_ref(),
+				retrieval_sources_policy: &retrieval_sources_policy,
+			})
+			.await?;
 
-			if !should_expand {
-				let structured = self
-					.retrieve_structured_field_candidates(StructuredFieldRetrievalArgs {
-						tenant_id,
-						project_id,
-						agent_id,
-						allowed_scopes: &allowed_scopes,
-						query_vec: query_vec.as_slice(),
-						candidate_k,
-						now: OffsetDateTime::now_utc(),
-					})
-					.await?;
-				let merged_candidates = ranking::merge_retrieval_candidates(
-					vec![
-						RetrievalSourceCandidates {
-							source: RetrievalSourceKind::Fusion,
-							candidates,
-						},
-						RetrievalSourceCandidates {
-							source: RetrievalSourceKind::StructuredField,
-							candidates: structured.candidates,
-						},
-					],
-					&retrieval_sources_policy,
-					candidate_k,
-				);
-
-				return self
-					.finish_search(FinishSearchArgs {
-						trace_id,
-						query: &query,
-						tenant_id,
-						project_id,
-						agent_id,
-						read_profile: &read_profile,
-						allowed_scopes: &allowed_scopes,
-						expanded_queries: vec![query.clone()],
-						expansion_mode,
-						candidates: merged_candidates,
-						structured_matches: structured.structured_matches,
-						top_k,
-						record_hits_enabled,
-						ranking_override: ranking_override.clone(),
-					})
-					.await;
-			}
+		if let Some(response) = early_response {
+			return Ok(response);
 		}
 
-		let queries = match expansion_mode {
-			ExpansionMode::Off => vec![query.clone()],
-			ExpansionMode::Always | ExpansionMode::Dynamic => self.expand_queries(&query).await,
-		};
-		let expanded_queries = queries.clone();
-		let query_embeddings = self
-			.embed_queries(&queries, &query, baseline_vector.as_ref(), project_context_description)
-			.await?;
-		let fusion_points = self.run_fusion_query(&query_embeddings, &filter, candidate_k).await?;
-		let candidates = ranking::collect_chunk_candidates(
-			&fusion_points,
-			self.cfg.search.prefilter.max_candidates,
-			candidate_k,
-		);
-		let original_query_vec = query_embeddings
-			.iter()
-			.find(|embedded| embedded.text == query)
-			.map(|embedded| embedded.vector.clone())
-			.unwrap_or_else(Vec::new);
-		let original_query_vec = if original_query_vec.is_empty() {
-			self.embed_single_query(&query, project_context_description).await?
-		} else {
-			original_query_vec
-		};
-		let structured = self
-			.retrieve_structured_field_candidates(StructuredFieldRetrievalArgs {
+		let retrieval = self
+			.retrieve_search_candidates(SearchRetrievalArgs {
+				query: query.as_str(),
+				expansion_mode,
+				project_context_description,
+				filter: &filter,
+				candidate_k,
+				baseline_vector: baseline_vector.as_ref(),
 				tenant_id,
 				project_id,
 				agent_id,
 				allowed_scopes: &allowed_scopes,
-				query_vec: original_query_vec.as_slice(),
-				candidate_k,
+				retrieval_sources_policy: &retrieval_sources_policy,
+			})
+			.await?;
+
+		self.finish_search(FinishSearchArgs {
+			trace_id,
+			query: &query,
+			tenant_id,
+			project_id,
+			agent_id,
+			read_profile: &read_profile,
+			allowed_scopes: &allowed_scopes,
+			expanded_queries: retrieval.expanded_queries,
+			expansion_mode,
+			candidates: retrieval.candidates,
+			structured_matches: retrieval.structured_matches,
+			top_k,
+			record_hits_enabled,
+			ranking_override,
+		})
+		.await
+	}
+
+	async fn maybe_finish_dynamic_search(
+		&self,
+		args: MaybeDynamicSearchArgs<'_>,
+	) -> Result<(Option<Vec<f32>>, Option<SearchResponse>)> {
+		if !args.enabled {
+			return Ok((None, None));
+		}
+
+		let query_vec =
+			self.embed_single_query(args.query, args.project_context_description).await?;
+		let baseline_points = self
+			.run_fusion_query(
+				&[QueryEmbedding { text: args.query.to_string(), vector: query_vec.clone() }],
+				args.filter,
+				args.candidate_k,
+			)
+			.await?;
+		let top_score = baseline_points.first().map(|point| point.score).unwrap_or(0.0);
+		let candidates = ranking::collect_chunk_candidates(
+			&baseline_points,
+			self.cfg.search.prefilter.max_candidates,
+			args.candidate_k,
+		);
+		let should_expand = ranking::should_expand_dynamic(
+			baseline_points.len(),
+			top_score,
+			&self.cfg.search.dynamic,
+		);
+
+		if should_expand {
+			return Ok((Some(query_vec), None));
+		}
+
+		let structured = self
+			.retrieve_structured_field_candidates(StructuredFieldRetrievalArgs {
+				tenant_id: args.tenant_id,
+				project_id: args.project_id,
+				agent_id: args.agent_id,
+				allowed_scopes: args.allowed_scopes,
+				query_vec: query_vec.as_slice(),
+				candidate_k: args.candidate_k,
 				now: OffsetDateTime::now_utc(),
 			})
 			.await?;
@@ -257,27 +879,93 @@ impl ElfService {
 					candidates: structured.candidates,
 				},
 			],
-			&retrieval_sources_policy,
-			candidate_k,
+			args.retrieval_sources_policy,
+			args.candidate_k,
+		);
+		let response = self
+			.finish_search(FinishSearchArgs {
+				trace_id: args.trace_id,
+				query: args.query,
+				tenant_id: args.tenant_id,
+				project_id: args.project_id,
+				agent_id: args.agent_id,
+				read_profile: args.read_profile,
+				allowed_scopes: args.allowed_scopes,
+				expanded_queries: vec![args.query.to_string()],
+				expansion_mode: ExpansionMode::Dynamic,
+				candidates: merged_candidates,
+				structured_matches: structured.structured_matches,
+				top_k: args.top_k,
+				record_hits_enabled: args.record_hits_enabled,
+				ranking_override: args.ranking_override.cloned(),
+			})
+			.await?;
+
+		Ok((Some(query_vec), Some(response)))
+	}
+
+	async fn retrieve_search_candidates(
+		&self,
+		args: SearchRetrievalArgs<'_>,
+	) -> Result<SearchRetrievalResult> {
+		let queries = match args.expansion_mode {
+			ExpansionMode::Off => vec![args.query.to_string()],
+			ExpansionMode::Always | ExpansionMode::Dynamic => self.expand_queries(args.query).await,
+		};
+		let expanded_queries = queries.clone();
+		let query_embeddings = self
+			.embed_queries(
+				queries.as_slice(),
+				args.query,
+				args.baseline_vector,
+				args.project_context_description,
+			)
+			.await?;
+		let fusion_points =
+			self.run_fusion_query(&query_embeddings, args.filter, args.candidate_k).await?;
+		let candidates = ranking::collect_chunk_candidates(
+			&fusion_points,
+			self.cfg.search.prefilter.max_candidates,
+			args.candidate_k,
+		);
+		let original_query_vec = query_embeddings
+			.iter()
+			.find(|embedded| embedded.text == args.query)
+			.map(|embedded| embedded.vector.clone())
+			.unwrap_or_else(Vec::new);
+		let original_query_vec = if original_query_vec.is_empty() {
+			self.embed_single_query(args.query, args.project_context_description).await?
+		} else {
+			original_query_vec
+		};
+		let structured = self
+			.retrieve_structured_field_candidates(StructuredFieldRetrievalArgs {
+				tenant_id: args.tenant_id,
+				project_id: args.project_id,
+				agent_id: args.agent_id,
+				allowed_scopes: args.allowed_scopes,
+				query_vec: original_query_vec.as_slice(),
+				candidate_k: args.candidate_k,
+				now: OffsetDateTime::now_utc(),
+			})
+			.await?;
+		let merged_candidates = ranking::merge_retrieval_candidates(
+			vec![
+				RetrievalSourceCandidates { source: RetrievalSourceKind::Fusion, candidates },
+				RetrievalSourceCandidates {
+					source: RetrievalSourceKind::StructuredField,
+					candidates: structured.candidates,
+				},
+			],
+			args.retrieval_sources_policy,
+			args.candidate_k,
 		);
 
-		self.finish_search(FinishSearchArgs {
-			trace_id,
-			query: &query,
-			tenant_id,
-			project_id,
-			agent_id,
-			read_profile: &read_profile,
-			allowed_scopes: &allowed_scopes,
+		Ok(SearchRetrievalResult {
 			expanded_queries,
-			expansion_mode,
 			candidates: merged_candidates,
 			structured_matches: structured.structured_matches,
-			top_k,
-			record_hits_enabled,
-			ranking_override,
 		})
-		.await
 	}
 
 	fn resolve_project_context_description<'a>(
@@ -315,8 +1003,8 @@ impl ElfService {
 
 		if saw_cjk {
 			tracing::warn!(
-				tenant_id,
-				project_id,
+				tenant_id = %tenant_id,
+				project_id = %project_id,
 				"Project context description contains CJK. Skipping context."
 			);
 		}
@@ -650,56 +1338,10 @@ ORDER BY rank ASC",
 			None
 		};
 
-		if let Some(key) = cache_key.as_ref() {
-			match fetch_cache_payload(&self.db.pool, CacheKind::Expansion, key, now).await {
-				Ok(Some(payload)) => {
-					tracing::info!(
-						cache_kind = CacheKind::Expansion.as_str(),
-						cache_key_prefix = ranking::cache_key_prefix(key),
-						hit = true,
-						payload_size = payload.size_bytes,
-						ttl_days = cache_cfg.expansion_ttl_days,
-						"Cache hit."
-					);
-
-					let cached: ExpansionCachePayload = match serde_json::from_value(payload.value)
-					{
-						Ok(value) => value,
-						Err(err) => {
-							tracing::warn!(
-								error = %err,
-								cache_kind = CacheKind::Expansion.as_str(),
-								cache_key_prefix = ranking::cache_key_prefix(key),
-								"Cache payload decode failed."
-							);
-
-							ExpansionCachePayload { queries: Vec::new() }
-						},
-					};
-
-					if !cached.queries.is_empty() {
-						return cached.queries;
-					}
-				},
-				Ok(None) => {
-					tracing::info!(
-						cache_kind = CacheKind::Expansion.as_str(),
-						cache_key_prefix = ranking::cache_key_prefix(key),
-						hit = false,
-						payload_size = 0_u64,
-						ttl_days = cache_cfg.expansion_ttl_days,
-						"Cache miss."
-					);
-				},
-				Err(err) => {
-					tracing::warn!(
-						error = %err,
-						cache_kind = CacheKind::Expansion.as_str(),
-						cache_key_prefix = ranking::cache_key_prefix(key),
-						"Cache read failed."
-					);
-				},
-			}
+		if let Some(key) = cache_key.as_ref()
+			&& let Some(queries) = self.read_expansion_cache_queries(key, cache_cfg, now).await
+		{
+			return queries;
 		}
 
 		let messages =
@@ -734,78 +1376,139 @@ ORDER BY rank ASC",
 		let result = if normalized.is_empty() { vec![query.to_string()] } else { normalized };
 
 		if let Some(key) = cache_key {
-			let payload = ExpansionCachePayload { queries: result.clone() };
-			let payload_json = match serde_json::to_value(&payload) {
-				Ok(value) => value,
-				Err(err) => {
-					tracing::warn!(
-						error = %err,
-						cache_kind = CacheKind::Expansion.as_str(),
-						cache_key_prefix = ranking::cache_key_prefix(&key),
-						"Cache payload encode failed."
-					);
-
-					return result;
-				},
-			};
-			let stored_at = OffsetDateTime::now_utc();
-			let expires_at = stored_at + Duration::days(cache_cfg.expansion_ttl_days);
-
-			match store_cache_payload(
-				&self.db.pool,
-				CacheKind::Expansion,
-				&key,
-				payload_json,
-				stored_at,
-				expires_at,
-				cache_cfg.max_payload_bytes,
-			)
-			.await
-			{
-				Ok(Some(payload_size)) => {
-					tracing::info!(
-						cache_kind = CacheKind::Expansion.as_str(),
-						cache_key_prefix = ranking::cache_key_prefix(&key),
-						hit = false,
-						payload_size,
-						ttl_days = cache_cfg.expansion_ttl_days,
-						"Cache stored."
-					);
-				},
-				Ok(None) => {
-					tracing::warn!(
-						cache_kind = CacheKind::Expansion.as_str(),
-						cache_key_prefix = ranking::cache_key_prefix(&key),
-						hit = false,
-						payload_size = 0_u64,
-						ttl_days = cache_cfg.expansion_ttl_days,
-						"Cache payload skipped due to size."
-					);
-				},
-				Err(err) => {
-					tracing::warn!(
-						error = %err,
-						cache_kind = CacheKind::Expansion.as_str(),
-						cache_key_prefix = ranking::cache_key_prefix(&key),
-						"Cache write failed."
-					);
-				},
-			}
+			self.store_expansion_cache_queries(&key, &result, cache_cfg).await;
 		}
 
 		result
+	}
+
+	async fn read_expansion_cache_queries(
+		&self,
+		key: &str,
+		cache_cfg: &SearchCache,
+		now: OffsetDateTime,
+	) -> Option<Vec<String>> {
+		match fetch_cache_payload(&self.db.pool, CacheKind::Expansion, key, now).await {
+			Ok(Some(payload)) => {
+				tracing::info!(
+					cache_kind = CacheKind::Expansion.as_str(),
+					cache_key_prefix = ranking::cache_key_prefix(key),
+					hit = true,
+					payload_size = payload.size_bytes,
+					ttl_days = cache_cfg.expansion_ttl_days,
+					"Cache hit."
+				);
+
+				let cached: ExpansionCachePayload = match serde_json::from_value(payload.value) {
+					Ok(value) => value,
+					Err(err) => {
+						tracing::warn!(
+							error = %err,
+							cache_kind = CacheKind::Expansion.as_str(),
+							cache_key_prefix = ranking::cache_key_prefix(key),
+							"Cache payload decode failed."
+						);
+
+						ExpansionCachePayload { queries: Vec::new() }
+					},
+				};
+
+				(!cached.queries.is_empty()).then_some(cached.queries)
+			},
+			Ok(None) => {
+				tracing::info!(
+					cache_kind = CacheKind::Expansion.as_str(),
+					cache_key_prefix = ranking::cache_key_prefix(key),
+					hit = false,
+					payload_size = 0_u64,
+					ttl_days = cache_cfg.expansion_ttl_days,
+					"Cache miss."
+				);
+
+				None
+			},
+			Err(err) => {
+				tracing::warn!(
+					error = %err,
+					cache_kind = CacheKind::Expansion.as_str(),
+					cache_key_prefix = ranking::cache_key_prefix(key),
+					"Cache read failed."
+				);
+
+				None
+			},
+		}
+	}
+
+	async fn store_expansion_cache_queries(
+		&self,
+		key: &str,
+		queries: &[String],
+		cache_cfg: &SearchCache,
+	) {
+		let payload = ExpansionCachePayload { queries: queries.to_vec() };
+		let payload_json = match serde_json::to_value(&payload) {
+			Ok(value) => value,
+			Err(err) => {
+				tracing::warn!(
+					error = %err,
+					cache_kind = CacheKind::Expansion.as_str(),
+					cache_key_prefix = ranking::cache_key_prefix(key),
+					"Cache payload encode failed."
+				);
+
+				return;
+			},
+		};
+		let stored_at = OffsetDateTime::now_utc();
+		let expires_at = stored_at + Duration::days(cache_cfg.expansion_ttl_days);
+
+		match store_cache_payload(
+			&self.db.pool,
+			CacheKind::Expansion,
+			key,
+			payload_json,
+			stored_at,
+			expires_at,
+			cache_cfg.max_payload_bytes,
+		)
+		.await
+		{
+			Ok(Some(payload_size)) => {
+				tracing::info!(
+					cache_kind = CacheKind::Expansion.as_str(),
+					cache_key_prefix = ranking::cache_key_prefix(key),
+					hit = false,
+					payload_size,
+					ttl_days = cache_cfg.expansion_ttl_days,
+					"Cache stored."
+				);
+			},
+			Ok(None) => {
+				tracing::warn!(
+					cache_kind = CacheKind::Expansion.as_str(),
+					cache_key_prefix = ranking::cache_key_prefix(key),
+					hit = false,
+					payload_size = 0_u64,
+					ttl_days = cache_cfg.expansion_ttl_days,
+					"Cache payload skipped due to size."
+				);
+			},
+			Err(err) => {
+				tracing::warn!(
+					error = %err,
+					cache_kind = CacheKind::Expansion.as_str(),
+					cache_key_prefix = ranking::cache_key_prefix(key),
+					"Cache write failed."
+				);
+			},
+		}
 	}
 
 	async fn retrieve_structured_field_candidates(
 		&self,
 		args: StructuredFieldRetrievalArgs<'_>,
 	) -> Result<StructuredFieldRetrievalResult> {
-		#[derive(Debug)]
-		struct FieldHit {
-			note_id: Uuid,
-			field_kind: String,
-		}
-
 		let StructuredFieldRetrievalArgs {
 			tenant_id,
 			project_id,
@@ -829,9 +1532,67 @@ ORDER BY rank ASC",
 		let non_private_scopes: Vec<String> =
 			allowed_scopes.iter().filter(|scope| *scope != "agent_private").cloned().collect();
 		let retrieval_limit = i64::from(candidate_k.saturating_mul(4).clamp(16, 400));
-		let rows: Vec<FieldHit> = if private_allowed && non_private_scopes.is_empty() {
-			let raw = sqlx::query!(
-				"\
+		let rows = self
+			.fetch_structured_field_hits(StructuredFieldHitArgs {
+				embed_version: embed_version.as_str(),
+				tenant_id,
+				project_id,
+				agent_id,
+				now,
+				vec_text: vec_text.as_str(),
+				retrieval_limit,
+				private_allowed,
+				non_private_scopes: non_private_scopes.as_slice(),
+			})
+			.await?;
+		let (ordered_note_ids, structured_matches_out) = build_structured_field_matches(rows);
+
+		if ordered_note_ids.is_empty() {
+			return Ok(StructuredFieldRetrievalResult {
+				candidates: Vec::new(),
+				structured_matches: structured_matches_out,
+			});
+		}
+
+		let best_by_note = self
+			.fetch_best_chunks_for_notes(
+				embed_version.as_str(),
+				ordered_note_ids.as_slice(),
+				vec_text.as_str(),
+			)
+			.await?;
+		let structured_candidates = build_structured_field_candidates(
+			candidate_k,
+			ordered_note_ids,
+			best_by_note,
+			embed_version.as_str(),
+		);
+
+		Ok(StructuredFieldRetrievalResult {
+			candidates: structured_candidates,
+			structured_matches: structured_matches_out,
+		})
+	}
+
+	async fn fetch_structured_field_hits(
+		&self,
+		args: StructuredFieldHitArgs<'_>,
+	) -> Result<Vec<FieldHit>> {
+		if args.private_allowed && args.non_private_scopes.is_empty() {
+			self.fetch_structured_field_hits_private_only(args).await
+		} else if !args.private_allowed {
+			self.fetch_structured_field_hits_non_private_only(args).await
+		} else {
+			self.fetch_structured_field_hits_mixed(args).await
+		}
+	}
+
+	async fn fetch_structured_field_hits_private_only(
+		&self,
+		args: StructuredFieldHitArgs<'_>,
+	) -> Result<Vec<FieldHit>> {
+		let rows = sqlx::query!(
+			"\
 SELECT
 	f.note_id AS \"note_id!\",
 	f.field_kind AS \"field_kind!\"
@@ -849,23 +1610,29 @@ WHERE n.tenant_id = $2
 	AND n.agent_id = $5
 ORDER BY e.vec <=> $6::text::vector ASC
 LIMIT $7",
-				embed_version,
-				tenant_id,
-				project_id,
-				now,
-				agent_id,
-				vec_text.as_str(),
-				retrieval_limit,
-			)
-			.fetch_all(&self.db.pool)
-			.await?;
+			args.embed_version,
+			args.tenant_id,
+			args.project_id,
+			args.now,
+			args.agent_id,
+			args.vec_text,
+			args.retrieval_limit,
+		)
+		.fetch_all(&self.db.pool)
+		.await?;
 
-			raw.into_iter()
-				.map(|row| FieldHit { note_id: row.note_id, field_kind: row.field_kind })
-				.collect()
-		} else if !private_allowed {
-			let raw = sqlx::query!(
-				"\
+		Ok(rows
+			.into_iter()
+			.map(|row| FieldHit { note_id: row.note_id, field_kind: row.field_kind })
+			.collect())
+	}
+
+	async fn fetch_structured_field_hits_non_private_only(
+		&self,
+		args: StructuredFieldHitArgs<'_>,
+	) -> Result<Vec<FieldHit>> {
+		let rows = sqlx::query!(
+			"\
 SELECT
 	f.note_id AS \"note_id!\",
 	f.field_kind AS \"field_kind!\"
@@ -882,23 +1649,29 @@ WHERE n.tenant_id = $2
 	AND n.scope = ANY($5::text[])
 ORDER BY e.vec <=> $6::text::vector ASC
 LIMIT $7",
-				embed_version,
-				tenant_id,
-				project_id,
-				now,
-				non_private_scopes.as_slice(),
-				vec_text.as_str(),
-				retrieval_limit,
-			)
-			.fetch_all(&self.db.pool)
-			.await?;
+			args.embed_version,
+			args.tenant_id,
+			args.project_id,
+			args.now,
+			args.non_private_scopes,
+			args.vec_text,
+			args.retrieval_limit,
+		)
+		.fetch_all(&self.db.pool)
+		.await?;
 
-			raw.into_iter()
-				.map(|row| FieldHit { note_id: row.note_id, field_kind: row.field_kind })
-				.collect()
-		} else {
-			let raw = sqlx::query!(
-				"\
+		Ok(rows
+			.into_iter()
+			.map(|row| FieldHit { note_id: row.note_id, field_kind: row.field_kind })
+			.collect())
+	}
+
+	async fn fetch_structured_field_hits_mixed(
+		&self,
+		args: StructuredFieldHitArgs<'_>,
+	) -> Result<Vec<FieldHit>> {
+		let rows = sqlx::query!(
+			"\
 SELECT
 	f.note_id AS \"note_id!\",
 	f.field_kind AS \"field_kind!\"
@@ -918,57 +1691,30 @@ WHERE n.tenant_id = $2
 	)
 ORDER BY e.vec <=> $7::text::vector ASC
 LIMIT $8",
-				embed_version,
-				tenant_id,
-				project_id,
-				now,
-				agent_id,
-				non_private_scopes.as_slice(),
-				vec_text.as_str(),
-				retrieval_limit,
-			)
-			.fetch_all(&self.db.pool)
-			.await?;
+			args.embed_version,
+			args.tenant_id,
+			args.project_id,
+			args.now,
+			args.agent_id,
+			args.non_private_scopes,
+			args.vec_text,
+			args.retrieval_limit,
+		)
+		.fetch_all(&self.db.pool)
+		.await?;
 
-			raw.into_iter()
-				.map(|row| FieldHit { note_id: row.note_id, field_kind: row.field_kind })
-				.collect()
-		};
-		let mut structured_matches: HashMap<Uuid, HashSet<String>> = HashMap::new();
-		let mut ordered_note_ids = Vec::new();
-		let mut seen_notes = HashSet::new();
+		Ok(rows
+			.into_iter()
+			.map(|row| FieldHit { note_id: row.note_id, field_kind: row.field_kind })
+			.collect())
+	}
 
-		for row in rows {
-			let label = match row.field_kind.as_str() {
-				"summary" => "summary",
-				"fact" => "facts",
-				"concept" => "concepts",
-				_ => continue,
-			};
-
-			structured_matches.entry(row.note_id).or_default().insert(label.to_string());
-
-			if seen_notes.insert(row.note_id) {
-				ordered_note_ids.push(row.note_id);
-			}
-		}
-
-		let mut structured_matches_out: HashMap<Uuid, Vec<String>> = HashMap::new();
-
-		for (note_id, fields) in structured_matches {
-			let mut fields: Vec<String> = fields.into_iter().collect();
-
-			fields.sort();
-			structured_matches_out.insert(note_id, fields);
-		}
-
-		if ordered_note_ids.is_empty() {
-			return Ok(StructuredFieldRetrievalResult {
-				candidates: Vec::new(),
-				structured_matches: structured_matches_out,
-			});
-		}
-
+	async fn fetch_best_chunks_for_notes(
+		&self,
+		embed_version: &str,
+		ordered_note_ids: &[Uuid],
+		vec_text: &str,
+	) -> Result<HashMap<Uuid, (Uuid, i32)>> {
 		let best_chunks = sqlx::query!(
 			"\
 SELECT DISTINCT ON (c.note_id)
@@ -982,8 +1728,8 @@ JOIN note_chunk_embeddings e
 WHERE c.note_id = ANY($2::uuid[])
 ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 			embed_version,
-			ordered_note_ids.as_slice(),
-			vec_text.as_str(),
+			ordered_note_ids,
+			vec_text,
 		)
 		.fetch_all(&self.db.pool)
 		.await?;
@@ -993,32 +1739,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 			best_by_note.insert(row.note_id, (row.chunk_id, row.chunk_index));
 		}
 
-		let mut structured_candidates = Vec::new();
-		let mut next_rank = 1_u32;
-
-		for note_id in ordered_note_ids {
-			if structured_candidates.len() >= candidate_k as usize {
-				break;
-			}
-
-			let Some((chunk_id, chunk_index)) = best_by_note.get(&note_id) else { continue };
-
-			structured_candidates.push(ChunkCandidate {
-				chunk_id: *chunk_id,
-				note_id,
-				chunk_index: *chunk_index,
-				retrieval_rank: next_rank,
-				updated_at: None,
-				embedding_version: Some(embed_version.clone()),
-			});
-
-			next_rank = next_rank.saturating_add(1);
-		}
-
-		Ok(StructuredFieldRetrievalResult {
-			candidates: structured_candidates,
-			structured_matches: structured_matches_out,
-		})
+		Ok(best_by_note)
 	}
 
 	async fn finish_search(&self, args: FinishSearchArgs<'_>) -> Result<SearchResponse> {
@@ -1039,26 +1760,610 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 			ranking_override,
 		} = args;
 		let now = OffsetDateTime::now_utc();
-		let cache_cfg = &self.cfg.search.cache;
 		let candidate_count = candidates.len();
 		let candidate_note_ids: Vec<Uuid> =
 			candidates.iter().map(|candidate| candidate.note_id).collect();
-		let mut notes: Vec<MemoryNote> = if candidate_note_ids.is_empty() {
-			Vec::new()
-		} else {
-			sqlx::query_as!(
-					MemoryNote,
-					"SELECT * FROM memory_notes WHERE note_id = ANY($1::uuid[]) AND tenant_id = $2 AND project_id = $3",
-					candidate_note_ids.as_slice(),
-					tenant_id,
-					project_id,
-				)
-				.fetch_all(&self.db.pool)
-				.await?
+		let note_meta = self
+			.fetch_note_meta_for_candidates(
+				tenant_id,
+				project_id,
+				agent_id,
+				allowed_scopes,
+				candidate_note_ids.as_slice(),
+				now,
+			)
+			.await?;
+		let filtered_candidates: Vec<ChunkCandidate> = candidates
+			.into_iter()
+			.filter(|candidate| ranking::candidate_matches_note(&note_meta, candidate))
+			.collect();
+		let snippet_items = self.build_snippet_items(&filtered_candidates, &note_meta).await?;
+		let query_tokens = ranking::tokenize_query(query, MAX_MATCHED_TERMS);
+		let scope_context_boost_by_scope =
+			ranking::build_scope_context_boost_by_scope(&query_tokens, self.cfg.context.as_ref());
+		let det_query_tokens = build_deterministic_query_tokens(&self.cfg, query);
+		let policies = self.resolve_finish_search_policies(ranking_override.as_ref())?;
+		let scored = self
+			.score_snippet_items(ScoreSnippetArgs {
+				query,
+				snippet_items,
+				scope_context_boost_by_scope: &scope_context_boost_by_scope,
+				det_query_tokens: det_query_tokens.as_slice(),
+				blend_policy: &policies.blend_policy,
+				cache_cfg: &self.cfg.search.cache,
+				now,
+				candidate_count,
+			})
+			.await?;
+		let mut trace_candidates = self.build_trace_candidates(&scored, now);
+		let results = select_best_scored_chunks(scored);
+		let (selected_results, diversity_decisions) =
+			self.apply_diversity_policy(results, top_k, &policies.diversity_policy).await?;
+
+		ranking::attach_diversity_decisions_to_trace_candidates(
+			&mut trace_candidates,
+			&diversity_decisions,
+		);
+
+		self.record_hits_if_enabled(record_hits_enabled, query, &selected_results, now).await?;
+
+		let (items, trace_payload) = self.build_items_and_trace_payload(BuildTraceArgs {
+			trace_id,
+			query,
+			tenant_id,
+			project_id,
+			agent_id,
+			read_profile,
+			expansion_mode,
+			expanded_queries,
+			allowed_scopes,
+			candidate_count,
+			top_k,
+			query_tokens: query_tokens.as_slice(),
+			structured_matches: &structured_matches,
+			policies: &policies,
+			diversity_decisions: &diversity_decisions,
+			selected_results,
+			trace_candidates,
+			now,
+			ranking_override: &ranking_override,
+		});
+
+		self.write_trace_payload(trace_id, trace_payload).await?;
+
+		Ok(SearchResponse { trace_id, items })
+	}
+
+	fn resolve_finish_search_policies(
+		&self,
+		ranking_override: Option<&RankingRequestOverride>,
+	) -> Result<FinishSearchPolicies> {
+		let blend_policy = ranking::resolve_blend_policy(
+			&self.cfg.ranking.blend,
+			ranking_override.and_then(|override_| override_.blend.as_ref()),
+		)?;
+		let diversity_policy = ranking::resolve_diversity_policy(
+			&self.cfg.ranking.diversity,
+			ranking_override.and_then(|override_| override_.diversity.as_ref()),
+		)?;
+		let retrieval_sources_policy = ranking::resolve_retrieval_sources_policy(
+			&self.cfg.ranking.retrieval_sources,
+			ranking_override.and_then(|override_| override_.retrieval_sources.as_ref()),
+		)?;
+		let policy_snapshot = ranking::build_policy_snapshot(
+			&self.cfg,
+			&blend_policy,
+			&diversity_policy,
+			&retrieval_sources_policy,
+			ranking_override,
+		);
+		let policy_hash = ranking::hash_policy_snapshot(&policy_snapshot)?;
+		let policy_id = format!("ranking_v2:{}", &policy_hash[..12.min(policy_hash.len())]);
+
+		Ok(FinishSearchPolicies {
+			blend_policy,
+			diversity_policy,
+			retrieval_sources_policy,
+			policy_snapshot,
+			policy_id,
+		})
+	}
+
+	async fn score_snippet_items(
+		&self,
+		args: ScoreSnippetArgs<'_, '_>,
+	) -> Result<Vec<ScoredChunk>> {
+		let ScoreSnippetArgs {
+			query,
+			snippet_items,
+			scope_context_boost_by_scope,
+			det_query_tokens,
+			blend_policy,
+			cache_cfg,
+			now,
+			candidate_count,
+		} = args;
+
+		if snippet_items.is_empty() {
+			return Ok(Vec::new());
+		}
+
+		let scores =
+			self.rerank_snippet_items(query, snippet_items.as_slice(), cache_cfg, now).await?;
+		let rerank_ranks = ranking::build_rerank_ranks(&snippet_items, &scores);
+		let total_rerank = u32::try_from(scores.len()).unwrap_or(1).max(1);
+		let total_retrieval = u32::try_from(candidate_count).unwrap_or(1).max(1);
+		let score_ctx = ScoreCandidateCtx {
+			cfg: &self.cfg,
+			blend_policy,
+			scope_context_boost_by_scope,
+			det_query_tokens,
+			now,
+			total_rerank,
+			total_retrieval,
 		};
+		let mut scored = Vec::with_capacity(snippet_items.len());
+
+		for ((item, rerank_score), rerank_rank) in
+			snippet_items.into_iter().zip(scores.into_iter()).zip(rerank_ranks.into_iter())
+		{
+			scored.push(score_chunk_candidate(&score_ctx, item, rerank_score, rerank_rank));
+		}
+
+		Ok(scored)
+	}
+
+	fn build_trace_candidates(
+		&self,
+		scored: &[ScoredChunk],
+		now: OffsetDateTime,
+	) -> Vec<TraceCandidateRecord> {
+		if !self.cfg.search.explain.capture_candidates || scored.is_empty() {
+			return Vec::new();
+		}
+
+		let candidate_expires_at =
+			now + Duration::days(self.cfg.search.explain.candidate_retention_days);
+
+		scored
+			.iter()
+			.map(|scored_chunk| {
+				build_trace_candidate_record(scored_chunk, now, candidate_expires_at)
+			})
+			.collect()
+	}
+
+	async fn apply_diversity_policy(
+		&self,
+		results: Vec<ScoredChunk>,
+		top_k: u32,
+		diversity_policy: &ResolvedDiversityPolicy,
+	) -> Result<(Vec<ScoredChunk>, HashMap<Uuid, DiversityDecision>)> {
+		let note_vectors = if diversity_policy.enabled {
+			fetch_note_vectors_for_diversity(&self.db.pool, results.as_slice()).await?
+		} else {
+			HashMap::new()
+		};
+		let (selected_results, diversity_decisions) =
+			ranking::select_diverse_results(results, top_k, diversity_policy, &note_vectors);
+
+		Ok((selected_results, diversity_decisions))
+	}
+
+	async fn record_hits_if_enabled(
+		&self,
+		enabled: bool,
+		query: &str,
+		selected_results: &[ScoredChunk],
+		now: OffsetDateTime,
+	) -> Result<()> {
+		if !enabled || selected_results.is_empty() {
+			return Ok(());
+		}
+
+		let mut tx = self.db.pool.begin().await?;
+
+		record_hits(&mut *tx, query, selected_results, now).await?;
+
+		tx.commit().await?;
+
+		Ok(())
+	}
+
+	fn build_items_and_trace_payload(
+		&self,
+		args: BuildTraceArgs<'_>,
+	) -> (Vec<SearchItem>, TracePayload) {
+		let trace_context = TraceContext {
+			trace_id: args.trace_id,
+			tenant_id: args.tenant_id,
+			project_id: args.project_id,
+			agent_id: args.agent_id,
+			read_profile: args.read_profile,
+			query: args.query,
+			expansion_mode: args.expansion_mode,
+			expanded_queries: args.expanded_queries,
+			allowed_scopes: args.allowed_scopes,
+			candidate_count: args.candidate_count,
+			top_k: args.top_k,
+		};
+		let config_snapshot = ranking::build_config_snapshot(
+			&self.cfg,
+			&args.policies.blend_policy,
+			&args.policies.diversity_policy,
+			&args.policies.retrieval_sources_policy,
+			args.ranking_override.as_ref(),
+			args.policies.policy_id.as_str(),
+			&args.policies.policy_snapshot,
+		);
+		let mut items = Vec::with_capacity(args.selected_results.len());
+		let mut trace_builder = SearchTraceBuilder::new(
+			trace_context,
+			config_snapshot,
+			self.cfg.search.explain.retention_days,
+			args.now,
+		);
+
+		for candidate in args.trace_candidates {
+			trace_builder.push_candidate(candidate);
+		}
+		for (idx, scored_chunk) in args.selected_results.into_iter().enumerate() {
+			let rank = idx as u32 + 1;
+			let (item, trace_item) = build_search_item_and_trace_item(BuildSearchItemArgs {
+				cfg: &self.cfg,
+				policy_id: args.policies.policy_id.as_str(),
+				blend_policy: &args.policies.blend_policy,
+				diversity_policy: &args.policies.diversity_policy,
+				diversity_decisions: args.diversity_decisions,
+				query_tokens: args.query_tokens,
+				structured_matches: args.structured_matches,
+				scored_chunk,
+				rank,
+			});
+
+			items.push(item);
+			trace_builder.push_item(trace_item);
+		}
+
+		(items, trace_builder.build())
+	}
+
+	async fn write_trace_payload(&self, trace_id: Uuid, trace_payload: TracePayload) -> Result<()> {
+		match self.cfg.search.explain.write_mode.trim().to_ascii_lowercase().as_str() {
+			"inline" => {
+				let mut tx = self.db.pool.begin().await?;
+
+				persist_trace_inline(&mut tx, trace_payload).await?;
+
+				tx.commit().await?;
+			},
+			_ =>
+				if let Err(err) = enqueue_trace(&self.db.pool, trace_payload).await {
+					tracing::error!(
+						error = %err,
+						trace_id = %trace_id,
+						"Failed to enqueue search trace."
+					);
+				},
+		}
+
+		Ok(())
+	}
+
+	async fn build_snippet_items(
+		&self,
+		filtered_candidates: &[ChunkCandidate],
+		note_meta: &HashMap<Uuid, NoteMeta>,
+	) -> Result<Vec<ChunkSnippet>> {
+		if filtered_candidates.is_empty() {
+			return Ok(Vec::new());
+		}
+
+		let pairs = ranking::collect_neighbor_pairs(filtered_candidates);
+		let chunk_rows = fetch_chunks_by_pair(&self.db.pool, &pairs).await?;
+		let mut chunk_by_id = HashMap::new();
+		let mut chunk_by_note_index = HashMap::new();
+
+		for row in chunk_rows {
+			chunk_by_note_index.insert((row.note_id, row.chunk_index), row.clone());
+			chunk_by_id.insert(row.chunk_id, row);
+		}
+
+		let mut items = Vec::new();
+
+		for candidate in filtered_candidates {
+			let Some(chunk_row) = chunk_by_id.get(&candidate.chunk_id) else {
+				tracing::warn!(
+					chunk_id = %candidate.chunk_id,
+					"Chunk metadata missing for candidate."
+				);
+
+				continue;
+			};
+			let snippet = ranking::stitch_snippet(
+				candidate.note_id,
+				chunk_row.chunk_index,
+				&chunk_by_note_index,
+			);
+
+			if snippet.is_empty() {
+				continue;
+			}
+
+			let Some(note) = note_meta.get(&candidate.note_id) else { continue };
+			let chunk = ChunkMeta {
+				chunk_id: chunk_row.chunk_id,
+				chunk_index: chunk_row.chunk_index,
+				start_offset: chunk_row.start_offset,
+				end_offset: chunk_row.end_offset,
+			};
+
+			items.push(ChunkSnippet {
+				note: note.clone(),
+				chunk,
+				snippet,
+				retrieval_rank: candidate.retrieval_rank,
+			});
+		}
+
+		Ok(items)
+	}
+
+	async fn rerank_snippet_items(
+		&self,
+		query: &str,
+		snippet_items: &[ChunkSnippet],
+		cache_cfg: &SearchCache,
+		now: OffsetDateTime,
+	) -> Result<Vec<f32>> {
+		if snippet_items.is_empty() {
+			return Ok(Vec::new());
+		}
+
+		let (cache_candidates, signature) = Self::build_rerank_cache_signature(snippet_items);
+		let mut cache_key: Option<String> = None;
+		let mut cached_scores: Option<Vec<f32>> = None;
+
+		if cache_cfg.enabled {
+			match ranking::build_rerank_cache_key(
+				query,
+				self.cfg.providers.rerank.provider_id.as_str(),
+				self.cfg.providers.rerank.model.as_str(),
+				&signature,
+			) {
+				Ok(key) => {
+					cache_key = Some(key.clone());
+					cached_scores = self
+						.read_rerank_cache_scores(&key, cache_candidates.as_slice(), cache_cfg, now)
+						.await;
+				},
+				Err(err) => {
+					tracing::warn!(
+						error = %err,
+						cache_kind = CacheKind::Rerank.as_str(),
+						"Cache key build failed."
+					);
+				},
+			}
+		}
+
+		if let Some(scores) = cached_scores {
+			return Ok(scores);
+		}
+
+		let docs: Vec<String> = snippet_items.iter().map(|item| item.snippet.clone()).collect();
+		let scores = self.providers.rerank.rerank(&self.cfg.providers.rerank, query, &docs).await?;
+
+		if scores.len() != snippet_items.len() {
+			return Err(Error::Provider {
+				message: "Rerank provider returned mismatched score count.".to_string(),
+			});
+		}
+		if cache_cfg.enabled
+			&& let Some(key) = cache_key.as_ref()
+			&& !cache_candidates.is_empty()
+		{
+			self.store_rerank_cache_scores(
+				key,
+				cache_candidates.as_slice(),
+				scores.as_slice(),
+				cache_cfg,
+			)
+			.await;
+		}
+
+		Ok(scores)
+	}
+
+	fn build_rerank_cache_signature(
+		snippet_items: &[ChunkSnippet],
+	) -> (Vec<RerankCacheCandidate>, Vec<(Uuid, OffsetDateTime)>) {
+		let candidates: Vec<RerankCacheCandidate> = snippet_items
+			.iter()
+			.map(|item| RerankCacheCandidate {
+				chunk_id: item.chunk.chunk_id,
+				updated_at: item.note.updated_at,
+			})
+			.collect();
+		let signature: Vec<(Uuid, OffsetDateTime)> =
+			candidates.iter().map(|candidate| (candidate.chunk_id, candidate.updated_at)).collect();
+
+		(candidates, signature)
+	}
+
+	async fn read_rerank_cache_scores(
+		&self,
+		key: &str,
+		cache_candidates: &[RerankCacheCandidate],
+		cache_cfg: &SearchCache,
+		now: OffsetDateTime,
+	) -> Option<Vec<f32>> {
+		match fetch_cache_payload(&self.db.pool, CacheKind::Rerank, key, now).await {
+			Ok(Some(payload)) => {
+				let decoded: RerankCachePayload = match serde_json::from_value(payload.value) {
+					Ok(value) => value,
+					Err(err) => {
+						tracing::warn!(
+							error = %err,
+							cache_kind = CacheKind::Rerank.as_str(),
+							cache_key_prefix = ranking::cache_key_prefix(key),
+							"Cache payload decode failed."
+						);
+
+						RerankCachePayload { items: Vec::new() }
+					},
+				};
+
+				if let Some(scores) = ranking::build_cached_scores(&decoded, cache_candidates) {
+					tracing::info!(
+						cache_kind = CacheKind::Rerank.as_str(),
+						cache_key_prefix = ranking::cache_key_prefix(key),
+						hit = true,
+						payload_size = payload.size_bytes,
+						ttl_days = cache_cfg.rerank_ttl_days,
+						"Cache hit."
+					);
+
+					Some(scores)
+				} else {
+					tracing::warn!(
+						cache_kind = CacheKind::Rerank.as_str(),
+						cache_key_prefix = ranking::cache_key_prefix(key),
+						hit = false,
+						payload_size = payload.size_bytes,
+						ttl_days = cache_cfg.rerank_ttl_days,
+						"Cache payload did not match candidates."
+					);
+
+					None
+				}
+			},
+			Ok(None) => {
+				tracing::info!(
+					cache_kind = CacheKind::Rerank.as_str(),
+					cache_key_prefix = ranking::cache_key_prefix(key),
+					hit = false,
+					payload_size = 0_u64,
+					ttl_days = cache_cfg.rerank_ttl_days,
+					"Cache miss."
+				);
+
+				None
+			},
+			Err(err) => {
+				tracing::warn!(
+					error = %err,
+					cache_kind = CacheKind::Rerank.as_str(),
+					cache_key_prefix = ranking::cache_key_prefix(key),
+					"Cache read failed."
+				);
+
+				None
+			},
+		}
+	}
+
+	async fn store_rerank_cache_scores(
+		&self,
+		key: &str,
+		cache_candidates: &[RerankCacheCandidate],
+		scores: &[f32],
+		cache_cfg: &SearchCache,
+	) {
+		let payload = RerankCachePayload {
+			items: cache_candidates
+				.iter()
+				.zip(scores.iter())
+				.map(|(candidate, score)| RerankCacheItem {
+					chunk_id: candidate.chunk_id,
+					updated_at: candidate.updated_at,
+					score: *score,
+				})
+				.collect(),
+		};
+
+		match serde_json::to_value(&payload) {
+			Ok(payload_json) => {
+				let stored_at = OffsetDateTime::now_utc();
+				let expires_at = stored_at + Duration::days(cache_cfg.rerank_ttl_days);
+
+				match store_cache_payload(
+					&self.db.pool,
+					CacheKind::Rerank,
+					key,
+					payload_json,
+					stored_at,
+					expires_at,
+					cache_cfg.max_payload_bytes,
+				)
+				.await
+				{
+					Ok(Some(payload_size)) => {
+						tracing::info!(
+							cache_kind = CacheKind::Rerank.as_str(),
+							cache_key_prefix = ranking::cache_key_prefix(key),
+							hit = false,
+							payload_size,
+							ttl_days = cache_cfg.rerank_ttl_days,
+							"Cache stored."
+						);
+					},
+					Ok(None) => {
+						tracing::warn!(
+							cache_kind = CacheKind::Rerank.as_str(),
+							cache_key_prefix = ranking::cache_key_prefix(key),
+							hit = false,
+							payload_size = 0_u64,
+							ttl_days = cache_cfg.rerank_ttl_days,
+							"Cache payload skipped due to size."
+						);
+					},
+					Err(err) => {
+						tracing::warn!(
+							error = %err,
+							cache_kind = CacheKind::Rerank.as_str(),
+							cache_key_prefix = ranking::cache_key_prefix(key),
+							"Cache write failed."
+						);
+					},
+				}
+			},
+			Err(err) => {
+				tracing::warn!(
+					error = %err,
+					cache_kind = CacheKind::Rerank.as_str(),
+					cache_key_prefix = ranking::cache_key_prefix(key),
+					"Cache payload encode failed."
+				);
+			},
+		}
+	}
+
+	async fn fetch_note_meta_for_candidates(
+		&self,
+		tenant_id: &str,
+		project_id: &str,
+		agent_id: &str,
+		allowed_scopes: &[String],
+		candidate_note_ids: &[Uuid],
+		now: OffsetDateTime,
+	) -> Result<HashMap<Uuid, NoteMeta>> {
+		if candidate_note_ids.is_empty() {
+			return Ok(HashMap::new());
+		}
+
+		let notes: Vec<MemoryNote> = sqlx::query_as!(
+				MemoryNote,
+				"SELECT * FROM memory_notes WHERE note_id = ANY($1::uuid[]) AND tenant_id = $2 AND project_id = $3",
+				candidate_note_ids,
+				tenant_id,
+				project_id,
+			)
+			.fetch_all(&self.db.pool)
+			.await?;
 		let mut note_meta = HashMap::new();
 
-		for note in notes.drain(..) {
+		for note in notes {
 			if note.tenant_id != tenant_id || note.project_id != project_id {
 				continue;
 			}
@@ -1094,1160 +2399,8 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 			);
 		}
 
-		let filtered_candidates: Vec<ChunkCandidate> = candidates
-			.into_iter()
-			.filter(|candidate| ranking::candidate_matches_note(&note_meta, candidate))
-			.collect();
-		let snippet_items = if filtered_candidates.is_empty() {
-			Vec::new()
-		} else {
-			let pairs = ranking::collect_neighbor_pairs(&filtered_candidates);
-			let chunk_rows = fetch_chunks_by_pair(&self.db.pool, &pairs).await?;
-			let mut chunk_by_id = HashMap::new();
-			let mut chunk_by_note_index = HashMap::new();
-
-			for row in chunk_rows {
-				chunk_by_note_index.insert((row.note_id, row.chunk_index), row.clone());
-				chunk_by_id.insert(row.chunk_id, row);
-			}
-
-			let mut items = Vec::new();
-
-			for candidate in &filtered_candidates {
-				let Some(chunk_row) = chunk_by_id.get(&candidate.chunk_id) else {
-					tracing::warn!(
-						chunk_id = %candidate.chunk_id,
-						"Chunk metadata missing for candidate."
-					);
-
-					continue;
-				};
-				let snippet = ranking::stitch_snippet(
-					candidate.note_id,
-					chunk_row.chunk_index,
-					&chunk_by_note_index,
-				);
-
-				if snippet.is_empty() {
-					continue;
-				}
-
-				let Some(note) = note_meta.get(&candidate.note_id) else { continue };
-				let chunk = ChunkMeta {
-					chunk_id: chunk_row.chunk_id,
-					chunk_index: chunk_row.chunk_index,
-					start_offset: chunk_row.start_offset,
-					end_offset: chunk_row.end_offset,
-				};
-
-				items.push(ChunkSnippet {
-					note: note.clone(),
-					chunk,
-					snippet,
-					retrieval_rank: candidate.retrieval_rank,
-				});
-			}
-
-			items
-		};
-		let query_tokens = ranking::tokenize_query(query, MAX_MATCHED_TERMS);
-		let scope_context_boost_by_scope =
-			ranking::build_scope_context_boost_by_scope(&query_tokens, self.cfg.context.as_ref());
-		let det_query_tokens = if self.cfg.ranking.deterministic.enabled
-			&& self.cfg.ranking.deterministic.lexical.enabled
-			&& self.cfg.ranking.deterministic.lexical.max_query_terms > 0
-		{
-			ranking::tokenize_query(
-				query,
-				self.cfg.ranking.deterministic.lexical.max_query_terms as usize,
-			)
-		} else {
-			Vec::new()
-		};
-		let blend_policy = ranking::resolve_blend_policy(
-			&self.cfg.ranking.blend,
-			ranking_override.as_ref().and_then(|override_| override_.blend.as_ref()),
-		)?;
-		let diversity_policy = ranking::resolve_diversity_policy(
-			&self.cfg.ranking.diversity,
-			ranking_override.as_ref().and_then(|override_| override_.diversity.as_ref()),
-		)?;
-		let retrieval_sources_policy = ranking::resolve_retrieval_sources_policy(
-			&self.cfg.ranking.retrieval_sources,
-			ranking_override.as_ref().and_then(|override_| override_.retrieval_sources.as_ref()),
-		)?;
-		let policy_snapshot = ranking::build_policy_snapshot(
-			&self.cfg,
-			&blend_policy,
-			&diversity_policy,
-			&retrieval_sources_policy,
-			ranking_override.as_ref(),
-		);
-		let policy_hash = ranking::hash_policy_snapshot(&policy_snapshot)?;
-		let policy_id = format!("ranking_v2:{}", &policy_hash[..12.min(policy_hash.len())]);
-		let mut scored: Vec<ScoredChunk> = Vec::new();
-
-		if !snippet_items.is_empty() {
-			let mut cached_scores: Option<Vec<f32>> = None;
-			let mut cache_key: Option<String> = None;
-			let mut cache_candidates: Vec<RerankCacheCandidate> = Vec::new();
-
-			if cache_cfg.enabled {
-				let candidates: Vec<RerankCacheCandidate> = snippet_items
-					.iter()
-					.map(|item| RerankCacheCandidate {
-						chunk_id: item.chunk.chunk_id,
-						updated_at: item.note.updated_at,
-					})
-					.collect();
-				let signature: Vec<(Uuid, OffsetDateTime)> = candidates
-					.iter()
-					.map(|candidate| (candidate.chunk_id, candidate.updated_at))
-					.collect();
-
-				match ranking::build_rerank_cache_key(
-					query,
-					self.cfg.providers.rerank.provider_id.as_str(),
-					self.cfg.providers.rerank.model.as_str(),
-					&signature,
-				) {
-					Ok(key) => {
-						cache_key = Some(key.clone());
-						cache_candidates = candidates;
-
-						match fetch_cache_payload(&self.db.pool, CacheKind::Rerank, &key, now).await
-						{
-							Ok(Some(payload)) => {
-								let decoded: RerankCachePayload =
-									match serde_json::from_value(payload.value) {
-										Ok(value) => value,
-										Err(err) => {
-											tracing::warn!(
-												error = %err,
-												cache_kind = CacheKind::Rerank.as_str(),
-												cache_key_prefix = ranking::cache_key_prefix(&key),
-												"Cache payload decode failed."
-											);
-
-											RerankCachePayload { items: Vec::new() }
-										},
-									};
-
-								if let Some(scores) =
-									ranking::build_cached_scores(&decoded, &cache_candidates)
-								{
-									tracing::info!(
-										cache_kind = CacheKind::Rerank.as_str(),
-										cache_key_prefix = ranking::cache_key_prefix(&key),
-										hit = true,
-										payload_size = payload.size_bytes,
-										ttl_days = cache_cfg.rerank_ttl_days,
-										"Cache hit."
-									);
-
-									cached_scores = Some(scores);
-								} else {
-									tracing::warn!(
-										cache_kind = CacheKind::Rerank.as_str(),
-										cache_key_prefix = ranking::cache_key_prefix(&key),
-										hit = false,
-										payload_size = payload.size_bytes,
-										ttl_days = cache_cfg.rerank_ttl_days,
-										"Cache payload did not match candidates."
-									);
-								}
-							},
-							Ok(None) => {
-								tracing::info!(
-									cache_kind = CacheKind::Rerank.as_str(),
-									cache_key_prefix = ranking::cache_key_prefix(&key),
-									hit = false,
-									payload_size = 0_u64,
-									ttl_days = cache_cfg.rerank_ttl_days,
-									"Cache miss."
-								);
-							},
-							Err(err) => {
-								tracing::warn!(
-									error = %err,
-									cache_kind = CacheKind::Rerank.as_str(),
-									cache_key_prefix = ranking::cache_key_prefix(&key),
-									"Cache read failed."
-								);
-							},
-						}
-					},
-					Err(err) => {
-						tracing::warn!(
-							error = %err,
-							cache_kind = CacheKind::Rerank.as_str(),
-							"Cache key build failed."
-						);
-					},
-				}
-			}
-
-			let scores = if let Some(scores) = cached_scores {
-				scores
-			} else {
-				let docs: Vec<String> =
-					snippet_items.iter().map(|item| item.snippet.clone()).collect();
-				let scores =
-					self.providers.rerank.rerank(&self.cfg.providers.rerank, query, &docs).await?;
-
-				if scores.len() != snippet_items.len() {
-					return Err(Error::Provider {
-						message: "Rerank provider returned mismatched score count.".to_string(),
-					});
-				}
-				if cache_cfg.enabled
-					&& let Some(key) = cache_key.as_ref()
-					&& !cache_candidates.is_empty()
-				{
-					let payload = RerankCachePayload {
-						items: cache_candidates
-							.iter()
-							.zip(scores.iter())
-							.map(|(candidate, score)| RerankCacheItem {
-								chunk_id: candidate.chunk_id,
-								updated_at: candidate.updated_at,
-								score: *score,
-							})
-							.collect(),
-					};
-
-					match serde_json::to_value(&payload) {
-						Ok(payload_json) => {
-							let stored_at = OffsetDateTime::now_utc();
-							let expires_at = stored_at + Duration::days(cache_cfg.rerank_ttl_days);
-
-							match store_cache_payload(
-								&self.db.pool,
-								CacheKind::Rerank,
-								key,
-								payload_json,
-								stored_at,
-								expires_at,
-								cache_cfg.max_payload_bytes,
-							)
-							.await
-							{
-								Ok(Some(payload_size)) => {
-									tracing::info!(
-										cache_kind = CacheKind::Rerank.as_str(),
-										cache_key_prefix = ranking::cache_key_prefix(key),
-										hit = false,
-										payload_size,
-										ttl_days = cache_cfg.rerank_ttl_days,
-										"Cache stored."
-									);
-								},
-								Ok(None) => {
-									tracing::warn!(
-										cache_kind = CacheKind::Rerank.as_str(),
-										cache_key_prefix = ranking::cache_key_prefix(key),
-										hit = false,
-										payload_size = 0_u64,
-										ttl_days = cache_cfg.rerank_ttl_days,
-										"Cache payload skipped due to size."
-									);
-								},
-								Err(err) => {
-									tracing::warn!(
-										error = %err,
-										cache_kind = CacheKind::Rerank.as_str(),
-										cache_key_prefix = ranking::cache_key_prefix(key),
-										"Cache write failed."
-									);
-								},
-							}
-						},
-						Err(err) => {
-							tracing::warn!(
-								error = %err,
-								cache_kind = CacheKind::Rerank.as_str(),
-								cache_key_prefix = ranking::cache_key_prefix(key),
-								"Cache payload encode failed."
-							);
-						},
-					}
-				}
-
-				scores
-			};
-
-			scored = Vec::with_capacity(snippet_items.len());
-
-			let rerank_ranks = ranking::build_rerank_ranks(&snippet_items, &scores);
-			let total_rerank = u32::try_from(scores.len()).unwrap_or(1).max(1);
-			let total_retrieval = u32::try_from(candidate_count).unwrap_or(1).max(1);
-
-			for ((item, rerank_score), rerank_rank) in
-				snippet_items.into_iter().zip(scores.into_iter()).zip(rerank_ranks.into_iter())
-			{
-				let importance = item.note.importance;
-				let retrieval_rank = item.retrieval_rank;
-				let age_days = (now - item.note.updated_at).as_seconds_f32() / 86_400.0;
-				let decay = if self.cfg.ranking.recency_tau_days > 0.0 {
-					(-age_days / self.cfg.ranking.recency_tau_days).exp()
-				} else {
-					1.0
-				};
-				let base = (1.0 + 0.6 * importance) * decay;
-				let tie_breaker_score = self.cfg.ranking.tie_breaker_weight * base;
-				let scope_context_boost = scope_context_boost_by_scope
-					.get(item.note.scope.as_str())
-					.copied()
-					.unwrap_or(0.0);
-				let rerank_norm = match blend_policy.rerank_normalization {
-					ranking::NormalizationKind::Rank =>
-						ranking::rank_normalize(rerank_rank, total_rerank),
-				};
-				let retrieval_norm = match blend_policy.retrieval_normalization {
-					ranking::NormalizationKind::Rank =>
-						ranking::rank_normalize(retrieval_rank, total_retrieval),
-				};
-				let blend_retrieval_weight = if blend_policy.enabled {
-					ranking::retrieval_weight_for_rank(retrieval_rank, &blend_policy.segments)
-				} else {
-					0.0
-				};
-				let retrieval_term = blend_retrieval_weight * retrieval_norm;
-				let rerank_term = (1.0 - blend_retrieval_weight) * rerank_norm;
-				let det_terms = ranking::compute_deterministic_ranking_terms(
-					&self.cfg,
-					&det_query_tokens,
-					item.snippet.as_str(),
-					item.note.hit_count,
-					item.note.last_hit_at,
-					age_days,
-					now,
-				);
-				let final_score = retrieval_term
-					+ rerank_term + tie_breaker_score
-					+ scope_context_boost
-					+ det_terms.lexical_bonus
-					+ det_terms.hit_boost
-					+ det_terms.decay_penalty;
-
-				scored.push(ScoredChunk {
-					item,
-					final_score,
-					rerank_score,
-					rerank_rank,
-					rerank_norm,
-					retrieval_norm,
-					blend_retrieval_weight,
-					retrieval_term,
-					rerank_term,
-					tie_breaker_score,
-					scope_context_boost,
-					age_days,
-					importance,
-					deterministic_lexical_overlap_ratio: det_terms.lexical_overlap_ratio,
-					deterministic_lexical_bonus: det_terms.lexical_bonus,
-					deterministic_hit_count: det_terms.hit_count,
-					deterministic_last_hit_age_days: det_terms.last_hit_age_days,
-					deterministic_hit_boost: det_terms.hit_boost,
-					deterministic_decay_penalty: det_terms.decay_penalty,
-				});
-			}
-		}
-
-		let mut best_by_note: HashMap<Uuid, ScoredChunk> = HashMap::new();
-		let mut trace_candidates = if self.cfg.search.explain.capture_candidates {
-			let candidate_expires_at =
-				now + Duration::days(self.cfg.search.explain.candidate_retention_days);
-
-			scored
-				.iter()
-				.map(|scored_chunk| {
-					let note = &scored_chunk.item.note;
-
-					TraceCandidateRecord {
-						candidate_id: Uuid::new_v4(),
-						note_id: note.note_id,
-						chunk_id: scored_chunk.item.chunk.chunk_id,
-						chunk_index: scored_chunk.item.chunk.chunk_index,
-						snippet: scored_chunk.item.snippet.clone(),
-						candidate_snapshot: serde_json::to_value(TraceReplayCandidate {
-							note_id: note.note_id,
-							chunk_id: scored_chunk.item.chunk.chunk_id,
-							chunk_index: scored_chunk.item.chunk.chunk_index,
-							snippet: scored_chunk.item.snippet.clone(),
-							retrieval_rank: scored_chunk.item.retrieval_rank,
-							rerank_score: scored_chunk.rerank_score,
-							note_scope: note.scope.clone(),
-							note_importance: note.importance,
-							note_updated_at: note.updated_at,
-							note_hit_count: note.hit_count,
-							note_last_hit_at: note.last_hit_at,
-							diversity_selected: None,
-							diversity_selected_rank: None,
-							diversity_selected_reason: None,
-							diversity_skipped_reason: None,
-							diversity_nearest_selected_note_id: None,
-							diversity_similarity: None,
-							diversity_mmr_score: None,
-							diversity_missing_embedding: None,
-						})
-						.unwrap_or_else(|_| serde_json::json!({})),
-						retrieval_rank: scored_chunk.item.retrieval_rank,
-						rerank_score: scored_chunk.rerank_score,
-						note_scope: note.scope.clone(),
-						note_importance: note.importance,
-						note_updated_at: note.updated_at,
-						note_hit_count: note.hit_count,
-						note_last_hit_at: note.last_hit_at,
-						created_at: now,
-						expires_at: candidate_expires_at,
-					}
-				})
-				.collect::<Vec<_>>()
-		} else {
-			Vec::new()
-		};
-
-		for scored_item in scored {
-			let note_id = scored_item.item.note.note_id;
-			let replace = match best_by_note.get(&note_id) {
-				Some(existing) => scored_item.final_score > existing.final_score,
-				None => true,
-			};
-
-			if replace {
-				best_by_note.insert(note_id, scored_item);
-			}
-		}
-
-		let mut results: Vec<ScoredChunk> = best_by_note.into_values().collect();
-
-		results.sort_by(|a, b| {
-			let ord = ranking::cmp_f32_desc(a.final_score, b.final_score);
-
-			if ord != Ordering::Equal {
-				return ord;
-			}
-
-			let ord = a.item.retrieval_rank.cmp(&b.item.retrieval_rank);
-
-			if ord != Ordering::Equal {
-				return ord;
-			}
-
-			let ord = a.item.note.note_id.cmp(&b.item.note.note_id);
-
-			if ord != Ordering::Equal {
-				return ord;
-			}
-
-			a.item.chunk.chunk_id.cmp(&b.item.chunk.chunk_id)
-		});
-
-		let note_vectors = if diversity_policy.enabled {
-			fetch_note_vectors_for_diversity(&self.db.pool, &results).await?
-		} else {
-			HashMap::new()
-		};
-		let (selected_results, diversity_decisions) =
-			ranking::select_diverse_results(results, top_k, &diversity_policy, &note_vectors);
-
-		ranking::attach_diversity_decisions_to_trace_candidates(
-			&mut trace_candidates,
-			&diversity_decisions,
-		);
-
-		if record_hits_enabled && !selected_results.is_empty() {
-			let mut tx = self.db.pool.begin().await?;
-
-			record_hits(&mut *tx, query, &selected_results, now).await?;
-
-			tx.commit().await?;
-		}
-
-		let trace_context = TraceContext {
-			trace_id,
-			tenant_id,
-			project_id,
-			agent_id,
-			read_profile,
-			query,
-			expansion_mode,
-			expanded_queries,
-			allowed_scopes,
-			candidate_count,
-			top_k,
-		};
-		let config_snapshot = ranking::build_config_snapshot(
-			&self.cfg,
-			&blend_policy,
-			&diversity_policy,
-			&retrieval_sources_policy,
-			ranking_override.as_ref(),
-			policy_id.as_str(),
-			&policy_snapshot,
-		);
-		let mut items = Vec::with_capacity(selected_results.len());
-		let mut trace_builder = SearchTraceBuilder::new(
-			trace_context,
-			config_snapshot,
-			self.cfg.search.explain.retention_days,
-			now,
-		);
-
-		for candidate in trace_candidates {
-			trace_builder.push_candidate(candidate);
-		}
-		for (idx, scored_chunk) in selected_results.into_iter().enumerate() {
-			let rank = idx as u32 + 1;
-			let (matched_terms, matched_fields) = ranking::match_terms_in_text(
-				&query_tokens,
-				&scored_chunk.item.snippet,
-				scored_chunk.item.note.key.as_deref(),
-				MAX_MATCHED_TERMS,
-			);
-			let matched_fields = ranking::merge_matched_fields(
-				matched_fields,
-				structured_matches.get(&scored_chunk.item.note.note_id),
-			);
-			let trace_terms =
-				ranking_explain_v2::build_trace_terms_v2(ranking_explain_v2::TraceTermsArgs {
-					cfg: &self.cfg,
-					blend_enabled: blend_policy.enabled,
-					retrieval_normalization: blend_policy.retrieval_normalization.as_str(),
-					rerank_normalization: blend_policy.rerank_normalization.as_str(),
-					blend_retrieval_weight: scored_chunk.blend_retrieval_weight,
-					retrieval_rank: scored_chunk.item.retrieval_rank,
-					retrieval_norm: scored_chunk.retrieval_norm,
-					retrieval_term: scored_chunk.retrieval_term,
-					rerank_score: scored_chunk.rerank_score,
-					rerank_rank: scored_chunk.rerank_rank,
-					rerank_norm: scored_chunk.rerank_norm,
-					rerank_term: scored_chunk.rerank_term,
-					tie_breaker_score: scored_chunk.tie_breaker_score,
-					importance: scored_chunk.importance,
-					age_days: scored_chunk.age_days,
-					scope: scored_chunk.item.note.scope.as_str(),
-					scope_context_boost: scored_chunk.scope_context_boost,
-					deterministic_lexical_overlap_ratio: scored_chunk
-						.deterministic_lexical_overlap_ratio,
-					deterministic_lexical_bonus: scored_chunk.deterministic_lexical_bonus,
-					deterministic_hit_count: scored_chunk.deterministic_hit_count,
-					deterministic_last_hit_age_days: scored_chunk.deterministic_last_hit_age_days,
-					deterministic_hit_boost: scored_chunk.deterministic_hit_boost,
-					deterministic_decay_penalty: scored_chunk.deterministic_decay_penalty,
-				});
-			let response_terms = ranking_explain_v2::strip_term_inputs(&trace_terms);
-			let response_explain = SearchExplain {
-				r#match: SearchMatchExplain {
-					matched_terms: matched_terms.clone(),
-					matched_fields: matched_fields.clone(),
-				},
-				ranking: SearchRankingExplain {
-					schema: ranking_explain_v2::SEARCH_RANKING_EXPLAIN_SCHEMA_V2.to_string(),
-					policy_id: policy_id.clone(),
-					final_score: scored_chunk.final_score,
-					terms: response_terms,
-				},
-				diversity: if diversity_policy.enabled {
-					diversity_decisions
-						.get(&scored_chunk.item.note.note_id)
-						.map(ranking::build_diversity_explain)
-				} else {
-					None
-				},
-			};
-			let trace_explain = SearchExplain {
-				r#match: SearchMatchExplain { matched_terms, matched_fields },
-				ranking: SearchRankingExplain {
-					schema: ranking_explain_v2::SEARCH_RANKING_EXPLAIN_SCHEMA_V2.to_string(),
-					policy_id: policy_id.clone(),
-					final_score: scored_chunk.final_score,
-					terms: trace_terms,
-				},
-				diversity: if diversity_policy.enabled {
-					diversity_decisions
-						.get(&scored_chunk.item.note.note_id)
-						.map(ranking::build_diversity_explain)
-				} else {
-					None
-				},
-			};
-			let result_handle = Uuid::new_v4();
-			let note = &scored_chunk.item.note;
-			let chunk = &scored_chunk.item.chunk;
-
-			items.push(SearchItem {
-				result_handle,
-				note_id: note.note_id,
-				chunk_id: chunk.chunk_id,
-				chunk_index: chunk.chunk_index,
-				start_offset: chunk.start_offset,
-				end_offset: chunk.end_offset,
-				snippet: scored_chunk.item.snippet.clone(),
-				r#type: note.note_type.clone(),
-				key: note.key.clone(),
-				scope: note.scope.clone(),
-				importance: note.importance,
-				confidence: note.confidence,
-				updated_at: note.updated_at,
-				expires_at: note.expires_at,
-				final_score: scored_chunk.final_score,
-				source_ref: note.source_ref.clone(),
-				explain: response_explain.clone(),
-			});
-			trace_builder.push_item(TraceItemRecord {
-				item_id: result_handle,
-				note_id: note.note_id,
-				chunk_id: Some(chunk.chunk_id),
-				rank,
-				final_score: scored_chunk.final_score,
-				explain: trace_explain,
-			});
-		}
-
-		let trace_payload = trace_builder.build();
-
-		match self.cfg.search.explain.write_mode.trim().to_ascii_lowercase().as_str() {
-			"inline" => {
-				let mut tx = self.db.pool.begin().await?;
-
-				persist_trace_inline(&mut tx, trace_payload).await?;
-
-				tx.commit().await?;
-			},
-			_ =>
-				if let Err(err) = enqueue_trace(&self.db.pool, trace_payload).await {
-					tracing::error!(
-						error = %err,
-						trace_id = %trace_id,
-						"Failed to enqueue search trace."
-					);
-				},
-		}
-
-		Ok(SearchResponse { trace_id, items })
+		Ok(note_meta)
 	}
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SearchRequest {
-	pub tenant_id: String,
-	pub project_id: String,
-	pub agent_id: String,
-	pub read_profile: String,
-	pub query: String,
-	pub top_k: Option<u32>,
-	pub candidate_k: Option<u32>,
-	pub record_hits: Option<bool>,
-	pub ranking: Option<RankingRequestOverride>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct RankingRequestOverride {
-	pub blend: Option<BlendRankingOverride>,
-	pub diversity: Option<DiversityRankingOverride>,
-	pub retrieval_sources: Option<RetrievalSourcesRankingOverride>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct BlendRankingOverride {
-	pub enabled: Option<bool>,
-	pub rerank_normalization: Option<String>,
-	pub retrieval_normalization: Option<String>,
-	pub segments: Option<Vec<BlendSegmentOverride>>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct BlendSegmentOverride {
-	pub max_retrieval_rank: u32,
-	pub retrieval_weight: f32,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct DiversityRankingOverride {
-	pub enabled: Option<bool>,
-	pub sim_threshold: Option<f32>,
-	pub mmr_lambda: Option<f32>,
-	pub max_skips: Option<u32>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct RetrievalSourcesRankingOverride {
-	pub fusion_weight: Option<f32>,
-	pub structured_field_weight: Option<f32>,
-	pub fusion_priority: Option<u32>,
-	pub structured_field_priority: Option<u32>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SearchExplain {
-	pub r#match: SearchMatchExplain,
-	pub ranking: SearchRankingExplain,
-	#[serde(skip_serializing_if = "Option::is_none")]
-	pub diversity: Option<SearchDiversityExplain>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SearchMatchExplain {
-	pub matched_terms: Vec<String>,
-	pub matched_fields: Vec<String>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SearchDiversityExplain {
-	pub enabled: bool,
-	pub selected_reason: String,
-	#[serde(skip_serializing_if = "Option::is_none")]
-	pub skipped_reason: Option<String>,
-	#[serde(skip_serializing_if = "Option::is_none")]
-	pub nearest_selected_note_id: Option<Uuid>,
-	#[serde(skip_serializing_if = "Option::is_none")]
-	pub similarity: Option<f32>,
-	#[serde(skip_serializing_if = "Option::is_none")]
-	pub mmr_score: Option<f32>,
-	#[serde(default)]
-	pub missing_embedding: bool,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SearchItem {
-	pub result_handle: Uuid,
-	pub note_id: Uuid,
-	pub chunk_id: Uuid,
-	pub chunk_index: i32,
-	pub start_offset: i32,
-	pub end_offset: i32,
-	pub snippet: String,
-	pub r#type: String,
-	pub key: Option<String>,
-	pub scope: String,
-	pub importance: f32,
-	pub confidence: f32,
-	#[serde(with = "crate::time_serde")]
-	pub updated_at: OffsetDateTime,
-	#[serde(with = "crate::time_serde::option")]
-	pub expires_at: Option<OffsetDateTime>,
-	pub final_score: f32,
-	pub source_ref: Value,
-	pub explain: SearchExplain,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SearchResponse {
-	pub trace_id: Uuid,
-	pub items: Vec<SearchItem>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SearchExplainRequest {
-	pub tenant_id: String,
-	pub project_id: String,
-	pub agent_id: String,
-	pub result_handle: Uuid,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SearchTrace {
-	pub trace_id: Uuid,
-	pub tenant_id: String,
-	pub project_id: String,
-	pub agent_id: String,
-	pub read_profile: String,
-	pub query: String,
-	pub expansion_mode: String,
-	pub expanded_queries: Vec<String>,
-	pub allowed_scopes: Vec<String>,
-	pub candidate_count: u32,
-	pub top_k: u32,
-	pub config_snapshot: Value,
-	#[serde(with = "crate::time_serde")]
-	pub created_at: OffsetDateTime,
-	pub trace_version: i32,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SearchExplainItem {
-	pub result_handle: Uuid,
-	pub note_id: Uuid,
-	pub chunk_id: Option<Uuid>,
-	pub rank: u32,
-	pub explain: SearchExplain,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SearchExplainResponse {
-	pub trace: SearchTrace,
-	pub item: SearchExplainItem,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct TraceGetRequest {
-	pub tenant_id: String,
-	pub project_id: String,
-	pub agent_id: String,
-	pub trace_id: Uuid,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct TraceGetResponse {
-	pub trace: SearchTrace,
-	pub items: Vec<SearchExplainItem>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct TraceReplayContext {
-	pub trace_id: Uuid,
-	pub query: String,
-	pub candidate_count: u32,
-	pub top_k: u32,
-	#[serde(with = "crate::time_serde")]
-	pub created_at: OffsetDateTime,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct TraceReplayCandidate {
-	pub note_id: Uuid,
-	pub chunk_id: Uuid,
-	pub chunk_index: i32,
-	pub snippet: String,
-	pub retrieval_rank: u32,
-	pub rerank_score: f32,
-	pub note_scope: String,
-	pub note_importance: f32,
-	#[serde(with = "crate::time_serde")]
-	pub note_updated_at: OffsetDateTime,
-	pub note_hit_count: i64,
-	#[serde(with = "crate::time_serde::option")]
-	pub note_last_hit_at: Option<OffsetDateTime>,
-	pub diversity_selected: Option<bool>,
-	pub diversity_selected_rank: Option<u32>,
-	pub diversity_selected_reason: Option<String>,
-	pub diversity_skipped_reason: Option<String>,
-	pub diversity_nearest_selected_note_id: Option<Uuid>,
-	pub diversity_similarity: Option<f32>,
-	pub diversity_mmr_score: Option<f32>,
-	pub diversity_missing_embedding: Option<bool>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct TraceReplayItem {
-	pub note_id: Uuid,
-	pub chunk_id: Uuid,
-	pub retrieval_rank: u32,
-	pub final_score: f32,
-	pub explain: SearchExplain,
-}
-
-#[derive(Clone, Debug)]
-struct QueryEmbedding {
-	text: String,
-	vector: Vec<f32>,
-}
-
-#[derive(Clone, Debug)]
-struct ChunkCandidate {
-	chunk_id: Uuid,
-	note_id: Uuid,
-	chunk_index: i32,
-	retrieval_rank: u32,
-	updated_at: Option<OffsetDateTime>,
-	embedding_version: Option<String>,
-}
-
-#[derive(Clone, Debug)]
-struct RerankCacheCandidate {
-	chunk_id: Uuid,
-	updated_at: OffsetDateTime,
-}
-
-#[derive(Clone, Debug)]
-struct NoteMeta {
-	note_id: Uuid,
-	note_type: String,
-	key: Option<String>,
-	scope: String,
-	importance: f32,
-	confidence: f32,
-	updated_at: OffsetDateTime,
-	expires_at: Option<OffsetDateTime>,
-	source_ref: Value,
-	embedding_version: String,
-	hit_count: i64,
-	last_hit_at: Option<OffsetDateTime>,
-}
-
-#[derive(Clone, Debug, sqlx::FromRow)]
-struct ChunkRow {
-	chunk_id: Uuid,
-	note_id: Uuid,
-	chunk_index: i32,
-	start_offset: i32,
-	end_offset: i32,
-	text: String,
-}
-
-#[derive(Clone, Debug, sqlx::FromRow)]
-struct NoteVectorRow {
-	note_id: Uuid,
-	vec_text: String,
-}
-
-#[derive(Clone, Debug)]
-struct ChunkMeta {
-	chunk_id: Uuid,
-	chunk_index: i32,
-	start_offset: i32,
-	end_offset: i32,
-}
-
-#[derive(Clone, Debug)]
-struct ChunkSnippet {
-	note: NoteMeta,
-	chunk: ChunkMeta,
-	snippet: String,
-	retrieval_rank: u32,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-struct ExpansionCachePayload {
-	queries: Vec<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct ExpansionOutput {
-	queries: Vec<String>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-struct RerankCacheItem {
-	chunk_id: Uuid,
-	updated_at: OffsetDateTime,
-	score: f32,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-struct RerankCachePayload {
-	items: Vec<RerankCacheItem>,
-}
-
-#[derive(Clone, Debug)]
-struct CachePayload {
-	value: Value,
-	size_bytes: usize,
-}
-
-#[derive(Clone, Debug)]
-struct ScoredChunk {
-	item: ChunkSnippet,
-	final_score: f32,
-	rerank_score: f32,
-	rerank_rank: u32,
-	rerank_norm: f32,
-	retrieval_norm: f32,
-	blend_retrieval_weight: f32,
-	retrieval_term: f32,
-	rerank_term: f32,
-	tie_breaker_score: f32,
-	scope_context_boost: f32,
-	age_days: f32,
-	importance: f32,
-	deterministic_lexical_overlap_ratio: f32,
-	deterministic_lexical_bonus: f32,
-	deterministic_hit_count: i64,
-	deterministic_last_hit_age_days: Option<f32>,
-	deterministic_hit_boost: f32,
-	deterministic_decay_penalty: f32,
-}
-
-#[derive(Clone, Debug)]
-struct DiversityDecision {
-	selected: bool,
-	selected_rank: Option<u32>,
-	selected_reason: String,
-	skipped_reason: Option<String>,
-	nearest_selected_note_id: Option<Uuid>,
-	similarity: Option<f32>,
-	mmr_score: Option<f32>,
-	missing_embedding: bool,
-}
-
-#[derive(Clone, Copy, Debug)]
-struct DeterministicRankingTerms {
-	lexical_overlap_ratio: f32,
-	lexical_bonus: f32,
-	hit_count: i64,
-	last_hit_age_days: Option<f32>,
-	hit_boost: f32,
-	decay_penalty: f32,
-}
-impl Default for DeterministicRankingTerms {
-	fn default() -> Self {
-		Self {
-			lexical_overlap_ratio: 0.0,
-			lexical_bonus: 0.0,
-			hit_count: 0,
-			last_hit_age_days: None,
-			hit_boost: 0.0,
-			decay_penalty: 0.0,
-		}
-	}
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-struct TracePayload {
-	trace: TraceRecord,
-	items: Vec<TraceItemRecord>,
-	#[serde(default)]
-	candidates: Vec<TraceCandidateRecord>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-struct TraceRecord {
-	trace_id: Uuid,
-	tenant_id: String,
-	project_id: String,
-	agent_id: String,
-	read_profile: String,
-	query: String,
-	expansion_mode: String,
-	expanded_queries: Vec<String>,
-	allowed_scopes: Vec<String>,
-	candidate_count: u32,
-	top_k: u32,
-	config_snapshot: Value,
-	trace_version: i32,
-	created_at: OffsetDateTime,
-	expires_at: OffsetDateTime,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-struct TraceItemRecord {
-	item_id: Uuid,
-	note_id: Uuid,
-	chunk_id: Option<Uuid>,
-	rank: u32,
-	final_score: f32,
-	explain: SearchExplain,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-struct TraceCandidateRecord {
-	candidate_id: Uuid,
-	note_id: Uuid,
-	chunk_id: Uuid,
-	chunk_index: i32,
-	snippet: String,
-	#[serde(default)]
-	candidate_snapshot: Value,
-	retrieval_rank: u32,
-	rerank_score: f32,
-	note_scope: String,
-	note_importance: f32,
-	note_updated_at: OffsetDateTime,
-	note_hit_count: i64,
-	note_last_hit_at: Option<OffsetDateTime>,
-	created_at: OffsetDateTime,
-	expires_at: OffsetDateTime,
-}
-
-struct TraceContext<'a> {
-	trace_id: Uuid,
-	tenant_id: &'a str,
-	project_id: &'a str,
-	agent_id: &'a str,
-	read_profile: &'a str,
-	query: &'a str,
-	expansion_mode: ExpansionMode,
-	expanded_queries: Vec<String>,
-	allowed_scopes: &'a [String],
-	candidate_count: usize,
-	top_k: u32,
-}
-
-struct SearchTraceBuilder {
-	trace: TraceRecord,
-	items: Vec<TraceItemRecord>,
-	candidates: Vec<TraceCandidateRecord>,
-}
-impl SearchTraceBuilder {
-	fn new(
-		context: TraceContext<'_>,
-		config_snapshot: Value,
-		retention_days: i64,
-		now: OffsetDateTime,
-	) -> Self {
-		let trace = TraceRecord {
-			trace_id: context.trace_id,
-			tenant_id: context.tenant_id.to_string(),
-			project_id: context.project_id.to_string(),
-			agent_id: context.agent_id.to_string(),
-			read_profile: context.read_profile.to_string(),
-			query: context.query.to_string(),
-			expansion_mode: ranking::expansion_mode_label(context.expansion_mode).to_string(),
-			expanded_queries: context.expanded_queries,
-			allowed_scopes: context.allowed_scopes.to_vec(),
-			candidate_count: context.candidate_count as u32,
-			top_k: context.top_k,
-			config_snapshot,
-			trace_version: TRACE_VERSION,
-			created_at: now,
-			expires_at: now + Duration::days(retention_days),
-		};
-
-		Self { trace, items: Vec::new(), candidates: Vec::new() }
-	}
-
-	fn push_item(&mut self, item: TraceItemRecord) {
-		self.items.push(item);
-	}
-
-	fn push_candidate(&mut self, candidate: TraceCandidateRecord) {
-		self.candidates.push(candidate);
-	}
-
-	fn build(self) -> TracePayload {
-		TracePayload { trace: self.trace, items: self.items, candidates: self.candidates }
-	}
-}
-
-struct FinishSearchArgs<'a> {
-	trace_id: Uuid,
-	query: &'a str,
-	tenant_id: &'a str,
-	project_id: &'a str,
-	agent_id: &'a str,
-	read_profile: &'a str,
-	allowed_scopes: &'a [String],
-	expanded_queries: Vec<String>,
-	expansion_mode: ExpansionMode,
-	candidates: Vec<ChunkCandidate>,
-	structured_matches: HashMap<Uuid, Vec<String>>,
-	top_k: u32,
-	record_hits_enabled: bool,
-	ranking_override: Option<RankingRequestOverride>,
-}
-
-struct StructuredFieldRetrievalArgs<'a> {
-	tenant_id: &'a str,
-	project_id: &'a str,
-	agent_id: &'a str,
-	allowed_scopes: &'a [String],
-	query_vec: &'a [f32],
-	candidate_k: u32,
-	now: OffsetDateTime,
-}
-
-#[derive(Clone, Debug)]
-struct StructuredFieldRetrievalResult {
-	candidates: Vec<ChunkCandidate>,
-	structured_matches: HashMap<Uuid, Vec<String>>,
-}
-
-#[derive(Debug, Clone)]
-struct RetrievalSourceCandidates {
-	source: RetrievalSourceKind,
-	candidates: Vec<ChunkCandidate>,
 }
 
 pub fn ranking_policy_id(
@@ -2286,46 +2439,10 @@ pub fn replay_ranking_from_candidates(
 	candidates: &[TraceReplayCandidate],
 	top_k: u32,
 ) -> Result<Vec<TraceReplayItem>> {
-	#[derive(Clone, Debug)]
-	struct ScoredReplay {
-		note_id: Uuid,
-		chunk_id: Uuid,
-		retrieval_rank: u32,
-		final_score: f32,
-		rerank_score: f32,
-		rerank_rank: u32,
-		rerank_norm: f32,
-		retrieval_norm: f32,
-		blend_retrieval_weight: f32,
-		retrieval_term: f32,
-		rerank_term: f32,
-		tie_breaker_score: f32,
-		scope_context_boost: f32,
-		age_days: f32,
-		importance: f32,
-		note_scope: String,
-		deterministic_lexical_overlap_ratio: f32,
-		deterministic_lexical_bonus: f32,
-		deterministic_hit_count: i64,
-		deterministic_last_hit_age_days: Option<f32>,
-		deterministic_hit_boost: f32,
-		deterministic_decay_penalty: f32,
-	}
-
 	let query_tokens = ranking::tokenize_query(trace.query.as_str(), MAX_MATCHED_TERMS);
 	let scope_context_boost_by_scope =
 		ranking::build_scope_context_boost_by_scope(&query_tokens, cfg.context.as_ref());
-	let det_query_tokens = if cfg.ranking.deterministic.enabled
-		&& cfg.ranking.deterministic.lexical.enabled
-		&& cfg.ranking.deterministic.lexical.max_query_terms > 0
-	{
-		ranking::tokenize_query(
-			trace.query.as_str(),
-			cfg.ranking.deterministic.lexical.max_query_terms as usize,
-		)
-	} else {
-		Vec::new()
-	};
+	let det_query_tokens = build_deterministic_query_tokens(cfg, trace.query.as_str());
 	let blend_policy = ranking::resolve_blend_policy(
 		&cfg.ranking.blend,
 		ranking_override.and_then(|override_| override_.blend.as_ref()),
@@ -2334,104 +2451,28 @@ pub fn replay_ranking_from_candidates(
 		&cfg.ranking.diversity,
 		ranking_override.and_then(|override_| override_.diversity.as_ref()),
 	)?;
-	let retrieval_sources_policy = ranking::resolve_retrieval_sources_policy(
-		&cfg.ranking.retrieval_sources,
-		ranking_override.and_then(|override_| override_.retrieval_sources.as_ref()),
-	)?;
-	let policy_snapshot = ranking::build_policy_snapshot(
-		cfg,
-		&blend_policy,
-		&diversity_policy,
-		&retrieval_sources_policy,
-		ranking_override,
-	);
-	let policy_hash = ranking::hash_policy_snapshot(&policy_snapshot)?;
-	let policy_id = format!("ranking_v2:{}", &policy_hash[..12.min(policy_hash.len())]);
+	let policy_id = ranking_policy_id(cfg, ranking_override)?;
 	let now = trace.created_at;
 	let total_rerank = u32::try_from(candidates.len()).unwrap_or(1).max(1);
 	let total_retrieval = trace.candidate_count.max(1);
 	let rerank_ranks = ranking::build_rerank_ranks_for_replay(candidates);
 	let replay_diversity_decisions = ranking::extract_replay_diversity_decisions(candidates);
+	let score_ctx = ScoreCandidateCtx {
+		cfg,
+		blend_policy: &blend_policy,
+		scope_context_boost_by_scope: &scope_context_boost_by_scope,
+		det_query_tokens: det_query_tokens.as_slice(),
+		now,
+		total_rerank,
+		total_retrieval,
+	};
 	let mut best_by_note: BTreeMap<Uuid, ScoredReplay> = BTreeMap::new();
 
 	for (candidate, rerank_rank) in candidates.iter().zip(rerank_ranks) {
-		let importance = candidate.note_importance;
-		let retrieval_rank = candidate.retrieval_rank;
-		let age_days = (now - candidate.note_updated_at).as_seconds_f32() / 86_400.0;
-		let decay = if cfg.ranking.recency_tau_days > 0.0 {
-			(-age_days / cfg.ranking.recency_tau_days).exp()
-		} else {
-			1.0
-		};
-		let base = (1.0 + 0.6 * importance) * decay;
-		let tie_breaker_score = cfg.ranking.tie_breaker_weight * base;
-		let scope_context_boost =
-			scope_context_boost_by_scope.get(candidate.note_scope.as_str()).copied().unwrap_or(0.0);
-		let rerank_norm = match blend_policy.rerank_normalization {
-			ranking::NormalizationKind::Rank => ranking::rank_normalize(rerank_rank, total_rerank),
-		};
-		let retrieval_norm = match blend_policy.retrieval_normalization {
-			ranking::NormalizationKind::Rank =>
-				ranking::rank_normalize(retrieval_rank, total_retrieval),
-		};
-		let blend_retrieval_weight = if blend_policy.enabled {
-			ranking::retrieval_weight_for_rank(retrieval_rank, &blend_policy.segments)
-		} else {
-			0.0
-		};
-		let retrieval_term = blend_retrieval_weight * retrieval_norm;
-		let rerank_term = (1.0 - blend_retrieval_weight) * rerank_norm;
-		let det_terms = ranking::compute_deterministic_ranking_terms(
-			cfg,
-			&det_query_tokens,
-			candidate.snippet.as_str(),
-			candidate.note_hit_count,
-			candidate.note_last_hit_at,
-			age_days,
-			now,
-		);
-		let final_score = retrieval_term
-			+ rerank_term
-			+ tie_breaker_score
-			+ scope_context_boost
-			+ det_terms.lexical_bonus
-			+ det_terms.hit_boost
-			+ det_terms.decay_penalty;
-		let scored = ScoredReplay {
-			note_id: candidate.note_id,
-			chunk_id: candidate.chunk_id,
-			retrieval_rank,
-			final_score,
-			rerank_score: candidate.rerank_score,
-			rerank_rank,
-			rerank_norm,
-			retrieval_norm,
-			blend_retrieval_weight,
-			retrieval_term,
-			rerank_term,
-			tie_breaker_score,
-			scope_context_boost,
-			age_days,
-			importance,
-			note_scope: candidate.note_scope.clone(),
-			deterministic_lexical_overlap_ratio: det_terms.lexical_overlap_ratio,
-			deterministic_lexical_bonus: det_terms.lexical_bonus,
-			deterministic_hit_count: det_terms.hit_count,
-			deterministic_last_hit_age_days: det_terms.last_hit_age_days,
-			deterministic_hit_boost: det_terms.hit_boost,
-			deterministic_decay_penalty: det_terms.decay_penalty,
-		};
+		let scored = score_replay_candidate(&score_ctx, candidate, rerank_rank);
 		let replace = match best_by_note.get(&candidate.note_id) {
 			None => true,
-			Some(existing) => {
-				let ord = ranking::cmp_f32_desc(scored.final_score, existing.final_score);
-
-				if ord != Ordering::Equal {
-					ord == Ordering::Less
-				} else {
-					scored.retrieval_rank < existing.retrieval_rank
-				}
-			},
+			Some(existing) => should_replace_replay_best(existing, &scored),
 		};
 
 		if replace {
@@ -2441,29 +2482,540 @@ pub fn replay_ranking_from_candidates(
 
 	let mut results: Vec<ScoredReplay> = best_by_note.into_values().collect();
 
-	results.sort_by(|a, b| {
-		let ord = ranking::cmp_f32_desc(a.final_score, b.final_score);
+	results.sort_by(cmp_scored_replay);
 
-		if ord != Ordering::Equal {
-			return ord;
+	let results = apply_replay_diversity_selection(
+		results,
+		top_k,
+		diversity_policy.enabled,
+		&replay_diversity_decisions,
+	);
+
+	Ok(build_replay_items(
+		cfg,
+		&blend_policy,
+		&diversity_policy,
+		policy_id.as_str(),
+		&replay_diversity_decisions,
+		results,
+	))
+}
+
+fn validate_search_request_inputs(
+	tenant_id: &str,
+	project_id: &str,
+	agent_id: &str,
+	query: &str,
+) -> Result<()> {
+	if tenant_id.is_empty() || project_id.is_empty() || agent_id.is_empty() {
+		return Err(Error::InvalidRequest {
+			message: "tenant_id, project_id, and agent_id are required.".to_string(),
+		});
+	}
+	if cjk::contains_cjk(query) {
+		return Err(Error::NonEnglishInput { field: "$.query".to_string() });
+	}
+
+	Ok(())
+}
+
+fn build_search_filter(
+	tenant_id: &str,
+	project_id: &str,
+	agent_id: &str,
+	allowed_scopes: &[String],
+) -> Filter {
+	let private_scope = "agent_private".to_string();
+	let non_private_scopes: Vec<String> =
+		allowed_scopes.iter().filter(|scope| *scope != "agent_private").cloned().collect();
+	let mut should_conditions = Vec::new();
+
+	if allowed_scopes.iter().any(|scope| scope == "agent_private") {
+		let private_filter = Filter::all([
+			Condition::matches("scope", private_scope),
+			Condition::matches("agent_id", agent_id.to_string()),
+		]);
+
+		should_conditions.push(Condition::from(private_filter));
+	}
+	if !non_private_scopes.is_empty() {
+		should_conditions.push(Condition::matches("scope", non_private_scopes));
+	}
+
+	let (should, min_should) = if should_conditions.is_empty() {
+		(Vec::new(), None)
+	} else {
+		(Vec::new(), Some(MinShould { min_count: 1, conditions: should_conditions }))
+	};
+
+	Filter {
+		must: vec![
+			Condition::matches("tenant_id", tenant_id.to_string()),
+			Condition::matches("project_id", project_id.to_string()),
+			Condition::matches("status", "active".to_string()),
+		],
+		should,
+		must_not: Vec::new(),
+		min_should,
+	}
+}
+
+fn select_best_scored_chunks(scored: Vec<ScoredChunk>) -> Vec<ScoredChunk> {
+	let mut best_by_note: HashMap<Uuid, ScoredChunk> = HashMap::new();
+
+	for scored_item in scored {
+		let note_id = scored_item.item.note.note_id;
+		let replace = match best_by_note.get(&note_id) {
+			Some(existing) => scored_item.final_score > existing.final_score,
+			None => true,
+		};
+
+		if replace {
+			best_by_note.insert(note_id, scored_item);
+		}
+	}
+
+	let mut results: Vec<ScoredChunk> = best_by_note.into_values().collect();
+
+	results.sort_by(cmp_scored_chunk);
+
+	results
+}
+
+fn cmp_scored_chunk(a: &ScoredChunk, b: &ScoredChunk) -> Ordering {
+	let ord = ranking::cmp_f32_desc(a.final_score, b.final_score);
+
+	if ord != Ordering::Equal {
+		return ord;
+	}
+
+	let ord = a.item.retrieval_rank.cmp(&b.item.retrieval_rank);
+
+	if ord != Ordering::Equal {
+		return ord;
+	}
+
+	let ord = a.item.note.note_id.cmp(&b.item.note.note_id);
+
+	if ord != Ordering::Equal {
+		return ord;
+	}
+
+	a.item.chunk.chunk_id.cmp(&b.item.chunk.chunk_id)
+}
+
+fn score_chunk_candidate(
+	ctx: &ScoreCandidateCtx<'_, '_>,
+	item: ChunkSnippet,
+	rerank_score: f32,
+	rerank_rank: u32,
+) -> ScoredChunk {
+	let importance = item.note.importance;
+	let retrieval_rank = item.retrieval_rank;
+	let age_days = (ctx.now - item.note.updated_at).as_seconds_f32() / 86_400.0;
+	let decay = if ctx.cfg.ranking.recency_tau_days > 0.0 {
+		(-age_days / ctx.cfg.ranking.recency_tau_days).exp()
+	} else {
+		1.0
+	};
+	let base = (1.0 + 0.6 * importance) * decay;
+	let tie_breaker_score = ctx.cfg.ranking.tie_breaker_weight * base;
+	let scope_context_boost =
+		ctx.scope_context_boost_by_scope.get(item.note.scope.as_str()).copied().unwrap_or(0.0);
+	let rerank_norm = match ctx.blend_policy.rerank_normalization {
+		ranking::NormalizationKind::Rank => ranking::rank_normalize(rerank_rank, ctx.total_rerank),
+	};
+	let retrieval_norm = match ctx.blend_policy.retrieval_normalization {
+		ranking::NormalizationKind::Rank =>
+			ranking::rank_normalize(retrieval_rank, ctx.total_retrieval),
+	};
+	let blend_retrieval_weight = if ctx.blend_policy.enabled {
+		ranking::retrieval_weight_for_rank(retrieval_rank, &ctx.blend_policy.segments)
+	} else {
+		0.0
+	};
+	let retrieval_term = blend_retrieval_weight * retrieval_norm;
+	let rerank_term = (1.0 - blend_retrieval_weight) * rerank_norm;
+	let det_terms = ranking::compute_deterministic_ranking_terms(
+		ctx.cfg,
+		ctx.det_query_tokens,
+		item.snippet.as_str(),
+		item.note.hit_count,
+		item.note.last_hit_at,
+		age_days,
+		ctx.now,
+	);
+	let final_score = retrieval_term
+		+ rerank_term
+		+ tie_breaker_score
+		+ scope_context_boost
+		+ det_terms.lexical_bonus
+		+ det_terms.hit_boost
+		+ det_terms.decay_penalty;
+
+	ScoredChunk {
+		item,
+		final_score,
+		rerank_score,
+		rerank_rank,
+		rerank_norm,
+		retrieval_norm,
+		blend_retrieval_weight,
+		retrieval_term,
+		rerank_term,
+		tie_breaker_score,
+		scope_context_boost,
+		age_days,
+		importance,
+		deterministic_lexical_overlap_ratio: det_terms.lexical_overlap_ratio,
+		deterministic_lexical_bonus: det_terms.lexical_bonus,
+		deterministic_hit_count: det_terms.hit_count,
+		deterministic_last_hit_age_days: det_terms.last_hit_age_days,
+		deterministic_hit_boost: det_terms.hit_boost,
+		deterministic_decay_penalty: det_terms.decay_penalty,
+	}
+}
+
+fn build_trace_candidate_record(
+	scored_chunk: &ScoredChunk,
+	now: OffsetDateTime,
+	expires_at: OffsetDateTime,
+) -> TraceCandidateRecord {
+	let note = &scored_chunk.item.note;
+
+	TraceCandidateRecord {
+		candidate_id: Uuid::new_v4(),
+		note_id: note.note_id,
+		chunk_id: scored_chunk.item.chunk.chunk_id,
+		chunk_index: scored_chunk.item.chunk.chunk_index,
+		snippet: scored_chunk.item.snippet.clone(),
+		candidate_snapshot: serde_json::to_value(TraceReplayCandidate {
+			note_id: note.note_id,
+			chunk_id: scored_chunk.item.chunk.chunk_id,
+			chunk_index: scored_chunk.item.chunk.chunk_index,
+			snippet: scored_chunk.item.snippet.clone(),
+			retrieval_rank: scored_chunk.item.retrieval_rank,
+			rerank_score: scored_chunk.rerank_score,
+			note_scope: note.scope.clone(),
+			note_importance: note.importance,
+			note_updated_at: note.updated_at,
+			note_hit_count: note.hit_count,
+			note_last_hit_at: note.last_hit_at,
+			diversity_selected: None,
+			diversity_selected_rank: None,
+			diversity_selected_reason: None,
+			diversity_skipped_reason: None,
+			diversity_nearest_selected_note_id: None,
+			diversity_similarity: None,
+			diversity_mmr_score: None,
+			diversity_missing_embedding: None,
+		})
+		.unwrap_or_else(|_| serde_json::json!({})),
+		retrieval_rank: scored_chunk.item.retrieval_rank,
+		rerank_score: scored_chunk.rerank_score,
+		note_scope: note.scope.clone(),
+		note_importance: note.importance,
+		note_updated_at: note.updated_at,
+		note_hit_count: note.hit_count,
+		note_last_hit_at: note.last_hit_at,
+		created_at: now,
+		expires_at,
+	}
+}
+
+fn build_search_item_and_trace_item(
+	args: BuildSearchItemArgs<'_>,
+) -> (SearchItem, TraceItemRecord) {
+	let (matched_terms, matched_fields) = ranking::match_terms_in_text(
+		args.query_tokens,
+		args.scored_chunk.item.snippet.as_str(),
+		args.scored_chunk.item.note.key.as_deref(),
+		MAX_MATCHED_TERMS,
+	);
+	let matched_fields = ranking::merge_matched_fields(
+		matched_fields,
+		args.structured_matches.get(&args.scored_chunk.item.note.note_id),
+	);
+	let trace_terms =
+		ranking_explain_v2::build_trace_terms_v2(ranking_explain_v2::TraceTermsArgs {
+			cfg: args.cfg,
+			blend_enabled: args.blend_policy.enabled,
+			retrieval_normalization: args.blend_policy.retrieval_normalization.as_str(),
+			rerank_normalization: args.blend_policy.rerank_normalization.as_str(),
+			blend_retrieval_weight: args.scored_chunk.blend_retrieval_weight,
+			retrieval_rank: args.scored_chunk.item.retrieval_rank,
+			retrieval_norm: args.scored_chunk.retrieval_norm,
+			retrieval_term: args.scored_chunk.retrieval_term,
+			rerank_score: args.scored_chunk.rerank_score,
+			rerank_rank: args.scored_chunk.rerank_rank,
+			rerank_norm: args.scored_chunk.rerank_norm,
+			rerank_term: args.scored_chunk.rerank_term,
+			tie_breaker_score: args.scored_chunk.tie_breaker_score,
+			importance: args.scored_chunk.importance,
+			age_days: args.scored_chunk.age_days,
+			scope: args.scored_chunk.item.note.scope.as_str(),
+			scope_context_boost: args.scored_chunk.scope_context_boost,
+			deterministic_lexical_overlap_ratio: args
+				.scored_chunk
+				.deterministic_lexical_overlap_ratio,
+			deterministic_lexical_bonus: args.scored_chunk.deterministic_lexical_bonus,
+			deterministic_hit_count: args.scored_chunk.deterministic_hit_count,
+			deterministic_last_hit_age_days: args.scored_chunk.deterministic_last_hit_age_days,
+			deterministic_hit_boost: args.scored_chunk.deterministic_hit_boost,
+			deterministic_decay_penalty: args.scored_chunk.deterministic_decay_penalty,
+		});
+	let response_terms = ranking_explain_v2::strip_term_inputs(&trace_terms);
+	let diversity = if args.diversity_policy.enabled {
+		args.diversity_decisions
+			.get(&args.scored_chunk.item.note.note_id)
+			.map(ranking::build_diversity_explain)
+	} else {
+		None
+	};
+	let response_explain = SearchExplain {
+		r#match: SearchMatchExplain {
+			matched_terms: matched_terms.clone(),
+			matched_fields: matched_fields.clone(),
+		},
+		ranking: SearchRankingExplain {
+			schema: ranking_explain_v2::SEARCH_RANKING_EXPLAIN_SCHEMA_V2.to_string(),
+			policy_id: args.policy_id.to_string(),
+			final_score: args.scored_chunk.final_score,
+			terms: response_terms,
+		},
+		diversity: diversity.clone(),
+	};
+	let trace_explain = SearchExplain {
+		r#match: SearchMatchExplain { matched_terms, matched_fields },
+		ranking: SearchRankingExplain {
+			schema: ranking_explain_v2::SEARCH_RANKING_EXPLAIN_SCHEMA_V2.to_string(),
+			policy_id: args.policy_id.to_string(),
+			final_score: args.scored_chunk.final_score,
+			terms: trace_terms,
+		},
+		diversity,
+	};
+	let result_handle = Uuid::new_v4();
+	let note = &args.scored_chunk.item.note;
+	let chunk = &args.scored_chunk.item.chunk;
+	let item = SearchItem {
+		result_handle,
+		note_id: note.note_id,
+		chunk_id: chunk.chunk_id,
+		chunk_index: chunk.chunk_index,
+		start_offset: chunk.start_offset,
+		end_offset: chunk.end_offset,
+		snippet: args.scored_chunk.item.snippet.clone(),
+		r#type: note.note_type.clone(),
+		key: note.key.clone(),
+		scope: note.scope.clone(),
+		importance: note.importance,
+		confidence: note.confidence,
+		updated_at: note.updated_at,
+		expires_at: note.expires_at,
+		final_score: args.scored_chunk.final_score,
+		source_ref: note.source_ref.clone(),
+		explain: response_explain,
+	};
+	let trace_item = TraceItemRecord {
+		item_id: result_handle,
+		note_id: note.note_id,
+		chunk_id: Some(chunk.chunk_id),
+		rank: args.rank,
+		final_score: args.scored_chunk.final_score,
+		explain: trace_explain,
+	};
+
+	(item, trace_item)
+}
+
+fn build_structured_field_matches(rows: Vec<FieldHit>) -> (Vec<Uuid>, HashMap<Uuid, Vec<String>>) {
+	let mut structured_matches: HashMap<Uuid, HashSet<String>> = HashMap::new();
+	let mut ordered_note_ids = Vec::new();
+	let mut seen_notes = HashSet::new();
+
+	for row in rows {
+		let label = match row.field_kind.as_str() {
+			"summary" => "summary",
+			"fact" => "facts",
+			"concept" => "concepts",
+			_ => continue,
+		};
+
+		structured_matches.entry(row.note_id).or_default().insert(label.to_string());
+
+		if seen_notes.insert(row.note_id) {
+			ordered_note_ids.push(row.note_id);
+		}
+	}
+
+	let mut structured_matches_out: HashMap<Uuid, Vec<String>> = HashMap::new();
+
+	for (note_id, fields) in structured_matches {
+		let mut fields: Vec<String> = fields.into_iter().collect();
+
+		fields.sort();
+		structured_matches_out.insert(note_id, fields);
+	}
+
+	(ordered_note_ids, structured_matches_out)
+}
+
+fn build_structured_field_candidates(
+	candidate_k: u32,
+	ordered_note_ids: Vec<Uuid>,
+	best_by_note: HashMap<Uuid, (Uuid, i32)>,
+	embed_version: &str,
+) -> Vec<ChunkCandidate> {
+	let mut structured_candidates = Vec::new();
+	let mut next_rank = 1_u32;
+
+	for note_id in ordered_note_ids {
+		if structured_candidates.len() >= candidate_k as usize {
+			break;
 		}
 
-		let ord = a.retrieval_rank.cmp(&b.retrieval_rank);
+		let Some((chunk_id, chunk_index)) = best_by_note.get(&note_id) else { continue };
 
-		if ord != Ordering::Equal {
-			return ord;
-		}
+		structured_candidates.push(ChunkCandidate {
+			chunk_id: *chunk_id,
+			note_id,
+			chunk_index: *chunk_index,
+			retrieval_rank: next_rank,
+			updated_at: None,
+			embedding_version: Some(embed_version.to_string()),
+		});
 
-		let ord = a.note_id.cmp(&b.note_id);
+		next_rank = next_rank.saturating_add(1);
+	}
 
-		if ord != Ordering::Equal {
-			return ord;
-		}
+	structured_candidates
+}
 
-		a.chunk_id.cmp(&b.chunk_id)
-	});
+fn build_deterministic_query_tokens(cfg: &Config, query: &str) -> Vec<String> {
+	if cfg.ranking.deterministic.enabled
+		&& cfg.ranking.deterministic.lexical.enabled
+		&& cfg.ranking.deterministic.lexical.max_query_terms > 0
+	{
+		ranking::tokenize_query(query, cfg.ranking.deterministic.lexical.max_query_terms as usize)
+	} else {
+		Vec::new()
+	}
+}
 
-	if diversity_policy.enabled && !replay_diversity_decisions.is_empty() {
+fn score_replay_candidate(
+	ctx: &ScoreCandidateCtx<'_, '_>,
+	candidate: &TraceReplayCandidate,
+	rerank_rank: u32,
+) -> ScoredReplay {
+	let importance = candidate.note_importance;
+	let retrieval_rank = candidate.retrieval_rank;
+	let age_days = (ctx.now - candidate.note_updated_at).as_seconds_f32() / 86_400.0;
+	let decay = if ctx.cfg.ranking.recency_tau_days > 0.0 {
+		(-age_days / ctx.cfg.ranking.recency_tau_days).exp()
+	} else {
+		1.0
+	};
+	let base = (1.0 + 0.6 * importance) * decay;
+	let tie_breaker_score = ctx.cfg.ranking.tie_breaker_weight * base;
+	let scope_context_boost =
+		ctx.scope_context_boost_by_scope.get(candidate.note_scope.as_str()).copied().unwrap_or(0.0);
+	let rerank_norm = match ctx.blend_policy.rerank_normalization {
+		ranking::NormalizationKind::Rank => ranking::rank_normalize(rerank_rank, ctx.total_rerank),
+	};
+	let retrieval_norm = match ctx.blend_policy.retrieval_normalization {
+		ranking::NormalizationKind::Rank =>
+			ranking::rank_normalize(retrieval_rank, ctx.total_retrieval),
+	};
+	let blend_retrieval_weight = if ctx.blend_policy.enabled {
+		ranking::retrieval_weight_for_rank(retrieval_rank, &ctx.blend_policy.segments)
+	} else {
+		0.0
+	};
+	let retrieval_term = blend_retrieval_weight * retrieval_norm;
+	let rerank_term = (1.0 - blend_retrieval_weight) * rerank_norm;
+	let det_terms = ranking::compute_deterministic_ranking_terms(
+		ctx.cfg,
+		ctx.det_query_tokens,
+		candidate.snippet.as_str(),
+		candidate.note_hit_count,
+		candidate.note_last_hit_at,
+		age_days,
+		ctx.now,
+	);
+	let final_score = retrieval_term
+		+ rerank_term
+		+ tie_breaker_score
+		+ scope_context_boost
+		+ det_terms.lexical_bonus
+		+ det_terms.hit_boost
+		+ det_terms.decay_penalty;
+
+	ScoredReplay {
+		note_id: candidate.note_id,
+		chunk_id: candidate.chunk_id,
+		retrieval_rank,
+		final_score,
+		rerank_score: candidate.rerank_score,
+		rerank_rank,
+		rerank_norm,
+		retrieval_norm,
+		blend_retrieval_weight,
+		retrieval_term,
+		rerank_term,
+		tie_breaker_score,
+		scope_context_boost,
+		age_days,
+		importance,
+		note_scope: candidate.note_scope.clone(),
+		deterministic_lexical_overlap_ratio: det_terms.lexical_overlap_ratio,
+		deterministic_lexical_bonus: det_terms.lexical_bonus,
+		deterministic_hit_count: det_terms.hit_count,
+		deterministic_last_hit_age_days: det_terms.last_hit_age_days,
+		deterministic_hit_boost: det_terms.hit_boost,
+		deterministic_decay_penalty: det_terms.decay_penalty,
+	}
+}
+
+fn should_replace_replay_best(existing: &ScoredReplay, scored: &ScoredReplay) -> bool {
+	let ord = ranking::cmp_f32_desc(scored.final_score, existing.final_score);
+
+	if ord != Ordering::Equal {
+		ord == Ordering::Less
+	} else {
+		scored.retrieval_rank < existing.retrieval_rank
+	}
+}
+
+fn cmp_scored_replay(a: &ScoredReplay, b: &ScoredReplay) -> Ordering {
+	let ord = ranking::cmp_f32_desc(a.final_score, b.final_score);
+
+	if ord != Ordering::Equal {
+		return ord;
+	}
+
+	let ord = a.retrieval_rank.cmp(&b.retrieval_rank);
+
+	if ord != Ordering::Equal {
+		return ord;
+	}
+
+	let ord = a.note_id.cmp(&b.note_id);
+
+	if ord != Ordering::Equal {
+		return ord;
+	}
+
+	a.chunk_id.cmp(&b.chunk_id)
+}
+
+fn apply_replay_diversity_selection(
+	mut results: Vec<ScoredReplay>,
+	top_k: u32,
+	diversity_enabled: bool,
+	replay_diversity_decisions: &HashMap<Uuid, DiversityDecision>,
+) -> Vec<ScoredReplay> {
+	if diversity_enabled && !replay_diversity_decisions.is_empty() {
 		let mut selected: Vec<ScoredReplay> = results
 			.iter()
 			.filter(|scored| {
@@ -2500,6 +3052,17 @@ pub fn replay_ranking_from_candidates(
 
 	results.truncate(top_k.max(1) as usize);
 
+	results
+}
+
+fn build_replay_items(
+	cfg: &Config,
+	blend_policy: &ResolvedBlendPolicy,
+	diversity_policy: &ResolvedDiversityPolicy,
+	policy_id: &str,
+	replay_diversity_decisions: &HashMap<Uuid, DiversityDecision>,
+	results: Vec<ScoredReplay>,
+) -> Vec<TraceReplayItem> {
 	let mut out = Vec::with_capacity(results.len());
 
 	for scored in results {
@@ -2532,7 +3095,7 @@ pub fn replay_ranking_from_candidates(
 			r#match: SearchMatchExplain { matched_terms: Vec::new(), matched_fields: Vec::new() },
 			ranking: SearchRankingExplain {
 				schema: ranking_explain_v2::SEARCH_RANKING_EXPLAIN_SCHEMA_V2.to_string(),
-				policy_id: policy_id.clone(),
+				policy_id: policy_id.to_string(),
 				final_score: scored.final_score,
 				terms,
 			},
@@ -2554,7 +3117,7 @@ pub fn replay_ranking_from_candidates(
 		});
 	}
 
-	Ok(out)
+	out
 }
 
 async fn fetch_chunks_by_pair<'e, E>(executor: E, pairs: &[(Uuid, i32)]) -> Result<Vec<ChunkRow>>
@@ -2679,6 +3242,18 @@ async fn persist_trace_inline(executor: &mut PgConnection, payload: TracePayload
 	let items = payload.items;
 	let candidates = payload.candidates;
 	let trace_id = trace.trace_id;
+
+	persist_trace_inline_header(executor, &trace).await?;
+	persist_trace_inline_items(executor, trace_id, items).await?;
+	persist_trace_inline_candidates(executor, trace_id, candidates).await?;
+
+	Ok(())
+}
+
+async fn persist_trace_inline_header(
+	executor: &mut PgConnection,
+	trace: &TraceRecord,
+) -> Result<()> {
 	let expanded_queries_json = serde_json::to_value(&trace.expanded_queries).map_err(|err| {
 		Error::Storage { message: format!("Failed to encode expanded_queries: {err}") }
 	})?;
@@ -2723,7 +3298,7 @@ VALUES (
 	$15
 )
 ON CONFLICT (trace_id) DO NOTHING",
-		trace_id,
+		trace.trace_id,
 		trace.tenant_id,
 		trace.project_id,
 		trace.agent_id,
@@ -2739,12 +3314,23 @@ ON CONFLICT (trace_id) DO NOTHING",
 		trace.created_at,
 		trace.expires_at,
 	)
-	.execute(&mut *executor)
+	.execute(executor)
 	.await?;
 
-	if !items.is_empty() {
-		let mut builder = QueryBuilder::new(
-			"\
+	Ok(())
+}
+
+async fn persist_trace_inline_items(
+	executor: &mut PgConnection,
+	trace_id: Uuid,
+	items: Vec<TraceItemRecord>,
+) -> Result<()> {
+	if items.is_empty() {
+		return Ok(());
+	}
+
+	let mut builder = QueryBuilder::new(
+		"\
 INSERT INTO search_trace_items (
 	item_id,
 	trace_id,
@@ -2754,27 +3340,38 @@ INSERT INTO search_trace_items (
 	final_score,
 	explain
 ) ",
-		);
+	);
 
-		builder.push_values(items, |mut b, item| {
-			let explain_json = serde_json::to_value(item.explain)
-				.expect("SearchExplain must be JSON-serializable.");
+	builder.push_values(items, |mut b, item| {
+		let explain_json =
+			serde_json::to_value(item.explain).expect("SearchExplain must be JSON-serializable.");
 
-			b.push_bind(item.item_id)
-				.push_bind(trace_id)
-				.push_bind(item.note_id)
-				.push_bind(item.chunk_id)
-				.push_bind(item.rank as i32)
-				.push_bind(item.final_score)
-				.push_bind(explain_json);
-		});
+		b.push_bind(item.item_id)
+			.push_bind(trace_id)
+			.push_bind(item.note_id)
+			.push_bind(item.chunk_id)
+			.push_bind(item.rank as i32)
+			.push_bind(item.final_score)
+			.push_bind(explain_json);
+	});
 
-		builder.push(" ON CONFLICT (item_id) DO NOTHING");
-		builder.build().execute(&mut *executor).await?;
+	builder.push(" ON CONFLICT (item_id) DO NOTHING");
+	builder.build().execute(executor).await?;
+
+	Ok(())
+}
+
+async fn persist_trace_inline_candidates(
+	executor: &mut PgConnection,
+	trace_id: Uuid,
+	candidates: Vec<TraceCandidateRecord>,
+) -> Result<()> {
+	if candidates.is_empty() {
+		return Ok(());
 	}
-	if !candidates.is_empty() {
-		let mut builder = QueryBuilder::new(
-			"\
+
+	let mut builder = QueryBuilder::new(
+		"\
 INSERT INTO search_trace_candidates (
 	candidate_id,
 	trace_id,
@@ -2793,29 +3390,28 @@ INSERT INTO search_trace_candidates (
 	created_at,
 	expires_at
 ) ",
-		);
+	);
 
-		builder.push_values(candidates, |mut b, candidate| {
-			b.push_bind(candidate.candidate_id)
-				.push_bind(trace_id)
-				.push_bind(candidate.note_id)
-				.push_bind(candidate.chunk_id)
-				.push_bind(candidate.chunk_index)
-				.push_bind(candidate.snippet)
-				.push_bind(candidate.candidate_snapshot)
-				.push_bind(candidate.retrieval_rank as i32)
-				.push_bind(candidate.rerank_score)
-				.push_bind(candidate.note_scope)
-				.push_bind(candidate.note_importance)
-				.push_bind(candidate.note_updated_at)
-				.push_bind(candidate.note_hit_count)
-				.push_bind(candidate.note_last_hit_at)
-				.push_bind(candidate.created_at)
-				.push_bind(candidate.expires_at);
-		});
-		builder.push(" ON CONFLICT (candidate_id) DO NOTHING");
-		builder.build().execute(&mut *executor).await?;
-	}
+	builder.push_values(candidates, |mut b, candidate| {
+		b.push_bind(candidate.candidate_id)
+			.push_bind(trace_id)
+			.push_bind(candidate.note_id)
+			.push_bind(candidate.chunk_id)
+			.push_bind(candidate.chunk_index)
+			.push_bind(candidate.snippet)
+			.push_bind(candidate.candidate_snapshot)
+			.push_bind(candidate.retrieval_rank as i32)
+			.push_bind(candidate.rerank_score)
+			.push_bind(candidate.note_scope)
+			.push_bind(candidate.note_importance)
+			.push_bind(candidate.note_updated_at)
+			.push_bind(candidate.note_hit_count)
+			.push_bind(candidate.note_last_hit_at)
+			.push_bind(candidate.created_at)
+			.push_bind(candidate.expires_at);
+	});
+	builder.push(" ON CONFLICT (candidate_id) DO NOTHING");
+	builder.build().execute(executor).await?;
 
 	Ok(())
 }

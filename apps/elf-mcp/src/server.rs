@@ -11,7 +11,7 @@ use axum::{
 use color_eyre::Result;
 use reqwest::{Client, RequestBuilder};
 use rmcp::{
-	ErrorData as McpError, ServerHandler,
+	ErrorData, ServerHandler,
 	handler::server::router::tool::ToolRouter,
 	model::{CallToolResult, JsonObject, ServerCapabilities, ServerInfo},
 	transport::streamable_http_server::{
@@ -99,14 +99,14 @@ impl ElfMcp {
 		path: &str,
 		body: Value,
 		read_profile_override: Option<&str>,
-	) -> Result<CallToolResult, McpError> {
+	) -> Result<CallToolResult, ErrorData> {
 		let url = format!("{}{}", self.api_base, path);
 		let response = self
 			.apply_context_headers(self.client.post(url).json(&body), read_profile_override)
 			.send()
 			.await
 			.map_err(|err| {
-				McpError::internal_error(format!("ELF API request failed: {err}"), None)
+				ErrorData::internal_error(format!("ELF API request failed: {err}"), None)
 			})?;
 
 		handle_response(response).await
@@ -117,14 +117,14 @@ impl ElfMcp {
 		path: &str,
 		body: Value,
 		read_profile_override: Option<&str>,
-	) -> Result<CallToolResult, McpError> {
+	) -> Result<CallToolResult, ErrorData> {
 		let url = format!("{}{}", self.api_base, path);
 		let response = self
 			.apply_context_headers(self.client.patch(url).json(&body), read_profile_override)
 			.send()
 			.await
 			.map_err(|err| {
-				McpError::internal_error(format!("ELF API request failed: {err}"), None)
+				ErrorData::internal_error(format!("ELF API request failed: {err}"), None)
 			})?;
 
 		handle_response(response).await
@@ -134,14 +134,14 @@ impl ElfMcp {
 		&self,
 		path: &str,
 		read_profile_override: Option<&str>,
-	) -> Result<CallToolResult, McpError> {
+	) -> Result<CallToolResult, ErrorData> {
 		let url = format!("{}{}", self.api_base, path);
 		let response = self
 			.apply_context_headers(self.client.delete(url), read_profile_override)
 			.send()
 			.await
 			.map_err(|err| {
-				McpError::internal_error(format!("ELF API request failed: {err}"), None)
+				ErrorData::internal_error(format!("ELF API request failed: {err}"), None)
 			})?;
 
 		handle_response(response).await
@@ -152,7 +152,7 @@ impl ElfMcp {
 		path: &str,
 		params: JsonObject,
 		read_profile_override: Option<&str>,
-	) -> Result<CallToolResult, McpError> {
+	) -> Result<CallToolResult, ErrorData> {
 		let url = format!("{}{}", self.api_base, path);
 		let query = params_to_query(params);
 		let response = self
@@ -160,7 +160,7 @@ impl ElfMcp {
 			.send()
 			.await
 			.map_err(|err| {
-				McpError::internal_error(format!("ELF API request failed: {err}"), None)
+				ErrorData::internal_error(format!("ELF API request failed: {err}"), None)
 			})?;
 
 		handle_response(response).await
@@ -172,7 +172,7 @@ impl ElfMcp {
 		path: &str,
 		params: JsonObject,
 		read_profile_override: Option<&str>,
-	) -> Result<CallToolResult, McpError> {
+	) -> Result<CallToolResult, ErrorData> {
 		match method {
 			HttpMethod::Post =>
 				self.forward_post(path, Value::Object(params), read_profile_override).await,
@@ -191,7 +191,7 @@ impl ElfMcp {
 		description = "Ingest deterministic notes into ELF. This tool never calls an LLM.",
 		input_schema = notes_ingest_schema()
 	)]
-	async fn elf_notes_ingest(&self, params: JsonObject) -> Result<CallToolResult, McpError> {
+	async fn elf_notes_ingest(&self, params: JsonObject) -> Result<CallToolResult, ErrorData> {
 		self.forward(HttpMethod::Post, "/v2/notes/ingest", params, None).await
 	}
 
@@ -200,7 +200,7 @@ impl ElfMcp {
 		description = "Ingest an event by extracting evidence-bound notes using the configured LLM extractor.",
 		input_schema = events_ingest_schema()
 	)]
-	async fn elf_events_ingest(&self, params: JsonObject) -> Result<CallToolResult, McpError> {
+	async fn elf_events_ingest(&self, params: JsonObject) -> Result<CallToolResult, ErrorData> {
 		self.forward(HttpMethod::Post, "/v2/events/ingest", params, None).await
 	}
 
@@ -212,7 +212,7 @@ impl ElfMcp {
 	async fn elf_searches_create(
 		&self,
 		mut params: JsonObject,
-	) -> Result<CallToolResult, McpError> {
+	) -> Result<CallToolResult, ErrorData> {
 		// read_profile is part of the MCP server configuration and is not client-controlled.
 		let _ = take_optional_string(&mut params, "read_profile")?;
 
@@ -224,7 +224,7 @@ impl ElfMcp {
 		description = "Fetch a search session index view by search_id.",
 		input_schema = searches_get_schema()
 	)]
-	async fn elf_searches_get(&self, mut params: JsonObject) -> Result<CallToolResult, McpError> {
+	async fn elf_searches_get(&self, mut params: JsonObject) -> Result<CallToolResult, ErrorData> {
 		let search_id = take_required_string(&mut params, "search_id")?;
 		let path = format!("/v2/searches/{search_id}");
 
@@ -239,7 +239,7 @@ impl ElfMcp {
 	async fn elf_searches_timeline(
 		&self,
 		mut params: JsonObject,
-	) -> Result<CallToolResult, McpError> {
+	) -> Result<CallToolResult, ErrorData> {
 		let search_id = take_required_string(&mut params, "search_id")?;
 		let path = format!("/v2/searches/{search_id}/timeline");
 
@@ -251,7 +251,10 @@ impl ElfMcp {
 		description = "Fetch full note details for selected note_ids from a search session.",
 		input_schema = searches_notes_schema()
 	)]
-	async fn elf_searches_notes(&self, mut params: JsonObject) -> Result<CallToolResult, McpError> {
+	async fn elf_searches_notes(
+		&self,
+		mut params: JsonObject,
+	) -> Result<CallToolResult, ErrorData> {
 		let search_id = take_required_string(&mut params, "search_id")?;
 		let path = format!("/v2/searches/{search_id}/notes");
 
@@ -263,7 +266,7 @@ impl ElfMcp {
 		description = "List notes in a tenant and project with optional filters.",
 		input_schema = notes_list_schema()
 	)]
-	async fn elf_notes_list(&self, params: JsonObject) -> Result<CallToolResult, McpError> {
+	async fn elf_notes_list(&self, params: JsonObject) -> Result<CallToolResult, ErrorData> {
 		self.forward(HttpMethod::Get, "/v2/notes", params, None).await
 	}
 
@@ -272,7 +275,7 @@ impl ElfMcp {
 		description = "Fetch a single note by note_id.",
 		input_schema = notes_get_schema()
 	)]
-	async fn elf_notes_get(&self, mut params: JsonObject) -> Result<CallToolResult, McpError> {
+	async fn elf_notes_get(&self, mut params: JsonObject) -> Result<CallToolResult, ErrorData> {
 		let note_id = take_required_string(&mut params, "note_id")?;
 		let path = format!("/v2/notes/{note_id}");
 
@@ -284,7 +287,7 @@ impl ElfMcp {
 		description = "Patch a note by note_id. Only provided fields are updated.",
 		input_schema = notes_patch_schema()
 	)]
-	async fn elf_notes_patch(&self, mut params: JsonObject) -> Result<CallToolResult, McpError> {
+	async fn elf_notes_patch(&self, mut params: JsonObject) -> Result<CallToolResult, ErrorData> {
 		let note_id = take_required_string(&mut params, "note_id")?;
 		let path = format!("/v2/notes/{note_id}");
 
@@ -296,7 +299,7 @@ impl ElfMcp {
 		description = "Delete a note by note_id.",
 		input_schema = notes_get_schema()
 	)]
-	async fn elf_notes_delete(&self, mut params: JsonObject) -> Result<CallToolResult, McpError> {
+	async fn elf_notes_delete(&self, mut params: JsonObject) -> Result<CallToolResult, ErrorData> {
 		let note_id = take_required_string(&mut params, "note_id")?;
 		let path = format!("/v2/notes/{note_id}");
 
@@ -401,31 +404,31 @@ fn params_to_query(params: JsonObject) -> Vec<(String, String)> {
 		.collect()
 }
 
-fn take_required_string(params: &mut JsonObject, key: &str) -> Result<String, McpError> {
+fn take_required_string(params: &mut JsonObject, key: &str) -> Result<String, ErrorData> {
 	let value = params
 		.remove(key)
-		.ok_or_else(|| McpError::invalid_params(format!("{key} is required."), None))?;
+		.ok_or_else(|| ErrorData::invalid_params(format!("{key} is required."), None))?;
 	let text = value
 		.as_str()
-		.ok_or_else(|| McpError::invalid_params(format!("{key} must be a string."), None))?
+		.ok_or_else(|| ErrorData::invalid_params(format!("{key} must be a string."), None))?
 		.trim();
 
 	if text.is_empty() {
-		return Err(McpError::invalid_params(format!("{key} must be non-empty."), None));
+		return Err(ErrorData::invalid_params(format!("{key} must be non-empty."), None));
 	}
 
 	Ok(text.to_string())
 }
 
-fn take_optional_string(params: &mut JsonObject, key: &str) -> Result<Option<String>, McpError> {
+fn take_optional_string(params: &mut JsonObject, key: &str) -> Result<Option<String>, ErrorData> {
 	let Some(value) = params.remove(key) else { return Ok(None) };
 	let text = value
 		.as_str()
-		.ok_or_else(|| McpError::invalid_params(format!("{key} must be a string."), None))?
+		.ok_or_else(|| ErrorData::invalid_params(format!("{key} must be a string."), None))?
 		.trim();
 
 	if text.is_empty() {
-		return Err(McpError::invalid_params(format!("{key} must be non-empty."), None));
+		return Err(ErrorData::invalid_params(format!("{key} must be non-empty."), None));
 	}
 
 	Ok(Some(text.to_string()))
@@ -575,12 +578,12 @@ fn notes_patch_schema() -> Arc<JsonObject> {
 	}))
 }
 
-async fn handle_response(response: reqwest::Response) -> Result<CallToolResult, McpError> {
+async fn handle_response(response: reqwest::Response) -> Result<CallToolResult, ErrorData> {
 	let status = response.status();
 	let bytes = response
 		.bytes()
 		.await
-		.map_err(|err| McpError::internal_error(format!("ELF API response error: {err}"), None))?;
+		.map_err(|err| ErrorData::internal_error(format!("ELF API response error: {err}"), None))?;
 	let parsed = serde_json::from_slice::<Value>(&bytes).unwrap_or_else(|_| {
 		let raw = String::from_utf8_lossy(&bytes).to_string();
 

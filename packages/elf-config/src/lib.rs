@@ -25,14 +25,37 @@ pub fn load(path: &Path) -> Result<Config> {
 }
 
 pub fn validate(cfg: &Config) -> Result<()> {
+	validate_security(cfg)?;
+	validate_service(cfg)?;
+	validate_providers(cfg)?;
+	validate_search(cfg)?;
+	validate_ranking(cfg)?;
+	validate_chunking(cfg)?;
+	validate_context(cfg)?;
+	validate_mcp(cfg)?;
+
+	Ok(())
+}
+
+fn validate_security(cfg: &Config) -> Result<()> {
 	if !cfg.security.reject_cjk {
 		return Err(Error::Validation { message: "security.reject_cjk must be true.".to_string() });
 	}
+
+	Ok(())
+}
+
+fn validate_service(cfg: &Config) -> Result<()> {
 	if cfg.service.mcp_bind.trim().is_empty() {
 		return Err(Error::Validation {
 			message: "service.mcp_bind must be non-empty.".to_string(),
 		});
 	}
+
+	Ok(())
+}
+
+fn validate_providers(cfg: &Config) -> Result<()> {
 	if cfg.providers.embedding.dimensions == 0 {
 		return Err(Error::Validation {
 			message: "providers.embedding.dimensions must be greater than zero.".to_string(),
@@ -45,6 +68,32 @@ pub fn validate(cfg: &Config) -> Result<()> {
 		});
 	}
 
+	for (label, key) in [
+		("embedding", &cfg.providers.embedding.api_key),
+		("rerank", &cfg.providers.rerank.api_key),
+		("llm_extractor", &cfg.providers.llm_extractor.api_key),
+	] {
+		if key.trim().is_empty() {
+			return Err(Error::Validation {
+				message: format!("Provider {label} api_key must be non-empty."),
+			});
+		}
+	}
+
+	Ok(())
+}
+
+fn validate_search(cfg: &Config) -> Result<()> {
+	validate_search_expansion(cfg)?;
+	validate_search_dynamic(cfg)?;
+	validate_search_cache(cfg)?;
+	validate_search_explain(cfg)?;
+	validate_search_explain_write_mode(cfg)?;
+
+	Ok(())
+}
+
+fn validate_search_expansion(cfg: &Config) -> Result<()> {
 	let expansion_mode = cfg.search.expansion.mode.as_str();
 
 	if !matches!(expansion_mode, "off" | "always" | "dynamic") {
@@ -57,6 +106,11 @@ pub fn validate(cfg: &Config) -> Result<()> {
 			message: "search.expansion.max_queries must be greater than zero.".to_string(),
 		});
 	}
+
+	Ok(())
+}
+
+fn validate_search_dynamic(cfg: &Config) -> Result<()> {
 	if cfg.search.dynamic.min_candidates == 0 {
 		return Err(Error::Validation {
 			message: "search.dynamic.min_candidates must be greater than zero.".to_string(),
@@ -67,6 +121,11 @@ pub fn validate(cfg: &Config) -> Result<()> {
 			message: "search.dynamic.min_top_score must be zero or greater.".to_string(),
 		});
 	}
+
+	Ok(())
+}
+
+fn validate_search_cache(cfg: &Config) -> Result<()> {
 	if cfg.search.cache.expansion_ttl_days <= 0 {
 		return Err(Error::Validation {
 			message: "search.cache.expansion_ttl_days must be greater than zero.".to_string(),
@@ -86,6 +145,10 @@ pub fn validate(cfg: &Config) -> Result<()> {
 		});
 	}
 
+	Ok(())
+}
+
+fn validate_search_explain(cfg: &Config) -> Result<()> {
 	if cfg.search.explain.retention_days <= 0 {
 		return Err(Error::Validation {
 			message: "search.explain.retention_days must be greater than zero.".to_string(),
@@ -105,17 +168,31 @@ pub fn validate(cfg: &Config) -> Result<()> {
 		});
 	}
 
-	match cfg.search.explain.write_mode.trim().to_ascii_lowercase().as_str() {
-		"outbox" | "inline" => {},
-		other => {
-			return Err(Error::Validation {
-				message: format!(
-					"search.explain.write_mode must be one of: outbox, inline. Got {other}."
-				),
-			});
-		},
-	}
+	Ok(())
+}
 
+fn validate_search_explain_write_mode(cfg: &Config) -> Result<()> {
+	match cfg.search.explain.write_mode.trim().to_ascii_lowercase().as_str() {
+		"outbox" | "inline" => Ok(()),
+		other => Err(Error::Validation {
+			message: format!(
+				"search.explain.write_mode must be one of: outbox, inline. Got {other}."
+			),
+		}),
+	}
+}
+
+fn validate_ranking(cfg: &Config) -> Result<()> {
+	validate_ranking_core(cfg)?;
+	validate_ranking_blend(cfg)?;
+	validate_ranking_diversity(cfg)?;
+	validate_ranking_retrieval_sources(cfg)?;
+	validate_ranking_deterministic(cfg)?;
+
+	Ok(())
+}
+
+fn validate_ranking_core(cfg: &Config) -> Result<()> {
 	if cfg.ranking.tie_breaker_weight < 0.0 {
 		return Err(Error::Validation {
 			message: "ranking.tie_breaker_weight must be zero or greater.".to_string(),
@@ -136,36 +213,45 @@ pub fn validate(cfg: &Config) -> Result<()> {
 			message: "ranking.recency_tau_days must be a finite number.".to_string(),
 		});
 	}
-	if cfg.ranking.blend.enabled {
-		if cfg.ranking.blend.segments.is_empty() {
+
+	Ok(())
+}
+
+fn validate_ranking_blend(cfg: &Config) -> Result<()> {
+	if !cfg.ranking.blend.enabled {
+		return Ok(());
+	}
+	if cfg.ranking.blend.segments.is_empty() {
+		return Err(Error::Validation {
+			message: "ranking.blend.segments must be non-empty when enabled.".to_string(),
+		});
+	}
+
+	for segment in &cfg.ranking.blend.segments {
+		if !segment.retrieval_weight.is_finite() {
 			return Err(Error::Validation {
-				message: "ranking.blend.segments must be non-empty when enabled.".to_string(),
+				message: "ranking.blend.segments.retrieval_weight must be a finite number."
+					.to_string(),
 			});
 		}
-
-		for segment in &cfg.ranking.blend.segments {
-			if !segment.retrieval_weight.is_finite() {
-				return Err(Error::Validation {
-					message: "ranking.blend.segments.retrieval_weight must be a finite number."
-						.to_string(),
-				});
-			}
-			if !(0.0..=1.0).contains(&segment.retrieval_weight) {
-				return Err(Error::Validation {
-					message:
-						"ranking.blend.segments.retrieval_weight must be in the range 0.0-1.0."
-							.to_string(),
-				});
-			}
-			if segment.max_retrieval_rank == 0 {
-				return Err(Error::Validation {
-					message: "ranking.blend.segments.max_retrieval_rank must be greater than zero."
-						.to_string(),
-				});
-			}
+		if !(0.0..=1.0).contains(&segment.retrieval_weight) {
+			return Err(Error::Validation {
+				message: "ranking.blend.segments.retrieval_weight must be in the range 0.0-1.0."
+					.to_string(),
+			});
+		}
+		if segment.max_retrieval_rank == 0 {
+			return Err(Error::Validation {
+				message: "ranking.blend.segments.max_retrieval_rank must be greater than zero."
+					.to_string(),
+			});
 		}
 	}
 
+	Ok(())
+}
+
+fn validate_ranking_diversity(cfg: &Config) -> Result<()> {
 	let diversity = &cfg.ranking.diversity;
 
 	if !diversity.sim_threshold.is_finite() {
@@ -189,6 +275,10 @@ pub fn validate(cfg: &Config) -> Result<()> {
 		});
 	}
 
+	Ok(())
+}
+
+fn validate_ranking_retrieval_sources(cfg: &Config) -> Result<()> {
 	let retrieval_sources = &cfg.ranking.retrieval_sources;
 
 	for (path, value) in [
@@ -212,6 +302,10 @@ pub fn validate(cfg: &Config) -> Result<()> {
 		});
 	}
 
+	Ok(())
+}
+
+fn validate_ranking_deterministic(cfg: &Config) -> Result<()> {
 	let det = &cfg.ranking.deterministic;
 	let det_lex = &det.lexical;
 	let det_hits = &det.hits;
@@ -300,6 +394,11 @@ pub fn validate(cfg: &Config) -> Result<()> {
 			});
 		}
 	}
+
+	Ok(())
+}
+
+fn validate_chunking(cfg: &Config) -> Result<()> {
 	if !cfg.chunking.enabled {
 		return Err(Error::Validation { message: "chunking.enabled must be true.".to_string() });
 	}
@@ -314,18 +413,10 @@ pub fn validate(cfg: &Config) -> Result<()> {
 		});
 	}
 
-	for (label, key) in [
-		("embedding", &cfg.providers.embedding.api_key),
-		("rerank", &cfg.providers.rerank.api_key),
-		("llm_extractor", &cfg.providers.llm_extractor.api_key),
-	] {
-		if key.trim().is_empty() {
-			return Err(Error::Validation {
-				message: format!("Provider {label} api_key must be non-empty."),
-			});
-		}
-	}
+	Ok(())
+}
 
+fn validate_context(cfg: &Config) -> Result<()> {
 	if let Some(context) = cfg.context.as_ref()
 		&& let Some(weight) = context.scope_boost_weight
 	{
@@ -357,28 +448,31 @@ pub fn validate(cfg: &Config) -> Result<()> {
 			});
 		}
 	}
-	if let Some(mcp) = cfg.mcp.as_ref() {
-		for (label, value) in [
-			("mcp.tenant_id", &mcp.tenant_id),
-			("mcp.project_id", &mcp.project_id),
-			("mcp.agent_id", &mcp.agent_id),
-			("mcp.read_profile", &mcp.read_profile),
-		] {
-			if value.trim().is_empty() {
-				return Err(Error::Validation { message: format!("{label} must be non-empty.") });
-			}
-		}
 
-		if !matches!(
-			mcp.read_profile.as_str(),
-			"private_only" | "private_plus_project" | "all_scopes"
-		) {
-			return Err(Error::Validation {
-				message:
-					"mcp.read_profile must be one of private_only, private_plus_project, or all_scopes."
-						.to_string(),
-			});
+	Ok(())
+}
+
+fn validate_mcp(cfg: &Config) -> Result<()> {
+	let Some(mcp) = cfg.mcp.as_ref() else { return Ok(()) };
+
+	for (label, value) in [
+		("mcp.tenant_id", &mcp.tenant_id),
+		("mcp.project_id", &mcp.project_id),
+		("mcp.agent_id", &mcp.agent_id),
+		("mcp.read_profile", &mcp.read_profile),
+	] {
+		if value.trim().is_empty() {
+			return Err(Error::Validation { message: format!("{label} must be non-empty.") });
 		}
+	}
+
+	if !matches!(mcp.read_profile.as_str(), "private_only" | "private_plus_project" | "all_scopes")
+	{
+		return Err(Error::Validation {
+			message:
+				"mcp.read_profile must be one of private_only, private_plus_project, or all_scopes."
+					.to_string(),
+		});
 	}
 
 	Ok(())

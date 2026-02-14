@@ -8,6 +8,7 @@ use qdrant_client::{
 	},
 };
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use sqlx::{PgExecutor, QueryBuilder};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use uuid::Uuid;
@@ -22,8 +23,6 @@ use elf_storage::{
 	qdrant::{BM25_MODEL, BM25_VECTOR_NAME, DENSE_VECTOR_NAME, QdrantStore},
 	queries,
 };
-
-use serde_json::Value;
 
 const POLL_INTERVAL_MS: i64 = 500;
 const CLAIM_LEASE_SECONDS: i64 = 30;
@@ -623,9 +622,27 @@ async fn handle_trace_job(db: &Db, job: &TraceOutboxJob) -> Result<()> {
 	let allowed_scopes_json = encode_json(&trace.allowed_scopes, "allowed_scopes")?;
 	let mut tx = db.pool.begin().await?;
 
+	insert_trace_tx(&mut *tx, trace_id, &trace, expanded_queries_json, allowed_scopes_json).await?;
+	insert_trace_items_tx(&mut *tx, trace_id, payload.items).await?;
+	insert_trace_candidates_tx(&mut *tx, trace_id, payload.candidates).await?;
+
+	tx.commit().await?;
+
+	Ok(())
+}
+
+async fn insert_trace_tx<'e, E>(
+	executor: E,
+	trace_id: Uuid,
+	trace: &TraceRecord,
+	expanded_queries_json: Value,
+	allowed_scopes_json: Value,
+) -> Result<()>
+where
+	E: PgExecutor<'e>,
+{
 	sqlx::query!(
-		"\
-INSERT INTO search_traces (
+		"INSERT INTO search_traces (
 	trace_id,
 	tenant_id,
 	project_id,
@@ -658,8 +675,8 @@ VALUES (
 	$13,
 	$14,
 	$15
-	)
-	ON CONFLICT (trace_id) DO NOTHING",
+)
+ON CONFLICT (trace_id) DO NOTHING",
 		trace_id,
 		trace.tenant_id.as_str(),
 		trace.project_id.as_str(),
@@ -676,25 +693,39 @@ VALUES (
 		trace.created_at,
 		trace.expires_at,
 	)
-	.execute(&mut *tx)
+	.execute(executor)
 	.await?;
 
-	if !payload.items.is_empty() {
-		let mut inserts = Vec::with_capacity(payload.items.len());
+	Ok(())
+}
 
-		for item in payload.items {
-			inserts.push(TraceItemInsert {
-				item_id: item.item_id,
-				note_id: item.note_id,
-				chunk_id: item.chunk_id,
-				rank: item.rank as i32,
-				final_score: item.final_score,
-				explain: item.explain,
-			});
-		}
+async fn insert_trace_items_tx<'e, E>(
+	executor: E,
+	trace_id: Uuid,
+	items: Vec<TraceItemRecord>,
+) -> Result<()>
+where
+	E: PgExecutor<'e>,
+{
+	if items.is_empty() {
+		return Ok(());
+	}
 
-		let mut builder = QueryBuilder::new(
-			"\
+	let mut inserts = Vec::with_capacity(items.len());
+
+	for item in items {
+		inserts.push(TraceItemInsert {
+			item_id: item.item_id,
+			note_id: item.note_id,
+			chunk_id: item.chunk_id,
+			rank: item.rank as i32,
+			final_score: item.final_score,
+			explain: item.explain,
+		});
+	}
+
+	let mut builder = QueryBuilder::new(
+		"\
 INSERT INTO search_trace_items (
 	item_id,
 	trace_id,
@@ -704,45 +735,59 @@ INSERT INTO search_trace_items (
 	final_score,
 	explain
 ) ",
-		);
+	);
 
-		builder.push_values(inserts, |mut b, item| {
-			b.push_bind(item.item_id)
-				.push_bind(trace_id)
-				.push_bind(item.note_id)
-				.push_bind(item.chunk_id)
-				.push_bind(item.rank)
-				.push_bind(item.final_score)
-				.push_bind(item.explain);
-		});
-		builder.push(" ON CONFLICT (item_id) DO NOTHING");
-		builder.build().execute(&mut *tx).await?;
+	builder.push_values(inserts, |mut b, item| {
+		b.push_bind(item.item_id)
+			.push_bind(trace_id)
+			.push_bind(item.note_id)
+			.push_bind(item.chunk_id)
+			.push_bind(item.rank)
+			.push_bind(item.final_score)
+			.push_bind(item.explain);
+	});
+	builder.push(" ON CONFLICT (item_id) DO NOTHING");
+	builder.build().execute(executor).await?;
+
+	Ok(())
+}
+
+async fn insert_trace_candidates_tx<'e, E>(
+	executor: E,
+	trace_id: Uuid,
+	candidates: Vec<TraceCandidateRecord>,
+) -> Result<()>
+where
+	E: PgExecutor<'e>,
+{
+	if candidates.is_empty() {
+		return Ok(());
 	}
-	if !payload.candidates.is_empty() {
-		let mut inserts = Vec::with_capacity(payload.candidates.len());
 
-		for candidate in payload.candidates {
-			inserts.push(TraceCandidateInsert {
-				candidate_id: candidate.candidate_id,
-				note_id: candidate.note_id,
-				chunk_id: candidate.chunk_id,
-				chunk_index: candidate.chunk_index,
-				snippet: candidate.snippet,
-				candidate_snapshot: candidate.candidate_snapshot,
-				retrieval_rank: candidate.retrieval_rank as i32,
-				rerank_score: candidate.rerank_score,
-				note_scope: candidate.note_scope,
-				note_importance: candidate.note_importance,
-				note_updated_at: candidate.note_updated_at,
-				note_hit_count: candidate.note_hit_count,
-				note_last_hit_at: candidate.note_last_hit_at,
-				created_at: candidate.created_at,
-				expires_at: candidate.expires_at,
-			});
-		}
+	let mut inserts = Vec::with_capacity(candidates.len());
 
-		let mut builder = QueryBuilder::new(
-			"\
+	for candidate in candidates {
+		inserts.push(TraceCandidateInsert {
+			candidate_id: candidate.candidate_id,
+			note_id: candidate.note_id,
+			chunk_id: candidate.chunk_id,
+			chunk_index: candidate.chunk_index,
+			snippet: candidate.snippet,
+			candidate_snapshot: candidate.candidate_snapshot,
+			retrieval_rank: candidate.retrieval_rank as i32,
+			rerank_score: candidate.rerank_score,
+			note_scope: candidate.note_scope,
+			note_importance: candidate.note_importance,
+			note_updated_at: candidate.note_updated_at,
+			note_hit_count: candidate.note_hit_count,
+			note_last_hit_at: candidate.note_last_hit_at,
+			created_at: candidate.created_at,
+			expires_at: candidate.expires_at,
+		});
+	}
+
+	let mut builder = QueryBuilder::new(
+		"\
 INSERT INTO search_trace_candidates (
 	candidate_id,
 	trace_id,
@@ -761,31 +806,28 @@ INSERT INTO search_trace_candidates (
 	created_at,
 	expires_at
 ) ",
-		);
+	);
 
-		builder.push_values(inserts, |mut b, candidate| {
-			b.push_bind(candidate.candidate_id)
-				.push_bind(trace_id)
-				.push_bind(candidate.note_id)
-				.push_bind(candidate.chunk_id)
-				.push_bind(candidate.chunk_index)
-				.push_bind(candidate.snippet)
-				.push_bind(candidate.candidate_snapshot)
-				.push_bind(candidate.retrieval_rank)
-				.push_bind(candidate.rerank_score)
-				.push_bind(candidate.note_scope)
-				.push_bind(candidate.note_importance)
-				.push_bind(candidate.note_updated_at)
-				.push_bind(candidate.note_hit_count)
-				.push_bind(candidate.note_last_hit_at)
-				.push_bind(candidate.created_at)
-				.push_bind(candidate.expires_at);
-		});
-		builder.push(" ON CONFLICT (candidate_id) DO NOTHING");
-		builder.build().execute(&mut *tx).await?;
-	}
-
-	tx.commit().await?;
+	builder.push_values(inserts, |mut b, candidate| {
+		b.push_bind(candidate.candidate_id)
+			.push_bind(trace_id)
+			.push_bind(candidate.note_id)
+			.push_bind(candidate.chunk_id)
+			.push_bind(candidate.chunk_index)
+			.push_bind(candidate.snippet)
+			.push_bind(candidate.candidate_snapshot)
+			.push_bind(candidate.retrieval_rank)
+			.push_bind(candidate.rerank_score)
+			.push_bind(candidate.note_scope)
+			.push_bind(candidate.note_importance)
+			.push_bind(candidate.note_updated_at)
+			.push_bind(candidate.note_hit_count)
+			.push_bind(candidate.note_last_hit_at)
+			.push_bind(candidate.created_at)
+			.push_bind(candidate.expires_at);
+	});
+	builder.push(" ON CONFLICT (candidate_id) DO NOTHING");
+	builder.build().execute(executor).await?;
 
 	Ok(())
 }
@@ -964,80 +1006,37 @@ async fn upsert_qdrant_chunks(
 	let mut points = Vec::with_capacity(records.len());
 
 	for (record, vec) in records.iter().zip(vectors.iter()) {
-		let mut payload_map = HashMap::new();
+		let mut payload = Payload::new();
 
-		payload_map.insert(
-			"note_id".to_string(),
-			qdrant_client::qdrant::Value::from(note.note_id.to_string()),
-		);
-		payload_map.insert(
-			"chunk_id".to_string(),
-			qdrant_client::qdrant::Value::from(record.chunk_id.to_string()),
-		);
-		payload_map.insert(
-			"chunk_index".to_string(),
-			qdrant_client::qdrant::Value::from(record.chunk_index as i64),
-		);
-		payload_map.insert(
-			"start_offset".to_string(),
-			qdrant_client::qdrant::Value::from(record.start_offset as i64),
-		);
-		payload_map.insert(
-			"end_offset".to_string(),
-			qdrant_client::qdrant::Value::from(record.end_offset as i64),
-		);
-		payload_map.insert(
-			"tenant_id".to_string(),
-			qdrant_client::qdrant::Value::from(note.tenant_id.clone()),
-		);
-		payload_map.insert(
-			"project_id".to_string(),
-			qdrant_client::qdrant::Value::from(note.project_id.clone()),
-		);
-		payload_map.insert(
-			"agent_id".to_string(),
-			qdrant_client::qdrant::Value::from(note.agent_id.clone()),
-		);
-		payload_map
-			.insert("scope".to_string(), qdrant_client::qdrant::Value::from(note.scope.clone()));
-		payload_map
-			.insert("status".to_string(), qdrant_client::qdrant::Value::from(note.status.clone()));
-		payload_map
-			.insert("type".to_string(), qdrant_client::qdrant::Value::from(note.r#type.clone()));
-		payload_map.insert(
-			"key".to_string(),
-			note.key
-				.as_ref()
-				.map(|key| qdrant_client::qdrant::Value::from(key.clone()))
-				.unwrap_or_else(|| qdrant_client::qdrant::Value::from(serde_json::Value::Null)),
-		);
-		payload_map.insert(
-			"updated_at".to_string(),
-			qdrant_client::qdrant::Value::from(serde_json::Value::String(format_timestamp(
-				note.updated_at,
-			)?)),
-		);
-		payload_map.insert(
-			"expires_at".to_string(),
-			qdrant_client::qdrant::Value::from(match note.expires_at {
-				Some(ts) => serde_json::Value::String(format_timestamp(ts)?),
-				None => serde_json::Value::Null,
-			}),
-		);
-		payload_map.insert(
-			"importance".to_string(),
-			qdrant_client::qdrant::Value::from(serde_json::Value::from(note.importance as f64)),
-		);
-		payload_map.insert(
-			"confidence".to_string(),
-			qdrant_client::qdrant::Value::from(serde_json::Value::from(note.confidence as f64)),
-		);
-		payload_map.insert(
-			"embedding_version".to_string(),
-			qdrant_client::qdrant::Value::from(embedding_version.to_string()),
-		);
+		payload.insert("note_id", note.note_id.to_string());
+		payload.insert("chunk_id", record.chunk_id.to_string());
+		payload.insert("chunk_index", record.chunk_index as i64);
+		payload.insert("start_offset", record.start_offset as i64);
+		payload.insert("end_offset", record.end_offset as i64);
+		payload.insert("tenant_id", note.tenant_id.clone());
+		payload.insert("project_id", note.project_id.clone());
+		payload.insert("agent_id", note.agent_id.clone());
+		payload.insert("scope", note.scope.clone());
+		payload.insert("status", note.status.clone());
+		payload.insert("type", note.r#type.clone());
 
-		let payload = Payload::from(payload_map);
+		match note.key.as_ref() {
+			Some(key) => payload.insert("key", key.clone()),
+			None => payload.insert("key", Value::Null),
+		}
+
+		payload.insert("updated_at", Value::String(format_timestamp(note.updated_at)?));
+		payload.insert(
+			"expires_at",
+			match note.expires_at {
+				Some(ts) => Value::String(format_timestamp(ts)?),
+				None => Value::Null,
+			},
+		);
+		payload.insert("importance", Value::from(note.importance as f64));
+		payload.insert("confidence", Value::from(note.confidence as f64));
+		payload.insert("embedding_version", embedding_version.to_string());
+
 		let mut vector_map = HashMap::new();
 
 		vector_map.insert(DENSE_VECTOR_NAME.to_string(), Vector::from(vec.to_vec()));
