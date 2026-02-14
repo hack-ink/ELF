@@ -118,6 +118,15 @@ Prerequisites:
   - `ELF_PG_DSN` (base DSN, typically ending in `/postgres`)
   - `ELF_QDRANT_URL` (Qdrant gRPC URL, commonly `http://127.0.0.1:51890` in this repository)
   - `ELF_QDRANT_HTTP_URL` (Qdrant REST URL, commonly `http://127.0.0.1:51889` in this repository)
+
+Operational notes:
+
+- The harness builds once and then starts `elf-worker` and `elf-api` by executing `target/debug/...`.
+  If you are running the services manually, prefer `cargo build` plus direct binary execution over
+  running multiple `cargo run` processes concurrently, which can lead to Cargo lock contention and
+  slow startup.
+- If the health check does not become ready, inspect `tmp/elf.harness.api.log` and
+  `tmp/elf.harness.worker.log` for the first startup error.
 - `psql`, `curl`, `taplo`, and `jaq` (or `jq`) are installed.
 
 ## Ranking Stability Harness
