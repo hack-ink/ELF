@@ -7,17 +7,21 @@
 # | lint-fix      | composite |     |
 # | lint-rust     | command   |     |
 # | lint-fix-rust | extend    |     |
+# | lint-vstyle   | command   |     |
+# | lint-fix-vstyle | command |     |
 
 [tasks.lint]
 workspace = false
 dependencies = [
 	"lint-rust",
+	"lint-vstyle",
 ]
 
 [tasks.lint-fix]
 workspace = false
 dependencies = [
 	"lint-fix-rust",
+	"lint-fix-vstyle",
 ]
 
 [tasks.lint-rust]
@@ -46,12 +50,23 @@ args = [
 	"--all-features",
 ]
 
-[tasks.style-check-rust]
+[tasks.lint-vstyle]
 workspace = false
-command = "python3"
+command = "cargo"
 args = [
-	"scripts/rust_style_check.py",
-	"--check",
+	"vstyle",
+	"curate",
+	"--workspace",
+]
+
+[tasks.lint-fix-vstyle]
+workspace = false
+command = "cargo"
+args = [
+	"vstyle",
+	"tune",
+	"--workspace",
+	"--strict",
 ]
 
 
@@ -111,7 +126,6 @@ args = [
 # | fmt-rust-check | extend    |     |
 # | fmt-toml       | command   |     |
 # | fmt-toml-check | extend    |     |
-# | style-check-rust | command |     |
 
 [tasks.fmt]
 workspace = false
@@ -125,7 +139,6 @@ workspace = false
 dependencies = [
 	"fmt-rust-check",
 	"fmt-toml-check",
-	"style-check-rust",
 ]
 
 [tasks.fmt-rust]
