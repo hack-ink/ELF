@@ -257,9 +257,9 @@ echo "Building harness binaries."
 (cd "${ROOT_DIR}" && cargo build -p elf-worker -p elf-api -p elf-eval >/dev/null)
 
 echo "Starting worker and API (logs: ${WORKER_LOG}, ${API_LOG})."
-(cd "${ROOT_DIR}" && cargo run -p elf-worker -- --config "${CFG_BASE}" >"${WORKER_LOG}" 2>&1) &
+(cd "${ROOT_DIR}" && "${ROOT_DIR}/target/debug/elf-worker" --config "${CFG_BASE}" >"${WORKER_LOG}" 2>&1) &
 WORKER_PID="$!"
-(cd "${ROOT_DIR}" && cargo run -p elf-api -- --config "${CFG_BASE}" >"${API_LOG}" 2>&1) &
+(cd "${ROOT_DIR}" && "${ROOT_DIR}/target/debug/elf-api" --config "${CFG_BASE}" >"${API_LOG}" 2>&1) &
 API_PID="$!"
 
 echo "Waiting for API health check at ${HTTP_BASE}/health."
