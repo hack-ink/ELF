@@ -15,14 +15,6 @@ All rules in this guide are mandatory.
 - Do not invoke system package managers.
 - Use `cargo make` tasks when they are a good fit for formatting, linting, and testing.
 
-## Checks
-
-Use `cargo make` tasks from the repository root when checks are required.
-
-- `cargo make fmt-rust`
-- `cargo make lint-rust`
-- `cargo make test-rust`
-
 ## Runtime Safety
 
 - Do not use `unwrap()` in non-test code.
