@@ -1,10 +1,10 @@
 use std::collections::HashSet;
 
+use elf_config::{Config, SearchDynamic};
+use elf_domain::cjk;
 use serde_json::Value;
 
 use crate::search::ExpansionMode;
-use elf_config::{Config, SearchDynamic};
-use elf_domain::cjk;
 
 pub fn resolve_expansion_mode(cfg: &Config) -> ExpansionMode {
 	match cfg.search.expansion.mode.as_str() {

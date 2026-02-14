@@ -15,48 +15,26 @@ use std::{fs, path::Path};
 pub fn load(path: &Path) -> Result<Config> {
 	let raw = fs::read_to_string(path)
 		.map_err(|err| Error::ReadConfig { path: path.to_path_buf(), source: err })?;
+
 	let mut cfg: Config = toml::from_str(&raw)
 		.map_err(|err| Error::ParseConfig { path: path.to_path_buf(), source: err })?;
 
 	normalize(&mut cfg);
+
 	validate(&cfg)?;
 
 	Ok(cfg)
 }
 
 pub fn validate(cfg: &Config) -> Result<()> {
-	validate_security(cfg)?;
-	validate_service(cfg)?;
-	validate_embedding(cfg)?;
-	validate_search(cfg)?;
-	validate_ranking(cfg)?;
-	validate_chunking(cfg)?;
-	validate_provider_keys(cfg)?;
-	validate_context(cfg)?;
-	validate_mcp(cfg)?;
-
-	Ok(())
-}
-
-fn validate_security(cfg: &Config) -> Result<()> {
 	if !cfg.security.reject_cjk {
 		return Err(Error::Validation { message: "security.reject_cjk must be true.".to_string() });
 	}
-
-	Ok(())
-}
-
-fn validate_service(cfg: &Config) -> Result<()> {
 	if cfg.service.mcp_bind.trim().is_empty() {
 		return Err(Error::Validation {
 			message: "service.mcp_bind must be non-empty.".to_string(),
 		});
 	}
-
-	Ok(())
-}
-
-fn validate_embedding(cfg: &Config) -> Result<()> {
 	if cfg.providers.embedding.dimensions == 0 {
 		return Err(Error::Validation {
 			message: "providers.embedding.dimensions must be greater than zero.".to_string(),
@@ -69,10 +47,6 @@ fn validate_embedding(cfg: &Config) -> Result<()> {
 		});
 	}
 
-	Ok(())
-}
-
-fn validate_search(cfg: &Config) -> Result<()> {
 	let expansion_mode = cfg.search.expansion.mode.as_str();
 
 	if !matches!(expansion_mode, "off" | "always" | "dynamic") {
@@ -144,10 +118,6 @@ fn validate_search(cfg: &Config) -> Result<()> {
 		},
 	}
 
-	Ok(())
-}
-
-fn validate_ranking(cfg: &Config) -> Result<()> {
 	if cfg.ranking.tie_breaker_weight < 0.0 {
 		return Err(Error::Validation {
 			message: "ranking.tie_breaker_weight must be zero or greater.".to_string(),
@@ -168,16 +138,6 @@ fn validate_ranking(cfg: &Config) -> Result<()> {
 			message: "ranking.recency_tau_days must be a finite number.".to_string(),
 		});
 	}
-
-	validate_ranking_blend(cfg)?;
-	validate_ranking_diversity(cfg)?;
-	validate_ranking_retrieval_sources(cfg)?;
-	validate_ranking_deterministic(cfg)?;
-
-	Ok(())
-}
-
-fn validate_ranking_blend(cfg: &Config) -> Result<()> {
 	if cfg.ranking.blend.enabled {
 		if cfg.ranking.blend.segments.is_empty() {
 			return Err(Error::Validation {
@@ -208,10 +168,6 @@ fn validate_ranking_blend(cfg: &Config) -> Result<()> {
 		}
 	}
 
-	Ok(())
-}
-
-fn validate_ranking_diversity(cfg: &Config) -> Result<()> {
 	let diversity = &cfg.ranking.diversity;
 
 	if !diversity.sim_threshold.is_finite() {
@@ -235,10 +191,6 @@ fn validate_ranking_diversity(cfg: &Config) -> Result<()> {
 		});
 	}
 
-	Ok(())
-}
-
-fn validate_ranking_retrieval_sources(cfg: &Config) -> Result<()> {
 	let retrieval_sources = &cfg.ranking.retrieval_sources;
 
 	for (path, value) in [
@@ -255,17 +207,12 @@ fn validate_ranking_retrieval_sources(cfg: &Config) -> Result<()> {
 			return Err(Error::Validation { message: format!("{path} must be zero or greater.") });
 		}
 	}
-
 	if retrieval_sources.fusion_weight <= 0.0 && retrieval_sources.structured_field_weight <= 0.0 {
 		return Err(Error::Validation {
 			message: "At least one retrieval source weight must be greater than zero.".to_string(),
 		});
 	}
 
-	Ok(())
-}
-
-fn validate_ranking_deterministic(cfg: &Config) -> Result<()> {
 	let det = &cfg.ranking.deterministic;
 	let det_lex = &det.lexical;
 	let det_hits = &det.hits;
@@ -314,6 +261,7 @@ fn validate_ranking_deterministic(cfg: &Config) -> Result<()> {
 			});
 		}
 	}
+
 	if det.enabled && det_hits.enabled {
 		if !det_hits.half_saturation.is_finite() {
 			return Err(Error::Validation {
@@ -340,6 +288,7 @@ fn validate_ranking_deterministic(cfg: &Config) -> Result<()> {
 			});
 		}
 	}
+
 	if det.enabled && det_decay.enabled {
 		if !det_decay.tau_days.is_finite() {
 			return Err(Error::Validation {
@@ -355,10 +304,6 @@ fn validate_ranking_deterministic(cfg: &Config) -> Result<()> {
 		}
 	}
 
-	Ok(())
-}
-
-fn validate_chunking(cfg: &Config) -> Result<()> {
 	if !cfg.chunking.enabled {
 		return Err(Error::Validation { message: "chunking.enabled must be true.".to_string() });
 	}
@@ -373,10 +318,6 @@ fn validate_chunking(cfg: &Config) -> Result<()> {
 		});
 	}
 
-	Ok(())
-}
-
-fn validate_provider_keys(cfg: &Config) -> Result<()> {
 	for (label, key) in [
 		("embedding", &cfg.providers.embedding.api_key),
 		("rerank", &cfg.providers.rerank.api_key),
@@ -389,10 +330,6 @@ fn validate_provider_keys(cfg: &Config) -> Result<()> {
 		}
 	}
 
-	Ok(())
-}
-
-fn validate_context(cfg: &Config) -> Result<()> {
 	if let Some(context) = cfg.context.as_ref()
 		&& let Some(weight) = context.scope_boost_weight
 	{
@@ -424,11 +361,6 @@ fn validate_context(cfg: &Config) -> Result<()> {
 			});
 		}
 	}
-
-	Ok(())
-}
-
-fn validate_mcp(cfg: &Config) -> Result<()> {
 	if let Some(mcp) = cfg.mcp.as_ref() {
 		for (label, value) in [
 			("mcp.tenant_id", &mcp.tenant_id),

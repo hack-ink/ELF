@@ -30,14 +30,6 @@ const TRACE_CLEANUP_INTERVAL_SECONDS: i64 = 900;
 const TRACE_OUTBOX_LEASE_SECONDS: i64 = 30;
 const MAX_OUTBOX_ERROR_CHARS: usize = 1_024;
 
-pub struct WorkerState {
-	pub db: Db,
-	pub qdrant: QdrantStore,
-	pub embedding: elf_config::EmbeddingProviderConfig,
-	pub chunking: ChunkingConfig,
-	pub tokenizer: Tokenizer,
-}
-
 #[derive(Debug, Deserialize)]
 struct TracePayload {
 	trace: TraceRecord,
@@ -140,10 +132,12 @@ struct ChunkRecord {
 	text: String,
 }
 
-#[derive(Debug)]
-struct NoteFieldRow {
-	field_id: Uuid,
-	text: String,
+pub struct WorkerState {
+	pub db: Db,
+	pub qdrant: QdrantStore,
+	pub embedding: elf_config::EmbeddingProviderConfig,
+	pub chunking: ChunkingConfig,
+	pub tokenizer: Tokenizer,
 }
 
 pub async fn run_worker(state: WorkerState) -> Result<()> {
@@ -277,7 +271,6 @@ fn format_vector_text(vec: &[f32]) -> String {
 		if idx > 0 {
 			out.push(',');
 		}
-
 		out.push_str(&value.to_string());
 	}
 
@@ -498,14 +491,12 @@ async fn handle_upsert(state: &WorkerState, job: &IndexingOutboxEntry) -> Result
 	let note = fetch_note(&state.db, job.note_id).await?;
 	let Some(note) = note else {
 		tracing::info!(note_id = %job.note_id, "Note missing for outbox job. Marking done.");
-
 		return Ok(());
 	};
 	let now = OffsetDateTime::now_utc();
 
 	if !note_is_active(&note, now) {
 		tracing::info!(note_id = %job.note_id, "Note inactive or expired. Skipping index.");
-
 		return Ok(());
 	}
 
@@ -612,16 +603,13 @@ async fn handle_delete(state: &WorkerState, job: &IndexingOutboxEntry) -> Result
 	Ok(())
 }
 
-async fn insert_trace_row_tx<'e, E>(
-	executor: E,
-	trace: TraceRecord,
-	expanded_queries_json: serde_json::Value,
-	allowed_scopes_json: serde_json::Value,
-) -> Result<()>
-where
-	E: PgExecutor<'e>,
-{
+async fn handle_trace_job(db: &Db, job: &TraceOutboxJob) -> Result<()> {
+	let payload: TracePayload = serde_json::from_value(job.payload.clone())?;
+	let trace = payload.trace;
 	let trace_id = trace.trace_id;
+	let expanded_queries_json = encode_json(&trace.expanded_queries, "expanded_queries")?;
+	let allowed_scopes_json = encode_json(&trace.allowed_scopes, "allowed_scopes")?;
+	let mut tx = db.pool.begin().await?;
 
 	sqlx::query!(
 		"\
@@ -676,39 +664,25 @@ VALUES (
 		trace.created_at,
 		trace.expires_at,
 	)
-	.execute(executor)
+	.execute(&mut *tx)
 	.await?;
 
-	Ok(())
-}
+	if !payload.items.is_empty() {
+		let mut inserts = Vec::with_capacity(payload.items.len());
 
-async fn insert_trace_items_tx<'e, E>(
-	executor: E,
-	trace_id: Uuid,
-	items: Vec<TraceItemRecord>,
-) -> Result<()>
-where
-	E: PgExecutor<'e>,
-{
-	if items.is_empty() {
-		return Ok(());
-	}
+		for item in payload.items {
+			inserts.push(TraceItemInsert {
+				item_id: item.item_id,
+				note_id: item.note_id,
+				chunk_id: item.chunk_id,
+				rank: item.rank as i32,
+				final_score: item.final_score,
+				explain: item.explain,
+			});
+		}
 
-	let mut inserts = Vec::with_capacity(items.len());
-
-	for item in items {
-		inserts.push(TraceItemInsert {
-			item_id: item.item_id,
-			note_id: item.note_id,
-			chunk_id: item.chunk_id,
-			rank: item.rank as i32,
-			final_score: item.final_score,
-			explain: item.explain,
-		});
-	}
-
-	let mut builder = QueryBuilder::new(
-		"\
+		let mut builder = QueryBuilder::new(
+			"\
 INSERT INTO search_trace_items (
 	item_id,
 	trace_id,
@@ -718,59 +692,45 @@ INSERT INTO search_trace_items (
 	final_score,
 	explain
 ) ",
-	);
-
-	builder.push_values(inserts, |mut b, item| {
-		b.push_bind(item.item_id)
-			.push_bind(trace_id)
-			.push_bind(item.note_id)
-			.push_bind(item.chunk_id)
-			.push_bind(item.rank)
-			.push_bind(item.final_score)
-			.push_bind(item.explain);
-	});
-	builder.push(" ON CONFLICT (item_id) DO NOTHING");
-	builder.build().execute(executor).await?;
-
-	Ok(())
-}
-
-async fn insert_trace_candidates_tx<'e, E>(
-	executor: E,
-	trace_id: Uuid,
-	candidates: Vec<TraceCandidateRecord>,
-) -> Result<()>
-where
-	E: PgExecutor<'e>,
-{
-	if candidates.is_empty() {
-		return Ok(());
-	}
-
-	let mut inserts = Vec::with_capacity(candidates.len());
-
-	for candidate in candidates {
-		inserts.push(TraceCandidateInsert {
-			candidate_id: candidate.candidate_id,
-			note_id: candidate.note_id,
-			chunk_id: candidate.chunk_id,
-			chunk_index: candidate.chunk_index,
-			snippet: candidate.snippet,
-			candidate_snapshot: candidate.candidate_snapshot,
-			retrieval_rank: candidate.retrieval_rank as i32,
-			rerank_score: candidate.rerank_score,
-			note_scope: candidate.note_scope,
-			note_importance: candidate.note_importance,
-			note_updated_at: candidate.note_updated_at,
-			note_hit_count: candidate.note_hit_count,
-			note_last_hit_at: candidate.note_last_hit_at,
-			created_at: candidate.created_at,
-			expires_at: candidate.expires_at,
+		);
+		builder.push_values(inserts, |mut b, item| {
+			b.push_bind(item.item_id)
+				.push_bind(trace_id)
+				.push_bind(item.note_id)
+				.push_bind(item.chunk_id)
+				.push_bind(item.rank)
+				.push_bind(item.final_score)
+				.push_bind(item.explain);
 		});
+		builder.push(" ON CONFLICT (item_id) DO NOTHING");
+		builder.build().execute(&mut *tx).await?;
 	}
 
-	let mut builder = QueryBuilder::new(
-		"\
+	if !payload.candidates.is_empty() {
+		let mut inserts = Vec::with_capacity(payload.candidates.len());
+
+		for candidate in payload.candidates {
+			inserts.push(TraceCandidateInsert {
+				candidate_id: candidate.candidate_id,
+				note_id: candidate.note_id,
+				chunk_id: candidate.chunk_id,
+				chunk_index: candidate.chunk_index,
+				snippet: candidate.snippet,
+				candidate_snapshot: candidate.candidate_snapshot,
+				retrieval_rank: candidate.retrieval_rank as i32,
+				rerank_score: candidate.rerank_score,
+				note_scope: candidate.note_scope,
+				note_importance: candidate.note_importance,
+				note_updated_at: candidate.note_updated_at,
+				note_hit_count: candidate.note_hit_count,
+				note_last_hit_at: candidate.note_last_hit_at,
+				created_at: candidate.created_at,
+				expires_at: candidate.expires_at,
+			});
+		}
+
+		let mut builder = QueryBuilder::new(
+			"\
 INSERT INTO search_trace_candidates (
 	candidate_id,
 	trace_id,
@@ -789,43 +749,28 @@ INSERT INTO search_trace_candidates (
 	created_at,
 	expires_at
 ) ",
-	);
-
-	builder.push_values(inserts, |mut b, candidate| {
-		b.push_bind(candidate.candidate_id)
-			.push_bind(trace_id)
-			.push_bind(candidate.note_id)
-			.push_bind(candidate.chunk_id)
-			.push_bind(candidate.chunk_index)
-			.push_bind(candidate.snippet)
-			.push_bind(candidate.candidate_snapshot)
-			.push_bind(candidate.retrieval_rank)
-			.push_bind(candidate.rerank_score)
-			.push_bind(candidate.note_scope)
-			.push_bind(candidate.note_importance)
-			.push_bind(candidate.note_updated_at)
-			.push_bind(candidate.note_hit_count)
-			.push_bind(candidate.note_last_hit_at)
-			.push_bind(candidate.created_at)
-			.push_bind(candidate.expires_at);
-	});
-	builder.push(" ON CONFLICT (candidate_id) DO NOTHING");
-	builder.build().execute(executor).await?;
-
-	Ok(())
-}
-
-async fn handle_trace_job(db: &Db, job: &TraceOutboxJob) -> Result<()> {
-	let payload: TracePayload = serde_json::from_value(job.payload.clone())?;
-	let TracePayload { trace, items, candidates } = payload;
-	let trace_id = trace.trace_id;
-	let expanded_queries_json = encode_json(&trace.expanded_queries, "expanded_queries")?;
-	let allowed_scopes_json = encode_json(&trace.allowed_scopes, "allowed_scopes")?;
-	let mut tx = db.pool.begin().await?;
-
-	insert_trace_row_tx(&mut *tx, trace, expanded_queries_json, allowed_scopes_json).await?;
-	insert_trace_items_tx(&mut *tx, trace_id, items).await?;
-	insert_trace_candidates_tx(&mut *tx, trace_id, candidates).await?;
+		);
+		builder.push_values(inserts, |mut b, candidate| {
+			b.push_bind(candidate.candidate_id)
+				.push_bind(trace_id)
+				.push_bind(candidate.note_id)
+				.push_bind(candidate.chunk_id)
+				.push_bind(candidate.chunk_index)
+				.push_bind(candidate.snippet)
+				.push_bind(candidate.candidate_snapshot)
+				.push_bind(candidate.retrieval_rank)
+				.push_bind(candidate.rerank_score)
+				.push_bind(candidate.note_scope)
+				.push_bind(candidate.note_importance)
+				.push_bind(candidate.note_updated_at)
+				.push_bind(candidate.note_hit_count)
+				.push_bind(candidate.note_last_hit_at)
+				.push_bind(candidate.created_at)
+				.push_bind(candidate.expires_at);
+		});
+		builder.push(" ON CONFLICT (candidate_id) DO NOTHING");
+		builder.build().execute(&mut *tx).await?;
+	}
 
 	tx.commit().await?;
 
@@ -886,6 +831,12 @@ async fn fetch_note(db: &Db, note_id: Uuid) -> Result<Option<MemoryNote>> {
 			.await?;
 
 	Ok(note)
+}
+
+#[derive(Debug)]
+struct NoteFieldRow {
+	field_id: Uuid,
+	text: String,
 }
 
 async fn fetch_note_fields(db: &Db, note_id: Uuid) -> Result<Vec<NoteFieldRow>> {
@@ -982,7 +933,6 @@ async fn delete_qdrant_note_points(state: &WorkerState, note_id: Uuid) -> Result
 	let filter = Filter::must([Condition::matches("note_id", note_id.to_string())]);
 	let delete =
 		DeletePointsBuilder::new(state.qdrant.collection.clone()).points(filter).wait(true);
-
 	match state.qdrant.client.delete_points(delete).await {
 		Ok(_) => {},
 		Err(err) =>
@@ -1030,7 +980,6 @@ async fn upsert_qdrant_chunks(
 			"updated_at".to_string(),
 			Value::from(serde_json::Value::String(format_timestamp(note.updated_at)?)),
 		);
-
 		payload_map.insert(
 			"expires_at".to_string(),
 			Value::from(match note.expires_at {
@@ -1038,7 +987,6 @@ async fn upsert_qdrant_chunks(
 				None => serde_json::Value::Null,
 			}),
 		);
-
 		payload_map.insert(
 			"importance".to_string(),
 			Value::from(serde_json::Value::from(note.importance as f64)),

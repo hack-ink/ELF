@@ -20,7 +20,6 @@ impl XorShift64 {
 
 	fn next_u64(&mut self) -> u64 {
 		let mut x = self.state;
-
 		x ^= x << 13;
 		x ^= x >> 7;
 		x ^= x << 17;
@@ -33,7 +32,7 @@ impl XorShift64 {
 		// Map to [0, 1). Keep 24 bits of precision for a stable f32.
 		let bits = (self.next_u64() >> 40) as u32;
 
-		(bits as f32) / ((1_u32 << 24) as f32)
+		(bits as f32) / ((1u32 << 24) as f32)
 	}
 }
 
@@ -107,8 +106,8 @@ fn local_rerank_noisy(query: &str, docs: &[String], noise_std: f32) -> Vec<f32> 
 	let mut seed_bytes = [0_u8; 8];
 
 	seed_bytes.copy_from_slice(&query_hash.as_bytes()[..8]);
-
 	// Vary the noise across calls to simulate reranker instability.
+
 	let call_idx = LOCAL_NOISE_CALL_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 	let mut seed = u64::from_le_bytes(seed_bytes);
 
@@ -153,7 +152,7 @@ fn tokenize_ascii_alnum(text: &str) -> HashSet<String> {
 }
 
 fn parse_rerank_response(json: Value, doc_count: usize) -> Result<Vec<f32>> {
-	let mut scores = vec![0.0_f32; doc_count];
+	let mut scores = vec![0.0f32; doc_count];
 	let results =
 		json.get("results").or_else(|| json.get("data")).and_then(|v| v.as_array()).ok_or_else(
 			|| Error::InvalidResponse {
@@ -229,7 +228,6 @@ mod tests {
 			let next = local_rerank_dispatch("local-token-overlap-noisy@0.1", "alpha beta", &docs);
 
 			assert_eq!(first.len(), next.len());
-
 			assert!(next.iter().all(|v| (0.0..=1.0).contains(v)));
 
 			if next != first {

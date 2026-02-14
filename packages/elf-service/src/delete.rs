@@ -25,13 +25,11 @@ impl ElfService {
 		let tenant_id = req.tenant_id.trim();
 		let project_id = req.project_id.trim();
 		let agent_id = req.agent_id.trim();
-
 		if tenant_id.is_empty() || project_id.is_empty() || agent_id.is_empty() {
 			return Err(Error::InvalidRequest {
 				message: "tenant_id, project_id, and agent_id are required.".to_string(),
 			});
 		}
-
 		let mut tx = self.db.pool.begin().await?;
 		let mut note: MemoryNote = sqlx::query_as!(
 			MemoryNote,
@@ -59,18 +57,16 @@ FOR UPDATE",
 			"org_shared" => self.cfg.scopes.write_allowed.org_shared,
 			_ => false,
 		};
-
 		if !scope_allowed || !write_allowed {
 			return Err(Error::ScopeDenied { message: "Scope is not allowed.".to_string() });
 		}
+
 		if note.status == "deleted" {
 			tx.commit().await?;
-
 			return Ok(DeleteResponse { note_id: note.note_id, op: NoteOp::None });
 		}
 
 		let prev_snapshot = crate::note_snapshot(&note);
-
 		note.status = "deleted".to_string();
 		note.updated_at = now;
 
