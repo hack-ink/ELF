@@ -6,13 +6,15 @@ permissions:
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
     paths-ignore:
       - '**/*.md'
       - '.gitignore'
       - 'docs/**'
   pull_request:
-    branches: [main]
+    branches:
+      - main
     paths-ignore:
       - '**/*.md'
       - '.gitignore'
@@ -50,14 +52,52 @@ jobs:
         with:
           tool: cargo-make
 
-      - name: Run lint
-        run: cargo make lint-rust
+      - name: Install vibe-style (latest release)
+        run: |
+          set -euo pipefail
+          VERSION="$(curl -fsSL https://api.github.com/repos/hack-ink/vibe-style/releases/latest | grep -oE '"tag_name": "v[^"]+"' | cut -d'"' -f4)"
+          TARGET="x86_64-unknown-linux-gnu"
+          ASSET="vibe-style-${TARGET}-${VERSION}.tgz"
 
-      - name: Run Rust style checks
-        run: cargo make style-check-rust
+          curl -fsSLO "https://github.com/hack-ink/vibe-style/releases/download/${VERSION}/${ASSET}"
+          tar -xzf "${ASSET}"
+
+          mkdir -p "$HOME/.cargo/bin"
+          install -m 0755 "vibe-style-${TARGET}-${VERSION}/vstyle" "$HOME/.cargo/bin/vstyle"
+          install -m 0755 "vibe-style-${TARGET}-${VERSION}/cargo-vstyle" "$HOME/.cargo/bin/cargo-vstyle"
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+      - name: Install nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: nextest
+
+      - name: Run lint
+        run: cargo make lint
 
       - name: Run Rust format checks
         run: cargo make fmt-rust-check
+
+      - name: Run tests
+        run: cargo make test-rust
+
+  toml:
+    name: TOML checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch latest code
+        uses: actions/checkout@v6
+
+      - name: Set up Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          cache: true
+          rustflags: ''
+
+      - name: Install cargo-make
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-make
 
       - name: Install taplo
         uses: taiki-e/install-action@v2
@@ -66,11 +106,3 @@ jobs:
 
       - name: Run TOML format checks
         run: cargo make fmt-toml-check
-
-      - name: Install nextest
-        uses: taiki-e/install-action@v2
-        with:
-          tool: nextest
-
-      - name: Run tests
-        run: cargo make test-rust
