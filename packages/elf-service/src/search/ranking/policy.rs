@@ -61,7 +61,6 @@ pub fn build_config_snapshot(
 	policy_snapshot: &Value,
 ) -> Value {
 	let override_json = ranking_override.and_then(|value| serde_json::to_value(value).ok());
-
 	serde_json::json!({
 		"search": {
 			"expansion": {
@@ -362,7 +361,6 @@ pub fn resolve_retrieval_sources_policy(
 			});
 		}
 	}
-
 	if fusion_weight <= 0.0 && structured_field_weight <= 0.0 {
 		return Err(Error::InvalidRequest {
 			message: "At least one retrieval source weight must be greater than zero.".to_string(),

@@ -1,7 +1,8 @@
 use std::sync::{Arc, atomic::AtomicUsize};
 
-use super::{SpyExtractor, StubEmbedding, StubRerank};
 use elf_service::{AddEventRequest, EventMessage, NoteOp, Providers, REJECT_EVIDENCE_MISMATCH};
+
+use super::{SpyExtractor, StubEmbedding, StubRerank};
 
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]

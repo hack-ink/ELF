@@ -19,6 +19,7 @@ use elf_service::{
 use elf_storage::{db::Db, qdrant::QdrantStore};
 
 struct DummyEmbedding;
+
 impl EmbeddingProvider for DummyEmbedding {
 	fn embed<'a>(
 		&'a self,
@@ -33,6 +34,7 @@ impl EmbeddingProvider for DummyEmbedding {
 }
 
 struct DummyRerank;
+
 impl RerankProvider for DummyRerank {
 	fn rerank<'a>(
 		&'a self,
@@ -246,6 +248,7 @@ async fn add_note_does_not_call_llm() {
 	let result = service.add_note(req).await;
 
 	assert!(matches!(result, Err(Error::NonEnglishInput { .. })));
+
 	assert_eq!(spy.count(), 0);
 }
 
@@ -270,5 +273,6 @@ async fn add_note_rejects_empty_notes() {
 	let result = service.add_note(req).await;
 
 	assert!(matches!(result, Err(Error::InvalidRequest { .. })));
+
 	assert_eq!(spy.count(), 0);
 }

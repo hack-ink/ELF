@@ -35,7 +35,6 @@ async fn wait_for_status(
 	timeout: Duration,
 ) -> Option<OutboxRow> {
 	let deadline = Instant::now() + timeout;
-
 	loop {
 		let row: Option<OutboxRow> = sqlx::query_as::<_, OutboxRow>(
 			"\
@@ -57,11 +56,9 @@ WHERE note_id = $1",
 		{
 			return Some(row);
 		}
-
 		if Instant::now() >= deadline {
 			return None;
 		}
-
 		tokio::time::sleep(Duration::from_millis(200)).await;
 	}
 }
@@ -100,7 +97,6 @@ async fn embed_handler(
 		.enumerate()
 		.map(|(index, _)| {
 			let embedding: Vec<f32> = vec![0.1_f32; 4_096];
-
 			serde_json::json!({
 				"index": index,
 				"embedding": embedding
@@ -205,6 +201,7 @@ async fn outbox_retries_to_done() {
 		.expect("Expected FAILED outbox status.");
 
 	assert_eq!(failed.attempts, 1);
+
 	assert!(failed.last_error.is_some());
 	assert!(request_count.load(Ordering::SeqCst) >= 1);
 

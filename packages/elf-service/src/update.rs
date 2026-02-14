@@ -37,6 +37,7 @@ impl ElfService {
 				message: "tenant_id, project_id, and agent_id are required.".to_string(),
 			});
 		}
+
 		if req.text.is_none()
 			&& req.importance.is_none()
 			&& req.confidence.is_none()
@@ -47,7 +48,20 @@ impl ElfService {
 
 		let text_update = req.text.clone();
 		let mut tx = self.db.pool.begin().await?;
-		let mut note = load_note_for_update(&mut tx, req.note_id, tenant_id, project_id).await?;
+		let mut note: MemoryNote = sqlx::query_as!(
+			MemoryNote,
+			"\
+SELECT *
+FROM memory_notes
+WHERE note_id = $1 AND tenant_id = $2 AND project_id = $3
+FOR UPDATE",
+			req.note_id,
+			tenant_id,
+			project_id,
+		)
+		.fetch_optional(&mut *tx)
+		.await?
+		.ok_or_else(|| Error::InvalidRequest { message: "Note not found.".to_string() })?;
 
 		if note.scope == "agent_private" && note.agent_id != agent_id {
 			return Err(Error::InvalidRequest { message: "Note not found.".to_string() });
@@ -67,7 +81,6 @@ impl ElfService {
 			if cjk::contains_cjk(text) {
 				return Err(Error::NonEnglishInput { field: "$.text".to_string() });
 			}
-
 			text.clone()
 		} else {
 			note.text.clone()
@@ -114,8 +127,25 @@ impl ElfService {
 		note.expires_at = next_expires_at;
 		note.updated_at = now;
 
-		persist_note_update(&mut tx, &note).await?;
-
+		sqlx::query!(
+			"\
+UPDATE memory_notes
+SET
+	text = $1,
+	importance = $2,
+	confidence = $3,
+	updated_at = $4,
+	expires_at = $5
+WHERE note_id = $6",
+			note.text.as_str(),
+			note.importance,
+			note.confidence,
+			note.updated_at,
+			note.expires_at,
+			note.note_id,
+		)
+		.execute(&mut *tx)
+		.await?;
 		crate::insert_version(
 			&mut *tx,
 			InsertVersionArgs {
@@ -142,53 +172,4 @@ impl ElfService {
 
 		Ok(UpdateResponse { note_id: note.note_id, op: NoteOp::Update, reason_code: None })
 	}
-}
-
-async fn load_note_for_update(
-	tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-	note_id: Uuid,
-	tenant_id: &str,
-	project_id: &str,
-) -> Result<MemoryNote> {
-	sqlx::query_as!(
-		MemoryNote,
-		"\
-SELECT *
-FROM memory_notes
-WHERE note_id = $1 AND tenant_id = $2 AND project_id = $3
-FOR UPDATE",
-		note_id,
-		tenant_id,
-		project_id,
-	)
-	.fetch_optional(&mut **tx)
-	.await?
-	.ok_or_else(|| Error::InvalidRequest { message: "Note not found.".to_string() })
-}
-
-async fn persist_note_update(
-	tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-	note: &MemoryNote,
-) -> Result<()> {
-	sqlx::query!(
-		"\
-UPDATE memory_notes
-SET
-	text = $1,
-	importance = $2,
-	confidence = $3,
-	updated_at = $4,
-	expires_at = $5
-WHERE note_id = $6",
-		note.text.as_str(),
-		note.importance,
-		note.confidence,
-		note.updated_at,
-		note.expires_at,
-		note.note_id,
-	)
-	.execute(&mut **tx)
-	.await?;
-
-	Ok(())
 }

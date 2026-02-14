@@ -64,8 +64,6 @@ pub async fn run(args: Args) -> color_eyre::Result<()> {
 fn init_tracing(config: &elf_config::Config) -> color_eyre::Result<()> {
 	let filter =
 		EnvFilter::try_new(&config.service.log_level).unwrap_or_else(|_| EnvFilter::new("info"));
-
 	tracing_subscriber::fmt().with_env_filter(filter).init();
-
 	Ok(())
 }
