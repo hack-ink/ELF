@@ -9,7 +9,7 @@ Use the `elf-eval` app to run an evaluation against a dataset of queries and exp
 Example:
 
 ```bash
-cargo run -p elf-eval -- --config ./elf.toml --dataset ./docs/guide/eval-sample.json
+cargo run -p elf-eval -- -c ./elf.toml --dataset ./docs/guide/eval-sample.json
 ```
 
 ## Dataset format
@@ -75,7 +75,7 @@ The command prints a JSON report containing summary metrics and per-query detail
 - To persist traces for later replay without running `elf-worker`, set `search.explain.write_mode = "inline"`
   in the config used by `elf-eval`.
 - To compare ranking policies on a fixed candidate set without re-running Qdrant, use trace compare mode:
-  - Run: `cargo run -p elf-eval -- --config-a ./elf.a.toml --config-b ./elf.b.toml --trace-id <uuid1> <uuid2>`
+  - Run: `cargo run -p elf-eval -- -c ./elf.a.toml --config-b ./elf.b.toml --trace-id <uuid1> <uuid2>`
   - Requirements: `search.explain.capture_candidates = true` when generating traces, and candidates must not be
     expired by `search.explain.candidate_retention_days`.
 

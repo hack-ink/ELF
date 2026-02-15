@@ -5,9 +5,10 @@ pub use error::{Error, Result};
 pub use types::{
 	Chunking, Config, Context, EmbeddingProviderConfig, Lifecycle, LlmProviderConfig, McpContext,
 	Memory, Postgres, ProviderConfig, Providers, Qdrant, Ranking, RankingBlend,
-	RankingBlendSegment, RankingDiversity, RankingRetrievalSources, ReadProfiles, ScopePrecedence,
-	ScopeWriteAllowed, Scopes, Search, SearchCache, SearchDynamic, SearchExpansion, SearchExplain,
-	SearchPrefilter, Security, Service, Storage, TtlDays,
+	RankingBlendSegment, RankingDeterministic, RankingDeterministicDecay, RankingDeterministicHits,
+	RankingDeterministicLexical, RankingDiversity, RankingRetrievalSources, ReadProfiles,
+	ScopePrecedence, ScopeWriteAllowed, Scopes, Search, SearchCache, SearchDynamic,
+	SearchExpansion, SearchExplain, SearchPrefilter, Security, Service, Storage, TtlDays,
 };
 
 use std::{fs, path::Path};
@@ -15,10 +16,9 @@ use std::{fs, path::Path};
 pub fn load(path: &Path) -> Result<Config> {
 	let raw = fs::read_to_string(path)
 		.map_err(|err| Error::ReadConfig { path: path.to_path_buf(), source: err })?;
-	let mut cfg: Config = toml::from_str(&raw)
+	let cfg: Config = toml::from_str(&raw)
 		.map_err(|err| Error::ParseConfig { path: path.to_path_buf(), source: err })?;
 
-	normalize(&mut cfg);
 	validate(&cfg)?;
 
 	Ok(cfg)
@@ -402,6 +402,11 @@ fn validate_chunking(cfg: &Config) -> Result<()> {
 	if !cfg.chunking.enabled {
 		return Err(Error::Validation { message: "chunking.enabled must be true.".to_string() });
 	}
+	if cfg.chunking.tokenizer_repo.trim().is_empty() {
+		return Err(Error::Validation {
+			message: "chunking.tokenizer_repo must be a non-empty string.".to_string(),
+		});
+	}
 	if cfg.chunking.max_tokens == 0 {
 		return Err(Error::Validation {
 			message: "chunking.max_tokens must be greater than zero.".to_string(),
@@ -476,23 +481,4 @@ fn validate_mcp(cfg: &Config) -> Result<()> {
 	}
 
 	Ok(())
-}
-
-fn normalize(cfg: &mut Config) {
-	if cfg.chunking.tokenizer_repo.as_deref().map(|repo| repo.trim().is_empty()).unwrap_or(false) {
-		cfg.chunking.tokenizer_repo = None;
-	}
-	if cfg.security.api_auth_token.as_deref().map(|token| token.trim().is_empty()).unwrap_or(false)
-	{
-		cfg.security.api_auth_token = None;
-	}
-	if cfg
-		.security
-		.admin_auth_token
-		.as_deref()
-		.map(|token| token.trim().is_empty())
-		.unwrap_or(false)
-	{
-		cfg.security.admin_auth_token = None;
-	}
 }

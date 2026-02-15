@@ -186,6 +186,8 @@ Capability notes:
 
 ## Quickstart
 
+Agent-assisted setup: see [agent-setup guide](docs/guide/agent-setup.md).
+
 ### Requirements
 
 - Postgres with pgvector
@@ -224,7 +226,7 @@ cargo run -p elf-eval -- -c elf.toml -i path/to/eval.json
 
 See `elf.example.toml` and `docs/spec/system_elf_memory_service_v2.md` for the full contract. All config is explicit and required; no environment defaults are allowed. Embedding dimensions must match the Qdrant vector dimension. Search caching and explain trace retention are configured under `search.cache` and `search.explain`.
 
-Chunking uses a Hugging Face tokenizer via the `tokenizers` crate. If `chunking.tokenizer_repo` is unset, the worker may inherit the embedding model name as the tokenizer repo. In restricted or offline environments, set `chunking.tokenizer_repo` explicitly to a stable repo and ensure the worker can load it.
+Chunking uses a Hugging Face tokenizer via the `tokenizers` crate. `chunking.tokenizer_repo` must be an explicit, non-empty repo name. In restricted or offline environments, set `chunking.tokenizer_repo` to a stable repo and ensure the worker can load it.
 
 ## Development
 
