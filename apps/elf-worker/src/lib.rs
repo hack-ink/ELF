@@ -34,11 +34,7 @@ pub async fn run(args: Args) -> Result<()> {
 	db.ensure_schema(config.storage.qdrant.vector_dim).await?;
 
 	let qdrant = QdrantStore::new(&config.storage.qdrant)?;
-	let tokenizer_repo = config
-		.chunking
-		.tokenizer_repo
-		.clone()
-		.unwrap_or_else(|| config.providers.embedding.model.clone());
+	let tokenizer_repo = config.chunking.tokenizer_repo.clone();
 	let tokenizer = elf_chunking::load_tokenizer(&tokenizer_repo)?;
 	let chunking = ChunkingConfig {
 		max_tokens: config.chunking.max_tokens,

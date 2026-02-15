@@ -214,10 +214,63 @@ rerank_ttl_days    = 7
 
 [search.explain]
 retention_days = 7
+capture_candidates = false
+candidate_retention_days = 2
+write_mode = "outbox"
 
 [ranking]
 recency_tau_days   = 60
 tie_breaker_weight = 0.1
+
+[ranking.deterministic]
+enabled = false
+
+[ranking.deterministic.lexical]
+enabled         = false
+max_query_terms = 16
+max_text_terms  = 1024
+min_ratio       = 0.3
+weight          = 0.05
+
+[ranking.deterministic.hits]
+enabled           = false
+half_saturation   = 8.0
+last_hit_tau_days = 14.0
+weight            = 0.05
+
+[ranking.deterministic.decay]
+enabled  = false
+tau_days = 30.0
+weight   = 0.05
+
+[ranking.blend]
+enabled                 = true
+rerank_normalization    = "rank"
+retrieval_normalization = "rank"
+
+[[ranking.blend.segments]]
+max_retrieval_rank = 3
+retrieval_weight   = 0.8
+
+[[ranking.blend.segments]]
+max_retrieval_rank = 10
+retrieval_weight   = 0.5
+
+[[ranking.blend.segments]]
+max_retrieval_rank = 1_000_000
+retrieval_weight   = 0.2
+
+[ranking.diversity]
+enabled       = true
+max_skips     = 64
+mmr_lambda    = 0.7
+sim_threshold = 0.88
+
+[ranking.retrieval_sources]
+fusion_priority           = 1
+fusion_weight             = 1.0
+structured_field_priority = 0
+structured_field_weight   = 1.0
 
 [lifecycle.ttl_days]
 constraint = 0
@@ -232,6 +285,8 @@ purge_deleted_after_days    = 30
 purge_deprecated_after_days = 180
 
 [security]
+admin_auth_token         = ""
+api_auth_token           = ""
 bind_localhost_only      = true
 evidence_max_quote_chars = 320
 evidence_max_quotes      = 2

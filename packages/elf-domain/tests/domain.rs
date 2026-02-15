@@ -3,9 +3,11 @@ use time::OffsetDateTime;
 
 use elf_config::{
 	Chunking, Config, EmbeddingProviderConfig, Lifecycle, LlmProviderConfig, Memory, Postgres,
-	ProviderConfig, Providers, Qdrant, Ranking, ReadProfiles, ScopePrecedence, ScopeWriteAllowed,
-	Scopes, Search, SearchCache, SearchDynamic, SearchExpansion, SearchExplain, SearchPrefilter,
-	Security, Service, Storage, TtlDays,
+	ProviderConfig, Providers, Qdrant, Ranking, RankingBlend, RankingBlendSegment,
+	RankingDeterministic, RankingDeterministicDecay, RankingDeterministicHits,
+	RankingDeterministicLexical, RankingDiversity, RankingRetrievalSources, ReadProfiles,
+	ScopePrecedence, ScopeWriteAllowed, Scopes, Search, SearchCache, SearchDynamic,
+	SearchExpansion, SearchExplain, SearchPrefilter, Security, Service, Storage, TtlDays,
 };
 use elf_domain::{cjk, evidence, ttl};
 
@@ -47,31 +49,54 @@ fn dummy_llm_provider() -> LlmProviderConfig {
 	}
 }
 
-#[test]
-fn detects_cjk() {
-	assert!(cjk::contains_cjk("\u{4F60}\u{597D}"));
-	assert!(!cjk::contains_cjk("hello"));
+fn test_ranking() -> Ranking {
+	Ranking {
+		recency_tau_days: 60.0,
+		tie_breaker_weight: 0.1,
+		deterministic: RankingDeterministic {
+			enabled: false,
+			lexical: RankingDeterministicLexical {
+				enabled: false,
+				weight: 0.05,
+				min_ratio: 0.3,
+				max_query_terms: 16,
+				max_text_terms: 1_024,
+			},
+			hits: RankingDeterministicHits {
+				enabled: false,
+				weight: 0.05,
+				half_saturation: 8.0,
+				last_hit_tau_days: 14.0,
+			},
+			decay: RankingDeterministicDecay { enabled: false, weight: 0.05, tau_days: 30.0 },
+		},
+		blend: RankingBlend {
+			enabled: true,
+			rerank_normalization: "rank".to_string(),
+			retrieval_normalization: "rank".to_string(),
+			segments: vec![
+				RankingBlendSegment { max_retrieval_rank: 3, retrieval_weight: 0.8 },
+				RankingBlendSegment { max_retrieval_rank: 10, retrieval_weight: 0.5 },
+				RankingBlendSegment { max_retrieval_rank: 1_000_000, retrieval_weight: 0.2 },
+			],
+		},
+		diversity: RankingDiversity {
+			enabled: true,
+			sim_threshold: 0.88,
+			mmr_lambda: 0.7,
+			max_skips: 64,
+		},
+		retrieval_sources: RankingRetrievalSources {
+			fusion_weight: 1.0,
+			structured_field_weight: 1.0,
+			fusion_priority: 1,
+			structured_field_priority: 0,
+		},
+	}
 }
 
-#[test]
-fn evidence_requires_substring() {
-	let messages = vec!["Hello world".to_string()];
-
-	assert!(evidence::evidence_matches(&messages, 0, "world"));
-	assert!(!evidence::evidence_matches(&messages, 0, "missing"));
-}
-
-#[test]
-fn evidence_rejects_empty_quote() {
-	let messages = vec!["Hello world".to_string()];
-
-	assert!(!evidence::evidence_matches(&messages, 0, ""));
-	assert!(!evidence::evidence_matches(&messages, 0, "   "));
-}
-
-#[test]
-fn computes_ttl_from_defaults() {
-	let cfg = Config {
+fn base_config() -> Config {
+	Config {
 		service: Service {
 			http_bind: "127.0.0.1:8080".to_string(),
 			mcp_bind: "127.0.0.1:8082".to_string(),
@@ -137,14 +162,7 @@ fn computes_ttl_from_defaults() {
 				write_mode: "outbox".to_string(),
 			},
 		},
-		ranking: Ranking {
-			recency_tau_days: 60.0,
-			tie_breaker_weight: 0.1,
-			deterministic: Default::default(),
-			blend: Default::default(),
-			diversity: Default::default(),
-			retrieval_sources: Default::default(),
-		},
+		ranking: test_ranking(),
 		lifecycle: Lifecycle {
 			ttl_days: TtlDays {
 				plan: 14,
@@ -164,18 +182,45 @@ fn computes_ttl_from_defaults() {
 			evidence_min_quotes: 1,
 			evidence_max_quotes: 2,
 			evidence_max_quote_chars: 320,
-			api_auth_token: None,
-			admin_auth_token: None,
+			api_auth_token: "".to_string(),
+			admin_auth_token: "".to_string(),
 		},
 		chunking: Chunking {
 			enabled: true,
 			max_tokens: 512,
 			overlap_tokens: 128,
-			tokenizer_repo: None,
+			tokenizer_repo: "REPLACE_ME".to_string(),
 		},
 		context: None,
 		mcp: None,
-	};
+	}
+}
+
+#[test]
+fn detects_cjk() {
+	assert!(cjk::contains_cjk("\u{4F60}\u{597D}"));
+	assert!(!cjk::contains_cjk("hello"));
+}
+
+#[test]
+fn evidence_requires_substring() {
+	let messages = vec!["Hello world".to_string()];
+
+	assert!(evidence::evidence_matches(&messages, 0, "world"));
+	assert!(!evidence::evidence_matches(&messages, 0, "missing"));
+}
+
+#[test]
+fn evidence_rejects_empty_quote() {
+	let messages = vec!["Hello world".to_string()];
+
+	assert!(!evidence::evidence_matches(&messages, 0, ""));
+	assert!(!evidence::evidence_matches(&messages, 0, "   "));
+}
+
+#[test]
+fn computes_ttl_from_defaults() {
+	let cfg = base_config();
 	let now = OffsetDateTime::now_utc();
 	let expires = ttl::compute_expires_at(None, "plan", &cfg, now).expect("TTL missing");
 

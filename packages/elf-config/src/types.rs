@@ -35,7 +35,6 @@ pub struct McpContext {
 	pub tenant_id: String,
 	pub project_id: String,
 	pub agent_id: String,
-	#[serde(default = "default_read_profile")]
 	pub read_profile: String,
 }
 
@@ -152,7 +151,7 @@ pub struct Chunking {
 	pub enabled: bool,
 	pub max_tokens: u32,
 	pub overlap_tokens: u32,
-	pub tokenizer_repo: Option<String>,
+	pub tokenizer_repo: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -193,11 +192,8 @@ pub struct SearchCache {
 #[derive(Debug, Deserialize)]
 pub struct SearchExplain {
 	pub retention_days: i64,
-	#[serde(default)]
 	pub capture_candidates: bool,
-	#[serde(default = "default_candidate_retention_days")]
 	pub candidate_retention_days: i64,
-	#[serde(default = "default_explain_write_mode")]
 	pub write_mode: String,
 }
 
@@ -205,18 +201,13 @@ pub struct SearchExplain {
 pub struct Ranking {
 	pub recency_tau_days: f32,
 	pub tie_breaker_weight: f32,
-	#[serde(default)]
 	pub blend: RankingBlend,
-	#[serde(default)]
 	pub deterministic: RankingDeterministic,
-	#[serde(default)]
 	pub diversity: RankingDiversity,
-	#[serde(default)]
 	pub retrieval_sources: RankingRetrievalSources,
 }
 
-#[derive(Debug, Default, Deserialize)]
-#[serde(default)]
+#[derive(Debug, Deserialize)]
 pub struct RankingDeterministic {
 	pub enabled: bool,
 	pub lexical: RankingDeterministicLexical,
@@ -225,7 +216,6 @@ pub struct RankingDeterministic {
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(default)]
 pub struct RankingDeterministicLexical {
 	pub enabled: bool,
 	pub weight: f32,
@@ -233,66 +223,28 @@ pub struct RankingDeterministicLexical {
 	pub max_query_terms: u32,
 	pub max_text_terms: u32,
 }
-impl Default for RankingDeterministicLexical {
-	fn default() -> Self {
-		Self {
-			enabled: false,
-			weight: 0.05,
-			min_ratio: 0.3,
-			max_query_terms: 16,
-			max_text_terms: 1_024,
-		}
-	}
-}
 
 #[derive(Debug, Deserialize)]
-#[serde(default)]
 pub struct RankingDeterministicHits {
 	pub enabled: bool,
 	pub weight: f32,
 	pub half_saturation: f32,
 	pub last_hit_tau_days: f32,
 }
-impl Default for RankingDeterministicHits {
-	fn default() -> Self {
-		Self { enabled: false, weight: 0.05, half_saturation: 8.0, last_hit_tau_days: 14.0 }
-	}
-}
 
 #[derive(Debug, Deserialize)]
-#[serde(default)]
 pub struct RankingDeterministicDecay {
 	pub enabled: bool,
 	pub weight: f32,
 	pub tau_days: f32,
 }
-impl Default for RankingDeterministicDecay {
-	fn default() -> Self {
-		Self { enabled: false, weight: 0.05, tau_days: 30.0 }
-	}
-}
 
 #[derive(Debug, Deserialize)]
-#[serde(default)]
 pub struct RankingBlend {
 	pub enabled: bool,
 	pub rerank_normalization: String,
 	pub retrieval_normalization: String,
 	pub segments: Vec<RankingBlendSegment>,
-}
-impl Default for RankingBlend {
-	fn default() -> Self {
-		Self {
-			enabled: true,
-			rerank_normalization: "rank".to_string(),
-			retrieval_normalization: "rank".to_string(),
-			segments: vec![
-				RankingBlendSegment { max_retrieval_rank: 3, retrieval_weight: 0.8 },
-				RankingBlendSegment { max_retrieval_rank: 10, retrieval_weight: 0.5 },
-				RankingBlendSegment { max_retrieval_rank: 1_000_000, retrieval_weight: 0.2 },
-			],
-		}
-	}
 }
 
 #[derive(Debug, Deserialize)]
@@ -302,36 +254,19 @@ pub struct RankingBlendSegment {
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(default)]
 pub struct RankingDiversity {
 	pub enabled: bool,
 	pub sim_threshold: f32,
 	pub mmr_lambda: f32,
 	pub max_skips: u32,
 }
-impl Default for RankingDiversity {
-	fn default() -> Self {
-		Self { enabled: true, sim_threshold: 0.88, mmr_lambda: 0.7, max_skips: 64 }
-	}
-}
 
 #[derive(Debug, Deserialize)]
-#[serde(default)]
 pub struct RankingRetrievalSources {
 	pub fusion_weight: f32,
 	pub structured_field_weight: f32,
 	pub fusion_priority: u32,
 	pub structured_field_priority: u32,
-}
-impl Default for RankingRetrievalSources {
-	fn default() -> Self {
-		Self {
-			fusion_weight: 1.0,
-			structured_field_weight: 1.0,
-			fusion_priority: 1,
-			structured_field_priority: 0,
-		}
-	}
 }
 
 #[derive(Debug, Deserialize)]
@@ -359,18 +294,6 @@ pub struct Security {
 	pub evidence_min_quotes: u32,
 	pub evidence_max_quotes: u32,
 	pub evidence_max_quote_chars: u32,
-	pub api_auth_token: Option<String>,
-	pub admin_auth_token: Option<String>,
-}
-
-fn default_candidate_retention_days() -> i64 {
-	2
-}
-
-fn default_explain_write_mode() -> String {
-	"outbox".to_string()
-}
-
-fn default_read_profile() -> String {
-	"private_plus_project".to_string()
+	pub api_auth_token: String,
+	pub admin_auth_token: String,
 }

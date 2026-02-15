@@ -78,8 +78,7 @@ update_sim_threshold    = 0.85
 enabled        = true
 max_tokens     = 512
 overlap_tokens = 128
-# If empty, uses providers.embedding.model
-tokenizer_repo = ""
+tokenizer_repo = "REPLACE_ME"
 
 [search.expansion]
 include_original = true
