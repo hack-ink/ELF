@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH expected AS (\n\tSELECT *\n\tFROM unnest($1::uuid[], $2::text[]) AS t(note_id, embedding_version)\n)\nSELECT\n\te.note_id AS \"note_id!\",\n\tn.vec::text AS \"vec_text!\"\nFROM expected e\nJOIN note_embeddings n\n\tON n.note_id = e.note_id\n\tAND n.embedding_version = e.embedding_version",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "note_id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "vec_text!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "4b53eb963cf7100ff8a00818b3ed82a6ed4f3e8c3b44f4f761e0227f468cbf25"
+}
