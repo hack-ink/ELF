@@ -3174,22 +3174,23 @@ where
 		}
 	}
 
-	let rows = sqlx::query_as::<_, NoteVectorRow>(
+	let rows = sqlx::query_as!(
+		NoteVectorRow,
 		"\
 WITH expected AS (
 	SELECT *
 	FROM unnest($1::uuid[], $2::text[]) AS t(note_id, embedding_version)
 )
 SELECT
-	e.note_id AS note_id,
-	n.vec::text AS vec_text
+	e.note_id AS \"note_id!\",
+	n.vec::text AS \"vec_text!\"
 FROM expected e
 JOIN note_embeddings n
 	ON n.note_id = e.note_id
 	AND n.embedding_version = e.embedding_version",
+		note_ids.as_slice(),
+		embedding_versions.as_slice(),
 	)
-	.bind(note_ids.as_slice())
-	.bind(embedding_versions.as_slice())
 	.fetch_all(executor)
 	.await?;
 	let mut out = HashMap::new();
