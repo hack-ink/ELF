@@ -101,11 +101,11 @@ impl ElfService {
 			.extractor
 			.extract(&self.cfg.providers.llm_extractor, &messages_json)
 			.await?;
+		let max_notes = self.cfg.memory.max_notes_per_add_event as usize;
 		let mut extracted: ExtractorOutput = serde_json::from_value(extracted_raw.clone())
 			.map_err(|_| Error::InvalidRequest {
 				message: "Extractor output is missing notes array.".to_string(),
 			})?;
-		let max_notes = self.cfg.memory.max_notes_per_add_event as usize;
 
 		if extracted.notes.len() > max_notes {
 			extracted.notes.truncate(max_notes);
@@ -117,8 +117,8 @@ impl ElfService {
 		let now = OffsetDateTime::now_utc();
 		let embed_version = crate::embedding_version(&self.cfg);
 		let dry_run = req.dry_run.unwrap_or(false);
-		let mut results = Vec::with_capacity(extracted.notes.len());
 		let message_texts: Vec<String> = req.messages.iter().map(|m| m.content.clone()).collect();
+		let mut results = Vec::with_capacity(extracted.notes.len());
 
 		for note in extracted.notes {
 			results.push(

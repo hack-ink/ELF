@@ -11,7 +11,7 @@ pub enum Error {
 	#[error(transparent)]
 	Storage(#[from] elf_storage::Error),
 	#[error(transparent)]
-	Tokenizer(#[from] elf_chunking::TokenizerError),
+	Tokenizer(#[from] elf_chunking::Error),
 	#[error(transparent)]
 	SerdeJson(#[from] serde_json::Error),
 	#[error(transparent)]
