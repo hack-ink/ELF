@@ -67,3 +67,11 @@ pub struct IndexingOutboxEntry {
 	pub created_at: OffsetDateTime,
 	pub updated_at: OffsetDateTime,
 }
+
+#[derive(Debug, sqlx::FromRow)]
+pub struct TraceOutboxJob {
+	pub outbox_id: Uuid,
+	pub trace_id: Uuid,
+	pub payload: Value,
+	pub attempts: i32,
+}
