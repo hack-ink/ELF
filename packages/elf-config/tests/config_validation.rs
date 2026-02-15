@@ -8,7 +8,7 @@ use std::{
 
 use toml::Value;
 
-use elf_config::{Config, Context};
+use elf_config::{Config, Context, Error};
 
 const SAMPLE_CONFIG_TEMPLATE_TOML: &str = include_str!("fixtures/sample_config.template.toml");
 
@@ -120,23 +120,40 @@ fn chunking_config_requires_valid_bounds() {
 }
 
 #[test]
-fn chunking_tokenizer_repo_can_inherit_from_embedding_model() {
-	let mut cfg = base_config();
+fn chunking_tokenizer_repo_cannot_be_empty_or_whitespace() {
+	let mut payload = sample_toml(true);
 
-	cfg.chunking.tokenizer_repo = None;
+	payload = payload.replace("tokenizer_repo = \"REPLACE_ME\"", "tokenizer_repo = \"   \"");
 
-	assert!(elf_config::validate(&cfg).is_ok());
-}
-
-#[test]
-fn chunking_tokenizer_repo_empty_string_normalizes_to_none() {
-	let payload = sample_toml(true);
 	let path = write_temp_config(payload);
-	let cfg = elf_config::load(&path).expect("Expected config to load.");
+	let err = elf_config::load(&path).expect_err("Expected tokenizer validation error.");
 
 	fs::remove_file(&path).expect("Failed to remove test config.");
 
-	assert!(cfg.chunking.tokenizer_repo.is_none());
+	assert!(err.to_string().contains("chunking.tokenizer_repo must be a non-empty string."));
+}
+
+#[test]
+fn chunking_tokenizer_repo_is_required() {
+	let mut payload = sample_toml(true);
+
+	payload = payload.replace("tokenizer_repo = \"REPLACE_ME\"\n", "");
+
+	let path = write_temp_config(payload);
+	let err = elf_config::load(&path).expect_err("Expected missing tokenizer_repo parse error.");
+
+	fs::remove_file(&path).expect("Failed to remove test config.");
+
+	let message = match err {
+		Error::ParseConfig { source, .. } => source.to_string(),
+		err => panic!("Expected parse config error, got {err}"),
+	};
+
+	assert!(
+		message.contains("missing field `tokenizer_repo`")
+			|| message.contains("missing field `tokenizer repo`"),
+		"Unexpected error: {message}"
+	);
 }
 
 #[test]

@@ -20,12 +20,12 @@ pub async fn run(args: Args) -> Result<()> {
 	let config = elf_config::load(&args.config)?;
 	let mcp =
 		config.mcp.as_ref().ok_or_else(|| eyre::eyre!("mcp section is required for elf-mcp."))?;
+	let api_auth_token = {
+		let raw = config.security.api_auth_token.trim();
 
-	server::serve_mcp(
-		&config.service.mcp_bind,
-		&config.service.http_bind,
-		config.security.api_auth_token.as_deref(),
-		mcp,
-	)
-	.await
+		if raw.is_empty() { None } else { Some(raw) }
+	};
+
+	server::serve_mcp(&config.service.mcp_bind, &config.service.http_bind, api_auth_token, mcp)
+		.await
 }

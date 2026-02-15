@@ -382,12 +382,18 @@ fn is_authorized(headers: &HeaderMap, expected: Option<&str>) -> bool {
 	false
 }
 
+fn configured_token(raw: &str) -> Option<&str> {
+	let token = raw.trim();
+
+	if token.is_empty() { None } else { Some(token) }
+}
+
 async fn api_auth_middleware(
 	State(state): State<AppState>,
 	req: Request<Body>,
 	next: Next,
 ) -> Response {
-	let expected = state.service.cfg.security.api_auth_token.as_deref();
+	let expected = configured_token(&state.service.cfg.security.api_auth_token);
 
 	if expected.is_some() && !is_authorized(req.headers(), expected) {
 		return json_error(
@@ -407,12 +413,8 @@ async fn admin_auth_middleware(
 	req: Request<Body>,
 	next: Next,
 ) -> Response {
-	let expected = state.service.cfg.security.admin_auth_token.as_deref().or(state
-		.service
-		.cfg
-		.security
-		.api_auth_token
-		.as_deref());
+	let expected = configured_token(&state.service.cfg.security.admin_auth_token)
+		.or_else(|| configured_token(&state.service.cfg.security.api_auth_token));
 
 	if expected.is_some() && !is_authorized(req.headers(), expected) {
 		return json_error(

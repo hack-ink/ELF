@@ -31,9 +31,11 @@ use tokio::time;
 
 use elf_config::{
 	Chunking, Config, EmbeddingProviderConfig, Lifecycle, LlmProviderConfig, Memory, Postgres,
-	ProviderConfig, Providers, Ranking, ReadProfiles, ScopePrecedence, ScopeWriteAllowed, Scopes,
-	Search, SearchCache, SearchDynamic, SearchExpansion, SearchExplain, SearchPrefilter, Security,
-	Service, Storage, TtlDays,
+	ProviderConfig, Providers, Ranking, RankingBlend, RankingBlendSegment, RankingDeterministic,
+	RankingDeterministicDecay, RankingDeterministicHits, RankingDeterministicLexical,
+	RankingDiversity, RankingRetrievalSources, ReadProfiles, ScopePrecedence, ScopeWriteAllowed,
+	Scopes, Search, SearchCache, SearchDynamic, SearchExpansion, SearchExplain, SearchPrefilter,
+	Security, Service, Storage, TtlDays,
 };
 use elf_service::{
 	BoxFuture, ElfService, EmbeddingProvider, ExtractorProvider, RerankProvider, Result,
@@ -204,14 +206,7 @@ pub fn test_config(dsn: String, qdrant_url: String, vector_dim: u32, collection:
 				write_mode: "outbox".to_string(),
 			},
 		},
-		ranking: Ranking {
-			recency_tau_days: 60.0,
-			tie_breaker_weight: 0.1,
-			deterministic: Default::default(),
-			blend: Default::default(),
-			diversity: Default::default(),
-			retrieval_sources: Default::default(),
-		},
+		ranking: test_ranking(),
 		lifecycle: Lifecycle {
 			ttl_days: TtlDays {
 				plan: 14,
@@ -228,7 +223,7 @@ pub fn test_config(dsn: String, qdrant_url: String, vector_dim: u32, collection:
 			enabled: true,
 			max_tokens: 512,
 			overlap_tokens: 128,
-			tokenizer_repo: None,
+			tokenizer_repo: "gpt2".to_string(),
 		},
 		security: Security {
 			bind_localhost_only: true,
@@ -237,8 +232,8 @@ pub fn test_config(dsn: String, qdrant_url: String, vector_dim: u32, collection:
 			evidence_min_quotes: 1,
 			evidence_max_quotes: 2,
 			evidence_max_quote_chars: 320,
-			api_auth_token: None,
-			admin_auth_token: None,
+			api_auth_token: "".to_string(),
+			admin_auth_token: "".to_string(),
 		},
 		context: None,
 		mcp: None,
@@ -288,6 +283,52 @@ pub async fn test_db() -> Option<TestDatabase> {
 	let db = TestDatabase::new(&base_dsn).await.expect("Failed to create test database.");
 
 	Some(db)
+}
+
+fn test_ranking() -> Ranking {
+	Ranking {
+		recency_tau_days: 60.0,
+		tie_breaker_weight: 0.1,
+		deterministic: RankingDeterministic {
+			enabled: false,
+			lexical: RankingDeterministicLexical {
+				enabled: false,
+				weight: 0.05,
+				min_ratio: 0.3,
+				max_query_terms: 16,
+				max_text_terms: 1_024,
+			},
+			hits: RankingDeterministicHits {
+				enabled: false,
+				weight: 0.05,
+				half_saturation: 8.0,
+				last_hit_tau_days: 14.0,
+			},
+			decay: RankingDeterministicDecay { enabled: false, weight: 0.05, tau_days: 30.0 },
+		},
+		blend: RankingBlend {
+			enabled: true,
+			rerank_normalization: "rank".to_string(),
+			retrieval_normalization: "rank".to_string(),
+			segments: vec![
+				RankingBlendSegment { max_retrieval_rank: 3, retrieval_weight: 0.8 },
+				RankingBlendSegment { max_retrieval_rank: 10, retrieval_weight: 0.5 },
+				RankingBlendSegment { max_retrieval_rank: 1_000_000, retrieval_weight: 0.2 },
+			],
+		},
+		diversity: RankingDiversity {
+			enabled: true,
+			sim_threshold: 0.88,
+			mmr_lambda: 0.7,
+			max_skips: 64,
+		},
+		retrieval_sources: RankingRetrievalSources {
+			fusion_weight: 1.0,
+			structured_field_weight: 1.0,
+			fusion_priority: 1,
+			structured_field_priority: 0,
+		},
+	}
 }
 
 async fn reset_qdrant_collection(

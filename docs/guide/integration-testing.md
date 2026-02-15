@@ -169,19 +169,19 @@ reject_cjk               = true
 From the repository root:
 
 ```bash
-cargo run -p elf-worker -- --config tmp/elf.integration.toml
+cargo run -p elf-worker -- -c tmp/elf.integration.toml
 ```
 
 In a second terminal:
 
 ```bash
-cargo run -p elf-api -- --config tmp/elf.integration.toml
+cargo run -p elf-api -- -c tmp/elf.integration.toml
 ```
 
 Note: If you see long "waiting for file lock" messages or slow startup, build once and run the
 binaries directly:
-`cargo build -p elf-worker -p elf-api`, then `target/debug/elf-worker --config ...` and
-`target/debug/elf-api --config ...`.
+`cargo build -p elf-worker -p elf-api`, then `target/debug/elf-worker -c ...` and
+`target/debug/elf-api -c ...`.
 
 ## Step 3: Add test notes
 
@@ -255,7 +255,7 @@ Create `tmp/eval.json` with expected note IDs from the add-note call.
 ## Step 5: Run the evaluation
 
 ```bash
-cargo run -p elf-eval -- --config tmp/elf.integration.toml --dataset tmp/eval.json
+cargo run -p elf-eval -- -c tmp/elf.integration.toml --dataset tmp/eval.json
 ```
 
 Review the JSON output for recall, precision, and latency metrics.
