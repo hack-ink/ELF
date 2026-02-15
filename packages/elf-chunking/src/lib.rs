@@ -1,9 +1,6 @@
-pub use tokenizers::Tokenizer;
+pub use tokenizers::{Error, Tokenizer};
 
-use tokenizers::Error;
 use unicode_segmentation::UnicodeSegmentation;
-
-pub type TokenizerError = Error;
 
 #[derive(Clone, Debug)]
 pub struct ChunkingConfig {
@@ -19,7 +16,7 @@ pub struct Chunk {
 	pub text: String,
 }
 
-pub fn load_tokenizer(repo: &str) -> Result<Tokenizer, TokenizerError> {
+pub fn load_tokenizer(repo: &str) -> Result<Tokenizer, Error> {
 	Tokenizer::from_pretrained(repo, None)
 }
 

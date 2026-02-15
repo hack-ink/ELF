@@ -984,11 +984,11 @@ async fn eval_config(
 		candidate_k: None,
 		ranking: None,
 	});
+	let runs_per_query = args.runs_per_query.max(1);
 	let mut reports = Vec::with_capacity(dataset.queries.len());
 	let mut latencies_ms = Vec::with_capacity(dataset.queries.len());
 	let mut stability_positional = Vec::new();
 	let mut stability_set = Vec::new();
-	let runs_per_query = args.runs_per_query.max(1);
 
 	for (index, query) in dataset.queries.iter().enumerate() {
 		let merged = merge_query(&defaults, query, args, &service.cfg, index)?;
