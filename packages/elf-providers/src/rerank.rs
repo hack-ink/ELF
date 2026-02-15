@@ -149,13 +149,13 @@ fn tokenize_ascii_alnum(text: &str) -> HashSet<String> {
 }
 
 fn parse_rerank_response(json: Value, doc_count: usize) -> Result<Vec<f32>> {
-	let mut scores = vec![0.0f32; doc_count];
 	let results =
 		json.get("results").or_else(|| json.get("data")).and_then(|v| v.as_array()).ok_or_else(
 			|| Error::InvalidResponse {
 				message: "Rerank response is missing results array.".to_string(),
 			},
 		)?;
+	let mut scores = vec![0.0_f32; doc_count];
 
 	for item in results {
 		let index = item.get("index").and_then(|v| v.as_u64()).ok_or_else(|| {

@@ -32,7 +32,7 @@ pub async fn embed(cfg: &EmbeddingProviderConfig, texts: &[String]) -> Result<Ve
 }
 
 fn local_embed(dim: usize, text: &str) -> Vec<f32> {
-	let mut vec = vec![0.0f32; dim];
+	let mut vec = vec![0.0_f32; dim];
 
 	if dim == 0 {
 		return vec;
