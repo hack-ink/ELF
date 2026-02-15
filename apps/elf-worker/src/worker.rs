@@ -19,7 +19,8 @@ use elf_config::EmbeddingProviderConfig;
 use elf_providers::embedding;
 use elf_storage::{
 	db::Db,
-	models::{IndexingOutboxEntry, MemoryNote},
+	models::{IndexingOutboxEntry, MemoryNote, TraceOutboxJob},
+	outbox,
 	qdrant::{BM25_MODEL, BM25_VECTOR_NAME, DENSE_VECTOR_NAME, QdrantStore},
 	queries,
 };
@@ -98,13 +99,6 @@ struct TraceCandidateRecord {
 	note_last_hit_at: Option<OffsetDateTime>,
 	created_at: OffsetDateTime,
 	expires_at: OffsetDateTime,
-}
-
-struct TraceOutboxJob {
-	outbox_id: Uuid,
-	trace_id: Uuid,
-	payload: Value,
-	attempts: i32,
 }
 
 struct TraceItemInsert {
@@ -362,7 +356,7 @@ fn to_std_duration(duration: time::Duration) -> std::time::Duration {
 
 async fn process_indexing_outbox_once(state: &WorkerState) -> Result<()> {
 	let now = OffsetDateTime::now_utc();
-	let job = fetch_next_job(&state.db, now).await?;
+	let job = outbox::claim_next_indexing_outbox_job(&state.db, now, CLAIM_LEASE_SECONDS).await?;
 	let Some(job) = job else { return Ok(()) };
 	let result = match job.op.as_str() {
 		"UPSERT" => handle_upsert(state, &job).await,
@@ -372,7 +366,8 @@ async fn process_indexing_outbox_once(state: &WorkerState) -> Result<()> {
 
 	match result {
 		Ok(()) => {
-			mark_done(&state.db, job.outbox_id).await?;
+			outbox::mark_indexing_outbox_done(&state.db, job.outbox_id, OffsetDateTime::now_utc())
+				.await?;
 		},
 		Err(err) => {
 			tracing::error!(error = %err, outbox_id = %job.outbox_id, "Outbox job failed.");
@@ -386,13 +381,15 @@ async fn process_indexing_outbox_once(state: &WorkerState) -> Result<()> {
 
 async fn process_trace_outbox_once(state: &WorkerState) -> Result<()> {
 	let now = OffsetDateTime::now_utc();
-	let job = fetch_next_trace_job(&state.db, now).await?;
+	let job =
+		outbox::claim_next_trace_outbox_job(&state.db, now, TRACE_OUTBOX_LEASE_SECONDS).await?;
 	let Some(job) = job else { return Ok(()) };
 	let result = handle_trace_job(&state.db, &job).await;
 
 	match result {
 		Ok(()) => {
-			mark_trace_done(&state.db, job.outbox_id).await?;
+			outbox::mark_trace_outbox_done(&state.db, job.outbox_id, OffsetDateTime::now_utc())
+				.await?;
 		},
 		Err(err) => {
 			tracing::error!(error = %err, trace_id = %job.trace_id, "Search trace outbox job failed.");
@@ -402,98 +399,6 @@ async fn process_trace_outbox_once(state: &WorkerState) -> Result<()> {
 	}
 
 	Ok(())
-}
-
-// TODO: Add outbox fetch/update helpers in elf_storage::outbox and use them here.
-async fn fetch_next_job(db: &Db, now: OffsetDateTime) -> Result<Option<IndexingOutboxEntry>> {
-	let mut tx = db.pool.begin().await?;
-	let row = sqlx::query_as!(
-		IndexingOutboxEntry,
-		"\
-SELECT
-	outbox_id,
-	note_id,
-	op,
-	embedding_version,
-	status,
-	attempts,
-	last_error,
-	available_at,
-	created_at,
-	updated_at
-FROM indexing_outbox
-WHERE status IN ('PENDING','FAILED') AND available_at <= $1
-ORDER BY available_at ASC
-LIMIT 1
-FOR UPDATE SKIP LOCKED",
-		now,
-	)
-	.fetch_optional(&mut *tx)
-	.await?;
-	let job = if let Some(mut job) = row {
-		let lease_until = now + time::Duration::seconds(CLAIM_LEASE_SECONDS);
-
-		sqlx::query!(
-			"UPDATE indexing_outbox SET available_at = $1, updated_at = $2 WHERE outbox_id = $3",
-			lease_until,
-			now,
-			job.outbox_id,
-		)
-		.execute(&mut *tx)
-		.await?;
-
-		job.available_at = lease_until;
-		job.updated_at = now;
-
-		Some(job)
-	} else {
-		None
-	};
-
-	tx.commit().await?;
-
-	Ok(job)
-}
-
-async fn fetch_next_trace_job(db: &Db, now: OffsetDateTime) -> Result<Option<TraceOutboxJob>> {
-	let mut tx = db.pool.begin().await?;
-	let row = sqlx::query_as!(
-		TraceOutboxJob,
-		"\
-SELECT
-	outbox_id,
-	trace_id,
-	payload,
-	attempts
-FROM search_trace_outbox
-WHERE status IN ('PENDING','FAILED') AND available_at <= $1
-ORDER BY available_at ASC
-LIMIT 1
-FOR UPDATE SKIP LOCKED",
-		now,
-	)
-	.fetch_optional(&mut *tx)
-	.await?;
-	let job = if let Some(job) = row {
-		let lease_until = now + time::Duration::seconds(TRACE_OUTBOX_LEASE_SECONDS);
-
-		sqlx::query!(
-			"UPDATE search_trace_outbox SET available_at = $1, updated_at = $2 WHERE outbox_id = $3",
-			lease_until,
-			now,
-			job.outbox_id,
-		)
-		.execute(&mut *tx)
-		.await?;
-
-		Some(job)
-	} else {
-		None
-	};
-
-	tx.commit().await?;
-
-	Ok(job)
 }
 
 async fn handle_upsert(state: &WorkerState, job: &IndexingOutboxEntry) -> Result<()> {
@@ -1057,34 +962,6 @@ async fn upsert_qdrant_chunks(
 	Ok(())
 }
 
-async fn mark_done(db: &Db, outbox_id: Uuid) -> Result<()> {
-	let now = OffsetDateTime::now_utc();
-
-	sqlx::query!(
-		"UPDATE indexing_outbox SET status = 'DONE', updated_at = $1 WHERE outbox_id = $2",
-		now,
-		outbox_id,
-	)
-	.execute(&db.pool)
-	.await?;
-
-	Ok(())
-}
-
-async fn mark_trace_done(db: &Db, outbox_id: Uuid) -> Result<()> {
-	let now = OffsetDateTime::now_utc();
-
-	sqlx::query!(
-		"UPDATE search_trace_outbox SET status = 'DONE', updated_at = $1 WHERE outbox_id = $2",
-		now,
-		outbox_id,
-	)
-	.execute(&db.pool)
-	.await?;
-
-	Ok(())
-}
-
 async fn mark_failed(db: &Db, outbox_id: Uuid, attempts: i32, err: &Error) -> Result<()> {
 	let next_attempts = attempts.saturating_add(1);
 	let backoff = backoff_for_attempt(next_attempts);
@@ -1092,22 +969,14 @@ async fn mark_failed(db: &Db, outbox_id: Uuid, attempts: i32, err: &Error) -> Re
 	let available_at = now + backoff;
 	let error_text = sanitize_outbox_error(&err.to_string());
 
-	sqlx::query!(
-		"\
-UPDATE indexing_outbox
-SET status = 'FAILED',
-	attempts = $1,
-	last_error = $2,
-	available_at = $3,
-	updated_at = $4
-WHERE outbox_id = $5",
+	outbox::mark_indexing_outbox_failed(
+		db,
+		outbox_id,
 		next_attempts,
-		error_text,
+		error_text.as_str(),
 		available_at,
 		now,
-		outbox_id,
 	)
-	.execute(&db.pool)
 	.await?;
 
 	Ok(())
@@ -1120,22 +989,14 @@ async fn mark_trace_failed(db: &Db, outbox_id: Uuid, attempts: i32, err: &Error)
 	let available_at = now + backoff;
 	let error_text = sanitize_outbox_error(&err.to_string());
 
-	sqlx::query!(
-		"\
-UPDATE search_trace_outbox
-SET status = 'FAILED',
-	attempts = $1,
-	last_error = $2,
-	available_at = $3,
-	updated_at = $4
-WHERE outbox_id = $5",
+	outbox::mark_trace_outbox_failed(
+		db,
+		outbox_id,
 		next_attempts,
-		error_text,
+		error_text.as_str(),
 		available_at,
 		now,
-		outbox_id,
 	)
-	.execute(&db.pool)
 	.await?;
 
 	Ok(())
