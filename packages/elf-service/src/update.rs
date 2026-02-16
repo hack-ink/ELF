@@ -189,7 +189,7 @@ WHERE note_id = $6",
 			prev_snapshot: Some(prev_snapshot),
 			new_snapshot: Some(crate::note_snapshot(note)),
 			reason: "update",
-			actor: "update",
+			actor: note.agent_id.as_str(),
 			ts: note.updated_at,
 		},
 	)

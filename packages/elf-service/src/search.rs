@@ -13,7 +13,7 @@ use qdrant_client::qdrant::{
 	QueryPointsBuilder, ScoredPoint,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Value, json};
 use sqlx::{PgConnection, PgExecutor, QueryBuilder};
 use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
@@ -35,6 +35,7 @@ pub struct SearchRequest {
 	pub tenant_id: String,
 	pub project_id: String,
 	pub agent_id: String,
+	pub token_id: Option<String>,
 	pub read_profile: String,
 	pub query: String,
 	pub top_k: Option<u32>,
@@ -267,6 +268,7 @@ struct MaybeDynamicSearchArgs<'a> {
 	tenant_id: &'a str,
 	project_id: &'a str,
 	agent_id: &'a str,
+	token_id: Option<&'a str>,
 	read_profile: &'a str,
 	allowed_scopes: &'a [String],
 	project_context_description: Option<&'a str>,
@@ -576,6 +578,7 @@ struct FinishSearchArgs<'a> {
 	tenant_id: &'a str,
 	project_id: &'a str,
 	agent_id: &'a str,
+	token_id: Option<&'a str>,
 	read_profile: &'a str,
 	allowed_scopes: &'a [String],
 	expanded_queries: Vec<String>,
@@ -601,6 +604,7 @@ struct BuildTraceArgs<'a> {
 	tenant_id: &'a str,
 	project_id: &'a str,
 	agent_id: &'a str,
+	token_id: Option<&'a str>,
 	read_profile: &'a str,
 	expansion_mode: ExpansionMode,
 	expanded_queries: Vec<String>,
@@ -727,6 +731,7 @@ impl ElfService {
 		let tenant_id = req.tenant_id.trim();
 		let project_id = req.project_id.trim();
 		let agent_id = req.agent_id.trim();
+		let token_id = req.token_id.as_deref().map(str::trim).filter(|value| !value.is_empty());
 
 		validate_search_request_inputs(tenant_id, project_id, agent_id, req.query.as_str())?;
 
@@ -754,6 +759,7 @@ impl ElfService {
 					tenant_id,
 					project_id,
 					agent_id,
+					token_id,
 					read_profile: &read_profile,
 					allowed_scopes: &allowed_scopes,
 					expanded_queries: vec![query.clone()],
@@ -776,6 +782,7 @@ impl ElfService {
 				tenant_id,
 				project_id,
 				agent_id,
+				token_id,
 				read_profile: read_profile.as_str(),
 				allowed_scopes: &allowed_scopes,
 				project_context_description,
@@ -814,6 +821,7 @@ impl ElfService {
 			tenant_id,
 			project_id,
 			agent_id,
+			token_id,
 			read_profile: &read_profile,
 			allowed_scopes: &allowed_scopes,
 			expanded_queries: retrieval.expanded_queries,
@@ -889,6 +897,7 @@ impl ElfService {
 				tenant_id: args.tenant_id,
 				project_id: args.project_id,
 				agent_id: args.agent_id,
+				token_id: args.token_id,
 				read_profile: args.read_profile,
 				allowed_scopes: args.allowed_scopes,
 				expanded_queries: vec![args.query.to_string()],
@@ -1749,6 +1758,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 			tenant_id,
 			project_id,
 			agent_id,
+			token_id,
 			read_profile,
 			allowed_scopes,
 			expanded_queries,
@@ -1813,6 +1823,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 			tenant_id,
 			project_id,
 			agent_id,
+			token_id,
 			read_profile,
 			expansion_mode,
 			expanded_queries,
@@ -1987,7 +1998,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 			candidate_count: args.candidate_count,
 			top_k: args.top_k,
 		};
-		let config_snapshot = ranking::build_config_snapshot(
+		let mut config_snapshot = ranking::build_config_snapshot(
 			&self.cfg,
 			&args.policies.blend_policy,
 			&args.policies.diversity_policy,
@@ -1996,6 +2007,9 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 			args.policies.policy_id.as_str(),
 			&args.policies.policy_snapshot,
 		);
+		if let Some(object) = config_snapshot.as_object_mut() {
+			object.insert("audit".to_string(), build_trace_audit(args.agent_id, args.token_id));
+		}
 		let mut items = Vec::with_capacity(args.selected_results.len());
 		let mut trace_builder = SearchTraceBuilder::new(
 			trace_context,
@@ -2903,6 +2917,13 @@ fn build_deterministic_query_tokens(cfg: &Config, query: &str) -> Vec<String> {
 	}
 }
 
+fn build_trace_audit(actor_id: &str, token_id: Option<&str>) -> Value {
+	match token_id.map(str::trim).filter(|value| !value.is_empty()) {
+		Some(token_id) => json!({ "actor_id": actor_id, "token_id": token_id }),
+		None => json!({ "actor_id": actor_id }),
+	}
+}
+
 fn score_replay_candidate(
 	ctx: &ScoreCandidateCtx<'_, '_>,
 	candidate: &TraceReplayCandidate,
@@ -3600,9 +3621,10 @@ mod tests {
 		OffsetDateTime, RankingRequestOverride, RerankCacheCandidate, RerankCacheItem,
 		RerankCachePayload, RetrievalSourceCandidates, RetrievalSourceKind,
 		RetrievalSourcesRankingOverride, ScoredChunk, TraceReplayCandidate, TraceReplayContext,
-		Uuid, ranking, ranking_policy_id, replay_ranking_from_candidates,
+		Uuid, build_trace_audit, ranking, ranking_policy_id, replay_ranking_from_candidates,
 	};
 	use elf_config::{Config, SearchDynamic};
+	use serde_json::Value;
 
 	#[test]
 	fn dense_embedding_input_includes_project_context_suffix() {
@@ -3671,6 +3693,22 @@ mod tests {
 		assert!((ranking::rank_normalize(3, 5) - 0.5).abs() < 1e-6);
 		assert!((ranking::rank_normalize(5, 5) - 0.0).abs() < 1e-6);
 		assert!((ranking::rank_normalize(0, 5) - 0.0).abs() < 1e-6);
+	}
+
+	#[test]
+	fn build_trace_audit_includes_token_id_when_present() {
+		let audit = build_trace_audit("agent-a", Some("tok-123"));
+
+		assert_eq!(audit.get("actor_id"), Some(&Value::from("agent-a")));
+		assert_eq!(audit.get("token_id"), Some(&Value::from("tok-123")));
+	}
+
+	#[test]
+	fn build_trace_audit_omits_token_id_when_empty() {
+		let audit = build_trace_audit("agent-a", Some("   "));
+
+		assert_eq!(audit.get("actor_id"), Some(&Value::from("agent-a")));
+		assert!(audit.get("token_id").is_none());
 	}
 
 	fn test_chunk_candidate(note_id: Uuid, retrieval_rank: u32) -> ChunkCandidate {

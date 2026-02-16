@@ -301,7 +301,7 @@ impl ElfService {
 				prev_snapshot: None,
 				new_snapshot: Some(crate::note_snapshot(&memory_note)),
 				reason: "add_event",
-				actor: "add_event",
+				actor: args.req.agent_id.as_str(),
 				ts: args.now,
 			},
 		)
@@ -357,7 +357,7 @@ impl ElfService {
 				prev_snapshot: Some(prev_snapshot),
 				new_snapshot: Some(crate::note_snapshot(&existing)),
 				reason: "add_event",
-				actor: "add_event",
+				actor: args.req.agent_id.as_str(),
 				ts: args.now,
 			},
 		)
