@@ -171,14 +171,29 @@ purge_deleted_after_days    = 30
 purge_deprecated_after_days = 180
 
 [security]
-admin_auth_token         = ""
-api_auth_token           = ""
+auth_keys                = []
+auth_mode                = "off"
 bind_localhost_only      = true
 evidence_max_quote_chars = 320
 evidence_max_quotes      = 2
 evidence_min_quotes      = 1
 redact_secrets_on_write  = true
 reject_cjk               = true
+
+# Explicit auth mode:
+# - "off": no auth checks; only safe for local loopback binds.
+# - "static_keys": require Authorization: Bearer <token> and derive context from keys.
+#
+# When auth_mode is "static_keys", every request context is derived from the matched key.
+# Caller-provided context headers are ignored/overridden.
+# [[security.auth_keys]]
+# token_id     = "dev-client"
+# token        = "replace-with-opaque-secret"
+# tenant_id    = "t"
+# project_id   = "p"
+# agent_id     = "a"
+# read_profile = "private_plus_project"
+# admin        = false
 
 [context]
 # Optional. Context metadata used to disambiguate retrieval across projects and scopes.
