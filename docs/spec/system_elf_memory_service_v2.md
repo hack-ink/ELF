@@ -725,10 +725,9 @@ Base: http://{service.admin_bind}
 Note: Admin endpoints are intended for localhost use only. They are not exposed on the public bind.
 
 Authentication:
-- When security.admin_auth_token is set, admin requests must include either:
-  - Authorization: Bearer <token>, or
-  - X-ELF-Auth-Token: <token>.
-- When security.admin_auth_token is not set but security.api_auth_token is set, the admin API uses security.api_auth_token.
+- security.auth_mode = "off": no auth header is required.
+- security.auth_mode = "static_keys": admin requests must include `Authorization: Bearer <token>`.
+- In `static_keys` mode, the matched `security.auth_keys` entry must have `admin = true` for admin endpoints.
 
 POST /v2/admin/qdrant/rebuild
 
@@ -853,9 +852,8 @@ Header rules:
 - Headers must not contain any CJK characters.
 
 Authentication:
-- When security.api_auth_token is set, requests must include either:
-  - Authorization: Bearer <token>, or
-  - X-ELF-Auth-Token: <token>.
+- security.auth_mode = "off": no auth header is required.
+- security.auth_mode = "static_keys": requests must include `Authorization: Bearer <token>`, matched against `security.auth_keys`.
 
 POST /v2/notes/ingest
 
