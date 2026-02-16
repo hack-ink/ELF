@@ -140,6 +140,7 @@ async fn rejects_cjk_in_search() {
 		tenant_id: "t".to_string(),
 		project_id: "p".to_string(),
 		agent_id: "a".to_string(),
+		token_id: None,
 		read_profile: "private_only".to_string(),
 		query: "안녕하세요".to_string(),
 		top_k: Some(5),

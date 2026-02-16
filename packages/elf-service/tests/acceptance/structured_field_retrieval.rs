@@ -430,6 +430,7 @@ async fn structured_fact_field_can_surface_note_and_marks_matched_fields() {
 			tenant_id: "t".to_string(),
 			project_id: "p".to_string(),
 			agent_id: "a".to_string(),
+			token_id: None,
 			read_profile: "private_only".to_string(),
 			query: query.to_string(),
 			top_k: Some(1),

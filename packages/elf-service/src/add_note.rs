@@ -176,7 +176,7 @@ impl ElfService {
 				prev_snapshot: None,
 				new_snapshot: Some(crate::note_snapshot(&memory_note)),
 				reason: "add_note",
-				actor: "add_note",
+				actor: ctx.agent_id,
 				ts: ctx.now,
 			},
 		)
@@ -256,7 +256,7 @@ impl ElfService {
 				prev_snapshot: Some(prev_snapshot),
 				new_snapshot: Some(crate::note_snapshot(&existing)),
 				reason: "add_note",
-				actor: "add_note",
+				actor: existing.agent_id.as_str(),
 				ts: now,
 			},
 		)
