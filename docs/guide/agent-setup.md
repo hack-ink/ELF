@@ -70,7 +70,9 @@ cp elf.example.toml elf.toml
 - Set `[storage.qdrant].collection` to a collection name (for example `mem_notes_v2`).
 - Ensure `[chunking].tokenizer_repo` is a non-empty Hugging Face tokenizer repo name (for example `gpt2`).
 - Fill all `[providers.*]` blocks. Keys must be non-empty strings.
-- If binding `elf-api` to a non-loopback address, set `security.api_auth_token` to a non-empty value.
+- Set `security.auth_mode` explicitly:
+  - Use `"off"` only for local loopback development.
+  - Use `"static_keys"` with non-empty `security.auth_keys` for authenticated access (`Authorization: Bearer <token>`).
 
 ## Initialize Storage
 
