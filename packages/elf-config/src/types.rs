@@ -294,6 +294,20 @@ pub struct Security {
 	pub evidence_min_quotes: u32,
 	pub evidence_max_quotes: u32,
 	pub evidence_max_quote_chars: u32,
-	pub api_auth_token: String,
-	pub admin_auth_token: String,
+	pub auth_mode: String,
+	#[serde(default)]
+	pub auth_keys: Vec<SecurityAuthKey>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SecurityAuthKey {
+	pub token_id: String,
+	pub token: String,
+	pub tenant_id: String,
+	pub project_id: String,
+	#[serde(default)]
+	pub agent_id: Option<String>,
+	pub read_profile: String,
+	#[serde(default)]
+	pub admin: bool,
 }
