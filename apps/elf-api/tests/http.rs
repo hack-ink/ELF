@@ -14,7 +14,8 @@ use elf_config::{
 	RankingDeterministic, RankingDeterministicDecay, RankingDeterministicHits,
 	RankingDeterministicLexical, RankingDiversity, RankingRetrievalSources, ReadProfiles,
 	ScopePrecedence, ScopeWriteAllowed, Scopes, Search, SearchCache, SearchDynamic,
-	SearchExpansion, SearchExplain, SearchPrefilter, Security, Service, Storage, TtlDays,
+	SearchExpansion, SearchExplain, SearchPrefilter, Security, SecurityAuthKey, Service, Storage,
+	TtlDays,
 };
 use elf_testkit::TestDatabase;
 
@@ -155,8 +156,8 @@ fn test_config(dsn: String, qdrant_url: String, collection: String) -> Config {
 			evidence_min_quotes: 1,
 			evidence_max_quotes: 2,
 			evidence_max_quote_chars: 320,
-			api_auth_token: "".to_string(),
-			admin_auth_token: "".to_string(),
+			auth_mode: "off".to_string(),
+			auth_keys: vec![],
 		},
 		chunking: Chunking {
 			enabled: true,
@@ -386,6 +387,66 @@ async fn rejects_cjk_in_search() {
 
 	assert_eq!(json["error_code"], "NON_ENGLISH_INPUT");
 	assert_eq!(json["fields"][0], "$.query");
+
+	test_db.cleanup().await.expect("Failed to cleanup test database.");
+}
+
+#[tokio::test]
+#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
+async fn static_keys_requires_bearer_header() {
+	let Some((test_db, qdrant_url, collection)) = test_env().await else {
+		return;
+	};
+	let mut config = test_config(test_db.dsn().to_string(), qdrant_url, collection);
+
+	config.security.auth_mode = "static_keys".to_string();
+	config.security.auth_keys = vec![SecurityAuthKey {
+		token_id: "k1".to_string(),
+		token: "secret".to_string(),
+		tenant_id: "t".to_string(),
+		project_id: "p".to_string(),
+		agent_id: Some("a".to_string()),
+		read_profile: "private_plus_project".to_string(),
+		admin: false,
+	}];
+
+	let state = AppState::new(config).await.expect("Failed to initialize app state.");
+	let app = routes::router(state);
+
+	let no_auth = app
+		.clone()
+		.oneshot(Request::builder().uri("/health").body(Body::empty()).expect("build request"))
+		.await
+		.expect("call /health without auth");
+
+	assert_eq!(no_auth.status(), StatusCode::UNAUTHORIZED);
+
+	let non_bearer_auth = app
+		.clone()
+		.oneshot(
+			Request::builder()
+				.uri("/health")
+				.header("Authorization", "Basic secret")
+				.body(Body::empty())
+				.expect("build non-bearer auth request"),
+		)
+		.await
+		.expect("call /health with non-bearer auth");
+
+	assert_eq!(non_bearer_auth.status(), StatusCode::UNAUTHORIZED);
+
+	let bearer_auth = app
+		.oneshot(
+			Request::builder()
+				.uri("/health")
+				.header("Authorization", "Bearer secret")
+				.body(Body::empty())
+				.expect("build bearer auth request"),
+		)
+		.await
+		.expect("call /health with bearer auth");
+
+	assert_eq!(bearer_auth.status(), StatusCode::OK);
 
 	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }
