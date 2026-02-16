@@ -34,10 +34,20 @@ pub async fn run(args: Args) -> Result<()> {
 			"http_bind must be a loopback address when bind_localhost_only is true."
 		));
 	}
-	if !http_addr.ip().is_loopback() && config.security.api_auth_token.trim().is_empty() {
-		return Err(eyre::eyre!(
-			"security.api_auth_token is required when http_bind is not a loopback address."
-		));
+	let auth_mode = config.security.auth_mode.trim();
+
+	if !http_addr.ip().is_loopback() {
+		match auth_mode {
+			"off" => {
+				return Err(eyre::eyre!(
+					"security.auth_mode=off is only allowed when http_bind is a loopback address."
+				));
+			},
+			"static_keys" => {},
+			_ => {
+				return Err(eyre::eyre!("security.auth_mode must be one of off or static_keys."));
+			},
+		}
 	}
 	if !admin_addr.ip().is_loopback() {
 		return Err(eyre::eyre!("admin_bind must be a loopback address."));
