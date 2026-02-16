@@ -285,8 +285,8 @@ purge_deleted_after_days    = 30
 purge_deprecated_after_days = 180
 
 [security]
-admin_auth_token         = ""
-api_auth_token           = ""
+auth_mode                = "off"
+auth_keys                = []
 bind_localhost_only      = true
 evidence_max_quote_chars = 320
 evidence_max_quotes      = 2
