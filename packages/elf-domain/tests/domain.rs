@@ -182,8 +182,8 @@ fn base_config() -> Config {
 			evidence_min_quotes: 1,
 			evidence_max_quotes: 2,
 			evidence_max_quote_chars: 320,
-			api_auth_token: "".to_string(),
-			admin_auth_token: "".to_string(),
+			auth_mode: "off".to_string(),
+			auth_keys: vec![],
 		},
 		chunking: Chunking {
 			enabled: true,
