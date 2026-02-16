@@ -105,7 +105,7 @@ impl ElfService {
 		note.expires_at = next_expires_at;
 		note.updated_at = now;
 
-		persist_note_update(&mut tx, &note, prev_snapshot).await?;
+		persist_note_update(&mut tx, &note, prev_snapshot, agent_id).await?;
 
 		tx.commit().await?;
 
@@ -160,6 +160,7 @@ async fn persist_note_update(
 	tx: &mut Transaction<'_, Postgres>,
 	note: &MemoryNote,
 	prev_snapshot: Value,
+	request_agent_id: &str,
 ) -> Result<()> {
 	sqlx::query!(
 		"\
@@ -189,7 +190,7 @@ WHERE note_id = $6",
 			prev_snapshot: Some(prev_snapshot),
 			new_snapshot: Some(crate::note_snapshot(note)),
 			reason: "update",
-			actor: note.agent_id.as_str(),
+			actor: request_agent_id,
 			ts: note.updated_at,
 		},
 	)
