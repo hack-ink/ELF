@@ -91,7 +91,7 @@ FOR UPDATE",
 				prev_snapshot: Some(prev_snapshot),
 				new_snapshot: Some(crate::note_snapshot(&note)),
 				reason: "delete",
-				actor: "delete",
+				actor: agent_id,
 				ts: now,
 			},
 		)

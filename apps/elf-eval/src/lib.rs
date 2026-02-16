@@ -628,6 +628,7 @@ fn merge_query(
 			tenant_id,
 			project_id,
 			agent_id,
+			token_id: None,
 			read_profile,
 			query: query.query.clone(),
 			top_k: Some(top_k),
