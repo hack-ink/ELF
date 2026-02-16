@@ -118,7 +118,9 @@ impl ElfService {
 				Ok(AddNoteResult { note_id: Some(note_id), op: NoteOp::Add, reason_code: None })
 			},
 			UpdateDecision::Update { note_id } => {
-				let result = self.handle_add_note_update(&mut tx, &note, note_id, ctx.now).await?;
+				let result = self
+					.handle_add_note_update(&mut tx, &note, note_id, ctx.agent_id, ctx.now)
+					.await?;
 
 				tx.commit().await?;
 
@@ -199,6 +201,7 @@ impl ElfService {
 		tx: &mut Transaction<'_, Postgres>,
 		note: &AddNoteInput,
 		note_id: Uuid,
+		agent_id: &str,
 		now: OffsetDateTime,
 	) -> Result<AddNoteResult> {
 		let mut existing: MemoryNote = sqlx::query_as!(
@@ -256,7 +259,7 @@ impl ElfService {
 				prev_snapshot: Some(prev_snapshot),
 				new_snapshot: Some(crate::note_snapshot(&existing)),
 				reason: "add_note",
-				actor: existing.agent_id.as_str(),
+				actor: agent_id,
 				ts: now,
 			},
 		)
