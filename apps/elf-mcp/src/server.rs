@@ -21,6 +21,7 @@ use rmcp::{
 use serde_json::Value;
 use tokio::net::TcpListener;
 
+use crate::McpAuthState;
 use elf_config::McpContext;
 
 const HEADER_TENANT_ID: &str = "X-ELF-Tenant-Id";
@@ -28,7 +29,6 @@ const HEADER_PROJECT_ID: &str = "X-ELF-Project-Id";
 const HEADER_AGENT_ID: &str = "X-ELF-Agent-Id";
 const HEADER_READ_PROFILE: &str = "X-ELF-Read-Profile";
 const HEADER_AUTHORIZATION: &str = "Authorization";
-const HEADER_AUTH_TOKEN: &str = "X-ELF-Auth-Token";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum HttpMethod {
@@ -61,16 +61,16 @@ struct ElfMcp {
 	api_base: String,
 	client: Client,
 	context: ElfContextHeaders,
-	auth_token: Option<String>,
+	auth_state: McpAuthState,
 	tool_router: ToolRouter<Self>,
 }
 impl ElfMcp {
-	fn new(api_base: String, context: ElfContextHeaders, auth_token: Option<String>) -> Self {
+	fn new(api_base: String, context: ElfContextHeaders, auth_state: McpAuthState) -> Self {
 		Self {
 			api_base,
 			client: Client::new(),
 			context,
-			auth_token,
+			auth_state,
 			tool_router: Self::tool_router(),
 		}
 	}
@@ -87,10 +87,10 @@ impl ElfMcp {
 			.header(HEADER_AGENT_ID, self.context.agent_id.as_str())
 			.header(HEADER_READ_PROFILE, read_profile);
 
-		if let Some(token) = self.auth_token.as_deref() {
-			builder.header(HEADER_AUTHORIZATION, format!("Bearer {token}"))
-		} else {
-			builder
+		match &self.auth_state {
+			McpAuthState::Off => builder,
+			McpAuthState::StaticKeys { bearer_token } =>
+				builder.header(HEADER_AUTHORIZATION, format!("Bearer {bearer_token}")),
 		}
 	}
 
@@ -323,24 +323,23 @@ impl ServerHandler for ElfMcp {
 pub async fn serve_mcp(
 	bind_addr: &str,
 	api_base: &str,
-	api_auth_token: Option<&str>,
+	auth_state: McpAuthState,
 	mcp_context: &McpContext,
 ) -> Result<()> {
 	let bind_addr: SocketAddr = bind_addr.parse()?;
 	let api_base = normalize_api_base(api_base);
 	let context = ElfContextHeaders::new(mcp_context);
-	let api_auth_token = api_auth_token.map(|value| value.to_string());
-	let auth_state = api_auth_token.clone();
-	let client_token = api_auth_token.clone();
+	let middleware_auth_state = auth_state.clone();
+	let client_auth_state = auth_state.clone();
 	let session_manager: Arc<LocalSessionManager> = Default::default();
 	let service = StreamableHttpService::new(
-		move || Ok(ElfMcp::new(api_base.clone(), context.clone(), client_token.clone())),
+		move || Ok(ElfMcp::new(api_base.clone(), context.clone(), client_auth_state.clone())),
 		session_manager,
 		StreamableHttpServerConfig::default(),
 	);
 	let router = Router::new()
 		.fallback_service(service)
-		.layer(middleware::from_fn_with_state(auth_state, mcp_auth_middleware));
+		.layer(middleware::from_fn_with_state(middleware_auth_state, mcp_auth_middleware));
 	let listener = TcpListener::bind(bind_addr).await?;
 
 	axum::serve(listener, router).await?;
@@ -348,27 +347,20 @@ pub async fn serve_mcp(
 	Ok(())
 }
 
-fn is_authorized(headers: &HeaderMap, expected: Option<&str>) -> bool {
-	let Some(expected) = expected else { return true };
-
-	if let Some(raw) = headers.get(HEADER_AUTH_TOKEN)
-		&& let Ok(value) = raw.to_str()
-		&& value.trim() == expected
-	{
-		return true;
+fn is_authorized(headers: &HeaderMap, auth_state: &McpAuthState) -> bool {
+	match auth_state {
+		McpAuthState::Off => true,
+		McpAuthState::StaticKeys { bearer_token } =>
+			read_bearer_token(headers).is_some_and(|token| token == bearer_token),
 	}
-	if let Some(raw) = headers.get(HEADER_AUTHORIZATION)
-		&& let Ok(value) = raw.to_str()
-	{
-		let value = value.trim();
+}
 
-		if let Some(token) = value.strip_prefix("Bearer ").or_else(|| value.strip_prefix("bearer "))
-		{
-			return token.trim() == expected;
-		}
-	}
+fn read_bearer_token(headers: &HeaderMap) -> Option<&str> {
+	let raw = headers.get(HEADER_AUTHORIZATION)?;
+	let value = raw.to_str().ok()?.trim();
+	let token = value.strip_prefix("Bearer ")?.trim();
 
-	false
+	if token.is_empty() { None } else { Some(token) }
 }
 
 fn normalize_api_base(raw: &str) -> String {
@@ -598,14 +590,16 @@ async fn handle_response(response: reqwest::Response) -> Result<CallToolResult, 
 }
 
 async fn mcp_auth_middleware(
-	State(expected): State<Option<String>>,
+	State(auth_state): State<McpAuthState>,
 	req: Request<Body>,
 	next: Next,
 ) -> axum::response::Response {
-	let expected = expected.as_deref();
-
-	if expected.is_some() && !is_authorized(req.headers(), expected) {
-		return (axum::http::StatusCode::UNAUTHORIZED, "Authentication required.").into_response();
+	if !is_authorized(req.headers(), &auth_state) {
+		return (
+			axum::http::StatusCode::UNAUTHORIZED,
+			"Authentication required for security.auth_mode=static_keys with a Bearer token.",
+		)
+			.into_response();
 	}
 
 	next.run(req).await
@@ -613,9 +607,10 @@ async fn mcp_auth_middleware(
 
 #[cfg(test)]
 mod tests {
+	use axum::http::HeaderMap;
 	use std::collections::HashMap;
 
-	use crate::server::HttpMethod;
+	use crate::{McpAuthState, server::HttpMethod};
 
 	#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 	struct ToolDefinition {
@@ -724,5 +719,36 @@ mod tests {
 		}
 
 		assert_eq!(tools.len(), expected.len(), "Unexpected tool count for MCP registration.");
+	}
+
+	#[test]
+	fn off_mode_allows_requests_without_auth_header() {
+		let headers = HeaderMap::new();
+
+		assert!(super::is_authorized(&headers, &McpAuthState::Off));
+	}
+
+	#[test]
+	fn static_keys_mode_requires_authorization_bearer_header() {
+		let mut headers = HeaderMap::new();
+		headers
+			.insert(super::HEADER_AUTHORIZATION, "Bearer token-a".parse().expect("valid header"));
+
+		assert!(super::is_authorized(
+			&headers,
+			&McpAuthState::StaticKeys { bearer_token: "token-a".to_string() }
+		));
+	}
+
+	#[test]
+	fn static_keys_mode_rejects_non_bearer_schemes() {
+		let mut headers = HeaderMap::new();
+		headers
+			.insert(super::HEADER_AUTHORIZATION, "bearer token-a".parse().expect("valid header"));
+
+		assert!(!super::is_authorized(
+			&headers,
+			&McpAuthState::StaticKeys { bearer_token: "token-a".to_string() }
+		));
 	}
 }
