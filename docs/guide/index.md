@@ -15,9 +15,9 @@ Purpose: Provide the entry point for operational guidance and runbooks.
 - `docs/guide/integration-testing.md` - End-to-end memory retrieval testing.
 - `docs/guide/testing.md` - Test taxonomy and command scope.
 
-## Architecture and research
+## Cross-links
 
-- `docs/guide/comparison_external_projects.md` - External memory project comparison and source map.
+- `docs/research/index.md` - External comparison and research inventory.
 
 ## Development
 
