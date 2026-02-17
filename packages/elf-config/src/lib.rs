@@ -1,15 +1,17 @@
 mod error;
 mod types;
 
-pub use error::{Error, Result};
-pub use types::{
-	Chunking, Config, Context, EmbeddingProviderConfig, Lifecycle, LlmProviderConfig, McpContext,
-	Memory, Postgres, ProviderConfig, Providers, Qdrant, Ranking, RankingBlend,
-	RankingBlendSegment, RankingDeterministic, RankingDeterministicDecay, RankingDeterministicHits,
-	RankingDeterministicLexical, RankingDiversity, RankingRetrievalSources, ReadProfiles,
-	ScopePrecedence, ScopeWriteAllowed, Scopes, Search, SearchCache, SearchDynamic,
-	SearchExpansion, SearchExplain, SearchPrefilter, Security, SecurityAuthKey, Service, Storage,
-	TtlDays,
+pub use self::{
+	error::{Error, Result},
+	types::{
+		Chunking, Config, Context, EmbeddingProviderConfig, Lifecycle, LlmProviderConfig,
+		McpContext, Memory, Postgres, ProviderConfig, Providers, Qdrant, Ranking, RankingBlend,
+		RankingBlendSegment, RankingDeterministic, RankingDeterministicDecay,
+		RankingDeterministicHits, RankingDeterministicLexical, RankingDiversity,
+		RankingRetrievalSources, ReadProfiles, ScopePrecedence, ScopeWriteAllowed, Scopes, Search,
+		SearchCache, SearchDynamic, SearchExpansion, SearchExplain, SearchPrefilter, Security,
+		SecurityAuthKey, Service, Storage, TtlDays,
+	},
 };
 
 use std::{collections::HashSet, fs, path::Path};
