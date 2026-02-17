@@ -7,6 +7,7 @@ Purpose: Provide the canonical entry point and reading order for repository docu
 - `AGENTS.md` for automated agent rules and tooling constraints.
 - `docs/spec/index.md` for normative system specifications and contracts.
 - `docs/guide/index.md` for operational guides and runbooks.
+- `docs/guide/getting_started.md` for local setup and quick run.
 - `docs/governance.md` for documentation structure and update rules.
 - `docs/plans/` for Claude-generated execution plans (non-normative).
 
