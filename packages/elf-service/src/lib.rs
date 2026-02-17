@@ -10,9 +10,8 @@ pub mod structured_fields;
 pub mod time_serde;
 pub mod update;
 
-mod ranking_explain_v2;
-
 mod error;
+mod ranking_explain_v2;
 
 pub use add_event::{AddEventRequest, AddEventResponse, AddEventResult, EventMessage};
 

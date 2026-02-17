@@ -438,8 +438,9 @@ async fn api_auth_middleware(
 	req: Request<Body>,
 	next: Next,
 ) -> Response {
-	let mut req = req;
 	let security = &state.service.cfg.security;
+	let mut req = req;
+
 	sanitize_trusted_token_header(req.headers_mut());
 
 	match security.auth_mode.trim() {
@@ -471,8 +472,9 @@ async fn admin_auth_middleware(
 	req: Request<Body>,
 	next: Next,
 ) -> Response {
-	let mut req = req;
 	let security = &state.service.cfg.security;
+	let mut req = req;
+
 	sanitize_trusted_token_header(req.headers_mut());
 
 	match security.auth_mode.trim() {
@@ -492,6 +494,7 @@ async fn admin_auth_middleware(
 				)
 				.into_response();
 			}
+
 			if let Err(err) = apply_auth_key_context(req.headers_mut(), key) {
 				return err.into_response();
 			}
@@ -978,7 +981,7 @@ async fn trace_item_get(
 
 #[cfg(test)]
 mod tests {
-	use super::{
+	use crate::routes::{
 		HEADER_AGENT_ID, HEADER_AUTHORIZATION, HEADER_PROJECT_ID, HEADER_READ_PROFILE,
 		HEADER_TENANT_ID, HEADER_TRUSTED_TOKEN_ID, apply_auth_key_context, effective_token_id,
 		resolve_auth_key, sanitize_trusted_token_header,
@@ -998,7 +1001,6 @@ mod tests {
 			read_profile: "private_plus_project".to_string(),
 			admin: false,
 		}];
-
 		let err = resolve_auth_key(&headers, &keys).expect_err("Expected unauthorized error.");
 
 		assert_eq!(err.status, axum::http::StatusCode::UNAUTHORIZED);
@@ -1006,7 +1008,6 @@ mod tests {
 
 	#[test]
 	fn resolve_auth_key_rejects_unknown_token() {
-		let mut headers = HeaderMap::new();
 		let keys = vec![SecurityAuthKey {
 			token_id: "k1".to_string(),
 			token: "secret".to_string(),
@@ -1016,6 +1017,7 @@ mod tests {
 			read_profile: "private_plus_project".to_string(),
 			admin: false,
 		}];
+		let mut headers = HeaderMap::new();
 
 		headers.insert(HEADER_AUTHORIZATION, "Bearer wrong".parse().expect("invalid header"));
 
@@ -1027,7 +1029,6 @@ mod tests {
 
 	#[test]
 	fn resolve_auth_key_rejects_non_bearer_authorization() {
-		let mut headers = HeaderMap::new();
 		let keys = vec![SecurityAuthKey {
 			token_id: "k1".to_string(),
 			token: "secret".to_string(),
@@ -1037,6 +1038,7 @@ mod tests {
 			read_profile: "private_plus_project".to_string(),
 			admin: false,
 		}];
+		let mut headers = HeaderMap::new();
 
 		headers.insert(HEADER_AUTHORIZATION, "Token secret".parse().expect("invalid header"));
 
@@ -1048,7 +1050,6 @@ mod tests {
 
 	#[test]
 	fn resolve_auth_key_rejects_lowercase_bearer_prefix() {
-		let mut headers = HeaderMap::new();
 		let keys = vec![SecurityAuthKey {
 			token_id: "k1".to_string(),
 			token: "secret".to_string(),
@@ -1058,6 +1059,7 @@ mod tests {
 			read_profile: "private_plus_project".to_string(),
 			admin: false,
 		}];
+		let mut headers = HeaderMap::new();
 
 		headers.insert(HEADER_AUTHORIZATION, "bearer secret".parse().expect("invalid header"));
 
@@ -1130,7 +1132,6 @@ mod tests {
 			read_profile: "all_scopes".to_string(),
 			admin: false,
 		};
-
 		let err = apply_auth_key_context(&mut headers, &key)
 			.expect_err("Expected forbidden error for missing agent_id.");
 
@@ -1140,6 +1141,7 @@ mod tests {
 	#[test]
 	fn effective_token_id_ignores_header_when_auth_mode_off() {
 		let mut headers = HeaderMap::new();
+
 		headers.insert(HEADER_TRUSTED_TOKEN_ID, "user-supplied".parse().expect("invalid header"));
 
 		assert_eq!(effective_token_id("off", &headers), None);
@@ -1148,6 +1150,7 @@ mod tests {
 	#[test]
 	fn effective_token_id_uses_header_when_auth_mode_static_keys() {
 		let mut headers = HeaderMap::new();
+
 		headers.insert(HEADER_TRUSTED_TOKEN_ID, "k1".parse().expect("invalid header"));
 
 		assert_eq!(effective_token_id("static_keys", &headers), Some("k1".to_string()));
@@ -1156,6 +1159,7 @@ mod tests {
 	#[test]
 	fn sanitize_trusted_token_header_removes_header() {
 		let mut headers = HeaderMap::new();
+
 		headers.insert(HEADER_TRUSTED_TOKEN_ID, "user-supplied".parse().expect("invalid header"));
 
 		sanitize_trusted_token_header(&mut headers);

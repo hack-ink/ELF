@@ -305,7 +305,7 @@ pub struct SecurityAuthKey {
 	pub token: String,
 	pub tenant_id: String,
 	pub project_id: String,
-	#[serde(default)]
+
 	pub agent_id: Option<String>,
 	pub read_profile: String,
 	#[serde(default)]
