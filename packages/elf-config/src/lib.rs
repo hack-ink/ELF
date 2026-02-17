@@ -42,6 +42,7 @@ fn validate_security(cfg: &Config) -> Result<()> {
 	if !cfg.security.reject_cjk {
 		return Err(Error::Validation { message: "security.reject_cjk must be true.".to_string() });
 	}
+
 	let auth_mode = cfg.security.auth_mode.trim();
 
 	if !matches!(auth_mode, "off" | "static_keys") {
@@ -105,6 +106,7 @@ fn validate_security(cfg: &Config) -> Result<()> {
 				),
 			});
 		}
+
 		if let Some(agent_id) = key.agent_id.as_ref()
 			&& agent_id.trim().is_empty()
 		{
@@ -112,6 +114,7 @@ fn validate_security(cfg: &Config) -> Result<()> {
 				message: format!("{path}.agent_id must be non-empty when provided."),
 			});
 		}
+
 		if key.agent_id.as_ref().map(|agent_id| agent_id.trim().is_empty()).unwrap_or(true) {
 			return Err(Error::Validation {
 				message: format!(

@@ -13,7 +13,7 @@ use qdrant_client::qdrant::{
 	QueryPointsBuilder, ScoredPoint,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde_json::Value;
 use sqlx::{PgConnection, PgExecutor, QueryBuilder};
 use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
@@ -2007,9 +2007,11 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 			args.policies.policy_id.as_str(),
 			&args.policies.policy_snapshot,
 		);
+
 		if let Some(object) = config_snapshot.as_object_mut() {
 			object.insert("audit".to_string(), build_trace_audit(args.agent_id, args.token_id));
 		}
+
 		let mut items = Vec::with_capacity(args.selected_results.len());
 		let mut trace_builder = SearchTraceBuilder::new(
 			trace_context,
@@ -2919,8 +2921,8 @@ fn build_deterministic_query_tokens(cfg: &Config, query: &str) -> Vec<String> {
 
 fn build_trace_audit(actor_id: &str, token_id: Option<&str>) -> Value {
 	match token_id.map(str::trim).filter(|value| !value.is_empty()) {
-		Some(token_id) => json!({ "actor_id": actor_id, "token_id": token_id }),
-		None => json!({ "actor_id": actor_id }),
+		Some(token_id) => serde_json::json!({ "actor_id": actor_id, "token_id": token_id }),
+		None => serde_json::json!({ "actor_id": actor_id }),
 	}
 }
 

@@ -4,6 +4,7 @@ use std::{net::SocketAddr, path::PathBuf};
 
 use clap::Parser;
 use color_eyre::{Result, eyre};
+
 use elf_config::{McpContext, Security};
 
 #[derive(Debug, Parser)]
@@ -27,7 +28,6 @@ pub async fn run(args: Args) -> Result<()> {
 	let config = elf_config::load(&args.config)?;
 	let mcp =
 		config.mcp.as_ref().ok_or_else(|| eyre::eyre!("mcp section is required for elf-mcp."))?;
-
 	let auth_state = build_auth_state(&config.security, &config.service.mcp_bind, mcp)?;
 
 	server::serve_mcp(&config.service.mcp_bind, &config.service.http_bind, auth_state, mcp).await
@@ -37,6 +37,7 @@ fn build_auth_state(security: &Security, mcp_bind: &str, mcp: &McpContext) -> Re
 	match security.auth_mode.trim() {
 		"off" => {
 			enforce_loopback_for_off_mode(mcp_bind)?;
+
 			Ok(McpAuthState::Off)
 		},
 		"static_keys" => select_static_key(security, mcp),
@@ -69,7 +70,6 @@ fn select_static_key(security: &Security, mcp: &McpContext) -> Result<McpAuthSta
 			&& key.agent_id.as_deref() == Some(mcp.agent_id.as_str())
 			&& key.read_profile == mcp.read_profile
 	});
-
 	let first = matches.next();
 	let has_multiple = matches.next().is_some();
 
@@ -86,7 +86,7 @@ fn select_static_key(security: &Security, mcp: &McpContext) -> Result<McpAuthSta
 
 #[cfg(test)]
 mod tests {
-	use super::{McpAuthState, build_auth_state};
+	use crate::{McpAuthState, build_auth_state};
 	use elf_config::{McpContext, Security, SecurityAuthKey};
 
 	fn sample_security(auth_mode: &str, auth_keys: Vec<SecurityAuthKey>) -> Security {

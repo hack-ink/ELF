@@ -288,8 +288,8 @@ fn retrieval_source_weights_require_at_least_one_positive() {
 #[test]
 fn security_auth_keys_require_unique_token_ids() {
 	let mut cfg = base_config();
-	cfg.security.auth_mode = "static_keys".to_string();
 
+	cfg.security.auth_mode = "static_keys".to_string();
 	cfg.security.auth_keys = vec![
 		elf_config::SecurityAuthKey {
 			token_id: "k1".to_string(),
@@ -323,8 +323,8 @@ fn security_auth_keys_require_unique_token_ids() {
 #[test]
 fn security_auth_keys_require_known_read_profile() {
 	let mut cfg = base_config();
-	cfg.security.auth_mode = "static_keys".to_string();
 
+	cfg.security.auth_mode = "static_keys".to_string();
 	cfg.security.auth_keys = vec![elf_config::SecurityAuthKey {
 		token_id: "k1".to_string(),
 		token: "secret-1".to_string(),

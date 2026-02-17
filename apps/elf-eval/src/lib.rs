@@ -15,8 +15,7 @@ use uuid::Uuid;
 
 use elf_config::Config;
 use elf_service::{
-	ElfService, RankingRequestOverride, SearchIndexResponse, SearchRequest,
-	search::{TraceReplayCandidate, TraceReplayItem},
+	ElfService, RankingRequestOverride, SearchIndexResponse, SearchRequest, search::TraceReplayItem,
 };
 use elf_storage::{db::Db, qdrant::QdrantStore};
 
@@ -415,7 +414,7 @@ pub async fn run(args: Args) -> Result<()> {
 }
 
 fn retrieval_top_rank_retention(
-	candidates: &[TraceReplayCandidate],
+	candidates: &[elf_service::search::TraceReplayCandidate],
 	note_ids: &[Uuid],
 	max_retrieval_rank: u32,
 ) -> (usize, usize, f64) {
@@ -745,13 +744,14 @@ fn percentile(values: &[f64], percentile: f64) -> f64 {
 
 fn decode_trace_replay_candidates(
 	rows: Vec<TraceCompareCandidateRow>,
-) -> Vec<TraceReplayCandidate> {
+) -> Vec<elf_service::search::TraceReplayCandidate> {
 	rows.into_iter()
 		.map(|row| {
-			let decoded =
-				serde_json::from_value::<TraceReplayCandidate>(row.candidate_snapshot.clone())
-					.ok()
-					.filter(|value| value.note_id != Uuid::nil() && value.chunk_id != Uuid::nil());
+			let decoded = serde_json::from_value::<elf_service::search::TraceReplayCandidate>(
+				row.candidate_snapshot.clone(),
+			)
+			.ok()
+			.filter(|value| value.note_id != Uuid::nil() && value.chunk_id != Uuid::nil());
 
 			decoded.unwrap_or_else(|| elf_service::search::TraceReplayCandidate {
 				note_id: row.note_id,
