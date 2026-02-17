@@ -106,10 +106,19 @@ flowchart TB
 
 ## Comparison
 
-Quick comparison snapshot (objective/high-level):
+Quick comparison snapshot (objective/high-level).
+This table compares capability coverage, not overall project quality.
 
 | Capability | ELF | OpenViking | mem0 | qmd | claude-mem | memsearch |
 | ---------- | --- | ---------- | ---- | --- | ---------- | --------- |
+| Local-first self-hosted workflow | ✅ | ✅ | ✅ (OpenMemory) | ✅ | ✅ | ✅ |
+| MCP integration | ✅ | — | ✅ (OpenMemory) | ✅ | ✅ | ⚠️ |
+| CLI-first developer workflow | — | ✅ | — | ✅ | ⚠️ | ✅ |
+| HTTP API service surface | ✅ | ✅ | ✅ | ⚠️ (MCP Streamable HTTP) | ✅ | — |
+| Query expansion or query rewriting | ✅ | ✅ | ⚠️ | ✅ | — | — |
+| LLM reranking stage | ✅ | ⚠️ | ⚠️ | ✅ | — | — |
+| Hybrid dense + sparse retrieval | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ |
+| Progressive disclosure style retrieval | ✅ | ✅ | — | — | ✅ | ⚠️ |
 | Evidence-bound memory writes | ✅ | — | — | — | — | — |
 | Deterministic and LLM-ingestion boundary | ✅ | ⚠️ | ⚠️ | — | — | — |
 | Source-of-truth + rebuildable derived index | ✅ | ✅ | ⚠️ | ⚠️ | ⚠️ | ✅ |
@@ -117,13 +126,27 @@ Quick comparison snapshot (objective/high-level):
 | Progressive context loading (L0/L1/L2 style) | ⚠️ (in progress) | ✅ | ⚠️ | — | ⚠️ | — |
 | Built-in web memory inspector/viewer | — | — | ✅ (OpenMemory) | — | ✅ | — |
 | Hosted managed option | — | — | ✅ | — | — | — |
+| Multi-tenant scope semantics | ✅ | ⚠️ | ✅ | — | — | — |
+| TTL/lifecycle policy controls | ✅ | ⚠️ | ✅ | — | ⚠️ | — |
+| Graph memory mode | ⚠️ (planned) | ⚠️ (URI-link relations) | ✅ (optional) | — | — | — |
 
 Legend: `✅` built-in and documented; `⚠️` partial, optional, or in-progress; `—` not a first-class documented capability.
 
+Project signature strengths (what each does especially well):
+
+| Project | Signature strengths | Potential ELF adoption value |
+| ------- | ------------------- | ---------------------------- |
+| ELF | Evidence-bound writes, deterministic ingestion boundary, SoT + rebuildable index, eval tooling | Keep as core differentiators while extending retrieval and UX |
+| OpenViking | Filesystem-like context model (`viking://`), hierarchical retrieval, staged retrieval trajectory | Improve query planning, recursive retrieval, and explainable stage outputs |
+| mem0 | Broad ecosystem (SDK + hosted + OpenMemory), multi-entity scope, lifecycle + optional graph memory | Strengthen event/history APIs and additive graph context channel |
+| qmd | High-quality local retrieval pipeline (query expansion + weighted fusion + rerank), strong CLI/MCP workflow | Borrow transparent routing/fusion knobs and local debugging ergonomics |
+| claude-mem | Progressive disclosure UX, automatic capture loop, practical local viewer/inspection workflow | Add operator-facing viewer/status/trace surfaces for faster tuning |
+| memsearch | Markdown-first canonical store, incremental reindex, practical hybrid retrieval | Reinforce ingest/index consistency and developer-friendly local workflows |
+
 Detailed comparison, mechanism-level analysis, and source map:
 
-- `docs/research/comparison_external_projects.md`
-- `docs/research/research_projects_inventory.md`
+- [Detailed External Comparison](docs/research/comparison_external_projects.md)
+- [Research Projects Inventory](docs/research/research_projects_inventory.md)
 
 Snapshot date in that document: February 17, 2026.
 
