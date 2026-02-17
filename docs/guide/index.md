@@ -4,14 +4,29 @@ Purpose: Provide the entry point for operational guidance and runbooks.
 
 ## Start here
 
-- `AGENTS.md` for automated agent rules and tooling constraints.
-- `docs/spec/index.md` for the normative system specifications and contracts.
+- `docs/guide/getting_started.md` for local setup, run, and development commands.
+- `docs/spec/index.md` for normative system specifications and contracts.
 - `docs/governance.md` for documentation structure, ownership, and update rules.
 
-## Guide sections
+## Operations
 
-### Development
+- `docs/guide/agent-setup.md` - Agent-assisted setup and usage.
+- `docs/guide/evaluation.md` - Retrieval evaluation workflow and dataset format.
+- `docs/guide/integration-testing.md` - End-to-end memory retrieval testing.
+- `docs/guide/testing.md` - Test taxonomy and command scope.
 
-- `docs/guide/development/languages/python.md` — Python environment and workflow.
-- `docs/guide/development/languages/rust.md` — Rust development and style rules for this repository.
-- `docs/guide/development/dependency_upgrade_workflow.md` — Dependency upgrade workflow for Rust dependencies.
+## Architecture and research
+
+- `docs/guide/comparison_external_projects.md` - External memory project comparison and source map.
+
+## Development
+
+- `docs/guide/development/languages/rust.md` - Rust development and style rules.
+- `docs/guide/development/languages/python.md` - Python environment and workflow.
+- `docs/guide/development/dependency_upgrade_workflow.md` - Dependency upgrade workflow.
+- `docs/guide/development/issue_labeling.md` - Issue labeling conventions.
+
+## Data samples
+
+- `docs/guide/eval-sample.json` - Evaluation dataset example.
+- `docs/guide/eval-structured-facts-sample.json` - Structured facts evaluation sample.
