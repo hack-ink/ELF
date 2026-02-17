@@ -13,35 +13,27 @@ pub mod update;
 mod error;
 mod ranking_explain_v2;
 
-pub use add_event::{AddEventRequest, AddEventResponse, AddEventResult, EventMessage};
-
-pub use add_note::{AddNoteInput, AddNoteRequest, AddNoteResponse, AddNoteResult};
-
-pub use admin::RebuildReport;
-
-pub use delete::{DeleteRequest, DeleteResponse};
-
-pub use error::{Error, Result};
-
-pub use list::{ListItem, ListRequest, ListResponse};
-
-pub use notes::{NoteFetchRequest, NoteFetchResponse};
-
-pub use progressive_search::{
-	SearchDetailsError, SearchDetailsRequest, SearchDetailsResponse, SearchDetailsResult,
-	SearchIndexItem, SearchIndexResponse, SearchSessionGetRequest, SearchTimelineGroup,
-	SearchTimelineRequest, SearchTimelineResponse,
+pub use self::{
+	add_event::{AddEventRequest, AddEventResponse, AddEventResult, EventMessage},
+	add_note::{AddNoteInput, AddNoteRequest, AddNoteResponse, AddNoteResult},
+	admin::RebuildReport,
+	delete::{DeleteRequest, DeleteResponse},
+	error::{Error, Result},
+	list::{ListItem, ListRequest, ListResponse},
+	notes::{NoteFetchRequest, NoteFetchResponse},
+	progressive_search::{
+		SearchDetailsError, SearchDetailsRequest, SearchDetailsResponse, SearchDetailsResult,
+		SearchIndexItem, SearchIndexResponse, SearchSessionGetRequest, SearchTimelineGroup,
+		SearchTimelineRequest, SearchTimelineResponse,
+	},
+	search::{
+		BlendRankingOverride, BlendSegmentOverride, RankingRequestOverride, SearchExplain,
+		SearchExplainItem, SearchExplainRequest, SearchExplainResponse, SearchItem, SearchRequest,
+		SearchResponse, SearchTrace, TraceGetRequest, TraceGetResponse,
+	},
+	structured_fields::StructuredFields,
+	update::{UpdateRequest, UpdateResponse},
 };
-
-pub use search::{
-	BlendRankingOverride, BlendSegmentOverride, RankingRequestOverride, SearchExplain,
-	SearchExplainItem, SearchExplainRequest, SearchExplainResponse, SearchItem, SearchRequest,
-	SearchResponse, SearchTrace, TraceGetRequest, TraceGetResponse,
-};
-
-pub use structured_fields::StructuredFields;
-
-pub use update::{UpdateRequest, UpdateResponse};
 
 use std::{future::Future, pin::Pin, sync::Arc};
 
