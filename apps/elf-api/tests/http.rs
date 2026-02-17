@@ -412,7 +412,6 @@ async fn static_keys_requires_bearer_header() {
 
 	let state = AppState::new(config).await.expect("Failed to initialize app state.");
 	let app = routes::router(state);
-
 	let no_auth = app
 		.clone()
 		.oneshot(Request::builder().uri("/health").body(Body::empty()).expect("build request"))

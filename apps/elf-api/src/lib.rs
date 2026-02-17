@@ -34,6 +34,7 @@ pub async fn run(args: Args) -> Result<()> {
 			"http_bind must be a loopback address when bind_localhost_only is true."
 		));
 	}
+
 	let auth_mode = config.security.auth_mode.trim();
 
 	if !http_addr.ip().is_loopback() {

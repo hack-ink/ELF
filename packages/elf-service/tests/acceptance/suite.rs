@@ -19,7 +19,7 @@ use std::{
 };
 
 use qdrant_client::{
-	Qdrant, QdrantError,
+	QdrantError,
 	qdrant::{
 		CreateCollectionBuilder, Distance, Modifier, SparseVectorParamsBuilder,
 		SparseVectorsConfigBuilder, VectorParamsBuilder, VectorsConfigBuilder,
@@ -31,7 +31,7 @@ use tokio::time;
 
 use elf_config::{
 	Chunking, Config, EmbeddingProviderConfig, Lifecycle, LlmProviderConfig, Memory, Postgres,
-	ProviderConfig, Providers, Ranking, RankingBlend, RankingBlendSegment, RankingDeterministic,
+	ProviderConfig, Ranking, RankingBlend, RankingBlendSegment, RankingDeterministic,
 	RankingDeterministicDecay, RankingDeterministicHits, RankingDeterministicLexical,
 	RankingDiversity, RankingRetrievalSources, ReadProfiles, ScopePrecedence, ScopeWriteAllowed,
 	Scopes, Search, SearchCache, SearchDynamic, SearchExpansion, SearchExplain, SearchPrefilter,
@@ -147,7 +147,7 @@ pub fn test_config(dsn: String, qdrant_url: String, vector_dim: u32, collection:
 			postgres: Postgres { dsn, pool_max_conns: 2 },
 			qdrant: elf_config::Qdrant { url: qdrant_url, collection, vector_dim },
 		},
-		providers: Providers {
+		providers: elf_config::Providers {
 			embedding,
 			rerank: dummy_provider(),
 			llm_extractor: dummy_llm_provider(),
@@ -332,7 +332,7 @@ fn test_ranking() -> Ranking {
 }
 
 async fn reset_qdrant_collection(
-	client: &Qdrant,
+	client: &qdrant_client::Qdrant,
 	collection: &str,
 	vector_dim: u32,
 ) -> AcceptanceResult<()> {

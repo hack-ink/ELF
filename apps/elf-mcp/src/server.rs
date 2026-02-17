@@ -731,6 +731,7 @@ mod tests {
 	#[test]
 	fn static_keys_mode_requires_authorization_bearer_header() {
 		let mut headers = HeaderMap::new();
+
 		headers
 			.insert(super::HEADER_AUTHORIZATION, "Bearer token-a".parse().expect("valid header"));
 
@@ -743,6 +744,7 @@ mod tests {
 	#[test]
 	fn static_keys_mode_rejects_non_bearer_schemes() {
 		let mut headers = HeaderMap::new();
+
 		headers
 			.insert(super::HEADER_AUTHORIZATION, "bearer token-a".parse().expect("valid header"));
 

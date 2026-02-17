@@ -8,11 +8,11 @@ use sqlx::PgPool;
 
 use elf_config::{
 	Chunking, Config, EmbeddingProviderConfig, Lifecycle, LlmProviderConfig, Memory, Postgres,
-	ProviderConfig, Providers, Qdrant, Ranking, RankingBlend, RankingBlendSegment,
-	RankingDeterministic, RankingDeterministicDecay, RankingDeterministicHits,
-	RankingDeterministicLexical, RankingDiversity, RankingRetrievalSources, ReadProfiles,
-	ScopePrecedence, ScopeWriteAllowed, Scopes, Search, SearchCache, SearchDynamic,
-	SearchExpansion, SearchExplain, SearchPrefilter, Security, Service, Storage, TtlDays,
+	ProviderConfig, Qdrant, Ranking, RankingBlend, RankingBlendSegment, RankingDeterministic,
+	RankingDeterministicDecay, RankingDeterministicHits, RankingDeterministicLexical,
+	RankingDiversity, RankingRetrievalSources, ReadProfiles, ScopePrecedence, ScopeWriteAllowed,
+	Scopes, Search, SearchCache, SearchDynamic, SearchExpansion, SearchExplain, SearchPrefilter,
+	Security, Service, Storage, TtlDays,
 };
 use elf_service::{
 	AddNoteInput, AddNoteRequest, BoxFuture, ElfService, EmbeddingProvider, Error,
@@ -137,7 +137,7 @@ fn test_config() -> Config {
 				vector_dim: 4_096,
 			},
 		},
-		providers: Providers {
+		providers: elf_config::Providers {
 			embedding: dummy_embedding_provider(),
 			rerank: dummy_provider(),
 			llm_extractor: dummy_llm_provider(),
