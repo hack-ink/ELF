@@ -106,9 +106,24 @@ flowchart TB
 
 ## Comparison
 
-Detailed external comparison (memsearch, qmd, claude-mem, mem0), including mechanism-level analysis and source map:
+Quick comparison snapshot (objective/high-level):
 
-- `docs/guide/comparison_external_projects.md`
+| Capability | ELF | OpenViking | mem0 | qmd | claude-mem | memsearch |
+| ---------- | --- | ---------- | ---- | --- | ---------- | --------- |
+| Evidence-bound memory writes | ✅ | — | — | — | — | — |
+| Deterministic and LLM-ingestion boundary | ✅ | ⚠️ | ⚠️ | — | — | — |
+| Source-of-truth + rebuildable derived index | ✅ | ✅ | ⚠️ | ⚠️ | ⚠️ | ✅ |
+| Hierarchical/recursive retrieval strategy | ⚠️ (in progress) | ✅ | ⚠️ | ⚠️ | ⚠️ | ⚠️ |
+| Progressive context loading (L0/L1/L2 style) | ⚠️ (in progress) | ✅ | ⚠️ | — | ⚠️ | — |
+| Built-in web memory inspector/viewer | — | — | ✅ (OpenMemory) | — | ✅ | — |
+| Hosted managed option | — | — | ✅ | — | — | — |
+
+Legend: `✅` built-in and documented; `⚠️` partial, optional, or in-progress; `—` not a first-class documented capability.
+
+Detailed comparison, mechanism-level analysis, and source map:
+
+- `docs/research/comparison_external_projects.md`
+- `docs/research/research_projects_inventory.md`
 
 Snapshot date in that document: February 17, 2026.
 
@@ -116,6 +131,7 @@ Snapshot date in that document: February 17, 2026.
 
 - Start here: `docs/index.md`
 - Operational guide index: `docs/guide/index.md`
+- Research index: `docs/research/index.md`
 - Specifications: `docs/spec/index.md`
 - System contract: `docs/spec/system_elf_memory_service_v2.md`
 - Evaluation guide: `docs/guide/evaluation.md`
@@ -130,10 +146,6 @@ cargo make test
 ```
 
 For integration and E2E workflows, use `docs/guide/getting_started.md` and `docs/guide/integration-testing.md`.
-
-## Work Tracking
-
-Implementation direction and sequencing are maintained in GitHub issues and issue comments.
 
 ## Support
 
