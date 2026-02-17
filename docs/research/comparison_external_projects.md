@@ -3,6 +3,7 @@
 Purpose: Provide a detailed, evidence-backed comparison between ELF and adjacent memory projects.
 
 Scope note: This document is intentionally detailed and source-heavy. Keep `README.md` concise and link here for full analysis.
+For a full list of reviewed and pending projects, see `docs/research/research_projects_inventory.md`.
 
 Comparison focuses on shared capabilities, ELF distinctives, and objective trade-offs. These projects solve adjacent problems, but their primary storage units and default workflows differ.
 
@@ -23,6 +24,7 @@ Legend:
 - Snapshot date for all claims in this section: February 17, 2026.
 
 Note: In this section, mem0 refers to the Mem0 ecosystem, including OpenMemory (an MCP memory server with a built-in UI).
+OpenViking is included as a newly reviewed project with mechanism-level analysis.
 
 ## Scope And Intended Use
 
@@ -89,6 +91,20 @@ Capability notes:
 - [qmd](https://github.com/tobi/qmd): Strong local-first retrieval quality (BM25 + vector + rerank + query expansion) with practical CLI and MCP tooling. Trade-off: focused on document retrieval workflows more than memory-specific safety/lifecycle semantics.
 - [claude-mem](https://github.com/thedotmack/claude-mem): Strong automatic capture and progressive disclosure UX, plus a practical local web viewer for inspection. Trade-off: optimized for Claude session continuity, with fewer explicit deterministic ingestion boundaries.
 - [mem0](https://github.com/mem0ai/mem0): Strong ecosystem reach (SDK + hosted + OpenMemory), multi-entity scoping, and lifecycle controls like `expiration_date`. Trade-off: ingestion and retrieval behavior depends heavily on configurable LLM-assisted flows, which can be less deterministic by default.
+- [OpenViking](https://github.com/volcengine/OpenViking): Strong context filesystem paradigm (`viking://`), hierarchical retrieval, and session-centric context iteration. Trade-off: relation model is URI-link based (not property graph), and adoption still requires adapting patterns into ELF's evidence-bound note contract.
+
+## OpenViking Deep Dive (New)
+
+Snapshot date for this subsection: February 17, 2026.
+
+| Aspect | OpenViking observation | Implication for ELF |
+| ------ | ---------------------- | ------------------- |
+| Core paradigm | Filesystem-oriented context model (`viking://`) unifying resource, memory, and skill directories | Useful for retrieval organization and payload shaping; does not require graph database adoption |
+| Storage design | Dual-layer storage: AGFS as content source-of-truth + vector index for semantic retrieval | Aligns with ELF's current SoT + derived index principle |
+| Retrieval flow | Intent analysis -> hierarchical recursive retrieval -> rerank -> structured result | High-value blueprint for improving complex-query quality in ELF |
+| Relation model | Explicit URI relation table via `.relations.json` and link/unlink APIs | Indicates graph-like utility can be achieved without Neo4j-first architecture |
+| Session iteration | Session commit/compress + memory extraction loop | Useful reference for memory evolution and operational observability |
+| Neo4j signal | No first-class Neo4j dependency or property-graph backend in published architecture | Does not support prioritizing Neo4j for ELF at current stage |
 
 ## Mechanism-Level Deep Dive (Beyond README)
 
@@ -96,6 +112,7 @@ Snapshot date for this subsection: February 17, 2026.
 
 | Project | Ingestion and update semantics | Retrieval internals | Consistency and reliability model | Operational profile |
 | ------- | ------------------------------ | ------------------- | --------------------------------- | ------------------- |
+| [OpenViking](https://github.com/volcengine/OpenViking) | Session-centric commit/compress and memory extraction; relation writes are explicit URI links | Intent analyzer + hierarchical recursive retrieval + optional rerank | Clear stage decomposition and traceable retrieval trajectory concept | Strong context-organization patterns; requires adaptation to ELF evidence-bound semantics |
 | [mem0](https://github.com/mem0ai/mem0) | `add()` can run LLM-guided `ADD/UPDATE/DELETE/NONE`; history events are persisted; optional graph extraction runs alongside vector memory | Dense retrieval is core; rerank/filter are optional; graph mode adds relation retrieval as an extra context channel | OSS sync mode waits for processing completion; Platform API is async-by-default with event queue semantics | Rich hosted + OSS surface; stronger built-in feedback/events, but more tuning knobs and potential latency/cost variance |
 | [memsearch](https://github.com/zilliztech/memsearch) | Markdown is canonical; reindex is incremental/content-addressed; stale chunks are removed by hash-based reconciliation | Milvus hybrid search (dense + BM25 sparse) with RRF fusion | Plugin hook workflow favors practical continuity; failures are mostly handled operationally rather than through strict policy contracts | Very pragmatic local workflow; Milvus Lite/Server/Cloud flexibility, but capability envelope depends on Milvus mode |
 | [qmd](https://github.com/tobi/qmd) | Content-addressed SQLite model; `qmd update` reactivates/upserts and deactivates missing documents | Typed query expansion (`lex/vec/hyde`), hybrid routing, weighted RRF, then rerank blend by rank bands | Strong deterministic local index behavior with schema self-healing for vector tables | Excellent local-first control and explainability; less focused on multi-tenant memory governance semantics |
@@ -107,6 +124,7 @@ Key takeaways for ELF from this deeper pass:
 - qmd shows retrieval quality gains from explicit routing heuristics and transparent score fusion.
 - memsearch validates a strong pattern: canonical primary store + rebuildable derived index.
 - claude-mem demonstrates how much adoption improves when operator inspection is first-class.
+- OpenViking reinforces that context organization and retrieval trajectory can deliver large gains without Neo4j-first architecture.
 
 ## Where ELF Is Currently Weaker (Objective Gaps)
 
@@ -114,6 +132,8 @@ Key takeaways for ELF from this deeper pass:
 - No hosted/cloud product option (mem0 provides managed deployment).
 - No first-class graph memory in released schema yet (mem0 provides optional graph mode now).
 - Less turnkey for zero-config local plugin workflows than memsearch/claude-mem defaults.
+- No explicit `quick_find` vs `planned_search` split yet for latency-vs-quality workflows.
+- No first-class retrieval trajectory contract comparable to OpenViking-style staged retrieval outputs.
 
 ## Extended Deep-Dive Comparison (Reference Only)
 
@@ -157,6 +177,16 @@ Snapshot date for this subsection: February 17, 2026.
   - https://github.com/zilliztech/memsearch/blob/main/docs/claude-plugin.md
   - https://github.com/zilliztech/memsearch/blob/main/src/memsearch/core.py
   - https://github.com/zilliztech/memsearch/blob/main/src/memsearch/store.py
+- OpenViking:
+  - https://github.com/volcengine/OpenViking/blob/main/README.md
+  - https://github.com/volcengine/OpenViking/blob/main/docs/en/concepts/01-architecture.md
+  - https://github.com/volcengine/OpenViking/blob/main/docs/en/concepts/05-storage.md
+  - https://github.com/volcengine/OpenViking/blob/main/docs/en/concepts/07-retrieval.md
+  - https://github.com/volcengine/OpenViking/blob/main/docs/en/concepts/08-session.md
+  - https://github.com/volcengine/OpenViking/blob/main/openviking/storage/viking_fs.py
+  - https://github.com/volcengine/OpenViking/blob/main/openviking/retrieve/hierarchical_retriever.py
+  - https://github.com/volcengine/OpenViking/blob/main/openviking/service/relation_service.py
+  - https://github.com/volcengine/OpenViking/blob/main/pyproject.toml
 - qmd / claude-mem:
   - https://github.com/tobi/qmd
   - https://github.com/tobi/qmd/blob/main/src/store.ts
@@ -203,6 +233,18 @@ This list is for architectural comparison only. It is not a product commitment a
    - Borrow from qmd/claude-mem operator workflows (viewer + status + logs + troubleshooting loop).
    - Add a lightweight inspection surface and stronger local debugging commands to reduce tuning/debug cycle time.
 
+6. Search mode split and retrieval trajectory
+   - Borrow from OpenViking's `find()` vs `search()` separation and staged retrieval flow.
+   - Add explicit quick/planned search modes and stage-level trajectory outputs in ELF.
+
+## OpenViking-Inspired Issues
+
+- Track: https://github.com/hack-ink/ELF/issues/57
+- Search modes: https://github.com/hack-ink/ELF/issues/58
+- Retrieval trajectory explain: https://github.com/hack-ink/ELF/issues/59
+- Progressive payload levels: https://github.com/hack-ink/ELF/issues/60
+- Scoped recursive retrieval: https://github.com/hack-ink/ELF/issues/61
+
 Research sources for this section:
 - Graphiti/Zep:
   - https://help.getzep.com/graphiti/core-concepts/temporal-awareness
@@ -222,4 +264,7 @@ Research sources for this section:
 - qmd / claude-mem:
   - https://github.com/tobi/qmd
   - https://docs.claude-mem.ai/user-guide/view-memory
-
+- OpenViking:
+  - https://github.com/volcengine/OpenViking/blob/main/README.md
+  - https://github.com/volcengine/OpenViking/blob/main/docs/en/concepts/01-architecture.md
+  - https://github.com/volcengine/OpenViking/blob/main/docs/en/concepts/07-retrieval.md

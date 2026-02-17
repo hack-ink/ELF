@@ -8,6 +8,7 @@ repository.
 - Write documentation that is clear, concise, retrieval-friendly, and LLM-first.
 - Keep contracts and invariants in `docs/spec/`; keep runbooks and how-to guidance in
   `docs/guide/`.
+- Keep external ecosystem analysis and technology comparison in `docs/research/`.
 - Avoid duplicating authoritative content. Link to the source of truth instead.
 
 ## Document classes and ownership
@@ -16,12 +17,14 @@ repository.
 | --- | --- | --- | --- |
 | Spec | `docs/spec/` | Contracts, schemas, pipeline behavior, invariants | Any behavior or schema change |
 | Operational docs | `docs/guide/` | Runbooks, pipeline walkthroughs, maintenance | When operating procedures change |
+| Research docs | `docs/research/` | External project analysis, comparisons, architectural options | When research findings or external references change |
 | Plans | `docs/plans/` | Draft plans and design notes (non-normative) | As-needed, may drift |
 
 ## Placement rules
 
 - If it defines a contract, it belongs in `docs/spec/`.
 - If it explains how to run or maintain a system, it belongs in `docs/guide/`.
+- If it compares external projects or records architecture research, it belongs in `docs/research/`.
 - If it is temporary or exploratory, it belongs in `docs/plans/`.
 - Module documentation must live under `docs/guide/` and be linked from `docs/guide/index.md`.
   Do not add module-level README files.
@@ -33,6 +36,7 @@ repository.
 - Repository overview: `README.md` (the only README in the repository).
 - Specs: `docs/spec/index.md`.
 - Operational docs: `docs/guide/index.md`.
+- Research docs: `docs/research/index.md`.
 - Unified documentation index: `docs/index.md`.
 
 ## Compatibility note
@@ -46,11 +50,13 @@ When answering questions about system behavior:
 1. Read `AGENTS.md` for tool and scope rules.
 2. Use `docs/spec/index.md` for contracts and invariants.
 3. Use `docs/guide/index.md` for runbooks and operational workflows.
+4. Use `docs/research/index.md` for ecosystem analysis and comparison context.
 
 ## Update workflow
 
 - Behavior or schema change: update the relevant `docs/spec/` doc.
 - Procedure change: update the relevant `docs/guide/` guide.
+- Research finding change: update the relevant `docs/research/` document.
 - Avoid copying long sections between documents. Link instead.
 
 ## Naming conventions

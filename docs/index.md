@@ -8,6 +8,7 @@ Purpose: Provide the canonical entry point and reading order for repository docu
 - `docs/spec/index.md` for normative system specifications and contracts.
 - `docs/guide/index.md` for operational guides and runbooks.
 - `docs/guide/getting_started.md` for local setup and quick run.
+- `docs/research/index.md` for external project comparison and research inventory.
 - `docs/governance.md` for documentation structure and update rules.
 - `docs/plans/` for Claude-generated execution plans (non-normative).
 
@@ -26,6 +27,12 @@ Purpose: Provide the canonical entry point and reading order for repository docu
 - Location: `docs/guide/`
 - Use for: Runbooks, pipeline walkthroughs, operational maintenance, and test procedures.
 - Entry point: `docs/guide/index.md`.
+
+### External research and comparisons
+
+- Location: `docs/research/`
+- Use for: External project analysis, architecture comparison, and research inventory.
+- Entry point: `docs/research/index.md`.
 
 ### Working plans and drafts
 
