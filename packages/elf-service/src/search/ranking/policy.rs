@@ -47,8 +47,10 @@ pub struct ResolvedDiversityPolicy {
 pub struct ResolvedRetrievalSourcesPolicy {
 	pub fusion_weight: f32,
 	pub structured_field_weight: f32,
+	pub recursive_weight: f32,
 	pub fusion_priority: u32,
 	pub structured_field_priority: u32,
+	pub recursive_priority: u32,
 }
 
 pub fn build_config_snapshot(
@@ -130,8 +132,10 @@ pub fn build_config_snapshot(
 				"retrieval_sources": {
 					"fusion_weight": retrieval_sources_policy.fusion_weight,
 					"structured_field_weight": retrieval_sources_policy.structured_field_weight,
+					"recursive_weight": retrieval_sources_policy.recursive_weight,
 					"fusion_priority": retrieval_sources_policy.fusion_priority,
 					"structured_field_priority": retrieval_sources_policy.structured_field_priority,
+					"recursive_priority": retrieval_sources_policy.recursive_priority,
 				},
 				"override": override_json,
 			},
@@ -228,8 +232,10 @@ pub fn build_policy_snapshot(
 				"retrieval_sources": {
 					"fusion_weight": retrieval_sources_policy.fusion_weight,
 					"structured_field_weight": retrieval_sources_policy.structured_field_weight,
+					"recursive_weight": retrieval_sources_policy.recursive_weight,
 					"fusion_priority": retrieval_sources_policy.fusion_priority,
 					"structured_field_priority": retrieval_sources_policy.structured_field_priority,
+					"recursive_priority": retrieval_sources_policy.recursive_priority,
 				},
 				"override": override_json,
 			},
@@ -341,15 +347,22 @@ pub fn resolve_retrieval_sources_policy(
 	let structured_field_weight = override_
 		.and_then(|value| value.structured_field_weight)
 		.unwrap_or(cfg.structured_field_weight);
+	let recursive_weight = override_
+		.and_then(|value| value.recursive_weight)
+		.unwrap_or(structured_field_weight);
 	let fusion_priority =
 		override_.and_then(|value| value.fusion_priority).unwrap_or(cfg.fusion_priority);
 	let structured_field_priority = override_
 		.and_then(|value| value.structured_field_priority)
 		.unwrap_or(cfg.structured_field_priority);
+	let recursive_priority = override_
+		.and_then(|value| value.recursive_priority)
+		.unwrap_or(structured_field_priority.saturating_add(1));
 
 	for (path, value) in [
 		("ranking.retrieval_sources.fusion_weight", fusion_weight),
 		("ranking.retrieval_sources.structured_field_weight", structured_field_weight),
+		("ranking.retrieval_sources.recursive_weight", recursive_weight),
 	] {
 		if !value.is_finite() {
 			return Err(Error::InvalidRequest {
@@ -363,7 +376,7 @@ pub fn resolve_retrieval_sources_policy(
 		}
 	}
 
-	if fusion_weight <= 0.0 && structured_field_weight <= 0.0 {
+	if fusion_weight <= 0.0 && structured_field_weight <= 0.0 && recursive_weight <= 0.0 {
 		return Err(Error::InvalidRequest {
 			message: "At least one retrieval source weight must be greater than zero.".to_string(),
 		});
@@ -372,8 +385,10 @@ pub fn resolve_retrieval_sources_policy(
 	Ok(ResolvedRetrievalSourcesPolicy {
 		fusion_weight,
 		structured_field_weight,
+		recursive_weight,
 		fusion_priority,
 		structured_field_priority,
+		recursive_priority,
 	})
 }
 

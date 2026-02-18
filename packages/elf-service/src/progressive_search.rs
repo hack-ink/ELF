@@ -9,7 +9,7 @@ use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
 use crate::{
-	ElfService, Error, NoteFetchResponse, QueryPlan, Result, SearchRequest,
+	ElfService, Error, NoteFetchResponse, PayloadLevel, QueryPlan, Result, SearchRequest,
 	structured_fields::StructuredFields,
 };
 use elf_config::Config;
@@ -60,6 +60,8 @@ pub struct SearchSessionGetRequest {
 	pub project_id: String,
 	pub agent_id: String,
 	pub search_session_id: Uuid,
+	#[serde(default)]
+	pub payload_level: PayloadLevel,
 	pub top_k: Option<u32>,
 	pub touch: Option<bool>,
 }
@@ -70,6 +72,7 @@ pub struct SearchTimelineRequest {
 	pub project_id: String,
 	pub agent_id: String,
 	pub search_session_id: Uuid,
+	pub payload_level: PayloadLevel,
 	pub group_by: Option<String>,
 }
 
@@ -93,6 +96,8 @@ pub struct SearchDetailsRequest {
 	pub project_id: String,
 	pub agent_id: String,
 	pub search_session_id: Uuid,
+	#[serde(default)]
+	pub payload_level: PayloadLevel,
 	pub note_ids: Vec<Uuid>,
 	pub record_hits: Option<bool>,
 }
@@ -375,7 +380,10 @@ impl ElfService {
 		validate_search_session_access(&session, tenant_id, project_id, agent_id)?;
 
 		let expires_at = touch_search_session(&self.db.pool, &session, now).await?;
-		let group_by = req.group_by.unwrap_or_else(|| "day".to_string());
+		let payload_level = req.payload_level;
+		let group_by = req.group_by.unwrap_or_else(|| {
+			if payload_level == PayloadLevel::L0 { "none".to_string() } else { "day".to_string() }
+		});
 
 		match group_by.as_str() {
 			"day" => build_timeline_by_day(session.search_session_id, expires_at, &session.items),

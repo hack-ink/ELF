@@ -19,11 +19,11 @@ use elf_config::SecurityAuthKey;
 use elf_service::{
 	AddEventRequest, AddEventResponse, AddNoteInput, AddNoteRequest, AddNoteResponse,
 	DeleteRequest, DeleteResponse, Error, EventMessage, ListRequest, ListResponse,
-	NoteFetchRequest, NoteFetchResponse, QueryPlan, RankingRequestOverride, RebuildReport,
-	SearchDetailsRequest, SearchDetailsResult, SearchExplainRequest, SearchExplainResponse,
-	SearchIndexItem, SearchRequest, SearchResponse, SearchSessionGetRequest, SearchTimelineGroup,
-	SearchTimelineRequest, SearchTrajectoryResponse, TraceGetRequest, TraceGetResponse,
-	TraceTrajectoryGetRequest, UpdateRequest, UpdateResponse,
+	NoteFetchRequest, NoteFetchResponse, PayloadLevel, QueryPlan, RankingRequestOverride,
+	RebuildReport, SearchDetailsRequest, SearchDetailsResult, SearchExplainRequest,
+	SearchExplainResponse, SearchIndexItem, SearchRequest, SearchResponse, SearchSessionGetRequest,
+	SearchTimelineGroup, SearchTimelineRequest, SearchTrajectoryResponse, TraceGetRequest,
+	TraceGetResponse, TraceTrajectoryGetRequest, UpdateRequest, UpdateResponse,
 };
 
 const HEADER_TENANT_ID: &str = "X-ELF-Tenant-Id";
@@ -77,6 +77,7 @@ struct SearchCreateRequest {
 	query: String,
 	top_k: Option<u32>,
 	candidate_k: Option<u32>,
+	payload_level: Option<PayloadLevel>,
 	ranking: Option<RankingRequestOverride>,
 }
 
@@ -101,12 +102,14 @@ struct SearchIndexPlannedResponseV2 {
 
 #[derive(Clone, Debug, Deserialize)]
 struct SearchSessionGetQuery {
+	payload_level: Option<PayloadLevel>,
 	top_k: Option<u32>,
 	touch: Option<bool>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
 struct SearchTimelineQuery {
+	payload_level: Option<PayloadLevel>,
 	group_by: Option<String>,
 }
 
@@ -121,6 +124,7 @@ struct SearchTimelineResponseV2 {
 #[derive(Clone, Debug, Deserialize)]
 struct SearchDetailsBody {
 	note_ids: Vec<Uuid>,
+	payload_level: Option<PayloadLevel>,
 	record_hits: Option<bool>,
 }
 
@@ -667,6 +671,7 @@ async fn search_quick_create(
 			query: payload.query,
 			top_k: payload.top_k,
 			candidate_k: payload.candidate_k,
+			payload_level: payload.payload_level.unwrap_or_default(),
 			record_hits: Some(false),
 			ranking: None,
 		})
@@ -737,6 +742,7 @@ async fn search_planned_create(
 			query: payload.query,
 			top_k: payload.top_k,
 			candidate_k: payload.candidate_k,
+			payload_level: payload.payload_level.unwrap_or_default(),
 			record_hits: Some(false),
 			ranking: None,
 		})
@@ -775,6 +781,7 @@ async fn searches_get(
 			project_id: ctx.project_id,
 			agent_id: ctx.agent_id,
 			search_session_id: search_id,
+			payload_level: query.payload_level.unwrap_or_default(),
 			top_k: query.top_k,
 			touch: query.touch,
 		})
@@ -812,6 +819,7 @@ async fn searches_timeline(
 			project_id: ctx.project_id,
 			agent_id: ctx.agent_id,
 			search_session_id: search_id,
+			payload_level: query.payload_level.unwrap_or_default(),
 			group_by: query.group_by,
 		})
 		.await?;
@@ -852,6 +860,7 @@ async fn searches_notes(
 			project_id: ctx.project_id,
 			agent_id: ctx.agent_id,
 			search_session_id: search_id,
+			payload_level: payload.payload_level.unwrap_or_default(),
 			note_ids: payload.note_ids,
 			record_hits: payload.record_hits,
 		})
@@ -1015,6 +1024,7 @@ async fn searches_raw(
 			token_id: effective_token_id(state.service.cfg.security.auth_mode.as_str(), &headers),
 			read_profile,
 			query: payload.query,
+			payload_level: payload.payload_level.unwrap_or_default(),
 			top_k: payload.top_k,
 			candidate_k: payload.candidate_k,
 			record_hits: Some(false),

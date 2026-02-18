@@ -205,6 +205,7 @@ pub fn test_config(dsn: String, qdrant_url: String, vector_dim: u32, collection:
 				candidate_retention_days: 2,
 				write_mode: "outbox".to_string(),
 			},
+			recursive: Default::default(),
 		},
 		ranking: test_ranking(),
 		lifecycle: Lifecycle {

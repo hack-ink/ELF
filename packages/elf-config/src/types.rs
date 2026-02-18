@@ -161,6 +161,8 @@ pub struct Search {
 	pub prefilter: SearchPrefilter,
 	pub cache: SearchCache,
 	pub explain: SearchExplain,
+	#[serde(default)]
+	pub recursive: SearchRecursive,
 }
 
 #[derive(Debug, Deserialize)]
@@ -195,6 +197,27 @@ pub struct SearchExplain {
 	pub capture_candidates: bool,
 	pub candidate_retention_days: i64,
 	pub write_mode: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(default)]
+pub struct SearchRecursive {
+	pub enabled: bool,
+	pub max_depth: u32,
+	pub max_children_per_node: u32,
+	pub max_nodes_per_scope: u32,
+	pub max_total_nodes: u32,
+}
+impl Default for SearchRecursive {
+	fn default() -> Self {
+		Self {
+			enabled: false,
+			max_depth: 2,
+			max_children_per_node: 4,
+			max_nodes_per_scope: 32,
+			max_total_nodes: 256,
+		}
+	}
 }
 
 #[derive(Debug, Deserialize)]

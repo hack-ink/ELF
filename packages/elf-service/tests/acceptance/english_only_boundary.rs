@@ -142,6 +142,7 @@ async fn rejects_cjk_in_search() {
 		agent_id: "a".to_string(),
 		token_id: None,
 		read_profile: "private_only".to_string(),
+		payload_level: Default::default(),
 		query: "안녕하세요".to_string(),
 		top_k: Some(5),
 		candidate_k: Some(10),

@@ -27,7 +27,7 @@ pub use self::{
 		SearchTimelineGroup, SearchTimelineRequest, SearchTimelineResponse,
 	},
 	search::{
-		BlendRankingOverride, BlendSegmentOverride, QueryPlan, QueryPlanBlendSegment,
+		BlendRankingOverride, BlendSegmentOverride, PayloadLevel, QueryPlan, QueryPlanBlendSegment,
 		QueryPlanBudget, QueryPlanDynamicGate, QueryPlanFusionPolicy, QueryPlanIntent,
 		QueryPlanRerankPolicy, QueryPlanRetrievalStage, QueryPlanRewrite, QueryPlanStage,
 		RankingRequestOverride, SearchExplain, SearchExplainItem, SearchExplainRequest,

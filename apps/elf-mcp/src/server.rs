@@ -502,6 +502,10 @@ fn search_create_schema() -> Arc<JsonObject> {
 		"required": ["query"],
 		"properties": {
 			"query": { "type": "string" },
+			"payload_level": {
+				"type": ["string", "null"],
+				"enum": ["l0", "l1", "l2", null]
+			},
 			"top_k": { "type": ["integer", "null"] },
 			"candidate_k": { "type": ["integer", "null"] },
 			"read_profile": { "type": ["string", "null"] }
@@ -524,6 +528,10 @@ fn searches_get_schema() -> Arc<JsonObject> {
 		"required": ["search_id"],
 		"properties": {
 			"search_id": { "type": "string" },
+			"payload_level": {
+				"type": ["string", "null"],
+				"enum": ["l0", "l1", "l2", null]
+			},
 			"top_k": { "type": ["integer", "null"] },
 			"touch": { "type": ["boolean", "null"] }
 		}
@@ -537,6 +545,10 @@ fn searches_timeline_schema() -> Arc<JsonObject> {
 		"required": ["search_id"],
 		"properties": {
 			"search_id": { "type": "string" },
+			"payload_level": {
+				"type": ["string", "null"],
+				"enum": ["l0", "l1", "l2", null]
+			},
 			"group_by": { "type": ["string", "null"] }
 		}
 	}))
@@ -549,6 +561,10 @@ fn searches_notes_schema() -> Arc<JsonObject> {
 		"required": ["search_id", "note_ids"],
 		"properties": {
 			"search_id": { "type": "string" },
+			"payload_level": {
+				"type": ["string", "null"],
+				"enum": ["l0", "l1", "l2", null]
+			},
 			"note_ids": { "type": "array", "items": { "type": "string" } },
 			"record_hits": { "type": ["boolean", "null"] }
 		}
