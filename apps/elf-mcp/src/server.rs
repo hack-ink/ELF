@@ -205,18 +205,33 @@ impl ElfMcp {
 	}
 
 	#[rmcp::tool(
-		name = "elf_searches_create",
-		description = "Create a search session and return a compact index view of results.",
-		input_schema = searches_create_schema()
+		name = "elf_search_quick_create",
+		description = "Run a quick search and return a compact index view of results.",
+		input_schema = search_quick_create_schema()
 	)]
-	async fn elf_searches_create(
+	async fn elf_search_quick_create(
 		&self,
 		mut params: JsonObject,
 	) -> Result<CallToolResult, ErrorData> {
 		// read_profile is part of the MCP server configuration and is not client-controlled.
 		let _ = take_optional_string(&mut params, "read_profile")?;
 
-		self.forward(HttpMethod::Post, "/v2/searches", params, None).await
+		self.forward(HttpMethod::Post, "/v2/search/quick", params, None).await
+	}
+
+	#[rmcp::tool(
+		name = "elf_search_planned_create",
+		description = "Run a planned search and return a compact index view with query_plan.",
+		input_schema = search_planned_create_schema()
+	)]
+	async fn elf_search_planned_create(
+		&self,
+		mut params: JsonObject,
+	) -> Result<CallToolResult, ErrorData> {
+		// read_profile is part of the MCP server configuration and is not client-controlled.
+		let _ = take_optional_string(&mut params, "read_profile")?;
+
+		self.forward(HttpMethod::Post, "/v2/search/planned", params, None).await
 	}
 
 	#[rmcp::tool(
@@ -480,7 +495,7 @@ fn events_ingest_schema() -> Arc<JsonObject> {
 	}))
 }
 
-fn searches_create_schema() -> Arc<JsonObject> {
+fn search_create_schema() -> Arc<JsonObject> {
 	Arc::new(rmcp::object!({
 		"type": "object",
 		"additionalProperties": true,
@@ -492,6 +507,14 @@ fn searches_create_schema() -> Arc<JsonObject> {
 			"read_profile": { "type": ["string", "null"] }
 		}
 	}))
+}
+
+fn search_quick_create_schema() -> Arc<JsonObject> {
+	search_create_schema()
+}
+
+fn search_planned_create_schema() -> Arc<JsonObject> {
+	search_create_schema()
 }
 
 fn searches_get_schema() -> Arc<JsonObject> {
@@ -646,10 +669,16 @@ mod tests {
 				"Ingest an event by extracting evidence-bound notes using the configured LLM extractor.",
 			),
 			ToolDefinition::new(
-				"elf_searches_create",
+				"elf_search_quick_create",
 				HttpMethod::Post,
-				"/v2/searches",
-				"Create a search session and return a compact index view of results.",
+				"/v2/search/quick",
+				"Run a quick search and return a compact index view of results.",
+			),
+			ToolDefinition::new(
+				"elf_search_planned_create",
+				HttpMethod::Post,
+				"/v2/search/planned",
+				"Run a planned search and return a compact index view with query_plan.",
 			),
 			ToolDefinition::new(
 				"elf_searches_get",
@@ -704,7 +733,8 @@ mod tests {
 		let expected = [
 			"elf_notes_ingest",
 			"elf_events_ingest",
-			"elf_searches_create",
+			"elf_search_quick_create",
+			"elf_search_planned_create",
 			"elf_searches_get",
 			"elf_searches_timeline",
 			"elf_searches_notes",
