@@ -657,6 +657,7 @@ fn merge_query(
 			agent_id,
 			token_id: None,
 			read_profile,
+			payload_level: Default::default(),
 			query: query.query.clone(),
 			top_k: Some(top_k),
 			candidate_k: Some(candidate_k),

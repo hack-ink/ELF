@@ -9,8 +9,8 @@ pub use self::{
 		RankingBlendSegment, RankingDeterministic, RankingDeterministicDecay,
 		RankingDeterministicHits, RankingDeterministicLexical, RankingDiversity,
 		RankingRetrievalSources, ReadProfiles, ScopePrecedence, ScopeWriteAllowed, Scopes, Search,
-		SearchCache, SearchDynamic, SearchExpansion, SearchExplain, SearchPrefilter, Security,
-		SecurityAuthKey, Service, Storage, TtlDays,
+		SearchCache, SearchDynamic, SearchExpansion, SearchExplain, SearchPrefilter,
+		SearchRecursive, Security, SecurityAuthKey, Service, Storage, TtlDays,
 	},
 };
 
@@ -183,6 +183,7 @@ fn validate_search(cfg: &Config) -> Result<()> {
 	validate_search_cache(cfg)?;
 	validate_search_explain(cfg)?;
 	validate_search_explain_write_mode(cfg)?;
+	validate_search_recursive(cfg)?;
 
 	Ok(())
 }
@@ -274,6 +275,62 @@ fn validate_search_explain_write_mode(cfg: &Config) -> Result<()> {
 			),
 		}),
 	}
+}
+
+fn validate_search_recursive(cfg: &Config) -> Result<()> {
+	if !cfg.search.recursive.enabled {
+		return Ok(());
+	}
+	if cfg.search.recursive.max_depth == 0 {
+		return Err(Error::Validation {
+			message: "search.recursive.max_depth must be greater than zero.".to_string(),
+		});
+	}
+	if cfg.search.recursive.max_depth > 8 {
+		return Err(Error::Validation {
+			message: "search.recursive.max_depth must be 8 or less.".to_string(),
+		});
+	}
+	if cfg.search.recursive.max_children_per_node == 0 {
+		return Err(Error::Validation {
+			message: "search.recursive.max_children_per_node must be greater than zero."
+				.to_string(),
+		});
+	}
+	if cfg.search.recursive.max_children_per_node > 64 {
+		return Err(Error::Validation {
+			message: "search.recursive.max_children_per_node must be 64 or less.".to_string(),
+		});
+	}
+	if cfg.search.recursive.max_nodes_per_scope == 0 {
+		return Err(Error::Validation {
+			message: "search.recursive.max_nodes_per_scope must be greater than zero.".to_string(),
+		});
+	}
+	if cfg.search.recursive.max_nodes_per_scope > 250 {
+		return Err(Error::Validation {
+			message: "search.recursive.max_nodes_per_scope must be 250 or less.".to_string(),
+		});
+	}
+	if cfg.search.recursive.max_total_nodes == 0 {
+		return Err(Error::Validation {
+			message: "search.recursive.max_total_nodes must be greater than zero.".to_string(),
+		});
+	}
+	if cfg.search.recursive.max_total_nodes > 2_000 {
+		return Err(Error::Validation {
+			message: "search.recursive.max_total_nodes must be 2_000 or less.".to_string(),
+		});
+	}
+	if cfg.search.recursive.max_total_nodes < cfg.search.recursive.max_nodes_per_scope {
+		return Err(Error::Validation {
+			message:
+				"search.recursive.max_total_nodes must be at least search.recursive.max_nodes_per_scope."
+					.to_string(),
+		});
+	}
+
+	Ok(())
 }
 
 fn validate_ranking(cfg: &Config) -> Result<()> {

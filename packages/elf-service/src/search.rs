@@ -4,7 +4,7 @@ pub use crate::ranking_explain_v2::{SearchRankingExplain, SearchRankingTerm};
 
 use std::{
 	cmp::Ordering,
-	collections::{BTreeMap, HashMap, HashSet},
+	collections::{BTreeMap, HashMap, HashSet, VecDeque},
 	slice,
 };
 
@@ -40,12 +40,23 @@ pub struct SearchRequest {
 	pub project_id: String,
 	pub agent_id: String,
 	pub token_id: Option<String>,
+	#[serde(default)]
+	pub payload_level: PayloadLevel,
 	pub read_profile: String,
 	pub query: String,
 	pub top_k: Option<u32>,
 	pub candidate_k: Option<u32>,
 	pub record_hits: Option<bool>,
 	pub ranking: Option<RankingRequestOverride>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PayloadLevel {
+	#[default]
+	L0,
+	L1,
+	L2,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -83,6 +94,8 @@ pub struct RetrievalSourcesRankingOverride {
 	pub structured_field_weight: Option<f32>,
 	pub fusion_priority: Option<u32>,
 	pub structured_field_priority: Option<u32>,
+	pub recursive_weight: Option<f32>,
+	pub recursive_priority: Option<u32>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -210,8 +223,10 @@ pub struct QueryPlanFusionPolicy {
 	pub strategy: String,
 	pub fusion_weight: f32,
 	pub structured_field_weight: f32,
+	pub recursive_weight: f32,
 	pub fusion_priority: u32,
 	pub structured_field_priority: u32,
+	pub recursive_priority: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -460,10 +475,34 @@ struct SearchRetrievalArgs<'a> {
 	retrieval_sources_policy: &'a ResolvedRetrievalSourcesPolicy,
 }
 
+struct RecursiveRetrievalArgs<'a> {
+	query: &'a str,
+	query_vec: &'a [f32],
+	filter: &'a Filter,
+	candidate_k: u32,
+	retrieval_sources_policy: &'a ResolvedRetrievalSourcesPolicy,
+	seed_candidates: &'a [ChunkCandidate],
+}
+
 struct SearchRetrievalResult {
 	expanded_queries: Vec<String>,
 	candidates: Vec<ChunkCandidate>,
 	structured_matches: HashMap<Uuid, Vec<String>>,
+	recursive: Option<RecursiveRetrievalResult>,
+}
+
+#[derive(Debug, Default, Clone)]
+struct RecursiveRetrievalResult {
+	enabled: bool,
+	rounds_executed: u32,
+	scopes_seeded: usize,
+	scopes_queried: usize,
+	candidates_before: usize,
+	candidates_after: usize,
+	candidates_added: usize,
+	total_queries: u32,
+	stop_reason: Option<String>,
+	candidates: Vec<ChunkCandidate>,
 }
 
 #[derive(Clone, Debug)]
@@ -478,6 +517,7 @@ struct ChunkCandidate {
 	note_id: Uuid,
 	chunk_index: i32,
 	retrieval_rank: u32,
+	scope: Option<String>,
 	updated_at: Option<OffsetDateTime>,
 	embedding_version: Option<String>,
 }
@@ -784,6 +824,7 @@ struct FinishSearchArgs<'a> {
 	expansion_mode: ExpansionMode,
 	candidates: Vec<ChunkCandidate>,
 	structured_matches: HashMap<Uuid, Vec<String>>,
+	recursive_retrieval: Option<RecursiveRetrievalResult>,
 	top_k: u32,
 	record_hits_enabled: bool,
 	ranking_override: Option<RankingRequestOverride>,
@@ -818,6 +859,7 @@ struct BuildTraceArgs<'a> {
 	top_k: u32,
 	query_tokens: &'a [String],
 	structured_matches: &'a HashMap<Uuid, Vec<String>>,
+	recursive_retrieval: Option<&'a RecursiveRetrievalResult>,
 	policies: &'a FinishSearchPolicies,
 	diversity_decisions: &'a HashMap<Uuid, DiversityDecision>,
 	recall_candidates: Vec<ChunkCandidate>,
@@ -841,6 +883,7 @@ struct BuildQueryPlanArgs<'a> {
 	top_k: u32,
 	candidate_k: u32,
 	retrieval_sources_policy: &'a ResolvedRetrievalSourcesPolicy,
+	recursive_enabled: bool,
 	policies: &'a FinishSearchPolicies,
 	dynamic_gate: DynamicGateSummary,
 }
@@ -985,41 +1028,60 @@ impl ElfService {
 		path: RawSearchPath,
 	) -> Result<SearchRawPlannedResponse> {
 		let context = self.prepare_raw_search_execution(req, path)?;
+
+		if context.allowed_scopes.is_empty() {
+			return self.execute_search_raw_no_allowed_scopes(&context, path).await;
+		}
+
 		let dynamic_gate_enabled =
 			path == RawSearchPath::Planned && context.expansion_mode == ExpansionMode::Dynamic;
 
-		if context.allowed_scopes.is_empty() {
-			let expanded_queries = vec![context.query.clone()];
-			let response = self
-				.finish_search(FinishSearchArgs {
-					path,
-					trace_id: context.trace_id,
-					query: context.query.as_str(),
-					tenant_id: context.tenant_id.as_str(),
-					project_id: context.project_id.as_str(),
-					agent_id: context.agent_id.as_str(),
-					token_id: context.token_id.as_deref(),
-					read_profile: context.read_profile.as_str(),
-					allowed_scopes: &context.allowed_scopes,
-					expanded_queries: expanded_queries.clone(),
-					expansion_mode: context.expansion_mode,
-					candidates: Vec::new(),
-					structured_matches: HashMap::new(),
-					top_k: context.top_k,
-					record_hits_enabled: context.record_hits_enabled,
-					ranking_override: context.ranking_override.clone(),
-				})
-				.await?;
+		self.execute_search_raw_with_allowed_scopes(&context, path, dynamic_gate_enabled).await
+	}
 
-			return Ok(self.build_raw_planned_response(
-				&context,
+	async fn execute_search_raw_no_allowed_scopes(
+		&self,
+		context: &RawSearchExecutionContext,
+		path: RawSearchPath,
+	) -> Result<SearchRawPlannedResponse> {
+		let expanded_queries = vec![context.query.clone()];
+		let response = self
+			.finish_search(FinishSearchArgs {
 				path,
-				response,
-				expanded_queries,
-				DynamicGateSummary::default(),
-			));
-		}
+				trace_id: context.trace_id,
+				query: context.query.as_str(),
+				tenant_id: context.tenant_id.as_str(),
+				project_id: context.project_id.as_str(),
+				agent_id: context.agent_id.as_str(),
+				token_id: context.token_id.as_deref(),
+				read_profile: context.read_profile.as_str(),
+				allowed_scopes: &context.allowed_scopes,
+				expanded_queries: expanded_queries.clone(),
+				expansion_mode: context.expansion_mode,
+				candidates: Vec::new(),
+				structured_matches: HashMap::new(),
+				recursive_retrieval: None,
+				top_k: context.top_k,
+				record_hits_enabled: context.record_hits_enabled,
+				ranking_override: context.ranking_override.clone(),
+			})
+			.await?;
 
+		Ok(self.build_raw_planned_response(
+			context,
+			path,
+			response,
+			expanded_queries,
+			DynamicGateSummary::default(),
+		))
+	}
+
+	async fn execute_search_raw_with_allowed_scopes(
+		&self,
+		context: &RawSearchExecutionContext,
+		path: RawSearchPath,
+		dynamic_gate_enabled: bool,
+	) -> Result<SearchRawPlannedResponse> {
 		let filter = build_search_filter(
 			context.tenant_id.as_str(),
 			context.project_id.as_str(),
@@ -1050,7 +1112,7 @@ impl ElfService {
 
 		if let Some(response) = early_response {
 			return Ok(self.build_raw_planned_response(
-				&context,
+				context,
 				path,
 				response,
 				vec![context.query.clone()],
@@ -1089,19 +1151,14 @@ impl ElfService {
 				expansion_mode: context.expansion_mode,
 				candidates: retrieval.candidates,
 				structured_matches: retrieval.structured_matches,
+				recursive_retrieval: retrieval.recursive,
 				top_k: context.top_k,
 				record_hits_enabled: context.record_hits_enabled,
 				ranking_override: context.ranking_override.clone(),
 			})
 			.await?;
 
-		Ok(self.build_raw_planned_response(
-			&context,
-			path,
-			response,
-			expanded_queries,
-			dynamic_gate,
-		))
+		Ok(self.build_raw_planned_response(context, path, response, expanded_queries, dynamic_gate))
 	}
 
 	fn prepare_raw_search_execution(
@@ -1188,6 +1245,7 @@ impl ElfService {
 			top_k: context.top_k,
 			candidate_k: context.candidate_k,
 			retrieval_sources_policy: &context.retrieval_sources_policy,
+			recursive_enabled: self.cfg.search.recursive.enabled,
 			policies: &context.policies,
 			dynamic_gate,
 		});
@@ -1213,7 +1271,7 @@ impl ElfService {
 			)
 			.await?;
 		let top_score = baseline_points.first().map(|point| point.score).unwrap_or(0.0);
-		let candidates = ranking::collect_chunk_candidates(
+		let fusion_candidates = ranking::collect_chunk_candidates(
 			&baseline_points,
 			self.cfg.search.prefilter.max_candidates,
 			args.candidate_k,
@@ -1234,7 +1292,10 @@ impl ElfService {
 			return Ok((Some(query_vec), None, dynamic_gate));
 		}
 
-		let structured = self
+		let StructuredFieldRetrievalResult {
+			candidates: structured_candidates,
+			structured_matches,
+		} = self
 			.retrieve_structured_field_candidates(StructuredFieldRetrievalArgs {
 				tenant_id: args.tenant_id,
 				project_id: args.project_id,
@@ -1245,14 +1306,42 @@ impl ElfService {
 				now: OffsetDateTime::now_utc(),
 			})
 			.await?;
+		let mut seed_candidates =
+			Vec::with_capacity(fusion_candidates.len() + structured_candidates.len());
+
+		seed_candidates.extend_from_slice(fusion_candidates.as_slice());
+		seed_candidates.extend_from_slice(structured_candidates.as_slice());
+
+		let recursive = self
+			.run_recursive_retrieval(RecursiveRetrievalArgs {
+				query: args.query,
+				query_vec: query_vec.as_slice(),
+				filter: args.filter,
+				candidate_k: args.candidate_k,
+				retrieval_sources_policy: args.retrieval_sources_policy,
+				seed_candidates: seed_candidates.as_slice(),
+			})
+			.await?;
+		let mut retrieval_sources = vec![
+			RetrievalSourceCandidates {
+				source: RetrievalSourceKind::Fusion,
+				candidates: fusion_candidates,
+			},
+			RetrievalSourceCandidates {
+				source: RetrievalSourceKind::StructuredField,
+				candidates: structured_candidates,
+			},
+		];
+
+		if recursive.enabled {
+			retrieval_sources.push(RetrievalSourceCandidates {
+				source: RetrievalSourceKind::Recursive,
+				candidates: recursive.candidates.clone(),
+			});
+		}
+
 		let merged_candidates = ranking::merge_retrieval_candidates(
-			vec![
-				RetrievalSourceCandidates { source: RetrievalSourceKind::Fusion, candidates },
-				RetrievalSourceCandidates {
-					source: RetrievalSourceKind::StructuredField,
-					candidates: structured.candidates,
-				},
-			],
+			retrieval_sources,
 			args.retrieval_sources_policy,
 			args.candidate_k,
 		);
@@ -1270,7 +1359,8 @@ impl ElfService {
 				expanded_queries: vec![args.query.to_string()],
 				expansion_mode: ExpansionMode::Dynamic,
 				candidates: merged_candidates,
-				structured_matches: structured.structured_matches,
+				structured_matches,
+				recursive_retrieval: Some(recursive),
 				top_k: args.top_k,
 				record_hits_enabled: args.record_hits_enabled,
 				ranking_override: args.ranking_override.cloned(),
@@ -1299,7 +1389,7 @@ impl ElfService {
 			.await?;
 		let fusion_points =
 			self.run_fusion_query(&query_embeddings, args.filter, args.candidate_k).await?;
-		let candidates = ranking::collect_chunk_candidates(
+		let fusion_candidates = ranking::collect_chunk_candidates(
 			&fusion_points,
 			self.cfg.search.prefilter.max_candidates,
 			args.candidate_k,
@@ -1314,7 +1404,10 @@ impl ElfService {
 		} else {
 			original_query_vec
 		};
-		let structured = self
+		let StructuredFieldRetrievalResult {
+			candidates: structured_candidates,
+			structured_matches,
+		} = self
 			.retrieve_structured_field_candidates(StructuredFieldRetrievalArgs {
 				tenant_id: args.tenant_id,
 				project_id: args.project_id,
@@ -1325,14 +1418,42 @@ impl ElfService {
 				now: OffsetDateTime::now_utc(),
 			})
 			.await?;
+		let mut seed_candidates =
+			Vec::with_capacity(fusion_candidates.len() + structured_candidates.len());
+
+		seed_candidates.extend_from_slice(fusion_candidates.as_slice());
+		seed_candidates.extend_from_slice(structured_candidates.as_slice());
+
+		let recursive = self
+			.run_recursive_retrieval(RecursiveRetrievalArgs {
+				query: args.query,
+				query_vec: original_query_vec.as_slice(),
+				filter: args.filter,
+				candidate_k: args.candidate_k,
+				retrieval_sources_policy: args.retrieval_sources_policy,
+				seed_candidates: seed_candidates.as_slice(),
+			})
+			.await?;
+		let mut retrieval_sources = vec![
+			RetrievalSourceCandidates {
+				source: RetrievalSourceKind::Fusion,
+				candidates: fusion_candidates,
+			},
+			RetrievalSourceCandidates {
+				source: RetrievalSourceKind::StructuredField,
+				candidates: structured_candidates,
+			},
+		];
+
+		if recursive.enabled {
+			retrieval_sources.push(RetrievalSourceCandidates {
+				source: RetrievalSourceKind::Recursive,
+				candidates: recursive.candidates.clone(),
+			});
+		}
+
 		let merged_candidates = ranking::merge_retrieval_candidates(
-			vec![
-				RetrievalSourceCandidates { source: RetrievalSourceKind::Fusion, candidates },
-				RetrievalSourceCandidates {
-					source: RetrievalSourceKind::StructuredField,
-					candidates: structured.candidates,
-				},
-			],
+			retrieval_sources,
 			args.retrieval_sources_policy,
 			args.candidate_k,
 		);
@@ -1340,8 +1461,181 @@ impl ElfService {
 		Ok(SearchRetrievalResult {
 			expanded_queries,
 			candidates: merged_candidates,
-			structured_matches: structured.structured_matches,
+			structured_matches,
+			recursive: Some(recursive),
 		})
+	}
+
+	async fn run_recursive_retrieval(
+		&self,
+		args: RecursiveRetrievalArgs<'_>,
+	) -> Result<RecursiveRetrievalResult> {
+		let recursive_config = &self.cfg.search.recursive;
+		let mut result = RecursiveRetrievalResult {
+			enabled: recursive_config.enabled
+				&& args.retrieval_sources_policy.recursive_weight > 0.0,
+			..Default::default()
+		};
+
+		if !result.enabled {
+			result.stop_reason = Some("disabled".to_string());
+
+			return Ok(result);
+		}
+		if args.query_vec.is_empty() {
+			result.stop_reason = Some("missing_query_vector".to_string());
+
+			return Ok(result);
+		}
+
+		let mut seed_scopes = HashSet::<String>::new();
+
+		for candidate in args.seed_candidates {
+			if let Some(scope) = candidate.scope.as_deref()
+				&& !scope.trim().is_empty()
+			{
+				seed_scopes.insert(scope.to_string());
+			}
+		}
+
+		result.scopes_seeded = seed_scopes.len();
+		result.candidates_before = args.seed_candidates.len();
+
+		if seed_scopes.is_empty() {
+			result.stop_reason = Some("no_scope_seed".to_string());
+
+			return Ok(result);
+		}
+
+		let max_depth = recursive_config.max_depth;
+		let max_children_per_node =
+			usize::try_from(recursive_config.max_children_per_node).unwrap_or(usize::MAX);
+		let max_nodes_per_scope =
+			usize::try_from(recursive_config.max_nodes_per_scope).unwrap_or(usize::MAX);
+		let max_total_nodes =
+			usize::try_from(recursive_config.max_total_nodes).unwrap_or(usize::MAX);
+		let child_query_embedding =
+			QueryEmbedding { text: args.query.to_string(), vector: args.query_vec.to_vec() };
+		let per_query_candidate_k =
+			args.candidate_k.min(recursive_config.max_nodes_per_scope).max(1);
+		let (candidates, queried_scopes, rounds_executed, stop_reason) = self
+			.collect_recursive_candidates(
+				&args,
+				seed_scopes,
+				child_query_embedding,
+				max_depth,
+				max_children_per_node,
+				max_nodes_per_scope,
+				max_total_nodes,
+				per_query_candidate_k,
+				self.cfg.search.prefilter.max_candidates,
+			)
+			.await?;
+
+		result.scopes_queried = queried_scopes;
+		result.rounds_executed = rounds_executed;
+		result.total_queries = rounds_executed;
+		result.candidates = candidates;
+		result.candidates_added = result.candidates.len();
+		result.candidates_after = result.candidates_before + result.candidates_added;
+		result.stop_reason = stop_reason.or(Some("converged".to_string()));
+
+		Ok(result)
+	}
+
+	async fn collect_recursive_candidates(
+		&self,
+		args: &RecursiveRetrievalArgs<'_>,
+		seed_scopes: HashSet<String>,
+		child_query_embedding: QueryEmbedding,
+		max_depth: u32,
+		max_children_per_node: usize,
+		max_nodes_per_scope: usize,
+		max_total_nodes: usize,
+		per_query_candidate_k: u32,
+		prefilter_max_candidates: u32,
+	) -> Result<(Vec<ChunkCandidate>, usize, u32, Option<String>)> {
+		let mut queued_scopes: VecDeque<(String, u32)> = VecDeque::new();
+		let mut discovered_scopes = seed_scopes.clone();
+		let mut recursion_candidates = Vec::<ChunkCandidate>::new();
+		let mut seen_chunks =
+			args.seed_candidates.iter().map(|candidate| candidate.chunk_id).collect::<HashSet<_>>();
+		let mut scope_counts: HashMap<String, u32> = HashMap::new();
+		let mut queried_scopes = 0_usize;
+		let mut rounds_executed = 0_u32;
+		let mut stop_reason: Option<String> = None;
+
+		for scope in seed_scopes {
+			queued_scopes.push_back((scope, 1));
+		}
+
+		while let Some((scope, depth)) = queued_scopes.pop_front() {
+			if depth > max_depth {
+				stop_reason = Some("max_depth".to_string());
+
+				break;
+			}
+
+			queried_scopes = queried_scopes.saturating_add(1);
+			rounds_executed = rounds_executed.saturating_add(1);
+
+			let mut scoped_filter = args.filter.clone();
+
+			scoped_filter.must.push(Condition::matches("scope", scope.clone()));
+
+			let recursive_points = self
+				.run_fusion_query(
+					std::slice::from_ref(&child_query_embedding),
+					&scoped_filter,
+					per_query_candidate_k,
+				)
+				.await?;
+			let scope_query_limit = per_query_candidate_k.min(max_nodes_per_scope as u32);
+			let recursive_candidates_for_scope = ranking::collect_chunk_candidates(
+				&recursive_points,
+				prefilter_max_candidates.min(scope_query_limit),
+				scope_query_limit,
+			);
+			let mut child_scopes = HashSet::<String>::new();
+
+			for mut candidate in recursive_candidates_for_scope {
+				if recursion_candidates.len() >= max_total_nodes {
+					stop_reason = Some("max_total_nodes".to_string());
+
+					break;
+				}
+
+				let scope_key = candidate.scope.clone().unwrap_or_else(|| scope.clone());
+				let scope_count = scope_counts.entry(scope_key.clone()).or_default();
+
+				if (*scope_count as usize) >= max_nodes_per_scope {
+					continue;
+				}
+				if !seen_chunks.insert(candidate.chunk_id) {
+					continue;
+				}
+
+				*scope_count = scope_count.saturating_add(1);
+				candidate.scope = Some(scope_key.clone());
+
+				recursion_candidates.push(candidate);
+
+				if depth < max_depth
+					&& child_scopes.len() < max_children_per_node
+					&& !scope_key.is_empty()
+					&& discovered_scopes.insert(scope_key.clone())
+				{
+					child_scopes.insert(scope_key.clone());
+					queued_scopes.push_back((scope_key.clone(), depth.saturating_add(1)));
+				}
+			}
+
+			if stop_reason.is_some() {
+				break;
+			}
+		}
+
+		Ok((recursion_candidates, queried_scopes, rounds_executed, stop_reason))
 	}
 
 	fn resolve_project_context_description<'a>(
@@ -2154,6 +2448,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 			expansion_mode,
 			candidates,
 			structured_matches,
+			recursive_retrieval,
 			top_k,
 			record_hits_enabled,
 			ranking_override,
@@ -2239,6 +2534,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 			fused_results,
 			selected_results,
 			trace_candidates,
+			recursive_retrieval: recursive_retrieval.as_ref(),
 			now,
 			ranking_override: &ranking_override,
 		});
@@ -2286,8 +2582,11 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 	fn build_query_plan(&self, args: BuildQueryPlanArgs<'_>) -> QueryPlan {
 		let allowed_scopes = sorted_unique_strings(args.allowed_scopes.to_vec());
 		let expanded_queries = sorted_unique_strings(args.expanded_queries);
-		let retrieval_stages =
-			self.build_query_plan_retrieval_stages(args.candidate_k, args.retrieval_sources_policy);
+		let retrieval_stages = self.build_query_plan_retrieval_stages(
+			args.candidate_k,
+			args.retrieval_sources_policy,
+			args.recursive_enabled,
+		);
 		let rewrite =
 			self.build_query_plan_rewrite(args.expansion_mode, expanded_queries, args.dynamic_gate);
 		let fusion_policy = self.build_query_plan_fusion_policy(args.retrieval_sources_policy);
@@ -2329,8 +2628,9 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 		&self,
 		candidate_k: u32,
 		retrieval_sources_policy: &ResolvedRetrievalSourcesPolicy,
+		recursive_enabled: bool,
 	) -> Vec<QueryPlanRetrievalStage> {
-		vec![
+		let mut stages = vec![
 			QueryPlanRetrievalStage {
 				name: "fusion_dense_bm25".to_string(),
 				source: "qdrant_fusion".to_string(),
@@ -2343,7 +2643,18 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 				enabled: retrieval_sources_policy.structured_field_weight > 0.0,
 				candidate_limit: candidate_k,
 			},
-		]
+		];
+
+		if recursive_enabled {
+			stages.push(QueryPlanRetrievalStage {
+				name: "recursive_scope".to_string(),
+				source: "scope_graph".to_string(),
+				enabled: retrieval_sources_policy.recursive_weight > 0.0,
+				candidate_limit: candidate_k,
+			});
+		}
+
+		stages
 	}
 
 	fn build_query_plan_rewrite(
@@ -2374,8 +2685,10 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 			strategy: "weighted_merge".to_string(),
 			fusion_weight: retrieval_sources_policy.fusion_weight,
 			structured_field_weight: retrieval_sources_policy.structured_field_weight,
+			recursive_weight: retrieval_sources_policy.recursive_weight,
 			fusion_priority: retrieval_sources_policy.fusion_priority,
 			structured_field_priority: retrieval_sources_policy.structured_field_priority,
+			recursive_priority: retrieval_sources_policy.recursive_priority,
 		}
 	}
 
@@ -3067,6 +3380,7 @@ impl CacheKind {
 enum RetrievalSourceKind {
 	Fusion,
 	StructuredField,
+	Recursive,
 }
 
 pub fn ranking_policy_id(
@@ -3586,6 +3900,7 @@ fn build_structured_field_candidates(
 			note_id,
 			chunk_index: *chunk_index,
 			retrieval_rank: next_rank,
+			scope: None,
 			updated_at: None,
 			embedding_version: Some(embed_version.to_string()),
 		});
@@ -3659,6 +3974,39 @@ fn build_trace_recall_stage(
 	args: &BuildTraceArgs<'_>,
 	path_label: &str,
 ) -> TraceTrajectoryStageRecord {
+	let mut stage_payload = serde_json::json!({
+		"schema": SEARCH_RETRIEVAL_TRAJECTORY_SCHEMA_V1,
+		"path": path_label,
+		"stats": {
+			"candidate_count_before_filter": args.candidate_count,
+			"candidate_count_after_filter": args.filtered_candidate_count,
+			"snippet_count": args.snippet_count,
+		},
+	});
+
+	if let Some(recursive_retrieval) = args.recursive_retrieval
+		&& recursive_retrieval.enabled
+		&& let Some(payload) = stage_payload.as_object_mut()
+	{
+		payload.insert(
+			"recursive".to_string(),
+			serde_json::json!({
+				"enabled": true,
+				"scopes_seeded": recursive_retrieval.scopes_seeded,
+				"scopes_queried": recursive_retrieval.scopes_queried,
+				"candidates_before": recursive_retrieval.candidates_before,
+				"candidates_added": recursive_retrieval.candidates_added,
+				"candidates_after": recursive_retrieval.candidates_after,
+				"rounds_executed": recursive_retrieval.rounds_executed,
+				"total_queries": recursive_retrieval.total_queries,
+				"stop_reason": recursive_retrieval
+					.stop_reason
+					.clone()
+					.unwrap_or_else(|| "converged".to_string()),
+			}),
+		);
+	}
+
 	let items: Vec<TraceTrajectoryStageItemRecord> = args
 		.recall_candidates
 		.iter()
@@ -3679,15 +4027,7 @@ fn build_trace_recall_stage(
 		stage_id: Uuid::new_v4(),
 		stage_order: 2,
 		stage_name: "recall.candidates".to_string(),
-		stage_payload: serde_json::json!({
-			"schema": SEARCH_RETRIEVAL_TRAJECTORY_SCHEMA_V1,
-			"path": path_label,
-			"stats": {
-				"candidate_count_before_filter": args.candidate_count,
-				"candidate_count_after_filter": args.filtered_candidate_count,
-				"snippet_count": args.snippet_count,
-			},
-		}),
+		stage_payload,
 		created_at: args.now,
 		items,
 	}
@@ -4781,6 +5121,7 @@ mod tests {
 			note_id,
 			chunk_index: 0,
 			retrieval_rank,
+			scope: None,
 			updated_at: None,
 			embedding_version: Some("v1".to_string()),
 		}
@@ -4790,8 +5131,10 @@ mod tests {
 		ranking::ResolvedRetrievalSourcesPolicy {
 			fusion_weight: 1.0,
 			structured_field_weight: 1.0,
+			recursive_weight: 0.0,
 			fusion_priority: 1,
 			structured_field_priority: 0,
+			recursive_priority: 0,
 		}
 	}
 
@@ -4840,6 +5183,7 @@ mod tests {
 				note_id: shared_note_id,
 				chunk_index: 0,
 				retrieval_rank: 9,
+				scope: None,
 				updated_at: None,
 				embedding_version: Some("v1".to_string()),
 			},
@@ -4848,6 +5192,7 @@ mod tests {
 				note_id: fusion_only_note_id,
 				chunk_index: 0,
 				retrieval_rank: 1,
+				scope: None,
 				updated_at: None,
 				embedding_version: Some("v1".to_string()),
 			},
@@ -4857,6 +5202,7 @@ mod tests {
 			note_id: shared_note_id,
 			chunk_index: 0,
 			retrieval_rank: 1,
+			scope: None,
 			updated_at: None,
 			embedding_version: Some("v1".to_string()),
 		}];
@@ -5353,8 +5699,10 @@ mod tests {
 			retrieval_sources: Some(RetrievalSourcesRankingOverride {
 				fusion_weight: Some(0.75),
 				structured_field_weight: Some(1.25),
+				recursive_weight: Some(0.0),
 				fusion_priority: Some(2),
 				structured_field_priority: Some(1),
+				recursive_priority: Some(0),
 			}),
 		};
 		let overridden =

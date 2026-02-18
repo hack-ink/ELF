@@ -13,7 +13,43 @@ use elf_config::{Config, Context, Error};
 const SAMPLE_CONFIG_TEMPLATE_TOML: &str = include_str!("fixtures/sample_config.template.toml");
 
 fn sample_toml(reject_cjk: bool) -> String {
-	sample_toml_with_cache(reject_cjk, 7, 7, true)
+	sample_toml_with_recursive(reject_cjk, false, 2, 4, 32, 256)
+}
+
+fn sample_toml_with_recursive(
+	reject_cjk: bool,
+	recursive_enabled: bool,
+	max_depth: i64,
+	max_children_per_node: i64,
+	max_nodes_per_scope: i64,
+	max_total_nodes: i64,
+) -> String {
+	let mut value: Value =
+		toml::from_str(SAMPLE_CONFIG_TEMPLATE_TOML).expect("Failed to parse template config.");
+	let root = value.as_table_mut().expect("Template config must be a table.");
+	let search = root
+		.get_mut("search")
+		.and_then(Value::as_table_mut)
+		.expect("Template config must include [search].");
+	let recursive = search
+		.get_mut("recursive")
+		.and_then(Value::as_table_mut)
+		.expect("Template config must include [search.recursive].");
+
+	recursive.insert("enabled".to_string(), Value::Boolean(recursive_enabled));
+	recursive.insert("max_depth".to_string(), Value::Integer(max_depth));
+	recursive.insert("max_children_per_node".to_string(), Value::Integer(max_children_per_node));
+	recursive.insert("max_nodes_per_scope".to_string(), Value::Integer(max_nodes_per_scope));
+	recursive.insert("max_total_nodes".to_string(), Value::Integer(max_total_nodes));
+
+	let security = root
+		.get_mut("security")
+		.and_then(Value::as_table_mut)
+		.expect("Template config must include [security].");
+
+	security.insert("reject_cjk".to_string(), Value::Boolean(reject_cjk));
+
+	toml::to_string(&value).expect("Failed to render template config.")
 }
 
 fn sample_toml_with_cache(
@@ -23,7 +59,8 @@ fn sample_toml_with_cache(
 	cache_enabled: bool,
 ) -> String {
 	let mut value: Value =
-		toml::from_str(SAMPLE_CONFIG_TEMPLATE_TOML).expect("Failed to parse template config.");
+		toml::from_str(&sample_toml_with_recursive(reject_cjk, false, 2, 4, 32, 256))
+			.expect("Failed to parse template config.");
 	let root = value.as_table_mut().expect("Template config must be a table.");
 	let search = root
 		.get_mut("search")
@@ -37,13 +74,6 @@ fn sample_toml_with_cache(
 	cache.insert("enabled".to_string(), Value::Boolean(cache_enabled));
 	cache.insert("expansion_ttl_days".to_string(), Value::Integer(expansion_ttl_days));
 	cache.insert("rerank_ttl_days".to_string(), Value::Integer(rerank_ttl_days));
-
-	let security = root
-		.get_mut("security")
-		.and_then(Value::as_table_mut)
-		.expect("Template config must include [security].");
-
-	security.insert("reject_cjk".to_string(), Value::Boolean(reject_cjk));
 
 	toml::to_string(&value).expect("Failed to render template config.")
 }
@@ -101,6 +131,67 @@ fn cache_ttl_must_be_positive() {
 
 	assert!(
 		err.to_string().contains("search.cache.expansion_ttl_days must be greater than zero."),
+		"Unexpected error: {err}"
+	);
+}
+
+#[test]
+fn recursive_search_settings_can_be_valid() {
+	let mut cfg = base_config();
+
+	cfg.search.recursive.enabled = true;
+	cfg.search.recursive.max_depth = 4;
+	cfg.search.recursive.max_children_per_node = 12;
+	cfg.search.recursive.max_nodes_per_scope = 64;
+	cfg.search.recursive.max_total_nodes = 120;
+
+	assert!(elf_config::validate(&cfg).is_ok());
+}
+
+#[test]
+fn recursive_search_settings_require_valid_depth_bounds() {
+	let mut cfg = base_config();
+
+	cfg.search.recursive.enabled = true;
+	cfg.search.recursive.max_depth = 0;
+
+	let err =
+		elf_config::validate(&cfg).expect_err("Expected recursive max_depth validation error.");
+
+	assert!(
+		err.to_string().contains("search.recursive.max_depth must be greater than zero."),
+		"Unexpected error: {err}"
+	);
+}
+
+#[test]
+fn recursive_search_settings_require_reasonable_bounds() {
+	let mut cfg = base_config();
+
+	cfg.search.recursive.enabled = true;
+	cfg.search.recursive.max_children_per_node = 0;
+
+	let err =
+		elf_config::validate(&cfg).expect_err("Expected recursive branch factor validation error.");
+
+	assert!(
+		err.to_string()
+			.contains("search.recursive.max_children_per_node must be greater than zero."),
+		"Unexpected error: {err}"
+	);
+
+	cfg = base_config();
+	cfg.search.recursive.enabled = true;
+	cfg.search.recursive.max_total_nodes = 8;
+	cfg.search.recursive.max_nodes_per_scope = 12;
+
+	let err = elf_config::validate(&cfg)
+		.expect_err("Expected recursive max_total_nodes lower-bound validation error.");
+
+	assert!(
+		err.to_string().contains(
+			"search.recursive.max_total_nodes must be at least search.recursive.max_nodes_per_scope."
+		),
 		"Unexpected error: {err}"
 	);
 }
