@@ -362,31 +362,35 @@ async fn rejects_cjk_in_search() {
 		"top_k": 5,
 		"candidate_k": 10
 	});
-	let response = app
-		.oneshot(
-			Request::builder()
-				.method("POST")
-				.uri("/v2/searches")
-				.header("X-ELF-Tenant-Id", "t")
-				.header("X-ELF-Project-Id", "p")
-				.header("X-ELF-Agent-Id", "a")
-				.header("X-ELF-Read-Profile", "private_only")
-				.header("content-type", "application/json")
-				.body(Body::from(payload.to_string()))
-				.expect("Failed to build request."),
-		)
-		.await
-		.expect("Failed to call search.");
 
-	assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+	for endpoint in ["/v2/search/quick", "/v2/search/planned"] {
+		let response = app
+			.clone()
+			.oneshot(
+				Request::builder()
+					.method("POST")
+					.uri(endpoint)
+					.header("X-ELF-Tenant-Id", "t")
+					.header("X-ELF-Project-Id", "p")
+					.header("X-ELF-Agent-Id", "a")
+					.header("X-ELF-Read-Profile", "private_only")
+					.header("content-type", "application/json")
+					.body(Body::from(payload.to_string()))
+					.expect("Failed to build request."),
+			)
+			.await
+			.expect("Failed to call search.");
 
-	let body = body::to_bytes(response.into_body(), usize::MAX)
-		.await
-		.expect("Failed to read response body.");
-	let json: Value = serde_json::from_slice(&body).expect("Failed to parse response.");
+		assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
 
-	assert_eq!(json["error_code"], "NON_ENGLISH_INPUT");
-	assert_eq!(json["fields"][0], "$.query");
+		let body = body::to_bytes(response.into_body(), usize::MAX)
+			.await
+			.expect("Failed to read response body.");
+		let json: Value = serde_json::from_slice(&body).expect("Failed to parse response.");
+
+		assert_eq!(json["error_code"], "NON_ENGLISH_INPUT");
+		assert_eq!(json["fields"][0], "$.query");
+	}
 
 	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }

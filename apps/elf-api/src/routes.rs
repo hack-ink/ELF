@@ -19,7 +19,7 @@ use elf_config::SecurityAuthKey;
 use elf_service::{
 	AddEventRequest, AddEventResponse, AddNoteInput, AddNoteRequest, AddNoteResponse,
 	DeleteRequest, DeleteResponse, Error, EventMessage, ListRequest, ListResponse,
-	NoteFetchRequest, NoteFetchResponse, RankingRequestOverride, RebuildReport,
+	NoteFetchRequest, NoteFetchResponse, QueryPlan, RankingRequestOverride, RebuildReport,
 	SearchDetailsRequest, SearchDetailsResult, SearchExplainRequest, SearchExplainResponse,
 	SearchIndexItem, SearchRequest, SearchResponse, SearchSessionGetRequest, SearchTimelineGroup,
 	SearchTimelineRequest, TraceGetRequest, TraceGetResponse, UpdateRequest, UpdateResponse,
@@ -86,6 +86,16 @@ struct SearchIndexResponseV2 {
 	#[serde(with = "elf_service::time_serde")]
 	expires_at: OffsetDateTime,
 	items: Vec<SearchIndexItem>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+struct SearchIndexPlannedResponseV2 {
+	trace_id: Uuid,
+	search_id: Uuid,
+	#[serde(with = "elf_service::time_serde")]
+	expires_at: OffsetDateTime,
+	items: Vec<SearchIndexItem>,
+	query_plan: QueryPlan,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -228,7 +238,8 @@ pub fn router(state: AppState) -> Router {
 		.route("/health", routing::get(health))
 		.route("/v2/notes/ingest", routing::post(notes_ingest))
 		.route("/v2/events/ingest", routing::post(events_ingest))
-		.route("/v2/searches", routing::post(searches_create))
+		.route("/v2/search/quick", routing::post(search_quick_create))
+		.route("/v2/search/planned", routing::post(search_planned_create))
 		.route("/v2/searches/:search_id", routing::get(searches_get))
 		.route("/v2/searches/:search_id/timeline", routing::get(searches_timeline))
 		.route("/v2/searches/:search_id/notes", routing::post(searches_notes))
@@ -597,7 +608,7 @@ async fn events_ingest(
 	Ok(Json(response))
 }
 
-async fn searches_create(
+async fn search_quick_create(
 	State(state): State<AppState>,
 	headers: HeaderMap,
 	payload: Result<Json<SearchCreateRequest>, JsonRejection>,
@@ -645,7 +656,7 @@ async fn searches_create(
 
 	let response = state
 		.service
-		.search(SearchRequest {
+		.search_quick(SearchRequest {
 			tenant_id: ctx.tenant_id,
 			project_id: ctx.project_id,
 			agent_id: ctx.agent_id,
@@ -664,6 +675,77 @@ async fn searches_create(
 		search_id: response.search_session_id,
 		expires_at: response.expires_at,
 		items: response.items,
+	}))
+}
+
+async fn search_planned_create(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	payload: Result<Json<SearchCreateRequest>, JsonRejection>,
+) -> Result<Json<SearchIndexPlannedResponseV2>, ApiError> {
+	let ctx = RequestContext::from_headers(&headers)?;
+	let read_profile = required_read_profile(&headers)?;
+	let Json(payload) = payload.map_err(|err| {
+		tracing::warn!(error = %err, "Invalid request payload.");
+
+		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+	})?;
+
+	if payload.query.chars().count() > MAX_QUERY_CHARS {
+		return Err(json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Query is too long.",
+			Some(vec!["$.query".to_string()]),
+		));
+	}
+	if payload.top_k.unwrap_or(state.service.cfg.memory.top_k) > MAX_TOP_K {
+		return Err(json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"top_k is too large.",
+			Some(vec!["$.top_k".to_string()]),
+		));
+	}
+	if payload.candidate_k.unwrap_or(state.service.cfg.memory.candidate_k) > MAX_CANDIDATE_K {
+		return Err(json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"candidate_k is too large.",
+			Some(vec!["$.candidate_k".to_string()]),
+		));
+	}
+	if payload.ranking.is_some() {
+		return Err(json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Ranking overrides are only supported on admin endpoints.".to_string(),
+			None,
+		));
+	}
+
+	let response = state
+		.service
+		.search_planned(SearchRequest {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+			agent_id: ctx.agent_id,
+			token_id: effective_token_id(state.service.cfg.security.auth_mode.as_str(), &headers),
+			read_profile,
+			query: payload.query,
+			top_k: payload.top_k,
+			candidate_k: payload.candidate_k,
+			record_hits: Some(false),
+			ranking: None,
+		})
+		.await?;
+
+	Ok(Json(SearchIndexPlannedResponseV2 {
+		trace_id: response.trace_id,
+		search_id: response.search_session_id,
+		expires_at: response.expires_at,
+		items: response.items,
+		query_plan: response.query_plan,
 	}))
 }
 

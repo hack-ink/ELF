@@ -29,6 +29,8 @@ use ranking::{ResolvedBlendPolicy, ResolvedDiversityPolicy, ResolvedRetrievalSou
 
 const TRACE_VERSION: i32 = 2;
 const MAX_MATCHED_TERMS: usize = 8;
+const QUERY_PLAN_SCHEMA: &str = "elf.search.query_plan";
+const QUERY_PLAN_VERSION: &str = "v1";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SearchRequest {
@@ -138,6 +140,105 @@ pub struct SearchItem {
 pub struct SearchResponse {
 	pub trace_id: Uuid,
 	pub items: Vec<SearchItem>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SearchRawPlannedResponse {
+	pub trace_id: Uuid,
+	pub items: Vec<SearchItem>,
+	pub query_plan: QueryPlan,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct QueryPlan {
+	pub schema: String,
+	pub version: String,
+	pub stages: Vec<QueryPlanStage>,
+	pub intent: QueryPlanIntent,
+	pub rewrite: QueryPlanRewrite,
+	pub retrieval_stages: Vec<QueryPlanRetrievalStage>,
+	pub fusion_policy: QueryPlanFusionPolicy,
+	pub rerank_policy: QueryPlanRerankPolicy,
+	pub budget: QueryPlanBudget,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct QueryPlanStage {
+	pub name: String,
+	pub details: Value,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct QueryPlanIntent {
+	pub query: String,
+	pub tenant_id: String,
+	pub project_id: String,
+	pub agent_id: String,
+	pub read_profile: String,
+	pub allowed_scopes: Vec<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct QueryPlanRewrite {
+	pub expansion_mode: String,
+	pub expanded_queries: Vec<String>,
+	pub dynamic_gate: QueryPlanDynamicGate,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct QueryPlanDynamicGate {
+	pub considered: bool,
+	pub should_expand: Option<bool>,
+	pub observed_candidates: Option<u32>,
+	pub observed_top_score: Option<f32>,
+	pub min_candidates: u32,
+	pub min_top_score: f32,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct QueryPlanRetrievalStage {
+	pub name: String,
+	pub source: String,
+	pub enabled: bool,
+	pub candidate_limit: u32,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct QueryPlanFusionPolicy {
+	pub strategy: String,
+	pub fusion_weight: f32,
+	pub structured_field_weight: f32,
+	pub fusion_priority: u32,
+	pub structured_field_priority: u32,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct QueryPlanBlendSegment {
+	pub max_retrieval_rank: u32,
+	pub retrieval_weight: f32,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct QueryPlanRerankPolicy {
+	pub provider_id: String,
+	pub model: String,
+	pub blend_enabled: bool,
+	pub rerank_normalization: String,
+	pub retrieval_normalization: String,
+	pub blend_segments: Vec<QueryPlanBlendSegment>,
+	pub diversity_enabled: bool,
+	pub diversity_sim_threshold: f32,
+	pub diversity_mmr_lambda: f32,
+	pub diversity_max_skips: u32,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct QueryPlanBudget {
+	pub top_k: u32,
+	pub candidate_k: u32,
+	pub prefilter_max_candidates: u32,
+	pub expansion_max_queries: u32,
+	pub cache_enabled: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -621,6 +722,54 @@ struct BuildTraceArgs<'a> {
 	ranking_override: &'a Option<RankingRequestOverride>,
 }
 
+struct BuildQueryPlanArgs<'a> {
+	path: RawSearchPath,
+	query: &'a str,
+	tenant_id: &'a str,
+	project_id: &'a str,
+	agent_id: &'a str,
+	read_profile: &'a str,
+	allowed_scopes: &'a [String],
+	expansion_mode: ExpansionMode,
+	expanded_queries: Vec<String>,
+	top_k: u32,
+	candidate_k: u32,
+	retrieval_sources_policy: &'a ResolvedRetrievalSourcesPolicy,
+	policies: &'a FinishSearchPolicies,
+	dynamic_gate: DynamicGateSummary,
+}
+
+struct RawSearchExecutionContext {
+	tenant_id: String,
+	project_id: String,
+	agent_id: String,
+	token_id: Option<String>,
+	top_k: u32,
+	candidate_k: u32,
+	query: String,
+	read_profile: String,
+	record_hits_enabled: bool,
+	ranking_override: Option<RankingRequestOverride>,
+	retrieval_sources_policy: ResolvedRetrievalSourcesPolicy,
+	expansion_mode: ExpansionMode,
+	trace_id: Uuid,
+	project_context_description: Option<String>,
+	allowed_scopes: Vec<String>,
+	policies: FinishSearchPolicies,
+}
+
+struct QueryPlanStagesArgs<'a> {
+	path: RawSearchPath,
+	query: &'a str,
+	read_profile: &'a str,
+	allowed_scope_count: usize,
+	rewrite: &'a QueryPlanRewrite,
+	retrieval_stages: &'a [QueryPlanRetrievalStage],
+	fusion_policy: &'a QueryPlanFusionPolicy,
+	rerank_policy: &'a QueryPlanRerankPolicy,
+	budget: &'a QueryPlanBudget,
+}
+
 struct BuildSearchItemArgs<'a> {
 	cfg: &'a Config,
 	policy_id: &'a str,
@@ -706,6 +855,20 @@ enum ExpansionMode {
 	Dynamic,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RawSearchPath {
+	Quick,
+	Planned,
+}
+
+#[derive(Clone, Debug, Default)]
+struct DynamicGateSummary {
+	considered: bool,
+	should_expand: Option<bool>,
+	observed_candidates: Option<u32>,
+	observed_top_score: Option<f32>,
+}
+
 #[derive(Clone, Copy, Debug)]
 enum CacheKind {
 	Expansion,
@@ -727,120 +890,241 @@ enum RetrievalSourceKind {
 }
 
 impl ElfService {
+	pub async fn search_raw_quick(&self, req: SearchRequest) -> Result<SearchResponse> {
+		self.execute_search_raw_path(req, RawSearchPath::Quick)
+			.await
+			.map(|response| SearchResponse { trace_id: response.trace_id, items: response.items })
+	}
+
+	pub async fn search_raw_planned(&self, req: SearchRequest) -> Result<SearchRawPlannedResponse> {
+		self.execute_search_raw_path(req, RawSearchPath::Planned).await
+	}
+
 	pub async fn search_raw(&self, req: SearchRequest) -> Result<SearchResponse> {
-		let tenant_id = req.tenant_id.trim();
-		let project_id = req.project_id.trim();
-		let agent_id = req.agent_id.trim();
-		let token_id = req.token_id.as_deref().map(str::trim).filter(|value| !value.is_empty());
+		self.search_raw_planned(req)
+			.await
+			.map(|response| SearchResponse { trace_id: response.trace_id, items: response.items })
+	}
 
-		validate_search_request_inputs(tenant_id, project_id, agent_id, req.query.as_str())?;
+	async fn execute_search_raw_path(
+		&self,
+		req: SearchRequest,
+		path: RawSearchPath,
+	) -> Result<SearchRawPlannedResponse> {
+		let context = self.prepare_raw_search_execution(req, path)?;
+		let dynamic_gate_enabled =
+			path == RawSearchPath::Planned && context.expansion_mode == ExpansionMode::Dynamic;
 
-		let top_k = req.top_k.unwrap_or(self.cfg.memory.top_k).max(1);
-		let candidate_k = req.candidate_k.unwrap_or(self.cfg.memory.candidate_k).max(top_k);
-		let query = req.query.clone();
-		let read_profile = req.read_profile.clone();
-		let record_hits_enabled = req.record_hits.unwrap_or(false);
-		let ranking_override = req.ranking.clone();
-		let retrieval_sources_policy = ranking::resolve_retrieval_sources_policy(
-			&self.cfg.ranking.retrieval_sources,
-			ranking_override.as_ref().and_then(|override_| override_.retrieval_sources.as_ref()),
-		)?;
-		let expansion_mode = ranking::resolve_expansion_mode(&self.cfg);
-		let trace_id = Uuid::new_v4();
-		let project_context_description =
-			self.resolve_project_context_description(tenant_id, project_id);
-		let allowed_scopes = ranking::resolve_scopes(&self.cfg, &read_profile)?;
-
-		if allowed_scopes.is_empty() {
-			return self
+		if context.allowed_scopes.is_empty() {
+			let expanded_queries = vec![context.query.clone()];
+			let response = self
 				.finish_search(FinishSearchArgs {
-					trace_id,
-					query: &query,
-					tenant_id,
-					project_id,
-					agent_id,
-					token_id,
-					read_profile: &read_profile,
-					allowed_scopes: &allowed_scopes,
-					expanded_queries: vec![query.clone()],
-					expansion_mode,
+					trace_id: context.trace_id,
+					query: context.query.as_str(),
+					tenant_id: context.tenant_id.as_str(),
+					project_id: context.project_id.as_str(),
+					agent_id: context.agent_id.as_str(),
+					token_id: context.token_id.as_deref(),
+					read_profile: context.read_profile.as_str(),
+					allowed_scopes: &context.allowed_scopes,
+					expanded_queries: expanded_queries.clone(),
+					expansion_mode: context.expansion_mode,
 					candidates: Vec::new(),
 					structured_matches: HashMap::new(),
-					top_k,
-					record_hits_enabled,
-					ranking_override: ranking_override.clone(),
+					top_k: context.top_k,
+					record_hits_enabled: context.record_hits_enabled,
+					ranking_override: context.ranking_override.clone(),
 				})
-				.await;
+				.await?;
+
+			return Ok(self.build_raw_planned_response(
+				&context,
+				path,
+				response,
+				expanded_queries,
+				DynamicGateSummary::default(),
+			));
 		}
 
-		let filter = build_search_filter(tenant_id, project_id, agent_id, &allowed_scopes);
-		let (baseline_vector, early_response) = self
+		let filter = build_search_filter(
+			context.tenant_id.as_str(),
+			context.project_id.as_str(),
+			context.agent_id.as_str(),
+			&context.allowed_scopes,
+		);
+		let (baseline_vector, early_response, dynamic_gate) = self
 			.maybe_finish_dynamic_search(MaybeDynamicSearchArgs {
-				enabled: expansion_mode == ExpansionMode::Dynamic,
-				trace_id,
-				query: query.as_str(),
-				tenant_id,
-				project_id,
-				agent_id,
-				token_id,
-				read_profile: read_profile.as_str(),
-				allowed_scopes: &allowed_scopes,
-				project_context_description,
+				enabled: dynamic_gate_enabled,
+				trace_id: context.trace_id,
+				query: context.query.as_str(),
+				tenant_id: context.tenant_id.as_str(),
+				project_id: context.project_id.as_str(),
+				agent_id: context.agent_id.as_str(),
+				token_id: context.token_id.as_deref(),
+				read_profile: context.read_profile.as_str(),
+				allowed_scopes: &context.allowed_scopes,
+				project_context_description: context.project_context_description.as_deref(),
 				filter: &filter,
-				candidate_k,
-				top_k,
-				record_hits_enabled,
-				ranking_override: ranking_override.as_ref(),
-				retrieval_sources_policy: &retrieval_sources_policy,
+				candidate_k: context.candidate_k,
+				top_k: context.top_k,
+				record_hits_enabled: context.record_hits_enabled,
+				ranking_override: context.ranking_override.as_ref(),
+				retrieval_sources_policy: &context.retrieval_sources_policy,
 			})
 			.await?;
 
 		if let Some(response) = early_response {
-			return Ok(response);
+			return Ok(self.build_raw_planned_response(
+				&context,
+				path,
+				response,
+				vec![context.query.clone()],
+				dynamic_gate,
+			));
 		}
 
 		let retrieval = self
 			.retrieve_search_candidates(SearchRetrievalArgs {
-				query: query.as_str(),
-				expansion_mode,
-				project_context_description,
+				query: context.query.as_str(),
+				expansion_mode: context.expansion_mode,
+				project_context_description: context.project_context_description.as_deref(),
 				filter: &filter,
-				candidate_k,
+				candidate_k: context.candidate_k,
 				baseline_vector: baseline_vector.as_ref(),
-				tenant_id,
-				project_id,
-				agent_id,
-				allowed_scopes: &allowed_scopes,
-				retrieval_sources_policy: &retrieval_sources_policy,
+				tenant_id: context.tenant_id.as_str(),
+				project_id: context.project_id.as_str(),
+				agent_id: context.agent_id.as_str(),
+				allowed_scopes: &context.allowed_scopes,
+				retrieval_sources_policy: &context.retrieval_sources_policy,
+			})
+			.await?;
+		let expanded_queries = retrieval.expanded_queries.clone();
+		let response = self
+			.finish_search(FinishSearchArgs {
+				trace_id: context.trace_id,
+				query: context.query.as_str(),
+				tenant_id: context.tenant_id.as_str(),
+				project_id: context.project_id.as_str(),
+				agent_id: context.agent_id.as_str(),
+				token_id: context.token_id.as_deref(),
+				read_profile: context.read_profile.as_str(),
+				allowed_scopes: &context.allowed_scopes,
+				expanded_queries: retrieval.expanded_queries,
+				expansion_mode: context.expansion_mode,
+				candidates: retrieval.candidates,
+				structured_matches: retrieval.structured_matches,
+				top_k: context.top_k,
+				record_hits_enabled: context.record_hits_enabled,
+				ranking_override: context.ranking_override.clone(),
 			})
 			.await?;
 
-		self.finish_search(FinishSearchArgs {
-			trace_id,
-			query: &query,
+		Ok(self.build_raw_planned_response(
+			&context,
+			path,
+			response,
+			expanded_queries,
+			dynamic_gate,
+		))
+	}
+
+	fn prepare_raw_search_execution(
+		&self,
+		req: SearchRequest,
+		path: RawSearchPath,
+	) -> Result<RawSearchExecutionContext> {
+		let tenant_id = req.tenant_id.trim().to_string();
+		let project_id = req.project_id.trim().to_string();
+		let agent_id = req.agent_id.trim().to_string();
+		let token_id = req
+			.token_id
+			.as_deref()
+			.map(str::trim)
+			.filter(|value| !value.is_empty())
+			.map(|value| value.to_string());
+
+		validate_search_request_inputs(
+			tenant_id.as_str(),
+			project_id.as_str(),
+			agent_id.as_str(),
+			req.query.as_str(),
+		)?;
+
+		let top_k = req.top_k.unwrap_or(self.cfg.memory.top_k).max(1);
+		let candidate_k = req.candidate_k.unwrap_or(self.cfg.memory.candidate_k).max(top_k);
+		let query = req.query;
+		let read_profile = req.read_profile;
+		let record_hits_enabled = req.record_hits.unwrap_or(false);
+		let ranking_override = req.ranking;
+		let retrieval_sources_policy = ranking::resolve_retrieval_sources_policy(
+			&self.cfg.ranking.retrieval_sources,
+			ranking_override.as_ref().and_then(|override_| override_.retrieval_sources.as_ref()),
+		)?;
+		let expansion_mode = match path {
+			RawSearchPath::Quick => ExpansionMode::Off,
+			RawSearchPath::Planned => ranking::resolve_expansion_mode(&self.cfg),
+		};
+		let trace_id = Uuid::new_v4();
+		let project_context_description = self
+			.resolve_project_context_description(tenant_id.as_str(), project_id.as_str())
+			.map(|value| value.to_string());
+		let allowed_scopes = ranking::resolve_scopes(&self.cfg, read_profile.as_str())?;
+		let policies = self.resolve_finish_search_policies(ranking_override.as_ref())?;
+
+		Ok(RawSearchExecutionContext {
 			tenant_id,
 			project_id,
 			agent_id,
 			token_id,
-			read_profile: &read_profile,
-			allowed_scopes: &allowed_scopes,
-			expanded_queries: retrieval.expanded_queries,
-			expansion_mode,
-			candidates: retrieval.candidates,
-			structured_matches: retrieval.structured_matches,
 			top_k,
+			candidate_k,
+			query,
+			read_profile,
 			record_hits_enabled,
 			ranking_override,
+			retrieval_sources_policy,
+			expansion_mode,
+			trace_id,
+			project_context_description,
+			allowed_scopes,
+			policies,
 		})
-		.await
+	}
+
+	fn build_raw_planned_response(
+		&self,
+		context: &RawSearchExecutionContext,
+		path: RawSearchPath,
+		response: SearchResponse,
+		expanded_queries: Vec<String>,
+		dynamic_gate: DynamicGateSummary,
+	) -> SearchRawPlannedResponse {
+		let query_plan = self.build_query_plan(BuildQueryPlanArgs {
+			path,
+			query: context.query.as_str(),
+			tenant_id: context.tenant_id.as_str(),
+			project_id: context.project_id.as_str(),
+			agent_id: context.agent_id.as_str(),
+			read_profile: context.read_profile.as_str(),
+			allowed_scopes: &context.allowed_scopes,
+			expansion_mode: context.expansion_mode,
+			expanded_queries,
+			top_k: context.top_k,
+			candidate_k: context.candidate_k,
+			retrieval_sources_policy: &context.retrieval_sources_policy,
+			policies: &context.policies,
+			dynamic_gate,
+		});
+
+		SearchRawPlannedResponse { trace_id: response.trace_id, items: response.items, query_plan }
 	}
 
 	async fn maybe_finish_dynamic_search(
 		&self,
 		args: MaybeDynamicSearchArgs<'_>,
-	) -> Result<(Option<Vec<f32>>, Option<SearchResponse>)> {
+	) -> Result<(Option<Vec<f32>>, Option<SearchResponse>, DynamicGateSummary)> {
 		if !args.enabled {
-			return Ok((None, None));
+			return Ok((None, None, DynamicGateSummary::default()));
 		}
 
 		let query_vec =
@@ -863,9 +1147,15 @@ impl ElfService {
 			top_score,
 			&self.cfg.search.dynamic,
 		);
+		let dynamic_gate = DynamicGateSummary {
+			considered: true,
+			should_expand: Some(should_expand),
+			observed_candidates: Some(baseline_points.len() as u32),
+			observed_top_score: Some(top_score),
+		};
 
 		if should_expand {
-			return Ok((Some(query_vec), None));
+			return Ok((Some(query_vec), None, dynamic_gate));
 		}
 
 		let structured = self
@@ -910,7 +1200,7 @@ impl ElfService {
 			})
 			.await?;
 
-		Ok((Some(query_vec), Some(response)))
+		Ok((Some(query_vec), Some(response), dynamic_gate))
 	}
 
 	async fn retrieve_search_candidates(
@@ -1880,6 +2170,198 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 		})
 	}
 
+	fn build_query_plan(&self, args: BuildQueryPlanArgs<'_>) -> QueryPlan {
+		let allowed_scopes = sorted_unique_strings(args.allowed_scopes.to_vec());
+		let expanded_queries = sorted_unique_strings(args.expanded_queries);
+		let retrieval_stages =
+			self.build_query_plan_retrieval_stages(args.candidate_k, args.retrieval_sources_policy);
+		let rewrite =
+			self.build_query_plan_rewrite(args.expansion_mode, expanded_queries, args.dynamic_gate);
+		let fusion_policy = self.build_query_plan_fusion_policy(args.retrieval_sources_policy);
+		let rerank_policy = self.build_query_plan_rerank_policy(args.policies);
+		let budget = self.build_query_plan_budget(args.top_k, args.candidate_k);
+		let stages = Self::build_query_plan_stages(QueryPlanStagesArgs {
+			path: args.path,
+			query: args.query,
+			read_profile: args.read_profile,
+			allowed_scope_count: allowed_scopes.len(),
+			rewrite: &rewrite,
+			retrieval_stages: &retrieval_stages,
+			fusion_policy: &fusion_policy,
+			rerank_policy: &rerank_policy,
+			budget: &budget,
+		});
+
+		QueryPlan {
+			schema: QUERY_PLAN_SCHEMA.to_string(),
+			version: QUERY_PLAN_VERSION.to_string(),
+			stages,
+			intent: QueryPlanIntent {
+				query: args.query.to_string(),
+				tenant_id: args.tenant_id.to_string(),
+				project_id: args.project_id.to_string(),
+				agent_id: args.agent_id.to_string(),
+				read_profile: args.read_profile.to_string(),
+				allowed_scopes,
+			},
+			rewrite,
+			retrieval_stages,
+			fusion_policy,
+			rerank_policy,
+			budget,
+		}
+	}
+
+	fn build_query_plan_retrieval_stages(
+		&self,
+		candidate_k: u32,
+		retrieval_sources_policy: &ResolvedRetrievalSourcesPolicy,
+	) -> Vec<QueryPlanRetrievalStage> {
+		vec![
+			QueryPlanRetrievalStage {
+				name: "fusion_dense_bm25".to_string(),
+				source: "qdrant_fusion".to_string(),
+				enabled: true,
+				candidate_limit: candidate_k,
+			},
+			QueryPlanRetrievalStage {
+				name: "structured_field_vector".to_string(),
+				source: "postgres_vector".to_string(),
+				enabled: retrieval_sources_policy.structured_field_weight > 0.0,
+				candidate_limit: candidate_k,
+			},
+		]
+	}
+
+	fn build_query_plan_rewrite(
+		&self,
+		expansion_mode: ExpansionMode,
+		expanded_queries: Vec<String>,
+		dynamic_gate: DynamicGateSummary,
+	) -> QueryPlanRewrite {
+		QueryPlanRewrite {
+			expansion_mode: ranking::expansion_mode_label(expansion_mode).to_string(),
+			expanded_queries,
+			dynamic_gate: QueryPlanDynamicGate {
+				considered: dynamic_gate.considered,
+				should_expand: dynamic_gate.should_expand,
+				observed_candidates: dynamic_gate.observed_candidates,
+				observed_top_score: dynamic_gate.observed_top_score,
+				min_candidates: self.cfg.search.dynamic.min_candidates,
+				min_top_score: self.cfg.search.dynamic.min_top_score,
+			},
+		}
+	}
+
+	fn build_query_plan_fusion_policy(
+		&self,
+		retrieval_sources_policy: &ResolvedRetrievalSourcesPolicy,
+	) -> QueryPlanFusionPolicy {
+		QueryPlanFusionPolicy {
+			strategy: "weighted_merge".to_string(),
+			fusion_weight: retrieval_sources_policy.fusion_weight,
+			structured_field_weight: retrieval_sources_policy.structured_field_weight,
+			fusion_priority: retrieval_sources_policy.fusion_priority,
+			structured_field_priority: retrieval_sources_policy.structured_field_priority,
+		}
+	}
+
+	fn build_query_plan_rerank_policy(
+		&self,
+		policies: &FinishSearchPolicies,
+	) -> QueryPlanRerankPolicy {
+		QueryPlanRerankPolicy {
+			provider_id: self.cfg.providers.rerank.provider_id.clone(),
+			model: self.cfg.providers.rerank.model.clone(),
+			blend_enabled: policies.blend_policy.enabled,
+			rerank_normalization: policies.blend_policy.rerank_normalization.as_str().to_string(),
+			retrieval_normalization: policies
+				.blend_policy
+				.retrieval_normalization
+				.as_str()
+				.to_string(),
+			blend_segments: policies
+				.blend_policy
+				.segments
+				.iter()
+				.map(|segment| QueryPlanBlendSegment {
+					max_retrieval_rank: segment.max_retrieval_rank,
+					retrieval_weight: segment.retrieval_weight,
+				})
+				.collect(),
+			diversity_enabled: policies.diversity_policy.enabled,
+			diversity_sim_threshold: policies.diversity_policy.sim_threshold,
+			diversity_mmr_lambda: policies.diversity_policy.mmr_lambda,
+			diversity_max_skips: policies.diversity_policy.max_skips,
+		}
+	}
+
+	fn build_query_plan_budget(&self, top_k: u32, candidate_k: u32) -> QueryPlanBudget {
+		QueryPlanBudget {
+			top_k,
+			candidate_k,
+			prefilter_max_candidates: self.cfg.search.prefilter.max_candidates,
+			expansion_max_queries: self.cfg.search.expansion.max_queries,
+			cache_enabled: self.cfg.search.cache.enabled,
+		}
+	}
+
+	fn build_query_plan_stages(args: QueryPlanStagesArgs<'_>) -> Vec<QueryPlanStage> {
+		vec![
+			QueryPlanStage {
+				name: "intent".to_string(),
+				details: serde_json::json!({
+					"path": raw_search_path_label(args.path),
+					"query": args.query,
+					"read_profile": args.read_profile,
+					"allowed_scope_count": args.allowed_scope_count,
+				}),
+			},
+			QueryPlanStage {
+				name: "rewrite".to_string(),
+				details: serde_json::json!({
+					"expansion_mode": args.rewrite.expansion_mode.as_str(),
+					"expanded_query_count": args.rewrite.expanded_queries.len(),
+					"dynamic_gate_considered": args.rewrite.dynamic_gate.considered,
+					"dynamic_gate_should_expand": args.rewrite.dynamic_gate.should_expand,
+				}),
+			},
+			QueryPlanStage {
+				name: "retrieval".to_string(),
+				details: serde_json::json!({
+					"stages": args.retrieval_stages,
+				}),
+			},
+			QueryPlanStage {
+				name: "fusion".to_string(),
+				details: serde_json::json!({
+					"strategy": args.fusion_policy.strategy.as_str(),
+					"fusion_weight": args.fusion_policy.fusion_weight,
+					"structured_field_weight": args.fusion_policy.structured_field_weight,
+				}),
+			},
+			QueryPlanStage {
+				name: "rerank".to_string(),
+				details: serde_json::json!({
+					"provider_id": args.rerank_policy.provider_id.as_str(),
+					"model": args.rerank_policy.model.as_str(),
+					"blend_enabled": args.rerank_policy.blend_enabled,
+					"diversity_enabled": args.rerank_policy.diversity_enabled,
+				}),
+			},
+			QueryPlanStage {
+				name: "budget".to_string(),
+				details: serde_json::json!({
+					"top_k": args.budget.top_k,
+					"candidate_k": args.budget.candidate_k,
+					"prefilter_max_candidates": args.budget.prefilter_max_candidates,
+					"expansion_max_queries": args.budget.expansion_max_queries,
+					"cache_enabled": args.budget.cache_enabled,
+				}),
+			},
+		]
+	}
+
 	async fn score_snippet_items(
 		&self,
 		args: ScoreSnippetArgs<'_, '_>,
@@ -2533,6 +3015,20 @@ fn validate_search_request_inputs(
 	}
 
 	Ok(())
+}
+
+fn raw_search_path_label(path: RawSearchPath) -> &'static str {
+	match path {
+		RawSearchPath::Quick => "quick",
+		RawSearchPath::Planned => "planned",
+	}
+}
+
+fn sorted_unique_strings(mut values: Vec<String>) -> Vec<String> {
+	values.sort();
+	values.dedup();
+
+	values
 }
 
 fn build_search_filter(

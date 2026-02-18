@@ -9,7 +9,7 @@ use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
 use crate::{
-	ElfService, Error, NoteFetchResponse, Result, SearchRequest,
+	ElfService, Error, NoteFetchResponse, QueryPlan, Result, SearchRequest,
 	structured_fields::StructuredFields,
 };
 use elf_config::Config;
@@ -42,6 +42,16 @@ pub struct SearchIndexResponse {
 	#[serde(with = "crate::time_serde")]
 	pub expires_at: OffsetDateTime,
 	pub items: Vec<SearchIndexItem>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SearchIndexPlannedResponse {
+	pub trace_id: Uuid,
+	pub search_session_id: Uuid,
+	#[serde(with = "crate::time_serde")]
+	pub expires_at: OffsetDateTime,
+	pub items: Vec<SearchIndexItem>,
+	pub query_plan: QueryPlan,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -115,6 +125,17 @@ struct HitItem {
 	final_score: f32,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SearchSessionizePath {
+	Quick,
+	Planned,
+}
+
+struct SearchSessionizedOutput {
+	index: SearchIndexResponse,
+	query_plan: Option<QueryPlan>,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct SearchSessionItemRecord {
 	rank: u32,
@@ -177,6 +198,40 @@ struct NewSearchSession<'a> {
 
 impl ElfService {
 	pub async fn search(&self, req: SearchRequest) -> Result<SearchIndexResponse> {
+		let response = self.search_planned(req).await?;
+
+		Ok(SearchIndexResponse {
+			trace_id: response.trace_id,
+			search_session_id: response.search_session_id,
+			expires_at: response.expires_at,
+			items: response.items,
+		})
+	}
+
+	pub async fn search_quick(&self, req: SearchRequest) -> Result<SearchIndexResponse> {
+		self.search_sessionized(req, SearchSessionizePath::Quick).await.map(|output| output.index)
+	}
+
+	pub async fn search_planned(&self, req: SearchRequest) -> Result<SearchIndexPlannedResponse> {
+		let output = self.search_sessionized(req, SearchSessionizePath::Planned).await?;
+		let query_plan = output.query_plan.ok_or_else(|| Error::Storage {
+			message: "Planned search response is missing query_plan.".to_string(),
+		})?;
+
+		Ok(SearchIndexPlannedResponse {
+			trace_id: output.index.trace_id,
+			search_session_id: output.index.search_session_id,
+			expires_at: output.index.expires_at,
+			items: output.index.items,
+			query_plan,
+		})
+	}
+
+	async fn search_sessionized(
+		&self,
+		req: SearchRequest,
+		path: SearchSessionizePath,
+	) -> Result<SearchSessionizedOutput> {
 		let top_k = req.top_k.unwrap_or(self.cfg.memory.top_k).max(1);
 		let candidate_k = req.candidate_k.unwrap_or(self.cfg.memory.candidate_k).max(top_k);
 		let mut raw_req = req.clone();
@@ -184,16 +239,27 @@ impl ElfService {
 		raw_req.top_k = Some(candidate_k);
 		raw_req.record_hits = Some(false);
 
-		let raw = self.search_raw(raw_req).await?;
+		let (trace_id, raw_items, query_plan) = match path {
+			SearchSessionizePath::Quick => {
+				let raw = self.search_raw_quick(raw_req).await?;
+
+				(raw.trace_id, raw.items, None)
+			},
+			SearchSessionizePath::Planned => {
+				let raw = self.search_raw_planned(raw_req).await?;
+
+				(raw.trace_id, raw.items, Some(raw.query_plan))
+			},
+		};
 		let now = OffsetDateTime::now_utc();
 		let expires_at = now + Duration::hours(SESSION_SLIDING_TTL_HOURS);
 		let search_session_id = Uuid::new_v4();
-		let note_ids: Vec<Uuid> = raw.items.iter().map(|item| item.note_id).collect();
+		let note_ids: Vec<Uuid> = raw_items.iter().map(|item| item.note_id).collect();
 		let structured_by_note =
 			crate::structured_fields::fetch_structured_fields(&self.db.pool, &note_ids).await?;
-		let mut items = Vec::with_capacity(raw.items.len());
+		let mut items = Vec::with_capacity(raw_items.len());
 
-		for (idx, item) in raw.items.iter().enumerate() {
+		for (idx, item) in raw_items.iter().enumerate() {
 			let summary = structured_by_note
 				.get(&item.note_id)
 				.and_then(|value| value.summary.clone())
@@ -221,7 +287,7 @@ impl ElfService {
 			&self.db.pool,
 			NewSearchSession {
 				search_session_id,
-				trace_id: raw.trace_id,
+				trace_id,
 				tenant_id: &req.tenant_id,
 				project_id: &req.project_id,
 				agent_id: &req.agent_id,
@@ -237,11 +303,14 @@ impl ElfService {
 		let response_items: Vec<SearchIndexItem> =
 			items.into_iter().take(top_k as usize).map(|item| item.to_index_item()).collect();
 
-		Ok(SearchIndexResponse {
-			trace_id: raw.trace_id,
-			search_session_id,
-			expires_at,
-			items: response_items,
+		Ok(SearchSessionizedOutput {
+			index: SearchIndexResponse {
+				trace_id,
+				search_session_id,
+				expires_at,
+				items: response_items,
+			},
+			query_plan,
 		})
 	}
 
