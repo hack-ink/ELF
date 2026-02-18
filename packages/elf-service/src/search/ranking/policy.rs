@@ -347,9 +347,8 @@ pub fn resolve_retrieval_sources_policy(
 	let structured_field_weight = override_
 		.and_then(|value| value.structured_field_weight)
 		.unwrap_or(cfg.structured_field_weight);
-	let recursive_weight = override_
-		.and_then(|value| value.recursive_weight)
-		.unwrap_or(structured_field_weight);
+	let recursive_weight =
+		override_.and_then(|value| value.recursive_weight).unwrap_or(structured_field_weight);
 	let fusion_priority =
 		override_.and_then(|value| value.fusion_priority).unwrap_or(cfg.fusion_priority);
 	let structured_field_priority = override_
