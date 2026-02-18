@@ -53,6 +53,7 @@ pub fn collect_chunk_candidates(
 		};
 		let updated_at = payload_rfc3339(&point.payload, "updated_at");
 		let embedding_version = payload_string(&point.payload, "embedding_version");
+		let scope = payload_string(&point.payload, "scope");
 
 		out.push(ChunkCandidate {
 			chunk_id,
@@ -61,6 +62,7 @@ pub fn collect_chunk_candidates(
 			retrieval_rank: idx as u32 + 1,
 			updated_at,
 			embedding_version,
+			scope,
 		});
 	}
 
@@ -74,6 +76,7 @@ pub fn retrieval_source_weight(
 	match source {
 		RetrievalSourceKind::Fusion => policy.fusion_weight,
 		RetrievalSourceKind::StructuredField => policy.structured_field_weight,
+		RetrievalSourceKind::Recursive => policy.recursive_weight,
 	}
 }
 
@@ -84,6 +87,7 @@ pub fn retrieval_source_priority(
 	match source {
 		RetrievalSourceKind::StructuredField => policy.structured_field_priority,
 		RetrievalSourceKind::Fusion => policy.fusion_priority,
+		RetrievalSourceKind::Recursive => policy.recursive_priority,
 	}
 }
 
@@ -91,6 +95,7 @@ pub fn retrieval_source_kind_order(source: RetrievalSourceKind) -> u8 {
 	match source {
 		RetrievalSourceKind::StructuredField => 0,
 		RetrievalSourceKind::Fusion => 1,
+		RetrievalSourceKind::Recursive => 2,
 	}
 }
 

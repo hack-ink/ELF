@@ -432,6 +432,7 @@ async fn structured_fact_field_can_surface_note_and_marks_matched_fields() {
 			agent_id: "a".to_string(),
 			token_id: None,
 			read_profile: "private_only".to_string(),
+			payload_level: Default::default(),
 			query: query.to_string(),
 			top_k: Some(1),
 			candidate_k: Some(10),

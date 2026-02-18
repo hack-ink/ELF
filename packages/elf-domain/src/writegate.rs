@@ -207,6 +207,7 @@ mod tests {
 					candidate_retention_days: 2,
 					write_mode: "outbox".to_string(),
 				},
+				recursive: Default::default(),
 			},
 			ranking: test_ranking(),
 			lifecycle: Lifecycle {
