@@ -23,6 +23,14 @@ This document is normative. When a new versioned identifier is introduced, it mu
 - Bump rule: Change the identifier only when the payload becomes incompatible with the previous version. Do not reuse older identifiers.
 - Notes: The v2 model is additive. `final_score` must equal the sum of `terms[].value`.
 
+### Search retrieval trajectory schema
+
+- Identifier: `search_retrieval_trajectory/v1`.
+- Type: JSON schema identifier for staged retrieval trajectory payloads.
+- Defined in: `packages/elf-service/src/search.rs` (`SEARCH_RETRIEVAL_TRAJECTORY_SCHEMA_V1`).
+- Consumers: Admin trajectory endpoint, trace summaries, item explain trajectory output, evaluation attribution.
+- Bump rule: Change the identifier only for incompatible trajectory payload changes. Keep previous identifiers immutable.
+
 ### Ranking policy identifier
 
 - Identifier: `ranking_v2:<hash>`.
@@ -33,7 +41,7 @@ This document is normative. When a new versioned identifier is introduced, it mu
 
 ### Search trace version
 
-- Identifier: `trace_version` (integer), current value `2`.
+- Identifier: `trace_version` (integer), current value `3`.
 - Type: Trace schema version for search traces.
 - Defined in: `packages/elf-service/src/search.rs` (`TRACE_VERSION`), `sql/tables/006_search_traces.sql`.
 - Consumers: Worker trace persistence, trace readers, evaluation harness.

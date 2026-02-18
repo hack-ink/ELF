@@ -22,7 +22,8 @@ use elf_service::{
 	NoteFetchRequest, NoteFetchResponse, QueryPlan, RankingRequestOverride, RebuildReport,
 	SearchDetailsRequest, SearchDetailsResult, SearchExplainRequest, SearchExplainResponse,
 	SearchIndexItem, SearchRequest, SearchResponse, SearchSessionGetRequest, SearchTimelineGroup,
-	SearchTimelineRequest, TraceGetRequest, TraceGetResponse, UpdateRequest, UpdateResponse,
+	SearchTimelineRequest, SearchTrajectoryResponse, TraceGetRequest, TraceGetResponse,
+	TraceTrajectoryGetRequest, UpdateRequest, UpdateResponse,
 };
 
 const HEADER_TENANT_ID: &str = "X-ELF-Tenant-Id";
@@ -260,6 +261,7 @@ pub fn admin_router(state: AppState) -> Router {
 		.route("/v2/admin/qdrant/rebuild", routing::post(rebuild_qdrant))
 		.route("/v2/admin/searches/raw", routing::post(searches_raw))
 		.route("/v2/admin/traces/:trace_id", routing::get(trace_get))
+		.route("/v2/admin/trajectories/:trace_id", routing::get(trace_trajectory_get))
 		.route("/v2/admin/trace-items/:item_id", routing::get(trace_item_get))
 		.with_state(state)
 		.layer(DefaultBodyLimit::max(MAX_REQUEST_BYTES))
@@ -1032,6 +1034,25 @@ async fn trace_get(
 	let response = state
 		.service
 		.trace_get(TraceGetRequest {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+			agent_id: ctx.agent_id,
+			trace_id,
+		})
+		.await?;
+
+	Ok(Json(response))
+}
+
+async fn trace_trajectory_get(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	Path(trace_id): Path<Uuid>,
+) -> Result<Json<SearchTrajectoryResponse>, ApiError> {
+	let ctx = RequestContext::from_headers(&headers)?;
+	let response = state
+		.service
+		.trace_trajectory_get(TraceTrajectoryGetRequest {
 			tenant_id: ctx.tenant_id,
 			project_id: ctx.project_id,
 			agent_id: ctx.agent_id,
