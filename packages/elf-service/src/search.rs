@@ -14,7 +14,7 @@ use qdrant_client::qdrant::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sqlx::{PgConnection, PgExecutor, QueryBuilder};
+use sqlx::{PgConnection, PgExecutor, PgPool, QueryBuilder, Row};
 use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
@@ -27,10 +27,12 @@ use elf_storage::{
 };
 use ranking::{ResolvedBlendPolicy, ResolvedDiversityPolicy, ResolvedRetrievalSourcesPolicy};
 
-const TRACE_VERSION: i32 = 2;
+const TRACE_VERSION: i32 = 3;
 const MAX_MATCHED_TERMS: usize = 8;
+const MAX_TRAJECTORY_STAGE_ITEMS: usize = 256;
 const QUERY_PLAN_SCHEMA: &str = "elf.search.query_plan";
 const QUERY_PLAN_VERSION: &str = "v1";
+const SEARCH_RETRIEVAL_TRAJECTORY_SCHEMA_V1: &str = "search_retrieval_trajectory/v1";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SearchRequest {
@@ -269,6 +271,56 @@ pub struct SearchTrace {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SearchTrajectorySummary {
+	pub schema: String,
+	pub stages: Vec<SearchTrajectorySummaryStage>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SearchTrajectorySummaryStage {
+	pub stage_order: u32,
+	pub stage_name: String,
+	pub item_count: u32,
+	pub stats: Value,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SearchTrajectoryStage {
+	pub stage_order: u32,
+	pub stage_name: String,
+	pub stage_payload: Value,
+	pub items: Vec<SearchTrajectoryStageItem>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SearchTrajectoryStageItem {
+	pub item_id: Option<Uuid>,
+	pub note_id: Option<Uuid>,
+	pub chunk_id: Option<Uuid>,
+	pub metrics: Value,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SearchTrajectoryResponse {
+	pub trace: SearchTrace,
+	pub trajectory: SearchTrajectorySummary,
+	pub stages: Vec<SearchTrajectoryStage>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SearchExplainTrajectory {
+	pub schema: String,
+	pub stages: Vec<SearchExplainTrajectoryStage>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SearchExplainTrajectoryStage {
+	pub stage_order: u32,
+	pub stage_name: String,
+	pub metrics: Value,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SearchExplainItem {
 	pub result_handle: Uuid,
 	pub note_id: Uuid,
@@ -281,6 +333,8 @@ pub struct SearchExplainItem {
 pub struct SearchExplainResponse {
 	pub trace: SearchTrace,
 	pub item: SearchExplainItem,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub trajectory: Option<SearchExplainTrajectory>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -292,9 +346,19 @@ pub struct TraceGetRequest {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TraceTrajectoryGetRequest {
+	pub tenant_id: String,
+	pub project_id: String,
+	pub agent_id: String,
+	pub trace_id: Uuid,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TraceGetResponse {
 	pub trace: SearchTrace,
 	pub items: Vec<SearchExplainItem>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub trajectory_summary: Option<SearchTrajectorySummary>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -363,6 +427,7 @@ struct ScoreCandidateCtx<'a, 'k> {
 }
 
 struct MaybeDynamicSearchArgs<'a> {
+	path: RawSearchPath,
 	enabled: bool,
 	trace_id: Uuid,
 	query: &'a str,
@@ -562,6 +627,8 @@ struct TracePayload {
 	items: Vec<TraceItemRecord>,
 	#[serde(default)]
 	candidates: Vec<TraceCandidateRecord>,
+	#[serde(default)]
+	stages: Vec<TraceTrajectoryStageRecord>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -613,6 +680,26 @@ struct TraceCandidateRecord {
 	expires_at: OffsetDateTime,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct TraceTrajectoryStageRecord {
+	stage_id: Uuid,
+	stage_order: u32,
+	stage_name: String,
+	stage_payload: Value,
+	created_at: OffsetDateTime,
+	#[serde(default)]
+	items: Vec<TraceTrajectoryStageItemRecord>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct TraceTrajectoryStageItemRecord {
+	id: Uuid,
+	item_id: Option<Uuid>,
+	note_id: Option<Uuid>,
+	chunk_id: Option<Uuid>,
+	metrics: Value,
+}
+
 struct TraceContext<'a> {
 	trace_id: Uuid,
 	tenant_id: &'a str,
@@ -631,6 +718,7 @@ struct SearchTraceBuilder {
 	trace: TraceRecord,
 	items: Vec<TraceItemRecord>,
 	candidates: Vec<TraceCandidateRecord>,
+	stages: Vec<TraceTrajectoryStageRecord>,
 }
 impl SearchTraceBuilder {
 	fn new(
@@ -657,7 +745,7 @@ impl SearchTraceBuilder {
 			expires_at: now + Duration::days(retention_days),
 		};
 
-		Self { trace, items: Vec::new(), candidates: Vec::new() }
+		Self { trace, items: Vec::new(), candidates: Vec::new(), stages: Vec::new() }
 	}
 
 	fn push_item(&mut self, item: TraceItemRecord) {
@@ -668,12 +756,22 @@ impl SearchTraceBuilder {
 		self.candidates.push(candidate);
 	}
 
+	fn push_stage(&mut self, stage: TraceTrajectoryStageRecord) {
+		self.stages.push(stage);
+	}
+
 	fn build(self) -> TracePayload {
-		TracePayload { trace: self.trace, items: self.items, candidates: self.candidates }
+		TracePayload {
+			trace: self.trace,
+			items: self.items,
+			candidates: self.candidates,
+			stages: self.stages,
+		}
 	}
 }
 
 struct FinishSearchArgs<'a> {
+	path: RawSearchPath,
 	trace_id: Uuid,
 	query: &'a str,
 	tenant_id: &'a str,
@@ -700,6 +798,7 @@ struct FinishSearchPolicies {
 }
 
 struct BuildTraceArgs<'a> {
+	path: RawSearchPath,
 	trace_id: Uuid,
 	query: &'a str,
 	tenant_id: &'a str,
@@ -711,11 +810,18 @@ struct BuildTraceArgs<'a> {
 	expanded_queries: Vec<String>,
 	allowed_scopes: &'a [String],
 	candidate_count: usize,
+	filtered_candidate_count: usize,
+	snippet_count: usize,
+	scored_count: usize,
+	fused_count: usize,
+	selected_count: usize,
 	top_k: u32,
 	query_tokens: &'a [String],
 	structured_matches: &'a HashMap<Uuid, Vec<String>>,
 	policies: &'a FinishSearchPolicies,
 	diversity_decisions: &'a HashMap<Uuid, DiversityDecision>,
+	recall_candidates: Vec<ChunkCandidate>,
+	fused_results: Vec<ScoredChunk>,
 	selected_results: Vec<ScoredChunk>,
 	trace_candidates: Vec<TraceCandidateRecord>,
 	now: OffsetDateTime,
@@ -848,45 +954,12 @@ struct ScoredReplay {
 	deterministic_decay_penalty: f32,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum ExpansionMode {
-	Off,
-	Always,
-	Dynamic,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum RawSearchPath {
-	Quick,
-	Planned,
-}
-
 #[derive(Clone, Debug, Default)]
 struct DynamicGateSummary {
 	considered: bool,
 	should_expand: Option<bool>,
 	observed_candidates: Option<u32>,
 	observed_top_score: Option<f32>,
-}
-
-#[derive(Clone, Copy, Debug)]
-enum CacheKind {
-	Expansion,
-	Rerank,
-}
-impl CacheKind {
-	fn as_str(self) -> &'static str {
-		match self {
-			Self::Expansion => "expansion",
-			Self::Rerank => "rerank",
-		}
-	}
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-enum RetrievalSourceKind {
-	Fusion,
-	StructuredField,
 }
 
 impl ElfService {
@@ -919,6 +992,7 @@ impl ElfService {
 			let expanded_queries = vec![context.query.clone()];
 			let response = self
 				.finish_search(FinishSearchArgs {
+					path,
 					trace_id: context.trace_id,
 					query: context.query.as_str(),
 					tenant_id: context.tenant_id.as_str(),
@@ -954,6 +1028,7 @@ impl ElfService {
 		);
 		let (baseline_vector, early_response, dynamic_gate) = self
 			.maybe_finish_dynamic_search(MaybeDynamicSearchArgs {
+				path,
 				enabled: dynamic_gate_enabled,
 				trace_id: context.trace_id,
 				query: context.query.as_str(),
@@ -1001,6 +1076,7 @@ impl ElfService {
 		let expanded_queries = retrieval.expanded_queries.clone();
 		let response = self
 			.finish_search(FinishSearchArgs {
+				path,
 				trace_id: context.trace_id,
 				query: context.query.as_str(),
 				tenant_id: context.tenant_id.as_str(),
@@ -1182,6 +1258,7 @@ impl ElfService {
 		);
 		let response = self
 			.finish_search(FinishSearchArgs {
+				path: args.path,
 				trace_id: args.trace_id,
 				query: args.query,
 				tenant_id: args.tenant_id,
@@ -1389,8 +1466,9 @@ WHERE i.item_id = $1 AND t.tenant_id = $2 AND t.project_id = $3 AND t.agent_id =
 			rank: row.rank as u32,
 			explain,
 		};
+		let trajectory = load_item_trajectory(&self.db.pool, row.trace_id, row.item_id).await?;
 
-		Ok(SearchExplainResponse { trace, item })
+		Ok(SearchExplainResponse { trace, item, trajectory })
 	}
 
 	pub async fn trace_get(&self, req: TraceGetRequest) -> Result<TraceGetResponse> {
@@ -1484,7 +1562,27 @@ ORDER BY rank ASC",
 			});
 		}
 
-		Ok(TraceGetResponse { trace, items })
+		let trajectory_summary = load_trace_trajectory_summary(&self.db.pool, req.trace_id).await?;
+
+		Ok(TraceGetResponse { trace, items, trajectory_summary })
+	}
+
+	pub async fn trace_trajectory_get(
+		&self,
+		req: TraceTrajectoryGetRequest,
+	) -> Result<SearchTrajectoryResponse> {
+		let base = self
+			.trace_get(TraceGetRequest {
+				tenant_id: req.tenant_id,
+				project_id: req.project_id,
+				agent_id: req.agent_id,
+				trace_id: req.trace_id,
+			})
+			.await?;
+		let stages = load_trace_trajectory_stages(&self.db.pool, req.trace_id).await?;
+		let trajectory = build_trajectory_summary_from_stages(stages.as_slice());
+
+		Ok(SearchTrajectoryResponse { trace: base.trace, trajectory, stages })
 	}
 
 	async fn embed_single_query(
@@ -2043,6 +2141,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 
 	async fn finish_search(&self, args: FinishSearchArgs<'_>) -> Result<SearchResponse> {
 		let FinishSearchArgs {
+			path,
 			trace_id,
 			query,
 			tenant_id,
@@ -2077,7 +2176,9 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 			.into_iter()
 			.filter(|candidate| ranking::candidate_matches_note(&note_meta, candidate))
 			.collect();
+		let filtered_candidate_count = filtered_candidates.len();
 		let snippet_items = self.build_snippet_items(&filtered_candidates, &note_meta).await?;
+		let snippet_count = snippet_items.len();
 		let query_tokens = ranking::tokenize_query(query, MAX_MATCHED_TERMS);
 		let scope_context_boost_by_scope =
 			ranking::build_scope_context_boost_by_scope(&query_tokens, self.cfg.context.as_ref());
@@ -2095,10 +2196,14 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 				candidate_count,
 			})
 			.await?;
+		let scored_count = scored.len();
 		let mut trace_candidates = self.build_trace_candidates(&scored, now);
 		let results = select_best_scored_chunks(scored);
+		let fused_count = results.len();
+		let fused_results = results.clone();
 		let (selected_results, diversity_decisions) =
 			self.apply_diversity_policy(results, top_k, &policies.diversity_policy).await?;
+		let selected_count = selected_results.len();
 
 		ranking::attach_diversity_decisions_to_trace_candidates(
 			&mut trace_candidates,
@@ -2108,6 +2213,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 		self.record_hits_if_enabled(record_hits_enabled, query, &selected_results, now).await?;
 
 		let (items, trace_payload) = self.build_items_and_trace_payload(BuildTraceArgs {
+			path,
 			trace_id,
 			query,
 			tenant_id,
@@ -2119,11 +2225,18 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 			expanded_queries,
 			allowed_scopes,
 			candidate_count,
+			filtered_candidate_count,
+			snippet_count,
+			scored_count,
+			fused_count,
+			selected_count,
 			top_k,
 			query_tokens: query_tokens.as_slice(),
 			structured_matches: &structured_matches,
 			policies: &policies,
 			diversity_decisions: &diversity_decisions,
+			recall_candidates: filtered_candidates,
+			fused_results,
 			selected_results,
 			trace_candidates,
 			now,
@@ -2467,6 +2580,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 		&self,
 		args: BuildTraceArgs<'_>,
 	) -> (Vec<SearchItem>, TracePayload) {
+		let mut trajectory_stages = build_trace_trajectory_stages(&args);
 		let trace_context = TraceContext {
 			trace_id: args.trace_id,
 			tenant_id: args.tenant_id,
@@ -2475,7 +2589,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 			read_profile: args.read_profile,
 			query: args.query,
 			expansion_mode: args.expansion_mode,
-			expanded_queries: args.expanded_queries,
+			expanded_queries: args.expanded_queries.clone(),
 			allowed_scopes: args.allowed_scopes,
 			candidate_count: args.candidate_count,
 			top_k: args.top_k,
@@ -2501,6 +2615,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 			self.cfg.search.explain.retention_days,
 			args.now,
 		);
+		let mut final_stage_items = Vec::new();
 
 		for candidate in args.trace_candidates {
 			trace_builder.push_candidate(candidate);
@@ -2519,8 +2634,28 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 				rank,
 			});
 
+			final_stage_items.push(TraceTrajectoryStageItemRecord {
+				id: Uuid::new_v4(),
+				item_id: Some(item.result_handle),
+				note_id: Some(item.note_id),
+				chunk_id: Some(item.chunk_id),
+				metrics: serde_json::json!({
+					"rank": rank,
+					"final_score": item.final_score,
+				}),
+			});
 			items.push(item);
 			trace_builder.push_item(trace_item);
+		}
+
+		if let Some(stage) =
+			trajectory_stages.iter_mut().find(|stage| stage.stage_name == "selection.final")
+		{
+			stage.items = final_stage_items;
+		}
+
+		for stage in trajectory_stages {
+			trace_builder.push_stage(stage);
 		}
 
 		(items, trace_builder.build())
@@ -2901,6 +3036,39 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 	}
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ExpansionMode {
+	Off,
+	Always,
+	Dynamic,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RawSearchPath {
+	Quick,
+	Planned,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum CacheKind {
+	Expansion,
+	Rerank,
+}
+impl CacheKind {
+	fn as_str(self) -> &'static str {
+		match self {
+			Self::Expansion => "expansion",
+			Self::Rerank => "rerank",
+		}
+	}
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum RetrievalSourceKind {
+	Fusion,
+	StructuredField,
+}
+
 pub fn ranking_policy_id(
 	cfg: &Config,
 	ranking_override: Option<&RankingRequestOverride>,
@@ -3029,6 +3197,30 @@ fn sorted_unique_strings(mut values: Vec<String>) -> Vec<String> {
 	values.dedup();
 
 	values
+}
+
+fn build_trajectory_summary_from_stages(
+	stages: &[SearchTrajectoryStage],
+) -> SearchTrajectorySummary {
+	let summary_stages = stages
+		.iter()
+		.map(|stage| {
+			let stats =
+				stage.stage_payload.get("stats").cloned().unwrap_or_else(|| serde_json::json!({}));
+
+			SearchTrajectorySummaryStage {
+				stage_order: stage.stage_order,
+				stage_name: stage.stage_name.clone(),
+				item_count: stage.items.len() as u32,
+				stats,
+			}
+		})
+		.collect();
+
+	SearchTrajectorySummary {
+		schema: SEARCH_RETRIEVAL_TRAJECTORY_SCHEMA_V1.to_string(),
+		stages: summary_stages,
+	}
 }
 
 fn build_search_filter(
@@ -3422,6 +3614,192 @@ fn build_trace_audit(actor_id: &str, token_id: Option<&str>) -> Value {
 	}
 }
 
+fn build_trace_trajectory_stages(args: &BuildTraceArgs<'_>) -> Vec<TraceTrajectoryStageRecord> {
+	let path_label = raw_search_path_label(args.path);
+
+	vec![
+		build_trace_rewrite_stage(args, path_label),
+		build_trace_recall_stage(args, path_label),
+		build_trace_fusion_stage(args, path_label),
+		build_trace_rerank_stage(args, path_label),
+		build_trace_final_stage(args, path_label),
+	]
+}
+
+fn build_trace_rewrite_stage(
+	args: &BuildTraceArgs<'_>,
+	path_label: &str,
+) -> TraceTrajectoryStageRecord {
+	let expanded_queries = sorted_unique_strings(args.expanded_queries.clone());
+
+	TraceTrajectoryStageRecord {
+		stage_id: Uuid::new_v4(),
+		stage_order: 1,
+		stage_name: "rewrite.expansion".to_string(),
+		stage_payload: serde_json::json!({
+			"schema": SEARCH_RETRIEVAL_TRAJECTORY_SCHEMA_V1,
+			"path": path_label,
+			"inputs": {
+				"query": args.query,
+				"expansion_mode": ranking::expansion_mode_label(args.expansion_mode),
+			},
+			"outputs": {
+				"expanded_queries": expanded_queries,
+			},
+			"stats": {
+				"expanded_query_count": args.expanded_queries.len(),
+			},
+		}),
+		created_at: args.now,
+		items: Vec::new(),
+	}
+}
+
+fn build_trace_recall_stage(
+	args: &BuildTraceArgs<'_>,
+	path_label: &str,
+) -> TraceTrajectoryStageRecord {
+	let items: Vec<TraceTrajectoryStageItemRecord> = args
+		.recall_candidates
+		.iter()
+		.take(MAX_TRAJECTORY_STAGE_ITEMS)
+		.map(|candidate| TraceTrajectoryStageItemRecord {
+			id: Uuid::new_v4(),
+			item_id: None,
+			note_id: Some(candidate.note_id),
+			chunk_id: Some(candidate.chunk_id),
+			metrics: serde_json::json!({
+				"retrieval_rank": candidate.retrieval_rank,
+				"chunk_index": candidate.chunk_index,
+			}),
+		})
+		.collect();
+
+	TraceTrajectoryStageRecord {
+		stage_id: Uuid::new_v4(),
+		stage_order: 2,
+		stage_name: "recall.candidates".to_string(),
+		stage_payload: serde_json::json!({
+			"schema": SEARCH_RETRIEVAL_TRAJECTORY_SCHEMA_V1,
+			"path": path_label,
+			"stats": {
+				"candidate_count_before_filter": args.candidate_count,
+				"candidate_count_after_filter": args.filtered_candidate_count,
+				"snippet_count": args.snippet_count,
+			},
+		}),
+		created_at: args.now,
+		items,
+	}
+}
+
+fn build_trace_fusion_stage(
+	args: &BuildTraceArgs<'_>,
+	path_label: &str,
+) -> TraceTrajectoryStageRecord {
+	let items: Vec<TraceTrajectoryStageItemRecord> = args
+		.fused_results
+		.iter()
+		.take(MAX_TRAJECTORY_STAGE_ITEMS)
+		.map(|scored| TraceTrajectoryStageItemRecord {
+			id: Uuid::new_v4(),
+			item_id: None,
+			note_id: Some(scored.item.note.note_id),
+			chunk_id: Some(scored.item.chunk.chunk_id),
+			metrics: serde_json::json!({
+				"retrieval_rank": scored.item.retrieval_rank,
+				"final_score": scored.final_score,
+			}),
+		})
+		.collect();
+
+	TraceTrajectoryStageRecord {
+		stage_id: Uuid::new_v4(),
+		stage_order: 3,
+		stage_name: "fusion.merge".to_string(),
+		stage_payload: serde_json::json!({
+			"schema": SEARCH_RETRIEVAL_TRAJECTORY_SCHEMA_V1,
+			"path": path_label,
+			"stats": {
+				"scored_count": args.scored_count,
+				"fused_count": args.fused_count,
+			},
+			"decisions": {
+				"fusion_weight": args.policies.retrieval_sources_policy.fusion_weight,
+				"structured_field_weight": args.policies.retrieval_sources_policy.structured_field_weight,
+				"fusion_priority": args.policies.retrieval_sources_policy.fusion_priority,
+				"structured_field_priority": args.policies.retrieval_sources_policy.structured_field_priority,
+			},
+		}),
+		created_at: args.now,
+		items,
+	}
+}
+
+fn build_trace_rerank_stage(
+	args: &BuildTraceArgs<'_>,
+	path_label: &str,
+) -> TraceTrajectoryStageRecord {
+	let items: Vec<TraceTrajectoryStageItemRecord> = args
+		.fused_results
+		.iter()
+		.take(MAX_TRAJECTORY_STAGE_ITEMS)
+		.map(|scored| TraceTrajectoryStageItemRecord {
+			id: Uuid::new_v4(),
+			item_id: None,
+			note_id: Some(scored.item.note.note_id),
+			chunk_id: Some(scored.item.chunk.chunk_id),
+			metrics: serde_json::json!({
+				"rerank_score": scored.rerank_score,
+				"rerank_rank": scored.rerank_rank,
+				"rerank_norm": scored.rerank_norm,
+				"retrieval_norm": scored.retrieval_norm,
+				"final_score": scored.final_score,
+			}),
+		})
+		.collect();
+
+	TraceTrajectoryStageRecord {
+		stage_id: Uuid::new_v4(),
+		stage_order: 4,
+		stage_name: "rerank.score".to_string(),
+		stage_payload: serde_json::json!({
+			"schema": SEARCH_RETRIEVAL_TRAJECTORY_SCHEMA_V1,
+			"path": path_label,
+			"stats": {
+				"reranked_count": args.scored_count,
+			},
+			"decisions": {
+				"blend_enabled": args.policies.blend_policy.enabled,
+				"diversity_enabled": args.policies.diversity_policy.enabled,
+			},
+		}),
+		created_at: args.now,
+		items,
+	}
+}
+
+fn build_trace_final_stage(
+	args: &BuildTraceArgs<'_>,
+	path_label: &str,
+) -> TraceTrajectoryStageRecord {
+	TraceTrajectoryStageRecord {
+		stage_id: Uuid::new_v4(),
+		stage_order: 5,
+		stage_name: "selection.final".to_string(),
+		stage_payload: serde_json::json!({
+			"schema": SEARCH_RETRIEVAL_TRAJECTORY_SCHEMA_V1,
+			"path": path_label,
+			"stats": {
+				"selected_count": args.selected_count,
+				"top_k": args.top_k,
+			},
+		}),
+		created_at: args.now,
+		items: Vec::new(),
+	}
+}
+
 fn score_replay_candidate(
 	ctx: &ScoreCandidateCtx<'_, '_>,
 	candidate: &TraceReplayCandidate,
@@ -3639,6 +4017,125 @@ fn build_replay_items(
 	out
 }
 
+async fn load_trace_trajectory_summary(
+	pool: &PgPool,
+	trace_id: Uuid,
+) -> Result<Option<SearchTrajectorySummary>> {
+	let stages = load_trace_trajectory_stages(pool, trace_id).await?;
+
+	if stages.is_empty() {
+		Ok(None)
+	} else {
+		Ok(Some(build_trajectory_summary_from_stages(stages.as_slice())))
+	}
+}
+
+async fn load_trace_trajectory_stages(
+	pool: &PgPool,
+	trace_id: Uuid,
+) -> Result<Vec<SearchTrajectoryStage>> {
+	let rows = sqlx::query(
+		"\
+SELECT
+	s.stage_id,
+	s.stage_order,
+	s.stage_name,
+	s.stage_payload,
+	i.item_id,
+	i.note_id,
+	i.chunk_id,
+	i.metrics
+FROM search_trace_stages s
+LEFT JOIN search_trace_stage_items i ON i.stage_id = s.stage_id
+WHERE s.trace_id = $1
+ORDER BY s.stage_order ASC, i.item_id ASC NULLS LAST, i.note_id ASC NULLS LAST",
+	)
+	.bind(trace_id)
+	.fetch_all(pool)
+	.await?;
+	let mut stages = Vec::new();
+	let mut stage_pos_by_id: HashMap<Uuid, usize> = HashMap::new();
+
+	for row in rows {
+		let stage_id: Uuid = row.try_get("stage_id")?;
+		let idx = if let Some(idx) = stage_pos_by_id.get(&stage_id).copied() {
+			idx
+		} else {
+			let stage_order: i32 = row.try_get("stage_order")?;
+			let stage_name: String = row.try_get("stage_name")?;
+			let stage_payload: Value = row.try_get("stage_payload")?;
+			let idx = stages.len();
+
+			stages.push(SearchTrajectoryStage {
+				stage_order: stage_order as u32,
+				stage_name,
+				stage_payload,
+				items: Vec::new(),
+			});
+			stage_pos_by_id.insert(stage_id, idx);
+
+			idx
+		};
+		let item_metrics: Option<Value> = row.try_get("metrics")?;
+
+		if let Some(metrics) = item_metrics {
+			stages[idx].items.push(SearchTrajectoryStageItem {
+				item_id: row.try_get("item_id")?,
+				note_id: row.try_get("note_id")?,
+				chunk_id: row.try_get("chunk_id")?,
+				metrics,
+			});
+		}
+	}
+
+	Ok(stages)
+}
+
+async fn load_item_trajectory(
+	pool: &PgPool,
+	trace_id: Uuid,
+	item_id: Uuid,
+) -> Result<Option<SearchExplainTrajectory>> {
+	let rows = sqlx::query(
+		"\
+SELECT
+	s.stage_order,
+	s.stage_name,
+	i.metrics
+FROM search_trace_stages s
+JOIN search_trace_stage_items i ON i.stage_id = s.stage_id
+WHERE s.trace_id = $1 AND i.item_id = $2
+ORDER BY s.stage_order ASC",
+	)
+	.bind(trace_id)
+	.bind(item_id)
+	.fetch_all(pool)
+	.await?;
+
+	if rows.is_empty() {
+		return Ok(None);
+	}
+
+	let mut stages = Vec::with_capacity(rows.len());
+
+	for row in rows {
+		let stage_order: i32 = row.try_get("stage_order")?;
+		let stage_name: String = row.try_get("stage_name")?;
+		let metrics: Value = row.try_get("metrics")?;
+
+		stages.push(SearchExplainTrajectoryStage {
+			stage_order: stage_order as u32,
+			stage_name,
+			metrics,
+		});
+	}
+
+	Ok(Some(SearchExplainTrajectory {
+		schema: SEARCH_RETRIEVAL_TRAJECTORY_SCHEMA_V1.to_string(),
+		stages,
+	}))
+}
+
 async fn fetch_chunks_by_pair<'e, E>(executor: E, pairs: &[(Uuid, i32)]) -> Result<Vec<ChunkRow>>
 where
 	E: PgExecutor<'e>,
@@ -3761,11 +4258,80 @@ async fn persist_trace_inline(executor: &mut PgConnection, payload: TracePayload
 	let trace = payload.trace;
 	let items = payload.items;
 	let candidates = payload.candidates;
+	let stages = payload.stages;
 	let trace_id = trace.trace_id;
 
 	persist_trace_inline_header(executor, &trace).await?;
 	persist_trace_inline_items(executor, trace_id, items).await?;
+	persist_trace_inline_stages(executor, trace_id, stages).await?;
 	persist_trace_inline_candidates(executor, trace_id, candidates).await?;
+
+	Ok(())
+}
+
+async fn persist_trace_inline_stages(
+	executor: &mut PgConnection,
+	trace_id: Uuid,
+	stages: Vec<TraceTrajectoryStageRecord>,
+) -> Result<()> {
+	if stages.is_empty() {
+		return Ok(());
+	}
+
+	let mut item_records = Vec::new();
+	let mut stage_builder = QueryBuilder::new(
+		"\
+INSERT INTO search_trace_stages (
+	stage_id,
+	trace_id,
+	stage_order,
+	stage_name,
+	stage_payload,
+	created_at
+) ",
+	);
+
+	stage_builder.push_values(stages, |mut b, stage| {
+		for item in stage.items {
+			item_records.push((stage.stage_id, item));
+		}
+
+		b.push_bind(stage.stage_id)
+			.push_bind(trace_id)
+			.push_bind(stage.stage_order as i32)
+			.push_bind(stage.stage_name)
+			.push_bind(stage.stage_payload)
+			.push_bind(stage.created_at);
+	});
+	stage_builder.push(" ON CONFLICT (stage_id) DO NOTHING");
+	stage_builder.build().execute(&mut *executor).await?;
+
+	if item_records.is_empty() {
+		return Ok(());
+	}
+
+	let mut item_builder = QueryBuilder::new(
+		"\
+INSERT INTO search_trace_stage_items (
+	id,
+	stage_id,
+	item_id,
+	note_id,
+	chunk_id,
+	metrics
+) ",
+	);
+
+	item_builder.push_values(item_records, |mut b, (stage_id, item)| {
+		b.push_bind(item.id)
+			.push_bind(stage_id)
+			.push_bind(item.item_id)
+			.push_bind(item.note_id)
+			.push_bind(item.chunk_id)
+			.push_bind(item.metrics);
+	});
+	item_builder.push(" ON CONFLICT (id) DO NOTHING");
+	item_builder.build().execute(executor).await?;
 
 	Ok(())
 }

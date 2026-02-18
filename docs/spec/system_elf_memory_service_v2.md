@@ -416,7 +416,30 @@ Indexes:
 - idx_search_trace_items_trace: (trace_id, rank)
 - idx_search_trace_items_note: (note_id)
 
-5.10 search_trace_outbox (async trace persistence)
+5.10 search_trace_stages (stage-level retrieval trajectory)
+- stage_id uuid primary key
+- trace_id uuid not null references search_traces(trace_id) on delete cascade
+- stage_order int not null
+- stage_name text not null
+- stage_payload jsonb not null
+- created_at timestamptz not null
+
+Indexes:
+- idx_search_trace_stages_trace_order: (trace_id, stage_order)
+- idx_search_trace_stages_trace_name: (trace_id, stage_name)
+
+5.11 search_trace_stage_items (per-stage item metrics)
+- id uuid primary key
+- stage_id uuid not null references search_trace_stages(stage_id) on delete cascade
+- item_id uuid null
+- note_id uuid null
+- chunk_id uuid null
+- metrics jsonb not null
+
+Indexes:
+- idx_search_trace_stage_items_stage_item: (stage_id, item_id)
+
+5.12 search_trace_outbox (async trace persistence)
 - outbox_id uuid primary key
 - trace_id uuid not null
 - status text not null
@@ -431,7 +454,7 @@ Indexes:
 - idx_trace_outbox_status_available: (status, available_at)
 - idx_trace_outbox_trace_status: (trace_id, status)
 
-5.11 llm_cache (LLM response cache)
+5.13 llm_cache (LLM response cache)
 - cache_id uuid primary key
 - cache_kind text not null
 - cache_key text not null
@@ -622,12 +645,12 @@ Worker rules:
 
 Search trace outbox (best-effort):
 - Search enqueues trace payloads into search_trace_outbox with status = PENDING.
-- Worker leases available jobs, inserts search_traces and search_trace_items, then marks DONE.
+- Worker leases available jobs, inserts search_traces, search_trace_items, search_trace_stages, and search_trace_stage_items, then marks DONE.
 - On failure, status = FAILED, attempts += 1, last_error set, available_at = now + backoff(attempts).
 - Failures must not affect the original search response.
 
 Periodic cleanup:
-- Worker deletes expired search_traces (search_trace_items cascade).
+- Worker deletes expired search_traces (search_trace_items/search_trace_stages/search_trace_stage_items cascade).
 - Worker deletes expired llm_cache rows.
 
 ============================================================
@@ -817,7 +840,35 @@ Headers:
 Response:
 {
   "trace": { ... },
-  "items": [ ... ]
+  "items": [ ... ],
+  "trajectory_summary": {
+    "schema": "search_retrieval_trajectory/v1",
+    "stages": [ ... ]
+  }
+}
+
+GET /v2/admin/trajectories/{trace_id}
+
+Headers:
+- X-ELF-Tenant-Id (required)
+- X-ELF-Project-Id (required)
+- X-ELF-Agent-Id (required)
+
+Response:
+{
+  "trace": { ... },
+  "trajectory": {
+    "schema": "search_retrieval_trajectory/v1",
+    "stages": [ ... ]
+  },
+  "stages": [
+    {
+      "stage_order": 1,
+      "stage_name": "rewrite.expansion",
+      "stage_payload": { ... },
+      "items": [ ... ]
+    }
+  ]
 }
 
 GET /v2/admin/trace-items/{item_id}
@@ -830,7 +881,11 @@ Headers:
 Response:
 {
   "trace": { ... },
-  "item": { ... }
+  "item": { ... },
+  "trajectory": {
+    "schema": "search_retrieval_trajectory/v1",
+    "stages": [ ... ]
+  }
 }
 
 ============================================================

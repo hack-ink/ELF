@@ -1,5 +1,5 @@
 use std::{
-	collections::HashSet,
+	collections::{HashMap, HashSet},
 	fs,
 	path::{Path, PathBuf},
 	time::Instant,
@@ -275,6 +275,8 @@ struct TraceCompareTrace {
 	b: TraceCompareVariant,
 	churn: TraceCompareChurn,
 	guardrails: TraceCompareGuardrails,
+	stage_deltas: Vec<TraceCompareStageDelta>,
+	regression_attribution: TraceCompareRegressionAttribution,
 }
 
 #[derive(Debug, Serialize)]
@@ -297,6 +299,24 @@ struct TraceCompareGuardrails {
 	b_retrieval_top3_retained: usize,
 	b_retrieval_top3_retention: f64,
 	retrieval_top3_retention_delta: f64,
+}
+
+#[derive(Debug, Serialize)]
+struct TraceCompareStageDelta {
+	stage_order: u32,
+	stage_name: String,
+	baseline_item_count: u32,
+	a_item_count: u32,
+	b_item_count: u32,
+	item_count_delta: i64,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	baseline_stats: Option<Value>,
+}
+
+#[derive(Debug, Serialize)]
+struct TraceCompareRegressionAttribution {
+	primary_stage: String,
+	evidence: String,
 }
 
 #[derive(sqlx::FromRow)]
@@ -322,6 +342,14 @@ struct TraceCompareCandidateRow {
 	note_updated_at: OffsetDateTime,
 	note_hit_count: i64,
 	note_last_hit_at: Option<OffsetDateTime>,
+}
+
+#[derive(sqlx::FromRow)]
+struct TraceCompareStageRow {
+	stage_order: i32,
+	stage_name: String,
+	stage_payload: Value,
+	item_count: i64,
 }
 
 struct MergedQuery {
@@ -778,6 +806,88 @@ fn decode_trace_replay_candidates(
 		.collect()
 }
 
+fn build_trace_compare_stage_deltas(
+	stage_rows: &[TraceCompareStageRow],
+	a_selected_count: u32,
+	b_selected_count: u32,
+) -> Vec<TraceCompareStageDelta> {
+	if stage_rows.is_empty() {
+		return vec![TraceCompareStageDelta {
+			stage_order: 1,
+			stage_name: "selection.final".to_string(),
+			baseline_item_count: 0,
+			a_item_count: a_selected_count,
+			b_item_count: b_selected_count,
+			item_count_delta: b_selected_count as i64 - a_selected_count as i64,
+			baseline_stats: None,
+		}];
+	}
+
+	let mut out = Vec::with_capacity(stage_rows.len());
+
+	for row in stage_rows {
+		let baseline_item_count = row.item_count.max(0) as u32;
+		let (a_item_count, b_item_count) = if row.stage_name == "selection.final" {
+			(a_selected_count, b_selected_count)
+		} else {
+			(baseline_item_count, baseline_item_count)
+		};
+		let baseline_stats = row.stage_payload.get("stats").cloned();
+
+		out.push(TraceCompareStageDelta {
+			stage_order: row.stage_order.max(0) as u32,
+			stage_name: row.stage_name.clone(),
+			baseline_item_count,
+			a_item_count,
+			b_item_count,
+			item_count_delta: b_item_count as i64 - a_item_count as i64,
+			baseline_stats,
+		});
+	}
+
+	out
+}
+
+fn build_trace_compare_regression_attribution(
+	churn: &TraceCompareChurn,
+	guardrails: &TraceCompareGuardrails,
+	stage_deltas: &[TraceCompareStageDelta],
+) -> TraceCompareRegressionAttribution {
+	let stage_by_name: HashMap<&str, &TraceCompareStageDelta> =
+		stage_deltas.iter().map(|stage| (stage.stage_name.as_str(), stage)).collect();
+
+	if guardrails.retrieval_top3_retention_delta < 0.0 {
+		let recall_count = stage_by_name
+			.get("recall.candidates")
+			.map(|stage| stage.baseline_item_count)
+			.unwrap_or(0);
+
+		return TraceCompareRegressionAttribution {
+			primary_stage: "selection.final".to_string(),
+			evidence: format!(
+				"retrieval_top3_retention dropped by {:.4} (a={:.4}, b={:.4}); recall baseline item_count={recall_count}",
+				guardrails.retrieval_top3_retention_delta,
+				guardrails.a_retrieval_top3_retention,
+				guardrails.b_retrieval_top3_retention
+			),
+		};
+	}
+	if churn.set_churn_at_k > 0.0 || churn.positional_churn_at_k > 0.0 {
+		return TraceCompareRegressionAttribution {
+			primary_stage: "rerank.score".to_string(),
+			evidence: format!(
+				"top-k churn changed without retrieval-top3 regression (set_churn_at_k={:.4}, positional_churn_at_k={:.4})",
+				churn.set_churn_at_k, churn.positional_churn_at_k
+			),
+		};
+	}
+
+	TraceCompareRegressionAttribution {
+		primary_stage: "not_applicable".to_string(),
+		evidence: "No regression signal detected.".to_string(),
+	}
+}
+
 async fn trace_compare(
 	config_a_path: &Path,
 	config_a: Config,
@@ -856,6 +966,7 @@ async fn compare_trace_id(
 ) -> Result<TraceCompareTrace> {
 	let trace_row = fetch_trace_compare_trace_row(db, trace_id).await?;
 	let candidate_rows = fetch_trace_compare_candidate_rows(db, trace_id).await?;
+	let stage_rows = fetch_trace_compare_stage_rows(db, trace_id).await?;
 	let context = elf_service::search::TraceReplayContext {
 		trace_id: trace_row.trace_id,
 		query: trace_row.query.clone(),
@@ -892,6 +1003,22 @@ async fn compare_trace_id(
 	let (retrieval_top3_total, a_retained, a_retention) =
 		retrieval_top_rank_retention(&candidates, &note_ids_a, 3);
 	let (_, b_retained, b_retention) = retrieval_top_rank_retention(&candidates, &note_ids_b, 3);
+	let churn = TraceCompareChurn { positional_churn_at_k, set_churn_at_k };
+	let guardrails = TraceCompareGuardrails {
+		retrieval_top3_total,
+		a_retrieval_top3_retained: a_retained,
+		a_retrieval_top3_retention: a_retention,
+		b_retrieval_top3_retained: b_retained,
+		b_retrieval_top3_retention: b_retention,
+		retrieval_top3_retention_delta: b_retention - a_retention,
+	};
+	let stage_deltas = build_trace_compare_stage_deltas(
+		stage_rows.as_slice(),
+		items_a.len() as u32,
+		items_b.len() as u32,
+	);
+	let regression_attribution =
+		build_trace_compare_regression_attribution(&churn, &guardrails, stage_deltas.as_slice());
 
 	Ok(TraceCompareTrace {
 		trace_id: context.trace_id,
@@ -901,15 +1028,10 @@ async fn compare_trace_id(
 		created_at,
 		a: TraceCompareVariant { policy_id: policy_id_a.to_string(), items: items_a },
 		b: TraceCompareVariant { policy_id: policy_id_b.to_string(), items: items_b },
-		churn: TraceCompareChurn { positional_churn_at_k, set_churn_at_k },
-		guardrails: TraceCompareGuardrails {
-			retrieval_top3_total,
-			a_retrieval_top3_retained: a_retained,
-			a_retrieval_top3_retention: a_retention,
-			b_retrieval_top3_retained: b_retained,
-			b_retrieval_top3_retention: b_retention,
-			retrieval_top3_retention_delta: b_retention - a_retention,
-		},
+		churn,
+		guardrails,
+		stage_deltas,
+		regression_attribution,
 	})
 }
 
@@ -958,6 +1080,30 @@ WHERE trace_id = $1
 ORDER BY retrieval_rank ASC",
 		trace_id,
 	)
+	.fetch_all(&db.pool)
+	.await?;
+
+	Ok(rows)
+}
+
+async fn fetch_trace_compare_stage_rows(
+	db: &Db,
+	trace_id: &Uuid,
+) -> Result<Vec<TraceCompareStageRow>> {
+	let rows = sqlx::query_as::<_, TraceCompareStageRow>(
+		"\
+SELECT
+	s.stage_order,
+	s.stage_name,
+	s.stage_payload,
+	COUNT(i.id)::bigint AS item_count
+FROM search_trace_stages s
+LEFT JOIN search_trace_stage_items i ON i.stage_id = s.stage_id
+WHERE s.trace_id = $1
+GROUP BY s.stage_id, s.stage_order, s.stage_name, s.stage_payload
+ORDER BY s.stage_order ASC",
+	)
+	.bind(trace_id)
 	.fetch_all(&db.pool)
 	.await?;
 
