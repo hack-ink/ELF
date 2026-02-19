@@ -88,6 +88,9 @@ pub(crate) async fn persist_graph_fields_tx(
 			graph::resolve_or_register_predicate(tx, tenant_id, project_id, predicate)
 				.await
 				.map_err(|err| Error::Storage { message: err.to_string() })?;
+
+		reject_deprecated_predicate(predicate_row.status.as_str(), relation_path.as_str())?;
+
 		let fact_id = graph::upsert_fact_with_evidence(
 			tx,
 			tenant_id,
@@ -125,6 +128,16 @@ pub(crate) async fn persist_graph_fields_tx(
 			.await
 			.map_err(|err| Error::Storage { message: err.to_string() })?;
 		}
+	}
+
+	Ok(())
+}
+
+fn reject_deprecated_predicate(status: &str, relation_path: &str) -> Result<()> {
+	if status == "deprecated" {
+		return Err(Error::InvalidRequest {
+			message: format!("{relation_path}.predicate is deprecated and cannot be used."),
+		});
 	}
 
 	Ok(())

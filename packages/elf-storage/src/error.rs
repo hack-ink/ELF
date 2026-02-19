@@ -4,6 +4,10 @@ pub enum Error {
 	Sqlx(#[from] sqlx::Error),
 	#[error("Invalid argument: {0}")]
 	InvalidArgument(String),
+	#[error("Not found: {0}")]
+	NotFound(String),
+	#[error("Conflict: {0}")]
+	Conflict(String),
 	#[error(transparent)]
 	Qdrant(#[from] Box<qdrant_client::QdrantError>),
 }
