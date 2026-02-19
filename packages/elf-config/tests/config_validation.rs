@@ -197,6 +197,75 @@ fn recursive_search_settings_require_reasonable_bounds() {
 }
 
 #[test]
+fn graph_context_settings_max_facts_per_item_must_be_positive_when_enabled() {
+	let mut cfg = base_config();
+
+	cfg.search.graph_context.enabled = true;
+	cfg.search.graph_context.max_facts_per_item = 0;
+
+	let err = elf_config::validate(&cfg)
+		.expect_err("Expected graph_context max_facts_per_item validation error.");
+
+	assert!(
+		err.to_string()
+			.contains("search.graph_context.max_facts_per_item must be greater than zero."),
+		"Unexpected error: {err}"
+	);
+}
+
+#[test]
+fn graph_context_settings_max_evidence_notes_per_fact_must_be_positive_when_enabled() {
+	let mut cfg = base_config();
+
+	cfg.search.graph_context.enabled = true;
+	cfg.search.graph_context.max_evidence_notes_per_fact = 0;
+
+	let err = elf_config::validate(&cfg)
+		.expect_err("Expected graph_context max_evidence_notes_per_fact validation error.");
+
+	assert!(
+		err.to_string().contains(
+			"search.graph_context.max_evidence_notes_per_fact must be greater than zero."
+		),
+		"Unexpected error: {err}"
+	);
+}
+
+#[test]
+fn graph_context_settings_max_facts_per_item_cannot_exceed_hard_limit() {
+	let mut cfg = base_config();
+
+	cfg.search.graph_context.enabled = true;
+	cfg.search.graph_context.max_facts_per_item = 1_001;
+
+	let err = elf_config::validate(&cfg)
+		.expect_err("Expected graph_context max_facts_per_item upper-bound validation error.");
+
+	assert!(
+		err.to_string().contains("search.graph_context.max_facts_per_item must be 1,000 or less."),
+		"Unexpected error: {err}"
+	);
+}
+
+#[test]
+fn graph_context_settings_max_evidence_notes_per_fact_cannot_exceed_hard_limit() {
+	let mut cfg = base_config();
+
+	cfg.search.graph_context.enabled = true;
+	cfg.search.graph_context.max_evidence_notes_per_fact = 1_001;
+
+	let err = elf_config::validate(&cfg).expect_err(
+		"Expected graph_context max_evidence_notes_per_fact upper-bound validation error.",
+	);
+
+	assert!(
+		err.to_string()
+			.contains("search.graph_context.max_evidence_notes_per_fact must be 1,000 or less."),
+		"Unexpected error: {err}"
+	);
+}
+
+#[test]
 fn chunking_config_requires_valid_bounds() {
 	let mut cfg = base_config();
 

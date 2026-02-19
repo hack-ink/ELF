@@ -820,6 +820,22 @@ Response:
             { "name": "deterministic.hit_boost", "value": 0.0 },
             { "name": "deterministic.decay_penalty", "value": 0.0 }
           ]
+        },
+        "relation_context": [
+          {
+            "fact_id": "uuid",
+            "scope": "project_shared",
+            "subject": { "canonical": "string", "kind": "person|concept|null" },
+            "predicate": "string",
+            "object": {
+              "entity": { "canonical": "string", "kind": "person|concept|null" },
+              "value": null
+            },
+            "valid_from": "...",
+            "valid_to": null,
+            "evidence_note_ids": ["uuid", "uuid"]
+          }
+        ]
         }
       }
     }
@@ -827,6 +843,11 @@ Response:
 }
 
 Notes:
+- `relation_context` is omitted unless `search.graph_context.enabled` is true.
+- When present, relation context is evidence-bound and bounded by `search.graph_context.max_facts_per_item` and
+  `search.graph_context.max_evidence_notes_per_fact`.
+- It is included wherever `SearchExplain` is returned, including admin trace surfaces (`/v2/admin/traces/*` and
+  `/v2/admin/trace-items/*`), in addition to search responses.
 - This endpoint is intended for debugging and evaluation. It returns chunk-level items and explain components.
 - The public search endpoint returns a compact note-level index view.
 
@@ -846,6 +867,7 @@ Response:
     "stages": [ ... ]
   }
 }
+`items[*].explain` follows the same `SearchExplain` schema as search responses (including optional `relation_context`).
 
 GET /v2/admin/trajectories/{trace_id}
 
@@ -887,6 +909,7 @@ Response:
     "stages": [ ... ]
   }
 }
+`item.explain` follows the same `SearchExplain` schema as search responses (including optional `relation_context`).
 
 ============================================================
 15. HTTP API (PUBLIC)
