@@ -38,6 +38,7 @@ pub struct AddEventResult {
 	pub op: NoteOp,
 	pub reason_code: Option<String>,
 	pub reason: Option<String>,
+	pub field_path: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -206,7 +207,16 @@ impl ElfService {
 			let (note_id, op) = match decision {
 				UpdateDecision::Add { note_id } => (Some(note_id), NoteOp::Add),
 				UpdateDecision::Update { note_id } => (Some(note_id), NoteOp::Update),
-				UpdateDecision::None { note_id } => (Some(note_id), NoteOp::None),
+				UpdateDecision::None { note_id } => {
+					let op = if structured.as_ref().is_some_and(StructuredFields::has_graph_fields)
+					{
+						NoteOp::Update
+					} else {
+						NoteOp::None
+					};
+
+					(Some(note_id), op)
+				},
 			};
 
 			return Ok(AddEventResult {
@@ -214,6 +224,7 @@ impl ElfService {
 				op,
 				reason_code: None,
 				reason: note.reason.clone(),
+				field_path: None,
 			});
 		}
 
@@ -317,11 +328,28 @@ impl ElfService {
 
 		upsert_structured_fields_tx(tx, args.structured, memory_note.note_id, args.now).await?;
 
+		if let Some(structured) = args.structured
+			&& structured.has_graph_fields()
+		{
+			crate::graph_ingestion::persist_graph_fields_tx(
+				tx,
+				args.req.tenant_id.as_str(),
+				args.req.project_id.as_str(),
+				args.req.agent_id.as_str(),
+				args.scope,
+				memory_note.note_id,
+				structured,
+				args.now,
+			)
+			.await?;
+		}
+
 		Ok(AddEventResult {
 			note_id: Some(note_id),
 			op: NoteOp::Add,
 			reason_code: None,
 			reason: args.reason.cloned(),
+			field_path: None,
 		})
 	}
 
@@ -373,11 +401,28 @@ impl ElfService {
 
 		upsert_structured_fields_tx(tx, args.structured, existing.note_id, args.now).await?;
 
+		if let Some(structured) = args.structured
+			&& structured.has_graph_fields()
+		{
+			crate::graph_ingestion::persist_graph_fields_tx(
+				tx,
+				args.req.tenant_id.as_str(),
+				args.req.project_id.as_str(),
+				args.req.agent_id.as_str(),
+				args.scope,
+				existing.note_id,
+				structured,
+				args.now,
+			)
+			.await?;
+		}
+
 		Ok(AddEventResult {
 			note_id: Some(note_id),
 			op: NoteOp::Update,
 			reason_code: None,
 			reason: args.reason.cloned(),
+			field_path: None,
 		})
 	}
 
@@ -387,6 +432,8 @@ impl ElfService {
 		args: PersistExtractedNoteArgs<'_>,
 		note_id: Uuid,
 	) -> Result<AddEventResult> {
+		let mut did_update = false;
+
 		if let Some(structured) = args.structured
 			&& !structured.is_effectively_empty()
 		{
@@ -397,11 +444,33 @@ impl ElfService {
 			crate::enqueue_outbox_tx(&mut **tx, note_id, "UPSERT", args.embed_version, args.now)
 				.await?;
 
+			did_update = true;
+		}
+		if let Some(structured) = args.structured
+			&& structured.has_graph_fields()
+		{
+			crate::graph_ingestion::persist_graph_fields_tx(
+				tx,
+				args.req.tenant_id.as_str(),
+				args.req.project_id.as_str(),
+				args.req.agent_id.as_str(),
+				args.scope,
+				note_id,
+				structured,
+				args.now,
+			)
+			.await?;
+
+			did_update = true;
+		}
+
+		if did_update {
 			return Ok(AddEventResult {
 				note_id: Some(note_id),
 				op: NoteOp::Update,
 				reason_code: None,
 				reason: args.reason.cloned(),
+				field_path: None,
 			});
 		}
 
@@ -410,6 +479,7 @@ impl ElfService {
 			op: NoteOp::None,
 			reason_code: None,
 			reason: args.reason.cloned(),
+			field_path: None,
 		})
 	}
 }
@@ -459,6 +529,7 @@ fn reject_extracted_note_if_evidence_invalid(
 			op: NoteOp::Rejected,
 			reason_code: Some(REJECT_EVIDENCE_MISMATCH.to_string()),
 			reason: reason.cloned(),
+			field_path: None,
 		});
 	}
 
@@ -469,6 +540,7 @@ fn reject_extracted_note_if_evidence_invalid(
 				op: NoteOp::Rejected,
 				reason_code: Some(REJECT_EVIDENCE_MISMATCH.to_string()),
 				reason: reason.cloned(),
+				field_path: None,
 			});
 		}
 		if !evidence::evidence_matches(message_texts, quote.message_index, quote.quote.as_str()) {
@@ -477,6 +549,7 @@ fn reject_extracted_note_if_evidence_invalid(
 				op: NoteOp::Rejected,
 				reason_code: Some(REJECT_EVIDENCE_MISMATCH.to_string()),
 				reason: reason.cloned(),
+				field_path: None,
 			});
 		}
 	}
@@ -507,11 +580,14 @@ fn reject_extracted_note_if_structured_invalid(
 	) {
 		tracing::info!(error = %err, "Rejecting extracted note due to invalid structured fields.");
 
+		let field_path = extract_structured_rejection_field_path(&err);
+
 		return Some(AddEventResult {
 			note_id: None,
 			op: NoteOp::Rejected,
 			reason_code: Some(REJECT_STRUCTURED_INVALID.to_string()),
 			reason: reason.cloned(),
+			field_path,
 		});
 	}
 
@@ -537,10 +613,20 @@ fn reject_extracted_note_if_writegate_rejects(
 			op: NoteOp::Rejected,
 			reason_code: Some(crate::writegate_reason_code(code).to_string()),
 			reason: reason.cloned(),
+			field_path: None,
 		});
 	}
 
 	None
+}
+
+fn extract_structured_rejection_field_path(err: &Error) -> Option<String> {
+	match err {
+		Error::NonEnglishInput { field } => Some(field.clone()),
+		Error::InvalidRequest { message } if message.starts_with("structured.") =>
+			message.split_whitespace().next().map(ToString::to_string),
+		_ => None,
+	}
 }
 
 fn build_extractor_messages(
@@ -557,7 +643,34 @@ fn build_extractor_messages(
 				"structured": {
 					"summary": "string|null",
 					"facts": "string[]|null",
-					"concepts": "string[]|null"
+					"concepts": "string[]|null",
+					"entities": [
+						{
+							"canonical": "string|null",
+							"kind": "string|null",
+							"aliases": "string[]|null"
+						}
+					],
+					"relations": [
+						{
+							"subject": {
+								"canonical": "string|null",
+								"kind": "string|null",
+								"aliases": "string[]|null"
+							},
+							"predicate": "string",
+							"object": {
+								"entity": {
+									"canonical": "string|null",
+									"kind": "string|null",
+									"aliases": "string[]|null"
+								},
+								"value": "string|null"
+							},
+							"valid_from": "string|null",
+							"valid_to": "string|null"
+						}
+					]
 				},
 				"importance": 0.0,
 				"confidence": 0.0,
@@ -575,6 +688,7 @@ Output must be valid JSON only and must match the provided schema exactly. \
 Extract at most MAX_NOTES high-signal, cross-session reusable memory notes from the given messages. \
 Each note must be one English sentence and must not contain any CJK characters. \
 The structured field is optional. If present, summary must be short, facts must be short sentences supported by the evidence quotes, and concepts must be short phrases. \
+structured.entities and structured.relations should mirror the structured schema with optional entity and relation metadata and relation timestamps. \
 Preserve numbers, dates, percentages, currency amounts, tickers, URLs, and code snippets exactly. \
 Never store secrets or PII: API keys, tokens, private keys, seed phrases, passwords, bank IDs, personal addresses. \
 For every note, provide 1 to 2 evidence quotes copied verbatim from the input messages and include the message_index. \
