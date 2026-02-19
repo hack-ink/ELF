@@ -339,7 +339,7 @@ where
 	let vec_text = vector_to_pg(&vec);
 	let embed_version = embedding_version(cfg);
 	let key = key.map(|value| value.trim()).filter(|value| !value.is_empty());
-	let row = sqlx::query!(
+	let row: (Option<Uuid>, Option<Uuid>, Option<f32>) = sqlx::query_as(
 		"\
 WITH key_match AS (
 	SELECT note_id
@@ -380,25 +380,24 @@ best AS (
 		(SELECT note_id FROM key_match) AS key_note_id,
 		(SELECT note_id FROM best) AS best_note_id,
 		(SELECT similarity FROM best) AS best_similarity",
-		tenant_id,
-		project_id,
-		agent_id,
-		scope,
-		note_type,
-		key,
-		now,
-		vec_text.as_str(),
-		embed_version.as_str(),
 	)
+	.bind(tenant_id)
+	.bind(project_id)
+	.bind(agent_id)
+	.bind(scope)
+	.bind(note_type)
+	.bind(key)
+	.bind(now)
+	.bind(vec_text.as_str())
+	.bind(embed_version.as_str())
 	.fetch_one(executor)
 	.await?;
+	let (key_note_id, best_note_id, best_similarity) = row;
 
-	if let Some(note_id) = row.key_note_id {
+	if let Some(note_id) = key_note_id {
 		return Ok(UpdateDecision::Update { note_id });
 	}
 
-	let best_note_id = row.best_note_id;
-	let best_similarity = row.best_similarity;
 	let Some(best_id) = best_note_id else {
 		return Ok(UpdateDecision::Add { note_id: Uuid::new_v4() });
 	};
@@ -422,7 +421,7 @@ where
 {
 	let InsertVersionArgs { note_id, op, prev_snapshot, new_snapshot, reason, actor, ts } = args;
 
-	sqlx::query!(
+	sqlx::query(
 		"\
 INSERT INTO memory_note_versions (
 	version_id,
@@ -435,15 +434,15 @@ INSERT INTO memory_note_versions (
 	ts
 )
 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
-		Uuid::new_v4(),
-		note_id,
-		op,
-		prev_snapshot,
-		new_snapshot,
-		reason,
-		actor,
-		ts,
 	)
+	.bind(Uuid::new_v4())
+	.bind(note_id)
+	.bind(op)
+	.bind(prev_snapshot)
+	.bind(new_snapshot)
+	.bind(reason)
+	.bind(actor)
+	.bind(ts)
 	.execute(executor)
 	.await?;
 
@@ -460,7 +459,7 @@ pub(crate) async fn enqueue_outbox_tx<'e, E>(
 where
 	E: PgExecutor<'e>,
 {
-	sqlx::query!(
+	sqlx::query(
 		"\
 INSERT INTO indexing_outbox (
 	outbox_id,
@@ -473,14 +472,14 @@ INSERT INTO indexing_outbox (
 	available_at
 )
 VALUES ($1,$2,$3,$4,'PENDING',$5,$6,$7)",
-		Uuid::new_v4(),
-		note_id,
-		op,
-		embedding_version,
-		now,
-		now,
-		now,
 	)
+	.bind(Uuid::new_v4())
+	.bind(note_id)
+	.bind(op)
+	.bind(embedding_version)
+	.bind(now)
+	.bind(now)
+	.bind(now)
 	.execute(executor)
 	.await?;
 

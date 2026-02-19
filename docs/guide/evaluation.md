@@ -116,7 +116,7 @@ Prerequisites:
 - Qdrant is running and reachable.
 - Environment variables are set:
   - `ELF_PG_DSN` (base DSN, typically ending in `/postgres`)
-  - `ELF_QDRANT_URL` (Qdrant gRPC URL, commonly `http://127.0.0.1:51890` in this repository)
+  - `ELF_QDRANT_GRPC_URL` (Qdrant gRPC URL, commonly `http://127.0.0.1:51890` in this repository)
   - `ELF_QDRANT_HTTP_URL` (Qdrant REST URL, commonly `http://127.0.0.1:51889` in this repository)
 
 Operational notes:
@@ -136,7 +136,7 @@ script:
 
 ```bash
 ELF_PG_DSN="postgres://postgres:postgres@127.0.0.1:51888/postgres" \
-ELF_QDRANT_URL="http://127.0.0.1:51890" \
+ELF_QDRANT_GRPC_URL="http://127.0.0.1:51890" \
 ELF_QDRANT_HTTP_URL="http://127.0.0.1:51889" \
 scripts/ranking-stability-harness.sh
 ```

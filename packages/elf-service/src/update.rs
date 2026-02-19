@@ -140,17 +140,16 @@ async fn load_note_for_update(
 	tenant_id: &str,
 	project_id: &str,
 ) -> Result<MemoryNote> {
-	sqlx::query_as!(
-		MemoryNote,
+	sqlx::query_as::<_, MemoryNote>(
 		"\
 SELECT *
 FROM memory_notes
 WHERE note_id = $1 AND tenant_id = $2 AND project_id = $3
 FOR UPDATE",
-		note_id,
-		tenant_id,
-		project_id,
 	)
+	.bind(note_id)
+	.bind(tenant_id)
+	.bind(project_id)
 	.fetch_optional(&mut **tx)
 	.await?
 	.ok_or_else(|| Error::InvalidRequest { message: "Note not found.".to_string() })
@@ -162,7 +161,7 @@ async fn persist_note_update(
 	prev_snapshot: Value,
 	request_agent_id: &str,
 ) -> Result<()> {
-	sqlx::query!(
+	sqlx::query(
 		"\
 UPDATE memory_notes
 SET
@@ -172,16 +171,15 @@ SET
 	updated_at = $4,
 	expires_at = $5
 WHERE note_id = $6",
-		note.text.as_str(),
-		note.importance,
-		note.confidence,
-		note.updated_at,
-		note.expires_at,
-		note.note_id,
 	)
+	.bind(note.text.as_str())
+	.bind(note.importance)
+	.bind(note.confidence)
+	.bind(note.updated_at)
+	.bind(note.expires_at)
+	.bind(note.note_id)
 	.execute(&mut **tx)
 	.await?;
-
 	crate::insert_version(
 		&mut **tx,
 		InsertVersionArgs {

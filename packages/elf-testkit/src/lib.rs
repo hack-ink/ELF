@@ -130,7 +130,7 @@ pub fn env_dsn() -> Option<String> {
 }
 
 pub fn env_qdrant_url() -> Option<String> {
-	env::var("ELF_QDRANT_URL").ok()
+	env::var("ELF_QDRANT_GRPC_URL").or_else(|_| env::var("ELF_QDRANT_URL")).ok()
 }
 
 pub async fn with_test_db<F, Fut, T>(base_dsn: &str, f: F) -> Result<T>
@@ -178,13 +178,13 @@ async fn cleanup_database(name: &str, admin_options: &PgConnectOptions) -> Resul
 	})?;
 	let drop_sql = format!(r#"DROP DATABASE IF EXISTS "{}""#, name);
 	let mut conn = conn;
-	let _ = sqlx::query!(
+	let _ = sqlx::query(
 		"\
 SELECT pg_terminate_backend(pid)
 FROM pg_stat_activity
 WHERE datname = $1 AND pid <> pg_backend_pid()",
-		name,
 	)
+	.bind(name)
 	.fetch_all(&mut conn)
 	.await;
 
@@ -202,7 +202,9 @@ async fn cleanup_qdrant_collections(collections: &[String]) -> Result<()> {
 	}
 
 	let Some(qdrant_url) = env_qdrant_url() else {
-		eprintln!("Skipping Qdrant cleanup; set ELF_QDRANT_URL to delete test collections.");
+		eprintln!(
+			"Skipping Qdrant cleanup; set ELF_QDRANT_GRPC_URL (or ELF_QDRANT_URL) to delete test collections."
+		);
 
 		return Ok(());
 	};

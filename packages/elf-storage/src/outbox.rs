@@ -17,14 +17,14 @@ pub async fn enqueue_outbox<'e, E>(
 where
 	E: PgExecutor<'e>,
 {
-	sqlx::query!(
+	sqlx::query(
 		"INSERT INTO indexing_outbox (outbox_id, note_id, op, embedding_version, status) \
 VALUES ($1,$2,$3,$4,'PENDING')",
-		Uuid::new_v4(),
-		note_id,
-		op,
-		embedding_version,
 	)
+	.bind(Uuid::new_v4())
+	.bind(note_id)
+	.bind(op)
+	.bind(embedding_version)
 	.execute(executor)
 	.await?;
 
@@ -37,8 +37,7 @@ pub async fn claim_next_indexing_outbox_job(
 	lease_seconds: i64,
 ) -> Result<Option<IndexingOutboxEntry>> {
 	let mut tx = db.pool.begin().await?;
-	let row = sqlx::query_as!(
-		IndexingOutboxEntry,
+	let row = sqlx::query_as::<_, IndexingOutboxEntry>(
 		"\
 SELECT
 	outbox_id,
@@ -56,19 +55,19 @@ WHERE status IN ('PENDING','FAILED') AND available_at <= $1
 ORDER BY available_at ASC
 LIMIT 1
 FOR UPDATE SKIP LOCKED",
-		now,
 	)
+	.bind(now)
 	.fetch_optional(&mut *tx)
 	.await?;
 	let job = if let Some(mut job) = row {
 		let lease_until = now + time::Duration::seconds(lease_seconds);
 
-		sqlx::query!(
+		sqlx::query(
 			"UPDATE indexing_outbox SET available_at = $1, updated_at = $2 WHERE outbox_id = $3",
-			lease_until,
-			now,
-			job.outbox_id,
 		)
+		.bind(lease_until)
+		.bind(now)
+		.bind(job.outbox_id)
 		.execute(&mut *tx)
 		.await?;
 
@@ -90,13 +89,11 @@ pub async fn mark_indexing_outbox_done(
 	outbox_id: Uuid,
 	now: OffsetDateTime,
 ) -> Result<()> {
-	sqlx::query!(
-		"UPDATE indexing_outbox SET status = 'DONE', updated_at = $1 WHERE outbox_id = $2",
-		now,
-		outbox_id,
-	)
-	.execute(&db.pool)
-	.await?;
+	sqlx::query("UPDATE indexing_outbox SET status = 'DONE', updated_at = $1 WHERE outbox_id = $2")
+		.bind(now)
+		.bind(outbox_id)
+		.execute(&db.pool)
+		.await?;
 
 	Ok(())
 }
@@ -109,7 +106,7 @@ pub async fn mark_indexing_outbox_failed(
 	available_at: OffsetDateTime,
 	now: OffsetDateTime,
 ) -> Result<()> {
-	sqlx::query!(
+	sqlx::query(
 		"\
 UPDATE indexing_outbox
 SET status = 'FAILED',
@@ -118,12 +115,12 @@ SET status = 'FAILED',
 	available_at = $3,
 	updated_at = $4
 WHERE outbox_id = $5",
-		attempts,
-		error_text,
-		available_at,
-		now,
-		outbox_id,
 	)
+	.bind(attempts)
+	.bind(error_text)
+	.bind(available_at)
+	.bind(now)
+	.bind(outbox_id)
 	.execute(&db.pool)
 	.await?;
 
@@ -136,8 +133,7 @@ pub async fn claim_next_trace_outbox_job(
 	lease_seconds: i64,
 ) -> Result<Option<TraceOutboxJob>> {
 	let mut tx = db.pool.begin().await?;
-	let row = sqlx::query_as!(
-		TraceOutboxJob,
+	let row = sqlx::query_as::<_, TraceOutboxJob>(
 		"\
 SELECT
 	outbox_id,
@@ -149,19 +145,19 @@ WHERE status IN ('PENDING','FAILED') AND available_at <= $1
 ORDER BY available_at ASC
 LIMIT 1
 FOR UPDATE SKIP LOCKED",
-		now,
 	)
+	.bind(now)
 	.fetch_optional(&mut *tx)
 	.await?;
 	let job = if let Some(job) = row {
 		let lease_until = now + time::Duration::seconds(lease_seconds);
 
-		sqlx::query!(
+		sqlx::query(
 			"UPDATE search_trace_outbox SET available_at = $1, updated_at = $2 WHERE outbox_id = $3",
-			lease_until,
-			now,
-			job.outbox_id,
 		)
+		.bind(lease_until)
+		.bind(now)
+		.bind(job.outbox_id)
 		.execute(&mut *tx)
 		.await?;
 
@@ -176,11 +172,11 @@ FOR UPDATE SKIP LOCKED",
 }
 
 pub async fn mark_trace_outbox_done(db: &Db, outbox_id: Uuid, now: OffsetDateTime) -> Result<()> {
-	sqlx::query!(
+	sqlx::query(
 		"UPDATE search_trace_outbox SET status = 'DONE', updated_at = $1 WHERE outbox_id = $2",
-		now,
-		outbox_id,
 	)
+	.bind(now)
+	.bind(outbox_id)
 	.execute(&db.pool)
 	.await?;
 
@@ -195,7 +191,7 @@ pub async fn mark_trace_outbox_failed(
 	available_at: OffsetDateTime,
 	now: OffsetDateTime,
 ) -> Result<()> {
-	sqlx::query!(
+	sqlx::query(
 		"\
 UPDATE search_trace_outbox
 SET status = 'FAILED',
@@ -204,12 +200,12 @@ SET status = 'FAILED',
 	available_at = $3,
 	updated_at = $4
 WHERE outbox_id = $5",
-		attempts,
-		error_text,
-		available_at,
-		now,
-		outbox_id,
 	)
+	.bind(attempts)
+	.bind(error_text)
+	.bind(available_at)
+	.bind(now)
+	.bind(outbox_id)
 	.execute(&db.pool)
 	.await?;
 
