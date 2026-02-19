@@ -10,7 +10,7 @@ use std::{
 use ahash::AHashMap;
 use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing};
 use serde_json::{Map, Value};
-use sqlx::PgPool;
+use sqlx::{FromRow, PgPool};
 use time::OffsetDateTime;
 use tokenizers::{Tokenizer, models::wordlevel::WordLevel};
 use tokio::{
@@ -25,7 +25,7 @@ use elf_service::{AddNoteInput, AddNoteRequest, Providers};
 use elf_storage::{db::Db, qdrant::QdrantStore};
 use elf_worker::worker;
 
-#[derive(sqlx::FromRow)]
+#[derive(FromRow)]
 struct OutboxRow {
 	status: String,
 	attempts: i32,

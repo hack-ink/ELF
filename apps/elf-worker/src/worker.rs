@@ -9,7 +9,7 @@ use qdrant_client::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sqlx::{PgConnection, PgExecutor, QueryBuilder};
+use sqlx::{FromRow, PgConnection, PgExecutor, QueryBuilder};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use uuid::Uuid;
 
@@ -175,7 +175,7 @@ struct ChunkRecord {
 	text: String,
 }
 
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug, FromRow)]
 struct NoteFieldRow {
 	field_id: Uuid,
 	text: String,

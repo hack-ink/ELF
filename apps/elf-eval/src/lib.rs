@@ -9,6 +9,7 @@ use clap::Parser;
 use color_eyre::{Result, eyre};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use sqlx::FromRow;
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use tracing_subscriber::EnvFilter;
 use uuid::Uuid;
@@ -319,7 +320,7 @@ struct TraceCompareRegressionAttribution {
 	evidence: String,
 }
 
-#[derive(sqlx::FromRow)]
+#[derive(FromRow)]
 struct TraceCompareTraceRow {
 	trace_id: Uuid,
 	query: String,
@@ -328,7 +329,7 @@ struct TraceCompareTraceRow {
 	created_at: OffsetDateTime,
 }
 
-#[derive(sqlx::FromRow)]
+#[derive(FromRow)]
 struct TraceCompareCandidateRow {
 	candidate_snapshot: Value,
 	note_id: Uuid,
@@ -344,7 +345,7 @@ struct TraceCompareCandidateRow {
 	note_last_hit_at: Option<OffsetDateTime>,
 }
 
-#[derive(sqlx::FromRow)]
+#[derive(FromRow)]
 struct TraceCompareStageRow {
 	stage_order: i32,
 	stage_name: String,

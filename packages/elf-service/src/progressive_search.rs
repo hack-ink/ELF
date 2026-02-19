@@ -5,7 +5,7 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sqlx::PgExecutor;
+use sqlx::{FromRow, PgExecutor};
 use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
@@ -189,7 +189,7 @@ struct SearchSession {
 	expires_at: OffsetDateTime,
 }
 
-#[derive(sqlx::FromRow)]
+#[derive(FromRow)]
 struct SearchSessionRow {
 	search_session_id: Uuid,
 	trace_id: Uuid,

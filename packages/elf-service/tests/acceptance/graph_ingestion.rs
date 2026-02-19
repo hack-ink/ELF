@@ -4,7 +4,7 @@ use std::{
 	sync::{Arc, atomic::AtomicUsize},
 };
 
-use sqlx::PgPool;
+use sqlx::{FromRow, PgPool};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
@@ -21,7 +21,7 @@ const GRAPH_REL_SUBJECT: &str = "alice";
 const GRAPH_REL_PREDICATE: &str = "mentors";
 const GRAPH_REL_OBJECT: &str = "Bob";
 
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug, FromRow)]
 struct GraphFactRow {
 	fact_id: Uuid,
 	predicate_id: Option<Uuid>,
