@@ -66,7 +66,7 @@ SELECT
 	n.importance,
 	n.confidence,
 	c.embedding_version,
-	e.vec::text AS \"vec_text?\"
+	e.vec::text AS vec_text
 FROM memory_note_chunks c
 JOIN memory_notes n ON n.note_id = c.note_id
 LEFT JOIN note_chunk_embeddings e

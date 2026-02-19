@@ -163,6 +163,8 @@ pub struct Search {
 	pub explain: SearchExplain,
 	#[serde(default)]
 	pub recursive: SearchRecursive,
+	#[serde(default)]
+	pub graph_context: SearchGraphContext,
 }
 
 #[derive(Debug, Deserialize)]
@@ -217,6 +219,19 @@ impl Default for SearchRecursive {
 			max_nodes_per_scope: 32,
 			max_total_nodes: 256,
 		}
+	}
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(default)]
+pub struct SearchGraphContext {
+	pub enabled: bool,
+	pub max_facts_per_item: u32,
+	pub max_evidence_notes_per_fact: u32,
+}
+impl Default for SearchGraphContext {
+	fn default() -> Self {
+		Self { enabled: false, max_facts_per_item: 16, max_evidence_notes_per_fact: 16 }
 	}
 }
 

@@ -136,6 +136,7 @@ fn test_config(dsn: String, qdrant_url: String, collection: String) -> Config {
 				write_mode: "outbox".to_string(),
 			},
 			recursive: Default::default(),
+			graph_context: Default::default(),
 		},
 		ranking: test_ranking(),
 		lifecycle: Lifecycle {

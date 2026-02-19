@@ -208,6 +208,7 @@ mod tests {
 					write_mode: "outbox".to_string(),
 				},
 				recursive: Default::default(),
+				graph_context: Default::default(),
 			},
 			ranking: test_ranking(),
 			lifecycle: Lifecycle {
