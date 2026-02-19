@@ -40,6 +40,7 @@ pub struct AddNoteResult {
 	pub note_id: Option<Uuid>,
 	pub op: NoteOp,
 	pub reason_code: Option<String>,
+	pub field_path: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -115,7 +116,12 @@ impl ElfService {
 				self.handle_add_note_add(&mut tx, ctx, &note, note_id).await?;
 				tx.commit().await?;
 
-				Ok(AddNoteResult { note_id: Some(note_id), op: NoteOp::Add, reason_code: None })
+				Ok(AddNoteResult {
+					note_id: Some(note_id),
+					op: NoteOp::Add,
+					reason_code: None,
+					field_path: None,
+				})
 			},
 			UpdateDecision::Update { note_id } => {
 				let result = self
@@ -128,7 +134,7 @@ impl ElfService {
 			},
 			UpdateDecision::None { note_id } => {
 				let result = self
-					.handle_add_note_none(&mut tx, &note, note_id, ctx.now, ctx.embed_version)
+					.handle_add_note_none(&mut tx, ctx, &note, note_id, ctx.now, ctx.embed_version)
 					.await?;
 
 				tx.commit().await?;
@@ -192,6 +198,17 @@ impl ElfService {
 			ctx.now,
 		)
 		.await?;
+		self.persist_graph_fields_if_present(
+			tx,
+			ctx.tenant_id,
+			ctx.project_id,
+			ctx.agent_id,
+			ctx.scope,
+			memory_note.note_id,
+			ctx.now,
+			note.structured.as_ref(),
+		)
+		.await?;
 
 		Ok(())
 	}
@@ -239,6 +256,7 @@ impl ElfService {
 				note_id: Some(note_id),
 				op: NoteOp::None,
 				reason_code: None,
+				field_path: None,
 			});
 		}
 
@@ -265,6 +283,17 @@ impl ElfService {
 		)
 		.await?;
 
+		self.persist_graph_fields_if_present(
+			tx,
+			existing.tenant_id.as_str(),
+			existing.project_id.as_str(),
+			existing.agent_id.as_str(),
+			existing.scope.as_str(),
+			existing.note_id,
+			now,
+			note.structured.as_ref(),
+		)
+		.await?;
 		self.upsert_structured_and_enqueue_outbox(
 			tx,
 			note,
@@ -274,32 +303,93 @@ impl ElfService {
 		)
 		.await?;
 
-		Ok(AddNoteResult { note_id: Some(note_id), op: NoteOp::Update, reason_code: None })
+		Ok(AddNoteResult {
+			note_id: Some(note_id),
+			op: NoteOp::Update,
+			reason_code: None,
+			field_path: None,
+		})
 	}
 
 	async fn handle_add_note_none(
 		&self,
 		tx: &mut Transaction<'_, Postgres>,
+		ctx: &AddNoteContext<'_>,
 		note: &AddNoteInput,
 		note_id: Uuid,
 		now: OffsetDateTime,
 		embed_version: &str,
 	) -> Result<AddNoteResult> {
-		if let Some(structured) = note.structured.as_ref()
-			&& !structured.is_effectively_empty()
-		{
-			crate::structured_fields::upsert_structured_fields_tx(tx, note_id, structured, now)
-				.await?;
-			crate::enqueue_outbox_tx(&mut **tx, note_id, "UPSERT", embed_version, now).await?;
+		let mut should_update = false;
 
+		if let Some(structured) = note.structured.as_ref() {
+			if !structured.is_effectively_empty() {
+				crate::structured_fields::upsert_structured_fields_tx(tx, note_id, structured, now)
+					.await?;
+				crate::enqueue_outbox_tx(&mut **tx, note_id, "UPSERT", embed_version, now).await?;
+
+				should_update = true;
+			}
+			if structured.has_graph_fields() {
+				self.persist_graph_fields_if_present(
+					tx,
+					ctx.tenant_id,
+					ctx.project_id,
+					ctx.agent_id,
+					ctx.scope,
+					note_id,
+					now,
+					Some(structured),
+				)
+				.await?;
+
+				should_update = true;
+			}
+		}
+
+		if should_update {
 			return Ok(AddNoteResult {
 				note_id: Some(note_id),
 				op: NoteOp::Update,
 				reason_code: None,
+				field_path: None,
 			});
 		}
 
-		Ok(AddNoteResult { note_id: Some(note_id), op: NoteOp::None, reason_code: None })
+		Ok(AddNoteResult {
+			note_id: Some(note_id),
+			op: NoteOp::None,
+			reason_code: None,
+			field_path: None,
+		})
+	}
+
+	#[allow(clippy::too_many_arguments)]
+	async fn persist_graph_fields_if_present(
+		&self,
+		tx: &mut Transaction<'_, Postgres>,
+		tenant_id: &str,
+		project_id: &str,
+		agent_id: &str,
+		scope: &str,
+		note_id: Uuid,
+		now: OffsetDateTime,
+		structured: Option<&StructuredFields>,
+	) -> Result<()> {
+		let Some(structured) = structured else {
+			return Ok(());
+		};
+
+		if !structured.has_graph_fields() {
+			return Ok(());
+		}
+
+		crate::graph_ingestion::persist_graph_fields_tx(
+			tx, tenant_id, project_id, agent_id, scope, note_id, structured, now,
+		)
+		.await?;
+
+		Ok(())
 	}
 
 	async fn upsert_structured_and_enqueue_outbox(
@@ -371,10 +461,13 @@ fn reject_note_if_structured_invalid(note: &AddNoteInput) -> Option<AddNoteResul
 		) {
 		tracing::info!(error = %err, "Rejecting note due to invalid structured fields.");
 
+		let field_path = extract_structured_rejection_field_path(&err);
+
 		return Some(AddNoteResult {
 			note_id: None,
 			op: NoteOp::Rejected,
 			reason_code: Some(REJECT_STRUCTURED_INVALID.to_string()),
+			field_path,
 		});
 	}
 
@@ -397,6 +490,7 @@ fn reject_note_if_writegate_rejects(
 			note_id: None,
 			op: NoteOp::Rejected,
 			reason_code: Some(crate::writegate_reason_code(code).to_string()),
+			field_path: None,
 		});
 	}
 
@@ -425,6 +519,89 @@ fn find_cjk_path_in_structured(
 		for (idx, item) in items.iter().enumerate() {
 			if cjk::contains_cjk(item) {
 				return Some(format!("{base}.concepts[{idx}]"));
+			}
+		}
+	}
+	if let Some(items) = structured.entities.as_ref() {
+		for (idx, entity) in items.iter().enumerate() {
+			let base = format!("{base}.entities[{idx}]");
+
+			if let Some(canonical) = entity.canonical.as_ref()
+				&& cjk::contains_cjk(canonical)
+			{
+				return Some(format!("{base}.canonical"));
+			}
+			if let Some(kind) = entity.kind.as_ref()
+				&& cjk::contains_cjk(kind)
+			{
+				return Some(format!("{base}.kind"));
+			}
+			if let Some(aliases) = entity.aliases.as_ref() {
+				for (alias_idx, alias) in aliases.iter().enumerate() {
+					if cjk::contains_cjk(alias) {
+						return Some(format!("{base}.aliases[{alias_idx}]"));
+					}
+				}
+			}
+		}
+	}
+	if let Some(items) = structured.relations.as_ref() {
+		for (idx, relation) in items.iter().enumerate() {
+			let base = format!("{base}.relations[{idx}]");
+
+			if let Some(subject) = relation.subject.as_ref() {
+				let subject_base = format!("{base}.subject");
+
+				if let Some(canonical) = subject.canonical.as_ref()
+					&& cjk::contains_cjk(canonical)
+				{
+					return Some(format!("{subject_base}.canonical"));
+				}
+				if let Some(kind) = subject.kind.as_ref()
+					&& cjk::contains_cjk(kind)
+				{
+					return Some(format!("{subject_base}.kind"));
+				}
+				if let Some(aliases) = subject.aliases.as_ref() {
+					for (alias_idx, alias) in aliases.iter().enumerate() {
+						if cjk::contains_cjk(alias) {
+							return Some(format!("{subject_base}.aliases[{alias_idx}]"));
+						}
+					}
+				}
+			}
+			if let Some(predicate) = relation.predicate.as_ref()
+				&& cjk::contains_cjk(predicate)
+			{
+				return Some(format!("{base}.predicate"));
+			}
+			if let Some(object) = relation.object.as_ref() {
+				if let Some(entity) = object.entity.as_ref() {
+					let object_base = format!("{base}.object.entity");
+
+					if let Some(canonical) = entity.canonical.as_ref()
+						&& cjk::contains_cjk(canonical)
+					{
+						return Some(format!("{object_base}.canonical"));
+					}
+					if let Some(kind) = entity.kind.as_ref()
+						&& cjk::contains_cjk(kind)
+					{
+						return Some(format!("{object_base}.kind"));
+					}
+					if let Some(aliases) = entity.aliases.as_ref() {
+						for (alias_idx, alias) in aliases.iter().enumerate() {
+							if cjk::contains_cjk(alias) {
+								return Some(format!("{object_base}.aliases[{alias_idx}]"));
+							}
+						}
+					}
+				}
+				if let Some(value) = object.value.as_ref()
+					&& cjk::contains_cjk(value)
+				{
+					return Some(format!("{base}.object.value"));
+				}
 			}
 		}
 	}
@@ -468,6 +645,15 @@ fn find_cjk_path(value: &Value, path: &str) -> Option<String> {
 
 fn escape_json_path_key(key: &str) -> String {
 	key.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
+fn extract_structured_rejection_field_path(err: &Error) -> Option<String> {
+	match err {
+		Error::NonEnglishInput { field } => Some(field.clone()),
+		Error::InvalidRequest { message } if message.starts_with("structured.") =>
+			message.split_whitespace().next().map(ToString::to_string),
+		_ => None,
+	}
 }
 
 async fn insert_memory_note_tx(

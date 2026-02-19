@@ -1,16 +1,10 @@
-use serde_json::json;
 use sqlx::PgConnection;
 use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
 use elf_config::Postgres;
 use elf_storage::{
-	Error as StorageError,
 	db::Db,
-	graph::{
-		fetch_active_facts_for_subject, insert_fact_with_evidence, normalize_entity_name,
-		upsert_entity,
-	},
 	models::{GraphFact, MemoryNote},
 	queries,
 };
@@ -26,7 +20,6 @@ async fn graph_entity_upsert_is_idempotent_by_normalized_canonical() {
 
 		return;
 	};
-
 	let test_db = TestDatabase::new(&base_dsn).await.expect("Failed to create test database.");
 	let cfg = Postgres { dsn: test_db.dsn().to_string(), pool_max_conns: 1 };
 	let db = Db::connect(&cfg).await.expect("Failed to connect to Postgres.");
@@ -34,22 +27,35 @@ async fn graph_entity_upsert_is_idempotent_by_normalized_canonical() {
 	db.ensure_schema(4_096).await.expect("Failed to ensure schema.");
 
 	let mut tx = db.pool.begin().await.expect("Failed to open transaction.");
-
 	let tenant_id = "tenant-a";
 	let project_id = "project-a";
-	let entity_id = upsert_entity(&mut tx, tenant_id, project_id, "  Alice   Doe ", Some("person"))
-		.await
-		.expect("Failed to upsert canonical entity.");
-	let canonical_norm = normalize_entity_name("Alice doe");
+	let entity_id = elf_storage::graph::upsert_entity(
+		&mut tx,
+		tenant_id,
+		project_id,
+		"  Alice   Doe ",
+		Some("person"),
+	)
+	.await
+	.expect("Failed to upsert canonical entity.");
+	let canonical_norm = elf_storage::graph::normalize_entity_name("Alice doe");
+
 	assert_eq!(canonical_norm, "alice doe");
 
-	let entity_again = upsert_entity(&mut tx, tenant_id, project_id, "Alice\tDoe", Some("person"))
-		.await
-		.expect("Failed to upsert canonical alias.");
+	let entity_again = elf_storage::graph::upsert_entity(
+		&mut tx,
+		tenant_id,
+		project_id,
+		"Alice\tDoe",
+		Some("person"),
+	)
+	.await
+	.expect("Failed to upsert canonical alias.");
 
 	assert_eq!(entity_id, entity_again);
 
 	tx.commit().await.expect("Failed to commit transaction.");
+
 	assert!(test_db.cleanup().await.is_ok(), "Failed to cleanup test database.");
 }
 
@@ -61,7 +67,6 @@ async fn graph_fact_with_empty_evidence_is_rejected() {
 
 		return;
 	};
-
 	let test_db = TestDatabase::new(&base_dsn).await.expect("Failed to create test database.");
 	let cfg = Postgres { dsn: test_db.dsn().to_string(), pool_max_conns: 1 };
 	let db = Db::connect(&cfg).await.expect("Failed to connect to Postgres.");
@@ -69,11 +74,11 @@ async fn graph_fact_with_empty_evidence_is_rejected() {
 	db.ensure_schema(4_096).await.expect("Failed to ensure schema.");
 
 	let mut tx = db.pool.begin().await.expect("Failed to open transaction.");
-	let subject = upsert_entity(&mut tx, "tenant-a", "project-a", "Entity A", None)
-		.await
-		.expect("Failed to upsert subject.");
-
-	let err = insert_fact_with_evidence(
+	let subject =
+		elf_storage::graph::upsert_entity(&mut tx, "tenant-a", "project-a", "Entity A", None)
+			.await
+			.expect("Failed to upsert subject.");
+	let err = elf_storage::graph::insert_fact_with_evidence(
 		&mut tx,
 		"tenant-a",
 		"project-a",
@@ -90,7 +95,7 @@ async fn graph_fact_with_empty_evidence_is_rejected() {
 	.await
 	.expect_err("Expected empty evidence to be rejected.");
 
-	assert!(matches!(err, StorageError::InvalidArgument(_)));
+	assert!(matches!(err, elf_storage::Error::InvalidArgument(_)));
 
 	tx.rollback().await.expect("Failed to rollback transaction.");
 	test_db.cleanup().await.expect("Failed to cleanup test database.");
@@ -106,7 +111,6 @@ async fn graph_fact_duplicates_with_active_window_fail_unique_constraint() {
 
 		return;
 	};
-
 	let test_db = TestDatabase::new(&base_dsn).await.expect("Failed to create test database.");
 	let cfg = Postgres { dsn: test_db.dsn().to_string(), pool_max_conns: 1 };
 	let db = Db::connect(&cfg).await.expect("Failed to connect to Postgres.");
@@ -115,17 +119,17 @@ async fn graph_fact_duplicates_with_active_window_fail_unique_constraint() {
 
 	let mut tx = db.pool.begin().await.expect("Failed to open transaction.");
 	let note_id = insert_memory_note(&mut tx, "tenant-a", "project-a").await;
-
-	let subject = upsert_entity(&mut tx, "tenant-a", "project-a", "Entity Subject", None)
-		.await
-		.expect("Failed to upsert subject.");
-	let object = upsert_entity(&mut tx, "tenant-a", "project-a", "Entity Object", None)
-		.await
-		.expect("Failed to upsert object.");
-
+	let subject =
+		elf_storage::graph::upsert_entity(&mut tx, "tenant-a", "project-a", "Entity Subject", None)
+			.await
+			.expect("Failed to upsert subject.");
+	let object =
+		elf_storage::graph::upsert_entity(&mut tx, "tenant-a", "project-a", "Entity Object", None)
+			.await
+			.expect("Failed to upsert object.");
 	let now = OffsetDateTime::now_utc();
 
-	insert_fact_with_evidence(
+	elf_storage::graph::insert_fact_with_evidence(
 		&mut tx,
 		"tenant-a",
 		"project-a",
@@ -142,7 +146,7 @@ async fn graph_fact_duplicates_with_active_window_fail_unique_constraint() {
 	.await
 	.expect("Failed to insert graph fact.");
 
-	let err = insert_fact_with_evidence(
+	let err = elf_storage::graph::insert_fact_with_evidence(
 		&mut tx,
 		"tenant-a",
 		"project-a",
@@ -172,7 +176,6 @@ async fn graph_fact_rejects_invalid_valid_window() {
 
 		return;
 	};
-
 	let test_db = TestDatabase::new(&base_dsn).await.expect("Failed to create test database.");
 	let cfg = Postgres { dsn: test_db.dsn().to_string(), pool_max_conns: 1 };
 	let db = Db::connect(&cfg).await.expect("Failed to connect to Postgres.");
@@ -181,13 +184,12 @@ async fn graph_fact_rejects_invalid_valid_window() {
 
 	let mut tx = db.pool.begin().await.expect("Failed to open transaction.");
 	let note_id = insert_memory_note(&mut tx, "tenant-a", "project-a").await;
-
-	let subject = upsert_entity(&mut tx, "tenant-a", "project-a", "Entity Subject", None)
-		.await
-		.expect("Failed to upsert subject.");
-
+	let subject =
+		elf_storage::graph::upsert_entity(&mut tx, "tenant-a", "project-a", "Entity Subject", None)
+			.await
+			.expect("Failed to upsert subject.");
 	let now = OffsetDateTime::now_utc();
-	let err = insert_fact_with_evidence(
+	let err = elf_storage::graph::insert_fact_with_evidence(
 		&mut tx,
 		"tenant-a",
 		"project-a",
@@ -219,7 +221,6 @@ async fn graph_fetch_active_facts_returns_active_window_only() {
 
 		return;
 	};
-
 	let test_db = TestDatabase::new(&base_dsn).await.expect("Failed to create test database.");
 	let cfg = Postgres { dsn: test_db.dsn().to_string(), pool_max_conns: 1 };
 	let db = Db::connect(&cfg).await.expect("Failed to connect to Postgres.");
@@ -228,14 +229,12 @@ async fn graph_fetch_active_facts_returns_active_window_only() {
 
 	let mut tx = db.pool.begin().await.expect("Failed to open transaction.");
 	let note_id = insert_memory_note(&mut tx, "tenant-a", "project-a").await;
-
-	let subject = upsert_entity(&mut tx, "tenant-a", "project-a", "Entity Subject", None)
-		.await
-		.expect("Failed to upsert subject.");
-
+	let subject =
+		elf_storage::graph::upsert_entity(&mut tx, "tenant-a", "project-a", "Entity Subject", None)
+			.await
+			.expect("Failed to upsert subject.");
 	let now = OffsetDateTime::now_utc();
-
-	let active = insert_fact_with_evidence(
+	let active = elf_storage::graph::insert_fact_with_evidence(
 		&mut tx,
 		"tenant-a",
 		"project-a",
@@ -252,7 +251,7 @@ async fn graph_fetch_active_facts_returns_active_window_only() {
 	.await
 	.expect("Failed to insert active graph fact.");
 
-	insert_fact_with_evidence(
+	elf_storage::graph::insert_fact_with_evidence(
 		&mut tx,
 		"tenant-a",
 		"project-a",
@@ -268,8 +267,7 @@ async fn graph_fetch_active_facts_returns_active_window_only() {
 	)
 	.await
 	.expect("Failed to insert expired graph fact.");
-
-	insert_fact_with_evidence(
+	elf_storage::graph::insert_fact_with_evidence(
 		&mut tx,
 		"tenant-a",
 		"project-a",
@@ -286,10 +284,16 @@ async fn graph_fetch_active_facts_returns_active_window_only() {
 	.await
 	.expect("Failed to insert future graph fact.");
 
-	let facts: Vec<GraphFact> =
-		fetch_active_facts_for_subject(&mut tx, "tenant-a", "project-a", "scope-a", subject, now)
-			.await
-			.expect("Failed to fetch active graph facts.");
+	let facts: Vec<GraphFact> = elf_storage::graph::fetch_active_facts_for_subject(
+		&mut tx,
+		"tenant-a",
+		"project-a",
+		"scope-a",
+		subject,
+		now,
+	)
+	.await
+	.expect("Failed to fetch active graph facts.");
 
 	assert_eq!(facts.len(), 1);
 	assert_eq!(facts[0].fact_id, active);
@@ -321,7 +325,7 @@ async fn insert_memory_note(
 		updated_at: OffsetDateTime::now_utc(),
 		expires_at: None,
 		embedding_version: "test:vec:1".to_string(),
-		source_ref: json!({}),
+		source_ref: serde_json::json!({}),
 		hit_count: 0,
 		last_hit_at: None,
 	};

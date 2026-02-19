@@ -926,15 +926,55 @@ Body:
       "importance": 0.0,
       "confidence": 0.0,
       "ttl_days": 180,
+      "structured": {
+        "summary": "string|null",
+        "facts": "string[]|null",
+        "concepts": "string[]|null",
+        "entities": [
+          {
+            "canonical": "string|null",
+            "kind": "string|null",
+            "aliases": "string[]|null"
+          }
+        ]|null,
+        "relations": [
+          {
+            "subject": {
+              "canonical": "string|null",
+              "kind": "string|null",
+              "aliases": "string[]|null"
+            },
+            "predicate": "string",
+            "object": {
+              "entity": {
+                "canonical": "string|null",
+                "kind": "string|null",
+                "aliases": "string[]|null"
+              }|null,
+              "value": "string|null"
+            },
+            "valid_from": "ISO8601 datetime|null",
+            "valid_to": "ISO8601 datetime|null"
+          }
+        ]|null
+      }|null,
       "source_ref": { ... }
     }
   ]
 }
 
+Notes:
+- Exactly one of object.entity and object.value must be non-null.
+
 Response:
 {
   "results": [
-    { "note_id": "uuid|null", "op": "ADD|UPDATE|NONE|DELETE|REJECTED", "reason_code": "optional" }
+    {
+      "note_id": "uuid|null",
+      "op": "ADD|UPDATE|NONE|DELETE|REJECTED",
+      "reason_code": "optional",
+      "field_path": "optional"
+    }
   ]
 }
 
@@ -959,7 +999,13 @@ Response:
 {
   "extracted": { ...extractor output... },
   "results": [
-    { "note_id": "uuid|null", "op": "ADD|UPDATE|NONE|DELETE|REJECTED", "reason_code": "optional", "reason": "optional" }
+    {
+      "note_id": "uuid|null",
+      "op": "ADD|UPDATE|NONE|DELETE|REJECTED",
+      "reason_code": "optional",
+      "reason": "optional",
+      "field_path": "optional"
+    }
   ]
 }
 
@@ -1187,6 +1233,38 @@ Schema:
       "importance": 0.0,
       "confidence": 0.0,
       "ttl_days": number|null,
+      "structured": {
+        "summary": "string|null",
+        "facts": "string[]|null",
+        "concepts": "string[]|null",
+        "entities": [
+          {
+            "canonical": "string|null",
+            "kind": "string|null",
+            "aliases": "string[]|null"
+          }
+        ]|null,
+        "relations": [
+          {
+            "subject": {
+              "canonical": "string|null",
+              "kind": "string|null",
+              "aliases": "string[]|null"
+            },
+            "predicate": "string",
+            "object": {
+              "entity": {
+                "canonical": "string|null",
+                "kind": "string|null",
+                "aliases": "string[]|null"
+              }|null,
+              "value": "string|null"
+            },
+            "valid_from": "ISO8601 datetime|null",
+            "valid_to": "ISO8601 datetime|null"
+          }
+        ]|null
+      }|null,
       "scope_suggestion": "agent_private|project_shared|org_shared|null",
       "evidence": [
         { "message_index": number, "quote": "string" }
@@ -1195,6 +1273,9 @@ Schema:
     }
   ]
 }
+
+Notes:
+- Exactly one of object.entity and object.value must be non-null.
 
 Hard rules:
 - notes.length <= MAX_NOTES

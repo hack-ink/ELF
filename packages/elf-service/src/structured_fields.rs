@@ -10,6 +10,9 @@ use crate::{Error, Result};
 use elf_domain::{cjk, evidence};
 
 const MAX_LIST_ITEMS: usize = 64;
+const MAX_ENTITIES: usize = 32;
+const MAX_RELATIONS: usize = 64;
+const MAX_ALIASES: usize = 16;
 const MAX_ITEM_CHARS: usize = 1_000;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -17,6 +20,8 @@ pub struct StructuredFields {
 	pub summary: Option<String>,
 	pub facts: Option<Vec<String>>,
 	pub concepts: Option<Vec<String>>,
+	pub entities: Option<Vec<StructuredEntity>>,
+	pub relations: Option<Vec<StructuredRelation>>,
 }
 impl StructuredFields {
 	pub fn is_effectively_empty(&self) -> bool {
@@ -34,6 +39,36 @@ impl StructuredFields {
 
 		summary_empty && facts_empty && concepts_empty
 	}
+
+	pub fn has_graph_fields(&self) -> bool {
+		self.entities.as_ref().is_some_and(|entities| !entities.is_empty())
+			|| self.relations.as_ref().is_some_and(|relations| !relations.is_empty())
+	}
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct StructuredEntity {
+	pub canonical: Option<String>,
+	pub kind: Option<String>,
+	pub aliases: Option<Vec<String>>,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct StructuredRelation {
+	pub subject: Option<StructuredEntity>,
+	pub predicate: Option<String>,
+	pub object: Option<StructuredRelationObject>,
+	#[serde(with = "crate::time_serde::option")]
+	pub valid_from: Option<OffsetDateTime>,
+	#[serde(with = "crate::time_serde::option")]
+	pub valid_to: Option<OffsetDateTime>,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct StructuredRelationObject {
+	pub entity: Option<StructuredEntity>,
+	pub value: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -47,17 +82,38 @@ pub fn validate_structured_fields(
 	source_ref: &Value,
 	add_event_evidence: Option<&[(usize, String)]>,
 ) -> Result<()> {
+	let evidence_quotes: Vec<String> = if let Some(event_evidence) = add_event_evidence {
+		event_evidence.iter().map(|(_, quote)| quote.clone()).collect()
+	} else {
+		extract_source_ref_quotes(source_ref)
+	};
+
 	if let Some(summary) = structured.summary.as_ref() {
 		validate_text_field(summary, "structured.summary")?;
 	}
+	if let Some(entities) = structured.entities.as_ref() {
+		validate_list_field_count(entities.len(), MAX_ENTITIES, "structured.entities")?;
+
+		for (idx, entity) in entities.iter().enumerate() {
+			let base = format!("structured.entities[{idx}]");
+
+			validate_structured_entity(entity, &base, true)?;
+		}
+	}
+	if let Some(relations) = structured.relations.as_ref() {
+		validate_list_field_count(relations.len(), MAX_RELATIONS, "structured.relations")?;
+
+		for (idx, relation) in relations.iter().enumerate() {
+			validate_structured_relation(
+				relation,
+				note_text,
+				&evidence_quotes,
+				&format!("structured.relations[{idx}]"),
+			)?;
+		}
+	}
 	if let Some(facts) = structured.facts.as_ref() {
 		validate_list_field(facts, "structured.facts")?;
-
-		let evidence_quotes: Vec<String> = if let Some(event_evidence) = add_event_evidence {
-			event_evidence.iter().map(|(_, quote)| quote.clone()).collect()
-		} else {
-			extract_source_ref_quotes(source_ref)
-		};
 
 		for (idx, fact) in facts.iter().enumerate() {
 			validate_text_field(fact, &format!("structured.facts[{idx}]"))?;
@@ -165,6 +221,119 @@ ORDER BY note_id ASC, field_kind ASC, item_index ASC",
 	Ok(out)
 }
 
+fn validate_structured_entity(
+	entity: &StructuredEntity,
+	base: &str,
+	require_canonical: bool,
+) -> Result<()> {
+	if require_canonical {
+		validate_required_text_field(entity.canonical.as_ref(), &format!("{base}.canonical"))?;
+	}
+
+	if let Some(kind) = entity.kind.as_ref() {
+		validate_text_field(kind, &format!("{base}.kind"))?;
+	}
+	if let Some(aliases) = entity.aliases.as_ref() {
+		validate_list_field_count(aliases.len(), MAX_ALIASES, &format!("{base}.aliases"))?;
+
+		for (alias_idx, alias) in aliases.iter().enumerate() {
+			validate_text_field(alias, &format!("{base}.aliases[{alias_idx}]"))?;
+		}
+	}
+
+	Ok(())
+}
+
+fn validate_structured_relation(
+	relation: &StructuredRelation,
+	note_text: &str,
+	evidence_quotes: &[String],
+	base: &str,
+) -> Result<()> {
+	if relation.predicate.is_none() {
+		return Err(Error::InvalidRequest { message: format!("{base}.predicate is required.") });
+	}
+
+	let subject = relation
+		.subject
+		.as_ref()
+		.ok_or_else(|| Error::InvalidRequest { message: format!("{base}.subject is required.") })?;
+
+	validate_structured_entity(subject, &format!("{base}.subject"), true)?;
+
+	let predicate = relation.predicate.as_ref().ok_or_else(|| Error::InvalidRequest {
+		message: format!("{base}.predicate is required."),
+	})?;
+
+	validate_text_field(predicate, &format!("{base}.predicate"))?;
+
+	let object = relation
+		.object
+		.as_ref()
+		.ok_or_else(|| Error::InvalidRequest { message: format!("{base}.object is required.") })?;
+
+	match (&object.entity, object.value.as_ref()) {
+		(Some(entity), None) => {
+			validate_structured_entity(entity, &format!("{base}.object.entity"), true)?;
+
+			let canonical = entity.canonical.as_deref().ok_or_else(|| Error::InvalidRequest {
+				message: format!("{base}.object.entity.canonical is required."),
+			})?;
+
+			if !fact_is_evidence_bound(canonical, note_text, evidence_quotes) {
+				return Err(Error::InvalidRequest {
+					message: format!(
+						"{base}.object.entity.canonical is not supported by note text or evidence quotes."
+					),
+				});
+			}
+		},
+		(None, Some(value)) => {
+			validate_text_field(value, &format!("{base}.object.value"))?;
+
+			if !fact_is_evidence_bound(value, note_text, evidence_quotes) {
+				return Err(Error::InvalidRequest {
+					message: format!(
+						"{base}.object.value is not supported by note text or evidence quotes."
+					),
+				});
+			}
+		},
+		(_, _) => {
+			return Err(Error::InvalidRequest {
+				message: format!("{base}.object must provide exactly one of entity or value."),
+			});
+		},
+	}
+
+	if !fact_is_evidence_bound(
+		subject.canonical.as_deref().unwrap_or_default(),
+		note_text,
+		evidence_quotes,
+	) {
+		return Err(Error::InvalidRequest {
+			message: format!(
+				"{base}.subject.canonical is not supported by note text or evidence quotes."
+			),
+		});
+	}
+	if !fact_is_evidence_bound(predicate, note_text, evidence_quotes) {
+		return Err(Error::InvalidRequest {
+			message: format!("{base}.predicate is not supported by note text or evidence quotes."),
+		});
+	}
+
+	if let (Some(valid_from), Some(valid_to)) = (relation.valid_from, relation.valid_to)
+		&& valid_to <= valid_from
+	{
+		return Err(Error::InvalidRequest {
+			message: format!("{base}.valid_to must be greater than valid_from."),
+		});
+	}
+
+	Ok(())
+}
+
 fn validate_list_field(items: &[String], label: &str) -> Result<()> {
 	if items.len() > MAX_LIST_ITEMS {
 		return Err(Error::InvalidRequest {
@@ -188,6 +357,24 @@ fn validate_text_field(value: &str, label: &str) -> Result<()> {
 	}
 	if cjk::contains_cjk(trimmed) {
 		return Err(Error::NonEnglishInput { field: label.to_string() });
+	}
+
+	Ok(())
+}
+
+fn validate_required_text_field(value: Option<&String>, label: &str) -> Result<()> {
+	let Some(value) = value else {
+		return Err(Error::InvalidRequest { message: format!("{label} is required.") });
+	};
+
+	validate_text_field(value, label)
+}
+
+fn validate_list_field_count(len: usize, max: usize, label: &str) -> Result<()> {
+	if len > max {
+		return Err(Error::InvalidRequest {
+			message: format!("{label} must have at most {max} items."),
+		});
 	}
 
 	Ok(())
@@ -284,6 +471,8 @@ mod tests {
 			summary: None,
 			facts: Some(vec!["Deploy uses reranking".to_string()]),
 			concepts: None,
+			entities: None,
+			relations: None,
 		};
 		let res = validate_structured_fields(
 			&structured,
@@ -301,6 +490,8 @@ mod tests {
 			summary: None,
 			facts: Some(vec!["Nonexistent claim.".to_string()]),
 			concepts: None,
+			entities: None,
+			relations: None,
 		};
 		let res =
 			validate_structured_fields(&structured, "Some note.", &serde_json::json!({}), None);

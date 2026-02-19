@@ -3,6 +3,7 @@ mod chunk_search;
 mod chunking;
 mod english_only_boundary;
 mod evidence_binding;
+mod graph_ingestion;
 mod idempotency;
 mod outbox_eventual_consistency;
 mod rebuild_qdrant;
