@@ -2,6 +2,8 @@
 pub enum Error {
 	#[error(transparent)]
 	Sqlx(#[from] sqlx::Error),
+	#[error("Invalid argument: {0}")]
+	InvalidArgument(String),
 	#[error(transparent)]
 	Qdrant(#[from] Box<qdrant_client::QdrantError>),
 }

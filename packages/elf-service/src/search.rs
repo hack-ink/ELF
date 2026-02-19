@@ -1543,6 +1543,7 @@ impl ElfService {
 		Ok(result)
 	}
 
+	#[allow(clippy::too_many_arguments)]
 	async fn collect_recursive_candidates(
 		&self,
 		args: &RecursiveRetrievalArgs<'_>,
