@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sqlx::{Postgres, Transaction};
-use time::OffsetDateTime;
+use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
 use crate::{
@@ -61,20 +61,22 @@ impl ElfService {
 	pub async fn add_note(&self, req: AddNoteRequest) -> Result<AddNoteResponse> {
 		validate_add_note_request(&req)?;
 
-		let now = OffsetDateTime::now_utc();
+		let base_now = OffsetDateTime::now_utc();
 		let embed_version = crate::embedding_version(&self.cfg);
 		let AddNoteRequest { tenant_id, project_id, agent_id, scope, notes } = req;
-		let ctx = AddNoteContext {
-			tenant_id: tenant_id.as_str(),
-			project_id: project_id.as_str(),
-			agent_id: agent_id.as_str(),
-			scope: scope.as_str(),
-			now,
-			embed_version: embed_version.as_str(),
-		};
 		let mut results = Vec::with_capacity(notes.len());
 
-		for note in notes {
+		for (note_idx, note) in notes.into_iter().enumerate() {
+			let now = base_now + Duration::microseconds(note_idx as i64);
+			let ctx = AddNoteContext {
+				tenant_id: tenant_id.as_str(),
+				project_id: project_id.as_str(),
+				agent_id: agent_id.as_str(),
+				scope: scope.as_str(),
+				now,
+				embed_version: embed_version.as_str(),
+			};
+
 			results.push(self.process_add_note_input(&ctx, note).await?);
 		}
 

@@ -1,5 +1,5 @@
 use sqlx::{Postgres, Transaction};
-use time::OffsetDateTime;
+use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
 use crate::{Error, Result, StructuredFields, structured_fields::StructuredEntity};
@@ -32,6 +32,7 @@ pub(crate) async fn persist_graph_fields_tx(
 	let relations = structured.relations.as_deref().unwrap_or_default();
 
 	for (relation_idx, relation) in relations.iter().enumerate() {
+		let relation_now = now + Duration::microseconds(relation_idx as i64);
 		let relation_path = format!("structured.relations[{relation_idx}]");
 		let subject = relation.subject.as_ref().ok_or_else(|| Error::InvalidRequest {
 			message: format!("{relation_path}.subject is required."),
@@ -47,7 +48,7 @@ pub(crate) async fn persist_graph_fields_tx(
 			&format!("{relation_path}.subject"),
 		)
 		.await?;
-		let valid_from = relation.valid_from.unwrap_or(now);
+		let valid_from = relation.valid_from.unwrap_or(relation_now);
 		let valid_to = relation.valid_to;
 
 		if let Some(valid_to) = valid_to
@@ -83,8 +84,11 @@ pub(crate) async fn persist_graph_fields_tx(
 				});
 			},
 		};
-
-		graph::upsert_fact_with_evidence(
+		let predicate_row =
+			graph::resolve_or_register_predicate(tx, tenant_id, project_id, predicate)
+				.await
+				.map_err(|err| Error::Storage { message: err.to_string() })?;
+		let fact_id = graph::upsert_fact_with_evidence(
 			tx,
 			tenant_id,
 			project_id,
@@ -92,6 +96,7 @@ pub(crate) async fn persist_graph_fields_tx(
 			scope,
 			subject_entity_id,
 			predicate,
+			predicate_row.predicate_id,
 			object_entity_id,
 			object_value,
 			valid_from,
@@ -100,6 +105,26 @@ pub(crate) async fn persist_graph_fields_tx(
 		)
 		.await
 		.map_err(|err| Error::Storage { message: err.to_string() })?;
+		let is_current_truth = predicate_row.status == "active"
+			&& predicate_row.cardinality == "single"
+			&& valid_to.is_none()
+			&& valid_from <= relation_now;
+
+		if is_current_truth {
+			graph::supersede_conflicting_active_facts(
+				tx,
+				tenant_id,
+				project_id,
+				scope,
+				subject_entity_id,
+				predicate_row.predicate_id,
+				fact_id,
+				note_id,
+				valid_from,
+			)
+			.await
+			.map_err(|err| Error::Storage { message: err.to_string() })?;
+		}
 	}
 
 	Ok(())
