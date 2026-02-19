@@ -21,9 +21,6 @@ Purpose: Provide the entry point for operational guidance and runbooks.
 
 ## Development
 
-- `docs/guide/development/languages/rust.md` - Rust development and style rules.
-- `docs/guide/development/languages/python.md` - Python environment and workflow.
-- `docs/guide/development/dependency_upgrade_workflow.md` - Dependency upgrade workflow.
 - `docs/guide/development/issue_labeling.md` - Issue labeling conventions.
 
 ## Data samples
