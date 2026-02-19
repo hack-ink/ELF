@@ -402,6 +402,10 @@ where
 	sqlx::query(
 		"\
 TRUNCATE
+	graph_entities,
+	graph_entity_aliases,
+	graph_facts,
+	graph_fact_evidence,
 	memory_hits,
 	memory_note_versions,
 	note_field_embeddings,
@@ -410,6 +414,8 @@ TRUNCATE
 	memory_note_chunks,
 	note_embeddings,
 	search_trace_items,
+	search_trace_stage_items,
+	search_trace_stages,
 	search_traces,
 	search_trace_outbox,
 	search_sessions,
