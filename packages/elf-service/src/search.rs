@@ -14,7 +14,7 @@ use qdrant_client::qdrant::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sqlx::{PgConnection, PgExecutor, PgPool, QueryBuilder, Row};
+use sqlx::{FromRow, PgConnection, PgExecutor, PgPool, QueryBuilder, Row};
 use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
@@ -728,7 +728,7 @@ struct NoteMeta {
 	last_hit_at: Option<OffsetDateTime>,
 }
 
-#[derive(Clone, Debug, sqlx::FromRow)]
+#[derive(Clone, Debug, FromRow)]
 struct ChunkRow {
 	chunk_id: Uuid,
 	note_id: Uuid,
@@ -738,13 +738,13 @@ struct ChunkRow {
 	text: String,
 }
 
-#[derive(Clone, Debug, sqlx::FromRow)]
+#[derive(Clone, Debug, FromRow)]
 struct NoteVectorRow {
 	note_id: Uuid,
 	vec_text: String,
 }
 
-#[derive(Clone, Debug, sqlx::FromRow)]
+#[derive(Clone, Debug, FromRow)]
 struct SearchExplainTraceRow {
 	trace_id: Uuid,
 	tenant_id: String,
@@ -767,7 +767,7 @@ struct SearchExplainTraceRow {
 	explain: Value,
 }
 
-#[derive(Clone, Debug, sqlx::FromRow)]
+#[derive(Clone, Debug, FromRow)]
 struct SearchRelationContextRow {
 	note_id: Uuid,
 	fact_id: Uuid,
@@ -784,7 +784,7 @@ struct SearchRelationContextRow {
 	evidence_note_ids: Vec<Uuid>,
 }
 
-#[derive(Clone, Debug, sqlx::FromRow)]
+#[derive(Clone, Debug, FromRow)]
 struct SearchTraceRow {
 	trace_id: Uuid,
 	tenant_id: String,
@@ -802,7 +802,7 @@ struct SearchTraceRow {
 	created_at: OffsetDateTime,
 }
 
-#[derive(Clone, Debug, sqlx::FromRow)]
+#[derive(Clone, Debug, FromRow)]
 struct SearchTraceItemRow {
 	item_id: Uuid,
 	note_id: Uuid,
@@ -811,13 +811,13 @@ struct SearchTraceItemRow {
 	explain: Value,
 }
 
-#[derive(Clone, Debug, sqlx::FromRow)]
+#[derive(Clone, Debug, FromRow)]
 struct StructuredFieldHitRow {
 	note_id: Uuid,
 	field_kind: String,
 }
 
-#[derive(Clone, Debug, sqlx::FromRow)]
+#[derive(Clone, Debug, FromRow)]
 struct BestChunkForNoteRow {
 	note_id: Uuid,
 	chunk_id: Uuid,

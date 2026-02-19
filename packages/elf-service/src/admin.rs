@@ -7,6 +7,7 @@ use qdrant_client::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
+use sqlx::FromRow;
 use uuid::Uuid;
 
 use crate::{ElfService, Error, Result};
@@ -19,7 +20,7 @@ pub struct RebuildReport {
 	pub error_count: u64,
 }
 
-#[derive(sqlx::FromRow)]
+#[derive(FromRow)]
 struct RebuildRow {
 	chunk_id: Uuid,
 	chunk_index: i32,

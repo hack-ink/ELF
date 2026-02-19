@@ -1,8 +1,9 @@
 use serde_json::Value;
 use time::OffsetDateTime;
 use uuid::Uuid;
+use sqlx::FromRow;
 
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug, FromRow)]
 pub struct MemoryNote {
 	pub note_id: Uuid,
 	pub tenant_id: String,
@@ -24,7 +25,7 @@ pub struct MemoryNote {
 	pub last_hit_at: Option<OffsetDateTime>,
 }
 
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug, FromRow)]
 pub struct MemoryNoteChunk {
 	pub chunk_id: Uuid,
 	pub note_id: Uuid,
@@ -36,7 +37,7 @@ pub struct MemoryNoteChunk {
 	pub created_at: OffsetDateTime,
 }
 
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug, FromRow)]
 pub struct NoteChunkEmbedding {
 	pub chunk_id: Uuid,
 	pub embedding_version: String,
@@ -54,7 +55,7 @@ pub struct NoteEmbedding {
 	pub created_at: OffsetDateTime,
 }
 
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug, FromRow)]
 pub struct IndexingOutboxEntry {
 	pub outbox_id: Uuid,
 	pub note_id: Uuid,
@@ -68,7 +69,7 @@ pub struct IndexingOutboxEntry {
 	pub updated_at: OffsetDateTime,
 }
 
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug, FromRow)]
 pub struct TraceOutboxJob {
 	pub outbox_id: Uuid,
 	pub trace_id: Uuid,
@@ -76,7 +77,7 @@ pub struct TraceOutboxJob {
 	pub attempts: i32,
 }
 
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug, FromRow)]
 pub struct GraphEntity {
 	pub entity_id: Uuid,
 	pub tenant_id: String,
@@ -88,7 +89,7 @@ pub struct GraphEntity {
 	pub updated_at: OffsetDateTime,
 }
 
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug, FromRow)]
 pub struct GraphEntityAlias {
 	pub alias_id: Uuid,
 	pub entity_id: Uuid,
@@ -97,7 +98,7 @@ pub struct GraphEntityAlias {
 	pub created_at: OffsetDateTime,
 }
 
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug, FromRow)]
 pub struct GraphFact {
 	pub fact_id: Uuid,
 	pub tenant_id: String,
@@ -115,7 +116,7 @@ pub struct GraphFact {
 	pub updated_at: OffsetDateTime,
 }
 
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug, FromRow)]
 pub struct GraphFactEvidence {
 	pub evidence_id: Uuid,
 	pub fact_id: Uuid,
@@ -123,7 +124,7 @@ pub struct GraphFactEvidence {
 	pub created_at: OffsetDateTime,
 }
 
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug, FromRow)]
 pub struct GraphPredicate {
 	pub predicate_id: Uuid,
 	pub scope_key: String,
@@ -137,7 +138,7 @@ pub struct GraphPredicate {
 	pub updated_at: OffsetDateTime,
 }
 
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug, FromRow)]
 pub struct GraphPredicateAlias {
 	pub alias_id: Uuid,
 	pub predicate_id: Uuid,
@@ -147,7 +148,7 @@ pub struct GraphPredicateAlias {
 	pub created_at: OffsetDateTime,
 }
 
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug, FromRow)]
 pub struct GraphFactSupersession {
 	pub supersession_id: Uuid,
 	pub tenant_id: String,
