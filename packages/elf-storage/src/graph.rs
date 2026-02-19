@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use crate::{
 	Error, Result,
-	models::{GraphFact, GraphPredicate},
+	models::{GraphFact, GraphPredicate, GraphPredicateAlias},
 };
 
 const GRAPH_PREDICATE_SCOPE_GLOBAL: &str = "__global__";
@@ -16,6 +16,208 @@ pub fn normalize_entity_name(input: &str) -> String {
 
 pub fn normalize_predicate_name(input: &str) -> String {
 	normalize_entity_name(input)
+}
+
+pub async fn list_predicates_by_scope_keys(
+	executor: &mut PgConnection,
+	scope_keys: &[String],
+) -> Result<Vec<GraphPredicate>> {
+	if scope_keys.is_empty() {
+		return Ok(vec![]);
+	}
+
+	let scope_keys = scope_keys.to_vec();
+	let rows = sqlx::query_as::<_, GraphPredicate>(
+		"\
+SELECT
+	predicate_id,
+	scope_key,
+	tenant_id,
+	project_id,
+	canonical,
+	canonical_norm,
+	cardinality,
+	status,
+	created_at,
+	updated_at
+FROM graph_predicates
+WHERE scope_key = ANY($1::text[])
+ORDER BY scope_key, canonical_norm",
+	)
+	.bind(&scope_keys)
+	.fetch_all(&mut *executor)
+	.await?;
+
+	Ok(rows)
+}
+
+pub async fn get_predicate_by_id(
+	executor: &mut PgConnection,
+	predicate_id: Uuid,
+) -> Result<Option<GraphPredicate>> {
+	let row = sqlx::query_as::<_, GraphPredicate>(
+		"\
+SELECT
+	predicate_id,
+	scope_key,
+	tenant_id,
+	project_id,
+	canonical,
+	canonical_norm,
+	cardinality,
+	status,
+	created_at,
+	updated_at
+FROM graph_predicates
+WHERE predicate_id = $1",
+	)
+	.bind(predicate_id)
+	.fetch_optional(&mut *executor)
+	.await?;
+
+	Ok(row)
+}
+
+pub async fn update_predicate(
+	executor: &mut PgConnection,
+	predicate_id: Uuid,
+	status: Option<&str>,
+	cardinality: Option<&str>,
+) -> Result<GraphPredicate> {
+	let status = status.map(str::trim);
+
+	if status.is_some_and(str::is_empty) {
+		return Err(Error::InvalidArgument("graph predicate status must not be empty".to_string()));
+	}
+
+	let cardinality = cardinality.map(str::trim);
+
+	if cardinality.is_some_and(str::is_empty) {
+		return Err(Error::InvalidArgument(
+			"graph predicate cardinality must not be empty".to_string(),
+		));
+	}
+
+	let row = sqlx::query_as::<_, GraphPredicate>(
+		"\
+UPDATE graph_predicates
+SET
+	status = COALESCE($2, status),
+	cardinality = COALESCE($3, cardinality),
+	updated_at = now()
+WHERE predicate_id = $1
+RETURNING
+	predicate_id,
+	scope_key,
+	tenant_id,
+	project_id,
+	canonical,
+	canonical_norm,
+	cardinality,
+	status,
+	created_at,
+	updated_at",
+	)
+	.bind(predicate_id)
+	.bind(status)
+	.bind(cardinality)
+	.fetch_optional(&mut *executor)
+	.await?;
+
+	row.ok_or_else(|| {
+		Error::NotFound(format!("graph predicate not found; predicate_id={predicate_id}"))
+	})
+}
+
+pub async fn add_predicate_alias(
+	executor: &mut PgConnection,
+	predicate_id: Uuid,
+	alias: &str,
+) -> Result<()> {
+	let alias = alias.trim();
+
+	if alias.is_empty() {
+		return Err(Error::InvalidArgument(
+			"graph predicate alias is required; alias must not be empty".to_string(),
+		));
+	}
+
+	let alias_norm = normalize_predicate_name(alias);
+
+	if alias_norm.is_empty() {
+		return Err(Error::InvalidArgument(
+			"graph predicate alias is required; alias_norm must not be empty".to_string(),
+		));
+	}
+
+	let predicate_scope_key: Option<(String,)> = sqlx::query_as(
+		"\
+SELECT scope_key
+FROM graph_predicates
+WHERE predicate_id = $1",
+	)
+	.bind(predicate_id)
+	.fetch_optional(&mut *executor)
+	.await?;
+	let Some((scope_key,)) = predicate_scope_key else {
+		return Err(Error::NotFound(format!(
+			"graph predicate not found; predicate_id={predicate_id}"
+		)));
+	};
+	let res = sqlx::query(
+		"\
+INSERT INTO graph_predicate_aliases (
+	alias_id,
+	predicate_id,
+	scope_key,
+	alias,
+	alias_norm,
+	created_at
+)
+VALUES ($1, $2, $3, $4, $5, now())
+ON CONFLICT (scope_key, alias_norm) DO UPDATE
+SET alias = EXCLUDED.alias
+WHERE graph_predicate_aliases.predicate_id = EXCLUDED.predicate_id",
+	)
+	.bind(Uuid::new_v4())
+	.bind(predicate_id)
+	.bind(&scope_key)
+	.bind(alias)
+	.bind(&alias_norm)
+	.execute(&mut *executor)
+	.await?;
+
+	if res.rows_affected() == 0 {
+		return Err(Error::Conflict(format!(
+			"graph predicate alias already bound; scope_key={scope_key} alias_norm={alias_norm}"
+		)));
+	}
+
+	Ok(())
+}
+
+pub async fn list_predicate_aliases(
+	executor: &mut PgConnection,
+	predicate_id: Uuid,
+) -> Result<Vec<GraphPredicateAlias>> {
+	let rows = sqlx::query_as::<_, GraphPredicateAlias>(
+		"\
+SELECT
+	alias_id,
+	predicate_id,
+	scope_key,
+	alias,
+	alias_norm,
+	created_at
+FROM graph_predicate_aliases
+WHERE predicate_id = $1
+ORDER BY created_at ASC, alias_norm ASC",
+	)
+	.bind(predicate_id)
+	.fetch_all(&mut *executor)
+	.await?;
+
+	Ok(rows)
 }
 
 pub async fn resolve_or_register_predicate(
