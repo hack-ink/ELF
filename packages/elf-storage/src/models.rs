@@ -1,7 +1,7 @@
 use serde_json::Value;
+use sqlx::FromRow;
 use time::OffsetDateTime;
 use uuid::Uuid;
-use sqlx::FromRow;
 
 #[derive(Debug, FromRow)]
 pub struct MemoryNote {
