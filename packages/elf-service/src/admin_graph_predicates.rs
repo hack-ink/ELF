@@ -114,10 +114,9 @@ impl ElfService {
 		let scope_keys =
 			graph_predicate_scope_keys(req.tenant_id.as_str(), req.project_id.as_str(), scope);
 		let mut conn = self.db.pool.acquire().await?;
-		let predicates =
-			elf_storage::graph::list_predicates_by_scope_keys(&mut conn, &scope_keys)
-				.await
-				.map_err(map_storage_error)?;
+		let predicates = elf_storage::graph::list_predicates_by_scope_keys(&mut conn, &scope_keys)
+			.await
+			.map_err(map_storage_error)?;
 		let predicates = predicates.into_iter().map(to_predicate_response).collect();
 
 		Ok(AdminGraphPredicatesListResponse { predicates })
@@ -265,10 +264,9 @@ impl ElfService {
 			"Admin graph predicate alias added."
 		);
 
-		let mut aliases =
-			elf_storage::graph::list_predicate_aliases(&mut conn, req.predicate_id)
-				.await
-				.map_err(map_storage_error)?;
+		let mut aliases = elf_storage::graph::list_predicate_aliases(&mut conn, req.predicate_id)
+			.await
+			.map_err(map_storage_error)?;
 
 		stable_sort_aliases(&mut aliases);
 
@@ -292,10 +290,9 @@ impl ElfService {
 		)
 		.await?;
 
-		let mut aliases =
-			elf_storage::graph::list_predicate_aliases(&mut conn, req.predicate_id)
-				.await
-				.map_err(map_storage_error)?;
+		let mut aliases = elf_storage::graph::list_predicate_aliases(&mut conn, req.predicate_id)
+			.await
+			.map_err(map_storage_error)?;
 
 		stable_sort_aliases(&mut aliases);
 
