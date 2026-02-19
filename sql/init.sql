@@ -1,5 +1,9 @@
 \ir 00_extensions.sql
 \ir tables/001_memory_notes.sql
+\ir tables/016_graph_entities.sql
+\ir tables/017_graph_entity_aliases.sql
+\ir tables/018_graph_facts.sql
+\ir tables/019_graph_fact_evidence.sql
 \ir tables/013_memory_note_fields.sql
 \ir tables/009_memory_note_chunks.sql
 \ir tables/010_note_chunk_embeddings.sql

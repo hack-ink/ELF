@@ -75,3 +75,49 @@ pub struct TraceOutboxJob {
 	pub payload: Value,
 	pub attempts: i32,
 }
+
+#[derive(Debug, sqlx::FromRow)]
+pub struct GraphEntity {
+	pub entity_id: Uuid,
+	pub tenant_id: String,
+	pub project_id: String,
+	pub canonical: String,
+	pub canonical_norm: String,
+	pub kind: Option<String>,
+	pub created_at: OffsetDateTime,
+	pub updated_at: OffsetDateTime,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+pub struct GraphEntityAlias {
+	pub alias_id: Uuid,
+	pub entity_id: Uuid,
+	pub alias: String,
+	pub alias_norm: String,
+	pub created_at: OffsetDateTime,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+pub struct GraphFact {
+	pub fact_id: Uuid,
+	pub tenant_id: String,
+	pub project_id: String,
+	pub agent_id: String,
+	pub scope: String,
+	pub subject_entity_id: Uuid,
+	pub predicate: String,
+	pub object_entity_id: Option<Uuid>,
+	pub object_value: Option<String>,
+	pub valid_from: OffsetDateTime,
+	pub valid_to: Option<OffsetDateTime>,
+	pub created_at: OffsetDateTime,
+	pub updated_at: OffsetDateTime,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+pub struct GraphFactEvidence {
+	pub evidence_id: Uuid,
+	pub fact_id: Uuid,
+	pub note_id: Uuid,
+	pub created_at: OffsetDateTime,
+}

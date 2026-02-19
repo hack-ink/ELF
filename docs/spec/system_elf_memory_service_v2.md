@@ -19,7 +19,7 @@ Multi-tenant namespace:
 - tenant_id, project_id, agent_id, scope, read_profile.
 
 Optional future work:
-- Graph memory backend (Neo4j) is reserved and out of scope for v2.0.
+- Graph memory backend is defined in Postgres in `system_graph_memory_postgres_v1.md` and kept aligned with this specification.
 
 ============================================================
 0. INVARIANTS (MUST HOLD)

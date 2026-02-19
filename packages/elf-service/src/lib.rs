@@ -2,6 +2,7 @@ pub mod add_event;
 pub mod add_note;
 pub mod admin;
 pub mod delete;
+pub mod graph;
 pub mod list;
 pub mod notes;
 pub mod progressive_search;
