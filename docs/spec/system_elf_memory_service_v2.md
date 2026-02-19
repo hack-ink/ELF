@@ -911,6 +911,123 @@ Response:
 }
 `item.explain` follows the same `SearchExplain` schema as search responses (including optional `relation_context`).
 
+GET /v2/admin/graph/predicates?scope=...
+
+Headers:
+- X-ELF-Tenant-Id (required)
+- X-ELF-Project-Id (required)
+- X-ELF-Agent-Id (required)
+
+Query:
+- scope (optional): tenant_project|project|global|all (default: all)
+
+Response:
+{
+  "predicates": [
+    {
+      "predicate_id": "uuid",
+      "scope_key": "string",
+      "tenant_id": "string|null",
+      "project_id": "string|null",
+      "canonical": "string",
+      "canonical_norm": "string",
+      "cardinality": "single|multi",
+      "status": "pending|active|deprecated",
+      "created_at": "...",
+      "updated_at": "..."
+    }
+  ]
+}
+
+PATCH /v2/admin/graph/predicates/{predicate_id}
+
+Headers:
+- X-ELF-Tenant-Id (required)
+- X-ELF-Project-Id (required)
+- X-ELF-Agent-Id (required)
+
+Body:
+{
+  "status": "pending|active|deprecated|null",
+  "cardinality": "single|multi|null"
+}
+
+Behavior:
+- At least one of status or cardinality is required.
+- Allowed status transitions: pending->active, pending->deprecated, active->deprecated.
+- Deprecated predicates cannot be modified (409).
+- Global predicates are immutable (403).
+- Note: Global predicate mutations require follow-up #68.
+
+Response:
+{
+  "predicate_id": "uuid",
+  "scope_key": "string",
+  "tenant_id": "string|null",
+  "project_id": "string|null",
+  "canonical": "string",
+  "canonical_norm": "string",
+  "cardinality": "single|multi",
+  "status": "pending|active|deprecated",
+  "created_at": "...",
+  "updated_at": "..."
+}
+
+POST /v2/admin/graph/predicates/{predicate_id}/aliases
+
+Headers:
+- X-ELF-Tenant-Id (required)
+- X-ELF-Project-Id (required)
+- X-ELF-Agent-Id (required)
+
+Body:
+{
+  "alias": "string"
+}
+
+Behavior:
+- alias must be non-empty.
+- Deprecated predicates cannot be modified (409).
+- Global predicates are immutable (403).
+- Note: Global predicate mutations require follow-up #68.
+
+Response:
+{
+  "predicate_id": "uuid",
+  "aliases": [
+    {
+      "alias_id": "uuid",
+      "predicate_id": "uuid",
+      "scope_key": "string",
+      "alias": "string",
+      "alias_norm": "string",
+      "created_at": "..."
+    }
+  ]
+}
+
+GET /v2/admin/graph/predicates/{predicate_id}/aliases
+
+Headers:
+- X-ELF-Tenant-Id (required)
+- X-ELF-Project-Id (required)
+- X-ELF-Agent-Id (required)
+
+Response:
+{
+  "predicate_id": "uuid",
+  "aliases": [
+    {
+      "alias_id": "uuid",
+      "predicate_id": "uuid",
+      "scope_key": "string",
+      "alias": "string",
+      "alias_norm": "string",
+      "created_at": "..."
+    }
+  ]
+}
+
 ============================================================
 15. HTTP API (PUBLIC)
 ============================================================

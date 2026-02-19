@@ -1,6 +1,7 @@
 pub mod add_event;
 pub mod add_note;
 pub mod admin;
+pub mod admin_graph_predicates;
 pub mod delete;
 pub mod graph;
 pub mod list;
@@ -19,6 +20,12 @@ pub use self::{
 	add_event::{AddEventRequest, AddEventResponse, AddEventResult, EventMessage},
 	add_note::{AddNoteInput, AddNoteRequest, AddNoteResponse, AddNoteResult},
 	admin::RebuildReport,
+	admin_graph_predicates::{
+		AdminGraphPredicateAliasAddRequest, AdminGraphPredicateAliasResponse,
+		AdminGraphPredicateAliasesListRequest, AdminGraphPredicateAliasesResponse,
+		AdminGraphPredicatePatchRequest, AdminGraphPredicateResponse,
+		AdminGraphPredicatesListRequest, AdminGraphPredicatesListResponse,
+	},
 	delete::{DeleteRequest, DeleteResponse},
 	error::{Error, Result},
 	list::{ListItem, ListRequest, ListResponse},

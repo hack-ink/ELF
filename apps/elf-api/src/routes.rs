@@ -18,6 +18,9 @@ use crate::state::AppState;
 use elf_config::SecurityAuthKey;
 use elf_service::{
 	AddEventRequest, AddEventResponse, AddNoteInput, AddNoteRequest, AddNoteResponse,
+	AdminGraphPredicateAliasAddRequest, AdminGraphPredicateAliasesListRequest,
+	AdminGraphPredicateAliasesResponse, AdminGraphPredicatePatchRequest,
+	AdminGraphPredicateResponse, AdminGraphPredicatesListRequest, AdminGraphPredicatesListResponse,
 	DeleteRequest, DeleteResponse, Error, EventMessage, ListRequest, ListResponse,
 	NoteFetchRequest, NoteFetchResponse, PayloadLevel, QueryPlan, RankingRequestOverride,
 	RebuildReport, SearchDetailsRequest, SearchDetailsResult, SearchExplainRequest,
@@ -151,6 +154,22 @@ struct NotePatchRequest {
 	ttl_days: Option<i64>,
 }
 
+#[derive(Clone, Debug, Deserialize)]
+struct AdminGraphPredicatesListQuery {
+	scope: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct AdminGraphPredicatePatchBody {
+	status: Option<String>,
+	cardinality: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct AdminGraphPredicateAliasAddBody {
+	alias: String,
+}
+
 #[derive(Debug, Serialize)]
 struct ErrorBody {
 	error_code: String,
@@ -188,6 +207,10 @@ impl From<Error> for ApiError {
 				json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", message, None),
 			Error::ScopeDenied { message } =>
 				json_error(StatusCode::FORBIDDEN, "SCOPE_DENIED", message, None),
+			Error::NotFound { message } =>
+				json_error(StatusCode::NOT_FOUND, "NOT_FOUND", message, None),
+			Error::Conflict { message } =>
+				json_error(StatusCode::CONFLICT, "CONFLICT", message, None),
 			Error::Provider { message } => {
 				let sanitized = sanitize_log_text(message.as_str());
 
@@ -267,6 +290,15 @@ pub fn admin_router(state: AppState) -> Router {
 		.route("/v2/admin/traces/:trace_id", routing::get(trace_get))
 		.route("/v2/admin/trajectories/:trace_id", routing::get(trace_trajectory_get))
 		.route("/v2/admin/trace-items/:item_id", routing::get(trace_item_get))
+		.route("/v2/admin/graph/predicates", routing::get(admin_graph_predicates_list))
+		.route(
+			"/v2/admin/graph/predicates/:predicate_id",
+			routing::patch(admin_graph_predicate_patch),
+		)
+		.route(
+			"/v2/admin/graph/predicates/:predicate_id/aliases",
+			routing::post(admin_graph_predicate_alias_add).get(admin_graph_predicate_aliases_list),
+		)
 		.with_state(state)
 		.layer(DefaultBodyLimit::max(MAX_REQUEST_BYTES))
 		.layer(middleware::from_fn_with_state(auth_state, admin_auth_middleware))
@@ -965,6 +997,107 @@ async fn notes_delete(
 			project_id: ctx.project_id,
 			agent_id: ctx.agent_id,
 			note_id,
+		})
+		.await?;
+
+	Ok(Json(response))
+}
+
+async fn admin_graph_predicates_list(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	query: Result<Query<AdminGraphPredicatesListQuery>, QueryRejection>,
+) -> Result<Json<AdminGraphPredicatesListResponse>, ApiError> {
+	let ctx = RequestContext::from_headers(&headers)?;
+	let Query(query) = query.map_err(|err| {
+		tracing::warn!(error = %err, "Invalid query parameters.");
+
+		json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid query parameters.".to_string(),
+			None,
+		)
+	})?;
+	let response = state
+		.service
+		.admin_graph_predicates_list(AdminGraphPredicatesListRequest {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+			agent_id: ctx.agent_id,
+			scope: query.scope,
+		})
+		.await?;
+
+	Ok(Json(response))
+}
+
+async fn admin_graph_predicate_patch(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	Path(predicate_id): Path<Uuid>,
+	payload: Result<Json<AdminGraphPredicatePatchBody>, JsonRejection>,
+) -> Result<Json<AdminGraphPredicateResponse>, ApiError> {
+	let ctx = RequestContext::from_headers(&headers)?;
+	let Json(payload) = payload.map_err(|err| {
+		tracing::warn!(error = %err, "Invalid request payload.");
+
+		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+	})?;
+	let response = state
+		.service
+		.admin_graph_predicate_patch(AdminGraphPredicatePatchRequest {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+			agent_id: ctx.agent_id,
+			predicate_id,
+			status: payload.status,
+			cardinality: payload.cardinality,
+		})
+		.await?;
+
+	Ok(Json(response))
+}
+
+async fn admin_graph_predicate_alias_add(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	Path(predicate_id): Path<Uuid>,
+	payload: Result<Json<AdminGraphPredicateAliasAddBody>, JsonRejection>,
+) -> Result<Json<AdminGraphPredicateAliasesResponse>, ApiError> {
+	let ctx = RequestContext::from_headers(&headers)?;
+	let Json(payload) = payload.map_err(|err| {
+		tracing::warn!(error = %err, "Invalid request payload.");
+
+		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+	})?;
+	let response = state
+		.service
+		.admin_graph_predicate_alias_add(AdminGraphPredicateAliasAddRequest {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+			agent_id: ctx.agent_id,
+			predicate_id,
+			alias: payload.alias,
+		})
+		.await?;
+
+	Ok(Json(response))
+}
+
+async fn admin_graph_predicate_aliases_list(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	Path(predicate_id): Path<Uuid>,
+) -> Result<Json<AdminGraphPredicateAliasesResponse>, ApiError> {
+	let ctx = RequestContext::from_headers(&headers)?;
+	let response = state
+		.service
+		.admin_graph_predicate_aliases_list(AdminGraphPredicateAliasesListRequest {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+			agent_id: ctx.agent_id,
+			predicate_id,
 		})
 		.await?;
 

@@ -8,6 +8,10 @@ pub enum Error {
 	InvalidRequest { message: String },
 	#[error("Scope denied: {message}")]
 	ScopeDenied { message: String },
+	#[error("Not found: {message}")]
+	NotFound { message: String },
+	#[error("Conflict: {message}")]
+	Conflict { message: String },
 	#[error("Provider error: {message}")]
 	Provider { message: String },
 	#[error("Storage error: {message}")]
