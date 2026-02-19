@@ -11,8 +11,13 @@ if [[ -f "${ROOT_DIR}/.env" ]]; then
 fi
 
 : "${ELF_PG_DSN:?Set ELF_PG_DSN to a Postgres DSN (usually .../postgres).}"
-: "${ELF_QDRANT_URL:?Set ELF_QDRANT_URL to the Qdrant gRPC base URL, for example http://127.0.0.1:51890 (default: http://127.0.0.1:6334).}"
 : "${ELF_QDRANT_HTTP_URL:?Set ELF_QDRANT_HTTP_URL to the Qdrant REST base URL, for example http://127.0.0.1:51889 (default: http://127.0.0.1:6333).}"
+
+QDRANT_GRPC_URL="${ELF_QDRANT_GRPC_URL:-${ELF_QDRANT_URL:-}}"
+if [[ -z "${QDRANT_GRPC_URL}" ]]; then
+  echo "Set ELF_QDRANT_GRPC_URL to the Qdrant gRPC base URL, for example http://127.0.0.1:51890 (default: http://127.0.0.1:6334). Legacy alias ELF_QDRANT_URL is deprecated but still supported."
+  exit 1
+fi
 
 if command -v jaq >/dev/null 2>&1; then
   JSON_TOOL="jaq"
@@ -128,7 +133,7 @@ pool_max_conns = 10
 
 [storage.qdrant]
 collection = "${QDRANT_COLLECTION}"
-url        = "${ELF_QDRANT_URL}"
+url        = "${QDRANT_GRPC_URL}"
 vector_dim = ${VECTOR_DIM_TOML}
 
 [providers.embedding]

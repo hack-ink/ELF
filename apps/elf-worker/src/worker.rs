@@ -175,7 +175,7 @@ struct ChunkRecord {
 	text: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, sqlx::FromRow)]
 struct NoteFieldRow {
 	field_id: Uuid,
 	text: String,
@@ -672,7 +672,7 @@ async fn insert_trace_tx<'e, E>(
 where
 	E: PgExecutor<'e>,
 {
-	sqlx::query!(
+	sqlx::query(
 		"INSERT INTO search_traces (
 	trace_id,
 	tenant_id,
@@ -708,22 +708,22 @@ VALUES (
 	$15
 )
 ON CONFLICT (trace_id) DO NOTHING",
-		trace_id,
-		trace.tenant_id.as_str(),
-		trace.project_id.as_str(),
-		trace.agent_id.as_str(),
-		trace.read_profile.as_str(),
-		trace.query.as_str(),
-		trace.expansion_mode.as_str(),
-		expanded_queries_json,
-		allowed_scopes_json,
-		trace.candidate_count as i32,
-		trace.top_k as i32,
-		trace.config_snapshot,
-		trace.trace_version,
-		trace.created_at,
-		trace.expires_at,
 	)
+	.bind(trace_id)
+	.bind(trace.tenant_id.as_str())
+	.bind(trace.project_id.as_str())
+	.bind(trace.agent_id.as_str())
+	.bind(trace.read_profile.as_str())
+	.bind(trace.query.as_str())
+	.bind(trace.expansion_mode.as_str())
+	.bind(expanded_queries_json)
+	.bind(allowed_scopes_json)
+	.bind(trace.candidate_count as i32)
+	.bind(trace.top_k as i32)
+	.bind(trace.config_snapshot.clone())
+	.bind(trace.trace_version)
+	.bind(trace.created_at)
+	.bind(trace.expires_at)
 	.execute(executor)
 	.await?;
 
@@ -864,7 +864,8 @@ INSERT INTO search_trace_candidates (
 }
 
 async fn purge_expired_trace_candidates(db: &Db, now: OffsetDateTime) -> Result<()> {
-	let result = sqlx::query!("DELETE FROM search_trace_candidates WHERE expires_at <= $1", now)
+	let result = sqlx::query("DELETE FROM search_trace_candidates WHERE expires_at <= $1")
+		.bind(now)
 		.execute(&db.pool)
 		.await?;
 
@@ -876,7 +877,8 @@ async fn purge_expired_trace_candidates(db: &Db, now: OffsetDateTime) -> Result<
 }
 
 async fn purge_expired_traces(db: &Db, now: OffsetDateTime) -> Result<()> {
-	let result = sqlx::query!("DELETE FROM search_traces WHERE expires_at <= $1", now)
+	let result = sqlx::query("DELETE FROM search_traces WHERE expires_at <= $1")
+		.bind(now)
 		.execute(&db.pool)
 		.await?;
 
@@ -888,8 +890,10 @@ async fn purge_expired_traces(db: &Db, now: OffsetDateTime) -> Result<()> {
 }
 
 async fn purge_expired_cache(db: &Db, now: OffsetDateTime) -> Result<()> {
-	let result =
-		sqlx::query!("DELETE FROM llm_cache WHERE expires_at <= $1", now).execute(&db.pool).await?;
+	let result = sqlx::query("DELETE FROM llm_cache WHERE expires_at <= $1")
+		.bind(now)
+		.execute(&db.pool)
+		.await?;
 
 	if result.rows_affected() > 0 {
 		tracing::info!(count = result.rows_affected(), "Purged expired LLM cache entries.");
@@ -899,7 +903,8 @@ async fn purge_expired_cache(db: &Db, now: OffsetDateTime) -> Result<()> {
 }
 
 async fn purge_expired_search_sessions(db: &Db, now: OffsetDateTime) -> Result<()> {
-	let result = sqlx::query!("DELETE FROM search_sessions WHERE expires_at <= $1", now)
+	let result = sqlx::query("DELETE FROM search_sessions WHERE expires_at <= $1")
+		.bind(now)
 		.execute(&db.pool)
 		.await?;
 
@@ -911,24 +916,23 @@ async fn purge_expired_search_sessions(db: &Db, now: OffsetDateTime) -> Result<(
 }
 
 async fn fetch_note(db: &Db, note_id: Uuid) -> Result<Option<MemoryNote>> {
-	let note =
-		sqlx::query_as!(MemoryNote, "SELECT * FROM memory_notes WHERE note_id = $1", note_id,)
-			.fetch_optional(&db.pool)
-			.await?;
+	let note = sqlx::query_as::<_, MemoryNote>("SELECT * FROM memory_notes WHERE note_id = $1")
+		.bind(note_id)
+		.fetch_optional(&db.pool)
+		.await?;
 
 	Ok(note)
 }
 
 async fn fetch_note_fields(db: &Db, note_id: Uuid) -> Result<Vec<NoteFieldRow>> {
-	let rows = sqlx::query_as!(
-		NoteFieldRow,
+	let rows = sqlx::query_as::<_, NoteFieldRow>(
 		"\
 SELECT field_id, text
 FROM memory_note_fields
 WHERE note_id = $1
 ORDER BY field_kind ASC, item_index ASC",
-		note_id,
 	)
+	.bind(note_id)
 	.fetch_all(&db.pool)
 	.await?;
 
@@ -947,7 +951,7 @@ where
 {
 	let vec_text = format_vector_text(vec);
 
-	sqlx::query!(
+	sqlx::query(
 		"\
 INSERT INTO note_embeddings (
 	note_id,
@@ -961,11 +965,11 @@ SET
 	embedding_dim = EXCLUDED.embedding_dim,
 	vec = EXCLUDED.vec,
 	created_at = now()",
-		note_id,
-		embedding_version,
-		embedding_dim,
-		vec_text.as_str(),
 	)
+	.bind(note_id)
+	.bind(embedding_version)
+	.bind(embedding_dim)
+	.bind(vec_text.as_str())
 	.execute(executor)
 	.await?;
 
@@ -984,7 +988,7 @@ where
 {
 	let vec_text = format_vector_text(vec);
 
-	sqlx::query!(
+	sqlx::query(
 		"\
 INSERT INTO note_field_embeddings (
 	field_id,
@@ -998,11 +1002,11 @@ SET
 	embedding_dim = EXCLUDED.embedding_dim,
 	vec = EXCLUDED.vec,
 	created_at = now()",
-		field_id,
-		embedding_version,
-		embedding_dim,
-		vec_text.as_str(),
 	)
+	.bind(field_id)
+	.bind(embedding_version)
+	.bind(embedding_dim)
+	.bind(vec_text.as_str())
 	.execute(executor)
 	.await?;
 

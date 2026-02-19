@@ -27,7 +27,6 @@ dependencies = [
 [tasks.lint-rust]
 workspace = false
 command = "cargo"
-env = { SQLX_OFFLINE = "true" }
 args = [
 	"clippy",
 	"--workspace",
@@ -40,7 +39,6 @@ args = [
 
 [tasks.lint-fix-rust]
 extend = "lint-rust"
-env = { SQLX_OFFLINE = "true" }
 args = [
 	"clippy",
 	"--fix",
@@ -89,7 +87,6 @@ dependencies = [
 [tasks.test-rust]
 workspace = false
 command = "cargo"
-env = { SQLX_OFFLINE = "true" }
 args = [
 	"nextest",
 	"run",
@@ -107,7 +104,6 @@ dependencies = [
 [tasks.test-integration-rust]
 workspace = false
 command = "cargo"
-env = { SQLX_OFFLINE = "true" }
 args = [
 	"nextest",
 	"run",

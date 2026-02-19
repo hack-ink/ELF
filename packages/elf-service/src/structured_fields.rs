@@ -182,35 +182,36 @@ pub async fn fetch_structured_fields(
 		return Ok(HashMap::new());
 	}
 
-	let rows = sqlx::query!(
+	let rows = sqlx::query_as::<_, (Uuid, String, i32, String)>(
 		"\
 SELECT
-	note_id AS \"note_id!\",
-	field_kind AS \"field_kind!\",
-	item_index AS \"item_index!\",
-	text AS \"text!\"
+	note_id,
+	field_kind,
+	item_index,
+	text
 FROM memory_note_fields
 WHERE note_id = ANY($1::uuid[])
 ORDER BY note_id ASC, field_kind ASC, item_index ASC",
-		note_ids,
 	)
+	.bind(note_ids.to_vec())
 	.fetch_all(pool)
 	.await?;
 	let mut out: HashMap<Uuid, StructuredFields> = HashMap::new();
 
 	for row in rows {
-		let entry = out.entry(row.note_id).or_default();
+		let (note_id, field_kind, _item_index, text) = row;
+		let entry = out.entry(note_id).or_default();
 
-		match row.field_kind.as_str() {
+		match field_kind.as_str() {
 			"summary" =>
-				if entry.summary.is_none() && !row.text.trim().is_empty() {
-					entry.summary = Some(row.text);
+				if entry.summary.is_none() && !text.trim().is_empty() {
+					entry.summary = Some(text);
 				},
 			"fact" => {
-				entry.facts.get_or_insert_with(Vec::new).push(row.text);
+				entry.facts.get_or_insert_with(Vec::new).push(text);
 			},
 			"concept" => {
-				entry.concepts.get_or_insert_with(Vec::new).push(row.text);
+				entry.concepts.get_or_insert_with(Vec::new).push(text);
 			},
 			_ => {},
 		}
@@ -419,13 +420,11 @@ async fn replace_kind(
 	items: &[String],
 	now: OffsetDateTime,
 ) -> Result<()> {
-	sqlx::query!(
-		"DELETE FROM memory_note_fields WHERE note_id = $1 AND field_kind = $2",
-		note_id,
-		kind,
-	)
-	.execute(&mut *executor)
-	.await?;
+	sqlx::query("DELETE FROM memory_note_fields WHERE note_id = $1 AND field_kind = $2")
+		.bind(note_id)
+		.bind(kind)
+		.execute(&mut *executor)
+		.await?;
 
 	for (idx, value) in items.iter().enumerate() {
 		let trimmed = value.trim();
@@ -434,7 +433,7 @@ async fn replace_kind(
 			continue;
 		}
 
-		sqlx::query!(
+		sqlx::query(
 			"\
 INSERT INTO memory_note_fields (
 	field_id,
@@ -446,14 +445,14 @@ INSERT INTO memory_note_fields (
 	updated_at
 )
 VALUES ($1,$2,$3,$4,$5,$6,$7)",
-			Uuid::new_v4(),
-			note_id,
-			kind,
-			idx as i32,
-			trimmed,
-			now,
-			now,
 		)
+		.bind(Uuid::new_v4())
+		.bind(note_id)
+		.bind(kind)
+		.bind(idx as i32)
+		.bind(trimmed)
+		.bind(now)
+		.bind(now)
 		.execute(&mut *executor)
 		.await?;
 	}

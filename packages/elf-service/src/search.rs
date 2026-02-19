@@ -560,6 +560,69 @@ struct NoteVectorRow {
 	vec_text: String,
 }
 
+#[derive(Clone, Debug, sqlx::FromRow)]
+struct SearchExplainTraceRow {
+	trace_id: Uuid,
+	tenant_id: String,
+	project_id: String,
+	agent_id: String,
+	read_profile: String,
+	query: String,
+	expansion_mode: String,
+	expanded_queries: Value,
+	allowed_scopes: Value,
+	candidate_count: i32,
+	top_k: i32,
+	config_snapshot: Value,
+	trace_version: i32,
+	created_at: OffsetDateTime,
+	item_id: Uuid,
+	note_id: Uuid,
+	chunk_id: Option<Uuid>,
+	rank: i32,
+	explain: Value,
+}
+
+#[derive(Clone, Debug, sqlx::FromRow)]
+struct SearchTraceRow {
+	trace_id: Uuid,
+	tenant_id: String,
+	project_id: String,
+	agent_id: String,
+	read_profile: String,
+	query: String,
+	expansion_mode: String,
+	expanded_queries: Value,
+	allowed_scopes: Value,
+	candidate_count: i32,
+	top_k: i32,
+	config_snapshot: Value,
+	trace_version: i32,
+	created_at: OffsetDateTime,
+}
+
+#[derive(Clone, Debug, sqlx::FromRow)]
+struct SearchTraceItemRow {
+	item_id: Uuid,
+	note_id: Uuid,
+	chunk_id: Option<Uuid>,
+	rank: i32,
+	explain: Value,
+}
+
+#[derive(Clone, Debug, sqlx::FromRow)]
+struct StructuredFieldHitRow {
+	note_id: Uuid,
+	field_kind: String,
+}
+
+#[derive(Clone, Debug, sqlx::FromRow)]
+struct BestChunkForNoteRow {
+	note_id: Uuid,
+	chunk_id: Uuid,
+	chunk_index: i32,
+}
+
 #[derive(Clone, Debug)]
 struct ChunkMeta {
 	chunk_id: Uuid,
@@ -1694,37 +1757,36 @@ impl ElfService {
 			});
 		}
 
-		let row = sqlx::query!(
+		let row = sqlx::query_as::<_, SearchExplainTraceRow>(
 			"\
 SELECT
-	t.trace_id AS \"trace_id!\",
-	t.tenant_id AS \"tenant_id!\",
-	t.project_id AS \"project_id!\",
-	t.agent_id AS \"agent_id!\",
-	t.read_profile AS \"read_profile!\",
-	t.query AS \"query!\",
-	t.expansion_mode AS \"expansion_mode!\",
-	t.expanded_queries AS \"expanded_queries!\",
-	t.allowed_scopes AS \"allowed_scopes!\",
-	t.candidate_count AS \"candidate_count!\",
-	t.top_k AS \"top_k!\",
-	t.config_snapshot AS \"config_snapshot!\",
-	t.trace_version AS \"trace_version!\",
-	t.created_at AS \"created_at!\",
-	i.item_id AS \"item_id!\",
-	i.note_id AS \"note_id!\",
+	t.trace_id,
+	t.tenant_id,
+	t.project_id,
+	t.agent_id,
+	t.read_profile,
+	t.query,
+	t.expansion_mode,
+	t.expanded_queries,
+	t.allowed_scopes,
+	t.candidate_count,
+	t.top_k,
+	t.config_snapshot,
+	t.trace_version,
+	t.created_at,
+	i.item_id,
+	i.note_id,
 	i.chunk_id,
-	i.rank AS \"rank!\",
-	i.final_score AS \"final_score!\",
-	i.explain AS \"explain!\"
+	i.rank,
+	i.explain
 FROM search_trace_items i
 JOIN search_traces t ON i.trace_id = t.trace_id
 WHERE i.item_id = $1 AND t.tenant_id = $2 AND t.project_id = $3 AND t.agent_id = $4",
-			req.result_handle,
-			tenant_id,
-			project_id,
-			agent_id,
 		)
+		.bind(req.result_handle)
+		.bind(tenant_id)
+		.bind(project_id)
+		.bind(agent_id)
 		.fetch_optional(&self.db.pool)
 		.await?;
 		let Some(row) = row else {
@@ -1777,30 +1839,30 @@ WHERE i.item_id = $1 AND t.tenant_id = $2 AND t.project_id = $3 AND t.agent_id =
 			});
 		}
 
-		let row = sqlx::query!(
+		let row = sqlx::query_as::<_, SearchTraceRow>(
 			"\
 SELECT
-	trace_id AS \"trace_id!\",
-	tenant_id AS \"tenant_id!\",
-	project_id AS \"project_id!\",
-	agent_id AS \"agent_id!\",
-	read_profile AS \"read_profile!\",
-	query AS \"query!\",
-	expansion_mode AS \"expansion_mode!\",
-	expanded_queries AS \"expanded_queries!\",
-	allowed_scopes AS \"allowed_scopes!\",
-	candidate_count AS \"candidate_count!\",
-	top_k AS \"top_k!\",
-	config_snapshot AS \"config_snapshot!\",
-	trace_version AS \"trace_version!\",
-	created_at AS \"created_at!\"
+	trace_id,
+	tenant_id,
+	project_id,
+	agent_id,
+	read_profile,
+	query,
+	expansion_mode,
+	expanded_queries,
+	allowed_scopes,
+	candidate_count,
+	top_k,
+	config_snapshot,
+	trace_version,
+	created_at
 FROM search_traces
 WHERE trace_id = $1 AND tenant_id = $2 AND project_id = $3 AND agent_id = $4",
-			req.trace_id,
-			tenant_id,
-			project_id,
-			agent_id,
 		)
+		.bind(req.trace_id)
+		.bind(tenant_id)
+		.bind(project_id)
+		.bind(agent_id)
 		.fetch_optional(&self.db.pool)
 		.await?;
 		let Some(row) = row else {
@@ -1827,20 +1889,19 @@ WHERE trace_id = $1 AND tenant_id = $2 AND project_id = $3 AND agent_id = $4",
 			created_at: row.created_at,
 			trace_version: row.trace_version,
 		};
-		let item_rows = sqlx::query!(
+		let item_rows = sqlx::query_as::<_, SearchTraceItemRow>(
 			"\
 SELECT
-	item_id AS \"item_id!\",
-	note_id AS \"note_id!\",
+	item_id,
+	note_id,
 	chunk_id,
-	rank AS \"rank!\",
-	final_score AS \"final_score!\",
-	explain AS \"explain!\"
+	rank,
+	explain
 FROM search_trace_items
 WHERE trace_id = $1
 ORDER BY rank ASC",
-			req.trace_id,
 		)
+		.bind(req.trace_id)
 		.fetch_all(&self.db.pool)
 		.await?;
 		let mut items = Vec::with_capacity(item_rows.len());
@@ -2283,11 +2344,11 @@ ORDER BY rank ASC",
 		&self,
 		args: StructuredFieldHitArgs<'_>,
 	) -> Result<Vec<FieldHit>> {
-		let rows = sqlx::query!(
+		let rows = sqlx::query_as::<_, StructuredFieldHitRow>(
 			"\
 SELECT
-	f.note_id AS \"note_id!\",
-	f.field_kind AS \"field_kind!\"
+	f.note_id,
+	f.field_kind
 FROM memory_note_fields f
 JOIN note_field_embeddings e
 	ON e.field_id = f.field_id
@@ -2302,14 +2363,14 @@ WHERE n.tenant_id = $2
 	AND n.agent_id = $5
 ORDER BY e.vec <=> $6::text::vector ASC
 LIMIT $7",
-			args.embed_version,
-			args.tenant_id,
-			args.project_id,
-			args.now,
-			args.agent_id,
-			args.vec_text,
-			args.retrieval_limit,
 		)
+		.bind(args.embed_version)
+		.bind(args.tenant_id)
+		.bind(args.project_id)
+		.bind(args.now)
+		.bind(args.agent_id)
+		.bind(args.vec_text)
+		.bind(args.retrieval_limit)
 		.fetch_all(&self.db.pool)
 		.await?;
 
@@ -2323,11 +2384,11 @@ LIMIT $7",
 		&self,
 		args: StructuredFieldHitArgs<'_>,
 	) -> Result<Vec<FieldHit>> {
-		let rows = sqlx::query!(
+		let rows = sqlx::query_as::<_, StructuredFieldHitRow>(
 			"\
 SELECT
-	f.note_id AS \"note_id!\",
-	f.field_kind AS \"field_kind!\"
+	f.note_id,
+	f.field_kind
 FROM memory_note_fields f
 JOIN note_field_embeddings e
 	ON e.field_id = f.field_id
@@ -2341,14 +2402,14 @@ WHERE n.tenant_id = $2
 	AND n.scope = ANY($5::text[])
 ORDER BY e.vec <=> $6::text::vector ASC
 LIMIT $7",
-			args.embed_version,
-			args.tenant_id,
-			args.project_id,
-			args.now,
-			args.non_private_scopes,
-			args.vec_text,
-			args.retrieval_limit,
 		)
+		.bind(args.embed_version)
+		.bind(args.tenant_id)
+		.bind(args.project_id)
+		.bind(args.now)
+		.bind(args.non_private_scopes)
+		.bind(args.vec_text)
+		.bind(args.retrieval_limit)
 		.fetch_all(&self.db.pool)
 		.await?;
 
@@ -2362,11 +2423,11 @@ LIMIT $7",
 		&self,
 		args: StructuredFieldHitArgs<'_>,
 	) -> Result<Vec<FieldHit>> {
-		let rows = sqlx::query!(
+		let rows = sqlx::query_as::<_, StructuredFieldHitRow>(
 			"\
 SELECT
-	f.note_id AS \"note_id!\",
-	f.field_kind AS \"field_kind!\"
+	f.note_id,
+	f.field_kind
 FROM memory_note_fields f
 JOIN note_field_embeddings e
 	ON e.field_id = f.field_id
@@ -2383,15 +2444,15 @@ WHERE n.tenant_id = $2
 	)
 ORDER BY e.vec <=> $7::text::vector ASC
 LIMIT $8",
-			args.embed_version,
-			args.tenant_id,
-			args.project_id,
-			args.now,
-			args.agent_id,
-			args.non_private_scopes,
-			args.vec_text,
-			args.retrieval_limit,
 		)
+		.bind(args.embed_version)
+		.bind(args.tenant_id)
+		.bind(args.project_id)
+		.bind(args.now)
+		.bind(args.agent_id)
+		.bind(args.non_private_scopes)
+		.bind(args.vec_text)
+		.bind(args.retrieval_limit)
 		.fetch_all(&self.db.pool)
 		.await?;
 
@@ -2407,22 +2468,22 @@ LIMIT $8",
 		ordered_note_ids: &[Uuid],
 		vec_text: &str,
 	) -> Result<HashMap<Uuid, (Uuid, i32)>> {
-		let best_chunks = sqlx::query!(
+		let best_chunks = sqlx::query_as::<_, BestChunkForNoteRow>(
 			"\
 SELECT DISTINCT ON (c.note_id)
-	c.note_id AS \"note_id!\",
-	c.chunk_id AS \"chunk_id!\",
-	c.chunk_index AS \"chunk_index!\"
+	c.note_id,
+	c.chunk_id,
+	c.chunk_index
 FROM memory_note_chunks c
 JOIN note_chunk_embeddings e
 	ON e.chunk_id = c.chunk_id
 	AND e.embedding_version = $1
 WHERE c.note_id = ANY($2::uuid[])
 ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
-			embed_version,
-			ordered_note_ids,
-			vec_text,
 		)
+		.bind(embed_version)
+		.bind(ordered_note_ids)
+		.bind(vec_text)
 		.fetch_all(&self.db.pool)
 		.await?;
 		let mut best_by_note = HashMap::new();
@@ -3299,15 +3360,14 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 			return Ok(HashMap::new());
 		}
 
-		let notes: Vec<MemoryNote> = sqlx::query_as!(
-				MemoryNote,
-				"SELECT * FROM memory_notes WHERE note_id = ANY($1::uuid[]) AND tenant_id = $2 AND project_id = $3",
-				candidate_note_ids,
-				tenant_id,
-				project_id,
-			)
-			.fetch_all(&self.db.pool)
-			.await?;
+		let notes: Vec<MemoryNote> = sqlx::query_as(
+			"SELECT * FROM memory_notes WHERE note_id = ANY($1::uuid[]) AND tenant_id = $2 AND project_id = $3",
+		)
+		.bind(candidate_note_ids)
+		.bind(tenant_id)
+		.bind(project_id)
+		.fetch_all(&self.db.pool)
+		.await?;
 		let mut note_meta = HashMap::new();
 
 		for note in notes {
@@ -4377,7 +4437,7 @@ async fn load_trace_trajectory_stages(
 ) -> Result<Vec<SearchTrajectoryStage>> {
 	let rows = sqlx::query(
 		"\
-SELECT
+	SELECT
 	s.stage_id,
 	s.stage_order,
 	s.stage_name,
@@ -4531,23 +4591,22 @@ where
 		}
 	}
 
-	let rows = sqlx::query_as!(
-		NoteVectorRow,
+	let rows = sqlx::query_as::<_, NoteVectorRow>(
 		"\
 WITH expected AS (
 	SELECT *
 	FROM unnest($1::uuid[], $2::text[]) AS t(note_id, embedding_version)
 )
 SELECT
-	e.note_id AS \"note_id!\",
-	n.vec::text AS \"vec_text!\"
+	e.note_id,
+	n.vec::text AS vec_text
 FROM expected e
 JOIN note_embeddings n
 	ON n.note_id = e.note_id
 	AND n.embedding_version = e.embedding_version",
-		note_ids.as_slice(),
-		embedding_versions.as_slice(),
 	)
+	.bind(note_ids.as_slice())
+	.bind(embedding_versions.as_slice())
 	.fetch_all(executor)
 	.await?;
 	let mut out = HashMap::new();
@@ -4570,7 +4629,7 @@ where
 		message: format!("Failed to encode search trace payload: {err}"),
 	})?;
 
-	sqlx::query!(
+	sqlx::query(
 		"\
 INSERT INTO search_trace_outbox (
 	outbox_id,
@@ -4584,11 +4643,11 @@ INSERT INTO search_trace_outbox (
 	updated_at
 )
 VALUES ($1, $2, 'PENDING', 0, NULL, $3, $4, $3, $3)",
-		Uuid::new_v4(),
-		payload.trace.trace_id,
-		now,
-		payload_json,
 	)
+	.bind(Uuid::new_v4())
+	.bind(payload.trace.trace_id)
+	.bind(now)
+	.bind(payload_json)
 	.execute(executor)
 	.await?;
 
@@ -4688,7 +4747,7 @@ async fn persist_trace_inline_header(
 		Error::Storage { message: format!("Failed to encode allowed_scopes: {err}") }
 	})?;
 
-	sqlx::query!(
+	sqlx::query(
 		"\
 INSERT INTO search_traces (
 	trace_id,
@@ -4724,23 +4783,23 @@ VALUES (
 	$14,
 	$15
 )
-ON CONFLICT (trace_id) DO NOTHING",
-		trace.trace_id,
-		trace.tenant_id,
-		trace.project_id,
-		trace.agent_id,
-		trace.read_profile,
-		trace.query,
-		trace.expansion_mode,
-		expanded_queries_json,
-		allowed_scopes_json,
-		trace.candidate_count as i32,
-		trace.top_k as i32,
-		trace.config_snapshot,
-		trace.trace_version,
-		trace.created_at,
-		trace.expires_at,
+	ON CONFLICT (trace_id) DO NOTHING",
 	)
+	.bind(trace.trace_id)
+	.bind(trace.tenant_id.as_str())
+	.bind(trace.project_id.as_str())
+	.bind(trace.agent_id.as_str())
+	.bind(trace.read_profile.as_str())
+	.bind(trace.query.as_str())
+	.bind(trace.expansion_mode.as_str())
+	.bind(expanded_queries_json)
+	.bind(allowed_scopes_json)
+	.bind(trace.candidate_count as i32)
+	.bind(trace.top_k as i32)
+	.bind(trace.config_snapshot.clone())
+	.bind(trace.trace_version)
+	.bind(trace.created_at)
+	.bind(trace.expires_at)
 	.execute(executor)
 	.await?;
 
@@ -4871,7 +4930,7 @@ where
 		final_scores.push(scored_chunk.final_score);
 	}
 
-	sqlx::query!(
+	sqlx::query(
 		"\
 WITH hits AS (
 	SELECT *
@@ -4907,15 +4966,15 @@ SELECT
 	rank,
 	final_score,
 	$6
-FROM hits",
-		&hit_ids,
-		&note_ids,
-		&chunk_ids,
-		&ranks,
-		&final_scores,
-		now,
-		query_hash.as_str(),
+	FROM hits",
 	)
+	.bind(&hit_ids)
+	.bind(&note_ids)
+	.bind(&chunk_ids)
+	.bind(&ranks)
+	.bind(&final_scores)
+	.bind(now)
+	.bind(query_hash.as_str())
 	.execute(executor)
 	.await?;
 
@@ -4931,7 +4990,7 @@ async fn fetch_cache_payload<'e, E>(
 where
 	E: PgExecutor<'e>,
 {
-	let row = sqlx::query!(
+	let payload: Option<Value> = sqlx::query_scalar(
 		"\
 WITH updated AS (
 	UPDATE llm_cache
@@ -4944,18 +5003,17 @@ WITH updated AS (
 		AND expires_at > $3
 	RETURNING payload
 )
-SELECT payload
+	SELECT payload
 FROM updated",
-		kind.as_str(),
-		key,
-		now,
 	)
+	.bind(kind.as_str())
+	.bind(key)
+	.bind(now)
 	.fetch_optional(executor)
 	.await?;
-	let Some(row) = row else {
+	let Some(payload) = payload else {
 		return Ok(None);
 	};
-	let payload = row.payload;
 	let size_bytes = serde_json::to_vec(&payload)
 		.map_err(|err| Error::Storage {
 			message: format!("Failed to encode cache payload: {err}"),
@@ -4988,9 +5046,9 @@ where
 		return Ok(None);
 	}
 
-	sqlx::query!(
+	sqlx::query(
 		"\
-INSERT INTO llm_cache (
+	INSERT INTO llm_cache (
 	cache_id,
 	cache_kind,
 	cache_key,
@@ -5006,13 +5064,13 @@ payload = EXCLUDED.payload,
 	last_accessed_at = EXCLUDED.last_accessed_at,
 	expires_at = EXCLUDED.expires_at,
 	hit_count = 0",
-		Uuid::new_v4(),
-		kind.as_str(),
-		key,
-		payload,
-		now,
-		expires_at,
 	)
+	.bind(Uuid::new_v4())
+	.bind(kind.as_str())
+	.bind(key)
+	.bind(payload)
+	.bind(now)
+	.bind(expires_at)
 	.execute(executor)
 	.await?;
 

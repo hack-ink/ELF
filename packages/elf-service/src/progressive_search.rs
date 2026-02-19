@@ -4,6 +4,7 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use sqlx::PgExecutor;
 use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
@@ -184,6 +185,20 @@ struct SearchSession {
 	read_profile: String,
 	query: String,
 	items: Vec<SearchSessionItemRecord>,
+	created_at: OffsetDateTime,
+	expires_at: OffsetDateTime,
+}
+
+#[derive(sqlx::FromRow)]
+struct SearchSessionRow {
+	search_session_id: Uuid,
+	trace_id: Uuid,
+	tenant_id: String,
+	project_id: String,
+	agent_id: String,
+	read_profile: String,
+	query: String,
+	items: Value,
 	created_at: OffsetDateTime,
 	expires_at: OffsetDateTime,
 }
@@ -440,15 +455,14 @@ impl ElfService {
 		let mut notes_by_id = HashMap::new();
 
 		if !requested_in_session.is_empty() {
-			let rows: Vec<MemoryNote> = sqlx::query_as!(
-					MemoryNote,
-					"SELECT * FROM memory_notes WHERE note_id = ANY($1::uuid[]) AND tenant_id = $2 AND project_id = $3",
-					requested_in_session.as_slice(),
-					session.tenant_id.as_str(),
-					session.project_id.as_str(),
-				)
-				.fetch_all(&self.db.pool)
-				.await?;
+			let rows: Vec<MemoryNote> = sqlx::query_as::<_, MemoryNote>(
+				"SELECT * FROM memory_notes WHERE note_id = ANY($1::uuid[]) AND tenant_id = $2 AND project_id = $3",
+			)
+			.bind(requested_in_session.as_slice())
+			.bind(session.tenant_id.as_str())
+			.bind(session.project_id.as_str())
+			.fetch_all(&self.db.pool)
+			.await?;
 
 			for note in rows {
 				notes_by_id.insert(note.note_id, note);
@@ -724,7 +738,7 @@ where
 		message: format!("Failed to encode search session items: {err}"),
 	})?;
 
-	sqlx::query!(
+	sqlx::query(
 		"\
 INSERT INTO search_sessions (
 	search_session_id,
@@ -739,17 +753,17 @@ INSERT INTO search_sessions (
 	expires_at
 )
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
-		session.search_session_id,
-		session.trace_id,
-		session.tenant_id.trim(),
-		session.project_id.trim(),
-		session.agent_id.trim(),
-		session.read_profile,
-		session.query,
-		items_json,
-		session.created_at,
-		session.expires_at,
 	)
+	.bind(session.search_session_id)
+	.bind(session.trace_id)
+	.bind(session.tenant_id.trim())
+	.bind(session.project_id.trim())
+	.bind(session.agent_id.trim())
+	.bind(session.read_profile)
+	.bind(session.query)
+	.bind(items_json)
+	.bind(session.created_at)
+	.bind(session.expires_at)
 	.execute(executor)
 	.await?;
 
@@ -764,23 +778,23 @@ async fn load_search_session<'e, E>(
 where
 	E: PgExecutor<'e>,
 {
-	let row = sqlx::query!(
+	let row = sqlx::query_as::<_, SearchSessionRow>(
 		"\
 SELECT
-	search_session_id AS \"search_session_id!\",
-	trace_id AS \"trace_id!\",
-	tenant_id AS \"tenant_id!\",
-	project_id AS \"project_id!\",
-	agent_id AS \"agent_id!\",
-	read_profile AS \"read_profile!\",
-	query AS \"query!\",
-	items AS \"items!\",
-	created_at AS \"created_at!\",
-	expires_at AS \"expires_at!\"
+	search_session_id,
+	trace_id,
+	tenant_id,
+	project_id,
+	agent_id,
+	read_profile,
+	query,
+	items,
+	created_at,
+	expires_at
 FROM search_sessions
 WHERE search_session_id = $1",
-		search_session_id,
 	)
+	.bind(search_session_id)
 	.fetch_optional(executor)
 	.await?;
 	let Some(row) = row else {
@@ -830,11 +844,11 @@ where
 		return Ok(session.expires_at);
 	}
 
-	sqlx::query!(
+	sqlx::query(
 		"UPDATE search_sessions SET expires_at = $1 WHERE search_session_id = $2 AND expires_at < $1",
-		touched,
-		session.search_session_id,
 	)
+	.bind(touched)
+	.bind(session.search_session_id)
 	.execute(executor)
 	.await?;
 
@@ -873,7 +887,7 @@ where
 		final_scores.push(item.final_score);
 	}
 
-	sqlx::query!(
+	sqlx::query(
 		"\
 WITH hits AS (
 	SELECT *
@@ -910,14 +924,14 @@ SELECT
 	final_score,
 	$6
 FROM hits",
-		&hit_ids,
-		&note_ids,
-		&chunk_ids,
-		&ranks,
-		&final_scores,
-		now,
-		query_hash.as_str(),
 	)
+	.bind(&hit_ids)
+	.bind(&note_ids)
+	.bind(&chunk_ids)
+	.bind(&ranks)
+	.bind(&final_scores)
+	.bind(now)
+	.bind(query_hash.as_str())
 	.execute(executor)
 	.await?;
 

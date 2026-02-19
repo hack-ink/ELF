@@ -1037,8 +1037,7 @@ async fn compare_trace_id(
 }
 
 async fn fetch_trace_compare_trace_row(db: &Db, trace_id: &Uuid) -> Result<TraceCompareTraceRow> {
-	let row: TraceCompareTraceRow = sqlx::query_as!(
-		TraceCompareTraceRow,
+	let row: TraceCompareTraceRow = sqlx::query_as::<_, TraceCompareTraceRow>(
 		"\
 SELECT
 	trace_id,
@@ -1048,8 +1047,8 @@ SELECT
 	created_at
 FROM search_traces
 WHERE trace_id = $1",
-		trace_id,
 	)
+	.bind(trace_id)
 	.fetch_one(&db.pool)
 	.await?;
 
@@ -1060,8 +1059,7 @@ async fn fetch_trace_compare_candidate_rows(
 	db: &Db,
 	trace_id: &Uuid,
 ) -> Result<Vec<TraceCompareCandidateRow>> {
-	let rows: Vec<TraceCompareCandidateRow> = sqlx::query_as!(
-		TraceCompareCandidateRow,
+	let rows: Vec<TraceCompareCandidateRow> = sqlx::query_as::<_, TraceCompareCandidateRow>(
 		"\
 SELECT
 	candidate_snapshot,
@@ -1079,8 +1077,8 @@ SELECT
 FROM search_trace_candidates
 WHERE trace_id = $1
 ORDER BY retrieval_rank ASC",
-		trace_id,
 	)
+	.bind(trace_id)
 	.fetch_all(&db.pool)
 	.await?;
 

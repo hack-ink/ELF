@@ -33,17 +33,16 @@ impl ElfService {
 		}
 
 		let mut tx = self.db.pool.begin().await?;
-		let mut note: MemoryNote = sqlx::query_as!(
-			MemoryNote,
+		let mut note: MemoryNote = sqlx::query_as::<_, MemoryNote>(
 			"\
 SELECT *
 FROM memory_notes
 WHERE note_id = $1 AND tenant_id = $2 AND project_id = $3
 FOR UPDATE",
-			req.note_id,
-			tenant_id,
-			project_id,
 		)
+		.bind(req.note_id)
+		.bind(tenant_id)
+		.bind(project_id)
 		.fetch_optional(&mut *tx)
 		.await?
 		.ok_or_else(|| Error::InvalidRequest { message: "Note not found.".to_string() })?;
@@ -74,15 +73,12 @@ FOR UPDATE",
 		note.status = "deleted".to_string();
 		note.updated_at = now;
 
-		sqlx::query!(
-			"UPDATE memory_notes SET status = $1, updated_at = $2 WHERE note_id = $3",
-			note.status.as_str(),
-			note.updated_at,
-			note.note_id,
-		)
-		.execute(&mut *tx)
-		.await?;
-
+		sqlx::query("UPDATE memory_notes SET status = $1, updated_at = $2 WHERE note_id = $3")
+			.bind(note.status.as_str())
+			.bind(note.updated_at)
+			.bind(note.note_id)
+			.execute(&mut *tx)
+			.await?;
 		crate::insert_version(
 			&mut *tx,
 			InsertVersionArgs {

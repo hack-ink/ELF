@@ -48,13 +48,12 @@ impl ElfService {
 			});
 		}
 
-		let row: Option<MemoryNote> = sqlx::query_as!(
-			MemoryNote,
+		let row: Option<MemoryNote> = sqlx::query_as::<_, MemoryNote>(
 			"SELECT * FROM memory_notes WHERE note_id = $1 AND tenant_id = $2 AND project_id = $3",
-			req.note_id,
-			tenant_id,
-			project_id,
 		)
+		.bind(req.note_id)
+		.bind(tenant_id)
+		.bind(project_id)
 		.fetch_optional(&self.db.pool)
 		.await?;
 		let Some(note) = row else {

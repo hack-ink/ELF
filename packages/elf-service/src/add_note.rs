@@ -223,11 +223,10 @@ impl ElfService {
 		agent_id: &str,
 		now: OffsetDateTime,
 	) -> Result<AddNoteResult> {
-		let mut existing: MemoryNote = sqlx::query_as!(
-			MemoryNote,
+		let mut existing: MemoryNote = sqlx::query_as::<_, MemoryNote>(
 			"SELECT * FROM memory_notes WHERE note_id = $1 FOR UPDATE",
-			note_id,
 		)
+		.bind(note_id)
 		.fetch_one(&mut **tx)
 		.await?;
 		let prev_snapshot = crate::note_snapshot(&existing);
@@ -662,7 +661,7 @@ async fn insert_memory_note_tx(
 	tx: &mut Transaction<'_, Postgres>,
 	memory_note: &MemoryNote,
 ) -> Result<()> {
-	sqlx::query!(
+	sqlx::query(
 		"\
 INSERT INTO memory_notes (
 	note_id,
@@ -704,25 +703,25 @@ VALUES (
 	$17,
 	$18
 )",
-		memory_note.note_id,
-		memory_note.tenant_id.as_str(),
-		memory_note.project_id.as_str(),
-		memory_note.agent_id.as_str(),
-		memory_note.scope.as_str(),
-		memory_note.r#type.as_str(),
-		memory_note.key.as_deref(),
-		memory_note.text.as_str(),
-		memory_note.importance,
-		memory_note.confidence,
-		memory_note.status.as_str(),
-		memory_note.created_at,
-		memory_note.updated_at,
-		memory_note.expires_at,
-		memory_note.embedding_version.as_str(),
-		&memory_note.source_ref,
-		memory_note.hit_count,
-		memory_note.last_hit_at,
 	)
+	.bind(memory_note.note_id)
+	.bind(memory_note.tenant_id.as_str())
+	.bind(memory_note.project_id.as_str())
+	.bind(memory_note.agent_id.as_str())
+	.bind(memory_note.scope.as_str())
+	.bind(memory_note.r#type.as_str())
+	.bind(memory_note.key.as_deref())
+	.bind(memory_note.text.as_str())
+	.bind(memory_note.importance)
+	.bind(memory_note.confidence)
+	.bind(memory_note.status.as_str())
+	.bind(memory_note.created_at)
+	.bind(memory_note.updated_at)
+	.bind(memory_note.expires_at)
+	.bind(memory_note.embedding_version.as_str())
+	.bind(&memory_note.source_ref)
+	.bind(memory_note.hit_count)
+	.bind(memory_note.last_hit_at)
 	.execute(&mut **tx)
 	.await?;
 
@@ -733,7 +732,7 @@ async fn update_memory_note_tx(
 	tx: &mut Transaction<'_, Postgres>,
 	memory_note: &MemoryNote,
 ) -> Result<()> {
-	sqlx::query!(
+	sqlx::query(
 		"\
 UPDATE memory_notes
 SET
@@ -744,14 +743,14 @@ SET
 	expires_at = $5,
 	source_ref = $6
 WHERE note_id = $7",
-		memory_note.text.as_str(),
-		memory_note.importance,
-		memory_note.confidence,
-		memory_note.updated_at,
-		memory_note.expires_at,
-		&memory_note.source_ref,
-		memory_note.note_id,
 	)
+	.bind(memory_note.text.as_str())
+	.bind(memory_note.importance)
+	.bind(memory_note.confidence)
+	.bind(memory_note.updated_at)
+	.bind(memory_note.expires_at)
+	.bind(&memory_note.source_ref)
+	.bind(memory_note.note_id)
 	.execute(&mut **tx)
 	.await?;
 

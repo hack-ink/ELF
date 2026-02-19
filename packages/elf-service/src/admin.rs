@@ -31,8 +31,7 @@ struct RebuildRow {
 	project_id: String,
 	agent_id: String,
 	scope: String,
-	#[sqlx(rename = "type")]
-	note_type: String,
+	r#type: String,
 	key: Option<String>,
 	status: String,
 	updated_at: OffsetDateTime,
@@ -46,8 +45,7 @@ struct RebuildRow {
 impl ElfService {
 	pub async fn rebuild_qdrant(&self) -> Result<RebuildReport> {
 		let now = OffsetDateTime::now_utc();
-		let rows: Vec<RebuildRow> = sqlx::query_as!(
-			RebuildRow,
+		let rows: Vec<RebuildRow> = sqlx::query_as::<_, RebuildRow>(
 			"\
 SELECT
 	c.chunk_id,
@@ -60,7 +58,7 @@ SELECT
 	n.project_id,
 	n.agent_id,
 	n.scope,
-	n.type AS note_type,
+	n.type AS \"type\",
 	n.key,
 	n.status,
 	n.updated_at,
@@ -73,9 +71,9 @@ FROM memory_note_chunks c
 JOIN memory_notes n ON n.note_id = c.note_id
 LEFT JOIN note_chunk_embeddings e
 	ON e.chunk_id = c.chunk_id AND e.embedding_version = c.embedding_version
-WHERE n.status = 'active' AND (n.expires_at IS NULL OR n.expires_at > $1)",
-			now,
+	WHERE n.status = 'active' AND (n.expires_at IS NULL OR n.expires_at > $1)",
 		)
+		.bind(now)
 		.fetch_all(&self.db.pool)
 		.await?;
 		let mut rebuilt_count = 0_u64;
@@ -114,7 +112,7 @@ WHERE n.status = 'active' AND (n.expires_at IS NULL OR n.expires_at > $1)",
 			payload.insert("project_id", row.project_id);
 			payload.insert("agent_id", row.agent_id);
 			payload.insert("scope", row.scope);
-			payload.insert("type", row.note_type);
+			payload.insert("type", row.r#type);
 			payload.insert("key", row.key.map(Value::String).unwrap_or(Value::Null));
 			payload.insert("status", row.status);
 			payload.insert("updated_at", Value::String(format_timestamp(row.updated_at)?));
