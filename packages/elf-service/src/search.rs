@@ -33,6 +33,157 @@ const MAX_TRAJECTORY_STAGE_ITEMS: usize = 256;
 const QUERY_PLAN_SCHEMA: &str = "elf.search.query_plan";
 const QUERY_PLAN_VERSION: &str = "v1";
 const SEARCH_RETRIEVAL_TRAJECTORY_SCHEMA_V1: &str = "search_retrieval_trajectory/v1";
+const RELATION_CONTEXT_SQL: &str = r#"
+WITH selected_facts AS (
+	SELECT DISTINCT ON (snc.selected_note_id, gf.fact_id)
+		snc.selected_note_id,
+		gf.fact_id,
+		gf.scope,
+		subject_entity.canonical AS subject_canonical,
+		subject_entity.kind AS subject_kind,
+		gf.predicate,
+		gf.object_entity_id,
+		object_entity.canonical AS object_canonical,
+		object_entity.kind AS object_kind,
+		gf.object_value,
+		gf.valid_from,
+		gf.valid_to
+	FROM unnest($7::uuid[]) AS snc(selected_note_id)
+	JOIN graph_fact_evidence gfe
+		ON gfe.note_id = snc.selected_note_id
+	JOIN graph_facts gf
+		ON gf.fact_id = gfe.fact_id
+	JOIN graph_entities subject_entity
+		ON subject_entity.entity_id = gf.subject_entity_id
+		AND subject_entity.tenant_id = $1
+		AND subject_entity.project_id = $2
+	LEFT JOIN graph_entities object_entity
+		ON object_entity.entity_id = gf.object_entity_id
+		AND object_entity.tenant_id = $1
+		AND object_entity.project_id = $2
+	WHERE gf.tenant_id = $1
+		AND gf.project_id = $2
+		AND (
+			($5 AND gf.scope = 'agent_private' AND gf.agent_id = $3)
+			OR gf.scope = ANY($6::text[])
+		)
+		AND gf.valid_from <= $4
+		AND (gf.valid_to IS NULL OR gf.valid_to > $4)
+	ORDER BY snc.selected_note_id, gf.fact_id, gf.valid_from DESC, gf.fact_id ASC
+),
+ranked_facts AS (
+	SELECT
+		selected_note_id,
+		fact_id,
+		scope,
+		subject_canonical,
+		subject_kind,
+		predicate,
+		object_entity_id,
+		object_canonical,
+		object_kind,
+		object_value,
+		valid_from,
+		valid_to,
+		ROW_NUMBER() OVER (
+			PARTITION BY selected_note_id
+			ORDER BY valid_from DESC, fact_id ASC
+		) AS fact_rank
+	FROM selected_facts
+),
+bounded_facts AS (
+	SELECT
+		selected_note_id,
+		fact_id,
+		scope,
+		subject_canonical,
+		subject_kind,
+		predicate,
+		object_entity_id,
+		object_canonical,
+		object_kind,
+		object_value,
+		valid_from,
+		valid_to,
+		fact_rank
+	FROM ranked_facts
+	WHERE fact_rank <= $9
+),
+evidence_ranked AS (
+	SELECT
+		bf.selected_note_id,
+		bf.fact_id,
+		bf.scope,
+		bf.subject_canonical,
+		bf.subject_kind,
+		bf.predicate,
+		bf.object_entity_id,
+		bf.object_canonical,
+		bf.object_kind,
+		bf.object_value,
+		bf.valid_from,
+		bf.valid_to,
+		bf.fact_rank,
+		e.note_id AS evidence_note_id,
+		e.created_at AS evidence_created_at,
+		ROW_NUMBER() OVER (
+			PARTITION BY bf.selected_note_id, bf.fact_id
+			ORDER BY e.created_at ASC, e.note_id ASC
+		) AS evidence_rank
+	FROM bounded_facts bf
+	JOIN graph_fact_evidence e
+		ON e.fact_id = bf.fact_id
+),
+fact_contexts AS (
+	SELECT
+		selected_note_id,
+		fact_id,
+		scope,
+		subject_canonical,
+		subject_kind,
+		predicate,
+		object_entity_id,
+		object_canonical,
+		object_kind,
+		object_value,
+		valid_from,
+		valid_to,
+		fact_rank,
+		ARRAY_AGG(evidence_note_id ORDER BY evidence_created_at ASC, evidence_note_id ASC) AS evidence_note_ids
+	FROM evidence_ranked
+	WHERE evidence_rank <= $8
+	GROUP BY
+		selected_note_id,
+		fact_id,
+		scope,
+		subject_canonical,
+		subject_kind,
+		predicate,
+		object_entity_id,
+		object_canonical,
+		object_kind,
+		object_value,
+		valid_from,
+		valid_to,
+		fact_rank
+)
+SELECT
+	selected_note_id AS note_id,
+	fact_id,
+	scope,
+	subject_canonical,
+	subject_kind,
+	predicate,
+	object_entity_id,
+	object_canonical,
+	object_kind,
+	object_value,
+	valid_from,
+	valid_to,
+	evidence_note_ids
+FROM fact_contexts
+ORDER BY note_id, fact_rank
+"#;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SearchRequest {
@@ -103,7 +254,40 @@ pub struct SearchExplain {
 	pub r#match: SearchMatchExplain,
 	pub ranking: SearchRankingExplain,
 	#[serde(skip_serializing_if = "Option::is_none")]
+	pub relation_context: Option<Vec<SearchExplainRelationContext>>,
+	#[serde(skip_serializing_if = "Option::is_none")]
 	pub diversity: Option<SearchDiversityExplain>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SearchExplainRelationContext {
+	pub fact_id: Uuid,
+	pub scope: String,
+	pub subject: SearchExplainRelationEntityRef,
+	pub predicate: String,
+	pub object: SearchExplainRelationContextObject,
+	#[serde(with = "crate::time_serde")]
+	pub valid_from: OffsetDateTime,
+	#[serde(with = "crate::time_serde::option")]
+	pub valid_to: Option<OffsetDateTime>,
+	#[serde(default)]
+	pub evidence_note_ids: Vec<Uuid>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SearchExplainRelationEntityRef {
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub canonical: Option<String>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub kind: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SearchExplainRelationContextObject {
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub entity: Option<SearchExplainRelationEntityRef>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub value: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -584,6 +768,23 @@ struct SearchExplainTraceRow {
 }
 
 #[derive(Clone, Debug, sqlx::FromRow)]
+struct SearchRelationContextRow {
+	note_id: Uuid,
+	fact_id: Uuid,
+	scope: String,
+	subject_canonical: Option<String>,
+	subject_kind: Option<String>,
+	predicate: String,
+	object_entity_id: Option<Uuid>,
+	object_canonical: Option<String>,
+	object_kind: Option<String>,
+	object_value: Option<String>,
+	valid_from: OffsetDateTime,
+	valid_to: Option<OffsetDateTime>,
+	evidence_note_ids: Vec<Uuid>,
+}
+
+#[derive(Clone, Debug, sqlx::FromRow)]
 struct SearchTraceRow {
 	trace_id: Uuid,
 	tenant_id: String,
@@ -901,6 +1102,19 @@ struct FinishSearchPolicies {
 	policy_id: String,
 }
 
+struct FinishSearchScoringResult {
+	query_tokens: Vec<String>,
+	filtered_candidates: Vec<ChunkCandidate>,
+	scored_count: usize,
+	snippet_count: usize,
+	filtered_candidate_count: usize,
+	trace_candidates: Vec<TraceCandidateRecord>,
+	fused_results: Vec<ScoredChunk>,
+	selected_results: Vec<ScoredChunk>,
+	diversity_decisions: HashMap<Uuid, DiversityDecision>,
+	selected_count: usize,
+}
+
 struct BuildTraceArgs<'a> {
 	path: RawSearchPath,
 	trace_id: Uuid,
@@ -928,6 +1142,7 @@ struct BuildTraceArgs<'a> {
 	recall_candidates: Vec<ChunkCandidate>,
 	fused_results: Vec<ScoredChunk>,
 	selected_results: Vec<ScoredChunk>,
+	relation_contexts: HashMap<Uuid, Vec<SearchExplainRelationContext>>,
 	trace_candidates: Vec<TraceCandidateRecord>,
 	now: OffsetDateTime,
 	ranking_override: &'a Option<RankingRequestOverride>,
@@ -990,6 +1205,7 @@ struct BuildSearchItemArgs<'a> {
 	diversity_decisions: &'a HashMap<Uuid, DiversityDecision>,
 	query_tokens: &'a [String],
 	structured_matches: &'a HashMap<Uuid, Vec<String>>,
+	relation_contexts: &'a HashMap<Uuid, Vec<SearchExplainRelationContext>>,
 	scored_chunk: ScoredChunk,
 	rank: u32,
 }
@@ -2519,6 +2735,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 		let candidate_count = candidates.len();
 		let candidate_note_ids: Vec<Uuid> =
 			candidates.iter().map(|candidate| candidate.note_id).collect();
+		let policies = self.resolve_finish_search_policies(ranking_override.as_ref())?;
 		let note_meta = self
 			.fetch_note_meta_for_candidates(
 				tenant_id,
@@ -2529,38 +2746,39 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 				now,
 			)
 			.await?;
-		let filtered_candidates: Vec<ChunkCandidate> = candidates
-			.into_iter()
-			.filter(|candidate| ranking::candidate_matches_note(&note_meta, candidate))
-			.collect();
-		let filtered_candidate_count = filtered_candidates.len();
-		let snippet_items = self.build_snippet_items(&filtered_candidates, &note_meta).await?;
-		let snippet_count = snippet_items.len();
-		let query_tokens = ranking::tokenize_query(query, MAX_MATCHED_TERMS);
-		let scope_context_boost_by_scope =
-			ranking::build_scope_context_boost_by_scope(&query_tokens, self.cfg.context.as_ref());
-		let det_query_tokens = build_deterministic_query_tokens(&self.cfg, query);
-		let policies = self.resolve_finish_search_policies(ranking_override.as_ref())?;
-		let scored = self
-			.score_snippet_items(ScoreSnippetArgs {
+		let scoring = self
+			.build_finish_search_scoring(
 				query,
-				snippet_items,
-				scope_context_boost_by_scope: &scope_context_boost_by_scope,
-				det_query_tokens: det_query_tokens.as_slice(),
-				blend_policy: &policies.blend_policy,
-				cache_cfg: &self.cfg.search.cache,
-				now,
+				candidates,
+				&note_meta,
+				&policies,
+				top_k,
 				candidate_count,
-			})
+				now,
+			)
 			.await?;
-		let scored_count = scored.len();
-		let mut trace_candidates = self.build_trace_candidates(&scored, now);
-		let results = select_best_scored_chunks(scored);
-		let fused_count = results.len();
-		let fused_results = results.clone();
-		let (selected_results, diversity_decisions) =
-			self.apply_diversity_policy(results, top_k, &policies.diversity_policy).await?;
-		let selected_count = selected_results.len();
+		let FinishSearchScoringResult {
+			query_tokens,
+			filtered_candidates,
+			scored_count,
+			snippet_count,
+			filtered_candidate_count,
+			mut trace_candidates,
+			fused_results,
+			selected_results,
+			diversity_decisions,
+			selected_count,
+		} = scoring;
+		let relation_contexts = self
+			.build_relation_context_for_selected_results(
+				&selected_results,
+				tenant_id,
+				project_id,
+				agent_id,
+				allowed_scopes,
+				now,
+			)
+			.await?;
 
 		ranking::attach_diversity_decisions_to_trace_candidates(
 			&mut trace_candidates,
@@ -2585,7 +2803,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 			filtered_candidate_count,
 			snippet_count,
 			scored_count,
-			fused_count,
+			fused_count: fused_results.len(),
 			selected_count,
 			top_k,
 			query_tokens: query_tokens.as_slice(),
@@ -2595,6 +2813,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 			recall_candidates: filtered_candidates,
 			fused_results,
 			selected_results,
+			relation_contexts,
 			trace_candidates,
 			recursive_retrieval: recursive_retrieval.as_ref(),
 			now,
@@ -2604,6 +2823,93 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 		self.write_trace_payload(trace_id, trace_payload).await?;
 
 		Ok(SearchResponse { trace_id, items })
+	}
+
+	#[allow(clippy::too_many_arguments)]
+	async fn build_finish_search_scoring(
+		&self,
+		query: &str,
+		candidates: Vec<ChunkCandidate>,
+		note_meta: &HashMap<Uuid, NoteMeta>,
+		policies: &FinishSearchPolicies,
+		top_k: u32,
+		candidate_count: usize,
+		now: OffsetDateTime,
+	) -> Result<FinishSearchScoringResult> {
+		let filtered_candidates: Vec<ChunkCandidate> = candidates
+			.into_iter()
+			.filter(|candidate| ranking::candidate_matches_note(note_meta, candidate))
+			.collect();
+		let filtered_candidate_count = filtered_candidates.len();
+		let snippet_items = self.build_snippet_items(&filtered_candidates, note_meta).await?;
+		let snippet_count = snippet_items.len();
+		let query_tokens = ranking::tokenize_query(query, MAX_MATCHED_TERMS);
+		let scope_context_boost_by_scope =
+			ranking::build_scope_context_boost_by_scope(&query_tokens, self.cfg.context.as_ref());
+		let det_query_tokens = build_deterministic_query_tokens(&self.cfg, query);
+		let scored = self
+			.score_snippet_items(ScoreSnippetArgs {
+				query,
+				snippet_items,
+				scope_context_boost_by_scope: &scope_context_boost_by_scope,
+				det_query_tokens: det_query_tokens.as_slice(),
+				blend_policy: &policies.blend_policy,
+				cache_cfg: &self.cfg.search.cache,
+				now,
+				candidate_count,
+			})
+			.await?;
+		let scored_count = scored.len();
+		let trace_candidates = self.build_trace_candidates(&scored, now);
+		let results = select_best_scored_chunks(scored);
+		let fused_results = results.clone();
+		let (selected_results, diversity_decisions) =
+			self.apply_diversity_policy(results, top_k, &policies.diversity_policy).await?;
+		let selected_count = selected_results.len();
+
+		Ok(FinishSearchScoringResult {
+			query_tokens,
+			filtered_candidates,
+			scored_count,
+			snippet_count,
+			filtered_candidate_count,
+			trace_candidates,
+			fused_results,
+			selected_results,
+			diversity_decisions,
+			selected_count,
+		})
+	}
+
+	async fn build_relation_context_for_selected_results(
+		&self,
+		selected_results: &[ScoredChunk],
+		tenant_id: &str,
+		project_id: &str,
+		agent_id: &str,
+		allowed_scopes: &[String],
+		now: OffsetDateTime,
+	) -> Result<HashMap<Uuid, Vec<SearchExplainRelationContext>>> {
+		if !self.cfg.search.graph_context.enabled {
+			return Ok(HashMap::new());
+		}
+
+		let selected_note_ids: Vec<Uuid> =
+			selected_results.iter().map(|chunk| chunk.item.note.note_id).collect();
+
+		if selected_note_ids.is_empty() {
+			return Ok(HashMap::new());
+		}
+
+		self.fetch_relation_contexts_for_notes(
+			selected_note_ids.as_slice(),
+			tenant_id,
+			project_id,
+			agent_id,
+			allowed_scopes,
+			now,
+		)
+		.await
 	}
 
 	fn resolve_finish_search_policies(
@@ -3005,6 +3311,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 				diversity_decisions: args.diversity_decisions,
 				query_tokens: args.query_tokens,
 				structured_matches: args.structured_matches,
+				relation_contexts: &args.relation_contexts,
 				scored_chunk,
 				rank,
 			});
@@ -3407,6 +3714,116 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 		}
 
 		Ok(note_meta)
+	}
+
+	async fn fetch_relation_contexts_for_notes(
+		&self,
+		note_ids: &[Uuid],
+		tenant_id: &str,
+		project_id: &str,
+		agent_id: &str,
+		allowed_scopes: &[String],
+		now: OffsetDateTime,
+	) -> Result<HashMap<Uuid, Vec<SearchExplainRelationContext>>> {
+		if note_ids.is_empty() {
+			return Ok(HashMap::new());
+		}
+
+		let private_allowed = allowed_scopes.iter().any(|scope| scope == "agent_private");
+		let non_private_scopes: Vec<String> =
+			allowed_scopes.iter().filter(|scope| *scope != "agent_private").cloned().collect();
+		let (max_evidence_notes_per_fact, max_facts_per_item) = self.relation_context_bounds();
+		let rows = self
+			.fetch_relation_context_rows(
+				note_ids,
+				tenant_id,
+				project_id,
+				agent_id,
+				&non_private_scopes,
+				private_allowed,
+				now,
+				max_evidence_notes_per_fact,
+				max_facts_per_item,
+			)
+			.await?;
+
+		Ok(Self::group_relation_context_rows(rows))
+	}
+
+	fn relation_context_bounds(&self) -> (i32, i32) {
+		let max_evidence_notes_per_fact =
+			i32::try_from(self.cfg.search.graph_context.max_evidence_notes_per_fact)
+				.unwrap_or(i32::MAX);
+		let max_facts_per_item =
+			i32::try_from(self.cfg.search.graph_context.max_facts_per_item).unwrap_or(i32::MAX);
+
+		(max_evidence_notes_per_fact, max_facts_per_item)
+	}
+
+	#[allow(clippy::too_many_arguments)]
+	async fn fetch_relation_context_rows(
+		&self,
+		note_ids: &[Uuid],
+		tenant_id: &str,
+		project_id: &str,
+		agent_id: &str,
+		non_private_scopes: &[String],
+		private_allowed: bool,
+		now: OffsetDateTime,
+		max_evidence_notes_per_fact: i32,
+		max_facts_per_item: i32,
+	) -> Result<Vec<SearchRelationContextRow>> {
+		Ok(sqlx::query_as::<_, SearchRelationContextRow>(RELATION_CONTEXT_SQL)
+			.bind(tenant_id)
+			.bind(project_id)
+			.bind(agent_id)
+			.bind(now)
+			.bind(private_allowed)
+			.bind(non_private_scopes)
+			.bind(note_ids)
+			.bind(max_evidence_notes_per_fact)
+			.bind(max_facts_per_item)
+			.fetch_all(&self.db.pool)
+			.await?)
+	}
+
+	fn group_relation_context_rows(
+		rows: Vec<SearchRelationContextRow>,
+	) -> HashMap<Uuid, Vec<SearchExplainRelationContext>> {
+		let mut relation_context_by_note: HashMap<Uuid, Vec<SearchExplainRelationContext>> =
+			HashMap::new();
+
+		for row in rows {
+			let object = if row.object_entity_id.is_some() {
+				SearchExplainRelationContextObject {
+					entity: Some(SearchExplainRelationEntityRef {
+						canonical: row.object_canonical,
+						kind: row.object_kind,
+					}),
+					value: None,
+				}
+			} else {
+				SearchExplainRelationContextObject { entity: None, value: row.object_value }
+			};
+
+			relation_context_by_note.entry(row.note_id).or_default().push(
+				SearchExplainRelationContext {
+					fact_id: row.fact_id,
+					scope: row.scope,
+					subject: SearchExplainRelationEntityRef {
+						canonical: row.subject_canonical,
+						kind: row.subject_kind,
+					},
+					predicate: row.predicate,
+					object,
+					valid_from: row.valid_from,
+					valid_to: row.valid_to,
+					evidence_note_ids: row.evidence_note_ids,
+				},
+			);
+		}
+
+		relation_context_by_note
 	}
 }
 
@@ -3844,6 +4261,8 @@ fn build_search_item_and_trace_item(
 			deterministic_decay_penalty: args.scored_chunk.deterministic_decay_penalty,
 		});
 	let response_terms = ranking_explain_v2::strip_term_inputs(&trace_terms);
+	let relation_context =
+		args.relation_contexts.get(&args.scored_chunk.item.note.note_id).cloned();
 	let diversity = if args.diversity_policy.enabled {
 		args.diversity_decisions
 			.get(&args.scored_chunk.item.note.note_id)
@@ -3862,6 +4281,7 @@ fn build_search_item_and_trace_item(
 			final_score: args.scored_chunk.final_score,
 			terms: response_terms,
 		},
+		relation_context: relation_context.clone(),
 		diversity: diversity.clone(),
 	};
 	let trace_explain = SearchExplain {
@@ -3872,6 +4292,7 @@ fn build_search_item_and_trace_item(
 			final_score: args.scored_chunk.final_score,
 			terms: trace_terms,
 		},
+		relation_context,
 		diversity,
 	};
 	let result_handle = Uuid::new_v4();
@@ -4397,6 +4818,7 @@ fn build_replay_items(
 				final_score: scored.final_score,
 				terms,
 			},
+			relation_context: None,
 			diversity: if diversity_policy.enabled {
 				replay_diversity_decisions
 					.get(&scored.note_id)

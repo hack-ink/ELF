@@ -111,6 +111,11 @@ max_depth             = 2
 max_nodes_per_scope   = 32
 max_total_nodes       = 256
 
+[search.graph_context]
+enabled                     = false
+max_evidence_notes_per_fact = 16
+max_facts_per_item          = 16
+
 [ranking]
 recency_tau_days   = 60
 tie_breaker_weight = 0.1
