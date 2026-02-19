@@ -4,23 +4,31 @@ use std::{
 	sync::{Arc, atomic::AtomicUsize},
 };
 
+use sqlx::PgPool;
 use uuid::Uuid;
 
+use elf_config::EmbeddingProviderConfig;
 use elf_service::{
-	AddEventRequest, AddNoteInput, AddNoteRequest, EmbeddingProvider, EventMessage, NoteOp,
-	Providers,
+	AddEventRequest, AddNoteInput, AddNoteRequest, BoxFuture, EmbeddingProvider, EventMessage,
+	NoteOp, Providers, Result,
 };
+
+const TEST_TENANT: &str = "t";
+const TEST_PROJECT: &str = "p";
+const TEST_SCOPE: &str = "agent_private";
+const GRAPH_REL_SUBJECT: &str = "alice";
+const GRAPH_REL_PREDICATE: &str = "mentors";
+const GRAPH_REL_OBJECT: &str = "Bob";
 
 struct HashEmbedding {
 	vector_dim: u32,
 }
-
 impl EmbeddingProvider for HashEmbedding {
 	fn embed<'a>(
 		&'a self,
-		_: &'a elf_config::EmbeddingProviderConfig,
+		_: &'a EmbeddingProviderConfig,
 		texts: &'a [String],
-	) -> elf_service::BoxFuture<'a, elf_service::Result<Vec<Vec<f32>>>> {
+	) -> BoxFuture<'a, Result<Vec<Vec<f32>>>> {
 		let vector_dim = self.vector_dim as usize;
 		let vectors = texts
 			.iter()
@@ -29,10 +37,13 @@ impl EmbeddingProvider for HashEmbedding {
 
 				for idx in 0..vector_dim {
 					let mut hasher = DefaultHasher::new();
+
 					text.hash(&mut hasher);
 					idx.hash(&mut hasher);
+
 					let raw = hasher.finish();
 					let normalized = ((raw % 2_000_000) as f32 / 1_000_000.0) - 1.0;
+
 					values.push(normalized);
 				}
 
@@ -42,6 +53,73 @@ impl EmbeddingProvider for HashEmbedding {
 
 		Box::pin(async move { Ok(vectors) })
 	}
+}
+
+async fn graph_fact_id(pool: &PgPool) -> Uuid {
+	sqlx::query_scalar(
+		"\
+SELECT gf.fact_id
+FROM graph_facts gf
+JOIN graph_entities ge ON ge.entity_id = gf.subject_entity_id
+WHERE ge.canonical_norm = $1
+	AND gf.predicate = $2
+	AND gf.object_value = $3
+	AND gf.tenant_id = $4
+	AND gf.project_id = $5
+	AND gf.scope = $6",
+	)
+	.bind(GRAPH_REL_SUBJECT)
+	.bind(GRAPH_REL_PREDICATE)
+	.bind(GRAPH_REL_OBJECT)
+	.bind(TEST_TENANT)
+	.bind(TEST_PROJECT)
+	.bind(TEST_SCOPE)
+	.fetch_one(pool)
+	.await
+	.expect("Failed to load fact.")
+}
+
+async fn graph_fact_count(pool: &PgPool) -> i64 {
+	sqlx::query_scalar(
+		"\
+SELECT COUNT(*)
+FROM graph_facts gf
+JOIN graph_entities ge ON ge.entity_id = gf.subject_entity_id
+WHERE ge.canonical_norm = $1
+	AND gf.predicate = $2
+	AND gf.object_value = $3
+	AND gf.tenant_id = $4
+	AND gf.project_id = $5
+	AND gf.scope = $6",
+	)
+	.bind(GRAPH_REL_SUBJECT)
+	.bind(GRAPH_REL_PREDICATE)
+	.bind(GRAPH_REL_OBJECT)
+	.bind(TEST_TENANT)
+	.bind(TEST_PROJECT)
+	.bind(TEST_SCOPE)
+	.fetch_one(pool)
+	.await
+	.expect("Failed to count fact rows.")
+}
+
+async fn graph_fact_evidence_count(pool: &PgPool, fact_id: Uuid) -> i64 {
+	sqlx::query_scalar("SELECT COUNT(*) FROM graph_fact_evidence WHERE fact_id = $1")
+		.bind(fact_id)
+		.fetch_one(pool)
+		.await
+		.expect("Failed to load fact evidence.")
+}
+
+async fn graph_fact_evidence_count_for_note(pool: &PgPool, fact_id: Uuid, note_id: Uuid) -> i64 {
+	sqlx::query_scalar(
+		"SELECT COUNT(*) FROM graph_fact_evidence WHERE fact_id = $1 AND note_id = $2",
+	)
+	.bind(fact_id)
+	.bind(note_id)
+	.fetch_one(pool)
+	.await
+	.expect("Failed to load note evidence.")
 }
 
 #[tokio::test]
@@ -61,7 +139,6 @@ async fn add_note_duplicate_fact_attaches_multiple_evidence() {
 
 		return;
 	};
-
 	let providers = Providers::new(
 		Arc::new(HashEmbedding { vector_dim: 4_096 }),
 		Arc::new(crate::acceptance::StubRerank),
@@ -135,80 +212,23 @@ async fn add_note_duplicate_fact_attaches_multiple_evidence() {
 	assert_eq!(response.results.len(), 2);
 	assert_eq!(response.results[0].op, NoteOp::Add);
 	assert_eq!(response.results[1].op, NoteOp::Add);
+
 	let first_note_id = response.results[0].note_id.expect("Expected note_id.");
 	let second_note_id = response.results[1].note_id.expect("Expected note_id.");
+
 	assert_ne!(first_note_id, second_note_id);
 
-	let fact_id: Uuid = sqlx::query_scalar(
-		"\
-SELECT gf.fact_id
-FROM graph_facts gf
-JOIN graph_entities ge ON ge.entity_id = gf.subject_entity_id
-WHERE ge.canonical_norm = $1
-	AND gf.predicate = $2
-	AND gf.object_value = $3
-	AND gf.tenant_id = $4
-	AND gf.project_id = $5
-	AND gf.scope = $6",
-	)
-	.bind("alice")
-	.bind("mentors")
-	.bind("Bob")
-	.bind("t")
-	.bind("p")
-	.bind("agent_private")
-	.fetch_one(&service.db.pool)
-	.await
-	.expect("Failed to load fact.");
-
-	let fact_count: i64 = sqlx::query_scalar(
-		"\
-SELECT COUNT(*)
-FROM graph_facts gf
-JOIN graph_entities ge ON ge.entity_id = gf.subject_entity_id
-WHERE ge.canonical_norm = $1
-	AND gf.predicate = $2
-	AND gf.object_value = $3
-	AND gf.tenant_id = $4
-	AND gf.project_id = $5
-	AND gf.scope = $6",
-	)
-	.bind("alice")
-	.bind("mentors")
-	.bind("Bob")
-	.bind("t")
-	.bind("p")
-	.bind("agent_private")
-	.fetch_one(&service.db.pool)
-	.await
-	.expect("Failed to count fact rows.");
-
-	let evidence_count: i64 =
-		sqlx::query_scalar("SELECT COUNT(*) FROM graph_fact_evidence WHERE fact_id = $1")
-			.bind(fact_id)
-			.fetch_one(&service.db.pool)
-			.await
-			.expect("Failed to load fact evidence.");
+	let fact_id = graph_fact_id(&service.db.pool).await;
+	let fact_count = graph_fact_count(&service.db.pool).await;
+	let evidence_count = graph_fact_evidence_count(&service.db.pool, fact_id).await;
 
 	assert_eq!(fact_count, 1);
 	assert_eq!(evidence_count, 2);
 
-	let first_evidence_count: i64 = sqlx::query_scalar(
-		"SELECT COUNT(*) FROM graph_fact_evidence WHERE fact_id = $1 AND note_id = $2",
-	)
-	.bind(fact_id)
-	.bind(first_note_id)
-	.fetch_one(&service.db.pool)
-	.await
-	.expect("Failed to load first note evidence.");
-	let second_evidence_count: i64 = sqlx::query_scalar(
-		"SELECT COUNT(*) FROM graph_fact_evidence WHERE fact_id = $1 AND note_id = $2",
-	)
-	.bind(fact_id)
-	.bind(second_note_id)
-	.fetch_one(&service.db.pool)
-	.await
-	.expect("Failed to load second note evidence.");
+	let first_evidence_count =
+		graph_fact_evidence_count_for_note(&service.db.pool, fact_id, first_note_id).await;
+	let second_evidence_count =
+		graph_fact_evidence_count_for_note(&service.db.pool, fact_id, second_note_id).await;
 
 	assert_eq!(first_evidence_count, 1);
 	assert_eq!(second_evidence_count, 1);
@@ -233,7 +253,6 @@ async fn add_note_invalid_relation_rejected_has_field_path() {
 
 		return;
 	};
-
 	let providers = Providers::new(
 		Arc::new(crate::acceptance::StubEmbedding { vector_dim: 4_096 }),
 		Arc::new(crate::acceptance::StubRerank),
@@ -247,7 +266,6 @@ async fn add_note_invalid_relation_rejected_has_field_path() {
 		crate::acceptance::test_config(test_db.dsn().to_string(), qdrant_url, 4_096, collection);
 	let service =
 		crate::acceptance::build_service(cfg, providers).await.expect("Failed to build service.");
-
 	let response = service
 		.add_note(AddNoteRequest {
 			tenant_id: "t".to_string(),
@@ -302,7 +320,6 @@ async fn add_note_persists_graph_relations() {
 
 		return;
 	};
-
 	let providers = Providers::new(
 		Arc::new(crate::acceptance::StubEmbedding { vector_dim: 4_096 }),
 		Arc::new(crate::acceptance::StubRerank),
@@ -352,60 +369,12 @@ async fn add_note_persists_graph_relations() {
 
 	assert_eq!(response.results.len(), 1);
 	assert_eq!(response.results[0].op, NoteOp::Add);
+
 	let note_id = response.results[0].note_id.expect("Expected note_id.");
-
-	let fact_id: Uuid = sqlx::query_scalar(
-		"\
-SELECT gf.fact_id
-FROM graph_facts gf
-JOIN graph_entities ge ON ge.entity_id = gf.subject_entity_id
-WHERE ge.canonical_norm = $1
-	AND gf.predicate = $2
-	AND gf.object_value = $3
-	AND gf.tenant_id = $4
-	AND gf.project_id = $5
-	AND gf.scope = $6",
-	)
-	.bind("alice")
-	.bind("mentors")
-	.bind("Bob")
-	.bind("t")
-	.bind("p")
-	.bind("agent_private")
-	.fetch_one(&service.db.pool)
-	.await
-	.expect("Failed to load fact.");
-
-	let fact_count: i64 = sqlx::query_scalar(
-		"\
-SELECT COUNT(*)
-FROM graph_facts gf
-JOIN graph_entities ge ON ge.entity_id = gf.subject_entity_id
-WHERE ge.canonical_norm = $1
-	AND gf.predicate = $2
-	AND gf.object_value = $3
-	AND gf.tenant_id = $4
-	AND gf.project_id = $5
-	AND gf.scope = $6",
-	)
-	.bind("alice")
-	.bind("mentors")
-	.bind("Bob")
-	.bind("t")
-	.bind("p")
-	.bind("agent_private")
-	.fetch_one(&service.db.pool)
-	.await
-	.expect("Failed to count fact rows.");
-
-	let evidence_count: i64 = sqlx::query_scalar(
-		"SELECT COUNT(*) FROM graph_fact_evidence WHERE fact_id = $1 AND note_id = $2",
-	)
-	.bind(fact_id)
-	.bind(note_id)
-	.fetch_one(&service.db.pool)
-	.await
-	.expect("Failed to load fact evidence.");
+	let fact_id = graph_fact_id(&service.db.pool).await;
+	let fact_count = graph_fact_count(&service.db.pool).await;
+	let evidence_count =
+		graph_fact_evidence_count_for_note(&service.db.pool, fact_id, note_id).await;
 
 	assert_eq!(fact_count, 1);
 	assert_eq!(evidence_count, 1);
@@ -426,7 +395,6 @@ async fn add_event_persists_graph_relations() {
 
 		return;
 	};
-
 	let extractor_payload = serde_json::json!({
 		"notes": [{
 			"type": "fact",
@@ -482,60 +450,12 @@ async fn add_event_persists_graph_relations() {
 
 	assert_eq!(response.results.len(), 1);
 	assert_eq!(response.results[0].op, NoteOp::Add);
+
 	let note_id = response.results[0].note_id.expect("Expected note_id.");
-
-	let fact_id: Uuid = sqlx::query_scalar(
-		"\
-SELECT gf.fact_id
-FROM graph_facts gf
-JOIN graph_entities ge ON ge.entity_id = gf.subject_entity_id
-WHERE ge.canonical_norm = $1
-	AND gf.predicate = $2
-	AND gf.object_value = $3
-	AND gf.tenant_id = $4
-	AND gf.project_id = $5
-	AND gf.scope = $6",
-	)
-	.bind("alice")
-	.bind("mentors")
-	.bind("Bob")
-	.bind("t")
-	.bind("p")
-	.bind("agent_private")
-	.fetch_one(&service.db.pool)
-	.await
-	.expect("Failed to load fact.");
-
-	let fact_count: i64 = sqlx::query_scalar(
-		"\
-SELECT COUNT(*)
-FROM graph_facts gf
-JOIN graph_entities ge ON ge.entity_id = gf.subject_entity_id
-WHERE ge.canonical_norm = $1
-	AND gf.predicate = $2
-	AND gf.object_value = $3
-	AND gf.tenant_id = $4
-	AND gf.project_id = $5
-	AND gf.scope = $6",
-	)
-	.bind("alice")
-	.bind("mentors")
-	.bind("Bob")
-	.bind("t")
-	.bind("p")
-	.bind("agent_private")
-	.fetch_one(&service.db.pool)
-	.await
-	.expect("Failed to count fact rows.");
-
-	let evidence_count: i64 = sqlx::query_scalar(
-		"SELECT COUNT(*) FROM graph_fact_evidence WHERE fact_id = $1 AND note_id = $2",
-	)
-	.bind(fact_id)
-	.bind(note_id)
-	.fetch_one(&service.db.pool)
-	.await
-	.expect("Failed to load fact evidence.");
+	let fact_id = graph_fact_id(&service.db.pool).await;
+	let fact_count = graph_fact_count(&service.db.pool).await;
+	let evidence_count =
+		graph_fact_evidence_count_for_note(&service.db.pool, fact_id, note_id).await;
 
 	assert_eq!(fact_count, 1);
 	assert_eq!(evidence_count, 1);
