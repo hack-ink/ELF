@@ -1,7 +1,7 @@
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::Result;
+use crate::{ElfService, Result};
 use elf_storage::graph;
 
 #[allow(dead_code)]
@@ -19,7 +19,7 @@ pub(crate) struct GraphUpsertFactArgs<'a> {
 	pub evidence_note_ids: &'a [Uuid],
 }
 
-impl crate::ElfService {
+impl ElfService {
 	#[allow(dead_code)]
 	pub(crate) async fn graph_upsert_fact(&self, args: GraphUpsertFactArgs<'_>) -> Result<Uuid> {
 		let mut tx = self.db.pool.begin().await?;

@@ -12,6 +12,7 @@ pub mod time_serde;
 pub mod update;
 
 mod error;
+mod graph_ingestion;
 mod ranking_explain_v2;
 
 pub use self::{

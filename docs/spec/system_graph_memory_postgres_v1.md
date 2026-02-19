@@ -103,6 +103,7 @@ Indexes:
   - lowercase
 - An active fact is defined by: `valid_from <= now AND (valid_to IS NULL OR valid_to > now)`.
 - Active duplicate prevention is enforced by partial unique indexes.
+- When ingestion reintroduces a note equivalent to an existing active fact, the system reuses the existing fact row and appends additional evidence rows for the new note instead of creating another active duplicate fact row.
 
 ============================================================
 5. CALL EXAMPLES
