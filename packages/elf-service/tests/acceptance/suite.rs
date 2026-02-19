@@ -405,8 +405,11 @@ where
 TRUNCATE
 	graph_entities,
 	graph_entity_aliases,
+	graph_predicates,
+	graph_predicate_aliases,
 	graph_facts,
 	graph_fact_evidence,
+	graph_fact_supersessions,
 	memory_hits,
 	memory_note_versions,
 	note_field_embeddings,

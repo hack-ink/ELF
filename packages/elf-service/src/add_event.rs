@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sqlx::{Postgres, Transaction};
-use time::OffsetDateTime;
+use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
 use crate::{
@@ -115,13 +115,15 @@ impl ElfService {
 		let extracted_json = serde_json::to_value(&extracted).map_err(|_| {
 			Error::InvalidRequest { message: "Failed to serialize extracted notes.".to_string() }
 		})?;
-		let now = OffsetDateTime::now_utc();
+		let base_now = OffsetDateTime::now_utc();
 		let embed_version = crate::embedding_version(&self.cfg);
 		let dry_run = req.dry_run.unwrap_or(false);
 		let message_texts: Vec<String> = req.messages.iter().map(|m| m.content.clone()).collect();
 		let mut results = Vec::with_capacity(extracted.notes.len());
 
-		for note in extracted.notes {
+		for (note_idx, note) in extracted.notes.into_iter().enumerate() {
+			let now = base_now + Duration::microseconds(note_idx as i64);
+
 			results.push(
 				self.process_extracted_note(
 					&req,

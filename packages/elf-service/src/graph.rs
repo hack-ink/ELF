@@ -23,6 +23,14 @@ impl ElfService {
 	#[allow(dead_code)]
 	pub(crate) async fn graph_upsert_fact(&self, args: GraphUpsertFactArgs<'_>) -> Result<Uuid> {
 		let mut tx = self.db.pool.begin().await?;
+		let predicate = graph::resolve_or_register_predicate(
+			&mut tx,
+			args.tenant_id,
+			args.project_id,
+			args.predicate,
+		)
+		.await
+		.map_err(|err| crate::Error::Storage { message: err.to_string() })?;
 		let fact_id = graph::insert_fact_with_evidence(
 			&mut tx,
 			args.tenant_id,
@@ -31,6 +39,7 @@ impl ElfService {
 			args.scope,
 			args.subject_entity_id,
 			args.predicate,
+			predicate.predicate_id,
 			args.object_entity_id,
 			args.object_value,
 			args.valid_from,

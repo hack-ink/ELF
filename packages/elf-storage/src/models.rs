@@ -106,6 +106,7 @@ pub struct GraphFact {
 	pub scope: String,
 	pub subject_entity_id: Uuid,
 	pub predicate: String,
+	pub predicate_id: Option<Uuid>,
 	pub object_entity_id: Option<Uuid>,
 	pub object_value: Option<String>,
 	pub valid_from: OffsetDateTime,
@@ -119,5 +120,41 @@ pub struct GraphFactEvidence {
 	pub evidence_id: Uuid,
 	pub fact_id: Uuid,
 	pub note_id: Uuid,
+	pub created_at: OffsetDateTime,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+pub struct GraphPredicate {
+	pub predicate_id: Uuid,
+	pub scope_key: String,
+	pub tenant_id: Option<String>,
+	pub project_id: Option<String>,
+	pub canonical: String,
+	pub canonical_norm: String,
+	pub cardinality: String,
+	pub status: String,
+	pub created_at: OffsetDateTime,
+	pub updated_at: OffsetDateTime,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+pub struct GraphPredicateAlias {
+	pub alias_id: Uuid,
+	pub predicate_id: Uuid,
+	pub scope_key: String,
+	pub alias: String,
+	pub alias_norm: String,
+	pub created_at: OffsetDateTime,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+pub struct GraphFactSupersession {
+	pub supersession_id: Uuid,
+	pub tenant_id: String,
+	pub project_id: String,
+	pub from_fact_id: Uuid,
+	pub to_fact_id: Uuid,
+	pub note_id: Uuid,
+	pub effective_at: OffsetDateTime,
 	pub created_at: OffsetDateTime,
 }

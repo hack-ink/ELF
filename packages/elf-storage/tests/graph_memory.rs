@@ -78,6 +78,14 @@ async fn graph_fact_with_empty_evidence_is_rejected() {
 		elf_storage::graph::upsert_entity(&mut tx, "tenant-a", "project-a", "Entity A", None)
 			.await
 			.expect("Failed to upsert subject.");
+	let predicate = elf_storage::graph::resolve_or_register_predicate(
+		&mut tx,
+		"tenant-a",
+		"project-a",
+		"related_to",
+	)
+	.await
+	.expect("Failed to resolve predicate.");
 	let err = elf_storage::graph::insert_fact_with_evidence(
 		&mut tx,
 		"tenant-a",
@@ -86,6 +94,7 @@ async fn graph_fact_with_empty_evidence_is_rejected() {
 		"scope-a",
 		subject,
 		"related_to",
+		predicate.predicate_id,
 		None,
 		Some("value"),
 		OffsetDateTime::now_utc(),
@@ -127,6 +136,14 @@ async fn graph_fact_duplicates_with_active_window_fail_unique_constraint() {
 		elf_storage::graph::upsert_entity(&mut tx, "tenant-a", "project-a", "Entity Object", None)
 			.await
 			.expect("Failed to upsert object.");
+	let predicate = elf_storage::graph::resolve_or_register_predicate(
+		&mut tx,
+		"tenant-a",
+		"project-a",
+		"related_to",
+	)
+	.await
+	.expect("Failed to resolve predicate.");
 	let now = OffsetDateTime::now_utc();
 
 	elf_storage::graph::insert_fact_with_evidence(
@@ -137,6 +154,7 @@ async fn graph_fact_duplicates_with_active_window_fail_unique_constraint() {
 		"scope-a",
 		subject,
 		"related_to",
+		predicate.predicate_id,
 		Some(object),
 		None,
 		now,
@@ -154,6 +172,7 @@ async fn graph_fact_duplicates_with_active_window_fail_unique_constraint() {
 		"scope-a",
 		subject,
 		"related_to",
+		predicate.predicate_id,
 		Some(object),
 		None,
 		now,
@@ -188,6 +207,14 @@ async fn graph_fact_rejects_invalid_valid_window() {
 		elf_storage::graph::upsert_entity(&mut tx, "tenant-a", "project-a", "Entity Subject", None)
 			.await
 			.expect("Failed to upsert subject.");
+	let predicate = elf_storage::graph::resolve_or_register_predicate(
+		&mut tx,
+		"tenant-a",
+		"project-a",
+		"expires",
+	)
+	.await
+	.expect("Failed to resolve predicate.");
 	let now = OffsetDateTime::now_utc();
 	let err = elf_storage::graph::insert_fact_with_evidence(
 		&mut tx,
@@ -197,6 +224,7 @@ async fn graph_fact_rejects_invalid_valid_window() {
 		"scope-a",
 		subject,
 		"expires",
+		predicate.predicate_id,
 		None,
 		Some("value"),
 		now,
@@ -233,6 +261,30 @@ async fn graph_fetch_active_facts_returns_active_window_only() {
 		elf_storage::graph::upsert_entity(&mut tx, "tenant-a", "project-a", "Entity Subject", None)
 			.await
 			.expect("Failed to upsert subject.");
+	let active_predicate = elf_storage::graph::resolve_or_register_predicate(
+		&mut tx,
+		"tenant-a",
+		"project-a",
+		"active_fact",
+	)
+	.await
+	.expect("Failed to resolve predicate.");
+	let expired_predicate = elf_storage::graph::resolve_or_register_predicate(
+		&mut tx,
+		"tenant-a",
+		"project-a",
+		"expired_fact",
+	)
+	.await
+	.expect("Failed to resolve predicate.");
+	let future_predicate = elf_storage::graph::resolve_or_register_predicate(
+		&mut tx,
+		"tenant-a",
+		"project-a",
+		"future_fact",
+	)
+	.await
+	.expect("Failed to resolve predicate.");
 	let now = OffsetDateTime::now_utc();
 	let active = elf_storage::graph::insert_fact_with_evidence(
 		&mut tx,
@@ -242,6 +294,7 @@ async fn graph_fetch_active_facts_returns_active_window_only() {
 		"scope-a",
 		subject,
 		"active_fact",
+		active_predicate.predicate_id,
 		None,
 		Some("alpha"),
 		now - Duration::hours(1),
@@ -259,6 +312,7 @@ async fn graph_fetch_active_facts_returns_active_window_only() {
 		"scope-a",
 		subject,
 		"expired_fact",
+		expired_predicate.predicate_id,
 		None,
 		Some("beta"),
 		now - Duration::hours(2),
@@ -275,6 +329,7 @@ async fn graph_fetch_active_facts_returns_active_window_only() {
 		"scope-a",
 		subject,
 		"future_fact",
+		future_predicate.predicate_id,
 		None,
 		Some("gamma"),
 		now + Duration::hours(1),
