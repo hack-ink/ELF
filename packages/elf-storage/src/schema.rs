@@ -20,10 +20,16 @@ fn expand_includes(sql: &str) -> String {
 					out.push_str(include_str!("../../../sql/tables/016_graph_entities.sql")),
 				"tables/017_graph_entity_aliases.sql" =>
 					out.push_str(include_str!("../../../sql/tables/017_graph_entity_aliases.sql")),
+				"tables/020_graph_predicates.sql" =>
+					out.push_str(include_str!("../../../sql/tables/020_graph_predicates.sql")),
+				"tables/021_graph_predicate_aliases.sql" => out
+					.push_str(include_str!("../../../sql/tables/021_graph_predicate_aliases.sql")),
 				"tables/018_graph_facts.sql" =>
 					out.push_str(include_str!("../../../sql/tables/018_graph_facts.sql")),
 				"tables/019_graph_fact_evidence.sql" =>
 					out.push_str(include_str!("../../../sql/tables/019_graph_fact_evidence.sql")),
+				"tables/022_graph_fact_supersessions.sql" => out
+					.push_str(include_str!("../../../sql/tables/022_graph_fact_supersessions.sql")),
 				"tables/013_memory_note_fields.sql" =>
 					out.push_str(include_str!("../../../sql/tables/013_memory_note_fields.sql")),
 				"tables/009_memory_note_chunks.sql" =>
