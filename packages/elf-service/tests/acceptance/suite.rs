@@ -129,7 +129,7 @@ impl ExtractorProvider for SpyExtractor {
 }
 
 pub fn test_qdrant_url() -> Option<String> {
-	env::var("ELF_QDRANT_URL").ok()
+	env::var("ELF_QDRANT_GRPC_URL").ok().or_else(|| env::var("ELF_QDRANT_URL").ok())
 }
 
 pub fn test_config(dsn: String, qdrant_url: String, vector_dim: u32, collection: String) -> Config {

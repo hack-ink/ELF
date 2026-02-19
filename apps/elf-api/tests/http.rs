@@ -218,10 +218,12 @@ async fn test_env() -> Option<(TestDatabase, String, String)> {
 			return None;
 		},
 	};
-	let qdrant_url = match env::var("ELF_QDRANT_URL") {
+	let qdrant_url = match env::var("ELF_QDRANT_GRPC_URL").or_else(|_| env::var("ELF_QDRANT_URL")) {
 		Ok(value) => value,
 		Err(_) => {
-			eprintln!("Skipping HTTP tests; set ELF_QDRANT_URL to run this test.");
+			eprintln!(
+				"Skipping HTTP tests; set ELF_QDRANT_GRPC_URL (or ELF_QDRANT_URL) to run this test."
+			);
 
 			return None;
 		},
@@ -233,7 +235,7 @@ async fn test_env() -> Option<(TestDatabase, String, String)> {
 }
 
 #[tokio::test]
-#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
+#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_GRPC_URL (or ELF_QDRANT_URL) to run."]
 async fn health_ok() {
 	let Some((test_db, qdrant_url, collection)) = test_env().await else {
 		return;
@@ -258,7 +260,7 @@ async fn health_ok() {
 }
 
 #[tokio::test]
-#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
+#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_GRPC_URL (or ELF_QDRANT_URL) to run."]
 async fn rejects_cjk_in_add_note() {
 	let Some((test_db, qdrant_url, collection)) = test_env().await else {
 		return;
@@ -307,7 +309,7 @@ async fn rejects_cjk_in_add_note() {
 }
 
 #[tokio::test]
-#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
+#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_GRPC_URL (or ELF_QDRANT_URL) to run."]
 async fn rejects_cjk_in_add_event() {
 	let Some((test_db, qdrant_url, collection)) = test_env().await else { return };
 	let config = test_config(test_db.dsn().to_string(), qdrant_url, collection);
@@ -350,7 +352,7 @@ async fn rejects_cjk_in_add_event() {
 }
 
 #[tokio::test]
-#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
+#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_GRPC_URL (or ELF_QDRANT_URL) to run."]
 async fn rejects_cjk_in_search() {
 	let Some((test_db, qdrant_url, collection)) = test_env().await else {
 		return;
@@ -397,7 +399,7 @@ async fn rejects_cjk_in_search() {
 }
 
 #[tokio::test]
-#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
+#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_GRPC_URL (or ELF_QDRANT_URL) to run."]
 async fn static_keys_requires_bearer_header() {
 	let Some((test_db, qdrant_url, collection)) = test_env().await else {
 		return;

@@ -14,7 +14,7 @@ Run the ignored integration suite (requires external Postgres and Qdrant):
 
 ```bash
 ELF_PG_DSN="postgres://postgres:postgres@127.0.0.1:51888/postgres" \
-ELF_QDRANT_URL="http://127.0.0.1:51890" \
+ELF_QDRANT_GRPC_URL="http://127.0.0.1:51890" \
 cargo make test-integration
 ```
 
@@ -22,7 +22,7 @@ Run the context misranking harness (creates and drops a dedicated database and c
 
 ```bash
 ELF_PG_DSN="postgres://postgres:postgres@127.0.0.1:51888/postgres" \
-ELF_QDRANT_URL="http://127.0.0.1:51890" \
+ELF_QDRANT_GRPC_URL="http://127.0.0.1:51890" \
 ELF_QDRANT_HTTP_URL="http://127.0.0.1:51889" \
 cargo make e2e
 ```

@@ -125,14 +125,14 @@ Adjust the port to match `service.http_bind`.
 The context misranking harness creates and drops a dedicated database and Qdrant collection. It requires:
 
 - `ELF_PG_DSN` (a base DSN that typically ends with `/postgres`)
-- `ELF_QDRANT_URL` (Qdrant gRPC base URL)
+- `ELF_QDRANT_GRPC_URL` (Qdrant gRPC base URL)
 - `ELF_QDRANT_HTTP_URL` (Qdrant REST base URL)
 
 Example:
 
 ```sh
 ELF_PG_DSN="postgres://postgres:postgres@127.0.0.1:51888/postgres" \
-ELF_QDRANT_URL="http://127.0.0.1:51890" \
+ELF_QDRANT_GRPC_URL="http://127.0.0.1:51890" \
 ELF_QDRANT_HTTP_URL="http://127.0.0.1:51889" \
 cargo make e2e
 ```

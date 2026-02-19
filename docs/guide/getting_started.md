@@ -70,9 +70,9 @@ cargo make e2e
 Notes:
 
 - `cargo make test-integration` runs ignored tests that require external Postgres and Qdrant.
-  Set `ELF_PG_DSN` and `ELF_QDRANT_URL`.
+  Set `ELF_PG_DSN` and `ELF_QDRANT_GRPC_URL`.
 - `cargo make e2e` runs the context misranking harness.
-  Set `ELF_PG_DSN`, `ELF_QDRANT_URL`, and `ELF_QDRANT_HTTP_URL`.
+  Set `ELF_PG_DSN`, `ELF_QDRANT_GRPC_URL`, and `ELF_QDRANT_HTTP_URL`.
 
 ## Related guides
 
