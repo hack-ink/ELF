@@ -163,6 +163,7 @@ fn test_config() -> Config {
 			update_sim_threshold: 0.8,
 			candidate_k: 10,
 			top_k: 5,
+			policy: Default::default(),
 		},
 		search: Search {
 			expansion: SearchExpansion {

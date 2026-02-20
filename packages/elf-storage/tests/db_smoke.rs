@@ -28,6 +28,15 @@ fn chunk_tables_exist_after_bootstrap() {
 		.expect("Failed to query schema tables.");
 
 		assert_eq!(count, 1);
+
+		let count: i64 = sqlx::query_scalar(
+			"SELECT count(*) FROM information_schema.tables WHERE table_name = 'memory_ingest_decisions'",
+		)
+		.fetch_one(&db.pool)
+		.await
+		.expect("Failed to query schema tables.");
+
+		assert_eq!(count, 1);
 	});
 }
 

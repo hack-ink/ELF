@@ -9,6 +9,7 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 use elf_config::EmbeddingProviderConfig;
+use elf_domain::memory_policy::MemoryPolicyDecision;
 use elf_service::{
 	AddEventRequest, AddNoteInput, AddNoteRequest, BoxFuture, ElfService, EmbeddingProvider,
 	EventMessage, NoteOp, Providers, Result, StructuredFields,
@@ -84,6 +85,14 @@ fn fact_note(key: &str, text: &str, predicate: &str, object_value: &str) -> AddN
 		confidence: 0.9,
 		ttl_days: None,
 		source_ref: serde_json::json!({}),
+	}
+}
+
+fn assert_graph_policy_from_op(op: NoteOp, policy_decision: MemoryPolicyDecision) {
+	match op {
+		NoteOp::Add => assert_eq!(policy_decision, MemoryPolicyDecision::Remember),
+		NoteOp::Update => assert_eq!(policy_decision, MemoryPolicyDecision::Update),
+		_ => {},
 	}
 }
 
@@ -203,6 +212,8 @@ async fn add_fact_note(
 
 	assert_eq!(response.results.len(), 1);
 	assert_eq!(response.results[0].op, NoteOp::Add);
+
+	assert_graph_policy_from_op(response.results[0].op, response.results[0].policy_decision);
 
 	response.results[0].note_id.expect("Expected note_id.")
 }
@@ -387,6 +398,9 @@ async fn add_note_duplicate_fact_attaches_multiple_evidence() {
 	assert_eq!(response.results.len(), 2);
 	assert_eq!(response.results[0].op, NoteOp::Add);
 	assert_eq!(response.results[1].op, NoteOp::Add);
+
+	assert_graph_policy_from_op(response.results[0].op, response.results[0].policy_decision);
+	assert_graph_policy_from_op(response.results[1].op, response.results[1].policy_decision);
 
 	let first_note_id = response.results[0].note_id.expect("Expected note_id.");
 	let second_note_id = response.results[1].note_id.expect("Expected note_id.");
@@ -623,6 +637,8 @@ async fn add_note_persists_graph_relations() {
 	assert_eq!(response.results.len(), 1);
 	assert_eq!(response.results[0].op, NoteOp::Add);
 
+	assert_graph_policy_from_op(response.results[0].op, response.results[0].policy_decision);
+
 	let note_id = response.results[0].note_id.expect("Expected note_id.");
 	let fact_id = graph_fact_id(&service.db.pool).await;
 	let fact_count = graph_fact_count(&service.db.pool).await;
@@ -703,6 +719,8 @@ async fn add_event_persists_graph_relations() {
 
 	assert_eq!(response.results.len(), 1);
 	assert_eq!(response.results[0].op, NoteOp::Add);
+
+	assert_graph_policy_from_op(response.results[0].op, response.results[0].policy_decision);
 
 	let note_id = response.results[0].note_id.expect("Expected note_id.");
 	let fact_id = graph_fact_id(&service.db.pool).await;

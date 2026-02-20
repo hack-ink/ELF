@@ -468,6 +468,40 @@ Indexes:
 - idx_llm_cache_key: (cache_kind, cache_key) unique
 - idx_llm_cache_expires: (expires_at)
 
+5.14 memory_ingest_decisions (ingest policy audit)
+- decision_id uuid primary key
+- tenant_id text not null
+- project_id text not null
+- agent_id text not null
+- scope text not null
+- pipeline text not null
+- note_type text not null
+- note_key text null
+- note_id uuid null
+- base_decision text not null
+- policy_decision text not null
+- note_op text not null
+- reason_code text null
+- details jsonb not null
+- ts timestamptz not null
+
+Indexing:
+- idx_memory_ingest_decisions_tenant_scope_pipeline: (tenant_id, project_id, agent_id, scope, pipeline, ts)
+
+details must include:
+- similarity_best
+- key_match
+- matched_dup
+- dup_sim_threshold
+- update_sim_threshold
+- confidence
+- importance
+- structured_present
+- graph_present
+- policy_rule
+- min_confidence
+- min_importance
+
 ============================================================
 6. QDRANT COLLECTION (DERIVED INDEX ONLY)
 ============================================================
@@ -560,6 +594,34 @@ MUST NOT:
 - Must not store notes lacking evidence or failing evidence substring checks.
 - Must not store raw full logs as memory notes.
  - If evidence.quote is not a verbatim substring of the cited message, return REJECTED with reason_code REJECT_EVIDENCE_MISMATCH.
+
+8.3 Policy decision pipeline (both add_note and add_event)
+Stage-1 (base decision) is computed from resolver outcome + side-effect presence:
+- Add -> remember
+- Update -> update
+- None + (structured_present || graph_present) -> update
+- None + (!structured_present && !graph_present) -> ignore
+
+Stage-2 (policy stage) evaluates `memory.policy` rules and may only:
+- keep base decision remember/update
+- or downgrade remember/update -> ignore when thresholds fail
+
+Decision taxonomy:
+- remember
+- update
+- ignore
+- reject
+
+When policy downgrades to ignore:
+- `memory_notes` must not be inserted/updated/deleted
+- `memory_note_fields` must not be written
+- graph memory rows must not be written
+- indexing/search outbox rows must not be written
+- only an audit row must be written via `memory_ingest_decisions`
+
+Ignore reason codes:
+- `IGNORE_DUPLICATE`: base=ignore and duplicate match was detected (`metadata.matched_dup = true`)
+- `IGNORE_POLICY_THRESHOLD`: base=remember/update and policy stage threshold/guard downgraded to ignore
 
 ============================================================
 9. WRITEGATE (SERVER SIDE, ALWAYS ON)
@@ -1112,6 +1174,7 @@ Response:
     {
       "note_id": "uuid|null",
       "op": "ADD|UPDATE|NONE|DELETE|REJECTED",
+      "policy_decision": "remember|update|ignore|reject",
       "reason_code": "optional",
       "field_path": "optional"
     }
@@ -1142,6 +1205,7 @@ Response:
     {
       "note_id": "uuid|null",
       "op": "ADD|UPDATE|NONE|DELETE|REJECTED",
+      "policy_decision": "remember|update|ignore|reject",
       "reason_code": "optional",
       "reason": "optional",
       "field_path": "optional"

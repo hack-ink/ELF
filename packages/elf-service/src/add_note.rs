@@ -6,13 +6,15 @@ use uuid::Uuid;
 
 use crate::{
 	ElfService, Error, InsertVersionArgs, NoteOp, ResolveUpdateArgs, Result, UpdateDecision,
-	structured_fields::StructuredFields,
+	UpdateDecisionMetadata, structured_fields::StructuredFields,
 };
 use elf_config::Config;
-use elf_domain::{cjk, ttl};
+use elf_domain::{cjk, memory_policy::MemoryPolicyDecision, ttl};
 use elf_storage::models::MemoryNote;
 
 const REJECT_STRUCTURED_INVALID: &str = "REJECT_STRUCTURED_INVALID";
+const IGNORE_DUPLICATE: &str = "IGNORE_DUPLICATE";
+const IGNORE_POLICY_THRESHOLD: &str = "IGNORE_POLICY_THRESHOLD";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AddNoteRequest {
@@ -39,6 +41,7 @@ pub struct AddNoteInput {
 pub struct AddNoteResult {
 	pub note_id: Option<Uuid>,
 	pub op: NoteOp,
+	pub policy_decision: MemoryPolicyDecision,
 	pub reason_code: Option<String>,
 	pub field_path: Option<String>,
 }
@@ -88,16 +91,124 @@ impl ElfService {
 		ctx: &AddNoteContext<'_>,
 		note: AddNoteInput,
 	) -> Result<AddNoteResult> {
-		if let Some(result) = reject_note_if_structured_invalid(&note) {
-			return Ok(result);
-		}
-		if let Some(result) = reject_note_if_writegate_rejects(&self.cfg, ctx.scope, &note) {
+		let (structured_present, graph_present) =
+			Self::structured_and_graph_present(note.structured.as_ref());
+		let mut tx = self.db.pool.begin().await?;
+
+		if let Some(result) = self.handle_rejection_paths(&mut tx, ctx, &note).await? {
+			tx.commit().await?;
+
 			return Ok(result);
 		}
 
-		let mut tx = self.db.pool.begin().await?;
+		let (decision, metadata) = self.resolve_update_decision(ctx, &note).await?;
+		let base_decision =
+			Self::base_decision_for_update(&decision, structured_present, graph_present);
+		let (policy_decision, decision_policy_rule, min_confidence, min_importance) =
+			self.decide_policy_decision(ctx.scope, &note, base_decision);
+		let note_id = decision.note_id();
+		let ignore_reason_code =
+			Self::ignore_reason_code(policy_decision, base_decision, metadata.matched_dup);
+		let (result, note_op) = self
+			.apply_policy_result(
+				&mut tx,
+				&decision,
+				ctx,
+				&note,
+				note_id,
+				policy_decision,
+				ignore_reason_code,
+			)
+			.await?;
+
+		self.record_ingest_decision(
+			&mut tx,
+			ctx,
+			&note,
+			result.note_id,
+			base_decision,
+			policy_decision,
+			note_op,
+			result.reason_code.as_deref(),
+			decision_policy_rule.as_deref(),
+			metadata.similarity_best,
+			metadata.key_match,
+			metadata.matched_dup,
+			min_confidence,
+			min_importance,
+		)
+		.await?;
+		tx.commit().await?;
+
+		Ok(result)
+	}
+
+	fn structured_and_graph_present(structured: Option<&StructuredFields>) -> (bool, bool) {
+		let structured_present = structured.is_some_and(|s| !s.is_effectively_empty());
+		let graph_present = structured.is_some_and(StructuredFields::has_graph_fields);
+
+		(structured_present, graph_present)
+	}
+
+	async fn handle_rejection_paths(
+		&self,
+		tx: &mut Transaction<'_, Postgres>,
+		ctx: &AddNoteContext<'_>,
+		note: &AddNoteInput,
+	) -> Result<Option<AddNoteResult>> {
+		if let Some(result) = reject_note_if_structured_invalid(note) {
+			self.record_ingest_decision(
+				tx,
+				ctx,
+				note,
+				None,
+				MemoryPolicyDecision::Reject,
+				MemoryPolicyDecision::Reject,
+				NoteOp::Rejected,
+				result.reason_code.as_deref(),
+				None,
+				None,
+				false,
+				false,
+				None,
+				None,
+			)
+			.await?;
+
+			return Ok(Some(result));
+		}
+		if let Some(result) = reject_note_if_writegate_rejects(&self.cfg, ctx.scope, note) {
+			self.record_ingest_decision(
+				tx,
+				ctx,
+				note,
+				None,
+				MemoryPolicyDecision::Reject,
+				MemoryPolicyDecision::Reject,
+				NoteOp::Rejected,
+				result.reason_code.as_deref(),
+				None,
+				None,
+				false,
+				false,
+				None,
+				None,
+			)
+			.await?;
+
+			return Ok(Some(result));
+		}
+
+		Ok(None)
+	}
+
+	async fn resolve_update_decision(
+		&self,
+		ctx: &AddNoteContext<'_>,
+		note: &AddNoteInput,
+	) -> Result<(UpdateDecision, UpdateDecisionMetadata)> {
 		let decision = crate::resolve_update(
-			&mut *tx,
+			&self.db.pool,
 			ResolveUpdateArgs {
 				cfg: &self.cfg,
 				providers: &self.providers,
@@ -112,37 +223,213 @@ impl ElfService {
 			},
 		)
 		.await?;
+		let metadata = decision.metadata();
 
+		Ok((decision, metadata))
+	}
+
+	fn decide_policy_decision(
+		&self,
+		scope: &str,
+		note: &AddNoteInput,
+		base_decision: MemoryPolicyDecision,
+	) -> (MemoryPolicyDecision, Option<String>, Option<f32>, Option<f32>) {
+		if matches!(base_decision, MemoryPolicyDecision::Remember | MemoryPolicyDecision::Update) {
+			let policy_eval = elf_domain::memory_policy::evaluate_memory_policy(
+				&self.cfg,
+				note.r#type.as_str(),
+				scope,
+				f64::from(note.confidence),
+				f64::from(note.importance),
+				base_decision,
+			);
+			let decision_policy_rule = policy_eval.matched_rule.and_then(|rule| {
+				Self::policy_rule_id(rule.note_type.as_deref(), rule.scope.as_deref())
+			});
+			let min_confidence = policy_eval.matched_rule.and_then(|rule| rule.min_confidence);
+			let min_importance = policy_eval.matched_rule.and_then(|rule| rule.min_importance);
+
+			(policy_eval.decision, decision_policy_rule, min_confidence, min_importance)
+		} else {
+			(MemoryPolicyDecision::Ignore, None, None, None)
+		}
+	}
+
+	fn ignore_reason_code(
+		policy_decision: MemoryPolicyDecision,
+		base_decision: MemoryPolicyDecision,
+		matched_dup: bool,
+	) -> Option<&'static str> {
+		if !matches!(policy_decision, MemoryPolicyDecision::Ignore) {
+			return None;
+		}
+
+		match base_decision {
+			MemoryPolicyDecision::Remember | MemoryPolicyDecision::Update =>
+				Some(IGNORE_POLICY_THRESHOLD),
+			MemoryPolicyDecision::Ignore if matched_dup => Some(IGNORE_DUPLICATE),
+			_ => None,
+		}
+	}
+
+	#[allow(clippy::too_many_arguments)]
+	async fn apply_policy_result(
+		&self,
+		tx: &mut Transaction<'_, Postgres>,
+		decision: &UpdateDecision,
+		ctx: &AddNoteContext<'_>,
+		note: &AddNoteInput,
+		note_id: Uuid,
+		policy_decision: MemoryPolicyDecision,
+		ignore_reason_code: Option<&'static str>,
+	) -> Result<(AddNoteResult, NoteOp)> {
+		let should_apply = matches!(
+			policy_decision,
+			MemoryPolicyDecision::Remember | MemoryPolicyDecision::Update
+		);
+
+		if should_apply {
+			let result = match decision {
+				UpdateDecision::Add { .. } => {
+					self.handle_add_note_add(tx, ctx, note, note_id).await?;
+
+					AddNoteResult {
+						note_id: Some(note_id),
+						op: NoteOp::Add,
+						policy_decision,
+						reason_code: None,
+						field_path: None,
+					}
+				},
+				UpdateDecision::Update { .. } => {
+					let mut update_result = self
+						.handle_add_note_update(
+							tx,
+							note,
+							note_id,
+							ctx.agent_id,
+							ctx.now,
+							policy_decision,
+						)
+						.await?;
+
+					update_result.policy_decision = policy_decision;
+
+					update_result
+				},
+				UpdateDecision::None { .. } => {
+					let mut none_result = self
+						.handle_add_note_none(
+							tx,
+							ctx,
+							note,
+							note_id,
+							ctx.now,
+							ctx.embed_version,
+							policy_decision,
+						)
+						.await?;
+
+					none_result.policy_decision = policy_decision;
+
+					none_result
+				},
+			};
+			let note_op = result.op;
+
+			Ok((result, note_op))
+		} else {
+			let mut result = AddNoteResult {
+				note_id: Some(note_id),
+				op: NoteOp::None,
+				policy_decision,
+				reason_code: ignore_reason_code.map(str::to_string),
+				field_path: None,
+			};
+
+			match decision {
+				UpdateDecision::Add { .. } => {
+					result.note_id = None;
+				},
+				UpdateDecision::Update { .. } | UpdateDecision::None { .. } => {},
+			}
+
+			Ok((result, NoteOp::None))
+		}
+	}
+
+	#[allow(clippy::too_many_arguments)]
+	async fn record_ingest_decision(
+		&self,
+		tx: &mut Transaction<'_, Postgres>,
+		ctx: &AddNoteContext<'_>,
+		note: &AddNoteInput,
+		note_id: Option<Uuid>,
+		base_decision: MemoryPolicyDecision,
+		policy_decision: MemoryPolicyDecision,
+		note_op: NoteOp,
+		reason_code: Option<&str>,
+		policy_rule: Option<&str>,
+		similarity_best: Option<f32>,
+		key_match: bool,
+		matched_dup: bool,
+		min_confidence: Option<f32>,
+		min_importance: Option<f32>,
+	) -> Result<()> {
+		let decision = crate::ingest_audit::IngestAuditArgs {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+			agent_id: ctx.agent_id,
+			scope: ctx.scope,
+			pipeline: "add_note",
+			note_type: note.r#type.as_str(),
+			note_key: note.key.as_deref(),
+			note_id,
+			base_decision,
+			policy_decision,
+			note_op,
+			reason_code,
+			similarity_best,
+			key_match,
+			matched_dup,
+			dup_sim_threshold: self.cfg.memory.dup_sim_threshold,
+			update_sim_threshold: self.cfg.memory.update_sim_threshold,
+			confidence: note.confidence,
+			importance: note.importance,
+			structured_present: note.structured.as_ref().is_some_and(|s| !s.is_effectively_empty()),
+			graph_present: note.structured.as_ref().is_some_and(StructuredFields::has_graph_fields),
+			policy_rule,
+			min_confidence,
+			min_importance,
+			ts: ctx.now,
+		};
+
+		crate::ingest_audit::insert_ingest_decision(tx, decision).await
+	}
+
+	fn base_decision_for_update(
+		decision: &UpdateDecision,
+		structured_present: bool,
+		graph_present: bool,
+	) -> MemoryPolicyDecision {
 		match decision {
-			UpdateDecision::Add { note_id } => {
-				self.handle_add_note_add(&mut tx, ctx, &note, note_id).await?;
-				tx.commit().await?;
+			UpdateDecision::Update { .. } => MemoryPolicyDecision::Update,
+			UpdateDecision::Add { .. } => MemoryPolicyDecision::Remember,
+			UpdateDecision::None { .. } =>
+				if structured_present || graph_present {
+					MemoryPolicyDecision::Update
+				} else {
+					MemoryPolicyDecision::Ignore
+				},
+		}
+	}
 
-				Ok(AddNoteResult {
-					note_id: Some(note_id),
-					op: NoteOp::Add,
-					reason_code: None,
-					field_path: None,
-				})
-			},
-			UpdateDecision::Update { note_id } => {
-				let result = self
-					.handle_add_note_update(&mut tx, &note, note_id, ctx.agent_id, ctx.now)
-					.await?;
-
-				tx.commit().await?;
-
-				Ok(result)
-			},
-			UpdateDecision::None { note_id } => {
-				let result = self
-					.handle_add_note_none(&mut tx, ctx, &note, note_id, ctx.now, ctx.embed_version)
-					.await?;
-
-				tx.commit().await?;
-
-				Ok(result)
-			},
+	fn policy_rule_id(note_type: Option<&str>, scope: Option<&str>) -> Option<String> {
+		match (note_type, scope) {
+			(Some(note_type), Some(scope)) => Some(format!("note_type={note_type},scope={scope}")),
+			(Some(note_type), None) => Some(format!("note_type={note_type}")),
+			(None, Some(scope)) => Some(format!("scope={scope}")),
+			(None, None) => None,
 		}
 	}
 
@@ -222,6 +509,7 @@ impl ElfService {
 		note_id: Uuid,
 		agent_id: &str,
 		now: OffsetDateTime,
+		policy_decision: MemoryPolicyDecision,
 	) -> Result<AddNoteResult> {
 		let mut existing: MemoryNote = sqlx::query_as::<_, MemoryNote>(
 			"SELECT * FROM memory_notes WHERE note_id = $1 FOR UPDATE",
@@ -256,6 +544,7 @@ impl ElfService {
 			return Ok(AddNoteResult {
 				note_id: Some(note_id),
 				op: NoteOp::None,
+				policy_decision,
 				reason_code: None,
 				field_path: None,
 			});
@@ -307,11 +596,13 @@ impl ElfService {
 		Ok(AddNoteResult {
 			note_id: Some(note_id),
 			op: NoteOp::Update,
+			policy_decision,
 			reason_code: None,
 			field_path: None,
 		})
 	}
 
+	#[allow(clippy::too_many_arguments)]
 	async fn handle_add_note_none(
 		&self,
 		tx: &mut Transaction<'_, Postgres>,
@@ -320,6 +611,7 @@ impl ElfService {
 		note_id: Uuid,
 		now: OffsetDateTime,
 		embed_version: &str,
+		policy_decision: MemoryPolicyDecision,
 	) -> Result<AddNoteResult> {
 		let mut should_update = false;
 
@@ -352,6 +644,7 @@ impl ElfService {
 			return Ok(AddNoteResult {
 				note_id: Some(note_id),
 				op: NoteOp::Update,
+				policy_decision,
 				reason_code: None,
 				field_path: None,
 			});
@@ -360,6 +653,7 @@ impl ElfService {
 		Ok(AddNoteResult {
 			note_id: Some(note_id),
 			op: NoteOp::None,
+			policy_decision,
 			reason_code: None,
 			field_path: None,
 		})
@@ -467,6 +761,7 @@ fn reject_note_if_structured_invalid(note: &AddNoteInput) -> Option<AddNoteResul
 		return Some(AddNoteResult {
 			note_id: None,
 			op: NoteOp::Rejected,
+			policy_decision: MemoryPolicyDecision::Reject,
 			reason_code: Some(REJECT_STRUCTURED_INVALID.to_string()),
 			field_path,
 		});
@@ -490,6 +785,7 @@ fn reject_note_if_writegate_rejects(
 		return Some(AddNoteResult {
 			note_id: None,
 			op: NoteOp::Rejected,
+			policy_decision: MemoryPolicyDecision::Reject,
 			reason_code: Some(crate::writegate_reason_code(code).to_string()),
 			field_path: None,
 		});
