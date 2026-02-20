@@ -15,7 +15,7 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 use crate::state::AppState;
-use elf_config::SecurityAuthKey;
+use elf_config::{SecurityAuthKey, SecurityAuthRole};
 use elf_service::{
 	AddEventRequest, AddEventResponse, AddNoteInput, AddNoteRequest, AddNoteResponse,
 	AdminGraphPredicateAliasAddRequest, AdminGraphPredicateAliasesListRequest,
@@ -534,7 +534,7 @@ async fn admin_auth_middleware(
 				Err(err) => return err.into_response(),
 			};
 
-			if !key.admin {
+			if !matches!(key.role, SecurityAuthRole::Admin | SecurityAuthRole::SuperAdmin) {
 				return json_error(
 					StatusCode::FORBIDDEN,
 					"FORBIDDEN",
@@ -1044,12 +1044,14 @@ async fn admin_graph_predicate_patch(
 
 		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
 	})?;
+	let token_id = effective_token_id(state.service.cfg.security.auth_mode.as_str(), &headers);
 	let response = state
 		.service
 		.admin_graph_predicate_patch(AdminGraphPredicatePatchRequest {
 			tenant_id: ctx.tenant_id,
 			project_id: ctx.project_id,
 			agent_id: ctx.agent_id,
+			token_id,
 			predicate_id,
 			status: payload.status,
 			cardinality: payload.cardinality,
@@ -1071,12 +1073,14 @@ async fn admin_graph_predicate_alias_add(
 
 		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
 	})?;
+	let token_id = effective_token_id(state.service.cfg.security.auth_mode.as_str(), &headers);
 	let response = state
 		.service
 		.admin_graph_predicate_alias_add(AdminGraphPredicateAliasAddRequest {
 			tenant_id: ctx.tenant_id,
 			project_id: ctx.project_id,
 			agent_id: ctx.agent_id,
+			token_id,
 			predicate_id,
 			alias: payload.alias,
 		})
@@ -1233,7 +1237,7 @@ mod tests {
 		resolve_auth_key, sanitize_trusted_token_header,
 	};
 	use axum::http::HeaderMap;
-	use elf_config::SecurityAuthKey;
+	use elf_config::{SecurityAuthKey, SecurityAuthRole};
 
 	#[test]
 	fn resolve_auth_key_requires_bearer_header() {
@@ -1245,7 +1249,7 @@ mod tests {
 			project_id: "p".to_string(),
 			agent_id: Some("a".to_string()),
 			read_profile: "private_plus_project".to_string(),
-			admin: false,
+			role: SecurityAuthRole::User,
 		}];
 		let err = resolve_auth_key(&headers, &keys).expect_err("Expected unauthorized error.");
 
@@ -1261,7 +1265,7 @@ mod tests {
 			project_id: "p".to_string(),
 			agent_id: Some("a".to_string()),
 			read_profile: "private_plus_project".to_string(),
-			admin: false,
+			role: SecurityAuthRole::User,
 		}];
 		let mut headers = HeaderMap::new();
 
@@ -1282,7 +1286,7 @@ mod tests {
 			project_id: "p".to_string(),
 			agent_id: Some("a".to_string()),
 			read_profile: "private_plus_project".to_string(),
-			admin: false,
+			role: SecurityAuthRole::User,
 		}];
 		let mut headers = HeaderMap::new();
 
@@ -1303,7 +1307,7 @@ mod tests {
 			project_id: "p".to_string(),
 			agent_id: Some("a".to_string()),
 			read_profile: "private_plus_project".to_string(),
-			admin: false,
+			role: SecurityAuthRole::User,
 		}];
 		let mut headers = HeaderMap::new();
 
@@ -1333,7 +1337,7 @@ mod tests {
 			project_id: "p".to_string(),
 			agent_id: Some("a".to_string()),
 			read_profile: "all_scopes".to_string(),
-			admin: true,
+			role: SecurityAuthRole::Admin,
 		};
 
 		apply_auth_key_context(&mut headers, &key).expect("Expected context injection.");
@@ -1376,7 +1380,7 @@ mod tests {
 			project_id: "p".to_string(),
 			agent_id: None,
 			read_profile: "all_scopes".to_string(),
-			admin: false,
+			role: SecurityAuthRole::User,
 		};
 		let err = apply_auth_key_context(&mut headers, &key)
 			.expect_err("Expected forbidden error for missing agent_id.");

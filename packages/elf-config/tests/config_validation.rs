@@ -458,7 +458,7 @@ fn security_auth_keys_require_unique_token_ids() {
 			project_id: "p".to_string(),
 			agent_id: Some("a".to_string()),
 			read_profile: "private_plus_project".to_string(),
-			admin: false,
+			role: elf_config::SecurityAuthRole::User,
 		},
 		elf_config::SecurityAuthKey {
 			token_id: "k1".to_string(),
@@ -467,7 +467,7 @@ fn security_auth_keys_require_unique_token_ids() {
 			project_id: "p".to_string(),
 			agent_id: Some("a".to_string()),
 			read_profile: "private_plus_project".to_string(),
-			admin: true,
+			role: elf_config::SecurityAuthRole::Admin,
 		},
 	];
 
@@ -492,7 +492,7 @@ fn security_auth_keys_require_known_read_profile() {
 		project_id: "p".to_string(),
 		agent_id: Some("a".to_string()),
 		read_profile: "unknown".to_string(),
-		admin: false,
+		role: elf_config::SecurityAuthRole::User,
 	}];
 
 	let err =

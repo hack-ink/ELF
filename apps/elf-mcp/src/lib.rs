@@ -87,7 +87,7 @@ fn select_static_key(security: &Security, mcp: &McpContext) -> Result<McpAuthSta
 #[cfg(test)]
 mod tests {
 	use crate::{McpAuthState, build_auth_state};
-	use elf_config::{McpContext, Security, SecurityAuthKey};
+	use elf_config::{McpContext, Security, SecurityAuthKey, SecurityAuthRole};
 
 	fn sample_security(auth_mode: &str, auth_keys: Vec<SecurityAuthKey>) -> Security {
 		Security {
@@ -119,7 +119,7 @@ mod tests {
 			project_id: "project-a".to_string(),
 			agent_id: Some("agent-a".to_string()),
 			read_profile: "private_plus_project".to_string(),
-			admin: false,
+			role: SecurityAuthRole::User,
 		}
 	}
 
