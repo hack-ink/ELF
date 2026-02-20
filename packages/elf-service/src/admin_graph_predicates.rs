@@ -203,9 +203,11 @@ impl ElfService {
 				Some(raw)
 			},
 		};
-		let updated = elf_storage::graph::update_predicate(
+		let updated = elf_storage::graph::update_predicate_guarded(
 			&mut conn,
 			req.predicate_id,
+			old_status.as_str(),
+			old_cardinality.as_str(),
 			new_status.as_deref(),
 			new_cardinality.as_deref(),
 		)
