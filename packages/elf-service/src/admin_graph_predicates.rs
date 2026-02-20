@@ -4,6 +4,7 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 use crate::{ElfService, Result};
+use elf_config::SecurityAuthRole;
 use elf_storage::models::{GraphPredicate, GraphPredicateAlias};
 
 const GRAPH_PREDICATE_SCOPE_GLOBAL: &str = "__global__";
@@ -41,6 +42,7 @@ pub struct AdminGraphPredicatePatchRequest {
 	pub tenant_id: String,
 	pub project_id: String,
 	pub agent_id: String,
+	pub token_id: Option<String>,
 	pub predicate_id: Uuid,
 	pub status: Option<String>,
 	pub cardinality: Option<String>,
@@ -51,6 +53,7 @@ pub struct AdminGraphPredicateAliasAddRequest {
 	pub tenant_id: String,
 	pub project_id: String,
 	pub agent_id: String,
+	pub token_id: Option<String>,
 	pub predicate_id: Uuid,
 	pub alias: String,
 }
@@ -102,6 +105,22 @@ pub struct AdminGraphPredicateAliasesResponse {
 }
 
 impl ElfService {
+	fn is_super_admin_token_id(&self, token_id: Option<&str>) -> bool {
+		if self.cfg.security.auth_mode.trim() != "static_keys" {
+			return false;
+		}
+
+		let Some(token_id) = token_id.map(str::trim).filter(|value| !value.is_empty()) else {
+			return false;
+		};
+
+		self.cfg
+			.security
+			.auth_keys
+			.iter()
+			.any(|key| key.token_id == token_id && matches!(key.role, SecurityAuthRole::SuperAdmin))
+	}
+
 	pub async fn admin_graph_predicates_list(
 		&self,
 		req: AdminGraphPredicatesListRequest,
@@ -148,6 +167,7 @@ impl ElfService {
 			});
 		}
 
+		let allow_global_mutation = self.is_super_admin_token_id(req.token_id.as_deref());
 		let mut conn = self.db.pool.acquire().await?;
 		let existing = load_predicate_in_context(
 			&mut conn,
@@ -155,6 +175,7 @@ impl ElfService {
 			req.project_id.as_str(),
 			req.predicate_id,
 			PredicateAccess::Mutate,
+			allow_global_mutation,
 		)
 		.await?;
 		let old_status = existing.status.clone();
@@ -239,6 +260,7 @@ impl ElfService {
 			});
 		}
 
+		let allow_global_mutation = self.is_super_admin_token_id(req.token_id.as_deref());
 		let mut conn = self.db.pool.acquire().await?;
 		let predicate = load_predicate_in_context(
 			&mut conn,
@@ -246,6 +268,7 @@ impl ElfService {
 			req.project_id.as_str(),
 			req.predicate_id,
 			PredicateAccess::Mutate,
+			allow_global_mutation,
 		)
 		.await?;
 
@@ -289,6 +312,7 @@ impl ElfService {
 			req.project_id.as_str(),
 			req.predicate_id,
 			PredicateAccess::Read,
+			false,
 		)
 		.await?;
 
@@ -385,6 +409,7 @@ async fn load_predicate_in_context(
 	project_id: &str,
 	predicate_id: Uuid,
 	access: PredicateAccess,
+	allow_global_mutation: bool,
 ) -> Result<GraphPredicate> {
 	let predicate = elf_storage::graph::get_predicate_by_id(conn, predicate_id)
 		.await
@@ -403,14 +428,9 @@ async fn load_predicate_in_context(
 			message: format!("graph predicate not found; predicate_id={predicate_id}"),
 		});
 	}
-	if access == PredicateAccess::Mutate && is_global {
+	if access == PredicateAccess::Mutate && is_global && !allow_global_mutation {
 		return Err(crate::Error::ScopeDenied {
-			message: "Global graph predicates are immutable.".to_string(),
-		});
-	}
-	if access == PredicateAccess::Mutate && !is_in_context {
-		return Err(crate::Error::NotFound {
-			message: format!("graph predicate not found; predicate_id={predicate_id}"),
+			message: "Super-admin token required to modify global graph predicates.".to_string(),
 		});
 	}
 

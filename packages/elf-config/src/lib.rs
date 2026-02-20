@@ -10,7 +10,8 @@ pub use self::{
 		RankingDeterministicHits, RankingDeterministicLexical, RankingDiversity,
 		RankingRetrievalSources, ReadProfiles, ScopePrecedence, ScopeWriteAllowed, Scopes, Search,
 		SearchCache, SearchDynamic, SearchExpansion, SearchExplain, SearchGraphContext,
-		SearchPrefilter, SearchRecursive, Security, SecurityAuthKey, Service, Storage, TtlDays,
+		SearchPrefilter, SearchRecursive, Security, SecurityAuthKey, SecurityAuthRole, Service,
+		Storage, TtlDays,
 	},
 };
 

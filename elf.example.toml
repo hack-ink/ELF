@@ -205,7 +205,7 @@ reject_cjk               = true
 # project_id   = "p"
 # agent_id     = "a"
 # read_profile = "private_plus_project"
-# admin        = false
+# role         = "user"
 
 [context]
 # Optional. Context metadata used to disambiguate retrieval across projects and scopes.

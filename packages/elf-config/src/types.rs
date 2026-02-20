@@ -337,6 +337,14 @@ pub struct Security {
 	pub auth_keys: Vec<SecurityAuthKey>,
 }
 
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SecurityAuthRole {
+	User,
+	Admin,
+	SuperAdmin,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct SecurityAuthKey {
 	pub token_id: String,
@@ -346,6 +354,5 @@ pub struct SecurityAuthKey {
 
 	pub agent_id: Option<String>,
 	pub read_profile: String,
-	#[serde(default)]
-	pub admin: bool,
+	pub role: SecurityAuthRole,
 }
