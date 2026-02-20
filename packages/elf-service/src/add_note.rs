@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::{
 	ElfService, Error, InsertVersionArgs, NoteOp, ResolveUpdateArgs, Result, UpdateDecision,
-	UpdateDecisionMetadata, structured_fields::StructuredFields,
+	UpdateDecisionMetadata, access, structured_fields::StructuredFields,
 };
 use elf_config::Config;
 use elf_domain::{cjk, memory_policy::MemoryPolicyDecision, ttl};
@@ -440,6 +440,15 @@ impl ElfService {
 		note: &AddNoteInput,
 		note_id: Uuid,
 	) -> Result<()> {
+		access::ensure_active_project_scope_grant(
+			&mut **tx,
+			ctx.tenant_id,
+			ctx.project_id,
+			ctx.scope,
+			ctx.agent_id,
+		)
+		.await?;
+
 		let expires_at =
 			ttl::compute_expires_at(note.ttl_days, note.r#type.as_str(), &self.cfg, ctx.now);
 		let memory_note = MemoryNote {
@@ -550,6 +559,15 @@ impl ElfService {
 			});
 		}
 
+		access::ensure_active_project_scope_grant(
+			&mut **tx,
+			existing.tenant_id.as_str(),
+			existing.project_id.as_str(),
+			existing.scope.as_str(),
+			existing.agent_id.as_str(),
+		)
+		.await?;
+
 		existing.text = note.text.clone();
 		existing.importance = note.importance;
 		existing.confidence = note.confidence;
@@ -641,6 +659,17 @@ impl ElfService {
 		}
 
 		if should_update {
+			if matches!(ctx.scope, "project_shared" | "org_shared") {
+				access::ensure_active_project_scope_grant(
+					&mut **tx,
+					ctx.tenant_id,
+					ctx.project_id,
+					ctx.scope,
+					ctx.agent_id,
+				)
+				.await?;
+			}
+
 			return Ok(AddNoteResult {
 				note_id: Some(note_id),
 				op: NoteOp::Update,

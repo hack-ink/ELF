@@ -8,10 +8,12 @@ pub mod list;
 pub mod notes;
 pub mod progressive_search;
 pub mod search;
+pub mod sharing;
 pub mod structured_fields;
 pub mod time_serde;
 pub mod update;
 
+mod access;
 mod error;
 mod graph_ingestion;
 mod ingest_audit;
@@ -46,6 +48,12 @@ pub use self::{
 		SearchTrajectoryResponse, SearchTrajectoryStage, SearchTrajectoryStageItem,
 		SearchTrajectorySummary, SearchTrajectorySummaryStage, TraceGetRequest, TraceGetResponse,
 		TraceTrajectoryGetRequest,
+	},
+	sharing::{
+		GranteeKind, PublishNoteRequest, PublishNoteResponse, ShareScope, SpaceGrantItem,
+		SpaceGrantRevokeRequest, SpaceGrantRevokeResponse, SpaceGrantUpsertRequest,
+		SpaceGrantUpsertResponse, SpaceGrantsListRequest, SpaceGrantsListResponse,
+		UnpublishNoteRequest, UnpublishNoteResponse,
 	},
 	structured_fields::StructuredFields,
 	update::{UpdateRequest, UpdateResponse},
@@ -154,13 +162,6 @@ pub enum NoteOp {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct UpdateDecisionMetadata {
-	pub similarity_best: Option<f32>,
-	pub key_match: bool,
-	pub matched_dup: bool,
-}
-
-#[derive(Clone, Copy, Debug)]
 pub(crate) enum UpdateDecision {
 	Add { note_id: Uuid, metadata: UpdateDecisionMetadata },
 	Update { note_id: Uuid, metadata: UpdateDecisionMetadata },
@@ -182,6 +183,13 @@ impl UpdateDecision {
 			| Self::None { metadata, .. } => *metadata,
 		}
 	}
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct UpdateDecisionMetadata {
+	pub similarity_best: Option<f32>,
+	pub key_match: bool,
+	pub matched_dup: bool,
 }
 
 #[derive(Clone)]
