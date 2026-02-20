@@ -58,6 +58,8 @@ fn expand_includes(sql: &str) -> String {
 					out.push_str(include_str!("../../../sql/tables/008_llm_cache.sql")),
 				"tables/011_search_sessions.sql" =>
 					out.push_str(include_str!("../../../sql/tables/011_search_sessions.sql")),
+				"tables/023_memory_ingest_decisions.sql" => out
+					.push_str(include_str!("../../../sql/tables/023_memory_ingest_decisions.sql")),
 				_ => out.push_str(line),
 			}
 		} else {

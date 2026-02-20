@@ -84,6 +84,7 @@ flowchart TB
   Eval -->|HTTP| API
 
   API -->|add_note| PG
+  API -->|memory_ingest_decisions| PG
   API -->|add_event| Extractor
   Extractor -->|evidence-bound notes| API
   API -->|persist| PG
@@ -157,6 +158,8 @@ Snapshot date in that document: February 17, 2026.
 - Research index: `docs/research/index.md`
 - Specifications: `docs/spec/index.md`
 - System contract: `docs/spec/system_elf_memory_service_v2.md`
+- Ingest policy: `policy_decision` values (`remember`, `update`, `ignore`, `reject`) are returned for each note result in `add_note` and `add_event`.
+- All ingest decisions are also written to `memory_ingest_decisions` with policy inputs and thresholds for auditability.
 - Evaluation guide: `docs/guide/evaluation.md`
 - Integration testing: `docs/guide/integration-testing.md`
 

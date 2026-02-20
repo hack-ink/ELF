@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sqlx::{Postgres, Transaction};
+use sqlx::{PgConnection, Postgres, Transaction};
 use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
@@ -9,10 +9,16 @@ use crate::{
 	Result, UpdateDecision, structured_fields::StructuredFields,
 };
 use elf_config::Config;
-use elf_domain::{cjk, evidence, ttl};
+use elf_domain::{
+	cjk, evidence,
+	memory_policy::{self, MemoryPolicyDecision},
+	ttl,
+};
 use elf_storage::models::MemoryNote;
 
 const REJECT_STRUCTURED_INVALID: &str = "REJECT_STRUCTURED_INVALID";
+const IGNORE_DUPLICATE: &str = "IGNORE_DUPLICATE";
+const IGNORE_POLICY_THRESHOLD: &str = "IGNORE_POLICY_THRESHOLD";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EventMessage {
@@ -36,6 +42,7 @@ pub struct AddEventRequest {
 pub struct AddEventResult {
 	pub note_id: Option<Uuid>,
 	pub op: NoteOp,
+	pub policy_decision: MemoryPolicyDecision,
 	pub reason_code: Option<String>,
 	pub reason: Option<String>,
 	pub field_path: Option<String>,
@@ -72,6 +79,44 @@ struct EvidenceQuote {
 	pub quote: String,
 }
 
+struct NoteProcessingData {
+	note_type: String,
+	text: String,
+	structured: Option<StructuredFields>,
+	importance: f32,
+	confidence: f32,
+	reason: Option<String>,
+	ttl_days: Option<i64>,
+	scope: String,
+	evidence: Vec<EvidenceQuote>,
+	structured_present: bool,
+	graph_present: bool,
+}
+impl NoteProcessingData {
+	fn from_request_and_note(req: &AddEventRequest, note: &ExtractedNote) -> Self {
+		let note_type = note.r#type.clone().unwrap_or_default();
+		let text = note.text.clone().unwrap_or_default();
+		let structured = note.structured.clone();
+		let structured_present =
+			structured.as_ref().is_some_and(|value| !value.is_effectively_empty());
+		let graph_present = structured.as_ref().is_some_and(StructuredFields::has_graph_fields);
+
+		Self {
+			note_type,
+			text,
+			structured,
+			importance: note.importance.unwrap_or(0.0),
+			confidence: note.confidence.unwrap_or(0.0),
+			reason: note.reason.clone(),
+			ttl_days: note.ttl_days,
+			scope: req.scope.clone().or(note.scope_suggestion.clone()).unwrap_or_default(),
+			evidence: note.evidence.clone().unwrap_or_default(),
+			structured_present,
+			graph_present,
+		}
+	}
+}
+
 struct PersistExtractedNoteArgs<'a> {
 	req: &'a AddEventRequest,
 	structured: Option<&'a StructuredFields>,
@@ -86,6 +131,14 @@ struct PersistExtractedNoteArgs<'a> {
 	source_ref: Value,
 	now: OffsetDateTime,
 	embed_version: &'a str,
+}
+
+struct AddEventContext<'a> {
+	tenant_id: &'a str,
+	project_id: &'a str,
+	agent_id: &'a str,
+	scope: &'a str,
+	now: OffsetDateTime,
 }
 
 impl ElfService {
@@ -149,116 +202,237 @@ impl ElfService {
 		embed_version: &str,
 		dry_run: bool,
 	) -> Result<AddEventResult> {
-		let note_type = note.r#type.clone().unwrap_or_default();
-		let text = note.text.clone().unwrap_or_default();
-		let structured = note.structured.clone();
-		let importance = note.importance.unwrap_or(0.0);
-		let confidence = note.confidence.unwrap_or(0.0);
-		let ttl_days = note.ttl_days;
-		let scope = req.scope.clone().or(note.scope_suggestion.clone()).unwrap_or_default();
-		let evidence = note.evidence.clone().unwrap_or_default();
+		let note_data = NoteProcessingData::from_request_and_note(req, &note);
+		let ctx = AddEventContext {
+			tenant_id: req.tenant_id.as_str(),
+			project_id: req.project_id.as_str(),
+			agent_id: req.agent_id.as_str(),
+			scope: note_data.scope.as_str(),
+			now,
+		};
+		let mut tx = self.db.pool.begin().await?;
 
+		if let Some(result) = self
+			.record_extracted_note_rejections(&mut tx, &ctx, &note, &note_data, message_texts)
+			.await?
+		{
+			tx.commit().await?;
+
+			return Ok(result);
+		}
+
+		let decision =
+			self.resolve_extracted_note_update(&note, req, &note_data, &mut tx, now).await?;
+		let metadata = decision.metadata();
+		let base_decision = base_decision_for_update(
+			&decision,
+			note_data.structured_present,
+			note_data.graph_present,
+		);
+		let (policy_decision, decision_policy_rule, min_confidence, min_importance) =
+			resolve_policy_for_update(&self.cfg, &note_data, base_decision);
+		let ignore_reason_code =
+			ignore_reason_code_for_policy(base_decision, policy_decision, metadata.matched_dup);
+		let should_apply = matches!(
+			policy_decision,
+			MemoryPolicyDecision::Remember | MemoryPolicyDecision::Update
+		);
+		let mut result = build_result_from_decision(
+			&decision,
+			policy_decision,
+			note_data.reason.clone(),
+			note_data.structured_present || note_data.graph_present,
+		);
+
+		apply_policy_ignore_adjustments(
+			&mut result,
+			&decision,
+			policy_decision,
+			ignore_reason_code,
+		);
+
+		if should_apply && !dry_run {
+			let persist_args = PersistExtractedNoteArgs {
+				req,
+				structured: note_data.structured.as_ref(),
+				key: note.key.as_deref(),
+				reason: note.reason.as_ref(),
+				note_type: note_data.note_type.as_str(),
+				text: note_data.text.as_str(),
+				scope: note_data.scope.as_str(),
+				importance: note_data.importance,
+				confidence: note_data.confidence,
+				expires_at: ttl::compute_expires_at(
+					note_data.ttl_days,
+					note_data.note_type.as_str(),
+					&self.cfg,
+					now,
+				),
+				source_ref: serde_json::json!({
+					"evidence": note_data.evidence.clone(),
+					"reason": note_data.reason.clone().unwrap_or_default(),
+				}),
+				now,
+				embed_version,
+			};
+
+			result = self
+				.persist_extracted_note_decision(&mut tx, persist_args, decision, policy_decision)
+				.await?;
+		}
+
+		record_ingest_decision(
+			&mut tx,
+			&self.cfg,
+			&ctx,
+			&note,
+			note_data.note_type.as_str(),
+			result.note_id,
+			base_decision,
+			policy_decision,
+			result.op,
+			result.reason_code.as_deref(),
+			decision_policy_rule.as_deref(),
+			metadata.similarity_best,
+			metadata.key_match,
+			metadata.matched_dup,
+			min_confidence,
+			min_importance,
+			note_data.structured_present,
+			note_data.graph_present,
+		)
+		.await?;
+
+		tx.commit().await?;
+
+		Ok(result)
+	}
+
+	async fn record_extracted_note_rejections(
+		&self,
+		tx: &mut Transaction<'_, Postgres>,
+		ctx: &AddEventContext<'_>,
+		note: &ExtractedNote,
+		note_data: &NoteProcessingData,
+		message_texts: &[String],
+	) -> Result<Option<AddEventResult>> {
 		if let Some(result) = reject_extracted_note_if_evidence_invalid(
 			&self.cfg,
 			note.reason.as_ref(),
-			&evidence,
+			&note_data.evidence,
 			message_texts,
 		) {
-			return Ok(result);
-		}
-		if let Some(result) = reject_extracted_note_if_structured_invalid(
-			structured.as_ref(),
-			text.as_str(),
-			&evidence,
+			record_ingest_decision(
+				tx,
+				&self.cfg,
+				ctx,
+				note,
+				note_data.note_type.as_str(),
+				None,
+				MemoryPolicyDecision::Reject,
+				MemoryPolicyDecision::Reject,
+				NoteOp::Rejected,
+				Some(REJECT_EVIDENCE_MISMATCH),
+				None,
+				None,
+				false,
+				false,
+				None,
+				None,
+				note_data.structured_present,
+				note_data.graph_present,
+			)
+			.await?;
+
+			return Ok(Some(result));
+		} else if let Some(result) = reject_extracted_note_if_structured_invalid(
+			note_data.structured.as_ref(),
+			note_data.text.as_str(),
+			&note_data.evidence,
 			note.reason.as_ref(),
 		) {
-			return Ok(result);
-		}
-		if let Some(result) = reject_extracted_note_if_writegate_rejects(
+			record_ingest_decision(
+				tx,
+				&self.cfg,
+				ctx,
+				note,
+				note_data.note_type.as_str(),
+				None,
+				MemoryPolicyDecision::Reject,
+				MemoryPolicyDecision::Reject,
+				NoteOp::Rejected,
+				Some(REJECT_STRUCTURED_INVALID),
+				None,
+				None,
+				false,
+				false,
+				None,
+				None,
+				note_data.structured_present,
+				note_data.graph_present,
+			)
+			.await?;
+
+			return Ok(Some(result));
+		} else if let Some(result) = reject_extracted_note_if_writegate_rejects(
 			&self.cfg,
 			note.reason.as_ref(),
-			&note_type,
-			&scope,
-			&text,
+			note_data.note_type.as_str(),
+			note_data.scope.as_str(),
+			note_data.text.as_str(),
 		) {
-			return Ok(result);
+			record_ingest_decision(
+				tx,
+				&self.cfg,
+				ctx,
+				note,
+				note_data.note_type.as_str(),
+				None,
+				MemoryPolicyDecision::Reject,
+				MemoryPolicyDecision::Reject,
+				NoteOp::Rejected,
+				result.reason_code.as_deref(),
+				None,
+				None,
+				false,
+				false,
+				None,
+				None,
+				note_data.structured_present,
+				note_data.graph_present,
+			)
+			.await?;
+
+			return Ok(Some(result));
 		}
 
-		let expires_at = ttl::compute_expires_at(ttl_days, note_type.as_str(), &self.cfg, now);
-		let mut tx = self.db.pool.begin().await?;
-		let decision = crate::resolve_update(
-			&mut *tx,
+		Ok(None)
+	}
+
+	async fn resolve_extracted_note_update(
+		&self,
+		note: &ExtractedNote,
+		req: &AddEventRequest,
+		note_data: &NoteProcessingData,
+		tx: &mut PgConnection,
+		now: OffsetDateTime,
+	) -> Result<UpdateDecision> {
+		crate::resolve_update(
+			tx,
 			ResolveUpdateArgs {
 				cfg: &self.cfg,
 				providers: &self.providers,
 				tenant_id: req.tenant_id.as_str(),
 				project_id: req.project_id.as_str(),
 				agent_id: req.agent_id.as_str(),
-				scope: scope.as_str(),
-				note_type: note_type.as_str(),
+				scope: note_data.scope.as_str(),
+				note_type: note_data.note_type.as_str(),
 				key: note.key.as_deref(),
-				text: text.as_str(),
+				text: note_data.text.as_str(),
 				now,
 			},
 		)
-		.await?;
-
-		if dry_run {
-			tx.commit().await?;
-
-			let (note_id, op) = match decision {
-				UpdateDecision::Add { note_id } => (Some(note_id), NoteOp::Add),
-				UpdateDecision::Update { note_id } => (Some(note_id), NoteOp::Update),
-				UpdateDecision::None { note_id } => {
-					let op = if structured.as_ref().is_some_and(StructuredFields::has_graph_fields)
-					{
-						NoteOp::Update
-					} else {
-						NoteOp::None
-					};
-
-					(Some(note_id), op)
-				},
-			};
-
-			return Ok(AddEventResult {
-				note_id,
-				op,
-				reason_code: None,
-				reason: note.reason.clone(),
-				field_path: None,
-			});
-		}
-
-		let source_ref = serde_json::json!({
-			"evidence": evidence,
-			"reason": note.reason.clone().unwrap_or_default(),
-		});
-		let result = self
-			.persist_extracted_note_decision(
-				&mut tx,
-				PersistExtractedNoteArgs {
-					req,
-					structured: structured.as_ref(),
-					key: note.key.as_deref(),
-					reason: note.reason.as_ref(),
-					note_type: note_type.as_str(),
-					text: text.as_str(),
-					scope: scope.as_str(),
-					importance,
-					confidence,
-					expires_at,
-					source_ref,
-					now,
-					embed_version,
-				},
-				decision,
-			)
-			.await?;
-
-		tx.commit().await?;
-
-		Ok(result)
+		.await
 	}
 
 	async fn persist_extracted_note_decision(
@@ -266,14 +440,15 @@ impl ElfService {
 		tx: &mut Transaction<'_, Postgres>,
 		args: PersistExtractedNoteArgs<'_>,
 		decision: UpdateDecision,
+		policy_decision: MemoryPolicyDecision,
 	) -> Result<AddEventResult> {
 		match (decision, args) {
-			(UpdateDecision::Add { note_id }, args) =>
-				self.persist_extracted_note_add(tx, args, note_id).await,
-			(UpdateDecision::Update { note_id }, args) =>
-				self.persist_extracted_note_update(tx, args, note_id).await,
-			(UpdateDecision::None { note_id }, args) =>
-				self.persist_extracted_note_none(tx, args, note_id).await,
+			(UpdateDecision::Add { note_id, .. }, args) =>
+				self.persist_extracted_note_add(tx, args, note_id, policy_decision).await,
+			(UpdateDecision::Update { note_id, .. }, args) =>
+				self.persist_extracted_note_update(tx, args, note_id, policy_decision).await,
+			(UpdateDecision::None { note_id, .. }, args) =>
+				self.persist_extracted_note_none(tx, args, note_id, policy_decision).await,
 		}
 	}
 
@@ -282,6 +457,7 @@ impl ElfService {
 		tx: &mut Transaction<'_, Postgres>,
 		args: PersistExtractedNoteArgs<'_>,
 		note_id: Uuid,
+		policy_decision: MemoryPolicyDecision,
 	) -> Result<AddEventResult> {
 		let memory_note = MemoryNote {
 			note_id,
@@ -349,6 +525,7 @@ impl ElfService {
 		Ok(AddEventResult {
 			note_id: Some(note_id),
 			op: NoteOp::Add,
+			policy_decision,
 			reason_code: None,
 			reason: args.reason.cloned(),
 			field_path: None,
@@ -360,6 +537,7 @@ impl ElfService {
 		tx: &mut Transaction<'_, Postgres>,
 		args: PersistExtractedNoteArgs<'_>,
 		note_id: Uuid,
+		policy_decision: MemoryPolicyDecision,
 	) -> Result<AddEventResult> {
 		let mut existing: MemoryNote = sqlx::query_as::<_, MemoryNote>(
 			"SELECT * FROM memory_notes WHERE note_id = $1 FOR UPDATE",
@@ -421,6 +599,7 @@ impl ElfService {
 		Ok(AddEventResult {
 			note_id: Some(note_id),
 			op: NoteOp::Update,
+			policy_decision,
 			reason_code: None,
 			reason: args.reason.cloned(),
 			field_path: None,
@@ -432,6 +611,7 @@ impl ElfService {
 		tx: &mut Transaction<'_, Postgres>,
 		args: PersistExtractedNoteArgs<'_>,
 		note_id: Uuid,
+		policy_decision: MemoryPolicyDecision,
 	) -> Result<AddEventResult> {
 		let mut did_update = false;
 
@@ -469,6 +649,7 @@ impl ElfService {
 			return Ok(AddEventResult {
 				note_id: Some(note_id),
 				op: NoteOp::Update,
+				policy_decision,
 				reason_code: None,
 				reason: args.reason.cloned(),
 				field_path: None,
@@ -478,11 +659,107 @@ impl ElfService {
 		Ok(AddEventResult {
 			note_id: Some(note_id),
 			op: NoteOp::None,
+			policy_decision,
 			reason_code: None,
 			reason: args.reason.cloned(),
 			field_path: None,
 		})
 	}
+}
+
+fn resolve_policy_for_update(
+	cfg: &Config,
+	note_data: &NoteProcessingData,
+	base_decision: MemoryPolicyDecision,
+) -> (MemoryPolicyDecision, Option<String>, Option<f32>, Option<f32>) {
+	if matches!(base_decision, MemoryPolicyDecision::Remember | MemoryPolicyDecision::Update) {
+		let policy_eval = memory_policy::evaluate_memory_policy(
+			cfg,
+			note_data.note_type.as_str(),
+			note_data.scope.as_str(),
+			note_data.confidence as f64,
+			note_data.importance as f64,
+			base_decision,
+		);
+		let decision_policy_rule = policy_eval
+			.matched_rule
+			.and_then(|rule| policy_rule_id(rule.note_type.as_deref(), rule.scope.as_deref()));
+		let min_confidence = policy_eval.matched_rule.and_then(|rule| rule.min_confidence);
+		let min_importance = policy_eval.matched_rule.and_then(|rule| rule.min_importance);
+
+		(policy_eval.decision, decision_policy_rule, min_confidence, min_importance)
+	} else {
+		(MemoryPolicyDecision::Ignore, None, None, None)
+	}
+}
+
+fn ignore_reason_code_for_policy(
+	base_decision: MemoryPolicyDecision,
+	policy_decision: MemoryPolicyDecision,
+	matched_duplicate: bool,
+) -> Option<&'static str> {
+	if !matches!(policy_decision, MemoryPolicyDecision::Ignore) {
+		return None;
+	}
+
+	match base_decision {
+		MemoryPolicyDecision::Remember | MemoryPolicyDecision::Update =>
+			Some(IGNORE_POLICY_THRESHOLD),
+		MemoryPolicyDecision::Ignore if matched_duplicate => Some(IGNORE_DUPLICATE),
+		_ => None,
+	}
+}
+
+fn build_result_from_decision(
+	decision: &UpdateDecision,
+	policy_decision: MemoryPolicyDecision,
+	reason: Option<String>,
+	structured_present: bool,
+) -> AddEventResult {
+	match decision {
+		UpdateDecision::Add { note_id, .. } => AddEventResult {
+			note_id: Some(*note_id),
+			op: NoteOp::Add,
+			policy_decision,
+			reason_code: None,
+			reason,
+			field_path: None,
+		},
+		UpdateDecision::Update { note_id, .. } => AddEventResult {
+			note_id: Some(*note_id),
+			op: NoteOp::Update,
+			policy_decision,
+			reason_code: None,
+			reason,
+			field_path: None,
+		},
+		UpdateDecision::None { note_id, .. } => AddEventResult {
+			note_id: Some(*note_id),
+			op: if structured_present { NoteOp::Update } else { NoteOp::None },
+			policy_decision,
+			reason_code: None,
+			reason,
+			field_path: None,
+		},
+	}
+}
+
+fn apply_policy_ignore_adjustments(
+	result: &mut AddEventResult,
+	decision: &UpdateDecision,
+	policy_decision: MemoryPolicyDecision,
+	ignore_reason_code: Option<&str>,
+) {
+	if !matches!(policy_decision, MemoryPolicyDecision::Ignore) {
+		return;
+	}
+
+	if let UpdateDecision::Add { .. } = decision {
+		result.note_id = None;
+	}
+
+	result.op = NoteOp::None;
+	result.reason_code = ignore_reason_code.map(str::to_string);
 }
 
 fn validate_add_event_request(req: &AddEventRequest) -> Result<()> {
@@ -528,6 +805,7 @@ fn reject_extracted_note_if_evidence_invalid(
 		return Some(AddEventResult {
 			note_id: None,
 			op: NoteOp::Rejected,
+			policy_decision: MemoryPolicyDecision::Reject,
 			reason_code: Some(REJECT_EVIDENCE_MISMATCH.to_string()),
 			reason: reason.cloned(),
 			field_path: None,
@@ -539,6 +817,7 @@ fn reject_extracted_note_if_evidence_invalid(
 			return Some(AddEventResult {
 				note_id: None,
 				op: NoteOp::Rejected,
+				policy_decision: MemoryPolicyDecision::Reject,
 				reason_code: Some(REJECT_EVIDENCE_MISMATCH.to_string()),
 				reason: reason.cloned(),
 				field_path: None,
@@ -548,6 +827,7 @@ fn reject_extracted_note_if_evidence_invalid(
 			return Some(AddEventResult {
 				note_id: None,
 				op: NoteOp::Rejected,
+				policy_decision: MemoryPolicyDecision::Reject,
 				reason_code: Some(REJECT_EVIDENCE_MISMATCH.to_string()),
 				reason: reason.cloned(),
 				field_path: None,
@@ -586,6 +866,7 @@ fn reject_extracted_note_if_structured_invalid(
 		return Some(AddEventResult {
 			note_id: None,
 			op: NoteOp::Rejected,
+			policy_decision: MemoryPolicyDecision::Reject,
 			reason_code: Some(REJECT_STRUCTURED_INVALID.to_string()),
 			reason: reason.cloned(),
 			field_path,
@@ -612,6 +893,7 @@ fn reject_extracted_note_if_writegate_rejects(
 		return Some(AddEventResult {
 			note_id: None,
 			op: NoteOp::Rejected,
+			policy_decision: MemoryPolicyDecision::Reject,
 			reason_code: Some(crate::writegate_reason_code(code).to_string()),
 			reason: reason.cloned(),
 			field_path: None,
@@ -708,17 +990,109 @@ If content is ephemeral or not useful long-term, return an empty notes array.";
 	])
 }
 
-async fn upsert_structured_fields_tx(
-	tx: &mut Transaction<'_, Postgres>,
-	structured: Option<&StructuredFields>,
-	note_id: Uuid,
-	now: OffsetDateTime,
-) -> Result<()> {
-	if let Some(structured) = structured
-		&& !structured.is_effectively_empty()
-	{
-		crate::structured_fields::upsert_structured_fields_tx(tx, note_id, structured, now).await?;
+fn base_decision_for_update(
+	decision: &UpdateDecision,
+	structured_present: bool,
+	graph_present: bool,
+) -> MemoryPolicyDecision {
+	match decision {
+		UpdateDecision::Update { .. } => MemoryPolicyDecision::Update,
+		UpdateDecision::Add { .. } => MemoryPolicyDecision::Remember,
+		UpdateDecision::None { .. } =>
+			if structured_present || graph_present {
+				MemoryPolicyDecision::Update
+			} else {
+				MemoryPolicyDecision::Ignore
+			},
 	}
+}
+
+fn policy_rule_id(note_type: Option<&str>, scope: Option<&str>) -> Option<String> {
+	match (note_type, scope) {
+		(Some(note_type), Some(scope)) => Some(format!("note_type={note_type},scope={scope}")),
+		(Some(note_type), None) => Some(format!("note_type={note_type}")),
+		(None, Some(scope)) => Some(format!("scope={scope}")),
+		(None, None) => None,
+	}
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn record_ingest_decision(
+	tx: &mut Transaction<'_, Postgres>,
+	cfg: &Config,
+	ctx: &AddEventContext<'_>,
+	note: &ExtractedNote,
+	note_type: &str,
+	note_id: Option<Uuid>,
+	base_decision: MemoryPolicyDecision,
+	policy_decision: MemoryPolicyDecision,
+	note_op: NoteOp,
+	reason_code: Option<&str>,
+	policy_rule: Option<&str>,
+	similarity_best: Option<f32>,
+	key_match: bool,
+	matched_dup: bool,
+	min_confidence: Option<f32>,
+	min_importance: Option<f32>,
+	structured_present: bool,
+	graph_present: bool,
+) -> Result<()> {
+	let args = crate::ingest_audit::IngestAuditArgs {
+		tenant_id: ctx.tenant_id,
+		project_id: ctx.project_id,
+		agent_id: ctx.agent_id,
+		scope: ctx.scope,
+		pipeline: "add_event",
+		note_type,
+		note_key: note.key.as_deref(),
+		note_id,
+		base_decision,
+		policy_decision,
+		note_op,
+		reason_code,
+		similarity_best,
+		key_match,
+		matched_dup,
+		dup_sim_threshold: cfg.memory.dup_sim_threshold,
+		update_sim_threshold: cfg.memory.update_sim_threshold,
+		confidence: note.confidence.unwrap_or(0.0),
+		importance: note.importance.unwrap_or(0.0),
+		structured_present,
+		graph_present,
+		policy_rule,
+		min_confidence,
+		min_importance,
+		ts: ctx.now,
+	};
+
+	crate::ingest_audit::insert_ingest_decision(tx, args).await
+}
+
+async fn update_memory_note_tx(
+	tx: &mut Transaction<'_, Postgres>,
+	memory_note: &MemoryNote,
+) -> Result<()> {
+	sqlx::query(
+		"\
+UPDATE memory_notes
+SET
+	text = $1,
+	importance = $2,
+	confidence = $3,
+	updated_at = $4,
+	expires_at = $5,
+	source_ref = $6
+WHERE note_id = $7",
+	)
+	.bind(memory_note.text.as_str())
+	.bind(memory_note.importance)
+	.bind(memory_note.confidence)
+	.bind(memory_note.updated_at)
+	.bind(memory_note.expires_at)
+	.bind(&memory_note.source_ref)
+	.bind(memory_note.note_id)
+	.execute(&mut **tx)
+	.await?;
 
 	Ok(())
 }
@@ -794,31 +1168,17 @@ VALUES (
 	Ok(())
 }
 
-async fn update_memory_note_tx(
+async fn upsert_structured_fields_tx(
 	tx: &mut Transaction<'_, Postgres>,
-	memory_note: &MemoryNote,
+	structured: Option<&StructuredFields>,
+	note_id: Uuid,
+	now: OffsetDateTime,
 ) -> Result<()> {
-	sqlx::query(
-		"\
-UPDATE memory_notes
-SET
-	text = $1,
-	importance = $2,
-	confidence = $3,
-	updated_at = $4,
-	expires_at = $5,
-	source_ref = $6
-WHERE note_id = $7",
-	)
-	.bind(memory_note.text.as_str())
-	.bind(memory_note.importance)
-	.bind(memory_note.confidence)
-	.bind(memory_note.updated_at)
-	.bind(memory_note.expires_at)
-	.bind(&memory_note.source_ref)
-	.bind(memory_note.note_id)
-	.execute(&mut **tx)
-	.await?;
+	if let Some(structured) = structured
+		&& !structured.is_effectively_empty()
+	{
+		crate::structured_fields::upsert_structured_fields_tx(tx, note_id, structured, now).await?;
+	}
 
 	Ok(())
 }

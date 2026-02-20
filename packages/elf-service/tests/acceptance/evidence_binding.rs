@@ -1,6 +1,7 @@
 use std::sync::{Arc, atomic::AtomicUsize};
 
 use crate::acceptance::{SpyExtractor, StubEmbedding, StubRerank};
+use elf_domain::memory_policy::MemoryPolicyDecision;
 use elf_service::{AddEventRequest, EventMessage, NoteOp, Providers, REJECT_EVIDENCE_MISMATCH};
 
 #[tokio::test]
@@ -67,6 +68,7 @@ async fn rejects_invalid_evidence_quote() {
 	assert_eq!(response.results.len(), 1);
 	assert_eq!(result.op, NoteOp::Rejected);
 	assert_eq!(result.reason_code.as_deref(), Some(REJECT_EVIDENCE_MISMATCH));
+	assert_eq!(result.policy_decision, MemoryPolicyDecision::Reject);
 
 	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }

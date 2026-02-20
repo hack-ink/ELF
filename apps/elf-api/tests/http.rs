@@ -115,6 +115,7 @@ fn test_config(dsn: String, qdrant_url: String, collection: String) -> Config {
 			update_sim_threshold: 0.85,
 			candidate_k: 60,
 			top_k: 12,
+			policy: Default::default(),
 		},
 		search: Search {
 			expansion: SearchExpansion {

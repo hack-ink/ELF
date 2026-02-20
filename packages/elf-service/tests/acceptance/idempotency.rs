@@ -1,6 +1,7 @@
 use std::sync::{Arc, atomic::AtomicUsize};
 
 use crate::acceptance::{SpyExtractor, StubEmbedding, StubRerank};
+use elf_domain::memory_policy::MemoryPolicyDecision;
 use elf_service::{AddNoteInput, AddNoteRequest, NoteOp, Providers};
 
 #[tokio::test]
@@ -55,6 +56,7 @@ async fn add_note_is_idempotent() {
 	assert_eq!(first.results.len(), 1);
 	assert_eq!(second.results.len(), 1);
 	assert_eq!(second.results[0].op, NoteOp::None);
+	assert_eq!(second.results[0].policy_decision, MemoryPolicyDecision::Ignore);
 
 	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }
