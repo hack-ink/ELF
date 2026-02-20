@@ -1,5 +1,5 @@
 use std::{
-	collections::{BTreeMap, HashMap, HashSet, hash_map::DefaultHasher},
+	collections::{BTreeMap, HashMap, hash_map::DefaultHasher, hash_set::HashSet},
 	hash::{Hash, Hasher},
 };
 
@@ -11,6 +11,7 @@ use uuid::Uuid;
 
 use crate::{
 	ElfService, Error, NoteFetchResponse, PayloadLevel, QueryPlan, Result, SearchRequest,
+	access::{self, SharedSpaceGrantKey},
 	structured_fields::StructuredFields,
 };
 use elf_config::Config;
@@ -475,12 +476,20 @@ impl ElfService {
 		)
 		.await?;
 		let allowed_scopes = resolve_read_scopes(&self.cfg, &session.read_profile)?;
+		let shared_grants = access::load_shared_read_grants(
+			&self.db.pool,
+			session.tenant_id.as_str(),
+			session.project_id.as_str(),
+			agent_id,
+		)
+		.await?;
 		let record_hits = req.record_hits.unwrap_or(true);
 		let details_args = SearchDetailsBuildArgs {
 			session_items_by_note_id: &by_note_id,
 			notes_by_id: &notes_by_id,
 			structured_by_note: &structured_by_note,
 			session: &session,
+			shared_grants: &shared_grants,
 			allowed_scopes: &allowed_scopes,
 			now,
 			record_hits_enabled: record_hits,
@@ -508,6 +517,7 @@ struct SearchDetailsBuildArgs<'a> {
 	notes_by_id: &'a HashMap<Uuid, MemoryNote>,
 	structured_by_note: &'a HashMap<Uuid, StructuredFields>,
 	session: &'a SearchSession,
+	shared_grants: &'a HashSet<SharedSpaceGrantKey>,
 	allowed_scopes: &'a [String],
 	now: OffsetDateTime,
 	record_hits_enabled: bool,
@@ -546,7 +556,13 @@ fn build_search_details_results(
 
 			continue;
 		};
-		let error = validate_note_access(note, args.session, args.allowed_scopes, args.now);
+		let error = validate_note_access(
+			note,
+			args.session,
+			args.allowed_scopes,
+			args.shared_grants,
+			args.now,
+		);
 
 		if let Some(error) = error {
 			results.push(SearchDetailsResult { note_id, note: None, error: Some(error) });
@@ -692,6 +708,7 @@ fn validate_note_access(
 	note: &MemoryNote,
 	session: &SearchSession,
 	allowed_scopes: &[String],
+	shared_grants: &HashSet<SharedSpaceGrantKey>,
 	now: OffsetDateTime,
 ) -> Option<SearchDetailsError> {
 	if note.status != "active" {
@@ -712,10 +729,16 @@ fn validate_note_access(
 			message: "Note scope is not allowed for this read_profile.".to_string(),
 		});
 	}
-	if note.scope == "agent_private" && note.agent_id != session.agent_id {
+	if !access::note_read_allowed(
+		note,
+		session.agent_id.as_str(),
+		allowed_scopes,
+		shared_grants,
+		now,
+	) {
 		return Some(SearchDetailsError {
 			code: "SCOPE_DENIED".to_string(),
-			message: "Note scope is not allowed for this agent_id.".to_string(),
+			message: "Note scope is not allowed for this read_profile.".to_string(),
 		});
 	}
 

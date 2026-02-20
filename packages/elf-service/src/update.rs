@@ -118,7 +118,7 @@ fn validate_note_is_updatable(
 	agent_id: &str,
 	now: OffsetDateTime,
 ) -> Result<()> {
-	if note.scope == "agent_private" && note.agent_id != agent_id {
+	if note.agent_id != agent_id {
 		return Err(Error::InvalidRequest { message: "Note not found.".to_string() });
 	}
 	if !note.status.eq_ignore_ascii_case("active") {

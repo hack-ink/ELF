@@ -1,9 +1,11 @@
+use std::collections::HashSet;
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::{ElfService, Error, Result, structured_fields::StructuredFields};
+use crate::{ElfService, Error, Result, access, structured_fields::StructuredFields};
 use elf_storage::models::MemoryNote;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -59,17 +61,18 @@ impl ElfService {
 		let Some(note) = row else {
 			return Err(Error::InvalidRequest { message: "Note not found.".to_string() });
 		};
+		let shared_grants = if note.scope == "agent_private" {
+			HashSet::new()
+		} else {
+			access::load_shared_read_grants(&self.db.pool, tenant_id, project_id, agent_id).await?
+		};
+		let allowed_scopes = vec![
+			"agent_private".to_string(),
+			"project_shared".to_string(),
+			"org_shared".to_string(),
+		];
 
-		if note.scope == "agent_private" && note.agent_id != agent_id {
-			return Err(Error::InvalidRequest { message: "Note not found.".to_string() });
-		}
-		if !note.status.eq_ignore_ascii_case("active") {
-			return Err(Error::InvalidRequest { message: "Note not found.".to_string() });
-		}
-
-		if let Some(expires_at) = note.expires_at
-			&& expires_at <= now
-		{
+		if !access::note_read_allowed(&note, agent_id, &allowed_scopes, &shared_grants, now) {
 			return Err(Error::InvalidRequest { message: "Note not found.".to_string() });
 		}
 

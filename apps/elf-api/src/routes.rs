@@ -21,12 +21,14 @@ use elf_service::{
 	AdminGraphPredicateAliasAddRequest, AdminGraphPredicateAliasesListRequest,
 	AdminGraphPredicateAliasesResponse, AdminGraphPredicatePatchRequest,
 	AdminGraphPredicateResponse, AdminGraphPredicatesListRequest, AdminGraphPredicatesListResponse,
-	DeleteRequest, DeleteResponse, Error, EventMessage, ListRequest, ListResponse,
-	NoteFetchRequest, NoteFetchResponse, PayloadLevel, QueryPlan, RankingRequestOverride,
-	RebuildReport, SearchDetailsRequest, SearchDetailsResult, SearchExplainRequest,
-	SearchExplainResponse, SearchIndexItem, SearchRequest, SearchResponse, SearchSessionGetRequest,
-	SearchTimelineGroup, SearchTimelineRequest, SearchTrajectoryResponse, TraceGetRequest,
-	TraceGetResponse, TraceTrajectoryGetRequest, UpdateRequest, UpdateResponse,
+	DeleteRequest, DeleteResponse, Error, EventMessage, GranteeKind, ListRequest, ListResponse,
+	NoteFetchRequest, NoteFetchResponse, PayloadLevel, PublishNoteRequest, QueryPlan,
+	RankingRequestOverride, RebuildReport, SearchDetailsRequest, SearchDetailsResult,
+	SearchExplainRequest, SearchExplainResponse, SearchIndexItem, SearchRequest, SearchResponse,
+	SearchSessionGetRequest, SearchTimelineGroup, SearchTimelineRequest, SearchTrajectoryResponse,
+	ShareScope, SpaceGrantRevokeRequest, SpaceGrantRevokeResponse, SpaceGrantUpsertRequest,
+	SpaceGrantsListRequest, TraceGetRequest, TraceGetResponse, TraceTrajectoryGetRequest,
+	UnpublishNoteRequest, UpdateRequest, UpdateResponse,
 };
 
 const HEADER_TENANT_ID: &str = "X-ELF-Tenant-Id";
@@ -170,6 +172,45 @@ struct AdminGraphPredicateAliasAddBody {
 	alias: String,
 }
 
+#[derive(Clone, Debug, Deserialize)]
+struct ShareScopeBody {
+	space: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct SpaceGrantUpsertBody {
+	grantee_kind: GranteeKind,
+	grantee_agent_id: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+struct PublishResponseV2 {
+	note_id: Uuid,
+	space: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+struct SpaceGrantUpsertResponseV2 {
+	space: String,
+	grantee_kind: GranteeKind,
+	grantee_agent_id: Option<String>,
+	granted: bool,
+}
+
+#[derive(Clone, Debug, Serialize)]
+struct SpaceGrantItemV2 {
+	space: String,
+	grantee_kind: GranteeKind,
+	grantee_agent_id: Option<String>,
+	granted_by_agent_id: String,
+	granted_at: OffsetDateTime,
+}
+
+#[derive(Clone, Debug, Serialize)]
+struct SpaceGrantsListResponseV2 {
+	grants: Vec<SpaceGrantItemV2>,
+}
+
 #[derive(Debug, Serialize)]
 struct ErrorBody {
 	error_code: String,
@@ -276,6 +317,10 @@ pub fn router(state: AppState) -> Router {
 			"/v2/notes/:note_id",
 			routing::get(notes_get).patch(notes_patch).delete(notes_delete),
 		)
+		.route("/v2/notes/:note_id/publish", routing::post(notes_publish))
+		.route("/v2/notes/:note_id/unpublish", routing::post(notes_unpublish))
+		.route("/v2/spaces/:space/grants", routing::get(space_grants_list).post(space_grant_upsert))
+		.route("/v2/spaces/:space/grants/revoke", routing::post(space_grant_revoke))
 		.with_state(state)
 		.layer(DefaultBodyLimit::max(MAX_REQUEST_BYTES))
 		.layer(middleware::from_fn_with_state(auth_state, api_auth_middleware))
@@ -407,6 +452,40 @@ fn required_header(headers: &HeaderMap, name: &'static str) -> Result<String, Ap
 
 fn required_read_profile(headers: &HeaderMap) -> Result<String, ApiError> {
 	required_header(headers, HEADER_READ_PROFILE)
+}
+
+fn parse_space(scope: &str) -> Result<ShareScope, ApiError> {
+	match scope {
+		"team_shared" | "project_shared" => Ok(ShareScope::ProjectShared),
+		"org_shared" => Ok(ShareScope::OrgShared),
+		_ => Err(json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid space.".to_string(),
+			Some(vec!["$.space".to_string()]),
+		)),
+	}
+}
+
+fn format_space(scope: ShareScope) -> &'static str {
+	match scope {
+		ShareScope::ProjectShared => "team_shared",
+		ShareScope::OrgShared => "org_shared",
+	}
+}
+
+fn format_scope(scope: &str) -> Result<&'static str, ApiError> {
+	match scope {
+		"project_shared" => Ok("team_shared"),
+		"org_shared" => Ok("org_shared"),
+		"agent_private" => Ok("agent_private"),
+		_ => Err(json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid space.".to_string(),
+			Some(vec!["$.space".to_string()]),
+		)),
+	}
 }
 
 fn trusted_token_id(headers: &HeaderMap) -> Option<String> {
@@ -997,6 +1076,158 @@ async fn notes_delete(
 			project_id: ctx.project_id,
 			agent_id: ctx.agent_id,
 			note_id,
+		})
+		.await?;
+
+	Ok(Json(response))
+}
+
+async fn notes_publish(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	Path(note_id): Path<Uuid>,
+	payload: Result<Json<ShareScopeBody>, JsonRejection>,
+) -> Result<Json<PublishResponseV2>, ApiError> {
+	let ctx = RequestContext::from_headers(&headers)?;
+	let Json(payload) = payload.map_err(|err| {
+		tracing::warn!(error = %err, "Invalid request payload.");
+
+		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+	})?;
+	let scope = parse_space(payload.space.as_str())?;
+	let response = state
+		.service
+		.publish_note(PublishNoteRequest {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+			agent_id: ctx.agent_id,
+			note_id,
+			scope,
+		})
+		.await?;
+
+	Ok(Json(PublishResponseV2 {
+		note_id: response.note_id,
+		space: format_scope(response.scope.as_str())?.to_string(),
+	}))
+}
+
+async fn notes_unpublish(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	Path(note_id): Path<Uuid>,
+	payload: Result<Json<ShareScopeBody>, JsonRejection>,
+) -> Result<Json<PublishResponseV2>, ApiError> {
+	let ctx = RequestContext::from_headers(&headers)?;
+	let Json(payload) = payload.map_err(|err| {
+		tracing::warn!(error = %err, "Invalid request payload.");
+
+		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+	})?;
+	let _ = parse_space(payload.space.as_str())?;
+	let response = state
+		.service
+		.unpublish_note(UnpublishNoteRequest {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+			agent_id: ctx.agent_id,
+			note_id,
+		})
+		.await?;
+
+	Ok(Json(PublishResponseV2 {
+		note_id: response.note_id,
+		space: format_scope(response.scope.as_str())?.to_string(),
+	}))
+}
+
+async fn space_grants_list(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	Path(space): Path<String>,
+) -> Result<Json<SpaceGrantsListResponseV2>, ApiError> {
+	let ctx = RequestContext::from_headers(&headers)?;
+	let scope = parse_space(space.as_str())?;
+	let response = state
+		.service
+		.space_grants_list(SpaceGrantsListRequest {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+			agent_id: ctx.agent_id,
+			scope,
+		})
+		.await?;
+
+	Ok(Json(SpaceGrantsListResponseV2 {
+		grants: response
+			.grants
+			.into_iter()
+			.map(|item| SpaceGrantItemV2 {
+				space: format_space(item.scope).to_string(),
+				grantee_kind: item.grantee_kind,
+				grantee_agent_id: item.grantee_agent_id,
+				granted_by_agent_id: item.granted_by_agent_id,
+				granted_at: item.granted_at,
+			})
+			.collect(),
+	}))
+}
+
+async fn space_grant_upsert(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	Path(space): Path<String>,
+	payload: Result<Json<SpaceGrantUpsertBody>, JsonRejection>,
+) -> Result<Json<SpaceGrantUpsertResponseV2>, ApiError> {
+	let ctx = RequestContext::from_headers(&headers)?;
+	let Json(payload) = payload.map_err(|err| {
+		tracing::warn!(error = %err, "Invalid request payload.");
+
+		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+	})?;
+	let scope = parse_space(space.as_str())?;
+	let response = state
+		.service
+		.space_grant_upsert(SpaceGrantUpsertRequest {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+			agent_id: ctx.agent_id,
+			scope,
+			grantee_kind: payload.grantee_kind,
+			grantee_agent_id: payload.grantee_agent_id,
+		})
+		.await?;
+
+	Ok(Json(SpaceGrantUpsertResponseV2 {
+		space: format_scope(response.scope.as_str())?.to_string(),
+		grantee_kind: response.grantee_kind,
+		grantee_agent_id: response.grantee_agent_id,
+		granted: response.granted,
+	}))
+}
+
+async fn space_grant_revoke(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	Path(space): Path<String>,
+	payload: Result<Json<SpaceGrantUpsertBody>, JsonRejection>,
+) -> Result<Json<SpaceGrantRevokeResponse>, ApiError> {
+	let ctx = RequestContext::from_headers(&headers)?;
+	let Json(payload) = payload.map_err(|err| {
+		tracing::warn!(error = %err, "Invalid request payload.");
+
+		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+	})?;
+	let scope = parse_space(space.as_str())?;
+	let response = state
+		.service
+		.space_grant_revoke(SpaceGrantRevokeRequest {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+			agent_id: ctx.agent_id,
+			scope,
+			grantee_kind: payload.grantee_kind,
+			grantee_agent_id: payload.grantee_agent_id,
 		})
 		.await?;
 

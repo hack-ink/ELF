@@ -14,6 +14,7 @@
 \ir tables/002_note_embeddings.sql
 \ir tables/003_memory_note_versions.sql
 \ir tables/023_memory_ingest_decisions.sql
+\ir tables/024_memory_space_grants.sql
 \ir tables/004_memory_hits.sql
 \ir tables/005_indexing_outbox.sql
 \ir tables/006_search_traces.sql

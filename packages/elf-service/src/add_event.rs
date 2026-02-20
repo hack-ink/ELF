@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::{
 	ElfService, Error, InsertVersionArgs, NoteOp, REJECT_EVIDENCE_MISMATCH, ResolveUpdateArgs,
-	Result, UpdateDecision, structured_fields::StructuredFields,
+	Result, UpdateDecision, access, structured_fields::StructuredFields,
 };
 use elf_config::Config;
 use elf_domain::{
@@ -459,6 +459,15 @@ impl ElfService {
 		note_id: Uuid,
 		policy_decision: MemoryPolicyDecision,
 	) -> Result<AddEventResult> {
+		access::ensure_active_project_scope_grant(
+			&mut **tx,
+			args.req.tenant_id.as_str(),
+			args.req.project_id.as_str(),
+			args.scope,
+			args.req.agent_id.as_str(),
+		)
+		.await?;
+
 		let memory_note = MemoryNote {
 			note_id,
 			tenant_id: args.req.tenant_id.clone(),
@@ -545,6 +554,16 @@ impl ElfService {
 		.bind(note_id)
 		.fetch_one(&mut **tx)
 		.await?;
+
+		access::ensure_active_project_scope_grant(
+			&mut **tx,
+			existing.tenant_id.as_str(),
+			existing.project_id.as_str(),
+			existing.scope.as_str(),
+			existing.agent_id.as_str(),
+		)
+		.await?;
+
 		let prev_snapshot = crate::note_snapshot(&existing);
 
 		existing.text = args.text.to_string();
@@ -646,6 +665,17 @@ impl ElfService {
 		}
 
 		if did_update {
+			if matches!(args.scope, "project_shared" | "org_shared") {
+				access::ensure_active_project_scope_grant(
+					&mut **tx,
+					args.req.tenant_id.as_str(),
+					args.req.project_id.as_str(),
+					args.scope,
+					args.req.agent_id.as_str(),
+				)
+				.await?;
+			}
+
 			return Ok(AddEventResult {
 				note_id: Some(note_id),
 				op: NoteOp::Update,
