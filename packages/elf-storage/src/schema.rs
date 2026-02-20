@@ -60,6 +60,8 @@ fn expand_includes(sql: &str) -> String {
 					out.push_str(include_str!("../../../sql/tables/011_search_sessions.sql")),
 				"tables/023_memory_ingest_decisions.sql" => out
 					.push_str(include_str!("../../../sql/tables/023_memory_ingest_decisions.sql")),
+				"tables/024_memory_space_grants.sql" =>
+					out.push_str(include_str!("../../../sql/tables/024_memory_space_grants.sql")),
 				_ => out.push_str(line),
 			}
 		} else {

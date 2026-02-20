@@ -18,7 +18,7 @@ use sqlx::{FromRow, PgConnection, PgExecutor, PgPool, QueryBuilder, Row};
 use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
-use crate::{ElfService, Error, Result, ranking_explain_v2};
+use crate::{ElfService, Error, Result, access, ranking_explain_v2};
 use elf_config::{Config, SearchCache};
 use elf_domain::cjk;
 use elf_storage::{
@@ -3667,6 +3667,8 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 			return Ok(HashMap::new());
 		}
 
+		let shared_grants =
+			access::load_shared_read_grants(&self.db.pool, tenant_id, project_id, agent_id).await?;
 		let notes: Vec<MemoryNote> = sqlx::query_as(
 			"SELECT * FROM memory_notes WHERE note_id = ANY($1::uuid[]) AND tenant_id = $2 AND project_id = $3",
 		)
@@ -3678,19 +3680,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 		let mut note_meta = HashMap::new();
 
 		for note in notes {
-			if note.tenant_id != tenant_id || note.project_id != project_id {
-				continue;
-			}
-			if note.scope == "agent_private" && note.agent_id != agent_id {
-				continue;
-			}
-			if note.status != "active" {
-				continue;
-			}
-			if !allowed_scopes.contains(&note.scope) {
-				continue;
-			}
-			if note.expires_at.map(|ts| ts <= now).unwrap_or(false) {
+			if !access::note_read_allowed(&note, agent_id, allowed_scopes, &shared_grants, now) {
 				continue;
 			}
 

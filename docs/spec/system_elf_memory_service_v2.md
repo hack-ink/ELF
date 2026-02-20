@@ -1358,6 +1358,108 @@ Response:
   "op": "ADD|UPDATE|NONE|DELETE|REJECTED"
 }
 
+Notes:
+- Shared scopes (`project_shared`, `org_shared`) are not implicitly readable by other agents.
+- Access to a shared note requires an explicit `memory_space_grants` entry for the requesting agent/project.
+- `team_shared` is the public API alias for internal `project_shared`.
+
+POST /v2/notes/{note_id}/publish
+
+Headers:
+- X-ELF-Tenant-Id, X-ELF-Project-Id, X-ELF-Agent-Id
+
+Body:
+{
+  "space": "team_shared|org_shared"
+}
+
+Response:
+{
+  "note_id": "uuid",
+  "space": "team_shared|org_shared"
+}
+
+Behavior:
+- Publishing a private note to `team_shared` changes visibility to shared scope and creates a project-wide grant so all agents in the same project can read the note when requested explicitly from shared scope.
+
+POST /v2/notes/{note_id}/unpublish
+
+Headers:
+- X-ELF-Tenant-Id, X-ELF-Project-Id, X-ELF-Agent-Id
+
+Body:
+{
+  "space": "team_shared|org_shared"
+}
+
+Response:
+{
+  "note_id": "uuid",
+  "space": "agent_private"
+}
+
+GET /v2/spaces/{space}/grants
+
+Headers:
+- X-ELF-Tenant-Id, X-ELF-Project-Id, X-ELF-Agent-Id
+
+Path:
+- space: team_shared|org_shared
+
+Response:
+{
+  "grants": [
+    {
+      "space": "team_shared|org_shared",
+      "grantee_kind": "project|agent",
+      "grantee_agent_id": null,
+      "granted_by_agent_id": "agent_id",
+      "granted_at": "..."
+    }
+  ]
+}
+
+POST /v2/spaces/{space}/grants
+
+Headers:
+- X-ELF-Tenant-Id, X-ELF-Project-Id, X-ELF-Agent-Id
+
+Path:
+- space: team_shared|org_shared
+
+Body:
+{
+  "grantee_kind": "project|agent",
+  "grantee_agent_id": "optional-agent-id"
+}
+
+Response:
+{
+  "space": "team_shared|org_shared",
+  "grantee_kind": "project|agent",
+  "grantee_agent_id": null,
+  "granted": true
+}
+
+POST /v2/spaces/{space}/grants/revoke
+
+Headers:
+- X-ELF-Tenant-Id, X-ELF-Project-Id, X-ELF-Agent-Id
+
+Path:
+- space: team_shared|org_shared
+
+Body:
+{
+  "grantee_kind": "project|agent",
+  "grantee_agent_id": "optional-agent-id"
+}
+
+Response:
+{
+  "revoked": true
+}
+
 GET /health
 
 Error body:
