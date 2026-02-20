@@ -144,6 +144,21 @@ pub struct Memory {
 	pub update_sim_threshold: f32,
 	pub candidate_k: u32,
 	pub top_k: u32,
+	#[serde(default)]
+	pub policy: MemoryPolicy,
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct MemoryPolicy {
+	pub rules: Vec<MemoryPolicyRule>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct MemoryPolicyRule {
+	pub note_type: Option<String>,
+	pub scope: Option<String>,
+	pub min_confidence: Option<f32>,
+	pub min_importance: Option<f32>,
 }
 
 #[derive(Debug, Deserialize)]

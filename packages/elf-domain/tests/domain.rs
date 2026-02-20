@@ -2,8 +2,8 @@ use serde_json::Map;
 use time::OffsetDateTime;
 
 use elf_config::{
-	Chunking, Config, EmbeddingProviderConfig, Lifecycle, LlmProviderConfig, Memory, Postgres,
-	ProviderConfig, Providers, Qdrant, Ranking, RankingBlend, RankingBlendSegment,
+	Chunking, Config, EmbeddingProviderConfig, Lifecycle, LlmProviderConfig, Memory, MemoryPolicy,
+	Postgres, ProviderConfig, Providers, Qdrant, Ranking, RankingBlend, RankingBlendSegment,
 	RankingDeterministic, RankingDeterministicDecay, RankingDeterministicHits,
 	RankingDeterministicLexical, RankingDiversity, RankingRetrievalSources, ReadProfiles,
 	ScopePrecedence, ScopeWriteAllowed, Scopes, Search, SearchCache, SearchDynamic,
@@ -140,6 +140,7 @@ fn base_config() -> Config {
 			update_sim_threshold: 0.85,
 			candidate_k: 60,
 			top_k: 12,
+			policy: MemoryPolicy::default(),
 		},
 		search: Search {
 			expansion: SearchExpansion {

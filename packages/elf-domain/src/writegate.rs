@@ -83,12 +83,13 @@ fn contains_secrets(text: &str) -> bool {
 mod tests {
 	use crate::writegate::{NoteInput, RejectCode, contains_secrets, writegate};
 	use elf_config::{
-		Chunking, Config, EmbeddingProviderConfig, Lifecycle, LlmProviderConfig, Memory, Postgres,
-		ProviderConfig, Providers, Qdrant, Ranking, RankingBlend, RankingBlendSegment,
-		RankingDeterministic, RankingDeterministicDecay, RankingDeterministicHits,
-		RankingDeterministicLexical, RankingDiversity, RankingRetrievalSources, ReadProfiles,
-		ScopePrecedence, ScopeWriteAllowed, Scopes, Search, SearchCache, SearchDynamic,
-		SearchExpansion, SearchExplain, SearchPrefilter, Security, Service, Storage, TtlDays,
+		Chunking, Config, EmbeddingProviderConfig, Lifecycle, LlmProviderConfig, Memory,
+		MemoryPolicy, Postgres, ProviderConfig, Providers, Qdrant, Ranking, RankingBlend,
+		RankingBlendSegment, RankingDeterministic, RankingDeterministicDecay,
+		RankingDeterministicHits, RankingDeterministicLexical, RankingDiversity,
+		RankingRetrievalSources, ReadProfiles, ScopePrecedence, ScopeWriteAllowed, Scopes, Search,
+		SearchCache, SearchDynamic, SearchExpansion, SearchExplain, SearchPrefilter, Security,
+		Service, Storage, TtlDays,
 	};
 
 	fn test_ranking() -> Ranking {
@@ -186,6 +187,7 @@ mod tests {
 				update_sim_threshold: 0.8,
 				candidate_k: 10,
 				top_k: 5,
+				policy: MemoryPolicy::default(),
 			},
 			search: Search {
 				expansion: SearchExpansion {

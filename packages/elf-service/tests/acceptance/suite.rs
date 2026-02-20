@@ -185,6 +185,7 @@ pub fn test_config(dsn: String, qdrant_url: String, vector_dim: u32, collection:
 			update_sim_threshold: 0.85,
 			candidate_k: 60,
 			top_k: 12,
+			policy: Default::default(),
 		},
 		search: Search {
 			expansion: SearchExpansion {
@@ -412,6 +413,7 @@ TRUNCATE
 	graph_fact_evidence,
 	graph_fact_supersessions,
 	memory_hits,
+	memory_ingest_decisions,
 	memory_note_versions,
 	note_field_embeddings,
 	memory_note_fields,
