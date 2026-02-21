@@ -13,6 +13,38 @@ pub(crate) struct SharedSpaceGrantKey {
 	pub(crate) space_owner_agent_id: String,
 }
 
+pub(crate) fn note_read_allowed(
+	note: &MemoryNote,
+	requester_agent_id: &str,
+	allowed_scopes: &[String],
+	shared_grants: &HashSet<SharedSpaceGrantKey>,
+	now: OffsetDateTime,
+) -> bool {
+	if note.status != "active" {
+		return false;
+	}
+	if note.expires_at.map(|expires_at| expires_at <= now).unwrap_or(false) {
+		return false;
+	}
+	if !allowed_scopes.iter().any(|scope| scope == &note.scope) {
+		return false;
+	}
+	if note.scope == "agent_private" {
+		return note.agent_id == requester_agent_id;
+	}
+	if !is_shared_scope(note.scope.as_str()) {
+		return false;
+	}
+	if note.agent_id == requester_agent_id {
+		return true;
+	}
+
+	shared_grants.contains(&SharedSpaceGrantKey {
+		scope: note.scope.clone(),
+		space_owner_agent_id: note.agent_id.clone(),
+	})
+}
+
 pub(crate) async fn load_shared_read_grants<'e, E>(
 	executor: E,
 	tenant_id: &str,
@@ -47,39 +79,6 @@ WHERE tenant_id = $1
 	}
 
 	Ok(grants)
-}
-
-pub(crate) fn note_read_allowed(
-	note: &MemoryNote,
-	requester_agent_id: &str,
-	allowed_scopes: &[String],
-	shared_grants: &HashSet<SharedSpaceGrantKey>,
-	now: OffsetDateTime,
-) -> bool {
-	if note.status != "active" {
-		return false;
-	}
-	if note.expires_at.map(|expires_at| expires_at <= now).unwrap_or(false) {
-		return false;
-	}
-	if !allowed_scopes.iter().any(|scope| scope == &note.scope) {
-		return false;
-	}
-	if note.scope == "agent_private" {
-		return note.agent_id == requester_agent_id;
-	}
-
-	if !is_shared_scope(note.scope.as_str()) {
-		return false;
-	}
-	if note.agent_id == requester_agent_id {
-		return true;
-	}
-
-	shared_grants.contains(&SharedSpaceGrantKey {
-		scope: note.scope.clone(),
-		space_owner_agent_id: note.agent_id.clone(),
-	})
 }
 
 pub(crate) async fn ensure_active_project_scope_grant<'e, E>(
