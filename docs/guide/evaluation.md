@@ -111,6 +111,25 @@ Update baseline:
 - Re-record the baseline trace items/candidates with the intended baseline build/config, regenerate the fixture,
   then update the gate JSON (trace IDs and thresholds) used by CI.
 
+Export fixtures:
+
+- Use `elf-eval` to export one or more trace IDs into a deterministic SQL fixture (assumes an empty database):
+
+```bash
+cargo run -p elf-eval --bin trace_gate_export -- \
+  -c ./elf.toml \
+  --trace-id <uuid1> --trace-id <uuid2> \
+  --out tmp/trace-gate.fixture.sql
+```
+
+- If you also want stage data for trace compare mode, add `--include-stages`.
+
+Notes:
+
+- Keep fixtures sanitized (no secrets, no customer data, no proprietary content).
+- Treat fixture updates like snapshot updates: update only when a ranking change is intentional, and review the
+  diff in Git.
+
 Artifacts:
 
 - The gate outputs a JSON report (stdout, or the `--out` file) with per-trace metrics and any breached thresholds.
@@ -183,6 +202,16 @@ What it does:
 - Ingests a synthetic dataset with many near-tied candidates.
 - Enables a local noisy rerank model to simulate reranker instability.
 - Compares `elf-eval` stability metrics with deterministic ranking disabled vs enabled.
+
+## Nightly Harness Signals
+
+CI also runs the harness scripts on a schedule and uploads the JSON outputs and logs as artifacts.
+
+Rationale:
+
+- The trace regression gate is a deterministic merge gate for ranking-policy changes.
+- The harness scripts cover integration surfaces (Postgres + Qdrant + worker/api orchestration) and are better
+  suited to a scheduled job than a per-PR gate.
 
 Configuration:
 

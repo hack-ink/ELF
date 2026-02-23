@@ -1,0 +1,111 @@
+name: Nightly Harness Signals
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Nightly at 02:30 UTC.
+    - cron: "30 2 * * *"
+
+concurrency:
+  group: nightly-harness-signals
+  cancel-in-progress: true
+
+jobs:
+  harness:
+    name: Run harness scripts
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      ELF_PG_DSN: postgres://postgres:postgres@127.0.0.1:5432/postgres
+      ELF_QDRANT_HTTP_URL: http://127.0.0.1:6333
+      ELF_QDRANT_GRPC_URL: http://127.0.0.1:6334
+      ELF_HARNESS_RUN_ID: gha-${{ github.run_id }}
+      ELF_HARNESS_VECTOR_DIM: 256
+      RUST_BACKTRACE: full
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg18
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+      qdrant:
+        image: qdrant/qdrant:v1.16.3
+        ports:
+          - 6333:6333
+          - 6334:6334
+
+    steps:
+      - name: Fetch latest code
+        uses: actions/checkout@v6
+
+      - name: Set up Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          cache: true
+          rustflags: ""
+
+      - name: Install OS tools (psql, jq)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends postgresql-client jq
+
+      - name: Install taplo
+        uses: taiki-e/install-action@v2
+        with:
+          tool: taplo
+
+      - name: Wait for Postgres
+        run: |
+          for i in {1..60}; do
+            pg_isready -h 127.0.0.1 -p 5432 -U postgres -d postgres >/dev/null && exit 0
+            sleep 1
+          done
+          echo "Postgres did not become ready in time."
+          exit 1
+
+      - name: Wait for Qdrant
+        run: |
+          for i in {1..60}; do
+            curl -sSf http://127.0.0.1:6333/collections >/dev/null && exit 0
+            sleep 1
+          done
+          echo "Qdrant did not become ready in time."
+          exit 1
+
+      - name: Run context misranking harness
+        run: |
+          mkdir -p tmp
+          bash scripts/context-misranking-harness.sh
+
+      - name: Run ranking stability harness
+        run: |
+          mkdir -p tmp
+          bash scripts/ranking-stability-harness.sh
+
+      - name: Upload harness outputs + logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-harness-signals-${{ github.run_id }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            tmp/elf.harness.out.base.json
+            tmp/elf.harness.out.context.json
+            tmp/elf.harness.worker.log
+            tmp/elf.harness.api.log
+            tmp/elf.stability.out.json
+            tmp/elf.stability.worker.log
+            tmp/elf.stability.api.log
