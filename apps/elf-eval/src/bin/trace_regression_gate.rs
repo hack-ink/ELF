@@ -3,6 +3,7 @@ use std::{collections::HashSet, fs, path::PathBuf};
 use clap::Parser;
 use color_eyre::{Result, eyre};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use sqlx::FromRow;
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use tracing_subscriber::EnvFilter;
@@ -135,7 +136,7 @@ struct TraceItemRow {
 
 #[derive(Debug, FromRow)]
 struct CandidateRow {
-	candidate_snapshot: serde_json::Value,
+	candidate_snapshot: Value,
 	note_id: Uuid,
 	chunk_id: Uuid,
 	chunk_index: i32,
@@ -149,24 +150,131 @@ struct CandidateRow {
 	note_last_hit_at: Option<OffsetDateTime>,
 }
 
+fn load_gate_file(path: &PathBuf) -> Result<GateFile> {
+	let raw = fs::read_to_string(path)?;
+	let out: GateFile = serde_json::from_str(&raw)?;
+
+	Ok(out)
+}
+
+fn merge_thresholds(defaults: GateThresholds, overrides: GateThresholds) -> GateThresholds {
+	GateThresholds {
+		max_positional_churn_at_k: overrides
+			.max_positional_churn_at_k
+			.or(defaults.max_positional_churn_at_k),
+		max_set_churn_at_k: overrides.max_set_churn_at_k.or(defaults.max_set_churn_at_k),
+		min_retrieval_top_rank_retention: overrides
+			.min_retrieval_top_rank_retention
+			.or(defaults.min_retrieval_top_rank_retention),
+	}
+}
+
+fn decode_trace_replay_candidates(
+	rows: Vec<CandidateRow>,
+) -> Vec<elf_service::search::TraceReplayCandidate> {
+	rows.into_iter()
+		.map(|row| {
+			let decoded = serde_json::from_value::<elf_service::search::TraceReplayCandidate>(
+				row.candidate_snapshot.clone(),
+			)
+			.ok()
+			.filter(|value| value.note_id != Uuid::nil() && value.chunk_id != Uuid::nil());
+
+			decoded.unwrap_or_else(|| elf_service::search::TraceReplayCandidate {
+				note_id: row.note_id,
+				chunk_id: row.chunk_id,
+				chunk_index: row.chunk_index,
+				snippet: row.snippet,
+				retrieval_rank: u32::try_from(row.retrieval_rank).unwrap_or(0),
+				rerank_score: row.rerank_score,
+				note_scope: row.note_scope,
+				note_importance: row.note_importance,
+				note_updated_at: row.note_updated_at,
+				note_hit_count: row.note_hit_count,
+				note_last_hit_at: row.note_last_hit_at,
+				diversity_selected: None,
+				diversity_selected_rank: None,
+				diversity_selected_reason: None,
+				diversity_skipped_reason: None,
+				diversity_nearest_selected_note_id: None,
+				diversity_similarity: None,
+				diversity_mmr_score: None,
+				diversity_missing_embedding: None,
+			})
+		})
+		.collect()
+}
+
+fn churn_against_baseline_at_k(baseline: &[Uuid], other: &[Uuid], k: usize) -> (f64, f64) {
+	let k = k.max(1);
+	let mut positional_diff = 0_usize;
+
+	for idx in 0..k {
+		let a = baseline.get(idx);
+		let b = other.get(idx);
+
+		if a != b {
+			positional_diff += 1;
+		}
+	}
+
+	let positional_churn = positional_diff as f64 / k as f64;
+	let base_set: HashSet<Uuid> = baseline.iter().take(k).copied().collect();
+	let other_set: HashSet<Uuid> = other.iter().take(k).copied().collect();
+	let overlap = base_set.intersection(&other_set).count();
+	let set_churn = 1.0 - (overlap as f64 / k as f64);
+
+	(positional_churn, set_churn)
+}
+
+fn retrieval_top_rank_retention(
+	candidates: &[elf_service::search::TraceReplayCandidate],
+	note_ids: &[Uuid],
+	max_retrieval_rank: u32,
+) -> (usize, usize, f64) {
+	let mut top_notes = HashSet::new();
+
+	for candidate in candidates {
+		if candidate.retrieval_rank == 0 || candidate.retrieval_rank > max_retrieval_rank {
+			continue;
+		}
+
+		top_notes.insert(candidate.note_id);
+	}
+
+	let total = top_notes.len();
+
+	if total == 0 {
+		return (0, 0, 0.0);
+	}
+
+	let out_set: HashSet<Uuid> = note_ids.iter().copied().collect();
+	let retained = top_notes.intersection(&out_set).count();
+	let retention = retained as f64 / total as f64;
+
+	(total, retained, retention)
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
 	color_eyre::install()?;
 
 	let args = Args::parse();
 	let cfg = elf_config::load(&args.config)?;
-
 	let filter = EnvFilter::new(cfg.service.log_level.clone());
+
 	tracing_subscriber::fmt().with_env_filter(filter).init();
 
 	let gate = load_gate_file(&args.gate)?;
+
 	if gate.traces.is_empty() {
 		return Err(eyre::eyre!("Gate JSON must include at least one trace."));
 	}
+
 	let gate_top_k = gate.top_k;
 	let gate_retrieval_retention_rank = gate.retrieval_retention_rank;
-
 	let db = Db::connect(&cfg.storage.postgres).await?;
+
 	db.ensure_schema(cfg.storage.qdrant.vector_dim).await?;
 
 	let mut traces = Vec::with_capacity(gate.traces.len());
@@ -200,7 +308,6 @@ async fn main() -> Result<()> {
 		summary,
 		traces,
 	};
-
 	let json = serde_json::to_string_pretty(&report)?;
 
 	if let Some(out_path) = &args.out {
@@ -218,24 +325,6 @@ async fn main() -> Result<()> {
 	}
 
 	Ok(())
-}
-
-fn load_gate_file(path: &PathBuf) -> Result<GateFile> {
-	let raw = fs::read_to_string(path)?;
-	let out: GateFile = serde_json::from_str(&raw)?;
-	Ok(out)
-}
-
-fn merge_thresholds(defaults: GateThresholds, overrides: GateThresholds) -> GateThresholds {
-	GateThresholds {
-		max_positional_churn_at_k: overrides
-			.max_positional_churn_at_k
-			.or(defaults.max_positional_churn_at_k),
-		max_set_churn_at_k: overrides.max_set_churn_at_k.or(defaults.max_set_churn_at_k),
-		min_retrieval_top_rank_retention: overrides
-			.min_retrieval_top_rank_retention
-			.or(defaults.min_retrieval_top_rank_retention),
-	}
 }
 
 async fn eval_trace(
@@ -259,7 +348,6 @@ async fn eval_trace(
 		top_k: u32::try_from(trace_row.top_k).unwrap_or(0),
 		created_at: trace_row.created_at,
 	};
-
 	let top_k =
 		trace.top_k.or(cli.top_k).or(gate_top_k).or(Some(context.top_k)).unwrap_or(10).max(1);
 	let retrieval_retention_rank = trace
@@ -268,13 +356,10 @@ async fn eval_trace(
 		.or(gate_retrieval_retention_rank)
 		.unwrap_or(3)
 		.max(1);
-
 	let baseline_items = fetch_baseline_items(db, &trace.trace_id, top_k).await?;
 	let baseline_note_ids: Vec<Uuid> = baseline_items.iter().map(|row| row.note_id).collect();
-
 	let candidate_rows = fetch_candidate_rows(db, &trace.trace_id).await?;
 	let candidates = decode_trace_replay_candidates(candidate_rows);
-
 	let replay_items = elf_service::search::replay_ranking_from_candidates(
 		cfg,
 		&context,
@@ -284,12 +369,10 @@ async fn eval_trace(
 	)
 	.map_err(|err| eyre::eyre!("{err}"))?;
 	let replay_note_ids: Vec<Uuid> = replay_items.iter().map(|item| item.note_id).collect();
-
 	let effective_k = top_k as usize;
 	let (positional_churn_at_k, set_churn_at_k) =
 		churn_against_baseline_at_k(&baseline_note_ids, &replay_note_ids, effective_k);
 	let churn = TraceChurn { positional_churn_at_k, set_churn_at_k };
-
 	let (retrieval_top_rank_total, baseline_retained, baseline_retention) =
 		retrieval_top_rank_retention(&candidates, &baseline_note_ids, retrieval_retention_rank);
 	let (_, replay_retained, replay_retention) =
@@ -302,8 +385,8 @@ async fn eval_trace(
 		replay_retrieval_top_rank_retention: replay_retention,
 		retention_delta: replay_retention - baseline_retention,
 	};
-
 	let mut breaches = Vec::new();
+
 	if baseline_note_ids.len() < effective_k {
 		breaches.push(GateBreach {
 			metric: "baseline_count_at_k".to_string(),
@@ -430,90 +513,4 @@ ORDER BY retrieval_rank ASC",
 	.await?;
 
 	Ok(rows)
-}
-
-fn decode_trace_replay_candidates(
-	rows: Vec<CandidateRow>,
-) -> Vec<elf_service::search::TraceReplayCandidate> {
-	rows.into_iter()
-		.map(|row| {
-			let decoded = serde_json::from_value::<elf_service::search::TraceReplayCandidate>(
-				row.candidate_snapshot.clone(),
-			)
-			.ok()
-			.filter(|value| value.note_id != Uuid::nil() && value.chunk_id != Uuid::nil());
-
-			decoded.unwrap_or_else(|| elf_service::search::TraceReplayCandidate {
-				note_id: row.note_id,
-				chunk_id: row.chunk_id,
-				chunk_index: row.chunk_index,
-				snippet: row.snippet,
-				retrieval_rank: u32::try_from(row.retrieval_rank).unwrap_or(0),
-				rerank_score: row.rerank_score,
-				note_scope: row.note_scope,
-				note_importance: row.note_importance,
-				note_updated_at: row.note_updated_at,
-				note_hit_count: row.note_hit_count,
-				note_last_hit_at: row.note_last_hit_at,
-				diversity_selected: None,
-				diversity_selected_rank: None,
-				diversity_selected_reason: None,
-				diversity_skipped_reason: None,
-				diversity_nearest_selected_note_id: None,
-				diversity_similarity: None,
-				diversity_mmr_score: None,
-				diversity_missing_embedding: None,
-			})
-		})
-		.collect()
-}
-
-fn churn_against_baseline_at_k(baseline: &[Uuid], other: &[Uuid], k: usize) -> (f64, f64) {
-	let k = k.max(1);
-	let mut positional_diff = 0_usize;
-
-	for idx in 0..k {
-		let a = baseline.get(idx);
-		let b = other.get(idx);
-
-		if a != b {
-			positional_diff += 1;
-		}
-	}
-
-	let positional_churn = positional_diff as f64 / k as f64;
-	let base_set: HashSet<Uuid> = baseline.iter().take(k).copied().collect();
-	let other_set: HashSet<Uuid> = other.iter().take(k).copied().collect();
-	let overlap = base_set.intersection(&other_set).count();
-	let set_churn = 1.0 - (overlap as f64 / k as f64);
-
-	(positional_churn, set_churn)
-}
-
-fn retrieval_top_rank_retention(
-	candidates: &[elf_service::search::TraceReplayCandidate],
-	note_ids: &[Uuid],
-	max_retrieval_rank: u32,
-) -> (usize, usize, f64) {
-	let mut top_notes = HashSet::new();
-
-	for candidate in candidates {
-		if candidate.retrieval_rank == 0 || candidate.retrieval_rank > max_retrieval_rank {
-			continue;
-		}
-
-		top_notes.insert(candidate.note_id);
-	}
-
-	let total = top_notes.len();
-
-	if total == 0 {
-		return (0, 0, 0.0);
-	}
-
-	let out_set: HashSet<Uuid> = note_ids.iter().copied().collect();
-	let retained = top_notes.intersection(&out_set).count();
-	let retention = retained as f64 / total as f64;
-
-	(total, retained, retention)
 }
