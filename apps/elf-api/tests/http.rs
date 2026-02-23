@@ -359,6 +359,24 @@ async fn active_org_shared_project_grant_count(state: &AppState, owner_agent_id:
 	.expect("Failed to query org_shared project grant count.")
 }
 
+async fn active_org_shared_project_grant_count_for_project(
+	state: &AppState,
+	project_id: &str,
+	owner_agent_id: &str,
+) -> i64 {
+	sqlx::query_scalar(
+		"SELECT COUNT(*) FROM memory_space_grants \
+		WHERE tenant_id = $1 AND project_id = $2 AND scope = 'org_shared' \
+		AND space_owner_agent_id = $3 AND grantee_kind = 'project' AND revoked_at IS NULL",
+	)
+	.bind(TEST_TENANT_ID)
+	.bind(project_id)
+	.bind(owner_agent_id)
+	.fetch_one(&state.service.db.pool)
+	.await
+	.expect("Failed to query org_shared project grant count for project.")
+}
+
 async fn org_shared_note_is_visible_across_projects_fixture()
 -> Option<(TestDatabase, Router, AppState, Uuid)> {
 	let (test_db, qdrant_url, collection) = test_env().await?;
@@ -452,11 +470,20 @@ async fn assert_note_visible_to_project_reader(
 	let (scope, project_id) = note_scope_and_project_id(state, note_id).await;
 
 	assert_eq!(scope, "org_shared");
+	// org_shared note rows live in the synthetic org project, not the request project.
 	assert_eq!(project_id, "__org__");
 
 	let org_grant_count = active_org_shared_project_grant_count(state, "admin-agent").await;
 
 	assert!(org_grant_count > 0);
+
+	// org_shared grant rows live in '__org__' as well; they should not be written into the request
+	// project.
+	let request_project_grant_count =
+		active_org_shared_project_grant_count_for_project(state, TEST_PROJECT_ID, "admin-agent")
+			.await;
+
+	assert_eq!(request_project_grant_count, 0);
 
 	let list_after_json = list_org_shared_notes_as_reader(scope_app).await;
 	let items = list_after_json["items"].as_array().expect("Missing items array.");
