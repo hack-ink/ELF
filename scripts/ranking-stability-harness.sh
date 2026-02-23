@@ -215,6 +215,9 @@ tie_breaker_weight = 0.0
 
 [ranking.blend]
 enabled = false
+rerank_normalization    = "rank"
+retrieval_normalization = "rank"
+segments                = []
 
 [lifecycle.ttl_days]
 constraint = 0
