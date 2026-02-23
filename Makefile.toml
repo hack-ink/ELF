@@ -209,3 +209,17 @@ dependencies = [
 	"test",
 	"fmt-check",
 ]
+
+
+# Quality utilities
+# | task      | type    | cwd |
+# | --------- | ------- | --- |
+# | trace-gate | command |     |
+
+[tasks.trace-gate]
+workspace = false
+command = "bash"
+args = [
+	"-lc",
+	"set -euo pipefail; DSN=\"${TRACE_GATE_PG_DSN:-postgres://postgres:postgres@127.0.0.1:5432/elf}\"; psql \"${DSN}\" -v ON_ERROR_STOP=1 -f sql/init.sql; psql \"${DSN}\" -v ON_ERROR_STOP=1 -f .github/fixtures/trace_gate/fixture.sql; cargo run -p elf-eval --bin trace_regression_gate -- --config .github/fixtures/trace_gate/config.toml --gate .github/fixtures/trace_gate/gate.json --out tmp/trace_gate.report.json",
+]

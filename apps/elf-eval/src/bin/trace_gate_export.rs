@@ -1,0 +1,559 @@
+use std::{fs, path::PathBuf};
+
+use clap::Parser;
+use color_eyre::Result;
+use sqlx::FromRow;
+use time::{OffsetDateTime, format_description::well_known::Rfc3339};
+use tracing_subscriber::EnvFilter;
+use uuid::Uuid;
+
+use elf_storage::db::Db;
+
+#[derive(Debug, Parser)]
+#[command(
+    version = elf_cli::VERSION,
+    rename_all = "kebab",
+    styles = elf_cli::styles(),
+)]
+struct Args {
+	/// Path to an ELF config file (used for Postgres DSN).
+	#[arg(long, short = 'c', value_name = "FILE")]
+	config: PathBuf,
+	/// One or more trace IDs to export.
+	#[arg(long, value_name = "UUID", required = true)]
+	trace_id: Vec<Uuid>,
+	/// Write SQL to this file (defaults to stdout).
+	#[arg(long, value_name = "FILE")]
+	out: Option<PathBuf>,
+	/// Include trace items (search_trace_items).
+	#[arg(long, default_value_t = true)]
+	include_items: bool,
+	/// Include trace stages (search_trace_stages and search_trace_stage_items).
+	#[arg(long, default_value_t = false)]
+	include_stages: bool,
+}
+
+#[derive(Debug, FromRow)]
+struct TraceRow {
+	trace_id: Uuid,
+	tenant_id: String,
+	project_id: String,
+	agent_id: String,
+	read_profile: String,
+	query: String,
+	expansion_mode: String,
+	expanded_queries: serde_json::Value,
+	allowed_scopes: serde_json::Value,
+	candidate_count: i32,
+	top_k: i32,
+	config_snapshot: serde_json::Value,
+	trace_version: i32,
+	created_at: OffsetDateTime,
+	expires_at: OffsetDateTime,
+}
+
+#[derive(Debug, FromRow)]
+struct CandidateRow {
+	candidate_id: Uuid,
+	trace_id: Uuid,
+	note_id: Uuid,
+	chunk_id: Uuid,
+	chunk_index: i32,
+	snippet: String,
+	candidate_snapshot: serde_json::Value,
+	retrieval_rank: i32,
+	rerank_score: f32,
+	note_scope: String,
+	note_importance: f32,
+	note_updated_at: OffsetDateTime,
+	note_hit_count: i64,
+	note_last_hit_at: Option<OffsetDateTime>,
+	created_at: OffsetDateTime,
+	expires_at: OffsetDateTime,
+}
+
+#[derive(Debug, FromRow)]
+struct ItemRow {
+	item_id: Uuid,
+	trace_id: Uuid,
+	note_id: Uuid,
+	chunk_id: Option<Uuid>,
+	rank: i32,
+	final_score: f32,
+	explain: serde_json::Value,
+}
+
+#[derive(Debug, FromRow)]
+struct StageRow {
+	stage_id: Uuid,
+	trace_id: Uuid,
+	stage_order: i32,
+	stage_name: String,
+	stage_payload: serde_json::Value,
+	created_at: OffsetDateTime,
+}
+
+#[derive(Debug, FromRow)]
+struct StageItemRow {
+	id: Uuid,
+	stage_id: Uuid,
+	item_id: Option<Uuid>,
+	note_id: Option<Uuid>,
+	chunk_id: Option<Uuid>,
+	metrics: serde_json::Value,
+}
+
+#[tokio::main]
+async fn main() -> Result<()> {
+	color_eyre::install()?;
+
+	let args = Args::parse();
+	let cfg = elf_config::load(&args.config)?;
+
+	let filter = EnvFilter::new(cfg.service.log_level.clone());
+	tracing_subscriber::fmt().with_env_filter(filter).init();
+
+	let trace_ids = normalize_trace_ids(&args.trace_id);
+	let db = Db::connect(&cfg.storage.postgres).await?;
+	db.ensure_schema(cfg.storage.qdrant.vector_dim).await?;
+
+	let traces = fetch_traces(&db, &trace_ids).await?;
+	let candidates = fetch_candidates(&db, &trace_ids).await?;
+	let items = if args.include_items { fetch_items(&db, &trace_ids).await? } else { Vec::new() };
+
+	let (stages, stage_items) = if args.include_stages {
+		let stages = fetch_stages(&db, &trace_ids).await?;
+		let stage_ids: Vec<Uuid> = stages.iter().map(|row| row.stage_id).collect();
+		let stage_items = fetch_stage_items(&db, &stage_ids).await?;
+		(stages, stage_items)
+	} else {
+		(Vec::new(), Vec::new())
+	};
+
+	let sql = render_fixture_sql(&args, &traces, &candidates, &items, &stages, &stage_items)?;
+
+	if let Some(out_path) = &args.out {
+		fs::write(out_path, sql)?;
+	} else {
+		print!("{sql}");
+	}
+
+	Ok(())
+}
+
+fn normalize_trace_ids(trace_ids: &[Uuid]) -> Vec<Uuid> {
+	let mut out = trace_ids.to_vec();
+	out.sort_unstable();
+	out.dedup();
+	out
+}
+
+async fn fetch_traces(db: &Db, trace_ids: &[Uuid]) -> Result<Vec<TraceRow>> {
+	let rows: Vec<TraceRow> = sqlx::query_as::<_, TraceRow>(
+		"\
+SELECT
+    trace_id,
+    tenant_id,
+    project_id,
+    agent_id,
+    read_profile,
+    query,
+    expansion_mode,
+    expanded_queries,
+    allowed_scopes,
+    candidate_count,
+    top_k,
+    config_snapshot,
+    trace_version,
+    created_at,
+    expires_at
+FROM search_traces
+WHERE trace_id = ANY($1)
+ORDER BY trace_id ASC",
+	)
+	.bind(trace_ids)
+	.fetch_all(&db.pool)
+	.await?;
+
+	Ok(rows)
+}
+
+async fn fetch_candidates(db: &Db, trace_ids: &[Uuid]) -> Result<Vec<CandidateRow>> {
+	let rows: Vec<CandidateRow> = sqlx::query_as::<_, CandidateRow>(
+		"\
+SELECT
+    candidate_id,
+    trace_id,
+    note_id,
+    chunk_id,
+    chunk_index,
+    snippet,
+    candidate_snapshot,
+    retrieval_rank,
+    rerank_score,
+    note_scope,
+    note_importance,
+    note_updated_at,
+    note_hit_count,
+    note_last_hit_at,
+    created_at,
+    expires_at
+FROM search_trace_candidates
+WHERE trace_id = ANY($1)
+ORDER BY trace_id ASC, retrieval_rank ASC, candidate_id ASC",
+	)
+	.bind(trace_ids)
+	.fetch_all(&db.pool)
+	.await?;
+
+	Ok(rows)
+}
+
+async fn fetch_items(db: &Db, trace_ids: &[Uuid]) -> Result<Vec<ItemRow>> {
+	let rows: Vec<ItemRow> = sqlx::query_as::<_, ItemRow>(
+		"\
+SELECT
+    item_id,
+    trace_id,
+    note_id,
+    chunk_id,
+    rank,
+    final_score,
+    explain
+FROM search_trace_items
+WHERE trace_id = ANY($1)
+ORDER BY trace_id ASC, rank ASC, item_id ASC",
+	)
+	.bind(trace_ids)
+	.fetch_all(&db.pool)
+	.await?;
+
+	Ok(rows)
+}
+
+async fn fetch_stages(db: &Db, trace_ids: &[Uuid]) -> Result<Vec<StageRow>> {
+	let rows: Vec<StageRow> = sqlx::query_as::<_, StageRow>(
+		"\
+SELECT
+    stage_id,
+    trace_id,
+    stage_order,
+    stage_name,
+    stage_payload,
+    created_at
+FROM search_trace_stages
+WHERE trace_id = ANY($1)
+ORDER BY trace_id ASC, stage_order ASC, stage_id ASC",
+	)
+	.bind(trace_ids)
+	.fetch_all(&db.pool)
+	.await?;
+
+	Ok(rows)
+}
+
+async fn fetch_stage_items(db: &Db, stage_ids: &[Uuid]) -> Result<Vec<StageItemRow>> {
+	if stage_ids.is_empty() {
+		return Ok(Vec::new());
+	}
+
+	let rows: Vec<StageItemRow> = sqlx::query_as::<_, StageItemRow>(
+		"\
+SELECT
+    id,
+    stage_id,
+    item_id,
+    note_id,
+    chunk_id,
+    metrics
+FROM search_trace_stage_items
+WHERE stage_id = ANY($1)
+ORDER BY stage_id ASC, id ASC",
+	)
+	.bind(stage_ids)
+	.fetch_all(&db.pool)
+	.await?;
+
+	Ok(rows)
+}
+
+fn render_fixture_sql(
+	args: &Args,
+	traces: &[TraceRow],
+	candidates: &[CandidateRow],
+	items: &[ItemRow],
+	stages: &[StageRow],
+	stage_items: &[StageItemRow],
+) -> Result<String> {
+	let mut out = String::new();
+
+	out.push_str("-- Generated by `elf-eval trace_gate_export`.\n");
+	out.push_str(&format!(
+		"-- trace_ids: {}\n",
+		args.trace_id.iter().map(|id| id.to_string()).collect::<Vec<_>>().join(", ")
+	));
+	out.push_str("BEGIN;\n\n");
+
+	if !traces.is_empty() {
+		out.push_str("INSERT INTO search_traces (\n");
+		out.push_str("\ttrace_id,\n");
+		out.push_str("\ttenant_id,\n");
+		out.push_str("\tproject_id,\n");
+		out.push_str("\tagent_id,\n");
+		out.push_str("\tread_profile,\n");
+		out.push_str("\tquery,\n");
+		out.push_str("\texpansion_mode,\n");
+		out.push_str("\texpanded_queries,\n");
+		out.push_str("\tallowed_scopes,\n");
+		out.push_str("\tcandidate_count,\n");
+		out.push_str("\ttop_k,\n");
+		out.push_str("\tconfig_snapshot,\n");
+		out.push_str("\ttrace_version,\n");
+		out.push_str("\tcreated_at,\n");
+		out.push_str("\texpires_at\n");
+		out.push_str(")\nVALUES\n");
+
+		for (idx, row) in traces.iter().enumerate() {
+			out.push_str("\t(");
+			out.push_str(&sql_uuid(&row.trace_id));
+			out.push_str(", ");
+			out.push_str(&sql_text(&row.tenant_id));
+			out.push_str(", ");
+			out.push_str(&sql_text(&row.project_id));
+			out.push_str(", ");
+			out.push_str(&sql_text(&row.agent_id));
+			out.push_str(", ");
+			out.push_str(&sql_text(&row.read_profile));
+			out.push_str(", ");
+			out.push_str(&sql_text(&row.query));
+			out.push_str(", ");
+			out.push_str(&sql_text(&row.expansion_mode));
+			out.push_str(", ");
+			out.push_str(&sql_jsonb(&row.expanded_queries)?);
+			out.push_str(", ");
+			out.push_str(&sql_jsonb(&row.allowed_scopes)?);
+			out.push_str(", ");
+			out.push_str(&row.candidate_count.to_string());
+			out.push_str(", ");
+			out.push_str(&row.top_k.to_string());
+			out.push_str(", ");
+			out.push_str(&sql_jsonb(&row.config_snapshot)?);
+			out.push_str(", ");
+			out.push_str(&row.trace_version.to_string());
+			out.push_str(", ");
+			out.push_str(&sql_timestamptz(&row.created_at)?);
+			out.push_str(", ");
+			out.push_str(&sql_timestamptz(&row.expires_at)?);
+			out.push(')');
+
+			if idx + 1 == traces.len() {
+				out.push_str(";\n\n");
+			} else {
+				out.push_str(",\n");
+			}
+		}
+	}
+
+	if !candidates.is_empty() {
+		out.push_str("INSERT INTO search_trace_candidates (\n");
+		out.push_str("\tcandidate_id,\n");
+		out.push_str("\ttrace_id,\n");
+		out.push_str("\tnote_id,\n");
+		out.push_str("\tchunk_id,\n");
+		out.push_str("\tchunk_index,\n");
+		out.push_str("\tsnippet,\n");
+		out.push_str("\tcandidate_snapshot,\n");
+		out.push_str("\tretrieval_rank,\n");
+		out.push_str("\trerank_score,\n");
+		out.push_str("\tnote_scope,\n");
+		out.push_str("\tnote_importance,\n");
+		out.push_str("\tnote_updated_at,\n");
+		out.push_str("\tnote_hit_count,\n");
+		out.push_str("\tnote_last_hit_at,\n");
+		out.push_str("\tcreated_at,\n");
+		out.push_str("\texpires_at\n");
+		out.push_str(")\nVALUES\n");
+
+		for (idx, row) in candidates.iter().enumerate() {
+			out.push_str("\t(");
+			out.push_str(&sql_uuid(&row.candidate_id));
+			out.push_str(", ");
+			out.push_str(&sql_uuid(&row.trace_id));
+			out.push_str(", ");
+			out.push_str(&sql_uuid(&row.note_id));
+			out.push_str(", ");
+			out.push_str(&sql_uuid(&row.chunk_id));
+			out.push_str(", ");
+			out.push_str(&row.chunk_index.to_string());
+			out.push_str(", ");
+			out.push_str(&sql_text(&row.snippet));
+			out.push_str(", ");
+			out.push_str(&sql_jsonb(&row.candidate_snapshot)?);
+			out.push_str(", ");
+			out.push_str(&row.retrieval_rank.to_string());
+			out.push_str(", ");
+			out.push_str(&sql_f32(row.rerank_score));
+			out.push_str(", ");
+			out.push_str(&sql_text(&row.note_scope));
+			out.push_str(", ");
+			out.push_str(&sql_f32(row.note_importance));
+			out.push_str(", ");
+			out.push_str(&sql_timestamptz(&row.note_updated_at)?);
+			out.push_str(", ");
+			out.push_str(&row.note_hit_count.to_string());
+			out.push_str(", ");
+			out.push_str(&sql_opt_timestamptz(&row.note_last_hit_at)?);
+			out.push_str(", ");
+			out.push_str(&sql_timestamptz(&row.created_at)?);
+			out.push_str(", ");
+			out.push_str(&sql_timestamptz(&row.expires_at)?);
+			out.push(')');
+
+			if idx + 1 == candidates.len() {
+				out.push_str(";\n\n");
+			} else {
+				out.push_str(",\n");
+			}
+		}
+	}
+
+	if !items.is_empty() {
+		out.push_str("INSERT INTO search_trace_items (\n");
+		out.push_str("\titem_id,\n");
+		out.push_str("\ttrace_id,\n");
+		out.push_str("\tnote_id,\n");
+		out.push_str("\tchunk_id,\n");
+		out.push_str("\trank,\n");
+		out.push_str("\tfinal_score,\n");
+		out.push_str("\texplain\n");
+		out.push_str(")\nVALUES\n");
+
+		for (idx, row) in items.iter().enumerate() {
+			out.push_str("\t(");
+			out.push_str(&sql_uuid(&row.item_id));
+			out.push_str(", ");
+			out.push_str(&sql_uuid(&row.trace_id));
+			out.push_str(", ");
+			out.push_str(&sql_uuid(&row.note_id));
+			out.push_str(", ");
+			out.push_str(&sql_opt_uuid(&row.chunk_id));
+			out.push_str(", ");
+			out.push_str(&row.rank.to_string());
+			out.push_str(", ");
+			out.push_str(&sql_f32(row.final_score));
+			out.push_str(", ");
+			out.push_str(&sql_jsonb(&row.explain)?);
+			out.push(')');
+
+			if idx + 1 == items.len() {
+				out.push_str(";\n\n");
+			} else {
+				out.push_str(",\n");
+			}
+		}
+	}
+
+	if !stages.is_empty() {
+		out.push_str("INSERT INTO search_trace_stages (\n");
+		out.push_str("\tstage_id,\n");
+		out.push_str("\ttrace_id,\n");
+		out.push_str("\tstage_order,\n");
+		out.push_str("\tstage_name,\n");
+		out.push_str("\tstage_payload,\n");
+		out.push_str("\tcreated_at\n");
+		out.push_str(")\nVALUES\n");
+
+		for (idx, row) in stages.iter().enumerate() {
+			out.push_str("\t(");
+			out.push_str(&sql_uuid(&row.stage_id));
+			out.push_str(", ");
+			out.push_str(&sql_uuid(&row.trace_id));
+			out.push_str(", ");
+			out.push_str(&row.stage_order.to_string());
+			out.push_str(", ");
+			out.push_str(&sql_text(&row.stage_name));
+			out.push_str(", ");
+			out.push_str(&sql_jsonb(&row.stage_payload)?);
+			out.push_str(", ");
+			out.push_str(&sql_timestamptz(&row.created_at)?);
+			out.push(')');
+
+			if idx + 1 == stages.len() {
+				out.push_str(";\n\n");
+			} else {
+				out.push_str(",\n");
+			}
+		}
+	}
+
+	if !stage_items.is_empty() {
+		out.push_str("INSERT INTO search_trace_stage_items (\n");
+		out.push_str("\tid,\n");
+		out.push_str("\tstage_id,\n");
+		out.push_str("\titem_id,\n");
+		out.push_str("\tnote_id,\n");
+		out.push_str("\tchunk_id,\n");
+		out.push_str("\tmetrics\n");
+		out.push_str(")\nVALUES\n");
+
+		for (idx, row) in stage_items.iter().enumerate() {
+			out.push_str("\t(");
+			out.push_str(&sql_uuid(&row.id));
+			out.push_str(", ");
+			out.push_str(&sql_uuid(&row.stage_id));
+			out.push_str(", ");
+			out.push_str(&sql_opt_uuid(&row.item_id));
+			out.push_str(", ");
+			out.push_str(&sql_opt_uuid(&row.note_id));
+			out.push_str(", ");
+			out.push_str(&sql_opt_uuid(&row.chunk_id));
+			out.push_str(", ");
+			out.push_str(&sql_jsonb(&row.metrics)?);
+			out.push(')');
+
+			if idx + 1 == stage_items.len() {
+				out.push_str(";\n\n");
+			} else {
+				out.push_str(",\n");
+			}
+		}
+	}
+
+	out.push_str("COMMIT;\n");
+
+	Ok(out)
+}
+
+fn sql_uuid(id: &Uuid) -> String {
+	format!("'{}'", id)
+}
+
+fn sql_opt_uuid(id: &Option<Uuid>) -> String {
+	id.map(|value| format!("'{}'", value)).unwrap_or_else(|| "NULL".to_string())
+}
+
+fn sql_text(value: &str) -> String {
+	format!("'{}'", value.replace('\'', "''"))
+}
+
+fn sql_jsonb(value: &serde_json::Value) -> Result<String> {
+	let raw = serde_json::to_string(value)?;
+	Ok(format!("'{}'::jsonb", raw.replace('\'', "''")))
+}
+
+fn sql_f32(value: f32) -> String {
+	// `Display` uses the shortest representation that round-trips.
+	format!("{value}")
+}
+
+fn sql_timestamptz(value: &OffsetDateTime) -> Result<String> {
+	let raw = value.format(&Rfc3339)?;
+	Ok(format!("'{}'::timestamptz", raw.replace('\'', "''")))
+}
+
+fn sql_opt_timestamptz(value: &Option<OffsetDateTime>) -> Result<String> {
+	match value {
+		Some(ts) => sql_timestamptz(ts),
+		None => Ok("NULL".to_string()),
+	}
+}
