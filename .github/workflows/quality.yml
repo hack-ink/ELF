@@ -1,0 +1,97 @@
+name: Quality Gates
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "**/*.md"
+      - ".gitignore"
+      - "docs/**"
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - "**/*.md"
+      - ".gitignore"
+      - "docs/**"
+  merge_group:
+    paths-ignore:
+      - "**/*.md"
+      - ".gitignore"
+      - "docs/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  trace-regression-gate:
+    name: Trace regression gate
+    runs-on: ubuntu-latest
+    env:
+      PG_DSN: postgres://postgres:postgres@127.0.0.1:5432/elf
+      RUST_BACKTRACE: full
+    services:
+      postgres:
+        image: pgvector/pgvector:pg18
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: elf
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d elf"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Fetch latest code
+        uses: actions/checkout@v6
+
+      - name: Set up Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          cache: true
+          rustflags: ''
+
+      - name: Install Postgres client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends postgresql-client
+
+      - name: Wait for Postgres
+        run: |
+          for i in {1..30}; do
+            pg_isready -h 127.0.0.1 -p 5432 -U postgres -d elf >/dev/null && exit 0
+            sleep 1
+          done
+          echo "Postgres did not become ready in time."
+          exit 1
+
+      - name: Create schema
+        run: psql "${PG_DSN}" -v ON_ERROR_STOP=1 -f sql/init.sql
+
+      - name: Load trace gate fixture
+        run: psql "${PG_DSN}" -v ON_ERROR_STOP=1 -f .github/fixtures/trace_gate/fixture.sql
+
+      - name: Run trace regression gate
+        run: |
+          cargo run -p elf-eval --bin trace_regression_gate -- \
+            --config .github/fixtures/trace_gate/config.toml \
+            --gate .github/fixtures/trace_gate/gate.json \
+            --out trace_gate.report.json
+
+      - name: Upload trace gate report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trace_gate_report
+          path: trace_gate.report.json
+          if-no-files-found: warn
+          retention-days: 7
+

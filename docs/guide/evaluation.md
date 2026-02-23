@@ -79,6 +79,42 @@ The command prints a JSON report containing summary metrics and per-query detail
   - Requirements: `search.explain.capture_candidates = true` when generating traces, and candidates must not be
     expired by `search.explain.candidate_retention_days`.
 
+## CI Trace Regression Gate
+
+CI runs a trace regression gate to catch unintended ranking changes on a fixed candidate set.
+
+What it checks:
+
+- Replays ranking from stored `search_trace_candidates` for each `trace_id` (no Qdrant or external providers).
+- Compares the replayed top-k `note_id`s against the baseline `search_trace_items` for the same trace.
+- Enforces thresholds from a gate JSON file:
+  - `max_positional_churn_at_k` and `max_set_churn_at_k`.
+  - `min_retrieval_top_rank_retention` (retention over candidates with `retrieval_rank <= retrieval_retention_rank`).
+- Fails if the baseline or replay returns fewer than `top_k` items.
+
+Run locally:
+
+```bash
+# Load the CI fixture into a local Postgres database.
+psql "postgres://postgres:postgres@127.0.0.1:5432/elf" -v ON_ERROR_STOP=1 -f sql/init.sql
+psql "postgres://postgres:postgres@127.0.0.1:5432/elf" -v ON_ERROR_STOP=1 -f .github/fixtures/trace_gate/fixture.sql
+
+# Run the gate (reads Postgres DSN from the config).
+cargo run -p elf-eval --bin trace_regression_gate -- \
+  -c .github/fixtures/trace_gate/config.toml \
+  -g .github/fixtures/trace_gate/gate.json \
+  --out tmp/trace-regression-gate.report.json
+```
+
+Update baseline:
+
+- Re-record the baseline trace items/candidates with the intended baseline build/config, regenerate the fixture,
+  then update the gate JSON (trace IDs and thresholds) used by CI.
+
+Artifacts:
+
+- The gate outputs a JSON report (stdout, or the `--out` file) with per-trace metrics and any breached thresholds.
+
 ## Context Misranking Harness
 
 To measure cross-scope misranking before and after enabling context boosting, use the harness
