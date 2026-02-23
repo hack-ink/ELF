@@ -67,13 +67,15 @@ impl ElfService {
 		let base_now = OffsetDateTime::now_utc();
 		let embed_version = crate::embedding_version(&self.cfg);
 		let AddNoteRequest { tenant_id, project_id, agent_id, scope, notes } = req;
+		let effective_project_id =
+			if scope.trim() == "org_shared" { access::ORG_PROJECT_ID } else { project_id.as_str() };
 		let mut results = Vec::with_capacity(notes.len());
 
 		for (note_idx, note) in notes.into_iter().enumerate() {
 			let now = base_now + Duration::microseconds(note_idx as i64);
 			let ctx = AddNoteContext {
 				tenant_id: tenant_id.as_str(),
-				project_id: project_id.as_str(),
+				project_id: effective_project_id,
 				agent_id: agent_id.as_str(),
 				scope: scope.as_str(),
 				now,

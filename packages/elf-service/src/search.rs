@@ -2612,7 +2612,7 @@ JOIN note_field_embeddings e
 JOIN memory_notes n
 	ON n.note_id = f.note_id
 WHERE n.tenant_id = $2
-	AND n.project_id = $3
+	AND (n.project_id = $3 OR (n.project_id = $8 AND n.scope = 'org_shared'))
 	AND n.status = 'active'
 	AND (n.expires_at IS NULL OR n.expires_at > $4)
 	AND n.scope = ANY($5::text[])
@@ -2626,6 +2626,7 @@ LIMIT $7",
 		.bind(args.non_private_scopes)
 		.bind(args.vec_text)
 		.bind(args.retrieval_limit)
+		.bind(access::ORG_PROJECT_ID)
 		.fetch_all(&self.db.pool)
 		.await?;
 
@@ -2651,7 +2652,7 @@ JOIN note_field_embeddings e
 JOIN memory_notes n
 	ON n.note_id = f.note_id
 WHERE n.tenant_id = $2
-	AND n.project_id = $3
+	AND (n.project_id = $3 OR (n.project_id = $9 AND n.scope = 'org_shared'))
 	AND n.status = 'active'
 	AND (n.expires_at IS NULL OR n.expires_at > $4)
 	AND (
@@ -2669,6 +2670,7 @@ LIMIT $8",
 		.bind(args.non_private_scopes)
 		.bind(args.vec_text)
 		.bind(args.retrieval_limit)
+		.bind(access::ORG_PROJECT_ID)
 		.fetch_all(&self.db.pool)
 		.await?;
 
@@ -3667,14 +3669,30 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 			return Ok(HashMap::new());
 		}
 
-		let shared_grants =
-			access::load_shared_read_grants(&self.db.pool, tenant_id, project_id, agent_id).await?;
+		let org_shared_allowed = allowed_scopes.iter().any(|scope| scope == "org_shared");
+		let shared_grants = access::load_shared_read_grants_with_org_shared(
+			&self.db.pool,
+			tenant_id,
+			project_id,
+			agent_id,
+			org_shared_allowed,
+		)
+		.await?;
 		let notes: Vec<MemoryNote> = sqlx::query_as(
-			"SELECT * FROM memory_notes WHERE note_id = ANY($1::uuid[]) AND tenant_id = $2 AND project_id = $3",
+			"\
+SELECT *
+FROM memory_notes
+WHERE note_id = ANY($1::uuid[])
+  AND tenant_id = $2
+  AND (
+    project_id = $3
+    OR (project_id = $4 AND scope = 'org_shared')
+  )",
 		)
 		.bind(candidate_note_ids)
 		.bind(tenant_id)
 		.bind(project_id)
+		.bind(access::ORG_PROJECT_ID)
 		.fetch_all(&self.db.pool)
 		.await?;
 		let mut note_meta = HashMap::new();
@@ -4014,7 +4032,7 @@ fn build_search_filter(
 	let private_scope = "agent_private".to_string();
 	let non_private_scopes: Vec<String> =
 		allowed_scopes.iter().filter(|scope| *scope != "agent_private").cloned().collect();
-	let mut should_conditions = Vec::new();
+	let mut scope_should_conditions = Vec::new();
 
 	if allowed_scopes.iter().any(|scope| scope == "agent_private") {
 		let private_filter = Filter::all([
@@ -4022,27 +4040,41 @@ fn build_search_filter(
 			Condition::matches("agent_id", agent_id.to_string()),
 		]);
 
-		should_conditions.push(Condition::from(private_filter));
+		scope_should_conditions.push(Condition::from(private_filter));
 	}
 	if !non_private_scopes.is_empty() {
-		should_conditions.push(Condition::matches("scope", non_private_scopes));
+		scope_should_conditions.push(Condition::matches("scope", non_private_scopes));
 	}
 
-	let (should, min_should) = if should_conditions.is_empty() {
-		(Vec::new(), None)
+	let scope_min_should = if scope_should_conditions.is_empty() {
+		None
 	} else {
-		(Vec::new(), Some(MinShould { min_count: 1, conditions: should_conditions }))
+		Some(MinShould { min_count: 1, conditions: scope_should_conditions })
 	};
+	let mut project_or_org_branches = vec![Condition::from(Filter {
+		must: vec![Condition::matches("project_id", project_id.to_string())],
+		should: Vec::new(),
+		must_not: Vec::new(),
+		min_should: scope_min_should,
+	})];
+
+	if allowed_scopes.iter().any(|scope| scope == "org_shared") {
+		let org_filter = Filter::all([
+			Condition::matches("project_id", access::ORG_PROJECT_ID.to_string()),
+			Condition::matches("scope", "org_shared".to_string()),
+		]);
+
+		project_or_org_branches.push(Condition::from(org_filter));
+	}
 
 	Filter {
 		must: vec![
 			Condition::matches("tenant_id", tenant_id.to_string()),
-			Condition::matches("project_id", project_id.to_string()),
 			Condition::matches("status", "active".to_string()),
 		],
-		should,
+		should: Vec::new(),
 		must_not: Vec::new(),
-		min_should,
+		min_should: Some(MinShould { min_count: 1, conditions: project_or_org_branches }),
 	}
 }
 

@@ -457,11 +457,20 @@ impl ElfService {
 
 		if !requested_in_session.is_empty() {
 			let rows: Vec<MemoryNote> = sqlx::query_as::<_, MemoryNote>(
-				"SELECT * FROM memory_notes WHERE note_id = ANY($1::uuid[]) AND tenant_id = $2 AND project_id = $3",
+				"\
+SELECT *
+FROM memory_notes
+WHERE note_id = ANY($1::uuid[])
+  AND tenant_id = $2
+  AND (
+    project_id = $3
+    OR (project_id = $4 AND scope = 'org_shared')
+  )",
 			)
 			.bind(requested_in_session.as_slice())
 			.bind(session.tenant_id.as_str())
 			.bind(session.project_id.as_str())
+			.bind(access::ORG_PROJECT_ID)
 			.fetch_all(&self.db.pool)
 			.await?;
 
@@ -476,11 +485,12 @@ impl ElfService {
 		)
 		.await?;
 		let allowed_scopes = resolve_read_scopes(&self.cfg, &session.read_profile)?;
-		let shared_grants = access::load_shared_read_grants(
+		let shared_grants = access::load_shared_read_grants_with_org_shared(
 			&self.db.pool,
 			session.tenant_id.as_str(),
 			session.project_id.as_str(),
 			agent_id,
+			allowed_scopes.iter().any(|scope| scope == "org_shared"),
 		)
 		.await?;
 		let record_hits = req.record_hits.unwrap_or(true);

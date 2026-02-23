@@ -119,6 +119,7 @@ impl NoteProcessingData {
 
 struct PersistExtractedNoteArgs<'a> {
 	req: &'a AddEventRequest,
+	project_id: &'a str,
 	structured: Option<&'a StructuredFields>,
 	key: Option<&'a str>,
 	reason: Option<&'a String>,
@@ -203,9 +204,14 @@ impl ElfService {
 		dry_run: bool,
 	) -> Result<AddEventResult> {
 		let note_data = NoteProcessingData::from_request_and_note(req, &note);
+		let effective_project_id = if note_data.scope.trim() == "org_shared" {
+			access::ORG_PROJECT_ID
+		} else {
+			req.project_id.as_str()
+		};
 		let ctx = AddEventContext {
 			tenant_id: req.tenant_id.as_str(),
-			project_id: req.project_id.as_str(),
+			project_id: effective_project_id,
 			agent_id: req.agent_id.as_str(),
 			scope: note_data.scope.as_str(),
 			now,
@@ -254,6 +260,7 @@ impl ElfService {
 		if should_apply && !dry_run {
 			let persist_args = PersistExtractedNoteArgs {
 				req,
+				project_id: effective_project_id,
 				structured: note_data.structured.as_ref(),
 				key: note.key.as_deref(),
 				reason: note.reason.as_ref(),
@@ -423,7 +430,11 @@ impl ElfService {
 				cfg: &self.cfg,
 				providers: &self.providers,
 				tenant_id: req.tenant_id.as_str(),
-				project_id: req.project_id.as_str(),
+				project_id: if note_data.scope.trim() == "org_shared" {
+					access::ORG_PROJECT_ID
+				} else {
+					req.project_id.as_str()
+				},
 				agent_id: req.agent_id.as_str(),
 				scope: note_data.scope.as_str(),
 				note_type: note_data.note_type.as_str(),
@@ -462,7 +473,7 @@ impl ElfService {
 		access::ensure_active_project_scope_grant(
 			&mut **tx,
 			args.req.tenant_id.as_str(),
-			args.req.project_id.as_str(),
+			args.project_id,
 			args.scope,
 			args.req.agent_id.as_str(),
 		)
@@ -471,7 +482,7 @@ impl ElfService {
 		let memory_note = MemoryNote {
 			note_id,
 			tenant_id: args.req.tenant_id.clone(),
-			project_id: args.req.project_id.clone(),
+			project_id: args.project_id.to_string(),
 			agent_id: args.req.agent_id.clone(),
 			scope: args.scope.to_string(),
 			r#type: args.note_type.to_string(),
@@ -521,7 +532,7 @@ impl ElfService {
 			crate::graph_ingestion::persist_graph_fields_tx(
 				tx,
 				args.req.tenant_id.as_str(),
-				args.req.project_id.as_str(),
+				args.project_id,
 				args.req.agent_id.as_str(),
 				args.scope,
 				memory_note.note_id,
@@ -605,7 +616,7 @@ impl ElfService {
 			crate::graph_ingestion::persist_graph_fields_tx(
 				tx,
 				args.req.tenant_id.as_str(),
-				args.req.project_id.as_str(),
+				existing.project_id.as_str(),
 				args.req.agent_id.as_str(),
 				args.scope,
 				existing.note_id,
@@ -652,7 +663,7 @@ impl ElfService {
 			crate::graph_ingestion::persist_graph_fields_tx(
 				tx,
 				args.req.tenant_id.as_str(),
-				args.req.project_id.as_str(),
+				args.project_id,
 				args.req.agent_id.as_str(),
 				args.scope,
 				note_id,
@@ -669,7 +680,7 @@ impl ElfService {
 				access::ensure_active_project_scope_grant(
 					&mut **tx,
 					args.req.tenant_id.as_str(),
-					args.req.project_id.as_str(),
+					args.project_id,
 					args.scope,
 					args.req.agent_id.as_str(),
 				)
