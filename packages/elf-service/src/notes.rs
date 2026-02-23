@@ -50,12 +50,23 @@ impl ElfService {
 			});
 		}
 
+		let allowed_scopes = self.cfg.scopes.allowed.clone();
+		let org_shared_allowed = allowed_scopes.iter().any(|scope| scope == "org_shared");
 		let row: Option<MemoryNote> = sqlx::query_as::<_, MemoryNote>(
-			"SELECT * FROM memory_notes WHERE note_id = $1 AND tenant_id = $2 AND project_id = $3",
+			"\
+SELECT *
+FROM memory_notes
+WHERE note_id = $1
+  AND tenant_id = $2
+  AND (
+    project_id = $3
+    OR (project_id = $4 AND scope = 'org_shared')
+  )",
 		)
 		.bind(req.note_id)
 		.bind(tenant_id)
 		.bind(project_id)
+		.bind(access::ORG_PROJECT_ID)
 		.fetch_optional(&self.db.pool)
 		.await?;
 		let Some(note) = row else {
@@ -64,13 +75,15 @@ impl ElfService {
 		let shared_grants = if note.scope == "agent_private" {
 			HashSet::new()
 		} else {
-			access::load_shared_read_grants(&self.db.pool, tenant_id, project_id, agent_id).await?
+			access::load_shared_read_grants_with_org_shared(
+				&self.db.pool,
+				tenant_id,
+				project_id,
+				agent_id,
+				org_shared_allowed,
+			)
+			.await?
 		};
-		let allowed_scopes = vec![
-			"agent_private".to_string(),
-			"project_shared".to_string(),
-			"org_shared".to_string(),
-		];
 
 		if !access::note_read_allowed(&note, agent_id, &allowed_scopes, &shared_grants, now) {
 			return Err(Error::InvalidRequest { message: "Note not found.".to_string() });

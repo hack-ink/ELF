@@ -2,7 +2,7 @@ use axum::{
 	Json, Router,
 	body::Body,
 	extract::{
-		DefaultBodyLimit, Path, Query, State,
+		DefaultBodyLimit, Extension, Path, Query, State,
 		rejection::{JsonRejection, QueryRejection},
 	},
 	http::{HeaderMap, Request, StatusCode},
@@ -561,6 +561,20 @@ fn apply_auth_key_context(headers: &mut HeaderMap, key: &SecurityAuthKey) -> Res
 	Ok(())
 }
 
+fn require_admin_for_org_shared_writes(
+	auth_mode: &str,
+	role: Option<SecurityAuthRole>,
+) -> Result<(), ApiError> {
+	if auth_mode.trim() != "static_keys" {
+		return Ok(());
+	}
+	if matches!(role, Some(SecurityAuthRole::Admin | SecurityAuthRole::SuperAdmin)) {
+		return Ok(());
+	}
+
+	Err(json_error(StatusCode::FORBIDDEN, "FORBIDDEN", "Admin token required.", None))
+}
+
 async fn api_auth_middleware(
 	State(state): State<AppState>,
 	req: Request<Body>,
@@ -578,6 +592,8 @@ async fn api_auth_middleware(
 				Ok(key) => key,
 				Err(err) => return err.into_response(),
 			};
+
+			req.extensions_mut().insert(key.role);
 
 			if let Err(err) = apply_auth_key_context(req.headers_mut(), key) {
 				return err.into_response();
@@ -613,6 +629,8 @@ async fn admin_auth_middleware(
 				Err(err) => return err.into_response(),
 			};
 
+			req.extensions_mut().insert(key.role);
+
 			if !matches!(key.role, SecurityAuthRole::Admin | SecurityAuthRole::SuperAdmin) {
 				return json_error(
 					StatusCode::FORBIDDEN,
@@ -646,6 +664,7 @@ async fn health() -> StatusCode {
 async fn notes_ingest(
 	State(state): State<AppState>,
 	headers: HeaderMap,
+	role: Option<Extension<SecurityAuthRole>>,
 	payload: Result<Json<NotesIngestRequest>, JsonRejection>,
 ) -> Result<Json<AddNoteResponse>, ApiError> {
 	let ctx = RequestContext::from_headers(&headers)?;
@@ -654,7 +673,11 @@ async fn notes_ingest(
 
 		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
 	})?;
+	let role = role.map(|Extension(role)| role);
 
+	if payload.scope.trim() == "org_shared" {
+		require_admin_for_org_shared_writes(state.service.cfg.security.auth_mode.as_str(), role)?;
+	}
 	if payload.notes.len() > MAX_NOTES_PER_INGEST {
 		return Err(json_error(
 			StatusCode::BAD_REQUEST,
@@ -681,6 +704,7 @@ async fn notes_ingest(
 async fn events_ingest(
 	State(state): State<AppState>,
 	headers: HeaderMap,
+	role: Option<Extension<SecurityAuthRole>>,
 	payload: Result<Json<EventsIngestRequest>, JsonRejection>,
 ) -> Result<Json<AddEventResponse>, ApiError> {
 	let ctx = RequestContext::from_headers(&headers)?;
@@ -689,7 +713,11 @@ async fn events_ingest(
 
 		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
 	})?;
+	let role = role.map(|Extension(role)| role);
 
+	if payload.scope.as_deref().map(str::trim) == Some("org_shared") {
+		require_admin_for_org_shared_writes(state.service.cfg.security.auth_mode.as_str(), role)?;
+	}
 	if payload.messages.len() > MAX_MESSAGES_PER_EVENT {
 		return Err(json_error(
 			StatusCode::BAD_REQUEST,
@@ -1085,6 +1113,7 @@ async fn notes_delete(
 async fn notes_publish(
 	State(state): State<AppState>,
 	headers: HeaderMap,
+	role: Option<Extension<SecurityAuthRole>>,
 	Path(note_id): Path<Uuid>,
 	payload: Result<Json<ShareScopeBody>, JsonRejection>,
 ) -> Result<Json<PublishResponseV2>, ApiError> {
@@ -1095,6 +1124,12 @@ async fn notes_publish(
 		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
 	})?;
 	let scope = parse_space(payload.space.as_str())?;
+	let role = role.map(|Extension(role)| role);
+
+	if matches!(scope, ShareScope::OrgShared) {
+		require_admin_for_org_shared_writes(state.service.cfg.security.auth_mode.as_str(), role)?;
+	}
+
 	let response = state
 		.service
 		.publish_note(PublishNoteRequest {
@@ -1115,6 +1150,7 @@ async fn notes_publish(
 async fn notes_unpublish(
 	State(state): State<AppState>,
 	headers: HeaderMap,
+	role: Option<Extension<SecurityAuthRole>>,
 	Path(note_id): Path<Uuid>,
 	payload: Result<Json<ShareScopeBody>, JsonRejection>,
 ) -> Result<Json<PublishResponseV2>, ApiError> {
@@ -1124,7 +1160,13 @@ async fn notes_unpublish(
 
 		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
 	})?;
-	let _ = parse_space(payload.space.as_str())?;
+	let scope = parse_space(payload.space.as_str())?;
+	let role = role.map(|Extension(role)| role);
+
+	if matches!(scope, ShareScope::OrgShared) {
+		require_admin_for_org_shared_writes(state.service.cfg.security.auth_mode.as_str(), role)?;
+	}
+
 	let response = state
 		.service
 		.unpublish_note(UnpublishNoteRequest {
@@ -1176,6 +1218,7 @@ async fn space_grants_list(
 async fn space_grant_upsert(
 	State(state): State<AppState>,
 	headers: HeaderMap,
+	role: Option<Extension<SecurityAuthRole>>,
 	Path(space): Path<String>,
 	payload: Result<Json<SpaceGrantUpsertBody>, JsonRejection>,
 ) -> Result<Json<SpaceGrantUpsertResponseV2>, ApiError> {
@@ -1186,6 +1229,12 @@ async fn space_grant_upsert(
 		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
 	})?;
 	let scope = parse_space(space.as_str())?;
+	let role = role.map(|Extension(role)| role);
+
+	if matches!(scope, ShareScope::OrgShared) {
+		require_admin_for_org_shared_writes(state.service.cfg.security.auth_mode.as_str(), role)?;
+	}
+
 	let response = state
 		.service
 		.space_grant_upsert(SpaceGrantUpsertRequest {
@@ -1209,6 +1258,7 @@ async fn space_grant_upsert(
 async fn space_grant_revoke(
 	State(state): State<AppState>,
 	headers: HeaderMap,
+	role: Option<Extension<SecurityAuthRole>>,
 	Path(space): Path<String>,
 	payload: Result<Json<SpaceGrantUpsertBody>, JsonRejection>,
 ) -> Result<Json<SpaceGrantRevokeResponse>, ApiError> {
@@ -1219,6 +1269,12 @@ async fn space_grant_revoke(
 		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
 	})?;
 	let scope = parse_space(space.as_str())?;
+	let role = role.map(|Extension(role)| role);
+
+	if matches!(scope, ShareScope::OrgShared) {
+		require_admin_for_org_shared_writes(state.service.cfg.security.auth_mode.as_str(), role)?;
+	}
+
 	let response = state
 		.service
 		.space_grant_revoke(SpaceGrantRevokeRequest {

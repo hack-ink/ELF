@@ -7,6 +7,8 @@ use uuid::Uuid;
 use crate::Result;
 use elf_storage::models::MemoryNote;
 
+pub(crate) const ORG_PROJECT_ID: &str = "__org__";
+
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub(crate) struct SharedSpaceGrantKey {
 	pub(crate) scope: String,
@@ -70,6 +72,50 @@ WHERE tenant_id = $1
 	.bind(tenant_id)
 	.bind(project_id)
 	.bind(grantee_agent_id)
+	.fetch_all(executor)
+	.await?;
+	let mut grants = HashSet::with_capacity(rows.len());
+
+	for (scope, space_owner_agent_id) in rows {
+		grants.insert(SharedSpaceGrantKey { scope, space_owner_agent_id });
+	}
+
+	Ok(grants)
+}
+
+pub(crate) async fn load_shared_read_grants_with_org_shared<'e, E>(
+	executor: E,
+	tenant_id: &str,
+	project_id: &str,
+	grantee_agent_id: &str,
+	org_shared_allowed: bool,
+) -> Result<HashSet<SharedSpaceGrantKey>>
+where
+	E: PgExecutor<'e>,
+{
+	if !org_shared_allowed {
+		return load_shared_read_grants(executor, tenant_id, project_id, grantee_agent_id).await;
+	}
+
+	let rows: Vec<(String, String)> = sqlx::query_as(
+		"\
+SELECT scope, space_owner_agent_id
+FROM memory_space_grants
+WHERE tenant_id = $1
+  AND revoked_at IS NULL
+  AND (
+    (project_id = $2 AND scope = 'project_shared')
+    OR (scope = 'org_shared' AND project_id IN ($2, $4))
+  )
+  AND (
+    grantee_kind = 'project'
+    OR (grantee_kind = 'agent' AND grantee_agent_id = $3)
+  )",
+	)
+	.bind(tenant_id)
+	.bind(project_id)
+	.bind(grantee_agent_id)
+	.bind(ORG_PROJECT_ID)
 	.fetch_all(executor)
 	.await?;
 	let mut grants = HashSet::with_capacity(rows.len());
