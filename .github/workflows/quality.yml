@@ -74,7 +74,7 @@ jobs:
           exit 1
 
       - name: Create schema
-        run: psql "${PG_DSN}" -v ON_ERROR_STOP=1 -f sql/init.sql
+        run: psql "${PG_DSN}" -v ON_ERROR_STOP=1 -v VECTOR_DIM=4096 -f sql/init.sql
 
       - name: Load trace gate fixture
         run: psql "${PG_DSN}" -v ON_ERROR_STOP=1 -f .github/fixtures/trace_gate/fixture.sql
@@ -94,4 +94,3 @@ jobs:
           path: trace_gate.report.json
           if-no-files-found: warn
           retention-days: 7
-
