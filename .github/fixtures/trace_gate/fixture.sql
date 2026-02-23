@@ -85,6 +85,23 @@ VALUES
 		3,
 		'2026-02-04T00:00:00Z'::timestamptz,
 		'2027-02-04T00:00:00Z'::timestamptz
+	),
+	(
+		'55555555-5555-5555-5555-555555555555',
+		't',
+		'p',
+		'a',
+		'private_only',
+		'epsilon trace gate query',
+		'off',
+		'[]'::jsonb,
+		'["agent_private"]'::jsonb,
+		5,
+		3,
+		'{}'::jsonb,
+		3,
+		'2026-02-05T00:00:00Z'::timestamptz,
+		'2027-02-05T00:00:00Z'::timestamptz
 	);
 
 INSERT INTO search_trace_candidates (
@@ -505,6 +522,97 @@ VALUES
 		NULL,
 		'2026-02-04T00:00:00Z'::timestamptz,
 		'2027-02-04T00:00:00Z'::timestamptz
+	),
+	-- Trace 5
+	(
+		'55555555-0000-0000-0000-000000000001',
+		'55555555-5555-5555-5555-555555555555',
+		'55555555-1111-1111-1111-111111111111',
+		'55555555-2222-2222-2222-222222222221',
+		0,
+		'epsilon candidate 1',
+		'{}'::jsonb,
+		1,
+		0.82,
+		'agent_private',
+		0.55,
+		'2026-02-04T00:00:00Z'::timestamptz,
+		10,
+		'2026-02-04T12:00:00Z'::timestamptz,
+		'2026-02-05T00:00:00Z'::timestamptz,
+		'2027-02-05T00:00:00Z'::timestamptz
+	),
+	(
+		'55555555-0000-0000-0000-000000000002',
+		'55555555-5555-5555-5555-555555555555',
+		'55555555-1111-1111-1111-111111111112',
+		'55555555-2222-2222-2222-222222222222',
+		0,
+		'epsilon candidate 2',
+		'{"note_id":"55555555-1111-1111-1111-111111111112","chunk_id":"55555555-2222-2222-2222-222222222222","chunk_index":0,"snippet":"epsilon candidate 2","retrieval_rank":2,"rerank_score":0.72,"note_scope":"agent_private","note_importance":0.45,"note_updated_at":"2026-02-04T00:00:00Z","note_hit_count":9,"note_last_hit_at":null}'::jsonb,
+		2,
+		0.72,
+		'agent_private',
+		0.45,
+		'2026-02-04T00:00:00Z'::timestamptz,
+		9,
+		NULL,
+		'2026-02-05T00:00:00Z'::timestamptz,
+		'2027-02-05T00:00:00Z'::timestamptz
+	),
+	(
+		'55555555-0000-0000-0000-000000000003',
+		'55555555-5555-5555-5555-555555555555',
+		'55555555-1111-1111-1111-111111111113',
+		'55555555-2222-2222-2222-222222222223',
+		0,
+		'epsilon candidate 3',
+		'{}'::jsonb,
+		3,
+		0.92,
+		'agent_private',
+		0.35,
+		'2026-02-04T00:00:00Z'::timestamptz,
+		8,
+		NULL,
+		'2026-02-05T00:00:00Z'::timestamptz,
+		'2027-02-05T00:00:00Z'::timestamptz
+	),
+	(
+		'55555555-0000-0000-0000-000000000004',
+		'55555555-5555-5555-5555-555555555555',
+		'55555555-1111-1111-1111-111111111114',
+		'55555555-2222-2222-2222-222222222224',
+		0,
+		'epsilon candidate 4',
+		'{}'::jsonb,
+		4,
+		0.62,
+		'agent_private',
+		0.25,
+		'2026-02-04T00:00:00Z'::timestamptz,
+		7,
+		NULL,
+		'2026-02-05T00:00:00Z'::timestamptz,
+		'2027-02-05T00:00:00Z'::timestamptz
+	),
+	(
+		'55555555-0000-0000-0000-000000000005',
+		'55555555-5555-5555-5555-555555555555',
+		'55555555-1111-1111-1111-111111111115',
+		'55555555-2222-2222-2222-222222222225',
+		0,
+		'epsilon candidate 5',
+		'{}'::jsonb,
+		5,
+		0.52,
+		'agent_private',
+		0.15,
+		'2026-02-04T00:00:00Z'::timestamptz,
+		6,
+		NULL,
+		'2026-02-05T00:00:00Z'::timestamptz,
+		'2027-02-05T00:00:00Z'::timestamptz
 	);
 
 INSERT INTO search_trace_items (
@@ -625,6 +733,34 @@ VALUES
 		'44444444-4444-4444-4444-444444444444',
 		'ffffffff-1111-1111-1111-111111111113',
 		'ffffffff-2222-2222-2222-222222222223',
+		3,
+		0.72,
+		'{"match":{"matched_terms":[],"matched_fields":[]},"ranking":{"schema":"search_ranking_explain/v2","policy_id":"baseline","final_score":0.72,"terms":[]}}'::jsonb
+	),
+	-- Trace 5 baseline top_k = 3 (ordered by rerank_score desc)
+	(
+		'55555555-9999-0000-0000-000000000001',
+		'55555555-5555-5555-5555-555555555555',
+		'55555555-1111-1111-1111-111111111113',
+		'55555555-2222-2222-2222-222222222223',
+		1,
+		1.00,
+		'{"match":{"matched_terms":[],"matched_fields":[]},"ranking":{"schema":"search_ranking_explain/v2","policy_id":"baseline","final_score":1.0,"terms":[]}}'::jsonb
+	),
+	(
+		'55555555-9999-0000-0000-000000000002',
+		'55555555-5555-5555-5555-555555555555',
+		'55555555-1111-1111-1111-111111111111',
+		'55555555-2222-2222-2222-222222222221',
+		2,
+		0.82,
+		'{"match":{"matched_terms":[],"matched_fields":[]},"ranking":{"schema":"search_ranking_explain/v2","policy_id":"baseline","final_score":0.82,"terms":[]}}'::jsonb
+	),
+	(
+		'55555555-9999-0000-0000-000000000003',
+		'55555555-5555-5555-5555-555555555555',
+		'55555555-1111-1111-1111-111111111112',
+		'55555555-2222-2222-2222-222222222222',
 		3,
 		0.72,
 		'{"match":{"matched_terms":[],"matched_fields":[]},"ranking":{"schema":"search_ranking_explain/v2","policy_id":"baseline","final_score":0.72,"terms":[]}}'::jsonb
