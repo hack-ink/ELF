@@ -94,7 +94,7 @@ jobs:
           mkdir -p tmp
           bash scripts/ranking-stability-harness.sh
 
-      - name: Upload harness outputs + logs
+      - name: Upload harness outputs
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -104,8 +104,24 @@ jobs:
           path: |
             tmp/elf.harness.out.base.json
             tmp/elf.harness.out.context.json
+            tmp/elf.stability.out.json
+
+      - name: Upload harness logs (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-harness-signals-${{ github.run_id }}-logs
+          if-no-files-found: warn
+          retention-days: 7
+          path: |
             tmp/elf.harness.worker.log
             tmp/elf.harness.api.log
-            tmp/elf.stability.out.json
+            tmp/elf.stability.worker.log
+            tmp/elf.stability.api.log
+            tmp/elf.harness.base.toml
+            tmp/elf.harness.context.toml
+            tmp/elf.stability.base.toml
+            tmp/elf.stability.det.toml
+            tmp/elf.stability.dataset.json
             tmp/elf.stability.worker.log
             tmp/elf.stability.api.log
