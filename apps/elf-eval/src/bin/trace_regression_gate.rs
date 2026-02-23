@@ -124,8 +124,8 @@ struct GateBreach {
 struct TraceRow {
 	trace_id: Uuid,
 	query: String,
-	candidate_count: i64,
-	top_k: i64,
+	candidate_count: i32,
+	top_k: i32,
 	created_at: OffsetDateTime,
 }
 
@@ -141,7 +141,7 @@ struct CandidateRow {
 	chunk_id: Uuid,
 	chunk_index: i32,
 	snippet: String,
-	retrieval_rank: i64,
+	retrieval_rank: i32,
 	rerank_score: f32,
 	note_scope: String,
 	note_importance: f32,
