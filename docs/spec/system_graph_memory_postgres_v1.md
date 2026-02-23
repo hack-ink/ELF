@@ -70,6 +70,10 @@ The system stores two values per fact:
 - `created_at timestamptz NOT NULL DEFAULT now()`
 - `updated_at timestamptz NOT NULL DEFAULT now()`
 
+Indexes:
+- `UNIQUE (scope_key, canonical_norm)`
+- `INDEX (tenant_id, project_id, status)`
+
 `graph_predicate_aliases` columns:
 - `alias_id uuid PRIMARY KEY`
 - `predicate_id uuid NOT NULL REFERENCES graph_predicates(predicate_id) ON DELETE CASCADE`
@@ -77,6 +81,11 @@ The system stores two values per fact:
 - `alias text NOT NULL`
 - `alias_norm text NOT NULL`
 - `created_at timestamptz NOT NULL DEFAULT now()`
+
+Indexes:
+- `UNIQUE (scope_key, alias_norm)`
+- `INDEX (predicate_id)`
+- `INDEX (alias_norm)`
 
 Scope resolution:
 - Predicates are resolved by `alias_norm` within `scope_key`, with precedence:
@@ -155,6 +164,12 @@ Supersession records provenance for fact invalidation and supports knowledge cor
 - `note_id uuid NOT NULL REFERENCES memory_notes(note_id) ON DELETE CASCADE`
 - `effective_at timestamptz NOT NULL`
 - `created_at timestamptz NOT NULL DEFAULT now()`
+
+Indexes:
+- `UNIQUE (from_fact_id, to_fact_id, note_id)`
+- `INDEX (from_fact_id)`
+- `INDEX (to_fact_id)`
+- `INDEX (note_id)`
 
 Supersession rule (write-time):
 - If a predicate is configured as `status = active` and `cardinality = single`, and a new fact is
