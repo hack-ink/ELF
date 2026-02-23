@@ -1,0 +1,163 @@
+[service]
+admin_bind = "127.0.0.1:0"
+http_bind  = "127.0.0.1:0"
+log_level  = "info"
+mcp_bind   = "127.0.0.1:0"
+
+[storage.postgres]
+dsn            = "postgres://postgres:postgres@127.0.0.1:5432/elf"
+pool_max_conns = 5
+
+[storage.qdrant]
+collection = "ci_trace_gate"
+url        = "http://127.0.0.1:6334"
+vector_dim = 4
+
+[providers.embedding]
+api_base        = "http://127.0.0.1"
+api_key         = "ci"
+default_headers = {}
+dimensions      = 4
+model           = "disabled"
+path            = "/embeddings"
+provider_id     = "ci"
+timeout_ms      = 1_000
+
+[providers.rerank]
+api_base        = "http://127.0.0.1"
+api_key         = "ci"
+default_headers = {}
+model           = "disabled"
+path            = "/rerank"
+provider_id     = "ci"
+timeout_ms      = 1_000
+
+[providers.llm_extractor]
+api_base        = "http://127.0.0.1"
+api_key         = "ci"
+default_headers = {}
+model           = "disabled"
+path            = "/chat/completions"
+provider_id     = "ci"
+temperature     = 0.0
+timeout_ms      = 1_000
+
+[scopes]
+allowed = ["agent_private"]
+
+[scopes.read_profiles]
+all_scopes           = ["agent_private"]
+private_only         = ["agent_private"]
+private_plus_project = ["agent_private"]
+
+[scopes.precedence]
+agent_private  = 10
+org_shared     = 0
+project_shared = 0
+
+[scopes.write_allowed]
+agent_private  = true
+org_shared     = false
+project_shared = false
+
+[memory]
+candidate_k             = 10
+dup_sim_threshold       = 0.92
+max_note_chars          = 240
+max_notes_per_add_event = 3
+top_k                   = 3
+update_sim_threshold    = 0.85
+
+[chunking]
+enabled        = true
+max_tokens     = 256
+overlap_tokens = 64
+tokenizer_repo = "gpt2"
+
+[search.expansion]
+include_original = true
+max_queries      = 4
+mode             = "off"
+
+[search.dynamic]
+min_candidates = 1
+min_top_score  = 0.0
+
+[search.prefilter]
+max_candidates = 0
+
+[search.cache]
+enabled            = false
+expansion_ttl_days = 7
+max_payload_bytes  = 262_144
+rerank_ttl_days    = 7
+
+[search.explain]
+candidate_retention_days = 1
+capture_candidates       = false
+retention_days           = 2
+write_mode               = "outbox"
+
+[ranking]
+recency_tau_days   = 0.0
+tie_breaker_weight = 0.0
+
+[ranking.deterministic]
+enabled = false
+
+[ranking.deterministic.lexical]
+enabled         = false
+max_query_terms = 16
+max_text_terms  = 1024
+min_ratio       = 0.3
+weight          = 0.0
+
+[ranking.deterministic.hits]
+enabled           = false
+half_saturation   = 8.0
+last_hit_tau_days = 14.0
+weight            = 0.0
+
+[ranking.deterministic.decay]
+enabled  = false
+tau_days = 30.0
+weight   = 0.0
+
+[ranking.blend]
+enabled                 = false
+rerank_normalization    = "rank"
+retrieval_normalization = "rank"
+segments                = []
+
+[ranking.diversity]
+enabled       = false
+max_skips     = 64
+mmr_lambda    = 0.7
+sim_threshold = 0.88
+
+[ranking.retrieval_sources]
+fusion_priority           = 1
+fusion_weight             = 1.0
+structured_field_priority = 0
+structured_field_weight   = 0.0
+
+[lifecycle.ttl_days]
+constraint = 0
+decision   = 0
+fact       = 180
+plan       = 14
+preference = 0
+profile    = 0
+
+[lifecycle]
+purge_deleted_after_days    = 30
+purge_deprecated_after_days = 180
+
+[security]
+auth_mode                = "off"
+bind_localhost_only      = true
+evidence_max_quote_chars = 320
+evidence_max_quotes      = 2
+evidence_min_quotes      = 1
+redact_secrets_on_write  = true
+reject_cjk               = true
