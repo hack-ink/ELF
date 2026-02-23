@@ -13,7 +13,7 @@ homepage    = "https://hack.ink/elf"
 license     = "GPL-3.0"
 readme      = "README.md"
 repository  = "https://github.com/hack-ink/elf"
-version     = "0.1.0"
+version     = "0.2.0"
 
 [workspace.dependencies]
 ahash                = { version = "0.8" }
@@ -40,12 +40,12 @@ unicode-segmentation = { version = "1.11" }
 uuid                 = { version = "1.21", features = ["serde", "v4", "v5"] }
 vergen-gitcl         = { version = "9.1", features = ["cargo"] }
 
-elf-chunking  = { version = "0.1", path = "packages/elf-chunking" }
-elf-cli       = { version = "0.1", path = "packages/elf-cli" }
-elf-config    = { version = "0.1", path = "packages/elf-config" }
-elf-domain    = { version = "0.1", path = "packages/elf-domain" }
-elf-providers = { version = "0.1", path = "packages/elf-providers" }
-elf-service   = { version = "0.1", path = "packages/elf-service" }
-elf-storage   = { version = "0.1", path = "packages/elf-storage" }
-elf-testkit   = { version = "0.1", path = "packages/elf-testkit" }
-elf-worker    = { version = "0.1", path = "apps/elf-worker" }
+elf-chunking  = { version = "0.2", path = "packages/elf-chunking" }
+elf-cli       = { version = "0.2", path = "packages/elf-cli" }
+elf-config    = { version = "0.2", path = "packages/elf-config" }
+elf-domain    = { version = "0.2", path = "packages/elf-domain" }
+elf-providers = { version = "0.2", path = "packages/elf-providers" }
+elf-service   = { version = "0.2", path = "packages/elf-service" }
+elf-storage   = { version = "0.2", path = "packages/elf-storage" }
+elf-testkit   = { version = "0.2", path = "packages/elf-testkit" }
+elf-worker    = { version = "0.2", path = "apps/elf-worker" }
