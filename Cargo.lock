@@ -848,7 +848,7 @@ dependencies = [
 
 [[package]]
 name = "elf-api"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "axum",
  "clap",
@@ -873,7 +873,7 @@ dependencies = [
 
 [[package]]
 name = "elf-chunking"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "tokenizers",
  "tracing",
@@ -882,7 +882,7 @@ dependencies = [
 
 [[package]]
 name = "elf-cli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "clap",
  "vergen-gitcl",
@@ -890,7 +890,7 @@ dependencies = [
 
 [[package]]
 name = "elf-config"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -900,7 +900,7 @@ dependencies = [
 
 [[package]]
 name = "elf-domain"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "elf-config",
  "regex",
@@ -911,7 +911,7 @@ dependencies = [
 
 [[package]]
 name = "elf-eval"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "clap",
  "color-eyre",
@@ -932,7 +932,7 @@ dependencies = [
 
 [[package]]
 name = "elf-mcp"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "axum",
  "clap",
@@ -948,7 +948,7 @@ dependencies = [
 
 [[package]]
 name = "elf-providers"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "blake3",
  "elf-config",
@@ -961,7 +961,7 @@ dependencies = [
 
 [[package]]
 name = "elf-service"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "ahash",
  "axum",
@@ -988,7 +988,7 @@ dependencies = [
 
 [[package]]
 name = "elf-storage"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "elf-config",
  "elf-testkit",
@@ -1003,7 +1003,7 @@ dependencies = [
 
 [[package]]
 name = "elf-testkit"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "qdrant-client",
  "sqlx",
@@ -1014,7 +1014,7 @@ dependencies = [
 
 [[package]]
 name = "elf-worker"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "clap",
  "color-eyre",
