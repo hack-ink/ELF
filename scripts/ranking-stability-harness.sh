@@ -238,10 +238,21 @@ tau_days = 30.0
 weight   = 0.0
 
 [ranking.blend]
-enabled = false
+enabled = true
 rerank_normalization    = "rank"
 retrieval_normalization = "rank"
-segments                = []
+
+[[ranking.blend.segments]]
+max_retrieval_rank = 3
+retrieval_weight   = 0.8
+
+[[ranking.blend.segments]]
+max_retrieval_rank = 10
+retrieval_weight   = 0.5
+
+[[ranking.blend.segments]]
+max_retrieval_rank = 1_000_000
+retrieval_weight   = 0.2
 
 [ranking.diversity]
 enabled       = true
