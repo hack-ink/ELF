@@ -105,7 +105,7 @@ WHERE tenant_id = $1
   AND revoked_at IS NULL
   AND (
     (project_id = $2 AND scope = 'project_shared')
-    OR (scope = 'org_shared' AND project_id IN ($2, $4))
+    OR (scope = 'org_shared' AND project_id = $4)
   )
   AND (
     grantee_kind = 'project'

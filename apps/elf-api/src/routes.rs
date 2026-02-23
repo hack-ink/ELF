@@ -1521,10 +1521,36 @@ mod tests {
 	use crate::routes::{
 		HEADER_AGENT_ID, HEADER_AUTHORIZATION, HEADER_PROJECT_ID, HEADER_READ_PROFILE,
 		HEADER_TENANT_ID, HEADER_TRUSTED_TOKEN_ID, apply_auth_key_context, effective_token_id,
-		resolve_auth_key, sanitize_trusted_token_header,
+		require_admin_for_org_shared_writes, resolve_auth_key, sanitize_trusted_token_header,
 	};
 	use axum::http::HeaderMap;
 	use elf_config::{SecurityAuthKey, SecurityAuthRole};
+
+	#[test]
+	fn require_admin_for_org_shared_writes_denies_user_in_static_keys_mode() {
+		let err = require_admin_for_org_shared_writes("static_keys", Some(SecurityAuthRole::User))
+			.expect_err("Expected forbidden error for non-admin role.");
+
+		assert_eq!(err.status, axum::http::StatusCode::FORBIDDEN);
+	}
+
+	#[test]
+	fn require_admin_for_org_shared_writes_allows_admin_in_static_keys_mode() {
+		require_admin_for_org_shared_writes("static_keys", Some(SecurityAuthRole::Admin))
+			.expect("Expected admin role to be allowed.");
+	}
+
+	#[test]
+	fn require_admin_for_org_shared_writes_allows_superadmin_in_static_keys_mode() {
+		require_admin_for_org_shared_writes("static_keys", Some(SecurityAuthRole::SuperAdmin))
+			.expect("Expected superadmin role to be allowed.");
+	}
+
+	#[test]
+	fn require_admin_for_org_shared_writes_allows_non_static_keys_auth_mode() {
+		require_admin_for_org_shared_writes("off", None)
+			.expect("Expected auth_mode != static_keys.");
+	}
 
 	#[test]
 	fn resolve_auth_key_requires_bearer_header() {
