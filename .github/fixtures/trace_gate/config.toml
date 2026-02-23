@@ -127,7 +127,10 @@ weight   = 0.0
 enabled                 = false
 rerank_normalization    = "rank"
 retrieval_normalization = "rank"
-segments                = []
+
+[[ranking.blend.segments]]
+max_retrieval_rank = 1_000_000
+retrieval_weight   = 0.5
 
 [ranking.diversity]
 enabled       = false
