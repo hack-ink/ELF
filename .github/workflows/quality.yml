@@ -74,7 +74,28 @@ jobs:
           exit 1
 
       - name: Create schema
-        run: psql "${PG_DSN}" -v ON_ERROR_STOP=1 -v VECTOR_DIM=4096 -f sql/init.sql
+        run: |
+          python3 - <<'PY' > tmp.schema.sql
+          from pathlib import Path
+          
+          vector_dim = 4
+          root = Path(".")
+          sql_dir = root / "sql"
+          
+          out = []
+          for raw_line in (sql_dir / "init.sql").read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if line.startswith(r"\ir "):
+              rel = line[len(r"\ir ") :].strip()
+              out.append((sql_dir / rel).read_text(encoding="utf-8"))
+            else:
+              out.append(raw_line)
+          
+          expanded = "\n".join(out) + "\n"
+          print(expanded.replace("<VECTOR_DIM>", str(vector_dim)), end="")
+          PY
+          
+          psql "${PG_DSN}" -v ON_ERROR_STOP=1 -f tmp.schema.sql
 
       - name: Load trace gate fixture
         run: psql "${PG_DSN}" -v ON_ERROR_STOP=1 -f .github/fixtures/trace_gate/fixture.sql

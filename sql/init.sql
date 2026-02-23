@@ -1,8 +1,3 @@
-\if :{?VECTOR_DIM}
-\else
-\set VECTOR_DIM 4096
-\endif
-
 \ir 00_extensions.sql
 \ir tables/001_memory_notes.sql
 \ir tables/016_graph_entities.sql
