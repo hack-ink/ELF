@@ -1,8 +1,9 @@
 [package]
-build   = "../../build.rs"
-edition = "2024"
-name    = "elf-eval"
-version = "0.1.0"
+build       = "../../build.rs"
+default-run = "elf-eval"
+edition     = "2024"
+name        = "elf-eval"
+version     = "0.1.0"
 
 [dependencies]
 clap               = { workspace = true }
