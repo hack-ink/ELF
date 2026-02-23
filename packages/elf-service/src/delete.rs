@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::{ElfService, Error, InsertVersionArgs, NoteOp, Result};
+use crate::{ElfService, Error, InsertVersionArgs, NoteOp, Result, access};
 use elf_storage::models::MemoryNote;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -37,12 +37,13 @@ impl ElfService {
 			"\
 SELECT *
 FROM memory_notes
-WHERE note_id = $1 AND tenant_id = $2 AND project_id = $3
+WHERE note_id = $1 AND tenant_id = $2 AND project_id IN ($3, $4)
 FOR UPDATE",
 		)
 		.bind(req.note_id)
 		.bind(tenant_id)
 		.bind(project_id)
+		.bind(access::ORG_PROJECT_ID)
 		.fetch_optional(&mut *tx)
 		.await?
 		.ok_or_else(|| Error::InvalidRequest { message: "Note not found.".to_string() })?;

@@ -50,7 +50,13 @@ impl ElfService {
 		let requested_status = requested_list_status(req.status.as_ref());
 		let status_for_note_read =
 			requested_status.unwrap_or("active").eq_ignore_ascii_case("active");
-		let non_private_scopes = list_non_private_scopes(req.scope.as_ref());
+		let non_private_scopes = match req.scope.as_deref().map(str::trim) {
+			Some("agent_private") => None,
+			Some(scope) => Some(vec![scope.to_string()]),
+			None => Some(
+				self.cfg.scopes.allowed.iter().filter(|s| *s != "agent_private").cloned().collect(),
+			),
+		};
 
 		validate_list_request(&req, tenant_id, project_id, agent_id, &self.cfg.scopes.allowed)?;
 
@@ -75,18 +81,6 @@ impl ElfService {
 
 fn requested_list_status(requested_status: Option<&String>) -> Option<&str> {
 	requested_status.map(|value| value.trim()).filter(|value| !value.is_empty())
-}
-
-fn list_non_private_scopes(scope: Option<&String>) -> Option<Vec<String>> {
-	if let Some(scope) = scope {
-		if scope == "agent_private" {
-			return None;
-		}
-
-		return Some(vec![scope.to_string()]);
-	}
-
-	Some(vec!["project_shared".to_string(), "org_shared".to_string()])
 }
 
 fn validate_list_request(
@@ -176,7 +170,17 @@ async fn list_shared_grants(
 		return Ok(HashSet::new());
 	}
 
-	access::load_shared_read_grants(pool, tenant_id, project_id, agent_id).await
+	let org_shared_allowed =
+		non_private_scopes.as_ref().is_some_and(|scopes| scopes.iter().any(|s| s == "org_shared"));
+
+	access::load_shared_read_grants_with_org_shared(
+		pool,
+		tenant_id,
+		project_id,
+		agent_id,
+		org_shared_allowed,
+	)
+	.await
 }
 
 async fn list_notes(
@@ -194,8 +198,25 @@ async fn list_notes(
 	);
 
 	builder.push_bind(tenant_id);
-	builder.push(" AND project_id = ");
-	builder.push_bind(project_id);
+
+	let include_org_shared = match req.scope.as_deref().map(str::trim) {
+		None => true,
+		Some("org_shared") => true,
+		Some(_) => false,
+	};
+
+	if include_org_shared {
+		builder.push(" AND (project_id = ");
+		builder.push_bind(project_id);
+		builder.push(" OR (project_id = ");
+		builder.push_bind(access::ORG_PROJECT_ID);
+		builder.push(" AND scope = ");
+		builder.push_bind("org_shared");
+		builder.push("))");
+	} else {
+		builder.push(" AND project_id = ");
+		builder.push_bind(project_id);
+	}
 
 	if let Some(scope) = &req.scope {
 		builder.push(" AND scope = ");

@@ -204,12 +204,13 @@ SELECT *
 FROM memory_notes
 WHERE note_id = $1
 	AND tenant_id = $2
-	AND project_id = $3
+	AND project_id IN ($3, $4)
 FOR UPDATE",
 		)
 		.bind(req.note_id)
 		.bind(tenant_id)
 		.bind(project_id)
+		.bind(access::ORG_PROJECT_ID)
 		.fetch_optional(&mut *tx)
 		.await?
 		.ok_or_else(|| Error::InvalidRequest { message: "Note not found.".to_string() })?;
@@ -235,10 +236,19 @@ FOR UPDATE",
 			return Err(Error::ScopeDenied { message: "Scope is not allowed.".to_string() });
 		}
 
-		access::ensure_active_project_scope_grant(&mut *tx, tenant_id, project_id, scope, agent_id)
-			.await?;
+		let target_project_id =
+			if scope == "org_shared" { access::ORG_PROJECT_ID } else { project_id };
 
-		if note.scope == scope {
+		access::ensure_active_project_scope_grant(
+			&mut *tx,
+			tenant_id,
+			target_project_id,
+			scope,
+			agent_id,
+		)
+		.await?;
+
+		if note.scope == scope && note.project_id == target_project_id {
 			return Ok(PublishNoteResponse { note_id: note.note_id, scope: note.scope });
 		}
 
@@ -246,6 +256,7 @@ FOR UPDATE",
 		let prev_snapshot = crate::note_snapshot(&note);
 
 		note.scope = scope.to_string();
+		note.project_id = target_project_id.to_string();
 		note.updated_at = now;
 
 		crate::insert_version(
@@ -261,12 +272,15 @@ FOR UPDATE",
 			},
 		)
 		.await?;
-		sqlx::query("UPDATE memory_notes SET scope = $1, updated_at = $2 WHERE note_id = $3")
-			.bind(scope)
-			.bind(now)
-			.bind(note.note_id)
-			.execute(&mut *tx)
-			.await?;
+		sqlx::query(
+			"UPDATE memory_notes SET scope = $1, project_id = $2, updated_at = $3 WHERE note_id = $4",
+		)
+		.bind(scope)
+		.bind(note.project_id.as_str())
+		.bind(now)
+		.bind(note.note_id)
+		.execute(&mut *tx)
+		.await?;
 		crate::enqueue_outbox_tx(&mut *tx, note.note_id, "UPSERT", &note.embedding_version, now)
 			.await?;
 
@@ -296,12 +310,13 @@ SELECT *
 FROM memory_notes
 WHERE note_id = $1
 	AND tenant_id = $2
-	AND project_id = $3
+	AND project_id IN ($3, $4)
 FOR UPDATE",
 		)
 		.bind(req.note_id)
 		.bind(tenant_id)
 		.bind(project_id)
+		.bind(access::ORG_PROJECT_ID)
 		.fetch_optional(&mut *tx)
 		.await?
 		.ok_or_else(|| Error::InvalidRequest { message: "Note not found.".to_string() })?;
@@ -325,6 +340,10 @@ FOR UPDATE",
 		let now = time::OffsetDateTime::now_utc();
 		let prev_snapshot = crate::note_snapshot(&note);
 
+		if note.scope == "org_shared" && note.project_id == access::ORG_PROJECT_ID {
+			note.project_id = project_id.to_string();
+		}
+
 		note.scope = "agent_private".to_string();
 		note.updated_at = now;
 
@@ -341,12 +360,15 @@ FOR UPDATE",
 			},
 		)
 		.await?;
-		sqlx::query("UPDATE memory_notes SET scope = $1, updated_at = $2 WHERE note_id = $3")
-			.bind(note.scope.as_str())
-			.bind(now)
-			.bind(note.note_id)
-			.execute(&mut *tx)
-			.await?;
+		sqlx::query(
+			"UPDATE memory_notes SET scope = $1, project_id = $2, updated_at = $3 WHERE note_id = $4",
+		)
+		.bind(note.scope.as_str())
+		.bind(note.project_id.as_str())
+		.bind(now)
+		.bind(note.note_id)
+		.execute(&mut *tx)
+		.await?;
 		crate::enqueue_outbox_tx(&mut *tx, note.note_id, "UPSERT", &note.embedding_version, now)
 			.await?;
 
@@ -402,13 +424,16 @@ FOR UPDATE",
 
 		let grantee_agent_id_ref = grantee_agent_id.as_deref();
 		let now = time::OffsetDateTime::now_utc();
+		let effective_project_id =
+			if scope == "org_shared" { access::ORG_PROJECT_ID } else { project_id };
 
 		if req.grantee_kind == GranteeKind::Project {
-			self.upsert_project_grant(tenant_id, project_id, scope, agent_id, now).await?;
+			self.upsert_project_grant(tenant_id, effective_project_id, scope, agent_id, now)
+				.await?;
 		} else {
 			self.upsert_agent_grant(
 				tenant_id,
-				project_id,
+				effective_project_id,
 				scope,
 				agent_id,
 				grantee_agent_id_ref,
@@ -516,6 +541,8 @@ FOR UPDATE",
 			return Err(Error::ScopeDenied { message: "Scope is not allowed.".to_string() });
 		}
 
+		let effective_project_id =
+			if scope == "org_shared" { access::ORG_PROJECT_ID } else { project_id };
 		let revocation = sqlx::query(
 			"\
 UPDATE memory_space_grants
@@ -531,7 +558,7 @@ WHERE tenant_id = $1
   AND revoked_at IS NULL",
 		)
 		.bind(tenant_id)
-		.bind(project_id)
+		.bind(effective_project_id)
 		.bind(scope)
 		.bind(agent_id)
 		.bind(match req.grantee_kind {
@@ -576,6 +603,9 @@ WHERE tenant_id = $1
 			return Err(Error::ScopeDenied { message: "Scope is not allowed.".to_string() });
 		}
 
+		let effective_project_id =
+			if scope == "org_shared" { access::ORG_PROJECT_ID } else { project_id };
+
 		#[derive(FromRow)]
 		struct Row {
 			scope: String,
@@ -597,7 +627,7 @@ WHERE tenant_id = $1
 ORDER BY granted_at DESC",
 		)
 		.bind(tenant_id)
-		.bind(project_id)
+		.bind(effective_project_id)
 		.bind(agent_id)
 		.bind(scope)
 		.fetch_all(&self.db.pool)
