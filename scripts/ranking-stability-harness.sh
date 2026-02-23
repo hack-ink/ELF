@@ -208,6 +208,9 @@ rerank_ttl_days    = 7
 
 [search.explain]
 retention_days = 2
+capture_candidates = false
+candidate_retention_days = 2
+write_mode = "outbox"
 
 [ranking]
 recency_tau_days   = 0
@@ -240,6 +243,18 @@ rerank_normalization    = "rank"
 retrieval_normalization = "rank"
 segments                = []
 
+[ranking.diversity]
+enabled       = true
+max_skips     = 64
+mmr_lambda    = 0.7
+sim_threshold = 0.88
+
+[ranking.retrieval_sources]
+fusion_priority           = 1
+fusion_weight             = 1.0
+structured_field_priority = 0
+structured_field_weight   = 1.0
+
 [lifecycle.ttl_days]
 constraint = 0
 decision   = 0
@@ -253,6 +268,8 @@ purge_deleted_after_days    = 30
 purge_deprecated_after_days = 180
 
 [security]
+auth_mode                = "off"
+auth_keys                = []
 bind_localhost_only      = true
 evidence_max_quote_chars = 320
 evidence_max_quotes      = 2
@@ -262,8 +279,8 @@ reject_cjk               = true
 TOML
 
 cp "${CFG_BASE}" "${CFG_DET}"
-perl -0777 -i -pe 'BEGIN { $c = 0 } $c += s/\\[ranking\\.deterministic\\]\\nenabled = false/[ranking.deterministic]\\nenabled = true/s; END { exit($c ? 0 : 1) }' "${CFG_DET}"
-perl -0777 -i -pe 'BEGIN { $c = 0 } $c += s/\\[ranking\\.deterministic\\.hits\\]\\nenabled\\s*=\\s*false\\nweight\\s*=\\s*0\\.0\\nhalf_saturation\\s*=\\s*8\\.0\\nlast_hit_tau_days\\s*=\\s*14\\.0/[ranking.deterministic.hits]\\nenabled = true\\nweight = 1.25\\nhalf_saturation = 1.0\\nlast_hit_tau_days = 30.0/s; END { exit($c ? 0 : 1) }' "${CFG_DET}"
+perl -0777 -i -pe 'BEGIN { $c = 0 } $c += s/\[ranking\.deterministic\]\nenabled\s*=\s*false/[ranking.deterministic]\nenabled = true/s; END { exit($c ? 0 : 1) }' "${CFG_DET}"
+perl -0777 -i -pe 'BEGIN { $c = 0 } $c += s/\[ranking\.deterministic\.hits\]\nenabled\s*=\s*false\nweight\s*=\s*0\.0\nhalf_saturation\s*=\s*8\.0\nlast_hit_tau_days\s*=\s*14\.0/[ranking.deterministic.hits]\nenabled = true\nweight = 1.25\nhalf_saturation = 1.0\nlast_hit_tau_days = 30.0/s; END { exit($c ? 0 : 1) }' "${CFG_DET}"
 
 taplo fmt "${CFG_BASE}" "${CFG_DET}" >/dev/null 2>&1
 
