@@ -15,7 +15,7 @@ Evidence-linked fact memory for agents.
 
 ## What Is ELF?
 
-ELF is a memory service for LLM agents that stores short, evidence-linked facts and retrieves them with chunk-first hybrid search. Postgres with pgvector is the source of truth for notes and embeddings. Qdrant is a derived, rebuildable index for fast candidate retrieval. ELF exposes both HTTP and MCP interfaces.
+ELF is a memory service for LLM agents that stores short, evidence-linked facts and retrieves them with chunk-first hybrid search. Postgres with pgvector is the source of truth for notes and embeddings. Qdrant is a derived, rebuildable index for fast candidate retrieval. ELF can also persist evidence-bound entity/relation facts and optionally attach them as `relation_context` in search explain output. ELF exposes both HTTP and MCP interfaces.
 
 ## Project Goals
 
@@ -129,7 +129,7 @@ This table compares capability coverage, not overall project quality.
 | Hosted managed option | — | — | ✅ | — | — | — |
 | Multi-tenant scope semantics | ✅ | ⚠️ | ✅ | — | — | — |
 | TTL/lifecycle policy controls | ✅ | ⚠️ | ✅ | — | ⚠️ | — |
-| Graph memory mode | ⚠️ (planned) | ⚠️ (URI-link relations) | ✅ (optional) | — | — | — |
+| Graph memory mode | ⚠️ (graph-lite: structured relations persisted; optional search `relation_context`) | ⚠️ (URI-link relations) | ✅ (optional) | — | — | — |
 
 Legend: `✅` built-in and documented; `⚠️` partial, optional, or in-progress; `—` not a first-class documented capability.
 
