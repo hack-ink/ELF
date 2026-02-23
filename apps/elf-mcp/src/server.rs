@@ -320,6 +320,78 @@ impl ElfMcp {
 
 		self.forward(HttpMethod::Delete, &path, JsonObject::new(), None).await
 	}
+
+	#[rmcp::tool(
+		name = "elf_notes_publish",
+		description = "Publish a note from agent_private into a shared space (team_shared or org_shared).",
+		input_schema = notes_publish_schema()
+	)]
+	async fn elf_notes_publish(&self, mut params: JsonObject) -> Result<CallToolResult, ErrorData> {
+		let note_id = take_required_string(&mut params, "note_id")?;
+		let path = format!("/v2/notes/{note_id}/publish");
+
+		self.forward(HttpMethod::Post, &path, params, None).await
+	}
+
+	#[rmcp::tool(
+		name = "elf_notes_unpublish",
+		description = "Unpublish a shared note back into agent_private scope.",
+		input_schema = notes_unpublish_schema()
+	)]
+	async fn elf_notes_unpublish(
+		&self,
+		mut params: JsonObject,
+	) -> Result<CallToolResult, ErrorData> {
+		let note_id = take_required_string(&mut params, "note_id")?;
+		let path = format!("/v2/notes/{note_id}/unpublish");
+
+		self.forward(HttpMethod::Post, &path, params, None).await
+	}
+
+	#[rmcp::tool(
+		name = "elf_space_grants_list",
+		description = "List sharing grants for a space (team_shared or org_shared).",
+		input_schema = space_grants_list_schema()
+	)]
+	async fn elf_space_grants_list(
+		&self,
+		mut params: JsonObject,
+	) -> Result<CallToolResult, ErrorData> {
+		let space = take_required_string(&mut params, "space")?;
+		let path = format!("/v2/spaces/{space}/grants");
+
+		self.forward(HttpMethod::Get, &path, params, None).await
+	}
+
+	#[rmcp::tool(
+		name = "elf_space_grant_upsert",
+		description = "Upsert a sharing grant for a space (team_shared or org_shared).",
+		input_schema = space_grant_upsert_schema()
+	)]
+	async fn elf_space_grant_upsert(
+		&self,
+		mut params: JsonObject,
+	) -> Result<CallToolResult, ErrorData> {
+		let space = take_required_string(&mut params, "space")?;
+		let path = format!("/v2/spaces/{space}/grants");
+
+		self.forward(HttpMethod::Post, &path, params, None).await
+	}
+
+	#[rmcp::tool(
+		name = "elf_space_grant_revoke",
+		description = "Revoke a sharing grant for a space (team_shared or org_shared).",
+		input_schema = space_grant_revoke_schema()
+	)]
+	async fn elf_space_grant_revoke(
+		&self,
+		mut params: JsonObject,
+	) -> Result<CallToolResult, ErrorData> {
+		let space = take_required_string(&mut params, "space")?;
+		let path = format!("/v2/spaces/{space}/grants/revoke");
+
+		self.forward(HttpMethod::Post, &path, params, None).await
+	}
 }
 
 #[rmcp::tool_handler]
@@ -609,6 +681,50 @@ fn notes_patch_schema() -> Arc<JsonObject> {
 	}))
 }
 
+fn notes_publish_schema() -> Arc<JsonObject> {
+	Arc::new(rmcp::object!({
+		"type": "object",
+		"additionalProperties": true,
+		"required": ["note_id", "space"],
+		"properties": {
+			"note_id": { "type": "string" },
+			"space": { "type": "string", "enum": ["team_shared", "org_shared"] }
+		}
+	}))
+}
+
+fn notes_unpublish_schema() -> Arc<JsonObject> {
+	notes_publish_schema()
+}
+
+fn space_grants_list_schema() -> Arc<JsonObject> {
+	Arc::new(rmcp::object!({
+		"type": "object",
+		"additionalProperties": true,
+		"required": ["space"],
+		"properties": {
+			"space": { "type": "string", "enum": ["team_shared", "org_shared"] }
+		}
+	}))
+}
+
+fn space_grant_upsert_schema() -> Arc<JsonObject> {
+	Arc::new(rmcp::object!({
+		"type": "object",
+		"additionalProperties": true,
+		"required": ["space", "grantee_kind"],
+		"properties": {
+			"space": { "type": "string", "enum": ["team_shared", "org_shared"] },
+			"grantee_kind": { "type": "string", "enum": ["project", "agent"] },
+			"grantee_agent_id": { "type": ["string", "null"] }
+		}
+	}))
+}
+
+fn space_grant_revoke_schema() -> Arc<JsonObject> {
+	space_grant_upsert_schema()
+}
+
 async fn handle_response(response: reqwest::Response) -> Result<CallToolResult, ErrorData> {
 	let status = response.status();
 	let bytes = response
@@ -738,6 +854,36 @@ mod tests {
 				"/v2/notes/{note_id}",
 				"Delete a note by note_id.",
 			),
+			ToolDefinition::new(
+				"elf_notes_publish",
+				HttpMethod::Post,
+				"/v2/notes/{note_id}/publish",
+				"Publish a note from agent_private into a shared space (team_shared or org_shared).",
+			),
+			ToolDefinition::new(
+				"elf_notes_unpublish",
+				HttpMethod::Post,
+				"/v2/notes/{note_id}/unpublish",
+				"Unpublish a shared note back into agent_private scope.",
+			),
+			ToolDefinition::new(
+				"elf_space_grants_list",
+				HttpMethod::Get,
+				"/v2/spaces/{space}/grants",
+				"List sharing grants for a space (team_shared or org_shared).",
+			),
+			ToolDefinition::new(
+				"elf_space_grant_upsert",
+				HttpMethod::Post,
+				"/v2/spaces/{space}/grants",
+				"Upsert a sharing grant for a space (team_shared or org_shared).",
+			),
+			ToolDefinition::new(
+				"elf_space_grant_revoke",
+				HttpMethod::Post,
+				"/v2/spaces/{space}/grants/revoke",
+				"Revoke a sharing grant for a space (team_shared or org_shared).",
+			),
 		];
 
 		tools.into_iter().map(|tool| (tool.name, tool)).collect()
@@ -758,6 +904,11 @@ mod tests {
 			"elf_notes_get",
 			"elf_notes_patch",
 			"elf_notes_delete",
+			"elf_notes_publish",
+			"elf_notes_unpublish",
+			"elf_space_grants_list",
+			"elf_space_grant_upsert",
+			"elf_space_grant_revoke",
 		];
 
 		for name in expected {
