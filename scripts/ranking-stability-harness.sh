@@ -213,6 +213,27 @@ retention_days = 2
 recency_tau_days   = 0
 tie_breaker_weight = 0.0
 
+[ranking.deterministic]
+enabled = false
+
+[ranking.deterministic.lexical]
+enabled         = false
+max_query_terms = 16
+max_text_terms  = 1024
+min_ratio       = 0.3
+weight          = 0.0
+
+[ranking.deterministic.hits]
+enabled           = false
+weight            = 0.0
+half_saturation   = 8.0
+last_hit_tau_days = 14.0
+
+[ranking.deterministic.decay]
+enabled  = false
+tau_days = 30.0
+weight   = 0.0
+
 [ranking.blend]
 enabled = false
 rerank_normalization    = "rank"
@@ -241,17 +262,8 @@ reject_cjk               = true
 TOML
 
 cp "${CFG_BASE}" "${CFG_DET}"
-cat >>"${CFG_DET}" <<TOML
-
-[ranking.deterministic]
-enabled = true
-
-[ranking.deterministic.hits]
-enabled         = true
-weight          = 1.25
-half_saturation = 1.0
-last_hit_tau_days = 30.0
-TOML
+perl -0777 -i -pe 'BEGIN { $c = 0 } $c += s/\\[ranking\\.deterministic\\]\\nenabled = false/[ranking.deterministic]\\nenabled = true/s; END { exit($c ? 0 : 1) }' "${CFG_DET}"
+perl -0777 -i -pe 'BEGIN { $c = 0 } $c += s/\\[ranking\\.deterministic\\.hits\\]\\nenabled\\s*=\\s*false\\nweight\\s*=\\s*0\\.0\\nhalf_saturation\\s*=\\s*8\\.0\\nlast_hit_tau_days\\s*=\\s*14\\.0/[ranking.deterministic.hits]\\nenabled = true\\nweight = 1.25\\nhalf_saturation = 1.0\\nlast_hit_tau_days = 30.0/s; END { exit($c ? 0 : 1) }' "${CFG_DET}"
 
 taplo fmt "${CFG_BASE}" "${CFG_DET}" >/dev/null 2>&1
 
