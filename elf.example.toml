@@ -9,9 +9,10 @@ dsn            = "postgres://postgres:postgres@127.0.0.1:5432/elf"
 pool_max_conns = 10
 
 [storage.qdrant]
-collection = "mem_notes_v2"
-url        = "http://127.0.0.1:6334"
-vector_dim = 4_096
+collection      = "mem_notes_v2"
+docs_collection = "doc_chunks_v1"
+url             = "http://127.0.0.1:6334"
+vector_dim      = 4_096
 
 [mcp]
 agent_id     = "local-agent"

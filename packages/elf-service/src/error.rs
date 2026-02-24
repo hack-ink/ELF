@@ -24,3 +24,15 @@ impl From<sqlx::Error> for Error {
 		Self::Storage { message: err.to_string() }
 	}
 }
+
+impl From<elf_storage::Error> for Error {
+	fn from(err: elf_storage::Error) -> Self {
+		match err {
+			elf_storage::Error::Sqlx(inner) => Self::Storage { message: inner.to_string() },
+			elf_storage::Error::InvalidArgument(message) => Self::InvalidRequest { message },
+			elf_storage::Error::NotFound(message) => Self::NotFound { message },
+			elf_storage::Error::Conflict(message) => Self::Conflict { message },
+			elf_storage::Error::Qdrant(inner) => Self::Qdrant { message: inner.to_string() },
+		}
+	}
+}

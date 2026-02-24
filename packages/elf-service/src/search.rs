@@ -201,15 +201,6 @@ pub struct SearchRequest {
 	pub ranking: Option<RankingRequestOverride>,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum PayloadLevel {
-	#[default]
-	L0,
-	L1,
-	L2,
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RankingRequestOverride {
 	pub blend: Option<BlendRankingOverride>,
@@ -1282,6 +1273,49 @@ struct DynamicGateSummary {
 	should_expand: Option<bool>,
 	observed_candidates: Option<u32>,
 	observed_top_score: Option<f32>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PayloadLevel {
+	#[default]
+	L0,
+	L1,
+	L2,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ExpansionMode {
+	Off,
+	Always,
+	Dynamic,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RawSearchPath {
+	Quick,
+	Planned,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum CacheKind {
+	Expansion,
+	Rerank,
+}
+impl CacheKind {
+	fn as_str(self) -> &'static str {
+		match self {
+			Self::Expansion => "expansion",
+			Self::Rerank => "rerank",
+		}
+	}
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum RetrievalSourceKind {
+	Fusion,
+	StructuredField,
+	Recursive,
 }
 
 impl ElfService {
@@ -3835,38 +3869,8 @@ WHERE note_id = ANY($1::uuid[])
 	}
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum ExpansionMode {
-	Off,
-	Always,
-	Dynamic,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum RawSearchPath {
-	Quick,
-	Planned,
-}
-
-#[derive(Clone, Copy, Debug)]
-enum CacheKind {
-	Expansion,
-	Rerank,
-}
-impl CacheKind {
-	fn as_str(self) -> &'static str {
-		match self {
-			Self::Expansion => "expansion",
-			Self::Rerank => "rerank",
-		}
-	}
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-enum RetrievalSourceKind {
-	Fusion,
-	StructuredField,
-	Recursive,
+pub(crate) fn resolve_read_profile_scopes(cfg: &Config, profile: &str) -> Result<Vec<String>> {
+	ranking::resolve_scopes(cfg, profile)
 }
 
 pub fn ranking_policy_id(

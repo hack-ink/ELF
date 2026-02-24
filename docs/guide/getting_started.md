@@ -31,6 +31,7 @@ psql "<dsn from elf.toml>" -f sql/init.sql
 # ELF uses the gRPC endpoint at runtime (default: 6334, often mapped to 51890).
 export ELF_QDRANT_HTTP_URL="http://127.0.0.1:51889"
 export ELF_QDRANT_COLLECTION="mem_notes_v2"
+export ELF_QDRANT_DOCS_COLLECTION="doc_chunks_v1"
 export ELF_QDRANT_VECTOR_DIM="4096"
 ./qdrant/init.sh
 ```

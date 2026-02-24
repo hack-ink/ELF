@@ -3,6 +3,7 @@ pub mod add_note;
 pub mod admin;
 pub mod admin_graph_predicates;
 pub mod delete;
+pub mod docs;
 pub mod graph;
 pub mod list;
 pub mod notes;
@@ -30,6 +31,11 @@ pub use self::{
 		AdminGraphPredicatesListRequest, AdminGraphPredicatesListResponse,
 	},
 	delete::{DeleteRequest, DeleteResponse},
+	docs::{
+		DocsExcerptResponse, DocsExcerptsGetRequest, DocsGetRequest, DocsGetResponse,
+		DocsPutRequest, DocsPutResponse, DocsSearchL0Request, DocsSearchL0Response,
+		TextPositionSelector, TextQuoteSelector,
+	},
 	error::{Error, Result},
 	list::{ListItem, ListRequest, ListResponse},
 	notes::{NoteFetchRequest, NoteFetchResponse},

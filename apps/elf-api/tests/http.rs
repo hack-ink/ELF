@@ -83,7 +83,12 @@ fn test_config(dsn: String, qdrant_url: String, collection: String) -> Config {
 		},
 		storage: Storage {
 			postgres: Postgres { dsn, pool_max_conns: 1 },
-			qdrant: Qdrant { url: qdrant_url, collection, vector_dim: 4_096 },
+			qdrant: Qdrant {
+				url: qdrant_url,
+				collection: collection.clone(),
+				docs_collection: format!("{collection}_docs"),
+				vector_dim: 4_096,
+			},
 		},
 		providers: Providers {
 			embedding: dummy_embedding_provider(),
