@@ -58,6 +58,14 @@ fn expand_includes(sql: &str) -> String {
 					out.push_str(include_str!("../../../sql/tables/008_llm_cache.sql")),
 				"tables/011_search_sessions.sql" =>
 					out.push_str(include_str!("../../../sql/tables/011_search_sessions.sql")),
+				"tables/025_doc_documents.sql" =>
+					out.push_str(include_str!("../../../sql/tables/025_doc_documents.sql")),
+				"tables/026_doc_chunks.sql" =>
+					out.push_str(include_str!("../../../sql/tables/026_doc_chunks.sql")),
+				"tables/027_doc_chunk_embeddings.sql" =>
+					out.push_str(include_str!("../../../sql/tables/027_doc_chunk_embeddings.sql")),
+				"tables/028_doc_indexing_outbox.sql" =>
+					out.push_str(include_str!("../../../sql/tables/028_doc_indexing_outbox.sql")),
 				"tables/023_memory_ingest_decisions.sql" => out
 					.push_str(include_str!("../../../sql/tables/023_memory_ingest_decisions.sql")),
 				"tables/024_memory_space_grants.sql" =>

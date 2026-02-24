@@ -19,7 +19,8 @@ use elf_config::EmbeddingProviderConfig;
 use elf_providers::embedding;
 use elf_storage::{
 	db::Db,
-	models::{IndexingOutboxEntry, MemoryNote, TraceOutboxJob},
+	doc_outbox, docs,
+	models::{DocIndexingOutboxEntry, IndexingOutboxEntry, MemoryNote, TraceOutboxJob},
 	outbox,
 	qdrant::{BM25_MODEL, BM25_VECTOR_NAME, DENSE_VECTOR_NAME, QdrantStore},
 	queries,
@@ -36,6 +37,7 @@ const MAX_OUTBOX_ERROR_CHARS: usize = 1_024;
 pub struct WorkerState {
 	pub db: Db,
 	pub qdrant: QdrantStore,
+	pub docs_qdrant: QdrantStore,
 	pub embedding: EmbeddingProviderConfig,
 	pub chunking: ChunkingConfig,
 	pub tokenizer: Tokenizer,
@@ -181,12 +183,33 @@ struct NoteFieldRow {
 	text: String,
 }
 
+#[derive(Debug, FromRow)]
+struct DocChunkIndexRow {
+	doc_id: Uuid,
+	tenant_id: String,
+	project_id: String,
+	agent_id: String,
+	scope: String,
+	status: String,
+	updated_at: OffsetDateTime,
+	content_hash: String,
+	chunk_id: Uuid,
+	chunk_index: i32,
+	start_offset: i32,
+	end_offset: i32,
+	chunk_text: String,
+	chunk_hash: String,
+}
+
 pub async fn run_worker(state: WorkerState) -> Result<()> {
 	let mut last_trace_cleanup = OffsetDateTime::now_utc();
 
 	loop {
 		if let Err(err) = process_indexing_outbox_once(&state).await {
 			tracing::error!(error = %err, "Indexing outbox processing failed.");
+		}
+		if let Err(err) = process_doc_indexing_outbox_once(&state).await {
+			tracing::error!(error = %err, "Doc indexing outbox processing failed.");
 		}
 		if let Err(err) = process_trace_outbox_once(&state).await {
 			tracing::error!(error = %err, "Search trace outbox processing failed.");
@@ -418,6 +441,36 @@ async fn process_indexing_outbox_once(state: &WorkerState) -> Result<()> {
 	Ok(())
 }
 
+async fn process_doc_indexing_outbox_once(state: &WorkerState) -> Result<()> {
+	let now = OffsetDateTime::now_utc();
+	let job =
+		doc_outbox::claim_next_doc_indexing_outbox_job(&state.db, now, CLAIM_LEASE_SECONDS).await?;
+	let Some(job) = job else { return Ok(()) };
+	let result = match job.op.as_str() {
+		"UPSERT" => handle_doc_upsert(state, &job).await,
+		"DELETE" => handle_doc_delete(state, &job).await,
+		other => Err(Error::Validation(format!("Unsupported doc outbox op: {other}."))),
+	};
+
+	match result {
+		Ok(()) => {
+			doc_outbox::mark_doc_indexing_outbox_done(
+				&state.db,
+				job.outbox_id,
+				OffsetDateTime::now_utc(),
+			)
+			.await?;
+		},
+		Err(err) => {
+			tracing::error!(error = %err, outbox_id = %job.outbox_id, "Doc outbox job failed.");
+
+			mark_doc_failed(&state.db, job.outbox_id, job.attempts, &err).await?;
+		},
+	}
+
+	Ok(())
+}
+
 async fn process_trace_outbox_once(state: &WorkerState) -> Result<()> {
 	let now = OffsetDateTime::now_utc();
 	let job =
@@ -554,6 +607,130 @@ async fn handle_upsert(state: &WorkerState, job: &IndexingOutboxEntry) -> Result
 
 async fn handle_delete(state: &WorkerState, job: &IndexingOutboxEntry) -> Result<()> {
 	delete_qdrant_note_points(state, job.note_id).await?;
+
+	Ok(())
+}
+
+async fn fetch_doc_chunk_index_row(db: &Db, chunk_id: Uuid) -> Result<Option<DocChunkIndexRow>> {
+	let row = sqlx::query_as::<_, DocChunkIndexRow>(
+		"\
+SELECT
+\td.doc_id,
+\td.tenant_id,
+\td.project_id,
+\td.agent_id,
+\td.scope,
+\td.status,
+\td.updated_at,
+\td.content_hash,
+\tc.chunk_id,
+\tc.chunk_index,
+\tc.start_offset,
+\tc.end_offset,
+\tc.chunk_text,
+\tc.chunk_hash
+FROM doc_chunks c
+JOIN doc_documents d ON d.doc_id = c.doc_id
+WHERE c.chunk_id = $1
+LIMIT 1",
+	)
+	.bind(chunk_id)
+	.fetch_optional(&db.pool)
+	.await?;
+
+	Ok(row)
+}
+
+async fn handle_doc_upsert(state: &WorkerState, job: &DocIndexingOutboxEntry) -> Result<()> {
+	let row = fetch_doc_chunk_index_row(&state.db, job.chunk_id).await?;
+	let Some(row) = row else {
+		tracing::info!(chunk_id = %job.chunk_id, "Doc chunk missing for outbox job. Marking done.");
+
+		return Ok(());
+	};
+
+	if !row.status.eq_ignore_ascii_case("active") {
+		tracing::info!(doc_id = %row.doc_id, chunk_id = %row.chunk_id, "Doc inactive. Skipping index.");
+
+		return Ok(());
+	}
+
+	let vectors = embedding::embed(&state.embedding, &[row.chunk_text.clone()])
+		.await
+		.map_err(|err| Error::Message(err.to_string()))?;
+	let vector = vectors
+		.first()
+		.ok_or_else(|| Error::Validation("Embedding provider returned no vectors.".to_string()))?;
+
+	validate_vector_dim(vector, state.docs_qdrant.vector_dim)?;
+
+	{
+		let vec_text = format_vector_text(vector);
+		let mut tx = state.db.pool.begin().await?;
+
+		docs::insert_doc_chunk_embedding(
+			&mut *tx,
+			row.chunk_id,
+			&job.embedding_version,
+			vector.len() as i32,
+			vec_text.as_str(),
+		)
+		.await?;
+
+		tx.commit().await?;
+	}
+
+	upsert_qdrant_doc_chunk(state, &row, &job.embedding_version, vector).await?;
+
+	Ok(())
+}
+
+async fn handle_doc_delete(state: &WorkerState, job: &DocIndexingOutboxEntry) -> Result<()> {
+	let filter = Filter::must([Condition::matches("chunk_id", job.chunk_id.to_string())]);
+	let delete =
+		DeletePointsBuilder::new(state.docs_qdrant.collection.clone()).points(filter).wait(true);
+
+	state.docs_qdrant.client.delete_points(delete).await?;
+
+	Ok(())
+}
+
+async fn upsert_qdrant_doc_chunk(
+	state: &WorkerState,
+	row: &DocChunkIndexRow,
+	embedding_version: &str,
+	vec: &[f32],
+) -> Result<()> {
+	let mut payload = Payload::new();
+
+	payload.insert("doc_id", row.doc_id.to_string());
+	payload.insert("chunk_id", row.chunk_id.to_string());
+	payload.insert("chunk_index", row.chunk_index as i64);
+	payload.insert("start_offset", row.start_offset as i64);
+	payload.insert("end_offset", row.end_offset as i64);
+	payload.insert("tenant_id", row.tenant_id.clone());
+	payload.insert("project_id", row.project_id.clone());
+	payload.insert("agent_id", row.agent_id.clone());
+	payload.insert("scope", row.scope.clone());
+	payload.insert("status", row.status.clone());
+	payload.insert("updated_at", Value::String(format_timestamp(row.updated_at)?));
+	payload.insert("embedding_version", embedding_version.to_string());
+	payload.insert("content_hash", row.content_hash.clone());
+	payload.insert("chunk_hash", row.chunk_hash.clone());
+
+	let mut vector_map = HashMap::new();
+
+	vector_map.insert(DENSE_VECTOR_NAME.to_string(), Vector::from(vec.to_vec()));
+	vector_map.insert(
+		BM25_VECTOR_NAME.to_string(),
+		Vector::from(Document::new(row.chunk_text.clone(), BM25_MODEL)),
+	);
+
+	let point = PointStruct::new(row.chunk_id.to_string(), vector_map, payload);
+	let upsert =
+		UpsertPointsBuilder::new(state.docs_qdrant.collection.clone(), vec![point]).wait(true);
+
+	state.docs_qdrant.client.upsert_points(upsert).await?;
 
 	Ok(())
 }
@@ -1100,6 +1277,26 @@ async fn mark_failed(db: &Db, outbox_id: Uuid, attempts: i32, err: &Error) -> Re
 	let error_text = sanitize_outbox_error(&err.to_string());
 
 	outbox::mark_indexing_outbox_failed(
+		db,
+		outbox_id,
+		next_attempts,
+		error_text.as_str(),
+		available_at,
+		now,
+	)
+	.await?;
+
+	Ok(())
+}
+
+async fn mark_doc_failed(db: &Db, outbox_id: Uuid, attempts: i32, err: &Error) -> Result<()> {
+	let next_attempts = attempts.saturating_add(1);
+	let backoff = backoff_for_attempt(next_attempts);
+	let now = OffsetDateTime::now_utc();
+	let available_at = now + backoff;
+	let error_text = sanitize_outbox_error(&err.to_string());
+
+	doc_outbox::mark_doc_indexing_outbox_failed(
 		db,
 		outbox_id,
 		next_attempts,

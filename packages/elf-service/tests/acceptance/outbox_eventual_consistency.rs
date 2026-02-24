@@ -32,6 +32,20 @@ struct OutboxRow {
 	last_error: Option<String>,
 }
 
+fn build_test_tokenizer() -> Tokenizer {
+	let mut vocab = AHashMap::new();
+
+	vocab.insert("<unk>".to_string(), 0_u32);
+
+	let model = WordLevel::builder()
+		.vocab(vocab)
+		.unk_token("<unk>".to_string())
+		.build()
+		.expect("Failed to build test tokenizer.");
+
+	Tokenizer::new(model)
+}
+
 async fn wait_for_status(
 	pool: &PgPool,
 	note_id: Uuid,
@@ -178,6 +192,11 @@ async fn outbox_retries_to_done() {
 		db: Db::connect(&service.cfg.storage.postgres).await.expect("Failed to connect worker DB."),
 		qdrant: QdrantStore::new(&service.cfg.storage.qdrant)
 			.expect("Failed to build Qdrant store."),
+		docs_qdrant: QdrantStore::new_with_collection(
+			&service.cfg.storage.qdrant,
+			&service.cfg.storage.qdrant.docs_collection,
+		)
+		.expect("Failed to build docs Qdrant store."),
 		embedding: EmbeddingProviderConfig {
 			provider_id: "test".to_string(),
 			api_base,
@@ -189,19 +208,7 @@ async fn outbox_retries_to_done() {
 			default_headers: Map::new(),
 		},
 		chunking: crate::acceptance::chunking::ChunkingConfig { max_tokens: 64, overlap_tokens: 8 },
-		tokenizer: {
-			let mut vocab = AHashMap::new();
-
-			vocab.insert("<unk>".to_string(), 0_u32);
-
-			let model = WordLevel::builder()
-				.vocab(vocab)
-				.unk_token("<unk>".to_string())
-				.build()
-				.expect("Failed to build test tokenizer.");
-
-			Tokenizer::new(model)
-		},
+		tokenizer: build_test_tokenizer(),
 	};
 	let handle = tokio::spawn(async move {
 		let _ = worker::run_worker(worker_state).await;

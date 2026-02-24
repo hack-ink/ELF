@@ -23,3 +23,7 @@
 \ir tables/007_search_trace_outbox.sql
 \ir tables/008_llm_cache.sql
 \ir tables/011_search_sessions.sql
+\ir tables/025_doc_documents.sql
+\ir tables/026_doc_chunks.sql
+\ir tables/027_doc_chunk_embeddings.sql
+\ir tables/028_doc_indexing_outbox.sql

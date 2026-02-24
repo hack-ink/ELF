@@ -205,6 +205,51 @@ impl ElfMcp {
 	}
 
 	#[rmcp::tool(
+		name = "elf_docs_put",
+		description = "Store a document (evidence source) in ELF Doc Extension v1.",
+		input_schema = docs_put_schema()
+	)]
+	async fn elf_docs_put(&self, params: JsonObject) -> Result<CallToolResult, ErrorData> {
+		self.forward(HttpMethod::Post, "/v2/docs", params, None).await
+	}
+
+	#[rmcp::tool(
+		name = "elf_docs_get",
+		description = "Fetch a single document's metadata by doc_id.",
+		input_schema = docs_get_schema()
+	)]
+	async fn elf_docs_get(&self, mut params: JsonObject) -> Result<CallToolResult, ErrorData> {
+		let doc_id = take_required_string(&mut params, "doc_id")?;
+		let path = format!("/v2/docs/{doc_id}");
+
+		self.forward(HttpMethod::Get, &path, JsonObject::new(), None).await
+	}
+
+	#[rmcp::tool(
+		name = "elf_docs_search_l0",
+		description = "Run a minimal Doc search (L0): chunk-level results with short snippets.",
+		input_schema = docs_search_l0_schema()
+	)]
+	async fn elf_docs_search_l0(
+		&self,
+		mut params: JsonObject,
+	) -> Result<CallToolResult, ErrorData> {
+		// read_profile is part of the MCP server configuration and is not client-controlled.
+		let _ = take_optional_string(&mut params, "read_profile")?;
+
+		self.forward(HttpMethod::Post, "/v2/docs/search/l0", params, None).await
+	}
+
+	#[rmcp::tool(
+		name = "elf_docs_excerpts_get",
+		description = "Hydrate a verifiable excerpt (L1 or L2) from a stored document.",
+		input_schema = docs_excerpts_get_schema()
+	)]
+	async fn elf_docs_excerpts_get(&self, params: JsonObject) -> Result<CallToolResult, ErrorData> {
+		self.forward(HttpMethod::Post, "/v2/docs/excerpts", params, None).await
+	}
+
+	#[rmcp::tool(
 		name = "elf_search_quick_create",
 		description = "Run a quick search and return a compact index view of results.",
 		input_schema = search_quick_create_schema()
@@ -561,6 +606,77 @@ fn events_ingest_schema() -> Arc<JsonObject> {
 						"ts": { "type": ["string", "null"] },
 						"msg_id": { "type": ["string", "null"] }
 					}
+				}
+			}
+		}
+	}))
+}
+
+fn docs_put_schema() -> Arc<JsonObject> {
+	Arc::new(rmcp::object!({
+		"type": "object",
+		"additionalProperties": true,
+		"required": ["scope", "content", "source_ref"],
+		"properties": {
+			"scope": { "type": "string", "enum": ["agent_private", "project_shared", "org_shared"] },
+			"title": { "type": ["string", "null"] },
+			"source_ref": { "type": "object", "additionalProperties": true },
+			"content": { "type": "string" }
+		}
+	}))
+}
+
+fn docs_get_schema() -> Arc<JsonObject> {
+	Arc::new(rmcp::object!({
+		"type": "object",
+		"additionalProperties": true,
+		"required": ["doc_id"],
+		"properties": {
+			"doc_id": { "type": "string" }
+		}
+	}))
+}
+
+fn docs_search_l0_schema() -> Arc<JsonObject> {
+	Arc::new(rmcp::object!({
+		"type": "object",
+		"additionalProperties": true,
+		"required": ["query"],
+		"properties": {
+			"query": { "type": "string" },
+			"top_k": { "type": ["integer", "null"] },
+			"candidate_k": { "type": ["integer", "null"] },
+			"read_profile": { "type": ["string", "null"] }
+		}
+	}))
+}
+
+fn docs_excerpts_get_schema() -> Arc<JsonObject> {
+	Arc::new(rmcp::object!({
+		"type": "object",
+		"additionalProperties": true,
+		"required": ["doc_id", "level"],
+		"properties": {
+			"doc_id": { "type": "string" },
+			"level": { "type": "string", "enum": ["L1", "L2"] },
+			"chunk_id": { "type": ["string", "null"] },
+			"quote": {
+				"type": ["object", "null"],
+				"additionalProperties": true,
+				"required": ["exact"],
+				"properties": {
+					"exact": { "type": "string" },
+					"prefix": { "type": ["string", "null"] },
+					"suffix": { "type": ["string", "null"] }
+				}
+			},
+			"position": {
+				"type": ["object", "null"],
+				"additionalProperties": true,
+				"required": ["start", "end"],
+				"properties": {
+					"start": { "type": "integer" },
+					"end": { "type": "integer" }
 				}
 			}
 		}
