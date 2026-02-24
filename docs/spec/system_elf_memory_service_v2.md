@@ -15,6 +15,15 @@ Core idea:
   - add_note is deterministic and must not call any LLM.
   - add_event is LLM-driven extraction and must bind evidence for every stored note.
 
+Core vs Extensions:
+- ELF Core is the high-trust, facts-first memory service defined by this specification.
+  - It owns: notes/events ingestion semantics, scopes/sharing, search, auditability, and the English gate.
+  - It must remain simple, deterministic where specified, and operable without any optional components.
+- ELF Extensions are optional capability modules that may evolve independently without changing Core semantics.
+  - Extensions must not weaken Core invariants or introduce hidden dependencies into Core flows.
+  - Extensions should integrate via stable contracts (e.g., versioned source_ref pointers and bounded excerpt hydration).
+  - Example extension (future): an Evidence Store / Doc Platform used for long-form evidence storage and progressive loading.
+
 Multi-tenant namespace:
 - tenant_id, project_id, agent_id, scope, read_profile.
 
@@ -39,7 +48,7 @@ I3. Online retrieval:
     - Qdrant returns candidate chunk_ids.
     - Postgres returns authoritative notes and re-validates status, TTL, and scope.
 I4. English-only contract:
-    - Any API input containing CJK must be rejected with HTTP 422.
+    - Any API input that fails the English gate (defined below) must be rejected with HTTP 422.
     - Upstream agents must canonicalize to English before calling ELF.
 I5. add_note must not call any LLM under any circumstance.
 I6. add_event must call the LLM extractor and must bind evidence with verbatim substring checks.
@@ -225,18 +234,34 @@ read_profile = "private_only|private_plus_project|all_scopes"
 - security.reject_cjk must be true. Startup must fail if it is false.
 
 ============================================================
-3. ENGLISH-ONLY BOUNDARY
+3. ENGLISH GATE (ENGLISH-ONLY BOUNDARY)
 ============================================================
-Definition:
-- CJK detection is the presence of any codepoint in the following Unicode blocks:
-  - CJK Unified Ideographs
-  - CJK Symbols and Punctuation
-  - Hiragana
-  - Katakana
-  - Hangul
-
 Policy:
-- If security.reject_cjk is true, any CJK in any string field listed below must return HTTP 422.
+- ELF is English-only. All externally supplied text fields must be English.
+- Translation or multilingual retrieval is out of scope and must be handled upstream.
+
+English gate algorithm (normative):
+1) Normalize:
+   - Apply Unicode NFKC normalization.
+   - Reject if the normalized text contains control characters or zero-width/invisible
+     characters (implementation-defined denylist).
+2) Script gate (hard reject):
+   - Reject if any codepoint is in a disallowed script.
+   - At minimum, reject all CJK-related scripts/blocks:
+     - CJK Unified Ideographs
+     - CJK Symbols and Punctuation
+     - Hiragana
+     - Katakana
+     - Hangul
+   - Recommend also rejecting other non-Latin scripts (e.g. Cyrillic, Arabic) to
+     match the product contract ("English-only").
+3) Language identification gate (LID) (conditional reject):
+   - Only apply LID to natural-language fields (note text, query, doc text). Do not
+     apply LID to structured identifiers (urls, ids, keys) to avoid false rejects.
+   - Only apply LID when the input is sufficiently long and letter-dense
+     (implementation-defined thresholds).
+   - If LID classifies the text as NOT English with confidence >= threshold, reject.
+   - If LID is low-confidence/unknown, do not reject (to avoid false positives).
 
 Fields to check:
 - add_note: notes[].text, notes[].key (optional), source_ref string fields if any
@@ -247,7 +272,7 @@ Error response:
 HTTP 422
 {
   "error_code": "NON_ENGLISH_INPUT",
-  "message": "CJK detected; upstream must canonicalize to English before calling ELF.",
+  "message": "Non-English input detected; upstream must canonicalize to English before calling ELF.",
   "fields": ["$.messages[2].content", "$.notes[0].text"]
 }
 
@@ -270,6 +295,27 @@ HTTP 422
 4.3 Keys
 - key is optional but strongly recommended for stable updates.
 - key examples: preferred_language, no_secrets_policy, architecture_sot, project_workflow, long_term_goal.
+
+4.4 source_ref (evidence pointer)
+- source_ref is an optional, versioned pointer to supporting evidence for a stored note.
+- Core requirement: ELF Core stores and returns source_ref as an opaque JSON object. Core does not interpret or dereference it.
+- Extensions requirement: ELF Extensions may define resolvers that can dereference source_ref into bounded excerpts for progressive loading.
+- source_ref must be JSON-serializable, ASCII-safe, and stable over time.
+
+Recommended shape (informative):
+{
+  "schema": "source_ref/v1",
+  "resolver": "string",
+  "ref": { "...": "resolver-specific" },
+  "state": { "...": "optional snapshot/version info" },
+  "locator": { "...": "optional in-source excerpt selector(s)" },
+  "hashes": { "...": "optional integrity checks" },
+  "hints": { "...": "optional debug/UX fields" }
+}
+
+Resolver tiers (informative):
+- reproducible: dereference is stable and replayable given (ref + state) (example: fs_git with a commit SHA).
+- best_effort: dereference may change over time (example: external conversation thread id); resolvers should expose whether excerpt verification succeeded.
 
 ============================================================
 5. POSTGRES SCHEMA (SOURCE OF TRUTH + PGVECTOR)
@@ -750,7 +796,7 @@ Steps:
      and the expansion cache schema version (hardcoded), plus max_queries and include_original.
    - If search.cache.enabled and a non-expired cache entry exists, use cached queries.
    - On cache miss, call the LLM expansion prompt and receive queries[].
-     - Deduplicate, strip CJK, and cap at max_queries.
+     - Deduplicate, drop any non-English variants (English gate), and cap at max_queries.
      - Ensure original query is present when include_original = true.
    - If search.cache.enabled and payload size is within max_payload_bytes (when set),
      store the expanded queries with TTL = expansion_ttl_days.
@@ -1617,7 +1663,8 @@ Here are the messages as JSON:
 A. add_note does not call LLM:
 - Instrument LLM client call count. It must remain 0 during add_note tests.
 B. English-only boundary:
-- Any CJK in add_note, add_event, or search returns HTTP 422 with field path.
+- Any input that fails the English gate (Section 3) in add_note, add_event, or search
+  returns HTTP 422 with a JSONPath-like field path.
 C. Evidence binding:
 - If extractor evidence.quote is not a substring -> REJECTED with REJECT_EVIDENCE_MISMATCH.
 D. Rebuild:
