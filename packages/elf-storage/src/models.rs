@@ -159,3 +159,56 @@ pub struct GraphFactSupersession {
 	pub effective_at: OffsetDateTime,
 	pub created_at: OffsetDateTime,
 }
+
+#[derive(Debug, FromRow)]
+pub struct DocDocument {
+	pub doc_id: Uuid,
+	pub tenant_id: String,
+	pub project_id: String,
+	pub agent_id: String,
+	pub scope: String,
+	pub status: String,
+	pub title: Option<String>,
+	pub source_ref: Value,
+	pub content: String,
+	pub content_bytes: i32,
+	pub content_hash: String,
+	pub created_at: OffsetDateTime,
+	pub updated_at: OffsetDateTime,
+}
+
+#[derive(Debug, FromRow)]
+pub struct DocChunk {
+	pub chunk_id: Uuid,
+	pub doc_id: Uuid,
+	pub chunk_index: i32,
+	pub start_offset: i32,
+	pub end_offset: i32,
+	pub chunk_text: String,
+	pub chunk_hash: String,
+	pub created_at: OffsetDateTime,
+}
+
+#[derive(Debug, FromRow)]
+pub struct DocChunkEmbedding {
+	pub chunk_id: Uuid,
+	pub embedding_version: String,
+	pub embedding_dim: i32,
+	pub vec: Vec<f32>,
+	pub created_at: OffsetDateTime,
+}
+
+#[derive(Debug, FromRow)]
+pub struct DocIndexingOutboxEntry {
+	pub outbox_id: Uuid,
+	pub doc_id: Uuid,
+	pub chunk_id: Uuid,
+	pub op: String,
+	pub embedding_version: String,
+	pub status: String,
+	pub attempts: i32,
+	pub last_error: Option<String>,
+	pub available_at: OffsetDateTime,
+	pub created_at: OffsetDateTime,
+	pub updated_at: OffsetDateTime,
+}

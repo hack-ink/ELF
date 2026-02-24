@@ -146,7 +146,12 @@ pub fn test_config(dsn: String, qdrant_url: String, vector_dim: u32, collection:
 		},
 		storage: Storage {
 			postgres: Postgres { dsn, pool_max_conns: 2 },
-			qdrant: elf_config::Qdrant { url: qdrant_url, collection, vector_dim },
+			qdrant: elf_config::Qdrant {
+				url: qdrant_url,
+				collection: collection.clone(),
+				docs_collection: format!("{collection}_docs"),
+				vector_dim,
+			},
 		},
 		providers: elf_config::Providers {
 			embedding,

@@ -4,15 +4,16 @@ name    = "elf-service"
 version = "0.2.0"
 
 [dependencies]
-blake3        = { workspace = true }
-qdrant-client = { workspace = true }
-serde         = { workspace = true }
-serde_json    = { workspace = true }
-sqlx          = { workspace = true }
-thiserror     = { workspace = true }
-time          = { workspace = true }
-tracing       = { workspace = true }
-uuid          = { workspace = true }
+blake3               = { workspace = true }
+qdrant-client        = { workspace = true }
+serde                = { workspace = true }
+serde_json           = { workspace = true }
+sqlx                 = { workspace = true }
+thiserror            = { workspace = true }
+time                 = { workspace = true }
+tracing              = { workspace = true }
+unicode-segmentation = { workspace = true }
+uuid                 = { workspace = true }
 
 elf-config    = { workspace = true }
 elf-domain    = { workspace = true }
@@ -20,11 +21,10 @@ elf-providers = { workspace = true }
 elf-storage   = { workspace = true }
 
 [dev-dependencies]
-ahash                = { workspace = true }
-axum                 = { workspace = true }
-tokenizers           = { workspace = true }
-tokio                = { workspace = true }
-unicode-segmentation = { workspace = true }
+ahash      = { workspace = true }
+axum       = { workspace = true }
+tokenizers = { workspace = true }
+tokio      = { workspace = true }
 
 elf-chunking = { workspace = true }
 elf-testkit  = { workspace = true }

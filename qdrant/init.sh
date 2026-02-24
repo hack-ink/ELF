@@ -5,14 +5,23 @@ set -euo pipefail
 : "${ELF_QDRANT_COLLECTION:?Set ELF_QDRANT_COLLECTION to the collection name.}"
 : "${ELF_QDRANT_VECTOR_DIM:?Set ELF_QDRANT_VECTOR_DIM to the dense vector dimension.}"
 
-if curl -fsS "${ELF_QDRANT_HTTP_URL}/collections/${ELF_QDRANT_COLLECTION}" >/dev/null 2>&1; then
-  echo "Qdrant collection ${ELF_QDRANT_COLLECTION} already exists. Skipping create."
-  exit 0
+collections=("${ELF_QDRANT_COLLECTION}")
+
+if [[ -n "${ELF_QDRANT_DOCS_COLLECTION:-}" ]]; then
+  collections+=("${ELF_QDRANT_DOCS_COLLECTION}")
 fi
 
-curl -sS -X PUT "${ELF_QDRANT_HTTP_URL}/collections/${ELF_QDRANT_COLLECTION}?wait=true" \
-  -H 'Content-Type: application/json' \
-  -d @- <<JSON
+for collection in "${collections[@]}"; do
+  if curl -fsS "${ELF_QDRANT_HTTP_URL}/collections/${collection}" >/dev/null 2>&1; then
+    echo "Qdrant collection ${collection} already exists. Skipping create."
+    continue
+  fi
+
+  echo "Creating Qdrant collection ${collection}."
+
+  curl -sS -X PUT "${ELF_QDRANT_HTTP_URL}/collections/${collection}?wait=true" \
+    -H 'Content-Type: application/json' \
+    -d @- <<JSON
 {
   "vectors": {
     "dense": {
@@ -27,3 +36,4 @@ curl -sS -X PUT "${ELF_QDRANT_HTTP_URL}/collections/${ELF_QDRANT_COLLECTION}?wai
   }
 }
 JSON
+done

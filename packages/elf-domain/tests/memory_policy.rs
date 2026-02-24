@@ -51,6 +51,7 @@ fn memory_policy_storage_config() -> Storage {
 		qdrant: Qdrant {
 			url: "http://localhost".to_string(),
 			collection: "mem_notes_v2".to_string(),
+			docs_collection: "doc_chunks_v1".to_string(),
 			vector_dim: 4_096,
 		},
 	}

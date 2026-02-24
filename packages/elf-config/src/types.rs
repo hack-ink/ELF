@@ -62,6 +62,8 @@ pub struct Postgres {
 pub struct Qdrant {
 	pub url: String,
 	pub collection: String,
+	#[serde(default = "default_docs_collection")]
+	pub docs_collection: String,
 	pub vector_dim: u32,
 }
 
@@ -352,14 +354,6 @@ pub struct Security {
 	pub auth_keys: Vec<SecurityAuthKey>,
 }
 
-#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum SecurityAuthRole {
-	User,
-	Admin,
-	SuperAdmin,
-}
-
 #[derive(Debug, Deserialize)]
 pub struct SecurityAuthKey {
 	pub token_id: String,
@@ -370,4 +364,16 @@ pub struct SecurityAuthKey {
 	pub agent_id: Option<String>,
 	pub read_profile: String,
 	pub role: SecurityAuthRole,
+}
+
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SecurityAuthRole {
+	User,
+	Admin,
+	SuperAdmin,
+}
+
+fn default_docs_collection() -> String {
+	"doc_chunks_v1".to_string()
 }

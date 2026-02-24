@@ -11,6 +11,7 @@ use axum::{
 	routing,
 };
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
@@ -21,14 +22,17 @@ use elf_service::{
 	AdminGraphPredicateAliasAddRequest, AdminGraphPredicateAliasesListRequest,
 	AdminGraphPredicateAliasesResponse, AdminGraphPredicatePatchRequest,
 	AdminGraphPredicateResponse, AdminGraphPredicatesListRequest, AdminGraphPredicatesListResponse,
-	DeleteRequest, DeleteResponse, Error, EventMessage, GranteeKind, ListRequest, ListResponse,
-	NoteFetchRequest, NoteFetchResponse, PayloadLevel, PublishNoteRequest, QueryPlan,
-	RankingRequestOverride, RebuildReport, SearchDetailsRequest, SearchDetailsResult,
-	SearchExplainRequest, SearchExplainResponse, SearchIndexItem, SearchRequest, SearchResponse,
-	SearchSessionGetRequest, SearchTimelineGroup, SearchTimelineRequest, SearchTrajectoryResponse,
-	ShareScope, SpaceGrantRevokeRequest, SpaceGrantRevokeResponse, SpaceGrantUpsertRequest,
-	SpaceGrantsListRequest, TraceGetRequest, TraceGetResponse, TraceTrajectoryGetRequest,
-	UnpublishNoteRequest, UpdateRequest, UpdateResponse,
+	DeleteRequest, DeleteResponse, DocsExcerptResponse, DocsExcerptsGetRequest, DocsGetRequest,
+	DocsGetResponse, DocsPutRequest, DocsPutResponse, DocsSearchL0Request, DocsSearchL0Response,
+	Error, EventMessage, GranteeKind, ListRequest, ListResponse, NoteFetchRequest,
+	NoteFetchResponse, PayloadLevel, PublishNoteRequest, QueryPlan, RankingRequestOverride,
+	RebuildReport, SearchDetailsRequest, SearchDetailsResult, SearchExplainRequest,
+	SearchExplainResponse, SearchIndexItem, SearchRequest, SearchResponse, SearchSessionGetRequest,
+	SearchTimelineGroup, SearchTimelineRequest, SearchTrajectoryResponse, ShareScope,
+	SpaceGrantRevokeRequest, SpaceGrantRevokeResponse, SpaceGrantUpsertRequest,
+	SpaceGrantsListRequest, TextPositionSelector, TextQuoteSelector, TraceGetRequest,
+	TraceGetResponse, TraceTrajectoryGetRequest, UnpublishNoteRequest, UpdateRequest,
+	UpdateResponse,
 };
 
 const HEADER_TENANT_ID: &str = "X-ELF-Tenant-Id";
@@ -39,6 +43,7 @@ const HEADER_AUTHORIZATION: &str = "Authorization";
 const HEADER_TRUSTED_TOKEN_ID: &str = "X-ELF-Trusted-Token-Id";
 const MAX_CONTEXT_HEADER_CHARS: usize = 128;
 const MAX_REQUEST_BYTES: usize = 1_048_576;
+const MAX_DOC_REQUEST_BYTES: usize = 4 * 1_024 * 1_024;
 const MAX_NOTES_PER_INGEST: usize = 256;
 const MAX_MESSAGES_PER_EVENT: usize = 256;
 const MAX_MESSAGE_CHARS: usize = 16_384;
@@ -75,6 +80,31 @@ struct EventsIngestRequest {
 	scope: Option<String>,
 	dry_run: Option<bool>,
 	messages: Vec<EventMessage>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct DocsPutBody {
+	scope: String,
+	title: Option<String>,
+	#[serde(default)]
+	source_ref: Value,
+	content: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct DocsSearchL0Body {
+	query: String,
+	top_k: Option<u32>,
+	candidate_k: Option<u32>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct DocsExcerptsGetBody {
+	doc_id: Uuid,
+	level: String,
+	chunk_id: Option<Uuid>,
+	quote: Option<TextQuoteSelector>,
+	position: Option<TextPositionSelector>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -302,8 +332,7 @@ impl IntoResponse for ApiError {
 
 pub fn router(state: AppState) -> Router {
 	let auth_state = state.clone();
-
-	Router::new()
+	let api_router = Router::new()
 		.route("/health", routing::get(health))
 		.route("/v2/notes/ingest", routing::post(notes_ingest))
 		.route("/v2/events/ingest", routing::post(events_ingest))
@@ -321,8 +350,19 @@ pub fn router(state: AppState) -> Router {
 		.route("/v2/notes/:note_id/unpublish", routing::post(notes_unpublish))
 		.route("/v2/spaces/:space/grants", routing::get(space_grants_list).post(space_grant_upsert))
 		.route("/v2/spaces/:space/grants/revoke", routing::post(space_grant_revoke))
+		.with_state(state.clone())
+		.layer(DefaultBodyLimit::max(MAX_REQUEST_BYTES));
+	let docs_router = Router::new()
+		.route("/v2/docs", routing::post(docs_put))
+		.route("/v2/docs/:doc_id", routing::get(docs_get))
+		.route("/v2/docs/search/l0", routing::post(docs_search_l0))
+		.route("/v2/docs/excerpts", routing::post(docs_excerpts_get))
 		.with_state(state)
-		.layer(DefaultBodyLimit::max(MAX_REQUEST_BYTES))
+		.layer(DefaultBodyLimit::max(MAX_DOC_REQUEST_BYTES));
+
+	Router::new()
+		.merge(api_router)
+		.merge(docs_router)
 		.layer(middleware::from_fn_with_state(auth_state, api_auth_middleware))
 }
 
@@ -747,6 +787,129 @@ async fn events_ingest(
 			scope: payload.scope,
 			dry_run: payload.dry_run,
 			messages: payload.messages,
+		})
+		.await?;
+
+	Ok(Json(response))
+}
+
+async fn docs_put(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	role: Option<Extension<SecurityAuthRole>>,
+	payload: Result<Json<DocsPutBody>, JsonRejection>,
+) -> Result<Json<DocsPutResponse>, ApiError> {
+	let ctx = RequestContext::from_headers(&headers)?;
+	let Json(payload) = payload.map_err(|err| {
+		tracing::warn!(error = %err, "Invalid request payload.");
+
+		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+	})?;
+	let role = role.map(|Extension(role)| role);
+
+	if payload.scope.trim() == "org_shared" {
+		require_admin_for_org_shared_writes(state.service.cfg.security.auth_mode.as_str(), role)?;
+	}
+
+	let response = state
+		.service
+		.docs_put(DocsPutRequest {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+			agent_id: ctx.agent_id,
+			scope: payload.scope,
+			title: payload.title,
+			source_ref: payload.source_ref,
+			content: payload.content,
+		})
+		.await?;
+
+	Ok(Json(response))
+}
+
+async fn docs_get(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	Path(doc_id): Path<Uuid>,
+) -> Result<Json<DocsGetResponse>, ApiError> {
+	let ctx = RequestContext::from_headers(&headers)?;
+	let read_profile = required_read_profile(&headers)?;
+	let response = state
+		.service
+		.docs_get(DocsGetRequest {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+			agent_id: ctx.agent_id,
+			read_profile,
+			doc_id,
+		})
+		.await?;
+
+	Ok(Json(response))
+}
+
+async fn docs_search_l0(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	payload: Result<Json<DocsSearchL0Body>, JsonRejection>,
+) -> Result<Json<DocsSearchL0Response>, ApiError> {
+	let ctx = RequestContext::from_headers(&headers)?;
+	let read_profile = required_read_profile(&headers)?;
+	let Json(payload) = payload.map_err(|err| {
+		tracing::warn!(error = %err, "Invalid request payload.");
+
+		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+	})?;
+
+	if payload.query.chars().count() > MAX_QUERY_CHARS {
+		return Err(json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Query is too long.",
+			Some(vec!["$.query".to_string()]),
+		));
+	}
+
+	let response = state
+		.service
+		.docs_search_l0(DocsSearchL0Request {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+			agent_id: ctx.agent_id,
+			read_profile,
+			query: payload.query,
+			top_k: payload.top_k,
+			candidate_k: payload.candidate_k,
+		})
+		.await?;
+
+	Ok(Json(response))
+}
+
+async fn docs_excerpts_get(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	payload: Result<Json<DocsExcerptsGetBody>, JsonRejection>,
+) -> Result<Json<DocsExcerptResponse>, ApiError> {
+	let ctx = RequestContext::from_headers(&headers)?;
+	let read_profile = required_read_profile(&headers)?;
+	let Json(payload) = payload.map_err(|err| {
+		tracing::warn!(error = %err, "Invalid request payload.");
+
+		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+	})?;
+	let response = state
+		.service
+		.docs_excerpts_get(DocsExcerptsGetRequest {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+			agent_id: ctx.agent_id,
+			read_profile,
+			doc_id: payload.doc_id,
+			level: payload.level,
+			chunk_id: payload.chunk_id,
+			quote: payload.quote,
+			position: payload.position,
 		})
 		.await?;
 

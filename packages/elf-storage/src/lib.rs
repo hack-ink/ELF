@@ -1,4 +1,6 @@
 pub mod db;
+pub mod doc_outbox;
+pub mod docs;
 pub mod graph;
 pub mod models;
 pub mod outbox;

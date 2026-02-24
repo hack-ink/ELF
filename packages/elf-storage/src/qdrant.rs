@@ -11,8 +11,12 @@ pub struct QdrantStore {
 }
 impl QdrantStore {
 	pub fn new(cfg: &elf_config::Qdrant) -> Result<Self> {
+		Self::new_with_collection(cfg, cfg.collection.as_str())
+	}
+
+	pub fn new_with_collection(cfg: &elf_config::Qdrant, collection: &str) -> Result<Self> {
 		let client = qdrant_client::Qdrant::from_url(&cfg.url).build()?;
 
-		Ok(Self { client, collection: cfg.collection.clone(), vector_dim: cfg.vector_dim })
+		Ok(Self { client, collection: collection.to_string(), vector_dim: cfg.vector_dim })
 	}
 }
