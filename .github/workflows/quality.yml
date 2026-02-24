@@ -109,7 +109,7 @@ jobs:
 
       - name: Upload trace gate report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: trace_gate_report
           path: trace_gate.report.json
