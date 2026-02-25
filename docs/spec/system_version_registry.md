@@ -22,6 +22,14 @@ This document is normative. When a new versioned identifier is introduced, it mu
 - Consumers: Note/event ingestion payloads, persisted `source_ref` fields, extensions and agents that hydrate evidence.
 - Bump rule: Introduce `source_ref/v2` only when the envelope becomes incompatible with v1. Keep older identifiers immutable.
 
+### source_ref envelope for docs_put
+
+- Identifier: `doc_source_ref/v1`.
+- Type: `docs_put.source_ref` JSON envelope schema identifier.
+- Defined in: `docs/spec/system_doc_source_ref_v1.md`.
+- Consumers: Docs ingestion (`POST /v2/docs`, MCP `elf_docs_put`) and any doc evidence consumers that need durable source provenance.
+- Bump rule: Introduce `doc_source_ref/v2` only when the required/optional key contract becomes incompatible with v1. Keep older identifiers immutable.
+
 ### source_ref resolver: Doc Extension v1 doc pointer
 
 - Identifier: `elf_doc_ext/v1`.
