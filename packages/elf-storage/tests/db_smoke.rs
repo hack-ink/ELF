@@ -1,4 +1,5 @@
 use tokio::runtime::Runtime;
+use uuid::Uuid;
 
 use elf_config::Postgres;
 use elf_storage::db::Db;
@@ -94,7 +95,7 @@ async fn memory_space_grants_active_uniqueness_enforced() {
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	"#;
 	let first_project = sqlx::query(project_grant)
-		.bind("11111111-1111-1111-1111-111111111111")
+		.bind(Uuid::parse_str("11111111-1111-1111-1111-111111111111").expect("uuid"))
 		.bind("tenant_alpha")
 		.bind("project_alpha")
 		.bind("project_shared")
@@ -102,11 +103,15 @@ async fn memory_space_grants_active_uniqueness_enforced() {
 		.bind("project")
 		.bind(None::<String>)
 		.bind("granter_alpha");
+	let first_project_result = first_project.execute(&db.pool).await;
 
-	assert!(first_project.execute(&db.pool).await.is_ok());
+	assert!(
+		first_project_result.is_ok(),
+		"Expected first project grant to insert cleanly: {first_project_result:?}"
+	);
 
 	let duplicate_project = sqlx::query(project_grant)
-		.bind("11111111-1111-1111-1111-111111111112")
+		.bind(Uuid::parse_str("11111111-1111-1111-1111-111111111112").expect("uuid"))
 		.bind("tenant_alpha")
 		.bind("project_alpha")
 		.bind("project_shared")
@@ -130,7 +135,7 @@ async fn memory_space_grants_active_uniqueness_enforced() {
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	"#;
 	let first_agent = sqlx::query(agent_grant)
-		.bind("22222222-2222-2222-2222-222222222221")
+		.bind(Uuid::parse_str("22222222-2222-2222-2222-222222222221").expect("uuid"))
 		.bind("tenant_alpha")
 		.bind("project_alpha")
 		.bind("project_shared")
@@ -142,7 +147,7 @@ async fn memory_space_grants_active_uniqueness_enforced() {
 	assert!(first_agent.execute(&db.pool).await.is_ok());
 
 	let duplicate_agent = sqlx::query(agent_grant)
-		.bind("22222222-2222-2222-2222-222222222222")
+		.bind(Uuid::parse_str("22222222-2222-2222-2222-222222222222").expect("uuid"))
 		.bind("tenant_alpha")
 		.bind("project_alpha")
 		.bind("project_shared")
