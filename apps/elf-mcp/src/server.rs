@@ -648,6 +648,12 @@ fn docs_search_l0_schema() -> Arc<JsonObject> {
 		"required": ["query"],
 		"properties": {
 			"query": { "type": "string" },
+			"scope": { "type": ["string", "null"] },
+			"status": { "type": ["string", "null"] },
+			"doc_type": { "type": ["string", "null"] },
+			"agent_id": { "type": ["string", "null"] },
+			"updated_after": { "type": ["string", "null"] },
+			"updated_before": { "type": ["string", "null"] },
 			"top_k": { "type": ["integer", "null"] },
 			"candidate_k": { "type": ["integer", "null"] },
 			"read_profile": { "type": ["string", "null"] }
@@ -1069,5 +1075,29 @@ mod tests {
 			&headers,
 			&McpAuthState::StaticKeys { bearer_token: "token-a".to_string() }
 		));
+	}
+
+	#[test]
+	fn docs_search_l0_schema_includes_filter_fields() {
+		let schema = super::docs_search_l0_schema();
+		let properties = schema
+			.get("properties")
+			.and_then(serde_json::Value::as_object)
+			.expect("docs_search_l0 schema is missing properties.");
+		let required = ["query"];
+		let expected =
+			["scope", "status", "doc_type", "agent_id", "updated_after", "updated_before"];
+
+		for field in required {
+			assert!(
+				schema.get("required").and_then(serde_json::Value::as_array).is_some_and(
+					|fields| { fields.iter().any(|value| value.as_str() == Some(field)) }
+				),
+				"Missing required field {field}."
+			);
+		}
+		for field in expected {
+			assert!(properties.contains_key(field), "Missing schema field: {field}.");
+		}
 	}
 }
