@@ -1,31 +1,34 @@
 use std::collections::{HashMap, HashSet};
 
-use qdrant_client::qdrant::{
-	Condition, Filter, Fusion, MinShould, PrefetchQueryBuilder, Query, QueryPointsBuilder,
+use qdrant_client::{
+	Qdrant,
+	qdrant::{
+		Condition, Filter, Fusion, MinShould, PrefetchQueryBuilder, Query, QueryPointsBuilder,
+		ScoredPoint,
+	},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use sqlx::{FromRow, PgExecutor, PgPool};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::{Error, Result};
+use crate::{ElfService, Error, Result, access::SharedSpaceGrantKey};
 use elf_domain::cjk;
 use elf_storage::{
-	doc_outbox, docs as doc_store,
+	doc_outbox,
 	models::{DocChunk, DocDocument},
 	qdrant::{BM25_MODEL, BM25_VECTOR_NAME, DENSE_VECTOR_NAME},
 };
 
-use crate::access::{SharedSpaceGrantKey, load_shared_read_grants_with_org_shared};
-
 const MAX_TOP_K: u32 = 32;
 const MAX_CANDIDATE_K: u32 = 1_024;
-const DEFAULT_DOC_MAX_BYTES: usize = 4 * 1024 * 1024;
+const DEFAULT_DOC_MAX_BYTES: usize = 4 * 1_024 * 1_024;
 const DEFAULT_CHUNK_TARGET_BYTES: usize = 2_048;
 const DEFAULT_CHUNK_OVERLAP_BYTES: usize = 256;
 const DEFAULT_MAX_CHUNKS_PER_DOC: usize = 4_096;
-const DEFAULT_L1_MAX_BYTES: usize = 8 * 1024;
-const DEFAULT_L2_MAX_BYTES: usize = 32 * 1024;
+const DEFAULT_L1_MAX_BYTES: usize = 8 * 1_024;
+const DEFAULT_L2_MAX_BYTES: usize = 32 * 1_024;
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct DocsPutRequest {
@@ -145,22 +148,40 @@ pub struct DocsExcerptResponse {
 	pub verification: DocsExcerptVerification,
 }
 
-impl crate::ElfService {
+#[derive(Clone, Debug)]
+struct ByteChunk {
+	chunk_id: Uuid,
+	start_offset: usize,
+	end_offset: usize,
+	text: String,
+}
+
+#[derive(Clone, Debug, FromRow)]
+struct DocSearchRow {
+	chunk_id: Uuid,
+	doc_id: Uuid,
+	scope: String,
+	project_id: String,
+	agent_id: String,
+	updated_at: OffsetDateTime,
+	content_hash: String,
+	chunk_hash: String,
+	chunk_text: String,
+}
+
+impl ElfService {
 	pub async fn docs_put(&self, req: DocsPutRequest) -> Result<DocsPutResponse> {
 		validate_docs_put(&req)?;
 
 		let now = OffsetDateTime::now_utc();
 		let embed_version = crate::embedding_version(&self.cfg);
-
 		let DocsPutRequest { tenant_id, project_id, agent_id, scope, title, source_ref, content } =
 			req;
-
 		let effective_project_id = if scope.trim() == "org_shared" {
 			crate::access::ORG_PROJECT_ID
 		} else {
 			project_id.as_str()
 		};
-
 		let content_bytes = content.len();
 		let content_hash = blake3::hash(content.as_bytes());
 		let doc_id = Uuid::new_v4();
@@ -170,9 +191,6 @@ impl crate::ElfService {
 			DEFAULT_CHUNK_OVERLAP_BYTES,
 			DEFAULT_MAX_CHUNKS_PER_DOC,
 		)?;
-
-		let mut tx = self.db.pool.begin().await?;
-
 		let doc_row = DocDocument {
 			doc_id,
 			tenant_id: tenant_id.clone(),
@@ -181,15 +199,16 @@ impl crate::ElfService {
 			scope: scope.clone(),
 			status: "active".to_string(),
 			title,
-			source_ref: doc_store::normalize_source_ref(Some(source_ref)),
+			source_ref: elf_storage::docs::normalize_source_ref(Some(source_ref)),
 			content,
 			content_bytes: content_bytes as i32,
 			content_hash: content_hash.to_hex().to_string(),
 			created_at: now,
 			updated_at: now,
 		};
+		let mut tx = self.db.pool.begin().await?;
 
-		doc_store::insert_doc_document(&mut *tx, &doc_row).await?;
+		elf_storage::docs::insert_doc_document(&mut *tx, &doc_row).await?;
 
 		for (chunk_index, chunk) in chunks.iter().enumerate() {
 			let chunk_hash = blake3::hash(chunk.text.as_bytes());
@@ -204,7 +223,7 @@ impl crate::ElfService {
 				created_at: now,
 			};
 
-			doc_store::insert_doc_chunk(&mut *tx, &chunk_row).await?;
+			elf_storage::docs::insert_doc_chunk(&mut *tx, &chunk_row).await?;
 			doc_outbox::enqueue_doc_outbox(
 				&mut *tx,
 				doc_id,
@@ -252,9 +271,9 @@ impl crate::ElfService {
 					.to_string(),
 			});
 		}
+
 		let allowed_scopes = crate::search::resolve_read_profile_scopes(&self.cfg, read_profile)?;
 		let org_shared_allowed = allowed_scopes.iter().any(|scope| scope == "org_shared");
-
 		let row: Option<DocDocument> = sqlx::query_as::<_, DocDocument>(
 			"\
 SELECT
@@ -292,7 +311,7 @@ LIMIT 1",
 		let shared_grants = if row.scope == "agent_private" {
 			HashSet::new()
 		} else {
-			load_shared_read_grants_with_org_shared(
+			crate::access::load_shared_read_grants_with_org_shared(
 				&self.db.pool,
 				tenant_id,
 				project_id,
@@ -337,7 +356,7 @@ LIMIT 1",
 		let allowed_scopes =
 			crate::search::resolve_read_profile_scopes(&self.cfg, req.read_profile.as_str())?;
 		let org_shared_allowed = allowed_scopes.iter().any(|scope| scope == "org_shared");
-		let shared_grants = load_shared_read_grants_with_org_shared(
+		let shared_grants = crate::access::load_shared_read_grants_with_org_shared(
 			&self.db.pool,
 			req.tenant_id.as_str(),
 			req.project_id.as_str(),
@@ -345,22 +364,21 @@ LIMIT 1",
 			org_shared_allowed,
 		)
 		.await?;
-
 		let filter = build_doc_search_filter(
 			req.tenant_id.as_str(),
 			req.project_id.as_str(),
 			req.agent_id.as_str(),
 			&allowed_scopes,
 		);
-
 		let embedded = self
 			.providers
 			.embedding
-			.embed(&self.cfg.providers.embedding, &[req.query.clone()])
+			.embed(&self.cfg.providers.embedding, std::slice::from_ref(&req.query))
 			.await?;
 		let vector = embedded.first().ok_or_else(|| Error::Provider {
 			message: "Embedding provider returned no vectors.".to_string(),
 		})?;
+
 		if vector.len() != self.cfg.storage.qdrant.vector_dim as usize {
 			return Err(Error::Provider {
 				message: "Embedding vector dimension mismatch.".to_string(),
@@ -376,11 +394,12 @@ LIMIT 1",
 			candidate_k,
 		)
 		.await?;
-
 		let mut scored_chunks = Vec::new();
 		let mut seen = HashSet::new();
+
 		for point in scored.into_iter().take(candidate_k as usize) {
 			let chunk_id = parse_scored_point_uuid_id(&point)?;
+
 			if !seen.insert(chunk_id) {
 				continue;
 			}
@@ -396,8 +415,8 @@ LIMIT 1",
 			&chunk_ids,
 		)
 		.await?;
-
 		let mut items = Vec::with_capacity(top_k as usize);
+
 		for (chunk_id, score) in scored_chunks {
 			let Some(row) = rows.get(&chunk_id) else { continue };
 
@@ -440,35 +459,17 @@ LIMIT 1",
 		let agent_id = req.agent_id.trim();
 		let read_profile = req.read_profile.trim();
 
-		if tenant_id.is_empty()
-			|| project_id.is_empty()
-			|| agent_id.is_empty()
-			|| read_profile.is_empty()
-		{
-			return Err(Error::InvalidRequest {
-				message: "tenant_id, project_id, agent_id, and read_profile are required."
-					.to_string(),
-			});
-		}
-		if let Some(quote) = req.quote.as_ref() {
-			if cjk::contains_cjk(quote.exact.as_str()) {
-				return Err(Error::NonEnglishInput { field: "$.quote.exact".to_string() });
-			}
-			if let Some(prefix) = quote.prefix.as_ref()
-				&& cjk::contains_cjk(prefix.as_str())
-			{
-				return Err(Error::NonEnglishInput { field: "$.quote.prefix".to_string() });
-			}
-			if let Some(suffix) = quote.suffix.as_ref()
-				&& cjk::contains_cjk(suffix.as_str())
-			{
-				return Err(Error::NonEnglishInput { field: "$.quote.suffix".to_string() });
-			}
-		}
+		validate_docs_excerpts_get(
+			tenant_id,
+			project_id,
+			agent_id,
+			read_profile,
+			req.quote.as_ref(),
+		)?;
 
 		let allowed_scopes = crate::search::resolve_read_profile_scopes(&self.cfg, read_profile)?;
 		let org_shared_allowed = allowed_scopes.iter().any(|scope| scope == "org_shared");
-		let shared_grants = load_shared_read_grants_with_org_shared(
+		let shared_grants = crate::access::load_shared_read_grants_with_org_shared(
 			&self.db.pool,
 			tenant_id,
 			project_id,
@@ -476,41 +477,9 @@ LIMIT 1",
 			org_shared_allowed,
 		)
 		.await?;
-
-		let row: Option<DocDocument> = sqlx::query_as::<_, DocDocument>(
-			"\
-SELECT
-\tdoc_id,
-\ttenant_id,
-\tproject_id,
-\tagent_id,
-\tscope,
-\tstatus,
-\ttitle,
-\tCOALESCE(source_ref, '{}'::jsonb) AS source_ref,
-\tcontent,
-\tcontent_bytes,
-\tcontent_hash,
-\tcreated_at,
-\tupdated_at
-FROM doc_documents
-WHERE doc_id = $1
-  AND tenant_id = $2
-  AND (
-    project_id = $3
-    OR (project_id = $4 AND scope = 'org_shared')
-  )
-LIMIT 1",
-		)
-		.bind(req.doc_id)
-		.bind(tenant_id)
-		.bind(project_id)
-		.bind(crate::access::ORG_PROJECT_ID)
-		.fetch_optional(&self.db.pool)
-		.await?;
-		let Some(doc) = row else {
-			return Err(Error::NotFound { message: "Doc not found.".to_string() });
-		};
+		let doc = load_doc_document_for_read(&self.db.pool, req.doc_id, tenant_id, project_id)
+			.await?
+			.ok_or_else(|| Error::NotFound { message: "Doc not found.".to_string() })?;
 
 		if doc.status != "active"
 			|| !doc_read_allowed(
@@ -523,61 +492,25 @@ LIMIT 1",
 			return Err(Error::NotFound { message: "Doc not found.".to_string() });
 		}
 
-		let level_max = match req.level.as_str() {
-			"L1" => DEFAULT_L1_MAX_BYTES,
-			"L2" => DEFAULT_L2_MAX_BYTES,
-			_ => {
-				return Err(Error::InvalidRequest {
-					message: "level must be L1 or L2.".to_string(),
-				});
-			},
-		};
-
-		let mut verification_errors = Vec::new();
+		let level_max = excerpt_level_max(req.level.as_str())?;
 		let mut verified = true;
-
-		let (match_start, match_end) = if let Some(chunk_id) = req.chunk_id {
-			let chunk = doc_store::get_doc_chunk(&self.db.pool, chunk_id).await?;
-			let Some(chunk) = chunk else {
-				return Err(Error::NotFound { message: "Chunk not found.".to_string() });
-			};
-			if chunk.doc_id != doc.doc_id {
-				return Err(Error::NotFound { message: "Chunk not found.".to_string() });
-			}
-
-			(chunk.start_offset.max(0) as usize, chunk.end_offset.max(0) as usize)
-		} else if let Some(quote) = req.quote.as_ref() {
-			match locate_quote(&doc.content, quote) {
-				Some((s, e)) => (s, e),
-				None => {
-					verified = false;
-					verification_errors.push("QUOTE_SELECTOR_NOT_FOUND".to_string());
-
-					if let Some(pos) = req.position.as_ref() {
-						(pos.start.min(doc.content.len()), pos.end.min(doc.content.len()))
-					} else {
-						return Err(Error::NotFound {
-							message: "Selector did not match document.".to_string(),
-						});
-					}
-				},
-			}
-		} else if let Some(pos) = req.position.as_ref() {
-			(pos.start.min(doc.content.len()), pos.end.min(doc.content.len()))
-		} else {
-			return Err(Error::InvalidRequest {
-				message: "One of chunk_id, quote, or position is required.".to_string(),
-			});
-		};
-
+		let mut verification_errors = Vec::new();
+		let (match_start, match_end) = resolve_excerpts_match_range(
+			&self.db.pool,
+			&doc,
+			&req,
+			&mut verified,
+			&mut verification_errors,
+		)
+		.await?;
 		let (start, end) = bounded_window(match_start, match_end, doc.content.as_str(), level_max);
 		let excerpt = doc.content.get(start..end).unwrap_or("").to_string();
-
 		let excerpt_hash = blake3::hash(excerpt.as_bytes()).to_hex().to_string();
 		let content_hash = doc.content_hash.clone();
 
 		if excerpt.is_empty() {
 			verified = false;
+
 			verification_errors.push("EMPTY_EXCERPT".to_string());
 		}
 
@@ -593,6 +526,57 @@ LIMIT 1",
 				excerpt_hash,
 			},
 		})
+	}
+}
+
+fn validate_docs_excerpts_get(
+	tenant_id: &str,
+	project_id: &str,
+	agent_id: &str,
+	read_profile: &str,
+	quote: Option<&TextQuoteSelector>,
+) -> Result<()> {
+	if tenant_id.is_empty()
+		|| project_id.is_empty()
+		|| agent_id.is_empty()
+		|| read_profile.is_empty()
+	{
+		return Err(Error::InvalidRequest {
+			message: "tenant_id, project_id, agent_id, and read_profile are required.".to_string(),
+		});
+	}
+
+	if let Some(quote) = quote {
+		validate_quote_selector_cjk(quote)?;
+	}
+
+	Ok(())
+}
+
+fn validate_quote_selector_cjk(quote: &TextQuoteSelector) -> Result<()> {
+	if cjk::contains_cjk(quote.exact.as_str()) {
+		return Err(Error::NonEnglishInput { field: "$.quote.exact".to_string() });
+	}
+
+	if let Some(prefix) = quote.prefix.as_ref()
+		&& cjk::contains_cjk(prefix.as_str())
+	{
+		return Err(Error::NonEnglishInput { field: "$.quote.prefix".to_string() });
+	}
+	if let Some(suffix) = quote.suffix.as_ref()
+		&& cjk::contains_cjk(suffix.as_str())
+	{
+		return Err(Error::NonEnglishInput { field: "$.quote.suffix".to_string() });
+	}
+
+	Ok(())
+}
+
+fn excerpt_level_max(level: &str) -> Result<usize> {
+	match level {
+		"L1" => Ok(DEFAULT_L1_MAX_BYTES),
+		"L2" => Ok(DEFAULT_L2_MAX_BYTES),
+		_ => Err(Error::InvalidRequest { message: "level must be L1 or L2.".to_string() }),
 	}
 }
 
@@ -614,6 +598,7 @@ fn validate_docs_put(req: &DocsPutRequest) -> Result<()> {
 	if cjk::contains_cjk(req.content.as_str()) {
 		return Err(Error::NonEnglishInput { field: "$.content".to_string() });
 	}
+
 	if let Some(title) = req.title.as_ref()
 		&& cjk::contains_cjk(title.as_str())
 	{
@@ -675,14 +660,6 @@ fn escape_json_path_key(key: &str) -> String {
 	key.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
-#[derive(Clone, Debug)]
-struct ByteChunk {
-	chunk_id: Uuid,
-	start_offset: usize,
-	end_offset: usize,
-	text: String,
-}
-
 fn split_bytes_by_sentence(
 	text: &str,
 	target_bytes: usize,
@@ -699,6 +676,7 @@ fn split_bytes_by_sentence(
 
 	for (idx, sentence) in sentences {
 		let candidate = format!("{}{}", current, sentence);
+
 		if candidate.len() > target_bytes && !current.is_empty() {
 			chunks.push(ByteChunk {
 				chunk_id: Uuid::new_v4(),
@@ -714,6 +692,7 @@ fn split_bytes_by_sentence(
 			}
 
 			let overlap = overlap_tail_bytes(&current, overlap_bytes);
+
 			current_start = last_end.saturating_sub(overlap.len());
 			current = overlap;
 		}
@@ -722,6 +701,7 @@ fn split_bytes_by_sentence(
 		}
 
 		current.push_str(sentence);
+
 		last_end = idx + sentence.len();
 	}
 
@@ -741,49 +721,21 @@ fn overlap_tail_bytes(text: &str, overlap_bytes: usize) -> String {
 	if overlap_bytes == 0 {
 		return String::new();
 	}
+
 	let bytes = text.as_bytes();
+
 	if bytes.len() <= overlap_bytes {
 		return text.to_string();
 	}
+
 	let start = bytes.len().saturating_sub(overlap_bytes);
 	let mut cut = start;
+
 	while cut < bytes.len() && !text.is_char_boundary(cut) {
 		cut += 1;
 	}
+
 	text.get(cut..).unwrap_or("").to_string()
-}
-
-async fn run_doc_fusion_query(
-	client: &qdrant_client::Qdrant,
-	collection: &str,
-	query_text: &str,
-	vector: &[f32],
-	filter: &Filter,
-	candidate_k: u32,
-) -> Result<Vec<qdrant_client::qdrant::ScoredPoint>> {
-	let mut search = QueryPointsBuilder::new(collection.to_string());
-
-	let dense_prefetch = PrefetchQueryBuilder::default()
-		.query(Query::new_nearest(vector.to_vec()))
-		.using(DENSE_VECTOR_NAME)
-		.filter(filter.clone())
-		.limit(candidate_k as u64);
-	let bm25_prefetch = PrefetchQueryBuilder::default()
-		.query(Query::new_nearest(qdrant_client::qdrant::Document::new(
-			query_text.to_string(),
-			BM25_MODEL,
-		)))
-		.using(BM25_VECTOR_NAME)
-		.filter(filter.clone())
-		.limit(candidate_k as u64);
-
-	search = search.add_prefetch(dense_prefetch).add_prefetch(bm25_prefetch);
-
-	let search = search.with_payload(false).query(Fusion::Rrf).limit(candidate_k as u64);
-	let response =
-		client.query(search).await.map_err(|err| Error::Qdrant { message: err.to_string() })?;
-
-	Ok(response.result)
 }
 
 fn build_doc_search_filter(
@@ -864,7 +816,7 @@ fn doc_read_allowed(
 	})
 }
 
-fn parse_scored_point_uuid_id(point: &qdrant_client::qdrant::ScoredPoint) -> Result<Uuid> {
+fn parse_scored_point_uuid_id(point: &ScoredPoint) -> Result<Uuid> {
 	use qdrant_client::qdrant::point_id::PointIdOptions;
 
 	let id = point
@@ -882,73 +834,17 @@ fn parse_scored_point_uuid_id(point: &qdrant_client::qdrant::ScoredPoint) -> Res
 	}
 }
 
-#[derive(Clone, Debug, sqlx::FromRow)]
-struct DocSearchRow {
-	chunk_id: Uuid,
-	doc_id: Uuid,
-	scope: String,
-	project_id: String,
-	agent_id: String,
-	updated_at: OffsetDateTime,
-	content_hash: String,
-	chunk_hash: String,
-	chunk_text: String,
-}
-
-async fn load_doc_search_rows(
-	executor: impl sqlx::PgExecutor<'_>,
-	tenant_id: &str,
-	project_id: &str,
-	chunk_ids: &[Uuid],
-) -> Result<HashMap<Uuid, DocSearchRow>> {
-	if chunk_ids.is_empty() {
-		return Ok(HashMap::new());
-	}
-
-	let rows: Vec<DocSearchRow> = sqlx::query_as(
-		"\
-SELECT
-	c.chunk_id,
-	c.doc_id,
-	d.scope,
-	d.project_id,
-	d.agent_id,
-	d.updated_at,
-	d.content_hash,
-	c.chunk_hash,
-	c.chunk_text
-FROM doc_chunks c
-JOIN doc_documents d ON d.doc_id = c.doc_id
-WHERE c.chunk_id = ANY($1)
-  AND d.tenant_id = $2
-  AND d.status = 'active'
-  AND (
-    d.project_id = $3
-    OR (d.project_id = $4 AND d.scope = 'org_shared')
-  )",
-	)
-	.bind(chunk_ids)
-	.bind(tenant_id)
-	.bind(project_id)
-	.bind(crate::access::ORG_PROJECT_ID)
-	.fetch_all(executor)
-	.await?;
-	let mut map = HashMap::with_capacity(rows.len());
-	for row in rows {
-		map.insert(row.chunk_id, row);
-	}
-
-	Ok(map)
-}
-
 fn truncate_bytes(text: &str, max: usize) -> String {
 	if text.len() <= max {
 		return text.to_string();
 	}
+
 	let mut cut = max;
+
 	while cut > 0 && !text.is_char_boundary(cut) {
 		cut -= 1;
 	}
+
 	text.get(0..cut).unwrap_or("").to_string()
 }
 
@@ -958,6 +854,7 @@ fn locate_quote(text: &str, quote: &TextQuoteSelector) -> Option<(usize, usize)>
 
 	for (start, _) in text.match_indices(quote.exact.as_str()) {
 		let end = start + quote.exact.len();
+
 		if !text[..start].ends_with(prefix) {
 			continue;
 		}
@@ -995,4 +892,170 @@ fn bounded_window(
 	}
 
 	(start, end)
+}
+
+async fn load_doc_document_for_read(
+	executor: impl PgExecutor<'_>,
+	doc_id: Uuid,
+	tenant_id: &str,
+	project_id: &str,
+) -> Result<Option<DocDocument>> {
+	let row: Option<DocDocument> = sqlx::query_as::<_, DocDocument>(
+		"\
+SELECT
+\tdoc_id,
+\ttenant_id,
+\tproject_id,
+\tagent_id,
+\tscope,
+\tstatus,
+\ttitle,
+\tCOALESCE(source_ref, '{}'::jsonb) AS source_ref,
+\tcontent,
+\tcontent_bytes,
+\tcontent_hash,
+\tcreated_at,
+\tupdated_at
+FROM doc_documents
+WHERE doc_id = $1
+  AND tenant_id = $2
+  AND (
+    project_id = $3
+    OR (project_id = $4 AND scope = 'org_shared')
+  )
+LIMIT 1",
+	)
+	.bind(doc_id)
+	.bind(tenant_id)
+	.bind(project_id)
+	.bind(crate::access::ORG_PROJECT_ID)
+	.fetch_optional(executor)
+	.await?;
+
+	Ok(row)
+}
+
+async fn resolve_excerpts_match_range(
+	pool: &PgPool,
+	doc: &DocDocument,
+	req: &DocsExcerptsGetRequest,
+	verified: &mut bool,
+	verification_errors: &mut Vec<String>,
+) -> Result<(usize, usize)> {
+	if let Some(chunk_id) = req.chunk_id {
+		let chunk = elf_storage::docs::get_doc_chunk(pool, chunk_id).await?;
+		let Some(chunk) = chunk else {
+			return Err(Error::NotFound { message: "Chunk not found.".to_string() });
+		};
+
+		if chunk.doc_id != doc.doc_id {
+			return Err(Error::NotFound { message: "Chunk not found.".to_string() });
+		}
+
+		return Ok((chunk.start_offset.max(0) as usize, chunk.end_offset.max(0) as usize));
+	}
+	if let Some(quote) = req.quote.as_ref() {
+		return Ok(match locate_quote(&doc.content, quote) {
+			Some((s, e)) => (s, e),
+			None => {
+				*verified = false;
+
+				verification_errors.push("QUOTE_SELECTOR_NOT_FOUND".to_string());
+
+				if let Some(pos) = req.position.as_ref() {
+					(pos.start.min(doc.content.len()), pos.end.min(doc.content.len()))
+				} else {
+					return Err(Error::NotFound {
+						message: "Selector did not match document.".to_string(),
+					});
+				}
+			},
+		});
+	}
+	if let Some(pos) = req.position.as_ref() {
+		return Ok((pos.start.min(doc.content.len()), pos.end.min(doc.content.len())));
+	}
+
+	Err(Error::InvalidRequest {
+		message: "One of chunk_id, quote, or position is required.".to_string(),
+	})
+}
+
+async fn run_doc_fusion_query(
+	client: &Qdrant,
+	collection: &str,
+	query_text: &str,
+	vector: &[f32],
+	filter: &Filter,
+	candidate_k: u32,
+) -> Result<Vec<ScoredPoint>> {
+	let dense_prefetch = PrefetchQueryBuilder::default()
+		.query(Query::new_nearest(vector.to_vec()))
+		.using(DENSE_VECTOR_NAME)
+		.filter(filter.clone())
+		.limit(candidate_k as u64);
+	let bm25_prefetch = PrefetchQueryBuilder::default()
+		.query(Query::new_nearest(qdrant_client::qdrant::Document::new(
+			query_text.to_string(),
+			BM25_MODEL,
+		)))
+		.using(BM25_VECTOR_NAME)
+		.filter(filter.clone())
+		.limit(candidate_k as u64);
+	let mut search = QueryPointsBuilder::new(collection.to_string());
+
+	search = search.add_prefetch(dense_prefetch).add_prefetch(bm25_prefetch);
+
+	let search = search.with_payload(false).query(Fusion::Rrf).limit(candidate_k as u64);
+	let response =
+		client.query(search).await.map_err(|err| Error::Qdrant { message: err.to_string() })?;
+
+	Ok(response.result)
+}
+
+async fn load_doc_search_rows(
+	executor: impl PgExecutor<'_>,
+	tenant_id: &str,
+	project_id: &str,
+	chunk_ids: &[Uuid],
+) -> Result<HashMap<Uuid, DocSearchRow>> {
+	if chunk_ids.is_empty() {
+		return Ok(HashMap::new());
+	}
+
+	let rows: Vec<DocSearchRow> = sqlx::query_as(
+		"\
+SELECT
+	c.chunk_id,
+	c.doc_id,
+	d.scope,
+	d.project_id,
+	d.agent_id,
+	d.updated_at,
+	d.content_hash,
+	c.chunk_hash,
+	c.chunk_text
+FROM doc_chunks c
+JOIN doc_documents d ON d.doc_id = c.doc_id
+WHERE c.chunk_id = ANY($1)
+  AND d.tenant_id = $2
+  AND d.status = 'active'
+  AND (
+    d.project_id = $3
+    OR (d.project_id = $4 AND d.scope = 'org_shared')
+  )",
+	)
+	.bind(chunk_ids)
+	.bind(tenant_id)
+	.bind(project_id)
+	.bind(crate::access::ORG_PROJECT_ID)
+	.fetch_all(executor)
+	.await?;
+	let mut map = HashMap::with_capacity(rows.len());
+
+	for row in rows {
+		map.insert(row.chunk_id, row);
+	}
+
+	Ok(map)
 }

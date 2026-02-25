@@ -655,7 +655,7 @@ async fn handle_doc_upsert(state: &WorkerState, job: &DocIndexingOutboxEntry) ->
 		return Ok(());
 	}
 
-	let vectors = embedding::embed(&state.embedding, &[row.chunk_text.clone()])
+	let vectors = embedding::embed(&state.embedding, std::slice::from_ref(&row.chunk_text))
 		.await
 		.map_err(|err| Error::Message(err.to_string()))?;
 	let vector = vectors
