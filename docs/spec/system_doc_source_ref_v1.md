@@ -12,11 +12,13 @@ Scope:
 - This schema is for provenance and retrieval correlation, not for note-level evidence
   pointers (`source_ref/v1`).
 
+`source_ref` is optional for `docs_put`; when omitted, the service persists an empty JSON object.
+
 ==================================================
 1) Top-level shape and required keys
 ==================================================
 
-`source_ref` MUST be a JSON object with these required keys:
+When `source_ref` is provided, it MUST be a JSON object with these required keys:
 
 - `schema` (string): exact value `doc_source_ref/v1`.
 - `source` (string): one of `chat`, `search`, `dev`, `knowledge`.
@@ -51,7 +53,10 @@ Optional top-level keys
 For producers, include `ref.id` plus at least one source-specific hint in
 `ref.keys` when available:
 
-- `chat`: `thread_id`, `message_id`, `speaker` (if stable).
+- `chat`: `thread_id`, `message_id`, `speaker` (optional).
+  - `speaker` is opaque metadata and is not enumerated by this spec or by service
+    validation. Emit a stable role marker that your producers understand (for example,
+    `user` or `assistant`).
 - `search`: `query_id`, `result_id`, `provider`.
 - `dev`: `project`, `repo`, `branch`, `file`, `commit`.
 - `knowledge`: `knowledge_base`, `entry_id`, `section_id`.

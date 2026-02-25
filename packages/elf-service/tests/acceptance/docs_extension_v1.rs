@@ -1,14 +1,11 @@
-use std::{
-	collections::HashSet,
-	future::IntoFuture,
-	sync::Arc,
-	time::{Duration, Instant},
-};
+use std::{collections::HashSet, future::IntoFuture, sync::Arc, time::Instant};
 
 use ahash::AHashMap;
 use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing};
+use qdrant_client::qdrant::{CreateFieldIndexCollection, FieldType, PayloadSchemaType};
 use serde_json::{Map, Value};
 use sqlx::{FromRow, PgPool};
+use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use tokenizers::{Tokenizer, models::wordlevel::WordLevel};
 use tokio::{
 	net::TcpListener,
@@ -26,8 +23,6 @@ use elf_service::{
 use elf_storage::{db::Db, qdrant::QdrantStore};
 use elf_testkit::TestDatabase;
 use elf_worker::worker;
-use qdrant_client::qdrant::{CreateFieldIndexCollection, FieldType, PayloadSchemaType};
-use time::OffsetDateTime;
 
 const TEST_CONTENT: &str =
 	"ELF docs extension v1 stores evidence. Keyword: peregrine.\nSecond sentence for chunking.";
@@ -65,7 +60,11 @@ fn build_test_tokenizer() -> Tokenizer {
 	Tokenizer::new(model)
 }
 
-async fn wait_for_doc_outbox_done(pool: &PgPool, doc_id: Uuid, timeout: Duration) -> bool {
+async fn wait_for_doc_outbox_done(
+	pool: &PgPool,
+	doc_id: Uuid,
+	timeout: std::time::Duration,
+) -> bool {
 	let deadline = Instant::now() + timeout;
 
 	loop {
@@ -100,7 +99,7 @@ WHERE doc_id = $1",
 			return false;
 		}
 
-		tokio::time::sleep(Duration::from_millis(200)).await;
+		tokio::time::sleep(std::time::Duration::from_millis(200)).await;
 	}
 }
 
@@ -152,7 +151,8 @@ async fn docs_put_get_excerpts_and_search_l0_work_end_to_end() {
 	let (handle, shutdown) = spawn_doc_worker(&service).await;
 
 	assert!(
-		wait_for_doc_outbox_done(&service.db.pool, put.doc_id, Duration::from_secs(15)).await,
+		wait_for_doc_outbox_done(&service.db.pool, put.doc_id, std::time::Duration::from_secs(15))
+			.await,
 		"Expected doc outbox to reach DONE."
 	);
 
@@ -174,7 +174,6 @@ async fn docs_put_get_excerpts_and_search_l0_work_end_to_end() {
 async fn docs_search_l0_respects_scope_doc_type_agent_id_and_updated_after_filters() {
 	let Some(ctx) = setup_docs_context().await else { return };
 	let DocsContext { test_db, service } = ctx;
-
 	let shared_knowledge_doc = put_test_doc_with(
 		&service,
 		"owner",
@@ -195,14 +194,13 @@ async fn docs_search_l0_respects_scope_doc_type_agent_id_and_updated_after_filte
 		TEST_CONTENT,
 	)
 	.await;
-
 	let (handle, shutdown) = spawn_doc_worker(&service).await;
 
 	assert!(
 		wait_for_doc_outbox_done(
 			&service.db.pool,
 			shared_knowledge_doc.doc_id,
-			Duration::from_secs(15)
+			std::time::Duration::from_secs(15)
 		)
 		.await,
 		"Expected shared docs outbox to reach DONE."
@@ -211,40 +209,68 @@ async fn docs_search_l0_respects_scope_doc_type_agent_id_and_updated_after_filte
 		wait_for_doc_outbox_done(
 			&service.db.pool,
 			private_chat_doc.doc_id,
-			Duration::from_secs(15)
+			std::time::Duration::from_secs(15)
 		)
 		.await,
 		"Expected private docs outbox to reach DONE."
 	);
 
-	let shared_scope_results =
-		search_doc_ids_with_filters(&service, Some("project_shared"), None, None, None, None).await;
+	let shared_scope_results = search_doc_ids_with_filters(
+		&service,
+		Some("project_shared"),
+		None,
+		None,
+		None,
+		None,
+		"reader",
+	)
+	.await;
+
 	assert!(shared_scope_results.contains(&shared_knowledge_doc.doc_id));
 	assert!(!shared_scope_results.contains(&private_chat_doc.doc_id));
 
 	let chat_results =
-		search_doc_ids_with_filters(&service, None, Some("chat"), None, None, None).await;
-	assert!(chat_results.contains(&private_chat_doc.doc_id));
+		search_doc_ids_with_filters(&service, None, Some("chat"), None, None, None, "reader").await;
+
+	assert!(!chat_results.contains(&private_chat_doc.doc_id));
 	assert!(!chat_results.contains(&shared_knowledge_doc.doc_id));
 
+	let assistant_chat_results =
+		search_doc_ids_with_filters(&service, None, Some("chat"), None, None, None, "assistant")
+			.await;
+
+	assert!(assistant_chat_results.contains(&private_chat_doc.doc_id));
+	assert!(!assistant_chat_results.contains(&shared_knowledge_doc.doc_id));
+
 	let assistant_results =
-		search_doc_ids_with_filters(&service, None, None, Some("assistant"), None, None).await;
-	assert!(assistant_results.contains(&private_chat_doc.doc_id));
+		search_doc_ids_with_filters(&service, None, None, Some("assistant"), None, None, "reader")
+			.await;
+
+	assert!(!assistant_results.contains(&private_chat_doc.doc_id));
 	assert!(!assistant_results.contains(&shared_knowledge_doc.doc_id));
 
-	let past = (OffsetDateTime::now_utc() - time::Duration::seconds(60)).to_string();
-	let future = (OffsetDateTime::now_utc() + time::Duration::seconds(60)).to_string();
+	let past = (OffsetDateTime::now_utc() - time::Duration::seconds(60))
+		.format(&Rfc3339)
+		.expect("Failed to format past RFC3339 timestamp.");
+	let future = (OffsetDateTime::now_utc() + time::Duration::seconds(60))
+		.format(&Rfc3339)
+		.expect("Failed to format future RFC3339 timestamp.");
 	let updated_after_past_results =
-		search_doc_ids_with_filters(&service, None, None, None, Some(&past), None).await;
+		search_doc_ids_with_filters(&service, None, None, None, Some(&past), None, "reader").await;
+
 	assert!(updated_after_past_results.contains(&shared_knowledge_doc.doc_id));
-	assert!(updated_after_past_results.contains(&private_chat_doc.doc_id));
+	assert!(!updated_after_past_results.contains(&private_chat_doc.doc_id));
 
 	let updated_after_future_results =
-		search_doc_ids_with_filters(&service, None, None, None, Some(&future), None).await;
+		search_doc_ids_with_filters(&service, None, None, None, Some(&future), None, "reader")
+			.await;
+
 	assert!(updated_after_future_results.is_empty());
 
 	let _ = shutdown.send(());
+
 	handle.abort();
+
 	let _ = handle.await;
 
 	test_db.cleanup().await.expect("Failed to cleanup test database.");
@@ -284,7 +310,6 @@ async fn docs_put_rejects_non_english_source_ref() {
 	);
 	let service =
 		crate::acceptance::build_service(cfg, providers).await.expect("Failed to build service.");
-
 	let result = service
 		.docs_put(DocsPutRequest {
 			tenant_id: "t".to_string(),
@@ -317,14 +342,17 @@ async fn docs_search_l0_requires_qdrant_payload_indexes_for_filters() {
 	let (handle, shutdown) = spawn_doc_worker(&service).await;
 
 	assert!(
-		wait_for_doc_outbox_done(&service.db.pool, doc.doc_id, Duration::from_secs(15)).await,
+		wait_for_doc_outbox_done(&service.db.pool, doc.doc_id, std::time::Duration::from_secs(15))
+			.await,
 		"Expected doc outbox to reach DONE."
 	);
 
 	verify_docs_qdrant_filter_indexes(&service).await;
 
 	let _ = shutdown.send(());
+
 	handle.abort();
+
 	let _ = handle.await;
 
 	test_db.cleanup().await.expect("Failed to cleanup test database.");
@@ -426,12 +454,13 @@ async fn search_doc_ids_with_filters(
 	agent_id: Option<&str>,
 	updated_after: Option<&str>,
 	updated_before: Option<&str>,
+	caller_agent_id: &str,
 ) -> HashSet<Uuid> {
 	let results = service
 		.docs_search_l0(DocsSearchL0Request {
 			tenant_id: "t".to_string(),
 			project_id: "p".to_string(),
-			caller_agent_id: "reader".to_string(),
+			caller_agent_id: caller_agent_id.to_string(),
 			scope: scope.map(str::to_string),
 			status: None,
 			doc_type: doc_type.map(str::to_string),
@@ -465,6 +494,7 @@ async fn verify_docs_qdrant_filter_indexes(service: &ElfService) {
 			Some(schema) => schema.data_type != payload_type as i32,
 			None => true,
 		};
+
 		if missing_or_wrong {
 			let request = CreateFieldIndexCollection {
 				collection_name: service.cfg.storage.qdrant.docs_collection.clone(),
@@ -474,6 +504,7 @@ async fn verify_docs_qdrant_filter_indexes(service: &ElfService) {
 				field_index_params: None,
 				ordering: None,
 			};
+
 			service
 				.qdrant
 				.client
@@ -495,6 +526,7 @@ async fn verify_docs_qdrant_filter_indexes(service: &ElfService) {
 
 	for (field_name, payload_type, _) in DOCS_SEARCH_FILTER_INDEXES {
 		let schema = payload_schema.get(field_name).expect("Expected required payload field.");
+
 		assert_eq!(
 			schema.data_type, payload_type as i32,
 			"Unexpected payload type for {field_name}."

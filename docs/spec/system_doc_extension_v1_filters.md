@@ -21,16 +21,19 @@ Scope
 ==================================================
 
 - `scope` (optional string): one of `agent_private`, `project_shared`, `org_shared`.
-- `status` (optional string): defaults to `active`, allowed `active`, `deleted`.
+- `status` (optional string): defaults to `active` when omitted. Current implementation matches
+  this value exactly against stored doc status (`active`/`deleted` in current schema).
 - `doc_type` (optional string): exact-match filter.
 - `agent_id` (optional string): exact-match filter.
-- `updated_after` (optional string): RFC3339 lower bound on `updated_at`.
-- `updated_before` (optional string): RFC3339 upper bound on `updated_at`.
+- `updated_after` (optional string): RFC3339 timestamp lower bound for `updated_at`.
+- `updated_before` (optional string): RFC3339 timestamp upper bound for `updated_at`.
+- Timestamp bounds are exclusive (`updated_after < updated_at < updated_before`), and values are parsed
+  as timezone-aware RFC3339 datetimes.
 
 Filter evaluation:
 - Every supplied filter is combined with logical AND.
 - `status` defaults to `active` when omitted.
-- Invalid date values or `updated_after > updated_before` must be rejected with `400`.
+- Invalid date values or `updated_after >= updated_before` are rejected with `400`.
 
 ==================================================
 2) Qdrant Payload Contract

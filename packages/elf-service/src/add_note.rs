@@ -34,6 +34,7 @@ pub struct AddNoteInput {
 	pub importance: f32,
 	pub confidence: f32,
 	pub ttl_days: Option<i64>,
+	#[serde(default = "default_source_ref")]
 	pub source_ref: Value,
 }
 
@@ -62,6 +63,8 @@ struct AddNoteContext<'a> {
 
 impl ElfService {
 	pub async fn add_note(&self, req: AddNoteRequest) -> Result<AddNoteResponse> {
+		let req = normalize_add_note_request(req);
+
 		validate_add_note_request(&req)?;
 
 		let base_now = OffsetDateTime::now_utc();
@@ -734,6 +737,20 @@ impl ElfService {
 	}
 }
 
+fn default_source_ref() -> Value {
+	Value::Object(Default::default())
+}
+
+fn normalize_add_note_request(mut req: AddNoteRequest) -> AddNoteRequest {
+	for note in &mut req.notes {
+		if note.source_ref.is_null() {
+			note.source_ref = default_source_ref();
+		}
+	}
+
+	req
+}
+
 fn validate_add_note_request(req: &AddNoteRequest) -> Result<()> {
 	if req.notes.is_empty() {
 		return Err(Error::InvalidRequest { message: "Notes list is empty.".to_string() });
@@ -935,7 +952,7 @@ fn find_non_english_path_in_structured(
 }
 
 fn find_non_english_path(value: &Value, path: &str) -> Option<String> {
-	find_non_english_path_inner(value, path, false)
+	find_non_english_path_inner(value, path, true)
 }
 
 fn find_non_english_path_inner(
@@ -944,7 +961,7 @@ fn find_non_english_path_inner(
 	is_identifier_lane: bool,
 ) -> Option<String> {
 	fn has_english_gate(text: &str, is_identifier_lane: bool) -> bool {
-		if is_identifier_lane && !text.contains(char::is_whitespace) {
+		if is_identifier_lane {
 			return english_gate::is_english_identifier(text);
 		}
 
@@ -1105,6 +1122,8 @@ WHERE note_id = $7",
 
 #[cfg(test)]
 mod english_gate_tests {
+	use serde_json::json;
+
 	use crate::{
 		Error,
 		add_note::{AddNoteInput, AddNoteRequest, validate_add_note_request},
@@ -1186,5 +1205,28 @@ mod english_gate_tests {
 			err,
 			Error::NonEnglishInput { field } if field == "$.notes[0].text"
 		));
+	}
+
+	#[test]
+	fn accepts_missing_source_ref_and_defaults_to_empty_object() {
+		let req: AddNoteRequest = serde_json::from_value(json!({
+			"tenant_id": "t",
+			"project_id": "p",
+			"agent_id": "a",
+			"scope": "agent_private",
+			"notes": [
+				{
+					"type": "fact",
+					"text": "English text.",
+					"importance": 0.5,
+					"confidence": 0.9
+				}
+			]
+		}))
+		.expect("Expected request to deserialize with default source_ref.");
+
+		assert_eq!(req.notes[0].source_ref, serde_json::json!({}));
+
+		validate_add_note_request(&req).expect("Expected missing source_ref to be accepted.");
 	}
 }
