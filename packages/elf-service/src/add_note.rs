@@ -129,7 +129,7 @@ impl ElfService {
 			&note,
 			result.note_id,
 			base_decision,
-			policy_decision,
+			result.policy_decision,
 			note_op,
 			result.reason_code.as_deref(),
 			decision_policy_rule.as_deref(),
@@ -303,22 +303,16 @@ impl ElfService {
 						field_path: None,
 					}
 				},
-				UpdateDecision::Update { .. } => {
-					let mut update_result = self
-						.handle_add_note_update(
-							tx,
-							note,
-							note_id,
-							ctx.agent_id,
-							ctx.now,
-							policy_decision,
-						)
-						.await?;
-
-					update_result.policy_decision = policy_decision;
-
-					update_result
-				},
+				UpdateDecision::Update { .. } =>
+					self.handle_add_note_update(
+						tx,
+						note,
+						note_id,
+						ctx.agent_id,
+						ctx.now,
+						policy_decision,
+					)
+					.await?,
 				UpdateDecision::None { .. } => {
 					let mut none_result = self
 						.handle_add_note_none(
@@ -545,9 +539,10 @@ impl ElfService {
 				None => false,
 			}
 		});
+		let float_eps = 1e-6_f32;
 		let unchanged = existing.text == note.text
-			&& (existing.importance - note.importance).abs() <= f32::EPSILON
-			&& (existing.confidence - note.confidence).abs() <= f32::EPSILON
+			&& (existing.importance - note.importance).abs() <= float_eps
+			&& (existing.confidence - note.confidence).abs() <= float_eps
 			&& expires_match
 			&& existing.source_ref == note.source_ref;
 
@@ -555,7 +550,7 @@ impl ElfService {
 			return Ok(AddNoteResult {
 				note_id: Some(note_id),
 				op: NoteOp::None,
-				policy_decision,
+				policy_decision: MemoryPolicyDecision::Ignore,
 				reason_code: None,
 				field_path: None,
 			});
