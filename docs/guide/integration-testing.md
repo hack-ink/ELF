@@ -27,6 +27,8 @@ ELF_QDRANT_HTTP_URL="http://127.0.0.1:51889" \
 cargo make e2e
 ```
 
+CI also runs this harness as a required check for code changes (see `.github/workflows/e2e.yml`).
+
 Note: The harness builds binaries first and then starts `elf-worker` and `elf-api` by executing the
 compiled artifacts under `target/debug/`. This avoids slow startup and Cargo lock contention that can
 happen when running multiple `cargo run` processes concurrently.
