@@ -198,14 +198,9 @@ We would like to extend our heartfelt gratitude to the following projects and co
 
 - The Rust community for their continuous support and development of the Rust ecosystem.
 
-## Knowledge
+## Additional Acknowledgements
 
-Starting points and reference material:
-
-- Documentation index: `docs/index.md`
-- Guide index: `docs/guide/index.md`
-- Specifications index: `docs/spec/index.md`
-- Research index: `docs/research/index.md`
+- None.
 
 <div align="right">
 
