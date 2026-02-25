@@ -8,6 +8,10 @@ use crate::{
 	models::{DocChunk, DocDocument},
 };
 
+pub fn normalize_source_ref(source_ref: Option<Value>) -> Value {
+	source_ref.unwrap_or(Value::Object(Default::default()))
+}
+
 pub async fn insert_doc_document<'e, E>(executor: E, doc: &DocDocument) -> Result<()>
 where
 	E: PgExecutor<'e>,
@@ -222,8 +226,4 @@ WHERE tenant_id = $2 AND doc_id = $3",
 	.await?;
 
 	Ok(())
-}
-
-pub fn normalize_source_ref(source_ref: Option<Value>) -> Value {
-	source_ref.unwrap_or(Value::Object(Default::default()))
 }

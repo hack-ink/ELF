@@ -1,6 +1,7 @@
 mod add_note_no_llm;
 mod chunk_search;
 mod chunking;
+mod docs_extension_v1;
 mod english_only_boundary;
 mod evidence_binding;
 mod graph_ingestion;
@@ -420,6 +421,7 @@ TRUNCATE
 	memory_hits,
 	memory_ingest_decisions,
 	memory_note_versions,
+	memory_space_grants,
 	note_field_embeddings,
 	memory_note_fields,
 	note_chunk_embeddings,
@@ -433,6 +435,10 @@ TRUNCATE
 	search_sessions,
 	search_trace_candidates,
 	indexing_outbox,
+	doc_indexing_outbox,
+	doc_chunk_embeddings,
+	doc_chunks,
+	doc_documents,
 	memory_notes",
 	)
 	.execute(executor)
