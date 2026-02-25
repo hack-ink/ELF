@@ -3,8 +3,8 @@
 Description: ELF means Evidence-linked fact memory for agents.
 
 Audience: Implementation LLM or engineer agent.
-Language: English only. No CJK characters are allowed anywhere in this document.
-Contract: English-only API inputs and outputs. Reject any CJK at the API boundary.
+Language: English only.
+Contract: English-only API inputs and outputs. Reject non-English input at the API boundary.
 Implementation target: Rust is recommended. The spec is language agnostic.
 
 Core idea:
@@ -232,6 +232,7 @@ read_profile = "private_only|private_plus_project|all_scopes"
 - Each binary requires a config path via --config or -c.
 - Startup must fail with a clear error if any required config field is missing.
 - security.reject_cjk must be true. Startup must fail if it is false.
+  - Note: `reject_cjk` is a legacy flag name; it enforces the English-only gate.
 
 ============================================================
 3. ENGLISH GATE (ENGLISH-ONLY BOUNDARY)
@@ -247,14 +248,9 @@ English gate algorithm (normative):
      characters (implementation-defined denylist).
 2) Script gate (hard reject):
    - Reject if any codepoint is in a disallowed script.
-   - At minimum, reject all CJK-related scripts/blocks:
-     - CJK Unified Ideographs
-     - CJK Symbols and Punctuation
-     - Hiragana
-     - Katakana
-     - Hangul
-   - Recommend also rejecting other non-Latin scripts (e.g. Cyrillic, Arabic) to
-     match the product contract ("English-only").
+   - Normative allowlist:
+     - Allow: Latin, Common, Inherited.
+     - Reject: any other script (e.g., Han, Hiragana, Katakana, Hangul, Cyrillic, Arabic).
 3) Language identification gate (LID) (conditional reject):
    - Only apply LID to natural-language fields (note text, query, doc text). Do not
      apply LID to structured identifiers (urls, ids, keys) to avoid false rejects.
@@ -676,7 +672,7 @@ Ignore reason codes:
 9. WRITEGATE (SERVER SIDE, ALWAYS ON)
 ============================================================
 Reject a note if any of the following are true:
-- The note contains CJK.
+- The note contains non-English input (fails the English gate).
 - The type is not in the 6-type allowlist.
 - The scope is not allowed or write not allowed.
 - The text length is greater than max_note_chars.
@@ -686,7 +682,7 @@ Reject a note if any of the following are true:
 On rejection:
 - op = REJECTED
 - reason_code is one of:
-  REJECT_CJK, REJECT_TOO_LONG, REJECT_SECRET, REJECT_INVALID_TYPE,
+  REJECT_NON_ENGLISH, REJECT_TOO_LONG, REJECT_SECRET, REJECT_INVALID_TYPE,
   REJECT_SCOPE_DENIED, REJECT_EMPTY
 
 ============================================================
@@ -1155,7 +1151,7 @@ Search creation endpoints also require:
 Header rules:
 - Headers must be valid UTF-8 strings.
 - Headers must be non-empty and at most 128 characters.
-- Headers must not contain any CJK characters.
+- Headers must pass the English identifier gate (no non-Latin scripts, no zero-width/control characters).
 
 Authentication:
 - security.auth_mode = "off": no auth header is required.
@@ -1530,7 +1526,7 @@ Schema:
 
 Hard rules:
 - queries.length <= MAX_QUERIES
-- Each query must be English only and must not contain any CJK characters.
+- Each query must be English only and must not contain any non-English text.
 - Each query must be a single sentence.
 - Include the original query unless INCLUDE_ORIGINAL is false.
 
@@ -1538,7 +1534,7 @@ System prompt (Expansion):
 "You are a query expansion engine for a memory retrieval system.
 Output must be valid JSON only and must match the provided schema exactly.
 Generate short English-only query variations that preserve the original intent.
-Do not include any CJK characters. Do not add explanations or extra fields."
+Do not include any non-English text. Do not add explanations or extra fields."
 
 User prompt template:
 "Return JSON matching this exact schema:
@@ -1634,7 +1630,7 @@ Notes:
 
 Hard rules:
 - notes.length <= MAX_NOTES
-- text must contain no CJK
+- text must be English-only (must pass the English gate)
 - each note must be one sentence
 - evidence must be 1..2 quotes
 - each evidence.quote must be a verbatim substring of messages[message_index].content
@@ -1644,7 +1640,7 @@ System prompt (Extractor):
 "You are a memory extraction engine for an agent memory system.
 Output must be valid JSON only and must match the provided schema exactly.
 Extract at most MAX_NOTES high-signal, cross-session reusable memory notes from the given messages.
-Each note must be one English sentence and must not contain any CJK characters.
+Each note must be one English sentence and must not contain any non-English text.
 Preserve numbers, dates, percentages, currency amounts, tickers, URLs, and code snippets exactly.
 Never store secrets or PII: API keys, tokens, private keys, seed phrases, passwords, bank IDs, personal addresses.
 For every note, provide 1 to 2 evidence quotes copied verbatim from the input messages and include the message_index.

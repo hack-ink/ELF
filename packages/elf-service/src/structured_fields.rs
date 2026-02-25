@@ -7,7 +7,7 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 use crate::{Error, Result};
-use elf_domain::{cjk, evidence};
+use elf_domain::evidence;
 
 const MAX_LIST_ITEMS: usize = 64;
 const MAX_ENTITIES: usize = 32;
@@ -356,7 +356,7 @@ fn validate_text_field(value: &str, label: &str) -> Result<()> {
 			message: format!("{label} must be at most {MAX_ITEM_CHARS} characters."),
 		});
 	}
-	if cjk::contains_cjk(trimmed) {
+	if !elf_domain::english_gate::is_english_natural_language(trimmed) {
 		return Err(Error::NonEnglishInput { field: label.to_string() });
 	}
 

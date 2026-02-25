@@ -334,8 +334,14 @@ async fn add_note_duplicate_fact_attaches_multiple_evidence() {
 		}),
 	);
 	let collection = test_db.collection_name("elf_acceptance");
-	let cfg =
-		crate::acceptance::test_config(test_db.dsn().to_string(), qdrant_url, 4_096, collection);
+	let docs_collection = test_db.collection_name("elf_acceptance_docs");
+	let cfg = crate::acceptance::test_config(
+		test_db.dsn().to_string(),
+		qdrant_url,
+		4_096,
+		collection,
+		docs_collection,
+	);
 	let service =
 		crate::acceptance::build_service(cfg, providers).await.expect("Failed to build service.");
 
@@ -451,8 +457,14 @@ async fn add_note_single_predicate_supersedes_conflicting_fact() {
 		}),
 	);
 	let collection = test_db.collection_name("elf_acceptance");
-	let cfg =
-		crate::acceptance::test_config(test_db.dsn().to_string(), qdrant_url, 4_096, collection);
+	let docs_collection = test_db.collection_name("elf_acceptance_docs");
+	let cfg = crate::acceptance::test_config(
+		test_db.dsn().to_string(),
+		qdrant_url,
+		4_096,
+		collection,
+		docs_collection,
+	);
 	let service =
 		crate::acceptance::build_service(cfg, providers).await.expect("Failed to build service.");
 
@@ -529,8 +541,14 @@ async fn add_note_invalid_relation_rejected_has_field_path() {
 		}),
 	);
 	let collection = test_db.collection_name("elf_acceptance");
-	let cfg =
-		crate::acceptance::test_config(test_db.dsn().to_string(), qdrant_url, 4_096, collection);
+	let docs_collection = test_db.collection_name("elf_acceptance_docs");
+	let cfg = crate::acceptance::test_config(
+		test_db.dsn().to_string(),
+		qdrant_url,
+		4_096,
+		collection,
+		docs_collection,
+	);
 	let service =
 		crate::acceptance::build_service(cfg, providers).await.expect("Failed to build service.");
 	let response = service
@@ -596,8 +614,14 @@ async fn add_note_persists_graph_relations() {
 		}),
 	);
 	let collection = test_db.collection_name("elf_acceptance");
-	let cfg =
-		crate::acceptance::test_config(test_db.dsn().to_string(), qdrant_url, 4_096, collection);
+	let docs_collection = test_db.collection_name("elf_acceptance_docs");
+	let cfg = crate::acceptance::test_config(
+		test_db.dsn().to_string(),
+		qdrant_url,
+		4_096,
+		collection,
+		docs_collection,
+	);
 	let service =
 		crate::acceptance::build_service(cfg, providers).await.expect("Failed to build service.");
 
@@ -693,8 +717,14 @@ async fn add_event_persists_graph_relations() {
 		}),
 	);
 	let collection = test_db.collection_name("elf_acceptance");
-	let cfg =
-		crate::acceptance::test_config(test_db.dsn().to_string(), qdrant_url, 4_096, collection);
+	let docs_collection = test_db.collection_name("elf_acceptance_docs");
+	let cfg = crate::acceptance::test_config(
+		test_db.dsn().to_string(),
+		qdrant_url,
+		4_096,
+		collection,
+		docs_collection,
+	);
 	let service =
 		crate::acceptance::build_service(cfg, providers).await.expect("Failed to build service.");
 

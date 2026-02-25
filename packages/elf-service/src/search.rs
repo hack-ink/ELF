@@ -20,7 +20,6 @@ use uuid::Uuid;
 
 use crate::{ElfService, Error, Result, access, ranking_explain_v2};
 use elf_config::{Config, SearchCache};
-use elf_domain::cjk;
 use elf_storage::{
 	models::MemoryNote,
 	qdrant::{BM25_MODEL, BM25_VECTOR_NAME, DENSE_VECTOR_NAME},
@@ -1960,14 +1959,14 @@ impl ElfService {
 		let context = self.cfg.context.as_ref()?;
 		let descriptions = context.project_descriptions.as_ref()?;
 		let key = format!("{tenant_id}:{project_id}");
-		let mut saw_cjk = false;
+		let mut saw_non_english = false;
 
 		if let Some(value) = descriptions.get(&key) {
 			let trimmed = value.trim();
 
 			if !trimmed.is_empty() {
-				if cjk::contains_cjk(trimmed) {
-					saw_cjk = true;
+				if !elf_domain::english_gate::is_english_natural_language(trimmed) {
+					saw_non_english = true;
 				} else {
 					return Some(trimmed);
 				}
@@ -1977,19 +1976,19 @@ impl ElfService {
 			let trimmed = value.trim();
 
 			if !trimmed.is_empty() {
-				if cjk::contains_cjk(trimmed) {
-					saw_cjk = true;
+				if !elf_domain::english_gate::is_english_natural_language(trimmed) {
+					saw_non_english = true;
 				} else {
 					return Some(trimmed);
 				}
 			}
 		}
 
-		if saw_cjk {
+		if saw_non_english {
 			tracing::warn!(
 				tenant_id = %tenant_id,
 				project_id = %project_id,
-				"Project context description contains CJK. Skipping context."
+				"Project context description is non-English. Skipping context."
 			);
 		}
 
@@ -3982,7 +3981,7 @@ fn validate_search_request_inputs(
 			message: "tenant_id, project_id, and agent_id are required.".to_string(),
 		});
 	}
-	if cjk::contains_cjk(query) {
+	if !elf_domain::english_gate::is_english_natural_language(query) {
 		return Err(Error::NonEnglishInput { field: "$.query".to_string() });
 	}
 
