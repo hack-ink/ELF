@@ -75,6 +75,8 @@ args = [
 # | --------- | --------- | ---       |
 # | test      | composite |           |
 # | test-rust | command   |           |
+# | test-all  | composite |           |
+# | test-rust-all | command |         |
 # | test-integration      | composite |
 # | test-integration-rust | command   |
 
@@ -93,6 +95,25 @@ args = [
 	"--workspace",
 	"--all-targets",
 	"--all-features",
+]
+
+[tasks.test-all]
+workspace = false
+dependencies = [
+	"test-rust-all",
+]
+
+[tasks.test-rust-all]
+workspace = false
+command = "cargo"
+args = [
+	"nextest",
+	"run",
+	"--workspace",
+	"--all-targets",
+	"--all-features",
+	"--run-ignored",
+	"all",
 ]
 
 [tasks.test-integration]
