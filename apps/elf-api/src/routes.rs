@@ -12,7 +12,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use time::OffsetDateTime;
+use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use uuid::Uuid;
 
 use crate::state::AppState;
@@ -48,6 +48,7 @@ const MAX_NOTES_PER_INGEST: usize = 256;
 const MAX_MESSAGES_PER_EVENT: usize = 256;
 const MAX_MESSAGE_CHARS: usize = 16_384;
 const MAX_QUERY_CHARS: usize = 2_048;
+const DOC_STATUSES: [&str; 2] = ["active", "deleted"];
 const MAX_NOTE_IDS_PER_DETAILS: usize = 256;
 const MAX_TOP_K: u32 = 100;
 const MAX_CANDIDATE_K: u32 = 1_000;
@@ -272,6 +273,7 @@ impl ApiError {
 		Self { status, error_code: error_code.into(), message: message.into(), fields }
 	}
 }
+
 impl From<Error> for ApiError {
 	fn from(err: Error) -> Self {
 		match err {
@@ -328,6 +330,7 @@ impl From<Error> for ApiError {
 		}
 	}
 }
+
 impl IntoResponse for ApiError {
 	fn into_response(self) -> Response {
 		let body =
@@ -623,6 +626,34 @@ fn require_admin_for_org_shared_writes(
 	Err(json_error(StatusCode::FORBIDDEN, "FORBIDDEN", "Admin token required.", None))
 }
 
+fn parse_optional_rfc3339(
+	raw: Option<&String>,
+	path: &str,
+) -> Result<Option<OffsetDateTime>, ApiError> {
+	let Some(raw) = raw else {
+		return Ok(None);
+	};
+	let raw = raw.trim();
+
+	if raw.is_empty() {
+		return Err(json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			format!("{path} must be non-empty."),
+			Some(vec![path.to_string()]),
+		));
+	}
+
+	OffsetDateTime::parse(raw, &Rfc3339).map(Some).map_err(|_| {
+		json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			format!("{path} must be an RFC3339 datetime string."),
+			Some(vec![path.to_string()]),
+		)
+	})
+}
+
 async fn api_auth_middleware(
 	State(state): State<AppState>,
 	req: Request<Body>,
@@ -864,11 +895,42 @@ async fn docs_search_l0(
 ) -> Result<Json<DocsSearchL0Response>, ApiError> {
 	let ctx = RequestContext::from_headers(&headers)?;
 	let read_profile = required_read_profile(&headers)?;
-	let Json(payload) = payload.map_err(|err| {
+	let Json(mut payload) = payload.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid request payload.");
 
 		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
 	})?;
+	let status = payload.status.as_deref().map(str::trim).filter(|status| !status.is_empty());
+
+	if let Some(status) = status {
+		let status = status.to_lowercase();
+
+		if !DOC_STATUSES.contains(&status.as_str()) {
+			return Err(json_error(
+				StatusCode::BAD_REQUEST,
+				"INVALID_REQUEST",
+				"status must be one of: active|deleted.",
+				Some(vec!["$.status".to_string()]),
+			));
+		}
+
+		payload.status = Some(status);
+	}
+
+	let updated_after = parse_optional_rfc3339(payload.updated_after.as_ref(), "$.updated_after")?;
+	let updated_before =
+		parse_optional_rfc3339(payload.updated_before.as_ref(), "$.updated_before")?;
+
+	if let (Some(updated_after), Some(updated_before)) = (updated_after, updated_before)
+		&& updated_after >= updated_before
+	{
+		return Err(json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"updated_after must be earlier than updated_before.",
+			Some(vec!["$.updated_after".to_string(), "$.updated_before".to_string()]),
+		));
+	}
 
 	if payload.query.chars().count() > MAX_QUERY_CHARS {
 		return Err(json_error(

@@ -648,12 +648,15 @@ fn docs_search_l0_schema() -> Arc<JsonObject> {
 		"required": ["query"],
 		"properties": {
 			"query": { "type": "string" },
-			"scope": { "type": ["string", "null"] },
-			"status": { "type": ["string", "null"] },
-			"doc_type": { "type": ["string", "null"] },
+			"scope": { "type": ["string", "null"], "enum": ["agent_private", "project_shared", "org_shared", null] },
+			"status": { "type": ["string", "null"], "enum": ["active", "deleted", null] },
+			"doc_type": {
+				"type": ["string", "null"],
+				"enum": ["knowledge", "chat", "search", "dev", null]
+			},
 			"agent_id": { "type": ["string", "null"] },
-			"updated_after": { "type": ["string", "null"] },
-			"updated_before": { "type": ["string", "null"] },
+			"updated_after": { "type": ["string", "null"], "format": "date-time" },
+			"updated_before": { "type": ["string", "null"], "format": "date-time" },
 			"top_k": { "type": ["integer", "null"] },
 			"candidate_k": { "type": ["integer", "null"] },
 			"read_profile": { "type": ["string", "null"] }
@@ -1099,5 +1102,16 @@ mod tests {
 		for field in expected {
 			assert!(properties.contains_key(field), "Missing schema field: {field}.");
 		}
+
+		assert_eq!(
+			properties.get("status").and_then(serde_json::Value::as_object).and_then(|status| {
+				status.get("enum").and_then(serde_json::Value::as_array).map(|vals| vals.to_vec())
+			}),
+			Some(vec![
+				serde_json::Value::String("active".to_string()),
+				serde_json::Value::String("deleted".to_string()),
+				serde_json::Value::Null,
+			])
+		);
 	}
 }
