@@ -316,7 +316,7 @@ pub(crate) fn embedding_version(cfg: &Config) -> String {
 
 pub(crate) fn writegate_reason_code(code: RejectCode) -> &'static str {
 	match code {
-		RejectCode::RejectCjk => "REJECT_CJK",
+		RejectCode::RejectNonEnglish => "REJECT_NON_ENGLISH",
 		RejectCode::RejectTooLong => "REJECT_TOO_LONG",
 		RejectCode::RejectSecret => "REJECT_SECRET",
 		RejectCode::RejectInvalidType => "REJECT_INVALID_TYPE",

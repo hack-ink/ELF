@@ -132,8 +132,14 @@ async fn active_notes_have_vectors() {
 		return;
 	};
 	let collection = test_db.collection_name("elf_acceptance");
-	let cfg =
-		crate::acceptance::test_config(test_db.dsn().to_string(), qdrant_url, 4_096, collection);
+	let docs_collection = test_db.collection_name("elf_acceptance_docs");
+	let cfg = crate::acceptance::test_config(
+		test_db.dsn().to_string(),
+		qdrant_url,
+		4_096,
+		collection,
+		docs_collection,
+	);
 	let providers = Providers::new(
 		Arc::new(StubEmbedding { vector_dim: 4_096 }),
 		Arc::new(StubRerank),

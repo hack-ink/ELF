@@ -130,27 +130,33 @@ async fn embed_handler(State(()): State<()>, Json(payload): Json<Value>) -> impl
 }
 
 #[tokio::test]
+#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL (or ELF_QDRANT_GRPC_URL) to run."]
 async fn docs_put_get_excerpts_and_search_l0_work_end_to_end() {
 	let Some(ctx) = setup_docs_context().await else { return };
-	let put = put_test_doc(&ctx.service).await;
+	let DocsContext { test_db, service } = ctx;
+	let put = put_test_doc(&service).await;
 
-	assert_doc_get(&ctx.service, put.doc_id).await;
-	assert_doc_excerpt(&ctx.service, put.doc_id, put.content_hash.as_str()).await;
+	assert_doc_get(&service, put.doc_id).await;
+	assert_doc_excerpt(&service, put.doc_id, put.content_hash.as_str()).await;
 
-	let (handle, shutdown) = spawn_doc_worker(&ctx.service).await;
+	let (handle, shutdown) = spawn_doc_worker(&service).await;
 
 	assert!(
-		wait_for_doc_outbox_done(&ctx.service.db.pool, put.doc_id, Duration::from_secs(5)).await,
+		wait_for_doc_outbox_done(&service.db.pool, put.doc_id, Duration::from_secs(15)).await,
 		"Expected doc outbox to reach DONE."
 	);
 
-	assert_docs_search_l0(&ctx.service, put.doc_id).await;
-
-	handle.abort();
+	assert_docs_search_l0(&service, put.doc_id).await;
 
 	let _ = shutdown.send(());
 
-	ctx.test_db.cleanup().await.expect("Failed to cleanup test database.");
+	handle.abort();
+
+	let _ = handle.await;
+
+	drop(service);
+
+	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }
 
 async fn setup_docs_context() -> Option<DocsContext> {
@@ -167,8 +173,14 @@ async fn setup_docs_context() -> Option<DocsContext> {
 		return None;
 	};
 	let collection = test_db.collection_name("elf_acceptance");
-	let cfg =
-		crate::acceptance::test_config(test_db.dsn().to_string(), qdrant_url, 4_096, collection);
+	let docs_collection = test_db.collection_name("elf_acceptance_docs");
+	let cfg = crate::acceptance::test_config(
+		test_db.dsn().to_string(),
+		qdrant_url,
+		4_096,
+		collection,
+		docs_collection,
+	);
 	let providers = Providers::new(
 		Arc::new(StubEmbedding { vector_dim: 4_096 }),
 		Arc::new(StubRerank),

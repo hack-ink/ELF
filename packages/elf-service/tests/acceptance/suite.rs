@@ -133,7 +133,13 @@ pub fn test_qdrant_url() -> Option<String> {
 	env::var("ELF_QDRANT_GRPC_URL").ok().or_else(|| env::var("ELF_QDRANT_URL").ok())
 }
 
-pub fn test_config(dsn: String, qdrant_url: String, vector_dim: u32, collection: String) -> Config {
+pub fn test_config(
+	dsn: String,
+	qdrant_url: String,
+	vector_dim: u32,
+	collection: String,
+	docs_collection: String,
+) -> Config {
 	let mut embedding = dummy_embedding_provider();
 
 	embedding.dimensions = vector_dim;
@@ -150,7 +156,7 @@ pub fn test_config(dsn: String, qdrant_url: String, vector_dim: u32, collection:
 			qdrant: elf_config::Qdrant {
 				url: qdrant_url,
 				collection: collection.clone(),
-				docs_collection: format!("{collection}_docs"),
+				docs_collection,
 				vector_dim,
 			},
 		},

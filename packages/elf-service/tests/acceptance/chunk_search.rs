@@ -106,8 +106,14 @@ async fn setup_context(test_name: &str, providers: Providers) -> Option<TestCont
 		return None;
 	};
 	let collection = test_db.collection_name("elf_acceptance");
-	let cfg =
-		crate::acceptance::test_config(test_db.dsn().to_string(), qdrant_url, 4_096, collection);
+	let docs_collection = test_db.collection_name("elf_acceptance_docs");
+	let cfg = crate::acceptance::test_config(
+		test_db.dsn().to_string(),
+		qdrant_url,
+		4_096,
+		collection,
+		docs_collection,
+	);
 	let service =
 		crate::acceptance::build_service(cfg, providers).await.expect("Failed to build service.");
 
@@ -414,8 +420,14 @@ async fn setup_graph_context_test(
 		return None;
 	};
 	let collection = test_db.collection_name("elf_acceptance");
-	let mut cfg =
-		crate::acceptance::test_config(test_db.dsn().to_string(), qdrant_url, 4_096, collection);
+	let docs_collection = test_db.collection_name("elf_acceptance_docs");
+	let mut cfg = crate::acceptance::test_config(
+		test_db.dsn().to_string(),
+		qdrant_url,
+		4_096,
+		collection,
+		docs_collection,
+	);
 
 	cfg.search.graph_context.enabled = true;
 	cfg.search.graph_context.max_facts_per_item = max_facts_per_item;

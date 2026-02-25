@@ -14,7 +14,7 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 use crate::{ElfService, Error, Result, access::SharedSpaceGrantKey};
-use elf_domain::cjk;
+use elf_domain::english_gate;
 use elf_storage::{
 	doc_outbox,
 	models::{DocChunk, DocDocument},
@@ -547,24 +547,24 @@ fn validate_docs_excerpts_get(
 	}
 
 	if let Some(quote) = quote {
-		validate_quote_selector_cjk(quote)?;
+		validate_quote_selector_english(quote)?;
 	}
 
 	Ok(())
 }
 
-fn validate_quote_selector_cjk(quote: &TextQuoteSelector) -> Result<()> {
-	if cjk::contains_cjk(quote.exact.as_str()) {
+fn validate_quote_selector_english(quote: &TextQuoteSelector) -> Result<()> {
+	if !english_gate::is_english_natural_language(quote.exact.as_str()) {
 		return Err(Error::NonEnglishInput { field: "$.quote.exact".to_string() });
 	}
 
 	if let Some(prefix) = quote.prefix.as_ref()
-		&& cjk::contains_cjk(prefix.as_str())
+		&& !english_gate::is_english_natural_language(prefix.as_str())
 	{
 		return Err(Error::NonEnglishInput { field: "$.quote.prefix".to_string() });
 	}
 	if let Some(suffix) = quote.suffix.as_ref()
-		&& cjk::contains_cjk(suffix.as_str())
+		&& !english_gate::is_english_natural_language(suffix.as_str())
 	{
 		return Err(Error::NonEnglishInput { field: "$.quote.suffix".to_string() });
 	}
@@ -595,16 +595,16 @@ fn validate_docs_put(req: &DocsPutRequest) -> Result<()> {
 	if !matches!(req.scope.as_str(), "agent_private" | "project_shared" | "org_shared") {
 		return Err(Error::InvalidRequest { message: "Unknown scope.".to_string() });
 	}
-	if cjk::contains_cjk(req.content.as_str()) {
+	if !english_gate::is_english_natural_language(req.content.as_str()) {
 		return Err(Error::NonEnglishInput { field: "$.content".to_string() });
 	}
 
 	if let Some(title) = req.title.as_ref()
-		&& cjk::contains_cjk(title.as_str())
+		&& !english_gate::is_english_natural_language(title.as_str())
 	{
 		return Err(Error::NonEnglishInput { field: "$.title".to_string() });
 	}
-	if let Some(found) = find_cjk_path(&req.source_ref, "$.source_ref") {
+	if let Some(found) = find_non_english_path(&req.source_ref, "$.source_ref") {
 		return Err(Error::NonEnglishInput { field: found });
 	}
 
@@ -615,17 +615,17 @@ fn validate_docs_search_l0(req: &DocsSearchL0Request) -> Result<()> {
 	if req.query.trim().is_empty() {
 		return Err(Error::InvalidRequest { message: "query must be non-empty.".to_string() });
 	}
-	if cjk::contains_cjk(req.query.as_str()) {
+	if !english_gate::is_english_natural_language(req.query.as_str()) {
 		return Err(Error::NonEnglishInput { field: "$.query".to_string() });
 	}
 
 	Ok(())
 }
 
-fn find_cjk_path(value: &Value, path: &str) -> Option<String> {
+fn find_non_english_path(value: &Value, path: &str) -> Option<String> {
 	match value {
 		Value::String(text) =>
-			if cjk::contains_cjk(text) {
+			if !english_gate::is_english_natural_language(text) {
 				Some(path.to_string())
 			} else {
 				None
@@ -634,7 +634,7 @@ fn find_cjk_path(value: &Value, path: &str) -> Option<String> {
 			for (idx, item) in items.iter().enumerate() {
 				let child_path = format!("{path}[{idx}]");
 
-				if let Some(found) = find_cjk_path(item, &child_path) {
+				if let Some(found) = find_non_english_path(item, &child_path) {
 					return Some(found);
 				}
 			}
@@ -645,7 +645,7 @@ fn find_cjk_path(value: &Value, path: &str) -> Option<String> {
 			for (key, value) in map.iter() {
 				let child_path = format!("{path}[\"{}\"]", escape_json_path_key(key));
 
-				if let Some(found) = find_cjk_path(value, &child_path) {
+				if let Some(found) = find_non_english_path(value, &child_path) {
 					return Some(found);
 				}
 			}

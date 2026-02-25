@@ -9,7 +9,7 @@ use crate::{
 	UpdateDecisionMetadata, access, structured_fields::StructuredFields,
 };
 use elf_config::Config;
-use elf_domain::{cjk, memory_policy::MemoryPolicyDecision, ttl};
+use elf_domain::{english_gate, memory_policy::MemoryPolicyDecision, ttl};
 use elf_storage::models::MemoryNote;
 
 const REJECT_STRUCTURED_INVALID: &str = "REJECT_STRUCTURED_INVALID";
@@ -749,22 +749,24 @@ fn validate_add_note_request(req: &AddNoteRequest) -> Result<()> {
 	}
 
 	for (idx, note) in req.notes.iter().enumerate() {
-		if cjk::contains_cjk(note.text.as_str()) {
+		if !english_gate::is_english_natural_language(note.text.as_str()) {
 			return Err(Error::NonEnglishInput { field: format!("$.notes[{idx}].text") });
 		}
 
 		if let Some(key) = note.key.as_ref()
-			&& cjk::contains_cjk(key)
+			&& !english_gate::is_english_identifier(key)
 		{
 			return Err(Error::NonEnglishInput { field: format!("$.notes[{idx}].key") });
 		}
-		if let Some(path) = find_cjk_path_in_structured(
+		if let Some(path) = find_non_english_path_in_structured(
 			note.structured.as_ref(),
 			&format!("$.notes[{idx}].structured"),
 		) {
 			return Err(Error::NonEnglishInput { field: path });
 		}
-		if let Some(path) = find_cjk_path(&note.source_ref, &format!("$.notes[{idx}].source_ref")) {
+		if let Some(path) =
+			find_non_english_path(&note.source_ref, &format!("$.notes[{idx}].source_ref"))
+		{
 			return Err(Error::NonEnglishInput { field: path });
 		}
 	}
@@ -820,27 +822,27 @@ fn reject_note_if_writegate_rejects(
 	None
 }
 
-fn find_cjk_path_in_structured(
+fn find_non_english_path_in_structured(
 	structured: Option<&StructuredFields>,
 	base: &str,
 ) -> Option<String> {
 	let structured = structured?;
 
 	if let Some(summary) = structured.summary.as_ref()
-		&& cjk::contains_cjk(summary)
+		&& !english_gate::is_english_natural_language(summary)
 	{
 		return Some(format!("{base}.summary"));
 	}
 	if let Some(items) = structured.facts.as_ref() {
 		for (idx, item) in items.iter().enumerate() {
-			if cjk::contains_cjk(item) {
+			if !english_gate::is_english_natural_language(item) {
 				return Some(format!("{base}.facts[{idx}]"));
 			}
 		}
 	}
 	if let Some(items) = structured.concepts.as_ref() {
 		for (idx, item) in items.iter().enumerate() {
-			if cjk::contains_cjk(item) {
+			if !english_gate::is_english_natural_language(item) {
 				return Some(format!("{base}.concepts[{idx}]"));
 			}
 		}
@@ -850,18 +852,18 @@ fn find_cjk_path_in_structured(
 			let base = format!("{base}.entities[{idx}]");
 
 			if let Some(canonical) = entity.canonical.as_ref()
-				&& cjk::contains_cjk(canonical)
+				&& !english_gate::is_english_natural_language(canonical)
 			{
 				return Some(format!("{base}.canonical"));
 			}
 			if let Some(kind) = entity.kind.as_ref()
-				&& cjk::contains_cjk(kind)
+				&& !english_gate::is_english_natural_language(kind)
 			{
 				return Some(format!("{base}.kind"));
 			}
 			if let Some(aliases) = entity.aliases.as_ref() {
 				for (alias_idx, alias) in aliases.iter().enumerate() {
-					if cjk::contains_cjk(alias) {
+					if !english_gate::is_english_natural_language(alias) {
 						return Some(format!("{base}.aliases[{alias_idx}]"));
 					}
 				}
@@ -876,25 +878,25 @@ fn find_cjk_path_in_structured(
 				let subject_base = format!("{base}.subject");
 
 				if let Some(canonical) = subject.canonical.as_ref()
-					&& cjk::contains_cjk(canonical)
+					&& !english_gate::is_english_natural_language(canonical)
 				{
 					return Some(format!("{subject_base}.canonical"));
 				}
 				if let Some(kind) = subject.kind.as_ref()
-					&& cjk::contains_cjk(kind)
+					&& !english_gate::is_english_natural_language(kind)
 				{
 					return Some(format!("{subject_base}.kind"));
 				}
 				if let Some(aliases) = subject.aliases.as_ref() {
 					for (alias_idx, alias) in aliases.iter().enumerate() {
-						if cjk::contains_cjk(alias) {
+						if !english_gate::is_english_natural_language(alias) {
 							return Some(format!("{subject_base}.aliases[{alias_idx}]"));
 						}
 					}
 				}
 			}
 			if let Some(predicate) = relation.predicate.as_ref()
-				&& cjk::contains_cjk(predicate)
+				&& !english_gate::is_english_natural_language(predicate)
 			{
 				return Some(format!("{base}.predicate"));
 			}
@@ -903,25 +905,25 @@ fn find_cjk_path_in_structured(
 					let object_base = format!("{base}.object.entity");
 
 					if let Some(canonical) = entity.canonical.as_ref()
-						&& cjk::contains_cjk(canonical)
+						&& !english_gate::is_english_natural_language(canonical)
 					{
 						return Some(format!("{object_base}.canonical"));
 					}
 					if let Some(kind) = entity.kind.as_ref()
-						&& cjk::contains_cjk(kind)
+						&& !english_gate::is_english_natural_language(kind)
 					{
 						return Some(format!("{object_base}.kind"));
 					}
 					if let Some(aliases) = entity.aliases.as_ref() {
 						for (alias_idx, alias) in aliases.iter().enumerate() {
-							if cjk::contains_cjk(alias) {
+							if !english_gate::is_english_natural_language(alias) {
 								return Some(format!("{object_base}.aliases[{alias_idx}]"));
 							}
 						}
 					}
 				}
 				if let Some(value) = object.value.as_ref()
-					&& cjk::contains_cjk(value)
+					&& !english_gate::is_english_natural_language(value)
 				{
 					return Some(format!("{base}.object.value"));
 				}
@@ -932,10 +934,10 @@ fn find_cjk_path_in_structured(
 	None
 }
 
-fn find_cjk_path(value: &Value, path: &str) -> Option<String> {
+fn find_non_english_path(value: &Value, path: &str) -> Option<String> {
 	match value {
 		Value::String(text) =>
-			if cjk::contains_cjk(text) {
+			if !english_gate::is_english_natural_language(text) {
 				Some(path.to_string())
 			} else {
 				None
@@ -944,7 +946,7 @@ fn find_cjk_path(value: &Value, path: &str) -> Option<String> {
 			for (idx, item) in items.iter().enumerate() {
 				let child_path = format!("{path}[{idx}]");
 
-				if let Some(found) = find_cjk_path(item, &child_path) {
+				if let Some(found) = find_non_english_path(item, &child_path) {
 					return Some(found);
 				}
 			}
@@ -955,7 +957,7 @@ fn find_cjk_path(value: &Value, path: &str) -> Option<String> {
 			for (key, value) in map.iter() {
 				let child_path = format!("{path}[\"{}\"]", escape_json_path_key(key));
 
-				if let Some(found) = find_cjk_path(value, &child_path) {
+				if let Some(found) = find_non_english_path(value, &child_path) {
 					return Some(found);
 				}
 			}
@@ -1077,4 +1079,39 @@ WHERE note_id = $7",
 	.await?;
 
 	Ok(())
+}
+
+#[cfg(test)]
+mod english_gate_tests {
+	use crate::{
+		Error,
+		add_note::{AddNoteInput, AddNoteRequest, validate_add_note_request},
+	};
+
+	#[test]
+	fn rejects_long_non_english_note_text() {
+		let req = AddNoteRequest {
+			tenant_id: "t".to_string(),
+			project_id: "p".to_string(),
+			agent_id: "a".to_string(),
+			scope: "agent_private".to_string(),
+			notes: vec![AddNoteInput {
+				r#type: "fact".to_string(),
+				key: Some("test_key".to_string()),
+				text: "Bonjour, je veux m'assurer que ce texte est suffisamment long et riche en lettres pour declencher la detection de langue. Merci beaucoup."
+					.to_string(),
+				structured: None,
+				importance: 0.5,
+				confidence: 0.9,
+				ttl_days: None,
+				source_ref: serde_json::json!({}),
+			}],
+		};
+		let err = validate_add_note_request(&req).expect_err("Expected English gate rejection.");
+
+		assert!(matches!(
+			err,
+			Error::NonEnglishInput { field } if field == "$.notes[0].text"
+		));
+	}
 }
