@@ -1273,7 +1273,7 @@ mod tests {
 		DocsPutRequest, DocsSearchL0Filters, DocsSearchL0Request, Error,
 		resolve_doc_chunking_profile, validate_docs_put, validate_docs_search_l0,
 	};
-	use qdrant::{Filter, condition::ConditionOneOf, r#match::MatchValue};
+	use qdrant_client::qdrant::{Filter, condition::ConditionOneOf, r#match::MatchValue};
 	use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
 	const TENANT_ID: &str = "tenant";
@@ -1434,13 +1434,23 @@ mod tests {
 			OffsetDateTime::parse("2026-02-28T00:00:00Z", &Rfc3339).expect("Invalid timestamp.");
 		assert_eq!(
 			datetime_range.0,
-			Some((before.unix_timestamp(), before.nanosecond() as i32)),
+			Some(before.unix_timestamp()),
 			"Unexpected lt bound."
 		);
 		assert_eq!(
+			datetime_range.1,
+			Some(before.nanosecond() as i32),
+			"Unexpected lt nanos bound."
+		);
+		assert_eq!(
 			datetime_range.2,
-			Some((after.unix_timestamp(), after.nanosecond() as i32)),
+			Some(after.unix_timestamp()),
 			"Unexpected gt bound."
+		);
+		assert_eq!(
+			datetime_range.3,
+			Some(after.nanosecond() as i32),
+			"Unexpected gt nanos bound."
 		);
 	}
 
@@ -1455,8 +1465,8 @@ mod tests {
 			title: Some("English title".to_string()),
 			source_ref: serde_json::json!({
 				"ref": "packages/elf-service/src/docs.rs:661",
-				"schema": "\u{7248}\u{672c}\u{6587}\u{6863}\u{8def}\u{5f84}",
-				"resolver": "resolver-name",
+				"schema": "documents/sources",
+				"resolver": "english-resolver",
 				"hashes": ["abc123", "def456"],
 				"state": {"name":"v1"},
 				"notes": "English only."
