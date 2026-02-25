@@ -935,9 +935,25 @@ fn find_non_english_path_in_structured(
 }
 
 fn find_non_english_path(value: &Value, path: &str) -> Option<String> {
+	find_non_english_path_inner(value, path, false)
+}
+
+fn find_non_english_path_inner(
+	value: &Value,
+	path: &str,
+	is_identifier_lane: bool,
+) -> Option<String> {
+	fn has_english_gate(text: &str, is_identifier_lane: bool) -> bool {
+		if is_identifier_lane && !text.contains(char::is_whitespace) {
+			return english_gate::is_english_identifier(text);
+		}
+
+		english_gate::is_english_natural_language(text)
+	}
+
 	match value {
 		Value::String(text) =>
-			if !english_gate::is_english_natural_language(text) {
+			if !has_english_gate(text, is_identifier_lane) {
 				Some(path.to_string())
 			} else {
 				None
@@ -946,7 +962,9 @@ fn find_non_english_path(value: &Value, path: &str) -> Option<String> {
 			for (idx, item) in items.iter().enumerate() {
 				let child_path = format!("{path}[{idx}]");
 
-				if let Some(found) = find_non_english_path(item, &child_path) {
+				if let Some(found) =
+					find_non_english_path_inner(item, &child_path, is_identifier_lane)
+				{
 					return Some(found);
 				}
 			}
@@ -955,9 +973,13 @@ fn find_non_english_path(value: &Value, path: &str) -> Option<String> {
 		},
 		Value::Object(map) => {
 			for (key, value) in map.iter() {
+				let identifier_lane = is_identifier_lane
+					|| matches!(key.as_str(), "ref" | "schema" | "resolver" | "hashes" | "state");
 				let child_path = format!("{path}[\"{}\"]", escape_json_path_key(key));
 
-				if let Some(found) = find_non_english_path(value, &child_path) {
+				if let Some(found) =
+					find_non_english_path_inner(value, &child_path, identifier_lane)
+				{
 					return Some(found);
 				}
 			}
@@ -1087,6 +1109,57 @@ mod english_gate_tests {
 		Error,
 		add_note::{AddNoteInput, AddNoteRequest, validate_add_note_request},
 	};
+
+	#[test]
+	fn accepts_identifier_like_source_ref_ref_field() {
+		validate_add_note_request(&AddNoteRequest {
+			tenant_id: "t".to_string(),
+			project_id: "p".to_string(),
+			agent_id: "a".to_string(),
+			scope: "agent_private".to_string(),
+			notes: vec![AddNoteInput {
+				r#type: "fact".to_string(),
+				key: Some("test_key".to_string()),
+				text: "English text".to_string(),
+				structured: None,
+				importance: 0.5,
+				confidence: 0.9,
+				ttl_days: None,
+				source_ref: serde_json::json!({"ref": "packages/elf-service/src/docs.rs:661"}),
+			}],
+		})
+		.expect("Expected identifier-like source_ref to be accepted.");
+	}
+
+	#[test]
+	fn rejects_non_english_source_ref_hints_quote() {
+		let req = AddNoteRequest {
+			tenant_id: "t".to_string(),
+			project_id: "p".to_string(),
+			agent_id: "a".to_string(),
+			scope: "agent_private".to_string(),
+			notes: vec![AddNoteInput {
+				r#type: "fact".to_string(),
+				key: Some("test_key".to_string()),
+				text: "English text".to_string(),
+				structured: None,
+				importance: 0.5,
+				confidence: 0.9,
+				ttl_days: None,
+				source_ref: serde_json::json!({"hints": {"quote": "\u{4f60}\u{597d}\u{4e16}\u{754c}"}}),
+			}],
+		};
+		let err = validate_add_note_request(&req).expect_err(
+			"Expected non-English free-text under source_ref.hints.quote to be rejected.",
+		);
+
+		match err {
+			Error::NonEnglishInput { field } => {
+				assert_eq!(field, "$.notes[0].source_ref[\"hints\"][\"quote\"]")
+			},
+			other => panic!("Unexpected error: {other:?}"),
+		}
+	}
 
 	#[test]
 	fn rejects_long_non_english_note_text() {
