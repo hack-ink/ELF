@@ -52,7 +52,6 @@ fn contains_disallowed_controls(input: &str) -> bool {
 		if !ch.is_control() {
 			continue;
 		}
-
 		// Allow common whitespace controls used in code/docs.
 		if matches!(ch, '\n' | '\r' | '\t') {
 			continue;
@@ -105,16 +104,19 @@ fn contains_disallowed_scripts(input: &str) -> bool {
 }
 
 fn should_apply_lid(input: &str) -> bool {
-	let mut letters = 0usize;
-	let mut non_space = 0usize;
-	let mut whitespace = 0usize;
+	let mut letters = 0_usize;
+	let mut non_space = 0_usize;
+	let mut whitespace = 0_usize;
 
 	for ch in input.chars() {
 		if ch.is_whitespace() {
 			whitespace += 1;
+
 			continue;
 		}
+
 		non_space += 1;
+
 		if ch.is_alphabetic() {
 			letters += 1;
 		}
@@ -126,6 +128,7 @@ fn should_apply_lid(input: &str) -> bool {
 	}
 
 	let density = letters as f32 / non_space as f32;
+
 	density >= 0.60
 }
 
@@ -147,7 +150,7 @@ fn is_confidently_non_english(input: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-	use super::{
+	use crate::english_gate::{
 		EnglishGateKind, english_gate, is_english_identifier, is_english_natural_language,
 	};
 
@@ -179,21 +182,25 @@ mod tests {
 	#[test]
 	fn identifier_gate_skips_lid_but_still_rejects_disallowed_script() {
 		assert!(is_english_identifier("preferred_language"));
+
 		assert!(!is_english_identifier("ключ")); // Cyrillic
 	}
 
 	#[test]
 	fn lid_is_applied_only_for_long_letter_dense_text() {
 		let short_french = "Bonjour.";
+
 		assert!(english_gate(short_french, EnglishGateKind::NaturalLanguage).is_ok());
 
 		let long_french = "Bonjour, je veux m'assurer que ce texte est suffisamment long et riche en lettres pour declencher la detection de langue. Merci beaucoup.";
+
 		assert!(english_gate(long_french, EnglishGateKind::NaturalLanguage).is_err());
 	}
 
 	#[test]
 	fn code_like_text_is_not_rejected_by_lid_thresholds() {
 		let codeish = "Error: expected `foo::bar()`; got `foo::baz()` at line 12.";
+
 		assert!(is_english_natural_language(codeish));
 	}
 }
