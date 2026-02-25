@@ -14,6 +14,7 @@ Audience: This documentation is written for LLM consumption and should remain ex
 
 - `docs/spec/system_elf_memory_service_v2.md` - ELF Memory Service v2.0 specification.
 - `docs/spec/system_source_ref_doc_pointer_v1.md` - `source_ref` doc pointer resolver for Doc Extension v1.
+- `docs/spec/system_doc_source_ref_v1.md` - `doc_source_ref/v1` schema for docs ingestion provenance.
 - `docs/spec/system_graph_memory_postgres_v1.md` - Graph memory schema and invariants for Postgres.
 - `docs/spec/system_version_registry.md` - Registry of versioned identifiers and schema versions.
 - `docs/spec/system_doc_extension_v1_filters.md` - Doc Extension v1 filter contracts and Qdrant requirements for `docs_search_l0`.
@@ -22,6 +23,9 @@ Audience: This documentation is written for LLM consumption and should remain ex
 
 - `docs_search_filters/v1`:
   - `docs/spec/system_doc_extension_v1_filters.md`
+  - Status: active
+- `doc_source_ref/v1`:
+  - `docs/spec/system_doc_source_ref_v1.md`
   - Status: active
 
 ## Authoring guidance (LLM-first)
