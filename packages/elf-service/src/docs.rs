@@ -92,16 +92,6 @@ pub struct DocsSearchL0Request {
 	pub candidate_k: Option<u32>,
 }
 
-#[derive(Clone, Debug)]
-struct DocsSearchL0Filters {
-	scope: Option<String>,
-	status: String,
-	doc_type: Option<String>,
-	agent_id: Option<String>,
-	updated_after: Option<OffsetDateTime>,
-	updated_before: Option<OffsetDateTime>,
-}
-
 #[derive(Clone, Debug, Serialize)]
 pub struct DocsSearchL0Item {
 	pub doc_id: Uuid,
@@ -163,6 +153,16 @@ pub struct DocsExcerptResponse {
 	pub start_offset: usize,
 	pub end_offset: usize,
 	pub verification: DocsExcerptVerification,
+}
+
+#[derive(Clone, Debug)]
+struct DocsSearchL0Filters {
+	scope: Option<String>,
+	status: String,
+	doc_type: Option<String>,
+	agent_id: Option<String>,
+	updated_after: Option<OffsetDateTime>,
+	updated_before: Option<OffsetDateTime>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -388,7 +388,6 @@ LIMIT 1",
 
 	pub async fn docs_search_l0(&self, req: DocsSearchL0Request) -> Result<DocsSearchL0Response> {
 		let filters = validate_docs_search_l0(&req)?;
-
 		let top_k = req.top_k.unwrap_or(12).min(MAX_TOP_K);
 		let candidate_k = req.candidate_k.unwrap_or(60).min(MAX_CANDIDATE_K);
 		let allowed_scopes =
@@ -775,7 +774,7 @@ fn find_non_english_path_inner(
 ) -> Option<String> {
 	fn has_english_gate(text: &str, is_identifier_lane: bool) -> bool {
 		if is_identifier_lane && !text.contains(char::is_whitespace) {
-			return true;
+			return english_gate::is_english_identifier(text);
 		}
 
 		english_gate::is_english_natural_language(text)
@@ -953,6 +952,7 @@ fn build_doc_search_filter(
 				Condition::matches("tenant_id", tenant_id.to_string()),
 				Condition::matches("status", filters.status.clone()),
 			];
+
 			if let Some(scope) = filters.scope.as_ref() {
 				must.push(Condition::matches("scope", scope.to_string()));
 			}
@@ -993,6 +993,7 @@ fn datetime_filter_range(
 	if gt.is_none() && lt.is_none() {
 		return None;
 	}
+
 	Some(Condition::datetime_range("updated_at", DatetimeRange { lt, gt, gte: None, lte: None }))
 }
 
@@ -1306,6 +1307,7 @@ mod tests {
 				if field.key != key {
 					continue;
 				}
+
 				if let Some(range) = field.datetime_range.as_ref() {
 					return Some((
 						range.lt.as_ref().map(|value| value.seconds),
@@ -1326,10 +1328,12 @@ mod tests {
 				if field.key != key {
 					continue;
 				}
+
 				if let Some(r#match) = field.r#match.as_ref() {
 					let Some(match_value) = r#match.match_value.as_ref() else {
 						continue;
 					};
+
 					return match match_value {
 						MatchValue::Keyword(value) => Some(value.clone()),
 						_ => None,
@@ -1420,6 +1424,7 @@ mod tests {
 			&["agent_private".to_string(), "project_shared".to_string()],
 			&filters,
 		);
+
 		assert_eq!(first_match_value(&filter, "tenant_id").as_deref(), Some("tenant"));
 		assert_eq!(first_match_value(&filter, "status").as_deref(), Some("archived"));
 		assert_eq!(first_match_value(&filter, "scope").as_deref(), Some("project_shared"));
@@ -1432,26 +1437,15 @@ mod tests {
 			OffsetDateTime::parse("2026-02-20T00:00:00Z", &Rfc3339).expect("Invalid timestamp.");
 		let before =
 			OffsetDateTime::parse("2026-02-28T00:00:00Z", &Rfc3339).expect("Invalid timestamp.");
-		assert_eq!(
-			datetime_range.0,
-			Some(before.unix_timestamp()),
-			"Unexpected lt bound."
-		);
+
+		assert_eq!(datetime_range.0, Some(before.unix_timestamp()), "Unexpected lt bound.");
 		assert_eq!(
 			datetime_range.1,
 			Some(before.nanosecond() as i32),
 			"Unexpected lt nanos bound."
 		);
-		assert_eq!(
-			datetime_range.2,
-			Some(after.unix_timestamp()),
-			"Unexpected gt bound."
-		);
-		assert_eq!(
-			datetime_range.3,
-			Some(after.nanosecond() as i32),
-			"Unexpected gt nanos bound."
-		);
+		assert_eq!(datetime_range.2, Some(after.unix_timestamp()), "Unexpected gt bound.");
+		assert_eq!(datetime_range.3, Some(after.nanosecond() as i32), "Unexpected gt nanos bound.");
 	}
 
 	#[test]
