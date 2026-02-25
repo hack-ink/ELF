@@ -4,10 +4,8 @@ use std::{fs, path::PathBuf};
 fn qdrant_init_script_creates_docs_payload_indexes() {
 	let script_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..");
 	let script_path = script_path.join("..").join("qdrant").join("init.sh");
-
 	let script = fs::read_to_string(&script_path)
 		.unwrap_or_else(|err| panic!("Failed to read {}: {err}", script_path.display()));
-
 	let script = script.chars().filter(|ch| !ch.is_whitespace()).collect::<String>();
 
 	for (field, field_schema) in [

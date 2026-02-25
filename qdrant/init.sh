@@ -11,17 +11,49 @@ if [[ -n "${ELF_QDRANT_DOCS_COLLECTION:-}" ]]; then
   collections+=("${ELF_QDRANT_DOCS_COLLECTION}")
 fi
 
-for collection in "${collections[@]}"; do
-  if curl -fsS "${ELF_QDRANT_HTTP_URL}/collections/${collection}" >/dev/null 2>&1; then
-    echo "Qdrant collection ${collection} already exists. Skipping create."
-    continue
+create_payload_index() {
+  local collection=$1
+  local payload=$2
+  local response
+  local status
+  response="$(mktemp)"
+
+  status=$(curl -sS -w '%{http_code}' -o "$response" -X PUT \
+    "${ELF_QDRANT_HTTP_URL}/collections/${collection}/index?wait=true" \
+    -H 'Content-Type: application/json' \
+    -d "$payload"
+  )
+
+  if [[ "$status" == 2* ]]; then
+    rm -f "$response"
+    return
   fi
 
-  echo "Creating Qdrant collection ${collection}."
+  if grep -qi "already.*exists" "$response"; then
+    rm -f "$response"
+    return
+  fi
 
-  curl -sS -X PUT "${ELF_QDRANT_HTTP_URL}/collections/${collection}?wait=true" \
-    -H 'Content-Type: application/json' \
-    -d @- <<JSON
+  echo "Failed to create payload index for ${field_name} in ${collection}. HTTP ${status}." >&2
+  echo "Response body: $(cat "$response")" >&2
+  rm -f "$response"
+  exit 1
+}
+
+for collection in "${collections[@]}"; do
+  collection_exists=false
+
+  if curl -fsS "${ELF_QDRANT_HTTP_URL}/collections/${collection}" >/dev/null 2>&1; then
+    echo "Qdrant collection ${collection} already exists. Skipping create."
+    collection_exists=true
+  fi
+
+  if [[ "$collection_exists" == "false" ]]; then
+    echo "Creating Qdrant collection ${collection}."
+
+    curl -sS -X PUT "${ELF_QDRANT_HTTP_URL}/collections/${collection}?wait=true" \
+      -H 'Content-Type: application/json' \
+      -d @- <<JSON
 {
   "vectors": {
     "dense": {
@@ -36,51 +68,13 @@ for collection in "${collections[@]}"; do
   }
 }
 JSON
+  fi
 
   if [[ -n "${ELF_QDRANT_DOCS_COLLECTION:-}" && "${collection}" == "${ELF_QDRANT_DOCS_COLLECTION}" ]]; then
-    curl -sS -X PUT "${ELF_QDRANT_HTTP_URL}/collections/${collection}/index?wait=true" \
-      -H 'Content-Type: application/json' \
-      -d @- <<JSON
-{
-  "field_name": "scope",
-  "field_schema": "keyword"
-}
-JSON
-
-    curl -sS -X PUT "${ELF_QDRANT_HTTP_URL}/collections/${collection}/index?wait=true" \
-      -H 'Content-Type: application/json' \
-      -d @- <<JSON
-{
-  "field_name": "status",
-  "field_schema": "keyword"
-}
-JSON
-
-    curl -sS -X PUT "${ELF_QDRANT_HTTP_URL}/collections/${collection}/index?wait=true" \
-      -H 'Content-Type: application/json' \
-      -d @- <<JSON
-{
-  "field_name": "doc_type",
-  "field_schema": "keyword"
-}
-JSON
-
-    curl -sS -X PUT "${ELF_QDRANT_HTTP_URL}/collections/${collection}/index?wait=true" \
-      -H 'Content-Type: application/json' \
-      -d @- <<JSON
-{
-  "field_name": "agent_id",
-  "field_schema": "keyword"
-}
-JSON
-
-    curl -sS -X PUT "${ELF_QDRANT_HTTP_URL}/collections/${collection}/index?wait=true" \
-      -H 'Content-Type: application/json' \
-      -d @- <<JSON
-{
-  "field_name": "updated_at",
-  "field_schema": "datetime"
-}
-JSON
+    create_payload_index "$collection" '{"field_name":"scope","field_schema":"keyword"}'
+    create_payload_index "$collection" '{"field_name":"status","field_schema":"keyword"}'
+    create_payload_index "$collection" '{"field_name":"doc_type","field_schema":"keyword"}'
+    create_payload_index "$collection" '{"field_name":"agent_id","field_schema":"keyword"}'
+    create_payload_index "$collection" '{"field_name":"updated_at","field_schema":"datetime"}'
   fi
 done
