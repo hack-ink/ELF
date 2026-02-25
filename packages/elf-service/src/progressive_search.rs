@@ -15,7 +15,6 @@ use crate::{
 	structured_fields::StructuredFields,
 };
 use elf_config::Config;
-use elf_domain::cjk;
 use elf_storage::models::MemoryNote;
 
 const SESSION_SLIDING_TTL_HOURS: i64 = 6;
@@ -897,7 +896,7 @@ async fn record_detail_hits<'e, E>(
 where
 	E: PgExecutor<'e>,
 {
-	if cjk::contains_cjk(query) {
+	if !elf_domain::english_gate::is_english_natural_language(query) {
 		return Err(Error::NonEnglishInput { field: "$.query".to_string() });
 	}
 

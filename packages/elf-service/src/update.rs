@@ -5,7 +5,7 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 use crate::{ElfService, Error, InsertVersionArgs, NoteOp, Result, access};
-use elf_domain::{cjk, ttl};
+use elf_domain::{english_gate, ttl};
 use elf_storage::models::MemoryNote;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -55,7 +55,7 @@ impl ElfService {
 
 		let prev_snapshot = crate::note_snapshot(&note);
 		let candidate_text = if let Some(text) = text_update.as_ref() {
-			if cjk::contains_cjk(text) {
+			if !english_gate::is_english_natural_language(text) {
 				return Err(Error::NonEnglishInput { field: "$.text".to_string() });
 			}
 

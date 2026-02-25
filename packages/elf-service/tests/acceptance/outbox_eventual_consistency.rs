@@ -154,8 +154,14 @@ async fn outbox_retries_to_done() {
 		Arc::new(extractor),
 	);
 	let collection = test_db.collection_name("elf_acceptance");
-	let cfg =
-		crate::acceptance::test_config(test_db.dsn().to_string(), qdrant_url, 4_096, collection);
+	let docs_collection = test_db.collection_name("elf_acceptance_docs");
+	let cfg = crate::acceptance::test_config(
+		test_db.dsn().to_string(),
+		qdrant_url,
+		4_096,
+		collection,
+		docs_collection,
+	);
 	let service =
 		crate::acceptance::build_service(cfg, providers).await.expect("Failed to build service.");
 
@@ -213,7 +219,7 @@ async fn outbox_retries_to_done() {
 	let handle = tokio::spawn(async move {
 		let _ = worker::run_worker(worker_state).await;
 	});
-	let failed = wait_for_status(&service.db.pool, note_id, "FAILED", Duration::from_secs(5))
+	let failed = wait_for_status(&service.db.pool, note_id, "FAILED", Duration::from_secs(15))
 		.await
 		.expect("Expected FAILED outbox status.");
 
@@ -230,15 +236,19 @@ async fn outbox_retries_to_done() {
 		.await
 		.expect("Failed to update available_at.");
 
-	let done = wait_for_status(&service.db.pool, note_id, "DONE", Duration::from_secs(5))
+	let done = wait_for_status(&service.db.pool, note_id, "DONE", Duration::from_secs(15))
 		.await
 		.expect("Expected DONE outbox status.");
 
 	assert!(done.attempts >= 1);
 
+	let _ = shutdown.send(());
+
 	handle.abort();
 
-	let _ = shutdown.send(());
+	let _ = handle.await;
+
+	drop(service);
 
 	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }

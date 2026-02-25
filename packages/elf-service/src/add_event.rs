@@ -10,7 +10,7 @@ use crate::{
 };
 use elf_config::Config;
 use elf_domain::{
-	cjk, evidence,
+	english_gate, evidence,
 	memory_policy::{self, MemoryPolicyDecision},
 	ttl,
 };
@@ -825,7 +825,7 @@ fn validate_add_event_request(req: &AddEventRequest) -> Result<()> {
 	}
 
 	for (idx, msg) in req.messages.iter().enumerate() {
-		if cjk::contains_cjk(msg.content.as_str()) {
+		if !english_gate::is_english_natural_language(msg.content.as_str()) {
 			return Err(Error::NonEnglishInput { field: format!("$.messages[{idx}].content") });
 		}
 	}
@@ -1010,7 +1010,7 @@ fn build_extractor_messages(
 	let system_prompt = "You are a memory extraction engine for an agent memory system. \
 Output must be valid JSON only and must match the provided schema exactly. \
 Extract at most MAX_NOTES high-signal, cross-session reusable memory notes from the given messages. \
-Each note must be one English sentence and must not contain any CJK characters. \
+Each note must be one English sentence and must not contain any non-English text. \
 The structured field is optional. If present, summary must be short, facts must be short sentences supported by the evidence quotes, and concepts must be short phrases. \
 structured.entities and structured.relations should mirror the structured schema with optional entity and relation metadata and relation timestamps. \
 Preserve numbers, dates, percentages, currency amounts, tickers, URLs, and code snippets exactly. \
@@ -1222,4 +1222,36 @@ async fn upsert_structured_fields_tx(
 	}
 
 	Ok(())
+}
+
+#[cfg(test)]
+mod english_gate_tests {
+	use crate::{
+		Error,
+		add_event::{AddEventRequest, EventMessage, validate_add_event_request},
+	};
+
+	#[test]
+	fn rejects_long_non_english_message_content() {
+		let req = AddEventRequest {
+			tenant_id: "t".to_string(),
+			project_id: "p".to_string(),
+			agent_id: "a".to_string(),
+			scope: None,
+			dry_run: None,
+			messages: vec![EventMessage {
+				role: "user".to_string(),
+				content: "Bonjour, je veux m'assurer que ce texte est suffisamment long et riche en lettres pour declencher la detection de langue. Merci beaucoup."
+					.to_string(),
+				ts: None,
+				msg_id: None,
+			}],
+		};
+		let err = validate_add_event_request(&req).expect_err("Expected English gate rejection.");
+
+		assert!(matches!(
+			err,
+			Error::NonEnglishInput { field } if field == "$.messages[0].content"
+		));
+	}
 }

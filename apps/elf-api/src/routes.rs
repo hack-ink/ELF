@@ -271,7 +271,7 @@ impl From<Error> for ApiError {
 			Error::NonEnglishInput { field } => json_error(
 				StatusCode::UNPROCESSABLE_ENTITY,
 				"NON_ENGLISH_INPUT",
-				"CJK detected; upstream must canonicalize to English before calling ELF.",
+				"Non-English input detected; upstream must canonicalize to English before calling ELF.",
 				Some(vec![field]),
 			),
 			Error::InvalidRequest { message } =>
@@ -478,11 +478,12 @@ fn required_header(headers: &HeaderMap, name: &'static str) -> Result<String, Ap
 			Some(vec![format!("$.headers.{name}")]),
 		));
 	}
-	if elf_domain::cjk::contains_cjk(trimmed) {
+	if !elf_domain::english_gate::is_english_identifier(trimmed) {
 		return Err(json_error(
 			StatusCode::UNPROCESSABLE_ENTITY,
 			"NON_ENGLISH_INPUT",
-			"CJK detected; upstream must canonicalize to English before calling ELF.".to_string(),
+			"Non-English input detected; upstream must canonicalize to English before calling ELF."
+				.to_string(),
 			Some(vec![format!("$.headers.{name}")]),
 		));
 	}

@@ -16,29 +16,32 @@ repository  = "https://github.com/hack-ink/elf"
 version     = "0.2.0"
 
 [workspace.dependencies]
-ahash                = { version = "0.8" }
-axum                 = { version = "0.7" }
-blake3               = { version = "1.5" }
-clap                 = { version = "4.5", features = ["derive"] }
-color-eyre           = { version = "0.6" }
-qdrant-client        = { version = "1.0" }
-regex                = { version = "1.0" }
-reqwest              = { version = "0.12", features = ["json", "rustls-tls"] }
-rmcp                 = { version = "0.16", features = ["transport-streamable-http-server"] }
-serde                = { version = "1.0", features = ["derive"] }
-serde_json           = { version = "1.0" }
-sqlx                 = { version = "0.8", features = ["json", "postgres", "runtime-tokio", "time", "tls-rustls", "uuid"] }
-thiserror            = { version = "2.0" }
-time                 = { version = "0.3", features = ["macros", "serde"] }
-tokenizers           = { version = "0.22", features = ["http"] }
-tokio                = { version = "1.0", features = ["macros", "rt-multi-thread", "time"] }
-toml                 = { version = "1.0" }
-tower                = { version = "0.5" }
-tracing              = { version = "0.1" }
-tracing-subscriber   = { version = "0.3", features = ["env-filter"] }
-unicode-segmentation = { version = "1.11" }
-uuid                 = { version = "1.21", features = ["serde", "v4", "v5"] }
-vergen-gitcl         = { version = "9.1", features = ["cargo"] }
+ahash                 = { version = "0.8" }
+axum                  = { version = "0.7" }
+blake3                = { version = "1.5" }
+clap                  = { version = "4.5", features = ["derive"] }
+color-eyre            = { version = "0.6" }
+qdrant-client         = { version = "1.0" }
+regex                 = { version = "1.0" }
+reqwest               = { version = "0.12", features = ["json", "rustls-tls"] }
+rmcp                  = { version = "0.16", features = ["transport-streamable-http-server"] }
+serde                 = { version = "1.0", features = ["derive"] }
+serde_json            = { version = "1.0" }
+sqlx                  = { version = "0.8", features = ["json", "postgres", "runtime-tokio", "time", "tls-rustls", "uuid"] }
+thiserror             = { version = "2.0" }
+time                  = { version = "0.3", features = ["macros", "serde"] }
+tokenizers            = { version = "0.22", features = ["http"] }
+tokio                 = { version = "1.0", features = ["macros", "rt-multi-thread", "time"] }
+toml                  = { version = "1.0" }
+tower                 = { version = "0.5" }
+tracing               = { version = "0.1" }
+tracing-subscriber    = { version = "0.3", features = ["env-filter"] }
+unicode-normalization = { version = "0.1" }
+unicode-script        = { version = "0.5" }
+unicode-segmentation  = { version = "1.11" }
+uuid                  = { version = "1.21", features = ["serde", "v4", "v5"] }
+vergen-gitcl          = { version = "9.1", features = ["cargo"] }
+whatlang              = { version = "0.16" }
 
 elf-chunking  = { version = "0.2", path = "packages/elf-chunking" }
 elf-cli       = { version = "0.2", path = "packages/elf-cli" }
