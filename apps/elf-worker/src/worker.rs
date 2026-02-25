@@ -716,7 +716,10 @@ async fn upsert_qdrant_doc_chunk(
 	payload.insert("scope", row.scope.clone());
 	payload.insert("doc_type", row.doc_type.clone());
 	payload.insert("status", row.status.clone());
-	payload.insert("updated_at", Value::String(format_timestamp(row.updated_at)?));
+
+	let updated_at = format_timestamp(row.updated_at)?;
+
+	payload.insert("updated_at", Value::String(updated_at));
 	payload.insert("embedding_version", embedding_version.to_string());
 	payload.insert("content_hash", row.content_hash.clone());
 	payload.insert("chunk_hash", row.chunk_hash.clone());

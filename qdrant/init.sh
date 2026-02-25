@@ -36,4 +36,51 @@ for collection in "${collections[@]}"; do
   }
 }
 JSON
+
+  if [[ -n "${ELF_QDRANT_DOCS_COLLECTION:-}" && "${collection}" == "${ELF_QDRANT_DOCS_COLLECTION}" ]]; then
+    curl -sS -X PUT "${ELF_QDRANT_HTTP_URL}/collections/${collection}/index?wait=true" \
+      -H 'Content-Type: application/json' \
+      -d @- <<JSON
+{
+  "field_name": "scope",
+  "field_schema": "keyword"
+}
+JSON
+
+    curl -sS -X PUT "${ELF_QDRANT_HTTP_URL}/collections/${collection}/index?wait=true" \
+      -H 'Content-Type: application/json' \
+      -d @- <<JSON
+{
+  "field_name": "status",
+  "field_schema": "keyword"
+}
+JSON
+
+    curl -sS -X PUT "${ELF_QDRANT_HTTP_URL}/collections/${collection}/index?wait=true" \
+      -H 'Content-Type: application/json' \
+      -d @- <<JSON
+{
+  "field_name": "doc_type",
+  "field_schema": "keyword"
+}
+JSON
+
+    curl -sS -X PUT "${ELF_QDRANT_HTTP_URL}/collections/${collection}/index?wait=true" \
+      -H 'Content-Type: application/json' \
+      -d @- <<JSON
+{
+  "field_name": "agent_id",
+  "field_schema": "keyword"
+}
+JSON
+
+    curl -sS -X PUT "${ELF_QDRANT_HTTP_URL}/collections/${collection}/index?wait=true" \
+      -H 'Content-Type: application/json' \
+      -d @- <<JSON
+{
+  "field_name": "updated_at",
+  "field_schema": "datetime"
+}
+JSON
+  fi
 done
