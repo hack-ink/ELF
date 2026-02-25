@@ -14,9 +14,12 @@ fi
 create_payload_index() {
   local collection=$1
   local payload=$2
+  local field_name
   local response
   local status
   response="$(mktemp)"
+  field_name="${payload#*\"field_name\":\"}"
+  field_name="${field_name%%\"*}"
 
   status=$(curl -sS -w '%{http_code}' -o "$response" -X PUT \
     "${ELF_QDRANT_HTTP_URL}/collections/${collection}/index?wait=true" \
@@ -34,7 +37,7 @@ create_payload_index() {
     return
   fi
 
-  echo "Failed to create payload index for ${field_name} in ${collection}. HTTP ${status}." >&2
+  echo "Failed to create payload index for field '${field_name}' in ${collection}. HTTP ${status}." >&2
   echo "Response body: $(cat "$response")" >&2
   rm -f "$response"
   exit 1
