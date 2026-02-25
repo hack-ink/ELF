@@ -14,6 +14,22 @@ This document is normative. When a new versioned identifier is introduced, it mu
 - Consumers: Clients calling the ELF Memory Service API, `apps/elf-mcp`.
 - Bump rule: Introduce a new prefix (for example, `/v3`) only for breaking API contract changes. Add a new spec file and keep old specs stable.
 
+### source_ref envelope schema
+
+- Identifier: `source_ref/v1`.
+- Type: `source_ref` JSON envelope schema identifier.
+- Defined in: `docs/spec/system_elf_memory_service_v2.md`.
+- Consumers: Note/event ingestion payloads, persisted `source_ref` fields, extensions and agents that hydrate evidence.
+- Bump rule: Introduce `source_ref/v2` only when the envelope becomes incompatible with v1. Keep older identifiers immutable.
+
+### source_ref resolver: Doc Extension v1 doc pointer
+
+- Identifier: `elf_doc_ext/v1`.
+- Type: `source_ref.resolver` identifier for Doc Extension v1 pointers.
+- Defined in: `docs/spec/system_source_ref_doc_pointer_v1.md`.
+- Consumers: Agents that hydrate doc excerpts and build evidence-linked facts; Doc Extension v1 excerpt endpoints.
+- Bump rule: Introduce `elf_doc_ext/v2` only when the dereference contract (required fields, semantics, or verification surface) becomes incompatible.
+
 ### Search ranking explain schema
 
 - Identifier: `search_ranking_explain/v2`.

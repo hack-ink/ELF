@@ -313,6 +313,9 @@ Recommended shape (informative):
   "hints": { "...": "optional debug/UX fields" }
 }
 
+Defined resolvers:
+- `elf_doc_ext/v1`: Doc Extension v1 document pointer resolver. Defined in `docs/spec/system_source_ref_doc_pointer_v1.md`.
+
 Resolver tiers (informative):
 - reproducible: dereference is stable and replayable given (ref + state) (example: fs_git with a commit SHA).
 - best_effort: dereference may change over time (example: external conversation thread id); resolvers should expose whether excerpt verification succeeded.
