@@ -619,6 +619,10 @@ fn docs_put_schema() -> Arc<JsonObject> {
 		"required": ["scope", "content", "source_ref"],
 		"properties": {
 			"scope": { "type": "string", "enum": ["agent_private", "project_shared", "org_shared"] },
+			"doc_type": {
+				"type": ["string", "null"],
+				"enum": ["knowledge", "chat", "search", "dev", null]
+			},
 			"title": { "type": ["string", "null"] },
 			"source_ref": { "type": "object", "additionalProperties": true },
 			"content": { "type": "string" }

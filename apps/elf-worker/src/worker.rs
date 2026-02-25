@@ -190,6 +190,7 @@ struct DocChunkIndexRow {
 	project_id: String,
 	agent_id: String,
 	scope: String,
+	doc_type: String,
 	status: String,
 	updated_at: OffsetDateTime,
 	content_hash: String,
@@ -620,6 +621,7 @@ SELECT
 \td.project_id,
 \td.agent_id,
 \td.scope,
+\td.doc_type,
 \td.status,
 \td.updated_at,
 \td.content_hash,
@@ -712,6 +714,7 @@ async fn upsert_qdrant_doc_chunk(
 	payload.insert("project_id", row.project_id.clone());
 	payload.insert("agent_id", row.agent_id.clone());
 	payload.insert("scope", row.scope.clone());
+	payload.insert("doc_type", row.doc_type.clone());
 	payload.insert("status", row.status.clone());
 	payload.insert("updated_at", Value::String(format_timestamp(row.updated_at)?));
 	payload.insert("embedding_version", embedding_version.to_string());

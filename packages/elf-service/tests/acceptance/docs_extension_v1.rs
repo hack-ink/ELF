@@ -218,6 +218,7 @@ async fn put_test_doc(service: &ElfService) -> DocsPutResponse {
 			project_id: "p".to_string(),
 			agent_id: "owner".to_string(),
 			scope: "project_shared".to_string(),
+			doc_type: None,
 			title: Some("Docs v1".to_string()),
 			source_ref: serde_json::json!({ "source": "acceptance-test", "type": "text" }),
 			content: TEST_CONTENT.to_string(),
@@ -239,6 +240,7 @@ async fn assert_doc_get(service: &ElfService, doc_id: Uuid) {
 		.expect("Failed to get doc as owner.");
 
 	assert_eq!(get_as_owner.scope, "project_shared");
+	assert_eq!(get_as_owner.doc_type, "knowledge");
 	assert_eq!(get_as_owner.agent_id, "owner");
 	assert_eq!(get_as_owner.title.as_deref(), Some("Docs v1"));
 
@@ -328,5 +330,6 @@ async fn assert_docs_search_l0(service: &ElfService, doc_id: Uuid) {
 
 	assert!(!results.items.is_empty());
 	assert_eq!(results.items[0].doc_id, doc_id);
+	assert_eq!(results.items[0].doc_type, "knowledge");
 	assert!(results.items[0].snippet.contains("peregrine"));
 }
