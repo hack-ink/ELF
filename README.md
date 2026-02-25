@@ -173,20 +173,39 @@ cargo make test
 
 For integration and E2E workflows, use `docs/guide/getting_started.md` and `docs/guide/integration-testing.md`.
 
-## Support
+## Support Me
 
-If you find this project helpful and want to support its development:
+If you find this project helpful and would like to support its development, you can buy me a coffee!
 
-- Ko-fi: https://ko-fi.com/hack_ink
-- Afdian: https://afdian.com/a/hack_ink
+Your support is greatly appreciated and motivates me to keep improving this project.
 
-- Bitcoin: `bc1pedlrf67ss52md29qqkzr2avma6ghyrt4jx9ecp9457qsl75x247sqcp43c`
-- Ethereum: `0x3e25247CfF03F99a7D83b28F207112234feE73a6`
-- Polkadot: `156HGo9setPcU2qhFMVWLkcmtCEGySLwNqa3DaEiYSWtte4Y`
+- **Fiat**
+    - [Ko-fi](https://ko-fi.com/hack_ink)
+    - [爱发电](https://afdian.com/a/hack_ink)
+- **Crypto**
+    - **Bitcoin**
+        - `bc1pedlrf67ss52md29qqkzr2avma6ghyrt4jx9ecp9457qsl75x247sqcp43c`
+    - **Ethereum**
+        - `0x3e25247CfF03F99a7D83b28F207112234feE73a6`
+    - **Polkadot**
+        - `156HGo9setPcU2qhFMVWLkcmtCEGySLwNqa3DaEiYSWtte4Y`
+
+Thank you for your support!
 
 ## Appreciation
 
-- The Rust community for continuous support and development of the ecosystem.
+We would like to extend our heartfelt gratitude to the following projects and contributors:
+
+- The Rust community for their continuous support and development of the Rust ecosystem.
+
+## Knowledge
+
+Starting points and reference material:
+
+- Documentation index: `docs/index.md`
+- Guide index: `docs/guide/index.md`
+- Specifications index: `docs/spec/index.md`
+- Research index: `docs/research/index.md`
 
 <div align="right">
 
