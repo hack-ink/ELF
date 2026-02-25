@@ -24,8 +24,6 @@ use elf_storage::{
 const MAX_TOP_K: u32 = 32;
 const MAX_CANDIDATE_K: u32 = 1_024;
 const DEFAULT_DOC_MAX_BYTES: usize = 4 * 1_024 * 1_024;
-const DEFAULT_CHUNK_TARGET_BYTES: usize = 2_048;
-const DEFAULT_CHUNK_OVERLAP_BYTES: usize = 256;
 const DEFAULT_MAX_CHUNKS_PER_DOC: usize = 4_096;
 const DEFAULT_L1_MAX_BYTES: usize = 8 * 1_024;
 const DEFAULT_L2_MAX_BYTES: usize = 32 * 1_024;
@@ -151,6 +149,13 @@ pub struct DocsExcerptResponse {
 	pub verification: DocsExcerptVerification,
 }
 
+#[derive(Clone, Copy, Debug)]
+struct DocChunkingProfile {
+	target_bytes: usize,
+	overlap_bytes: usize,
+	max_chunks: usize,
+}
+
 #[derive(Clone, Debug)]
 struct ByteChunk {
 	chunk_id: Uuid,
@@ -190,6 +195,7 @@ impl ElfService {
 			content,
 		} = req;
 		let doc_type = doc_type.unwrap_or_else(|| "knowledge".to_string());
+		let chunking_profile = resolve_doc_chunking_profile(doc_type.as_str());
 		let effective_project_id = if scope.trim() == "org_shared" {
 			crate::access::ORG_PROJECT_ID
 		} else {
@@ -200,9 +206,9 @@ impl ElfService {
 		let doc_id = Uuid::new_v4();
 		let chunks = split_bytes_by_sentence(
 			content.as_str(),
-			DEFAULT_CHUNK_TARGET_BYTES,
-			DEFAULT_CHUNK_OVERLAP_BYTES,
-			DEFAULT_MAX_CHUNKS_PER_DOC,
+			chunking_profile.target_bytes,
+			chunking_profile.overlap_bytes,
+			chunking_profile.max_chunks,
 		)?;
 		let doc_row = DocDocument {
 			doc_id,
@@ -543,6 +549,26 @@ LIMIT 1",
 				excerpt_hash,
 			},
 		})
+	}
+}
+
+fn resolve_doc_chunking_profile(doc_type: &str) -> DocChunkingProfile {
+	match doc_type {
+		"chat" | "search" => DocChunkingProfile {
+			target_bytes: 1_024,
+			overlap_bytes: 128,
+			max_chunks: DEFAULT_MAX_CHUNKS_PER_DOC,
+		},
+		"knowledge" | "dev" => DocChunkingProfile {
+			target_bytes: 2_048,
+			overlap_bytes: 256,
+			max_chunks: DEFAULT_MAX_CHUNKS_PER_DOC,
+		},
+		_ => DocChunkingProfile {
+			target_bytes: 2_048,
+			overlap_bytes: 256,
+			max_chunks: DEFAULT_MAX_CHUNKS_PER_DOC,
+		},
 	}
 }
 
@@ -1092,7 +1118,7 @@ WHERE c.chunk_id = ANY($1)
 
 #[cfg(test)]
 mod tests {
-	use crate::docs::{DocsPutRequest, Error, validate_docs_put};
+	use crate::docs::{DocsPutRequest, Error, resolve_doc_chunking_profile, validate_docs_put};
 
 	#[test]
 	fn validate_docs_put_rejects_invalid_doc_type() {
@@ -1112,5 +1138,18 @@ mod tests {
 			Error::InvalidRequest { message } => assert!(message.contains("doc_type")),
 			other => panic!("Unexpected error: {other:?}"),
 		}
+	}
+
+	#[test]
+	fn resolve_doc_chunking_profile_is_deterministic_by_doc_type() {
+		let small = resolve_doc_chunking_profile("chat");
+
+		assert_eq!(small.target_bytes, 1_024);
+		assert_eq!(small.overlap_bytes, 128);
+
+		let default = resolve_doc_chunking_profile("knowledge");
+
+		assert_eq!(default.target_bytes, 2_048);
+		assert_eq!(default.overlap_bytes, 256);
 	}
 }
