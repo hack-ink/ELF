@@ -294,3 +294,16 @@ curl -sS -X DELETE http://127.0.0.1:51892/v2/notes/NOTE_ID_2 \
 
 - If results do not appear immediately, wait a few seconds for the outbox worker to index, then re-run the evaluation.
 - If Qdrant connectivity warnings appear, verify the configured `storage.qdrant.url` and that the service is reachable.
+
+## Integration test scheduling decision for Doc v1 acceptance checks
+
+The Doc v1 acceptance coverage in `packages/elf-service/tests/acceptance/docs_extension_v1.rs`
+(filter behavior, source_ref non-English boundary, and Qdrant payload-index assertions) remains
+`#[ignore]` by design and is not enabled in default CI because it requires external PostgreSQL/Qdrant
+services and acceptance-style provisioning. Run it intentionally with:
+
+```bash
+ELF_PG_DSN="postgres://postgres:postgres@127.0.0.1:51888/postgres" \
+ELF_QDRANT_GRPC_URL="http://127.0.0.1:51890" \
+cargo test -p elf-service --test acceptance -- docs_extension_v1 --ignored
+```
