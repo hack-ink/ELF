@@ -18,28 +18,30 @@ where
 {
 	sqlx::query(
 		"\
-INSERT INTO doc_documents (
-\tdoc_id,
-\ttenant_id,
-\tproject_id,
-\tagent_id,
-\tscope,
-\tstatus,
-\ttitle,
-\tsource_ref,
-\tcontent,
-\tcontent_bytes,
-\tcontent_hash,
-\tcreated_at,
-\tupdated_at
-)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)",
+	INSERT INTO doc_documents (
+	\tdoc_id,
+	\ttenant_id,
+	\tproject_id,
+	\tagent_id,
+	\tscope,
+	\tdoc_type,
+	\tstatus,
+	\ttitle,
+	\tsource_ref,
+	\tcontent,
+	\tcontent_bytes,
+	\tcontent_hash,
+	\tcreated_at,
+	\tupdated_at
+	)
+	VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)",
 	)
 	.bind(doc.doc_id)
 	.bind(doc.tenant_id.as_str())
 	.bind(doc.project_id.as_str())
 	.bind(doc.agent_id.as_str())
 	.bind(doc.scope.as_str())
+	.bind(doc.doc_type.as_str())
 	.bind(doc.status.as_str())
 	.bind(doc.title.as_deref())
 	.bind(&doc.source_ref)
@@ -64,20 +66,21 @@ where
 {
 	let row = sqlx::query_as::<_, DocDocument>(
 		"\
-SELECT
-\tdoc_id,
-\ttenant_id,
-\tproject_id,
-\tagent_id,
-\tscope,
-\tstatus,
-\ttitle,
-\tCOALESCE(source_ref, '{}'::jsonb) AS source_ref,
-\tcontent,
-\tcontent_bytes,
-\tcontent_hash,
-\tcreated_at,
-\tupdated_at
+	SELECT
+	\tdoc_id,
+	\ttenant_id,
+	\tproject_id,
+	\tagent_id,
+	\tscope,
+	\tdoc_type,
+	\tstatus,
+	\ttitle,
+	\tCOALESCE(source_ref, '{}'::jsonb) AS source_ref,
+	\tcontent,
+	\tcontent_bytes,
+	\tcontent_hash,
+	\tcreated_at,
+	\tupdated_at
 FROM doc_documents
 WHERE tenant_id = $1 AND doc_id = $2
 LIMIT 1",

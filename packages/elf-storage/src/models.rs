@@ -167,6 +167,7 @@ pub struct DocDocument {
 	pub project_id: String,
 	pub agent_id: String,
 	pub scope: String,
+	pub doc_type: String,
 	pub status: String,
 	pub title: Option<String>,
 	pub source_ref: Value,
