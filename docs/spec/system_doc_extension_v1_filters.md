@@ -1,16 +1,24 @@
-# System: Document Extension v1 Filter Contract
+# System: Document Extension v1 Filter and Payload Contract
 
 Purpose: Define the `docs_search_filters/v1` filter contract for
 `POST /v2/docs/search/l0` and MCP `elf_docs_search_l0`.
 
-## Scope
+Registry identifiers:
+- `docs_search_filters/v1`: API filter compatibility contract for `docs_search_l0`.
+- `doc_extension_payload/v1`: Qdrant payload + index compatibility contract for doc chunks.
 
-- Defines only filter parameters and Qdrant payload/index requirements for
-  `docs_search_l0`.
-- Does not define ranking, vector geometry, query text handling, or ingestion
-  internals.
+Status: shipped with Doc Extension v1.
 
-## 1) Filter Parameters
+==================================================
+Scope
+==================================================
+
+- Defines filter parameters and Qdrant payload/index requirements for `docs_search_l0`.
+- Does not define ranking, vector geometry, query text handling, or ingestion internals.
+
+==================================================
+1) Filter Parameters
+==================================================
 
 - `scope` (optional string): one of `agent_private`, `project_shared`, `org_shared`.
 - `status` (optional string): defaults to `active`, allowed `active`, `deleted`.
@@ -24,7 +32,9 @@ Filter evaluation:
 - `status` defaults to `active` when omitted.
 - Invalid date values or `updated_after > updated_before` must be rejected with `400`.
 
-## 2) Qdrant Payload Contract
+==================================================
+2) Qdrant Payload Contract
+==================================================
 
 Each point used by `docs_search_l0` MUST include payload fields:
 - `scope`
@@ -33,9 +43,11 @@ Each point used by `docs_search_l0` MUST include payload fields:
 - `agent_id`
 - `updated_at`
 
-Payload field names are part of `docs_search_filters/v1` compatibility.
+Payload field names are part of `docs_search_filters/v1` and `doc_extension_payload/v1` compatibility.
 
-## 3) Qdrant Index Requirements
+==================================================
+3) Qdrant Index Requirements
+==================================================
 
 Implementations MUST provision payload indexes for:
 - `scope` (keyword)
@@ -44,5 +56,4 @@ Implementations MUST provision payload indexes for:
 - `agent_id` (keyword)
 - `updated_at` (datetime)
 
-Indexing is a deploy-time requirement before filtered production traffic is
-enabled.
+Indexing is a deploy-time requirement before filtered production traffic is enabled.
