@@ -30,6 +30,25 @@ This document is normative. When a new versioned identifier is introduced, it mu
 - Consumers: Agents that hydrate doc excerpts and build evidence-linked facts; Doc Extension v1 excerpt endpoints.
 - Bump rule: Introduce `elf_doc_ext/v2` only when the dereference contract (required fields, semantics, or verification surface) becomes incompatible.
 
+### Doc Extension v1 docs filters contract
+
+- Identifier: `docs_search_filters/v1`.
+- Type: Filter parameters and required Qdrant payload/index requirements for
+  `docs_search_l0` (HTTP/MCP).
+- Defined in: `docs/spec/system_doc_extension_v1_filters.md`.
+- Consumers: `apps/elf-api/src/routes.rs`, `apps/elf-mcp/src/server.rs`, `apps/elf-service/src/docs.rs`.
+- Bump rule: Introduce `docs_search_filters/v2` only if accepted filter keys,
+  value constraints, evaluation semantics, or required Qdrant filter/index fields
+  become incompatible.
+
+### Doc Extension v1 payload/index contract
+
+- Identifier: `doc_extension_payload/v1`.
+- Type: Qdrant payload shape and required indexes for doc chunk points.
+- Defined in: `docs/spec/system_doc_extension_v1_filters.md`.
+- Consumers: `apps/elf-worker/src/worker.rs`, `apps/elf-service/src/docs.rs`.
+- Bump rule: Introduce `doc_extension_payload/v2` only when payload shape changes break compatible filter deployment.
+
 ### Search ranking explain schema
 
 - Identifier: `search_ranking_explain/v2`.
