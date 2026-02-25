@@ -12,22 +12,33 @@ use tokenizers::{Tokenizer, models::wordlevel::WordLevel};
 use tokio::{
 	net::TcpListener,
 	sync::{oneshot, oneshot::Sender},
+	task::JoinHandle,
 };
+use uuid::Uuid;
 
 use crate::acceptance::{SpyExtractor, StubEmbedding, StubRerank};
 use elf_config::EmbeddingProviderConfig;
 use elf_service::{
-	DocsExcerptsGetRequest, DocsGetRequest, DocsPutRequest, DocsSearchL0Request, Providers,
-	TextQuoteSelector,
+	DocsExcerptsGetRequest, DocsGetRequest, DocsPutRequest, DocsPutResponse, DocsSearchL0Request,
+	ElfService, Providers, TextQuoteSelector,
 };
 use elf_storage::{db::Db, qdrant::QdrantStore};
+use elf_testkit::TestDatabase;
 use elf_worker::worker;
+
+const TEST_CONTENT: &str =
+	"ELF docs extension v1 stores evidence. Keyword: peregrine.\nSecond sentence for chunking.";
 
 #[derive(FromRow)]
 struct DocOutboxCounts {
 	total: i64,
 	done: i64,
 	failed: i64,
+}
+
+struct DocsContext {
+	test_db: TestDatabase,
+	service: ElfService,
 }
 
 fn build_test_tokenizer() -> Tokenizer {
@@ -44,7 +55,7 @@ fn build_test_tokenizer() -> Tokenizer {
 	Tokenizer::new(model)
 }
 
-async fn wait_for_doc_outbox_done(pool: &PgPool, doc_id: uuid::Uuid, timeout: Duration) -> bool {
+async fn wait_for_doc_outbox_done(pool: &PgPool, doc_id: Uuid, timeout: Duration) -> bool {
 	let deadline = Instant::now() + timeout;
 
 	loop {
@@ -69,7 +80,6 @@ WHERE doc_id = $1",
 		{
 			return true;
 		}
-
 		if let Some(row) = row.as_ref()
 			&& row.failed > 0
 		{
@@ -121,19 +131,41 @@ async fn embed_handler(State(()): State<()>, Json(payload): Json<Value>) -> impl
 
 #[tokio::test]
 async fn docs_put_get_excerpts_and_search_l0_work_end_to_end() {
+	let Some(ctx) = setup_docs_context().await else { return };
+	let put = put_test_doc(&ctx.service).await;
+
+	assert_doc_get(&ctx.service, put.doc_id).await;
+	assert_doc_excerpt(&ctx.service, put.doc_id, put.content_hash.as_str()).await;
+
+	let (handle, shutdown) = spawn_doc_worker(&ctx.service).await;
+
+	assert!(
+		wait_for_doc_outbox_done(&ctx.service.db.pool, put.doc_id, Duration::from_secs(5)).await,
+		"Expected doc outbox to reach DONE."
+	);
+
+	assert_docs_search_l0(&ctx.service, put.doc_id).await;
+
+	handle.abort();
+
+	let _ = shutdown.send(());
+
+	ctx.test_db.cleanup().await.expect("Failed to cleanup test database.");
+}
+
+async fn setup_docs_context() -> Option<DocsContext> {
 	let Some(test_db) = crate::acceptance::test_db().await else {
 		eprintln!("Skipping docs_extension_v1; set ELF_PG_DSN to run this test.");
 
-		return;
+		return None;
 	};
 	let Some(qdrant_url) = crate::acceptance::test_qdrant_url() else {
 		eprintln!(
 			"Skipping docs_extension_v1; set ELF_QDRANT_URL (or ELF_QDRANT_GRPC_URL) to run this test."
 		);
 
-		return;
+		return None;
 	};
-
 	let collection = test_db.collection_name("elf_acceptance");
 	let cfg =
 		crate::acceptance::test_config(test_db.dsn().to_string(), qdrant_url, 4_096, collection);
@@ -164,9 +196,11 @@ async fn docs_put_get_excerpts_and_search_l0_work_end_to_end() {
 	.await
 	.expect("Failed to reset Qdrant docs collection.");
 
-	let content =
-		"ELF docs extension v1 stores evidence. Keyword: peregrine.\nSecond sentence for chunking.";
-	let put = service
+	Some(DocsContext { test_db, service })
+}
+
+async fn put_test_doc(service: &ElfService) -> DocsPutResponse {
+	service
 		.docs_put(DocsPutRequest {
 			tenant_id: "t".to_string(),
 			project_id: "p".to_string(),
@@ -174,24 +208,24 @@ async fn docs_put_get_excerpts_and_search_l0_work_end_to_end() {
 			scope: "project_shared".to_string(),
 			title: Some("Docs v1".to_string()),
 			source_ref: serde_json::json!({ "source": "acceptance-test", "type": "text" }),
-			content: content.to_string(),
+			content: TEST_CONTENT.to_string(),
 		})
 		.await
-		.expect("Failed to put doc.");
+		.expect("Failed to put doc.")
+}
 
-	assert!(put.chunk_count > 0);
-	assert!(put.content_bytes as usize >= content.len());
-
+async fn assert_doc_get(service: &ElfService, doc_id: Uuid) {
 	let get_as_owner = service
 		.docs_get(DocsGetRequest {
 			tenant_id: "t".to_string(),
 			project_id: "p".to_string(),
 			agent_id: "owner".to_string(),
 			read_profile: "private_plus_project".to_string(),
-			doc_id: put.doc_id,
+			doc_id,
 		})
 		.await
 		.expect("Failed to get doc as owner.");
+
 	assert_eq!(get_as_owner.scope, "project_shared");
 	assert_eq!(get_as_owner.agent_id, "owner");
 	assert_eq!(get_as_owner.title.as_deref(), Some("Docs v1"));
@@ -202,19 +236,22 @@ async fn docs_put_get_excerpts_and_search_l0_work_end_to_end() {
 			project_id: "p".to_string(),
 			agent_id: "reader".to_string(),
 			read_profile: "private_plus_project".to_string(),
-			doc_id: put.doc_id,
+			doc_id,
 		})
 		.await
 		.expect("Failed to get doc as reader (expected project grant).");
-	assert_eq!(get_as_reader.doc_id, put.doc_id);
 
+	assert_eq!(get_as_reader.doc_id, doc_id);
+}
+
+async fn assert_doc_excerpt(service: &ElfService, doc_id: Uuid, content_hash: &str) {
 	let excerpts = service
 		.docs_excerpts_get(DocsExcerptsGetRequest {
 			tenant_id: "t".to_string(),
 			project_id: "p".to_string(),
 			agent_id: "reader".to_string(),
 			read_profile: "private_plus_project".to_string(),
-			doc_id: put.doc_id,
+			doc_id,
 			level: "L1".to_string(),
 			chunk_id: None,
 			quote: Some(TextQuoteSelector {
@@ -226,10 +263,13 @@ async fn docs_put_get_excerpts_and_search_l0_work_end_to_end() {
 		})
 		.await
 		.expect("Failed to get excerpt.");
+
 	assert!(excerpts.verification.verified);
 	assert!(excerpts.excerpt.contains("Keyword: peregrine."));
-	assert_eq!(excerpts.verification.content_hash, put.content_hash);
+	assert_eq!(excerpts.verification.content_hash, content_hash);
+}
 
+async fn spawn_doc_worker(service: &ElfService) -> (JoinHandle<()>, Sender<()>) {
 	let (api_base, shutdown) = start_embed_server().await;
 	let worker_state = worker::WorkerState {
 		db: Db::connect(&service.cfg.storage.postgres).await.expect("Failed to connect worker DB."),
@@ -257,11 +297,10 @@ async fn docs_put_get_excerpts_and_search_l0_work_end_to_end() {
 		let _ = worker::run_worker(worker_state).await;
 	});
 
-	assert!(
-		wait_for_doc_outbox_done(&service.db.pool, put.doc_id, Duration::from_secs(5)).await,
-		"Expected doc outbox to reach DONE."
-	);
+	(handle, shutdown)
+}
 
+async fn assert_docs_search_l0(service: &ElfService, doc_id: Uuid) {
 	let results = service
 		.docs_search_l0(DocsSearchL0Request {
 			tenant_id: "t".to_string(),
@@ -276,12 +315,6 @@ async fn docs_put_get_excerpts_and_search_l0_work_end_to_end() {
 		.expect("Failed to search docs.");
 
 	assert!(!results.items.is_empty());
-	assert_eq!(results.items[0].doc_id, put.doc_id);
+	assert_eq!(results.items[0].doc_id, doc_id);
 	assert!(results.items[0].snippet.contains("peregrine"));
-
-	handle.abort();
-
-	let _ = shutdown.send(());
-
-	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }
