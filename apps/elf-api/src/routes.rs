@@ -85,6 +85,7 @@ struct EventsIngestRequest {
 #[derive(Clone, Debug, Deserialize)]
 struct DocsPutBody {
 	scope: String,
+	doc_type: Option<String>,
 	title: Option<String>,
 	#[serde(default)]
 	source_ref: Value,
@@ -819,6 +820,7 @@ async fn docs_put(
 			project_id: ctx.project_id,
 			agent_id: ctx.agent_id,
 			scope: payload.scope,
+			doc_type: payload.doc_type,
 			title: payload.title,
 			source_ref: payload.source_ref,
 			content: payload.content,

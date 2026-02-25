@@ -36,6 +36,7 @@ pub struct DocsPutRequest {
 	pub project_id: String,
 	pub agent_id: String,
 	pub scope: String,
+	pub doc_type: Option<String>,
 	pub title: Option<String>,
 	#[serde(default)]
 	pub source_ref: Value,
@@ -66,6 +67,7 @@ pub struct DocsGetResponse {
 	pub project_id: String,
 	pub agent_id: String,
 	pub scope: String,
+	pub doc_type: String,
 	pub status: String,
 	pub title: Option<String>,
 	pub source_ref: Value,
@@ -93,6 +95,7 @@ pub struct DocsSearchL0Item {
 	pub score: f32,
 	pub snippet: String,
 	pub scope: String,
+	pub doc_type: String,
 	pub project_id: String,
 	pub agent_id: String,
 	pub updated_at: OffsetDateTime,
@@ -161,6 +164,7 @@ struct DocSearchRow {
 	chunk_id: Uuid,
 	doc_id: Uuid,
 	scope: String,
+	doc_type: String,
 	project_id: String,
 	agent_id: String,
 	updated_at: OffsetDateTime,
@@ -175,8 +179,17 @@ impl ElfService {
 
 		let now = OffsetDateTime::now_utc();
 		let embed_version = crate::embedding_version(&self.cfg);
-		let DocsPutRequest { tenant_id, project_id, agent_id, scope, title, source_ref, content } =
-			req;
+		let DocsPutRequest {
+			tenant_id,
+			project_id,
+			agent_id,
+			scope,
+			doc_type,
+			title,
+			source_ref,
+			content,
+		} = req;
+		let doc_type = doc_type.unwrap_or_else(|| "knowledge".to_string());
 		let effective_project_id = if scope.trim() == "org_shared" {
 			crate::access::ORG_PROJECT_ID
 		} else {
@@ -197,6 +210,7 @@ impl ElfService {
 			project_id: effective_project_id.to_string(),
 			agent_id: agent_id.clone(),
 			scope: scope.clone(),
+			doc_type,
 			status: "active".to_string(),
 			title,
 			source_ref: elf_storage::docs::normalize_source_ref(Some(source_ref)),
@@ -282,6 +296,7 @@ SELECT
 \tproject_id,
 \tagent_id,
 \tscope,
+\tdoc_type,
 \tstatus,
 \ttitle,
 \tCOALESCE(source_ref, '{}'::jsonb) AS source_ref,
@@ -338,6 +353,7 @@ LIMIT 1",
 			project_id: row.project_id,
 			agent_id: row.agent_id,
 			scope: row.scope,
+			doc_type: row.doc_type,
 			status: row.status,
 			title: row.title,
 			source_ref: row.source_ref,
@@ -436,6 +452,7 @@ LIMIT 1",
 				score,
 				snippet: truncate_bytes(row.chunk_text.as_str(), 256),
 				scope: row.scope.clone(),
+				doc_type: row.doc_type.clone(),
 				project_id: row.project_id.clone(),
 				agent_id: row.agent_id.clone(),
 				updated_at: row.updated_at,
@@ -595,6 +612,17 @@ fn validate_docs_put(req: &DocsPutRequest) -> Result<()> {
 	if !matches!(req.scope.as_str(), "agent_private" | "project_shared" | "org_shared") {
 		return Err(Error::InvalidRequest { message: "Unknown scope.".to_string() });
 	}
+
+	if let Some(doc_type) = req.doc_type.as_ref() {
+		let doc_type = doc_type.trim();
+
+		if !matches!(doc_type, "knowledge" | "chat" | "search" | "dev") {
+			return Err(Error::InvalidRequest {
+				message: "doc_type must be one of: knowledge, chat, search, dev.".to_string(),
+			});
+		}
+	}
+
 	if !english_gate::is_english_natural_language(req.content.as_str()) {
 		return Err(Error::NonEnglishInput { field: "$.content".to_string() });
 	}
@@ -908,6 +936,7 @@ SELECT
 \tproject_id,
 \tagent_id,
 \tscope,
+\tdoc_type,
 \tstatus,
 \ttitle,
 \tCOALESCE(source_ref, '{}'::jsonb) AS source_ref,
@@ -1029,6 +1058,7 @@ SELECT
 	c.chunk_id,
 	c.doc_id,
 	d.scope,
+	d.doc_type,
 	d.project_id,
 	d.agent_id,
 	d.updated_at,
@@ -1058,4 +1088,29 @@ WHERE c.chunk_id = ANY($1)
 	}
 
 	Ok(map)
+}
+
+#[cfg(test)]
+mod tests {
+	use crate::docs::{DocsPutRequest, Error, validate_docs_put};
+
+	#[test]
+	fn validate_docs_put_rejects_invalid_doc_type() {
+		let err = validate_docs_put(&DocsPutRequest {
+			tenant_id: "t".to_string(),
+			project_id: "p".to_string(),
+			agent_id: "a".to_string(),
+			scope: "project_shared".to_string(),
+			doc_type: Some("invalid".to_string()),
+			title: None,
+			source_ref: serde_json::json!({}),
+			content: "Hello world.".to_string(),
+		})
+		.expect_err("Expected invalid doc_type to be rejected.");
+
+		match err {
+			Error::InvalidRequest { message } => assert!(message.contains("doc_type")),
+			other => panic!("Unexpected error: {other:?}"),
+		}
+	}
 }
