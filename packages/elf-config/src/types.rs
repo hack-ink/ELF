@@ -344,7 +344,7 @@ pub struct TtlDays {
 #[derive(Debug, Deserialize)]
 pub struct Security {
 	pub bind_localhost_only: bool,
-	pub reject_cjk: bool,
+	pub reject_non_english: bool,
 	pub redact_secrets_on_write: bool,
 	pub evidence_min_quotes: u32,
 	pub evidence_max_quotes: u32,

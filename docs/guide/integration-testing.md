@@ -163,7 +163,7 @@ evidence_max_quote_chars = 320
 evidence_max_quotes      = 2
 evidence_min_quotes      = 1
 redact_secrets_on_write  = true
-reject_cjk               = true
+reject_non_english       = true
 ```
 
 ## Step 2: Start the worker and API
@@ -222,7 +222,7 @@ curl -sS http://127.0.0.1:51892/v2/notes/ingest \
 
 Record the returned `note_id` values from `results[].note_id`. These are required for the evaluation dataset and cleanup.
 
-Note: Requests reject CJK content. Use English-only text and keys.
+Note: Requests reject non-English content. Use English-only text and keys.
 
 ## Step 4: Create the evaluation dataset
 

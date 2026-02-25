@@ -12,12 +12,12 @@ use elf_config::{Config, Context, Error};
 
 const SAMPLE_CONFIG_TEMPLATE_TOML: &str = include_str!("fixtures/sample_config.template.toml");
 
-fn sample_toml(reject_cjk: bool) -> String {
-	sample_toml_with_recursive(reject_cjk, false, 2, 4, 32, 256)
+fn sample_toml(reject_non_english: bool) -> String {
+	sample_toml_with_recursive(reject_non_english, false, 2, 4, 32, 256)
 }
 
 fn sample_toml_with_recursive(
-	reject_cjk: bool,
+	reject_non_english: bool,
 	recursive_enabled: bool,
 	max_depth: i64,
 	max_children_per_node: i64,
@@ -47,19 +47,19 @@ fn sample_toml_with_recursive(
 		.and_then(Value::as_table_mut)
 		.expect("Template config must include [security].");
 
-	security.insert("reject_cjk".to_string(), Value::Boolean(reject_cjk));
+	security.insert("reject_non_english".to_string(), Value::Boolean(reject_non_english));
 
 	toml::to_string(&value).expect("Failed to render template config.")
 }
 
 fn sample_toml_with_cache(
-	reject_cjk: bool,
+	reject_non_english: bool,
 	expansion_ttl_days: i64,
 	rerank_ttl_days: i64,
 	cache_enabled: bool,
 ) -> String {
 	let mut value: Value =
-		toml::from_str(&sample_toml_with_recursive(reject_cjk, false, 2, 4, 32, 256))
+		toml::from_str(&sample_toml_with_recursive(reject_non_english, false, 2, 4, 32, 256))
 			.expect("Failed to parse template config.");
 	let root = value.as_table_mut().expect("Template config must be a table.");
 	let search = root
@@ -103,18 +103,18 @@ fn base_config() -> Config {
 }
 
 #[test]
-fn reject_cjk_must_be_true() {
+fn reject_non_english_must_be_true() {
 	let payload = sample_toml(false);
 	let path = write_temp_config(payload);
 	let result = elf_config::load(&path);
 
 	fs::remove_file(&path).expect("Failed to remove test config.");
 
-	let err = result.expect_err("Expected reject_cjk validation error.");
+	let err = result.expect_err("Expected reject_non_english validation error.");
 	let message = err.to_string();
 
 	assert!(
-		message.contains("security.reject_cjk must be true."),
+		message.contains("security.reject_non_english must be true."),
 		"Unexpected error message: {message}"
 	);
 }

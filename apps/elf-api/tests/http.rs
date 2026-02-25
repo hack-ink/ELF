@@ -167,7 +167,7 @@ fn test_config(dsn: String, qdrant_url: String, collection: String) -> Config {
 		},
 		security: Security {
 			bind_localhost_only: true,
-			reject_cjk: true,
+			reject_non_english: true,
 			redact_secrets_on_write: true,
 			evidence_min_quotes: 1,
 			evidence_max_quotes: 2,
@@ -940,7 +940,7 @@ async fn health_ok() {
 
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_GRPC_URL (or ELF_QDRANT_URL) to run."]
-async fn rejects_cjk_in_add_note() {
+async fn rejects_non_english_in_add_note() {
 	let Some((test_db, qdrant_url, collection)) = test_env().await else {
 		return;
 	};
@@ -1038,7 +1038,7 @@ async fn rejects_cyrillic_in_add_note() {
 
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_GRPC_URL (or ELF_QDRANT_URL) to run."]
-async fn rejects_cjk_in_add_event() {
+async fn rejects_non_english_in_add_event() {
 	let Some((test_db, qdrant_url, collection)) = test_env().await else { return };
 	let config = test_config(test_db.dsn().to_string(), qdrant_url, collection);
 	let state = AppState::new(config).await.expect("Failed to initialize app state.");
@@ -1124,7 +1124,7 @@ async fn rejects_cyrillic_in_add_event() {
 
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_GRPC_URL (or ELF_QDRANT_URL) to run."]
-async fn rejects_cjk_in_search() {
+async fn rejects_non_english_in_search() {
 	let Some((test_db, qdrant_url, collection)) = test_env().await else {
 		return;
 	};

@@ -111,7 +111,7 @@ Proposed approach (near-term):
 - Add upstream canonicalization in skills (translate/summarize to English + preserve original text in doc store).
 
 Acceptance criteria:
-- Clear guidance and examples for CJK/Chinese user inputs: how to store original, how to store English facts, how to hydrate both.
+- Clear guidance and examples for non-English (including Chinese) user inputs: how to store original, how to store English facts, how to hydrate both.
 
 ## Open Questions (To Resolve Before Implementation)
 1) Doc store choice: S3/object storage vs Postgres large fields vs dedicated document service.
@@ -127,4 +127,3 @@ Acceptance criteria:
 - Transactional outbox pattern: https://microservices.io/patterns/data/transactional-outbox.html
 - W3C PROV-DM provenance model: https://www.w3.org/TR/prov-dm/
 - OpenTelemetry tracing spec: https://opentelemetry.io/docs/specs/otel/trace/
-

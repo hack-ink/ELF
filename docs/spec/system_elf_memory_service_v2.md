@@ -196,7 +196,7 @@ purge_deprecated_after_days = 180
 
 [security]
 bind_localhost_only = true
-reject_cjk = true
+reject_non_english = true
 redact_secrets_on_write = true
 # Evidence rules for add_event
 evidence_min_quotes = 1
@@ -231,8 +231,7 @@ read_profile = "private_only|private_plus_project|all_scopes"
 - elf-api, elf-worker, and elf-mcp are separate binaries.
 - Each binary requires a config path via --config or -c.
 - Startup must fail with a clear error if any required config field is missing.
-- security.reject_cjk must be true. Startup must fail if it is false.
-  - Note: `reject_cjk` is a legacy flag name; it enforces the English-only gate.
+- security.reject_non_english must be true. Startup must fail if it is false.
 
 ============================================================
 3. ENGLISH GATE (ENGLISH-ONLY BOUNDARY)

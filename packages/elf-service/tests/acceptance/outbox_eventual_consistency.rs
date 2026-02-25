@@ -16,12 +16,13 @@ use tokenizers::{Tokenizer, models::wordlevel::WordLevel};
 use tokio::{
 	net::TcpListener,
 	sync::{oneshot, oneshot::Sender},
+	task::JoinHandle,
 };
 use uuid::Uuid;
 
 use crate::acceptance::{SpyExtractor, StubEmbedding, StubRerank};
 use elf_config::EmbeddingProviderConfig;
-use elf_service::{AddNoteInput, AddNoteRequest, Providers};
+use elf_service::{AddNoteInput, AddNoteRequest, ElfService, Providers};
 use elf_storage::{db::Db, qdrant::QdrantStore};
 use elf_worker::worker;
 
@@ -129,6 +130,35 @@ async fn embed_handler(
 	(StatusCode::OK, Json(serde_json::json!({ "data": data }))).into_response()
 }
 
+async fn spawn_outbox_worker(service: &ElfService, api_base: String) -> JoinHandle<()> {
+	let worker_state = worker::WorkerState {
+		db: Db::connect(&service.cfg.storage.postgres).await.expect("Failed to connect worker DB."),
+		qdrant: QdrantStore::new(&service.cfg.storage.qdrant)
+			.expect("Failed to build Qdrant store."),
+		docs_qdrant: QdrantStore::new_with_collection(
+			&service.cfg.storage.qdrant,
+			&service.cfg.storage.qdrant.docs_collection,
+		)
+		.expect("Failed to build docs Qdrant store."),
+		embedding: EmbeddingProviderConfig {
+			provider_id: "test".to_string(),
+			api_base,
+			api_key: "test-key".to_string(),
+			path: "/embeddings".to_string(),
+			model: "test".to_string(),
+			dimensions: 4_096,
+			timeout_ms: 1_000,
+			default_headers: Map::new(),
+		},
+		chunking: crate::acceptance::chunking::ChunkingConfig { max_tokens: 64, overlap_tokens: 8 },
+		tokenizer: build_test_tokenizer(),
+	};
+
+	tokio::spawn(async move {
+		let _ = worker::run_worker(worker_state).await;
+	})
+}
+
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
 async fn outbox_retries_to_done() {
@@ -194,31 +224,7 @@ async fn outbox_retries_to_done() {
 		.await
 		.expect("Failed to add note.");
 	let note_id = add_response.results[0].note_id.expect("Expected note_id in add_note result.");
-	let worker_state = worker::WorkerState {
-		db: Db::connect(&service.cfg.storage.postgres).await.expect("Failed to connect worker DB."),
-		qdrant: QdrantStore::new(&service.cfg.storage.qdrant)
-			.expect("Failed to build Qdrant store."),
-		docs_qdrant: QdrantStore::new_with_collection(
-			&service.cfg.storage.qdrant,
-			&service.cfg.storage.qdrant.docs_collection,
-		)
-		.expect("Failed to build docs Qdrant store."),
-		embedding: EmbeddingProviderConfig {
-			provider_id: "test".to_string(),
-			api_base,
-			api_key: "test-key".to_string(),
-			path: "/embeddings".to_string(),
-			model: "test".to_string(),
-			dimensions: 4_096,
-			timeout_ms: 1_000,
-			default_headers: Map::new(),
-		},
-		chunking: crate::acceptance::chunking::ChunkingConfig { max_tokens: 64, overlap_tokens: 8 },
-		tokenizer: build_test_tokenizer(),
-	};
-	let handle = tokio::spawn(async move {
-		let _ = worker::run_worker(worker_state).await;
-	});
+	let handle = spawn_outbox_worker(&service, api_base).await;
 	let failed = wait_for_status(&service.db.pool, note_id, "FAILED", Duration::from_secs(15))
 		.await
 		.expect("Expected FAILED outbox status.");

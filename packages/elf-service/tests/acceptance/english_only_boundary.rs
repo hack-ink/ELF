@@ -32,7 +32,7 @@ async fn build_test_service(
 
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
-async fn rejects_cjk_in_add_note() {
+async fn rejects_non_english_in_add_note() {
 	let Some(test_db) = crate::acceptance::test_db().await else {
 		eprintln!("Skipping english_only_boundary; set ELF_PG_DSN to run this test.");
 
@@ -130,7 +130,7 @@ async fn rejects_cyrillic_in_add_note() {
 
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
-async fn rejects_cjk_in_add_event() {
+async fn rejects_non_english_in_add_event() {
 	let Some(test_db) = crate::acceptance::test_db().await else {
 		eprintln!("Skipping english_only_boundary; set ELF_PG_DSN to run this test.");
 
@@ -222,7 +222,7 @@ async fn rejects_cyrillic_in_add_event() {
 
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
-async fn rejects_cjk_in_search() {
+async fn rejects_non_english_in_search() {
 	let Some(test_db) = crate::acceptance::test_db().await else {
 		eprintln!("Skipping english_only_boundary; set ELF_PG_DSN to run this test.");
 
