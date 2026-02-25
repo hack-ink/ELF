@@ -95,6 +95,12 @@ struct DocsPutBody {
 #[derive(Clone, Debug, Deserialize)]
 struct DocsSearchL0Body {
 	query: String,
+	scope: Option<String>,
+	status: Option<String>,
+	doc_type: Option<String>,
+	agent_id: Option<String>,
+	updated_after: Option<String>,
+	updated_before: Option<String>,
 	top_k: Option<u32>,
 	candidate_k: Option<u32>,
 }
@@ -878,9 +884,15 @@ async fn docs_search_l0(
 		.docs_search_l0(DocsSearchL0Request {
 			tenant_id: ctx.tenant_id,
 			project_id: ctx.project_id,
-			agent_id: ctx.agent_id,
+			caller_agent_id: ctx.agent_id,
 			read_profile,
 			query: payload.query,
+			scope: payload.scope,
+			status: payload.status,
+			doc_type: payload.doc_type,
+			agent_id: payload.agent_id,
+			updated_after: payload.updated_after,
+			updated_before: payload.updated_before,
 			top_k: payload.top_k,
 			candidate_k: payload.candidate_k,
 		})

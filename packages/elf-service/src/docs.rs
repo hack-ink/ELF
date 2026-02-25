@@ -3,14 +3,14 @@ use std::collections::{HashMap, HashSet};
 use qdrant_client::{
 	Qdrant,
 	qdrant::{
-		Condition, Filter, Fusion, MinShould, PrefetchQueryBuilder, Query, QueryPointsBuilder,
-		ScoredPoint,
+		Condition, DatetimeRange, Filter, Fusion, MinShould, PrefetchQueryBuilder, Query,
+		QueryPointsBuilder, ScoredPoint, Timestamp,
 	},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sqlx::{FromRow, PgExecutor, PgPool};
-use time::OffsetDateTime;
+use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use uuid::Uuid;
 
 use crate::{ElfService, Error, Result, access::SharedSpaceGrantKey};
@@ -79,11 +79,27 @@ pub struct DocsGetResponse {
 pub struct DocsSearchL0Request {
 	pub tenant_id: String,
 	pub project_id: String,
-	pub agent_id: String,
+	pub caller_agent_id: String,
 	pub read_profile: String,
 	pub query: String,
+	pub scope: Option<String>,
+	pub status: Option<String>,
+	pub doc_type: Option<String>,
+	pub agent_id: Option<String>,
+	pub updated_after: Option<String>,
+	pub updated_before: Option<String>,
 	pub top_k: Option<u32>,
 	pub candidate_k: Option<u32>,
+}
+
+#[derive(Clone, Debug)]
+struct DocsSearchL0Filters {
+	scope: Option<String>,
+	status: String,
+	doc_type: Option<String>,
+	agent_id: Option<String>,
+	updated_after: Option<OffsetDateTime>,
+	updated_before: Option<OffsetDateTime>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -371,7 +387,7 @@ LIMIT 1",
 	}
 
 	pub async fn docs_search_l0(&self, req: DocsSearchL0Request) -> Result<DocsSearchL0Response> {
-		validate_docs_search_l0(&req)?;
+		let filters = validate_docs_search_l0(&req)?;
 
 		let top_k = req.top_k.unwrap_or(12).min(MAX_TOP_K);
 		let candidate_k = req.candidate_k.unwrap_or(60).min(MAX_CANDIDATE_K);
@@ -382,15 +398,16 @@ LIMIT 1",
 			&self.db.pool,
 			req.tenant_id.as_str(),
 			req.project_id.as_str(),
-			req.agent_id.as_str(),
+			req.caller_agent_id.as_str(),
 			org_shared_allowed,
 		)
 		.await?;
 		let filter = build_doc_search_filter(
 			req.tenant_id.as_str(),
 			req.project_id.as_str(),
-			req.agent_id.as_str(),
+			req.caller_agent_id.as_str(),
 			&allowed_scopes,
+			&filters,
 		);
 		let embedded = self
 			.providers
@@ -434,6 +451,7 @@ LIMIT 1",
 			&self.db.pool,
 			req.tenant_id.as_str(),
 			req.project_id.as_str(),
+			filters.status.as_str(),
 			&chunk_ids,
 		)
 		.await?;
@@ -443,7 +461,7 @@ LIMIT 1",
 			let Some(row) = rows.get(&chunk_id) else { continue };
 
 			if !doc_read_allowed(
-				req.agent_id.as_str(),
+				req.caller_agent_id.as_str(),
 				&allowed_scopes,
 				&shared_grants,
 				row.agent_id.as_str(),
@@ -665,7 +683,7 @@ fn validate_docs_put(req: &DocsPutRequest) -> Result<()> {
 	Ok(())
 }
 
-fn validate_docs_search_l0(req: &DocsSearchL0Request) -> Result<()> {
+fn validate_docs_search_l0(req: &DocsSearchL0Request) -> Result<DocsSearchL0Filters> {
 	if req.query.trim().is_empty() {
 		return Err(Error::InvalidRequest { message: "query must be non-empty.".to_string() });
 	}
@@ -673,13 +691,99 @@ fn validate_docs_search_l0(req: &DocsSearchL0Request) -> Result<()> {
 		return Err(Error::NonEnglishInput { field: "$.query".to_string() });
 	}
 
-	Ok(())
+	let scope = if let Some(scope) = req.scope.as_ref() {
+		let scope = scope.trim();
+
+		if scope.is_empty() {
+			return Err(Error::InvalidRequest { message: "scope must be non-empty.".to_string() });
+		}
+		if !matches!(scope, "agent_private" | "project_shared" | "org_shared") {
+			return Err(Error::InvalidRequest { message: "Unknown scope.".to_string() });
+		}
+
+		Some(scope.to_string())
+	} else {
+		None
+	};
+	let status = req
+		.status
+		.as_ref()
+		.map(|status| status.trim().to_string())
+		.filter(|status| !status.is_empty())
+		.unwrap_or_else(|| "active".to_string());
+	let doc_type = if let Some(doc_type) = req.doc_type.as_ref() {
+		let doc_type = doc_type.trim();
+
+		if doc_type.is_empty() {
+			return Err(Error::InvalidRequest {
+				message: "doc_type must be non-empty.".to_string(),
+			});
+		}
+		if !matches!(doc_type, "knowledge" | "chat" | "search" | "dev") {
+			return Err(Error::InvalidRequest {
+				message: "doc_type must be one of: knowledge, chat, search, dev.".to_string(),
+			});
+		}
+
+		Some(doc_type.to_string())
+	} else {
+		None
+	};
+	let agent_id = req
+		.agent_id
+		.as_ref()
+		.map(|agent_id| agent_id.trim().to_string())
+		.filter(|agent_id| !agent_id.is_empty());
+	let updated_after = parse_optional_rfc3339(req.updated_after.as_ref(), "$.updated_after")?;
+	let updated_before = parse_optional_rfc3339(req.updated_before.as_ref(), "$.updated_before")?;
+
+	if let (Some(updated_after), Some(updated_before)) =
+		(updated_after.as_ref(), updated_before.as_ref())
+		&& updated_after >= updated_before
+	{
+		return Err(Error::InvalidRequest {
+			message: "updated_after must be earlier than updated_before.".to_string(),
+		});
+	}
+
+	Ok(DocsSearchL0Filters { scope, status, doc_type, agent_id, updated_after, updated_before })
+}
+
+fn parse_optional_rfc3339(raw: Option<&String>, path: &str) -> Result<Option<OffsetDateTime>> {
+	let Some(raw) = raw else {
+		return Ok(None);
+	};
+	let raw = raw.trim();
+
+	if raw.is_empty() {
+		return Err(Error::InvalidRequest { message: format!("{path} must be non-empty.") });
+	}
+
+	OffsetDateTime::parse(raw, &Rfc3339).map(Some).map_err(|_| Error::InvalidRequest {
+		message: format!("{path} must be an RFC3339 datetime string."),
+	})
 }
 
 fn find_non_english_path(value: &Value, path: &str) -> Option<String> {
+	find_non_english_path_inner(value, path, false)
+}
+
+fn find_non_english_path_inner(
+	value: &Value,
+	path: &str,
+	is_identifier_lane: bool,
+) -> Option<String> {
+	fn has_english_gate(text: &str, is_identifier_lane: bool) -> bool {
+		if is_identifier_lane && !text.contains(char::is_whitespace) {
+			return true;
+		}
+
+		english_gate::is_english_natural_language(text)
+	}
+
 	match value {
 		Value::String(text) =>
-			if !english_gate::is_english_natural_language(text) {
+			if !has_english_gate(text, is_identifier_lane) {
 				Some(path.to_string())
 			} else {
 				None
@@ -688,7 +792,9 @@ fn find_non_english_path(value: &Value, path: &str) -> Option<String> {
 			for (idx, item) in items.iter().enumerate() {
 				let child_path = format!("{path}[{idx}]");
 
-				if let Some(found) = find_non_english_path(item, &child_path) {
+				if let Some(found) =
+					find_non_english_path_inner(item, &child_path, is_identifier_lane)
+				{
 					return Some(found);
 				}
 			}
@@ -697,9 +803,13 @@ fn find_non_english_path(value: &Value, path: &str) -> Option<String> {
 		},
 		Value::Object(map) => {
 			for (key, value) in map.iter() {
+				let identifier_lane = is_identifier_lane
+					|| matches!(key.as_str(), "ref" | "schema" | "resolver" | "hashes" | "state");
 				let child_path = format!("{path}[\"{}\"]", escape_json_path_key(key));
 
-				if let Some(found) = find_non_english_path(value, &child_path) {
+				if let Some(found) =
+					find_non_english_path_inner(value, &child_path, identifier_lane)
+				{
 					return Some(found);
 				}
 			}
@@ -795,8 +905,9 @@ fn overlap_tail_bytes(text: &str, overlap_bytes: usize) -> String {
 fn build_doc_search_filter(
 	tenant_id: &str,
 	project_id: &str,
-	agent_id: &str,
+	caller_agent_id: &str,
 	allowed_scopes: &[String],
+	filters: &DocsSearchL0Filters,
 ) -> Filter {
 	let private_scope = "agent_private".to_string();
 	let non_private_scopes: Vec<String> =
@@ -806,7 +917,7 @@ fn build_doc_search_filter(
 	if allowed_scopes.iter().any(|scope| scope == "agent_private") {
 		let private_filter = Filter::all([
 			Condition::matches("scope", private_scope),
-			Condition::matches("agent_id", agent_id.to_string()),
+			Condition::matches("agent_id", caller_agent_id.to_string()),
 		]);
 
 		scope_should_conditions.push(Condition::from(private_filter));
@@ -837,14 +948,52 @@ fn build_doc_search_filter(
 	}
 
 	Filter {
-		must: vec![
-			Condition::matches("tenant_id", tenant_id.to_string()),
-			Condition::matches("status", "active".to_string()),
-		],
+		must: {
+			let mut must = vec![
+				Condition::matches("tenant_id", tenant_id.to_string()),
+				Condition::matches("status", filters.status.clone()),
+			];
+			if let Some(scope) = filters.scope.as_ref() {
+				must.push(Condition::matches("scope", scope.to_string()));
+			}
+			if let Some(doc_type) = filters.doc_type.as_ref() {
+				must.push(Condition::matches("doc_type", doc_type.to_string()));
+			}
+			if let Some(agent_id) = filters.agent_id.as_ref() {
+				must.push(Condition::matches("agent_id", agent_id.to_string()));
+			}
+			if let Some(datetime_filter) = datetime_filter_range(
+				filters.updated_after.as_ref(),
+				filters.updated_before.as_ref(),
+			) {
+				must.push(datetime_filter);
+			}
+
+			must
+		},
 		should: Vec::new(),
 		must_not: Vec::new(),
 		min_should: Some(MinShould { min_count: 1, conditions: project_or_org_branches }),
 	}
+}
+
+fn datetime_filter_range(
+	updated_after: Option<&OffsetDateTime>,
+	updated_before: Option<&OffsetDateTime>,
+) -> Option<Condition> {
+	let gt = updated_after.map(|updated_after| Timestamp {
+		seconds: updated_after.unix_timestamp(),
+		nanos: updated_after.nanosecond() as i32,
+	});
+	let lt = updated_before.map(|updated_before| Timestamp {
+		seconds: updated_before.unix_timestamp(),
+		nanos: updated_before.nanosecond() as i32,
+	});
+
+	if gt.is_none() && lt.is_none() {
+		return None;
+	}
+	Some(Condition::datetime_range("updated_at", DatetimeRange { lt, gt, gte: None, lte: None }))
 }
 
 fn doc_read_allowed(
@@ -1072,6 +1221,7 @@ async fn load_doc_search_rows(
 	executor: impl PgExecutor<'_>,
 	tenant_id: &str,
 	project_id: &str,
+	status: &str,
 	chunk_ids: &[Uuid],
 ) -> Result<HashMap<Uuid, DocSearchRow>> {
 	if chunk_ids.is_empty() {
@@ -1095,15 +1245,16 @@ FROM doc_chunks c
 JOIN doc_documents d ON d.doc_id = c.doc_id
 WHERE c.chunk_id = ANY($1)
   AND d.tenant_id = $2
-  AND d.status = 'active'
+  AND d.status = $4
   AND (
     d.project_id = $3
-    OR (d.project_id = $4 AND d.scope = 'org_shared')
+    OR (d.project_id = $5 AND d.scope = 'org_shared')
   )",
 	)
 	.bind(chunk_ids)
 	.bind(tenant_id)
 	.bind(project_id)
+	.bind(status)
 	.bind(crate::access::ORG_PROJECT_ID)
 	.fetch_all(executor)
 	.await?;
@@ -1118,7 +1269,77 @@ WHERE c.chunk_id = ANY($1)
 
 #[cfg(test)]
 mod tests {
-	use crate::docs::{DocsPutRequest, Error, resolve_doc_chunking_profile, validate_docs_put};
+	use crate::docs::{
+		DocsPutRequest, DocsSearchL0Filters, DocsSearchL0Request, Error,
+		resolve_doc_chunking_profile, validate_docs_put, validate_docs_search_l0,
+	};
+	use qdrant::{Filter, condition::ConditionOneOf, r#match::MatchValue};
+	use time::{OffsetDateTime, format_description::well_known::Rfc3339};
+
+	const TENANT_ID: &str = "tenant";
+	const PROJECT_ID: &str = "project";
+
+	fn test_request_with_query(query: &str) -> DocsSearchL0Request {
+		DocsSearchL0Request {
+			tenant_id: TENANT_ID.to_string(),
+			project_id: PROJECT_ID.to_string(),
+			caller_agent_id: "agent".to_string(),
+			read_profile: "private_plus_project".to_string(),
+			query: query.to_string(),
+			scope: None,
+			status: None,
+			doc_type: None,
+			agent_id: None,
+			updated_after: None,
+			updated_before: None,
+			top_k: None,
+			candidate_k: None,
+		}
+	}
+
+	fn first_datetime_range(
+		filter: &Filter,
+		key: &str,
+	) -> Option<(Option<i64>, Option<i32>, Option<i64>, Option<i32>)> {
+		for condition in &filter.must {
+			if let Some(ConditionOneOf::Field(field)) = condition.condition_one_of.as_ref() {
+				if field.key != key {
+					continue;
+				}
+				if let Some(range) = field.datetime_range.as_ref() {
+					return Some((
+						range.lt.as_ref().map(|value| value.seconds),
+						range.lt.as_ref().map(|value| value.nanos),
+						range.gt.as_ref().map(|value| value.seconds),
+						range.gt.as_ref().map(|value| value.nanos),
+					));
+				}
+			}
+		}
+
+		None
+	}
+
+	fn first_match_value(filter: &Filter, key: &str) -> Option<String> {
+		for condition in &filter.must {
+			if let Some(ConditionOneOf::Field(field)) = condition.condition_one_of.as_ref() {
+				if field.key != key {
+					continue;
+				}
+				if let Some(r#match) = field.r#match.as_ref() {
+					let Some(match_value) = r#match.match_value.as_ref() else {
+						continue;
+					};
+					return match match_value {
+						MatchValue::Keyword(value) => Some(value.clone()),
+						_ => None,
+					};
+				}
+			}
+		}
+
+		None
+	}
 
 	#[test]
 	fn validate_docs_put_rejects_invalid_doc_type() {
@@ -1151,5 +1372,131 @@ mod tests {
 
 		assert_eq!(default.target_bytes, 2_048);
 		assert_eq!(default.overlap_bytes, 256);
+	}
+
+	#[test]
+	fn validate_docs_search_l0_defaults_status_and_filters_dates() {
+		let filters = validate_docs_search_l0(&test_request_with_query("hello world"))
+			.expect("valid request");
+
+		assert_eq!(filters.status, "active");
+
+		let bad_dates = DocsSearchL0Request {
+			updated_after: Some("2026-02-25T12:00:00Z".to_string()),
+			updated_before: Some("2026-02-25T11:00:00Z".to_string()),
+			..test_request_with_query("status")
+		};
+		let err = validate_docs_search_l0(&bad_dates)
+			.expect_err("Expected bad date order to be rejected.");
+
+		match err {
+			Error::InvalidRequest { message } => {
+				assert!(message.contains("earlier"));
+			},
+			other => panic!("Unexpected error: {other:?}"),
+		}
+	}
+
+	#[test]
+	fn build_doc_search_filter_applies_status_and_requested_filters() {
+		let filters = DocsSearchL0Filters {
+			scope: Some("project_shared".to_string()),
+			status: "archived".to_string(),
+			doc_type: Some("chat".to_string()),
+			agent_id: Some("owner".to_string()),
+			updated_after: Some(
+				OffsetDateTime::parse("2026-02-20T00:00:00Z", &Rfc3339)
+					.expect("Invalid timestamp."),
+			),
+			updated_before: Some(
+				OffsetDateTime::parse("2026-02-28T00:00:00Z", &Rfc3339)
+					.expect("Invalid timestamp."),
+			),
+		};
+		let filter = super::build_doc_search_filter(
+			TENANT_ID,
+			PROJECT_ID,
+			"requester",
+			&["agent_private".to_string(), "project_shared".to_string()],
+			&filters,
+		);
+		assert_eq!(first_match_value(&filter, "tenant_id").as_deref(), Some("tenant"));
+		assert_eq!(first_match_value(&filter, "status").as_deref(), Some("archived"));
+		assert_eq!(first_match_value(&filter, "scope").as_deref(), Some("project_shared"));
+		assert_eq!(first_match_value(&filter, "doc_type").as_deref(), Some("chat"));
+		assert_eq!(first_match_value(&filter, "agent_id").as_deref(), Some("owner"));
+
+		let datetime_range = first_datetime_range(&filter, "updated_at")
+			.expect("Expected datetime filter for updated_at.");
+		let after =
+			OffsetDateTime::parse("2026-02-20T00:00:00Z", &Rfc3339).expect("Invalid timestamp.");
+		let before =
+			OffsetDateTime::parse("2026-02-28T00:00:00Z", &Rfc3339).expect("Invalid timestamp.");
+		assert_eq!(
+			datetime_range.0,
+			Some((before.unix_timestamp(), before.nanosecond() as i32)),
+			"Unexpected lt bound."
+		);
+		assert_eq!(
+			datetime_range.2,
+			Some((after.unix_timestamp(), after.nanosecond() as i32)),
+			"Unexpected gt bound."
+		);
+	}
+
+	#[test]
+	fn validate_docs_put_allows_identifier_like_source_ref_and_rejects_free_text() {
+		validate_docs_put(&DocsPutRequest {
+			tenant_id: "t".to_string(),
+			project_id: "p".to_string(),
+			agent_id: "a".to_string(),
+			scope: "project_shared".to_string(),
+			doc_type: None,
+			title: Some("English title".to_string()),
+			source_ref: serde_json::json!({
+				"ref": "packages/elf-service/src/docs.rs:661",
+				"schema": "\u{7248}\u{672c}\u{6587}\u{6863}\u{8def}\u{5f84}",
+				"resolver": "resolver-name",
+				"hashes": ["abc123", "def456"],
+				"state": {"name":"v1"},
+				"notes": "English only."
+			}),
+			content: "English content.".to_string(),
+		})
+		.expect("Expected identifier-like source_ref to be accepted.");
+
+		let err = validate_docs_put(&DocsPutRequest {
+			source_ref: serde_json::json!({"notes": "\u{4f60}\u{597d}\u{4e16}\u{754c}"}),
+			tenant_id: "t".to_string(),
+			project_id: "p".to_string(),
+			agent_id: "a".to_string(),
+			scope: "project_shared".to_string(),
+			doc_type: None,
+			title: Some("English title".to_string()),
+			content: "English content.".to_string(),
+		})
+		.expect_err("Expected non-English free-text in source_ref.");
+
+		match err {
+			Error::NonEnglishInput { field } => assert_eq!(field, "$.source_ref[\"notes\"]"),
+			other => panic!("Unexpected error: {other:?}"),
+		}
+
+		let err = validate_docs_put(&DocsPutRequest {
+			source_ref: serde_json::json!({"ref": "\u{4f60}\u{597d} \u{4e16}\u{754c}"}),
+			tenant_id: "t".to_string(),
+			project_id: "p".to_string(),
+			agent_id: "a".to_string(),
+			scope: "project_shared".to_string(),
+			doc_type: None,
+			title: Some("English title".to_string()),
+			content: "English content.".to_string(),
+		})
+		.expect_err("Expected identifier lane with whitespace to be rejected.");
+
+		match err {
+			Error::NonEnglishInput { field } => assert_eq!(field, "$.source_ref[\"ref\"]"),
+			other => panic!("Unexpected error: {other:?}"),
+		}
 	}
 }
