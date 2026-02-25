@@ -9,7 +9,7 @@ use elf_config::{
 	ScopePrecedence, ScopeWriteAllowed, Scopes, Search, SearchCache, SearchDynamic,
 	SearchExpansion, SearchExplain, SearchPrefilter, Security, Service, Storage, TtlDays,
 };
-use elf_domain::{cjk, evidence, ttl};
+use elf_domain::{evidence, ttl};
 
 fn dummy_embedding_provider() -> EmbeddingProviderConfig {
 	EmbeddingProviderConfig {
@@ -181,7 +181,7 @@ fn base_config() -> Config {
 		},
 		security: Security {
 			bind_localhost_only: true,
-			reject_cjk: true,
+			reject_non_english: true,
 			redact_secrets_on_write: true,
 			evidence_min_quotes: 1,
 			evidence_max_quotes: 2,
@@ -198,12 +198,6 @@ fn base_config() -> Config {
 		context: None,
 		mcp: None,
 	}
-}
-
-#[test]
-fn detects_cjk() {
-	assert!(cjk::contains_cjk("\u{4F60}\u{597D}"));
-	assert!(!cjk::contains_cjk("hello"));
 }
 
 #[test]

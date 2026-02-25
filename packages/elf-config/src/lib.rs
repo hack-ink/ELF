@@ -147,8 +147,10 @@ fn validate_memory(cfg: &Config) -> Result<()> {
 }
 
 fn validate_security(cfg: &Config) -> Result<()> {
-	if !cfg.security.reject_cjk {
-		return Err(Error::Validation { message: "security.reject_cjk must be true.".to_string() });
+	if !cfg.security.reject_non_english {
+		return Err(Error::Validation {
+			message: "security.reject_non_english must be true.".to_string(),
+		});
 	}
 
 	let auth_mode = cfg.security.auth_mode.trim();

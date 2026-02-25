@@ -36,7 +36,7 @@ A new search configuration block is introduced:
 
 ## Failure handling
 
-If the LLM expansion call fails or returns invalid JSON, the system must fall back to the original query only. Any CJK output in expanded queries is dropped. If the expanded set becomes empty after filtering, the system must fall back to the original query.
+If the LLM expansion call fails or returns invalid JSON, the system must fall back to the original query only. Any non-English output in expanded queries is dropped. If the expanded set becomes empty after filtering, the system must fall back to the original query.
 
 ## Testing
 
