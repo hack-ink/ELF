@@ -108,6 +108,7 @@ Minimal example: `elf_notes_ingest` (facts-first notes with pointers)
 
 ```json
 {
+  "scope": "project_shared",
   "notes": [
     {
       "type": "decision",
@@ -214,6 +215,39 @@ Pattern:
 
 Reminder: sharing is enforced by scopes + grants. Treat this as part of the memory contract, not an optional convention.
 
+Note: Sharing tools operate on `space` values `team_shared` and `org_shared` (where `team_shared` corresponds to project-level sharing).
+
+Minimal examples:
+
+Publish a note to team-shared space:
+
+```json
+{
+  "note_id": "00000000-0000-0000-0000-000000000000",
+  "space": "team_shared"
+}
+```
+
+Grant access to a specific agent:
+
+```json
+{
+  "space": "team_shared",
+  "grantee_kind": "agent",
+  "grantee_agent_id": "agent_abc123"
+}
+```
+
+Revoke that grant:
+
+```json
+{
+  "space": "team_shared",
+  "grantee_kind": "agent",
+  "grantee_agent_id": "agent_abc123"
+}
+```
+
 ## 7) Workflow: reflect_consolidate (episodic -> stable facts)
 
 Goal: Periodically reduce memory noise and keep stable truths current.
@@ -229,6 +263,16 @@ Simple loop (agent-side):
 
 Non-goal: This loop must not be required for ELF correctness. It is an optimization for better context usage.
 
+Minimal example: `elf_notes_list` (pull candidates)
+
+```json
+{
+  "scope": "project_shared",
+  "status": "active",
+  "type": "decision"
+}
+```
+
 ## 8) Failure modes and safety checklist
 
 - Prompt injection: assume an attacker can influence skill reasoning. Tool-side authz and input gates must still protect you.
@@ -237,9 +281,72 @@ Non-goal: This loop must not be required for ELF correctness. It is an optimizat
 - Hydration blowups: start at L1; upgrade to L2 only on demand.
 - Drift: keep workflows centralized and versioned. When tool contracts change, update the cookbook first.
 
-## 9) Pinned references (internal)
+## 9) Prompt templates (agent-side)
+
+These templates are optional. They are provided to reduce drift across agents.
+Do not treat them as server contracts.
+
+### Template: extract facts from a doc into `elf_notes_ingest` JSON
+
+System:
+
+You are a memory normalization engine for a facts-first agent memory system.
+Output must be valid JSON only.
+Output must match the schema described below exactly.
+All text must be English only.
+Each note text must be a single compact sentence.
+Prefer stable keys only for durable truths (preferences, constraints, decisions, profiles).
+
+User:
+
+Return JSON matching this schema:
+{
+  "scope": "agent_private|project_shared|org_shared",
+  "notes": [
+    {
+      "type": "preference|constraint|decision|profile|fact|plan",
+      "key": "string|null",
+      "text": "string",
+      "importance": 0.0,
+      "confidence": 0.0,
+      "ttl_days": "integer|null",
+      "source_ref": {
+        "schema": "source_ref/v1",
+        "resolver": "elf_doc_ext/v1",
+        "doc_id": "uuid"
+      }
+    }
+  ]
+}
+
+Constraints:
+- MAX_NOTES = 7
+- Every note must include a `source_ref` pointer to doc_id = <DOC_ID>.
+
+Doc title: <TITLE>
+Doc content:
+<CONTENT>
+
+### Template: consolidation pass (suggest patches or deletes)
+
+System:
+
+You are a memory consolidation engine.
+Decide a minimal set of safe changes to reduce duplicates and keep stable keys accurate.
+All output must be English only.
+
+User:
+
+Given these notes (JSON), produce a plan (English bullets) that includes:
+- Which notes to delete (note_id)
+- Which notes to patch (note_id + new text)
+- Which new stable-key notes to add (notes_ingest JSON)
+
+Notes:
+<NOTES_JSON>
+
+## 10) Pinned references (internal)
 
 - Core contract: `docs/spec/system_elf_memory_service_v2.md`
 - Doc Extension v1 design: `docs/plans/2026-02-24-doc-ext-v1-design.md`
 - Doc pointer resolver: `docs/spec/system_source_ref_doc_pointer_v1.md`
-
