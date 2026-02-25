@@ -11,6 +11,7 @@ Purpose: Provide the entry point for operational guidance and runbooks.
 ## Operations
 
 - `docs/guide/agent-setup.md` - Agent-assisted setup and usage.
+- `docs/guide/agent_skills_cookbook.md` - Reference agent workflows (skills) for MCP-first usage.
 - `docs/guide/evaluation.md` - Retrieval evaluation workflow and dataset format.
 - `docs/guide/integration-testing.md` - End-to-end memory retrieval testing.
 - `docs/guide/testing.md` - Test taxonomy and command scope.
