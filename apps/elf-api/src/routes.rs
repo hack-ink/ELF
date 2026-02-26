@@ -100,8 +100,11 @@ struct DocsSearchL0Body {
 	status: Option<String>,
 	doc_type: Option<String>,
 	agent_id: Option<String>,
+	thread_id: Option<String>,
 	updated_after: Option<String>,
 	updated_before: Option<String>,
+	ts_gte: Option<String>,
+	ts_lte: Option<String>,
 	top_k: Option<u32>,
 	candidate_k: Option<u32>,
 }
@@ -920,7 +923,19 @@ async fn docs_search_l0(
 	let updated_after = parse_optional_rfc3339(payload.updated_after.as_ref(), "$.updated_after")?;
 	let updated_before =
 		parse_optional_rfc3339(payload.updated_before.as_ref(), "$.updated_before")?;
+	let ts_gte = parse_optional_rfc3339(payload.ts_gte.as_ref(), "$.ts_gte")?;
+	let ts_lte = parse_optional_rfc3339(payload.ts_lte.as_ref(), "$.ts_lte")?;
 
+	if let (Some(ts_gte), Some(ts_lte)) = (ts_gte, ts_lte)
+		&& ts_gte >= ts_lte
+	{
+		return Err(json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"ts_gte must be earlier than ts_lte.",
+			Some(vec!["$.ts_gte".to_string(), "$.ts_lte".to_string()]),
+		));
+	}
 	if let (Some(updated_after), Some(updated_before)) = (updated_after, updated_before)
 		&& updated_after >= updated_before
 	{
@@ -953,8 +968,11 @@ async fn docs_search_l0(
 			status: payload.status,
 			doc_type: payload.doc_type,
 			agent_id: payload.agent_id,
+			thread_id: payload.thread_id,
 			updated_after: payload.updated_after,
 			updated_before: payload.updated_before,
+			ts_gte: payload.ts_gte,
+			ts_lte: payload.ts_lte,
 			top_k: payload.top_k,
 			candidate_k: payload.candidate_k,
 		})
