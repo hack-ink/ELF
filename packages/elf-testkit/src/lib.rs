@@ -57,9 +57,11 @@ impl TestDatabase {
 
 	pub fn collection_name(&self, prefix: &str) -> String {
 		let collection = format!("{prefix}_{}", self.name);
+		let docs_collection = format!("{collection}_docs");
 		let mut tracked = self.collections.lock().unwrap_or_else(|err| err.into_inner());
 
 		tracked.insert(collection.clone());
+		tracked.insert(docs_collection);
 
 		collection
 	}

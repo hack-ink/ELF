@@ -79,5 +79,9 @@ JSON
     create_payload_index "$collection" '{"field_name":"doc_type","field_schema":"keyword"}'
     create_payload_index "$collection" '{"field_name":"agent_id","field_schema":"keyword"}'
     create_payload_index "$collection" '{"field_name":"updated_at","field_schema":"datetime"}'
+    create_payload_index "$collection" '{"field_name":"doc_ts","field_schema":"datetime"}'
+    create_payload_index "$collection" '{"field_name":"thread_id","field_schema":"keyword"}'
+    create_payload_index "$collection" '{"field_name":"domain","field_schema":"keyword"}'
+    create_payload_index "$collection" '{"field_name":"repo","field_schema":"keyword"}'
   fi
 done
