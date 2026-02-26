@@ -87,8 +87,11 @@ pub struct DocsSearchL0Request {
 	pub status: Option<String>,
 	pub doc_type: Option<String>,
 	pub agent_id: Option<String>,
+	pub thread_id: Option<String>,
 	pub updated_after: Option<String>,
 	pub updated_before: Option<String>,
+	pub ts_gte: Option<String>,
+	pub ts_lte: Option<String>,
 	pub top_k: Option<u32>,
 	pub candidate_k: Option<u32>,
 }
@@ -162,8 +165,11 @@ struct DocsSearchL0Filters {
 	status: String,
 	doc_type: Option<String>,
 	agent_id: Option<String>,
+	thread_id: Option<String>,
 	updated_after: Option<OffsetDateTime>,
 	updated_before: Option<OffsetDateTime>,
+	ts_gte: Option<OffsetDateTime>,
+	ts_lte: Option<OffsetDateTime>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -837,8 +843,15 @@ fn validate_docs_search_l0(req: &DocsSearchL0Request) -> Result<DocsSearchL0Filt
 		.as_ref()
 		.map(|agent_id| agent_id.trim().to_string())
 		.filter(|agent_id| !agent_id.is_empty());
+	let thread_id = req
+		.thread_id
+		.as_ref()
+		.map(|thread_id| thread_id.trim().to_string())
+		.filter(|thread_id| !thread_id.is_empty());
 	let updated_after = parse_optional_rfc3339(req.updated_after.as_ref(), "$.updated_after")?;
 	let updated_before = parse_optional_rfc3339(req.updated_before.as_ref(), "$.updated_before")?;
+	let ts_gte = parse_optional_rfc3339(req.ts_gte.as_ref(), "$.ts_gte")?;
+	let ts_lte = parse_optional_rfc3339(req.ts_lte.as_ref(), "$.ts_lte")?;
 
 	if let (Some(updated_after), Some(updated_before)) =
 		(updated_after.as_ref(), updated_before.as_ref())
@@ -848,8 +861,25 @@ fn validate_docs_search_l0(req: &DocsSearchL0Request) -> Result<DocsSearchL0Filt
 			message: "updated_after must be earlier than updated_before.".to_string(),
 		});
 	}
+	if let (Some(ts_gte), Some(ts_lte)) = (ts_gte.as_ref(), ts_lte.as_ref())
+		&& ts_gte >= ts_lte
+	{
+		return Err(Error::InvalidRequest {
+			message: "ts_gte must be earlier than ts_lte.".to_string(),
+		});
+	}
 
-	Ok(DocsSearchL0Filters { scope, status, doc_type, agent_id, updated_after, updated_before })
+	Ok(DocsSearchL0Filters {
+		scope,
+		status,
+		doc_type,
+		agent_id,
+		thread_id,
+		updated_after,
+		updated_before,
+		ts_gte,
+		ts_lte,
+	})
 }
 
 fn parse_optional_rfc3339(raw: Option<&String>, path: &str) -> Result<Option<OffsetDateTime>> {
@@ -1066,10 +1096,18 @@ fn build_doc_search_filter(
 			if let Some(agent_id) = filters.agent_id.as_ref() {
 				must.push(Condition::matches("agent_id", agent_id.to_string()));
 			}
+			if let Some(thread_id) = filters.thread_id.as_ref() {
+				must.push(Condition::matches("thread_id", thread_id.to_string()));
+			}
 			if let Some(datetime_filter) = datetime_filter_range(
 				filters.updated_after.as_ref(),
 				filters.updated_before.as_ref(),
 			) {
+				must.push(datetime_filter);
+			}
+			if let Some(datetime_filter) =
+				doc_ts_filter_range(filters.ts_gte.as_ref(), filters.ts_lte.as_ref())
+			{
 				must.push(datetime_filter);
 			}
 
@@ -1099,6 +1137,26 @@ fn datetime_filter_range(
 	}
 
 	Some(Condition::datetime_range("updated_at", DatetimeRange { lt, gt, gte: None, lte: None }))
+}
+
+fn doc_ts_filter_range(
+	ts_gte: Option<&OffsetDateTime>,
+	ts_lte: Option<&OffsetDateTime>,
+) -> Option<Condition> {
+	let gte = ts_gte.map(|ts_gte| Timestamp {
+		seconds: ts_gte.unix_timestamp(),
+		nanos: ts_gte.nanosecond() as i32,
+	});
+	let lte = ts_lte.map(|ts_lte| Timestamp {
+		seconds: ts_lte.unix_timestamp(),
+		nanos: ts_lte.nanosecond() as i32,
+	});
+
+	if gte.is_none() && lte.is_none() {
+		return None;
+	}
+
+	Some(Condition::datetime_range("doc_ts", DatetimeRange { lt: None, gt: None, gte, lte }))
 }
 
 fn doc_read_allowed(
@@ -1397,8 +1455,11 @@ mod tests {
 			status: None,
 			doc_type: None,
 			agent_id: None,
+			thread_id: None,
 			updated_after: None,
 			updated_before: None,
+			ts_gte: None,
+			ts_lte: None,
 			top_k: None,
 			candidate_k: None,
 		}
@@ -1515,8 +1576,11 @@ mod tests {
 			status: Some("archived".to_string()),
 			doc_type: None,
 			agent_id: None,
+			thread_id: None,
 			updated_after: None,
 			updated_before: None,
+			ts_gte: None,
+			ts_lte: None,
 			top_k: None,
 			candidate_k: None,
 		})
@@ -1540,8 +1604,11 @@ mod tests {
 			status: None,
 			doc_type: None,
 			agent_id: None,
+			thread_id: None,
 			updated_after: Some("2026-02-25T12:00:00".to_string()),
 			updated_before: None,
+			ts_gte: None,
+			ts_lte: None,
 			top_k: None,
 			candidate_k: None,
 		})
@@ -1560,12 +1627,21 @@ mod tests {
 			status: "deleted".to_string(),
 			doc_type: Some("chat".to_string()),
 			agent_id: Some("owner".to_string()),
+			thread_id: Some("thread-7".to_string()),
 			updated_after: Some(
 				OffsetDateTime::parse("2026-02-20T00:00:00Z", &Rfc3339)
 					.expect("Invalid timestamp."),
 			),
 			updated_before: Some(
 				OffsetDateTime::parse("2026-02-28T00:00:00Z", &Rfc3339)
+					.expect("Invalid timestamp."),
+			),
+			ts_gte: Some(
+				OffsetDateTime::parse("2026-01-01T00:00:00Z", &Rfc3339)
+					.expect("Invalid timestamp."),
+			),
+			ts_lte: Some(
+				OffsetDateTime::parse("2026-12-31T00:00:00Z", &Rfc3339)
 					.expect("Invalid timestamp."),
 			),
 		};
@@ -1582,6 +1658,7 @@ mod tests {
 		assert_eq!(first_match_value(&filter, "scope").as_deref(), Some("project_shared"));
 		assert_eq!(first_match_value(&filter, "doc_type").as_deref(), Some("chat"));
 		assert_eq!(first_match_value(&filter, "agent_id").as_deref(), Some("owner"));
+		assert_eq!(first_match_value(&filter, "thread_id").as_deref(), Some("thread-7"));
 
 		let datetime_range = first_datetime_range(&filter, "updated_at")
 			.expect("Expected datetime filter for updated_at.");
@@ -1598,6 +1675,52 @@ mod tests {
 		assert_eq!(gt.nanos, after.nanosecond() as i32);
 		assert!(datetime_range.gte.is_none());
 		assert!(datetime_range.lte.is_none());
+
+		let doc_ts_range =
+			first_datetime_range(&filter, "doc_ts").expect("Expected datetime filter for doc_ts.");
+		let gte = doc_ts_range.gte.as_ref().expect("Expected datetime filter .gte value.");
+		let lte = doc_ts_range.lte.as_ref().expect("Expected datetime filter .lte value.");
+		let doc_ts_gte =
+			OffsetDateTime::parse("2026-01-01T00:00:00Z", &Rfc3339).expect("Invalid timestamp.");
+		let doc_ts_lte =
+			OffsetDateTime::parse("2026-12-31T00:00:00Z", &Rfc3339).expect("Invalid timestamp.");
+
+		assert_eq!(gte.seconds, doc_ts_gte.unix_timestamp());
+		assert_eq!(gte.nanos, doc_ts_gte.nanosecond() as i32);
+		assert_eq!(lte.seconds, doc_ts_lte.unix_timestamp());
+		assert_eq!(lte.nanos, doc_ts_lte.nanosecond() as i32);
+		assert!(doc_ts_range.gt.is_none());
+		assert!(doc_ts_range.lt.is_none());
+	}
+
+	#[test]
+	fn validate_docs_search_l0_rejects_invalid_doc_ts_order() {
+		let err = validate_docs_search_l0(&DocsSearchL0Request {
+			tenant_id: TENANT_ID.to_string(),
+			project_id: PROJECT_ID.to_string(),
+			caller_agent_id: "agent".to_string(),
+			read_profile: "private_plus_project".to_string(),
+			query: "status".to_string(),
+			scope: None,
+			status: None,
+			doc_type: None,
+			agent_id: None,
+			thread_id: None,
+			updated_after: None,
+			updated_before: None,
+			ts_gte: Some("2026-02-25T12:00:00Z".to_string()),
+			ts_lte: Some("2026-02-25T11:00:00Z".to_string()),
+			top_k: None,
+			candidate_k: None,
+		})
+		.expect_err("Expected bad doc_ts order to be rejected.");
+
+		match err {
+			Error::InvalidRequest { message } => {
+				assert!(message.contains("earlier"));
+			},
+			other => panic!("Unexpected error: {other:?}"),
+		}
 	}
 
 	#[test]

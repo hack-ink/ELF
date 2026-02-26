@@ -701,8 +701,11 @@ fn docs_search_l0_schema() -> Arc<JsonObject> {
 				"enum": ["knowledge", "chat", "search", "dev", null]
 			},
 			"agent_id": { "type": ["string", "null"] },
+			"thread_id": { "type": ["string", "null"] },
 			"updated_after": { "type": ["string", "null"], "format": "date-time" },
 			"updated_before": { "type": ["string", "null"], "format": "date-time" },
+			"ts_gte": { "type": ["string", "null"], "format": "date-time" },
+			"ts_lte": { "type": ["string", "null"], "format": "date-time" },
 			"top_k": { "type": ["integer", "null"] },
 			"candidate_k": { "type": ["integer", "null"] },
 			"read_profile": { "type": ["string", "null"] }
@@ -1134,8 +1137,17 @@ mod tests {
 			.and_then(serde_json::Value::as_object)
 			.expect("docs_search_l0 schema is missing properties.");
 		let required = ["query"];
-		let expected =
-			["scope", "status", "doc_type", "agent_id", "updated_after", "updated_before"];
+		let expected = [
+			"scope",
+			"status",
+			"doc_type",
+			"agent_id",
+			"thread_id",
+			"updated_after",
+			"updated_before",
+			"ts_gte",
+			"ts_lte",
+		];
 
 		for field in required {
 			assert!(
