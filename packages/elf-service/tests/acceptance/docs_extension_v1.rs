@@ -10,11 +10,7 @@ use serde_json::Map;
 use sqlx::{FromRow, PgPool};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use tokenizers::{Tokenizer, models::wordlevel::WordLevel};
-use tokio::{
-	net::TcpListener,
-	sync::{oneshot, oneshot::Sender},
-	task::JoinHandle,
-};
+use tokio::{net::TcpListener, sync::oneshot::Sender, task::JoinHandle};
 use uuid::Uuid;
 
 use crate::acceptance::{SpyExtractor, StubEmbedding, StubRerank};
@@ -121,7 +117,7 @@ async fn start_embed_server() -> (String, Sender<()>) {
 	let app = Router::new().route("/embeddings", routing::post(embed_handler)).with_state(());
 	let listener = TcpListener::bind("127.0.0.1:0").await.expect("Failed to bind embed server.");
 	let addr = listener.local_addr().expect("Failed to read embed server address.");
-	let (tx, rx) = oneshot::channel();
+	let (tx, rx) = tokio::sync::oneshot::channel();
 	let server = axum::serve(listener, app).with_graceful_shutdown(async move {
 		let _ = rx.await;
 	});
@@ -190,6 +186,161 @@ async fn docs_put_get_excerpts_and_search_l0_work_end_to_end() {
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL (or ELF_QDRANT_GRPC_URL) to run."]
 async fn docs_search_l0_respects_scope_doc_type_agent_id_and_updated_after_filters() {
 	let Some(ctx) = setup_docs_context().await else { return };
+	let (
+		test_db,
+		service,
+		shared_knowledge_doc,
+		_older_shared_knowledge_doc,
+		private_chat_doc,
+		handle,
+		shutdown,
+	) = create_docs_search_filter_fixture(ctx).await;
+	let shared_scope_results = search_doc_ids_with_filters(
+		&service,
+		Some("project_shared"),
+		None,
+		None,
+		None,
+		None,
+		"reader",
+	)
+	.await;
+
+	assert!(shared_scope_results.contains(&shared_knowledge_doc));
+	assert!(!shared_scope_results.contains(&private_chat_doc));
+
+	let chat_results =
+		search_doc_ids_with_filters(&service, None, Some("chat"), None, None, None, "reader").await;
+
+	assert!(!chat_results.contains(&private_chat_doc));
+	assert!(!chat_results.contains(&shared_knowledge_doc));
+
+	let assistant_chat_results =
+		search_doc_ids_with_filters(&service, None, Some("chat"), None, None, None, "assistant")
+			.await;
+
+	assert!(assistant_chat_results.contains(&private_chat_doc));
+	assert!(!assistant_chat_results.contains(&shared_knowledge_doc));
+
+	let assistant_results =
+		search_doc_ids_with_filters(&service, None, None, Some("assistant"), None, None, "reader")
+			.await;
+
+	assert!(!assistant_results.contains(&private_chat_doc));
+	assert!(!assistant_results.contains(&shared_knowledge_doc));
+
+	let past = (OffsetDateTime::now_utc() - time::Duration::seconds(60))
+		.format(&Rfc3339)
+		.expect("Failed to format past RFC3339 timestamp.");
+	let future = (OffsetDateTime::now_utc() + time::Duration::seconds(60))
+		.format(&Rfc3339)
+		.expect("Failed to format future RFC3339 timestamp.");
+	let updated_after_past_results =
+		search_doc_ids_with_filters(&service, None, None, None, Some(&past), None, "reader").await;
+
+	assert!(updated_after_past_results.contains(&shared_knowledge_doc));
+	assert!(!updated_after_past_results.contains(&private_chat_doc));
+
+	let updated_after_future_results =
+		search_doc_ids_with_filters(&service, None, None, None, Some(&future), None, "reader")
+			.await;
+
+	assert!(updated_after_future_results.is_empty());
+
+	cleanup_docs_filter_fixture(test_db, handle, shutdown).await;
+}
+
+#[tokio::test]
+#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL (or ELF_QDRANT_GRPC_URL) to run."]
+async fn docs_search_l0_respects_thread_id_filter() {
+	let Some(ctx) = setup_docs_context().await else { return };
+	let (
+		test_db,
+		service,
+		shared_knowledge_doc,
+		older_shared_knowledge_doc,
+		private_chat_doc,
+		handle,
+		shutdown,
+	) = create_docs_search_filter_fixture(ctx).await;
+	let thread_filter_results = service
+		.docs_search_l0(DocsSearchL0Request {
+			tenant_id: "t".to_string(),
+			project_id: "p".to_string(),
+			caller_agent_id: "assistant".to_string(),
+			scope: None,
+			status: None,
+			doc_type: None,
+			agent_id: None,
+			thread_id: Some("shared-chat-thread".to_string()),
+			updated_after: None,
+			updated_before: None,
+			ts_gte: None,
+			ts_lte: None,
+			read_profile: "private_plus_project".to_string(),
+			query: "peregrine".to_string(),
+			top_k: Some(20),
+			candidate_k: Some(50),
+		})
+		.await
+		.expect("Failed to search docs with thread_id filter.");
+	let thread_filtered_docs =
+		thread_filter_results.items.into_iter().map(|item| item.doc_id).collect::<HashSet<_>>();
+
+	assert!(thread_filtered_docs.contains(&private_chat_doc));
+	assert!(!thread_filtered_docs.contains(&shared_knowledge_doc));
+	assert!(!thread_filtered_docs.contains(&older_shared_knowledge_doc));
+
+	cleanup_docs_filter_fixture(test_db, handle, shutdown).await;
+}
+
+#[tokio::test]
+#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL (or ELF_QDRANT_GRPC_URL) to run."]
+async fn docs_search_l0_respects_doc_ts_filter() {
+	let Some(ctx) = setup_docs_context().await else { return };
+	let (
+		test_db,
+		service,
+		shared_knowledge_doc,
+		older_shared_knowledge_doc,
+		private_chat_doc,
+		handle,
+		shutdown,
+	) = create_docs_search_filter_fixture(ctx).await;
+	let doc_ts_windowed_results = service
+		.docs_search_l0(DocsSearchL0Request {
+			tenant_id: "t".to_string(),
+			project_id: "p".to_string(),
+			caller_agent_id: "reader".to_string(),
+			scope: Some("project_shared".to_string()),
+			status: None,
+			doc_type: None,
+			agent_id: None,
+			thread_id: None,
+			updated_after: None,
+			updated_before: None,
+			ts_gte: Some("2026-01-01T00:00:00Z".to_string()),
+			ts_lte: Some("2026-12-31T23:59:59Z".to_string()),
+			read_profile: "all_scopes".to_string(),
+			query: "peregrine".to_string(),
+			top_k: Some(20),
+			candidate_k: Some(50),
+		})
+		.await
+		.expect("Failed to search docs by doc_ts range.");
+	let doc_ts_windowed_ids =
+		doc_ts_windowed_results.items.into_iter().map(|item| item.doc_id).collect::<HashSet<_>>();
+
+	assert!(doc_ts_windowed_ids.contains(&shared_knowledge_doc));
+	assert!(!doc_ts_windowed_ids.contains(&older_shared_knowledge_doc));
+	assert!(!doc_ts_windowed_ids.contains(&private_chat_doc));
+
+	cleanup_docs_filter_fixture(test_db, handle, shutdown).await;
+}
+
+async fn create_docs_search_filter_fixture(
+	ctx: DocsContext,
+) -> (TestDatabase, ElfService, Uuid, Uuid, Uuid, JoinHandle<()>, Sender<()>) {
 	let DocsContext { test_db, service } = ctx;
 	let shared_knowledge_doc = put_test_doc_with(
 		&service,
@@ -201,6 +352,20 @@ async fn docs_search_l0_respects_scope_doc_type_agent_id_and_updated_after_filte
 			"schema": "doc_source_ref/v1",
 			"doc_type": "knowledge",
 			"ts": "2026-02-25T12:00:00Z",
+		}),
+		TEST_CONTENT,
+	)
+	.await;
+	let older_shared_knowledge_doc = put_test_doc_with(
+		&service,
+		"owner",
+		"project_shared",
+		None,
+		"Docs old filter sample",
+		serde_json::json!({
+			"schema": "doc_source_ref/v1",
+			"doc_type": "knowledge",
+			"ts": "2025-01-01T10:00:00Z",
 		}),
 		TEST_CONTENT,
 	)
@@ -235,6 +400,15 @@ async fn docs_search_l0_respects_scope_doc_type_agent_id_and_updated_after_filte
 	assert!(
 		wait_for_doc_outbox_done(
 			&service.db.pool,
+			older_shared_knowledge_doc.doc_id,
+			std::time::Duration::from_secs(15)
+		)
+		.await,
+		"Expected older shared docs outbox to reach DONE."
+	);
+	assert!(
+		wait_for_doc_outbox_done(
+			&service.db.pool,
 			private_chat_doc.doc_id,
 			std::time::Duration::from_secs(15)
 		)
@@ -242,63 +416,27 @@ async fn docs_search_l0_respects_scope_doc_type_agent_id_and_updated_after_filte
 		"Expected private docs outbox to reach DONE."
 	);
 
-	let shared_scope_results = search_doc_ids_with_filters(
-		&service,
-		Some("project_shared"),
-		None,
-		None,
-		None,
-		None,
-		"reader",
+	(
+		test_db,
+		service,
+		shared_knowledge_doc.doc_id,
+		older_shared_knowledge_doc.doc_id,
+		private_chat_doc.doc_id,
+		handle,
+		shutdown,
 	)
-	.await;
+}
 
-	assert!(shared_scope_results.contains(&shared_knowledge_doc.doc_id));
-	assert!(!shared_scope_results.contains(&private_chat_doc.doc_id));
-
-	let chat_results =
-		search_doc_ids_with_filters(&service, None, Some("chat"), None, None, None, "reader").await;
-
-	assert!(!chat_results.contains(&private_chat_doc.doc_id));
-	assert!(!chat_results.contains(&shared_knowledge_doc.doc_id));
-
-	let assistant_chat_results =
-		search_doc_ids_with_filters(&service, None, Some("chat"), None, None, None, "assistant")
-			.await;
-
-	assert!(assistant_chat_results.contains(&private_chat_doc.doc_id));
-	assert!(!assistant_chat_results.contains(&shared_knowledge_doc.doc_id));
-
-	let assistant_results =
-		search_doc_ids_with_filters(&service, None, None, Some("assistant"), None, None, "reader")
-			.await;
-
-	assert!(!assistant_results.contains(&private_chat_doc.doc_id));
-	assert!(!assistant_results.contains(&shared_knowledge_doc.doc_id));
-
-	let past = (OffsetDateTime::now_utc() - time::Duration::seconds(60))
-		.format(&Rfc3339)
-		.expect("Failed to format past RFC3339 timestamp.");
-	let future = (OffsetDateTime::now_utc() + time::Duration::seconds(60))
-		.format(&Rfc3339)
-		.expect("Failed to format future RFC3339 timestamp.");
-	let updated_after_past_results =
-		search_doc_ids_with_filters(&service, None, None, None, Some(&past), None, "reader").await;
-
-	assert!(updated_after_past_results.contains(&shared_knowledge_doc.doc_id));
-	assert!(!updated_after_past_results.contains(&private_chat_doc.doc_id));
-
-	let updated_after_future_results =
-		search_doc_ids_with_filters(&service, None, None, None, Some(&future), None, "reader")
-			.await;
-
-	assert!(updated_after_future_results.is_empty());
-
+async fn cleanup_docs_filter_fixture(
+	test_db: TestDatabase,
+	_handle: JoinHandle<()>,
+	shutdown: Sender<()>,
+) {
 	let _ = shutdown.send(());
 
-	handle.abort();
+	_handle.abort();
 
-	let _ = handle.await;
+	let _ = _handle.await;
 
 	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }
@@ -710,8 +848,11 @@ async fn search_doc_ids_with_filters(
 			status: None,
 			doc_type: doc_type.map(str::to_string),
 			agent_id: agent_id.map(str::to_string),
+			thread_id: None,
 			updated_after: updated_after.map(str::to_string),
 			updated_before: updated_before.map(str::to_string),
+			ts_gte: None,
+			ts_lte: None,
 			read_profile: "all_scopes".to_string(),
 			query: "peregrine".to_string(),
 			top_k: Some(20),
@@ -876,8 +1017,11 @@ async fn assert_docs_search_l0(service: &ElfService, doc_id: Uuid) {
 			status: None,
 			doc_type: None,
 			agent_id: None,
+			thread_id: None,
 			updated_after: None,
 			updated_before: None,
+			ts_gte: None,
+			ts_lte: None,
 			read_profile: "private_plus_project".to_string(),
 			query: "peregrine".to_string(),
 			top_k: Some(5),
