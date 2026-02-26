@@ -10,7 +10,10 @@ use clap::Parser;
 use tracing_subscriber::EnvFilter;
 
 use elf_chunking::ChunkingConfig;
-use elf_storage::{db::Db, qdrant::QdrantStore};
+use elf_storage::{
+	db::Db,
+	qdrant::{DOCS_SEARCH_FILTER_INDEXES, QdrantStore},
+};
 
 #[derive(Debug, Parser)]
 #[command(
@@ -34,10 +37,17 @@ pub async fn run(args: Args) -> Result<()> {
 	db.ensure_schema(config.storage.qdrant.vector_dim).await?;
 
 	let qdrant = QdrantStore::new(&config.storage.qdrant)?;
+
+	qdrant.ensure_collection().await?;
+
 	let docs_qdrant = QdrantStore::new_with_collection(
 		&config.storage.qdrant,
 		&config.storage.qdrant.docs_collection,
 	)?;
+
+	docs_qdrant.ensure_collection().await?;
+	docs_qdrant.ensure_payload_indexes(&DOCS_SEARCH_FILTER_INDEXES).await?;
+
 	let tokenizer_repo = config.chunking.tokenizer_repo.clone();
 	let tokenizer = elf_chunking::load_tokenizer(&tokenizer_repo)?;
 	let chunking = ChunkingConfig {

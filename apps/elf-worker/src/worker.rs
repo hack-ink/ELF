@@ -26,6 +26,8 @@ use elf_storage::{
 	queries,
 };
 
+type ProjectDocRefFields = (String, Option<String>, Option<String>, Option<String>);
+
 const POLL_INTERVAL_MS: i64 = 500;
 const CLAIM_LEASE_SECONDS: i64 = 30;
 const BASE_BACKOFF_MS: i64 = 500;
@@ -192,8 +194,10 @@ struct DocChunkIndexRow {
 	scope: String,
 	doc_type: String,
 	status: String,
+	created_at: OffsetDateTime,
 	updated_at: OffsetDateTime,
 	content_hash: String,
+	source_ref: Value,
 	chunk_id: Uuid,
 	chunk_index: i32,
 	start_offset: i32,
@@ -417,6 +421,40 @@ fn to_std_duration(duration: time::Duration) -> std::time::Duration {
 	std::time::Duration::from_millis(millis as u64)
 }
 
+fn project_doc_ref_fields(
+	source_ref: &Value,
+	fallback_timestamp: OffsetDateTime,
+	doc_type: &str,
+) -> Result<ProjectDocRefFields> {
+	let source_ref_field = |field_name: &str| -> Option<String> {
+		source_ref
+			.get(field_name)
+			.and_then(Value::as_str)
+			.filter(|value| !value.is_empty())
+			.map(std::string::ToString::to_string)
+	};
+	let doc_ts = match source_ref
+		.get("ts")
+		.and_then(Value::as_str)
+		.filter(|value| OffsetDateTime::parse(value, &Rfc3339).is_ok())
+		.map(std::string::ToString::to_string)
+		.or_else(|| {
+			source_ref
+				.get("doc_ts")
+				.and_then(Value::as_str)
+				.filter(|value| OffsetDateTime::parse(value, &Rfc3339).is_ok())
+				.map(std::string::ToString::to_string)
+		}) {
+		Some(value) => value,
+		None => format_timestamp(fallback_timestamp)?,
+	};
+	let thread_id = if doc_type == "chat" { source_ref_field("thread_id") } else { None };
+	let domain = if doc_type == "search" { source_ref_field("domain") } else { None };
+	let repo = if doc_type == "dev" { source_ref_field("repo") } else { None };
+
+	Ok((doc_ts, thread_id, domain, repo))
+}
+
 async fn process_indexing_outbox_once(state: &WorkerState) -> Result<()> {
 	let now = OffsetDateTime::now_utc();
 	let job = outbox::claim_next_indexing_outbox_job(&state.db, now, CLAIM_LEASE_SECONDS).await?;
@@ -614,27 +652,29 @@ async fn handle_delete(state: &WorkerState, job: &IndexingOutboxEntry) -> Result
 
 async fn fetch_doc_chunk_index_row(db: &Db, chunk_id: Uuid) -> Result<Option<DocChunkIndexRow>> {
 	let row = sqlx::query_as::<_, DocChunkIndexRow>(
-		"\
+		r#"
 SELECT
-\td.doc_id,
-\td.tenant_id,
-\td.project_id,
-\td.agent_id,
-\td.scope,
-\td.doc_type,
-\td.status,
-\td.updated_at,
-\td.content_hash,
-\tc.chunk_id,
-\tc.chunk_index,
-\tc.start_offset,
-\tc.end_offset,
-\tc.chunk_text,
-\tc.chunk_hash
+	d.doc_id,
+	d.tenant_id,
+	d.project_id,
+	d.agent_id,
+	d.scope,
+	d.doc_type,
+	d.status,
+	d.created_at,
+	d.updated_at,
+	d.content_hash,
+	COALESCE(d.source_ref, '{}'::jsonb) AS source_ref,
+	c.chunk_id,
+	c.chunk_index,
+	c.start_offset,
+	c.end_offset,
+	c.chunk_text,
+	c.chunk_hash
 FROM doc_chunks c
 JOIN doc_documents d ON d.doc_id = c.doc_id
 WHERE c.chunk_id = $1
-LIMIT 1",
+LIMIT 1"#,
 	)
 	.bind(chunk_id)
 	.fetch_optional(&db.pool)
@@ -703,6 +743,8 @@ async fn upsert_qdrant_doc_chunk(
 	embedding_version: &str,
 	vec: &[f32],
 ) -> Result<()> {
+	let (doc_ts, thread_id, domain, repo) =
+		project_doc_ref_fields(&row.source_ref, row.created_at, row.doc_type.as_str())?;
 	let mut payload = Payload::new();
 
 	payload.insert("doc_id", row.doc_id.to_string());
@@ -720,6 +762,18 @@ async fn upsert_qdrant_doc_chunk(
 	let updated_at = format_timestamp(row.updated_at)?;
 
 	payload.insert("updated_at", Value::String(updated_at));
+	payload.insert("doc_ts", Value::String(doc_ts));
+
+	if let Some(value) = thread_id {
+		payload.insert("thread_id", Value::String(value));
+	}
+	if let Some(value) = domain {
+		payload.insert("domain", Value::String(value));
+	}
+	if let Some(value) = repo {
+		payload.insert("repo", Value::String(value));
+	}
+
 	payload.insert("embedding_version", embedding_version.to_string());
 	payload.insert("content_hash", row.content_hash.clone());
 	payload.insert("chunk_hash", row.chunk_hash.clone());
@@ -1337,7 +1391,9 @@ async fn mark_trace_failed(db: &Db, outbox_id: Uuid, attempts: i32, err: &Error)
 
 #[cfg(test)]
 mod tests {
-	use crate::worker::mean_pool;
+	use crate::worker::{mean_pool, project_doc_ref_fields};
+	use serde_json::json;
+	use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
 	#[test]
 	fn pooled_vector_is_mean_of_chunks() {
@@ -1345,5 +1401,102 @@ mod tests {
 		let pooled = mean_pool(&chunks).expect("Expected pooled vector.");
 
 		assert_eq!(pooled, vec![2.0_f32, 4.0_f32]);
+	}
+
+	#[test]
+	fn project_doc_ref_fields_falls_back_to_created_at_timestamp() {
+		let created_at = OffsetDateTime::parse("2025-01-01T00:00:00Z", &Rfc3339)
+			.expect("Failed to parse fallback timestamp.");
+		let (doc_ts, thread_id, domain, repo) =
+			project_doc_ref_fields(&json!({"thread_id": ""}), created_at, "knowledge")
+				.expect("Expected projection.");
+
+		assert_eq!(doc_ts, created_at.format(&Rfc3339).expect("Failed to format fallback doc_ts."));
+		assert!(thread_id.is_none());
+		assert!(domain.is_none());
+		assert!(repo.is_none());
+	}
+
+	#[test]
+	fn project_doc_ref_fields_prefers_source_ref_ts() {
+		let created_at = OffsetDateTime::parse("2025-01-01T00:00:00Z", &Rfc3339)
+			.expect("Failed to parse fallback timestamp.");
+		let source_ref = json!({
+			"ts": "2025-01-01T01:02:03Z",
+			"doc_ts": "2020-01-01T00:00:00Z",
+			"thread_id": "thread-42",
+			"domain": "example.com",
+			"repo": "org/repo"
+		});
+		let (doc_ts, thread_id, domain, repo) =
+			project_doc_ref_fields(&source_ref, created_at, "chat").expect("Expected projection.");
+
+		assert_eq!(doc_ts, "2025-01-01T01:02:03Z");
+		assert_eq!(thread_id.as_deref(), Some("thread-42"));
+		assert!(domain.is_none());
+		assert!(repo.is_none());
+	}
+
+	#[test]
+	fn project_doc_ref_fields_uses_legacy_doc_ts_when_ts_is_missing() {
+		let created_at = OffsetDateTime::parse("2025-01-01T00:00:00Z", &Rfc3339)
+			.expect("Failed to parse fallback timestamp.");
+		let source_ref = json!({
+			"doc_ts": "2025-01-01T02:03:04Z",
+			"thread_id": "legacy-thread",
+			"domain": "legacy.example",
+			"repo": "legacy/repo"
+		});
+		let (doc_ts, thread_id, domain, repo) =
+			project_doc_ref_fields(&source_ref, created_at, "knowledge")
+				.expect("Expected projection.");
+
+		assert_eq!(doc_ts, "2025-01-01T02:03:04Z");
+		assert!(thread_id.is_none());
+		assert!(domain.is_none());
+		assert!(repo.is_none());
+	}
+
+	#[test]
+	fn project_doc_ref_fields_gates_optional_ref_fields_by_doc_type() {
+		let created_at = OffsetDateTime::parse("2025-01-01T00:00:00Z", &Rfc3339)
+			.expect("Failed to parse fallback timestamp.");
+		let source_ref = json!({
+			"thread_id": "thread-42",
+			"domain": "example.com",
+			"repo": "org/repo",
+		});
+		let (doc_ts_for_knowledge, thread_id_knowledge, domain_knowledge, repo_knowledge) =
+			project_doc_ref_fields(&source_ref, created_at, "knowledge")
+				.expect("Expected projection.");
+
+		assert_eq!(
+			doc_ts_for_knowledge,
+			created_at.format(&Rfc3339).expect("Failed to format fallback doc_ts.")
+		);
+		assert!(thread_id_knowledge.is_none());
+		assert!(domain_knowledge.is_none());
+		assert!(repo_knowledge.is_none());
+
+		let chat_projection =
+			project_doc_ref_fields(&source_ref, created_at, "chat").expect("Expected projection.");
+
+		assert_eq!(chat_projection.1.as_deref(), Some("thread-42"));
+		assert!(chat_projection.2.is_none());
+		assert!(chat_projection.3.is_none());
+
+		let search_projection = project_doc_ref_fields(&source_ref, created_at, "search")
+			.expect("Expected projection.");
+
+		assert!(search_projection.1.is_none());
+		assert_eq!(search_projection.2.as_deref(), Some("example.com"));
+		assert!(search_projection.3.is_none());
+
+		let dev_projection =
+			project_doc_ref_fields(&source_ref, created_at, "dev").expect("Expected projection.");
+
+		assert!(dev_projection.1.is_none());
+		assert!(dev_projection.2.is_none());
+		assert_eq!(dev_projection.3.as_deref(), Some("org/repo"));
 	}
 }

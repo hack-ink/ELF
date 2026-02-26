@@ -22,7 +22,8 @@ Reference:
 
 ## 2. Initialize storage
 
-Initialize Postgres schema and Qdrant collection once.
+Initialize Postgres schema and Qdrant collections once.
+Both services now auto-create the memory/docs collections (dense+bm25 vectors) and the docs payload indexes used for filtering (`scope`, `status`, `doc_type`, `agent_id`, `updated_at`, `doc_ts`, `thread_id`, `domain`, `repo`) during startup.
 
 ```sh
 psql "<dsn from elf.toml>" -f sql/init.sql
@@ -34,6 +35,8 @@ export ELF_QDRANT_COLLECTION="mem_notes_v2"
 export ELF_QDRANT_DOCS_COLLECTION="doc_chunks_v1"
 export ELF_QDRANT_VECTOR_DIM="4096"
 ./qdrant/init.sh
+
+You can still run the script manually when bootstrapping a fresh Qdrant instance, but startup is not blocked if you rely on auto-ensure.
 ```
 
 ## 3. Start services
