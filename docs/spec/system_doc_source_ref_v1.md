@@ -1,18 +1,28 @@
 # System: `doc_source_ref/v1` for `docs_put`
 
-Purpose: define a stable `source_ref` envelope for `POST /v2/docs` / `elf_docs_put`.
+Purpose: define a minimal, versioned `source_ref` convention for docs ingested
+through `POST /v2/docs` / MCP `elf_docs_put`.
 
 Identifiers:
 - Envelope identifier: `doc_source_ref/v1`
 - File: `docs/spec/system_doc_source_ref_v1.md`
 
 Scope:
-- Covers `source_ref` carried by docs records ingested through `docs_put`.
-- Covers source kinds: `chat`, `search`, `dev`, `knowledge`.
-- This schema is for provenance and retrieval correlation, not for note-level evidence
-  pointers (`source_ref/v1`).
+- Covers `doc_documents.source_ref` for docs ingested via `docs_put`.
+- Covers doc types: `knowledge`, `chat`, `search`, `dev`.
+- This schema is for provenance and deterministic filtering keys, not for
+  note-level evidence pointers (`source_ref/v1`).
 
-`source_ref` is optional for `docs_put`; when omitted, the service persists an empty JSON object.
+`source_ref` is optional for `docs_put`. When omitted, the service persists an
+JSON empty object (`{}`).
+
+Design goals:
+- Deterministic and replayable: two independent ingesters SHOULD emit identical
+  keys for the same source event.
+- Flat keys: fields SHOULD be top-level to support stable projection into vector
+  payloads and filter indexes.
+- Minimal requirements: the service MAY accept additional keys, but downstream
+  filtering MUST rely only on keys enumerated by this spec.
 
 ==================================================
 1) Top-level shape and required keys
@@ -21,63 +31,97 @@ Scope:
 When `source_ref` is provided, it MUST be a JSON object with these required keys:
 
 - `schema` (string): exact value `doc_source_ref/v1`.
-- `source` (string): one of `chat`, `search`, `dev`, `knowledge`.
-- `ref` (object): stable external identifiers and canonical lookup hints.
-
---------------------------------------------------
-`ref` object (required)
---------------------------------------------------
-
-`ref` MUST contain:
-
-- `id` (string): stable source identifier.
-
-`ref` MAY contain:
-
-- `uri` (string): canonical URI/path/URN into the source system.
-- `keys` (object): stable key/value pairs used for exact lookup.
-
---------------------------------------------------
-Optional top-level keys
---------------------------------------------------
-
-- `locator` (object): optional source-specific location hints.
-  - `page` (integer), `line` (integer), or other numeric position hints.
-- `state` (object): optional snapshot fields such as `version` or `last_seen`.
-- `meta` (object): optional, source-specific enrichment fields.
+- `doc_type` (string): one of `knowledge`, `chat`, `search`, `dev`.
+- `ts` (string): RFC3339 timestamp for event time (not ingest time).
 
 ==================================================
-2) Source-specific recommendation notes
+2) Per-type required keys (minimal)
 ==================================================
 
-For producers, include `ref.id` plus at least one source-specific hint in
-`ref.keys` when available:
+All required fields are top-level.
 
-- `chat`: `thread_id`, `message_id`, `speaker` (optional).
-  - `speaker` is opaque metadata and is not enumerated by this spec or by service
-    validation. Emit a stable role marker that your producers understand (for example,
-    `user` or `assistant`).
-- `search`: `query_id`, `result_id`, `provider`.
-- `dev`: `project`, `repo`, `branch`, `file`, `commit`.
-- `knowledge`: `knowledge_base`, `entry_id`, `section_id`.
+--------------------------------------------------
+2.1) `doc_type="chat"`
+--------------------------------------------------
+
+Required:
+- `thread_id` (string): stable thread identifier.
+- `role` (string): stable role marker (producer-defined). Examples: `user`, `assistant`, `tool`.
+
+Optional (examples):
+- `message_id` (string)
+
+--------------------------------------------------
+2.2) `doc_type="search"`
+--------------------------------------------------
+
+Required:
+- `query` (string): literal query string.
+- `url` (string): canonical URL for the selected result.
+- `domain` (string): canonical domain for the URL, used as a stable filter key.
+
+Optional (examples):
+- `provider` (string)
+
+--------------------------------------------------
+2.3) `doc_type="dev"`
+--------------------------------------------------
+
+Required:
+- `repo` (string): repository identifier (producer-defined; SHOULD be stable and human-readable).
+- Exactly one of:
+  - `commit_sha` (string)
+  - `pr_number` (integer)
+  - `issue_number` (integer)
+
+Optional (examples):
+- `path` (string): file path within the repo.
+
+--------------------------------------------------
+2.4) `doc_type="knowledge"`
+--------------------------------------------------
+
+Required:
+- No additional required keys beyond section (1).
+
+Optional:
+- `uri` (string): canonical URI/path/URN for the knowledge source.
 
 ==================================================
-3) Identifier stability and NLP/LID rules
+3) Identifier stability and parsing rules
 ==================================================
 
-The following fields are machine identifiers and must be stable over time:
+The following fields are machine identifiers and MUST be byte-stable when
+re-ingesting the same event:
 
 - `schema`
-- `source`
-- `ref.id`
-- `ref.uri`
-- `ref.keys.*`
+- `doc_type`
+- `thread_id`
+- `domain`
+- `repo`
+- `commit_sha` / `pr_number` / `issue_number`
 
-Do not apply NLP/LID checks to these identifier/URI/key fields.
-They must be byte-stable identifiers, not natural-language content.
+Timestamp rules:
+- `ts` MUST be a timezone-aware RFC3339 datetime string.
+- `ts` is the source event time. Do not use ingest time unless the source does
+  not provide event time.
 
 ==================================================
-4) Examples
+4) Compatibility rules
+==================================================
+
+Forward compatibility:
+- Producers MAY include additional keys.
+- Consumers MUST ignore unknown keys.
+
+Backward compatibility:
+- Persisted docs MAY contain `{}` (no `source_ref`).
+- Persisted docs MAY contain older producer-specific shapes. Consumers MUST
+  treat such docs as "unfilterable by `doc_source_ref/v1` keys" unless a best-effort
+  mapping is explicitly implemented.
+
+==================================================
+5) Examples
 ==================================================
 
 Chat:
@@ -85,18 +129,11 @@ Chat:
 ```json
 {
   "schema": "doc_source_ref/v1",
-  "source": "chat",
-  "ref": {
-    "id": "thread-8f7e2f9a/message-1c3d",
-    "uri": "chat://tenant-a/project-b/thread-8f7e2f9a",
-    "keys": {
-      "thread_id": "thread-8f7e2f9a",
-      "message_id": "message-1c3d"
-    }
-  },
-  "meta": {
-    "speaker": "agent"
-  }
+  "doc_type": "chat",
+  "ts": "2026-02-25T19:05:15Z",
+  "thread_id": "thread-8f7e2f9a",
+  "role": "assistant",
+  "message_id": "message-1c3d"
 }
 ```
 
@@ -105,33 +142,37 @@ Search:
 ```json
 {
   "schema": "doc_source_ref/v1",
-  "source": "search",
-  "ref": {
-    "id": "search-result-7b4a",
-    "uri": "search://tenant-a/project-b/query/7b4a/result/3",
-    "keys": {
-      "query_id": "7b4a",
-      "result_id": "d9a1"
-    }
-  }
+  "doc_type": "search",
+  "ts": "2026-02-25T19:05:15Z",
+  "query": "qdrant payload index keyword vs text",
+  "url": "https://qdrant.tech/documentation/concepts/payload/",
+  "domain": "qdrant.tech",
+  "provider": "web"
 }
 ```
 
-Dev:
+Dev (commit):
 
 ```json
 {
   "schema": "doc_source_ref/v1",
-  "source": "dev",
-  "ref": {
-    "id": "ingest-dev-2026-02-25",
-    "keys": {
-      "project": "tenant-a/project-b",
-      "repo": "core-engine",
-      "branch": "main",
-      "commit": "9f1f4e6"
-    }
-  }
+  "doc_type": "dev",
+  "ts": "2026-02-25T19:05:15Z",
+  "repo": "hack-ink/ELF",
+  "commit_sha": "9f1f4e6d0a5b7c2e11c93b5a2c8a3f5e5a1b2c3d",
+  "path": "packages/elf-service/src/docs.rs"
+}
+```
+
+Dev (PR):
+
+```json
+{
+  "schema": "doc_source_ref/v1",
+  "doc_type": "dev",
+  "ts": "2026-02-25T19:05:15Z",
+  "repo": "hack-ink/ELF",
+  "pr_number": 123
 }
 ```
 
@@ -140,15 +181,8 @@ Knowledge:
 ```json
 {
   "schema": "doc_source_ref/v1",
-  "source": "knowledge",
-  "ref": {
-    "id": "kb-entry-2026-02",
-    "uri": "docs://kb/architecture/2026/02",
-    "keys": {
-      "knowledge_base": "architecture",
-      "entry_id": "2026-02",
-      "section_id": "overview"
-    }
-  }
+  "doc_type": "knowledge",
+  "ts": "2026-02-25T19:05:15Z",
+  "uri": "docs://kb/architecture/2026/02/overview"
 }
 ```

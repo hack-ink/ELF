@@ -2,8 +2,11 @@ use std::{collections::HashSet, future::IntoFuture, sync::Arc, time::Instant};
 
 use ahash::AHashMap;
 use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing};
-use qdrant_client::qdrant::{CreateFieldIndexCollection, FieldType, PayloadSchemaType};
-use serde_json::{Map, Value};
+use qdrant_client::qdrant::{
+	CreateFieldIndexCollection, FieldType, GetPointsBuilder, PayloadSchemaType, RetrievedPoint,
+	value,
+};
+use serde_json::Map;
 use sqlx::{FromRow, PgPool};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use tokenizers::{Tokenizer, models::wordlevel::WordLevel};
@@ -26,12 +29,16 @@ use elf_worker::worker;
 
 const TEST_CONTENT: &str =
 	"ELF docs extension v1 stores evidence. Keyword: peregrine.\nSecond sentence for chunking.";
-const DOCS_SEARCH_FILTER_INDEXES: [(&str, PayloadSchemaType, FieldType); 5] = [
+const DOCS_SEARCH_FILTER_INDEXES: [(&str, PayloadSchemaType, FieldType); 9] = [
 	("scope", PayloadSchemaType::Keyword, FieldType::Keyword),
 	("status", PayloadSchemaType::Keyword, FieldType::Keyword),
 	("doc_type", PayloadSchemaType::Keyword, FieldType::Keyword),
 	("agent_id", PayloadSchemaType::Keyword, FieldType::Keyword),
 	("updated_at", PayloadSchemaType::Datetime, FieldType::Datetime),
+	("doc_ts", PayloadSchemaType::Datetime, FieldType::Datetime),
+	("thread_id", PayloadSchemaType::Keyword, FieldType::Keyword),
+	("domain", PayloadSchemaType::Keyword, FieldType::Keyword),
+	("repo", PayloadSchemaType::Keyword, FieldType::Keyword),
 ];
 
 #[derive(FromRow)]
@@ -58,6 +65,13 @@ fn build_test_tokenizer() -> Tokenizer {
 		.expect("Failed to build test tokenizer.");
 
 	Tokenizer::new(model)
+}
+
+fn payload_string(payload_value: &qdrant_client::qdrant::Value) -> Option<&str> {
+	match payload_value.kind.as_ref() {
+		Some(value::Kind::StringValue(value)) => Some(value.as_str()),
+		_ => None,
+	}
 }
 
 async fn wait_for_doc_outbox_done(
@@ -119,7 +133,10 @@ async fn start_embed_server() -> (String, Sender<()>) {
 	(format!("http://{addr}"), tx)
 }
 
-async fn embed_handler(State(()): State<()>, Json(payload): Json<Value>) -> impl IntoResponse {
+async fn embed_handler(
+	State(()): State<()>,
+	Json(payload): Json<serde_json::Value>,
+) -> impl IntoResponse {
 	let inputs =
 		payload.get("input").and_then(|value| value.as_array()).cloned().unwrap_or_default();
 	let data: Vec<_> = inputs
@@ -358,6 +375,105 @@ async fn docs_search_l0_requires_qdrant_payload_indexes_for_filters() {
 	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }
 
+#[tokio::test]
+#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL (or ELF_QDRANT_GRPC_URL) to run."]
+async fn docs_search_l0_projects_source_ref_payload_fields() {
+	let Some(ctx) = setup_docs_context().await else { return };
+	let DocsContext { test_db, service } = ctx;
+	let source_ts = "2025-01-01T10:00:00Z";
+	let cases = [
+		(
+			"chat",
+			"Docs chat source ref sample",
+			serde_json::json!({
+				"schema": "doc_source_ref/v1",
+				"doc_type": "chat",
+				"ts": source_ts,
+				"thread_id": "thread-42",
+				"role": "assistant"
+			}),
+			("thread_id", "thread-42"),
+			["domain", "repo"],
+		),
+		(
+			"search",
+			"Docs search source ref sample",
+			serde_json::json!({
+				"schema": "doc_source_ref/v1",
+				"doc_type": "search",
+				"ts": source_ts,
+				"query": "What is payload indexing?",
+				"url": "https://docs.example.com/search",
+				"domain": "docs.example.com",
+				"provider": "web"
+			}),
+			("domain", "docs.example.com"),
+			["thread_id", "repo"],
+		),
+		(
+			"dev",
+			"Docs dev source ref sample",
+			serde_json::json!({
+				"schema": "doc_source_ref/v1",
+				"doc_type": "dev",
+				"ts": source_ts,
+				"repo": "elf-org/docs",
+				"commit_sha": "9f0a3f4c4eb58bfcf4a5f4f9d0c7be0e13c2f8d19"
+			}),
+			("repo", "elf-org/docs"),
+			["thread_id", "domain"],
+		),
+	];
+	let mut docs = Vec::new();
+
+	for (doc_type, title, source_ref, expected_present, expected_absent) in cases {
+		let doc = put_test_doc_with(
+			&service,
+			"owner",
+			"project_shared",
+			Some(doc_type),
+			title,
+			source_ref,
+			TEST_CONTENT,
+		)
+		.await;
+
+		docs.push((doc.doc_id, expected_present, expected_absent));
+	}
+
+	let (handle, shutdown) = spawn_doc_worker(&service).await;
+
+	for (doc_id, expected_present, expected_absent) in &docs {
+		assert!(
+			wait_for_doc_outbox_done(&service.db.pool, *doc_id, std::time::Duration::from_secs(15))
+				.await,
+			"Expected doc outbox to reach DONE."
+		);
+
+		let point = fetch_first_doc_chunk_point(&service, *doc_id)
+			.await
+			.expect("Expected doc chunk point in Qdrant.");
+
+		assert_eq!(point.payload.get("doc_ts").and_then(payload_string), Some(source_ts));
+		assert_eq!(
+			point.payload.get(expected_present.0).and_then(payload_string),
+			Some(expected_present.1)
+		);
+
+		for key in expected_absent {
+			assert!(!point.payload.contains_key(*key));
+		}
+	}
+
+	_ = shutdown.send(());
+
+	handle.abort();
+
+	let _ = handle.await;
+
+	test_db.cleanup().await.expect("Failed to cleanup test database.");
+}
+
 async fn setup_docs_context() -> Option<DocsContext> {
 	let Some(test_db) = crate::acceptance::test_db().await else {
 		eprintln!("Skipping docs_extension_v1; set ELF_PG_DSN to run this test.");
@@ -410,6 +526,34 @@ async fn setup_docs_context() -> Option<DocsContext> {
 	Some(DocsContext { test_db, service })
 }
 
+async fn fetch_first_doc_chunk_id(db: &ElfService, doc_id: Uuid) -> Option<Uuid> {
+	sqlx::query_scalar::<_, Uuid>(
+		"SELECT chunk_id FROM doc_chunks WHERE doc_id = $1 ORDER BY chunk_index LIMIT 1",
+	)
+	.bind(doc_id)
+	.fetch_optional(&db.db.pool)
+	.await
+	.expect("Failed to fetch doc chunk id.")
+}
+
+async fn fetch_first_doc_chunk_point(service: &ElfService, doc_id: Uuid) -> Option<RetrievedPoint> {
+	let chunk_id = fetch_first_doc_chunk_id(service, doc_id).await?;
+	let response = service
+		.qdrant
+		.client
+		.get_points(
+			GetPointsBuilder::new(
+				service.cfg.storage.qdrant.docs_collection.clone(),
+				vec![chunk_id.to_string().into()],
+			)
+			.with_payload(true),
+		)
+		.await
+		.expect("Failed to fetch doc chunk point from Qdrant.");
+
+	response.result.into_iter().next()
+}
+
 async fn put_test_doc(service: &ElfService) -> DocsPutResponse {
 	put_test_doc_with(
 		service,
@@ -429,7 +573,7 @@ async fn put_test_doc_with(
 	scope: &str,
 	doc_type: Option<&str>,
 	title: &str,
-	source_ref: Value,
+	source_ref: serde_json::Value,
 	content: &str,
 ) -> DocsPutResponse {
 	service

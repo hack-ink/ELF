@@ -14,6 +14,10 @@ fn qdrant_init_script_creates_docs_payload_indexes() {
 		("doc_type", "keyword"),
 		("agent_id", "keyword"),
 		("updated_at", "datetime"),
+		("doc_ts", "datetime"),
+		("thread_id", "keyword"),
+		("domain", "keyword"),
+		("repo", "keyword"),
 	] {
 		let needle = format!("\"field_name\":\"{field}\",\"field_schema\":\"{field_schema}\"");
 
