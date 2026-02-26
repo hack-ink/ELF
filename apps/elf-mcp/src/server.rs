@@ -614,19 +614,65 @@ fn events_ingest_schema() -> Arc<JsonObject> {
 
 fn docs_put_schema() -> Arc<JsonObject> {
 	Arc::new(rmcp::object!({
-		"type": "object",
-		"additionalProperties": true,
-		"required": ["scope", "content", "source_ref"],
-		"properties": {
-			"scope": { "type": "string", "enum": ["agent_private", "project_shared", "org_shared"] },
-			"doc_type": {
-				"type": ["string", "null"],
-				"enum": ["knowledge", "chat", "search", "dev", null]
+	"type": "object",
+	"additionalProperties": true,
+	"required": ["scope", "content", "source_ref"],
+	"properties": {
+		"scope": { "type": "string", "enum": ["agent_private", "project_shared", "org_shared"] },
+		"doc_type": {
+			"type": ["string", "null"],
+			"enum": ["knowledge", "chat", "search", "dev", null]
+		},
+		"title": { "type": ["string", "null"] },
+		"source_ref": {
+			"type": "object",
+			"additionalProperties": true,
+			"required": ["schema", "doc_type", "ts"],
+			"properties": {
+				"schema": { "type": "string", "enum": ["doc_source_ref/v1"] },
+				"doc_type": {
+					"type": "string",
+					"enum": ["knowledge", "chat", "search", "dev"],
+				},
+				"ts": { "type": "string", "format": "date-time" },
+				"thread_id": { "type": "string" },
+				"role": { "type": "string" },
+				"query": { "type": "string" },
+				"url": { "type": "string" },
+				"domain": { "type": "string" },
+				"repo": { "type": "string" },
+				"commit_sha": { "type": "string" },
+				"pr_number": { "type": "integer" },
+				"issue_number": { "type": "integer" }
 			},
-			"title": { "type": ["string", "null"] },
-			"source_ref": { "type": "object", "additionalProperties": true },
-			"content": { "type": "string" }
-		}
+			"allOf": [
+				{
+					"if": { "properties": { "doc_type": { "const": "chat" } }, "required": ["doc_type"] },
+					"then": {
+						"required": ["thread_id", "role"]
+					}
+				},
+				{
+					"if": { "properties": { "doc_type": { "const": "search" } }, "required": ["doc_type"] },
+					"then": {
+						"required": ["query", "url", "domain"]
+					}
+				},
+				{
+					"if": { "properties": { "doc_type": { "const": "dev" } }, "required": ["doc_type"] },
+					"then": {
+						"required": ["repo"],
+						"oneOf": [
+							{ "required": ["commit_sha"] },
+							{ "required": ["pr_number"] },
+							{ "required": ["issue_number"] }
+						]
+					}
+				}
+			]
+		},
+		"content": { "type": "string" }
+	},
 	}))
 }
 
