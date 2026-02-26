@@ -41,7 +41,7 @@ unicode-script        = { version = "0.5" }
 unicode-segmentation  = { version = "1.11" }
 uuid                  = { version = "1.21", features = ["serde", "v4", "v5"] }
 vergen-gitcl          = { version = "9.1", features = ["cargo"] }
-whatlang              = { version = "0.16" }
+whatlang              = { version = "0.18" }
 
 elf-chunking  = { version = "0.2", path = "packages/elf-chunking" }
 elf-cli       = { version = "0.2", path = "packages/elf-cli" }
