@@ -13,8 +13,8 @@ Scope:
 - This schema is for provenance and deterministic filtering keys, not for
   note-level evidence pointers (`source_ref/v1`).
 
-`source_ref` is optional for `docs_put`. When omitted, the service persists an
-JSON empty object (`{}`).
+`source_ref` is required for `docs_put` and must conform to this spec.
+Legacy `{}` or non-`doc_source_ref/v1` shapes are rejected for `docs_put`.
 
 Design goals:
 - Deterministic and replayable: two independent ingesters SHOULD emit identical
@@ -115,10 +115,8 @@ Forward compatibility:
 - Consumers MUST ignore unknown keys.
 
 Backward compatibility:
-- Persisted docs MAY contain `{}` (no `source_ref`).
-- Persisted docs MAY contain older producer-specific shapes. Consumers MUST
-  treat such docs as "unfilterable by `doc_source_ref/v1` keys" unless a best-effort
-  mapping is explicitly implemented.
+- This contract is strict for `docs_put` writes. Backward-compatible fallback
+  mappings are not performed.
 
 ==================================================
 5) Examples

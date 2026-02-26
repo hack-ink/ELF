@@ -8,7 +8,7 @@ use qdrant_client::{
 	},
 };
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Map, Value};
 use sqlx::{FromRow, PgExecutor, PgPool};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use uuid::Uuid;
@@ -197,8 +197,7 @@ struct DocSearchRow {
 
 impl ElfService {
 	pub async fn docs_put(&self, req: DocsPutRequest) -> Result<DocsPutResponse> {
-		validate_docs_put(&req)?;
-
+		let doc_type = validate_docs_put(&req)?;
 		let now = OffsetDateTime::now_utc();
 		let embed_version = crate::embedding_version(&self.cfg);
 		let DocsPutRequest {
@@ -206,12 +205,11 @@ impl ElfService {
 			project_id,
 			agent_id,
 			scope,
-			doc_type,
+			doc_type: _,
 			title,
 			source_ref,
 			content,
 		} = req;
-		let doc_type = doc_type.unwrap_or_else(|| "knowledge".to_string());
 		let chunking_profile = resolve_doc_chunking_profile(doc_type.as_str());
 		let effective_project_id = if scope.trim() == "org_shared" {
 			crate::access::ORG_PROJECT_ID
@@ -641,7 +639,7 @@ fn excerpt_level_max(level: &str) -> Result<usize> {
 	}
 }
 
-fn validate_docs_put(req: &DocsPutRequest) -> Result<()> {
+fn validate_docs_put(req: &DocsPutRequest) -> Result<String> {
 	if req.content.trim().is_empty() {
 		return Err(Error::InvalidRequest { message: "content must be non-empty.".to_string() });
 	}
@@ -657,7 +655,34 @@ fn validate_docs_put(req: &DocsPutRequest) -> Result<()> {
 		return Err(Error::InvalidRequest { message: "Unknown scope.".to_string() });
 	}
 
-	if let Some(doc_type) = req.doc_type.as_ref() {
+	let source_ref = req.source_ref.as_object().ok_or_else(|| Error::InvalidRequest {
+		message: "source_ref must be a JSON object.".to_string(),
+	})?;
+	let source_ref_doc_type =
+		extract_source_ref_string(source_ref, "doc_type", "$.source_ref[\"doc_type\"]")?;
+
+	if !matches!(source_ref_doc_type.as_str(), "knowledge" | "chat" | "search" | "dev") {
+		return Err(Error::InvalidRequest {
+			message: "doc_type must be one of: knowledge, chat, search, dev.".to_string(),
+		});
+	}
+
+	let source_ref_schema =
+		extract_source_ref_string(source_ref, "schema", "$.source_ref[\"schema\"]")?;
+
+	if source_ref_schema != "doc_source_ref/v1" {
+		return Err(Error::InvalidRequest {
+			message: "source_ref.schema must be 'doc_source_ref/v1'.".to_string(),
+		});
+	}
+
+	let ts = extract_source_ref_string(source_ref, "ts", "$.source_ref[\"ts\"]")?;
+
+	OffsetDateTime::parse(ts.as_str(), &Rfc3339).map_err(|_| Error::InvalidRequest {
+		message: "$.source_ref[\"ts\"] must be an RFC3339 datetime string.".to_string(),
+	})?;
+
+	let doc_type = if let Some(doc_type) = req.doc_type.as_ref() {
 		let doc_type = doc_type.trim();
 
 		if !matches!(doc_type, "knowledge" | "chat" | "search" | "dev") {
@@ -665,6 +690,21 @@ fn validate_docs_put(req: &DocsPutRequest) -> Result<()> {
 				message: "doc_type must be one of: knowledge, chat, search, dev.".to_string(),
 			});
 		}
+		if doc_type != source_ref_doc_type {
+			return Err(Error::InvalidRequest {
+				message: "doc_type must match source_ref.doc_type.".to_string(),
+			});
+		}
+
+		doc_type.to_string()
+	} else {
+		source_ref_doc_type.clone()
+	};
+
+	validate_doc_source_ref_requirements(source_ref_doc_type.as_str(), source_ref)?;
+
+	if let Some(found) = find_non_english_path(&req.source_ref, "$.source_ref") {
+		return Err(Error::NonEnglishInput { field: found });
 	}
 
 	if !english_gate::is_english_natural_language(req.content.as_str()) {
@@ -676,8 +716,63 @@ fn validate_docs_put(req: &DocsPutRequest) -> Result<()> {
 	{
 		return Err(Error::NonEnglishInput { field: "$.title".to_string() });
 	}
-	if let Some(found) = find_non_english_path(&req.source_ref, "$.source_ref") {
-		return Err(Error::NonEnglishInput { field: found });
+
+	Ok(doc_type)
+}
+
+fn extract_source_ref_string(
+	source_ref: &Map<String, Value>,
+	key: &str,
+	path: &str,
+) -> Result<String> {
+	source_ref
+		.get(key)
+		.and_then(Value::as_str)
+		.map(|text| text.trim().to_string())
+		.filter(|text| !text.is_empty())
+		.ok_or_else(|| Error::InvalidRequest { message: format!("{path} is required.") })
+}
+
+fn validate_doc_source_ref_requirements(
+	source_doc_type: &str,
+	source_ref: &Map<String, Value>,
+) -> Result<()> {
+	match source_doc_type {
+		"chat" => {
+			extract_source_ref_string(source_ref, "thread_id", "$.source_ref[\"thread_id\"]")?;
+			extract_source_ref_string(source_ref, "role", "$.source_ref[\"role\"]")?;
+		},
+		"search" => {
+			extract_source_ref_string(source_ref, "query", "$.source_ref[\"query\"]")?;
+			extract_source_ref_string(source_ref, "url", "$.source_ref[\"url\"]")?;
+			extract_source_ref_string(source_ref, "domain", "$.source_ref[\"domain\"]")?;
+		},
+		"dev" => {
+			extract_source_ref_string(source_ref, "repo", "$.source_ref[\"repo\"]")?;
+
+			let commit_sha_present = source_ref
+				.get("commit_sha")
+				.and_then(Value::as_str)
+				.is_some_and(|value| !value.trim().is_empty());
+			let pr_number_present = source_ref
+				.get("pr_number")
+				.is_some_and(|value| value.as_i64().is_some() || value.as_u64().is_some());
+			let issue_number_present = source_ref
+				.get("issue_number")
+				.is_some_and(|value| value.as_i64().is_some() || value.as_u64().is_some());
+			let present_count =
+				commit_sha_present as u8 + pr_number_present as u8 + issue_number_present as u8;
+
+			if present_count != 1 {
+				return Err(Error::InvalidRequest {
+					message:
+						"For doc_type=dev, exactly one of commit_sha, pr_number, or issue_number is required."
+							.to_string(),
+				});
+			}
+		},
+		"knowledge" => {},
+		_ => unreachable!(),
 	}
 
 	Ok(())
@@ -1357,7 +1452,11 @@ mod tests {
 			scope: "project_shared".to_string(),
 			doc_type: Some("invalid".to_string()),
 			title: None,
-			source_ref: serde_json::json!({}),
+			source_ref: serde_json::json!({
+				"schema": "doc_source_ref/v1",
+				"doc_type": "knowledge",
+				"ts": "2026-02-25T12:00:00Z",
+			}),
 			content: "Hello world.".to_string(),
 		})
 		.expect_err("Expected invalid doc_type to be rejected.");
@@ -1502,7 +1601,199 @@ mod tests {
 	}
 
 	#[test]
-	fn validate_docs_put_allows_identifier_like_source_ref_and_rejects_free_text() {
+	fn validate_docs_put_rejects_missing_source_ref() {
+		let err = validate_docs_put(&DocsPutRequest {
+			tenant_id: "t".to_string(),
+			project_id: "p".to_string(),
+			agent_id: "a".to_string(),
+			scope: "project_shared".to_string(),
+			doc_type: Some("knowledge".to_string()),
+			title: None,
+			source_ref: serde_json::json!({"schema":"doc_source_ref/v1", "doc_type":"knowledge"}),
+			content: "Hello world.".to_string(),
+		})
+		.expect_err("Expected missing source_ref.ts to be rejected.");
+
+		match err {
+			Error::InvalidRequest { message } => assert!(message.contains("source_ref[\"ts\"]")),
+			other => panic!("Unexpected error: {other:?}"),
+		}
+	}
+
+	#[test]
+	fn validate_docs_put_rejects_non_object_source_ref() {
+		let err = validate_docs_put(&DocsPutRequest {
+			tenant_id: "t".to_string(),
+			project_id: "p".to_string(),
+			agent_id: "a".to_string(),
+			scope: "project_shared".to_string(),
+			doc_type: None,
+			title: None,
+			source_ref: serde_json::json!("legacy-shape"),
+			content: "Hello world.".to_string(),
+		})
+		.expect_err("Expected non-object source_ref to be rejected.");
+
+		match err {
+			Error::InvalidRequest { message } => {
+				assert!(message.contains("source_ref must be a JSON object"))
+			},
+			other => panic!("Unexpected error: {other:?}"),
+		}
+	}
+
+	#[test]
+	fn validate_docs_put_rejects_mismatched_request_and_source_ref_doc_type() {
+		let err = validate_docs_put(&DocsPutRequest {
+			tenant_id: "t".to_string(),
+			project_id: "p".to_string(),
+			agent_id: "a".to_string(),
+			scope: "project_shared".to_string(),
+			doc_type: Some("chat".to_string()),
+			title: None,
+			source_ref: serde_json::json!({
+				"schema": "doc_source_ref/v1",
+				"doc_type": "knowledge",
+				"ts": "2026-02-25T12:00:00Z",
+			}),
+			content: "Hello world.".to_string(),
+		})
+		.expect_err("Expected mismatched doc_type to be rejected.");
+
+		match err {
+			Error::InvalidRequest { message } => assert!(message.contains("match")),
+			other => panic!("Unexpected error: {other:?}"),
+		}
+	}
+
+	#[test]
+	fn validate_docs_put_rejects_wrong_source_ref_schema() {
+		let err = validate_docs_put(&DocsPutRequest {
+			tenant_id: "t".to_string(),
+			project_id: "p".to_string(),
+			agent_id: "a".to_string(),
+			scope: "project_shared".to_string(),
+			doc_type: None,
+			title: None,
+			source_ref: serde_json::json!({
+				"schema": "note_source_ref/v1",
+				"doc_type": "knowledge",
+				"ts": "2026-02-25T12:00:00Z",
+			}),
+			content: "Hello world.".to_string(),
+		})
+		.expect_err("Expected wrong source_ref.schema to be rejected.");
+
+		match err {
+			Error::InvalidRequest { message } => assert!(message.contains("doc_source_ref/v1")),
+			other => panic!("Unexpected error: {other:?}"),
+		}
+	}
+
+	#[test]
+	fn validate_docs_put_rejects_chat_source_ref_with_missing_thread_metadata() {
+		let err = validate_docs_put(&DocsPutRequest {
+			tenant_id: "t".to_string(),
+			project_id: "p".to_string(),
+			agent_id: "a".to_string(),
+			scope: "project_shared".to_string(),
+			doc_type: Some("chat".to_string()),
+			title: None,
+			source_ref: serde_json::json!({
+				"schema": "doc_source_ref/v1",
+				"doc_type": "chat",
+				"ts": "2026-02-25T12:00:00Z",
+			}),
+			content: "Hello world.".to_string(),
+		})
+		.expect_err("Expected chat source_ref to require thread_id/role.");
+
+		match err {
+			Error::InvalidRequest { message } => assert!(message.contains("thread_id")),
+			other => panic!("Unexpected error: {other:?}"),
+		}
+	}
+
+	#[test]
+	fn validate_docs_put_rejects_search_source_ref_with_missing_domain() {
+		let err = validate_docs_put(&DocsPutRequest {
+			tenant_id: "t".to_string(),
+			project_id: "p".to_string(),
+			agent_id: "a".to_string(),
+			scope: "project_shared".to_string(),
+			doc_type: Some("search".to_string()),
+			title: None,
+			source_ref: serde_json::json!({
+				"schema": "doc_source_ref/v1",
+				"doc_type": "search",
+				"ts": "2026-02-25T12:00:00Z",
+				"query": "test",
+				"url": "https://example.com",
+			}),
+			content: "Hello world.".to_string(),
+		})
+		.expect_err("Expected search source_ref to require domain.");
+
+		match err {
+			Error::InvalidRequest { message } => assert!(message.contains("domain")),
+			other => panic!("Unexpected error: {other:?}"),
+		}
+	}
+
+	#[test]
+	fn validate_docs_put_rejects_dev_source_ref_with_multiple_identifiers() {
+		let err = validate_docs_put(&DocsPutRequest {
+			tenant_id: "t".to_string(),
+			project_id: "p".to_string(),
+			agent_id: "a".to_string(),
+			scope: "project_shared".to_string(),
+			doc_type: Some("dev".to_string()),
+			title: None,
+			source_ref: serde_json::json!({
+				"schema": "doc_source_ref/v1",
+				"doc_type": "dev",
+				"ts": "2026-02-25T12:00:00Z",
+				"repo": "hack-ink/ELF",
+				"commit_sha": "9f0a3f4c4eb58bfcf4a5f4f9d0c7be0e13c2f8d19",
+				"issue_number": 123,
+			}),
+			content: "Hello world.".to_string(),
+		})
+		.expect_err("Expected dev source_ref to enforce exactly one identifier field.");
+
+		match err {
+			Error::InvalidRequest { message } => {
+				assert!(message.contains("exactly one of commit_sha, pr_number, or issue_number"))
+			},
+			other => panic!("Unexpected error: {other:?}"),
+		}
+	}
+
+	#[test]
+	fn validate_docs_put_uses_source_ref_doc_type_when_request_doc_type_is_absent() {
+		let resolved_doc_type = validate_docs_put(&DocsPutRequest {
+			tenant_id: "t".to_string(),
+			project_id: "p".to_string(),
+			agent_id: "a".to_string(),
+			scope: "project_shared".to_string(),
+			doc_type: None,
+			title: None,
+			source_ref: serde_json::json!({
+				"schema": "doc_source_ref/v1",
+				"doc_type": "chat",
+				"ts": "2026-02-25T12:00:00Z",
+				"thread_id": "thread-1",
+				"role": "assistant"
+			}),
+			content: "Hello world.".to_string(),
+		})
+		.expect("Expected valid source_ref to resolve doc_type.");
+
+		assert_eq!(resolved_doc_type, "chat".to_string());
+	}
+
+	#[test]
+	fn validate_docs_put_allows_doc_source_ref_v1_and_rejects_free_text() {
 		validate_docs_put(&DocsPutRequest {
 			tenant_id: "t".to_string(),
 			project_id: "p".to_string(),
@@ -1511,19 +1802,22 @@ mod tests {
 			doc_type: None,
 			title: Some("English title".to_string()),
 			source_ref: serde_json::json!({
-				"ref": "https://example.com/docs/ELF-661",
-				"schema": "documents/sources",
-				"resolver": "english-resolver",
-				"hashes": ["abc123", "def456"],
-				"state": {"name":"v1"},
+				"schema": "doc_source_ref/v1",
+				"doc_type": "knowledge",
+				"ts": "2026-02-25T12:00:00Z",
 				"notes": "English only."
 			}),
 			content: "English content.".to_string(),
 		})
-		.expect("Expected identifier-like source_ref to be accepted.");
+		.expect("Expected doc_source_ref/v1 source_ref to be accepted.");
 
 		let err = validate_docs_put(&DocsPutRequest {
-			source_ref: serde_json::json!({"notes": "\u{4f60}\u{597d}\u{4e16}\u{754c}"}),
+			source_ref: serde_json::json!({
+				"schema": "doc_source_ref/v1",
+				"doc_type": "knowledge",
+				"ts": "2026-02-25T12:00:00Z",
+				"notes": "\u{4f60}\u{597d}\u{4e16}\u{754c}"
+			}),
 			tenant_id: "t".to_string(),
 			project_id: "p".to_string(),
 			agent_id: "a".to_string(),
@@ -1540,7 +1834,12 @@ mod tests {
 		}
 
 		let err = validate_docs_put(&DocsPutRequest {
-			source_ref: serde_json::json!({"ref": "\u{4f60}\u{597d}\u{4e16}\u{754c}"}),
+			source_ref: serde_json::json!({
+				"schema": "doc_source_ref/v1",
+				"doc_type": "knowledge",
+				"ts": "2026-02-25T12:00:00Z",
+				"ref": "\u{4f60}\u{597d}\u{4e16}\u{754c}"
+			}),
 			tenant_id: "t".to_string(),
 			project_id: "p".to_string(),
 			agent_id: "a".to_string(),
