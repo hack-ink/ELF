@@ -22,14 +22,19 @@ use elf_service::{
 	AdminGraphPredicateAliasAddRequest, AdminGraphPredicateAliasesListRequest,
 	AdminGraphPredicateAliasesResponse, AdminGraphPredicatePatchRequest,
 	AdminGraphPredicateResponse, AdminGraphPredicatesListRequest, AdminGraphPredicatesListResponse,
-	DeleteRequest, DeleteResponse, DocsExcerptResponse, DocsExcerptsGetRequest, DocsGetRequest,
-	DocsGetResponse, DocsPutRequest, DocsPutResponse, DocsSearchL0Request, DocsSearchL0Response,
-	Error, EventMessage, GranteeKind, ListRequest, ListResponse, NoteFetchRequest,
-	NoteFetchResponse, PayloadLevel, PublishNoteRequest, QueryPlan, RankingRequestOverride,
-	RebuildReport, SearchDetailsRequest, SearchDetailsResult, SearchExplainRequest,
-	SearchExplainResponse, SearchIndexItem, SearchRequest, SearchResponse, SearchSessionGetRequest,
-	SearchTimelineGroup, SearchTimelineRequest, SearchTrajectoryResponse, ShareScope,
-	SpaceGrantRevokeRequest, SpaceGrantRevokeResponse, SpaceGrantUpsertRequest,
+	AdminIngestionProfileCreateRequest, AdminIngestionProfileDefaultGetRequest,
+	AdminIngestionProfileDefaultResponse, AdminIngestionProfileDefaultSetRequest,
+	AdminIngestionProfileGetRequest, AdminIngestionProfileListRequest,
+	AdminIngestionProfileResponse, AdminIngestionProfileVersionsListRequest,
+	AdminIngestionProfileVersionsListResponse, AdminIngestionProfilesListResponse, DeleteRequest,
+	DeleteResponse, DocsExcerptResponse, DocsExcerptsGetRequest, DocsGetRequest, DocsGetResponse,
+	DocsPutRequest, DocsPutResponse, DocsSearchL0Request, DocsSearchL0Response, Error,
+	EventMessage, GranteeKind, IngestionProfileSelector, ListRequest, ListResponse,
+	NoteFetchRequest, NoteFetchResponse, PayloadLevel, PublishNoteRequest, QueryPlan,
+	RankingRequestOverride, RebuildReport, SearchDetailsRequest, SearchDetailsResult,
+	SearchExplainRequest, SearchExplainResponse, SearchIndexItem, SearchRequest, SearchResponse,
+	SearchSessionGetRequest, SearchTimelineGroup, SearchTimelineRequest, SearchTrajectoryResponse,
+	ShareScope, SpaceGrantRevokeRequest, SpaceGrantRevokeResponse, SpaceGrantUpsertRequest,
 	SpaceGrantsListRequest, TextPositionSelector, TextQuoteSelector, TraceBundleGetRequest,
 	TraceBundleResponse, TraceGetRequest, TraceGetResponse, TraceRecentListRequest,
 	TraceRecentListResponse, TraceTrajectoryGetRequest, UnpublishNoteRequest, UpdateRequest,
@@ -81,6 +86,7 @@ struct NotesIngestRequest {
 struct EventsIngestRequest {
 	scope: Option<String>,
 	dry_run: Option<bool>,
+	ingestion_profile: Option<IngestionProfileSelector>,
 	messages: Vec<EventMessage>,
 }
 
@@ -177,6 +183,25 @@ struct SearchDetailsBody {
 	note_ids: Vec<Uuid>,
 	payload_level: Option<PayloadLevel>,
 	record_hits: Option<bool>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct AdminIngestionProfileCreateBody {
+	profile_id: String,
+	version: Option<i32>,
+	profile: Value,
+	created_by: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct AdminIngestionProfileGetQuery {
+	version: Option<i32>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct AdminIngestionProfileDefaultSetBody {
+	profile_id: String,
+	version: Option<i32>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -406,6 +431,23 @@ pub fn admin_router(state: AppState) -> Router {
 	let auth_state = state.clone();
 
 	Router::new()
+		.route(
+			"/v2/admin/events/ingestion-profiles/default",
+			routing::get(admin_ingestion_profile_default_get)
+				.put(admin_ingestion_profile_default_set),
+		)
+		.route(
+			"/v2/admin/events/ingestion-profiles/:profile_id/versions",
+			routing::get(admin_ingestion_profile_versions_list),
+		)
+		.route(
+			"/v2/admin/events/ingestion-profiles/:profile_id",
+			routing::get(admin_ingestion_profile_get),
+		)
+		.route(
+			"/v2/admin/events/ingestion-profiles",
+			routing::get(admin_ingestion_profiles_list).post(admin_ingestion_profile_create),
+		)
 		.route("/v2/admin/qdrant/rebuild", routing::post(rebuild_qdrant))
 		.route("/v2/admin/searches/raw", routing::post(searches_raw))
 		.route("/v2/admin/traces/recent", routing::get(trace_recent_list))
@@ -853,6 +895,7 @@ async fn events_ingest(
 			agent_id: ctx.agent_id,
 			scope: payload.scope,
 			dry_run: payload.dry_run,
+			ingestion_profile: payload.ingestion_profile,
 			messages: payload.messages,
 		})
 		.await?;
@@ -1676,6 +1719,136 @@ async fn admin_graph_predicate_aliases_list(
 			project_id: ctx.project_id,
 			agent_id: ctx.agent_id,
 			predicate_id,
+		})
+		.await?;
+
+	Ok(Json(response))
+}
+
+async fn admin_ingestion_profiles_list(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+) -> Result<Json<AdminIngestionProfilesListResponse>, ApiError> {
+	let ctx = RequestContext::from_headers(&headers)?;
+	let response = state
+		.service
+		.admin_ingestion_profiles_list(AdminIngestionProfileListRequest {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+		})
+		.await?;
+
+	Ok(Json(response))
+}
+
+async fn admin_ingestion_profile_create(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	payload: Result<Json<AdminIngestionProfileCreateBody>, JsonRejection>,
+) -> Result<Json<AdminIngestionProfileResponse>, ApiError> {
+	let ctx = RequestContext::from_headers(&headers)?;
+	let Json(payload) = payload.map_err(|err| {
+		tracing::warn!(error = %err, "Invalid request payload.");
+
+		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+	})?;
+	let response = state
+		.service
+		.admin_ingestion_profile_create(AdminIngestionProfileCreateRequest {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+			profile_id: payload.profile_id,
+			version: payload.version,
+			profile: payload.profile,
+			created_by: payload.created_by,
+		})
+		.await?;
+
+	Ok(Json(response))
+}
+
+async fn admin_ingestion_profile_get(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	Path(profile_id): Path<String>,
+	query: Result<Query<AdminIngestionProfileGetQuery>, QueryRejection>,
+) -> Result<Json<AdminIngestionProfileResponse>, ApiError> {
+	let ctx = RequestContext::from_headers(&headers)?;
+	let Query(query) = query.map_err(|err| {
+		tracing::warn!(error = %err, "Invalid query parameters.");
+
+		json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid query parameters.".to_string(),
+			None,
+		)
+	})?;
+	let response = state
+		.service
+		.admin_ingestion_profile_get(AdminIngestionProfileGetRequest {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+			profile_id,
+			version: query.version,
+		})
+		.await?;
+
+	Ok(Json(response))
+}
+
+async fn admin_ingestion_profile_versions_list(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	Path(profile_id): Path<String>,
+) -> Result<Json<AdminIngestionProfileVersionsListResponse>, ApiError> {
+	let ctx = RequestContext::from_headers(&headers)?;
+	let response = state
+		.service
+		.admin_ingestion_profile_versions_list(AdminIngestionProfileVersionsListRequest {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+			profile_id,
+		})
+		.await?;
+
+	Ok(Json(response))
+}
+
+async fn admin_ingestion_profile_default_get(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+) -> Result<Json<AdminIngestionProfileDefaultResponse>, ApiError> {
+	let ctx = RequestContext::from_headers(&headers)?;
+	let response = state
+		.service
+		.admin_ingestion_profile_default_get(AdminIngestionProfileDefaultGetRequest {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+		})
+		.await?;
+
+	Ok(Json(response))
+}
+
+async fn admin_ingestion_profile_default_set(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	payload: Result<Json<AdminIngestionProfileDefaultSetBody>, JsonRejection>,
+) -> Result<Json<AdminIngestionProfileDefaultResponse>, ApiError> {
+	let ctx = RequestContext::from_headers(&headers)?;
+	let Json(payload) = payload.map_err(|err| {
+		tracing::warn!(error = %err, "Invalid request payload.");
+
+		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+	})?;
+	let response = state
+		.service
+		.admin_ingestion_profile_default_set(AdminIngestionProfileDefaultSetRequest {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+			profile_id: payload.profile_id,
+			version: payload.version,
 		})
 		.await?;
 

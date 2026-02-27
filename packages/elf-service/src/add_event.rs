@@ -7,6 +7,7 @@ use uuid::Uuid;
 use crate::{
 	ElfService, Error, InsertVersionArgs, NoteOp, REJECT_EVIDENCE_MISMATCH,
 	REJECT_WRITE_POLICY_MISMATCH, ResolveUpdateArgs, Result, UpdateDecision, access,
+	ingestion_profiles::{IngestionProfileRef, IngestionProfileSelector},
 	structured_fields::StructuredFields,
 };
 use elf_config::Config;
@@ -40,6 +41,7 @@ pub struct AddEventRequest {
 	pub agent_id: String,
 	pub scope: Option<String>,
 	pub dry_run: Option<bool>,
+	pub ingestion_profile: Option<IngestionProfileSelector>,
 	pub messages: Vec<EventMessage>,
 }
 
@@ -58,6 +60,7 @@ pub struct AddEventResult {
 pub struct AddEventResponse {
 	pub extracted: Value,
 	pub results: Vec<AddEventResult>,
+	pub ingestion_profile: Option<IngestionProfileRef>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -152,20 +155,28 @@ impl ElfService {
 	pub async fn add_event(&self, req: AddEventRequest) -> Result<AddEventResponse> {
 		validate_add_event_request(&req)?;
 
+		let resolved_profile = crate::ingestion_profiles::resolve_add_event_profile(
+			&self.db.pool,
+			req.tenant_id.as_str(),
+			req.project_id.as_str(),
+			req.ingestion_profile.as_ref(),
+		)
+		.await?;
 		let (messages, message_policy_applied, write_policy_audits) =
 			apply_write_policies_to_messages(req.messages.as_slice())?;
 		let message_texts: Vec<String> =
 			messages.iter().map(|message| message.content.clone()).collect();
-		let messages_json = build_extractor_messages(
-			&messages,
+		let messages_json =
+			serde_json::to_string(&messages).map_err(|_| Error::InvalidRequest {
+				message: "Failed to serialize messages for extractor.".to_string(),
+			})?;
+		let extractor_messages = resolved_profile.build_extractor_messages(
+			&messages_json,
 			self.cfg.memory.max_notes_per_add_event,
 			self.cfg.memory.max_note_chars,
 		)?;
-		let extracted_raw = self
-			.providers
-			.extractor
-			.extract(&self.cfg.providers.llm_extractor, &messages_json)
-			.await?;
+		let llm_cfg = resolved_profile.resolved_llm_config(&self.cfg.providers.llm_extractor);
+		let extracted_raw = self.providers.extractor.extract(&llm_cfg, &extractor_messages).await?;
 		let max_notes = self.cfg.memory.max_notes_per_add_event as usize;
 		let mut extracted: ExtractorOutput = serde_json::from_value(extracted_raw.clone())
 			.map_err(|_| Error::InvalidRequest {
@@ -190,6 +201,7 @@ impl ElfService {
 			results.push(
 				self.process_extracted_note(
 					&req,
+					&resolved_profile.profile_ref,
 					&message_texts,
 					&message_policy_applied,
 					write_policy_audits.as_ref(),
@@ -202,13 +214,18 @@ impl ElfService {
 			);
 		}
 
-		Ok(AddEventResponse { extracted: extracted_json, results })
+		Ok(AddEventResponse {
+			extracted: extracted_json,
+			results,
+			ingestion_profile: Some(resolved_profile.profile_ref),
+		})
 	}
 
 	#[allow(clippy::too_many_arguments)]
 	async fn process_extracted_note(
 		&self,
 		req: &AddEventRequest,
+		ingestion_profile: &IngestionProfileRef,
 		message_texts: &[String],
 		message_policy_applied: &[bool],
 		write_policy_audits: Option<&Vec<WritePolicyAudit>>,
@@ -236,6 +253,7 @@ impl ElfService {
 			.record_extracted_note_rejections(
 				&mut tx,
 				&ctx,
+				ingestion_profile,
 				&note,
 				&note_data,
 				message_texts,
@@ -252,6 +270,7 @@ impl ElfService {
 		let result = self
 			.apply_extracted_note_decision(
 				req,
+				ingestion_profile,
 				&mut tx,
 				&ctx,
 				&note,
@@ -274,6 +293,7 @@ impl ElfService {
 	async fn apply_extracted_note_decision(
 		&self,
 		req: &AddEventRequest,
+		ingestion_profile: &IngestionProfileRef,
 		tx: &mut Transaction<'_, Postgres>,
 		ctx: &AddEventContext<'_>,
 		note: &ExtractedNote,
@@ -335,6 +355,10 @@ impl ElfService {
 				source_ref: serde_json::json!({
 					"evidence": note_data.evidence.clone(),
 					"reason": note_data.reason.clone().unwrap_or_default(),
+					"ingestion_profile": serde_json::json!({
+						"id": ingestion_profile.id,
+						"version": ingestion_profile.version,
+					}),
 				}),
 				now,
 				embed_version,
@@ -364,6 +388,8 @@ impl ElfService {
 			metadata.matched_dup,
 			min_confidence,
 			min_importance,
+			Some(ingestion_profile.id.as_str()),
+			Some(ingestion_profile.version),
 			note_data.structured_present,
 			note_data.graph_present,
 			write_policy_audits.cloned(),
@@ -378,6 +404,7 @@ impl ElfService {
 		&self,
 		tx: &mut Transaction<'_, Postgres>,
 		ctx: &AddEventContext<'_>,
+		ingestion_profile: &IngestionProfileRef,
 		note: &ExtractedNote,
 		note_data: &NoteProcessingData,
 		message_texts: &[String],
@@ -412,6 +439,8 @@ impl ElfService {
 				false,
 				None,
 				None,
+				Some(ingestion_profile.id.as_str()),
+				Some(ingestion_profile.version),
 				note_data.structured_present,
 				note_data.graph_present,
 				write_policy_audits.cloned(),
@@ -446,6 +475,8 @@ impl ElfService {
 				false,
 				None,
 				None,
+				Some(ingestion_profile.id.as_str()),
+				Some(ingestion_profile.version),
 				note_data.structured_present,
 				note_data.graph_present,
 				write_policy_audits.cloned(),
@@ -481,6 +512,8 @@ impl ElfService {
 				false,
 				None,
 				None,
+				Some(ingestion_profile.id.as_str()),
+				Some(ingestion_profile.version),
 				note_data.structured_present,
 				note_data.graph_present,
 				write_policy_audits.cloned(),
@@ -907,6 +940,21 @@ fn validate_add_event_request(req: &AddEventRequest) -> Result<()> {
 			message: "scope must not be empty when provided.".to_string(),
 		});
 	}
+	if let Some(profile) = req.ingestion_profile.as_ref() {
+		if profile.id.trim().is_empty() {
+			return Err(Error::InvalidRequest {
+				message: "ingestion_profile.id must not be empty.".to_string(),
+			});
+		}
+
+		if let Some(version) = profile.version
+			&& version <= 0
+		{
+			return Err(Error::InvalidRequest {
+				message: "ingestion_profile.version must be greater than zero.".to_string(),
+			});
+		}
+	}
 
 	for (idx, msg) in req.messages.iter().enumerate() {
 		if !english_gate::is_english_natural_language(msg.content.as_str()) {
@@ -1097,84 +1145,6 @@ fn extract_structured_rejection_field_path(err: &Error) -> Option<String> {
 	}
 }
 
-fn build_extractor_messages(
-	messages: &[EventMessage],
-	max_notes: u32,
-	max_note_chars: u32,
-) -> Result<Vec<Value>> {
-	let schema = serde_json::json!({
-		"notes": [
-			{
-				"type": "preference|constraint|decision|profile|fact|plan",
-				"key": "string|null",
-				"text": "English-only sentence <= MAX_NOTE_CHARS",
-				"structured": {
-					"summary": "string|null",
-					"facts": "string[]|null",
-					"concepts": "string[]|null",
-					"entities": [
-						{
-							"canonical": "string|null",
-							"kind": "string|null",
-							"aliases": "string[]|null"
-						}
-					],
-					"relations": [
-						{
-							"subject": {
-								"canonical": "string|null",
-								"kind": "string|null",
-								"aliases": "string[]|null"
-							},
-							"predicate": "string",
-							"object": {
-								"entity": {
-									"canonical": "string|null",
-									"kind": "string|null",
-									"aliases": "string[]|null"
-								},
-								"value": "string|null"
-							},
-							"valid_from": "string|null",
-							"valid_to": "string|null"
-						}
-					]
-				},
-				"importance": 0.0,
-				"confidence": 0.0,
-				"ttl_days": "number|null",
-				"scope_suggestion": "agent_private|project_shared|org_shared|null",
-				"evidence": [
-					{ "message_index": "number", "quote": "string" }
-				],
-				"reason": "string"
-			}
-		]
-	});
-	let system_prompt = "You are a memory extraction engine for an agent memory system. \
-Output must be valid JSON only and must match the provided schema exactly. \
-Extract at most MAX_NOTES high-signal, cross-session reusable memory notes from the given messages. \
-Each note must be one English sentence and must not contain any non-English text. \
-The structured field is optional. If present, summary must be short, facts must be short sentences supported by the evidence quotes, and concepts must be short phrases. \
-structured.entities and structured.relations should mirror the structured schema with optional entity and relation metadata and relation timestamps. \
-Preserve numbers, dates, percentages, currency amounts, tickers, URLs, and code snippets exactly. \
-Never store secrets or PII: API keys, tokens, private keys, seed phrases, passwords, bank IDs, personal addresses. \
-For every note, provide 1 to 2 evidence quotes copied verbatim from the input messages and include the message_index. \
-If you cannot provide verbatim evidence, omit the note. \
-If content is ephemeral or not useful long-term, return an empty notes array.";
-	let messages_json = serde_json::to_string(messages).map_err(|_| Error::InvalidRequest {
-		message: "Failed to serialize messages for extractor.".to_string(),
-	})?;
-	let user_prompt = format!(
-		"Return JSON matching this exact schema:\n{schema}\nConstraints:\n- MAX_NOTES = {max_notes}\n- MAX_NOTE_CHARS = {max_note_chars}\nHere are the messages as JSON:\n{messages_json}"
-	);
-
-	Ok(vec![
-		serde_json::json!({ "role": "system", "content": system_prompt }),
-		serde_json::json!({ "role": "user", "content": user_prompt }),
-	])
-}
-
 fn base_decision_for_update(
 	decision: &UpdateDecision,
 	structured_present: bool,
@@ -1219,6 +1189,8 @@ async fn record_ingest_decision(
 	matched_dup: bool,
 	min_confidence: Option<f32>,
 	min_importance: Option<f32>,
+	ingestion_profile_id: Option<&str>,
+	ingestion_profile_version: Option<i32>,
 	structured_present: bool,
 	graph_present: bool,
 	write_policy_audits: Option<Vec<WritePolicyAudit>>,
@@ -1248,6 +1220,8 @@ async fn record_ingest_decision(
 		policy_rule,
 		min_confidence,
 		min_importance,
+		ingestion_profile_id,
+		ingestion_profile_version,
 		write_policy_audits,
 		ts: ctx.now,
 	};
@@ -1385,8 +1359,9 @@ mod english_gate_tests {
 			agent_id: "a".to_string(),
 			scope: None,
 			dry_run: None,
-				messages: vec![EventMessage {
-					role: "user".to_string(),
+			ingestion_profile: None,
+			messages: vec![EventMessage {
+				role: "user".to_string(),
 					content: "Bonjour, je veux m'assurer que ce texte est suffisamment long et riche en lettres pour declencher la detection de langue. Merci beaucoup."
 						.to_string(),
 					ts: None,
