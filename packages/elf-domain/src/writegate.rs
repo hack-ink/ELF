@@ -1,4 +1,5 @@
 use regex::Regex;
+use serde::{Deserialize, Serialize};
 
 use crate::english_gate;
 use elf_config::Config;
@@ -13,10 +14,148 @@ pub enum RejectCode {
 	RejectEmpty,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum WriteRedaction {
+	Replace { span: WriteSpan, replacement: String },
+	Remove { span: WriteSpan },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WritePolicyError {
+	InvalidSpan,
+	OverlappingOps,
+}
+
+#[derive(Clone, Debug)]
+enum WriteOpKind {
+	Exclude,
+	Redact(String),
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct WriteSpan {
+	pub start: usize,
+	pub end: usize,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct WritePolicy {
+	#[serde(default)]
+	pub exclusions: Vec<WriteSpan>,
+	#[serde(default)]
+	pub redactions: Vec<WriteRedaction>,
+}
+
+#[derive(Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+pub struct WritePolicyResult {
+	pub transformed: String,
+	pub audit: WritePolicyAudit,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct WritePolicyAudit {
+	pub exclusions: Vec<WriteSpan>,
+	pub redactions: Vec<WriteRedactionResult>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct WriteRedactionResult {
+	pub span: WriteSpan,
+	pub replacement: String,
+}
+
 pub struct NoteInput {
 	pub note_type: String,
 	pub scope: String,
 	pub text: String,
+}
+
+#[derive(Clone, Debug)]
+struct WriteOp {
+	span: WriteSpan,
+	kind: WriteOpKind,
+}
+
+pub fn apply_write_policy(
+	text: &str,
+	policy: Option<&WritePolicy>,
+) -> Result<WritePolicyResult, WritePolicyError> {
+	let policy = match policy {
+		Some(policy) => policy,
+		None => {
+			return Ok(WritePolicyResult {
+				transformed: text.to_string(),
+				audit: WritePolicyAudit::default(),
+			});
+		},
+	};
+	let mut exclusions = policy.exclusions.clone();
+	let mut redactions = policy.redactions.clone();
+
+	if exclusions.is_empty() && redactions.is_empty() {
+		return Ok(WritePolicyResult {
+			transformed: text.to_string(),
+			audit: WritePolicyAudit::default(),
+		});
+	}
+
+	exclusions.sort_by_key(|span| (span.start, span.end));
+	redactions.sort_by_key(|r| match r {
+		WriteRedaction::Replace { span, .. } => (span.start, span.end),
+		WriteRedaction::Remove { span } => (span.start, span.end),
+	});
+
+	let mut ops = Vec::with_capacity(exclusions.len() + redactions.len());
+	let mut audit = WritePolicyAudit::default();
+
+	for span in &exclusions {
+		validate_span(text, span)?;
+
+		ops.push(WriteOp { span: *span, kind: WriteOpKind::Exclude });
+		audit.exclusions.push(*span);
+	}
+	for redaction in &redactions {
+		match redaction {
+			WriteRedaction::Remove { span } => {
+				validate_span(text, span)?;
+
+				ops.push(WriteOp { span: *span, kind: WriteOpKind::Redact(String::new()) });
+				audit
+					.redactions
+					.push(WriteRedactionResult { span: *span, replacement: String::new() });
+			},
+
+			WriteRedaction::Replace { span, replacement } => {
+				validate_span(text, span)?;
+
+				ops.push(WriteOp { span: *span, kind: WriteOpKind::Redact(replacement.clone()) });
+				audit
+					.redactions
+					.push(WriteRedactionResult { span: *span, replacement: replacement.clone() });
+			},
+		}
+	}
+
+	ops.sort_by_key(|op| (op.span.start, op.span.end));
+
+	validate_non_overlapping_ops(&ops)?;
+
+	let mut transformed = text.to_string();
+
+	for op in ops.iter().rev() {
+		match &op.kind {
+			WriteOpKind::Exclude => transformed.replace_range(op.span.start..op.span.end, ""),
+			WriteOpKind::Redact(replacement) =>
+				transformed.replace_range(op.span.start..op.span.end, replacement.as_str()),
+		}
+	}
+
+	Ok(WritePolicyResult { transformed, audit })
 }
 
 pub fn writegate(note: &NoteInput, cfg: &Config) -> Result<(), RejectCode> {
@@ -40,6 +179,34 @@ pub fn writegate(note: &NoteInput, cfg: &Config) -> Result<(), RejectCode> {
 	}
 	if contains_secrets(&note.text) {
 		return Err(RejectCode::RejectSecret);
+	}
+
+	Ok(())
+}
+
+fn validate_span(text: &str, span: &WriteSpan) -> Result<(), WritePolicyError> {
+	if span.end < span.start {
+		return Err(WritePolicyError::InvalidSpan);
+	}
+	if span.end > text.len() {
+		return Err(WritePolicyError::InvalidSpan);
+	}
+	if !text.is_char_boundary(span.start) || !text.is_char_boundary(span.end) {
+		return Err(WritePolicyError::InvalidSpan);
+	}
+
+	Ok(())
+}
+
+fn validate_non_overlapping_ops(ops: &[WriteOp]) -> Result<(), WritePolicyError> {
+	let mut last_end = 0_usize;
+
+	for op in ops {
+		if op.span.start < last_end {
+			return Err(WritePolicyError::OverlappingOps);
+		}
+
+		last_end = op.span.end;
 	}
 
 	Ok(())
@@ -81,7 +248,10 @@ fn contains_secrets(text: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-	use crate::writegate::{NoteInput, RejectCode, contains_secrets, writegate};
+	use crate::writegate::{
+		NoteInput, RejectCode, WritePolicy, WritePolicyResult, WriteRedaction,
+		WriteRedactionResult, apply_write_policy, contains_secrets, writegate,
+	};
 	use elf_config::{
 		Chunking, Config, EmbeddingProviderConfig, Lifecycle, LlmProviderConfig, Memory,
 		MemoryPolicy, Postgres, ProviderConfig, Providers, Qdrant, Ranking, RankingBlend,
@@ -312,5 +482,55 @@ mod tests {
 	#[test]
 	fn detects_secret_patterns() {
 		assert!(contains_secrets("password: hunter2"));
+	}
+
+	#[test]
+	fn applies_empty_policy_as_noop() {
+		let policy = WritePolicy::default();
+
+		assert_eq!(
+			apply_write_policy("keep this", Some(&policy)),
+			Ok(WritePolicyResult {
+				transformed: "keep this".to_string(),
+				..WritePolicyResult::default()
+			})
+		);
+	}
+
+	#[test]
+	fn applies_exclusion_span() {
+		let policy = WritePolicy {
+			exclusions: vec![crate::writegate::WriteSpan { start: 4, end: 9 }],
+			redactions: vec![],
+		};
+		let actual =
+			apply_write_policy("hello world", Some(&policy)).expect("policy apply should succeed");
+
+		assert_eq!(actual.transformed, "hellld");
+		assert_eq!(actual.audit.exclusions, vec![crate::writegate::WriteSpan { start: 4, end: 9 }]);
+		assert!(actual.audit.redactions.is_empty());
+	}
+
+	#[test]
+	fn applies_simple_replacement_redaction() {
+		let policy = WritePolicy {
+			exclusions: vec![],
+			redactions: vec![WriteRedaction::Replace {
+				span: crate::writegate::WriteSpan { start: 4, end: 5 },
+				replacement: "***".to_string(),
+			}],
+		};
+		let actual =
+			apply_write_policy("secret", Some(&policy)).expect("policy apply should succeed");
+
+		assert_eq!(actual.transformed, "secr***t");
+		assert_eq!(
+			actual.audit.redactions,
+			vec![WriteRedactionResult {
+				span: crate::writegate::WriteSpan { start: 4, end: 5 },
+				replacement: "***".to_string(),
+			}]
+		);
+		assert!(actual.audit.exclusions.is_empty());
 	}
 }

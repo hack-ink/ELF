@@ -9,7 +9,12 @@ use crate::{
 	UpdateDecisionMetadata, access, structured_fields::StructuredFields,
 };
 use elf_config::Config;
-use elf_domain::{english_gate, memory_policy::MemoryPolicyDecision, ttl};
+use elf_domain::{
+	english_gate,
+	memory_policy::MemoryPolicyDecision,
+	ttl,
+	writegate::{WritePolicy, WritePolicyAudit, WritePolicyError},
+};
 use elf_storage::models::MemoryNote;
 
 const REJECT_STRUCTURED_INVALID: &str = "REJECT_STRUCTURED_INVALID";
@@ -36,6 +41,7 @@ pub struct AddNoteInput {
 	pub ttl_days: Option<i64>,
 	#[serde(default = "default_source_ref")]
 	pub source_ref: Value,
+	pub write_policy: Option<WritePolicy>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -45,6 +51,7 @@ pub struct AddNoteResult {
 	pub policy_decision: MemoryPolicyDecision,
 	pub reason_code: Option<String>,
 	pub field_path: Option<String>,
+	pub write_policy_audit: Option<WritePolicyAudit>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -96,11 +103,19 @@ impl ElfService {
 		ctx: &AddNoteContext<'_>,
 		note: AddNoteInput,
 	) -> Result<AddNoteResult> {
+		let mut note = note;
+		let (transformed, write_policy_audit) =
+			apply_write_policy_to_note(note.write_policy.as_ref(), note.text.as_str())?;
+
+		note.text = transformed;
+
 		let (structured_present, graph_present) =
 			Self::structured_and_graph_present(note.structured.as_ref());
 		let mut tx = self.db.pool.begin().await?;
 
-		if let Some(result) = self.handle_rejection_paths(&mut tx, ctx, &note).await? {
+		if let Some(result) =
+			self.handle_rejection_paths(&mut tx, ctx, &note, write_policy_audit.as_ref()).await?
+		{
 			tx.commit().await?;
 
 			return Ok(result);
@@ -125,6 +140,9 @@ impl ElfService {
 				ignore_reason_code,
 			)
 			.await?;
+		let mut result = result;
+
+		result.write_policy_audit = write_policy_audit.clone();
 
 		self.record_ingest_decision(
 			&mut tx,
@@ -141,6 +159,7 @@ impl ElfService {
 			metadata.matched_dup,
 			min_confidence,
 			min_importance,
+			write_policy_audit,
 		)
 		.await?;
 		tx.commit().await?;
@@ -160,8 +179,13 @@ impl ElfService {
 		tx: &mut Transaction<'_, Postgres>,
 		ctx: &AddNoteContext<'_>,
 		note: &AddNoteInput,
+		write_policy_audit: Option<&WritePolicyAudit>,
 	) -> Result<Option<AddNoteResult>> {
 		if let Some(result) = reject_note_if_structured_invalid(note) {
+			let mut result = result;
+
+			result.write_policy_audit = write_policy_audit.cloned();
+
 			self.record_ingest_decision(
 				tx,
 				ctx,
@@ -177,12 +201,17 @@ impl ElfService {
 				false,
 				None,
 				None,
+				write_policy_audit.cloned(),
 			)
 			.await?;
 
 			return Ok(Some(result));
 		}
 		if let Some(result) = reject_note_if_writegate_rejects(&self.cfg, ctx.scope, note) {
+			let mut result = result;
+
+			result.write_policy_audit = write_policy_audit.cloned();
+
 			self.record_ingest_decision(
 				tx,
 				ctx,
@@ -198,6 +227,7 @@ impl ElfService {
 				false,
 				None,
 				None,
+				write_policy_audit.cloned(),
 			)
 			.await?;
 
@@ -304,6 +334,7 @@ impl ElfService {
 						policy_decision,
 						reason_code: None,
 						field_path: None,
+						write_policy_audit: None,
 					}
 				},
 				UpdateDecision::Update { .. } =>
@@ -344,6 +375,7 @@ impl ElfService {
 				policy_decision,
 				reason_code: ignore_reason_code.map(str::to_string),
 				field_path: None,
+				write_policy_audit: None,
 			};
 
 			match decision {
@@ -374,6 +406,7 @@ impl ElfService {
 		matched_dup: bool,
 		min_confidence: Option<f32>,
 		min_importance: Option<f32>,
+		write_policy_audit: Option<WritePolicyAudit>,
 	) -> Result<()> {
 		let decision = crate::ingest_audit::IngestAuditArgs {
 			tenant_id: ctx.tenant_id,
@@ -400,6 +433,7 @@ impl ElfService {
 			policy_rule,
 			min_confidence,
 			min_importance,
+			write_policy_audits: write_policy_audit.map(|audit| vec![audit]),
 			ts: ctx.now,
 		};
 
@@ -556,6 +590,7 @@ impl ElfService {
 				policy_decision: MemoryPolicyDecision::Ignore,
 				reason_code: None,
 				field_path: None,
+				write_policy_audit: None,
 			});
 		}
 
@@ -617,6 +652,7 @@ impl ElfService {
 			policy_decision,
 			reason_code: None,
 			field_path: None,
+			write_policy_audit: None,
 		})
 	}
 
@@ -676,6 +712,7 @@ impl ElfService {
 				policy_decision,
 				reason_code: None,
 				field_path: None,
+				write_policy_audit: None,
 			});
 		}
 
@@ -685,6 +722,7 @@ impl ElfService {
 			policy_decision,
 			reason_code: None,
 			field_path: None,
+			write_policy_audit: None,
 		})
 	}
 
@@ -809,6 +847,7 @@ fn reject_note_if_structured_invalid(note: &AddNoteInput) -> Option<AddNoteResul
 			policy_decision: MemoryPolicyDecision::Reject,
 			reason_code: Some(REJECT_STRUCTURED_INVALID.to_string()),
 			field_path,
+			write_policy_audit: None,
 		});
 	}
 
@@ -833,10 +872,27 @@ fn reject_note_if_writegate_rejects(
 			policy_decision: MemoryPolicyDecision::Reject,
 			reason_code: Some(crate::writegate_reason_code(code).to_string()),
 			field_path: None,
+			write_policy_audit: None,
 		});
 	}
 
 	None
+}
+
+fn apply_write_policy_to_note(
+	policy: Option<&WritePolicy>,
+	text: &str,
+) -> Result<(String, Option<WritePolicyAudit>)> {
+	let result = elf_domain::writegate::apply_write_policy(text, policy).map_err(|err| {
+		let message = match err {
+			WritePolicyError::InvalidSpan => "Invalid write_policy span provided.",
+			WritePolicyError::OverlappingOps => "Overlapping write_policy spans provided.",
+		};
+
+		Error::InvalidRequest { message: message.to_string() }
+	})?;
+
+	Ok((result.transformed, policy.is_some().then_some(result.audit)))
 }
 
 fn find_non_english_path_in_structured(
@@ -1145,6 +1201,7 @@ mod english_gate_tests {
 				confidence: 0.9,
 				ttl_days: None,
 				source_ref: serde_json::json!({"ref": "packages/elf-service/src/docs.rs:661"}),
+				write_policy: None,
 			}],
 		})
 		.expect("Expected identifier-like source_ref to be accepted.");
@@ -1166,6 +1223,7 @@ mod english_gate_tests {
 				confidence: 0.9,
 				ttl_days: None,
 				source_ref: serde_json::json!({"hints": {"quote": "\u{4f60}\u{597d}\u{4e16}\u{754c}"}}),
+				write_policy: None,
 			}],
 		};
 		let err = validate_add_note_request(&req).expect_err(
@@ -1192,13 +1250,14 @@ mod english_gate_tests {
 				key: Some("test_key".to_string()),
 				text: "Bonjour, je veux m'assurer que ce texte est suffisamment long et riche en lettres pour declencher la detection de langue. Merci beaucoup."
 					.to_string(),
-				structured: None,
-				importance: 0.5,
-				confidence: 0.9,
-				ttl_days: None,
-				source_ref: serde_json::json!({}),
-			}],
-		};
+					structured: None,
+					importance: 0.5,
+					confidence: 0.9,
+					ttl_days: None,
+					source_ref: serde_json::json!({}),
+					write_policy: None,
+				}],
+			};
 		let err = validate_add_note_request(&req).expect_err("Expected English gate rejection.");
 
 		assert!(matches!(

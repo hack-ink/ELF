@@ -82,6 +82,7 @@ use elf_storage::{db::Db, models::MemoryNote, qdrant::QdrantStore};
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
 pub const REJECT_EVIDENCE_MISMATCH: &str = "REJECT_EVIDENCE_MISMATCH";
+pub const REJECT_WRITE_POLICY_MISMATCH: &str = "REJECT_WRITE_POLICY_MISMATCH";
 
 const RESOLVE_UPDATE_QUERY: &str = "\
 WITH key_match AS (

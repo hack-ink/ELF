@@ -3,7 +3,7 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 use crate::{NoteOp, Result};
-use elf_domain::memory_policy::MemoryPolicyDecision;
+use elf_domain::{memory_policy::MemoryPolicyDecision, writegate::WritePolicyAudit};
 
 pub(crate) struct IngestAuditArgs<'a> {
 	pub tenant_id: &'a str,
@@ -30,6 +30,7 @@ pub(crate) struct IngestAuditArgs<'a> {
 	pub policy_rule: Option<&'a str>,
 	pub min_confidence: Option<f32>,
 	pub min_importance: Option<f32>,
+	pub write_policy_audits: Option<Vec<WritePolicyAudit>>,
 	pub ts: OffsetDateTime,
 }
 
@@ -62,6 +63,7 @@ pub(crate) async fn insert_ingest_decision(
 		policy_rule,
 		min_confidence,
 		min_importance,
+		write_policy_audits,
 		ts,
 	} = args;
 
@@ -112,6 +114,7 @@ VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)",
 		"policy_rule": policy_rule,
 		"min_confidence": min_confidence,
 		"min_importance": min_importance,
+		"write_policy_audits": write_policy_audits,
 	}))
 	.bind(ts)
 	.execute(&mut **tx)

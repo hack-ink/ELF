@@ -54,6 +54,7 @@ async fn add_note_is_idempotent() {
 			confidence: 0.9,
 			ttl_days: None,
 			source_ref: serde_json::json!({}),
+			write_policy: None,
 		}],
 	};
 	let first = service.add_note(request.clone()).await.expect("First add_note failed.");

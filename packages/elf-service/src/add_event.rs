@@ -5,16 +5,20 @@ use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
 use crate::{
-	ElfService, Error, InsertVersionArgs, NoteOp, REJECT_EVIDENCE_MISMATCH, ResolveUpdateArgs,
-	Result, UpdateDecision, access, structured_fields::StructuredFields,
+	ElfService, Error, InsertVersionArgs, NoteOp, REJECT_EVIDENCE_MISMATCH,
+	REJECT_WRITE_POLICY_MISMATCH, ResolveUpdateArgs, Result, UpdateDecision, access,
+	structured_fields::StructuredFields,
 };
 use elf_config::Config;
 use elf_domain::{
 	english_gate, evidence,
 	memory_policy::{self, MemoryPolicyDecision},
 	ttl,
+	writegate::{WritePolicy, WritePolicyAudit, WritePolicyError},
 };
 use elf_storage::models::MemoryNote;
+
+type ProcessedEventOutput = (Vec<EventMessage>, Vec<bool>, Option<Vec<WritePolicyAudit>>);
 
 const REJECT_STRUCTURED_INVALID: &str = "REJECT_STRUCTURED_INVALID";
 const IGNORE_DUPLICATE: &str = "IGNORE_DUPLICATE";
@@ -26,6 +30,7 @@ pub struct EventMessage {
 	pub content: String,
 	pub ts: Option<String>,
 	pub msg_id: Option<String>,
+	pub write_policy: Option<WritePolicy>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -46,6 +51,7 @@ pub struct AddEventResult {
 	pub reason_code: Option<String>,
 	pub reason: Option<String>,
 	pub field_path: Option<String>,
+	pub write_policy_audits: Option<Vec<WritePolicyAudit>>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -146,8 +152,12 @@ impl ElfService {
 	pub async fn add_event(&self, req: AddEventRequest) -> Result<AddEventResponse> {
 		validate_add_event_request(&req)?;
 
+		let (messages, message_policy_applied, write_policy_audits) =
+			apply_write_policies_to_messages(req.messages.as_slice())?;
+		let message_texts: Vec<String> =
+			messages.iter().map(|message| message.content.clone()).collect();
 		let messages_json = build_extractor_messages(
-			&req.messages,
+			&messages,
 			self.cfg.memory.max_notes_per_add_event,
 			self.cfg.memory.max_note_chars,
 		)?;
@@ -172,7 +182,6 @@ impl ElfService {
 		let base_now = OffsetDateTime::now_utc();
 		let embed_version = crate::embedding_version(&self.cfg);
 		let dry_run = req.dry_run.unwrap_or(false);
-		let message_texts: Vec<String> = req.messages.iter().map(|m| m.content.clone()).collect();
 		let mut results = Vec::with_capacity(extracted.notes.len());
 
 		for (note_idx, note) in extracted.notes.into_iter().enumerate() {
@@ -182,6 +191,8 @@ impl ElfService {
 				self.process_extracted_note(
 					&req,
 					&message_texts,
+					&message_policy_applied,
+					write_policy_audits.as_ref(),
 					note,
 					now,
 					embed_version.as_str(),
@@ -194,10 +205,13 @@ impl ElfService {
 		Ok(AddEventResponse { extracted: extracted_json, results })
 	}
 
+	#[allow(clippy::too_many_arguments)]
 	async fn process_extracted_note(
 		&self,
 		req: &AddEventRequest,
 		message_texts: &[String],
+		message_policy_applied: &[bool],
+		write_policy_audits: Option<&Vec<WritePolicyAudit>>,
 		note: ExtractedNote,
 		now: OffsetDateTime,
 		embed_version: &str,
@@ -219,7 +233,15 @@ impl ElfService {
 		let mut tx = self.db.pool.begin().await?;
 
 		if let Some(result) = self
-			.record_extracted_note_rejections(&mut tx, &ctx, &note, &note_data, message_texts)
+			.record_extracted_note_rejections(
+				&mut tx,
+				&ctx,
+				&note,
+				&note_data,
+				message_texts,
+				message_policy_applied,
+				write_policy_audits,
+			)
 			.await?
 		{
 			tx.commit().await?;
@@ -227,8 +249,43 @@ impl ElfService {
 			return Ok(result);
 		}
 
-		let decision =
-			self.resolve_extracted_note_update(&note, req, &note_data, &mut tx, now).await?;
+		let result = self
+			.apply_extracted_note_decision(
+				req,
+				&mut tx,
+				&ctx,
+				&note,
+				&note_data,
+				note_data.note_type.as_str(),
+				effective_project_id,
+				now,
+				embed_version,
+				dry_run,
+				write_policy_audits,
+			)
+			.await?;
+
+		tx.commit().await?;
+
+		Ok(result)
+	}
+
+	#[allow(clippy::too_many_arguments)]
+	async fn apply_extracted_note_decision(
+		&self,
+		req: &AddEventRequest,
+		tx: &mut Transaction<'_, Postgres>,
+		ctx: &AddEventContext<'_>,
+		note: &ExtractedNote,
+		note_data: &NoteProcessingData,
+		note_type: &str,
+		project_id: &str,
+		now: OffsetDateTime,
+		embed_version: &str,
+		dry_run: bool,
+		write_policy_audits: Option<&Vec<WritePolicyAudit>>,
+	) -> Result<AddEventResult> {
+		let decision = self.resolve_extracted_note_update(note, req, note_data, tx, now).await?;
 		let metadata = decision.metadata();
 		let base_decision = base_decision_for_update(
 			&decision,
@@ -236,7 +293,7 @@ impl ElfService {
 			note_data.graph_present,
 		);
 		let (policy_decision, decision_policy_rule, min_confidence, min_importance) =
-			resolve_policy_for_update(&self.cfg, &note_data, base_decision);
+			resolve_policy_for_update(&self.cfg, note_data, base_decision);
 		let ignore_reason_code =
 			ignore_reason_code_for_policy(base_decision, policy_decision, metadata.matched_dup);
 		let should_apply = matches!(
@@ -260,11 +317,11 @@ impl ElfService {
 		if should_apply && !dry_run {
 			let persist_args = PersistExtractedNoteArgs {
 				req,
-				project_id: effective_project_id,
+				project_id,
 				structured: note_data.structured.as_ref(),
 				key: note.key.as_deref(),
 				reason: note.reason.as_ref(),
-				note_type: note_data.note_type.as_str(),
+				note_type,
 				text: note_data.text.as_str(),
 				scope: note_data.scope.as_str(),
 				importance: note_data.importance,
@@ -284,15 +341,17 @@ impl ElfService {
 			};
 
 			result = self
-				.persist_extracted_note_decision(&mut tx, persist_args, decision, policy_decision)
+				.persist_extracted_note_decision(tx, persist_args, decision, policy_decision)
 				.await?;
 		}
 
+		result.write_policy_audits = write_policy_audits.cloned();
+
 		record_ingest_decision(
-			&mut tx,
+			tx,
 			&self.cfg,
-			&ctx,
-			&note,
+			ctx,
+			note,
 			note_data.note_type.as_str(),
 			result.note_id,
 			base_decision,
@@ -307,14 +366,14 @@ impl ElfService {
 			min_importance,
 			note_data.structured_present,
 			note_data.graph_present,
+			write_policy_audits.cloned(),
 		)
 		.await?;
-
-		tx.commit().await?;
 
 		Ok(result)
 	}
 
+	#[allow(clippy::too_many_arguments)]
 	async fn record_extracted_note_rejections(
 		&self,
 		tx: &mut Transaction<'_, Postgres>,
@@ -322,72 +381,20 @@ impl ElfService {
 		note: &ExtractedNote,
 		note_data: &NoteProcessingData,
 		message_texts: &[String],
+		message_policy_applied: &[bool],
+		write_policy_audits: Option<&Vec<WritePolicyAudit>>,
 	) -> Result<Option<AddEventResult>> {
 		if let Some(result) = reject_extracted_note_if_evidence_invalid(
 			&self.cfg,
 			note.reason.as_ref(),
 			&note_data.evidence,
 			message_texts,
+			message_policy_applied,
 		) {
-			record_ingest_decision(
-				tx,
-				&self.cfg,
-				ctx,
-				note,
-				note_data.note_type.as_str(),
-				None,
-				MemoryPolicyDecision::Reject,
-				MemoryPolicyDecision::Reject,
-				NoteOp::Rejected,
-				Some(REJECT_EVIDENCE_MISMATCH),
-				None,
-				None,
-				false,
-				false,
-				None,
-				None,
-				note_data.structured_present,
-				note_data.graph_present,
-			)
-			.await?;
+			let mut result = result;
 
-			return Ok(Some(result));
-		} else if let Some(result) = reject_extracted_note_if_structured_invalid(
-			note_data.structured.as_ref(),
-			note_data.text.as_str(),
-			&note_data.evidence,
-			note.reason.as_ref(),
-		) {
-			record_ingest_decision(
-				tx,
-				&self.cfg,
-				ctx,
-				note,
-				note_data.note_type.as_str(),
-				None,
-				MemoryPolicyDecision::Reject,
-				MemoryPolicyDecision::Reject,
-				NoteOp::Rejected,
-				Some(REJECT_STRUCTURED_INVALID),
-				None,
-				None,
-				false,
-				false,
-				None,
-				None,
-				note_data.structured_present,
-				note_data.graph_present,
-			)
-			.await?;
+			result.write_policy_audits = write_policy_audits.cloned();
 
-			return Ok(Some(result));
-		} else if let Some(result) = reject_extracted_note_if_writegate_rejects(
-			&self.cfg,
-			note.reason.as_ref(),
-			note_data.note_type.as_str(),
-			note_data.scope.as_str(),
-			note_data.text.as_str(),
-		) {
 			record_ingest_decision(
 				tx,
 				&self.cfg,
@@ -407,6 +414,76 @@ impl ElfService {
 				None,
 				note_data.structured_present,
 				note_data.graph_present,
+				write_policy_audits.cloned(),
+			)
+			.await?;
+
+			return Ok(Some(result));
+		} else if let Some(result) = reject_extracted_note_if_structured_invalid(
+			note_data.structured.as_ref(),
+			note_data.text.as_str(),
+			&note_data.evidence,
+			note.reason.as_ref(),
+		) {
+			let mut result = result;
+
+			result.write_policy_audits = write_policy_audits.cloned();
+
+			record_ingest_decision(
+				tx,
+				&self.cfg,
+				ctx,
+				note,
+				note_data.note_type.as_str(),
+				None,
+				MemoryPolicyDecision::Reject,
+				MemoryPolicyDecision::Reject,
+				NoteOp::Rejected,
+				Some(REJECT_STRUCTURED_INVALID),
+				None,
+				None,
+				false,
+				false,
+				None,
+				None,
+				note_data.structured_present,
+				note_data.graph_present,
+				write_policy_audits.cloned(),
+			)
+			.await?;
+
+			return Ok(Some(result));
+		} else if let Some(result) = reject_extracted_note_if_writegate_rejects(
+			&self.cfg,
+			note.reason.as_ref(),
+			note_data.note_type.as_str(),
+			note_data.scope.as_str(),
+			note_data.text.as_str(),
+		) {
+			let mut result = result;
+
+			result.write_policy_audits = write_policy_audits.cloned();
+
+			record_ingest_decision(
+				tx,
+				&self.cfg,
+				ctx,
+				note,
+				note_data.note_type.as_str(),
+				None,
+				MemoryPolicyDecision::Reject,
+				MemoryPolicyDecision::Reject,
+				NoteOp::Rejected,
+				result.reason_code.as_deref(),
+				None,
+				None,
+				false,
+				false,
+				None,
+				None,
+				note_data.structured_present,
+				note_data.graph_present,
+				write_policy_audits.cloned(),
 			)
 			.await?;
 
@@ -549,6 +626,7 @@ impl ElfService {
 			reason_code: None,
 			reason: args.reason.cloned(),
 			field_path: None,
+			write_policy_audits: None,
 		})
 	}
 
@@ -633,6 +711,7 @@ impl ElfService {
 			reason_code: None,
 			reason: args.reason.cloned(),
 			field_path: None,
+			write_policy_audits: None,
 		})
 	}
 
@@ -694,6 +773,7 @@ impl ElfService {
 				reason_code: None,
 				reason: args.reason.cloned(),
 				field_path: None,
+				write_policy_audits: None,
 			});
 		}
 
@@ -704,6 +784,7 @@ impl ElfService {
 			reason_code: None,
 			reason: args.reason.cloned(),
 			field_path: None,
+			write_policy_audits: None,
 		})
 	}
 }
@@ -765,6 +846,7 @@ fn build_result_from_decision(
 			reason_code: None,
 			reason,
 			field_path: None,
+			write_policy_audits: None,
 		},
 		UpdateDecision::Update { note_id, .. } => AddEventResult {
 			note_id: Some(*note_id),
@@ -773,6 +855,7 @@ fn build_result_from_decision(
 			reason_code: None,
 			reason,
 			field_path: None,
+			write_policy_audits: None,
 		},
 		UpdateDecision::None { note_id, .. } => AddEventResult {
 			note_id: Some(*note_id),
@@ -781,6 +864,7 @@ fn build_result_from_decision(
 			reason_code: None,
 			reason,
 			field_path: None,
+			write_policy_audits: None,
 		},
 	}
 }
@@ -833,11 +917,59 @@ fn validate_add_event_request(req: &AddEventRequest) -> Result<()> {
 	Ok(())
 }
 
+fn apply_write_policies_to_messages(messages: &[EventMessage]) -> Result<ProcessedEventOutput> {
+	let mut message_policy_applied = Vec::with_capacity(messages.len());
+	let mut write_policy_audits = Vec::new();
+	let mut transformed_messages = Vec::with_capacity(messages.len());
+
+	for message in messages {
+		let (transformed_message, audit) = apply_write_policy_to_message(message)?;
+
+		message_policy_applied.push(audit.is_some());
+
+		if let Some(audit) = audit {
+			write_policy_audits.push(audit);
+		}
+
+		transformed_messages.push(transformed_message);
+	}
+
+	Ok((
+		transformed_messages,
+		message_policy_applied,
+		if write_policy_audits.is_empty() { None } else { Some(write_policy_audits) },
+	))
+}
+
+fn apply_write_policy_to_message(
+	message: &EventMessage,
+) -> Result<(EventMessage, Option<WritePolicyAudit>)> {
+	let result = elf_domain::writegate::apply_write_policy(
+		message.content.as_str(),
+		message.write_policy.as_ref(),
+	)
+	.map_err(|err| {
+		let message = match err {
+			WritePolicyError::InvalidSpan => "Invalid write_policy span provided.",
+			WritePolicyError::OverlappingOps => "Overlapping write_policy spans provided.",
+		};
+
+		Error::InvalidRequest { message: message.to_string() }
+	})?;
+	let has_policy = message.write_policy.is_some();
+	let mut transformed = message.clone();
+
+	transformed.content = result.transformed;
+
+	Ok((transformed, if has_policy { Some(result.audit) } else { None }))
+}
+
 fn reject_extracted_note_if_evidence_invalid(
 	cfg: &Config,
 	reason: Option<&String>,
 	evidence: &[EvidenceQuote],
 	message_texts: &[String],
+	message_policy_applied: &[bool],
 ) -> Option<AddEventResult> {
 	if evidence.is_empty()
 		|| evidence.len() < cfg.security.evidence_min_quotes as usize
@@ -850,6 +982,7 @@ fn reject_extracted_note_if_evidence_invalid(
 			reason_code: Some(REJECT_EVIDENCE_MISMATCH.to_string()),
 			reason: reason.cloned(),
 			field_path: None,
+			write_policy_audits: None,
 		});
 	}
 
@@ -862,16 +995,25 @@ fn reject_extracted_note_if_evidence_invalid(
 				reason_code: Some(REJECT_EVIDENCE_MISMATCH.to_string()),
 				reason: reason.cloned(),
 				field_path: None,
+				write_policy_audits: None,
 			});
 		}
 		if !evidence::evidence_matches(message_texts, quote.message_index, quote.quote.as_str()) {
+			let reason_code =
+				message_policy_applied.get(quote.message_index).is_some_and(|applied| *applied);
+
 			return Some(AddEventResult {
 				note_id: None,
 				op: NoteOp::Rejected,
 				policy_decision: MemoryPolicyDecision::Reject,
-				reason_code: Some(REJECT_EVIDENCE_MISMATCH.to_string()),
+				reason_code: Some(if reason_code {
+					REJECT_WRITE_POLICY_MISMATCH.to_string()
+				} else {
+					REJECT_EVIDENCE_MISMATCH.to_string()
+				}),
 				reason: reason.cloned(),
 				field_path: None,
+				write_policy_audits: None,
 			});
 		}
 	}
@@ -911,6 +1053,7 @@ fn reject_extracted_note_if_structured_invalid(
 			reason_code: Some(REJECT_STRUCTURED_INVALID.to_string()),
 			reason: reason.cloned(),
 			field_path,
+			write_policy_audits: None,
 		});
 	}
 
@@ -938,6 +1081,7 @@ fn reject_extracted_note_if_writegate_rejects(
 			reason_code: Some(crate::writegate_reason_code(code).to_string()),
 			reason: reason.cloned(),
 			field_path: None,
+			write_policy_audits: None,
 		});
 	}
 
@@ -1077,6 +1221,7 @@ async fn record_ingest_decision(
 	min_importance: Option<f32>,
 	structured_present: bool,
 	graph_present: bool,
+	write_policy_audits: Option<Vec<WritePolicyAudit>>,
 ) -> Result<()> {
 	let args = crate::ingest_audit::IngestAuditArgs {
 		tenant_id: ctx.tenant_id,
@@ -1103,6 +1248,7 @@ async fn record_ingest_decision(
 		policy_rule,
 		min_confidence,
 		min_importance,
+		write_policy_audits,
 		ts: ctx.now,
 	};
 
@@ -1239,14 +1385,15 @@ mod english_gate_tests {
 			agent_id: "a".to_string(),
 			scope: None,
 			dry_run: None,
-			messages: vec![EventMessage {
-				role: "user".to_string(),
-				content: "Bonjour, je veux m'assurer que ce texte est suffisamment long et riche en lettres pour declencher la detection de langue. Merci beaucoup."
-					.to_string(),
-				ts: None,
-				msg_id: None,
-			}],
-		};
+				messages: vec![EventMessage {
+					role: "user".to_string(),
+					content: "Bonjour, je veux m'assurer que ce texte est suffisamment long et riche en lettres pour declencher la detection de langue. Merci beaucoup."
+						.to_string(),
+					ts: None,
+					msg_id: None,
+					write_policy: None,
+				}],
+			};
 		let err = validate_add_event_request(&req).expect_err("Expected English gate rejection.");
 
 		assert!(matches!(
