@@ -47,7 +47,12 @@ Allowed/expected stage names (in order):
    Ensures returned vector size matches the configured model/vector size.
 
 4. `vector_search`  
-   Raw candidate retrieval from Qdrant.
+   Dense and optional sparse retrieval from Qdrant.
+   Dense retrieval runs first on every request; sparse retrieval is controlled by
+   `sparse_mode` (`auto`, `on`, `off`).
+   - `auto`: sparse retrieval only for symbol-heavy / exact-match style queries.
+   - `on`: always run both dense and sparse retrieval.
+   - `off`: dense-only retrieval.
 
 5. `dedupe`  
    Chunk-id deduplication between retrieval tiers.
@@ -56,7 +61,9 @@ Allowed/expected stage names (in order):
    Document/chunk metadata hydration from Postgres.
 
 7. `result_projection`  
-   Final scored item projection and output truncation.
+   Final scored item projection and output truncation.  
+   Implementations apply a recency tie-break using `updated_at` and expose the
+   policy knobs in stage stats when available (`recency_tau_days`, `tie_breaker_weight`).
 
 8. `level_selection` (excerpts only)  
    `L0|L1|L2` selection and byte budget.
@@ -89,16 +96,51 @@ and `stage_name` values should be non-empty and meaningful for downstream reader
     {
       "stage_order": 1,
       "stage_name": "vector_search",
-      "stats": { "raw_points": 12 }
+      "stats": {
+        "sparse_mode": "auto",
+        "channels": ["dense"],
+        "dense_raw_points": 24,
+        "sparse_raw_points": 0,
+        "raw_points": 24
+      }
     },
     {
       "stage_order": 2,
       "stage_name": "result_projection",
-      "stats": { "returned_items": 5, "pre_authorization_candidates": 8 }
+      "stats": {
+        "returned_items": 5,
+        "pre_authorization_candidates": 8,
+        "recency_tau_days": 60,
+        "tie_breaker_weight": 0.12
+      }
     }
   ]
 }
 ```
+
+==================================================
+5) Evaluation Scenarios
+==================================================
+
+- English dense-first over mixed-language docs (expected dense-first)
+  - Request `sparse_mode` omitted or `off` for a normal English query.
+  - Example: natural-language question with low symbol density from mixed `chat/dev` content.
+  - `trajectory.stages.vector_search` should show `channels=["dense"]` and `sparse_raw_points=0` (or absent).
+  - `trajectory.stages.result_projection` should show normal ranking output and no symbolic jump from sparse-only terms.
+
+- Exact-match cases (`auto` vs `on`)
+  - Query contains symbols / identifiers (`/`, `:`, `#`, hex, URLs, error codes like `ERR_...`, full stack traces, full identifiers).
+  - With `sparse_mode=auto`, expect `channels=["dense"]` for generic prose and `channels` may include `"sparse"` when the query is symbol-heavy.
+  - With `sparse_mode=on`, expect `channels` to include both `"dense"` and `"sparse"` even if `auto` would stay dense-only.
+  - Compare `vector_search.raw_points` and `result_projection` stability across modes for the same corpus; `sparse_mode=on` should improve retrieval of exact token patterns in symbol-heavy queries.
+
+- Recency bias checks
+  - Configure `cfg.ranking.recency_tau_days` and `cfg.ranking.tie_breaker_weight` > 0.
+  - In `trajectory.stages.result_projection`, verify fields:
+    - `recency_tau_days` (current effective value),
+    - `tie_breaker_weight` (current effective weight),
+    - `pre_authorization_candidates` and `returned_items`.
+  - Expected signal: newer `updated_at` chunks should move upward when fusion scores are close and tie-break is active.
 
 ```json
 {
