@@ -1101,9 +1101,139 @@ async fn mcp_auth_middleware(
 #[cfg(test)]
 mod tests {
 	use axum::http::HeaderMap;
+
 	use std::collections::HashMap;
 
 	use crate::{McpAuthState, server::HttpMethod};
+
+	const ALL_TOOL_DEFINITIONS: [ToolDefinition; 21] = [
+		ToolDefinition::new(
+			"elf_notes_ingest",
+			HttpMethod::Post,
+			"/v2/notes/ingest",
+			"Ingest deterministic notes into ELF. This tool never calls an LLM.",
+		),
+		ToolDefinition::new(
+			"elf_events_ingest",
+			HttpMethod::Post,
+			"/v2/events/ingest",
+			"Ingest an event by extracting evidence-bound notes using the configured LLM extractor.",
+		),
+		ToolDefinition::new(
+			"elf_search_quick_create",
+			HttpMethod::Post,
+			"/v2/search/quick",
+			"Run a quick search and return a compact index view of results.",
+		),
+		ToolDefinition::new(
+			"elf_search_planned_create",
+			HttpMethod::Post,
+			"/v2/search/planned",
+			"Run a planned search and return a compact index view with query_plan.",
+		),
+		ToolDefinition::new(
+			"elf_searches_get",
+			HttpMethod::Get,
+			"/v2/searches/{search_id}",
+			"Fetch a search session index view by search_id.",
+		),
+		ToolDefinition::new(
+			"elf_searches_timeline",
+			HttpMethod::Get,
+			"/v2/searches/{search_id}/timeline",
+			"Build a timeline view from a search session.",
+		),
+		ToolDefinition::new(
+			"elf_searches_notes",
+			HttpMethod::Post,
+			"/v2/searches/{search_id}/notes",
+			"Fetch full note details for selected note_ids from a search session.",
+		),
+		ToolDefinition::new(
+			"elf_notes_list",
+			HttpMethod::Get,
+			"/v2/notes",
+			"List notes in a tenant and project with optional filters.",
+		),
+		ToolDefinition::new(
+			"elf_notes_get",
+			HttpMethod::Get,
+			"/v2/notes/{note_id}",
+			"Fetch a single note by note_id.",
+		),
+		ToolDefinition::new(
+			"elf_notes_patch",
+			HttpMethod::Patch,
+			"/v2/notes/{note_id}",
+			"Patch a note by note_id. Only provided fields are updated.",
+		),
+		ToolDefinition::new(
+			"elf_notes_delete",
+			HttpMethod::Delete,
+			"/v2/notes/{note_id}",
+			"Delete a note by note_id.",
+		),
+		ToolDefinition::new(
+			"elf_notes_publish",
+			HttpMethod::Post,
+			"/v2/notes/{note_id}/publish",
+			"Publish a note from agent_private into a shared space (team_shared or org_shared).",
+		),
+		ToolDefinition::new(
+			"elf_notes_unpublish",
+			HttpMethod::Post,
+			"/v2/notes/{note_id}/unpublish",
+			"Unpublish a shared note back into agent_private scope.",
+		),
+		ToolDefinition::new(
+			"elf_space_grants_list",
+			HttpMethod::Get,
+			"/v2/spaces/{space}/grants",
+			"List sharing grants for a space (team_shared or org_shared).",
+		),
+		ToolDefinition::new(
+			"elf_space_grant_upsert",
+			HttpMethod::Post,
+			"/v2/spaces/{space}/grants",
+			"Upsert a sharing grant for a space (team_shared or org_shared).",
+		),
+		ToolDefinition::new(
+			"elf_space_grant_revoke",
+			HttpMethod::Post,
+			"/v2/spaces/{space}/grants/revoke",
+			"Revoke a sharing grant for a space (team_shared or org_shared).",
+		),
+		ToolDefinition::new(
+			"elf_admin_traces_recent_list",
+			HttpMethod::Get,
+			"/v2/admin/traces/recent",
+			"List recent traces by tenant/project with optional cursor and filters.",
+		),
+		ToolDefinition::new(
+			"elf_admin_trace_get",
+			HttpMethod::Get,
+			"/v2/admin/traces/{trace_id}",
+			"Fetch trace metadata, items, and optional trajectory summary by trace_id.",
+		),
+		ToolDefinition::new(
+			"elf_admin_trajectory_get",
+			HttpMethod::Get,
+			"/v2/admin/trajectories/{trace_id}",
+			"Fetch trace trajectory and stage payload by trace_id.",
+		),
+		ToolDefinition::new(
+			"elf_admin_trace_item_get",
+			HttpMethod::Get,
+			"/v2/admin/trace-items/{item_id}",
+			"Fetch a trace item explain payload by item_id.",
+		),
+		ToolDefinition::new(
+			"elf_admin_trace_bundle_get",
+			HttpMethod::Get,
+			"/v2/admin/traces/{trace_id}/bundle",
+			"Fetch trace bundle for replay and diagnostics by trace_id.",
+		),
+	];
 
 	#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 	struct ToolDefinition {
@@ -1113,6 +1243,7 @@ mod tests {
 		description: &'static str,
 		streaming: bool,
 	}
+
 	impl ToolDefinition {
 		const fn new(
 			name: &'static str,
@@ -1125,136 +1256,7 @@ mod tests {
 	}
 
 	fn build_tools() -> HashMap<&'static str, ToolDefinition> {
-		let tools = [
-			ToolDefinition::new(
-				"elf_notes_ingest",
-				HttpMethod::Post,
-				"/v2/notes/ingest",
-				"Ingest deterministic notes into ELF. This tool never calls an LLM.",
-			),
-			ToolDefinition::new(
-				"elf_events_ingest",
-				HttpMethod::Post,
-				"/v2/events/ingest",
-				"Ingest an event by extracting evidence-bound notes using the configured LLM extractor.",
-			),
-			ToolDefinition::new(
-				"elf_search_quick_create",
-				HttpMethod::Post,
-				"/v2/search/quick",
-				"Run a quick search and return a compact index view of results.",
-			),
-			ToolDefinition::new(
-				"elf_search_planned_create",
-				HttpMethod::Post,
-				"/v2/search/planned",
-				"Run a planned search and return a compact index view with query_plan.",
-			),
-			ToolDefinition::new(
-				"elf_searches_get",
-				HttpMethod::Get,
-				"/v2/searches/{search_id}",
-				"Fetch a search session index view by search_id.",
-			),
-			ToolDefinition::new(
-				"elf_searches_timeline",
-				HttpMethod::Get,
-				"/v2/searches/{search_id}/timeline",
-				"Build a timeline view from a search session.",
-			),
-			ToolDefinition::new(
-				"elf_searches_notes",
-				HttpMethod::Post,
-				"/v2/searches/{search_id}/notes",
-				"Fetch full note details for selected note_ids from a search session.",
-			),
-			ToolDefinition::new(
-				"elf_notes_list",
-				HttpMethod::Get,
-				"/v2/notes",
-				"List notes in a tenant and project with optional filters.",
-			),
-			ToolDefinition::new(
-				"elf_notes_get",
-				HttpMethod::Get,
-				"/v2/notes/{note_id}",
-				"Fetch a single note by note_id.",
-			),
-			ToolDefinition::new(
-				"elf_notes_patch",
-				HttpMethod::Patch,
-				"/v2/notes/{note_id}",
-				"Patch a note by note_id. Only provided fields are updated.",
-			),
-			ToolDefinition::new(
-				"elf_notes_delete",
-				HttpMethod::Delete,
-				"/v2/notes/{note_id}",
-				"Delete a note by note_id.",
-			),
-			ToolDefinition::new(
-				"elf_notes_publish",
-				HttpMethod::Post,
-				"/v2/notes/{note_id}/publish",
-				"Publish a note from agent_private into a shared space (team_shared or org_shared).",
-			),
-			ToolDefinition::new(
-				"elf_notes_unpublish",
-				HttpMethod::Post,
-				"/v2/notes/{note_id}/unpublish",
-				"Unpublish a shared note back into agent_private scope.",
-			),
-			ToolDefinition::new(
-				"elf_space_grants_list",
-				HttpMethod::Get,
-				"/v2/spaces/{space}/grants",
-				"List sharing grants for a space (team_shared or org_shared).",
-			),
-			ToolDefinition::new(
-				"elf_space_grant_upsert",
-				HttpMethod::Post,
-				"/v2/spaces/{space}/grants",
-				"Upsert a sharing grant for a space (team_shared or org_shared).",
-			),
-			ToolDefinition::new(
-				"elf_space_grant_revoke",
-				HttpMethod::Post,
-				"/v2/spaces/{space}/grants/revoke",
-				"Revoke a sharing grant for a space (team_shared or org_shared).",
-			),
-			ToolDefinition::new(
-				"elf_admin_traces_recent_list",
-				HttpMethod::Get,
-				"/v2/admin/traces/recent",
-				"List recent traces by tenant/project with optional cursor and filters.",
-			),
-			ToolDefinition::new(
-				"elf_admin_trace_get",
-				HttpMethod::Get,
-				"/v2/admin/traces/{trace_id}",
-				"Fetch trace metadata, items, and optional trajectory summary by trace_id.",
-			),
-			ToolDefinition::new(
-				"elf_admin_trajectory_get",
-				HttpMethod::Get,
-				"/v2/admin/trajectories/{trace_id}",
-				"Fetch trace trajectory and stage payload by trace_id.",
-			),
-			ToolDefinition::new(
-				"elf_admin_trace_item_get",
-				HttpMethod::Get,
-				"/v2/admin/trace-items/{item_id}",
-				"Fetch a trace item explain payload by item_id.",
-			),
-			ToolDefinition::new(
-				"elf_admin_trace_bundle_get",
-				HttpMethod::Get,
-				"/v2/admin/traces/{trace_id}/bundle",
-				"Fetch trace bundle for replay and diagnostics by trace_id.",
-			),
-		];
-
-		tools.into_iter().map(|tool| (tool.name, tool)).collect()
+		ALL_TOOL_DEFINITIONS.into_iter().map(|tool| (tool.name, tool)).collect()
 	}
 
 	#[test]

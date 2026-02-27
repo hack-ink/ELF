@@ -1,4 +1,4 @@
-use serde_json::json;
+use serde_json::Value;
 use sqlx::PgPool;
 use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
@@ -6,7 +6,8 @@ use uuid::Uuid;
 use crate::acceptance::{SpyExtractor, StubEmbedding, StubRerank};
 use elf_service::{
 	ElfService, SearchExplainRequest, TraceBundleGetRequest, TraceGetRequest,
-	TraceRecentListRequest, TraceTrajectoryGetRequest, search::TraceBundleMode,
+	TraceRecentListRequest, TraceRecentListResponse, TraceTrajectoryGetRequest,
+	search::TraceBundleMode,
 };
 use elf_testkit::TestDatabase;
 
@@ -17,6 +18,13 @@ const TRACE_VERSION: i32 = 3;
 struct TraceAdminObservabilityFixture {
 	service: ElfService,
 	test_db: TestDatabase,
+}
+
+struct VisibilityTraceFixtureIds {
+	trace_one: Uuid,
+	trace_two: Uuid,
+	trace_three: Uuid,
+	item_two: Uuid,
 }
 
 async fn setup_service(test_name: &str) -> Option<TraceAdminObservabilityFixture> {
@@ -107,11 +115,11 @@ VALUES (
 	.bind(read_profile)
 	.bind(query)
 	.bind("full")
-	.bind(json!([query]))
-	.bind(json!(["agent_private", "project_shared", "org_shared"]))
+	.bind(serde_json::json!([query]))
+	.bind(serde_json::json!(["agent_private", "project_shared", "org_shared"]))
 	.bind(10_i32)
 	.bind(5_i32)
-	.bind(json!({ "test": true }))
+	.bind(serde_json::json!({ "test": true }))
 	.bind(TRACE_VERSION)
 	.bind(created_at)
 	.bind(created_at + Duration::minutes(60))
@@ -185,7 +193,7 @@ VALUES ($1, $2, $3, $4, $5, $6)",
 	.bind(trace_id)
 	.bind(stage_order)
 	.bind(stage_name)
-	.bind(json!({
+	.bind(serde_json::json!({
 		"stage_name": stage_name,
 		"metrics": { "items": 0 }
 	}))
@@ -201,7 +209,7 @@ async fn insert_trace_stage_item(
 	stage_id: Uuid,
 	note_id: Uuid,
 	chunk_id: Uuid,
-	metrics: serde_json::Value,
+	metrics: Value,
 ) {
 	sqlx::query(
 		"\
@@ -301,15 +309,10 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)",
 	.expect("Failed to insert trace candidate.");
 }
 
-#[tokio::test]
-#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
-async fn trace_admin_visibility_and_recent_list_cursor() {
-	let Some(fixture) = setup_service("trace_admin_visibility_and_recent_list_cursor").await else {
-		return;
-	};
-	let TraceAdminObservabilityFixture { service, test_db } = fixture;
-
-	let now = OffsetDateTime::now_utc();
+async fn seed_visibility_and_recent_list_traces(
+	service: &ElfService,
+	now: OffsetDateTime,
+) -> VisibilityTraceFixtureIds {
 	let trace_one = Uuid::new_v4();
 	let trace_two = Uuid::new_v4();
 	let trace_three = Uuid::new_v4();
@@ -342,66 +345,51 @@ async fn trace_admin_visibility_and_recent_list_cursor() {
 		now - Duration::seconds(20),
 	)
 	.await;
-
 	insert_trace_item(&service.db.pool, item_one, trace_one, note_one, chunk_one, 1).await;
 	insert_trace_item(&service.db.pool, item_two, trace_two, note_two, chunk_two, 1).await;
 	insert_trace_item(&service.db.pool, item_three, trace_three, note_three, chunk_three, 1).await;
 
-	let first = service
+	VisibilityTraceFixtureIds { trace_one, trace_two, trace_three, item_two }
+}
+
+async fn trace_recent_list_page(
+	service: &ElfService,
+	cursor_created_at: Option<OffsetDateTime>,
+	cursor_trace_id: Option<Uuid>,
+) -> TraceRecentListResponse {
+	service
 		.trace_recent_list(TraceRecentListRequest {
 			tenant_id: TENANT_ID.to_string(),
 			project_id: PROJECT_ID.to_string(),
 			agent_id: "admin_agent".to_string(),
 			limit: Some(2),
-			cursor_created_at: None,
-			cursor_trace_id: None,
+			cursor_created_at,
+			cursor_trace_id,
 			agent_id_filter: None,
 			read_profile: None,
 			created_after: None,
 			created_before: None,
 		})
 		.await
-		.expect("Failed to list recent traces.");
+		.expect("Failed to list recent traces.")
+}
 
-	assert_eq!(first.schema, "elf.recent_traces/v1");
-	assert_eq!(first.traces.len(), 2);
-	assert_eq!(first.traces[0].trace_id, trace_one);
-	assert_eq!(first.traces[1].trace_id, trace_two);
-	assert!(first.traces[0].created_at > first.traces[1].created_at);
-	let Some(cursor) = first.next_cursor else {
-		panic!("Expected next_cursor to exist for second page.");
-	};
-
-	let second = service
-		.trace_recent_list(TraceRecentListRequest {
-			tenant_id: TENANT_ID.to_string(),
-			project_id: PROJECT_ID.to_string(),
-			agent_id: "admin_agent".to_string(),
-			limit: Some(2),
-			cursor_created_at: Some(cursor.created_at),
-			cursor_trace_id: Some(cursor.trace_id),
-			agent_id_filter: None,
-			read_profile: None,
-			created_after: None,
-			created_before: None,
-		})
-		.await
-		.expect("Failed to list next page of traces.");
-
-	assert_eq!(second.traces.len(), 1);
-	assert_eq!(second.traces[0].trace_id, trace_three);
-	assert!(second.next_cursor.is_none());
-
+async fn assert_trace_admin_visibility_cross_scope(
+	service: &ElfService,
+	trace_id: Uuid,
+	item_id: Uuid,
+) {
 	let cross_agent_trace_get = service
 		.trace_get(TraceGetRequest {
 			tenant_id: TENANT_ID.to_string(),
 			project_id: PROJECT_ID.to_string(),
 			agent_id: "different_agent".to_string(),
-			trace_id: trace_two,
+			trace_id,
 		})
 		.await
 		.expect("Expected cross-agent trace lookup to bypass agent ownership filtering.");
-	assert_eq!(cross_agent_trace_get.trace.trace_id, trace_two);
+
+	assert_eq!(cross_agent_trace_get.trace.trace_id, trace_id);
 	assert_eq!(cross_agent_trace_get.trace.agent_id, "agent_two");
 
 	let cross_agent_trajectory = service
@@ -409,22 +397,55 @@ async fn trace_admin_visibility_and_recent_list_cursor() {
 			tenant_id: TENANT_ID.to_string(),
 			project_id: PROJECT_ID.to_string(),
 			agent_id: "different_agent".to_string(),
-			trace_id: trace_two,
+			trace_id,
 		})
 		.await
 		.expect("Expected cross-agent trajectory lookup to bypass agent ownership filtering.");
-	assert_eq!(cross_agent_trajectory.trace.trace_id, trace_two);
+
+	assert_eq!(cross_agent_trajectory.trace.trace_id, trace_id);
 
 	let cross_agent_item = service
 		.search_explain(SearchExplainRequest {
 			tenant_id: TENANT_ID.to_string(),
 			project_id: PROJECT_ID.to_string(),
 			agent_id: "different_agent".to_string(),
-			result_handle: item_two,
+			result_handle: item_id,
 		})
 		.await
 		.expect("Expected cross-agent trace-item lookup to bypass agent ownership filtering.");
-	assert_eq!(cross_agent_item.item.result_handle, item_two);
+
+	assert_eq!(cross_agent_item.item.result_handle, item_id);
+}
+
+#[tokio::test]
+#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
+async fn trace_admin_visibility_and_recent_list_cursor() {
+	let Some(fixture) = setup_service("trace_admin_visibility_and_recent_list_cursor").await else {
+		return;
+	};
+	let TraceAdminObservabilityFixture { service, test_db } = fixture;
+	let now = OffsetDateTime::now_utc();
+	let VisibilityTraceFixtureIds { trace_one, trace_two, trace_three, item_two } =
+		seed_visibility_and_recent_list_traces(&service, now).await;
+	let first = trace_recent_list_page(&service, None, None).await;
+
+	assert_eq!(first.schema, "elf.recent_traces/v1");
+	assert_eq!(first.traces.len(), 2);
+	assert_eq!(first.traces[0].trace_id, trace_one);
+	assert_eq!(first.traces[1].trace_id, trace_two);
+	assert!(first.traces[0].created_at > first.traces[1].created_at);
+
+	let Some(cursor) = first.next_cursor else {
+		panic!("Expected next_cursor to exist for second page.");
+	};
+	let second =
+		trace_recent_list_page(&service, Some(cursor.created_at), Some(cursor.trace_id)).await;
+
+	assert_eq!(second.traces.len(), 1);
+	assert_eq!(second.traces[0].trace_id, trace_three);
+	assert!(second.next_cursor.is_none());
+
+	assert_trace_admin_visibility_cross_scope(&service, trace_two, item_two).await;
 
 	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }
@@ -436,13 +457,13 @@ async fn trace_bundle_truncation_and_candidate_limits() {
 		return;
 	};
 	let TraceAdminObservabilityFixture { service, test_db } = fixture;
-
 	let now = OffsetDateTime::now_utc();
 	let trace_id = Uuid::new_v4();
 	let stage_id = Uuid::new_v4();
 
 	insert_trace(&service.db.pool, trace_id, "agent_one", "private_only", "bundle", now).await;
 	insert_trace_stage(&service.db.pool, stage_id, trace_id, 0, "selection.final", now).await;
+
 	for index in 0..3 {
 		let item_id = Uuid::new_v4();
 		let note_id = Uuid::new_v4();
@@ -486,6 +507,7 @@ async fn trace_bundle_truncation_and_candidate_limits() {
 		})
 		.await
 		.expect("Failed to fetch bounded bundle.");
+
 	assert_eq!(bounded.schema, "elf.trace_bundle/v1");
 	assert_eq!(bounded.stages.len(), 1);
 	assert_eq!(bounded.stages[0].items.len(), 1);
@@ -503,10 +525,12 @@ async fn trace_bundle_truncation_and_candidate_limits() {
 		})
 		.await
 		.expect("Failed to fetch full bundle.");
+
 	assert_eq!(full.stages[0].items.len(), 1);
 	assert!(full.candidates.as_ref().is_some_and(|candidates| candidates.len() == 2));
 
 	let candidates = full.candidates.unwrap();
+
 	assert_eq!(candidates[0].retrieval_rank, 1);
 	assert_eq!(candidates[1].retrieval_rank, 2);
 	assert!(candidates[0].rerank_score >= candidates[1].rerank_score);

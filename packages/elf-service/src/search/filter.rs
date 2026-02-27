@@ -1,11 +1,15 @@
-use std::{cmp::Ordering, collections::HashMap};
+use std::{
+	cmp::Ordering,
+	collections::HashMap,
+	fmt::{Display, Formatter},
+};
 
 use serde::Serialize;
-use serde_json::{Map, Value, json};
+use serde_json::{Map, Value};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use uuid::Uuid;
 
-use super::{ChunkCandidate, NoteMeta, SEARCH_FILTER_IMPACT_SCHEMA_V1};
+use crate::search::{ChunkCandidate, NoteMeta, SEARCH_FILTER_IMPACT_SCHEMA_V1};
 
 const SEARCH_FILTER_EXPR_SCHEMA_V1: &str = "search_filter_expr/v1";
 const MAX_FILTER_DEPTH: usize = 8;
@@ -18,9 +22,8 @@ pub(crate) struct FilterParseError {
 	path: String,
 	message: String,
 }
-
-impl std::fmt::Display for FilterParseError {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for FilterParseError {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
 		write!(f, "{}: {}", self.path, self.message)
 	}
 }
@@ -29,6 +32,87 @@ impl std::fmt::Display for FilterParseError {
 pub(crate) struct SearchFilter {
 	expr: FilterExpr,
 	json: Value,
+}
+impl SearchFilter {
+	fn as_value(&self) -> Value {
+		self.json.clone()
+	}
+
+	fn evaluate(&self, note: &NoteMeta) -> (bool, Option<String>) {
+		self.expr.evaluate(note)
+	}
+
+	pub(crate) fn parse(raw: &Value) -> Result<Self, FilterParseError> {
+		let path = "$.filter";
+		let obj = raw.as_object().ok_or_else(|| FilterParseError {
+			path: path.to_string(),
+			message: "filter must be an object.".to_string(),
+		})?;
+		let schema = obj.get("schema").and_then(Value::as_str).ok_or_else(|| FilterParseError {
+			path: format!("{path}.schema"),
+			message: "filter.schema is required.".to_string(),
+		})?;
+
+		if schema != SEARCH_FILTER_EXPR_SCHEMA_V1 {
+			return Err(FilterParseError {
+				path: format!("{path}.schema"),
+				message: format!(
+					"unsupported filter schema '{schema}', expected '{SEARCH_FILTER_EXPR_SCHEMA_V1}'."
+				),
+			});
+		}
+
+		let expr = obj.get("expr").ok_or_else(|| FilterParseError {
+			path: format!("{path}.expr"),
+			message: "filter.expr is required.".to_string(),
+		})?;
+		let mut state = FilterParseState::default();
+		let parsed = parse_expr(expr, "$.filter.expr", 1, &mut state)?;
+
+		Ok(Self {
+			expr: parsed.clone(),
+			json: serde_json::json!({"schema": SEARCH_FILTER_EXPR_SCHEMA_V1, "expr": parsed.to_value()}),
+		})
+	}
+
+	pub(crate) fn eval(
+		&self,
+		candidates: Vec<ChunkCandidate>,
+		note_meta: &HashMap<Uuid, NoteMeta>,
+		requested_candidate_k: u32,
+		effective_candidate_k: u32,
+	) -> (Vec<ChunkCandidate>, SearchFilterImpact) {
+		let impact = SearchFilterImpact::from_eval(
+			self,
+			candidates.as_slice(),
+			note_meta,
+			requested_candidate_k,
+			effective_candidate_k,
+		);
+		let pre = candidates.len();
+		let mut kept = Vec::with_capacity(impact.candidate_count_post);
+
+		for candidate in candidates {
+			let Some(note) = note_meta.get(&candidate.note_id) else {
+				continue;
+			};
+
+			if self.expr.evaluate(note).0 {
+				kept.push(candidate);
+			}
+		}
+
+		let post = kept.len();
+
+		(
+			kept,
+			SearchFilterImpact {
+				candidate_count_post: post,
+				dropped_total: pre.saturating_sub(post),
+				..impact
+			},
+		)
+	}
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -41,19 +125,6 @@ pub(crate) struct SearchFilterImpact {
 	top_drop_reasons: Vec<SearchFilterDropReason>,
 	filter: Value,
 }
-
-#[derive(Clone, Debug, Serialize)]
-pub(crate) struct SearchFilterDropReason {
-	reason: String,
-	count: usize,
-}
-
-impl SearchFilter {
-	fn as_value(&self) -> Value {
-		self.json.clone()
-	}
-}
-
 impl SearchFilterImpact {
 	pub(crate) fn from_eval(
 		filter: &SearchFilter,
@@ -75,7 +146,6 @@ impl SearchFilterImpact {
 
 				continue;
 			};
-
 			let (keep, reason) = filter.evaluate(note);
 
 			if keep {
@@ -113,7 +183,7 @@ impl SearchFilterImpact {
 	}
 
 	pub(crate) fn to_stage_payload(&self) -> Value {
-		json!({
+		serde_json::json!({
 			"schema": SEARCH_FILTER_IMPACT_SCHEMA_V1,
 			"requested_candidate_k": self.requested_candidate_k,
 			"effective_candidate_k": self.effective_candidate_k,
@@ -126,10 +196,16 @@ impl SearchFilterImpact {
 	}
 }
 
-impl SearchFilter {
-	fn evaluate(&self, note: &NoteMeta) -> (bool, Option<String>) {
-		self.expr.evaluate(note)
-	}
+#[derive(Clone, Debug, Serialize)]
+pub(crate) struct SearchFilterDropReason {
+	reason: String,
+	count: usize,
+}
+
+#[derive(Default)]
+struct FilterParseState {
+	nodes: usize,
+	max_depth: usize,
 }
 
 #[derive(Clone, Debug)]
@@ -145,7 +221,6 @@ enum FilterField {
 	HitCount,
 	LastHitAt,
 }
-
 impl FilterField {
 	fn as_str(&self) -> &'static str {
 		match self {
@@ -191,14 +266,10 @@ impl FilterField {
 			}),
 		}
 	}
-}
 
-#[derive(Clone, Debug)]
-enum FilterValue {
-	String(String),
-	Number(f64),
-	DateTime(OffsetDateTime),
-	Null,
+	fn lookup_note_value(&self, note: &NoteMeta) -> FilterNodeValue {
+		FilterExpr::lookup_note_value(self, note)
+	}
 }
 
 #[derive(Clone, Debug)]
@@ -215,260 +286,241 @@ enum FilterExpr {
 	Lt { field: FilterField, value: FilterValue },
 	Lte { field: FilterField, value: FilterValue },
 }
-
-#[derive(Default)]
-struct FilterParseState {
-	nodes: usize,
-	max_depth: usize,
-}
-
-#[derive(Clone, Debug)]
-enum FilterNodeValue {
-	String(String),
-	Number(f64),
-	DateTime(OffsetDateTime),
-	Null,
-}
-
-impl SearchFilter {
-	pub(crate) fn parse(raw: &Value) -> Result<Self, FilterParseError> {
-		let path = "$.filter";
-		let obj = raw.as_object().ok_or_else(|| FilterParseError {
-			path: path.to_string(),
-			message: "filter must be an object.".to_string(),
-		})?;
-
-		let schema = obj.get("schema").and_then(Value::as_str).ok_or_else(|| FilterParseError {
-			path: format!("{path}.schema"),
-			message: "filter.schema is required.".to_string(),
-		})?;
-
-		if schema != SEARCH_FILTER_EXPR_SCHEMA_V1 {
-			return Err(FilterParseError {
-				path: format!("{path}.schema"),
-				message: format!(
-					"unsupported filter schema '{schema}', expected '{SEARCH_FILTER_EXPR_SCHEMA_V1}'."
-				),
-			});
-		}
-
-		let expr = obj.get("expr").ok_or_else(|| FilterParseError {
-			path: format!("{path}.expr"),
-			message: "filter.expr is required.".to_string(),
-		})?;
-		let mut state = FilterParseState::default();
-		let parsed = parse_expr(expr, "$.filter.expr", 1, &mut state)?;
-
-		Ok(Self {
-			expr: parsed.clone(),
-			json: json!({"schema": SEARCH_FILTER_EXPR_SCHEMA_V1, "expr": parsed.to_value()}),
-		})
-	}
-
-	pub(crate) fn eval(
-		&self,
-		candidates: Vec<ChunkCandidate>,
-		note_meta: &HashMap<Uuid, NoteMeta>,
-		requested_candidate_k: u32,
-		effective_candidate_k: u32,
-	) -> (Vec<ChunkCandidate>, SearchFilterImpact) {
-		let impact = SearchFilterImpact::from_eval(
-			self,
-			candidates.as_slice(),
-			note_meta,
-			requested_candidate_k,
-			effective_candidate_k,
-		);
-
-		let pre = candidates.len();
-		let mut kept = Vec::with_capacity(impact.candidate_count_post);
-
-		for candidate in candidates {
-			let Some(note) = note_meta.get(&candidate.note_id) else {
-				continue;
-			};
-
-			if self.expr.evaluate(note).0 {
-				kept.push(candidate);
-			}
-		}
-
-		let post = kept.len();
-
-		(
-			kept,
-			SearchFilterImpact {
-				candidate_count_post: post,
-				dropped_total: pre.saturating_sub(post),
-				..impact
-			},
-		)
-	}
-}
-
 impl FilterExpr {
 	fn to_value(&self) -> Value {
 		match self {
 			Self::And(exprs) => {
-				json!({ "op": "and", "args": Value::Array(exprs.iter().map(Self::to_value).collect()) })
+				serde_json::json!({ "op": "and", "args": Value::Array(exprs.iter().map(Self::to_value).collect()) })
 			},
 			Self::Or(exprs) => {
-				json!({ "op": "or", "args": Value::Array(exprs.iter().map(Self::to_value).collect()) })
+				serde_json::json!({ "op": "or", "args": Value::Array(exprs.iter().map(Self::to_value).collect()) })
 			},
 			Self::Not(expr) => {
-				json!({ "op": "not", "expr": expr.to_value() })
+				serde_json::json!({ "op": "not", "expr": expr.to_value() })
 			},
 			Self::Eq { field, value } => {
-				json!({ "op": "eq", "field": field.as_str(), "value": value.to_value() })
+				serde_json::json!({ "op": "eq", "field": field.as_str(), "value": value.to_value() })
 			},
 			Self::Neq { field, value } => {
-				json!({ "op": "neq", "field": field.as_str(), "value": value.to_value() })
+				serde_json::json!({ "op": "neq", "field": field.as_str(), "value": value.to_value() })
 			},
 			Self::In { field, values } => {
-				json!({
+				serde_json::json!({
 					"op": "in",
 					"field": field.as_str(),
 					"value": Value::Array(values.iter().map(FilterValue::to_value).collect())
 				})
 			},
 			Self::Contains { field, value } => {
-				json!({ "op": "contains", "field": field.as_str(), "value": value })
+				serde_json::json!({ "op": "contains", "field": field.as_str(), "value": value })
 			},
 			Self::Gt { field, value } => {
-				json!({ "op": "gt", "field": field.as_str(), "value": value.to_value() })
+				serde_json::json!({ "op": "gt", "field": field.as_str(), "value": value.to_value() })
 			},
 			Self::Gte { field, value } => {
-				json!({ "op": "gte", "field": field.as_str(), "value": value.to_value() })
+				serde_json::json!({ "op": "gte", "field": field.as_str(), "value": value.to_value() })
 			},
 			Self::Lt { field, value } => {
-				json!({ "op": "lt", "field": field.as_str(), "value": value.to_value() })
+				serde_json::json!({ "op": "lt", "field": field.as_str(), "value": value.to_value() })
 			},
 			Self::Lte { field, value } => {
-				json!({ "op": "lte", "field": field.as_str(), "value": value.to_value() })
+				serde_json::json!({ "op": "lte", "field": field.as_str(), "value": value.to_value() })
 			},
 		}
 	}
 
 	fn evaluate(&self, note: &NoteMeta) -> (bool, Option<String>) {
 		match self {
-			Self::And(nodes) => {
-				for node in nodes {
-					let (passed, reason) = node.evaluate(note);
-					if !passed {
-						return (false, reason);
-					}
-				}
+			Self::And(nodes) => Self::evaluate_and(nodes, note),
+			Self::Or(nodes) => Self::evaluate_or(nodes, note),
+			Self::Not(node) => Self::evaluate_not(node, note),
+			Self::Eq { field, value } => Self::evaluate_eq(field, value, note),
+			Self::Neq { field, value } => Self::evaluate_neq(field, value, note),
+			Self::In { field, values } => Self::evaluate_in(field, values, note),
+			Self::Contains { field, value } => Self::evaluate_contains(field, value, note),
+			Self::Gt { field, value } => Self::evaluate_gt(field, value, note),
+			Self::Gte { field, value } => Self::evaluate_gte(field, value, note),
+			Self::Lt { field, value } => Self::evaluate_lt(field, value, note),
+			Self::Lte { field, value } => Self::evaluate_lte(field, value, note),
+		}
+	}
 
-				(true, None)
+	fn evaluate_and(nodes: &[Self], note: &NoteMeta) -> (bool, Option<String>) {
+		for node in nodes {
+			let (passed, reason) = node.evaluate(note);
+
+			if !passed {
+				return (false, reason);
+			}
+		}
+
+		(true, None)
+	}
+
+	fn evaluate_or(nodes: &[Self], note: &NoteMeta) -> (bool, Option<String>) {
+		let mut first_reason = None;
+
+		for node in nodes {
+			let (passed, reason) = node.evaluate(note);
+
+			if passed {
+				return (true, None);
+			}
+			if first_reason.is_none() {
+				first_reason = reason;
+			}
+		}
+
+		(false, first_reason.or_else(|| Some("or.no_match".to_string())))
+	}
+
+	fn evaluate_not(node: &Self, note: &NoteMeta) -> (bool, Option<String>) {
+		let (passed, reason) = node.evaluate(note);
+
+		if passed { (false, Some("not.true".to_string())) } else { (true, reason) }
+	}
+
+	fn evaluate_eq(
+		field: &FilterField,
+		value: &FilterValue,
+		note: &NoteMeta,
+	) -> (bool, Option<String>) {
+		let note_value = field.lookup_note_value(note);
+		let filter_value = value.to_node_value();
+		let matches = note_value == filter_value;
+
+		(matches, Some(format!("eq:{}", field.as_str())).filter(|_| !matches))
+	}
+
+	fn evaluate_neq(
+		field: &FilterField,
+		value: &FilterValue,
+		note: &NoteMeta,
+	) -> (bool, Option<String>) {
+		let note_value = field.lookup_note_value(note);
+		let filter_value = value.to_node_value();
+		let matches = note_value != filter_value;
+
+		(matches, Some(format!("neq:{}", field.as_str())).filter(|_| !matches))
+	}
+
+	fn evaluate_in(
+		field: &FilterField,
+		values: &[FilterValue],
+		note: &NoteMeta,
+	) -> (bool, Option<String>) {
+		let note_value = field.lookup_note_value(note);
+		let matches = values.iter().any(|value| note_value == FilterNodeValue::from(value));
+
+		(matches, Some(format!("in:{}", field.as_str())).filter(|_| !matches))
+	}
+
+	fn evaluate_contains(
+		field: &FilterField,
+		value: &str,
+		note: &NoteMeta,
+	) -> (bool, Option<String>) {
+		let note_value = field.lookup_note_value(note);
+		let note_text = match note_value {
+			FilterNodeValue::String(s) => s,
+			_ => {
+				return (false, Some(format!("contains:{}", field.as_str())));
 			},
-			Self::Or(nodes) => {
-				let mut first_reason = None;
+		};
+		let matches = note_text.contains(value);
 
-				for node in nodes {
-					let (passed, reason) = node.evaluate(note);
+		(matches, Some(format!("contains:{}", field.as_str())).filter(|_| !matches))
+	}
 
-					if passed {
-						return (true, None);
-					}
+	fn evaluate_gt(
+		field: &FilterField,
+		value: &FilterValue,
+		note: &NoteMeta,
+	) -> (bool, Option<String>) {
+		match field.lookup_note_value(note) {
+			FilterNodeValue::Number(note_value) => {
+				let matches = note_value > value.to_numeric();
 
-					if first_reason.is_none() {
-						first_reason = reason;
-					}
-				}
-
-				(false, first_reason.or_else(|| Some("or.no_match".to_string())))
+				(matches, Some(format!("gt:{}", field.as_str())).filter(|_| !matches))
 			},
-			Self::Not(node) => {
-				let (passed, reason) = node.evaluate(note);
-
-				if passed { (false, Some("not.true".to_string())) } else { (true, reason) }
-			},
-			Self::Eq { field, value } => {
-				let note_value = field.lookup_note_value(note);
-				let filter_value = value.to_node_value();
-				let matches = note_value == filter_value;
-				(matches, Some(format!("eq:{}", field.as_str())).filter(|_| !matches))
-			},
-			Self::Neq { field, value } => {
-				let note_value = field.lookup_note_value(note);
-				let filter_value = value.to_node_value();
-				let matches = note_value != filter_value;
-				(matches, Some(format!("neq:{}", field.as_str())).filter(|_| !matches))
-			},
-			Self::In { field, values } => {
-				let note_value = field.lookup_note_value(note);
-				let matches = values.iter().any(|value| note_value == FilterNodeValue::from(value));
-				(matches, Some(format!("in:{}", field.as_str())).filter(|_| !matches))
-			},
-			Self::Contains { field, value } => {
-				let note_value = field.lookup_note_value(note);
-
-				let note_text = match note_value {
-					FilterNodeValue::String(s) => s,
-					_ => {
-						return (false, Some(format!("contains:{}", field.as_str())));
-					},
+			FilterNodeValue::DateTime(note_value) => {
+				let matches = match value {
+					FilterValue::DateTime(filter_value) => note_value > *filter_value,
+					_ => false,
 				};
-				let matches = note_text.contains(value);
 
-				(matches, Some(format!("contains:{}", field.as_str())).filter(|_| !matches))
+				(matches, Some(format!("gt:{}", field.as_str())).filter(|_| !matches))
 			},
-			Self::Gt { field, value } => match field.lookup_note_value(note) {
-				FilterNodeValue::Number(note_value) => {
-					let matches = note_value > value.to_numeric();
-					(matches, Some(format!("gt:{}", field.as_str())).filter(|_| !matches))
-				},
-				FilterNodeValue::DateTime(note_value) => {
-					let matches = match value {
-						FilterValue::DateTime(filter_value) => note_value > *filter_value,
-						_ => false,
-					};
-					(matches, Some(format!("gt:{}", field.as_str())).filter(|_| !matches))
-				},
-				_ => (false, Some(format!("gt:{}", field.as_str()))),
+			_ => (false, Some(format!("gt:{}", field.as_str()))),
+		}
+	}
+
+	fn evaluate_gte(
+		field: &FilterField,
+		value: &FilterValue,
+		note: &NoteMeta,
+	) -> (bool, Option<String>) {
+		match field.lookup_note_value(note) {
+			FilterNodeValue::Number(note_value) => {
+				let matches = note_value >= value.to_numeric();
+
+				(matches, Some(format!("gte:{}", field.as_str())).filter(|_| !matches))
 			},
-			Self::Gte { field, value } => match field.lookup_note_value(note) {
-				FilterNodeValue::Number(note_value) => {
-					let matches = note_value >= value.to_numeric();
-					(matches, Some(format!("gte:{}", field.as_str())).filter(|_| !matches))
-				},
-				FilterNodeValue::DateTime(note_value) => {
-					let matches = match value {
-						FilterValue::DateTime(filter_value) => note_value >= *filter_value,
-						_ => false,
-					};
-					(matches, Some(format!("gte:{}", field.as_str())).filter(|_| !matches))
-				},
-				_ => (false, Some(format!("gte:{}", field.as_str()))),
+			FilterNodeValue::DateTime(note_value) => {
+				let matches = match value {
+					FilterValue::DateTime(filter_value) => note_value >= *filter_value,
+					_ => false,
+				};
+
+				(matches, Some(format!("gte:{}", field.as_str())).filter(|_| !matches))
 			},
-			Self::Lt { field, value } => match field.lookup_note_value(note) {
-				FilterNodeValue::Number(note_value) => {
-					let matches = note_value < value.to_numeric();
-					(matches, Some(format!("lt:{}", field.as_str())).filter(|_| !matches))
-				},
-				FilterNodeValue::DateTime(note_value) => {
-					let matches = match value {
-						FilterValue::DateTime(filter_value) => note_value < *filter_value,
-						_ => false,
-					};
-					(matches, Some(format!("lt:{}", field.as_str())).filter(|_| !matches))
-				},
-				_ => (false, Some(format!("lt:{}", field.as_str()))),
+			_ => (false, Some(format!("gte:{}", field.as_str()))),
+		}
+	}
+
+	fn evaluate_lt(
+		field: &FilterField,
+		value: &FilterValue,
+		note: &NoteMeta,
+	) -> (bool, Option<String>) {
+		match field.lookup_note_value(note) {
+			FilterNodeValue::Number(note_value) => {
+				let matches = note_value < value.to_numeric();
+
+				(matches, Some(format!("lt:{}", field.as_str())).filter(|_| !matches))
 			},
-			Self::Lte { field, value } => match field.lookup_note_value(note) {
-				FilterNodeValue::Number(note_value) => {
-					let matches = note_value <= value.to_numeric();
-					(matches, Some(format!("lte:{}", field.as_str())).filter(|_| !matches))
-				},
-				FilterNodeValue::DateTime(note_value) => {
-					let matches = match value {
-						FilterValue::DateTime(filter_value) => note_value <= *filter_value,
-						_ => false,
-					};
-					(matches, Some(format!("lte:{}", field.as_str())).filter(|_| !matches))
-				},
-				_ => (false, Some(format!("lte:{}", field.as_str()))),
+			FilterNodeValue::DateTime(note_value) => {
+				let matches = match value {
+					FilterValue::DateTime(filter_value) => note_value < *filter_value,
+					_ => false,
+				};
+
+				(matches, Some(format!("lt:{}", field.as_str())).filter(|_| !matches))
 			},
+			_ => (false, Some(format!("lt:{}", field.as_str()))),
+		}
+	}
+
+	fn evaluate_lte(
+		field: &FilterField,
+		value: &FilterValue,
+		note: &NoteMeta,
+	) -> (bool, Option<String>) {
+		match field.lookup_note_value(note) {
+			FilterNodeValue::Number(note_value) => {
+				let matches = note_value <= value.to_numeric();
+
+				(matches, Some(format!("lte:{}", field.as_str())).filter(|_| !matches))
+			},
+			FilterNodeValue::DateTime(note_value) => {
+				let matches = match value {
+					FilterValue::DateTime(filter_value) => note_value <= *filter_value,
+					_ => false,
+				};
+
+				(matches, Some(format!("lte:{}", field.as_str())).filter(|_| !matches))
+			},
+			_ => (false, Some(format!("lte:{}", field.as_str()))),
 		}
 	}
 
@@ -488,15 +540,7 @@ impl FilterExpr {
 				note.last_hit_at.map_or(FilterNodeValue::Null, FilterNodeValue::DateTime),
 		}
 	}
-}
 
-impl FilterField {
-	fn lookup_note_value(&self, note: &NoteMeta) -> FilterNodeValue {
-		FilterExpr::lookup_note_value(self, note)
-	}
-}
-
-impl FilterExpr {
 	fn parse_args(
 		value: &Value,
 		path: &str,
@@ -557,9 +601,7 @@ impl FilterExpr {
 			})
 			.collect()
 	}
-}
 
-impl FilterExpr {
 	fn validate_metrics(
 		path: &str,
 		depth: usize,
@@ -577,7 +619,6 @@ impl FilterExpr {
 				),
 			});
 		}
-
 		if state.max_depth > MAX_FILTER_DEPTH {
 			return Err(FilterParseError {
 				path: path.to_string(),
@@ -604,14 +645,11 @@ impl FilterExpr {
 			})?,
 		)?;
 		let path_value = format!("{path}.value");
-		let value = parse_value(
-			&field,
-			raw.get("value").ok_or_else(|| FilterParseError {
-				path: format!("{path}.value"),
-				message: "op node is missing required field 'value'.".to_string(),
-			})?,
-			&path_value,
-		)?;
+		let value_raw = raw.get("value").ok_or_else(|| FilterParseError {
+			path: format!("{path}.value"),
+			message: "op node is missing required field 'value'.".to_string(),
+		})?;
+		let value = parse_value(&field, value_raw, &path_value)?;
 
 		match op {
 			"eq" => Ok(Self::Eq { field, value }),
@@ -628,7 +666,7 @@ impl FilterExpr {
 			"lt" => Ok(Self::Lt { field, value }),
 			"lte" => Ok(Self::Lte { field, value }),
 			"in" => {
-				let values = Self::parse_in_values(&field, raw.get("value").unwrap(), &path_value)?;
+				let values = Self::parse_in_values(&field, value_raw, &path_value)?;
 
 				Ok(Self::In { field, values })
 			},
@@ -636,6 +674,88 @@ impl FilterExpr {
 				path: path.to_string(),
 				message: format!("unsupported leaf op '{op}'."),
 			}),
+		}
+	}
+}
+
+impl Default for FilterExpr {
+	fn default() -> Self {
+		Self::Eq { field: FilterField::Type, value: FilterValue::Null }
+	}
+}
+
+#[derive(Clone, Debug)]
+enum FilterValue {
+	String(String),
+	Number(f64),
+	DateTime(OffsetDateTime),
+	Null,
+}
+impl FilterValue {
+	fn to_node_value(&self) -> FilterNodeValue {
+		match self {
+			Self::String(value) => FilterNodeValue::String(value.clone()),
+			Self::Number(value) => FilterNodeValue::Number(*value),
+			Self::DateTime(value) => FilterNodeValue::DateTime(*value),
+			Self::Null => FilterNodeValue::Null,
+		}
+	}
+
+	fn to_value(&self) -> Value {
+		match self {
+			Self::String(value) => Value::String(value.clone()),
+			Self::Number(value) => serde_json::json!(value),
+			Self::DateTime(value) => Value::String(value.format(&Rfc3339).unwrap_or_default()),
+			Self::Null => Value::Null,
+		}
+	}
+
+	fn to_numeric(&self) -> f64 {
+		match self {
+			Self::Number(value) => *value,
+			_ => 0.0,
+		}
+	}
+}
+
+impl PartialEq for FilterValue {
+	fn eq(&self, other: &Self) -> bool {
+		match (self, other) {
+			(Self::String(lhs), Self::String(rhs)) => lhs == rhs,
+			(Self::Number(lhs), Self::Number(rhs)) => lhs == rhs,
+			(Self::DateTime(lhs), Self::DateTime(rhs)) => lhs == rhs,
+			(Self::Null, Self::Null) => true,
+			_ => false,
+		}
+	}
+}
+
+#[derive(Clone, Debug)]
+enum FilterNodeValue {
+	String(String),
+	Number(f64),
+	DateTime(OffsetDateTime),
+	Null,
+}
+impl From<&FilterValue> for FilterNodeValue {
+	fn from(value: &FilterValue) -> Self {
+		match value {
+			FilterValue::String(value) => Self::String(value.clone()),
+			FilterValue::Number(value) => Self::Number(*value),
+			FilterValue::DateTime(value) => Self::DateTime(*value),
+			FilterValue::Null => Self::Null,
+		}
+	}
+}
+
+impl PartialEq for FilterNodeValue {
+	fn eq(&self, other: &Self) -> bool {
+		match (self, other) {
+			(Self::String(lhs), Self::String(rhs)) => lhs == rhs,
+			(Self::Number(lhs), Self::Number(rhs)) => lhs == rhs,
+			(Self::DateTime(lhs), Self::DateTime(rhs)) => lhs == rhs,
+			(Self::Null, Self::Null) => true,
+			_ => false,
 		}
 	}
 }
@@ -666,6 +786,7 @@ fn parse_expr(
 				message: "and node requires args.".to_string(),
 			})?;
 			let args = FilterExpr::parse_args(args, &format!("{path}.args"), depth, state)?;
+
 			Ok(FilterExpr::And(args))
 		},
 		"or" => {
@@ -674,6 +795,7 @@ fn parse_expr(
 				message: "or node requires args.".to_string(),
 			})?;
 			let args = FilterExpr::parse_args(args, &format!("{path}.args"), depth, state)?;
+
 			Ok(FilterExpr::Or(args))
 		},
 		"not" => {
@@ -757,79 +879,19 @@ fn parse_value(
 	}
 }
 
-impl FilterValue {
-	fn to_node_value(&self) -> FilterNodeValue {
-		match self {
-			Self::String(value) => FilterNodeValue::String(value.clone()),
-			Self::Number(value) => FilterNodeValue::Number(*value),
-			Self::DateTime(value) => FilterNodeValue::DateTime(*value),
-			Self::Null => FilterNodeValue::Null,
-		}
-	}
-
-	fn to_value(&self) -> Value {
-		match self {
-			Self::String(value) => Value::String(value.clone()),
-			Self::Number(value) => json!(value),
-			Self::DateTime(value) => Value::String(value.format(&Rfc3339).unwrap_or_default()),
-			Self::Null => Value::Null,
-		}
-	}
-
-	fn to_numeric(&self) -> f64 {
-		match self {
-			Self::Number(value) => *value,
-			_ => 0.0,
-		}
-	}
-}
-
-impl From<&FilterValue> for FilterNodeValue {
-	fn from(value: &FilterValue) -> Self {
-		match value {
-			FilterValue::String(value) => Self::String(value.clone()),
-			FilterValue::Number(value) => Self::Number(*value),
-			FilterValue::DateTime(value) => Self::DateTime(*value),
-			FilterValue::Null => Self::Null,
-		}
-	}
-}
-
-impl PartialEq for FilterValue {
-	fn eq(&self, other: &Self) -> bool {
-		match (self, other) {
-			(Self::String(lhs), Self::String(rhs)) => lhs == rhs,
-			(Self::Number(lhs), Self::Number(rhs)) => lhs == rhs,
-			(Self::DateTime(lhs), Self::DateTime(rhs)) => lhs == rhs,
-			(Self::Null, Self::Null) => true,
-			_ => false,
-		}
-	}
-}
-
-impl PartialEq for FilterNodeValue {
-	fn eq(&self, other: &Self) -> bool {
-		match (self, other) {
-			(Self::String(lhs), Self::String(rhs)) => lhs == rhs,
-			(Self::Number(lhs), Self::Number(rhs)) => lhs == rhs,
-			(Self::DateTime(lhs), Self::DateTime(rhs)) => lhs == rhs,
-			(Self::Null, Self::Null) => true,
-			_ => false,
-		}
-	}
-}
-
-impl Default for FilterExpr {
-	fn default() -> Self {
-		Self::Eq { field: FilterField::Type, value: FilterValue::Null }
-	}
-}
-
 #[cfg(test)]
 mod tests {
 	use std::collections::HashMap;
 
-	use super::*;
+	use serde_json::{Map, Value};
+	use time::OffsetDateTime;
+
+	use uuid::Uuid;
+
+	use crate::search::filter::{
+		ChunkCandidate, MAX_FILTER_NODES, MAX_IN_LIST_ITEMS, MAX_STRING_BYTES, NoteMeta,
+		SEARCH_FILTER_EXPR_SCHEMA_V1, SearchFilter,
+	};
 
 	fn note_meta() -> NoteMeta {
 		NoteMeta {
@@ -880,7 +942,6 @@ mod tests {
 		}
 
 		let expr = serde_json::json!({ "op": "and", "args": args });
-
 		let raw = serde_json::json!({ "schema": SEARCH_FILTER_EXPR_SCHEMA_V1, "expr": expr });
 
 		assert!(SearchFilter::parse(&raw).is_ok());
@@ -988,6 +1049,7 @@ mod tests {
 		let second = Uuid::new_v4();
 		let third = Uuid::new_v4();
 		let mut note_meta = HashMap::new();
+
 		note_meta.insert(
 			first,
 			NoteMeta {
