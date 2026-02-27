@@ -708,6 +708,7 @@ fn docs_search_l0_schema() -> Arc<JsonObject> {
 			"ts_lte": { "type": ["string", "null"], "format": "date-time" },
 			"top_k": { "type": ["integer", "null"] },
 			"candidate_k": { "type": ["integer", "null"] },
+			"explain": { "type": ["boolean", "null"] },
 			"read_profile": { "type": ["string", "null"] }
 		}
 	}))
@@ -720,7 +721,8 @@ fn docs_excerpts_get_schema() -> Arc<JsonObject> {
 		"required": ["doc_id", "level"],
 		"properties": {
 			"doc_id": { "type": "string" },
-			"level": { "type": "string", "enum": ["L1", "L2"] },
+			"level": { "type": "string", "enum": ["L0", "L1", "L2"] },
+			"explain": { "type": ["boolean", "null"] },
 			"chunk_id": { "type": ["string", "null"] },
 			"quote": {
 				"type": ["object", "null"],
@@ -1147,6 +1149,7 @@ mod tests {
 			"updated_before",
 			"ts_gte",
 			"ts_lte",
+			"explain",
 		];
 
 		for field in required {
@@ -1171,5 +1174,22 @@ mod tests {
 				serde_json::Value::Null,
 			])
 		);
+	}
+
+	#[test]
+	fn docs_excerpts_get_schema_includes_l0_level_and_optional_explain() {
+		let schema = super::docs_excerpts_get_schema();
+		let properties = schema
+			.get("properties")
+			.and_then(serde_json::Value::as_object)
+			.expect("docs_excerpts_get schema is missing properties.");
+		let level_values = properties
+			.get("level")
+			.and_then(|level| level.get("enum"))
+			.and_then(|values| values.as_array())
+			.expect("docs_excerpts_get level schema is missing enum.");
+
+		assert!(level_values.contains(&serde_json::Value::String("L0".to_string())));
+		assert!(properties.contains_key("explain"));
 	}
 }

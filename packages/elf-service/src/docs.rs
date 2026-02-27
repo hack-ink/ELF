@@ -14,6 +14,7 @@ use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use uuid::Uuid;
 
 use crate::{ElfService, Error, Result, access::SharedSpaceGrantKey};
+use elf_config::Config;
 use elf_domain::english_gate;
 use elf_storage::{
 	doc_outbox,
@@ -25,8 +26,12 @@ const MAX_TOP_K: u32 = 32;
 const MAX_CANDIDATE_K: u32 = 1_024;
 const DEFAULT_DOC_MAX_BYTES: usize = 4 * 1_024 * 1_024;
 const DEFAULT_MAX_CHUNKS_PER_DOC: usize = 4_096;
+const DEFAULT_L0_MAX_BYTES: usize = 256;
 const DEFAULT_L1_MAX_BYTES: usize = 8 * 1_024;
 const DEFAULT_L2_MAX_BYTES: usize = 32 * 1_024;
+const DOC_RETRIEVAL_TRAJECTORY_SCHEMA_V1: &str = "doc_retrieval_trajectory/v1";
+const DOC_SOURCE_REF_SCHEMA_V1: &str = "source_ref/v1";
+const DOC_SOURCE_REF_RESOLVER_V1: &str = "elf_doc_ext/v1";
 const DOC_STATUSES: [&str; 2] = ["active", "deleted"];
 
 #[derive(Clone, Debug, Deserialize)]
@@ -94,12 +99,14 @@ pub struct DocsSearchL0Request {
 	pub ts_lte: Option<String>,
 	pub top_k: Option<u32>,
 	pub candidate_k: Option<u32>,
+	pub explain: Option<bool>,
 }
 
 #[derive(Clone, Debug, Serialize)]
 pub struct DocsSearchL0Item {
 	pub doc_id: Uuid,
 	pub chunk_id: Uuid,
+	pub pointer: DocsSearchL0ItemPointer,
 	pub score: f32,
 	pub snippet: String,
 	pub scope: String,
@@ -113,17 +120,56 @@ pub struct DocsSearchL0Item {
 
 #[derive(Clone, Debug, Serialize)]
 pub struct DocsSearchL0Response {
+	pub trace_id: Uuid,
 	pub items: Vec<DocsSearchL0Item>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub trajectory: Option<DocRetrievalTrajectory>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Serialize)]
+pub struct DocsSearchL0ItemPointer {
+	pub schema: String,
+	pub resolver: String,
+	#[serde(rename = "ref")]
+	pub reference: DocsSearchL0ItemReference,
+	pub state: DocsSearchL0ItemState,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct DocsSearchL0ItemReference {
+	pub doc_id: Uuid,
+	pub chunk_id: Uuid,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct DocsSearchL0ItemState {
+	pub content_hash: String,
+	pub chunk_hash: String,
+	#[serde(with = "crate::time_serde")]
+	pub doc_updated_at: OffsetDateTime,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct DocRetrievalTrajectory {
+	pub schema: String,
+	pub stages: Vec<DocRetrievalTrajectoryStage>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct DocRetrievalTrajectoryStage {
+	pub stage_order: u32,
+	pub stage_name: String,
+	pub stats: Value,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TextQuoteSelector {
 	pub exact: String,
 	pub prefix: Option<String>,
 	pub suffix: Option<String>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TextPositionSelector {
 	pub start: usize,
 	pub end: usize,
@@ -136,10 +182,11 @@ pub struct DocsExcerptsGetRequest {
 	pub agent_id: String,
 	pub read_profile: String,
 	pub doc_id: Uuid,
-	pub level: String, // "L1" | "L2"
+	pub level: String, // "L0" | "L1" | "L2"
 	pub chunk_id: Option<Uuid>,
 	pub quote: Option<TextQuoteSelector>,
 	pub position: Option<TextPositionSelector>,
+	pub explain: Option<bool>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -152,11 +199,79 @@ pub struct DocsExcerptVerification {
 
 #[derive(Clone, Debug, Serialize)]
 pub struct DocsExcerptResponse {
+	pub trace_id: Uuid,
 	pub doc_id: Uuid,
 	pub excerpt: String,
 	pub start_offset: usize,
 	pub end_offset: usize,
+	pub locator: DocsExcerptLocator,
 	pub verification: DocsExcerptVerification,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub trajectory: Option<DocRetrievalTrajectory>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct DocsExcerptLocator {
+	pub selector_kind: String,
+	pub match_start_offset: usize,
+	pub match_end_offset: usize,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub chunk_id: Option<Uuid>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub quote: Option<TextQuoteSelector>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub position: Option<TextPositionSelector>,
+}
+
+#[derive(Clone, Copy)]
+struct DocExcerptMatch {
+	selector_kind: ExcerptsSelectorKind,
+	match_start_offset: usize,
+	match_end_offset: usize,
+}
+
+struct DocExcerptRange {
+	selector_kind: ExcerptsSelectorKind,
+	match_start_offset: usize,
+	match_end_offset: usize,
+	start_offset: usize,
+	end_offset: usize,
+}
+
+struct DocTrajectoryBuilder {
+	explain: bool,
+	stages: Vec<DocRetrievalTrajectoryStage>,
+	stage_order: u32,
+}
+impl DocTrajectoryBuilder {
+	fn new(explain: bool) -> Self {
+		Self { explain, stages: Vec::new(), stage_order: 0 }
+	}
+
+	fn push(&mut self, stage_name: &str, stats: Value) {
+		if !self.explain {
+			return;
+		}
+
+		self.stages.push(DocRetrievalTrajectoryStage {
+			stage_order: self.stage_order,
+			stage_name: stage_name.to_string(),
+			stats,
+		});
+
+		self.stage_order += 1;
+	}
+
+	fn into_trajectory(self) -> Option<DocRetrievalTrajectory> {
+		if !self.explain {
+			return None;
+		}
+
+		Some(DocRetrievalTrajectory {
+			schema: DOC_RETRIEVAL_TRAJECTORY_SCHEMA_V1.to_string(),
+			stages: self.stages,
+		})
+	}
 }
 
 #[derive(Clone, Debug)]
@@ -199,6 +314,22 @@ struct DocSearchRow {
 	content_hash: String,
 	chunk_hash: String,
 	chunk_text: String,
+}
+
+#[derive(Clone, Copy)]
+enum ExcerptsSelectorKind {
+	ChunkId,
+	Quote,
+	Position,
+}
+impl ExcerptsSelectorKind {
+	fn as_str(&self) -> &'static str {
+		match self {
+			Self::ChunkId => "chunk_id",
+			Self::Quote => "quote",
+			Self::Position => "position",
+		}
+	}
 }
 
 impl ElfService {
@@ -392,9 +523,22 @@ LIMIT 1",
 	}
 
 	pub async fn docs_search_l0(&self, req: DocsSearchL0Request) -> Result<DocsSearchL0Response> {
+		let explain = req.explain.unwrap_or(false);
+		let trace_id = Uuid::new_v4();
 		let filters = validate_docs_search_l0(&req)?;
 		let top_k = req.top_k.unwrap_or(12).min(MAX_TOP_K);
 		let candidate_k = req.candidate_k.unwrap_or(60).min(MAX_CANDIDATE_K);
+		let mut trajectory = DocTrajectoryBuilder::new(explain);
+
+		trajectory.push(
+			"request_validation",
+			serde_json::json!({
+				"query_len": req.query.len(),
+				"top_k": top_k,
+				"candidate_k": candidate_k,
+			}),
+		);
+
 		let allowed_scopes =
 			crate::search::resolve_read_profile_scopes(&self.cfg, req.read_profile.as_str())?;
 		let org_shared_allowed = allowed_scopes.iter().any(|scope| scope == "org_shared");
@@ -418,9 +562,20 @@ LIMIT 1",
 			.embedding
 			.embed(&self.cfg.providers.embedding, std::slice::from_ref(&req.query))
 			.await?;
+
+		trajectory.push("query_embedding", serde_json::json!({ "provider": "embedding" }));
+
 		let vector = embedded.first().ok_or_else(|| Error::Provider {
 			message: "Embedding provider returned no vectors.".to_string(),
 		})?;
+
+		trajectory.push(
+			"vector_dimension_check",
+			serde_json::json!({
+				"provided_dim": vector.len(),
+				"expected_dim": self.cfg.storage.qdrant.vector_dim as usize,
+			}),
+		);
 
 		if vector.len() != self.cfg.storage.qdrant.vector_dim as usize {
 			return Err(Error::Provider {
@@ -437,20 +592,20 @@ LIMIT 1",
 			candidate_k,
 		)
 		.await?;
-		let mut scored_chunks = Vec::new();
-		let mut seen = HashSet::new();
 
-		for point in scored.into_iter().take(candidate_k as usize) {
-			let chunk_id = parse_scored_point_uuid_id(&point)?;
+		trajectory.push("vector_search", serde_json::json!({ "raw_points": scored.len() }));
 
-			if !seen.insert(chunk_id) {
-				continue;
-			}
-
-			scored_chunks.push((chunk_id, point.score));
-		}
-
+		let scored_chunks = docs_search_l0_deduplicated_chunks(&scored, candidate_k as usize)?;
 		let chunk_ids: Vec<Uuid> = scored_chunks.iter().map(|(chunk_id, _)| *chunk_id).collect();
+
+		trajectory.push(
+			"dedupe",
+			serde_json::json!({
+				"raw_candidates": scored.len(),
+				"deduped_candidates": chunk_ids.len(),
+			}),
+		);
+
 		let rows = load_doc_search_rows(
 			&self.db.pool,
 			req.tenant_id.as_str(),
@@ -459,50 +614,50 @@ LIMIT 1",
 			&chunk_ids,
 		)
 		.await?;
-		let mut items = Vec::with_capacity(top_k as usize);
 
-		for (chunk_id, score) in scored_chunks {
-			let Some(row) = rows.get(&chunk_id) else { continue };
+		trajectory.push(
+			"chunk_lookup",
+			serde_json::json!({
+				"requested_chunks": chunk_ids.len(),
+				"loaded_chunks": rows.len(),
+			}),
+		);
 
-			if !doc_read_allowed(
-				req.caller_agent_id.as_str(),
-				&allowed_scopes,
-				&shared_grants,
-				row.agent_id.as_str(),
-				row.scope.as_str(),
-			) {
-				continue;
-			}
-
-			items.push(DocsSearchL0Item {
-				doc_id: row.doc_id,
-				chunk_id,
-				score,
-				snippet: truncate_bytes(row.chunk_text.as_str(), 256),
-				scope: row.scope.clone(),
-				doc_type: row.doc_type.clone(),
-				project_id: row.project_id.clone(),
-				agent_id: row.agent_id.clone(),
-				updated_at: row.updated_at,
-				content_hash: row.content_hash.clone(),
-				chunk_hash: row.chunk_hash.clone(),
-			});
-		}
+		let mut items = docs_search_l0_project_items(
+			&scored_chunks,
+			&rows,
+			req.caller_agent_id.as_str(),
+			&allowed_scopes,
+			&shared_grants,
+		);
 
 		items.sort_by(|a, b| b.score.total_cmp(&a.score));
 		items.truncate(top_k as usize);
 
-		Ok(DocsSearchL0Response { items })
+		record_result_projection_stage(&mut trajectory, rows.len(), items.len());
+
+		Ok(DocsSearchL0Response { trace_id, items, trajectory: trajectory.into_trajectory() })
 	}
 
 	pub async fn docs_excerpts_get(
 		&self,
 		req: DocsExcerptsGetRequest,
 	) -> Result<DocsExcerptResponse> {
+		let explain = req.explain.unwrap_or(false);
+		let trace_id = Uuid::new_v4();
 		let tenant_id = req.tenant_id.trim();
 		let project_id = req.project_id.trim();
 		let agent_id = req.agent_id.trim();
 		let read_profile = req.read_profile.trim();
+		let mut trajectory = DocTrajectoryBuilder::new(explain);
+
+		trajectory.push(
+			"request_validation",
+			serde_json::json!({
+				"doc_id": req.doc_id,
+				"read_profile": read_profile,
+			}),
+		);
 
 		validate_docs_excerpts_get(
 			tenant_id,
@@ -512,46 +667,45 @@ LIMIT 1",
 			req.quote.as_ref(),
 		)?;
 
-		let allowed_scopes = crate::search::resolve_read_profile_scopes(&self.cfg, read_profile)?;
-		let org_shared_allowed = allowed_scopes.iter().any(|scope| scope == "org_shared");
-		let shared_grants = crate::access::load_shared_read_grants_with_org_shared(
+		let doc = load_docs_excerpt_context(
+			&self.cfg,
 			&self.db.pool,
 			tenant_id,
 			project_id,
 			agent_id,
-			org_shared_allowed,
+			read_profile,
+			req.doc_id,
 		)
 		.await?;
-		let doc = load_doc_document_for_read(&self.db.pool, req.doc_id, tenant_id, project_id)
-			.await?
-			.ok_or_else(|| Error::NotFound { message: "Doc not found.".to_string() })?;
-
-		if doc.status != "active"
-			|| !doc_read_allowed(
-				agent_id,
-				&allowed_scopes,
-				&shared_grants,
-				doc.agent_id.as_str(),
-				doc.scope.as_str(),
-			) {
-			return Err(Error::NotFound { message: "Doc not found.".to_string() });
-		}
-
 		let level_max = excerpt_level_max(req.level.as_str())?;
+
+		trajectory.push(
+			"level_selection",
+			serde_json::json!({
+				"level": req.level,
+				"max_bytes": level_max,
+			}),
+		);
+
 		let mut verified = true;
 		let mut verification_errors = Vec::new();
-		let (match_start, match_end) = resolve_excerpts_match_range(
+		let DocExcerptRange {
+			selector_kind,
+			match_start_offset,
+			match_end_offset,
+			start_offset,
+			end_offset,
+		} = docs_excerpts_resolve_windowed_match(
 			&self.db.pool,
 			&doc,
 			&req,
+			level_max,
+			&mut trajectory,
 			&mut verified,
 			&mut verification_errors,
 		)
 		.await?;
-		let (start, end) = bounded_window(match_start, match_end, doc.content.as_str(), level_max);
-		let excerpt = doc.content.get(start..end).unwrap_or("").to_string();
-		let excerpt_hash = blake3::hash(excerpt.as_bytes()).to_hex().to_string();
-		let content_hash = doc.content_hash.clone();
+		let excerpt = doc.content.get(start_offset..end_offset).unwrap_or("").to_string();
 
 		if excerpt.is_empty() {
 			verified = false;
@@ -559,18 +713,138 @@ LIMIT 1",
 			verification_errors.push("EMPTY_EXCERPT".to_string());
 		}
 
+		let excerpt_hash = blake3::hash(excerpt.as_bytes()).to_hex().to_string();
+
+		trajectory.push(
+			"verification",
+			serde_json::json!({
+				"verified": verified,
+				"error_count": verification_errors.len(),
+			}),
+		);
+
 		Ok(DocsExcerptResponse {
+			trace_id,
 			doc_id: doc.doc_id,
 			excerpt,
-			start_offset: start,
-			end_offset: end,
+			start_offset,
+			end_offset,
+			locator: docs_excerpt_locator(
+				&req,
+				&selector_kind,
+				match_start_offset,
+				match_end_offset,
+			),
 			verification: DocsExcerptVerification {
 				verified,
 				verification_errors,
-				content_hash,
+				content_hash: doc.content_hash.clone(),
 				excerpt_hash,
 			},
+			trajectory: trajectory.into_trajectory(),
 		})
+	}
+}
+
+fn docs_search_l0_deduplicated_chunks(
+	scored: &[ScoredPoint],
+	candidate_k: usize,
+) -> Result<Vec<(Uuid, f32)>> {
+	let mut seen = HashSet::new();
+	let mut chunks = Vec::new();
+
+	for point in scored.iter().take(candidate_k) {
+		let chunk_id = parse_scored_point_uuid_id(point)?;
+
+		if seen.insert(chunk_id) {
+			chunks.push((chunk_id, point.score));
+		}
+	}
+
+	Ok(chunks)
+}
+
+fn docs_search_l0_project_items(
+	scored_chunks: &[(Uuid, f32)],
+	rows: &HashMap<Uuid, DocSearchRow>,
+	caller_agent_id: &str,
+	allowed_scopes: &[String],
+	shared_grants: &HashSet<SharedSpaceGrantKey>,
+) -> Vec<DocsSearchL0Item> {
+	let mut items = Vec::with_capacity(scored_chunks.len());
+
+	for (chunk_id, score) in scored_chunks {
+		let Some(row) = rows.get(chunk_id) else { continue };
+
+		if !doc_read_allowed(
+			caller_agent_id,
+			allowed_scopes,
+			shared_grants,
+			row.agent_id.as_str(),
+			row.scope.as_str(),
+		) {
+			continue;
+		}
+
+		items.push(DocsSearchL0Item {
+			doc_id: row.doc_id,
+			chunk_id: *chunk_id,
+			pointer: build_docs_l0_pointer(row, *chunk_id),
+			score: *score,
+			snippet: truncate_bytes(row.chunk_text.as_str(), DEFAULT_L0_MAX_BYTES),
+			scope: row.scope.clone(),
+			doc_type: row.doc_type.clone(),
+			project_id: row.project_id.clone(),
+			agent_id: row.agent_id.clone(),
+			updated_at: row.updated_at,
+			content_hash: row.content_hash.clone(),
+			chunk_hash: row.chunk_hash.clone(),
+		});
+	}
+
+	items
+}
+
+fn record_result_projection_stage(
+	trajectory: &mut DocTrajectoryBuilder,
+	pre_authorization_candidates: usize,
+	returned_items: usize,
+) {
+	trajectory.push(
+		"result_projection",
+		serde_json::json!({
+			"pre_authorization_candidates": pre_authorization_candidates,
+			"returned_items": returned_items,
+		}),
+	)
+}
+
+fn docs_excerpt_locator(
+	req: &DocsExcerptsGetRequest,
+	selector_kind: &ExcerptsSelectorKind,
+	match_start_offset: usize,
+	match_end_offset: usize,
+) -> DocsExcerptLocator {
+	DocsExcerptLocator {
+		selector_kind: selector_kind.as_str().to_string(),
+		match_start_offset,
+		match_end_offset,
+		chunk_id: req.chunk_id,
+		quote: req.quote.clone(),
+		position: req.position.clone(),
+	}
+}
+
+fn build_docs_l0_pointer(row: &DocSearchRow, chunk_id: Uuid) -> DocsSearchL0ItemPointer {
+	DocsSearchL0ItemPointer {
+		schema: DOC_SOURCE_REF_SCHEMA_V1.to_string(),
+		resolver: DOC_SOURCE_REF_RESOLVER_V1.to_string(),
+		reference: DocsSearchL0ItemReference { doc_id: row.doc_id, chunk_id },
+		state: DocsSearchL0ItemState {
+			content_hash: row.content_hash.clone(),
+			chunk_hash: row.chunk_hash.clone(),
+			doc_updated_at: row.updated_at,
+		},
 	}
 }
 
@@ -639,9 +913,10 @@ fn validate_quote_selector_english(quote: &TextQuoteSelector) -> Result<()> {
 
 fn excerpt_level_max(level: &str) -> Result<usize> {
 	match level {
+		"L0" => Ok(DEFAULT_L0_MAX_BYTES),
 		"L1" => Ok(DEFAULT_L1_MAX_BYTES),
 		"L2" => Ok(DEFAULT_L2_MAX_BYTES),
-		_ => Err(Error::InvalidRequest { message: "level must be L1 or L2.".to_string() }),
+		_ => Err(Error::InvalidRequest { message: "level must be L0, L1, or L2.".to_string() }),
 	}
 }
 
@@ -1260,6 +1535,98 @@ fn bounded_window(
 	(start, end)
 }
 
+async fn load_docs_excerpt_context(
+	cfg: &Config,
+	pool: &PgPool,
+	tenant_id: &str,
+	project_id: &str,
+	agent_id: &str,
+	read_profile: &str,
+	doc_id: Uuid,
+) -> Result<DocDocument> {
+	let allowed_scopes = crate::search::resolve_read_profile_scopes(cfg, read_profile)?;
+	let org_shared_allowed = allowed_scopes.iter().any(|scope| scope == "org_shared");
+	let shared_grants = crate::access::load_shared_read_grants_with_org_shared(
+		pool,
+		tenant_id,
+		project_id,
+		agent_id,
+		org_shared_allowed,
+	)
+	.await?;
+	let doc = load_doc_document_for_read(pool, doc_id, tenant_id, project_id)
+		.await?
+		.ok_or_else(|| Error::NotFound { message: "Doc not found.".to_string() })?;
+
+	if doc.status != "active"
+		|| !doc_read_allowed(
+			agent_id,
+			&allowed_scopes,
+			&shared_grants,
+			doc.agent_id.as_str(),
+			doc.scope.as_str(),
+		) {
+		return Err(Error::NotFound { message: "Doc not found.".to_string() });
+	}
+
+	Ok(doc)
+}
+
+async fn docs_excerpts_resolve_windowed_match(
+	pool: &PgPool,
+	doc: &DocDocument,
+	req: &DocsExcerptsGetRequest,
+	level_max: usize,
+	trajectory: &mut DocTrajectoryBuilder,
+	verified: &mut bool,
+	verification_errors: &mut Vec<String>,
+) -> Result<DocExcerptRange> {
+	let DocExcerptMatch { selector_kind, match_start_offset, match_end_offset } =
+		docs_excerpts_resolve_match(pool, doc, req, verified, verification_errors).await?;
+
+	trajectory.push(
+		"match_resolution",
+		serde_json::json!({
+			"selector_kind": selector_kind.as_str(),
+			"match_start": match_start_offset,
+			"match_end": match_end_offset,
+		}),
+	);
+
+	let (start_offset, end_offset) =
+		bounded_window(match_start_offset, match_end_offset, doc.content.as_str(), level_max);
+
+	trajectory.push(
+		"window_projection",
+		serde_json::json!({
+			"window_start": start_offset,
+			"window_end": end_offset,
+			"content_len": doc.content.len(),
+		}),
+	);
+
+	Ok(DocExcerptRange {
+		selector_kind,
+		match_start_offset,
+		match_end_offset,
+		start_offset,
+		end_offset,
+	})
+}
+
+async fn docs_excerpts_resolve_match(
+	pool: &PgPool,
+	doc: &DocDocument,
+	req: &DocsExcerptsGetRequest,
+	verified: &mut bool,
+	verification_errors: &mut Vec<String>,
+) -> Result<DocExcerptMatch> {
+	let (match_start_offset, match_end_offset, selector_kind) =
+		resolve_excerpts_match_range(pool, doc, req, verified, verification_errors).await?;
+
+	Ok(DocExcerptMatch { selector_kind, match_start_offset, match_end_offset })
+}
+
 async fn load_doc_document_for_read(
 	executor: impl PgExecutor<'_>,
 	doc_id: Uuid,
@@ -1308,7 +1675,7 @@ async fn resolve_excerpts_match_range(
 	req: &DocsExcerptsGetRequest,
 	verified: &mut bool,
 	verification_errors: &mut Vec<String>,
-) -> Result<(usize, usize)> {
+) -> Result<(usize, usize, ExcerptsSelectorKind)> {
 	if let Some(chunk_id) = req.chunk_id {
 		let chunk = elf_storage::docs::get_doc_chunk(pool, chunk_id).await?;
 		let Some(chunk) = chunk else {
@@ -1319,18 +1686,26 @@ async fn resolve_excerpts_match_range(
 			return Err(Error::NotFound { message: "Chunk not found.".to_string() });
 		}
 
-		return Ok((chunk.start_offset.max(0) as usize, chunk.end_offset.max(0) as usize));
+		return Ok((
+			chunk.start_offset.max(0) as usize,
+			chunk.end_offset.max(0) as usize,
+			ExcerptsSelectorKind::ChunkId,
+		));
 	}
 	if let Some(quote) = req.quote.as_ref() {
 		return Ok(match locate_quote(&doc.content, quote) {
-			Some((s, e)) => (s, e),
+			Some((s, e)) => (s, e, ExcerptsSelectorKind::Quote),
 			None => {
 				*verified = false;
 
 				verification_errors.push("QUOTE_SELECTOR_NOT_FOUND".to_string());
 
 				if let Some(pos) = req.position.as_ref() {
-					(pos.start.min(doc.content.len()), pos.end.min(doc.content.len()))
+					(
+						pos.start.min(doc.content.len()),
+						pos.end.min(doc.content.len()),
+						ExcerptsSelectorKind::Position,
+					)
 				} else {
 					return Err(Error::NotFound {
 						message: "Selector did not match document.".to_string(),
@@ -1340,7 +1715,11 @@ async fn resolve_excerpts_match_range(
 		});
 	}
 	if let Some(pos) = req.position.as_ref() {
-		return Ok((pos.start.min(doc.content.len()), pos.end.min(doc.content.len())));
+		return Ok((
+			pos.start.min(doc.content.len()),
+			pos.end.min(doc.content.len()),
+			ExcerptsSelectorKind::Position,
+		));
 	}
 
 	Err(Error::InvalidRequest {
@@ -1462,6 +1841,7 @@ mod tests {
 			ts_lte: None,
 			top_k: None,
 			candidate_k: None,
+			explain: None,
 		}
 	}
 
@@ -1583,6 +1963,7 @@ mod tests {
 			ts_lte: None,
 			top_k: None,
 			candidate_k: None,
+			explain: None,
 		})
 		.expect_err("Expected invalid status to be rejected.");
 
@@ -1611,6 +1992,7 @@ mod tests {
 			ts_lte: None,
 			top_k: None,
 			candidate_k: None,
+			explain: None,
 		})
 		.expect_err("Expected invalid RFC3339 datetime to be rejected.");
 
@@ -1712,6 +2094,7 @@ mod tests {
 			ts_lte: Some("2026-02-25T11:00:00Z".to_string()),
 			top_k: None,
 			candidate_k: None,
+			explain: None,
 		})
 		.expect_err("Expected bad doc_ts order to be rejected.");
 
@@ -1721,6 +2104,15 @@ mod tests {
 			},
 			other => panic!("Unexpected error: {other:?}"),
 		}
+	}
+
+	#[test]
+	fn excerpt_level_max_supports_l0_and_rejects_unknown_level() {
+		assert_eq!(
+			super::excerpt_level_max("L0").expect("Expected L0 to be supported."),
+			super::DEFAULT_L0_MAX_BYTES
+		);
+		assert!(super::excerpt_level_max("L3").is_err());
 	}
 
 	#[test]
