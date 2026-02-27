@@ -437,6 +437,78 @@ impl ElfMcp {
 
 		self.forward(HttpMethod::Post, &path, params, None).await
 	}
+
+	#[rmcp::tool(
+		name = "elf_admin_traces_recent_list",
+		description = "List recent traces by tenant/project with optional cursor and filters.",
+		input_schema = admin_traces_recent_list_schema()
+	)]
+	async fn elf_admin_traces_recent_list(
+		&self,
+		params: JsonObject,
+	) -> Result<CallToolResult, ErrorData> {
+		self.forward(HttpMethod::Get, "/v2/admin/traces/recent", params, None).await
+	}
+
+	#[rmcp::tool(
+		name = "elf_admin_trace_get",
+		description = "Fetch trace metadata, items, and optional trajectory summary by trace_id.",
+		input_schema = admin_trace_get_schema()
+	)]
+	async fn elf_admin_trace_get(
+		&self,
+		mut params: JsonObject,
+	) -> Result<CallToolResult, ErrorData> {
+		let trace_id = take_required_string(&mut params, "trace_id")?;
+		let path = format!("/v2/admin/traces/{trace_id}");
+
+		self.forward(HttpMethod::Get, &path, JsonObject::new(), None).await
+	}
+
+	#[rmcp::tool(
+		name = "elf_admin_trajectory_get",
+		description = "Fetch trace trajectory and stage payload by trace_id.",
+		input_schema = admin_trajectory_get_schema()
+	)]
+	async fn elf_admin_trajectory_get(
+		&self,
+		mut params: JsonObject,
+	) -> Result<CallToolResult, ErrorData> {
+		let trace_id = take_required_string(&mut params, "trace_id")?;
+		let path = format!("/v2/admin/trajectories/{trace_id}");
+
+		self.forward(HttpMethod::Get, &path, JsonObject::new(), None).await
+	}
+
+	#[rmcp::tool(
+		name = "elf_admin_trace_item_get",
+		description = "Fetch a trace item explain payload by item_id.",
+		input_schema = admin_trace_item_get_schema()
+	)]
+	async fn elf_admin_trace_item_get(
+		&self,
+		mut params: JsonObject,
+	) -> Result<CallToolResult, ErrorData> {
+		let item_id = take_required_string(&mut params, "item_id")?;
+		let path = format!("/v2/admin/trace-items/{item_id}");
+
+		self.forward(HttpMethod::Get, &path, JsonObject::new(), None).await
+	}
+
+	#[rmcp::tool(
+		name = "elf_admin_trace_bundle_get",
+		description = "Fetch trace bundle for replay and diagnostics by trace_id.",
+		input_schema = admin_trace_bundle_get_schema()
+	)]
+	async fn elf_admin_trace_bundle_get(
+		&self,
+		mut params: JsonObject,
+	) -> Result<CallToolResult, ErrorData> {
+		let trace_id = take_required_string(&mut params, "trace_id")?;
+		let path = format!("/v2/admin/traces/{trace_id}/bundle");
+
+		self.forward(HttpMethod::Get, &path, params, None).await
+	}
 }
 
 #[rmcp::tool_handler]
@@ -922,6 +994,75 @@ fn space_grant_revoke_schema() -> Arc<JsonObject> {
 	space_grant_upsert_schema()
 }
 
+fn admin_traces_recent_list_schema() -> Arc<JsonObject> {
+	Arc::new(rmcp::object!({
+		"type": "object",
+		"additionalProperties": true,
+		"required": [],
+		"properties": {
+			"limit": {
+				"type": ["integer", "null"],
+				"minimum": 1,
+				"maximum": 200
+			},
+			"cursor_created_at": { "type": ["string", "null"], "format": "date-time" },
+			"cursor_trace_id": { "type": ["string", "null"] },
+			"agent_id": { "type": ["string", "null"] },
+			"read_profile": { "type": ["string", "null"] },
+			"created_after": { "type": ["string", "null"], "format": "date-time" },
+			"created_before": { "type": ["string", "null"], "format": "date-time" }
+		}
+	}))
+}
+
+fn admin_trace_get_schema() -> Arc<JsonObject> {
+	Arc::new(rmcp::object!({
+		"type": "object",
+		"additionalProperties": true,
+		"required": ["trace_id"],
+		"properties": {
+			"trace_id": { "type": "string" }
+		}
+	}))
+}
+
+fn admin_trajectory_get_schema() -> Arc<JsonObject> {
+	admin_trace_get_schema()
+}
+
+fn admin_trace_item_get_schema() -> Arc<JsonObject> {
+	Arc::new(rmcp::object!({
+		"type": "object",
+		"additionalProperties": true,
+		"required": ["item_id"],
+		"properties": {
+			"item_id": { "type": "string" }
+		}
+	}))
+}
+
+fn admin_trace_bundle_get_schema() -> Arc<JsonObject> {
+	Arc::new(rmcp::object!({
+		"type": "object",
+		"additionalProperties": true,
+		"required": ["trace_id"],
+		"properties": {
+			"trace_id": { "type": "string" },
+			"mode": { "type": ["string", "null"], "enum": ["bounded", "full", null] },
+			"stage_items_limit": {
+				"type": ["integer", "null"],
+				"minimum": 0,
+				"maximum": 256
+			},
+			"candidates_limit": {
+				"type": ["integer", "null"],
+				"minimum": 0,
+				"maximum": 1_000
+			}
+		}
+	}))
+}
+
 async fn handle_response(response: reqwest::Response) -> Result<CallToolResult, ErrorData> {
 	let status = response.status();
 	let bytes = response
@@ -1081,6 +1222,36 @@ mod tests {
 				"/v2/spaces/{space}/grants/revoke",
 				"Revoke a sharing grant for a space (team_shared or org_shared).",
 			),
+			ToolDefinition::new(
+				"elf_admin_traces_recent_list",
+				HttpMethod::Get,
+				"/v2/admin/traces/recent",
+				"List recent traces by tenant/project with optional cursor and filters.",
+			),
+			ToolDefinition::new(
+				"elf_admin_trace_get",
+				HttpMethod::Get,
+				"/v2/admin/traces/{trace_id}",
+				"Fetch trace metadata, items, and optional trajectory summary by trace_id.",
+			),
+			ToolDefinition::new(
+				"elf_admin_trajectory_get",
+				HttpMethod::Get,
+				"/v2/admin/trajectories/{trace_id}",
+				"Fetch trace trajectory and stage payload by trace_id.",
+			),
+			ToolDefinition::new(
+				"elf_admin_trace_item_get",
+				HttpMethod::Get,
+				"/v2/admin/trace-items/{item_id}",
+				"Fetch a trace item explain payload by item_id.",
+			),
+			ToolDefinition::new(
+				"elf_admin_trace_bundle_get",
+				HttpMethod::Get,
+				"/v2/admin/traces/{trace_id}/bundle",
+				"Fetch trace bundle for replay and diagnostics by trace_id.",
+			),
 		];
 
 		tools.into_iter().map(|tool| (tool.name, tool)).collect()
@@ -1106,6 +1277,11 @@ mod tests {
 			"elf_space_grants_list",
 			"elf_space_grant_upsert",
 			"elf_space_grant_revoke",
+			"elf_admin_traces_recent_list",
+			"elf_admin_trace_get",
+			"elf_admin_trajectory_get",
+			"elf_admin_trace_item_get",
+			"elf_admin_trace_bundle_get",
 		];
 
 		for name in expected {

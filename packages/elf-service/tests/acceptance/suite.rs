@@ -10,6 +10,7 @@ mod outbox_eventual_consistency;
 mod rebuild_qdrant;
 mod sot_vectors;
 mod structured_field_retrieval;
+mod trace_admin_observability;
 
 use std::{
 	env,

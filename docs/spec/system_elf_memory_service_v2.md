@@ -967,8 +967,83 @@ Notes:
   `search.graph_context.max_evidence_notes_per_fact`.
 - It is included wherever `SearchExplain` is returned, including admin trace surfaces (`/v2/admin/traces/*` and
   `/v2/admin/trace-items/*`), in addition to search responses.
+- Admin trace endpoints validate `tenant_id` + `project_id` only for access control. They are intended for
+  project-scoped operations and do not require the requesting `agent_id` to match the stored trace owner.
 - This endpoint is intended for debugging and evaluation. It returns chunk-level items and explain components.
 - The public search endpoint returns a compact note-level index view.
+
+GET /v2/admin/traces/recent
+
+Headers:
+- X-ELF-Tenant-Id (required)
+- X-ELF-Project-Id (required)
+- X-ELF-Agent-Id (required)
+
+Query:
+- limit (optional): default `50`, max `200`.
+- cursor_created_at (optional, RFC3339): timestamp cursor value.
+- cursor_trace_id (optional, uuid): cursor trace id.
+- agent_id (optional): filter traces by creator.
+- read_profile (optional): filter by read_profile.
+- created_after (optional, RFC3339): strict lower bound on `created_at`.
+- created_before (optional, RFC3339): strict upper bound on `created_at`.
+
+Requirements:
+- `cursor_created_at` and `cursor_trace_id` must be provided together or omitted together.
+
+Response:
+{
+  "schema": "elf.recent_traces/v1",
+  "traces": [
+    {
+      "trace_id": "uuid",
+      "tenant_id": "string",
+      "project_id": "string",
+      "agent_id": "string",
+      "read_profile": "private_only|private_plus_project|all_scopes",
+      "query": "string",
+      "created_at": "..."
+    }
+  ],
+  "next_cursor": {
+    "created_at": "...",
+    "trace_id": "uuid"
+  } | null
+}
+
+Ordering:
+- `created_at DESC`, then `trace_id DESC`.
+- The page cursor for the next page uses `(created_at, trace_id) < cursor`.
+
+GET /v2/admin/traces/{trace_id}/bundle
+
+Headers:
+- X-ELF-Tenant-Id (required)
+- X-ELF-Project-Id (required)
+- X-ELF-Agent-Id (required)
+
+Query:
+- mode: `bounded` (default) or `full`.
+- stage_items_limit (optional): max items per trajectory stage.
+- candidates_limit (optional): max candidate count for `candidates`.
+
+Response:
+{
+  "schema": "elf.trace_bundle/v1",
+  "generated_at": "...",
+  "trace": { ... },
+  "items": [ ... ],
+  "trajectory_summary": {
+    "schema": "search_retrieval_trajectory/v1",
+    "stages": [ ... ]
+  } | null,
+  "stages": [ ... ],
+  "candidates": [ ... ] | null
+}
+- `stage_items_limit`: `64` in `bounded` mode (cap `256`), `256` in `full` mode.
+- `candidates_limit`: `0` in `bounded` mode (no candidates), `200` in `full` mode.
+- Candidate snapshot is decoded to `TraceReplayCandidate`.
+- `candidates` is omitted as `null` when not requested.
 
 GET /v2/admin/traces/{trace_id}
 
