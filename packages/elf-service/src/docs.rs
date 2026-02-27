@@ -91,6 +91,9 @@ pub struct DocsSearchL0Request {
 	pub scope: Option<String>,
 	pub status: Option<String>,
 	pub doc_type: Option<String>,
+	pub sparse_mode: Option<String>,
+	pub domain: Option<String>,
+	pub repo: Option<String>,
 	pub agent_id: Option<String>,
 	pub thread_id: Option<String>,
 	pub updated_after: Option<String>,
@@ -279,6 +282,9 @@ struct DocsSearchL0Filters {
 	scope: Option<String>,
 	status: String,
 	doc_type: Option<String>,
+	sparse_mode: DocsSparseMode,
+	domain: Option<String>,
+	repo: Option<String>,
 	agent_id: Option<String>,
 	thread_id: Option<String>,
 	updated_after: Option<OffsetDateTime>,
@@ -316,20 +322,38 @@ struct DocSearchRow {
 	chunk_text: String,
 }
 
-#[derive(Clone, Copy)]
-enum ExcerptsSelectorKind {
-	ChunkId,
-	Quote,
-	Position,
+struct DocsSearchL0Prepared {
+	top_k: u32,
+	candidate_k: u32,
+	sparse_mode: DocsSparseMode,
+	sparse_enabled: bool,
+	now: OffsetDateTime,
+	trajectory: DocTrajectoryBuilder,
+	allowed_scopes: Vec<String>,
+	shared_grants: HashSet<SharedSpaceGrantKey>,
+	filter: Filter,
+	vector: Vec<f32>,
+	status: String,
 }
-impl ExcerptsSelectorKind {
-	fn as_str(&self) -> &'static str {
-		match self {
-			Self::ChunkId => "chunk_id",
-			Self::Quote => "quote",
-			Self::Position => "position",
-		}
-	}
+
+#[derive(Debug)]
+struct DocsSearchL0FiltersParsed {
+	scope: Option<String>,
+	status: String,
+	doc_type: Option<String>,
+	sparse_mode: DocsSparseMode,
+	domain: Option<String>,
+	repo: Option<String>,
+	agent_id: Option<String>,
+	thread_id: Option<String>,
+}
+
+#[derive(Debug)]
+struct DocsSearchL0RangesParsed {
+	updated_after: Option<OffsetDateTime>,
+	updated_before: Option<OffsetDateTime>,
+	ts_gte: Option<OffsetDateTime>,
+	ts_lte: Option<OffsetDateTime>,
 }
 
 impl ElfService {
@@ -523,11 +547,133 @@ LIMIT 1",
 	}
 
 	pub async fn docs_search_l0(&self, req: DocsSearchL0Request) -> Result<DocsSearchL0Response> {
-		let explain = req.explain.unwrap_or(false);
 		let trace_id = Uuid::new_v4();
 		let filters = validate_docs_search_l0(&req)?;
+		let mut prepared = self.prepare_docs_search_l0_request(&req, &filters).await?;
+		let scored = run_doc_fusion_query(
+			&self.qdrant.client,
+			self.cfg.storage.qdrant.docs_collection.as_str(),
+			req.query.as_str(),
+			&prepared.vector,
+			&prepared.filter,
+			prepared.sparse_mode,
+			prepared.candidate_k,
+		)
+		.await?;
+
+		self.record_docs_search_l0_vector_stats(
+			&mut prepared.trajectory,
+			&scored,
+			prepared.sparse_enabled,
+			prepared.sparse_mode,
+		);
+
+		let scored_chunks =
+			docs_search_l0_deduplicated_chunks(&scored, prepared.candidate_k as usize)?;
+		let chunk_ids: Vec<Uuid> = scored_chunks.iter().map(|(chunk_id, _)| *chunk_id).collect();
+		let rows = self
+			.load_doc_search_rows(&req, &prepared.status, &chunk_ids, &mut prepared.trajectory)
+			.await?;
+		let mut items = self.build_docs_search_l0_items(
+			&req,
+			&scored_chunks,
+			&rows,
+			&prepared.allowed_scopes,
+			&prepared.shared_grants,
+			&mut prepared.trajectory,
+		);
+
+		apply_doc_recency_boost(
+			&mut items,
+			prepared.now,
+			self.cfg.ranking.recency_tau_days,
+			self.cfg.ranking.tie_breaker_weight,
+		);
+
+		items.sort_by(|a, b| b.score.total_cmp(&a.score));
+		items.truncate(prepared.top_k as usize);
+
+		record_result_projection_stage(
+			&mut prepared.trajectory,
+			rows.len(),
+			items.len(),
+			self.cfg.ranking.recency_tau_days,
+			self.cfg.ranking.tie_breaker_weight,
+		);
+
+		Ok(DocsSearchL0Response {
+			trace_id,
+			items,
+			trajectory: prepared.trajectory.into_trajectory(),
+		})
+	}
+
+	async fn load_doc_search_rows(
+		&self,
+		req: &DocsSearchL0Request,
+		status: &str,
+		chunk_ids: &[Uuid],
+		trajectory: &mut DocTrajectoryBuilder,
+	) -> Result<HashMap<Uuid, DocSearchRow>> {
+		let rows = load_doc_search_rows(
+			&self.db.pool,
+			req.tenant_id.as_str(),
+			req.project_id.as_str(),
+			status,
+			chunk_ids,
+		)
+		.await?;
+
+		trajectory.push(
+			"chunk_lookup",
+			serde_json::json!({
+				"requested_chunks": chunk_ids.len(),
+				"loaded_chunks": rows.len(),
+			}),
+		);
+
+		Ok(rows)
+	}
+
+	fn build_docs_search_l0_items(
+		&self,
+		req: &DocsSearchL0Request,
+		scored_chunks: &[(Uuid, f32)],
+		rows: &HashMap<Uuid, DocSearchRow>,
+		allowed_scopes: &[String],
+		shared_grants: &HashSet<SharedSpaceGrantKey>,
+		trajectory: &mut DocTrajectoryBuilder,
+	) -> Vec<DocsSearchL0Item> {
+		let items = docs_search_l0_project_items(
+			scored_chunks,
+			rows,
+			req.caller_agent_id.as_str(),
+			allowed_scopes,
+			shared_grants,
+		);
+
+		trajectory.push(
+			"dedupe",
+			serde_json::json!({
+				"raw_candidates": scored_chunks.len(),
+				"deduped_candidates": items.len(),
+			}),
+		);
+
+		items
+	}
+
+	async fn prepare_docs_search_l0_request(
+		&self,
+		req: &DocsSearchL0Request,
+		filters: &DocsSearchL0Filters,
+	) -> Result<DocsSearchL0Prepared> {
+		let explain = req.explain.unwrap_or(false);
 		let top_k = req.top_k.unwrap_or(12).min(MAX_TOP_K);
 		let candidate_k = req.candidate_k.unwrap_or(60).min(MAX_CANDIDATE_K);
+		let sparse_mode = filters.sparse_mode;
+		let sparse_enabled = docs_search_sparse_enabled(sparse_mode, req.query.as_str());
+		let now = OffsetDateTime::now_utc();
 		let mut trajectory = DocTrajectoryBuilder::new(explain);
 
 		trajectory.push(
@@ -536,6 +682,9 @@ LIMIT 1",
 				"query_len": req.query.len(),
 				"top_k": top_k,
 				"candidate_k": candidate_k,
+				"sparse_mode": sparse_mode.as_str(),
+				"doc_type": filters.doc_type.as_deref().unwrap_or("<default>"),
+				"status": &filters.status,
 			}),
 		);
 
@@ -555,7 +704,7 @@ LIMIT 1",
 			req.project_id.as_str(),
 			req.caller_agent_id.as_str(),
 			&allowed_scopes,
-			&filters,
+			filters,
 		);
 		let embedded = self
 			.providers
@@ -583,60 +732,38 @@ LIMIT 1",
 			});
 		}
 
-		let scored = run_doc_fusion_query(
-			&self.qdrant.client,
-			self.cfg.storage.qdrant.docs_collection.as_str(),
-			req.query.as_str(),
-			vector,
-			&filter,
+		Ok(DocsSearchL0Prepared {
+			top_k,
 			candidate_k,
-		)
-		.await?;
+			sparse_mode,
+			sparse_enabled,
+			now,
+			trajectory,
+			allowed_scopes,
+			shared_grants,
+			filter,
+			vector: vector.to_vec(),
+			status: filters.status.clone(),
+		})
+	}
 
-		trajectory.push("vector_search", serde_json::json!({ "raw_points": scored.len() }));
-
-		let scored_chunks = docs_search_l0_deduplicated_chunks(&scored, candidate_k as usize)?;
-		let chunk_ids: Vec<Uuid> = scored_chunks.iter().map(|(chunk_id, _)| *chunk_id).collect();
-
-		trajectory.push(
-			"dedupe",
-			serde_json::json!({
-				"raw_candidates": scored.len(),
-				"deduped_candidates": chunk_ids.len(),
-			}),
-		);
-
-		let rows = load_doc_search_rows(
-			&self.db.pool,
-			req.tenant_id.as_str(),
-			req.project_id.as_str(),
-			filters.status.as_str(),
-			&chunk_ids,
-		)
-		.await?;
+	fn record_docs_search_l0_vector_stats(
+		&self,
+		trajectory: &mut DocTrajectoryBuilder,
+		scored: &[ScoredPoint],
+		sparse_enabled: bool,
+		sparse_mode: DocsSparseMode,
+	) {
+		let channels = if sparse_enabled { vec!["dense", "sparse"] } else { vec!["dense"] };
 
 		trajectory.push(
-			"chunk_lookup",
+			"vector_search",
 			serde_json::json!({
-				"requested_chunks": chunk_ids.len(),
-				"loaded_chunks": rows.len(),
+				"raw_points": scored.len(),
+				"sparse_mode": sparse_mode.as_str(),
+				"channels": channels,
 			}),
 		);
-
-		let mut items = docs_search_l0_project_items(
-			&scored_chunks,
-			&rows,
-			req.caller_agent_id.as_str(),
-			&allowed_scopes,
-			&shared_grants,
-		);
-
-		items.sort_by(|a, b| b.score.total_cmp(&a.score));
-		items.truncate(top_k as usize);
-
-		record_result_projection_stage(&mut trajectory, rows.len(), items.len());
-
-		Ok(DocsSearchL0Response { trace_id, items, trajectory: trajectory.into_trajectory() })
 	}
 
 	pub async fn docs_excerpts_get(
@@ -746,6 +873,38 @@ LIMIT 1",
 	}
 }
 
+#[derive(Clone, Copy, Debug)]
+enum DocsSparseMode {
+	Auto,
+	On,
+	Off,
+}
+impl DocsSparseMode {
+	fn as_str(self) -> &'static str {
+		match self {
+			Self::Auto => "auto",
+			Self::On => "on",
+			Self::Off => "off",
+		}
+	}
+}
+
+#[derive(Clone, Copy)]
+enum ExcerptsSelectorKind {
+	ChunkId,
+	Quote,
+	Position,
+}
+impl ExcerptsSelectorKind {
+	fn as_str(&self) -> &'static str {
+		match self {
+			Self::ChunkId => "chunk_id",
+			Self::Quote => "quote",
+			Self::Position => "position",
+		}
+	}
+}
+
 fn docs_search_l0_deduplicated_chunks(
 	scored: &[ScoredPoint],
 	candidate_k: usize,
@@ -805,16 +964,40 @@ fn docs_search_l0_project_items(
 	items
 }
 
+fn apply_doc_recency_boost(
+	items: &mut [DocsSearchL0Item],
+	now: OffsetDateTime,
+	recency_tau_days: f32,
+	tie_breaker_weight: f32,
+) {
+	if tie_breaker_weight <= 0.0 || items.is_empty() {
+		return;
+	}
+
+	for item in items.iter_mut() {
+		let age_days = ((now - item.updated_at).as_seconds_f32() / 86_400.0).max(0.0);
+		let recency_decay =
+			if recency_tau_days > 0.0 { (-age_days / recency_tau_days).exp() } else { 1.0 };
+
+		item.score += tie_breaker_weight * recency_decay;
+	}
+}
+
 fn record_result_projection_stage(
 	trajectory: &mut DocTrajectoryBuilder,
 	pre_authorization_candidates: usize,
 	returned_items: usize,
+	recency_tau_days: f32,
+	tie_breaker_weight: f32,
 ) {
 	trajectory.push(
 		"result_projection",
 		serde_json::json!({
 			"pre_authorization_candidates": pre_authorization_candidates,
 			"returned_items": returned_items,
+			"recency_tau_days": recency_tau_days,
+			"tie_breaker_weight": tie_breaker_weight,
+			"recency_boost_applied": tie_breaker_weight > 0.0 && !pre_authorization_candidates.eq(&0),
 		}),
 	)
 }
@@ -1060,6 +1243,35 @@ fn validate_doc_source_ref_requirements(
 }
 
 fn validate_docs_search_l0(req: &DocsSearchL0Request) -> Result<DocsSearchL0Filters> {
+	validate_docs_search_l0_query(req)?;
+
+	let filters = parse_docs_search_l0_filters(req)?;
+	let ranges = parse_docs_search_l0_ranges(req)?;
+
+	validate_docs_search_l0_temporal_ranges(
+		ranges.updated_after.as_ref(),
+		ranges.updated_before.as_ref(),
+		ranges.ts_gte.as_ref(),
+		ranges.ts_lte.as_ref(),
+	)?;
+
+	Ok(DocsSearchL0Filters {
+		scope: filters.scope,
+		status: filters.status,
+		doc_type: filters.doc_type,
+		sparse_mode: filters.sparse_mode,
+		domain: filters.domain,
+		repo: filters.repo,
+		agent_id: filters.agent_id,
+		thread_id: filters.thread_id,
+		updated_after: ranges.updated_after,
+		updated_before: ranges.updated_before,
+		ts_gte: ranges.ts_gte,
+		ts_lte: ranges.ts_lte,
+	})
+}
+
+fn validate_docs_search_l0_query(req: &DocsSearchL0Request) -> Result<()> {
 	if req.query.trim().is_empty() {
 		return Err(Error::InvalidRequest { message: "query must be non-empty.".to_string() });
 	}
@@ -1067,6 +1279,10 @@ fn validate_docs_search_l0(req: &DocsSearchL0Request) -> Result<DocsSearchL0Filt
 		return Err(Error::NonEnglishInput { field: "$.query".to_string() });
 	}
 
+	Ok(())
+}
+
+fn parse_docs_search_l0_filters(req: &DocsSearchL0Request) -> Result<DocsSearchL0FiltersParsed> {
 	let scope = if let Some(scope) = req.scope.as_ref() {
 		let scope = scope.trim();
 
@@ -1095,6 +1311,7 @@ fn validate_docs_search_l0(req: &DocsSearchL0Request) -> Result<DocsSearchL0Filt
 			message: "status must be one of: active|deleted.".to_string(),
 		});
 	};
+	let sparse_mode = parse_sparse_mode(req.sparse_mode.as_ref())?;
 	let doc_type = if let Some(doc_type) = req.doc_type.as_ref() {
 		let doc_type = doc_type.trim();
 
@@ -1113,6 +1330,23 @@ fn validate_docs_search_l0(req: &DocsSearchL0Request) -> Result<DocsSearchL0Filt
 	} else {
 		None
 	};
+	let domain = req
+		.domain
+		.as_ref()
+		.map(|domain| domain.trim().to_string())
+		.filter(|domain| !domain.is_empty());
+	let repo =
+		req.repo.as_ref().map(|repo| repo.trim().to_string()).filter(|repo| !repo.is_empty());
+
+	if domain.is_some() && doc_type.as_deref() != Some("search") {
+		return Err(Error::InvalidRequest {
+			message: "domain requires doc_type=search.".to_string(),
+		});
+	}
+	if repo.is_some() && doc_type.as_deref() != Some("dev") {
+		return Err(Error::InvalidRequest { message: "repo requires doc_type=dev.".to_string() });
+	}
+
 	let agent_id = req
 		.agent_id
 		.as_ref()
@@ -1123,20 +1357,42 @@ fn validate_docs_search_l0(req: &DocsSearchL0Request) -> Result<DocsSearchL0Filt
 		.as_ref()
 		.map(|thread_id| thread_id.trim().to_string())
 		.filter(|thread_id| !thread_id.is_empty());
+
+	Ok(DocsSearchL0FiltersParsed {
+		scope,
+		status,
+		doc_type,
+		sparse_mode,
+		domain,
+		repo,
+		agent_id,
+		thread_id,
+	})
+}
+
+fn parse_docs_search_l0_ranges(req: &DocsSearchL0Request) -> Result<DocsSearchL0RangesParsed> {
 	let updated_after = parse_optional_rfc3339(req.updated_after.as_ref(), "$.updated_after")?;
 	let updated_before = parse_optional_rfc3339(req.updated_before.as_ref(), "$.updated_before")?;
 	let ts_gte = parse_optional_rfc3339(req.ts_gte.as_ref(), "$.ts_gte")?;
 	let ts_lte = parse_optional_rfc3339(req.ts_lte.as_ref(), "$.ts_lte")?;
 
-	if let (Some(updated_after), Some(updated_before)) =
-		(updated_after.as_ref(), updated_before.as_ref())
+	Ok(DocsSearchL0RangesParsed { updated_after, updated_before, ts_gte, ts_lte })
+}
+
+fn validate_docs_search_l0_temporal_ranges(
+	updated_after: Option<&OffsetDateTime>,
+	updated_before: Option<&OffsetDateTime>,
+	ts_gte: Option<&OffsetDateTime>,
+	ts_lte: Option<&OffsetDateTime>,
+) -> Result<()> {
+	if let (Some(updated_after), Some(updated_before)) = (updated_after, updated_before)
 		&& updated_after >= updated_before
 	{
 		return Err(Error::InvalidRequest {
 			message: "updated_after must be earlier than updated_before.".to_string(),
 		});
 	}
-	if let (Some(ts_gte), Some(ts_lte)) = (ts_gte.as_ref(), ts_lte.as_ref())
+	if let (Some(ts_gte), Some(ts_lte)) = (ts_gte, ts_lte)
 		&& ts_gte >= ts_lte
 	{
 		return Err(Error::InvalidRequest {
@@ -1144,17 +1400,24 @@ fn validate_docs_search_l0(req: &DocsSearchL0Request) -> Result<DocsSearchL0Filt
 		});
 	}
 
-	Ok(DocsSearchL0Filters {
-		scope,
-		status,
-		doc_type,
-		agent_id,
-		thread_id,
-		updated_after,
-		updated_before,
-		ts_gte,
-		ts_lte,
-	})
+	Ok(())
+}
+
+fn parse_sparse_mode(raw: Option<&String>) -> Result<DocsSparseMode> {
+	let raw = raw.as_ref().map(|mode| mode.trim().to_lowercase());
+	let Some(mode) = raw else {
+		return Ok(DocsSparseMode::Auto);
+	};
+	let mode = mode.as_str();
+
+	match mode {
+		"auto" => Ok(DocsSparseMode::Auto),
+		"on" => Ok(DocsSparseMode::On),
+		"off" => Ok(DocsSparseMode::Off),
+		_ => Err(Error::InvalidRequest {
+			message: "sparse_mode must be one of: auto|on|off.".to_string(),
+		}),
+	}
 }
 
 fn parse_optional_rfc3339(raw: Option<&String>, path: &str) -> Result<Option<OffsetDateTime>> {
@@ -1368,6 +1631,12 @@ fn build_doc_search_filter(
 			if let Some(doc_type) = filters.doc_type.as_ref() {
 				must.push(Condition::matches("doc_type", doc_type.to_string()));
 			}
+			if let Some(domain) = filters.domain.as_ref() {
+				must.push(Condition::matches("domain", domain.to_string()));
+			}
+			if let Some(repo) = filters.repo.as_ref() {
+				must.push(Condition::matches("repo", repo.to_string()));
+			}
 			if let Some(agent_id) = filters.agent_id.as_ref() {
 				must.push(Condition::matches("agent_id", agent_id.to_string()));
 			}
@@ -1533,6 +1802,45 @@ fn bounded_window(
 	}
 
 	(start, end)
+}
+
+fn docs_search_sparse_enabled(mode: DocsSparseMode, query: &str) -> bool {
+	match mode {
+		DocsSparseMode::Auto => should_enable_sparse_auto(query),
+		DocsSparseMode::On => true,
+		DocsSparseMode::Off => false,
+	}
+}
+
+fn should_enable_sparse_auto(query: &str) -> bool {
+	let trimmed = query.trim();
+
+	if trimmed.is_empty() {
+		return false;
+	}
+	if trimmed.contains("://")
+		|| trimmed.contains('/')
+		|| trimmed.contains('\\')
+		|| trimmed.contains('?')
+	{
+		return true;
+	}
+
+	let has_mixed_alpha_num = trimmed.split_whitespace().any(|token| {
+		token.chars().any(|ch| ch.is_ascii_alphabetic())
+			&& token.chars().any(|ch| ch.is_ascii_digit())
+	});
+	let special_count = trimmed
+		.chars()
+		.filter(|ch| !(ch.is_ascii_alphanumeric() || ch.is_ascii_whitespace() || *ch == '_'))
+		.count();
+	let compact_hex_like = {
+		let compact = trimmed.chars().filter(|ch| !ch.is_ascii_whitespace()).collect::<String>();
+
+		compact.len() >= 12 && compact.chars().all(|ch| ch.is_ascii_hexdigit() || ch == '-')
+	};
+
+	special_count >= 2 || compact_hex_like || (has_mixed_alpha_num && trimmed.len() > 12)
 }
 
 async fn load_docs_excerpt_context(
@@ -1733,24 +2041,31 @@ async fn run_doc_fusion_query(
 	query_text: &str,
 	vector: &[f32],
 	filter: &Filter,
+	sparse_mode: DocsSparseMode,
 	candidate_k: u32,
 ) -> Result<Vec<ScoredPoint>> {
+	let sparse_enabled = docs_search_sparse_enabled(sparse_mode, query_text);
 	let dense_prefetch = PrefetchQueryBuilder::default()
 		.query(Query::new_nearest(vector.to_vec()))
 		.using(DENSE_VECTOR_NAME)
 		.filter(filter.clone())
 		.limit(candidate_k as u64);
-	let bm25_prefetch = PrefetchQueryBuilder::default()
-		.query(Query::new_nearest(qdrant_client::qdrant::Document::new(
-			query_text.to_string(),
-			BM25_MODEL,
-		)))
-		.using(BM25_VECTOR_NAME)
-		.filter(filter.clone())
-		.limit(candidate_k as u64);
 	let mut search = QueryPointsBuilder::new(collection.to_string());
 
-	search = search.add_prefetch(dense_prefetch).add_prefetch(bm25_prefetch);
+	search = search.add_prefetch(dense_prefetch);
+
+	if sparse_enabled {
+		let bm25_prefetch = PrefetchQueryBuilder::default()
+			.query(Query::new_nearest(qdrant_client::qdrant::Document::new(
+				query_text.to_string(),
+				BM25_MODEL,
+			)))
+			.using(BM25_VECTOR_NAME)
+			.filter(filter.clone())
+			.limit(candidate_k as u64);
+
+		search = search.add_prefetch(bm25_prefetch);
+	}
 
 	let search = search.with_payload(false).query(Fusion::Rrf).limit(candidate_k as u64);
 	let response =
@@ -1812,7 +2127,7 @@ WHERE c.chunk_id = ANY($1)
 #[cfg(test)]
 mod tests {
 	use crate::docs::{
-		DocsPutRequest, DocsSearchL0Filters, DocsSearchL0Request, Error,
+		DocsPutRequest, DocsSearchL0Filters, DocsSearchL0Request, DocsSparseMode, Error,
 		resolve_doc_chunking_profile, validate_docs_put, validate_docs_search_l0,
 	};
 	use qdrant_client::qdrant::{
@@ -1833,6 +2148,9 @@ mod tests {
 			scope: None,
 			status: None,
 			doc_type: None,
+			sparse_mode: None,
+			domain: None,
+			repo: None,
 			agent_id: None,
 			thread_id: None,
 			updated_after: None,
@@ -1931,6 +2249,9 @@ mod tests {
 		let bad_dates = DocsSearchL0Request {
 			updated_after: Some("2026-02-25T12:00:00Z".to_string()),
 			updated_before: Some("2026-02-25T11:00:00Z".to_string()),
+			sparse_mode: None,
+			domain: None,
+			repo: None,
 			..test_request_with_query("status")
 		};
 		let err = validate_docs_search_l0(&bad_dates)
@@ -1955,6 +2276,9 @@ mod tests {
 			scope: None,
 			status: Some("archived".to_string()),
 			doc_type: None,
+			sparse_mode: None,
+			domain: None,
+			repo: None,
 			agent_id: None,
 			thread_id: None,
 			updated_after: None,
@@ -1984,6 +2308,9 @@ mod tests {
 			scope: None,
 			status: None,
 			doc_type: None,
+			sparse_mode: None,
+			domain: None,
+			repo: None,
 			agent_id: None,
 			thread_id: None,
 			updated_after: Some("2026-02-25T12:00:00".to_string()),
@@ -2008,6 +2335,9 @@ mod tests {
 			scope: Some("project_shared".to_string()),
 			status: "deleted".to_string(),
 			doc_type: Some("chat".to_string()),
+			sparse_mode: DocsSparseMode::Auto,
+			domain: None,
+			repo: None,
 			agent_id: Some("owner".to_string()),
 			thread_id: Some("thread-7".to_string()),
 			updated_after: Some(
@@ -2041,6 +2371,8 @@ mod tests {
 		assert_eq!(first_match_value(&filter, "doc_type").as_deref(), Some("chat"));
 		assert_eq!(first_match_value(&filter, "agent_id").as_deref(), Some("owner"));
 		assert_eq!(first_match_value(&filter, "thread_id").as_deref(), Some("thread-7"));
+		assert_eq!(first_match_value(&filter, "domain").as_deref(), None);
+		assert_eq!(first_match_value(&filter, "repo").as_deref(), None);
 
 		let datetime_range = first_datetime_range(&filter, "updated_at")
 			.expect("Expected datetime filter for updated_at.");
@@ -2086,6 +2418,9 @@ mod tests {
 			scope: None,
 			status: None,
 			doc_type: None,
+			sparse_mode: None,
+			domain: None,
+			repo: None,
 			agent_id: None,
 			thread_id: None,
 			updated_after: None,
@@ -2104,6 +2439,122 @@ mod tests {
 			},
 			other => panic!("Unexpected error: {other:?}"),
 		}
+	}
+
+	#[test]
+	fn validate_docs_search_l0_rejects_invalid_sparse_mode() {
+		let err = validate_docs_search_l0(&DocsSearchL0Request {
+			tenant_id: TENANT_ID.to_string(),
+			project_id: PROJECT_ID.to_string(),
+			caller_agent_id: "agent".to_string(),
+			read_profile: "private_plus_project".to_string(),
+			query: "status".to_string(),
+			scope: None,
+			status: None,
+			doc_type: None,
+			sparse_mode: Some("invalid".to_string()),
+			domain: None,
+			repo: None,
+			agent_id: None,
+			thread_id: None,
+			updated_after: None,
+			updated_before: None,
+			ts_gte: None,
+			ts_lte: None,
+			top_k: None,
+			candidate_k: None,
+			explain: None,
+		})
+		.expect_err("Expected invalid sparse mode to be rejected.");
+
+		match err {
+			Error::InvalidRequest { message } => {
+				assert!(message.contains("sparse_mode"));
+			},
+			other => panic!("Unexpected error: {other:?}"),
+		}
+	}
+
+	#[test]
+	fn validate_docs_search_l0_rejects_domain_without_doc_type_search() {
+		let err = validate_docs_search_l0(&DocsSearchL0Request {
+			tenant_id: TENANT_ID.to_string(),
+			project_id: PROJECT_ID.to_string(),
+			caller_agent_id: "agent".to_string(),
+			read_profile: "private_plus_project".to_string(),
+			query: "status".to_string(),
+			scope: None,
+			status: None,
+			doc_type: None,
+			sparse_mode: None,
+			domain: Some("example.com".to_string()),
+			repo: None,
+			agent_id: None,
+			thread_id: None,
+			updated_after: None,
+			updated_before: None,
+			ts_gte: None,
+			ts_lte: None,
+			top_k: None,
+			candidate_k: None,
+			explain: None,
+		})
+		.expect_err("Expected domain without doc_type=search to be rejected.");
+
+		match err {
+			Error::InvalidRequest { message } => {
+				assert!(message.contains("doc_type=search"));
+			},
+			other => panic!("Unexpected error: {other:?}"),
+		}
+	}
+
+	#[test]
+	fn validate_docs_search_l0_rejects_repo_without_doc_type_dev() {
+		let err = validate_docs_search_l0(&DocsSearchL0Request {
+			tenant_id: TENANT_ID.to_string(),
+			project_id: PROJECT_ID.to_string(),
+			caller_agent_id: "agent".to_string(),
+			read_profile: "private_plus_project".to_string(),
+			query: "status".to_string(),
+			scope: None,
+			status: None,
+			doc_type: None,
+			sparse_mode: None,
+			domain: None,
+			repo: Some("hack-ink/ELF".to_string()),
+			agent_id: None,
+			thread_id: None,
+			updated_after: None,
+			updated_before: None,
+			ts_gte: None,
+			ts_lte: None,
+			top_k: None,
+			candidate_k: None,
+			explain: None,
+		})
+		.expect_err("Expected repo without doc_type=dev to be rejected.");
+
+		match err {
+			Error::InvalidRequest { message } => {
+				assert!(message.contains("doc_type=dev"));
+			},
+			other => panic!("Unexpected error: {other:?}"),
+		}
+	}
+
+	#[test]
+	fn validate_docs_search_l0_default_sparse_mode() {
+		let filters =
+			validate_docs_search_l0(&test_request_with_query("status")).expect("valid request");
+
+		assert!(matches!(filters.sparse_mode, DocsSparseMode::Auto));
+	}
+
+	#[test]
+	fn should_enable_sparse_auto_uses_symbol_cues() {
+		assert!(super::should_enable_sparse_auto("https://example.com/search?q=abc"));
+		assert!(!super::should_enable_sparse_auto("how to debug a timeout"));
 	}
 
 	#[test]
