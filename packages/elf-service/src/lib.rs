@@ -18,6 +18,7 @@ mod access;
 mod error;
 mod graph_ingestion;
 mod ingest_audit;
+mod ingestion_profiles;
 mod ranking_explain_v2;
 
 pub use self::{
@@ -37,6 +38,14 @@ pub use self::{
 		TextPositionSelector, TextQuoteSelector,
 	},
 	error::{Error, Result},
+	ingestion_profiles::{
+		AdminIngestionProfileCreateRequest, AdminIngestionProfileDefaultGetRequest,
+		AdminIngestionProfileDefaultResponse, AdminIngestionProfileDefaultSetRequest,
+		AdminIngestionProfileGetRequest, AdminIngestionProfileListRequest,
+		AdminIngestionProfileResponse, AdminIngestionProfileSummary,
+		AdminIngestionProfileVersionsListRequest, AdminIngestionProfileVersionsListResponse,
+		AdminIngestionProfilesListResponse, IngestionProfileRef, IngestionProfileSelector,
+	},
 	list::{ListItem, ListRequest, ListResponse},
 	notes::{NoteFetchRequest, NoteFetchResponse},
 	progressive_search::{

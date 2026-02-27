@@ -1329,6 +1329,10 @@ Body:
 {
   "scope": "optional-scope",
   "dry_run": false,
+  "ingestion_profile": {
+    "id": "default",
+    "version": 1
+  },
   "messages": [
     {
       "role": "user|assistant|tool",
@@ -1342,6 +1346,10 @@ Body:
 
 Response:
 {
+  "ingestion_profile": {
+    "id": "string",
+    "version": 1
+  },
   "extracted": { ...extractor output... },
   "results": [
     {
@@ -1363,6 +1371,111 @@ Response:
 
 Notes:
 - reason_code values include writegate rejection codes, REJECT_EVIDENCE_MISMATCH, and REJECT_WRITE_POLICY_MISMATCH.
+- `ingestion_profile.id` is required when profile override is provided, and when `version` is omitted, latest version for that id is used.
+- If `ingestion_profile` is omitted, the tenant/project default profile is used.
+
+GET /v2/admin/events/ingestion-profiles
+
+Headers:
+- X-ELF-Tenant-Id, X-ELF-Project-Id, X-ELF-Agent-Id
+
+Response:
+{
+  "profiles": [
+    {
+      "profile_id": "string",
+      "version": 1,
+      "created_at": "...",
+      "created_by": "agent_id"
+    }
+  ]
+}
+
+POST /v2/admin/events/ingestion-profiles
+
+Headers:
+- X-ELF-Tenant-Id, X-ELF-Project-Id, X-ELF-Agent-Id
+
+Body:
+{
+  "profile_id": "string",
+  "version": 1,
+  "profile": {},
+  "created_by": "agent_id"
+}
+
+Response:
+{
+  "profile_id": "string",
+  "version": 1,
+  "profile": { ... },
+  "created_at": "...",
+  "created_by": "agent_id"
+}
+
+GET /v2/admin/events/ingestion-profiles/{profile_id}?version=1
+
+Headers:
+- X-ELF-Tenant-Id, X-ELF-Project-Id, X-ELF-Agent-Id
+
+Query:
+- version (optional)
+
+Response:
+{
+  "profile_id": "string",
+  "version": 1,
+  "profile": { ... },
+  "created_at": "...",
+  "created_by": "agent_id"
+}
+
+GET /v2/admin/events/ingestion-profiles/{profile_id}/versions
+
+Headers:
+- X-ELF-Tenant-Id, X-ELF-Project-Id, X-ELF-Agent-Id
+
+Response:
+{
+  "profiles": [
+    {
+      "profile_id": "string",
+      "version": 1,
+      "created_at": "...",
+      "created_by": "agent_id"
+    }
+  ]
+}
+
+GET /v2/admin/events/ingestion-profiles/default
+
+Headers:
+- X-ELF-Tenant-Id, X-ELF-Project-Id, X-ELF-Agent-Id
+
+Response:
+{
+  "profile_id": "string",
+  "version": 1,
+  "updated_at": "..."
+}
+
+POST /v2/admin/events/ingestion-profiles/default
+
+Headers:
+- X-ELF-Tenant-Id, X-ELF-Project-Id, X-ELF-Agent-Id
+
+Body:
+{
+  "profile_id": "string",
+  "version": 1
+}
+
+Response:
+{
+  "profile_id": "string",
+  "version": 1,
+  "updated_at": "..."
+}
 
 POST /v2/searches
 
@@ -1679,6 +1792,12 @@ Original query:
   - elf_notes_get -> GET /v2/notes/{note_id}
   - elf_notes_patch -> PATCH /v2/notes/{note_id}
   - elf_notes_delete -> DELETE /v2/notes/{note_id}
+  - elf_admin_events_ingestion_profiles_list -> GET /v2/admin/events/ingestion-profiles
+  - elf_admin_events_ingestion_profiles_create -> POST /v2/admin/events/ingestion-profiles
+  - elf_admin_events_ingestion_profile_get -> GET /v2/admin/events/ingestion-profiles/{profile_id}
+  - elf_admin_events_ingestion_profile_versions_list -> GET /v2/admin/events/ingestion-profiles/{profile_id}/versions
+  - elf_admin_events_ingestion_profile_default_get -> GET /v2/admin/events/ingestion-profiles/default
+  - elf_admin_events_ingestion_profile_default_set -> POST /v2/admin/events/ingestion-profiles/default
 - The MCP server must contain zero business logic or policy.
 - All policy remains in elf-api and elf-service.
 

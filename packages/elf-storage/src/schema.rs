@@ -66,6 +66,12 @@ fn expand_includes(sql: &str) -> String {
 					out.push_str(include_str!("../../../sql/tables/027_doc_chunk_embeddings.sql")),
 				"tables/028_doc_indexing_outbox.sql" =>
 					out.push_str(include_str!("../../../sql/tables/028_doc_indexing_outbox.sql")),
+				"tables/029_memory_ingestion_profiles.sql" => out.push_str(include_str!(
+					"../../../sql/tables/029_memory_ingestion_profiles.sql"
+				)),
+				"tables/030_memory_ingestion_profile_defaults.sql" => out.push_str(include_str!(
+					"../../../sql/tables/030_memory_ingestion_profile_defaults.sql"
+				)),
 				"tables/023_memory_ingest_decisions.sql" => out
 					.push_str(include_str!("../../../sql/tables/023_memory_ingest_decisions.sql")),
 				"tables/024_memory_space_grants.sql" =>

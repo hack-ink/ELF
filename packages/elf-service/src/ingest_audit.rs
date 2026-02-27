@@ -31,6 +31,8 @@ pub(crate) struct IngestAuditArgs<'a> {
 	pub min_confidence: Option<f32>,
 	pub min_importance: Option<f32>,
 	pub write_policy_audits: Option<Vec<WritePolicyAudit>>,
+	pub ingestion_profile_id: Option<&'a str>,
+	pub ingestion_profile_version: Option<i32>,
 	pub ts: OffsetDateTime,
 }
 
@@ -64,6 +66,8 @@ pub(crate) async fn insert_ingest_decision(
 		min_confidence,
 		min_importance,
 		write_policy_audits,
+		ingestion_profile_id,
+		ingestion_profile_version,
 		ts,
 	} = args;
 
@@ -115,6 +119,9 @@ VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)",
 		"min_confidence": min_confidence,
 		"min_importance": min_importance,
 		"write_policy_audits": write_policy_audits,
+		"ingestion_profile": ingestion_profile_id.zip(ingestion_profile_version).map(
+			|(id, version)| serde_json::json!({ "id": id, "version": version }),
+		),
 	}))
 	.bind(ts)
 	.execute(&mut **tx)
