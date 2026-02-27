@@ -18,6 +18,7 @@ Audience: This documentation is written for LLM consumption and should remain ex
 - `docs/spec/system_graph_memory_postgres_v1.md` - Graph memory schema and invariants for Postgres.
 - `docs/spec/system_version_registry.md` - Registry of versioned identifiers and schema versions.
 - `docs/spec/system_doc_extension_v1_filters.md` - Doc Extension v1 filter contracts and Qdrant requirements for `docs_search_l0`.
+- `docs/spec/system_search_filter_expr_v1.md` - Search structured filter expression contract (`search_filter_expr/v1`) and service-side filter-impact diagnostics.
 
 ## Rollout
 
@@ -26,6 +27,9 @@ Audience: This documentation is written for LLM consumption and should remain ex
   - Status: active
 - `doc_source_ref/v1`:
   - `docs/spec/system_doc_source_ref_v1.md`
+  - Status: active
+- `search_filter_expr/v1`:
+  - `docs/spec/system_search_filter_expr_v1.md`
   - Status: active
 
 ## Authoring guidance (LLM-first)

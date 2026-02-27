@@ -125,6 +125,8 @@ struct SearchCreateRequest {
 	query: String,
 	top_k: Option<u32>,
 	candidate_k: Option<u32>,
+
+	filter: Option<Value>,
 	payload_level: Option<PayloadLevel>,
 	ranking: Option<RankingRequestOverride>,
 }
@@ -1072,6 +1074,7 @@ async fn search_quick_create(
 			query: payload.query,
 			top_k: payload.top_k,
 			candidate_k: payload.candidate_k,
+			filter: payload.filter,
 			payload_level: payload.payload_level.unwrap_or_default(),
 			record_hits: Some(false),
 			ranking: None,
@@ -1143,6 +1146,7 @@ async fn search_planned_create(
 			query: payload.query,
 			top_k: payload.top_k,
 			candidate_k: payload.candidate_k,
+			filter: payload.filter,
 			payload_level: payload.payload_level.unwrap_or_default(),
 			record_hits: Some(false),
 			ranking: None,
@@ -1710,6 +1714,7 @@ async fn searches_raw(
 			token_id: effective_token_id(state.service.cfg.security.auth_mode.as_str(), &headers),
 			read_profile,
 			query: payload.query,
+			filter: payload.filter,
 			payload_level: payload.payload_level.unwrap_or_default(),
 			top_k: payload.top_k,
 			candidate_k: payload.candidate_k,

@@ -1,3 +1,4 @@
+mod filter;
 mod ranking;
 
 pub use crate::ranking_explain_v2::{SearchRankingExplain, SearchRankingTerm};
@@ -24,14 +25,17 @@ use elf_storage::{
 	models::MemoryNote,
 	qdrant::{BM25_MODEL, BM25_VECTOR_NAME, DENSE_VECTOR_NAME},
 };
+use filter::{SearchFilter, SearchFilterImpact};
 use ranking::{ResolvedBlendPolicy, ResolvedDiversityPolicy, ResolvedRetrievalSourcesPolicy};
 
 const TRACE_VERSION: i32 = 3;
 const MAX_MATCHED_TERMS: usize = 8;
 const MAX_TRAJECTORY_STAGE_ITEMS: usize = 256;
+const MAX_CANDIDATE_K: u32 = 1_024;
 const QUERY_PLAN_SCHEMA: &str = "elf.search.query_plan";
 const QUERY_PLAN_VERSION: &str = "v1";
 const SEARCH_RETRIEVAL_TRAJECTORY_SCHEMA_V1: &str = "search_retrieval_trajectory/v1";
+const SEARCH_FILTER_IMPACT_SCHEMA_V1: &str = "search_filter_impact/v1";
 const RELATION_CONTEXT_SQL: &str = r#"
 WITH selected_facts AS (
 	SELECT DISTINCT ON (snc.selected_note_id, gf.fact_id)
@@ -196,6 +200,8 @@ pub struct SearchRequest {
 	pub query: String,
 	pub top_k: Option<u32>,
 	pub candidate_k: Option<u32>,
+
+	pub filter: Option<Value>,
 	pub record_hits: Option<bool>,
 	pub ranking: Option<RankingRequestOverride>,
 }
@@ -628,7 +634,10 @@ struct MaybeDynamicSearchArgs<'a> {
 	allowed_scopes: &'a [String],
 	project_context_description: Option<&'a str>,
 	filter: &'a Filter,
+	service_filter: Option<&'a SearchFilter>,
 	candidate_k: u32,
+	requested_candidate_k: u32,
+	effective_candidate_k: u32,
 	top_k: u32,
 	record_hits_enabled: bool,
 	ranking_override: Option<&'a RankingRequestOverride>,
@@ -708,6 +717,7 @@ struct NoteMeta {
 	note_type: String,
 	key: Option<String>,
 	scope: String,
+	agent_id: String,
 	importance: f32,
 	confidence: f32,
 	updated_at: OffsetDateTime,
@@ -1082,6 +1092,9 @@ struct FinishSearchArgs<'a> {
 	top_k: u32,
 	record_hits_enabled: bool,
 	ranking_override: Option<RankingRequestOverride>,
+	filter: Option<&'a SearchFilter>,
+	requested_candidate_k: u32,
+	effective_candidate_k: u32,
 }
 
 struct FinishSearchPolicies {
@@ -1098,6 +1111,7 @@ struct FinishSearchScoringResult {
 	scored_count: usize,
 	snippet_count: usize,
 	filtered_candidate_count: usize,
+	filter_impact: Option<SearchFilterImpact>,
 	trace_candidates: Vec<TraceCandidateRecord>,
 	fused_results: Vec<ScoredChunk>,
 	selected_results: Vec<ScoredChunk>,
@@ -1136,6 +1150,7 @@ struct BuildTraceArgs<'a> {
 	trace_candidates: Vec<TraceCandidateRecord>,
 	now: OffsetDateTime,
 	ranking_override: &'a Option<RankingRequestOverride>,
+	filter_impact: Option<SearchFilterImpact>,
 }
 
 struct BuildQueryPlanArgs<'a> {
@@ -1163,8 +1178,11 @@ struct RawSearchExecutionContext {
 	token_id: Option<String>,
 	top_k: u32,
 	candidate_k: u32,
+	requested_candidate_k: u32,
+	effective_candidate_k: u32,
 	query: String,
 	read_profile: String,
+	filter: Option<SearchFilter>,
 	record_hits_enabled: bool,
 	ranking_override: Option<RankingRequestOverride>,
 	retrieval_sources_policy: ResolvedRetrievalSourcesPolicy,
@@ -1376,6 +1394,9 @@ impl ElfService {
 				top_k: context.top_k,
 				record_hits_enabled: context.record_hits_enabled,
 				ranking_override: context.ranking_override.clone(),
+				filter: context.filter.as_ref(),
+				requested_candidate_k: context.requested_candidate_k,
+				effective_candidate_k: context.effective_candidate_k,
 			})
 			.await?;
 
@@ -1400,6 +1421,11 @@ impl ElfService {
 			context.agent_id.as_str(),
 			&context.allowed_scopes,
 		);
+		let retrieval_candidate_k = if context.filter.is_some() {
+			context.effective_candidate_k
+		} else {
+			context.candidate_k
+		};
 		let (baseline_vector, early_response, dynamic_gate) = self
 			.maybe_finish_dynamic_search(MaybeDynamicSearchArgs {
 				path,
@@ -1414,7 +1440,10 @@ impl ElfService {
 				allowed_scopes: &context.allowed_scopes,
 				project_context_description: context.project_context_description.as_deref(),
 				filter: &filter,
-				candidate_k: context.candidate_k,
+				service_filter: context.filter.as_ref(),
+				candidate_k: retrieval_candidate_k,
+				requested_candidate_k: context.requested_candidate_k,
+				effective_candidate_k: context.effective_candidate_k,
 				top_k: context.top_k,
 				record_hits_enabled: context.record_hits_enabled,
 				ranking_override: context.ranking_override.as_ref(),
@@ -1438,7 +1467,7 @@ impl ElfService {
 				expansion_mode: context.expansion_mode,
 				project_context_description: context.project_context_description.as_deref(),
 				filter: &filter,
-				candidate_k: context.candidate_k,
+				candidate_k: retrieval_candidate_k,
 				baseline_vector: baseline_vector.as_ref(),
 				tenant_id: context.tenant_id.as_str(),
 				project_id: context.project_id.as_str(),
@@ -1467,6 +1496,9 @@ impl ElfService {
 				top_k: context.top_k,
 				record_hits_enabled: context.record_hits_enabled,
 				ranking_override: context.ranking_override.clone(),
+				filter: context.filter.as_ref(),
+				requested_candidate_k: context.requested_candidate_k,
+				effective_candidate_k: context.effective_candidate_k,
 			})
 			.await?;
 
@@ -1497,6 +1529,18 @@ impl ElfService {
 
 		let top_k = req.top_k.unwrap_or(self.cfg.memory.top_k).max(1);
 		let candidate_k = req.candidate_k.unwrap_or(self.cfg.memory.candidate_k).max(top_k);
+		let requested_candidate_k = candidate_k;
+		let filter = req
+			.filter
+			.as_ref()
+			.map(SearchFilter::parse)
+			.transpose()
+			.map_err(|err| Error::InvalidRequest { message: err.to_string() })?;
+		let effective_candidate_k = if filter.is_some() {
+			requested_candidate_k.saturating_mul(3).min(MAX_CANDIDATE_K).max(top_k)
+		} else {
+			requested_candidate_k
+		};
 		let query = req.query;
 		let read_profile = req.read_profile;
 		let record_hits_enabled = req.record_hits.unwrap_or(false);
@@ -1523,6 +1567,9 @@ impl ElfService {
 			token_id,
 			top_k,
 			candidate_k,
+			requested_candidate_k,
+			effective_candidate_k,
+			filter,
 			query,
 			read_profile,
 			record_hits_enabled,
@@ -1676,6 +1723,9 @@ impl ElfService {
 				top_k: args.top_k,
 				record_hits_enabled: args.record_hits_enabled,
 				ranking_override: args.ranking_override.cloned(),
+				filter: args.service_filter,
+				requested_candidate_k: args.requested_candidate_k,
+				effective_candidate_k: args.effective_candidate_k,
 			})
 			.await?;
 
@@ -2747,48 +2797,32 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 	}
 
 	async fn finish_search(&self, args: FinishSearchArgs<'_>) -> Result<SearchResponse> {
-		let FinishSearchArgs {
-			path,
-			trace_id,
-			query,
-			tenant_id,
-			project_id,
-			agent_id,
-			token_id,
-			read_profile,
-			allowed_scopes,
-			expanded_queries,
-			expansion_mode,
-			candidates,
-			structured_matches,
-			recursive_retrieval,
-			top_k,
-			record_hits_enabled,
-			ranking_override,
-		} = args;
 		let now = OffsetDateTime::now_utc();
-		let candidate_count = candidates.len();
+		let candidate_count = args.candidates.len();
 		let candidate_note_ids: Vec<Uuid> =
-			candidates.iter().map(|candidate| candidate.note_id).collect();
-		let policies = self.resolve_finish_search_policies(ranking_override.as_ref())?;
+			args.candidates.iter().map(|candidate| candidate.note_id).collect();
+		let policies = self.resolve_finish_search_policies(args.ranking_override.as_ref())?;
 		let note_meta = self
 			.fetch_note_meta_for_candidates(
-				tenant_id,
-				project_id,
-				agent_id,
-				allowed_scopes,
+				args.tenant_id,
+				args.project_id,
+				args.agent_id,
+				args.allowed_scopes,
 				candidate_note_ids.as_slice(),
 				now,
 			)
 			.await?;
 		let scoring = self
 			.build_finish_search_scoring(
-				query,
-				candidates,
+				args.query,
+				args.candidates,
 				&note_meta,
 				&policies,
-				top_k,
+				args.top_k,
 				candidate_count,
+				args.filter,
+				args.requested_candidate_k,
+				args.effective_candidate_k,
 				now,
 			)
 			.await?;
@@ -2798,6 +2832,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 			scored_count,
 			snippet_count,
 			filtered_candidate_count,
+			filter_impact,
 			mut trace_candidates,
 			fused_results,
 			selected_results,
@@ -2807,10 +2842,10 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 		let relation_contexts = self
 			.build_relation_context_for_selected_results(
 				&selected_results,
-				tenant_id,
-				project_id,
-				agent_id,
-				allowed_scopes,
+				args.tenant_id,
+				args.project_id,
+				args.agent_id,
+				args.allowed_scopes,
 				now,
 			)
 			.await?;
@@ -2820,44 +2855,58 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 			&diversity_decisions,
 		);
 
-		self.record_hits_if_enabled(record_hits_enabled, query, &selected_results, now).await?;
+		self.record_hits_if_enabled(args.record_hits_enabled, args.query, &selected_results, now)
+			.await?;
 
-		let (items, trace_payload) = self.build_items_and_trace_payload(BuildTraceArgs {
-			path,
-			trace_id,
-			query,
-			tenant_id,
-			project_id,
-			agent_id,
-			token_id,
-			read_profile,
-			expansion_mode,
-			expanded_queries,
-			allowed_scopes,
-			candidate_count,
-			filtered_candidate_count,
-			snippet_count,
-			scored_count,
-			fused_count: fused_results.len(),
-			selected_count,
-			top_k,
-			query_tokens: query_tokens.as_slice(),
-			structured_matches: &structured_matches,
-			policies: &policies,
-			diversity_decisions: &diversity_decisions,
-			recall_candidates: filtered_candidates,
-			fused_results,
-			selected_results,
-			relation_contexts,
-			trace_candidates,
-			recursive_retrieval: recursive_retrieval.as_ref(),
-			now,
-			ranking_override: &ranking_override,
-		});
+		let items = self
+			.build_items_and_write_trace(BuildTraceArgs {
+				path: args.path,
+				trace_id: args.trace_id,
+				query: args.query,
+				tenant_id: args.tenant_id,
+				project_id: args.project_id,
+				agent_id: args.agent_id,
+				token_id: args.token_id,
+				read_profile: args.read_profile,
+				expansion_mode: args.expansion_mode,
+				expanded_queries: args.expanded_queries,
+				allowed_scopes: args.allowed_scopes,
+				candidate_count,
+				filtered_candidate_count,
+				snippet_count,
+				scored_count,
+				fused_count: fused_results.len(),
+				selected_count,
+				top_k: args.top_k,
+				query_tokens: query_tokens.as_slice(),
+				structured_matches: &args.structured_matches,
+				policies: &policies,
+				diversity_decisions: &diversity_decisions,
+				recall_candidates: filtered_candidates,
+				fused_results,
+				selected_results,
+				relation_contexts,
+				trace_candidates,
+				recursive_retrieval: args.recursive_retrieval.as_ref(),
+				now,
+				ranking_override: &args.ranking_override,
+				filter_impact,
+			})
+			.await?;
+
+		Ok(SearchResponse { trace_id: args.trace_id, items })
+	}
+
+	async fn build_items_and_write_trace(
+		&self,
+		args: BuildTraceArgs<'_>,
+	) -> Result<Vec<SearchItem>> {
+		let trace_id = args.trace_id;
+		let (items, trace_payload) = self.build_items_and_trace_payload(args);
 
 		self.write_trace_payload(trace_id, trace_payload).await?;
 
-		Ok(SearchResponse { trace_id, items })
+		Ok(items)
 	}
 
 	#[allow(clippy::too_many_arguments)]
@@ -2869,12 +2918,18 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 		policies: &FinishSearchPolicies,
 		top_k: u32,
 		candidate_count: usize,
+		filter: Option<&SearchFilter>,
+		requested_candidate_k: u32,
+		effective_candidate_k: u32,
 		now: OffsetDateTime,
 	) -> Result<FinishSearchScoringResult> {
-		let filtered_candidates: Vec<ChunkCandidate> = candidates
-			.into_iter()
-			.filter(|candidate| ranking::candidate_matches_note(note_meta, candidate))
-			.collect();
+		let (filtered_candidates, filter_impact) = self.apply_filter_to_candidates(
+			candidates,
+			note_meta,
+			filter,
+			requested_candidate_k,
+			effective_candidate_k,
+		);
 		let filtered_candidate_count = filtered_candidates.len();
 		let snippet_items = self.build_snippet_items(&filtered_candidates, note_meta).await?;
 		let snippet_count = snippet_items.len();
@@ -2908,12 +2963,41 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 			scored_count,
 			snippet_count,
 			filtered_candidate_count,
+			filter_impact,
 			trace_candidates,
 			fused_results,
 			selected_results,
 			diversity_decisions,
 			selected_count,
 		})
+	}
+
+	fn apply_filter_to_candidates(
+		&self,
+		candidates: Vec<ChunkCandidate>,
+		note_meta: &HashMap<Uuid, NoteMeta>,
+		filter: Option<&SearchFilter>,
+		requested_candidate_k: u32,
+		effective_candidate_k: u32,
+	) -> (Vec<ChunkCandidate>, Option<SearchFilterImpact>) {
+		let filtered_candidates: Vec<ChunkCandidate> = candidates
+			.into_iter()
+			.filter(|candidate| ranking::candidate_matches_note(note_meta, candidate))
+			.collect();
+
+		match filter {
+			Some(filter) => {
+				let (candidates, filter_impact) = filter.eval(
+					filtered_candidates,
+					note_meta,
+					requested_candidate_k,
+					effective_candidate_k,
+				);
+
+				(candidates, Some(filter_impact))
+			},
+			None => (filtered_candidates, None),
+		}
 	}
 
 	async fn build_relation_context_for_selected_results(
@@ -3742,6 +3826,7 @@ WHERE note_id = ANY($1::uuid[])
 					note_type: note.r#type,
 					key: note.key,
 					scope: note.scope,
+					agent_id: note.agent_id,
 					importance: note.importance,
 					confidence: note.confidence,
 					updated_at: note.updated_at,
@@ -4491,6 +4576,11 @@ fn build_trace_recall_stage(
 		},
 	});
 
+	if let Some(filter_impact) = &args.filter_impact
+		&& let Some(payload) = stage_payload.as_object_mut()
+	{
+		payload.insert("filter_impact".to_string(), filter_impact.to_stage_payload());
+	}
 	if let Some(recursive_retrieval) = args.recursive_retrieval
 		&& recursive_retrieval.enabled
 		&& let Some(payload) = stage_payload.as_object_mut()
@@ -5845,6 +5935,7 @@ mod tests {
 			note_type: "fact".to_string(),
 			key: None,
 			scope: "project_shared".to_string(),
+			agent_id: "agent-a".to_string(),
 			importance: 0.1,
 			confidence: 0.9,
 			updated_at: now,
@@ -5921,6 +6012,7 @@ mod tests {
 			note_type: "fact".to_string(),
 			key: None,
 			scope: "project_shared".to_string(),
+			agent_id: "agent-a".to_string(),
 			importance: 0.1,
 			confidence: 0.9,
 			updated_at: now,
@@ -5997,6 +6089,7 @@ mod tests {
 			note_type: "fact".to_string(),
 			key: None,
 			scope: "project_shared".to_string(),
+			agent_id: "agent-a".to_string(),
 			importance: 0.1,
 			confidence: 0.9,
 			updated_at: now,

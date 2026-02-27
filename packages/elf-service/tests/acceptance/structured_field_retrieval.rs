@@ -442,6 +442,7 @@ async fn structured_fact_field_can_surface_note_and_marks_matched_fields() {
 			query: query.to_string(),
 			top_k: Some(1),
 			candidate_k: Some(10),
+			filter: None,
 			record_hits: Some(false),
 			ranking: None,
 		})

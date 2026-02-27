@@ -662,6 +662,7 @@ fn merge_query(
 			query: query.query.clone(),
 			top_k: Some(top_k),
 			candidate_k: Some(candidate_k),
+			filter: None,
 			record_hits: Some(false),
 			ranking,
 		},
