@@ -882,6 +882,12 @@ fn docs_search_l0_schema() -> Arc<JsonObject> {
 			"ts_lte": { "type": ["string", "null"], "format": "date-time" },
 			"top_k": { "type": ["integer", "null"] },
 			"candidate_k": { "type": ["integer", "null"] },
+			"sparse_mode": {
+				"type": ["string", "null"],
+				"enum": ["auto", "on", "off", null]
+			},
+			"domain": { "type": ["string", "null"] },
+			"repo": { "type": ["string", "null"] },
 			"explain": { "type": ["boolean", "null"] },
 			"read_profile": { "type": ["string", "null"] }
 		}
@@ -1555,6 +1561,9 @@ mod tests {
 			"updated_before",
 			"ts_gte",
 			"ts_lte",
+			"sparse_mode",
+			"domain",
+			"repo",
 			"explain",
 		];
 
@@ -1577,6 +1586,22 @@ mod tests {
 			Some(vec![
 				serde_json::Value::String("active".to_string()),
 				serde_json::Value::String("deleted".to_string()),
+				serde_json::Value::Null,
+			])
+		);
+		assert_eq!(
+			properties.get("sparse_mode").and_then(serde_json::Value::as_object).and_then(
+				|field| {
+					field
+						.get("enum")
+						.and_then(serde_json::Value::as_array)
+						.map(|vals| vals.to_vec())
+				}
+			),
+			Some(vec![
+				serde_json::Value::String("auto".to_string()),
+				serde_json::Value::String("on".to_string()),
+				serde_json::Value::String("off".to_string()),
 				serde_json::Value::Null,
 			])
 		);

@@ -1,11 +1,10 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sqlx::{FromRow, PgPool};
-
-use elf_config::LlmProviderConfig;
+use time::OffsetDateTime;
 
 use crate::{ElfService, Error, Result};
-use time::OffsetDateTime;
+use elf_config::LlmProviderConfig;
 
 const ADD_EVENT_PIPELINE: &str = "add_event";
 const DEFAULT_PROFILE_ID: &str = "default";
@@ -105,37 +104,80 @@ pub struct AdminIngestionProfileDefaultResponse {
 	pub updated_at: OffsetDateTime,
 }
 
+#[derive(Clone, Debug)]
+pub(crate) struct ResolvedIngestionProfile {
+	pub profile_ref: IngestionProfileRef,
+	pub prompt_schema: Value,
+	pub prompt_system: String,
+	pub prompt_user_template: String,
+	pub model: Option<String>,
+	pub temperature: Option<f32>,
+	pub timeout_ms: Option<u64>,
+}
+impl ResolvedIngestionProfile {
+	pub(crate) fn build_extractor_messages(
+		&self,
+		messages_json: &str,
+		max_notes: u32,
+		max_note_chars: u32,
+	) -> Result<Vec<Value>> {
+		let schema =
+			serde_json::to_string(&self.prompt_schema).map_err(|_| Error::InvalidRequest {
+				message: "Failed to serialize ingestion profile schema.".to_string(),
+			})?;
+		let user_prompt = self
+			.prompt_user_template
+			.replace("{SCHEMA}", &schema)
+			.replace("{MAX_NOTES}", max_notes.to_string().as_str())
+			.replace("{MAX_NOTE_CHARS}", max_note_chars.to_string().as_str())
+			.replace("{MESSAGES_JSON}", messages_json);
+
+		Ok(vec![
+			serde_json::json!({ "role": "system", "content": self.prompt_system.clone() }),
+			serde_json::json!({ "role": "user", "content": user_prompt }),
+		])
+	}
+
+	pub(crate) fn resolved_llm_config(&self, base: &LlmProviderConfig) -> LlmProviderConfig {
+		LlmProviderConfig {
+			provider_id: base.provider_id.clone(),
+			api_base: base.api_base.clone(),
+			api_key: base.api_key.clone(),
+			path: base.path.clone(),
+			model: self.model.clone().unwrap_or_else(|| base.model.clone()),
+			temperature: self.temperature.unwrap_or(base.temperature),
+			timeout_ms: self.timeout_ms.unwrap_or(base.timeout_ms),
+			default_headers: base.default_headers.clone(),
+		}
+	}
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct IngestionProfileV1 {
 	#[serde(default = "default_schema_version")]
 	schema_version: i32,
-	#[serde(default)]
+
 	prompt_schema: Option<Value>,
-	#[serde(default)]
+
 	prompt_system_template: Option<String>,
-	#[serde(default)]
+
 	prompt_user_template: Option<String>,
-	#[serde(default)]
+
 	model: Option<String>,
-	#[serde(default)]
+
 	temperature: Option<f32>,
-	#[serde(default)]
+
 	timeout_ms: Option<u64>,
 }
-
-fn default_schema_version() -> i32 {
-	1
-}
-
 impl IngestionProfileV1 {
 	fn with_defaults(self) -> Self {
 		let defaults = builtin_profile_v1();
-
 		let mut merged = defaults;
 
 		if self.schema_version != 0 {
 			merged.schema_version = self.schema_version;
 		}
+
 		merged.prompt_schema = self.prompt_schema.or(merged.prompt_schema);
 		merged.prompt_system_template =
 			self.prompt_system_template.or(merged.prompt_system_template);
@@ -146,17 +188,6 @@ impl IngestionProfileV1 {
 
 		merged
 	}
-}
-
-#[derive(Clone, Debug)]
-pub(crate) struct ResolvedIngestionProfile {
-	pub profile_ref: IngestionProfileRef,
-	pub prompt_schema: Value,
-	pub prompt_system: String,
-	pub prompt_user_template: String,
-	pub model: Option<String>,
-	pub temperature: Option<f32>,
-	pub timeout_ms: Option<u64>,
 }
 
 #[derive(FromRow)]
@@ -188,45 +219,6 @@ struct ProfileDefaultRow {
 	profile_id: String,
 	version: Option<i32>,
 	updated_at: OffsetDateTime,
-}
-
-impl ResolvedIngestionProfile {
-	pub(crate) fn build_extractor_messages(
-		&self,
-		messages_json: &str,
-		max_notes: u32,
-		max_note_chars: u32,
-	) -> Result<Vec<Value>> {
-		let schema =
-			serde_json::to_string(&self.prompt_schema).map_err(|_| Error::InvalidRequest {
-				message: "Failed to serialize ingestion profile schema.".to_string(),
-			})?;
-
-		let user_prompt = self
-			.prompt_user_template
-			.replace("{SCHEMA}", &schema)
-			.replace("{MAX_NOTES}", max_notes.to_string().as_str())
-			.replace("{MAX_NOTE_CHARS}", max_note_chars.to_string().as_str())
-			.replace("{MESSAGES_JSON}", messages_json);
-
-		Ok(vec![
-			serde_json::json!({ "role": "system", "content": self.prompt_system.clone() }),
-			serde_json::json!({ "role": "user", "content": user_prompt }),
-		])
-	}
-
-	pub(crate) fn resolved_llm_config(&self, base: &LlmProviderConfig) -> LlmProviderConfig {
-		LlmProviderConfig {
-			provider_id: base.provider_id.clone(),
-			api_base: base.api_base.clone(),
-			api_key: base.api_key.clone(),
-			path: base.path.clone(),
-			model: self.model.clone().unwrap_or_else(|| base.model.clone()),
-			temperature: self.temperature.unwrap_or(base.temperature),
-			timeout_ms: self.timeout_ms.unwrap_or(base.timeout_ms),
-			default_headers: base.default_headers.clone(),
-		}
-	}
 }
 
 impl ElfService {
@@ -273,7 +265,6 @@ impl ElfService {
 				.await?
 			}
 		};
-
 		let row = sqlx::query_as::<_, ProfileMetadataRow>(
 			"\
 INSERT INTO memory_ingestion_profiles (
@@ -297,7 +288,6 @@ RETURNING profile_id, version, profile, created_at, created_by",
 		.bind(created_by.as_str())
 		.fetch_optional(&self.db.pool)
 		.await?;
-
 		let row = row.ok_or_else(|| Error::Conflict {
 			message: format!(
 				"Ingestion profile '{}' version {} already exists for tenant '{}' project '{}' pipeline '{}'.",
@@ -331,7 +321,6 @@ ORDER BY profile_id, version DESC",
 		.bind(ADD_EVENT_PIPELINE)
 		.fetch_all(&self.db.pool)
 		.await?;
-
 		let profiles = rows
 			.into_iter()
 			.map(|row| AdminIngestionProfileSummary {
@@ -410,7 +399,6 @@ ORDER BY version DESC",
 		.bind(profile_id)
 		.fetch_all(&self.db.pool)
 		.await?;
-
 		let profiles = rows
 			.into_iter()
 			.map(|row| AdminIngestionProfileSummary {
@@ -442,7 +430,6 @@ WHERE tenant_id=$1 AND project_id=$2 AND pipeline=$3",
 		.bind(ADD_EVENT_PIPELINE)
 		.fetch_optional(&self.db.pool)
 		.await?;
-
 		let row = match row {
 			Some(row) => row,
 			None => {
@@ -479,6 +466,7 @@ WHERE tenant_id=$1 AND project_id=$2 AND pipeline=$3",
 				message: "profile_id must be non-empty.".to_string(),
 			});
 		}
+
 		if let Some(version) = req.version
 			&& version <= 0
 		{
@@ -488,7 +476,6 @@ WHERE tenant_id=$1 AND project_id=$2 AND pipeline=$3",
 		}
 
 		let selector = IngestionProfileSelector { id: profile_id.clone(), version: req.version };
-
 		let row = select_profile_metadata(
 			&self.db.pool,
 			req.tenant_id.as_str(),
@@ -497,7 +484,6 @@ WHERE tenant_id=$1 AND project_id=$2 AND pipeline=$3",
 		)
 		.await?;
 		let version = row.version;
-
 		let row = sqlx::query_as::<_, ProfileDefaultRow>(
 			"\
 INSERT INTO memory_ingestion_profile_defaults (
@@ -529,51 +515,6 @@ RETURNING profile_id, version, updated_at",
 	}
 }
 
-async fn select_profile_metadata(
-	pool: &PgPool,
-	tenant_id: &str,
-	project_id: &str,
-	selector: &IngestionProfileSelector,
-) -> Result<ProfileMetadataRow> {
-	let row = if let Some(version) = selector.version {
-		sqlx::query_as::<_, ProfileMetadataRow>(
-			"\
-SELECT profile_id, version, profile, created_at, created_by
-FROM memory_ingestion_profiles
-WHERE tenant_id=$1 AND project_id=$2 AND pipeline=$3 AND profile_id=$4 AND version=$5",
-		)
-		.bind(tenant_id)
-		.bind(project_id)
-		.bind(ADD_EVENT_PIPELINE)
-		.bind(selector.id.as_str())
-		.bind(version)
-		.fetch_optional(pool)
-		.await?
-	} else {
-		sqlx::query_as::<_, ProfileMetadataRow>(
-			"\
-SELECT profile_id, version, profile, created_at, created_by
-FROM memory_ingestion_profiles
-WHERE tenant_id=$1 AND project_id=$2 AND pipeline=$3 AND profile_id=$4
-ORDER BY version DESC
-LIMIT 1",
-		)
-		.bind(tenant_id)
-		.bind(project_id)
-		.bind(ADD_EVENT_PIPELINE)
-		.bind(selector.id.as_str())
-		.fetch_optional(pool)
-		.await?
-	};
-
-	row.ok_or_else(|| Error::InvalidRequest {
-		message: format!(
-			"Ingestion profile '{}' not found for tenant '{}' project '{}' pipeline '{}'.",
-			selector.id, tenant_id, project_id, ADD_EVENT_PIPELINE,
-		),
-	})
-}
-
 pub(crate) async fn resolve_add_event_profile(
 	pool: &PgPool,
 	tenant_id: &str,
@@ -587,7 +528,6 @@ pub(crate) async fn resolve_add_event_profile(
 	} else {
 		select_default_selector(pool, tenant_id, project_id).await?
 	};
-
 	let row = select_profile(pool, tenant_id, project_id, &selector).await?;
 	let parsed = parse_profile(row.profile)?;
 	let merged = parsed.with_defaults();
@@ -621,123 +561,8 @@ pub(crate) async fn resolve_add_event_profile(
 	})
 }
 
-async fn select_profile(
-	pool: &PgPool,
-	tenant_id: &str,
-	project_id: &str,
-	selector: &IngestionProfileSelector,
-) -> Result<ProfileRow> {
-	let row = if let Some(version) = selector.version {
-		sqlx::query_as::<_, ProfileRow>(
-			"\
-SELECT profile_id, version, profile
-FROM memory_ingestion_profiles
-WHERE tenant_id=$1 AND project_id=$2 AND pipeline=$3 AND profile_id=$4 AND version=$5",
-		)
-		.bind(tenant_id)
-		.bind(project_id)
-		.bind(ADD_EVENT_PIPELINE)
-		.bind(selector.id.as_str())
-		.bind(version)
-		.fetch_optional(pool)
-		.await?
-	} else {
-		sqlx::query_as::<_, ProfileRow>(
-			"\
-SELECT profile_id, version, profile
-FROM memory_ingestion_profiles
-WHERE tenant_id=$1 AND project_id=$2 AND pipeline=$3 AND profile_id=$4
-ORDER BY version DESC
-LIMIT 1",
-		)
-		.bind(tenant_id)
-		.bind(project_id)
-		.bind(ADD_EVENT_PIPELINE)
-		.bind(selector.id.as_str())
-		.fetch_optional(pool)
-		.await?
-	};
-
-	row.ok_or_else(|| Error::InvalidRequest {
-		message: format!(
-			"Ingestion profile '{}' not found for tenant '{}' project '{}' pipeline '{}'.",
-			selector.id, tenant_id, project_id, ADD_EVENT_PIPELINE
-		),
-	})
-}
-
-async fn select_default_selector(
-	pool: &PgPool,
-	tenant_id: &str,
-	project_id: &str,
-) -> Result<IngestionProfileSelector> {
-	let row = sqlx::query_as::<_, (String, Option<i32>)>(
-		"SELECT profile_id, version FROM memory_ingestion_profile_defaults WHERE tenant_id=$1 AND project_id=$2 AND pipeline=$3",
-	)
-	.bind(tenant_id)
-	.bind(project_id)
-	.bind(ADD_EVENT_PIPELINE)
-	.fetch_optional(pool)
-	.await?;
-
-	let row = match row {
-		Some((profile_id, version)) => IngestionProfileSelector { id: profile_id, version },
-		None => IngestionProfileSelector {
-			id: DEFAULT_PROFILE_ID.to_string(),
-			version: Some(DEFAULT_PROFILE_VERSION),
-		},
-	};
-
-	Ok(row)
-}
-
-async fn seed_default_profile(pool: &PgPool, tenant_id: &str, project_id: &str) -> Result<()> {
-	let profile =
-		serde_json::to_value(builtin_profile_v1()).map_err(|_| Error::InvalidRequest {
-			message: "Failed to serialize default ingestion profile.".to_string(),
-		})?;
-
-	sqlx::query(
-		"\
-INSERT INTO memory_ingestion_profiles (
-	tenant_id,
-	project_id,
-	pipeline,
-	profile_id,
-	version,
-	profile
-) VALUES ($1,$2,$3,$4,$5,$6::jsonb)
-ON CONFLICT DO NOTHING",
-	)
-	.bind(tenant_id)
-	.bind(project_id)
-	.bind(ADD_EVENT_PIPELINE)
-	.bind(DEFAULT_PROFILE_ID)
-	.bind(DEFAULT_PROFILE_VERSION)
-	.bind(profile)
-	.execute(pool)
-	.await?;
-
-	sqlx::query(
-		"\
-INSERT INTO memory_ingestion_profile_defaults (
-	tenant_id,
-	project_id,
-	pipeline,
-	profile_id,
-	version
-) VALUES ($1,$2,$3,$4,$5)
-ON CONFLICT DO NOTHING",
-	)
-	.bind(tenant_id)
-	.bind(project_id)
-	.bind(ADD_EVENT_PIPELINE)
-	.bind(DEFAULT_PROFILE_ID)
-	.bind(DEFAULT_PROFILE_VERSION)
-	.execute(pool)
-	.await?;
-
-	Ok(())
+fn default_schema_version() -> i32 {
+	1
 }
 
 fn parse_profile(profile: Value) -> Result<IngestionProfileV1> {
@@ -839,4 +664,166 @@ fn builtin_profile_schema() -> Value {
 			}
 		]
 	})
+}
+
+async fn select_profile_metadata(
+	pool: &PgPool,
+	tenant_id: &str,
+	project_id: &str,
+	selector: &IngestionProfileSelector,
+) -> Result<ProfileMetadataRow> {
+	let row = if let Some(version) = selector.version {
+		sqlx::query_as::<_, ProfileMetadataRow>(
+			"\
+SELECT profile_id, version, profile, created_at, created_by
+FROM memory_ingestion_profiles
+WHERE tenant_id=$1 AND project_id=$2 AND pipeline=$3 AND profile_id=$4 AND version=$5",
+		)
+		.bind(tenant_id)
+		.bind(project_id)
+		.bind(ADD_EVENT_PIPELINE)
+		.bind(selector.id.as_str())
+		.bind(version)
+		.fetch_optional(pool)
+		.await?
+	} else {
+		sqlx::query_as::<_, ProfileMetadataRow>(
+			"\
+SELECT profile_id, version, profile, created_at, created_by
+FROM memory_ingestion_profiles
+WHERE tenant_id=$1 AND project_id=$2 AND pipeline=$3 AND profile_id=$4
+ORDER BY version DESC
+LIMIT 1",
+		)
+		.bind(tenant_id)
+		.bind(project_id)
+		.bind(ADD_EVENT_PIPELINE)
+		.bind(selector.id.as_str())
+		.fetch_optional(pool)
+		.await?
+	};
+
+	row.ok_or_else(|| Error::InvalidRequest {
+		message: format!(
+			"Ingestion profile '{}' not found for tenant '{}' project '{}' pipeline '{}'.",
+			selector.id, tenant_id, project_id, ADD_EVENT_PIPELINE,
+		),
+	})
+}
+
+async fn select_profile(
+	pool: &PgPool,
+	tenant_id: &str,
+	project_id: &str,
+	selector: &IngestionProfileSelector,
+) -> Result<ProfileRow> {
+	let row = if let Some(version) = selector.version {
+		sqlx::query_as::<_, ProfileRow>(
+			"\
+SELECT profile_id, version, profile
+FROM memory_ingestion_profiles
+WHERE tenant_id=$1 AND project_id=$2 AND pipeline=$3 AND profile_id=$4 AND version=$5",
+		)
+		.bind(tenant_id)
+		.bind(project_id)
+		.bind(ADD_EVENT_PIPELINE)
+		.bind(selector.id.as_str())
+		.bind(version)
+		.fetch_optional(pool)
+		.await?
+	} else {
+		sqlx::query_as::<_, ProfileRow>(
+			"\
+SELECT profile_id, version, profile
+FROM memory_ingestion_profiles
+WHERE tenant_id=$1 AND project_id=$2 AND pipeline=$3 AND profile_id=$4
+ORDER BY version DESC
+LIMIT 1",
+		)
+		.bind(tenant_id)
+		.bind(project_id)
+		.bind(ADD_EVENT_PIPELINE)
+		.bind(selector.id.as_str())
+		.fetch_optional(pool)
+		.await?
+	};
+
+	row.ok_or_else(|| Error::InvalidRequest {
+		message: format!(
+			"Ingestion profile '{}' not found for tenant '{}' project '{}' pipeline '{}'.",
+			selector.id, tenant_id, project_id, ADD_EVENT_PIPELINE
+		),
+	})
+}
+
+async fn select_default_selector(
+	pool: &PgPool,
+	tenant_id: &str,
+	project_id: &str,
+) -> Result<IngestionProfileSelector> {
+	let row = sqlx::query_as::<_, (String, Option<i32>)>(
+		"SELECT profile_id, version FROM memory_ingestion_profile_defaults WHERE tenant_id=$1 AND project_id=$2 AND pipeline=$3",
+	)
+	.bind(tenant_id)
+	.bind(project_id)
+	.bind(ADD_EVENT_PIPELINE)
+	.fetch_optional(pool)
+	.await?;
+	let row = match row {
+		Some((profile_id, version)) => IngestionProfileSelector { id: profile_id, version },
+		None => IngestionProfileSelector {
+			id: DEFAULT_PROFILE_ID.to_string(),
+			version: Some(DEFAULT_PROFILE_VERSION),
+		},
+	};
+
+	Ok(row)
+}
+
+async fn seed_default_profile(pool: &PgPool, tenant_id: &str, project_id: &str) -> Result<()> {
+	let profile =
+		serde_json::to_value(builtin_profile_v1()).map_err(|_| Error::InvalidRequest {
+			message: "Failed to serialize default ingestion profile.".to_string(),
+		})?;
+
+	sqlx::query(
+		"\
+INSERT INTO memory_ingestion_profiles (
+	tenant_id,
+	project_id,
+	pipeline,
+	profile_id,
+	version,
+	profile
+) VALUES ($1,$2,$3,$4,$5,$6::jsonb)
+ON CONFLICT DO NOTHING",
+	)
+	.bind(tenant_id)
+	.bind(project_id)
+	.bind(ADD_EVENT_PIPELINE)
+	.bind(DEFAULT_PROFILE_ID)
+	.bind(DEFAULT_PROFILE_VERSION)
+	.bind(profile)
+	.execute(pool)
+	.await?;
+	sqlx::query(
+		"\
+INSERT INTO memory_ingestion_profile_defaults (
+	tenant_id,
+	project_id,
+	pipeline,
+	profile_id,
+	version
+) VALUES ($1,$2,$3,$4,$5)
+ON CONFLICT DO NOTHING",
+	)
+	.bind(tenant_id)
+	.bind(project_id)
+	.bind(ADD_EVENT_PIPELINE)
+	.bind(DEFAULT_PROFILE_ID)
+	.bind(DEFAULT_PROFILE_VERSION)
+	.execute(pool)
+	.await?;
+
+	Ok(())
 }
