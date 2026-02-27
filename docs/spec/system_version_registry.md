@@ -74,6 +74,14 @@ This document is normative. When a new versioned identifier is introduced, it mu
 - Consumers: Admin trajectory endpoint, trace summaries, item explain trajectory output, evaluation attribution.
 - Bump rule: Change the identifier only for incompatible trajectory payload changes. Keep previous identifiers immutable.
 
+### Doc retrieval trajectory schema
+
+- Identifier: `doc_retrieval_trajectory/v1`.
+- Type: JSON schema identifier for staged retrieval/excerpt diagnostics in doc endpoints.
+- Defined in: `packages/elf-service/src/docs.rs` (`DOC_RETRIEVAL_TRAJECTORY_SCHEMA_V1`).
+- Consumers: `DocsSearchL0Response` and `DocsExcerptResponse` when `explain=true`, MCP adapters forwarding doc routes.
+- Bump rule: Change the identifier only when stage format or stage ordering semantics become incompatible.
+
 ### Ranking policy identifier
 
 - Identifier: `ranking_v2:<hash>`.

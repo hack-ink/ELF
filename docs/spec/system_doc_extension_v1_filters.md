@@ -34,12 +34,21 @@ Scope
   as timezone-aware RFC3339 datetimes.
 - `ts_gte`/`ts_lte` bounds are inclusive (`ts_gte <= doc_ts <= ts_lte`), and values are parsed
   as timezone-aware RFC3339 datetimes.
+- `level` on `POST /v2/docs/excerpts` is `L0|L1|L2` where `L0` is a compact 256-byte retrieval window.
+- `explain` is an optional boolean on `docs_search_l0` and `docs_excerpts_get` responses that requests
+  staged diagnostics.
 
 Filter evaluation:
 - Every supplied filter is combined with logical AND.
 - `status` defaults to `active` when omitted.
 - Invalid date values or `updated_after >= updated_before` are rejected with `400`.
 - Invalid date values or `ts_gte >= ts_lte` are rejected with `400`.
+
+Response behavior:
+- `docs_search_l0` always returns `trace_id`.
+- `docs_excerpts_get` always returns `trace_id` and `locator`.
+- When `explain=true`, both endpoints additionally return optional `trajectory` under
+  `doc_retrieval_trajectory/v1`.
 
 ==================================================
 2) Qdrant Payload Contract

@@ -92,6 +92,7 @@ Steps:
 2. Store the long evidence with `elf_docs_put`.
 3. Extract a small number of durable facts (agent-side) and write them via `elf_notes_ingest`.
 4. Attach a `source_ref` pointer (doc_id + optional selector hints) to each note.
+5. Pass `explain` in docs endpoints only when you need debug diagnostics.
 
 Minimal example: `elf_docs_put`
 
@@ -142,9 +143,17 @@ Recommended strategy:
 1. Retrieve candidate notes via `elf_search_quick_create` (fast) or `elf_search_planned_create` (when you want `query_plan`).
 2. If you need to cite/verify, resolve the note `source_ref`:
    - If it includes `doc_id` + `chunk_id` or selector hints: call `elf_docs_excerpts_get` directly.
+     - Include `locator` fields from `source_ref` as available: `quote` and/or `position`.
    - Otherwise: call `elf_docs_search_l0` to find a relevant chunk_id, then hydrate using `elf_docs_excerpts_get`.
 3. Use progressive disclosure:
    - Start with `level = "L1"` and upgrade to `L2` only when the first excerpt is insufficient.
+   - Use `level = "L0"` for tight, cheapest verification checks (`~256` bytes).
+
+Optional debug mode:
+
+- Pass `explain: true` in `elf_docs_search_l0` or `elf_docs_excerpts_get` when you need to collect trace diagnostics.
+- Keep an eye on `trace_id` and optional `trajectory` for observability.
+- Use `locator` from excerpts to persist preferred selectors for reruns.
 
 Minimal example: `elf_docs_search_l0` (discovery)
 

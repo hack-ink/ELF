@@ -107,6 +107,7 @@ struct DocsSearchL0Body {
 	ts_lte: Option<String>,
 	top_k: Option<u32>,
 	candidate_k: Option<u32>,
+	explain: Option<bool>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -116,6 +117,7 @@ struct DocsExcerptsGetBody {
 	chunk_id: Option<Uuid>,
 	quote: Option<TextQuoteSelector>,
 	position: Option<TextPositionSelector>,
+	explain: Option<bool>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -975,6 +977,7 @@ async fn docs_search_l0(
 			ts_lte: payload.ts_lte,
 			top_k: payload.top_k,
 			candidate_k: payload.candidate_k,
+			explain: payload.explain,
 		})
 		.await?;
 
@@ -1005,6 +1008,7 @@ async fn docs_excerpts_get(
 			chunk_id: payload.chunk_id,
 			quote: payload.quote,
 			position: payload.position,
+			explain: payload.explain,
 		})
 		.await?;
 
