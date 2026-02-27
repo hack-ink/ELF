@@ -545,6 +545,7 @@ details must include:
 - policy_rule
 - min_confidence
 - min_importance
+- write_policy_audits (add_note: single object, add_event: array of message audits, optional)
 
 ============================================================
 6. QDRANT COLLECTION (DERIVED INDEX ONLY)
@@ -630,6 +631,7 @@ MUST NOT:
 MUST:
 - Must call the LLM extractor exactly once per request.
 - Must require evidence binding for each candidate note.
+- Each input message MAY include optional write_policy for per-message redact/exclude policy.
 - Must enforce max_notes_per_add_event on the server.
 - Must apply WriteGate and UpdateResolver after extraction.
 - Should support dry_run to return candidates without persisting.
@@ -638,6 +640,7 @@ MUST NOT:
 - Must not store notes lacking evidence or failing evidence substring checks.
 - Must not store raw full logs as memory notes.
  - If evidence.quote is not a verbatim substring of the cited message, return REJECTED with reason_code REJECT_EVIDENCE_MISMATCH.
+ - If write_policy is present and evidence mismatch is a byproduct of transformed content, return REJECTED with reason_code REJECT_WRITE_POLICY_MISMATCH.
 
 8.3 Policy decision pipeline (both add_note and add_event)
 Stage-1 (base decision) is computed from resolver outcome + side-effect presence:
@@ -1260,6 +1263,7 @@ Body:
       "importance": 0.0,
       "confidence": 0.0,
       "ttl_days": 180,
+      "write_policy": "optional",
       "structured": {
         "summary": "string|null",
         "facts": "string[]|null",
@@ -1326,7 +1330,13 @@ Body:
   "scope": "optional-scope",
   "dry_run": false,
   "messages": [
-    { "role": "user|assistant|tool", "content": "English-only", "ts": "optional", "msg_id": "optional" }
+    {
+      "role": "user|assistant|tool",
+      "content": "English-only",
+      "ts": "optional",
+      "msg_id": "optional",
+      "write_policy": "optional"
+    }
   ]
 }
 
@@ -1340,13 +1350,19 @@ Response:
       "policy_decision": "remember|update|ignore|reject",
       "reason_code": "optional",
       "reason": "optional",
-      "field_path": "optional"
+      "field_path": "optional",
+      "write_policy_audits": [
+        {
+          "exclusions": [{ "start": 0, "end": 4 }],
+          "redactions": [{ "span": { "start": 0, "end": 4 }, "replacement": "***" }]
+        }
+      ]
     }
   ]
 }
 
 Notes:
-- reason_code values include writegate rejection codes and REJECT_EVIDENCE_MISMATCH.
+- reason_code values include writegate rejection codes, REJECT_EVIDENCE_MISMATCH, and REJECT_WRITE_POLICY_MISMATCH.
 
 POST /v2/searches
 
@@ -1731,6 +1747,7 @@ Hard rules:
 - each note must be one sentence
 - evidence must be 1..2 quotes
 - each evidence.quote must be a verbatim substring of messages[message_index].content
+- when write_policy is provided on a source message, evidence checks run after policy transforms
 - do not store secrets or PII
 
 System prompt (Extractor):
@@ -1763,6 +1780,7 @@ B. English-only boundary:
   returns HTTP 422 with a JSONPath-like field path.
 C. Evidence binding:
 - If extractor evidence.quote is not a substring -> REJECTED with REJECT_EVIDENCE_MISMATCH.
+- If mismatch is introduced when requested message write_policy transforms content -> REJECTED with REJECT_WRITE_POLICY_MISMATCH.
 D. Rebuild:
 - Drop Qdrant collection, recreate, call /admin/rebuild_qdrant.
 - Must succeed without calling embedding API.

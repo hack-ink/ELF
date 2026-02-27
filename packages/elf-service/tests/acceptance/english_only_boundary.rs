@@ -65,6 +65,7 @@ async fn rejects_non_english_in_add_note() {
 			confidence: 0.9,
 			ttl_days: None,
 			source_ref: serde_json::json!({}),
+			write_policy: None,
 		}],
 	};
 	let result = service.add_note(request).await;
@@ -114,6 +115,7 @@ async fn rejects_cyrillic_in_add_note() {
 			confidence: 0.9,
 			ttl_days: None,
 			source_ref: serde_json::json!({}),
+			write_policy: None,
 		}],
 	};
 	let result = service.add_note(request).await;
@@ -160,6 +162,7 @@ async fn rejects_non_english_in_add_event() {
 			content: "こんにちは".to_string(),
 			ts: None,
 			msg_id: None,
+			write_policy: None,
 		}],
 	};
 	let result = service.add_event(request).await;
@@ -206,6 +209,7 @@ async fn rejects_cyrillic_in_add_event() {
 			content: "Это не английский текст.".to_string(),
 			ts: None,
 			msg_id: None,
+			write_policy: None,
 		}],
 	};
 	let result = service.add_event(request).await;
