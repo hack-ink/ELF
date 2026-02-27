@@ -251,6 +251,7 @@ async fn rejects_non_english_in_search() {
 		query: "안녕하세요".to_string(),
 		top_k: Some(5),
 		candidate_k: Some(10),
+		filter: None,
 		record_hits: Some(false),
 		ranking: None,
 	};
@@ -297,6 +298,7 @@ async fn rejects_cyrillic_in_search() {
 		query: "Привет".to_string(),
 		top_k: Some(5),
 		candidate_k: Some(10),
+		filter: None,
 		record_hits: Some(false),
 		ranking: None,
 	};

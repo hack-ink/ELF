@@ -74,6 +74,22 @@ This document is normative. When a new versioned identifier is introduced, it mu
 - Consumers: Admin trajectory endpoint, trace summaries, item explain trajectory output, evaluation attribution.
 - Bump rule: Change the identifier only for incompatible trajectory payload changes. Keep previous identifiers immutable.
 
+### Search filter expression schema
+
+- Identifier: `search_filter_expr/v1`.
+- Type: JSON envelope schema for structured search filters (`filter` request payload on search endpoints).
+- Defined in: `docs/spec/system_search_filter_expr_v1.md`, `apps/elf-api/src/routes.rs`, `apps/elf-mcp/src/server.rs`, `packages/elf-service/src/search.rs` (`SearchFilter`).
+- Consumers: Search creation endpoints (`/v2/search/quick`, `/v2/search/planned`, `/v2/admin/searches/raw`, `/v2/searches`) and admin/observability surfaces.
+- Bump rule: Introduce `search_filter_expr/v2` only if filter field allowlist, operators, parsing limits, value typing, or parse error model become incompatible.
+
+### Search filter impact schema
+
+- Identifier: `search_filter_impact/v1`.
+- Type: Search trajectory payload for filter outcome diagnostics.
+- Defined in: `docs/spec/system_search_filter_expr_v1.md`, `packages/elf-service/src/search/filter.rs` (`SearchFilterImpact`), `packages/elf-service/src/search.rs` (`SearchFilterImpact::to_stage_payload`).
+- Consumers: Search trajectory stage `recall.candidates` stage payload (`search_retrieval_trajectory/v1`).
+- Bump rule: Introduce `search_filter_impact/v2` only when impact fields become incompatible.
+
 ### Doc retrieval trajectory schema
 
 - Identifier: `doc_retrieval_trajectory/v1`.

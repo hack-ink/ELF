@@ -766,7 +766,7 @@ Input:
 - tenant_id, project_id, agent_id
 - read_profile
 - query (English only)
-- optional top_k, candidate_k, record_hits
+- optional top_k, candidate_k, filter, record_hits
 
 Config:
 - search.expansion.mode = off|always|dynamic
@@ -810,14 +810,19 @@ Steps:
    tenant_id, project_id, status = active (best-effort), and scope filters:
    - If scope = agent_private, require agent_id match.
    - Otherwise scope in allowed_scopes.
+   If filter is present, do not push filter criteria into Qdrant.
 8) Fuse all query results with RRF to produce candidate chunk_ids.
 9) Prefilter (optional): if max_candidates > 0 and max_candidates < candidate_k,
    keep only top max_candidates by fusion score.
-10) Fetch authoritative notes from Postgres by note_id and re-apply filters:
+10) Fetch authoritative notes from Postgres by note_id and re-apply consistency checks:
    status = active, not expired, scope allowed, and if scope = agent_private then agent_id must match.
-11) Fetch chunk metadata for candidate chunks and immediate neighbors from memory_note_chunks.
-12) Stitch snippets from chunk text (chunk + neighbors).
-13) Rerank once using the original query, with cache support:
+11) If filter is present, apply service-side candidate filtering using the authoritative note metadata:
+    - effective_candidate_k = min(MAX_CANDIDATE_K, requested_candidate_k * 3), then clamp to >= top_k.
+    - The filter is evaluated after candidate retrieval and consistency checks.
+    - The filter is not pushed down to Qdrant or SQL.
+12) Fetch chunk metadata for candidate chunks and immediate neighbors from memory_note_chunks.
+13) Stitch snippets from chunk text (chunk + neighbors).
+14) Rerank once using the original query, with cache support:
     - Build a rerank cache key from: query (trimmed), provider_id, model, rerank cache schema version (hardcoded),
       and the candidate signature [(chunk_id, note_updated_at)...].
     - If search.cache.enabled and a cache entry exists that matches the candidate signature,
@@ -826,21 +831,21 @@ Steps:
       scores = rerank(original_query, docs = [snippet ...]).
     - If search.cache.enabled and payload size is within max_payload_bytes (when set),
       store the rerank scores with TTL = rerank_ttl_days.
-14) Tie-break:
+15) Tie-break:
     base = (1 + 0.6 * importance) * exp(-age_days / recency_tau_days)
     final = rerank_score + tie_breaker_weight * base
-15) Optional scope context boost:
+16) Optional scope context boost:
     - If context.scope_boost_weight > 0 and context.scope_descriptions contains scope labels,
       apply an additive boost to items in that scope based on query token matches.
     - Token matching uses case-insensitive ASCII alphanumeric tokens (length >= 2).
     - boost = scope_boost_weight * (matched_token_count / query_token_count).
-16) Aggregate by note using top-1 chunk score, then sort and take top_k.
-17) Update hits (optional, when record_hits is true):
+17) Aggregate by note using top-1 chunk score, then sort and take top_k.
+18) Update hits (optional, when record_hits is true):
     hit_count++, last_hit_at, memory_hits insert with chunk_id.
-18) Build search trace payload with trace_id and per-item result_handle, then enqueue
+19) Build search trace payload with trace_id and per-item result_handle, then enqueue
     search_trace_outbox (best-effort; failures do not fail the search).
     - expires_at = now + search.explain.retention_days.
-19) Return results.
+20) Return results.
 
 Cache notes:
 - Cache key material is serialized as JSON and hashed with BLAKE3 (256-bit hex).
@@ -884,7 +889,15 @@ Body:
 {
   "query": "English-only",
   "top_k": 12,
-  "candidate_k": 60
+  "candidate_k": 60,
+  "filter": {
+    "schema": "search_filter_expr/v1",
+    "expr": {
+      "op": "gte",
+      "field": "importance",
+      "value": 0.5
+    }
+  }
 }
 
 Response:
@@ -1270,7 +1283,17 @@ Body:
 {
   "query": "English-only",
   "top_k": 12,
-  "candidate_k": 60
+  "candidate_k": 60,
+  "filter": {
+    "schema": "search_filter_expr/v1",
+    "expr": {
+      "op": "and",
+      "args": [
+        { "op": "eq", "field": "scope", "value": "project_shared" },
+        { "op": "gte", "field": "importance", "value": 0.5 }
+      ]
+    }
+  }
 }
 
 Response:

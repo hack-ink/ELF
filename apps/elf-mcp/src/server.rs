@@ -748,6 +748,22 @@ fn docs_excerpts_get_schema() -> Arc<JsonObject> {
 }
 
 fn search_create_schema() -> Arc<JsonObject> {
+	let filter_schema = rmcp::object!({
+		"type": "object",
+		"required": ["schema", "expr"],
+		"properties": {
+			"schema": {
+				"type": "string",
+				"const": "search_filter_expr/v1",
+			},
+			"expr": {
+				"type": "object",
+				"additionalProperties": true,
+			},
+		},
+		"additionalProperties": true,
+	});
+
 	Arc::new(rmcp::object!({
 		"type": "object",
 		"additionalProperties": true,
@@ -760,6 +776,7 @@ fn search_create_schema() -> Arc<JsonObject> {
 			},
 			"top_k": { "type": ["integer", "null"] },
 			"candidate_k": { "type": ["integer", "null"] },
+			"filter": filter_schema,
 			"read_profile": { "type": ["string", "null"] }
 		}
 	}))
