@@ -85,6 +85,7 @@ fn fact_note(key: &str, text: &str, predicate: &str, object_value: &str) -> AddN
 		confidence: 0.9,
 		ttl_days: None,
 		source_ref: serde_json::json!({}),
+		write_policy: None,
 	}
 }
 
@@ -93,6 +94,61 @@ fn assert_graph_policy_from_op(op: NoteOp, policy_decision: MemoryPolicyDecision
 		NoteOp::Add => assert_eq!(policy_decision, MemoryPolicyDecision::Remember),
 		NoteOp::Update => assert_eq!(policy_decision, MemoryPolicyDecision::Update),
 		_ => {},
+	}
+}
+
+fn duplicate_fact_attaches_multiple_evidence_request() -> AddNoteRequest {
+	AddNoteRequest {
+		tenant_id: "t".to_string(),
+		project_id: "p".to_string(),
+		agent_id: "a".to_string(),
+		scope: "agent_private".to_string(),
+		notes: vec![
+			AddNoteInput {
+				r#type: "fact".to_string(),
+				key: Some("mentorship-a".to_string()),
+				text: "Alice mentors Bob in 2026.".to_string(),
+				structured: Some(
+					serde_json::from_value::<elf_service::structured_fields::StructuredFields>(
+						serde_json::json!({
+							"relations": [{
+								"subject": { "canonical": "Alice" },
+								"predicate": "mentors",
+								"object": { "value": "Bob" }
+							}]
+						}),
+					)
+					.expect("Failed to build structured fields."),
+				),
+				importance: 0.8,
+				confidence: 0.9,
+				ttl_days: None,
+				source_ref: serde_json::json!({}),
+				write_policy: None,
+			},
+			AddNoteInput {
+				r#type: "fact".to_string(),
+				key: Some("mentorship-b".to_string()),
+				text: "Alice also mentors Bob often.".to_string(),
+				structured: Some(
+					serde_json::from_value::<elf_service::structured_fields::StructuredFields>(
+						serde_json::json!({
+							"relations": [{
+								"subject": { "canonical": "Alice" },
+								"predicate": "mentors",
+								"object": { "value": "Bob" }
+							}]
+						}),
+					)
+					.expect("Failed to build structured fields."),
+				),
+				importance: 0.7,
+				confidence: 0.8,
+				ttl_days: None,
+				source_ref: serde_json::json!({}),
+				write_policy: None,
+			},
+		],
 	}
 }
 
@@ -348,56 +404,7 @@ async fn add_note_duplicate_fact_attaches_multiple_evidence() {
 	crate::acceptance::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
 
 	let response = service
-		.add_note(AddNoteRequest {
-			tenant_id: "t".to_string(),
-			project_id: "p".to_string(),
-			agent_id: "a".to_string(),
-			scope: "agent_private".to_string(),
-			notes: vec![
-				AddNoteInput {
-					r#type: "fact".to_string(),
-					key: Some("mentorship-a".to_string()),
-					text: "Alice mentors Bob in 2026.".to_string(),
-					structured: Some(
-						serde_json::from_value::<elf_service::structured_fields::StructuredFields>(
-							serde_json::json!({
-								"relations": [{
-									"subject": { "canonical": "Alice" },
-									"predicate": "mentors",
-									"object": { "value": "Bob" }
-								}]
-							}),
-						)
-						.expect("Failed to build structured fields."),
-					),
-					importance: 0.8,
-					confidence: 0.9,
-					ttl_days: None,
-					source_ref: serde_json::json!({}),
-				},
-				AddNoteInput {
-					r#type: "fact".to_string(),
-					key: Some("mentorship-b".to_string()),
-					text: "Alice also mentors Bob often.".to_string(),
-					structured: Some(
-						serde_json::from_value::<elf_service::structured_fields::StructuredFields>(
-							serde_json::json!({
-								"relations": [{
-									"subject": { "canonical": "Alice" },
-									"predicate": "mentors",
-									"object": { "value": "Bob" }
-								}]
-							}),
-						)
-						.expect("Failed to build structured fields."),
-					),
-					importance: 0.7,
-					confidence: 0.8,
-					ttl_days: None,
-					source_ref: serde_json::json!({}),
-				},
-			],
-		})
+		.add_note(duplicate_fact_attaches_multiple_evidence_request())
 		.await
 		.expect("add_note failed.");
 
@@ -576,6 +583,7 @@ async fn add_note_invalid_relation_rejected_has_field_path() {
 				confidence: 0.9,
 				ttl_days: None,
 				source_ref: serde_json::json!({}),
+				write_policy: None,
 			}],
 		})
 		.await
@@ -653,6 +661,7 @@ async fn add_note_persists_graph_relations() {
 				confidence: 0.9,
 				ttl_days: None,
 				source_ref: serde_json::json!({}),
+				write_policy: None,
 			}],
 		})
 		.await
@@ -742,6 +751,7 @@ async fn add_event_persists_graph_relations() {
 				content: "Alice mentors Bob.".to_string(),
 				ts: None,
 				msg_id: None,
+				write_policy: None,
 			}],
 		})
 		.await

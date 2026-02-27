@@ -219,6 +219,7 @@ async fn outbox_retries_to_done() {
 				confidence: 0.9,
 				ttl_days: None,
 				source_ref: serde_json::json!({}),
+				write_policy: None,
 			}],
 		})
 		.await

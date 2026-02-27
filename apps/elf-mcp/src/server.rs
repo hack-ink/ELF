@@ -647,6 +647,7 @@ fn notes_ingest_schema() -> Arc<JsonObject> {
 						"type": { "type": "string" },
 						"key": { "type": ["string", "null"] },
 						"text": { "type": "string" },
+						"write_policy": { "type": ["object", "null"] },
 						"importance": { "type": "number" },
 						"confidence": { "type": "number" },
 						"ttl_days": { "type": ["integer", "null"] },
@@ -676,7 +677,8 @@ fn events_ingest_schema() -> Arc<JsonObject> {
 						"role": { "type": "string" },
 						"content": { "type": "string" },
 						"ts": { "type": ["string", "null"] },
-						"msg_id": { "type": ["string", "null"] }
+						"msg_id": { "type": ["string", "null"] },
+						"write_policy": { "type": ["object", "null"] }
 					}
 				}
 			}

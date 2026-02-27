@@ -55,6 +55,7 @@ async fn add_note_does_not_call_llm() {
 			confidence: 0.9,
 			ttl_days: None,
 			source_ref: serde_json::json!({}),
+			write_policy: None,
 		}],
 	};
 	let _ = service.add_note(request).await.expect("add_note failed.");
