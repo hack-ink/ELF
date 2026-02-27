@@ -509,6 +509,97 @@ impl ElfMcp {
 
 		self.forward(HttpMethod::Get, &path, params, None).await
 	}
+
+	#[rmcp::tool(
+		name = "elf_admin_events_ingestion_profiles_list",
+		description = "List latest ingestion profiles for add_event.",
+		input_schema = admin_ingestion_profiles_list_schema()
+	)]
+	async fn elf_admin_events_ingestion_profiles_list(
+		&self,
+		_params: JsonObject,
+	) -> Result<CallToolResult, ErrorData> {
+		self.forward(
+			HttpMethod::Get,
+			"/v2/admin/events/ingestion-profiles",
+			JsonObject::new(),
+			None,
+		)
+		.await
+	}
+
+	#[rmcp::tool(
+		name = "elf_admin_events_ingestion_profiles_create",
+		description = "Create a new ingestion profile version for add_event.",
+		input_schema = admin_ingestion_profiles_create_schema()
+	)]
+	async fn elf_admin_events_ingestion_profiles_create(
+		&self,
+		params: JsonObject,
+	) -> Result<CallToolResult, ErrorData> {
+		self.forward(HttpMethod::Post, "/v2/admin/events/ingestion-profiles", params, None).await
+	}
+
+	#[rmcp::tool(
+		name = "elf_admin_events_ingestion_profile_get",
+		description = "Get a single ingestion profile by id/version for add_event.",
+		input_schema = admin_ingestion_profile_get_schema()
+	)]
+	async fn elf_admin_events_ingestion_profile_get(
+		&self,
+		mut params: JsonObject,
+	) -> Result<CallToolResult, ErrorData> {
+		let profile_id = take_required_string(&mut params, "profile_id")?;
+		let path = format!("/v2/admin/events/ingestion-profiles/{profile_id}");
+
+		self.forward(HttpMethod::Get, &path, params, None).await
+	}
+
+	#[rmcp::tool(
+		name = "elf_admin_events_ingestion_profile_versions_list",
+		description = "List all versions of one ingestion profile for add_event.",
+		input_schema = admin_ingestion_profile_versions_list_schema()
+	)]
+	async fn elf_admin_events_ingestion_profile_versions_list(
+		&self,
+		mut params: JsonObject,
+	) -> Result<CallToolResult, ErrorData> {
+		let profile_id = take_required_string(&mut params, "profile_id")?;
+		let path = format!("/v2/admin/events/ingestion-profiles/{profile_id}/versions");
+
+		self.forward(HttpMethod::Get, &path, params, None).await
+	}
+
+	#[rmcp::tool(
+		name = "elf_admin_events_ingestion_profile_default_get",
+		description = "Get the active default ingestion profile for add_event.",
+		input_schema = admin_ingestion_profile_default_get_schema()
+	)]
+	async fn elf_admin_events_ingestion_profile_default_get(
+		&self,
+		_params: JsonObject,
+	) -> Result<CallToolResult, ErrorData> {
+		self.forward(
+			HttpMethod::Get,
+			"/v2/admin/events/ingestion-profiles/default",
+			JsonObject::new(),
+			None,
+		)
+		.await
+	}
+
+	#[rmcp::tool(
+		name = "elf_admin_events_ingestion_profile_default_set",
+		description = "Set the default ingestion profile for add_event.",
+		input_schema = admin_ingestion_profile_default_set_schema()
+	)]
+	async fn elf_admin_events_ingestion_profile_default_set(
+		&self,
+		params: JsonObject,
+	) -> Result<CallToolResult, ErrorData> {
+		self.forward(HttpMethod::Post, "/v2/admin/events/ingestion-profiles/default", params, None)
+			.await
+	}
 }
 
 #[rmcp::tool_handler]
@@ -667,6 +758,15 @@ fn events_ingest_schema() -> Arc<JsonObject> {
 		"properties": {
 			"scope": { "type": ["string", "null"] },
 			"dry_run": { "type": ["boolean", "null"] },
+			"ingestion_profile": {
+				"type": "object",
+				"additionalProperties": true,
+				"required": ["id"],
+				"properties": {
+					"id": { "type": "string" },
+					"version": { "type": ["integer", "null"] },
+				},
+			},
 			"messages": {
 				"type": "array",
 				"items": {
@@ -1065,6 +1165,73 @@ fn admin_trace_bundle_get_schema() -> Arc<JsonObject> {
 	}))
 }
 
+fn admin_ingestion_profiles_list_schema() -> Arc<JsonObject> {
+	Arc::new(rmcp::object!({
+		"type": "object",
+		"additionalProperties": true,
+		"required": [],
+		"properties": {}
+	}))
+}
+
+fn admin_ingestion_profiles_create_schema() -> Arc<JsonObject> {
+	Arc::new(rmcp::object!({
+		"type": "object",
+		"additionalProperties": true,
+		"required": ["profile_id", "profile", "created_by"],
+		"properties": {
+			"profile_id": { "type": "string" },
+			"version": { "type": ["integer", "null"] },
+			"profile": { "type": "object", "additionalProperties": true },
+			"created_by": { "type": "string" },
+		}
+	}))
+}
+
+fn admin_ingestion_profile_get_schema() -> Arc<JsonObject> {
+	Arc::new(rmcp::object!({
+		"type": "object",
+		"additionalProperties": true,
+		"required": ["profile_id"],
+		"properties": {
+			"profile_id": { "type": "string" },
+			"version": { "type": ["integer", "null"] },
+		}
+	}))
+}
+
+fn admin_ingestion_profile_versions_list_schema() -> Arc<JsonObject> {
+	Arc::new(rmcp::object!({
+		"type": "object",
+		"additionalProperties": true,
+		"required": ["profile_id"],
+		"properties": {
+			"profile_id": { "type": "string" }
+		}
+	}))
+}
+
+fn admin_ingestion_profile_default_get_schema() -> Arc<JsonObject> {
+	Arc::new(rmcp::object!({
+		"type": "object",
+		"additionalProperties": true,
+		"required": [],
+		"properties": {}
+	}))
+}
+
+fn admin_ingestion_profile_default_set_schema() -> Arc<JsonObject> {
+	Arc::new(rmcp::object!({
+		"type": "object",
+		"additionalProperties": true,
+		"required": ["profile_id"],
+		"properties": {
+			"profile_id": { "type": "string" },
+			"version": { "type": ["integer", "null"] },
+		}
+	}))
+}
+
 async fn handle_response(response: reqwest::Response) -> Result<CallToolResult, ErrorData> {
 	let status = response.status();
 	let bytes = response
@@ -1108,7 +1275,7 @@ mod tests {
 
 	use crate::{McpAuthState, server::HttpMethod};
 
-	const ALL_TOOL_DEFINITIONS: [ToolDefinition; 21] = [
+	const ALL_TOOL_DEFINITIONS: [ToolDefinition; 27] = [
 		ToolDefinition::new(
 			"elf_notes_ingest",
 			HttpMethod::Post,
@@ -1235,6 +1402,42 @@ mod tests {
 			"/v2/admin/traces/{trace_id}/bundle",
 			"Fetch trace bundle for replay and diagnostics by trace_id.",
 		),
+		ToolDefinition::new(
+			"elf_admin_events_ingestion_profiles_list",
+			HttpMethod::Get,
+			"/v2/admin/events/ingestion-profiles",
+			"List latest ingestion profiles for add_event.",
+		),
+		ToolDefinition::new(
+			"elf_admin_events_ingestion_profiles_create",
+			HttpMethod::Post,
+			"/v2/admin/events/ingestion-profiles",
+			"Create a new ingestion profile version for add_event.",
+		),
+		ToolDefinition::new(
+			"elf_admin_events_ingestion_profile_get",
+			HttpMethod::Get,
+			"/v2/admin/events/ingestion-profiles/{profile_id}",
+			"Get a single ingestion profile by id/version for add_event.",
+		),
+		ToolDefinition::new(
+			"elf_admin_events_ingestion_profile_versions_list",
+			HttpMethod::Get,
+			"/v2/admin/events/ingestion-profiles/{profile_id}/versions",
+			"List all versions of one ingestion profile for add_event.",
+		),
+		ToolDefinition::new(
+			"elf_admin_events_ingestion_profile_default_get",
+			HttpMethod::Get,
+			"/v2/admin/events/ingestion-profiles/default",
+			"Get the active default ingestion profile for add_event.",
+		),
+		ToolDefinition::new(
+			"elf_admin_events_ingestion_profile_default_set",
+			HttpMethod::Post,
+			"/v2/admin/events/ingestion-profiles/default",
+			"Set the default ingestion profile for add_event.",
+		),
 	];
 
 	#[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1286,6 +1489,12 @@ mod tests {
 			"elf_admin_trajectory_get",
 			"elf_admin_trace_item_get",
 			"elf_admin_trace_bundle_get",
+			"elf_admin_events_ingestion_profiles_list",
+			"elf_admin_events_ingestion_profiles_create",
+			"elf_admin_events_ingestion_profile_get",
+			"elf_admin_events_ingestion_profile_versions_list",
+			"elf_admin_events_ingestion_profile_default_get",
+			"elf_admin_events_ingestion_profile_default_set",
 		];
 
 		for name in expected {

@@ -434,6 +434,8 @@ impl ElfService {
 			min_confidence,
 			min_importance,
 			write_policy_audits: write_policy_audit.map(|audit| vec![audit]),
+			ingestion_profile_id: None,
+			ingestion_profile_version: None,
 			ts: ctx.now,
 		};
 

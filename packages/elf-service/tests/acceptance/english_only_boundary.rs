@@ -157,6 +157,7 @@ async fn rejects_non_english_in_add_event() {
 		agent_id: "a".to_string(),
 		scope: Some("agent_private".to_string()),
 		dry_run: Some(true),
+		ingestion_profile: None,
 		messages: vec![EventMessage {
 			role: "user".to_string(),
 			content: "こんにちは".to_string(),
@@ -204,6 +205,7 @@ async fn rejects_cyrillic_in_add_event() {
 		agent_id: "a".to_string(),
 		scope: Some("agent_private".to_string()),
 		dry_run: Some(true),
+		ingestion_profile: None,
 		messages: vec![EventMessage {
 			role: "user".to_string(),
 			content: "Это не английский текст.".to_string(),

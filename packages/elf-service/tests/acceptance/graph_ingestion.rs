@@ -746,6 +746,7 @@ async fn add_event_persists_graph_relations() {
 			agent_id: "a".to_string(),
 			scope: Some("agent_private".to_string()),
 			dry_run: Some(false),
+			ingestion_profile: None,
 			messages: vec![EventMessage {
 				role: "user".to_string(),
 				content: "Alice mentors Bob.".to_string(),

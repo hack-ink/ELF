@@ -64,6 +64,7 @@ async fn rejects_invalid_evidence_quote() {
 		agent_id: "a".to_string(),
 		scope: Some("agent_private".to_string()),
 		dry_run: Some(false),
+		ingestion_profile: None,
 		messages: vec![EventMessage {
 			role: "user".to_string(),
 			content: "This is a message without the expected quote.".to_string(),
@@ -144,6 +145,7 @@ async fn rejects_transformed_quote_mismatch_with_write_policy() {
 		agent_id: "a".to_string(),
 		scope: Some("agent_private".to_string()),
 		dry_run: Some(false),
+		ingestion_profile: None,
 		messages: vec![EventMessage {
 			role: "user".to_string(),
 			content: "Alice mentors Bob.".to_string(),
