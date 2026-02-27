@@ -281,6 +281,7 @@ async fn docs_search_l0_respects_thread_id_filter() {
 			query: "peregrine".to_string(),
 			top_k: Some(20),
 			candidate_k: Some(50),
+			explain: None,
 		})
 		.await
 		.expect("Failed to search docs with thread_id filter.");
@@ -325,6 +326,7 @@ async fn docs_search_l0_respects_doc_ts_filter() {
 			query: "peregrine".to_string(),
 			top_k: Some(20),
 			candidate_k: Some(50),
+			explain: None,
 		})
 		.await
 		.expect("Failed to search docs by doc_ts range.");
@@ -806,6 +808,143 @@ async fn put_test_doc(service: &ElfService) -> DocsPutResponse {
 	.await
 }
 
+#[tokio::test]
+#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL (or ELF_QDRANT_GRPC_URL) to run."]
+async fn docs_search_l0_returns_pointer_and_explain_trajectory() {
+	let Some(ctx) = setup_docs_context().await else { return };
+	let DocsContext { test_db, service } = ctx;
+	let doc = put_test_doc(&service).await;
+	let (handle, shutdown) = spawn_doc_worker(&service).await;
+
+	assert!(
+		wait_for_doc_outbox_done(&service.db.pool, doc.doc_id, std::time::Duration::from_secs(15))
+			.await,
+		"Expected doc outbox to reach DONE."
+	);
+
+	let results = service
+		.docs_search_l0(DocsSearchL0Request {
+			tenant_id: "t".to_string(),
+			project_id: "p".to_string(),
+			caller_agent_id: "reader".to_string(),
+			scope: None,
+			status: None,
+			doc_type: None,
+			agent_id: None,
+			thread_id: None,
+			updated_after: None,
+			updated_before: None,
+			ts_gte: None,
+			ts_lte: None,
+			read_profile: "private_plus_project".to_string(),
+			query: "peregrine".to_string(),
+			top_k: Some(5),
+			candidate_k: Some(20),
+			explain: Some(true),
+		})
+		.await
+		.expect("Failed to search docs.");
+
+	assert_eq!(
+		results.trajectory.as_ref().map(|trajectory| trajectory.schema.as_str()),
+		Some("doc_retrieval_trajectory/v1")
+	);
+	assert!(results.trajectory.is_some());
+	assert!(!results.items.is_empty());
+	assert!(results.items[0].pointer.schema == "source_ref/v1");
+	assert!(!results.items[0].pointer.reference.doc_id.is_nil());
+	assert!(!results.items[0].pointer.reference.chunk_id.is_nil());
+	assert_eq!(results.items[0].pointer.resolver, "elf_doc_ext/v1");
+	assert!(!results.trace_id.is_nil());
+
+	let _ = shutdown.send(());
+
+	handle.abort();
+
+	let _ = handle.await;
+
+	drop(service);
+
+	test_db.cleanup().await.expect("Failed to cleanup test database.");
+}
+
+#[tokio::test]
+#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL (or ELF_QDRANT_GRPC_URL) to run."]
+async fn docs_excerpts_get_supports_l0_and_returns_locator_and_optional_trajectory() {
+	let Some(ctx) = setup_docs_context().await else { return };
+	let DocsContext { test_db, service } = ctx;
+	let doc = put_test_doc(&service).await;
+	let (handle, shutdown) = spawn_doc_worker(&service).await;
+
+	assert!(
+		wait_for_doc_outbox_done(&service.db.pool, doc.doc_id, std::time::Duration::from_secs(15))
+			.await,
+		"Expected doc outbox to reach DONE."
+	);
+
+	let excerpt = service
+		.docs_excerpts_get(DocsExcerptsGetRequest {
+			tenant_id: "t".to_string(),
+			project_id: "p".to_string(),
+			agent_id: "reader".to_string(),
+			read_profile: "private_plus_project".to_string(),
+			doc_id: doc.doc_id,
+			level: "L0".to_string(),
+			chunk_id: None,
+			quote: Some(TextQuoteSelector {
+				exact: "Keyword: peregrine.".to_string(),
+				prefix: Some("evidence. ".to_string()),
+				suffix: Some("\nSecond".to_string()),
+			}),
+			position: None,
+			explain: Some(true),
+		})
+		.await
+		.expect("Failed to hydrate excerpt.");
+
+	assert_eq!(excerpt.locator.selector_kind, "quote");
+	assert!(excerpt.locator.match_end_offset > excerpt.locator.match_start_offset);
+	assert!(excerpt.excerpt.len() <= 256);
+	assert!(excerpt.trajectory.is_some());
+	assert_eq!(
+		excerpt.trajectory.as_ref().map(|trajectory| trajectory.schema.as_str()),
+		Some("doc_retrieval_trajectory/v1")
+	);
+	assert!(!excerpt.trace_id.is_nil());
+
+	let no_explain = service
+		.docs_excerpts_get(DocsExcerptsGetRequest {
+			tenant_id: "t".to_string(),
+			project_id: "p".to_string(),
+			agent_id: "reader".to_string(),
+			read_profile: "private_plus_project".to_string(),
+			doc_id: doc.doc_id,
+			level: "L0".to_string(),
+			chunk_id: None,
+			quote: Some(TextQuoteSelector {
+				exact: "Keyword: peregrine.".to_string(),
+				prefix: Some("evidence. ".to_string()),
+				suffix: Some("\nSecond".to_string()),
+			}),
+			position: None,
+			explain: Some(false),
+		})
+		.await
+		.expect("Failed to hydrate excerpt.");
+
+	assert!(no_explain.trajectory.is_none());
+
+	let _ = shutdown.send(());
+
+	handle.abort();
+
+	let _ = handle.await;
+
+	drop(service);
+
+	test_db.cleanup().await.expect("Failed to cleanup test database.");
+}
+
 async fn put_test_doc_with(
 	service: &ElfService,
 	agent_id: &str,
@@ -857,6 +996,7 @@ async fn search_doc_ids_with_filters(
 			query: "peregrine".to_string(),
 			top_k: Some(20),
 			candidate_k: Some(50),
+			explain: None,
 		})
 		.await
 		.expect("Failed to search docs.");
@@ -967,6 +1107,7 @@ async fn assert_doc_excerpt(service: &ElfService, doc_id: Uuid, content_hash: &s
 				suffix: Some("\nSecond".to_string()),
 			}),
 			position: None,
+			explain: None,
 		})
 		.await
 		.expect("Failed to get excerpt.");
@@ -1026,6 +1167,7 @@ async fn assert_docs_search_l0(service: &ElfService, doc_id: Uuid) {
 			query: "peregrine".to_string(),
 			top_k: Some(5),
 			candidate_k: Some(20),
+			explain: None,
 		})
 		.await
 		.expect("Failed to search docs.");
