@@ -52,8 +52,9 @@ pub use self::{
 		SearchExplainResponse, SearchExplainTrajectory, SearchExplainTrajectoryStage, SearchItem,
 		SearchRawPlannedResponse, SearchRequest, SearchResponse, SearchTrace,
 		SearchTrajectoryResponse, SearchTrajectoryStage, SearchTrajectoryStageItem,
-		SearchTrajectorySummary, SearchTrajectorySummaryStage, TraceGetRequest, TraceGetResponse,
-		TraceTrajectoryGetRequest,
+		SearchTrajectorySummary, SearchTrajectorySummaryStage, TraceBundleGetRequest,
+		TraceBundleResponse, TraceGetRequest, TraceGetResponse, TraceRecentListRequest,
+		TraceRecentListResponse, TraceTrajectoryGetRequest,
 	},
 	sharing::{
 		GranteeKind, PublishNoteRequest, PublishNoteResponse, ShareScope, SpaceGrantItem,

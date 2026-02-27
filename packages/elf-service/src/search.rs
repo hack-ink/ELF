@@ -36,6 +36,16 @@ const QUERY_PLAN_SCHEMA: &str = "elf.search.query_plan";
 const QUERY_PLAN_VERSION: &str = "v1";
 const SEARCH_RETRIEVAL_TRAJECTORY_SCHEMA_V1: &str = "search_retrieval_trajectory/v1";
 const SEARCH_FILTER_IMPACT_SCHEMA_V1: &str = "search_filter_impact/v1";
+const RECENT_TRACES_SCHEMA_V1: &str = "elf.recent_traces/v1";
+const TRACE_BUNDLE_SCHEMA_V1: &str = "elf.trace_bundle/v1";
+const MAX_RECENT_TRACES_LIMIT: u32 = 200;
+const DEFAULT_RECENT_TRACES_LIMIT: u32 = 50;
+const DEFAULT_BOUNDED_STAGE_ITEMS_LIMIT: u32 = 64;
+const DEFAULT_FULL_STAGE_ITEMS_LIMIT: u32 = 256;
+const DEFAULT_BOUNDED_CANDIDATES_LIMIT: u32 = 0;
+const DEFAULT_FULL_CANDIDATES_LIMIT: u32 = 200;
+const MAX_TRACE_BUNDLE_ITEMS_LIMIT: u32 = 256;
+const MAX_TRACE_BUNDLE_CANDIDATES_LIMIT: u32 = 1_000;
 const RELATION_CONTEXT_SQL: &str = r#"
 WITH selected_facts AS (
 	SELECT DISTINCT ON (snc.selected_note_id, gf.fact_id)
@@ -533,6 +543,91 @@ pub struct SearchExplainResponse {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TraceRecentListRequest {
+	pub tenant_id: String,
+	pub project_id: String,
+	pub agent_id: String,
+
+	pub limit: Option<u32>,
+
+	pub cursor_created_at: Option<OffsetDateTime>,
+
+	pub cursor_trace_id: Option<Uuid>,
+
+	pub agent_id_filter: Option<String>,
+
+	pub read_profile: Option<String>,
+	#[serde(with = "crate::time_serde::option")]
+	pub created_after: Option<OffsetDateTime>,
+	#[serde(with = "crate::time_serde::option")]
+	pub created_before: Option<OffsetDateTime>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RecentTraceHeader {
+	pub trace_id: Uuid,
+	pub tenant_id: String,
+	pub project_id: String,
+	pub agent_id: String,
+	pub read_profile: String,
+	pub query: String,
+	#[serde(with = "crate::time_serde")]
+	pub created_at: OffsetDateTime,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TraceRecentCursor {
+	#[serde(with = "crate::time_serde")]
+	pub created_at: OffsetDateTime,
+	pub trace_id: Uuid,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TraceRecentListResponse {
+	pub schema: String,
+	pub traces: Vec<RecentTraceHeader>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub next_cursor: Option<TraceRecentCursor>,
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+#[derive(Default)]
+pub enum TraceBundleMode {
+	#[default]
+	Bounded,
+	Full,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TraceBundleGetRequest {
+	pub tenant_id: String,
+	pub project_id: String,
+	pub agent_id: String,
+	pub trace_id: Uuid,
+	#[serde(default)]
+	pub mode: TraceBundleMode,
+
+	pub stage_items_limit: Option<u32>,
+
+	pub candidates_limit: Option<u32>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TraceBundleResponse {
+	pub schema: String,
+	#[serde(with = "crate::time_serde")]
+	pub generated_at: OffsetDateTime,
+	pub trace: SearchTrace,
+	pub items: Vec<SearchExplainItem>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub trajectory_summary: Option<SearchTrajectorySummary>,
+	pub stages: Vec<SearchTrajectoryStage>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub candidates: Option<Vec<TraceReplayCandidate>>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TraceGetRequest {
 	pub tenant_id: String,
 	pub project_id: String,
@@ -809,6 +904,22 @@ struct SearchTraceItemRow {
 	chunk_id: Option<Uuid>,
 	rank: i32,
 	explain: Value,
+}
+
+#[derive(Clone, Debug, FromRow)]
+struct SearchRecentTraceRow {
+	trace_id: Uuid,
+	tenant_id: String,
+	project_id: String,
+	agent_id: String,
+	read_profile: String,
+	query: String,
+	created_at: OffsetDateTime,
+}
+
+#[derive(Clone, Debug, FromRow)]
+struct TraceCandidateSnapshotRow {
+	candidate_snapshot: Value,
 }
 
 #[derive(Clone, Debug, FromRow)]
@@ -2048,11 +2159,10 @@ impl ElfService {
 	pub async fn search_explain(&self, req: SearchExplainRequest) -> Result<SearchExplainResponse> {
 		let tenant_id = req.tenant_id.trim();
 		let project_id = req.project_id.trim();
-		let agent_id = req.agent_id.trim();
 
-		if tenant_id.is_empty() || project_id.is_empty() || agent_id.is_empty() {
+		if tenant_id.is_empty() || project_id.is_empty() {
 			return Err(Error::InvalidRequest {
-				message: "tenant_id, project_id, and agent_id are required.".to_string(),
+				message: "tenant_id and project_id are required.".to_string(),
 			});
 		}
 
@@ -2080,12 +2190,12 @@ SELECT
 	i.explain
 FROM search_trace_items i
 JOIN search_traces t ON i.trace_id = t.trace_id
-WHERE i.item_id = $1 AND t.tenant_id = $2 AND t.project_id = $3 AND t.agent_id = $4",
+
+WHERE i.item_id = $1 AND t.tenant_id = $2 AND t.project_id = $3",
 		)
 		.bind(req.result_handle)
 		.bind(tenant_id)
 		.bind(project_id)
-		.bind(agent_id)
 		.fetch_optional(&self.db.pool)
 		.await?;
 		let Some(row) = row else {
@@ -2130,11 +2240,13 @@ WHERE i.item_id = $1 AND t.tenant_id = $2 AND t.project_id = $3 AND t.agent_id =
 	pub async fn trace_get(&self, req: TraceGetRequest) -> Result<TraceGetResponse> {
 		let tenant_id = req.tenant_id.trim();
 		let project_id = req.project_id.trim();
-		let agent_id = req.agent_id.trim();
 
-		if tenant_id.is_empty() || project_id.is_empty() || agent_id.is_empty() {
+		if req.agent_id.trim().is_empty() {
+			return Err(Error::InvalidRequest { message: "agent_id is required.".to_string() });
+		}
+		if tenant_id.is_empty() || project_id.is_empty() {
 			return Err(Error::InvalidRequest {
-				message: "tenant_id, project_id, and agent_id are required.".to_string(),
+				message: "tenant_id and project_id are required.".to_string(),
 			});
 		}
 
@@ -2156,12 +2268,11 @@ SELECT
 	trace_version,
 	created_at
 FROM search_traces
-WHERE trace_id = $1 AND tenant_id = $2 AND project_id = $3 AND agent_id = $4",
+WHERE trace_id = $1 AND tenant_id = $2 AND project_id = $3",
 		)
 		.bind(req.trace_id)
 		.bind(tenant_id)
 		.bind(project_id)
-		.bind(agent_id)
 		.fetch_optional(&self.db.pool)
 		.await?;
 		let Some(row) = row else {
@@ -2238,6 +2349,201 @@ ORDER BY rank ASC",
 		let trajectory = build_trajectory_summary_from_stages(stages.as_slice());
 
 		Ok(SearchTrajectoryResponse { trace: base.trace, trajectory, stages })
+	}
+
+	pub async fn trace_recent_list(
+		&self,
+		req: TraceRecentListRequest,
+	) -> Result<TraceRecentListResponse> {
+		let tenant_id = req.tenant_id.trim();
+		let project_id = req.project_id.trim();
+		let caller_agent_id = req.agent_id.trim();
+		let cursor_created_at = req.cursor_created_at;
+		let cursor_trace_id = req.cursor_trace_id;
+		let agent_id_filter = req.agent_id_filter.map(|value| value.trim().to_string());
+		let read_profile = req.read_profile.map(|value| value.trim().to_string());
+		let limit = req.limit.unwrap_or(DEFAULT_RECENT_TRACES_LIMIT);
+
+		if cursor_created_at.is_some() != cursor_trace_id.is_some() {
+			return Err(Error::InvalidRequest {
+				message: "cursor_created_at and cursor_trace_id must be both set or both omitted."
+					.to_string(),
+			});
+		}
+		if caller_agent_id.is_empty() {
+			return Err(Error::InvalidRequest { message: "agent_id is required.".to_string() });
+		}
+		if tenant_id.is_empty() || project_id.is_empty() {
+			return Err(Error::InvalidRequest {
+				message: "tenant_id and project_id are required.".to_string(),
+			});
+		}
+		if limit == 0 || limit > MAX_RECENT_TRACES_LIMIT {
+			return Err(Error::InvalidRequest {
+				message: format!("limit must be between 1 and {MAX_RECENT_TRACES_LIMIT}."),
+			});
+		}
+
+		if let (Some(created_after), Some(created_before)) = (req.created_after, req.created_before)
+			&& created_after >= created_before
+		{
+			return Err(Error::InvalidRequest {
+				message: "created_after must be before created_before.".to_string(),
+			});
+		}
+
+		let agent_id_filter = agent_id_filter.as_deref();
+		let read_profile = read_profile.as_deref();
+		let fetch_limit = (limit + 1).min(MAX_RECENT_TRACES_LIMIT + 1);
+		let rows = sqlx::query_as::<_, SearchRecentTraceRow>(
+			"\
+SELECT
+\ttrace_id,
+\ttenant_id,
+\tproject_id,
+\tagent_id,
+\tread_profile,
+\tquery,
+\tcreated_at
+FROM search_traces
+WHERE tenant_id = $1
+\tAND project_id = $2
+\tAND ($3::text IS NULL OR agent_id = $3)
+\tAND ($4::text IS NULL OR read_profile = $4)
+\tAND ($5::timestamptz IS NULL OR created_at > $5)
+\tAND ($6::timestamptz IS NULL OR created_at < $6)
+\tAND ($7::timestamptz IS NULL OR $8::uuid IS NULL OR (created_at, trace_id) < ($7, $8))
+ORDER BY created_at DESC, trace_id DESC
+LIMIT $9
+",
+		)
+		.bind(tenant_id)
+		.bind(project_id)
+		.bind(agent_id_filter)
+		.bind(read_profile)
+		.bind(req.created_after)
+		.bind(req.created_before)
+		.bind(cursor_created_at)
+		.bind(cursor_trace_id)
+		.bind(fetch_limit as i64)
+		.fetch_all(&self.db.pool)
+		.await?;
+		let next_cursor = if rows.len() > limit as usize {
+			let cursor_row = &rows[limit as usize];
+
+			Some(TraceRecentCursor {
+				created_at: cursor_row.created_at,
+				trace_id: cursor_row.trace_id,
+			})
+		} else {
+			None
+		};
+		let mut response_rows = rows;
+
+		response_rows.truncate(limit as usize);
+
+		let mut traces = Vec::with_capacity(response_rows.len());
+
+		for row in response_rows {
+			traces.push(RecentTraceHeader {
+				trace_id: row.trace_id,
+				tenant_id: row.tenant_id,
+				project_id: row.project_id,
+				agent_id: row.agent_id,
+				read_profile: row.read_profile,
+				query: row.query,
+				created_at: row.created_at,
+			});
+		}
+
+		Ok(TraceRecentListResponse {
+			schema: RECENT_TRACES_SCHEMA_V1.to_string(),
+			traces,
+			next_cursor,
+		})
+	}
+
+	pub async fn trace_bundle_get(
+		&self,
+		req: TraceBundleGetRequest,
+	) -> Result<TraceBundleResponse> {
+		let tenant_id = req.tenant_id.trim();
+		let project_id = req.project_id.trim();
+
+		if req.agent_id.trim().is_empty() {
+			return Err(Error::InvalidRequest { message: "agent_id is required.".to_string() });
+		}
+		if tenant_id.is_empty() || project_id.is_empty() {
+			return Err(Error::InvalidRequest {
+				message: "tenant_id and project_id are required.".to_string(),
+			});
+		}
+
+		let base = self
+			.trace_get(TraceGetRequest {
+				tenant_id: tenant_id.to_string(),
+				project_id: project_id.to_string(),
+				agent_id: req.agent_id.trim().to_string(),
+				trace_id: req.trace_id,
+			})
+			.await?;
+		let default_stage_items_limit = match req.mode {
+			TraceBundleMode::Bounded => DEFAULT_BOUNDED_STAGE_ITEMS_LIMIT,
+			TraceBundleMode::Full => DEFAULT_FULL_STAGE_ITEMS_LIMIT,
+		};
+		let default_candidates_limit = match req.mode {
+			TraceBundleMode::Bounded => DEFAULT_BOUNDED_CANDIDATES_LIMIT,
+			TraceBundleMode::Full => DEFAULT_FULL_CANDIDATES_LIMIT,
+		};
+		let stage_items_limit = req
+			.stage_items_limit
+			.unwrap_or(default_stage_items_limit)
+			.min(MAX_TRACE_BUNDLE_ITEMS_LIMIT);
+		let candidates_limit = req
+			.candidates_limit
+			.unwrap_or(default_candidates_limit)
+			.min(MAX_TRACE_BUNDLE_CANDIDATES_LIMIT);
+		let mut stages = load_trace_trajectory_stages(&self.db.pool, req.trace_id).await?;
+
+		for stage in stages.iter_mut() {
+			stage.items.truncate(stage_items_limit as usize);
+		}
+
+		let candidates = if candidates_limit == 0 {
+			None
+		} else {
+			let candidate_rows = sqlx::query_as::<_, TraceCandidateSnapshotRow>(
+				"\
+SELECT candidate_snapshot
+FROM search_trace_candidates
+WHERE trace_id = $1
+ORDER BY retrieval_rank ASC, candidate_id ASC
+LIMIT $2
+",
+			)
+			.bind(req.trace_id)
+			.bind(candidates_limit as i32)
+			.fetch_all(&self.db.pool)
+			.await?;
+			let mut candidates = Vec::with_capacity(candidate_rows.len());
+
+			for row in candidate_rows {
+				candidates
+					.push(ranking::decode_json(row.candidate_snapshot, "candidate_snapshot")?);
+			}
+
+			if candidates.is_empty() { None } else { Some(candidates) }
+		};
+
+		Ok(TraceBundleResponse {
+			schema: TRACE_BUNDLE_SCHEMA_V1.to_string(),
+			generated_at: OffsetDateTime::now_utc(),
+			trace: base.trace,
+			items: base.items,
+			trajectory_summary: base.trajectory_summary,
+			stages,
+			candidates,
+		})
 	}
 
 	async fn embed_single_query(

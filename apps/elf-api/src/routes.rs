@@ -30,9 +30,10 @@ use elf_service::{
 	SearchExplainResponse, SearchIndexItem, SearchRequest, SearchResponse, SearchSessionGetRequest,
 	SearchTimelineGroup, SearchTimelineRequest, SearchTrajectoryResponse, ShareScope,
 	SpaceGrantRevokeRequest, SpaceGrantRevokeResponse, SpaceGrantUpsertRequest,
-	SpaceGrantsListRequest, TextPositionSelector, TextQuoteSelector, TraceGetRequest,
-	TraceGetResponse, TraceTrajectoryGetRequest, UnpublishNoteRequest, UpdateRequest,
-	UpdateResponse,
+	SpaceGrantsListRequest, TextPositionSelector, TextQuoteSelector, TraceBundleGetRequest,
+	TraceBundleResponse, TraceGetRequest, TraceGetResponse, TraceRecentListRequest,
+	TraceRecentListResponse, TraceTrajectoryGetRequest, UnpublishNoteRequest, UpdateRequest,
+	UpdateResponse, search::TraceBundleMode,
 };
 
 const HEADER_TENANT_ID: &str = "X-ELF-Tenant-Id";
@@ -218,6 +219,24 @@ struct AdminGraphPredicateAliasAddBody {
 }
 
 #[derive(Clone, Debug, Deserialize)]
+struct TraceRecentListQuery {
+	limit: Option<u32>,
+	cursor_created_at: Option<String>,
+	cursor_trace_id: Option<Uuid>,
+	agent_id: Option<String>,
+	read_profile: Option<String>,
+	created_after: Option<String>,
+	created_before: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct TraceBundleGetQuery {
+	mode: Option<TraceBundleMode>,
+	stage_items_limit: Option<u32>,
+	candidates_limit: Option<u32>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
 struct ShareScopeBody {
 	space: String,
 }
@@ -389,7 +408,9 @@ pub fn admin_router(state: AppState) -> Router {
 	Router::new()
 		.route("/v2/admin/qdrant/rebuild", routing::post(rebuild_qdrant))
 		.route("/v2/admin/searches/raw", routing::post(searches_raw))
+		.route("/v2/admin/traces/recent", routing::get(trace_recent_list))
 		.route("/v2/admin/traces/:trace_id", routing::get(trace_get))
+		.route("/v2/admin/traces/:trace_id/bundle", routing::get(trace_bundle_get))
 		.route("/v2/admin/trajectories/:trace_id", routing::get(trace_trajectory_get))
 		.route("/v2/admin/trace-items/:item_id", routing::get(trace_item_get))
 		.route("/v2/admin/graph/predicates", routing::get(admin_graph_predicates_list))
@@ -1745,6 +1766,56 @@ async fn trace_get(
 	Ok(Json(response))
 }
 
+async fn trace_recent_list(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	query: Result<Query<TraceRecentListQuery>, QueryRejection>,
+) -> Result<Json<TraceRecentListResponse>, ApiError> {
+	let ctx = RequestContext::from_headers(&headers)?;
+	let Query(query) = query.map_err(|err| {
+		tracing::warn!(error = %err, "Invalid query parameters.");
+
+		json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid query parameters.".to_string(),
+			None,
+		)
+	})?;
+	let cursor_created_at =
+		parse_optional_rfc3339(query.cursor_created_at.as_ref(), "$.cursor_created_at")?;
+	let cursor_trace_id = query.cursor_trace_id;
+	let created_after = parse_optional_rfc3339(query.created_after.as_ref(), "$.created_after")?;
+	let created_before = parse_optional_rfc3339(query.created_before.as_ref(), "$.created_before")?;
+
+	if cursor_created_at.is_some() != cursor_trace_id.is_some() {
+		return Err(json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"cursor_created_at and cursor_trace_id must be both set or both omitted.".to_string(),
+			Some(vec!["$.cursor_created_at".to_string(), "$.cursor_trace_id".to_string()]),
+		));
+	}
+
+	let response = state
+		.service
+		.trace_recent_list(TraceRecentListRequest {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+			agent_id: ctx.agent_id,
+			limit: query.limit,
+			cursor_created_at,
+			cursor_trace_id,
+			agent_id_filter: query.agent_id,
+			read_profile: query.read_profile,
+			created_after,
+			created_before,
+		})
+		.await?;
+
+	Ok(Json(response))
+}
+
 async fn trace_trajectory_get(
 	State(state): State<AppState>,
 	headers: HeaderMap,
@@ -1777,6 +1848,39 @@ async fn trace_item_get(
 			project_id: ctx.project_id,
 			agent_id: ctx.agent_id,
 			result_handle: item_id,
+		})
+		.await?;
+
+	Ok(Json(response))
+}
+
+async fn trace_bundle_get(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	Path(trace_id): Path<Uuid>,
+	query: Result<Query<TraceBundleGetQuery>, QueryRejection>,
+) -> Result<Json<TraceBundleResponse>, ApiError> {
+	let ctx = RequestContext::from_headers(&headers)?;
+	let Query(query) = query.map_err(|err| {
+		tracing::warn!(error = %err, "Invalid query parameters.");
+
+		json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid query parameters.".to_string(),
+			None,
+		)
+	})?;
+	let response = state
+		.service
+		.trace_bundle_get(TraceBundleGetRequest {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+			agent_id: ctx.agent_id,
+			trace_id,
+			mode: query.mode.unwrap_or_default(),
+			stage_items_limit: query.stage_items_limit,
+			candidates_limit: query.candidates_limit,
 		})
 		.await?;
 

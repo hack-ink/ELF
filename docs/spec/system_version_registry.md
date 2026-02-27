@@ -74,6 +74,24 @@ This document is normative. When a new versioned identifier is introduced, it mu
 - Consumers: Admin trajectory endpoint, trace summaries, item explain trajectory output, evaluation attribution.
 - Bump rule: Change the identifier only for incompatible trajectory payload changes. Keep previous identifiers immutable.
 
+### Recent traces admin list schema
+
+- Identifier: `elf.recent_traces/v1`.
+- Type: Admin trace list response payload identifier.
+- Defined in: `packages/elf-service/src/search.rs` (`RECENT_TRACES_SCHEMA_V1`) and
+  `docs/spec/system_elf_memory_service_v2.md`.
+- Consumers: `GET /v2/admin/traces/recent` API response, `apps/elf-api`, `apps/elf-mcp`.
+- Bump rule: Introduce a new identifier only if this response payload becomes incompatible.
+
+### Trace bundle schema
+
+- Identifier: `elf.trace_bundle/v1`.
+- Type: Trace bundle response payload identifier for diagnostics.
+- Defined in: `packages/elf-service/src/search.rs` (`TRACE_BUNDLE_SCHEMA_V1`) and
+  `docs/spec/system_elf_memory_service_v2.md`.
+- Consumers: `GET /v2/admin/traces/{trace_id}/bundle` API response, `apps/elf-api`, `apps/elf-mcp`.
+- Bump rule: Introduce a new identifier only if this response payload becomes incompatible.
+
 ### Search filter expression schema
 
 - Identifier: `search_filter_expr/v1`.
