@@ -17,6 +17,7 @@ use uuid::Uuid;
 
 use crate::state::AppState;
 use elf_config::{SecurityAuthKey, SecurityAuthRole};
+use elf_domain::writegate::WritePolicy;
 use elf_service::{
 	AddEventRequest, AddEventResponse, AddNoteInput, AddNoteRequest, AddNoteResponse,
 	AdminGraphPredicateAliasAddRequest, AdminGraphPredicateAliasesListRequest,
@@ -27,9 +28,9 @@ use elf_service::{
 	AdminIngestionProfileGetRequest, AdminIngestionProfileListRequest,
 	AdminIngestionProfileResponse, AdminIngestionProfileVersionsListRequest,
 	AdminIngestionProfileVersionsListResponse, AdminIngestionProfilesListResponse, DeleteRequest,
-	DeleteResponse, DocsExcerptResponse, DocsExcerptsGetRequest, DocsGetRequest, DocsGetResponse,
-	DocsPutRequest, DocsPutResponse, DocsSearchL0Request, DocsSearchL0Response, Error,
-	EventMessage, GranteeKind, IngestionProfileSelector, ListRequest, ListResponse,
+	DeleteResponse, DocType, DocsExcerptResponse, DocsExcerptsGetRequest, DocsGetRequest,
+	DocsGetResponse, DocsPutRequest, DocsPutResponse, DocsSearchL0Request, DocsSearchL0Response,
+	Error, EventMessage, GranteeKind, IngestionProfileSelector, ListRequest, ListResponse,
 	NoteFetchRequest, NoteFetchResponse, PayloadLevel, PublishNoteRequest, QueryPlan,
 	RankingRequestOverride, RebuildReport, SearchDetailsRequest, SearchDetailsResult,
 	SearchExplainRequest, SearchExplainResponse, SearchIndexItem, SearchRequest, SearchResponse,
@@ -93,10 +94,12 @@ struct EventsIngestRequest {
 #[derive(Clone, Debug, Deserialize)]
 struct DocsPutBody {
 	scope: String,
-	doc_type: Option<String>,
+	doc_type: Option<DocType>,
 	title: Option<String>,
 	#[serde(default)]
 	source_ref: Value,
+
+	write_policy: Option<WritePolicy>,
 	content: String,
 }
 
@@ -105,7 +108,7 @@ struct DocsSearchL0Body {
 	query: String,
 	scope: Option<String>,
 	status: Option<String>,
-	doc_type: Option<String>,
+	doc_type: Option<DocType>,
 	sparse_mode: Option<String>,
 	domain: Option<String>,
 	repo: Option<String>,
@@ -931,9 +934,10 @@ async fn docs_put(
 			project_id: ctx.project_id,
 			agent_id: ctx.agent_id,
 			scope: payload.scope,
-			doc_type: payload.doc_type,
+			doc_type: payload.doc_type.map(|doc_type| doc_type.as_str().to_string()),
 			title: payload.title,
 			source_ref: payload.source_ref,
+			write_policy: payload.write_policy,
 			content: payload.content,
 		})
 		.await?;
@@ -1037,7 +1041,7 @@ async fn docs_search_l0(
 			query: payload.query,
 			scope: payload.scope,
 			status: payload.status,
-			doc_type: payload.doc_type,
+			doc_type: payload.doc_type.map(|doc_type| doc_type.as_str().to_string()),
 			sparse_mode: payload.sparse_mode,
 			domain: payload.domain,
 			repo: payload.repo,

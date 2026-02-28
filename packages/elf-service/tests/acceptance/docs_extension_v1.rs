@@ -286,7 +286,7 @@ async fn docs_search_l0_respects_scope_doc_type_agent_id_and_updated_after_filte
 
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL (or ELF_QDRANT_GRPC_URL) to run."]
-async fn docs_search_l0_respects_thread_id_filter() {
+async fn docs_search_l0_respects_thread_id_filter_for_chat_docs() {
 	let Some(ctx) = setup_docs_context().await else { return };
 	let (
 		test_db,
@@ -304,7 +304,7 @@ async fn docs_search_l0_respects_thread_id_filter() {
 			caller_agent_id: "assistant".to_string(),
 			scope: None,
 			status: None,
-			doc_type: None,
+			doc_type: Some("chat".to_string()),
 			sparse_mode: None,
 			domain: None,
 			repo: None,
@@ -330,6 +330,128 @@ async fn docs_search_l0_respects_thread_id_filter() {
 	assert!(!thread_filtered_docs.contains(&older_shared_knowledge_doc));
 
 	cleanup_docs_filter_fixture(test_db, handle, shutdown).await;
+}
+
+#[tokio::test]
+#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL (or ELF_QDRANT_GRPC_URL) to run this test."]
+async fn docs_search_l0_requires_chat_doc_type_for_thread_id() {
+	let Some(ctx) = setup_docs_context().await else { return };
+	let (
+		test_db,
+		service,
+		_shared_knowledge_doc,
+		_older_shared_knowledge_doc,
+		_private_chat_doc,
+		handle,
+		shutdown,
+	) = create_docs_search_filter_fixture(ctx).await;
+	let result = service
+		.docs_search_l0(DocsSearchL0Request {
+			tenant_id: "t".to_string(),
+			project_id: "p".to_string(),
+			caller_agent_id: "assistant".to_string(),
+			scope: None,
+			status: None,
+			doc_type: None,
+			sparse_mode: None,
+			domain: None,
+			repo: None,
+			agent_id: None,
+			thread_id: Some("shared-chat-thread".to_string()),
+			updated_after: None,
+			updated_before: None,
+			ts_gte: None,
+			ts_lte: None,
+			read_profile: "private_plus_project".to_string(),
+			query: "peregrine".to_string(),
+			top_k: Some(20),
+			candidate_k: Some(50),
+			explain: None,
+		})
+		.await;
+
+	match result {
+		Err(Error::InvalidRequest { message }) => {
+			assert!(message.contains("thread_id requires"));
+		},
+		other =>
+			panic!("Expected InvalidRequest for thread_id without chat doc_type, got {other:?}"),
+	}
+
+	cleanup_docs_filter_fixture(test_db, handle, shutdown).await;
+}
+
+#[tokio::test]
+#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL (or ELF_QDRANT_GRPC_URL) to run this test."]
+async fn docs_put_applies_write_policy_and_excerpt_by_chunk_id_is_verified() {
+	let Some(ctx) = setup_docs_context().await else { return };
+	let DocsContext { test_db, service } = ctx;
+	let content = "Alpha normal text then secret sk-abcdef and trailing content.";
+	let secret = "sk-abcdef";
+	let start = content.find(secret).expect("Expected secret in content.");
+	let end = start + secret.len();
+	let write_policy = serde_json::from_value(serde_json::json!({
+		"exclusions": [{"start": start, "end": end}],
+	}))
+	.expect("Failed to build write_policy.");
+	let put = service
+		.docs_put(DocsPutRequest {
+			tenant_id: "t".to_string(),
+			project_id: "p".to_string(),
+			agent_id: "owner".to_string(),
+			scope: "project_shared".to_string(),
+			doc_type: None,
+			title: Some("Docs write_policy sample".to_string()),
+			write_policy: Some(write_policy),
+			source_ref: serde_json::json!({
+				"schema": "doc_source_ref/v1",
+				"doc_type": "knowledge",
+				"ts": "2026-02-25T12:00:00Z",
+			}),
+			content: content.to_string(),
+		})
+		.await
+		.expect("Failed to put doc with write policy.");
+	let (handle, shutdown) = spawn_doc_worker(&service).await;
+
+	assert!(
+		wait_for_doc_outbox_done(&service.db.pool, put.doc_id, std::time::Duration::from_secs(15))
+			.await,
+		"Expected doc outbox to reach DONE."
+	);
+
+	let chunk_id = fetch_first_doc_chunk_id(&service, put.doc_id)
+		.await
+		.expect("Expected chunk id from transformed doc.");
+	let excerpt = service
+		.docs_excerpts_get(DocsExcerptsGetRequest {
+			tenant_id: "t".to_string(),
+			project_id: "p".to_string(),
+			agent_id: "reader".to_string(),
+			read_profile: "private_plus_project".to_string(),
+			doc_id: put.doc_id,
+			level: "L1".to_string(),
+			chunk_id: Some(chunk_id),
+			quote: None,
+			position: None,
+			explain: None,
+		})
+		.await
+		.expect("Failed to hydrate excerpt by chunk_id.");
+
+	assert!(excerpt.verification.verified);
+	assert!(!excerpt.excerpt.is_empty());
+	assert!(!excerpt.excerpt.contains(secret));
+	assert_eq!(excerpt.verification.content_hash, put.content_hash);
+	assert!(put.write_policy_audit.is_some());
+
+	let _ = shutdown.send(());
+
+	handle.abort();
+
+	let _ = handle.await;
+
+	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }
 
 #[tokio::test]
@@ -913,6 +1035,7 @@ async fn docs_put_rejects_non_english_source_ref() {
 			scope: "project_shared".to_string(),
 			doc_type: None,
 			title: Some("Docs rejection sample".to_string()),
+			write_policy: None,
 			source_ref: serde_json::json!({
 				"schema": "doc_source_ref/v1",
 				"doc_type": "knowledge",
@@ -975,6 +1098,7 @@ async fn docs_put_rejects_missing_and_invalid_source_ref() {
 			scope: "project_shared".to_string(),
 			doc_type: None,
 			title: Some("Docs rejection sample".to_string()),
+			write_policy: None,
 			source_ref: serde_json::json!("legacy-shape"),
 			content: TEST_CONTENT.to_string(),
 		})
@@ -995,6 +1119,7 @@ async fn docs_put_rejects_missing_and_invalid_source_ref() {
 			scope: "project_shared".to_string(),
 			doc_type: None,
 			title: Some("Docs rejection sample".to_string()),
+			write_policy: None,
 			source_ref: serde_json::json!({
 				"schema": "source_ref/v1",
 				"doc_type": "knowledge",
@@ -1393,6 +1518,7 @@ async fn put_test_doc_with(
 			scope: scope.to_string(),
 			doc_type: doc_type.map(std::string::ToString::to_string),
 			title: Some(title.to_string()),
+			write_policy: None,
 			source_ref,
 			content: content.to_string(),
 		})

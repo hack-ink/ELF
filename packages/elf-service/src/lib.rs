@@ -33,7 +33,7 @@ pub use self::{
 	},
 	delete::{DeleteRequest, DeleteResponse},
 	docs::{
-		DocsExcerptResponse, DocsExcerptsGetRequest, DocsGetRequest, DocsGetResponse,
+		DocType, DocsExcerptResponse, DocsExcerptsGetRequest, DocsGetRequest, DocsGetResponse,
 		DocsPutRequest, DocsPutResponse, DocsSearchL0Request, DocsSearchL0Response,
 		TextPositionSelector, TextQuoteSelector,
 	},

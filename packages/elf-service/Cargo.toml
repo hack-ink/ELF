@@ -11,6 +11,7 @@ serde_json           = { workspace = true }
 sqlx                 = { workspace = true }
 thiserror            = { workspace = true }
 time                 = { workspace = true }
+tokenizers           = { workspace = true }
 tracing              = { workspace = true }
 unicode-segmentation = { workspace = true }
 uuid                 = { workspace = true }
@@ -21,10 +22,9 @@ elf-providers = { workspace = true }
 elf-storage   = { workspace = true }
 
 [dev-dependencies]
-ahash      = { workspace = true }
-axum       = { workspace = true }
-tokenizers = { workspace = true }
-tokio      = { workspace = true }
+ahash = { workspace = true }
+axum  = { workspace = true }
+tokio = { workspace = true }
 
 elf-chunking = { workspace = true }
 elf-testkit  = { workspace = true }
