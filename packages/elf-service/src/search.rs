@@ -2429,7 +2429,7 @@ LIMIT $9
 		.fetch_all(&self.db.pool)
 		.await?;
 		let next_cursor = if rows.len() > limit as usize {
-			let cursor_row = &rows[limit as usize];
+			let cursor_row = &rows[limit as usize - 1];
 
 			Some(TraceRecentCursor {
 				created_at: cursor_row.created_at,
