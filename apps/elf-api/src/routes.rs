@@ -1,6 +1,6 @@
 use axum::{
 	Json, Router,
-	body::Body,
+	body::{self, Body},
 	extract::{
 		DefaultBodyLimit, Extension, Path, Query, State,
 		rejection::{JsonRejection, QueryRejection},
@@ -31,20 +31,22 @@ use elf_service::{
 	DeleteResponse, DocType, DocsExcerptResponse, DocsExcerptsGetRequest, DocsGetRequest,
 	DocsGetResponse, DocsPutRequest, DocsPutResponse, DocsSearchL0Request, DocsSearchL0Response,
 	Error, EventMessage, GranteeKind, IngestionProfileSelector, ListRequest, ListResponse,
-	NoteFetchRequest, NoteFetchResponse, PayloadLevel, PublishNoteRequest, QueryPlan,
-	RankingRequestOverride, RebuildReport, SearchDetailsRequest, SearchDetailsResult,
-	SearchExplainRequest, SearchExplainResponse, SearchIndexItem, SearchRequest, SearchResponse,
-	SearchSessionGetRequest, SearchTimelineGroup, SearchTimelineRequest, SearchTrajectoryResponse,
-	ShareScope, SpaceGrantRevokeRequest, SpaceGrantRevokeResponse, SpaceGrantUpsertRequest,
-	SpaceGrantsListRequest, TextPositionSelector, TextQuoteSelector, TraceBundleGetRequest,
-	TraceBundleResponse, TraceGetRequest, TraceGetResponse, TraceRecentListRequest,
-	TraceRecentListResponse, TraceTrajectoryGetRequest, UnpublishNoteRequest, UpdateRequest,
-	UpdateResponse, search::TraceBundleMode,
+	NoteFetchRequest, NoteFetchResponse, NoteProvenanceBundleResponse, NoteProvenanceGetRequest,
+	PayloadLevel, PublishNoteRequest, QueryPlan, RankingRequestOverride, RebuildReport,
+	SearchDetailsRequest, SearchDetailsResult, SearchExplainRequest, SearchExplainResponse,
+	SearchIndexItem, SearchRequest, SearchResponse, SearchSessionGetRequest, SearchTimelineGroup,
+	SearchTimelineRequest, SearchTrajectoryResponse, ShareScope, SpaceGrantRevokeRequest,
+	SpaceGrantRevokeResponse, SpaceGrantUpsertRequest, SpaceGrantsListRequest,
+	TextPositionSelector, TextQuoteSelector, TraceBundleGetRequest, TraceBundleResponse,
+	TraceGetRequest, TraceGetResponse, TraceRecentListRequest, TraceRecentListResponse,
+	TraceTrajectoryGetRequest, UnpublishNoteRequest, UpdateRequest, UpdateResponse,
+	search::TraceBundleMode,
 };
 
 const HEADER_TENANT_ID: &str = "X-ELF-Tenant-Id";
 const HEADER_PROJECT_ID: &str = "X-ELF-Project-Id";
 const HEADER_AGENT_ID: &str = "X-ELF-Agent-Id";
+const HEADER_REQUEST_ID: &str = "X-ELF-Request-Id";
 const HEADER_READ_PROFILE: &str = "X-ELF-Read-Profile";
 const HEADER_AUTHORIZATION: &str = "Authorization";
 const HEADER_TRUSTED_TOKEN_ID: &str = "X-ELF-Trusted-Token-Id";
@@ -470,6 +472,7 @@ pub fn admin_router(state: AppState) -> Router {
 			"/v2/admin/graph/predicates/:predicate_id/aliases",
 			routing::post(admin_graph_predicate_alias_add).get(admin_graph_predicate_aliases_list),
 		)
+		.route("/v2/admin/notes/:note_id/provenance", routing::get(admin_note_provenance_get))
 		.with_state(state)
 		.layer(DefaultBodyLimit::max(MAX_REQUEST_BYTES))
 		.layer(middleware::from_fn_with_state(auth_state, admin_auth_middleware))
@@ -615,6 +618,49 @@ fn format_scope(scope: &str) -> Result<&'static str, ApiError> {
 	}
 }
 
+fn parse_request_id_from_headers(headers: &HeaderMap) -> Result<Uuid, ApiError> {
+	if let Some(raw) = headers.get(HEADER_REQUEST_ID) {
+		let raw = raw.to_str().map_err(|_| {
+			json_error(
+				StatusCode::BAD_REQUEST,
+				"INVALID_REQUEST",
+				format!("{HEADER_REQUEST_ID} header must be a valid string."),
+				Some(vec![format!("$.headers.{HEADER_REQUEST_ID}")]),
+			)
+		})?;
+		let trimmed = raw.trim();
+
+		if trimmed.is_empty() {
+			return Err(json_error(
+				StatusCode::BAD_REQUEST,
+				"INVALID_REQUEST",
+				format!("{HEADER_REQUEST_ID} header must be non-empty."),
+				Some(vec![format!("$.headers.{HEADER_REQUEST_ID}")]),
+			));
+		}
+
+		Uuid::parse_str(trimmed).map_err(|_| {
+			json_error(
+				StatusCode::BAD_REQUEST,
+				"INVALID_REQUEST",
+				format!("{HEADER_REQUEST_ID} header must be a valid UUID."),
+				Some(vec![format!("$.headers.{HEADER_REQUEST_ID}")]),
+			)
+		})
+	} else {
+		Ok(Uuid::new_v4())
+	}
+}
+
+fn inject_request_id_into_json_body(body: &[u8], request_id: &Uuid) -> Option<Vec<u8>> {
+	let mut response_body: Value = serde_json::from_slice(body).ok()?;
+	let object = response_body.as_object_mut()?;
+
+	object.insert("request_id".to_string(), Value::String(request_id.to_string()));
+
+	serde_json::to_vec(&response_body).ok()
+}
+
 fn trusted_token_id(headers: &HeaderMap) -> Option<String> {
 	let raw = headers.get(HEADER_TRUSTED_TOKEN_ID)?;
 	let value = raw.to_str().ok()?.trim();
@@ -730,28 +776,65 @@ fn parse_optional_rfc3339(
 	})
 }
 
+async fn with_request_id(response: Response, request_id: Uuid) -> Response {
+	let (mut parts, body) = response.into_parts();
+
+	parts.headers.insert(
+		HEADER_REQUEST_ID,
+		request_id.to_string().parse().expect("request_id is valid uuid string"),
+	);
+
+	let is_json_response = parts
+		.headers
+		.get(axum::http::header::CONTENT_TYPE)
+		.and_then(|value| value.to_str().ok())
+		.map(|content_type| content_type.starts_with("application/json"))
+		.unwrap_or(false);
+
+	if !is_json_response {
+		return Response::from_parts(parts, body);
+	}
+
+	let body_bytes = match body::to_bytes(body, usize::MAX).await {
+		Ok(bytes) => bytes,
+		Err(_) => return Response::from_parts(parts, Body::empty()),
+	};
+
+	if let Some(response_body) = inject_request_id_into_json_body(&body_bytes, &request_id) {
+		parts.headers.remove(axum::http::header::CONTENT_LENGTH);
+
+		Response::from_parts(parts, Body::from(response_body))
+	} else {
+		Response::from_parts(parts, Body::from(body_bytes))
+	}
+}
+
 async fn api_auth_middleware(
 	State(state): State<AppState>,
 	req: Request<Body>,
 	next: Next,
 ) -> Response {
 	let security = &state.service.cfg.security;
+	let request_id = match parse_request_id_from_headers(req.headers()) {
+		Ok(request_id) => request_id,
+		Err(err) => return with_request_id(err.into_response(), Uuid::new_v4()).await,
+	};
 	let mut req = req;
 
 	sanitize_trusted_token_header(req.headers_mut());
 
-	match security.auth_mode.trim() {
+	let response = match security.auth_mode.trim() {
 		"off" => next.run(req).await,
 		"static_keys" => {
 			let key = match resolve_auth_key(req.headers(), &security.auth_keys) {
 				Ok(key) => key,
-				Err(err) => return err.into_response(),
+				Err(err) => return with_request_id(err.into_response(), request_id).await,
 			};
 
 			req.extensions_mut().insert(key.role);
 
 			if let Err(err) = apply_auth_key_context(req.headers_mut(), key) {
-				return err.into_response();
+				return with_request_id(err.into_response(), request_id).await;
 			}
 
 			next.run(req).await
@@ -763,7 +846,9 @@ async fn api_auth_middleware(
 			None,
 		)
 		.into_response(),
-	}
+	};
+
+	with_request_id(response, request_id).await
 }
 
 async fn admin_auth_middleware(
@@ -772,32 +857,35 @@ async fn admin_auth_middleware(
 	next: Next,
 ) -> Response {
 	let security = &state.service.cfg.security;
+	let request_id = match parse_request_id_from_headers(req.headers()) {
+		Ok(request_id) => request_id,
+		Err(err) => return with_request_id(err.into_response(), Uuid::new_v4()).await,
+	};
 	let mut req = req;
 
 	sanitize_trusted_token_header(req.headers_mut());
 
-	match security.auth_mode.trim() {
+	let response = match security.auth_mode.trim() {
 		"off" => next.run(req).await,
 		"static_keys" => {
 			let key = match resolve_auth_key(req.headers(), &security.auth_keys) {
 				Ok(key) => key,
-				Err(err) => return err.into_response(),
+				Err(err) => return with_request_id(err.into_response(), request_id).await,
 			};
 
 			req.extensions_mut().insert(key.role);
 
 			if !matches!(key.role, SecurityAuthRole::Admin | SecurityAuthRole::SuperAdmin) {
-				return json_error(
-					StatusCode::FORBIDDEN,
-					"FORBIDDEN",
-					"Admin token required.",
-					None,
+				return with_request_id(
+					json_error(StatusCode::FORBIDDEN, "FORBIDDEN", "Admin token required.", None)
+						.into_response(),
+					request_id,
 				)
-				.into_response();
+				.await;
 			}
 
 			if let Err(err) = apply_auth_key_context(req.headers_mut(), key) {
-				return err.into_response();
+				return with_request_id(err.into_response(), request_id).await;
 			}
 
 			next.run(req).await
@@ -809,7 +897,9 @@ async fn admin_auth_middleware(
 			None,
 		)
 		.into_response(),
-	}
+	};
+
+	with_request_id(response, request_id).await
 }
 
 async fn health() -> StatusCode {
@@ -1735,6 +1825,24 @@ async fn admin_graph_predicate_aliases_list(
 	Ok(Json(response))
 }
 
+async fn admin_note_provenance_get(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	Path(note_id): Path<Uuid>,
+) -> Result<Json<NoteProvenanceBundleResponse>, ApiError> {
+	let ctx = RequestContext::from_headers(&headers)?;
+	let response = state
+		.service
+		.note_provenance_get(NoteProvenanceGetRequest {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+			note_id,
+		})
+		.await?;
+
+	Ok(Json(response))
+}
+
 async fn admin_ingestion_profiles_list(
 	State(state): State<AppState>,
 	headers: HeaderMap,
@@ -2074,11 +2182,13 @@ async fn trace_bundle_get(
 mod tests {
 	use crate::routes::{
 		HEADER_AGENT_ID, HEADER_AUTHORIZATION, HEADER_PROJECT_ID, HEADER_READ_PROFILE,
-		HEADER_TENANT_ID, HEADER_TRUSTED_TOKEN_ID, apply_auth_key_context, effective_token_id,
+		HEADER_REQUEST_ID, HEADER_TENANT_ID, HEADER_TRUSTED_TOKEN_ID, apply_auth_key_context,
+		effective_token_id, inject_request_id_into_json_body, parse_request_id_from_headers,
 		require_admin_for_org_shared_writes, resolve_auth_key, sanitize_trusted_token_header,
 	};
 	use axum::http::HeaderMap;
 	use elf_config::{SecurityAuthKey, SecurityAuthRole};
+	use uuid::Uuid;
 
 	#[test]
 	fn require_admin_for_org_shared_writes_denies_user_in_static_keys_mode() {
@@ -2282,5 +2392,50 @@ mod tests {
 		sanitize_trusted_token_header(&mut headers);
 
 		assert!(headers.get(HEADER_TRUSTED_TOKEN_ID).is_none());
+	}
+
+	#[test]
+	fn parse_request_id_from_headers_generates_when_missing() {
+		let headers = HeaderMap::new();
+		let request_id = parse_request_id_from_headers(&headers)
+			.expect("Expected a generated request ID when header is missing.");
+
+		assert_ne!(request_id.to_string(), Uuid::nil().to_string());
+	}
+
+	#[test]
+	fn parse_request_id_from_headers_rejects_invalid() {
+		let mut headers = HeaderMap::new();
+
+		headers.insert(HEADER_REQUEST_ID, "not-a-uuid".parse().expect("invalid request_id"));
+
+		let err = parse_request_id_from_headers(&headers)
+			.expect_err("Expected invalid request_id to be rejected.");
+
+		assert_eq!(err.status, axum::http::StatusCode::BAD_REQUEST);
+		assert_eq!(err.error_code, "INVALID_REQUEST");
+		assert_eq!(err.fields, Some(vec![format!("$.headers.{HEADER_REQUEST_ID}")]));
+	}
+
+	#[test]
+	fn inject_request_id_into_json_body_adds_request_id_to_object() {
+		let request_id =
+			Uuid::parse_str("123e4567-e89b-12d3-a456-426614174000").expect("valid uuid");
+		let body = serde_json::json!({"note_id":"abc","status":"ok"}).to_string();
+		let response_body = inject_request_id_into_json_body(body.as_bytes(), &request_id)
+			.expect("Expected request_id field to be injected.");
+		let response_value = serde_json::from_slice::<serde_json::Value>(&response_body)
+			.expect("Expected valid JSON");
+
+		assert_eq!(response_value["request_id"], request_id.to_string());
+	}
+
+	#[test]
+	fn inject_request_id_into_json_body_skips_non_object() {
+		let request_id =
+			Uuid::parse_str("123e4567-e89b-12d3-a456-426614174000").expect("valid uuid");
+		let body = serde_json::json!(["a", "b", "c"]).to_string();
+
+		assert!(inject_request_id_into_json_body(body.as_bytes(), &request_id).is_none());
 	}
 }

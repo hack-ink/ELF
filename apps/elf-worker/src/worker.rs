@@ -471,7 +471,12 @@ async fn process_indexing_outbox_once(state: &WorkerState) -> Result<()> {
 				.await?;
 		},
 		Err(err) => {
-			tracing::error!(error = %err, outbox_id = %job.outbox_id, "Outbox job failed.");
+			tracing::error!(
+				error = %err,
+				outbox_id = %job.outbox_id,
+				note_id = %job.note_id,
+				"Outbox job failed."
+			);
 
 			mark_failed(&state.db, job.outbox_id, job.attempts, &err).await?;
 		},
@@ -501,7 +506,13 @@ async fn process_doc_indexing_outbox_once(state: &WorkerState) -> Result<()> {
 			.await?;
 		},
 		Err(err) => {
-			tracing::error!(error = %err, outbox_id = %job.outbox_id, "Doc outbox job failed.");
+			tracing::error!(
+				error = %err,
+				outbox_id = %job.outbox_id,
+				doc_id = %job.doc_id,
+				chunk_id = %job.chunk_id,
+				"Doc outbox job failed."
+			);
 
 			mark_doc_failed(&state.db, job.outbox_id, job.attempts, &err).await?;
 		},
@@ -523,7 +534,12 @@ async fn process_trace_outbox_once(state: &WorkerState) -> Result<()> {
 				.await?;
 		},
 		Err(err) => {
-			tracing::error!(error = %err, trace_id = %job.trace_id, "Search trace outbox job failed.");
+			tracing::error!(
+				error = %err,
+				outbox_id = %job.outbox_id,
+				trace_id = %job.trace_id,
+				"Search trace outbox job failed."
+			);
 
 			mark_trace_failed(&state.db, job.outbox_id, job.attempts, &err).await?;
 		},
@@ -535,14 +551,22 @@ async fn process_trace_outbox_once(state: &WorkerState) -> Result<()> {
 async fn handle_upsert(state: &WorkerState, job: &IndexingOutboxEntry) -> Result<()> {
 	let note = fetch_note(&state.db, job.note_id).await?;
 	let Some(note) = note else {
-		tracing::info!(note_id = %job.note_id, "Note missing for outbox job. Marking done.");
+		tracing::info!(
+			outbox_id = %job.outbox_id,
+			note_id = %job.note_id,
+			"Note missing for outbox job. Marking done."
+		);
 
 		return Ok(());
 	};
 	let now = OffsetDateTime::now_utc();
 
 	if !note_is_active(&note, now) {
-		tracing::info!(note_id = %job.note_id, "Note inactive or expired. Skipping index.");
+		tracing::info!(
+			outbox_id = %job.outbox_id,
+			note_id = %job.note_id,
+			"Note inactive or expired. Skipping index."
+		);
 
 		return Ok(());
 	}
@@ -686,13 +710,23 @@ LIMIT 1"#,
 async fn handle_doc_upsert(state: &WorkerState, job: &DocIndexingOutboxEntry) -> Result<()> {
 	let row = fetch_doc_chunk_index_row(&state.db, job.chunk_id).await?;
 	let Some(row) = row else {
-		tracing::info!(chunk_id = %job.chunk_id, "Doc chunk missing for outbox job. Marking done.");
+		tracing::info!(
+			outbox_id = %job.outbox_id,
+			doc_id = %job.doc_id,
+			chunk_id = %job.chunk_id,
+			"Doc chunk missing for outbox job. Marking done."
+		);
 
 		return Ok(());
 	};
 
 	if !row.status.eq_ignore_ascii_case("active") {
-		tracing::info!(doc_id = %row.doc_id, chunk_id = %row.chunk_id, "Doc inactive. Skipping index.");
+		tracing::info!(
+			outbox_id = %job.outbox_id,
+			doc_id = %row.doc_id,
+			chunk_id = %row.chunk_id,
+			"Doc inactive. Skipping index."
+		);
 
 		return Ok(());
 	}
