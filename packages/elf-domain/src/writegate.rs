@@ -184,6 +184,27 @@ pub fn writegate(note: &NoteInput, cfg: &Config) -> Result<(), RejectCode> {
 	Ok(())
 }
 
+pub fn contains_secrets(text: &str) -> bool {
+	let patterns = [
+		r"(?i)-----BEGIN (RSA|OPENSSH|EC|DSA) PRIVATE KEY-----",
+		r"(?i)ssh-rsa",
+		r"(?i)sk-[a-z0-9]{20,}",
+		r"(?i)api[_-]?key\s*[:=]\s*\S+",
+		r"(?i)password\s*[:=]\s*\S+",
+		r"(?i)secret\s*[:=]\s*\S+",
+		r"(?i)token\s*[:=]\s*\S+",
+		r"(?i)seed phrase",
+	];
+
+	for pattern in patterns {
+		if Regex::new(pattern).map(|re| re.is_match(text)).unwrap_or(false) {
+			return true;
+		}
+	}
+
+	false
+}
+
 fn validate_span(text: &str, span: &WriteSpan) -> Result<(), WritePolicyError> {
 	if span.end < span.start {
 		return Err(WritePolicyError::InvalidSpan);
@@ -223,27 +244,6 @@ fn scope_write_allowed(cfg: &Config, scope: &str) -> bool {
 
 fn is_allowed_type(note_type: &str) -> bool {
 	matches!(note_type, "preference" | "constraint" | "decision" | "profile" | "fact" | "plan")
-}
-
-fn contains_secrets(text: &str) -> bool {
-	let patterns = [
-		r"(?i)-----BEGIN (RSA|OPENSSH|EC|DSA) PRIVATE KEY-----",
-		r"(?i)ssh-rsa",
-		r"(?i)sk-[a-z0-9]{20,}",
-		r"(?i)api[_-]?key\s*[:=]\s*\S+",
-		r"(?i)password\s*[:=]\s*\S+",
-		r"(?i)secret\s*[:=]\s*\S+",
-		r"(?i)token\s*[:=]\s*\S+",
-		r"(?i)seed phrase",
-	];
-
-	for pattern in patterns {
-		if Regex::new(pattern).map(|re| re.is_match(text)).unwrap_or(false) {
-			return true;
-		}
-	}
-
-	false
 }
 
 #[cfg(test)]

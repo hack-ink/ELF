@@ -11,11 +11,15 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use sqlx::{FromRow, PgExecutor, PgPool};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
+use tokenizers::Tokenizer;
 use uuid::Uuid;
 
 use crate::{ElfService, Error, Result, access::SharedSpaceGrantKey};
 use elf_config::Config;
-use elf_domain::english_gate;
+use elf_domain::{
+	english_gate,
+	writegate::{WritePolicy, WritePolicyAudit},
+};
 use elf_storage::{
 	doc_outbox,
 	models::{DocChunk, DocDocument},
@@ -34,6 +38,37 @@ const DOC_SOURCE_REF_SCHEMA_V1: &str = "source_ref/v1";
 const DOC_SOURCE_REF_RESOLVER_V1: &str = "elf_doc_ext/v1";
 const DOC_STATUSES: [&str; 2] = ["active", "deleted"];
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DocType {
+	Knowledge,
+	Chat,
+	Search,
+	Dev,
+}
+impl DocType {
+	pub fn as_str(self) -> &'static str {
+		match self {
+			DocType::Knowledge => "knowledge",
+			DocType::Chat => "chat",
+			DocType::Search => "search",
+			DocType::Dev => "dev",
+		}
+	}
+
+	pub fn parse(raw_doc_type: &str) -> Result<Self> {
+		match raw_doc_type {
+			"knowledge" => Ok(DocType::Knowledge),
+			"chat" => Ok(DocType::Chat),
+			"search" => Ok(DocType::Search),
+			"dev" => Ok(DocType::Dev),
+			_ => Err(Error::InvalidRequest {
+				message: "doc_type must be one of: knowledge, chat, search, dev.".to_string(),
+			}),
+		}
+	}
+}
+
 #[derive(Clone, Debug, Deserialize)]
 pub struct DocsPutRequest {
 	pub tenant_id: String,
@@ -42,6 +77,7 @@ pub struct DocsPutRequest {
 	pub scope: String,
 	pub doc_type: Option<String>,
 	pub title: Option<String>,
+	pub write_policy: Option<WritePolicy>,
 	#[serde(default)]
 	pub source_ref: Value,
 	pub content: String,
@@ -53,6 +89,8 @@ pub struct DocsPutResponse {
 	pub chunk_count: u32,
 	pub content_bytes: u32,
 	pub content_hash: String,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub write_policy_audit: Option<WritePolicyAudit>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -281,7 +319,7 @@ impl DocTrajectoryBuilder {
 struct DocsSearchL0Filters {
 	scope: Option<String>,
 	status: String,
-	doc_type: Option<String>,
+	doc_type: Option<DocType>,
 	sparse_mode: DocsSparseMode,
 	domain: Option<String>,
 	repo: Option<String>,
@@ -295,8 +333,8 @@ struct DocsSearchL0Filters {
 
 #[derive(Clone, Copy, Debug)]
 struct DocChunkingProfile {
-	target_bytes: usize,
-	overlap_bytes: usize,
+	max_tokens: usize,
+	overlap_tokens: usize,
 	max_chunks: usize,
 }
 
@@ -306,6 +344,13 @@ struct ByteChunk {
 	start_offset: usize,
 	end_offset: usize,
 	text: String,
+}
+
+#[derive(Debug)]
+struct ValidatedDocsPut {
+	doc_type: DocType,
+	content: String,
+	write_policy_audit: Option<WritePolicyAudit>,
 }
 
 #[derive(Clone, Debug, FromRow)]
@@ -340,7 +385,7 @@ struct DocsSearchL0Prepared {
 struct DocsSearchL0FiltersParsed {
 	scope: Option<String>,
 	status: String,
-	doc_type: Option<String>,
+	doc_type: Option<DocType>,
 	sparse_mode: DocsSparseMode,
 	domain: Option<String>,
 	repo: Option<String>,
@@ -358,20 +403,12 @@ struct DocsSearchL0RangesParsed {
 
 impl ElfService {
 	pub async fn docs_put(&self, req: DocsPutRequest) -> Result<DocsPutResponse> {
-		let doc_type = validate_docs_put(&req)?;
+		let ValidatedDocsPut { doc_type, content, write_policy_audit } = validate_docs_put(&req)?;
 		let now = OffsetDateTime::now_utc();
 		let embed_version = crate::embedding_version(&self.cfg);
-		let DocsPutRequest {
-			tenant_id,
-			project_id,
-			agent_id,
-			scope,
-			doc_type: _,
-			title,
-			source_ref,
-			content,
-		} = req;
-		let chunking_profile = resolve_doc_chunking_profile(doc_type.as_str());
+		let DocsPutRequest { tenant_id, project_id, agent_id, scope, title, source_ref, .. } = req;
+		let chunking_profile = resolve_doc_chunking_profile(doc_type);
+		let tokenizer = load_tokenizer(&self.cfg)?;
 		let effective_project_id = if scope.trim() == "org_shared" {
 			crate::access::ORG_PROJECT_ID
 		} else {
@@ -380,11 +417,12 @@ impl ElfService {
 		let content_bytes = content.len();
 		let content_hash = blake3::hash(content.as_bytes());
 		let doc_id = Uuid::new_v4();
-		let chunks = split_bytes_by_sentence(
+		let chunks = split_tokens_by_offsets(
 			content.as_str(),
-			chunking_profile.target_bytes,
-			chunking_profile.overlap_bytes,
+			chunking_profile.max_tokens,
+			chunking_profile.overlap_tokens,
 			chunking_profile.max_chunks,
+			&tokenizer,
 		)?;
 		let doc_row = DocDocument {
 			doc_id,
@@ -392,7 +430,7 @@ impl ElfService {
 			project_id: effective_project_id.to_string(),
 			agent_id: agent_id.clone(),
 			scope: scope.clone(),
-			doc_type,
+			doc_type: doc_type.as_str().to_string(),
 			status: "active".to_string(),
 			title,
 			source_ref: elf_storage::docs::normalize_source_ref(Some(source_ref)),
@@ -448,6 +486,7 @@ impl ElfService {
 			chunk_count: chunks.len() as u32,
 			content_bytes: content_bytes as u32,
 			content_hash: content_hash.to_hex().to_string(),
+			write_policy_audit,
 		})
 	}
 
@@ -683,7 +722,11 @@ LIMIT 1",
 				"top_k": top_k,
 				"candidate_k": candidate_k,
 				"sparse_mode": sparse_mode.as_str(),
-				"doc_type": filters.doc_type.as_deref().unwrap_or("<default>"),
+				"doc_type": filters
+					.doc_type
+					.as_ref()
+				.map(|doc_type| doc_type.as_str())
+				.unwrap_or("<default>"),
 				"status": &filters.status,
 			}),
 		);
@@ -1031,21 +1074,16 @@ fn build_docs_l0_pointer(row: &DocSearchRow, chunk_id: Uuid) -> DocsSearchL0Item
 	}
 }
 
-fn resolve_doc_chunking_profile(doc_type: &str) -> DocChunkingProfile {
+fn resolve_doc_chunking_profile(doc_type: DocType) -> DocChunkingProfile {
 	match doc_type {
-		"chat" | "search" => DocChunkingProfile {
-			target_bytes: 1_024,
-			overlap_bytes: 128,
+		DocType::Chat | DocType::Search => DocChunkingProfile {
+			max_tokens: 1_024,
+			overlap_tokens: 128,
 			max_chunks: DEFAULT_MAX_CHUNKS_PER_DOC,
 		},
-		"knowledge" | "dev" => DocChunkingProfile {
-			target_bytes: 2_048,
-			overlap_bytes: 256,
-			max_chunks: DEFAULT_MAX_CHUNKS_PER_DOC,
-		},
-		_ => DocChunkingProfile {
-			target_bytes: 2_048,
-			overlap_bytes: 256,
+		DocType::Knowledge | DocType::Dev => DocChunkingProfile {
+			max_tokens: 2_048,
+			overlap_tokens: 256,
 			max_chunks: DEFAULT_MAX_CHUNKS_PER_DOC,
 		},
 	}
@@ -1103,14 +1141,9 @@ fn excerpt_level_max(level: &str) -> Result<usize> {
 	}
 }
 
-fn validate_docs_put(req: &DocsPutRequest) -> Result<String> {
+fn validate_docs_put(req: &DocsPutRequest) -> Result<ValidatedDocsPut> {
 	if req.content.trim().is_empty() {
 		return Err(Error::InvalidRequest { message: "content must be non-empty.".to_string() });
-	}
-	if req.content.len() > DEFAULT_DOC_MAX_BYTES {
-		return Err(Error::InvalidRequest {
-			message: "content exceeds max_doc_bytes.".to_string(),
-		});
 	}
 	if req.scope.trim().is_empty() {
 		return Err(Error::InvalidRequest { message: "scope must be non-empty.".to_string() });
@@ -1124,13 +1157,7 @@ fn validate_docs_put(req: &DocsPutRequest) -> Result<String> {
 	})?;
 	let source_ref_doc_type =
 		extract_source_ref_string(source_ref, "doc_type", "$.source_ref[\"doc_type\"]")?;
-
-	if !matches!(source_ref_doc_type.as_str(), "knowledge" | "chat" | "search" | "dev") {
-		return Err(Error::InvalidRequest {
-			message: "doc_type must be one of: knowledge, chat, search, dev.".to_string(),
-		});
-	}
-
+	let source_ref_doc_type = DocType::parse(&source_ref_doc_type)?;
 	let source_ref_schema =
 		extract_source_ref_string(source_ref, "schema", "$.source_ref[\"schema\"]")?;
 
@@ -1147,31 +1174,47 @@ fn validate_docs_put(req: &DocsPutRequest) -> Result<String> {
 	})?;
 
 	let doc_type = if let Some(doc_type) = req.doc_type.as_ref() {
-		let doc_type = doc_type.trim();
+		let doc_type = DocType::parse(doc_type.as_str())?;
 
-		if !matches!(doc_type, "knowledge" | "chat" | "search" | "dev") {
-			return Err(Error::InvalidRequest {
-				message: "doc_type must be one of: knowledge, chat, search, dev.".to_string(),
-			});
-		}
 		if doc_type != source_ref_doc_type {
 			return Err(Error::InvalidRequest {
 				message: "doc_type must match source_ref.doc_type.".to_string(),
 			});
 		}
 
-		doc_type.to_string()
+		doc_type
 	} else {
-		source_ref_doc_type.clone()
+		source_ref_doc_type
 	};
 
 	validate_doc_source_ref_requirements(source_ref_doc_type.as_str(), source_ref)?;
+
+	let write_policy =
+		elf_domain::writegate::apply_write_policy(req.content.as_str(), req.write_policy.as_ref())
+			.map_err(|err| Error::InvalidRequest {
+				message: format!("write_policy is invalid: {err:?}"),
+			})?;
+	let write_policy_audit =
+		if req.write_policy.is_some() { Some(write_policy.audit) } else { None };
+	let content = write_policy.transformed;
+
+	if content.trim().is_empty() {
+		return Err(Error::InvalidRequest { message: "content must be non-empty.".to_string() });
+	}
+	if content.len() > DEFAULT_DOC_MAX_BYTES {
+		return Err(Error::InvalidRequest {
+			message: "content exceeds max_doc_bytes.".to_string(),
+		});
+	}
+	if elf_domain::writegate::contains_secrets(content.as_str()) {
+		return Err(Error::InvalidRequest { message: "content contains secrets.".to_string() });
+	}
 
 	if let Some(found) = find_non_english_path(&req.source_ref, "$.source_ref") {
 		return Err(Error::NonEnglishInput { field: found });
 	}
 
-	if !english_gate::is_english_natural_language(req.content.as_str()) {
+	if !english_gate::is_english_natural_language(content.as_str()) {
 		return Err(Error::NonEnglishInput { field: "$.content".to_string() });
 	}
 
@@ -1181,7 +1224,7 @@ fn validate_docs_put(req: &DocsPutRequest) -> Result<String> {
 		return Err(Error::NonEnglishInput { field: "$.title".to_string() });
 	}
 
-	Ok(doc_type)
+	Ok(ValidatedDocsPut { doc_type, content, write_policy_audit })
 }
 
 fn extract_source_ref_string(
@@ -1320,13 +1363,8 @@ fn parse_docs_search_l0_filters(req: &DocsSearchL0Request) -> Result<DocsSearchL
 				message: "doc_type must be non-empty.".to_string(),
 			});
 		}
-		if !matches!(doc_type, "knowledge" | "chat" | "search" | "dev") {
-			return Err(Error::InvalidRequest {
-				message: "doc_type must be one of: knowledge, chat, search, dev.".to_string(),
-			});
-		}
 
-		Some(doc_type.to_string())
+		Some(DocType::parse(doc_type)?)
 	} else {
 		None
 	};
@@ -1338,12 +1376,12 @@ fn parse_docs_search_l0_filters(req: &DocsSearchL0Request) -> Result<DocsSearchL
 	let repo =
 		req.repo.as_ref().map(|repo| repo.trim().to_string()).filter(|repo| !repo.is_empty());
 
-	if domain.is_some() && doc_type.as_deref() != Some("search") {
+	if domain.is_some() && doc_type != Some(DocType::Search) {
 		return Err(Error::InvalidRequest {
 			message: "domain requires doc_type=search.".to_string(),
 		});
 	}
-	if repo.is_some() && doc_type.as_deref() != Some("dev") {
+	if repo.is_some() && doc_type != Some(DocType::Dev) {
 		return Err(Error::InvalidRequest { message: "repo requires doc_type=dev.".to_string() });
 	}
 
@@ -1357,6 +1395,12 @@ fn parse_docs_search_l0_filters(req: &DocsSearchL0Request) -> Result<DocsSearchL
 		.as_ref()
 		.map(|thread_id| thread_id.trim().to_string())
 		.filter(|thread_id| !thread_id.is_empty());
+
+	if thread_id.is_some() && doc_type != Some(DocType::Chat) {
+		return Err(Error::InvalidRequest {
+			message: "thread_id requires doc_type=chat.".to_string(),
+		});
+	}
 
 	Ok(DocsSearchL0FiltersParsed {
 		scope,
@@ -1495,82 +1539,83 @@ fn escape_json_path_key(key: &str) -> String {
 	key.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
-fn split_bytes_by_sentence(
-	text: &str,
-	target_bytes: usize,
-	overlap_bytes: usize,
-	max_chunks: usize,
-) -> Result<Vec<ByteChunk>> {
-	use unicode_segmentation::UnicodeSegmentation;
+fn load_tokenizer(cfg: &Config) -> Result<Tokenizer> {
+	let tokenizer_repo = cfg.chunking.tokenizer_repo.trim();
 
-	let sentences: Vec<(usize, &str)> = text.split_sentence_bound_indices().collect();
-	let mut chunks = Vec::new();
-	let mut current = String::new();
-	let mut current_start = 0_usize;
-	let mut last_end = 0_usize;
-
-	for (idx, sentence) in sentences {
-		let candidate = format!("{}{}", current, sentence);
-
-		if candidate.len() > target_bytes && !current.is_empty() {
-			chunks.push(ByteChunk {
-				chunk_id: Uuid::new_v4(),
-				start_offset: current_start,
-				end_offset: last_end,
-				text: current.clone(),
-			});
-
-			if chunks.len() >= max_chunks {
-				return Err(Error::InvalidRequest {
-					message: "doc exceeds max_chunks_per_doc.".to_string(),
-				});
-			}
-
-			let overlap = overlap_tail_bytes(&current, overlap_bytes);
-
-			current_start = last_end.saturating_sub(overlap.len());
-			current = overlap;
-		}
-		if current.is_empty() {
-			current_start = idx;
-		}
-
-		current.push_str(sentence);
-
-		last_end = idx + sentence.len();
-	}
-
-	if !current.is_empty() {
-		chunks.push(ByteChunk {
-			chunk_id: Uuid::new_v4(),
-			start_offset: current_start,
-			end_offset: last_end,
-			text: current,
+	if tokenizer_repo.is_empty() {
+		return Err(Error::InvalidRequest {
+			message: "chunking.tokenizer_repo must be set.".to_string(),
 		});
 	}
 
-	Ok(chunks)
+	Tokenizer::from_pretrained(tokenizer_repo, None).map_err(|err| Error::InvalidRequest {
+		message: format!("failed to load tokenizer: {err}"),
+	})
 }
 
-fn overlap_tail_bytes(text: &str, overlap_bytes: usize) -> String {
-	if overlap_bytes == 0 {
-		return String::new();
+fn split_tokens_by_offsets(
+	text: &str,
+	profile_max_tokens: usize,
+	profile_overlap_tokens: usize,
+	max_chunks: usize,
+	tokenizer: &Tokenizer,
+) -> Result<Vec<ByteChunk>> {
+	if profile_max_tokens == 0 {
+		return Err(Error::InvalidRequest {
+			message: "max_tokens must be greater than zero.".to_string(),
+		});
+	}
+	if profile_overlap_tokens >= profile_max_tokens {
+		return Err(Error::InvalidRequest {
+			message: "overlap_tokens must be less than max_tokens.".to_string(),
+		});
 	}
 
-	let bytes = text.as_bytes();
+	let encoding = tokenizer.encode(text, false).map_err(|err| Error::InvalidRequest {
+		message: format!("failed to tokenize content: {err}"),
+	})?;
+	let offsets = encoding.get_offsets();
+	let mut chunks = Vec::new();
 
-	if bytes.len() <= overlap_bytes {
-		return text.to_string();
+	if offsets.is_empty() {
+		return Ok(Vec::new());
 	}
 
-	let start = bytes.len().saturating_sub(overlap_bytes);
-	let mut cut = start;
+	let mut chunk_start_token = 0_usize;
 
-	while cut < bytes.len() && !text.is_char_boundary(cut) {
-		cut += 1;
+	while chunk_start_token < offsets.len() {
+		let chunk_end_token = (chunk_start_token + profile_max_tokens).min(offsets.len());
+		let (start_offset, end_offset) = {
+			let (start, _) = offsets[chunk_start_token];
+			let (_, end) = offsets[chunk_end_token.saturating_sub(1)];
+
+			(start, end)
+		};
+		let chunk_text =
+			text.get(start_offset..end_offset).ok_or_else(|| Error::InvalidRequest {
+				message: "computed chunk offset is invalid UTF-8 boundary.".to_string(),
+			})?;
+
+		chunks.push(ByteChunk {
+			chunk_id: Uuid::new_v4(),
+			start_offset,
+			end_offset,
+			text: chunk_text.to_string(),
+		});
+
+		if chunk_end_token >= offsets.len() {
+			break;
+		}
+		if chunks.len() >= max_chunks {
+			return Err(Error::InvalidRequest {
+				message: "doc exceeds max_chunks_per_doc.".to_string(),
+			});
+		}
+
+		chunk_start_token = chunk_end_token.saturating_sub(profile_overlap_tokens);
 	}
 
-	text.get(cut..).unwrap_or("").to_string()
+	Ok(chunks)
 }
 
 fn build_doc_search_filter(
@@ -1629,7 +1674,7 @@ fn build_doc_search_filter(
 				must.push(Condition::matches("scope", scope.to_string()));
 			}
 			if let Some(doc_type) = filters.doc_type.as_ref() {
-				must.push(Condition::matches("doc_type", doc_type.to_string()));
+				must.push(Condition::matches("doc_type", doc_type.as_str().to_string()));
 			}
 			if let Some(domain) = filters.domain.as_ref() {
 				must.push(Condition::matches("domain", domain.to_string()));
@@ -2127,13 +2172,18 @@ WHERE c.chunk_id = ANY($1)
 #[cfg(test)]
 mod tests {
 	use crate::docs::{
-		DocsPutRequest, DocsSearchL0Filters, DocsSearchL0Request, DocsSparseMode, Error,
+		DocType, DocsPutRequest, DocsSearchL0Filters, DocsSearchL0Request, DocsSparseMode, Error,
 		resolve_doc_chunking_profile, validate_docs_put, validate_docs_search_l0,
 	};
+	use ahash::AHashMap;
+	use elf_domain::writegate::{WritePolicy, WriteSpan};
 	use qdrant_client::qdrant::{
 		DatetimeRange, Filter, condition::ConditionOneOf, r#match::MatchValue,
 	};
 	use time::{OffsetDateTime, format_description::well_known::Rfc3339};
+	use tokenizers::{
+		Tokenizer, models::wordlevel::WordLevel, pre_tokenizers::whitespace::Whitespace,
+	};
 
 	const TENANT_ID: &str = "tenant";
 	const PROJECT_ID: &str = "project";
@@ -2202,6 +2252,96 @@ mod tests {
 		None
 	}
 
+	fn test_tokenizer() -> Tokenizer {
+		let mut vocab = AHashMap::new();
+
+		vocab.insert("alpha".to_string(), 1_u32);
+		vocab.insert("beta".to_string(), 2_u32);
+		vocab.insert("charlie".to_string(), 3_u32);
+		vocab.insert("delta".to_string(), 4_u32);
+		vocab.insert("<unk>".to_string(), 0_u32);
+
+		let model = WordLevel::builder()
+			.vocab(vocab)
+			.unk_token("<unk>".to_string())
+			.build()
+			.expect("Failed to build test tokenizer.");
+		let mut tokenizer = Tokenizer::new(model);
+
+		tokenizer.with_pre_tokenizer(Some(Whitespace));
+
+		tokenizer
+	}
+
+	#[test]
+	fn doc_type_parses_and_serializes() {
+		let encoded =
+			serde_json::to_string(&DocType::Knowledge).expect("Expected DocType serialization.");
+		let parsed =
+			serde_json::from_str::<DocType>("\"knowledge\"").expect("Expected parse to succeed.");
+		let invalid: Result<DocType, _> = serde_json::from_str("\"invalid\"");
+
+		assert_eq!(encoded, "\"knowledge\"");
+		assert_eq!(parsed, DocType::Knowledge);
+		assert!(invalid.is_err());
+	}
+
+	#[test]
+	fn docs_search_l0_requires_chat_doc_type_for_thread_id() {
+		let err = validate_docs_search_l0(&DocsSearchL0Request {
+			tenant_id: TENANT_ID.to_string(),
+			project_id: PROJECT_ID.to_string(),
+			caller_agent_id: "agent".to_string(),
+			read_profile: "private_plus_project".to_string(),
+			query: "thread".to_string(),
+			scope: None,
+			status: None,
+			doc_type: Some("search".to_string()),
+			sparse_mode: None,
+			domain: None,
+			repo: None,
+			agent_id: None,
+			thread_id: Some("thread-1".to_string()),
+			updated_after: None,
+			updated_before: None,
+			ts_gte: None,
+			ts_lte: None,
+			top_k: None,
+			candidate_k: None,
+			explain: None,
+		})
+		.expect_err("Expected thread_id to require doc_type=chat.");
+
+		match err {
+			Error::InvalidRequest { message } => assert!(message.contains("thread_id requires")),
+			other => panic!("Unexpected error: {other:?}"),
+		}
+
+		validate_docs_search_l0(&DocsSearchL0Request {
+			tenant_id: TENANT_ID.to_string(),
+			project_id: PROJECT_ID.to_string(),
+			caller_agent_id: "agent".to_string(),
+			read_profile: "private_plus_project".to_string(),
+			query: "thread".to_string(),
+			scope: None,
+			status: None,
+			doc_type: Some("chat".to_string()),
+			sparse_mode: None,
+			domain: None,
+			repo: None,
+			agent_id: None,
+			thread_id: Some("thread-1".to_string()),
+			updated_after: None,
+			updated_before: None,
+			ts_gte: None,
+			ts_lte: None,
+			top_k: None,
+			candidate_k: None,
+			explain: None,
+		})
+		.expect("Expected thread_id filter to be accepted for chat.");
+	}
+
 	#[test]
 	fn validate_docs_put_rejects_invalid_doc_type() {
 		let err = validate_docs_put(&DocsPutRequest {
@@ -2209,11 +2349,12 @@ mod tests {
 			project_id: "p".to_string(),
 			agent_id: "a".to_string(),
 			scope: "project_shared".to_string(),
-			doc_type: Some("invalid".to_string()),
+			doc_type: None,
 			title: None,
+			write_policy: None,
 			source_ref: serde_json::json!({
 				"schema": "doc_source_ref/v1",
-				"doc_type": "knowledge",
+				"doc_type": "invalid",
 				"ts": "2026-02-25T12:00:00Z",
 			}),
 			content: "Hello world.".to_string(),
@@ -2228,15 +2369,15 @@ mod tests {
 
 	#[test]
 	fn resolve_doc_chunking_profile_is_deterministic_by_doc_type() {
-		let small = resolve_doc_chunking_profile("chat");
+		let small = resolve_doc_chunking_profile(DocType::Chat);
 
-		assert_eq!(small.target_bytes, 1_024);
-		assert_eq!(small.overlap_bytes, 128);
+		assert_eq!(small.max_tokens, 1_024);
+		assert_eq!(small.overlap_tokens, 128);
 
-		let default = resolve_doc_chunking_profile("knowledge");
+		let default = resolve_doc_chunking_profile(DocType::Knowledge);
 
-		assert_eq!(default.target_bytes, 2_048);
-		assert_eq!(default.overlap_bytes, 256);
+		assert_eq!(default.max_tokens, 2_048);
+		assert_eq!(default.overlap_tokens, 256);
 	}
 
 	#[test]
@@ -2334,7 +2475,7 @@ mod tests {
 		let filters = DocsSearchL0Filters {
 			scope: Some("project_shared".to_string()),
 			status: "deleted".to_string(),
-			doc_type: Some("chat".to_string()),
+			doc_type: Some(DocType::Chat),
 			sparse_mode: DocsSparseMode::Auto,
 			domain: None,
 			repo: None,
@@ -2573,8 +2714,9 @@ mod tests {
 			project_id: "p".to_string(),
 			agent_id: "a".to_string(),
 			scope: "project_shared".to_string(),
-			doc_type: Some("knowledge".to_string()),
+			doc_type: Some(DocType::Knowledge.as_str().to_string()),
 			title: None,
+			write_policy: None,
 			source_ref: serde_json::json!({"schema":"doc_source_ref/v1", "doc_type":"knowledge"}),
 			content: "Hello world.".to_string(),
 		})
@@ -2595,6 +2737,7 @@ mod tests {
 			scope: "project_shared".to_string(),
 			doc_type: None,
 			title: None,
+			write_policy: None,
 			source_ref: serde_json::json!("legacy-shape"),
 			content: "Hello world.".to_string(),
 		})
@@ -2615,8 +2758,9 @@ mod tests {
 			project_id: "p".to_string(),
 			agent_id: "a".to_string(),
 			scope: "project_shared".to_string(),
-			doc_type: Some("chat".to_string()),
+			doc_type: Some(DocType::Chat.as_str().to_string()),
 			title: None,
+			write_policy: None,
 			source_ref: serde_json::json!({
 				"schema": "doc_source_ref/v1",
 				"doc_type": "knowledge",
@@ -2641,6 +2785,7 @@ mod tests {
 			scope: "project_shared".to_string(),
 			doc_type: None,
 			title: None,
+			write_policy: None,
 			source_ref: serde_json::json!({
 				"schema": "note_source_ref/v1",
 				"doc_type": "knowledge",
@@ -2663,8 +2808,9 @@ mod tests {
 			project_id: "p".to_string(),
 			agent_id: "a".to_string(),
 			scope: "project_shared".to_string(),
-			doc_type: Some("chat".to_string()),
+			doc_type: Some(DocType::Chat.as_str().to_string()),
 			title: None,
+			write_policy: None,
 			source_ref: serde_json::json!({
 				"schema": "doc_source_ref/v1",
 				"doc_type": "chat",
@@ -2687,8 +2833,9 @@ mod tests {
 			project_id: "p".to_string(),
 			agent_id: "a".to_string(),
 			scope: "project_shared".to_string(),
-			doc_type: Some("search".to_string()),
+			doc_type: Some(DocType::Search.as_str().to_string()),
 			title: None,
+			write_policy: None,
 			source_ref: serde_json::json!({
 				"schema": "doc_source_ref/v1",
 				"doc_type": "search",
@@ -2713,8 +2860,9 @@ mod tests {
 			project_id: "p".to_string(),
 			agent_id: "a".to_string(),
 			scope: "project_shared".to_string(),
-			doc_type: Some("dev".to_string()),
+			doc_type: Some(DocType::Dev.as_str().to_string()),
 			title: None,
+			write_policy: None,
 			source_ref: serde_json::json!({
 				"schema": "doc_source_ref/v1",
 				"doc_type": "dev",
@@ -2744,6 +2892,7 @@ mod tests {
 			scope: "project_shared".to_string(),
 			doc_type: None,
 			title: None,
+			write_policy: None,
 			source_ref: serde_json::json!({
 				"schema": "doc_source_ref/v1",
 				"doc_type": "chat",
@@ -2755,7 +2904,61 @@ mod tests {
 		})
 		.expect("Expected valid source_ref to resolve doc_type.");
 
-		assert_eq!(resolved_doc_type, "chat".to_string());
+		assert_eq!(resolved_doc_type.doc_type, DocType::Chat);
+	}
+
+	#[test]
+	fn validate_docs_put_applies_write_policy_and_includes_audit() {
+		let validated = validate_docs_put(&DocsPutRequest {
+			tenant_id: "t".to_string(),
+			project_id: "p".to_string(),
+			agent_id: "a".to_string(),
+			scope: "project_shared".to_string(),
+			doc_type: Some(DocType::Knowledge.as_str().to_string()),
+			title: None,
+			write_policy: Some(WritePolicy {
+				exclusions: vec![WriteSpan { start: 6, end: 35 }],
+				redactions: vec![],
+			}),
+			source_ref: serde_json::json!({
+				"schema": "doc_source_ref/v1",
+				"doc_type": "knowledge",
+				"ts": "2026-02-25T12:00:00Z",
+			}),
+			content: "Hello sk-abcdefghijklmnopqrstuvwxyz!".to_string(),
+		})
+		.expect("Expected valid write policy transformation.");
+		let mut expected_audit = elf_domain::writegate::WritePolicyAudit::default();
+
+		expected_audit.exclusions = vec![WriteSpan { start: 6, end: 35 }];
+
+		assert_eq!(validated.content, "Hello !".to_string());
+		assert_eq!(validated.write_policy_audit.unwrap_or_default(), expected_audit);
+	}
+
+	#[test]
+	fn validate_docs_put_rejects_secret_after_write_policy() {
+		let err = validate_docs_put(&DocsPutRequest {
+			tenant_id: "t".to_string(),
+			project_id: "p".to_string(),
+			agent_id: "a".to_string(),
+			scope: "project_shared".to_string(),
+			doc_type: Some(DocType::Knowledge.as_str().to_string()),
+			title: None,
+			write_policy: Some(WritePolicy { exclusions: vec![], redactions: vec![] }),
+			source_ref: serde_json::json!({
+				"schema": "doc_source_ref/v1",
+				"doc_type": "knowledge",
+				"ts": "2026-02-25T12:00:00Z",
+			}),
+			content: "Hello sk-abcdefghijklmnopqrstuvwxyz!".to_string(),
+		})
+		.expect_err("Expected secret-bearing content to be rejected.");
+
+		match err {
+			Error::InvalidRequest { message } => assert!(message.contains("contains secrets")),
+			other => panic!("Unexpected error: {other:?}"),
+		}
 	}
 
 	#[test]
@@ -2767,6 +2970,7 @@ mod tests {
 			scope: "project_shared".to_string(),
 			doc_type: None,
 			title: Some("English title".to_string()),
+			write_policy: None,
 			source_ref: serde_json::json!({
 				"schema": "doc_source_ref/v1",
 				"doc_type": "knowledge",
@@ -2790,6 +2994,7 @@ mod tests {
 			scope: "project_shared".to_string(),
 			doc_type: None,
 			title: Some("English title".to_string()),
+			write_policy: None,
 			content: "English content.".to_string(),
 		})
 		.expect_err("Expected non-English free-text in source_ref.");
@@ -2812,6 +3017,7 @@ mod tests {
 			scope: "project_shared".to_string(),
 			doc_type: None,
 			title: Some("English title".to_string()),
+			write_policy: None,
 			content: "English content.".to_string(),
 		})
 		.expect_err("Expected identifier lane with non-Latin text to be rejected.");
@@ -2819,6 +3025,29 @@ mod tests {
 		match err {
 			Error::NonEnglishInput { field } => assert_eq!(field, "$.source_ref[\"ref\"]"),
 			other => panic!("Unexpected error: {other:?}"),
+		}
+	}
+
+	#[test]
+	fn split_tokens_by_offsets_preserves_original_substring_offsets() {
+		let tokenizer = test_tokenizer();
+		let chunks =
+			super::split_tokens_by_offsets("alpha bravo charlie delta", 2, 1, 10, &tokenizer)
+				.expect("Expected token chunking to succeed.");
+
+		assert_eq!(chunks.len(), 3);
+		assert_eq!(chunks[0].start_offset, 0);
+		assert_eq!(chunks[0].end_offset, 11);
+		assert_eq!(chunks[1].start_offset, 6);
+		assert_eq!(chunks[1].end_offset, 19);
+		assert_eq!(chunks[2].start_offset, 12);
+		assert_eq!(chunks[2].end_offset, 25);
+
+		for chunk in &chunks {
+			assert_eq!(
+				chunk.text,
+				"alpha bravo charlie delta"[chunk.start_offset..chunk.end_offset]
+			);
 		}
 	}
 }

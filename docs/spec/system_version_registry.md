@@ -57,6 +57,14 @@ This document is normative. When a new versioned identifier is introduced, it mu
 - Consumers: `apps/elf-worker/src/worker.rs`, `apps/elf-service/src/docs.rs`.
 - Bump rule: Introduce `doc_extension_payload/v2` only when payload shape changes break compatible filter deployment.
 
+### Doc chunking profiles for doc ingestion
+
+- Identifier: `doc_chunking_profiles/v1`.
+- Type: `docs_put` chunking profile identifier for token-window settings.
+- Defined in: `docs/spec/system_doc_chunking_profiles_v1.md`.
+- Consumers: `apps/elf-service/src/docs.rs`, `apps/elf-api` clients relying on typed `doc_type` behavior for deterministic token chunking.
+- Bump rule: Introduce `doc_chunking_profiles/v2` only when required chunk window fields and defaults become incompatible with v1.
+
 ### Search ranking explain schema
 
 - Identifier: `search_ranking_explain/v2`.

@@ -845,6 +845,7 @@ fn docs_put_schema() -> Arc<JsonObject> {
 				}
 			]
 		},
+		"write_policy": { "type": ["object", "null"] },
 		"content": { "type": "string" }
 	},
 	}))
@@ -1604,6 +1605,41 @@ mod tests {
 				serde_json::Value::String("off".to_string()),
 				serde_json::Value::Null,
 			])
+		);
+	}
+
+	#[test]
+	fn docs_put_schema_includes_required_fields_and_write_policy() {
+		let schema = super::docs_put_schema();
+		let properties = schema
+			.get("properties")
+			.and_then(serde_json::Value::as_object)
+			.expect("docs_put schema is missing properties.");
+		let required = ["scope", "content", "source_ref"];
+		let expected = ["scope", "doc_type", "title", "source_ref", "write_policy", "content"];
+
+		for field in required {
+			assert!(
+				schema.get("required").and_then(serde_json::Value::as_array).is_some_and(
+					|fields| { fields.iter().any(|value| value.as_str() == Some(field)) }
+				),
+				"Missing required field {field}."
+			);
+		}
+		for field in expected {
+			assert!(properties.contains_key(field), "Missing schema field: {field}.");
+		}
+
+		let write_policy = properties.get("write_policy").and_then(serde_json::Value::as_object);
+
+		assert!(
+			write_policy.is_some_and(|field| {
+				field.get("type").and_then(serde_json::Value::as_array).is_some_and(|types| {
+					types.contains(&serde_json::Value::String("object".to_string()))
+						&& types.contains(&serde_json::Value::String("null".to_string()))
+				})
+			}),
+			"Missing write_policy object/null type in docs_put schema."
 		);
 	}
 
