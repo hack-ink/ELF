@@ -44,7 +44,7 @@ This document is normative. When a new versioned identifier is introduced, it mu
 - Type: Filter parameters and required Qdrant payload/index requirements for
   `docs_search_l0` (HTTP/MCP).
 - Defined in: `docs/spec/system_doc_extension_v1_filters.md`.
-- Consumers: `apps/elf-api/src/routes.rs`, `apps/elf-mcp/src/server.rs`, `apps/elf-service/src/docs.rs`.
+- Consumers: `apps/elf-api/src/routes.rs`, `apps/elf-mcp/src/server.rs`, `packages/elf-service/src/docs.rs`.
 - Bump rule: Introduce `docs_search_filters/v2` only if accepted filter keys,
   value constraints, evaluation semantics, or required Qdrant filter/index fields
   become incompatible.
@@ -54,7 +54,7 @@ This document is normative. When a new versioned identifier is introduced, it mu
 - Identifier: `doc_extension_payload/v1`.
 - Type: Qdrant payload shape and required indexes for doc chunk points.
 - Defined in: `docs/spec/system_doc_extension_v1_filters.md`.
-- Consumers: `apps/elf-worker/src/worker.rs`, `apps/elf-service/src/docs.rs`.
+- Consumers: `apps/elf-worker/src/worker.rs`, `packages/elf-service/src/docs.rs`.
 - Bump rule: Introduce `doc_extension_payload/v2` only when payload shape changes break compatible filter deployment.
 
 ### Doc chunking profiles for doc ingestion
@@ -62,7 +62,7 @@ This document is normative. When a new versioned identifier is introduced, it mu
 - Identifier: `doc_chunking_profiles/v1`.
 - Type: `docs_put` chunking profile identifier for token-window settings.
 - Defined in: `docs/spec/system_doc_chunking_profiles_v1.md`.
-- Consumers: `apps/elf-service/src/docs.rs`, `apps/elf-api` clients relying on typed `doc_type` behavior for deterministic token chunking.
+- Consumers: `packages/elf-service/src/docs.rs`, `apps/elf-api` clients relying on typed `doc_type` behavior for deterministic token chunking.
 - Bump rule: Introduce `doc_chunking_profiles/v2` only when required chunk window fields and defaults become incompatible with v1.
 
 ### Search ranking explain schema
