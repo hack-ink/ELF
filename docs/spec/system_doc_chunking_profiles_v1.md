@@ -7,7 +7,7 @@ Identifiers:
 - File: `docs/spec/system_doc_chunking_profiles_v1.md`
 
 Scope:
-- Applies to `POST /v2/docs` (`docs_put`) chunking behavior in `apps/elf-service/src/docs.rs`.
+- Applies to `POST /v2/docs` (`docs_put`) chunking behavior in `packages/elf-service/src/docs.rs`.
 - Profiles are selected by `doc_type`.
 
 Design goals:
@@ -23,10 +23,10 @@ The following profile values are used unless overridden by a future `*_v2` contr
 
 | `doc_type` | `max_tokens` | `overlap_tokens` |
 |------------|--------------|------------------|
-| `chat`     | 256          | 32               |
-| `search`   | 384          | 64               |
-| `dev`      | 768          | 128              |
-| `knowledge`| 1024         | 128              |
+| `chat`     | 1024         | 128              |
+| `search`   | 1024         | 128              |
+| `dev`      | 2048         | 256              |
+| `knowledge`| 2048         | 256              |
 
 ==================================================
 2) Validation rules
