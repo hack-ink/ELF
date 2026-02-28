@@ -294,6 +294,7 @@ HTTP 422
 4.4 source_ref (evidence pointer)
 - source_ref is an optional, versioned pointer to supporting evidence for a stored note.
 - Core requirement: ELF Core stores and returns source_ref as an opaque JSON object. Core does not interpret or dereference it.
+- When source_ref is provided, it MUST be a JSON object and not a primitive value.
 - Extensions requirement: ELF Extensions may define resolvers that can dereference source_ref into bounded excerpts for progressive loading.
 - source_ref must be JSON-serializable, ASCII-safe, and stable over time.
 
