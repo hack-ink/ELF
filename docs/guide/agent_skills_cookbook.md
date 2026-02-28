@@ -100,7 +100,11 @@ Minimal example: `elf_docs_put`
 {
   "scope": "project_shared",
   "title": "Decision record: search routing",
-  "source_ref": {},
+  "source_ref": {
+    "schema": "doc_source_ref/v1",
+    "doc_type": "knowledge",
+    "ts": "2026-02-28T00:00:00Z"
+  },
   "content": "Long-form English evidence text..."
 }
 ```
