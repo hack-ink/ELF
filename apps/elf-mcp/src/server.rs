@@ -20,6 +20,7 @@ use rmcp::{
 };
 use serde_json::Value;
 use tokio::net::TcpListener;
+use uuid::Uuid;
 
 use crate::McpAuthState;
 use elf_config::McpContext;
@@ -28,6 +29,7 @@ const HEADER_TENANT_ID: &str = "X-ELF-Tenant-Id";
 const HEADER_PROJECT_ID: &str = "X-ELF-Project-Id";
 const HEADER_AGENT_ID: &str = "X-ELF-Agent-Id";
 const HEADER_READ_PROFILE: &str = "X-ELF-Read-Profile";
+const HEADER_REQUEST_ID: &str = "X-ELF-Request-Id";
 const HEADER_AUTHORIZATION: &str = "Authorization";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -58,16 +60,23 @@ impl ElfContextHeaders {
 
 #[derive(Clone)]
 struct ElfMcp {
-	api_base: String,
+	http_api_base: String,
+	admin_api_base: String,
 	client: Client,
 	context: ElfContextHeaders,
 	auth_state: McpAuthState,
 	tool_router: ToolRouter<Self>,
 }
 impl ElfMcp {
-	fn new(api_base: String, context: ElfContextHeaders, auth_state: McpAuthState) -> Self {
+	fn new(
+		http_api_base: String,
+		admin_api_base: String,
+		context: ElfContextHeaders,
+		auth_state: McpAuthState,
+	) -> Self {
 		Self {
-			api_base,
+			http_api_base,
+			admin_api_base,
 			client: Client::new(),
 			context,
 			auth_state,
@@ -75,10 +84,15 @@ impl ElfMcp {
 		}
 	}
 
+	fn api_base_for_path(&self, path: &str) -> &str {
+		if is_admin_path(path) { &self.admin_api_base } else { &self.http_api_base }
+	}
+
 	fn apply_context_headers(
 		&self,
 		builder: RequestBuilder,
 		read_profile_override: Option<&str>,
+		request_id: Uuid,
 	) -> RequestBuilder {
 		let read_profile = read_profile_override.unwrap_or(self.context.read_profile.as_str());
 		let builder = builder
@@ -86,6 +100,7 @@ impl ElfMcp {
 			.header(HEADER_PROJECT_ID, self.context.project_id.as_str())
 			.header(HEADER_AGENT_ID, self.context.agent_id.as_str())
 			.header(HEADER_READ_PROFILE, read_profile);
+		let builder = builder.header(HEADER_REQUEST_ID, request_id.to_string());
 
 		match &self.auth_state {
 			McpAuthState::Off => builder,
@@ -99,10 +114,15 @@ impl ElfMcp {
 		path: &str,
 		body: Value,
 		read_profile_override: Option<&str>,
+		request_id: Uuid,
 	) -> Result<CallToolResult, ErrorData> {
-		let url = format!("{}{}", self.api_base, path);
+		let url = format!("{}{}", self.api_base_for_path(path), path);
 		let response = self
-			.apply_context_headers(self.client.post(url).json(&body), read_profile_override)
+			.apply_context_headers(
+				self.client.post(url).json(&body),
+				read_profile_override,
+				request_id,
+			)
 			.send()
 			.await
 			.map_err(|err| {
@@ -117,10 +137,15 @@ impl ElfMcp {
 		path: &str,
 		body: Value,
 		read_profile_override: Option<&str>,
+		request_id: Uuid,
 	) -> Result<CallToolResult, ErrorData> {
-		let url = format!("{}{}", self.api_base, path);
+		let url = format!("{}{}", self.api_base_for_path(path), path);
 		let response = self
-			.apply_context_headers(self.client.patch(url).json(&body), read_profile_override)
+			.apply_context_headers(
+				self.client.patch(url).json(&body),
+				read_profile_override,
+				request_id,
+			)
 			.send()
 			.await
 			.map_err(|err| {
@@ -134,10 +159,11 @@ impl ElfMcp {
 		&self,
 		path: &str,
 		read_profile_override: Option<&str>,
+		request_id: Uuid,
 	) -> Result<CallToolResult, ErrorData> {
-		let url = format!("{}{}", self.api_base, path);
+		let url = format!("{}{}", self.api_base_for_path(path), path);
 		let response = self
-			.apply_context_headers(self.client.delete(url), read_profile_override)
+			.apply_context_headers(self.client.delete(url), read_profile_override, request_id)
 			.send()
 			.await
 			.map_err(|err| {
@@ -152,11 +178,16 @@ impl ElfMcp {
 		path: &str,
 		params: JsonObject,
 		read_profile_override: Option<&str>,
+		request_id: Uuid,
 	) -> Result<CallToolResult, ErrorData> {
-		let url = format!("{}{}", self.api_base, path);
+		let url = format!("{}{}", self.api_base_for_path(path), path);
 		let query = params_to_query(params);
 		let response = self
-			.apply_context_headers(self.client.get(url).query(&query), read_profile_override)
+			.apply_context_headers(
+				self.client.get(url).query(&query),
+				read_profile_override,
+				request_id,
+			)
 			.send()
 			.await
 			.map_err(|err| {
@@ -173,13 +204,19 @@ impl ElfMcp {
 		params: JsonObject,
 		read_profile_override: Option<&str>,
 	) -> Result<CallToolResult, ErrorData> {
+		let request_id = Uuid::new_v4();
+
 		match method {
 			HttpMethod::Post =>
-				self.forward_post(path, Value::Object(params), read_profile_override).await,
-			HttpMethod::Get => self.forward_get(path, params, read_profile_override).await,
+				self.forward_post(path, Value::Object(params), read_profile_override, request_id)
+					.await,
+			HttpMethod::Get =>
+				self.forward_get(path, params, read_profile_override, request_id).await,
 			HttpMethod::Patch =>
-				self.forward_patch(path, Value::Object(params), read_profile_override).await,
-			HttpMethod::Delete => self.forward_delete(path, read_profile_override).await,
+				self.forward_patch(path, Value::Object(params), read_profile_override, request_id)
+					.await,
+			HttpMethod::Delete =>
+				self.forward_delete(path, read_profile_override, request_id).await,
 		}
 	}
 }
@@ -496,6 +533,21 @@ impl ElfMcp {
 	}
 
 	#[rmcp::tool(
+		name = "elf_admin_note_provenance_get",
+		description = "Fetch provenance bundle and related history for one note.",
+		input_schema = admin_note_provenance_get_schema()
+	)]
+	async fn elf_admin_note_provenance_get(
+		&self,
+		mut params: JsonObject,
+	) -> Result<CallToolResult, ErrorData> {
+		let note_id = take_required_string(&mut params, "note_id")?;
+		let path = format!("/v2/admin/notes/{note_id}/provenance");
+
+		self.forward(HttpMethod::Get, &path, JsonObject::new(), None).await
+	}
+
+	#[rmcp::tool(
 		name = "elf_admin_trace_bundle_get",
 		description = "Fetch trace bundle for replay and diagnostics by trace_id.",
 		input_schema = admin_trace_bundle_get_schema()
@@ -618,17 +670,26 @@ impl ServerHandler for ElfMcp {
 pub async fn serve_mcp(
 	bind_addr: &str,
 	api_base: &str,
+	admin_base: &str,
 	auth_state: McpAuthState,
 	mcp_context: &McpContext,
 ) -> Result<()> {
 	let bind_addr: SocketAddr = bind_addr.parse()?;
 	let api_base = normalize_api_base(api_base);
+	let admin_base = normalize_api_base(admin_base);
 	let context = ElfContextHeaders::new(mcp_context);
 	let middleware_auth_state = auth_state.clone();
 	let client_auth_state = auth_state.clone();
 	let session_manager: Arc<LocalSessionManager> = Default::default();
 	let service = StreamableHttpService::new(
-		move || Ok(ElfMcp::new(api_base.clone(), context.clone(), client_auth_state.clone())),
+		move || {
+			Ok(ElfMcp::new(
+				api_base.clone(),
+				admin_base.clone(),
+				context.clone(),
+				client_auth_state.clone(),
+			))
+		},
 		session_manager,
 		StreamableHttpServerConfig::default(),
 	);
@@ -640,6 +701,10 @@ pub async fn serve_mcp(
 	axum::serve(listener, router).await?;
 
 	Ok(())
+}
+
+fn is_admin_path(path: &str) -> bool {
+	path.starts_with("/v2/admin/")
 }
 
 fn is_authorized(headers: &HeaderMap, auth_state: &McpAuthState) -> bool {
@@ -1150,6 +1215,17 @@ fn admin_trace_item_get_schema() -> Arc<JsonObject> {
 	}))
 }
 
+fn admin_note_provenance_get_schema() -> Arc<JsonObject> {
+	Arc::new(rmcp::object!({
+		"type": "object",
+		"additionalProperties": true,
+		"required": ["note_id"],
+		"properties": {
+			"note_id": { "type": "string" }
+		}
+	}))
+}
+
 fn admin_trace_bundle_get_schema() -> Arc<JsonObject> {
 	Arc::new(rmcp::object!({
 		"type": "object",
@@ -1276,13 +1352,15 @@ async fn mcp_auth_middleware(
 
 #[cfg(test)]
 mod tests {
+	use crate::server::{ElfContextHeaders, ElfMcp};
 	use axum::http::HeaderMap;
+	use elf_config::McpContext;
 
 	use std::collections::HashMap;
 
 	use crate::{McpAuthState, server::HttpMethod};
 
-	const ALL_TOOL_DEFINITIONS: [ToolDefinition; 27] = [
+	const ALL_TOOL_DEFINITIONS: [ToolDefinition; 28] = [
 		ToolDefinition::new(
 			"elf_notes_ingest",
 			HttpMethod::Post,
@@ -1404,6 +1482,12 @@ mod tests {
 			"Fetch a trace item explain payload by item_id.",
 		),
 		ToolDefinition::new(
+			"elf_admin_note_provenance_get",
+			HttpMethod::Get,
+			"/v2/admin/notes/{note_id}/provenance",
+			"Fetch provenance bundle for a note.",
+		),
+		ToolDefinition::new(
 			"elf_admin_trace_bundle_get",
 			HttpMethod::Get,
 			"/v2/admin/traces/{trace_id}/bundle",
@@ -1495,6 +1579,7 @@ mod tests {
 			"elf_admin_trace_get",
 			"elf_admin_trajectory_get",
 			"elf_admin_trace_item_get",
+			"elf_admin_note_provenance_get",
 			"elf_admin_trace_bundle_get",
 			"elf_admin_events_ingestion_profiles_list",
 			"elf_admin_events_ingestion_profiles_create",
@@ -1509,6 +1594,29 @@ mod tests {
 		}
 
 		assert_eq!(tools.len(), expected.len(), "Unexpected tool count for MCP registration.");
+	}
+
+	#[test]
+	fn admin_paths_use_admin_api_base() {
+		let context = McpContext {
+			tenant_id: "tenant-a".to_string(),
+			project_id: "project-a".to_string(),
+			agent_id: "agent-a".to_string(),
+			read_profile: "private_plus_project".to_string(),
+		};
+		let mcp = ElfMcp::new(
+			"http://127.0.0.1:9000".to_string(),
+			"http://127.0.0.1:9001".to_string(),
+			ElfContextHeaders::new(&context),
+			McpAuthState::Off,
+		);
+
+		assert_eq!(mcp.api_base_for_path("/v2/admin/traces/recent"), "http://127.0.0.1:9001");
+		assert_eq!(
+			mcp.api_base_for_path("/v2/admin/notes/abcd/provenance"),
+			"http://127.0.0.1:9001"
+		);
+		assert_eq!(mcp.api_base_for_path("/v2/search/quick"), "http://127.0.0.1:9000");
 	}
 
 	#[test]

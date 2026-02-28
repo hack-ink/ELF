@@ -38,6 +38,14 @@ This document is normative. When a new versioned identifier is introduced, it mu
 - Consumers: Agents that hydrate doc excerpts and build evidence-linked facts; Doc Extension v1 excerpt endpoints.
 - Bump rule: Introduce `elf_doc_ext/v2` only when the dereference contract (required fields, semantics, or verification surface) becomes incompatible.
 
+### Note provenance bundle schema
+
+- Identifier: `elf.note_provenance_bundle/v1`.
+- Type: Admin provenance response envelope for note-level audit and correlation.
+- Defined in: `docs/spec/system_provenance_mapping_v1.md`.
+- Consumers: Admin tooling and MCP adapter (`elf_admin_note_provenance_get`), diagnostics runbooks.
+- Bump rule: Introduce a new bundle version only when existing keys/shape/required joins become incompatible with v1 clients.
+
 ### Doc Extension v1 docs filters contract
 
 - Identifier: `docs_search_filters/v1`.
