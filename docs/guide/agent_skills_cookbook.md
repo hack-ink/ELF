@@ -76,9 +76,9 @@ Recommended convention:
 
 - `source_ref.schema = "source_ref/v1"`
 - `source_ref.resolver = "elf_doc_ext/v1"`
-- Include `doc_id` (required) and optional selector hints:
-  - `chunk_id` (from `elf_docs_search_l0`), or
-  - `quote` selector (exact + optional prefix/suffix), and optional `position` fallback.
+- Include `source_ref.ref.doc_id` (required) and optional selector hints:
+  - `source_ref.ref.chunk_id` (from `elf_docs_search_l0`), or
+  - `source_ref.locator.quote` selector (exact + optional prefix/suffix), and optional `source_ref.locator.position` fallback.
 
 Keep `source_ref` ASCII-safe and stable over time.
 
@@ -91,7 +91,7 @@ Steps:
 1. Canonicalize upstream inputs to English (ELF rejects non-English at the API boundary).
 2. Store the long evidence with `elf_docs_put`.
 3. Extract a small number of durable facts (agent-side) and write them via `elf_notes_ingest`.
-4. Attach a `source_ref` pointer (doc_id + optional selector hints) to each note.
+4. Attach a `source_ref` pointer (`source_ref.ref.doc_id` + optional selector hints) to each note.
 5. Pass `explain` in docs endpoints only when you need debug diagnostics.
 
 Minimal example: `elf_docs_put`
@@ -125,7 +125,9 @@ Minimal example: `elf_notes_ingest` (facts-first notes with pointers)
       "source_ref": {
         "schema": "source_ref/v1",
         "resolver": "elf_doc_ext/v1",
-        "doc_id": "00000000-0000-0000-0000-000000000000"
+        "ref": {
+          "doc_id": "00000000-0000-0000-0000-000000000000"
+        }
       }
     }
   ]
@@ -146,7 +148,7 @@ Recommended strategy:
 
 1. Retrieve candidate notes via `elf_search_quick_create` (fast) or `elf_search_planned_create` (when you want `query_plan`).
 2. If you need to cite/verify, resolve the note `source_ref`:
-   - If it includes `doc_id` + `chunk_id` or selector hints: call `elf_docs_excerpts_get` directly.
+   - If it includes `source_ref.ref.doc_id` + `source_ref.ref.chunk_id` or selector hints: call `elf_docs_excerpts_get` directly.
      - Include `locator` fields from `source_ref` as available: `quote` and/or `position`.
    - Otherwise: call `elf_docs_search_l0` to find a relevant chunk_id, then hydrate using `elf_docs_excerpts_get`.
 3. Use progressive disclosure:
@@ -326,7 +328,9 @@ Return JSON matching this schema:
       "source_ref": {
         "schema": "source_ref/v1",
         "resolver": "elf_doc_ext/v1",
-        "doc_id": "uuid"
+        "ref": {
+          "doc_id": "uuid"
+        }
       }
     }
   ]
@@ -334,7 +338,7 @@ Return JSON matching this schema:
 
 Constraints:
 - MAX_NOTES = 7
-- Every note must include a `source_ref` pointer to doc_id = <DOC_ID>.
+- Every note must include a `source_ref.ref.doc_id` pointer to <DOC_ID>.
 
 Doc title: <TITLE>
 Doc content:

@@ -96,7 +96,7 @@ Rules:
 - `position` is byte-offset based (UTF-8), and is more brittle under content edits than `quote`.
 
 Optional fields:
-- `level` (string): `"L1"` or `"L2"` as a suggested excerpt size tier for hydration. If omitted, agents should choose based on context budget.
+- `level` (string): `"L0"`, `"L1"` or `"L2"` as a suggested excerpt size tier for hydration. If omitted, agents should choose based on context budget.
 
 ### 3.5 `hashes` (optional)
 
@@ -205,4 +205,3 @@ The agent SHOULD:
   }
 }
 ```
-

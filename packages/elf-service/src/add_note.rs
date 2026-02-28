@@ -806,6 +806,11 @@ fn validate_add_note_request(req: &AddNoteRequest) -> Result<()> {
 	}
 
 	for (idx, note) in req.notes.iter().enumerate() {
+		if !note.source_ref.is_object() {
+			return Err(Error::InvalidRequest {
+				message: "source_ref must be a JSON object.".to_string(),
+			});
+		}
 		if !english_gate::is_english_natural_language(note.text.as_str()) {
 			return Err(Error::NonEnglishInput { field: format!("$.notes[{idx}].text") });
 		}
@@ -1289,5 +1294,61 @@ mod english_gate_tests {
 		assert_eq!(req.notes[0].source_ref, serde_json::json!({}));
 
 		validate_add_note_request(&req).expect("Expected missing source_ref to be accepted.");
+	}
+
+	#[test]
+	fn accepts_null_source_ref_and_normalizes_to_empty_object() {
+		let req = AddNoteRequest {
+			tenant_id: "t".to_string(),
+			project_id: "p".to_string(),
+			agent_id: "a".to_string(),
+			scope: "agent_private".to_string(),
+			notes: vec![AddNoteInput {
+				r#type: "fact".to_string(),
+				key: Some("test_key".to_string()),
+				text: "English text.".to_string(),
+				structured: None,
+				importance: 0.5,
+				confidence: 0.9,
+				ttl_days: None,
+				source_ref: serde_json::json!(null),
+				write_policy: None,
+			}],
+		};
+		let req = super::normalize_add_note_request(req);
+
+		assert_eq!(req.notes[0].source_ref, serde_json::json!({}));
+
+		validate_add_note_request(&req).expect("Expected null source_ref to be accepted.");
+	}
+
+	#[test]
+	fn rejects_non_object_source_ref() {
+		let req = AddNoteRequest {
+			tenant_id: "t".to_string(),
+			project_id: "p".to_string(),
+			agent_id: "a".to_string(),
+			scope: "agent_private".to_string(),
+			notes: vec![AddNoteInput {
+				r#type: "fact".to_string(),
+				key: Some("test_key".to_string()),
+				text: "English text.".to_string(),
+				structured: None,
+				importance: 0.5,
+				confidence: 0.9,
+				ttl_days: None,
+				source_ref: serde_json::json!("legacy-shape"),
+				write_policy: None,
+			}],
+		};
+		let err =
+			validate_add_note_request(&req).expect_err("Expected non-object source_ref rejection.");
+
+		match err {
+			Error::InvalidRequest { message } => {
+				assert_eq!(message, "source_ref must be a JSON object.");
+			},
+			other => panic!("Expected InvalidRequest for non-object source_ref, got {other:?}"),
+		}
 	}
 }
