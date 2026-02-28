@@ -7,7 +7,7 @@ use crate::acceptance::{SpyExtractor, StubEmbedding, StubRerank};
 use elf_service::{
 	ElfService, SearchExplainRequest, TraceBundleGetRequest, TraceGetRequest,
 	TraceRecentListRequest, TraceRecentListResponse, TraceTrajectoryGetRequest,
-	search::TraceBundleMode,
+	search::{TraceBundleMode, TraceReplayCandidate},
 };
 use elf_testkit::TestDatabase;
 
@@ -91,22 +91,23 @@ INSERT INTO search_traces (
 \tcreated_at,
 \texpires_at
 )
-VALUES (
-\t$1,
-\t$2,
-\t$3,
-\t$4,
-\t$5,
-\t$6,
-\t$7,
-\t$8,
-\t$9,
-\t$10,
-\t$11,
-\t$12,
-\t$13,
-\t$14
-)",
+	VALUES (
+	\t$1,
+	\t$2,
+	\t$3,
+	\t$4,
+	\t$5,
+	\t$6,
+	\t$7,
+	\t$8,
+	\t$9,
+	\t$10,
+	\t$11,
+	\t$12,
+	\t$13,
+	\t$14,
+\t$15
+	)",
 	)
 	.bind(trace_id)
 	.bind(TENANT_ID)
@@ -274,27 +275,32 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)",
 	.bind(chunk_id)
 	.bind(rank)
 	.bind("trace candidate snippet")
-	.bind(serde_json::json!({
-		"note_id": note_id,
-		"chunk_id": chunk_id,
-		"chunk_index": rank,
-		"snippet": "trace candidate snippet",
-		"retrieval_rank": retrieval_rank,
-		"rerank_score": retrieval_score,
-		"note_scope": "agent_private",
-		"note_importance": 0.6,
-		"note_updated_at": created_at,
-		"note_hit_count": 12,
-		"note_last_hit_at": Option::<OffsetDateTime>::None,
-		"diversity_selected": Option::<bool>::None,
-		"diversity_selected_rank": Option::<u32>::None,
-		"diversity_selected_reason": Option::<String>::None,
-		"diversity_skipped_reason": Option::<String>::None,
-		"diversity_nearest_selected_note_id": Option::<Uuid>::None,
-		"diversity_similarity": Option::<f32>::None,
-		"diversity_mmr_score": Option::<f32>::None,
-		"diversity_missing_embedding": Option::<bool>::None
-	}))
+	.bind({
+		let candidate_snapshot = TraceReplayCandidate {
+			note_id,
+			chunk_id,
+			chunk_index: rank,
+			snippet: "trace candidate snippet".to_string(),
+			retrieval_rank: retrieval_rank as u32,
+			rerank_score: retrieval_score,
+			note_scope: "agent_private".to_string(),
+			note_importance: 0.6,
+			note_updated_at: created_at,
+			note_hit_count: 12,
+			note_last_hit_at: None,
+			diversity_selected: None,
+			diversity_selected_rank: None,
+			diversity_selected_reason: None,
+			diversity_skipped_reason: None,
+			diversity_nearest_selected_note_id: None,
+			diversity_similarity: None,
+			diversity_mmr_score: None,
+			diversity_missing_embedding: None,
+		};
+
+		serde_json::to_value(candidate_snapshot)
+			.expect("Failed to serialize trace replay candidate.")
+	})
 	.bind(retrieval_rank)
 	.bind(retrieval_score)
 	.bind("agent_private")
