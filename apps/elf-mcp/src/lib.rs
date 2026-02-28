@@ -30,7 +30,14 @@ pub async fn run(args: Args) -> Result<()> {
 		config.mcp.as_ref().ok_or_else(|| eyre::eyre!("mcp section is required for elf-mcp."))?;
 	let auth_state = build_auth_state(&config.security, &config.service.mcp_bind, mcp)?;
 
-	server::serve_mcp(&config.service.mcp_bind, &config.service.http_bind, auth_state, mcp).await
+	server::serve_mcp(
+		&config.service.mcp_bind,
+		&config.service.http_bind,
+		&config.service.admin_bind,
+		auth_state,
+		mcp,
+	)
+	.await
 }
 
 fn build_auth_state(security: &Security, mcp_bind: &str, mcp: &McpContext) -> Result<McpAuthState> {

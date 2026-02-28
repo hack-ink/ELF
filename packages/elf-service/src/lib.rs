@@ -8,6 +8,7 @@ pub mod graph;
 pub mod list;
 pub mod notes;
 pub mod progressive_search;
+pub mod provenance;
 pub mod search;
 pub mod sharing;
 pub mod structured_fields;
@@ -52,6 +53,11 @@ pub use self::{
 		SearchDetailsError, SearchDetailsRequest, SearchDetailsResponse, SearchDetailsResult,
 		SearchIndexItem, SearchIndexPlannedResponse, SearchIndexResponse, SearchSessionGetRequest,
 		SearchTimelineGroup, SearchTimelineRequest, SearchTimelineResponse,
+	},
+	provenance::{
+		NoteProvenanceBundleResponse, NoteProvenanceGetRequest, NoteProvenanceIndexingOutbox,
+		NoteProvenanceIngestDecision, NoteProvenanceNote, NoteProvenanceNoteVersion,
+		NoteProvenanceRecentTrace,
 	},
 	search::{
 		BlendRankingOverride, BlendSegmentOverride, PayloadLevel, QueryPlan, QueryPlanBlendSegment,

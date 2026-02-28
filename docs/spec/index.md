@@ -20,6 +20,7 @@ Audience: This documentation is written for LLM consumption and should remain ex
 - `docs/spec/system_version_registry.md` - Registry of versioned identifiers and schema versions.
 - `docs/spec/system_doc_extension_v1_filters.md` - Doc Extension v1 filter contracts and Qdrant requirements for `docs_search_l0`.
 - `docs/spec/system_search_filter_expr_v1.md` - Search structured filter expression contract (`search_filter_expr/v1`) and service-side filter-impact diagnostics.
+- `docs/spec/system_provenance_mapping_v1.md` - Admin provenance bundle contract for note-level traceability and request correlation.
 
 ## Rollout
 
@@ -34,6 +35,9 @@ Audience: This documentation is written for LLM consumption and should remain ex
   - Status: active
 - `search_filter_expr/v1`:
   - `docs/spec/system_search_filter_expr_v1.md`
+  - Status: active
+- `elf.note_provenance_bundle/v1`:
+  - `docs/spec/system_provenance_mapping_v1.md`
   - Status: active
 
 ## Authoring guidance (LLM-first)

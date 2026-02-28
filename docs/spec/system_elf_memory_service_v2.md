@@ -866,6 +866,11 @@ Authentication:
 - security.auth_mode = "static_keys": admin requests must include `Authorization: Bearer <token>`.
 - In `static_keys` mode, the matched `security.auth_keys` entry must have `admin = true` for admin endpoints.
 
+Request correlation:
+- `X-ELF-Request-Id` is optional on admin endpoints.
+- If omitted, elf-api generates a new UUID.
+- Response includes `X-ELF-Request-Id` header and `request_id` in JSON responses.
+
 POST /v2/admin/qdrant/rebuild
 
 Behavior:
@@ -1225,6 +1230,26 @@ Response:
   ]
 }
 
+GET /v2/admin/notes/{note_id}/provenance
+
+Headers:
+- X-ELF-Tenant-Id (required)
+- X-ELF-Project-Id (required)
+- X-ELF-Agent-Id (required)
+
+Path:
+- note_id: uuid
+
+Response:
+{
+  "schema": "elf.note_provenance_bundle/v1",
+  "note": { ... },
+  "ingest_decisions": [...],
+  "note_versions": [...],
+  "indexing_outbox": [...],
+  "recent_traces": [...]
+}
+
 ============================================================
 15. HTTP API (PUBLIC)
 ============================================================
@@ -1234,6 +1259,11 @@ All /v2 endpoints except GET /health require context headers:
 - X-ELF-Tenant-Id (required)
 - X-ELF-Project-Id (required)
 - X-ELF-Agent-Id (required)
+
+Request correlation:
+- `X-ELF-Request-Id` is optional on public endpoints.
+- If omitted, elf-api generates a new UUID.
+- Response includes `X-ELF-Request-Id` header and `request_id` in JSON responses.
 
 Search creation endpoints also require:
 - X-ELF-Read-Profile (required): private_only|private_plus_project|all_scopes
@@ -1784,20 +1814,36 @@ Original query:
 - Tools map 1:1 to v2 endpoints:
   - elf_notes_ingest -> POST /v2/notes/ingest
   - elf_events_ingest -> POST /v2/events/ingest
-  - elf_searches_create -> POST /v2/searches
+  - elf_search_quick_create -> POST /v2/search/quick
+  - elf_search_planned_create -> POST /v2/search/planned
   - elf_searches_get -> GET /v2/searches/{search_id}
   - elf_searches_timeline -> GET /v2/searches/{search_id}/timeline
   - elf_searches_notes -> POST /v2/searches/{search_id}/notes
+  - elf_docs_put -> POST /v2/docs
+  - elf_docs_get -> GET /v2/docs/{doc_id}
+  - elf_docs_search_l0 -> POST /v2/docs/search/l0
+  - elf_docs_excerpts_get -> POST /v2/docs/excerpts
   - elf_notes_list -> GET /v2/notes
   - elf_notes_get -> GET /v2/notes/{note_id}
   - elf_notes_patch -> PATCH /v2/notes/{note_id}
   - elf_notes_delete -> DELETE /v2/notes/{note_id}
+  - elf_notes_publish -> POST /v2/notes/{note_id}/publish
+  - elf_notes_unpublish -> POST /v2/notes/{note_id}/unpublish
+  - elf_space_grants_list -> GET /v2/spaces/{space}/grants
+  - elf_space_grant_upsert -> POST /v2/spaces/{space}/grants
+  - elf_space_grant_revoke -> POST /v2/spaces/{space}/grants/revoke
   - elf_admin_events_ingestion_profiles_list -> GET /v2/admin/events/ingestion-profiles
   - elf_admin_events_ingestion_profiles_create -> POST /v2/admin/events/ingestion-profiles
   - elf_admin_events_ingestion_profile_get -> GET /v2/admin/events/ingestion-profiles/{profile_id}
   - elf_admin_events_ingestion_profile_versions_list -> GET /v2/admin/events/ingestion-profiles/{profile_id}/versions
   - elf_admin_events_ingestion_profile_default_get -> GET /v2/admin/events/ingestion-profiles/default
   - elf_admin_events_ingestion_profile_default_set -> POST /v2/admin/events/ingestion-profiles/default
+  - elf_admin_traces_recent_list -> GET /v2/admin/traces/recent
+  - elf_admin_trace_get -> GET /v2/admin/traces/{trace_id}
+  - elf_admin_trajectory_get -> GET /v2/admin/trajectories/{trace_id}
+  - elf_admin_trace_item_get -> GET /v2/admin/trace-items/{item_id}
+  - elf_admin_trace_bundle_get -> GET /v2/admin/traces/{trace_id}/bundle
+  - elf_admin_note_provenance_get -> GET /v2/admin/notes/{note_id}/provenance
 - The MCP server must contain zero business logic or policy.
 - All policy remains in elf-api and elf-service.
 

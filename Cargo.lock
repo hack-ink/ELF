@@ -946,6 +946,7 @@ dependencies = [
  "rmcp",
  "serde_json",
  "tokio",
+ "uuid",
  "vergen-gitcl",
 ]
 

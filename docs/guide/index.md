@@ -15,6 +15,7 @@ Purpose: Provide the entry point for operational guidance and runbooks.
 - `docs/guide/evaluation.md` - Retrieval evaluation workflow and dataset format.
 - `docs/guide/integration-testing.md` - End-to-end memory retrieval testing.
 - `docs/guide/testing.md` - Test taxonomy and command scope.
+- `docs/guide/observability.md` - MCP/admin traceability, request correlation, and worker trace field workflows.
 
 ## Cross-links
 
