@@ -2928,9 +2928,10 @@ mod tests {
 			content: "Hello sk-abcdefghijklmnopqrstuvwxyz!".to_string(),
 		})
 		.expect("Expected valid write policy transformation.");
-		let mut expected_audit = elf_domain::writegate::WritePolicyAudit::default();
-
-		expected_audit.exclusions = vec![WriteSpan { start: 6, end: 35 }];
+		let expected_audit = elf_domain::writegate::WritePolicyAudit {
+			exclusions: vec![WriteSpan { start: 6, end: 35 }],
+			..Default::default()
+		};
 
 		assert_eq!(validated.content, "Hello !".to_string());
 		assert_eq!(validated.write_policy_audit.unwrap_or_default(), expected_audit);

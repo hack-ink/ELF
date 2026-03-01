@@ -55,6 +55,30 @@ pub struct NoteProvenanceNote {
 	#[serde(with = "crate::time_serde::option")]
 	pub last_hit_at: Option<OffsetDateTime>,
 }
+impl From<MemoryNote> for NoteProvenanceNote {
+	fn from(note: MemoryNote) -> Self {
+		Self {
+			note_id: note.note_id,
+			tenant_id: note.tenant_id,
+			project_id: note.project_id,
+			agent_id: note.agent_id,
+			scope: note.scope,
+			r#type: note.r#type,
+			key: note.key,
+			text: note.text,
+			importance: note.importance,
+			confidence: note.confidence,
+			status: note.status,
+			created_at: note.created_at,
+			updated_at: note.updated_at,
+			expires_at: note.expires_at,
+			source_ref: note.source_ref,
+			embedding_version: note.embedding_version,
+			hit_count: note.hit_count,
+			last_hit_at: note.last_hit_at,
+		}
+	}
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct NoteProvenanceIngestDecision {
@@ -75,6 +99,27 @@ pub struct NoteProvenanceIngestDecision {
 	#[serde(with = "crate::time_serde")]
 	pub ts: OffsetDateTime,
 }
+impl From<NoteIngestDecisionRow> for NoteProvenanceIngestDecision {
+	fn from(row: NoteIngestDecisionRow) -> Self {
+		Self {
+			decision_id: row.decision_id,
+			tenant_id: row.tenant_id,
+			project_id: row.project_id,
+			agent_id: row.agent_id,
+			scope: row.scope,
+			pipeline: row.pipeline,
+			note_type: row.note_type,
+			note_key: row.note_key,
+			note_id: row.note_id,
+			base_decision: row.base_decision,
+			policy_decision: row.policy_decision,
+			note_op: row.note_op,
+			reason_code: row.reason_code,
+			details: row.details,
+			ts: row.ts,
+		}
+	}
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct NoteProvenanceNoteVersion {
@@ -89,6 +134,20 @@ pub struct NoteProvenanceNoteVersion {
 	pub actor: String,
 	#[serde(with = "crate::time_serde")]
 	pub ts: OffsetDateTime,
+}
+impl From<NoteVersionRow> for NoteProvenanceNoteVersion {
+	fn from(row: NoteVersionRow) -> Self {
+		Self {
+			version_id: row.version_id,
+			note_id: row.note_id,
+			op: row.op,
+			prev_snapshot: row.prev_snapshot,
+			new_snapshot: row.new_snapshot,
+			reason: row.reason,
+			actor: row.actor,
+			ts: row.ts,
+		}
+	}
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -108,6 +167,22 @@ pub struct NoteProvenanceIndexingOutbox {
 	#[serde(with = "crate::time_serde")]
 	pub updated_at: OffsetDateTime,
 }
+impl From<NoteIndexingOutboxRow> for NoteProvenanceIndexingOutbox {
+	fn from(row: NoteIndexingOutboxRow) -> Self {
+		Self {
+			outbox_id: row.outbox_id,
+			note_id: row.note_id,
+			op: row.op,
+			embedding_version: row.embedding_version,
+			status: row.status,
+			attempts: row.attempts,
+			last_error: row.last_error,
+			available_at: row.available_at,
+			created_at: row.created_at,
+			updated_at: row.updated_at,
+		}
+	}
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct NoteProvenanceRecentTrace {
@@ -121,90 +196,11 @@ pub struct NoteProvenanceRecentTrace {
 	pub created_at: OffsetDateTime,
 }
 
-impl ElfService {
-	pub async fn note_provenance_get(
-		&self,
-		req: NoteProvenanceGetRequest,
-	) -> Result<NoteProvenanceBundleResponse> {
-		let req = validate_note_provenance_request(req)?;
-
-		let note = sqlx::query_as::<_, MemoryNote>(
-			"\
-SELECT *
-FROM memory_notes
-WHERE note_id = $1
-  AND tenant_id = $2
-  AND project_id = $3",
-		)
-		.bind(req.note_id)
-		.bind(&req.tenant_id)
-		.bind(&req.project_id)
-		.fetch_optional(&self.db.pool)
-		.await?;
-		let Some(note_row) = note else {
-			return Err(Error::InvalidRequest { message: "Note not found.".to_string() });
-		};
-		let ingest_decisions = load_ingest_decisions(&self.db.pool, &req).await?;
-		let note_versions =
-			load_note_versions(&self.db.pool, &req.tenant_id, &req.project_id, req.note_id).await?;
-		let indexing_outbox =
-			load_indexing_outbox(&self.db.pool, &req.tenant_id, &req.project_id, req.note_id)
-				.await?;
-		let recent_traces = load_recent_traces_for_note(
-			&self.db.pool,
-			&req.tenant_id,
-			&req.project_id,
-			req.note_id,
-		)
-		.await?;
-
-		Ok(NoteProvenanceBundleResponse {
-			schema: NOTE_PROVENANCE_BUNDLE_SCHEMA_V1.to_string(),
-			note: NoteProvenanceNote::from(note_row),
-			ingest_decisions,
-			note_versions,
-			indexing_outbox,
-			recent_traces,
-		})
-	}
-}
-
 #[derive(Clone, Debug)]
 struct ValidatedNoteProvenanceRequest {
 	tenant_id: String,
 	project_id: String,
 	note_id: Uuid,
-}
-
-fn validate_note_provenance_request(
-	req: NoteProvenanceGetRequest,
-) -> Result<ValidatedNoteProvenanceRequest> {
-	let tenant_id = req.tenant_id.trim();
-	let project_id = req.project_id.trim();
-
-	if tenant_id.is_empty() || project_id.is_empty() {
-		return Err(Error::InvalidRequest {
-			message: "tenant_id and project_id are required.".to_string(),
-		});
-	}
-
-	Ok(ValidatedNoteProvenanceRequest {
-		tenant_id: tenant_id.to_string(),
-		project_id: project_id.to_string(),
-		note_id: req.note_id,
-	})
-}
-
-fn to_recent_trace(item: NoteRecentTraceRow) -> NoteProvenanceRecentTrace {
-	NoteProvenanceRecentTrace {
-		trace_id: item.trace_id,
-		tenant_id: item.tenant_id,
-		project_id: item.project_id,
-		agent_id: item.agent_id,
-		read_profile: item.read_profile,
-		query: item.query,
-		created_at: item.created_at,
-	}
 }
 
 #[derive(FromRow)]
@@ -263,82 +259,81 @@ struct NoteRecentTraceRow {
 	created_at: OffsetDateTime,
 }
 
-impl From<MemoryNote> for NoteProvenanceNote {
-	fn from(note: MemoryNote) -> Self {
-		Self {
-			note_id: note.note_id,
-			tenant_id: note.tenant_id,
-			project_id: note.project_id,
-			agent_id: note.agent_id,
-			scope: note.scope,
-			r#type: note.r#type,
-			key: note.key,
-			text: note.text,
-			importance: note.importance,
-			confidence: note.confidence,
-			status: note.status,
-			created_at: note.created_at,
-			updated_at: note.updated_at,
-			expires_at: note.expires_at,
-			source_ref: note.source_ref,
-			embedding_version: note.embedding_version,
-			hit_count: note.hit_count,
-			last_hit_at: note.last_hit_at,
-		}
+impl ElfService {
+	pub async fn note_provenance_get(
+		&self,
+		req: NoteProvenanceGetRequest,
+	) -> Result<NoteProvenanceBundleResponse> {
+		let req = validate_note_provenance_request(req)?;
+		let note = sqlx::query_as::<_, MemoryNote>(
+			"\
+SELECT *
+FROM memory_notes
+WHERE note_id = $1
+  AND tenant_id = $2
+  AND project_id = $3",
+		)
+		.bind(req.note_id)
+		.bind(&req.tenant_id)
+		.bind(&req.project_id)
+		.fetch_optional(&self.db.pool)
+		.await?;
+		let Some(note_row) = note else {
+			return Err(Error::InvalidRequest { message: "Note not found.".to_string() });
+		};
+		let ingest_decisions = load_ingest_decisions(&self.db.pool, &req).await?;
+		let note_versions =
+			load_note_versions(&self.db.pool, &req.tenant_id, &req.project_id, req.note_id).await?;
+		let indexing_outbox =
+			load_indexing_outbox(&self.db.pool, &req.tenant_id, &req.project_id, req.note_id)
+				.await?;
+		let recent_traces = load_recent_traces_for_note(
+			&self.db.pool,
+			&req.tenant_id,
+			&req.project_id,
+			req.note_id,
+		)
+		.await?;
+
+		Ok(NoteProvenanceBundleResponse {
+			schema: NOTE_PROVENANCE_BUNDLE_SCHEMA_V1.to_string(),
+			note: NoteProvenanceNote::from(note_row),
+			ingest_decisions,
+			note_versions,
+			indexing_outbox,
+			recent_traces,
+		})
 	}
 }
 
-impl From<NoteIngestDecisionRow> for NoteProvenanceIngestDecision {
-	fn from(row: NoteIngestDecisionRow) -> Self {
-		Self {
-			decision_id: row.decision_id,
-			tenant_id: row.tenant_id,
-			project_id: row.project_id,
-			agent_id: row.agent_id,
-			scope: row.scope,
-			pipeline: row.pipeline,
-			note_type: row.note_type,
-			note_key: row.note_key,
-			note_id: row.note_id,
-			base_decision: row.base_decision,
-			policy_decision: row.policy_decision,
-			note_op: row.note_op,
-			reason_code: row.reason_code,
-			details: row.details,
-			ts: row.ts,
-		}
+fn validate_note_provenance_request(
+	req: NoteProvenanceGetRequest,
+) -> Result<ValidatedNoteProvenanceRequest> {
+	let tenant_id = req.tenant_id.trim();
+	let project_id = req.project_id.trim();
+
+	if tenant_id.is_empty() || project_id.is_empty() {
+		return Err(Error::InvalidRequest {
+			message: "tenant_id and project_id are required.".to_string(),
+		});
 	}
+
+	Ok(ValidatedNoteProvenanceRequest {
+		tenant_id: tenant_id.to_string(),
+		project_id: project_id.to_string(),
+		note_id: req.note_id,
+	})
 }
 
-impl From<NoteVersionRow> for NoteProvenanceNoteVersion {
-	fn from(row: NoteVersionRow) -> Self {
-		Self {
-			version_id: row.version_id,
-			note_id: row.note_id,
-			op: row.op,
-			prev_snapshot: row.prev_snapshot,
-			new_snapshot: row.new_snapshot,
-			reason: row.reason,
-			actor: row.actor,
-			ts: row.ts,
-		}
-	}
-}
-
-impl From<NoteIndexingOutboxRow> for NoteProvenanceIndexingOutbox {
-	fn from(row: NoteIndexingOutboxRow) -> Self {
-		Self {
-			outbox_id: row.outbox_id,
-			note_id: row.note_id,
-			op: row.op,
-			embedding_version: row.embedding_version,
-			status: row.status,
-			attempts: row.attempts,
-			last_error: row.last_error,
-			available_at: row.available_at,
-			created_at: row.created_at,
-			updated_at: row.updated_at,
-		}
+fn to_recent_trace(item: NoteRecentTraceRow) -> NoteProvenanceRecentTrace {
+	NoteProvenanceRecentTrace {
+		trace_id: item.trace_id,
+		tenant_id: item.tenant_id,
+		project_id: item.project_id,
+		agent_id: item.agent_id,
+		read_profile: item.read_profile,
+		query: item.query,
+		created_at: item.created_at,
 	}
 }
 
@@ -486,7 +481,7 @@ LIMIT $4",
 
 #[cfg(test)]
 mod tests {
-	use super::{Error, NoteProvenanceGetRequest, validate_note_provenance_request};
+	use crate::provenance::{Error, NoteProvenanceGetRequest, validate_note_provenance_request};
 	use uuid::Uuid;
 
 	#[test]
@@ -514,7 +509,6 @@ mod tests {
 			project_id: "   ".to_string(),
 			note_id: Uuid::new_v4(),
 		};
-
 		let first = validate_note_provenance_request(missing_tenant)
 			.expect_err("expected tenant validation error");
 		let second = validate_note_provenance_request(empty_project)
