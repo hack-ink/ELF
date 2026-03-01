@@ -4,7 +4,7 @@ Purpose: Provide a repeatable way to measure memory retrieval quality and preven
 
 ## Tool
 
-Use the `elf-eval` app to run an evaluation against a dataset of queries and expected note IDs.
+Use the `elf-eval` app to run an evaluation against a dataset of queries and expected notes.
 
 Example:
 
@@ -35,6 +35,11 @@ The dataset is JSON with optional defaults and a list of queries.
         "11111111-1111-1111-1111-111111111111",
         "22222222-2222-2222-2222-222222222222"
       ]
+    },
+    {
+      "id": "q-2",
+      "query": "how do we consolidate duplicate incident notes",
+      "expected_keys": ["incident_merge_protocol"]
     }
   ]
 }
@@ -44,7 +49,9 @@ Each query supports these fields:
 
 - `id` (optional): A human-friendly identifier for the query.
 - `query` (required): The search query text.
-- `expected_note_ids` (required): One or more note IDs expected in the results.
+- `expected_note_ids` (optional): One or more note IDs expected in the results.
+- `expected_keys` (optional): One or more semantic note keys expected in the results.
+- Exactly one of `expected_note_ids` or `expected_keys` must be set per query.
 - `tenant_id`, `project_id`, `agent_id`, `read_profile` (optional): Override defaults.
 - `top_k`, `candidate_k` (optional): Override defaults.
 - `ranking` (optional): A request-scoped ranking override (for example, `ranking.blend.enabled`,
@@ -202,6 +209,48 @@ What it does:
 - Ingests a synthetic dataset with many near-tied candidates.
 - Enables a local noisy rerank model to simulate reranker instability.
 - Compares `elf-eval` stability metrics with deterministic ranking disabled vs enabled.
+
+## Consolidation Harness
+
+To validate the reflection/consolidation loop with stable query assertions, use the harness:
+
+```bash
+cargo make e2e-consolidation-harness
+```
+
+Or run directly:
+
+```bash
+scripts/consolidation-harness.sh
+```
+
+What it does:
+
+- Creates a dedicated database (default: `elf_consolidation`) and Qdrant collection.
+- Ingests notes using a shared `key` (`incident_merge_protocol`) to create duplicate legacy notes, then ingests a
+  consolidated canonical note with the same key.
+- Waits for ingestion/deindexing with the worker outbox lifecycle.
+- Runs `elf-eval` twice with `expected_keys`:
+  - `tmp/elf.consolidation.out.base.json` (before consolidation).
+  - `tmp/elf.consolidation.out.after.json` (after consolidation).
+- Prints baseline/after recall and retrieved key signals to stdout.
+- Cleans up database and collection by default.
+
+Prerequisites:
+
+- Postgres and Qdrant are reachable, and local service binds are available.
+- Environment variables are set (or `.env` loaded):
+  - `ELF_PG_DSN` (base DSN, typically ending in `/postgres`)
+  - `ELF_QDRANT_HTTP_URL` (for example `http://127.0.0.1:51889`)
+  - `ELF_QDRANT_GRPC_URL` (for example `http://127.0.0.1:51890`)
+
+Optional controls:
+
+- `ELF_HARNESS_KEEP_DB=1`: keep the created database after run.
+- `ELF_HARNESS_KEEP_COLLECTION=1`: keep the created Qdrant collection after run.
+- `ELF_HARNESS_DB_NAME`, `ELF_HARNESS_COLLECTION`, `ELF_HARNESS_RUN_ID`: override generated values.
+- `ELF_HARNESS_TOP_K`, `ELF_HARNESS_CANDIDATE_K`: override retrieval cutoffs.
+- `ELF_HARNESS_VECTOR_DIM`: override vector dimension used by generated config.
 
 ## Nightly Harness Signals
 

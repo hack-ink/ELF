@@ -203,6 +203,7 @@ args = [
 # | ------------------------------ | --------- | --- |
 # | e2e                            | composite |     |
 # | e2e-context-misranking-harness | command   |     |
+# | e2e-consolidation-harness      | command   |     |
 
 [tasks.e2e]
 workspace = false
@@ -215,6 +216,13 @@ workspace = false
 command = "bash"
 args = [
 	"scripts/context-misranking-harness.sh",
+]
+
+[tasks.e2e-consolidation-harness]
+workspace = false
+command = "bash"
+args = [
+	"scripts/consolidation-harness.sh",
 ]
 
 
