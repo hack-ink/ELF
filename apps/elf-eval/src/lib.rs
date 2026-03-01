@@ -16,7 +16,8 @@ use uuid::Uuid;
 
 use elf_config::Config;
 use elf_service::{
-	ElfService, RankingRequestOverride, SearchIndexResponse, SearchRequest, search::TraceReplayItem,
+	ElfService, RankingRequestOverride, SearchIndexItem, SearchIndexResponse, SearchRequest,
+	search::TraceReplayItem,
 };
 use elf_storage::{db::Db, qdrant::QdrantStore};
 
@@ -71,7 +72,10 @@ struct EvalQuery {
 	read_profile: Option<String>,
 	top_k: Option<u32>,
 	candidate_k: Option<u32>,
+	#[serde(default)]
 	expected_note_ids: Vec<Uuid>,
+	#[serde(default)]
+	expected_keys: Vec<String>,
 	ranking: Option<RankingRequestOverride>,
 }
 
@@ -106,6 +110,7 @@ struct EvalSummary {
 	mean_ndcg: f64,
 	latency_ms_p50: f64,
 	latency_ms_p95: f64,
+	avg_retrieved_summary_chars: f64,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	stability: Option<StabilitySummary>,
 }
@@ -133,9 +138,21 @@ struct QueryReport {
 	ndcg: f64,
 	latency_ms: f64,
 	expected_note_ids: Vec<Uuid>,
+	expected_keys: Vec<String>,
+	expected_kind: ExpectedKind,
 	retrieved_note_ids: Vec<Uuid>,
+	#[serde(skip_serializing_if = "Vec::is_empty")]
+	retrieved_keys: Vec<Option<String>>,
+	retrieved_summary_chars: usize,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	stability: Option<QueryStability>,
+}
+
+#[derive(Debug, Serialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+enum ExpectedKind {
+	NoteId,
+	Key,
 }
 
 #[derive(Debug, Serialize, Clone, Copy)]
@@ -172,6 +189,7 @@ struct EvalSummaryDelta {
 	mean_ndcg: f64,
 	latency_ms_p50: f64,
 	latency_ms_p95: f64,
+	avg_retrieved_summary_chars: f64,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	stability: Option<StabilitySummaryDelta>,
 }
@@ -357,6 +375,8 @@ struct MergedQuery {
 	id: String,
 	query: String,
 	expected_note_ids: Vec<Uuid>,
+	expected_keys: Vec<String>,
+	expected_kind: ExpectedKind,
 	request: SearchRequest,
 }
 
@@ -511,6 +531,7 @@ fn diff_summary(a: &EvalSummary, b: &EvalSummary) -> EvalSummaryDelta {
 		mean_ndcg: b.mean_ndcg - a.mean_ndcg,
 		latency_ms_p50: b.latency_ms_p50 - a.latency_ms_p50,
 		latency_ms_p95: b.latency_ms_p95 - a.latency_ms_p95,
+		avg_retrieved_summary_chars: b.avg_retrieved_summary_chars - a.avg_retrieved_summary_chars,
 		stability: match (&a.stability, &b.stability) {
 			(Some(sa), Some(sb)) => Some(StabilitySummaryDelta {
 				avg_positional_churn_at_k: sb.avg_positional_churn_at_k
@@ -612,12 +633,8 @@ fn merge_query(
 	cfg: &Config,
 	index: usize,
 ) -> Result<MergedQuery> {
-	if query.expected_note_ids.is_empty() {
-		return Err(eyre::eyre!(
-			"Query at index {index} must include at least one expected_note_id."
-		));
-	}
-
+	let expected_kind =
+		resolve_expected_mode(index, &query.expected_note_ids, &query.expected_keys)?;
 	let tenant_id = query
 		.tenant_id
 		.clone()
@@ -652,6 +669,8 @@ fn merge_query(
 		id,
 		query: query.query.clone(),
 		expected_note_ids: query.expected_note_ids.clone(),
+		expected_keys: query.expected_keys.clone(),
+		expected_kind,
 		request: SearchRequest {
 			tenant_id,
 			project_id,
@@ -669,16 +688,29 @@ fn merge_query(
 	})
 }
 
-fn unique_ids<I>(iter: I) -> Vec<Uuid>
-where
-	I: Iterator<Item = Uuid>,
-{
+fn resolve_expected_mode(index: usize, note_ids: &[Uuid], keys: &[String]) -> Result<ExpectedKind> {
+	let has_note_ids = !note_ids.is_empty();
+	let has_keys = !keys.is_empty();
+
+	match (has_note_ids, has_keys) {
+		(true, false) => Ok(ExpectedKind::NoteId),
+		(false, true) => Ok(ExpectedKind::Key),
+		(true, true) => Err(eyre::eyre!(
+			"Query at index {index} must define exactly one expectation mode: expected_note_ids or expected_keys."
+		)),
+		(false, false) => Err(eyre::eyre!(
+			"Query at index {index} must include at least one expected_note_ids or expected_keys."
+		)),
+	}
+}
+
+fn unique_items(items: &[SearchIndexItem]) -> Vec<SearchIndexItem> {
 	let mut seen = HashSet::new();
 	let mut out = Vec::new();
 
-	for id in iter {
-		if seen.insert(id) {
-			out.push(id);
+	for item in items {
+		if seen.insert(item.note_id) {
+			out.push(item.clone());
 		}
 	}
 
@@ -730,12 +762,87 @@ fn compute_metrics(retrieved: &[Uuid], expected: &HashSet<Uuid>) -> Metrics {
 	Metrics { recall_at_k, precision_at_k, rr, ndcg, relevant_count }
 }
 
+fn compute_metrics_for_keys(retrieved: &[Option<String>], expected: &HashSet<String>) -> Metrics {
+	let expected_count = expected.len();
+	let mut matched: HashSet<String> = HashSet::new();
+	let mut relevant_count = 0_usize;
+	let mut dcg = 0.0_f64;
+	let mut rr = 0.0_f64;
+	let mut first_hit: Option<usize> = None;
+
+	for (idx, maybe_key) in retrieved.iter().enumerate() {
+		let Some(key) = maybe_key else {
+			continue;
+		};
+
+		if expected.contains(key) && !matched.contains(key) {
+			matched.insert(key.clone());
+
+			relevant_count += 1;
+
+			let rank = idx + 1;
+			let denom = (rank as f64 + 1.0).log2();
+
+			dcg += 1.0 / denom;
+
+			if first_hit.is_none() {
+				first_hit = Some(rank);
+			}
+		}
+	}
+
+	if let Some(rank) = first_hit {
+		rr = 1.0 / rank as f64;
+	}
+
+	let ideal_hits = expected_count.min(retrieved.len());
+	let mut idcg = 0.0_f64;
+
+	for idx in 0..ideal_hits {
+		let rank = idx + 1;
+		let denom = (rank as f64 + 1.0).log2();
+
+		idcg += 1.0 / denom;
+	}
+
+	let ndcg = if idcg > 0.0 { dcg / idcg } else { 0.0 };
+	let precision_at_k =
+		if retrieved.is_empty() { 0.0 } else { relevant_count as f64 / retrieved.len() as f64 };
+	let recall_at_k =
+		if expected_count == 0 { 0.0 } else { relevant_count as f64 / expected_count as f64 };
+
+	Metrics { recall_at_k, precision_at_k, rr, ndcg, relevant_count }
+}
+
+fn compute_metrics_for_query(
+	merged: &MergedQuery,
+	retrieved_note_ids: &[Uuid],
+	retrieved_keys: &[Option<String>],
+) -> (Metrics, usize) {
+	match merged.expected_kind {
+		ExpectedKind::NoteId => {
+			let expected: HashSet<Uuid> = merged.expected_note_ids.iter().copied().collect();
+			let expected_count = expected.len();
+
+			(compute_metrics(retrieved_note_ids, &expected), expected_count)
+		},
+		ExpectedKind::Key => {
+			let expected: HashSet<String> = merged.expected_keys.iter().cloned().collect();
+			let expected_count = expected.len();
+
+			(compute_metrics_for_keys(retrieved_keys, &expected), expected_count)
+		},
+	}
+}
+
 fn summarize(reports: &[QueryReport], latencies_ms: &[f64]) -> EvalSummary {
 	let count = reports.len().max(1) as f64;
 	let avg_recall_at_k = reports.iter().map(|r| r.recall_at_k).sum::<f64>() / count;
 	let avg_precision_at_k = reports.iter().map(|r| r.precision_at_k).sum::<f64>() / count;
 	let mean_rr = reports.iter().map(|r| r.rr).sum::<f64>() / count;
 	let mean_ndcg = reports.iter().map(|r| r.ndcg).sum::<f64>() / count;
+	let avg_retrieved_summary_chars =
+		reports.iter().map(|r| r.retrieved_summary_chars as f64).sum::<f64>() / count;
 	let mut sorted = latencies_ms.to_vec();
 
 	sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
@@ -750,6 +857,7 @@ fn summarize(reports: &[QueryReport], latencies_ms: &[f64]) -> EvalSummary {
 		mean_ndcg,
 		latency_ms_p50: p50,
 		latency_ms_p95: p95,
+		avg_retrieved_summary_chars,
 		stability: None,
 	}
 }
@@ -1140,11 +1248,16 @@ async fn eval_config(
 
 	for (index, query) in dataset.queries.iter().enumerate() {
 		let merged = merge_query(&defaults, query, args, &service.cfg, index)?;
-		let expected: HashSet<Uuid> = merged.expected_note_ids.iter().copied().collect();
 		let (first, latency_ms, stability, trace_ids) =
-			run_query_n_times(&service, merged.request, runs_per_query).await?;
-		let retrieved = unique_ids(first.items.iter().map(|item| item.note_id));
-		let metrics = compute_metrics(&retrieved, &expected);
+			run_query_n_times(&service, merged.request.clone(), runs_per_query).await?;
+		let retrieved = unique_items(&first.items);
+		let retrieved_note_ids: Vec<Uuid> = retrieved.iter().map(|item| item.note_id).collect();
+		let retrieved_keys: Vec<Option<String>> =
+			retrieved.iter().map(|item| item.key.clone()).collect();
+		let retrieved_summary_chars =
+			retrieved.iter().map(|item| item.summary.len()).sum::<usize>();
+		let (metrics, expected_count) =
+			compute_metrics_for_query(&merged, &retrieved_note_ids, &retrieved_keys);
 
 		if let Some(s) = stability {
 			stability_positional.push(s.positional_churn_at_k);
@@ -1156,8 +1269,8 @@ async fn eval_config(
 			query: merged.query,
 			trace_id: first.trace_id,
 			trace_ids: (trace_ids.len() > 1).then_some(trace_ids),
-			expected_count: expected.len(),
-			retrieved_count: retrieved.len(),
+			expected_count,
+			retrieved_count: retrieved_note_ids.len(),
 			relevant_count: metrics.relevant_count,
 			recall_at_k: metrics.recall_at_k,
 			precision_at_k: metrics.precision_at_k,
@@ -1165,7 +1278,15 @@ async fn eval_config(
 			ndcg: metrics.ndcg,
 			latency_ms,
 			expected_note_ids: merged.expected_note_ids,
-			retrieved_note_ids: retrieved,
+			expected_keys: merged.expected_keys,
+			expected_kind: merged.expected_kind,
+			retrieved_note_ids,
+			retrieved_keys: if merged.expected_kind == ExpectedKind::Key {
+				retrieved_keys
+			} else {
+				Vec::new()
+			},
+			retrieved_summary_chars,
 			stability,
 		});
 		latencies_ms.push(latency_ms);
@@ -1217,7 +1338,7 @@ async fn run_query_n_times(
 	let k = request.top_k.unwrap_or(1).max(1) as usize;
 	let runs = runs_per_query.max(1);
 	let mut first_response: Option<SearchIndexResponse> = None;
-	let mut first_retrieved: Vec<Uuid> = Vec::new();
+	let mut first_retrieved_ids: Vec<Uuid> = Vec::new();
 	let mut trace_ids: Vec<Uuid> = Vec::with_capacity(runs as usize);
 	let mut latency_total_ms = 0.0_f64;
 	let mut positional_churn_sum = 0.0_f64;
@@ -1233,17 +1354,18 @@ async fn run_query_n_times(
 
 		trace_ids.push(response.trace_id);
 
-		let retrieved = unique_ids(response.items.iter().map(|item| item.note_id));
+		let retrieved = unique_items(&response.items);
+		let retrieved_ids = retrieved.iter().map(|item| item.note_id).collect::<Vec<_>>();
 
 		if run_idx == 0 {
-			first_retrieved = retrieved;
+			first_retrieved_ids = retrieved_ids;
 			first_response = Some(response);
 
 			continue;
 		}
 
 		let (positional_churn_at_k, set_churn_at_k) =
-			churn_against_baseline_at_k(&first_retrieved, &retrieved, k);
+			churn_against_baseline_at_k(&first_retrieved_ids, &retrieved_ids, k);
 
 		positional_churn_sum += positional_churn_at_k;
 		set_churn_sum += set_churn_at_k;
@@ -1271,7 +1393,50 @@ async fn run_query_n_times(
 
 #[cfg(test)]
 mod tests {
-	use crate::{OffsetDateTime, Uuid, retrieval_top_rank_retention};
+	use std::collections::HashSet;
+
+	use crate::{
+		ExpectedKind, OffsetDateTime, Uuid, compute_metrics_for_keys, resolve_expected_mode,
+		retrieval_top_rank_retention,
+	};
+
+	#[test]
+	fn resolve_expected_mode_requires_exactly_one_definition() {
+		let index = 0;
+		let note_ids = vec![Uuid::new_v4()];
+		let expected_keys = vec!["key-1".to_string()];
+		let note_only = resolve_expected_mode(index, &note_ids, &[]);
+		let key_only = resolve_expected_mode(index, &[], &expected_keys);
+		let none = resolve_expected_mode(index, &[], &[]);
+		let both = resolve_expected_mode(index, &note_ids, &expected_keys);
+
+		assert!(matches!(note_only.unwrap(), ExpectedKind::NoteId));
+		assert!(matches!(key_only.unwrap(), ExpectedKind::Key));
+		assert!(none.is_err(), "Expected missing expectations to be rejected");
+		assert!(both.is_err(), "Expected both expectation fields to be rejected");
+	}
+
+	#[test]
+	fn compute_metrics_for_keys_counts_first_hit_per_unique_key_and_ignores_missing_keys() {
+		let expected: HashSet<String> =
+			["alpha", "beta", "gamma"].into_iter().map(String::from).collect();
+		let retrieved = vec![
+			None,
+			Some("alpha".to_string()),
+			Some("alpha".to_string()),
+			Some("gamma".to_string()),
+			Some("missing".to_string()),
+		];
+		let metrics = compute_metrics_for_keys(&retrieved, &expected);
+		let expected_dcg = 1.0 / (3.0_f64).log2() + 1.0 / (5.0_f64).log2();
+		let expected_idcg = 1.0 + 1.0 / (3.0_f64).log2() + 1.0 / (4.0_f64).log2();
+
+		assert_eq!(metrics.relevant_count, 2);
+		assert!((metrics.precision_at_k - (2.0 / 5.0)).abs() < 1e-12);
+		assert!((metrics.recall_at_k - (2.0 / 3.0)).abs() < 1e-12);
+		assert!((metrics.rr - (1.0 / 2.0)).abs() < 1e-12);
+		assert!((metrics.ndcg - (expected_dcg / expected_idcg)).abs() < 1e-12);
+	}
 
 	#[test]
 	fn retrieval_top_rank_retention_counts_unique_notes_and_retained_notes() {
