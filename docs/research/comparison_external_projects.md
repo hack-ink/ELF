@@ -93,22 +93,20 @@ Capability notes:
 - [claude-mem](https://github.com/thedotmack/claude-mem): Strong automatic capture and progressive disclosure UX, plus a practical local web viewer for inspection. Trade-off: optimized for Claude session continuity, with fewer explicit deterministic ingestion boundaries.
 - [mem0](https://github.com/mem0ai/mem0): Strong ecosystem reach (SDK + hosted + OpenMemory), multi-entity scoping, and lifecycle controls like `expiration_date`. Trade-off: ingestion and retrieval behavior depends heavily on configurable LLM-assisted flows, which can be less deterministic by default.
 - [OpenViking](https://github.com/volcengine/OpenViking): Strong context filesystem paradigm (`viking://`), hierarchical retrieval, and session-centric context iteration. Trade-off: relation model is URI-link based (not property graph), and adoption still requires adapting patterns into ELF's evidence-bound note contract.
-- [NanoGraph (nano-graphrag)](https://github.com/gusye1234/nano-graphrag): Strong lightweight GraphRAG implementation and compact local/global query loop. Trade-off: project scope is GraphRAG workflow prototyping rather than multi-tenant, evidence-bound service contracts.
+- [nanograph](https://github.com/aaltshuler/nanograph): Strong typed schema + typed query developer ergonomics. Trade-off: focuses on graph-first DX patterns rather than ELF's evidence-bound notes + multi-tenant service contract.
 
-## NanoGraph (nano-graphrag) Snapshot (New)
+## nanograph Snapshot (New)
 
 Snapshot date for this subsection: March 4, 2026.
 
-- NanoGraph positions itself as a small GraphRAG implementation focused on a compact code footprint and hackability.
-- Query flow exposes local/global/naive modes and supports async insert/query usage.
-- Graph storage is pluggable: NetworkX by default with optional Neo4j setup guidance.
-- Relevance for ELF: useful reference for graph query ergonomics and lightweight graph processing patterns, while ELF remains service-first with explicit scope/evidence governance.
+- nanograph's docs emphasize typed schema and typed query surfaces for working with structured graph data.
+- Relevance for ELF: a concrete reference for making graph-lite interaction feel like a first-class API (schema + query + explain), while ELF remains evidence-bound and scope-governed.
 
 Primary references:
 
-- https://github.com/gusye1234/nano-graphrag
-- https://raw.githubusercontent.com/gusye1234/nano-graphrag/main/readme.md
-- https://raw.githubusercontent.com/gusye1234/nano-graphrag/main/docs/use_neo4j_for_graphrag.md
+- [nanograph](https://github.com/aaltshuler/nanograph)
+- [Schema docs](https://github.com/aaltshuler/nanograph/blob/main/docs/user/schema.md)
+- [Query docs](https://github.com/aaltshuler/nanograph/blob/main/docs/user/queries.md)
 
 ## OpenViking Deep Dive (New)
 
