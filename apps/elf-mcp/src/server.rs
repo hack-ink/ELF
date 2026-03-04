@@ -233,6 +233,15 @@ impl ElfMcp {
 	}
 
 	#[rmcp::tool(
+		name = "elf_graph_query",
+		description = "Query graph entities and relations by structured criteria.",
+		input_schema = graph_query_schema()
+	)]
+	async fn elf_graph_query(&self, params: JsonObject) -> Result<CallToolResult, ErrorData> {
+		self.forward(HttpMethod::Post, "/v2/graph/query", params, None).await
+	}
+
+	#[rmcp::tool(
 		name = "elf_events_ingest",
 		description = "Ingest an event by extracting evidence-bound notes using the configured LLM extractor.",
 		input_schema = events_ingest_schema()
@@ -771,31 +780,179 @@ fn take_optional_string(params: &mut JsonObject, key: &str) -> Result<Option<Str
 	Ok(Some(text.to_string()))
 }
 
-fn notes_ingest_schema() -> Arc<JsonObject> {
-	Arc::new(rmcp::object!({
+fn notes_structured_entity_schema() -> Value {
+	serde_json::json!({
 		"type": "object",
 		"additionalProperties": true,
-		"required": ["scope", "notes"],
+		"required": ["canonical"],
 		"properties": {
-			"scope": { "type": "string" },
-			"notes": {
-				"type": "array",
+			"canonical": { "type": "string" },
+			"kind": { "type": ["string", "null"] },
+			"aliases": {
+				"type": ["array", "null"],
+				"items": { "type": "string" }
+			}
+		}
+	})
+}
+
+fn notes_structured_relation_object_schema() -> Value {
+	serde_json::json!({
+		"type": "object",
+		"additionalProperties": true,
+		"oneOf": [
+			{
+				"type": "object",
+				"required": ["entity"],
+				"properties": {
+					"entity": notes_structured_entity_schema(),
+					"value": { "type": "null" }
+				}
+			},
+			{
+				"type": "object",
+				"required": ["value"],
+				"properties": {
+					"entity": { "type": ["object", "null"] },
+					"value": { "type": "string" }
+				}
+			}
+		]
+	})
+}
+
+fn notes_structured_schema() -> Value {
+	serde_json::json!({
+		"type": ["object", "null"],
+		"additionalProperties": true,
+		"properties": {
+			"summary": { "type": ["string", "null"] },
+			"facts": {
+				"type": ["array", "null"],
+				"items": { "type": "string" }
+			},
+			"concepts": {
+				"type": ["array", "null"],
+				"items": { "type": "string" }
+			},
+			"entities": {
+				"type": ["array", "null"],
+				"items": notes_structured_entity_schema()
+			},
+			"relations": {
+				"type": ["array", "null"],
 				"items": {
 					"type": "object",
 					"additionalProperties": true,
-					"required": ["type", "text", "importance", "confidence", "source_ref"],
+					"required": ["subject", "predicate", "object"],
 					"properties": {
-						"type": { "type": "string" },
-						"key": { "type": ["string", "null"] },
-						"text": { "type": "string" },
-						"write_policy": { "type": ["object", "null"] },
-						"importance": { "type": "number" },
-						"confidence": { "type": "number" },
-						"ttl_days": { "type": ["integer", "null"] },
-						"source_ref": { "type": "object", "additionalProperties": true }
+						"subject": notes_structured_entity_schema(),
+						"predicate": { "type": "string" },
+						"object": notes_structured_relation_object_schema(),
+						"valid_from": { "type": ["string", "null"], "format": "date-time" },
+						"valid_to": { "type": ["string", "null"], "format": "date-time" }
 					}
 				}
 			}
+		}
+	})
+}
+
+fn notes_ingest_schema() -> Arc<JsonObject> {
+	Arc::new(
+		serde_json::from_value(serde_json::json!({
+			"type": "object",
+			"additionalProperties": true,
+			"required": ["scope", "notes"],
+			"properties": {
+				"scope": { "type": "string" },
+				"notes": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"additionalProperties": true,
+						"required": ["type", "text", "importance", "confidence", "source_ref"],
+						"properties": {
+							"type": { "type": "string" },
+							"key": { "type": ["string", "null"] },
+							"text": { "type": "string" },
+							"write_policy": { "type": ["object", "null"] },
+							"importance": { "type": "number" },
+							"confidence": { "type": "number" },
+							"ttl_days": { "type": ["integer", "null"] },
+							"source_ref": { "type": "object", "additionalProperties": true },
+							"structured": notes_structured_schema()
+						}
+					}
+				}
+			}
+		}))
+		.expect("notes_ingest_schema must be valid JSON object"),
+	)
+}
+
+fn graph_query_schema() -> Arc<JsonObject> {
+	Arc::new(rmcp::object!({
+		"type": "object",
+		"additionalProperties": true,
+		"required": ["subject"],
+		"properties": {
+			"subject": {
+				"oneOf": [
+					{
+						"type": "object",
+						"required": ["entity_id"],
+						"properties": {
+							"entity_id": {
+								"type": "string",
+								"format": "uuid"
+							}
+						}
+					},
+					{
+						"type": "object",
+						"required": ["surface"],
+						"properties": {
+							"surface": { "type": "string" }
+						}
+					}
+				]
+			},
+			"predicate": {
+				"oneOf": [
+					{
+						"type": "object",
+						"required": ["predicate_id"],
+						"properties": {
+							"predicate_id": {
+								"type": "string",
+								"format": "uuid"
+							}
+						}
+					},
+					{
+						"type": "object",
+						"required": ["surface"],
+						"properties": {
+							"surface": { "type": "string" }
+						}
+					}
+				]
+			},
+			"scopes": {
+				"type": ["array", "null"],
+				"items": { "type": "string" }
+			},
+			"as_of": {
+				"type": ["string", "null"],
+				"format": "date-time"
+			},
+			"limit": {
+				"type": ["integer", "null"],
+				"minimum": 1,
+				"maximum": 200
+			},
+			"explain": { "type": ["boolean", "null"] }
 		}
 	}))
 }
@@ -1338,12 +1495,18 @@ mod tests {
 
 	use crate::{McpAuthState, server::HttpMethod};
 
-	const ALL_TOOL_DEFINITIONS: [ToolDefinition; 27] = [
+	const ALL_TOOL_DEFINITIONS: [ToolDefinition; 28] = [
 		ToolDefinition::new(
 			"elf_notes_ingest",
 			HttpMethod::Post,
 			"/v2/notes/ingest",
 			"Ingest deterministic notes into ELF. This tool never calls an LLM.",
+		),
+		ToolDefinition::new(
+			"elf_graph_query",
+			HttpMethod::Post,
+			"/v2/graph/query",
+			"Query graph entities and relations by structured criteria.",
 		),
 		ToolDefinition::new(
 			"elf_events_ingest",
@@ -1532,6 +1695,7 @@ mod tests {
 		let tools = build_tools();
 		let expected = [
 			"elf_notes_ingest",
+			"elf_graph_query",
 			"elf_events_ingest",
 			"elf_searches_create",
 			"elf_searches_get",
@@ -1565,6 +1729,81 @@ mod tests {
 		}
 
 		assert_eq!(tools.len(), expected.len(), "Unexpected tool count for MCP registration.");
+	}
+
+	#[test]
+	fn notes_ingest_schema_includes_structured_entities_relations() {
+		let schema = super::notes_ingest_schema();
+		let notes = schema
+			.get("properties")
+			.and_then(serde_json::Value::as_object)
+			.expect("notes ingest schema is missing properties.")
+			.get("notes")
+			.and_then(serde_json::Value::as_object)
+			.expect("notes schema is missing notes.");
+		let note_items = notes
+			.get("items")
+			.and_then(serde_json::Value::as_object)
+			.expect("notes schema is missing items.");
+		let note_properties = note_items
+			.get("properties")
+			.and_then(serde_json::Value::as_object)
+			.expect("notes schema is missing note item properties.");
+		let structured = note_properties
+			.get("structured")
+			.and_then(serde_json::Value::as_object)
+			.expect("notes schema is missing structured.");
+		let structured_type = structured
+			.get("type")
+			.and_then(serde_json::Value::as_array)
+			.expect("structured.type is not an array.");
+
+		assert!(
+			structured_type.contains(&serde_json::Value::String("object".to_string()))
+				&& structured_type.contains(&serde_json::Value::String("null".to_string()))
+		);
+
+		let structured_properties = structured
+			.get("properties")
+			.and_then(serde_json::Value::as_object)
+			.expect("structured schema is missing properties.");
+
+		assert!(structured_properties.contains_key("entities"));
+		assert!(structured_properties.contains_key("relations"));
+
+		let relation_object = structured_properties
+			.get("relations")
+			.and_then(serde_json::Value::as_object)
+			.and_then(|relations| relations.get("items"))
+			.and_then(serde_json::Value::as_object)
+			.and_then(|items| items.get("properties"))
+			.and_then(serde_json::Value::as_object)
+			.expect("relations schema is missing properties.")
+			.get("object")
+			.and_then(serde_json::Value::as_object)
+			.expect("relation schema is missing object.");
+		let one_of = relation_object
+			.get("oneOf")
+			.and_then(serde_json::Value::as_array)
+			.expect("relation object is missing oneOf.");
+
+		assert_eq!(one_of.len(), 2, "relation object should have entity/value oneOf variants.");
+		assert!(one_of.iter().any(|variant| {
+			variant.as_object().is_some_and(|branch| {
+				branch
+					.get("required")
+					.and_then(serde_json::Value::as_array)
+					.is_some_and(|required| required.iter().any(|value| value == "entity"))
+			})
+		}));
+		assert!(one_of.iter().any(|variant| {
+			variant.as_object().is_some_and(|branch| {
+				branch
+					.get("required")
+					.and_then(serde_json::Value::as_array)
+					.is_some_and(|required| required.iter().any(|value| value == "value"))
+			})
+		}));
 	}
 
 	#[test]

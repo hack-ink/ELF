@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use crate::{
 	Error, Result,
-	models::{GraphFact, GraphPredicate, GraphPredicateAlias},
+	models::{GraphEntity, GraphFact, GraphPredicate, GraphPredicateAlias},
 };
 
 const GRAPH_PREDICATE_SCOPE_GLOBAL: &str = "__global__";
@@ -417,6 +417,139 @@ ON CONFLICT (scope_key, alias_norm) DO NOTHING",
 	.await?;
 
 	Ok(predicate_row)
+}
+
+pub async fn resolve_predicate_no_register(
+	executor: &mut PgConnection,
+	tenant_id: &str,
+	project_id: &str,
+	predicate_surface: &str,
+) -> Result<Option<GraphPredicate>> {
+	let predicate_surface = predicate_surface.trim();
+
+	if predicate_surface.is_empty() {
+		return Err(Error::InvalidArgument(
+			"graph predicate is required; predicate_surface must not be empty".to_string(),
+		));
+	}
+
+	let alias_norm = normalize_predicate_name(predicate_surface);
+	let tenant_project_scope = predicate_scope_key_tenant_project(tenant_id, project_id);
+	let project_scope = predicate_scope_key_project(project_id);
+	let global_scope = GRAPH_PREDICATE_SCOPE_GLOBAL.to_string();
+
+	for scope_key in [&tenant_project_scope, &project_scope, &global_scope] {
+		if let Some(row) = sqlx::query_as::<_, GraphPredicate>(
+			"\
+SELECT
+	gp.predicate_id,
+	gp.scope_key,
+	gp.tenant_id,
+	gp.project_id,
+	gp.canonical,
+	gp.canonical_norm,
+	gp.cardinality,
+	gp.status,
+	gp.created_at,
+	gp.updated_at
+FROM graph_predicate_aliases gpa
+JOIN graph_predicates gp ON gp.predicate_id = gpa.predicate_id
+WHERE gpa.scope_key = $1
+	AND gpa.alias_norm = $2
+LIMIT 1",
+		)
+		.bind(scope_key)
+		.bind(&alias_norm)
+		.fetch_optional(&mut *executor)
+		.await?
+		{
+			return Ok(Some(row));
+		}
+	}
+
+	Ok(None)
+}
+
+pub async fn resolve_entity_by_surface(
+	executor: &mut PgConnection,
+	tenant_id: &str,
+	project_id: &str,
+	entity_surface: &str,
+) -> Result<Option<GraphEntity>> {
+	let entity_surface = entity_surface.trim();
+
+	if entity_surface.is_empty() {
+		return Err(Error::InvalidArgument(
+			"graph entity is required; entity_surface must not be empty".to_string(),
+		));
+	}
+
+	let canonical_norm = normalize_entity_name(entity_surface);
+	let canonical = sqlx::query_as::<_, GraphEntity>(
+		"\
+SELECT
+	entity_id,
+	tenant_id,
+	project_id,
+	canonical,
+	canonical_norm,
+	kind,
+	created_at,
+	updated_at
+FROM graph_entities
+WHERE tenant_id = $1
+	AND project_id = $2
+	AND canonical_norm = $3",
+	)
+	.bind(tenant_id)
+	.bind(project_id)
+	.bind(&canonical_norm)
+	.fetch_optional(&mut *executor)
+	.await?;
+
+	if let Some(entity) = canonical {
+		return Ok(Some(entity));
+	}
+
+	let alias_matches = sqlx::query_as::<_, GraphEntity>(
+		"\
+SELECT
+	ge.entity_id,
+	ge.tenant_id,
+	ge.project_id,
+	ge.canonical,
+	ge.canonical_norm,
+	ge.kind,
+	ge.created_at,
+	ge.updated_at
+FROM graph_entity_aliases gea
+JOIN graph_entities ge ON ge.entity_id = gea.entity_id
+WHERE ge.tenant_id = $1
+	AND ge.project_id = $2
+	AND gea.alias_norm = $3",
+	)
+	.bind(tenant_id)
+	.bind(project_id)
+	.bind(&canonical_norm)
+	.fetch_all(&mut *executor)
+	.await?;
+
+	if alias_matches.len() == 1 {
+		return Ok(alias_matches.into_iter().next());
+	}
+	if alias_matches.len() > 1 {
+		let candidates = alias_matches
+			.iter()
+			.map(|entity| entity.entity_id.to_string())
+			.collect::<Vec<_>>()
+			.join(", ");
+
+		return Err(Error::Conflict(format!(
+			"graph entity surface is ambiguous; entity_surface={entity_surface} alias_norm={canonical_norm} candidates=[{candidates}]"
+		)));
+	}
+
+	Ok(None)
 }
 
 #[allow(clippy::too_many_arguments)]
