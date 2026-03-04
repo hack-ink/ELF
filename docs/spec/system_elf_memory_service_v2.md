@@ -770,6 +770,7 @@ Input:
 - tenant_id, project_id, agent_id
 - read_profile
 - query (English only)
+- mode (`quick_find` or `planned_search`) - required
 - optional top_k, candidate_k, filter, record_hits
 
 Config:
@@ -897,8 +898,10 @@ Headers:
 Body:
 {
   "query": "English-only",
+  "mode": "quick_find",
   "top_k": 12,
   "candidate_k": 60,
+  "payload_level": "l0",
   "filter": {
     "schema": "search_filter_expr/v1",
     "expr": {
@@ -1516,9 +1519,11 @@ Headers:
 
 Body:
 {
+  "mode": "quick_find",
   "query": "English-only",
   "top_k": 12,
   "candidate_k": 60,
+  "payload_level": "l0",
   "filter": {
     "schema": "search_filter_expr/v1",
     "expr": {
@@ -1533,9 +1538,14 @@ Body:
 
 Response:
 {
+  "mode": "quick_find",
   "trace_id": "uuid",
   "search_id": "uuid",
   "expires_at": "...",
+  "trajectory_summary": {
+    "schema": "search_retrieval_trajectory/v1",
+    "stages": [ ... ]
+  } | null,
   "items": [
     {
       "note_id": "uuid",
@@ -1554,7 +1564,12 @@ Response:
 
 Notes:
 - This endpoint creates a search session and returns a compact note index view.
+- `trajectory_summary` is optional and includes staged retrieval trajectory metadata via `search_retrieval_trajectory/v1`, with `stages` only containing summary-level stats per stage (e.g., counts/timing); it intentionally excludes full stage internals.
+- `mode` is required and controls how much planning/latency tradeoff the query uses: `quick_find` for lower-latency paths, `planned_search` for planning-focused retrieval.
+- `query_plan` is included only when `mode` is `planned_search`.
 - record_hits is always false for this endpoint.
+- `payload_level` is optional and defaults to `l0`.
+- This endpoint does not return full note text; use `/v2/searches/{search_id}/notes` for progressive note hydration.
 
 GET /v2/searches/{search_id}?top_k=12&touch=true
 
@@ -1564,6 +1579,7 @@ Headers:
 Query parameters:
 - top_k (optional): Override the number of items returned.
 - touch (optional, default true): When true, extend the search session TTL.
+- payload_level (optional, default l0): Accepted for request parity with note-detail shaping.
 
 Response: Same as POST /v2/searches.
 
@@ -1574,6 +1590,7 @@ Headers:
 
 Query parameters:
 - group_by (optional, default day): day|none
+- payload_level (optional, default l0): if `group_by` is omitted, this endpoint defaults to `none` for l0 and `day` for other levels.
 
 Response:
 {
@@ -1595,6 +1612,7 @@ Headers:
 Body:
 {
   "note_ids": ["uuid"],
+  "payload_level": "l0",
   "record_hits": true
 }
 
@@ -1614,6 +1632,17 @@ Response:
 Notes:
 - record_hits defaults to true when omitted.
 - This endpoint touches the search session and extends its TTL.
+
+Payload-level semantics for search note details:
+
+| payload_level | `searches/{search_id}/notes`.text | `searches/{search_id}/notes`.structured | `searches/{search_id}/notes`.source_ref | `/admin/searches/raw`.source_ref |
+| --- | --- | --- | --- | --- |
+| l0 | compact summary (bounded by `max_note_chars`) | `null` | `{}` | `{}` |
+| l1 | compact summary (structured summary if available, else compact text) | object | `{}` | `{}` |
+| l2 | full text | object | full object | full object |
+
+Notes:
+- Omitted `payload_level` defaults to `l0` on both `/v2/searches/{search_id}/notes` and `/v2/admin/searches/raw`.
 
 GET /v2/notes?scope=project_shared&status=active&type=fact
 
@@ -1815,8 +1844,7 @@ Original query:
 - Tools map 1:1 to v2 endpoints:
   - elf_notes_ingest -> POST /v2/notes/ingest
   - elf_events_ingest -> POST /v2/events/ingest
-  - elf_search_quick_create -> POST /v2/search/quick
-  - elf_search_planned_create -> POST /v2/search/planned
+  - elf_searches_create -> POST /v2/searches
   - elf_searches_get -> GET /v2/searches/{search_id}
   - elf_searches_timeline -> GET /v2/searches/{search_id}/timeline
   - elf_searches_notes -> POST /v2/searches/{search_id}/notes
