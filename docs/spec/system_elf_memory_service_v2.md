@@ -1269,7 +1269,7 @@ Request correlation:
 - If omitted, elf-api generates a new UUID.
 - Response includes `X-ELF-Request-Id` header and `request_id` in JSON responses.
 
-Search creation endpoints also require:
+Search creation and graph query endpoints also require:
 - X-ELF-Read-Profile (required): private_only|private_plus_project|all_scopes
 
 Header rules:
@@ -1510,6 +1510,79 @@ Response:
   "version": 1,
   "updated_at": "..."
 }
+
+POST /v2/graph/query
+
+Headers:
+- X-ELF-Tenant-Id, X-ELF-Project-Id, X-ELF-Agent-Id
+- X-ELF-Read-Profile
+
+Body:
+{
+  "subject": { "entity_id": "uuid" } | { "surface": "string" },
+  "predicate": { "predicate_id": "uuid" } | { "surface": "string" } | null,
+  "scopes": ["agent_private|project_shared|org_shared"] | null,
+  "as_of": "RFC3339 datetime|null",
+  "limit": 50,
+  "explain": false
+}
+
+Response:
+{
+  "as_of": "...",
+  "subject": {
+    "entity_id": "uuid",
+    "canonical": "string",
+    "kind": "string|null"
+  },
+  "predicate": {
+    "predicate_id": "uuid",
+    "canonical": "string"
+  } | null,
+  "scopes": ["agent_private|project_shared|org_shared"],
+  "truncated": false,
+  "facts": [
+    {
+      "fact_id": "uuid",
+      "scope": "agent_private|project_shared|org_shared",
+      "actor": "agent_id",
+      "predicate": "string",
+      "predicate_id": "uuid|null",
+      "valid_from": "...",
+      "valid_to": "...|null",
+      "object": {
+        "entity": {
+          "entity_id": "uuid",
+          "canonical": "string",
+          "kind": "string|null"
+        } | null,
+        "value": "string|null"
+      },
+      "evidence_note_ids": ["uuid"]
+    }
+  ],
+  "explain": {
+    "schema": "elf.graph_query/v1",
+    "as_of": "...",
+    "requested_limit": 50,
+    "allowed_scopes": ["..."],
+    "effective_scopes": ["..."],
+    "queried_rows": 51,
+    "returned_rows": 50,
+    "truncated": true
+  } | null
+}
+
+Notes:
+- `subject` is required and accepts exactly one lookup shape: `entity_id` or `surface`.
+- `predicate` is optional; when omitted, matching facts across predicates are eligible.
+- `X-ELF-Read-Profile` is required and gates readable scopes via `[scopes.read_profiles]`.
+- `scopes` is optional. If omitted, the endpoint uses all scopes allowed by `read_profile`. If provided, each scope must be allowed by `read_profile`.
+- Shared scopes still apply grant checks; unreadable shared facts are not returned.
+- `limit` defaults to 50 and must be in the range 1..200.
+- `truncated = true` means additional facts matched but were clipped by `limit`.
+- `evidence_note_ids` is ordered by evidence creation time and capped to 16 IDs per fact.
+- `explain` defaults to false; when true, response includes `explain.schema = "elf.graph_query/v1"`.
 
 POST /v2/searches
 
@@ -1844,6 +1917,7 @@ Original query:
 - Tools map 1:1 to v2 endpoints:
   - elf_notes_ingest -> POST /v2/notes/ingest
   - elf_events_ingest -> POST /v2/events/ingest
+  - elf_graph_query -> POST /v2/graph/query
   - elf_searches_create -> POST /v2/searches
   - elf_searches_get -> GET /v2/searches/{search_id}
   - elf_searches_timeline -> GET /v2/searches/{search_id}/timeline

@@ -36,6 +36,10 @@ Audience: This documentation is written for LLM consumption and should remain ex
 - `search_filter_expr/v1`:
   - `docs/spec/system_search_filter_expr_v1.md`
   - Status: active
+- `elf.graph_query/v1` + `POST /v2/graph/query`:
+  - `docs/spec/system_elf_memory_service_v2.md`
+  - `docs/spec/system_version_registry.md`
+  - Status: active
 - `elf.note_provenance_bundle/v1`:
   - `docs/spec/system_provenance_mapping_v1.md`
   - Status: active

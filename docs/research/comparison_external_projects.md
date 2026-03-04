@@ -65,7 +65,7 @@ OpenViking is included as a newly reviewed project with mechanism-level analysis
 | Source-of-truth storage with rebuildable index | ✅  | ✅        | —   | —          | —    |
 | Multi-tenant scoping                          | ✅  | —         | —   | —          | ✅    |
 | TTL and lifecycle policies                    | ✅  | —         | —   | —          | ✅    |
-| First-class graph memory mode                | —   | —         | —   | —          | ✅ (optional) |
+| First-class graph memory mode                | ⚠️ (graph-lite via `POST /v2/graph/query`) | — | — | — | ✅ (optional) |
 | Redaction or write-time exclusion controls    | ✅  | —         | —   | ⚠️         | ⚠️   |
 
 ## Operations And Evaluation
@@ -80,6 +80,7 @@ Capability notes:
 - qmd HTTP support is MCP Streamable HTTP (`POST /mcp`) rather than a separate REST memory API ([source](https://github.com/tobi/qmd?tab=readme-ov-file#streamable-http)).
 - memsearch integration is currently plugin/CLI-centric; no standalone MCP server is documented ([source](https://github.com/zilliztech/memsearch)).
 - memsearch progressive disclosure is described in the Claude plugin workflow docs, not as a generic service contract ([source](https://github.com/zilliztech/memsearch/tree/main/ccplugin)).
+- ELF graph mode is intentionally graph-lite: scoped temporal facts are queried through `POST /v2/graph/query`, with optional explain payload `elf.graph_query/v1` and evidence-linked fact rows.
 - mem0 graph memory is optional and requires an OpenAI-compatible LLM setup ([source](https://docs.mem0.ai/platform/features/graph-memory)).
 - mem0 search docs describe optional reranking, query optimization, and keyword-search toggles ([source](https://docs.mem0.ai/platform/features/search-filters)).
 - mem0 lifecycle docs describe `expiration_date` and automatic exclusion of expired memories from retrieval ([source](https://docs.mem0.ai/cookbooks/essentials/memory-expiration-short-and-long-term)).
@@ -92,6 +93,22 @@ Capability notes:
 - [claude-mem](https://github.com/thedotmack/claude-mem): Strong automatic capture and progressive disclosure UX, plus a practical local web viewer for inspection. Trade-off: optimized for Claude session continuity, with fewer explicit deterministic ingestion boundaries.
 - [mem0](https://github.com/mem0ai/mem0): Strong ecosystem reach (SDK + hosted + OpenMemory), multi-entity scoping, and lifecycle controls like `expiration_date`. Trade-off: ingestion and retrieval behavior depends heavily on configurable LLM-assisted flows, which can be less deterministic by default.
 - [OpenViking](https://github.com/volcengine/OpenViking): Strong context filesystem paradigm (`viking://`), hierarchical retrieval, and session-centric context iteration. Trade-off: relation model is URI-link based (not property graph), and adoption still requires adapting patterns into ELF's evidence-bound note contract.
+- [NanoGraph (nano-graphrag)](https://github.com/gusye1234/nano-graphrag): Strong lightweight GraphRAG implementation and compact local/global query loop. Trade-off: project scope is GraphRAG workflow prototyping rather than multi-tenant, evidence-bound service contracts.
+
+## NanoGraph (nano-graphrag) Snapshot (New)
+
+Snapshot date for this subsection: March 4, 2026.
+
+- NanoGraph positions itself as a small GraphRAG implementation focused on a compact code footprint and hackability.
+- Query flow exposes local/global/naive modes and supports async insert/query usage.
+- Graph storage is pluggable: NetworkX by default with optional Neo4j setup guidance.
+- Relevance for ELF: useful reference for graph query ergonomics and lightweight graph processing patterns, while ELF remains service-first with explicit scope/evidence governance.
+
+Primary references:
+
+- https://github.com/gusye1234/nano-graphrag
+- https://raw.githubusercontent.com/gusye1234/nano-graphrag/main/readme.md
+- https://raw.githubusercontent.com/gusye1234/nano-graphrag/main/docs/use_neo4j_for_graphrag.md
 
 ## OpenViking Deep Dive (New)
 
@@ -130,7 +147,7 @@ Key takeaways for ELF from this deeper pass:
 
 - No built-in web UI viewer yet (claude-mem and OpenMemory provide this today).
 - No hosted/cloud product option (mem0 provides managed deployment).
-- No first-class graph memory in released schema yet (mem0 provides optional graph mode now).
+- Graph support is currently graph-lite (`POST /v2/graph/query`) and does not yet include multi-hop/global graph reasoning patterns used by GraphRAG-focused projects.
 - Less turnkey for zero-config local plugin workflows than memsearch/claude-mem defaults.
 - Supports explicit `quick_find` vs `planned_search` split through `POST /v2/searches` mode.
 - Stage-level retrieval trajectory summary is now first-class on `/v2/searches` responses (`search_retrieval_trajectory/v1`), but operator-facing trajectory inspection ergonomics are still evolving.
