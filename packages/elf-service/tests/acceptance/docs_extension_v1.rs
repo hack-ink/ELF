@@ -1505,7 +1505,7 @@ async fn docs_search_l0_note_pointer_roundtrip_hydrates_doc() {
 			agent_id: "agent".to_string(),
 			token_id: None,
 			read_profile: "private_only".to_string(),
-			payload_level: Default::default(),
+			payload_level: elf_service::PayloadLevel::L2,
 			query: "peregrine".to_string(),
 			top_k: Some(5),
 			candidate_k: Some(20),
