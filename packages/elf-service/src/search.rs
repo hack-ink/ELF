@@ -13,13 +13,13 @@ use qdrant_client::qdrant::{
 	Condition, Document, Filter, Fusion, MinShould, PrefetchQueryBuilder, Query,
 	QueryPointsBuilder, ScoredPoint,
 };
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 use serde_json::Value;
 use sqlx::{FromRow, PgConnection, PgExecutor, PgPool, QueryBuilder, Row};
 use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
-use crate::{ElfService, Error, Result, access, ranking_explain_v2};
+use crate::{ElfService, Result, access, ranking_explain_v2};
 use elf_config::{Config, SearchCache};
 use elf_storage::{
 	models::MemoryNote,
@@ -345,12 +345,14 @@ pub struct SearchItem {
 pub struct SearchResponse {
 	pub trace_id: Uuid,
 	pub items: Vec<SearchItem>,
+	pub trajectory_summary: Option<SearchTrajectorySummary>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SearchRawPlannedResponse {
 	pub trace_id: Uuid,
 	pub items: Vec<SearchItem>,
+	pub trajectory_summary: Option<SearchTrajectorySummary>,
 	pub query_plan: QueryPlan,
 }
 
@@ -522,7 +524,18 @@ pub struct SearchExplainTrajectory {
 pub struct SearchExplainTrajectoryStage {
 	pub stage_order: u32,
 	pub stage_name: String,
+	pub stage_payload: Value,
 	pub metrics: Value,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub match_info: Option<SearchExplainTrajectoryMatch>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SearchExplainTrajectoryMatch {
+	pub kind: String,
+	pub item_id: Option<Uuid>,
+	pub note_id: Option<Uuid>,
+	pub chunk_id: Option<Uuid>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -588,15 +601,6 @@ pub struct TraceRecentListResponse {
 	pub traces: Vec<RecentTraceHeader>,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub next_cursor: Option<TraceRecentCursor>,
-}
-
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-#[derive(Default)]
-pub enum TraceBundleMode {
-	#[default]
-	Bounded,
-	Full,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -704,6 +708,7 @@ struct ScoreSnippetArgs<'a, 'k> {
 	cache_cfg: &'a SearchCache,
 	now: OffsetDateTime,
 	candidate_count: usize,
+	skip_rerank: bool,
 }
 
 struct ScoreCandidateCtx<'a, 'k> {
@@ -737,6 +742,7 @@ struct MaybeDynamicSearchArgs<'a> {
 	record_hits_enabled: bool,
 	ranking_override: Option<&'a RankingRequestOverride>,
 	retrieval_sources_policy: &'a ResolvedRetrievalSourcesPolicy,
+	payload_level: PayloadLevel,
 }
 
 struct SearchRetrievalArgs<'a> {
@@ -1206,6 +1212,7 @@ struct FinishSearchArgs<'a> {
 	filter: Option<&'a SearchFilter>,
 	requested_candidate_k: u32,
 	effective_candidate_k: u32,
+	payload_level: PayloadLevel,
 }
 
 struct FinishSearchPolicies {
@@ -1262,6 +1269,7 @@ struct BuildTraceArgs<'a> {
 	now: OffsetDateTime,
 	ranking_override: &'a Option<RankingRequestOverride>,
 	filter_impact: Option<SearchFilterImpact>,
+	payload_level: PayloadLevel,
 }
 
 struct BuildQueryPlanArgs<'a> {
@@ -1293,6 +1301,7 @@ struct RawSearchExecutionContext {
 	effective_candidate_k: u32,
 	query: String,
 	read_profile: String,
+	payload_level: PayloadLevel,
 	filter: Option<SearchFilter>,
 	record_hits_enabled: bool,
 	ranking_override: Option<RankingRequestOverride>,
@@ -1403,13 +1412,59 @@ struct DynamicGateSummary {
 	observed_top_score: Option<f32>,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
+pub enum TraceBundleMode {
+	#[default]
+	Bounded,
+	Full,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum PayloadLevel {
 	#[default]
 	L0,
 	L1,
 	L2,
+}
+impl PayloadLevel {
+	fn as_str(self) -> &'static str {
+		match self {
+			Self::L0 => "l0",
+			Self::L1 => "l1",
+			Self::L2 => "l2",
+		}
+	}
+
+	fn parse(raw: &str) -> Option<Self> {
+		match raw.to_ascii_lowercase().as_str() {
+			"l0" => Some(Self::L0),
+			"l1" => Some(Self::L1),
+			"l2" => Some(Self::L2),
+			_ => None,
+		}
+	}
+}
+
+impl Serialize for PayloadLevel {
+	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: Serializer,
+	{
+		self.as_str().serialize(serializer)
+	}
+}
+
+impl<'de> Deserialize<'de> for PayloadLevel {
+	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+	where
+		D: Deserializer<'de>,
+	{
+		let raw = String::deserialize(deserializer)?;
+
+		Self::parse(&raw).ok_or_else(|| de::Error::custom("payload_level must be l0, l1, or l2"))
+	}
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1448,9 +1503,13 @@ enum RetrievalSourceKind {
 
 impl ElfService {
 	pub async fn search_raw_quick(&self, req: SearchRequest) -> Result<SearchResponse> {
-		self.execute_search_raw_path(req, RawSearchPath::Quick)
-			.await
-			.map(|response| SearchResponse { trace_id: response.trace_id, items: response.items })
+		self.execute_search_raw_path(req, RawSearchPath::Quick).await.map(|response| {
+			SearchResponse {
+				trace_id: response.trace_id,
+				items: response.items,
+				trajectory_summary: response.trajectory_summary,
+			}
+		})
 	}
 
 	pub async fn search_raw_planned(&self, req: SearchRequest) -> Result<SearchRawPlannedResponse> {
@@ -1458,9 +1517,11 @@ impl ElfService {
 	}
 
 	pub async fn search_raw(&self, req: SearchRequest) -> Result<SearchResponse> {
-		self.search_raw_planned(req)
-			.await
-			.map(|response| SearchResponse { trace_id: response.trace_id, items: response.items })
+		self.search_raw_planned(req).await.map(|response| SearchResponse {
+			trace_id: response.trace_id,
+			items: response.items,
+			trajectory_summary: response.trajectory_summary,
+		})
 	}
 
 	async fn execute_search_raw_path(
@@ -1505,6 +1566,7 @@ impl ElfService {
 				top_k: context.top_k,
 				record_hits_enabled: context.record_hits_enabled,
 				ranking_override: context.ranking_override.clone(),
+				payload_level: context.payload_level,
 				filter: context.filter.as_ref(),
 				requested_candidate_k: context.requested_candidate_k,
 				effective_candidate_k: context.effective_candidate_k,
@@ -1559,6 +1621,7 @@ impl ElfService {
 				record_hits_enabled: context.record_hits_enabled,
 				ranking_override: context.ranking_override.as_ref(),
 				retrieval_sources_policy: &context.retrieval_sources_policy,
+				payload_level: context.payload_level,
 			})
 			.await?;
 
@@ -1607,6 +1670,7 @@ impl ElfService {
 				top_k: context.top_k,
 				record_hits_enabled: context.record_hits_enabled,
 				ranking_override: context.ranking_override.clone(),
+				payload_level: context.payload_level,
 				filter: context.filter.as_ref(),
 				requested_candidate_k: context.requested_candidate_k,
 				effective_candidate_k: context.effective_candidate_k,
@@ -1646,7 +1710,7 @@ impl ElfService {
 			.as_ref()
 			.map(SearchFilter::parse)
 			.transpose()
-			.map_err(|err| Error::InvalidRequest { message: err.to_string() })?;
+			.map_err(|err| crate::Error::InvalidRequest { message: err.to_string() })?;
 		let effective_candidate_k = if filter.is_some() {
 			requested_candidate_k.saturating_mul(3).min(MAX_CANDIDATE_K).max(top_k)
 		} else {
@@ -1683,6 +1747,7 @@ impl ElfService {
 			filter,
 			query,
 			read_profile,
+			payload_level: req.payload_level,
 			record_hits_enabled,
 			ranking_override,
 			retrieval_sources_policy,
@@ -1720,7 +1785,12 @@ impl ElfService {
 			dynamic_gate,
 		});
 
-		SearchRawPlannedResponse { trace_id: response.trace_id, items: response.items, query_plan }
+		SearchRawPlannedResponse {
+			trace_id: response.trace_id,
+			items: response.items,
+			trajectory_summary: response.trajectory_summary,
+			query_plan,
+		}
 	}
 
 	async fn maybe_finish_dynamic_search(
@@ -1834,6 +1904,7 @@ impl ElfService {
 				top_k: args.top_k,
 				record_hits_enabled: args.record_hits_enabled,
 				ranking_override: args.ranking_override.cloned(),
+				payload_level: args.payload_level,
 				filter: args.service_filter,
 				requested_candidate_k: args.requested_candidate_k,
 				effective_candidate_k: args.effective_candidate_k,
@@ -2161,7 +2232,7 @@ impl ElfService {
 		let project_id = req.project_id.trim();
 
 		if tenant_id.is_empty() || project_id.is_empty() {
-			return Err(Error::InvalidRequest {
+			return Err(crate::Error::InvalidRequest {
 				message: "tenant_id and project_id are required.".to_string(),
 			});
 		}
@@ -2199,7 +2270,7 @@ WHERE i.item_id = $1 AND t.tenant_id = $2 AND t.project_id = $3",
 		.fetch_optional(&self.db.pool)
 		.await?;
 		let Some(row) = row else {
-			return Err(Error::InvalidRequest {
+			return Err(crate::Error::InvalidRequest {
 				message: "Unknown result_handle or trace not yet persisted.".to_string(),
 			});
 		};
@@ -2232,7 +2303,14 @@ WHERE i.item_id = $1 AND t.tenant_id = $2 AND t.project_id = $3",
 			rank: row.rank as u32,
 			explain,
 		};
-		let trajectory = load_item_trajectory(&self.db.pool, row.trace_id, row.item_id).await?;
+		let trajectory = load_item_trajectory(
+			&self.db.pool,
+			row.trace_id,
+			row.item_id,
+			row.note_id,
+			row.chunk_id,
+		)
+		.await?;
 
 		Ok(SearchExplainResponse { trace, item, trajectory })
 	}
@@ -2242,10 +2320,12 @@ WHERE i.item_id = $1 AND t.tenant_id = $2 AND t.project_id = $3",
 		let project_id = req.project_id.trim();
 
 		if req.agent_id.trim().is_empty() {
-			return Err(Error::InvalidRequest { message: "agent_id is required.".to_string() });
+			return Err(crate::Error::InvalidRequest {
+				message: "agent_id is required.".to_string(),
+			});
 		}
 		if tenant_id.is_empty() || project_id.is_empty() {
-			return Err(Error::InvalidRequest {
+			return Err(crate::Error::InvalidRequest {
 				message: "tenant_id and project_id are required.".to_string(),
 			});
 		}
@@ -2276,7 +2356,7 @@ WHERE trace_id = $1 AND tenant_id = $2 AND project_id = $3",
 		.fetch_optional(&self.db.pool)
 		.await?;
 		let Some(row) = row else {
-			return Err(Error::InvalidRequest { message: "Unknown trace_id.".to_string() });
+			return Err(crate::Error::InvalidRequest { message: "Unknown trace_id.".to_string() });
 		};
 		let expanded_queries: Vec<String> =
 			ranking::decode_json(row.expanded_queries, "expanded_queries")?;
@@ -2365,21 +2445,23 @@ ORDER BY rank ASC",
 		let limit = req.limit.unwrap_or(DEFAULT_RECENT_TRACES_LIMIT);
 
 		if cursor_created_at.is_some() != cursor_trace_id.is_some() {
-			return Err(Error::InvalidRequest {
+			return Err(crate::Error::InvalidRequest {
 				message: "cursor_created_at and cursor_trace_id must be both set or both omitted."
 					.to_string(),
 			});
 		}
 		if caller_agent_id.is_empty() {
-			return Err(Error::InvalidRequest { message: "agent_id is required.".to_string() });
+			return Err(crate::Error::InvalidRequest {
+				message: "agent_id is required.".to_string(),
+			});
 		}
 		if tenant_id.is_empty() || project_id.is_empty() {
-			return Err(Error::InvalidRequest {
+			return Err(crate::Error::InvalidRequest {
 				message: "tenant_id and project_id are required.".to_string(),
 			});
 		}
 		if limit == 0 || limit > MAX_RECENT_TRACES_LIMIT {
-			return Err(Error::InvalidRequest {
+			return Err(crate::Error::InvalidRequest {
 				message: format!("limit must be between 1 and {MAX_RECENT_TRACES_LIMIT}."),
 			});
 		}
@@ -2387,7 +2469,7 @@ ORDER BY rank ASC",
 		if let (Some(created_after), Some(created_before)) = (req.created_after, req.created_before)
 			&& created_after >= created_before
 		{
-			return Err(Error::InvalidRequest {
+			return Err(crate::Error::InvalidRequest {
 				message: "created_after must be before created_before.".to_string(),
 			});
 		}
@@ -2471,10 +2553,12 @@ LIMIT $9
 		let project_id = req.project_id.trim();
 
 		if req.agent_id.trim().is_empty() {
-			return Err(Error::InvalidRequest { message: "agent_id is required.".to_string() });
+			return Err(crate::Error::InvalidRequest {
+				message: "agent_id is required.".to_string(),
+			});
 		}
 		if tenant_id.is_empty() || project_id.is_empty() {
-			return Err(Error::InvalidRequest {
+			return Err(crate::Error::InvalidRequest {
 				message: "tenant_id and project_id are required.".to_string(),
 			});
 		}
@@ -2557,12 +2641,12 @@ LIMIT $2
 			.embedding
 			.embed(&self.cfg.providers.embedding, slice::from_ref(&input))
 			.await?;
-		let query_vec = embeddings.into_iter().next().ok_or_else(|| Error::Provider {
+		let query_vec = embeddings.into_iter().next().ok_or_else(|| crate::Error::Provider {
 			message: "Embedding provider returned no vectors.".to_string(),
 		})?;
 
 		if query_vec.len() != self.cfg.storage.qdrant.vector_dim as usize {
-			return Err(Error::Provider {
+			return Err(crate::Error::Provider {
 				message: "Embedding vector dimension mismatch.".to_string(),
 			});
 		}
@@ -2600,7 +2684,7 @@ LIMIT $2
 				.await?;
 
 			if embedded.len() != extra_queries.len() {
-				return Err(Error::Provider {
+				return Err(crate::Error::Provider {
 					message: "Embedding provider returned mismatched vector count.".to_string(),
 				});
 			}
@@ -2612,18 +2696,18 @@ LIMIT $2
 		for query in queries {
 			let vector = if baseline_vector.is_some() && query == original_query {
 				baseline_vector
-					.ok_or_else(|| Error::Provider {
+					.ok_or_else(|| crate::Error::Provider {
 						message: "Embedding baseline vector is missing.".to_string(),
 					})?
 					.clone()
 			} else {
-				embedded_iter.next().ok_or_else(|| Error::Provider {
+				embedded_iter.next().ok_or_else(|| crate::Error::Provider {
 					message: "Embedding provider returned no vectors.".to_string(),
 				})?
 			};
 
 			if vector.len() != self.cfg.storage.qdrant.vector_dim as usize {
-				return Err(Error::Provider {
+				return Err(crate::Error::Provider {
 					message: "Embedding vector dimension mismatch.".to_string(),
 				});
 			}
@@ -2663,7 +2747,7 @@ LIMIT $2
 			.client
 			.query(search)
 			.await
-			.map_err(|err| Error::Qdrant { message: err.to_string() })?;
+			.map_err(|err| crate::Error::Qdrant { message: err.to_string() })?;
 
 		Ok(response.result)
 	}
@@ -3130,6 +3214,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 				args.requested_candidate_k,
 				args.effective_candidate_k,
 				now,
+				args.path == RawSearchPath::Quick,
 			)
 			.await?;
 		let FinishSearchScoringResult {
@@ -3164,7 +3249,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 		self.record_hits_if_enabled(args.record_hits_enabled, args.query, &selected_results, now)
 			.await?;
 
-		let items = self
+		let (items, trajectory_summary) = self
 			.build_items_and_write_trace(BuildTraceArgs {
 				path: args.path,
 				trace_id: args.trace_id,
@@ -3197,22 +3282,27 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 				now,
 				ranking_override: &args.ranking_override,
 				filter_impact,
+				payload_level: args.payload_level,
 			})
 			.await?;
 
-		Ok(SearchResponse { trace_id: args.trace_id, items })
+		Ok(SearchResponse {
+			trace_id: args.trace_id,
+			items,
+			trajectory_summary: Some(trajectory_summary),
+		})
 	}
 
 	async fn build_items_and_write_trace(
 		&self,
 		args: BuildTraceArgs<'_>,
-	) -> Result<Vec<SearchItem>> {
+	) -> Result<(Vec<SearchItem>, SearchTrajectorySummary)> {
 		let trace_id = args.trace_id;
-		let (items, trace_payload) = self.build_items_and_trace_payload(args);
+		let (items, trajectory_summary, trace_payload) = self.build_items_and_trace_payload(args);
 
 		self.write_trace_payload(trace_id, trace_payload).await?;
 
-		Ok(items)
+		Ok((items, trajectory_summary))
 	}
 
 	#[allow(clippy::too_many_arguments)]
@@ -3228,6 +3318,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 		requested_candidate_k: u32,
 		effective_candidate_k: u32,
 		now: OffsetDateTime,
+		skip_rerank: bool,
 	) -> Result<FinishSearchScoringResult> {
 		let (filtered_candidates, filter_impact) = self.apply_filter_to_candidates(
 			candidates,
@@ -3253,6 +3344,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 				cache_cfg: &self.cfg.search.cache,
 				now,
 				candidate_count,
+				skip_rerank,
 			})
 			.await?;
 		let scored_count = scored.len();
@@ -3594,14 +3686,18 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 			cache_cfg,
 			now,
 			candidate_count,
+			skip_rerank,
 		} = args;
 
 		if snippet_items.is_empty() {
 			return Ok(Vec::new());
 		}
 
-		let scores =
-			self.rerank_snippet_items(query, snippet_items.as_slice(), cache_cfg, now).await?;
+		let scores = if skip_rerank {
+			Self::build_quick_find_rerank_scores(&snippet_items)
+		} else {
+			self.rerank_snippet_items(query, snippet_items.as_slice(), cache_cfg, now).await?
+		};
 		let rerank_ranks = ranking::build_rerank_ranks(&snippet_items, &scores);
 		let total_rerank = u32::try_from(scores.len()).unwrap_or(1).max(1);
 		let total_retrieval = u32::try_from(candidate_count).unwrap_or(1).max(1);
@@ -3623,6 +3719,40 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 		}
 
 		Ok(scored)
+	}
+
+	fn build_quick_find_rerank_scores(snippet_items: &[ChunkSnippet]) -> Vec<f32> {
+		let mut idxs: Vec<usize> = (0..snippet_items.len()).collect();
+
+		idxs.sort_by(|&a, &b| {
+			let ord = snippet_items[a].retrieval_rank.cmp(&snippet_items[b].retrieval_rank);
+
+			if ord != Ordering::Equal {
+				return ord;
+			}
+
+			let ord = snippet_items[a].chunk.chunk_index.cmp(&snippet_items[b].chunk.chunk_index);
+
+			if ord != Ordering::Equal {
+				return ord;
+			}
+
+			snippet_items[a].chunk.chunk_id.cmp(&snippet_items[b].chunk.chunk_id)
+		});
+
+		let total = idxs.len();
+
+		if total == 0 {
+			return Vec::new();
+		}
+
+		let mut scores = vec![0_f32; total];
+
+		for (rank, idx) in idxs.into_iter().enumerate() {
+			scores[idx] = 1.0 / (rank as f32 + 1.0);
+		}
+
+		scores
 	}
 
 	fn build_trace_candidates(
@@ -3685,7 +3815,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 	fn build_items_and_trace_payload(
 		&self,
 		args: BuildTraceArgs<'_>,
-	) -> (Vec<SearchItem>, TracePayload) {
+	) -> (Vec<SearchItem>, SearchTrajectorySummary, TracePayload) {
 		let mut trajectory_stages = build_trace_trajectory_stages(&args);
 		let trace_context = TraceContext {
 			trace_id: args.trace_id,
@@ -3740,6 +3870,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 				scored_chunk,
 				rank,
 			});
+			let item = apply_payload_level_to_search_item(item, args.payload_level);
 
 			final_stage_items.push(TraceTrajectoryStageItemRecord {
 				id: Uuid::new_v4(),
@@ -3761,11 +3892,32 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 			stage.items = final_stage_items;
 		}
 
+		let trajectory_summary = build_trajectory_summary_from_stages(
+			&trajectory_stages
+				.iter()
+				.map(|stage| SearchTrajectoryStage {
+					stage_order: stage.stage_order,
+					stage_name: stage.stage_name.clone(),
+					stage_payload: stage.stage_payload.clone(),
+					items: stage
+						.items
+						.iter()
+						.map(|item| SearchTrajectoryStageItem {
+							item_id: item.item_id,
+							note_id: item.note_id,
+							chunk_id: item.chunk_id,
+							metrics: item.metrics.clone(),
+						})
+						.collect(),
+				})
+				.collect::<Vec<_>>(),
+		);
+
 		for stage in trajectory_stages {
 			trace_builder.push_stage(stage);
 		}
 
-		(items, trace_builder.build())
+		(items, trajectory_summary, trace_builder.build())
 	}
 
 	async fn write_trace_payload(&self, trace_id: Uuid, trace_payload: TracePayload) -> Result<()> {
@@ -3895,7 +4047,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 		let scores = self.providers.rerank.rerank(&self.cfg.providers.rerank, query, &docs).await?;
 
 		if scores.len() != snippet_items.len() {
-			return Err(Error::Provider {
+			return Err(crate::Error::Provider {
 				message: "Rerank provider returned mismatched score count.".to_string(),
 			});
 		}
@@ -4361,6 +4513,19 @@ pub fn replay_ranking_from_candidates(
 	))
 }
 
+fn apply_payload_level_to_search_item(
+	mut item: SearchItem,
+	payload_level: PayloadLevel,
+) -> SearchItem {
+	if payload_level == PayloadLevel::L2 {
+		return item;
+	}
+
+	item.source_ref = serde_json::json!({});
+
+	item
+}
+
 fn validate_search_request_inputs(
 	tenant_id: &str,
 	project_id: &str,
@@ -4368,12 +4533,12 @@ fn validate_search_request_inputs(
 	query: &str,
 ) -> Result<()> {
 	if tenant_id.is_empty() || project_id.is_empty() || agent_id.is_empty() {
-		return Err(Error::InvalidRequest {
+		return Err(crate::Error::InvalidRequest {
 			message: "tenant_id, project_id, and agent_id are required.".to_string(),
 		});
 	}
 	if !elf_domain::english_gate::is_english_natural_language(query) {
-		return Err(Error::NonEnglishInput { field: "$.query".to_string() });
+		return Err(crate::Error::NonEnglishInput { field: "$.query".to_string() });
 	}
 
 	Ok(())
@@ -5339,20 +5504,37 @@ async fn load_item_trajectory(
 	pool: &PgPool,
 	trace_id: Uuid,
 	item_id: Uuid,
+	note_id: Uuid,
+	trace_item_chunk_id: Option<Uuid>,
 ) -> Result<Option<SearchExplainTrajectory>> {
 	let rows = sqlx::query(
 		"\
 SELECT
-	s.stage_order,
-	s.stage_name,
-	i.metrics
+\ts.stage_order,
+\ts.stage_name,
+\ts.stage_payload,
+\ti.item_id,
+\ti.note_id,
+\ti.chunk_id,
+\ti.metrics
 FROM search_trace_stages s
-JOIN search_trace_stage_items i ON i.stage_id = s.stage_id
-WHERE s.trace_id = $1 AND i.item_id = $2
-ORDER BY s.stage_order ASC",
+LEFT JOIN search_trace_stage_items i
+\tON i.stage_id = s.stage_id
+\tAND (
+\t\ti.item_id = $2
+\t\tOR (
+\t\t\ti.item_id IS NULL
+\t\t\tAND i.note_id = $3
+\t\t\tAND ($4 IS NULL OR i.chunk_id = $4)
+\t\t)
+\t)
+WHERE s.trace_id = $1
+ORDER BY s.stage_order ASC, i.item_id ASC NULLS LAST, i.note_id ASC NULLS LAST",
 	)
 	.bind(trace_id)
 	.bind(item_id)
+	.bind(note_id)
+	.bind(trace_item_chunk_id)
 	.fetch_all(pool)
 	.await?;
 
@@ -5361,17 +5543,51 @@ ORDER BY s.stage_order ASC",
 	}
 
 	let mut stages = Vec::with_capacity(rows.len());
+	let mut stage_pos_by_order: HashMap<u32, usize> = HashMap::new();
 
 	for row in rows {
 		let stage_order: i32 = row.try_get("stage_order")?;
 		let stage_name: String = row.try_get("stage_name")?;
-		let metrics: Value = row.try_get("metrics")?;
+		let stage_payload: Value = row.try_get("stage_payload")?;
+		let stage_order = stage_order as u32;
+		let idx = if let Some(idx) = stage_pos_by_order.get(&stage_order).copied() {
+			idx
+		} else {
+			let idx = stages.len();
 
-		stages.push(SearchExplainTrajectoryStage {
-			stage_order: stage_order as u32,
-			stage_name,
-			metrics,
-		});
+			stages.push(SearchExplainTrajectoryStage {
+				stage_order,
+				stage_name,
+				stage_payload,
+				metrics: serde_json::json!({}),
+				match_info: None,
+			});
+			stage_pos_by_order.insert(stage_order, idx);
+
+			idx
+		};
+		let item_metrics: Option<Value> = row.try_get("metrics")?;
+		let matched_item_id: Option<Uuid> = row.try_get("item_id")?;
+		let matched_note_id: Option<Uuid> = row.try_get("note_id")?;
+		let matched_chunk_id: Option<Uuid> = row.try_get("chunk_id")?;
+
+		if let Some(metrics) = item_metrics {
+			let match_kind = if matched_item_id.is_some() {
+				"item_id"
+			} else if trace_item_chunk_id.is_some() {
+				"note_chunk"
+			} else {
+				"note"
+			};
+
+			stages[idx].match_info = Some(SearchExplainTrajectoryMatch {
+				kind: match_kind.to_string(),
+				item_id: matched_item_id,
+				note_id: matched_note_id,
+				chunk_id: matched_chunk_id,
+			});
+			stages[idx].metrics = metrics;
+		}
 	}
 
 	Ok(Some(SearchExplainTrajectory {
@@ -5468,7 +5684,7 @@ where
 	E: PgExecutor<'e>,
 {
 	let now = OffsetDateTime::now_utc();
-	let payload_json = serde_json::to_value(&payload).map_err(|err| Error::Storage {
+	let payload_json = serde_json::to_value(&payload).map_err(|err| crate::Error::Storage {
 		message: format!("Failed to encode search trace payload: {err}"),
 	})?;
 
@@ -5584,10 +5800,10 @@ async fn persist_trace_inline_header(
 	trace: &TraceRecord,
 ) -> Result<()> {
 	let expanded_queries_json = serde_json::to_value(&trace.expanded_queries).map_err(|err| {
-		Error::Storage { message: format!("Failed to encode expanded_queries: {err}") }
+		crate::Error::Storage { message: format!("Failed to encode expanded_queries: {err}") }
 	})?;
 	let allowed_scopes_json = serde_json::to_value(&trace.allowed_scopes).map_err(|err| {
-		Error::Storage { message: format!("Failed to encode allowed_scopes: {err}") }
+		crate::Error::Storage { message: format!("Failed to encode allowed_scopes: {err}") }
 	})?;
 
 	sqlx::query(
@@ -5858,7 +6074,7 @@ FROM updated",
 		return Ok(None);
 	};
 	let size_bytes = serde_json::to_vec(&payload)
-		.map_err(|err| Error::Storage {
+		.map_err(|err| crate::Error::Storage {
 			message: format!("Failed to encode cache payload: {err}"),
 		})?
 		.len();
@@ -5878,7 +6094,7 @@ async fn store_cache_payload<'e, E>(
 where
 	E: PgExecutor<'e>,
 {
-	let payload_bytes = serde_json::to_vec(&payload).map_err(|err| Error::Storage {
+	let payload_bytes = serde_json::to_vec(&payload).map_err(|err| crate::Error::Storage {
 		message: format!("Failed to encode cache payload: {err}"),
 	})?;
 	let payload_size = payload_bytes.len();

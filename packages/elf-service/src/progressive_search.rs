@@ -1,6 +1,7 @@
 use std::{
 	collections::{BTreeMap, HashMap, hash_map::DefaultHasher, hash_set::HashSet},
 	hash::{Hash, Hasher},
+	str::FromStr,
 };
 
 use serde::{Deserialize, Serialize};
@@ -10,7 +11,7 @@ use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
 use crate::{
-	ElfService, Error, NoteFetchResponse, PayloadLevel, QueryPlan, Result, SearchRequest,
+	ElfService, NoteFetchResponse, PayloadLevel, QueryPlan, SearchRequest, SearchTrajectorySummary,
 	access::{self, SharedSpaceGrantKey},
 	structured_fields::StructuredFields,
 };
@@ -43,6 +44,57 @@ pub struct SearchIndexResponse {
 	#[serde(with = "crate::time_serde")]
 	pub expires_at: OffsetDateTime,
 	pub items: Vec<SearchIndexItem>,
+	pub trajectory_summary: Option<SearchTrajectorySummary>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SearchSessionMode {
+	QuickFind,
+	PlannedSearch,
+}
+impl SearchSessionMode {
+	fn as_str(self) -> &'static str {
+		match self {
+			Self::QuickFind => "quick_find",
+			Self::PlannedSearch => "planned_search",
+		}
+	}
+}
+
+impl FromStr for SearchSessionMode {
+	type Err = crate::Error;
+
+	fn from_str(value: &str) -> std::result::Result<Self, Self::Err> {
+		match value {
+			"quick_find" => Ok(Self::QuickFind),
+			"planned_search" => Ok(Self::PlannedSearch),
+			_ => Err(crate::Error::Storage {
+				message: format!("Unknown search session mode: {value}"),
+			}),
+		}
+	}
+}
+
+impl From<SearchSessionizePath> for SearchSessionMode {
+	fn from(path: SearchSessionizePath) -> Self {
+		match path {
+			SearchSessionizePath::Quick => Self::QuickFind,
+			SearchSessionizePath::Planned => Self::PlannedSearch,
+		}
+	}
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SearchSessionGetResponse {
+	pub trace_id: Uuid,
+	pub search_session_id: Uuid,
+	#[serde(with = "crate::time_serde")]
+	pub expires_at: OffsetDateTime,
+	pub items: Vec<SearchIndexItem>,
+	pub mode: SearchSessionMode,
+	pub query_plan: Option<QueryPlan>,
+	pub trajectory_summary: Option<SearchTrajectorySummary>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -52,6 +104,7 @@ pub struct SearchIndexPlannedResponse {
 	#[serde(with = "crate::time_serde")]
 	pub expires_at: OffsetDateTime,
 	pub items: Vec<SearchIndexItem>,
+	pub trajectory_summary: Option<SearchTrajectorySummary>,
 	pub query_plan: QueryPlan,
 }
 
@@ -184,6 +237,9 @@ struct SearchSession {
 	agent_id: String,
 	read_profile: String,
 	query: String,
+	mode: SearchSessionMode,
+	trajectory_summary: Option<SearchTrajectorySummary>,
+	query_plan: Option<QueryPlan>,
 	items: Vec<SearchSessionItemRecord>,
 	created_at: OffsetDateTime,
 	expires_at: OffsetDateTime,
@@ -198,6 +254,9 @@ struct SearchSessionRow {
 	agent_id: String,
 	read_profile: String,
 	query: String,
+	mode: String,
+	trajectory_summary: Option<Value>,
+	query_plan: Option<Value>,
 	items: Value,
 	created_at: OffsetDateTime,
 	expires_at: OffsetDateTime,
@@ -211,13 +270,16 @@ struct NewSearchSession<'a> {
 	agent_id: &'a str,
 	read_profile: &'a str,
 	query: &'a str,
+	mode: SearchSessionMode,
+	trajectory_summary: Option<&'a SearchTrajectorySummary>,
+	query_plan: Option<&'a QueryPlan>,
 	items: &'a [SearchSessionItemRecord],
 	created_at: OffsetDateTime,
 	expires_at: OffsetDateTime,
 }
 
 impl ElfService {
-	pub async fn search(&self, req: SearchRequest) -> Result<SearchIndexResponse> {
+	pub async fn search(&self, req: SearchRequest) -> crate::Result<SearchIndexResponse> {
 		let response = self.search_planned(req).await?;
 
 		Ok(SearchIndexResponse {
@@ -225,16 +287,20 @@ impl ElfService {
 			search_session_id: response.search_session_id,
 			expires_at: response.expires_at,
 			items: response.items,
+			trajectory_summary: response.trajectory_summary,
 		})
 	}
 
-	pub async fn search_quick(&self, req: SearchRequest) -> Result<SearchIndexResponse> {
+	pub async fn search_quick(&self, req: SearchRequest) -> crate::Result<SearchIndexResponse> {
 		self.search_sessionized(req, SearchSessionizePath::Quick).await.map(|output| output.index)
 	}
 
-	pub async fn search_planned(&self, req: SearchRequest) -> Result<SearchIndexPlannedResponse> {
+	pub async fn search_planned(
+		&self,
+		req: SearchRequest,
+	) -> crate::Result<SearchIndexPlannedResponse> {
 		let output = self.search_sessionized(req, SearchSessionizePath::Planned).await?;
-		let query_plan = output.query_plan.ok_or_else(|| Error::Storage {
+		let query_plan = output.query_plan.ok_or_else(|| crate::Error::Storage {
 			message: "Planned search response is missing query_plan.".to_string(),
 		})?;
 
@@ -243,6 +309,7 @@ impl ElfService {
 			search_session_id: output.index.search_session_id,
 			expires_at: output.index.expires_at,
 			items: output.index.items,
+			trajectory_summary: output.index.trajectory_summary,
 			query_plan,
 		})
 	}
@@ -251,7 +318,7 @@ impl ElfService {
 		&self,
 		req: SearchRequest,
 		path: SearchSessionizePath,
-	) -> Result<SearchSessionizedOutput> {
+	) -> crate::Result<SearchSessionizedOutput> {
 		let top_k = req.top_k.unwrap_or(self.cfg.memory.top_k).max(1);
 		let candidate_k = req.candidate_k.unwrap_or(self.cfg.memory.candidate_k).max(top_k);
 		let mut raw_req = req.clone();
@@ -259,16 +326,16 @@ impl ElfService {
 		raw_req.top_k = Some(candidate_k);
 		raw_req.record_hits = Some(false);
 
-		let (trace_id, raw_items, query_plan) = match path {
+		let (trace_id, raw_items, trajectory_summary, query_plan) = match path {
 			SearchSessionizePath::Quick => {
 				let raw = self.search_raw_quick(raw_req).await?;
 
-				(raw.trace_id, raw.items, None)
+				(raw.trace_id, raw.items, raw.trajectory_summary, None)
 			},
 			SearchSessionizePath::Planned => {
 				let raw = self.search_raw_planned(raw_req).await?;
 
-				(raw.trace_id, raw.items, Some(raw.query_plan))
+				(raw.trace_id, raw.items, raw.trajectory_summary, Some(raw.query_plan))
 			},
 		};
 		let now = OffsetDateTime::now_utc();
@@ -313,6 +380,9 @@ impl ElfService {
 				agent_id: &req.agent_id,
 				read_profile: &req.read_profile,
 				query: &req.query,
+				mode: SearchSessionMode::from(path),
+				query_plan: query_plan.as_ref(),
+				trajectory_summary: trajectory_summary.as_ref(),
 				items: &items,
 				created_at: now,
 				expires_at,
@@ -329,6 +399,7 @@ impl ElfService {
 				search_session_id,
 				expires_at,
 				items: response_items,
+				trajectory_summary,
 			},
 			query_plan,
 		})
@@ -337,13 +408,13 @@ impl ElfService {
 	pub async fn search_session_get(
 		&self,
 		req: SearchSessionGetRequest,
-	) -> Result<SearchIndexResponse> {
+	) -> crate::Result<SearchSessionGetResponse> {
 		let tenant_id = req.tenant_id.trim();
 		let project_id = req.project_id.trim();
 		let agent_id = req.agent_id.trim();
 
 		if tenant_id.is_empty() || project_id.is_empty() || agent_id.is_empty() {
-			return Err(Error::InvalidRequest {
+			return Err(crate::Error::InvalidRequest {
 				message: "tenant_id, project_id, and agent_id are required.".to_string(),
 			});
 		}
@@ -367,24 +438,27 @@ impl ElfService {
 			.map(|item| item.to_index_item())
 			.collect();
 
-		Ok(SearchIndexResponse {
+		Ok(SearchSessionGetResponse {
 			trace_id: session.trace_id,
 			search_session_id: session.search_session_id,
 			expires_at,
 			items,
+			mode: session.mode,
+			query_plan: session.query_plan,
+			trajectory_summary: session.trajectory_summary,
 		})
 	}
 
 	pub async fn search_timeline(
 		&self,
 		req: SearchTimelineRequest,
-	) -> Result<SearchTimelineResponse> {
+	) -> crate::Result<SearchTimelineResponse> {
 		let tenant_id = req.tenant_id.trim();
 		let project_id = req.project_id.trim();
 		let agent_id = req.agent_id.trim();
 
 		if tenant_id.is_empty() || project_id.is_empty() || agent_id.is_empty() {
-			return Err(Error::InvalidRequest {
+			return Err(crate::Error::InvalidRequest {
 				message: "tenant_id, project_id, and agent_id are required.".to_string(),
 			});
 		}
@@ -414,19 +488,22 @@ impl ElfService {
 						.collect(),
 				}],
 			}),
-			_ => Err(Error::InvalidRequest {
+			_ => Err(crate::Error::InvalidRequest {
 				message: "group_by must be one of: day, none.".to_string(),
 			}),
 		}
 	}
 
-	pub async fn search_details(&self, req: SearchDetailsRequest) -> Result<SearchDetailsResponse> {
+	pub async fn search_details(
+		&self,
+		req: SearchDetailsRequest,
+	) -> crate::Result<SearchDetailsResponse> {
 		let tenant_id = req.tenant_id.trim();
 		let project_id = req.project_id.trim();
 		let agent_id = req.agent_id.trim();
 
 		if tenant_id.is_empty() || project_id.is_empty() || agent_id.is_empty() {
-			return Err(Error::InvalidRequest {
+			return Err(crate::Error::InvalidRequest {
 				message: "tenant_id, project_id, and agent_id are required.".to_string(),
 			});
 		}
@@ -478,11 +555,15 @@ WHERE note_id = ANY($1::uuid[])
 			}
 		}
 
-		let structured_by_note = crate::structured_fields::fetch_structured_fields(
-			&self.db.pool,
-			requested_in_session.as_slice(),
-		)
-		.await?;
+		let structured_by_note = if req.payload_level == PayloadLevel::L0 {
+			HashMap::new()
+		} else {
+			crate::structured_fields::fetch_structured_fields(
+				&self.db.pool,
+				requested_in_session.as_slice(),
+			)
+			.await?
+		};
 		let allowed_scopes = resolve_read_scopes(&self.cfg, &session.read_profile)?;
 		let shared_grants = access::load_shared_read_grants_with_org_shared(
 			&self.db.pool,
@@ -502,6 +583,8 @@ WHERE note_id = ANY($1::uuid[])
 			allowed_scopes: &allowed_scopes,
 			now,
 			record_hits_enabled: record_hits,
+			payload_level: req.payload_level,
+			max_note_chars: self.cfg.memory.max_note_chars as usize,
 		};
 		let (results, hits) = build_search_details_results(req.note_ids, details_args);
 
@@ -530,6 +613,8 @@ struct SearchDetailsBuildArgs<'a> {
 	allowed_scopes: &'a [String],
 	now: OffsetDateTime,
 	record_hits_enabled: bool,
+	payload_level: PayloadLevel,
+	max_note_chars: usize,
 }
 
 fn build_search_details_results(
@@ -579,6 +664,22 @@ fn build_search_details_results(
 			continue;
 		}
 
+		let structured = if args.payload_level == PayloadLevel::L0 {
+			None
+		} else {
+			args.structured_by_note.get(&note.note_id).cloned()
+		};
+		let note_text = apply_payload_level_to_search_details_text(
+			note.text.as_str(),
+			structured.as_ref(),
+			args.payload_level,
+			args.max_note_chars,
+		);
+		let source_ref = if args.payload_level == PayloadLevel::L2 {
+			note.source_ref.clone()
+		} else {
+			serde_json::json!({})
+		};
 		let note_response = NoteFetchResponse {
 			note_id: note.note_id,
 			tenant_id: note.tenant_id.clone(),
@@ -587,14 +688,14 @@ fn build_search_details_results(
 			scope: note.scope.clone(),
 			r#type: note.r#type.clone(),
 			key: note.key.clone(),
-			text: note.text.clone(),
+			text: note_text,
 			importance: note.importance,
 			confidence: note.confidence,
 			status: note.status.clone(),
 			updated_at: note.updated_at,
 			expires_at: note.expires_at,
-			source_ref: note.source_ref.clone(),
-			structured: args.structured_by_note.get(&note.note_id).cloned(),
+			source_ref,
+			structured,
 		};
 
 		results.push(SearchDetailsResult { note_id, note: Some(note_response), error: None });
@@ -612,11 +713,31 @@ fn build_search_details_results(
 	(results, hits)
 }
 
+fn apply_payload_level_to_search_details_text(
+	raw_text: &str,
+	structured: Option<&StructuredFields>,
+	payload_level: PayloadLevel,
+	max_note_chars: usize,
+) -> String {
+	match payload_level {
+		PayloadLevel::L0 => build_summary(raw_text, max_note_chars),
+		PayloadLevel::L1 => {
+			let candidate_text = structured
+				.and_then(|item| item.summary.as_deref())
+				.filter(|summary| !summary.trim().is_empty())
+				.unwrap_or(raw_text);
+
+			build_summary(candidate_text, max_note_chars)
+		},
+		PayloadLevel::L2 => raw_text.to_string(),
+	}
+}
+
 fn build_timeline_by_day(
 	search_session_id: Uuid,
 	expires_at: OffsetDateTime,
 	items: &[SearchSessionItemRecord],
-) -> Result<SearchTimelineResponse> {
+) -> crate::Result<SearchTimelineResponse> {
 	let mut grouped: BTreeMap<String, Vec<SearchIndexItem>> = BTreeMap::new();
 
 	for item in items {
@@ -688,12 +809,12 @@ fn truncate_chars(raw: &str, max_chars: usize) -> String {
 	out
 }
 
-fn resolve_read_scopes(cfg: &Config, profile: &str) -> Result<Vec<String>> {
+fn resolve_read_scopes(cfg: &Config, profile: &str) -> crate::Result<Vec<String>> {
 	match profile {
 		"private_only" => Ok(cfg.scopes.read_profiles.private_only.clone()),
 		"private_plus_project" => Ok(cfg.scopes.read_profiles.private_plus_project.clone()),
 		"all_scopes" => Ok(cfg.scopes.read_profiles.all_scopes.clone()),
-		_ => Err(Error::InvalidRequest { message: "Unknown read_profile.".to_string() }),
+		_ => Err(crate::Error::InvalidRequest { message: "Unknown read_profile.".to_string() }),
 	}
 }
 
@@ -702,12 +823,14 @@ fn validate_search_session_access(
 	tenant_id: &str,
 	project_id: &str,
 	agent_id: &str,
-) -> Result<()> {
+) -> crate::Result<()> {
 	if session.tenant_id != tenant_id
 		|| session.project_id != project_id
 		|| session.agent_id != agent_id
 	{
-		return Err(Error::InvalidRequest { message: "Unknown search_session_id.".to_string() });
+		return Err(crate::Error::InvalidRequest {
+			message: "Unknown search_session_id.".to_string(),
+		});
 	}
 
 	Ok(())
@@ -762,13 +885,28 @@ fn hash_query(query: &str) -> String {
 	format!("{:x}", hasher.finish())
 }
 
-async fn store_search_session<'e, E>(executor: E, session: NewSearchSession<'_>) -> Result<()>
+async fn store_search_session<'e, E>(
+	executor: E,
+	session: NewSearchSession<'_>,
+) -> crate::Result<()>
 where
 	E: PgExecutor<'e>,
 {
-	let items_json = serde_json::to_value(session.items).map_err(|err| Error::Storage {
+	let items_json = serde_json::to_value(session.items).map_err(|err| crate::Error::Storage {
 		message: format!("Failed to encode search session items: {err}"),
 	})?;
+	let query_plan_json =
+		session.query_plan.map(serde_json::to_value).transpose().map_err(|err| {
+			crate::Error::Storage {
+				message: format!("Failed to encode search session query plan: {err}"),
+			}
+		})?;
+	let trajectory_summary_json =
+		session.trajectory_summary.map(serde_json::to_value).transpose().map_err(|err| {
+			crate::Error::Storage {
+				message: format!("Failed to encode search session trajectory summary: {err}"),
+			}
+		})?;
 
 	sqlx::query(
 		"\
@@ -780,11 +918,14 @@ INSERT INTO search_sessions (
 	agent_id,
 	read_profile,
 	query,
+	mode,
+	trajectory_summary,
+	query_plan,
 	items,
 	created_at,
 	expires_at
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)",
 	)
 	.bind(session.search_session_id)
 	.bind(session.trace_id)
@@ -793,6 +934,9 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
 	.bind(session.agent_id.trim())
 	.bind(session.read_profile)
 	.bind(session.query)
+	.bind(session.mode.as_str())
+	.bind(trajectory_summary_json)
+	.bind(query_plan_json)
 	.bind(items_json)
 	.bind(session.created_at)
 	.bind(session.expires_at)
@@ -806,7 +950,7 @@ async fn load_search_session<'e, E>(
 	executor: E,
 	search_session_id: Uuid,
 	now: OffsetDateTime,
-) -> Result<SearchSession>
+) -> crate::Result<SearchSession>
 where
 	E: PgExecutor<'e>,
 {
@@ -820,6 +964,9 @@ SELECT
 	agent_id,
 	read_profile,
 	query,
+	mode,
+	trajectory_summary,
+	query_plan,
 	items,
 	created_at,
 	expires_at
@@ -830,17 +977,36 @@ WHERE search_session_id = $1",
 	.fetch_optional(executor)
 	.await?;
 	let Some(row) = row else {
-		return Err(Error::InvalidRequest { message: "Unknown search_session_id.".to_string() });
+		return Err(crate::Error::InvalidRequest {
+			message: "Unknown search_session_id.".to_string(),
+		});
 	};
 	let expires_at: OffsetDateTime = row.expires_at;
 
 	if expires_at <= now {
-		return Err(Error::InvalidRequest { message: "Search session expired.".to_string() });
+		return Err(crate::Error::InvalidRequest {
+			message: "Search session expired.".to_string(),
+		});
 	}
 
 	let items: Vec<SearchSessionItemRecord> = serde_json::from_value(row.items).map_err(|err| {
-		Error::Storage { message: format!("Failed to decode search session items: {err}") }
+		crate::Error::Storage { message: format!("Failed to decode search session items: {err}") }
 	})?;
+	let mode = SearchSessionMode::from_str(row.mode.as_str())?;
+	let query_plan = match row.query_plan {
+		Some(value) =>
+			Some(serde_json::from_value(value).map_err(|err| crate::Error::Storage {
+				message: format!("Failed to decode search session query_plan: {err}"),
+			})?),
+		None => None,
+	};
+	let trajectory_summary = match row.trajectory_summary {
+		Some(value) =>
+			Some(serde_json::from_value(value).map_err(|err| crate::Error::Storage {
+				message: format!("Failed to decode search session trajectory summary: {err}"),
+			})?),
+		None => None,
+	};
 
 	Ok(SearchSession {
 		search_session_id: row.search_session_id,
@@ -851,6 +1017,9 @@ WHERE search_session_id = $1",
 		read_profile: row.read_profile,
 		query: row.query,
 		items,
+		mode,
+		trajectory_summary,
+		query_plan,
 		created_at: row.created_at,
 		expires_at,
 	})
@@ -860,7 +1029,7 @@ async fn touch_search_session<'e, E>(
 	executor: E,
 	session: &SearchSession,
 	now: OffsetDateTime,
-) -> Result<OffsetDateTime>
+) -> crate::Result<OffsetDateTime>
 where
 	E: PgExecutor<'e>,
 {
@@ -892,12 +1061,12 @@ async fn record_detail_hits<'e, E>(
 	query: &str,
 	items: &[HitItem],
 	now: OffsetDateTime,
-) -> Result<()>
+) -> crate::Result<()>
 where
 	E: PgExecutor<'e>,
 {
 	if !elf_domain::english_gate::is_english_natural_language(query) {
-		return Err(Error::NonEnglishInput { field: "$.query".to_string() });
+		return Err(crate::Error::NonEnglishInput { field: "$.query".to_string() });
 	}
 
 	let query_hash = hash_query(query);
@@ -908,7 +1077,7 @@ where
 	let mut final_scores = Vec::with_capacity(items.len());
 
 	for item in items {
-		let rank = i32::try_from(item.rank).map_err(|_| Error::InvalidRequest {
+		let rank = i32::try_from(item.rank).map_err(|_| crate::Error::InvalidRequest {
 			message: "Search session rank is out of range.".to_string(),
 		})?;
 
