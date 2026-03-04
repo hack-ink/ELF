@@ -87,7 +87,7 @@ This document is normative. When a new versioned identifier is introduced, it mu
 - Identifier: `search_retrieval_trajectory/v1`.
 - Type: JSON schema identifier for staged retrieval trajectory payloads.
 - Defined in: `packages/elf-service/src/search.rs` (`SEARCH_RETRIEVAL_TRAJECTORY_SCHEMA_V1`).
-- Consumers: Admin trajectory endpoint, trace summaries, item explain trajectory output, evaluation attribution.
+- Consumers: Search responses (`/v2/searches`, `/v2/searches/{search_id}`), admin trajectory endpoints, trace summaries, item explain trajectory output, evaluation attribution.
 - Bump rule: Change the identifier only for incompatible trajectory payload changes. Keep previous identifiers immutable.
 
 ### Recent traces admin list schema
@@ -113,7 +113,7 @@ This document is normative. When a new versioned identifier is introduced, it mu
 - Identifier: `search_filter_expr/v1`.
 - Type: JSON envelope schema for structured search filters (`filter` request payload on search endpoints).
 - Defined in: `docs/spec/system_search_filter_expr_v1.md`, `apps/elf-api/src/routes.rs`, `apps/elf-mcp/src/server.rs`, `packages/elf-service/src/search.rs` (`SearchFilter`).
-- Consumers: Search creation endpoints (`/v2/search/quick`, `/v2/search/planned`, `/v2/admin/searches/raw`, `/v2/searches`) and admin/observability surfaces.
+- Consumers: Search creation endpoints (`/v2/searches`, `/v2/admin/searches/raw`) and admin/observability surfaces.
 - Bump rule: Introduce `search_filter_expr/v2` only if filter field allowlist, operators, parsing limits, value typing, or parse error model become incompatible.
 
 ### Search filter impact schema

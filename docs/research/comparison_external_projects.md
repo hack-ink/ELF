@@ -132,8 +132,8 @@ Key takeaways for ELF from this deeper pass:
 - No hosted/cloud product option (mem0 provides managed deployment).
 - No first-class graph memory in released schema yet (mem0 provides optional graph mode now).
 - Less turnkey for zero-config local plugin workflows than memsearch/claude-mem defaults.
-- No explicit `quick_find` vs `planned_search` split yet for latency-vs-quality workflows.
-- No first-class retrieval trajectory contract comparable to OpenViking-style staged retrieval outputs.
+- Supports explicit `quick_find` vs `planned_search` split through `POST /v2/searches` mode.
+- Stage-level retrieval trajectory summary is now first-class on `/v2/searches` responses (`search_retrieval_trajectory/v1`), but operator-facing trajectory inspection ergonomics are still evolving.
 
 ## Extended Deep-Dive Comparison (Reference Only)
 
@@ -235,7 +235,7 @@ This list is for architectural comparison only. It is not a product commitment a
 
 6. Search mode split and retrieval trajectory
    - Borrow from OpenViking's `find()` vs `search()` separation and staged retrieval flow.
-   - Add explicit quick/planned search modes and stage-level trajectory outputs in ELF.
+   - Keep quick/planned split and stage-level trajectory outputs in place on `/v2/searches`, then improve operator visibility (`GET /v2/searches/{search_id}` ergonomics and optional local timeline tooling).
 
 ## OpenViking-Inspired Issues
 
