@@ -210,6 +210,106 @@ Operational notes:
   `tmp/elf.harness.worker.log` for the first startup error.
 - `psql`, `curl`, `taplo`, and `jaq` (or `jq`) are installed.
 
+## Search Modes Latency Benchmark
+
+To validate the Issue #58 acceptance criterion that `quick_find` has **lower p95 latency** than
+`planned_search`, run a small benchmark using `elf-eval` search-mode selection.
+
+This procedure uses the ranking-stability harness to seed a deterministic dataset (local providers),
+then runs `elf-eval` twice on the same queries.
+
+### 1) Seed a benchmark dataset (kept for follow-up eval runs)
+
+```bash
+ELF_PG_DSN="postgres://postgres:postgres@127.0.0.1:51888/postgres" \
+ELF_QDRANT_GRPC_URL="http://127.0.0.1:51890" \
+ELF_QDRANT_HTTP_URL="http://127.0.0.1:51889" \
+ELF_HARNESS_DB_NAME="elf_search_mode_bench" \
+ELF_HARNESS_COLLECTION="elf_search_mode_bench_$(date +%s)" \
+ELF_HARNESS_VECTOR_DIM=256 \
+ELF_HARNESS_KEEP_DB=1 \
+ELF_HARNESS_KEEP_COLLECTION=1 \
+scripts/ranking-stability-harness.sh
+```
+
+Notes:
+
+- The harness writes `tmp/elf.stability.base.toml` and `tmp/elf.stability.dataset.json`.
+- With `ELF_HARNESS_KEEP_DB=1` and `ELF_HARNESS_KEEP_COLLECTION=1`, you must clean up manually (see
+  cleanup section below).
+
+### 2) Create a multi-query dataset (for meaningful percentiles)
+
+`elf-eval` reports p50/p95 over per-query latencies. Duplicate the seeded query into N entries:
+
+```bash
+python - <<'PY'
+import json
+from pathlib import Path
+
+src = Path("tmp/elf.stability.dataset.json")
+data = json.loads(src.read_text())
+base_query = data["queries"][0]["query"]
+expected = data["queries"][0].get("expected_note_ids") or []
+
+N = 50
+data["name"] = "search-modes-latency-bench"
+data["queries"] = [
+  {"id": f"mode-lat-{i+1:02d}", "query": base_query, "expected_note_ids": expected}
+  for i in range(N)
+]
+
+out = Path("tmp/elf.search_modes_latency.dataset.json")
+out.write_text(json.dumps(data, indent=2) + "\n")
+print(out)
+PY
+```
+
+### 3) Run `elf-eval` in each mode and compare p95
+
+Quick:
+
+```bash
+(cargo run -q -p elf-eval -- -c tmp/elf.stability.base.toml --dataset tmp/elf.search_modes_latency.dataset.json --search-mode quick_find) \
+  | awk 'BEGIN{started=0} /^\{/{started=1} {if(started) print}' \
+  > tmp/elf.search_modes_latency.quick.json
+
+jq -r '.summary.latency_ms_p50, .summary.latency_ms_p95' tmp/elf.search_modes_latency.quick.json
+```
+
+Planned:
+
+```bash
+(cargo run -q -p elf-eval -- -c tmp/elf.stability.base.toml --dataset tmp/elf.search_modes_latency.dataset.json --search-mode planned_search) \
+  | awk 'BEGIN{started=0} /^\{/{started=1} {if(started) print}' \
+  > tmp/elf.search_modes_latency.planned.json
+
+jq -r '.summary.latency_ms_p50, .summary.latency_ms_p95' tmp/elf.search_modes_latency.planned.json
+```
+
+Acceptance check:
+
+- `quick_find.summary.latency_ms_p95 < planned_search.summary.latency_ms_p95` on the same dataset.
+
+Reference run (2026-03-04, macOS local Postgres/Qdrant, local providers, `vector_dim=256`, N=50,
+`top_k=10`, `candidate_k=60`):
+
+- `quick_find`: p50 ≈ 9.82ms, p95 ≈ 12.55ms
+- `planned_search`: p50 ≈ 9.45ms, p95 ≈ 22.76ms
+
+### 4) Cleanup
+
+Drop the benchmark database and delete the benchmark collection (replace the collection name with
+the one you used in `ELF_HARNESS_COLLECTION`):
+
+```bash
+psql "postgres://postgres:postgres@127.0.0.1:51888/postgres" -tAc \
+  "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'elf_search_mode_bench' AND pid <> pg_backend_pid();" >/dev/null
+psql "postgres://postgres:postgres@127.0.0.1:51888/postgres" -v ON_ERROR_STOP=1 -c \
+  "DROP DATABASE IF EXISTS elf_search_mode_bench;" >/dev/null
+curl -sS -X DELETE "http://127.0.0.1:51889/collections/<collection>?wait=true" >/dev/null
+```
+
 ## Ranking Stability Harness
 
 To empirically measure rank churn reduction from deterministic ranking terms, use the harness
