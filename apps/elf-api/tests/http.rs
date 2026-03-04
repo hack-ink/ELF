@@ -5,7 +5,7 @@ use axum::{
 	body::{self, Body},
 	http::{Request, Response, StatusCode},
 };
-use serde_json::{Map, Value};
+use serde_json::Map;
 use tower::util::ServiceExt as _;
 use uuid::Uuid;
 
@@ -425,7 +425,7 @@ async fn org_shared_note_is_visible_across_projects_fixture()
 	Some((test_db, app, state, note_id))
 }
 
-async fn list_org_shared_notes_as_reader(app: &Router) -> Value {
+async fn list_org_shared_notes_as_reader(app: &Router) -> serde_json::Value {
 	let response = app
 		.clone()
 		.oneshot(
@@ -520,6 +520,158 @@ async fn post_with_authorization_and_json_body(
 		.expect(call_expect)
 }
 
+async fn create_note_for_payload_level_tests(
+	app: &Router,
+	text: &str,
+	source_ref: serde_json::Value,
+) -> Uuid {
+	let payload = serde_json::json!({
+		"scope": "agent_private",
+		"notes": [{
+			"type": "fact",
+			"key": null,
+			"text": text,
+			"importance": 0.8,
+			"confidence": 0.9,
+			"ttl_days": null,
+			"source_ref": source_ref,
+		}]
+	});
+	let response = app
+		.clone()
+		.oneshot(
+			Request::builder()
+				.method("POST")
+				.uri("/v2/notes/ingest")
+				.header("X-ELF-Tenant-Id", TEST_TENANT_ID)
+				.header("X-ELF-Project-Id", TEST_PROJECT_ID)
+				.header("X-ELF-Agent-Id", TEST_AGENT_A)
+				.header("content-type", "application/json")
+				.body(Body::from(payload.to_string()))
+				.expect("Failed to build note ingest request."),
+		)
+		.await
+		.expect("Failed to call note ingest.");
+
+	assert_eq!(response.status(), StatusCode::OK);
+
+	let body = body::to_bytes(response.into_body(), usize::MAX)
+		.await
+		.expect("Failed to read note ingest response body.");
+	let json: serde_json::Value =
+		serde_json::from_slice(&body).expect("Failed to parse note ingest response.");
+	let note_id = json["results"]
+		.as_array()
+		.expect("Missing results array in note ingest response.")
+		.first()
+		.and_then(|result| result["note_id"].as_str())
+		.expect("Missing note_id in note ingest response.");
+
+	Uuid::parse_str(note_id).expect("Invalid note_id in note ingest response.")
+}
+
+async fn insert_note_summary_field(state: &AppState, note_id: Uuid, summary: &str) {
+	sqlx::query(
+		"INSERT INTO memory_note_fields (field_id, note_id, field_kind, item_index, text) \
+		 VALUES ($1, $2, $3, $4, $5)",
+	)
+	.bind(Uuid::new_v4())
+	.bind(note_id)
+	.bind("summary")
+	.bind(0)
+	.bind(summary)
+	.execute(&state.service.db.pool)
+	.await
+	.expect("Failed to insert note summary field.");
+}
+
+async fn fetch_search_notes_for_payload_level(
+	app: &Router,
+	search_id: Uuid,
+	note_id: Uuid,
+	payload_level: &str,
+) -> serde_json::Value {
+	let payload = serde_json::json!({
+		"note_ids": [note_id],
+		"payload_level": payload_level,
+		"record_hits": false,
+	});
+	let response = app
+		.clone()
+		.oneshot(
+			Request::builder()
+				.method("POST")
+				.uri(format!("/v2/searches/{search_id}/notes"))
+				.header("X-ELF-Tenant-Id", TEST_TENANT_ID)
+				.header("X-ELF-Project-Id", TEST_PROJECT_ID)
+				.header("X-ELF-Agent-Id", TEST_AGENT_A)
+				.header("content-type", "application/json")
+				.body(Body::from(payload.to_string()))
+				.expect("Failed to build search notes request."),
+		)
+		.await
+		.expect("Failed to call search notes.");
+
+	assert_eq!(response.status(), StatusCode::OK);
+
+	let body = body::to_bytes(response.into_body(), usize::MAX)
+		.await
+		.expect("Failed to read search notes response body.");
+	let json: serde_json::Value =
+		serde_json::from_slice(&body).expect("Failed to parse search notes response.");
+
+	json.get("results")
+		.and_then(serde_json::Value::as_array)
+		.and_then(|results| results.first())
+		.and_then(|result| result.get("note"))
+		.cloned()
+		.expect("Expected note in search notes response.")
+}
+
+async fn fetch_admin_search_raw_source_ref(
+	app: &Router,
+	query: &str,
+	payload_level: &str,
+) -> serde_json::Value {
+	let payload = serde_json::json!({
+		"query": query,
+		"top_k": 5,
+		"candidate_k": 10,
+		"payload_level": payload_level,
+	});
+	let response = app
+		.clone()
+		.oneshot(
+			Request::builder()
+				.method("POST")
+				.uri("/v2/admin/searches/raw")
+				.header("X-ELF-Tenant-Id", TEST_TENANT_ID)
+				.header("X-ELF-Project-Id", TEST_PROJECT_ID)
+				.header("X-ELF-Agent-Id", TEST_AGENT_A)
+				.header("X-ELF-Read-Profile", "private_only")
+				.header("content-type", "application/json")
+				.body(Body::from(payload.to_string()))
+				.expect("Failed to build admin search raw request."),
+		)
+		.await
+		.expect("Failed to call admin search raw.");
+
+	assert_eq!(response.status(), StatusCode::OK);
+
+	let body = body::to_bytes(response.into_body(), usize::MAX)
+		.await
+		.expect("Failed to read admin search raw response body.");
+	let json: serde_json::Value =
+		serde_json::from_slice(&body).expect("Failed to parse admin search raw response.");
+	let item = json["items"]
+		.as_array()
+		.expect("Missing items in admin search raw response.")
+		.first()
+		.expect("Expected at least one raw search item.");
+
+	item["source_ref"].clone()
+}
+
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_GRPC_URL (or ELF_QDRANT_URL) to run."]
 async fn sharing_visibility_requires_explicit_project_grant() {
@@ -554,7 +706,8 @@ async fn sharing_visibility_requires_explicit_project_grant() {
 	let body = body::to_bytes(response.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read list response body.");
-	let list_json: Value = serde_json::from_slice(&body).expect("Failed to parse list response.");
+	let list_json: serde_json::Value =
+		serde_json::from_slice(&body).expect("Failed to parse list response.");
 
 	assert_eq!(list_json["items"].as_array().expect("Missing items array.").len(), 0);
 
@@ -577,7 +730,8 @@ async fn sharing_visibility_requires_explicit_project_grant() {
 	let body = body::to_bytes(note_response.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read get response body.");
-	let note_json: Value = serde_json::from_slice(&body).expect("Failed to parse get response.");
+	let note_json: serde_json::Value =
+		serde_json::from_slice(&body).expect("Failed to parse get response.");
 
 	assert_eq!(note_json["error_code"], "INVALID_REQUEST");
 
@@ -657,7 +811,8 @@ async fn sharing_project_grant_enables_agent_access_to_shared_note() {
 	let body = body::to_bytes(response.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read list response body.");
-	let list_json: Value = serde_json::from_slice(&body).expect("Failed to parse list response.");
+	let list_json: serde_json::Value =
+		serde_json::from_slice(&body).expect("Failed to parse list response.");
 	let items = list_json["items"].as_array().expect("Missing items array.");
 
 	assert_eq!(items.len(), 1);
@@ -682,7 +837,8 @@ async fn sharing_project_grant_enables_agent_access_to_shared_note() {
 	let body = body::to_bytes(note_response.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read get response body.");
-	let note_json: Value = serde_json::from_slice(&body).expect("Failed to parse get response.");
+	let note_json: serde_json::Value =
+		serde_json::from_slice(&body).expect("Failed to parse get response.");
 
 	assert_eq!(note_json["note_id"], note_id.to_string());
 	assert_eq!(note_json["scope"], "project_shared");
@@ -736,7 +892,7 @@ async fn sharing_publish_creates_scope_and_grant_visibility() {
 	let publish_body = body::to_bytes(publish_response.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read publish response body.");
-	let publish_json: Value =
+	let publish_json: serde_json::Value =
 		serde_json::from_slice(&publish_body).expect("Failed to parse publish response.");
 
 	assert_eq!(publish_json["note_id"], note_id.to_string());
@@ -766,7 +922,7 @@ async fn sharing_publish_creates_scope_and_grant_visibility() {
 	let list_body = body::to_bytes(list_response.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read list response body.");
-	let list_json: Value =
+	let list_json: serde_json::Value =
 		serde_json::from_slice(&list_body).expect("Failed to parse list response.");
 	let items = list_json["items"].as_array().expect("Missing items array.");
 
@@ -792,7 +948,8 @@ async fn sharing_publish_creates_scope_and_grant_visibility() {
 	let get_body = body::to_bytes(get_response.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read get response body.");
-	let get_json: Value = serde_json::from_slice(&get_body).expect("Failed to parse get response.");
+	let get_json: serde_json::Value =
+		serde_json::from_slice(&get_body).expect("Failed to parse get response.");
 
 	assert_eq!(get_json["note_id"], note_id.to_string());
 	assert_eq!(get_json["scope"], "project_shared");
@@ -842,7 +999,7 @@ async fn sharing_revoke_project_grant_removes_visibility() {
 	let list_before_body = body::to_bytes(list_before.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read list response body.");
-	let list_before_json: Value =
+	let list_before_json: serde_json::Value =
 		serde_json::from_slice(&list_before_body).expect("Failed to parse list response.");
 
 	assert_eq!(list_before_json["items"].as_array().expect("Missing items array.").len(), 1);
@@ -890,7 +1047,7 @@ async fn sharing_revoke_project_grant_removes_visibility() {
 	let list_after_body = body::to_bytes(list_after.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read list response body.");
-	let list_after_json: Value =
+	let list_after_json: serde_json::Value =
 		serde_json::from_slice(&list_after_body).expect("Failed to parse list response.");
 
 	assert_eq!(list_after_json["items"].as_array().expect("Missing items array.").len(), 0);
@@ -979,7 +1136,7 @@ async fn rejects_non_english_in_add_note() {
 	let body = body::to_bytes(response.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read response body.");
-	let json: Value = serde_json::from_slice(&body).expect("Failed to parse response.");
+	let json: serde_json::Value = serde_json::from_slice(&body).expect("Failed to parse response.");
 
 	assert_eq!(json["error_code"], "NON_ENGLISH_INPUT");
 	assert_eq!(json["fields"][0], "$.notes[0].text");
@@ -1028,7 +1185,7 @@ async fn rejects_cyrillic_in_add_note() {
 	let body = body::to_bytes(response.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read response body.");
-	let json: Value = serde_json::from_slice(&body).expect("Failed to parse response.");
+	let json: serde_json::Value = serde_json::from_slice(&body).expect("Failed to parse response.");
 
 	assert_eq!(json["error_code"], "NON_ENGLISH_INPUT");
 	assert_eq!(json["fields"][0], "$.notes[0].text");
@@ -1071,7 +1228,7 @@ async fn rejects_non_english_in_add_event() {
 	let body = body::to_bytes(response.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read response body.");
-	let json: Value = serde_json::from_slice(&body).expect("Failed to parse response.");
+	let json: serde_json::Value = serde_json::from_slice(&body).expect("Failed to parse response.");
 
 	assert_eq!(json["error_code"], "NON_ENGLISH_INPUT");
 	assert_eq!(json["fields"][0], "$.messages[0].content");
@@ -1114,7 +1271,7 @@ async fn rejects_cyrillic_in_add_event() {
 	let body = body::to_bytes(response.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read response body.");
-	let json: Value = serde_json::from_slice(&body).expect("Failed to parse response.");
+	let json: serde_json::Value = serde_json::from_slice(&body).expect("Failed to parse response.");
 
 	assert_eq!(json["error_code"], "NON_ENGLISH_INPUT");
 	assert_eq!(json["fields"][0], "$.messages[0].content");
@@ -1131,19 +1288,20 @@ async fn rejects_non_english_in_search() {
 	let config = test_config(test_db.dsn().to_string(), qdrant_url, collection);
 	let state = AppState::new(config).await.expect("Failed to initialize app state.");
 	let app = routes::router(state);
-	let payload = serde_json::json!({
-		"query": "안녕하세요",
-		"top_k": 5,
-		"candidate_k": 10
-	});
 
-	for endpoint in ["/v2/search/quick", "/v2/search/planned"] {
+	for mode in ["quick_find", "planned_search"] {
+		let payload = serde_json::json!({
+			"mode": mode,
+			"query": "안녕하세요",
+			"top_k": 5,
+			"candidate_k": 10,
+		});
 		let response = app
 			.clone()
 			.oneshot(
 				Request::builder()
 					.method("POST")
-					.uri(endpoint)
+					.uri("/v2/searches")
 					.header("X-ELF-Tenant-Id", "t")
 					.header("X-ELF-Project-Id", "p")
 					.header("X-ELF-Agent-Id", "a")
@@ -1160,7 +1318,8 @@ async fn rejects_non_english_in_search() {
 		let body = body::to_bytes(response.into_body(), usize::MAX)
 			.await
 			.expect("Failed to read response body.");
-		let json: Value = serde_json::from_slice(&body).expect("Failed to parse response.");
+		let json: serde_json::Value =
+			serde_json::from_slice(&body).expect("Failed to parse response.");
 
 		assert_eq!(json["error_code"], "NON_ENGLISH_INPUT");
 		assert_eq!(json["fields"][0], "$.query");
@@ -1178,19 +1337,20 @@ async fn rejects_cyrillic_in_search() {
 	let config = test_config(test_db.dsn().to_string(), qdrant_url, collection);
 	let state = AppState::new(config).await.expect("Failed to initialize app state.");
 	let app = routes::router(state);
-	let payload = serde_json::json!({
-		"query": "Привет",
-		"top_k": 5,
-		"candidate_k": 10
-	});
 
-	for endpoint in ["/v2/search/quick", "/v2/search/planned"] {
+	for mode in ["quick_find", "planned_search"] {
+		let payload = serde_json::json!({
+			"mode": mode,
+			"query": "Привет",
+			"top_k": 5,
+			"candidate_k": 10,
+		});
 		let response = app
 			.clone()
 			.oneshot(
 				Request::builder()
 					.method("POST")
-					.uri(endpoint)
+					.uri("/v2/searches")
 					.header("X-ELF-Tenant-Id", "t")
 					.header("X-ELF-Project-Id", "p")
 					.header("X-ELF-Agent-Id", "a")
@@ -1207,11 +1367,169 @@ async fn rejects_cyrillic_in_search() {
 		let body = body::to_bytes(response.into_body(), usize::MAX)
 			.await
 			.expect("Failed to read response body.");
-		let json: Value = serde_json::from_slice(&body).expect("Failed to parse response.");
+		let json: serde_json::Value =
+			serde_json::from_slice(&body).expect("Failed to parse response.");
 
 		assert_eq!(json["error_code"], "NON_ENGLISH_INPUT");
 		assert_eq!(json["fields"][0], "$.query");
 	}
+
+	test_db.cleanup().await.expect("Failed to cleanup test database.");
+}
+
+#[tokio::test]
+#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_GRPC_URL (or ELF_QDRANT_URL) to run."]
+async fn searches_notes_payload_level_shapes_source_ref_and_structured() {
+	let Some((test_db, qdrant_url, collection)) = test_env().await else {
+		return;
+	};
+	let config = test_config(test_db.dsn().to_string(), qdrant_url, collection);
+	let state = AppState::new(config).await.expect("Failed to initialize app state.");
+	let app = routes::router(state.clone());
+	let source_ref = serde_json::json!({
+		"schema": "note_source_ref/v1",
+		"locator": {
+			"document_id": Uuid::new_v4().to_string(),
+			"chunk_id": Uuid::new_v4().to_string(),
+			"revision": "payload-shaping-contract-test"
+		},
+		"metadata": {
+			"heavy_field": "This field should be hidden when payload_level is below l2."
+		}
+	});
+	let structured_summary = "Compact structured summary used for payload-level l1 and l2 shaping.";
+	let note_text = "A substantially long payload shaping note used in contract tests for search details output shaping. "
+		.repeat(6);
+	let note_id =
+		create_note_for_payload_level_tests(&app, note_text.as_str(), source_ref.clone()).await;
+
+	insert_note_summary_field(&state, note_id, structured_summary).await;
+
+	let search_response = app
+		.clone()
+		.oneshot(
+			Request::builder()
+				.method("POST")
+				.uri("/v2/searches")
+				.header("X-ELF-Tenant-Id", TEST_TENANT_ID)
+				.header("X-ELF-Project-Id", TEST_PROJECT_ID)
+				.header("X-ELF-Agent-Id", TEST_AGENT_A)
+				.header("X-ELF-Read-Profile", "private_only")
+				.header("content-type", "application/json")
+				.body(Body::from(
+					serde_json::json!({
+						"mode": "quick_find",
+						"query": "payload shaping",
+						"top_k": 5,
+						"candidate_k": 10,
+					})
+					.to_string(),
+				))
+				.expect("Failed to build searches request."),
+		)
+		.await
+		.expect("Failed to call searches.");
+
+	assert_eq!(search_response.status(), StatusCode::OK);
+
+	let search_body = body::to_bytes(search_response.into_body(), usize::MAX)
+		.await
+		.expect("Failed to read searches response body.");
+	let search_json: serde_json::Value =
+		serde_json::from_slice(&search_body).expect("Failed to parse searches response.");
+	let trajectory = &search_json["trajectory_summary"];
+
+	if !trajectory.is_null() {
+		assert!(trajectory.is_object());
+		assert!(trajectory.get("stages").is_some());
+	}
+
+	let search_id = Uuid::parse_str(
+		search_json["search_id"].as_str().expect("Missing search_id in searches response."),
+	)
+	.expect("Invalid search_id value.");
+	let notes_l0 = fetch_search_notes_for_payload_level(&app, search_id, note_id, "l0").await;
+	let notes_l1 = fetch_search_notes_for_payload_level(&app, search_id, note_id, "l1").await;
+	let notes_l2 = fetch_search_notes_for_payload_level(&app, search_id, note_id, "l2").await;
+	let search_get_response = app
+		.clone()
+		.oneshot(
+			Request::builder()
+				.method("GET")
+				.uri(format!("/v2/searches/{search_id}"))
+				.header("X-ELF-Tenant-Id", TEST_TENANT_ID)
+				.header("X-ELF-Project-Id", TEST_PROJECT_ID)
+				.header("X-ELF-Agent-Id", TEST_AGENT_A)
+				.header("X-ELF-Read-Profile", "private_only")
+				.body(Body::empty())
+				.expect("Failed to build searches get request."),
+		)
+		.await
+		.expect("Failed to call searches get.");
+
+	assert_eq!(search_get_response.status(), StatusCode::OK);
+
+	let search_get_body = body::to_bytes(search_get_response.into_body(), usize::MAX)
+		.await
+		.expect("Failed to read searches get response body.");
+	let search_get_json: serde_json::Value =
+		serde_json::from_slice(&search_get_body).expect("Failed to parse searches get response.");
+	let search_get_trajectory = &search_get_json["trajectory_summary"];
+
+	if !search_get_trajectory.is_null() {
+		assert!(search_get_trajectory.is_object());
+		assert!(search_get_trajectory.get("stages").is_some());
+	}
+
+	let notes_l0_text = notes_l0["text"].as_str().expect("Missing l0 text.");
+	let notes_l1_text = notes_l1["text"].as_str().expect("Missing l1 text.");
+	let notes_l2_text = notes_l2["text"].as_str().expect("Missing l2 text.");
+
+	assert_eq!(notes_l0["source_ref"], serde_json::json!({}));
+	assert_eq!(notes_l1["source_ref"], serde_json::json!({}));
+	assert_eq!(notes_l2["source_ref"], source_ref);
+	assert!(notes_l0["structured"].is_null());
+	assert!(notes_l1["structured"].is_object());
+	assert!(notes_l2["structured"].is_object());
+	assert!(notes_l0_text.len() <= 240);
+	assert_ne!(notes_l0_text, note_text.as_str());
+	assert_eq!(notes_l1_text, structured_summary);
+	assert_eq!(notes_l2_text, note_text.as_str());
+
+	test_db.cleanup().await.expect("Failed to cleanup test database.");
+}
+
+#[tokio::test]
+#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_GRPC_URL (or ELF_QDRANT_URL) to run."]
+async fn admin_searches_raw_payload_level_shapes_source_ref() {
+	let Some((test_db, qdrant_url, collection)) = test_env().await else {
+		return;
+	};
+	let config = test_config(test_db.dsn().to_string(), qdrant_url, collection);
+	let state = AppState::new(config).await.expect("Failed to initialize app state.");
+	let app = routes::router(state.clone());
+	let admin_app = routes::admin_router(state);
+	let source_ref = serde_json::json!({
+		"schema": "note_source_ref/v1",
+		"locator": {
+			"document_id": Uuid::new_v4().to_string(),
+			"chunk_id": Uuid::new_v4().to_string(),
+			"revision": "admin-raw-contract-test"
+		},
+		"metadata": {
+			"heavy_field": "This field should be hidden when payload_level is below l2."
+		}
+	});
+	let note_text =
+		"Admin raw search payload shaping contract note. This long note should be indexed.";
+	let _note_id = create_note_for_payload_level_tests(&app, note_text, source_ref.clone()).await;
+	let raw_l0 = fetch_admin_search_raw_source_ref(&admin_app, "payload shaping", "l0").await;
+	let raw_l1 = fetch_admin_search_raw_source_ref(&admin_app, "payload shaping", "l1").await;
+	let raw_l2 = fetch_admin_search_raw_source_ref(&admin_app, "payload shaping", "l2").await;
+
+	assert_eq!(raw_l0, serde_json::json!({}));
+	assert_eq!(raw_l1, serde_json::json!({}));
+	assert_eq!(raw_l2, source_ref);
 
 	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }
@@ -1365,7 +1683,7 @@ async fn static_keys_admin_required_for_org_shared_writes_ingest_checks(app: &Ro
 	let admin_ingest_body = body::to_bytes(admin_ingest.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read notes ingest response body.");
-	let admin_ingest_json: Value =
+	let admin_ingest_json: serde_json::Value =
 		serde_json::from_slice(&admin_ingest_body).expect("Failed to parse response.");
 
 	assert_eq!(admin_ingest_json["error_code"], "NON_ENGLISH_INPUT");
@@ -1796,7 +2114,7 @@ async fn admin_note_provenance_includes_request_id_on_success() {
 	let body = body::to_bytes(response.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read provenance response body.");
-	let json: Value = serde_json::from_slice(&body).expect("Failed to parse response.");
+	let json: serde_json::Value = serde_json::from_slice(&body).expect("Failed to parse response.");
 
 	assert_eq!(json["schema"], "elf.note_provenance_bundle/v1");
 	assert_eq!(json["request_id"], request_id.to_string());
@@ -1840,11 +2158,11 @@ async fn admin_note_provenance_rejects_invalid_request_id_header() {
 	let body = body::to_bytes(response.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read provenance response body.");
-	let json: Value = serde_json::from_slice(&body).expect("Failed to parse response.");
+	let json: serde_json::Value = serde_json::from_slice(&body).expect("Failed to parse response.");
 
 	assert_eq!(json["error_code"], "INVALID_REQUEST");
 	assert_eq!(json["fields"][0], "$.headers.X-ELF-Request-Id");
-	assert_eq!(json["request_id"], Value::String(generated_request_id.to_string()),);
+	assert_eq!(json["request_id"], serde_json::Value::String(generated_request_id.to_string()),);
 
 	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }
@@ -1924,7 +2242,7 @@ async fn global_graph_predicate_write_requires_super_admin() {
 	let body = body::to_bytes(response_admin.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read response body.");
-	let json: Value = serde_json::from_slice(&body).expect("Failed to parse response.");
+	let json: serde_json::Value = serde_json::from_slice(&body).expect("Failed to parse response.");
 
 	assert_eq!(json["error_code"], "SCOPE_DENIED");
 
