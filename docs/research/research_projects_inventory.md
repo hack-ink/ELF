@@ -22,7 +22,7 @@ Last updated: March 4, 2026.
 | [Letta](https://github.com/letta-ai/letta) | D1 | Reviewed | Core vs archival memory split, shared blocks | `docs/research/comparison_external_projects.md` |
 | [LangGraph](https://docs.langchain.com/oss/python/langgraph/persistence) | D1 | Reviewed | Checkpoint/replay mindset for quality regression workflows | `docs/research/comparison_external_projects.md` |
 | [Graphiti / Zep](https://help.getzep.com/graphiti/core-concepts/temporal-awareness) | D1 | Reviewed | Temporal fact validity model for graph-like memory evolution | `docs/research/comparison_external_projects.md` |
-| [NanoGraph (nano-graphrag)](https://github.com/gusye1234/nano-graphrag) | D1 | Reviewed | Lightweight GraphRAG reference for local/global query ergonomics and minimal graph pipeline design | `docs/research/comparison_external_projects.md` |
+| [nanograph](https://github.com/aaltshuler/nanograph) | D1 | Reviewed | Typed schema + typed query ergonomics for graph-lite developer experience | `docs/research/comparison_external_projects.md` |
 | [RAGFlow](https://github.com/infiniflow/ragflow) | D0 | Pending deep dive | Potential framework integration discussion; not yet audited to adoption level | Discussion history only |
 | [LightRAG](https://github.com/HKUDS/LightRAG) | D0 | Pending deep dive | Graph-augmented RAG strategy relevance; not yet audited to adoption level | Discussion history only |
 | [GraphRAG](https://www.microsoft.com/en-us/research/project/graphrag/) | D0 | Pending deep dive | Graph-based retrieval concepts; not yet audited to implementation decision level | Discussion history only |
