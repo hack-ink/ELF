@@ -35,12 +35,12 @@ use elf_service::{
 	PayloadLevel, PublishNoteRequest, QueryPlan, RankingRequestOverride, RebuildReport,
 	SearchDetailsRequest, SearchDetailsResult, SearchExplainRequest, SearchExplainResponse,
 	SearchIndexItem, SearchRequest, SearchResponse, SearchSessionGetRequest, SearchTimelineGroup,
-	SearchTimelineRequest, SearchTrajectoryResponse, ShareScope, SpaceGrantRevokeRequest,
-	SpaceGrantRevokeResponse, SpaceGrantUpsertRequest, SpaceGrantsListRequest,
-	TextPositionSelector, TextQuoteSelector, TraceBundleGetRequest, TraceBundleResponse,
-	TraceGetRequest, TraceGetResponse, TraceRecentListRequest, TraceRecentListResponse,
-	TraceTrajectoryGetRequest, UnpublishNoteRequest, UpdateRequest, UpdateResponse,
-	search::TraceBundleMode,
+	SearchTimelineRequest, SearchTrajectoryResponse, SearchTrajectorySummary, ShareScope,
+	SpaceGrantRevokeRequest, SpaceGrantRevokeResponse, SpaceGrantUpsertRequest,
+	SpaceGrantsListRequest, TextPositionSelector, TextQuoteSelector, TraceBundleGetRequest,
+	TraceBundleResponse, TraceGetRequest, TraceGetResponse, TraceRecentListRequest,
+	TraceRecentListResponse, TraceTrajectoryGetRequest, UnpublishNoteRequest, UpdateRequest,
+	UpdateResponse, search::TraceBundleMode,
 };
 
 const HEADER_TENANT_ID: &str = "X-ELF-Tenant-Id";
@@ -137,6 +137,7 @@ struct DocsExcerptsGetBody {
 
 #[derive(Clone, Debug, Deserialize)]
 struct SearchCreateRequest {
+	mode: SearchMode,
 	query: String,
 	top_k: Option<u32>,
 	candidate_k: Option<u32>,
@@ -146,23 +147,39 @@ struct SearchCreateRequest {
 	ranking: Option<RankingRequestOverride>,
 }
 
-#[derive(Clone, Debug, Serialize)]
-struct SearchIndexResponseV2 {
-	trace_id: Uuid,
-	search_id: Uuid,
-	#[serde(with = "elf_service::time_serde")]
-	expires_at: OffsetDateTime,
-	items: Vec<SearchIndexItem>,
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum SearchMode {
+	QuickFind,
+	PlannedSearch,
 }
 
 #[derive(Clone, Debug, Serialize)]
-struct SearchIndexPlannedResponseV2 {
+struct SearchIndexResponseV2 {
+	mode: SearchMode,
 	trace_id: Uuid,
 	search_id: Uuid,
 	#[serde(with = "elf_service::time_serde")]
 	expires_at: OffsetDateTime,
 	items: Vec<SearchIndexItem>,
-	query_plan: QueryPlan,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	trajectory_summary: Option<SearchTrajectorySummary>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	query_plan: Option<QueryPlan>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+struct SearchCreateResponseV2 {
+	mode: SearchMode,
+	trace_id: Uuid,
+	search_id: Uuid,
+	#[serde(with = "elf_service::time_serde")]
+	expires_at: OffsetDateTime,
+	items: Vec<SearchIndexItem>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	trajectory_summary: Option<SearchTrajectorySummary>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	query_plan: Option<QueryPlan>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -405,8 +422,7 @@ pub fn router(state: AppState) -> Router {
 		.route("/health", routing::get(health))
 		.route("/v2/notes/ingest", routing::post(notes_ingest))
 		.route("/v2/events/ingest", routing::post(events_ingest))
-		.route("/v2/search/quick", routing::post(search_quick_create))
-		.route("/v2/search/planned", routing::post(search_planned_create))
+		.route("/v2/searches", routing::post(searches_create))
 		.route("/v2/searches/:search_id", routing::get(searches_get))
 		.route("/v2/searches/:search_id/timeline", routing::get(searches_timeline))
 		.route("/v2/searches/:search_id/notes", routing::post(searches_notes))
@@ -1181,11 +1197,11 @@ async fn docs_excerpts_get(
 	Ok(Json(response))
 }
 
-async fn search_quick_create(
+async fn searches_create(
 	State(state): State<AppState>,
 	headers: HeaderMap,
 	payload: Result<Json<SearchCreateRequest>, JsonRejection>,
-) -> Result<Json<SearchIndexResponseV2>, ApiError> {
+) -> Result<Json<SearchCreateResponseV2>, ApiError> {
 	let ctx = RequestContext::from_headers(&headers)?;
 	let read_profile = required_read_profile(&headers)?;
 	let Json(payload) = payload.map_err(|err| {
@@ -1227,103 +1243,52 @@ async fn search_quick_create(
 		));
 	}
 
-	let response = state
-		.service
-		.search_quick(SearchRequest {
-			tenant_id: ctx.tenant_id,
-			project_id: ctx.project_id,
-			agent_id: ctx.agent_id,
-			token_id: effective_token_id(state.service.cfg.security.auth_mode.as_str(), &headers),
-			read_profile,
-			query: payload.query,
-			top_k: payload.top_k,
-			candidate_k: payload.candidate_k,
-			filter: payload.filter,
-			payload_level: payload.payload_level.unwrap_or_default(),
-			record_hits: Some(false),
-			ranking: None,
-		})
-		.await?;
+	let mode = payload.mode;
+	let token_id = effective_token_id(state.service.cfg.security.auth_mode.as_str(), &headers);
+	let build_request = || SearchRequest {
+		tenant_id: ctx.tenant_id,
+		project_id: ctx.project_id,
+		agent_id: ctx.agent_id,
+		token_id: token_id.clone(),
+		read_profile,
+		query: payload.query.clone(),
+		top_k: payload.top_k,
+		candidate_k: payload.candidate_k,
+		filter: payload.filter.clone(),
+		payload_level: payload.payload_level.unwrap_or_default(),
+		record_hits: Some(false),
+		ranking: None,
+	};
+	let response = match mode {
+		SearchMode::QuickFind => {
+			let response = state.service.search_quick(build_request()).await?;
 
-	Ok(Json(SearchIndexResponseV2 {
-		trace_id: response.trace_id,
-		search_id: response.search_session_id,
-		expires_at: response.expires_at,
-		items: response.items,
-	}))
-}
+			SearchCreateResponseV2 {
+				mode,
+				trace_id: response.trace_id,
+				search_id: response.search_session_id,
+				expires_at: response.expires_at,
+				items: response.items,
+				trajectory_summary: response.trajectory_summary,
+				query_plan: None,
+			}
+		},
+		SearchMode::PlannedSearch => {
+			let response = state.service.search_planned(build_request()).await?;
 
-async fn search_planned_create(
-	State(state): State<AppState>,
-	headers: HeaderMap,
-	payload: Result<Json<SearchCreateRequest>, JsonRejection>,
-) -> Result<Json<SearchIndexPlannedResponseV2>, ApiError> {
-	let ctx = RequestContext::from_headers(&headers)?;
-	let read_profile = required_read_profile(&headers)?;
-	let Json(payload) = payload.map_err(|err| {
-		tracing::warn!(error = %err, "Invalid request payload.");
+			SearchCreateResponseV2 {
+				mode,
+				trace_id: response.trace_id,
+				search_id: response.search_session_id,
+				expires_at: response.expires_at,
+				items: response.items,
+				trajectory_summary: response.trajectory_summary,
+				query_plan: Some(response.query_plan),
+			}
+		},
+	};
 
-		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
-	})?;
-
-	if payload.query.chars().count() > MAX_QUERY_CHARS {
-		return Err(json_error(
-			StatusCode::BAD_REQUEST,
-			"INVALID_REQUEST",
-			"Query is too long.",
-			Some(vec!["$.query".to_string()]),
-		));
-	}
-	if payload.top_k.unwrap_or(state.service.cfg.memory.top_k) > MAX_TOP_K {
-		return Err(json_error(
-			StatusCode::BAD_REQUEST,
-			"INVALID_REQUEST",
-			"top_k is too large.",
-			Some(vec!["$.top_k".to_string()]),
-		));
-	}
-	if payload.candidate_k.unwrap_or(state.service.cfg.memory.candidate_k) > MAX_CANDIDATE_K {
-		return Err(json_error(
-			StatusCode::BAD_REQUEST,
-			"INVALID_REQUEST",
-			"candidate_k is too large.",
-			Some(vec!["$.candidate_k".to_string()]),
-		));
-	}
-	if payload.ranking.is_some() {
-		return Err(json_error(
-			StatusCode::BAD_REQUEST,
-			"INVALID_REQUEST",
-			"Ranking overrides are only supported on admin endpoints.".to_string(),
-			None,
-		));
-	}
-
-	let response = state
-		.service
-		.search_planned(SearchRequest {
-			tenant_id: ctx.tenant_id,
-			project_id: ctx.project_id,
-			agent_id: ctx.agent_id,
-			token_id: effective_token_id(state.service.cfg.security.auth_mode.as_str(), &headers),
-			read_profile,
-			query: payload.query,
-			top_k: payload.top_k,
-			candidate_k: payload.candidate_k,
-			filter: payload.filter,
-			payload_level: payload.payload_level.unwrap_or_default(),
-			record_hits: Some(false),
-			ranking: None,
-		})
-		.await?;
-
-	Ok(Json(SearchIndexPlannedResponseV2 {
-		trace_id: response.trace_id,
-		search_id: response.search_session_id,
-		expires_at: response.expires_at,
-		items: response.items,
-		query_plan: response.query_plan,
-	}))
+	Ok(Json(response))
 }
 
 async fn searches_get(
@@ -1355,12 +1320,20 @@ async fn searches_get(
 			touch: query.touch,
 		})
 		.await?;
+	let mode = if response.query_plan.is_some() {
+		SearchMode::PlannedSearch
+	} else {
+		SearchMode::QuickFind
+	};
 
 	Ok(Json(SearchIndexResponseV2 {
+		mode,
 		trace_id: response.trace_id,
 		search_id: response.search_session_id,
 		expires_at: response.expires_at,
 		items: response.items,
+		trajectory_summary: response.trajectory_summary,
+		query_plan: response.query_plan,
 	}))
 }
 
@@ -2017,23 +1990,32 @@ async fn searches_raw(
 		));
 	}
 
-	let response = state
-		.service
-		.search_raw(SearchRequest {
-			tenant_id: ctx.tenant_id,
-			project_id: ctx.project_id,
-			agent_id: ctx.agent_id,
-			token_id: effective_token_id(state.service.cfg.security.auth_mode.as_str(), &headers),
-			read_profile,
-			query: payload.query,
-			filter: payload.filter,
-			payload_level: payload.payload_level.unwrap_or_default(),
-			top_k: payload.top_k,
-			candidate_k: payload.candidate_k,
-			record_hits: Some(false),
-			ranking: payload.ranking,
-		})
-		.await?;
+	let request = SearchRequest {
+		tenant_id: ctx.tenant_id,
+		project_id: ctx.project_id,
+		agent_id: ctx.agent_id,
+		token_id: effective_token_id(state.service.cfg.security.auth_mode.as_str(), &headers),
+		read_profile,
+		query: payload.query,
+		filter: payload.filter,
+		payload_level: payload.payload_level.unwrap_or_default(),
+		top_k: payload.top_k,
+		candidate_k: payload.candidate_k,
+		record_hits: Some(false),
+		ranking: payload.ranking,
+	};
+	let response = match payload.mode {
+		SearchMode::QuickFind => state.service.search_raw_quick(request).await?,
+		SearchMode::PlannedSearch => {
+			let response = state.service.search_raw_planned(request).await?;
+
+			SearchResponse {
+				trace_id: response.trace_id,
+				items: response.items,
+				trajectory_summary: response.trajectory_summary,
+			}
+		},
+	};
 
 	Ok(Json(response))
 }

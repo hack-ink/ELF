@@ -287,38 +287,23 @@ impl ElfMcp {
 	}
 
 	#[rmcp::tool(
-		name = "elf_search_quick_create",
-		description = "Run a quick search and return a compact index view of results.",
-		input_schema = search_quick_create_schema()
+		name = "elf_searches_create",
+		description = "Create a search session using quick-find or planned-search mode. Response includes optional trajectory_summary for staged retrieval progress.",
+		input_schema = searches_create_schema()
 	)]
-	async fn elf_search_quick_create(
+	async fn elf_searches_create(
 		&self,
 		mut params: JsonObject,
 	) -> Result<CallToolResult, ErrorData> {
 		// read_profile is part of the MCP server configuration and is not client-controlled.
 		let _ = take_optional_string(&mut params, "read_profile")?;
 
-		self.forward(HttpMethod::Post, "/v2/search/quick", params, None).await
-	}
-
-	#[rmcp::tool(
-		name = "elf_search_planned_create",
-		description = "Run a planned search and return a compact index view with query_plan.",
-		input_schema = search_planned_create_schema()
-	)]
-	async fn elf_search_planned_create(
-		&self,
-		mut params: JsonObject,
-	) -> Result<CallToolResult, ErrorData> {
-		// read_profile is part of the MCP server configuration and is not client-controlled.
-		let _ = take_optional_string(&mut params, "read_profile")?;
-
-		self.forward(HttpMethod::Post, "/v2/search/planned", params, None).await
+		self.forward(HttpMethod::Post, "/v2/searches", params, None).await
 	}
 
 	#[rmcp::tool(
 		name = "elf_searches_get",
-		description = "Fetch a search session index view by search_id.",
+		description = "Fetch a search session index view by search_id, including optional trajectory_summary.",
 		input_schema = searches_get_schema()
 	)]
 	async fn elf_searches_get(&self, mut params: JsonObject) -> Result<CallToolResult, ErrorData> {
@@ -345,7 +330,7 @@ impl ElfMcp {
 
 	#[rmcp::tool(
 		name = "elf_searches_notes",
-		description = "Fetch full note details for selected note_ids from a search session.",
+		description = "Fetch note details for selected note_ids from a search session. l0/l1 strip evidence/source_ref; l2 returns full detail.",
 		input_schema = searches_notes_schema()
 	)]
 	async fn elf_searches_notes(
@@ -993,7 +978,7 @@ fn docs_excerpts_get_schema() -> Arc<JsonObject> {
 	}))
 }
 
-fn search_create_schema() -> Arc<JsonObject> {
+fn searches_create_schema() -> Arc<JsonObject> {
 	let filter_schema = rmcp::object!({
 		"type": "object",
 		"required": ["schema", "expr"],
@@ -1013,9 +998,10 @@ fn search_create_schema() -> Arc<JsonObject> {
 	Arc::new(rmcp::object!({
 		"type": "object",
 		"additionalProperties": true,
-		"required": ["query"],
+		"required": ["query", "mode"],
 		"properties": {
 			"query": { "type": "string" },
+			"mode": { "type": "string", "enum": ["quick_find", "planned_search"] },
 			"payload_level": {
 				"type": ["string", "null"],
 				"enum": ["l0", "l1", "l2", null]
@@ -1026,14 +1012,6 @@ fn search_create_schema() -> Arc<JsonObject> {
 			"read_profile": { "type": ["string", "null"] }
 		}
 	}))
-}
-
-fn search_quick_create_schema() -> Arc<JsonObject> {
-	search_create_schema()
-}
-
-fn search_planned_create_schema() -> Arc<JsonObject> {
-	search_create_schema()
 }
 
 fn searches_get_schema() -> Arc<JsonObject> {
@@ -1360,7 +1338,7 @@ mod tests {
 
 	use crate::{McpAuthState, server::HttpMethod};
 
-	const ALL_TOOL_DEFINITIONS: [ToolDefinition; 28] = [
+	const ALL_TOOL_DEFINITIONS: [ToolDefinition; 27] = [
 		ToolDefinition::new(
 			"elf_notes_ingest",
 			HttpMethod::Post,
@@ -1374,22 +1352,16 @@ mod tests {
 			"Ingest an event by extracting evidence-bound notes using the configured LLM extractor.",
 		),
 		ToolDefinition::new(
-			"elf_search_quick_create",
+			"elf_searches_create",
 			HttpMethod::Post,
-			"/v2/search/quick",
-			"Run a quick search and return a compact index view of results.",
-		),
-		ToolDefinition::new(
-			"elf_search_planned_create",
-			HttpMethod::Post,
-			"/v2/search/planned",
-			"Run a planned search and return a compact index view with query_plan.",
+			"/v2/searches",
+			"Create a search session using quick-find or planned-search mode. Response includes optional trajectory_summary.",
 		),
 		ToolDefinition::new(
 			"elf_searches_get",
 			HttpMethod::Get,
 			"/v2/searches/{search_id}",
-			"Fetch a search session index view by search_id.",
+			"Fetch a search session index view by search_id, including optional trajectory_summary.",
 		),
 		ToolDefinition::new(
 			"elf_searches_timeline",
@@ -1401,7 +1373,7 @@ mod tests {
 			"elf_searches_notes",
 			HttpMethod::Post,
 			"/v2/searches/{search_id}/notes",
-			"Fetch full note details for selected note_ids from a search session.",
+			"Fetch note details for selected note_ids from a search session. l0/l1 strip evidence/source_ref/structured; l2 returns full detail.",
 		),
 		ToolDefinition::new(
 			"elf_notes_list",
@@ -1561,8 +1533,7 @@ mod tests {
 		let expected = [
 			"elf_notes_ingest",
 			"elf_events_ingest",
-			"elf_search_quick_create",
-			"elf_search_planned_create",
+			"elf_searches_create",
 			"elf_searches_get",
 			"elf_searches_timeline",
 			"elf_searches_notes",
@@ -1616,7 +1587,7 @@ mod tests {
 			mcp.api_base_for_path("/v2/admin/notes/abcd/provenance"),
 			"http://127.0.0.1:9001"
 		);
-		assert_eq!(mcp.api_base_for_path("/v2/search/quick"), "http://127.0.0.1:9000");
+		assert_eq!(mcp.api_base_for_path("/v2/searches"), "http://127.0.0.1:9000");
 	}
 
 	#[test]
@@ -1766,5 +1737,49 @@ mod tests {
 
 		assert!(level_values.contains(&serde_json::Value::String("L0".to_string())));
 		assert!(properties.contains_key("explain"));
+	}
+
+	#[test]
+	fn payload_level_schema_for_search_tools_is_l0_l1_l2() {
+		for schema in [
+			super::searches_create_schema(),
+			super::searches_get_schema(),
+			super::searches_timeline_schema(),
+			super::searches_notes_schema(),
+		] {
+			let properties = schema
+				.get("properties")
+				.and_then(serde_json::Value::as_object)
+				.expect("Search schema is missing properties.");
+			let payload_level = properties
+				.get("payload_level")
+				.and_then(serde_json::Value::as_object)
+				.expect("payload_level field is missing from search schema.");
+			let payload_level_values = payload_level
+				.get("enum")
+				.and_then(serde_json::Value::as_array)
+				.expect("payload_level enum is missing.");
+
+			assert_eq!(payload_level_values.len(), 4, "Unexpected payload_level enum length.");
+			assert!(payload_level_values.iter().any(|value| value.as_str() == Some("l0")));
+			assert!(payload_level_values.iter().any(|value| value.as_str() == Some("l1")));
+			assert!(payload_level_values.iter().any(|value| value.as_str() == Some("l2")));
+			assert!(payload_level_values.iter().any(|value| value.is_null()));
+		}
+	}
+
+	#[test]
+	fn searches_notes_tool_description_mentions_payload_level_shapes() {
+		let tools = build_tools();
+		let tool =
+			tools.get("elf_searches_notes").expect("Missing elf_searches_notes tool definition.");
+		let description = tool.description.to_lowercase();
+
+		assert_eq!(tool.path, "/v2/searches/{search_id}/notes");
+		assert!(description.contains("l0"));
+		assert!(description.contains("l1"));
+		assert!(description.contains("l2"));
+		assert!(description.contains("source_ref"));
+		assert!(description.contains("structured"));
 	}
 }
