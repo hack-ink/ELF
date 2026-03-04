@@ -11,6 +11,50 @@ pub const ELF_GRAPH_QUERY_SCHEMA_V1: &str = "elf.graph_query/v1";
 const DEFAULT_GRAPH_QUERY_LIMIT: u32 = 50;
 const MAX_GRAPH_QUERY_LIMIT: u32 = 200;
 const GRAPH_QUERY_EVIDENCE_LIMIT: i64 = 16;
+const GRAPH_QUERY_FACTS_SQL: &str = "\
+SELECT
+\tfact_id,
+\tscope,
+\tagent_id AS actor,
+\tpredicate,
+\tpredicate_id,
+\tobject_entity_id,
+\tobject_entity.canonical AS object_canonical,
+\tobject_entity.kind AS object_kind,
+\tobject_value,
+\tvalid_from,
+\tvalid_to,
+\tCOALESCE(
+\t\t(SELECT ARRAY_AGG(e.note_id ORDER BY e.created_at ASC, e.note_id ASC)
+\t\t FROM (
+\t\t \tSELECT note_id, created_at
+\t\t \tFROM graph_fact_evidence
+\t\t \tWHERE fact_id = gf.fact_id
+\t\t \tORDER BY created_at ASC, note_id ASC
+\t\t \tLIMIT $9
+\t\t ) e),
+\t\t'{}'::uuid[]
+\t) AS evidence_note_ids
+FROM graph_facts AS gf
+LEFT JOIN graph_entities AS object_entity
+\tON object_entity.entity_id = gf.object_entity_id
+\tAND object_entity.tenant_id = gf.tenant_id
+\tAND object_entity.project_id = gf.project_id
+WHERE gf.tenant_id = $1
+\tAND (gf.project_id = $2 OR (gf.project_id = $10 AND gf.scope = 'org_shared'))
+\tAND gf.subject_entity_id = $3
+\tAND gf.scope = ANY($4::text[])
+\tAND gf.valid_from <= $5
+\tAND (gf.valid_to IS NULL OR gf.valid_to > $5)
+\tAND ($11::uuid IS NULL OR gf.predicate_id = $11)
+\tAND (
+\t\t(gf.scope = 'agent_private' AND gf.agent_id = $6)
+\t\tOR (gf.scope <> 'agent_private' AND (
+\t\t\tgf.agent_id = $6 OR (gf.scope || ':' || gf.agent_id) = ANY($7::text[])
+\t\t))
+\t)
+ORDER BY gf.valid_from DESC, gf.fact_id ASC
+LIMIT $8";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -33,9 +77,9 @@ pub struct GraphQueryRequest {
 	pub agent_id: String,
 	pub read_profile: String,
 	pub subject: GraphQueryEntityRef,
-	#[serde(default)]
+
 	pub predicate: Option<GraphQueryPredicateRef>,
-	#[serde(default)]
+
 	pub scopes: Option<Vec<String>>,
 	#[serde(with = "crate::time_serde::option")]
 	pub as_of: Option<OffsetDateTime>,
@@ -156,6 +200,22 @@ struct GraphQueryRowsFetchParams<'a> {
 	limit_plus_one: i64,
 }
 
+#[derive(Debug, FromRow)]
+struct GraphQueryFactRow {
+	fact_id: Uuid,
+	scope: String,
+	actor: String,
+	predicate: String,
+	predicate_id: Option<Uuid>,
+	object_entity_id: Option<Uuid>,
+	object_canonical: Option<String>,
+	object_kind: Option<String>,
+	object_value: Option<String>,
+	valid_from: OffsetDateTime,
+	valid_to: Option<OffsetDateTime>,
+	evidence_note_ids: Vec<Uuid>,
+}
+
 impl ElfService {
 	pub async fn graph_query(&self, req: GraphQueryRequest) -> Result<GraphQueryResponse> {
 		let prepared = validate_graph_query_request(req)?;
@@ -163,7 +223,6 @@ impl ElfService {
 			search::resolve_read_profile_scopes(&self.cfg, prepared.read_profile.as_str())?;
 		let effective_scopes =
 			resolve_effective_scopes(&allowed_scopes, prepared.requested_scopes.as_slice())?;
-
 		let org_shared_allowed = allowed_scopes.iter().any(|scope| scope.trim() == "org_shared");
 		let mut conn = self.db.pool.acquire().await?;
 		let subject =
@@ -268,6 +327,83 @@ impl ElfService {
 	}
 }
 
+pub(crate) fn resolve_effective_scopes(
+	allowed_scopes: &[String],
+	requested_scopes: &[String],
+) -> Result<Vec<String>> {
+	let allowed = allowed_scopes
+		.iter()
+		.map(|scope| scope.trim())
+		.filter(|scope| !scope.is_empty())
+		.collect::<Vec<_>>();
+
+	if allowed.is_empty() {
+		return Err(Error::InvalidRequest {
+			message: "read_profile resolves to no readable scopes.".to_string(),
+		});
+	}
+	if requested_scopes.is_empty() {
+		let mut deduped = Vec::with_capacity(allowed.len());
+
+		for scope in allowed {
+			if !deduped.iter().any(|value| value == scope) {
+				deduped.push(scope.to_string());
+			}
+		}
+
+		return Ok(deduped);
+	}
+
+	let mut effective = Vec::new();
+
+	for requested_scope in requested_scopes {
+		if !allowed.iter().any(|scope| scope == requested_scope) {
+			return Err(Error::InvalidRequest {
+				message: format!("scope is not readable under read_profile: {}", requested_scope),
+			});
+		}
+		if !effective.iter().any(|scope| scope == requested_scope) {
+			effective.push(requested_scope.to_string());
+		}
+	}
+
+	Ok(effective)
+}
+
+pub(crate) fn truncate_graph_query_facts(
+	mut facts: Vec<GraphQueryFact>,
+	limit: usize,
+) -> (Vec<GraphQueryFact>, bool) {
+	let truncated = facts.len() > limit;
+
+	if truncated {
+		facts.truncate(limit);
+	}
+
+	(facts, truncated)
+}
+
+pub(crate) fn build_graph_query_explain(
+	as_of: OffsetDateTime,
+	allowed_scopes: &[String],
+	effective_scopes: &[String],
+	requested_limit: usize,
+	queried_rows: usize,
+	returned_rows: usize,
+	truncated: bool,
+) -> GraphQueryExplain {
+	GraphQueryExplain {
+		schema: ELF_GRAPH_QUERY_SCHEMA_V1.to_string(),
+		as_of,
+		requested_limit: requested_limit as u32,
+		allowed_scopes: allowed_scopes.to_vec(),
+		effective_scopes: effective_scopes.to_vec(),
+		queried_rows,
+		returned_rows,
+		truncated,
+	}
+}
+
 fn validate_graph_query_request(req: GraphQueryRequest) -> Result<PreparedGraphQuery> {
 	let tenant_id = normalize_required_field(req.tenant_id.as_str(), "tenant_id")?;
 	let project_id = normalize_required_field(req.project_id.as_str(), "project_id")?;
@@ -277,6 +413,7 @@ fn validate_graph_query_request(req: GraphQueryRequest) -> Result<PreparedGraphQ
 		GraphQueryEntityRef::EntityId { entity_id } => GraphQueryEntityRef::EntityId { entity_id },
 		GraphQueryEntityRef::Surface { surface } => {
 			let surface = normalize_required_field(surface.as_str(), "subject.surface")?;
+
 			GraphQueryEntityRef::Surface { surface }
 		},
 	};
@@ -285,6 +422,7 @@ fn validate_graph_query_request(req: GraphQueryRequest) -> Result<PreparedGraphQ
 			Some(GraphQueryPredicateRef::PredicateId { predicate_id }),
 		Some(GraphQueryPredicateRef::Surface { surface }) => {
 			let surface = normalize_required_field(surface.as_str(), "predicate.surface")?;
+
 			Some(GraphQueryPredicateRef::Surface { surface })
 		},
 		None => None,
@@ -312,94 +450,24 @@ fn validate_graph_query_request(req: GraphQueryRequest) -> Result<PreparedGraphQ
 	})
 }
 
-pub(crate) fn resolve_effective_scopes(
-	allowed_scopes: &[String],
-	requested_scopes: &[String],
-) -> Result<Vec<String>> {
-	let allowed = allowed_scopes
-		.iter()
-		.map(|scope| scope.trim())
-		.filter(|scope| !scope.is_empty())
-		.collect::<Vec<_>>();
-
-	if allowed.is_empty() {
-		return Err(Error::InvalidRequest {
-			message: "read_profile resolves to no readable scopes.".to_string(),
-		});
-	}
-
-	if requested_scopes.is_empty() {
-		let mut deduped = Vec::with_capacity(allowed.len());
-		for scope in allowed {
-			if !deduped.iter().any(|value| value == scope) {
-				deduped.push(scope.to_string());
-			}
-		}
-		return Ok(deduped);
-	}
-
-	let mut effective = Vec::new();
-	for requested_scope in requested_scopes {
-		if !allowed.iter().any(|scope| scope == requested_scope) {
-			return Err(Error::InvalidRequest {
-				message: format!("scope is not readable under read_profile: {}", requested_scope),
-			});
-		}
-		if !effective.iter().any(|scope| scope == requested_scope) {
-			effective.push(requested_scope.to_string());
-		}
-	}
-
-	Ok(effective)
-}
-
-pub(crate) fn truncate_graph_query_facts(
-	mut facts: Vec<GraphQueryFact>,
-	limit: usize,
-) -> (Vec<GraphQueryFact>, bool) {
-	let truncated = facts.len() > limit;
-	if truncated {
-		facts.truncate(limit);
-	}
-	(facts, truncated)
-}
-
-pub(crate) fn build_graph_query_explain(
-	as_of: OffsetDateTime,
-	allowed_scopes: &[String],
-	effective_scopes: &[String],
-	requested_limit: usize,
-	queried_rows: usize,
-	returned_rows: usize,
-	truncated: bool,
-) -> GraphQueryExplain {
-	GraphQueryExplain {
-		schema: ELF_GRAPH_QUERY_SCHEMA_V1.to_string(),
-		as_of,
-		requested_limit: requested_limit as u32,
-		allowed_scopes: allowed_scopes.to_vec(),
-		effective_scopes: effective_scopes.to_vec(),
-		queried_rows,
-		returned_rows,
-		truncated,
-	}
-}
-
 fn normalize_required_field(value: &str, field: &str) -> Result<String> {
 	let trimmed = value.trim();
+
 	if trimmed.is_empty() {
 		return Err(Error::InvalidRequest { message: format!("{field} is required.") });
 	}
+
 	Ok(trimmed.to_string())
 }
 
 fn normalize_scopes(scopes: Option<Vec<String>>) -> Result<Vec<String>> {
+	let scopes = scopes.unwrap_or_default();
 	let mut seen = std::collections::HashSet::new();
 	let mut normalized = Vec::new();
 
-	let scopes = scopes.unwrap_or_default();
 	for scope in scopes {
 		let scope = scope.trim().to_string();
+
 		if scope.is_empty() {
 			return Err(Error::InvalidRequest {
 				message: "scopes entries must be non-empty strings.".to_string(),
@@ -442,7 +510,6 @@ WHERE tenant_id = $1
 			.bind(entity_id)
 			.fetch_optional(conn)
 			.await?;
-
 			let Some(row) = row else {
 				return Err(Error::NotFound {
 					message: format!("graph entity not found for subject entity_id={entity_id}"),
@@ -523,7 +590,6 @@ async fn fetch_graph_query_rows(
 		predicate_id,
 		limit_plus_one,
 	} = params;
-
 	let rows = sqlx::query_as::<_, GraphQueryFactRow>(GRAPH_QUERY_FACTS_SQL)
 		.bind(tenant_id)
 		.bind(project_id)
@@ -542,71 +608,18 @@ async fn fetch_graph_query_rows(
 	Ok(rows)
 }
 
-#[derive(Debug, FromRow)]
-struct GraphQueryFactRow {
-	fact_id: Uuid,
-	scope: String,
-	actor: String,
-	predicate: String,
-	predicate_id: Option<Uuid>,
-	object_entity_id: Option<Uuid>,
-	object_canonical: Option<String>,
-	object_kind: Option<String>,
-	object_value: Option<String>,
-	valid_from: OffsetDateTime,
-	valid_to: Option<OffsetDateTime>,
-	evidence_note_ids: Vec<Uuid>,
-}
-
-const GRAPH_QUERY_FACTS_SQL: &str = "\
-SELECT
-\tfact_id,
-\tscope,
-\tagent_id AS actor,
-\tpredicate,
-\tpredicate_id,
-\tobject_entity_id,
-\tobject_entity.canonical AS object_canonical,
-\tobject_entity.kind AS object_kind,
-\tobject_value,
-\tvalid_from,
-\tvalid_to,
-\tCOALESCE(
-\t\t(SELECT ARRAY_AGG(e.note_id ORDER BY e.created_at ASC, e.note_id ASC)
-\t\t FROM (
-\t\t \tSELECT note_id, created_at
-\t\t \tFROM graph_fact_evidence
-\t\t \tWHERE fact_id = gf.fact_id
-\t\t \tORDER BY created_at ASC, note_id ASC
-\t\t \tLIMIT $9
-\t\t ) e),
-\t\t'{}'::uuid[]
-\t) AS evidence_note_ids
-FROM graph_facts AS gf
-LEFT JOIN graph_entities AS object_entity
-\tON object_entity.entity_id = gf.object_entity_id
-\tAND object_entity.tenant_id = gf.tenant_id
-\tAND object_entity.project_id = gf.project_id
-WHERE gf.tenant_id = $1
-\tAND (gf.project_id = $2 OR (gf.project_id = $10 AND gf.scope = 'org_shared'))
-\tAND gf.subject_entity_id = $3
-\tAND gf.scope = ANY($4::text[])
-\tAND gf.valid_from <= $5
-\tAND (gf.valid_to IS NULL OR gf.valid_to > $5)
-\tAND ($11::uuid IS NULL OR gf.predicate_id = $11)
-\tAND (
-\t\t(gf.scope = 'agent_private' AND gf.agent_id = $6)
-\t\tOR (gf.scope <> 'agent_private' AND (
-\t\t\tgf.agent_id = $6 OR (gf.scope || ':' || gf.agent_id) = ANY($7::text[])
-\t\t))
-\t)
-ORDER BY gf.valid_from DESC, gf.fact_id ASC
-LIMIT $8";
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-	use std::collections::HashSet;
+	#[cfg(test)]
+	mod tests {
+		use crate::{
+			Error,
+			ELF_GRAPH_QUERY_SCHEMA_V1, GraphQueryFact, GraphQueryObject, GraphQueryObjectEntity,
+			graph_query::{
+				GraphQueryEntityRef, GraphQueryRequest, OffsetDateTime, build_graph_query_explain,
+				resolve_effective_scopes, truncate_graph_query_facts, validate_graph_query_request,
+			},
+		};
+		use std::collections::HashSet;
+		use uuid::Uuid;
 
 	fn base_request() -> GraphQueryRequest {
 		GraphQueryRequest {
@@ -626,9 +639,11 @@ mod tests {
 	#[test]
 	fn test_validate_graph_query_request_rejects_invalid_fields() {
 		let mut request = base_request();
+
 		request.subject = GraphQueryEntityRef::Surface { surface: "   ".to_string() };
 
 		let err = validate_graph_query_request(request).expect_err("invalid subject should fail");
+
 		assert!(matches!(err, Error::InvalidRequest { .. }), "expected invalid request error");
 	}
 
@@ -712,7 +727,6 @@ mod tests {
 			"org_shared".to_string(),
 		];
 		let requested = vec!["project_shared".to_string(), "project_shared".to_string()];
-
 		let resolved = resolve_effective_scopes(&allowed, &requested).expect("valid scopes");
 		let deduped: HashSet<_> = resolved.iter().collect();
 
