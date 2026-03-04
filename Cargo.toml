@@ -31,7 +31,7 @@ sqlx                  = { version = "0.8", features = ["json", "postgres", "runt
 thiserror             = { version = "2.0" }
 time                  = { version = "0.3", features = ["macros", "serde"] }
 tokenizers            = { version = "0.22", features = ["http"] }
-tokio                 = { version = "1.0", features = ["macros", "rt-multi-thread", "time"] }
+tokio                 = { version = "1.50", features = ["macros", "rt-multi-thread", "time"] }
 toml                  = { version = "1.0" }
 tower                 = { version = "0.5" }
 tracing               = { version = "0.1" }
