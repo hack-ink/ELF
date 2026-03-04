@@ -43,7 +43,7 @@ Memory (Core):
 
 - `elf_notes_ingest` (deterministic; never calls an LLM)
 - `elf_events_ingest` (LLM extraction; evidence-bound)
-- `elf_search_quick_create` / `elf_search_planned_create`
+- `elf_searches_create` (`mode: quick_find|planned_search`)
 - `elf_searches_get` / `elf_searches_timeline` / `elf_searches_notes`
 - `elf_notes_list` / `elf_notes_get` / `elf_notes_patch` / `elf_notes_delete`
 - `elf_notes_publish` / `elf_notes_unpublish`
@@ -146,7 +146,7 @@ Goal: Given a retrieved note, hydrate supporting evidence only when needed and o
 
 Recommended strategy:
 
-1. Retrieve candidate notes via `elf_search_quick_create` (fast) or `elf_search_planned_create` (when you want `query_plan`).
+1. Retrieve candidate notes via `elf_searches_create` with `mode=quick_find` (fast) or `mode=planned_search` (planning-enabled flow).
 2. If you need to cite/verify, resolve the note `source_ref`:
    - If it includes `source_ref.ref.doc_id` + `source_ref.ref.chunk_id` or selector hints: call `elf_docs_excerpts_get` directly.
      - Include `locator` fields from `source_ref` as available: `quote` and/or `position`.
@@ -154,6 +154,30 @@ Recommended strategy:
 3. Use progressive disclosure:
    - Start with `level = "L1"` and upgrade to `L2` only when the first excerpt is insufficient.
    - Use `level = "L0"` for tight, cheapest verification checks (`~256` bytes).
+
+### Progressive note hydration with `elf_searches_notes`
+
+After obtaining candidate `note_id` values from search, call `elf_searches_notes` to progressively load note payload:
+
+1. Start with `payload_level: "l0"` for cheapest context.
+   - Returns compact note text summary.
+   - `structured` is `null`.
+   - `source_ref` is `{}`.
+2. Upgrade to `payload_level: "l1"` when you need the note summary field from `structured.summary`.
+   - Returns `structured`.
+   - `source_ref` is still `{}`.
+3. Upgrade to `payload_level: "l2"` only when you need full evidence context and editable detail.
+   - Returns full note text.
+   - Returns `structured`.
+   - Returns full `source_ref`.
+
+Payload-level semantics for `elf_searches_notes`:
+
+| payload_level | text | structured | source_ref |
+| --- | --- | --- | --- |
+| l0 | summary | null | {} |
+| l1 | structured summary when available | object | {} |
+| l2 | full text | object | full object |
 
 Optional debug mode:
 
