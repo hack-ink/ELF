@@ -15,8 +15,8 @@ use uuid::Uuid;
 use crate::acceptance::{SpyExtractor, StubEmbedding, StubRerank};
 use elf_config::ProviderConfig;
 use elf_service::{
-	BoxFuture, ElfService, Providers, RerankProvider, Result, SearchDetailsRequest, SearchRequest,
-	SearchTimelineRequest, TraceTrajectoryGetRequest,
+	BoxFuture, ElfService, NoteFetchResponse, PayloadLevel, Providers, RerankProvider, Result,
+	SearchDetailsRequest, SearchRequest, SearchTimelineRequest, TraceTrajectoryGetRequest,
 };
 use elf_storage::qdrant::{BM25_MODEL, BM25_VECTOR_NAME, DENSE_VECTOR_NAME};
 use elf_testkit::TestDatabase;
@@ -94,6 +94,23 @@ fn build_vectors(text: &str) -> HashMap<String, Vector> {
 	vectors
 }
 
+fn build_payload_shape_search_request(payload_level: PayloadLevel) -> SearchRequest {
+	SearchRequest {
+		tenant_id: "t".to_string(),
+		project_id: "p".to_string(),
+		agent_id: "a".to_string(),
+		token_id: None,
+		read_profile: "private_only".to_string(),
+		payload_level,
+		query: "payload".to_string(),
+		top_k: Some(5),
+		candidate_k: Some(10),
+		filter: None,
+		record_hits: Some(false),
+		ranking: None,
+	}
+}
+
 async fn setup_context(test_name: &str, providers: Providers) -> Option<TestContext> {
 	let Some(test_db) = crate::acceptance::test_db().await else {
 		eprintln!("Skipping {test_name}; set ELF_PG_DSN to run this test.");
@@ -145,7 +162,7 @@ async fn insert_note<'e, E>(executor: E, note_id: Uuid, note_text: &str, embeddi
 where
 	E: PgExecutor<'e>,
 {
-	insert_note_with_importance(
+	insert_note_with_importance_and_source_ref(
 		executor,
 		note_id,
 		note_text,
@@ -153,6 +170,7 @@ where
 		0.4_f32,
 		0.9_f32,
 		"agent_private",
+		serde_json::json!({}),
 	)
 	.await;
 }
@@ -165,6 +183,32 @@ async fn insert_note_with_importance<'e, E>(
 	importance: f32,
 	confidence: f32,
 	scope: &str,
+) where
+	E: PgExecutor<'e>,
+{
+	insert_note_with_importance_and_source_ref(
+		executor,
+		note_id,
+		note_text,
+		embedding_version,
+		importance,
+		confidence,
+		scope,
+		serde_json::json!({}),
+	)
+	.await;
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn insert_note_with_importance_and_source_ref<'e, E>(
+	executor: E,
+	note_id: Uuid,
+	note_text: &str,
+	embedding_version: &str,
+	importance: f32,
+	confidence: f32,
+	scope: &str,
+	source_ref: Value,
 ) where
 	E: PgExecutor<'e>,
 {
@@ -228,12 +272,32 @@ VALUES (
 	.bind(now)
 	.bind(Option::<OffsetDateTime>::None)
 	.bind(embedding_version)
-	.bind(serde_json::json!({}))
+	.bind(source_ref)
 	.bind(0_i64)
 	.bind(Option::<OffsetDateTime>::None)
 	.execute(executor)
 	.await
 	.expect("Failed to insert memory note.");
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn insert_summary_field_row<'e, E>(executor: E, field_id: Uuid, note_id: Uuid, summary: &str)
+where
+	E: PgExecutor<'e>,
+{
+	sqlx::query(
+		"\
+INSERT INTO memory_note_fields (field_id, note_id, field_kind, item_index, text)
+VALUES ($1, $2, $3, $4, $5)",
+	)
+	.bind(field_id)
+	.bind(note_id)
+	.bind("summary")
+	.bind(0_i32)
+	.bind(summary)
+	.execute(executor)
+	.await
+	.expect("Failed to insert note summary field.");
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -295,6 +359,51 @@ async fn upsert_point(
 		)
 		.await
 		.expect("Failed to upsert Qdrant point.");
+}
+
+async fn fetch_raw_source_ref_for_level(
+	context: &TestContext,
+	note_id: Uuid,
+	payload_level: PayloadLevel,
+) -> Value {
+	let response = context
+		.service
+		.search_raw(build_payload_shape_search_request(payload_level))
+		.await
+		.expect("Search failed.");
+	let item = response.items.first().expect("Expected search result.");
+
+	assert_eq!(item.note_id, note_id);
+
+	item.source_ref.clone()
+}
+
+async fn fetch_search_detail_note_for_level(
+	context: &TestContext,
+	search_session_id: Uuid,
+	note_id: Uuid,
+	payload_level: PayloadLevel,
+) -> NoteFetchResponse {
+	let response = context
+		.service
+		.search_details(SearchDetailsRequest {
+			tenant_id: "t".to_string(),
+			project_id: "p".to_string(),
+			agent_id: "a".to_string(),
+			search_session_id,
+			payload_level,
+			note_ids: vec![note_id],
+			record_hits: Some(false),
+		})
+		.await
+		.expect("Search details failed.");
+
+	response
+		.results
+		.first()
+		.and_then(|item| item.note.as_ref())
+		.expect("Expected note details.")
+		.clone()
 }
 
 async fn insert_graph_entity<'e, E>(
@@ -861,6 +970,172 @@ async fn progressive_search_returns_index_timeline_and_details() {
 
 	assert_eq!(returned.note_id, note_id);
 	assert_eq!(returned.text, note_text);
+
+	context.test_db.cleanup().await.expect("Failed to cleanup test database.");
+}
+
+#[tokio::test]
+#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
+async fn search_raw_payload_level_shapes_source_ref() {
+	let providers = build_providers(StubRerank);
+	let Some(context) =
+		setup_context("search_raw_payload_level_shapes_source_ref", providers).await
+	else {
+		return;
+	};
+	let note_id = Uuid::new_v4();
+	let chunk_id = Uuid::new_v4();
+	let note_text = "Payload shaping should control the raw item source_ref payload.";
+	let source_ref = serde_json::json!({
+		"schema": "note_source_ref/v1",
+		"locator": {
+			"doc_id": Uuid::new_v4().to_string(),
+			"chunk_id": Uuid::new_v4().to_string()
+		},
+		"metadata": {
+			"long_field": "A long metadata body to represent a heavy source reference shape."
+		}
+	});
+
+	insert_note_with_importance_and_source_ref(
+		&context.service.db.pool,
+		note_id,
+		note_text,
+		&context.embedding_version,
+		0.9_f32,
+		1.0,
+		"agent_private",
+		source_ref.clone(),
+	)
+	.await;
+	insert_chunk(
+		&context.service.db.pool,
+		chunk_id,
+		note_id,
+		0,
+		0,
+		note_text.len() as i32,
+		note_text,
+		&context.embedding_version,
+	)
+	.await;
+	upsert_point(&context.service, chunk_id, note_id, 0, 0, note_text.len() as i32, note_text)
+		.await;
+
+	let l0 = fetch_raw_source_ref_for_level(&context, note_id, PayloadLevel::L0).await;
+	let l1 = fetch_raw_source_ref_for_level(&context, note_id, PayloadLevel::L1).await;
+	let l2 = fetch_raw_source_ref_for_level(&context, note_id, PayloadLevel::L2).await;
+
+	assert_eq!(l0, serde_json::json!({}));
+	assert_eq!(l1, serde_json::json!({}));
+	assert_eq!(l2, source_ref);
+
+	context.test_db.cleanup().await.expect("Failed to cleanup test database.");
+}
+
+#[tokio::test]
+#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
+async fn search_details_payload_level_shapes_text_and_fields() {
+	let providers = build_providers(StubRerank);
+	let Some(context) =
+		setup_context("search_details_payload_level_shapes_text_and_fields", providers).await
+	else {
+		return;
+	};
+	let note_id = Uuid::new_v4();
+	let chunk_id = Uuid::new_v4();
+	let note_text = "This is the long note body used for detail shaping. It contains enough tokens to show truncation and should be reduced for compact payload levels.";
+	let source_ref = serde_json::json!({
+		"schema": "note_source_ref/v1",
+		"locator": {
+			"document_id": Uuid::new_v4().to_string(),
+			"chunk_id": Uuid::new_v4().to_string(),
+			"extra": "field with rich details for l2 retention"
+		},
+	});
+	let structured_summary = "Structured summary about payload levels and compact text behavior.";
+	let field_id = Uuid::new_v4();
+	let max_note_chars = context.service.cfg.memory.max_note_chars as usize;
+
+	insert_note_with_importance_and_source_ref(
+		&context.service.db.pool,
+		note_id,
+		note_text,
+		&context.embedding_version,
+		0.8_f32,
+		1.0,
+		"agent_private",
+		source_ref.clone(),
+	)
+	.await;
+	insert_summary_field_row(&context.service.db.pool, field_id, note_id, structured_summary).await;
+	insert_chunk(
+		&context.service.db.pool,
+		chunk_id,
+		note_id,
+		0,
+		0,
+		note_text.len() as i32,
+		note_text,
+		&context.embedding_version,
+	)
+	.await;
+	upsert_point(&context.service, chunk_id, note_id, 0, 0, note_text.len() as i32, note_text)
+		.await;
+
+	let index = context
+		.service
+		.search(SearchRequest {
+			tenant_id: "t".to_string(),
+			project_id: "p".to_string(),
+			agent_id: "a".to_string(),
+			token_id: None,
+			read_profile: "private_only".to_string(),
+			payload_level: PayloadLevel::L2,
+			query: "payload".to_string(),
+			top_k: Some(5),
+			candidate_k: Some(10),
+			filter: None,
+			record_hits: Some(false),
+			ranking: None,
+		})
+		.await
+		.expect("Search index failed.");
+	let l0 = fetch_search_detail_note_for_level(
+		&context,
+		index.search_session_id,
+		note_id,
+		PayloadLevel::L0,
+	)
+	.await;
+	let l1 = fetch_search_detail_note_for_level(
+		&context,
+		index.search_session_id,
+		note_id,
+		PayloadLevel::L1,
+	)
+	.await;
+	let l2 = fetch_search_detail_note_for_level(
+		&context,
+		index.search_session_id,
+		note_id,
+		PayloadLevel::L2,
+	)
+	.await;
+
+	assert!(l0.text.len() <= max_note_chars);
+	assert!(l1.text.len() <= max_note_chars);
+	assert_eq!(l2.text, note_text);
+	assert_ne!(l0.text, l1.text);
+	assert_ne!(l0.text, note_text);
+	assert_ne!(l1.text, note_text);
+	assert!(l1.text.contains("Structured summary"));
+	assert_eq!(l0.source_ref, serde_json::json!({}));
+	assert_eq!(l1.source_ref, serde_json::json!({}));
+	assert_eq!(l2.source_ref, source_ref);
+	assert!(l0.structured.is_none());
+	assert!(l1.structured.is_some());
+	assert!(l2.structured.is_some());
 
 	context.test_db.cleanup().await.expect("Failed to cleanup test database.");
 }
