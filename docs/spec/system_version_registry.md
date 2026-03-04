@@ -73,6 +73,14 @@ This document is normative. When a new versioned identifier is introduced, it mu
 - Consumers: `packages/elf-service/src/docs.rs`, `apps/elf-api` clients relying on typed `doc_type` behavior for deterministic token chunking.
 - Bump rule: Introduce `doc_chunking_profiles/v2` only when required chunk window fields and defaults become incompatible with v1.
 
+### Graph query explain schema
+
+- Identifier: `elf.graph_query/v1`.
+- Type: Graph query explain payload schema identifier.
+- Defined in: `packages/elf-service/src/graph_query.rs` (`ELF_GRAPH_QUERY_SCHEMA_V1`), `docs/spec/system_elf_memory_service_v2.md`.
+- Consumers: `POST /v2/graph/query` responses (`explain.schema`), `apps/elf-api`, `apps/elf-mcp`.
+- Bump rule: Introduce `elf.graph_query/v2` only when explain payload fields or semantics become incompatible with v1.
+
 ### Search ranking explain schema
 
 - Identifier: `search_ranking_explain/v2`.
