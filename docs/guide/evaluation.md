@@ -12,6 +12,21 @@ Example:
 cargo run -p elf-eval -- -c ./elf.toml --dataset ./docs/guide/eval-sample.json
 ```
 
+Search-mode selection:
+
+```bash
+# Run the evaluation using the quick_find (faster) search mode.
+cargo run -p elf-eval -- -c ./elf.toml --dataset ./docs/guide/eval-sample.json --search-mode quick_find
+
+# Compare two configs while forcing different modes per side (A vs B).
+cargo run -p elf-eval -- \
+  -c ./elf.a.toml \
+  --config-b ./elf.b.toml \
+  --dataset ./docs/guide/eval-sample.json \
+  --search-mode planned_search \
+  --search-mode-b quick_find
+```
+
 ## Dataset format
 
 The dataset is JSON with optional defaults and a list of queries.
@@ -78,6 +93,10 @@ The command prints a JSON report containing summary metrics and per-query detail
 ## Notes
 
 - The evaluation tool uses the configured embedding and rerank providers.
+- The evaluation tool can run in either search mode:
+  - `--search-mode quick_find` (lower latency)
+  - `--search-mode planned_search` (planning-enabled path; useful when you need query plans and staged trajectory metadata)
+  - When running a config comparison with `--config-b`, you can set `--search-mode-b` to override the mode for the B side.
 - The dataset should avoid secrets and sensitive data.
 - To persist traces for later replay without running `elf-worker`, set `search.explain.write_mode = "inline"`
   in the config used by `elf-eval`.
