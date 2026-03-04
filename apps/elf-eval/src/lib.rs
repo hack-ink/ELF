@@ -5,7 +5,7 @@ use std::{
 	time::Instant,
 };
 
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use color_eyre::{Result, eyre};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -40,8 +40,21 @@ pub struct Args {
 	pub candidate_k: Option<u32>,
 	#[arg(long, value_name = "N", default_value_t = 1)]
 	pub runs_per_query: u32,
+	#[arg(long, value_enum, default_value_t = SearchMode::PlannedSearch)]
+	pub search_mode: SearchMode,
+	#[arg(long = "search-mode-b", value_enum)]
+	pub search_mode_b: Option<SearchMode>,
 	#[arg(long = "trace-id", value_name = "UUID", num_args = 1..)]
 	pub trace_id: Vec<Uuid>,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, ValueEnum)]
+#[serde(rename_all = "snake_case")]
+pub enum SearchMode {
+	#[value(name = "quick_find")]
+	QuickFind,
+	#[value(name = "planned_search")]
+	PlannedSearch,
 }
 
 #[derive(Debug, Deserialize)]
@@ -96,6 +109,7 @@ struct EvalDatasetInfo {
 #[derive(Debug, Serialize)]
 struct EvalSettings {
 	config_path: String,
+	search_mode: SearchMode,
 	candidate_k: u32,
 	top_k: u32,
 	#[serde(skip_serializing_if = "Option::is_none")]
@@ -424,11 +438,14 @@ pub async fn run(args: Args) -> Result<()> {
 	let dataset_path =
 		args.dataset.as_ref().ok_or_else(|| eyre::eyre!("--dataset is required."))?;
 	let dataset = load_dataset(dataset_path.as_path())?;
-	let run_a = eval_config(args.config_a.as_path(), config_a, &dataset, &args).await?;
+	let run_a =
+		eval_config(args.config_a.as_path(), config_a, &dataset, &args, args.search_mode).await?;
+	let search_mode_b = args.search_mode_b.unwrap_or(args.search_mode);
 
 	if let Some(config_b_path) = &args.config_b {
 		let config_b = elf_config::load(config_b_path)?;
-		let run_b = eval_config(config_b_path.as_path(), config_b, &dataset, &args).await?;
+		let run_b =
+			eval_config(config_b_path.as_path(), config_b, &dataset, &args, search_mode_b).await?;
 		let k = run_a.settings.top_k.min(run_b.settings.top_k).max(1);
 		let (queries, policy_stability) = build_compare_queries(&run_a.queries, &run_b.queries, k);
 		let summary_delta = diff_summary(&run_a.summary, &run_b.summary);
@@ -1224,6 +1241,7 @@ async fn eval_config(
 	config: Config,
 	dataset: &EvalDataset,
 	args: &Args,
+	search_mode: SearchMode,
 ) -> Result<EvalRun> {
 	let db = Db::connect(&config.storage.postgres).await?;
 
@@ -1249,7 +1267,8 @@ async fn eval_config(
 	for (index, query) in dataset.queries.iter().enumerate() {
 		let merged = merge_query(&defaults, query, args, &service.cfg, index)?;
 		let (first, latency_ms, stability, trace_ids) =
-			run_query_n_times(&service, merged.request.clone(), runs_per_query).await?;
+			run_query_n_times(&service, merged.request.clone(), runs_per_query, search_mode)
+				.await?;
 		let retrieved = unique_items(&first.items);
 		let retrieved_note_ids: Vec<Uuid> = retrieved.iter().map(|item| item.note_id).collect();
 		let retrieved_keys: Vec<Option<String>> =
@@ -1308,6 +1327,7 @@ async fn eval_config(
 
 	let settings = EvalSettings {
 		config_path: config_path.display().to_string(),
+		search_mode,
 		candidate_k: args
 			.candidate_k
 			.or(dataset.defaults.as_ref().and_then(|d| d.candidate_k))
@@ -1334,6 +1354,7 @@ async fn run_query_n_times(
 	service: &ElfService,
 	request: SearchRequest,
 	runs_per_query: u32,
+	search_mode: SearchMode,
 ) -> Result<(SearchIndexResponse, f64, Option<QueryStability>, Vec<Uuid>)> {
 	let k = request.top_k.unwrap_or(1).max(1) as usize;
 	let runs = runs_per_query.max(1);
@@ -1347,7 +1368,7 @@ async fn run_query_n_times(
 
 	for run_idx in 0..runs {
 		let start = Instant::now();
-		let response = service.search(request.clone()).await?;
+		let response = search_with_mode(service, request.clone(), search_mode).await?;
 		let latency_ms = start.elapsed().as_secs_f64() * 1_000.0;
 
 		latency_total_ms += latency_ms;
@@ -1389,6 +1410,27 @@ async fn run_query_n_times(
 		stability,
 		trace_ids,
 	))
+}
+
+async fn search_with_mode(
+	service: &ElfService,
+	request: SearchRequest,
+	search_mode: SearchMode,
+) -> Result<SearchIndexResponse> {
+	match search_mode {
+		SearchMode::QuickFind => service.search_quick(request).await.map_err(|err| err.into()),
+		SearchMode::PlannedSearch => {
+			let response = service.search_planned(request).await?;
+
+			Ok(SearchIndexResponse {
+				trace_id: response.trace_id,
+				search_session_id: response.search_session_id,
+				expires_at: response.expires_at,
+				items: response.items,
+				trajectory_summary: response.trajectory_summary,
+			})
+		},
+	}
 }
 
 #[cfg(test)]
