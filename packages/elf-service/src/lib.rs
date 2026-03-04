@@ -5,6 +5,7 @@ pub mod admin_graph_predicates;
 pub mod delete;
 pub mod docs;
 pub mod graph;
+pub mod graph_query;
 pub mod list;
 pub mod notes;
 pub mod progressive_search;
@@ -39,6 +40,11 @@ pub use self::{
 		TextPositionSelector, TextQuoteSelector,
 	},
 	error::{Error, Result},
+	graph_query::{
+		ELF_GRAPH_QUERY_SCHEMA_V1, GraphQueryEntity, GraphQueryEntityRef, GraphQueryExplain,
+		GraphQueryFact, GraphQueryObject, GraphQueryObjectEntity, GraphQueryPredicate,
+		GraphQueryPredicateRef, GraphQueryRequest, GraphQueryResponse,
+	},
 	ingestion_profiles::{
 		AdminIngestionProfileCreateRequest, AdminIngestionProfileDefaultGetRequest,
 		AdminIngestionProfileDefaultResponse, AdminIngestionProfileDefaultSetRequest,

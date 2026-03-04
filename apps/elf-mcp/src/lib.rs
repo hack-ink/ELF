@@ -1,3 +1,5 @@
+#![recursion_limit = "512"]
+
 pub mod server;
 
 use std::{net::SocketAddr, path::PathBuf};

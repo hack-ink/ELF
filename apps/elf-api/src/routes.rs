@@ -30,7 +30,8 @@ use elf_service::{
 	AdminIngestionProfileVersionsListResponse, AdminIngestionProfilesListResponse, DeleteRequest,
 	DeleteResponse, DocType, DocsExcerptResponse, DocsExcerptsGetRequest, DocsGetRequest,
 	DocsGetResponse, DocsPutRequest, DocsPutResponse, DocsSearchL0Request, DocsSearchL0Response,
-	Error, EventMessage, GranteeKind, IngestionProfileSelector, ListRequest, ListResponse,
+	Error, EventMessage, GranteeKind, GraphQueryEntityRef, GraphQueryPredicateRef,
+	GraphQueryRequest, GraphQueryResponse, IngestionProfileSelector, ListRequest, ListResponse,
 	NoteFetchRequest, NoteFetchResponse, NoteProvenanceBundleResponse, NoteProvenanceGetRequest,
 	PayloadLevel, PublishNoteRequest, QueryPlan, RankingRequestOverride, RebuildReport,
 	SearchDetailsRequest, SearchDetailsResult, SearchExplainRequest, SearchExplainResponse,
@@ -132,6 +133,16 @@ struct DocsExcerptsGetBody {
 	chunk_id: Option<Uuid>,
 	quote: Option<TextQuoteSelector>,
 	position: Option<TextPositionSelector>,
+	explain: Option<bool>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct GraphQueryBody {
+	subject: GraphQueryEntityRef,
+	predicate: Option<GraphQueryPredicateRef>,
+	scopes: Option<Vec<String>>,
+	as_of: Option<String>,
+	limit: Option<u32>,
 	explain: Option<bool>,
 }
 
@@ -426,6 +437,7 @@ pub fn router(state: AppState) -> Router {
 		.route("/v2/searches/:search_id", routing::get(searches_get))
 		.route("/v2/searches/:search_id/timeline", routing::get(searches_timeline))
 		.route("/v2/searches/:search_id/notes", routing::post(searches_notes))
+		.route("/v2/graph/query", routing::post(graph_query))
 		.route("/v2/notes", routing::get(notes_list))
 		.route(
 			"/v2/notes/:note_id",
@@ -1190,6 +1202,38 @@ async fn docs_excerpts_get(
 			chunk_id: payload.chunk_id,
 			quote: payload.quote,
 			position: payload.position,
+			explain: payload.explain,
+		})
+		.await?;
+
+	Ok(Json(response))
+}
+
+async fn graph_query(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	payload: Result<Json<GraphQueryBody>, JsonRejection>,
+) -> Result<Json<GraphQueryResponse>, ApiError> {
+	let ctx = RequestContext::from_headers(&headers)?;
+	let read_profile = required_read_profile(&headers)?;
+	let Json(payload) = payload.map_err(|err| {
+		tracing::warn!(error = %err, "Invalid request payload.");
+
+		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+	})?;
+	let as_of = parse_optional_rfc3339(payload.as_of.as_ref(), "$.as_of")?;
+	let response = state
+		.service
+		.graph_query(GraphQueryRequest {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+			agent_id: ctx.agent_id,
+			read_profile,
+			subject: payload.subject,
+			predicate: payload.predicate,
+			scopes: payload.scopes,
+			as_of,
+			limit: payload.limit,
 			explain: payload.explain,
 		})
 		.await?;
