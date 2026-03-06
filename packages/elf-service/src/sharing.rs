@@ -9,66 +9,66 @@ use elf_storage::models::MemoryNote;
 
 const PROJECT_SPACE_GRANT_UPSERT_SQL: &str = "\
 INSERT INTO memory_space_grants (
-\tgrant_id,
-\ttenant_id,
-\tproject_id,
-\tscope,
-\tspace_owner_agent_id,
-\tgrantee_kind,
-\tgrantee_agent_id,
-\tgranted_by_agent_id,
-\tgranted_at
+	grant_id,
+	tenant_id,
+	project_id,
+	scope,
+	space_owner_agent_id,
+	grantee_kind,
+	grantee_agent_id,
+	granted_by_agent_id,
+	granted_at
 )
 VALUES (
-\t$1,
-\t$2,
-\t$3,
-\t$4,
-\t$5,
-\t$6,
-\t$7,
-\t$8,
-\t$9
+	$1,
+	$2,
+	$3,
+	$4,
+	$5,
+	$6,
+	$7,
+	$8,
+	$9
 )
 ON CONFLICT (tenant_id, project_id, scope, space_owner_agent_id)
 WHERE revoked_at IS NULL AND grantee_kind = 'project'
 DO UPDATE
 SET
-\tgranted_by_agent_id = EXCLUDED.granted_by_agent_id,
-\tgranted_at = EXCLUDED.granted_at,
-\trevoked_at = NULL,
-\trevoked_by_agent_id = NULL";
+	granted_by_agent_id = EXCLUDED.granted_by_agent_id,
+	granted_at = EXCLUDED.granted_at,
+	revoked_at = NULL,
+	revoked_by_agent_id = NULL";
 const AGENT_SPACE_GRANT_UPSERT_SQL: &str = "\
 INSERT INTO memory_space_grants (
-\tgrant_id,
-\ttenant_id,
-\tproject_id,
-\tscope,
-\tspace_owner_agent_id,
-\tgrantee_kind,
-\tgrantee_agent_id,
-\tgranted_by_agent_id,
-\tgranted_at
+	grant_id,
+	tenant_id,
+	project_id,
+	scope,
+	space_owner_agent_id,
+	grantee_kind,
+	grantee_agent_id,
+	granted_by_agent_id,
+	granted_at
 )
 VALUES (
-\t$1,
-\t$2,
-\t$3,
-\t$4,
-\t$5,
-\t$6,
-\t$7,
-\t$8,
-\t$9
+	$1,
+	$2,
+	$3,
+	$4,
+	$5,
+	$6,
+	$7,
+	$8,
+	$9
 )
 ON CONFLICT (tenant_id, project_id, scope, space_owner_agent_id, grantee_agent_id)
 WHERE revoked_at IS NULL AND grantee_kind = 'agent'
 DO UPDATE
 SET
-\tgranted_by_agent_id = EXCLUDED.granted_by_agent_id,
-\tgranted_at = EXCLUDED.granted_at,
-\trevoked_at = NULL,
-\trevoked_by_agent_id = NULL";
+	granted_by_agent_id = EXCLUDED.granted_by_agent_id,
+	granted_at = EXCLUDED.granted_at,
+	revoked_at = NULL,
+	revoked_by_agent_id = NULL";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

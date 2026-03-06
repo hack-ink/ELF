@@ -19,20 +19,20 @@ where
 	sqlx::query(
 		"\
 	INSERT INTO doc_documents (
-	\tdoc_id,
-	\ttenant_id,
-	\tproject_id,
-	\tagent_id,
-	\tscope,
-	\tdoc_type,
-	\tstatus,
-	\ttitle,
-	\tsource_ref,
-	\tcontent,
-	\tcontent_bytes,
-	\tcontent_hash,
-	\tcreated_at,
-	\tupdated_at
+		doc_id,
+		tenant_id,
+		project_id,
+		agent_id,
+		scope,
+		doc_type,
+		status,
+		title,
+		source_ref,
+		content,
+		content_bytes,
+		content_hash,
+		created_at,
+		updated_at
 	)
 	VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)",
 	)
@@ -67,20 +67,20 @@ where
 	let row = sqlx::query_as::<_, DocDocument>(
 		"\
 	SELECT
-	\tdoc_id,
-	\ttenant_id,
-	\tproject_id,
-	\tagent_id,
-	\tscope,
-	\tdoc_type,
-	\tstatus,
-	\ttitle,
-	\tCOALESCE(source_ref, '{}'::jsonb) AS source_ref,
-	\tcontent,
-	\tcontent_bytes,
-	\tcontent_hash,
-	\tcreated_at,
-	\tupdated_at
+		doc_id,
+		tenant_id,
+		project_id,
+		agent_id,
+		scope,
+		doc_type,
+		status,
+		title,
+		COALESCE(source_ref, '{}'::jsonb) AS source_ref,
+		content,
+		content_bytes,
+		content_hash,
+		created_at,
+		updated_at
 FROM doc_documents
 WHERE tenant_id = $1 AND doc_id = $2
 LIMIT 1",
@@ -100,14 +100,14 @@ where
 	sqlx::query(
 		"\
 INSERT INTO doc_chunks (
-\tchunk_id,
-\tdoc_id,
-\tchunk_index,
-\tstart_offset,
-\tend_offset,
-\tchunk_text,
-\tchunk_hash,
-\tcreated_at
+	chunk_id,
+	doc_id,
+	chunk_index,
+	start_offset,
+	end_offset,
+	chunk_text,
+	chunk_hash,
+	created_at
 )
 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
 	)
@@ -132,14 +132,14 @@ where
 	let rows = sqlx::query_as::<_, DocChunk>(
 		"\
 SELECT
-\tchunk_id,
-\tdoc_id,
-\tchunk_index,
-\tstart_offset,
-\tend_offset,
-\tchunk_text,
-\tchunk_hash,
-\tcreated_at
+	chunk_id,
+	doc_id,
+	chunk_index,
+	start_offset,
+	end_offset,
+	chunk_text,
+	chunk_hash,
+	created_at
 FROM doc_chunks
 WHERE doc_id = $1
 ORDER BY chunk_index ASC",
@@ -158,14 +158,14 @@ where
 	let row = sqlx::query_as::<_, DocChunk>(
 		"\
 SELECT
-\tchunk_id,
-\tdoc_id,
-\tchunk_index,
-\tstart_offset,
-\tend_offset,
-\tchunk_text,
-\tchunk_hash,
-\tcreated_at
+	chunk_id,
+	doc_id,
+	chunk_index,
+	start_offset,
+	end_offset,
+	chunk_text,
+	chunk_hash,
+	created_at
 FROM doc_chunks
 WHERE chunk_id = $1
 LIMIT 1",
@@ -193,9 +193,9 @@ INSERT INTO doc_chunk_embeddings (chunk_id, embedding_version, embedding_dim, ve
 VALUES ($1, $2, $3, $4::text::vector)
 ON CONFLICT (chunk_id, embedding_version) DO UPDATE
 SET
-\tembedding_dim = EXCLUDED.embedding_dim,
-\tvec = EXCLUDED.vec,
-\tcreated_at = now()",
+	embedding_dim = EXCLUDED.embedding_dim,
+	vec = EXCLUDED.vec,
+	created_at = now()",
 	)
 	.bind(chunk_id)
 	.bind(embedding_version)

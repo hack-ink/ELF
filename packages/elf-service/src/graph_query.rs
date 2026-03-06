@@ -13,46 +13,46 @@ const MAX_GRAPH_QUERY_LIMIT: u32 = 200;
 const GRAPH_QUERY_EVIDENCE_LIMIT: i64 = 16;
 const GRAPH_QUERY_FACTS_SQL: &str = "\
 SELECT
-\tfact_id,
-\tscope,
-\tagent_id AS actor,
-\tpredicate,
-\tpredicate_id,
-\tobject_entity_id,
-\tobject_entity.canonical AS object_canonical,
-\tobject_entity.kind AS object_kind,
-\tobject_value,
-\tvalid_from,
-\tvalid_to,
-\tCOALESCE(
-\t\t(SELECT ARRAY_AGG(e.note_id ORDER BY e.created_at ASC, e.note_id ASC)
-\t\t FROM (
-\t\t \tSELECT note_id, created_at
-\t\t \tFROM graph_fact_evidence
-\t\t \tWHERE fact_id = gf.fact_id
-\t\t \tORDER BY created_at ASC, note_id ASC
-\t\t \tLIMIT $9
-\t\t ) e),
-\t\t'{}'::uuid[]
-\t) AS evidence_note_ids
+	fact_id,
+	scope,
+	agent_id AS actor,
+	predicate,
+	predicate_id,
+	object_entity_id,
+	object_entity.canonical AS object_canonical,
+	object_entity.kind AS object_kind,
+	object_value,
+	valid_from,
+	valid_to,
+	COALESCE(
+		(SELECT ARRAY_AGG(e.note_id ORDER BY e.created_at ASC, e.note_id ASC)
+		 FROM (
+		 	SELECT note_id, created_at
+		 	FROM graph_fact_evidence
+		 	WHERE fact_id = gf.fact_id
+		 	ORDER BY created_at ASC, note_id ASC
+		 	LIMIT $9
+		 ) e),
+		'{}'::uuid[]
+	) AS evidence_note_ids
 FROM graph_facts AS gf
 LEFT JOIN graph_entities AS object_entity
-\tON object_entity.entity_id = gf.object_entity_id
-\tAND object_entity.tenant_id = gf.tenant_id
-\tAND object_entity.project_id = gf.project_id
+	ON object_entity.entity_id = gf.object_entity_id
+	AND object_entity.tenant_id = gf.tenant_id
+	AND object_entity.project_id = gf.project_id
 WHERE gf.tenant_id = $1
-\tAND (gf.project_id = $2 OR (gf.project_id = $10 AND gf.scope = 'org_shared'))
-\tAND gf.subject_entity_id = $3
-\tAND gf.scope = ANY($4::text[])
-\tAND gf.valid_from <= $5
-\tAND (gf.valid_to IS NULL OR gf.valid_to > $5)
-\tAND ($11::uuid IS NULL OR gf.predicate_id = $11)
-\tAND (
-\t\t(gf.scope = 'agent_private' AND gf.agent_id = $6)
-\t\tOR (gf.scope <> 'agent_private' AND (
-\t\t\tgf.agent_id = $6 OR (gf.scope || ':' || gf.agent_id) = ANY($7::text[])
-\t\t))
-\t)
+	AND (gf.project_id = $2 OR (gf.project_id = $10 AND gf.scope = 'org_shared'))
+	AND gf.subject_entity_id = $3
+	AND gf.scope = ANY($4::text[])
+	AND gf.valid_from <= $5
+	AND (gf.valid_to IS NULL OR gf.valid_to > $5)
+	AND ($11::uuid IS NULL OR gf.predicate_id = $11)
+	AND (
+		(gf.scope = 'agent_private' AND gf.agent_id = $6)
+		OR (gf.scope <> 'agent_private' AND (
+			gf.agent_id = $6 OR (gf.scope || ':' || gf.agent_id) = ANY($7::text[])
+		))
+	)
 ORDER BY gf.valid_from DESC, gf.fact_id ASC
 LIMIT $8";
 
@@ -492,18 +492,18 @@ async fn resolve_subject(
 			let row = sqlx::query_as::<_, GraphEntity>(
 				"\
 SELECT
-\tentity_id,
-\ttenant_id,
-\tproject_id,
-\tcanonical,
-\tcanonical_norm,
-\tkind,
-\tcreated_at,
-\tupdated_at
+	entity_id,
+	tenant_id,
+	project_id,
+	canonical,
+	canonical_norm,
+	kind,
+	created_at,
+	updated_at
 FROM graph_entities
 WHERE tenant_id = $1
-\tAND project_id = $2
-\tAND entity_id = $3",
+	AND project_id = $2
+	AND entity_id = $3",
 			)
 			.bind(tenant_id)
 			.bind(project_id)

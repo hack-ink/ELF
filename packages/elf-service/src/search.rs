@@ -2480,21 +2480,21 @@ ORDER BY rank ASC",
 		let rows = sqlx::query_as::<_, SearchRecentTraceRow>(
 			"\
 SELECT
-\ttrace_id,
-\ttenant_id,
-\tproject_id,
-\tagent_id,
-\tread_profile,
-\tquery,
-\tcreated_at
+	trace_id,
+	tenant_id,
+	project_id,
+	agent_id,
+	read_profile,
+	query,
+	created_at
 FROM search_traces
 WHERE tenant_id = $1
-\tAND project_id = $2
-\tAND ($3::text IS NULL OR agent_id = $3)
-\tAND ($4::text IS NULL OR read_profile = $4)
-\tAND ($5::timestamptz IS NULL OR created_at > $5)
-\tAND ($6::timestamptz IS NULL OR created_at < $6)
-\tAND ($7::timestamptz IS NULL OR $8::uuid IS NULL OR (created_at, trace_id) < ($7, $8))
+	AND project_id = $2
+	AND ($3::text IS NULL OR agent_id = $3)
+	AND ($4::text IS NULL OR read_profile = $4)
+	AND ($5::timestamptz IS NULL OR created_at > $5)
+	AND ($6::timestamptz IS NULL OR created_at < $6)
+	AND ($7::timestamptz IS NULL OR $8::uuid IS NULL OR (created_at, trace_id) < ($7, $8))
 ORDER BY created_at DESC, trace_id DESC
 LIMIT $9
 ",
@@ -5510,24 +5510,24 @@ async fn load_item_trajectory(
 	let rows = sqlx::query(
 		"\
 SELECT
-\ts.stage_order,
-\ts.stage_name,
-\ts.stage_payload,
-\ti.item_id,
-\ti.note_id,
-\ti.chunk_id,
-\ti.metrics
+	s.stage_order,
+	s.stage_name,
+	s.stage_payload,
+	i.item_id,
+	i.note_id,
+	i.chunk_id,
+	i.metrics
 FROM search_trace_stages s
 LEFT JOIN search_trace_stage_items i
-\tON i.stage_id = s.stage_id
-\tAND (
-\t\ti.item_id = $2
-\t\tOR (
-\t\t\ti.item_id IS NULL
-\t\t\tAND i.note_id = $3
-\t\t\tAND ($4 IS NULL OR i.chunk_id = $4)
-\t\t)
-\t)
+	ON i.stage_id = s.stage_id
+	AND (
+		i.item_id = $2
+		OR (
+			i.item_id IS NULL
+			AND i.note_id = $3
+			AND ($4 IS NULL OR i.chunk_id = $4)
+		)
+	)
 WHERE s.trace_id = $1
 ORDER BY s.stage_order ASC, i.item_id ASC NULLS LAST, i.note_id ASC NULLS LAST",
 	)

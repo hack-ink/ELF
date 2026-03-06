@@ -75,38 +75,38 @@ async fn insert_trace(
 	sqlx::query(
 		"\
 INSERT INTO search_traces (
-\ttrace_id,
-\ttenant_id,
-\tproject_id,
-\tagent_id,
-\tread_profile,
-\tquery,
-\texpansion_mode,
-\texpanded_queries,
-\tallowed_scopes,
-\tcandidate_count,
-\ttop_k,
-\tconfig_snapshot,
-\ttrace_version,
-\tcreated_at,
-\texpires_at
+	trace_id,
+	tenant_id,
+	project_id,
+	agent_id,
+	read_profile,
+	query,
+	expansion_mode,
+	expanded_queries,
+	allowed_scopes,
+	candidate_count,
+	top_k,
+	config_snapshot,
+	trace_version,
+	created_at,
+	expires_at
 )
 	VALUES (
-	\t$1,
-	\t$2,
-	\t$3,
-	\t$4,
-	\t$5,
-	\t$6,
-	\t$7,
-	\t$8,
-	\t$9,
-	\t$10,
-	\t$11,
-	\t$12,
-	\t$13,
-	\t$14,
-\t$15
+		$1,
+		$2,
+		$3,
+		$4,
+		$5,
+		$6,
+		$7,
+		$8,
+		$9,
+		$10,
+		$11,
+		$12,
+		$13,
+		$14,
+	$15
 	)",
 	)
 	.bind(trace_id)
@@ -140,13 +140,13 @@ async fn insert_trace_item(
 	sqlx::query(
 		"\
 INSERT INTO search_trace_items (
-\titem_id,
-\ttrace_id,
-\tnote_id,
-\tchunk_id,
-\trank,
-\tfinal_score,
-\texplain
+	item_id,
+	trace_id,
+	note_id,
+	chunk_id,
+	rank,
+	final_score,
+	explain
 )
 VALUES ($1, $2, $3, $4, $5, $6, $7)",
 	)
@@ -181,12 +181,12 @@ async fn insert_trace_stage(
 	sqlx::query(
 		"\
 INSERT INTO search_trace_stages (
-\tstage_id,
-\ttrace_id,
-\tstage_order,
-\tstage_name,
-\tstage_payload,
-\tcreated_at
+	stage_id,
+	trace_id,
+	stage_order,
+	stage_name,
+	stage_payload,
+	created_at
 )
 VALUES ($1, $2, $3, $4, $5, $6)",
 	)
@@ -215,12 +215,12 @@ async fn insert_trace_stage_item(
 	sqlx::query(
 		"\
 INSERT INTO search_trace_stage_items (
-\tid,
-\tstage_id,
-\titem_id,
-\tnote_id,
-\tchunk_id,
-\tmetrics
+	id,
+	stage_id,
+	item_id,
+	note_id,
+	chunk_id,
+	metrics
 )
 VALUES ($1, $2, $3, $4, $5, $6)",
 	)
@@ -250,22 +250,22 @@ async fn insert_trace_candidate(
 	sqlx::query(
 		"\
 INSERT INTO search_trace_candidates (
-\tcandidate_id,
-\ttrace_id,
-\tnote_id,
-\tchunk_id,
-\tchunk_index,
-\tsnippet,
-\tcandidate_snapshot,
-\tretrieval_rank,
-\trerank_score,
-\tnote_scope,
-\tnote_importance,
-\tnote_updated_at,
-\tnote_hit_count,
-\tnote_last_hit_at,
-\tcreated_at,
-\texpires_at
+	candidate_id,
+	trace_id,
+	note_id,
+	chunk_id,
+	chunk_index,
+	snippet,
+	candidate_snapshot,
+	retrieval_rank,
+	rerank_score,
+	note_scope,
+	note_importance,
+	note_updated_at,
+	note_hit_count,
+	note_last_hit_at,
+	created_at,
+	expires_at
 )
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)",
 	)
