@@ -608,18 +608,17 @@ async fn fetch_graph_query_rows(
 	Ok(rows)
 }
 
-	#[cfg(test)]
-	mod tests {
-		use crate::{
-			Error,
-			ELF_GRAPH_QUERY_SCHEMA_V1, GraphQueryFact, GraphQueryObject, GraphQueryObjectEntity,
-			graph_query::{
-				GraphQueryEntityRef, GraphQueryRequest, OffsetDateTime, build_graph_query_explain,
-				resolve_effective_scopes, truncate_graph_query_facts, validate_graph_query_request,
-			},
-		};
-		use std::collections::HashSet;
-		use uuid::Uuid;
+#[cfg(test)]
+mod tests {
+	use crate::{
+		ELF_GRAPH_QUERY_SCHEMA_V1, Error, GraphQueryFact, GraphQueryObject, GraphQueryObjectEntity,
+		graph_query::{
+			GraphQueryEntityRef, GraphQueryRequest, OffsetDateTime, build_graph_query_explain,
+			resolve_effective_scopes, truncate_graph_query_facts, validate_graph_query_request,
+		},
+	};
+	use std::collections::HashSet;
+	use uuid::Uuid;
 
 	fn base_request() -> GraphQueryRequest {
 		GraphQueryRequest {
