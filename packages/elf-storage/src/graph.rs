@@ -665,20 +665,20 @@ pub async fn upsert_fact_with_evidence(
 			let row: (Uuid,) = sqlx::query_as::<_, (Uuid,)>(
 				"\
 INSERT INTO graph_facts (
-\tfact_id,
-\ttenant_id,
-\tproject_id,
-\tagent_id,
-\tscope,
-\tsubject_entity_id,
-\tpredicate,
-\tpredicate_id,
-\tobject_entity_id,
-\tobject_value,
-\tvalid_from,
-\tvalid_to,
-\tcreated_at,
-\tupdated_at
+	fact_id,
+	tenant_id,
+	project_id,
+	agent_id,
+	scope,
+	subject_entity_id,
+	predicate,
+	predicate_id,
+	object_entity_id,
+	object_value,
+	valid_from,
+	valid_to,
+	created_at,
+	updated_at
 )
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, now(), now())
 ON CONFLICT (tenant_id, project_id, scope, subject_entity_id, predicate_id, object_entity_id)
@@ -708,20 +708,20 @@ RETURNING fact_id",
 			let row: (Uuid,) = sqlx::query_as::<_, (Uuid,)>(
 				"\
 INSERT INTO graph_facts (
-\tfact_id,
-\ttenant_id,
-\tproject_id,
-\tagent_id,
-\tscope,
-\tsubject_entity_id,
-\tpredicate,
-\tpredicate_id,
-\tobject_entity_id,
-\tobject_value,
-\tvalid_from,
-\tvalid_to,
-\tcreated_at,
-\tupdated_at
+	fact_id,
+	tenant_id,
+	project_id,
+	agent_id,
+	scope,
+	subject_entity_id,
+	predicate,
+	predicate_id,
+	object_entity_id,
+	object_value,
+	valid_from,
+	valid_to,
+	created_at,
+	updated_at
 )
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, now(), now())
 ON CONFLICT (tenant_id, project_id, scope, subject_entity_id, predicate_id, object_value)

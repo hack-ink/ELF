@@ -144,25 +144,25 @@ where
 	sqlx::query(
 		"\
 INSERT INTO memory_space_grants (
-\tgrant_id,
-\ttenant_id,
-\tproject_id,
-\tscope,
-\tspace_owner_agent_id,
-\tgrantee_kind,
-\tgrantee_agent_id,
-\tgranted_by_agent_id,
-\tgranted_at
+	grant_id,
+	tenant_id,
+	project_id,
+	scope,
+	space_owner_agent_id,
+	grantee_kind,
+	grantee_agent_id,
+	granted_by_agent_id,
+	granted_at
 )
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 ON CONFLICT (tenant_id, project_id, scope, space_owner_agent_id)
 WHERE revoked_at IS NULL AND grantee_kind='project'
 DO UPDATE
 SET
-\tgranted_by_agent_id = EXCLUDED.granted_by_agent_id,
-\tgranted_at = EXCLUDED.granted_at,
-\trevoked_at = NULL,
-\trevoked_by_agent_id = NULL",
+	granted_by_agent_id = EXCLUDED.granted_by_agent_id,
+	granted_at = EXCLUDED.granted_at,
+	revoked_at = NULL,
+	revoked_by_agent_id = NULL",
 	)
 	.bind(Uuid::new_v4())
 	.bind(tenant_id)

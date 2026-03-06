@@ -39,17 +39,17 @@ pub async fn claim_next_doc_indexing_outbox_job(
 	let row = sqlx::query_as::<_, DocIndexingOutboxEntry>(
 		"\
 SELECT
-\toutbox_id,
-\tdoc_id,
-\tchunk_id,
-\top,
-\tembedding_version,
-\tstatus,
-\tattempts,
-\tlast_error,
-\tavailable_at,
-\tcreated_at,
-\tupdated_at
+	outbox_id,
+	doc_id,
+	chunk_id,
+	op,
+	embedding_version,
+	status,
+	attempts,
+	last_error,
+	available_at,
+	created_at,
+	updated_at
 FROM doc_indexing_outbox
 WHERE status IN ('PENDING','FAILED','CLAIMED') AND available_at <= $1
 ORDER BY available_at ASC
@@ -112,10 +112,10 @@ pub async fn mark_doc_indexing_outbox_failed(
 		"\
 UPDATE doc_indexing_outbox
 SET status = 'FAILED',
-\tattempts = $1,
-\tlast_error = $2,
-\tavailable_at = $3,
-\tupdated_at = $4
+	attempts = $1,
+	last_error = $2,
+	available_at = $3,
+	updated_at = $4
 WHERE outbox_id = $5",
 	)
 	.bind(attempts)

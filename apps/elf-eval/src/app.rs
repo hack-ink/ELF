@@ -1437,7 +1437,7 @@ async fn search_with_mode(
 mod tests {
 	use std::collections::HashSet;
 
-	use super::{
+	use crate::app::{
 		ExpectedKind, OffsetDateTime, Uuid, compute_metrics_for_keys, resolve_expected_mode,
 		retrieval_top_rank_retention,
 	};
