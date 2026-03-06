@@ -383,20 +383,20 @@ async fn load_note_versions(
 	let rows: Vec<NoteVersionRow> = sqlx::query_as::<_, NoteVersionRow>(
 		"\
 SELECT
-	version_id,
-	note_id,
-	op,
-	prev_snapshot,
-	new_snapshot,
-	reason,
-	actor,
-	ts
+	memory_note_versions.version_id,
+	memory_note_versions.note_id,
+	memory_note_versions.op,
+	memory_note_versions.prev_snapshot,
+	memory_note_versions.new_snapshot,
+	memory_note_versions.reason,
+	memory_note_versions.actor,
+	memory_note_versions.ts
 FROM memory_note_versions
 JOIN memory_notes n ON n.note_id = memory_note_versions.note_id
 WHERE memory_note_versions.note_id = $1
 	AND n.tenant_id = $2
 	AND n.project_id = $3
-ORDER BY ts DESC
+ORDER BY memory_note_versions.ts DESC
 LIMIT $4",
 	)
 	.bind(note_id)
@@ -418,22 +418,22 @@ async fn load_indexing_outbox(
 	let rows: Vec<NoteIndexingOutboxRow> = sqlx::query_as::<_, NoteIndexingOutboxRow>(
 		"\
 SELECT
-	outbox_id,
-	note_id,
-	op,
-	embedding_version,
-	status,
-	attempts,
-	last_error,
-	available_at,
-	created_at,
-	updated_at
+	indexing_outbox.outbox_id,
+	indexing_outbox.note_id,
+	indexing_outbox.op,
+	indexing_outbox.embedding_version,
+	indexing_outbox.status,
+	indexing_outbox.attempts,
+	indexing_outbox.last_error,
+	indexing_outbox.available_at,
+	indexing_outbox.created_at,
+	indexing_outbox.updated_at
 FROM indexing_outbox
 JOIN memory_notes n ON n.note_id = indexing_outbox.note_id
 WHERE indexing_outbox.note_id = $1
 	AND n.tenant_id = $2
 	AND n.project_id = $3
-ORDER BY updated_at DESC
+ORDER BY indexing_outbox.updated_at DESC
 LIMIT $4",
 	)
 	.bind(note_id)
