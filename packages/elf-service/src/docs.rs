@@ -512,20 +512,20 @@ impl ElfService {
 		let row: Option<DocDocument> = sqlx::query_as::<_, DocDocument>(
 			"\
 SELECT
-\tdoc_id,
-\ttenant_id,
-\tproject_id,
-\tagent_id,
-\tscope,
-\tdoc_type,
-\tstatus,
-\ttitle,
-\tCOALESCE(source_ref, '{}'::jsonb) AS source_ref,
-\tcontent,
-\tcontent_bytes,
-\tcontent_hash,
-\tcreated_at,
-\tupdated_at
+	doc_id,
+	tenant_id,
+	project_id,
+	agent_id,
+	scope,
+	doc_type,
+	status,
+	title,
+	COALESCE(source_ref, '{}'::jsonb) AS source_ref,
+	content,
+	content_bytes,
+	content_hash,
+	created_at,
+	updated_at
 FROM doc_documents
 WHERE doc_id = $1
   AND tenant_id = $2
@@ -1989,20 +1989,20 @@ async fn load_doc_document_for_read(
 	let row: Option<DocDocument> = sqlx::query_as::<_, DocDocument>(
 		"\
 SELECT
-\tdoc_id,
-\ttenant_id,
-\tproject_id,
-\tagent_id,
-\tscope,
-\tdoc_type,
-\tstatus,
-\ttitle,
-\tCOALESCE(source_ref, '{}'::jsonb) AS source_ref,
-\tcontent,
-\tcontent_bytes,
-\tcontent_hash,
-\tcreated_at,
-\tupdated_at
+	doc_id,
+	tenant_id,
+	project_id,
+	agent_id,
+	scope,
+	doc_type,
+	status,
+	title,
+	COALESCE(source_ref, '{}'::jsonb) AS source_ref,
+	content,
+	content_bytes,
+	content_hash,
+	created_at,
+	updated_at
 FROM doc_documents
 WHERE doc_id = $1
   AND tenant_id = $2

@@ -150,25 +150,25 @@ fn render_traces(out: &mut String, traces: &[TraceRow]) -> Result<()> {
 	}
 
 	out.push_str("INSERT INTO search_traces (\n");
-	out.push_str("\ttrace_id,\n");
-	out.push_str("\ttenant_id,\n");
-	out.push_str("\tproject_id,\n");
-	out.push_str("\tagent_id,\n");
-	out.push_str("\tread_profile,\n");
-	out.push_str("\tquery,\n");
-	out.push_str("\texpansion_mode,\n");
-	out.push_str("\texpanded_queries,\n");
-	out.push_str("\tallowed_scopes,\n");
-	out.push_str("\tcandidate_count,\n");
-	out.push_str("\ttop_k,\n");
-	out.push_str("\tconfig_snapshot,\n");
-	out.push_str("\ttrace_version,\n");
-	out.push_str("\tcreated_at,\n");
-	out.push_str("\texpires_at\n");
+	out.push_str("	trace_id,\n");
+	out.push_str("	tenant_id,\n");
+	out.push_str("	project_id,\n");
+	out.push_str("	agent_id,\n");
+	out.push_str("	read_profile,\n");
+	out.push_str("	query,\n");
+	out.push_str("	expansion_mode,\n");
+	out.push_str("	expanded_queries,\n");
+	out.push_str("	allowed_scopes,\n");
+	out.push_str("	candidate_count,\n");
+	out.push_str("	top_k,\n");
+	out.push_str("	config_snapshot,\n");
+	out.push_str("	trace_version,\n");
+	out.push_str("	created_at,\n");
+	out.push_str("	expires_at\n");
 	out.push_str(")\nVALUES\n");
 
 	for (idx, row) in traces.iter().enumerate() {
-		out.push_str("\t(");
+		out.push_str("	(");
 		out.push_str(&sql_uuid(&row.trace_id));
 		out.push_str(", ");
 		out.push_str(&sql_text(&row.tenant_id));
@@ -216,26 +216,26 @@ fn render_candidates(out: &mut String, candidates: &[CandidateRow]) -> Result<()
 	}
 
 	out.push_str("INSERT INTO search_trace_candidates (\n");
-	out.push_str("\tcandidate_id,\n");
-	out.push_str("\ttrace_id,\n");
-	out.push_str("\tnote_id,\n");
-	out.push_str("\tchunk_id,\n");
-	out.push_str("\tchunk_index,\n");
-	out.push_str("\tsnippet,\n");
-	out.push_str("\tcandidate_snapshot,\n");
-	out.push_str("\tretrieval_rank,\n");
-	out.push_str("\trerank_score,\n");
-	out.push_str("\tnote_scope,\n");
-	out.push_str("\tnote_importance,\n");
-	out.push_str("\tnote_updated_at,\n");
-	out.push_str("\tnote_hit_count,\n");
-	out.push_str("\tnote_last_hit_at,\n");
-	out.push_str("\tcreated_at,\n");
-	out.push_str("\texpires_at\n");
+	out.push_str("	candidate_id,\n");
+	out.push_str("	trace_id,\n");
+	out.push_str("	note_id,\n");
+	out.push_str("	chunk_id,\n");
+	out.push_str("	chunk_index,\n");
+	out.push_str("	snippet,\n");
+	out.push_str("	candidate_snapshot,\n");
+	out.push_str("	retrieval_rank,\n");
+	out.push_str("	rerank_score,\n");
+	out.push_str("	note_scope,\n");
+	out.push_str("	note_importance,\n");
+	out.push_str("	note_updated_at,\n");
+	out.push_str("	note_hit_count,\n");
+	out.push_str("	note_last_hit_at,\n");
+	out.push_str("	created_at,\n");
+	out.push_str("	expires_at\n");
 	out.push_str(")\nVALUES\n");
 
 	for (idx, row) in candidates.iter().enumerate() {
-		out.push_str("\t(");
+		out.push_str("	(");
 		out.push_str(&sql_uuid(&row.candidate_id));
 		out.push_str(", ");
 		out.push_str(&sql_uuid(&row.trace_id));
@@ -285,17 +285,17 @@ fn render_items(out: &mut String, items: &[ItemRow]) -> Result<()> {
 	}
 
 	out.push_str("INSERT INTO search_trace_items (\n");
-	out.push_str("\titem_id,\n");
-	out.push_str("\ttrace_id,\n");
-	out.push_str("\tnote_id,\n");
-	out.push_str("\tchunk_id,\n");
-	out.push_str("\trank,\n");
-	out.push_str("\tfinal_score,\n");
-	out.push_str("\texplain\n");
+	out.push_str("	item_id,\n");
+	out.push_str("	trace_id,\n");
+	out.push_str("	note_id,\n");
+	out.push_str("	chunk_id,\n");
+	out.push_str("	rank,\n");
+	out.push_str("	final_score,\n");
+	out.push_str("	explain\n");
 	out.push_str(")\nVALUES\n");
 
 	for (idx, row) in items.iter().enumerate() {
-		out.push_str("\t(");
+		out.push_str("	(");
 		out.push_str(&sql_uuid(&row.item_id));
 		out.push_str(", ");
 		out.push_str(&sql_uuid(&row.trace_id));
@@ -327,16 +327,16 @@ fn render_stages(out: &mut String, stages: &[StageRow]) -> Result<()> {
 	}
 
 	out.push_str("INSERT INTO search_trace_stages (\n");
-	out.push_str("\tstage_id,\n");
-	out.push_str("\ttrace_id,\n");
-	out.push_str("\tstage_order,\n");
-	out.push_str("\tstage_name,\n");
-	out.push_str("\tstage_payload,\n");
-	out.push_str("\tcreated_at\n");
+	out.push_str("	stage_id,\n");
+	out.push_str("	trace_id,\n");
+	out.push_str("	stage_order,\n");
+	out.push_str("	stage_name,\n");
+	out.push_str("	stage_payload,\n");
+	out.push_str("	created_at\n");
 	out.push_str(")\nVALUES\n");
 
 	for (idx, row) in stages.iter().enumerate() {
-		out.push_str("\t(");
+		out.push_str("	(");
 		out.push_str(&sql_uuid(&row.stage_id));
 		out.push_str(", ");
 		out.push_str(&sql_uuid(&row.trace_id));
@@ -366,16 +366,16 @@ fn render_stage_items(out: &mut String, stage_items: &[StageItemRow]) -> Result<
 	}
 
 	out.push_str("INSERT INTO search_trace_stage_items (\n");
-	out.push_str("\tid,\n");
-	out.push_str("\tstage_id,\n");
-	out.push_str("\titem_id,\n");
-	out.push_str("\tnote_id,\n");
-	out.push_str("\tchunk_id,\n");
-	out.push_str("\tmetrics\n");
+	out.push_str("	id,\n");
+	out.push_str("	stage_id,\n");
+	out.push_str("	item_id,\n");
+	out.push_str("	note_id,\n");
+	out.push_str("	chunk_id,\n");
+	out.push_str("	metrics\n");
 	out.push_str(")\nVALUES\n");
 
 	for (idx, row) in stage_items.iter().enumerate() {
-		out.push_str("\t(");
+		out.push_str("	(");
 		out.push_str(&sql_uuid(&row.id));
 		out.push_str(", ");
 		out.push_str(&sql_uuid(&row.stage_id));
