@@ -1,7 +1,9 @@
+mod app;
+
 use clap::Parser;
 use color_eyre::Result;
 
-use elf_eval::Args;
+use app::Args;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -9,5 +11,5 @@ async fn main() -> Result<()> {
 
 	let args = Args::parse();
 
-	elf_eval::run(args).await
+	app::run(args).await
 }
