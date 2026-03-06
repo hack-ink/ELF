@@ -22,7 +22,7 @@ use serde_json::Value;
 use tokio::net::TcpListener;
 use uuid::Uuid;
 
-use crate::McpAuthState;
+use crate::app::McpAuthState;
 use elf_config::McpContext;
 
 const HEADER_TENANT_ID: &str = "X-ELF-Tenant-Id";
@@ -1487,13 +1487,15 @@ async fn mcp_auth_middleware(
 
 #[cfg(test)]
 mod tests {
-	use crate::server::{ElfContextHeaders, ElfMcp};
 	use axum::http::HeaderMap;
 	use elf_config::McpContext;
 
 	use std::collections::HashMap;
 
-	use crate::{McpAuthState, server::HttpMethod};
+	use crate::app::{
+		McpAuthState,
+		server::{ElfContextHeaders, ElfMcp, HttpMethod},
+	};
 
 	const ALL_TOOL_DEFINITIONS: [ToolDefinition; 28] = [
 		ToolDefinition::new(

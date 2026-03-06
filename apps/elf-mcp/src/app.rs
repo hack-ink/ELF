@@ -1,6 +1,4 @@
-#![recursion_limit = "512"]
-
-pub mod server;
+#[path = "server.rs"] mod server;
 
 use std::{net::SocketAddr, path::PathBuf};
 
@@ -95,7 +93,7 @@ fn select_static_key(security: &Security, mcp: &McpContext) -> Result<McpAuthSta
 
 #[cfg(test)]
 mod tests {
-	use crate::{McpAuthState, build_auth_state};
+	use super::{McpAuthState, build_auth_state};
 	use elf_config::{McpContext, Security, SecurityAuthKey, SecurityAuthRole};
 
 	fn sample_security(auth_mode: &str, auth_keys: Vec<SecurityAuthKey>) -> Security {

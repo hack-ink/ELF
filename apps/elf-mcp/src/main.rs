@@ -1,7 +1,11 @@
+#![recursion_limit = "512"]
+
+mod app;
+
 use clap::Parser;
 use color_eyre::Result;
 
-use elf_mcp::Args;
+use app::Args;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -9,5 +13,5 @@ async fn main() -> Result<()> {
 
 	let args = Args::parse();
 
-	elf_mcp::run(args).await
+	app::run(args).await
 }
