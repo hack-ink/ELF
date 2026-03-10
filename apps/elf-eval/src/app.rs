@@ -48,7 +48,7 @@ pub struct Args {
 	pub trace_id: Vec<Uuid>,
 }
 
-#[derive(Debug, Clone, Copy, Deserialize, Serialize, ValueEnum)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, ValueEnum)]
 #[serde(rename_all = "snake_case")]
 pub enum SearchMode {
 	#[value(name = "quick_find")]
@@ -64,7 +64,7 @@ struct EvalDataset {
 	queries: Vec<EvalQuery>,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Clone, Debug, Deserialize)]
 struct EvalDefaults {
 	tenant_id: Option<String>,
 	project_id: Option<String>,
@@ -162,14 +162,14 @@ struct QueryReport {
 	stability: Option<QueryStability>,
 }
 
-#[derive(Debug, Serialize, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 enum ExpectedKind {
 	NoteId,
 	Key,
 }
 
-#[derive(Debug, Serialize, Clone, Copy)]
+#[derive(Clone, Copy, Debug, Serialize)]
 struct QueryStability {
 	runs_per_query: u32,
 	positional_churn_at_k: f64,

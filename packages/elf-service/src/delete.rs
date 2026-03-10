@@ -5,7 +5,7 @@ use uuid::Uuid;
 use crate::{ElfService, Error, InsertVersionArgs, NoteOp, Result, access};
 use elf_storage::models::MemoryNote;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct DeleteRequest {
 	pub tenant_id: String,
 	pub project_id: String,
@@ -13,7 +13,7 @@ pub struct DeleteRequest {
 	pub note_id: Uuid,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct DeleteResponse {
 	pub note_id: Uuid,
 	pub op: NoteOp,

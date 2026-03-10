@@ -9,7 +9,7 @@ use uuid::Uuid;
 use crate::{ElfService, Error, Result, access};
 use elf_storage::models::MemoryNote;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ListRequest {
 	pub tenant_id: String,
 	pub project_id: String,
@@ -19,7 +19,7 @@ pub struct ListRequest {
 	pub r#type: Option<String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ListItem {
 	pub note_id: Uuid,
 	pub r#type: String,
@@ -36,7 +36,7 @@ pub struct ListItem {
 	pub source_ref: Value,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ListResponse {
 	pub items: Vec<ListItem>,
 }

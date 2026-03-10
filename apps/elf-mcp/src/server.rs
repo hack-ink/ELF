@@ -32,7 +32,7 @@ const HEADER_READ_PROFILE: &str = "X-ELF-Read-Profile";
 const HEADER_REQUEST_ID: &str = "X-ELF-Request-Id";
 const HEADER_AUTHORIZATION: &str = "Authorization";
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum HttpMethod {
 	Get,
 	Post,
@@ -1668,7 +1668,7 @@ mod tests {
 		),
 	];
 
-	#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+	#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 	struct ToolDefinition {
 		name: &'static str,
 		method: HttpMethod,

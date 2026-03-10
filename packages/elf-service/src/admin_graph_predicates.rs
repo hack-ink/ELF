@@ -10,7 +10,7 @@ use elf_storage::models::{GraphPredicate, GraphPredicateAlias};
 const GRAPH_PREDICATE_SCOPE_GLOBAL: &str = "__global__";
 const GRAPH_PREDICATE_SCOPE_PROJECT_PREFIX: &str = "__project__:";
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum AdminGraphPredicateScope {
 	TenantProject,
 	Project,
@@ -328,7 +328,7 @@ impl ElfService {
 	}
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum PredicateAccess {
 	Read,
 	Mutate,

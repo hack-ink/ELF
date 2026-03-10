@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use elf_config::{Config, MemoryPolicyRule};
 
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MemoryPolicyDecision {
 	Remember,
