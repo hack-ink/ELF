@@ -1,7 +1,7 @@
 use unicode_normalization::UnicodeNormalization;
 use unicode_script::{Script, UnicodeScript};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum EnglishGateKind {
 	/// Natural-language text that is expected to be English prose.
 	NaturalLanguage,
@@ -9,7 +9,7 @@ pub enum EnglishGateKind {
 	Identifier,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum EnglishGateRejectReason {
 	DisallowedControlChar,
 	DisallowedZeroWidthChar,

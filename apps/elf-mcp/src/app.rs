@@ -18,7 +18,7 @@ pub struct Args {
 	pub config: PathBuf,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum McpAuthState {
 	Off,
 	StaticKeys { bearer_token: String },

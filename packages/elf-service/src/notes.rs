@@ -8,7 +8,7 @@ use uuid::Uuid;
 use crate::{ElfService, Error, Result, access, structured_fields::StructuredFields};
 use elf_storage::models::MemoryNote;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct NoteFetchRequest {
 	pub tenant_id: String,
 	pub project_id: String,
@@ -16,7 +16,7 @@ pub struct NoteFetchRequest {
 	pub note_id: Uuid,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct NoteFetchResponse {
 	pub note_id: Uuid,
 	pub tenant_id: String,

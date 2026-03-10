@@ -31,7 +31,7 @@ struct Args {
 	retrieval_retention_rank: Option<u32>,
 }
 
-#[derive(Debug, Deserialize, Default, Clone, Copy)]
+#[derive(Clone, Copy, Debug, Default, Deserialize)]
 #[serde(rename_all = "snake_case")]
 struct GateThresholds {
 	max_positional_churn_at_k: Option<f64>,
@@ -39,7 +39,7 @@ struct GateThresholds {
 	min_retrieval_top_rank_retention: Option<f64>,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "snake_case")]
 struct GateTrace {
 	trace_id: Uuid,

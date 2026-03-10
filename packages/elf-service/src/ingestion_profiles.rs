@@ -10,19 +10,19 @@ const ADD_EVENT_PIPELINE: &str = "add_event";
 const DEFAULT_PROFILE_ID: &str = "default";
 const DEFAULT_PROFILE_VERSION: i32 = 1;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct IngestionProfileSelector {
 	pub id: String,
 	pub version: Option<i32>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct IngestionProfileRef {
 	pub id: String,
 	pub version: i32,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AdminIngestionProfileCreateRequest {
 	pub tenant_id: String,
 	pub project_id: String,
@@ -32,13 +32,13 @@ pub struct AdminIngestionProfileCreateRequest {
 	pub created_by: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AdminIngestionProfileListRequest {
 	pub tenant_id: String,
 	pub project_id: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AdminIngestionProfileGetRequest {
 	pub tenant_id: String,
 	pub project_id: String,
@@ -46,20 +46,20 @@ pub struct AdminIngestionProfileGetRequest {
 	pub version: Option<i32>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AdminIngestionProfileVersionsListRequest {
 	pub tenant_id: String,
 	pub project_id: String,
 	pub profile_id: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AdminIngestionProfileDefaultGetRequest {
 	pub tenant_id: String,
 	pub project_id: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AdminIngestionProfileDefaultSetRequest {
 	pub tenant_id: String,
 	pub project_id: String,
@@ -152,7 +152,7 @@ impl ResolvedIngestionProfile {
 	}
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 struct IngestionProfileV1 {
 	#[serde(default = "default_schema_version")]
 	schema_version: i32,

@@ -17,7 +17,7 @@ const MAX_FILTER_NODES: usize = 128;
 const MAX_IN_LIST_ITEMS: usize = 128;
 const MAX_STRING_BYTES: usize = 512;
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct FilterParseError {
 	path: String,
 	message: String,

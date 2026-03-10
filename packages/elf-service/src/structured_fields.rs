@@ -15,7 +15,7 @@ const MAX_RELATIONS: usize = 64;
 const MAX_ALIASES: usize = 16;
 const MAX_ITEM_CHARS: usize = 1_000;
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct StructuredFields {
 	pub summary: Option<String>,
 	pub facts: Option<Vec<String>>,
@@ -46,14 +46,14 @@ impl StructuredFields {
 	}
 }
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct StructuredEntity {
 	pub canonical: Option<String>,
 	pub kind: Option<String>,
 	pub aliases: Option<Vec<String>>,
 }
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct StructuredRelation {
 	pub subject: Option<StructuredEntity>,
@@ -65,7 +65,7 @@ pub struct StructuredRelation {
 	pub valid_to: Option<OffsetDateTime>,
 }
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct StructuredRelationObject {
 	pub entity: Option<StructuredEntity>,
 	pub value: Option<String>,

@@ -13,14 +13,14 @@ const NOTE_PROVENANCE_NOTE_VERSIONS_LIMIT: i64 = 100;
 const NOTE_PROVENANCE_OUTBOX_LIMIT: i64 = 100;
 const NOTE_PROVENANCE_RECENT_TRACES_LIMIT: i64 = 20;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct NoteProvenanceGetRequest {
 	pub tenant_id: String,
 	pub project_id: String,
 	pub note_id: Uuid,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct NoteProvenanceBundleResponse {
 	pub schema: String,
 	pub note: NoteProvenanceNote,
@@ -30,7 +30,7 @@ pub struct NoteProvenanceBundleResponse {
 	pub recent_traces: Vec<NoteProvenanceRecentTrace>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct NoteProvenanceNote {
 	pub note_id: Uuid,
 	pub tenant_id: String,
@@ -80,7 +80,7 @@ impl From<MemoryNote> for NoteProvenanceNote {
 	}
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct NoteProvenanceIngestDecision {
 	pub decision_id: Uuid,
 	pub tenant_id: String,
@@ -121,7 +121,7 @@ impl From<NoteIngestDecisionRow> for NoteProvenanceIngestDecision {
 	}
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct NoteProvenanceNoteVersion {
 	pub version_id: Uuid,
 	pub note_id: Uuid,
@@ -150,7 +150,7 @@ impl From<NoteVersionRow> for NoteProvenanceNoteVersion {
 	}
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct NoteProvenanceIndexingOutbox {
 	pub outbox_id: Uuid,
 	pub note_id: Uuid,
@@ -184,7 +184,7 @@ impl From<NoteIndexingOutboxRow> for NoteProvenanceIndexingOutbox {
 	}
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct NoteProvenanceRecentTrace {
 	pub trace_id: Uuid,
 	pub tenant_id: String,

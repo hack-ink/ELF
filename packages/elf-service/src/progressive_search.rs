@@ -21,7 +21,7 @@ use elf_storage::models::MemoryNote;
 const SESSION_SLIDING_TTL_HOURS: i64 = 6;
 const SESSION_ABSOLUTE_TTL_HOURS: i64 = 24;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchIndexItem {
 	pub note_id: Uuid,
 	pub r#type: String,
@@ -37,7 +37,7 @@ pub struct SearchIndexItem {
 	pub summary: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchIndexResponse {
 	pub trace_id: Uuid,
 	pub search_session_id: Uuid,
@@ -47,7 +47,7 @@ pub struct SearchIndexResponse {
 	pub trajectory_summary: Option<SearchTrajectorySummary>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SearchSessionMode {
 	QuickFind,
@@ -85,7 +85,7 @@ impl From<SearchSessionizePath> for SearchSessionMode {
 	}
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchSessionGetResponse {
 	pub trace_id: Uuid,
 	pub search_session_id: Uuid,
@@ -97,7 +97,7 @@ pub struct SearchSessionGetResponse {
 	pub trajectory_summary: Option<SearchTrajectorySummary>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchIndexPlannedResponse {
 	pub trace_id: Uuid,
 	pub search_session_id: Uuid,
@@ -108,7 +108,7 @@ pub struct SearchIndexPlannedResponse {
 	pub query_plan: QueryPlan,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchSessionGetRequest {
 	pub tenant_id: String,
 	pub project_id: String,
@@ -120,7 +120,7 @@ pub struct SearchSessionGetRequest {
 	pub touch: Option<bool>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchTimelineRequest {
 	pub tenant_id: String,
 	pub project_id: String,
@@ -130,13 +130,13 @@ pub struct SearchTimelineRequest {
 	pub group_by: Option<String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchTimelineGroup {
 	pub date: String,
 	pub items: Vec<SearchIndexItem>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchTimelineResponse {
 	pub search_session_id: Uuid,
 	#[serde(with = "crate::time_serde")]
@@ -144,7 +144,7 @@ pub struct SearchTimelineResponse {
 	pub groups: Vec<SearchTimelineGroup>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchDetailsRequest {
 	pub tenant_id: String,
 	pub project_id: String,
@@ -156,20 +156,20 @@ pub struct SearchDetailsRequest {
 	pub record_hits: Option<bool>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchDetailsError {
 	pub code: String,
 	pub message: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchDetailsResult {
 	pub note_id: Uuid,
 	pub note: Option<NoteFetchResponse>,
 	pub error: Option<SearchDetailsError>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchDetailsResponse {
 	pub search_session_id: Uuid,
 	#[serde(with = "crate::time_serde")]
@@ -184,7 +184,7 @@ struct HitItem {
 	final_score: f32,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum SearchSessionizePath {
 	Quick,
 	Planned,
@@ -195,7 +195,7 @@ struct SearchSessionizedOutput {
 	query_plan: Option<QueryPlan>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 struct SearchSessionItemRecord {
 	rank: u32,
 	note_id: Uuid,

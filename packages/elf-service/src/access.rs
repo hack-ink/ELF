@@ -9,7 +9,7 @@ use elf_storage::models::MemoryNote;
 
 pub(crate) const ORG_PROJECT_ID: &str = "__org__";
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub(crate) struct SharedSpaceGrantKey {
 	pub(crate) scope: String,
 	pub(crate) space_owner_agent_id: String,

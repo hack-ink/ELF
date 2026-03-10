@@ -25,7 +25,7 @@ const REJECT_STRUCTURED_INVALID: &str = "REJECT_STRUCTURED_INVALID";
 const IGNORE_DUPLICATE: &str = "IGNORE_DUPLICATE";
 const IGNORE_POLICY_THRESHOLD: &str = "IGNORE_POLICY_THRESHOLD";
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct EventMessage {
 	pub role: String,
 	pub content: String,
@@ -34,7 +34,7 @@ pub struct EventMessage {
 	pub write_policy: Option<WritePolicy>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AddEventRequest {
 	pub tenant_id: String,
 	pub project_id: String,
@@ -45,7 +45,7 @@ pub struct AddEventRequest {
 	pub messages: Vec<EventMessage>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AddEventResult {
 	pub note_id: Option<Uuid>,
 	pub op: NoteOp,
@@ -56,7 +56,7 @@ pub struct AddEventResult {
 	pub write_policy_audits: Option<Vec<WritePolicyAudit>>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AddEventResponse {
 	pub extracted: Value,
 	pub results: Vec<AddEventResult>,

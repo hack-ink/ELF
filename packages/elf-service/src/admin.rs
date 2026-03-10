@@ -13,7 +13,7 @@ use uuid::Uuid;
 use crate::{ElfService, Error, Result};
 use elf_storage::qdrant::{BM25_MODEL, BM25_VECTOR_NAME, DENSE_VECTOR_NAME};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct RebuildReport {
 	pub rebuilt_count: u64,
 	pub missing_vector_count: u64,

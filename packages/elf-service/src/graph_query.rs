@@ -56,14 +56,14 @@ WHERE gf.tenant_id = $1
 ORDER BY gf.valid_from DESC, gf.fact_id ASC
 LIMIT $8";
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(untagged)]
 pub enum GraphQueryEntityRef {
 	EntityId { entity_id: Uuid },
 	Surface { surface: String },
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(untagged)]
 pub enum GraphQueryPredicateRef {
 	PredicateId { predicate_id: Uuid },
