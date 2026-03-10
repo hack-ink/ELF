@@ -8,7 +8,7 @@ use crate::{ElfService, Error, InsertVersionArgs, NoteOp, Result, access};
 use elf_domain::{english_gate, ttl};
 use elf_storage::models::MemoryNote;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct UpdateRequest {
 	pub tenant_id: String,
 	pub project_id: String,
@@ -20,7 +20,7 @@ pub struct UpdateRequest {
 	pub ttl_days: Option<i64>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct UpdateResponse {
 	pub note_id: Uuid,
 	pub op: NoteOp,

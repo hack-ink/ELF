@@ -70,7 +70,7 @@ SET
 	revoked_at = NULL,
 	revoked_by_agent_id = NULL";
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ShareScope {
 	ProjectShared,
@@ -91,14 +91,14 @@ impl Display for ShareScope {
 	}
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum GranteeKind {
 	Project,
 	Agent,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PublishNoteRequest {
 	pub tenant_id: String,
 	pub project_id: String,
@@ -107,13 +107,13 @@ pub struct PublishNoteRequest {
 	pub scope: ShareScope,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PublishNoteResponse {
 	pub note_id: Uuid,
 	pub scope: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct UnpublishNoteRequest {
 	pub tenant_id: String,
 	pub project_id: String,
@@ -121,13 +121,13 @@ pub struct UnpublishNoteRequest {
 	pub note_id: Uuid,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct UnpublishNoteResponse {
 	pub note_id: Uuid,
 	pub scope: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SpaceGrantUpsertRequest {
 	pub tenant_id: String,
 	pub project_id: String,
@@ -137,7 +137,7 @@ pub struct SpaceGrantUpsertRequest {
 	pub grantee_agent_id: Option<String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SpaceGrantUpsertResponse {
 	pub scope: String,
 	pub grantee_kind: GranteeKind,
@@ -145,7 +145,7 @@ pub struct SpaceGrantUpsertResponse {
 	pub granted: bool,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SpaceGrantRevokeRequest {
 	pub tenant_id: String,
 	pub project_id: String,
@@ -155,12 +155,12 @@ pub struct SpaceGrantRevokeRequest {
 	pub grantee_agent_id: Option<String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SpaceGrantRevokeResponse {
 	pub revoked: bool,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SpaceGrantsListRequest {
 	pub tenant_id: String,
 	pub project_id: String,
@@ -168,7 +168,7 @@ pub struct SpaceGrantsListRequest {
 	pub scope: ShareScope,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SpaceGrantItem {
 	pub scope: ShareScope,
 	pub grantee_kind: GranteeKind,
@@ -177,7 +177,7 @@ pub struct SpaceGrantItem {
 	pub granted_at: time::OffsetDateTime,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SpaceGrantsListResponse {
 	pub grants: Vec<SpaceGrantItem>,
 }

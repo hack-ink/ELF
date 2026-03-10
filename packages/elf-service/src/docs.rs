@@ -38,7 +38,7 @@ const DOC_SOURCE_REF_SCHEMA_V1: &str = "source_ref/v1";
 const DOC_SOURCE_REF_RESOLVER_V1: &str = "elf_doc_ext/v1";
 const DOC_STATUSES: [&str; 2] = ["active", "deleted"];
 
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DocType {
 	Knowledge,

@@ -30,7 +30,7 @@ pub struct Context {
 	pub scope_boost_weight: Option<f32>,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct McpContext {
 	pub tenant_id: String,
 	pub project_id: String,
@@ -150,12 +150,12 @@ pub struct Memory {
 	pub policy: MemoryPolicy,
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Default, Deserialize)]
 pub struct MemoryPolicy {
 	pub rules: Vec<MemoryPolicyRule>,
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Default, Deserialize)]
 pub struct MemoryPolicyRule {
 	pub note_type: Option<String>,
 	pub scope: Option<String>,
@@ -366,7 +366,7 @@ pub struct SecurityAuthKey {
 	pub role: SecurityAuthRole,
 }
 
-#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SecurityAuthRole {
 	User,

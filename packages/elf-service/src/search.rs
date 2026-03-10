@@ -198,7 +198,7 @@ FROM fact_contexts
 ORDER BY note_id, fact_rank
 "#;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchRequest {
 	pub tenant_id: String,
 	pub project_id: String,
@@ -216,14 +216,14 @@ pub struct SearchRequest {
 	pub ranking: Option<RankingRequestOverride>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct RankingRequestOverride {
 	pub blend: Option<BlendRankingOverride>,
 	pub diversity: Option<DiversityRankingOverride>,
 	pub retrieval_sources: Option<RetrievalSourcesRankingOverride>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct BlendRankingOverride {
 	pub enabled: Option<bool>,
 	pub rerank_normalization: Option<String>,
@@ -231,13 +231,13 @@ pub struct BlendRankingOverride {
 	pub segments: Option<Vec<BlendSegmentOverride>>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct BlendSegmentOverride {
 	pub max_retrieval_rank: u32,
 	pub retrieval_weight: f32,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct DiversityRankingOverride {
 	pub enabled: Option<bool>,
 	pub sim_threshold: Option<f32>,
@@ -245,7 +245,7 @@ pub struct DiversityRankingOverride {
 	pub max_skips: Option<u32>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct RetrievalSourcesRankingOverride {
 	pub fusion_weight: Option<f32>,
 	pub structured_field_weight: Option<f32>,
@@ -255,7 +255,7 @@ pub struct RetrievalSourcesRankingOverride {
 	pub recursive_priority: Option<u32>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchExplain {
 	pub r#match: SearchMatchExplain,
 	pub ranking: SearchRankingExplain,
@@ -265,7 +265,7 @@ pub struct SearchExplain {
 	pub diversity: Option<SearchDiversityExplain>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchExplainRelationContext {
 	pub fact_id: Uuid,
 	pub scope: String,
@@ -280,7 +280,7 @@ pub struct SearchExplainRelationContext {
 	pub evidence_note_ids: Vec<Uuid>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchExplainRelationEntityRef {
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub canonical: Option<String>,
@@ -288,7 +288,7 @@ pub struct SearchExplainRelationEntityRef {
 	pub kind: Option<String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchExplainRelationContextObject {
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub entity: Option<SearchExplainRelationEntityRef>,
@@ -296,13 +296,13 @@ pub struct SearchExplainRelationContextObject {
 	pub value: Option<String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchMatchExplain {
 	pub matched_terms: Vec<String>,
 	pub matched_fields: Vec<String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchDiversityExplain {
 	pub enabled: bool,
 	pub selected_reason: String,
@@ -318,7 +318,7 @@ pub struct SearchDiversityExplain {
 	pub missing_embedding: bool,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchItem {
 	pub result_handle: Uuid,
 	pub note_id: Uuid,
@@ -341,14 +341,14 @@ pub struct SearchItem {
 	pub explain: SearchExplain,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchResponse {
 	pub trace_id: Uuid,
 	pub items: Vec<SearchItem>,
 	pub trajectory_summary: Option<SearchTrajectorySummary>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchRawPlannedResponse {
 	pub trace_id: Uuid,
 	pub items: Vec<SearchItem>,
@@ -356,7 +356,7 @@ pub struct SearchRawPlannedResponse {
 	pub query_plan: QueryPlan,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct QueryPlan {
 	pub schema: String,
 	pub version: String,
@@ -369,13 +369,13 @@ pub struct QueryPlan {
 	pub budget: QueryPlanBudget,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct QueryPlanStage {
 	pub name: String,
 	pub details: Value,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct QueryPlanIntent {
 	pub query: String,
 	pub tenant_id: String,
@@ -385,14 +385,14 @@ pub struct QueryPlanIntent {
 	pub allowed_scopes: Vec<String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct QueryPlanRewrite {
 	pub expansion_mode: String,
 	pub expanded_queries: Vec<String>,
 	pub dynamic_gate: QueryPlanDynamicGate,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct QueryPlanDynamicGate {
 	pub considered: bool,
 	pub should_expand: Option<bool>,
@@ -402,7 +402,7 @@ pub struct QueryPlanDynamicGate {
 	pub min_top_score: f32,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct QueryPlanRetrievalStage {
 	pub name: String,
 	pub source: String,
@@ -410,7 +410,7 @@ pub struct QueryPlanRetrievalStage {
 	pub candidate_limit: u32,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct QueryPlanFusionPolicy {
 	pub strategy: String,
 	pub fusion_weight: f32,
@@ -421,13 +421,13 @@ pub struct QueryPlanFusionPolicy {
 	pub recursive_priority: u32,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct QueryPlanBlendSegment {
 	pub max_retrieval_rank: u32,
 	pub retrieval_weight: f32,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct QueryPlanRerankPolicy {
 	pub provider_id: String,
 	pub model: String,
@@ -441,7 +441,7 @@ pub struct QueryPlanRerankPolicy {
 	pub diversity_max_skips: u32,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct QueryPlanBudget {
 	pub top_k: u32,
 	pub candidate_k: u32,
@@ -450,7 +450,7 @@ pub struct QueryPlanBudget {
 	pub cache_enabled: bool,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchExplainRequest {
 	pub tenant_id: String,
 	pub project_id: String,
@@ -458,7 +458,7 @@ pub struct SearchExplainRequest {
 	pub result_handle: Uuid,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchTrace {
 	pub trace_id: Uuid,
 	pub tenant_id: String,
@@ -477,13 +477,13 @@ pub struct SearchTrace {
 	pub trace_version: i32,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchTrajectorySummary {
 	pub schema: String,
 	pub stages: Vec<SearchTrajectorySummaryStage>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchTrajectorySummaryStage {
 	pub stage_order: u32,
 	pub stage_name: String,
@@ -491,7 +491,7 @@ pub struct SearchTrajectorySummaryStage {
 	pub stats: Value,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchTrajectoryStage {
 	pub stage_order: u32,
 	pub stage_name: String,
@@ -499,7 +499,7 @@ pub struct SearchTrajectoryStage {
 	pub items: Vec<SearchTrajectoryStageItem>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchTrajectoryStageItem {
 	pub item_id: Option<Uuid>,
 	pub note_id: Option<Uuid>,
@@ -507,20 +507,20 @@ pub struct SearchTrajectoryStageItem {
 	pub metrics: Value,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchTrajectoryResponse {
 	pub trace: SearchTrace,
 	pub trajectory: SearchTrajectorySummary,
 	pub stages: Vec<SearchTrajectoryStage>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchExplainTrajectory {
 	pub schema: String,
 	pub stages: Vec<SearchExplainTrajectoryStage>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchExplainTrajectoryStage {
 	pub stage_order: u32,
 	pub stage_name: String,
@@ -530,7 +530,7 @@ pub struct SearchExplainTrajectoryStage {
 	pub match_info: Option<SearchExplainTrajectoryMatch>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchExplainTrajectoryMatch {
 	pub kind: String,
 	pub item_id: Option<Uuid>,
@@ -538,7 +538,7 @@ pub struct SearchExplainTrajectoryMatch {
 	pub chunk_id: Option<Uuid>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchExplainItem {
 	pub result_handle: Uuid,
 	pub note_id: Uuid,
@@ -547,7 +547,7 @@ pub struct SearchExplainItem {
 	pub explain: SearchExplain,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchExplainResponse {
 	pub trace: SearchTrace,
 	pub item: SearchExplainItem,
@@ -555,7 +555,7 @@ pub struct SearchExplainResponse {
 	pub trajectory: Option<SearchExplainTrajectory>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TraceRecentListRequest {
 	pub tenant_id: String,
 	pub project_id: String,
@@ -576,7 +576,7 @@ pub struct TraceRecentListRequest {
 	pub created_before: Option<OffsetDateTime>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct RecentTraceHeader {
 	pub trace_id: Uuid,
 	pub tenant_id: String,
@@ -588,14 +588,14 @@ pub struct RecentTraceHeader {
 	pub created_at: OffsetDateTime,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TraceRecentCursor {
 	#[serde(with = "crate::time_serde")]
 	pub created_at: OffsetDateTime,
 	pub trace_id: Uuid,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TraceRecentListResponse {
 	pub schema: String,
 	pub traces: Vec<RecentTraceHeader>,
@@ -603,7 +603,7 @@ pub struct TraceRecentListResponse {
 	pub next_cursor: Option<TraceRecentCursor>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TraceBundleGetRequest {
 	pub tenant_id: String,
 	pub project_id: String,
@@ -617,7 +617,7 @@ pub struct TraceBundleGetRequest {
 	pub candidates_limit: Option<u32>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TraceBundleResponse {
 	pub schema: String,
 	#[serde(with = "crate::time_serde")]
@@ -631,7 +631,7 @@ pub struct TraceBundleResponse {
 	pub candidates: Option<Vec<TraceReplayCandidate>>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TraceGetRequest {
 	pub tenant_id: String,
 	pub project_id: String,
@@ -639,7 +639,7 @@ pub struct TraceGetRequest {
 	pub trace_id: Uuid,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TraceTrajectoryGetRequest {
 	pub tenant_id: String,
 	pub project_id: String,
@@ -647,7 +647,7 @@ pub struct TraceTrajectoryGetRequest {
 	pub trace_id: Uuid,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TraceGetResponse {
 	pub trace: SearchTrace,
 	pub items: Vec<SearchExplainItem>,
@@ -655,7 +655,7 @@ pub struct TraceGetResponse {
 	pub trajectory_summary: Option<SearchTrajectorySummary>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TraceReplayContext {
 	pub trace_id: Uuid,
 	pub query: String,
@@ -665,7 +665,7 @@ pub struct TraceReplayContext {
 	pub created_at: OffsetDateTime,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TraceReplayCandidate {
 	pub note_id: Uuid,
 	pub chunk_id: Uuid,
@@ -690,7 +690,7 @@ pub struct TraceReplayCandidate {
 	pub diversity_missing_embedding: Option<bool>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TraceReplayItem {
 	pub note_id: Uuid,
 	pub chunk_id: Uuid,
@@ -775,7 +775,7 @@ struct SearchRetrievalResult {
 	recursive: Option<RecursiveRetrievalResult>,
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Clone, Debug, Default)]
 struct RecursiveRetrievalResult {
 	enabled: bool,
 	rounds_executed: u32,
@@ -957,7 +957,7 @@ struct ChunkSnippet {
 	retrieval_rank: u32,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 struct ExpansionCachePayload {
 	queries: Vec<String>,
 }
@@ -967,14 +967,14 @@ struct ExpansionOutput {
 	queries: Vec<String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 struct RerankCacheItem {
 	chunk_id: Uuid,
 	updated_at: OffsetDateTime,
 	score: f32,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 struct RerankCachePayload {
 	items: Vec<RerankCacheItem>,
 }
@@ -1042,7 +1042,7 @@ impl Default for DeterministicRankingTerms {
 	}
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 struct TracePayload {
 	trace: TraceRecord,
 	items: Vec<TraceItemRecord>,
@@ -1052,7 +1052,7 @@ struct TracePayload {
 	stages: Vec<TraceTrajectoryStageRecord>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 struct TraceRecord {
 	trace_id: Uuid,
 	tenant_id: String,
@@ -1071,7 +1071,7 @@ struct TraceRecord {
 	expires_at: OffsetDateTime,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 struct TraceItemRecord {
 	item_id: Uuid,
 	note_id: Uuid,
@@ -1081,7 +1081,7 @@ struct TraceItemRecord {
 	explain: SearchExplain,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 struct TraceCandidateRecord {
 	candidate_id: Uuid,
 	note_id: Uuid,
@@ -1101,7 +1101,7 @@ struct TraceCandidateRecord {
 	expires_at: OffsetDateTime,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 struct TraceTrajectoryStageRecord {
 	stage_id: Uuid,
 	stage_order: u32,
@@ -1112,7 +1112,7 @@ struct TraceTrajectoryStageRecord {
 	items: Vec<TraceTrajectoryStageItemRecord>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 struct TraceTrajectoryStageItemRecord {
 	id: Uuid,
 	item_id: Option<Uuid>,
@@ -1372,7 +1372,7 @@ struct StructuredFieldRetrievalResult {
 	structured_matches: HashMap<Uuid, Vec<String>>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 struct RetrievalSourceCandidates {
 	source: RetrievalSourceKind,
 	candidates: Vec<ChunkCandidate>,
@@ -1412,7 +1412,7 @@ struct DynamicGateSummary {
 	observed_top_score: Option<f32>,
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 #[derive(Default)]
 pub enum TraceBundleMode {
@@ -1421,7 +1421,7 @@ pub enum TraceBundleMode {
 	Full,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum PayloadLevel {
 	#[default]
 	L0,
@@ -1467,14 +1467,14 @@ impl<'de> Deserialize<'de> for PayloadLevel {
 	}
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum ExpansionMode {
 	Off,
 	Always,
 	Dynamic,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum RawSearchPath {
 	Quick,
 	Planned,
@@ -1494,7 +1494,7 @@ impl CacheKind {
 	}
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 enum RetrievalSourceKind {
 	Fusion,
 	StructuredField,

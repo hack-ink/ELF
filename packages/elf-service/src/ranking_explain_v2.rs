@@ -7,7 +7,7 @@ use elf_config::Config;
 
 pub const SEARCH_RANKING_EXPLAIN_SCHEMA_V2: &str = "search_ranking_explain/v2";
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchRankingTerm {
 	pub name: String,
 	pub value: f32,
@@ -15,7 +15,7 @@ pub struct SearchRankingTerm {
 	pub inputs: Option<BTreeMap<String, Value>>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchRankingExplain {
 	pub schema: String,
 	pub policy_id: String,

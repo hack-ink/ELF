@@ -21,7 +21,7 @@ const REJECT_STRUCTURED_INVALID: &str = "REJECT_STRUCTURED_INVALID";
 const IGNORE_DUPLICATE: &str = "IGNORE_DUPLICATE";
 const IGNORE_POLICY_THRESHOLD: &str = "IGNORE_POLICY_THRESHOLD";
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AddNoteRequest {
 	pub tenant_id: String,
 	pub project_id: String,
@@ -30,7 +30,7 @@ pub struct AddNoteRequest {
 	pub notes: Vec<AddNoteInput>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AddNoteInput {
 	pub r#type: String,
 	pub key: Option<String>,
@@ -44,7 +44,7 @@ pub struct AddNoteInput {
 	pub write_policy: Option<WritePolicy>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AddNoteResult {
 	pub note_id: Option<Uuid>,
 	pub op: NoteOp,
@@ -54,7 +54,7 @@ pub struct AddNoteResult {
 	pub write_policy_audit: Option<WritePolicyAudit>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AddNoteResponse {
 	pub results: Vec<AddNoteResult>,
 }
