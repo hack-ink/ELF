@@ -135,7 +135,7 @@ fn parse_embedding_response(json: Value) -> Result<Vec<Vec<f32>>> {
 
 #[cfg(test)]
 mod tests {
-	use crate::embedding::{local_embed, parse_embedding_response};
+	use crate::embedding::{self};
 
 	#[test]
 	fn parses_embeddings_in_index_order() {
@@ -145,7 +145,7 @@ mod tests {
 				{ "index": 0, "embedding": [0.5, 1.5] }
 			]
 		});
-		let parsed = parse_embedding_response(json).expect("parse failed");
+		let parsed = embedding::parse_embedding_response(json).expect("parse failed");
 
 		assert_eq!(parsed.len(), 2);
 		assert_eq!(parsed[0], vec![0.5, 1.5]);
@@ -154,8 +154,8 @@ mod tests {
 
 	#[test]
 	fn local_embedding_is_deterministic_and_has_expected_dimension() {
-		let a = local_embed(64, "Embeddings are stored in Postgres.");
-		let b = local_embed(64, "Embeddings are stored in Postgres.");
+		let a = embedding::local_embed(64, "Embeddings are stored in Postgres.");
+		let b = embedding::local_embed(64, "Embeddings are stored in Postgres.");
 
 		assert_eq!(a.len(), 64);
 		assert_eq!(a, b);
@@ -163,9 +163,9 @@ mod tests {
 
 	#[test]
 	fn local_embedding_is_more_similar_for_shared_tokens() {
-		let a = local_embed(512, "alpha beta");
-		let b = local_embed(512, "alpha gamma");
-		let c = local_embed(512, "delta epsilon");
+		let a = embedding::local_embed(512, "alpha beta");
+		let b = embedding::local_embed(512, "alpha gamma");
+		let c = embedding::local_embed(512, "delta epsilon");
 		let sim_ab = dot(&a, &b);
 		let sim_ac = dot(&a, &c);
 

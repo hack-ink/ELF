@@ -6,14 +6,15 @@ use uuid::Uuid;
 
 use crate::{
 	ElfService, Error, InsertVersionArgs, NoteOp, ResolveUpdateArgs, Result, UpdateDecision,
-	UpdateDecisionMetadata, access, structured_fields::StructuredFields,
+	UpdateDecisionMetadata, access, graph_ingestion, ingest_audit,
+	structured_fields::{self, StructuredFields},
 };
 use elf_config::Config;
 use elf_domain::{
 	english_gate,
-	memory_policy::MemoryPolicyDecision,
+	memory_policy::{self, MemoryPolicyDecision},
 	ttl,
-	writegate::{WritePolicy, WritePolicyAudit, WritePolicyError},
+	writegate::{self, WritePolicy, WritePolicyAudit, WritePolicyError},
 };
 use elf_storage::models::MemoryNote;
 
@@ -270,7 +271,7 @@ impl ElfService {
 		base_decision: MemoryPolicyDecision,
 	) -> (MemoryPolicyDecision, Option<String>, Option<f32>, Option<f32>) {
 		if matches!(base_decision, MemoryPolicyDecision::Remember | MemoryPolicyDecision::Update) {
-			let policy_eval = elf_domain::memory_policy::evaluate_memory_policy(
+			let policy_eval = memory_policy::evaluate_memory_policy(
 				&self.cfg,
 				note.r#type.as_str(),
 				scope,
@@ -439,7 +440,7 @@ impl ElfService {
 			ts: ctx.now,
 		};
 
-		crate::ingest_audit::insert_ingest_decision(tx, decision).await
+		ingest_audit::insert_ingest_decision(tx, decision).await
 	}
 
 	fn base_decision_for_update(
@@ -673,7 +674,7 @@ impl ElfService {
 
 		if let Some(structured) = note.structured.as_ref() {
 			if !structured.is_effectively_empty() {
-				crate::structured_fields::upsert_structured_fields_tx(tx, note_id, structured, now)
+				structured_fields::upsert_structured_fields_tx(tx, note_id, structured, now)
 					.await?;
 				crate::enqueue_outbox_tx(&mut **tx, note_id, "UPSERT", embed_version, now).await?;
 
@@ -748,7 +749,7 @@ impl ElfService {
 			return Ok(());
 		}
 
-		crate::graph_ingestion::persist_graph_fields_tx(
+		graph_ingestion::persist_graph_fields_tx(
 			tx, tenant_id, project_id, agent_id, scope, note_id, structured, now,
 		)
 		.await?;
@@ -767,8 +768,7 @@ impl ElfService {
 		if let Some(structured) = note.structured.as_ref()
 			&& !structured.is_effectively_empty()
 		{
-			crate::structured_fields::upsert_structured_fields_tx(tx, note_id, structured, now)
-				.await?;
+			structured_fields::upsert_structured_fields_tx(tx, note_id, structured, now).await?;
 		}
 
 		crate::enqueue_outbox_tx(&mut **tx, note_id, "UPSERT", embed_version, now).await?;
@@ -838,7 +838,7 @@ fn validate_add_note_request(req: &AddNoteRequest) -> Result<()> {
 
 fn reject_note_if_structured_invalid(note: &AddNoteInput) -> Option<AddNoteResult> {
 	if let Some(structured) = note.structured.as_ref()
-		&& let Err(err) = crate::structured_fields::validate_structured_fields(
+		&& let Err(err) = structured_fields::validate_structured_fields(
 			structured,
 			note.text.as_str(),
 			&note.source_ref,
@@ -872,7 +872,7 @@ fn reject_note_if_writegate_rejects(
 		text: note.text.clone(),
 	};
 
-	if let Err(code) = elf_domain::writegate::writegate(&gate_input, cfg) {
+	if let Err(code) = writegate::writegate(&gate_input, cfg) {
 		return Some(AddNoteResult {
 			note_id: None,
 			op: NoteOp::Rejected,
@@ -890,7 +890,7 @@ fn apply_write_policy_to_note(
 	policy: Option<&WritePolicy>,
 	text: &str,
 ) -> Result<(String, Option<WritePolicyAudit>)> {
-	let result = elf_domain::writegate::apply_write_policy(text, policy).map_err(|err| {
+	let result = writegate::apply_write_policy(text, policy).map_err(|err| {
 		let message = match err {
 			WritePolicyError::InvalidSpan => "Invalid write_policy span provided.",
 			WritePolicyError::OverlappingOps => "Overlapping write_policy spans provided.",
@@ -1185,16 +1185,16 @@ WHERE note_id = $7",
 
 #[cfg(test)]
 mod english_gate_tests {
-	use serde_json::json;
+	use serde_json;
 
 	use crate::{
 		Error,
-		add_note::{AddNoteInput, AddNoteRequest, validate_add_note_request},
+		add_note::{self, AddNoteInput, AddNoteRequest},
 	};
 
 	#[test]
 	fn accepts_identifier_like_source_ref_ref_field() {
-		validate_add_note_request(&AddNoteRequest {
+		add_note::validate_add_note_request(&AddNoteRequest {
 			tenant_id: "t".to_string(),
 			project_id: "p".to_string(),
 			agent_id: "a".to_string(),
@@ -1233,7 +1233,7 @@ mod english_gate_tests {
 				write_policy: None,
 			}],
 		};
-		let err = validate_add_note_request(&req).expect_err(
+		let err = add_note::validate_add_note_request(&req).expect_err(
 			"Expected non-English free-text under source_ref.hints.quote to be rejected.",
 		);
 
@@ -1265,7 +1265,8 @@ mod english_gate_tests {
 					write_policy: None,
 				}],
 			};
-		let err = validate_add_note_request(&req).expect_err("Expected English gate rejection.");
+		let err = add_note::validate_add_note_request(&req)
+			.expect_err("Expected English gate rejection.");
 
 		assert!(matches!(
 			err,
@@ -1275,7 +1276,7 @@ mod english_gate_tests {
 
 	#[test]
 	fn accepts_missing_source_ref_and_defaults_to_empty_object() {
-		let req: AddNoteRequest = serde_json::from_value(json!({
+		let req: AddNoteRequest = serde_json::from_value(serde_json::json!({
 			"tenant_id": "t",
 			"project_id": "p",
 			"agent_id": "a",
@@ -1293,7 +1294,8 @@ mod english_gate_tests {
 
 		assert_eq!(req.notes[0].source_ref, serde_json::json!({}));
 
-		validate_add_note_request(&req).expect("Expected missing source_ref to be accepted.");
+		add_note::validate_add_note_request(&req)
+			.expect("Expected missing source_ref to be accepted.");
 	}
 
 	#[test]
@@ -1319,7 +1321,8 @@ mod english_gate_tests {
 
 		assert_eq!(req.notes[0].source_ref, serde_json::json!({}));
 
-		validate_add_note_request(&req).expect("Expected null source_ref to be accepted.");
+		add_note::validate_add_note_request(&req)
+			.expect("Expected null source_ref to be accepted.");
 	}
 
 	#[test]
@@ -1341,8 +1344,8 @@ mod english_gate_tests {
 				write_policy: None,
 			}],
 		};
-		let err =
-			validate_add_note_request(&req).expect_err("Expected non-object source_ref rejection.");
+		let err = add_note::validate_add_note_request(&req)
+			.expect_err("Expected non-object source_ref rejection.");
 
 		match err {
 			Error::InvalidRequest { message } => {

@@ -5,7 +5,7 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 use crate::{ElfService, Error, InsertVersionArgs, NoteOp, Result, access};
-use elf_domain::{english_gate, ttl};
+use elf_domain::{english_gate, ttl, writegate};
 use elf_storage::models::MemoryNote;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -69,7 +69,7 @@ impl ElfService {
 			text: candidate_text,
 		};
 
-		if let Err(code) = elf_domain::writegate::writegate(&gate, &self.cfg) {
+		if let Err(code) = writegate::writegate(&gate, &self.cfg) {
 			return Ok(UpdateResponse {
 				note_id: note.note_id,
 				op: NoteOp::Rejected,

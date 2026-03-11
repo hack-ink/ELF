@@ -1,11 +1,14 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, slice};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::{ElfService, Error, Result, access, structured_fields::StructuredFields};
+use crate::{
+	ElfService, Error, Result, access,
+	structured_fields::{self, StructuredFields},
+};
 use elf_storage::models::MemoryNote;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -89,9 +92,9 @@ WHERE note_id = $1
 			return Err(Error::InvalidRequest { message: "Note not found.".to_string() });
 		}
 
-		let structured = crate::structured_fields::fetch_structured_fields(
+		let structured = structured_fields::fetch_structured_fields(
 			&self.db.pool,
-			std::slice::from_ref(&note.note_id),
+			slice::from_ref(&note.note_id),
 		)
 		.await?
 		.remove(&note.note_id);

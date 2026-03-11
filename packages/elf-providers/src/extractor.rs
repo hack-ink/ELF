@@ -59,7 +59,7 @@ fn parse_extractor_json(json: Value) -> Result<Value> {
 
 #[cfg(test)]
 mod tests {
-	use crate::extractor::parse_extractor_json;
+	use crate::extractor;
 
 	#[test]
 	fn parses_choice_content_json() {
@@ -68,7 +68,7 @@ mod tests {
 				{ "message": { "content": "{\"notes\": []}" } }
 			]
 		});
-		let parsed = parse_extractor_json(json).expect("parse failed");
+		let parsed = extractor::parse_extractor_json(json).expect("parse failed");
 
 		assert!(parsed.get("notes").is_some());
 	}

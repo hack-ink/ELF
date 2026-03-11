@@ -104,13 +104,13 @@ fn overlap_tail(text: &str, overlap_tokens: u32, tokenizer: &Tokenizer) -> Strin
 
 #[cfg(test)]
 mod tests {
-	use crate::{ChunkingConfig, load_tokenizer, split_text};
+	use crate::ChunkingConfig;
 
 	#[test]
 	fn splits_into_chunks_with_overlap() {
 		let cfg = ChunkingConfig { max_tokens: 10, overlap_tokens: 2 };
-		let tokenizer = load_tokenizer("Qwen/Qwen3-Embedding-8B").unwrap();
-		let chunks = split_text("One. Two. Three. Four.", &cfg, &tokenizer);
+		let tokenizer = crate::load_tokenizer("Qwen/Qwen3-Embedding-8B").unwrap();
+		let chunks = crate::split_text("One. Two. Three. Four.", &cfg, &tokenizer);
 
 		assert!(!chunks.is_empty());
 		assert!(chunks[0].text.contains("One"));

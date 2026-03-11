@@ -481,8 +481,9 @@ LIMIT $4",
 
 #[cfg(test)]
 mod tests {
-	use crate::provenance::{Error, NoteProvenanceGetRequest, validate_note_provenance_request};
 	use uuid::Uuid;
+
+	use crate::provenance::{self, Error, NoteProvenanceGetRequest};
 
 	#[test]
 	fn normalize_note_provenance_request_trims_ids() {
@@ -491,7 +492,8 @@ mod tests {
 			project_id: " project-a\n".to_string(),
 			note_id: Uuid::new_v4(),
 		};
-		let result = validate_note_provenance_request(request).expect("expected valid request");
+		let result =
+			provenance::validate_note_provenance_request(request).expect("expected valid request");
 
 		assert_eq!(result.tenant_id, "tenant-a");
 		assert_eq!(result.project_id, "project-a");
@@ -509,9 +511,9 @@ mod tests {
 			project_id: "   ".to_string(),
 			note_id: Uuid::new_v4(),
 		};
-		let first = validate_note_provenance_request(missing_tenant)
+		let first = provenance::validate_note_provenance_request(missing_tenant)
 			.expect_err("expected tenant validation error");
-		let second = validate_note_provenance_request(empty_project)
+		let second = provenance::validate_note_provenance_request(empty_project)
 			.expect_err("expected project validation error");
 
 		match first {

@@ -7,15 +7,16 @@ use uuid::Uuid;
 use crate::{
 	ElfService, Error, InsertVersionArgs, NoteOp, REJECT_EVIDENCE_MISMATCH,
 	REJECT_WRITE_POLICY_MISMATCH, ResolveUpdateArgs, Result, UpdateDecision, access,
-	ingestion_profiles::{IngestionProfileRef, IngestionProfileSelector},
-	structured_fields::StructuredFields,
+	graph_ingestion, ingest_audit,
+	ingestion_profiles::{self, IngestionProfileRef, IngestionProfileSelector},
+	structured_fields::{self, StructuredFields},
 };
 use elf_config::Config;
 use elf_domain::{
 	english_gate, evidence,
 	memory_policy::{self, MemoryPolicyDecision},
 	ttl,
-	writegate::{WritePolicy, WritePolicyAudit, WritePolicyError},
+	writegate::{self, WritePolicy, WritePolicyAudit, WritePolicyError},
 };
 use elf_storage::models::MemoryNote;
 
@@ -155,7 +156,7 @@ impl ElfService {
 	pub async fn add_event(&self, req: AddEventRequest) -> Result<AddEventResponse> {
 		validate_add_event_request(&req)?;
 
-		let resolved_profile = crate::ingestion_profiles::resolve_add_event_profile(
+		let resolved_profile = ingestion_profiles::resolve_add_event_profile(
 			&self.db.pool,
 			req.tenant_id.as_str(),
 			req.project_id.as_str(),
@@ -639,7 +640,7 @@ impl ElfService {
 		if let Some(structured) = args.structured
 			&& structured.has_graph_fields()
 		{
-			crate::graph_ingestion::persist_graph_fields_tx(
+			graph_ingestion::persist_graph_fields_tx(
 				tx,
 				args.req.tenant_id.as_str(),
 				args.project_id,
@@ -724,7 +725,7 @@ impl ElfService {
 		if let Some(structured) = args.structured
 			&& structured.has_graph_fields()
 		{
-			crate::graph_ingestion::persist_graph_fields_tx(
+			graph_ingestion::persist_graph_fields_tx(
 				tx,
 				args.req.tenant_id.as_str(),
 				existing.project_id.as_str(),
@@ -760,10 +761,8 @@ impl ElfService {
 		if let Some(structured) = args.structured
 			&& !structured.is_effectively_empty()
 		{
-			crate::structured_fields::upsert_structured_fields_tx(
-				tx, note_id, structured, args.now,
-			)
-			.await?;
+			structured_fields::upsert_structured_fields_tx(tx, note_id, structured, args.now)
+				.await?;
 			crate::enqueue_outbox_tx(&mut **tx, note_id, "UPSERT", args.embed_version, args.now)
 				.await?;
 
@@ -772,7 +771,7 @@ impl ElfService {
 		if let Some(structured) = args.structured
 			&& structured.has_graph_fields()
 		{
-			crate::graph_ingestion::persist_graph_fields_tx(
+			graph_ingestion::persist_graph_fields_tx(
 				tx,
 				args.req.tenant_id.as_str(),
 				args.project_id,
@@ -992,18 +991,16 @@ fn apply_write_policies_to_messages(messages: &[EventMessage]) -> Result<Process
 fn apply_write_policy_to_message(
 	message: &EventMessage,
 ) -> Result<(EventMessage, Option<WritePolicyAudit>)> {
-	let result = elf_domain::writegate::apply_write_policy(
-		message.content.as_str(),
-		message.write_policy.as_ref(),
-	)
-	.map_err(|err| {
-		let message = match err {
-			WritePolicyError::InvalidSpan => "Invalid write_policy span provided.",
-			WritePolicyError::OverlappingOps => "Overlapping write_policy spans provided.",
-		};
+	let result =
+		writegate::apply_write_policy(message.content.as_str(), message.write_policy.as_ref())
+			.map_err(|err| {
+				let message = match err {
+					WritePolicyError::InvalidSpan => "Invalid write_policy span provided.",
+					WritePolicyError::OverlappingOps => "Overlapping write_policy spans provided.",
+				};
 
-		Error::InvalidRequest { message: message.to_string() }
-	})?;
+				Error::InvalidRequest { message: message.to_string() }
+			})?;
 	let has_policy = message.write_policy.is_some();
 	let mut transformed = message.clone();
 
@@ -1084,7 +1081,7 @@ fn reject_extracted_note_if_structured_invalid(
 	let event_evidence: Vec<(usize, String)> =
 		evidence.iter().map(|q| (q.message_index, q.quote.clone())).collect();
 
-	if let Err(err) = crate::structured_fields::validate_structured_fields(
+	if let Err(err) = structured_fields::validate_structured_fields(
 		structured,
 		text,
 		&serde_json::json!({}),
@@ -1121,7 +1118,7 @@ fn reject_extracted_note_if_writegate_rejects(
 		text: text.to_string(),
 	};
 
-	if let Err(code) = elf_domain::writegate::writegate(&gate_input, cfg) {
+	if let Err(code) = writegate::writegate(&gate_input, cfg) {
 		return Some(AddEventResult {
 			note_id: None,
 			op: NoteOp::Rejected,
@@ -1226,7 +1223,7 @@ async fn record_ingest_decision(
 		ts: ctx.now,
 	};
 
-	crate::ingest_audit::insert_ingest_decision(tx, args).await
+	ingest_audit::insert_ingest_decision(tx, args).await
 }
 
 async fn update_memory_note_tx(
@@ -1338,7 +1335,7 @@ async fn upsert_structured_fields_tx(
 	if let Some(structured) = structured
 		&& !structured.is_effectively_empty()
 	{
-		crate::structured_fields::upsert_structured_fields_tx(tx, note_id, structured, now).await?;
+		structured_fields::upsert_structured_fields_tx(tx, note_id, structured, now).await?;
 	}
 
 	Ok(())
@@ -1348,7 +1345,7 @@ async fn upsert_structured_fields_tx(
 mod english_gate_tests {
 	use crate::{
 		Error,
-		add_event::{AddEventRequest, EventMessage, validate_add_event_request},
+		add_event::{self, AddEventRequest, EventMessage},
 	};
 
 	#[test]
@@ -1369,7 +1366,8 @@ mod english_gate_tests {
 					write_policy: None,
 				}],
 			};
-		let err = validate_add_event_request(&req).expect_err("Expected English gate rejection.");
+		let err = add_event::validate_add_event_request(&req)
+			.expect_err("Expected English gate rejection.");
 
 		assert!(matches!(
 			err,

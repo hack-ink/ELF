@@ -13,9 +13,10 @@ use uuid::Uuid;
 use crate::{
 	ElfService, NoteFetchResponse, PayloadLevel, QueryPlan, SearchRequest, SearchTrajectorySummary,
 	access::{self, SharedSpaceGrantKey},
-	structured_fields::StructuredFields,
+	structured_fields::{self, StructuredFields},
 };
 use elf_config::Config;
+use elf_domain::english_gate;
 use elf_storage::models::MemoryNote;
 
 const SESSION_SLIDING_TTL_HOURS: i64 = 6;
@@ -343,7 +344,7 @@ impl ElfService {
 		let search_session_id = Uuid::new_v4();
 		let note_ids: Vec<Uuid> = raw_items.iter().map(|item| item.note_id).collect();
 		let structured_by_note =
-			crate::structured_fields::fetch_structured_fields(&self.db.pool, &note_ids).await?;
+			structured_fields::fetch_structured_fields(&self.db.pool, &note_ids).await?;
 		let mut items = Vec::with_capacity(raw_items.len());
 
 		for (idx, item) in raw_items.iter().enumerate() {
@@ -558,7 +559,7 @@ WHERE note_id = ANY($1::uuid[])
 		let structured_by_note = if req.payload_level == PayloadLevel::L0 {
 			HashMap::new()
 		} else {
-			crate::structured_fields::fetch_structured_fields(
+			structured_fields::fetch_structured_fields(
 				&self.db.pool,
 				requested_in_session.as_slice(),
 			)
@@ -1065,7 +1066,7 @@ async fn record_detail_hits<'e, E>(
 where
 	E: PgExecutor<'e>,
 {
-	if !elf_domain::english_gate::is_english_natural_language(query) {
+	if !english_gate::is_english_natural_language(query) {
 		return Err(crate::Error::NonEnglishInput { field: "$.query".to_string() });
 	}
 
