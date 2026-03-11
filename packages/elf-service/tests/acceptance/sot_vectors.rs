@@ -4,7 +4,7 @@ use sqlx::PgPool;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::acceptance::{SpyExtractor, StubEmbedding, StubRerank};
+use crate::acceptance::{self, SpyExtractor, StubEmbedding, StubRerank};
 use elf_service::Providers;
 
 fn build_zero_vector_text(dim: usize) -> String {
@@ -121,19 +121,19 @@ VALUES ($1, $2, $3, $4::text::vector)",
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
 async fn active_notes_have_vectors() {
-	let Some(test_db) = crate::acceptance::test_db().await else {
+	let Some(test_db) = acceptance::test_db().await else {
 		eprintln!("Skipping active_notes_have_vectors; set ELF_PG_DSN to run this test.");
 
 		return;
 	};
-	let Some(qdrant_url) = crate::acceptance::test_qdrant_url() else {
+	let Some(qdrant_url) = acceptance::test_qdrant_url() else {
 		eprintln!("Skipping active_notes_have_vectors; set ELF_QDRANT_URL to run this test.");
 
 		return;
 	};
 	let collection = test_db.collection_name("elf_acceptance");
 	let docs_collection = test_db.collection_name("elf_acceptance_docs");
-	let cfg = crate::acceptance::test_config(
+	let cfg = acceptance::test_config(
 		test_db.dsn().to_string(),
 		qdrant_url,
 		4_096,
@@ -149,9 +149,9 @@ async fn active_notes_have_vectors() {
 		}),
 	);
 	let service =
-		crate::acceptance::build_service(cfg, providers).await.expect("Failed to build service.");
+		acceptance::build_service(cfg, providers).await.expect("Failed to build service.");
 
-	crate::acceptance::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
+	acceptance::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
 
 	let note_id = Uuid::new_v4();
 	let now = OffsetDateTime::now_utc();

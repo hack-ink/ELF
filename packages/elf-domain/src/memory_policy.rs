@@ -112,9 +112,7 @@ fn should_downgrade(
 
 #[cfg(test)]
 mod tests {
-	use crate::memory_policy::{
-		MemoryPolicyDecision, MemoryPolicyEvaluation, evaluate_memory_policy,
-	};
+	use crate::memory_policy::{self, MemoryPolicyDecision, MemoryPolicyEvaluation};
 	use elf_config::{
 		Chunking, Config, EmbeddingProviderConfig, Lifecycle, LlmProviderConfig, Memory,
 		MemoryPolicy, MemoryPolicyRule, Postgres, ProviderConfig, Providers, Qdrant, Ranking,
@@ -416,14 +414,15 @@ mod tests {
 				},
 			],
 		});
-		let MemoryPolicyEvaluation { decision, matched_rule } = evaluate_memory_policy(
-			&cfg,
-			"fact",
-			"agent_private",
-			0.5,
-			0.5,
-			MemoryPolicyDecision::Remember,
-		);
+		let MemoryPolicyEvaluation { decision, matched_rule } =
+			memory_policy::evaluate_memory_policy(
+				&cfg,
+				"fact",
+				"agent_private",
+				0.5,
+				0.5,
+				MemoryPolicyDecision::Remember,
+			);
 
 		assert_eq!(decision, MemoryPolicyDecision::Ignore);
 
@@ -445,7 +444,7 @@ mod tests {
 				min_importance: Some(0.5),
 			}],
 		});
-		let remember = evaluate_memory_policy(
+		let remember = memory_policy::evaluate_memory_policy(
 			&cfg,
 			"fact",
 			"agent_private",
@@ -456,7 +455,7 @@ mod tests {
 
 		assert_eq!(remember.decision, MemoryPolicyDecision::Ignore);
 
-		let update = evaluate_memory_policy(
+		let update = memory_policy::evaluate_memory_policy(
 			&cfg,
 			"fact",
 			"agent_private",
@@ -467,7 +466,7 @@ mod tests {
 
 		assert_eq!(update.decision, MemoryPolicyDecision::Ignore);
 
-		let ignore = evaluate_memory_policy(
+		let ignore = memory_policy::evaluate_memory_policy(
 			&cfg,
 			"fact",
 			"agent_private",
@@ -478,7 +477,7 @@ mod tests {
 
 		assert_eq!(ignore.decision, MemoryPolicyDecision::Ignore);
 
-		let reject = evaluate_memory_policy(
+		let reject = memory_policy::evaluate_memory_policy(
 			&cfg,
 			"fact",
 			"agent_private",
@@ -500,7 +499,7 @@ mod tests {
 				min_importance: None,
 			}],
 		});
-		let output = evaluate_memory_policy(
+		let output = memory_policy::evaluate_memory_policy(
 			&cfg,
 			"fact",
 			"agent_private",

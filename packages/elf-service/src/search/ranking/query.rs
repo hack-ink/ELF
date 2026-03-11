@@ -4,6 +4,7 @@ use serde_json::Value;
 
 use crate::search::ExpansionMode;
 use elf_config::{Config, SearchDynamic};
+use elf_domain::english_gate;
 
 pub fn resolve_expansion_mode(cfg: &Config) -> ExpansionMode {
 	match cfg.search.expansion.mode.as_str() {
@@ -47,7 +48,7 @@ pub fn normalize_queries(
 pub fn push_query(out: &mut Vec<String>, seen: &mut HashSet<String>, value: &str) {
 	let trimmed = value.trim();
 
-	if trimmed.is_empty() || !elf_domain::english_gate::is_english_natural_language(trimmed) {
+	if trimmed.is_empty() || !english_gate::is_english_natural_language(trimmed) {
 		return;
 	}
 

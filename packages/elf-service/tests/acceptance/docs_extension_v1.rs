@@ -10,10 +10,14 @@ use serde_json::Map;
 use sqlx::{FromRow, PgPool};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use tokenizers::{Tokenizer, models::wordlevel::WordLevel};
-use tokio::{net::TcpListener, sync::oneshot::Sender, task::JoinHandle};
+use tokio::{
+	net::TcpListener,
+	sync::{oneshot, oneshot::Sender},
+	task::JoinHandle,
+};
 use uuid::Uuid;
 
-use crate::acceptance::{SpyExtractor, StubEmbedding, StubRerank};
+use crate::acceptance::{self, SpyExtractor, StubEmbedding, StubRerank};
 use elf_config::EmbeddingProviderConfig;
 use elf_service::{
 	AddNoteInput, AddNoteRequest, BoxFuture, DocsExcerptsGetRequest, DocsGetRequest,
@@ -201,7 +205,7 @@ async fn start_embed_server() -> (String, Sender<()>) {
 	let app = Router::new().route("/embeddings", routing::post(embed_handler)).with_state(());
 	let listener = TcpListener::bind("127.0.0.1:0").await.expect("Failed to bind embed server.");
 	let addr = listener.local_addr().expect("Failed to read embed server address.");
-	let (tx, rx) = tokio::sync::oneshot::channel();
+	let (tx, rx) = oneshot::channel();
 	let server = axum::serve(listener, app).with_graceful_shutdown(async move {
 		let _ = rx.await;
 	});
@@ -1046,12 +1050,12 @@ async fn cleanup_docs_filter_fixture(
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL (or ELF_QDRANT_GRPC_URL) to run."]
 async fn docs_put_rejects_non_english_source_ref() {
-	let Some(test_db) = crate::acceptance::test_db().await else {
+	let Some(test_db) = acceptance::test_db().await else {
 		eprintln!("Skipping docs_extension_v1; set ELF_PG_DSN to run this test.");
 
 		return;
 	};
-	let Some(qdrant_url) = crate::acceptance::test_qdrant_url() else {
+	let Some(qdrant_url) = acceptance::test_qdrant_url() else {
 		eprintln!(
 			"Skipping docs_extension_v1; set ELF_QDRANT_URL (or ELF_QDRANT_GRPC_URL) to run this test."
 		);
@@ -1060,7 +1064,7 @@ async fn docs_put_rejects_non_english_source_ref() {
 	};
 	let collection = test_db.collection_name("elf_acceptance");
 	let docs_collection = test_db.collection_name("elf_acceptance_docs");
-	let cfg = crate::acceptance::test_config(
+	let cfg = acceptance::test_config(
 		test_db.dsn().to_string(),
 		qdrant_url,
 		4_096,
@@ -1076,7 +1080,7 @@ async fn docs_put_rejects_non_english_source_ref() {
 		}),
 	);
 	let service =
-		crate::acceptance::build_service(cfg, providers).await.expect("Failed to build service.");
+		acceptance::build_service(cfg, providers).await.expect("Failed to build service.");
 	let result = service
 		.docs_put(DocsPutRequest {
 			tenant_id: "t".to_string(),
@@ -1109,12 +1113,12 @@ async fn docs_put_rejects_non_english_source_ref() {
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL (or ELF_QDRANT_GRPC_URL) to run."]
 async fn docs_put_rejects_missing_and_invalid_source_ref() {
-	let Some(test_db) = crate::acceptance::test_db().await else {
+	let Some(test_db) = acceptance::test_db().await else {
 		eprintln!("Skipping docs_extension_v1; set ELF_PG_DSN to run this test.");
 
 		return;
 	};
-	let Some(qdrant_url) = crate::acceptance::test_qdrant_url() else {
+	let Some(qdrant_url) = acceptance::test_qdrant_url() else {
 		eprintln!(
 			"Skipping docs_extension_v1; set ELF_QDRANT_URL (or ELF_QDRANT_GRPC_URL) to run this test."
 		);
@@ -1123,7 +1127,7 @@ async fn docs_put_rejects_missing_and_invalid_source_ref() {
 	};
 	let collection = test_db.collection_name("elf_acceptance");
 	let docs_collection = test_db.collection_name("elf_acceptance_docs");
-	let cfg = crate::acceptance::test_config(
+	let cfg = acceptance::test_config(
 		test_db.dsn().to_string(),
 		qdrant_url,
 		4_096,
@@ -1139,7 +1143,7 @@ async fn docs_put_rejects_missing_and_invalid_source_ref() {
 		}),
 	);
 	let service =
-		crate::acceptance::build_service(cfg, providers).await.expect("Failed to build service.");
+		acceptance::build_service(cfg, providers).await.expect("Failed to build service.");
 	let result = service
 		.docs_put(DocsPutRequest {
 			tenant_id: "t".to_string(),
@@ -1314,12 +1318,12 @@ async fn docs_search_l0_projects_source_ref_payload_fields() {
 }
 
 async fn setup_docs_context() -> Option<DocsContext> {
-	let Some(test_db) = crate::acceptance::test_db().await else {
+	let Some(test_db) = acceptance::test_db().await else {
 		eprintln!("Skipping docs_extension_v1; set ELF_PG_DSN to run this test.");
 
 		return None;
 	};
-	let Some(qdrant_url) = crate::acceptance::test_qdrant_url() else {
+	let Some(qdrant_url) = acceptance::test_qdrant_url() else {
 		eprintln!(
 			"Skipping docs_extension_v1; set ELF_QDRANT_URL (or ELF_QDRANT_GRPC_URL) to run this test."
 		);
@@ -1328,7 +1332,7 @@ async fn setup_docs_context() -> Option<DocsContext> {
 	};
 	let collection = test_db.collection_name("elf_acceptance");
 	let docs_collection = test_db.collection_name("elf_acceptance_docs");
-	let cfg = crate::acceptance::test_config(
+	let cfg = acceptance::test_config(
 		test_db.dsn().to_string(),
 		qdrant_url,
 		4_096,
@@ -1344,17 +1348,17 @@ async fn setup_docs_context() -> Option<DocsContext> {
 		}),
 	);
 	let service =
-		crate::acceptance::build_service(cfg, providers).await.expect("Failed to build service.");
+		acceptance::build_service(cfg, providers).await.expect("Failed to build service.");
 
-	crate::acceptance::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
-	crate::acceptance::reset_qdrant_collection(
+	acceptance::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
+	acceptance::reset_qdrant_collection(
 		&service.qdrant.client,
 		&service.qdrant.collection,
 		service.qdrant.vector_dim,
 	)
 	.await
 	.expect("Failed to reset Qdrant memory collection.");
-	crate::acceptance::reset_qdrant_collection(
+	acceptance::reset_qdrant_collection(
 		&service.qdrant.client,
 		&service.cfg.storage.qdrant.docs_collection,
 		service.qdrant.vector_dim,

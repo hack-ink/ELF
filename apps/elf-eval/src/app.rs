@@ -17,7 +17,7 @@ use uuid::Uuid;
 use elf_config::Config;
 use elf_service::{
 	ElfService, RankingRequestOverride, SearchIndexItem, SearchIndexResponse, SearchRequest,
-	search::TraceReplayItem,
+	search::{self, TraceReplayItem},
 };
 use elf_storage::{db::Db, qdrant::QdrantStore};
 
@@ -1023,10 +1023,10 @@ async fn trace_compare(
 	config_b: Config,
 	args: &Args,
 ) -> Result<TraceCompareOutput> {
-	let policy_id_a = elf_service::search::ranking_policy_id(&config_a, None)
-		.map_err(|err| eyre::eyre!("{err}"))?;
-	let policy_id_b = elf_service::search::ranking_policy_id(&config_b, None)
-		.map_err(|err| eyre::eyre!("{err}"))?;
+	let policy_id_a =
+		search::ranking_policy_id(&config_a, None).map_err(|err| eyre::eyre!("{err}"))?;
+	let policy_id_b =
+		search::ranking_policy_id(&config_b, None).map_err(|err| eyre::eyre!("{err}"))?;
 	let db = Db::connect(&config_a.storage.postgres).await?;
 
 	db.ensure_schema(config_a.storage.qdrant.vector_dim).await?;
@@ -1108,22 +1108,12 @@ async fn compare_trace_id(
 		.map_err(|err| eyre::eyre!("Failed to format trace created_at: {err}"))?;
 	let candidates = decode_trace_replay_candidates(candidate_rows);
 	let top_k = args.top_k.unwrap_or(context.top_k).max(1);
-	let items_a = elf_service::search::replay_ranking_from_candidates(
-		config_a,
-		&context,
-		None,
-		&candidates,
-		top_k,
-	)
-	.map_err(|err| eyre::eyre!("{err}"))?;
-	let items_b = elf_service::search::replay_ranking_from_candidates(
-		config_b,
-		&context,
-		None,
-		&candidates,
-		top_k,
-	)
-	.map_err(|err| eyre::eyre!("{err}"))?;
+	let items_a =
+		search::replay_ranking_from_candidates(config_a, &context, None, &candidates, top_k)
+			.map_err(|err| eyre::eyre!("{err}"))?;
+	let items_b =
+		search::replay_ranking_from_candidates(config_b, &context, None, &candidates, top_k)
+			.map_err(|err| eyre::eyre!("{err}"))?;
 	let note_ids_a: Vec<Uuid> = items_a.iter().map(|item| item.note_id).collect();
 	let note_ids_b: Vec<Uuid> = items_b.iter().map(|item| item.note_id).collect();
 	let (positional_churn_at_k, set_churn_at_k) =
@@ -1437,20 +1427,17 @@ async fn search_with_mode(
 mod tests {
 	use std::collections::HashSet;
 
-	use crate::app::{
-		ExpectedKind, OffsetDateTime, Uuid, compute_metrics_for_keys, resolve_expected_mode,
-		retrieval_top_rank_retention,
-	};
+	use crate::app::{self, ExpectedKind, OffsetDateTime, Uuid};
 
 	#[test]
 	fn resolve_expected_mode_requires_exactly_one_definition() {
 		let index = 0;
 		let note_ids = vec![Uuid::new_v4()];
 		let expected_keys = vec!["key-1".to_string()];
-		let note_only = resolve_expected_mode(index, &note_ids, &[]);
-		let key_only = resolve_expected_mode(index, &[], &expected_keys);
-		let none = resolve_expected_mode(index, &[], &[]);
-		let both = resolve_expected_mode(index, &note_ids, &expected_keys);
+		let note_only = app::resolve_expected_mode(index, &note_ids, &[]);
+		let key_only = app::resolve_expected_mode(index, &[], &expected_keys);
+		let none = app::resolve_expected_mode(index, &[], &[]);
+		let both = app::resolve_expected_mode(index, &note_ids, &expected_keys);
 
 		assert!(matches!(note_only.unwrap(), ExpectedKind::NoteId));
 		assert!(matches!(key_only.unwrap(), ExpectedKind::Key));
@@ -1469,7 +1456,7 @@ mod tests {
 			Some("gamma".to_string()),
 			Some("missing".to_string()),
 		];
-		let metrics = compute_metrics_for_keys(&retrieved, &expected);
+		let metrics = app::compute_metrics_for_keys(&retrieved, &expected);
 		let expected_dcg = 1.0 / (3.0_f64).log2() + 1.0 / (5.0_f64).log2();
 		let expected_idcg = 1.0 + 1.0 / (3.0_f64).log2() + 1.0 / (4.0_f64).log2();
 
@@ -1573,7 +1560,8 @@ mod tests {
 			},
 		];
 		let note_ids = vec![note_a, note_c];
-		let (total, retained, retention) = retrieval_top_rank_retention(&candidates, &note_ids, 3);
+		let (total, retained, retention) =
+			app::retrieval_top_rank_retention(&candidates, &note_ids, 3);
 
 		assert_eq!(total, 2);
 		assert_eq!(retained, 1);

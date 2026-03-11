@@ -6,7 +6,7 @@ use elf_config::{
 	ScopePrecedence, ScopeWriteAllowed, Scopes, Search, SearchCache, SearchDynamic,
 	SearchExpansion, SearchExplain, SearchPrefilter, Security, Service, Storage, TtlDays,
 };
-use elf_domain::memory_policy::{MemoryPolicyDecision, MemoryPolicyEvaluation};
+use elf_domain::memory_policy::{self, MemoryPolicyDecision, MemoryPolicyEvaluation};
 
 fn memory_policy_config(policy: MemoryPolicy) -> Config {
 	let mut cfg = memory_policy_default_config();
@@ -287,15 +287,14 @@ fn selects_note_type_and_scope_rule_before_note_type() {
 			},
 		],
 	});
-	let MemoryPolicyEvaluation { decision, matched_rule } =
-		elf_domain::memory_policy::evaluate_memory_policy(
-			&cfg,
-			"fact",
-			"agent_private",
-			0.5,
-			0.5,
-			MemoryPolicyDecision::Remember,
-		);
+	let MemoryPolicyEvaluation { decision, matched_rule } = memory_policy::evaluate_memory_policy(
+		&cfg,
+		"fact",
+		"agent_private",
+		0.5,
+		0.5,
+		MemoryPolicyDecision::Remember,
+	);
 
 	assert_eq!(decision, MemoryPolicyDecision::Ignore);
 	assert!(matched_rule.is_some());
@@ -314,7 +313,7 @@ fn downgrades_only_remember_or_update() {
 			min_importance: None,
 		}],
 	});
-	let remember = elf_domain::memory_policy::evaluate_memory_policy(
+	let remember = memory_policy::evaluate_memory_policy(
 		&cfg,
 		"fact",
 		"agent_private",
@@ -325,7 +324,7 @@ fn downgrades_only_remember_or_update() {
 
 	assert_eq!(remember.decision, MemoryPolicyDecision::Ignore);
 
-	let update = elf_domain::memory_policy::evaluate_memory_policy(
+	let update = memory_policy::evaluate_memory_policy(
 		&cfg,
 		"fact",
 		"agent_private",
@@ -336,7 +335,7 @@ fn downgrades_only_remember_or_update() {
 
 	assert_eq!(update.decision, MemoryPolicyDecision::Ignore);
 
-	let ignored = elf_domain::memory_policy::evaluate_memory_policy(
+	let ignored = memory_policy::evaluate_memory_policy(
 		&cfg,
 		"fact",
 		"agent_private",
@@ -347,7 +346,7 @@ fn downgrades_only_remember_or_update() {
 
 	assert_eq!(ignored.decision, MemoryPolicyDecision::Ignore);
 
-	let rejected = elf_domain::memory_policy::evaluate_memory_policy(
+	let rejected = memory_policy::evaluate_memory_policy(
 		&cfg,
 		"fact",
 		"agent_private",
@@ -377,7 +376,7 @@ fn note_type_only_beats_scope_only() {
 			},
 		],
 	});
-	let output = elf_domain::memory_policy::evaluate_memory_policy(
+	let output = memory_policy::evaluate_memory_policy(
 		&cfg,
 		"fact",
 		"agent_private",
@@ -409,7 +408,7 @@ fn scope_only_beats_fallback_none() {
 			},
 		],
 	});
-	let output = elf_domain::memory_policy::evaluate_memory_policy(
+	let output = memory_policy::evaluate_memory_policy(
 		&cfg,
 		"fact",
 		"agent_private",
@@ -433,7 +432,7 @@ fn confidence_meets_minimum_is_not_a_downgrade() {
 			min_importance: None,
 		}],
 	});
-	let output = elf_domain::memory_policy::evaluate_memory_policy(
+	let output = memory_policy::evaluate_memory_policy(
 		&cfg,
 		"fact",
 		"agent_private",
@@ -455,7 +454,7 @@ fn importance_meets_minimum_is_not_a_downgrade() {
 			min_importance: Some(0.7),
 		}],
 	});
-	let output = elf_domain::memory_policy::evaluate_memory_policy(
+	let output = memory_policy::evaluate_memory_policy(
 		&cfg,
 		"fact",
 		"agent_private",
@@ -477,7 +476,7 @@ fn non_finite_metrics_fail_threshold() {
 			min_importance: None,
 		}],
 	});
-	let output = elf_domain::memory_policy::evaluate_memory_policy(
+	let output = memory_policy::evaluate_memory_policy(
 		&cfg,
 		"fact",
 		"agent_private",
@@ -499,7 +498,7 @@ fn missing_threshold_does_not_change_decision() {
 			min_importance: None,
 		}],
 	});
-	let output = elf_domain::memory_policy::evaluate_memory_policy(
+	let output = memory_policy::evaluate_memory_policy(
 		&cfg,
 		"fact",
 		"agent_private",

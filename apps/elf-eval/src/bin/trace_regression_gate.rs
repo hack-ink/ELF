@@ -10,6 +10,7 @@ use tracing_subscriber::EnvFilter;
 use uuid::Uuid;
 
 use elf_config::Config;
+use elf_service::search;
 use elf_storage::db::Db;
 
 #[derive(Debug, Parser)]
@@ -360,14 +361,9 @@ async fn eval_trace(
 	let baseline_note_ids: Vec<Uuid> = baseline_items.iter().map(|row| row.note_id).collect();
 	let candidate_rows = fetch_candidate_rows(db, &trace.trace_id).await?;
 	let candidates = decode_trace_replay_candidates(candidate_rows);
-	let replay_items = elf_service::search::replay_ranking_from_candidates(
-		cfg,
-		&context,
-		None,
-		&candidates,
-		top_k,
-	)
-	.map_err(|err| eyre::eyre!("{err}"))?;
+	let replay_items =
+		search::replay_ranking_from_candidates(cfg, &context, None, &candidates, top_k)
+			.map_err(|err| eyre::eyre!("{err}"))?;
 	let replay_note_ids: Vec<Uuid> = replay_items.iter().map(|item| item.note_id).collect();
 	let effective_k = top_k as usize;
 	let (positional_churn_at_k, set_churn_at_k) =

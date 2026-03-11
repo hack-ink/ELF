@@ -3,7 +3,7 @@ use sqlx::PgPool;
 use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
-use crate::acceptance::{SpyExtractor, StubEmbedding, StubRerank};
+use crate::acceptance::{self, SpyExtractor, StubEmbedding, StubRerank};
 use elf_service::{
 	ElfService, SearchExplainRequest, TraceBundleGetRequest, TraceGetRequest,
 	TraceRecentListRequest, TraceRecentListResponse, TraceTrajectoryGetRequest,
@@ -28,19 +28,19 @@ struct VisibilityTraceFixtureIds {
 }
 
 async fn setup_service(test_name: &str) -> Option<TraceAdminObservabilityFixture> {
-	let Some(test_db) = crate::acceptance::test_db().await else {
+	let Some(test_db) = acceptance::test_db().await else {
 		eprintln!("Skipping {test_name}; set ELF_PG_DSN to run this test.");
 
 		return None;
 	};
-	let Some(qdrant_url) = crate::acceptance::test_qdrant_url() else {
+	let Some(qdrant_url) = acceptance::test_qdrant_url() else {
 		eprintln!("Skipping {test_name}; set ELF_QDRANT_URL to run this test.");
 
 		return None;
 	};
 	let collection = test_db.collection_name("elf_acceptance");
 	let docs_collection = test_db.collection_name("elf_acceptance_docs");
-	let cfg = crate::acceptance::test_config(
+	let cfg = acceptance::test_config(
 		test_db.dsn().to_string(),
 		qdrant_url,
 		4_096,
@@ -57,9 +57,9 @@ async fn setup_service(test_name: &str) -> Option<TraceAdminObservabilityFixture
 		std::sync::Arc::new(extractor),
 	);
 	let service =
-		crate::acceptance::build_service(cfg, providers).await.expect("Failed to build service.");
+		acceptance::build_service(cfg, providers).await.expect("Failed to build service.");
 
-	crate::acceptance::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
+	acceptance::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
 
 	Some(TraceAdminObservabilityFixture { service, test_db })
 }

@@ -8,6 +8,7 @@ use sqlx::{FromRow, PgPool};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
+use crate::acceptance;
 use elf_config::EmbeddingProviderConfig;
 use elf_domain::memory_policy::MemoryPolicyDecision;
 use elf_service::{
@@ -367,14 +368,14 @@ WHERE from_fact_id = $1
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
 async fn add_note_duplicate_fact_attaches_multiple_evidence() {
-	let Some(test_db) = crate::acceptance::test_db().await else {
+	let Some(test_db) = acceptance::test_db().await else {
 		eprintln!(
 			"Skipping add_note_duplicate_fact_attaches_multiple_evidence; set ELF_PG_DSN to run.",
 		);
 
 		return;
 	};
-	let Some(qdrant_url) = crate::acceptance::test_qdrant_url() else {
+	let Some(qdrant_url) = acceptance::test_qdrant_url() else {
 		eprintln!(
 			"Skipping add_note_duplicate_fact_attaches_multiple_evidence; set ELF_QDRANT_URL to run.",
 		);
@@ -391,7 +392,7 @@ async fn add_note_duplicate_fact_attaches_multiple_evidence() {
 	);
 	let collection = test_db.collection_name("elf_acceptance");
 	let docs_collection = test_db.collection_name("elf_acceptance_docs");
-	let cfg = crate::acceptance::test_config(
+	let cfg = acceptance::test_config(
 		test_db.dsn().to_string(),
 		qdrant_url,
 		4_096,
@@ -399,9 +400,9 @@ async fn add_note_duplicate_fact_attaches_multiple_evidence() {
 		docs_collection,
 	);
 	let service =
-		crate::acceptance::build_service(cfg, providers).await.expect("Failed to build service.");
+		acceptance::build_service(cfg, providers).await.expect("Failed to build service.");
 
-	crate::acceptance::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
+	acceptance::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
 
 	let response = service
 		.add_note(duplicate_fact_attaches_multiple_evidence_request())
@@ -441,14 +442,14 @@ async fn add_note_duplicate_fact_attaches_multiple_evidence() {
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
 async fn add_note_single_predicate_supersedes_conflicting_fact() {
-	let Some(test_db) = crate::acceptance::test_db().await else {
+	let Some(test_db) = acceptance::test_db().await else {
 		eprintln!(
 			"Skipping add_note_single_predicate_supersedes_conflicting_fact; set ELF_PG_DSN to run.",
 		);
 
 		return;
 	};
-	let Some(qdrant_url) = crate::acceptance::test_qdrant_url() else {
+	let Some(qdrant_url) = acceptance::test_qdrant_url() else {
 		eprintln!(
 			"Skipping add_note_single_predicate_supersedes_conflicting_fact; set ELF_QDRANT_URL to run.",
 		);
@@ -465,7 +466,7 @@ async fn add_note_single_predicate_supersedes_conflicting_fact() {
 	);
 	let collection = test_db.collection_name("elf_acceptance");
 	let docs_collection = test_db.collection_name("elf_acceptance_docs");
-	let cfg = crate::acceptance::test_config(
+	let cfg = acceptance::test_config(
 		test_db.dsn().to_string(),
 		qdrant_url,
 		4_096,
@@ -473,9 +474,9 @@ async fn add_note_single_predicate_supersedes_conflicting_fact() {
 		docs_collection,
 	);
 	let service =
-		crate::acceptance::build_service(cfg, providers).await.expect("Failed to build service.");
+		acceptance::build_service(cfg, providers).await.expect("Failed to build service.");
 
-	crate::acceptance::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
+	acceptance::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
 
 	add_fact_note(&service, "employment-a", "Alice works at Initech.", "works at", "Initech").await;
 
@@ -525,14 +526,14 @@ async fn add_note_single_predicate_supersedes_conflicting_fact() {
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
 async fn add_note_invalid_relation_rejected_has_field_path() {
-	let Some(test_db) = crate::acceptance::test_db().await else {
+	let Some(test_db) = acceptance::test_db().await else {
 		eprintln!(
 			"Skipping add_note_invalid_relation_rejected_has_field_path; set ELF_PG_DSN to run."
 		);
 
 		return;
 	};
-	let Some(qdrant_url) = crate::acceptance::test_qdrant_url() else {
+	let Some(qdrant_url) = acceptance::test_qdrant_url() else {
 		eprintln!(
 			"Skipping add_note_invalid_relation_rejected_has_field_path; set ELF_QDRANT_URL to run.",
 		);
@@ -549,7 +550,7 @@ async fn add_note_invalid_relation_rejected_has_field_path() {
 	);
 	let collection = test_db.collection_name("elf_acceptance");
 	let docs_collection = test_db.collection_name("elf_acceptance_docs");
-	let cfg = crate::acceptance::test_config(
+	let cfg = acceptance::test_config(
 		test_db.dsn().to_string(),
 		qdrant_url,
 		4_096,
@@ -557,7 +558,7 @@ async fn add_note_invalid_relation_rejected_has_field_path() {
 		docs_collection,
 	);
 	let service =
-		crate::acceptance::build_service(cfg, providers).await.expect("Failed to build service.");
+		acceptance::build_service(cfg, providers).await.expect("Failed to build service.");
 	let response = service
 		.add_note(AddNoteRequest {
 			tenant_id: "t".to_string(),
@@ -603,12 +604,12 @@ async fn add_note_invalid_relation_rejected_has_field_path() {
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
 async fn add_note_persists_graph_relations() {
-	let Some(test_db) = crate::acceptance::test_db().await else {
+	let Some(test_db) = acceptance::test_db().await else {
 		eprintln!("Skipping add_note_persists_graph_relations; set ELF_PG_DSN to run.");
 
 		return;
 	};
-	let Some(qdrant_url) = crate::acceptance::test_qdrant_url() else {
+	let Some(qdrant_url) = acceptance::test_qdrant_url() else {
 		eprintln!("Skipping add_note_persists_graph_relations; set ELF_QDRANT_URL to run.");
 
 		return;
@@ -623,7 +624,7 @@ async fn add_note_persists_graph_relations() {
 	);
 	let collection = test_db.collection_name("elf_acceptance");
 	let docs_collection = test_db.collection_name("elf_acceptance_docs");
-	let cfg = crate::acceptance::test_config(
+	let cfg = acceptance::test_config(
 		test_db.dsn().to_string(),
 		qdrant_url,
 		4_096,
@@ -631,9 +632,9 @@ async fn add_note_persists_graph_relations() {
 		docs_collection,
 	);
 	let service =
-		crate::acceptance::build_service(cfg, providers).await.expect("Failed to build service.");
+		acceptance::build_service(cfg, providers).await.expect("Failed to build service.");
 
-	crate::acceptance::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
+	acceptance::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
 
 	let response = service
 		.add_note(AddNoteRequest {
@@ -687,12 +688,12 @@ async fn add_note_persists_graph_relations() {
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
 async fn add_event_persists_graph_relations() {
-	let Some(test_db) = crate::acceptance::test_db().await else {
+	let Some(test_db) = acceptance::test_db().await else {
 		eprintln!("Skipping add_event_persists_graph_relations; set ELF_PG_DSN to run.");
 
 		return;
 	};
-	let Some(qdrant_url) = crate::acceptance::test_qdrant_url() else {
+	let Some(qdrant_url) = acceptance::test_qdrant_url() else {
 		eprintln!("Skipping add_event_persists_graph_relations; set ELF_QDRANT_URL to run.");
 
 		return;
@@ -727,7 +728,7 @@ async fn add_event_persists_graph_relations() {
 	);
 	let collection = test_db.collection_name("elf_acceptance");
 	let docs_collection = test_db.collection_name("elf_acceptance_docs");
-	let cfg = crate::acceptance::test_config(
+	let cfg = acceptance::test_config(
 		test_db.dsn().to_string(),
 		qdrant_url,
 		4_096,
@@ -735,9 +736,9 @@ async fn add_event_persists_graph_relations() {
 		docs_collection,
 	);
 	let service =
-		crate::acceptance::build_service(cfg, providers).await.expect("Failed to build service.");
+		acceptance::build_service(cfg, providers).await.expect("Failed to build service.");
 
-	crate::acceptance::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
+	acceptance::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
 
 	let response = service
 		.add_event(AddEventRequest {

@@ -1,12 +1,14 @@
 use serde::{Deserialize as _, Deserializer, Serializer};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
+use crate::time_serde;
+
 pub fn serialize<S>(value: &Option<OffsetDateTime>, serializer: S) -> Result<S::Ok, S::Error>
 where
 	S: Serializer,
 {
 	match value {
-		Some(value) => crate::time_serde::serialize(value, serializer),
+		Some(value) => time_serde::serialize(value, serializer),
 		None => serializer.serialize_none(),
 	}
 }

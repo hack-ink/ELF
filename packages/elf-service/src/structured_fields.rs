@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, slice};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -7,7 +7,7 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 use crate::{Error, Result};
-use elf_domain::evidence;
+use elf_domain::{english_gate, evidence};
 
 const MAX_LIST_ITEMS: usize = 64;
 const MAX_ENTITIES: usize = 32;
@@ -356,7 +356,7 @@ fn validate_text_field(value: &str, label: &str) -> Result<()> {
 			message: format!("{label} must be at most {MAX_ITEM_CHARS} characters."),
 		});
 	}
-	if !elf_domain::english_gate::is_english_natural_language(trimmed) {
+	if !english_gate::is_english_natural_language(trimmed) {
 		return Err(Error::NonEnglishInput { field: label.to_string() });
 	}
 
@@ -410,7 +410,7 @@ fn fact_is_evidence_bound(fact: &str, note_text: &str, evidence_quotes: &[String
 }
 
 fn slice_single(value: &String) -> &[String] {
-	std::slice::from_ref(value)
+	slice::from_ref(value)
 }
 
 async fn replace_kind(
@@ -462,14 +462,14 @@ VALUES ($1,$2,$3,$4,$5,$6,$7)",
 
 #[cfg(test)]
 mod tests {
+	use time::OffsetDateTime;
+
 	use crate::{
 		Error,
 		structured_fields::{
-			StructuredEntity, StructuredFields, StructuredRelation, StructuredRelationObject,
-			validate_structured_fields,
+			self, StructuredEntity, StructuredFields, StructuredRelation, StructuredRelationObject,
 		},
 	};
-	use time::OffsetDateTime;
 
 	fn structured_relation(
 		subject: &str,
@@ -506,7 +506,7 @@ mod tests {
 			entities: None,
 			relations: None,
 		};
-		let res = validate_structured_fields(
+		let res = structured_fields::validate_structured_fields(
 			&structured,
 			"Deploy uses reranking after retrieval.",
 			&serde_json::json!({}),
@@ -525,8 +525,12 @@ mod tests {
 			entities: None,
 			relations: None,
 		};
-		let res =
-			validate_structured_fields(&structured, "Some note.", &serde_json::json!({}), None);
+		let res = structured_fields::validate_structured_fields(
+			&structured,
+			"Some note.",
+			&serde_json::json!({}),
+			None,
+		);
 
 		assert!(res.is_err());
 	}
@@ -547,7 +551,7 @@ mod tests {
 			None,
 			None,
 		);
-		let res = validate_structured_fields(
+		let res = structured_fields::validate_structured_fields(
 			&structured,
 			"alice owns Acme corp.",
 			&serde_json::json!({
@@ -576,7 +580,7 @@ mod tests {
 			Some(OffsetDateTime::from_unix_timestamp(1_700_000_000).expect("valid timestamp")),
 			Some(OffsetDateTime::from_unix_timestamp(1_700_000_000).expect("valid timestamp")),
 		);
-		let res = validate_structured_fields(
+		let res = structured_fields::validate_structured_fields(
 			&structured,
 			"alice met bob",
 			&serde_json::json!({
@@ -595,7 +599,7 @@ mod tests {
 
 	#[test]
 	fn relation_checks_subject_predicate_and_object_value_are_evidence_bound() {
-		let subject_message = match validate_structured_fields(
+		let subject_message = match structured_fields::validate_structured_fields(
 			&structured_relation(
 				"alice",
 				"caused",
@@ -615,7 +619,7 @@ mod tests {
 			subject_message.contains("structured.relations[0].subject.canonical is not supported")
 		);
 
-		let predicate_message = match validate_structured_fields(
+		let predicate_message = match structured_fields::validate_structured_fields(
 			&structured_relation(
 				"operator",
 				"discovered",
@@ -633,7 +637,7 @@ mod tests {
 
 		assert!(predicate_message.contains("structured.relations[0].predicate is not supported"));
 
-		let object_message = match validate_structured_fields(
+		let object_message = match structured_fields::validate_structured_fields(
 			&structured_relation(
 				"operator",
 				"noticed",
@@ -671,7 +675,7 @@ mod tests {
 			Some(OffsetDateTime::from_unix_timestamp(1_699_900_000).expect("valid timestamp")),
 			Some(OffsetDateTime::from_unix_timestamp(1_700_000_000).expect("valid timestamp")),
 		);
-		let res = validate_structured_fields(
+		let res = structured_fields::validate_structured_fields(
 			&structured,
 			"alice works at acme corp and reported progress.",
 			&serde_json::json!({

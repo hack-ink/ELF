@@ -1,10 +1,13 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+	collections::{HashMap, HashSet},
+	slice,
+};
 
 use qdrant_client::{
 	Qdrant,
 	qdrant::{
 		Condition, DatetimeRange, Filter, Fusion, MinShould, PrefetchQueryBuilder, Query,
-		QueryPointsBuilder, ScoredPoint, Timestamp,
+		QueryPointsBuilder, ScoredPoint, Timestamp, point_id::PointIdOptions,
 	},
 };
 use serde::{Deserialize, Serialize};
@@ -14,14 +17,18 @@ use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use tokenizers::Tokenizer;
 use uuid::Uuid;
 
-use crate::{ElfService, Error, Result, access::SharedSpaceGrantKey};
+use crate::{
+	ElfService, Error, Result,
+	access::{self, SharedSpaceGrantKey},
+	search,
+};
 use elf_config::Config;
 use elf_domain::{
 	english_gate,
-	writegate::{WritePolicy, WritePolicyAudit},
+	writegate::{self, WritePolicy, WritePolicyAudit},
 };
 use elf_storage::{
-	doc_outbox,
+	doc_outbox, docs,
 	models::{DocChunk, DocDocument},
 	qdrant::{BM25_MODEL, BM25_VECTOR_NAME, DENSE_VECTOR_NAME},
 };
@@ -433,7 +440,7 @@ impl ElfService {
 			doc_type: doc_type.as_str().to_string(),
 			status: "active".to_string(),
 			title,
-			source_ref: elf_storage::docs::normalize_source_ref(Some(source_ref)),
+			source_ref: docs::normalize_source_ref(Some(source_ref)),
 			content,
 			content_bytes: content_bytes as i32,
 			content_hash: content_hash.to_hex().to_string(),
@@ -442,7 +449,7 @@ impl ElfService {
 		};
 		let mut tx = self.db.pool.begin().await?;
 
-		elf_storage::docs::insert_doc_document(&mut *tx, &doc_row).await?;
+		docs::insert_doc_document(&mut *tx, &doc_row).await?;
 
 		for (chunk_index, chunk) in chunks.iter().enumerate() {
 			let chunk_hash = blake3::hash(chunk.text.as_bytes());
@@ -457,7 +464,7 @@ impl ElfService {
 				created_at: now,
 			};
 
-			elf_storage::docs::insert_doc_chunk(&mut *tx, &chunk_row).await?;
+			docs::insert_doc_chunk(&mut *tx, &chunk_row).await?;
 			doc_outbox::enqueue_doc_outbox(
 				&mut *tx,
 				doc_id,
@@ -469,7 +476,7 @@ impl ElfService {
 		}
 
 		if scope.trim() != "agent_private" {
-			crate::access::ensure_active_project_scope_grant(
+			access::ensure_active_project_scope_grant(
 				&mut *tx,
 				tenant_id.as_str(),
 				effective_project_id,
@@ -507,7 +514,7 @@ impl ElfService {
 			});
 		}
 
-		let allowed_scopes = crate::search::resolve_read_profile_scopes(&self.cfg, read_profile)?;
+		let allowed_scopes = search::resolve_read_profile_scopes(&self.cfg, read_profile)?;
 		let org_shared_allowed = allowed_scopes.iter().any(|scope| scope == "org_shared");
 		let row: Option<DocDocument> = sqlx::query_as::<_, DocDocument>(
 			"\
@@ -547,7 +554,7 @@ LIMIT 1",
 		let shared_grants = if row.scope == "agent_private" {
 			HashSet::new()
 		} else {
-			crate::access::load_shared_read_grants_with_org_shared(
+			access::load_shared_read_grants_with_org_shared(
 				&self.db.pool,
 				tenant_id,
 				project_id,
@@ -732,9 +739,9 @@ LIMIT 1",
 		);
 
 		let allowed_scopes =
-			crate::search::resolve_read_profile_scopes(&self.cfg, req.read_profile.as_str())?;
+			search::resolve_read_profile_scopes(&self.cfg, req.read_profile.as_str())?;
 		let org_shared_allowed = allowed_scopes.iter().any(|scope| scope == "org_shared");
-		let shared_grants = crate::access::load_shared_read_grants_with_org_shared(
+		let shared_grants = access::load_shared_read_grants_with_org_shared(
 			&self.db.pool,
 			req.tenant_id.as_str(),
 			req.project_id.as_str(),
@@ -752,7 +759,7 @@ LIMIT 1",
 		let embedded = self
 			.providers
 			.embedding
-			.embed(&self.cfg.providers.embedding, std::slice::from_ref(&req.query))
+			.embed(&self.cfg.providers.embedding, slice::from_ref(&req.query))
 			.await?;
 
 		trajectory.push("query_embedding", serde_json::json!({ "provider": "embedding" }));
@@ -1190,10 +1197,9 @@ fn validate_docs_put(req: &DocsPutRequest) -> Result<ValidatedDocsPut> {
 	validate_doc_source_ref_requirements(source_ref_doc_type.as_str(), source_ref)?;
 
 	let write_policy =
-		elf_domain::writegate::apply_write_policy(req.content.as_str(), req.write_policy.as_ref())
-			.map_err(|err| Error::InvalidRequest {
-				message: format!("write_policy is invalid: {err:?}"),
-			})?;
+		writegate::apply_write_policy(req.content.as_str(), req.write_policy.as_ref()).map_err(
+			|err| Error::InvalidRequest { message: format!("write_policy is invalid: {err:?}") },
+		)?;
 	let write_policy_audit =
 		if req.write_policy.is_some() { Some(write_policy.audit) } else { None };
 	let content = write_policy.transformed;
@@ -1206,7 +1212,7 @@ fn validate_docs_put(req: &DocsPutRequest) -> Result<ValidatedDocsPut> {
 			message: "content exceeds max_doc_bytes.".to_string(),
 		});
 	}
-	if elf_domain::writegate::contains_secrets(content.as_str()) {
+	if writegate::contains_secrets(content.as_str()) {
 		return Err(Error::InvalidRequest { message: "content contains secrets.".to_string() });
 	}
 
@@ -1772,8 +1778,6 @@ fn doc_read_allowed(
 }
 
 fn parse_scored_point_uuid_id(point: &ScoredPoint) -> Result<Uuid> {
-	use qdrant_client::qdrant::point_id::PointIdOptions;
-
 	let id = point
 		.id
 		.as_ref()
@@ -1897,9 +1901,9 @@ async fn load_docs_excerpt_context(
 	read_profile: &str,
 	doc_id: Uuid,
 ) -> Result<DocDocument> {
-	let allowed_scopes = crate::search::resolve_read_profile_scopes(cfg, read_profile)?;
+	let allowed_scopes = search::resolve_read_profile_scopes(cfg, read_profile)?;
 	let org_shared_allowed = allowed_scopes.iter().any(|scope| scope == "org_shared");
-	let shared_grants = crate::access::load_shared_read_grants_with_org_shared(
+	let shared_grants = access::load_shared_read_grants_with_org_shared(
 		pool,
 		tenant_id,
 		project_id,
@@ -2030,7 +2034,7 @@ async fn resolve_excerpts_match_range(
 	verification_errors: &mut Vec<String>,
 ) -> Result<(usize, usize, ExcerptsSelectorKind)> {
 	if let Some(chunk_id) = req.chunk_id {
-		let chunk = elf_storage::docs::get_doc_chunk(pool, chunk_id).await?;
+		let chunk = docs::get_doc_chunk(pool, chunk_id).await?;
 		let Some(chunk) = chunk else {
 			return Err(Error::NotFound { message: "Chunk not found.".to_string() });
 		};
@@ -2171,12 +2175,7 @@ WHERE c.chunk_id = ANY($1)
 
 #[cfg(test)]
 mod tests {
-	use crate::docs::{
-		DocType, DocsPutRequest, DocsSearchL0Filters, DocsSearchL0Request, DocsSparseMode, Error,
-		resolve_doc_chunking_profile, validate_docs_put, validate_docs_search_l0,
-	};
 	use ahash::AHashMap;
-	use elf_domain::writegate::{WritePolicy, WriteSpan};
 	use qdrant_client::qdrant::{
 		DatetimeRange, Filter, condition::ConditionOneOf, r#match::MatchValue,
 	};
@@ -2184,6 +2183,12 @@ mod tests {
 	use tokenizers::{
 		Tokenizer, models::wordlevel::WordLevel, pre_tokenizers::whitespace::Whitespace,
 	};
+
+	use crate::docs::{
+		self, DocType, DocsPutRequest, DocsSearchL0Filters, DocsSearchL0Request, DocsSparseMode,
+		Error,
+	};
+	use elf_domain::writegate::{WritePolicy, WriteSpan};
 
 	const TENANT_ID: &str = "tenant";
 	const PROJECT_ID: &str = "project";
@@ -2288,7 +2293,7 @@ mod tests {
 
 	#[test]
 	fn docs_search_l0_requires_chat_doc_type_for_thread_id() {
-		let err = validate_docs_search_l0(&DocsSearchL0Request {
+		let err = docs::validate_docs_search_l0(&DocsSearchL0Request {
 			tenant_id: TENANT_ID.to_string(),
 			project_id: PROJECT_ID.to_string(),
 			caller_agent_id: "agent".to_string(),
@@ -2317,7 +2322,7 @@ mod tests {
 			other => panic!("Unexpected error: {other:?}"),
 		}
 
-		validate_docs_search_l0(&DocsSearchL0Request {
+		docs::validate_docs_search_l0(&DocsSearchL0Request {
 			tenant_id: TENANT_ID.to_string(),
 			project_id: PROJECT_ID.to_string(),
 			caller_agent_id: "agent".to_string(),
@@ -2344,7 +2349,7 @@ mod tests {
 
 	#[test]
 	fn validate_docs_put_rejects_invalid_doc_type() {
-		let err = validate_docs_put(&DocsPutRequest {
+		let err = docs::validate_docs_put(&DocsPutRequest {
 			tenant_id: "t".to_string(),
 			project_id: "p".to_string(),
 			agent_id: "a".to_string(),
@@ -2369,12 +2374,12 @@ mod tests {
 
 	#[test]
 	fn resolve_doc_chunking_profile_is_deterministic_by_doc_type() {
-		let small = resolve_doc_chunking_profile(DocType::Chat);
+		let small = docs::resolve_doc_chunking_profile(DocType::Chat);
 
 		assert_eq!(small.max_tokens, 1_024);
 		assert_eq!(small.overlap_tokens, 128);
 
-		let default = resolve_doc_chunking_profile(DocType::Knowledge);
+		let default = docs::resolve_doc_chunking_profile(DocType::Knowledge);
 
 		assert_eq!(default.max_tokens, 2_048);
 		assert_eq!(default.overlap_tokens, 256);
@@ -2382,7 +2387,7 @@ mod tests {
 
 	#[test]
 	fn validate_docs_search_l0_defaults_status_and_filters_dates() {
-		let filters = validate_docs_search_l0(&test_request_with_query("hello world"))
+		let filters = docs::validate_docs_search_l0(&test_request_with_query("hello world"))
 			.expect("valid request");
 
 		assert_eq!(filters.status, "active");
@@ -2395,7 +2400,7 @@ mod tests {
 			repo: None,
 			..test_request_with_query("status")
 		};
-		let err = validate_docs_search_l0(&bad_dates)
+		let err = docs::validate_docs_search_l0(&bad_dates)
 			.expect_err("Expected bad date order to be rejected.");
 
 		match err {
@@ -2408,7 +2413,7 @@ mod tests {
 
 	#[test]
 	fn validate_docs_search_l0_rejects_invalid_status() {
-		let err = validate_docs_search_l0(&DocsSearchL0Request {
+		let err = docs::validate_docs_search_l0(&DocsSearchL0Request {
 			tenant_id: TENANT_ID.to_string(),
 			project_id: PROJECT_ID.to_string(),
 			caller_agent_id: "agent".to_string(),
@@ -2440,7 +2445,7 @@ mod tests {
 
 	#[test]
 	fn validate_docs_search_l0_rejects_invalid_datetime_format() {
-		let err = validate_docs_search_l0(&DocsSearchL0Request {
+		let err = docs::validate_docs_search_l0(&DocsSearchL0Request {
 			tenant_id: TENANT_ID.to_string(),
 			project_id: PROJECT_ID.to_string(),
 			caller_agent_id: "agent".to_string(),
@@ -2550,7 +2555,7 @@ mod tests {
 
 	#[test]
 	fn validate_docs_search_l0_rejects_invalid_doc_ts_order() {
-		let err = validate_docs_search_l0(&DocsSearchL0Request {
+		let err = docs::validate_docs_search_l0(&DocsSearchL0Request {
 			tenant_id: TENANT_ID.to_string(),
 			project_id: PROJECT_ID.to_string(),
 			caller_agent_id: "agent".to_string(),
@@ -2584,7 +2589,7 @@ mod tests {
 
 	#[test]
 	fn validate_docs_search_l0_rejects_invalid_sparse_mode() {
-		let err = validate_docs_search_l0(&DocsSearchL0Request {
+		let err = docs::validate_docs_search_l0(&DocsSearchL0Request {
 			tenant_id: TENANT_ID.to_string(),
 			project_id: PROJECT_ID.to_string(),
 			caller_agent_id: "agent".to_string(),
@@ -2618,7 +2623,7 @@ mod tests {
 
 	#[test]
 	fn validate_docs_search_l0_rejects_domain_without_doc_type_search() {
-		let err = validate_docs_search_l0(&DocsSearchL0Request {
+		let err = docs::validate_docs_search_l0(&DocsSearchL0Request {
 			tenant_id: TENANT_ID.to_string(),
 			project_id: PROJECT_ID.to_string(),
 			caller_agent_id: "agent".to_string(),
@@ -2652,7 +2657,7 @@ mod tests {
 
 	#[test]
 	fn validate_docs_search_l0_rejects_repo_without_doc_type_dev() {
-		let err = validate_docs_search_l0(&DocsSearchL0Request {
+		let err = docs::validate_docs_search_l0(&DocsSearchL0Request {
 			tenant_id: TENANT_ID.to_string(),
 			project_id: PROJECT_ID.to_string(),
 			caller_agent_id: "agent".to_string(),
@@ -2686,8 +2691,8 @@ mod tests {
 
 	#[test]
 	fn validate_docs_search_l0_default_sparse_mode() {
-		let filters =
-			validate_docs_search_l0(&test_request_with_query("status")).expect("valid request");
+		let filters = docs::validate_docs_search_l0(&test_request_with_query("status"))
+			.expect("valid request");
 
 		assert!(matches!(filters.sparse_mode, DocsSparseMode::Auto));
 	}
@@ -2709,7 +2714,7 @@ mod tests {
 
 	#[test]
 	fn validate_docs_put_rejects_missing_source_ref() {
-		let err = validate_docs_put(&DocsPutRequest {
+		let err = docs::validate_docs_put(&DocsPutRequest {
 			tenant_id: "t".to_string(),
 			project_id: "p".to_string(),
 			agent_id: "a".to_string(),
@@ -2730,7 +2735,7 @@ mod tests {
 
 	#[test]
 	fn validate_docs_put_rejects_non_object_source_ref() {
-		let err = validate_docs_put(&DocsPutRequest {
+		let err = docs::validate_docs_put(&DocsPutRequest {
 			tenant_id: "t".to_string(),
 			project_id: "p".to_string(),
 			agent_id: "a".to_string(),
@@ -2753,7 +2758,7 @@ mod tests {
 
 	#[test]
 	fn validate_docs_put_rejects_mismatched_request_and_source_ref_doc_type() {
-		let err = validate_docs_put(&DocsPutRequest {
+		let err = docs::validate_docs_put(&DocsPutRequest {
 			tenant_id: "t".to_string(),
 			project_id: "p".to_string(),
 			agent_id: "a".to_string(),
@@ -2778,7 +2783,7 @@ mod tests {
 
 	#[test]
 	fn validate_docs_put_rejects_wrong_source_ref_schema() {
-		let err = validate_docs_put(&DocsPutRequest {
+		let err = docs::validate_docs_put(&DocsPutRequest {
 			tenant_id: "t".to_string(),
 			project_id: "p".to_string(),
 			agent_id: "a".to_string(),
@@ -2803,7 +2808,7 @@ mod tests {
 
 	#[test]
 	fn validate_docs_put_rejects_chat_source_ref_with_missing_thread_metadata() {
-		let err = validate_docs_put(&DocsPutRequest {
+		let err = docs::validate_docs_put(&DocsPutRequest {
 			tenant_id: "t".to_string(),
 			project_id: "p".to_string(),
 			agent_id: "a".to_string(),
@@ -2828,7 +2833,7 @@ mod tests {
 
 	#[test]
 	fn validate_docs_put_rejects_search_source_ref_with_missing_domain() {
-		let err = validate_docs_put(&DocsPutRequest {
+		let err = docs::validate_docs_put(&DocsPutRequest {
 			tenant_id: "t".to_string(),
 			project_id: "p".to_string(),
 			agent_id: "a".to_string(),
@@ -2855,7 +2860,7 @@ mod tests {
 
 	#[test]
 	fn validate_docs_put_rejects_dev_source_ref_with_multiple_identifiers() {
-		let err = validate_docs_put(&DocsPutRequest {
+		let err = docs::validate_docs_put(&DocsPutRequest {
 			tenant_id: "t".to_string(),
 			project_id: "p".to_string(),
 			agent_id: "a".to_string(),
@@ -2885,7 +2890,7 @@ mod tests {
 
 	#[test]
 	fn validate_docs_put_uses_source_ref_doc_type_when_request_doc_type_is_absent() {
-		let resolved_doc_type = validate_docs_put(&DocsPutRequest {
+		let resolved_doc_type = docs::validate_docs_put(&DocsPutRequest {
 			tenant_id: "t".to_string(),
 			project_id: "p".to_string(),
 			agent_id: "a".to_string(),
@@ -2909,7 +2914,7 @@ mod tests {
 
 	#[test]
 	fn validate_docs_put_applies_write_policy_and_includes_audit() {
-		let validated = validate_docs_put(&DocsPutRequest {
+		let validated = docs::validate_docs_put(&DocsPutRequest {
 			tenant_id: "t".to_string(),
 			project_id: "p".to_string(),
 			agent_id: "a".to_string(),
@@ -2939,7 +2944,7 @@ mod tests {
 
 	#[test]
 	fn validate_docs_put_rejects_secret_after_write_policy() {
-		let err = validate_docs_put(&DocsPutRequest {
+		let err = docs::validate_docs_put(&DocsPutRequest {
 			tenant_id: "t".to_string(),
 			project_id: "p".to_string(),
 			agent_id: "a".to_string(),
@@ -2964,7 +2969,7 @@ mod tests {
 
 	#[test]
 	fn validate_docs_put_allows_doc_source_ref_v1_and_rejects_free_text() {
-		validate_docs_put(&DocsPutRequest {
+		docs::validate_docs_put(&DocsPutRequest {
 			tenant_id: "t".to_string(),
 			project_id: "p".to_string(),
 			agent_id: "a".to_string(),
@@ -2982,7 +2987,7 @@ mod tests {
 		})
 		.expect("Expected doc_source_ref/v1 source_ref to be accepted.");
 
-		let err = validate_docs_put(&DocsPutRequest {
+		let err = docs::validate_docs_put(&DocsPutRequest {
 			source_ref: serde_json::json!({
 				"schema": "doc_source_ref/v1",
 				"doc_type": "knowledge",
@@ -3005,7 +3010,7 @@ mod tests {
 			other => panic!("Unexpected error: {other:?}"),
 		}
 
-		let err = validate_docs_put(&DocsPutRequest {
+		let err = docs::validate_docs_put(&DocsPutRequest {
 			source_ref: serde_json::json!({
 				"schema": "doc_source_ref/v1",
 				"doc_type": "knowledge",

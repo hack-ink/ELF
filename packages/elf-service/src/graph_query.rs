@@ -610,15 +610,14 @@ async fn fetch_graph_query_rows(
 
 #[cfg(test)]
 mod tests {
+	use std::collections::HashSet;
+
+	use uuid::Uuid;
+
 	use crate::{
 		ELF_GRAPH_QUERY_SCHEMA_V1, Error, GraphQueryFact, GraphQueryObject, GraphQueryObjectEntity,
-		graph_query::{
-			GraphQueryEntityRef, GraphQueryRequest, OffsetDateTime, build_graph_query_explain,
-			resolve_effective_scopes, truncate_graph_query_facts, validate_graph_query_request,
-		},
+		graph_query::{self, GraphQueryEntityRef, GraphQueryRequest, OffsetDateTime},
 	};
-	use std::collections::HashSet;
-	use uuid::Uuid;
 
 	fn base_request() -> GraphQueryRequest {
 		GraphQueryRequest {
@@ -641,7 +640,8 @@ mod tests {
 
 		request.subject = GraphQueryEntityRef::Surface { surface: "   ".to_string() };
 
-		let err = validate_graph_query_request(request).expect_err("invalid subject should fail");
+		let err = graph_query::validate_graph_query_request(request)
+			.expect_err("invalid subject should fail");
 
 		assert!(matches!(err, Error::InvalidRequest { .. }), "expected invalid request error");
 	}
@@ -697,12 +697,12 @@ mod tests {
 				evidence_note_ids: vec![],
 			},
 		];
-		let (trimmed, truncated) = truncate_graph_query_facts(facts, 2);
+		let (trimmed, truncated) = graph_query::truncate_graph_query_facts(facts, 2);
 
 		assert!(truncated);
 		assert_eq!(trimmed.len(), 2);
 
-		let explain = build_graph_query_explain(
+		let explain = graph_query::build_graph_query_explain(
 			OffsetDateTime::from_unix_timestamp(4).expect("valid timestamp"),
 			&["private_plus_project".to_string()],
 			&["private_plus_project".to_string()],
@@ -726,7 +726,8 @@ mod tests {
 			"org_shared".to_string(),
 		];
 		let requested = vec!["project_shared".to_string(), "project_shared".to_string()];
-		let resolved = resolve_effective_scopes(&allowed, &requested).expect("valid scopes");
+		let resolved =
+			graph_query::resolve_effective_scopes(&allowed, &requested).expect("valid scopes");
 		let deduped: HashSet<_> = resolved.iter().collect();
 
 		assert_eq!(resolved, vec!["project_shared".to_string()]);

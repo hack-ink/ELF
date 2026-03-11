@@ -150,57 +150,57 @@ fn is_confidently_non_english(input: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-	use crate::english_gate::{
-		EnglishGateKind, english_gate, is_english_identifier, is_english_natural_language,
-	};
+	use crate::english_gate::{self, EnglishGateKind};
 
 	#[test]
 	fn accepts_basic_english() {
-		assert!(is_english_natural_language("Preference: Use English."));
+		assert!(english_gate::is_english_natural_language("Preference: Use English."));
 	}
 
 	#[test]
 	fn rejects_cyrillic_script() {
-		assert!(!is_english_natural_language("Привет мир"));
+		assert!(!english_gate::is_english_natural_language("Привет мир"));
 	}
 
 	#[test]
 	fn rejects_zero_width_chars() {
-		assert!(!is_english_natural_language("hello\u{200B}world"));
+		assert!(!english_gate::is_english_natural_language("hello\u{200B}world"));
 	}
 
 	#[test]
 	fn rejects_disallowed_control_chars() {
-		assert!(!is_english_natural_language("hello\u{0007}world"));
+		assert!(!english_gate::is_english_natural_language("hello\u{0007}world"));
 	}
 
 	#[test]
 	fn nfkc_normalization_allows_fullwidth_latin() {
-		assert!(is_english_natural_language("Ｆｕｌｌｗｉｄｔｈ latin letters should normalize."));
+		assert!(english_gate::is_english_natural_language(
+			"Ｆｕｌｌｗｉｄｔｈ latin letters should normalize."
+		));
 	}
 
 	#[test]
 	fn identifier_gate_skips_lid_but_still_rejects_disallowed_script() {
-		assert!(is_english_identifier("preferred_language"));
+		assert!(english_gate::is_english_identifier("preferred_language"));
 
-		assert!(!is_english_identifier("ключ")); // Cyrillic
+		assert!(!english_gate::is_english_identifier("ключ")); // Cyrillic
 	}
 
 	#[test]
 	fn lid_is_applied_only_for_long_letter_dense_text() {
 		let short_french = "Bonjour.";
 
-		assert!(english_gate(short_french, EnglishGateKind::NaturalLanguage).is_ok());
+		assert!(english_gate::english_gate(short_french, EnglishGateKind::NaturalLanguage).is_ok());
 
 		let long_french = "Bonjour, je veux m'assurer que ce texte est suffisamment long et riche en lettres pour declencher la detection de langue. Merci beaucoup.";
 
-		assert!(english_gate(long_french, EnglishGateKind::NaturalLanguage).is_err());
+		assert!(english_gate::english_gate(long_french, EnglishGateKind::NaturalLanguage).is_err());
 	}
 
 	#[test]
 	fn code_like_text_is_not_rejected_by_lid_thresholds() {
 		let codeish = "Error: expected `foo::bar()`; got `foo::baz()` at line 12.";
 
-		assert!(is_english_natural_language(codeish));
+		assert!(english_gate::is_english_natural_language(codeish));
 	}
 }

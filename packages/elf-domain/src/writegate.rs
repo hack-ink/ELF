@@ -249,8 +249,8 @@ fn is_allowed_type(note_type: &str) -> bool {
 #[cfg(test)]
 mod tests {
 	use crate::writegate::{
-		NoteInput, RejectCode, WritePolicy, WritePolicyResult, WriteRedaction,
-		WriteRedactionResult, apply_write_policy, contains_secrets, writegate,
+		self, NoteInput, RejectCode, WritePolicy, WritePolicyResult, WriteRedaction,
+		WriteRedactionResult,
 	};
 	use elf_config::{
 		Chunking, Config, EmbeddingProviderConfig, Lifecycle, LlmProviderConfig, Memory,
@@ -464,7 +464,7 @@ mod tests {
 			text: "12345678901".to_string(),
 		};
 
-		assert_eq!(writegate(&note, &cfg), Err(RejectCode::RejectTooLong));
+		assert_eq!(writegate::writegate(&note, &cfg), Err(RejectCode::RejectTooLong));
 	}
 
 	#[test]
@@ -476,12 +476,12 @@ mod tests {
 			text: "hello".to_string(),
 		};
 
-		assert_eq!(writegate(&note, &cfg), Err(RejectCode::RejectInvalidType));
+		assert_eq!(writegate::writegate(&note, &cfg), Err(RejectCode::RejectInvalidType));
 	}
 
 	#[test]
 	fn detects_secret_patterns() {
-		assert!(contains_secrets("password: hunter2"));
+		assert!(writegate::contains_secrets("password: hunter2"));
 	}
 
 	#[test]
@@ -489,7 +489,7 @@ mod tests {
 		let policy = WritePolicy::default();
 
 		assert_eq!(
-			apply_write_policy("keep this", Some(&policy)),
+			writegate::apply_write_policy("keep this", Some(&policy)),
 			Ok(WritePolicyResult {
 				transformed: "keep this".to_string(),
 				..WritePolicyResult::default()
@@ -503,8 +503,8 @@ mod tests {
 			exclusions: vec![crate::writegate::WriteSpan { start: 4, end: 9 }],
 			redactions: vec![],
 		};
-		let actual =
-			apply_write_policy("hello world", Some(&policy)).expect("policy apply should succeed");
+		let actual = writegate::apply_write_policy("hello world", Some(&policy))
+			.expect("policy apply should succeed");
 
 		assert_eq!(actual.transformed, "hellld");
 		assert_eq!(actual.audit.exclusions, vec![crate::writegate::WriteSpan { start: 4, end: 9 }]);
@@ -520,8 +520,8 @@ mod tests {
 				replacement: "***".to_string(),
 			}],
 		};
-		let actual =
-			apply_write_policy("secret", Some(&policy)).expect("policy apply should succeed");
+		let actual = writegate::apply_write_policy("secret", Some(&policy))
+			.expect("policy apply should succeed");
 
 		assert_eq!(actual.transformed, "secr***t");
 		assert_eq!(
