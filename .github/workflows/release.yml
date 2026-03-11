@@ -78,7 +78,7 @@ jobs:
           Compress-Archive -Path dist/* -DestinationPath "elf-${{ matrix.target.name }}.zip"
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: elf-${{ matrix.target.name }}
           path: elf-${{ matrix.target.name }}.*
