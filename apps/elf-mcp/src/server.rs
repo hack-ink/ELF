@@ -1487,15 +1487,15 @@ async fn mcp_auth_middleware(
 
 #[cfg(test)]
 mod tests {
-	use axum::http::HeaderMap;
-	use elf_config::McpContext;
-
 	use std::collections::HashMap;
+
+	use axum::http::HeaderMap;
 
 	use crate::app::{
 		McpAuthState,
 		server::{ElfContextHeaders, ElfMcp, HttpMethod},
 	};
+	use elf_config::McpContext;
 
 	const ALL_TOOL_DEFINITIONS: [ToolDefinition; 28] = [
 		ToolDefinition::new(

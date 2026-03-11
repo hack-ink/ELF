@@ -4,6 +4,7 @@ use time::OffsetDateTime;
 
 use crate::search::DeterministicRankingTerms;
 use elf_config::{Config, Context};
+use elf_domain::english_gate;
 
 pub fn build_dense_embedding_input(
 	query: &str,
@@ -51,7 +52,7 @@ pub fn scope_description_boost(tokens: &[String], description: &str, weight: f32
 
 	let trimmed = description.trim();
 
-	if trimmed.is_empty() || !elf_domain::english_gate::is_english_natural_language(trimmed) {
+	if trimmed.is_empty() || !english_gate::is_english_natural_language(trimmed) {
 		return 0.0;
 	}
 

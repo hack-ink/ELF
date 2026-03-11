@@ -12,7 +12,7 @@ use sqlx::PgExecutor;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::acceptance::{SpyExtractor, StubEmbedding, StubRerank};
+use crate::acceptance::{self, SpyExtractor, StubEmbedding, StubRerank};
 use elf_config::ProviderConfig;
 use elf_service::{
 	BoxFuture, ElfService, NoteFetchResponse, PayloadLevel, Providers, RerankProvider, Result,
@@ -112,19 +112,19 @@ fn build_payload_shape_search_request(payload_level: PayloadLevel) -> SearchRequ
 }
 
 async fn setup_context(test_name: &str, providers: Providers) -> Option<TestContext> {
-	let Some(test_db) = crate::acceptance::test_db().await else {
+	let Some(test_db) = acceptance::test_db().await else {
 		eprintln!("Skipping {test_name}; set ELF_PG_DSN to run this test.");
 
 		return None;
 	};
-	let Some(qdrant_url) = crate::acceptance::test_qdrant_url() else {
+	let Some(qdrant_url) = acceptance::test_qdrant_url() else {
 		eprintln!("Skipping {test_name}; set ELF_QDRANT_URL to run this test.");
 
 		return None;
 	};
 	let collection = test_db.collection_name("elf_acceptance");
 	let docs_collection = test_db.collection_name("elf_acceptance_docs");
-	let cfg = crate::acceptance::test_config(
+	let cfg = acceptance::test_config(
 		test_db.dsn().to_string(),
 		qdrant_url,
 		4_096,
@@ -132,9 +132,9 @@ async fn setup_context(test_name: &str, providers: Providers) -> Option<TestCont
 		docs_collection,
 	);
 	let service =
-		crate::acceptance::build_service(cfg, providers).await.expect("Failed to build service.");
+		acceptance::build_service(cfg, providers).await.expect("Failed to build service.");
 
-	crate::acceptance::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
+	acceptance::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
 
 	reset_collection(&service).await;
 
@@ -149,7 +149,7 @@ async fn setup_context(test_name: &str, providers: Providers) -> Option<TestCont
 }
 
 async fn reset_collection(service: &ElfService) {
-	crate::acceptance::reset_qdrant_collection(
+	acceptance::reset_qdrant_collection(
 		&service.qdrant.client,
 		&service.qdrant.collection,
 		service.qdrant.vector_dim,
@@ -541,19 +541,19 @@ async fn setup_graph_context_test(
 	max_facts_per_item: u32,
 	max_evidence_notes_per_fact: u32,
 ) -> Option<TestContext> {
-	let Some(test_db) = crate::acceptance::test_db().await else {
+	let Some(test_db) = acceptance::test_db().await else {
 		eprintln!("Skipping {test_name}; set ELF_PG_DSN to run this test.");
 
 		return None;
 	};
-	let Some(qdrant_url) = crate::acceptance::test_qdrant_url() else {
+	let Some(qdrant_url) = acceptance::test_qdrant_url() else {
 		eprintln!("Skipping {test_name}; set ELF_QDRANT_URL to run this test.");
 
 		return None;
 	};
 	let collection = test_db.collection_name("elf_acceptance");
 	let docs_collection = test_db.collection_name("elf_acceptance_docs");
-	let mut cfg = crate::acceptance::test_config(
+	let mut cfg = acceptance::test_config(
 		test_db.dsn().to_string(),
 		qdrant_url,
 		4_096,
@@ -566,9 +566,9 @@ async fn setup_graph_context_test(
 	cfg.search.graph_context.max_evidence_notes_per_fact = max_evidence_notes_per_fact;
 
 	let service =
-		crate::acceptance::build_service(cfg, providers).await.expect("Failed to build service.");
+		acceptance::build_service(cfg, providers).await.expect("Failed to build service.");
 
-	crate::acceptance::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
+	acceptance::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
 
 	reset_collection(&service).await;
 

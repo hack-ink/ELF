@@ -20,7 +20,7 @@ use tokio::{
 };
 use uuid::Uuid;
 
-use crate::acceptance::{SpyExtractor, StubEmbedding, StubRerank};
+use crate::acceptance::{self, SpyExtractor, StubEmbedding, StubRerank};
 use elf_config::EmbeddingProviderConfig;
 use elf_service::{AddNoteInput, AddNoteRequest, ElfService, Providers};
 use elf_storage::{db::Db, qdrant::QdrantStore};
@@ -162,12 +162,12 @@ async fn spawn_outbox_worker(service: &ElfService, api_base: String) -> JoinHand
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
 async fn outbox_retries_to_done() {
-	let Some(test_db) = crate::acceptance::test_db().await else {
+	let Some(test_db) = acceptance::test_db().await else {
 		eprintln!("Skipping outbox_retries_to_done; set ELF_PG_DSN to run this test.");
 
 		return;
 	};
-	let Some(qdrant_url) = crate::acceptance::test_qdrant_url() else {
+	let Some(qdrant_url) = acceptance::test_qdrant_url() else {
 		eprintln!("Skipping outbox_retries_to_done; set ELF_QDRANT_URL to run this test.");
 
 		return;
@@ -185,7 +185,7 @@ async fn outbox_retries_to_done() {
 	);
 	let collection = test_db.collection_name("elf_acceptance");
 	let docs_collection = test_db.collection_name("elf_acceptance_docs");
-	let cfg = crate::acceptance::test_config(
+	let cfg = acceptance::test_config(
 		test_db.dsn().to_string(),
 		qdrant_url,
 		4_096,
@@ -193,10 +193,10 @@ async fn outbox_retries_to_done() {
 		docs_collection,
 	);
 	let service =
-		crate::acceptance::build_service(cfg, providers).await.expect("Failed to build service.");
+		acceptance::build_service(cfg, providers).await.expect("Failed to build service.");
 
-	crate::acceptance::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
-	crate::acceptance::reset_qdrant_collection(
+	acceptance::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
+	acceptance::reset_qdrant_collection(
 		&service.qdrant.client,
 		&service.qdrant.collection,
 		service.qdrant.vector_dim,

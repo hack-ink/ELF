@@ -5,6 +5,7 @@ use uuid::Uuid;
 use elf_config::Postgres;
 use elf_storage::{
 	db::Db,
+	graph,
 	models::{GraphFact, MemoryNote},
 	queries,
 };
@@ -29,28 +30,18 @@ async fn graph_entity_upsert_is_idempotent_by_normalized_canonical() {
 	let mut tx = db.pool.begin().await.expect("Failed to open transaction.");
 	let tenant_id = "tenant-a";
 	let project_id = "project-a";
-	let entity_id = elf_storage::graph::upsert_entity(
-		&mut tx,
-		tenant_id,
-		project_id,
-		"  Alice   Doe ",
-		Some("person"),
-	)
-	.await
-	.expect("Failed to upsert canonical entity.");
-	let canonical_norm = elf_storage::graph::normalize_entity_name("Alice doe");
+	let entity_id =
+		graph::upsert_entity(&mut tx, tenant_id, project_id, "  Alice   Doe ", Some("person"))
+			.await
+			.expect("Failed to upsert canonical entity.");
+	let canonical_norm = graph::normalize_entity_name("Alice doe");
 
 	assert_eq!(canonical_norm, "alice doe");
 
-	let entity_again = elf_storage::graph::upsert_entity(
-		&mut tx,
-		tenant_id,
-		project_id,
-		"Alice\tDoe",
-		Some("person"),
-	)
-	.await
-	.expect("Failed to upsert canonical alias.");
+	let entity_again =
+		graph::upsert_entity(&mut tx, tenant_id, project_id, "Alice\tDoe", Some("person"))
+			.await
+			.expect("Failed to upsert canonical alias.");
 
 	assert_eq!(entity_id, entity_again);
 
@@ -74,19 +65,14 @@ async fn graph_fact_with_empty_evidence_is_rejected() {
 	db.ensure_schema(4_096).await.expect("Failed to ensure schema.");
 
 	let mut tx = db.pool.begin().await.expect("Failed to open transaction.");
-	let subject =
-		elf_storage::graph::upsert_entity(&mut tx, "tenant-a", "project-a", "Entity A", None)
+	let subject = graph::upsert_entity(&mut tx, "tenant-a", "project-a", "Entity A", None)
+		.await
+		.expect("Failed to upsert subject.");
+	let predicate =
+		graph::resolve_or_register_predicate(&mut tx, "tenant-a", "project-a", "related_to")
 			.await
-			.expect("Failed to upsert subject.");
-	let predicate = elf_storage::graph::resolve_or_register_predicate(
-		&mut tx,
-		"tenant-a",
-		"project-a",
-		"related_to",
-	)
-	.await
-	.expect("Failed to resolve predicate.");
-	let err = elf_storage::graph::insert_fact_with_evidence(
+			.expect("Failed to resolve predicate.");
+	let err = graph::insert_fact_with_evidence(
 		&mut tx,
 		"tenant-a",
 		"project-a",
@@ -128,25 +114,19 @@ async fn graph_fact_duplicates_with_active_window_fail_unique_constraint() {
 
 	let mut tx = db.pool.begin().await.expect("Failed to open transaction.");
 	let note_id = insert_memory_note(&mut tx, "tenant-a", "project-a").await;
-	let subject =
-		elf_storage::graph::upsert_entity(&mut tx, "tenant-a", "project-a", "Entity Subject", None)
+	let subject = graph::upsert_entity(&mut tx, "tenant-a", "project-a", "Entity Subject", None)
+		.await
+		.expect("Failed to upsert subject.");
+	let object = graph::upsert_entity(&mut tx, "tenant-a", "project-a", "Entity Object", None)
+		.await
+		.expect("Failed to upsert object.");
+	let predicate =
+		graph::resolve_or_register_predicate(&mut tx, "tenant-a", "project-a", "related_to")
 			.await
-			.expect("Failed to upsert subject.");
-	let object =
-		elf_storage::graph::upsert_entity(&mut tx, "tenant-a", "project-a", "Entity Object", None)
-			.await
-			.expect("Failed to upsert object.");
-	let predicate = elf_storage::graph::resolve_or_register_predicate(
-		&mut tx,
-		"tenant-a",
-		"project-a",
-		"related_to",
-	)
-	.await
-	.expect("Failed to resolve predicate.");
+			.expect("Failed to resolve predicate.");
 	let now = OffsetDateTime::now_utc();
 
-	elf_storage::graph::insert_fact_with_evidence(
+	graph::insert_fact_with_evidence(
 		&mut tx,
 		"tenant-a",
 		"project-a",
@@ -164,7 +144,7 @@ async fn graph_fact_duplicates_with_active_window_fail_unique_constraint() {
 	.await
 	.expect("Failed to insert graph fact.");
 
-	let err = elf_storage::graph::insert_fact_with_evidence(
+	let err = graph::insert_fact_with_evidence(
 		&mut tx,
 		"tenant-a",
 		"project-a",
@@ -203,20 +183,15 @@ async fn graph_fact_rejects_invalid_valid_window() {
 
 	let mut tx = db.pool.begin().await.expect("Failed to open transaction.");
 	let note_id = insert_memory_note(&mut tx, "tenant-a", "project-a").await;
-	let subject =
-		elf_storage::graph::upsert_entity(&mut tx, "tenant-a", "project-a", "Entity Subject", None)
+	let subject = graph::upsert_entity(&mut tx, "tenant-a", "project-a", "Entity Subject", None)
+		.await
+		.expect("Failed to upsert subject.");
+	let predicate =
+		graph::resolve_or_register_predicate(&mut tx, "tenant-a", "project-a", "expires")
 			.await
-			.expect("Failed to upsert subject.");
-	let predicate = elf_storage::graph::resolve_or_register_predicate(
-		&mut tx,
-		"tenant-a",
-		"project-a",
-		"expires",
-	)
-	.await
-	.expect("Failed to resolve predicate.");
+			.expect("Failed to resolve predicate.");
 	let now = OffsetDateTime::now_utc();
-	let err = elf_storage::graph::insert_fact_with_evidence(
+	let err = graph::insert_fact_with_evidence(
 		&mut tx,
 		"tenant-a",
 		"project-a",
@@ -257,36 +232,23 @@ async fn graph_fetch_active_facts_returns_active_window_only() {
 
 	let mut tx = db.pool.begin().await.expect("Failed to open transaction.");
 	let note_id = insert_memory_note(&mut tx, "tenant-a", "project-a").await;
-	let subject =
-		elf_storage::graph::upsert_entity(&mut tx, "tenant-a", "project-a", "Entity Subject", None)
+	let subject = graph::upsert_entity(&mut tx, "tenant-a", "project-a", "Entity Subject", None)
+		.await
+		.expect("Failed to upsert subject.");
+	let active_predicate =
+		graph::resolve_or_register_predicate(&mut tx, "tenant-a", "project-a", "active_fact")
 			.await
-			.expect("Failed to upsert subject.");
-	let active_predicate = elf_storage::graph::resolve_or_register_predicate(
-		&mut tx,
-		"tenant-a",
-		"project-a",
-		"active_fact",
-	)
-	.await
-	.expect("Failed to resolve predicate.");
-	let expired_predicate = elf_storage::graph::resolve_or_register_predicate(
-		&mut tx,
-		"tenant-a",
-		"project-a",
-		"expired_fact",
-	)
-	.await
-	.expect("Failed to resolve predicate.");
-	let future_predicate = elf_storage::graph::resolve_or_register_predicate(
-		&mut tx,
-		"tenant-a",
-		"project-a",
-		"future_fact",
-	)
-	.await
-	.expect("Failed to resolve predicate.");
+			.expect("Failed to resolve predicate.");
+	let expired_predicate =
+		graph::resolve_or_register_predicate(&mut tx, "tenant-a", "project-a", "expired_fact")
+			.await
+			.expect("Failed to resolve predicate.");
+	let future_predicate =
+		graph::resolve_or_register_predicate(&mut tx, "tenant-a", "project-a", "future_fact")
+			.await
+			.expect("Failed to resolve predicate.");
 	let now = OffsetDateTime::now_utc();
-	let active = elf_storage::graph::insert_fact_with_evidence(
+	let active = graph::insert_fact_with_evidence(
 		&mut tx,
 		"tenant-a",
 		"project-a",
@@ -304,7 +266,7 @@ async fn graph_fetch_active_facts_returns_active_window_only() {
 	.await
 	.expect("Failed to insert active graph fact.");
 
-	elf_storage::graph::insert_fact_with_evidence(
+	graph::insert_fact_with_evidence(
 		&mut tx,
 		"tenant-a",
 		"project-a",
@@ -321,7 +283,7 @@ async fn graph_fetch_active_facts_returns_active_window_only() {
 	)
 	.await
 	.expect("Failed to insert expired graph fact.");
-	elf_storage::graph::insert_fact_with_evidence(
+	graph::insert_fact_with_evidence(
 		&mut tx,
 		"tenant-a",
 		"project-a",
@@ -339,7 +301,7 @@ async fn graph_fetch_active_facts_returns_active_window_only() {
 	.await
 	.expect("Failed to insert future graph fact.");
 
-	let facts: Vec<GraphFact> = elf_storage::graph::fetch_active_facts_for_subject(
+	let facts: Vec<GraphFact> = graph::fetch_active_facts_for_subject(
 		&mut tx,
 		"tenant-a",
 		"project-a",
@@ -375,15 +337,11 @@ async fn graph_predicate_guarded_update_conflicts_after_deprecate() {
 	db.ensure_schema(4_096).await.expect("Failed to ensure schema.");
 
 	let mut tx = db.pool.begin().await.expect("Failed to open transaction.");
-	let predicate = elf_storage::graph::resolve_or_register_predicate(
-		&mut tx,
-		"tenant-a",
-		"project-a",
-		"mentors",
-	)
-	.await
-	.expect("Failed to resolve predicate.");
-	let updated_active = elf_storage::graph::update_predicate_guarded(
+	let predicate =
+		graph::resolve_or_register_predicate(&mut tx, "tenant-a", "project-a", "mentors")
+			.await
+			.expect("Failed to resolve predicate.");
+	let updated_active = graph::update_predicate_guarded(
 		&mut tx,
 		predicate.predicate_id,
 		predicate.status.as_str(),
@@ -395,7 +353,7 @@ async fn graph_predicate_guarded_update_conflicts_after_deprecate() {
 	.expect("Failed to activate predicate.");
 	let stale_expected_status = updated_active.status.clone();
 	let stale_expected_cardinality = updated_active.cardinality.clone();
-	let updated_deprecated = elf_storage::graph::update_predicate_guarded(
+	let updated_deprecated = graph::update_predicate_guarded(
 		&mut tx,
 		predicate.predicate_id,
 		updated_active.status.as_str(),
@@ -408,7 +366,7 @@ async fn graph_predicate_guarded_update_conflicts_after_deprecate() {
 
 	assert_eq!(updated_deprecated.status, "deprecated");
 
-	let err = elf_storage::graph::update_predicate_guarded(
+	let err = graph::update_predicate_guarded(
 		&mut tx,
 		predicate.predicate_id,
 		stale_expected_status.as_str(),
@@ -421,7 +379,7 @@ async fn graph_predicate_guarded_update_conflicts_after_deprecate() {
 
 	assert!(matches!(err, elf_storage::Error::Conflict(_)));
 
-	let predicate_now = elf_storage::graph::get_predicate_by_id(&mut tx, predicate.predicate_id)
+	let predicate_now = graph::get_predicate_by_id(&mut tx, predicate.predicate_id)
 		.await
 		.expect("Failed to load predicate.")
 		.expect("Expected predicate row.");

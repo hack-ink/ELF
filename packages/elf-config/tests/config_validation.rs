@@ -2,6 +2,7 @@ use std::{
 	collections::HashMap,
 	env, fs,
 	path::PathBuf,
+	process,
 	sync::atomic::{AtomicU64, Ordering},
 	time::{SystemTime, UNIX_EPOCH},
 };
@@ -86,7 +87,7 @@ fn write_temp_config(payload: String) -> PathBuf {
 		.expect("System time must be valid.")
 		.as_nanos();
 	let ordinal = COUNTER.fetch_add(1, Ordering::SeqCst);
-	let pid = std::process::id();
+	let pid = process::id();
 	let mut path = env::temp_dir();
 
 	path.push(format!("elf_config_test_{nanos}_{pid}_{ordinal}.toml"));

@@ -5,7 +5,10 @@ use uuid::Uuid;
 
 use crate::{ElfService, Result};
 use elf_config::SecurityAuthRole;
-use elf_storage::models::{GraphPredicate, GraphPredicateAlias};
+use elf_storage::{
+	graph,
+	models::{GraphPredicate, GraphPredicateAlias},
+};
 
 const GRAPH_PREDICATE_SCOPE_GLOBAL: &str = "__global__";
 const GRAPH_PREDICATE_SCOPE_PROJECT_PREFIX: &str = "__project__:";
@@ -133,7 +136,7 @@ impl ElfService {
 		let scope_keys =
 			graph_predicate_scope_keys(req.tenant_id.as_str(), req.project_id.as_str(), scope);
 		let mut conn = self.db.pool.acquire().await?;
-		let predicates = elf_storage::graph::list_predicates_by_scope_keys(&mut conn, &scope_keys)
+		let predicates = graph::list_predicates_by_scope_keys(&mut conn, &scope_keys)
 			.await
 			.map_err(map_storage_error)?;
 		let predicates = predicates.into_iter().map(to_predicate_response).collect();
@@ -224,7 +227,7 @@ impl ElfService {
 				Some(raw)
 			},
 		};
-		let updated = elf_storage::graph::update_predicate_guarded(
+		let updated = graph::update_predicate_guarded(
 			&mut conn,
 			req.predicate_id,
 			old_status.as_str(),
@@ -278,7 +281,7 @@ impl ElfService {
 			});
 		}
 
-		elf_storage::graph::add_predicate_alias(&mut conn, req.predicate_id, alias)
+		graph::add_predicate_alias(&mut conn, req.predicate_id, alias)
 			.await
 			.map_err(map_storage_error)?;
 
@@ -289,7 +292,7 @@ impl ElfService {
 			"Admin graph predicate alias added."
 		);
 
-		let mut aliases = elf_storage::graph::list_predicate_aliases(&mut conn, req.predicate_id)
+		let mut aliases = graph::list_predicate_aliases(&mut conn, req.predicate_id)
 			.await
 			.map_err(map_storage_error)?;
 
@@ -316,7 +319,7 @@ impl ElfService {
 		)
 		.await?;
 
-		let mut aliases = elf_storage::graph::list_predicate_aliases(&mut conn, req.predicate_id)
+		let mut aliases = graph::list_predicate_aliases(&mut conn, req.predicate_id)
 			.await
 			.map_err(map_storage_error)?;
 
@@ -411,7 +414,7 @@ async fn load_predicate_in_context(
 	access: PredicateAccess,
 	allow_global_mutation: bool,
 ) -> Result<GraphPredicate> {
-	let predicate = elf_storage::graph::get_predicate_by_id(conn, predicate_id)
+	let predicate = graph::get_predicate_by_id(conn, predicate_id)
 		.await
 		.map_err(map_storage_error)?
 		.ok_or_else(|| crate::Error::NotFound {

@@ -17,7 +17,7 @@ use uuid::Uuid;
 
 use crate::state::AppState;
 use elf_config::{SecurityAuthKey, SecurityAuthRole};
-use elf_domain::writegate::WritePolicy;
+use elf_domain::{english_gate, writegate::WritePolicy};
 use elf_service::{
 	AddEventRequest, AddEventResponse, AddNoteInput, AddNoteRequest, AddNoteResponse,
 	AdminGraphPredicateAliasAddRequest, AdminGraphPredicateAliasesListRequest,
@@ -595,7 +595,7 @@ fn required_header(headers: &HeaderMap, name: &'static str) -> Result<String, Ap
 			Some(vec![format!("$.headers.{name}")]),
 		));
 	}
-	if !elf_domain::english_gate::is_english_identifier(trimmed) {
+	if !english_gate::is_english_identifier(trimmed) {
 		return Err(json_error(
 			StatusCode::UNPROCESSABLE_ENTITY,
 			"NON_ENGLISH_INPUT",
@@ -2206,39 +2206,44 @@ async fn trace_bundle_get(
 
 #[cfg(test)]
 mod tests {
-	use crate::routes::{
-		HEADER_AGENT_ID, HEADER_AUTHORIZATION, HEADER_PROJECT_ID, HEADER_READ_PROFILE,
-		HEADER_REQUEST_ID, HEADER_TENANT_ID, HEADER_TRUSTED_TOKEN_ID, apply_auth_key_context,
-		effective_token_id, inject_request_id_into_json_body, parse_request_id_from_headers,
-		require_admin_for_org_shared_writes, resolve_auth_key, sanitize_trusted_token_header,
-	};
 	use axum::http::HeaderMap;
-	use elf_config::{SecurityAuthKey, SecurityAuthRole};
 	use uuid::Uuid;
+
+	use crate::routes::{
+		self, HEADER_AGENT_ID, HEADER_AUTHORIZATION, HEADER_PROJECT_ID, HEADER_READ_PROFILE,
+		HEADER_REQUEST_ID, HEADER_TENANT_ID, HEADER_TRUSTED_TOKEN_ID,
+	};
+	use elf_config::{SecurityAuthKey, SecurityAuthRole};
 
 	#[test]
 	fn require_admin_for_org_shared_writes_denies_user_in_static_keys_mode() {
-		let err = require_admin_for_org_shared_writes("static_keys", Some(SecurityAuthRole::User))
-			.expect_err("Expected forbidden error for non-admin role.");
+		let err = routes::require_admin_for_org_shared_writes(
+			"static_keys",
+			Some(SecurityAuthRole::User),
+		)
+		.expect_err("Expected forbidden error for non-admin role.");
 
 		assert_eq!(err.status, axum::http::StatusCode::FORBIDDEN);
 	}
 
 	#[test]
 	fn require_admin_for_org_shared_writes_allows_admin_in_static_keys_mode() {
-		require_admin_for_org_shared_writes("static_keys", Some(SecurityAuthRole::Admin))
+		routes::require_admin_for_org_shared_writes("static_keys", Some(SecurityAuthRole::Admin))
 			.expect("Expected admin role to be allowed.");
 	}
 
 	#[test]
 	fn require_admin_for_org_shared_writes_allows_superadmin_in_static_keys_mode() {
-		require_admin_for_org_shared_writes("static_keys", Some(SecurityAuthRole::SuperAdmin))
-			.expect("Expected superadmin role to be allowed.");
+		routes::require_admin_for_org_shared_writes(
+			"static_keys",
+			Some(SecurityAuthRole::SuperAdmin),
+		)
+		.expect("Expected superadmin role to be allowed.");
 	}
 
 	#[test]
 	fn require_admin_for_org_shared_writes_allows_non_static_keys_auth_mode() {
-		require_admin_for_org_shared_writes("off", None)
+		routes::require_admin_for_org_shared_writes("off", None)
 			.expect("Expected auth_mode != static_keys.");
 	}
 
@@ -2254,7 +2259,8 @@ mod tests {
 			read_profile: "private_plus_project".to_string(),
 			role: SecurityAuthRole::User,
 		}];
-		let err = resolve_auth_key(&headers, &keys).expect_err("Expected unauthorized error.");
+		let err =
+			routes::resolve_auth_key(&headers, &keys).expect_err("Expected unauthorized error.");
 
 		assert_eq!(err.status, axum::http::StatusCode::UNAUTHORIZED);
 	}
@@ -2274,7 +2280,7 @@ mod tests {
 
 		headers.insert(HEADER_AUTHORIZATION, "Bearer wrong".parse().expect("invalid header"));
 
-		let err = resolve_auth_key(&headers, &keys)
+		let err = routes::resolve_auth_key(&headers, &keys)
 			.expect_err("Expected unauthorized error for bad key.");
 
 		assert_eq!(err.status, axum::http::StatusCode::UNAUTHORIZED);
@@ -2295,7 +2301,7 @@ mod tests {
 
 		headers.insert(HEADER_AUTHORIZATION, "Token secret".parse().expect("invalid header"));
 
-		let err = resolve_auth_key(&headers, &keys)
+		let err = routes::resolve_auth_key(&headers, &keys)
 			.expect_err("Expected unauthorized error for non-bearer authorization.");
 
 		assert_eq!(err.status, axum::http::StatusCode::UNAUTHORIZED);
@@ -2316,7 +2322,7 @@ mod tests {
 
 		headers.insert(HEADER_AUTHORIZATION, "bearer secret".parse().expect("invalid header"));
 
-		let err = resolve_auth_key(&headers, &keys)
+		let err = routes::resolve_auth_key(&headers, &keys)
 			.expect_err("Expected unauthorized error for lowercase bearer prefix.");
 
 		assert_eq!(err.status, axum::http::StatusCode::UNAUTHORIZED);
@@ -2343,7 +2349,7 @@ mod tests {
 			role: SecurityAuthRole::Admin,
 		};
 
-		apply_auth_key_context(&mut headers, &key).expect("Expected context injection.");
+		routes::apply_auth_key_context(&mut headers, &key).expect("Expected context injection.");
 
 		assert_eq!(
 			headers.get(HEADER_TENANT_ID).and_then(|v| v.to_str().ok()).expect("missing tenant"),
@@ -2385,7 +2391,7 @@ mod tests {
 			read_profile: "all_scopes".to_string(),
 			role: SecurityAuthRole::User,
 		};
-		let err = apply_auth_key_context(&mut headers, &key)
+		let err = routes::apply_auth_key_context(&mut headers, &key)
 			.expect_err("Expected forbidden error for missing agent_id.");
 
 		assert_eq!(err.status, axum::http::StatusCode::FORBIDDEN);
@@ -2397,7 +2403,7 @@ mod tests {
 
 		headers.insert(HEADER_TRUSTED_TOKEN_ID, "user-supplied".parse().expect("invalid header"));
 
-		assert_eq!(effective_token_id("off", &headers), None);
+		assert_eq!(routes::effective_token_id("off", &headers), None);
 	}
 
 	#[test]
@@ -2406,7 +2412,7 @@ mod tests {
 
 		headers.insert(HEADER_TRUSTED_TOKEN_ID, "k1".parse().expect("invalid header"));
 
-		assert_eq!(effective_token_id("static_keys", &headers), Some("k1".to_string()));
+		assert_eq!(routes::effective_token_id("static_keys", &headers), Some("k1".to_string()));
 	}
 
 	#[test]
@@ -2415,7 +2421,7 @@ mod tests {
 
 		headers.insert(HEADER_TRUSTED_TOKEN_ID, "user-supplied".parse().expect("invalid header"));
 
-		sanitize_trusted_token_header(&mut headers);
+		routes::sanitize_trusted_token_header(&mut headers);
 
 		assert!(headers.get(HEADER_TRUSTED_TOKEN_ID).is_none());
 	}
@@ -2423,7 +2429,7 @@ mod tests {
 	#[test]
 	fn parse_request_id_from_headers_generates_when_missing() {
 		let headers = HeaderMap::new();
-		let request_id = parse_request_id_from_headers(&headers)
+		let request_id = routes::parse_request_id_from_headers(&headers)
 			.expect("Expected a generated request ID when header is missing.");
 
 		assert_ne!(request_id.to_string(), Uuid::nil().to_string());
@@ -2435,7 +2441,7 @@ mod tests {
 
 		headers.insert(HEADER_REQUEST_ID, "not-a-uuid".parse().expect("invalid request_id"));
 
-		let err = parse_request_id_from_headers(&headers)
+		let err = routes::parse_request_id_from_headers(&headers)
 			.expect_err("Expected invalid request_id to be rejected.");
 
 		assert_eq!(err.status, axum::http::StatusCode::BAD_REQUEST);
@@ -2448,7 +2454,7 @@ mod tests {
 		let request_id =
 			Uuid::parse_str("123e4567-e89b-12d3-a456-426614174000").expect("valid uuid");
 		let body = serde_json::json!({"note_id":"abc","status":"ok"}).to_string();
-		let response_body = inject_request_id_into_json_body(body.as_bytes(), &request_id)
+		let response_body = routes::inject_request_id_into_json_body(body.as_bytes(), &request_id)
 			.expect("Expected request_id field to be injected.");
 		let response_value = serde_json::from_slice::<serde_json::Value>(&response_body)
 			.expect("Expected valid JSON");
@@ -2462,6 +2468,6 @@ mod tests {
 			Uuid::parse_str("123e4567-e89b-12d3-a456-426614174000").expect("valid uuid");
 		let body = serde_json::json!(["a", "b", "c"]).to_string();
 
-		assert!(inject_request_id_into_json_body(body.as_bytes(), &request_id).is_none());
+		assert!(routes::inject_request_id_into_json_body(body.as_bytes(), &request_id).is_none());
 	}
 }

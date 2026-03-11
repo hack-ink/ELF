@@ -21,6 +21,7 @@ use uuid::Uuid;
 
 use crate::{ElfService, Result, access, ranking_explain_v2};
 use elf_config::{Config, SearchCache};
+use elf_domain::english_gate;
 use elf_storage::{
 	models::MemoryNote,
 	qdrant::{BM25_MODEL, BM25_VECTOR_NAME, DENSE_VECTOR_NAME},
@@ -2130,7 +2131,7 @@ impl ElfService {
 
 			let recursive_points = self
 				.run_fusion_query(
-					std::slice::from_ref(&child_query_embedding),
+					slice::from_ref(&child_query_embedding),
 					&scoped_filter,
 					per_query_candidate_k,
 				)
@@ -2197,7 +2198,7 @@ impl ElfService {
 			let trimmed = value.trim();
 
 			if !trimmed.is_empty() {
-				if !elf_domain::english_gate::is_english_natural_language(trimmed) {
+				if !english_gate::is_english_natural_language(trimmed) {
 					saw_non_english = true;
 				} else {
 					return Some(trimmed);
@@ -2208,7 +2209,7 @@ impl ElfService {
 			let trimmed = value.trim();
 
 			if !trimmed.is_empty() {
-				if !elf_domain::english_gate::is_english_natural_language(trimmed) {
+				if !english_gate::is_english_natural_language(trimmed) {
 					saw_non_english = true;
 				} else {
 					return Some(trimmed);
@@ -4537,7 +4538,7 @@ fn validate_search_request_inputs(
 			message: "tenant_id, project_id, and agent_id are required.".to_string(),
 		});
 	}
-	if !elf_domain::english_gate::is_english_natural_language(query) {
+	if !english_gate::is_english_natural_language(query) {
 		return Err(crate::Error::NonEnglishInput { field: "$.query".to_string() });
 	}
 
@@ -6138,15 +6139,16 @@ payload = EXCLUDED.payload,
 
 #[cfg(test)]
 mod tests {
+	use serde_json::Value;
+
 	use crate::search::{
-		BlendRankingOverride, ChunkCandidate, ChunkMeta, ChunkSnippet, HashMap, NoteMeta,
+		self, BlendRankingOverride, ChunkCandidate, ChunkMeta, ChunkSnippet, HashMap, NoteMeta,
 		OffsetDateTime, RankingRequestOverride, RerankCacheCandidate, RerankCacheItem,
 		RerankCachePayload, RetrievalSourceCandidates, RetrievalSourceKind,
 		RetrievalSourcesRankingOverride, ScoredChunk, TraceReplayCandidate, TraceReplayContext,
-		Uuid, build_trace_audit, ranking, ranking_policy_id, replay_ranking_from_candidates,
+		Uuid, ranking,
 	};
 	use elf_config::{Config, SearchDynamic};
-	use serde_json::Value;
 
 	#[test]
 	fn dense_embedding_input_includes_project_context_suffix() {
@@ -6219,7 +6221,7 @@ mod tests {
 
 	#[test]
 	fn build_trace_audit_includes_token_id_when_present() {
-		let audit = build_trace_audit("agent-a", Some("tok-123"));
+		let audit = search::build_trace_audit("agent-a", Some("tok-123"));
 
 		assert_eq!(audit.get("actor_id"), Some(&Value::from("agent-a")));
 		assert_eq!(audit.get("token_id"), Some(&Value::from("tok-123")));
@@ -6227,7 +6229,7 @@ mod tests {
 
 	#[test]
 	fn build_trace_audit_omits_token_id_when_empty() {
-		let audit = build_trace_audit("agent-a", Some("   "));
+		let audit = search::build_trace_audit("agent-a", Some("   "));
 
 		assert_eq!(audit.get("actor_id"), Some(&Value::from("agent-a")));
 		assert!(audit.get("token_id").is_none());
@@ -6782,8 +6784,8 @@ mod tests {
 	#[test]
 	fn ranking_policy_id_is_stable_and_has_expected_format() {
 		let cfg = parse_example_config();
-		let id_a = ranking_policy_id(&cfg, None).expect("Expected policy id.");
-		let id_b = ranking_policy_id(&cfg, None).expect("Expected policy id.");
+		let id_a = search::ranking_policy_id(&cfg, None).expect("Expected policy id.");
+		let id_b = search::ranking_policy_id(&cfg, None).expect("Expected policy id.");
 
 		assert_eq!(id_a, id_b);
 		assert!(id_a.starts_with("ranking_v2:"), "Unexpected policy id: {id_a}");
@@ -6793,7 +6795,7 @@ mod tests {
 	#[test]
 	fn ranking_policy_id_changes_with_override() {
 		let cfg = parse_example_config();
-		let base = ranking_policy_id(&cfg, None).expect("Expected base policy id.");
+		let base = search::ranking_policy_id(&cfg, None).expect("Expected base policy id.");
 		let override_ = RankingRequestOverride {
 			blend: Some(BlendRankingOverride {
 				enabled: Some(false),
@@ -6804,8 +6806,8 @@ mod tests {
 			diversity: None,
 			retrieval_sources: None,
 		};
-		let overridden =
-			ranking_policy_id(&cfg, Some(&override_)).expect("Expected overridden policy id.");
+		let overridden = search::ranking_policy_id(&cfg, Some(&override_))
+			.expect("Expected overridden policy id.");
 
 		assert_ne!(base, overridden);
 	}
@@ -6813,7 +6815,7 @@ mod tests {
 	#[test]
 	fn ranking_policy_id_changes_with_retrieval_source_override() {
 		let cfg = parse_example_config();
-		let base = ranking_policy_id(&cfg, None).expect("Expected base policy id.");
+		let base = search::ranking_policy_id(&cfg, None).expect("Expected base policy id.");
 		let override_ = RankingRequestOverride {
 			blend: None,
 			diversity: None,
@@ -6826,8 +6828,8 @@ mod tests {
 				recursive_priority: Some(0),
 			}),
 		};
-		let overridden =
-			ranking_policy_id(&cfg, Some(&override_)).expect("Expected overridden policy id.");
+		let overridden = search::ranking_policy_id(&cfg, Some(&override_))
+			.expect("Expected overridden policy id.");
 
 		assert_ne!(base, overridden);
 	}
@@ -6835,7 +6837,7 @@ mod tests {
 	#[test]
 	fn replay_ranking_policy_id_matches_ranking_policy_id() {
 		let cfg = parse_example_config();
-		let expected = ranking_policy_id(&cfg, None).expect("Expected policy id.");
+		let expected = search::ranking_policy_id(&cfg, None).expect("Expected policy id.");
 		let now = OffsetDateTime::from_unix_timestamp(0).expect("Valid timestamp.");
 		let trace = TraceReplayContext {
 			trace_id: Uuid::new_v4(),
@@ -6909,7 +6911,7 @@ mod tests {
 				diversity_missing_embedding: None,
 			},
 		];
-		let out = replay_ranking_from_candidates(&cfg, &trace, None, &candidates, 2)
+		let out = search::replay_ranking_from_candidates(&cfg, &trace, None, &candidates, 2)
 			.expect("Expected replay output.");
 
 		for item in out {

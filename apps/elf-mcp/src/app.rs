@@ -93,7 +93,7 @@ fn select_static_key(security: &Security, mcp: &McpContext) -> Result<McpAuthSta
 
 #[cfg(test)]
 mod tests {
-	use crate::app::{McpAuthState, build_auth_state};
+	use crate::app::{self, McpAuthState};
 	use elf_config::{McpContext, Security, SecurityAuthKey, SecurityAuthRole};
 
 	fn sample_security(auth_mode: &str, auth_keys: Vec<SecurityAuthKey>) -> Security {
@@ -134,7 +134,8 @@ mod tests {
 	fn off_mode_requires_loopback_mcp_bind() {
 		let security = sample_security("off", vec![]);
 		let mcp = sample_mcp();
-		let err = build_auth_state(&security, "0.0.0.0:9090", &mcp).expect_err("expected error");
+		let err =
+			app::build_auth_state(&security, "0.0.0.0:9090", &mcp).expect_err("expected error");
 
 		assert!(err.to_string().contains("security.auth_mode=off"), "unexpected error: {err}");
 	}
@@ -143,7 +144,8 @@ mod tests {
 	fn static_keys_mode_selects_single_matching_key() {
 		let security = sample_security("static_keys", vec![sample_key("key-1", "token-1")]);
 		let mcp = sample_mcp();
-		let auth_state = build_auth_state(&security, "127.0.0.1:9090", &mcp).expect("auth state");
+		let auth_state =
+			app::build_auth_state(&security, "127.0.0.1:9090", &mcp).expect("auth state");
 
 		assert_eq!(auth_state, McpAuthState::StaticKeys { bearer_token: "token-1".to_string() });
 	}
@@ -155,7 +157,8 @@ mod tests {
 			vec![sample_key("key-1", "token-1"), sample_key("key-2", "token-2")],
 		);
 		let mcp = sample_mcp();
-		let err = build_auth_state(&security, "127.0.0.1:9090", &mcp).expect_err("expected error");
+		let err =
+			app::build_auth_state(&security, "127.0.0.1:9090", &mcp).expect_err("expected error");
 
 		assert!(err.to_string().contains("Found multiple"), "unexpected error: {err}");
 	}

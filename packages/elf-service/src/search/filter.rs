@@ -885,7 +885,6 @@ mod tests {
 
 	use serde_json::{Map, Value};
 	use time::OffsetDateTime;
-
 	use uuid::Uuid;
 
 	use crate::search::filter::{
