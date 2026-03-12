@@ -1,3 +1,7 @@
+#![allow(unused_crate_dependencies)]
+
+//! CLI entrypoint and shared state wiring for the ELF worker app.
+
 pub mod worker;
 
 mod error;
@@ -15,6 +19,7 @@ use elf_storage::{
 	qdrant::{DOCS_SEARCH_FILTER_INDEXES, QdrantStore},
 };
 
+/// CLI arguments for the worker binary.
 #[derive(Debug, Parser)]
 #[command(
 	version = elf_cli::VERSION,
@@ -23,9 +28,11 @@ use elf_storage::{
 )]
 pub struct Args {
 	#[arg(long, short = 'c', value_name = "FILE")]
+	/// Path to the worker configuration file.
 	pub config: PathBuf,
 }
 
+/// Loads configuration, initializes storage handles, and starts the worker loop.
 pub async fn run(args: Args) -> Result<()> {
 	let config = elf_config::load(&args.config).map_err(|err| Error::Message(err.to_string()))?;
 	let filter = EnvFilter::new(config.service.log_level.clone());

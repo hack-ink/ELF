@@ -1,3 +1,7 @@
+#![allow(unused_crate_dependencies)]
+
+//! Binary entrypoint for the ELF HTTP API app.
+
 use clap::Parser;
 use color_eyre::Result;
 

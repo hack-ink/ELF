@@ -1,3 +1,7 @@
+#![allow(unused_crate_dependencies)]
+
+//! CLI for exporting trace fixtures used by regression gates.
+
 use std::{fs, path::PathBuf};
 
 use clap::Parser;

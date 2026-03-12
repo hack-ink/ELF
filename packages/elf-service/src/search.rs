@@ -1,3 +1,5 @@
+//! Search APIs and ranking explanations.
+
 mod filter;
 mod ranking;
 
@@ -199,504 +201,817 @@ FROM fact_contexts
 ORDER BY note_id, fact_rank
 "#;
 
+/// Request payload for search APIs.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchRequest {
+	/// Tenant to search within.
 	pub tenant_id: String,
+	/// Project to search within.
 	pub project_id: String,
+	/// Agent requesting the search.
 	pub agent_id: String,
+	/// Optional auth token identifier used for role checks.
 	pub token_id: Option<String>,
 	#[serde(default)]
+	/// Requested payload-detail level.
 	pub payload_level: PayloadLevel,
+	/// Read profile that determines visible scopes.
 	pub read_profile: String,
+	/// Search query text.
 	pub query: String,
+	/// Requested number of returned items.
 	pub top_k: Option<u32>,
+	/// Retrieval breadth before ranking and projection.
 	pub candidate_k: Option<u32>,
 
+	/// Optional structured filter expression.
 	pub filter: Option<Value>,
+	/// When true, records note-hit metrics for returned items.
 	pub record_hits: Option<bool>,
+	/// Optional ranking-policy overrides.
 	pub ranking: Option<RankingRequestOverride>,
 }
 
+/// Ranking override bundle supplied on a search request.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct RankingRequestOverride {
+	/// Blend-ranking override.
 	pub blend: Option<BlendRankingOverride>,
+	/// Diversity-ranking override.
 	pub diversity: Option<DiversityRankingOverride>,
+	/// Retrieval-source weighting override.
 	pub retrieval_sources: Option<RetrievalSourcesRankingOverride>,
 }
 
+/// Blend-ranking override supplied on a search request.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct BlendRankingOverride {
+	/// Enables or disables blend ranking.
 	pub enabled: Option<bool>,
+	/// Override for rerank-score normalization.
 	pub rerank_normalization: Option<String>,
+	/// Override for retrieval-score normalization.
 	pub retrieval_normalization: Option<String>,
+	/// Override for blend segments.
 	pub segments: Option<Vec<BlendSegmentOverride>>,
 }
 
+/// One blend segment override.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct BlendSegmentOverride {
+	/// Highest retrieval rank covered by the segment.
 	pub max_retrieval_rank: u32,
+	/// Retrieval weight applied within the segment.
 	pub retrieval_weight: f32,
 }
 
+/// Diversity-ranking override supplied on a search request.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct DiversityRankingOverride {
+	/// Enables or disables diversity selection.
 	pub enabled: Option<bool>,
+	/// Similarity threshold for duplicate suppression.
 	pub sim_threshold: Option<f32>,
+	/// MMR lambda value.
 	pub mmr_lambda: Option<f32>,
+	/// Maximum number of candidates to skip while selecting diverse results.
 	pub max_skips: Option<u32>,
 }
 
+/// Retrieval-source weighting override supplied on a search request.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct RetrievalSourcesRankingOverride {
+	/// Weight for fusion retrieval.
 	pub fusion_weight: Option<f32>,
+	/// Weight for structured-field retrieval.
 	pub structured_field_weight: Option<f32>,
+	/// Priority for fusion retrieval.
 	pub fusion_priority: Option<u32>,
+	/// Priority for structured-field retrieval.
 	pub structured_field_priority: Option<u32>,
+	/// Weight for recursive retrieval.
 	pub recursive_weight: Option<f32>,
+	/// Priority for recursive retrieval.
 	pub recursive_priority: Option<u32>,
 }
 
+/// Full explanation attached to one search item.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchExplain {
+	/// Match-specific explanation.
 	pub r#match: SearchMatchExplain,
+	/// Ranking-term explanation.
 	pub ranking: SearchRankingExplain,
 	#[serde(skip_serializing_if = "Option::is_none")]
+	/// Optional relation-context snippets supporting the match.
 	pub relation_context: Option<Vec<SearchExplainRelationContext>>,
 	#[serde(skip_serializing_if = "Option::is_none")]
+	/// Optional diversity-selection explanation.
 	pub diversity: Option<SearchDiversityExplain>,
 }
 
+/// Relation-context row attached to a search explanation.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchExplainRelationContext {
+	/// Fact identifier.
 	pub fact_id: Uuid,
+	/// Scope key for the fact.
 	pub scope: String,
+	/// Subject entity reference.
 	pub subject: SearchExplainRelationEntityRef,
+	/// Predicate surface.
 	pub predicate: String,
+	/// Object payload.
 	pub object: SearchExplainRelationContextObject,
 	#[serde(with = "crate::time_serde")]
+	/// Start of the fact validity window.
 	pub valid_from: OffsetDateTime,
 	#[serde(with = "crate::time_serde::option")]
+	/// End of the fact validity window, if superseded.
 	pub valid_to: Option<OffsetDateTime>,
 	#[serde(default)]
+	/// Evidence note identifiers supporting the fact.
 	pub evidence_note_ids: Vec<Uuid>,
 }
 
+/// Lightweight entity reference used in search explanations.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchExplainRelationEntityRef {
 	#[serde(skip_serializing_if = "Option::is_none")]
+	/// Canonical entity surface.
 	pub canonical: Option<String>,
 	#[serde(skip_serializing_if = "Option::is_none")]
+	/// Optional entity kind.
 	pub kind: Option<String>,
 }
 
+/// Object payload used in search explanation relation context.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchExplainRelationContextObject {
 	#[serde(skip_serializing_if = "Option::is_none")]
+	/// Entity-shaped object value.
 	pub entity: Option<SearchExplainRelationEntityRef>,
 	#[serde(skip_serializing_if = "Option::is_none")]
+	/// Scalar object value.
 	pub value: Option<String>,
 }
 
+/// Match-level explanation for a search item.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchMatchExplain {
+	/// Query terms matched by the item.
 	pub matched_terms: Vec<String>,
+	/// Fields that supplied the matches.
 	pub matched_fields: Vec<String>,
 }
 
+/// Diversity-selection explanation for a search item.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchDiversityExplain {
+	/// Whether diversity ranking was enabled.
 	pub enabled: bool,
+	/// Reason the item was selected.
 	pub selected_reason: String,
 	#[serde(skip_serializing_if = "Option::is_none")]
+	/// Reason the item was skipped, when applicable.
 	pub skipped_reason: Option<String>,
 	#[serde(skip_serializing_if = "Option::is_none")]
+	/// Nearest already selected note that influenced the decision.
 	pub nearest_selected_note_id: Option<Uuid>,
 	#[serde(skip_serializing_if = "Option::is_none")]
+	/// Similarity to the nearest selected note.
 	pub similarity: Option<f32>,
 	#[serde(skip_serializing_if = "Option::is_none")]
+	/// MMR score used by diversity selection.
 	pub mmr_score: Option<f32>,
 	#[serde(default)]
+	/// Whether the item lacked an embedding needed for diversity scoring.
 	pub missing_embedding: bool,
 }
 
+/// One ranked search result item.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchItem {
+	/// Stable result-handle identifier for explain APIs.
 	pub result_handle: Uuid,
+	/// Note identifier.
 	pub note_id: Uuid,
+	/// Chunk identifier.
 	pub chunk_id: Uuid,
+	/// Zero-based chunk position.
 	pub chunk_index: i32,
+	/// Inclusive start byte offset of the snippet chunk.
 	pub start_offset: i32,
+	/// Exclusive end byte offset of the snippet chunk.
 	pub end_offset: i32,
+	/// Returned snippet text.
 	pub snippet: String,
+	/// Note type discriminator.
 	pub r#type: String,
+	/// Optional application-defined key.
 	pub key: Option<String>,
+	/// Scope key for the note.
 	pub scope: String,
+	/// Importance score.
 	pub importance: f32,
+	/// Confidence score.
 	pub confidence: f32,
 	#[serde(with = "crate::time_serde")]
+	/// Last update timestamp.
 	pub updated_at: OffsetDateTime,
 	#[serde(with = "crate::time_serde::option")]
+	/// Optional expiry timestamp.
 	pub expires_at: Option<OffsetDateTime>,
+	/// Final ranked score.
 	pub final_score: f32,
+	/// Structured source reference metadata.
 	pub source_ref: Value,
+	/// Item-level explanation payload.
 	pub explain: SearchExplain,
 }
 
+/// Response payload for raw search results.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchResponse {
+	/// Search trace identifier.
 	pub trace_id: Uuid,
+	/// Ranked search items.
 	pub items: Vec<SearchItem>,
+	/// Optional condensed explain output.
 	pub trajectory_summary: Option<SearchTrajectorySummary>,
 }
 
+/// Planned-search variant of the raw search response.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchRawPlannedResponse {
+	/// Search trace identifier.
 	pub trace_id: Uuid,
+	/// Ranked search items.
 	pub items: Vec<SearchItem>,
+	/// Optional condensed explain output.
 	pub trajectory_summary: Option<SearchTrajectorySummary>,
+	/// Query plan used for the search.
 	pub query_plan: QueryPlan,
 }
 
+/// Query plan emitted by planned search.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct QueryPlan {
+	/// Query-plan schema identifier.
 	pub schema: String,
+	/// Query-plan version string.
 	pub version: String,
+	/// Ordered planning stages.
 	pub stages: Vec<QueryPlanStage>,
+	/// Request intent snapshot.
 	pub intent: QueryPlanIntent,
+	/// Query rewrite output.
 	pub rewrite: QueryPlanRewrite,
+	/// Retrieval-stage plan.
 	pub retrieval_stages: Vec<QueryPlanRetrievalStage>,
+	/// Fusion-policy snapshot.
 	pub fusion_policy: QueryPlanFusionPolicy,
+	/// Rerank-policy snapshot.
 	pub rerank_policy: QueryPlanRerankPolicy,
+	/// Budget snapshot.
 	pub budget: QueryPlanBudget,
 }
 
+/// One stage in a query plan.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct QueryPlanStage {
+	/// Stage name.
 	pub name: String,
+	/// Free-form stage details.
 	pub details: Value,
 }
 
+/// Request intent captured in a query plan.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct QueryPlanIntent {
+	/// Original search query text.
 	pub query: String,
+	/// Tenant to search within.
 	pub tenant_id: String,
+	/// Project to search within.
 	pub project_id: String,
+	/// Agent requesting the search.
 	pub agent_id: String,
+	/// Read profile used for the search.
 	pub read_profile: String,
+	/// Scopes allowed by the read profile.
 	pub allowed_scopes: Vec<String>,
 }
 
+/// Rewrite section of a query plan.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct QueryPlanRewrite {
+	/// Expansion mode label.
 	pub expansion_mode: String,
+	/// Expanded query strings.
 	pub expanded_queries: Vec<String>,
+	/// Dynamic-gate summary.
 	pub dynamic_gate: QueryPlanDynamicGate,
 }
 
+/// Dynamic-query-expansion gate summary.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct QueryPlanDynamicGate {
+	/// Whether the dynamic gate was considered.
 	pub considered: bool,
+	/// Whether the dynamic gate decided to expand.
 	pub should_expand: Option<bool>,
+	/// Candidate count observed by the gate.
 	pub observed_candidates: Option<u32>,
+	/// Top score observed by the gate.
 	pub observed_top_score: Option<f32>,
+	/// Minimum candidates threshold.
 	pub min_candidates: u32,
+	/// Minimum top-score threshold.
 	pub min_top_score: f32,
 }
 
+/// Retrieval-stage entry in a query plan.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct QueryPlanRetrievalStage {
+	/// Stage name.
 	pub name: String,
+	/// Retrieval source label.
 	pub source: String,
+	/// Whether the stage is enabled.
 	pub enabled: bool,
+	/// Candidate limit for the stage.
 	pub candidate_limit: u32,
 }
 
+/// Fusion-policy snapshot used during search.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct QueryPlanFusionPolicy {
+	/// Fusion strategy label.
 	pub strategy: String,
+	/// Weight for fusion retrieval.
 	pub fusion_weight: f32,
+	/// Weight for structured-field retrieval.
 	pub structured_field_weight: f32,
+	/// Weight for recursive retrieval.
 	pub recursive_weight: f32,
+	/// Priority for fusion retrieval.
 	pub fusion_priority: u32,
+	/// Priority for structured-field retrieval.
 	pub structured_field_priority: u32,
+	/// Priority for recursive retrieval.
 	pub recursive_priority: u32,
 }
 
+/// One blend segment in the rerank policy.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct QueryPlanBlendSegment {
+	/// Highest retrieval rank covered by the segment.
 	pub max_retrieval_rank: u32,
+	/// Retrieval weight applied within the segment.
 	pub retrieval_weight: f32,
 }
 
+/// Rerank-policy snapshot used during search.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct QueryPlanRerankPolicy {
+	/// Provider identifier.
 	pub provider_id: String,
+	/// Model identifier.
 	pub model: String,
+	/// Whether blend ranking was enabled.
 	pub blend_enabled: bool,
+	/// Rerank normalization label.
 	pub rerank_normalization: String,
+	/// Retrieval normalization label.
 	pub retrieval_normalization: String,
+	/// Blend segments used by the policy.
 	pub blend_segments: Vec<QueryPlanBlendSegment>,
+	/// Whether diversity ranking was enabled.
 	pub diversity_enabled: bool,
+	/// Diversity similarity threshold.
 	pub diversity_sim_threshold: f32,
+	/// Diversity MMR lambda.
 	pub diversity_mmr_lambda: f32,
+	/// Diversity max-skips limit.
 	pub diversity_max_skips: u32,
 }
 
+/// Budget snapshot used during search.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct QueryPlanBudget {
+	/// Final top-k budget.
 	pub top_k: u32,
+	/// Candidate-k budget.
 	pub candidate_k: u32,
+	/// Prefilter candidate cap.
 	pub prefilter_max_candidates: u32,
+	/// Query-expansion cap.
 	pub expansion_max_queries: u32,
+	/// Whether ranking caches were enabled.
 	pub cache_enabled: bool,
 }
 
+/// Request payload for loading one item-level explanation.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchExplainRequest {
+	/// Tenant that owns the trace.
 	pub tenant_id: String,
+	/// Project that owns the trace.
 	pub project_id: String,
+	/// Agent requesting the explain payload.
 	pub agent_id: String,
+	/// Result-handle identifier returned by search.
 	pub result_handle: Uuid,
 }
 
+/// Search trace metadata persisted for one search run.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchTrace {
+	/// Search trace identifier.
 	pub trace_id: Uuid,
+	/// Tenant that owns the trace.
 	pub tenant_id: String,
+	/// Project that owns the trace.
 	pub project_id: String,
+	/// Agent that ran the search.
 	pub agent_id: String,
+	/// Read profile used for the search.
 	pub read_profile: String,
+	/// Search query text.
 	pub query: String,
+	/// Expansion mode label.
 	pub expansion_mode: String,
+	/// Expanded query strings.
 	pub expanded_queries: Vec<String>,
+	/// Scopes allowed by the read profile.
 	pub allowed_scopes: Vec<String>,
+	/// Candidate count observed by the search.
 	pub candidate_count: u32,
+	/// Top-k budget used by the search.
 	pub top_k: u32,
+	/// Config snapshot captured for the trace.
 	pub config_snapshot: Value,
 	#[serde(with = "crate::time_serde")]
+	/// Trace creation timestamp.
 	pub created_at: OffsetDateTime,
+	/// Trace schema version.
 	pub trace_version: i32,
 }
 
+/// Condensed search-trajectory explanation.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchTrajectorySummary {
+	/// Summary schema identifier.
 	pub schema: String,
+	/// Ordered summary stages.
 	pub stages: Vec<SearchTrajectorySummaryStage>,
 }
 
+/// One stage in a condensed search trajectory.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchTrajectorySummaryStage {
+	/// Zero-based stage order.
 	pub stage_order: u32,
+	/// Stable stage name.
 	pub stage_name: String,
+	/// Number of items after the stage.
 	pub item_count: u32,
+	/// Free-form stage statistics.
 	pub stats: Value,
 }
 
+/// One full search-trajectory stage.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchTrajectoryStage {
+	/// Zero-based stage order.
 	pub stage_order: u32,
+	/// Stable stage name.
 	pub stage_name: String,
+	/// Stage-level payload.
 	pub stage_payload: Value,
+	/// Item rows for the stage.
 	pub items: Vec<SearchTrajectoryStageItem>,
 }
 
+/// One item row inside a search-trajectory stage.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchTrajectoryStageItem {
+	/// Stage-item identifier, when persisted.
 	pub item_id: Option<Uuid>,
+	/// Note identifier, when applicable.
 	pub note_id: Option<Uuid>,
+	/// Chunk identifier, when applicable.
 	pub chunk_id: Option<Uuid>,
+	/// Free-form per-item metrics.
 	pub metrics: Value,
 }
 
+/// Full search-trajectory response.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchTrajectoryResponse {
+	/// Trace metadata.
 	pub trace: SearchTrace,
+	/// Condensed trajectory summary.
 	pub trajectory: SearchTrajectorySummary,
+	/// Full trajectory stages.
 	pub stages: Vec<SearchTrajectoryStage>,
 }
 
+/// Item-level explain trajectory.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchExplainTrajectory {
+	/// Trajectory schema identifier.
 	pub schema: String,
+	/// Ordered explain stages.
 	pub stages: Vec<SearchExplainTrajectoryStage>,
 }
 
+/// One stage in an item-level explain trajectory.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchExplainTrajectoryStage {
+	/// Zero-based stage order.
 	pub stage_order: u32,
+	/// Stable stage name.
 	pub stage_name: String,
+	/// Stage-level payload.
 	pub stage_payload: Value,
+	/// Per-item metrics.
 	pub metrics: Value,
 	#[serde(skip_serializing_if = "Option::is_none")]
+	/// Optional match information for the selected item.
 	pub match_info: Option<SearchExplainTrajectoryMatch>,
 }
 
+/// Match reference for one explain trajectory stage.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchExplainTrajectoryMatch {
+	/// Match kind label.
 	pub kind: String,
+	/// Stage-item identifier, when persisted.
 	pub item_id: Option<Uuid>,
+	/// Note identifier, when applicable.
 	pub note_id: Option<Uuid>,
+	/// Chunk identifier, when applicable.
 	pub chunk_id: Option<Uuid>,
 }
 
+/// Explain payload for one ranked search item.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchExplainItem {
+	/// Stable result-handle identifier.
 	pub result_handle: Uuid,
+	/// Note identifier.
 	pub note_id: Uuid,
+	/// Chunk identifier, when applicable.
 	pub chunk_id: Option<Uuid>,
+	/// 1-based final rank.
 	pub rank: u32,
+	/// Item-level explanation payload.
 	pub explain: SearchExplain,
 }
 
+/// Response payload for item-level explanations.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchExplainResponse {
+	/// Trace metadata.
 	pub trace: SearchTrace,
+	/// Explained item payload.
 	pub item: SearchExplainItem,
 	#[serde(skip_serializing_if = "Option::is_none")]
+	/// Optional explain trajectory.
 	pub trajectory: Option<SearchExplainTrajectory>,
 }
 
+/// Request payload for listing recent traces.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TraceRecentListRequest {
+	/// Tenant that owns the traces.
 	pub tenant_id: String,
+	/// Project that owns the traces.
 	pub project_id: String,
+	/// Agent requesting the list.
 	pub agent_id: String,
 
+	/// Maximum number of traces to return.
 	pub limit: Option<u32>,
 
+	/// Cursor creation timestamp for pagination.
 	pub cursor_created_at: Option<OffsetDateTime>,
 
+	/// Cursor trace identifier for pagination.
 	pub cursor_trace_id: Option<Uuid>,
 
+	/// Optional agent filter.
 	pub agent_id_filter: Option<String>,
 
+	/// Optional read-profile filter.
 	pub read_profile: Option<String>,
 	#[serde(with = "crate::time_serde::option")]
+	/// Optional lower bound for trace creation time.
 	pub created_after: Option<OffsetDateTime>,
 	#[serde(with = "crate::time_serde::option")]
+	/// Optional upper bound for trace creation time.
 	pub created_before: Option<OffsetDateTime>,
 }
 
+/// Header row returned by recent-trace listing.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct RecentTraceHeader {
+	/// Trace identifier.
 	pub trace_id: Uuid,
+	/// Tenant that owns the trace.
 	pub tenant_id: String,
+	/// Project that owns the trace.
 	pub project_id: String,
+	/// Agent that ran the trace.
 	pub agent_id: String,
+	/// Read profile used for the trace.
 	pub read_profile: String,
+	/// Search query text.
 	pub query: String,
 	#[serde(with = "crate::time_serde")]
+	/// Trace creation timestamp.
 	pub created_at: OffsetDateTime,
 }
 
+/// Pagination cursor returned by recent-trace listing.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TraceRecentCursor {
 	#[serde(with = "crate::time_serde")]
+	/// Cursor creation timestamp.
 	pub created_at: OffsetDateTime,
+	/// Cursor trace identifier.
 	pub trace_id: Uuid,
 }
 
+/// Response payload for recent-trace listing.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TraceRecentListResponse {
+	/// Response schema identifier.
 	pub schema: String,
+	/// Returned trace headers.
 	pub traces: Vec<RecentTraceHeader>,
 	#[serde(skip_serializing_if = "Option::is_none")]
+	/// Cursor for the next page, when more results remain.
 	pub next_cursor: Option<TraceRecentCursor>,
 }
 
+/// Request payload for loading a trace bundle.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TraceBundleGetRequest {
+	/// Tenant that owns the trace.
 	pub tenant_id: String,
+	/// Project that owns the trace.
 	pub project_id: String,
+	/// Agent requesting the bundle.
 	pub agent_id: String,
+	/// Trace identifier.
 	pub trace_id: Uuid,
 	#[serde(default)]
+	/// Bundle mode controlling output size.
 	pub mode: TraceBundleMode,
 
+	/// Optional cap for per-stage items.
 	pub stage_items_limit: Option<u32>,
 
+	/// Optional cap for replay candidates.
 	pub candidates_limit: Option<u32>,
 }
 
+/// Response payload for trace bundles.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TraceBundleResponse {
+	/// Response schema identifier.
 	pub schema: String,
 	#[serde(with = "crate::time_serde")]
+	/// Bundle generation timestamp.
 	pub generated_at: OffsetDateTime,
+	/// Trace metadata.
 	pub trace: SearchTrace,
+	/// Explained items from the trace.
 	pub items: Vec<SearchExplainItem>,
 	#[serde(skip_serializing_if = "Option::is_none")]
+	/// Optional condensed trajectory summary.
 	pub trajectory_summary: Option<SearchTrajectorySummary>,
+	/// Full trajectory stages.
 	pub stages: Vec<SearchTrajectoryStage>,
 	#[serde(skip_serializing_if = "Option::is_none")]
+	/// Optional replay candidates.
 	pub candidates: Option<Vec<TraceReplayCandidate>>,
 }
 
+/// Request payload for loading trace metadata and items.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TraceGetRequest {
+	/// Tenant that owns the trace.
 	pub tenant_id: String,
+	/// Project that owns the trace.
 	pub project_id: String,
+	/// Agent requesting the trace.
 	pub agent_id: String,
+	/// Trace identifier.
 	pub trace_id: Uuid,
 }
 
+/// Request payload for loading full trajectory stages.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TraceTrajectoryGetRequest {
+	/// Tenant that owns the trace.
 	pub tenant_id: String,
+	/// Project that owns the trace.
 	pub project_id: String,
+	/// Agent requesting the trajectory.
 	pub agent_id: String,
+	/// Trace identifier.
 	pub trace_id: Uuid,
 }
 
+/// Response payload for trace metadata and explained items.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TraceGetResponse {
+	/// Trace metadata.
 	pub trace: SearchTrace,
+	/// Explained items from the trace.
 	pub items: Vec<SearchExplainItem>,
 	#[serde(skip_serializing_if = "Option::is_none")]
+	/// Optional condensed trajectory summary.
 	pub trajectory_summary: Option<SearchTrajectorySummary>,
 }
 
+/// Context needed to replay ranking against stored candidates.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TraceReplayContext {
+	/// Trace identifier.
 	pub trace_id: Uuid,
+	/// Search query text.
 	pub query: String,
+	/// Candidate count observed during the trace.
 	pub candidate_count: u32,
+	/// Top-k budget used during the trace.
 	pub top_k: u32,
 	#[serde(with = "crate::time_serde")]
+	/// Trace creation timestamp.
 	pub created_at: OffsetDateTime,
 }
 
+/// Candidate row used for replaying ranking offline.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TraceReplayCandidate {
+	/// Note identifier.
 	pub note_id: Uuid,
+	/// Chunk identifier.
 	pub chunk_id: Uuid,
+	/// Zero-based chunk position.
 	pub chunk_index: i32,
+	/// Candidate snippet text.
 	pub snippet: String,
+	/// 1-based retrieval rank.
 	pub retrieval_rank: u32,
+	/// Raw rerank-model score.
 	pub rerank_score: f32,
+	/// Scope key for the note.
 	pub note_scope: String,
+	/// Note importance score.
 	pub note_importance: f32,
 	#[serde(with = "crate::time_serde")]
+	/// Note last-update timestamp.
 	pub note_updated_at: OffsetDateTime,
+	/// Note hit counter.
 	pub note_hit_count: i64,
 	#[serde(with = "crate::time_serde::option")]
+	/// Timestamp of the note's most recent hit.
 	pub note_last_hit_at: Option<OffsetDateTime>,
+	/// Whether the candidate was selected by diversity ranking.
 	pub diversity_selected: Option<bool>,
+	/// Final selected rank under diversity ranking.
 	pub diversity_selected_rank: Option<u32>,
+	/// Reason the candidate was selected by diversity ranking.
 	pub diversity_selected_reason: Option<String>,
+	/// Reason the candidate was skipped by diversity ranking.
 	pub diversity_skipped_reason: Option<String>,
+	/// Nearest selected note that influenced the diversity decision.
 	pub diversity_nearest_selected_note_id: Option<Uuid>,
+	/// Similarity to the nearest selected note.
 	pub diversity_similarity: Option<f32>,
+	/// MMR score used for diversity selection.
 	pub diversity_mmr_score: Option<f32>,
+	/// Whether the candidate lacked an embedding for diversity scoring.
 	pub diversity_missing_embedding: Option<bool>,
 }
 
+/// Final replayed ranking item.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TraceReplayItem {
+	/// Note identifier.
 	pub note_id: Uuid,
+	/// Chunk identifier.
 	pub chunk_id: Uuid,
+	/// 1-based retrieval rank.
 	pub retrieval_rank: u32,
+	/// Final replayed score.
 	pub final_score: f32,
+	/// Recomputed explanation payload.
 	pub explain: SearchExplain,
 }
 
@@ -1413,20 +1728,27 @@ struct DynamicGateSummary {
 	observed_top_score: Option<f32>,
 }
 
+/// Bundle-size mode for trace exports.
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 #[derive(Default)]
 pub enum TraceBundleMode {
 	#[default]
+	/// Return the bounded default export.
 	Bounded,
+	/// Return the full export.
 	Full,
 }
 
+/// Payload-detail level used by search and trace APIs.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum PayloadLevel {
 	#[default]
+	/// Level 0 payloads.
 	L0,
+	/// Level 1 payloads.
 	L1,
+	/// Level 2 payloads.
 	L2,
 }
 impl PayloadLevel {
@@ -1503,6 +1825,7 @@ enum RetrievalSourceKind {
 }
 
 impl ElfService {
+	/// Runs the quick raw-search path and returns ranked items without a query plan.
 	pub async fn search_raw_quick(&self, req: SearchRequest) -> Result<SearchResponse> {
 		self.execute_search_raw_path(req, RawSearchPath::Quick).await.map(|response| {
 			SearchResponse {
@@ -1513,10 +1836,12 @@ impl ElfService {
 		})
 	}
 
+	/// Runs the planned raw-search path and returns ranked items plus a query plan.
 	pub async fn search_raw_planned(&self, req: SearchRequest) -> Result<SearchRawPlannedResponse> {
 		self.execute_search_raw_path(req, RawSearchPath::Planned).await
 	}
 
+	/// Runs the default raw-search path and returns ranked items.
 	pub async fn search_raw(&self, req: SearchRequest) -> Result<SearchResponse> {
 		self.search_raw_planned(req).await.map(|response| SearchResponse {
 			trace_id: response.trace_id,
@@ -2228,6 +2553,7 @@ impl ElfService {
 		None
 	}
 
+	/// Loads the explain payload for one result handle.
 	pub async fn search_explain(&self, req: SearchExplainRequest) -> Result<SearchExplainResponse> {
 		let tenant_id = req.tenant_id.trim();
 		let project_id = req.project_id.trim();
@@ -2316,6 +2642,7 @@ WHERE i.item_id = $1 AND t.tenant_id = $2 AND t.project_id = $3",
 		Ok(SearchExplainResponse { trace, item, trajectory })
 	}
 
+	/// Loads trace metadata and explained items for one trace.
 	pub async fn trace_get(&self, req: TraceGetRequest) -> Result<TraceGetResponse> {
 		let tenant_id = req.tenant_id.trim();
 		let project_id = req.project_id.trim();
@@ -2414,6 +2741,7 @@ ORDER BY rank ASC",
 		Ok(TraceGetResponse { trace, items, trajectory_summary })
 	}
 
+	/// Loads full trajectory stages for one trace.
 	pub async fn trace_trajectory_get(
 		&self,
 		req: TraceTrajectoryGetRequest,
@@ -2432,6 +2760,7 @@ ORDER BY rank ASC",
 		Ok(SearchTrajectoryResponse { trace: base.trace, trajectory, stages })
 	}
 
+	/// Lists recent traces with cursor-based pagination.
 	pub async fn trace_recent_list(
 		&self,
 		req: TraceRecentListRequest,
@@ -2546,6 +2875,7 @@ LIMIT $9
 		})
 	}
 
+	/// Loads a trace bundle with optional trajectory and replay candidates.
 	pub async fn trace_bundle_get(
 		&self,
 		req: TraceBundleGetRequest,
@@ -4416,6 +4746,7 @@ pub(crate) fn resolve_read_profile_scopes(cfg: &Config, profile: &str) -> Result
 	ranking::resolve_scopes(cfg, profile)
 }
 
+/// Computes the stable ranking-policy identifier for a search configuration.
 pub fn ranking_policy_id(
 	cfg: &Config,
 	ranking_override: Option<&RankingRequestOverride>,
@@ -4445,6 +4776,7 @@ pub fn ranking_policy_id(
 	Ok(format!("ranking_v2:{prefix}"))
 }
 
+/// Replays ranking against stored trace candidates and returns the final top-k items.
 pub fn replay_ranking_from_candidates(
 	cfg: &Config,
 	trace: &TraceReplayContext,

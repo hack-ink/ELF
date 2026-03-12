@@ -1,3 +1,7 @@
+#![allow(unused_crate_dependencies)]
+
+//! Config validation tests for the ELF configuration loader.
+
 use std::{
 	collections::HashMap,
 	env, fs,

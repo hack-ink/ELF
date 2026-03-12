@@ -1,6 +1,11 @@
 # Integration Testing (Memory Retrieval)
 
-Purpose: Provide a repeatable E2E test for memory ingestion, indexing, and retrieval.
+Goal: Provide a repeatable E2E test for memory ingestion, indexing, and retrieval.
+Read this when: You need to validate retrieval behavior after changing ingestion, ranking, or storage logic.
+Inputs: External Postgres and Qdrant services plus the repository test commands.
+Depends on: `docs/guide/testing.md` and `Makefile.toml`.
+Verification: The integration or E2E commands complete without regressions.
+
 Name: This flow is the E2E test in `docs/guide/testing.md`.
 
 ## When to use

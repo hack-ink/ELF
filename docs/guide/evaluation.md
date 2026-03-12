@@ -1,6 +1,10 @@
 # Retrieval Evaluation
 
-Purpose: Provide a repeatable way to measure memory retrieval quality and prevent regressions.
+Goal: Provide a repeatable way to measure memory retrieval quality and prevent regressions.
+Read this when: You need to run retrieval evaluations or compare quality before and after a change.
+Inputs: An ELF config file plus an evaluation dataset or saved trace fixture.
+Depends on: `elf-eval`, `Makefile.toml`, and the search-related system specs.
+Verification: Evaluation commands complete and produce metrics or regression outputs you can compare.
 
 ## Tool
 

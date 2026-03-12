@@ -1,3 +1,5 @@
+//! Event ingestion APIs.
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sqlx::{PgConnection, Postgres, Transaction};
@@ -26,41 +28,67 @@ const REJECT_STRUCTURED_INVALID: &str = "REJECT_STRUCTURED_INVALID";
 const IGNORE_DUPLICATE: &str = "IGNORE_DUPLICATE";
 const IGNORE_POLICY_THRESHOLD: &str = "IGNORE_POLICY_THRESHOLD";
 
+/// One chat or event message passed to the event extractor.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct EventMessage {
+	/// Speaker or message role.
 	pub role: String,
+	/// Message body content.
 	pub content: String,
+	/// Optional source timestamp string.
 	pub ts: Option<String>,
+	/// Optional message identifier from the upstream source.
 	pub msg_id: Option<String>,
+	/// Optional write policy applied before extraction.
 	pub write_policy: Option<WritePolicy>,
 }
 
+/// Request payload for event-driven note extraction.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AddEventRequest {
+	/// Tenant that owns the request.
 	pub tenant_id: String,
+	/// Project that owns the request.
 	pub project_id: String,
+	/// Agent that emitted the event batch.
 	pub agent_id: String,
+	/// Optional explicit scope override for extracted notes.
 	pub scope: Option<String>,
+	/// When true, performs validation and extraction without persisting notes.
 	pub dry_run: Option<bool>,
+	/// Optional ingestion profile selector.
 	pub ingestion_profile: Option<IngestionProfileSelector>,
+	/// Source messages to extract notes from.
 	pub messages: Vec<EventMessage>,
 }
 
+/// Per-note outcome for an `add_event` request.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AddEventResult {
+	/// Note identifier when one was created or updated.
 	pub note_id: Option<Uuid>,
+	/// Persistence operation chosen for the extracted note.
 	pub op: NoteOp,
+	/// Memory-policy decision applied to the extracted note.
 	pub policy_decision: MemoryPolicyDecision,
+	/// Machine-readable rejection or ignore code, if any.
 	pub reason_code: Option<String>,
+	/// Human-readable rejection or ignore message, if any.
 	pub reason: Option<String>,
+	/// Field path associated with a validation failure, if any.
 	pub field_path: Option<String>,
+	/// Per-message write-policy audits when write policies were applied.
 	pub write_policy_audits: Option<Vec<WritePolicyAudit>>,
 }
 
+/// Response payload for event-driven note extraction.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AddEventResponse {
+	/// Raw structured extractor output after normalization.
 	pub extracted: Value,
+	/// One result per extracted note.
 	pub results: Vec<AddEventResult>,
+	/// Resolved ingestion profile used for the request.
 	pub ingestion_profile: Option<IngestionProfileRef>,
 }
 
@@ -153,6 +181,7 @@ struct AddEventContext<'a> {
 }
 
 impl ElfService {
+	/// Extracts notes from an event transcript and optionally persists the accepted results.
 	pub async fn add_event(&self, req: AddEventRequest) -> Result<AddEventResponse> {
 		validate_add_event_request(&req)?;
 

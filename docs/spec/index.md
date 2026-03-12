@@ -1,54 +1,57 @@
 # Spec Index
 
-Purpose: Provide the canonical entry point for repository specifications.
+Purpose: Route agents to normative documents that define repository truth.
+Status: normative
+Read this when: You need to find the authoritative contract before changing code or data.
+Not this document: Step-by-step execution guidance or saved planning artifacts.
+Defines: Routing rules for normative documents under `docs/spec/`.
 
-Audience: This documentation is written for LLM consumption and should remain explicit and unambiguous.
+Question this index answers: "what must remain true?"
 
-## Structure
+## Use this index when
 
-- Store specs directly under `docs/spec/` (flat structure).
-- Use descriptive file names with stable prefixes (`system_`, `t0_`, `t1_`, `trace_`, `search_`).
-- Link new specs from `docs/index.md` or `docs/guide/index.md` when relevant.
+- You need an invariant, contract, schema, enum, state model, interface, or required
+  behavior.
+- You are deciding whether code or data is correct.
+- A guide says "see the governing spec" and you need the authoritative source.
 
-## Specs
+## Do not use this index when
 
-- `docs/spec/system_elf_memory_service_v2.md` - ELF Memory Service v2.0 specification.
-- `docs/spec/system_source_ref_doc_pointer_v1.md` - `source_ref` doc pointer resolver for Doc Extension v1.
-- `docs/spec/system_doc_source_ref_v1.md` - `doc_source_ref/v1` schema for docs ingestion provenance.
-- `docs/spec/system_doc_chunking_profiles_v1.md` - doc chunking profile presets for `docs_put` (`doc_type`-specific token windows and overlaps).
-- `docs/spec/system_graph_memory_postgres_v1.md` - Graph memory schema and invariants for Postgres.
-- `docs/spec/system_version_registry.md` - Registry of versioned identifiers and schema versions.
-- `docs/spec/system_doc_extension_v1_filters.md` - Doc Extension v1 filter contracts and Qdrant requirements for `docs_search_l0`.
-- `docs/spec/system_search_filter_expr_v1.md` - Search structured filter expression contract (`search_filter_expr/v1`) and service-side filter-impact diagnostics.
-- `docs/spec/system_provenance_mapping_v1.md` - Admin provenance bundle contract for note-level traceability and request correlation.
+- You need step-by-step instructions, maintenance actions, migrations, or incident
+  response.
+- You need a planning-tool artifact or a saved execution plan under `docs/plans/`.
+- You want rationale only, without an authoritative contract.
 
-## Rollout
+## What belongs in `docs/spec/`
 
-- `docs_search_filters/v1`:
-  - `docs/spec/system_doc_extension_v1_filters.md`
-  - Status: active
-- `doc_source_ref/v1`:
-  - `docs/spec/system_doc_source_ref_v1.md`
-  - Status: active
-- `doc_chunking_profiles/v1`:
-  - `docs/spec/system_doc_chunking_profiles_v1.md`
-  - Status: active
-- `search_filter_expr/v1`:
-  - `docs/spec/system_search_filter_expr_v1.md`
-  - Status: active
-- `elf.graph_query/v1` + `POST /v2/graph/query`:
-  - `docs/spec/system_elf_memory_service_v2.md`
-  - `docs/spec/system_version_registry.md`
-  - Status: active
-- `elf.note_provenance_bundle/v1`:
-  - `docs/spec/system_provenance_mapping_v1.md`
-  - Status: active
+- Contracts and invariants.
+- Data shapes, canonical field names, enums, defaults, units, and limits.
+- State transitions and protocol rules.
+- Behavior that tests, code, or operators should treat as authoritative.
 
-## Authoring guidance (LLM-first)
+## Spec document contract
 
-- Use explicit nouns instead of pronouns whenever possible.
-- Define acronyms and domain terms on first use.
-- Prefer short sentences with one idea each.
-- Include canonical field names, enums, units, and constraints.
-- Provide small, concrete examples for non-obvious flows.
-- Keep links stable and prefer absolute repo paths.
+Start each spec with a compact routing header:
+
+- `Purpose`
+- `Status: normative`
+- `Read this when`
+- `Not this document`
+- `Defines`
+
+Then keep the body explicit:
+
+- Prefer concrete nouns over pronouns.
+- Separate facts from rationale.
+- Include canonical names exactly as code or data uses them.
+- Include a small example when it removes ambiguity.
+- Link to related guides instead of embedding procedures.
+
+## Structure policy
+
+- Prefer shallow paths while the spec set is small.
+- Add subfolders only when they mirror stable system boundaries or materially reduce
+  ambiguity.
+- Do not require fixed filename prefixes up front.
+- Choose names for topic clarity and retrieval quality, not visual uniformity.
+- If a guide depends on a spec, the guide links back to the governing spec.

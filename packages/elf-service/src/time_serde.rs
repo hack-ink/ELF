@@ -1,8 +1,11 @@
+//! `OffsetDateTime` serde helpers.
+
 pub mod option;
 
 use serde::{Deserialize, Deserializer, Serializer};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
+/// Serializes an `OffsetDateTime` as RFC 3339.
 pub fn serialize<S>(value: &OffsetDateTime, serializer: S) -> Result<S::Ok, S::Error>
 where
 	S: Serializer,
@@ -12,6 +15,7 @@ where
 	serializer.serialize_str(&formatted)
 }
 
+/// Deserializes an RFC 3339 string into an `OffsetDateTime`.
 pub fn deserialize<'de, D>(deserializer: D) -> Result<OffsetDateTime, D::Error>
 where
 	D: Deserializer<'de>,

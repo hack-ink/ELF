@@ -1,3 +1,5 @@
+//! Provider adapters for embedding, rerank, and extraction requests.
+
 pub mod embedding;
 pub mod extractor;
 pub mod rerank;
@@ -9,6 +11,7 @@ pub use error::{Error, Result};
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderName};
 use serde_json::{Map, Value};
 
+/// Builds authenticated request headers for provider API calls.
 pub fn auth_headers(api_key: &str, default_headers: &Map<String, Value>) -> Result<HeaderMap> {
 	let mut headers = HeaderMap::new();
 

@@ -1,3 +1,7 @@
+#![allow(unused_crate_dependencies)]
+
+//! Regression tests for Qdrant init-script payload indexes.
+
 use std::{fs, path::PathBuf};
 
 #[test]

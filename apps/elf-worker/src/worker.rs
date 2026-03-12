@@ -1,3 +1,5 @@
+//! Worker runtime and queue-processing helpers.
+
 use std::{collections::HashMap, slice};
 
 use qdrant_client::{
@@ -36,12 +38,19 @@ const TRACE_CLEANUP_INTERVAL_SECONDS: i64 = 900;
 const TRACE_OUTBOX_LEASE_SECONDS: i64 = 30;
 const MAX_OUTBOX_ERROR_CHARS: usize = 1_024;
 
+/// Shared runtime state used by the worker loop.
 pub struct WorkerState {
+	/// Postgres storage handle.
 	pub db: Db,
+	/// Note-index Qdrant collection handle.
 	pub qdrant: QdrantStore,
+	/// Document-index Qdrant collection handle.
 	pub docs_qdrant: QdrantStore,
+	/// Embedding provider configuration.
 	pub embedding: EmbeddingProviderConfig,
+	/// Chunking configuration for notes and docs.
 	pub chunking: ChunkingConfig,
+	/// Tokenizer used for chunking operations.
 	pub tokenizer: Tokenizer,
 }
 
@@ -206,6 +215,7 @@ struct DocChunkIndexRow {
 	chunk_hash: String,
 }
 
+/// Runs the worker polling loop for note, document, and trace outboxes.
 pub async fn run_worker(state: WorkerState) -> Result<()> {
 	let mut last_trace_cleanup = OffsetDateTime::now_utc();
 

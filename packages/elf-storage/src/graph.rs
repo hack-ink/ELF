@@ -1,3 +1,5 @@
+//! Graph entity, predicate, and fact storage helpers.
+
 use sqlx::PgConnection;
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -10,14 +12,17 @@ use crate::{
 const GRAPH_PREDICATE_SCOPE_GLOBAL: &str = "__global__";
 const GRAPH_PREDICATE_SCOPE_PROJECT_PREFIX: &str = "__project__:";
 
+/// Normalizes graph entity surfaces for uniqueness and lookup.
 pub fn normalize_entity_name(input: &str) -> String {
 	input.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase()
 }
 
+/// Normalizes graph predicate surfaces for uniqueness and lookup.
 pub fn normalize_predicate_name(input: &str) -> String {
 	normalize_entity_name(input)
 }
 
+/// Lists predicates visible within the provided scope keys.
 pub async fn list_predicates_by_scope_keys(
 	executor: &mut PgConnection,
 	scope_keys: &[String],
@@ -51,6 +56,7 @@ ORDER BY scope_key, canonical_norm",
 	Ok(rows)
 }
 
+/// Fetches one predicate by identifier.
 pub async fn get_predicate_by_id(
 	executor: &mut PgConnection,
 	predicate_id: Uuid,
@@ -78,6 +84,7 @@ WHERE predicate_id = $1",
 	Ok(row)
 }
 
+/// Updates a predicate's mutable status and cardinality fields.
 pub async fn update_predicate(
 	executor: &mut PgConnection,
 	predicate_id: Uuid,
@@ -129,6 +136,7 @@ RETURNING
 	})
 }
 
+/// Updates a predicate only when its current state matches the expected guard values.
 pub async fn update_predicate_guarded(
 	executor: &mut PgConnection,
 	predicate_id: Uuid,
@@ -216,6 +224,7 @@ pub async fn update_predicate_guarded(
 	)))
 }
 
+/// Registers an additional alias for an existing predicate.
 pub async fn add_predicate_alias(
 	executor: &mut PgConnection,
 	predicate_id: Uuid,
@@ -283,6 +292,7 @@ WHERE graph_predicate_aliases.predicate_id = EXCLUDED.predicate_id",
 	Ok(())
 }
 
+/// Lists aliases bound to one predicate.
 pub async fn list_predicate_aliases(
 	executor: &mut PgConnection,
 	predicate_id: Uuid,
@@ -307,6 +317,7 @@ ORDER BY created_at ASC, alias_norm ASC",
 	Ok(rows)
 }
 
+/// Resolves a predicate surface across visible scopes or registers a project-scoped predicate.
 pub async fn resolve_or_register_predicate(
 	executor: &mut PgConnection,
 	tenant_id: &str,
@@ -419,6 +430,7 @@ ON CONFLICT (scope_key, alias_norm) DO NOTHING",
 	Ok(predicate_row)
 }
 
+/// Resolves a predicate surface across visible scopes without creating a new predicate.
 pub async fn resolve_predicate_no_register(
 	executor: &mut PgConnection,
 	tenant_id: &str,
@@ -470,6 +482,7 @@ LIMIT 1",
 	Ok(None)
 }
 
+/// Resolves an entity surface against canonical names and aliases within one tenant/project.
 pub async fn resolve_entity_by_surface(
 	executor: &mut PgConnection,
 	tenant_id: &str,
@@ -553,6 +566,7 @@ WHERE ge.tenant_id = $1
 }
 
 #[allow(clippy::too_many_arguments)]
+/// Inserts a new graph fact row and attaches its evidence note identifiers.
 pub async fn insert_fact_with_evidence(
 	executor: &mut PgConnection,
 	tenant_id: &str,
@@ -639,6 +653,7 @@ ON CONFLICT (fact_id, note_id) DO NOTHING",
 }
 
 #[allow(clippy::too_many_arguments)]
+/// Upserts an active graph fact row and ensures the provided evidence links exist.
 pub async fn upsert_fact_with_evidence(
 	executor: &mut PgConnection,
 	tenant_id: &str,
@@ -772,6 +787,7 @@ ON CONFLICT (fact_id, note_id) DO NOTHING",
 	Ok(fact_id)
 }
 
+/// Upserts an entity by normalized canonical surface and returns its identifier.
 pub async fn upsert_entity(
 	executor: &mut PgConnection,
 	tenant_id: &str,
@@ -815,6 +831,7 @@ RETURNING entity_id",
 	Ok(row.0)
 }
 
+/// Upserts an alias for an existing entity.
 pub async fn upsert_entity_alias(
 	executor: &mut PgConnection,
 	entity_id: Uuid,
@@ -845,6 +862,7 @@ DO UPDATE SET alias = EXCLUDED.alias",
 	Ok(())
 }
 
+/// Fetches active facts for one subject entity at the provided point in time.
 pub async fn fetch_active_facts_for_subject(
 	executor: &mut PgConnection,
 	tenant_id: &str,
@@ -890,6 +908,7 @@ WHERE tenant_id = $1
 }
 
 #[allow(clippy::too_many_arguments)]
+/// Supersedes active facts that conflict with the replacement fact and records supersession rows.
 pub async fn supersede_conflicting_active_facts(
 	executor: &mut PgConnection,
 	tenant_id: &str,

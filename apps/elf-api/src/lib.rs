@@ -1,3 +1,7 @@
+#![cfg_attr(test, allow(unused_crate_dependencies))]
+
+//! HTTP API application bootstrap for ELF.
+
 pub mod routes;
 pub mod state;
 
@@ -11,6 +15,7 @@ use tracing_subscriber::EnvFilter;
 use crate::state::AppState;
 use elf_config::Config;
 
+/// CLI arguments for launching the ELF API service.
 #[derive(Debug, Parser)]
 #[command(
 	version = elf_cli::VERSION,
@@ -18,10 +23,12 @@ use elf_config::Config;
 	styles = elf_cli::styles(),
 )]
 pub struct Args {
+	/// Path to the ELF configuration file.
 	#[arg(long, short = 'c', value_name = "FILE")]
 	pub config: PathBuf,
 }
 
+/// Starts the public and admin HTTP servers.
 pub async fn run(args: Args) -> Result<()> {
 	let config = elf_config::load(&args.config)?;
 	let http_addr: SocketAddr = config.service.http_bind.parse()?;

@@ -1,25 +1,39 @@
+//! Sentence-aware token chunking utilities for ELF ingestion paths.
+
 pub use tokenizers::{Error, Tokenizer};
 
 use unicode_segmentation::UnicodeSegmentation;
 
+/// Token-window settings used when splitting text into chunks.
 #[derive(Clone, Debug)]
 pub struct ChunkingConfig {
+	/// Maximum tokens allowed in one output chunk.
 	pub max_tokens: u32,
+	/// Number of tail tokens carried into the next chunk.
 	pub overlap_tokens: u32,
 }
 
+/// One token-bounded text chunk with offsets into the original input.
 #[derive(Clone, Debug)]
 pub struct Chunk {
+	/// Zero-based chunk position in the output sequence.
 	pub chunk_index: i32,
+	/// Byte offset where this chunk starts in the original text.
 	pub start_offset: usize,
+	/// Byte offset where this chunk ends in the original text.
 	pub end_offset: usize,
+	/// Chunk text slice copied from the original input.
 	pub text: String,
 }
 
+/// Loads a Hugging Face tokenizer by repository identifier.
 pub fn load_tokenizer(repo: &str) -> Result<Tokenizer, Error> {
 	Tokenizer::from_pretrained(repo, None)
 }
 
+/// Splits text into sentence-aware chunks that honor the configured token window.
+///
+/// Returned chunks preserve byte offsets into the original `text`.
 pub fn split_text(text: &str, cfg: &ChunkingConfig, tokenizer: &Tokenizer) -> Vec<Chunk> {
 	let sentences: Vec<(usize, &str)> = text.split_sentence_bound_indices().collect();
 	let mut chunks = Vec::new();

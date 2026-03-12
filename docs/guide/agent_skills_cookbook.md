@@ -1,6 +1,10 @@
 # Agent Skills Cookbook (MCP-first)
 
-Purpose: Provide reference agent-side workflows ("skills") for using ELF via MCP in a consistent, auditable, facts-first way.
+Goal: Provide reference agent-side workflows for using ELF via MCP in a consistent, auditable, facts-first way.
+Read this when: You are designing or operating agent workflows on top of ELF MCP or HTTP APIs.
+Inputs: A working ELF deployment or design target plus the relevant ELF service contracts.
+Depends on: `docs/spec/system_elf_memory_service_v2.md` and related MCP-facing specs.
+Outputs: Reusable workflow patterns that stay within the ELF contract without redefining it.
 
 Scope: This is a guide/playbook. It is non-normative and does not change the ELF system contract.
 

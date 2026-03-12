@@ -1,3 +1,7 @@
+#![allow(unused_crate_dependencies)]
+
+//! Integration tests for storage schema bootstrap.
+
 use tokio::runtime::Runtime;
 use uuid::Uuid;
 

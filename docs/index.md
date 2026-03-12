@@ -1,45 +1,40 @@
 # Documentation Index
 
-Purpose: Provide the canonical entry point and reading order for repository documentation.
+Purpose: Route agents to the smallest correct document set for the current task.
+Read this when: You are starting from repository docs and need to choose the right lane.
+Not this document: Detailed subsystem contracts, step-by-step runbooks, or saved plan artifacts.
+Routes to: `docs/governance.md`, `docs/spec/`, `docs/guide/`, `docs/plans/`, and `Makefile.toml`.
 
-## Start here
+Audience: All documentation in this repository is written for AI agents and LLM workflows.
+The split below is by question type, not by human-versus-agent audience.
 
-- `AGENTS.md` for automated agent rules and tooling constraints.
-- `docs/spec/index.md` for normative system specifications and contracts.
-- `docs/guide/index.md` for operational guides and runbooks.
-- `docs/guide/getting_started.md` for local setup and quick run.
-- `docs/research/index.md` for external project comparison and research inventory.
-- `docs/governance.md` for documentation structure and update rules.
-- `docs/plans/` for Claude-generated execution plans (non-normative).
+## Read order
 
-## Documentation classes
+- Read `docs/governance.md` for document contracts and placement rules.
+- Read `Makefile.toml` when the task depends on repo task names or execution entrypoints.
+- Then choose one primary lane:
+  - `docs/spec/index.md` when the question is "what must be true?"
+  - `docs/guide/index.md` when the question is "what should I do?"
+- Use `docs/plans/` only when a planning tool or execution workflow explicitly points to
+  a saved plan artifact there.
 
-### Specifications (normative)
+## Routing matrix
 
-- Location: `docs/spec/` (flat structure).
-- Use for: System contracts, data models, pipeline behavior, and required invariants.
-- Entry point: `docs/spec/index.md`.
-- Core spec: `docs/spec/system_elf_memory_service_v2.md`.
-- Version registry: `docs/spec/system_version_registry.md`.
+- Need contracts, invariants, schemas, enums, state machines, or required behavior ->
+  `docs/spec/`
+- Need runbooks, migrations, validation steps, troubleshooting, or operational sequences ->
+  `docs/guide/`
+- Need external comparisons or architecture research inputs -> `docs/guide/research/`
+- Need repo task names or automation entrypoints -> `Makefile.toml`
+- Need documentation placement or authoring rules -> `docs/governance.md`
+- Need a planning-tool artifact or saved execution plan -> `docs/plans/`
 
-### Operational and pipeline docs (implementation guides)
+## Retrieval rules
 
-- Location: `docs/guide/`
-- Use for: Runbooks, pipeline walkthroughs, operational maintenance, and test procedures.
-- Entry point: `docs/guide/index.md`.
-
-### External research and comparisons
-
-- Location: `docs/research/`
-- Use for: External project analysis, architecture comparison, and research inventory.
-- Entry point: `docs/research/index.md`.
-
-### Working plans and drafts
-
-- Location: `docs/plans/`
-- Use for: Temporary design docs and execution plans that may drift.
-
-### Repository README
-
-- Location: `README.md` (the only README in the repository).
-- Use for: High-level project overview and entry points into `docs/`.
+- Optimize for agent routing and execution, not narrative flow.
+- Keep one authoritative document per topic. Link instead of copying.
+- Start each document with a short routing header that says what the document is for,
+  when to read it, and what it does not cover.
+- Keep links explicit and stable.
+- Let structure emerge from real topics. Do not create empty folders, empty indexes, or
+  naming schemes that are stricter than the current corpus needs.
