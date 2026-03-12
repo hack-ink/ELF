@@ -1,3 +1,7 @@
+#![allow(unused_crate_dependencies)]
+
+//! Integration tests for service-layer note ingestion and policy behavior.
+
 use std::sync::{
 	Arc,
 	atomic::{AtomicUsize, Ordering},

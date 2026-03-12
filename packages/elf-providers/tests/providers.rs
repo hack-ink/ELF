@@ -1,3 +1,7 @@
+#![allow(unused_crate_dependencies)]
+
+//! Integration checks for provider-facing helpers.
+
 use reqwest::header::AUTHORIZATION;
 use serde_json::Map;
 

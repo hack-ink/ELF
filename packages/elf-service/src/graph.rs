@@ -1,3 +1,5 @@
+//! Graph retrieval and mutation APIs.
+
 use time::OffsetDateTime;
 use uuid::Uuid;
 

@@ -1,3 +1,5 @@
+//! Document persistence queries.
+
 use serde_json::Value;
 use sqlx::PgExecutor;
 use time::OffsetDateTime;
@@ -8,10 +10,12 @@ use crate::{
 	models::{DocChunk, DocDocument},
 };
 
+/// Normalizes absent document source metadata to an empty JSON object.
 pub fn normalize_source_ref(source_ref: Option<Value>) -> Value {
 	source_ref.unwrap_or(Value::Object(Default::default()))
 }
 
+/// Inserts one document record into storage.
 pub async fn insert_doc_document<'e, E>(executor: E, doc: &DocDocument) -> Result<()>
 where
 	E: PgExecutor<'e>,
@@ -56,6 +60,7 @@ where
 	Ok(())
 }
 
+/// Fetches one document record by tenant and document identifier.
 pub async fn get_doc_document<'e, E>(
 	executor: E,
 	tenant_id: &str,
@@ -93,6 +98,7 @@ LIMIT 1",
 	Ok(row)
 }
 
+/// Inserts one document chunk row.
 pub async fn insert_doc_chunk<'e, E>(executor: E, chunk: &DocChunk) -> Result<()>
 where
 	E: PgExecutor<'e>,
@@ -125,6 +131,7 @@ VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
 	Ok(())
 }
 
+/// Lists all chunks for one document in chunk order.
 pub async fn list_doc_chunks<'e, E>(executor: E, doc_id: Uuid) -> Result<Vec<DocChunk>>
 where
 	E: PgExecutor<'e>,
@@ -151,6 +158,7 @@ ORDER BY chunk_index ASC",
 	Ok(rows)
 }
 
+/// Fetches one document chunk by chunk identifier.
 pub async fn get_doc_chunk<'e, E>(executor: E, chunk_id: Uuid) -> Result<Option<DocChunk>>
 where
 	E: PgExecutor<'e>,
@@ -177,6 +185,7 @@ LIMIT 1",
 	Ok(row)
 }
 
+/// Upserts one dense or sparse embedding vector for a document chunk.
 pub async fn insert_doc_chunk_embedding<'e, E>(
 	executor: E,
 	chunk_id: Uuid,
@@ -207,6 +216,7 @@ SET
 	Ok(())
 }
 
+/// Marks one document record as deleted.
 pub async fn mark_doc_deleted<'e, E>(
 	executor: E,
 	tenant_id: &str,

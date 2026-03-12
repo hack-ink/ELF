@@ -1,3 +1,5 @@
+//! Embedding-provider client helpers.
+
 use std::time::Duration;
 
 use reqwest::Client;
@@ -6,6 +8,7 @@ use serde_json::Value;
 use crate::{Error, Result};
 use elf_config::EmbeddingProviderConfig;
 
+/// Embeds texts with the configured provider or local fallback implementation.
 pub async fn embed(cfg: &EmbeddingProviderConfig, texts: &[String]) -> Result<Vec<Vec<f32>>> {
 	if cfg.provider_id == "local" {
 		let dim = cfg.dimensions as usize;

@@ -1,3 +1,7 @@
+#![allow(unused_crate_dependencies)]
+
+//! Integration tests for memory-policy evaluation.
+
 use elf_config::{
 	Chunking, Config, EmbeddingProviderConfig, Lifecycle, LlmProviderConfig, Memory, MemoryPolicy,
 	MemoryPolicyRule, Postgres, ProviderConfig, Providers, Qdrant, Ranking, RankingBlend,

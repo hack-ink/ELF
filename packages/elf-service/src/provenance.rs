@@ -1,3 +1,5 @@
+//! Provenance inspection APIs.
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sqlx::{FromRow, PgPool};
@@ -13,46 +15,76 @@ const NOTE_PROVENANCE_NOTE_VERSIONS_LIMIT: i64 = 100;
 const NOTE_PROVENANCE_OUTBOX_LIMIT: i64 = 100;
 const NOTE_PROVENANCE_RECENT_TRACES_LIMIT: i64 = 20;
 
+/// Request payload for note provenance lookup.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct NoteProvenanceGetRequest {
+	/// Tenant that owns the note.
 	pub tenant_id: String,
+	/// Project that owns the note.
 	pub project_id: String,
+	/// Identifier of the note to inspect.
 	pub note_id: Uuid,
 }
 
+/// Full provenance bundle for one note.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct NoteProvenanceBundleResponse {
+	/// Provenance bundle schema identifier.
 	pub schema: String,
+	/// Current persisted note snapshot.
 	pub note: NoteProvenanceNote,
+	/// Recorded ingestion decisions for the note.
 	pub ingest_decisions: Vec<NoteProvenanceIngestDecision>,
+	/// Version-history rows for the note.
 	pub note_versions: Vec<NoteProvenanceNoteVersion>,
+	/// Indexing outbox history for the note.
 	pub indexing_outbox: Vec<NoteProvenanceIndexingOutbox>,
+	/// Recent search traces that referenced the note.
 	pub recent_traces: Vec<NoteProvenanceRecentTrace>,
 }
 
+/// Current note snapshot returned by provenance APIs.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct NoteProvenanceNote {
+	/// Note identifier.
 	pub note_id: Uuid,
+	/// Tenant that owns the note.
 	pub tenant_id: String,
+	/// Project that owns the note.
 	pub project_id: String,
+	/// Agent that wrote the note.
 	pub agent_id: String,
+	/// Scope key for the note.
 	pub scope: String,
+	/// Note type discriminator.
 	pub r#type: String,
+	/// Optional application-defined key.
 	pub key: Option<String>,
+	/// Note body text.
 	pub text: String,
+	/// Importance score.
 	pub importance: f32,
+	/// Confidence score.
 	pub confidence: f32,
+	/// Lifecycle status.
 	pub status: String,
 	#[serde(with = "crate::time_serde")]
+	/// Creation timestamp.
 	pub created_at: OffsetDateTime,
 	#[serde(with = "crate::time_serde")]
+	/// Last update timestamp.
 	pub updated_at: OffsetDateTime,
 	#[serde(with = "crate::time_serde::option")]
+	/// Optional expiry timestamp.
 	pub expires_at: Option<OffsetDateTime>,
+	/// Structured source reference metadata.
 	pub source_ref: Value,
+	/// Embedding version associated with the note.
 	pub embedding_version: String,
+	/// Search hit counter.
 	pub hit_count: i64,
 	#[serde(with = "crate::time_serde::option")]
+	/// Timestamp of the most recent hit.
 	pub last_hit_at: Option<OffsetDateTime>,
 }
 impl From<MemoryNote> for NoteProvenanceNote {
@@ -80,23 +112,39 @@ impl From<MemoryNote> for NoteProvenanceNote {
 	}
 }
 
+/// One recorded ingestion decision for a note.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct NoteProvenanceIngestDecision {
+	/// Decision identifier.
 	pub decision_id: Uuid,
+	/// Tenant that owns the decision record.
 	pub tenant_id: String,
+	/// Project that owns the decision record.
 	pub project_id: String,
+	/// Agent that triggered the ingestion decision.
 	pub agent_id: String,
+	/// Scope key evaluated by the decision.
 	pub scope: String,
+	/// Pipeline name that produced the decision.
 	pub pipeline: String,
+	/// Note type discriminator under evaluation.
 	pub note_type: String,
+	/// Optional application-defined key under evaluation.
 	pub note_key: Option<String>,
+	/// Note identifier, when a note was persisted or matched.
 	pub note_id: Option<Uuid>,
+	/// Pre-policy base decision.
 	pub base_decision: String,
+	/// Final policy decision.
 	pub policy_decision: String,
+	/// Persistence operation that followed the decision.
 	pub note_op: String,
+	/// Machine-readable reason code, if any.
 	pub reason_code: Option<String>,
+	/// Structured diagnostic details.
 	pub details: Value,
 	#[serde(with = "crate::time_serde")]
+	/// Decision timestamp.
 	pub ts: OffsetDateTime,
 }
 impl From<NoteIngestDecisionRow> for NoteProvenanceIngestDecision {
@@ -121,18 +169,27 @@ impl From<NoteIngestDecisionRow> for NoteProvenanceIngestDecision {
 	}
 }
 
+/// One version-history row for a note.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct NoteProvenanceNoteVersion {
+	/// Version row identifier.
 	pub version_id: Uuid,
+	/// Note identifier.
 	pub note_id: Uuid,
+	/// Operation recorded in the version row.
 	pub op: String,
 	#[serde(skip_serializing_if = "Option::is_none")]
+	/// Snapshot before the operation, when available.
 	pub prev_snapshot: Option<Value>,
 	#[serde(skip_serializing_if = "Option::is_none")]
+	/// Snapshot after the operation, when available.
 	pub new_snapshot: Option<Value>,
+	/// Human-readable reason for the change.
 	pub reason: String,
+	/// Actor that performed the change.
 	pub actor: String,
 	#[serde(with = "crate::time_serde")]
+	/// Version timestamp.
 	pub ts: OffsetDateTime,
 }
 impl From<NoteVersionRow> for NoteProvenanceNoteVersion {
@@ -150,21 +207,32 @@ impl From<NoteVersionRow> for NoteProvenanceNoteVersion {
 	}
 }
 
+/// One indexing-outbox row for a note.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct NoteProvenanceIndexingOutbox {
+	/// Outbox identifier.
 	pub outbox_id: Uuid,
+	/// Note identifier.
 	pub note_id: Uuid,
+	/// Requested indexing operation.
 	pub op: String,
+	/// Embedding version targeted by the job.
 	pub embedding_version: String,
+	/// Current outbox status.
 	pub status: String,
+	/// Number of attempts already made.
 	pub attempts: i32,
 	#[serde(skip_serializing_if = "Option::is_none")]
+	/// Most recent failure text, if any.
 	pub last_error: Option<String>,
 	#[serde(with = "crate::time_serde")]
+	/// Earliest time the job may be claimed again.
 	pub available_at: OffsetDateTime,
 	#[serde(with = "crate::time_serde")]
+	/// Creation timestamp.
 	pub created_at: OffsetDateTime,
 	#[serde(with = "crate::time_serde")]
+	/// Last update timestamp.
 	pub updated_at: OffsetDateTime,
 }
 impl From<NoteIndexingOutboxRow> for NoteProvenanceIndexingOutbox {
@@ -184,15 +252,23 @@ impl From<NoteIndexingOutboxRow> for NoteProvenanceIndexingOutbox {
 	}
 }
 
+/// Recent search trace that referenced the note.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct NoteProvenanceRecentTrace {
+	/// Search trace identifier.
 	pub trace_id: Uuid,
+	/// Tenant that owns the trace.
 	pub tenant_id: String,
+	/// Project that owns the trace.
 	pub project_id: String,
+	/// Agent that ran the search.
 	pub agent_id: String,
+	/// Read profile used for the trace.
 	pub read_profile: String,
+	/// Search query text.
 	pub query: String,
 	#[serde(with = "crate::time_serde")]
+	/// Trace creation timestamp.
 	pub created_at: OffsetDateTime,
 }
 
@@ -260,6 +336,7 @@ struct NoteRecentTraceRow {
 }
 
 impl ElfService {
+	/// Loads the current note plus recent provenance tables as one bundle.
 	pub async fn note_provenance_get(
 		&self,
 		req: NoteProvenanceGetRequest,

@@ -1,6 +1,10 @@
 # System: Search Filter Expression Contract v1
 
 Purpose: Define the structured filter payload used by search endpoints via `search_filter_expr/v1`.
+Status: normative
+Read this when: You are implementing, validating, or parsing structured search filters.
+Not this document: Ranking behavior, retrieval fusion policy, or search troubleshooting steps.
+Defines: `search_filter_expr/v1`.
 
 Registry identifier:
 - `search_filter_expr/v1`: Structured filter request envelope.

@@ -146,8 +146,8 @@ Project signature strengths (what each does especially well):
 
 Detailed comparison, mechanism-level analysis, and source map:
 
-- [Detailed External Comparison](docs/research/comparison_external_projects.md)
-- [Research Projects Inventory](docs/research/research_projects_inventory.md)
+- [Detailed External Comparison](docs/guide/research/comparison_external_projects.md)
+- [Research Projects Inventory](docs/guide/research/research_projects_inventory.md)
 
 Snapshot date in that document: February 17, 2026.
 
@@ -155,7 +155,7 @@ Snapshot date in that document: February 17, 2026.
 
 - Start here: `docs/index.md`
 - Operational guide index: `docs/guide/index.md`
-- Research index: `docs/research/index.md`
+- Research index: `docs/guide/research/index.md`
 - Specifications: `docs/spec/index.md`
 - System contract: `docs/spec/system_elf_memory_service_v2.md`
 - Ingest policy: `policy_decision` values (`remember`, `update`, `ignore`, `reject`) are returned for each note result in `add_note` and `add_event`.

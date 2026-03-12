@@ -1,6 +1,10 @@
 # System: `doc_chunking_profiles/v1` for `docs_put`
 
-Purpose: define token-based chunking profiles used by Doc Extension v1 ingestion.
+Purpose: Define token-based chunking profiles used by Doc Extension v1 ingestion.
+Status: normative
+Read this when: You are implementing, validating, or debugging `docs_put` chunking behavior.
+Not this document: Retrieval ranking, filter semantics, or end-to-end ingestion workflow steps.
+Defines: `doc_chunking_profiles/v1`, selected profiles, and chunking invariants for `docs_put`.
 
 Identifiers:
 - Envelope identifier: `doc_chunking_profiles/v1`

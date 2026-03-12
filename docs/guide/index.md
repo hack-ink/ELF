@@ -1,31 +1,67 @@
 # Guide Index
 
-Purpose: Provide the entry point for operational guidance and runbooks.
+Goal: Route agents to procedural documents that tell them how to execute work safely and
+repeatably.
+Read this when: You know the question is operational and need the best execution path.
+Inputs: The current task shape, subsystem, and whether you need background research.
+Depends on: `docs/index.md` and `docs/governance.md`.
+Outputs: The smallest guide or guide subfolder needed to continue execution.
 
-## Start here
+Question this index answers: "what should I do?"
 
-- `docs/guide/getting_started.md` for local setup, run, and development commands.
-- `docs/spec/index.md` for normative system specifications and contracts.
-- `docs/governance.md` for documentation structure, ownership, and update rules.
+## Use this index when
 
-## Operations
+- You need a runbook, how-to, migration sequence, validation flow, troubleshooting
+  path, or maintenance procedure.
+- You already know the relevant spec and need the operational steps.
+- You need a bounded sequence with prerequisites and verification.
+- You need external comparisons or research notes that inform an implementation choice.
 
-- `docs/guide/agent-setup.md` - Agent-assisted setup and usage.
-- `docs/guide/agent_skills_cookbook.md` - Reference agent workflows (skills) for MCP-first usage.
-- `docs/guide/evaluation.md` - Retrieval evaluation workflow and dataset format.
-- `docs/guide/integration-testing.md` - End-to-end memory retrieval testing.
-- `docs/guide/testing.md` - Test taxonomy and command scope.
-- `docs/guide/observability.md` - MCP/admin traceability, request correlation, and worker trace field workflows.
+## Do not use this index when
 
-## Cross-links
+- You need the authoritative contract, schema, or invariant.
+- You need a planning-tool artifact or a saved execution plan under `docs/plans/`.
+- You need broad documentation policy or repo task-entrypoint rules; read
+  `docs/governance.md` or `Makefile.toml` instead.
 
-- `docs/research/index.md` - External comparison and research inventory.
+## What belongs in `docs/guide/`
 
-## Development
+- Task-oriented runbooks.
+- Validation and test procedures.
+- Migration, rollout, rollback, and recovery sequences.
+- Troubleshooting flows and operator checklists.
+- Short implementation recipes that depend on a governing spec.
+- Decision-support research and external comparisons that inform implementation choices.
 
-- `docs/guide/development/issue_labeling.md` - Issue labeling conventions.
+## Guide document contract
 
-## Data samples
+Start each guide with a compact routing header:
 
-- `docs/guide/eval-sample.json` - Evaluation dataset example.
-- `docs/guide/eval-structured-facts-sample.json` - Structured facts evaluation sample.
+- `Goal`
+- `Read this when`
+- `Inputs` or `Preconditions`
+- `Depends on`
+- `Outputs` or `Verification`
+
+Then structure the body for execution:
+
+- Write steps in the order an agent should perform them.
+- Keep commands, checks, and rollback points explicit.
+- Link to specs for normative truth instead of restating contracts.
+- Include failure branches only when they change the next action.
+- End with verification so an agent can tell whether the guide succeeded.
+
+## Structure policy
+
+- Group guides by workflow or subsystem only when multiple guides exist and the grouping
+  improves retrieval.
+- Do not create empty category folders or placeholder section headings.
+- Prefer titles that encode the task or outcome, such as `validate_release.md` or
+  `rerun_ingest_job.md`.
+- Keep the guide index as a router, not a dumping ground for long explanations.
+
+## Guide subfolders
+
+- `docs/guide/development/` for repository-development workflows.
+- `docs/guide/research/` for external comparisons and decision-support materials that are
+  non-normative.

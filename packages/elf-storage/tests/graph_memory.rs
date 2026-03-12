@@ -1,3 +1,7 @@
+#![allow(unused_crate_dependencies)]
+
+//! Integration tests for graph and memory storage helpers.
+
 use sqlx::PgConnection;
 use time::{Duration, OffsetDateTime};
 use uuid::Uuid;

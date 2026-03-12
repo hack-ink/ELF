@@ -1,6 +1,10 @@
 # Test Names and Scope
 
-Purpose: Provide consistent names for test categories and the commands that run them.
+Goal: Provide consistent names for test categories and the commands that run them.
+Read this when: You need to choose, report, or request the right test lane for a change.
+Inputs: The repository test surface and current validation target.
+Depends on: `Makefile.toml` and the repository CI/test workflow.
+Outputs: A consistent test-category name and the matching command or workflow.
 
 ## Names
 

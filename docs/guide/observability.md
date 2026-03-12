@@ -1,6 +1,10 @@
 # Observability and Correlation (MCP + Admin API)
 
-Purpose: Provide a practical traceability workflow for agents and operators.
+Goal: Provide a practical traceability workflow for agents and operators.
+Read this when: You need to correlate requests, traces, tool calls, and admin inspection surfaces.
+Inputs: Running `elf-mcp` and `elf-api` instances plus request identifiers or trace IDs.
+Depends on: Admin API support and the relevant trace/provenance contracts.
+Outputs: A correlated request trail that links surface-level behavior back to stored trace data.
 
 ## 1) Request correlation
 

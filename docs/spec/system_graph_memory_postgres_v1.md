@@ -1,5 +1,11 @@
 # Graph Memory Postgres v1.0 Specification
 
+Purpose: Define the canonical entity/fact temporal memory schema and invariants for PostgreSQL-backed graph memory.
+Status: normative
+Read this when: You are implementing, migrating, or validating ELF graph-memory persistence behavior.
+Not this document: Graph query runbooks, external comparisons, or service rollout procedures.
+Defines: Graph Memory Postgres v1.0 tables, keys, and temporal invariants.
+
 Description: Canonical entity/fact temporal memory schema and invariants for PostgreSQL-backed graph memory.
 Language: English only.
 

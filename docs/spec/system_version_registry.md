@@ -1,6 +1,10 @@
 # System Version Registry
 
 Purpose: Provide a single registry for versioned identifiers used across ELF.
+Status: normative
+Read this when: You are introducing, validating, or auditing a versioned identifier used by ELF.
+Not this document: Detailed behavior for any one subsystem or the procedural rollout for a version bump.
+Defines: The canonical registry of ELF versioned identifiers.
 
 This document is normative. When a new versioned identifier is introduced, it must be added here.
 

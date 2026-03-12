@@ -1,3 +1,7 @@
+#![allow(unused_crate_dependencies)]
+
+//! CLI for evaluating trace-regression gates against stored traces.
+
 use std::{collections::HashSet, fs, path::PathBuf};
 
 use clap::Parser;

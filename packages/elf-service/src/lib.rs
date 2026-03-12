@@ -1,3 +1,7 @@
+#![cfg_attr(test, allow(unused_crate_dependencies))]
+
+//! Service-layer request models and orchestration for ELF.
+
 pub mod add_event;
 pub mod add_note;
 pub mod admin;
@@ -100,9 +104,12 @@ use elf_domain::writegate::RejectCode;
 use elf_providers::{embedding, extractor, rerank};
 use elf_storage::{db::Db, models::MemoryNote, qdrant::QdrantStore};
 
+/// Boxed future type used by provider traits.
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
+/// Rejection code emitted when event evidence quotes do not match the source messages.
 pub const REJECT_EVIDENCE_MISMATCH: &str = "REJECT_EVIDENCE_MISMATCH";
+/// Rejection code emitted when a write policy and extracted output disagree.
 pub const REJECT_WRITE_POLICY_MISMATCH: &str = "REJECT_WRITE_POLICY_MISMATCH";
 
 const RESOLVE_UPDATE_QUERY: &str = "\
@@ -146,10 +153,12 @@ best AS (
 		(SELECT note_id FROM best) AS best_note_id,
 		(SELECT similarity FROM best) AS best_similarity";
 
+/// Embedding provider contract used by the service layer.
 pub trait EmbeddingProvider
 where
 	Self: Send + Sync,
 {
+	/// Embeds one or more texts into dense vectors.
 	fn embed<'a>(
 		&'a self,
 		cfg: &'a EmbeddingProviderConfig,
@@ -157,10 +166,12 @@ where
 	) -> BoxFuture<'a, Result<Vec<Vec<f32>>>>;
 }
 
+/// Rerank provider contract used by the service layer.
 pub trait RerankProvider
 where
 	Self: Send + Sync,
 {
+	/// Scores candidate documents for one query.
 	fn rerank<'a>(
 		&'a self,
 		cfg: &'a ProviderConfig,
@@ -169,10 +180,12 @@ where
 	) -> BoxFuture<'a, Result<Vec<f32>>>;
 }
 
+/// Extractor provider contract used by the service layer.
 pub trait ExtractorProvider
 where
 	Self: Send + Sync,
 {
+	/// Extracts structured JSON output from a message transcript.
 	fn extract<'a>(
 		&'a self,
 		cfg: &'a LlmProviderConfig,
@@ -180,13 +193,19 @@ where
 	) -> BoxFuture<'a, Result<Value>>;
 }
 
+/// Note operation emitted by service mutations.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum NoteOp {
+	/// A new note was inserted.
 	Add,
+	/// An existing note was updated.
 	Update,
+	/// No persisted change was required.
 	None,
+	/// A note was deleted.
 	Delete,
+	/// The request was rejected before persistence.
 	Rejected,
 }
 
@@ -221,13 +240,18 @@ pub(crate) struct UpdateDecisionMetadata {
 	pub matched_dup: bool,
 }
 
+/// Provider bundle used by `ElfService`.
 #[derive(Clone)]
 pub struct Providers {
+	/// Dense embedding provider implementation.
 	pub embedding: Arc<dyn EmbeddingProvider>,
+	/// Rerank provider implementation.
 	pub rerank: Arc<dyn RerankProvider>,
+	/// Structured extraction provider implementation.
 	pub extractor: Arc<dyn ExtractorProvider>,
 }
 impl Providers {
+	/// Builds a provider bundle from explicit provider implementations.
 	pub fn new(
 		embedding: Arc<dyn EmbeddingProvider>,
 		rerank: Arc<dyn RerankProvider>,
@@ -245,17 +269,24 @@ impl Default for Providers {
 	}
 }
 
+/// Main service container for ELF request handling.
 pub struct ElfService {
+	/// Repository configuration snapshot.
 	pub cfg: Config,
+	/// Postgres storage handle.
 	pub db: Db,
+	/// Qdrant storage handle.
 	pub qdrant: QdrantStore,
+	/// External model-provider adapters.
 	pub providers: Providers,
 }
 impl ElfService {
+	/// Builds a service with the default provider adapters.
 	pub fn new(cfg: Config, db: Db, qdrant: QdrantStore) -> Self {
 		Self { cfg, db, qdrant, providers: Providers::default() }
 	}
 
+	/// Builds a service with explicit provider adapters.
 	pub fn with_providers(cfg: Config, db: Db, qdrant: QdrantStore, providers: Providers) -> Self {
 		Self { cfg, db, qdrant, providers }
 	}

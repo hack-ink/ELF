@@ -1,7 +1,10 @@
+//! TTL helpers derived from lifecycle configuration.
+
 use time::{Duration, OffsetDateTime};
 
 use elf_config::Config;
 
+/// Computes the note expiration timestamp from an explicit TTL or configured defaults.
 pub fn compute_expires_at(
 	ttl_days: Option<i64>,
 	note_type: &str,

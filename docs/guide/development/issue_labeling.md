@@ -1,5 +1,11 @@
 # Issue Labeling
 
+Goal: Standardize how GitHub issues are labeled in this repository.
+Read this when: You are creating, revising, or auditing issue labels and issue triage.
+Inputs: The current GitHub issue tracker plus the repository's issue taxonomy needs.
+Depends on: Existing label groups and the repository's development workflow.
+Verification: Labels remain consistent, searchable, and aligned with the documented taxonomy.
+
 This guide standardizes how GitHub issues are labeled in this repository.
 
 ## Goals

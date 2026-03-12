@@ -1,3 +1,5 @@
+//! Administrative maintenance APIs.
+
 use std::collections::HashMap;
 
 use qdrant_client::{
@@ -13,10 +15,14 @@ use uuid::Uuid;
 use crate::{ElfService, Error, Result};
 use elf_storage::qdrant::{BM25_MODEL, BM25_VECTOR_NAME, DENSE_VECTOR_NAME};
 
+/// Summary of one Qdrant rebuild run.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct RebuildReport {
+	/// Number of chunks successfully rebuilt into Qdrant.
 	pub rebuilt_count: u64,
+	/// Number of chunks skipped because no embedding vector was present.
 	pub missing_vector_count: u64,
+	/// Number of chunks skipped because rebuild failed.
 	pub error_count: u64,
 }
 
@@ -44,6 +50,7 @@ struct RebuildRow {
 }
 
 impl ElfService {
+	/// Rebuilds Qdrant note points from persisted Postgres chunks and embeddings.
 	pub async fn rebuild_qdrant(&self) -> Result<RebuildReport> {
 		let now = OffsetDateTime::now_utc();
 		let rows: Vec<RebuildRow> = sqlx::query_as::<_, RebuildRow>(

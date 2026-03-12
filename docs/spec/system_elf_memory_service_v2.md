@@ -1,5 +1,11 @@
 # ELF Memory Service v2.0 Specification
 
+Purpose: Define the ELF Memory Service v2.0 contract, invariants, and storage model.
+Status: normative
+Read this when: You are implementing, validating, or reviewing the core ELF memory service behavior.
+Not this document: Operator runbooks, local setup steps, or issue-triage workflows.
+Defines: ELF Memory Service v2.0 API semantics, ingestion boundaries, and storage invariants.
+
 Description: ELF means Evidence-linked fact memory for agents.
 
 Audience: Implementation LLM or engineer agent.

@@ -1,6 +1,10 @@
 # System: `source_ref` Doc Pointer Resolver (v1)
 
 Purpose: Define a concrete, versioned `source_ref` schema for document pointers so agents can reliably hydrate long-form evidence after a note is retrieved.
+Status: normative
+Read this when: You are implementing or validating note-level document-pointer hydration for retrieved evidence.
+Not this document: `docs_put` ingestion-time `doc_source_ref/v1` rules or operator retrieval workflows.
+Defines: `source_ref/v1` with `resolver = "elf_doc_ext/v1"`.
 
 Audience: LLM agents and implementers integrating ELF Core + Doc Extension v1.
 

@@ -5,50 +5,85 @@ use serde_json::Value;
 
 use elf_config::Config;
 
+/// Schema identifier for ranking explanations returned by the search service.
 pub const SEARCH_RANKING_EXPLAIN_SCHEMA_V2: &str = "search_ranking_explain/v2";
 
+/// One named term that contributed to a ranking score.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchRankingTerm {
+	/// Stable term identifier.
 	pub name: String,
+	/// Numeric contribution for the term.
 	pub value: f32,
 	#[serde(skip_serializing_if = "Option::is_none")]
+	/// Optional raw inputs used to compute the term.
 	pub inputs: Option<BTreeMap<String, Value>>,
 }
 
+/// Full ranking explanation for one search result.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SearchRankingExplain {
+	/// Explanation schema identifier.
 	pub schema: String,
+	/// Ranking-policy fingerprint used to compute the score.
 	pub policy_id: String,
+	/// Final blended score.
 	pub final_score: f32,
+	/// Individual score terms.
 	pub terms: Vec<SearchRankingTerm>,
 }
 
+/// Arguments used to build per-term ranking explanations for a trace item.
 pub struct TraceTermsArgs<'a> {
+	/// Service configuration snapshot.
 	pub cfg: &'a Config,
+	/// Whether blend ranking was enabled.
 	pub blend_enabled: bool,
+	/// Retrieval-score normalization label.
 	pub retrieval_normalization: &'a str,
+	/// Rerank-score normalization label.
 	pub rerank_normalization: &'a str,
+	/// Retrieval weight chosen by the blend policy.
 	pub blend_retrieval_weight: f32,
+	/// 1-based retrieval rank.
 	pub retrieval_rank: u32,
+	/// Normalized retrieval score.
 	pub retrieval_norm: f32,
+	/// Final retrieval contribution term.
 	pub retrieval_term: f32,
+	/// Raw rerank model score.
 	pub rerank_score: f32,
+	/// 1-based rerank rank.
 	pub rerank_rank: u32,
+	/// Normalized rerank score.
 	pub rerank_norm: f32,
+	/// Final rerank contribution term.
 	pub rerank_term: f32,
+	/// Tie-breaker contribution.
 	pub tie_breaker_score: f32,
+	/// Item importance score.
 	pub importance: f32,
+	/// Item age in days.
 	pub age_days: f32,
+	/// Item scope key.
 	pub scope: &'a str,
+	/// Scope-context boost contribution.
 	pub scope_context_boost: f32,
+	/// Lexical overlap ratio used by deterministic ranking.
 	pub deterministic_lexical_overlap_ratio: f32,
+	/// Deterministic lexical bonus contribution.
 	pub deterministic_lexical_bonus: f32,
+	/// Historical hit count.
 	pub deterministic_hit_count: i64,
+	/// Age of the last hit in days, when known.
 	pub deterministic_last_hit_age_days: Option<f32>,
+	/// Deterministic hit boost contribution.
 	pub deterministic_hit_boost: f32,
+	/// Deterministic decay penalty contribution.
 	pub deterministic_decay_penalty: f32,
 }
 
+/// Removes raw inputs from ranking terms while keeping names and values.
 pub fn strip_term_inputs(terms: &[SearchRankingTerm]) -> Vec<SearchRankingTerm> {
 	terms
 		.iter()
@@ -56,6 +91,7 @@ pub fn strip_term_inputs(terms: &[SearchRankingTerm]) -> Vec<SearchRankingTerm> 
 		.collect()
 }
 
+/// Builds the term list used by `SEARCH_RANKING_EXPLAIN_SCHEMA_V2`.
 pub fn build_trace_terms_v2(args: TraceTermsArgs<'_>) -> Vec<SearchRankingTerm> {
 	let cfg = args.cfg;
 	let blend_enabled = args.blend_enabled;

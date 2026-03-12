@@ -1,22 +1,33 @@
+//! Memory-policy evaluation helpers.
+
 use serde::{Deserialize, Serialize};
 
 use elf_config::{Config, MemoryPolicyRule};
 
+/// Base memory decision after policy evaluation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MemoryPolicyDecision {
+	/// Persist the note as a new memory item.
 	Remember,
+	/// Update an existing memory item.
 	Update,
+	/// Ignore the note without persisting it.
 	Ignore,
+	/// Reject the note entirely.
 	Reject,
 }
 
+/// Result of evaluating memory-policy rules for one note candidate.
 #[derive(Debug)]
 pub struct MemoryPolicyEvaluation<'a> {
+	/// Final decision after any downgrade rules are applied.
 	pub decision: MemoryPolicyDecision,
+	/// Rule that matched the note, if any.
 	pub matched_rule: Option<&'a MemoryPolicyRule>,
 }
 
+/// Evaluates memory-policy downgrade rules for a note candidate.
 pub fn evaluate_memory_policy<'a>(
 	cfg: &'a Config,
 	note_type: &str,

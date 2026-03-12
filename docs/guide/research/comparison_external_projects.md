@@ -1,9 +1,13 @@
 # External Memory Project Comparison
 
-Purpose: Provide a detailed, evidence-backed comparison between ELF and adjacent memory projects.
+Goal: Provide a detailed, evidence-backed comparison between ELF and adjacent memory projects.
+Read this when: You are evaluating architecture directions, positioning claims, or adoption trade-offs.
+Inputs: Current ELF docs/code and public documentation for the compared external projects.
+Depends on: `docs/spec/system_elf_memory_service_v2.md` and `docs/guide/research/research_projects_inventory.md`.
+Outputs: A comparison matrix and trade-off summary suitable for follow-up design decisions.
 
 Scope note: This document is intentionally detailed and source-heavy. Keep `README.md` concise and link here for full analysis.
-For a full list of reviewed and pending projects, see `docs/research/research_projects_inventory.md`.
+For a full list of reviewed and pending projects, see `docs/guide/research/research_projects_inventory.md`.
 
 Comparison focuses on shared capabilities, ELF distinctives, and objective trade-offs. These projects solve adjacent problems, but their primary storage units and default workflows differ.
 

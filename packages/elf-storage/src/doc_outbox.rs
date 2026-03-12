@@ -1,9 +1,12 @@
+//! Document indexing outbox helpers.
+
 use sqlx::PgExecutor;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
 use crate::{Result, db::Db, models::DocIndexingOutboxEntry};
 
+/// Enqueues one document chunk for downstream indexing work.
 pub async fn enqueue_doc_outbox<'e, E>(
 	executor: E,
 	doc_id: Uuid,
@@ -30,6 +33,7 @@ VALUES ($1,$2,$3,$4,$5,'PENDING')",
 	Ok(())
 }
 
+/// Claims the next due document-indexing outbox job and leases it until `lease_seconds`.
 pub async fn claim_next_doc_indexing_outbox_job(
 	db: &Db,
 	now: OffsetDateTime,
@@ -84,6 +88,7 @@ FOR UPDATE SKIP LOCKED",
 	Ok(job)
 }
 
+/// Marks a document-indexing outbox job as completed.
 pub async fn mark_doc_indexing_outbox_done(
 	db: &Db,
 	outbox_id: Uuid,
@@ -100,6 +105,7 @@ pub async fn mark_doc_indexing_outbox_done(
 	Ok(())
 }
 
+/// Marks a document-indexing outbox job as failed and schedules its retry.
 pub async fn mark_doc_indexing_outbox_failed(
 	db: &Db,
 	outbox_id: Uuid,

@@ -1,3 +1,5 @@
+//! Test helpers for ephemeral Postgres databases and Qdrant collections.
+
 mod error;
 
 pub use error::{Error, Result};
@@ -16,6 +18,7 @@ use uuid::Uuid;
 
 const ADMIN_DATABASES: [&str; 2] = ["postgres", "template1"];
 
+/// Ephemeral test database handle with tracked Qdrant collections for cleanup.
 pub struct TestDatabase {
 	name: String,
 	dsn: String,
@@ -24,6 +27,7 @@ pub struct TestDatabase {
 	collections: Mutex<HashSet<String>>,
 }
 impl TestDatabase {
+	/// Creates a fresh temporary Postgres database from a base admin DSN.
 	pub async fn new(base_dsn: &str) -> Result<Self> {
 		let base_options: PgConnectOptions = PgConnectOptions::from_str(base_dsn)
 			.map_err(|err| Error::Message(format!("Failed to parse ELF_PG_DSN: {err}.")))?;
@@ -47,14 +51,17 @@ impl TestDatabase {
 		})
 	}
 
+	/// Returns the DSN for the temporary test database.
 	pub fn dsn(&self) -> &str {
 		&self.dsn
 	}
 
+	/// Returns the generated database name.
 	pub fn name(&self) -> &str {
 		&self.name
 	}
 
+	/// Returns a unique collection prefix and tracks the related Qdrant collections.
 	pub fn collection_name(&self, prefix: &str) -> String {
 		let collection = format!("{prefix}_{}", self.name);
 		let docs_collection = format!("{collection}_docs");
@@ -66,6 +73,7 @@ impl TestDatabase {
 		collection
 	}
 
+	/// Drops the temporary database and any tracked Qdrant collections.
 	pub async fn cleanup(mut self) -> Result<()> {
 		self.cleanup_inner().await
 	}
@@ -127,14 +135,17 @@ impl Drop for TestDatabase {
 	}
 }
 
+/// Returns `ELF_PG_DSN` when it is available for integration tests.
 pub fn env_dsn() -> Option<String> {
 	env::var("ELF_PG_DSN").ok()
 }
 
+/// Returns the configured Qdrant URL for integration tests.
 pub fn env_qdrant_url() -> Option<String> {
 	env::var("ELF_QDRANT_GRPC_URL").or_else(|_| env::var("ELF_QDRANT_URL")).ok()
 }
 
+/// Runs an async test closure with a temporary database and guaranteed cleanup.
 pub async fn with_test_db<F, Fut, T>(base_dsn: &str, f: F) -> Result<T>
 where
 	F: FnOnce(&TestDatabase) -> Fut,

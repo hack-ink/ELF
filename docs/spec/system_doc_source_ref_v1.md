@@ -1,7 +1,11 @@
 # System: `doc_source_ref/v1` for `docs_put`
 
-Purpose: define a minimal, versioned `source_ref` convention for docs ingested
+Purpose: Define a minimal, versioned `source_ref` convention for docs ingested
 through `POST /v2/docs` / MCP `elf_docs_put`.
+Status: normative
+Read this when: You are producing or validating `source_ref` payloads for `docs_put`.
+Not this document: Note-level evidence pointers or retrieval-time document pointer resolution.
+Defines: `doc_source_ref/v1`.
 
 Identifiers:
 - Envelope identifier: `doc_source_ref/v1`

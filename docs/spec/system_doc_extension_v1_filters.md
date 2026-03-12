@@ -2,6 +2,10 @@
 
 Purpose: Define the `docs_search_filters/v1` filter contract for
 `POST /v2/docs/search/l0` and MCP `elf_docs_search_l0`.
+Status: normative
+Read this when: You are implementing or validating Doc Extension filter fields, payload shape, or Qdrant index requirements.
+Not this document: Retrieval ranking logic, query rewriting, or document ingestion flow design.
+Defines: `docs_search_filters/v1` and `doc_extension_payload/v1`.
 
 Registry identifiers:
 - `docs_search_filters/v1`: API filter compatibility contract for `docs_search_l0`.

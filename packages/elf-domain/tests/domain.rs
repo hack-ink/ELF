@@ -1,3 +1,7 @@
+#![allow(unused_crate_dependencies)]
+
+//! Integration tests for domain-layer helpers.
+
 use serde_json::Map;
 use time::OffsetDateTime;
 

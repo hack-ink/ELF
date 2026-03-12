@@ -1,3 +1,5 @@
+//! Note indexing and trace outbox helpers.
+
 use sqlx::PgExecutor;
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -8,6 +10,7 @@ use crate::{
 	models::{IndexingOutboxEntry, TraceOutboxJob},
 };
 
+/// Enqueues one note for downstream indexing work.
 pub async fn enqueue_outbox<'e, E>(
 	executor: E,
 	note_id: Uuid,
@@ -31,6 +34,7 @@ VALUES ($1,$2,$3,$4,'PENDING')",
 	Ok(())
 }
 
+/// Claims the next due note-indexing outbox job and leases it until `lease_seconds`.
 pub async fn claim_next_indexing_outbox_job(
 	db: &Db,
 	now: OffsetDateTime,
@@ -84,6 +88,7 @@ FOR UPDATE SKIP LOCKED",
 	Ok(job)
 }
 
+/// Marks a note-indexing outbox job as completed.
 pub async fn mark_indexing_outbox_done(
 	db: &Db,
 	outbox_id: Uuid,
@@ -98,6 +103,7 @@ pub async fn mark_indexing_outbox_done(
 	Ok(())
 }
 
+/// Marks a note-indexing outbox job as failed and schedules its retry.
 pub async fn mark_indexing_outbox_failed(
 	db: &Db,
 	outbox_id: Uuid,
@@ -127,6 +133,7 @@ WHERE outbox_id = $5",
 	Ok(())
 }
 
+/// Claims the next due trace outbox job and leases it until `lease_seconds`.
 pub async fn claim_next_trace_outbox_job(
 	db: &Db,
 	now: OffsetDateTime,
@@ -171,6 +178,7 @@ FOR UPDATE SKIP LOCKED",
 	Ok(job)
 }
 
+/// Marks a trace outbox job as completed.
 pub async fn mark_trace_outbox_done(db: &Db, outbox_id: Uuid, now: OffsetDateTime) -> Result<()> {
 	sqlx::query(
 		"UPDATE search_trace_outbox SET status = 'DONE', updated_at = $1 WHERE outbox_id = $2",
@@ -183,6 +191,7 @@ pub async fn mark_trace_outbox_done(db: &Db, outbox_id: Uuid, now: OffsetDateTim
 	Ok(())
 }
 
+/// Marks a trace outbox job as failed and schedules its retry.
 pub async fn mark_trace_outbox_failed(
 	db: &Db,
 	outbox_id: Uuid,

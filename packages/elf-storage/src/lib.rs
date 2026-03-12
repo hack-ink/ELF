@@ -1,3 +1,7 @@
+#![cfg_attr(test, allow(unused_crate_dependencies))]
+
+//! Storage adapters and row models for ELF persistence backends.
+
 pub mod db;
 pub mod doc_outbox;
 pub mod docs;
@@ -12,4 +16,5 @@ mod error;
 
 pub use error::Error;
 
+/// Storage-layer result type.
 pub type Result<T, E = Error> = std::result::Result<T, E>;

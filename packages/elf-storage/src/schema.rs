@@ -1,3 +1,6 @@
+//! SQL schema rendering utilities.
+
+/// Renders the full storage bootstrap SQL with the configured vector dimension.
 pub fn render_schema(vector_dim: u32) -> String {
 	let init = include_str!("../../../sql/init.sql");
 	let expanded = expand_includes(init);

@@ -1,3 +1,5 @@
+//! Document ingestion and retrieval APIs.
+
 use std::{
 	collections::{HashMap, HashSet},
 	slice,
@@ -45,30 +47,37 @@ const DOC_SOURCE_REF_SCHEMA_V1: &str = "source_ref/v1";
 const DOC_SOURCE_REF_RESOLVER_V1: &str = "elf_doc_ext/v1";
 const DOC_STATUSES: [&str; 2] = ["active", "deleted"];
 
+/// Document classification used for persistence and retrieval filters.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DocType {
+	/// Long-lived knowledge-base material.
 	Knowledge,
+	/// Chat transcripts or conversational context.
 	Chat,
+	/// Search-produced reference material.
 	Search,
+	/// Development-oriented artifacts such as code or plans.
 	Dev,
 }
 impl DocType {
+	/// Returns the canonical storage and API string for this document type.
 	pub fn as_str(self) -> &'static str {
 		match self {
-			DocType::Knowledge => "knowledge",
-			DocType::Chat => "chat",
-			DocType::Search => "search",
-			DocType::Dev => "dev",
+			Self::Knowledge => "knowledge",
+			Self::Chat => "chat",
+			Self::Search => "search",
+			Self::Dev => "dev",
 		}
 	}
 
+	/// Parses a canonical document-type string.
 	pub fn parse(raw_doc_type: &str) -> Result<Self> {
 		match raw_doc_type {
-			"knowledge" => Ok(DocType::Knowledge),
-			"chat" => Ok(DocType::Chat),
-			"search" => Ok(DocType::Search),
-			"dev" => Ok(DocType::Dev),
+			"knowledge" => Ok(Self::Knowledge),
+			"chat" => Ok(Self::Chat),
+			"search" => Ok(Self::Search),
+			"dev" => Ok(Self::Dev),
 			_ => Err(Error::InvalidRequest {
 				message: "doc_type must be one of: knowledge, chat, search, dev.".to_string(),
 			}),
@@ -76,198 +85,330 @@ impl DocType {
 	}
 }
 
+/// Request payload for document ingestion.
 #[derive(Clone, Debug, Deserialize)]
 pub struct DocsPutRequest {
+	/// Tenant that owns the document.
 	pub tenant_id: String,
+	/// Project that owns the document.
 	pub project_id: String,
+	/// Agent ingesting the document.
 	pub agent_id: String,
+	/// Scope to assign to the document.
 	pub scope: String,
+	/// Optional raw document-type string.
 	pub doc_type: Option<String>,
+	/// Optional display title for the document.
 	pub title: Option<String>,
+	/// Optional write policy applied before persistence.
 	pub write_policy: Option<WritePolicy>,
 	#[serde(default)]
+	/// Structured provenance metadata for the document.
 	pub source_ref: Value,
+	/// Full document body to store and chunk.
 	pub content: String,
 }
 
+/// Response payload for document ingestion.
 #[derive(Clone, Debug, Serialize)]
 pub struct DocsPutResponse {
+	/// Identifier of the stored document.
 	pub doc_id: Uuid,
+	/// Number of persisted chunks generated from the content.
 	pub chunk_count: u32,
+	/// Byte length of the stored content.
 	pub content_bytes: u32,
+	/// Whole-document BLAKE3 hash.
 	pub content_hash: String,
 	#[serde(skip_serializing_if = "Option::is_none")]
+	/// Write-policy audit emitted for the stored document, when applicable.
 	pub write_policy_audit: Option<WritePolicyAudit>,
 }
 
+/// Request payload for document metadata lookup.
 #[derive(Clone, Debug, Deserialize)]
 pub struct DocsGetRequest {
+	/// Tenant that owns the document.
 	pub tenant_id: String,
+	/// Project that owns the document.
 	pub project_id: String,
+	/// Agent requesting the read.
 	pub agent_id: String,
+	/// Read profile that determines visible scopes.
 	pub read_profile: String,
+	/// Identifier of the document to fetch.
 	pub doc_id: Uuid,
 }
 
+/// Response payload for document metadata lookup.
 #[derive(Clone, Debug, Serialize)]
 pub struct DocsGetResponse {
+	/// Document identifier.
 	pub doc_id: Uuid,
+	/// Tenant that owns the document.
 	pub tenant_id: String,
+	/// Project that owns the document.
 	pub project_id: String,
+	/// Agent that ingested the document.
 	pub agent_id: String,
+	/// Scope key for the document.
 	pub scope: String,
+	/// Stored document type.
 	pub doc_type: String,
+	/// Lifecycle status for the document.
 	pub status: String,
+	/// Optional document title.
 	pub title: Option<String>,
+	/// Structured provenance metadata.
 	pub source_ref: Value,
+	/// Byte length of the stored content.
 	pub content_bytes: u32,
+	/// Whole-document BLAKE3 hash.
 	pub content_hash: String,
+	/// Creation timestamp.
 	pub created_at: OffsetDateTime,
+	/// Last update timestamp.
 	pub updated_at: OffsetDateTime,
 }
 
+/// Request payload for L0 document retrieval.
 #[derive(Clone, Debug, Deserialize)]
 pub struct DocsSearchL0Request {
+	/// Tenant to search within.
 	pub tenant_id: String,
+	/// Project to search within.
 	pub project_id: String,
+	/// Agent used for access-control checks.
 	pub caller_agent_id: String,
+	/// Read profile that determines visible scopes.
 	pub read_profile: String,
+	/// Search query text.
 	pub query: String,
+	/// Optional scope filter.
 	pub scope: Option<String>,
+	/// Optional status filter.
 	pub status: Option<String>,
+	/// Optional document-type filter.
 	pub doc_type: Option<String>,
+	/// Sparse-retrieval mode override.
 	pub sparse_mode: Option<String>,
+	/// Optional domain filter from source metadata.
 	pub domain: Option<String>,
+	/// Optional repository filter from source metadata.
 	pub repo: Option<String>,
+	/// Optional agent filter.
 	pub agent_id: Option<String>,
+	/// Optional thread filter.
 	pub thread_id: Option<String>,
+	/// Optional lower bound for `updated_at`.
 	pub updated_after: Option<String>,
+	/// Optional upper bound for `updated_at`.
 	pub updated_before: Option<String>,
+	/// Optional lower bound for source timestamp metadata.
 	pub ts_gte: Option<String>,
+	/// Optional upper bound for source timestamp metadata.
 	pub ts_lte: Option<String>,
+	/// Maximum number of returned items.
 	pub top_k: Option<u32>,
+	/// Retrieval breadth before deduplication and projection.
 	pub candidate_k: Option<u32>,
+	/// When true, includes retrieval trajectory output.
 	pub explain: Option<bool>,
 }
 
+/// One chunk-level hit returned by `docs_search_l0`.
 #[derive(Clone, Debug, Serialize)]
 pub struct DocsSearchL0Item {
+	/// Document identifier.
 	pub doc_id: Uuid,
+	/// Chunk identifier.
 	pub chunk_id: Uuid,
+	/// Stable pointer bundle for later excerpt or resolution workflows.
 	pub pointer: DocsSearchL0ItemPointer,
+	/// Final score after retrieval and boosting.
 	pub score: f32,
+	/// Returned snippet text.
 	pub snippet: String,
+	/// Scope key for the document.
 	pub scope: String,
+	/// Stored document type.
 	pub doc_type: String,
+	/// Project that owns the document.
 	pub project_id: String,
+	/// Agent that ingested the document.
 	pub agent_id: String,
+	/// Last update timestamp for the document.
 	pub updated_at: OffsetDateTime,
+	/// Whole-document BLAKE3 hash.
 	pub content_hash: String,
+	/// Chunk-level BLAKE3 hash.
 	pub chunk_hash: String,
 }
 
+/// Response payload for `docs_search_l0`.
 #[derive(Clone, Debug, Serialize)]
 pub struct DocsSearchL0Response {
+	/// Retrieval trace identifier.
 	pub trace_id: Uuid,
+	/// Returned chunk hits.
 	pub items: Vec<DocsSearchL0Item>,
 	#[serde(skip_serializing_if = "Option::is_none")]
+	/// Optional retrieval trajectory emitted in explain mode.
 	pub trajectory: Option<DocRetrievalTrajectory>,
 }
 
+/// Stable pointer for a chunk hit returned by document search.
 #[derive(Clone, Debug, Serialize)]
 pub struct DocsSearchL0ItemPointer {
+	/// Pointer schema identifier.
 	pub schema: String,
+	/// Pointer resolver identifier.
 	pub resolver: String,
 	#[serde(rename = "ref")]
+	/// Logical identifiers used by the resolver.
 	pub reference: DocsSearchL0ItemReference,
+	/// Freshness guard for the pointer target.
 	pub state: DocsSearchL0ItemState,
 }
 
+/// Logical identifiers for a document-search hit.
 #[derive(Clone, Debug, Serialize)]
 pub struct DocsSearchL0ItemReference {
+	/// Document identifier.
 	pub doc_id: Uuid,
+	/// Chunk identifier.
 	pub chunk_id: Uuid,
 }
 
+/// Freshness guard for a document-search hit.
 #[derive(Clone, Debug, Serialize)]
 pub struct DocsSearchL0ItemState {
+	/// Whole-document BLAKE3 hash.
 	pub content_hash: String,
+	/// Chunk-level BLAKE3 hash.
 	pub chunk_hash: String,
 	#[serde(with = "crate::time_serde")]
+	/// Last update timestamp for the document.
 	pub doc_updated_at: OffsetDateTime,
 }
 
+/// Explain payload for a document retrieval run.
 #[derive(Clone, Debug, Serialize)]
 pub struct DocRetrievalTrajectory {
+	/// Trajectory schema identifier.
 	pub schema: String,
+	/// Ordered retrieval stages.
 	pub stages: Vec<DocRetrievalTrajectoryStage>,
 }
 
+/// One stage in a document retrieval trajectory.
 #[derive(Clone, Debug, Serialize)]
 pub struct DocRetrievalTrajectoryStage {
+	/// Zero-based stage order.
 	pub stage_order: u32,
+	/// Stable stage name.
 	pub stage_name: String,
+	/// Free-form stage statistics.
 	pub stats: Value,
 }
 
+/// Quote-based selector for excerpt extraction.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TextQuoteSelector {
+	/// Exact quote text to resolve.
 	pub exact: String,
+	/// Optional leading context used to disambiguate repeated quotes.
 	pub prefix: Option<String>,
+	/// Optional trailing context used to disambiguate repeated quotes.
 	pub suffix: Option<String>,
 }
 
+/// Byte-position selector for excerpt extraction.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TextPositionSelector {
+	/// Inclusive start byte offset.
 	pub start: usize,
+	/// Exclusive end byte offset.
 	pub end: usize,
 }
 
+/// Request payload for excerpt retrieval.
 #[derive(Clone, Debug, Deserialize)]
 pub struct DocsExcerptsGetRequest {
+	/// Tenant that owns the document.
 	pub tenant_id: String,
+	/// Project that owns the document.
 	pub project_id: String,
+	/// Agent requesting the read.
 	pub agent_id: String,
+	/// Read profile that determines visible scopes.
 	pub read_profile: String,
+	/// Identifier of the source document.
 	pub doc_id: Uuid,
+	/// Excerpt budget level: `L0`, `L1`, or `L2`.
 	pub level: String, // "L0" | "L1" | "L2"
+	/// Optional chunk identifier when the caller already knows the chunk.
 	pub chunk_id: Option<Uuid>,
+	/// Optional quote-based selector.
 	pub quote: Option<TextQuoteSelector>,
+	/// Optional byte-position selector.
 	pub position: Option<TextPositionSelector>,
+	/// When true, includes retrieval trajectory output.
 	pub explain: Option<bool>,
 }
 
+/// Verification metadata for one extracted excerpt.
 #[derive(Clone, Debug, Serialize)]
 pub struct DocsExcerptVerification {
+	/// Whether the excerpt selectors verified against current content.
 	pub verified: bool,
+	/// Verification failure codes.
 	pub verification_errors: Vec<String>,
+	/// Whole-document BLAKE3 hash.
 	pub content_hash: String,
+	/// BLAKE3 hash of the returned excerpt.
 	pub excerpt_hash: String,
 }
 
+/// Response payload for excerpt retrieval.
 #[derive(Clone, Debug, Serialize)]
 pub struct DocsExcerptResponse {
+	/// Excerpt trace identifier.
 	pub trace_id: Uuid,
+	/// Identifier of the source document.
 	pub doc_id: Uuid,
+	/// Returned excerpt text.
 	pub excerpt: String,
+	/// Inclusive start offset of the returned window.
 	pub start_offset: usize,
+	/// Exclusive end offset of the returned window.
 	pub end_offset: usize,
+	/// Concrete selector resolution result.
 	pub locator: DocsExcerptLocator,
+	/// Verification metadata for the returned excerpt.
 	pub verification: DocsExcerptVerification,
 	#[serde(skip_serializing_if = "Option::is_none")]
+	/// Optional retrieval trajectory emitted in explain mode.
 	pub trajectory: Option<DocRetrievalTrajectory>,
 }
 
+/// Selector resolution metadata for an excerpt.
 #[derive(Clone, Debug, Serialize)]
 pub struct DocsExcerptLocator {
+	/// Selector kind that produced the match.
 	pub selector_kind: String,
+	/// Inclusive start offset of the matched selector span.
 	pub match_start_offset: usize,
+	/// Exclusive end offset of the matched selector span.
 	pub match_end_offset: usize,
 	#[serde(skip_serializing_if = "Option::is_none")]
+	/// Matched chunk identifier, when known.
 	pub chunk_id: Option<Uuid>,
 	#[serde(skip_serializing_if = "Option::is_none")]
+	/// Quote selector actually used for resolution.
 	pub quote: Option<TextQuoteSelector>,
 	#[serde(skip_serializing_if = "Option::is_none")]
+	/// Position selector actually used for resolution.
 	pub position: Option<TextPositionSelector>,
 }
 
@@ -409,6 +550,7 @@ struct DocsSearchL0RangesParsed {
 }
 
 impl ElfService {
+	/// Validates, chunks, stores, and enqueues a document for indexing.
 	pub async fn docs_put(&self, req: DocsPutRequest) -> Result<DocsPutResponse> {
 		let ValidatedDocsPut { doc_type, content, write_policy_audit } = validate_docs_put(&req)?;
 		let now = OffsetDateTime::now_utc();
@@ -497,6 +639,7 @@ impl ElfService {
 		})
 	}
 
+	/// Loads document metadata when the caller can read the requested scope.
 	pub async fn docs_get(&self, req: DocsGetRequest) -> Result<DocsGetResponse> {
 		let tenant_id = req.tenant_id.trim();
 		let project_id = req.project_id.trim();
@@ -592,6 +735,7 @@ LIMIT 1",
 		})
 	}
 
+	/// Runs L0 document retrieval with access filtering and optional explain output.
 	pub async fn docs_search_l0(&self, req: DocsSearchL0Request) -> Result<DocsSearchL0Response> {
 		let trace_id = Uuid::new_v4();
 		let filters = validate_docs_search_l0(&req)?;
@@ -816,6 +960,7 @@ LIMIT 1",
 		);
 	}
 
+	/// Resolves and verifies an excerpt window from quote, position, or chunk selectors.
 	pub async fn docs_excerpts_get(
 		&self,
 		req: DocsExcerptsGetRequest,

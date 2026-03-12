@@ -1,8 +1,11 @@
+//! Memory note persistence queries.
+
 use sqlx::PgExecutor;
 use uuid::Uuid;
 
 use crate::{Result, models::MemoryNote};
 
+/// Inserts one memory note row.
 pub async fn insert_note<'e, E>(executor: E, note: &MemoryNote) -> Result<()>
 where
 	E: PgExecutor<'e>,
@@ -74,6 +77,7 @@ VALUES (
 	Ok(())
 }
 
+/// Updates mutable fields for one memory note row.
 pub async fn update_note<'e, E>(executor: E, note: &MemoryNote) -> Result<()>
 where
 	E: PgExecutor<'e>,
@@ -103,6 +107,7 @@ WHERE note_id = $7",
 	Ok(())
 }
 
+/// Deletes all chunk rows for one memory note.
 pub async fn delete_note_chunks<'e, E>(executor: E, note_id: Uuid) -> Result<()>
 where
 	E: PgExecutor<'e>,
@@ -116,6 +121,7 @@ where
 }
 
 #[allow(clippy::too_many_arguments)]
+/// Upserts one chunk row for a memory note.
 pub async fn insert_note_chunk<'e, E>(
 	executor: E,
 	chunk_id: Uuid,
@@ -160,6 +166,7 @@ SET
 	Ok(())
 }
 
+/// Upserts one embedding vector for a note chunk.
 pub async fn insert_note_chunk_embedding<'e, E>(
 	executor: E,
 	chunk_id: Uuid,

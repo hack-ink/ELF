@@ -1,3 +1,5 @@
+#![allow(missing_docs)]
+
 use std::error::Error;
 
 use vergen_gitcl::{CargoBuilder, Emitter, GitclBuilder};

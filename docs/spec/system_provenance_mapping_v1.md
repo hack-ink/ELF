@@ -1,6 +1,10 @@
 # System: Note Provenance Mapping (v1)
 
 Purpose: Define the provenance bundle contract used by admin operations and traceability workflows.
+Status: normative
+Read this when: You are implementing or validating note-provenance responses and admin traceability outputs.
+Not this document: Operator debugging procedure or request-correlation runbooks.
+Defines: `elf.note_provenance_bundle/v1`.
 
 Identifier:
 - `elf.note_provenance_bundle/v1`
@@ -105,4 +109,3 @@ Request input:
   - explainability investigation,
   - evidence lineage checks,
   - outbox lag/metadata checks before manual remediation.
-

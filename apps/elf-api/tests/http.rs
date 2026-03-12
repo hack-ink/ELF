@@ -1,3 +1,7 @@
+#![allow(unused_crate_dependencies)]
+
+//! End-to-end HTTP integration tests for the ELF API app.
+
 use std::env;
 
 use axum::{

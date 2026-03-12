@@ -1,3 +1,5 @@
+//! Binary entrypoint for the ELF MCP app.
+
 #![recursion_limit = "512"]
 
 mod app;

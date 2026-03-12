@@ -1,3 +1,5 @@
+//! Qdrant collection bootstrap helpers.
+
 use std::time::Duration;
 
 use qdrant_client::{
@@ -11,9 +13,13 @@ use qdrant_client::{
 
 use crate::{Error, Result};
 
+/// Name of the dense vector stored in each Qdrant point.
 pub const DENSE_VECTOR_NAME: &str = "dense";
+/// Name of the sparse BM25 vector stored in each Qdrant point.
 pub const BM25_VECTOR_NAME: &str = "bm25";
+/// Sparse model identifier used for BM25 search.
 pub const BM25_MODEL: &str = "qdrant/bm25";
+/// Required payload indexes for the document-search collection.
 pub const DOCS_SEARCH_FILTER_INDEXES: [(&str, PayloadSchemaType, FieldType); 9] = [
 	("scope", PayloadSchemaType::Keyword, FieldType::Keyword),
 	("status", PayloadSchemaType::Keyword, FieldType::Keyword),
@@ -29,16 +35,22 @@ pub const DOCS_SEARCH_FILTER_INDEXES: [(&str, PayloadSchemaType, FieldType); 9] 
 const DEFAULT_QDRANT_CLIENT_TIMEOUT_SECS: u64 = 60;
 const DEFAULT_QDRANT_OPERATION_TIMEOUT_SECS: u64 = 60;
 
+/// Qdrant collection handle plus the configured vector dimension.
 pub struct QdrantStore {
+	/// Qdrant client used for collection and payload-index operations.
 	pub client: qdrant_client::Qdrant,
+	/// Collection name managed by this store.
 	pub collection: String,
+	/// Dense vector dimension expected by the collection schema.
 	pub vector_dim: u32,
 }
 impl QdrantStore {
+	/// Builds a store from the configured default collection.
 	pub fn new(cfg: &elf_config::Qdrant) -> Result<Self> {
 		Self::new_with_collection(cfg, cfg.collection.as_str())
 	}
 
+	/// Builds a store for the provided collection name.
 	pub fn new_with_collection(cfg: &elf_config::Qdrant, collection: &str) -> Result<Self> {
 		let client = qdrant_client::Qdrant::from_url(&cfg.url)
 			.timeout(Duration::from_secs(DEFAULT_QDRANT_CLIENT_TIMEOUT_SECS))
@@ -47,6 +59,7 @@ impl QdrantStore {
 		Ok(Self { client, collection: collection.to_string(), vector_dim: cfg.vector_dim })
 	}
 
+	/// Ensures the configured Qdrant collection exists with the required vector layout.
 	pub async fn ensure_collection(&self) -> Result<()> {
 		match self.client.collection_info(&self.collection).await {
 			Ok(_) => return Ok(()),
@@ -80,6 +93,7 @@ impl QdrantStore {
 		}
 	}
 
+	/// Ensures the required payload indexes exist for the collection.
 	pub async fn ensure_payload_indexes(
 		&self,
 		required_indexes: &[(&str, PayloadSchemaType, FieldType)],

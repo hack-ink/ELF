@@ -1,8 +1,11 @@
+//! Optional `OffsetDateTime` serde helpers.
+
 use serde::{Deserialize as _, Deserializer, Serializer};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
 use crate::time_serde;
 
+/// Serializes an optional `OffsetDateTime` as RFC 3339.
 pub fn serialize<S>(value: &Option<OffsetDateTime>, serializer: S) -> Result<S::Ok, S::Error>
 where
 	S: Serializer,
@@ -13,6 +16,7 @@ where
 	}
 }
 
+/// Deserializes an optional RFC 3339 string into an `OffsetDateTime`.
 pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<OffsetDateTime>, D::Error>
 where
 	D: Deserializer<'de>,

@@ -1,3 +1,7 @@
+#![allow(unused_crate_dependencies)]
+
+//! CLI entrypoint for ELF evaluation commands.
+
 mod app;
 
 use clap::Parser;
