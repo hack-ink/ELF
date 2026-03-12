@@ -2,6 +2,10 @@
 
 Purpose: Define the optional, response-only stage traces for Doc Extension v1 retrieval
 (`docs_search_l0` and `docs_excerpts_get`) when `explain=true`.
+Status: normative
+Read this when: You are shaping, validating, or consuming response-only retrieval trajectories for Doc Extension v1.
+Not this document: Persistent trace storage, ranking policy, or request-routing guidance.
+Defines: `doc_retrieval_trajectory/v1`.
 
 This schema is intentionally lightweight and not persisted. It is returned directly in API
 responses to support explainability and debugging.

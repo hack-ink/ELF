@@ -1,3 +1,5 @@
+//! ELF configuration loading and validation.
+
 mod error;
 mod types;
 
@@ -17,6 +19,7 @@ pub use self::{
 
 use std::{collections::HashSet, fs, path::Path};
 
+/// Loads, deserializes, and validates an ELF TOML configuration file.
 pub fn load(path: &Path) -> Result<Config> {
 	let raw = fs::read_to_string(path)
 		.map_err(|err| Error::ReadConfig { path: path.to_path_buf(), source: err })?;
@@ -28,6 +31,7 @@ pub fn load(path: &Path) -> Result<Config> {
 	Ok(cfg)
 }
 
+/// Validates a deserialized ELF configuration against repository runtime rules.
 pub fn validate(cfg: &Config) -> Result<()> {
 	validate_security(cfg)?;
 	validate_service(cfg)?;

@@ -1,6 +1,9 @@
+//! English-gate helpers for request text and identifiers.
+
 use unicode_normalization::UnicodeNormalization;
 use unicode_script::{Script, UnicodeScript};
 
+/// English-gate input classes that determine which checks apply.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum EnglishGateKind {
 	/// Natural-language text that is expected to be English prose.
@@ -9,14 +12,20 @@ pub enum EnglishGateKind {
 	Identifier,
 }
 
+/// Reasons the English gate rejected an input string.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum EnglishGateRejectReason {
+	/// The input contains a disallowed control character.
 	DisallowedControlChar,
+	/// The input contains a disallowed zero-width character.
 	DisallowedZeroWidthChar,
+	/// The input contains characters from disallowed scripts.
 	DisallowedScript,
+	/// Language identification reported a confident non-English result.
 	LanguageIdNonEnglish,
 }
 
+/// Applies ELF's English gate to an input string.
 pub fn english_gate(input: &str, kind: EnglishGateKind) -> Result<(), EnglishGateRejectReason> {
 	let normalized: String = input.nfkc().collect();
 
@@ -39,10 +48,12 @@ pub fn english_gate(input: &str, kind: EnglishGateKind) -> Result<(), EnglishGat
 	Ok(())
 }
 
+/// Returns `true` when natural-language input passes the English gate.
 pub fn is_english_natural_language(input: &str) -> bool {
 	english_gate(input, EnglishGateKind::NaturalLanguage).is_ok()
 }
 
+/// Returns `true` when identifier-like input passes the English gate.
 pub fn is_english_identifier(input: &str) -> bool {
 	english_gate(input, EnglishGateKind::Identifier).is_ok()
 }

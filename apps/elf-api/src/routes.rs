@@ -1,3 +1,5 @@
+//! HTTP route builders and request handlers.
+
 use axum::{
 	Json, Router,
 	body::{self, Body},
@@ -427,6 +429,7 @@ impl IntoResponse for ApiError {
 	}
 }
 
+/// Builds the authenticated public API router.
 pub fn router(state: AppState) -> Router {
 	let auth_state = state.clone();
 	let api_router = Router::new()
@@ -463,6 +466,7 @@ pub fn router(state: AppState) -> Router {
 		.layer(middleware::from_fn_with_state(auth_state, api_auth_middleware))
 }
 
+/// Builds the authenticated admin API router.
 pub fn admin_router(state: AppState) -> Router {
 	let auth_state = state.clone();
 

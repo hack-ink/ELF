@@ -274,9 +274,9 @@ impl FilterField {
 
 #[derive(Clone, Debug)]
 enum FilterExpr {
-	And(Vec<FilterExpr>),
-	Or(Vec<FilterExpr>),
-	Not(Box<FilterExpr>),
+	And(Vec<Self>),
+	Or(Vec<Self>),
+	Not(Box<Self>),
 	Eq { field: FilterField, value: FilterValue },
 	Neq { field: FilterField, value: FilterValue },
 	In { field: FilterField, values: Vec<FilterValue> },

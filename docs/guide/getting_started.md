@@ -1,6 +1,10 @@
 # Getting Started
 
-Purpose: Provide the canonical setup and local run flow for ELF.
+Goal: Provide the canonical setup and local run flow for ELF.
+Read this when: You are bootstrapping a local ELF environment or resetting a broken one.
+Inputs: This repository checkout, provider credentials, and local Postgres/Qdrant access.
+Depends on: `Makefile.toml`, `elf.example.toml`, and the relevant service binaries.
+Verification: Configuration is in place and the local ELF stack can start successfully.
 
 ## Prerequisites
 

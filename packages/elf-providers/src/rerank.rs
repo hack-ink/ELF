@@ -1,3 +1,5 @@
+//! Rerank-provider client helpers.
+
 use std::{collections::HashSet, sync::atomic::AtomicU64, time::Duration};
 
 use reqwest::Client;
@@ -37,6 +39,7 @@ impl XorShift64 {
 	}
 }
 
+/// Reranks documents with the configured provider or local fallback implementation.
 pub async fn rerank(cfg: &ProviderConfig, query: &str, docs: &[String]) -> Result<Vec<f32>> {
 	if cfg.provider_id == "local" {
 		return Ok(local_rerank_dispatch(cfg.model.as_str(), query, docs));

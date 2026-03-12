@@ -1,3 +1,5 @@
+//! Individual note fetch APIs.
+
 use std::{collections::HashSet, slice};
 
 use serde::{Deserialize, Serialize};
@@ -11,36 +13,58 @@ use crate::{
 };
 use elf_storage::models::MemoryNote;
 
+/// Request payload for fetching one note.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct NoteFetchRequest {
+	/// Tenant that owns the note.
 	pub tenant_id: String,
+	/// Project that owns the note.
 	pub project_id: String,
+	/// Agent requesting the read.
 	pub agent_id: String,
+	/// Identifier of the note to fetch.
 	pub note_id: Uuid,
 }
 
+/// Response payload for fetching one note.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct NoteFetchResponse {
+	/// Note identifier.
 	pub note_id: Uuid,
+	/// Tenant that owns the note.
 	pub tenant_id: String,
+	/// Project that owns the note.
 	pub project_id: String,
+	/// Agent that wrote the note.
 	pub agent_id: String,
+	/// Scope key for the note.
 	pub scope: String,
+	/// Note type discriminator.
 	pub r#type: String,
+	/// Optional application-defined key.
 	pub key: Option<String>,
+	/// Note body text.
 	pub text: String,
+	/// Importance score.
 	pub importance: f32,
+	/// Confidence score.
 	pub confidence: f32,
+	/// Lifecycle status for the note.
 	pub status: String,
 	#[serde(with = "crate::time_serde")]
+	/// Last update timestamp.
 	pub updated_at: OffsetDateTime,
 	#[serde(with = "crate::time_serde::option")]
+	/// Optional expiry timestamp.
 	pub expires_at: Option<OffsetDateTime>,
+	/// Structured source reference metadata.
 	pub source_ref: Value,
+	/// Structured fields stored for the note, when present.
 	pub structured: Option<StructuredFields>,
 }
 
 impl ElfService {
+	/// Fetches one note when it is visible to the caller.
 	pub async fn get_note(&self, req: NoteFetchRequest) -> Result<NoteFetchResponse> {
 		let now = OffsetDateTime::now_utc();
 		let tenant_id = req.tenant_id.trim();

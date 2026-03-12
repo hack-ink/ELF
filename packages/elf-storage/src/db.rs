@@ -1,11 +1,16 @@
+//! Postgres connection helpers and schema bootstrap logic.
+
 use sqlx::{PgConnection, PgPool, Transaction, postgres::PgPoolOptions};
 
 use crate::{Result, graph, schema};
 
+/// Shared Postgres handle for ELF storage operations.
 pub struct Db {
+	/// Connection pool used by storage queries.
 	pub pool: PgPool,
 }
 impl Db {
+	/// Connects to Postgres using the configured pool settings.
 	pub async fn connect(cfg: &elf_config::Postgres) -> Result<Self> {
 		let pool =
 			PgPoolOptions::new().max_connections(cfg.pool_max_conns).connect(&cfg.dsn).await?;
@@ -13,6 +18,7 @@ impl Db {
 		Ok(Self { pool })
 	}
 
+	/// Ensures the storage schema exists and applies required backfills.
 	pub async fn ensure_schema(&self, vector_dim: u32) -> Result<()> {
 		let sql = schema::render_schema(vector_dim);
 		let lock_id: i64 = 7_120_114;

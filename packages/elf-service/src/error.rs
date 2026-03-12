@@ -1,23 +1,57 @@
+/// Service-layer result type.
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
+/// Errors returned by ELF service APIs.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+	/// The request contained non-English input in the named field path.
 	#[error("Non-English input detected at {field}.")]
-	NonEnglishInput { field: String },
+	NonEnglishInput {
+		/// Field path that failed the English gate.
+		field: String,
+	},
+	/// The request payload was invalid.
 	#[error("Invalid request: {message}")]
-	InvalidRequest { message: String },
+	InvalidRequest {
+		/// Human-readable validation failure.
+		message: String,
+	},
+	/// The caller is not allowed to act on the requested scope.
 	#[error("Scope denied: {message}")]
-	ScopeDenied { message: String },
+	ScopeDenied {
+		/// Human-readable access failure.
+		message: String,
+	},
+	/// The requested service resource could not be found.
 	#[error("Not found: {message}")]
-	NotFound { message: String },
+	NotFound {
+		/// Human-readable lookup failure.
+		message: String,
+	},
+	/// The requested mutation conflicts with existing state.
 	#[error("Conflict: {message}")]
-	Conflict { message: String },
+	Conflict {
+		/// Human-readable conflict reason.
+		message: String,
+	},
+	/// An external model or provider returned an error.
 	#[error("Provider error: {message}")]
-	Provider { message: String },
+	Provider {
+		/// Human-readable provider failure.
+		message: String,
+	},
+	/// Postgres or other storage work failed.
 	#[error("Storage error: {message}")]
-	Storage { message: String },
+	Storage {
+		/// Human-readable storage failure.
+		message: String,
+	},
+	/// Qdrant vector-store work failed.
 	#[error("Qdrant error: {message}")]
-	Qdrant { message: String },
+	Qdrant {
+		/// Human-readable Qdrant failure.
+		message: String,
+	},
 }
 impl From<sqlx::Error> for Error {
 	fn from(err: sqlx::Error) -> Self {

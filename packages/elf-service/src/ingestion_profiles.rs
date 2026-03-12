@@ -10,97 +10,149 @@ const ADD_EVENT_PIPELINE: &str = "add_event";
 const DEFAULT_PROFILE_ID: &str = "default";
 const DEFAULT_PROFILE_VERSION: i32 = 1;
 
+/// Selector for an ingestion profile and optional version.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct IngestionProfileSelector {
+	/// Profile identifier.
 	pub id: String,
+	/// Optional explicit version.
 	pub version: Option<i32>,
 }
 
+/// Resolved ingestion-profile reference.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct IngestionProfileRef {
+	/// Profile identifier.
 	pub id: String,
+	/// Resolved version.
 	pub version: i32,
 }
 
+/// Request payload for creating an ingestion profile version.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AdminIngestionProfileCreateRequest {
+	/// Tenant that owns the profile.
 	pub tenant_id: String,
+	/// Project that owns the profile.
 	pub project_id: String,
+	/// Profile identifier.
 	pub profile_id: String,
+	/// Optional explicit version number.
 	pub version: Option<i32>,
+	/// JSON profile payload.
 	pub profile: Value,
+	/// Actor creating the profile version.
 	pub created_by: String,
 }
 
+/// Request payload for listing ingestion profiles.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AdminIngestionProfileListRequest {
+	/// Tenant that owns the profiles.
 	pub tenant_id: String,
+	/// Project that owns the profiles.
 	pub project_id: String,
 }
 
+/// Request payload for fetching one ingestion profile.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AdminIngestionProfileGetRequest {
+	/// Tenant that owns the profile.
 	pub tenant_id: String,
+	/// Project that owns the profile.
 	pub project_id: String,
+	/// Profile identifier.
 	pub profile_id: String,
+	/// Optional explicit version.
 	pub version: Option<i32>,
 }
 
+/// Request payload for listing all versions of one ingestion profile.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AdminIngestionProfileVersionsListRequest {
+	/// Tenant that owns the profile.
 	pub tenant_id: String,
+	/// Project that owns the profile.
 	pub project_id: String,
+	/// Profile identifier.
 	pub profile_id: String,
 }
 
+/// Request payload for reading the default ingestion profile pointer.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AdminIngestionProfileDefaultGetRequest {
+	/// Tenant that owns the default pointer.
 	pub tenant_id: String,
+	/// Project that owns the default pointer.
 	pub project_id: String,
 }
 
+/// Request payload for updating the default ingestion profile pointer.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AdminIngestionProfileDefaultSetRequest {
+	/// Tenant that owns the default pointer.
 	pub tenant_id: String,
+	/// Project that owns the default pointer.
 	pub project_id: String,
+	/// Profile identifier to make default.
 	pub profile_id: String,
+	/// Optional explicit version to make default.
 	pub version: Option<i32>,
 }
 
+/// Response payload for one ingestion profile version.
 #[derive(Clone, Debug, Serialize)]
 pub struct AdminIngestionProfileResponse {
+	/// Profile identifier.
 	pub profile_id: String,
+	/// Profile version.
 	pub version: i32,
+	/// JSON profile payload.
 	pub profile: Value,
 	#[serde(with = "crate::time_serde")]
+	/// Creation timestamp.
 	pub created_at: OffsetDateTime,
+	/// Actor that created the version.
 	pub created_by: String,
 }
 
+/// Summary row for an ingestion profile version.
 #[derive(Clone, Debug, Serialize)]
 pub struct AdminIngestionProfileSummary {
+	/// Profile identifier.
 	pub profile_id: String,
+	/// Profile version.
 	pub version: i32,
 	#[serde(with = "crate::time_serde")]
+	/// Creation timestamp.
 	pub created_at: OffsetDateTime,
+	/// Actor that created the version.
 	pub created_by: String,
 }
 
+/// Response payload for listing ingestion profiles.
 #[derive(Clone, Debug, Serialize)]
 pub struct AdminIngestionProfilesListResponse {
+	/// Returned profile summaries.
 	pub profiles: Vec<AdminIngestionProfileSummary>,
 }
 
+/// Response payload for listing versions of one ingestion profile.
 #[derive(Clone, Debug, Serialize)]
 pub struct AdminIngestionProfileVersionsListResponse {
+	/// Returned profile-version summaries.
 	pub profiles: Vec<AdminIngestionProfileSummary>,
 }
 
+/// Response payload for reading the default ingestion profile pointer.
 #[derive(Clone, Debug, Serialize)]
 pub struct AdminIngestionProfileDefaultResponse {
+	/// Default profile identifier.
 	pub profile_id: String,
+	/// Default profile version, when pinned.
 	pub version: Option<i32>,
 	#[serde(with = "crate::time_serde")]
+	/// Last update timestamp for the default pointer.
 	pub updated_at: OffsetDateTime,
 }
 
@@ -222,6 +274,7 @@ struct ProfileDefaultRow {
 }
 
 impl ElfService {
+	/// Creates a new ingestion profile version.
 	pub async fn admin_ingestion_profile_create(
 		&self,
 		req: AdminIngestionProfileCreateRequest,
@@ -304,6 +357,7 @@ RETURNING profile_id, version, profile, created_at, created_by",
 		})
 	}
 
+	/// Lists the latest visible ingestion profile versions.
 	pub async fn admin_ingestion_profiles_list(
 		&self,
 		req: AdminIngestionProfileListRequest,
@@ -334,6 +388,7 @@ ORDER BY profile_id, version DESC",
 		Ok(AdminIngestionProfilesListResponse { profiles })
 	}
 
+	/// Fetches one ingestion profile version.
 	pub async fn admin_ingestion_profile_get(
 		&self,
 		req: AdminIngestionProfileGetRequest,
@@ -374,6 +429,7 @@ ORDER BY profile_id, version DESC",
 		})
 	}
 
+	/// Lists all versions for one ingestion profile.
 	pub async fn admin_ingestion_profile_versions_list(
 		&self,
 		req: AdminIngestionProfileVersionsListRequest,
@@ -412,6 +468,7 @@ ORDER BY version DESC",
 		Ok(AdminIngestionProfileVersionsListResponse { profiles })
 	}
 
+	/// Reads the default ingestion profile pointer.
 	pub async fn admin_ingestion_profile_default_get(
 		&self,
 		req: AdminIngestionProfileDefaultGetRequest,
@@ -455,6 +512,7 @@ WHERE tenant_id=$1 AND project_id=$2 AND pipeline=$3",
 		})
 	}
 
+	/// Updates the default ingestion profile pointer.
 	pub async fn admin_ingestion_profile_default_set(
 		&self,
 		req: AdminIngestionProfileDefaultSetRequest,

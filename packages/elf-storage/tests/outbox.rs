@@ -1,3 +1,7 @@
+#![allow(unused_crate_dependencies)]
+
+//! Integration tests for storage outbox helpers.
+
 use uuid::Uuid;
 
 use elf_config::Postgres;

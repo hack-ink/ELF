@@ -1,3 +1,5 @@
+//! Shared application state bootstrap and backend wiring.
+
 use std::sync::Arc;
 
 use color_eyre::Result;
@@ -9,11 +11,14 @@ use elf_storage::{
 	qdrant::{DOCS_SEARCH_FILTER_INDEXES, QdrantStore},
 };
 
+/// Shared state for API handlers.
 #[derive(Clone)]
 pub struct AppState {
+	/// The service instance serving API requests.
 	pub service: Arc<ElfService>,
 }
 impl AppState {
+	/// Builds application state and ensures storage backends are ready.
 	pub async fn new(config: Config) -> Result<Self> {
 		let db = Db::connect(&config.storage.postgres).await?;
 

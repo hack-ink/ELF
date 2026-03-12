@@ -1,3 +1,5 @@
+//! LLM extraction-provider client helpers.
+
 use std::time::Duration;
 
 use reqwest::Client;
@@ -6,6 +8,7 @@ use serde_json::Value;
 use crate::{Error, Result};
 use elf_config::LlmProviderConfig;
 
+/// Calls the configured extractor provider and returns parsed JSON content.
 pub async fn extract(cfg: &LlmProviderConfig, messages: &[Value]) -> Result<Value> {
 	let client = Client::builder().timeout(Duration::from_millis(cfg.timeout_ms)).build()?;
 	let url = format!("{}{}", cfg.api_base, cfg.path);

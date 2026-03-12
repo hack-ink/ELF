@@ -1,3 +1,5 @@
+//! Note deletion APIs.
+
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -5,21 +7,30 @@ use uuid::Uuid;
 use crate::{ElfService, Error, InsertVersionArgs, NoteOp, Result, access};
 use elf_storage::models::MemoryNote;
 
+/// Request payload for note deletion.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct DeleteRequest {
+	/// Tenant that owns the note.
 	pub tenant_id: String,
+	/// Project that owns the note.
 	pub project_id: String,
+	/// Agent requesting the deletion.
 	pub agent_id: String,
+	/// Identifier of the note to delete.
 	pub note_id: Uuid,
 }
 
+/// Response payload for note deletion.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct DeleteResponse {
+	/// Identifier of the affected note.
 	pub note_id: Uuid,
+	/// Operation that was applied.
 	pub op: NoteOp,
 }
 
 impl ElfService {
+	/// Soft-deletes one note when the caller owns it and the scope is writable.
 	pub async fn delete(&self, req: DeleteRequest) -> Result<DeleteResponse> {
 		let now = OffsetDateTime::now_utc();
 		let tenant_id = req.tenant_id.trim();

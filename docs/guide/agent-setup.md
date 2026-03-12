@@ -1,5 +1,11 @@
 # Agent Setup Guide
 
+Goal: Help an agent install and run ELF locally with minimal back-and-forth.
+Read this when: You need a practical local setup flow from an existing repository checkout.
+Inputs: This repository checkout plus access to local Postgres, Qdrant, and provider credentials.
+Depends on: `Makefile.toml`, `elf.example.toml`, and `docs/guide/getting_started.md`.
+Verification: ELF services start, required dependencies are reachable, and the local workflow can continue.
+
 This guide is written for AI agents helping a human operator install and run ELF locally with minimal back-and-forth.
 It assumes you have access to this repository checkout.
 

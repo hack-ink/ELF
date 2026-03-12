@@ -1,3 +1,5 @@
+//! Note update APIs.
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sqlx::{Postgres, Transaction};
@@ -8,26 +10,40 @@ use crate::{ElfService, Error, InsertVersionArgs, NoteOp, Result, access};
 use elf_domain::{english_gate, ttl, writegate};
 use elf_storage::models::MemoryNote;
 
+/// Request payload for note updates.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct UpdateRequest {
+	/// Tenant that owns the note.
 	pub tenant_id: String,
+	/// Project that owns the note.
 	pub project_id: String,
+	/// Agent requesting the update.
 	pub agent_id: String,
+	/// Identifier of the note to update.
 	pub note_id: Uuid,
+	/// Optional replacement note text.
 	pub text: Option<String>,
+	/// Optional replacement importance score.
 	pub importance: Option<f32>,
+	/// Optional replacement confidence score.
 	pub confidence: Option<f32>,
+	/// Optional TTL override in days.
 	pub ttl_days: Option<i64>,
 }
 
+/// Response payload for note updates.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct UpdateResponse {
+	/// Identifier of the affected note.
 	pub note_id: Uuid,
+	/// Operation that was applied.
 	pub op: NoteOp,
+	/// Machine-readable rejection code, if the update was rejected.
 	pub reason_code: Option<String>,
 }
 
 impl ElfService {
+	/// Updates mutable note fields when the caller still owns an active note.
 	pub async fn update(&self, req: UpdateRequest) -> Result<UpdateResponse> {
 		let now = OffsetDateTime::now_utc();
 		let tenant_id = req.tenant_id.trim();
