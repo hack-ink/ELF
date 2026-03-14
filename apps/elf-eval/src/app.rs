@@ -1,4 +1,5 @@
 use std::{
+	cmp::Ordering,
 	collections::{HashMap, HashSet},
 	fs,
 	path::{Path, PathBuf},
@@ -862,7 +863,7 @@ fn summarize(reports: &[QueryReport], latencies_ms: &[f64]) -> EvalSummary {
 		reports.iter().map(|r| r.retrieved_summary_chars as f64).sum::<f64>() / count;
 	let mut sorted = latencies_ms.to_vec();
 
-	sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+	sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
 
 	let p50 = percentile(&sorted, 0.50);
 	let p95 = percentile(&sorted, 0.95);

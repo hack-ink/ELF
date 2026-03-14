@@ -2,6 +2,8 @@
 
 //! Integration tests for memory-policy evaluation.
 
+use serde_json::Map;
+
 use elf_config::{
 	Chunking, Config, EmbeddingProviderConfig, Lifecycle, LlmProviderConfig, Memory, MemoryPolicy,
 	MemoryPolicyRule, Postgres, ProviderConfig, Providers, Qdrant, Ranking, RankingBlend,
@@ -78,7 +80,7 @@ fn embedding_provider_config() -> EmbeddingProviderConfig {
 		model: "m".to_string(),
 		dimensions: 3,
 		timeout_ms: 1_000,
-		default_headers: serde_json::Map::new(),
+		default_headers: Map::new(),
 	}
 }
 
@@ -90,7 +92,7 @@ fn rerank_provider_config() -> ProviderConfig {
 		path: "/".to_string(),
 		model: "m".to_string(),
 		timeout_ms: 1_000,
-		default_headers: serde_json::Map::new(),
+		default_headers: Map::new(),
 	}
 }
 
@@ -103,7 +105,7 @@ fn llm_extractor_provider_config() -> LlmProviderConfig {
 		model: "m".to_string(),
 		temperature: 0.1,
 		timeout_ms: 1_000,
-		default_headers: serde_json::Map::new(),
+		default_headers: Map::new(),
 	}
 }
 

@@ -1,6 +1,6 @@
 //! Worker runtime and queue-processing helpers.
 
-use std::{collections::HashMap, slice};
+use std::{collections::HashMap, slice, string::ToString};
 
 use qdrant_client::{
 	QdrantError,
@@ -441,19 +441,19 @@ fn project_doc_ref_fields(
 			.get(field_name)
 			.and_then(Value::as_str)
 			.filter(|value| !value.is_empty())
-			.map(std::string::ToString::to_string)
+			.map(ToString::to_string)
 	};
 	let doc_ts = match source_ref
 		.get("ts")
 		.and_then(Value::as_str)
 		.filter(|value| OffsetDateTime::parse(value, &Rfc3339).is_ok())
-		.map(std::string::ToString::to_string)
+		.map(ToString::to_string)
 		.or_else(|| {
 			source_ref
 				.get("doc_ts")
 				.and_then(Value::as_str)
 				.filter(|value| OffsetDateTime::parse(value, &Rfc3339).is_ok())
-				.map(std::string::ToString::to_string)
+				.map(ToString::to_string)
 		}) {
 		Some(value) => value,
 		None => format_timestamp(fallback_timestamp)?,

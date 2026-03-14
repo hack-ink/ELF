@@ -2,6 +2,7 @@
 
 use unicode_normalization::UnicodeNormalization;
 use unicode_script::{Script, UnicodeScript};
+use whatlang::Lang;
 
 /// English-gate input classes that determine which checks apply.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -156,7 +157,7 @@ fn is_confidently_non_english(input: &str) -> bool {
 		return false;
 	}
 
-	info.lang() != whatlang::Lang::Eng
+	info.lang() != Lang::Eng
 }
 
 #[cfg(test)]
