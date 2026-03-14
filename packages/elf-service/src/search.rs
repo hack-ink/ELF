@@ -29,7 +29,9 @@ use elf_storage::{
 	qdrant::{BM25_MODEL, BM25_VECTOR_NAME, DENSE_VECTOR_NAME},
 };
 use filter::{SearchFilter, SearchFilterImpact};
-use ranking::{ResolvedBlendPolicy, ResolvedDiversityPolicy, ResolvedRetrievalSourcesPolicy};
+use ranking::{
+	NormalizationKind, ResolvedBlendPolicy, ResolvedDiversityPolicy, ResolvedRetrievalSourcesPolicy,
+};
 
 const TRACE_VERSION: i32 = 3;
 const MAX_MATCHED_TERMS: usize = 8;
@@ -5033,11 +5035,10 @@ fn score_chunk_candidate(
 	let scope_context_boost =
 		ctx.scope_context_boost_by_scope.get(item.note.scope.as_str()).copied().unwrap_or(0.0);
 	let rerank_norm = match ctx.blend_policy.rerank_normalization {
-		ranking::NormalizationKind::Rank => ranking::rank_normalize(rerank_rank, ctx.total_rerank),
+		NormalizationKind::Rank => ranking::rank_normalize(rerank_rank, ctx.total_rerank),
 	};
 	let retrieval_norm = match ctx.blend_policy.retrieval_normalization {
-		ranking::NormalizationKind::Rank =>
-			ranking::rank_normalize(retrieval_rank, ctx.total_retrieval),
+		NormalizationKind::Rank => ranking::rank_normalize(retrieval_rank, ctx.total_retrieval),
 	};
 	let blend_retrieval_weight = if ctx.blend_policy.enabled {
 		ranking::retrieval_weight_for_rank(retrieval_rank, &ctx.blend_policy.segments)
@@ -5559,11 +5560,10 @@ fn score_replay_candidate(
 	let scope_context_boost =
 		ctx.scope_context_boost_by_scope.get(candidate.note_scope.as_str()).copied().unwrap_or(0.0);
 	let rerank_norm = match ctx.blend_policy.rerank_normalization {
-		ranking::NormalizationKind::Rank => ranking::rank_normalize(rerank_rank, ctx.total_rerank),
+		NormalizationKind::Rank => ranking::rank_normalize(rerank_rank, ctx.total_rerank),
 	};
 	let retrieval_norm = match ctx.blend_policy.retrieval_normalization {
-		ranking::NormalizationKind::Rank =>
-			ranking::rank_normalize(retrieval_rank, ctx.total_retrieval),
+		NormalizationKind::Rank => ranking::rank_normalize(retrieval_rank, ctx.total_retrieval),
 	};
 	let blend_retrieval_weight = if ctx.blend_policy.enabled {
 		ranking::retrieval_weight_for_rank(retrieval_rank, &ctx.blend_policy.segments)

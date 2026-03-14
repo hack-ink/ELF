@@ -8,7 +8,7 @@ use std::{
 use qdrant_client::{
 	Qdrant,
 	qdrant::{
-		Condition, DatetimeRange, Filter, Fusion, MinShould, PrefetchQueryBuilder, Query,
+		Condition, DatetimeRange, Document, Filter, Fusion, MinShould, PrefetchQueryBuilder, Query,
 		QueryPointsBuilder, ScoredPoint, Timestamp, point_id::PointIdOptions,
 	},
 };
@@ -2250,10 +2250,7 @@ async fn run_doc_fusion_query(
 
 	if sparse_enabled {
 		let bm25_prefetch = PrefetchQueryBuilder::default()
-			.query(Query::new_nearest(qdrant_client::qdrant::Document::new(
-				query_text.to_string(),
-				BM25_MODEL,
-			)))
+			.query(Query::new_nearest(Document::new(query_text.to_string(), BM25_MODEL)))
 			.using(BM25_VECTOR_NAME)
 			.filter(filter.clone())
 			.limit(candidate_k as u64);

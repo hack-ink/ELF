@@ -1,6 +1,7 @@
 //! Progressive-search APIs.
 
 use std::{
+	cmp::Ordering,
 	collections::{BTreeMap, HashMap, hash_map::DefaultHasher, hash_set::HashSet},
 	hash::{Hash, Hasher},
 	str::FromStr,
@@ -835,9 +836,9 @@ fn build_timeline_by_day(
 
 	for (date, mut items) in grouped.into_iter().rev() {
 		items.sort_by(|a, b| {
-			b.updated_at.cmp(&a.updated_at).then_with(|| {
-				b.final_score.partial_cmp(&a.final_score).unwrap_or(std::cmp::Ordering::Equal)
-			})
+			b.updated_at
+				.cmp(&a.updated_at)
+				.then_with(|| b.final_score.partial_cmp(&a.final_score).unwrap_or(Ordering::Equal))
 		});
 		groups.push(SearchTimelineGroup { date, items });
 	}

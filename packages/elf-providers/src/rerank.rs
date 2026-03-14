@@ -1,6 +1,10 @@
 //! Rerank-provider client helpers.
 
-use std::{collections::HashSet, sync::atomic::AtomicU64, time::Duration};
+use std::{
+	collections::HashSet,
+	sync::atomic::{AtomicU64, Ordering},
+	time::Duration,
+};
 
 use reqwest::Client;
 use serde_json::Value;
@@ -108,7 +112,7 @@ fn local_rerank_noisy(query: &str, docs: &[String], noise_std: f32) -> Vec<f32> 
 	seed_bytes.copy_from_slice(&query_hash.as_bytes()[..8]);
 	// Vary the noise across calls to simulate reranker instability.
 
-	let call_idx = LOCAL_NOISE_CALL_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+	let call_idx = LOCAL_NOISE_CALL_COUNTER.fetch_add(1, Ordering::Relaxed);
 	let mut seed = u64::from_le_bytes(seed_bytes);
 
 	seed ^= call_idx.wrapping_mul(0x9E37_79B9_7F4A_7C15);

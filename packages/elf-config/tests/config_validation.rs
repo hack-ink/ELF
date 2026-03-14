@@ -13,7 +13,7 @@ use std::{
 
 use toml::Value;
 
-use elf_config::{Config, Context, Error};
+use elf_config::{self, Config, Context, Error};
 
 const SAMPLE_CONFIG_TEMPLATE_TOML: &str = include_str!("fixtures/sample_config.template.toml");
 
@@ -623,8 +623,8 @@ fn memory_policy_scope_must_be_allowed() {
 fn memory_policy_rule_pairs_must_be_unique() {
 	let mut cfg = base_config();
 
-	cfg.memory.policy.rules.push(elf_config::MemoryPolicyRule::default());
-	cfg.memory.policy.rules.push(elf_config::MemoryPolicyRule::default());
+	cfg.memory.policy.rules.push(Default::default());
+	cfg.memory.policy.rules.push(Default::default());
 
 	let err = elf_config::validate(&cfg).expect_err("Expected duplicate rule validation error.");
 

@@ -1,4 +1,4 @@
-use std::{collections::HashSet, future::IntoFuture, sync::Arc, time::Instant};
+use std::{collections::HashSet, future::IntoFuture, string::ToString, sync::Arc, time::Instant};
 
 use ahash::AHashMap;
 use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing};
@@ -22,7 +22,8 @@ use elf_config::EmbeddingProviderConfig;
 use elf_service::{
 	AddNoteInput, AddNoteRequest, BoxFuture, DocsExcerptsGetRequest, DocsGetRequest,
 	DocsPutRequest, DocsPutResponse, DocsSearchL0Request, ElfService, EmbeddingProvider, Error,
-	Providers, Result, SearchRequest, TextQuoteSelector, docs::DocRetrievalTrajectory,
+	PayloadLevel, Providers, Result, SearchRequest, TextQuoteSelector,
+	docs::DocRetrievalTrajectory,
 };
 use elf_storage::{db::Db, qdrant::QdrantStore};
 use elf_testkit::TestDatabase;
@@ -1509,7 +1510,7 @@ async fn docs_search_l0_note_pointer_roundtrip_hydrates_doc() {
 			agent_id: "agent".to_string(),
 			token_id: None,
 			read_profile: "private_only".to_string(),
-			payload_level: elf_service::PayloadLevel::L2,
+			payload_level: PayloadLevel::L2,
 			query: "peregrine".to_string(),
 			top_k: Some(5),
 			candidate_k: Some(20),
@@ -1712,7 +1713,7 @@ async fn put_test_doc_with(
 			project_id: "p".to_string(),
 			agent_id: agent_id.to_string(),
 			scope: scope.to_string(),
-			doc_type: doc_type.map(std::string::ToString::to_string),
+			doc_type: doc_type.map(ToString::to_string),
 			title: Some(title.to_string()),
 			write_policy: None,
 			source_ref,

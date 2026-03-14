@@ -1,7 +1,7 @@
 //! Note indexing and trace outbox helpers.
 
 use sqlx::PgExecutor;
-use time::OffsetDateTime;
+use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
 use crate::{
@@ -64,7 +64,7 @@ FOR UPDATE SKIP LOCKED",
 	.fetch_optional(&mut *tx)
 	.await?;
 	let job = if let Some(mut job) = row {
-		let lease_until = now + time::Duration::seconds(lease_seconds);
+		let lease_until = now + Duration::seconds(lease_seconds);
 
 		sqlx::query(
 			"UPDATE indexing_outbox SET available_at = $1, updated_at = $2 WHERE outbox_id = $3",
@@ -157,7 +157,7 @@ FOR UPDATE SKIP LOCKED",
 	.fetch_optional(&mut *tx)
 	.await?;
 	let job = if let Some(job) = row {
-		let lease_until = now + time::Duration::seconds(lease_seconds);
+		let lease_until = now + Duration::seconds(lease_seconds);
 
 		sqlx::query(
 			"UPDATE search_trace_outbox SET available_at = $1, updated_at = $2 WHERE outbox_id = $3",

@@ -1,9 +1,13 @@
-use std::collections::HashMap;
+use std::{
+	collections::HashMap,
+	sync::{Arc, atomic::AtomicUsize},
+};
 
 use qdrant_client::{
 	client::Payload,
 	qdrant::{Document, PointStruct, UpsertPointsBuilder, Vector},
 };
+use serde_json::Value;
 use sqlx::PgExecutor;
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -77,9 +81,9 @@ fn build_payload(
 
 	payload.insert("note_id", note_id.to_string());
 	payload.insert("chunk_id", chunk_id.to_string());
-	payload.insert("chunk_index", serde_json::Value::from(chunk_index));
-	payload.insert("start_offset", serde_json::Value::from(start_offset));
-	payload.insert("end_offset", serde_json::Value::from(end_offset));
+	payload.insert("chunk_index", Value::from(chunk_index));
+	payload.insert("start_offset", Value::from(start_offset));
+	payload.insert("end_offset", Value::from(end_offset));
 	payload.insert("tenant_id", "t");
 	payload.insert("project_id", "p");
 	payload.insert("agent_id", "a");
@@ -113,10 +117,10 @@ async fn setup_context(test_name: &str) -> Option<TestContext> {
 		return None;
 	};
 	let providers = Providers::new(
-		std::sync::Arc::new(crate::acceptance::StubEmbedding { vector_dim: 4_096 }),
-		std::sync::Arc::new(KeywordRerank { keyword: "ZEBRA" }),
-		std::sync::Arc::new(crate::acceptance::SpyExtractor {
-			calls: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+		Arc::new(crate::acceptance::StubEmbedding { vector_dim: 4_096 }),
+		Arc::new(KeywordRerank { keyword: "ZEBRA" }),
+		Arc::new(crate::acceptance::SpyExtractor {
+			calls: Arc::new(AtomicUsize::new(0)),
 			payload: serde_json::json!({ "notes": [] }),
 		}),
 	);
