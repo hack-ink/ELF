@@ -1,5 +1,7 @@
 exclude = [
 	"**/Makefile.toml",
+	".workspaces",
+	".workspaces/**",
 	".worktrees",
 	".worktrees/**",
 	"Makefile.toml",
