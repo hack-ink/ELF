@@ -1,5 +1,7 @@
 //! Structured graph query APIs.
 
+use std::collections::HashSet;
+
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, PgConnection};
 use time::OffsetDateTime;
@@ -536,7 +538,7 @@ fn normalize_required_field(value: &str, field: &str) -> Result<String> {
 
 fn normalize_scopes(scopes: Option<Vec<String>>) -> Result<Vec<String>> {
 	let scopes = scopes.unwrap_or_default();
-	let mut seen = std::collections::HashSet::new();
+	let mut seen = HashSet::new();
 	let mut normalized = Vec::new();
 
 	for scope in scopes {

@@ -3,7 +3,7 @@
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::{ElfService, Result};
+use crate::{ElfService, Error, Result};
 use elf_storage::graph;
 
 #[allow(dead_code)]
@@ -32,7 +32,7 @@ impl ElfService {
 			args.predicate,
 		)
 		.await
-		.map_err(|err| crate::Error::Storage { message: err.to_string() })?;
+		.map_err(|err| Error::Storage { message: err.to_string() })?;
 		let fact_id = graph::insert_fact_with_evidence(
 			&mut tx,
 			args.tenant_id,
@@ -49,7 +49,7 @@ impl ElfService {
 			args.evidence_note_ids,
 		)
 		.await
-		.map_err(|err| crate::Error::Storage { message: err.to_string() })?;
+		.map_err(|err| Error::Storage { message: err.to_string() })?;
 
 		tx.commit().await?;
 

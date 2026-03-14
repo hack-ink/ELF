@@ -1,6 +1,6 @@
 //! Optional `OffsetDateTime` serde helpers.
 
-use serde::{Deserialize as _, Deserializer, Serializer};
+use serde::{Deserialize as _, Deserializer, Serializer, de::Error};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
 use crate::time_serde;
@@ -24,8 +24,7 @@ where
 	let raw = Option::<String>::deserialize(deserializer)?;
 
 	match raw {
-		Some(value) =>
-			OffsetDateTime::parse(&value, &Rfc3339).map(Some).map_err(serde::de::Error::custom),
+		Some(value) => OffsetDateTime::parse(&value, &Rfc3339).map(Some).map_err(Error::custom),
 		None => Ok(None),
 	}
 }

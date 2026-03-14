@@ -9,7 +9,7 @@ use qdrant_client::{
 };
 use serde_json::Value;
 use sqlx::PgExecutor;
-use time::OffsetDateTime;
+use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
 use crate::acceptance::{self, SpyExtractor, StubEmbedding, StubRerank};
@@ -595,10 +595,10 @@ async fn seed_relation_context_fixture(
 	let newer_fact_id = Uuid::new_v4();
 	let predicate_id = Uuid::new_v4();
 	let older_fact_id = Uuid::new_v4();
-	let older_fact_valid_from = now - time::Duration::seconds(10);
-	let newer_fact_valid_from = now - time::Duration::seconds(5);
-	let note_1_evidence_created_at = now - time::Duration::seconds(30);
-	let note_2_evidence_created_at = now - time::Duration::seconds(10);
+	let older_fact_valid_from = now - Duration::seconds(10);
+	let newer_fact_valid_from = now - Duration::seconds(5);
+	let note_1_evidence_created_at = now - Duration::seconds(30);
+	let note_2_evidence_created_at = now - Duration::seconds(10);
 
 	insert_note(&service.db.pool, note_id, chunk_text, embedding_version).await;
 	insert_note(

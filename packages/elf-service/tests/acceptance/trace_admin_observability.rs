@@ -1,3 +1,5 @@
+use std::sync::{Arc, atomic::AtomicUsize};
+
 use serde_json::Value;
 use sqlx::PgPool;
 use time::{Duration, OffsetDateTime};
@@ -5,7 +7,7 @@ use uuid::Uuid;
 
 use crate::acceptance::{self, SpyExtractor, StubEmbedding, StubRerank};
 use elf_service::{
-	ElfService, SearchExplainRequest, TraceBundleGetRequest, TraceGetRequest,
+	ElfService, Providers, SearchExplainRequest, TraceBundleGetRequest, TraceGetRequest,
 	TraceRecentListRequest, TraceRecentListResponse, TraceTrajectoryGetRequest,
 	search::{TraceBundleMode, TraceReplayCandidate},
 };
@@ -48,13 +50,13 @@ async fn setup_service(test_name: &str) -> Option<TraceAdminObservabilityFixture
 		docs_collection,
 	);
 	let extractor = SpyExtractor {
-		calls: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+		calls: Arc::new(AtomicUsize::new(0)),
 		payload: serde_json::json!({ "notes": [] }),
 	};
-	let providers = elf_service::Providers::new(
-		std::sync::Arc::new(StubEmbedding { vector_dim: 4_096 }),
-		std::sync::Arc::new(StubRerank),
-		std::sync::Arc::new(extractor),
+	let providers = Providers::new(
+		Arc::new(StubEmbedding { vector_dim: 4_096 }),
+		Arc::new(StubRerank),
+		Arc::new(extractor),
 	);
 	let service =
 		acceptance::build_service(cfg, providers).await.expect("Failed to build service.");

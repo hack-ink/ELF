@@ -4,7 +4,7 @@ use axum::{
 	Router,
 	body::Body,
 	extract::State,
-	http::{HeaderMap, Request},
+	http::{HeaderMap, Request, StatusCode},
 	middleware::{self, Next},
 	response::IntoResponse,
 };
@@ -1476,7 +1476,7 @@ async fn mcp_auth_middleware(
 ) -> axum::response::Response {
 	if !is_authorized(req.headers(), &auth_state) {
 		return (
-			axum::http::StatusCode::UNAUTHORIZED,
+			StatusCode::UNAUTHORIZED,
 			"Authentication required for security.auth_mode=static_keys with a Bearer token.",
 		)
 			.into_response();
