@@ -1023,7 +1023,8 @@ fn docs_put_schema() -> Arc<JsonObject> {
 				"domain": { "type": "string" },
 				"repo": { "type": "string" },
 				"commit_sha": { "type": "string" },
-				"pr_number": { "type": "integer" }
+				"pr_number": { "type": "integer" },
+				"issue_number": { "type": "integer" }
 			},
 			"allOf": [
 				{
@@ -1044,7 +1045,8 @@ fn docs_put_schema() -> Arc<JsonObject> {
 						"required": ["repo"],
 						"oneOf": [
 							{ "required": ["commit_sha"] },
-							{ "required": ["pr_number"] }
+							{ "required": ["pr_number"] },
+							{ "required": ["issue_number"] }
 						]
 					}
 				}
