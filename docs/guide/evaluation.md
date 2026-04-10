@@ -216,7 +216,7 @@ Operational notes:
 
 ## Search Modes Latency Benchmark
 
-To validate the Issue #58 acceptance criterion that `quick_find` has **lower p95 latency** than
+To validate the search-modes acceptance criterion that `quick_find` has **lower p95 latency** than
 `planned_search`, run a small benchmark using `elf-eval` search-mode selection.
 
 This procedure uses the ranking-stability harness to seed a deterministic dataset (local providers),

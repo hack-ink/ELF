@@ -33,11 +33,11 @@ Last updated: March 4, 2026.
 
 ## Adoption Tracks Linked To Research
 
-- OpenViking-inspired track: https://github.com/hack-ink/ELF/issues/57
-- Search modes: https://github.com/hack-ink/ELF/issues/58
-- Retrieval trajectory explain: https://github.com/hack-ink/ELF/issues/59
-- Progressive payload levels: https://github.com/hack-ink/ELF/issues/60
-- Scoped recursive retrieval: https://github.com/hack-ink/ELF/issues/61
+- OpenViking-inspired track: https://linear.app/hack-ink/issue/XY-41/openviking-inspired-retrieval-track-context-architecture-and
+- Search modes: https://linear.app/hack-ink/issue/XY-42/search-modes-quick-find-and-planned-search-with-explicit-query-plan
+- Retrieval trajectory explain: https://linear.app/hack-ink/issue/XY-43/retrieval-trajectory-stage-level-explain-and-trace-provenance
+- Progressive payload levels: https://linear.app/hack-ink/issue/XY-44/progressive-context-loading-l0l1l2-style-payload-levels
+- Scoped recursive retrieval: https://linear.app/hack-ink/issue/XY-45/scoped-recursive-retrieval-hierarchical-recall-with-convergence
 
 ## Notes
 

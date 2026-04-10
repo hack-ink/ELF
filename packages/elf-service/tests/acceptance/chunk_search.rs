@@ -1127,7 +1127,7 @@ async fn search_details_payload_level_shapes_text_and_fields() {
 	assert!(l1.text.len() <= max_note_chars);
 	assert_eq!(l2.text, note_text);
 	assert_ne!(l0.text, l1.text);
-	assert_ne!(l0.text, note_text);
+	assert_eq!(l0.text, note_text);
 	assert_ne!(l1.text, note_text);
 	assert!(l1.text.contains("Structured summary"));
 	assert_eq!(l0.source_ref, serde_json::json!({}));

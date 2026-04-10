@@ -256,14 +256,6 @@ This list is for architectural comparison only. It is not a product commitment a
    - Borrow from OpenViking's `find()` vs `search()` separation and staged retrieval flow.
    - Keep quick/planned split and stage-level trajectory outputs in place on `/v2/searches`, then improve operator visibility (`GET /v2/searches/{search_id}` ergonomics and optional local timeline tooling).
 
-## OpenViking-Inspired Issues
-
-- Track: https://github.com/hack-ink/ELF/issues/57
-- Search modes: https://github.com/hack-ink/ELF/issues/58
-- Retrieval trajectory explain: https://github.com/hack-ink/ELF/issues/59
-- Progressive payload levels: https://github.com/hack-ink/ELF/issues/60
-- Scoped recursive retrieval: https://github.com/hack-ink/ELF/issues/61
-
 Research sources for this section:
 - Graphiti/Zep:
   - https://help.getzep.com/graphiti/core-concepts/temporal-awareness
