@@ -256,14 +256,6 @@ This list is for architectural comparison only. It is not a product commitment a
    - Borrow from OpenViking's `find()` vs `search()` separation and staged retrieval flow.
    - Keep quick/planned split and stage-level trajectory outputs in place on `/v2/searches`, then improve operator visibility (`GET /v2/searches/{search_id}` ergonomics and optional local timeline tooling).
 
-## OpenViking-Inspired Issues
-
-- Track: https://linear.app/hack-ink/issue/XY-41/openviking-inspired-retrieval-track-context-architecture-and
-- Search modes: https://linear.app/hack-ink/issue/XY-42/search-modes-quick-find-and-planned-search-with-explicit-query-plan
-- Retrieval trajectory explain: https://linear.app/hack-ink/issue/XY-43/retrieval-trajectory-stage-level-explain-and-trace-provenance
-- Progressive payload levels: https://linear.app/hack-ink/issue/XY-44/progressive-context-loading-l0l1l2-style-payload-levels
-- Scoped recursive retrieval: https://linear.app/hack-ink/issue/XY-45/scoped-recursive-retrieval-hierarchical-recall-with-convergence
-
 Research sources for this section:
 - Graphiti/Zep:
   - https://help.getzep.com/graphiti/core-concepts/temporal-awareness
