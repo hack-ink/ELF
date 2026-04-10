@@ -76,7 +76,6 @@ Required:
 - Exactly one of:
   - `commit_sha` (string)
   - `pr_number` (integer)
-  - `issue_number` (integer)
 
 Optional (examples):
 - `path` (string): file path within the repo.
@@ -103,7 +102,7 @@ re-ingesting the same event:
 - `thread_id`
 - `domain`
 - `repo`
-- `commit_sha` / `pr_number` / `issue_number`
+- `commit_sha` / `pr_number`
 
 Timestamp rules:
 - `ts` MUST be a timezone-aware RFC3339 datetime string.

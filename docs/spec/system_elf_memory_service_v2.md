@@ -3,7 +3,7 @@
 Purpose: Define the ELF Memory Service v2.0 contract, invariants, and storage model.
 Status: normative
 Read this when: You are implementing, validating, or reviewing the core ELF memory service behavior.
-Not this document: Operator runbooks, local setup steps, or issue-triage workflows.
+Not this document: Operator runbooks, local setup steps, or work-item triage workflows.
 Defines: ELF Memory Service v2.0 API semantics, ingestion boundaries, and storage invariants.
 
 Description: ELF means Evidence-linked fact memory for agents.
@@ -1169,7 +1169,7 @@ Behavior:
 - Allowed status transitions: pending->active, pending->deprecated, active->deprecated.
 - Deprecated predicates cannot be modified (409).
 - Global predicates are immutable (403).
-- Note: Global predicate mutations require follow-up #68.
+- Note: Global predicate mutations remain follow-up work and are not covered by this contract.
 
 Response:
 {
@@ -1201,7 +1201,7 @@ Behavior:
 - alias must be non-empty.
 - Deprecated predicates cannot be modified (409).
 - Global predicates are immutable (403).
-- Note: Global predicate mutations require follow-up #68.
+- Note: Global predicate mutations remain follow-up work and are not covered by this contract.
 
 Response:
 {

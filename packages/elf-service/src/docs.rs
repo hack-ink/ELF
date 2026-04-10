@@ -1415,16 +1415,12 @@ fn validate_doc_source_ref_requirements(
 			let pr_number_present = source_ref
 				.get("pr_number")
 				.is_some_and(|value| value.as_i64().is_some() || value.as_u64().is_some());
-			let issue_number_present = source_ref
-				.get("issue_number")
-				.is_some_and(|value| value.as_i64().is_some() || value.as_u64().is_some());
-			let present_count =
-				commit_sha_present as u8 + pr_number_present as u8 + issue_number_present as u8;
+			let present_count = commit_sha_present as u8 + pr_number_present as u8;
 
 			if present_count != 1 {
 				return Err(Error::InvalidRequest {
 					message:
-						"For doc_type=dev, exactly one of commit_sha, pr_number, or issue_number is required."
+						"For doc_type=dev, exactly one of commit_sha or pr_number is required."
 							.to_string(),
 				});
 			}
@@ -3016,7 +3012,7 @@ mod tests {
 				"ts": "2026-02-25T12:00:00Z",
 				"repo": "hack-ink/ELF",
 				"commit_sha": "9f0a3f4c4eb58bfcf4a5f4f9d0c7be0e13c2f8d19",
-				"issue_number": 123,
+				"pr_number": 123,
 			}),
 			content: "Hello world.".to_string(),
 		})
@@ -3024,7 +3020,36 @@ mod tests {
 
 		match err {
 			Error::InvalidRequest { message } => {
-				assert!(message.contains("exactly one of commit_sha, pr_number, or issue_number"))
+				assert!(message.contains("exactly one of commit_sha or pr_number"))
+			},
+			other => panic!("Unexpected error: {other:?}"),
+		}
+	}
+
+	#[test]
+	fn validate_docs_put_rejects_legacy_dev_issue_identifier() {
+		let err = docs::validate_docs_put(&DocsPutRequest {
+			tenant_id: "t".to_string(),
+			project_id: "p".to_string(),
+			agent_id: "a".to_string(),
+			scope: "project_shared".to_string(),
+			doc_type: Some(DocType::Dev.as_str().to_string()),
+			title: None,
+			write_policy: None,
+			source_ref: serde_json::json!({
+				"schema": "doc_source_ref/v1",
+				"doc_type": "dev",
+				"ts": "2026-02-25T12:00:00Z",
+				"repo": "hack-ink/ELF",
+				"issue_number": 123,
+			}),
+			content: "Hello world.".to_string(),
+		})
+		.expect_err("Expected legacy issue_number source_ref to be rejected.");
+
+		match err {
+			Error::InvalidRequest { message } => {
+				assert!(message.contains("exactly one of commit_sha or pr_number"))
 			},
 			other => panic!("Unexpected error: {other:?}"),
 		}
