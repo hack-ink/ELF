@@ -89,7 +89,7 @@ jobs:
   #   runs-on: ubuntu-latest
   #   steps:
   #     - name: Publish
-  #       uses: softprops/action-gh-release@v2
+  #       uses: softprops/action-gh-release@v3
   #       with:
   #         discussion_category_name: Announcements
   #         generate_release_notes: true
@@ -113,7 +113,7 @@ jobs:
           mv ../MD5 .
 
       - name: Publish
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           discussion_category_name: Announcements
           generate_release_notes: true
