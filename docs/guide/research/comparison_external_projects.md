@@ -97,6 +97,8 @@ Capability notes:
 - [claude-mem](https://github.com/thedotmack/claude-mem): Strong automatic capture and progressive disclosure UX, plus a practical local web viewer for inspection. Trade-off: optimized for Claude session continuity, with fewer explicit deterministic ingestion boundaries.
 - [mem0](https://github.com/mem0ai/mem0): Strong ecosystem reach (SDK + hosted + OpenMemory), multi-entity scoping, and lifecycle controls like `expiration_date`. Trade-off: ingestion and retrieval behavior depends heavily on configurable LLM-assisted flows, which can be less deterministic by default.
 - [OpenViking](https://github.com/volcengine/OpenViking): Strong context filesystem paradigm (`viking://`), hierarchical retrieval, and session-centric context iteration. Trade-off: relation model is URI-link based (not property graph), and adoption still requires adapting patterns into ELF's evidence-bound note contract.
+- [llm-wiki](https://github.com/nvk/llm-wiki): Strong LLM-maintained wiki pattern, topic-scoped knowledge bases, and explicit query/save/lint flows. Trade-off: wiki pages are the primary interface, so ELF-grade provenance and trust boundaries must remain layered above it.
+- [gbrain](https://github.com/garrytan/gbrain): Strong operational knowledge-brain shape with primary-home routing, `compiled_truth` + timeline pages, and explicit maintenance/enrichment workflows. Trade-off: page-first ontology and personal-brain workflow assumptions would over-couple ELF core to one UI/content model if copied directly.
 - [nanograph](https://github.com/aaltshuler/nanograph): Strong typed schema + typed query developer ergonomics. Trade-off: focuses on graph-first DX patterns rather than ELF's evidence-bound notes + multi-tenant service contract.
 
 ## nanograph Snapshot (New)
@@ -111,6 +113,21 @@ Primary references:
 - [nanograph](https://github.com/aaltshuler/nanograph)
 - [Schema docs](https://github.com/aaltshuler/nanograph/blob/main/docs/user/schema.md)
 - [Query docs](https://github.com/aaltshuler/nanograph/blob/main/docs/user/queries.md)
+
+## LLM Wiki And Operational Brain Snapshot (New)
+
+Snapshot date for this subsection: April 16, 2026.
+
+| Project | Primary knowledge unit | Relevant mechanism | Implication for ELF |
+| ------- | ---------------------- | ------------------ | ------------------- |
+| [llm-wiki](https://github.com/nvk/llm-wiki) | Topic-scoped wiki pages maintained as the working knowledge base | Query-answer-save loop, lint/repair workflow, and explicit inspiration from Karpathy's LLM Wiki framing | Strong reference for a derived knowledge-memory layer and operator-friendly compiled knowledge workflow; should sit above ELF core facts and evidence rather than replace them |
+| [gbrain](https://github.com/garrytan/gbrain) | Slugged brain pages with one primary home, `compiled_truth`, timeline, and backlinks | Resolver-based routing, schema-guided page types, enrichment as a shared service, hybrid search with compiled-truth boost, and explicit maintenance commands | Strong reference for turning memory into an operational knowledge base; should inform ELF knowledge-memory UX and maintenance loops, not its source-of-truth contract |
+
+Key takeaways for ELF from this snapshot:
+
+- Both projects reinforce a useful framing: knowledge is maintained memory, not a separate system.
+- Both are more valuable as references for ELF's future knowledge-memory layer than for ELF core ingestion semantics.
+- Both treat maintenance as first-class product surface area through lint, enrich, backlink, query-save, or repair flows rather than as a side task.
 
 ## OpenViking Deep Dive (New)
 
@@ -136,6 +153,8 @@ Snapshot date for this subsection: February 17, 2026.
 | [memsearch](https://github.com/zilliztech/memsearch) | Markdown is canonical; reindex is incremental/content-addressed; stale chunks are removed by hash-based reconciliation | Milvus hybrid search (dense + BM25 sparse) with RRF fusion | Plugin hook workflow favors practical continuity; failures are mostly handled operationally rather than through strict policy contracts | Very pragmatic local workflow; Milvus Lite/Server/Cloud flexibility, but capability envelope depends on Milvus mode |
 | [qmd](https://github.com/tobi/qmd) | Content-addressed SQLite model; `qmd update` reactivates/upserts and deactivates missing documents | Typed query expansion (`lex/vec/hyde`), hybrid routing, weighted RRF, then rerank blend by rank bands | Strong deterministic local index behavior with schema self-healing for vector tables | Excellent local-first control and explainability; less focused on multi-tenant memory governance semantics |
 | [claude-mem](https://github.com/thedotmack/claude-mem) | Hook-driven capture tied to Claude Code lifecycle; queue-backed worker persists pending tasks | Progressive-disclosure retrieval is explicit (`search -> timeline -> get_observations`); hybrid local stack (SQLite + Chroma) | Deliberate fail-open handler behavior reduces workflow interruption but may accept occasional capture gaps | Best-in-class local operator ergonomics (viewer/SSE/logs), centered on Claude-centric usage patterns |
+| [llm-wiki](https://github.com/nvk/llm-wiki) | Topic-specific wiki artifacts persisted as the working knowledge base | Query-answer-save loop over wiki state, lint/repair workflow, and an explicit LLM Wiki model | Strong practical workflow for compiled knowledge, but the wiki itself is the primary artifact rather than a strictly derived view | Useful model for ELF-derived dossiers/concept pages and memory linting, not for replacing evidence-bound facts as authoritative state |
+| [gbrain](https://github.com/garrytan/gbrain) | Page-first brain with schema-guided slugs/types/tiering and `compiled_truth` + timeline sections | Hybrid search with compiled-truth boosting, resolver-based primary-home routing, and shared enrichment service callable from multiple ingest paths | Strong operator workflow for maintaining a living knowledge base, but trust/provenance depends on page upkeep discipline | Useful model for ELF knowledge-memory presentation and enrichment loops if pages remain derived and pointer-backed |
 
 Key takeaways for ELF from this deeper pass:
 
@@ -144,6 +163,8 @@ Key takeaways for ELF from this deeper pass:
 - memsearch validates a strong pattern: canonical primary store + rebuildable derived index.
 - claude-mem demonstrates how much adoption improves when operator inspection is first-class.
 - OpenViking reinforces that context organization and retrieval trajectory can deliver large gains without Neo4j-first architecture.
+- llm-wiki reinforces the value of a query/save/lint workflow around compiled knowledge artifacts rather than treating every answer as ephemeral.
+- gbrain reinforces that a useful knowledge base often looks like maintained entity/project pages with current truth plus timeline, not just a bag of retrieved chunks.
 
 ## Where ELF Is Currently Weaker (Objective Gaps)
 
@@ -165,6 +186,7 @@ Snapshot date for this subsection: February 17, 2026.
 | [LangGraph](https://docs.langchain.com/oss/python/langgraph/persistence) | Threaded checkpoints + replay/fork over persisted state | Deterministic replay model (`thread_id` + checkpoint lineage) for debugging and regression analysis | Replay safety requires idempotent side-effect boundaries | Elevate trace replay and ranking compare to hard regression gates in CI |
 | [Graphiti / Zep](https://help.getzep.com/graphiti/core-concepts/temporal-awareness) | Temporal knowledge graph (entities/relations/facts) with explicit validity windows | Invalidate-and-append fact updates (`valid_at`/`invalid_at`) instead of destructive overwrite | Full graph backends add operational complexity and traversal cost | Implement Postgres-first graph-lite with temporal fact validity before introducing graph infra |
 | [qmd](https://github.com/tobi/qmd) + [claude-mem](https://github.com/thedotmack/claude-mem) | Retrieval UX and operator workflow focus | Progressive-disclosure search + local inspection/debug loops | Less emphasis on strict deterministic ingestion contracts | Productize ELF debug loop (viewer, status, explain-first inspection) |
+| [llm-wiki](https://github.com/nvk/llm-wiki) + [gbrain](https://github.com/garrytan/gbrain) | Compiled knowledge artifacts and maintained knowledge pages | Query-save flows, `compiled_truth` + timeline page shape, backlink/enrichment maintenance, and wiki/brain repair loops | Page-first systems can blur source-of-truth boundaries unless provenance is explicit and rebuildable | Add a derived knowledge-memory layer in ELF with note/doc pointers, recompile rules, and lint/repair loops |
 
 ## Extended Source Map
 
@@ -215,6 +237,19 @@ Snapshot date for this subsection: February 17, 2026.
   - https://docs.claude-mem.ai/user-guide/view-memory
   - https://github.com/thedotmack/claude-mem/blob/main/src/servers/mcp-server.ts
   - https://github.com/thedotmack/claude-mem/blob/main/src/services/worker/http/routes/ViewerRoutes.ts
+- llm-wiki:
+  - https://github.com/nvk/llm-wiki
+  - https://github.com/nvk/llm-wiki/blob/main/README.md
+  - https://llm-wiki.net/
+  - https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f
+- gbrain:
+  - https://github.com/garrytan/gbrain
+  - https://github.com/garrytan/gbrain/blob/master/README.md
+  - https://github.com/garrytan/gbrain/blob/master/docs/ENGINES.md
+  - https://github.com/garrytan/gbrain/blob/master/docs/GBRAIN_RECOMMENDED_SCHEMA.md
+  - https://github.com/garrytan/gbrain/blob/master/src/schema.sql
+  - https://github.com/garrytan/gbrain/blob/master/src/core/search/hybrid.ts
+  - https://github.com/garrytan/gbrain/blob/master/src/core/enrichment-service.ts
 
 ## ELF Distinctives (Code-Verified)
 
@@ -255,6 +290,11 @@ This list is for architectural comparison only. It is not a product commitment a
 6. Search mode split and retrieval trajectory
    - Borrow from OpenViking's `find()` vs `search()` separation and staged retrieval flow.
    - Keep quick/planned split and stage-level trajectory outputs in place on `/v2/searches`, then improve operator visibility (`GET /v2/searches/{search_id}` ergonomics and optional local timeline tooling).
+
+7. Unified evidence-to-knowledge memory layer
+   - Borrow from llm-wiki's query/save/lint workflow and gbrain's `compiled_truth` + timeline page shape.
+   - Add optional derived knowledge-memory pages in ELF (entity pages, concept pages, dossiers, project overviews) that compile from notes/docs and can be rebuilt.
+   - Keep notes and evidence pointers authoritative so derived knowledge remains inspectable, invalidatable, and lintable instead of becoming a second hidden source of truth.
 
 ## OpenViking-Inspired Issues
 
