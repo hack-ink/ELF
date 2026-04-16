@@ -2,7 +2,7 @@
 
 ## Decision
 
-For issue #79 we define consolidation as an **agent-side policy** and keep **scoring and API behavior as server-side capability**.
+For the reflection/consolidation loop track we define consolidation as an **agent-side policy** and keep **scoring and API behavior as server-side capability**.
 
 The agent decides when to consolidate (`query + merge policy`), while `elf-api`/`elf-worker` only provide:
 

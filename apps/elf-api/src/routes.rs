@@ -437,24 +437,27 @@ pub fn router(state: AppState) -> Router {
 		.route("/v2/notes/ingest", routing::post(notes_ingest))
 		.route("/v2/events/ingest", routing::post(events_ingest))
 		.route("/v2/searches", routing::post(searches_create))
-		.route("/v2/searches/:search_id", routing::get(searches_get))
-		.route("/v2/searches/:search_id/timeline", routing::get(searches_timeline))
-		.route("/v2/searches/:search_id/notes", routing::post(searches_notes))
+		.route("/v2/searches/{search_id}", routing::get(searches_get))
+		.route("/v2/searches/{search_id}/timeline", routing::get(searches_timeline))
+		.route("/v2/searches/{search_id}/notes", routing::post(searches_notes))
 		.route("/v2/graph/query", routing::post(graph_query))
 		.route("/v2/notes", routing::get(notes_list))
 		.route(
-			"/v2/notes/:note_id",
+			"/v2/notes/{note_id}",
 			routing::get(notes_get).patch(notes_patch).delete(notes_delete),
 		)
-		.route("/v2/notes/:note_id/publish", routing::post(notes_publish))
-		.route("/v2/notes/:note_id/unpublish", routing::post(notes_unpublish))
-		.route("/v2/spaces/:space/grants", routing::get(space_grants_list).post(space_grant_upsert))
-		.route("/v2/spaces/:space/grants/revoke", routing::post(space_grant_revoke))
+		.route("/v2/notes/{note_id}/publish", routing::post(notes_publish))
+		.route("/v2/notes/{note_id}/unpublish", routing::post(notes_unpublish))
+		.route(
+			"/v2/spaces/{space}/grants",
+			routing::get(space_grants_list).post(space_grant_upsert),
+		)
+		.route("/v2/spaces/{space}/grants/revoke", routing::post(space_grant_revoke))
 		.with_state(state.clone())
 		.layer(DefaultBodyLimit::max(MAX_REQUEST_BYTES));
 	let docs_router = Router::new()
 		.route("/v2/docs", routing::post(docs_put))
-		.route("/v2/docs/:doc_id", routing::get(docs_get))
+		.route("/v2/docs/{doc_id}", routing::get(docs_get))
 		.route("/v2/docs/search/l0", routing::post(docs_search_l0))
 		.route("/v2/docs/excerpts", routing::post(docs_excerpts_get))
 		.with_state(state)
@@ -477,11 +480,11 @@ pub fn admin_router(state: AppState) -> Router {
 				.put(admin_ingestion_profile_default_set),
 		)
 		.route(
-			"/v2/admin/events/ingestion-profiles/:profile_id/versions",
+			"/v2/admin/events/ingestion-profiles/{profile_id}/versions",
 			routing::get(admin_ingestion_profile_versions_list),
 		)
 		.route(
-			"/v2/admin/events/ingestion-profiles/:profile_id",
+			"/v2/admin/events/ingestion-profiles/{profile_id}",
 			routing::get(admin_ingestion_profile_get),
 		)
 		.route(
@@ -491,20 +494,20 @@ pub fn admin_router(state: AppState) -> Router {
 		.route("/v2/admin/qdrant/rebuild", routing::post(rebuild_qdrant))
 		.route("/v2/admin/searches/raw", routing::post(searches_raw))
 		.route("/v2/admin/traces/recent", routing::get(trace_recent_list))
-		.route("/v2/admin/traces/:trace_id", routing::get(trace_get))
-		.route("/v2/admin/traces/:trace_id/bundle", routing::get(trace_bundle_get))
-		.route("/v2/admin/trajectories/:trace_id", routing::get(trace_trajectory_get))
-		.route("/v2/admin/trace-items/:item_id", routing::get(trace_item_get))
+		.route("/v2/admin/traces/{trace_id}", routing::get(trace_get))
+		.route("/v2/admin/traces/{trace_id}/bundle", routing::get(trace_bundle_get))
+		.route("/v2/admin/trajectories/{trace_id}", routing::get(trace_trajectory_get))
+		.route("/v2/admin/trace-items/{item_id}", routing::get(trace_item_get))
 		.route("/v2/admin/graph/predicates", routing::get(admin_graph_predicates_list))
 		.route(
-			"/v2/admin/graph/predicates/:predicate_id",
+			"/v2/admin/graph/predicates/{predicate_id}",
 			routing::patch(admin_graph_predicate_patch),
 		)
 		.route(
-			"/v2/admin/graph/predicates/:predicate_id/aliases",
+			"/v2/admin/graph/predicates/{predicate_id}/aliases",
 			routing::post(admin_graph_predicate_alias_add).get(admin_graph_predicate_aliases_list),
 		)
-		.route("/v2/admin/notes/:note_id/provenance", routing::get(admin_note_provenance_get))
+		.route("/v2/admin/notes/{note_id}/provenance", routing::get(admin_note_provenance_get))
 		.with_state(state)
 		.layer(DefaultBodyLimit::max(MAX_REQUEST_BYTES))
 		.layer(middleware::from_fn_with_state(auth_state, admin_auth_middleware))

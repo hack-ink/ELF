@@ -147,7 +147,6 @@ Project signature strengths (what each does especially well):
 Detailed comparison, mechanism-level analysis, and source map:
 
 - [Detailed External Comparison](docs/guide/research/comparison_external_projects.md)
-- [Research Projects Inventory](docs/guide/research/research_projects_inventory.md)
 
 Snapshot date in that document: February 17, 2026.
 

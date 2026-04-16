@@ -1,12 +1,17 @@
 # Issue Labeling
 
-Goal: Standardize how GitHub issues are labeled in this repository.
-Read this when: You are creating, revising, or auditing issue labels and issue triage.
-Inputs: The current GitHub issue tracker plus the repository's issue taxonomy needs.
+Goal: Standardize how Linear issues are labeled in this repository.
+Read this when: You are creating, revising, or auditing Linear labels and issue triage.
+Inputs: The current Linear workspace labels plus the repository's issue taxonomy needs.
 Depends on: Existing label groups and the repository's development workflow.
 Verification: Labels remain consistent, searchable, and aligned with the documented taxonomy.
 
-This guide standardizes how GitHub issues are labeled in this repository.
+This guide standardizes how Linear issues are labeled in this repository.
+
+Tracker policy:
+
+- Linear is the authoritative issue tracker for this repository.
+- GitHub Issues are not part of the planning, triage, or delivery workflow.
 
 ## Goals
 
@@ -97,6 +102,6 @@ These labels exist for automation and should not be repurposed.
 
 ## Query patterns
 
-- All epics: `label:kind:epic`.
-- Open feature work: `label:kind:feat is:open`.
-- Reliability issues in storage: `label:area:storage label:theme:reliability`.
+- All epics: `kind:epic`
+- Open feature work: `kind:feat` with non-completed workflow state
+- Reliability issues in storage: `area:storage` + `theme:reliability`
