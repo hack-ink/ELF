@@ -296,13 +296,13 @@ This list is for architectural comparison only. It is not a product commitment a
    - Add optional derived knowledge-memory pages in ELF (entity pages, concept pages, dossiers, project overviews) that compile from notes/docs and can be rebuilt.
    - Keep notes and evidence pointers authoritative so derived knowledge remains inspectable, invalidatable, and lintable instead of becoming a second hidden source of truth.
 
-## OpenViking-Inspired Issues
+Current planning surface for these research-backed directions:
 
-- Track: https://github.com/hack-ink/ELF/issues/57
-- Search modes: https://github.com/hack-ink/ELF/issues/58
-- Retrieval trajectory explain: https://github.com/hack-ink/ELF/issues/59
-- Progressive payload levels: https://github.com/hack-ink/ELF/issues/60
-- Scoped recursive retrieval: https://github.com/hack-ink/ELF/issues/61
+- Linear project: [ELF vNext: Evidence-to-Knowledge Memory](https://linear.app/hack-ink/project/elf-vnext-evidence-to-knowledge-memory-d7a9dd3f3e86)
+- Active workstreams:
+  - [XY-286](https://linear.app/hack-ink/issue/XY-286/knowledge-memory-derived-entityconceptproject-pages-with-provenance) knowledge-memory layer
+  - [XY-19](https://linear.app/hack-ink/issue/XY-19/add-a-read-only-web-viewer-for-sessions-and-traces) and [XY-27](https://linear.app/hack-ink/issue/XY-27/viewer-add-retrieval-observability-panels-on-top-of-the-read-only) operator workflow
+  - [XY-70](https://linear.app/hack-ink/issue/XY-70/graph-lite-dx-typed-schema-typed-query-nanograph-inspired) graph-lite DX
 
 Research sources for this section:
 - Graphiti/Zep:
