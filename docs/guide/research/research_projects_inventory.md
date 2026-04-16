@@ -33,13 +33,17 @@ Last updated: April 16, 2026.
 | [LightRAG](https://github.com/HKUDS/LightRAG) | D0 | Pending deep dive | Graph-augmented RAG strategy relevance; not yet audited to adoption level | Discussion history only |
 | [GraphRAG](https://www.microsoft.com/en-us/research/project/graphrag/) | D0 | Pending deep dive | Graph-based retrieval concepts; not yet audited to implementation decision level | Discussion history only |
 
-## Adoption Tracks Linked To Research
+## Current Planning Surface
 
-- OpenViking-inspired track: https://github.com/hack-ink/ELF/issues/57
-- Search modes: https://github.com/hack-ink/ELF/issues/58
-- Retrieval trajectory explain: https://github.com/hack-ink/ELF/issues/59
-- Progressive payload levels: https://github.com/hack-ink/ELF/issues/60
-- Scoped recursive retrieval: https://github.com/hack-ink/ELF/issues/61
+- Linear project: [ELF vNext: Evidence-to-Knowledge Memory](https://linear.app/hack-ink/project/elf-vnext-evidence-to-knowledge-memory-d7a9dd3f3e86)
+- Active workstreams:
+  - [XY-286](https://linear.app/hack-ink/issue/XY-286/knowledge-memory-derived-entityconceptproject-pages-with-provenance) knowledge-memory layer
+  - [XY-19](https://linear.app/hack-ink/issue/XY-19/add-a-read-only-web-viewer-for-sessions-and-traces) and [XY-27](https://linear.app/hack-ink/issue/XY-27/viewer-add-retrieval-observability-panels-on-top-of-the-read-only) operator workflow
+  - [XY-70](https://linear.app/hack-ink/issue/XY-70/graph-lite-dx-typed-schema-typed-query-nanograph-inspired) graph-lite DX
+- Historical research/foundation issues now closed:
+  - [XY-40](https://linear.app/hack-ink/issue/XY-40/vision-track-elf-as-a-high-trust-memory-system-for-singlemulti-agent)
+  - [XY-51](https://linear.app/hack-ink/issue/XY-51/agent-memory-ux-mcp-surface-skills-doc-pointers-epic)
+  - [XY-63](https://linear.app/hack-ink/issue/XY-63/research-openviking-as-optional-doc-backend-integration-sketch)
 
 ## Notes
 
