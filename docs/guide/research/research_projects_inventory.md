@@ -6,7 +6,7 @@ Inputs: Existing research notes, open architecture questions, and tracked adopti
 Depends on: `docs/guide/research/comparison_external_projects.md`.
 Outputs: A current inventory of reviewed and pending external projects.
 
-Last updated: March 4, 2026.
+Last updated: April 16, 2026.
 
 ## Legend
 
@@ -23,6 +23,8 @@ Last updated: March 4, 2026.
 | [qmd](https://github.com/tobi/qmd) | D2 | Reviewed | Retrieval routing, weighted fusion, and local-first explainability | `docs/guide/research/comparison_external_projects.md` |
 | [claude-mem](https://github.com/thedotmack/claude-mem) | D2 | Reviewed | Progressive disclosure and strong operator workflow | `docs/guide/research/comparison_external_projects.md` |
 | [OpenViking](https://github.com/volcengine/OpenViking) | D2 | Reviewed | Filesystem context paradigm, hierarchical retrieval, trajectory observability | `docs/guide/research/comparison_external_projects.md` |
+| [llm-wiki-compiler](https://github.com/atomicmemory/llm-wiki-compiler) | D1 | Reviewed | Compiled knowledge layer, dependency-aware wiki rebuilds, lintable derived artifacts | `docs/guide/research/comparison_external_projects.md` |
+| [gbrain](https://github.com/garrytan/gbrain) | D1 | Reviewed | Operational knowledge brain, `compiled_truth` + timeline pages, enrichment and maintenance loops | `docs/guide/research/comparison_external_projects.md` |
 | [Letta](https://github.com/letta-ai/letta) | D1 | Reviewed | Core vs archival memory split, shared blocks | `docs/guide/research/comparison_external_projects.md` |
 | [LangGraph](https://docs.langchain.com/oss/python/langgraph/persistence) | D1 | Reviewed | Checkpoint/replay mindset for quality regression workflows | `docs/guide/research/comparison_external_projects.md` |
 | [Graphiti / Zep](https://help.getzep.com/graphiti/core-concepts/temporal-awareness) | D1 | Reviewed | Temporal fact validity model for graph-like memory evolution | `docs/guide/research/comparison_external_projects.md` |
