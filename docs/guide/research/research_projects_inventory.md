@@ -6,7 +6,7 @@ Inputs: Existing research notes, open architecture questions, and tracked adopti
 Depends on: `docs/guide/research/comparison_external_projects.md`.
 Outputs: A current inventory of reviewed and pending external projects.
 
-Last updated: April 16, 2026.
+Last updated: April 17, 2026.
 
 ## Legend
 
@@ -25,6 +25,8 @@ Last updated: April 16, 2026.
 | [OpenViking](https://github.com/volcengine/OpenViking) | D2 | Reviewed | Filesystem context paradigm, hierarchical retrieval, trajectory observability | `docs/guide/research/comparison_external_projects.md` |
 | [llm-wiki](https://github.com/nvk/llm-wiki) | D1 | Reviewed | LLM-maintained wiki pattern, topic-scoped knowledge bases, query-save and lint workflows | `docs/guide/research/comparison_external_projects.md` |
 | [gbrain](https://github.com/garrytan/gbrain) | D1 | Reviewed | Operational knowledge brain, `compiled_truth` + timeline pages, enrichment and maintenance loops | `docs/guide/research/comparison_external_projects.md` |
+| [Always-On Memory Agent](https://github.com/GoogleCloudPlatform/generative-ai/tree/main/gemini/agents/always-on-memory-agent) | D1 | Reviewed | Always-on multimodal ingest + scheduled consolidation loop with simple local ops surface | `docs/guide/research/comparison_external_projects.md` |
+| [graphify](https://github.com/safishamsi/graphify) | D1 | Reviewed | Multimodal graph compression, deterministic code extraction, and always-on graph-guided assistant workflow | `docs/guide/research/comparison_external_projects.md` |
 | [Letta](https://github.com/letta-ai/letta) | D1 | Reviewed | Core vs archival memory split, shared blocks | `docs/guide/research/comparison_external_projects.md` |
 | [LangGraph](https://docs.langchain.com/oss/python/langgraph/persistence) | D1 | Reviewed | Checkpoint/replay mindset for quality regression workflows | `docs/guide/research/comparison_external_projects.md` |
 | [Graphiti / Zep](https://help.getzep.com/graphiti/core-concepts/temporal-awareness) | D1 | Reviewed | Temporal fact validity model for graph-like memory evolution | `docs/guide/research/comparison_external_projects.md` |

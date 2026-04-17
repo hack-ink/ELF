@@ -99,6 +99,8 @@ Capability notes:
 - [OpenViking](https://github.com/volcengine/OpenViking): Strong context filesystem paradigm (`viking://`), hierarchical retrieval, and session-centric context iteration. Trade-off: relation model is URI-link based (not property graph), and adoption still requires adapting patterns into ELF's evidence-bound note contract.
 - [llm-wiki](https://github.com/nvk/llm-wiki): Strong LLM-maintained wiki pattern, topic-scoped knowledge bases, and explicit query/save/lint flows. Trade-off: wiki pages are the primary interface, so ELF-grade provenance and trust boundaries must remain layered above it.
 - [gbrain](https://github.com/garrytan/gbrain): Strong operational knowledge-brain shape with primary-home routing, `compiled_truth` + timeline pages, and explicit maintenance/enrichment workflows. Trade-off: page-first ontology and personal-brain workflow assumptions would over-couple ELF core to one UI/content model if copied directly.
+- [Always-On Memory Agent](https://github.com/GoogleCloudPlatform/generative-ai/tree/main/gemini/agents/always-on-memory-agent): Strong always-on ingest/consolidate/query loop with multimodal inbox, timer-driven consolidation, simple SQLite persistence, and a lightweight dashboard/API. Trade-off: memory formation is LLM-first, so it does not preserve ELF-style deterministic write boundaries or evidence-bound fact contracts.
+- [graphify](https://github.com/safishamsi/graphify): Strong multimodal graph compression with deterministic AST extraction for code, explicit `EXTRACTED`/`INFERRED`/`AMBIGUOUS` relation tagging, and always-on assistant hooks. Trade-off: it is closer to a graph-guided corpus understanding skill than a multi-tenant memory service, so its graph artifact should be treated as a derived operator surface rather than a source-of-truth memory backend.
 - [nanograph](https://github.com/aaltshuler/nanograph): Strong typed schema + typed query developer ergonomics. Trade-off: focuses on graph-first DX patterns rather than ELF's evidence-bound notes + multi-tenant service contract.
 
 ## nanograph Snapshot (New)
@@ -129,6 +131,21 @@ Key takeaways for ELF from this snapshot:
 - Both are more valuable as references for ELF's future knowledge-memory layer than for ELF core ingestion semantics.
 - Both treat maintenance as first-class product surface area through lint, enrich, backlink, query-save, or repair flows rather than as a side task.
 
+## Always-On Memory And Graphify Snapshot (New)
+
+Snapshot date for this subsection: April 17, 2026.
+
+| Project | Primary artifact | Relevant mechanism | Implication for ELF |
+| ------- | ---------------- | ------------------ | ------------------- |
+| [Always-On Memory Agent](https://github.com/GoogleCloudPlatform/generative-ai/tree/main/gemini/agents/always-on-memory-agent) | SQLite-backed memories plus timer-generated consolidation insights | Multimodal inbox/file-watcher ingest, scheduled consolidation pass, simple query API, and lightweight dashboard | Strong reference for productizing background memory formation and manual/automatic consolidation triggers, but ELF should keep evidence-bound facts and deterministic note paths instead of making every write LLM-first |
+| [graphify](https://github.com/safishamsi/graphify) | Persistent `graph.json` + `GRAPH_REPORT.md` + optional wiki derived from a multimodal corpus | Deterministic AST extraction for code, LLM extraction for docs/media, graph-topology clustering, explicit honesty tags, and always-on assistant hooks | Strong reference for derived graph/wiki operator surfaces and graph-guided navigation over large corpora, but the graph should remain a rebuildable derived view over ELF notes/docs rather than the authoritative store |
+
+Key takeaways for ELF from this snapshot:
+
+- Always-on consolidation is a product surface, not just an agent prompt pattern.
+- A compressed graph/report layer can materially improve how assistants navigate large corpora before they touch raw files.
+- Both projects are strongest when treated as derived layers above a trustworthy base store, not as replacements for ELF core memory semantics.
+
 ## OpenViking Deep Dive (New)
 
 Snapshot date for this subsection: February 17, 2026.
@@ -155,6 +172,8 @@ Snapshot date for this subsection: February 17, 2026.
 | [claude-mem](https://github.com/thedotmack/claude-mem) | Hook-driven capture tied to Claude Code lifecycle; queue-backed worker persists pending tasks | Progressive-disclosure retrieval is explicit (`search -> timeline -> get_observations`); hybrid local stack (SQLite + Chroma) | Deliberate fail-open handler behavior reduces workflow interruption but may accept occasional capture gaps | Best-in-class local operator ergonomics (viewer/SSE/logs), centered on Claude-centric usage patterns |
 | [llm-wiki](https://github.com/nvk/llm-wiki) | Topic-specific wiki artifacts persisted as the working knowledge base | Query-answer-save loop over wiki state, lint/repair workflow, and an explicit LLM Wiki model | Strong practical workflow for compiled knowledge, but the wiki itself is the primary artifact rather than a strictly derived view | Useful model for ELF-derived dossiers/concept pages and memory linting, not for replacing evidence-bound facts as authoritative state |
 | [gbrain](https://github.com/garrytan/gbrain) | Page-first brain with schema-guided slugs/types/tiering and `compiled_truth` + timeline sections | Hybrid search with compiled-truth boosting, resolver-based primary-home routing, and shared enrichment service callable from multiple ingest paths | Strong operator workflow for maintaining a living knowledge base, but trust/provenance depends on page upkeep discipline | Useful model for ELF knowledge-memory presentation and enrichment loops if pages remain derived and pointer-backed |
+| [Always-On Memory Agent](https://github.com/GoogleCloudPlatform/generative-ai/tree/main/gemini/agents/always-on-memory-agent) | Always-on memory loop over local SQLite rows and consolidation insights | File watcher/dashboard/API ingest, timer-based consolidation, and lightweight local query surface over multimodal inputs | Operationally simple and product-legible, but memory formation is LLM-first and does not separate deterministic note writes from derived synthesis | Useful model for adding first-class consolidation scheduling and operator controls without relaxing ELF write-path invariants |
+| [graphify](https://github.com/safishamsi/graphify) | Derived knowledge graph plus graph report/wiki built from code and multimodal corpus inputs | Deterministic AST extraction, LLM-assisted relation extraction, topology-based clustering, and hook-driven assistant guidance | Excellent for graph-guided corpus navigation, but not a general memory contract and not scoped around multi-tenant storage semantics | Useful model for ELF-derived graph reports, graph-guided query surfaces, and assistant hooks over rebuildable derived artifacts |
 
 Key takeaways for ELF from this deeper pass:
 
@@ -165,6 +184,8 @@ Key takeaways for ELF from this deeper pass:
 - OpenViking reinforces that context organization and retrieval trajectory can deliver large gains without Neo4j-first architecture.
 - llm-wiki reinforces the value of a query/save/lint workflow around compiled knowledge artifacts rather than treating every answer as ephemeral.
 - gbrain reinforces that a useful knowledge base often looks like maintained entity/project pages with current truth plus timeline, not just a bag of retrieved chunks.
+- Always-On Memory Agent reinforces that scheduled consolidation and manual consolidation triggers are product-level features, not just internal implementation details.
+- graphify reinforces that graph-compressed corpus views and pre-search graph guidance can meaningfully reduce raw-file thrash for assistants.
 
 ## Where ELF Is Currently Weaker (Objective Gaps)
 
@@ -187,6 +208,7 @@ Snapshot date for this subsection: February 17, 2026.
 | [Graphiti / Zep](https://help.getzep.com/graphiti/core-concepts/temporal-awareness) | Temporal knowledge graph (entities/relations/facts) with explicit validity windows | Invalidate-and-append fact updates (`valid_at`/`invalid_at`) instead of destructive overwrite | Full graph backends add operational complexity and traversal cost | Implement Postgres-first graph-lite with temporal fact validity before introducing graph infra |
 | [qmd](https://github.com/tobi/qmd) + [claude-mem](https://github.com/thedotmack/claude-mem) | Retrieval UX and operator workflow focus | Progressive-disclosure search + local inspection/debug loops | Less emphasis on strict deterministic ingestion contracts | Productize ELF debug loop (viewer, status, explain-first inspection) |
 | [llm-wiki](https://github.com/nvk/llm-wiki) + [gbrain](https://github.com/garrytan/gbrain) | Compiled knowledge artifacts and maintained knowledge pages | Query-save flows, `compiled_truth` + timeline page shape, backlink/enrichment maintenance, and wiki/brain repair loops | Page-first systems can blur source-of-truth boundaries unless provenance is explicit and rebuildable | Add a derived knowledge-memory layer in ELF with note/doc pointers, recompile rules, and lint/repair loops |
+| [Always-On Memory Agent](https://github.com/GoogleCloudPlatform/generative-ai/tree/main/gemini/agents/always-on-memory-agent) + [graphify](https://github.com/safishamsi/graphify) | Background consolidation and graph-compressed operator context | Scheduled consolidation loops, multimodal inbox flow, derived graph/report surfaces, and always-on assistant guidance before raw search | LLM-first consolidation and graph artifacts can drift unless tied back to authoritative evidence and rebuild rules | Add optional consolidation schedulers and derived graph/report surfaces in ELF while keeping Postgres notes/docs authoritative |
 
 ## Extended Source Map
 
@@ -250,6 +272,13 @@ Snapshot date for this subsection: February 17, 2026.
   - https://github.com/garrytan/gbrain/blob/master/src/schema.sql
   - https://github.com/garrytan/gbrain/blob/master/src/core/search/hybrid.ts
   - https://github.com/garrytan/gbrain/blob/master/src/core/enrichment-service.ts
+- Always-On Memory Agent:
+  - https://github.com/GoogleCloudPlatform/generative-ai/tree/main/gemini/agents/always-on-memory-agent
+  - https://raw.githubusercontent.com/GoogleCloudPlatform/generative-ai/main/gemini/agents/always-on-memory-agent/README.md
+- graphify:
+  - https://github.com/safishamsi/graphify
+  - https://github.com/safishamsi/graphify/blob/v3/README.md
+  - https://github.com/safishamsi/graphify/blob/v3/README.zh-CN.md
 
 ## ELF Distinctives (Code-Verified)
 
@@ -296,6 +325,14 @@ This list is for architectural comparison only. It is not a product commitment a
    - Add optional derived knowledge-memory pages in ELF (entity pages, concept pages, dossiers, project overviews) that compile from notes/docs and can be rebuilt.
    - Keep notes and evidence pointers authoritative so derived knowledge remains inspectable, invalidatable, and lintable instead of becoming a second hidden source of truth.
 
+8. First-class background consolidation workflow
+   - Borrow from Always-On Memory Agent's multimodal inbox, scheduled consolidation pass, and explicit manual consolidation trigger.
+   - Add first-class scheduling and operator control surfaces for consolidation/rebuild jobs, while keeping ELF note writes and provenance rules deterministic where required.
+
+9. Graph-compressed navigation over rebuildable derived views
+   - Borrow from graphify's deterministic code extraction, explicit confidence/honesty tagging, graph report, and assistant hook surfaces.
+   - Add optional graph-derived reports, graph query surfaces, or agent-facing pre-search guidance over ELF notes/docs without treating the graph as a new source of truth.
+
 Current planning surface for these research-backed directions:
 
 - Linear project: [ELF vNext: Evidence-to-Knowledge Memory](https://linear.app/hack-ink/project/elf-vnext-evidence-to-knowledge-memory-d7a9dd3f3e86)
@@ -327,3 +364,10 @@ Research sources for this section:
   - https://github.com/volcengine/OpenViking/blob/main/README.md
   - https://github.com/volcengine/OpenViking/blob/main/docs/en/concepts/01-architecture.md
   - https://github.com/volcengine/OpenViking/blob/main/docs/en/concepts/07-retrieval.md
+- Always-On Memory Agent:
+  - https://github.com/GoogleCloudPlatform/generative-ai/tree/main/gemini/agents/always-on-memory-agent
+  - https://raw.githubusercontent.com/GoogleCloudPlatform/generative-ai/main/gemini/agents/always-on-memory-agent/README.md
+- graphify:
+  - https://github.com/safishamsi/graphify
+  - https://github.com/safishamsi/graphify/blob/v3/README.md
+  - https://github.com/safishamsi/graphify/blob/v3/README.zh-CN.md
