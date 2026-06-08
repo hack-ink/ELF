@@ -43,13 +43,19 @@ Use the canonical setup guide:
 Fast path:
 
 ```sh
-cp elf.example.toml elf.toml
-psql "<dsn from elf.toml>" -f sql/init.sql
-./qdrant/init.sh
-cargo run -p elf-worker -- -c elf.toml
-cargo run -p elf-api -- -c elf.toml
-cargo run -p elf-mcp -- -c elf.toml
+docker compose -f docker-compose.yml up -d postgres qdrant
+
+# Terminal 1
+cargo run -p elf-api -- -c config/local/elf.docker.toml
+
+# Terminal 2
+cargo run -p elf-worker -- -c config/local/elf.docker.toml
+
+# Terminal 3
+curl -fsS http://127.0.0.1:51892/health
 ```
+
+For provider-backed development, copy `elf.example.toml` to `elf.toml` and fill the provider blocks.
 
 ## Architecture
 

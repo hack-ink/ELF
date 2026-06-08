@@ -2,8 +2,8 @@
 
 Goal: Help an agent install and run ELF locally with minimal back-and-forth.
 Read this when: You need a practical local setup flow from an existing repository checkout.
-Inputs: This repository checkout plus access to local Postgres, Qdrant, and provider credentials.
-Depends on: `Makefile.toml`, `elf.example.toml`, and `docs/guide/getting_started.md`.
+Inputs: This repository checkout plus Docker Compose or separately managed Postgres/Qdrant, and optional provider credentials.
+Depends on: `Makefile.toml`, `docker-compose.yml`, `config/local/elf.docker.toml`, `elf.example.toml`, and `docs/guide/getting_started.md`.
 Verification: ELF services start, required dependencies are reachable, and the local workflow can continue.
 
 This guide is written for AI agents helping a human operator install and run ELF locally with minimal back-and-forth.
@@ -25,9 +25,12 @@ ELF requires:
 
 Important: The ELF config has no implicit defaults. All required config fields must be explicitly present in your TOML.
 
-## Minimal Owner Inputs (Ask These)
+## Minimal Owner Inputs
 
-Ask the owner for:
+For the checked-in Docker local stack, no owner inputs are required. Use `docker-compose.yml`
+and `config/local/elf.docker.toml` from `docs/guide/getting_started.md`.
+
+For separately managed dependencies or provider-backed development, ask the owner for:
 
 1. Postgres DSN for the target database (for example `postgres://user:pass@host:5432/elf`).
 2. Qdrant endpoints:
@@ -51,9 +54,10 @@ Then set `search.expansion.mode = "off"` to avoid LLM-backed query expansion. Th
 The machine must have:
 
 - Rust toolchain (pinned by `rust-toolchain.toml`).
+- Docker Compose for the checked-in local dependency stack, or separately running Postgres and Qdrant.
 - `psql` available on PATH.
-- Running Postgres instance with `pgvector` installed/enabled.
-- Running Qdrant instance.
+- Running Postgres instance with `pgvector` installed/enabled when not using Compose.
+- Running Qdrant instance when not using Compose.
 
 For the repository harness scripts:
 
@@ -63,13 +67,19 @@ For the repository harness scripts:
 
 ## Create The Config
 
-1. Copy the template:
+For the checked-in Docker local stack, use the strict-valid local config directly:
+
+```sh
+config/local/elf.docker.toml
+```
+
+For provider-backed development, copy the template:
 
 ```sh
 cp elf.example.toml elf.toml
 ```
 
-2. Edit `elf.toml`:
+Then edit `elf.toml`:
 
 - Set `[storage.postgres].dsn` to your Postgres DSN.
 - Set `[storage.qdrant].url` to your Qdrant gRPC base URL.
@@ -82,17 +92,20 @@ cp elf.example.toml elf.toml
 
 ## Initialize Storage
 
-1. Initialize Postgres schema:
+For the checked-in Docker local stack, start dependencies and then start `elf-api` or
+`elf-worker`; the services auto-create the Postgres schema and Qdrant collections.
 
 ```sh
-psql "<dsn from elf.toml>" -f sql/init.sql
+docker compose -f docker-compose.yml up -d postgres qdrant
 ```
 
-2. Initialize the Qdrant collection (REST):
+When using separately managed Qdrant and you need to pre-create collections before
+service startup, initialize them through the REST endpoint:
 
 ```sh
 export ELF_QDRANT_HTTP_URL="http://127.0.0.1:6333"
 export ELF_QDRANT_COLLECTION="mem_notes_v2"
+export ELF_QDRANT_DOCS_COLLECTION="doc_chunks_v1"
 export ELF_QDRANT_VECTOR_DIM="4096"
 ./qdrant/init.sh
 ```
@@ -108,15 +121,17 @@ Notes:
 Start each in a separate terminal:
 
 ```sh
-cargo run -p elf-worker -- -c elf.toml
-cargo run -p elf-api -- -c elf.toml
+cargo run -p elf-worker -- -c config/local/elf.docker.toml
+cargo run -p elf-api -- -c config/local/elf.docker.toml
 ```
 
 Optional:
 
 ```sh
-cargo run -p elf-mcp -- -c elf.toml
+cargo run -p elf-mcp -- -c config/local/elf.docker.toml
 ```
+
+Replace `config/local/elf.docker.toml` with `elf.toml` when using a provider-backed config.
 
 ## Verify
 
@@ -137,7 +152,7 @@ The context misranking harness creates and drops a dedicated database and Qdrant
 Example:
 
 ```sh
-ELF_PG_DSN="postgres://postgres:postgres@127.0.0.1:51888/postgres" \
+ELF_PG_DSN="postgres://elf_dev:elf_dev_password@127.0.0.1:51888/postgres" \
 ELF_QDRANT_GRPC_URL="http://127.0.0.1:51890" \
 ELF_QDRANT_HTTP_URL="http://127.0.0.1:51889" \
 cargo make e2e

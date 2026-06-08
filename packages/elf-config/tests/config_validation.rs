@@ -162,6 +162,23 @@ fn required_config_fields_must_be_explicit() {
 }
 
 #[test]
+fn docker_local_config_is_strict_valid() {
+	let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../config/local/elf.docker.toml");
+	let cfg = elf_config::load(path.as_path()).expect("Docker local config must load.");
+
+	assert_eq!(
+		cfg.storage.postgres.dsn,
+		"postgres://elf_dev:elf_dev_password@127.0.0.1:51888/elf_local"
+	);
+	assert_eq!(cfg.storage.qdrant.url, "http://127.0.0.1:51890");
+	assert_eq!(cfg.storage.qdrant.collection, "elf_local_notes");
+	assert_eq!(cfg.storage.qdrant.docs_collection, "elf_local_doc_chunks");
+	assert_eq!(cfg.providers.embedding.provider_id, "local");
+	assert_eq!(cfg.providers.rerank.provider_id, "local");
+	assert_eq!(cfg.search.expansion.mode, "off");
+}
+
+#[test]
 fn reject_non_english_must_be_true() {
 	let payload = sample_toml(false);
 	let path = write_temp_config(payload);
