@@ -2,6 +2,7 @@
 
 //! Storage adapters and row models for ELF persistence backends.
 
+pub mod consolidation;
 pub mod db;
 pub mod doc_outbox;
 pub mod docs;
