@@ -21,7 +21,11 @@ use sqlx::{FromRow, PgConnection, PgExecutor, PgPool, QueryBuilder, Row};
 use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
-use crate::{ElfService, Result, access, ranking_explain_v2};
+use crate::{
+	ElfService, Result,
+	access::{self, ORG_PROJECT_ID},
+	ranking_explain_v2::{self, SEARCH_RANKING_EXPLAIN_SCHEMA_V2, TraceTermsArgs},
+};
 use elf_config::{Config, SearchCache};
 use elf_domain::english_gate;
 use elf_storage::{
@@ -3432,7 +3436,7 @@ LIMIT $7",
 		.bind(args.non_private_scopes)
 		.bind(args.vec_text)
 		.bind(args.retrieval_limit)
-		.bind(access::ORG_PROJECT_ID)
+		.bind(ORG_PROJECT_ID)
 		.fetch_all(&self.db.pool)
 		.await?;
 
@@ -3476,7 +3480,7 @@ LIMIT $8",
 		.bind(args.non_private_scopes)
 		.bind(args.vec_text)
 		.bind(args.retrieval_limit)
-		.bind(access::ORG_PROJECT_ID)
+		.bind(ORG_PROJECT_ID)
 		.fetch_all(&self.db.pool)
 		.await?;
 
@@ -4046,7 +4050,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 		let mut scored = Vec::with_capacity(snippet_items.len());
 
 		for ((item, rerank_score), rerank_rank) in
-			snippet_items.into_iter().zip(scores.into_iter()).zip(rerank_ranks.into_iter())
+			snippet_items.into_iter().zip(scores).zip(rerank_ranks)
 		{
 			scored.push(score_chunk_candidate(&score_ctx, item, rerank_score, rerank_rank));
 		}
@@ -4600,7 +4604,7 @@ WHERE note_id = ANY($1::uuid[])
 		.bind(candidate_note_ids)
 		.bind(tenant_id)
 		.bind(project_id)
-		.bind(access::ORG_PROJECT_ID)
+		.bind(ORG_PROJECT_ID)
 		.fetch_all(&self.db.pool)
 		.await?;
 		let mut note_meta = HashMap::new();
@@ -4954,7 +4958,7 @@ fn build_search_filter(
 
 	if allowed_scopes.iter().any(|scope| scope == "org_shared") {
 		let org_filter = Filter::all([
-			Condition::matches("project_id", access::ORG_PROJECT_ID.to_string()),
+			Condition::matches("project_id", ORG_PROJECT_ID.to_string()),
 			Condition::matches("scope", "org_shared".to_string()),
 		]);
 
@@ -5147,34 +5151,31 @@ fn build_search_item_and_trace_item(
 		matched_fields,
 		args.structured_matches.get(&args.scored_chunk.item.note.note_id),
 	);
-	let trace_terms =
-		ranking_explain_v2::build_trace_terms_v2(ranking_explain_v2::TraceTermsArgs {
-			cfg: args.cfg,
-			blend_enabled: args.blend_policy.enabled,
-			retrieval_normalization: args.blend_policy.retrieval_normalization.as_str(),
-			rerank_normalization: args.blend_policy.rerank_normalization.as_str(),
-			blend_retrieval_weight: args.scored_chunk.blend_retrieval_weight,
-			retrieval_rank: args.scored_chunk.item.retrieval_rank,
-			retrieval_norm: args.scored_chunk.retrieval_norm,
-			retrieval_term: args.scored_chunk.retrieval_term,
-			rerank_score: args.scored_chunk.rerank_score,
-			rerank_rank: args.scored_chunk.rerank_rank,
-			rerank_norm: args.scored_chunk.rerank_norm,
-			rerank_term: args.scored_chunk.rerank_term,
-			tie_breaker_score: args.scored_chunk.tie_breaker_score,
-			importance: args.scored_chunk.importance,
-			age_days: args.scored_chunk.age_days,
-			scope: args.scored_chunk.item.note.scope.as_str(),
-			scope_context_boost: args.scored_chunk.scope_context_boost,
-			deterministic_lexical_overlap_ratio: args
-				.scored_chunk
-				.deterministic_lexical_overlap_ratio,
-			deterministic_lexical_bonus: args.scored_chunk.deterministic_lexical_bonus,
-			deterministic_hit_count: args.scored_chunk.deterministic_hit_count,
-			deterministic_last_hit_age_days: args.scored_chunk.deterministic_last_hit_age_days,
-			deterministic_hit_boost: args.scored_chunk.deterministic_hit_boost,
-			deterministic_decay_penalty: args.scored_chunk.deterministic_decay_penalty,
-		});
+	let trace_terms = ranking_explain_v2::build_trace_terms_v2(TraceTermsArgs {
+		cfg: args.cfg,
+		blend_enabled: args.blend_policy.enabled,
+		retrieval_normalization: args.blend_policy.retrieval_normalization.as_str(),
+		rerank_normalization: args.blend_policy.rerank_normalization.as_str(),
+		blend_retrieval_weight: args.scored_chunk.blend_retrieval_weight,
+		retrieval_rank: args.scored_chunk.item.retrieval_rank,
+		retrieval_norm: args.scored_chunk.retrieval_norm,
+		retrieval_term: args.scored_chunk.retrieval_term,
+		rerank_score: args.scored_chunk.rerank_score,
+		rerank_rank: args.scored_chunk.rerank_rank,
+		rerank_norm: args.scored_chunk.rerank_norm,
+		rerank_term: args.scored_chunk.rerank_term,
+		tie_breaker_score: args.scored_chunk.tie_breaker_score,
+		importance: args.scored_chunk.importance,
+		age_days: args.scored_chunk.age_days,
+		scope: args.scored_chunk.item.note.scope.as_str(),
+		scope_context_boost: args.scored_chunk.scope_context_boost,
+		deterministic_lexical_overlap_ratio: args.scored_chunk.deterministic_lexical_overlap_ratio,
+		deterministic_lexical_bonus: args.scored_chunk.deterministic_lexical_bonus,
+		deterministic_hit_count: args.scored_chunk.deterministic_hit_count,
+		deterministic_last_hit_age_days: args.scored_chunk.deterministic_last_hit_age_days,
+		deterministic_hit_boost: args.scored_chunk.deterministic_hit_boost,
+		deterministic_decay_penalty: args.scored_chunk.deterministic_decay_penalty,
+	});
 	let response_terms = ranking_explain_v2::strip_term_inputs(&trace_terms);
 	let relation_context =
 		args.relation_contexts.get(&args.scored_chunk.item.note.note_id).cloned();
@@ -5191,7 +5192,7 @@ fn build_search_item_and_trace_item(
 			matched_fields: matched_fields.clone(),
 		},
 		ranking: SearchRankingExplain {
-			schema: ranking_explain_v2::SEARCH_RANKING_EXPLAIN_SCHEMA_V2.to_string(),
+			schema: SEARCH_RANKING_EXPLAIN_SCHEMA_V2.to_string(),
 			policy_id: args.policy_id.to_string(),
 			final_score: args.scored_chunk.final_score,
 			terms: response_terms,
@@ -5202,7 +5203,7 @@ fn build_search_item_and_trace_item(
 	let trace_explain = SearchExplain {
 		r#match: SearchMatchExplain { matched_terms, matched_fields },
 		ranking: SearchRankingExplain {
-			schema: ranking_explain_v2::SEARCH_RANKING_EXPLAIN_SCHEMA_V2.to_string(),
+			schema: SEARCH_RANKING_EXPLAIN_SCHEMA_V2.to_string(),
 			policy_id: args.policy_id.to_string(),
 			final_score: args.scored_chunk.final_score,
 			terms: trace_terms,
@@ -5704,7 +5705,7 @@ fn build_replay_items(
 	let mut out = Vec::with_capacity(results.len());
 
 	for scored in results {
-		let terms = ranking_explain_v2::build_trace_terms_v2(ranking_explain_v2::TraceTermsArgs {
+		let terms = ranking_explain_v2::build_trace_terms_v2(TraceTermsArgs {
 			cfg,
 			blend_enabled: blend_policy.enabled,
 			retrieval_normalization: blend_policy.retrieval_normalization.as_str(),
@@ -5732,7 +5733,7 @@ fn build_replay_items(
 		let explain = SearchExplain {
 			r#match: SearchMatchExplain { matched_terms: Vec::new(), matched_fields: Vec::new() },
 			ranking: SearchRankingExplain {
-				schema: ranking_explain_v2::SEARCH_RANKING_EXPLAIN_SCHEMA_V2.to_string(),
+				schema: SEARCH_RANKING_EXPLAIN_SCHEMA_V2.to_string(),
 				policy_id: policy_id.to_string(),
 				final_score: scored.final_score,
 				terms,

@@ -20,11 +20,11 @@ use tokio::{
 };
 use uuid::Uuid;
 
-use crate::acceptance::{self, SpyExtractor, StubEmbedding, StubRerank};
+use crate::acceptance::{self, SpyExtractor, StubEmbedding, StubRerank, chunking::ChunkingConfig};
 use elf_config::EmbeddingProviderConfig;
 use elf_service::{AddNoteInput, AddNoteRequest, ElfService, Providers};
 use elf_storage::{db::Db, qdrant::QdrantStore};
-use elf_worker::worker;
+use elf_worker::worker::{self, WorkerState};
 
 #[derive(FromRow)]
 struct OutboxRow {
@@ -131,7 +131,7 @@ async fn embed_handler(
 }
 
 async fn spawn_outbox_worker(service: &ElfService, api_base: String) -> JoinHandle<()> {
-	let worker_state = worker::WorkerState {
+	let worker_state = WorkerState {
 		db: Db::connect(&service.cfg.storage.postgres).await.expect("Failed to connect worker DB."),
 		qdrant: QdrantStore::new(&service.cfg.storage.qdrant)
 			.expect("Failed to build Qdrant store."),
@@ -150,7 +150,7 @@ async fn spawn_outbox_worker(service: &ElfService, api_base: String) -> JoinHand
 			timeout_ms: 1_000,
 			default_headers: Map::new(),
 		},
-		chunking: crate::acceptance::chunking::ChunkingConfig { max_tokens: 64, overlap_tokens: 8 },
+		chunking: ChunkingConfig { max_tokens: 64, overlap_tokens: 8 },
 		tokenizer: build_test_tokenizer(),
 	};
 
