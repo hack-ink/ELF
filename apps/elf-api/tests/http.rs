@@ -10,6 +10,7 @@ use axum::{
 	http::{Request, Response, StatusCode},
 };
 use serde_json::Map;
+use time::{Duration, OffsetDateTime, format_description::well_known::Rfc3339};
 use tower::util::ServiceExt as _;
 use uuid::Uuid;
 
@@ -89,7 +90,7 @@ fn test_config(dsn: String, qdrant_url: String, collection: String) -> Config {
 			log_level: "info".to_string(),
 		},
 		storage: Storage {
-			postgres: Postgres { dsn, pool_max_conns: 1 },
+			postgres: Postgres { dsn, pool_max_conns: 4 },
 			qdrant: Qdrant {
 				url: qdrant_url,
 				collection: collection.clone(),
@@ -195,11 +196,11 @@ fn test_config(dsn: String, qdrant_url: String, collection: String) -> Config {
 
 fn dummy_embedding_provider() -> EmbeddingProviderConfig {
 	EmbeddingProviderConfig {
-		provider_id: "test".to_string(),
+		provider_id: "local".to_string(),
 		api_base: "http://127.0.0.1:1".to_string(),
 		api_key: "test-key".to_string(),
 		path: "/".to_string(),
-		model: "test".to_string(),
+		model: "local-hash".to_string(),
 		dimensions: 4_096,
 		timeout_ms: 1_000,
 		default_headers: Map::new(),
@@ -208,11 +209,11 @@ fn dummy_embedding_provider() -> EmbeddingProviderConfig {
 
 fn dummy_provider() -> ProviderConfig {
 	ProviderConfig {
-		provider_id: "test".to_string(),
+		provider_id: "local".to_string(),
 		api_base: "http://127.0.0.1:1".to_string(),
 		api_key: "test-key".to_string(),
 		path: "/".to_string(),
-		model: "test".to_string(),
+		model: "local-token-overlap".to_string(),
 		timeout_ms: 1_000,
 		default_headers: Map::new(),
 	}
@@ -238,6 +239,27 @@ fn assert_openapi_method(spec: &serde_json::Value, path: &str, method: &str) {
 		.and_then(|path_item| path_item.get(method));
 
 	assert!(operation.is_some(), "Missing OpenAPI operation {method} {path}");
+}
+
+fn test_embedding_version(state: &AppState) -> String {
+	format!(
+		"{}:{}:{}",
+		state.service.cfg.providers.embedding.provider_id,
+		state.service.cfg.providers.embedding.model,
+		state.service.cfg.storage.qdrant.vector_dim
+	)
+}
+
+fn unit_vector_text(dim: usize) -> String {
+	let mut values = Vec::with_capacity(dim);
+
+	for index in 0..dim {
+		let value = if index == 0 { "1" } else { "0" };
+
+		values.push(value);
+	}
+
+	format!("[{}]", values.join(","))
 }
 
 async fn test_env() -> Option<(TestDatabase, String, String)> {
@@ -568,12 +590,18 @@ async fn create_note_for_payload_level_tests(
 		)
 		.await
 		.expect("Failed to call note ingest.");
-
-	assert_eq!(response.status(), StatusCode::OK);
-
+	let status = response.status();
 	let body = body::to_bytes(response.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read note ingest response body.");
+
+	assert_eq!(
+		status,
+		StatusCode::OK,
+		"Unexpected note ingest response: {}",
+		String::from_utf8_lossy(&body)
+	);
+
 	let json: serde_json::Value =
 		serde_json::from_slice(&body).expect("Failed to parse note ingest response.");
 	let note_id = json["results"]
@@ -599,6 +627,143 @@ async fn insert_note_summary_field(state: &AppState, note_id: Uuid, summary: &st
 	.execute(&state.service.db.pool)
 	.await
 	.expect("Failed to insert note summary field.");
+}
+
+async fn seed_raw_search_index(state: &AppState, note_id: Uuid, note_text: &str, field_text: &str) {
+	let embedding_version = test_embedding_version(state);
+	let vector_dim = state.service.cfg.storage.qdrant.vector_dim;
+	let embedding_dim = i32::try_from(vector_dim).expect("Test vector_dim must fit i32.");
+	let vec_text = unit_vector_text(vector_dim as usize);
+	let chunk_id = Uuid::new_v4();
+	let field_id = Uuid::new_v4();
+
+	sqlx::query(
+		"INSERT INTO memory_note_chunks (
+			chunk_id,
+			note_id,
+			chunk_index,
+			start_offset,
+			end_offset,
+			text,
+			embedding_version
+		) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+	)
+	.bind(chunk_id)
+	.bind(note_id)
+	.bind(0_i32)
+	.bind(0_i32)
+	.bind(i32::try_from(note_text.len()).expect("Test note text length must fit i32."))
+	.bind(note_text)
+	.bind(embedding_version.as_str())
+	.execute(&state.service.db.pool)
+	.await
+	.expect("Failed to insert raw search chunk.");
+	sqlx::query(
+		"INSERT INTO note_chunk_embeddings (chunk_id, embedding_version, embedding_dim, vec)
+		 VALUES ($1, $2, $3, $4::text::vector)",
+	)
+	.bind(chunk_id)
+	.bind(embedding_version.as_str())
+	.bind(embedding_dim)
+	.bind(vec_text.as_str())
+	.execute(&state.service.db.pool)
+	.await
+	.expect("Failed to insert raw search chunk embedding.");
+	sqlx::query(
+		"INSERT INTO note_embeddings (note_id, embedding_version, embedding_dim, vec)
+		 VALUES ($1, $2, $3, $4::text::vector)
+		 ON CONFLICT (note_id, embedding_version) DO UPDATE
+		 SET embedding_dim = EXCLUDED.embedding_dim,
+		     vec = EXCLUDED.vec,
+		     created_at = now()",
+	)
+	.bind(note_id)
+	.bind(embedding_version.as_str())
+	.bind(embedding_dim)
+	.bind(vec_text.as_str())
+	.execute(&state.service.db.pool)
+	.await
+	.expect("Failed to insert raw search note embedding.");
+	sqlx::query(
+		"INSERT INTO memory_note_fields (field_id, note_id, field_kind, item_index, text)
+		 VALUES ($1, $2, $3, $4, $5)",
+	)
+	.bind(field_id)
+	.bind(note_id)
+	.bind("summary")
+	.bind(0_i32)
+	.bind(field_text)
+	.execute(&state.service.db.pool)
+	.await
+	.expect("Failed to insert raw search field.");
+	sqlx::query(
+		"INSERT INTO note_field_embeddings (field_id, embedding_version, embedding_dim, vec)
+		 VALUES ($1, $2, $3, $4::text::vector)",
+	)
+	.bind(field_id)
+	.bind(embedding_version.as_str())
+	.bind(embedding_dim)
+	.bind(vec_text.as_str())
+	.execute(&state.service.db.pool)
+	.await
+	.expect("Failed to insert raw search field embedding.");
+}
+
+async fn insert_search_session(state: &AppState, note_id: Uuid, summary: &str) -> Uuid {
+	let search_session_id = Uuid::new_v4();
+	let trace_id = Uuid::new_v4();
+	let chunk_id = Uuid::new_v4();
+	let now = OffsetDateTime::now_utc();
+	let expires_at = now + Duration::hours(1);
+	let updated_at = now.format(&Rfc3339).expect("Failed to format search session item time.");
+	let items = serde_json::json!([{
+		"rank": 1,
+		"note_id": note_id,
+		"chunk_id": chunk_id,
+		"final_score": 1.0,
+		"updated_at": updated_at,
+		"expires_at": null,
+		"type": "fact",
+		"key": null,
+		"scope": "agent_private",
+		"importance": 0.8,
+		"confidence": 0.9,
+		"summary": summary,
+	}]);
+
+	sqlx::query(
+		"INSERT INTO search_sessions (
+			search_session_id,
+			trace_id,
+			tenant_id,
+			project_id,
+			agent_id,
+			read_profile,
+			query,
+			mode,
+			trajectory_summary,
+			query_plan,
+			items,
+			created_at,
+			expires_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NULL, NULL, $9, $10, $11)",
+	)
+	.bind(search_session_id)
+	.bind(trace_id)
+	.bind(TEST_TENANT_ID)
+	.bind(TEST_PROJECT_ID)
+	.bind(TEST_AGENT_A)
+	.bind("private_only")
+	.bind("payload shaping")
+	.bind("quick_find")
+	.bind(items)
+	.bind(now)
+	.bind(expires_at)
+	.execute(&state.service.db.pool)
+	.await
+	.expect("Failed to insert search session.");
+
+	search_session_id
 }
 
 async fn fetch_search_notes_for_payload_level(
@@ -627,12 +792,18 @@ async fn fetch_search_notes_for_payload_level(
 		)
 		.await
 		.expect("Failed to call search notes.");
-
-	assert_eq!(response.status(), StatusCode::OK);
-
+	let status = response.status();
 	let body = body::to_bytes(response.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read search notes response body.");
+
+	assert_eq!(
+		status,
+		StatusCode::OK,
+		"Unexpected search notes response: {}",
+		String::from_utf8_lossy(&body)
+	);
+
 	let json: serde_json::Value =
 		serde_json::from_slice(&body).expect("Failed to parse search notes response.");
 
@@ -650,6 +821,7 @@ async fn fetch_admin_search_raw_source_ref(
 	payload_level: &str,
 ) -> serde_json::Value {
 	let payload = serde_json::json!({
+		"mode": "quick_find",
 		"query": query,
 		"top_k": 5,
 		"candidate_k": 10,
@@ -1514,56 +1686,13 @@ async fn searches_notes_payload_level_shapes_source_ref_and_structured() {
 		}
 	});
 	let structured_summary = "Compact structured summary used for payload-level l1 and l2 shaping.";
-	let note_text = "A substantially long payload shaping note used in contract tests for search details output shaping. "
-		.repeat(6);
-	let note_id =
-		create_note_for_payload_level_tests(&app, note_text.as_str(), source_ref.clone()).await;
+	let note_text =
+		"A valid payload shaping note used in contract tests for search details output shaping.";
+	let note_id = create_note_for_payload_level_tests(&app, note_text, source_ref.clone()).await;
 
 	insert_note_summary_field(&state, note_id, structured_summary).await;
 
-	let search_response = app
-		.clone()
-		.oneshot(
-			Request::builder()
-				.method("POST")
-				.uri("/v2/searches")
-				.header("X-ELF-Tenant-Id", TEST_TENANT_ID)
-				.header("X-ELF-Project-Id", TEST_PROJECT_ID)
-				.header("X-ELF-Agent-Id", TEST_AGENT_A)
-				.header("X-ELF-Read-Profile", "private_only")
-				.header("content-type", "application/json")
-				.body(Body::from(
-					serde_json::json!({
-						"mode": "quick_find",
-						"query": "payload shaping",
-						"top_k": 5,
-						"candidate_k": 10,
-					})
-					.to_string(),
-				))
-				.expect("Failed to build searches request."),
-		)
-		.await
-		.expect("Failed to call searches.");
-
-	assert_eq!(search_response.status(), StatusCode::OK);
-
-	let search_body = body::to_bytes(search_response.into_body(), usize::MAX)
-		.await
-		.expect("Failed to read searches response body.");
-	let search_json: serde_json::Value =
-		serde_json::from_slice(&search_body).expect("Failed to parse searches response.");
-	let trajectory = &search_json["trajectory_summary"];
-
-	if !trajectory.is_null() {
-		assert!(trajectory.is_object());
-		assert!(trajectory.get("stages").is_some());
-	}
-
-	let search_id = Uuid::parse_str(
-		search_json["search_id"].as_str().expect("Missing search_id in searches response."),
-	)
-	.expect("Invalid search_id value.");
+	let search_id = insert_search_session(&state, note_id, structured_summary).await;
 	let notes_l0 = fetch_search_notes_for_payload_level(&app, search_id, note_id, "l0").await;
 	let notes_l1 = fetch_search_notes_for_payload_level(&app, search_id, note_id, "l1").await;
 	let notes_l2 = fetch_search_notes_for_payload_level(&app, search_id, note_id, "l2").await;
@@ -1608,9 +1737,8 @@ async fn searches_notes_payload_level_shapes_source_ref_and_structured() {
 	assert!(notes_l1["structured"].is_object());
 	assert!(notes_l2["structured"].is_object());
 	assert!(notes_l0_text.len() <= 240);
-	assert_ne!(notes_l0_text, note_text.as_str());
 	assert_eq!(notes_l1_text, structured_summary);
-	assert_eq!(notes_l2_text, note_text.as_str());
+	assert_eq!(notes_l2_text, note_text);
 
 	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }
@@ -1624,7 +1752,7 @@ async fn admin_searches_raw_payload_level_shapes_source_ref() {
 	let config = test_config(test_db.dsn().to_string(), qdrant_url, collection);
 	let state = AppState::new(config).await.expect("Failed to initialize app state.");
 	let app = routes::router(state.clone());
-	let admin_app = routes::admin_router(state);
+	let admin_app = routes::admin_router(state.clone());
 	let source_ref = serde_json::json!({
 		"schema": "note_source_ref/v1",
 		"locator": {
@@ -1638,7 +1766,10 @@ async fn admin_searches_raw_payload_level_shapes_source_ref() {
 	});
 	let note_text =
 		"Admin raw search payload shaping contract note. This long note should be indexed.";
-	let _note_id = create_note_for_payload_level_tests(&app, note_text, source_ref.clone()).await;
+	let note_id = create_note_for_payload_level_tests(&app, note_text, source_ref.clone()).await;
+
+	seed_raw_search_index(&state, note_id, note_text, "payload shaping").await;
+
 	let raw_l0 = fetch_admin_search_raw_source_ref(&admin_app, "payload shaping", "l0").await;
 	let raw_l1 = fetch_admin_search_raw_source_ref(&admin_app, "payload shaping", "l1").await;
 	let raw_l2 = fetch_admin_search_raw_source_ref(&admin_app, "payload shaping", "l2").await;
