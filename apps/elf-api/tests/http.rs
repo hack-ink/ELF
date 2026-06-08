@@ -18,7 +18,10 @@ use tower::util::ServiceExt as _;
 use tracing::Level;
 use uuid::Uuid;
 
-use elf_api::{routes, state::AppState};
+use elf_api::{
+	routes::{self, OPENAPI_JSON_PATH, SCALAR_DOCS_PATH},
+	state::AppState,
+};
 use elf_config::{
 	Chunking, Config, EmbeddingProviderConfig, Lifecycle, LlmProviderConfig, Memory, Postgres,
 	ProviderConfig, Providers, Qdrant, Ranking, RankingBlend, RankingBlendSegment,
@@ -92,7 +95,7 @@ fn test_config(dsn: String, qdrant_url: String, collection: String) -> Config {
 			log_level: "info".to_string(),
 		},
 		storage: Storage {
-			postgres: Postgres { dsn, pool_max_conns: 1 },
+			postgres: Postgres { dsn, pool_max_conns: 4 },
 			qdrant: Qdrant {
 				url: qdrant_url,
 				collection: collection.clone(),
@@ -232,6 +235,15 @@ fn dummy_llm_provider() -> LlmProviderConfig {
 		timeout_ms: 1_000,
 		default_headers: Map::new(),
 	}
+}
+
+fn assert_openapi_method(spec: &serde_json::Value, path: &str, method: &str) {
+	let operation = spec
+		.get("paths")
+		.and_then(|paths| paths.get(path))
+		.and_then(|path_item| path_item.get(method));
+
+	assert!(operation.is_some(), "Missing OpenAPI operation {method} {path}");
 }
 
 fn init_test_tracing() {
@@ -708,12 +720,18 @@ async fn fetch_search_notes_for_payload_level(
 		)
 		.await
 		.expect("Failed to call search notes.");
-
-	assert_eq!(response.status(), StatusCode::OK);
-
+	let status = response.status();
 	let body = body::to_bytes(response.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read search notes response body.");
+
+	assert_eq!(
+		status,
+		StatusCode::OK,
+		"Unexpected search notes response: {}",
+		String::from_utf8_lossy(&body)
+	);
+
 	let json: serde_json::Value =
 		serde_json::from_slice(&body).expect("Failed to parse search notes response.");
 
@@ -768,6 +786,106 @@ async fn fetch_admin_search_raw_source_ref(
 		.expect("Expected at least one raw search item.");
 
 	item["source_ref"].clone()
+}
+
+async fn contract_json() -> serde_json::Value {
+	let app = routes::contract_router::<()>();
+	let response = app
+		.oneshot(
+			Request::builder()
+				.uri(OPENAPI_JSON_PATH)
+				.body(Body::empty())
+				.expect("Failed to build OpenAPI request."),
+		)
+		.await
+		.expect("Failed to call OpenAPI route.");
+
+	assert_eq!(response.status(), StatusCode::OK);
+
+	let body = body::to_bytes(response.into_body(), usize::MAX)
+		.await
+		.expect("Failed to read OpenAPI response body.");
+
+	serde_json::from_slice(&body).expect("Failed to parse OpenAPI response.")
+}
+
+#[tokio::test]
+async fn openapi_json_route_serves_generated_contract() {
+	let spec = contract_json().await;
+
+	assert_eq!(spec["info"]["title"], "ELF API");
+	assert!(spec.get("request_id").is_none());
+
+	assert_openapi_method(&spec, "/health", "get");
+	assert_openapi_method(&spec, "/v2/notes/ingest", "post");
+	assert_openapi_method(&spec, "/v2/events/ingest", "post");
+	assert_openapi_method(&spec, "/v2/docs/search/l0", "post");
+	assert_openapi_method(&spec, "/v2/searches/{search_id}/notes", "post");
+	assert_openapi_method(&spec, "/v2/admin/searches/raw", "post");
+	assert_openapi_method(&spec, "/v2/admin/events/ingestion-profiles/default", "get");
+	assert_openapi_method(&spec, "/v2/admin/events/ingestion-profiles/default", "put");
+}
+
+#[tokio::test]
+async fn scalar_docs_route_serves_api_reference_html() {
+	let app = routes::contract_router::<()>();
+	let response = app
+		.oneshot(
+			Request::builder()
+				.uri(SCALAR_DOCS_PATH)
+				.body(Body::empty())
+				.expect("Failed to build Scalar docs request."),
+		)
+		.await
+		.expect("Failed to call Scalar docs route.");
+
+	assert_eq!(response.status(), StatusCode::OK);
+
+	let body = body::to_bytes(response.into_body(), usize::MAX)
+		.await
+		.expect("Failed to read Scalar docs response body.");
+	let html = String::from_utf8(body.to_vec()).expect("Scalar docs response was not UTF-8.");
+
+	assert!(html.contains("@scalar/api-reference"));
+	assert!(html.contains("/v2/admin/events/ingestion-profiles/default"));
+}
+
+#[tokio::test]
+async fn openapi_includes_default_ingestion_profile_get_put_contract() {
+	let spec = contract_json().await;
+	let default_path = &spec["paths"]["/v2/admin/events/ingestion-profiles/default"];
+	let get_schema_ref =
+		default_path["get"]["responses"]["200"]["content"]["application/json"]["schema"]["$ref"]
+			.as_str()
+			.expect("Missing default profile GET response schema ref.");
+	let put_request_schema_ref = default_path["put"]["requestBody"]["content"]["application/json"]
+		["schema"]["$ref"]
+		.as_str()
+		.expect("Missing default profile PUT request schema ref.");
+	let put_response_schema_ref =
+		default_path["put"]["responses"]["200"]["content"]["application/json"]["schema"]["$ref"]
+			.as_str()
+			.expect("Missing default profile PUT response schema ref.");
+
+	assert!(get_schema_ref.ends_with("/AdminIngestionProfileDefaultResponseV2"));
+	assert!(put_request_schema_ref.ends_with("/AdminIngestionProfileDefaultSetBody"));
+	assert!(put_response_schema_ref.ends_with("/AdminIngestionProfileDefaultResponseV2"));
+
+	let schemas = &spec["components"]["schemas"];
+	let request_schema = &schemas["AdminIngestionProfileDefaultSetBody"];
+	let response_schema = &schemas["AdminIngestionProfileDefaultResponseV2"];
+
+	assert!(request_schema["properties"].get("profile_id").is_some());
+	assert!(request_schema["properties"].get("version").is_some());
+	assert!(
+		request_schema["required"]
+			.as_array()
+			.expect("Missing request required fields")
+			.contains(&serde_json::json!("profile_id"))
+	);
+	assert!(response_schema["properties"].get("profile_id").is_some());
+	assert!(response_schema["properties"].get("version").is_some());
+	assert!(response_schema["properties"].get("updated_at").is_some());
 }
 
 #[tokio::test]
