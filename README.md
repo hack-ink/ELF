@@ -131,7 +131,7 @@ This table compares capability coverage, not overall project quality.
 | Source-of-truth + rebuildable derived index | ✅ | ⚠️ | ✅ | ⚠️ | ⚠️ | ⚠️ | ✅ |
 | Hierarchical/recursive retrieval strategy | ⚠️ (in progress) | ⚠️ | ✅ | ⚠️ | ⚠️ | ⚠️ | ⚠️ |
 | Progressive context loading (L0/L1/L2 style) | ⚠️ (in progress) | ⚠️ | ✅ | ⚠️ | — | ⚠️ | — |
-| Built-in web memory inspector/viewer | — | ✅ | — | ✅ (OpenMemory) | — | ✅ | — |
+| Built-in web memory inspector/viewer | ✅ | ✅ | — | ✅ (OpenMemory) | — | ✅ | — |
 | Hosted managed option | — | — | — | ✅ | — | — | — |
 | Multi-tenant scope semantics | ✅ | ⚠️ | ⚠️ | ✅ | — | — | — |
 | TTL/lifecycle policy controls | ✅ | ⚠️ | ⚠️ | ✅ | — | ⚠️ | — |
