@@ -9,7 +9,7 @@ use axum::{
 	},
 	http::{
 		HeaderMap, HeaderValue, Request, StatusCode,
-		header::{CONTENT_LENGTH, CONTENT_TYPE},
+		header::{CACHE_CONTROL, CONTENT_LENGTH, CONTENT_TYPE},
 	},
 	middleware::{self, Next},
 	response::{IntoResponse, Response},
@@ -55,6 +55,8 @@ use elf_service::{
 pub const OPENAPI_JSON_PATH: &str = "/openapi.json";
 /// Scalar API reference route.
 pub const SCALAR_DOCS_PATH: &str = "/docs";
+/// Local read-only admin viewer route.
+pub const ADMIN_VIEWER_PATH: &str = "/viewer";
 
 const HEADER_TENANT_ID: &str = "X-ELF-Tenant-Id";
 const HEADER_PROJECT_ID: &str = "X-ELF-Project-Id";
@@ -75,6 +77,7 @@ const MAX_NOTE_IDS_PER_DETAILS: usize = 256;
 const MAX_TOP_K: u32 = 100;
 const MAX_CANDIDATE_K: u32 = 1_000;
 const MAX_ERROR_LOG_CHARS: usize = 1_024;
+const VIEWER_HTML: &str = include_str!("../static/viewer.html");
 
 /// Generated OpenAPI document for the ELF HTTP API.
 #[derive(OpenApi)]
@@ -556,8 +559,13 @@ pub fn router(state: AppState) -> Router {
 /// Builds the authenticated admin API router.
 pub fn admin_router(state: AppState) -> Router {
 	let auth_state = state.clone();
-
-	Router::new()
+	let protected_router = Router::new()
+		.route("/v2/admin/searches", routing::post(searches_create))
+		.route("/v2/admin/searches/{search_id}", routing::get(searches_get))
+		.route("/v2/admin/searches/{search_id}/timeline", routing::get(searches_timeline))
+		.route("/v2/admin/searches/{search_id}/notes", routing::post(searches_notes))
+		.route("/v2/admin/notes", routing::get(notes_list))
+		.route("/v2/admin/notes/{note_id}", routing::get(notes_get))
 		.route(
 			"/v2/admin/events/ingestion-profiles/default",
 			routing::get(admin_ingestion_profile_default_get)
@@ -594,7 +602,12 @@ pub fn admin_router(state: AppState) -> Router {
 		.route("/v2/admin/notes/{note_id}/provenance", routing::get(admin_note_provenance_get))
 		.with_state(state)
 		.layer(DefaultBodyLimit::max(MAX_REQUEST_BYTES))
-		.layer(middleware::from_fn_with_state(auth_state, admin_auth_middleware))
+		.layer(middleware::from_fn_with_state(auth_state, admin_auth_middleware));
+
+	Router::new()
+		.route(ADMIN_VIEWER_PATH, routing::get(admin_viewer))
+		.route("/", routing::get(admin_viewer))
+		.merge(protected_router)
 }
 
 /// Builds the API contract router.
@@ -911,6 +924,17 @@ async fn openapi_json() -> Response {
 	response
 		.headers_mut()
 		.insert(CONTENT_TYPE, HeaderValue::from_static("application/vnd.oai.openapi+json"));
+
+	response
+}
+
+async fn admin_viewer() -> Response {
+	let mut response = VIEWER_HTML.into_response();
+
+	response
+		.headers_mut()
+		.insert(CONTENT_TYPE, HeaderValue::from_static("text/html; charset=utf-8"));
+	response.headers_mut().insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
 
 	response
 }
@@ -2892,8 +2916,8 @@ mod tests {
 	use uuid::Uuid;
 
 	use crate::routes::{
-		self, HEADER_AGENT_ID, HEADER_AUTHORIZATION, HEADER_PROJECT_ID, HEADER_READ_PROFILE,
-		HEADER_REQUEST_ID, HEADER_TENANT_ID, HEADER_TRUSTED_TOKEN_ID,
+		self, ADMIN_VIEWER_PATH, HEADER_AGENT_ID, HEADER_AUTHORIZATION, HEADER_PROJECT_ID,
+		HEADER_READ_PROFILE, HEADER_REQUEST_ID, HEADER_TENANT_ID, HEADER_TRUSTED_TOKEN_ID,
 	};
 	use elf_config::{SecurityAuthKey, SecurityAuthRole};
 
@@ -2927,6 +2951,18 @@ mod tests {
 	fn require_admin_for_org_shared_writes_allows_non_static_keys_auth_mode() {
 		routes::require_admin_for_org_shared_writes("off", None)
 			.expect("Expected auth_mode != static_keys.");
+	}
+
+	#[test]
+	fn admin_viewer_is_admin_prefixed_and_read_only() {
+		let html = routes::VIEWER_HTML;
+
+		assert_eq!(ADMIN_VIEWER_PATH, "/viewer");
+		assert!(html.contains("/v2/admin/searches"));
+		assert!(html.contains("/v2/admin/traces/recent"));
+		assert!(html.contains("/v2/admin/notes/"));
+		assert!(!html.contains("method: \"PATCH\""));
+		assert!(!html.contains("method: \"DELETE\""));
 	}
 
 	#[test]

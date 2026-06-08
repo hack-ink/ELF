@@ -953,6 +953,33 @@ Request correlation:
 - If omitted, elf-api generates a new UUID.
 - Response includes `X-ELF-Request-Id` header and `request_id` in JSON responses.
 
+GET /viewer
+
+Behavior:
+- Serves the local read-only web viewer from the admin bind only.
+- Must not be mounted on the public HTTP bind by default.
+- The viewer uses admin-bind same-origin requests and only calls read-only endpoints.
+- In `static_keys` mode, the viewer page may load without credentials, but data requests still require an admin bearer token.
+
+Admin read-only session mirror:
+- POST /v2/admin/searches
+- GET /v2/admin/searches/{search_id}
+- GET /v2/admin/searches/{search_id}/timeline
+- POST /v2/admin/searches/{search_id}/notes
+
+Behavior:
+- These endpoints mirror the public progressive search session endpoints for local admin viewer use.
+- They are read-only with respect to notes; detail hydration must default to `record_hits = false` when the viewer calls it.
+- They require the same context headers as the public session endpoints, plus admin authentication when `security.auth_mode = "static_keys"`.
+
+Admin read-only note mirror:
+- GET /v2/admin/notes
+- GET /v2/admin/notes/{note_id}
+
+Behavior:
+- These endpoints mirror the public note list/detail reads for local admin viewer use.
+- Note metadata that includes `created_at`, `hit_count`, and `last_hit_at` is available through `GET /v2/admin/notes/{note_id}/provenance`.
+
 POST /v2/admin/qdrant/rebuild
 
 Behavior:
