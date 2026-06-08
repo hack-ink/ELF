@@ -62,6 +62,8 @@ Then structure the body for execution:
 
 ## Guide subfolders
 
+- `docs/guide/competitive_parity_testing.md` for running the Docker-only adoption
+  gate against external memory-system baselines.
 - `docs/guide/development/` for repository-development workflows.
 - `docs/guide/research/` for external comparisons and decision-support materials that are
   non-normative.
