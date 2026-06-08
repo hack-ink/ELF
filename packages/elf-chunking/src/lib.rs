@@ -129,6 +129,19 @@ mod tests {
 	use crate::ChunkingConfig;
 
 	#[test]
+	fn loads_local_dev_tokenizer_fixture() {
+		let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+			.join("../../config/local/tokenizer.wordlevel.json");
+		let tokenizer = crate::load_tokenizer(path.to_str().expect("Path must be valid UTF-8"))
+			.expect("Local dev tokenizer must load.");
+		let cfg = ChunkingConfig { max_tokens: 10, overlap_tokens: 2 };
+		let chunks = crate::split_text("One local note. Another local note.", &cfg, &tokenizer);
+
+		assert!(!chunks.is_empty());
+		assert!(chunks[0].text.contains("local note"));
+	}
+
+	#[test]
 	fn splits_into_chunks_with_overlap() {
 		let cfg = ChunkingConfig { max_tokens: 10, overlap_tokens: 2 };
 		let tokenizer = crate::load_tokenizer("Qwen/Qwen3-Embedding-8B").unwrap();
