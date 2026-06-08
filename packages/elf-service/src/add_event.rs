@@ -8,8 +8,10 @@ use uuid::Uuid;
 
 use crate::{
 	ElfService, Error, InsertVersionArgs, NoteOp, REJECT_EVIDENCE_MISMATCH,
-	REJECT_WRITE_POLICY_MISMATCH, ResolveUpdateArgs, Result, UpdateDecision, access,
-	graph_ingestion, ingest_audit,
+	REJECT_WRITE_POLICY_MISMATCH, ResolveUpdateArgs, Result, UpdateDecision,
+	access::{self, ORG_PROJECT_ID},
+	graph_ingestion,
+	ingest_audit::{self, IngestAuditArgs},
 	ingestion_profiles::{self, IngestionProfileRef, IngestionProfileSelector},
 	structured_fields::{self, StructuredFields},
 };
@@ -18,7 +20,7 @@ use elf_domain::{
 	english_gate, evidence,
 	memory_policy::{self, MemoryPolicyDecision},
 	ttl,
-	writegate::{self, WritePolicy, WritePolicyAudit, WritePolicyError},
+	writegate::{self, NoteInput, WritePolicy, WritePolicyAudit, WritePolicyError},
 };
 use elf_storage::models::MemoryNote;
 
@@ -266,7 +268,7 @@ impl ElfService {
 	) -> Result<AddEventResult> {
 		let note_data = NoteProcessingData::from_request_and_note(req, &note);
 		let effective_project_id = if note_data.scope.trim() == "org_shared" {
-			access::ORG_PROJECT_ID
+			ORG_PROJECT_ID
 		} else {
 			req.project_id.as_str()
 		};
@@ -571,7 +573,7 @@ impl ElfService {
 				providers: &self.providers,
 				tenant_id: req.tenant_id.as_str(),
 				project_id: if note_data.scope.trim() == "org_shared" {
-					access::ORG_PROJECT_ID
+					ORG_PROJECT_ID
 				} else {
 					req.project_id.as_str()
 				},
@@ -1141,7 +1143,7 @@ fn reject_extracted_note_if_writegate_rejects(
 	scope: &str,
 	text: &str,
 ) -> Option<AddEventResult> {
-	let gate_input = elf_domain::writegate::NoteInput {
+	let gate_input = NoteInput {
 		note_type: note_type.to_string(),
 		scope: scope.to_string(),
 		text: text.to_string(),
@@ -1221,7 +1223,7 @@ async fn record_ingest_decision(
 	graph_present: bool,
 	write_policy_audits: Option<Vec<WritePolicyAudit>>,
 ) -> Result<()> {
-	let args = crate::ingest_audit::IngestAuditArgs {
+	let args = IngestAuditArgs {
 		tenant_id: ctx.tenant_id,
 		project_id: ctx.project_id,
 		agent_id: ctx.agent_id,

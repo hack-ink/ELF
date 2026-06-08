@@ -8,7 +8,10 @@ use uuid::Uuid;
 
 use crate::{
 	ElfService, Error, InsertVersionArgs, NoteOp, ResolveUpdateArgs, Result, UpdateDecision,
-	UpdateDecisionMetadata, access, graph_ingestion, ingest_audit,
+	UpdateDecisionMetadata,
+	access::{self, ORG_PROJECT_ID},
+	graph_ingestion,
+	ingest_audit::{self, IngestAuditArgs},
 	structured_fields::{self, StructuredFields},
 };
 use elf_config::Config;
@@ -16,7 +19,7 @@ use elf_domain::{
 	english_gate,
 	memory_policy::{self, MemoryPolicyDecision},
 	ttl,
-	writegate::{self, WritePolicy, WritePolicyAudit, WritePolicyError},
+	writegate::{self, NoteInput, WritePolicy, WritePolicyAudit, WritePolicyError},
 };
 use elf_storage::models::MemoryNote;
 
@@ -107,7 +110,7 @@ impl ElfService {
 		let embed_version = crate::embedding_version(&self.cfg);
 		let AddNoteRequest { tenant_id, project_id, agent_id, scope, notes } = req;
 		let effective_project_id =
-			if scope.trim() == "org_shared" { access::ORG_PROJECT_ID } else { project_id.as_str() };
+			if scope.trim() == "org_shared" { ORG_PROJECT_ID } else { project_id.as_str() };
 		let mut results = Vec::with_capacity(notes.len());
 
 		for (note_idx, note) in notes.into_iter().enumerate() {
@@ -150,7 +153,7 @@ impl ElfService {
 			return Ok(result);
 		}
 
-		let (decision, metadata) = self.resolve_update_decision(ctx, &note).await?;
+		let (decision, metadata) = self.resolve_update_decision(&mut tx, ctx, &note).await?;
 		let base_decision =
 			Self::base_decision_for_update(&decision, structured_present, graph_present);
 		let (policy_decision, decision_policy_rule, min_confidence, min_importance) =
@@ -268,11 +271,12 @@ impl ElfService {
 
 	async fn resolve_update_decision(
 		&self,
+		tx: &mut Transaction<'_, Postgres>,
 		ctx: &AddNoteContext<'_>,
 		note: &AddNoteInput,
 	) -> Result<(UpdateDecision, UpdateDecisionMetadata)> {
 		let decision = crate::resolve_update(
-			&self.db.pool,
+			&mut **tx,
 			ResolveUpdateArgs {
 				cfg: &self.cfg,
 				providers: &self.providers,
@@ -437,7 +441,7 @@ impl ElfService {
 		min_importance: Option<f32>,
 		write_policy_audit: Option<WritePolicyAudit>,
 	) -> Result<()> {
-		let decision = crate::ingest_audit::IngestAuditArgs {
+		let decision = IngestAuditArgs {
 			tenant_id: ctx.tenant_id,
 			project_id: ctx.project_id,
 			agent_id: ctx.agent_id,
@@ -894,7 +898,7 @@ fn reject_note_if_writegate_rejects(
 	scope: &str,
 	note: &AddNoteInput,
 ) -> Option<AddNoteResult> {
-	let gate_input = elf_domain::writegate::NoteInput {
+	let gate_input = NoteInput {
 		note_type: note.r#type.clone(),
 		scope: scope.to_string(),
 		text: note.text.clone(),
