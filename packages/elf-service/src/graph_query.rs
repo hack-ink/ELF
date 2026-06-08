@@ -7,7 +7,11 @@ use sqlx::{FromRow, PgConnection};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::{ElfService, Error, Result, access, search};
+use crate::{
+	ElfService, Error, Result,
+	access::{self, ORG_PROJECT_ID},
+	search,
+};
 use elf_storage::{graph, models::GraphEntity};
 
 /// Schema identifier for graph-query responses.
@@ -676,7 +680,7 @@ async fn fetch_graph_query_rows(
 		.bind(shared_scope_keys)
 		.bind(limit_plus_one)
 		.bind(GRAPH_QUERY_EVIDENCE_LIMIT)
-		.bind(crate::access::ORG_PROJECT_ID)
+		.bind(ORG_PROJECT_ID)
 		.bind(predicate_id)
 		.fetch_all(conn)
 		.await?;

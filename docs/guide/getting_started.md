@@ -53,7 +53,22 @@ cargo run -p elf-api -- -c elf.toml
 cargo run -p elf-mcp -- -c elf.toml
 ```
 
-## 4. Run retrieval evaluation
+## 4. Inspect API contract
+
+After `elf-api` starts, the API process serves:
+
+- `GET /openapi.json` for the generated OpenAPI contract.
+- `GET /docs` for the Scalar API reference UI.
+
+Use the host and port from `service.http_bind` in `elf.toml`.
+For example:
+
+```sh
+curl -fsS http://127.0.0.1:51892/openapi.json
+open http://127.0.0.1:51892/docs
+```
+
+## 5. Run retrieval evaluation
 
 Use `elf-eval` with your dataset.
 
@@ -63,7 +78,7 @@ cargo run -p elf-eval -- -c elf.toml -i path/to/eval.json
 
 For dataset format and metric details, see `docs/guide/evaluation.md`.
 
-## 5. Development workflow
+## 6. Development workflow
 
 Use `cargo make` tasks from repository root.
 

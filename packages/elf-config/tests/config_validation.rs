@@ -13,7 +13,7 @@ use std::{
 
 use toml::Value;
 
-use elf_config::{self, Config, Context, Error};
+use elf_config::{self, Config, Context, Error, MemoryPolicyRule};
 
 const SAMPLE_CONFIG_TEMPLATE_TOML: &str = include_str!("fixtures/sample_config.template.toml");
 
@@ -515,10 +515,10 @@ fn security_auth_keys_require_known_read_profile() {
 fn memory_policy_min_confidence_must_be_finite() {
 	let mut cfg = base_config();
 
-	cfg.memory.policy.rules.push(elf_config::MemoryPolicyRule {
-		min_confidence: Some(f32::NAN),
-		..Default::default()
-	});
+	cfg.memory
+		.policy
+		.rules
+		.push(MemoryPolicyRule { min_confidence: Some(f32::NAN), ..Default::default() });
 
 	let err = elf_config::validate(&cfg).expect_err("Expected min_confidence validation error.");
 
@@ -535,7 +535,7 @@ fn memory_policy_min_confidence_must_be_in_range() {
 	cfg.memory
 		.policy
 		.rules
-		.push(elf_config::MemoryPolicyRule { min_confidence: Some(1.01), ..Default::default() });
+		.push(MemoryPolicyRule { min_confidence: Some(1.01), ..Default::default() });
 
 	let err =
 		elf_config::validate(&cfg).expect_err("Expected min_confidence range validation error.");
@@ -551,10 +551,10 @@ fn memory_policy_min_confidence_must_be_in_range() {
 fn memory_policy_min_importance_must_be_finite() {
 	let mut cfg = base_config();
 
-	cfg.memory.policy.rules.push(elf_config::MemoryPolicyRule {
-		min_importance: Some(f32::INFINITY),
-		..Default::default()
-	});
+	cfg.memory
+		.policy
+		.rules
+		.push(MemoryPolicyRule { min_importance: Some(f32::INFINITY), ..Default::default() });
 
 	let err = elf_config::validate(&cfg).expect_err("Expected min_importance validation error.");
 
@@ -571,7 +571,7 @@ fn memory_policy_min_importance_must_be_in_range() {
 	cfg.memory
 		.policy
 		.rules
-		.push(elf_config::MemoryPolicyRule { min_importance: Some(-0.01), ..Default::default() });
+		.push(MemoryPolicyRule { min_importance: Some(-0.01), ..Default::default() });
 
 	let err =
 		elf_config::validate(&cfg).expect_err("Expected min_importance range validation error.");
@@ -587,10 +587,10 @@ fn memory_policy_min_importance_must_be_in_range() {
 fn memory_policy_note_type_must_be_known_value() {
 	let mut cfg = base_config();
 
-	cfg.memory.policy.rules.push(elf_config::MemoryPolicyRule {
-		note_type: Some("unknown".to_string()),
-		..Default::default()
-	});
+	cfg.memory
+		.policy
+		.rules
+		.push(MemoryPolicyRule { note_type: Some("unknown".to_string()), ..Default::default() });
 
 	let err = elf_config::validate(&cfg).expect_err("Expected note_type validation error.");
 
@@ -606,10 +606,10 @@ fn memory_policy_note_type_must_be_known_value() {
 fn memory_policy_scope_must_be_allowed() {
 	let mut cfg = base_config();
 
-	cfg.memory.policy.rules.push(elf_config::MemoryPolicyRule {
-		scope: Some("invalid_scope".to_string()),
-		..Default::default()
-	});
+	cfg.memory
+		.policy
+		.rules
+		.push(MemoryPolicyRule { scope: Some("invalid_scope".to_string()), ..Default::default() });
 
 	let err = elf_config::validate(&cfg).expect_err("Expected scope validation error.");
 
@@ -639,10 +639,10 @@ fn memory_policy_rule_pairs_must_be_unique() {
 fn memory_policy_note_type_must_not_be_whitespace_only() {
 	let mut cfg = base_config();
 
-	cfg.memory.policy.rules.push(elf_config::MemoryPolicyRule {
-		note_type: Some("   ".to_string()),
-		..Default::default()
-	});
+	cfg.memory
+		.policy
+		.rules
+		.push(MemoryPolicyRule { note_type: Some("   ".to_string()), ..Default::default() });
 
 	let err =
 		elf_config::validate(&cfg).expect_err("Expected whitespace note_type validation error.");
@@ -658,10 +658,10 @@ fn memory_policy_note_type_must_not_be_whitespace_only() {
 fn memory_policy_scope_must_not_be_whitespace_only() {
 	let mut cfg = base_config();
 
-	cfg.memory.policy.rules.push(elf_config::MemoryPolicyRule {
-		scope: Some("   ".to_string()),
-		..Default::default()
-	});
+	cfg.memory
+		.policy
+		.rules
+		.push(MemoryPolicyRule { scope: Some("   ".to_string()), ..Default::default() });
 
 	let err = elf_config::validate(&cfg).expect_err("Expected whitespace scope validation error.");
 

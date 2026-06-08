@@ -12,7 +12,7 @@ use sqlx::PgExecutor;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::acceptance;
+use crate::acceptance::{self, SpyExtractor, StubEmbedding};
 use elf_config::ProviderConfig;
 use elf_service::{BoxFuture, ElfService, Providers, RerankProvider, Result, SearchRequest};
 use elf_storage::qdrant::{BM25_MODEL, BM25_VECTOR_NAME, DENSE_VECTOR_NAME};
@@ -117,9 +117,9 @@ async fn setup_context(test_name: &str) -> Option<TestContext> {
 		return None;
 	};
 	let providers = Providers::new(
-		Arc::new(crate::acceptance::StubEmbedding { vector_dim: 4_096 }),
+		Arc::new(StubEmbedding { vector_dim: 4_096 }),
 		Arc::new(KeywordRerank { keyword: "ZEBRA" }),
-		Arc::new(crate::acceptance::SpyExtractor {
+		Arc::new(SpyExtractor {
 			calls: Arc::new(AtomicUsize::new(0)),
 			payload: serde_json::json!({ "notes": [] }),
 		}),
