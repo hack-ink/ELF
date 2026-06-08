@@ -39,9 +39,9 @@ export ELF_QDRANT_COLLECTION="mem_notes_v2"
 export ELF_QDRANT_DOCS_COLLECTION="doc_chunks_v1"
 export ELF_QDRANT_VECTOR_DIM="4096"
 ./qdrant/init.sh
+```
 
 You can still run the script manually when bootstrapping a fresh Qdrant instance, but startup is not blocked if you rely on auto-ensure.
-```
 
 ## 3. Start services
 

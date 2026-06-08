@@ -28,7 +28,8 @@ elf-storage = { workspace = true }
 vergen-gitcl = { workspace = true }
 
 [dev-dependencies]
-sqlx  = { workspace = true }
-tower = { workspace = true }
+qdrant-client = { workspace = true }
+sqlx          = { workspace = true }
+tower         = { workspace = true }
 
 elf-testkit = { workspace = true }
