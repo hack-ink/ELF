@@ -14,7 +14,7 @@ use tracing_subscriber::EnvFilter;
 use uuid::Uuid;
 
 use elf_config::Config;
-use elf_service::search;
+use elf_service::search::{self, TraceReplayContext};
 use elf_storage::db::Db;
 
 #[derive(Debug, Parser)]
@@ -346,7 +346,7 @@ async fn eval_trace(
 		.created_at
 		.format(&Rfc3339)
 		.map_err(|err| eyre::eyre!("Failed to format created_at: {err}"))?;
-	let context = elf_service::search::TraceReplayContext {
+	let context = TraceReplayContext {
 		trace_id: trace_row.trace_id,
 		query: trace_row.query.clone(),
 		candidate_count: u32::try_from(trace_row.candidate_count).unwrap_or(0),

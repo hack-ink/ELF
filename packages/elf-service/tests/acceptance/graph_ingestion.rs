@@ -8,7 +8,7 @@ use sqlx::{FromRow, PgPool};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::acceptance;
+use crate::acceptance::{self, SpyExtractor, StubEmbedding, StubRerank};
 use elf_config::EmbeddingProviderConfig;
 use elf_domain::memory_policy::MemoryPolicyDecision;
 use elf_service::{
@@ -384,8 +384,8 @@ async fn add_note_duplicate_fact_attaches_multiple_evidence() {
 	};
 	let providers = Providers::new(
 		Arc::new(HashEmbedding { vector_dim: 4_096 }),
-		Arc::new(crate::acceptance::StubRerank),
-		Arc::new(crate::acceptance::SpyExtractor {
+		Arc::new(StubRerank),
+		Arc::new(SpyExtractor {
 			calls: Arc::new(AtomicUsize::new(0)),
 			payload: serde_json::json!({ "notes": [] }),
 		}),
@@ -457,9 +457,9 @@ async fn add_note_single_predicate_supersedes_conflicting_fact() {
 		return;
 	};
 	let providers = Providers::new(
-		Arc::new(crate::acceptance::StubEmbedding { vector_dim: 4_096 }),
-		Arc::new(crate::acceptance::StubRerank),
-		Arc::new(crate::acceptance::SpyExtractor {
+		Arc::new(StubEmbedding { vector_dim: 4_096 }),
+		Arc::new(StubRerank),
+		Arc::new(SpyExtractor {
 			calls: Arc::new(AtomicUsize::new(0)),
 			payload: serde_json::json!({ "notes": [] }),
 		}),
@@ -541,9 +541,9 @@ async fn add_note_invalid_relation_rejected_has_field_path() {
 		return;
 	};
 	let providers = Providers::new(
-		Arc::new(crate::acceptance::StubEmbedding { vector_dim: 4_096 }),
-		Arc::new(crate::acceptance::StubRerank),
-		Arc::new(crate::acceptance::SpyExtractor {
+		Arc::new(StubEmbedding { vector_dim: 4_096 }),
+		Arc::new(StubRerank),
+		Arc::new(SpyExtractor {
 			calls: Arc::new(AtomicUsize::new(0)),
 			payload: serde_json::json!({ "notes": [] }),
 		}),
@@ -615,9 +615,9 @@ async fn add_note_persists_graph_relations() {
 		return;
 	};
 	let providers = Providers::new(
-		Arc::new(crate::acceptance::StubEmbedding { vector_dim: 4_096 }),
-		Arc::new(crate::acceptance::StubRerank),
-		Arc::new(crate::acceptance::SpyExtractor {
+		Arc::new(StubEmbedding { vector_dim: 4_096 }),
+		Arc::new(StubRerank),
+		Arc::new(SpyExtractor {
 			calls: Arc::new(AtomicUsize::new(0)),
 			payload: serde_json::json!({ "notes": [] }),
 		}),
@@ -719,12 +719,9 @@ async fn add_event_persists_graph_relations() {
 		}]
 	});
 	let providers = Providers::new(
-		Arc::new(crate::acceptance::StubEmbedding { vector_dim: 4_096 }),
-		Arc::new(crate::acceptance::StubRerank),
-		Arc::new(crate::acceptance::SpyExtractor {
-			calls: Arc::new(AtomicUsize::new(0)),
-			payload: extractor_payload,
-		}),
+		Arc::new(StubEmbedding { vector_dim: 4_096 }),
+		Arc::new(StubRerank),
+		Arc::new(SpyExtractor { calls: Arc::new(AtomicUsize::new(0)), payload: extractor_payload }),
 	);
 	let collection = test_db.collection_name("elf_acceptance");
 	let docs_collection = test_db.collection_name("elf_acceptance_docs");

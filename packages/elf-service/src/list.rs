@@ -8,7 +8,10 @@ use sqlx::{PgPool, QueryBuilder};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::{ElfService, Error, Result, access};
+use crate::{
+	ElfService, Error, Result,
+	access::{self, ORG_PROJECT_ID},
+};
 use elf_storage::models::MemoryNote;
 
 /// Request payload for note listing.
@@ -233,7 +236,7 @@ async fn list_notes(
 		builder.push(" AND (project_id = ");
 		builder.push_bind(project_id);
 		builder.push(" OR (project_id = ");
-		builder.push_bind(access::ORG_PROJECT_ID);
+		builder.push_bind(ORG_PROJECT_ID);
 		builder.push(" AND scope = ");
 		builder.push_bind("org_shared");
 		builder.push("))");
