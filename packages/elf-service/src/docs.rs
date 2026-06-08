@@ -21,7 +21,7 @@ use uuid::Uuid;
 
 use crate::{
 	ElfService, Error, Result,
-	access::{self, SharedSpaceGrantKey},
+	access::{self, ORG_PROJECT_ID, SharedSpaceGrantKey},
 	search,
 };
 use elf_config::Config;
@@ -558,11 +558,8 @@ impl ElfService {
 		let DocsPutRequest { tenant_id, project_id, agent_id, scope, title, source_ref, .. } = req;
 		let chunking_profile = resolve_doc_chunking_profile(doc_type);
 		let tokenizer = load_tokenizer(&self.cfg)?;
-		let effective_project_id = if scope.trim() == "org_shared" {
-			crate::access::ORG_PROJECT_ID
-		} else {
-			project_id.as_str()
-		};
+		let effective_project_id =
+			if scope.trim() == "org_shared" { ORG_PROJECT_ID } else { project_id.as_str() };
 		let content_bytes = content.len();
 		let content_hash = blake3::hash(content.as_bytes());
 		let doc_id = Uuid::new_v4();
@@ -688,7 +685,7 @@ LIMIT 1",
 		.bind(req.doc_id)
 		.bind(tenant_id)
 		.bind(project_id)
-		.bind(crate::access::ORG_PROJECT_ID)
+		.bind(ORG_PROJECT_ID)
 		.fetch_optional(&self.db.pool)
 		.await?;
 		let Some(row) = row else {
@@ -1807,7 +1804,7 @@ fn build_doc_search_filter(
 
 	if allowed_scopes.iter().any(|scope| scope == "org_shared") {
 		let org_filter = Filter::all([
-			Condition::matches("project_id", crate::access::ORG_PROJECT_ID.to_string()),
+			Condition::matches("project_id", ORG_PROJECT_ID.to_string()),
 			Condition::matches("scope", "org_shared".to_string()),
 		]);
 
@@ -2164,7 +2161,7 @@ LIMIT 1",
 	.bind(doc_id)
 	.bind(tenant_id)
 	.bind(project_id)
-	.bind(crate::access::ORG_PROJECT_ID)
+	.bind(ORG_PROJECT_ID)
 	.fetch_optional(executor)
 	.await?;
 
@@ -2303,7 +2300,7 @@ WHERE c.chunk_id = ANY($1)
 	.bind(tenant_id)
 	.bind(project_id)
 	.bind(status)
-	.bind(crate::access::ORG_PROJECT_ID)
+	.bind(ORG_PROJECT_ID)
 	.fetch_all(executor)
 	.await?;
 	let mut map = HashMap::with_capacity(rows.len());

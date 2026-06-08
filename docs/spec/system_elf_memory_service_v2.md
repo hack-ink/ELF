@@ -1499,7 +1499,7 @@ Response:
   "updated_at": "..."
 }
 
-POST /v2/admin/events/ingestion-profiles/default
+PUT /v2/admin/events/ingestion-profiles/default
 
 Headers:
 - X-ELF-Tenant-Id, X-ELF-Project-Id, X-ELF-Agent-Id
@@ -1946,7 +1946,7 @@ Original query:
   - elf_admin_events_ingestion_profile_get -> GET /v2/admin/events/ingestion-profiles/{profile_id}
   - elf_admin_events_ingestion_profile_versions_list -> GET /v2/admin/events/ingestion-profiles/{profile_id}/versions
   - elf_admin_events_ingestion_profile_default_get -> GET /v2/admin/events/ingestion-profiles/default
-  - elf_admin_events_ingestion_profile_default_set -> POST /v2/admin/events/ingestion-profiles/default
+  - elf_admin_events_ingestion_profile_default_set -> PUT /v2/admin/events/ingestion-profiles/default
   - elf_admin_traces_recent_list -> GET /v2/admin/traces/recent
   - elf_admin_trace_get -> GET /v2/admin/traces/{trace_id}
   - elf_admin_trajectory_get -> GET /v2/admin/trajectories/{trace_id}

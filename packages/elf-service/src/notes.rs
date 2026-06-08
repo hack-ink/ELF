@@ -8,7 +8,8 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 use crate::{
-	ElfService, Error, Result, access,
+	ElfService, Error, Result,
+	access::{self, ORG_PROJECT_ID},
 	structured_fields::{self, StructuredFields},
 };
 use elf_storage::models::MemoryNote;
@@ -93,7 +94,7 @@ WHERE note_id = $1
 		.bind(req.note_id)
 		.bind(tenant_id)
 		.bind(project_id)
-		.bind(access::ORG_PROJECT_ID)
+		.bind(ORG_PROJECT_ID)
 		.fetch_optional(&self.db.pool)
 		.await?;
 		let Some(note) = row else {
