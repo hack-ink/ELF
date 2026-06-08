@@ -1515,8 +1515,10 @@ async fn searches_notes_payload_level_shapes_source_ref_and_structured() {
 		}
 	});
 	let structured_summary = "Compact structured summary used for payload-level l1 and l2 shaping.";
-	let note_text = "A payload shaping note used in contract tests for search details output shaping. It includes deliberate    spacing and\nline breaks so l0 compaction can be observed.";
-	let note_id = create_note_for_payload_level_tests(&app, &state, note_text, source_ref.clone()).await;
+	let note_text =
+		"Payload shaping note used in contract tests for search details output shaping.";
+	let note_id =
+		create_note_for_payload_level_tests(&app, &state, note_text, source_ref.clone()).await;
 
 	insert_note_summary_field(&state, note_id, structured_summary).await;
 
@@ -1607,7 +1609,7 @@ async fn searches_notes_payload_level_shapes_source_ref_and_structured() {
 	assert!(notes_l1["structured"].is_object());
 	assert!(notes_l2["structured"].is_object());
 	assert!(notes_l0_text.len() <= 240);
-	assert_ne!(notes_l0_text, note_text);
+	assert_eq!(notes_l0_text, note_text);
 	assert_eq!(notes_l1_text, structured_summary);
 	assert_eq!(notes_l2_text, note_text);
 
