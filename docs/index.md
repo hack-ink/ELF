@@ -2,8 +2,8 @@
 
 Purpose: Route agents to the smallest correct document set for the current task.
 Read this when: You are starting from repository docs and need to choose the right lane.
-Not this document: Detailed subsystem contracts, step-by-step runbooks, or saved plan artifacts.
-Routes to: `docs/governance.md`, `docs/spec/`, `docs/guide/`, `docs/plans/`, and `Makefile.toml`.
+Not this document: Detailed subsystem contracts, step-by-step runbooks, research run state, or saved plan artifacts.
+Routes to: `docs/governance.md`, `docs/spec/`, `docs/guide/`, `docs/research/`, `docs/plans/`, and `Makefile.toml`.
 
 Audience: All documentation in this repository is written for AI agents and LLM workflows.
 The split below is by question type, not by human-versus-agent audience.
@@ -15,6 +15,8 @@ The split below is by question type, not by human-versus-agent audience.
 - Then choose one primary lane:
   - `docs/spec/index.md` when the question is "what must be true?"
   - `docs/guide/index.md` when the question is "what should I do?"
+- Use `docs/research/` only when a research workflow explicitly points to a
+  machine-readable research run file there.
 - Use `docs/plans/` only when a planning tool or execution workflow explicitly points to
   a saved plan artifact there.
 
@@ -25,6 +27,8 @@ The split below is by question type, not by human-versus-agent audience.
 - Need runbooks, migrations, validation steps, troubleshooting, or operational sequences ->
   `docs/guide/`
 - Need external comparisons or architecture research inputs -> `docs/guide/research/`
+- Need machine-readable research run state, evidence, trade-offs, and decision status ->
+  `docs/research/`
 - Need repo task names or automation entrypoints -> `Makefile.toml`
 - Need documentation placement or authoring rules -> `docs/governance.md`
 - Need a planning-tool artifact or saved execution plan -> `docs/plans/`

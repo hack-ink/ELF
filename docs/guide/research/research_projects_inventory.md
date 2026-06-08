@@ -6,7 +6,7 @@ Inputs: Existing research notes, open architecture questions, and tracked adopti
 Depends on: `docs/guide/research/comparison_external_projects.md`.
 Outputs: A current inventory of reviewed and pending external projects.
 
-Last updated: April 17, 2026.
+Last updated: June 8, 2026.
 
 ## Legend
 
@@ -18,6 +18,10 @@ Last updated: April 17, 2026.
 
 | Project | Research depth | Current status | Why it matters to ELF | Primary reference |
 | ------- | -------------- | -------------- | --------------------- | ----------------- |
+| [agentmemory](https://github.com/rohitg00/agentmemory) | D1 | Reviewed | Cross-agent coding-memory hooks, MCP/REST surface, viewer, consolidation lifecycle, and external benchmark target | `docs/guide/research/comparison_external_projects.md`; `docs/research/2026-06-08-agent-memory-selection.json` |
+| [OpenAI ChatGPT Memory Dreaming](https://openai.com/index/chatgpt-memory-dreaming/) | D1 | Reviewed | Background memory synthesis and staleness repair as a product direction | `docs/research/2026-06-08-agent-memory-selection.json` |
+| [Claude Managed Agents Dreams](https://platform.claude.com/docs/en/managed-agents/dreams) | D1 | Reviewed | Reviewable derived memory-store output over past sessions; strong safety shape for ELF consolidation | `docs/research/2026-06-08-agent-memory-selection.json` |
+| [Gemini CLI Auto Memory](https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/auto-memory.md) | D1 | Reviewed | Background session mining with project-local review inbox for memory patches and skills | `docs/research/2026-06-08-agent-memory-selection.json` |
 | [mem0](https://github.com/mem0ai/mem0) | D2 | Reviewed | Graph memory as additive context, memory history and async mode trade-offs | `docs/guide/research/comparison_external_projects.md` |
 | [memsearch](https://github.com/zilliztech/memsearch) | D2 | Reviewed | Markdown-first SoT + rebuildable index pattern | `docs/guide/research/comparison_external_projects.md` |
 | [qmd](https://github.com/tobi/qmd) | D2 | Reviewed | Retrieval routing, weighted fusion, and local-first explainability | `docs/guide/research/comparison_external_projects.md` |
@@ -35,6 +39,26 @@ Last updated: April 17, 2026.
 | [LightRAG](https://github.com/HKUDS/LightRAG) | D0 | Pending deep dive | Graph-augmented RAG strategy relevance; not yet audited to adoption level | Discussion history only |
 | [GraphRAG](https://www.microsoft.com/en-us/research/project/graphrag/) | D0 | Pending deep dive | Graph-based retrieval concepts; not yet audited to implementation decision level | Discussion history only |
 
+## June 2026 Activity Snapshot
+
+GitHub API snapshot time: 2026-06-08T06:01:57Z.
+
+The monitored project set is still moving quickly. Recent push activity was observed for
+agentmemory, mem0, qmd, claude-mem, OpenViking, gbrain, graphify, LangGraph, Graphiti,
+RAGFlow, LightRAG, and GraphRAG. Notable current scale signals:
+
+- agentmemory: 21,783 stars, latest release `v0.9.27`, pushed 2026-06-07.
+- mem0: 58,005 stars, latest release `cli-node-v0.2.8`, pushed 2026-06-06.
+- claude-mem: 81,157 stars, latest release `v13.4.1`, pushed 2026-06-08.
+- graphify: 62,294 stars, latest release `v0.8.35`, pushed 2026-06-07.
+- RAGFlow: 82,150 stars, latest release `v0.25.6`, pushed 2026-06-08.
+- LightRAG: 36,270 stars, latest release `v1.5.0`, pushed 2026-06-08.
+- GraphRAG: 33,545 stars, latest release `v3.1.0`, pushed 2026-06-05.
+
+Interpretation: this is not a settled market. ELF should keep watching external
+implementation velocity, but the current activity signal alone does not justify
+replacing ELF's evidence-bound service contract.
+
 ## Current Planning Surface
 
 - Linear project: [ELF vNext: Evidence-to-Knowledge Memory](https://linear.app/hack-ink/project/elf-vnext-evidence-to-knowledge-memory-d7a9dd3f3e86)
@@ -46,6 +70,8 @@ Last updated: April 17, 2026.
   - [XY-40](https://linear.app/hack-ink/issue/XY-40/vision-track-elf-as-a-high-trust-memory-system-for-singlemulti-agent)
   - [XY-51](https://linear.app/hack-ink/issue/XY-51/agent-memory-ux-mcp-surface-skills-doc-pointers-epic)
   - [XY-63](https://linear.app/hack-ink/issue/XY-63/research-openviking-as-optional-doc-backend-integration-sketch)
+- Current June 2026 research run:
+  - `docs/research/2026-06-08-agent-memory-selection.json`
 
 ## Notes
 
