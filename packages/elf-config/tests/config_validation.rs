@@ -16,6 +16,8 @@ use toml::Value;
 use elf_config::{self, Config, Context, Error, MemoryPolicyRule};
 
 const SAMPLE_CONFIG_TEMPLATE_TOML: &str = include_str!("fixtures/sample_config.template.toml");
+const TRACE_GATE_CONFIG_TOML: &str =
+	include_str!("../../../.github/fixtures/trace_gate/config.toml");
 
 fn sample_toml(reject_non_english: bool) -> String {
 	sample_toml_with_recursive(reject_non_english, false, 2, 4, 32, 256)
@@ -468,6 +470,14 @@ fn elf_example_toml_is_valid() {
 	path.push("../../elf.example.toml");
 
 	elf_config::load(&path).expect("Expected elf.example.toml to be a valid config.");
+}
+
+#[test]
+fn trace_gate_fixture_toml_is_valid() {
+	let path = write_temp_config(TRACE_GATE_CONFIG_TOML.to_string());
+
+	elf_config::load(&path).expect("Expected trace gate fixture config to be valid.");
+	fs::remove_file(&path).expect("Failed to remove test config.");
 }
 
 #[test]
