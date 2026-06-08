@@ -75,6 +75,7 @@ After `elf-api` starts, the API process serves:
 
 - `GET /openapi.json` for the generated OpenAPI contract.
 - `GET /docs` for the Scalar API reference UI.
+- `GET /viewer` on the admin bind for the local read-only search, note, and trace viewer.
 
 Use the host and port from `service.http_bind` in your config.
 For example:
@@ -82,6 +83,13 @@ For example:
 ```sh
 curl -fsS http://127.0.0.1:51892/openapi.json
 open http://127.0.0.1:51892/docs
+```
+
+Use the host and port from `service.admin_bind` for the viewer.
+For the checked-in local config:
+
+```sh
+open http://127.0.0.1:51891/viewer
 ```
 
 ## 5. Smoke the local stack
