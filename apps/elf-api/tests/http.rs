@@ -555,7 +555,6 @@ async fn create_note_for_payload_level_tests(
 	source_ref: serde_json::Value,
 ) -> Uuid {
 	init_test_tracing();
-
 	let payload = serde_json::json!({
 		"scope": "agent_private",
 		"notes": [{
@@ -767,12 +766,18 @@ async fn fetch_admin_search_raw_source_ref(
 		)
 		.await
 		.expect("Failed to call admin search raw.");
-
-	assert_eq!(response.status(), StatusCode::OK);
-
+	let status = response.status();
 	let body = body::to_bytes(response.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read admin search raw response body.");
+
+	assert_eq!(
+		status,
+		StatusCode::OK,
+		"Unexpected admin search raw status with body: {}",
+		String::from_utf8_lossy(&body)
+	);
+
 	let json: serde_json::Value =
 		serde_json::from_slice(&body).expect("Failed to parse admin search raw response.");
 	let item = json["items"]
@@ -1511,8 +1516,7 @@ async fn searches_notes_payload_level_shapes_source_ref_and_structured() {
 	});
 	let structured_summary = "Compact structured summary used for payload-level l1 and l2 shaping.";
 	let note_text = "A payload shaping note used in contract tests for search details output shaping. It includes deliberate    spacing and\nline breaks so l0 compaction can be observed.";
-	let note_id =
-		create_note_for_payload_level_tests(&app, &state, note_text, source_ref.clone()).await;
+	let note_id = create_note_for_payload_level_tests(&app, &state, note_text, source_ref.clone()).await;
 
 	insert_note_summary_field(&state, note_id, structured_summary).await;
 
