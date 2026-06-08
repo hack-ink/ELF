@@ -29,6 +29,13 @@ Question this index answers: "what must remain true?"
 - State transitions and protocol rules.
 - Behavior that tests, code, or operators should treat as authoritative.
 
+## Documents
+
+- `system_elf_memory_service_v2.md`: Core ELF memory service contract, API semantics,
+  and storage invariants.
+- `system_consolidation_proposals_v1.md`: Reviewable derived consolidation run and
+  proposal contract over immutable source evidence.
+
 ## Spec document contract
 
 Start each spec with a compact routing header:
