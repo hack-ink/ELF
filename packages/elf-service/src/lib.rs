@@ -6,6 +6,7 @@ pub mod add_event;
 pub mod add_note;
 pub mod admin;
 pub mod admin_graph_predicates;
+pub mod consolidation;
 pub mod delete;
 pub mod docs;
 pub mod graph;
@@ -36,6 +37,13 @@ pub use self::{
 		AdminGraphPredicateAliasesListRequest, AdminGraphPredicateAliasesResponse,
 		AdminGraphPredicatePatchRequest, AdminGraphPredicateResponse,
 		AdminGraphPredicatesListRequest, AdminGraphPredicatesListResponse,
+	},
+	consolidation::{
+		ConsolidationProposalGetRequest, ConsolidationProposalInput, ConsolidationProposalResponse,
+		ConsolidationProposalReviewRequest, ConsolidationProposalsListRequest,
+		ConsolidationProposalsListResponse, ConsolidationRunCreateRequest,
+		ConsolidationRunCreateResponse, ConsolidationRunGetRequest, ConsolidationRunResponse,
+		ConsolidationRunsListRequest, ConsolidationRunsListResponse,
 	},
 	delete::{DeleteRequest, DeleteResponse},
 	docs::{
