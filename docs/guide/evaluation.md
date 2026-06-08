@@ -101,6 +101,8 @@ The command prints a JSON report containing summary metrics and per-query detail
   - `--search-mode quick_find` (lower latency)
   - `--search-mode planned_search` (planning-enabled path; useful when you need query plans and staged trajectory metadata)
   - When running a config comparison with `--config-b`, you can set `--search-mode-b` to override the mode for the B side.
+- To compare against sanitized agentmemory session fixtures without running an agentmemory server, use
+  `docs/guide/research/agentmemory_adapter.md`.
 - The dataset should avoid secrets and sensitive data.
 - To persist traces for later replay without running `elf-worker`, set `search.explain.write_mode = "inline"`
   in the config used by `elf-eval`.
