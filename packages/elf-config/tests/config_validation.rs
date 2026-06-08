@@ -16,6 +16,8 @@ use toml::Value;
 use elf_config::{self, Config, Context, Error, MemoryPolicyRule};
 
 const SAMPLE_CONFIG_TEMPLATE_TOML: &str = include_str!("fixtures/sample_config.template.toml");
+const TRACE_GATE_CONFIG_TOML: &str =
+	include_str!("../../../.github/fixtures/trace_gate/config.toml");
 
 fn sample_toml(reject_non_english: bool) -> String {
 	sample_toml_with_recursive(reject_non_english, false, 2, 4, 32, 256)
@@ -101,10 +103,62 @@ fn write_temp_config(payload: String) -> PathBuf {
 	path
 }
 
+fn remove_required_config_key(payload: &str, path: &[&str]) -> String {
+	assert!(!path.is_empty(), "Config path must not be empty.");
+
+	let mut value: Value = toml::from_str(payload).expect("Failed to parse test config.");
+	let mut table = value.as_table_mut().expect("Template config must be a table.");
+
+	for segment in &path[..path.len() - 1] {
+		table = table
+			.get_mut(*segment)
+			.and_then(Value::as_table_mut)
+			.unwrap_or_else(|| panic!("Template config must include [{}].", segment));
+	}
+
+	let field = path[path.len() - 1];
+	let removed = table.remove(field);
+
+	assert!(removed.is_some(), "Template config must include {}.", path.join("."));
+
+	toml::to_string(&value).expect("Failed to render template config.")
+}
+
+fn assert_missing_field_error(result: Result<Config, Error>, field: &str) {
+	let err = result.expect_err("Expected missing required field parse error.");
+	let message = match err {
+		Error::ParseConfig { source, .. } => source.to_string(),
+		err => panic!("Expected parse config error, got {err}"),
+	};
+
+	assert!(message.contains(&format!("missing field `{field}`")), "Unexpected error: {message}");
+}
+
 fn base_config() -> Config {
 	let payload = sample_toml(true);
 
 	toml::from_str(&payload).expect("Failed to parse test config.")
+}
+
+#[test]
+fn required_config_fields_must_be_explicit() {
+	let cases = [
+		(&["storage", "qdrant", "docs_collection"][..], "docs_collection"),
+		(&["memory", "policy"][..], "policy"),
+		(&["search", "recursive"][..], "recursive"),
+		(&["search", "graph_context"][..], "graph_context"),
+		(&["security", "auth_keys"][..], "auth_keys"),
+	];
+
+	for (path, field) in cases {
+		let payload = remove_required_config_key(&sample_toml(true), path);
+		let config_path = write_temp_config(payload);
+		let result = elf_config::load(&config_path);
+
+		fs::remove_file(&config_path).expect("Failed to remove test config.");
+
+		assert_missing_field_error(result, field);
+	}
 }
 
 #[test]
@@ -416,6 +470,14 @@ fn elf_example_toml_is_valid() {
 	path.push("../../elf.example.toml");
 
 	elf_config::load(&path).expect("Expected elf.example.toml to be a valid config.");
+}
+
+#[test]
+fn trace_gate_fixture_toml_is_valid() {
+	let path = write_temp_config(TRACE_GATE_CONFIG_TOML.to_string());
+
+	elf_config::load(&path).expect("Expected trace gate fixture config to be valid.");
+	fs::remove_file(&path).expect("Failed to remove test config.");
 }
 
 #[test]

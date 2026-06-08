@@ -9,9 +9,10 @@ dsn            = "postgres://postgres:postgres@127.0.0.1:5432/elf"
 pool_max_conns = 5
 
 [storage.qdrant]
-collection = "ci_trace_gate"
-url        = "http://127.0.0.1:6334"
-vector_dim = 4
+collection      = "ci_trace_gate"
+docs_collection = "ci_trace_gate_docs"
+url             = "http://127.0.0.1:6334"
+vector_dim      = 4
 
 [providers.embedding]
 api_base        = "http://127.0.0.1"
@@ -68,6 +69,12 @@ max_notes_per_add_event = 3
 top_k                   = 3
 update_sim_threshold    = 0.85
 
+[memory.policy]
+
+[[memory.policy.rules]]
+min_confidence = 0.0
+min_importance = 0.0
+
 [chunking]
 enabled        = true
 max_tokens     = 256
@@ -97,6 +104,18 @@ candidate_retention_days = 1
 capture_candidates       = false
 retention_days           = 2
 write_mode               = "outbox"
+
+[search.recursive]
+enabled               = false
+max_children_per_node = 4
+max_depth             = 2
+max_nodes_per_scope   = 32
+max_total_nodes       = 256
+
+[search.graph_context]
+enabled                     = false
+max_evidence_notes_per_fact = 16
+max_facts_per_item          = 16
 
 [ranking]
 recency_tau_days   = 0.0
@@ -157,6 +176,7 @@ purge_deleted_after_days    = 30
 purge_deprecated_after_days = 180
 
 [security]
+auth_keys                = []
 auth_mode                = "off"
 bind_localhost_only      = true
 evidence_max_quote_chars = 320
