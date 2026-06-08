@@ -116,26 +116,26 @@ flowchart TB
 Quick comparison snapshot (objective/high-level).
 This table compares capability coverage, not overall project quality.
 
-| Capability | ELF | OpenViking | mem0 | qmd | claude-mem | memsearch |
-| ---------- | --- | ---------- | ---- | --- | ---------- | --------- |
-| Local-first self-hosted workflow | ✅ | ✅ | ✅ (OpenMemory) | ✅ | ✅ | ✅ |
-| MCP integration | ✅ | — | ✅ (OpenMemory) | ✅ | ✅ | ⚠️ |
-| CLI-first developer workflow | — | ✅ | — | ✅ | ⚠️ | ✅ |
-| HTTP API service surface | ✅ | ✅ | ✅ | ⚠️ (MCP Streamable HTTP) | ✅ | — |
-| Query expansion or query rewriting | ✅ | ✅ | ⚠️ | ✅ | — | — |
-| LLM reranking stage | ✅ | ⚠️ | ⚠️ | ✅ | — | — |
-| Hybrid dense + sparse retrieval | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ |
-| Progressive disclosure style retrieval | ✅ | ✅ | — | — | ✅ | ⚠️ |
-| Evidence-bound memory writes | ✅ | — | — | — | — | — |
-| Deterministic and LLM-ingestion boundary | ✅ | ⚠️ | ⚠️ | — | — | — |
-| Source-of-truth + rebuildable derived index | ✅ | ✅ | ⚠️ | ⚠️ | ⚠️ | ✅ |
-| Hierarchical/recursive retrieval strategy | ⚠️ (in progress) | ✅ | ⚠️ | ⚠️ | ⚠️ | ⚠️ |
-| Progressive context loading (L0/L1/L2 style) | ⚠️ (in progress) | ✅ | ⚠️ | — | ⚠️ | — |
-| Built-in web memory inspector/viewer | — | — | ✅ (OpenMemory) | — | ✅ | — |
-| Hosted managed option | — | — | ✅ | — | — | — |
-| Multi-tenant scope semantics | ✅ | ⚠️ | ✅ | — | — | — |
-| TTL/lifecycle policy controls | ✅ | ⚠️ | ✅ | — | ⚠️ | — |
-| Graph memory mode | ⚠️ (graph-lite: structured relations persisted; optional search `relation_context`) | ⚠️ (URI-link relations) | ✅ (optional) | — | — | — |
+| Capability | ELF | agentmemory | OpenViking | mem0 | qmd | claude-mem | memsearch |
+| ---------- | --- | ----------- | ---------- | ---- | --- | ---------- | --------- |
+| Local-first self-hosted workflow | ✅ | ✅ | ✅ | ✅ (OpenMemory) | ✅ | ✅ | ✅ |
+| MCP integration | ✅ | ✅ | — | ✅ (OpenMemory) | ✅ | ✅ | ⚠️ |
+| CLI-first developer workflow | — | ✅ | ✅ | — | ✅ | ⚠️ | ✅ |
+| HTTP API service surface | ✅ | ✅ | ✅ | ✅ | ⚠️ (MCP Streamable HTTP) | ✅ | — |
+| Query expansion or query rewriting | ✅ | ⚠️ | ✅ | ⚠️ | ✅ | — | — |
+| LLM reranking stage | ✅ | ⚠️ | ⚠️ | ⚠️ | ✅ | — | — |
+| Hybrid dense + sparse retrieval | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ |
+| Progressive disclosure style retrieval | ✅ | ⚠️ | ✅ | — | — | ✅ | ⚠️ |
+| Evidence-bound memory writes | ✅ | — | — | — | — | — | — |
+| Deterministic and LLM-ingestion boundary | ✅ | ⚠️ | ⚠️ | ⚠️ | — | — | — |
+| Source-of-truth + rebuildable derived index | ✅ | ⚠️ | ✅ | ⚠️ | ⚠️ | ⚠️ | ✅ |
+| Hierarchical/recursive retrieval strategy | ⚠️ (in progress) | ⚠️ | ✅ | ⚠️ | ⚠️ | ⚠️ | ⚠️ |
+| Progressive context loading (L0/L1/L2 style) | ⚠️ (in progress) | ⚠️ | ✅ | ⚠️ | — | ⚠️ | — |
+| Built-in web memory inspector/viewer | — | ✅ | — | ✅ (OpenMemory) | — | ✅ | — |
+| Hosted managed option | — | — | — | ✅ | — | — | — |
+| Multi-tenant scope semantics | ✅ | ⚠️ | ⚠️ | ✅ | — | — | — |
+| TTL/lifecycle policy controls | ✅ | ⚠️ | ⚠️ | ✅ | — | ⚠️ | — |
+| Graph memory mode | ⚠️ (graph-lite: structured relations persisted; optional search `relation_context`) | ⚠️ | ⚠️ (URI-link relations) | ✅ (optional) | — | — | — |
 
 Legend: `✅` built-in and documented; `⚠️` partial, optional, or in-progress; `—` not a first-class documented capability.
 
@@ -144,6 +144,7 @@ Project signature strengths (what each does especially well):
 | Project | Signature strengths | Potential ELF adoption value |
 | ------- | ------------------- | ---------------------------- |
 | ELF | Evidence-bound writes, deterministic ingestion boundary, SoT + rebuildable index, eval tooling | Keep as core differentiators while extending retrieval and UX |
+| agentmemory | Cross-agent hooks, MCP/REST packaging, local viewer, iii console observability, coding-agent continuity benchmarks | Use as adapter/baseline and UX reference, not a replacement for ELF provenance semantics |
 | OpenViking | Filesystem-like context model (`viking://`), hierarchical retrieval, staged retrieval trajectory | Improve query planning, recursive retrieval, and explainable stage outputs |
 | mem0 | Broad ecosystem (SDK + hosted + OpenMemory), multi-entity scope, lifecycle + optional graph memory | Strengthen event/history APIs and additive graph context channel |
 | qmd | High-quality local retrieval pipeline (query expansion + weighted fusion + rerank), strong CLI/MCP workflow | Borrow transparent routing/fusion knobs and local debugging ergonomics |
@@ -154,8 +155,9 @@ Detailed comparison, mechanism-level analysis, and source map:
 
 - [Detailed External Comparison](docs/guide/research/comparison_external_projects.md)
 - [Research Projects Inventory](docs/guide/research/research_projects_inventory.md)
+- [Agent Memory Selection Research Run](docs/research/2026-06-08-agent-memory-selection.json)
 
-Snapshot date in that document: February 17, 2026.
+Latest external research refresh: June 8, 2026.
 
 ## Documentation
 
