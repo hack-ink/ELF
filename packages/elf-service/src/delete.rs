@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::{ElfService, Error, InsertVersionArgs, NoteOp, Result, access};
+use crate::{ElfService, Error, InsertVersionArgs, NoteOp, Result, access::ORG_PROJECT_ID};
 use elf_storage::models::MemoryNote;
 
 /// Request payload for note deletion.
@@ -54,7 +54,7 @@ FOR UPDATE",
 		.bind(req.note_id)
 		.bind(tenant_id)
 		.bind(project_id)
-		.bind(access::ORG_PROJECT_ID)
+		.bind(ORG_PROJECT_ID)
 		.fetch_optional(&mut *tx)
 		.await?
 		.ok_or_else(|| Error::InvalidRequest { message: "Note not found.".to_string() })?;

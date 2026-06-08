@@ -17,7 +17,7 @@ use tokio::{
 };
 use uuid::Uuid;
 
-use crate::acceptance::{self, SpyExtractor, StubEmbedding, StubRerank};
+use crate::acceptance::{self, SpyExtractor, StubEmbedding, StubRerank, chunking::ChunkingConfig};
 use elf_config::EmbeddingProviderConfig;
 use elf_service::{
 	AddNoteInput, AddNoteRequest, BoxFuture, DocsExcerptsGetRequest, DocsGetRequest,
@@ -27,7 +27,7 @@ use elf_service::{
 };
 use elf_storage::{db::Db, qdrant::QdrantStore};
 use elf_testkit::TestDatabase;
-use elf_worker::worker;
+use elf_worker::worker::{self, WorkerState};
 
 const TEST_CONTENT: &str =
 	"ELF docs extension v1 stores evidence. Keyword: peregrine.\nSecond sentence for chunking.";
@@ -1876,7 +1876,7 @@ async fn assert_doc_excerpt(service: &ElfService, doc_id: Uuid, content_hash: &s
 
 async fn spawn_doc_worker(service: &ElfService) -> (JoinHandle<()>, Sender<()>) {
 	let (api_base, shutdown) = start_embed_server().await;
-	let worker_state = worker::WorkerState {
+	let worker_state = WorkerState {
 		db: Db::connect(&service.cfg.storage.postgres).await.expect("Failed to connect worker DB."),
 		qdrant: QdrantStore::new(&service.cfg.storage.qdrant)
 			.expect("Failed to build Qdrant store."),
@@ -1895,7 +1895,7 @@ async fn spawn_doc_worker(service: &ElfService) -> (JoinHandle<()>, Sender<()>) 
 			timeout_ms: 1_000,
 			default_headers: Map::new(),
 		},
-		chunking: crate::acceptance::chunking::ChunkingConfig { max_tokens: 64, overlap_tokens: 8 },
+		chunking: ChunkingConfig { max_tokens: 64, overlap_tokens: 8 },
 		tokenizer: build_test_tokenizer(),
 	};
 	let handle = tokio::spawn(async move {

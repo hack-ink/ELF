@@ -6,7 +6,10 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
 
-use crate::{ElfService, Error, InsertVersionArgs, access};
+use crate::{
+	ElfService, Error, InsertVersionArgs,
+	access::{self, ORG_PROJECT_ID},
+};
 use elf_storage::models::MemoryNote;
 
 const PROJECT_SPACE_GRANT_UPSERT_SQL: &str = "\
@@ -270,7 +273,7 @@ FOR UPDATE",
 		.bind(req.note_id)
 		.bind(tenant_id)
 		.bind(project_id)
-		.bind(access::ORG_PROJECT_ID)
+		.bind(ORG_PROJECT_ID)
 		.fetch_optional(&mut *tx)
 		.await?
 		.ok_or_else(|| Error::InvalidRequest { message: "Note not found.".to_string() })?;
@@ -296,8 +299,7 @@ FOR UPDATE",
 			return Err(Error::ScopeDenied { message: "Scope is not allowed.".to_string() });
 		}
 
-		let target_project_id =
-			if scope == "org_shared" { access::ORG_PROJECT_ID } else { project_id };
+		let target_project_id = if scope == "org_shared" { ORG_PROJECT_ID } else { project_id };
 
 		access::ensure_active_project_scope_grant(
 			&mut *tx,
@@ -377,7 +379,7 @@ FOR UPDATE",
 		.bind(req.note_id)
 		.bind(tenant_id)
 		.bind(project_id)
-		.bind(access::ORG_PROJECT_ID)
+		.bind(ORG_PROJECT_ID)
 		.fetch_optional(&mut *tx)
 		.await?
 		.ok_or_else(|| Error::InvalidRequest { message: "Note not found.".to_string() })?;
@@ -401,7 +403,7 @@ FOR UPDATE",
 		let now = time::OffsetDateTime::now_utc();
 		let prev_snapshot = crate::note_snapshot(&note);
 
-		if note.scope == "org_shared" && note.project_id == access::ORG_PROJECT_ID {
+		if note.scope == "org_shared" && note.project_id == ORG_PROJECT_ID {
 			note.project_id = project_id.to_string();
 		}
 
@@ -486,8 +488,7 @@ FOR UPDATE",
 
 		let grantee_agent_id_ref = grantee_agent_id.as_deref();
 		let now = time::OffsetDateTime::now_utc();
-		let effective_project_id =
-			if scope == "org_shared" { access::ORG_PROJECT_ID } else { project_id };
+		let effective_project_id = if scope == "org_shared" { ORG_PROJECT_ID } else { project_id };
 
 		if req.grantee_kind == GranteeKind::Project {
 			self.upsert_project_grant(tenant_id, effective_project_id, scope, agent_id, now)
@@ -604,8 +605,7 @@ FOR UPDATE",
 			return Err(Error::ScopeDenied { message: "Scope is not allowed.".to_string() });
 		}
 
-		let effective_project_id =
-			if scope == "org_shared" { access::ORG_PROJECT_ID } else { project_id };
+		let effective_project_id = if scope == "org_shared" { ORG_PROJECT_ID } else { project_id };
 		let revocation = sqlx::query(
 			"\
 UPDATE memory_space_grants
@@ -667,8 +667,7 @@ WHERE tenant_id = $1
 			return Err(Error::ScopeDenied { message: "Scope is not allowed.".to_string() });
 		}
 
-		let effective_project_id =
-			if scope == "org_shared" { access::ORG_PROJECT_ID } else { project_id };
+		let effective_project_id = if scope == "org_shared" { ORG_PROJECT_ID } else { project_id };
 
 		#[derive(FromRow)]
 		struct Row {
