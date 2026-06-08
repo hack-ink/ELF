@@ -903,6 +903,7 @@ dependencies = [
  "elf-service",
  "elf-storage",
  "elf-testkit",
+ "qdrant-client",
  "serde",
  "serde_json",
  "sqlx",

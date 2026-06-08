@@ -153,7 +153,7 @@ impl ElfService {
 			return Ok(result);
 		}
 
-		let (decision, metadata) = self.resolve_update_decision(ctx, &note).await?;
+		let (decision, metadata) = self.resolve_update_decision(&mut tx, ctx, &note).await?;
 		let base_decision =
 			Self::base_decision_for_update(&decision, structured_present, graph_present);
 		let (policy_decision, decision_policy_rule, min_confidence, min_importance) =
@@ -271,11 +271,12 @@ impl ElfService {
 
 	async fn resolve_update_decision(
 		&self,
+		tx: &mut Transaction<'_, Postgres>,
 		ctx: &AddNoteContext<'_>,
 		note: &AddNoteInput,
 	) -> Result<(UpdateDecision, UpdateDecisionMetadata)> {
 		let decision = crate::resolve_update(
-			&self.db.pool,
+			&mut **tx,
 			ResolveUpdateArgs {
 				cfg: &self.cfg,
 				providers: &self.providers,
