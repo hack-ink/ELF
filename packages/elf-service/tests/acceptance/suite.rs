@@ -13,7 +13,7 @@ mod structured_field_retrieval;
 mod trace_admin_observability;
 
 use std::{
-	env,
+	env, fs,
 	sync::{
 		Arc,
 		atomic::{AtomicUsize, Ordering},
@@ -21,6 +21,7 @@ use std::{
 	time::Duration,
 };
 
+use ahash::AHashMap;
 use qdrant_client::{
 	QdrantError,
 	qdrant::{
@@ -30,6 +31,7 @@ use qdrant_client::{
 };
 use serde_json::{Map, Value};
 use sqlx::PgExecutor;
+use tokenizers::{Tokenizer, models::wordlevel::WordLevel};
 use tokio::time;
 
 use elf_config::{
@@ -240,7 +242,7 @@ pub fn test_config(
 			enabled: true,
 			max_tokens: 512,
 			overlap_tokens: 128,
-			tokenizer_repo: "gpt2".to_string(),
+			tokenizer_repo: test_tokenizer_repo(&collection),
 		},
 		security: Security {
 			bind_localhost_only: true,
@@ -300,6 +302,32 @@ pub async fn test_db() -> Option<TestDatabase> {
 	let db = TestDatabase::new(&base_dsn).await.expect("Failed to create test database.");
 
 	Some(db)
+}
+
+fn test_tokenizer_repo(collection: &str) -> String {
+	let tokenizer_path = env::temp_dir().join(format!("{collection}-tokenizer.json"));
+
+	if tokenizer_path.exists() {
+		return tokenizer_path.to_string_lossy().into_owned();
+	}
+
+	let mut vocab = AHashMap::new();
+
+	vocab.insert("<unk>".to_string(), 0_u32);
+
+	let model = WordLevel::builder()
+		.vocab(vocab)
+		.unk_token("<unk>".to_string())
+		.build()
+		.expect("Failed to build acceptance tokenizer.");
+	let tokenizer = Tokenizer::new(model);
+	let parent = tokenizer_path.parent().expect("Temporary tokenizer path has a parent directory.");
+
+	fs::create_dir_all(parent).expect("Failed to create acceptance tokenizer directory.");
+
+	tokenizer.save(&tokenizer_path, false).expect("Failed to save acceptance tokenizer.");
+
+	tokenizer_path.to_string_lossy().into_owned()
 }
 
 fn test_ranking() -> Ranking {

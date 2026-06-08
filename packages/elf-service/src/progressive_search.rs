@@ -880,17 +880,26 @@ fn truncate_chars(raw: &str, max_chars: usize) -> String {
 		return raw.to_string();
 	}
 
-	let mut out = String::with_capacity(max_chars + 3);
+	const TRUNCATION_MARKER: &str = "...";
+
+	let marker_chars = TRUNCATION_MARKER.chars().count();
+
+	if max_chars <= marker_chars {
+		return TRUNCATION_MARKER.chars().take(max_chars).collect();
+	}
+
+	let truncated_chars = max_chars - marker_chars;
+	let mut out = String::with_capacity(max_chars);
 
 	for (idx, ch) in raw.chars().enumerate() {
-		if idx >= max_chars {
+		if idx >= truncated_chars {
 			break;
 		}
 
 		out.push(ch);
 	}
 
-	out.push_str("...");
+	out.push_str(TRUNCATION_MARKER);
 
 	out
 }

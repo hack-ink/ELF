@@ -2,15 +2,20 @@
 
 //! End-to-end HTTP integration tests for the ELF API app.
 
-use std::env;
+use std::{collections::HashMap, env};
 
 use axum::{
 	Router,
 	body::{self, Body},
 	http::{Request, Response, StatusCode},
 };
+use qdrant_client::{
+	client::Payload,
+	qdrant::{Document, PointStruct, UpsertPointsBuilder, Vector},
+};
 use serde_json::Map;
 use tower::util::ServiceExt as _;
+use tracing::Level;
 use uuid::Uuid;
 
 use elf_api::{routes, state::AppState};
@@ -23,6 +28,7 @@ use elf_config::{
 	SearchExpansion, SearchExplain, SearchPrefilter, Security, SecurityAuthKey, SecurityAuthRole,
 	Service, Storage, TtlDays,
 };
+use elf_storage::qdrant::{BM25_MODEL, BM25_VECTOR_NAME, DENSE_VECTOR_NAME};
 use elf_testkit::TestDatabase;
 
 const TEST_TENANT_ID: &str = "tenant_alpha";
@@ -192,11 +198,11 @@ fn test_config(dsn: String, qdrant_url: String, collection: String) -> Config {
 
 fn dummy_embedding_provider() -> EmbeddingProviderConfig {
 	EmbeddingProviderConfig {
-		provider_id: "test".to_string(),
+		provider_id: "local".to_string(),
 		api_base: "http://127.0.0.1:1".to_string(),
 		api_key: "test-key".to_string(),
 		path: "/".to_string(),
-		model: "test".to_string(),
+		model: "local-hash".to_string(),
 		dimensions: 4_096,
 		timeout_ms: 1_000,
 		default_headers: Map::new(),
@@ -205,11 +211,11 @@ fn dummy_embedding_provider() -> EmbeddingProviderConfig {
 
 fn dummy_provider() -> ProviderConfig {
 	ProviderConfig {
-		provider_id: "test".to_string(),
+		provider_id: "local".to_string(),
 		api_base: "http://127.0.0.1:1".to_string(),
 		api_key: "test-key".to_string(),
 		path: "/".to_string(),
-		model: "test".to_string(),
+		model: "local-token-overlap".to_string(),
 		timeout_ms: 1_000,
 		default_headers: Map::new(),
 	}
@@ -226,6 +232,10 @@ fn dummy_llm_provider() -> LlmProviderConfig {
 		timeout_ms: 1_000,
 		default_headers: Map::new(),
 	}
+}
+
+fn init_test_tracing() {
+	let _ = tracing_subscriber::fmt().with_max_level(Level::ERROR).with_test_writer().try_init();
 }
 
 async fn test_env() -> Option<(TestDatabase, String, String)> {
@@ -526,9 +536,12 @@ async fn post_with_authorization_and_json_body(
 
 async fn create_note_for_payload_level_tests(
 	app: &Router,
+	state: &AppState,
 	text: &str,
 	source_ref: serde_json::Value,
 ) -> Uuid {
+	init_test_tracing();
+
 	let payload = serde_json::json!({
 		"scope": "agent_private",
 		"notes": [{
@@ -556,12 +569,18 @@ async fn create_note_for_payload_level_tests(
 		)
 		.await
 		.expect("Failed to call note ingest.");
-
-	assert_eq!(response.status(), StatusCode::OK);
-
+	let status = response.status();
 	let body = body::to_bytes(response.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read note ingest response body.");
+
+	assert_eq!(
+		status,
+		StatusCode::OK,
+		"Unexpected note ingest status with body: {}",
+		String::from_utf8_lossy(&body)
+	);
+
 	let json: serde_json::Value =
 		serde_json::from_slice(&body).expect("Failed to parse note ingest response.");
 	let note_id = json["results"]
@@ -570,8 +589,82 @@ async fn create_note_for_payload_level_tests(
 		.first()
 		.and_then(|result| result["note_id"].as_str())
 		.expect("Missing note_id in note ingest response.");
+	let note_id = Uuid::parse_str(note_id).expect("Invalid note_id in note ingest response.");
 
-	Uuid::parse_str(note_id).expect("Invalid note_id in note ingest response.")
+	index_note_for_payload_level_tests(state, note_id, text).await;
+
+	note_id
+}
+
+async fn index_note_for_payload_level_tests(state: &AppState, note_id: Uuid, text: &str) {
+	let chunk_id = Uuid::new_v4();
+	let embedding_version = format!(
+		"{}:{}:{}",
+		state.service.cfg.providers.embedding.provider_id,
+		state.service.cfg.providers.embedding.model,
+		state.service.cfg.storage.qdrant.vector_dim
+	);
+
+	sqlx::query(
+		"INSERT INTO memory_note_chunks (
+			chunk_id,
+			note_id,
+			chunk_index,
+			start_offset,
+			end_offset,
+			text,
+			embedding_version
+		) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+	)
+	.bind(chunk_id)
+	.bind(note_id)
+	.bind(0_i32)
+	.bind(0_i32)
+	.bind(i32::try_from(text.len()).expect("Payload-level test text fits i32 offsets."))
+	.bind(text)
+	.bind(embedding_version.as_str())
+	.execute(&state.service.db.pool)
+	.await
+	.expect("Failed to seed memory note chunk.");
+
+	let mut payload = Payload::new();
+
+	payload.insert("note_id", note_id.to_string());
+	payload.insert("chunk_id", chunk_id.to_string());
+	payload.insert("chunk_index", 0_i64);
+	payload.insert("start_offset", 0_i64);
+	payload.insert("end_offset", i64::try_from(text.len()).expect("Test text fits i64 offsets."));
+	payload.insert("tenant_id", TEST_TENANT_ID);
+	payload.insert("project_id", TEST_PROJECT_ID);
+	payload.insert("agent_id", TEST_AGENT_A);
+	payload.insert("scope", "agent_private");
+	payload.insert("type", "fact");
+	payload.insert("status", "active");
+	payload.insert("embedding_version", embedding_version);
+
+	let mut vectors = HashMap::new();
+
+	vectors.insert(
+		DENSE_VECTOR_NAME.to_string(),
+		Vector::from(vec![0.0_f32; state.service.qdrant.vector_dim as usize]),
+	);
+	vectors.insert(
+		BM25_VECTOR_NAME.to_string(),
+		Vector::from(Document::new(text.to_string(), BM25_MODEL)),
+	);
+
+	let point = PointStruct::new(chunk_id.to_string(), vectors, payload);
+
+	state
+		.service
+		.qdrant
+		.client
+		.upsert_points(
+			UpsertPointsBuilder::new(state.service.qdrant.collection.clone(), vec![point])
+				.wait(true),
+		)
+		.await
+		.expect("Failed to seed Qdrant point.");
 }
 
 async fn insert_note_summary_field(state: &AppState, note_id: Uuid, summary: &str) {
@@ -638,6 +731,7 @@ async fn fetch_admin_search_raw_source_ref(
 	payload_level: &str,
 ) -> serde_json::Value {
 	let payload = serde_json::json!({
+		"mode": "quick_find",
 		"query": query,
 		"top_k": 5,
 		"candidate_k": 10,
@@ -1402,10 +1496,9 @@ async fn searches_notes_payload_level_shapes_source_ref_and_structured() {
 		}
 	});
 	let structured_summary = "Compact structured summary used for payload-level l1 and l2 shaping.";
-	let note_text = "A substantially long payload shaping note used in contract tests for search details output shaping. "
-		.repeat(6);
+	let note_text = "A payload shaping note used in contract tests for search details output shaping. It includes deliberate    spacing and\nline breaks so l0 compaction can be observed.";
 	let note_id =
-		create_note_for_payload_level_tests(&app, note_text.as_str(), source_ref.clone()).await;
+		create_note_for_payload_level_tests(&app, &state, note_text, source_ref.clone()).await;
 
 	insert_note_summary_field(&state, note_id, structured_summary).await;
 
@@ -1496,9 +1589,9 @@ async fn searches_notes_payload_level_shapes_source_ref_and_structured() {
 	assert!(notes_l1["structured"].is_object());
 	assert!(notes_l2["structured"].is_object());
 	assert!(notes_l0_text.len() <= 240);
-	assert_ne!(notes_l0_text, note_text.as_str());
+	assert_ne!(notes_l0_text, note_text);
 	assert_eq!(notes_l1_text, structured_summary);
-	assert_eq!(notes_l2_text, note_text.as_str());
+	assert_eq!(notes_l2_text, note_text);
 
 	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }
@@ -1512,7 +1605,7 @@ async fn admin_searches_raw_payload_level_shapes_source_ref() {
 	let config = test_config(test_db.dsn().to_string(), qdrant_url, collection);
 	let state = AppState::new(config).await.expect("Failed to initialize app state.");
 	let app = routes::router(state.clone());
-	let admin_app = routes::admin_router(state);
+	let admin_app = routes::admin_router(state.clone());
 	let source_ref = serde_json::json!({
 		"schema": "note_source_ref/v1",
 		"locator": {
@@ -1526,7 +1619,8 @@ async fn admin_searches_raw_payload_level_shapes_source_ref() {
 	});
 	let note_text =
 		"Admin raw search payload shaping contract note. This long note should be indexed.";
-	let _note_id = create_note_for_payload_level_tests(&app, note_text, source_ref.clone()).await;
+	let _note_id =
+		create_note_for_payload_level_tests(&app, &state, note_text, source_ref.clone()).await;
 	let raw_l0 = fetch_admin_search_raw_source_ref(&admin_app, "payload shaping", "l0").await;
 	let raw_l1 = fetch_admin_search_raw_source_ref(&admin_app, "payload shaping", "l1").await;
 	let raw_l2 = fetch_admin_search_raw_source_ref(&admin_app, "payload shaping", "l2").await;
