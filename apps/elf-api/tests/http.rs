@@ -20,13 +20,13 @@ use uuid::Uuid;
 
 use elf_api::{routes, state::AppState};
 use elf_config::{
-	Chunking, Config, EmbeddingProviderConfig, Lifecycle, LlmProviderConfig, Memory, Postgres,
-	ProviderConfig, Providers, Qdrant, Ranking, RankingBlend, RankingBlendSegment,
+	Chunking, Config, EmbeddingProviderConfig, Lifecycle, LlmProviderConfig, Memory, MemoryPolicy,
+	Postgres, ProviderConfig, Providers, Qdrant, Ranking, RankingBlend, RankingBlendSegment,
 	RankingDeterministic, RankingDeterministicDecay, RankingDeterministicHits,
 	RankingDeterministicLexical, RankingDiversity, RankingRetrievalSources, ReadProfiles,
 	ScopePrecedence, ScopeWriteAllowed, Scopes, Search, SearchCache, SearchDynamic,
-	SearchExpansion, SearchExplain, SearchPrefilter, Security, SecurityAuthKey, SecurityAuthRole,
-	Service, Storage, TtlDays,
+	SearchExpansion, SearchExplain, SearchGraphContext, SearchPrefilter, SearchRecursive, Security,
+	SecurityAuthKey, SecurityAuthRole, Service, Storage, TtlDays,
 };
 use elf_storage::qdrant::{BM25_MODEL, BM25_VECTOR_NAME, DENSE_VECTOR_NAME};
 use elf_testkit::TestDatabase;
@@ -137,31 +137,9 @@ fn test_config(dsn: String, qdrant_url: String, collection: String) -> Config {
 			update_sim_threshold: 0.85,
 			candidate_k: 60,
 			top_k: 12,
-			policy: Default::default(),
+			policy: MemoryPolicy { rules: vec![] },
 		},
-		search: Search {
-			expansion: SearchExpansion {
-				mode: "off".to_string(),
-				max_queries: 4,
-				include_original: true,
-			},
-			dynamic: SearchDynamic { min_candidates: 10, min_top_score: 0.12 },
-			prefilter: SearchPrefilter { max_candidates: 0 },
-			cache: SearchCache {
-				enabled: true,
-				expansion_ttl_days: 7,
-				rerank_ttl_days: 7,
-				max_payload_bytes: Some(262_144),
-			},
-			explain: SearchExplain {
-				retention_days: 7,
-				capture_candidates: false,
-				candidate_retention_days: 2,
-				write_mode: "outbox".to_string(),
-			},
-			recursive: Default::default(),
-			graph_context: Default::default(),
-		},
+		search: test_search(),
 		ranking: test_ranking(),
 		lifecycle: Lifecycle {
 			ttl_days: TtlDays {
@@ -193,6 +171,42 @@ fn test_config(dsn: String, qdrant_url: String, collection: String) -> Config {
 		},
 		context: None,
 		mcp: None,
+	}
+}
+
+fn test_search() -> Search {
+	Search {
+		expansion: SearchExpansion {
+			mode: "off".to_string(),
+			max_queries: 4,
+			include_original: true,
+		},
+		dynamic: SearchDynamic { min_candidates: 10, min_top_score: 0.12 },
+		prefilter: SearchPrefilter { max_candidates: 0 },
+		cache: SearchCache {
+			enabled: true,
+			expansion_ttl_days: 7,
+			rerank_ttl_days: 7,
+			max_payload_bytes: Some(262_144),
+		},
+		explain: SearchExplain {
+			retention_days: 7,
+			capture_candidates: false,
+			candidate_retention_days: 2,
+			write_mode: "outbox".to_string(),
+		},
+		recursive: SearchRecursive {
+			enabled: false,
+			max_depth: 2,
+			max_children_per_node: 4,
+			max_nodes_per_scope: 32,
+			max_total_nodes: 256,
+		},
+		graph_context: SearchGraphContext {
+			enabled: false,
+			max_facts_per_item: 16,
+			max_evidence_notes_per_fact: 16,
+		},
 	}
 }
 

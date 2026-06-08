@@ -303,8 +303,8 @@ mod tests {
 		RankingBlendSegment, RankingDeterministic, RankingDeterministicDecay,
 		RankingDeterministicHits, RankingDeterministicLexical, RankingDiversity,
 		RankingRetrievalSources, ReadProfiles, ScopePrecedence, ScopeWriteAllowed, Scopes, Search,
-		SearchCache, SearchDynamic, SearchExpansion, SearchExplain, SearchPrefilter, Security,
-		Service, Storage, TtlDays,
+		SearchCache, SearchDynamic, SearchExpansion, SearchExplain, SearchGraphContext,
+		SearchPrefilter, SearchRecursive, Security, Service, Storage, TtlDays,
 	};
 
 	fn test_ranking() -> Ranking {
@@ -403,7 +403,7 @@ mod tests {
 				update_sim_threshold: 0.8,
 				candidate_k: 10,
 				top_k: 5,
-				policy: MemoryPolicy::default(),
+				policy: MemoryPolicy { rules: vec![] },
 			},
 			search: Search {
 				expansion: SearchExpansion {
@@ -425,8 +425,18 @@ mod tests {
 					candidate_retention_days: 2,
 					write_mode: "outbox".to_string(),
 				},
-				recursive: Default::default(),
-				graph_context: Default::default(),
+				recursive: SearchRecursive {
+					enabled: false,
+					max_depth: 2,
+					max_children_per_node: 4,
+					max_nodes_per_scope: 32,
+					max_total_nodes: 256,
+				},
+				graph_context: SearchGraphContext {
+					enabled: false,
+					max_facts_per_item: 16,
+					max_evidence_notes_per_fact: 16,
+				},
 			},
 			ranking: test_ranking(),
 			lifecycle: Lifecycle {
