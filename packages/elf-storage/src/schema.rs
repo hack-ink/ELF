@@ -75,6 +75,10 @@ fn expand_includes(sql: &str) -> String {
 				"tables/030_memory_ingestion_profile_defaults.sql" => out.push_str(include_str!(
 					"../../../sql/tables/030_memory_ingestion_profile_defaults.sql"
 				)),
+				"tables/031_consolidation_runs.sql" =>
+					out.push_str(include_str!("../../../sql/tables/031_consolidation_runs.sql")),
+				"tables/032_consolidation_proposals.sql" => out
+					.push_str(include_str!("../../../sql/tables/032_consolidation_proposals.sql")),
 				"tables/023_memory_ingest_decisions.sql" => out
 					.push_str(include_str!("../../../sql/tables/023_memory_ingest_decisions.sql")),
 				"tables/024_memory_space_grants.sql" =>

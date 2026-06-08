@@ -29,3 +29,5 @@
 \ir tables/028_doc_indexing_outbox.sql
 \ir tables/029_memory_ingestion_profiles.sql
 \ir tables/030_memory_ingestion_profile_defaults.sql
+\ir tables/031_consolidation_runs.sql
+\ir tables/032_consolidation_proposals.sql

@@ -44,6 +44,24 @@ fn chunk_tables_exist_after_bootstrap() {
 		assert_eq!(count, 1);
 
 		let count: i64 = sqlx::query_scalar(
+			"SELECT count(*) FROM information_schema.tables WHERE table_name = 'consolidation_runs'",
+		)
+		.fetch_one(&db.pool)
+		.await
+		.expect("Failed to query schema tables.");
+
+		assert_eq!(count, 1);
+
+		let count: i64 = sqlx::query_scalar(
+			"SELECT count(*) FROM information_schema.tables WHERE table_name = 'consolidation_proposals'",
+		)
+		.fetch_one(&db.pool)
+		.await
+		.expect("Failed to query schema tables.");
+
+		assert_eq!(count, 1);
+
+		let count: i64 = sqlx::query_scalar(
 			"SELECT count(*) FROM information_schema.tables WHERE table_name = 'memory_space_grants'",
 		)
 		.fetch_one(&db.pool)
