@@ -261,6 +261,38 @@ args = [
 ]
 
 
+# Competitive parity
+# | task                | type    | cwd |
+# | ------------------- | ------- | --- |
+# | parity-docker       | command |     |
+# | parity-docker-clean | command |     |
+
+[tasks.parity-docker]
+workspace = false
+command = "docker"
+args = [
+	"compose",
+	"-f",
+	"docker-compose.parity.yml",
+	"run",
+	"--build",
+	"--rm",
+	"parity-runner",
+]
+
+[tasks.parity-docker-clean]
+workspace = false
+command = "docker"
+args = [
+	"compose",
+	"-f",
+	"docker-compose.parity.yml",
+	"down",
+	"-v",
+	"--remove-orphans",
+]
+
+
 # Meta
 # | task   | type      | cwd |
 # | ------ | --------- | --- |

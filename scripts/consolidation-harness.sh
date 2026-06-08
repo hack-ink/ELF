@@ -28,7 +28,7 @@ else
   exit 1
 fi
 
-for cmd in curl psql taplo; do
+for cmd in curl psql; do
   if ! command -v "${cmd}" >/dev/null 2>&1; then
     echo "Missing ${cmd}." >&2
     exit 1
@@ -332,7 +332,11 @@ redact_secrets_on_write  = true
 reject_non_english       = true
 TOML
 
-taplo fmt "${CFG_BASE}" >/dev/null 2>&1
+if command -v taplo >/dev/null 2>&1; then
+  taplo fmt "${CFG_BASE}" >/dev/null 2>&1
+else
+  echo "taplo not found; continuing with unformatted generated harness config."
+fi
 
 echo "Building harness binaries."
 (cd "${ROOT_DIR}" && cargo build -p elf-worker -p elf-api -p elf-eval >/dev/null)
@@ -356,6 +360,16 @@ status="$(curl -s -o /dev/null -w '%{http_code}' "${HTTP_BASE}/health" 2>/dev/nu
 if [[ "${status}" != "200" ]]; then
   echo "API did not become healthy in time. Check logs: ${API_LOG}." >&2
   exit 1
+fi
+
+if [[ "${ELF_HARNESS_CHECK_VIEWER:-0}" == "1" ]]; then
+  VIEWER_BASE="http://${ADMIN_BIND}"
+  viewer_status="$(curl -s -o /dev/null -w '%{http_code}' "${VIEWER_BASE}/viewer" 2>/dev/null || true)"
+  if [[ "${viewer_status}" != "200" ]]; then
+    echo "Admin viewer did not return 200 at ${VIEWER_BASE}/viewer. Check logs: ${API_LOG}." >&2
+    exit 1
+  fi
+  echo "Admin viewer check passed at ${VIEWER_BASE}/viewer."
 fi
 
 TENANT_ID="consolidation-tenant-${RUN_ID}"
