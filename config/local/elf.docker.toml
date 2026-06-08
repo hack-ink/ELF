@@ -1,0 +1,213 @@
+[service]
+admin_bind = "127.0.0.1:51891"
+http_bind  = "127.0.0.1:51892"
+log_level  = "info"
+mcp_bind   = "127.0.0.1:51893"
+
+[storage.postgres]
+dsn            = "postgres://elf_dev:elf_dev_password@127.0.0.1:51888/elf_local"
+pool_max_conns = 10
+
+[storage.qdrant]
+collection      = "elf_local_notes"
+docs_collection = "elf_local_doc_chunks"
+url             = "http://127.0.0.1:51890"
+vector_dim      = 256
+
+[mcp]
+agent_id     = "local-agent"
+project_id   = "local-project"
+read_profile = "private_plus_project"
+tenant_id    = "local-tenant"
+
+[providers.embedding]
+api_base        = "http://127.0.0.1"
+api_key         = "local-dev-placeholder"
+default_headers = {}
+dimensions      = 256
+model           = "local-hash"
+path            = "/embeddings"
+provider_id     = "local"
+timeout_ms      = 1_000
+
+[providers.rerank]
+api_base        = "http://127.0.0.1"
+api_key         = "local-dev-placeholder"
+default_headers = {}
+model           = "local-token-overlap"
+path            = "/rerank"
+provider_id     = "local"
+timeout_ms      = 1_000
+
+[providers.llm_extractor]
+api_base        = "http://127.0.0.1"
+api_key         = "local-dev-placeholder"
+default_headers = {}
+model           = "local-disabled"
+path            = "/chat/completions"
+provider_id     = "local-disabled"
+temperature     = 0.0
+timeout_ms      = 1_000
+
+[scopes]
+allowed = ["agent_private", "org_shared", "project_shared"]
+
+[scopes.read_profiles]
+all_scopes           = ["agent_private", "org_shared", "project_shared"]
+private_only         = ["agent_private"]
+private_plus_project = ["agent_private", "project_shared"]
+
+[scopes.precedence]
+agent_private  = 30
+org_shared     = 10
+project_shared = 20
+
+[scopes.write_allowed]
+agent_private  = true
+org_shared     = true
+project_shared = true
+
+[memory]
+candidate_k             = 60
+dup_sim_threshold       = 0.92
+max_note_chars          = 240
+max_notes_per_add_event = 3
+top_k                   = 12
+update_sim_threshold    = 0.85
+
+[memory.policy]
+
+[[memory.policy.rules]]
+min_confidence = 0.9
+min_importance = 0.75
+note_type      = "preference"
+scope          = "agent_private"
+
+[chunking]
+enabled        = true
+max_tokens     = 512
+overlap_tokens = 128
+tokenizer_repo = "config/local/tokenizer.wordlevel.json"
+
+[search.expansion]
+include_original = true
+max_queries      = 4
+mode             = "off"
+
+[search.dynamic]
+min_candidates = 10
+min_top_score  = 0.12
+
+[search.prefilter]
+max_candidates = 0
+
+[search.cache]
+enabled            = false
+expansion_ttl_days = 7
+max_payload_bytes  = 262_144
+rerank_ttl_days    = 7
+
+[search.explain]
+candidate_retention_days = 2
+capture_candidates       = false
+retention_days           = 7
+write_mode               = "outbox"
+
+[search.recursive]
+enabled               = false
+max_children_per_node = 4
+max_depth             = 2
+max_nodes_per_scope   = 32
+max_total_nodes       = 256
+
+[search.graph_context]
+enabled                     = false
+max_evidence_notes_per_fact = 16
+max_facts_per_item          = 16
+
+[ranking]
+recency_tau_days   = 60.0
+tie_breaker_weight = 0.1
+
+[ranking.deterministic]
+enabled = false
+
+[ranking.deterministic.lexical]
+enabled         = false
+max_query_terms = 16
+max_text_terms  = 1_024
+min_ratio       = 0.3
+weight          = 0.05
+
+[ranking.deterministic.hits]
+enabled           = false
+half_saturation   = 8.0
+last_hit_tau_days = 14.0
+weight            = 0.05
+
+[ranking.deterministic.decay]
+enabled  = false
+tau_days = 30.0
+weight   = 0.05
+
+[ranking.blend]
+enabled                 = true
+rerank_normalization    = "rank"
+retrieval_normalization = "rank"
+
+[[ranking.blend.segments]]
+max_retrieval_rank = 3
+retrieval_weight   = 0.8
+
+[[ranking.blend.segments]]
+max_retrieval_rank = 10
+retrieval_weight   = 0.5
+
+[[ranking.blend.segments]]
+max_retrieval_rank = 1_000_000
+retrieval_weight   = 0.2
+
+[ranking.diversity]
+enabled       = true
+max_skips     = 64
+mmr_lambda    = 0.7
+sim_threshold = 0.88
+
+[ranking.retrieval_sources]
+fusion_priority           = 1
+fusion_weight             = 1.0
+structured_field_priority = 0
+structured_field_weight   = 1.0
+
+[lifecycle.ttl_days]
+constraint = 0
+decision   = 0
+fact       = 180
+plan       = 14
+preference = 0
+profile    = 0
+
+[lifecycle]
+purge_deleted_after_days    = 30
+purge_deprecated_after_days = 180
+
+[security]
+auth_keys                = []
+auth_mode                = "off"
+bind_localhost_only      = true
+evidence_max_quote_chars = 320
+evidence_max_quotes      = 2
+evidence_min_quotes      = 1
+redact_secrets_on_write  = true
+reject_non_english       = true
+
+[context]
+scope_boost_weight = 0.0
+
+[context.project_descriptions]
+"local-tenant:local-project" = "Local ELF development stack."
+
+[context.scope_descriptions]
+agent_private  = "Local private notes for one development agent."
+org_shared     = "Local organization-shared development notes."
+project_shared = "Local project-shared development notes."
