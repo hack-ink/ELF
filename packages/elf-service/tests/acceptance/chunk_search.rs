@@ -1044,12 +1044,10 @@ async fn search_details_payload_level_shapes_text_and_fields() {
 	};
 	let note_id = Uuid::new_v4();
 	let chunk_id = Uuid::new_v4();
-	let note_text = concat!(
-		"This is the long note body used for detail shaping. It contains enough tokens to show ",
-		"truncation and should be reduced for compact payload levels. The extra detail keeps ",
-		"running with repeated operational context about source references, structured fields, ",
-		"session hydration, ranking metadata, and payload contracts so l0 cannot equal the raw note.",
-	);
+	let max_note_chars = context.service.cfg.memory.max_note_chars as usize;
+	let note_text_seed =
+		"This is the long note body used for detail shaping and payload truncation. ";
+	let note_text = note_text_seed.repeat((max_note_chars / note_text_seed.len()) + 2);
 	let source_ref = serde_json::json!({
 		"schema": "note_source_ref/v1",
 		"locator": {
@@ -1060,12 +1058,13 @@ async fn search_details_payload_level_shapes_text_and_fields() {
 	});
 	let structured_summary = "Structured summary about payload levels and compact text behavior.";
 	let field_id = Uuid::new_v4();
-	let max_note_chars = context.service.cfg.memory.max_note_chars as usize;
+
+	assert!(note_text.len() > max_note_chars);
 
 	insert_note_with_importance_and_source_ref(
 		&context.service.db.pool,
 		note_id,
-		note_text,
+		note_text.as_str(),
 		&context.embedding_version,
 		0.8_f32,
 		1.0,
@@ -1081,12 +1080,20 @@ async fn search_details_payload_level_shapes_text_and_fields() {
 		0,
 		0,
 		note_text.len() as i32,
-		note_text,
+		note_text.as_str(),
 		&context.embedding_version,
 	)
 	.await;
-	upsert_point(&context.service, chunk_id, note_id, 0, 0, note_text.len() as i32, note_text)
-		.await;
+	upsert_point(
+		&context.service,
+		chunk_id,
+		note_id,
+		0,
+		0,
+		note_text.len() as i32,
+		note_text.as_str(),
+	)
+	.await;
 
 	let index = context
 		.service
@@ -1128,8 +1135,9 @@ async fn search_details_payload_level_shapes_text_and_fields() {
 	)
 	.await;
 
-	assert!(l0.text.len() <= max_note_chars);
-	assert!(l1.text.len() <= max_note_chars);
+	assert!(l0.text.chars().count() <= max_note_chars + 3);
+	assert!(l1.text.chars().count() <= max_note_chars + 3);
+	assert!(l0.text.ends_with("..."));
 	assert_eq!(l2.text, note_text);
 	assert_ne!(l0.text, l1.text);
 	assert_ne!(l0.text, note_text);
