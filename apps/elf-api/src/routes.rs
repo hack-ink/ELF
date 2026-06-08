@@ -8,7 +8,7 @@ use axum::{
 		rejection::{JsonRejection, QueryRejection},
 	},
 	http::{
-		HeaderMap, Request, StatusCode,
+		HeaderMap, HeaderValue, Request, StatusCode,
 		header::{CONTENT_LENGTH, CONTENT_TYPE},
 	},
 	middleware::{self, Next},
@@ -18,6 +18,8 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
+use utoipa::{OpenApi, ToSchema};
+use utoipa_scalar::{Scalar, Servable};
 use uuid::Uuid;
 
 use crate::state::AppState;
@@ -49,6 +51,11 @@ use elf_service::{
 	UpdateResponse, search::TraceBundleMode,
 };
 
+/// JSON OpenAPI contract route.
+pub const OPENAPI_JSON_PATH: &str = "/openapi.json";
+/// Scalar API reference route.
+pub const SCALAR_DOCS_PATH: &str = "/docs";
+
 const HEADER_TENANT_ID: &str = "X-ELF-Tenant-Id";
 const HEADER_PROJECT_ID: &str = "X-ELF-Project-Id";
 const HEADER_AGENT_ID: &str = "X-ELF-Agent-Id";
@@ -68,6 +75,72 @@ const MAX_NOTE_IDS_PER_DETAILS: usize = 256;
 const MAX_TOP_K: u32 = 100;
 const MAX_CANDIDATE_K: u32 = 1_000;
 const MAX_ERROR_LOG_CHARS: usize = 1_024;
+
+/// Generated OpenAPI document for the ELF HTTP API.
+#[derive(OpenApi)]
+#[openapi(
+	info(
+		title = "ELF API",
+		version = env!("CARGO_PKG_VERSION"),
+		description = "Evidence-linked fact memory HTTP and admin API."
+	),
+	paths(
+		health,
+		notes_ingest,
+		events_ingest,
+		docs_put,
+		docs_get,
+		docs_search_l0,
+		docs_excerpts_get,
+		graph_query,
+		searches_create,
+		searches_get,
+		searches_timeline,
+		searches_notes,
+		notes_list,
+		notes_get,
+		notes_patch,
+		notes_delete,
+		notes_publish,
+		notes_unpublish,
+		space_grants_list,
+		space_grant_upsert,
+		space_grant_revoke,
+		admin_ingestion_profiles_list,
+		admin_ingestion_profile_create,
+		admin_ingestion_profile_get,
+		admin_ingestion_profile_versions_list,
+		admin_ingestion_profile_default_get,
+		admin_ingestion_profile_default_set,
+		rebuild_qdrant,
+		searches_raw,
+		trace_recent_list,
+		trace_get,
+		trace_bundle_get,
+		trace_trajectory_get,
+		trace_item_get,
+		admin_graph_predicates_list,
+		admin_graph_predicate_patch,
+		admin_graph_predicate_alias_add,
+		admin_graph_predicate_aliases_list,
+		admin_note_provenance_get,
+	),
+	components(schemas(
+		AdminIngestionProfileDefaultResponseV2,
+		AdminIngestionProfileDefaultSetBody,
+		ErrorBody,
+	)),
+	tags(
+		(name = "health", description = "Health and process liveness."),
+		(name = "notes", description = "Memory note ingestion, listing, mutation, and sharing."),
+		(name = "events", description = "Event ingestion through the extractor pipeline."),
+		(name = "docs", description = "Document extension ingestion, search, and excerpt retrieval."),
+		(name = "search", description = "Progressive search sessions and raw search diagnostics."),
+		(name = "graph", description = "Graph query and predicate administration."),
+		(name = "admin", description = "Local admin and operator inspection routes."),
+	)
+)]
+pub struct ApiDoc;
 
 #[derive(Clone, Debug)]
 struct RequestContext {
@@ -163,13 +236,6 @@ struct SearchCreateRequest {
 	ranking: Option<RankingRequestOverride>,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
-enum SearchMode {
-	QuickFind,
-	PlannedSearch,
-}
-
 #[derive(Clone, Debug, Serialize)]
 struct SearchIndexResponseV2 {
 	mode: SearchMode,
@@ -239,10 +305,17 @@ struct AdminIngestionProfileGetQuery {
 	version: Option<i32>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, ToSchema)]
 struct AdminIngestionProfileDefaultSetBody {
 	profile_id: String,
 	version: Option<i32>,
+}
+
+#[derive(Clone, Debug, Serialize, ToSchema)]
+struct AdminIngestionProfileDefaultResponseV2 {
+	profile_id: String,
+	version: Option<i32>,
+	updated_at: String,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -341,7 +414,7 @@ struct SpaceGrantsListResponseV2 {
 	grants: Vec<SpaceGrantItemV2>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 struct ErrorBody {
 	error_code: String,
 	message: String,
@@ -432,6 +505,13 @@ impl IntoResponse for ApiError {
 	}
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum SearchMode {
+	QuickFind,
+	PlannedSearch,
+}
+
 /// Builds the authenticated public API router.
 pub fn router(state: AppState) -> Router {
 	let auth_state = state.clone();
@@ -467,6 +547,7 @@ pub fn router(state: AppState) -> Router {
 		.layer(DefaultBodyLimit::max(MAX_DOC_REQUEST_BYTES));
 
 	Router::new()
+		.merge(contract_router())
 		.merge(api_router)
 		.merge(docs_router)
 		.layer(middleware::from_fn_with_state(auth_state, api_auth_middleware))
@@ -514,6 +595,16 @@ pub fn admin_router(state: AppState) -> Router {
 		.with_state(state)
 		.layer(DefaultBodyLimit::max(MAX_REQUEST_BYTES))
 		.layer(middleware::from_fn_with_state(auth_state, admin_auth_middleware))
+}
+
+/// Builds the API contract router.
+pub fn contract_router<S>() -> Router<S>
+where
+	S: Clone + Send + Sync + 'static,
+{
+	Router::new()
+		.route(OPENAPI_JSON_PATH, routing::get(openapi_json))
+		.merge(Scalar::with_url(SCALAR_DOCS_PATH, <ApiDoc as OpenApi>::openapi()))
 }
 
 fn json_error(
@@ -814,6 +905,16 @@ fn parse_optional_rfc3339(
 	})
 }
 
+async fn openapi_json() -> Response {
+	let mut response = Json(<ApiDoc as OpenApi>::openapi()).into_response();
+
+	response
+		.headers_mut()
+		.insert(CONTENT_TYPE, HeaderValue::from_static("application/vnd.oai.openapi+json"));
+
+	response
+}
+
 async fn with_request_id(response: Response, request_id: Uuid) -> Response {
 	let (mut parts, body) = response.into_parts();
 
@@ -940,10 +1041,30 @@ async fn admin_auth_middleware(
 	with_request_id(response, request_id).await
 }
 
+#[utoipa::path(
+	get,
+	path = "/health",
+	tag = "health",
+	responses((status = 200, description = "API process is healthy."))
+)]
 async fn health() -> StatusCode {
 	StatusCode::OK
 }
 
+#[utoipa::path(
+	post,
+	path = "/v2/notes/ingest",
+	tag = "notes",
+	request_body = Value,
+	responses(
+		(status = 200, description = "Notes were processed.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Scope denied.", body = ErrorBody),
+		(status = 422, description = "Non-English input rejected.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
 async fn notes_ingest(
 	State(state): State<AppState>,
 	headers: HeaderMap,
@@ -984,6 +1105,20 @@ async fn notes_ingest(
 	Ok(Json(response))
 }
 
+#[utoipa::path(
+	post,
+	path = "/v2/events/ingest",
+	tag = "events",
+	request_body = Value,
+	responses(
+		(status = 200, description = "Event messages were processed.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Scope denied.", body = ErrorBody),
+		(status = 422, description = "Non-English input rejected.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
 async fn events_ingest(
 	State(state): State<AppState>,
 	headers: HeaderMap,
@@ -1037,6 +1172,20 @@ async fn events_ingest(
 	Ok(Json(response))
 }
 
+#[utoipa::path(
+	post,
+	path = "/v2/docs",
+	tag = "docs",
+	request_body = Value,
+	responses(
+		(status = 200, description = "Document was stored.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Scope denied.", body = ErrorBody),
+		(status = 422, description = "Non-English input rejected.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
 async fn docs_put(
 	State(state): State<AppState>,
 	headers: HeaderMap,
@@ -1073,6 +1222,20 @@ async fn docs_put(
 	Ok(Json(response))
 }
 
+#[utoipa::path(
+	get,
+	path = "/v2/docs/{doc_id}",
+	tag = "docs",
+	params(("doc_id" = Uuid, Path, description = "Document ID.")),
+	responses(
+		(status = 200, description = "Document was fetched.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Scope denied.", body = ErrorBody),
+		(status = 404, description = "Document was not found.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
 async fn docs_get(
 	State(state): State<AppState>,
 	headers: HeaderMap,
@@ -1094,6 +1257,20 @@ async fn docs_get(
 	Ok(Json(response))
 }
 
+#[utoipa::path(
+	post,
+	path = "/v2/docs/search/l0",
+	tag = "docs",
+	request_body = Value,
+	responses(
+		(status = 200, description = "L0 document search results.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Scope denied.", body = ErrorBody),
+		(status = 422, description = "Non-English input rejected.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
 async fn docs_search_l0(
 	State(state): State<AppState>,
 	headers: HeaderMap,
@@ -1188,6 +1365,20 @@ async fn docs_search_l0(
 	Ok(Json(response))
 }
 
+#[utoipa::path(
+	post,
+	path = "/v2/docs/excerpts",
+	tag = "docs",
+	request_body = Value,
+	responses(
+		(status = 200, description = "Document excerpt result.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Scope denied.", body = ErrorBody),
+		(status = 404, description = "Document or excerpt was not found.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
 async fn docs_excerpts_get(
 	State(state): State<AppState>,
 	headers: HeaderMap,
@@ -1219,6 +1410,20 @@ async fn docs_excerpts_get(
 	Ok(Json(response))
 }
 
+#[utoipa::path(
+	post,
+	path = "/v2/graph/query",
+	tag = "graph",
+	request_body = Value,
+	responses(
+		(status = 200, description = "Graph facts matching the query.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Scope denied.", body = ErrorBody),
+		(status = 422, description = "Non-English input rejected.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
 async fn graph_query(
 	State(state): State<AppState>,
 	headers: HeaderMap,
@@ -1251,6 +1456,20 @@ async fn graph_query(
 	Ok(Json(response))
 }
 
+#[utoipa::path(
+	post,
+	path = "/v2/searches",
+	tag = "search",
+	request_body = Value,
+	responses(
+		(status = 200, description = "Search session was created.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Scope denied.", body = ErrorBody),
+		(status = 422, description = "Non-English input rejected.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
 async fn searches_create(
 	State(state): State<AppState>,
 	headers: HeaderMap,
@@ -1345,6 +1564,25 @@ async fn searches_create(
 	Ok(Json(response))
 }
 
+#[utoipa::path(
+	get,
+	path = "/v2/searches/{search_id}",
+	tag = "search",
+	params(
+		("search_id" = Uuid, Path, description = "Search session ID."),
+		("payload_level" = Option<String>, Query, description = "Optional payload level."),
+		("top_k" = Option<u32>, Query, description = "Optional result limit override."),
+		("touch" = Option<bool>, Query, description = "Whether to extend the session TTL."),
+	),
+	responses(
+		(status = 200, description = "Search session index view.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Scope denied.", body = ErrorBody),
+		(status = 404, description = "Search session was not found.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
 async fn searches_get(
 	State(state): State<AppState>,
 	headers: HeaderMap,
@@ -1391,6 +1629,24 @@ async fn searches_get(
 	}))
 }
 
+#[utoipa::path(
+	get,
+	path = "/v2/searches/{search_id}/timeline",
+	tag = "search",
+	params(
+		("search_id" = Uuid, Path, description = "Search session ID."),
+		("payload_level" = Option<String>, Query, description = "Optional payload level."),
+		("group_by" = Option<String>, Query, description = "Timeline grouping mode."),
+	),
+	responses(
+		(status = 200, description = "Search session timeline.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Scope denied.", body = ErrorBody),
+		(status = 404, description = "Search session was not found.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
 async fn searches_timeline(
 	State(state): State<AppState>,
 	headers: HeaderMap,
@@ -1427,6 +1683,21 @@ async fn searches_timeline(
 	}))
 }
 
+#[utoipa::path(
+	post,
+	path = "/v2/searches/{search_id}/notes",
+	tag = "search",
+	params(("search_id" = Uuid, Path, description = "Search session ID.")),
+	request_body = Value,
+	responses(
+		(status = 200, description = "Hydrated search note details.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Scope denied.", body = ErrorBody),
+		(status = 404, description = "Search session was not found.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
 async fn searches_notes(
 	State(state): State<AppState>,
 	headers: HeaderMap,
@@ -1469,6 +1740,23 @@ async fn searches_notes(
 	}))
 }
 
+#[utoipa::path(
+	get,
+	path = "/v2/notes",
+	tag = "notes",
+	params(
+		("scope" = Option<String>, Query, description = "Optional note scope filter."),
+		("status" = Option<String>, Query, description = "Optional note status filter."),
+		("type" = Option<String>, Query, description = "Optional note type filter."),
+	),
+	responses(
+		(status = 200, description = "Notes visible to the caller.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Scope denied.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
 async fn notes_list(
 	State(state): State<AppState>,
 	headers: HeaderMap,
@@ -1500,6 +1788,20 @@ async fn notes_list(
 	Ok(Json(response))
 }
 
+#[utoipa::path(
+	get,
+	path = "/v2/notes/{note_id}",
+	tag = "notes",
+	params(("note_id" = Uuid, Path, description = "Note ID.")),
+	responses(
+		(status = 200, description = "Note details.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Scope denied.", body = ErrorBody),
+		(status = 404, description = "Note was not found.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
 async fn notes_get(
 	State(state): State<AppState>,
 	headers: HeaderMap,
@@ -1519,6 +1821,22 @@ async fn notes_get(
 	Ok(Json(response))
 }
 
+#[utoipa::path(
+	patch,
+	path = "/v2/notes/{note_id}",
+	tag = "notes",
+	params(("note_id" = Uuid, Path, description = "Note ID.")),
+	request_body = Value,
+	responses(
+		(status = 200, description = "Note was updated.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Scope denied.", body = ErrorBody),
+		(status = 404, description = "Note was not found.", body = ErrorBody),
+		(status = 422, description = "Non-English input rejected.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
 async fn notes_patch(
 	State(state): State<AppState>,
 	headers: HeaderMap,
@@ -1548,6 +1866,20 @@ async fn notes_patch(
 	Ok(Json(response))
 }
 
+#[utoipa::path(
+	delete,
+	path = "/v2/notes/{note_id}",
+	tag = "notes",
+	params(("note_id" = Uuid, Path, description = "Note ID.")),
+	responses(
+		(status = 200, description = "Note was deleted.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Scope denied.", body = ErrorBody),
+		(status = 404, description = "Note was not found.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
 async fn notes_delete(
 	State(state): State<AppState>,
 	headers: HeaderMap,
@@ -1567,6 +1899,21 @@ async fn notes_delete(
 	Ok(Json(response))
 }
 
+#[utoipa::path(
+	post,
+	path = "/v2/notes/{note_id}/publish",
+	tag = "notes",
+	params(("note_id" = Uuid, Path, description = "Note ID.")),
+	request_body = Value,
+	responses(
+		(status = 200, description = "Note was published to a shared space.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Scope denied.", body = ErrorBody),
+		(status = 404, description = "Note was not found.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
 async fn notes_publish(
 	State(state): State<AppState>,
 	headers: HeaderMap,
@@ -1604,6 +1951,21 @@ async fn notes_publish(
 	}))
 }
 
+#[utoipa::path(
+	post,
+	path = "/v2/notes/{note_id}/unpublish",
+	tag = "notes",
+	params(("note_id" = Uuid, Path, description = "Note ID.")),
+	request_body = Value,
+	responses(
+		(status = 200, description = "Note was returned to private scope.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Scope denied.", body = ErrorBody),
+		(status = 404, description = "Note was not found.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
 async fn notes_unpublish(
 	State(state): State<AppState>,
 	headers: HeaderMap,
@@ -1640,6 +2002,19 @@ async fn notes_unpublish(
 	}))
 }
 
+#[utoipa::path(
+	get,
+	path = "/v2/spaces/{space}/grants",
+	tag = "notes",
+	params(("space" = String, Path, description = "Shared space name.")),
+	responses(
+		(status = 200, description = "Space grants.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Scope denied.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
 async fn space_grants_list(
 	State(state): State<AppState>,
 	headers: HeaderMap,
@@ -1672,6 +2047,20 @@ async fn space_grants_list(
 	}))
 }
 
+#[utoipa::path(
+	post,
+	path = "/v2/spaces/{space}/grants",
+	tag = "notes",
+	params(("space" = String, Path, description = "Shared space name.")),
+	request_body = Value,
+	responses(
+		(status = 200, description = "Space grant was upserted.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Scope denied.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
 async fn space_grant_upsert(
 	State(state): State<AppState>,
 	headers: HeaderMap,
@@ -1712,6 +2101,20 @@ async fn space_grant_upsert(
 	}))
 }
 
+#[utoipa::path(
+	post,
+	path = "/v2/spaces/{space}/grants/revoke",
+	tag = "notes",
+	params(("space" = String, Path, description = "Shared space name.")),
+	request_body = Value,
+	responses(
+		(status = 200, description = "Space grant was revoked.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Scope denied.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
 async fn space_grant_revoke(
 	State(state): State<AppState>,
 	headers: HeaderMap,
@@ -1747,6 +2150,19 @@ async fn space_grant_revoke(
 	Ok(Json(response))
 }
 
+#[utoipa::path(
+	get,
+	path = "/v2/admin/graph/predicates",
+	tag = "graph",
+	params(("scope" = Option<String>, Query, description = "Predicate scope filter.")),
+	responses(
+		(status = 200, description = "Graph predicates.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Admin access required.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
 async fn admin_graph_predicates_list(
 	State(state): State<AppState>,
 	headers: HeaderMap,
@@ -1776,6 +2192,22 @@ async fn admin_graph_predicates_list(
 	Ok(Json(response))
 }
 
+#[utoipa::path(
+	patch,
+	path = "/v2/admin/graph/predicates/{predicate_id}",
+	tag = "graph",
+	params(("predicate_id" = Uuid, Path, description = "Predicate ID.")),
+	request_body = Value,
+	responses(
+		(status = 200, description = "Graph predicate was updated.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Admin access required.", body = ErrorBody),
+		(status = 404, description = "Predicate was not found.", body = ErrorBody),
+		(status = 409, description = "Predicate update conflicted.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
 async fn admin_graph_predicate_patch(
 	State(state): State<AppState>,
 	headers: HeaderMap,
@@ -1805,6 +2237,22 @@ async fn admin_graph_predicate_patch(
 	Ok(Json(response))
 }
 
+#[utoipa::path(
+	post,
+	path = "/v2/admin/graph/predicates/{predicate_id}/aliases",
+	tag = "graph",
+	params(("predicate_id" = Uuid, Path, description = "Predicate ID.")),
+	request_body = Value,
+	responses(
+		(status = 200, description = "Graph predicate alias was added.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Admin access required.", body = ErrorBody),
+		(status = 404, description = "Predicate was not found.", body = ErrorBody),
+		(status = 409, description = "Predicate update conflicted.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
 async fn admin_graph_predicate_alias_add(
 	State(state): State<AppState>,
 	headers: HeaderMap,
@@ -1833,6 +2281,20 @@ async fn admin_graph_predicate_alias_add(
 	Ok(Json(response))
 }
 
+#[utoipa::path(
+	get,
+	path = "/v2/admin/graph/predicates/{predicate_id}/aliases",
+	tag = "graph",
+	params(("predicate_id" = Uuid, Path, description = "Predicate ID.")),
+	responses(
+		(status = 200, description = "Graph predicate aliases.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Admin access required.", body = ErrorBody),
+		(status = 404, description = "Predicate was not found.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
 async fn admin_graph_predicate_aliases_list(
 	State(state): State<AppState>,
 	headers: HeaderMap,
@@ -1852,6 +2314,20 @@ async fn admin_graph_predicate_aliases_list(
 	Ok(Json(response))
 }
 
+#[utoipa::path(
+	get,
+	path = "/v2/admin/notes/{note_id}/provenance",
+	tag = "admin",
+	params(("note_id" = Uuid, Path, description = "Note ID.")),
+	responses(
+		(status = 200, description = "Note provenance bundle.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Admin access required.", body = ErrorBody),
+		(status = 404, description = "Note was not found.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
 async fn admin_note_provenance_get(
 	State(state): State<AppState>,
 	headers: HeaderMap,
@@ -1870,6 +2346,18 @@ async fn admin_note_provenance_get(
 	Ok(Json(response))
 }
 
+#[utoipa::path(
+	get,
+	path = "/v2/admin/events/ingestion-profiles",
+	tag = "admin",
+	responses(
+		(status = 200, description = "Ingestion profile versions.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Admin access required.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
 async fn admin_ingestion_profiles_list(
 	State(state): State<AppState>,
 	headers: HeaderMap,
@@ -1886,6 +2374,19 @@ async fn admin_ingestion_profiles_list(
 	Ok(Json(response))
 }
 
+#[utoipa::path(
+	post,
+	path = "/v2/admin/events/ingestion-profiles",
+	tag = "admin",
+	request_body = Value,
+	responses(
+		(status = 200, description = "Ingestion profile version was created.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Admin access required.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
 async fn admin_ingestion_profile_create(
 	State(state): State<AppState>,
 	headers: HeaderMap,
@@ -1912,6 +2413,23 @@ async fn admin_ingestion_profile_create(
 	Ok(Json(response))
 }
 
+#[utoipa::path(
+	get,
+	path = "/v2/admin/events/ingestion-profiles/{profile_id}",
+	tag = "admin",
+	params(
+		("profile_id" = String, Path, description = "Ingestion profile ID."),
+		("version" = Option<i32>, Query, description = "Optional profile version."),
+	),
+	responses(
+		(status = 200, description = "Ingestion profile version.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Admin access required.", body = ErrorBody),
+		(status = 404, description = "Profile was not found.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
 async fn admin_ingestion_profile_get(
 	State(state): State<AppState>,
 	headers: HeaderMap,
@@ -1942,6 +2460,19 @@ async fn admin_ingestion_profile_get(
 	Ok(Json(response))
 }
 
+#[utoipa::path(
+	get,
+	path = "/v2/admin/events/ingestion-profiles/{profile_id}/versions",
+	tag = "admin",
+	params(("profile_id" = String, Path, description = "Ingestion profile ID.")),
+	responses(
+		(status = 200, description = "Versions for one ingestion profile.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Admin access required.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
 async fn admin_ingestion_profile_versions_list(
 	State(state): State<AppState>,
 	headers: HeaderMap,
@@ -1960,6 +2491,22 @@ async fn admin_ingestion_profile_versions_list(
 	Ok(Json(response))
 }
 
+#[utoipa::path(
+	get,
+	path = "/v2/admin/events/ingestion-profiles/default",
+	tag = "admin",
+	responses(
+		(
+			status = 200,
+			description = "Default add_event ingestion profile pointer.",
+			body = AdminIngestionProfileDefaultResponseV2,
+		),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Admin access required.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
 async fn admin_ingestion_profile_default_get(
 	State(state): State<AppState>,
 	headers: HeaderMap,
@@ -1976,6 +2523,24 @@ async fn admin_ingestion_profile_default_get(
 	Ok(Json(response))
 }
 
+#[utoipa::path(
+	put,
+	path = "/v2/admin/events/ingestion-profiles/default",
+	tag = "admin",
+	request_body = AdminIngestionProfileDefaultSetBody,
+	responses(
+		(
+			status = 200,
+			description = "Default add_event ingestion profile pointer was updated.",
+			body = AdminIngestionProfileDefaultResponseV2,
+		),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Admin access required.", body = ErrorBody),
+		(status = 404, description = "Profile was not found.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
 async fn admin_ingestion_profile_default_set(
 	State(state): State<AppState>,
 	headers: HeaderMap,
@@ -2000,12 +2565,37 @@ async fn admin_ingestion_profile_default_set(
 	Ok(Json(response))
 }
 
+#[utoipa::path(
+	post,
+	path = "/v2/admin/qdrant/rebuild",
+	tag = "admin",
+	responses(
+		(status = 200, description = "Qdrant rebuild report.", body = Value),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Admin access required.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
 async fn rebuild_qdrant(State(state): State<AppState>) -> Result<Json<RebuildReport>, ApiError> {
 	let response = state.service.rebuild_qdrant().await?;
 
 	Ok(Json(response))
 }
 
+#[utoipa::path(
+	post,
+	path = "/v2/admin/searches/raw",
+	tag = "search",
+	request_body = Value,
+	responses(
+		(status = 200, description = "Raw admin search response.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Admin access required.", body = ErrorBody),
+		(status = 422, description = "Non-English input rejected.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
 async fn searches_raw(
 	State(state): State<AppState>,
 	headers: HeaderMap,
@@ -2074,6 +2664,20 @@ async fn searches_raw(
 	Ok(Json(response))
 }
 
+#[utoipa::path(
+	get,
+	path = "/v2/admin/traces/{trace_id}",
+	tag = "admin",
+	params(("trace_id" = Uuid, Path, description = "Search trace ID.")),
+	responses(
+		(status = 200, description = "Search trace bundle without full stage internals.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Admin access required.", body = ErrorBody),
+		(status = 404, description = "Trace was not found.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
 async fn trace_get(
 	State(state): State<AppState>,
 	headers: HeaderMap,
@@ -2093,6 +2697,27 @@ async fn trace_get(
 	Ok(Json(response))
 }
 
+#[utoipa::path(
+	get,
+	path = "/v2/admin/traces/recent",
+	tag = "admin",
+	params(
+		("limit" = Option<u32>, Query, description = "Page size."),
+		("cursor_created_at" = Option<String>, Query, description = "Created-at page cursor."),
+		("cursor_trace_id" = Option<Uuid>, Query, description = "Trace ID page cursor."),
+		("agent_id" = Option<String>, Query, description = "Optional trace creator filter."),
+		("read_profile" = Option<String>, Query, description = "Optional read profile filter."),
+		("created_after" = Option<String>, Query, description = "Strict lower created_at bound."),
+		("created_before" = Option<String>, Query, description = "Strict upper created_at bound."),
+	),
+	responses(
+		(status = 200, description = "Recent search traces.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Admin access required.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
 async fn trace_recent_list(
 	State(state): State<AppState>,
 	headers: HeaderMap,
@@ -2143,6 +2768,20 @@ async fn trace_recent_list(
 	Ok(Json(response))
 }
 
+#[utoipa::path(
+	get,
+	path = "/v2/admin/trajectories/{trace_id}",
+	tag = "admin",
+	params(("trace_id" = Uuid, Path, description = "Search trace ID.")),
+	responses(
+		(status = 200, description = "Search trace retrieval trajectory.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Admin access required.", body = ErrorBody),
+		(status = 404, description = "Trace was not found.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
 async fn trace_trajectory_get(
 	State(state): State<AppState>,
 	headers: HeaderMap,
@@ -2162,6 +2801,20 @@ async fn trace_trajectory_get(
 	Ok(Json(response))
 }
 
+#[utoipa::path(
+	get,
+	path = "/v2/admin/trace-items/{item_id}",
+	tag = "admin",
+	params(("item_id" = Uuid, Path, description = "Trace item/result handle ID.")),
+	responses(
+		(status = 200, description = "Search trace item explain payload.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Admin access required.", body = ErrorBody),
+		(status = 404, description = "Trace item was not found.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
 async fn trace_item_get(
 	State(state): State<AppState>,
 	headers: HeaderMap,
@@ -2181,6 +2834,25 @@ async fn trace_item_get(
 	Ok(Json(response))
 }
 
+#[utoipa::path(
+	get,
+	path = "/v2/admin/traces/{trace_id}/bundle",
+	tag = "admin",
+	params(
+		("trace_id" = Uuid, Path, description = "Search trace ID."),
+		("mode" = Option<String>, Query, description = "bounded or full."),
+		("stage_items_limit" = Option<u32>, Query, description = "Maximum stage items."),
+		("candidates_limit" = Option<u32>, Query, description = "Maximum candidate snapshot items."),
+	),
+	responses(
+		(status = 200, description = "Search trace bundle.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Admin access required.", body = ErrorBody),
+		(status = 404, description = "Trace was not found.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
 async fn trace_bundle_get(
 	State(state): State<AppState>,
 	headers: HeaderMap,
