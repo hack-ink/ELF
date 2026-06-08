@@ -101,10 +101,62 @@ fn write_temp_config(payload: String) -> PathBuf {
 	path
 }
 
+fn remove_required_config_key(payload: &str, path: &[&str]) -> String {
+	assert!(!path.is_empty(), "Config path must not be empty.");
+
+	let mut value: Value = toml::from_str(payload).expect("Failed to parse test config.");
+	let mut table = value.as_table_mut().expect("Template config must be a table.");
+
+	for segment in &path[..path.len() - 1] {
+		table = table
+			.get_mut(*segment)
+			.and_then(Value::as_table_mut)
+			.unwrap_or_else(|| panic!("Template config must include [{}].", segment));
+	}
+
+	let field = path[path.len() - 1];
+	let removed = table.remove(field);
+
+	assert!(removed.is_some(), "Template config must include {}.", path.join("."));
+
+	toml::to_string(&value).expect("Failed to render template config.")
+}
+
+fn assert_missing_field_error(result: Result<Config, Error>, field: &str) {
+	let err = result.expect_err("Expected missing required field parse error.");
+	let message = match err {
+		Error::ParseConfig { source, .. } => source.to_string(),
+		err => panic!("Expected parse config error, got {err}"),
+	};
+
+	assert!(message.contains(&format!("missing field `{field}`")), "Unexpected error: {message}");
+}
+
 fn base_config() -> Config {
 	let payload = sample_toml(true);
 
 	toml::from_str(&payload).expect("Failed to parse test config.")
+}
+
+#[test]
+fn required_config_fields_must_be_explicit() {
+	let cases = [
+		(&["storage", "qdrant", "docs_collection"][..], "docs_collection"),
+		(&["memory", "policy"][..], "policy"),
+		(&["search", "recursive"][..], "recursive"),
+		(&["search", "graph_context"][..], "graph_context"),
+		(&["security", "auth_keys"][..], "auth_keys"),
+	];
+
+	for (path, field) in cases {
+		let payload = remove_required_config_key(&sample_toml(true), path);
+		let config_path = write_temp_config(payload);
+		let result = elf_config::load(&config_path);
+
+		fs::remove_file(&config_path).expect("Failed to remove test config.");
+
+		assert_missing_field_error(result, field);
+	}
 }
 
 #[test]
