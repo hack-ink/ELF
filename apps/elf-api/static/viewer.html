@@ -1,0 +1,1241 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>ELF Viewer</title>
+	<style>
+		:root {
+			color-scheme: light;
+			--bg: #f7f7f4;
+			--surface: #ffffff;
+			--surface-alt: #f1f4f0;
+			--ink: #202522;
+			--muted: #65716a;
+			--line: #dce2dd;
+			--line-strong: #bec9c1;
+			--teal: #0b766b;
+			--teal-soft: #d8efea;
+			--indigo: #494f8f;
+			--amber: #8a5c10;
+			--danger: #b33b38;
+			--shadow: 0 16px 48px rgba(32, 37, 34, 0.08);
+		}
+
+		* {
+			box-sizing: border-box;
+		}
+
+		body {
+			margin: 0;
+			background: var(--bg);
+			color: var(--ink);
+			font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+			font-size: 14px;
+			line-height: 1.45;
+		}
+
+		button,
+		input,
+		select,
+		textarea {
+			font: inherit;
+		}
+
+		button {
+			border: 1px solid var(--line-strong);
+			border-radius: 6px;
+			background: var(--surface);
+			color: var(--ink);
+			cursor: pointer;
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			gap: 8px;
+			min-height: 36px;
+			padding: 0 12px;
+			white-space: nowrap;
+		}
+
+		button:hover {
+			border-color: var(--teal);
+			color: var(--teal);
+		}
+
+		button.primary {
+			background: var(--teal);
+			border-color: var(--teal);
+			color: #ffffff;
+		}
+
+		button.primary:hover {
+			background: #075f56;
+			color: #ffffff;
+		}
+
+		button.icon {
+			width: 36px;
+			padding: 0;
+		}
+
+		input,
+		select,
+		textarea {
+			width: 100%;
+			border: 1px solid var(--line);
+			border-radius: 6px;
+			background: #ffffff;
+			color: var(--ink);
+			min-height: 36px;
+			padding: 7px 9px;
+			outline: none;
+		}
+
+		textarea {
+			min-height: 86px;
+			resize: vertical;
+		}
+
+		input:focus,
+		select:focus,
+		textarea:focus {
+			border-color: var(--teal);
+			box-shadow: 0 0 0 3px var(--teal-soft);
+		}
+
+		label {
+			color: var(--muted);
+			display: grid;
+			gap: 6px;
+			font-size: 12px;
+			font-weight: 700;
+			text-transform: uppercase;
+		}
+
+		.app {
+			display: grid;
+			grid-template-columns: 304px minmax(0, 1fr);
+			min-height: 100vh;
+		}
+
+		.sidebar {
+			background: #fbfbf8;
+			border-right: 1px solid var(--line);
+			display: grid;
+			grid-template-rows: auto auto 1fr;
+			gap: 18px;
+			padding: 18px;
+			position: sticky;
+			top: 0;
+			height: 100vh;
+			overflow: auto;
+		}
+
+		.brand {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 12px;
+		}
+
+		.brand-mark {
+			width: 34px;
+			height: 34px;
+			border: 1px solid var(--line-strong);
+			border-radius: 8px;
+			display: grid;
+			place-items: center;
+			color: var(--teal);
+			background: #ffffff;
+		}
+
+		.brand h1 {
+			font-size: 18px;
+			line-height: 1.1;
+			margin: 0;
+		}
+
+		.brand p {
+			color: var(--muted);
+			margin: 2px 0 0;
+			font-size: 12px;
+		}
+
+		.nav {
+			display: grid;
+			gap: 8px;
+		}
+
+		.nav button {
+			justify-content: flex-start;
+			width: 100%;
+		}
+
+		.nav button.active {
+			background: var(--ink);
+			border-color: var(--ink);
+			color: #ffffff;
+		}
+
+		.context-form {
+			display: grid;
+			gap: 10px;
+			align-content: start;
+		}
+
+		.main {
+			min-width: 0;
+			padding: 18px;
+		}
+
+		.topbar {
+			align-items: center;
+			display: flex;
+			gap: 12px;
+			justify-content: space-between;
+			margin-bottom: 14px;
+		}
+
+		.status {
+			border: 1px solid var(--line);
+			border-radius: 8px;
+			background: var(--surface);
+			color: var(--muted);
+			min-height: 38px;
+			padding: 9px 12px;
+			overflow-wrap: anywhere;
+		}
+
+		.status.error {
+			border-color: rgba(179, 59, 56, 0.35);
+			background: #fff6f5;
+			color: var(--danger);
+		}
+
+		.panel {
+			background: var(--surface);
+			border: 1px solid var(--line);
+			border-radius: 8px;
+			box-shadow: var(--shadow);
+			min-width: 0;
+		}
+
+		.panel-head {
+			align-items: center;
+			border-bottom: 1px solid var(--line);
+			display: flex;
+			gap: 10px;
+			justify-content: space-between;
+			padding: 12px;
+		}
+
+		.panel h2,
+		.panel h3 {
+			font-size: 14px;
+			line-height: 1.25;
+			margin: 0;
+		}
+
+		.panel-body {
+			padding: 12px;
+		}
+
+		.workspace {
+			display: grid;
+			gap: 14px;
+		}
+
+		.view {
+			display: none;
+		}
+
+		.view.active {
+			display: grid;
+			gap: 14px;
+		}
+
+		.grid-2 {
+			display: grid;
+			gap: 14px;
+			grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);
+		}
+
+		.grid-3 {
+			display: grid;
+			gap: 10px;
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+		}
+
+		.form-row {
+			display: grid;
+			gap: 10px;
+			grid-template-columns: minmax(0, 1fr) 132px 112px 132px;
+		}
+
+		.actions {
+			align-items: center;
+			display: flex;
+			flex-wrap: wrap;
+			gap: 8px;
+		}
+
+		.list {
+			display: grid;
+			gap: 8px;
+		}
+
+		.row {
+			border: 1px solid var(--line);
+			border-radius: 8px;
+			background: #ffffff;
+			display: grid;
+			gap: 8px;
+			padding: 10px;
+		}
+
+		.row.clickable {
+			cursor: pointer;
+		}
+
+		.row.clickable:hover,
+		.row.selected {
+			border-color: var(--teal);
+			box-shadow: 0 0 0 3px var(--teal-soft);
+		}
+
+		.row-head {
+			align-items: start;
+			display: flex;
+			gap: 10px;
+			justify-content: space-between;
+		}
+
+		.title {
+			font-weight: 750;
+			overflow-wrap: anywhere;
+		}
+
+		.summary {
+			color: var(--muted);
+			overflow-wrap: anywhere;
+		}
+
+		.chips {
+			align-items: center;
+			display: flex;
+			flex-wrap: wrap;
+			gap: 6px;
+		}
+
+		.chip {
+			background: var(--surface-alt);
+			border: 1px solid var(--line);
+			border-radius: 999px;
+			color: var(--muted);
+			display: inline-flex;
+			align-items: center;
+			min-height: 24px;
+			padding: 2px 8px;
+			max-width: 100%;
+			overflow-wrap: anywhere;
+		}
+
+		.chip.teal {
+			background: var(--teal-soft);
+			border-color: #aad8d0;
+			color: #075f56;
+		}
+
+		.chip.indigo {
+			background: #e5e6f7;
+			border-color: #c9ccec;
+			color: var(--indigo);
+		}
+
+		.chip.amber {
+			background: #f6ead2;
+			border-color: #e5c98f;
+			color: var(--amber);
+		}
+
+		.kv {
+			border: 1px solid var(--line);
+			border-radius: 8px;
+			overflow: hidden;
+		}
+
+		.kv-row {
+			display: grid;
+			grid-template-columns: 148px minmax(0, 1fr);
+			border-top: 1px solid var(--line);
+		}
+
+		.kv-row:first-child {
+			border-top: 0;
+		}
+
+		.kv-key,
+		.kv-value {
+			padding: 8px 10px;
+			min-width: 0;
+			overflow-wrap: anywhere;
+		}
+
+		.kv-key {
+			background: var(--surface-alt);
+			color: var(--muted);
+			font-size: 12px;
+			font-weight: 700;
+			text-transform: uppercase;
+		}
+
+		pre {
+			background: #202522;
+			border-radius: 8px;
+			color: #ecf2ee;
+			margin: 0;
+			max-height: 360px;
+			overflow: auto;
+			padding: 12px;
+			white-space: pre-wrap;
+			word-break: break-word;
+		}
+
+		.empty {
+			border: 1px dashed var(--line-strong);
+			border-radius: 8px;
+			color: var(--muted);
+			padding: 18px;
+			text-align: center;
+		}
+
+		.split-stack {
+			display: grid;
+			gap: 12px;
+		}
+
+		.trace-item {
+			display: grid;
+			gap: 8px;
+		}
+
+		@media (max-width: 980px) {
+			.app {
+				grid-template-columns: 1fr;
+			}
+
+			.sidebar {
+				height: auto;
+				position: static;
+			}
+
+			.grid-2,
+			.grid-3,
+			.form-row {
+				grid-template-columns: 1fr;
+			}
+
+			.topbar {
+				align-items: stretch;
+				flex-direction: column;
+			}
+		}
+	</style>
+</head>
+<body>
+	<div class="app">
+		<aside class="sidebar">
+			<div class="brand">
+				<div style="display: flex; align-items: center; gap: 10px;">
+					<div class="brand-mark" aria-hidden="true">
+						<svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+							<path d="M5 6.5h14M5 12h9M5 17.5h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+							<path d="M17 10l2 2-2 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+						</svg>
+					</div>
+					<div>
+						<h1>ELF Viewer</h1>
+						<p>Admin bind</p>
+					</div>
+				</div>
+			</div>
+
+			<nav class="nav" aria-label="Viewer sections">
+				<button class="active" type="button" data-tab="searchView">Search</button>
+				<button type="button" data-tab="notesView">Notes</button>
+				<button type="button" data-tab="tracesView">Traces</button>
+			</nav>
+
+			<form class="context-form" id="contextForm">
+				<label>Tenant
+					<input id="tenantId" autocomplete="off" value="local-tenant">
+				</label>
+				<label>Project
+					<input id="projectId" autocomplete="off" value="local-project">
+				</label>
+				<label>Agent
+					<input id="agentId" autocomplete="off" value="local-agent">
+				</label>
+				<label>Read Profile
+					<select id="readProfile">
+						<option value="private_only">private_only</option>
+						<option value="private_plus_project" selected>private_plus_project</option>
+						<option value="all_scopes">all_scopes</option>
+					</select>
+				</label>
+				<label>Bearer Token
+					<input id="authToken" type="password" autocomplete="off">
+				</label>
+				<button type="submit" class="primary">Save Context</button>
+			</form>
+		</aside>
+
+		<main class="main">
+			<div class="topbar">
+				<div class="status" id="status">Ready.</div>
+				<div class="actions">
+					<button class="icon" type="button" id="refreshActive" title="Refresh active view">
+						<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+							<path d="M20 12a8 8 0 1 1-2.34-5.66" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+							<path d="M20 4v6h-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+						</svg>
+					</button>
+				</div>
+			</div>
+
+			<div class="workspace">
+				<section class="view active" id="searchView">
+					<div class="panel">
+						<div class="panel-head">
+							<h2>Search Session</h2>
+							<button class="primary" type="button" id="runSearchButton">Run Search</button>
+						</div>
+						<div class="panel-body split-stack">
+							<label>Query
+								<textarea id="searchQuery">local development stack</textarea>
+							</label>
+							<div class="form-row">
+								<label>Mode
+									<select id="searchMode">
+										<option value="quick_find" selected>quick_find</option>
+										<option value="planned_search">planned_search</option>
+									</select>
+								</label>
+								<label>Top K
+									<input id="topK" type="number" min="1" max="100" value="12">
+								</label>
+								<label>Candidate K
+									<input id="candidateK" type="number" min="1" max="1000" value="60">
+								</label>
+								<label>Payload
+									<select id="searchPayloadLevel">
+										<option value="l0" selected>l0</option>
+										<option value="l1">l1</option>
+										<option value="l2">l2</option>
+									</select>
+								</label>
+							</div>
+							<div class="form-row">
+								<label>Load Session ID
+									<input id="loadSearchId" autocomplete="off">
+								</label>
+								<div></div>
+								<div></div>
+								<button type="button" id="loadSessionButton">Load</button>
+							</div>
+						</div>
+					</div>
+
+					<div class="grid-2">
+						<div class="split-stack">
+							<div class="panel">
+								<div class="panel-head">
+									<h2>Index</h2>
+									<div class="chips" id="sessionMeta"></div>
+								</div>
+								<div class="panel-body">
+									<div id="searchResults" class="list"><div class="empty">No session loaded.</div></div>
+								</div>
+							</div>
+							<div class="panel">
+								<div class="panel-head">
+									<h2>Timeline</h2>
+									<button type="button" id="loadTimelineButton">Build Timeline</button>
+								</div>
+								<div class="panel-body">
+									<div id="timelineResults" class="list"><div class="empty">No timeline loaded.</div></div>
+								</div>
+							</div>
+						</div>
+						<div class="split-stack">
+							<div class="panel">
+								<div class="panel-head"><h2>Note Detail</h2></div>
+								<div class="panel-body" id="noteDetail"><div class="empty">Select a note.</div></div>
+							</div>
+							<div class="panel">
+								<div class="panel-head"><h2>Trace Explain</h2></div>
+								<div class="panel-body" id="traceDetail"><div class="empty">Run or load a session.</div></div>
+							</div>
+						</div>
+					</div>
+				</section>
+
+				<section class="view" id="notesView">
+					<div class="panel">
+						<div class="panel-head">
+							<h2>Notes</h2>
+							<button class="primary" type="button" id="loadNotesButton">Load Notes</button>
+						</div>
+						<div class="panel-body">
+							<div class="grid-3">
+								<label>Scope
+									<select id="notesScope">
+										<option value="">shared scopes</option>
+										<option value="agent_private">agent_private</option>
+										<option value="project_shared">project_shared</option>
+										<option value="org_shared">org_shared</option>
+									</select>
+								</label>
+								<label>Status
+									<select id="notesStatus">
+										<option value="">active</option>
+										<option value="active">active</option>
+										<option value="deleted">deleted</option>
+										<option value="deprecated">deprecated</option>
+									</select>
+								</label>
+								<label>Type
+									<select id="notesType">
+										<option value="">all</option>
+										<option value="fact">fact</option>
+										<option value="plan">plan</option>
+										<option value="preference">preference</option>
+										<option value="constraint">constraint</option>
+										<option value="decision">decision</option>
+										<option value="profile">profile</option>
+									</select>
+								</label>
+							</div>
+						</div>
+					</div>
+					<div class="grid-2">
+						<div class="panel">
+							<div class="panel-head"><h2>Note List</h2></div>
+							<div class="panel-body"><div id="notesList" class="list"><div class="empty">No notes loaded.</div></div></div>
+						</div>
+						<div class="panel">
+							<div class="panel-head"><h2>Note Metadata</h2></div>
+							<div class="panel-body" id="browseNoteDetail"><div class="empty">Select a note.</div></div>
+						</div>
+					</div>
+				</section>
+
+				<section class="view" id="tracesView">
+					<div class="panel">
+						<div class="panel-head">
+							<h2>Recent Traces</h2>
+							<button class="primary" type="button" id="loadTracesButton">Load Traces</button>
+						</div>
+						<div class="panel-body">
+							<div class="grid-3">
+								<label>Limit
+									<input id="traceLimit" type="number" min="1" max="200" value="25">
+								</label>
+								<label>Agent Filter
+									<input id="traceAgentFilter" autocomplete="off">
+								</label>
+								<label>Read Profile
+									<select id="traceReadProfile">
+										<option value="">all</option>
+										<option value="private_only">private_only</option>
+										<option value="private_plus_project">private_plus_project</option>
+										<option value="all_scopes">all_scopes</option>
+									</select>
+								</label>
+							</div>
+						</div>
+					</div>
+					<div class="grid-2">
+						<div class="panel">
+							<div class="panel-head"><h2>Trace List</h2></div>
+							<div class="panel-body"><div id="traceList" class="list"><div class="empty">No traces loaded.</div></div></div>
+						</div>
+						<div class="panel">
+							<div class="panel-head"><h2>Trace Bundle</h2></div>
+							<div class="panel-body" id="traceBundleDetail"><div class="empty">Select a trace.</div></div>
+						</div>
+					</div>
+				</section>
+			</div>
+		</main>
+	</div>
+
+	<script>
+		const state = {
+			activeTab: "searchView",
+			session: null,
+			selectedNoteId: null,
+			traceBundle: null
+		};
+
+		const $ = (selector, root = document) => root.querySelector(selector);
+		const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
+
+		function make(tag, options = {}, children = []) {
+			const node = document.createElement(tag);
+			for (const [key, value] of Object.entries(options)) {
+				if (value === undefined || value === null) {
+					continue;
+				}
+				if (key === "className") {
+					node.className = value;
+				} else if (key === "text") {
+					node.textContent = value;
+				} else if (key === "type") {
+					node.type = value;
+				} else if (key.startsWith("data")) {
+					const dataKey = key.slice(4, 5).toLowerCase() + key.slice(5);
+					node.dataset[dataKey] = value;
+				} else {
+					node.setAttribute(key, value);
+				}
+			}
+			for (const child of children) {
+				node.append(child);
+			}
+			return node;
+		}
+
+		function setStatus(text, isError = false) {
+			const status = $("#status");
+			status.textContent = text;
+			status.classList.toggle("error", isError);
+		}
+
+		function formatJson(value) {
+			if (value === undefined) {
+				return "";
+			}
+			try {
+				return JSON.stringify(value, null, 2);
+			} catch (_err) {
+				return String(value);
+			}
+		}
+
+		function pre(value) {
+			const block = make("pre");
+			block.textContent = typeof value === "string" ? value : formatJson(value);
+			return block;
+		}
+
+		function dateText(value) {
+			if (!value) {
+				return "none";
+			}
+			const date = new Date(value);
+			if (Number.isNaN(date.getTime())) {
+				return value;
+			}
+			return date.toLocaleString();
+		}
+
+		function ttlText(note) {
+			return note && note.expires_at ? `expires ${dateText(note.expires_at)}` : "none";
+		}
+
+		function score(value) {
+			if (typeof value !== "number") {
+				return value ?? "none";
+			}
+			return value.toFixed(4);
+		}
+
+		function chip(text, variant = "") {
+			return make("span", { className: `chip ${variant}`.trim(), text: String(text) });
+		}
+
+		function empty(text) {
+			return make("div", { className: "empty", text });
+		}
+
+		function kvTable(pairs) {
+			const rows = pairs.map(([key, value]) => {
+				const display = value === undefined || value === null || value === "" ? "none" : String(value);
+				return make("div", { className: "kv-row" }, [
+					make("div", { className: "kv-key", text: key }),
+					make("div", { className: "kv-value", text: display })
+				]);
+			});
+			return make("div", { className: "kv" }, rows);
+		}
+
+		function loadContext() {
+			const saved = JSON.parse(localStorage.getItem("elf.viewer.context") || "{}");
+			if (saved.tenantId) $("#tenantId").value = saved.tenantId;
+			if (saved.projectId) $("#projectId").value = saved.projectId;
+			if (saved.agentId) $("#agentId").value = saved.agentId;
+			if (saved.readProfile) $("#readProfile").value = saved.readProfile;
+		}
+
+		function saveContext() {
+			localStorage.setItem("elf.viewer.context", JSON.stringify({
+				tenantId: $("#tenantId").value.trim(),
+				projectId: $("#projectId").value.trim(),
+				agentId: $("#agentId").value.trim(),
+				readProfile: $("#readProfile").value.trim()
+			}));
+			setStatus("Context saved.");
+		}
+
+		function requestHeaders(json = false) {
+			const headers = {
+				"X-ELF-Tenant-Id": $("#tenantId").value.trim(),
+				"X-ELF-Project-Id": $("#projectId").value.trim(),
+				"X-ELF-Agent-Id": $("#agentId").value.trim(),
+				"X-ELF-Read-Profile": $("#readProfile").value.trim()
+			};
+			const token = $("#authToken").value.trim();
+			if (token) {
+				headers.Authorization = `Bearer ${token}`;
+			}
+			if (json) {
+				headers["content-type"] = "application/json";
+			}
+			return headers;
+		}
+
+		async function api(path, options = {}) {
+			const response = await fetch(path, {
+				...options,
+				headers: {
+					...requestHeaders(Boolean(options.body)),
+					...(options.headers || {})
+				}
+			});
+			const text = await response.text();
+			let body = null;
+			if (text) {
+				try {
+					body = JSON.parse(text);
+				} catch (_err) {
+					body = text;
+				}
+			}
+			if (!response.ok) {
+				const message = body && body.message ? body.message : text || response.statusText;
+				throw new Error(`${response.status} ${message}`);
+			}
+			return body;
+		}
+
+		function queryString(values) {
+			const params = new URLSearchParams();
+			for (const [key, value] of Object.entries(values)) {
+				if (value !== undefined && value !== null && String(value).trim() !== "") {
+					params.set(key, String(value).trim());
+				}
+			}
+			const text = params.toString();
+			return text ? `?${text}` : "";
+		}
+
+		function renderSessionMeta(session) {
+			const meta = $("#sessionMeta");
+			meta.replaceChildren();
+			if (!session) {
+				return;
+			}
+			meta.append(
+				chip(session.mode, "teal"),
+				chip(`search ${session.search_id}`, "indigo"),
+				chip(`trace ${session.trace_id}`, "amber"),
+				chip(`expires ${dateText(session.expires_at)}`)
+			);
+		}
+
+		function resultRow(item, selected = false) {
+			const detailButton = make("button", { type: "button", text: "Details" });
+			detailButton.addEventListener("click", (event) => {
+				event.stopPropagation();
+				selectSearchNote(item.note_id);
+			});
+			const row = make("div", {
+				className: `row clickable ${selected ? "selected" : ""}`.trim(),
+				dataNoteId: item.note_id
+			}, [
+				make("div", { className: "row-head" }, [
+					make("div", { className: "title", text: item.summary || item.note_id }),
+					detailButton
+				]),
+				make("div", { className: "chips" }, [
+					chip(item.type, "teal"),
+					chip(item.scope),
+					chip(item.key || "no key"),
+					chip(`score ${score(item.final_score)}`, "amber")
+				]),
+				make("div", { className: "summary", text: `${item.note_id} | updated ${dateText(item.updated_at)} | ${ttlText(item)}` })
+			]);
+			row.addEventListener("click", () => selectSearchNote(item.note_id));
+			return row;
+		}
+
+		function renderSearchSession(session) {
+			state.session = session;
+			renderSessionMeta(session);
+			const target = $("#searchResults");
+			if (!session || !session.items || session.items.length === 0) {
+				target.replaceChildren(empty("No results."));
+				return;
+			}
+			target.replaceChildren(...session.items.map((item) => resultRow(item, item.note_id === state.selectedNoteId)));
+		}
+
+		async function runSearch() {
+			const query = $("#searchQuery").value.trim();
+			if (!query) {
+				setStatus("Query is required.", true);
+				return;
+			}
+			setStatus("Running search...");
+			const body = {
+				mode: $("#searchMode").value,
+				query,
+				top_k: Number($("#topK").value || 12),
+				candidate_k: Number($("#candidateK").value || 60),
+				payload_level: $("#searchPayloadLevel").value
+			};
+			try {
+				const session = await api("/v2/admin/searches", {
+					method: "POST",
+					body: JSON.stringify(body)
+				});
+				state.selectedNoteId = session.items && session.items[0] ? session.items[0].note_id : null;
+				renderSearchSession(session);
+				$("#loadSearchId").value = session.search_id;
+				await Promise.all([
+					loadTimeline(),
+					loadTraceBundle(session.trace_id, $("#traceDetail"))
+				]);
+				if (state.selectedNoteId) {
+					await selectSearchNote(state.selectedNoteId);
+				}
+				setStatus(`Loaded search session ${session.search_id}.`);
+			} catch (err) {
+				setStatus(err.message, true);
+			}
+		}
+
+		async function loadSession() {
+			const searchId = $("#loadSearchId").value.trim();
+			if (!searchId) {
+				setStatus("Search session ID is required.", true);
+				return;
+			}
+			setStatus("Loading session...");
+			try {
+				const session = await api(`/v2/admin/searches/${encodeURIComponent(searchId)}${queryString({ top_k: $("#topK").value || 12, touch: "true" })}`);
+				state.selectedNoteId = session.items && session.items[0] ? session.items[0].note_id : null;
+				renderSearchSession(session);
+				await Promise.all([
+					loadTimeline(),
+					loadTraceBundle(session.trace_id, $("#traceDetail"))
+				]);
+				if (state.selectedNoteId) {
+					await selectSearchNote(state.selectedNoteId);
+				}
+				setStatus(`Loaded search session ${searchId}.`);
+			} catch (err) {
+				setStatus(err.message, true);
+			}
+		}
+
+		async function loadTimeline() {
+			if (!state.session) {
+				$("#timelineResults").replaceChildren(empty("No session loaded."));
+				return;
+			}
+			try {
+				const data = await api(`/v2/admin/searches/${encodeURIComponent(state.session.search_id)}/timeline${queryString({ group_by: "day", payload_level: "l1" })}`);
+				const groups = data.groups || [];
+				const nodes = groups.length === 0 ? [empty("No timeline groups.")] : groups.map((group) => {
+					return make("div", { className: "row" }, [
+						make("div", { className: "row-head" }, [
+							make("div", { className: "title", text: group.date }),
+							chip(`${(group.items || []).length} items`, "teal")
+						]),
+						make("div", { className: "list" }, (group.items || []).map((item) => resultRow(item, item.note_id === state.selectedNoteId)))
+					]);
+				});
+				$("#timelineResults").replaceChildren(...nodes);
+			} catch (err) {
+				$("#timelineResults").replaceChildren(empty(err.message));
+			}
+		}
+
+		async function selectSearchNote(noteId) {
+			if (!state.session || !noteId) {
+				return;
+			}
+			state.selectedNoteId = noteId;
+			renderSearchSession(state.session);
+			setStatus(`Loading note ${noteId}...`);
+			try {
+				const detail = await api(`/v2/admin/searches/${encodeURIComponent(state.session.search_id)}/notes`, {
+					method: "POST",
+					body: JSON.stringify({
+						note_ids: [noteId],
+						payload_level: "l2",
+						record_hits: false
+					})
+				});
+				const provenance = await api(`/v2/admin/notes/${encodeURIComponent(noteId)}/provenance`);
+				const result = detail.results && detail.results[0] ? detail.results[0] : null;
+				renderNoteDetail($("#noteDetail"), result && result.note ? result.note : null, provenance);
+				setStatus(`Loaded note ${noteId}.`);
+			} catch (err) {
+				setStatus(err.message, true);
+				$("#noteDetail").replaceChildren(empty(err.message));
+			}
+		}
+
+		function renderNoteDetail(target, note, provenance) {
+			const fullNote = provenance && provenance.note ? provenance.note : note;
+			if (!fullNote) {
+				target.replaceChildren(empty("Note detail unavailable."));
+				return;
+			}
+			const recentTraces = provenance && provenance.recent_traces ? provenance.recent_traces : [];
+			target.replaceChildren(
+				kvTable([
+					["note_id", fullNote.note_id],
+					["type / key", `${fullNote.type} / ${fullNote.key || "none"}`],
+					["scope", fullNote.scope],
+					["status", fullNote.status || "active"],
+					["importance", score(fullNote.importance)],
+					["confidence", score(fullNote.confidence)],
+					["created_at", dateText(fullNote.created_at)],
+					["updated_at", dateText(fullNote.updated_at)],
+					["TTL / expires", ttlText(fullNote)],
+					["hit_count", fullNote.hit_count ?? "none"],
+					["last_hit_at", dateText(fullNote.last_hit_at)]
+				]),
+				make("div", { className: "split-stack", style: "margin-top: 12px;" }, [
+					make("div", { className: "title", text: "Text" }),
+					pre(fullNote.text || note?.text || ""),
+					make("div", { className: "title", text: "source_ref" }),
+					pre(fullNote.source_ref || {}),
+					make("div", { className: "title", text: "Recent traces" }),
+					recentTraces.length ? make("div", { className: "list" }, recentTraces.map(traceRow)) : empty("No recent traces.")
+				])
+			);
+		}
+
+		function traceRow(trace) {
+			const button = make("button", { type: "button", text: "Inspect" });
+			button.addEventListener("click", (event) => {
+				event.stopPropagation();
+				loadTraceBundle(trace.trace_id, $("#traceBundleDetail"));
+				showTab("tracesView");
+			});
+			const row = make("div", { className: "row clickable" }, [
+				make("div", { className: "row-head" }, [
+					make("div", { className: "title", text: trace.query || trace.trace_id }),
+					button
+				]),
+				make("div", { className: "chips" }, [
+					chip(trace.read_profile || "read profile"),
+					chip(trace.agent_id || "agent"),
+					chip(dateText(trace.created_at), "amber")
+				]),
+				make("div", { className: "summary", text: trace.trace_id })
+			]);
+			row.addEventListener("click", () => loadTraceBundle(trace.trace_id, $("#traceBundleDetail")));
+			return row;
+		}
+
+		async function loadNotes() {
+			setStatus("Loading notes...");
+			const params = queryString({
+				scope: $("#notesScope").value,
+				status: $("#notesStatus").value,
+				type: $("#notesType").value
+			});
+			try {
+				const data = await api(`/v2/admin/notes${params}`);
+				const items = data.items || [];
+				const nodes = items.length ? items.map(noteListRow) : [empty("No notes matched.")];
+				$("#notesList").replaceChildren(...nodes);
+				setStatus(`Loaded ${items.length} notes.`);
+			} catch (err) {
+				setStatus(err.message, true);
+				$("#notesList").replaceChildren(empty(err.message));
+			}
+		}
+
+		function noteListRow(note) {
+			const button = make("button", { type: "button", text: "Open" });
+			button.addEventListener("click", (event) => {
+				event.stopPropagation();
+				loadNoteProvenance(note.note_id, $("#browseNoteDetail"));
+			});
+			const row = make("div", { className: "row clickable" }, [
+				make("div", { className: "row-head" }, [
+					make("div", { className: "title", text: note.text || note.note_id }),
+					button
+				]),
+				make("div", { className: "chips" }, [
+					chip(note.type, "teal"),
+					chip(note.scope),
+					chip(note.status || "active"),
+					chip(note.key || "no key")
+				]),
+				make("div", { className: "summary", text: `${note.note_id} | updated ${dateText(note.updated_at)} | ${ttlText(note)}` })
+			]);
+			row.addEventListener("click", () => loadNoteProvenance(note.note_id, $("#browseNoteDetail")));
+			return row;
+		}
+
+		async function loadNoteProvenance(noteId, target) {
+			setStatus(`Loading note ${noteId}...`);
+			try {
+				const provenance = await api(`/v2/admin/notes/${encodeURIComponent(noteId)}/provenance`);
+				renderNoteDetail(target, null, provenance);
+				setStatus(`Loaded note ${noteId}.`);
+			} catch (err) {
+				setStatus(err.message, true);
+				target.replaceChildren(empty(err.message));
+			}
+		}
+
+		async function loadRecentTraces() {
+			setStatus("Loading traces...");
+			const params = queryString({
+				limit: $("#traceLimit").value || 25,
+				agent_id: $("#traceAgentFilter").value,
+				read_profile: $("#traceReadProfile").value
+			});
+			try {
+				const data = await api(`/v2/admin/traces/recent${params}`);
+				const traces = data.traces || [];
+				$("#traceList").replaceChildren(...(traces.length ? traces.map(traceRow) : [empty("No traces matched.")]));
+				setStatus(`Loaded ${traces.length} traces.`);
+			} catch (err) {
+				setStatus(err.message, true);
+				$("#traceList").replaceChildren(empty(err.message));
+			}
+		}
+
+		async function loadTraceBundle(traceId, target) {
+			if (!traceId) {
+				return;
+			}
+			const detailTarget = target || $("#traceBundleDetail");
+			detailTarget.replaceChildren(empty("Loading trace..."));
+			try {
+				const bundle = await api(`/v2/admin/traces/${encodeURIComponent(traceId)}/bundle${queryString({ mode: "bounded", stage_items_limit: 64, candidates_limit: 0 })}`);
+				renderTraceBundle(detailTarget, bundle);
+				if (detailTarget === $("#traceDetail")) {
+					state.traceBundle = bundle;
+				}
+			} catch (err) {
+				setStatus(err.message, true);
+				detailTarget.replaceChildren(empty(err.message));
+			}
+		}
+
+		function renderTraceBundle(target, bundle) {
+			if (!bundle || !bundle.trace) {
+				target.replaceChildren(empty("Trace unavailable."));
+				return;
+			}
+			const trace = bundle.trace;
+			const items = bundle.items || [];
+			const stages = bundle.stages || [];
+			target.replaceChildren(
+				kvTable([
+					["trace_id", trace.trace_id],
+					["query", trace.query],
+					["agent", trace.agent_id],
+					["read_profile", trace.read_profile],
+					["expansion_mode", trace.expansion_mode],
+					["candidate_count", trace.candidate_count],
+					["top_k", trace.top_k],
+					["created_at", dateText(trace.created_at)],
+					["trace_version", trace.trace_version]
+				]),
+				make("div", { className: "split-stack", style: "margin-top: 12px;" }, [
+					make("div", { className: "title", text: "Expanded queries" }),
+					make("div", { className: "chips" }, (trace.expanded_queries || []).map((query) => chip(query, "teal"))),
+					make("div", { className: "title", text: "Config snapshot" }),
+					pre(trace.config_snapshot || {}),
+					make("div", { className: "title", text: "Items" }),
+					items.length ? make("div", { className: "list" }, items.map(traceItemRow)) : empty("No trace items."),
+					make("div", { className: "title", text: "Stages" }),
+					stages.length ? make("div", { className: "list" }, stages.map(stageRow)) : empty("No stages.")
+				])
+			);
+		}
+
+		function traceItemRow(item) {
+			const terms = item.explain && item.explain.ranking ? item.explain.ranking.terms || [] : [];
+			const termChips = terms.slice(0, 6).map((term) => chip(`${term.name}: ${score(term.value)}`));
+			return make("div", { className: "row trace-item" }, [
+				make("div", { className: "row-head" }, [
+					make("div", { className: "title", text: `Rank ${item.rank} | ${item.note_id}` }),
+					chip(item.result_handle, "indigo")
+				]),
+				make("div", { className: "chips" }, termChips),
+				pre(item.explain || {})
+			]);
+		}
+
+		function stageRow(stage) {
+			return make("div", { className: "row" }, [
+				make("div", { className: "row-head" }, [
+					make("div", { className: "title", text: `${stage.stage_order}. ${stage.stage_name}` }),
+					chip(`${(stage.items || []).length} items`, "teal")
+				]),
+				pre(stage.stage_payload || stage)
+			]);
+		}
+
+		function showTab(tabId) {
+			state.activeTab = tabId;
+			$$(".view").forEach((node) => node.classList.toggle("active", node.id === tabId));
+			$$(".nav button").forEach((node) => node.classList.toggle("active", node.dataset.tab === tabId));
+		}
+
+		async function refreshActive() {
+			if (state.activeTab === "searchView") {
+				if (state.session) {
+					await loadSession();
+				}
+			} else if (state.activeTab === "notesView") {
+				await loadNotes();
+			} else if (state.activeTab === "tracesView") {
+				await loadRecentTraces();
+			}
+		}
+
+		function bindEvents() {
+			$("#contextForm").addEventListener("submit", (event) => {
+				event.preventDefault();
+				saveContext();
+			});
+			$$(".nav button").forEach((button) => {
+				button.addEventListener("click", () => showTab(button.dataset.tab));
+			});
+			$("#runSearchButton").addEventListener("click", runSearch);
+			$("#loadSessionButton").addEventListener("click", loadSession);
+			$("#loadTimelineButton").addEventListener("click", loadTimeline);
+			$("#loadNotesButton").addEventListener("click", loadNotes);
+			$("#loadTracesButton").addEventListener("click", loadRecentTraces);
+			$("#refreshActive").addEventListener("click", refreshActive);
+		}
+
+		loadContext();
+		bindEvents();
+	</script>
+</body>
+</html>
