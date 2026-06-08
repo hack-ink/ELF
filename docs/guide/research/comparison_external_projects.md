@@ -8,6 +8,8 @@ Outputs: A comparison matrix and trade-off summary suitable for follow-up design
 
 Scope note: This document is intentionally detailed and source-heavy. Keep `README.md` concise and link here for full analysis.
 For a full list of reviewed and pending projects, see `docs/guide/research/research_projects_inventory.md`.
+For the June 2026 agentmemory and dreaming decision run, see
+`docs/research/2026-06-08-agent-memory-selection.json`.
 
 Comparison focuses on shared capabilities, ELF distinctives, and objective trade-offs. These projects solve adjacent problems, but their primary storage units and default workflows differ.
 
@@ -29,6 +31,91 @@ Legend:
 
 Note: In this section, mem0 refers to the Mem0 ecosystem, including OpenMemory (an MCP memory server with a built-in UI).
 OpenViking is included as a newly reviewed project with mechanism-level analysis.
+
+## June 2026 Agentmemory And Dreaming Refresh
+
+Snapshot date for this subsection: June 8, 2026.
+
+This refresh re-evaluates ELF after the June 2026 hardening work and after the
+appearance of [agentmemory](https://github.com/rohitg00/agentmemory) as a high-velocity
+coding-agent memory project. It also records the current vendor direction around
+dreaming-style background memory consolidation.
+
+### Current ELF Position
+
+ELF remains strongest as a high-trust memory service rather than a turnkey coding-agent
+continuity plugin. The current main branch has:
+
+- evidence-linked fact writes and quote-bound provenance;
+- deterministic `add_note` separated from LLM-driven `add_event`;
+- Postgres as source of truth and Qdrant as a rebuildable derived index;
+- scoped HTTP/MCP service semantics, TTL/lifecycle policy, graph-lite relation context,
+  and retrieval evaluation tooling;
+- recently restored local gates, stricter config presence, generated OpenAPI/Scalar docs,
+  and Docker Compose service dependencies.
+
+### agentmemory
+
+agentmemory is now important enough to track as a first-class comparison target. Its
+public README advertises cross-agent support for Claude Code, Codex CLI, Cursor, Gemini
+CLI, OpenCode, and generic MCP clients; MCP/REST access; hook-based capture; hybrid
+BM25/vector/graph retrieval; consolidation/lifecycle behavior; a local viewer on `:3113`;
+and iii console observability for traces, KV state, triggers, queues, and streams. Its
+roadmap still lists benchmark CI, session replay UI, governance baseline, enterprise trust
+features, and a v1.0 stability freeze as future work.
+
+ELF implication: do not replace ELF with agentmemory. Treat it as:
+
+- an optional capture/import adapter for coding-agent session observations;
+- a benchmark and UX baseline for local continuity workflows;
+- a source of product ideas around hooks, viewer, replay, audit, and tool breadth.
+
+### Dreaming And Background Consolidation
+
+OpenAI frames dreaming as background curation that synthesizes memory state, applies
+preferences, and keeps memory current over time. Anthropic Claude Dreams is the strongest
+safety reference: a dream reads an input memory store plus 1-100 sessions, produces a
+separate output memory store, never modifies the input store, and leaves the output
+reviewable, attachable, discardable, archivable, or deletable. Google examples add two
+operator patterns: Always-On Memory Agent runs scheduled consolidation, while Gemini CLI
+Auto Memory mines idle transcripts but writes reviewable patches and skill drafts to an
+inbox before anything is applied.
+
+ELF implication: dreaming should be a reviewed derived layer over authoritative evidence,
+not a destructive rewrite path. The target shape is:
+
+- immutable observations, notes, events, traces, and source pointers as input;
+- asynchronous consolidation jobs that produce candidate derived memories, pages, graph
+  views, or skills;
+- explicit lineage, diff, confidence, contradiction/staleness markers, and review/apply
+  controls;
+- rebuildable outputs that can be discarded without corrupting source-of-truth memory.
+
+### Current Recommendation
+
+Continue building ELF. Do not directly adopt agentmemory or managed dreaming as the core
+backend. The next work should prioritize:
+
+1. a reviewable derived consolidation pipeline;
+2. read-only viewer plus retrieval/consolidation observability;
+3. optional agentmemory import/baseline adapter;
+4. graph-lite typed query and derived knowledge pages with provenance/lint.
+
+This ordering reuses the existing vNext planning surface instead of starting a parallel
+roadmap: [XY-286](https://linear.app/hack-ink/issue/XY-286/knowledge-memory-derived-entityconceptproject-pages-with-provenance),
+[XY-19](https://linear.app/hack-ink/issue/XY-19/add-a-read-only-web-viewer-for-sessions-and-traces),
+[XY-27](https://linear.app/hack-ink/issue/XY-27/viewer-add-retrieval-observability-panels-on-top-of-the-read-only),
+and [XY-70](https://linear.app/hack-ink/issue/XY-70/graph-lite-dx-typed-schema-typed-query-nanograph-inspired)
+remain the right backbone.
+
+Primary sources for this refresh:
+
+- https://github.com/rohitg00/agentmemory
+- https://raw.githubusercontent.com/rohitg00/agentmemory/main/ROADMAP.md
+- https://openai.com/index/chatgpt-memory-dreaming/
+- https://platform.claude.com/docs/en/managed-agents/dreams
+- https://github.com/GoogleCloudPlatform/generative-ai/tree/main/gemini/agents/always-on-memory-agent
+- https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/auto-memory.md
 
 ## Scope And Intended Use
 

@@ -24,6 +24,7 @@ The split between `spec` and `guide` is by task shape, not by reader type.
 | --- | --- | --- | --- | --- |
 | Spec | `docs/spec/` | What must be true? | Contracts, schemas, invariants, required behavior | Any behavior or schema change |
 | Guide | `docs/guide/` | What should I do? | Runbooks, migrations, validation, troubleshooting | Any procedure or operational change |
+| Research runs | `docs/research/` | Which evidence-backed research run reached what state? | Machine-readable hypotheses, evidence, trade-offs, challenge records, and terminal decision state | A research workflow needs durable replayable state |
 | Plan artifacts | `docs/plans/` | Which saved plan artifact should a planning tool or execution workflow use? | Tool-managed planning outputs | As emitted or updated by the relevant tool |
 
 ## Placement rules
@@ -32,6 +33,8 @@ The split between `spec` and `guide` is by task shape, not by reader type.
 - If a document defines actions, it belongs in `docs/guide/`.
 - If a document is non-normative decision support, comparison, or research input, treat it
   as guide-class material and store it under `docs/guide/`.
+- If a research workflow requires a machine-readable run file with replayable events,
+  store that run file under `docs/research/` and link to it from the relevant guide.
 - Do not treat `docs/plans/` as a general-purpose docs bucket.
 - Use `docs/plans/` only for artifacts produced or consumed by planning tools or
   workflows that explicitly depend on saved plan files.
@@ -85,7 +88,9 @@ When answering a repository question:
    - "What must be true?" -> `docs/spec/index.md`
    - "What should I do?" -> `docs/guide/index.md`
 3. Read `Makefile.toml` when the task depends on repository automation or named tasks.
-4. Use `docs/plans/` only when the task explicitly concerns a saved plan artifact used by
+4. Use `docs/research/` only when the task explicitly concerns a machine-readable
+   research run file used by a research workflow.
+5. Use `docs/plans/` only when the task explicitly concerns a saved plan artifact used by
    a planning tool or execution workflow.
 
 ## Update workflow
