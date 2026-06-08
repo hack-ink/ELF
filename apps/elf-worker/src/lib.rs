@@ -18,6 +18,7 @@ use elf_storage::{
 	db::Db,
 	qdrant::{DOCS_SEARCH_FILTER_INDEXES, QdrantStore},
 };
+use worker::WorkerState;
 
 /// CLI arguments for the worker binary.
 #[derive(Debug, Parser)]
@@ -61,7 +62,7 @@ pub async fn run(args: Args) -> Result<()> {
 		max_tokens: config.chunking.max_tokens,
 		overlap_tokens: config.chunking.overlap_tokens,
 	};
-	let state = worker::WorkerState {
+	let state = WorkerState {
 		db,
 		qdrant,
 		docs_qdrant,

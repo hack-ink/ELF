@@ -6,8 +6,11 @@ use sqlx::{Postgres, Transaction};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::{ElfService, Error, InsertVersionArgs, NoteOp, Result, access};
-use elf_domain::{english_gate, ttl, writegate};
+use crate::{ElfService, Error, InsertVersionArgs, NoteOp, Result, access::ORG_PROJECT_ID};
+use elf_domain::{
+	english_gate, ttl,
+	writegate::{self, NoteInput},
+};
 use elf_storage::models::MemoryNote;
 
 /// Request payload for note updates.
@@ -79,7 +82,7 @@ impl ElfService {
 		} else {
 			note.text.clone()
 		};
-		let gate = elf_domain::writegate::NoteInput {
+		let gate = NoteInput {
 			note_type: note.r#type.clone(),
 			scope: note.scope.clone(),
 			text: candidate_text,
@@ -166,7 +169,7 @@ FOR UPDATE",
 	.bind(note_id)
 	.bind(tenant_id)
 	.bind(project_id)
-	.bind(access::ORG_PROJECT_ID)
+	.bind(ORG_PROJECT_ID)
 	.fetch_optional(&mut **tx)
 	.await?
 	.ok_or_else(|| Error::InvalidRequest { message: "Note not found.".to_string() })

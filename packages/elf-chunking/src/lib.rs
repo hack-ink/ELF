@@ -2,6 +2,8 @@
 
 pub use tokenizers::{Error, Tokenizer};
 
+use std::path::Path;
+
 use unicode_segmentation::UnicodeSegmentation;
 
 /// Token-window settings used when splitting text into chunks.
@@ -26,8 +28,14 @@ pub struct Chunk {
 	pub text: String,
 }
 
-/// Loads a Hugging Face tokenizer by repository identifier.
+/// Loads a tokenizer from a local JSON file path or Hugging Face repository identifier.
 pub fn load_tokenizer(repo: &str) -> Result<Tokenizer, Error> {
+	let path = Path::new(repo);
+
+	if path.exists() && path.is_file() {
+		return Tokenizer::from_file(path);
+	}
+
 	Tokenizer::from_pretrained(repo, None)
 }
 

@@ -18,7 +18,7 @@ use uuid::Uuid;
 use elf_config::Config;
 use elf_service::{
 	ElfService, RankingRequestOverride, SearchIndexItem, SearchIndexResponse, SearchRequest,
-	search::{self, TraceReplayItem},
+	search::{self, TraceReplayContext, TraceReplayItem},
 };
 use elf_storage::{db::Db, qdrant::QdrantStore};
 
@@ -1096,7 +1096,7 @@ async fn compare_trace_id(
 	let trace_row = fetch_trace_compare_trace_row(db, trace_id).await?;
 	let candidate_rows = fetch_trace_compare_candidate_rows(db, trace_id).await?;
 	let stage_rows = fetch_trace_compare_stage_rows(db, trace_id).await?;
-	let context = elf_service::search::TraceReplayContext {
+	let context = TraceReplayContext {
 		trace_id: trace_row.trace_id,
 		query: trace_row.query.clone(),
 		candidate_count: u32::try_from(trace_row.candidate_count).unwrap_or(0),

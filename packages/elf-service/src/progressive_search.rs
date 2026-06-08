@@ -15,7 +15,7 @@ use uuid::Uuid;
 
 use crate::{
 	ElfService, NoteFetchResponse, PayloadLevel, QueryPlan, SearchRequest, SearchTrajectorySummary,
-	access::{self, SharedSpaceGrantKey},
+	access::{self, ORG_PROJECT_ID, SharedSpaceGrantKey},
 	structured_fields::{self, StructuredFields},
 };
 use elf_config::Config;
@@ -632,7 +632,7 @@ WHERE note_id = ANY($1::uuid[])
 			.bind(requested_in_session.as_slice())
 			.bind(session.tenant_id.as_str())
 			.bind(session.project_id.as_str())
-			.bind(access::ORG_PROJECT_ID)
+			.bind(ORG_PROJECT_ID)
 			.fetch_all(&self.db.pool)
 			.await?;
 
@@ -880,17 +880,26 @@ fn truncate_chars(raw: &str, max_chars: usize) -> String {
 		return raw.to_string();
 	}
 
-	let mut out = String::with_capacity(max_chars + 3);
+	const TRUNCATION_MARKER: &str = "...";
+
+	let marker_chars = TRUNCATION_MARKER.chars().count();
+
+	if max_chars <= marker_chars {
+		return TRUNCATION_MARKER.chars().take(max_chars).collect();
+	}
+
+	let truncated_chars = max_chars - marker_chars;
+	let mut out = String::with_capacity(max_chars);
 
 	for (idx, ch) in raw.chars().enumerate() {
-		if idx >= max_chars {
+		if idx >= truncated_chars {
 			break;
 		}
 
 		out.push(ch);
 	}
 
-	out.push_str("...");
+	out.push_str(TRUNCATION_MARKER);
 
 	out
 }
