@@ -15,7 +15,7 @@ use uuid::Uuid;
 
 use crate::{
 	ElfService, NoteFetchResponse, PayloadLevel, QueryPlan, SearchRequest, SearchTrajectorySummary,
-	access::{self, SharedSpaceGrantKey},
+	access::{self, ORG_PROJECT_ID, SharedSpaceGrantKey},
 	structured_fields::{self, StructuredFields},
 };
 use elf_config::Config;
@@ -632,7 +632,7 @@ WHERE note_id = ANY($1::uuid[])
 			.bind(requested_in_session.as_slice())
 			.bind(session.tenant_id.as_str())
 			.bind(session.project_id.as_str())
-			.bind(access::ORG_PROJECT_ID)
+			.bind(ORG_PROJECT_ID)
 			.fetch_all(&self.db.pool)
 			.await?;
 

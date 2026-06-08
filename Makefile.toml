@@ -85,6 +85,8 @@ command = "cargo"
 args = [
 	"vstyle",
 	"curate",
+	"--language",
+	"rust",
 	"--workspace",
 	"--all-features"
 ]
@@ -95,6 +97,8 @@ command = "cargo"
 args = [
 	"vstyle",
 	"tune",
+	"--language",
+	"rust",
 	"--workspace",
 	"--all-features",
 	"--strict",

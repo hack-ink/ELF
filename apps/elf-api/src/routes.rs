@@ -7,7 +7,10 @@ use axum::{
 		DefaultBodyLimit, Extension, Path, Query, State,
 		rejection::{JsonRejection, QueryRejection},
 	},
-	http::{HeaderMap, Request, StatusCode},
+	http::{
+		HeaderMap, Request, StatusCode,
+		header::{CONTENT_LENGTH, CONTENT_TYPE},
+	},
 	middleware::{self, Next},
 	response::{IntoResponse, Response},
 	routing,
@@ -818,7 +821,7 @@ async fn with_request_id(response: Response, request_id: Uuid) -> Response {
 
 	let is_json_response = parts
 		.headers
-		.get(axum::http::header::CONTENT_TYPE)
+		.get(CONTENT_TYPE)
 		.and_then(|value| value.to_str().ok())
 		.map(|content_type| content_type.starts_with("application/json"))
 		.unwrap_or(false);
@@ -833,7 +836,7 @@ async fn with_request_id(response: Response, request_id: Uuid) -> Response {
 	};
 
 	if let Some(response_body) = inject_request_id_into_json_body(&body_bytes, &request_id) {
-		parts.headers.remove(axum::http::header::CONTENT_LENGTH);
+		parts.headers.remove(CONTENT_LENGTH);
 
 		Response::from_parts(parts, Body::from(response_body))
 	} else {
