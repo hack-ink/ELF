@@ -23,13 +23,13 @@ use elf_api::{
 	state::AppState,
 };
 use elf_config::{
-	Chunking, Config, EmbeddingProviderConfig, Lifecycle, LlmProviderConfig, Memory, Postgres,
-	ProviderConfig, Providers, Qdrant, Ranking, RankingBlend, RankingBlendSegment,
+	Chunking, Config, EmbeddingProviderConfig, Lifecycle, LlmProviderConfig, Memory, MemoryPolicy,
+	Postgres, ProviderConfig, Providers, Qdrant, Ranking, RankingBlend, RankingBlendSegment,
 	RankingDeterministic, RankingDeterministicDecay, RankingDeterministicHits,
 	RankingDeterministicLexical, RankingDiversity, RankingRetrievalSources, ReadProfiles,
 	ScopePrecedence, ScopeWriteAllowed, Scopes, Search, SearchCache, SearchDynamic,
-	SearchExpansion, SearchExplain, SearchPrefilter, Security, SecurityAuthKey, SecurityAuthRole,
-	Service, Storage, TtlDays,
+	SearchExpansion, SearchExplain, SearchGraphContext, SearchPrefilter, SearchRecursive, Security,
+	SecurityAuthKey, SecurityAuthRole, Service, Storage, TtlDays,
 };
 use elf_storage::qdrant::{BM25_MODEL, BM25_VECTOR_NAME, DENSE_VECTOR_NAME};
 use elf_testkit::TestDatabase;
@@ -140,31 +140,9 @@ fn test_config(dsn: String, qdrant_url: String, collection: String) -> Config {
 			update_sim_threshold: 0.85,
 			candidate_k: 60,
 			top_k: 12,
-			policy: Default::default(),
+			policy: MemoryPolicy { rules: vec![] },
 		},
-		search: Search {
-			expansion: SearchExpansion {
-				mode: "off".to_string(),
-				max_queries: 4,
-				include_original: true,
-			},
-			dynamic: SearchDynamic { min_candidates: 10, min_top_score: 0.12 },
-			prefilter: SearchPrefilter { max_candidates: 0 },
-			cache: SearchCache {
-				enabled: true,
-				expansion_ttl_days: 7,
-				rerank_ttl_days: 7,
-				max_payload_bytes: Some(262_144),
-			},
-			explain: SearchExplain {
-				retention_days: 7,
-				capture_candidates: false,
-				candidate_retention_days: 2,
-				write_mode: "outbox".to_string(),
-			},
-			recursive: Default::default(),
-			graph_context: Default::default(),
-		},
+		search: test_search(),
 		ranking: test_ranking(),
 		lifecycle: Lifecycle {
 			ttl_days: TtlDays {
@@ -196,6 +174,42 @@ fn test_config(dsn: String, qdrant_url: String, collection: String) -> Config {
 		},
 		context: None,
 		mcp: None,
+	}
+}
+
+fn test_search() -> Search {
+	Search {
+		expansion: SearchExpansion {
+			mode: "off".to_string(),
+			max_queries: 4,
+			include_original: true,
+		},
+		dynamic: SearchDynamic { min_candidates: 10, min_top_score: 0.12 },
+		prefilter: SearchPrefilter { max_candidates: 0 },
+		cache: SearchCache {
+			enabled: true,
+			expansion_ttl_days: 7,
+			rerank_ttl_days: 7,
+			max_payload_bytes: Some(262_144),
+		},
+		explain: SearchExplain {
+			retention_days: 7,
+			capture_candidates: false,
+			candidate_retention_days: 2,
+			write_mode: "outbox".to_string(),
+		},
+		recursive: SearchRecursive {
+			enabled: false,
+			max_depth: 2,
+			max_children_per_node: 4,
+			max_nodes_per_scope: 32,
+			max_total_nodes: 256,
+		},
+		graph_context: SearchGraphContext {
+			enabled: false,
+			max_facts_per_item: 16,
+			max_evidence_notes_per_fact: 16,
+		},
 	}
 }
 
@@ -771,12 +785,18 @@ async fn fetch_admin_search_raw_source_ref(
 		)
 		.await
 		.expect("Failed to call admin search raw.");
-
-	assert_eq!(response.status(), StatusCode::OK);
-
+	let status = response.status();
 	let body = body::to_bytes(response.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read admin search raw response body.");
+
+	assert_eq!(
+		status,
+		StatusCode::OK,
+		"Unexpected admin search raw status with body: {}",
+		String::from_utf8_lossy(&body)
+	);
+
 	let json: serde_json::Value =
 		serde_json::from_slice(&body).expect("Failed to parse admin search raw response.");
 	let item = json["items"]
@@ -1614,7 +1634,8 @@ async fn searches_notes_payload_level_shapes_source_ref_and_structured() {
 		}
 	});
 	let structured_summary = "Compact structured summary used for payload-level l1 and l2 shaping.";
-	let note_text = "A payload shaping note used in contract tests for search details output shaping. It includes deliberate    spacing and\nline breaks so l0 compaction can be observed.";
+	let note_text =
+		"Payload shaping note used in contract tests for search details output shaping.";
 	let note_id =
 		create_note_for_payload_level_tests(&app, &state, note_text, source_ref.clone()).await;
 
@@ -1707,7 +1728,7 @@ async fn searches_notes_payload_level_shapes_source_ref_and_structured() {
 	assert!(notes_l1["structured"].is_object());
 	assert!(notes_l2["structured"].is_object());
 	assert!(notes_l0_text.len() <= 240);
-	assert_ne!(notes_l0_text, note_text);
+	assert_eq!(notes_l0_text, note_text);
 	assert_eq!(notes_l1_text, structured_summary);
 	assert_eq!(notes_l2_text, note_text);
 

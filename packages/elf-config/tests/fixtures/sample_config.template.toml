@@ -9,9 +9,10 @@ dsn            = "postgres://user:pass@127.0.0.1:5432/elf"
 pool_max_conns = 5
 
 [storage.qdrant]
-collection = "mem_notes_v2"
-url        = "http://127.0.0.1:6334"
-vector_dim = 4_096
+collection      = "mem_notes_v2"
+docs_collection = "doc_chunks_v1"
+url             = "http://127.0.0.1:6334"
+vector_dim      = 4_096
 
 [providers.embedding]
 api_base        = "http://localhost"
@@ -112,6 +113,11 @@ max_children_per_node = 4
 max_depth             = 2
 max_nodes_per_scope   = 32
 max_total_nodes       = 256
+
+[search.graph_context]
+enabled                     = false
+max_evidence_notes_per_fact = 16
+max_facts_per_item          = 16
 
 [ranking]
 recency_tau_days   = 60.0

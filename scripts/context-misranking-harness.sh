@@ -132,9 +132,10 @@ dsn            = "${PG_DSN}"
 pool_max_conns = 10
 
 [storage.qdrant]
-collection = "${QDRANT_COLLECTION}"
-url        = "${QDRANT_GRPC_URL}"
-vector_dim = ${VECTOR_DIM_TOML}
+collection      = "${QDRANT_COLLECTION}"
+docs_collection = "${QDRANT_COLLECTION}_docs"
+url             = "${QDRANT_GRPC_URL}"
+vector_dim      = ${VECTOR_DIM_TOML}
 
 [providers.embedding]
 api_base    = "http://127.0.0.1"
@@ -194,6 +195,12 @@ max_notes_per_add_event = 3
 top_k                   = 12
 update_sim_threshold    = 0.85
 
+[memory.policy]
+
+[[memory.policy.rules]]
+min_confidence = 0.0
+min_importance = 0.0
+
 [chunking]
 enabled        = true
 max_tokens     = 512
@@ -222,6 +229,18 @@ retention_days = 7
 capture_candidates = false
 candidate_retention_days = 2
 write_mode = "outbox"
+
+[search.recursive]
+enabled               = false
+max_children_per_node = 4
+max_depth             = 2
+max_nodes_per_scope   = 32
+max_total_nodes       = 256
+
+[search.graph_context]
+enabled                     = false
+max_evidence_notes_per_fact = 16
+max_facts_per_item          = 16
 
 [ranking]
 recency_tau_days   = 60

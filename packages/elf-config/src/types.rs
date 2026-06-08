@@ -96,7 +96,6 @@ pub struct Qdrant {
 	/// Primary notes collection name.
 	pub collection: String,
 	/// Document-chunk collection name.
-	#[serde(default = "default_docs_collection")]
 	pub docs_collection: String,
 	/// Vector dimension expected by both note and document collections.
 	pub vector_dim: u32,
@@ -236,12 +235,11 @@ pub struct Memory {
 	/// Final top-k size for note retrieval.
 	pub top_k: u32,
 	/// Optional downgrade rules applied after base memory decisions.
-	#[serde(default)]
 	pub policy: MemoryPolicy,
 }
 
 /// Collection of memory-policy downgrade rules.
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct MemoryPolicy {
 	/// Ordered policy rules evaluated against note type, scope, and scores.
 	pub rules: Vec<MemoryPolicyRule>,
@@ -287,10 +285,8 @@ pub struct Search {
 	/// Explainability retention settings.
 	pub explain: SearchExplain,
 	/// Recursive retrieval traversal settings.
-	#[serde(default)]
 	pub recursive: SearchRecursive,
 	/// Graph-context enrichment settings.
-	#[serde(default)]
 	pub graph_context: SearchGraphContext,
 }
 
@@ -349,7 +345,6 @@ pub struct SearchExplain {
 
 /// Recursive retrieval traversal limits.
 #[derive(Debug, Deserialize)]
-#[serde(default)]
 pub struct SearchRecursive {
 	/// Whether recursive retrieval is enabled.
 	pub enabled: bool,
@@ -362,21 +357,9 @@ pub struct SearchRecursive {
 	/// Maximum nodes retained across the whole traversal.
 	pub max_total_nodes: u32,
 }
-impl Default for SearchRecursive {
-	fn default() -> Self {
-		Self {
-			enabled: false,
-			max_depth: 2,
-			max_children_per_node: 4,
-			max_nodes_per_scope: 32,
-			max_total_nodes: 256,
-		}
-	}
-}
 
 /// Graph-context enrichment limits applied to search responses.
 #[derive(Debug, Deserialize)]
-#[serde(default)]
 pub struct SearchGraphContext {
 	/// Whether graph-context enrichment is enabled.
 	pub enabled: bool,
@@ -384,11 +367,6 @@ pub struct SearchGraphContext {
 	pub max_facts_per_item: u32,
 	/// Maximum evidence notes attached to one fact.
 	pub max_evidence_notes_per_fact: u32,
-}
-impl Default for SearchGraphContext {
-	fn default() -> Self {
-		Self { enabled: false, max_facts_per_item: 16, max_evidence_notes_per_fact: 16 }
-	}
 }
 
 /// Ranking settings for retrieval and rerank fusion.
@@ -554,7 +532,6 @@ pub struct Security {
 	/// Authentication mode such as `off` or `static_keys`.
 	pub auth_mode: String,
 	/// Static bearer-token entries used when `auth_mode` is `static_keys`.
-	#[serde(default)]
 	pub auth_keys: Vec<SecurityAuthKey>,
 }
 
@@ -588,8 +565,4 @@ pub enum SecurityAuthRole {
 	Admin,
 	/// Super-admin token for global admin operations.
 	SuperAdmin,
-}
-
-fn default_docs_collection() -> String {
-	"doc_chunks_v1".to_string()
 }

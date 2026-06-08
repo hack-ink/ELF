@@ -73,7 +73,7 @@ Rules:
 - chunking.enabled must be true.
 - chunking.max_tokens must be greater than zero.
 - chunking.overlap_tokens must be less than chunking.max_tokens.
-- chunking.tokenizer_repo may be empty or omitted to inherit providers.embedding.model.
+- chunking.tokenizer_repo must be present and non-empty.
 
 Template (all values required):
 
@@ -90,6 +90,7 @@ pool_max_conns = <REQUIRED_INT>
 [storage.qdrant]
 url = "<REQUIRED_URL>"
 collection = "mem_notes_v2"
+docs_collection = "doc_chunks_v1"
 vector_dim = <REQUIRED_INT>
 
 [providers.embedding]
@@ -152,12 +153,19 @@ update_sim_threshold = 0.85
 candidate_k = 60
 top_k = 12
 
+[memory.policy]
+
+[[memory.policy.rules]]
+note_type = "fact|plan|preference|constraint|decision|profile"
+scope = "agent_private|project_shared|org_shared"
+min_confidence = <OPTIONAL_FLOAT>
+min_importance = <OPTIONAL_FLOAT>
+
 [chunking]
 enabled = true
 max_tokens = <REQUIRED_INT>
 overlap_tokens = <REQUIRED_INT>
-# Optional. Empty or omitted uses providers.embedding.model.
-tokenizer_repo = "<OPTIONAL_STRING>"
+tokenizer_repo = "<REQUIRED_NON_EMPTY_STRING>"
 
 [search.expansion]
 mode = "off|always|dynamic"
@@ -180,13 +188,67 @@ max_payload_bytes = <OPTIONAL_INT>
 
 [search.explain]
 retention_days = <REQUIRED_INT>
-capture_candidates = <OPTIONAL_BOOL>
-candidate_retention_days = <OPTIONAL_INT>
-write_mode = <OPTIONAL_STRING>
+capture_candidates = <REQUIRED_BOOL>
+candidate_retention_days = <REQUIRED_INT>
+write_mode = "outbox|inline"
+
+[search.recursive]
+enabled = <REQUIRED_BOOL>
+max_depth = <REQUIRED_INT>
+max_children_per_node = <REQUIRED_INT>
+max_nodes_per_scope = <REQUIRED_INT>
+max_total_nodes = <REQUIRED_INT>
+
+[search.graph_context]
+enabled = <REQUIRED_BOOL>
+max_facts_per_item = <REQUIRED_INT>
+max_evidence_notes_per_fact = <REQUIRED_INT>
 
 [ranking]
 recency_tau_days = 60
 tie_breaker_weight = 0.1
+
+[ranking.deterministic]
+enabled = <REQUIRED_BOOL>
+
+[ranking.deterministic.lexical]
+enabled = <REQUIRED_BOOL>
+weight = <REQUIRED_FLOAT>
+min_ratio = <REQUIRED_FLOAT>
+max_query_terms = <REQUIRED_INT>
+max_text_terms = <REQUIRED_INT>
+
+[ranking.deterministic.hits]
+enabled = <REQUIRED_BOOL>
+weight = <REQUIRED_FLOAT>
+half_saturation = <REQUIRED_FLOAT>
+last_hit_tau_days = <REQUIRED_FLOAT>
+
+[ranking.deterministic.decay]
+enabled = <REQUIRED_BOOL>
+weight = <REQUIRED_FLOAT>
+tau_days = <REQUIRED_FLOAT>
+
+[ranking.blend]
+enabled = <REQUIRED_BOOL>
+rerank_normalization = "<REQUIRED_STRING>"
+retrieval_normalization = "<REQUIRED_STRING>"
+
+[[ranking.blend.segments]]
+max_retrieval_rank = <REQUIRED_INT>
+retrieval_weight = <REQUIRED_FLOAT>
+
+[ranking.diversity]
+enabled = <REQUIRED_BOOL>
+sim_threshold = <REQUIRED_FLOAT>
+mmr_lambda = <REQUIRED_FLOAT>
+max_skips = <REQUIRED_INT>
+
+[ranking.retrieval_sources]
+fusion_weight = <REQUIRED_FLOAT>
+structured_field_weight = <REQUIRED_FLOAT>
+fusion_priority = <REQUIRED_INT>
+structured_field_priority = <REQUIRED_INT>
 
 [lifecycle.ttl_days]
 plan = 14
@@ -208,6 +270,19 @@ redact_secrets_on_write = true
 evidence_min_quotes = 1
 evidence_max_quotes = 2
 evidence_max_quote_chars = 320
+auth_mode = "off|static_keys"
+# Must exist. Empty array is allowed only when auth_mode = "off".
+auth_keys = []
+
+# Required when auth_mode = "static_keys"; replace auth_keys = [] with one or more entries.
+# [[security.auth_keys]]
+# token_id = "<REQUIRED_ID>"
+# token = "<REQUIRED_NON_EMPTY>"
+# tenant_id = "<REQUIRED_ID>"
+# project_id = "<REQUIRED_ID>"
+# agent_id = "<REQUIRED_ID>"
+# read_profile = "private_only|private_plus_project|all_scopes"
+# role = "user|admin|super_admin"
 
 [context]
 # Optional. Context metadata used to disambiguate retrieval across projects and scopes.
@@ -228,7 +303,6 @@ scope_boost_weight = <OPTIONAL_FLOAT>
 tenant_id = "<REQUIRED_ID>"
 project_id = "<REQUIRED_ID>"
 agent_id = "<REQUIRED_ID>"
-# Optional. Default is private_plus_project.
 read_profile = "private_only|private_plus_project|all_scopes"
 
 ============================================================
