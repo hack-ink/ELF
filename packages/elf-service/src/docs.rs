@@ -1696,7 +1696,7 @@ fn load_tokenizer(cfg: &Config) -> Result<Tokenizer> {
 		});
 	}
 
-	Tokenizer::from_pretrained(tokenizer_repo, None).map_err(|err| Error::InvalidRequest {
+	elf_chunking::load_tokenizer(tokenizer_repo).map_err(|err| Error::InvalidRequest {
 		message: format!("failed to load tokenizer: {err}"),
 	})
 }

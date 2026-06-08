@@ -1044,7 +1044,12 @@ async fn search_details_payload_level_shapes_text_and_fields() {
 	};
 	let note_id = Uuid::new_v4();
 	let chunk_id = Uuid::new_v4();
-	let note_text = "This is the long note body used for detail shaping. It contains enough tokens to show truncation and should be reduced for compact payload levels.";
+	let note_text = concat!(
+		"This is the long note body used for detail shaping. It contains enough tokens to show ",
+		"truncation and should be reduced for compact payload levels. The extra detail keeps ",
+		"running with repeated operational context about source references, structured fields, ",
+		"session hydration, ranking metadata, and payload contracts so l0 cannot equal the raw note.",
+	);
 	let source_ref = serde_json::json!({
 		"schema": "note_source_ref/v1",
 		"locator": {
