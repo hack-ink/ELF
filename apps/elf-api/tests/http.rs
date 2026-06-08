@@ -555,6 +555,7 @@ async fn create_note_for_payload_level_tests(
 	source_ref: serde_json::Value,
 ) -> Uuid {
 	init_test_tracing();
+
 	let payload = serde_json::json!({
 		"scope": "agent_private",
 		"notes": [{
