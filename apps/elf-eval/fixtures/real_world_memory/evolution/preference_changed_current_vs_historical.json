@@ -1,0 +1,224 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "memory-evolution-preference-001",
+  "suite": "memory_evolution",
+  "title": "Apply the current user preference while preserving the historical one",
+  "corpus": {
+    "corpus_id": "real-world-memory-evolution-2026-06-09",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "pref-old-terse-bullets",
+        "kind": "note",
+        "text": "On 2026-06-01, the user preferred terse bullet-only benchmark updates.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "preference_changed_current_vs_historical",
+            "evidence_id": "pref-old-terse-bullets"
+          }
+        },
+        "created_at": "2026-06-01T00:00:00Z"
+      },
+      {
+        "evidence_id": "pref-current-concise-rationale",
+        "kind": "note",
+        "text": "On 2026-06-08, the user changed preference to concise prose with explicit evidence before bullets.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "preference_changed_current_vs_historical",
+            "evidence_id": "pref-current-concise-rationale"
+          }
+        },
+        "created_at": "2026-06-08T00:00:00Z"
+      },
+      {
+        "evidence_id": "pref-update-rationale",
+        "kind": "decision",
+        "text": "The user said the earlier terse bullets hid rationale, so future benchmark updates should include concise rationale.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "preference_changed_current_vs_historical",
+            "evidence_id": "pref-update-rationale"
+          }
+        },
+        "created_at": "2026-06-08T00:05:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_memory_evolution",
+      "answer": {
+        "content": "Use concise prose with explicit evidence before bullets; the terse bullet-only preference is historical because it hid rationale.",
+        "claims": [
+          {
+            "claim_id": "current_preference",
+            "text": "Use concise prose with explicit evidence before bullets.",
+            "evidence_ids": [
+              "pref-current-concise-rationale",
+              "pref-old-terse-bullets",
+              "pref-update-rationale"
+            ],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "preference_update_rationale",
+            "text": "The preference changed because terse bullets hid rationale.",
+            "evidence_ids": ["pref-update-rationale"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["pref-current-concise-rationale", "pref-update-rationale"],
+        "latency_ms": 1.1,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "preference-old",
+      "ts": "2026-06-01T00:00:00Z",
+      "actor": "user",
+      "action": "set_preference",
+      "evidence_ids": ["pref-old-terse-bullets"],
+      "summary": "The user initially preferred terse bullet-only benchmark updates."
+    },
+    {
+      "event_id": "preference-current",
+      "ts": "2026-06-08T00:00:00Z",
+      "actor": "user",
+      "action": "updated_memory",
+      "evidence_ids": ["pref-current-concise-rationale", "pref-update-rationale"],
+      "summary": "The user changed the preference and gave the rationale."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "How should benchmark updates be written now, and what changed?",
+    "job_mode": "personalize",
+    "constraints": ["cite_evidence", "distinguish_current_from_historical"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "current_preference",
+        "text": "Use concise prose with explicit evidence before bullets."
+      },
+      {
+        "claim_id": "preference_update_rationale",
+        "text": "The preference changed because terse bullets hid rationale."
+      }
+    ],
+    "must_not_include": [
+      "Use terse bullet-only benchmark updates as the current preference."
+    ],
+    "evidence_links": {
+      "current_preference": [
+        "pref-current-concise-rationale",
+        "pref-old-terse-bullets",
+        "pref-update-rationale"
+      ],
+      "preference_update_rationale": ["pref-update-rationale"]
+    },
+    "answer_type": "direct_answer",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "pref-current-concise-rationale",
+      "claim_id": "current_preference",
+      "requirement": "cite",
+      "quote": "changed preference to concise prose"
+    },
+    {
+      "evidence_id": "pref-update-rationale",
+      "claim_id": "preference_update_rationale",
+      "requirement": "explain",
+      "quote": "terse bullets hid rationale"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "old-terse-preference-current",
+      "type": "stale_fact",
+      "evidence_ids": ["pref-old-terse-bullets"],
+      "failure_if_used": false
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "lifecycle_behavior": {
+        "weight": 0.35,
+        "max_points": 1.0,
+        "criteria": "Chooses the current preference while preserving the historical version."
+      },
+      "answer_correctness": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "States the current preference and update rationale."
+      },
+      "evidence_grounding": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Cites the current preference and rationale evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Does not promote the stale preference as current."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": ["The fixture does not provide that evidence."],
+    "fallback_action": "state_blocker"
+  },
+  "memory_evolution": {
+    "current_evidence_ids": ["pref-current-concise-rationale"],
+    "historical_evidence_ids": ["pref-old-terse-bullets"],
+    "stale_trap_ids": ["old-terse-preference-current"],
+    "conflicts": [
+      {
+        "conflict_id": "preference-style-supersession",
+        "claim_id": "current_preference",
+        "current_evidence_id": "pref-current-concise-rationale",
+        "historical_evidence_id": "pref-old-terse-bullets",
+        "resolved_by_evidence_id": "pref-update-rationale"
+      }
+    ],
+    "update_rationale": {
+      "claim_id": "preference_update_rationale",
+      "evidence_ids": ["pref-update-rationale"],
+      "available": true
+    },
+    "temporal_validity": {
+      "required": false,
+      "encoded": false,
+      "follow_up": null
+    }
+  },
+  "tags": [
+    "synthetic",
+    "memory_evolution",
+    "reference_mem0_history",
+    "reference_letta_core_block",
+    "no_live_claim"
+  ]
+}
