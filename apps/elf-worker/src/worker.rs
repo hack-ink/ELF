@@ -253,6 +253,15 @@ pub async fn run_worker(state: WorkerState) -> Result<()> {
 	}
 }
 
+/// Processes at most one due job from each worker-owned queue.
+pub async fn process_once(state: &WorkerState) -> Result<()> {
+	process_indexing_outbox_once(state).await?;
+	process_doc_indexing_outbox_once(state).await?;
+	process_trace_outbox_once(state).await?;
+
+	Ok(())
+}
+
 fn is_not_found_error(err: &QdrantError) -> bool {
 	let message = err.to_string().to_lowercase();
 	let point_not_found =
