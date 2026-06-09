@@ -16,6 +16,10 @@ SCALE_DOC_COUNT="${ELF_BASELINE_SCALE_DOCS:-120}"
 STRESS_DOC_COUNT="${ELF_BASELINE_STRESS_DOCS:-480}"
 QUERY_TOP_K="${ELF_BASELINE_TOP_K:-10}"
 CURRENT_PROJECT_STARTED_AT=""
+PRODUCTION_SYNTHETIC_MANIFEST="${ROOT_DIR}/apps/elf-eval/fixtures/production_corpus/synthetic_coding_agent_manifest.json"
+CORPUS_TRACK="generated_public"
+CORPUS_PATH_DESCRIPTION="generated in Docker under /bench/corpus"
+CORPUS_MANIFEST_ID=""
 
 if [[ ! -f "/.dockerenv" && "${ELF_BASELINE_ALLOW_HOST:-0}" != "1" ]]; then
   echo "Refusing to run live baseline benchmark outside Docker. Use cargo make baseline-live-docker." >&2
@@ -157,21 +161,28 @@ query_docs = anchors[: (3 if profile == "smoke" else len(anchors))]
 queries = []
 for doc in query_docs:
     base_id = doc["name"].replace("-memory.md", "").replace(".md", "")
+    evidence_id = doc["name"].replace(".md", "")
     queries.append(
         {
             "id": f"q-{base_id}",
+            "task": "same_corpus_retrieval",
             "query": doc["query"],
             "expected_doc": doc["name"],
             "expected_terms": doc["terms"],
+            "expected_evidence_ids": [evidence_id],
+            "allowed_alternate_evidence_ids": [],
         }
     )
     if profile == "stress":
         queries.append(
             {
                 "id": f"q-{base_id}-alt",
+                "task": "same_corpus_retrieval",
                 "query": doc["alternate_query"],
                 "expected_doc": doc["name"],
                 "expected_terms": doc["terms"],
+                "expected_evidence_ids": [evidence_id],
+                "allowed_alternate_evidence_ids": [],
             }
         )
 
@@ -191,13 +202,264 @@ queries_path.write_text(
 PY
 }
 
+prepare_production_corpus() {
+  local manifest_path="${ELF_BASELINE_PRODUCTION_CORPUS_MANIFEST:-}"
+  local corpus_summary="${REPORT_DIR}/production-corpus-summary.json"
+
+  case "${CORPUS_PROFILE}" in
+    production-synthetic)
+      manifest_path="${manifest_path:-${PRODUCTION_SYNTHETIC_MANIFEST}}"
+      ;;
+    production-private)
+      if [[ -z "${manifest_path}" ]]; then
+        echo "ELF_BASELINE_PROFILE=production-private requires ELF_BASELINE_PRODUCTION_CORPUS_MANIFEST." >&2
+        exit 1
+      fi
+      ;;
+    *)
+      echo "Unsupported production corpus profile: ${CORPUS_PROFILE}" >&2
+      exit 1
+      ;;
+  esac
+
+  if [[ ! -f "${manifest_path}" ]]; then
+    echo "Missing production corpus manifest: ${manifest_path}" >&2
+    exit 1
+  fi
+
+  python3 - "${CORPUS_PROFILE}" "${manifest_path}" "${CORPUS_DIR}" "${REPORT_DIR}/queries.json" "${corpus_summary}" <<'PY'
+import json
+import re
+import sys
+from collections import Counter
+from pathlib import Path
+
+profile, manifest_path_raw, corpus_dir_raw, queries_path_raw, summary_path_raw = sys.argv[1:]
+manifest_path = Path(manifest_path_raw)
+corpus_dir = Path(corpus_dir_raw)
+queries_path = Path(queries_path_raw)
+summary_path = Path(summary_path_raw)
+corpus_track = "synthetic_production" if profile == "production-synthetic" else "private_production"
+allowed_categories = {
+    "issue",
+    "pr",
+    "worktree",
+    "runbook",
+    "decision",
+    "blocker",
+    "recovery_note",
+}
+allowed_tasks = {
+    "resume_lane",
+    "recover_exact_command",
+    "explain_stale_blocker",
+    "find_prior_decision",
+    "compare_project_status",
+    "detect_contradiction_update",
+}
+id_re = re.compile(r"[a-z0-9][a-z0-9_.-]{1,80}")
+
+
+def fail(message):
+    raise SystemExit(f"Invalid production corpus manifest: {message}")
+
+
+def require_string(obj, field, context):
+    value = obj.get(field)
+    if not isinstance(value, str) or not value.strip():
+        fail(f"{context}.{field} must be a non-empty string")
+    return value.strip()
+
+
+def require_string_list(obj, field, context):
+    value = obj.get(field)
+    if not isinstance(value, list) or not value:
+        fail(f"{context}.{field} must be a non-empty string array")
+    out = []
+    for index, item in enumerate(value):
+        if not isinstance(item, str) or not item.strip():
+            fail(f"{context}.{field}[{index}] must be a non-empty string")
+        out.append(item.strip())
+    return out
+
+
+def load_text(item, context):
+    has_text = isinstance(item.get("text"), str)
+    has_path = isinstance(item.get("local_path"), str)
+    if has_text == has_path:
+        fail(f"{context} must set exactly one of text or local_path")
+    if has_text:
+        text = item["text"].strip()
+    else:
+        local_path = Path(item["local_path"])
+        if not local_path.is_absolute():
+            local_path = manifest_path.parent / local_path
+        if not local_path.is_file():
+            fail(f"{context}.local_path does not point to a readable file")
+        text = local_path.read_text(encoding="utf-8").strip()
+    if not text:
+        fail(f"{context} text must not be empty")
+    if "\x00" in text:
+        fail(f"{context} text contains a NUL byte")
+    return text
+
+
+manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+if manifest.get("schema") != "elf.production_corpus_manifest/v1":
+    fail("schema must be elf.production_corpus_manifest/v1")
+
+manifest_id = require_string(manifest, "manifest_id", "$")
+evidence_items = manifest.get("evidence")
+if not isinstance(evidence_items, list) or not evidence_items:
+    fail("$.evidence must be a non-empty array")
+query_items = manifest.get("queries")
+if not isinstance(query_items, list) or not query_items:
+    fail("$.queries must be a non-empty array")
+
+for existing in corpus_dir.glob("*.md"):
+    existing.unlink()
+
+evidence_by_id = {}
+category_counts = Counter()
+for index, item in enumerate(evidence_items):
+    context = f"$.evidence[{index}]"
+    if not isinstance(item, dict):
+        fail(f"{context} must be an object")
+    evidence_id = require_string(item, "evidence_id", context)
+    if not id_re.fullmatch(evidence_id):
+        fail(f"{context}.evidence_id must be lower-case ASCII and safe for filenames")
+    if evidence_id in evidence_by_id:
+        fail(f"{context}.evidence_id duplicates an earlier item")
+    category = require_string(item, "category", context)
+    if category not in allowed_categories:
+        fail(f"{context}.category must be one of {sorted(allowed_categories)}")
+    title = require_string(item, "title", context)
+    text = load_text(item, context)
+    evidence_by_id[evidence_id] = {
+        "category": category,
+        "title": title,
+        "text": text,
+    }
+    category_counts[category] += 1
+    (corpus_dir / f"{evidence_id}.md").write_text(
+        "\n".join(
+            [
+                f"# {title}",
+                "",
+                text,
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+queries = []
+task_counts = Counter()
+for index, item in enumerate(query_items):
+    context = f"$.queries[{index}]"
+    if not isinstance(item, dict):
+        fail(f"{context} must be an object")
+    query_id = require_string(item, "query_id", context)
+    task = require_string(item, "task", context)
+    if task not in allowed_tasks:
+        fail(f"{context}.task must be one of {sorted(allowed_tasks)}")
+    query = require_string(item, "query", context)
+    expected_ids = require_string_list(item, "expected_evidence_ids", context)
+    allowed_alternate_ids = item.get("allowed_alternate_evidence_ids", [])
+    if allowed_alternate_ids is None:
+        allowed_alternate_ids = []
+    if not isinstance(allowed_alternate_ids, list):
+        fail(f"{context}.allowed_alternate_evidence_ids must be an array")
+    allowed_alternate_ids = [
+        evidence_id.strip()
+        for evidence_id in allowed_alternate_ids
+        if isinstance(evidence_id, str) and evidence_id.strip()
+    ]
+    expected_terms = require_string_list(item, "expected_terms", context)
+    for evidence_id in [*expected_ids, *allowed_alternate_ids]:
+        if evidence_id not in evidence_by_id:
+            fail(f"{context} references unknown evidence_id {evidence_id!r}")
+    queries.append(
+        {
+            "id": query_id,
+            "task": task,
+            "query": query,
+            "expected_doc": f"{expected_ids[0]}.md",
+            "allowed_alternate_docs": [
+                f"{evidence_id}.md" for evidence_id in [*expected_ids[1:], *allowed_alternate_ids]
+            ],
+            "expected_terms": expected_terms,
+            "expected_evidence_ids": expected_ids,
+            "allowed_alternate_evidence_ids": allowed_alternate_ids,
+        }
+    )
+    task_counts[task] += 1
+
+queries_path.write_text(
+    json.dumps(
+        {
+            "schema": "elf.live_baseline.queries/v1",
+            "profile": profile,
+            "corpus_track": corpus_track,
+            "manifest_schema": manifest["schema"],
+            "manifest_id": manifest_id,
+            "document_count": len(evidence_by_id),
+            "queries": queries,
+        },
+        indent=2,
+    )
+    + "\n",
+    encoding="utf-8",
+)
+
+summary_path.write_text(
+    json.dumps(
+        {
+            "schema": "elf.production_corpus_summary/v1",
+            "corpus_track": corpus_track,
+            "manifest_schema": manifest["schema"],
+            "manifest_id": manifest_id,
+            "document_count": len(evidence_by_id),
+            "query_count": len(queries),
+            "category_counts": dict(sorted(category_counts.items())),
+            "task_counts": dict(sorted(task_counts.items())),
+            "evidence_ids": sorted(evidence_by_id),
+            "query_evidence": [
+                {
+                    "query_id": query["id"],
+                    "task": query["task"],
+                    "expected_evidence_ids": query["expected_evidence_ids"],
+                    "allowed_alternate_evidence_ids": query["allowed_alternate_evidence_ids"],
+                }
+                for query in queries
+            ],
+        },
+        indent=2,
+    )
+    + "\n",
+    encoding="utf-8",
+)
+PY
+
+  CORPUS_TRACK="$(jq -r '.corpus_track' "${corpus_summary}")"
+  CORPUS_MANIFEST_ID="$(jq -r '.manifest_id' "${corpus_summary}")"
+  CORPUS_PATH_DESCRIPTION="production corpus materialized in Docker under /bench/corpus"
+}
+
 rm -rf "${WORK_DIR}"
 mkdir -p "${REPORT_DIR}"
 find "${REPORT_DIR}" -maxdepth 1 -type f -delete
 mkdir -p "${REPOS_DIR}" "${CORPUS_DIR}" "${HOME_DIR}"
 : >"${RECORDS}"
 
-generate_corpus
+case "${CORPUS_PROFILE}" in
+  production-synthetic | production-private)
+    prepare_production_corpus
+    ;;
+  *)
+    generate_corpus
+    ;;
+esac
 DOCUMENT_COUNT="$(find "${CORPUS_DIR}" -maxdepth 1 -type f -name '*.md' | wc -l | tr -d ' ')"
 QUERY_COUNT="$(jq '.queries | length' "${REPORT_DIR}/queries.json")"
 
@@ -243,6 +505,8 @@ json_record() {
         command_summary: $command_summary,
         elapsed_seconds: $elapsed_seconds,
         embedding: ($checks[0].embedding // null),
+        query_summary: ($checks[0].query_summary // null),
+        queries: ($checks[0].queries // null),
         check_summary: $checks[0].check_summary,
         checks: $checks[0].checks
       }' >>"${RECORDS}"
@@ -267,6 +531,8 @@ json_record() {
         log_path: $log_path,
         command_summary: $command_summary,
         elapsed_seconds: $elapsed_seconds,
+        query_summary: null,
+        queries: null,
         check_summary: {
           total: 1,
           pass: (if $retrieval_status == "retrieval_pass" then 1 else 0 end),
@@ -333,6 +599,9 @@ finish_report() {
     --arg run_id "${RUN_ID}" \
     --arg project_filter "${PROJECT_FILTER}" \
     --arg corpus_profile "${CORPUS_PROFILE}" \
+    --arg corpus_track "${CORPUS_TRACK}" \
+    --arg corpus_path "${CORPUS_PATH_DESCRIPTION}" \
+    --arg corpus_manifest_id "${CORPUS_MANIFEST_ID}" \
     --argjson document_count "${DOCUMENT_COUNT}" \
     --argjson query_count "${QUERY_COUNT}" \
     --arg generated_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
@@ -344,9 +613,11 @@ finish_report() {
       project_filter: $project_filter,
       corpus: {
         profile: $corpus_profile,
+        track: $corpus_track,
+        manifest_id: (if $corpus_manifest_id == "" then null else $corpus_manifest_id end),
         document_count: $document_count,
         query_count: $query_count,
-        path: "generated in Docker under /bench/corpus",
+        path: $corpus_path,
         query_file: "tmp/live-baseline/queries.json"
       },
       verdict: (
@@ -373,6 +644,14 @@ finish_report() {
         pass: ([.[] | .check_summary.pass // 0] | add // 0),
         fail: ([.[] | .check_summary.fail // 0] | add // 0),
         incomplete: ([.[] | .check_summary.incomplete // 0] | add // 0)
+      },
+      wrong_result_count: ([.[] | .query_summary.wrong_result_count // .query_summary.fail // 0] | add // 0),
+      latency_ms: {
+        total: ([.[] | .query_summary.latency_ms_total // 0] | add // 0),
+        mean: (
+          [.[] | select(.query_summary != null) | .query_summary.latency_ms_mean // 0] as $means
+          | if ($means | length) == 0 then 0 else (($means | add) / ($means | length)) end
+        )
       },
       projects: .
     }' "${RECORDS}" >"${REPORT}"
@@ -419,7 +698,7 @@ project_elf() {
   if run_cmd "${project}: same-corpus retrieval" 1200 "${log_path}" \
     "cd '${ROOT_DIR}' && cargo run -p elf-eval --bin live_baseline_elf -- --config config/local/elf.docker.toml --corpus '${CORPUS_DIR}' --queries '${REPORT_DIR}/queries.json' --out '${result_path}'"; then
     if [[ -s "${result_path}" ]] && jq -e '.checks and .check_summary' "${result_path}" >/dev/null 2>&1; then
-      jq '{embedding, check_summary, checks}' "${result_path}" >"${REPORT_DIR}/${project}-checks.json"
+      jq '{embedding, query_summary: .summary, queries, check_summary, checks}' "${result_path}" >"${REPORT_DIR}/${project}-checks.json"
     fi
     if [[ -s "${result_path}" ]] && jq -e --argjson document_count "${DOCUMENT_COUNT}" --argjson query_count "${QUERY_COUNT}" '
       .schema == "elf.live_baseline.elf_result/v1" and
