@@ -37,6 +37,8 @@ Question this index answers: "what must remain true?"
   proposal contract over immutable source evidence.
 - `system_competitive_parity_gate_v1.md`: Docker-only adoption gate that decides
   whether ELF meets or exceeds selected external memory-system baselines.
+- `production_corpus_manifest_v1.md`: Sanitized/private coding-agent production
+  corpus manifest schema for adoption benchmark runs.
 
 ## Spec document contract
 
