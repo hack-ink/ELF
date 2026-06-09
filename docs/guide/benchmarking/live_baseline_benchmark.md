@@ -204,8 +204,11 @@ synthetic or private production-corpus results. Each project record includes
 that distinguishes real, mocked, unsupported, blocked, incomplete, and not-encoded
 behavior surfaces. ELF project records also include an `embedding` summary so
 deterministic local and production-provider runs are not confused. ELF query records
-include task, expected evidence IDs, allowed alternate evidence IDs, top evidence ID,
-wrong-result count, and per-query latency. Each project record also includes
+include task, trace ID, expected evidence IDs, allowed alternate evidence IDs, top
+evidence ID, wrong-result count, and per-query latency. Each ELF trace ID can be opened
+from the admin viewer at `/viewer` by loading it in the Traces panel; the full trace
+bundle shows stage-level candidates, rerank terms, relation context, and provider
+metadata without raw SQL. Each project record also includes
 `backfill` evidence with source count, completed count, batch size, worker
 concurrency, resume state, duplicate-source count, and backfill elapsed seconds. Each
 project record also includes `checks` and `check_summary`; the aggregate
