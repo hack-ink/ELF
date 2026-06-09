@@ -150,6 +150,30 @@ count, and Qdrant rebuild case/pass counts. The fixtures include negative traps 
 unsupported prior claims, stale deleted facts, cross-project preference leakage, and
 private/redacted text leakage.
 
+Operator debugging UX increment:
+
+```sh
+cargo make real-world-job-operator-ux
+```
+
+Artifacts:
+
+```text
+tmp/real-world-job/real-world-job-operator-ux-report.json
+tmp/real-world-job/real-world-job-operator-ux-report.md
+```
+
+The operator UX fixtures live under
+`apps/elf-eval/fixtures/real_world_job/operator_debugging_ux/`. They cover dropped
+expected evidence, rerank promotion of a bad candidate, provider latency or failure,
+Qdrant rebuild result changes, and misleading relation context. Reports include direct
+viewer and admin trace bundle links, steps to root cause, whether raw SQL was needed,
+dropped-candidate visibility, trace completeness, repair-action clarity, and any
+encoded UX gaps.
+
+Checked-in evidence snapshot:
+`docs/guide/benchmarking/2026-06-09-operator-debugging-ux-report.md`.
+
 Do not generate large fixtures or update production-adoption verdicts while adding the
 contract. The current adoption gate remains an existing benchmark decision until new
 real-world job reports are implemented and published.

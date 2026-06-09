@@ -23,6 +23,10 @@ fn real_world_memory_fixture_dir() -> PathBuf {
 	Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures").join("real_world_memory")
 }
 
+fn operator_debug_fixture_dir() -> PathBuf {
+	fixture_root().join("operator_debugging_ux")
+}
+
 fn run_json_report_from(fixtures: PathBuf) -> Result<Value> {
 	let output = Command::new(env!("CARGO_BIN_EXE_real_world_job_benchmark"))
 		.arg("run")
@@ -99,7 +103,47 @@ fn smoke_fixture_produces_typed_json_report() -> Result<()> {
 fn runner_discovers_nested_fixture_layout() -> Result<()> {
 	let report = run_json_report_from(fixture_root())?;
 
-	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(1));
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(6));
+
+	let suites = array_at(&report, "/suites")?;
+	let operator_suite = find_by_field(suites, "/suite_id", "operator_debugging_ux")?;
+
+	assert_eq!(operator_suite.pointer("/encoded_job_count").and_then(Value::as_u64), Some(5));
+
+	Ok(())
+}
+
+#[test]
+fn operator_debug_fixture_reports_trace_links_and_failure_details() -> Result<()> {
+	let report = run_json_report_from(operator_debug_fixture_dir())?;
+
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(5));
+	assert_eq!(
+		report.pointer("/summary/operator_debug_job_count").and_then(Value::as_u64),
+		Some(5)
+	);
+	assert_eq!(report.pointer("/summary/raw_sql_needed_count").and_then(Value::as_u64), Some(0));
+	assert_eq!(report.pointer("/summary/trace_incomplete_count").and_then(Value::as_u64), Some(0));
+	assert_eq!(report.pointer("/summary/operator_ux_gap_count").and_then(Value::as_u64), Some(0));
+	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(4));
+	assert_eq!(report.pointer("/summary/unsupported_claim").and_then(Value::as_u64), Some(1));
+
+	let jobs = array_at(&report, "/jobs")?;
+	let dropped = find_by_field(jobs, "/job_id", "operator-debug-dropped-evidence-001")?;
+
+	assert_eq!(dropped.pointer("/status").and_then(Value::as_str), Some("unsupported_claim"));
+	assert_eq!(
+		dropped.pointer("/operator_debug/raw_sql_needed").and_then(Value::as_bool),
+		Some(false)
+	);
+	assert_eq!(
+		dropped.pointer("/operator_debug/dropped_candidate_visibility").and_then(Value::as_str),
+		Some("visible in Retrieval Funnel and Replay Candidates")
+	);
+	assert_eq!(
+		dropped.pointer("/operator_debug/viewer_url").and_then(Value::as_str),
+		Some("/viewer?trace_id=11111111-1111-4111-8111-111111111111")
+	);
 
 	Ok(())
 }
@@ -135,6 +179,7 @@ fn generated_json_report_renders_markdown() -> Result<()> {
 	assert!(markdown.contains("# Real-World Job Benchmark Report"));
 	assert!(markdown.contains("work_resume"));
 	assert!(markdown.contains("issue-xy812-resume"));
+	assert!(markdown.contains("## Operator Debugging UX"));
 	assert!(markdown.contains("Existing live-baseline reports remain valid"));
 
 	Ok(())
@@ -185,6 +230,44 @@ fn real_world_memory_fixtures_report_trust_and_personalization_metrics() -> Resu
 	assert_eq!(redaction.pointer("/redaction_leak_count").and_then(Value::as_u64), Some(0));
 	assert_eq!(personalization.pointer("/scope_check_count").and_then(Value::as_u64), Some(1));
 	assert_eq!(personalization.pointer("/scope_correct_count").and_then(Value::as_u64), Some(1));
+
+	Ok(())
+}
+
+#[test]
+fn operator_debug_json_report_renders_markdown_links() -> Result<()> {
+	let report = run_json_report_from(operator_debug_fixture_dir())?;
+	let temp_dir =
+		env::temp_dir().join(format!("elf-real-world-job-operator-test-{}", process::id()));
+
+	fs::create_dir_all(&temp_dir)?;
+
+	let report_path = temp_dir.join("operator.json");
+	let markdown_path = temp_dir.join("operator.md");
+
+	fs::write(&report_path, serde_json::to_vec_pretty(&report)?)?;
+
+	let output = Command::new(env!("CARGO_BIN_EXE_real_world_job_benchmark"))
+		.arg("publish")
+		.arg("--report")
+		.arg(&report_path)
+		.arg("--out")
+		.arg(&markdown_path)
+		.output()?;
+
+	assert!(
+		output.status.success(),
+		"real_world_job publisher failed: {}",
+		String::from_utf8_lossy(&output.stderr),
+	);
+
+	let markdown = fs::read_to_string(markdown_path)?;
+
+	assert!(markdown.contains("operator-debug-dropped-evidence-001"));
+	assert!(markdown.contains("/viewer?trace_id=11111111-1111-4111-8111-111111111111"));
+	assert!(markdown.contains("Raw SQL"));
+	assert!(markdown.contains("Replay Candidates"));
+	assert!(markdown.contains("Root cause"));
 
 	Ok(())
 }
