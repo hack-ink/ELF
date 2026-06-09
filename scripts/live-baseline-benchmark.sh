@@ -14,12 +14,32 @@ PROJECT_FILTER="${ELF_BASELINE_PROJECTS:-all}"
 CORPUS_PROFILE="${ELF_BASELINE_PROFILE:-smoke}"
 SCALE_DOC_COUNT="${ELF_BASELINE_SCALE_DOCS:-120}"
 STRESS_DOC_COUNT="${ELF_BASELINE_STRESS_DOCS:-480}"
+BACKFILL_DOC_COUNT="${ELF_BASELINE_BACKFILL_DOCS:-2000}"
 QUERY_TOP_K="${ELF_BASELINE_TOP_K:-10}"
 CURRENT_PROJECT_STARTED_AT=""
 PRODUCTION_SYNTHETIC_MANIFEST="${ROOT_DIR}/apps/elf-eval/fixtures/production_corpus/synthetic_coding_agent_manifest.json"
 CORPUS_TRACK="generated_public"
 CORPUS_PATH_DESCRIPTION="generated in Docker under /bench/corpus"
 CORPUS_MANIFEST_ID=""
+
+elf_timeout_seconds() {
+  if [[ -n "${ELF_BASELINE_ELF_TIMEOUT_SECONDS:-}" ]]; then
+    echo "${ELF_BASELINE_ELF_TIMEOUT_SECONDS}"
+    return
+  fi
+
+  case "${CORPUS_PROFILE}" in
+    backfill | large)
+      echo 3600
+      ;;
+    stress)
+      echo 1800
+      ;;
+    *)
+      echo 1200
+      ;;
+  esac
+}
 
 if [[ ! -f "/.dockerenv" && "${ELF_BASELINE_ALLOW_HOST:-0}" != "1" ]]; then
   echo "Refusing to run live baseline benchmark outside Docker. Use cargo make baseline-live-docker." >&2
@@ -34,16 +54,17 @@ for cmd in bash cargo git jq node npm python3 rg timeout; do
 done
 
 generate_corpus() {
-  python3 - "${CORPUS_PROFILE}" "${SCALE_DOC_COUNT}" "${STRESS_DOC_COUNT}" "${CORPUS_DIR}" "${REPORT_DIR}/queries.json" <<'PY'
+  python3 - "${CORPUS_PROFILE}" "${SCALE_DOC_COUNT}" "${STRESS_DOC_COUNT}" "${BACKFILL_DOC_COUNT}" "${CORPUS_DIR}" "${REPORT_DIR}/queries.json" <<'PY'
 import json
 import sys
 from pathlib import Path
 
-profile, scale_doc_count_raw, stress_doc_count_raw, corpus_dir_raw, queries_path_raw = sys.argv[1:]
+profile, scale_doc_count_raw, stress_doc_count_raw, backfill_doc_count_raw, corpus_dir_raw, queries_path_raw = sys.argv[1:]
 corpus_dir = Path(corpus_dir_raw)
 queries_path = Path(queries_path_raw)
 scale_doc_count = int(scale_doc_count_raw)
 stress_doc_count = int(stress_doc_count_raw)
+backfill_doc_count = int(backfill_doc_count_raw)
 
 anchors = [
     {
@@ -120,10 +141,13 @@ elif profile in {"scale", "full"}:
 elif profile == "stress":
     docs = list(anchors)
     target_count = max(stress_doc_count, len(anchors))
+elif profile in {"backfill", "large"}:
+    docs = list(anchors)
+    target_count = max(backfill_doc_count, len(anchors))
 else:
     raise SystemExit(f"unsupported ELF_BASELINE_PROFILE={profile!r}")
 
-if profile in {"scale", "full", "stress"}:
+if profile in {"scale", "full", "stress", "backfill", "large"}:
     topics = [
         "scheduler dry run budget window",
         "operator dashboard cache refresh",
@@ -173,7 +197,7 @@ for doc in query_docs:
             "allowed_alternate_evidence_ids": [],
         }
     )
-    if profile == "stress":
+    if profile in {"stress", "backfill", "large"}:
         queries.append(
             {
                 "id": f"q-{base_id}-alt",
@@ -507,6 +531,7 @@ json_record() {
         embedding: ($checks[0].embedding // null),
         query_summary: ($checks[0].query_summary // null),
         queries: ($checks[0].queries // null),
+        backfill: ($checks[0].backfill // null),
         check_summary: $checks[0].check_summary,
         checks: $checks[0].checks
       }' >>"${RECORDS}"
@@ -533,6 +558,7 @@ json_record() {
         elapsed_seconds: $elapsed_seconds,
         query_summary: null,
         queries: null,
+        backfill: null,
         check_summary: {
           total: 1,
           pass: (if $retrieval_status == "retrieval_pass" then 1 else 0 end),
@@ -695,10 +721,10 @@ project_elf() {
     head="$(git -C "${ROOT_DIR}" rev-parse HEAD 2>>"${log_path}" || echo "unknown")"
   fi
 
-  if run_cmd "${project}: same-corpus retrieval" 1200 "${log_path}" \
+  if run_cmd "${project}: same-corpus retrieval" "$(elf_timeout_seconds)" "${log_path}" \
     "cd '${ROOT_DIR}' && cargo run -p elf-eval --bin live_baseline_elf -- --config config/local/elf.docker.toml --corpus '${CORPUS_DIR}' --queries '${REPORT_DIR}/queries.json' --out '${result_path}'"; then
     if [[ -s "${result_path}" ]] && jq -e '.checks and .check_summary' "${result_path}" >/dev/null 2>&1; then
-      jq '{embedding, query_summary: .summary, queries, check_summary, checks}' "${result_path}" >"${REPORT_DIR}/${project}-checks.json"
+      jq '{embedding, query_summary: .summary, queries, backfill, check_summary, checks}' "${result_path}" >"${REPORT_DIR}/${project}-checks.json"
     fi
     if [[ -s "${result_path}" ]] && jq -e --argjson document_count "${DOCUMENT_COUNT}" --argjson query_count "${QUERY_COUNT}" '
       .schema == "elf.live_baseline.elf_result/v1" and
@@ -707,13 +733,20 @@ project_elf() {
       .summary.fail == 0 and
       .check_summary.fail == 0 and
       .check_summary.incomplete == 0 and
+      .backfill.source_count == $document_count and
+      .backfill.completed_count == $document_count and
+      (.backfill.duplicate_source_notes | length) == 0 and
+      (
+        .backfill.resume.enabled == false or
+        (.backfill.resume.interrupted == true and .backfill.resume.resume_attempts >= 2)
+      ) and
       .indexing.note_count == $document_count and
       .indexing.rebuild_rebuilt_count >= $document_count and
       .indexing.rebuild_error_count == 0
     ' "${result_path}" >/dev/null; then
       json_record "${project}" "${repo}" "${head}" "pass" "retrieval_pass" \
         "$(jq -r '.reason' "${result_path}")" \
-        "${project}.log" "add_note; worker outbox indexing; rebuild_qdrant; search_raw; concurrent writes; soak stability"
+        "${project}.log" "checkpointed add_note backfill; bounded worker outbox indexing; rebuild_qdrant; search_raw; concurrent writes; soak stability"
       return
     fi
 
@@ -721,19 +754,19 @@ project_elf() {
       json_record "${project}" "${repo}" "${head}" "$(jq -r '.status // "fail"' "${result_path}")" \
         "$(jq -r '.retrieval_status // "retrieval_failed"' "${result_path}")" \
         "$(jq -r '.reason // "ELF result did not satisfy live baseline pass criteria"' "${result_path}")" \
-        "${project}.log" "add_note; worker outbox indexing; rebuild_qdrant; search_raw; concurrent writes; soak stability"
+        "${project}.log" "checkpointed add_note backfill; bounded worker outbox indexing; rebuild_qdrant; search_raw; concurrent writes; soak stability"
       return
     fi
 
     json_record "${project}" "${repo}" "${head}" "fail" "runtime_failed" \
       "ELF command completed but did not write a valid live-baseline result; inspect ELF.log for the runtime error" \
-      "${project}.log" "add_note; worker outbox indexing; rebuild_qdrant; search_raw; concurrent writes; soak stability"
+      "${project}.log" "checkpointed add_note backfill; bounded worker outbox indexing; rebuild_qdrant; search_raw; concurrent writes; soak stability"
     return
   fi
 
   json_record "${project}" "${repo}" "${head}" "fail" "runtime_failed" \
     "ELF same-corpus retrieval command failed in Docker" \
-    "${project}.log" "add_note; worker outbox indexing; rebuild_qdrant; search_raw; concurrent writes; soak stability"
+    "${project}.log" "checkpointed add_note backfill; bounded worker outbox indexing; rebuild_qdrant; search_raw; concurrent writes; soak stability"
 }
 
 project_agentmemory() {
