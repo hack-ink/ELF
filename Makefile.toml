@@ -355,6 +355,57 @@ args = [
 ]
 
 
+# Real-world job benchmark smoke
+# | task                        | type      | cwd |
+# | --------------------------- | --------- | --- |
+# | real-world-job-smoke        | composite |     |
+# | real-world-job-smoke-json   | command   |     |
+# | real-world-job-smoke-report | command   |     |
+
+[tasks.real-world-job-smoke]
+workspace = false
+dependencies = [
+	"real-world-job-smoke-report",
+]
+
+[tasks.real-world-job-smoke-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_job/smoke",
+	"--out",
+	"tmp/real-world-job/real-world-job-smoke-report.json",
+]
+
+[tasks.real-world-job-smoke-report]
+workspace = false
+dependencies = [
+	"real-world-job-smoke-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-job/real-world-job-smoke-report.json",
+	"--out",
+	"tmp/real-world-job/real-world-job-smoke-report.md",
+]
+
+
 # Meta
 # | task   | type      | cwd |
 # | ------ | --------- | --- |
