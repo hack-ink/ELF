@@ -1,0 +1,107 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "operator-debug-provider-latency-001",
+  "suite": "operator_debugging_ux",
+  "title": "Debug provider latency degrading retrieval quality",
+  "corpus": {
+    "corpus_id": "operator-debugging-ux-2026-06-09",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "trace-provider-timeout",
+        "kind": "trace",
+        "text": "Trace 33333333-3333-4333-8333-333333333333 records provider metadata with embedding provider latency near timeout and expansion fallback to the original query only.",
+        "source_ref": {"schema": "source_ref/v1", "resolver": "real_world_job_fixture/v1", "ref": {"fixture": "operator_debugging_ux", "evidence_id": "trace-provider-timeout"}},
+        "created_at": "2026-06-09T02:10:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_operator_ux",
+      "answer": {
+        "content": "Provider latency caused expansion fallback to the original query only, which reduced candidate recall.",
+        "claims": [
+          {
+            "claim_id": "root_cause",
+            "text": "Provider latency caused expansion fallback to the original query only.",
+            "evidence_ids": ["trace-provider-timeout"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["trace-provider-timeout"],
+        "latency_ms": 4.8,
+        "cost": {"currency": "USD", "amount": 0.0, "input_tokens": 0, "output_tokens": 0}
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "provider-timeout-recorded",
+      "ts": "2026-06-09T02:10:00Z",
+      "actor": "system",
+      "action": "captured_trace",
+      "evidence_ids": ["trace-provider-timeout"],
+      "summary": "Provider metadata and stage details recorded degraded expansion behavior."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Why did recall get worse during the slow provider window?",
+    "job_mode": "debug",
+    "constraints": ["cite_evidence", "state_blockers"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "root_cause",
+        "text": "Provider latency caused expansion fallback to the original query only."
+      }
+    ],
+    "must_not_include": ["The corpus did not contain the expected evidence."],
+    "evidence_links": {"root_cause": ["trace-provider-timeout"]},
+    "answer_type": "debug_report",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "trace-provider-timeout",
+      "claim_id": "root_cause",
+      "requirement": "explain",
+      "quote": "embedding provider latency near timeout and expansion fallback to the original query only"
+    }
+  ],
+  "negative_traps": [],
+  "scoring_rubric": {
+    "dimensions": {
+      "debuggability": {"weight": 0.35, "max_points": 1.0, "criteria": "Uses provider and stage metadata."},
+      "evidence_grounding": {"weight": 0.3, "max_points": 1.0, "criteria": "Cites trace provider metadata."},
+      "workflow_helpfulness": {"weight": 0.2, "max_points": 1.0, "criteria": "Suggests timeout or provider health repair."},
+      "latency_resource": {"weight": 0.15, "max_points": 1.0, "criteria": "Reports latency as part of the root cause."}
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": ["unsupported high-confidence claim about a required decision or fact"]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": ["The fixture does not provide that evidence."],
+    "fallback_action": "state_blocker"
+  },
+  "operator_debug": {
+    "failure_mode": "provider_latency_or_failure",
+    "trace_id": "33333333-3333-4333-8333-333333333333",
+    "viewer_url": "/viewer?trace_id=33333333-3333-4333-8333-333333333333",
+    "admin_trace_bundle_url": "/v2/admin/traces/33333333-3333-4333-8333-333333333333/bundle?mode=full&stage_items_limit=128&candidates_limit=200",
+    "root_cause": "Provider latency forced fallback behavior, shrinking expanded-query recall.",
+    "steps_to_root_cause": 3,
+    "raw_sql_needed": false,
+    "dropped_candidate_visibility": "visible as low recall counts rather than a post-recall drop",
+    "trace_completeness": "complete",
+    "repair_action_clarity": "clear",
+    "viewer_panels": ["Providers And Ranking", "Stage Summary", "Stage Details"],
+    "cli_steps": ["open trace bundle", "inspect provider metadata", "compare expanded queries", "raise timeout or repair provider health"],
+    "trace_evidence": ["trace-provider-timeout"],
+    "ux_gaps": []
+  },
+  "tags": ["synthetic", "operator_debugging_ux", "agentmemory_reference", "no_live_claim"]
+}
