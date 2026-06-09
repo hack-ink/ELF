@@ -702,6 +702,63 @@ args = [
 ]
 
 
+# Real-world memory knowledge benchmark
+# | task                           | type      | cwd |
+# | ------------------------------ | --------- | --- |
+# | real-world-memory-knowledge        | composite | |
+# | real-world-memory-knowledge-json   | command   | |
+# | real-world-memory-knowledge-report | command   | |
+
+[tasks.real-world-memory-knowledge]
+workspace = false
+dependencies = [
+	"real-world-memory-knowledge-report",
+]
+
+[tasks.real-world-memory-knowledge-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_memory/knowledge",
+	"--out",
+	"tmp/real-world-memory/knowledge-report.json",
+	"--run-id",
+	"real-world-memory-knowledge",
+	"--adapter-id",
+	"fixture_knowledge",
+	"--adapter-name",
+	"ELF knowledge fixture",
+]
+
+[tasks.real-world-memory-knowledge-report]
+workspace = false
+dependencies = [
+	"real-world-memory-knowledge-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-memory/knowledge-report.json",
+	"--out",
+	"tmp/real-world-memory/knowledge-report.md",
+]
+
+
 # Meta
 # | task   | type      | cwd |
 # | ------ | --------- | --- |

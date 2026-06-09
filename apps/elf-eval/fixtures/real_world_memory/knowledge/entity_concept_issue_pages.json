@@ -1,0 +1,372 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "knowledge-entity-concept-002",
+  "suite": "knowledge_compilation",
+  "title": "Compile entity, concept, and issue timeline pages with stale lint",
+  "corpus": {
+    "corpus_id": "real-world-memory-knowledge-synthetic-2026-06-09",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "qdrant-rebuild-entity",
+        "kind": "note",
+        "text": "Entity fact: Qdrant is a derived rebuildable index for ELF candidate retrieval; Postgres vectors are the source used to rebuild it.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_memory_fixture/v1",
+          "ref": {
+            "fixture": "entity_concept_issue_pages",
+            "evidence_id": "qdrant-rebuild-entity"
+          }
+        },
+        "created_at": "2026-06-09T02:00:00Z"
+      },
+      {
+        "evidence_id": "derived-pages-concept",
+        "kind": "decision",
+        "text": "Concept fact: Derived knowledge pages compile current truth, history, backlinks, and lint findings from source notes and events.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_memory_fixture/v1",
+          "ref": {
+            "fixture": "entity_concept_issue_pages",
+            "evidence_id": "derived-pages-concept"
+          }
+        },
+        "created_at": "2026-06-09T02:05:00Z"
+      },
+      {
+        "evidence_id": "xy848-current-timeline",
+        "kind": "issue",
+        "text": "Current issue timeline: XY-848 adds knowledge compilation benchmark cases and keeps generated pages pointer-backed benchmark artifacts.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_memory_fixture/v1",
+          "ref": {
+            "fixture": "entity_concept_issue_pages",
+            "evidence_id": "xy848-current-timeline"
+          }
+        },
+        "created_at": "2026-06-09T02:10:00Z"
+      },
+      {
+        "evidence_id": "old-qdrant-authoritative-trap",
+        "kind": "note",
+        "text": "Stale fact: Qdrant became the authoritative source for compiled knowledge pages.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_memory_fixture/v1",
+          "ref": {
+            "fixture": "entity_concept_issue_pages",
+            "evidence_id": "old-qdrant-authoritative-trap"
+          }
+        },
+        "created_at": "2026-06-08T02:00:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_knowledge",
+      "answer": {
+        "content": "Generated entity, concept, and issue timeline pages cite Qdrant rebuild evidence, derived-page concept evidence, and the current XY-848 timeline; stale Qdrant-authoritative text is linted, and one rebuild explains allowed ordering variance.",
+        "claims": [
+          {
+            "claim_id": "qdrant_rebuild_entity",
+            "text": "The Qdrant entity page states that Qdrant is derived and rebuildable from Postgres-held vectors.",
+            "evidence_ids": ["qdrant-rebuild-entity"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "derived_pages_concept",
+            "text": "The derived-pages concept page compiles current truth, history, backlinks, and lint findings from source notes and events.",
+            "evidence_ids": ["derived-pages-concept"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "issue_timeline_current",
+            "text": "The XY-848 issue timeline page records that generated pages are pointer-backed benchmark artifacts.",
+            "evidence_ids": ["xy848-current-timeline"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": [
+          "qdrant-rebuild-entity",
+          "derived-pages-concept",
+          "xy848-current-timeline"
+        ],
+        "pages": [
+          {
+            "page_id": "entity:qdrant-rebuild",
+            "page_type": "entity",
+            "title": "Qdrant Rebuild Entity Page",
+            "path": "apps/elf-eval/fixtures/real_world_memory/knowledge/pages/entity_qdrant_rebuild.md",
+            "sections": [
+              {
+                "section_id": "current-truth",
+                "heading": "Current Truth",
+                "role": "current_truth",
+                "content": "Qdrant is derived and rebuildable; Postgres vectors remain the source used for rebuild.",
+                "evidence_ids": ["qdrant-rebuild-entity"],
+                "timeline_event_ids": ["qdrant-current-fact"]
+              },
+              {
+                "section_id": "history",
+                "heading": "History",
+                "role": "history",
+                "content": "The stale claim that Qdrant became authoritative is recorded only as lint evidence.",
+                "evidence_ids": ["old-qdrant-authoritative-trap"],
+                "timeline_event_ids": ["qdrant-stale-fact"]
+              }
+            ],
+            "backlinks": [
+              "project:elf-benchmark-suite",
+              "concept:derived-knowledge-pages"
+            ],
+            "lint_findings": [
+              {
+                "finding_id": "lint-old-qdrant-authoritative",
+                "finding_type": "stale_claim",
+                "severity": "error",
+                "text": "The old Qdrant-authoritative claim conflicts with the current derived-index evidence.",
+                "evidence_ids": ["old-qdrant-authoritative-trap"],
+                "trap_id": "old-qdrant-authoritative"
+              }
+            ],
+            "rebuild": {
+              "first_hash": "blake3:2ac0d7d7e03088fe3171e41c19f3ea1097b07b1d7ddc891f9aa81311d476e001",
+              "second_hash": "blake3:2ac0d7d7e03088fe3171e41c19f3ea1097b07b1d7ddc891f9aa81311d476e001",
+              "deterministic": true,
+              "allowed_variance": []
+            }
+          },
+          {
+            "page_id": "concept:derived-knowledge-pages",
+            "page_type": "concept",
+            "title": "Derived Knowledge Pages Concept Page",
+            "path": "apps/elf-eval/fixtures/real_world_memory/knowledge/pages/concept_derived_knowledge_pages.md",
+            "sections": [
+              {
+                "section_id": "compiled-truth",
+                "heading": "Compiled Truth",
+                "role": "current_truth",
+                "content": "Derived knowledge pages compile current truth, history, backlinks, and lint findings from source notes and events.",
+                "evidence_ids": ["derived-pages-concept"],
+                "timeline_event_ids": ["derived-pages-concept-recorded"]
+              },
+              {
+                "section_id": "backlinks",
+                "heading": "Backlinks",
+                "role": "backlinks",
+                "content": "The concept links to the Qdrant rebuild entity and the XY-848 issue timeline.",
+                "evidence_ids": ["derived-pages-concept", "xy848-current-timeline"],
+                "timeline_event_ids": ["xy848-current-scope"]
+              }
+            ],
+            "backlinks": [
+              "entity:qdrant-rebuild",
+              "issue:xy848-knowledge-pages"
+            ],
+            "lint_findings": [],
+            "rebuild": {
+              "first_hash": "blake3:498016f1d39a6a0a5241b0c640c30f0720eb9dbdd73b167fdce95b4387d9699a",
+              "second_hash": "blake3:498016f1d39a6a0a5241b0c640c30f0720eb9dbdd73b167fdce95b4387d9699b",
+              "deterministic": false,
+              "allowed_variance": [
+                "Backlink order may differ before canonical sort is applied; fixture report records the variance and still compares normalized page sections."
+              ]
+            }
+          },
+          {
+            "page_id": "issue:xy848-knowledge-pages",
+            "page_type": "issue_timeline",
+            "title": "XY-848 Knowledge Pages Issue Timeline",
+            "path": "apps/elf-eval/fixtures/real_world_memory/knowledge/pages/issue_xy848_knowledge_pages.md",
+            "sections": [
+              {
+                "section_id": "current-state",
+                "heading": "Current State",
+                "role": "current_truth",
+                "content": "XY-848 adds knowledge compilation benchmark cases and marks generated pages as pointer-backed benchmark artifacts.",
+                "evidence_ids": ["xy848-current-timeline"],
+                "timeline_event_ids": ["xy848-current-scope"]
+              },
+              {
+                "section_id": "linked-pages",
+                "heading": "Linked Pages",
+                "role": "backlinks",
+                "content": "The issue timeline links to the Qdrant rebuild entity and derived-knowledge-pages concept pages.",
+                "evidence_ids": ["qdrant-rebuild-entity", "derived-pages-concept"],
+                "timeline_event_ids": ["qdrant-current-fact", "derived-pages-concept-recorded"]
+              }
+            ],
+            "backlinks": [
+              "entity:qdrant-rebuild",
+              "concept:derived-knowledge-pages"
+            ],
+            "lint_findings": [],
+            "rebuild": {
+              "first_hash": "blake3:fed9c4af9f53e787fcb91a4900b6137d728a72b60629ca049a6da57260be682d",
+              "second_hash": "blake3:fed9c4af9f53e787fcb91a4900b6137d728a72b60629ca049a6da57260be682d",
+              "deterministic": true,
+              "allowed_variance": []
+            }
+          }
+        ],
+        "latency_ms": 3.1,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "qdrant-stale-fact",
+      "ts": "2026-06-08T02:00:00Z",
+      "actor": "agent",
+      "action": "recorded_stale_fact",
+      "evidence_ids": ["old-qdrant-authoritative-trap"],
+      "summary": "A stale note incorrectly said Qdrant became authoritative."
+    },
+    {
+      "event_id": "qdrant-current-fact",
+      "ts": "2026-06-09T02:00:00Z",
+      "actor": "agent",
+      "action": "recorded_current_fact",
+      "evidence_ids": ["qdrant-rebuild-entity"],
+      "summary": "The current Qdrant fact says it is derived and rebuildable from Postgres-held vectors."
+    },
+    {
+      "event_id": "derived-pages-concept-recorded",
+      "ts": "2026-06-09T02:05:00Z",
+      "actor": "agent",
+      "action": "recorded_concept",
+      "evidence_ids": ["derived-pages-concept"],
+      "summary": "Derived pages compile current truth, history, backlinks, and lint findings from source notes and events."
+    },
+    {
+      "event_id": "xy848-current-scope",
+      "ts": "2026-06-09T02:10:00Z",
+      "actor": "operator",
+      "action": "recorded_issue_scope",
+      "evidence_ids": ["xy848-current-timeline"],
+      "summary": "XY-848 keeps generated knowledge pages as pointer-backed benchmark artifacts."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Compile entity, concept, and issue timeline pages for the knowledge suite and identify stale claims plus rebuild variance.",
+    "job_mode": "compile",
+    "constraints": [
+      "cite_evidence",
+      "lint_stale_claims",
+      "include_backlinks",
+      "explain_allowed_rebuild_variance"
+    ]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "qdrant_rebuild_entity",
+        "text": "The Qdrant entity page states that Qdrant is derived and rebuildable from Postgres-held vectors."
+      },
+      {
+        "claim_id": "derived_pages_concept",
+        "text": "The derived-pages concept page compiles current truth, history, backlinks, and lint findings from source notes and events."
+      },
+      {
+        "claim_id": "issue_timeline_current",
+        "text": "The XY-848 issue timeline page records that generated pages are pointer-backed benchmark artifacts."
+      }
+    ],
+    "must_not_include": [
+      "Qdrant became the authoritative source for compiled knowledge pages."
+    ],
+    "evidence_links": {
+      "qdrant_rebuild_entity": ["qdrant-rebuild-entity"],
+      "derived_pages_concept": ["derived-pages-concept"],
+      "issue_timeline_current": ["xy848-current-timeline"]
+    },
+    "answer_type": "compiled_knowledge",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "qdrant-rebuild-entity",
+      "claim_id": "qdrant_rebuild_entity",
+      "requirement": "cite",
+      "quote": "Qdrant is a derived rebuildable index"
+    },
+    {
+      "evidence_id": "derived-pages-concept",
+      "claim_id": "derived_pages_concept",
+      "requirement": "cite",
+      "quote": "current truth, history, backlinks, and lint findings"
+    },
+    {
+      "evidence_id": "xy848-current-timeline",
+      "claim_id": "issue_timeline_current",
+      "requirement": "use",
+      "quote": "pointer-backed benchmark artifacts"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "old-qdrant-authoritative",
+      "type": "stale_fact",
+      "evidence_ids": ["old-qdrant-authoritative-trap"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "States current entity, concept, and issue timeline truth."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Every page section traces to source notes or timeline events."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Stale Qdrant-authoritative claim is detected as lint evidence."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Pages include backlinks and useful current-truth/history surfaces."
+      },
+      "lifecycle_behavior": {
+        "weight": 0.1,
+        "max_points": 1.0,
+        "criteria": "Rebuild records are deterministic enough or explain allowed variance."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": true,
+    "acceptable_phrases": [
+      "The fixture does not provide that evidence."
+    ],
+    "fallback_action": "cite_partial_evidence"
+  },
+  "tags": [
+    "synthetic",
+    "knowledge",
+    "no_live_claim",
+    "benchmark_artifact"
+  ]
+}

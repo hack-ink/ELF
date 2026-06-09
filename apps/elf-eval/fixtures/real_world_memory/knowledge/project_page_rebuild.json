@@ -1,0 +1,311 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "knowledge-project-page-001",
+  "suite": "knowledge_compilation",
+  "title": "Compile a pointer-backed project page with current truth and history",
+  "corpus": {
+    "corpus_id": "real-world-memory-knowledge-synthetic-2026-06-09",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "elf-knowledge-current-truth",
+        "kind": "note",
+        "text": "Current truth: The ELF knowledge benchmark must keep generated pages derived from notes and source refs; source notes stay authoritative and generated pages are not production truth.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_memory_fixture/v1",
+          "ref": {
+            "fixture": "project_page_rebuild",
+            "evidence_id": "elf-knowledge-current-truth"
+          }
+        },
+        "created_at": "2026-06-09T01:00:00Z"
+      },
+      {
+        "evidence_id": "elf-knowledge-history",
+        "kind": "decision",
+        "text": "History: The knowledge compilation suite follows llm-wiki query-save-lint, gbrain compiled_truth plus timeline, and graphify graph report patterns while preserving ELF provenance boundaries.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_memory_fixture/v1",
+          "ref": {
+            "fixture": "project_page_rebuild",
+            "evidence_id": "elf-knowledge-history"
+          }
+        },
+        "created_at": "2026-06-09T01:05:00Z"
+      },
+      {
+        "evidence_id": "xy848-issue-timeline",
+        "kind": "issue",
+        "text": "Issue timeline: XY-848 asks for project pages, entity/concept pages, issue timelines, current truth plus history, stale-claim linting, backlinks, and rebuild determinism.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_memory_fixture/v1",
+          "ref": {
+            "fixture": "project_page_rebuild",
+            "evidence_id": "xy848-issue-timeline"
+          }
+        },
+        "created_at": "2026-06-09T01:10:00Z"
+      },
+      {
+        "evidence_id": "old-authoritative-page-trap",
+        "kind": "compiled_page",
+        "text": "Stale claim: Generated knowledge pages are authoritative production truth and can replace source notes.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_memory_fixture/v1",
+          "ref": {
+            "fixture": "project_page_rebuild",
+            "evidence_id": "old-authoritative-page-trap"
+          }
+        },
+        "created_at": "2026-06-08T01:00:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_knowledge",
+      "answer": {
+        "content": "Generated benchmark page `project_elf_benchmark_suite.md` keeps ELF source notes authoritative, cites current truth and history, links the XY-848 issue timeline, flags one unsupported summary, and rebuilds deterministically.",
+        "claims": [
+          {
+            "claim_id": "derived_not_authoritative",
+            "text": "Generated knowledge pages remain derived benchmark artifacts, not authoritative production truth.",
+            "evidence_ids": ["elf-knowledge-current-truth"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "reference_patterns",
+            "text": "The page shape uses llm-wiki lint, gbrain compiled truth plus timeline, and graphify report patterns while preserving ELF provenance.",
+            "evidence_ids": ["elf-knowledge-history"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "rebuild_deterministic",
+            "text": "The project page rebuild produced the same page hash in two fixture rebuild passes.",
+            "evidence_ids": ["xy848-issue-timeline"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": [
+          "elf-knowledge-current-truth",
+          "elf-knowledge-history",
+          "xy848-issue-timeline"
+        ],
+        "pages": [
+          {
+            "page_id": "project:elf-benchmark-suite",
+            "page_type": "project",
+            "title": "ELF Benchmark Suite Knowledge Page",
+            "path": "apps/elf-eval/fixtures/real_world_memory/knowledge/pages/project_elf_benchmark_suite.md",
+            "sections": [
+              {
+                "section_id": "current-truth",
+                "heading": "Current Truth",
+                "role": "current_truth",
+                "content": "Generated knowledge pages remain derived benchmark artifacts and source notes stay authoritative.",
+                "evidence_ids": ["elf-knowledge-current-truth"],
+                "timeline_event_ids": ["knowledge-current-truth-recorded"]
+              },
+              {
+                "section_id": "history",
+                "heading": "History",
+                "role": "history",
+                "content": "The suite borrows llm-wiki lint, gbrain compiled_truth plus timeline, and graphify report ideas without copying their source-of-truth assumptions.",
+                "evidence_ids": ["elf-knowledge-history"],
+                "timeline_event_ids": ["knowledge-patterns-selected"]
+              },
+              {
+                "section_id": "issue-timeline",
+                "heading": "XY-848 Timeline",
+                "role": "timeline",
+                "content": "XY-848 requires project pages, entity/concept pages, issue timelines, current truth plus history, stale linting, backlinks, and rebuild determinism.",
+                "evidence_ids": ["xy848-issue-timeline"],
+                "timeline_event_ids": ["xy848-scope-recorded"]
+              },
+              {
+                "section_id": "unsupported-private-summary",
+                "heading": "Private Corpus Summary",
+                "role": "summary",
+                "content": "The fixture does not contain private production corpus evidence for a private-corpus knowledge-page quality claim.",
+                "evidence_ids": [],
+                "timeline_event_ids": [],
+                "unsupported_reason": "No private production corpus item is present in this synthetic benchmark fixture."
+              }
+            ],
+            "backlinks": [
+              "entity:qdrant-rebuild",
+              "concept:derived-knowledge-pages",
+              "issue:xy848-knowledge-pages"
+            ],
+            "lint_findings": [
+              {
+                "finding_id": "lint-old-authoritative-page-trap",
+                "finding_type": "stale_claim",
+                "severity": "error",
+                "text": "The stale authoritative-page claim conflicts with current source-of-truth evidence.",
+                "evidence_ids": ["old-authoritative-page-trap"],
+                "trap_id": "old-authoritative-page"
+              }
+            ],
+            "rebuild": {
+              "first_hash": "blake3:93b78a1d6e8e0f7a5c761b0c3c1e311adf3a5c0f8e0f3999d5e6f4012c4a8481",
+              "second_hash": "blake3:93b78a1d6e8e0f7a5c761b0c3c1e311adf3a5c0f8e0f3999d5e6f4012c4a8481",
+              "deterministic": true,
+              "allowed_variance": []
+            }
+          }
+        ],
+        "latency_ms": 2.5,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "knowledge-current-truth-recorded",
+      "ts": "2026-06-09T01:00:00Z",
+      "actor": "agent",
+      "action": "recorded_current_truth",
+      "evidence_ids": ["elf-knowledge-current-truth"],
+      "summary": "Current truth says generated pages are derived and source notes stay authoritative."
+    },
+    {
+      "event_id": "knowledge-patterns-selected",
+      "ts": "2026-06-09T01:05:00Z",
+      "actor": "agent",
+      "action": "selected_reference_patterns",
+      "evidence_ids": ["elf-knowledge-history"],
+      "summary": "The suite uses llm-wiki, gbrain, and graphify as reference patterns."
+    },
+    {
+      "event_id": "xy848-scope-recorded",
+      "ts": "2026-06-09T01:10:00Z",
+      "actor": "operator",
+      "action": "recorded_issue_scope",
+      "evidence_ids": ["xy848-issue-timeline"],
+      "summary": "XY-848 defines the required knowledge page benchmark dimensions."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Compile a project knowledge page for the ELF benchmark suite and report whether every section is cited or flagged unsupported.",
+    "job_mode": "compile",
+    "constraints": [
+      "cite_evidence",
+      "derived_pages_not_authoritative",
+      "flag_unsupported_sections",
+      "report_rebuild_determinism"
+    ]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "derived_not_authoritative",
+        "text": "Generated knowledge pages remain derived benchmark artifacts, not authoritative production truth."
+      },
+      {
+        "claim_id": "reference_patterns",
+        "text": "The page shape uses llm-wiki lint, gbrain compiled truth plus timeline, and graphify report patterns while preserving ELF provenance."
+      },
+      {
+        "claim_id": "rebuild_deterministic",
+        "text": "The project page rebuild produced the same page hash in two fixture rebuild passes."
+      }
+    ],
+    "must_not_include": [
+      "Generated knowledge pages are authoritative production truth.",
+      "The fixture proves private-corpus knowledge-page quality."
+    ],
+    "evidence_links": {
+      "derived_not_authoritative": ["elf-knowledge-current-truth"],
+      "reference_patterns": ["elf-knowledge-history"],
+      "rebuild_deterministic": ["xy848-issue-timeline"]
+    },
+    "answer_type": "compiled_knowledge",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "elf-knowledge-current-truth",
+      "claim_id": "derived_not_authoritative",
+      "requirement": "cite",
+      "quote": "source notes stay authoritative"
+    },
+    {
+      "evidence_id": "elf-knowledge-history",
+      "claim_id": "reference_patterns",
+      "requirement": "cite",
+      "quote": "llm-wiki query-save-lint, gbrain compiled_truth plus timeline, and graphify graph report patterns"
+    },
+    {
+      "evidence_id": "xy848-issue-timeline",
+      "claim_id": "rebuild_deterministic",
+      "requirement": "use",
+      "quote": "rebuild determinism"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "old-authoritative-page",
+      "type": "stale_fact",
+      "evidence_ids": ["old-authoritative-page-trap"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "States current derived-page truth and reference pattern rationale."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Every generated page section cites source notes/events or is flagged unsupported."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Stale authoritative-page claim is linted and not used as current truth."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Compiled page includes current truth, history, issue timeline, and backlinks."
+      },
+      "lifecycle_behavior": {
+        "weight": 0.1,
+        "max_points": 1.0,
+        "criteria": "Rebuild record is deterministic enough for regression comparison."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": true,
+    "acceptable_phrases": [
+      "The fixture does not provide that evidence."
+    ],
+    "fallback_action": "cite_partial_evidence"
+  },
+  "tags": [
+    "synthetic",
+    "knowledge",
+    "no_live_claim",
+    "benchmark_artifact"
+  ]
+}
