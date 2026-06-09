@@ -290,6 +290,7 @@ struct CheckResult {
 struct QueryResult {
 	id: String,
 	task: Option<String>,
+	trace_id: Uuid,
 	query: String,
 	expected_doc: String,
 	allowed_alternate_docs: Vec<String>,
@@ -1924,6 +1925,7 @@ async fn run_single_query(
 	Ok(QueryResult {
 		id: case.id,
 		task: case.task,
+		trace_id: response.trace_id,
 		query: case.query,
 		expected_doc: case.expected_doc,
 		allowed_alternate_docs: case.allowed_alternate_docs,
