@@ -19,6 +19,10 @@ fn fixture_root() -> PathBuf {
 	Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures").join("real_world_job")
 }
 
+fn real_world_memory_fixture_dir() -> PathBuf {
+	Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures").join("real_world_memory")
+}
+
 fn run_json_report_from(fixtures: PathBuf) -> Result<Value> {
 	let output = Command::new(env!("CARGO_BIN_EXE_real_world_job_benchmark"))
 		.arg("run")
@@ -132,6 +136,55 @@ fn generated_json_report_renders_markdown() -> Result<()> {
 	assert!(markdown.contains("work_resume"));
 	assert!(markdown.contains("issue-xy812-resume"));
 	assert!(markdown.contains("Existing live-baseline reports remain valid"));
+
+	Ok(())
+}
+
+#[test]
+fn real_world_memory_fixtures_report_trust_and_personalization_metrics() -> Result<()> {
+	let report = run_json_report_from(real_world_memory_fixture_dir())?;
+
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(4));
+	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(4));
+	assert_eq!(report.pointer("/summary/unsupported_claim_count").and_then(Value::as_u64), Some(0));
+	assert_eq!(report.pointer("/summary/stale_retrieval_count").and_then(Value::as_u64), Some(0));
+	assert_eq!(report.pointer("/summary/redaction_leak_count").and_then(Value::as_u64), Some(0));
+	assert_eq!(report.pointer("/summary/scope_check_count").and_then(Value::as_u64), Some(1));
+	assert_eq!(report.pointer("/summary/scope_correct_count").and_then(Value::as_u64), Some(1));
+	assert_eq!(report.pointer("/summary/scope_violation_count").and_then(Value::as_u64), Some(0));
+	assert_eq!(
+		report.pointer("/summary/qdrant_rebuild_case_count").and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
+		report.pointer("/summary/qdrant_rebuild_pass_count").and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(report.pointer("/summary/evidence_required_count").and_then(Value::as_u64), Some(8));
+	assert_eq!(report.pointer("/summary/evidence_covered_count").and_then(Value::as_u64), Some(8));
+	assert_eq!(report.pointer("/summary/evidence_coverage").and_then(Value::as_f64), Some(1.0));
+	assert_eq!(report.pointer("/summary/source_ref_coverage").and_then(Value::as_f64), Some(1.0));
+	assert_eq!(report.pointer("/summary/quote_coverage").and_then(Value::as_f64), Some(1.0));
+
+	let suites = array_at(&report, "/suites")?;
+
+	for suite_id in
+		["trust_source_of_truth", "memory_evolution", "capture_integration", "personalization"]
+	{
+		let suite = find_by_field(suites, "/suite_id", suite_id)?;
+
+		assert_eq!(suite.pointer("/status").and_then(Value::as_str), Some("pass"));
+	}
+
+	let jobs = array_at(&report, "/jobs")?;
+	let rebuild = find_by_field(jobs, "/job_id", "trust-sot-rebuild-001")?;
+	let redaction = find_by_field(jobs, "/job_id", "capture-redaction-exclusion-001")?;
+	let personalization = find_by_field(jobs, "/job_id", "personalization-scoped-preference-001")?;
+
+	assert_eq!(rebuild.pointer("/qdrant_rebuild_case").and_then(Value::as_bool), Some(true));
+	assert_eq!(redaction.pointer("/redaction_leak_count").and_then(Value::as_u64), Some(0));
+	assert_eq!(personalization.pointer("/scope_check_count").and_then(Value::as_u64), Some(1));
+	assert_eq!(personalization.pointer("/scope_correct_count").and_then(Value::as_u64), Some(1));
 
 	Ok(())
 }

@@ -125,6 +125,31 @@ id, job id, expected evidence, produced answer/evidence, unsupported-claim count
 wrong-result count, latency/cost fields when available, and typed suite/job statuses.
 Untouched suites remain `not_encoded`.
 
+Current checked-in trust and personalization increment:
+
+```sh
+cargo make real-world-memory
+```
+
+This parses `apps/elf-eval/fixtures/real_world_memory/`, writes
+`tmp/real-world-memory/real-world-memory-report.json`, and renders
+`tmp/real-world-memory/real-world-memory-report.md`.
+
+The suite currently encodes:
+
+- `trust_source_of_truth`: evidence binding, source refs, and Qdrant rebuild from
+  Postgres-held chunk embeddings before answering.
+- `memory_evolution`: TTL/delete suppression for a stale deleted fact.
+- `capture_integration`: write-policy audit behavior for redaction/private exclusion.
+- `personalization`: scoped stable preference correction without temporary or
+  cross-project preference leakage.
+
+The generated report includes evidence coverage, source-ref coverage, quote coverage,
+unsupported-claim count, stale retrieval count, scope correctness, redaction leak
+count, and Qdrant rebuild case/pass counts. The fixtures include negative traps for
+unsupported prior claims, stale deleted facts, cross-project preference leakage, and
+private/redacted text leakage.
+
 Do not generate large fixtures or update production-adoption verdicts while adding the
 contract. The current adoption gate remains an existing benchmark decision until new
 real-world job reports are implemented and published.

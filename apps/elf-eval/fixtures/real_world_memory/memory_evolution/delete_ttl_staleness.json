@@ -1,0 +1,200 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "memory-evolution-delete-ttl-001",
+  "suite": "memory_evolution",
+  "title": "Suppress a deleted temporary fact and answer with the current memory",
+  "corpus": {
+    "corpus_id": "real-world-memory-evolution-2026-06-09",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "deleted-temp-plan",
+        "kind": "note",
+        "text": "Deleted temporary plan: use the old Redis cache branch for the next benchmark report.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "delete_ttl_staleness",
+            "evidence_id": "deleted-temp-plan"
+          }
+        },
+        "created_at": "2026-06-08T02:00:00Z"
+      },
+      {
+        "evidence_id": "delete-tombstone",
+        "kind": "trace",
+        "text": "Lifecycle tombstone: note deleted-temp-plan expired at 2026-06-09T00:00:00Z and search must suppress it after worker DELETE outbox completion.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "delete_ttl_staleness",
+            "evidence_id": "delete-tombstone"
+          },
+          "locator": {
+            "quote": "search must suppress it after worker DELETE outbox completion"
+          }
+        },
+        "created_at": "2026-06-09T00:00:00Z"
+      },
+      {
+        "evidence_id": "current-benchmark-plan",
+        "kind": "decision",
+        "text": "Current plan: add real_world_memory trust and personalization cases, then run cargo make real-world-job-smoke and cargo make real-world-memory.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "delete_ttl_staleness",
+            "evidence_id": "current-benchmark-plan"
+          },
+          "locator": {
+            "quote": "add real_world_memory trust and personalization cases"
+          }
+        },
+        "created_at": "2026-06-09T01:30:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "elf_real_world_memory_fixture",
+      "answer": {
+        "content": "Do not use the expired Redis branch plan. The tombstone says deleted-temp-plan expired and search must suppress it after the worker DELETE outbox completes. The current plan is to add real_world_memory trust and personalization cases, then run cargo make real-world-job-smoke and cargo make real-world-memory.",
+        "claims": [
+          {
+            "claim_id": "deleted_fact_suppressed",
+            "text": "The deleted temporary plan must be suppressed after the worker DELETE outbox completes.",
+            "evidence_ids": ["delete-tombstone"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "current_plan",
+            "text": "Add real_world_memory trust and personalization cases, then run cargo make real-world-job-smoke and cargo make real-world-memory.",
+            "evidence_ids": ["current-benchmark-plan"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["delete-tombstone", "current-benchmark-plan"],
+        "latency_ms": 1.3,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "temporary-plan-recorded",
+      "ts": "2026-06-08T02:00:00Z",
+      "actor": "agent",
+      "action": "recorded_temporary_plan",
+      "evidence_ids": ["deleted-temp-plan"],
+      "summary": "The old Redis cache branch plan was temporary."
+    },
+    {
+      "event_id": "temporary-plan-expired",
+      "ts": "2026-06-09T00:00:00Z",
+      "actor": "worker",
+      "action": "deleted_memory",
+      "evidence_ids": ["delete-tombstone"],
+      "summary": "TTL expiry deleted the temporary plan and completed the DELETE outbox."
+    },
+    {
+      "event_id": "current-plan-recorded",
+      "ts": "2026-06-09T01:30:00Z",
+      "actor": "agent",
+      "action": "updated_memory",
+      "evidence_ids": ["current-benchmark-plan"],
+      "summary": "The current benchmark implementation plan superseded the deleted temporary plan."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "What is the current benchmark plan, and should the old Redis branch memory still be used?",
+    "job_mode": "answer",
+    "constraints": ["cite_evidence", "avoid_stale_deleted_facts"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "deleted_fact_suppressed",
+        "text": "The deleted temporary plan must be suppressed after the worker DELETE outbox completes."
+      },
+      {
+        "claim_id": "current_plan",
+        "text": "Add real_world_memory trust and personalization cases, then run cargo make real-world-job-smoke and cargo make real-world-memory."
+      }
+    ],
+    "must_not_include": [
+      "use the old Redis cache branch for the next benchmark report"
+    ],
+    "evidence_links": {
+      "deleted_fact_suppressed": ["delete-tombstone"],
+      "current_plan": ["current-benchmark-plan"]
+    },
+    "answer_type": "direct_answer",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "delete-tombstone",
+      "claim_id": "deleted_fact_suppressed",
+      "requirement": "cite",
+      "quote": "search must suppress it after worker DELETE outbox completion"
+    },
+    {
+      "evidence_id": "current-benchmark-plan",
+      "claim_id": "current_plan",
+      "requirement": "cite",
+      "quote": "add real_world_memory trust and personalization cases"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "stale-deleted-plan",
+      "type": "stale_fact",
+      "evidence_ids": ["deleted-temp-plan"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "lifecycle_behavior": {
+        "weight": 0.35,
+        "max_points": 1.0,
+        "criteria": "Suppresses deleted or TTL-expired memory."
+      },
+      "answer_correctness": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "States the current plan."
+      },
+      "evidence_grounding": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Cites tombstone and replacement evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Does not retrieve the stale deleted fact."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "state_blocker"
+  },
+  "tags": ["synthetic", "ttl", "delete", "stale_fact", "no_live_claim"]
+}
