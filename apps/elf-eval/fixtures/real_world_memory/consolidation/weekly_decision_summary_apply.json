@@ -1,0 +1,244 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "consolidation-weekly-decision-summary-apply-001",
+  "suite": "consolidation",
+  "title": "Apply a weekly decision summary proposal with complete lineage",
+  "corpus": {
+    "corpus_id": "real-world-memory-consolidation-synthetic-2026-06-09",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "weekly-decision-typed-failures",
+        "kind": "decision",
+        "text": "Monday decision: benchmark reports must preserve typed failure states instead of flattening blocked, incomplete, wrong_result, and unsupported_claim into one pass/fail label.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_memory_fixture/v1",
+          "ref": {
+            "fixture": "weekly_decision_summary_apply",
+            "evidence_id": "weekly-decision-typed-failures"
+          }
+        },
+        "created_at": "2026-06-01T12:00:00Z"
+      },
+      {
+        "evidence_id": "weekly-decision-private-caveat",
+        "kind": "decision",
+        "text": "Friday decision: production adoption is acceptable for personal use with bounded caveats, but private-corpus proof remains unclaimed until a private manifest exists.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_memory_fixture/v1",
+          "ref": {
+            "fixture": "weekly_decision_summary_apply",
+            "evidence_id": "weekly-decision-private-caveat"
+          }
+        },
+        "created_at": "2026-06-05T12:00:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_consolidation",
+      "answer": {
+        "content": "Apply a weekly decision summary proposal covering typed failure states and the bounded production-adoption caveat. Keep it derived and source-linked.",
+        "claims": [
+          {
+            "claim_id": "weekly_summary_proposal_created",
+            "text": "Create a weekly decision summary proposal for typed failure states and bounded adoption caveats.",
+            "evidence_ids": [
+              "weekly-decision-typed-failures",
+              "weekly-decision-private-caveat"
+            ],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "weekly_summary_review_apply",
+            "text": "Apply the weekly summary as a derived decision summary after review.",
+            "evidence_ids": [
+              "weekly-decision-typed-failures",
+              "weekly-decision-private-caveat"
+            ],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": [
+          "weekly-decision-typed-failures",
+          "weekly-decision-private-caveat"
+        ],
+        "latency_ms": 1.3,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      },
+      "consolidation": {
+        "proposals": [
+          {
+            "proposal_id": "proposal-weekly-decision-summary-apply",
+            "proposal_kind": "weekly_decision_summary",
+            "source_refs": [
+              "weekly-decision-typed-failures",
+              "weekly-decision-private-caveat"
+            ],
+            "expected_source_refs": [
+              "weekly-decision-typed-failures",
+              "weekly-decision-private-caveat"
+            ],
+            "usefulness_score": 0.91,
+            "min_usefulness_score": 0.8,
+            "expected_review_action": "apply",
+            "actual_review_action": "apply",
+            "source_mutations": [],
+            "unsupported_claim_count": 0,
+            "diff": {
+              "summary": "Create a derived weekly decision summary.",
+              "before": {},
+              "after": {
+                "target": "derived_weekly_decision_summary",
+                "decisions": [
+                  "Preserve typed failure states in benchmark reports.",
+                  "Keep the production adoption claim bounded until private-corpus proof exists."
+                ]
+              }
+            }
+          }
+        ],
+        "executable_gaps": [
+          {
+            "primitive": "live_consolidation_worker_generation",
+            "follow_up_issue": "[ELF vNext P1] Implement reviewable consolidation worker and proposal review flow",
+            "reason": "This fixture scores checked-in proposal payloads; it does not execute scheduled LLM generation.",
+            "blocks_fixture_pass": false
+          }
+        ]
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "weekly-decision-monday",
+      "ts": "2026-06-01T12:00:00Z",
+      "actor": "agent",
+      "action": "made_decision",
+      "evidence_ids": [
+        "weekly-decision-typed-failures"
+      ],
+      "summary": "The week started with a typed-failure reporting decision."
+    },
+    {
+      "event_id": "weekly-decision-friday",
+      "ts": "2026-06-05T12:00:00Z",
+      "actor": "agent",
+      "action": "made_decision",
+      "evidence_ids": [
+        "weekly-decision-private-caveat"
+      ],
+      "summary": "The week ended with a bounded production-adoption decision."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Summarize this week's durable decisions as a reviewable consolidation proposal.",
+    "job_mode": "compile",
+    "constraints": [
+      "cite_evidence",
+      "do_not_run_live_actions"
+    ]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "weekly_summary_proposal_created",
+        "text": "Create a weekly decision summary proposal for typed failure states and bounded adoption caveats."
+      },
+      {
+        "claim_id": "weekly_summary_review_apply",
+        "text": "Apply the weekly summary as a derived decision summary after review."
+      }
+    ],
+    "must_not_include": [
+      "private-corpus proof passed",
+      "collapse typed failures into a pass/fail label"
+    ],
+    "evidence_links": {
+      "weekly_summary_proposal_created": [
+        "weekly-decision-typed-failures",
+        "weekly-decision-private-caveat"
+      ],
+      "weekly_summary_review_apply": [
+        "weekly-decision-typed-failures",
+        "weekly-decision-private-caveat"
+      ]
+    },
+    "answer_type": "decision_record",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "weekly-decision-typed-failures",
+      "claim_id": "weekly_summary_proposal_created",
+      "requirement": "cite",
+      "quote": "preserve typed failure states"
+    },
+    {
+      "evidence_id": "weekly-decision-private-caveat",
+      "claim_id": "weekly_summary_proposal_created",
+      "requirement": "use",
+      "quote": "private-corpus proof remains unclaimed"
+    }
+  ],
+  "negative_traps": [],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Includes both weekly decisions and their correct review action."
+      },
+      "evidence_grounding": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Uses both decision sources."
+      },
+      "proposal_usefulness": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Weekly summary is useful enough to apply."
+      },
+      "lineage_completeness": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Lineage includes both decision sources."
+      },
+      "review_action_correctness": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Review action is apply."
+      },
+      "source_immutability": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Source mutation count remains zero."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "source mutation count must remain zero for proposal-only consolidation cases"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "state_blocker"
+  },
+  "tags": [
+    "synthetic",
+    "consolidation",
+    "proposal_only",
+    "no_live_claim"
+  ]
+}

@@ -1,0 +1,266 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "consolidation-project-summary-apply-001",
+  "suite": "consolidation",
+  "title": "Create a reviewable project summary proposal without source mutation",
+  "corpus": {
+    "corpus_id": "real-world-memory-consolidation-synthetic-2026-06-09",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "session-project-summary-1",
+        "kind": "message",
+        "text": "Session 1: ELF keeps Postgres as source of truth and Qdrant as a rebuildable derived index for candidate retrieval.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_memory_fixture/v1",
+          "ref": {
+            "fixture": "project_summary_apply",
+            "evidence_id": "session-project-summary-1"
+          }
+        },
+        "created_at": "2026-06-02T10:00:00Z"
+      },
+      {
+        "evidence_id": "session-project-summary-2",
+        "kind": "message",
+        "text": "Session 2: The production adoption gate passed with bounded caveats; no private production corpus pass is claimed until an operator-owned manifest is supplied.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_memory_fixture/v1",
+          "ref": {
+            "fixture": "project_summary_apply",
+            "evidence_id": "session-project-summary-2"
+          }
+        },
+        "created_at": "2026-06-09T10:00:00Z"
+      },
+      {
+        "evidence_id": "project-summary-source-mutation-trap",
+        "kind": "message",
+        "text": "Bad draft: consolidate by rewriting the original project notes in place.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_memory_fixture/v1",
+          "ref": {
+            "fixture": "project_summary_apply",
+            "evidence_id": "project-summary-source-mutation-trap"
+          }
+        },
+        "created_at": "2026-06-09T10:05:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_consolidation",
+      "answer": {
+        "content": "Create a derived project summary proposal and keep the source notes unchanged. The proposal cites the source-of-truth and adoption-caveat sessions.",
+        "claims": [
+          {
+            "claim_id": "project_summary_proposal_created",
+            "text": "Create a derived project summary proposal from the source-of-truth and adoption-caveat sessions.",
+            "evidence_ids": [
+              "session-project-summary-1",
+              "session-project-summary-2"
+            ],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "project_summary_no_source_mutation",
+            "text": "The consolidation output is proposal-only and does not rewrite authoritative notes.",
+            "evidence_ids": [
+              "session-project-summary-1",
+              "session-project-summary-2"
+            ],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": [
+          "session-project-summary-1",
+          "session-project-summary-2"
+        ],
+        "latency_ms": 1.0,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      },
+      "consolidation": {
+        "proposals": [
+          {
+            "proposal_id": "proposal-project-summary-apply",
+            "proposal_kind": "project_summary",
+            "source_refs": [
+              "session-project-summary-1",
+              "session-project-summary-2"
+            ],
+            "expected_source_refs": [
+              "session-project-summary-1",
+              "session-project-summary-2"
+            ],
+            "usefulness_score": 0.93,
+            "min_usefulness_score": 0.8,
+            "expected_review_action": "apply",
+            "actual_review_action": "apply",
+            "source_mutations": [],
+            "unsupported_claim_count": 0,
+            "diff": {
+              "summary": "Create one derived project summary for reviewer approval.",
+              "before": {},
+              "after": {
+                "target": "derived_project_summary",
+                "summary": "ELF keeps Postgres authoritative, Qdrant rebuildable, and production adoption bounded by the missing private-corpus manifest."
+              }
+            }
+          }
+        ],
+        "executable_gaps": [
+          {
+            "primitive": "live_consolidation_worker_generation",
+            "follow_up_issue": "[ELF vNext P1] Implement reviewable consolidation worker and proposal review flow",
+            "reason": "This fixture scores checked-in proposal payloads; it does not execute scheduled LLM generation.",
+            "blocks_fixture_pass": false
+          }
+        ]
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "project-summary-session-1",
+      "ts": "2026-06-02T10:00:00Z",
+      "actor": "agent",
+      "action": "recorded_source_boundary",
+      "evidence_ids": [
+        "session-project-summary-1"
+      ],
+      "summary": "The first session recorded ELF source-of-truth and rebuildable-index boundaries."
+    },
+    {
+      "event_id": "project-summary-session-2",
+      "ts": "2026-06-09T10:00:00Z",
+      "actor": "agent",
+      "action": "recorded_adoption_caveat",
+      "evidence_ids": [
+        "session-project-summary-2"
+      ],
+      "summary": "The later session recorded the bounded production adoption caveat."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Review the recent sessions and propose a project summary only if it preserves source-truth notes.",
+    "job_mode": "compile",
+    "constraints": [
+      "cite_evidence",
+      "do_not_run_live_actions",
+      "avoid_repeating_completed_work"
+    ]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "project_summary_proposal_created",
+        "text": "Create a derived project summary proposal from the source-of-truth and adoption-caveat sessions."
+      },
+      {
+        "claim_id": "project_summary_no_source_mutation",
+        "text": "The consolidation output is proposal-only and does not rewrite authoritative notes."
+      }
+    ],
+    "must_not_include": [
+      "rewrite the original project notes in place",
+      "private production corpus pass is claimed"
+    ],
+    "evidence_links": {
+      "project_summary_proposal_created": [
+        "session-project-summary-1",
+        "session-project-summary-2"
+      ],
+      "project_summary_no_source_mutation": [
+        "session-project-summary-1",
+        "session-project-summary-2"
+      ]
+    },
+    "answer_type": "compiled_knowledge",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "session-project-summary-1",
+      "claim_id": "project_summary_proposal_created",
+      "requirement": "cite",
+      "quote": "Postgres as source of truth and Qdrant as a rebuildable derived index"
+    },
+    {
+      "evidence_id": "session-project-summary-2",
+      "claim_id": "project_summary_proposal_created",
+      "requirement": "use",
+      "quote": "no private production corpus pass is claimed"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "project-summary-source-rewrite",
+      "type": "unsafe_action",
+      "evidence_ids": [
+        "project-summary-source-mutation-trap"
+      ],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Creates a derived project summary proposal with the right caveat."
+      },
+      "evidence_grounding": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Uses both source sessions and avoids the rewrite trap."
+      },
+      "proposal_usefulness": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Proposal usefulness meets the fixture threshold."
+      },
+      "lineage_completeness": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Proposal lineage includes every expected source ref."
+      },
+      "review_action_correctness": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "The useful project summary is applied."
+      },
+      "source_immutability": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Source mutation count remains zero."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true",
+      "source mutation count must remain zero for proposal-only consolidation cases"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "state_blocker"
+  },
+  "tags": [
+    "synthetic",
+    "consolidation",
+    "proposal_only",
+    "no_live_claim"
+  ]
+}

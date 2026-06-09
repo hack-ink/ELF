@@ -25,6 +25,15 @@ const DEFAULT_RUN_ID: &str = "real-world-job-smoke";
 const DEFAULT_ADAPTER_ID: &str = "fixture_smoke";
 const DEFAULT_ADAPTER_NAME: &str = "ELF fixture smoke";
 const NOT_ENCODED_REASON: &str = "No checked-in real_world_job fixture is encoded for this suite.";
+const FORBIDDEN_SOURCE_MUTATION_KEYS: [&str; 7] = [
+	"delete_source",
+	"delete_sources",
+	"source_delete",
+	"source_mutation",
+	"source_mutations",
+	"source_note_updates",
+	"overwrite_source",
+];
 const SUITES: &[&str] = &[
 	"trust_source_of_truth",
 	"work_resume",
@@ -333,6 +342,7 @@ struct AllowedUncertainty {
 struct AdapterResponse {
 	adapter_id: Option<String>,
 	answer: ProducedAnswer,
+	consolidation: Option<ConsolidationFixture>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -359,6 +369,51 @@ struct ProducedClaim {
 	evidence_ids: Vec<String>,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	confidence: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct ConsolidationFixture {
+	#[serde(default)]
+	proposals: Vec<ConsolidationProposalFixture>,
+	#[serde(default)]
+	executable_gaps: Vec<ConsolidationExecutableGap>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct ConsolidationProposalFixture {
+	proposal_id: String,
+	proposal_kind: String,
+	#[serde(default)]
+	source_refs: Vec<String>,
+	#[serde(default)]
+	expected_source_refs: Vec<String>,
+	usefulness_score: f64,
+	min_usefulness_score: f64,
+	expected_review_action: ConsolidationReviewAction,
+	actual_review_action: ConsolidationReviewAction,
+	#[serde(default)]
+	source_mutations: Vec<Value>,
+	#[serde(default)]
+	unsupported_claim_count: usize,
+	#[serde(default)]
+	diff: Value,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum ConsolidationReviewAction {
+	Apply,
+	Discard,
+	Defer,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct ConsolidationExecutableGap {
+	primitive: String,
+	follow_up_issue: String,
+	reason: String,
+	#[serde(default)]
+	blocks_fixture_pass: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -565,6 +620,19 @@ struct ReportSummary {
 	trace_incomplete_count: usize,
 	#[serde(default)]
 	operator_ux_gap_count: usize,
+	#[serde(default)]
+	consolidation: ConsolidationSummaryReport,
+}
+
+#[derive(Debug, Default, Deserialize, Serialize)]
+struct ConsolidationSummaryReport {
+	proposal_count: usize,
+	proposal_usefulness: Option<f64>,
+	lineage_completeness: Option<f64>,
+	review_action_correctness: Option<f64>,
+	source_mutation_count: usize,
+	proposal_unsupported_claim_count: usize,
+	executable_gap_count: usize,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -645,6 +713,8 @@ struct JobReport {
 	operator_debug: Option<OperatorDebugEvidence>,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	evolution: Option<EvolutionJobReport>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	consolidation: Option<ConsolidationJobReport>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -671,6 +741,40 @@ struct RetrievalQualityReport {
 	irrelevant_context_count: usize,
 	irrelevant_context_ratio: f64,
 	trap_context_count: usize,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct ConsolidationJobReport {
+	proposal_count: usize,
+	proposal_usefulness: Option<f64>,
+	lineage_completeness: Option<f64>,
+	review_action_correctness: Option<f64>,
+	source_mutation_count: usize,
+	proposal_unsupported_claim_count: usize,
+	executable_gaps: Vec<ConsolidationExecutableGapReport>,
+	proposals: Vec<ConsolidationProposalReport>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct ConsolidationProposalReport {
+	proposal_id: String,
+	proposal_kind: String,
+	usefulness_score: f64,
+	min_usefulness_score: f64,
+	lineage_completeness: f64,
+	expected_review_action: ConsolidationReviewAction,
+	actual_review_action: ConsolidationReviewAction,
+	review_action_correct: bool,
+	source_mutation_count: usize,
+	unsupported_claim_count: usize,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct ConsolidationExecutableGapReport {
+	primitive: String,
+	follow_up_issue: String,
+	reason: String,
+	blocks_fixture_pass: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -732,6 +836,7 @@ struct JobScoring {
 	dimension_scores: Vec<DimensionScoreReport>,
 	reason: String,
 	evolution: Option<EvolutionJobReport>,
+	consolidation: Option<ConsolidationJobReport>,
 }
 
 #[derive(Debug, Default)]
@@ -749,6 +854,11 @@ struct FailureCounts {
 	conflict_detection_missing: usize,
 	update_rationale_missing: usize,
 	latency_violations: usize,
+	proposal_usefulness_failures: usize,
+	lineage_failures: usize,
+	review_action_failures: usize,
+	source_mutations: usize,
+	blocking_executable_gaps: usize,
 }
 
 #[derive(Debug, Default)]
@@ -865,6 +975,7 @@ fn validate_job(job: &RealWorldJob, path: &Path) -> Result<()> {
 	validate_prompt(job, path)?;
 	validate_expected_answer(job, path)?;
 	validate_required_evidence(job, path)?;
+	validate_consolidation_fixture(job, path)?;
 	validate_scoring_rubric(job, path)?;
 	validate_allowed_uncertainty(job, path)?;
 	validate_operator_debug(job, path)?;
@@ -1051,6 +1162,80 @@ fn validate_required_evidence(job: &RealWorldJob, path: &Path) -> Result<()> {
 		for evidence_id in link.ids() {
 			ensure_known_evidence(path, &evidence_ids, evidence_id.as_str())?;
 		}
+	}
+
+	Ok(())
+}
+
+fn validate_consolidation_fixture(job: &RealWorldJob, path: &Path) -> Result<()> {
+	let consolidation =
+		job.corpus.adapter_response.as_ref().and_then(|response| response.consolidation.as_ref());
+
+	if job.suite == "consolidation" && consolidation.is_none() {
+		return Err(eyre::eyre!(
+			"{} consolidation jobs must provide adapter_response.consolidation.",
+			path.display()
+		));
+	}
+
+	let Some(consolidation) = consolidation else {
+		return Ok(());
+	};
+
+	if consolidation.proposals.is_empty() && consolidation.executable_gaps.is_empty() {
+		return Err(eyre::eyre!(
+			"{} consolidation fixture must provide proposals or executable_gaps.",
+			path.display()
+		));
+	}
+
+	for proposal in &consolidation.proposals {
+		validate_consolidation_proposal(proposal, path)?;
+	}
+	for gap in &consolidation.executable_gaps {
+		if gap.primitive.trim().is_empty()
+			|| gap.follow_up_issue.trim().is_empty()
+			|| gap.reason.trim().is_empty()
+		{
+			return Err(eyre::eyre!(
+				"{} has an incomplete consolidation executable gap.",
+				path.display()
+			));
+		}
+	}
+
+	Ok(())
+}
+
+fn validate_consolidation_proposal(
+	proposal: &ConsolidationProposalFixture,
+	path: &Path,
+) -> Result<()> {
+	if proposal.proposal_id.trim().is_empty()
+		|| proposal.proposal_kind.trim().is_empty()
+		|| proposal.source_refs.is_empty()
+		|| proposal.expected_source_refs.is_empty()
+	{
+		return Err(eyre::eyre!(
+			"{} has an incomplete consolidation proposal fixture.",
+			path.display()
+		));
+	}
+	if !proposal.usefulness_score.is_finite()
+		|| !proposal.min_usefulness_score.is_finite()
+		|| !(0.0..=1.0).contains(&proposal.usefulness_score)
+		|| !(0.0..=1.0).contains(&proposal.min_usefulness_score)
+	{
+		return Err(eyre::eyre!(
+			"{} has invalid consolidation proposal usefulness scores.",
+			path.display()
+		));
+	}
+	if !proposal.diff.is_null() && !proposal.diff.is_object() {
+		return Err(eyre::eyre!(
+			"{} consolidation proposal diff must be a JSON object when present.",
+			path.display()
+		));
 	}
 
 	Ok(())
@@ -1458,6 +1643,7 @@ fn score_job(job: &RealWorldJob) -> JobScoring {
 	let answer = produced_answer(job);
 	let produced_evidence = produced_evidence_ids(answer);
 	let trap_ids_used = trap_ids_used(job, &produced_evidence);
+	let consolidation = consolidation_job_report(job);
 
 	if let Some(status) = job.encoding.status {
 		let evolution = evolution_job_report(job, answer, &trap_ids_used, 0);
@@ -1476,6 +1662,7 @@ fn score_job(job: &RealWorldJob) -> JobScoring {
 				.clone()
 				.unwrap_or_else(|| "Job did not reach a runnable scoring state.".to_string()),
 			evolution,
+			consolidation,
 		};
 	}
 
@@ -1506,6 +1693,11 @@ fn score_job(job: &RealWorldJob) -> JobScoring {
 		conflict_detection_missing,
 		update_rationale_missing,
 		latency_violations,
+		proposal_usefulness_failures: proposal_usefulness_failures(consolidation.as_ref()),
+		lineage_failures: lineage_failures(consolidation.as_ref()),
+		review_action_failures: review_action_failures(consolidation.as_ref()),
+		source_mutations: consolidation.as_ref().map_or(0, |report| report.source_mutation_count),
+		blocking_executable_gaps: blocking_executable_gaps(consolidation.as_ref()),
 	};
 	let dimension_scores = dimension_scores(job, &counts);
 	let normalized_score = normalized_score(&dimension_scores);
@@ -1518,12 +1710,17 @@ fn score_job(job: &RealWorldJob) -> JobScoring {
 		+ counts.operator_debug_trace_gaps
 		+ counts.operator_debug_repair_unclear
 		+ counts.conflict_detection_missing
-		+ counts.update_rationale_missing;
+		+ counts.update_rationale_missing
+		+ counts.proposal_usefulness_failures
+		+ counts.lineage_failures
+		+ counts.review_action_failures;
 	let status = job_status(
 		normalized_score,
 		job.scoring_rubric.pass_threshold,
 		wrong_result_count,
 		unsupported_claims.len(),
+		counts.source_mutations,
+		counts.blocking_executable_gaps,
 	);
 	let reason = job_reason(status, &counts, normalized_score);
 
@@ -1542,6 +1739,7 @@ fn score_job(job: &RealWorldJob) -> JobScoring {
 		dimension_scores,
 		reason,
 		evolution,
+		consolidation,
 	}
 }
 
@@ -1849,6 +2047,20 @@ fn hard_fail_hits(
 		hits.push("missing required refusal".to_string());
 	}
 
+	if let Some(consolidation) = consolidation_job_report(job) {
+		if consolidation.source_mutation_count > 0 {
+			hits.push(
+				"source mutation count must remain zero for proposal-only consolidation cases"
+					.to_string(),
+			);
+		}
+		if consolidation.executable_gaps.iter().any(|gap| gap.blocks_fixture_pass) {
+			hits.push(
+				"missing consolidation primitive requires a precise follow-up issue".to_string(),
+			);
+		}
+	}
+
 	hits
 }
 
@@ -1881,14 +2093,24 @@ fn dimension_score(dimension_id: &str, max_points: f64, counts: &FailureCounts) 
 			counts.missing_claims > 0
 				|| counts.forbidden_claims > 0
 				|| counts.operator_debug_repair_unclear > 0
-				|| counts.conflict_detection_missing > 0,
-		"evidence_grounding" => counts.missing_evidence > 0 || counts.unsupported_claims > 0,
+				|| counts.conflict_detection_missing > 0
+				|| counts.proposal_usefulness_failures > 0
+				|| counts.review_action_failures > 0,
+		"evidence_grounding" =>
+			counts.missing_evidence > 0
+				|| counts.unsupported_claims > 0
+				|| counts.lineage_failures > 0,
 		"trap_avoidance" => counts.trap_uses > 0,
 		"uncertainty_handling" => counts.unsupported_claims > 0,
 		"lifecycle_behavior" =>
 			counts.stale_answers > 0
 				|| counts.conflict_detection_missing > 0
-				|| counts.update_rationale_missing > 0,
+				|| counts.update_rationale_missing > 0
+				|| counts.source_mutations > 0,
+		"source_immutability" => counts.source_mutations > 0,
+		"proposal_usefulness" => counts.proposal_usefulness_failures > 0,
+		"lineage_completeness" => counts.lineage_failures > 0,
+		"review_action_correctness" => counts.review_action_failures > 0,
 		"debuggability" =>
 			counts.missing_claims > 0
 				|| counts.unsupported_claims > 0
@@ -1939,9 +2161,15 @@ fn job_status(
 	pass_threshold: f64,
 	wrong_result_count: usize,
 	unsupported_claim_count: usize,
+	source_mutation_count: usize,
+	blocking_executable_gap_count: usize,
 ) -> TypedStatus {
 	if unsupported_claim_count > 0 {
 		TypedStatus::UnsupportedClaim
+	} else if source_mutation_count > 0 {
+		TypedStatus::LifecycleFail
+	} else if blocking_executable_gap_count > 0 {
+		TypedStatus::Blocked
 	} else if wrong_result_count > 0 {
 		TypedStatus::WrongResult
 	} else if normalized_score >= pass_threshold {
@@ -1966,7 +2194,10 @@ fn job_reason(status: TypedStatus, counts: &FailureCounts, normalized_score: f64
 				+ counts.operator_debug_trace_gaps
 				+ counts.operator_debug_repair_unclear
 				+ counts.conflict_detection_missing
-				+ counts.update_rationale_missing,
+				+ counts.update_rationale_missing
+				+ counts.proposal_usefulness_failures
+				+ counts.lineage_failures
+				+ counts.review_action_failures,
 			counts.latency_violations
 		),
 		TypedStatus::WrongResult => format!(
@@ -1980,8 +2211,19 @@ fn job_reason(status: TypedStatus, counts: &FailureCounts, normalized_score: f64
 				+ counts.operator_debug_trace_gaps
 				+ counts.operator_debug_repair_unclear
 				+ counts.conflict_detection_missing
-				+ counts.update_rationale_missing,
+				+ counts.update_rationale_missing
+				+ counts.proposal_usefulness_failures
+				+ counts.lineage_failures
+				+ counts.review_action_failures,
 			counts.latency_violations
+		),
+		TypedStatus::LifecycleFail => format!(
+			"Job produced {} source mutation(s) and normalized_score {normalized_score:.3}.",
+			counts.source_mutations
+		),
+		TypedStatus::Blocked => format!(
+			"Job has {} blocking executable gap(s) and normalized_score {normalized_score:.3}.",
+			counts.blocking_executable_gaps
 		),
 		_ => "Job did not reach a runnable scoring state.".to_string(),
 	}
@@ -2041,6 +2283,122 @@ fn job_report(job: &RealWorldJob, scoring: JobScoring) -> JobReport {
 		qdrant_rebuild_case: metrics.qdrant_rebuild_case,
 		operator_debug: job.operator_debug.clone(),
 		evolution: scoring.evolution,
+		consolidation: scoring.consolidation,
+	}
+}
+
+fn consolidation_job_report(job: &RealWorldJob) -> Option<ConsolidationJobReport> {
+	let fixture = job.corpus.adapter_response.as_ref()?.consolidation.as_ref()?;
+	let proposals = fixture.proposals.iter().map(consolidation_proposal_report).collect::<Vec<_>>();
+	let executable_gaps = fixture
+		.executable_gaps
+		.iter()
+		.map(|gap| ConsolidationExecutableGapReport {
+			primitive: gap.primitive.clone(),
+			follow_up_issue: gap.follow_up_issue.clone(),
+			reason: gap.reason.clone(),
+			blocks_fixture_pass: gap.blocks_fixture_pass,
+		})
+		.collect::<Vec<_>>();
+	let proposal_count = proposals.len();
+	let source_mutation_count =
+		proposals.iter().map(|proposal| proposal.source_mutation_count).sum();
+	let proposal_unsupported_claim_count =
+		proposals.iter().map(|proposal| proposal.unsupported_claim_count).sum();
+
+	Some(ConsolidationJobReport {
+		proposal_count,
+		proposal_usefulness: mean_proposal_metric(
+			proposals.iter().map(|proposal| proposal.usefulness_score),
+		),
+		lineage_completeness: mean_proposal_metric(
+			proposals.iter().map(|proposal| proposal.lineage_completeness),
+		),
+		review_action_correctness: mean_proposal_metric(
+			proposals.iter().map(|proposal| if proposal.review_action_correct { 1.0 } else { 0.0 }),
+		),
+		source_mutation_count,
+		proposal_unsupported_claim_count,
+		executable_gaps,
+		proposals,
+	})
+}
+
+fn consolidation_proposal_report(
+	proposal: &ConsolidationProposalFixture,
+) -> ConsolidationProposalReport {
+	ConsolidationProposalReport {
+		proposal_id: proposal.proposal_id.clone(),
+		proposal_kind: proposal.proposal_kind.clone(),
+		usefulness_score: round3(proposal.usefulness_score),
+		min_usefulness_score: round3(proposal.min_usefulness_score),
+		lineage_completeness: round3(lineage_completeness(proposal)),
+		expected_review_action: proposal.expected_review_action,
+		actual_review_action: proposal.actual_review_action,
+		review_action_correct: proposal.expected_review_action == proposal.actual_review_action,
+		source_mutation_count: proposal.source_mutations.len()
+			+ forbidden_diff_key_count(&proposal.diff),
+		unsupported_claim_count: proposal.unsupported_claim_count,
+	}
+}
+
+fn lineage_completeness(proposal: &ConsolidationProposalFixture) -> f64 {
+	let expected = proposal.expected_source_refs.iter().collect::<BTreeSet<_>>();
+	let actual = proposal.source_refs.iter().collect::<BTreeSet<_>>();
+	let matched = expected.iter().filter(|source_ref| actual.contains(**source_ref)).count();
+
+	matched as f64 / expected.len() as f64
+}
+
+fn forbidden_diff_key_count(value: &Value) -> usize {
+	match value {
+		Value::Object(map) => map
+			.iter()
+			.map(|(key, nested)| {
+				usize::from(FORBIDDEN_SOURCE_MUTATION_KEYS.contains(&key.as_str()))
+					+ forbidden_diff_key_count(nested)
+			})
+			.sum(),
+		Value::Array(items) => items.iter().map(forbidden_diff_key_count).sum(),
+		_ => 0,
+	}
+}
+
+fn proposal_usefulness_failures(consolidation: Option<&ConsolidationJobReport>) -> usize {
+	consolidation.map_or(0, |report| {
+		report
+			.proposals
+			.iter()
+			.filter(|proposal| proposal.usefulness_score < proposal.min_usefulness_score)
+			.count()
+	})
+}
+
+fn lineage_failures(consolidation: Option<&ConsolidationJobReport>) -> usize {
+	consolidation.map_or(0, |report| {
+		report.proposals.iter().filter(|proposal| proposal.lineage_completeness < 1.0).count()
+	})
+}
+
+fn review_action_failures(consolidation: Option<&ConsolidationJobReport>) -> usize {
+	consolidation.map_or(0, |report| {
+		report.proposals.iter().filter(|proposal| !proposal.review_action_correct).count()
+	})
+}
+
+fn blocking_executable_gaps(consolidation: Option<&ConsolidationJobReport>) -> usize {
+	consolidation.map_or(0, |report| {
+		report.executable_gaps.iter().filter(|gap| gap.blocks_fixture_pass).count()
+	})
+}
+
+fn mean_proposal_metric(values: impl Iterator<Item = f64>) -> Option<f64> {
+	let values = values.collect::<Vec<_>>();
+
+	if values.is_empty() {
+		None
+	} else {
+		Some(round3(values.iter().sum::<f64>() / values.len() as f64))
 	}
 }
 
@@ -2388,6 +2746,7 @@ fn report_summary(jobs: &[JobReport], suites: &[SuiteReport]) -> ReportSummary {
 			.filter_map(|job| job.operator_debug.as_ref())
 			.map(|debug| debug.ux_gaps.len())
 			.sum(),
+		consolidation: consolidation_summary(jobs),
 		..ReportSummary::default()
 	};
 
@@ -2462,6 +2821,39 @@ fn ratio_or(numerator: usize, denominator: usize, empty_value: f64) -> f64 {
 	if denominator == 0 { empty_value } else { round3(numerator as f64 / denominator as f64) }
 }
 
+fn consolidation_summary(jobs: &[JobReport]) -> ConsolidationSummaryReport {
+	let reports = jobs.iter().filter_map(|job| job.consolidation.as_ref()).collect::<Vec<_>>();
+
+	if reports.is_empty() {
+		return ConsolidationSummaryReport::default();
+	}
+
+	let proposals = reports.iter().flat_map(|report| report.proposals.iter()).collect::<Vec<_>>();
+	let executable_gap_count = reports.iter().map(|report| report.executable_gaps.len()).sum();
+
+	ConsolidationSummaryReport {
+		proposal_count: proposals.len(),
+		proposal_usefulness: mean_proposal_metric(
+			proposals.iter().map(|proposal| proposal.usefulness_score),
+		),
+		lineage_completeness: mean_proposal_metric(
+			proposals.iter().map(|proposal| proposal.lineage_completeness),
+		),
+		review_action_correctness: mean_proposal_metric(
+			proposals.iter().map(|proposal| if proposal.review_action_correct { 1.0 } else { 0.0 }),
+		),
+		source_mutation_count: proposals
+			.iter()
+			.map(|proposal| proposal.source_mutation_count)
+			.sum(),
+		proposal_unsupported_claim_count: proposals
+			.iter()
+			.map(|proposal| proposal.unsupported_claim_count)
+			.sum(),
+		executable_gap_count,
+	}
+}
+
 fn mean_score(jobs: &[JobReport]) -> f64 {
 	if jobs.is_empty() {
 		return 0.0;
@@ -2524,7 +2916,7 @@ fn adapter_report(args: &RunArgs) -> AdapterReport {
 		behavior: "offline_fixture_response".to_string(),
 		storage: TypedStatus::NotEncoded,
 		runtime: TypedStatus::NotEncoded,
-		notes: "Smoke runner scores checked-in fixture responses; it does not exercise a live external adapter.".to_string(),
+		notes: "Offline runner scores checked-in fixture responses; it does not exercise a live external adapter.".to_string(),
 	}
 }
 
@@ -2590,6 +2982,7 @@ fn render_markdown(report: &RealWorldReport, report_path: &Path) -> String {
 	render_markdown_operator_debugging(&mut out, report);
 	render_markdown_evolution(&mut out, report);
 	render_markdown_trace_explainability(&mut out, report);
+	render_markdown_consolidation(&mut out, report);
 	render_markdown_unsupported_claims(&mut out, report);
 	render_markdown_follow_ups(&mut out, report);
 	render_markdown_semantics(&mut out, report);
@@ -2640,7 +3033,7 @@ fn render_markdown_header(out: &mut String, report: &RealWorldReport, report_pat
 		"Read this when: You need a durable smoke report for real-world agent memory job fixtures.\n",
 	);
 	out.push_str(&format!("Inputs: `{}`.\n", md_inline(report_path)));
-	out.push_str("Depends on: `apps/elf-eval/fixtures/real_world_job/`, `apps/elf-eval/fixtures/real_world_memory/`, `docs/spec/real_world_agent_memory_benchmark_v1.md`, and `Makefile.toml`.\n");
+	out.push_str("Depends on: `apps/elf-eval/fixtures/`, `docs/spec/real_world_agent_memory_benchmark_v1.md`, and `Makefile.toml`.\n");
 	out.push_str(
 		"Verification: Compare this Markdown summary with the source JSON before committing.\n\n",
 	);
@@ -2682,6 +3075,32 @@ fn render_markdown_header(out: &mut String, report: &RealWorldReport, report_pat
 		"- Temporal validity not encoded: `{}`\n",
 		report.summary.temporal_validity_not_encoded_count
 	));
+
+	render_markdown_quality_summary(out, report);
+
+	out.push_str(&format!("- Mean score: `{:.3}`\n", report.summary.mean_score));
+	out.push_str(&format!(
+		"- Mean latency: `{}`\n",
+		optional_f64(report.summary.mean_latency_ms, " ms")
+	));
+	out.push_str(&format!("- Cost: `{}`\n", cost_display(report.summary.total_cost.as_ref())));
+	out.push_str(&format!(
+		"- Operator-debug jobs: `{}`\n",
+		report.summary.operator_debug_job_count
+	));
+	out.push_str(&format!("- Raw SQL needed: `{}`\n", report.summary.raw_sql_needed_count));
+	out.push_str(&format!(
+		"- Trace-incomplete debug jobs: `{}`\n",
+		report.summary.trace_incomplete_count
+	));
+	out.push_str(&format!("- Operator UX gaps: `{}`\n", report.summary.operator_ux_gap_count));
+	out.push_str(&format!(
+		"- Private corpus redaction: `{}`\n\n",
+		md_inline(report.private_corpus_redaction.policy.as_str())
+	));
+}
+
+fn render_markdown_quality_summary(out: &mut String, report: &RealWorldReport) {
 	out.push_str(&format!(
 		"- Evidence coverage: `{}/{}` (`{:.3}`)\n",
 		report.summary.evidence_covered_count,
@@ -2728,25 +3147,9 @@ fn render_markdown_header(out: &mut String, report: &RealWorldReport, report_pat
 		report.summary.trace_explainability_count,
 		report.summary.wrong_result_stage_attribution_count
 	));
-	out.push_str(&format!("- Mean score: `{:.3}`\n", report.summary.mean_score));
 	out.push_str(&format!(
-		"- Mean latency: `{}`\n",
-		optional_f64(report.summary.mean_latency_ms, " ms")
-	));
-	out.push_str(&format!("- Cost: `{}`\n", cost_display(report.summary.total_cost.as_ref())));
-	out.push_str(&format!(
-		"- Operator-debug jobs: `{}`\n",
-		report.summary.operator_debug_job_count
-	));
-	out.push_str(&format!("- Raw SQL needed: `{}`\n", report.summary.raw_sql_needed_count));
-	out.push_str(&format!(
-		"- Trace-incomplete debug jobs: `{}`\n",
-		report.summary.trace_incomplete_count
-	));
-	out.push_str(&format!("- Operator UX gaps: `{}`\n", report.summary.operator_ux_gap_count));
-	out.push_str(&format!(
-		"- Private corpus redaction: `{}`\n\n",
-		md_inline(report.private_corpus_redaction.policy.as_str())
+		"- Consolidation source mutation count: `{}`\n",
+		report.summary.consolidation.source_mutation_count
 	));
 }
 
@@ -2976,6 +3379,72 @@ fn render_markdown_trace_explainability(out: &mut String, report: &RealWorldRepo
 			md_inline(trace_failure_stage(trace).unwrap_or("-")),
 			md_cell(trace_failure_reason(trace).unwrap_or("-")),
 			md_cell(trace_stage_summary(trace).as_str())
+		));
+	}
+
+	out.push('\n');
+}
+
+fn render_markdown_consolidation(out: &mut String, report: &RealWorldReport) {
+	if report.summary.consolidation.proposal_count == 0 {
+		return;
+	}
+
+	out.push_str("## Consolidation\n\n");
+	out.push_str("| Job | Proposals | Usefulness | Lineage | Review Actions | Source Mutations | Proposal Unsupported Claims | Executable Gaps |\n");
+	out.push_str("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n");
+
+	for job in &report.jobs {
+		let Some(consolidation) = &job.consolidation else {
+			continue;
+		};
+
+		out.push_str(&format!(
+			"| {} | {} | `{}` | `{}` | `{}` | {} | {} | {} |\n",
+			md_cell(job.job_id.as_str()),
+			consolidation.proposal_count,
+			optional_f64(consolidation.proposal_usefulness, ""),
+			optional_f64(consolidation.lineage_completeness, ""),
+			optional_f64(consolidation.review_action_correctness, ""),
+			consolidation.source_mutation_count,
+			consolidation.proposal_unsupported_claim_count,
+			consolidation.executable_gaps.len()
+		));
+	}
+
+	out.push_str(
+		"\nSource mutation count must remain `0` for proposal-only consolidation cases.\n\n",
+	);
+
+	render_markdown_consolidation_gaps(out, report);
+}
+
+fn render_markdown_consolidation_gaps(out: &mut String, report: &RealWorldReport) {
+	let gaps = report
+		.jobs
+		.iter()
+		.filter_map(|job| job.consolidation.as_ref().map(|consolidation| (job, consolidation)))
+		.flat_map(|(job, consolidation)| {
+			consolidation.executable_gaps.iter().map(move |gap| (job.job_id.as_str(), gap))
+		})
+		.collect::<Vec<_>>();
+
+	if gaps.is_empty() {
+		return;
+	}
+
+	out.push_str("### Executable Gaps\n\n");
+	out.push_str("| Job | Primitive | Follow-Up Issue | Blocks Fixture Pass | Reason |\n");
+	out.push_str("| --- | --- | --- | --- | --- |\n");
+
+	for (job_id, gap) in gaps {
+		out.push_str(&format!(
+			"| {} | {} | {} | `{}` | {} |\n",
+			md_cell(job_id),
+			md_cell(gap.primitive.as_str()),
+			md_cell(gap.follow_up_issue.as_str()),
+			gap.blocks_fixture_pass,
+			md_cell(gap.reason.as_str())
 		));
 	}
 
