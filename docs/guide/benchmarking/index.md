@@ -43,6 +43,8 @@ cleanup, use `docs/guide/single_user_production.md`.
   summaries and durable scripts.
 - Keep generated real-world job smoke JSON and Markdown under `tmp/real-world-job/`;
   commit fixture schemas, smoke fixtures, runner code, and durable docs only.
+- Keep generated real-world memory trust/personalization JSON and Markdown under
+  `tmp/real-world-memory/`; commit fixtures, runner code, and durable docs only.
 - Link the newest decision-relevant report from README and this index.
 - When benchmark semantics change, update `live_baseline_benchmark.md` and the
   relevant spec before publishing a new result.
