@@ -212,6 +212,24 @@ struct ResourceEnvelopeEvidence {
 	max_elapsed_seconds: f64,
 	rss_kb: Option<u64>,
 	max_rss_kb: u64,
+	postgres_database_bytes: Option<i64>,
+	corpus_dir_bytes: u64,
+	report_dir_bytes: Option<u64>,
+	checkpoint_file_bytes: Option<u64>,
+}
+
+#[derive(Debug, Serialize)]
+struct CostProxyReport {
+	schema: &'static str,
+	scope: &'static str,
+	embedding_mode: EmbeddingMode,
+	estimated_input_chars: usize,
+	estimated_input_tokens: usize,
+	token_estimation: &'static str,
+	configured_usd_per_1k_tokens: Option<f64>,
+	estimated_usd: Option<f64>,
+	document_count: usize,
+	query_count: usize,
 }
 
 #[derive(Debug, Serialize)]
@@ -240,12 +258,14 @@ struct ElfBaselineReport {
 	reason: String,
 	head: String,
 	embedding: EmbeddingRuntimeReport,
+	cost_proxy: CostProxyReport,
 	backfill: BackfillReport,
 	indexing: IndexingReport,
 	summary: QuerySummary,
 	check_summary: CheckSummary,
 	checks: Vec<CheckResult>,
 	queries: Vec<QueryResult>,
+	ops_cases: Vec<OperationalCase>,
 }
 
 #[derive(Debug, Serialize)]
@@ -264,6 +284,20 @@ struct QuerySummary {
 	wrong_result_count: usize,
 	latency_ms_total: f64,
 	latency_ms_mean: f64,
+	latency_ms_p50: f64,
+	latency_ms_p95: f64,
+	latency_ms_p99: f64,
+	latency_ms_max: f64,
+}
+
+#[derive(Debug, Serialize)]
+struct OperationalCase {
+	name: &'static str,
+	default_status: &'static str,
+	operator_status: &'static str,
+	command: &'static str,
+	evidence: &'static str,
+	safety: &'static str,
 }
 
 #[derive(Debug, Serialize)]
@@ -1024,36 +1058,6 @@ fn concurrency_probe_indexes(note_count: usize) -> Vec<usize> {
 	indexes
 }
 
-fn resource_envelope_check(elapsed_seconds: f64) -> CheckResult {
-	let max_elapsed_seconds = env::var("ELF_BASELINE_MAX_ELF_SECONDS")
-		.ok()
-		.and_then(|value| value.parse::<f64>().ok())
-		.unwrap_or(600.0);
-	let max_rss_kb = env::var("ELF_BASELINE_MAX_ELF_RSS_KB")
-		.ok()
-		.and_then(|value| value.parse::<u64>().ok())
-		.unwrap_or(1_500_000);
-	let rss_kb = current_rss_kb();
-	let pass = elapsed_seconds <= max_elapsed_seconds && rss_kb.is_none_or(|rss| rss <= max_rss_kb);
-
-	CheckResult {
-		name: "resource_envelope",
-		status: if pass { "pass" } else { "lifecycle_fail" },
-		reason: if pass {
-			"ELF live-baseline runtime stayed within the configured local resource envelope."
-				.to_string()
-		} else {
-			"ELF live-baseline runtime exceeded the configured local resource envelope.".to_string()
-		},
-		evidence: serde_json::json!(ResourceEnvelopeEvidence {
-			elapsed_seconds,
-			max_elapsed_seconds,
-			rss_kb,
-			max_rss_kb,
-		}),
-	}
-}
-
 fn current_rss_kb() -> Option<u64> {
 	let status = fs::read_to_string("/proc/self/status").ok()?;
 
@@ -1063,6 +1067,150 @@ fn current_rss_kb() -> Option<u64> {
 
 		value.parse::<u64>().ok()
 	})
+}
+
+fn path_size_bytes(path: &Path) -> color_eyre::Result<u64> {
+	let metadata = fs::metadata(path)?;
+
+	if metadata.is_file() {
+		return Ok(metadata.len());
+	}
+	if !metadata.is_dir() {
+		return Ok(0);
+	}
+
+	let mut bytes = 0_u64;
+
+	for entry in fs::read_dir(path)? {
+		let entry = entry?;
+
+		bytes = bytes.saturating_add(path_size_bytes(&entry.path())?);
+	}
+
+	Ok(bytes)
+}
+
+fn cost_proxy_report(
+	notes: &[CorpusNote],
+	queries: &[QueryResult],
+	embedding: &EmbeddingRuntimeReport,
+) -> CostProxyReport {
+	let note_chars = notes.iter().map(|note| note.text.len()).sum::<usize>();
+	let query_chars = queries.iter().map(|query| query.query.len()).sum::<usize>();
+	let estimated_input_chars = note_chars.saturating_add(query_chars);
+	let estimated_input_tokens = estimated_input_chars.saturating_add(3) / 4;
+	let configured_usd_per_1k_tokens = env::var("ELF_BASELINE_COST_PER_1K_TOKENS_USD")
+		.ok()
+		.and_then(|value| value.parse::<f64>().ok());
+	let estimated_usd =
+		configured_usd_per_1k_tokens.map(|rate| estimated_input_tokens as f64 / 1_000.0 * rate);
+
+	CostProxyReport {
+		schema: "elf.live_baseline.cost_proxy/v1",
+		scope: "primary corpus note text plus declared same-corpus query text",
+		embedding_mode: embedding.mode,
+		estimated_input_chars,
+		estimated_input_tokens,
+		token_estimation: "ceil(ascii_utf8_chars / 4)",
+		configured_usd_per_1k_tokens,
+		estimated_usd,
+		document_count: notes.len(),
+		query_count: queries.len(),
+	}
+}
+
+fn latency_percentile(latencies: &[f64], percentile: f64) -> f64 {
+	if latencies.is_empty() {
+		return 0.0;
+	}
+
+	let mut sorted = latencies.to_vec();
+
+	sorted.sort_by(f64::total_cmp);
+
+	let rank = ((sorted.len().saturating_sub(1)) as f64 * percentile).ceil() as usize;
+
+	sorted[rank.min(sorted.len().saturating_sub(1))]
+}
+
+fn operational_case(
+	name: &'static str,
+	default_status: &'static str,
+	operator_status: &'static str,
+	command: &'static str,
+	evidence: &'static str,
+	safety: &'static str,
+) -> OperationalCase {
+	OperationalCase { name, default_status, operator_status, command, evidence, safety }
+}
+
+fn operational_cases() -> Vec<OperationalCase> {
+	vec![
+		operational_case(
+			"private_corpus_addendum",
+			"fails_closed_without_manifest",
+			"opt_in",
+			"ELF_BASELINE_PRODUCTION_CORPUS_MANIFEST=tmp/private-production-corpus/manifest.json cargo make baseline-production-private-addendum",
+			"tmp/live-baseline/private-production-addendum.md",
+			"Markdown addendum reports manifest id, evidence ids, tasks, checks, latency, resource, and cost proxy fields; private text remains in tmp JSON/logs only.",
+		),
+		operational_case(
+			"backfill_10k_resume",
+			"not_run",
+			"opt_in",
+			"cargo make baseline-backfill-10k-docker",
+			"tmp/live-baseline/live-baseline-report.json",
+			"Runs Docker-owned dependencies and records checkpoint resume, duplicates, latency percentiles, resource usage, and cost proxy fields.",
+		),
+		operational_case(
+			"backfill_100k_resume",
+			"guarded",
+			"expensive_opt_in",
+			"ELF_BASELINE_ENABLE_EXPENSIVE=1 cargo make baseline-backfill-100k-docker",
+			"tmp/live-baseline/live-baseline-report.json",
+			"Fails closed unless the expensive-run guard is explicitly enabled.",
+		),
+		operational_case(
+			"provider_outage",
+			"not_run",
+			"documented_operator_probe",
+			"ELF_BASELINE_ELF_EMBEDDING_MODE=provider with an unavailable embedding endpoint and cargo make baseline-production-synthetic",
+			"ELF project status incomplete or blocked with provider failure in tmp/live-baseline/ELF.log",
+			"Use only synthetic or sanitized manifests; do not place provider keys in committed files.",
+		),
+		operational_case(
+			"compose_start_stop_upgrade",
+			"documented",
+			"runbook",
+			"docs/guide/single_user_production.md Sections 2, 4, and 5",
+			"storage health, API health, migration check, and post-upgrade search smoke",
+			"Backup Postgres before binary/config upgrade; rollback restores the previous backup and rebuilds Qdrant.",
+		),
+		operational_case(
+			"postgres_restore_qdrant_rebuild",
+			"documented",
+			"runbook_or_clean_volume_proof",
+			"docs/guide/single_user_production.md Sections 6 through 9",
+			"Postgres restored row count, admin qdrant rebuild counts, and search-after-restore response",
+			"Qdrant remains derived and rebuild uses Postgres-held vectors without embedding provider calls.",
+		),
+		operational_case(
+			"migration_rollback",
+			"documented",
+			"runbook",
+			"docs/guide/single_user_production.md Section 5 rollback path",
+			"pre-upgrade backup path, restored source rows, qdrant rebuild, and health check",
+			"No reverse migration is claimed; rollback means previous binary/config plus restored Postgres backup.",
+		),
+		operational_case(
+			"unattended_soak",
+			"bounded",
+			"opt_in",
+			"ELF_BASELINE_PROJECTS=ELF ELF_BASELINE_PROFILE=stress ELF_BASELINE_SOAK_SECONDS=3600 cargo make baseline-live-docker",
+			"soak_stability_e2e check and resource_envelope check in tmp/live-baseline/live-baseline-report.json",
+			"Long soak duration is env-controlled and not part of the default smoke profile.",
+		),
+	]
 }
 
 fn incomplete_check(name: &'static str, reason: &str) -> CheckResult {
@@ -1267,6 +1415,58 @@ fn git_head() -> color_eyre::Result<String> {
 	}
 
 	Ok(String::from_utf8(output.stdout)?.trim().to_string())
+}
+
+async fn resource_envelope_check(
+	service: &ElfService,
+	corpus_dir: &Path,
+	report_path: &Path,
+	checkpoint_path: &Path,
+	elapsed_seconds: f64,
+) -> CheckResult {
+	let max_elapsed_seconds = env::var("ELF_BASELINE_MAX_ELF_SECONDS")
+		.ok()
+		.and_then(|value| value.parse::<f64>().ok())
+		.unwrap_or(600.0);
+	let max_rss_kb = env::var("ELF_BASELINE_MAX_ELF_RSS_KB")
+		.ok()
+		.and_then(|value| value.parse::<u64>().ok())
+		.unwrap_or(1_500_000);
+	let rss_kb = current_rss_kb();
+	let pass = elapsed_seconds <= max_elapsed_seconds && rss_kb.is_none_or(|rss| rss <= max_rss_kb);
+	let postgres_database_bytes = postgres_database_bytes(service).await.ok();
+	let corpus_dir_bytes = path_size_bytes(corpus_dir).unwrap_or_default();
+	let report_dir_bytes = report_path.parent().and_then(|path| path_size_bytes(path).ok());
+	let checkpoint_file_bytes = checkpoint_path.metadata().ok().map(|metadata| metadata.len());
+
+	CheckResult {
+		name: "resource_envelope",
+		status: if pass { "pass" } else { "lifecycle_fail" },
+		reason: if pass {
+			"ELF live-baseline runtime stayed within the configured local resource envelope."
+				.to_string()
+		} else {
+			"ELF live-baseline runtime exceeded the configured local resource envelope.".to_string()
+		},
+		evidence: serde_json::json!(ResourceEnvelopeEvidence {
+			elapsed_seconds,
+			max_elapsed_seconds,
+			rss_kb,
+			max_rss_kb,
+			postgres_database_bytes,
+			corpus_dir_bytes,
+			report_dir_bytes,
+			checkpoint_file_bytes,
+		}),
+	}
+}
+
+async fn postgres_database_bytes(service: &ElfService) -> color_eyre::Result<i64> {
+	let bytes = sqlx::query_scalar::<_, i64>("SELECT pg_database_size(current_database())::bigint")
+		.fetch_one(&service.db.pool)
+		.await?;
+
+	Ok(bytes)
 }
 
 async fn load_existing_backfill_notes(
@@ -1581,6 +1781,11 @@ async fn run(args: Args) -> color_eyre::Result<ElfBaselineReport> {
 	let fail_count = query_results.len().saturating_sub(pass_count);
 	let latency_ms_total = query_results.iter().map(|result| result.latency_ms).sum::<f64>();
 	let latency_ms_mean = latency_ms_total / query_results.len().max(1) as f64;
+	let latency_values = query_results.iter().map(|result| result.latency_ms).collect::<Vec<_>>();
+	let latency_ms_p50 = latency_percentile(&latency_values, 0.50);
+	let latency_ms_p95 = latency_percentile(&latency_values, 0.95);
+	let latency_ms_p99 = latency_percentile(&latency_values, 0.99);
+	let latency_ms_max = latency_values.iter().copied().fold(0.0_f64, f64::max);
 	let retrieval_status =
 		if fail_count == 0 { "retrieval_pass" } else { "retrieval_wrong_result" };
 	let mut checks = vec![
@@ -1596,7 +1801,16 @@ async fn run(args: Args) -> color_eyre::Result<ElfBaselineReport> {
 		checks.push(soak_check);
 	}
 
-	checks.push(resource_envelope_check(started_at.elapsed().as_secs_f64()));
+	checks.push(
+		resource_envelope_check(
+			&service,
+			&args.corpus,
+			&args.out,
+			&backfill_checkpoint_path,
+			started_at.elapsed().as_secs_f64(),
+		)
+		.await,
+	);
 
 	let check_summary = summarize_checks(&checks);
 	let status = project_status_from_summary(&check_summary);
@@ -1613,13 +1827,16 @@ async fn run(args: Args) -> color_eyre::Result<ElfBaselineReport> {
 			check_summary.not_encoded
 		)
 	};
+	let embedding = embedding_runtime_report(&service.cfg);
+	let cost_proxy = cost_proxy_report(&notes, &query_results, &embedding);
 	let report = ElfBaselineReport {
 		schema: "elf.live_baseline.elf_result/v1",
 		status,
 		retrieval_status,
 		reason,
 		head: git_head().unwrap_or_else(|_| "unknown".to_string()),
-		embedding: embedding_runtime_report(&service.cfg),
+		embedding,
+		cost_proxy,
 		backfill: backfill.report,
 		indexing: IndexingReport {
 			note_count: notes.len(),
@@ -1634,10 +1851,15 @@ async fn run(args: Args) -> color_eyre::Result<ElfBaselineReport> {
 			wrong_result_count: fail_count,
 			latency_ms_total,
 			latency_ms_mean,
+			latency_ms_p50,
+			latency_ms_p95,
+			latency_ms_p99,
+			latency_ms_max,
 		},
 		check_summary,
 		checks,
 		queries: query_results,
+		ops_cases: operational_cases(),
 	};
 
 	drop(service);
