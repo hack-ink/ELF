@@ -48,6 +48,8 @@ Corpus profiles:
   `apps/elf-eval/fixtures/production_corpus/synthetic_coding_agent_manifest.json`.
 - `production-private`: local private/sanitized production corpus manifest supplied by
   `ELF_BASELINE_PRODUCTION_CORPUS_MANIFEST`.
+- `backfill`: 2000 documents by default, 16 query cases, alternate phrasings for
+  every needle query, and ELF-only resumable backfill evidence.
 
 Use `ELF_BASELINE_SCALE_DOCS` and `ELF_BASELINE_STRESS_DOCS` to raise or lower the
 generated corpus sizes.
@@ -56,6 +58,8 @@ Use `ELF_BASELINE_PRODUCTION_CORPUS_MANIFEST` to supply a local manifest that fo
 manifest path is absent, the file is missing, a referenced `local_path` is missing, or a
 query references an unknown evidence ID. It does not fall back to the checked-in
 synthetic fixture.
+Use `ELF_BASELINE_BACKFILL_DOCS` to set the generated corpus size for the backfill
+profile; values such as `10000` are supported for operator-controlled stress runs.
 Use `ELF_BASELINE_CONCURRENT_NOTES`, `ELF_BASELINE_MAX_ELF_SECONDS`, and
 `ELF_BASELINE_MAX_ELF_RSS_KB` to tune ELF's concurrent-write and resource-envelope
 checks.
@@ -78,6 +82,12 @@ explicit timeout env var is set. For Qwen3 production embedding runs, use
 `Qwen3-Embedding-8B` with `EMBEDDING_DIMENSIONS=4096`. The aggregate report records
 ELF's embedding mode, provider id, model, dimensions, timeout, API base, and path; it
 never records the API key.
+For ELF backfill runs, the runner writes a durable checkpoint file under the report
+directory by default, intentionally interrupts the first pass unless
+`ELF_BASELINE_BACKFILL_RESUME_PROBE=0`, then resumes from the checkpoint. Tune
+`ELF_BASELINE_BACKFILL_BATCH_SIZE`, `ELF_BASELINE_BACKFILL_INTERRUPT_AFTER`,
+`ELF_BASELINE_BACKFILL_CHECKPOINT`, and `ELF_BASELINE_WORKER_CONCURRENCY` when
+measuring import and indexing throughput.
 
 Current external same-corpus adapters:
 
@@ -101,11 +111,11 @@ Current external same-corpus adapters:
 Current deeper checks:
 
 - ELF: same-corpus retrieval through worker-produced chunks, async worker indexing
-  completion, service update replacement through the worker, service delete
-  suppression through the worker, cold-start search recovery after constructing a
-  fresh service over the same Postgres and Qdrant stores, concurrent write/search E2E,
-  configurable repeated write/search soak stability, and a configurable local resource
-  envelope.
+  completion, resumable checkpointed backfill without duplicate source notes, service
+  update replacement through the worker, service delete suppression through the worker,
+  cold-start search recovery after constructing a fresh service over the same Postgres
+  and Qdrant stores, concurrent write/search E2E, configurable repeated write/search
+  soak stability, and a configurable local resource envelope.
 - qmd, memsearch, and mem0: same-corpus retrieval, update replacement, delete
   suppression, and cold-start search recovery through their local public API or CLI
   surfaces.
@@ -142,6 +152,8 @@ To run the scale profile:
 ELF_BASELINE_PROFILE=scale cargo make baseline-live-docker
 ELF_BASELINE_PROFILE=scale ELF_BASELINE_SCALE_DOCS=240 cargo make baseline-live-docker
 ELF_BASELINE_PROFILE=stress cargo make baseline-live-docker
+ELF_BASELINE_PROJECTS=ELF ELF_BASELINE_PROFILE=backfill cargo make baseline-live-docker
+cargo make baseline-backfill-docker
 ```
 
 To iterate on one or more project adapters without rerunning the full matrix:
@@ -183,8 +195,10 @@ synthetic or private production-corpus results. Each project record includes
 an `embedding` summary so deterministic local and production-provider runs are not
 confused. ELF query records include task, expected evidence IDs, allowed alternate
 evidence IDs, top evidence ID, wrong-result count, and per-query latency. Each project
-record also includes `checks` and `check_summary`; the aggregate `full_check_summary`
-is the adoption-relevant multi-check count.
+record also includes `backfill` evidence with source count, completed count, batch
+size, worker concurrency, resume state, duplicate-source count, and backfill elapsed
+seconds. Each project record also includes `checks` and `check_summary`; the aggregate
+`full_check_summary` is the adoption-relevant multi-check count.
 
 Production-ready claims must cite a concrete report path. A claim based only on
 generated public `smoke`, `scale`, or `stress` profiles is not enough for personal

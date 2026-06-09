@@ -11,6 +11,7 @@ use std::{
 	time::{Duration, Instant},
 };
 
+use blake3::Hasher;
 use clap::Parser;
 use color_eyre::{Report, eyre};
 use serde::{Deserialize, Serialize};
@@ -22,7 +23,8 @@ use elf_chunking::ChunkingConfig;
 use elf_config::{Config, EmbeddingProviderConfig, LlmProviderConfig, ProviderConfig};
 use elf_service::{
 	AddNoteInput, AddNoteRequest, BoxFuture, DeleteRequest, ElfService, EmbeddingProvider,
-	ExtractorProvider, PayloadLevel, Providers, RerankProvider, SearchRequest, UpdateRequest,
+	ExtractorProvider, NoteOp, PayloadLevel, Providers, RerankProvider, SearchRequest,
+	UpdateRequest,
 };
 use elf_storage::{db::Db, qdrant::QdrantStore};
 use elf_testkit::TestDatabase;
@@ -32,6 +34,7 @@ const TENANT_ID: &str = "elf-live-baseline";
 const PROJECT_ID: &str = "shared-corpus";
 const AGENT_ID: &str = "elf-bench-agent";
 const SCOPE: &str = "agent_private";
+const BACKFILL_CHECKPOINT_SCHEMA: &str = "elf.live_baseline.backfill_checkpoint/v1";
 
 #[derive(Debug, Parser)]
 #[command(version = elf_cli::VERSION, rename_all = "kebab", styles = elf_cli::styles())]
@@ -101,6 +104,78 @@ struct CorpusNote {
 }
 
 #[derive(Debug)]
+struct BackfillOutcome {
+	report: BackfillReport,
+	note_ids: Vec<Uuid>,
+}
+
+#[derive(Debug)]
+struct ExistingBackfillNote {
+	note_id: Uuid,
+	source_hash: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct BackfillCheckpoint {
+	schema: String,
+	corpus_hash: String,
+	completed: BTreeMap<String, BackfillCheckpointEntry>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct BackfillCheckpointEntry {
+	note_id: Uuid,
+	key: String,
+	source_hash: String,
+	op: String,
+}
+
+#[derive(Debug, Serialize)]
+struct BackfillReport {
+	checkpoint_path: String,
+	corpus_hash: String,
+	source_count: usize,
+	completed_count: usize,
+	batch_size: usize,
+	worker_concurrency: usize,
+	elapsed_seconds: f64,
+	attempted_writes: usize,
+	skipped_completed: usize,
+	duplicate_source_notes: Vec<DuplicateSourceNote>,
+	resume: BackfillResumeReport,
+	attempts: Vec<BackfillAttemptEvidence>,
+}
+
+#[derive(Debug, Serialize)]
+struct BackfillResumeReport {
+	enabled: bool,
+	interrupted: bool,
+	interrupt_after: Option<usize>,
+	resume_attempts: usize,
+	completed_before_resume: usize,
+	completed_after_resume: usize,
+}
+
+#[derive(Debug, Serialize)]
+struct BackfillAttemptEvidence {
+	attempt: usize,
+	resumed: bool,
+	interrupt_after: Option<usize>,
+	skipped_completed: usize,
+	attempted_writes: usize,
+	completed_writes: usize,
+	checkpoint_completed: usize,
+	interrupted: bool,
+}
+
+#[derive(Debug, Serialize)]
+struct DuplicateSourceNote {
+	source_doc: String,
+	count: i64,
+	note_ids: Vec<Uuid>,
+}
+
+#[derive(Debug)]
 struct BaselineRuntime {
 	config_path: PathBuf,
 	dsn: String,
@@ -113,6 +188,7 @@ struct BaselineRuntime {
 struct WorkerRunEvidence {
 	label: String,
 	expected_note_count: usize,
+	concurrency: usize,
 	iterations: usize,
 	before: BTreeMap<String, i64>,
 	after: BTreeMap<String, i64>,
@@ -164,6 +240,7 @@ struct ElfBaselineReport {
 	reason: String,
 	head: String,
 	embedding: EmbeddingRuntimeReport,
+	backfill: BackfillReport,
 	indexing: IndexingReport,
 	summary: QuerySummary,
 	check_summary: CheckSummary,
@@ -583,6 +660,182 @@ fn worker_indexing_check(evidence: WorkerRunEvidence) -> CheckResult {
 	}
 }
 
+fn resumable_backfill_check(report: &BackfillReport) -> CheckResult {
+	let resume_pass = !report.resume.enabled
+		|| (report.resume.interrupted
+			&& report.resume.resume_attempts >= 2
+			&& report.skipped_completed > 0);
+	let pass = report.completed_count == report.source_count
+		&& report.duplicate_source_notes.is_empty()
+		&& resume_pass;
+
+	CheckResult {
+		name: "resumable_backfill_no_duplicates",
+		status: if pass { "pass" } else { "fail" },
+		reason: if pass {
+			"Checkpointed backfill resumed from durable progress and did not duplicate source documents."
+				.to_string()
+		} else {
+			"Checkpointed backfill did not complete cleanly, did not prove resume, or duplicated source documents."
+				.to_string()
+		},
+		evidence: serde_json::json!(report),
+	}
+}
+
+fn backfill_batch_size() -> usize {
+	parse_env_usize("ELF_BASELINE_BACKFILL_BATCH_SIZE").unwrap_or(32).max(1)
+}
+
+fn worker_concurrency() -> usize {
+	let default = match env::var("ELF_BASELINE_PROFILE").as_deref() {
+		Ok("backfill" | "large") => 4,
+		Ok("stress") => 4,
+		Ok("scale" | "full") => 2,
+		_ => 1,
+	};
+
+	parse_env_usize("ELF_BASELINE_WORKER_CONCURRENCY").unwrap_or(default).clamp(1, 32)
+}
+
+fn backfill_resume_probe_enabled() -> bool {
+	env::var("ELF_BASELINE_BACKFILL_RESUME_PROBE")
+		.map(|value| value != "0" && !value.eq_ignore_ascii_case("false"))
+		.unwrap_or(true)
+}
+
+fn backfill_interrupt_after(source_count: usize) -> Option<usize> {
+	if !backfill_resume_probe_enabled() || source_count <= 1 {
+		return None;
+	}
+
+	let configured = parse_env_usize("ELF_BASELINE_BACKFILL_INTERRUPT_AFTER");
+	let default = (source_count / 2).max(1);
+
+	Some(configured.unwrap_or(default).clamp(1, source_count.saturating_sub(1)))
+}
+
+fn backfill_checkpoint_path(out: &Path) -> PathBuf {
+	env_string(&["ELF_BASELINE_BACKFILL_CHECKPOINT"])
+		.map(PathBuf::from)
+		.unwrap_or_else(|| out.with_file_name("elf-backfill-checkpoint.json"))
+}
+
+fn empty_backfill_checkpoint(corpus_hash: &str) -> BackfillCheckpoint {
+	BackfillCheckpoint {
+		schema: BACKFILL_CHECKPOINT_SCHEMA.to_string(),
+		corpus_hash: corpus_hash.to_string(),
+		completed: BTreeMap::new(),
+	}
+}
+
+fn load_backfill_checkpoint(
+	path: &Path,
+	corpus_hash: &str,
+) -> color_eyre::Result<BackfillCheckpoint> {
+	if !path.exists() {
+		return Ok(empty_backfill_checkpoint(corpus_hash));
+	}
+
+	let raw = fs::read_to_string(path)?;
+	let checkpoint = serde_json::from_str::<BackfillCheckpoint>(&raw)?;
+
+	if checkpoint.schema == BACKFILL_CHECKPOINT_SCHEMA && checkpoint.corpus_hash == corpus_hash {
+		Ok(checkpoint)
+	} else {
+		Ok(empty_backfill_checkpoint(corpus_hash))
+	}
+}
+
+fn write_backfill_checkpoint(
+	path: &Path,
+	checkpoint: &BackfillCheckpoint,
+) -> color_eyre::Result<()> {
+	if let Some(parent) = path.parent() {
+		fs::create_dir_all(parent)?;
+	}
+
+	let raw = serde_json::to_string_pretty(checkpoint)?;
+	let tmp_path = path.with_extension("json.tmp");
+
+	fs::write(&tmp_path, raw)?;
+	fs::rename(tmp_path, path)?;
+
+	Ok(())
+}
+
+fn source_hash(note: &CorpusNote) -> String {
+	let mut hasher = Hasher::new();
+
+	hasher.update(note.source_doc.as_bytes());
+	hasher.update(b"\0");
+	hasher.update(note.key.as_bytes());
+	hasher.update(b"\0");
+	hasher.update(note.text.as_bytes());
+
+	hasher.finalize().to_hex().to_string()
+}
+
+fn corpus_hash(notes: &[CorpusNote]) -> String {
+	let mut hasher = Hasher::new();
+
+	for note in notes {
+		hasher.update(note.source_doc.as_bytes());
+		hasher.update(b"\0");
+		hasher.update(source_hash(note).as_bytes());
+		hasher.update(b"\0");
+	}
+
+	hasher.finalize().to_hex().to_string()
+}
+
+fn checkpoint_entry_valid(
+	note: &CorpusNote,
+	entry: &BackfillCheckpointEntry,
+	existing: &BTreeMap<String, ExistingBackfillNote>,
+) -> bool {
+	let expected_hash = source_hash(note);
+
+	if entry.source_hash != expected_hash {
+		return false;
+	}
+
+	existing.get(&note.source_doc).is_some_and(|stored| {
+		stored.note_id == entry.note_id
+			&& stored.source_hash.as_deref() == Some(expected_hash.as_str())
+	})
+}
+
+fn note_input(note: &CorpusNote) -> AddNoteInput {
+	let hash = source_hash(note);
+
+	AddNoteInput {
+		r#type: "fact".to_string(),
+		key: Some(note.key.clone()),
+		text: note.text.clone(),
+		structured: None,
+		importance: 0.9,
+		confidence: 0.95,
+		ttl_days: None,
+		source_ref: serde_json::json!({
+			"source": "ELF live baseline corpus",
+			"title": note.title,
+			"document": note.source_doc,
+			"source_hash": hash,
+		}),
+		write_policy: None,
+	}
+}
+
+fn note_op_string(op: NoteOp) -> color_eyre::Result<String> {
+	let value = serde_json::to_value(op)?;
+
+	value
+		.as_str()
+		.map(ToString::to_string)
+		.ok_or_else(|| eyre::eyre!("Serialized note op was not a string."))
+}
+
 fn concurrent_note_count() -> usize {
 	if let Ok(value) = env::var("ELF_BASELINE_CONCURRENT_NOTES")
 		&& let Ok(parsed) = value.parse::<usize>()
@@ -591,6 +844,7 @@ fn concurrent_note_count() -> usize {
 	}
 
 	match env::var("ELF_BASELINE_PROFILE").as_deref() {
+		Ok("backfill" | "large") => 32,
 		Ok("stress") => 32,
 		Ok("scale" | "full") => 16,
 		_ => 4,
@@ -642,6 +896,7 @@ fn concurrent_marker(index: usize) -> String {
 fn soak_config() -> SoakConfig {
 	let profile = env::var("ELF_BASELINE_PROFILE").ok();
 	let (default_seconds, default_rounds) = match profile.as_deref() {
+		Some("backfill" | "large") => (60, 6),
 		Some("stress") => (60, 6),
 		Some("scale" | "full") => (15, 3),
 		_ => (0, 0),
@@ -986,6 +1241,273 @@ fn git_head() -> color_eyre::Result<String> {
 	Ok(String::from_utf8(output.stdout)?.trim().to_string())
 }
 
+async fn load_existing_backfill_notes(
+	service: &ElfService,
+) -> color_eyre::Result<BTreeMap<String, ExistingBackfillNote>> {
+	let rows = sqlx::query_as::<_, (Uuid, String, Option<String>)>(
+		"\
+SELECT note_id, source_ref->>'document' AS source_doc, source_ref->>'source_hash' AS source_hash
+FROM memory_notes
+WHERE tenant_id = $1
+	AND project_id = $2
+	AND agent_id = $3
+	AND scope = $4
+	AND status = 'active'
+	AND source_ref->>'source' = 'ELF live baseline corpus'
+	AND source_ref->>'document' IS NOT NULL
+ORDER BY updated_at DESC",
+	)
+	.bind(TENANT_ID)
+	.bind(PROJECT_ID)
+	.bind(AGENT_ID)
+	.bind(SCOPE)
+	.fetch_all(&service.db.pool)
+	.await?;
+	let mut out = BTreeMap::new();
+
+	for (note_id, source_doc, hash) in rows {
+		out.entry(source_doc).or_insert(ExistingBackfillNote { note_id, source_hash: hash });
+	}
+
+	Ok(out)
+}
+
+async fn duplicate_source_notes(
+	service: &ElfService,
+) -> color_eyre::Result<Vec<DuplicateSourceNote>> {
+	let rows = sqlx::query_as::<_, (String, i64, Vec<Uuid>)>(
+		"\
+SELECT
+	source_ref->>'document' AS source_doc,
+	COUNT(*)::bigint AS count,
+	array_agg(note_id ORDER BY note_id)::uuid[] AS note_ids
+FROM memory_notes
+WHERE tenant_id = $1
+	AND project_id = $2
+	AND agent_id = $3
+	AND scope = $4
+	AND status = 'active'
+	AND source_ref->>'source' = 'ELF live baseline corpus'
+	AND source_ref->>'document' IS NOT NULL
+GROUP BY source_ref->>'document'
+HAVING COUNT(*) > 1
+ORDER BY source_doc",
+	)
+	.bind(TENANT_ID)
+	.bind(PROJECT_ID)
+	.bind(AGENT_ID)
+	.bind(SCOPE)
+	.fetch_all(&service.db.pool)
+	.await?;
+
+	Ok(rows
+		.into_iter()
+		.map(|(source_doc, count, note_ids)| DuplicateSourceNote { source_doc, count, note_ids })
+		.collect())
+}
+
+async fn run_resumable_backfill(
+	service: &ElfService,
+	notes: &[CorpusNote],
+	checkpoint_path: &Path,
+) -> color_eyre::Result<BackfillOutcome> {
+	let started_at = Instant::now();
+	let corpus_hash = corpus_hash(notes);
+	let batch_size = backfill_batch_size();
+	let interrupt_after = backfill_interrupt_after(notes.len());
+	let first_attempt = run_backfill_attempt(
+		service,
+		notes,
+		checkpoint_path,
+		&corpus_hash,
+		batch_size,
+		1,
+		interrupt_after,
+	)
+	.await?;
+	let interrupted = first_attempt.interrupted;
+	let completed_before_resume = first_attempt.checkpoint_completed;
+	let mut attempts = Vec::new();
+
+	attempts.push(first_attempt);
+
+	if interrupted {
+		attempts.push(
+			run_backfill_attempt(
+				service,
+				notes,
+				checkpoint_path,
+				&corpus_hash,
+				batch_size,
+				2,
+				None,
+			)
+			.await?,
+		);
+	}
+
+	let checkpoint = load_backfill_checkpoint(checkpoint_path, &corpus_hash)?;
+	let existing = load_existing_backfill_notes(service).await?;
+	let mut note_ids = Vec::with_capacity(notes.len());
+
+	for note in notes {
+		let Some(entry) = checkpoint.completed.get(&note.source_doc) else {
+			return Err(eyre::eyre!(
+				"Backfill checkpoint missing completed source {}.",
+				note.source_doc
+			));
+		};
+
+		if !checkpoint_entry_valid(note, entry, &existing) {
+			return Err(eyre::eyre!(
+				"Backfill checkpoint entry for {} does not match Postgres state.",
+				note.source_doc
+			));
+		}
+
+		note_ids.push(entry.note_id);
+	}
+
+	let duplicate_source_notes = duplicate_source_notes(service).await?;
+	let attempted_writes = attempts.iter().map(|attempt| attempt.attempted_writes).sum();
+	let skipped_completed = attempts.iter().map(|attempt| attempt.skipped_completed).sum();
+	let completed_after_resume = checkpoint.completed.len();
+	let report = BackfillReport {
+		checkpoint_path: checkpoint_path.display().to_string(),
+		corpus_hash,
+		source_count: notes.len(),
+		completed_count: note_ids.len(),
+		batch_size,
+		worker_concurrency: worker_concurrency(),
+		elapsed_seconds: started_at.elapsed().as_secs_f64(),
+		attempted_writes,
+		skipped_completed,
+		duplicate_source_notes,
+		resume: BackfillResumeReport {
+			enabled: interrupt_after.is_some(),
+			interrupted,
+			interrupt_after,
+			resume_attempts: attempts.len(),
+			completed_before_resume,
+			completed_after_resume,
+		},
+		attempts,
+	};
+
+	Ok(BackfillOutcome { report, note_ids })
+}
+
+async fn run_backfill_attempt(
+	service: &ElfService,
+	notes: &[CorpusNote],
+	checkpoint_path: &Path,
+	corpus_hash: &str,
+	batch_size: usize,
+	attempt: usize,
+	interrupt_after: Option<usize>,
+) -> color_eyre::Result<BackfillAttemptEvidence> {
+	let mut checkpoint = load_backfill_checkpoint(checkpoint_path, corpus_hash)?;
+	let existing = load_existing_backfill_notes(service).await?;
+	let notes_by_source =
+		notes.iter().map(|note| (note.source_doc.as_str(), note)).collect::<BTreeMap<_, _>>();
+	let checkpoint_len_before_prune = checkpoint.completed.len();
+
+	checkpoint.completed.retain(|source_doc, entry| {
+		notes_by_source
+			.get(source_doc.as_str())
+			.is_some_and(|note| checkpoint_entry_valid(note, entry, &existing))
+	});
+
+	if checkpoint.completed.len() != checkpoint_len_before_prune {
+		write_backfill_checkpoint(checkpoint_path, &checkpoint)?;
+	}
+
+	let mut pending = Vec::new();
+	let mut skipped_completed = 0_usize;
+
+	for note in notes {
+		if checkpoint.completed.contains_key(&note.source_doc) {
+			skipped_completed += 1;
+		} else {
+			pending.push(note);
+		}
+	}
+
+	let max_writes = interrupt_after.unwrap_or(usize::MAX);
+	let mut attempted_writes = 0_usize;
+	let mut completed_writes = 0_usize;
+	let mut cursor = 0_usize;
+
+	while cursor < pending.len() && attempted_writes < max_writes {
+		let remaining_budget = max_writes.saturating_sub(attempted_writes);
+		let take = batch_size.min(remaining_budget).min(pending.len() - cursor);
+		let batch = &pending[cursor..cursor + take];
+		let response = service
+			.add_note(AddNoteRequest {
+				tenant_id: TENANT_ID.to_string(),
+				project_id: PROJECT_ID.to_string(),
+				agent_id: AGENT_ID.to_string(),
+				scope: SCOPE.to_string(),
+				notes: batch.iter().map(|note| note_input(note)).collect(),
+			})
+			.await?;
+
+		if response.results.len() != batch.len() {
+			return Err(eyre::eyre!(
+				"Backfill add_note returned {} results for {} inputs.",
+				response.results.len(),
+				batch.len()
+			));
+		}
+
+		for (note, result) in batch.iter().zip(response.results) {
+			let op = note_op_string(result.op)?;
+
+			if op == "REJECTED" {
+				return Err(eyre::eyre!(
+					"Backfill note {} was rejected: {:?}.",
+					note.source_doc,
+					result.reason_code
+				));
+			}
+
+			let note_id = result.note_id.ok_or_else(|| {
+				eyre::eyre!("Backfill note {} did not return a note_id.", note.source_doc)
+			})?;
+
+			checkpoint.completed.insert(
+				note.source_doc.clone(),
+				BackfillCheckpointEntry {
+					note_id,
+					key: note.key.clone(),
+					source_hash: source_hash(note),
+					op,
+				},
+			);
+
+			completed_writes += 1;
+		}
+
+		attempted_writes += batch.len();
+		cursor += batch.len();
+
+		write_backfill_checkpoint(checkpoint_path, &checkpoint)?;
+	}
+
+	let interrupted = cursor < pending.len();
+
+	Ok(BackfillAttemptEvidence {
+		attempt,
+		resumed: skipped_completed > 0,
+		interrupt_after,
+		skipped_completed,
+		attempted_writes,
+		completed_writes,
+		checkpoint_completed: checkpoint.completed.len(),
+		interrupted,
+	})
+}
+
 #[tokio::main]
 async fn main() -> color_eyre::Result<()> {
 	color_eyre::install()?;
@@ -1019,7 +1541,9 @@ async fn run(args: Args) -> color_eyre::Result<ElfBaselineReport> {
 	};
 	let service = Arc::new(build_service(&runtime).await?);
 	let notes = load_corpus_notes(&args.corpus)?;
-	let note_ids = add_notes(&service, &notes).await?;
+	let backfill_checkpoint_path = backfill_checkpoint_path(&args.out);
+	let backfill = run_resumable_backfill(&service, &notes, &backfill_checkpoint_path).await?;
+	let note_ids = backfill.note_ids;
 	let initial_worker =
 		run_worker_until_indexed(&runtime, &service, &note_ids, "corpus_upsert").await?;
 	let rebuild = service.rebuild_qdrant().await?;
@@ -1031,7 +1555,11 @@ async fn run(args: Args) -> color_eyre::Result<ElfBaselineReport> {
 	let latency_ms_mean = latency_ms_total / query_results.len().max(1) as f64;
 	let retrieval_status =
 		if fail_count == 0 { "retrieval_pass" } else { "retrieval_wrong_result" };
-	let mut checks = vec![retrieval_check(&query_results), worker_indexing_check(initial_worker)];
+	let mut checks = vec![
+		resumable_backfill_check(&backfill.report),
+		retrieval_check(&query_results),
+		worker_indexing_check(initial_worker),
+	];
 
 	checks.extend(run_lifecycle_checks(&runtime, &service, &notes, &note_ids).await?);
 	checks.push(run_concurrent_write_check(&runtime, Arc::clone(&service)).await?);
@@ -1061,6 +1589,7 @@ async fn run(args: Args) -> color_eyre::Result<ElfBaselineReport> {
 		reason,
 		head: git_head().unwrap_or_else(|_| "unknown".to_string()),
 		embedding: embedding_runtime_report(&service.cfg),
+		backfill: backfill.report,
 		indexing: IndexingReport {
 			note_count: notes.len(),
 			rebuild_rebuilt_count: rebuild.rebuilt_count,
@@ -1138,51 +1667,19 @@ async fn build_worker_state(runtime: &BaselineRuntime) -> color_eyre::Result<Wor
 	})
 }
 
-async fn add_notes(service: &ElfService, notes: &[CorpusNote]) -> color_eyre::Result<Vec<Uuid>> {
-	let request = AddNoteRequest {
-		tenant_id: TENANT_ID.to_string(),
-		project_id: PROJECT_ID.to_string(),
-		agent_id: AGENT_ID.to_string(),
-		scope: SCOPE.to_string(),
-		notes: notes
-			.iter()
-			.map(|note| AddNoteInput {
-				r#type: "fact".to_string(),
-				key: Some(note.key.clone()),
-				text: note.text.clone(),
-				structured: None,
-				importance: 0.9,
-				confidence: 0.95,
-				ttl_days: None,
-				source_ref: serde_json::json!({
-					"source": "ELF live baseline corpus",
-					"title": note.title,
-					"document": note.source_doc,
-				}),
-				write_policy: None,
-			})
-			.collect(),
-	};
-	let response = service.add_note(request).await?;
-	let mut ids = Vec::with_capacity(response.results.len());
-
-	for result in response.results {
-		let note_id =
-			result.note_id.ok_or_else(|| eyre::eyre!("ELF add_note did not return a note_id."))?;
-
-		ids.push(note_id);
-	}
-
-	Ok(ids)
-}
-
 async fn run_worker_until_indexed(
 	runtime: &BaselineRuntime,
 	service: &ElfService,
 	note_ids: &[Uuid],
 	label: &str,
 ) -> color_eyre::Result<WorkerRunEvidence> {
-	let state = build_worker_state(runtime).await?;
+	let concurrency = worker_concurrency();
+	let mut states = Vec::with_capacity(concurrency);
+
+	for _ in 0..concurrency {
+		states.push(Arc::new(build_worker_state(runtime).await?));
+	}
+
 	let before = outbox_status_counts(service, note_ids).await?;
 	let max_iterations = worker_max_iterations(note_ids.len());
 	let mut iterations = 0_usize;
@@ -1197,6 +1694,7 @@ async fn run_worker_until_indexed(
 			return Ok(WorkerRunEvidence {
 				label: label.to_string(),
 				expected_note_count: note_ids.len(),
+				concurrency,
 				iterations,
 				before,
 				after,
@@ -1206,9 +1704,23 @@ async fn run_worker_until_indexed(
 			});
 		}
 
-		worker::process_once(&state).await?;
+		let mut set = JoinSet::new();
 
-		iterations += 1;
+		for state in &states {
+			let state = Arc::clone(state);
+
+			set.spawn(async move {
+				worker::process_once(&state)
+					.await
+					.map_err(|err| eyre::eyre!("Worker process_once failed: {err}"))
+			});
+		}
+
+		while let Some(joined) = set.join_next().await {
+			joined??;
+		}
+
+		iterations = iterations.saturating_add(concurrency);
 	}
 
 	let after = outbox_status_counts(service, note_ids).await?;
@@ -1218,6 +1730,7 @@ async fn run_worker_until_indexed(
 	Ok(WorkerRunEvidence {
 		label: label.to_string(),
 		expected_note_count: note_ids.len(),
+		concurrency,
 		iterations,
 		before,
 		after,
