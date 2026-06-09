@@ -263,6 +263,30 @@ Recommended non-blocking follow-ups:
   typed benchmark improvement opportunities only if external parity coverage remains a
   roadmap goal.
 
+## Post-Gate Repeatability Extension
+
+XY-850 extends the live-baseline runner after this gate without changing the gate's
+historical verdict. The private-corpus result remains bounded until an operator-owned
+manifest is supplied.
+
+New repeatable paths:
+
+- `cargo make baseline-production-private-addendum` runs the private profile and writes
+  a safe Markdown addendum to `tmp/live-baseline/private-production-addendum.md` by
+  default. It still fails closed when `ELF_BASELINE_PRODUCTION_CORPUS_MANIFEST` is
+  absent.
+- `cargo make baseline-backfill-10k-docker` runs an ELF-only 10k generated backfill
+  resume profile.
+- `ELF_BASELINE_ENABLE_EXPENSIVE=1 cargo make baseline-backfill-100k-docker` runs the
+  guarded 100k profile. Without the guard, the task exits before starting Docker work.
+- `cargo make baseline-soak-docker` runs an explicit ELF-only soak profile, defaulting
+  to one hour unless `ELF_BASELINE_SOAK_SECONDS` is set.
+
+New report fields include duplicate-source count, checkpoint resume state, latency
+mean/P50/P95/P99/max, RSS and disk-size proxies, a planning-only cost proxy, and
+operator-case commands for provider outage, migration rollback, Docker Compose
+start/stop/upgrade, Postgres restore, Qdrant rebuild, and unattended soak.
+
 ## Runner Repairs Made By This Gate
 
 Two small runner fixes were required to collect the fresh evidence:

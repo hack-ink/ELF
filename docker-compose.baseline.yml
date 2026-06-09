@@ -45,6 +45,7 @@ services:
       EMBEDDING_PROVIDER_ID: ${EMBEDDING_PROVIDER_ID:-}
       EMBEDDING_TIMEOUT_MS: ${EMBEDDING_TIMEOUT_MS:-}
       ELF_BASELINE_CONCURRENT_NOTES: ${ELF_BASELINE_CONCURRENT_NOTES:-}
+      ELF_BASELINE_COST_PER_1K_TOKENS_USD: ${ELF_BASELINE_COST_PER_1K_TOKENS_USD:-}
       ELF_BASELINE_ELF_EMBEDDING_API_BASE: ${ELF_BASELINE_ELF_EMBEDDING_API_BASE:-}
       ELF_BASELINE_ELF_EMBEDDING_API_KEY: ${ELF_BASELINE_ELF_EMBEDDING_API_KEY:-}
       ELF_BASELINE_ELF_EMBEDDING_DIMENSIONS: ${ELF_BASELINE_ELF_EMBEDDING_DIMENSIONS:-}
@@ -63,6 +64,7 @@ services:
       ELF_BASELINE_MAX_ELF_SECONDS: ${ELF_BASELINE_MAX_ELF_SECONDS:-600}
       ELF_BASELINE_PROFILE: ${ELF_BASELINE_PROFILE:-smoke}
       ELF_BASELINE_PROJECTS: ${ELF_BASELINE_PROJECTS:-all}
+      ELF_BASELINE_PRODUCTION_CORPUS_MANIFEST: ${ELF_BASELINE_PRODUCTION_CORPUS_MANIFEST:-}
       ELF_BASELINE_REPORT_DIR: /workspace/tmp/live-baseline
       ELF_BASELINE_SCALE_DOCS: ${ELF_BASELINE_SCALE_DOCS:-120}
       ELF_BASELINE_SOAK_PROBE_INTERVAL_MS: ${ELF_BASELINE_SOAK_PROBE_INTERVAL_MS:-}
@@ -90,7 +92,7 @@ services:
       - elf-live-baseline-cargo-git:/usr/local/cargo/git
       - elf-live-baseline-cargo-registry:/usr/local/cargo/registry
       - elf-live-baseline-target:/workspace/target
-      - ./tmp/live-baseline:/workspace/tmp/live-baseline
+      - ./tmp:/workspace/tmp
 
 volumes:
   elf-live-baseline-cargo-git:
