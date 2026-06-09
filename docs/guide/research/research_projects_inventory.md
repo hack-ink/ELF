@@ -6,7 +6,7 @@ Inputs: Existing research notes, open architecture questions, and tracked adopti
 Depends on: `docs/guide/research/comparison_external_projects.md`.
 Outputs: A current inventory of reviewed and pending external projects.
 
-Last updated: June 8, 2026.
+Last updated: June 9, 2026.
 
 ## Legend
 
@@ -16,28 +16,28 @@ Last updated: June 8, 2026.
 
 ## Inventory
 
-| Project | Research depth | Current status | Why it matters to ELF | Primary reference |
-| ------- | -------------- | -------------- | --------------------- | ----------------- |
-| [agentmemory](https://github.com/rohitg00/agentmemory) | D1 | Reviewed | Cross-agent coding-memory hooks, MCP/REST surface, viewer, consolidation lifecycle, and external benchmark target | `docs/guide/research/comparison_external_projects.md`; `docs/research/2026-06-08-agent-memory-selection.json` |
-| [OpenAI ChatGPT Memory Dreaming](https://openai.com/index/chatgpt-memory-dreaming/) | D1 | Reviewed | Background memory synthesis and staleness repair as a product direction | `docs/research/2026-06-08-agent-memory-selection.json` |
-| [Claude Managed Agents Dreams](https://platform.claude.com/docs/en/managed-agents/dreams) | D1 | Reviewed | Reviewable derived memory-store output over past sessions; strong safety shape for ELF consolidation | `docs/research/2026-06-08-agent-memory-selection.json` |
-| [Gemini CLI Auto Memory](https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/auto-memory.md) | D1 | Reviewed | Background session mining with project-local review inbox for memory patches and skills | `docs/research/2026-06-08-agent-memory-selection.json` |
-| [mem0](https://github.com/mem0ai/mem0) | D2 | Reviewed | Graph memory as additive context, memory history and async mode trade-offs | `docs/guide/research/comparison_external_projects.md` |
-| [memsearch](https://github.com/zilliztech/memsearch) | D2 | Reviewed | Markdown-first SoT + rebuildable index pattern | `docs/guide/research/comparison_external_projects.md` |
-| [qmd](https://github.com/tobi/qmd) | D2 | Reviewed | Retrieval routing, weighted fusion, and local-first explainability | `docs/guide/research/comparison_external_projects.md` |
-| [claude-mem](https://github.com/thedotmack/claude-mem) | D2 | Reviewed | Progressive disclosure and strong operator workflow | `docs/guide/research/comparison_external_projects.md` |
-| [OpenViking](https://github.com/volcengine/OpenViking) | D2 | Reviewed | Filesystem context paradigm, hierarchical retrieval, trajectory observability | `docs/guide/research/comparison_external_projects.md` |
-| [llm-wiki](https://github.com/nvk/llm-wiki) | D1 | Reviewed | LLM-maintained wiki pattern, topic-scoped knowledge bases, query-save and lint workflows | `docs/guide/research/comparison_external_projects.md` |
-| [gbrain](https://github.com/garrytan/gbrain) | D1 | Reviewed | Operational knowledge brain, `compiled_truth` + timeline pages, enrichment and maintenance loops | `docs/guide/research/comparison_external_projects.md` |
-| [Always-On Memory Agent](https://github.com/GoogleCloudPlatform/generative-ai/tree/main/gemini/agents/always-on-memory-agent) | D1 | Reviewed | Always-on multimodal ingest + scheduled consolidation loop with simple local ops surface | `docs/guide/research/comparison_external_projects.md` |
-| [graphify](https://github.com/safishamsi/graphify) | D1 | Reviewed | Multimodal graph compression, deterministic code extraction, and always-on graph-guided assistant workflow | `docs/guide/research/comparison_external_projects.md` |
-| [Letta](https://github.com/letta-ai/letta) | D1 | Reviewed | Core vs archival memory split, shared blocks | `docs/guide/research/comparison_external_projects.md` |
-| [LangGraph](https://docs.langchain.com/oss/python/langgraph/persistence) | D1 | Reviewed | Checkpoint/replay mindset for quality regression workflows | `docs/guide/research/comparison_external_projects.md` |
-| [Graphiti / Zep](https://help.getzep.com/graphiti/core-concepts/temporal-awareness) | D1 | Reviewed | Temporal fact validity model for graph-like memory evolution | `docs/guide/research/comparison_external_projects.md` |
-| [nanograph](https://github.com/aaltshuler/nanograph) | D1 | Reviewed | Typed schema + typed query ergonomics for graph-lite developer experience | `docs/guide/research/comparison_external_projects.md` |
-| [RAGFlow](https://github.com/infiniflow/ragflow) | D0 | Pending deep dive | Potential framework integration discussion; not yet audited to adoption level | Discussion history only |
-| [LightRAG](https://github.com/HKUDS/LightRAG) | D0 | Pending deep dive | Graph-augmented RAG strategy relevance; not yet audited to adoption level | Discussion history only |
-| [GraphRAG](https://www.microsoft.com/en-us/research/project/graphrag/) | D0 | Pending deep dive | Graph-based retrieval concepts; not yet audited to implementation decision level | Discussion history only |
+| Project | Research depth | Current status | Benchmark dimension role | Why it matters to ELF | Primary reference |
+| ------- | -------------- | -------------- | ------------------------ | --------------------- | ----------------- |
+| [agentmemory](https://github.com/rohitg00/agentmemory) | D1 | Reviewed | `rw.operator-continuity`, `rw.resume-evidence`, `rw.lifecycle-staleness` | Cross-agent coding-memory hooks, MCP/REST surface, viewer, consolidation lifecycle, and external benchmark target | `docs/guide/research/comparison_external_projects.md`; `docs/research/2026-06-08-agent-memory-selection.json`; `docs/research/2026-06-09-xy-841-external-memory-benchmark-dimensions.json` |
+| [OpenAI ChatGPT Memory Dreaming](https://openai.com/index/chatgpt-memory-dreaming/) | D1 | Reviewed | `rw.consolidation-review` | Background memory synthesis and staleness repair as a product direction | `docs/research/2026-06-08-agent-memory-selection.json` |
+| [Claude Managed Agents Dreams](https://platform.claude.com/docs/en/managed-agents/dreams) | D1 | Reviewed | `rw.consolidation-review` | Reviewable derived memory-store output over past sessions; strong safety shape for ELF consolidation | `docs/research/2026-06-08-agent-memory-selection.json` |
+| [Gemini CLI Auto Memory](https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/auto-memory.md) | D1 | Reviewed | `rw.consolidation-review`, `rw.operator-continuity` | Background session mining with project-local review inbox for memory patches and skills | `docs/research/2026-06-08-agent-memory-selection.json` |
+| [mem0](https://github.com/mem0ai/mem0) | D2 | Reviewed | `rw.lifecycle-staleness`, `rw.graph-temporal`, `rw.operator-continuity` | Graph memory as additive context, memory history and async mode trade-offs | `docs/guide/research/comparison_external_projects.md`; `docs/research/2026-06-09-xy-841-external-memory-benchmark-dimensions.json` |
+| [memsearch](https://github.com/zilliztech/memsearch) | D2 | Reviewed | `rw.lifecycle-staleness`, `rw.retrieval-debug`, `rw.resume-evidence` | Markdown-first SoT + rebuildable index pattern | `docs/guide/research/comparison_external_projects.md`; `docs/research/2026-06-09-xy-841-external-memory-benchmark-dimensions.json` |
+| [qmd](https://github.com/tobi/qmd) | D2 | Reviewed | `rw.retrieval-debug`, `rw.lifecycle-staleness`, `rw.resume-evidence` | Retrieval routing, weighted fusion, and local-first explainability | `docs/guide/research/comparison_external_projects.md`; `docs/research/2026-06-09-xy-841-external-memory-benchmark-dimensions.json` |
+| [claude-mem](https://github.com/thedotmack/claude-mem) | D2 | Reviewed | `rw.operator-continuity`, `rw.resume-evidence`, `rw.retrieval-debug` | Progressive disclosure and strong operator workflow | `docs/guide/research/comparison_external_projects.md`; `docs/research/2026-06-09-xy-841-external-memory-benchmark-dimensions.json` |
+| [OpenViking](https://github.com/volcengine/OpenViking) | D2 | Reviewed | `rw.context-trajectory`, `rw.resume-evidence`, `rw.retrieval-debug` | Filesystem context paradigm, hierarchical retrieval, trajectory observability | `docs/guide/research/comparison_external_projects.md`; `docs/research/2026-06-09-xy-841-external-memory-benchmark-dimensions.json` |
+| [llm-wiki](https://github.com/nvk/llm-wiki) | D1 | Reviewed | `rw.knowledge-synthesis`, `rw.resume-evidence` | LLM-maintained wiki pattern, topic-scoped knowledge bases, query-save and lint workflows | `docs/guide/research/comparison_external_projects.md`; `docs/research/2026-06-09-xy-841-external-memory-benchmark-dimensions.json` |
+| [gbrain](https://github.com/garrytan/gbrain) | D1 | Reviewed | `rw.knowledge-synthesis`, `rw.operator-continuity` | Operational knowledge brain, `compiled_truth` + timeline pages, enrichment and maintenance loops | `docs/guide/research/comparison_external_projects.md`; `docs/research/2026-06-09-xy-841-external-memory-benchmark-dimensions.json` |
+| [Always-On Memory Agent](https://github.com/GoogleCloudPlatform/generative-ai/tree/main/gemini/agents/always-on-memory-agent) | D1 | Reviewed | `rw.consolidation-review`, `rw.operator-continuity` | Always-on multimodal ingest + scheduled consolidation loop with simple local ops surface | `docs/guide/research/comparison_external_projects.md`; `docs/research/2026-06-09-xy-841-external-memory-benchmark-dimensions.json` |
+| [graphify](https://github.com/safishamsi/graphify) | D1 | Reviewed | `rw.graph-navigation`, `rw.knowledge-synthesis`, `rw.resume-evidence` | Multimodal graph compression, deterministic code extraction, and always-on graph-guided assistant workflow | `docs/guide/research/comparison_external_projects.md`; `docs/research/2026-06-09-xy-841-external-memory-benchmark-dimensions.json` |
+| [Letta](https://github.com/letta-ai/letta) | D1 | Reviewed | `rw.core-archival`, `rw.operator-continuity` | Core vs archival memory split, shared blocks | `docs/guide/research/comparison_external_projects.md`; `docs/research/2026-06-09-xy-841-external-memory-benchmark-dimensions.json` |
+| [LangGraph](https://docs.langchain.com/oss/python/langgraph/persistence) | D1 | Reviewed | `rw.replay-regression`, `rw.resume-evidence` | Checkpoint/replay mindset for quality regression workflows | `docs/guide/research/comparison_external_projects.md`; `docs/research/2026-06-09-xy-841-external-memory-benchmark-dimensions.json` |
+| [Graphiti / Zep](https://help.getzep.com/graphiti/core-concepts/temporal-awareness) | D1 | Reviewed | `rw.graph-temporal`, `rw.resume-evidence` | Temporal fact validity model for graph-like memory evolution | `docs/guide/research/comparison_external_projects.md`; `docs/research/2026-06-09-xy-841-external-memory-benchmark-dimensions.json` |
+| [nanograph](https://github.com/aaltshuler/nanograph) | D1 | Reviewed | `rw.graph-temporal`, `rw.retrieval-debug` | Typed schema + typed query ergonomics for graph-lite developer experience | `docs/guide/research/comparison_external_projects.md`; `docs/research/2026-06-09-xy-841-external-memory-benchmark-dimensions.json` |
+| [RAGFlow](https://github.com/infiniflow/ragflow) | D0 | Watch item; pending deep dive | Candidate `rw.resume-evidence`, `rw.graph-navigation`, `rw.retrieval-debug`; no strength claim | Potential framework integration discussion; not yet audited to adoption level | Discussion history only; see watch-item evidence requirements in `docs/guide/research/comparison_external_projects.md` |
+| [LightRAG](https://github.com/HKUDS/LightRAG) | D0 | Watch item; pending deep dive | Candidate `rw.graph-navigation`, `rw.graph-temporal`, `rw.retrieval-debug`; no strength claim | Graph-augmented RAG strategy relevance; not yet audited to adoption level | Discussion history only; see watch-item evidence requirements in `docs/guide/research/comparison_external_projects.md` |
+| [GraphRAG](https://www.microsoft.com/en-us/research/project/graphrag/) | D0 | Watch item; pending deep dive | Candidate `rw.graph-navigation`, `rw.knowledge-synthesis`, `rw.retrieval-debug`; no strength claim | Graph-based retrieval concepts; not yet audited to implementation decision level | Discussion history only; see watch-item evidence requirements in `docs/guide/research/comparison_external_projects.md` |
 
 ## June 2026 Activity Snapshot
 
@@ -70,8 +70,9 @@ replacing ELF's evidence-bound service contract.
   - [XY-40](https://linear.app/hack-ink/issue/XY-40/vision-track-elf-as-a-high-trust-memory-system-for-singlemulti-agent)
   - [XY-51](https://linear.app/hack-ink/issue/XY-51/agent-memory-ux-mcp-surface-skills-doc-pointers-epic)
   - [XY-63](https://linear.app/hack-ink/issue/XY-63/research-openviking-as-optional-doc-backend-integration-sketch)
-- Current June 2026 research run:
+- Current June 2026 research runs:
   - `docs/research/2026-06-08-agent-memory-selection.json`
+  - `docs/research/2026-06-09-xy-841-external-memory-benchmark-dimensions.json`
 
 ## Notes
 

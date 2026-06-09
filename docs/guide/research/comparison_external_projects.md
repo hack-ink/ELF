@@ -10,6 +10,8 @@ Scope note: This document is intentionally detailed and source-heavy. Keep `READ
 For a full list of reviewed and pending projects, see `docs/guide/research/research_projects_inventory.md`.
 For the June 2026 agentmemory and dreaming decision run, see
 `docs/research/2026-06-08-agent-memory-selection.json`.
+For the June 2026 real-world benchmark-dimension refresh, see
+`docs/research/2026-06-09-xy-841-external-memory-benchmark-dimensions.json`.
 
 Comparison focuses on shared capabilities, ELF distinctives, and objective trade-offs. These projects solve adjacent problems, but their primary storage units and default workflows differ.
 
@@ -31,6 +33,87 @@ Legend:
 
 Note: In this section, mem0 refers to the Mem0 ecosystem, including OpenMemory (an MCP memory server with a built-in UI).
 OpenViking is included as a newly reviewed project with mechanism-level analysis.
+
+## June 2026 Real-World Benchmark-Dimension Map
+
+Snapshot date for this subsection: June 9, 2026.
+
+This map translates the existing external-project research into benchmark dimensions
+for the real-world agent memory suite. It does not add new adapter pass/fail evidence.
+Use the evidence class before making claims:
+
+- `benchmark-grounded`: ELF's Docker benchmark has runnable adapter evidence for this
+  project and dimension. Read the exact report before quoting a pass/fail result.
+- `docs-grounded`: official docs or READMEs indicate a likely strength, but ELF has not
+  reproduced the behavior in the benchmark runner.
+- `watch`: the project remains D0 or otherwise pending; do not assign strength claims
+  until a deep dive or adapter run exists.
+
+Current benchmark-grounded scope is narrow. The June 9, 2026 all-project smoke run
+proved encoded same-corpus/lifecycle behavior only for the current adapters: ELF and qmd
+passed their encoded smoke checks; agentmemory passed same-corpus retrieval but failed
+or could not prove durable lifecycle behavior; memsearch, mem0, OpenViking, and
+claude-mem retained `incomplete`, wrong-result, or not-encoded states. All broader suite
+fit below is research guidance, not a benchmark result.
+
+Benchmark suite labels:
+
+| Suite | Real-world job shape |
+| ----- | -------------------- |
+| `rw.resume-evidence` | Resume a stalled agent task, recover the right prior decision, cite required evidence, and avoid negative traps. |
+| `rw.lifecycle-staleness` | Update, delete, expire, cold-start, and contradiction cases where stale facts must stop winning. |
+| `rw.operator-continuity` | Capture session observations, inspect memory state, and support day-to-day agent continuity with low friction. |
+| `rw.retrieval-debug` | Explain query expansion, hybrid retrieval, fusion, rerank, and wrong-result causes. |
+| `rw.context-trajectory` | Navigate multi-stage or hierarchical context before selecting final evidence. |
+| `rw.knowledge-synthesis` | Compile durable project/entity/concept pages from memory and keep them lintable or repairable. |
+| `rw.consolidation-review` | Run background consolidation while keeping derived output reviewable and evidence-linked. |
+| `rw.graph-temporal` | Track facts, entities, relations, validity windows, and current-versus-historical answers. |
+| `rw.core-archival` | Separate always-loaded operating memory from retrieval-only archival memory. |
+| `rw.replay-regression` | Replay, fork, or checkpoint agent state to debug memory-assisted work and regression failures. |
+| `rw.graph-navigation` | Use graph-compressed corpus structure to guide agents before raw retrieval or file inspection. |
+
+Project-to-suite map:
+
+| Project | Best-fit real-world suites | Why this project matters for that suite | Fair adapter evidence before claims | Evidence class and confidence | Current ELF position |
+| ------- | -------------------------- | -------------------------------------- | ---------------------------------- | ----------------------------- | -------------------- |
+| agentmemory | `rw.operator-continuity`, `rw.resume-evidence`, `rw.lifecycle-staleness` | Cross-agent hooks, MCP/REST packaging, viewer, lifecycle/consolidation claims, and coding-agent continuity focus make it the right reference for daily agent memory ergonomics. | Use durable upstream storage rather than the current in-memory mock; ingest realistic agent sessions through the public hook/API path; prove restart, update/supersede, delete, and viewer/trace readback. | Mixed: benchmark-grounded only for current same-corpus retrieval; current lifecycle evidence is a failure/blocker, while hooks/viewer/consolidation are docs-grounded. Confidence: medium for suite fit, low for durable adapter quality. | ELF is stronger on evidence-bound writes and source-of-truth discipline; agentmemory remains the reference for capture breadth and agent-continuity UX. |
+| qmd | `rw.retrieval-debug`, `rw.lifecycle-staleness`, `rw.resume-evidence` | Its local CLI, structured JSON query output, expansion modes, hybrid routing, weighted fusion, rerank, update, delete, and cold-start path make it the strongest local retrieval-debug baseline. | Run `qmd` over the real-world corpus, capture query JSON, then rewrite/delete corpus files and rerun update/embed/query in fresh processes. | Benchmark-grounded for current smoke retrieval/update/delete/cold-start pass; docs-grounded for deeper query planning ergonomics. Confidence: high for local adapter baseline. | ELF is not yet stronger on local CLI debug ergonomics; treat qmd as the retrieval-debug reference while keeping ELF's service/provenance model. |
+| claude-mem | `rw.operator-continuity`, `rw.resume-evidence`, `rw.retrieval-debug` | Progressive-disclosure search, auto-capture hooks, local viewer, and observation/timeline workflows are directly aligned with real agent resumption jobs. | Exercise a real local repository with hook-driven capture, then evaluate `search -> timeline -> observations` behavior after restart; do not rely on mocked storage. | Docs-grounded for progressive disclosure/viewer; current benchmark adapter evidence is incomplete/wrong-result and mostly not encoded for lifecycle. Confidence: medium for product reference, low for current adapter claims. | ELF has stronger provenance and service boundaries, but claude-mem remains a reference for operator workflow and progressive disclosure UX. |
+| mem0 / OpenMemory | `rw.lifecycle-staleness`, `rw.graph-temporal`, `rw.operator-continuity`, `rw.resume-evidence` | Entity-scoped memory, memory history, expiration, hosted/OSS surfaces, OpenMemory UI, and optional graph memory make it the broadest lifecycle and ecosystem comparison target. | Separate OSS local FastEmbed/Qdrant evidence from hosted Platform claims; prove add/update/delete/history, entity-scoped retrieval, expiration exclusion, OpenMemory UI readback, and optional graph context on the same corpus. | Docs-grounded for lifecycle/entity/graph/UI claims; current local adapter is incomplete/wrong-result for same-corpus retrieval and delete remains not encoded. Confidence: medium for suite fit, low for current adapter quality. | ELF is stronger on deterministic evidence-bound writes; mem0/OpenMemory is the reference for ecosystem reach, entity-scoped history, hosted option, and optional graph UX. |
+| memsearch | `rw.lifecycle-staleness`, `rw.retrieval-debug`, `rw.resume-evidence` | Markdown as canonical memory plus incremental/content-addressed reindexing is a useful model for source transparency and rebuildable derived indexes. | Index a real-world Markdown corpus, mutate/delete files, rerun index/search from fresh processes, and record Milvus mode so Lite/Server/Cloud behavior is not conflated. | Docs-grounded for architecture; current adapter is incomplete/invalid-result, so no pass/fail quality claim is allowed. Confidence: medium for design pattern, low for current adapter evidence. | ELF already owns source-of-truth plus rebuildable index at service level; memsearch remains a reference for simple local canonical-store ergonomics. |
+| OpenViking | `rw.context-trajectory`, `rw.resume-evidence`, `rw.retrieval-debug` | `viking://` context organization, intent analysis, hierarchical retrieval, staged find/search behavior, and session compression are relevant to multi-hop agent context jobs. | Pin or provide a Docker-compatible local embedding path, then evaluate `add_resource`/`find`/`search` over multi-stage jobs with stage output, hierarchy, and session memory evidence. | Docs-grounded for mechanism; current benchmark adapter is incomplete due local embedding install failure. Confidence: medium for architecture reference, low for runnable adapter quality. | ELF has first-class traces and evidence-bound notes, but OpenViking is the reference for hierarchical context trajectory and filesystem-like organization. |
+| llm-wiki | `rw.knowledge-synthesis`, `rw.resume-evidence` | Query/save/lint flows and topic-scoped wiki pages are a useful reference for turning retrieved memory into maintained project knowledge. | Run a corpus-to-wiki job, ask resume/decision questions, require page citations back to source memory, then mutate a stale source and prove lint/repair catches it. | Docs-grounded D1; no benchmark adapter evidence. Confidence: medium for derived-knowledge fit. | ELF is not yet stronger on derived knowledge pages; llm-wiki should inform rebuildable, evidence-cited dossiers rather than core storage. |
+| gbrain | `rw.knowledge-synthesis`, `rw.operator-continuity` | `compiled_truth`, timeline sections, backlinks, primary-home routing, and enrichment workflows model a living operational brain for project work. | Build or update pages from the real-world corpus, require current-truth plus timeline answers, and prove enrichment/backlink maintenance does not hide unsupported claims. | Docs-grounded D1; no benchmark adapter evidence. Confidence: medium for operator knowledge UX. | ELF should keep source notes authoritative; gbrain is a reference for presentation, enrichment, and maintenance loops. |
+| Always-On Memory Agent | `rw.consolidation-review`, `rw.operator-continuity` | The file/API/dashboard ingest loop and timer-based consolidation show how background memory formation becomes a user-visible product surface. | Run scheduled consolidation on a fixed corpus, record source rows and output insights, then score whether consolidation is reviewable, repeatable, and bounded against unsupported claims. | Docs-grounded D1; no benchmark adapter evidence. Confidence: medium for consolidation workflow reference. | ELF should borrow scheduling and operator controls while keeping deterministic writes and reviewable derived outputs. |
+| graphify | `rw.graph-navigation`, `rw.knowledge-synthesis`, `rw.resume-evidence` | Deterministic code extraction, LLM-assisted graph building, honesty tags, graph reports, and assistant hooks are strong references for graph-compressed navigation over large corpora. | Generate graph/report artifacts from the benchmark corpus, require answers to use graph structure plus source evidence, and prove rebuild behavior after corpus edits. | Docs-grounded D1; no benchmark adapter evidence. Confidence: medium for graph-navigation reference. | ELF is stronger as a memory service; graphify is the reference for rebuildable graph reports and pre-search guidance. |
+| Letta | `rw.core-archival`, `rw.operator-continuity` | Core memory blocks, archival memory, and shared/read-only memory blocks map directly to always-loaded operating context versus retrievable memory. | Build a multi-agent job where core blocks must be attached/detached/shared read-only, while archival memory is retrieved separately and audited. | Docs-grounded D1; no benchmark adapter evidence. Confidence: medium for memory-semantics reference. | ELF has scoped notes but not first-class core/archival block ergonomics; Letta is the reference dimension. |
+| LangGraph | `rw.replay-regression`, `rw.resume-evidence` | Thread checkpoints, durable execution, replay, fork, and time travel define a strong model for debugging agent-state and memory-regression behavior. | Run an agent job with memory reads across checkpoints, replay/fork the thread after a stale-memory failure, and verify side-effect boundaries. | Docs-grounded D1; no benchmark adapter evidence. Confidence: medium for replay workflow reference. | ELF traces are useful but do not replace full agent checkpoint replay; LangGraph is the reference for replay-regression jobs. |
+| Graphiti / Zep | `rw.graph-temporal`, `rw.resume-evidence` | Temporal entities, relations, fact triples, validity windows, and graph search directly target stale/contradictory factual memory. | Add fact triples with validity changes, query current and historical answers, and score invalidation/append behavior under contradiction traps. | Docs-grounded D1; no benchmark adapter evidence. Confidence: medium-high for temporal-graph dimension. | ELF graph-lite is not yet stronger on temporal graph validity; Graphiti/Zep is the reference dimension. |
+| nanograph | `rw.graph-temporal`, `rw.retrieval-debug` | Typed schema and typed query ergonomics are relevant to making ELF graph-lite interactions inspectable and hard to misuse. | Define typed graph schemas and queries for the same fact set, then score developer-visible validation, query shape, and explainability rather than retrieval quality alone. | Docs-grounded D1; no benchmark adapter evidence. Confidence: medium for DX reference, low for memory-system comparison. | ELF should borrow typed graph ergonomics without treating nanograph as a full memory backend. |
+
+Pending watch items remain D0. Keep them out of benchmark strength claims until current
+evidence is gathered:
+
+| Watch item | Candidate suite if promoted | Minimum evidence needed before adapter or quality claims |
+| ---------- | --------------------------- | ------------------------------------------------------- |
+| RAGFlow | `rw.resume-evidence`, `rw.graph-navigation`, `rw.retrieval-debug` | D1/D2 deep dive on deployability, corpus ingestion, graph/RAG retrieval path, API/CLI outputs, and Docker resource envelope. |
+| LightRAG | `rw.graph-navigation`, `rw.graph-temporal`, `rw.retrieval-debug` | D1/D2 deep dive on graph extraction/update semantics, local persistence, query output, and whether stale/corrected facts can be tested fairly. |
+| GraphRAG | `rw.graph-navigation`, `rw.knowledge-synthesis`, `rw.retrieval-debug` | D1/D2 deep dive on indexing cost, graph summaries, update/rebuild behavior, source citation guarantees, and task-level output inspectability. |
+
+## Where ELF Is Not Yet The Reference
+
+| Benchmark dimension | Current reference project(s) | ELF gap to test before claiming strength |
+| ------------------- | ---------------------------- | ---------------------------------------- |
+| Local retrieval debugging and CLI transparency | qmd | ELF needs equally fast local knobs/readback for expansion, hybrid fusion, rerank, and wrong-result diagnosis. |
+| Turn-by-turn agent capture and daily continuity | agentmemory, claude-mem, OpenMemory | ELF has service and viewer surfaces, but not the same turnkey hook breadth or session-continuity product ergonomics. |
+| Progressive disclosure UX | claude-mem, OpenViking | ELF has L0/L1/L2 shaping and traces, but the operator workflow still needs better search-session navigation. |
+| Entity-scoped history and managed ecosystem reach | mem0/OpenMemory | ELF has ingest decisions and versions, but not the same hosted option, SDK reach, or first-class memory history surface. |
+| Core memory versus archival memory | Letta | ELF scopes notes well, but lacks attachable/read-only core memory blocks as a distinct user-facing layer. |
+| Temporal graph validity | Graphiti/Zep | ELF graph-lite persists relation context, but temporal invalidation/current-vs-historical graph behavior is not the reference yet. |
+| Agent replay and forkable regression debugging | LangGraph | ELF traces are replay evidence for retrieval, not full persisted agent-state replay with side-effect boundaries. |
+| Derived knowledge pages and lint/repair loops | llm-wiki, gbrain | ELF does not yet ship rebuildable entity/project pages with unsupported-claim lint as a first-class workflow. |
+| Scheduled consolidation as a product surface | Always-On Memory Agent | ELF's target should be reviewable derived consolidation, but the scheduling/operator-control workflow is not implemented. |
+| Graph-compressed navigation over large corpora | graphify, GraphRAG/LightRAG watch items | ELF relation context is bounded and evidence-linked, but broader graph report/navigation workflows remain future work. |
 
 ## June 2026 Agentmemory And Dreaming Refresh
 
@@ -276,7 +359,9 @@ Key takeaways for ELF from this deeper pass:
 
 ## Where ELF Is Currently Weaker (Objective Gaps)
 
-- No built-in web UI viewer yet (claude-mem and OpenMemory provide this today).
+- ELF now has a local admin viewer and retrieval observability surfaces, but
+  claude-mem, OpenMemory, and agentmemory remain stronger references for turnkey
+  memory-inspection and session-continuity ergonomics.
 - No hosted/cloud product option (mem0 provides managed deployment).
 - Graph support is currently graph-lite (`POST /v2/graph/query`) and does not yet include multi-hop/global graph reasoning patterns used by GraphRAG-focused projects.
 - Less turnkey for zero-config local plugin workflows than memsearch/claude-mem defaults.
