@@ -21,16 +21,16 @@ axum                  = { version = "0.8" }
 blake3                = { version = "1.8" }
 clap                  = { version = "4.6", features = ["derive"] }
 color-eyre            = { version = "0.6" }
-qdrant-client         = { version = ">=1.16,<1.17" }
+qdrant-client         = { version = "1.18.0" }
 regex                 = { version = "1.12" }
-reqwest               = { version = "0.12", features = ["json", "rustls-tls"] }
-rmcp                  = { version = "0.16", features = ["transport-streamable-http-server"] }
+reqwest               = { version = "0.13", default-features = false, features = ["json", "query", "rustls"] }
+rmcp                  = { version = "1.7", features = ["transport-streamable-http-server"] }
 serde                 = { version = "1.0", features = ["derive"] }
 serde_json            = { version = "1.0" }
-sqlx                  = { version = "0.8", features = ["json", "postgres", "runtime-tokio", "time", "tls-rustls", "uuid"] }
+sqlx                  = { version = "0.9", features = ["json", "postgres", "runtime-tokio", "time", "tls-rustls", "uuid"] }
 thiserror             = { version = "2.0" }
 time                  = { version = "0.3", features = ["macros", "serde"] }
-tokenizers            = { version = "0.22", features = ["http"] }
+tokenizers            = { version = "0.23", features = ["http"] }
 tokio                 = { version = "1.52", features = ["macros", "rt-multi-thread", "time"] }
 toml                  = { version = "1.1" }
 tower                 = { version = "0.5" }
@@ -42,7 +42,7 @@ unicode-segmentation  = { version = "1.13" }
 utoipa                = { version = "5.5", features = ["axum_extras", "time", "uuid"] }
 utoipa-scalar         = { version = "0.3", features = ["axum"] }
 uuid                  = { version = "1.23", features = ["serde", "v4", "v5"] }
-vergen-gitcl          = { version = "9.1", features = ["cargo"] }
+vergen-gitcl          = { version = "10.0", features = ["cargo"] }
 whatlang              = { version = "0.18" }
 
 elf-chunking  = { version = "0.2", path = "packages/elf-chunking" }

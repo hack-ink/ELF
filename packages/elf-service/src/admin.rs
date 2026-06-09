@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use qdrant_client::{
-	client::Payload,
+	Payload,
 	qdrant::{Document, PointStruct, UpsertPointsBuilder, Vector},
 };
 use serde::{Deserialize, Serialize};

@@ -1,6 +1,6 @@
 //! Postgres connection helpers and schema bootstrap logic.
 
-use sqlx::{PgConnection, PgPool, Transaction, postgres::PgPoolOptions};
+use sqlx::{AssertSqlSafe, PgConnection, PgPool, Transaction, postgres::PgPoolOptions};
 
 use crate::{Result, graph, schema};
 
@@ -35,7 +35,7 @@ impl Db {
 				continue;
 			}
 
-			sqlx::query(trimmed).execute(&mut *tx).await?;
+			sqlx::raw_sql(AssertSqlSafe(trimmed)).execute(&mut *tx).await?;
 		}
 
 		backfill_graph_fact_predicate_ids(&mut tx).await?;

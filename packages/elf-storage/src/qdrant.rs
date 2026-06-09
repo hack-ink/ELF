@@ -129,6 +129,7 @@ impl QdrantStore {
 				field_type: Some(*field_type as i32),
 				field_index_params: None,
 				ordering: None,
+				timeout: None,
 			};
 
 			match self.client.create_field_index(request).await {

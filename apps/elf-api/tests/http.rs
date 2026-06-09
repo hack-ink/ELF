@@ -10,7 +10,7 @@ use axum::{
 	http::{Request, Response, StatusCode},
 };
 use qdrant_client::{
-	client::Payload,
+	Payload,
 	qdrant::{Document, PointStruct, UpsertPointsBuilder, Vector},
 };
 use serde_json::Map;
