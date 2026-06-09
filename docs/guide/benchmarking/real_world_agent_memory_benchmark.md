@@ -245,6 +245,21 @@ These fixtures encode proposal expectations only. They do not claim that a live
 scheduled consolidation worker generated the proposals; the report records that missing
 primitive as an executable gap with a follow-up issue title.
 
+Current checked-in knowledge-compilation increment:
+
+```sh
+cargo make real-world-memory-knowledge
+```
+
+This parses `apps/elf-eval/fixtures/real_world_memory/knowledge/`, writes
+`tmp/real-world-memory/knowledge-report.json`, and renders
+`tmp/real-world-memory/knowledge-report.md`. The fixtures include synthetic project,
+entity, concept, and issue-timeline page artifacts. Generated pages are benchmark
+artifacts only: every section must cite source evidence or timeline events, or it must
+be explicitly flagged unsupported. The report publishes citation coverage, stale claim
+detection, rebuild determinism, aggregate backlink counts and page coverage, page
+usefulness, unsupported summary count, and untraced section count.
+
 Do not generate large fixtures or update production-adoption verdicts while adding the
 contract. The current adoption gate remains an existing benchmark decision until new
 real-world job reports are implemented and published.

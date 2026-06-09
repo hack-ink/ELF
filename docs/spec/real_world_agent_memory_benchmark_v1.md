@@ -191,6 +191,65 @@ An answer that states a required claim without any acceptable evidence link is a
 `unsupported_claim` unless the job's `allowed_uncertainty` explicitly permits an
 uncited low-confidence statement.
 
+### Optional `adapter_response.answer.pages`
+
+Knowledge-compilation fixtures MAY include generated page artifacts in
+`corpus.adapter_response.answer.pages[]`. These page artifacts are benchmark outputs,
+not authoritative source truth. Any checked-in generated page fixture MUST be clearly
+marked as a benchmark artifact.
+
+Each page entry MUST include:
+
+- `page_id`: stable page identifier, such as `project:elf-benchmark-suite`.
+- `page_type`: `project`, `entity`, `concept`, `issue_timeline`, or another
+  fixture-defined type.
+- `title`: human-readable page title.
+- `path`: optional fixture path for a checked-in benchmark artifact page.
+- `sections`: generated page sections.
+- `backlinks`: zero or more page, entity, concept, issue, or evidence identifiers.
+- `lint_findings`: zero or more stale, unsupported, or contradiction findings.
+- `rebuild`: optional rebuild comparison record.
+
+Each `sections[]` entry MUST include:
+
+- `section_id`
+- `heading`
+- `role`: examples include `current_truth`, `history`, `timeline`, `backlinks`, and
+  `summary`.
+- `content`: bounded fixture text.
+- `evidence_ids`: zero or more ids from `corpus.items[]`.
+- `timeline_event_ids`: zero or more ids from `timeline[]`.
+- `unsupported_reason`: optional reason why the section is intentionally unsupported.
+
+Every generated page section MUST trace back to at least one `evidence_id` or
+`timeline_event_id`, or it MUST include `unsupported_reason`. A section that lacks both
+trace evidence and an unsupported flag is an `unsupported_claim`. A section with
+`role = "summary"` and `unsupported_reason` is counted as an unsupported summary, but it
+is not a hidden unsupported claim because the page explicitly marks the gap.
+
+Each `lint_findings[]` entry SHOULD include:
+
+- `finding_id`
+- `finding_type`: for example `stale_claim`, `unsupported_section`, or
+  `contradiction`.
+- `severity`
+- `text`
+- `evidence_ids`
+- `trap_id`: optional link to `negative_traps[]`.
+
+Each `rebuild` record SHOULD include:
+
+- `first_hash`
+- `second_hash`
+- `deterministic`: true when repeat rebuilds produced byte-stable output.
+- `allowed_variance`: explanations for accepted non-semantic variance.
+
+Knowledge-compilation reports SHOULD include citation coverage, stale claim detection,
+rebuild determinism, page usefulness, backlink counts, unsupported summary count, and
+untraced section count. Rebuild results are acceptable only when repeated output is
+deterministic enough for regression comparison or every allowed variance is explicitly
+reported.
+
 ### `negative_traps`
 
 Negative traps MUST be explicit so systems are tested against realistic memory failure
@@ -387,6 +446,9 @@ Reports MUST include:
   stages, especially for wrong-result stage attribution;
 - per-suite typed status and score distribution;
 - unsupported claim list with claim text or a bounded redacted description;
+- for encoded knowledge-compilation jobs with page artifacts: citation coverage, stale
+  claim detection, rebuild determinism, page usefulness, backlink counts, unsupported
+  summary count, and untraced section count;
 - explicit `not_encoded` suite list;
 - private-corpus redaction policy when private fixtures are used.
 - capture/integration coverage classes when any fixture declares `capture_behaviors`,

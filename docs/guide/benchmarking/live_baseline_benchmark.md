@@ -374,6 +374,25 @@ The consolidation fixtures live under
 proposal payloads, source lineage, review action outcomes, executable gaps, and source
 mutation count. They do not claim live scheduled consolidation-worker generation.
 
+To run the checked-in knowledge-compilation and page-rebuild fixtures:
+
+```sh
+cargo make real-world-memory-knowledge
+```
+
+Artifacts:
+
+```text
+tmp/real-world-memory/knowledge-report.json
+tmp/real-world-memory/knowledge-report.md
+```
+
+The knowledge fixtures live under
+`apps/elf-eval/fixtures/real_world_memory/knowledge/`. They score derived page
+citation coverage, stale-claim linting, rebuild determinism, backlink coverage, page
+usefulness, and explicitly flagged unsupported summaries. Generated pages are
+benchmark artifacts, not source-truth replacements.
+
 ## Clean Up
 
 ```sh
