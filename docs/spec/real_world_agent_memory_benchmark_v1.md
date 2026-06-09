@@ -398,6 +398,20 @@ conflict detection counts, update rationale availability, and temporal-validity
 `not_encoded` counts. A temporal graph validity job MUST NOT be reported as `pass`
 until the runner can evaluate current-only versus historical relation facts.
 
+Consolidation suite reports MUST also include:
+
+- proposal usefulness score, or `null` when the job has no proposal payloads;
+- lineage completeness score over expected source refs;
+- review action correctness for `apply`, `discard`, and `defer` outcomes;
+- proposal unsupported-claim count for contradiction/staleness reports;
+- source mutation count.
+
+For proposal-only consolidation jobs, source mutation count MUST be `0`. If the runner
+cannot execute a live consolidation primitive, the report MUST include an executable
+gap with a precise follow-up issue or issue title. A proposal-only fixture MAY still
+pass when it verifies checked-in proposal payloads and the gap explicitly says that no
+live worker generation claim is being made.
+
 ## Claim Rules
 
 - A project MAY claim a suite pass only for suites with encoded jobs and a published

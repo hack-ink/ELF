@@ -356,6 +356,24 @@ selection, minimal sufficient context, and stage-level wrong-result explainabili
 It is still an offline fixture report; qmd and OpenViking remain reference systems
 unless an adapter actually runs and records typed evidence.
 
+To run the checked-in proposal-only consolidation fixtures:
+
+```sh
+cargo make real-world-memory-consolidation
+```
+
+Artifacts:
+
+```text
+tmp/real-world-memory/consolidation/report.json
+tmp/real-world-memory/consolidation/report.md
+```
+
+The consolidation fixtures live under
+`apps/elf-eval/fixtures/real_world_memory/consolidation/`. They score reviewable
+proposal payloads, source lineage, review action outcomes, executable gaps, and source
+mutation count. They do not claim live scheduled consolidation-worker generation.
+
 ## Clean Up
 
 ```sh

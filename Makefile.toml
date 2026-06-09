@@ -392,23 +392,26 @@ args = [
 
 
 # Real-world job benchmark smoke
-# | task                             | type      | cwd |
-# | -------------------------------- | --------- | --- |
-# | real-world-job-smoke             | composite |     |
-# | real-world-job-smoke-json        | command   |     |
-# | real-world-job-smoke-report      | command   |     |
-# | real-world-memory                | composite |     |
-# | real-world-memory-json           | command   |     |
-# | real-world-memory-report         | command   |     |
-# | real-world-memory-evolution        | composite |     |
-# | real-world-memory-evolution-json   | command   |     |
-# | real-world-memory-evolution-report | command   |     |
-# | real-world-job-operator-ux       | composite |     |
-# | real-world-job-operator-ux-json  | command   |     |
-# | real-world-job-operator-ux-report | command  |     |
-# | real-world-memory-retrieval        | composite |     |
-# | real-world-memory-retrieval-json   | command   |     |
-# | real-world-memory-retrieval-report | command   |     |
+# | task                                   | type      | cwd |
+# | -------------------------------------- | --------- | --- |
+# | real-world-job-smoke                   | composite |     |
+# | real-world-job-smoke-json              | command   |     |
+# | real-world-job-smoke-report            | command   |     |
+# | real-world-memory                      | composite |     |
+# | real-world-memory-json                 | command   |     |
+# | real-world-memory-report               | command   |     |
+# | real-world-memory-evolution            | composite |     |
+# | real-world-memory-evolution-json       | command   |     |
+# | real-world-memory-evolution-report     | command   |     |
+# | real-world-memory-consolidation        | composite |     |
+# | real-world-memory-consolidation-json   | command   |     |
+# | real-world-memory-consolidation-report | command   |     |
+# | real-world-job-operator-ux             | composite |     |
+# | real-world-job-operator-ux-json        | command   |     |
+# | real-world-job-operator-ux-report      | command   |     |
+# | real-world-memory-retrieval            | composite |     |
+# | real-world-memory-retrieval-json       | command   |     |
+# | real-world-memory-retrieval-report     | command   |     |
 
 [tasks.real-world-job-smoke]
 workspace = false
@@ -475,7 +478,7 @@ args = [
 	"--out",
 	"tmp/real-world-memory/real-world-memory-report.json",
 	"--run-id",
-	"real-world-memory-trust-resume-personalization",
+	"real-world-memory",
 	"--adapter-id",
 	"elf_real_world_memory_fixture",
 	"--adapter-name",
@@ -647,6 +650,55 @@ args = [
 	"tmp/real-world-memory/retrieval-report.json",
 	"--out",
 	"tmp/real-world-memory/retrieval-report.md",
+]
+
+[tasks.real-world-memory-consolidation]
+workspace = false
+dependencies = [
+	"real-world-memory-consolidation-report",
+]
+
+[tasks.real-world-memory-consolidation-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_memory/consolidation",
+	"--out",
+	"tmp/real-world-memory/consolidation/report.json",
+	"--run-id",
+	"real-world-memory-consolidation",
+	"--adapter-id",
+	"fixture_consolidation",
+	"--adapter-name",
+	"ELF consolidation fixture",
+]
+
+[tasks.real-world-memory-consolidation-report]
+workspace = false
+dependencies = [
+	"real-world-memory-consolidation-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-memory/consolidation/report.json",
+	"--out",
+	"tmp/real-world-memory/consolidation/report.md",
 ]
 
 
