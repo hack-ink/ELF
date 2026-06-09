@@ -51,10 +51,10 @@ jobs:
           --health-retries 10
     steps:
       - name: Fetch latest code
-        uses: actions/checkout@v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
 
       - name: Set up Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6
         with:
           cache: true
           rustflags: ''
@@ -109,7 +109,7 @@ jobs:
 
       - name: Upload trace gate report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: trace_gate_report
           path: trace_gate.report.json
