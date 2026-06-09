@@ -336,6 +336,26 @@ stale-answer count, conflict detection count, update rationale availability, tem
 validity gaps, and unsupported claims. Its relation-temporal fixture is deliberately
 `not_encoded` until graph-lite temporal validity is implemented.
 
+To run the checked-in retrieval-quality real-world fixtures:
+
+```sh
+cargo make real-world-memory-retrieval
+```
+
+Artifacts:
+
+```text
+tmp/real-world-memory/retrieval-report.json
+tmp/real-world-memory/retrieval-report.md
+```
+
+The retrieval fixture lives under
+`apps/elf-eval/fixtures/real_world_memory/retrieval/` and covers alternate phrasing,
+distractor-heavy corpora, multi-hop routing questions, current-versus-obsolete context
+selection, minimal sufficient context, and stage-level wrong-result explainability.
+It is still an offline fixture report; qmd and OpenViking remain reference systems
+unless an adapter actually runs and records typed evidence.
+
 ## Clean Up
 
 ```sh

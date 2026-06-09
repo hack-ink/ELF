@@ -1,0 +1,148 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "retrieval-current-vs-obsolete-001",
+  "suite": "retrieval",
+  "title": "Select current benchmark context over obsolete live-baseline claims",
+  "corpus": {
+    "corpus_id": "real-world-memory-retrieval-2026-06-09",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "obsolete-live-baseline-win",
+        "kind": "decision",
+        "text": "Obsolete draft: top-k live baseline results alone prove real-world job suite wins.",
+        "source_ref": {},
+        "created_at": "2026-06-08T04:00:00Z"
+      },
+      {
+        "evidence_id": "current-real-world-boundary",
+        "kind": "decision",
+        "text": "Current policy: live-baseline reports remain valid for Docker retrieval and lifecycle checks, but they are not real-world job suite wins. Real-world job reports must be published separately.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "current_vs_obsolete",
+            "evidence_id": "current-real-world-boundary"
+          }
+        },
+        "created_at": "2026-06-09T04:00:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_retrieval",
+      "answer": {
+        "content": "Use the current boundary: live-baseline reports stay valid for Docker retrieval and lifecycle evidence, but they are not real-world job suite wins; publish real-world job reports separately.",
+        "claims": [
+          {
+            "claim_id": "current_boundary",
+            "text": "Live-baseline reports are not real-world job suite wins.",
+            "evidence_ids": ["current-real-world-boundary"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["current-real-world-boundary"],
+        "latency_ms": 15.7,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "obsolete-draft",
+      "ts": "2026-06-08T04:00:00Z",
+      "actor": "agent",
+      "action": "recorded_obsolete_policy",
+      "evidence_ids": ["obsolete-live-baseline-win"],
+      "summary": "A draft conflated live-baseline retrieval checks with real-world job wins."
+    },
+    {
+      "event_id": "current-boundary",
+      "ts": "2026-06-09T04:00:00Z",
+      "actor": "agent",
+      "action": "updated_policy",
+      "evidence_ids": ["current-real-world-boundary"],
+      "summary": "The current policy separates live-baseline evidence from real-world job suite claims."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Can I cite the live-baseline pass as a real-world job suite win?",
+    "job_mode": "answer",
+    "constraints": ["cite_evidence", "use_current_policy", "avoid_obsolete_context"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "current_boundary",
+        "text": "Live-baseline reports are not real-world job suite wins."
+      }
+    ],
+    "must_not_include": [
+      "Top-k live baseline results alone prove real-world job suite wins."
+    ],
+    "evidence_links": {
+      "current_boundary": ["current-real-world-boundary"]
+    },
+    "answer_type": "direct_answer",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "current-real-world-boundary",
+      "claim_id": "current_boundary",
+      "requirement": "cite",
+      "quote": "they are not real-world job suite wins"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "obsolete-suite-win",
+      "type": "stale_fact",
+      "evidence_ids": ["obsolete-live-baseline-win"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.35,
+        "max_points": 1.0,
+        "criteria": "Answers with the current claim boundary."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Cites the current policy evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Avoids the obsolete top-k claim."
+      },
+      "uncertainty_handling": {
+        "weight": 0.1,
+        "max_points": 1.0,
+        "criteria": "Does not hedge when sufficient current evidence exists."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": ["The fixture does not provide that evidence."],
+    "fallback_action": "state_blocker"
+  },
+  "tags": ["synthetic", "retrieval", "current_vs_obsolete", "no_live_claim"]
+}

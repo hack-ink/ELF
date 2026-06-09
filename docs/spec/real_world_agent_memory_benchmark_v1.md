@@ -381,6 +381,10 @@ Reports MUST include:
 
 - run id, runner version, corpus profile, job ids, suite ids, project adapter metadata;
 - per-job status, normalized score, hard-fail hits, evidence ids used, trap ids used;
+- expected evidence recall and irrelevant context ratio at job, suite, and summary
+  levels when the runner can derive them from fixture evidence ids;
+- trace explainability metadata when an adapter or fixture can identify retrieval
+  stages, especially for wrong-result stage attribution;
 - per-suite typed status and score distribution;
 - unsupported claim list with claim text or a bounded redacted description;
 - explicit `not_encoded` suite list;
