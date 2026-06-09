@@ -425,7 +425,7 @@ args = [
 	"--",
 	"run",
 	"--fixtures",
-	"apps/elf-eval/fixtures/real_world_job/smoke",
+	"apps/elf-eval/fixtures/real_world_memory/work_resume",
 	"--out",
 	"tmp/real-world-job/real-world-job-smoke-report.json",
 ]
@@ -472,7 +472,7 @@ args = [
 	"--out",
 	"tmp/real-world-memory/real-world-memory-report.json",
 	"--run-id",
-	"real-world-memory-trust-personalization",
+	"real-world-memory-trust-resume-personalization",
 	"--adapter-id",
 	"elf_real_world_memory_fixture",
 	"--adapter-name",
