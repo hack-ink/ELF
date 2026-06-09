@@ -1,0 +1,244 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "personalization-scoped-preference-001",
+  "suite": "personalization",
+  "title": "Apply the current project preference without cross-project leakage",
+  "corpus": {
+    "corpus_id": "real-world-memory-personalization-2026-06-09",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "elf-current-stable-preference",
+        "kind": "note",
+        "text": "Preference v2 for tenant local-tenant project ELF agent local-agent: answer concisely with evidence-linked bullets; remembered because the user repeated it in two durable ELF sessions and marked it stable.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "scoped_preference_correction",
+            "tenant_id": "local-tenant",
+            "project_id": "ELF",
+            "agent_id": "local-agent",
+            "evidence_id": "elf-current-stable-preference"
+          },
+          "locator": {
+            "quote": "answer concisely with evidence-linked bullets"
+          }
+        },
+        "created_at": "2026-06-09T03:00:00Z"
+      },
+      {
+        "evidence_id": "elf-old-preference",
+        "kind": "note",
+        "text": "Preference v1 for tenant local-tenant project ELF agent local-agent: provide long tutorial explanations for every answer.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "scoped_preference_correction",
+            "tenant_id": "local-tenant",
+            "project_id": "ELF",
+            "agent_id": "local-agent",
+            "evidence_id": "elf-old-preference"
+          }
+        },
+        "created_at": "2026-06-08T03:00:00Z"
+      },
+      {
+        "evidence_id": "elf-temporary-demo-preference",
+        "kind": "note",
+        "text": "Temporary preference for tenant local-tenant project ELF: use a playful pirate tone for the demo only; expires at 2026-06-09T12:00:00Z.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "scoped_preference_correction",
+            "tenant_id": "local-tenant",
+            "project_id": "ELF",
+            "evidence_id": "elf-temporary-demo-preference"
+          }
+        },
+        "created_at": "2026-06-09T02:30:00Z"
+      },
+      {
+        "evidence_id": "other-project-preference",
+        "kind": "note",
+        "text": "Preference for tenant local-tenant project PubFi agent local-agent: answer in long-form Chinese prose with no bullets.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "scoped_preference_correction",
+            "tenant_id": "local-tenant",
+            "project_id": "PubFi",
+            "agent_id": "local-agent",
+            "evidence_id": "other-project-preference"
+          }
+        },
+        "created_at": "2026-06-09T03:05:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "elf_real_world_memory_fixture",
+      "answer": {
+        "content": "For tenant local-tenant / project ELF / agent local-agent, use concise evidence-linked bullets. This preference is remembered because the user repeated it in two durable ELF sessions and marked it stable. Do not apply the old long-tutorial preference, the demo-only pirate tone, or the PubFi project preference.",
+        "claims": [
+          {
+            "claim_id": "current_preference",
+            "text": "For ELF, answer concisely with evidence-linked bullets.",
+            "evidence_ids": ["elf-current-stable-preference"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "preference_reason",
+            "text": "The preference is remembered because the user repeated it in two durable ELF sessions and marked it stable.",
+            "evidence_ids": ["elf-current-stable-preference"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["elf-current-stable-preference"],
+        "latency_ms": 1.2,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "old-preference-recorded",
+      "ts": "2026-06-08T03:00:00Z",
+      "actor": "user",
+      "action": "recorded_preference",
+      "evidence_ids": ["elf-old-preference"],
+      "summary": "The user previously preferred long tutorial answers."
+    },
+    {
+      "event_id": "temporary-demo-preference",
+      "ts": "2026-06-09T02:30:00Z",
+      "actor": "user",
+      "action": "recorded_temporary_preference",
+      "evidence_ids": ["elf-temporary-demo-preference"],
+      "summary": "The pirate tone was explicitly temporary for a demo."
+    },
+    {
+      "event_id": "stable-preference-correction",
+      "ts": "2026-06-09T03:00:00Z",
+      "actor": "user",
+      "action": "updated_memory",
+      "evidence_ids": ["elf-current-stable-preference"],
+      "summary": "The user corrected the ELF preference to concise evidence-linked bullets and marked it stable."
+    },
+    {
+      "event_id": "other-project-preference-recorded",
+      "ts": "2026-06-09T03:05:00Z",
+      "actor": "agent",
+      "action": "recorded_other_project_preference",
+      "evidence_ids": ["other-project-preference"],
+      "summary": "A PubFi project preference exists but must not leak into ELF."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "For this ELF project, how should you answer me and why is that preference remembered?",
+    "job_mode": "personalize",
+    "constraints": ["cite_evidence", "avoid_cross_project_preferences", "avoid_temporary_overgeneralization"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "current_preference",
+        "text": "For ELF, answer concisely with evidence-linked bullets."
+      },
+      {
+        "claim_id": "preference_reason",
+        "text": "The preference is remembered because the user repeated it in two durable ELF sessions and marked it stable."
+      }
+    ],
+    "must_not_include": [
+      "provide long tutorial explanations for every answer",
+      "use a playful pirate tone",
+      "answer in long-form Chinese prose with no bullets"
+    ],
+    "evidence_links": {
+      "current_preference": ["elf-current-stable-preference"],
+      "preference_reason": ["elf-current-stable-preference"]
+    },
+    "answer_type": "direct_answer",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "elf-current-stable-preference",
+      "claim_id": "current_preference",
+      "requirement": "cite",
+      "quote": "answer concisely with evidence-linked bullets"
+    },
+    {
+      "evidence_id": "elf-current-stable-preference",
+      "claim_id": "preference_reason",
+      "requirement": "explain",
+      "quote": "repeated it in two durable ELF sessions and marked it stable"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "stale-old-preference",
+      "type": "stale_fact",
+      "evidence_ids": ["elf-old-preference"],
+      "failure_if_used": true
+    },
+    {
+      "trap_id": "temporary-demo-overgeneralization",
+      "type": "stale_fact",
+      "evidence_ids": ["elf-temporary-demo-preference"],
+      "failure_if_used": true
+    },
+    {
+      "trap_id": "cross-project-preference-leak",
+      "type": "near_duplicate",
+      "evidence_ids": ["other-project-preference"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "personalization_fit": {
+        "weight": 0.35,
+        "max_points": 1.0,
+        "criteria": "Applies the current stable ELF preference."
+      },
+      "evidence_grounding": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Explains why the preference is remembered with evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Avoids stale, temporary, and cross-project preferences."
+      },
+      "answer_correctness": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Answers the user's personalization question directly."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "state_blocker"
+  },
+  "tags": ["synthetic", "personalization", "scoped_preference", "preference_correction", "no_live_claim"]
+}

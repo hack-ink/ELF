@@ -361,6 +361,9 @@ args = [
 # | real-world-job-smoke        | composite |     |
 # | real-world-job-smoke-json   | command   |     |
 # | real-world-job-smoke-report | command   |     |
+# | real-world-memory           | composite |     |
+# | real-world-memory-json      | command   |     |
+# | real-world-memory-report    | command   |     |
 
 [tasks.real-world-job-smoke]
 workspace = false
@@ -403,6 +406,55 @@ args = [
 	"tmp/real-world-job/real-world-job-smoke-report.json",
 	"--out",
 	"tmp/real-world-job/real-world-job-smoke-report.md",
+]
+
+[tasks.real-world-memory]
+workspace = false
+dependencies = [
+	"real-world-memory-report",
+]
+
+[tasks.real-world-memory-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_memory",
+	"--out",
+	"tmp/real-world-memory/real-world-memory-report.json",
+	"--run-id",
+	"real-world-memory-trust-personalization",
+	"--adapter-id",
+	"elf_real_world_memory_fixture",
+	"--adapter-name",
+	"ELF real-world memory fixture",
+]
+
+[tasks.real-world-memory-report]
+workspace = false
+dependencies = [
+	"real-world-memory-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-memory/real-world-memory-report.json",
+	"--out",
+	"tmp/real-world-memory/real-world-memory-report.md",
 ]
 
 
