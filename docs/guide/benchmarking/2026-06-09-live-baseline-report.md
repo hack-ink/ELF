@@ -15,10 +15,11 @@ Verification: Re-run the commands in this report and compare
 - ELF passed the production-provider stress run with `Qwen3-Embedding-8B`,
   4096-dimensional embeddings, 480 documents, 16 queries, and `8/8` encoded checks.
 - In the all-project smoke comparison, ELF and qmd passed every encoded check.
-  agentmemory passed same-corpus retrieval but failed or could not complete lifecycle
-  checks. mem0, memsearch, and claude-mem returned wrong same-corpus retrieval results
-  in the encoded smoke. OpenViking was incomplete because its local embedding dependency
-  could not complete in the Docker runner.
+  agentmemory passed same-corpus retrieval but had a typed `lifecycle_fail` on update
+  replacement and blocked/incomplete durable cold-start coverage in the current mocked
+  adapter. mem0, memsearch, and claude-mem returned `wrong_result` same-corpus
+  retrieval results in the encoded smoke. OpenViking was `incomplete` because its local
+  embedding dependency could not complete in the Docker runner.
 - Under the encoded service-style benchmark checks, ELF passed all ELF checks that were
   run. Under the encoded local CLI smoke checks, qmd passed all qmd checks that were
   run.
@@ -83,9 +84,9 @@ cargo make baseline-live-docker
 | Documents | `3` |
 | Queries | `3` |
 | Aggregate verdict | `fail` |
-| Project summary | `2 pass`, `4 fail`, `1 incomplete` |
-| Same-corpus summary | `3 pass`, `3 fail`, `1 incomplete` |
-| Full check summary | `17 pass`, `4 fail`, `4 incomplete` |
+| Project summary | `2 pass`, `3 wrong_result`, `1 lifecycle_fail`, `1 incomplete` |
+| Same-corpus summary | `3 pass`, `3 wrong_result`, `1 incomplete` |
+| Full check summary | `17 pass`, `3 wrong_result`, `1 lifecycle_fail`, `4 incomplete` |
 
 The aggregate verdict is `fail` because the top-level report only passes when every
 selected project passes every encoded project check.
@@ -94,11 +95,23 @@ selected project passes every encoded project check.
 | --- | --- | --- | --- | --- | --- |
 | ELF | `pass` | `retrieval_pass` | `7/7` | `57s` | Service-backed provider run passed retrieval, worker indexing, lifecycle, recovery, and concurrency checks. |
 | qmd | `pass` | `retrieval_pass` | `4/4` | `53s` | Local CLI hybrid retrieval baseline passed retrieval, update, delete, and cold-start checks. |
-| agentmemory | `fail` | `retrieval_pass` | `2/4` | `38s` | Retrieval passed, but update replacement failed because the old marker remained searchable; cold-start is incomplete in the current in-memory adapter. |
-| memsearch | `fail` | `retrieval_wrong_result` | `2/4` | `169s` | Local search ran, update and cold-start passed, but same-corpus retrieval missed expected evidence. |
-| mem0 | `fail` | `retrieval_wrong_result` | `2/4` | `41s` | Local add/search ran, update and cold-start passed, but same-corpus retrieval missed expected evidence. |
+| agentmemory | `lifecycle_fail` | `retrieval_pass` | `2/4` | `38s` | Retrieval passed, but update replacement failed because the old marker remained searchable; durable cold-start is blocked by the current in-memory adapter. |
+| memsearch | `wrong_result` | `retrieval_wrong_result` | `2/4` | `169s` | Local search ran, update and cold-start passed, but same-corpus retrieval missed expected evidence. |
+| mem0 | `wrong_result` | `retrieval_wrong_result` | `2/4` | `41s` | Local add/search ran, update and cold-start passed, but same-corpus retrieval missed expected evidence. |
 | OpenViking | `incomplete` | `local_embed_install_failed` | `0/1` | `385s` | The local embed install path hit a `llama-cpp-python` build/import failure in Docker, so retrieval was not evaluated. |
-| claude-mem | `fail` | `retrieval_wrong_result` | `0/1` | `97s` | Same-corpus repository search ran but did not return expected evidence. |
+| claude-mem | `wrong_result` | `retrieval_wrong_result` | `0/1` | `97s` | Same-corpus repository search ran but did not return expected evidence. |
+
+Typed adapter behavior interpretation for this snapshot:
+
+| Project | Storage | Retrieval | Update | Delete/Expire | Cold Start | Scale/Stress |
+| --- | --- | --- | --- | --- | --- | --- |
+| ELF | `real` | `real` | `real` | `real` | `real` | `real` |
+| qmd | `real` | `real` | `real` | `real` | `real` | `real path via ELF_BASELINE_PROJECTS=qmd and scale/stress profiles` |
+| agentmemory | `mocked` | `mocked` | `mocked` | `mocked` | `blocked` | `incomplete` |
+| memsearch | `real` | `real` | `real` | `real` | `real` | `incomplete` |
+| mem0 | `real` | `real` | `real` | `real` | `real` | `incomplete` |
+| OpenViking | `incomplete` | `incomplete` | `not_encoded` | `not_encoded` | `not_encoded` | `blocked` |
+| claude-mem | `mocked` | `mocked` | `not_encoded` | `not_encoded` | `not_encoded` | `incomplete` |
 
 Re-run command:
 
@@ -114,18 +127,24 @@ ELF_BASELINE_ELF_EMBEDDING_MODE=provider \
 cargo make baseline-live-docker
 ```
 
-## Pass, Fail, And Incomplete Rules
+## Result Semantics
 
 - `pass`: the project installed and every encoded retrieval, lifecycle, recovery, and
   resource check for the selected corpus profile passed.
-- `fail`: clone, install, import, build, retrieval, update, delete, recovery,
-  concurrency, soak, resource-envelope, or another declared project check failed.
-- `incomplete`: the project partially ran, but the encoded check could not be completed
-  without extra provider keys, host integration, native dependency support, durable
-  runtime wiring, or a project-specific command mapping not yet encoded in the runner.
+- `wrong_result`: a retrieval check completed but returned the wrong memory or missed
+  expected evidence.
+- `lifecycle_fail`: same-corpus retrieval may pass, but an encoded update, delete,
+  cold-start, persistence, or related lifecycle check failed.
+- `incomplete`: setup or a declared check could not complete because install, runtime,
+  dependency, or adapter wiring failed in Docker.
+- `blocked`: a safe check cannot run without external credentials, manual setup,
+  durable runtime wiring, or host integration outside this run.
+- `not_encoded`: the capability is not covered by the current adapter, so no pass/fail
+  claim is allowed.
 
-`incomplete` is not a pass. It means the benchmark needs more wiring before making a
-quality claim for that project.
+`incomplete`, `blocked`, and `not_encoded` are not passes. They mean the benchmark
+needs more wiring or runtime support before making a quality claim for that project or
+capability.
 
 ## Interpretation
 
@@ -140,13 +159,16 @@ ELF checks covered in this run:
 - worker-produced chunks and embeddings, not direct in-memory fixture shortcuts;
 - explicit update, delete, cold-start, concurrency, soak, and resource checks;
 - report metadata that records corpus profile, document count, query count, project
-  status, check summaries, elapsed seconds, and embedding configuration.
+  status, check summaries, adapter behavior metadata, elapsed seconds, and embedding
+  configuration.
 
 qmd was the external project that passed every encoded smoke check. agentmemory passed
-same-corpus retrieval, failed update replacement, and has incomplete cold-start coverage
-because the current adapter uses an in-memory SDK/KV mock. mem0, memsearch, and
-claude-mem failed the encoded smoke retrieval. OpenViking was not retrieval-evaluated
-because the Docker local embedding install path did not complete.
+same-corpus retrieval, failed update replacement, and has blocked durable cold-start
+coverage because the current adapter uses an in-memory SDK/KV mock. mem0, memsearch,
+and claude-mem returned wrong same-corpus retrieval results. OpenViking was not
+retrieval-evaluated because the Docker local embedding install path did not complete;
+retry requires a pinned or otherwise Docker-compatible `llama-cpp-python` local
+embedding dependency.
 
 ## Speed And Production Stance
 

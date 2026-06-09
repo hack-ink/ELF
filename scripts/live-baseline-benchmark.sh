@@ -41,6 +41,71 @@ elf_timeout_seconds() {
   esac
 }
 
+ensure_adapter_metadata() {
+  local project="$1"
+  local adapter_path="${REPORT_DIR}/${project}-adapter.json"
+
+  if [[ -s "${adapter_path}" ]] && jq -e . "${adapter_path}" >/dev/null 2>&1; then
+    return
+  fi
+
+  jq -nc \
+    --arg project "${project}" \
+    '{
+      schema: "elf.live_baseline.adapter_metadata/v1",
+      project: $project,
+      storage: {
+        status: "incomplete",
+        detail: "Adapter metadata was not declared by the project runner."
+      },
+      behaviors: {}
+    }' >"${adapter_path}"
+}
+
+typed_status_from_result() {
+  local result_path="$1"
+
+  jq -r '
+    .check_summary as $summary
+    | if ($summary.wrong_result // 0) > 0 then "wrong_result"
+      elif ($summary.lifecycle_fail // 0) > 0 then "lifecycle_fail"
+      elif ($summary.blocked // 0) > 0 then "blocked"
+      elif ($summary.incomplete // 0) > 0 then "incomplete"
+      elif ($summary.not_encoded // 0) > 0 then "not_encoded"
+      else "pass"
+      end
+  ' "${result_path}"
+}
+
+typed_status_reason() {
+  local project="$1"
+  local status="$2"
+
+  case "${status}" in
+    pass)
+      echo "${project} same-corpus retrieval and every encoded behavior check passed"
+      ;;
+    wrong_result)
+      echo "${project} ran but returned the wrong same-corpus result or missed expected evidence"
+      ;;
+    lifecycle_fail)
+      echo "${project} same-corpus retrieval passed, but one or more lifecycle checks failed"
+      ;;
+    blocked)
+      echo "${project} same-corpus retrieval passed, but one or more lifecycle checks are blocked by missing durable runtime, credentials, or host integration"
+      ;;
+    incomplete)
+      echo "${project} setup or a declared behavior check could not complete in the Docker runner"
+      ;;
+    not_encoded)
+      echo "${project} same-corpus retrieval passed, but one or more capability checks are not encoded"
+      ;;
+    *)
+      echo "${project} produced unrecognized benchmark status ${status}"
+      ;;
+  esac
+}
+
 if [[ ! -f "/.dockerenv" && "${ELF_BASELINE_ALLOW_HOST:-0}" != "1" ]]; then
   echo "Refusing to run live baseline benchmark outside Docker. Use cargo make baseline-live-docker." >&2
   exit 1
@@ -499,12 +564,15 @@ json_record() {
   local finished_at
   local elapsed_seconds
   local checks_path
+  local adapter_path
   finished_at="$(date +%s)"
   elapsed_seconds=0
   if [[ -n "${CURRENT_PROJECT_STARTED_AT}" ]]; then
     elapsed_seconds=$((finished_at - CURRENT_PROJECT_STARTED_AT))
   fi
   checks_path="${REPORT_DIR}/${project}-checks.json"
+  adapter_path="${REPORT_DIR}/${project}-adapter.json"
+  ensure_adapter_metadata "${project}"
 
   if [[ -s "${checks_path}" ]] && jq -e '.checks and .check_summary' "${checks_path}" >/dev/null 2>&1; then
     jq -nc \
@@ -517,6 +585,7 @@ json_record() {
       --arg log_path "${log_path}" \
       --arg command_summary "${command_summary}" \
       --argjson elapsed_seconds "${elapsed_seconds}" \
+      --slurpfile adapter "${adapter_path}" \
       --slurpfile checks "${checks_path}" \
       '{
         project: $project,
@@ -528,6 +597,7 @@ json_record() {
         log_path: $log_path,
         command_summary: $command_summary,
         elapsed_seconds: $elapsed_seconds,
+        adapter: $adapter[0],
         embedding: ($checks[0].embedding // null),
         query_summary: ($checks[0].query_summary // null),
         queries: ($checks[0].queries // null),
@@ -546,7 +616,21 @@ json_record() {
       --arg log_path "${log_path}" \
       --arg command_summary "${command_summary}" \
       --argjson elapsed_seconds "${elapsed_seconds}" \
-      '{
+      --slurpfile adapter "${adapter_path}" \
+      '
+        def check_status:
+          if $status == "pass" and $retrieval_status == "retrieval_pass" then "pass"
+          elif $status == "wrong_result" then "wrong_result"
+          elif $status == "lifecycle_fail" then "lifecycle_fail"
+          elif $status == "blocked" then "blocked"
+          elif $status == "not_encoded" then "not_encoded"
+          elif $status == "incomplete" then "incomplete"
+          elif $retrieval_status == "retrieval_pass" then "pass"
+          else "incomplete"
+          end;
+        def is_fail:
+          check_status == "wrong_result" or check_status == "lifecycle_fail";
+      {
         project: $project,
         repo: $repo,
         head: $head,
@@ -559,16 +643,21 @@ json_record() {
         query_summary: null,
         queries: null,
         backfill: null,
+        adapter: $adapter[0],
         check_summary: {
           total: 1,
-          pass: (if $retrieval_status == "retrieval_pass" then 1 else 0 end),
-          fail: (if $status == "fail" then 1 else 0 end),
-          incomplete: (if $retrieval_status != "retrieval_pass" and $status != "fail" then 1 else 0 end)
+          pass: (if check_status == "pass" then 1 else 0 end),
+          fail: (if is_fail then 1 else 0 end),
+          wrong_result: (if check_status == "wrong_result" then 1 else 0 end),
+          lifecycle_fail: (if check_status == "lifecycle_fail" then 1 else 0 end),
+          incomplete: (if check_status == "incomplete" then 1 else 0 end),
+          blocked: (if check_status == "blocked" then 1 else 0 end),
+          not_encoded: (if check_status == "not_encoded" then 1 else 0 end)
         },
         checks: [
           {
             name: "same_corpus_retrieval",
-            status: (if $retrieval_status == "retrieval_pass" then "pass" elif $status == "fail" then "fail" else "incomplete" end),
+            status: check_status,
             reason: $reason,
             evidence: {
               retrieval_status: $retrieval_status,
@@ -631,7 +720,10 @@ finish_report() {
     --argjson document_count "${DOCUMENT_COUNT}" \
     --argjson query_count "${QUERY_COUNT}" \
     --arg generated_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-    '{
+    '
+      def failure_status:
+        . == "wrong_result" or . == "lifecycle_fail";
+    {
       schema: $schema,
       run_id: $run_id,
       generated_at: $generated_at,
@@ -648,7 +740,10 @@ finish_report() {
       },
       verdict: (
         if length == 0 then "incomplete"
-        elif any(.[]; .status == "fail") then "fail"
+        elif any(.[]; .status | failure_status) then "fail"
+        elif any(.[]; .status == "blocked") then "blocked"
+        elif any(.[]; .status == "incomplete") then "incomplete"
+        elif any(.[]; .status == "not_encoded") then "incomplete"
         elif all(.[]; .status == "pass" and .retrieval_status == "retrieval_pass") then "pass"
         else "incomplete"
         end
@@ -656,20 +751,32 @@ finish_report() {
       summary: {
         total: length,
         pass: ([.[] | select(.status == "pass")] | length),
-        fail: ([.[] | select(.status == "fail")] | length),
-        incomplete: ([.[] | select(.status == "incomplete")] | length)
+        fail: ([.[] | select(.status | failure_status)] | length),
+        wrong_result: ([.[] | select(.status == "wrong_result")] | length),
+        lifecycle_fail: ([.[] | select(.status == "lifecycle_fail")] | length),
+        incomplete: ([.[] | select(.status == "incomplete")] | length),
+        blocked: ([.[] | select(.status == "blocked")] | length),
+        not_encoded: ([.[] | select(.status == "not_encoded")] | length)
       },
       same_corpus_summary: {
         total: length,
         pass: ([.[] | select(.retrieval_status == "retrieval_pass")] | length),
-        fail: ([.[] | select(.retrieval_status != "retrieval_pass" and .status == "fail")] | length),
-        incomplete: ([.[] | select(.retrieval_status != "retrieval_pass" and .status != "fail")] | length)
+        fail: ([.[] | select(.retrieval_status == "retrieval_wrong_result")] | length),
+        wrong_result: ([.[] | select(.retrieval_status == "retrieval_wrong_result")] | length),
+        lifecycle_fail: 0,
+        incomplete: ([.[] | select(.retrieval_status != "retrieval_pass" and .status == "incomplete")] | length),
+        blocked: ([.[] | select(.retrieval_status != "retrieval_pass" and .status == "blocked")] | length),
+        not_encoded: ([.[] | select(.retrieval_status != "retrieval_pass" and .status == "not_encoded")] | length)
       },
       full_check_summary: {
         total: ([.[] | .check_summary.total // 0] | add // 0),
         pass: ([.[] | .check_summary.pass // 0] | add // 0),
         fail: ([.[] | .check_summary.fail // 0] | add // 0),
-        incomplete: ([.[] | .check_summary.incomplete // 0] | add // 0)
+        wrong_result: ([.[] | .check_summary.wrong_result // 0] | add // 0),
+        lifecycle_fail: ([.[] | .check_summary.lifecycle_fail // 0] | add // 0),
+        incomplete: ([.[] | .check_summary.incomplete // 0] | add // 0),
+        blocked: ([.[] | .check_summary.blocked // 0] | add // 0),
+        not_encoded: ([.[] | .check_summary.not_encoded // 0] | add // 0)
       },
       wrong_result_count: ([.[] | .query_summary.wrong_result_count // .query_summary.fail // 0] | add // 0),
       latency_ms: {
@@ -716,6 +823,46 @@ project_elf() {
   local log_path="${REPORT_DIR}/${project}.log"
   local result_path="${REPORT_DIR}/${project}-result.json"
   local head
+  cat >"${REPORT_DIR}/${project}-adapter.json" <<'JSON'
+{
+  "schema": "elf.live_baseline.adapter_metadata/v1",
+  "project": "ELF",
+  "storage": {
+    "status": "real",
+    "detail": "Docker-owned Postgres with pgvector is the source of truth and Qdrant is rebuilt from persisted chunk vectors."
+  },
+  "behaviors": {
+    "same_corpus_retrieval": {
+      "status": "real",
+      "surface": "add_note, worker indexing, Qdrant rebuild, and search_raw over the configured service stores"
+    },
+    "update": {
+      "status": "real",
+      "surface": "service update plus worker reindex"
+    },
+    "delete_or_expire": {
+      "status": "real",
+      "surface": "service delete plus worker delete propagation"
+    },
+    "cold_start_reload": {
+      "status": "real",
+      "surface": "new ElfService over the same Postgres and Qdrant stores"
+    },
+    "concurrent_write_search": {
+      "status": "real",
+      "surface": "parallel add_note calls followed by worker indexing and search probes"
+    },
+    "soak_profile": {
+      "status": "real",
+      "surface": "profile-controlled repeated write/search stability window"
+    },
+    "resource_envelope": {
+      "status": "real",
+      "surface": "local elapsed-time and RSS envelope check"
+    }
+  }
+}
+JSON
   head="${ELF_BASELINE_ELF_HEAD:-}"
   if [[ -z "${head}" ]]; then
     head="$(git -C "${ROOT_DIR}" rev-parse HEAD 2>>"${log_path}" || echo "unknown")"
@@ -740,6 +887,8 @@ project_elf() {
         .backfill.resume.enabled == false or
         (.backfill.resume.interrupted == true and .backfill.resume.resume_attempts >= 2)
       ) and
+      (.check_summary.blocked // 0) == 0 and
+      (.check_summary.not_encoded // 0) == 0 and
       .indexing.note_count == $document_count and
       .indexing.rebuild_rebuilt_count >= $document_count and
       .indexing.rebuild_error_count == 0
@@ -751,20 +900,20 @@ project_elf() {
     fi
 
     if [[ -s "${result_path}" ]] && jq -e '.schema == "elf.live_baseline.elf_result/v1"' "${result_path}" >/dev/null 2>&1; then
-      json_record "${project}" "${repo}" "${head}" "$(jq -r '.status // "fail"' "${result_path}")" \
+      json_record "${project}" "${repo}" "${head}" "$(jq -r '.status // "incomplete"' "${result_path}")" \
         "$(jq -r '.retrieval_status // "retrieval_failed"' "${result_path}")" \
         "$(jq -r '.reason // "ELF result did not satisfy live baseline pass criteria"' "${result_path}")" \
         "${project}.log" "checkpointed add_note backfill; bounded worker outbox indexing; rebuild_qdrant; search_raw; concurrent writes; soak stability"
       return
     fi
 
-    json_record "${project}" "${repo}" "${head}" "fail" "runtime_failed" \
+    json_record "${project}" "${repo}" "${head}" "incomplete" "runtime_failed" \
       "ELF command completed but did not write a valid live-baseline result; inspect ELF.log for the runtime error" \
       "${project}.log" "checkpointed add_note backfill; bounded worker outbox indexing; rebuild_qdrant; search_raw; concurrent writes; soak stability"
     return
   fi
 
-  json_record "${project}" "${repo}" "${head}" "fail" "runtime_failed" \
+  json_record "${project}" "${repo}" "${head}" "incomplete" "runtime_failed" \
     "ELF same-corpus retrieval command failed in Docker" \
     "${project}.log" "checkpointed add_note backfill; bounded worker outbox indexing; rebuild_qdrant; search_raw; concurrent writes; soak stability"
 }
@@ -776,8 +925,46 @@ project_agentmemory() {
   local result_path="${REPORT_DIR}/${project}-search.json"
   local driver_path="${REPOS_DIR}/${project}/elf-live-baseline-agentmemory.ts"
   local head
+  cat >"${REPORT_DIR}/${project}-adapter.json" <<'JSON'
+{
+  "schema": "elf.live_baseline.adapter_metadata/v1",
+  "project": "agentmemory",
+  "storage": {
+    "status": "mocked",
+    "detail": "The harness registers agentmemory functions against in-memory SDK and KV mocks; it does not prove package durability."
+  },
+  "behaviors": {
+    "same_corpus_retrieval": {
+      "status": "mocked",
+      "surface": "mem::remember and mem::search through an in-memory SDK/KV mock"
+    },
+    "update": {
+      "status": "mocked",
+      "surface": "superseding mem::remember through the in-memory mock"
+    },
+    "delete_or_expire": {
+      "status": "mocked",
+      "surface": "mem::forget through the in-memory mock; expiry is unsupported by this adapter"
+    },
+    "expire": {
+      "status": "unsupported",
+      "surface": "no TTL/expiry behavior is exposed by the encoded local adapter"
+    },
+    "cold_start_reload": {
+      "status": "blocked",
+      "surface": "no durable KV/index path is available in the Docker harness",
+      "evidence": "The adapter state is a process-local Map and search index.",
+      "retry": "Wire a persistent agentmemory KV/index path or hosted runtime, then restart a fresh process over that store."
+    },
+    "scale_stress_profile": {
+      "status": "incomplete",
+      "surface": "smoke adapter only until durable package behavior is available"
+    }
+  }
+}
+JSON
   head="$(clone_project "${project}" "${repo}" "${log_path}")" || {
-    json_record "${project}" "${repo}" "${head}" "fail" "not_run" "clone failed" "${project}.log" "git clone"
+    json_record "${project}" "${repo}" "${head}" "incomplete" "not_run" "clone failed" "${project}.log" "git clone"
     return
   }
 
@@ -899,7 +1086,13 @@ function resultEntries(result: unknown): unknown[] {
 
 function makeCheck(
   name: string,
-  status: "pass" | "fail" | "incomplete",
+  status:
+    | "pass"
+    | "wrong_result"
+    | "lifecycle_fail"
+    | "incomplete"
+    | "blocked"
+    | "not_encoded",
   reason: string,
   evidence: unknown,
 ) {
@@ -910,8 +1103,19 @@ function summarizeChecks(checks: Array<{ status: string }>) {
   return {
     total: checks.length,
     pass: checks.filter((check) => check.status === "pass").length,
-    fail: checks.filter((check) => check.status === "fail").length,
+    fail: checks.filter(
+      (check) =>
+        check.status === "wrong_result" ||
+        check.status === "lifecycle_fail",
+    ).length,
+    wrong_result: checks.filter((check) => check.status === "wrong_result")
+      .length,
+    lifecycle_fail: checks.filter((check) => check.status === "lifecycle_fail")
+      .length,
     incomplete: checks.filter((check) => check.status === "incomplete").length,
+    blocked: checks.filter((check) => check.status === "blocked").length,
+    not_encoded: checks.filter((check) => check.status === "not_encoded")
+      .length,
   };
 }
 
@@ -968,7 +1172,7 @@ const pass = queryResults.filter((result) => result.matched).length;
 const checks = [
   makeCheck(
     "same_corpus_retrieval",
-    pass === queryResults.length ? "pass" : "fail",
+    pass === queryResults.length ? "pass" : "wrong_result",
     pass === queryResults.length
       ? "agentmemory mem::remember/mem::search returned expected evidence for every query."
       : "agentmemory mem::remember/mem::search missed one or more expected results.",
@@ -1018,7 +1222,7 @@ if (!authId) {
   checks.push(
     makeCheck(
       "update_replaces_note_text",
-      updateMatched && oldMarkerAbsent ? "pass" : "fail",
+      updateMatched && oldMarkerAbsent ? "pass" : "lifecycle_fail",
       updateMatched && oldMarkerAbsent
         ? "agentmemory mem::remember supersede returned the new marker and did not return the old marker for the updated file."
         : "agentmemory mem::remember supersede did not cleanly replace the searchable auth memory text.",
@@ -1056,7 +1260,7 @@ if (!deleteQuery) {
   checks.push(
     makeCheck(
       "delete_suppresses_retrieval",
-      deletedStillMatched ? "fail" : "pass",
+      deletedStillMatched ? "lifecycle_fail" : "pass",
       deletedStillMatched
         ? "agentmemory mem::forget returned success but the deleted memory was still searchable."
         : "agentmemory mem::forget suppressed the deleted memory from subsequent search.",
@@ -1075,7 +1279,7 @@ if (!deleteQuery) {
 checks.push(
   makeCheck(
     "cold_start_recovery_search",
-    "incomplete",
+    "blocked",
     "This adapter runs agentmemory against an in-memory SDK/KV mock; no durable store is available in the harness to prove cold-start recovery.",
     {
       adapter_storage: "mock StateKV Map",
@@ -1118,41 +1322,27 @@ TS
       if jq -e --argjson query_count "${QUERY_COUNT}" --argjson document_count "${DOCUMENT_COUNT}" '
         .schema == "elf.live_baseline.agentmemory_result/v1" and
         .corpus.document_count == $document_count and
-        .summary.total == $query_count and
-        .summary.fail == 0 and
-        .check_summary.fail == 0 and
-        .check_summary.incomplete == 0
+        .summary.total == $query_count
       ' "${result_path}" >/dev/null; then
-        json_record "${project}" "${repo}" "${head}" "pass" "retrieval_pass" "agentmemory mem::remember/mem::search found expected evidence and lifecycle checks passed" "${project}.log" "npm install/build; mem::remember/mem::forget/mem::search"
+        local typed_status
+        local retrieval_status
+        typed_status="$(typed_status_from_result "${result_path}")"
+        if jq -e '.summary.fail == 0' "${result_path}" >/dev/null; then
+          retrieval_status="retrieval_pass"
+        else
+          retrieval_status="retrieval_wrong_result"
+        fi
+        json_record "${project}" "${repo}" "${head}" "${typed_status}" "${retrieval_status}" "$(typed_status_reason "${project}" "${typed_status}")" "${project}.log" "npm install/build; mem::remember/mem::forget/mem::search"
         return
       fi
-      if jq -e --argjson query_count "${QUERY_COUNT}" --argjson document_count "${DOCUMENT_COUNT}" '
-        .schema == "elf.live_baseline.agentmemory_result/v1" and
-        .corpus.document_count == $document_count and
-        .summary.total == $query_count and
-        .summary.fail == 0 and
-        .check_summary.fail == 0
-      ' "${result_path}" >/dev/null; then
-        json_record "${project}" "${repo}" "${head}" "incomplete" "retrieval_pass" "agentmemory same-corpus retrieval passed, but one or more lifecycle checks could not be completed in the in-memory harness" "${project}.log" "npm install/build; mem::remember/mem::forget/mem::search"
-        return
-      fi
-      if jq -e --argjson query_count "${QUERY_COUNT}" --argjson document_count "${DOCUMENT_COUNT}" '
-        .schema == "elf.live_baseline.agentmemory_result/v1" and
-        .corpus.document_count == $document_count and
-        .summary.total == $query_count and
-        .summary.fail == 0
-      ' "${result_path}" >/dev/null; then
-        json_record "${project}" "${repo}" "${head}" "fail" "retrieval_pass" "agentmemory same-corpus retrieval passed, but one or more lifecycle checks failed" "${project}.log" "npm install/build; mem::remember/mem::forget/mem::search"
-        return
-      fi
-      json_record "${project}" "${repo}" "${head}" "fail" "retrieval_wrong_result" "agentmemory same-corpus search ran but did not return expected evidence" "${project}.log" "npm install/build; mem::remember; mem::search"
+      json_record "${project}" "${repo}" "${head}" "incomplete" "invalid_json_result" "agentmemory command completed, but did not produce a valid benchmark result" "${project}.log" "npm install/build; mem::remember; mem::search"
       return
     fi
     json_record "${project}" "${repo}" "${head}" "incomplete" "retrieval_command_failed" "agentmemory install/build passed but same-corpus remember/search failed" "${project}.log" "npm install/build; mem::remember; mem::search"
     return
   fi
 
-  json_record "${project}" "${repo}" "${head}" "fail" "not_run" "install/build failed" "${project}.log" "npm install/build"
+  json_record "${project}" "${repo}" "${head}" "incomplete" "not_run" "install/build failed" "${project}.log" "npm install/build"
 }
 
 project_qmd() {
@@ -1165,14 +1355,50 @@ project_qmd() {
   local home="${HOME_DIR}/${project}"
   local head
   mkdir -p "${home}"
+  cat >"${REPORT_DIR}/${project}-adapter.json" <<'JSON'
+{
+  "schema": "elf.live_baseline.adapter_metadata/v1",
+  "project": "qmd",
+  "storage": {
+    "status": "real",
+    "detail": "The adapter uses qmd's local collection, persisted project files, and fresh CLI query processes inside Docker."
+  },
+  "behaviors": {
+    "same_corpus_retrieval": {
+      "status": "real",
+      "surface": "collection add, update, embed -f, and query --json"
+    },
+    "update": {
+      "status": "real",
+      "surface": "rewrite corpus file, rerun qmd update/embed, and query for the replacement marker"
+    },
+    "delete_or_expire": {
+      "status": "real",
+      "surface": "delete corpus file, rerun qmd update, and verify deleted evidence is not returned"
+    },
+    "expire": {
+      "status": "unsupported",
+      "surface": "qmd file collections support deletion but no TTL/expiry behavior is encoded"
+    },
+    "cold_start_reload": {
+      "status": "real",
+      "surface": "fresh qmd query process over the persisted local collection"
+    },
+    "scale_stress_profile": {
+      "status": "real",
+      "surface": "Run ELF_BASELINE_PROJECTS=qmd with ELF_BASELINE_PROFILE=scale or stress through cargo make baseline-live-docker."
+    }
+  }
+}
+JSON
   head="$(clone_project "${project}" "${repo}" "${log_path}")" || {
-    json_record "${project}" "${repo}" "${head}" "fail" "not_run" "clone failed" "${project}.log" "git clone"
+    json_record "${project}" "${repo}" "${head}" "incomplete" "not_run" "clone failed" "${project}.log" "git clone"
     return
   }
 
   if ! run_cmd "${project}: install/build" 300 "${log_path}" \
     "cd '${REPOS_DIR}/${project}' && (npm ci || npm install --no-audit --no-fund) && npm run build --if-present"; then
-    json_record "${project}" "${repo}" "${head}" "fail" "not_run" "install/build failed" "${project}.log" "npm install/build"
+    json_record "${project}" "${repo}" "${head}" "incomplete" "not_run" "install/build failed" "${project}.log" "npm install/build"
     return
   fi
 
@@ -1248,8 +1474,19 @@ function summarizeChecks(checks) {
   return {
     total: checks.length,
     pass: checks.filter((check) => check.status === "pass").length,
-    fail: checks.filter((check) => check.status === "fail").length,
+    fail: checks.filter(
+      (check) =>
+        check.status === "wrong_result" ||
+        check.status === "lifecycle_fail",
+    ).length,
+    wrong_result: checks.filter((check) => check.status === "wrong_result")
+      .length,
+    lifecycle_fail: checks.filter((check) => check.status === "lifecycle_fail")
+      .length,
     incomplete: checks.filter((check) => check.status === "incomplete").length,
+    blocked: checks.filter((check) => check.status === "blocked").length,
+    not_encoded: checks.filter((check) => check.status === "not_encoded")
+      .length,
   };
 }
 
@@ -1272,7 +1509,7 @@ const pass = queryResults.filter((result) => result.matched).length;
 const checks = [
   makeCheck(
     "same_corpus_retrieval",
-    pass === queryResults.length ? "pass" : "fail",
+    pass === queryResults.length ? "pass" : "wrong_result",
     pass === queryResults.length
       ? "qmd structured hybrid query returned expected evidence for every query."
       : "qmd structured hybrid query missed one or more expected results.",
@@ -1289,7 +1526,7 @@ if (!existsSync(authPath)) {
   checks.push(
     makeCheck(
       "update_replaces_note_text",
-      "incomplete",
+      "not_encoded",
       "The auth corpus file was missing, so qmd update could not be exercised.",
       { source: "auth-memory.md" },
     ),
@@ -1314,7 +1551,7 @@ if (!existsSync(authPath)) {
   checks.push(
     makeCheck(
       "update_replaces_note_text",
-      updateMatched && oldMarkerAbsent ? "pass" : "fail",
+      updateMatched && oldMarkerAbsent ? "pass" : "lifecycle_fail",
       updateMatched && oldMarkerAbsent
         ? "qmd update/embed returned the new marker and did not return the old marker for the updated file."
         : "qmd update/embed did not cleanly replace the searchable auth file text.",
@@ -1338,7 +1575,7 @@ if (!deleteQuery) {
   checks.push(
     makeCheck(
       "delete_suppresses_retrieval",
-      "incomplete",
+      "not_encoded",
       "No non-update, non-recovery corpus file was available, so qmd delete could not be exercised.",
       { available_docs: queries.map((query) => query.expected_doc) },
     ),
@@ -1351,7 +1588,7 @@ if (!deleteQuery) {
   checks.push(
     makeCheck(
       "delete_suppresses_retrieval",
-      deletedStillMatched ? "fail" : "pass",
+      deletedStillMatched ? "lifecycle_fail" : "pass",
       deletedStillMatched
         ? "qmd update marked the deleted file removed, but it was still searchable."
         : "qmd update suppressed the deleted file from subsequent search.",
@@ -1377,7 +1614,7 @@ const recoveryMatched = resultMatches(recoveryResults, recoveryQuery);
 checks.push(
   makeCheck(
     "cold_start_recovery_search",
-    recoveryMatched ? "pass" : "fail",
+    recoveryMatched ? "pass" : "lifecycle_fail",
     recoveryMatched
       ? "A fresh qmd query process reopened the persisted index and retrieved expected evidence."
       : "A fresh qmd query process did not retrieve expected persisted evidence.",
@@ -1417,24 +1654,23 @@ JS
     fi
     if jq -e --argjson query_count "${QUERY_COUNT}" '
       .schema == "elf.live_baseline.qmd_result/v1" and
-      .summary.total == $query_count and
-      .summary.fail == 0 and
-      .check_summary.fail == 0 and
-      .check_summary.incomplete == 0
+      .summary.total == $query_count
     ' "${query_result_path}" >/dev/null; then
-      json_record "${project}" "${repo}" "${head}" "pass" "retrieval_pass" "qmd embedded structured hybrid query found expected evidence and lifecycle checks passed" "${project}.log" "collection add; update; embed -f; query --json"
-    elif jq -e --argjson query_count "${QUERY_COUNT}" '
-      .schema == "elf.live_baseline.qmd_result/v1" and
-      .summary.total == $query_count and
-      .summary.fail == 0
-    ' "${query_result_path}" >/dev/null; then
-      json_record "${project}" "${repo}" "${head}" "fail" "retrieval_pass" "qmd same-corpus retrieval passed, but one or more update/delete/recovery checks failed or were incomplete" "${project}.log" "collection add; update; embed -f; query --json"
+      local typed_status
+      local retrieval_status
+      typed_status="$(typed_status_from_result "${query_result_path}")"
+      if jq -e '.summary.fail == 0' "${query_result_path}" >/dev/null; then
+        retrieval_status="retrieval_pass"
+      else
+        retrieval_status="retrieval_wrong_result"
+      fi
+      json_record "${project}" "${repo}" "${head}" "${typed_status}" "${retrieval_status}" "$(typed_status_reason "${project}" "${typed_status}")" "${project}.log" "collection add; update; embed -f; query --json"
     elif ! rg -q "Embedded [1-9][0-9]* chunks" "${log_path}"; then
       json_record "${project}" "${repo}" "${head}" "incomplete" "embedding_required" "qmd indexed the corpus, but no successful embedding completion was observed" "${project}.log" "collection add; update; embed -f; query --json"
     elif ! jq -e '.schema == "elf.live_baseline.qmd_result/v1"' "${query_result_path}" >/dev/null 2>&1; then
-      json_record "${project}" "${repo}" "${head}" "fail" "invalid_json_result" "qmd query command completed, but did not produce parseable JSON results" "${project}.log" "collection add; update; embed -f; search/query --json"
+      json_record "${project}" "${repo}" "${head}" "incomplete" "invalid_json_result" "qmd query command completed, but did not produce parseable JSON results" "${project}.log" "collection add; update; embed -f; search/query --json"
     else
-      json_record "${project}" "${repo}" "${head}" "fail" "retrieval_wrong_result" "qmd embedded retrieval ran but did not return expected evidence" "${project}.log" "collection add; update; embed -f; search/query --json"
+      json_record "${project}" "${repo}" "${head}" "wrong_result" "retrieval_wrong_result" "qmd embedded retrieval ran but did not return expected evidence" "${project}.log" "collection add; update; embed -f; search/query --json"
     fi
     return
   fi
@@ -1451,14 +1687,50 @@ project_memsearch() {
   local driver_path="${REPOS_DIR}/${project}/elf-live-baseline-memsearch.py"
   local head
   mkdir -p "${home}"
+  cat >"${REPORT_DIR}/${project}-adapter.json" <<'JSON'
+{
+  "schema": "elf.live_baseline.adapter_metadata/v1",
+  "project": "memsearch",
+  "storage": {
+    "status": "real",
+    "detail": "The adapter uses memsearch CLI indexing and search with the local ONNX embedder inside Docker."
+  },
+  "behaviors": {
+    "same_corpus_retrieval": {
+      "status": "real",
+      "surface": "memsearch index and memsearch search"
+    },
+    "update": {
+      "status": "real",
+      "surface": "rewrite corpus file, rerun memsearch index, and query for the replacement marker"
+    },
+    "delete_or_expire": {
+      "status": "real",
+      "surface": "delete corpus file, rerun memsearch index, and verify deleted evidence is not returned"
+    },
+    "expire": {
+      "status": "unsupported",
+      "surface": "the encoded CLI path supports reindex/delete but no TTL/expiry behavior"
+    },
+    "cold_start_reload": {
+      "status": "real",
+      "surface": "fresh memsearch CLI search process over the local index"
+    },
+    "scale_stress_profile": {
+      "status": "incomplete",
+      "surface": "smoke lifecycle path is encoded; scale/stress timing and resource thresholds are not yet calibrated"
+    }
+  }
+}
+JSON
   head="$(clone_project "${project}" "${repo}" "${log_path}")" || {
-    json_record "${project}" "${repo}" "${head}" "fail" "not_run" "clone failed" "${project}.log" "git clone"
+    json_record "${project}" "${repo}" "${head}" "incomplete" "not_run" "clone failed" "${project}.log" "git clone"
     return
   }
 
   if ! run_cmd "${project}: install" 420 "${log_path}" \
     "cd '${REPOS_DIR}/${project}' && python3 -m venv .venv && .venv/bin/pip install --upgrade pip && .venv/bin/pip install -e '.[local,onnx]'"; then
-    json_record "${project}" "${repo}" "${head}" "fail" "not_run" "pip install failed" "${project}.log" "pip install -e .[local,onnx]"
+    json_record "${project}" "${repo}" "${head}" "incomplete" "not_run" "pip install failed" "${project}.log" "pip install -e .[local,onnx]"
     return
   fi
 
@@ -1513,11 +1785,17 @@ def make_check(name, status, reason, evidence):
 
 
 def summarize_checks(checks):
+    wrong_result = sum(1 for check in checks if check["status"] == "wrong_result")
+    lifecycle_fail = sum(1 for check in checks if check["status"] == "lifecycle_fail")
     return {
         "total": len(checks),
         "pass": sum(1 for check in checks if check["status"] == "pass"),
-        "fail": sum(1 for check in checks if check["status"] == "fail"),
+        "fail": wrong_result + lifecycle_fail,
+        "wrong_result": wrong_result,
+        "lifecycle_fail": lifecycle_fail,
         "incomplete": sum(1 for check in checks if check["status"] == "incomplete"),
+        "blocked": sum(1 for check in checks if check["status"] == "blocked"),
+        "not_encoded": sum(1 for check in checks if check["status"] == "not_encoded"),
     }
 
 
@@ -1540,7 +1818,7 @@ pass_count = sum(1 for result in query_results if result["matched"])
 checks = [
     make_check(
         "same_corpus_retrieval",
-        "pass" if pass_count == len(query_results) else "fail",
+        "pass" if pass_count == len(query_results) else "wrong_result",
         "memsearch search returned expected evidence for every query."
         if pass_count == len(query_results)
         else "memsearch search missed one or more expected results.",
@@ -1557,7 +1835,7 @@ if not auth_path.exists():
     checks.append(
         make_check(
             "update_replaces_note_text",
-            "incomplete",
+            "not_encoded",
             "The auth corpus file was missing, so memsearch update could not be exercised.",
             {"source": "auth-memory.md"},
         )
@@ -1579,7 +1857,7 @@ else:
     checks.append(
         make_check(
             "update_replaces_note_text",
-            "pass" if update_matched and old_marker_absent else "fail",
+            "pass" if update_matched and old_marker_absent else "lifecycle_fail",
             "memsearch re-index returned the new marker and did not return the old marker for the updated file."
             if update_matched and old_marker_absent
             else "memsearch re-index did not cleanly replace the searchable auth file text.",
@@ -1606,7 +1884,7 @@ if delete_query is None:
     checks.append(
         make_check(
             "delete_suppresses_retrieval",
-            "incomplete",
+            "not_encoded",
             "No non-update, non-recovery corpus file was available, so memsearch delete could not be exercised.",
             {"available_docs": [query["expected_doc"] for query in queries]},
         )
@@ -1619,7 +1897,7 @@ else:
     checks.append(
         make_check(
             "delete_suppresses_retrieval",
-            "fail" if deleted_still_matched else "pass",
+            "lifecycle_fail" if deleted_still_matched else "pass",
             "memsearch index removed the deleted file from subsequent search."
             if not deleted_still_matched
             else "memsearch index returned success but the deleted file was still searchable.",
@@ -1644,7 +1922,7 @@ recovery_matched = output_matches(recovery_output, recovery_query)
 checks.append(
     make_check(
         "cold_start_recovery_search",
-        "pass" if recovery_matched else "fail",
+        "pass" if recovery_matched else "lifecycle_fail",
         "A fresh memsearch CLI process reopened the local Milvus index and retrieved persisted evidence."
         if recovery_matched
         else "A fresh memsearch CLI process did not retrieve expected persisted evidence.",
@@ -1682,20 +1960,19 @@ PY
     fi
     if jq -e --argjson query_count "${QUERY_COUNT}" '
       .schema == "elf.live_baseline.memsearch_result/v1" and
-      .summary.total == $query_count and
-      .summary.fail == 0 and
-      .check_summary.fail == 0 and
-      .check_summary.incomplete == 0
+      .summary.total == $query_count
     ' "${result_path}" >/dev/null; then
-      json_record "${project}" "${repo}" "${head}" "pass" "retrieval_pass" "memsearch indexed the corpus and returned expected evidence and lifecycle checks passed" "${project}.log" "config; index; search"
-    elif jq -e --argjson query_count "${QUERY_COUNT}" '
-      .schema == "elf.live_baseline.memsearch_result/v1" and
-      .summary.total == $query_count and
-      .summary.fail == 0
-    ' "${result_path}" >/dev/null; then
-      json_record "${project}" "${repo}" "${head}" "fail" "retrieval_pass" "memsearch same-corpus retrieval passed, but one or more update/delete/recovery checks failed or were incomplete" "${project}.log" "config; index; search"
+      local typed_status
+      local retrieval_status
+      typed_status="$(typed_status_from_result "${result_path}")"
+      if jq -e '.summary.fail == 0' "${result_path}" >/dev/null; then
+        retrieval_status="retrieval_pass"
+      else
+        retrieval_status="retrieval_wrong_result"
+      fi
+      json_record "${project}" "${repo}" "${head}" "${typed_status}" "${retrieval_status}" "$(typed_status_reason "${project}" "${typed_status}")" "${project}.log" "config; index; search"
     else
-      json_record "${project}" "${repo}" "${head}" "fail" "retrieval_wrong_result" "memsearch search ran but did not return expected evidence" "${project}.log" "config; index; search"
+      json_record "${project}" "${repo}" "${head}" "incomplete" "invalid_json_result" "memsearch command completed, but did not produce a valid benchmark result" "${project}.log" "config; index; search"
     fi
     return
   fi
@@ -1712,8 +1989,44 @@ project_mem0() {
   local home="${HOME_DIR}/${project}"
   local head
   mkdir -p "${home}"
+  cat >"${REPORT_DIR}/${project}-adapter.json" <<'JSON'
+{
+  "schema": "elf.live_baseline.adapter_metadata/v1",
+  "project": "mem0",
+  "storage": {
+    "status": "real",
+    "detail": "The adapter uses Memory.from_config with local FastEmbed, Qdrant path storage, and history DB paths inside Docker."
+  },
+  "behaviors": {
+    "same_corpus_retrieval": {
+      "status": "real",
+      "surface": "Memory.add(infer=false) and Memory.search"
+    },
+    "update": {
+      "status": "real",
+      "surface": "Memory.update against the stored memory id"
+    },
+    "delete_or_expire": {
+      "status": "real",
+      "surface": "Memory.delete against the stored memory id"
+    },
+    "expire": {
+      "status": "unsupported",
+      "surface": "the encoded local Memory path does not expose TTL/expiry behavior"
+    },
+    "cold_start_reload": {
+      "status": "real",
+      "surface": "new Memory.from_config over the same local Qdrant/history paths"
+    },
+    "scale_stress_profile": {
+      "status": "incomplete",
+      "surface": "smoke lifecycle path is encoded; scale/stress timing and resource thresholds are not yet calibrated"
+    }
+  }
+}
+JSON
   head="$(clone_project "${project}" "${repo}" "${log_path}")" || {
-    json_record "${project}" "${repo}" "${head}" "fail" "not_run" "clone failed" "${project}.log" "git clone"
+    json_record "${project}" "${repo}" "${head}" "incomplete" "not_run" "clone failed" "${project}.log" "git clone"
     return
   }
 
@@ -1722,7 +2035,7 @@ project_mem0() {
 from mem0 import Memory
 print('mem0 Memory import ok:', Memory)
 PY"; then
-    json_record "${project}" "${repo}" "${head}" "fail" "not_run" "pip install or import failed" "${project}.log" "pip install -e . fastembed ollama; import Memory"
+    json_record "${project}" "${repo}" "${head}" "incomplete" "not_run" "pip install or import failed" "${project}.log" "pip install -e . fastembed ollama; import Memory"
     return
   fi
 
@@ -1849,11 +2162,17 @@ def make_check(name, status, reason, evidence):
 
 
 def summarize_checks(checks):
+    wrong_result = sum(1 for check in checks if check["status"] == "wrong_result")
+    lifecycle_fail = sum(1 for check in checks if check["status"] == "lifecycle_fail")
     return {
         "total": len(checks),
         "pass": sum(1 for check in checks if check["status"] == "pass"),
-        "fail": sum(1 for check in checks if check["status"] == "fail"),
+        "fail": wrong_result + lifecycle_fail,
+        "wrong_result": wrong_result,
+        "lifecycle_fail": lifecycle_fail,
         "incomplete": sum(1 for check in checks if check["status"] == "incomplete"),
+        "blocked": sum(1 for check in checks if check["status"] == "blocked"),
+        "not_encoded": sum(1 for check in checks if check["status"] == "not_encoded"),
     }
 
 query_results = []
@@ -1864,7 +2183,7 @@ pass_count = sum(1 for result in query_results if result["matched"])
 checks = [
     make_check(
         "same_corpus_retrieval",
-        "pass" if pass_count == len(query_results) else "fail",
+        "pass" if pass_count == len(query_results) else "wrong_result",
         "mem0 local FastEmbed/Qdrant search returned expected evidence for every query."
         if pass_count == len(query_results)
         else "mem0 local FastEmbed/Qdrant search missed one or more expected results.",
@@ -1881,7 +2200,7 @@ if not auth_id:
     checks.append(
         make_check(
             "update_replaces_note_text",
-            "incomplete",
+            "not_encoded",
             "The auth memory id was not returned by mem0 add(), so update could not be exercised.",
             {"source": "auth-memory.md"},
         )
@@ -1915,7 +2234,7 @@ else:
     checks.append(
         make_check(
             "update_replaces_note_text",
-            "pass" if update_matched and old_marker_absent else "fail",
+            "pass" if update_matched and old_marker_absent else "lifecycle_fail",
             "mem0 update() returned the new marker and did not return the old marker for the updated memory."
             if update_matched and old_marker_absent
             else "mem0 update() did not cleanly replace the searchable auth memory text.",
@@ -1942,7 +2261,7 @@ if delete_query is None:
     checks.append(
         make_check(
             "delete_suppresses_retrieval",
-            "incomplete",
+            "not_encoded",
             "No non-update, non-recovery memory id was available, so delete could not be exercised.",
             {"available_sources": sorted(memory_ids_by_source)},
         )
@@ -1963,7 +2282,7 @@ else:
     checks.append(
         make_check(
             "delete_suppresses_retrieval",
-            "pass" if not deleted_still_matched else "fail",
+            "pass" if not deleted_still_matched else "lifecycle_fail",
             "mem0 delete() suppressed the deleted memory from subsequent search."
             if not deleted_still_matched
             else "mem0 delete() returned success but the deleted memory was still searchable.",
@@ -1993,7 +2312,7 @@ recovery_matched = matches_expected(
 checks.append(
     make_check(
         "cold_start_recovery_search",
-        "pass" if recovery_matched else "fail",
+        "pass" if recovery_matched else "lifecycle_fail",
         "A newly constructed mem0 Memory over the same local Qdrant/history paths retrieved persisted evidence."
         if recovery_matched
         else "A newly constructed mem0 Memory over the same local Qdrant/history paths did not retrieve persisted evidence.",
@@ -2044,24 +2363,20 @@ PY
     if jq -e --argjson query_count "${QUERY_COUNT}" --argjson document_count "${DOCUMENT_COUNT}" '
       .schema == "elf.live_baseline.mem0_result/v1" and
       .corpus.document_count == $document_count and
-      .summary.total == $query_count and
-      .summary.fail == 0 and
-      .check_summary.fail == 0 and
-      .check_summary.incomplete == 0
+      .summary.total == $query_count
     ' "${result_path}" >/dev/null; then
-      json_record "${project}" "${repo}" "${head}" "pass" "retrieval_pass" "mem0 infer=false local fastembed/Qdrant search found expected evidence and lifecycle checks passed" "${project}.log" "pip install -e . fastembed ollama; Memory.from_config; add/update/delete/search"
+      local typed_status
+      local retrieval_status
+      typed_status="$(typed_status_from_result "${result_path}")"
+      if jq -e '.summary.fail == 0' "${result_path}" >/dev/null; then
+        retrieval_status="retrieval_pass"
+      else
+        retrieval_status="retrieval_wrong_result"
+      fi
+      json_record "${project}" "${repo}" "${head}" "${typed_status}" "${retrieval_status}" "$(typed_status_reason "${project}" "${typed_status}")" "${project}.log" "pip install -e . fastembed ollama; Memory.from_config; add/update/delete/search"
       return
     fi
-    if jq -e --argjson query_count "${QUERY_COUNT}" --argjson document_count "${DOCUMENT_COUNT}" '
-      .schema == "elf.live_baseline.mem0_result/v1" and
-      .corpus.document_count == $document_count and
-      .summary.total == $query_count and
-      .summary.fail == 0
-    ' "${result_path}" >/dev/null; then
-      json_record "${project}" "${repo}" "${head}" "fail" "retrieval_pass" "mem0 same-corpus retrieval passed, but one or more update/delete/recovery checks failed or were incomplete" "${project}.log" "pip install -e . fastembed ollama; Memory.from_config; add/update/delete/search"
-      return
-    fi
-    json_record "${project}" "${repo}" "${head}" "fail" "retrieval_wrong_result" "mem0 local add/search ran but did not return expected evidence" "${project}.log" "pip install -e . fastembed ollama; Memory.from_config; add infer=false; search"
+    json_record "${project}" "${repo}" "${head}" "incomplete" "invalid_json_result" "mem0 command completed, but did not produce a valid benchmark result" "${project}.log" "pip install -e . fastembed ollama; Memory.from_config; add infer=false; search"
     return
   fi
 
@@ -2079,19 +2394,57 @@ project_openviking() {
   local local_embed_failure_pattern="llama-cpp-python|target specific option mismatch|failed-wheel-build-for-install|Failed building wheel|Failed to build llama-cpp-python|No module named 'llama_cpp'|Local embedding is enabled but 'llama-cpp-python' is not installed"
   local head
   mkdir -p "${home}"
+  cat >"${REPORT_DIR}/${project}-adapter.json" <<'JSON'
+{
+  "schema": "elf.live_baseline.adapter_metadata/v1",
+  "project": "OpenViking",
+  "storage": {
+    "status": "incomplete",
+    "detail": "The adapter attempts OpenViking local storage, but Docker local-embed setup can fail before retrieval is reached."
+  },
+  "behaviors": {
+    "same_corpus_retrieval": {
+      "status": "incomplete",
+      "surface": "OpenViking.add_resource and OpenViking.find after installing .[local-embed]",
+      "evidence": "The known Docker failure is llama-cpp-python build/import failure during local embedding setup.",
+      "retry": "Retry after pinning or providing a Docker-compatible llama-cpp-python/local embedding dependency."
+    },
+    "update": {
+      "status": "not_encoded",
+      "surface": "no update replacement check is encoded for OpenViking"
+    },
+    "delete_or_expire": {
+      "status": "not_encoded",
+      "surface": "no delete or expiry check is encoded for OpenViking"
+    },
+    "expire": {
+      "status": "unsupported",
+      "surface": "no TTL/expiry behavior is encoded in the local adapter"
+    },
+    "cold_start_reload": {
+      "status": "not_encoded",
+      "surface": "no restart/reopen check is encoded until local same-corpus retrieval completes"
+    },
+    "scale_stress_profile": {
+      "status": "blocked",
+      "surface": "scale/stress is blocked until local-embed setup is reliable in Docker"
+    }
+  }
+}
+JSON
   head="$(clone_project "${project}" "${repo}" "${log_path}")" || {
-    json_record "${project}" "${repo}" "${head}" "fail" "not_run" "clone failed" "${project}.log" "git clone"
+    json_record "${project}" "${repo}" "${head}" "incomplete" "not_run" "clone failed" "${project}.log" "git clone"
     return
   }
 
   if ! run_cmd "${project}: install/help" 600 "${log_path}" \
     "export HOME='${home}'; cd '${REPOS_DIR}/${project}' && python3 -m venv .venv && .venv/bin/pip install --upgrade pip && .venv/bin/pip install maturin && .venv/bin/pip install -e . && (.venv/bin/openviking language en || .venv/bin/ov language en) && (.venv/bin/openviking --help || .venv/bin/ov --help)"; then
-    json_record "${project}" "${repo}" "${head}" "fail" "not_run" "pip install or CLI help failed" "${project}.log" "pip install -e .; openviking/ov --help"
+    json_record "${project}" "${repo}" "${head}" "incomplete" "not_run" "pip install or CLI help failed" "${project}.log" "pip install -e .; openviking/ov --help"
     return
   fi
 
   if rg -q "ERROR: Failed building editable|Failed to build openviking|error: failed-wheel-build-for-install|CMake Error" "${log_path}"; then
-    json_record "${project}" "${repo}" "${head}" "fail" "partial_install" "OpenViking install/help returned success but the build log contains native build errors" "${project}.log" "pip install -e .; openviking/ov --help"
+    json_record "${project}" "${repo}" "${head}" "incomplete" "partial_install" "OpenViking install/help returned success but the build log contains native build errors" "${project}.log" "pip install -e .; openviking/ov --help"
     return
   fi
 
@@ -2192,6 +2545,54 @@ try:
             }
         )
     pass_count = sum(1 for result in query_results if result["matched"])
+    checks = [
+        {
+            "name": "same_corpus_retrieval",
+            "status": "pass" if pass_count == len(query_results) else "wrong_result",
+            "reason": "OpenViking find returned expected evidence for every query."
+            if pass_count == len(query_results)
+            else "OpenViking find missed one or more expected results.",
+            "evidence": {
+                "total": len(query_results),
+                "pass": pass_count,
+                "fail": len(query_results) - pass_count,
+            },
+        },
+        {
+            "name": "update_replaces_note_text",
+            "status": "not_encoded",
+            "reason": "OpenViking update replacement is not encoded in this Docker adapter.",
+            "evidence": {},
+        },
+        {
+            "name": "delete_suppresses_retrieval",
+            "status": "not_encoded",
+            "reason": "OpenViking delete or expiry behavior is not encoded in this Docker adapter.",
+            "evidence": {},
+        },
+        {
+            "name": "cold_start_recovery_search",
+            "status": "not_encoded",
+            "reason": "OpenViking cold-start reload is not encoded until the local retrieval path is stable in Docker.",
+            "evidence": {},
+        },
+    ]
+    wrong_result_count = sum(
+        1 for check in checks if check["status"] == "wrong_result"
+    )
+    lifecycle_fail_count = sum(
+        1 for check in checks if check["status"] == "lifecycle_fail"
+    )
+    check_summary = {
+        "total": len(checks),
+        "pass": sum(1 for check in checks if check["status"] == "pass"),
+        "fail": wrong_result_count + lifecycle_fail_count,
+        "wrong_result": wrong_result_count,
+        "lifecycle_fail": lifecycle_fail_count,
+        "incomplete": sum(1 for check in checks if check["status"] == "incomplete"),
+        "blocked": sum(1 for check in checks if check["status"] == "blocked"),
+        "not_encoded": sum(1 for check in checks if check["status"] == "not_encoded"),
+    }
     out_path.write_text(
         json.dumps(
             {
@@ -2207,6 +2608,8 @@ try:
                     "pass": pass_count,
                     "fail": len(query_results) - pass_count,
                 },
+                "check_summary": check_summary,
+                "checks": checks,
                 "queries": query_results,
             },
             ensure_ascii=False,
@@ -2235,6 +2638,9 @@ PY
 
   if run_cmd "${project}: local add/find" 900 "${log_path}" \
     "export HOME='${home}'; export OPENVIKING_CONFIG_FILE='${config_path}'; export ELF_OPENVIKING_DATA_PATH='${home}/data'; export ELF_OPENVIKING_CORPUS_PATH='${CORPUS_DIR}'; export ELF_OPENVIKING_RESULT_PATH='${result_path}'; export ELF_BASELINE_QUERIES_PATH='${REPORT_DIR}/queries.json'; cd '${REPOS_DIR}/${project}' && source .venv/bin/activate && python '${driver_path}'"; then
+    if jq -e '.checks and .check_summary' "${result_path}" >/dev/null 2>&1; then
+      jq '{check_summary, checks}' "${result_path}" >"${REPORT_DIR}/${project}-checks.json"
+    fi
     if rg -q "${local_embed_failure_pattern}" "${log_path}"; then
       json_record "${project}" "${repo}" "${head}" "incomplete" "local_embed_install_failed" "OpenViking local add_resource/find hit llama-cpp-python build/import failure, so same-corpus local retrieval could not be run" "${project}.log" "pip install -e .[local-embed]; OpenViking.add_resource/find"
       return
@@ -2245,13 +2651,20 @@ PY
     fi
     if jq -e --argjson query_count "${QUERY_COUNT}" '
       .schema == "elf.live_baseline.openviking_result/v1" and
-      .summary.total == $query_count and
-      .summary.fail == 0
+      .summary.total == $query_count
     ' "${result_path}" >/dev/null; then
-      json_record "${project}" "${repo}" "${head}" "pass" "retrieval_pass" "OpenViking local add_resource/find found expected evidence for every query" "${project}.log" "pip install -e .[local-embed]; OpenViking.add_resource/find"
+      local typed_status
+      local retrieval_status
+      typed_status="$(typed_status_from_result "${result_path}")"
+      if jq -e '.summary.fail == 0' "${result_path}" >/dev/null; then
+        retrieval_status="retrieval_pass"
+      else
+        retrieval_status="retrieval_wrong_result"
+      fi
+      json_record "${project}" "${repo}" "${head}" "${typed_status}" "${retrieval_status}" "$(typed_status_reason "${project}" "${typed_status}")" "${project}.log" "pip install -e .[local-embed]; OpenViking.add_resource/find"
       return
     fi
-    json_record "${project}" "${repo}" "${head}" "fail" "retrieval_wrong_result" "OpenViking local add_resource/find ran but did not return expected evidence" "${project}.log" "pip install -e .[local-embed]; OpenViking.add_resource/find"
+    json_record "${project}" "${repo}" "${head}" "incomplete" "invalid_json_result" "OpenViking local add_resource/find did not produce a valid benchmark result" "${project}.log" "pip install -e .[local-embed]; OpenViking.add_resource/find"
     return
   fi
 
@@ -2270,14 +2683,50 @@ project_claude_mem() {
   local result_path="${REPORT_DIR}/${project}-search.json"
   local driver_path="${REPOS_DIR}/${project}/elf-live-baseline-claude-mem.ts"
   local head
+  cat >"${REPORT_DIR}/${project}-adapter.json" <<'JSON'
+{
+  "schema": "elf.live_baseline.adapter_metadata/v1",
+  "project": "claude-mem",
+  "storage": {
+    "status": "mocked",
+    "detail": "The adapter uses claude-mem repository classes with an in-memory SQLite database for same-corpus search."
+  },
+  "behaviors": {
+    "same_corpus_retrieval": {
+      "status": "mocked",
+      "surface": "MemoryItemsRepository.create/search over in-memory SQLite"
+    },
+    "update": {
+      "status": "not_encoded",
+      "surface": "no update replacement check is encoded"
+    },
+    "delete_or_expire": {
+      "status": "not_encoded",
+      "surface": "no delete or expiry check is encoded"
+    },
+    "expire": {
+      "status": "unsupported",
+      "surface": "no TTL/expiry behavior is encoded in the local adapter"
+    },
+    "cold_start_reload": {
+      "status": "not_encoded",
+      "surface": "the current adapter uses :memory: SQLite and does not reopen a durable store"
+    },
+    "scale_stress_profile": {
+      "status": "incomplete",
+      "surface": "same-corpus smoke only until durable storage and lifecycle checks are encoded"
+    }
+  }
+}
+JSON
   head="$(clone_project "${project}" "${repo}" "${log_path}")" || {
-    json_record "${project}" "${repo}" "${head}" "fail" "not_run" "clone failed" "${project}.log" "git clone"
+    json_record "${project}" "${repo}" "${head}" "incomplete" "not_run" "clone failed" "${project}.log" "git clone"
     return
   }
 
   if ! run_cmd "${project}: install/build" 420 "${log_path}" \
     "cd '${REPOS_DIR}/${project}' && (npm ci || npm install --no-audit --no-fund) && npm run build --if-present"; then
-    json_record "${project}" "${repo}" "${head}" "fail" "not_run" "npm install/build failed" "${project}.log" "npm install/build"
+    json_record "${project}" "${repo}" "${head}" "incomplete" "not_run" "npm install/build failed" "${project}.log" "npm install/build"
     return
   fi
 
@@ -2394,6 +2843,55 @@ try {
     };
   });
   const pass = queryResults.filter((result) => result.matched).length;
+  const checks = [
+    {
+      name: "same_corpus_retrieval",
+      status: pass === queryResults.length ? "pass" : "wrong_result",
+      reason:
+        pass === queryResults.length
+          ? "claude-mem repository search returned expected evidence for every query."
+          : "claude-mem repository search missed one or more expected results.",
+      evidence: {
+        total: queryResults.length,
+        pass,
+        fail: queryResults.length - pass,
+      },
+    },
+    {
+      name: "update_replaces_note_text",
+      status: "not_encoded",
+      reason: "claude-mem update replacement is not encoded in this in-memory adapter.",
+      evidence: {},
+    },
+    {
+      name: "delete_suppresses_retrieval",
+      status: "not_encoded",
+      reason: "claude-mem delete or expiry behavior is not encoded in this in-memory adapter.",
+      evidence: {},
+    },
+    {
+      name: "cold_start_recovery_search",
+      status: "not_encoded",
+      reason: "claude-mem cold-start reload is not encoded because the adapter uses :memory: SQLite.",
+      evidence: {},
+    },
+  ];
+  const wrongResult = checks.filter((check) => check.status === "wrong_result")
+    .length;
+  const lifecycleFail = checks.filter(
+    (check) => check.status === "lifecycle_fail",
+  ).length;
+  const checkSummary = {
+    total: checks.length,
+    pass: checks.filter((check) => check.status === "pass").length,
+    fail: wrongResult + lifecycleFail,
+    wrong_result: wrongResult,
+    lifecycle_fail: lifecycleFail,
+    incomplete: checks.filter((check) => check.status === "incomplete").length,
+    blocked: checks.filter((check) => check.status === "blocked").length,
+    not_encoded: checks.filter((check) => check.status === "not_encoded")
+      .length,
+  };
 
   writeFileSync(
     outPath,
@@ -2410,6 +2908,8 @@ try {
           pass,
           fail: queryResults.length - pass,
         },
+        check_summary: checkSummary,
+        checks,
         queries: queryResults,
       },
       null,
@@ -2423,16 +2923,26 @@ TS
 
   if run_cmd "${project}: same-corpus sqlite search" 300 "${log_path}" \
     "cd '${REPOS_DIR}/${project}' && bun '${driver_path}' '${result_path}' '${CORPUS_DIR}' '${REPORT_DIR}/queries.json'"; then
+    if jq -e '.checks and .check_summary' "${result_path}" >/dev/null 2>&1; then
+      jq '{check_summary, checks}' "${result_path}" >"${REPORT_DIR}/${project}-checks.json"
+    fi
     if jq -e --argjson query_count "${QUERY_COUNT}" --argjson document_count "${DOCUMENT_COUNT}" '
       .schema == "elf.live_baseline.claude_mem_result/v1" and
       .corpus.document_count == $document_count and
-      .summary.total == $query_count and
-      .summary.fail == 0
+      .summary.total == $query_count
     ' "${result_path}" >/dev/null; then
-      json_record "${project}" "${repo}" "${head}" "pass" "retrieval_pass" "claude-mem SQLite memory repository search found expected evidence for every query" "${project}.log" "npm install/build; MemoryItemsRepository.create/search"
+      local typed_status
+      local retrieval_status
+      typed_status="$(typed_status_from_result "${result_path}")"
+      if jq -e '.summary.fail == 0' "${result_path}" >/dev/null; then
+        retrieval_status="retrieval_pass"
+      else
+        retrieval_status="retrieval_wrong_result"
+      fi
+      json_record "${project}" "${repo}" "${head}" "${typed_status}" "${retrieval_status}" "$(typed_status_reason "${project}" "${typed_status}")" "${project}.log" "npm install/build; MemoryItemsRepository.create/search"
       return
     fi
-    json_record "${project}" "${repo}" "${head}" "fail" "retrieval_wrong_result" "claude-mem same-corpus search ran but did not return expected evidence" "${project}.log" "npm install/build; MemoryItemsRepository.create/search"
+    json_record "${project}" "${repo}" "${head}" "incomplete" "invalid_json_result" "claude-mem same-corpus search did not produce a valid benchmark result" "${project}.log" "npm install/build; MemoryItemsRepository.create/search"
     return
   fi
 
