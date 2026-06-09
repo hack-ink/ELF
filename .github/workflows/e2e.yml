@@ -65,10 +65,10 @@ jobs:
 
     steps:
       - name: Fetch latest code
-        uses: actions/checkout@v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
 
       - name: Set up Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6
         with:
           cache: true
           rustflags: ""
@@ -79,12 +79,12 @@ jobs:
           sudo apt-get install -y --no-install-recommends postgresql-client jq
 
       - name: Install taplo
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@0631aa6515c7d545823c67cfae7ef4fc7f490154
         with:
           tool: taplo
 
       - name: Install cargo-make
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@0631aa6515c7d545823c67cfae7ef4fc7f490154
         with:
           tool: cargo-make
 
@@ -113,7 +113,7 @@ jobs:
 
       - name: Upload harness outputs
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: e2e-context-misranking-${{ github.run_id }}
           if-no-files-found: warn
@@ -124,7 +124,7 @@ jobs:
 
       - name: Upload harness logs (on failure)
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: e2e-context-misranking-${{ github.run_id }}-logs
           if-no-files-found: warn
@@ -135,4 +135,3 @@ jobs:
             tmp/elf.harness.base.toml
             tmp/elf.harness.context.toml
             tmp/elf.harness.dataset.json
-
