@@ -225,6 +225,26 @@ encoded UX gaps.
 Checked-in evidence snapshot:
 `docs/guide/benchmarking/2026-06-09-operator-debugging-ux-report.md`.
 
+The same `real-world-memory` target also includes the current consolidation fixtures
+under the same fixture root.
+
+Current checked-in consolidation increment:
+
+```sh
+cargo make real-world-memory-consolidation
+```
+
+This parses `apps/elf-eval/fixtures/real_world_memory/consolidation/`, writes
+`tmp/real-world-memory/consolidation/report.json`, and renders
+`tmp/real-world-memory/consolidation/report.md`. The consolidation report includes
+proposal usefulness, lineage completeness, review action correctness, proposal
+unsupported-claim count, executable gap count, and source mutation count. Source
+mutation count must remain `0` for proposal-only cases.
+
+These fixtures encode proposal expectations only. They do not claim that a live
+scheduled consolidation worker generated the proposals; the report records that missing
+primitive as an executable gap with a follow-up issue title.
+
 Do not generate large fixtures or update production-adoption verdicts while adding the
 contract. The current adoption gate remains an existing benchmark decision until new
 real-world job reports are implemented and published.

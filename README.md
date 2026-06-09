@@ -161,8 +161,10 @@ Detailed evidence and interpretation:
 - [Single-User Production Runbook](docs/guide/single_user_production.md)
 - Future benchmark contract:
   [Real-World Agent Memory Benchmark v1](docs/spec/real_world_agent_memory_benchmark_v1.md).
-  This contract defines job-level suites for agent work, but no system win is claimed
-  under it until a runner encodes and reports those suites.
+  This contract defines job-level suites for agent work. Checked-in fixture runners now
+  cover a smoke work-resume slice and proposal-only consolidation cases through
+  `cargo make real-world-job-smoke` and `cargo make real-world-memory-consolidation`,
+  but those reports are fixture-level evidence and not live external-adapter wins.
 
 Quick comparison snapshot (objective/high-level).
 This table compares capability coverage, not overall project quality.
