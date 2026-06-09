@@ -120,18 +120,29 @@ flowchart TB
 
 ### Checked-In Live Benchmark Snapshot
 
-The June 9, 2026 Docker-only live baseline uses the same generated corpus and query
-manifest across ELF and the external memory projects below. ELF was run with the
-production embedding provider path, `Qwen3-Embedding-8B`, and 4096-dimensional
-embeddings.
+The June 9, 2026 Docker-only live baseline and production adoption gate use generated
+corpus/query manifests across ELF and the external memory projects below. ELF was run
+with the production embedding provider path, `Qwen3-Embedding-8B`, and
+4096-dimensional embeddings where provider-backed ELF evidence was required.
 
-- ELF production-provider stress run: 480 documents, 16 queries, `8/8` encoded checks,
-  `retrieval_pass`, and `pass` in 1163 seconds.
-- All-project smoke run: ELF and qmd passed every encoded check. agentmemory passed
-  same-corpus retrieval but failed or could not complete lifecycle checks. mem0,
-  memsearch, and claude-mem returned wrong same-corpus retrieval results in the encoded
-  smoke. OpenViking was `incomplete` because its local embedding dependency could not
-  complete in the Docker runner.
+- Production adoption gate verdict: ELF is ready for personal production use with
+  bounded caveats. The private production corpus profile was not run because no
+  operator-owned private manifest was available; the task failed closed at the missing
+  manifest guard, so no private-corpus pass is claimed.
+- ELF production-provider synthetic run: 8 documents, 6 queries, `8/8` encoded checks,
+  `retrieval_pass`, and `pass` in 59 seconds.
+- ELF production-provider stress run: 480 documents, 16 queries, `9/9` encoded checks,
+  `retrieval_pass`, and `pass` in 779 seconds.
+- ELF production-provider backfill run: 2,000 documents, 16 queries, `9/9` encoded
+  checks, resume from 1,000 to 2,000 imported documents, zero duplicate source notes,
+  and `pass` in 2,804 seconds.
+- Single-user production restore proof: Docker Compose backup/restore plus Qdrant
+  rebuild returned `rebuilt_count=1`, `missing_vector_count=0`, `error_count=0`, and
+  search recovered the restored note.
+- Fresh all-project smoke run: ELF and qmd passed every encoded check. agentmemory
+  passed same-corpus retrieval but failed lifecycle/cold-start coverage. memsearch,
+  mem0, OpenViking, and claude-mem remained `incomplete` or wrong-result typed states;
+  those states are reported as limitations, not hidden as proof.
 - The benchmark runner and report publisher are checked in and Docker-isolated:
   `cargo make baseline-live-docker`, `cargo make baseline-backfill-docker`,
   `cargo make baseline-live-report`, and `cargo make baseline-live-docker-clean`.
@@ -140,6 +151,7 @@ Detailed evidence and interpretation:
 
 - [Live Baseline Benchmark Report - June 9, 2026](docs/guide/benchmarking/2026-06-09-live-baseline-report.md)
 - [Synthetic Production Corpus Benchmark Report - June 9, 2026](docs/guide/benchmarking/2026-06-09-production-corpus-report.md)
+- [Production Adoption Gate Report - June 9, 2026](docs/guide/benchmarking/2026-06-09-production-adoption-gate-report.md)
 - [Live Baseline Benchmark Runbook](docs/guide/benchmarking/live_baseline_benchmark.md)
 - [Single-User Production Runbook](docs/guide/single_user_production.md)
 
@@ -185,6 +197,7 @@ Detailed comparison, mechanism-level analysis, and source map:
 
 - [Live Baseline Benchmark Report - June 9, 2026](docs/guide/benchmarking/2026-06-09-live-baseline-report.md)
 - [Synthetic Production Corpus Benchmark Report - June 9, 2026](docs/guide/benchmarking/2026-06-09-production-corpus-report.md)
+- [Production Adoption Gate Report - June 9, 2026](docs/guide/benchmarking/2026-06-09-production-adoption-gate-report.md)
 - [Live Baseline Benchmark Runbook](docs/guide/benchmarking/live_baseline_benchmark.md)
 - [External Memory Improvement Plan](docs/guide/research/external_memory_improvement_plan.md)
 - [Detailed External Comparison](docs/guide/research/comparison_external_projects.md)
