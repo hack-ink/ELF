@@ -1786,6 +1786,7 @@ async fn verify_docs_qdrant_filter_indexes(service: &ElfService) {
 				field_type: Some(index_type as i32),
 				field_index_params: None,
 				ordering: None,
+				timeout: None,
 			};
 
 			service

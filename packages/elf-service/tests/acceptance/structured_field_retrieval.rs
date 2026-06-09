@@ -4,7 +4,7 @@ use std::{
 };
 
 use qdrant_client::{
-	client::Payload,
+	Payload,
 	qdrant::{Document, PointStruct, UpsertPointsBuilder, Vector},
 };
 use serde_json::Value;
