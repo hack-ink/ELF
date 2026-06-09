@@ -293,6 +293,41 @@ args = [
 ]
 
 
+# Live external baseline benchmark
+# | task                       | type    | cwd |
+# | -------------------------- | ------- | --- |
+# | baseline-live-docker       | command |     |
+# | baseline-live-report       | command |     |
+# | baseline-live-docker-clean | command |     |
+
+[tasks.baseline-live-docker]
+workspace = false
+command = "bash"
+args = [
+	"-lc",
+	"set -euo pipefail; head=\"$(git rev-parse HEAD)\"; if [ -n \"$(git status --porcelain)\" ]; then head=\"$head+dirty\"; fi; export ELF_BASELINE_ELF_HEAD=\"$head\"; docker compose -f docker-compose.baseline.yml run --build --rm baseline-runner",
+]
+
+[tasks.baseline-live-report]
+workspace = false
+command = "bash"
+args = [
+	"scripts/live-baseline-report-to-md.sh",
+]
+
+[tasks.baseline-live-docker-clean]
+workspace = false
+command = "docker"
+args = [
+	"compose",
+	"-f",
+	"docker-compose.baseline.yml",
+	"down",
+	"-v",
+	"--remove-orphans",
+]
+
+
 # Meta
 # | task   | type      | cwd |
 # | ------ | --------- | --- |

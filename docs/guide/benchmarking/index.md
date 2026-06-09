@@ -1,0 +1,34 @@
+# Benchmarking Guide Index
+
+Goal: Route agents to live benchmark runbooks, report publication steps, and checked-in
+benchmark evidence.
+Read this when: You need to run, publish, interpret, or extend ELF benchmark evidence
+against external memory systems.
+Inputs: The benchmark question, selected corpus profile, and whether you need a runbook
+or a saved evidence snapshot.
+Depends on: `docs/index.md`, `docs/guide/index.md`, and `docs/governance.md`.
+Outputs: The smallest benchmarking guide or report needed to continue.
+
+## Use This Index When
+
+- You need to run the live Docker-only benchmark matrix.
+- You need to publish a Markdown report from a generated benchmark JSON report.
+- You need the checked-in benchmark evidence behind README claims.
+- You need to extend the benchmark matrix with new projects, profiles, or lifecycle
+  checks.
+
+## Guides And Reports
+
+- `live_baseline_benchmark.md`: run, clean up, publish, and interpret the live
+  Docker-only benchmark matrix.
+- `2026-06-09-live-baseline-report.md`: checked-in evidence snapshot for the June 9,
+  2026 ELF production-provider stress run and all-project smoke comparison.
+
+## Update Rules
+
+- Add a dated report when a new run changes README-level claims.
+- Keep generated raw JSON under `tmp/live-baseline/`; commit only reviewed Markdown
+  summaries and durable scripts.
+- Link the newest decision-relevant report from README and this index.
+- When benchmark semantics change, update `live_baseline_benchmark.md` and the
+  relevant spec before publishing a new result.

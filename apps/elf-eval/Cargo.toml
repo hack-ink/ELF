@@ -6,6 +6,7 @@ name        = "elf-eval"
 version     = "0.2.0"
 
 [dependencies]
+blake3             = { workspace = true }
 clap               = { workspace = true }
 color-eyre         = { workspace = true }
 serde              = { workspace = true }
@@ -17,10 +18,13 @@ tracing            = { workspace = true }
 tracing-subscriber = { workspace = true }
 uuid               = { workspace = true }
 
-elf-cli     = { workspace = true }
-elf-config  = { workspace = true }
-elf-service = { workspace = true }
-elf-storage = { workspace = true }
+elf-chunking = { workspace = true }
+elf-cli      = { workspace = true }
+elf-config   = { workspace = true }
+elf-service  = { workspace = true }
+elf-storage  = { workspace = true }
+elf-testkit  = { workspace = true }
+elf-worker   = { workspace = true }
 
 [build-dependencies]
 vergen-gitcl = { workspace = true }
