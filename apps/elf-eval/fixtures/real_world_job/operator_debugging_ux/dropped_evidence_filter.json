@@ -1,0 +1,124 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "operator-debug-dropped-evidence-001",
+  "suite": "operator_debugging_ux",
+  "title": "Debug expected evidence dropped after recall filtering",
+  "corpus": {
+    "corpus_id": "operator-debugging-ux-2026-06-09",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "trace-dropped-expected",
+        "kind": "trace",
+        "text": "Trace 11111111-1111-4111-8111-111111111111 shows the expected note present in recall.candidates before service-side filtering and absent after the read-profile scope filter.",
+        "source_ref": {"schema": "source_ref/v1", "resolver": "real_world_job_fixture/v1", "ref": {"fixture": "operator_debugging_ux", "evidence_id": "trace-dropped-expected"}},
+        "created_at": "2026-06-09T02:00:00Z"
+      },
+      {
+        "evidence_id": "trace-dropped-decoy",
+        "kind": "note",
+        "text": "Decoy note: the auth retry policy note ranked first but does not explain the missing expected deployment evidence.",
+        "source_ref": {"schema": "source_ref/v1", "resolver": "real_world_job_fixture/v1", "ref": {"fixture": "operator_debugging_ux", "evidence_id": "trace-dropped-decoy"}},
+        "created_at": "2026-06-09T02:01:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_operator_ux",
+      "answer": {
+        "content": "The auth retry policy note is the root cause; no expected deployment evidence was dropped.",
+        "claims": [
+          {
+            "claim_id": "wrong_root_cause",
+            "text": "No expected evidence was dropped.",
+            "evidence_ids": ["trace-dropped-decoy"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["trace-dropped-decoy"],
+        "latency_ms": 2.4,
+        "cost": {"currency": "USD", "amount": 0.0, "input_tokens": 0, "output_tokens": 0}
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "expected-evidence-recalled",
+      "ts": "2026-06-09T02:00:00Z",
+      "actor": "system",
+      "action": "captured_trace",
+      "evidence_ids": ["trace-dropped-expected"],
+      "summary": "The trace captured recall-stage visibility for the expected evidence before filtering."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Why did the memory result miss the expected deployment evidence?",
+    "job_mode": "debug",
+    "constraints": ["cite_evidence", "avoid_repeating_completed_work"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "root_cause",
+        "text": "The expected evidence was dropped after recall by the read-profile filter."
+      }
+    ],
+    "must_not_include": ["No expected deployment evidence was dropped."],
+    "evidence_links": {"root_cause": ["trace-dropped-expected"]},
+    "answer_type": "debug_report",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "trace-dropped-expected",
+      "claim_id": "root_cause",
+      "requirement": "explain",
+      "quote": "present in recall.candidates before service-side filtering and absent after the read-profile scope filter"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "decoy-top-auth-note",
+      "type": "decoy_evidence",
+      "evidence_ids": ["trace-dropped-decoy"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "debuggability": {"weight": 0.35, "max_points": 1.0, "criteria": "Identifies the trace stage that dropped expected evidence."},
+      "evidence_grounding": {"weight": 0.3, "max_points": 1.0, "criteria": "Uses trace evidence rather than the decoy top note."},
+      "workflow_helpfulness": {"weight": 0.2, "max_points": 1.0, "criteria": "Names a concrete repair action."},
+      "answer_correctness": {"weight": 0.15, "max_points": 1.0, "criteria": "Reports the correct root cause."}
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": ["The fixture does not provide that evidence."],
+    "fallback_action": "state_blocker"
+  },
+  "operator_debug": {
+    "failure_mode": "expected_evidence_dropped",
+    "trace_id": "11111111-1111-4111-8111-111111111111",
+    "viewer_url": "/viewer?trace_id=11111111-1111-4111-8111-111111111111",
+    "admin_trace_bundle_url": "/v2/admin/traces/11111111-1111-4111-8111-111111111111/bundle?mode=full&stage_items_limit=128&candidates_limit=200",
+    "root_cause": "The expected candidate survived recall but was removed by the read-profile scope filter before final selection.",
+    "steps_to_root_cause": 4,
+    "raw_sql_needed": false,
+    "dropped_candidate_visibility": "visible in Retrieval Funnel and Replay Candidates",
+    "trace_completeness": "complete",
+    "repair_action_clarity": "clear",
+    "viewer_panels": ["Trace", "Retrieval Funnel", "Replay Candidates", "Stage Details"],
+    "cli_steps": ["open viewer trace link", "compare recall before and after filter", "inspect replay candidates", "repair read profile or grant"],
+    "trace_evidence": ["trace-dropped-expected"],
+    "ux_gaps": []
+  },
+  "tags": ["synthetic", "operator_debugging_ux", "no_live_claim"]
+}

@@ -105,6 +105,7 @@ struct RealWorldJob {
 	negative_traps: Vec<NegativeTrap>,
 	scoring_rubric: ScoringRubric,
 	allowed_uncertainty: AllowedUncertainty,
+	operator_debug: Option<OperatorDebugEvidence>,
 	#[serde(default)]
 	tags: Vec<String>,
 }
@@ -314,6 +315,39 @@ struct CostReport {
 	output_tokens: Option<u64>,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct OperatorDebugEvidence {
+	failure_mode: String,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	trace_id: Option<String>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	viewer_url: Option<String>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	admin_trace_bundle_url: Option<String>,
+	root_cause: String,
+	steps_to_root_cause: u32,
+	raw_sql_needed: bool,
+	dropped_candidate_visibility: String,
+	trace_completeness: String,
+	repair_action_clarity: String,
+	#[serde(default)]
+	viewer_panels: Vec<String>,
+	#[serde(default)]
+	cli_steps: Vec<String>,
+	#[serde(default)]
+	trace_evidence: Vec<String>,
+	#[serde(default)]
+	ux_gaps: Vec<OperatorUxGap>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct OperatorUxGap {
+	gap_id: String,
+	severity: String,
+	description: String,
+	follow_up_issue: String,
+}
+
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 enum TypedStatus {
@@ -402,6 +436,14 @@ struct ReportSummary {
 	qdrant_rebuild_case_count: usize,
 	#[serde(default)]
 	qdrant_rebuild_pass_count: usize,
+	#[serde(default)]
+	operator_debug_job_count: usize,
+	#[serde(default)]
+	raw_sql_needed_count: usize,
+	#[serde(default)]
+	trace_incomplete_count: usize,
+	#[serde(default)]
+	operator_ux_gap_count: usize,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -457,6 +499,8 @@ struct JobReport {
 	redaction_leak_count: usize,
 	#[serde(default)]
 	qdrant_rebuild_case: bool,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	operator_debug: Option<OperatorDebugEvidence>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -509,6 +553,10 @@ struct FailureCounts {
 	missing_evidence: usize,
 	trap_uses: usize,
 	unsupported_claims: usize,
+	operator_debug_missing: usize,
+	operator_debug_raw_sql: usize,
+	operator_debug_trace_gaps: usize,
+	operator_debug_repair_unclear: usize,
 }
 
 #[derive(Debug, Default)]
@@ -627,6 +675,7 @@ fn validate_job(job: &RealWorldJob, path: &Path) -> Result<()> {
 	validate_required_evidence(job, path)?;
 	validate_scoring_rubric(job, path)?;
 	validate_allowed_uncertainty(job, path)?;
+	validate_operator_debug(job, path)?;
 
 	Ok(())
 }
@@ -854,6 +903,68 @@ fn validate_allowed_uncertainty(job: &RealWorldJob, path: &Path) -> Result<()> {
 	Ok(())
 }
 
+fn validate_operator_debug(job: &RealWorldJob, path: &Path) -> Result<()> {
+	let Some(debug) = &job.operator_debug else {
+		if job.suite == "operator_debugging_ux" {
+			return Err(eyre::eyre!(
+				"{} operator_debugging_ux job must include operator_debug.",
+				path.display()
+			));
+		}
+
+		return Ok(());
+	};
+
+	if debug.failure_mode.trim().is_empty()
+		|| debug.root_cause.trim().is_empty()
+		|| debug.dropped_candidate_visibility.trim().is_empty()
+		|| debug.trace_completeness.trim().is_empty()
+		|| debug.repair_action_clarity.trim().is_empty()
+		|| debug.steps_to_root_cause == 0
+	{
+		return Err(eyre::eyre!("{} has incomplete operator_debug evidence.", path.display()));
+	}
+
+	validate_optional_debug_field(path, debug.trace_id.as_deref(), "trace_id")?;
+	validate_optional_debug_field(path, debug.viewer_url.as_deref(), "viewer_url")?;
+	validate_optional_debug_field(
+		path,
+		debug.admin_trace_bundle_url.as_deref(),
+		"admin_trace_bundle_url",
+	)?;
+	validate_non_empty_debug_list(path, &debug.viewer_panels, "viewer_panels")?;
+	validate_non_empty_debug_list(path, &debug.cli_steps, "cli_steps")?;
+	validate_non_empty_debug_list(path, &debug.trace_evidence, "trace_evidence")?;
+
+	for gap in &debug.ux_gaps {
+		if gap.gap_id.trim().is_empty()
+			|| gap.severity.trim().is_empty()
+			|| gap.description.trim().is_empty()
+			|| gap.follow_up_issue.trim().is_empty()
+		{
+			return Err(eyre::eyre!("{} has incomplete operator_debug ux_gaps.", path.display()));
+		}
+	}
+
+	Ok(())
+}
+
+fn validate_optional_debug_field(path: &Path, value: Option<&str>, field: &str) -> Result<()> {
+	if value.is_some_and(|value| value.trim().is_empty()) {
+		return Err(eyre::eyre!("{} has empty operator_debug {field}.", path.display()));
+	}
+
+	Ok(())
+}
+
+fn validate_non_empty_debug_list(path: &Path, values: &[String], field: &str) -> Result<()> {
+	if values.iter().any(|value| value.trim().is_empty()) {
+		return Err(eyre::eyre!("{} has empty operator_debug {field} entry.", path.display()));
+	}
+
+	Ok(())
+}
+
 fn validate_required_rfc3339(value: &str, path: &Path, id: &str) -> Result<()> {
 	if OffsetDateTime::parse(value, &Rfc3339).is_err() {
 		return Err(eyre::eyre!("{} has invalid RFC3339 timestamp for {}.", path.display(), id));
@@ -933,6 +1044,7 @@ fn score_job(job: &RealWorldJob) -> JobScoring {
 	let missing_evidence = missing_required_evidence(job, &produced_evidence);
 	let trap_ids_used = trap_ids_used(job, &produced_evidence);
 	let mut unsupported_claims = unsupported_claims(job, answer);
+	let operator_counts = operator_debug_failure_counts(job);
 	let hard_fail_hits = hard_fail_hits(job, &unsupported_claims, &trap_ids_used);
 	let counts = FailureCounts {
 		missing_claims: missing_claims.len(),
@@ -940,13 +1052,21 @@ fn score_job(job: &RealWorldJob) -> JobScoring {
 		missing_evidence: missing_evidence.len(),
 		trap_uses: trap_ids_used.len(),
 		unsupported_claims: unsupported_claims.len(),
+		operator_debug_missing: operator_counts.operator_debug_missing,
+		operator_debug_raw_sql: operator_counts.operator_debug_raw_sql,
+		operator_debug_trace_gaps: operator_counts.operator_debug_trace_gaps,
+		operator_debug_repair_unclear: operator_counts.operator_debug_repair_unclear,
 	};
 	let dimension_scores = dimension_scores(job, &counts);
 	let normalized_score = normalized_score(&dimension_scores);
 	let wrong_result_count = counts.missing_claims
 		+ counts.forbidden_claims
 		+ counts.missing_evidence
-		+ counts.trap_uses;
+		+ counts.trap_uses
+		+ counts.operator_debug_missing
+		+ counts.operator_debug_raw_sql
+		+ counts.operator_debug_trace_gaps
+		+ counts.operator_debug_repair_unclear;
 	let status = job_status(
 		normalized_score,
 		job.scoring_rubric.pass_threshold,
@@ -969,6 +1089,22 @@ fn score_job(job: &RealWorldJob) -> JobScoring {
 		trap_ids_used,
 		dimension_scores,
 		reason,
+	}
+}
+
+fn operator_debug_failure_counts(job: &RealWorldJob) -> FailureCounts {
+	let Some(debug) = &job.operator_debug else {
+		return FailureCounts {
+			operator_debug_missing: usize::from(job.suite == "operator_debugging_ux"),
+			..FailureCounts::default()
+		};
+	};
+
+	FailureCounts {
+		operator_debug_raw_sql: usize::from(debug.raw_sql_needed),
+		operator_debug_trace_gaps: usize::from(debug.trace_completeness != "complete"),
+		operator_debug_repair_unclear: usize::from(debug.repair_action_clarity != "clear"),
+		..FailureCounts::default()
 	}
 }
 
@@ -1152,12 +1288,20 @@ fn dimension_scores(job: &RealWorldJob, counts: &FailureCounts) -> Vec<Dimension
 fn dimension_score(dimension_id: &str, max_points: f64, counts: &FailureCounts) -> f64 {
 	let failed = match dimension_id {
 		"answer_correctness" | "workflow_helpfulness" =>
-			counts.missing_claims > 0 || counts.forbidden_claims > 0,
+			counts.missing_claims > 0
+				|| counts.forbidden_claims > 0
+				|| counts.operator_debug_repair_unclear > 0,
 		"evidence_grounding" => counts.missing_evidence > 0 || counts.unsupported_claims > 0,
 		"trap_avoidance" => counts.trap_uses > 0,
 		"uncertainty_handling" => counts.unsupported_claims > 0,
 		"lifecycle_behavior" => false,
-		"debuggability" | "latency_resource" | "personalization_fit" =>
+		"debuggability" =>
+			counts.missing_claims > 0
+				|| counts.unsupported_claims > 0
+				|| counts.operator_debug_missing > 0
+				|| counts.operator_debug_raw_sql > 0
+				|| counts.operator_debug_trace_gaps > 0,
+		"latency_resource" | "personalization_fit" =>
 			counts.missing_claims > 0 || counts.unsupported_claims > 0,
 		_ => counts.missing_claims > 0 || counts.unsupported_claims > 0 || counts.trap_uses > 0,
 	};
@@ -1203,6 +1347,10 @@ fn job_reason(status: TypedStatus, counts: &FailureCounts, normalized_score: f64
 				+ counts.forbidden_claims
 				+ counts.missing_evidence
 				+ counts.trap_uses
+				+ counts.operator_debug_missing
+				+ counts.operator_debug_raw_sql
+				+ counts.operator_debug_trace_gaps
+				+ counts.operator_debug_repair_unclear
 		),
 		TypedStatus::WrongResult => format!(
 			"Job produced {} wrong-result signal(s) and normalized_score {normalized_score:.3}.",
@@ -1210,6 +1358,10 @@ fn job_reason(status: TypedStatus, counts: &FailureCounts, normalized_score: f64
 				+ counts.forbidden_claims
 				+ counts.missing_evidence
 				+ counts.trap_uses
+				+ counts.operator_debug_missing
+				+ counts.operator_debug_raw_sql
+				+ counts.operator_debug_trace_gaps
+				+ counts.operator_debug_repair_unclear
 		),
 		_ => "Job did not reach a runnable scoring state.".to_string(),
 	}
@@ -1248,6 +1400,7 @@ fn job_report(job: &RealWorldJob, scoring: JobScoring) -> JobReport {
 		scope_violation_count: metrics.scope_violation_count,
 		redaction_leak_count: metrics.redaction_leak_count,
 		qdrant_rebuild_case: metrics.qdrant_rebuild_case,
+		operator_debug: job.operator_debug.clone(),
 	}
 }
 
@@ -1472,6 +1625,22 @@ fn report_summary(jobs: &[JobReport], suites: &[SuiteReport]) -> ReportSummary {
 			.iter()
 			.filter(|job| job.qdrant_rebuild_case && job.status == TypedStatus::Pass)
 			.count(),
+		operator_debug_job_count: jobs.iter().filter(|job| job.operator_debug.is_some()).count(),
+		raw_sql_needed_count: jobs
+			.iter()
+			.filter_map(|job| job.operator_debug.as_ref())
+			.filter(|debug| debug.raw_sql_needed)
+			.count(),
+		trace_incomplete_count: jobs
+			.iter()
+			.filter_map(|job| job.operator_debug.as_ref())
+			.filter(|debug| debug.trace_completeness != "complete")
+			.count(),
+		operator_ux_gap_count: jobs
+			.iter()
+			.filter_map(|job| job.operator_debug.as_ref())
+			.map(|debug| debug.ux_gaps.len())
+			.sum(),
 		..ReportSummary::default()
 	};
 
@@ -1586,6 +1755,7 @@ fn render_markdown(report: &RealWorldReport, report_path: &Path) -> String {
 	render_markdown_header(&mut out, report, report_path.as_str());
 	render_markdown_suites(&mut out, report);
 	render_markdown_jobs(&mut out, report);
+	render_markdown_operator_debugging(&mut out, report);
 	render_markdown_unsupported_claims(&mut out, report);
 	render_markdown_semantics(&mut out, report);
 
@@ -1662,6 +1832,16 @@ fn render_markdown_header(out: &mut String, report: &RealWorldReport, report_pat
 	));
 	out.push_str(&format!("- Cost: `{}`\n", cost_display(report.summary.total_cost.as_ref())));
 	out.push_str(&format!(
+		"- Operator-debug jobs: `{}`\n",
+		report.summary.operator_debug_job_count
+	));
+	out.push_str(&format!("- Raw SQL needed: `{}`\n", report.summary.raw_sql_needed_count));
+	out.push_str(&format!(
+		"- Trace-incomplete debug jobs: `{}`\n",
+		report.summary.trace_incomplete_count
+	));
+	out.push_str(&format!("- Operator UX gaps: `{}`\n", report.summary.operator_ux_gap_count));
+	out.push_str(&format!(
 		"- Private corpus redaction: `{}`\n\n",
 		md_inline(report.private_corpus_redaction.policy.as_str())
 	));
@@ -1720,6 +1900,94 @@ fn render_markdown_jobs(out: &mut String, report: &RealWorldReport) {
 	}
 
 	out.push('\n');
+}
+
+fn render_markdown_operator_debugging(out: &mut String, report: &RealWorldReport) {
+	let jobs = report.jobs.iter().filter(|job| job.operator_debug.is_some()).collect::<Vec<_>>();
+
+	out.push_str("## Operator Debugging UX\n\n");
+
+	if jobs.is_empty() {
+		out.push_str("No encoded job reported operator debugging evidence.\n\n");
+
+		return;
+	}
+
+	out.push_str("| Job | Failure Mode | Trace Evidence | Steps | Raw SQL | Dropped Candidate Visibility | Trace Completeness | Repair Clarity | UX Gaps |\n");
+	out.push_str("| --- | --- | --- | ---: | --- | --- | --- | --- | --- |\n");
+
+	for job in jobs {
+		if let Some(debug) = &job.operator_debug {
+			out.push_str(&format!(
+				"| {} | {} | {} | {} | `{}` | {} | `{}` | `{}` | {} |\n",
+				md_cell(job.job_id.as_str()),
+				md_cell(debug.failure_mode.as_str()),
+				debug_trace_cell(debug),
+				debug.steps_to_root_cause,
+				debug.raw_sql_needed,
+				md_cell(debug.dropped_candidate_visibility.as_str()),
+				md_inline(debug.trace_completeness.as_str()),
+				md_inline(debug.repair_action_clarity.as_str()),
+				ux_gap_cell(debug.ux_gaps.as_slice())
+			));
+		}
+	}
+
+	out.push_str("\n### Operator Debug Details\n\n");
+
+	for job in report.jobs.iter().filter(|job| job.operator_debug.is_some()) {
+		if let Some(debug) = &job.operator_debug {
+			out.push_str(&format!("#### `{}`\n\n", md_inline(job.job_id.as_str())));
+			out.push_str(&format!("- Root cause: {}\n", md_cell(debug.root_cause.as_str())));
+			out.push_str(&format!(
+				"- Viewer panels: `{}`\n",
+				md_inline(debug.viewer_panels.join(", ").as_str())
+			));
+			out.push_str(&format!(
+				"- CLI steps: `{}`\n",
+				md_inline(debug.cli_steps.join(" -> ").as_str())
+			));
+			out.push_str(&format!(
+				"- Trace evidence: `{}`\n",
+				md_inline(debug.trace_evidence.join(", ").as_str())
+			));
+			out.push('\n');
+		}
+	}
+}
+
+fn debug_trace_cell(debug: &OperatorDebugEvidence) -> String {
+	let trace = debug.trace_id.as_deref().unwrap_or("-");
+	let viewer = debug
+		.viewer_url
+		.as_deref()
+		.map(|url| format!("[viewer]({})", md_url(url)))
+		.unwrap_or_else(|| "viewer: -".to_string());
+	let bundle = debug
+		.admin_trace_bundle_url
+		.as_deref()
+		.map(|url| format!("[bundle]({})", md_url(url)))
+		.unwrap_or_else(|| "bundle: -".to_string());
+
+	format!("`{}`<br>{}<br>{}", md_inline(trace), viewer, bundle)
+}
+
+fn ux_gap_cell(gaps: &[OperatorUxGap]) -> String {
+	if gaps.is_empty() {
+		return "`none`".to_string();
+	}
+
+	gaps.iter()
+		.map(|gap| {
+			format!(
+				"`{}`: {} ({})",
+				md_inline(gap.gap_id.as_str()),
+				md_cell(gap.description.as_str()),
+				md_inline(gap.follow_up_issue.as_str())
+			)
+		})
+		.collect::<Vec<_>>()
+		.join("<br>")
 }
 
 fn render_markdown_unsupported_claims(out: &mut String, report: &RealWorldReport) {
@@ -1836,6 +2104,10 @@ fn md_inline(value: &str) -> String {
 
 fn md_cell(value: &str) -> String {
 	md_inline(value).replace('|', "\\|")
+}
+
+fn md_url(value: &str) -> String {
+	value.replace(')', "%29").replace(' ', "%20")
 }
 
 fn round3(value: f64) -> f64 {
