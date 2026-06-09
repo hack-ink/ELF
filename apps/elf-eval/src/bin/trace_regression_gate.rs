@@ -191,6 +191,7 @@ fn decode_trace_replay_candidates(
 				chunk_index: row.chunk_index,
 				snippet: row.snippet,
 				retrieval_rank: u32::try_from(row.retrieval_rank).unwrap_or(0),
+				retrieval_score: None,
 				rerank_score: row.rerank_score,
 				note_scope: row.note_scope,
 				note_importance: row.note_importance,

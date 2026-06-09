@@ -2960,9 +2960,21 @@ mod tests {
 		assert_eq!(ADMIN_VIEWER_PATH, "/viewer");
 		assert!(html.contains("/v2/admin/searches"));
 		assert!(html.contains("/v2/admin/traces/recent"));
+		assert!(html.contains("/v2/admin/traces/${encodeURIComponent(traceId)}/bundle"));
 		assert!(html.contains("/v2/admin/notes/"));
+		assert!(html.contains("mode: \"full\""));
+		assert!(html.contains("candidates_limit: 200"));
+		assert!(html.contains("Replay Candidates"));
+		assert!(html.contains("Selected Final Results"));
+		assert!(html.contains("Providers And Ranking"));
+		assert!(html.contains("Relation Context"));
+		assert!(html.contains("directTraceId"));
 		assert!(!html.contains("method: \"PATCH\""));
+		assert!(!html.contains("method: \"PUT\""));
 		assert!(!html.contains("method: \"DELETE\""));
+		assert!(!html.contains("/v2/notes/ingest"));
+		assert!(!html.contains("/v2/events/ingest"));
+		assert!(!html.contains("/publish"));
 	}
 
 	#[test]

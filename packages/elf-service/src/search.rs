@@ -974,6 +974,9 @@ pub struct TraceReplayCandidate {
 	pub snippet: String,
 	/// 1-based retrieval rank.
 	pub retrieval_rank: u32,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	/// Optional merged retrieval score captured before rerank.
+	pub retrieval_score: Option<f32>,
 	/// Raw rerank-model score.
 	pub rerank_score: f32,
 	/// Scope key for the note.
@@ -1123,6 +1126,7 @@ struct ChunkCandidate {
 	note_id: Uuid,
 	chunk_index: i32,
 	retrieval_rank: u32,
+	retrieval_score: Option<f32>,
 	scope: Option<String>,
 	updated_at: Option<OffsetDateTime>,
 	embedding_version: Option<String>,
@@ -1277,6 +1281,7 @@ struct ChunkSnippet {
 	chunk: ChunkMeta,
 	snippet: String,
 	retrieval_rank: u32,
+	retrieval_score: Option<f32>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -4332,6 +4337,7 @@ ORDER BY c.note_id ASC, e.vec <=> $3::text::vector ASC",
 				chunk,
 				snippet,
 				retrieval_rank: candidate.retrieval_rank,
+				retrieval_score: candidate.retrieval_score,
 			});
 		}
 
@@ -5110,6 +5116,7 @@ fn build_trace_candidate_record(
 			chunk_index: scored_chunk.item.chunk.chunk_index,
 			snippet: scored_chunk.item.snippet.clone(),
 			retrieval_rank: scored_chunk.item.retrieval_rank,
+			retrieval_score: scored_chunk.item.retrieval_score,
 			rerank_score: scored_chunk.rerank_score,
 			note_scope: note.scope.clone(),
 			note_importance: note.importance,
@@ -5298,6 +5305,7 @@ fn build_structured_field_candidates(
 			note_id,
 			chunk_index: *chunk_index,
 			retrieval_rank: next_rank,
+			retrieval_score: None,
 			scope: None,
 			updated_at: None,
 			embedding_version: Some(embed_version.to_string()),
@@ -6574,6 +6582,7 @@ mod tests {
 			note_id,
 			chunk_index: 0,
 			retrieval_rank,
+			retrieval_score: None,
 			scope: None,
 			updated_at: None,
 			embedding_version: Some("v1".to_string()),
@@ -6636,6 +6645,7 @@ mod tests {
 				note_id: shared_note_id,
 				chunk_index: 0,
 				retrieval_rank: 9,
+				retrieval_score: None,
 				scope: None,
 				updated_at: None,
 				embedding_version: Some("v1".to_string()),
@@ -6645,6 +6655,7 @@ mod tests {
 				note_id: fusion_only_note_id,
 				chunk_index: 0,
 				retrieval_rank: 1,
+				retrieval_score: None,
 				scope: None,
 				updated_at: None,
 				embedding_version: Some("v1".to_string()),
@@ -6655,6 +6666,7 @@ mod tests {
 			note_id: shared_note_id,
 			chunk_index: 0,
 			retrieval_rank: 1,
+			retrieval_score: None,
 			scope: None,
 			updated_at: None,
 			embedding_version: Some("v1".to_string()),
@@ -6804,8 +6816,13 @@ mod tests {
 		};
 		let chunk =
 			ChunkMeta { chunk_id: Uuid::new_v4(), chunk_index: 0, start_offset: 0, end_offset: 10 };
-		let item =
-			ChunkSnippet { note, chunk, snippet: "deploy steps".to_string(), retrieval_rank: 1 };
+		let item = ChunkSnippet {
+			note,
+			chunk,
+			snippet: "deploy steps".to_string(),
+			retrieval_rank: 1,
+			retrieval_score: None,
+		};
 		let mut scored = ScoredChunk {
 			item,
 			final_score: 1.0,
@@ -6881,8 +6898,13 @@ mod tests {
 		};
 		let chunk =
 			ChunkMeta { chunk_id: Uuid::new_v4(), chunk_index: 0, start_offset: 0, end_offset: 10 };
-		let item =
-			ChunkSnippet { note, chunk, snippet: "deploy steps".to_string(), retrieval_rank: 1 };
+		let item = ChunkSnippet {
+			note,
+			chunk,
+			snippet: "deploy steps".to_string(),
+			retrieval_rank: 1,
+			retrieval_score: None,
+		};
 		let mut scored = ScoredChunk {
 			item,
 			final_score: 1.0,
@@ -6967,6 +6989,7 @@ mod tests {
 			chunk,
 			snippet: format!("snippet-{retrieval_rank}"),
 			retrieval_rank,
+			retrieval_score: None,
 		};
 
 		ScoredChunk {
@@ -7063,6 +7086,7 @@ mod tests {
 			chunk_index: 0,
 			snippet: "first".to_string(),
 			retrieval_rank: 2,
+			retrieval_score: None,
 			rerank_score: 0.2,
 			note_scope: "project_shared".to_string(),
 			note_importance: 0.1,
@@ -7084,6 +7108,7 @@ mod tests {
 			chunk_index: 1,
 			snippet: "second".to_string(),
 			retrieval_rank: 1,
+			retrieval_score: None,
 			rerank_score: 0.3,
 			note_scope: "project_shared".to_string(),
 			note_importance: 0.1,
@@ -7186,6 +7211,7 @@ mod tests {
 				chunk_index: 0,
 				snippet: "deployment steps".to_string(),
 				retrieval_rank: 1,
+				retrieval_score: None,
 				rerank_score: 0.1,
 				note_scope: "project_shared".to_string(),
 				note_importance: 0.1,
@@ -7207,6 +7233,7 @@ mod tests {
 				chunk_index: 0,
 				snippet: "deployment steps".to_string(),
 				retrieval_rank: 2,
+				retrieval_score: None,
 				rerank_score: 0.9,
 				note_scope: "project_shared".to_string(),
 				note_importance: 0.1,
@@ -7228,6 +7255,7 @@ mod tests {
 				chunk_index: 0,
 				snippet: "deployment steps".to_string(),
 				retrieval_rank: 3,
+				retrieval_score: None,
 				rerank_score: 0.2,
 				note_scope: "org_shared".to_string(),
 				note_importance: 0.1,

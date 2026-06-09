@@ -60,6 +60,7 @@ pub fn collect_chunk_candidates(
 			note_id,
 			chunk_index,
 			retrieval_rank: idx as u32 + 1,
+			retrieval_score: Some(point.score),
 			updated_at,
 			embedding_version,
 			scope,
@@ -205,6 +206,7 @@ pub fn merge_retrieval_candidates(
 
 	for (idx, mut candidate) in merged.into_iter().take(candidate_k as usize).enumerate() {
 		candidate.candidate.retrieval_rank = idx as u32 + 1;
+		candidate.candidate.retrieval_score = Some(candidate.combined_score);
 
 		out.push(candidate.candidate);
 	}

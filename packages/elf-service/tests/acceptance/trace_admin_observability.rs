@@ -284,6 +284,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)",
 			chunk_index: rank,
 			snippet: "trace candidate snippet".to_string(),
 			retrieval_rank: retrieval_rank as u32,
+			retrieval_score: Some(retrieval_score),
 			rerank_score: retrieval_score,
 			note_scope: "agent_private".to_string(),
 			note_importance: 0.6,
@@ -541,6 +542,7 @@ async fn trace_bundle_truncation_and_candidate_limits() {
 
 	assert_eq!(candidates[0].retrieval_rank, 1);
 	assert_eq!(candidates[1].retrieval_rank, 2);
+	assert_eq!(candidates[0].retrieval_score, Some(0.8_f32));
 	assert!(candidates[0].rerank_score >= candidates[1].rerank_score);
 
 	test_db.cleanup().await.expect("Failed to cleanup test database.");

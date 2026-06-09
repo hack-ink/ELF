@@ -419,6 +419,69 @@
 			gap: 8px;
 		}
 
+		.metrics {
+			display: grid;
+			gap: 8px;
+			grid-template-columns: repeat(4, minmax(0, 1fr));
+		}
+
+		.metric {
+			background: var(--surface-alt);
+			border: 1px solid var(--line);
+			border-radius: 8px;
+			display: grid;
+			gap: 3px;
+			min-width: 0;
+			padding: 9px;
+		}
+
+		.metric-label {
+			color: var(--muted);
+			font-size: 11px;
+			font-weight: 800;
+			text-transform: uppercase;
+		}
+
+		.metric-value {
+			font-size: 16px;
+			font-weight: 750;
+			overflow-wrap: anywhere;
+		}
+
+		.table-wrap {
+			border: 1px solid var(--line);
+			border-radius: 8px;
+			overflow: auto;
+		}
+
+		table {
+			border-collapse: collapse;
+			min-width: 100%;
+		}
+
+		th,
+		td {
+			border-bottom: 1px solid var(--line);
+			padding: 7px 8px;
+			text-align: left;
+			vertical-align: top;
+			white-space: nowrap;
+		}
+
+		th {
+			background: var(--surface-alt);
+			color: var(--muted);
+			font-size: 11px;
+			font-weight: 800;
+			text-transform: uppercase;
+		}
+
+		td.wrap {
+			max-width: 360px;
+			white-space: normal;
+			overflow-wrap: anywhere;
+		}
+
 		@media (max-width: 980px) {
 			.app {
 				grid-template-columns: 1fr;
@@ -431,7 +494,8 @@
 
 			.grid-2,
 			.grid-3,
-			.form-row {
+			.form-row,
+			.metrics {
 				grid-template-columns: 1fr;
 			}
 
@@ -653,6 +717,14 @@
 									</select>
 								</label>
 							</div>
+							<div class="form-row" style="margin-top: 10px;">
+								<label>Trace ID
+									<input id="directTraceId" autocomplete="off">
+								</label>
+								<div></div>
+								<div></div>
+								<button type="button" id="loadTraceByIdButton">Inspect Trace</button>
+							</div>
 						</div>
 					</div>
 					<div class="grid-2">
@@ -675,7 +747,8 @@
 			activeTab: "searchView",
 			session: null,
 			selectedNoteId: null,
-			traceBundle: null
+			traceBundle: null,
+			traceMetrics: {}
 		};
 
 		const $ = (selector, root = document) => root.querySelector(selector);
@@ -751,6 +824,20 @@
 			return value.toFixed(4);
 		}
 
+		function ms(value) {
+			return typeof value === "number" ? `${value.toFixed(1)} ms` : "none";
+		}
+
+		function recordTraceMetric(traceId, key, value) {
+			if (!traceId || typeof value !== "number") {
+				return;
+			}
+			state.traceMetrics[traceId] = {
+				...(state.traceMetrics[traceId] || {}),
+				[key]: value
+			};
+		}
+
 		function chip(text, variant = "") {
 			return make("span", { className: `chip ${variant}`.trim(), text: String(text) });
 		}
@@ -768,6 +855,62 @@
 				]);
 			});
 			return make("div", { className: "kv" }, rows);
+		}
+
+		function metricGrid(pairs) {
+			return make("div", { className: "metrics" }, pairs.map(([label, value]) => {
+				return make("div", { className: "metric" }, [
+					make("div", { className: "metric-label", text: label }),
+					make("div", { className: "metric-value", text: value === undefined || value === null || value === "" ? "none" : String(value) })
+				]);
+			}));
+		}
+
+		function table(headers, rows) {
+			const head = make("thead", {}, [
+				make("tr", {}, headers.map((header) => make("th", { text: header })))
+			]);
+			const body = make("tbody", {}, rows.map((row) => {
+				return make("tr", {}, row.map((cell) => {
+					const value = cell && typeof cell === "object" && "value" in cell ? cell.value : cell;
+					const className = cell && typeof cell === "object" && cell.wrap ? "wrap" : "";
+					return make("td", { className, text: value === undefined || value === null || value === "" ? "none" : String(value) });
+				}));
+			}));
+			return make("div", { className: "table-wrap" }, [make("table", {}, [head, body])]);
+		}
+
+		function section(title, children) {
+			return make("div", { className: "row" }, [
+				make("div", { className: "row-head" }, [make("div", { className: "title", text: title })]),
+				...children
+			]);
+		}
+
+		function getPath(value, path) {
+			return path.reduce((current, key) => {
+				if (current && typeof current === "object" && key in current) {
+					return current[key];
+				}
+				return undefined;
+			}, value);
+		}
+
+		function stageByName(bundle, name) {
+			return (bundle.stages || []).find((stage) => stage.stage_name === name);
+		}
+
+		function termValue(item, name) {
+			const terms = getPath(item, ["explain", "ranking", "terms"]) || [];
+			const term = terms.find((candidate) => candidate.name === name);
+			return term ? score(term.value) : "none";
+		}
+
+		function relationContexts(items) {
+			return (items || []).flatMap((item) => {
+				const contexts = getPath(item, ["explain", "relation_context"]) || [];
+				return contexts.map((context) => ({ item, context }));
+			});
 		}
 
 		function loadContext() {
@@ -906,10 +1049,12 @@
 				payload_level: $("#searchPayloadLevel").value
 			};
 			try {
+				const started = performance.now();
 				const session = await api("/v2/admin/searches", {
 					method: "POST",
 					body: JSON.stringify(body)
 				});
+				recordTraceMetric(session.trace_id, "search_request_ms", performance.now() - started);
 				state.selectedNoteId = session.items && session.items[0] ? session.items[0].note_id : null;
 				renderSearchSession(session);
 				$("#loadSearchId").value = session.search_id;
@@ -934,7 +1079,9 @@
 			}
 			setStatus("Loading session...");
 			try {
+				const started = performance.now();
 				const session = await api(`/v2/admin/searches/${encodeURIComponent(searchId)}${queryString({ top_k: $("#topK").value || 12, touch: "true" })}`);
+				recordTraceMetric(session.trace_id, "session_readback_ms", performance.now() - started);
 				state.selectedNoteId = session.items && session.items[0] ? session.items[0].note_id : null;
 				renderSearchSession(session);
 				await Promise.all([
@@ -1126,14 +1273,28 @@
 			}
 		}
 
+		async function loadTraceById() {
+			const traceId = $("#directTraceId").value.trim();
+			if (!traceId) {
+				setStatus("Trace ID is required.", true);
+				return;
+			}
+			await loadTraceBundle(traceId, $("#traceBundleDetail"));
+			showTab("tracesView");
+		}
+
 		async function loadTraceBundle(traceId, target) {
 			if (!traceId) {
 				return;
 			}
 			const detailTarget = target || $("#traceBundleDetail");
+			$("#directTraceId").value = traceId;
 			detailTarget.replaceChildren(empty("Loading trace..."));
 			try {
-				const bundle = await api(`/v2/admin/traces/${encodeURIComponent(traceId)}/bundle${queryString({ mode: "bounded", stage_items_limit: 64, candidates_limit: 0 })}`);
+				const started = performance.now();
+				const bundle = await api(`/v2/admin/traces/${encodeURIComponent(traceId)}/bundle${queryString({ mode: "full", stage_items_limit: 128, candidates_limit: 200 })}`);
+				recordTraceMetric(traceId, "trace_readback_ms", performance.now() - started);
+				bundle.viewer_metrics = state.traceMetrics[traceId] || {};
 				renderTraceBundle(detailTarget, bundle);
 				if (detailTarget === $("#traceDetail")) {
 					state.traceBundle = bundle;
@@ -1150,53 +1311,192 @@
 				return;
 			}
 			const trace = bundle.trace;
-			const items = bundle.items || [];
+			const metrics = bundle.viewer_metrics || {};
 			const stages = bundle.stages || [];
+			const candidates = bundle.candidates || [];
+			const recall = stageByName(bundle, "recall.candidates");
+			const fusion = stageByName(bundle, "fusion.merge");
+			const rerank = stageByName(bundle, "rerank.score");
+			const finalStage = stageByName(bundle, "selection.final");
 			target.replaceChildren(
-				kvTable([
-					["trace_id", trace.trace_id],
-					["query", trace.query],
-					["agent", trace.agent_id],
-					["read_profile", trace.read_profile],
-					["expansion_mode", trace.expansion_mode],
-					["candidate_count", trace.candidate_count],
-					["top_k", trace.top_k],
-					["created_at", dateText(trace.created_at)],
-					["trace_version", trace.trace_version]
-				]),
-				make("div", { className: "split-stack", style: "margin-top: 12px;" }, [
-					make("div", { className: "title", text: "Expanded queries" }),
-					make("div", { className: "chips" }, (trace.expanded_queries || []).map((query) => chip(query, "teal"))),
-					make("div", { className: "title", text: "Config snapshot" }),
-					pre(trace.config_snapshot || {}),
-					make("div", { className: "title", text: "Items" }),
-					items.length ? make("div", { className: "list" }, items.map(traceItemRow)) : empty("No trace items."),
-					make("div", { className: "title", text: "Stages" }),
-					stages.length ? make("div", { className: "list" }, stages.map(stageRow)) : empty("No stages.")
+				make("div", { className: "split-stack" }, [
+					metricGrid([
+						["Candidates", trace.candidate_count],
+						["Replay Rows", candidates.length],
+						["Final Results", (bundle.items || []).length],
+						["Top K", trace.top_k],
+						["Search Latency", ms(metrics.search_request_ms)],
+						["Session Readback", ms(metrics.session_readback_ms)],
+						["Trace Readback", ms(metrics.trace_readback_ms)],
+						["Trace Age", trace.created_at ? `${Math.max(0, (Date.now() - new Date(trace.created_at).getTime()) / 1000).toFixed(0)}s` : "none"]
+					]),
+					section("Trace", [
+						kvTable([
+							["trace_id", trace.trace_id],
+							["query", trace.query],
+							["agent", trace.agent_id],
+							["read_profile", trace.read_profile],
+							["expansion_mode", trace.expansion_mode],
+							["allowed_scopes", (trace.allowed_scopes || []).join(", ")],
+							["created_at", dateText(trace.created_at)],
+							["generated_at", dateText(bundle.generated_at)],
+							["trace_version", trace.trace_version]
+						]),
+						make("div", { className: "chips" }, (trace.expanded_queries || []).map((query) => chip(query, "teal")))
+					]),
+					renderProviderSection(trace),
+					renderStageSummarySection(stages),
+					section("Retrieval Funnel", [
+						metricGrid([
+							["Recall Before Filter", getPath(recall, ["stage_payload", "stats", "candidate_count_before_filter"]) ?? "none"],
+							["Recall After Filter", getPath(recall, ["stage_payload", "stats", "candidate_count_after_filter"]) ?? "none"],
+							["Fusion Scored", getPath(fusion, ["stage_payload", "stats", "scored_count"]) ?? "none"],
+							["Reranked", getPath(rerank, ["stage_payload", "stats", "reranked_count"]) ?? "none"],
+							["Selected", getPath(finalStage, ["stage_payload", "stats", "selected_count"]) ?? "none"],
+							["Snippets", getPath(recall, ["stage_payload", "stats", "snippet_count"]) ?? "none"],
+							["Fusion Weight", getPath(fusion, ["stage_payload", "decisions", "fusion_weight"]) ?? "none"],
+							["Structured Weight", getPath(fusion, ["stage_payload", "decisions", "structured_field_weight"]) ?? "none"]
+						])
+					]),
+					renderFinalResultsSection(bundle),
+					renderCandidateSection(bundle),
+					renderRelationContextSection(bundle.items || []),
+					renderStageDetailsSection(stages)
 				])
 			);
 		}
 
-		function traceItemRow(item) {
-			const terms = item.explain && item.explain.ranking ? item.explain.ranking.terms || [] : [];
-			const termChips = terms.slice(0, 6).map((term) => chip(`${term.name}: ${score(term.value)}`));
-			return make("div", { className: "row trace-item" }, [
-				make("div", { className: "row-head" }, [
-					make("div", { className: "title", text: `Rank ${item.rank} | ${item.note_id}` }),
-					chip(item.result_handle, "indigo")
-				]),
-				make("div", { className: "chips" }, termChips),
-				pre(item.explain || {})
+		function renderProviderSection(trace) {
+			const cfg = trace.config_snapshot || {};
+			const embedding = getPath(cfg, ["providers", "embedding"]) || {};
+			const rerank = getPath(cfg, ["providers", "rerank"]) || {};
+			const qdrant = getPath(cfg, ["storage", "qdrant"]) || {};
+			const ranking = cfg.ranking || {};
+			const blend = ranking.blend || {};
+			const diversity = ranking.diversity || {};
+			const retrievalSources = ranking.retrieval_sources || {};
+			return section("Providers And Ranking", [
+				kvTable([
+					["retrieval_channels", "dense + bm25 via Qdrant fusion"],
+					["embedding", `${embedding.provider_id || "none"} / ${embedding.model || "none"} / ${embedding.dimensions || "none"} dims`],
+					["rerank", `${rerank.provider_id || "none"} / ${rerank.model || "none"}`],
+					["qdrant", `${qdrant.collection || "none"} / vector_dim ${qdrant.vector_dim || "none"}`],
+					["policy_id", ranking.policy_id],
+					["blend", `enabled ${blend.enabled ?? "none"} / ${blend.retrieval_normalization || "none"} -> ${blend.rerank_normalization || "none"}`],
+					["diversity", `enabled ${diversity.enabled ?? "none"} / sim ${diversity.sim_threshold ?? "none"}`],
+					["source_weights", `fusion ${retrievalSources.fusion_weight ?? "none"} / structured ${retrievalSources.structured_field_weight ?? "none"} / recursive ${retrievalSources.recursive_weight ?? "none"}`],
+					["override", ranking.override ? "present" : "none"]
+				])
 			]);
 		}
 
-		function stageRow(stage) {
-			return make("div", { className: "row" }, [
-				make("div", { className: "row-head" }, [
-					make("div", { className: "title", text: `${stage.stage_order}. ${stage.stage_name}` }),
-					chip(`${(stage.items || []).length} items`, "teal")
-				]),
-				pre(stage.stage_payload || stage)
+		function renderStageSummarySection(stages) {
+			if (!stages.length) {
+				return section("Stage Summary", [empty("No stages.")]);
+			}
+			return section("Stage Summary", [
+				table(
+					["Stage", "Items", "Stats", "Decisions"],
+					stages.map((stage) => [
+						`${stage.stage_order}. ${stage.stage_name}`,
+						(stage.items || []).length,
+						{ value: formatJson(getPath(stage, ["stage_payload", "stats"]) || {}), wrap: true },
+						{ value: formatJson(getPath(stage, ["stage_payload", "decisions"]) || {}), wrap: true }
+					])
+				)
+			]);
+		}
+
+		function renderFinalResultsSection(bundle) {
+			const items = bundle.items || [];
+			if (!items.length) {
+				return section("Selected Final Results", [empty("No final items.")]);
+			}
+			return section("Selected Final Results", [
+				table(
+					["Rank", "Note", "Chunk", "Final", "Retrieval", "Rerank", "Tie", "Scope Boost", "Relations", "Handle"],
+					items.map((item) => [
+						item.rank,
+						item.note_id,
+						item.chunk_id || "none",
+						score(getPath(item, ["explain", "ranking", "final_score"])),
+						termValue(item, "blend.retrieval"),
+						termValue(item, "blend.rerank"),
+						termValue(item, "tie_breaker"),
+						termValue(item, "context.scope_boost"),
+						(getPath(item, ["explain", "relation_context"]) || []).length,
+						item.result_handle
+					])
+				)
+			]);
+		}
+
+		function renderCandidateSection(bundle) {
+			const candidates = bundle.candidates || [];
+			if (!candidates.length) {
+				return section("Replay Candidates", [empty("No persisted candidate snapshots.")]);
+			}
+			const finalRanks = new Map((bundle.items || []).map((item) => [item.note_id, item.rank]));
+			return section("Replay Candidates", [
+				table(
+					["Retrieval Rank", "Final Rank", "Note", "Chunk", "Retrieval Score", "Rerank Score", "Scope", "Importance", "Updated", "Snippet"],
+					candidates.map((candidate) => [
+						candidate.retrieval_rank,
+						finalRanks.get(candidate.note_id) || "-",
+						candidate.note_id,
+						candidate.chunk_id,
+						score(candidate.retrieval_score),
+						score(candidate.rerank_score),
+						candidate.note_scope,
+						score(candidate.note_importance),
+						dateText(candidate.note_updated_at),
+						{ value: candidate.snippet, wrap: true }
+					])
+				)
+			]);
+		}
+
+		function renderRelationContextSection(items) {
+			const relations = relationContexts(items);
+			if (!relations.length) {
+				return section("Relation Context", [empty("No relation context attached to selected results.")]);
+			}
+			return section("Relation Context", [
+				table(
+					["Rank", "Scope", "Subject", "Predicate", "Object", "Evidence Notes"],
+					relations.map(({ item, context }) => [
+						item.rank,
+						context.scope,
+						getPath(context, ["subject", "canonical"]) || "none",
+						context.predicate,
+						getPath(context, ["object", "entity", "canonical"]) || getPath(context, ["object", "value"]) || "none",
+						(context.evidence_note_ids || []).join(", ")
+					])
+				)
+			]);
+		}
+
+		function renderStageDetailsSection(stages) {
+			if (!stages.length) {
+				return section("Stage Details", [empty("No stage details.")]);
+			}
+			return section("Stage Details", [
+				make("div", { className: "list" }, stages.map((stage) => {
+					const rows = (stage.items || []).map((item) => [
+						item.note_id || "none",
+						item.chunk_id || "none",
+						item.item_id || "none",
+						{ value: formatJson(item.metrics || {}), wrap: true }
+					]);
+					return make("div", { className: "row" }, [
+						make("div", { className: "row-head" }, [
+							make("div", { className: "title", text: `${stage.stage_order}. ${stage.stage_name}` }),
+							chip(`${(stage.items || []).length} items`, "teal")
+						]),
+						pre(stage.stage_payload || {}),
+						rows.length ? table(["Note", "Chunk", "Item", "Metrics"], rows) : empty("No stage items.")
+					]);
+				}))
 			]);
 		}
 
@@ -1231,6 +1531,7 @@
 			$("#loadTimelineButton").addEventListener("click", loadTimeline);
 			$("#loadNotesButton").addEventListener("click", loadNotes);
 			$("#loadTracesButton").addEventListener("click", loadRecentTraces);
+			$("#loadTraceByIdButton").addEventListener("click", loadTraceById);
 			$("#refreshActive").addEventListener("click", refreshActive);
 		}
 
