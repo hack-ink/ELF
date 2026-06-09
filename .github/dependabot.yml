@@ -5,14 +5,10 @@ updates:
     schedule:
       interval: 'daily'
       time: '00:00'
-    labels:
-      - 'bot'
-      - 'dependencies'
+    labels: []
   - package-ecosystem: 'github-actions'
     directory: '/'
     schedule:
       interval: 'daily'
       time: '00:00'
-    labels:
-      - 'bot'
-      - 'dependencies'
+    labels: []
