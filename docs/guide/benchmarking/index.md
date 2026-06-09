@@ -33,6 +33,9 @@ cleanup, use `docs/guide/single_user_production.md`.
 - `2026-06-09-production-adoption-gate-report.md`: XY-836 production adoption
   decision report with fresh provider-backed synthetic, stress, backfill, restore, and
   external adapter evidence.
+- `2026-06-09-operator-debugging-ux-report.md`: checked-in real-world job
+  operator-debugging UX report with trace/viewer links, raw-SQL avoidance, root-cause
+  step counts, dropped-candidate visibility, and repair-action clarity.
 - `real_world_agent_memory_benchmark.md`: operator overview for the v1 real-world
   agent memory benchmark contract, including suite taxonomy and typed report states.
 

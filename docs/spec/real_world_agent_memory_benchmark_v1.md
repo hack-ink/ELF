@@ -66,6 +66,7 @@ runner execution.
   "negative_traps": [],
   "scoring_rubric": {},
   "allowed_uncertainty": {},
+  "operator_debug": {},
   "tags": []
 }
 ```
@@ -86,6 +87,7 @@ runner execution.
 | `negative_traps` | array | Distractors, stale facts, or misleading memories that must not drive the answer. |
 | `scoring_rubric` | object | Dimensions, weights, thresholds, and hard-fail rules for this job. |
 | `allowed_uncertainty` | object | Explicit uncertainty language and fallback behavior accepted for the job. |
+| `operator_debug` | object or null | Optional for most suites; required for `operator_debugging_ux` jobs. Records trace/viewer evidence and operator workflow scoring inputs. |
 | `tags` | array | Optional labels such as `private_corpus`, `synthetic`, `adapter_required`, or `no_live_claim`. |
 
 ### `corpus`
@@ -191,6 +193,38 @@ Trap types:
 - `privacy_leak`: private or excluded content that must not appear in the answer.
 
 Each trap MUST include `trap_id`, `type`, `evidence_ids`, and `failure_if_used`.
+
+### `operator_debug`
+
+`operator_debug` is required when `suite = "operator_debugging_ux"` and optional
+elsewhere. It records whether a human operator can identify the root cause through
+viewer, trace, or CLI readback without raw SQL.
+
+Required fields:
+
+- `failure_mode`: stable label such as `expected_evidence_dropped`,
+  `rerank_promoted_bad_candidate`, `provider_latency_or_failure`,
+  `rebuild_changed_results`, or `relation_context_misled_search`.
+- `trace_id`: trace handle when available.
+- `viewer_url`: read-only viewer path that opens the trace evidence when available.
+- `admin_trace_bundle_url`: direct admin trace bundle path when available.
+- `root_cause`: concise expected diagnosis.
+- `steps_to_root_cause`: number of viewer or CLI steps needed to reach the diagnosis.
+- `raw_sql_needed`: must be `false` for a pass under this suite.
+- `dropped_candidate_visibility`: whether dropped, retained, or misleading candidates
+  are visible through trace/viewer evidence.
+- `trace_completeness`: `complete`, `partial`, or `missing`.
+- `repair_action_clarity`: `clear`, `partial`, or `missing`.
+- `viewer_panels`: viewer panels used, such as `Replay Candidates`, `Stage Details`,
+  `Providers And Ranking`, or `Relation Context`.
+- `cli_steps`: equivalent CLI or endpoint steps.
+- `trace_evidence`: evidence ids used for the diagnosis.
+- `ux_gaps`: array of focused follow-up pointers when a needed panel or endpoint is
+  absent.
+
+Each `ux_gaps[]` entry MUST include `gap_id`, `severity`, `description`, and
+`follow_up_issue`. If a fixture requires a missing panel, the report must encode the
+gap instead of hiding it behind a wrong-result score.
 
 ### `scoring_rubric`
 
