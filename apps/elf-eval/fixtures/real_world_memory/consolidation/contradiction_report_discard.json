@@ -1,0 +1,284 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "consolidation-contradiction-report-discard-001",
+  "suite": "consolidation",
+  "title": "Discard a stale contradiction proposal instead of mutating source truth",
+  "corpus": {
+    "corpus_id": "real-world-memory-consolidation-synthetic-2026-06-09",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "stale-consolidation-source-rewrite",
+        "kind": "message",
+        "text": "Old session draft: consolidation may update source notes directly after it finds duplicates.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_memory_fixture/v1",
+          "ref": {
+            "fixture": "contradiction_report_discard",
+            "evidence_id": "stale-consolidation-source-rewrite"
+          }
+        },
+        "created_at": "2026-06-01T08:00:00Z"
+      },
+      {
+        "evidence_id": "current-consolidation-source-rule",
+        "kind": "decision",
+        "text": "Current rule: consolidation output is derived and reviewable; it must never destructively rewrite authoritative source notes, events, docs, traces, graph facts, or search traces.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_memory_fixture/v1",
+          "ref": {
+            "fixture": "contradiction_report_discard",
+            "evidence_id": "current-consolidation-source-rule"
+          }
+        },
+        "created_at": "2026-06-09T08:00:00Z"
+      },
+      {
+        "evidence_id": "unsupported-applied-draft",
+        "kind": "message",
+        "text": "Unsupported draft: the consolidation worker already applied source note edits in production.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_memory_fixture/v1",
+          "ref": {
+            "fixture": "contradiction_report_discard",
+            "evidence_id": "unsupported-applied-draft"
+          }
+        },
+        "created_at": "2026-06-09T08:05:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_consolidation",
+      "answer": {
+        "content": "Create a contradiction report proposal and discard the stale source-rewrite synthesis. The report flags one unsupported applied-worker claim while keeping source mutation count at zero.",
+        "claims": [
+          {
+            "claim_id": "contradiction_report_created",
+            "text": "Create a contradiction report proposal for the source-rewrite conflict.",
+            "evidence_ids": [
+              "stale-consolidation-source-rewrite",
+              "current-consolidation-source-rule",
+              "unsupported-applied-draft"
+            ],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "contradiction_report_discarded",
+            "text": "Discard the stale source-rewrite synthesis rather than applying it.",
+            "evidence_ids": [
+              "current-consolidation-source-rule",
+              "unsupported-applied-draft"
+            ],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": [
+          "stale-consolidation-source-rewrite",
+          "current-consolidation-source-rule",
+          "unsupported-applied-draft"
+        ],
+        "latency_ms": 1.4,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      },
+      "consolidation": {
+        "proposals": [
+          {
+            "proposal_id": "proposal-contradiction-report-discard",
+            "proposal_kind": "contradiction_report",
+            "source_refs": [
+              "stale-consolidation-source-rewrite",
+              "current-consolidation-source-rule",
+              "unsupported-applied-draft"
+            ],
+            "expected_source_refs": [
+              "stale-consolidation-source-rewrite",
+              "current-consolidation-source-rule",
+              "unsupported-applied-draft"
+            ],
+            "usefulness_score": 0.9,
+            "min_usefulness_score": 0.8,
+            "expected_review_action": "discard",
+            "actual_review_action": "discard",
+            "source_mutations": [],
+            "unsupported_claim_count": 1,
+            "diff": {
+              "summary": "Reject a stale source-rewrite synthesis and preserve it as a contradiction report.",
+              "before": {},
+              "after": {
+                "target": "derived_contradiction_report",
+                "review_state": "rejected",
+                "unsupported_claims": [
+                  "The fixture has no evidence that a consolidation worker applied source note edits in production."
+                ],
+                "contradiction": "Older source-rewrite draft conflicts with the current proposal-only consolidation rule."
+              }
+            }
+          }
+        ],
+        "executable_gaps": [
+          {
+            "primitive": "live_consolidation_worker_generation",
+            "follow_up_issue": "[ELF vNext P1] Implement reviewable consolidation worker and proposal review flow",
+            "reason": "This fixture scores checked-in proposal payloads; it does not execute scheduled LLM generation.",
+            "blocks_fixture_pass": false
+          }
+        ]
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "contradiction-old-draft",
+      "ts": "2026-06-01T08:00:00Z",
+      "actor": "agent",
+      "action": "recorded_old_draft",
+      "evidence_ids": [
+        "stale-consolidation-source-rewrite"
+      ],
+      "summary": "An old draft suggested source note rewrites."
+    },
+    {
+      "event_id": "contradiction-current-rule",
+      "ts": "2026-06-09T08:00:00Z",
+      "actor": "agent",
+      "action": "made_decision",
+      "evidence_ids": [
+        "current-consolidation-source-rule"
+      ],
+      "summary": "The current rule prohibits destructive source mutation."
+    },
+    {
+      "event_id": "contradiction-unsupported-draft",
+      "ts": "2026-06-09T08:05:00Z",
+      "actor": "agent",
+      "action": "flagged_unsupported_claim",
+      "evidence_ids": [
+        "unsupported-applied-draft"
+      ],
+      "summary": "A draft claimed production application without source evidence."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Consolidate these sessions, but discard stale or unsupported synthesis and report contradictions.",
+    "job_mode": "debug",
+    "constraints": [
+      "cite_evidence",
+      "do_not_run_live_actions",
+      "state_blockers"
+    ]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "contradiction_report_created",
+        "text": "Create a contradiction report proposal for the source-rewrite conflict."
+      },
+      {
+        "claim_id": "contradiction_report_discarded",
+        "text": "Discard the stale source-rewrite synthesis rather than applying it."
+      }
+    ],
+    "must_not_include": [
+      "source note edits in production are confirmed",
+      "apply the source-rewrite synthesis"
+    ],
+    "evidence_links": {
+      "contradiction_report_created": [
+        "stale-consolidation-source-rewrite",
+        "current-consolidation-source-rule",
+        "unsupported-applied-draft"
+      ],
+      "contradiction_report_discarded": [
+        "current-consolidation-source-rule",
+        "unsupported-applied-draft"
+      ]
+    },
+    "answer_type": "debug_report",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "current-consolidation-source-rule",
+      "claim_id": "contradiction_report_discarded",
+      "requirement": "cite",
+      "quote": "must never destructively rewrite authoritative source notes"
+    },
+    {
+      "evidence_id": "unsupported-applied-draft",
+      "claim_id": "contradiction_report_created",
+      "requirement": "explain",
+      "quote": "already applied source note edits in production"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "stale-source-rewrite-as-current",
+      "type": "stale_fact",
+      "evidence_ids": [
+        "stale-consolidation-source-rewrite"
+      ],
+      "failure_if_used": false
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Creates a contradiction report and discards stale synthesis."
+      },
+      "evidence_grounding": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Explains the conflict from current rule and unsupported draft evidence."
+      },
+      "proposal_usefulness": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Contradiction report is useful for reviewer inspection."
+      },
+      "lineage_completeness": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Lineage includes stale, current, and unsupported sources."
+      },
+      "review_action_correctness": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Review action is discard."
+      },
+      "source_immutability": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Source mutation count remains zero."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "source mutation count must remain zero for proposal-only consolidation cases"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "state_blocker"
+  },
+  "tags": [
+    "synthetic",
+    "consolidation",
+    "proposal_only",
+    "no_live_claim"
+  ]
+}

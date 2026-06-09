@@ -44,6 +44,10 @@ fn retrieval_fixture_dir() -> PathBuf {
 		.join("retrieval")
 }
 
+fn consolidation_fixture_dir() -> PathBuf {
+	real_world_memory_fixture_dir().join("consolidation")
+}
+
 fn run_json_report_from(fixtures: PathBuf) -> Result<Value> {
 	let output = Command::new(env!("CARGO_BIN_EXE_real_world_job_benchmark"))
 		.arg("run")
@@ -146,7 +150,7 @@ fn smoke_fixture_produces_typed_json_report() -> Result<()> {
 fn runner_discovers_nested_fixture_layout() -> Result<()> {
 	let report = run_json_report_from(fixture_root())?;
 
-	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(21));
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(25));
 
 	Ok(())
 }
@@ -182,6 +186,72 @@ fn operator_debug_fixture_reports_trace_links_and_failure_details() -> Result<()
 		dropped.pointer("/operator_debug/viewer_url").and_then(Value::as_str),
 		Some("/viewer?trace_id=11111111-1111-4111-8111-111111111111")
 	);
+
+	Ok(())
+}
+
+#[test]
+fn consolidation_fixtures_report_reviewable_proposal_metrics() -> Result<()> {
+	let report = run_json_report_from(consolidation_fixture_dir())?;
+
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(4));
+	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(4));
+	assert_eq!(
+		report.pointer("/summary/consolidation/proposal_count").and_then(Value::as_u64),
+		Some(4)
+	);
+	assert_eq!(
+		report.pointer("/summary/consolidation/source_mutation_count").and_then(Value::as_u64),
+		Some(0)
+	);
+	assert_eq!(
+		report
+			.pointer("/summary/consolidation/proposal_unsupported_claim_count")
+			.and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
+		report.pointer("/summary/consolidation/executable_gap_count").and_then(Value::as_u64),
+		Some(4)
+	);
+	assert_eq!(
+		report.pointer("/summary/consolidation/lineage_completeness").and_then(Value::as_f64),
+		Some(1.0)
+	);
+	assert_eq!(
+		report.pointer("/summary/consolidation/review_action_correctness").and_then(Value::as_f64),
+		Some(1.0)
+	);
+
+	let jobs = array_at(&report, "/jobs")?;
+	let project_summary =
+		find_by_field(jobs, "/job_id", "consolidation-project-summary-apply-001")?;
+	let contradiction =
+		find_by_field(jobs, "/job_id", "consolidation-contradiction-report-discard-001")?;
+
+	assert_eq!(
+		project_summary
+			.pointer("/consolidation/proposals/0/actual_review_action")
+			.and_then(Value::as_str),
+		Some("apply")
+	);
+	assert_eq!(
+		contradiction
+			.pointer("/consolidation/proposals/0/actual_review_action")
+			.and_then(Value::as_str),
+		Some("discard")
+	);
+	assert_eq!(
+		contradiction
+			.pointer("/consolidation/proposals/0/unsupported_claim_count")
+			.and_then(Value::as_u64),
+		Some(1)
+	);
+
+	let suites = array_at(&report, "/suites")?;
+	let consolidation_suite = find_by_field(suites, "/suite_id", "consolidation")?;
+
+	assert_eq!(consolidation_suite.pointer("/status").and_then(Value::as_str), Some("pass"));
 
 	Ok(())
 }
@@ -229,19 +299,19 @@ fn generated_json_report_renders_markdown() -> Result<()> {
 fn real_world_memory_fixtures_report_aggregate_metrics() -> Result<()> {
 	let report = run_json_report_from(real_world_memory_fixture_dir())?;
 
-	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(21));
-	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(19));
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(25));
+	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(23));
 	assert_eq!(report.pointer("/summary/wrong_result").and_then(Value::as_u64), Some(1));
 	assert_eq!(report.pointer("/summary/not_encoded").and_then(Value::as_u64), Some(1));
 	assert_eq!(report.pointer("/summary/unsupported_claim_count").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/wrong_result_count").and_then(Value::as_u64), Some(3));
 	assert_eq!(
 		report.pointer("/summary/expected_evidence_recall").and_then(Value::as_f64),
-		Some(0.912)
+		Some(0.929)
 	);
 	assert_eq!(
 		report.pointer("/summary/irrelevant_context_ratio").and_then(Value::as_f64),
-		Some(0.028)
+		Some(0.022)
 	);
 	assert_eq!(report.pointer("/summary/stale_retrieval_count").and_then(Value::as_u64), Some(1));
 	assert_eq!(report.pointer("/summary/stale_answer_count").and_then(Value::as_u64), Some(0));
@@ -271,18 +341,32 @@ fn real_world_memory_fixtures_report_aggregate_metrics() -> Result<()> {
 	);
 	assert_eq!(
 		report.pointer("/summary/evidence_required_count").and_then(Value::as_u64),
-		Some(41)
+		Some(49)
 	);
-	assert_eq!(report.pointer("/summary/evidence_covered_count").and_then(Value::as_u64), Some(38));
-	assert_eq!(report.pointer("/summary/evidence_coverage").and_then(Value::as_f64), Some(0.927));
-	assert_eq!(report.pointer("/summary/source_ref_coverage").and_then(Value::as_f64), Some(0.927));
-	assert_eq!(report.pointer("/summary/quote_coverage").and_then(Value::as_f64), Some(0.927));
+	assert_eq!(report.pointer("/summary/evidence_covered_count").and_then(Value::as_u64), Some(46));
+	assert_eq!(report.pointer("/summary/evidence_coverage").and_then(Value::as_f64), Some(0.939));
+	assert_eq!(report.pointer("/summary/source_ref_coverage").and_then(Value::as_f64), Some(0.939));
+	assert_eq!(report.pointer("/summary/quote_coverage").and_then(Value::as_f64), Some(0.939));
 	assert_eq!(
 		report.pointer("/summary/trace_explainability_count").and_then(Value::as_u64),
 		Some(1)
 	);
 	assert_eq!(
 		report.pointer("/summary/wrong_result_stage_attribution_count").and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
+		report.pointer("/summary/consolidation/proposal_count").and_then(Value::as_u64),
+		Some(4)
+	);
+	assert_eq!(
+		report.pointer("/summary/consolidation/source_mutation_count").and_then(Value::as_u64),
+		Some(0)
+	);
+	assert_eq!(
+		report
+			.pointer("/summary/consolidation/proposal_unsupported_claim_count")
+			.and_then(Value::as_u64),
 		Some(1)
 	);
 
@@ -294,6 +378,7 @@ fn real_world_memory_fixtures_report_aggregate_metrics() -> Result<()> {
 		"retrieval",
 		"capture_integration",
 		"personalization",
+		"consolidation",
 	] {
 		let suite = find_by_field(suites, "/suite_id", suite_id)?;
 
@@ -593,6 +678,43 @@ fn memory_evolution_report_renders_markdown_counters() -> Result<()> {
 	assert!(markdown.contains("## Memory Evolution"));
 	assert!(markdown.contains("Temporal validity not encoded: `1`"));
 	assert!(markdown.contains("[ELF graph P1] Add temporal validity to graph-lite facts"));
+
+	Ok(())
+}
+
+#[test]
+fn consolidation_report_renders_markdown_metrics_and_gaps() -> Result<()> {
+	let report = run_json_report_from(consolidation_fixture_dir())?;
+	let temp_dir =
+		env::temp_dir().join(format!("elf-real-world-consolidation-test-{}", process::id()));
+
+	fs::create_dir_all(&temp_dir)?;
+
+	let report_path = temp_dir.join("report.json");
+	let markdown_path = temp_dir.join("report.md");
+
+	fs::write(&report_path, serde_json::to_vec_pretty(&report)?)?;
+
+	let output = Command::new(env!("CARGO_BIN_EXE_real_world_job_benchmark"))
+		.arg("publish")
+		.arg("--report")
+		.arg(&report_path)
+		.arg("--out")
+		.arg(&markdown_path)
+		.output()?;
+
+	assert!(
+		output.status.success(),
+		"real_world_job publisher failed: {}",
+		String::from_utf8_lossy(&output.stderr),
+	);
+
+	let markdown = fs::read_to_string(markdown_path)?;
+
+	assert!(markdown.contains("## Consolidation"));
+	assert!(markdown.contains("Source Mutations"));
+	assert!(markdown.contains("live_consolidation_worker_generation"));
+	assert!(markdown.contains("[ELF vNext P1] Implement reviewable consolidation worker"));
 
 	Ok(())
 }
