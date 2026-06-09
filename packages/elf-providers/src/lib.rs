@@ -8,7 +8,7 @@ mod error;
 
 pub use error::{Error, Result};
 
-use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderName};
+use reqwest::header::{ACCEPT_ENCODING, AUTHORIZATION, HeaderMap, HeaderName, HeaderValue};
 use serde_json::{Map, Value};
 
 /// Builds authenticated request headers for provider API calls.
@@ -16,6 +16,7 @@ pub fn auth_headers(api_key: &str, default_headers: &Map<String, Value>) -> Resu
 	let mut headers = HeaderMap::new();
 
 	headers.insert(AUTHORIZATION, format!("Bearer {api_key}").parse()?);
+	headers.insert(ACCEPT_ENCODING, HeaderValue::from_static("identity"));
 
 	for (key, value) in default_headers {
 		let Some(raw) = value.as_str() else {

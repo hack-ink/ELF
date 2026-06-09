@@ -1,0 +1,217 @@
+# Live Baseline Benchmark
+
+Goal: Run Docker-isolated, current-HEAD baseline checks against ELF and the external memory projects compared with ELF.
+Read this when: You need evidence about which external projects actually run against a shared benchmark corpus.
+Preconditions: Docker and Docker Compose are available on the host.
+Depends on: `docker-compose.baseline.yml`, `scripts/live-baseline-benchmark.sh`, and `docs/spec/system_competitive_parity_gate_v1.md`.
+Verification: `cargo make baseline-live-docker` writes `tmp/live-baseline/live-baseline-report.json`; `cargo make baseline-live-report` can render that JSON into a checked-in Markdown report.
+
+## Scope
+
+The runner covers ELF plus the six external projects in the README comparison table:
+
+- ELF
+- agentmemory
+- OpenViking
+- mem0
+- qmd
+- claude-mem
+- memsearch
+
+For ELF, the runner uses Docker-owned Postgres and Qdrant, writes the shared corpus
+through `add_note`, drains the worker indexing outbox into persisted chunks and
+embeddings, rebuilds Qdrant from the worker-produced chunk tables, and verifies
+`search_raw` against the shared query manifest. It also runs ELF service lifecycle
+checks for note update, note delete, cold-start recovery, concurrent writes,
+configurable soak stability, and a local resource envelope over the same Docker-owned
+stores. By default these checks use the deterministic local embedding provider. Set
+`ELF_BASELINE_ELF_EMBEDDING_MODE=provider` to run ELF through the configured
+production embedding provider instead.
+
+For external projects, the runner clones current upstream `main` inside Docker, records
+the exact commit SHA, reads the same generated corpus and query manifest, and runs a
+same-corpus retrieval adapter when the project exposes a local API or CLI that can run
+without provider keys.
+
+Corpus profiles:
+
+- `smoke`: default, 3 documents and 3 query cases.
+- `scale`: 120 documents by default, 8 query cases, and generated distractor notes
+  that make the check closer to a production retrieval benchmark.
+- `stress`: 480 documents by default, 16 query cases, and alternate phrasings for
+  every needle query.
+
+Use `ELF_BASELINE_SCALE_DOCS` and `ELF_BASELINE_STRESS_DOCS` to raise or lower the
+generated corpus sizes.
+Use `ELF_BASELINE_CONCURRENT_NOTES`, `ELF_BASELINE_MAX_ELF_SECONDS`, and
+`ELF_BASELINE_MAX_ELF_RSS_KB` to tune ELF's concurrent-write and resource-envelope
+checks.
+Use `ELF_BASELINE_SOAK_SECONDS`, `ELF_BASELINE_SOAK_ROUNDS`, and
+`ELF_BASELINE_SOAK_PROBE_INTERVAL_MS` to tune ELF's repeated write/search soak
+window. The smoke profile does not run soak by default; the scale/full profiles run a
+short 15-second soak by default, and the stress profile runs a 60-second soak by
+default.
+Use `ELF_BASELINE_ELF_EMBEDDING_MODE=provider` plus
+`ELF_BASELINE_ELF_EMBEDDING_API_BASE`, `ELF_BASELINE_ELF_EMBEDDING_API_KEY`,
+`ELF_BASELINE_ELF_EMBEDDING_MODEL`, and
+`ELF_BASELINE_ELF_EMBEDDING_DIMENSIONS` to run ELF with a production embedding API.
+The runner also accepts `QWEN_API_KEY`, `QWEN_EMBEDDING_API_BASE`,
+`QWEN_EMBEDDING_MODEL`, `QWEN_EMBEDDING_DIMENSIONS`, and `QWEN_EMBEDDING_PATH` for
+Qwen-compatible embedding configuration. Generic aliases `EMBEDDING_API_BASE`,
+`EMBEDDING_API_KEY`, `EMBEDDING_MODEL`, `EMBEDDING_DIMENSIONS`,
+`EMBEDDING_PROVIDER_ID`, `EMBEDDING_PATH`, and `EMBEDDING_TIMEOUT_MS` are also
+supported. Provider-mode runs default to a 30-second embedding timeout unless an
+explicit timeout env var is set. For Qwen3 production embedding runs, use
+`Qwen3-Embedding-8B` with `EMBEDDING_DIMENSIONS=4096`. The aggregate report records
+ELF's embedding mode, provider id, model, dimensions, timeout, API base, and path; it
+never records the API key.
+
+Current external same-corpus adapters:
+
+- agentmemory: writes every corpus document through `mem::remember`, queries through
+  `mem::search`, exercises `mem::forget` delete suppression, and probes
+  superseding by writing a revised memory through `mem::remember`. The current
+  adapter uses an in-memory SDK/KV mock, so cold-start recovery is recorded as
+  `incomplete` until a durable agentmemory runtime is wired into the harness.
+- qmd: adds the corpus as a collection, embeds it locally, and runs structured hybrid
+  `query --json` for every query case. It also rewrites and deletes corpus files,
+  then reruns `qmd update`, `qmd embed -f`, and fresh `qmd query` processes.
+- memsearch: indexes the corpus with the local ONNX embedder and runs CLI search.
+  It also rewrites and deletes corpus files, then reruns `memsearch index` and
+  fresh `memsearch search` processes.
+- mem0: writes the corpus with `infer=false` and searches local FastEmbed + Qdrant
+  path storage. It also runs public `Memory.update`, `Memory.delete`, and a new
+  `Memory.from_config` over the same local paths. No LLM inference is required.
+- claude-mem: writes every corpus document into the SQLite memory repository and runs
+  repository search for every query case.
+
+Current deeper checks:
+
+- ELF: same-corpus retrieval through worker-produced chunks, async worker indexing
+  completion, service update replacement through the worker, service delete
+  suppression through the worker, cold-start search recovery after constructing a
+  fresh service over the same Postgres and Qdrant stores, concurrent write/search E2E,
+  configurable repeated write/search soak stability, and a configurable local resource
+  envelope.
+- qmd, memsearch, and mem0: same-corpus retrieval, update replacement, delete
+  suppression, and cold-start search recovery through their local public API or CLI
+  surfaces.
+- agentmemory: same-corpus retrieval and delete suppression are exercised; update
+  replacement is probed through superseding `mem::remember`; cold-start recovery is
+  `incomplete` because the current adapter runs against an in-memory SDK/KV mock.
+- claude-mem and OpenViking: same-corpus retrieval only when their local runtime path
+  can complete. Update, delete, and recovery checks are not yet encoded for these two
+  adapters.
+- Concurrent write, soak stability, and resource-envelope checks are currently encoded
+  for ELF. They are not yet encoded for the external adapters. Multi-hour production
+  soak is still operator-controlled through `ELF_BASELINE_SOAK_SECONDS`; the checked-in
+  stress default is a bounded 60-second signal.
+
+OpenViking attempts the official `.[local-embed]` path plus `OpenViking.add_resource`
+and `OpenViking.find`. If the Docker platform cannot build or import
+`llama-cpp-python`, the project is recorded as `incomplete` with
+`retrieval_status = "local_embed_install_failed"` rather than as a retrieval failure.
+
+## Checked-In Reports
+
+- `docs/guide/benchmarking/2026-06-09-live-baseline-report.md`: June 9, 2026
+  production-provider ELF stress run and all-project smoke comparison.
+
+## Run
+
+```sh
+cargo make baseline-live-docker
+```
+
+To run the scale profile:
+
+```sh
+ELF_BASELINE_PROFILE=scale cargo make baseline-live-docker
+ELF_BASELINE_PROFILE=scale ELF_BASELINE_SCALE_DOCS=240 cargo make baseline-live-docker
+ELF_BASELINE_PROFILE=stress cargo make baseline-live-docker
+```
+
+To iterate on one or more project adapters without rerunning the full matrix:
+
+```sh
+ELF_BASELINE_PROJECTS=qmd cargo make baseline-live-docker
+ELF_BASELINE_PROJECTS=ELF,memsearch cargo make baseline-live-docker
+```
+
+The only host artifact is:
+
+```text
+tmp/live-baseline/
+```
+
+That directory contains the aggregate report, per-project logs, and the shared query
+fixture used by the run. The aggregate report records `corpus.profile`,
+`corpus.document_count`, and `corpus.query_count` so smoke, scale, and stress runs are
+not confused. Each project record includes `elapsed_seconds` for rough local runtime
+comparison. ELF project records also include an `embedding` summary so deterministic
+local and production-provider runs are not confused. Each project record also includes
+`checks` and `check_summary`; the aggregate `full_check_summary` is the
+adoption-relevant multi-check count.
+
+## Publish A Markdown Report
+
+After a run writes `tmp/live-baseline/live-baseline-report.json`, render a durable
+Markdown summary:
+
+```sh
+cargo make baseline-live-report
+```
+
+By default the task prints Markdown to stdout. To write a checked-in report:
+
+```sh
+ELF_BASELINE_MARKDOWN_REPORT=docs/guide/benchmarking/YYYY-MM-DD-live-baseline-report.md \
+cargo make baseline-live-report
+```
+
+The publisher summarizes one generated aggregate JSON report. For a combined report
+that compares multiple runs, use the generated Markdown as input evidence and then add
+the interpretation manually under `docs/guide/benchmarking/`.
+
+## Clean Up
+
+```sh
+cargo make baseline-live-docker-clean
+```
+
+This removes Docker-managed Postgres, Qdrant, npm, pip, cargo, and target volumes used
+by the live baseline runner. It does not remove the host report directory.
+
+## Result Semantics
+
+- `pass`: the project installed and every encoded check for that project passed in the
+  selected corpus profile.
+- `fail`: clone, install, import, build, retrieval, or another declared check failed.
+- `incomplete`: the project installed or partially ran, but a declared check could not
+  be completed without extra provider keys, agent-host integration, native dependency
+  support, durable runtime wiring, or a project-specific command mapping not yet
+  encoded in the runner.
+
+The top-level `verdict` is intentionally stricter than the per-project `status`: it
+only returns `pass` when every selected project has `status = "pass"` and
+`retrieval_status = "retrieval_pass"`. The `same_corpus_summary` field is the
+retrieval count and does not treat lifecycle failures as retrieval failures. For
+multi-check comparisons, read `full_check_summary` and each project's `checks`.
+
+`incomplete` is not a pass. Treat it as evidence that more benchmark wiring is needed.
+
+## Failure Conditions
+
+A project status should be `fail` when any declared project check completes and proves
+the project did not meet the selected benchmark contract. Examples:
+
+- clone, install, import, or build returns a non-zero result;
+- same-corpus retrieval runs but does not return the expected evidence;
+- update replacement leaves superseded evidence searchable;
+- delete suppression leaves deleted evidence searchable;
+- cold-start recovery cannot find data that should persist;
+- concurrent, soak, or resource-envelope checks exceed their declared threshold.
+
+Use `incomplete` instead of `fail` only when the runner cannot execute the declared
+check fairly because adapter wiring, provider credentials, native dependency support,
+or durable runtime integration is missing.
