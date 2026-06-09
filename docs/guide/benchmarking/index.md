@@ -39,6 +39,9 @@ cleanup, use `docs/guide/single_user_production.md`.
   step counts, dropped-candidate visibility, and repair-action clarity.
 - `real_world_agent_memory_benchmark.md`: operator overview for the v1 real-world
   agent memory benchmark contract, including suite taxonomy and typed report states.
+- `real_world_memory_evolution.md`: run and interpret the checked-in memory evolution
+  jobs for current facts, historical facts, stale traps, conflicts, update rationales,
+  and temporal graph limitations.
 
 ## Update Rules
 
