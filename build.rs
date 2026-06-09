@@ -7,6 +7,8 @@ use vergen_gitcl::{Cargo, Emitter, Gitcl};
 fn main() -> Result<(), Box<dyn Error>> {
 	let mut emitter = Emitter::default();
 
+	println!("cargo:rustc-env=VERGEN_GIT_SHA=unknown");
+
 	emitter.add_instructions(&Cargo::builder().target_triple(true).build())?;
 
 	// Disable the git version if installed from <https://crates.io>.
