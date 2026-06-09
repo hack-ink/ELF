@@ -4,6 +4,10 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPORT="${1:-${ELF_BASELINE_REPORT:-${ROOT_DIR}/tmp/live-baseline/live-baseline-report.json}}"
 OUT="${2:-${ELF_BASELINE_MARKDOWN_REPORT:-}}"
+REPORT_DISPLAY="${REPORT}"
+if [[ "${REPORT_DISPLAY}" == "${ROOT_DIR}/"* ]]; then
+  REPORT_DISPLAY="${REPORT_DISPLAY#"${ROOT_DIR}/"}"
+fi
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "Missing jq; cannot render live baseline Markdown report." >&2
@@ -16,7 +20,7 @@ if [[ ! -f "${REPORT}" ]]; then
 fi
 
 render_report() {
-  jq -r --arg report_path "${REPORT}" '
+  jq -r --arg report_path "${REPORT_DISPLAY}" '
     def dash:
       if . == null then "-" else tostring end;
     def md:
@@ -39,8 +43,16 @@ render_report() {
     ("- Verdict: `" + (.verdict | md) + "`"),
     ("- Project filter: `" + (.project_filter | md) + "`"),
     ("- Corpus profile: `" + (.corpus.profile | md) + "`"),
+    ("- Corpus track: `" + ((.corpus.track // "generated_public") | md) + "`"),
+    (
+      if (.corpus.manifest_id // null) == null then empty
+      else "- Corpus manifest: `" + (.corpus.manifest_id | md) + "`"
+      end
+    ),
     ("- Documents: `" + (.corpus.document_count | tostring) + "`"),
     ("- Queries: `" + (.corpus.query_count | tostring) + "`"),
+    ("- Wrong-result count: `" + ((.wrong_result_count // 0) | tostring) + "`"),
+    ("- Query latency mean: `" + ((.latency_ms.mean // 0) | tostring) + " ms`"),
     ("- Project summary: `" + (.summary.pass | tostring) + " pass`, `" + (.summary.fail | tostring) + " fail`, `" + (.summary.incomplete | tostring) + " incomplete`"),
     ("- Same-corpus summary: `" + (.same_corpus_summary.pass | tostring) + " pass`, `" + (.same_corpus_summary.fail | tostring) + " fail`, `" + (.same_corpus_summary.incomplete | tostring) + " incomplete`"),
     ("- Full check summary: `" + (.full_check_summary.pass | tostring) + "/" + (.full_check_summary.total | tostring) + " pass`"),
@@ -76,6 +88,29 @@ render_report() {
               + " | `" + (.embedding.timeout_ms | tostring) + "ms`"
               + " | `" + (.embedding.api_base | md) + "`"
               + " | `" + (.embedding.path | md) + "` |"
+          ),
+          ""
+        else empty end
+    ),
+    (
+      [.projects[] | {project, queries: (.queries // [])} | select((.queries | length) > 0)] as $query_projects
+      | if ($query_projects | length) > 0 then
+          "## Query Evidence",
+          "",
+          "| Project | Query | Task | Expected Evidence | Allowed Alternates | Top Evidence | Matched | Latency |",
+          "| --- | --- | --- | --- | --- | --- | --- | --- |",
+          (
+            $query_projects[]
+            | .project as $project
+            | .queries[]
+            | "| " + ($project | md)
+              + " | `" + (.id | md) + "`"
+              + " | `" + ((.task // "-") | md) + "`"
+              + " | `" + (((.expected_evidence_ids // []) | join(", ")) | md) + "`"
+              + " | `" + (((.allowed_alternate_evidence_ids // []) | join(", ")) | md) + "`"
+              + " | `" + ((.top_evidence_id // "-") | md) + "`"
+              + " | `" + (.matched | tostring) + "`"
+              + " | `" + ((.latency_ms // 0) | tostring) + " ms` |"
           ),
           ""
         else empty end

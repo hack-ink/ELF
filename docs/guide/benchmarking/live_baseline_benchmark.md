@@ -3,7 +3,9 @@
 Goal: Run Docker-isolated, current-HEAD baseline checks against ELF and the external memory projects compared with ELF.
 Read this when: You need evidence about which external projects actually run against a shared benchmark corpus.
 Preconditions: Docker and Docker Compose are available on the host.
-Depends on: `docker-compose.baseline.yml`, `scripts/live-baseline-benchmark.sh`, and `docs/spec/system_competitive_parity_gate_v1.md`.
+Depends on: `docker-compose.baseline.yml`, `scripts/live-baseline-benchmark.sh`,
+`docs/spec/system_competitive_parity_gate_v1.md`, and
+`docs/spec/production_corpus_manifest_v1.md`.
 Verification: `cargo make baseline-live-docker` writes `tmp/live-baseline/live-baseline-report.json`; `cargo make baseline-live-report` can render that JSON into a checked-in Markdown report.
 
 ## Scope
@@ -40,9 +42,20 @@ Corpus profiles:
   that make the check closer to a production retrieval benchmark.
 - `stress`: 480 documents by default, 16 query cases, and alternate phrasings for
   every needle query.
+- `production-synthetic`: checked-in synthetic coding-agent production corpus with
+  issues, PRs, worktrees, runbooks, decisions, blockers, recovery notes, and
+  task-oriented queries. Fixture:
+  `apps/elf-eval/fixtures/production_corpus/synthetic_coding_agent_manifest.json`.
+- `production-private`: local private/sanitized production corpus manifest supplied by
+  `ELF_BASELINE_PRODUCTION_CORPUS_MANIFEST`.
 
 Use `ELF_BASELINE_SCALE_DOCS` and `ELF_BASELINE_STRESS_DOCS` to raise or lower the
 generated corpus sizes.
+Use `ELF_BASELINE_PRODUCTION_CORPUS_MANIFEST` to supply a local manifest that follows
+`docs/spec/production_corpus_manifest_v1.md`. The private profile fails closed when the
+manifest path is absent, the file is missing, a referenced `local_path` is missing, or a
+query references an unknown evidence ID. It does not fall back to the checked-in
+synthetic fixture.
 Use `ELF_BASELINE_CONCURRENT_NOTES`, `ELF_BASELINE_MAX_ELF_SECONDS`, and
 `ELF_BASELINE_MAX_ELF_RSS_KB` to tune ELF's concurrent-write and resource-envelope
 checks.
@@ -138,6 +151,23 @@ ELF_BASELINE_PROJECTS=qmd cargo make baseline-live-docker
 ELF_BASELINE_PROJECTS=ELF,memsearch cargo make baseline-live-docker
 ```
 
+To run the checked-in synthetic production-style corpus through ELF:
+
+```sh
+cargo make baseline-production-synthetic
+```
+
+To run a private local production corpus without committing private content:
+
+```sh
+ELF_BASELINE_PRODUCTION_CORPUS_MANIFEST=tmp/private-production-corpus/manifest.json \
+cargo make baseline-production-private
+```
+
+The private manifest can contain sanitized inline `text` fields or `local_path` fields
+that point to local sanitized text/Markdown files. Keep private manifests and local
+evidence under `tmp/` or outside the repository. `tmp/` is ignored by git.
+
 The only host artifact is:
 
 ```text
@@ -146,12 +176,21 @@ tmp/live-baseline/
 
 That directory contains the aggregate report, per-project logs, and the shared query
 fixture used by the run. The aggregate report records `corpus.profile`,
-`corpus.document_count`, and `corpus.query_count` so smoke, scale, and stress runs are
-not confused. Each project record includes `elapsed_seconds` for rough local runtime
-comparison. ELF project records also include an `embedding` summary so deterministic
-local and production-provider runs are not confused. Each project record also includes
-`checks` and `check_summary`; the aggregate `full_check_summary` is the
-adoption-relevant multi-check count.
+`corpus.track`, `corpus.manifest_id`, `corpus.document_count`, and
+`corpus.query_count` so generated public corpus results are not confused with
+synthetic or private production-corpus results. Each project record includes
+`elapsed_seconds` for rough local runtime comparison. ELF project records also include
+an `embedding` summary so deterministic local and production-provider runs are not
+confused. ELF query records include task, expected evidence IDs, allowed alternate
+evidence IDs, top evidence ID, wrong-result count, and per-query latency. Each project
+record also includes `checks` and `check_summary`; the aggregate `full_check_summary`
+is the adoption-relevant multi-check count.
+
+Production-ready claims must cite a concrete report path. A claim based only on
+generated public `smoke`, `scale`, or `stress` profiles is not enough for personal
+production adoption. Cite a `production-synthetic` report for fixture coverage, and
+cite a `production-private` report when making a private-corpus production-readiness
+claim.
 
 ## Publish A Markdown Report
 
