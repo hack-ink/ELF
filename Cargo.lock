@@ -964,12 +964,16 @@ dependencies = [
 name = "elf-eval"
 version = "0.2.0"
 dependencies = [
+ "blake3",
  "clap",
  "color-eyre",
+ "elf-chunking",
  "elf-cli",
  "elf-config",
  "elf-service",
  "elf-storage",
+ "elf-testkit",
+ "elf-worker",
  "serde",
  "serde_json",
  "sqlx",
