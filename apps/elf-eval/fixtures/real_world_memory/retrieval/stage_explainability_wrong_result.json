@@ -1,0 +1,206 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "operator-debug-stage-attribution-001",
+  "suite": "operator_debugging_ux",
+  "title": "Attribute a wrong result to the retrieval stage that demoted evidence",
+  "corpus": {
+    "corpus_id": "real-world-memory-retrieval-2026-06-09",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "stage-target",
+        "kind": "trace",
+        "text": "Correct trace evidence: the expected XY-845 retrieval fixture was present in recall.candidates, then demoted at rerank.score because a stale decoy shared more lexical terms.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "stage_explainability_wrong_result",
+            "evidence_id": "stage-target"
+          }
+        },
+        "created_at": "2026-06-09T06:00:00Z"
+      },
+      {
+        "evidence_id": "stage-decoy",
+        "kind": "trace",
+        "text": "Stale decoy: XY-845 should only use top-k smoke checks; real-world retrieval fixtures are out of scope.",
+        "source_ref": {},
+        "created_at": "2026-06-08T06:00:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_retrieval",
+      "answer": {
+        "content": "The trace shows the expected evidence was present in recall.candidates but demoted at rerank.score; however, the selected answer followed the stale top-k smoke-only evidence.",
+        "claims": [],
+        "evidence_ids": ["stage-decoy"],
+        "latency_ms": 18.2,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        },
+        "trace_explainability": {
+          "trace_id": "66666666-6666-4666-8666-666666666666",
+          "failure_stage": "rerank.score",
+          "failure_reason": "Expected evidence survived candidate recall but was demoted below a stale decoy during rerank.",
+          "stages": [
+            {
+              "stage_name": "rewrite.expansion",
+              "kept_evidence": [],
+              "dropped_evidence": [],
+              "demoted_evidence": [],
+              "distractor_evidence": [],
+              "notes": "Alternate phrasing preserved the original intent."
+            },
+            {
+              "stage_name": "recall.candidates",
+              "kept_evidence": ["stage-target", "stage-decoy"],
+              "dropped_evidence": [],
+              "demoted_evidence": [],
+              "distractor_evidence": ["stage-decoy"],
+              "notes": "Candidate recall found both expected evidence and stale decoy evidence."
+            },
+            {
+              "stage_name": "rerank.score",
+              "kept_evidence": ["stage-decoy"],
+              "dropped_evidence": [],
+              "demoted_evidence": ["stage-target"],
+              "distractor_evidence": ["stage-decoy"],
+              "notes": "The stale decoy outranked the expected evidence."
+            },
+            {
+              "stage_name": "selection.final",
+              "kept_evidence": ["stage-decoy"],
+              "dropped_evidence": ["stage-target"],
+              "demoted_evidence": [],
+              "distractor_evidence": ["stage-decoy"],
+              "notes": "Final selection missed the required evidence."
+            }
+          ]
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "trace-candidate-recall",
+      "ts": "2026-06-09T06:00:00Z",
+      "actor": "agent",
+      "action": "inspected_trace",
+      "evidence_ids": ["stage-target"],
+      "summary": "The trace showed expected evidence at candidate recall and demotion at rerank."
+    },
+    {
+      "event_id": "stale-decoy-ranked",
+      "ts": "2026-06-09T06:01:00Z",
+      "actor": "agent",
+      "action": "selected_wrong_context",
+      "evidence_ids": ["stage-decoy"],
+      "summary": "A stale decoy became the selected answer even though it was obsolete."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Why did the wrong retrieval result happen, and which stage dropped or demoted the expected evidence?",
+    "job_mode": "debug",
+    "constraints": ["cite_evidence", "identify_retrieval_stage", "avoid_obsolete_context"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "stage_attribution",
+        "text": "Expected evidence was present in recall.candidates but demoted at rerank.score."
+      }
+    ],
+    "must_not_include": [
+      "real-world retrieval fixtures are out of scope"
+    ],
+    "evidence_links": {
+      "stage_attribution": ["stage-target"]
+    },
+    "answer_type": "debug_report",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "stage-target",
+      "claim_id": "stage_attribution",
+      "requirement": "explain",
+      "quote": "present in recall.candidates, then demoted at rerank.score"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "stale-top-k-only-decoy",
+      "type": "stale_fact",
+      "evidence_ids": ["stage-decoy"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Identifies the stage attribution without selecting the stale final answer."
+      },
+      "evidence_grounding": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Uses the expected trace evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Does not cite the stale top-k-only decoy."
+      },
+      "debuggability": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Reports the stage that demoted expected evidence."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.1,
+        "max_points": 1.0,
+        "criteria": "Turns the wrong result into actionable trace evidence."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": ["The fixture does not provide that evidence."],
+    "fallback_action": "state_blocker"
+  },
+  "operator_debug": {
+    "failure_mode": "rerank_demoted_expected_evidence",
+    "trace_id": "66666666-6666-4666-8666-666666666666",
+    "viewer_url": "/viewer?trace_id=66666666-6666-4666-8666-666666666666",
+    "admin_trace_bundle_url": "/v2/admin/traces/66666666-6666-4666-8666-666666666666/bundle?mode=full&stage_items_limit=128&candidates_limit=200",
+    "root_cause": "The expected evidence survived recall.candidates but was demoted below a stale decoy during rerank.score.",
+    "steps_to_root_cause": 3,
+    "raw_sql_needed": false,
+    "dropped_candidate_visibility": "visible in trace_explainability rerank.score and selection.final stages",
+    "trace_completeness": "complete",
+    "repair_action_clarity": "clear",
+    "viewer_panels": ["Trace", "Retrieval Funnel", "Replay Candidates", "Stage Details"],
+    "cli_steps": [
+      "open trace explainability bundle",
+      "compare recall.candidates with rerank.score",
+      "inspect selected stale decoy",
+      "repair rerank inputs or stale-context filtering"
+    ],
+    "trace_evidence": ["stage-target", "stage-decoy"],
+    "ux_gaps": []
+  },
+  "tags": ["synthetic", "operator_debugging_ux", "trace_explainability", "wrong_result", "no_live_claim"]
+}
