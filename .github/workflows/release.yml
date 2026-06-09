@@ -59,7 +59,7 @@ jobs:
         if: matrix.target.os == 'macos-latest'
         run: |
           cd dist
-          zip "../elf-${{ matrix.target.name }}.zip" *
+          zip "../elf-${{ matrix.target.name }}.zip" ./*
 
       - name: Archive (Linux)
         if: matrix.target.os == 'ubuntu-latest'
@@ -105,15 +105,15 @@ jobs:
       - name: Hash
         run: |
           mkdir -p artifacts
-          mv elf-*/* artifacts/
+          mv -- elf-*/* artifacts/
           cd artifacts
-          sha256sum * | tee ../SHA256
-          md5sum * | tee ../MD5
+          sha256sum -- * | tee ../SHA256
+          md5sum -- * | tee ../MD5
           mv ../SHA256 .
           mv ../MD5 .
 
       - name: Publish
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda
         with:
           discussion_category_name: Announcements
           generate_release_notes: true

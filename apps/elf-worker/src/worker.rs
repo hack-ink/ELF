@@ -3,8 +3,7 @@
 use std::{collections::HashMap, slice, string::ToString};
 
 use qdrant_client::{
-	QdrantError,
-	client::Payload,
+	Payload, QdrantError,
 	qdrant::{
 		Condition, DeletePointsBuilder, Document, Filter, PointStruct, UpsertPointsBuilder, Vector,
 	},

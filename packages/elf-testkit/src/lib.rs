@@ -10,7 +10,7 @@ use std::{
 
 use qdrant_client::Qdrant;
 use sqlx::{
-	ConnectOptions, Connection, Executor,
+	AssertSqlSafe, ConnectOptions, Connection,
 	postgres::{PgConnectOptions, PgConnection},
 };
 use tokio::{runtime::Builder, time};
@@ -35,8 +35,8 @@ impl TestDatabase {
 		let name = format!("elf_test_{}", Uuid::new_v4().simple());
 		let create_sql = format!(r#"CREATE DATABASE "{}""#, name);
 
-		admin_conn
-			.execute(create_sql.as_str())
+		sqlx::raw_sql(AssertSqlSafe(create_sql))
+			.execute(&mut admin_conn)
 			.await
 			.map_err(|err| Error::Message(format!("Failed to create test database: {err}.")))?;
 
@@ -201,7 +201,7 @@ WHERE datname = $1 AND pid <> pg_backend_pid()",
 	.fetch_all(&mut conn)
 	.await;
 
-	sqlx::query(drop_sql.as_str())
+	sqlx::raw_sql(AssertSqlSafe(drop_sql))
 		.execute(&mut conn)
 		.await
 		.map_err(|err| Error::Message(format!("Failed to drop test database: {err}.")))?;
