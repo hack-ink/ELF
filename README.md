@@ -145,7 +145,12 @@ with the production embedding provider path, `Qwen3-Embedding-8B`, and
   those states are reported as limitations, not hidden as proof.
 - The benchmark runner and report publisher are checked in and Docker-isolated:
   `cargo make baseline-live-docker`, `cargo make baseline-backfill-docker`,
-  `cargo make baseline-live-report`, and `cargo make baseline-live-docker-clean`.
+  `cargo make baseline-production-private-addendum`,
+  `cargo make baseline-backfill-10k-docker`,
+  `cargo make baseline-backfill-100k-docker`,
+  `cargo make baseline-soak-docker`, `cargo make baseline-live-report`, and
+  `cargo make baseline-live-docker-clean`. Expensive 100k and long-soak profiles are
+  opt-in and do not run in normal checks.
 
 Detailed evidence and interpretation:
 

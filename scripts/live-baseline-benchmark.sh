@@ -398,6 +398,8 @@ if manifest.get("schema") != "elf.production_corpus_manifest/v1":
     fail("schema must be elf.production_corpus_manifest/v1")
 
 manifest_id = require_string(manifest, "manifest_id", "$")
+if not id_re.fullmatch(manifest_id):
+    fail("$.manifest_id must be lower-case ASCII and safe for reports")
 evidence_items = manifest.get("evidence")
 if not isinstance(evidence_items, list) or not evidence_items:
     fail("$.evidence must be a non-empty array")
@@ -443,12 +445,18 @@ for index, item in enumerate(evidence_items):
     )
 
 queries = []
+query_ids = set()
 task_counts = Counter()
 for index, item in enumerate(query_items):
     context = f"$.queries[{index}]"
     if not isinstance(item, dict):
         fail(f"{context} must be an object")
     query_id = require_string(item, "query_id", context)
+    if not id_re.fullmatch(query_id):
+        fail(f"{context}.query_id must be lower-case ASCII and safe for reports")
+    if query_id in query_ids:
+        fail(f"{context}.query_id duplicates an earlier item")
+    query_ids.add(query_id)
     task = require_string(item, "task", context)
     if task not in allowed_tasks:
         fail(f"{context}.task must be one of {sorted(allowed_tasks)}")
@@ -599,9 +607,12 @@ json_record() {
         elapsed_seconds: $elapsed_seconds,
         adapter: $adapter[0],
         embedding: ($checks[0].embedding // null),
+        cost_proxy: ($checks[0].cost_proxy // null),
         query_summary: ($checks[0].query_summary // null),
         queries: ($checks[0].queries // null),
         backfill: ($checks[0].backfill // null),
+        resource_envelope: ([$checks[0].checks[]? | select(.name == "resource_envelope") | .evidence][0] // null),
+        ops_cases: ($checks[0].ops_cases // null),
         check_summary: $checks[0].check_summary,
         checks: $checks[0].checks
       }' >>"${RECORDS}"
@@ -643,6 +654,9 @@ json_record() {
         query_summary: null,
         queries: null,
         backfill: null,
+        cost_proxy: null,
+        resource_envelope: null,
+        ops_cases: null,
         adapter: $adapter[0],
         check_summary: {
           total: 1,
@@ -784,8 +798,30 @@ finish_report() {
         mean: (
           [.[] | select(.query_summary != null) | .query_summary.latency_ms_mean // 0] as $means
           | if ($means | length) == 0 then 0 else (($means | add) / ($means | length)) end
-        )
+        ),
+        p50: (
+          [.[] | select(.query_summary != null) | .query_summary.latency_ms_p50 // 0] as $values
+          | if ($values | length) == 0 then 0 else (($values | add) / ($values | length)) end
+        ),
+        p95: (
+          [.[] | select(.query_summary != null) | .query_summary.latency_ms_p95 // 0] as $values
+          | if ($values | length) == 0 then 0 else (($values | add) / ($values | length)) end
+        ),
+        p99: (
+          [.[] | select(.query_summary != null) | .query_summary.latency_ms_p99 // 0] as $values
+          | if ($values | length) == 0 then 0 else (($values | add) / ($values | length)) end
+        ),
+        max: ([.[] | .query_summary.latency_ms_max // 0] | max // 0)
       },
+      cost_proxy: {
+        projects: [.[] | select(.cost_proxy != null) | {project, cost_proxy}],
+        estimated_usd: ([.[] | .cost_proxy.estimated_usd? // empty] | add // null),
+        estimated_input_tokens: ([.[] | .cost_proxy.estimated_input_tokens // 0] | add // 0)
+      },
+      resource_usage: {
+        projects: [.[] | select(.resource_envelope != null) | {project, resource_envelope}]
+      },
+      ops_cases: [.[] | select(.ops_cases != null) | {project, cases: .ops_cases}],
       projects: .
     }' "${RECORDS}" >"${REPORT}"
 }
@@ -852,6 +888,10 @@ project_elf() {
       "status": "real",
       "surface": "parallel add_note calls followed by worker indexing and search probes"
     },
+    "scale_stress_profile": {
+      "status": "real",
+      "surface": "profile-selected generated or production corpus size plus soak and resource-envelope checks"
+    },
     "soak_profile": {
       "status": "real",
       "surface": "profile-controlled repeated write/search stability window"
@@ -871,7 +911,7 @@ JSON
   if run_cmd "${project}: same-corpus retrieval" "$(elf_timeout_seconds)" "${log_path}" \
     "cd '${ROOT_DIR}' && cargo run -p elf-eval --bin live_baseline_elf -- --config config/local/elf.docker.toml --corpus '${CORPUS_DIR}' --queries '${REPORT_DIR}/queries.json' --out '${result_path}'"; then
     if [[ -s "${result_path}" ]] && jq -e '.checks and .check_summary' "${result_path}" >/dev/null 2>&1; then
-      jq '{embedding, query_summary: .summary, queries, backfill, check_summary, checks}' "${result_path}" >"${REPORT_DIR}/${project}-checks.json"
+      jq '{embedding, cost_proxy, query_summary: .summary, queries, backfill, ops_cases, check_summary, checks}' "${result_path}" >"${REPORT_DIR}/${project}-checks.json"
     fi
     if [[ -s "${result_path}" ]] && jq -e --argjson document_count "${DOCUMENT_COUNT}" --argjson query_count "${QUERY_COUNT}" '
       .schema == "elf.live_baseline.elf_result/v1" and
@@ -895,7 +935,7 @@ JSON
     ' "${result_path}" >/dev/null; then
       json_record "${project}" "${repo}" "${head}" "pass" "retrieval_pass" \
         "$(jq -r '.reason' "${result_path}")" \
-        "${project}.log" "checkpointed add_note backfill; bounded worker outbox indexing; rebuild_qdrant; search_raw; concurrent writes; soak stability"
+        "${project}.log" "checkpointed add_note backfill; bounded worker outbox indexing; rebuild_qdrant; search_raw; concurrent writes; soak stability; latency/resource/cost proxies"
       return
     fi
 
@@ -903,19 +943,19 @@ JSON
       json_record "${project}" "${repo}" "${head}" "$(jq -r '.status // "incomplete"' "${result_path}")" \
         "$(jq -r '.retrieval_status // "retrieval_failed"' "${result_path}")" \
         "$(jq -r '.reason // "ELF result did not satisfy live baseline pass criteria"' "${result_path}")" \
-        "${project}.log" "checkpointed add_note backfill; bounded worker outbox indexing; rebuild_qdrant; search_raw; concurrent writes; soak stability"
+        "${project}.log" "checkpointed add_note backfill; bounded worker outbox indexing; rebuild_qdrant; search_raw; concurrent writes; soak stability; latency/resource/cost proxies"
       return
     fi
 
     json_record "${project}" "${repo}" "${head}" "incomplete" "runtime_failed" \
       "ELF command completed but did not write a valid live-baseline result; inspect ELF.log for the runtime error" \
-      "${project}.log" "checkpointed add_note backfill; bounded worker outbox indexing; rebuild_qdrant; search_raw; concurrent writes; soak stability"
+      "${project}.log" "checkpointed add_note backfill; bounded worker outbox indexing; rebuild_qdrant; search_raw; concurrent writes; soak stability; latency/resource/cost proxies"
     return
   fi
 
   json_record "${project}" "${repo}" "${head}" "incomplete" "runtime_failed" \
     "ELF same-corpus retrieval command failed in Docker" \
-    "${project}.log" "checkpointed add_note backfill; bounded worker outbox indexing; rebuild_qdrant; search_raw; concurrent writes; soak stability"
+    "${project}.log" "checkpointed add_note backfill; bounded worker outbox indexing; rebuild_qdrant; search_raw; concurrent writes; soak stability; latency/resource/cost proxies"
 }
 
 project_agentmemory() {
