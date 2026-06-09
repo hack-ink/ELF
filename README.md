@@ -189,6 +189,7 @@ Latest external research refresh: June 8, 2026.
 
 - Start here: `docs/index.md`
 - Operational guide index: `docs/guide/index.md`
+- Single-user production runbook: `docs/guide/single_user_production.md`
 - Benchmarking guides and reports: `docs/guide/benchmarking/index.md`
 - Research index: `docs/guide/research/index.md`
 - Specifications: `docs/spec/index.md`
