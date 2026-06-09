@@ -299,6 +299,8 @@ args = [
 # | baseline-live-docker       | command |     |
 # | baseline-live-report       | command |     |
 # | baseline-live-docker-clean | command |     |
+# | baseline-production-synthetic | command | |
+# | baseline-production-private | command |   |
 
 [tasks.baseline-live-docker]
 workspace = false
@@ -325,6 +327,22 @@ args = [
 	"down",
 	"-v",
 	"--remove-orphans",
+]
+
+[tasks.baseline-production-synthetic]
+workspace = false
+command = "bash"
+args = [
+	"-lc",
+	"set -euo pipefail; head=\"$(git rev-parse HEAD)\"; if [ -n \"$(git status --porcelain)\" ]; then head=\"$head+dirty\"; fi; selected_projects=\"$(printenv ELF_BASELINE_PROJECTS || true)\"; if [ -z \"$selected_projects\" ]; then selected_projects=\"ELF\"; fi; export ELF_BASELINE_ELF_HEAD=\"$head\"; export ELF_BASELINE_PROJECTS=\"$selected_projects\"; export ELF_BASELINE_PROFILE=production-synthetic; docker compose -f docker-compose.baseline.yml run --build --rm baseline-runner",
+]
+
+[tasks.baseline-production-private]
+workspace = false
+command = "bash"
+args = [
+	"-lc",
+	"set -euo pipefail; manifest=\"$(printenv ELF_BASELINE_PRODUCTION_CORPUS_MANIFEST || true)\"; if [ -z \"$manifest\" ]; then echo \"ELF_BASELINE_PRODUCTION_CORPUS_MANIFEST is required for baseline-production-private\" >&2; exit 1; fi; head=\"$(git rev-parse HEAD)\"; if [ -n \"$(git status --porcelain)\" ]; then head=\"$head+dirty\"; fi; selected_projects=\"$(printenv ELF_BASELINE_PROJECTS || true)\"; if [ -z \"$selected_projects\" ]; then selected_projects=\"ELF\"; fi; export ELF_BASELINE_ELF_HEAD=\"$head\"; export ELF_BASELINE_PROJECTS=\"$selected_projects\"; export ELF_BASELINE_PROFILE=production-private; docker compose -f docker-compose.baseline.yml run --build --rm baseline-runner",
 ]
 
 

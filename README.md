@@ -134,6 +134,7 @@ embeddings.
 Detailed evidence and interpretation:
 
 - [Live Baseline Benchmark Report - June 9, 2026](docs/guide/benchmarking/2026-06-09-live-baseline-report.md)
+- [Synthetic Production Corpus Benchmark Report - June 9, 2026](docs/guide/benchmarking/2026-06-09-production-corpus-report.md)
 - [Live Baseline Benchmark Runbook](docs/guide/benchmarking/live_baseline_benchmark.md)
 
 Quick comparison snapshot (objective/high-level).
@@ -177,6 +178,7 @@ Project signature strengths (what each does especially well):
 Detailed comparison, mechanism-level analysis, and source map:
 
 - [Live Baseline Benchmark Report - June 9, 2026](docs/guide/benchmarking/2026-06-09-live-baseline-report.md)
+- [Synthetic Production Corpus Benchmark Report - June 9, 2026](docs/guide/benchmarking/2026-06-09-production-corpus-report.md)
 - [Live Baseline Benchmark Runbook](docs/guide/benchmarking/live_baseline_benchmark.md)
 - [External Memory Improvement Plan](docs/guide/research/external_memory_improvement_plan.md)
 - [Detailed External Comparison](docs/guide/research/comparison_external_projects.md)
