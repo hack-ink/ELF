@@ -178,6 +178,11 @@ calls, worker indexing, Qdrant rebuild/search, lifecycle checks, soak, and conta
 overhead. Whether that is acceptable depends on the production workflow: it is a
 cold/backfill measurement, not an interactive-ingest target.
 
+This report is benchmark evidence, not the production operating procedure. Use
+`docs/guide/single_user_production.md` for Docker Compose production start, stop,
+health, backup, restore, Qdrant rebuild, rollback, provider config handling, and
+cleanup commands.
+
 Throughput work should focus on:
 
 - micro-batching provider embedding requests;
