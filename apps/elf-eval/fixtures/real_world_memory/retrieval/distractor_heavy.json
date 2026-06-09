@@ -1,0 +1,200 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "retrieval-distractor-heavy-001",
+  "suite": "retrieval",
+  "title": "Find provider stress evidence in a distractor-heavy corpus",
+  "corpus": {
+    "corpus_id": "real-world-memory-retrieval-2026-06-09",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "elf-provider-stress-target",
+        "kind": "runbook",
+        "text": "For the ELF provider stress check, set ELF_BASELINE_PROJECTS=ELF and ELF_BASELINE_PROFILE=stress with provider embeddings. The expected report is the live baseline Docker report.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "distractor_heavy",
+            "evidence_id": "elf-provider-stress-target"
+          }
+        },
+        "created_at": "2026-06-09T02:00:00Z"
+      },
+      {
+        "evidence_id": "qmd-smoke-distractor",
+        "kind": "adapter_state",
+        "text": "qmd smoke uses a local collection and should not be described as the ELF provider stress run.",
+        "source_ref": {},
+        "created_at": "2026-06-09T02:01:00Z"
+      },
+      {
+        "evidence_id": "mem0-stress-distractor",
+        "kind": "adapter_state",
+        "text": "mem0 local FastEmbed stress evidence is not encoded for this provider profile.",
+        "source_ref": {},
+        "created_at": "2026-06-09T02:02:00Z"
+      },
+      {
+        "evidence_id": "openviking-install-distractor",
+        "kind": "adapter_state",
+        "text": "OpenViking local embedding install failure is an incomplete adapter state, not a provider stress pass.",
+        "source_ref": {},
+        "created_at": "2026-06-09T02:03:00Z"
+      },
+      {
+        "evidence_id": "private-manifest-distractor",
+        "kind": "runbook",
+        "text": "The private production manifest guard fails closed when ELF_BASELINE_PRODUCTION_CORPUS_MANIFEST is unset.",
+        "source_ref": {},
+        "created_at": "2026-06-09T02:04:00Z"
+      },
+      {
+        "evidence_id": "backfill-distractor",
+        "kind": "runbook",
+        "text": "The backfill profile defaults to ELF only and records resumable import evidence.",
+        "source_ref": {},
+        "created_at": "2026-06-09T02:05:00Z"
+      },
+      {
+        "evidence_id": "scale-distractor",
+        "kind": "runbook",
+        "text": "The scale profile has generated distractor notes but is not the provider stress profile.",
+        "source_ref": {},
+        "created_at": "2026-06-09T02:06:00Z"
+      },
+      {
+        "evidence_id": "smoke-distractor",
+        "kind": "runbook",
+        "text": "The smoke profile is the default quick matrix and should not be used as the stress command.",
+        "source_ref": {},
+        "created_at": "2026-06-09T02:07:00Z"
+      },
+      {
+        "evidence_id": "agentmemory-distractor",
+        "kind": "adapter_state",
+        "text": "agentmemory same-corpus retrieval passed with mocked storage but lifecycle did not pass.",
+        "source_ref": {},
+        "created_at": "2026-06-09T02:08:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_retrieval",
+      "answer": {
+        "content": "Target ELF only with the stress profile: set ELF_BASELINE_PROJECTS=ELF and ELF_BASELINE_PROFILE=stress with provider embeddings.",
+        "claims": [
+          {
+            "claim_id": "stress_target",
+            "text": "Set ELF_BASELINE_PROJECTS=ELF and ELF_BASELINE_PROFILE=stress.",
+            "evidence_ids": ["elf-provider-stress-target"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["elf-provider-stress-target"],
+        "latency_ms": 22.8,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "provider-stress-requested",
+      "ts": "2026-06-09T02:00:00Z",
+      "actor": "operator",
+      "action": "requested_provider_stress",
+      "evidence_ids": ["elf-provider-stress-target"],
+      "summary": "The operator requested the ELF provider stress profile, not a smoke or external adapter run."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Which profile and project selector should I use for the provider-backed ELF stress run?",
+    "job_mode": "answer",
+    "constraints": ["cite_evidence", "avoid_adapter_parity_claims"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "stress_target",
+        "text": "Set ELF_BASELINE_PROJECTS=ELF and ELF_BASELINE_PROFILE=stress."
+      }
+    ],
+    "must_not_include": [
+      "Set ELF_BASELINE_PROJECTS=qmd.",
+      "Use the smoke profile as the stress run.",
+      "OpenViking passed the provider stress profile."
+    ],
+    "evidence_links": {
+      "stress_target": ["elf-provider-stress-target"]
+    },
+    "answer_type": "direct_answer",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "elf-provider-stress-target",
+      "claim_id": "stress_target",
+      "requirement": "cite",
+      "quote": "set ELF_BASELINE_PROJECTS=ELF and ELF_BASELINE_PROFILE=stress"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "adapter-and-profile-distractors",
+      "type": "decoy_evidence",
+      "evidence_ids": [
+        "qmd-smoke-distractor",
+        "mem0-stress-distractor",
+        "openviking-install-distractor",
+        "private-manifest-distractor",
+        "backfill-distractor",
+        "scale-distractor",
+        "smoke-distractor",
+        "agentmemory-distractor"
+      ],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.35,
+        "max_points": 1.0,
+        "criteria": "Returns the exact ELF-only stress selector."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Uses the provider stress target evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Avoids adapter, private-manifest, smoke, scale, and backfill decoys."
+      },
+      "latency_resource": {
+        "weight": 0.1,
+        "max_points": 1.0,
+        "criteria": "Reports bounded fixture latency and cost."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": ["The fixture does not provide that evidence."],
+    "fallback_action": "state_blocker"
+  },
+  "tags": ["synthetic", "retrieval", "distractor_heavy", "no_live_claim"]
+}

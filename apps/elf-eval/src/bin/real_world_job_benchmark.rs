@@ -346,6 +346,8 @@ struct ProducedAnswer {
 	latency_ms: Option<f64>,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	cost: Option<CostReport>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	trace_explainability: Option<TraceExplainability>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -402,6 +404,33 @@ struct OperatorUxGap {
 	severity: String,
 	description: String,
 	follow_up_issue: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct TraceExplainability {
+	#[serde(skip_serializing_if = "Option::is_none")]
+	trace_id: Option<String>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	failure_stage: Option<String>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	failure_reason: Option<String>,
+	#[serde(default)]
+	stages: Vec<TraceStageExplainability>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct TraceStageExplainability {
+	stage_name: String,
+	#[serde(default)]
+	kept_evidence: Vec<String>,
+	#[serde(default)]
+	dropped_evidence: Vec<String>,
+	#[serde(default)]
+	demoted_evidence: Vec<String>,
+	#[serde(default)]
+	distractor_evidence: Vec<String>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	notes: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
@@ -484,6 +513,13 @@ struct ReportSummary {
 	update_rationale_available_count: usize,
 	#[serde(default)]
 	temporal_validity_not_encoded_count: usize,
+	expected_evidence_total: usize,
+	expected_evidence_matched: usize,
+	expected_evidence_recall: f64,
+	irrelevant_context_count: usize,
+	irrelevant_context_ratio: f64,
+	trace_explainability_count: usize,
+	wrong_result_stage_attribution_count: usize,
 	mean_score: f64,
 	mean_latency_ms: Option<f64>,
 	total_cost: Option<CostReport>,
@@ -547,6 +583,9 @@ struct SuiteReport {
 	update_rationale_available_count: usize,
 	#[serde(default)]
 	temporal_validity_not_encoded_count: usize,
+	expected_evidence_recall: Option<f64>,
+	irrelevant_context_ratio: Option<f64>,
+	trace_explainability_count: usize,
 	reason: String,
 }
 
@@ -571,8 +610,10 @@ struct JobReport {
 	update_rationale_available: bool,
 	#[serde(default)]
 	temporal_validity_not_encoded: bool,
+	retrieval_quality: RetrievalQualityReport,
 	latency_ms: Option<f64>,
 	cost: Option<CostReport>,
+	trace_explainability: Option<TraceExplainability>,
 	trap_ids_used: Vec<String>,
 	dimension_scores: Vec<DimensionScoreReport>,
 	reason: String,
@@ -619,6 +660,17 @@ struct DimensionScoreReport {
 	score: f64,
 	max_points: f64,
 	weight: f64,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct RetrievalQualityReport {
+	expected_evidence_total: usize,
+	expected_evidence_matched: usize,
+	expected_evidence_recall: f64,
+	produced_evidence_total: usize,
+	irrelevant_context_count: usize,
+	irrelevant_context_ratio: f64,
+	trap_context_count: usize,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -818,6 +870,7 @@ fn validate_job(job: &RealWorldJob, path: &Path) -> Result<()> {
 	validate_operator_debug(job, path)?;
 	validate_job_encoding(job, path)?;
 	validate_memory_evolution(job, path)?;
+	validate_trace_explainability(job, path)?;
 
 	Ok(())
 }
@@ -1238,6 +1291,47 @@ fn validate_temporal_validity(
 	Ok(())
 }
 
+fn validate_trace_explainability(job: &RealWorldJob, path: &Path) -> Result<()> {
+	let Some(trace) = job
+		.corpus
+		.adapter_response
+		.as_ref()
+		.and_then(|response| response.answer.trace_explainability.as_ref())
+	else {
+		return Ok(());
+	};
+	let known = corpus_evidence_ids(job);
+	let stage_names =
+		trace.stages.iter().map(|stage| stage.stage_name.as_str()).collect::<BTreeSet<_>>();
+
+	if trace.trace_id.as_deref().is_some_and(str::is_empty) {
+		return Err(eyre::eyre!("{} has an empty trace_explainability trace_id.", path.display()));
+	}
+	if trace.failure_stage.as_deref().is_some_and(str::is_empty) {
+		return Err(eyre::eyre!(
+			"{} has an empty trace_explainability failure_stage.",
+			path.display()
+		));
+	}
+
+	if let Some(failure_stage) = trace.failure_stage.as_deref()
+		&& !stage_names.is_empty()
+		&& !stage_names.contains(failure_stage)
+	{
+		return Err(eyre::eyre!(
+			"{} trace_explainability failure_stage {} is not present in stages.",
+			path.display(),
+			failure_stage
+		));
+	}
+
+	for stage in &trace.stages {
+		validate_trace_stage(stage, &known, path)?;
+	}
+
+	Ok(())
+}
+
 fn validate_optional_debug_field(path: &Path, value: Option<&str>, field: &str) -> Result<()> {
 	if value.is_some_and(|value| value.trim().is_empty()) {
 		return Err(eyre::eyre!("{} has empty operator_debug {field}.", path.display()));
@@ -1249,6 +1343,28 @@ fn validate_optional_debug_field(path: &Path, value: Option<&str>, field: &str) 
 fn validate_non_empty_debug_list(path: &Path, values: &[String], field: &str) -> Result<()> {
 	if values.iter().any(|value| value.trim().is_empty()) {
 		return Err(eyre::eyre!("{} has empty operator_debug {field} entry.", path.display()));
+	}
+
+	Ok(())
+}
+
+fn validate_trace_stage(
+	stage: &TraceStageExplainability,
+	known: &BTreeSet<String>,
+	path: &Path,
+) -> Result<()> {
+	if stage.stage_name.trim().is_empty() {
+		return Err(eyre::eyre!("{} has a trace stage with an empty stage_name.", path.display()));
+	}
+
+	for evidence_id in stage
+		.kept_evidence
+		.iter()
+		.chain(stage.dropped_evidence.iter())
+		.chain(stage.demoted_evidence.iter())
+		.chain(stage.distractor_evidence.iter())
+	{
+		ensure_known_evidence(path, known, evidence_id)?;
 	}
 
 	Ok(())
@@ -1477,6 +1593,7 @@ fn synthetic_answer(job: &RealWorldJob) -> &ProducedAnswer {
 		evidence_ids: Vec::new(),
 		latency_ms: None,
 		cost: None,
+		trace_explainability: None,
 	})
 }
 
@@ -1873,6 +1990,7 @@ fn job_reason(status: TypedStatus, counts: &FailureCounts, normalized_score: f64
 fn job_report(job: &RealWorldJob, scoring: JobScoring) -> JobReport {
 	let answer = produced_answer(job);
 	let metrics = job_metrics(job, answer);
+	let retrieval_quality = retrieval_quality_report(job, answer);
 
 	JobReport {
 		suite_id: job.suite.clone(),
@@ -1902,8 +2020,10 @@ fn job_report(job: &RealWorldJob, scoring: JobScoring) -> JobReport {
 			.evolution
 			.as_ref()
 			.is_some_and(|report| report.temporal_validity_not_encoded),
+		retrieval_quality,
 		latency_ms: answer.latency_ms,
 		cost: answer.cost.clone(),
+		trace_explainability: answer.trace_explainability.clone(),
 		trap_ids_used: scoring.trap_ids_used,
 		dimension_scores: scoring.dimension_scores,
 		reason: scoring.reason,
@@ -2024,6 +2144,51 @@ fn answer_contains_corpus_item(
 		.is_some_and(|text| !text.trim().is_empty() && answer.content.contains(text))
 }
 
+fn retrieval_quality_report(job: &RealWorldJob, answer: &ProducedAnswer) -> RetrievalQualityReport {
+	let expected = expected_evidence_ids(job);
+	let allowed = allowed_evidence_ids(job);
+	let produced = produced_evidence_ids(answer);
+	let trap_evidence = trap_evidence_ids(job);
+	let expected_evidence_matched =
+		expected.iter().filter(|evidence_id| produced.contains(evidence_id.as_str())).count();
+	let irrelevant_context_count =
+		produced.iter().filter(|evidence_id| !allowed.contains(evidence_id.as_str())).count();
+	let trap_context_count =
+		produced.iter().filter(|evidence_id| trap_evidence.contains(evidence_id.as_str())).count();
+
+	RetrievalQualityReport {
+		expected_evidence_total: expected.len(),
+		expected_evidence_matched,
+		expected_evidence_recall: ratio_or(expected_evidence_matched, expected.len(), 1.0),
+		produced_evidence_total: produced.len(),
+		irrelevant_context_count,
+		irrelevant_context_ratio: ratio_or(irrelevant_context_count, produced.len(), 0.0),
+		trap_context_count,
+	}
+}
+
+fn expected_evidence_ids(job: &RealWorldJob) -> BTreeSet<String> {
+	job.required_evidence
+		.iter()
+		.filter(|evidence| is_required_use(evidence))
+		.map(|evidence| evidence.evidence_id.clone())
+		.collect()
+}
+
+fn allowed_evidence_ids(job: &RealWorldJob) -> BTreeSet<String> {
+	let mut allowed = expected_evidence_ids(job);
+
+	for link in job.expected_answer.evidence_links.values() {
+		allowed.extend(link.ids());
+	}
+
+	allowed
+}
+
+fn trap_evidence_ids(job: &RealWorldJob) -> BTreeSet<String> {
+	job.negative_traps.iter().flat_map(|trap| trap.evidence_ids.iter().cloned()).collect()
+}
+
 fn expected_evidence_report(job: &RealWorldJob) -> Vec<ExpectedEvidenceReport> {
 	job.required_evidence
 		.iter()
@@ -2054,6 +2219,9 @@ fn suite_report(suite_id: &str, jobs: &[JobReport]) -> SuiteReport {
 			conflict_detection_count: 0,
 			update_rationale_available_count: 0,
 			temporal_validity_not_encoded_count: 0,
+			expected_evidence_recall: None,
+			irrelevant_context_ratio: None,
+			trace_explainability_count: 0,
 			reason: NOT_ENCODED_REASON.to_string(),
 		};
 	}
@@ -2068,6 +2236,8 @@ fn suite_report(suite_id: &str, jobs: &[JobReport]) -> SuiteReport {
 		suite_jobs.iter().filter(|job| job.update_rationale_available).count();
 	let temporal_validity_not_encoded_count =
 		suite_jobs.iter().filter(|job| job.temporal_validity_not_encoded).count();
+	let trace_explainability_count =
+		suite_jobs.iter().filter(|job| job.trace_explainability.is_some()).count();
 
 	SuiteReport {
 		suite_id: suite_id.to_string(),
@@ -2080,6 +2250,9 @@ fn suite_report(suite_id: &str, jobs: &[JobReport]) -> SuiteReport {
 		conflict_detection_count,
 		update_rationale_available_count,
 		temporal_validity_not_encoded_count,
+		expected_evidence_recall: Some(expected_evidence_recall_for_jobs(&suite_jobs)),
+		irrelevant_context_ratio: Some(irrelevant_context_ratio_for_jobs(&suite_jobs)),
+		trace_explainability_count,
 		reason: suite_reason(status, suite_jobs.len()),
 	}
 }
@@ -2126,6 +2299,7 @@ fn suite_reason(status: TypedStatus, encoded_job_count: usize) -> String {
 }
 
 fn report_summary(jobs: &[JobReport], suites: &[SuiteReport]) -> ReportSummary {
+	let job_refs = jobs.iter().collect::<Vec<_>>();
 	let evidence_required_count = jobs.iter().map(|job| job.evidence_required_count).sum();
 	let evidence_covered_count = jobs.iter().map(|job| job.evidence_covered_count).sum();
 	let source_ref_required_count = jobs.iter().map(|job| job.source_ref_required_count).sum();
@@ -2149,6 +2323,31 @@ fn report_summary(jobs: &[JobReport], suites: &[SuiteReport]) -> ReportSummary {
 		temporal_validity_not_encoded_count: jobs
 			.iter()
 			.filter(|job| job.temporal_validity_not_encoded)
+			.count(),
+		expected_evidence_total: jobs
+			.iter()
+			.map(|job| job.retrieval_quality.expected_evidence_total)
+			.sum(),
+		expected_evidence_matched: jobs
+			.iter()
+			.map(|job| job.retrieval_quality.expected_evidence_matched)
+			.sum(),
+		expected_evidence_recall: expected_evidence_recall_for_jobs(&job_refs),
+		irrelevant_context_count: jobs
+			.iter()
+			.map(|job| job.retrieval_quality.irrelevant_context_count)
+			.sum(),
+		irrelevant_context_ratio: irrelevant_context_ratio_for_jobs(&job_refs),
+		trace_explainability_count: jobs
+			.iter()
+			.filter(|job| job.trace_explainability.is_some())
+			.count(),
+		wrong_result_stage_attribution_count: jobs
+			.iter()
+			.filter(|job| {
+				job.status == TypedStatus::WrongResult
+					&& trace_failure_stage(job.trace_explainability.as_ref()).is_some()
+			})
 			.count(),
 		mean_score: mean_score(jobs),
 		mean_latency_ms: mean_latency(jobs),
@@ -2241,6 +2440,26 @@ fn ratio(numerator: usize, denominator: usize) -> f64 {
 	}
 
 	round3(numerator as f64 / denominator as f64)
+}
+
+fn expected_evidence_recall_for_jobs(jobs: &[&JobReport]) -> f64 {
+	let total = jobs.iter().map(|job| job.retrieval_quality.expected_evidence_total).sum::<usize>();
+	let matched =
+		jobs.iter().map(|job| job.retrieval_quality.expected_evidence_matched).sum::<usize>();
+
+	ratio_or(matched, total, 1.0)
+}
+
+fn irrelevant_context_ratio_for_jobs(jobs: &[&JobReport]) -> f64 {
+	let total = jobs.iter().map(|job| job.retrieval_quality.produced_evidence_total).sum::<usize>();
+	let irrelevant =
+		jobs.iter().map(|job| job.retrieval_quality.irrelevant_context_count).sum::<usize>();
+
+	ratio_or(irrelevant, total, 0.0)
+}
+
+fn ratio_or(numerator: usize, denominator: usize, empty_value: f64) -> f64 {
+	if denominator == 0 { empty_value } else { round3(numerator as f64 / denominator as f64) }
 }
 
 fn mean_score(jobs: &[JobReport]) -> f64 {
@@ -2370,6 +2589,7 @@ fn render_markdown(report: &RealWorldReport, report_path: &Path) -> String {
 	render_markdown_jobs(&mut out, report);
 	render_markdown_operator_debugging(&mut out, report);
 	render_markdown_evolution(&mut out, report);
+	render_markdown_trace_explainability(&mut out, report);
 	render_markdown_unsupported_claims(&mut out, report);
 	render_markdown_follow_ups(&mut out, report);
 	render_markdown_semantics(&mut out, report);
@@ -2420,7 +2640,7 @@ fn render_markdown_header(out: &mut String, report: &RealWorldReport, report_pat
 		"Read this when: You need a durable smoke report for real-world agent memory job fixtures.\n",
 	);
 	out.push_str(&format!("Inputs: `{}`.\n", md_inline(report_path)));
-	out.push_str("Depends on: `apps/elf-eval/fixtures/real_world_memory/`, `docs/spec/real_world_agent_memory_benchmark_v1.md`, and `Makefile.toml`.\n");
+	out.push_str("Depends on: `apps/elf-eval/fixtures/real_world_job/`, `apps/elf-eval/fixtures/real_world_memory/`, `docs/spec/real_world_agent_memory_benchmark_v1.md`, and `Makefile.toml`.\n");
 	out.push_str(
 		"Verification: Compare this Markdown summary with the source JSON before committing.\n\n",
 	);
@@ -2493,6 +2713,21 @@ fn render_markdown_header(out: &mut String, report: &RealWorldReport, report_pat
 		"- Qdrant rebuild cases: `{}` encoded, `{}` pass\n",
 		report.summary.qdrant_rebuild_case_count, report.summary.qdrant_rebuild_pass_count
 	));
+	out.push_str(&format!(
+		"- Expected evidence recall: `{:.3}` ({}/{})\n",
+		report.summary.expected_evidence_recall,
+		report.summary.expected_evidence_matched,
+		report.summary.expected_evidence_total
+	));
+	out.push_str(&format!(
+		"- Irrelevant context ratio: `{:.3}` ({} irrelevant)\n",
+		report.summary.irrelevant_context_ratio, report.summary.irrelevant_context_count
+	));
+	out.push_str(&format!(
+		"- Trace explainability: `{}` job(s), `{}` wrong-result stage attribution(s)\n",
+		report.summary.trace_explainability_count,
+		report.summary.wrong_result_stage_attribution_count
+	));
 	out.push_str(&format!("- Mean score: `{:.3}`\n", report.summary.mean_score));
 	out.push_str(&format!(
 		"- Mean latency: `{}`\n",
@@ -2518,17 +2753,20 @@ fn render_markdown_header(out: &mut String, report: &RealWorldReport, report_pat
 fn render_markdown_suites(out: &mut String, report: &RealWorldReport) {
 	out.push_str("## Suites\n\n");
 	out.push_str(
-		"| Suite | Status | Jobs | Score | Stale Answers | Conflicts | Update Rationales | Temporal Gaps | Unsupported Claims | Wrong Results | Reason |\n",
+		"| Suite | Status | Jobs | Score | Evidence Recall | Irrelevant Context | Trace Explain | Stale Answers | Conflicts | Update Rationales | Temporal Gaps | Unsupported Claims | Wrong Results | Reason |\n",
 	);
-	out.push_str("| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |\n");
+	out.push_str("| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |\n");
 
 	for suite in &report.suites {
 		out.push_str(&format!(
-			"| {} | `{}` | {} | `{}` | {} | {} | {} | {} | {} | {} | {} |\n",
+			"| {} | `{}` | {} | `{}` | `{}` | `{}` | {} | {} | {} | {} | {} | {} | {} | {} |\n",
 			md_cell(suite.suite_id.as_str()),
 			status_str(suite.status),
 			suite.encoded_job_count,
 			optional_f64(suite.score_mean, ""),
+			optional_f64(suite.expected_evidence_recall, ""),
+			optional_f64(suite.irrelevant_context_ratio, ""),
+			suite.trace_explainability_count,
 			suite.stale_answer_count,
 			suite.conflict_detection_count,
 			suite.update_rationale_available_count,
@@ -2544,9 +2782,9 @@ fn render_markdown_suites(out: &mut String, report: &RealWorldReport) {
 
 fn render_markdown_jobs(out: &mut String, report: &RealWorldReport) {
 	out.push_str("## Jobs\n\n");
-	out.push_str("| Suite | Job | Status | Score | Expected Evidence | Produced Evidence | Stale Answers | Conflicts | Update Rationale | Temporal Gap | Unsupported Claims | Wrong Results | Latency | Cost |\n");
+	out.push_str("| Suite | Job | Status | Score | Evidence Recall | Irrelevant Context | Expected Evidence | Produced Evidence | Trace Failure Stage | Stale Answers | Conflicts | Update Rationale | Temporal Gap | Unsupported Claims | Wrong Results | Latency | Cost |\n");
 	out.push_str(
-		"| --- | --- | --- | ---: | --- | --- | ---: | ---: | --- | --- | ---: | ---: | ---: | --- |\n",
+		"| --- | --- | --- | ---: | ---: | ---: | --- | --- | --- | ---: | ---: | --- | --- | ---: | ---: | ---: | --- |\n",
 	);
 
 	for job in &report.jobs {
@@ -2559,13 +2797,16 @@ fn render_markdown_jobs(out: &mut String, report: &RealWorldReport) {
 		let produced = job.produced_evidence.join(", ");
 
 		out.push_str(&format!(
-			"| {} | {} | `{}` | `{:.3}` | `{}` | `{}` | {} | {} | `{}` | `{}` | {} | {} | `{}` | `{}` |\n",
+			"| {} | {} | `{}` | `{:.3}` | `{:.3}` | `{:.3}` | `{}` | `{}` | `{}` | {} | {} | `{}` | `{}` | {} | {} | `{}` | `{}` |\n",
 			md_cell(job.suite_id.as_str()),
 			md_cell(job.job_id.as_str()),
 			status_str(job.status),
 			job.normalized_score,
+			job.retrieval_quality.expected_evidence_recall,
+			job.retrieval_quality.irrelevant_context_ratio,
 			md_inline(expected.as_str()),
 			md_inline(produced.as_str()),
+			md_inline(trace_failure_stage(job.trace_explainability.as_ref()).unwrap_or("-")),
 			job.stale_answer_count,
 			job.conflict_detection_count,
 			bool_display(job.update_rationale_available),
@@ -2709,6 +2950,38 @@ fn render_markdown_evolution(out: &mut String, report: &RealWorldReport) {
 	out.push('\n');
 }
 
+fn render_markdown_trace_explainability(out: &mut String, report: &RealWorldReport) {
+	out.push_str("## Trace Explainability\n\n");
+
+	let jobs =
+		report.jobs.iter().filter(|job| job.trace_explainability.is_some()).collect::<Vec<_>>();
+
+	if jobs.is_empty() {
+		out.push_str("No encoded job reported trace explainability metadata.\n\n");
+
+		return;
+	}
+
+	out.push_str("| Suite | Job | Trace | Failure Stage | Reason | Stage Evidence |\n");
+	out.push_str("| --- | --- | --- | --- | --- | --- |\n");
+
+	for job in jobs {
+		let trace = job.trace_explainability.as_ref();
+
+		out.push_str(&format!(
+			"| {} | {} | `{}` | `{}` | {} | {} |\n",
+			md_cell(job.suite_id.as_str()),
+			md_cell(job.job_id.as_str()),
+			md_inline(trace.and_then(|trace| trace.trace_id.as_deref()).unwrap_or("-")),
+			md_inline(trace_failure_stage(trace).unwrap_or("-")),
+			md_cell(trace_failure_reason(trace).unwrap_or("-")),
+			md_cell(trace_stage_summary(trace).as_str())
+		));
+	}
+
+	out.push('\n');
+}
+
 fn render_markdown_unsupported_claims(out: &mut String, report: &RealWorldReport) {
 	out.push_str("## Unsupported Claims\n\n");
 
@@ -2768,7 +3041,7 @@ fn render_markdown_semantics(out: &mut String, report: &RealWorldReport) {
 	out.push_str("It is a real-world job fixture report, not a Docker live-baseline report.\n");
 	out.push_str("Existing live-baseline reports remain valid for their encoded retrieval and lifecycle checks and are not reinterpreted as real-world suite wins.\n\n");
 	out.push_str(
-		"The summary counters report required evidence coverage, source-ref coverage, quote coverage, stale retrievals, scope violations, redaction leaks, Qdrant rebuild case coverage, stale answers, conflict detections, update rationale availability, and temporal validity gaps across encoded jobs.\n\n",
+		"The summary counters report required evidence coverage, source-ref coverage, quote coverage, expected evidence recall, irrelevant context ratio, trace explainability, stale retrievals, scope violations, redaction leaks, Qdrant rebuild case coverage, stale answers, conflict detections, update rationale availability, and temporal validity gaps across encoded jobs.\n\n",
 	);
 	out.push_str(
 		"- `pass`: encoded jobs met their pass threshold with required evidence and no hard-fail rule.\n",
@@ -2799,6 +3072,36 @@ fn status_str(status: TypedStatus) -> &'static str {
 		TypedStatus::NotEncoded => "not_encoded",
 		TypedStatus::UnsupportedClaim => "unsupported_claim",
 	}
+}
+
+fn trace_failure_stage(trace: Option<&TraceExplainability>) -> Option<&str> {
+	trace.and_then(|trace| trace.failure_stage.as_deref())
+}
+
+fn trace_failure_reason(trace: Option<&TraceExplainability>) -> Option<&str> {
+	trace.and_then(|trace| trace.failure_reason.as_deref())
+}
+
+fn trace_stage_summary(trace: Option<&TraceExplainability>) -> String {
+	let Some(trace) = trace else {
+		return "-".to_string();
+	};
+	let stages = trace
+		.stages
+		.iter()
+		.map(|stage| {
+			format!(
+				"{} kept={} demoted={} dropped={} distractors={}",
+				stage.stage_name,
+				stage.kept_evidence.join("+"),
+				stage.demoted_evidence.join("+"),
+				stage.dropped_evidence.join("+"),
+				stage.distractor_evidence.join("+")
+			)
+		})
+		.collect::<Vec<_>>();
+
+	if stages.is_empty() { "-".to_string() } else { stages.join("; ") }
 }
 
 fn write_or_print(path: Option<&Path>, content: &str) -> Result<()> {

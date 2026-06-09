@@ -129,7 +129,7 @@ evidence, produced answer/evidence, unsupported-claim count, wrong-result count,
 latency/cost fields when available, capture/integration behavior classes, and typed
 suite/job statuses. Untouched suites remain `not_encoded`.
 
-Current checked-in full real-world memory increment:
+Current checked-in aggregate memory increment:
 
 ```sh
 cargo make real-world-memory
@@ -139,14 +139,19 @@ This parses `apps/elf-eval/fixtures/real_world_memory/`, writes
 `tmp/real-world-memory/real-world-memory-report.json`, and renders
 `tmp/real-world-memory/real-world-memory-report.md`.
 
-The suite currently encodes:
+This command recursively parses all checked-in `real_world_memory` fixture slices,
+including the retrieval-quality slice below. The suite currently encodes:
 
 - `trust_source_of_truth`: evidence binding, source refs, and Qdrant rebuild from
   Postgres-held chunk embeddings before answering.
 - `work_resume`: stale worktree resume, Decodex/Linear lane status, failed command
   recovery, PR review blocker recovery, and exact next-action extraction.
+- `retrieval`: alternate phrasing, distractor-heavy retrieval, multi-hop routing,
+  current-versus-obsolete selection, and minimal sufficient context.
 - `memory_evolution`: TTL/delete suppression plus current-versus-historical preference,
   issue status, deployment method, benchmark conclusion, and temporal relation cases.
+- `operator_debugging_ux`: deliberate wrong-result trace attribution that identifies
+  the retrieval stage that demoted expected evidence.
 - `capture_integration`: write-policy audit behavior for redaction/private exclusion
   and fixture-backed capture/integration boundary classification.
 - `personalization`: scoped stable preference correction without temporary or
@@ -155,10 +160,12 @@ The suite currently encodes:
 The generated report includes evidence coverage, source-ref coverage, quote coverage,
 unsupported-claim count, stale retrieval count, stale-answer count, conflict detection
 count, update rationale availability, temporal validity `not_encoded` count, scope
-correctness, redaction leak count, capture/integration behavior classes, and Qdrant
-rebuild case/pass counts. The fixtures include negative traps for stale blockers,
-unsupported prior claims, stale deleted facts, stale historical facts, cross-project
-preference leakage, and private/redacted text leakage.
+correctness, redaction leak count, capture/integration behavior classes, Qdrant
+rebuild case/pass counts, expected evidence recall, irrelevant context ratio,
+latency/cost, and trace explainability counters. The fixtures include negative traps
+for stale blockers, unsupported prior claims, stale deleted facts, stale historical
+facts, cross-project preference leakage, private/redacted text leakage, obsolete
+retrieval context, and distractor context.
 
 Narrow memory evolution increment:
 
@@ -177,6 +184,22 @@ This parses `apps/elf-eval/fixtures/real_world_memory/evolution/` and reports on
 the cases added for current-versus-historical interpretation and temporal staleness.
 The relation temporal-validity fixture is deliberately `not_encoded` and declares the
 graph follow-up instead of claiming a fake graph pass.
+
+Current checked-in retrieval-quality increment:
+
+```sh
+cargo make real-world-memory-retrieval
+```
+
+This parses `apps/elf-eval/fixtures/real_world_memory/retrieval/`, writes
+`tmp/real-world-memory/retrieval-report.json`, and renders
+`tmp/real-world-memory/retrieval-report.md`. The fixture set covers alternate
+phrasing, distractor-heavy retrieval, multi-hop routing, current-versus-obsolete
+selection, minimal sufficient context, and a deliberate wrong-result trace attribution
+case. Reports include expected evidence recall, irrelevant context ratio, latency/cost,
+and optional trace explainability metadata. The qmd and OpenViking references in these
+fixtures are design references only; no parity claim is allowed unless an external
+adapter run actually provides evidence.
 
 Operator debugging UX increment:
 

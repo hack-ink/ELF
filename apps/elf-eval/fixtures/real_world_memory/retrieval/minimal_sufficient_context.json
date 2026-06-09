@@ -1,0 +1,148 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "retrieval-minimal-context-001",
+  "suite": "retrieval",
+  "title": "Return minimal sufficient restore evidence without irrelevant context",
+  "corpus": {
+    "corpus_id": "real-world-memory-retrieval-2026-06-09",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "restore-minimal-proof",
+        "kind": "runbook",
+        "text": "Minimal sufficient restore proof: note ingest returned ADD/remember, Qdrant rebuild returned rebuilt_count=1, missing_vector_count=0, error_count=0, and search recovered the restored note.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "minimal_sufficient_context",
+            "evidence_id": "restore-minimal-proof"
+          }
+        },
+        "created_at": "2026-06-09T05:00:00Z"
+      },
+      {
+        "evidence_id": "restore-verbose-log-decoy",
+        "kind": "trace",
+        "text": "Verbose restore log includes port remapping, shell setup, and temporary script names that are not needed to answer the proof question.",
+        "source_ref": {},
+        "created_at": "2026-06-09T05:01:00Z"
+      },
+      {
+        "evidence_id": "provider-run-decoy",
+        "kind": "trace",
+        "text": "Provider stress run latency and embedding dimensions are unrelated to the minimal restore proof.",
+        "source_ref": {},
+        "created_at": "2026-06-09T05:02:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_retrieval",
+      "answer": {
+        "content": "The minimal sufficient restore proof is that note ingest returned ADD/remember, Qdrant rebuild returned rebuilt_count=1 with zero missing vectors and zero errors, and search recovered the restored note.",
+        "claims": [
+          {
+            "claim_id": "restore_minimal",
+            "text": "Note ingest returned ADD/remember, rebuild returned rebuilt_count=1 with zero missing vectors and zero errors, and search recovered the restored note.",
+            "evidence_ids": ["restore-minimal-proof"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["restore-minimal-proof"],
+        "latency_ms": 9.1,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "restore-proof-recorded",
+      "ts": "2026-06-09T05:00:00Z",
+      "actor": "agent",
+      "action": "published_restore_proof",
+      "evidence_ids": ["restore-minimal-proof"],
+      "summary": "The restore proof recorded the minimal required note ingest, rebuild, and recovered-search evidence."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "What is the minimal sufficient context proving the restore recovered memory?",
+    "job_mode": "answer",
+    "constraints": ["cite_evidence", "minimal_sufficient_context", "avoid_irrelevant_context"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "restore_minimal",
+        "text": "Note ingest returned ADD/remember, rebuild returned rebuilt_count=1 with zero missing vectors and zero errors, and search recovered the restored note."
+      }
+    ],
+    "must_not_include": [
+      "Port remapping is required to prove restore correctness.",
+      "Provider stress latency is required to prove restore correctness."
+    ],
+    "evidence_links": {
+      "restore_minimal": ["restore-minimal-proof"]
+    },
+    "answer_type": "direct_answer",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "restore-minimal-proof",
+      "claim_id": "restore_minimal",
+      "requirement": "cite",
+      "quote": "Qdrant rebuild returned rebuilt_count=1, missing_vector_count=0, error_count=0"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "irrelevant-restore-context",
+      "type": "decoy_evidence",
+      "evidence_ids": ["restore-verbose-log-decoy", "provider-run-decoy"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "States only the minimal restore proof."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Cites the minimal proof evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Avoids verbose logs and unrelated provider evidence."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Keeps the answer compact enough for agent context use."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": ["The fixture does not provide that evidence."],
+    "fallback_action": "state_blocker"
+  },
+  "tags": ["synthetic", "retrieval", "minimal_sufficient_context", "no_live_claim"]
+}
