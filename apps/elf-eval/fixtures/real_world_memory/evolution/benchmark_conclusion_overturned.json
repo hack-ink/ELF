@@ -1,0 +1,263 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "memory-evolution-benchmark-verdict-001",
+  "suite": "memory_evolution",
+  "title": "Use the current production adoption verdict after an older conclusion changed",
+  "corpus": {
+    "corpus_id": "real-world-memory-evolution-2026-06-09",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "verdict-old-not-ready",
+        "kind": "decision",
+        "text": "Earlier conclusion: ELF was not production ready because private corpus and restore proof were missing.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "benchmark_conclusion_overturned",
+            "evidence_id": "verdict-old-not-ready"
+          }
+        },
+        "created_at": "2026-06-07T00:00:00Z"
+      },
+      {
+        "evidence_id": "verdict-current-ready-bounded",
+        "kind": "decision",
+        "text": "Production adoption gate on 2026-06-09 says ELF is ready for personal production use with bounded caveats.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "benchmark_conclusion_overturned",
+            "evidence_id": "verdict-current-ready-bounded"
+          }
+        },
+        "created_at": "2026-06-09T00:00:00Z"
+      },
+      {
+        "evidence_id": "verdict-bounded-private-caveat",
+        "kind": "decision",
+        "text": "The private production corpus was not run; the gate records it as a bounded caveat, not a private-corpus pass.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "benchmark_conclusion_overturned",
+            "evidence_id": "verdict-bounded-private-caveat"
+          }
+        },
+        "created_at": "2026-06-09T00:05:00Z"
+      },
+      {
+        "evidence_id": "verdict-update-rationale",
+        "kind": "decision",
+        "text": "The verdict changed after provider-backed synthetic, stress, backfill, and restore proof evidence was recorded.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "benchmark_conclusion_overturned",
+            "evidence_id": "verdict-update-rationale"
+          }
+        },
+        "created_at": "2026-06-09T00:10:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_memory_evolution",
+      "answer": {
+        "content": "The current verdict is that ELF is ready for personal production use with bounded caveats; the older not-ready conclusion is historical, and the private corpus remains an explicit caveat rather than a private-corpus pass.",
+        "claims": [
+          {
+            "claim_id": "current_benchmark_verdict",
+            "text": "ELF is ready for personal production use with bounded caveats.",
+            "evidence_ids": [
+              "verdict-current-ready-bounded",
+              "verdict-old-not-ready",
+              "verdict-update-rationale"
+            ],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "benchmark_update_rationale",
+            "text": "The verdict changed after provider-backed benchmark and restore proof evidence was recorded.",
+            "evidence_ids": ["verdict-update-rationale"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "private_corpus_caveat",
+            "text": "The private corpus remains a bounded caveat rather than a private-corpus pass.",
+            "evidence_ids": ["verdict-bounded-private-caveat"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": [
+          "verdict-current-ready-bounded",
+          "verdict-bounded-private-caveat",
+          "verdict-update-rationale"
+        ],
+        "latency_ms": 1.5,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "verdict-not-ready",
+      "ts": "2026-06-07T00:00:00Z",
+      "actor": "agent",
+      "action": "made_decision",
+      "evidence_ids": ["verdict-old-not-ready"],
+      "summary": "The older verdict said ELF was not ready."
+    },
+    {
+      "event_id": "verdict-ready",
+      "ts": "2026-06-09T00:00:00Z",
+      "actor": "agent",
+      "action": "updated_memory",
+      "evidence_ids": [
+        "verdict-current-ready-bounded",
+        "verdict-bounded-private-caveat",
+        "verdict-update-rationale"
+      ],
+      "summary": "The adoption gate changed the current verdict and preserved the private-corpus caveat."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "What is the current benchmark adoption conclusion, and what older conclusion changed?",
+    "job_mode": "decide",
+    "constraints": ["cite_evidence", "distinguish_current_from_historical", "state_caveats"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "current_benchmark_verdict",
+        "text": "ELF is ready for personal production use with bounded caveats."
+      },
+      {
+        "claim_id": "benchmark_update_rationale",
+        "text": "The verdict changed after provider-backed benchmark and restore proof evidence was recorded."
+      },
+      {
+        "claim_id": "private_corpus_caveat",
+        "text": "The private corpus remains a bounded caveat rather than a private-corpus pass."
+      }
+    ],
+    "must_not_include": [
+      "ELF is not ready for personal production use.",
+      "The private production corpus passed."
+    ],
+    "evidence_links": {
+      "current_benchmark_verdict": [
+        "verdict-current-ready-bounded",
+        "verdict-old-not-ready",
+        "verdict-update-rationale"
+      ],
+      "benchmark_update_rationale": ["verdict-update-rationale"],
+      "private_corpus_caveat": ["verdict-bounded-private-caveat"]
+    },
+    "answer_type": "decision_record",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "verdict-current-ready-bounded",
+      "claim_id": "current_benchmark_verdict",
+      "requirement": "cite",
+      "quote": "ready for personal production use with bounded caveats"
+    },
+    {
+      "evidence_id": "verdict-bounded-private-caveat",
+      "claim_id": "private_corpus_caveat",
+      "requirement": "cite",
+      "quote": "bounded caveat, not a private-corpus pass"
+    },
+    {
+      "evidence_id": "verdict-update-rationale",
+      "claim_id": "benchmark_update_rationale",
+      "requirement": "explain",
+      "quote": "provider-backed synthetic, stress, backfill, and restore proof"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "old-not-ready-verdict-current",
+      "type": "stale_fact",
+      "evidence_ids": ["verdict-old-not-ready"],
+      "failure_if_used": false
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "lifecycle_behavior": {
+        "weight": 0.35,
+        "max_points": 1.0,
+        "criteria": "Reports the current adoption verdict and historical supersession."
+      },
+      "answer_correctness": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "States the current verdict and private-corpus caveat."
+      },
+      "evidence_grounding": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Cites current verdict, caveat, and rationale evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Does not report the old not-ready verdict as current."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": ["The fixture does not provide that evidence."],
+    "fallback_action": "state_blocker"
+  },
+  "memory_evolution": {
+    "current_evidence_ids": ["verdict-current-ready-bounded"],
+    "historical_evidence_ids": ["verdict-old-not-ready"],
+    "stale_trap_ids": ["old-not-ready-verdict-current"],
+    "conflicts": [
+      {
+        "conflict_id": "benchmark-verdict-overturned",
+        "claim_id": "current_benchmark_verdict",
+        "current_evidence_id": "verdict-current-ready-bounded",
+        "historical_evidence_id": "verdict-old-not-ready",
+        "resolved_by_evidence_id": "verdict-update-rationale"
+      }
+    ],
+    "update_rationale": {
+      "claim_id": "benchmark_update_rationale",
+      "evidence_ids": ["verdict-update-rationale"],
+      "available": true
+    },
+    "temporal_validity": {
+      "required": false,
+      "encoded": false,
+      "follow_up": null
+    }
+  },
+  "tags": [
+    "synthetic",
+    "memory_evolution",
+    "reference_mem0_history",
+    "no_live_claim"
+  ]
+}

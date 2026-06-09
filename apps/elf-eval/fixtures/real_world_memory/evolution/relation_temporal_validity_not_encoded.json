@@ -1,0 +1,199 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "memory-evolution-relation-temporal-001",
+  "suite": "memory_evolution",
+  "title": "Mark temporal relation validity as not encoded instead of faking a graph pass",
+  "encoding": {
+    "status": "not_encoded",
+    "reason": "ELF graph-lite currently returns bounded relation context, but this runner does not yet encode current-only versus historical temporal validity for relation facts.",
+    "follow_up": {
+      "title": "[ELF graph P1] Add temporal validity to graph-lite facts",
+      "reason": "Relation facts need valid_from and invalidated_at semantics before this job can claim a current-versus-historical graph pass."
+    }
+  },
+  "corpus": {
+    "corpus_id": "real-world-memory-evolution-2026-06-09",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "relation-old-owner",
+        "kind": "adapter_state",
+        "text": "Before 2026-06-06, Team Delta owned deployment method review.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "relation_temporal_validity_not_encoded",
+            "evidence_id": "relation-old-owner"
+          }
+        },
+        "created_at": "2026-06-05T00:00:00Z"
+      },
+      {
+        "evidence_id": "relation-current-owner",
+        "kind": "adapter_state",
+        "text": "Since 2026-06-08, Team Echo owns deployment method review.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "relation_temporal_validity_not_encoded",
+            "evidence_id": "relation-current-owner"
+          }
+        },
+        "created_at": "2026-06-08T00:00:00Z"
+      },
+      {
+        "evidence_id": "relation-owner-rationale",
+        "kind": "decision",
+        "text": "Ownership moved after single-user production runbook scope changed.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "relation_temporal_validity_not_encoded",
+            "evidence_id": "relation-owner-rationale"
+          }
+        },
+        "created_at": "2026-06-08T00:05:00Z"
+      }
+    ]
+  },
+  "timeline": [
+    {
+      "event_id": "relation-old-owner",
+      "ts": "2026-06-05T00:00:00Z",
+      "actor": "agent",
+      "action": "recorded_relation",
+      "evidence_ids": ["relation-old-owner"],
+      "summary": "Team Delta was the historical owner."
+    },
+    {
+      "event_id": "relation-current-owner",
+      "ts": "2026-06-08T00:00:00Z",
+      "actor": "agent",
+      "action": "updated_memory",
+      "evidence_ids": ["relation-current-owner", "relation-owner-rationale"],
+      "summary": "Team Echo became the current owner after the scope changed."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Who currently owns deployment method review, and who owned it historically?",
+    "job_mode": "answer",
+    "constraints": ["cite_evidence", "distinguish_current_from_historical"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "relation_current_owner",
+        "text": "Team Echo currently owns deployment method review."
+      },
+      {
+        "claim_id": "relation_historical_owner",
+        "text": "Team Delta owned deployment method review historically."
+      }
+    ],
+    "must_not_include": ["Team Delta currently owns deployment method review."],
+    "evidence_links": {
+      "relation_current_owner": [
+        "relation-current-owner",
+        "relation-old-owner",
+        "relation-owner-rationale"
+      ],
+      "relation_historical_owner": ["relation-old-owner"]
+    },
+    "answer_type": "direct_answer",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "relation-current-owner",
+      "claim_id": "relation_current_owner",
+      "requirement": "cite",
+      "quote": "Team Echo owns deployment method review"
+    },
+    {
+      "evidence_id": "relation-old-owner",
+      "claim_id": "relation_historical_owner",
+      "requirement": "cite",
+      "quote": "Team Delta owned deployment method review"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "old-owner-as-current",
+      "type": "stale_fact",
+      "evidence_ids": ["relation-old-owner"],
+      "failure_if_used": false
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "lifecycle_behavior": {
+        "weight": 0.4,
+        "max_points": 1.0,
+        "criteria": "Requires current-only versus historical temporal validity for relation facts."
+      },
+      "answer_correctness": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Would identify current and historical owners separately."
+      },
+      "evidence_grounding": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Would cite both current and historical relation evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Would not report the historical owner as current."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": true,
+    "acceptable_phrases": ["Temporal relation validity is not encoded in this runner."],
+    "fallback_action": "state_blocker"
+  },
+  "memory_evolution": {
+    "current_evidence_ids": ["relation-current-owner"],
+    "historical_evidence_ids": ["relation-old-owner"],
+    "stale_trap_ids": ["old-owner-as-current"],
+    "conflicts": [
+      {
+        "conflict_id": "relation-owner-current-historical",
+        "claim_id": "relation_current_owner",
+        "current_evidence_id": "relation-current-owner",
+        "historical_evidence_id": "relation-old-owner",
+        "resolved_by_evidence_id": "relation-owner-rationale"
+      }
+    ],
+    "update_rationale": {
+      "claim_id": "relation_owner_update_rationale",
+      "evidence_ids": ["relation-owner-rationale"],
+      "available": false
+    },
+    "temporal_validity": {
+      "required": true,
+      "encoded": false,
+      "follow_up": "[ELF graph P1] Add temporal validity to graph-lite facts"
+    }
+  },
+  "tags": [
+    "synthetic",
+    "memory_evolution",
+    "reference_graphiti_zep_temporal",
+    "reference_nanograph_typed_query",
+    "not_encoded",
+    "no_live_claim"
+  ]
+}

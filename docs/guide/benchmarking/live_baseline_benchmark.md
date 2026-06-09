@@ -321,6 +321,17 @@ The trust/personalization fixture set lives under
 coverage, source-ref coverage, quote coverage, stale retrievals, scope correctness,
 redaction leaks, and Qdrant rebuild coverage.
 
+The memory evolution suite is a separate checked-in real-world job fixture set:
+
+```sh
+cargo make real-world-memory-evolution
+```
+
+It lives under `apps/elf-eval/fixtures/real_world_memory/evolution/` and reports
+stale-answer count, conflict detection count, update rationale availability, temporal
+validity gaps, and unsupported claims. Its relation-temporal fixture is deliberately
+`not_encoded` until graph-lite temporal validity is implemented.
+
 ## Clean Up
 
 ```sh
