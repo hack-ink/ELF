@@ -1,0 +1,97 @@
+name: elf-live-baseline
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg18
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_PASSWORD: elf_dev_password
+      POSTGRES_USER: elf_dev
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U elf_dev -d postgres
+      interval: 2s
+      timeout: 5s
+      retries: 30
+    volumes:
+      - elf-live-baseline-postgres-data:/var/lib/postgresql
+
+  qdrant:
+    image: qdrant/qdrant:v1.16.3
+    volumes:
+      - elf-live-baseline-qdrant-data:/qdrant/storage
+
+  baseline-runner:
+    build:
+      context: .
+      dockerfile: docker/baseline/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+    environment:
+      CARGO_HOME: /usr/local/cargo
+      ELF_BASELINE_ELF_HEAD: ${ELF_BASELINE_ELF_HEAD:-unknown}
+      DASHSCOPE_API_BASE: ${DASHSCOPE_API_BASE:-}
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
+      DASHSCOPE_EMBEDDING_DIMENSIONS: ${DASHSCOPE_EMBEDDING_DIMENSIONS:-}
+      EMBEDDING_API_BASE: ${EMBEDDING_API_BASE:-}
+      EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}
+      EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-}
+      EMBEDDING_PATH: ${EMBEDDING_PATH:-}
+      EMBEDDING_PROVIDER_ID: ${EMBEDDING_PROVIDER_ID:-}
+      EMBEDDING_TIMEOUT_MS: ${EMBEDDING_TIMEOUT_MS:-}
+      ELF_BASELINE_CONCURRENT_NOTES: ${ELF_BASELINE_CONCURRENT_NOTES:-}
+      ELF_BASELINE_ELF_EMBEDDING_API_BASE: ${ELF_BASELINE_ELF_EMBEDDING_API_BASE:-}
+      ELF_BASELINE_ELF_EMBEDDING_API_KEY: ${ELF_BASELINE_ELF_EMBEDDING_API_KEY:-}
+      ELF_BASELINE_ELF_EMBEDDING_DIMENSIONS: ${ELF_BASELINE_ELF_EMBEDDING_DIMENSIONS:-}
+      ELF_BASELINE_ELF_EMBEDDING_MODE: ${ELF_BASELINE_ELF_EMBEDDING_MODE:-local}
+      ELF_BASELINE_ELF_EMBEDDING_MODEL: ${ELF_BASELINE_ELF_EMBEDDING_MODEL:-}
+      ELF_BASELINE_ELF_EMBEDDING_PATH: ${ELF_BASELINE_ELF_EMBEDDING_PATH:-}
+      ELF_BASELINE_ELF_EMBEDDING_PROVIDER_ID: ${ELF_BASELINE_ELF_EMBEDDING_PROVIDER_ID:-}
+      ELF_BASELINE_ELF_EMBEDDING_TIMEOUT_MS: ${ELF_BASELINE_ELF_EMBEDDING_TIMEOUT_MS:-}
+      ELF_BASELINE_MAX_ELF_RSS_KB: ${ELF_BASELINE_MAX_ELF_RSS_KB:-1500000}
+      ELF_BASELINE_MAX_ELF_SECONDS: ${ELF_BASELINE_MAX_ELF_SECONDS:-600}
+      ELF_BASELINE_PROFILE: ${ELF_BASELINE_PROFILE:-smoke}
+      ELF_BASELINE_PROJECTS: ${ELF_BASELINE_PROJECTS:-all}
+      ELF_BASELINE_REPORT_DIR: /workspace/tmp/live-baseline
+      ELF_BASELINE_SCALE_DOCS: ${ELF_BASELINE_SCALE_DOCS:-120}
+      ELF_BASELINE_SOAK_PROBE_INTERVAL_MS: ${ELF_BASELINE_SOAK_PROBE_INTERVAL_MS:-}
+      ELF_BASELINE_SOAK_ROUNDS: ${ELF_BASELINE_SOAK_ROUNDS:-}
+      ELF_BASELINE_SOAK_SECONDS: ${ELF_BASELINE_SOAK_SECONDS:-}
+      ELF_BASELINE_STRESS_DOCS: ${ELF_BASELINE_STRESS_DOCS:-480}
+      ELF_BASELINE_TOP_K: ${ELF_BASELINE_TOP_K:-10}
+      QWEN_API_KEY: ${QWEN_API_KEY:-}
+      QWEN_EMBEDDING_API_BASE: ${QWEN_EMBEDDING_API_BASE:-}
+      QWEN_EMBEDDING_DIMENSIONS: ${QWEN_EMBEDDING_DIMENSIONS:-}
+      QWEN_EMBEDDING_MODEL: ${QWEN_EMBEDDING_MODEL:-}
+      QWEN_EMBEDDING_PATH: ${QWEN_EMBEDDING_PATH:-}
+      QWEN_EMBEDDING_PROVIDER_ID: ${QWEN_EMBEDDING_PROVIDER_ID:-}
+      QWEN_EMBEDDING_TIMEOUT_MS: ${QWEN_EMBEDDING_TIMEOUT_MS:-}
+      ELF_PG_DSN: postgres://elf_dev:elf_dev_password@postgres:5432/postgres
+      ELF_QDRANT_GRPC_URL: http://qdrant:6334
+      ELF_QDRANT_HTTP_URL: http://qdrant:6333
+      RUSTUP_HOME: /usr/local/rustup
+    volumes:
+      - elf-live-baseline-npm-cache:/root/.npm
+      - elf-live-baseline-pip-cache:/root/.cache/pip
+      - elf-live-baseline-huggingface-cache:/root/.cache/huggingface
+      - elf-live-baseline-qmd-cache:/root/.cache/qmd
+      - elf-live-baseline-cargo-git:/usr/local/cargo/git
+      - elf-live-baseline-cargo-registry:/usr/local/cargo/registry
+      - elf-live-baseline-target:/workspace/target
+      - ./tmp/live-baseline:/workspace/tmp/live-baseline
+
+volumes:
+  elf-live-baseline-cargo-git:
+  elf-live-baseline-cargo-registry:
+  elf-live-baseline-huggingface-cache:
+  elf-live-baseline-npm-cache:
+  elf-live-baseline-pip-cache:
+  elf-live-baseline-postgres-data:
+  elf-live-baseline-qmd-cache:
+  elf-live-baseline-qdrant-data:
+  elf-live-baseline-target:
