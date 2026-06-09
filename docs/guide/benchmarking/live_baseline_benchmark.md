@@ -297,8 +297,8 @@ To run the checked-in real-world job smoke fixture and render its Markdown repor
 cargo make real-world-job-smoke
 ```
 
-To run the checked-in trust, source-of-truth, lifecycle, redaction, and personalization
-real-world memory fixtures:
+To run the checked-in work-resume, source-of-truth, lifecycle, redaction,
+capture-boundary, and personalization real-world memory fixtures:
 
 ```sh
 cargo make real-world-memory
@@ -313,10 +313,14 @@ tmp/real-world-memory/real-world-memory-report.json
 tmp/real-world-memory/real-world-memory-report.md
 ```
 
-The smoke fixture lives under `apps/elf-eval/fixtures/real_world_job/smoke/` and uses
+The smoke fixture suite lives under
+`apps/elf-eval/fixtures/real_world_memory/work_resume/` and uses
 `docs/spec/real_world_agent_memory_benchmark_v1.md` status terms, including
-`unsupported_claim`. Suites without checked-in jobs are reported as `not_encoded`.
-The trust/personalization fixture set lives under
+`unsupported_claim`. The checked-in slice includes work-resume continuity jobs and one
+capture/integration boundary job. Suites without checked-in jobs are reported as
+`not_encoded`.
+
+The broader real-world memory fixture set lives under
 `apps/elf-eval/fixtures/real_world_memory/` and adds summary counters for evidence
 coverage, source-ref coverage, quote coverage, stale retrievals, scope correctness,
 redaction leaks, and Qdrant rebuild coverage.

@@ -1,0 +1,205 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "work-resume-pr-review-blocker-001",
+  "suite": "work_resume",
+  "title": "Recover the current PR review blocker without reviving resolved tracker work",
+  "corpus": {
+    "corpus_id": "real-world-memory-work-resume-2026-06-09",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "xy844-current-pr-review",
+        "kind": "pr",
+        "text": "PR review summary for XY-844: the active review blocker is an unsupported live-adapter claim in the real-world job report. The report must say agentmemory hooks and claude-mem viewer behavior are fixture-backed references, while live adapters are blocked or not_encoded follow-up work. After that edit, rerun the real-world job suite before pushing the PR.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "work_resume_pr_review_blocker",
+            "evidence_id": "xy844-current-pr-review"
+          }
+        },
+        "created_at": "2026-06-09T08:15:00Z"
+      },
+      {
+        "evidence_id": "xy844-resolved-review-blocker",
+        "kind": "pr",
+        "text": "Old PR review note: the active blocker is missing issue_transition evidence, and the next action is to move XY-844 to In Progress.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "work_resume_pr_review_blocker",
+            "evidence_id": "xy844-resolved-review-blocker"
+          }
+        },
+        "created_at": "2026-06-08T08:15:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_work_resume",
+      "answer": {
+        "content": "The current PR blocker is the unsupported live-adapter claim. Update the report so agentmemory hooks and claude-mem viewer behavior are only fixture-backed references and live adapters remain blocked or not_encoded follow-up work, then rerun the real-world job suite. The old missing issue_transition blocker is resolved.",
+        "claims": [
+          {
+            "claim_id": "current_review_blocker",
+            "text": "The active review blocker is an unsupported live-adapter claim in the report.",
+            "evidence_ids": ["xy844-current-pr-review"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "review_next_action",
+            "text": "Mark agentmemory and claude-mem behavior as fixture-backed references while live adapters remain blocked or not_encoded, then rerun the suite.",
+            "evidence_ids": ["xy844-current-pr-review"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "stale_blocker",
+            "text": "The missing issue_transition blocker is stale.",
+            "evidence_ids": ["xy844-current-pr-review"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["xy844-current-pr-review"],
+        "latency_ms": 2.3,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "xy844-old-tracker-blocker",
+      "ts": "2026-06-08T08:15:00Z",
+      "actor": "agent",
+      "action": "recorded_resolved_review_blocker",
+      "evidence_ids": ["xy844-resolved-review-blocker"],
+      "summary": "An old review note identified missing issue_transition evidence."
+    },
+    {
+      "event_id": "xy844-current-review-blocker",
+      "ts": "2026-06-09T08:15:00Z",
+      "actor": "external",
+      "action": "published_review_summary",
+      "evidence_ids": ["xy844-current-pr-review"],
+      "summary": "The current PR review narrowed the blocker to unsupported live-adapter claims in the report."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "A PR review came in for XY-844. What is the active blocker, what is stale, and what should I do next?",
+    "job_mode": "resume",
+    "constraints": [
+      "cite_evidence",
+      "avoid_stale_review_threads",
+      "state_exact_next_action"
+    ]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "current_review_blocker",
+        "text": "The active review blocker is an unsupported live-adapter claim in the report."
+      },
+      {
+        "claim_id": "review_next_action",
+        "text": "Mark agentmemory and claude-mem behavior as fixture-backed references while live adapters remain blocked or not_encoded, then rerun the suite."
+      },
+      {
+        "claim_id": "stale_blocker",
+        "text": "The missing issue_transition blocker is stale."
+      }
+    ],
+    "must_not_include": [
+      "Move XY-844 to In Progress.",
+      "agentmemory and claude-mem live adapters passed."
+    ],
+    "evidence_links": {
+      "current_review_blocker": ["xy844-current-pr-review"],
+      "review_next_action": ["xy844-current-pr-review"],
+      "stale_blocker": ["xy844-current-pr-review"]
+    },
+    "answer_type": "resume_summary",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "xy844-current-pr-review",
+      "claim_id": "current_review_blocker",
+      "requirement": "cite",
+      "quote": "the active review blocker is an unsupported live-adapter claim in the real-world job report"
+    },
+    {
+      "evidence_id": "xy844-current-pr-review",
+      "claim_id": "review_next_action",
+      "requirement": "use",
+      "quote": "agentmemory hooks and claude-mem viewer behavior are fixture-backed references"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "resolved-issue-transition-review",
+      "type": "stale_fact",
+      "evidence_ids": ["xy844-resolved-review-blocker"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Names active review blocker and next action."
+      },
+      "evidence_grounding": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Uses current PR review evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Avoids resolved issue_transition blocker."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Gives the report edit and rerun path."
+      },
+      "latency_resource": {
+        "weight": 0.1,
+        "max_points": 1.0,
+        "criteria": {
+          "max_latency_ms": 50.0,
+          "description": "Fixture-backed review recovery should be immediate."
+        }
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [
+      "The fixture does not provide that evidence."
+    ],
+    "fallback_action": "state_blocker"
+  },
+  "tags": [
+    "synthetic",
+    "fixture_backed",
+    "pr_review",
+    "agentmemory_reference",
+    "claude_mem_reference",
+    "no_live_claim"
+  ]
+}
