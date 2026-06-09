@@ -62,6 +62,8 @@ Then structure the body for execution:
 
 ## Guide subfolders
 
+- `docs/guide/single_user_production.md` for the single-user production runbook,
+  backup/restore path, migration checks, and Qdrant rebuild proof.
 - `docs/guide/benchmarking/` for live benchmark runbooks, report publication steps,
   and checked-in benchmark evidence.
 - `docs/guide/competitive_parity_testing.md` for running the Docker-only adoption

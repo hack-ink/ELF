@@ -26,6 +26,8 @@ The split below is by question type, not by human-versus-agent audience.
   `docs/spec/`
 - Need runbooks, migrations, validation steps, troubleshooting, or operational sequences ->
   `docs/guide/`
+- Need the single-user production backup, restore, and Qdrant rebuild path ->
+  `docs/guide/single_user_production.md`
 - Need external comparisons or architecture research inputs -> `docs/guide/research/`
 - Need machine-readable research run state, evidence, trade-offs, and decision status ->
   `docs/research/`
