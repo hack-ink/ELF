@@ -112,6 +112,19 @@ Recommended first increments:
 3. Encode one `memory_evolution` job that proves update/delete/supersession behavior.
 4. Add report output for `unsupported_claim` before broadening the suite count.
 
+Current checked-in smoke increment:
+
+```sh
+cargo make real-world-job-smoke
+```
+
+This parses `apps/elf-eval/fixtures/real_world_job/smoke/`, writes
+`tmp/real-world-job/real-world-job-smoke-report.json`, and renders
+`tmp/real-world-job/real-world-job-smoke-report.md`. The smoke report includes suite
+id, job id, expected evidence, produced answer/evidence, unsupported-claim count,
+wrong-result count, latency/cost fields when available, and typed suite/job statuses.
+Untouched suites remain `not_encoded`.
+
 Do not generate large fixtures or update production-adoption verdicts while adding the
 contract. The current adoption gate remains an existing benchmark decision until new
 real-world job reports are implemented and published.
