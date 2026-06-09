@@ -15,7 +15,7 @@ services:
       timeout: 5s
       retries: 10
     volumes:
-      - elf-postgres-data:/var/lib/postgresql/data
+      - elf-postgres-data:/var/lib/postgresql
 
   qdrant:
     image: qdrant/qdrant:v1.16.3

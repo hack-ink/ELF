@@ -17,6 +17,10 @@ Outputs: The smallest benchmarking guide or report needed to continue.
 - You need to extend the benchmark matrix with new projects, profiles, or lifecycle
   checks.
 
+Do not use benchmark commands as the production operating procedure. For single-user
+Docker Compose production start, stop, backup, restore, Qdrant rebuild, rollback, and
+cleanup, use `docs/guide/single_user_production.md`.
+
 ## Guides And Reports
 
 - `live_baseline_benchmark.md`: run, clean up, publish, and interpret the live
