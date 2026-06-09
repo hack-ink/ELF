@@ -1,0 +1,173 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "retrieval-alt-phrasing-001",
+  "suite": "retrieval",
+  "title": "Recover current handoff evidence from alternate phrasing",
+  "corpus": {
+    "corpus_id": "real-world-memory-retrieval-2026-06-09",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "xy840-current-handoff",
+        "kind": "issue",
+        "text": "XY-840 trace schema lane uses branch y/elf-xy-840. Before review handoff, run `cargo make checks` after the trace schema update is complete.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "alternate_phrasing",
+            "evidence_id": "xy840-current-handoff"
+          }
+        },
+        "created_at": "2026-06-09T01:00:00Z"
+      },
+      {
+        "evidence_id": "xy840-old-handoff-trap",
+        "kind": "decision",
+        "text": "Old note: XY-840 used branch y/elf-old-840 and only needed `cargo make test` before handoff.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "alternate_phrasing",
+            "evidence_id": "xy840-old-handoff-trap"
+          }
+        },
+        "created_at": "2026-06-08T01:00:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_retrieval",
+      "answer": {
+        "content": "Use branch y/elf-xy-840 for XY-840 and run `cargo make checks` before review handoff.",
+        "claims": [
+          {
+            "claim_id": "branch",
+            "text": "Use branch y/elf-xy-840 for XY-840.",
+            "evidence_ids": ["xy840-current-handoff"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "gate",
+            "text": "Run `cargo make checks` before review handoff.",
+            "evidence_ids": ["xy840-current-handoff"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["xy840-current-handoff"],
+        "latency_ms": 13.4,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "xy840-old-branch",
+      "ts": "2026-06-08T01:00:00Z",
+      "actor": "agent",
+      "action": "recorded_old_handoff",
+      "evidence_ids": ["xy840-old-handoff-trap"],
+      "summary": "An older handoff note referenced the wrong branch and a narrower gate."
+    },
+    {
+      "event_id": "xy840-current-handoff",
+      "ts": "2026-06-09T01:00:00Z",
+      "actor": "agent",
+      "action": "updated_handoff",
+      "evidence_ids": ["xy840-current-handoff"],
+      "summary": "The current handoff evidence changed the branch and validation gate."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "For the trace-schema handoff, which XY-840 branch and pre-review check do I need?",
+    "job_mode": "answer",
+    "constraints": ["cite_evidence", "avoid_stale_facts"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "branch",
+        "text": "Use branch y/elf-xy-840 for XY-840."
+      },
+      {
+        "claim_id": "gate",
+        "text": "Run `cargo make checks` before review handoff."
+      }
+    ],
+    "must_not_include": [
+      "Use branch y/elf-old-840 for XY-840.",
+      "Run `cargo make test` before review handoff."
+    ],
+    "evidence_links": {
+      "branch": ["xy840-current-handoff"],
+      "gate": ["xy840-current-handoff"]
+    },
+    "answer_type": "direct_answer",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "xy840-current-handoff",
+      "claim_id": "branch",
+      "requirement": "cite",
+      "quote": "uses branch y/elf-xy-840"
+    },
+    {
+      "evidence_id": "xy840-current-handoff",
+      "claim_id": "gate",
+      "requirement": "use",
+      "quote": "run `cargo make checks`"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "old-xy840-handoff",
+      "type": "stale_fact",
+      "evidence_ids": ["xy840-old-handoff-trap"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.35,
+        "max_points": 1.0,
+        "criteria": "Returns the current branch and pre-review check."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Cites the current handoff evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Ignores the stale branch and test-only gate."
+      },
+      "latency_resource": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Reports bounded fixture latency and no cost."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": ["The fixture does not provide that evidence."],
+    "fallback_action": "state_blocker"
+  },
+  "tags": ["synthetic", "retrieval", "alternate_phrasing", "no_live_claim"]
+}

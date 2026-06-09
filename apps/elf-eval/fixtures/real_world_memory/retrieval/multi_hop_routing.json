@@ -1,0 +1,181 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "retrieval-multi-hop-routing-001",
+  "suite": "retrieval",
+  "title": "Answer a multi-hop benchmark routing question",
+  "corpus": {
+    "corpus_id": "real-world-memory-retrieval-2026-06-09",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "xy845-landing-zone",
+        "kind": "issue",
+        "text": "XY-845 should add retrieval-quality real_world_job cases under apps/elf-eval/fixtures/real_world_memory/retrieval/ and extend the runner/report seams.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "multi_hop_routing",
+            "evidence_id": "xy845-landing-zone"
+          }
+        },
+        "created_at": "2026-06-09T03:00:00Z"
+      },
+      {
+        "evidence_id": "routing-reference-boundary",
+        "kind": "decision",
+        "text": "qmd and OpenViking are strong references for routing, fusion, hierarchical retrieval, and staged trajectory, but parity must not be claimed unless their adapters actually run.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "multi_hop_routing",
+            "evidence_id": "routing-reference-boundary"
+          }
+        },
+        "created_at": "2026-06-09T03:01:00Z"
+      },
+      {
+        "evidence_id": "ranking-tune-trap",
+        "kind": "decision",
+        "text": "Do not tune ELF ranking blindly to fixtures; ranking changes need trace and provenance evidence.",
+        "source_ref": {},
+        "created_at": "2026-06-09T03:02:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_retrieval",
+      "answer": {
+        "content": "Add the new cases under apps/elf-eval/fixtures/real_world_memory/retrieval/ and extend the runner/report seams, while treating qmd and OpenViking only as references unless their adapters actually run.",
+        "claims": [
+          {
+            "claim_id": "landing_zone",
+            "text": "Add retrieval-quality real_world_job cases under apps/elf-eval/fixtures/real_world_memory/retrieval/.",
+            "evidence_ids": ["xy845-landing-zone"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "reference_boundary",
+            "text": "Treat qmd and OpenViking only as references unless their adapters actually run.",
+            "evidence_ids": ["routing-reference-boundary"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["xy845-landing-zone", "routing-reference-boundary"],
+        "latency_ms": 31.5,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "issue-route",
+      "ts": "2026-06-09T03:00:00Z",
+      "actor": "operator",
+      "action": "specified_landing_zone",
+      "evidence_ids": ["xy845-landing-zone"],
+      "summary": "The issue named the real_world_memory retrieval fixture path and runner/report seams."
+    },
+    {
+      "event_id": "reference-boundary",
+      "ts": "2026-06-09T03:01:00Z",
+      "actor": "agent",
+      "action": "recorded_reference_boundary",
+      "evidence_ids": ["routing-reference-boundary"],
+      "summary": "External projects are design references, not benchmark passes without adapters."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "How should XY-845 extend the benchmark while respecting the qmd/OpenViking reference boundary?",
+    "job_mode": "decide",
+    "constraints": ["cite_evidence", "avoid_unsupported_claims", "avoid_blind_ranking_tuning"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "landing_zone",
+        "text": "Add retrieval-quality real_world_job cases under apps/elf-eval/fixtures/real_world_memory/retrieval/."
+      },
+      {
+        "claim_id": "reference_boundary",
+        "text": "Treat qmd and OpenViking only as references unless their adapters actually run."
+      }
+    ],
+    "must_not_include": [
+      "Claim qmd parity from fixture-only output.",
+      "Claim OpenViking parity from fixture-only output.",
+      "Tune ELF ranking blindly to fixtures."
+    ],
+    "evidence_links": {
+      "landing_zone": ["xy845-landing-zone"],
+      "reference_boundary": ["routing-reference-boundary"]
+    },
+    "answer_type": "decision_record",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "xy845-landing-zone",
+      "claim_id": "landing_zone",
+      "requirement": "cite",
+      "quote": "apps/elf-eval/fixtures/real_world_memory/retrieval/"
+    },
+    {
+      "evidence_id": "routing-reference-boundary",
+      "claim_id": "reference_boundary",
+      "requirement": "cite",
+      "quote": "parity must not be claimed unless their adapters actually run"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "blind-ranking-tune",
+      "type": "unsafe_action",
+      "evidence_ids": ["ranking-tune-trap"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Combines landing-zone and reference-boundary evidence."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Cites both required evidence ids."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Avoids blind ranking tuning and unsupported parity claims."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Gives an implementation route rather than a vague retrieval summary."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": ["The fixture does not provide that evidence."],
+    "fallback_action": "state_blocker"
+  },
+  "tags": ["synthetic", "retrieval", "multi_hop", "hierarchical_routing", "no_live_claim"]
+}
