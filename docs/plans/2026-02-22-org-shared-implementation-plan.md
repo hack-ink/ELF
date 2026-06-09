@@ -30,7 +30,7 @@
 **Step 4: Commit (optional)**
 ```bash
 git add packages/elf-service/src/access.rs packages/elf-service/src/sharing.rs docs/spec/system_elf_memory_service_v2.md
-git commit -m '{"schema":"cmsg/1","type":"feat","scope":"sharing","summary":"Define org sentinel project id","intent":"Add a reserved project id for org_shared storage","impact":"Centralizes __org__ constant for later org_shared semantics","breaking":false,"risk":"low","refs":["gh:hack-ink/ELF#72"]}'
+git commit -m '{"schema":"cmsg/1","type":"feat","scope":"sharing","summary":"Define org sentinel project id","intent":"Add a reserved project id for org_shared storage","impact":"Centralizes __org__ constant for later org_shared semantics","breaking":false,"risk":"low","refs":[]}'
 ```
 
 ### Task 2: Propagate auth role to request handling (static_keys mode)
@@ -154,4 +154,3 @@ Two execution options:
 2) **Parallel Session (separate)** — open a new session and execute with `executing-plans` checkpoints
 
 Which approach do you want?
-
