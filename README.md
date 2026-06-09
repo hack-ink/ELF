@@ -39,6 +39,8 @@ ELF is a memory service for LLM agents that stores short, evidence-linked facts 
 Use the canonical setup guide:
 
 - `docs/guide/getting_started.md`
+- For single-user production operation, backup, restore, and Qdrant rebuild, use
+  [docs/guide/single_user_production.md](docs/guide/single_user_production.md).
 
 Fast path:
 
@@ -56,6 +58,9 @@ curl -fsS http://127.0.0.1:51892/health
 ```
 
 For provider-backed development, copy `elf.example.toml` to `elf.toml` and fill the provider blocks.
+For production use, do not rely on these quickstart commands; follow the single-user
+production runbook linked above so backup, restore, rollback, and provider config
+handling are explicit.
 
 ## Architecture
 
@@ -136,6 +141,7 @@ Detailed evidence and interpretation:
 - [Live Baseline Benchmark Report - June 9, 2026](docs/guide/benchmarking/2026-06-09-live-baseline-report.md)
 - [Synthetic Production Corpus Benchmark Report - June 9, 2026](docs/guide/benchmarking/2026-06-09-production-corpus-report.md)
 - [Live Baseline Benchmark Runbook](docs/guide/benchmarking/live_baseline_benchmark.md)
+- [Single-User Production Runbook](docs/guide/single_user_production.md)
 
 Quick comparison snapshot (objective/high-level).
 This table compares capability coverage, not overall project quality.
@@ -191,7 +197,8 @@ Latest external research refresh: June 8, 2026.
 
 - Start here: `docs/index.md`
 - Operational guide index: `docs/guide/index.md`
-- Single-user production runbook: `docs/guide/single_user_production.md`
+- Single-user production runbook:
+  [docs/guide/single_user_production.md](docs/guide/single_user_production.md)
 - Benchmarking guides and reports: `docs/guide/benchmarking/index.md`
 - Research index: `docs/guide/research/index.md`
 - Specifications: `docs/spec/index.md`

@@ -23,6 +23,11 @@ Verification: Compare this Markdown summary with the source JSON before committi
 - Same-corpus summary: `1 pass`, `0 fail`, `0 incomplete`
 - Full check summary: `7/7 pass`
 
+This report is production-corpus benchmark evidence only. Use
+`docs/guide/single_user_production.md` for the single-user Docker Compose production
+runbook, including backup, restore, Qdrant rebuild, rollback, provider config
+handling, and cleanup commands.
+
 ## Projects
 
 | Project | Status | Retrieval | Checks | Elapsed | Reason |
