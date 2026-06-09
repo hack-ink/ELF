@@ -542,7 +542,11 @@ async fn trace_bundle_truncation_and_candidate_limits() {
 
 	assert_eq!(candidates[0].retrieval_rank, 1);
 	assert_eq!(candidates[1].retrieval_rank, 2);
-	assert_eq!(candidates[0].retrieval_score, Some(0.8_f32));
+	assert!(
+		candidates[0].retrieval_score.is_some_and(|score| (score - 0.8_f32).abs() < 1e-6),
+		"Unexpected retrieval_score: {:?}",
+		candidates[0].retrieval_score
+	);
 	assert!(candidates[0].rerank_score >= candidates[1].rerank_score);
 
 	test_db.cleanup().await.expect("Failed to cleanup test database.");
