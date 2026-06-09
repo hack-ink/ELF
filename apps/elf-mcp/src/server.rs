@@ -675,16 +675,11 @@ impl ElfMcp {
 	}
 }
 
-#[rmcp::tool_handler]
+#[rmcp::tool_handler(router = self.tool_router)]
 impl ServerHandler for ElfMcp {
 	fn get_info(&self) -> ServerInfo {
-		ServerInfo {
-			instructions: Some(
-				"ELF MCP adapter that forwards tool calls to the ELF HTTP API.".to_string(),
-			),
-			capabilities: ServerCapabilities::builder().enable_tools().build(),
-			..Default::default()
-		}
+		ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
+			.with_instructions("ELF MCP adapter that forwards tool calls to the ELF HTTP API.")
 	}
 }
 
