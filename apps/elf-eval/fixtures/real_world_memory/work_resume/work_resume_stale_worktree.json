@@ -1,0 +1,192 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "work-resume-stale-worktree-001",
+  "suite": "work_resume",
+  "title": "Resume a retained lane with stale worktree blocker evidence",
+  "corpus": {
+    "corpus_id": "real-world-memory-work-resume-2026-06-09",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "xy844-current-worktree",
+        "kind": "trace",
+        "text": "Current XY-844 worktree evidence: branch y/elf-xy-844 has only .decodex-run-activity and .decodex-run-control as untracked runtime artifacts. The lane stopped before adding fixture-backed JSON jobs under apps/elf-eval/fixtures/real_world_memory/work_resume/. The exact next action is to add those fixtures and update the real_world_job runner/report tests.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "work_resume_stale_worktree",
+            "evidence_id": "xy844-current-worktree"
+          }
+        },
+        "created_at": "2026-06-09T08:00:00Z"
+      },
+      {
+        "evidence_id": "xy844-stale-worktree-blocker",
+        "kind": "trace",
+        "text": "Old retained-lane note: XY-844 is blocked by untracked Decodex runtime files and should stop for manual cleanup.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "work_resume_stale_worktree",
+            "evidence_id": "xy844-stale-worktree-blocker"
+          }
+        },
+        "created_at": "2026-06-08T08:00:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_work_resume",
+      "answer": {
+        "content": "Resume XY-844 on branch y/elf-xy-844. The stale blocker is the old claim that untracked Decodex runtime files require manual cleanup; current evidence says those files are runtime artifacts. The exact next action is to add fixture-backed JSON jobs under apps/elf-eval/fixtures/real_world_memory/work_resume/ and update the runner/report tests.",
+        "claims": [
+          {
+            "claim_id": "next_action",
+            "text": "Add fixture-backed JSON jobs under apps/elf-eval/fixtures/real_world_memory/work_resume/ and update the runner/report tests.",
+            "evidence_ids": ["xy844-current-worktree"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "stale_blocker",
+            "text": "The old untracked-runtime-files blocker is stale.",
+            "evidence_ids": ["xy844-current-worktree"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["xy844-current-worktree"],
+        "latency_ms": 2.0,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "xy844-old-worktree-stop",
+      "ts": "2026-06-08T08:00:00Z",
+      "actor": "agent",
+      "action": "recorded_stale_blocker",
+      "evidence_ids": ["xy844-stale-worktree-blocker"],
+      "summary": "An older retained note treated untracked Decodex runtime files as a blocker."
+    },
+    {
+      "event_id": "xy844-current-worktree-readback",
+      "ts": "2026-06-09T08:00:00Z",
+      "actor": "agent",
+      "action": "read_current_worktree",
+      "evidence_ids": ["xy844-current-worktree"],
+      "summary": "The current worktree readback narrowed the real next action to fixture and runner updates."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "What stopped this XY-844 lane, what is the exact next action, and which blocker is stale?",
+    "job_mode": "resume",
+    "constraints": [
+      "cite_evidence",
+      "avoid_repeating_completed_work",
+      "state_blockers"
+    ]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "next_action",
+        "text": "Add fixture-backed JSON jobs under apps/elf-eval/fixtures/real_world_memory/work_resume/ and update the runner/report tests."
+      },
+      {
+        "claim_id": "stale_blocker",
+        "text": "The old untracked-runtime-files blocker is stale."
+      }
+    ],
+    "must_not_include": [
+      "Stop for manual cleanup of .decodex runtime files.",
+      "The untracked Decodex runtime files are the current blocker."
+    ],
+    "evidence_links": {
+      "next_action": ["xy844-current-worktree"],
+      "stale_blocker": ["xy844-current-worktree"]
+    },
+    "answer_type": "resume_summary",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "xy844-current-worktree",
+      "claim_id": "next_action",
+      "requirement": "cite",
+      "quote": "The exact next action is to add those fixtures and update the real_world_job runner/report tests."
+    },
+    {
+      "evidence_id": "xy844-current-worktree",
+      "claim_id": "stale_blocker",
+      "requirement": "use",
+      "quote": "only .decodex-run-activity and .decodex-run-control as untracked runtime artifacts"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "stale-runtime-artifact-blocker",
+      "type": "stale_fact",
+      "evidence_ids": ["xy844-stale-worktree-blocker"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Includes what stopped the lane and the exact current next action."
+      },
+      "evidence_grounding": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Uses the current worktree evidence for required claims."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Avoids stale blocker evidence."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Advances the lane without asking for unnecessary cleanup."
+      },
+      "latency_resource": {
+        "weight": 0.1,
+        "max_points": 1.0,
+        "criteria": {
+          "max_latency_ms": 50.0,
+          "description": "Fixture-backed answer should be immediate."
+        }
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [
+      "The fixture does not provide that evidence."
+    ],
+    "fallback_action": "state_blocker"
+  },
+  "tags": [
+    "synthetic",
+    "fixture_backed",
+    "worktree_resume",
+    "no_live_claim"
+  ]
+}
