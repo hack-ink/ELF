@@ -251,6 +251,10 @@ by the live baseline runner. It does not remove the host report directory.
 
 ## Result Semantics
 
+The result terms below belong to the current Docker live baseline. For the future
+job-level suite contract, including `unsupported_claim`, see
+`docs/spec/real_world_agent_memory_benchmark_v1.md`.
+
 - `pass`: the project installed and every encoded check for that project passed in the
   selected corpus profile.
 - `wrong_result`: a retrieval check completed but returned the wrong memory or missed

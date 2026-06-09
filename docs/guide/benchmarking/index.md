@@ -33,6 +33,8 @@ cleanup, use `docs/guide/single_user_production.md`.
 - `2026-06-09-production-adoption-gate-report.md`: XY-836 production adoption
   decision report with fresh provider-backed synthetic, stress, backfill, restore, and
   external adapter evidence.
+- `real_world_agent_memory_benchmark.md`: operator overview for the v1 real-world
+  agent memory benchmark contract, including suite taxonomy and typed report states.
 
 ## Update Rules
 
@@ -42,3 +44,6 @@ cleanup, use `docs/guide/single_user_production.md`.
 - Link the newest decision-relevant report from README and this index.
 - When benchmark semantics change, update `live_baseline_benchmark.md` and the
   relevant spec before publishing a new result.
+- Real-world job benchmark changes are governed by
+  `docs/spec/real_world_agent_memory_benchmark_v1.md`; keep this guide as routing and
+  do not duplicate the normative schema here.

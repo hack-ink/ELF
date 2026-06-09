@@ -254,6 +254,9 @@ Recommended non-blocking follow-ups:
 
 - Rerun `baseline-production-private` when an operator-owned private manifest is
   available, and publish a private-corpus addendum that does not expose private text.
+- Treat `docs/spec/real_world_agent_memory_benchmark_v1.md` as the future-work
+  contract for job-level memory evaluation. This report does not claim any pass under
+  that new suite because no real-world job runner was encoded in this gate.
 - Keep qmd as the strongest external local baseline for routing/fusion/debuggability
   comparison work.
 - Treat agentmemory, memsearch, mem0, OpenViking, and claude-mem adapter failures as
