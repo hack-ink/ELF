@@ -33,7 +33,9 @@ production embedding provider instead.
 For external projects, the runner clones current upstream `main` inside Docker, records
 the exact commit SHA, reads the same generated corpus and query manifest, and runs a
 same-corpus retrieval adapter when the project exposes a local API or CLI that can run
-without provider keys.
+without provider keys. Each project record includes adapter metadata that marks storage
+and behavior surfaces as `real`, `mocked`, `unsupported`, `blocked`, `incomplete`, or
+`not_encoded`.
 
 Corpus profiles:
 
@@ -94,8 +96,9 @@ Current external same-corpus adapters:
 - agentmemory: writes every corpus document through `mem::remember`, queries through
   `mem::search`, exercises `mem::forget` delete suppression, and probes
   superseding by writing a revised memory through `mem::remember`. The current
-  adapter uses an in-memory SDK/KV mock, so cold-start recovery is recorded as
-  `incomplete` until a durable agentmemory runtime is wired into the harness.
+  adapter uses an in-memory SDK/KV mock, so behavior metadata is `mocked` and durable
+  cold-start recovery is recorded as `blocked` until a persistent agentmemory KV/index
+  path or hosted runtime is wired into the harness.
 - qmd: adds the corpus as a collection, embeds it locally, and runs structured hybrid
   `query --json` for every query case. It also rewrites and deletes corpus files,
   then reruns `qmd update`, `qmd embed -f`, and fresh `qmd query` processes.
@@ -121,9 +124,9 @@ Current deeper checks:
   surfaces.
 - agentmemory: same-corpus retrieval and delete suppression are exercised; update
   replacement is probed through superseding `mem::remember`; cold-start recovery is
-  `incomplete` because the current adapter runs against an in-memory SDK/KV mock.
+  `blocked` because the current adapter runs against an in-memory SDK/KV mock.
 - claude-mem and OpenViking: same-corpus retrieval only when their local runtime path
-  can complete. Update, delete, and recovery checks are not yet encoded for these two
+  can complete. Update, delete, and recovery checks are `not_encoded` for these two
   adapters.
 - Concurrent write, soak stability, and resource-envelope checks are currently encoded
   for ELF. They are not yet encoded for the external adapters. Multi-hour production
@@ -134,6 +137,8 @@ OpenViking attempts the official `.[local-embed]` path plus `OpenViking.add_reso
 and `OpenViking.find`. If the Docker platform cannot build or import
 `llama-cpp-python`, the project is recorded as `incomplete` with
 `retrieval_status = "local_embed_install_failed"` rather than as a retrieval failure.
+The adapter metadata includes retry guidance to pin or provide a Docker-compatible
+local embedding dependency before scaling the OpenViking profile.
 
 ## Checked-In Reports
 
@@ -191,13 +196,15 @@ fixture used by the run. The aggregate report records `corpus.profile`,
 `corpus.track`, `corpus.manifest_id`, `corpus.document_count`, and
 `corpus.query_count` so generated public corpus results are not confused with
 synthetic or private production-corpus results. Each project record includes
-`elapsed_seconds` for rough local runtime comparison. ELF project records also include
-an `embedding` summary so deterministic local and production-provider runs are not
-confused. ELF query records include task, expected evidence IDs, allowed alternate
-evidence IDs, top evidence ID, wrong-result count, and per-query latency. Each project
-record also includes `backfill` evidence with source count, completed count, batch
-size, worker concurrency, resume state, duplicate-source count, and backfill elapsed
-seconds. Each project record also includes `checks` and `check_summary`; the aggregate
+`elapsed_seconds` for rough local runtime comparison and an `adapter` metadata object
+that distinguishes real, mocked, unsupported, blocked, incomplete, and not-encoded
+behavior surfaces. ELF project records also include an `embedding` summary so
+deterministic local and production-provider runs are not confused. ELF query records
+include task, expected evidence IDs, allowed alternate evidence IDs, top evidence ID,
+wrong-result count, and per-query latency. Each project record also includes
+`backfill` evidence with source count, completed count, batch size, worker
+concurrency, resume state, duplicate-source count, and backfill elapsed seconds. Each
+project record also includes `checks` and `check_summary`; the aggregate
 `full_check_summary` is the adoption-relevant multi-check count.
 
 Production-ready claims must cite a concrete report path. A claim based only on
@@ -239,32 +246,37 @@ by the live baseline runner. It does not remove the host report directory.
 
 - `pass`: the project installed and every encoded check for that project passed in the
   selected corpus profile.
-- `fail`: clone, install, import, build, retrieval, or another declared check failed.
-- `incomplete`: the project installed or partially ran, but a declared check could not
-  be completed without extra provider keys, agent-host integration, native dependency
-  support, durable runtime wiring, or a project-specific command mapping not yet
-  encoded in the runner.
+- `wrong_result`: a retrieval check completed but returned the wrong memory or missed
+  expected evidence.
+- `lifecycle_fail`: same-corpus retrieval may pass, but an encoded update, delete,
+  cold-start, persistence, or related lifecycle check failed.
+- `incomplete`: setup or a declared check could not complete because install, runtime,
+  dependency, or adapter wiring failed in Docker.
+- `blocked`: a safe check cannot run without external credentials, manual setup,
+  durable runtime wiring, or host integration outside this run.
+- `not_encoded`: the capability is not covered by the current adapter, so no pass/fail
+  claim is allowed.
 
 The top-level `verdict` is intentionally stricter than the per-project `status`: it
 only returns `pass` when every selected project has `status = "pass"` and
 `retrieval_status = "retrieval_pass"`. The `same_corpus_summary` field is the
 retrieval count and does not treat lifecycle failures as retrieval failures. For
-multi-check comparisons, read `full_check_summary` and each project's `checks`.
+multi-check comparisons, read `full_check_summary`, each project's `checks`, and the
+adapter behavior metadata.
 
-`incomplete` is not a pass. Treat it as evidence that more benchmark wiring is needed.
+`incomplete`, `blocked`, and `not_encoded` are not passes. Treat them as evidence that
+more benchmark wiring or upstream/runtime support is needed.
 
 ## Failure Conditions
 
-A project status should be `fail` when any declared project check completes and proves
-the project did not meet the selected benchmark contract. Examples:
+A project status should be `wrong_result` when same-corpus retrieval runs but does not
+return the expected evidence. A project status should be `lifecycle_fail` when
+retrieval is not the failing condition but an encoded update, delete, cold-start,
+persistence, concurrent, soak, or resource-envelope check completes and proves the
+project did not meet the selected benchmark contract.
 
-- clone, install, import, or build returns a non-zero result;
-- same-corpus retrieval runs but does not return the expected evidence;
-- update replacement leaves superseded evidence searchable;
-- delete suppression leaves deleted evidence searchable;
-- cold-start recovery cannot find data that should persist;
-- concurrent, soak, or resource-envelope checks exceed their declared threshold.
-
-Use `incomplete` instead of `fail` only when the runner cannot execute the declared
-check fairly because adapter wiring, provider credentials, native dependency support,
-or durable runtime integration is missing.
+Use `incomplete` when the runner cannot execute the declared check fairly because clone,
+install, import, build, adapter wiring, native dependency support, or local runtime
+setup failed. Use `blocked` when the check needs credentials, manual setup, durable
+runtime integration, or host integration outside the issue scope. Use `not_encoded`
+when the adapter simply does not cover the capability yet.

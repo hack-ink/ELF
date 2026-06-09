@@ -271,7 +271,11 @@ struct CheckSummary {
 	total: usize,
 	pass: usize,
 	fail: usize,
+	wrong_result: usize,
+	lifecycle_fail: usize,
 	incomplete: usize,
+	blocked: usize,
+	not_encoded: usize,
 }
 
 #[derive(Debug, Serialize)]
@@ -625,7 +629,7 @@ fn retrieval_check(query_results: &[QueryResult]) -> CheckResult {
 
 	CheckResult {
 		name: "same_corpus_retrieval",
-		status: if fail_count == 0 { "pass" } else { "fail" },
+		status: if fail_count == 0 { "pass" } else { "wrong_result" },
 		reason: if fail_count == 0 {
 			"All same-corpus retrieval queries returned expected evidence.".to_string()
 		} else {
@@ -648,7 +652,7 @@ fn worker_indexing_check(evidence: WorkerRunEvidence) -> CheckResult {
 
 	CheckResult {
 		name: "async_worker_indexing_e2e",
-		status: if pass { "pass" } else { "fail" },
+		status: if pass { "pass" } else { "lifecycle_fail" },
 		reason: if pass {
 			"ELF worker processed corpus outbox jobs into persisted chunks and embeddings."
 				.to_string()
@@ -671,7 +675,7 @@ fn resumable_backfill_check(report: &BackfillReport) -> CheckResult {
 
 	CheckResult {
 		name: "resumable_backfill_no_duplicates",
-		status: if pass { "pass" } else { "fail" },
+		status: if pass { "pass" } else { "lifecycle_fail" },
 		reason: if pass {
 			"Checkpointed backfill resumed from durable progress and did not duplicate source documents."
 				.to_string()
@@ -1033,7 +1037,7 @@ fn resource_envelope_check(elapsed_seconds: f64) -> CheckResult {
 
 	CheckResult {
 		name: "resource_envelope",
-		status: if pass { "pass" } else { "fail" },
+		status: if pass { "pass" } else { "lifecycle_fail" },
 		reason: if pass {
 			"ELF live-baseline runtime stayed within the configured local resource envelope."
 				.to_string()
@@ -1070,11 +1074,34 @@ fn incomplete_check(name: &'static str, reason: &str) -> CheckResult {
 }
 
 fn summarize_checks(checks: &[CheckResult]) -> CheckSummary {
+	let wrong_result = checks.iter().filter(|check| check.status == "wrong_result").count();
+	let lifecycle_fail = checks.iter().filter(|check| check.status == "lifecycle_fail").count();
+
 	CheckSummary {
 		total: checks.len(),
 		pass: checks.iter().filter(|check| check.status == "pass").count(),
-		fail: checks.iter().filter(|check| check.status == "fail").count(),
+		fail: wrong_result + lifecycle_fail,
+		wrong_result,
+		lifecycle_fail,
 		incomplete: checks.iter().filter(|check| check.status == "incomplete").count(),
+		blocked: checks.iter().filter(|check| check.status == "blocked").count(),
+		not_encoded: checks.iter().filter(|check| check.status == "not_encoded").count(),
+	}
+}
+
+fn project_status_from_summary(summary: &CheckSummary) -> &'static str {
+	if summary.wrong_result > 0 {
+		"wrong_result"
+	} else if summary.lifecycle_fail > 0 {
+		"lifecycle_fail"
+	} else if summary.blocked > 0 {
+		"blocked"
+	} else if summary.incomplete > 0 {
+		"incomplete"
+	} else if summary.not_encoded > 0 {
+		"not_encoded"
+	} else {
+		"pass"
 	}
 }
 
@@ -1571,15 +1598,18 @@ async fn run(args: Args) -> color_eyre::Result<ElfBaselineReport> {
 	checks.push(resource_envelope_check(started_at.elapsed().as_secs_f64()));
 
 	let check_summary = summarize_checks(&checks);
-	let status =
-		if check_summary.fail == 0 && check_summary.incomplete == 0 { "pass" } else { "fail" };
+	let status = project_status_from_summary(&check_summary);
 	let reason = if status == "pass" {
 		"ELF added the corpus, rebuilt Qdrant, and returned expected evidence for every query"
 			.to_string()
 	} else {
 		format!(
-			"ELF failed {} live-baseline check(s) and left {} incomplete check(s)",
-			check_summary.fail, check_summary.incomplete
+			"ELF reported {} wrong-result, {} lifecycle-failure, {} blocked, {} incomplete, and {} not-encoded live-baseline check(s)",
+			check_summary.wrong_result,
+			check_summary.lifecycle_fail,
+			check_summary.blocked,
+			check_summary.incomplete,
+			check_summary.not_encoded
 		)
 	};
 	let report = ElfBaselineReport {
@@ -2000,7 +2030,7 @@ async fn run_update_replacement_check(
 
 	Ok(CheckResult {
 		name: "update_replaces_note_text",
-		status: if update_pass { "pass" } else { "fail" },
+		status: if update_pass { "pass" } else { "lifecycle_fail" },
 		reason: if update_pass {
 			"Service update plus worker indexing returned the new marker and removed the old marker from the top snippet.".to_string()
 		} else {
@@ -2047,7 +2077,7 @@ async fn run_delete_suppression_check(
 
 	Ok(CheckResult {
 		name: "delete_suppresses_retrieval",
-		status: if delete_pass { "pass" } else { "fail" },
+		status: if delete_pass { "pass" } else { "lifecycle_fail" },
 		reason: if delete_pass {
 			"Service delete suppressed the deleted note from subsequent search results.".to_string()
 		} else {
@@ -2083,7 +2113,7 @@ async fn run_cold_start_recovery_check(
 
 	Ok(CheckResult {
 		name: "cold_start_recovery_search",
-		status: if recovery_query.matched { "pass" } else { "fail" },
+		status: if recovery_query.matched { "pass" } else { "lifecycle_fail" },
 		reason: if recovery_query.matched {
 			"A newly constructed service over the same Postgres and Qdrant stores retrieved persisted evidence.".to_string()
 		} else {
@@ -2156,7 +2186,7 @@ async fn run_concurrent_write_check(
 
 	Ok(CheckResult {
 		name: "concurrent_write_search_e2e",
-		status: if pass { "pass" } else { "fail" },
+		status: if pass { "pass" } else { "lifecycle_fail" },
 		reason: if pass {
 			"Concurrent add_note calls were indexed by the worker and remained searchable."
 				.to_string()
@@ -2244,7 +2274,7 @@ async fn run_soak_stability_check(
 
 	Ok(Some(CheckResult {
 		name: "soak_stability_e2e",
-		status: if pass { "pass" } else { "fail" },
+		status: if pass { "pass" } else { "lifecycle_fail" },
 		reason: if pass {
 			"ELF sustained repeated write, worker indexing, and search probes for the configured soak window.".to_string()
 		} else {
