@@ -297,6 +297,7 @@ args = [
 # | task                       | type    | cwd |
 # | -------------------------- | ------- | --- |
 # | baseline-live-docker       | command |     |
+# | baseline-backfill-docker   | command |     |
 # | baseline-live-report       | command |     |
 # | baseline-live-docker-clean | command |     |
 # | baseline-production-synthetic | command | |
@@ -308,6 +309,14 @@ command = "bash"
 args = [
 	"-lc",
 	"set -euo pipefail; head=\"$(git rev-parse HEAD)\"; if [ -n \"$(git status --porcelain)\" ]; then head=\"$head+dirty\"; fi; export ELF_BASELINE_ELF_HEAD=\"$head\"; docker compose -f docker-compose.baseline.yml run --build --rm baseline-runner",
+]
+
+[tasks.baseline-backfill-docker]
+workspace = false
+command = "bash"
+args = [
+	"-lc",
+	"set -euo pipefail; head=\"$(git rev-parse HEAD)\"; if [ -n \"$(git status --porcelain)\" ]; then head=\"$head+dirty\"; fi; export ELF_BASELINE_ELF_HEAD=\"$head\"; export ELF_BASELINE_PROJECTS=\"${ELF_BASELINE_PROJECTS:-ELF}\"; export ELF_BASELINE_PROFILE=\"${ELF_BASELINE_PROFILE:-backfill}\"; export ELF_BASELINE_BACKFILL_DOCS=\"${ELF_BASELINE_BACKFILL_DOCS:-2000}\"; export ELF_BASELINE_ELF_TIMEOUT_SECONDS=\"${ELF_BASELINE_ELF_TIMEOUT_SECONDS:-3600}\"; export ELF_BASELINE_MAX_ELF_SECONDS=\"${ELF_BASELINE_MAX_ELF_SECONDS:-3600}\"; docker compose -f docker-compose.baseline.yml run --build --rm baseline-runner",
 ]
 
 [tasks.baseline-live-report]
