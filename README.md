@@ -128,8 +128,8 @@ embeddings.
   smoke. OpenViking was `incomplete` because its local embedding dependency could not
   complete in the Docker runner.
 - The benchmark runner and report publisher are checked in and Docker-isolated:
-  `cargo make baseline-live-docker`, `cargo make baseline-live-report`, and
-  `cargo make baseline-live-docker-clean`.
+  `cargo make baseline-live-docker`, `cargo make baseline-backfill-docker`,
+  `cargo make baseline-live-report`, and `cargo make baseline-live-docker-clean`.
 
 Detailed evidence and interpretation:
 

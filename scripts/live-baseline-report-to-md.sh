@@ -115,6 +115,34 @@ render_report() {
           ""
         else empty end
     ),
+    (
+      [.projects[] | select(.backfill != null)] as $backfilled
+      | if ($backfilled | length) > 0 then
+          "## Backfill",
+          "",
+          "| Project | Sources | Completed | Batch | Workers | Resume | Duplicates | Backfill Elapsed |",
+          "| --- | --- | --- | --- | --- | --- | --- | --- |",
+          (
+            $backfilled[]
+            | "| " + (.project | md)
+              + " | `" + (.backfill.source_count | tostring) + "`"
+              + " | `" + (.backfill.completed_count | tostring) + "`"
+              + " | `" + (.backfill.batch_size | tostring) + "`"
+              + " | `" + (.backfill.worker_concurrency | tostring) + "`"
+              + " | `" + (
+                  if .backfill.resume.enabled then
+                    "resumed after " + (.backfill.resume.completed_before_resume | tostring)
+                    + "/" + (.backfill.resume.completed_after_resume | tostring)
+                  else
+                    "disabled"
+                  end
+                ) + "`"
+              + " | `" + ((.backfill.duplicate_source_notes | length) | tostring) + "`"
+              + " | `" + (.backfill.elapsed_seconds | tostring) + "s` |"
+          ),
+          ""
+        else empty end
+    ),
     "## Result Semantics",
     "",
     "- `pass`: every encoded check for the selected project and profile passed.",
