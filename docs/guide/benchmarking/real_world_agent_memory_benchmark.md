@@ -139,16 +139,36 @@ The suite currently encodes:
 
 - `trust_source_of_truth`: evidence binding, source refs, and Qdrant rebuild from
   Postgres-held chunk embeddings before answering.
-- `memory_evolution`: TTL/delete suppression for a stale deleted fact.
+- `memory_evolution`: TTL/delete suppression plus current-versus-historical preference,
+  issue status, deployment method, benchmark conclusion, and temporal relation cases.
 - `capture_integration`: write-policy audit behavior for redaction/private exclusion.
 - `personalization`: scoped stable preference correction without temporary or
   cross-project preference leakage.
 
 The generated report includes evidence coverage, source-ref coverage, quote coverage,
-unsupported-claim count, stale retrieval count, scope correctness, redaction leak
-count, and Qdrant rebuild case/pass counts. The fixtures include negative traps for
-unsupported prior claims, stale deleted facts, cross-project preference leakage, and
-private/redacted text leakage.
+unsupported-claim count, stale retrieval count, stale-answer count, conflict detection
+count, update rationale availability, temporal validity `not_encoded` count, scope
+correctness, redaction leak count, and Qdrant rebuild case/pass counts. The fixtures
+include negative traps for unsupported prior claims, stale deleted facts, stale
+historical facts, cross-project preference leakage, and private/redacted text leakage.
+
+Narrow memory evolution increment:
+
+```sh
+cargo make real-world-memory-evolution
+```
+
+Artifacts:
+
+```text
+tmp/real-world-memory/evolution-report.json
+tmp/real-world-memory/evolution-report.md
+```
+
+This parses `apps/elf-eval/fixtures/real_world_memory/evolution/` and reports only
+the cases added for current-versus-historical interpretation and temporal staleness.
+The relation temporal-validity fixture is deliberately `not_encoded` and declares the
+graph follow-up instead of claiming a fake graph pass.
 
 Operator debugging UX increment:
 

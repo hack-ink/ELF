@@ -108,6 +108,9 @@ struct RealWorldJob {
 	operator_debug: Option<OperatorDebugEvidence>,
 	#[serde(default)]
 	tags: Vec<String>,
+	#[serde(default)]
+	encoding: JobEncoding,
+	memory_evolution: Option<MemoryEvolution>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -249,6 +252,57 @@ struct NegativeTrap {
 	failure_if_used: bool,
 }
 
+#[derive(Debug, Default, Deserialize)]
+struct JobEncoding {
+	status: Option<TypedStatus>,
+	reason: Option<String>,
+	follow_up: Option<FollowUpInput>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct FollowUpInput {
+	title: String,
+	reason: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct MemoryEvolution {
+	#[serde(default)]
+	current_evidence_ids: Vec<String>,
+	#[serde(default)]
+	historical_evidence_ids: Vec<String>,
+	#[serde(default)]
+	stale_trap_ids: Vec<String>,
+	#[serde(default)]
+	conflicts: Vec<EvolutionConflict>,
+	update_rationale: Option<UpdateRationale>,
+	temporal_validity: Option<TemporalValidity>,
+}
+
+#[derive(Debug, Deserialize)]
+struct EvolutionConflict {
+	conflict_id: String,
+	claim_id: String,
+	current_evidence_id: String,
+	historical_evidence_id: String,
+	resolved_by_evidence_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct UpdateRationale {
+	claim_id: String,
+	#[serde(default)]
+	evidence_ids: Vec<String>,
+	available: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct TemporalValidity {
+	required: bool,
+	encoded: bool,
+	follow_up: Option<String>,
+}
+
 #[derive(Debug, Deserialize)]
 struct ScoringRubric {
 	#[serde(default)]
@@ -374,6 +428,10 @@ struct RealWorldReport {
 	unsupported_claims: Vec<UnsupportedClaimReport>,
 	not_encoded_suites: Vec<String>,
 	private_corpus_redaction: PrivateCorpusRedaction,
+	#[serde(default)]
+	evolution: EvolutionSummary,
+	#[serde(default)]
+	follow_ups: Vec<FollowUpReport>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -399,6 +457,14 @@ struct ReportSummary {
 	unsupported_claim: usize,
 	unsupported_claim_count: usize,
 	wrong_result_count: usize,
+	#[serde(default)]
+	stale_answer_count: usize,
+	#[serde(default)]
+	conflict_detection_count: usize,
+	#[serde(default)]
+	update_rationale_available_count: usize,
+	#[serde(default)]
+	temporal_validity_not_encoded_count: usize,
 	mean_score: f64,
 	mean_latency_ms: Option<f64>,
 	total_cost: Option<CostReport>,
@@ -454,6 +520,14 @@ struct SuiteReport {
 	score_mean: Option<f64>,
 	unsupported_claim_count: usize,
 	wrong_result_count: usize,
+	#[serde(default)]
+	stale_answer_count: usize,
+	#[serde(default)]
+	conflict_detection_count: usize,
+	#[serde(default)]
+	update_rationale_available_count: usize,
+	#[serde(default)]
+	temporal_validity_not_encoded_count: usize,
 	reason: String,
 }
 
@@ -470,6 +544,14 @@ struct JobReport {
 	produced_evidence: Vec<String>,
 	unsupported_claim_count: usize,
 	wrong_result_count: usize,
+	#[serde(default)]
+	stale_answer_count: usize,
+	#[serde(default)]
+	conflict_detection_count: usize,
+	#[serde(default)]
+	update_rationale_available: bool,
+	#[serde(default)]
+	temporal_validity_not_encoded: bool,
 	latency_ms: Option<f64>,
 	cost: Option<CostReport>,
 	trap_ids_used: Vec<String>,
@@ -501,6 +583,8 @@ struct JobReport {
 	qdrant_rebuild_case: bool,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	operator_debug: Option<OperatorDebugEvidence>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	evolution: Option<EvolutionJobReport>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -528,6 +612,38 @@ struct UnsupportedClaimReport {
 	evidence_ids: Vec<String>,
 }
 
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct EvolutionSummary {
+	stale_answer_count: usize,
+	conflict_detection_count: usize,
+	update_rationale_available_count: usize,
+	temporal_validity_not_encoded_count: usize,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct EvolutionJobReport {
+	current_evidence: Vec<String>,
+	historical_evidence: Vec<String>,
+	stale_trap_ids_used: Vec<String>,
+	stale_answer_count: usize,
+	conflict_count: usize,
+	conflict_detection_count: usize,
+	update_rationale_available: bool,
+	temporal_validity_required: bool,
+	temporal_validity_encoded: bool,
+	temporal_validity_not_encoded: bool,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	follow_up: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct FollowUpReport {
+	suite_id: String,
+	job_id: String,
+	title: String,
+	reason: String,
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 struct PrivateCorpusRedaction {
 	policy: String,
@@ -544,6 +660,7 @@ struct JobScoring {
 	trap_ids_used: Vec<String>,
 	dimension_scores: Vec<DimensionScoreReport>,
 	reason: String,
+	evolution: Option<EvolutionJobReport>,
 }
 
 #[derive(Debug, Default)]
@@ -557,6 +674,9 @@ struct FailureCounts {
 	operator_debug_raw_sql: usize,
 	operator_debug_trace_gaps: usize,
 	operator_debug_repair_unclear: usize,
+	stale_answers: usize,
+	conflict_detection_missing: usize,
+	update_rationale_missing: usize,
 }
 
 #[derive(Debug, Default)]
@@ -676,6 +796,8 @@ fn validate_job(job: &RealWorldJob, path: &Path) -> Result<()> {
 	validate_scoring_rubric(job, path)?;
 	validate_allowed_uncertainty(job, path)?;
 	validate_operator_debug(job, path)?;
+	validate_job_encoding(job, path)?;
+	validate_memory_evolution(job, path)?;
 
 	Ok(())
 }
@@ -949,6 +1071,141 @@ fn validate_operator_debug(job: &RealWorldJob, path: &Path) -> Result<()> {
 	Ok(())
 }
 
+fn validate_job_encoding(job: &RealWorldJob, path: &Path) -> Result<()> {
+	if let Some(status) = job.encoding.status {
+		if !matches!(
+			status,
+			TypedStatus::NotEncoded | TypedStatus::Blocked | TypedStatus::Incomplete
+		) {
+			return Err(eyre::eyre!(
+				"{} job {} uses encoding.status {}; only not_encoded, blocked, or incomplete are allowed.",
+				path.display(),
+				job.job_id,
+				status_str(status)
+			));
+		}
+		if job.encoding.reason.as_deref().is_none_or(|reason| reason.trim().is_empty()) {
+			return Err(eyre::eyre!(
+				"{} job {} declares encoding.status but no reason.",
+				path.display(),
+				job.job_id
+			));
+		}
+	}
+	if let Some(follow_up) = &job.encoding.follow_up
+		&& (follow_up.title.trim().is_empty() || follow_up.reason.trim().is_empty())
+	{
+		return Err(eyre::eyre!(
+			"{} job {} has an incomplete encoding follow-up.",
+			path.display(),
+			job.job_id
+		));
+	}
+
+	Ok(())
+}
+
+fn validate_memory_evolution(job: &RealWorldJob, path: &Path) -> Result<()> {
+	let Some(evolution) = &job.memory_evolution else {
+		return Ok(());
+	};
+	let evidence_ids = corpus_evidence_ids(job);
+	let trap_ids =
+		job.negative_traps.iter().map(|trap| trap.trap_id.as_str()).collect::<BTreeSet<_>>();
+
+	for evidence_id in
+		evolution.current_evidence_ids.iter().chain(evolution.historical_evidence_ids.iter())
+	{
+		ensure_known_evidence(path, &evidence_ids, evidence_id)?;
+	}
+	for trap_id in &evolution.stale_trap_ids {
+		if !trap_ids.contains(trap_id.as_str()) {
+			return Err(eyre::eyre!(
+				"{} job {} references unknown stale trap id {}.",
+				path.display(),
+				job.job_id,
+				trap_id
+			));
+		}
+	}
+	for conflict in &evolution.conflicts {
+		validate_evolution_conflict(path, &evidence_ids, conflict)?;
+	}
+
+	if let Some(rationale) = &evolution.update_rationale {
+		validate_update_rationale(path, &evidence_ids, rationale)?;
+	}
+	if let Some(temporal) = &evolution.temporal_validity {
+		validate_temporal_validity(job, path, temporal)?;
+	}
+
+	Ok(())
+}
+
+fn validate_evolution_conflict(
+	path: &Path,
+	evidence_ids: &BTreeSet<String>,
+	conflict: &EvolutionConflict,
+) -> Result<()> {
+	if conflict.conflict_id.trim().is_empty() || conflict.claim_id.trim().is_empty() {
+		return Err(eyre::eyre!("{} has an incomplete evolution conflict.", path.display()));
+	}
+
+	ensure_known_evidence(path, evidence_ids, conflict.current_evidence_id.as_str())?;
+	ensure_known_evidence(path, evidence_ids, conflict.historical_evidence_id.as_str())?;
+
+	if let Some(evidence_id) = &conflict.resolved_by_evidence_id {
+		ensure_known_evidence(path, evidence_ids, evidence_id)?;
+	}
+
+	Ok(())
+}
+
+fn validate_update_rationale(
+	path: &Path,
+	evidence_ids: &BTreeSet<String>,
+	rationale: &UpdateRationale,
+) -> Result<()> {
+	if rationale.claim_id.trim().is_empty() {
+		return Err(eyre::eyre!(
+			"{} has an update rationale with an empty claim_id.",
+			path.display()
+		));
+	}
+
+	for evidence_id in &rationale.evidence_ids {
+		ensure_known_evidence(path, evidence_ids, evidence_id)?;
+	}
+
+	Ok(())
+}
+
+fn validate_temporal_validity(
+	job: &RealWorldJob,
+	path: &Path,
+	temporal: &TemporalValidity,
+) -> Result<()> {
+	if temporal.follow_up.as_deref().is_some_and(|follow_up| follow_up.trim().is_empty()) {
+		return Err(eyre::eyre!(
+			"{} job {} has an empty temporal validity follow-up.",
+			path.display(),
+			job.job_id
+		));
+	}
+	if temporal.required
+		&& !temporal.encoded
+		&& !matches!(job.encoding.status, Some(TypedStatus::NotEncoded | TypedStatus::Blocked))
+	{
+		return Err(eyre::eyre!(
+			"{} job {} requires temporal validity but does not declare a not_encoded or blocked encoding status.",
+			path.display(),
+			job.job_id
+		));
+	}
+
+	Ok(())
+}
+
 fn validate_optional_debug_field(path: &Path, value: Option<&str>, field: &str) -> Result<()> {
 	if value.is_some_and(|value| value.trim().is_empty()) {
 		return Err(eyre::eyre!("{} has empty operator_debug {field}.", path.display()));
@@ -1019,6 +1276,8 @@ fn build_report(jobs: &[RealWorldJob], args: &RunArgs) -> Result<RealWorldReport
 		.map(|suite| suite.suite_id.clone())
 		.collect::<Vec<_>>();
 	let summary = report_summary(&job_reports, &suites);
+	let evolution = evolution_summary(&job_reports);
+	let follow_ups = follow_up_reports(jobs);
 
 	Ok(RealWorldReport {
 		schema: REPORT_SCHEMA.to_string(),
@@ -1033,19 +1292,48 @@ fn build_report(jobs: &[RealWorldJob], args: &RunArgs) -> Result<RealWorldReport
 		unsupported_claims,
 		not_encoded_suites,
 		private_corpus_redaction: private_corpus_redaction(jobs),
+		evolution,
+		follow_ups,
 	})
 }
 
 fn score_job(job: &RealWorldJob) -> JobScoring {
 	let answer = produced_answer(job);
 	let produced_evidence = produced_evidence_ids(answer);
+	let trap_ids_used = trap_ids_used(job, &produced_evidence);
+
+	if let Some(status) = job.encoding.status {
+		let evolution = evolution_job_report(job, answer, &trap_ids_used, 0);
+
+		return JobScoring {
+			status,
+			normalized_score: 0.0,
+			hard_fail_hits: Vec::new(),
+			unsupported_claims: Vec::new(),
+			wrong_result_count: 0,
+			trap_ids_used,
+			dimension_scores: declared_not_encoded_dimension_scores(job),
+			reason: job
+				.encoding
+				.reason
+				.clone()
+				.unwrap_or_else(|| "Job did not reach a runnable scoring state.".to_string()),
+			evolution,
+		};
+	}
+
 	let missing_claims = missing_required_claims(job, answer);
 	let forbidden_claims = forbidden_claim_hits(job, answer);
 	let missing_evidence = missing_required_evidence(job, &produced_evidence);
-	let trap_ids_used = trap_ids_used(job, &produced_evidence);
 	let mut unsupported_claims = unsupported_claims(job, answer);
 	let operator_counts = operator_debug_failure_counts(job);
 	let hard_fail_hits = hard_fail_hits(job, &unsupported_claims, &trap_ids_used);
+	let evolution = evolution_job_report(job, answer, &trap_ids_used, forbidden_claims.len());
+	let stale_answers = evolution.as_ref().map_or(0, |report| report.stale_answer_count);
+	let conflict_detection_missing = evolution
+		.as_ref()
+		.map_or(0, |report| report.conflict_count - report.conflict_detection_count);
+	let update_rationale_missing = evolution.as_ref().map_or(0, update_rationale_missing_count);
 	let counts = FailureCounts {
 		missing_claims: missing_claims.len(),
 		forbidden_claims: forbidden_claims.len(),
@@ -1056,6 +1344,9 @@ fn score_job(job: &RealWorldJob) -> JobScoring {
 		operator_debug_raw_sql: operator_counts.operator_debug_raw_sql,
 		operator_debug_trace_gaps: operator_counts.operator_debug_trace_gaps,
 		operator_debug_repair_unclear: operator_counts.operator_debug_repair_unclear,
+		stale_answers,
+		conflict_detection_missing,
+		update_rationale_missing,
 	};
 	let dimension_scores = dimension_scores(job, &counts);
 	let normalized_score = normalized_score(&dimension_scores);
@@ -1066,7 +1357,9 @@ fn score_job(job: &RealWorldJob) -> JobScoring {
 		+ counts.operator_debug_missing
 		+ counts.operator_debug_raw_sql
 		+ counts.operator_debug_trace_gaps
-		+ counts.operator_debug_repair_unclear;
+		+ counts.operator_debug_repair_unclear
+		+ counts.conflict_detection_missing
+		+ counts.update_rationale_missing;
 	let status = job_status(
 		normalized_score,
 		job.scoring_rubric.pass_threshold,
@@ -1089,6 +1382,7 @@ fn score_job(job: &RealWorldJob) -> JobScoring {
 		trap_ids_used,
 		dimension_scores,
 		reason,
+		evolution,
 	}
 }
 
@@ -1106,6 +1400,19 @@ fn operator_debug_failure_counts(job: &RealWorldJob) -> FailureCounts {
 		operator_debug_repair_unclear: usize::from(debug.repair_action_clarity != "clear"),
 		..FailureCounts::default()
 	}
+}
+
+fn declared_not_encoded_dimension_scores(job: &RealWorldJob) -> Vec<DimensionScoreReport> {
+	job.scoring_rubric
+		.dimensions
+		.iter()
+		.map(|(dimension_id, dimension)| DimensionScoreReport {
+			dimension: dimension_id.clone(),
+			score: 0.0,
+			max_points: dimension.max_points,
+			weight: dimension.weight,
+		})
+		.collect()
 }
 
 fn produced_answer(job: &RealWorldJob) -> &ProducedAnswer {
@@ -1194,6 +1501,129 @@ fn trap_ids_used(job: &RealWorldJob, produced_evidence: &BTreeSet<String>) -> Ve
 		})
 		.map(|trap| trap.trap_id.clone())
 		.collect()
+}
+
+fn evolution_job_report(
+	job: &RealWorldJob,
+	answer: &ProducedAnswer,
+	trap_ids_used: &[String],
+	forbidden_claim_count: usize,
+) -> Option<EvolutionJobReport> {
+	let evolution = job.memory_evolution.as_ref()?;
+	let stale_trap_ids_used = stale_trap_ids_used(job, evolution, trap_ids_used);
+	let stale_answer_count =
+		stale_answer_count(job, evolution, &stale_trap_ids_used, forbidden_claim_count);
+	let conflict_detection_count = evolution
+		.conflicts
+		.iter()
+		.filter(|conflict| conflict_is_detected(conflict, answer))
+		.count();
+	let update_rationale_available = evolution
+		.update_rationale
+		.as_ref()
+		.is_some_and(|rationale| update_rationale_is_available(rationale, answer));
+	let temporal_validity_required =
+		evolution.temporal_validity.as_ref().is_some_and(|temporal| temporal.required);
+	let temporal_validity_encoded =
+		evolution.temporal_validity.as_ref().is_some_and(|temporal| temporal.encoded);
+	let temporal_validity_not_encoded = temporal_validity_required && !temporal_validity_encoded;
+	let follow_up = evolution
+		.temporal_validity
+		.as_ref()
+		.and_then(|temporal| temporal.follow_up.clone())
+		.or_else(|| job.encoding.follow_up.as_ref().map(|follow_up| follow_up.title.clone()));
+
+	Some(EvolutionJobReport {
+		current_evidence: evolution.current_evidence_ids.clone(),
+		historical_evidence: evolution.historical_evidence_ids.clone(),
+		stale_answer_count,
+		stale_trap_ids_used,
+		conflict_count: evolution.conflicts.len(),
+		conflict_detection_count,
+		update_rationale_available,
+		temporal_validity_required,
+		temporal_validity_encoded,
+		temporal_validity_not_encoded,
+		follow_up,
+	})
+}
+
+fn stale_answer_count(
+	job: &RealWorldJob,
+	evolution: &MemoryEvolution,
+	stale_trap_ids_used: &[String],
+	forbidden_claim_count: usize,
+) -> usize {
+	let stale_trap_count = if evolution.stale_trap_ids.is_empty() {
+		job.negative_traps.iter().filter(|trap| trap.trap_type == "stale_fact").count()
+	} else {
+		evolution.stale_trap_ids.len()
+	};
+	let stale_forbidden_claims = if stale_trap_count > 0 { forbidden_claim_count } else { 0 };
+
+	stale_trap_ids_used.len().max(stale_forbidden_claims)
+}
+
+fn stale_trap_ids_used(
+	job: &RealWorldJob,
+	evolution: &MemoryEvolution,
+	trap_ids_used: &[String],
+) -> Vec<String> {
+	let declared_stale_traps = if evolution.stale_trap_ids.is_empty() {
+		job.negative_traps
+			.iter()
+			.filter(|trap| trap.trap_type == "stale_fact")
+			.map(|trap| trap.trap_id.as_str())
+			.collect::<BTreeSet<_>>()
+	} else {
+		evolution.stale_trap_ids.iter().map(String::as_str).collect::<BTreeSet<_>>()
+	};
+
+	trap_ids_used
+		.iter()
+		.filter(|trap_id| declared_stale_traps.contains(trap_id.as_str()))
+		.cloned()
+		.collect()
+}
+
+fn conflict_is_detected(conflict: &EvolutionConflict, answer: &ProducedAnswer) -> bool {
+	let mut required_evidence =
+		vec![conflict.current_evidence_id.as_str(), conflict.historical_evidence_id.as_str()];
+
+	if let Some(evidence_id) = &conflict.resolved_by_evidence_id {
+		required_evidence.push(evidence_id.as_str());
+	}
+
+	answer.claims.iter().any(|claim| {
+		claim.claim_id.as_deref() == Some(conflict.claim_id.as_str())
+			&& required_evidence
+				.iter()
+				.all(|evidence_id| claim.evidence_ids.iter().any(|id| id == evidence_id))
+	})
+}
+
+fn update_rationale_is_available(rationale: &UpdateRationale, answer: &ProducedAnswer) -> bool {
+	if !rationale.available {
+		return false;
+	}
+
+	answer.claims.iter().any(|claim| {
+		claim.claim_id.as_deref() == Some(rationale.claim_id.as_str())
+			&& !claim.evidence_ids.is_empty()
+			&& rationale.evidence_ids.iter().any(|evidence_id| {
+				claim.evidence_ids.iter().any(|produced| produced == evidence_id)
+			})
+	})
+}
+
+fn update_rationale_missing_count(report: &EvolutionJobReport) -> usize {
+	if report.update_rationale_available || report.temporal_validity_not_encoded {
+		0
+	} else if report.conflict_count > 0 {
+		1
+	} else {
+		0
+	}
 }
 
 fn unsupported_claims(job: &RealWorldJob, answer: &ProducedAnswer) -> Vec<UnsupportedClaimReport> {
@@ -1290,11 +1720,15 @@ fn dimension_score(dimension_id: &str, max_points: f64, counts: &FailureCounts) 
 		"answer_correctness" | "workflow_helpfulness" =>
 			counts.missing_claims > 0
 				|| counts.forbidden_claims > 0
-				|| counts.operator_debug_repair_unclear > 0,
+				|| counts.operator_debug_repair_unclear > 0
+				|| counts.conflict_detection_missing > 0,
 		"evidence_grounding" => counts.missing_evidence > 0 || counts.unsupported_claims > 0,
 		"trap_avoidance" => counts.trap_uses > 0,
 		"uncertainty_handling" => counts.unsupported_claims > 0,
-		"lifecycle_behavior" => false,
+		"lifecycle_behavior" =>
+			counts.stale_answers > 0
+				|| counts.conflict_detection_missing > 0
+				|| counts.update_rationale_missing > 0,
 		"debuggability" =>
 			counts.missing_claims > 0
 				|| counts.unsupported_claims > 0
@@ -1351,6 +1785,8 @@ fn job_reason(status: TypedStatus, counts: &FailureCounts, normalized_score: f64
 				+ counts.operator_debug_raw_sql
 				+ counts.operator_debug_trace_gaps
 				+ counts.operator_debug_repair_unclear
+				+ counts.conflict_detection_missing
+				+ counts.update_rationale_missing
 		),
 		TypedStatus::WrongResult => format!(
 			"Job produced {} wrong-result signal(s) and normalized_score {normalized_score:.3}.",
@@ -1362,6 +1798,8 @@ fn job_reason(status: TypedStatus, counts: &FailureCounts, normalized_score: f64
 				+ counts.operator_debug_raw_sql
 				+ counts.operator_debug_trace_gaps
 				+ counts.operator_debug_repair_unclear
+				+ counts.conflict_detection_missing
+				+ counts.update_rationale_missing
 		),
 		_ => "Job did not reach a runnable scoring state.".to_string(),
 	}
@@ -1383,6 +1821,22 @@ fn job_report(job: &RealWorldJob, scoring: JobScoring) -> JobReport {
 		produced_evidence: produced_evidence_ids(answer).into_iter().collect(),
 		unsupported_claim_count: scoring.unsupported_claims.len(),
 		wrong_result_count: scoring.wrong_result_count,
+		stale_answer_count: scoring
+			.evolution
+			.as_ref()
+			.map_or(0, |report| report.stale_answer_count),
+		conflict_detection_count: scoring
+			.evolution
+			.as_ref()
+			.map_or(0, |report| report.conflict_detection_count),
+		update_rationale_available: scoring
+			.evolution
+			.as_ref()
+			.is_some_and(|report| report.update_rationale_available),
+		temporal_validity_not_encoded: scoring
+			.evolution
+			.as_ref()
+			.is_some_and(|report| report.temporal_validity_not_encoded),
 		latency_ms: answer.latency_ms,
 		cost: answer.cost.clone(),
 		trap_ids_used: scoring.trap_ids_used,
@@ -1401,6 +1855,7 @@ fn job_report(job: &RealWorldJob, scoring: JobScoring) -> JobReport {
 		redaction_leak_count: metrics.redaction_leak_count,
 		qdrant_rebuild_case: metrics.qdrant_rebuild_case,
 		operator_debug: job.operator_debug.clone(),
+		evolution: scoring.evolution,
 	}
 }
 
@@ -1530,6 +1985,10 @@ fn suite_report(suite_id: &str, jobs: &[JobReport]) -> SuiteReport {
 			score_mean: None,
 			unsupported_claim_count: 0,
 			wrong_result_count: 0,
+			stale_answer_count: 0,
+			conflict_detection_count: 0,
+			update_rationale_available_count: 0,
+			temporal_validity_not_encoded_count: 0,
 			reason: NOT_ENCODED_REASON.to_string(),
 		};
 	}
@@ -1538,6 +1997,12 @@ fn suite_report(suite_id: &str, jobs: &[JobReport]) -> SuiteReport {
 	let score_sum = suite_jobs.iter().map(|job| job.normalized_score).sum::<f64>();
 	let unsupported_claim_count = suite_jobs.iter().map(|job| job.unsupported_claim_count).sum();
 	let wrong_result_count = suite_jobs.iter().map(|job| job.wrong_result_count).sum();
+	let stale_answer_count = suite_jobs.iter().map(|job| job.stale_answer_count).sum();
+	let conflict_detection_count = suite_jobs.iter().map(|job| job.conflict_detection_count).sum();
+	let update_rationale_available_count =
+		suite_jobs.iter().filter(|job| job.update_rationale_available).count();
+	let temporal_validity_not_encoded_count =
+		suite_jobs.iter().filter(|job| job.temporal_validity_not_encoded).count();
 
 	SuiteReport {
 		suite_id: suite_id.to_string(),
@@ -1546,6 +2011,10 @@ fn suite_report(suite_id: &str, jobs: &[JobReport]) -> SuiteReport {
 		score_mean: Some(round3(score_sum / suite_jobs.len() as f64)),
 		unsupported_claim_count,
 		wrong_result_count,
+		stale_answer_count,
+		conflict_detection_count,
+		update_rationale_available_count,
+		temporal_validity_not_encoded_count,
 		reason: suite_reason(status, suite_jobs.len()),
 	}
 }
@@ -1563,6 +2032,8 @@ fn aggregate_status(jobs: &[&JobReport]) -> TypedStatus {
 		TypedStatus::Incomplete
 	} else if statuses.contains(&TypedStatus::Blocked) {
 		TypedStatus::Blocked
+	} else if statuses.contains(&TypedStatus::NotEncoded) {
+		TypedStatus::NotEncoded
 	} else if statuses.contains(&TypedStatus::Pass) {
 		TypedStatus::Pass
 	} else {
@@ -1580,7 +2051,12 @@ fn suite_reason(status: TypedStatus, encoded_job_count: usize) -> String {
 			"At least one encoded lifecycle-scored job failed lifecycle behavior.".to_string(),
 		TypedStatus::Incomplete => "At least one encoded job could not complete.".to_string(),
 		TypedStatus::Blocked => "At least one encoded job is blocked.".to_string(),
-		TypedStatus::NotEncoded => NOT_ENCODED_REASON.to_string(),
+		TypedStatus::NotEncoded =>
+			if encoded_job_count == 0 {
+				NOT_ENCODED_REASON.to_string()
+			} else {
+				"At least one encoded fixture declares a not_encoded limitation.".to_string()
+			},
 	}
 }
 
@@ -1595,13 +2071,20 @@ fn report_summary(jobs: &[JobReport], suites: &[SuiteReport]) -> ReportSummary {
 	let scope_correct_count = jobs.iter().map(|job| job.scope_correct_count).sum();
 	let mut summary = ReportSummary {
 		job_count: jobs.len(),
-		encoded_suite_count: suites
-			.iter()
-			.filter(|suite| suite.status != TypedStatus::NotEncoded)
-			.count(),
-		not_encoded: suites.iter().filter(|suite| suite.status == TypedStatus::NotEncoded).count(),
+		encoded_suite_count: suites.iter().filter(|suite| suite.encoded_job_count > 0).count(),
+		not_encoded: 0,
 		unsupported_claim_count: jobs.iter().map(|job| job.unsupported_claim_count).sum(),
 		wrong_result_count: jobs.iter().map(|job| job.wrong_result_count).sum(),
+		stale_answer_count: jobs.iter().map(|job| job.stale_answer_count).sum(),
+		conflict_detection_count: jobs.iter().map(|job| job.conflict_detection_count).sum(),
+		update_rationale_available_count: jobs
+			.iter()
+			.filter(|job| job.update_rationale_available)
+			.count(),
+		temporal_validity_not_encoded_count: jobs
+			.iter()
+			.filter(|job| job.temporal_validity_not_encoded)
+			.count(),
 		mean_score: mean_score(jobs),
 		mean_latency_ms: mean_latency(jobs),
 		total_cost: total_cost(jobs),
@@ -1657,6 +2140,34 @@ fn report_summary(jobs: &[JobReport], suites: &[SuiteReport]) -> ReportSummary {
 	}
 
 	summary
+}
+
+fn evolution_summary(jobs: &[JobReport]) -> EvolutionSummary {
+	EvolutionSummary {
+		stale_answer_count: jobs.iter().map(|job| job.stale_answer_count).sum(),
+		conflict_detection_count: jobs.iter().map(|job| job.conflict_detection_count).sum(),
+		update_rationale_available_count: jobs
+			.iter()
+			.filter(|job| job.update_rationale_available)
+			.count(),
+		temporal_validity_not_encoded_count: jobs
+			.iter()
+			.filter(|job| job.temporal_validity_not_encoded)
+			.count(),
+	}
+}
+
+fn follow_up_reports(jobs: &[RealWorldJob]) -> Vec<FollowUpReport> {
+	jobs.iter()
+		.filter_map(|job| {
+			job.encoding.follow_up.as_ref().map(|follow_up| FollowUpReport {
+				suite_id: job.suite.clone(),
+				job_id: job.job_id.clone(),
+				title: follow_up.title.clone(),
+				reason: follow_up.reason.clone(),
+			})
+		})
+		.collect()
 }
 
 fn ratio(numerator: usize, denominator: usize) -> f64 {
@@ -1756,7 +2267,9 @@ fn render_markdown(report: &RealWorldReport, report_path: &Path) -> String {
 	render_markdown_suites(&mut out, report);
 	render_markdown_jobs(&mut out, report);
 	render_markdown_operator_debugging(&mut out, report);
+	render_markdown_evolution(&mut out, report);
 	render_markdown_unsupported_claims(&mut out, report);
+	render_markdown_follow_ups(&mut out, report);
 	render_markdown_semantics(&mut out, report);
 
 	out
@@ -1786,14 +2299,33 @@ fn render_markdown_header(out: &mut String, report: &RealWorldReport, report_pat
 		md_inline(report.adapter.behavior.as_str())
 	));
 	out.push_str(&format!("- Jobs: `{}`\n", report.summary.job_count));
-	out.push_str(&format!("- Encoded suites: `{}`\n", report.summary.encoded_suite_count));
-	out.push_str(&format!("- Not-encoded suites: `{}`\n", report.not_encoded_suites.len()));
-	out.push_str(&format!("- Status summary: `{}` pass, `{}` wrong_result, `{}` lifecycle_fail, `{}` incomplete, `{}` blocked, `{}` unsupported_claim\n", report.summary.pass, report.summary.wrong_result, report.summary.lifecycle_fail, report.summary.incomplete, report.summary.blocked, report.summary.unsupported_claim));
+	out.push_str(&format!(
+		"- Suites with encoded jobs: `{}`\n",
+		report.summary.encoded_suite_count
+	));
+	out.push_str(&format!(
+		"- Suites with `not_encoded` status: `{}`\n",
+		report.not_encoded_suites.len()
+	));
+	out.push_str(&format!("- Status summary: `{}` pass, `{}` wrong_result, `{}` lifecycle_fail, `{}` incomplete, `{}` blocked, `{}` not_encoded, `{}` unsupported_claim\n", report.summary.pass, report.summary.wrong_result, report.summary.lifecycle_fail, report.summary.incomplete, report.summary.blocked, report.summary.not_encoded, report.summary.unsupported_claim));
 	out.push_str(&format!(
 		"- Unsupported claim count: `{}`\n",
 		report.summary.unsupported_claim_count
 	));
 	out.push_str(&format!("- Wrong-result count: `{}`\n", report.summary.wrong_result_count));
+	out.push_str(&format!("- Stale-answer count: `{}`\n", report.summary.stale_answer_count));
+	out.push_str(&format!(
+		"- Conflict detections: `{}`\n",
+		report.summary.conflict_detection_count
+	));
+	out.push_str(&format!(
+		"- Update rationales available: `{}`\n",
+		report.summary.update_rationale_available_count
+	));
+	out.push_str(&format!(
+		"- Temporal validity not encoded: `{}`\n",
+		report.summary.temporal_validity_not_encoded_count
+	));
 	out.push_str(&format!(
 		"- Evidence coverage: `{}/{}` (`{:.3}`)\n",
 		report.summary.evidence_covered_count,
@@ -1850,17 +2382,21 @@ fn render_markdown_header(out: &mut String, report: &RealWorldReport, report_pat
 fn render_markdown_suites(out: &mut String, report: &RealWorldReport) {
 	out.push_str("## Suites\n\n");
 	out.push_str(
-		"| Suite | Status | Jobs | Score | Unsupported Claims | Wrong Results | Reason |\n",
+		"| Suite | Status | Jobs | Score | Stale Answers | Conflicts | Update Rationales | Temporal Gaps | Unsupported Claims | Wrong Results | Reason |\n",
 	);
-	out.push_str("| --- | --- | ---: | ---: | ---: | ---: | --- |\n");
+	out.push_str("| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |\n");
 
 	for suite in &report.suites {
 		out.push_str(&format!(
-			"| {} | `{}` | {} | `{}` | {} | {} | {} |\n",
+			"| {} | `{}` | {} | `{}` | {} | {} | {} | {} | {} | {} | {} |\n",
 			md_cell(suite.suite_id.as_str()),
 			status_str(suite.status),
 			suite.encoded_job_count,
 			optional_f64(suite.score_mean, ""),
+			suite.stale_answer_count,
+			suite.conflict_detection_count,
+			suite.update_rationale_available_count,
+			suite.temporal_validity_not_encoded_count,
 			suite.unsupported_claim_count,
 			suite.wrong_result_count,
 			md_cell(suite.reason.as_str())
@@ -1872,8 +2408,10 @@ fn render_markdown_suites(out: &mut String, report: &RealWorldReport) {
 
 fn render_markdown_jobs(out: &mut String, report: &RealWorldReport) {
 	out.push_str("## Jobs\n\n");
-	out.push_str("| Suite | Job | Status | Score | Expected Evidence | Produced Evidence | Unsupported Claims | Wrong Results | Latency | Cost |\n");
-	out.push_str("| --- | --- | --- | ---: | --- | --- | ---: | ---: | ---: | --- |\n");
+	out.push_str("| Suite | Job | Status | Score | Expected Evidence | Produced Evidence | Stale Answers | Conflicts | Update Rationale | Temporal Gap | Unsupported Claims | Wrong Results | Latency | Cost |\n");
+	out.push_str(
+		"| --- | --- | --- | ---: | --- | --- | ---: | ---: | --- | --- | ---: | ---: | ---: | --- |\n",
+	);
 
 	for job in &report.jobs {
 		let expected = job
@@ -1885,13 +2423,17 @@ fn render_markdown_jobs(out: &mut String, report: &RealWorldReport) {
 		let produced = job.produced_evidence.join(", ");
 
 		out.push_str(&format!(
-			"| {} | {} | `{}` | `{:.3}` | `{}` | `{}` | {} | {} | `{}` | `{}` |\n",
+			"| {} | {} | `{}` | `{:.3}` | `{}` | `{}` | {} | {} | `{}` | `{}` | {} | {} | `{}` | `{}` |\n",
 			md_cell(job.suite_id.as_str()),
 			md_cell(job.job_id.as_str()),
 			status_str(job.status),
 			job.normalized_score,
 			md_inline(expected.as_str()),
 			md_inline(produced.as_str()),
+			job.stale_answer_count,
+			job.conflict_detection_count,
+			bool_display(job.update_rationale_available),
+			bool_display(job.temporal_validity_not_encoded),
 			job.unsupported_claim_count,
 			job.wrong_result_count,
 			optional_f64(job.latency_ms, " ms"),
@@ -1990,6 +2532,47 @@ fn ux_gap_cell(gaps: &[OperatorUxGap]) -> String {
 		.join("<br>")
 }
 
+fn render_markdown_evolution(out: &mut String, report: &RealWorldReport) {
+	out.push_str("## Memory Evolution\n\n");
+	out.push_str(&format!("- Stale answers: `{}`\n", report.evolution.stale_answer_count));
+	out.push_str(&format!(
+		"- Conflict detections: `{}`\n",
+		report.evolution.conflict_detection_count
+	));
+	out.push_str(&format!(
+		"- Update rationales available: `{}`\n",
+		report.evolution.update_rationale_available_count
+	));
+	out.push_str(&format!(
+		"- Temporal validity not encoded: `{}`\n\n",
+		report.evolution.temporal_validity_not_encoded_count
+	));
+	out.push_str("| Suite | Job | Current Evidence | Historical Evidence | Stale Traps Used | Conflict Count | Detected | Update Rationale | Temporal Validity | Follow-up |\n");
+	out.push_str("| --- | --- | --- | --- | --- | ---: | ---: | --- | --- | --- |\n");
+
+	for job in &report.jobs {
+		let Some(evolution) = &job.evolution else {
+			continue;
+		};
+
+		out.push_str(&format!(
+			"| {} | {} | `{}` | `{}` | `{}` | {} | {} | `{}` | `{}` | {} |\n",
+			md_cell(job.suite_id.as_str()),
+			md_cell(job.job_id.as_str()),
+			md_inline(evolution.current_evidence.join(", ").as_str()),
+			md_inline(evolution.historical_evidence.join(", ").as_str()),
+			md_inline(evolution.stale_trap_ids_used.join(", ").as_str()),
+			evolution.conflict_count,
+			evolution.conflict_detection_count,
+			bool_display(evolution.update_rationale_available),
+			temporal_display(evolution),
+			md_cell(evolution.follow_up.as_deref().unwrap_or("-"))
+		));
+	}
+
+	out.push('\n');
+}
+
 fn render_markdown_unsupported_claims(out: &mut String, report: &RealWorldReport) {
 	out.push_str("## Unsupported Claims\n\n");
 
@@ -2016,6 +2599,31 @@ fn render_markdown_unsupported_claims(out: &mut String, report: &RealWorldReport
 	out.push('\n');
 }
 
+fn render_markdown_follow_ups(out: &mut String, report: &RealWorldReport) {
+	out.push_str("## Follow-Ups\n\n");
+
+	if report.follow_ups.is_empty() {
+		out.push_str("No benchmark follow-ups were declared by encoded jobs.\n\n");
+
+		return;
+	}
+
+	out.push_str("| Suite | Job | Follow-up | Reason |\n");
+	out.push_str("| --- | --- | --- | --- |\n");
+
+	for follow_up in &report.follow_ups {
+		out.push_str(&format!(
+			"| {} | {} | {} | {} |\n",
+			md_cell(follow_up.suite_id.as_str()),
+			md_cell(follow_up.job_id.as_str()),
+			md_cell(follow_up.title.as_str()),
+			md_cell(follow_up.reason.as_str())
+		));
+	}
+
+	out.push('\n');
+}
+
 fn render_markdown_semantics(out: &mut String, report: &RealWorldReport) {
 	out.push_str("## Result Semantics\n\n");
 	out.push_str(
@@ -2024,7 +2632,7 @@ fn render_markdown_semantics(out: &mut String, report: &RealWorldReport) {
 	out.push_str("It is a real-world job fixture report, not a Docker live-baseline report.\n");
 	out.push_str("Existing live-baseline reports remain valid for their encoded retrieval and lifecycle checks and are not reinterpreted as real-world suite wins.\n\n");
 	out.push_str(
-		"The summary counters report required evidence coverage, source-ref coverage, quote coverage, stale retrievals, scope violations, redaction leaks, and Qdrant rebuild case coverage across encoded jobs.\n\n",
+		"The summary counters report required evidence coverage, source-ref coverage, quote coverage, stale retrievals, scope violations, redaction leaks, Qdrant rebuild case coverage, stale answers, conflict detections, update rationale availability, and temporal validity gaps across encoded jobs.\n\n",
 	);
 	out.push_str(
 		"- `pass`: encoded jobs met their pass threshold with required evidence and no hard-fail rule.\n",
@@ -2033,8 +2641,8 @@ fn render_markdown_semantics(out: &mut String, report: &RealWorldReport) {
 		"- `wrong_result`: a job completed but missed required answer or evidence expectations.\n",
 	);
 	out.push_str("- `unsupported_claim`: a job produced a substantive claim not supported by the fixture evidence links.\n");
-	out.push_str("- `not_encoded`: a suite has no checked-in real_world_job fixture, so no pass/fail claim is allowed.\n\n");
-	out.push_str("## Not-Encoded Suites\n\n");
+	out.push_str("- `not_encoded`: a suite has no checked-in fixture, or an encoded fixture declares a capability gap so no pass/fail claim is allowed.\n\n");
+	out.push_str("## Suites With `not_encoded` Status\n\n");
 
 	if report.not_encoded_suites.is_empty() {
 		out.push_str("All declared suites have at least one encoded job.\n");
@@ -2077,6 +2685,22 @@ fn write_or_print(path: Option<&Path>, content: &str) -> Result<()> {
 
 fn optional_f64(value: Option<f64>, suffix: &str) -> String {
 	value.map(|value| format!("{value:.3}{suffix}")).unwrap_or_else(|| "-".to_string())
+}
+
+fn bool_display(value: bool) -> &'static str {
+	if value { "true" } else { "false" }
+}
+
+fn temporal_display(evolution: &EvolutionJobReport) -> &'static str {
+	if evolution.temporal_validity_not_encoded {
+		"not_encoded"
+	} else if evolution.temporal_validity_encoded {
+		"encoded"
+	} else if evolution.temporal_validity_required {
+		"required"
+	} else {
+		"-"
+	}
 }
 
 fn cost_display(cost: Option<&CostReport>) -> String {
