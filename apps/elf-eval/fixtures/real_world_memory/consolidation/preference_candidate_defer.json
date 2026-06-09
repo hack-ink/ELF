@@ -1,0 +1,242 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "consolidation-preference-candidate-defer-001",
+  "suite": "consolidation",
+  "title": "Defer a preference candidate until reviewer confirmation",
+  "corpus": {
+    "corpus_id": "real-world-memory-consolidation-synthetic-2026-06-09",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "session-preference-1",
+        "kind": "message",
+        "text": "Session 1: The operator asked for checkpoint updates to stay concise and evidence-focused.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_memory_fixture/v1",
+          "ref": {
+            "fixture": "preference_candidate_defer",
+            "evidence_id": "session-preference-1"
+          }
+        },
+        "created_at": "2026-06-05T09:00:00Z"
+      },
+      {
+        "evidence_id": "session-preference-2",
+        "kind": "message",
+        "text": "Session 2: The operator repeated that durable reports should stay short unless validation evidence requires detail.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_memory_fixture/v1",
+          "ref": {
+            "fixture": "preference_candidate_defer",
+            "evidence_id": "session-preference-2"
+          }
+        },
+        "created_at": "2026-06-06T09:00:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_consolidation",
+      "answer": {
+        "content": "Propose a preference candidate for concise, evidence-focused updates, but defer application because the fixture does not include explicit reviewer confirmation.",
+        "claims": [
+          {
+            "claim_id": "preference_candidate_created",
+            "text": "Create a preference candidate for concise, evidence-focused updates.",
+            "evidence_ids": [
+              "session-preference-1",
+              "session-preference-2"
+            ],
+            "confidence": "medium"
+          },
+          {
+            "claim_id": "preference_candidate_deferred",
+            "text": "Defer the preference candidate until reviewer confirmation.",
+            "evidence_ids": [
+              "session-preference-1",
+              "session-preference-2"
+            ],
+            "confidence": "medium"
+          }
+        ],
+        "evidence_ids": [
+          "session-preference-1",
+          "session-preference-2"
+        ],
+        "latency_ms": 1.1,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      },
+      "consolidation": {
+        "proposals": [
+          {
+            "proposal_id": "proposal-preference-candidate-defer",
+            "proposal_kind": "preference_candidate",
+            "source_refs": [
+              "session-preference-1",
+              "session-preference-2"
+            ],
+            "expected_source_refs": [
+              "session-preference-1",
+              "session-preference-2"
+            ],
+            "usefulness_score": 0.86,
+            "min_usefulness_score": 0.75,
+            "expected_review_action": "defer",
+            "actual_review_action": "defer",
+            "source_mutations": [],
+            "unsupported_claim_count": 0,
+            "diff": {
+              "summary": "Stage a preference candidate for review without applying it.",
+              "before": {},
+              "after": {
+                "target": "derived_preference_candidate",
+                "text": "Preference candidate: The operator prefers concise, evidence-focused updates."
+              }
+            }
+          }
+        ],
+        "executable_gaps": [
+          {
+            "primitive": "live_consolidation_worker_generation",
+            "follow_up_issue": "[ELF vNext P1] Implement reviewable consolidation worker and proposal review flow",
+            "reason": "This fixture scores checked-in proposal payloads; it does not execute scheduled LLM generation.",
+            "blocks_fixture_pass": false
+          }
+        ]
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "preference-session-1",
+      "ts": "2026-06-05T09:00:00Z",
+      "actor": "user",
+      "action": "stated_preference",
+      "evidence_ids": [
+        "session-preference-1"
+      ],
+      "summary": "The first session asked for concise, evidence-focused checkpoints."
+    },
+    {
+      "event_id": "preference-session-2",
+      "ts": "2026-06-06T09:00:00Z",
+      "actor": "user",
+      "action": "restated_preference",
+      "evidence_ids": [
+        "session-preference-2"
+      ],
+      "summary": "The second session restated a short-report preference with an evidence caveat."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Review these sessions and propose any durable preference candidate, but do not apply it without review.",
+    "job_mode": "personalize",
+    "constraints": [
+      "cite_evidence",
+      "do_not_run_live_actions",
+      "state_blockers"
+    ]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "preference_candidate_created",
+        "text": "Create a preference candidate for concise, evidence-focused updates."
+      },
+      {
+        "claim_id": "preference_candidate_deferred",
+        "text": "Defer the preference candidate until reviewer confirmation."
+      }
+    ],
+    "must_not_include": [
+      "Preference applied",
+      "rewrite existing profile notes"
+    ],
+    "evidence_links": {
+      "preference_candidate_created": [
+        "session-preference-1",
+        "session-preference-2"
+      ],
+      "preference_candidate_deferred": [
+        "session-preference-1",
+        "session-preference-2"
+      ]
+    },
+    "answer_type": "decision_record",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "session-preference-1",
+      "claim_id": "preference_candidate_created",
+      "requirement": "cite",
+      "quote": "checkpoint updates to stay concise and evidence-focused"
+    },
+    {
+      "evidence_id": "session-preference-2",
+      "claim_id": "preference_candidate_deferred",
+      "requirement": "use",
+      "quote": "stay short unless validation evidence requires detail"
+    }
+  ],
+  "negative_traps": [],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Creates but does not apply the preference candidate."
+      },
+      "evidence_grounding": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Uses both preference statements."
+      },
+      "proposal_usefulness": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Preference proposal is useful enough to stage."
+      },
+      "lineage_completeness": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Lineage includes both sessions."
+      },
+      "review_action_correctness": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Review action is defer, not apply."
+      },
+      "source_immutability": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Source mutation count remains zero."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "source mutation count must remain zero for proposal-only consolidation cases"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "state_blocker"
+  },
+  "tags": [
+    "synthetic",
+    "consolidation",
+    "proposal_only",
+    "no_live_claim"
+  ]
+}
