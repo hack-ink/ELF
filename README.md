@@ -154,6 +154,10 @@ Detailed evidence and interpretation:
 - [Production Adoption Gate Report - June 9, 2026](docs/guide/benchmarking/2026-06-09-production-adoption-gate-report.md)
 - [Live Baseline Benchmark Runbook](docs/guide/benchmarking/live_baseline_benchmark.md)
 - [Single-User Production Runbook](docs/guide/single_user_production.md)
+- Future benchmark contract:
+  [Real-World Agent Memory Benchmark v1](docs/spec/real_world_agent_memory_benchmark_v1.md).
+  This contract defines job-level suites for agent work, but no system win is claimed
+  under it until a runner encodes and reports those suites.
 
 Quick comparison snapshot (objective/high-level).
 This table compares capability coverage, not overall project quality.
@@ -199,6 +203,7 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [Synthetic Production Corpus Benchmark Report - June 9, 2026](docs/guide/benchmarking/2026-06-09-production-corpus-report.md)
 - [Production Adoption Gate Report - June 9, 2026](docs/guide/benchmarking/2026-06-09-production-adoption-gate-report.md)
 - [Live Baseline Benchmark Runbook](docs/guide/benchmarking/live_baseline_benchmark.md)
+- [Real-World Agent Memory Benchmark](docs/guide/benchmarking/real_world_agent_memory_benchmark.md)
 - [External Memory Improvement Plan](docs/guide/research/external_memory_improvement_plan.md)
 - [Detailed External Comparison](docs/guide/research/comparison_external_projects.md)
 - [Research Projects Inventory](docs/guide/research/research_projects_inventory.md)

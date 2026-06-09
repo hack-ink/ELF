@@ -39,6 +39,8 @@ Question this index answers: "what must remain true?"
   whether ELF meets or exceeds selected external memory-system baselines.
 - `production_corpus_manifest_v1.md`: Sanitized/private coding-agent production
   corpus manifest schema for adoption benchmark runs.
+- `real_world_agent_memory_benchmark_v1.md`: Real-world agent memory benchmark job
+  schema, suite taxonomy, scoring dimensions, and report state semantics.
 
 ## Spec document contract
 
