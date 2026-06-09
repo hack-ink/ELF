@@ -1,4 +1,4 @@
-# Structured Memory Fields With Field-Level Embeddings (Issue #17)
+# Structured Memory Fields With Field-Level Embeddings
 
 ## Goal
 Improve semantic precision on fact-like queries by adding optional structured fields to notes (summary, facts, concepts), embedding them separately, and merging field matches back into a single note result with explicit explain output.
@@ -35,4 +35,3 @@ Explain output includes `matched_fields` entries for matched structured fields.
 ## Testing And Evaluation
 - Unit tests cover structured-field validation and evidence binding for facts.
 - Add a small evaluation dataset focused on fact-like queries and run `elf-eval` before/after enabling structured-field retrieval to compare precision and false positives.
-
