@@ -2969,6 +2969,8 @@ mod tests {
 		assert!(html.contains("Providers And Ranking"));
 		assert!(html.contains("Relation Context"));
 		assert!(html.contains("directTraceId"));
+		assert!(html.contains("trace_id"));
+		assert!(html.contains("loadInitialTrace"));
 		assert!(!html.contains("method: \"PATCH\""));
 		assert!(!html.contains("method: \"PUT\""));
 		assert!(!html.contains("method: \"DELETE\""));

@@ -356,14 +356,17 @@ args = [
 
 
 # Real-world job benchmark smoke
-# | task                        | type      | cwd |
-# | --------------------------- | --------- | --- |
-# | real-world-job-smoke        | composite |     |
-# | real-world-job-smoke-json   | command   |     |
-# | real-world-job-smoke-report | command   |     |
-# | real-world-memory           | composite |     |
-# | real-world-memory-json      | command   |     |
-# | real-world-memory-report    | command   |     |
+# | task                             | type      | cwd |
+# | -------------------------------- | --------- | --- |
+# | real-world-job-smoke             | composite |     |
+# | real-world-job-smoke-json        | command   |     |
+# | real-world-job-smoke-report      | command   |     |
+# | real-world-memory                | composite |     |
+# | real-world-memory-json           | command   |     |
+# | real-world-memory-report         | command   |     |
+# | real-world-job-operator-ux       | composite |     |
+# | real-world-job-operator-ux-json  | command   |     |
+# | real-world-job-operator-ux-report | command  |     |
 
 [tasks.real-world-job-smoke]
 workspace = false
@@ -455,6 +458,55 @@ args = [
 	"tmp/real-world-memory/real-world-memory-report.json",
 	"--out",
 	"tmp/real-world-memory/real-world-memory-report.md",
+]
+
+[tasks.real-world-job-operator-ux]
+workspace = false
+dependencies = [
+	"real-world-job-operator-ux-report",
+]
+
+[tasks.real-world-job-operator-ux-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_job/operator_debugging_ux",
+	"--out",
+	"tmp/real-world-job/real-world-job-operator-ux-report.json",
+	"--run-id",
+	"real-world-job-operator-ux",
+	"--adapter-id",
+	"fixture_operator_ux",
+	"--adapter-name",
+	"ELF operator UX fixture",
+]
+
+[tasks.real-world-job-operator-ux-report]
+workspace = false
+dependencies = [
+	"real-world-job-operator-ux-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-job/real-world-job-operator-ux-report.json",
+	"--out",
+	"tmp/real-world-job/real-world-job-operator-ux-report.md",
 ]
 
 
