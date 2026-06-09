@@ -4,24 +4,28 @@
 
 use std::{
 	collections::{BTreeMap, HashSet},
-	fs,
+	env, fs,
 	path::{Path, PathBuf},
+	process::Command,
 	sync::Arc,
 	time::{Duration, Instant},
 };
 
 use clap::Parser;
-use color_eyre::{Result, eyre::eyre};
+use color_eyre::{Report, eyre};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use tokio::{task::JoinSet, time};
 use uuid::Uuid;
 
-use elf_config::{EmbeddingProviderConfig, LlmProviderConfig, ProviderConfig};
+use elf_chunking::ChunkingConfig;
+use elf_config::{Config, EmbeddingProviderConfig, LlmProviderConfig, ProviderConfig};
 use elf_service::{
 	AddNoteInput, AddNoteRequest, BoxFuture, DeleteRequest, ElfService, EmbeddingProvider,
 	ExtractorProvider, PayloadLevel, Providers, RerankProvider, SearchRequest, UpdateRequest,
 };
 use elf_storage::{db::Db, qdrant::QdrantStore};
+use elf_testkit::TestDatabase;
 use elf_worker::worker::{self, WorkerState};
 
 const TENANT_ID: &str = "elf-live-baseline";
@@ -106,13 +110,6 @@ struct ResourceEnvelopeEvidence {
 	max_elapsed_seconds: f64,
 	rss_kb: Option<u64>,
 	max_rss_kb: u64,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "snake_case")]
-enum EmbeddingMode {
-	Local,
-	Provider,
 }
 
 #[derive(Debug, Serialize)]
@@ -245,130 +242,33 @@ impl ExtractorProvider for NoopExtractor {
 	}
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
-	color_eyre::install()?;
-
-	let args = Args::parse();
-	let out = args.out.clone();
-	let report = run(args).await?;
-	let raw = serde_json::to_string_pretty(&report)?;
-
-	fs::write(out, raw)?;
-
-	Ok(())
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum EmbeddingMode {
+	Local,
+	Provider,
 }
 
-async fn run(args: Args) -> Result<ElfBaselineReport> {
-	let started_at = Instant::now();
-	let base_dsn = std::env::var("ELF_PG_DSN")
-		.map_err(|_| eyre!("ELF_PG_DSN must be set for live ELF baseline."))?;
-	let qdrant_url = std::env::var("ELF_QDRANT_GRPC_URL")
-		.or_else(|_| std::env::var("ELF_QDRANT_URL"))
-		.map_err(|_| eyre!("ELF_QDRANT_GRPC_URL or ELF_QDRANT_URL must be set."))?;
-	let test_db = elf_testkit::TestDatabase::new(&base_dsn).await?;
-	let collection = test_db.collection_name("elf_live_baseline_notes");
-	let docs_collection = test_db.collection_name("elf_live_baseline_docs");
-	let runtime = BaselineRuntime {
-		config_path: args.config.clone(),
-		dsn: test_db.dsn().to_string(),
-		qdrant_url,
-		collection,
-		docs_collection,
-	};
-	let service = Arc::new(build_service(&runtime).await?);
-	let notes = load_corpus_notes(&args.corpus)?;
-	let note_ids = add_notes(&service, &notes).await?;
-	let initial_worker =
-		run_worker_until_indexed(&runtime, &service, &note_ids, "corpus_upsert").await?;
-
-	let rebuild = service.rebuild_qdrant().await?;
-	let query_manifest = load_queries(&args.queries)?;
-	let query_results = run_queries(&service, query_manifest.queries).await?;
-	let pass_count = query_results.iter().filter(|result| result.matched).count();
-	let fail_count = query_results.len().saturating_sub(pass_count);
-	let retrieval_status =
-		if fail_count == 0 { "retrieval_pass" } else { "retrieval_wrong_result" };
-	let mut checks = vec![retrieval_check(&query_results), worker_indexing_check(initial_worker)];
-	checks.extend(run_lifecycle_checks(&runtime, &service, &notes, &note_ids).await?);
-	checks.push(run_concurrent_write_check(&runtime, Arc::clone(&service)).await?);
-	if let Some(soak_check) = run_soak_stability_check(&runtime, Arc::clone(&service)).await? {
-		checks.push(soak_check);
-	}
-	checks.push(resource_envelope_check(started_at.elapsed().as_secs_f64()));
-	let check_summary = summarize_checks(&checks);
-	let status =
-		if check_summary.fail == 0 && check_summary.incomplete == 0 { "pass" } else { "fail" };
-	let reason = if status == "pass" {
-		"ELF added the corpus, rebuilt Qdrant, and returned expected evidence for every query"
-			.to_string()
-	} else {
-		format!(
-			"ELF failed {} live-baseline check(s) and left {} incomplete check(s)",
-			check_summary.fail, check_summary.incomplete
-		)
-	};
-	let report = ElfBaselineReport {
-		schema: "elf.live_baseline.elf_result/v1",
-		status,
-		retrieval_status,
-		reason,
-		head: git_head().unwrap_or_else(|_| "unknown".to_string()),
-		embedding: embedding_runtime_report(&service.cfg),
-		indexing: IndexingReport {
-			note_count: notes.len(),
-			rebuild_rebuilt_count: rebuild.rebuilt_count,
-			rebuild_missing_vector_count: rebuild.missing_vector_count,
-			rebuild_error_count: rebuild.error_count,
-		},
-		summary: QuerySummary { total: query_results.len(), pass: pass_count, fail: fail_count },
-		check_summary,
-		checks,
-		queries: query_results,
-	};
-
-	drop(service);
-	test_db.cleanup().await?;
-
-	Ok(report)
-}
-
-async fn build_service(runtime: &BaselineRuntime) -> Result<ElfService> {
-	let cfg = runtime_config(runtime)?;
+fn runtime_config(runtime: &BaselineRuntime) -> color_eyre::Result<Config> {
 	let embedding_mode = embedding_mode()?;
-	let vector_dim = cfg.storage.qdrant.vector_dim;
-	let db = Db::connect(&cfg.storage.postgres).await?;
-
-	db.ensure_schema(cfg.storage.qdrant.vector_dim).await?;
-
-	let qdrant = QdrantStore::new(&cfg.storage.qdrant)?;
-
-	qdrant.ensure_collection().await?;
-
-	if embedding_mode == EmbeddingMode::Provider {
-		Ok(ElfService::new(cfg, db, qdrant))
-	} else {
-		Ok(ElfService::with_providers(cfg, db, qdrant, deterministic_providers(vector_dim)))
-	}
-}
-
-fn runtime_config(runtime: &BaselineRuntime) -> Result<elf_config::Config> {
 	let mut cfg = elf_config::load(&runtime.config_path)?;
-	let embedding_mode = embedding_mode()?;
 
 	cfg.storage.postgres.dsn = runtime.dsn.clone();
 	cfg.storage.postgres.pool_max_conns = 12;
 	cfg.storage.qdrant.url = runtime.qdrant_url.clone();
 	cfg.storage.qdrant.collection = runtime.collection.clone();
 	cfg.storage.qdrant.docs_collection = runtime.docs_collection.clone();
+
 	if embedding_mode == EmbeddingMode::Provider {
 		apply_provider_embedding_overrides(&mut cfg)?;
+
 		cfg.storage.qdrant.vector_dim = cfg.providers.embedding.dimensions;
 	} else {
 		cfg.providers.embedding.provider_id = "local".to_string();
 		cfg.providers.embedding.model = "local-hash".to_string();
 		cfg.providers.embedding.dimensions = cfg.storage.qdrant.vector_dim;
 	}
+
 	cfg.providers.rerank.provider_id = "local".to_string();
 	cfg.providers.rerank.model = "local-token-overlap".to_string();
 	cfg.providers.llm_extractor.provider_id = "disabled".to_string();
@@ -376,36 +276,6 @@ fn runtime_config(runtime: &BaselineRuntime) -> Result<elf_config::Config> {
 	cfg.context = None;
 
 	Ok(cfg)
-}
-
-async fn build_worker_state(runtime: &BaselineRuntime) -> Result<WorkerState> {
-	let cfg = runtime_config(runtime)?;
-	let db = Db::connect(&cfg.storage.postgres).await?;
-
-	db.ensure_schema(cfg.storage.qdrant.vector_dim).await?;
-
-	let qdrant = QdrantStore::new(&cfg.storage.qdrant)?;
-
-	qdrant.ensure_collection().await?;
-	let docs_qdrant =
-		QdrantStore::new_with_collection(&cfg.storage.qdrant, &cfg.storage.qdrant.docs_collection)?;
-
-	docs_qdrant.ensure_collection().await?;
-	let tokenizer = elf_chunking::load_tokenizer(&cfg.chunking.tokenizer_repo)
-		.map_err(|err| eyre!("Failed to load tokenizer for live baseline worker: {err}"))?;
-	let chunking = elf_chunking::ChunkingConfig {
-		max_tokens: cfg.chunking.max_tokens,
-		overlap_tokens: cfg.chunking.overlap_tokens,
-	};
-
-	Ok(WorkerState {
-		db,
-		qdrant,
-		docs_qdrant,
-		embedding: cfg.providers.embedding,
-		chunking,
-		tokenizer,
-	})
 }
 
 fn deterministic_providers(vector_dim: u32) -> Providers {
@@ -416,21 +286,21 @@ fn deterministic_providers(vector_dim: u32) -> Providers {
 	)
 }
 
-fn embedding_mode() -> Result<EmbeddingMode> {
-	let raw = std::env::var("ELF_BASELINE_ELF_EMBEDDING_MODE")
+fn embedding_mode() -> color_eyre::Result<EmbeddingMode> {
+	let raw = env::var("ELF_BASELINE_ELF_EMBEDDING_MODE")
 		.unwrap_or_else(|_| "local".to_string())
 		.to_ascii_lowercase();
 
 	match raw.as_str() {
 		"local" | "deterministic" => Ok(EmbeddingMode::Local),
 		"provider" | "production" => Ok(EmbeddingMode::Provider),
-		_ => Err(eyre!(
+		_ => Err(eyre::eyre!(
 			"Unsupported ELF_BASELINE_ELF_EMBEDDING_MODE={raw:?}; use local or provider."
 		)),
 	}
 }
 
-fn apply_provider_embedding_overrides(cfg: &mut elf_config::Config) -> Result<()> {
+fn apply_provider_embedding_overrides(cfg: &mut Config) -> color_eyre::Result<()> {
 	apply_env_string(
 		&mut cfg.providers.embedding.provider_id,
 		&[
@@ -483,6 +353,7 @@ fn apply_provider_embedding_overrides(cfg: &mut elf_config::Config) -> Result<()
 	} else {
 		cfg.providers.embedding.timeout_ms = cfg.providers.embedding.timeout_ms.max(30_000);
 	}
+
 	if cfg.providers.embedding.provider_id == "local" {
 		if env_string(&["ELF_BASELINE_ELF_EMBEDDING_API_KEY", "QWEN_API_KEY"]).is_some() {
 			cfg.providers.embedding.provider_id = "qwen".to_string();
@@ -492,35 +363,34 @@ fn apply_provider_embedding_overrides(cfg: &mut elf_config::Config) -> Result<()
 			cfg.providers.embedding.provider_id = "provider".to_string();
 		}
 	}
-
 	if cfg.providers.embedding.provider_id == "local" {
-		return Err(eyre!(
+		return Err(eyre::eyre!(
 			"Provider embedding mode requires a non-local provider id or QWEN_API_KEY/DASHSCOPE_API_KEY/EMBEDDING_API_KEY."
 		));
 	}
 	if cfg.providers.embedding.api_base.trim().is_empty()
 		|| cfg.providers.embedding.api_base == "http://127.0.0.1"
 	{
-		return Err(eyre!(
+		return Err(eyre::eyre!(
 			"Provider embedding mode requires ELF_BASELINE_ELF_EMBEDDING_API_BASE, QWEN_EMBEDDING_API_BASE, DASHSCOPE_API_BASE, or EMBEDDING_API_BASE."
 		));
 	}
 	if cfg.providers.embedding.api_key.trim().is_empty()
 		|| cfg.providers.embedding.api_key == "local-dev-placeholder"
 	{
-		return Err(eyre!(
+		return Err(eyre::eyre!(
 			"Provider embedding mode requires ELF_BASELINE_ELF_EMBEDDING_API_KEY, QWEN_API_KEY, DASHSCOPE_API_KEY, or EMBEDDING_API_KEY."
 		));
 	}
 	if cfg.providers.embedding.model == "local-hash"
 		|| cfg.providers.embedding.model.trim().is_empty()
 	{
-		return Err(eyre!(
+		return Err(eyre::eyre!(
 			"Provider embedding mode requires ELF_BASELINE_ELF_EMBEDDING_MODEL, QWEN_EMBEDDING_MODEL, or EMBEDDING_MODEL."
 		));
 	}
 	if cfg.providers.embedding.dimensions == 0 {
-		return Err(eyre!(
+		return Err(eyre::eyre!(
 			"Provider embedding dimensions must be greater than zero; set ELF_BASELINE_ELF_EMBEDDING_DIMENSIONS, QWEN_EMBEDDING_DIMENSIONS, DASHSCOPE_EMBEDDING_DIMENSIONS, or EMBEDDING_DIMENSIONS."
 		));
 	}
@@ -528,7 +398,7 @@ fn apply_provider_embedding_overrides(cfg: &mut elf_config::Config) -> Result<()
 	Ok(())
 }
 
-fn embedding_runtime_report(cfg: &elf_config::Config) -> EmbeddingRuntimeReport {
+fn embedding_runtime_report(cfg: &Config) -> EmbeddingRuntimeReport {
 	EmbeddingRuntimeReport {
 		mode: embedding_mode().unwrap_or(EmbeddingMode::Local),
 		provider_id: cfg.providers.embedding.provider_id.clone(),
@@ -548,10 +418,7 @@ fn apply_env_string(target: &mut String, names: &[&str]) {
 
 fn env_string(names: &[&str]) -> Option<String> {
 	names.iter().find_map(|name| {
-		std::env::var(name)
-			.ok()
-			.map(|value| value.trim().to_string())
-			.filter(|value| !value.is_empty())
+		env::var(name).ok().map(|value| value.trim().to_string()).filter(|value| !value.is_empty())
 	})
 }
 
@@ -563,7 +430,7 @@ fn env_u64(names: &[&str]) -> Option<u64> {
 	env_string(names).and_then(|value| value.parse::<u64>().ok())
 }
 
-fn load_corpus_notes(corpus_dir: &Path) -> Result<Vec<CorpusNote>> {
+fn load_corpus_notes(corpus_dir: &Path) -> color_eyre::Result<Vec<CorpusNote>> {
 	let mut paths = fs::read_dir(corpus_dir)?
 		.map(|entry| entry.map(|entry| entry.path()))
 		.collect::<std::io::Result<Vec<_>>>()?;
@@ -581,7 +448,9 @@ fn load_corpus_notes(corpus_dir: &Path) -> Result<Vec<CorpusNote>> {
 		let source_doc = path
 			.file_name()
 			.and_then(|name| name.to_str())
-			.ok_or_else(|| eyre!("Corpus path has no valid UTF-8 file name: {}", path.display()))?
+			.ok_or_else(|| {
+				eyre::eyre!("Corpus path has no valid UTF-8 file name: {}", path.display())
+			})?
 			.to_string();
 		let raw = fs::read_to_string(&path)?;
 		let title = title_from_markdown(&raw, &source_doc);
@@ -598,108 +467,20 @@ fn load_corpus_notes(corpus_dir: &Path) -> Result<Vec<CorpusNote>> {
 	}
 
 	if out.is_empty() {
-		return Err(eyre!("No markdown corpus files found in {}.", corpus_dir.display()));
+		return Err(eyre::eyre!("No markdown corpus files found in {}.", corpus_dir.display()));
 	}
 
 	Ok(out)
 }
 
-fn load_queries(path: &PathBuf) -> Result<QueryManifest> {
+fn load_queries(path: &PathBuf) -> color_eyre::Result<QueryManifest> {
 	let raw = fs::read_to_string(path)?;
 
 	Ok(serde_json::from_str(&raw)?)
 }
 
-async fn add_notes(service: &ElfService, notes: &[CorpusNote]) -> Result<Vec<Uuid>> {
-	let request = AddNoteRequest {
-		tenant_id: TENANT_ID.to_string(),
-		project_id: PROJECT_ID.to_string(),
-		agent_id: AGENT_ID.to_string(),
-		scope: SCOPE.to_string(),
-		notes: notes
-			.iter()
-			.map(|note| AddNoteInput {
-				r#type: "fact".to_string(),
-				key: Some(note.key.clone()),
-				text: note.text.clone(),
-				structured: None,
-				importance: 0.9,
-				confidence: 0.95,
-				ttl_days: None,
-				source_ref: serde_json::json!({
-					"source": "ELF live baseline corpus",
-					"title": note.title,
-					"document": note.source_doc,
-				}),
-				write_policy: None,
-			})
-			.collect(),
-	};
-	let response = service.add_note(request).await?;
-	let mut ids = Vec::with_capacity(response.results.len());
-
-	for result in response.results {
-		let note_id =
-			result.note_id.ok_or_else(|| eyre!("ELF add_note did not return a note_id."))?;
-
-		ids.push(note_id);
-	}
-
-	Ok(ids)
-}
-
-async fn run_worker_until_indexed(
-	runtime: &BaselineRuntime,
-	service: &ElfService,
-	note_ids: &[Uuid],
-	label: &str,
-) -> Result<WorkerRunEvidence> {
-	let state = build_worker_state(runtime).await?;
-	let before = outbox_status_counts(service, note_ids).await?;
-	let max_iterations = worker_max_iterations(note_ids.len());
-	let mut iterations = 0_usize;
-
-	while iterations < max_iterations {
-		let after = outbox_status_counts(service, note_ids).await?;
-
-		if outbox_done(&after, note_ids.len()) {
-			let (chunk_rows, chunk_embedding_rows) = chunk_counts(service, note_ids).await?;
-			let failed_jobs = failed_outbox_jobs(service, note_ids).await?;
-
-			return Ok(WorkerRunEvidence {
-				label: label.to_string(),
-				expected_note_count: note_ids.len(),
-				iterations,
-				before,
-				after,
-				chunk_rows,
-				chunk_embedding_rows,
-				failed_jobs,
-			});
-		}
-
-		worker::process_once(&state).await?;
-		iterations += 1;
-	}
-
-	let after = outbox_status_counts(service, note_ids).await?;
-	let (chunk_rows, chunk_embedding_rows) = chunk_counts(service, note_ids).await?;
-	let failed_jobs = failed_outbox_jobs(service, note_ids).await?;
-
-	Ok(WorkerRunEvidence {
-		label: label.to_string(),
-		expected_note_count: note_ids.len(),
-		iterations,
-		before,
-		after,
-		chunk_rows,
-		chunk_embedding_rows,
-		failed_jobs,
-	})
-}
-
 fn worker_max_iterations(note_count: usize) -> usize {
-	std::env::var("ELF_BASELINE_WORKER_MAX_ITERATIONS")
+	env::var("ELF_BASELINE_WORKER_MAX_ITERATIONS")
 		.ok()
 		.and_then(|value| value.parse::<usize>().ok())
 		.unwrap_or_else(|| note_count.saturating_mul(3).saturating_add(32))
@@ -713,323 +494,6 @@ fn outbox_done(counts: &BTreeMap<String, i64>, expected_note_count: usize) -> bo
 	let claimed = counts.get("CLAIMED").copied().unwrap_or_default();
 
 	done >= expected && pending == 0 && failed == 0 && claimed == 0
-}
-
-async fn outbox_status_counts(
-	service: &ElfService,
-	note_ids: &[Uuid],
-) -> Result<BTreeMap<String, i64>> {
-	if note_ids.is_empty() {
-		return Ok(BTreeMap::new());
-	}
-
-	let rows = sqlx::query_as::<_, (String, i64)>(
-		"\
-SELECT status, COUNT(*)::bigint
-FROM indexing_outbox
-WHERE note_id = ANY($1)
-GROUP BY status
-ORDER BY status",
-	)
-	.bind(note_ids)
-	.fetch_all(&service.db.pool)
-	.await?;
-
-	Ok(rows.into_iter().collect())
-}
-
-async fn chunk_counts(service: &ElfService, note_ids: &[Uuid]) -> Result<(i64, i64)> {
-	if note_ids.is_empty() {
-		return Ok((0, 0));
-	}
-
-	let chunk_rows = sqlx::query_scalar::<_, i64>(
-		"\
-SELECT COUNT(*)::bigint
-FROM memory_note_chunks
-WHERE note_id = ANY($1)",
-	)
-	.bind(note_ids)
-	.fetch_one(&service.db.pool)
-	.await?;
-	let chunk_embedding_rows = sqlx::query_scalar::<_, i64>(
-		"\
-SELECT COUNT(*)::bigint
-FROM memory_note_chunks c
-JOIN note_chunk_embeddings e ON e.chunk_id = c.chunk_id
-WHERE c.note_id = ANY($1)",
-	)
-	.bind(note_ids)
-	.fetch_one(&service.db.pool)
-	.await?;
-
-	Ok((chunk_rows, chunk_embedding_rows))
-}
-
-async fn failed_outbox_jobs(
-	service: &ElfService,
-	note_ids: &[Uuid],
-) -> Result<Vec<FailedOutboxJob>> {
-	if note_ids.is_empty() {
-		return Ok(Vec::new());
-	}
-
-	let rows = sqlx::query_as::<_, (Uuid, Option<String>, String, i32, Option<String>)>(
-		"\
-SELECT o.note_id, n.key, o.op, o.attempts, o.last_error
-FROM indexing_outbox o
-LEFT JOIN memory_notes n ON n.note_id = o.note_id
-WHERE o.note_id = ANY($1)
-	AND o.status = 'FAILED'
-ORDER BY n.key NULLS LAST, o.note_id",
-	)
-	.bind(note_ids)
-	.fetch_all(&service.db.pool)
-	.await?;
-
-	Ok(rows
-		.into_iter()
-		.map(|(note_id, note_key, op, attempts, last_error)| FailedOutboxJob {
-			note_id,
-			note_key,
-			op,
-			attempts,
-			last_error,
-		})
-		.collect())
-}
-
-async fn run_queries(service: &ElfService, queries: Vec<QueryCase>) -> Result<Vec<QueryResult>> {
-	let mut out = Vec::with_capacity(queries.len());
-
-	for case in queries {
-		out.push(run_single_query(service, case).await?);
-	}
-
-	Ok(out)
-}
-
-async fn run_single_query(service: &ElfService, case: QueryCase) -> Result<QueryResult> {
-	let top_k = std::env::var("ELF_BASELINE_TOP_K")
-		.ok()
-		.and_then(|value| value.parse::<u32>().ok())
-		.unwrap_or(10);
-	let response = service
-		.search_raw(SearchRequest {
-			tenant_id: TENANT_ID.to_string(),
-			project_id: PROJECT_ID.to_string(),
-			agent_id: AGENT_ID.to_string(),
-			token_id: None,
-			payload_level: PayloadLevel::default(),
-			read_profile: "private_only".to_string(),
-			query: case.query.clone(),
-			top_k: Some(top_k),
-			candidate_k: Some(top_k.max(20).saturating_mul(4)),
-			filter: None,
-			record_hits: Some(false),
-			ranking: None,
-		})
-		.await?;
-	let top = response.items.first();
-	let top_text = top.map(|item| item.snippet.clone()).unwrap_or_default();
-	let matched_terms = case
-		.expected_terms
-		.iter()
-		.filter(|term| contains_case_insensitive(&top_text, term))
-		.cloned()
-		.collect::<Vec<_>>();
-	let top_key = top.and_then(|item| item.key.clone());
-	let expected_key = key_for_doc(&case.expected_doc);
-	let matched = matched_terms.len() == case.expected_terms.len()
-		|| top_key.as_deref().is_some_and(|key| key == expected_key);
-
-	Ok(QueryResult {
-		id: case.id,
-		query: case.query,
-		expected_doc: case.expected_doc,
-		expected_terms: case.expected_terms,
-		matched,
-		matched_terms,
-		top_note_key: top_key,
-		top_snippet: top.map(|item| item.snippet.clone()),
-		returned_count: response.items.len(),
-	})
-}
-
-async fn run_lifecycle_checks(
-	runtime: &BaselineRuntime,
-	service: &ElfService,
-	notes: &[CorpusNote],
-	note_ids: &[Uuid],
-) -> Result<Vec<CheckResult>> {
-	let Some(update_note) = notes.first() else {
-		return Ok(vec![incomplete_check(
-			"update_replaces_note_text",
-			"Corpus has no note to update.",
-		)]);
-	};
-	let Some(update_note_id) = note_ids.first().copied() else {
-		return Ok(vec![incomplete_check(
-			"update_replaces_note_text",
-			"ELF add_note returned no note_id for lifecycle update.",
-		)]);
-	};
-	let Some(delete_note) = notes.get(1) else {
-		return Ok(vec![incomplete_check(
-			"delete_suppresses_retrieval",
-			"Corpus has no note to delete.",
-		)]);
-	};
-	let Some(delete_note_id) = note_ids.get(1).copied() else {
-		return Ok(vec![incomplete_check(
-			"delete_suppresses_retrieval",
-			"ELF add_note returned no note_id for lifecycle delete.",
-		)]);
-	};
-	let Some(recovery_note) = notes.get(2) else {
-		return Ok(vec![incomplete_check(
-			"cold_start_recovery_search",
-			"Corpus has no stable note for recovery search.",
-		)]);
-	};
-
-	let mut checks = Vec::new();
-	let update_text = "\
-Rotated auth middleware validates JWT tokens with key id `kid-v4` under \
-`RotatedJwtKeyPlan`. It still requires tenant scope `project_shared` for deployment \
-operations after the emergency key rotation."
-		.to_string();
-	let update_response = service
-		.update(UpdateRequest {
-			tenant_id: TENANT_ID.to_string(),
-			project_id: PROJECT_ID.to_string(),
-			agent_id: AGENT_ID.to_string(),
-			note_id: update_note_id,
-			text: Some(update_text.clone()),
-			importance: None,
-			confidence: None,
-			ttl_days: None,
-		})
-		.await?;
-
-	let update_worker =
-		run_worker_until_indexed(runtime, service, &[update_note_id], "lifecycle_update").await?;
-	let update_query = run_single_query(
-		service,
-		QueryCase {
-			id: "lifecycle-update-new-marker".to_string(),
-			query: "Which rotated JWT key id does the auth middleware require?".to_string(),
-			expected_doc: update_note.source_doc.clone(),
-			expected_terms: vec!["kid-v4".to_string(), "RotatedJwtKeyPlan".to_string()],
-		},
-	)
-	.await?;
-	let old_marker_absent = update_query
-		.top_snippet
-		.as_deref()
-		.is_some_and(|snippet| !contains_case_insensitive(snippet, "kid-v3"));
-	let update_pass = update_query.matched
-		&& old_marker_absent
-		&& outbox_done(&update_worker.after, update_worker.expected_note_count);
-	checks.push(CheckResult {
-		name: "update_replaces_note_text",
-		status: if update_pass { "pass" } else { "fail" },
-		reason: if update_pass {
-			"Service update plus worker indexing returned the new marker and removed the old marker from the top snippet.".to_string()
-		} else {
-			"Service update plus worker indexing did not produce a clean search result for the replacement marker.".to_string()
-		},
-		evidence: serde_json::json!({
-			"note_id": update_note_id,
-			"op": update_response.op,
-			"worker": update_worker,
-			"query": update_query,
-			"old_marker_absent": old_marker_absent,
-		}),
-	});
-
-	let delete_response = service
-		.delete(DeleteRequest {
-			tenant_id: TENANT_ID.to_string(),
-			project_id: PROJECT_ID.to_string(),
-			agent_id: AGENT_ID.to_string(),
-			note_id: delete_note_id,
-		})
-		.await?;
-	let delete_worker =
-		run_worker_until_indexed(runtime, service, &[delete_note_id], "lifecycle_delete").await?;
-	let delete_query = run_single_query(
-		service,
-		QueryCase {
-			id: "lifecycle-delete-suppresses-note".to_string(),
-			query: delete_note.text.clone(),
-			expected_doc: delete_note.source_doc.clone(),
-			expected_terms: distinctive_terms(&delete_note.text, 2),
-		},
-	)
-	.await?;
-	let delete_pass = !delete_query.matched
-		&& outbox_done(&delete_worker.after, delete_worker.expected_note_count);
-	checks.push(CheckResult {
-		name: "delete_suppresses_retrieval",
-		status: if delete_pass { "pass" } else { "fail" },
-		reason: if delete_pass {
-			"Service delete suppressed the deleted note from subsequent search results.".to_string()
-		} else {
-			"Deleted note was still retrievable after service delete and worker indexing."
-				.to_string()
-		},
-		evidence: serde_json::json!({
-			"note_id": delete_note_id,
-			"op": delete_response.op,
-			"worker": delete_worker,
-			"query": delete_query,
-		}),
-	});
-
-	let recovery_service = build_service(runtime).await?;
-	let recovery_query = run_single_query(
-		&recovery_service,
-		QueryCase {
-			id: "lifecycle-cold-start-recovery".to_string(),
-			query: recovery_note.text.clone(),
-			expected_doc: recovery_note.source_doc.clone(),
-			expected_terms: distinctive_terms(&recovery_note.text, 2),
-		},
-	)
-	.await?;
-	let outbox_counts = pending_outbox_counts(service).await?;
-	checks.push(CheckResult {
-		name: "cold_start_recovery_search",
-		status: if recovery_query.matched { "pass" } else { "fail" },
-		reason: if recovery_query.matched {
-			"A newly constructed service over the same Postgres and Qdrant stores retrieved persisted evidence.".to_string()
-		} else {
-			"A newly constructed service over the same stores could not retrieve persisted evidence.".to_string()
-		},
-		evidence: serde_json::json!({
-			"query": recovery_query,
-			"pending_outbox_by_op": outbox_counts,
-			"note": recovery_note.source_doc,
-		}),
-	});
-
-	Ok(checks)
-}
-
-async fn pending_outbox_counts(service: &ElfService) -> Result<BTreeMap<String, i64>> {
-	let rows = sqlx::query_as::<_, (String, i64)>(
-		"\
-SELECT op, COUNT(*)::bigint
-FROM indexing_outbox
-WHERE status = 'PENDING'
-GROUP BY op
-ORDER BY op",
-	)
-	.fetch_all(&service.db.pool)
-	.await?;
-
-	Ok(rows.into_iter().collect())
 }
 
 fn retrieval_check(query_results: &[QueryResult]) -> CheckResult {
@@ -1071,79 +535,14 @@ fn worker_indexing_check(evidence: WorkerRunEvidence) -> CheckResult {
 	}
 }
 
-async fn run_concurrent_write_check(
-	runtime: &BaselineRuntime,
-	service: Arc<ElfService>,
-) -> Result<CheckResult> {
-	let note_count = concurrent_note_count();
-	let mut set = tokio::task::JoinSet::new();
-
-	for index in 0..note_count {
-		let request = concurrent_add_request(index);
-		let service_ref = Arc::clone(&service);
-
-		set.spawn(async move {
-			let response = service_ref.add_note(request).await?;
-			let note_id = response
-				.results
-				.first()
-				.and_then(|result| result.note_id)
-				.ok_or_else(|| eyre!("Concurrent add_note did not return a note_id."))?;
-
-			Ok::<Uuid, color_eyre::Report>(note_id)
-		});
-	}
-
-	let mut note_ids = Vec::with_capacity(note_count);
-
-	while let Some(joined) = set.join_next().await {
-		note_ids.push(joined??);
-	}
-
-	let worker_evidence =
-		run_worker_until_indexed(runtime, &service, &note_ids, "concurrent_upsert").await?;
-	let mut query_results = Vec::new();
-	let probe_indexes = concurrency_probe_indexes(note_count);
-
-	for index in probe_indexes {
-		query_results.push(run_single_query(&service, concurrent_query_case(index)).await?);
-	}
-
-	let pass_count = query_results.iter().filter(|result| result.matched).count();
-	let pass = outbox_done(&worker_evidence.after, worker_evidence.expected_note_count)
-		&& pass_count == query_results.len();
-
-	Ok(CheckResult {
-		name: "concurrent_write_search_e2e",
-		status: if pass { "pass" } else { "fail" },
-		reason: if pass {
-			"Concurrent add_note calls were indexed by the worker and remained searchable."
-				.to_string()
-		} else {
-			"Concurrent add_note calls did not all become searchable after worker indexing."
-				.to_string()
-		},
-		evidence: serde_json::json!({
-			"note_count": note_count,
-			"worker": worker_evidence,
-			"query_summary": {
-				"total": query_results.len(),
-				"pass": pass_count,
-				"fail": query_results.len().saturating_sub(pass_count),
-			},
-			"queries": query_results,
-		}),
-	})
-}
-
 fn concurrent_note_count() -> usize {
-	if let Ok(value) = std::env::var("ELF_BASELINE_CONCURRENT_NOTES")
+	if let Ok(value) = env::var("ELF_BASELINE_CONCURRENT_NOTES")
 		&& let Ok(parsed) = value.parse::<usize>()
 	{
 		return parsed.max(1);
 	}
 
-	match std::env::var("ELF_BASELINE_PROFILE").as_deref() {
+	match env::var("ELF_BASELINE_PROFILE").as_deref() {
 		Ok("stress") => 32,
 		Ok("scale" | "full") => 16,
 		_ => 4,
@@ -1192,95 +591,8 @@ fn concurrent_marker(index: usize) -> String {
 	format!("concurrency-{}-{index:03}", marker_word(index))
 }
 
-async fn run_soak_stability_check(
-	runtime: &BaselineRuntime,
-	service: Arc<ElfService>,
-) -> Result<Option<CheckResult>> {
-	let config = soak_config();
-
-	if config.target_seconds == 0 && config.write_rounds == 0 {
-		return Ok(None);
-	}
-
-	let target_duration = Duration::from_secs(config.target_seconds);
-	let started_at = Instant::now();
-	let write_rounds = config.write_rounds.max(if config.target_seconds > 0 { 1 } else { 0 });
-	let mut note_ids = Vec::with_capacity(write_rounds);
-	let mut worker_runs = Vec::with_capacity(write_rounds);
-	let mut query_results = Vec::new();
-
-	for index in 0..write_rounds {
-		let response = service.add_note(soak_add_request(index)).await?;
-		let note_id = response
-			.results
-			.first()
-			.and_then(|result| result.note_id)
-			.ok_or_else(|| eyre!("Soak add_note did not return a note_id."))?;
-
-		note_ids.push(note_id);
-		worker_runs
-			.push(run_worker_until_indexed(runtime, &service, &[note_id], "soak_upsert").await?);
-		query_results.push(run_single_query(&service, soak_query_case(index)).await?);
-
-		if config.target_seconds > 0 && write_rounds > 1 {
-			let target_elapsed = target_duration.mul_f64((index + 1) as f64 / write_rounds as f64);
-			if started_at.elapsed() < target_elapsed {
-				tokio::time::sleep(target_elapsed.saturating_sub(started_at.elapsed())).await;
-			}
-		}
-	}
-
-	let mut probe_index = 0;
-
-	while started_at.elapsed() < target_duration {
-		let index = probe_index % write_rounds;
-
-		query_results.push(run_single_query(&service, soak_query_case(index)).await?);
-		probe_index += 1;
-
-		let sleep_for = Duration::from_millis(config.probe_interval_millis)
-			.min(target_duration.saturating_sub(started_at.elapsed()));
-		if !sleep_for.is_zero() {
-			tokio::time::sleep(sleep_for).await;
-		}
-	}
-
-	let elapsed_seconds = started_at.elapsed().as_secs_f64();
-	let pass_count = query_results.iter().filter(|result| result.matched).count();
-	let query_fail_count = query_results.len().saturating_sub(pass_count);
-	let worker_pass =
-		worker_runs.iter().all(|run| outbox_done(&run.after, run.expected_note_count));
-	let duration_pass = target_duration.is_zero() || started_at.elapsed() >= target_duration;
-	let pass = worker_pass && duration_pass && query_fail_count == 0;
-	let failed_queries = query_results.iter().filter(|result| !result.matched).collect::<Vec<_>>();
-
-	Ok(Some(CheckResult {
-		name: "soak_stability_e2e",
-		status: if pass { "pass" } else { "fail" },
-		reason: if pass {
-			"ELF sustained repeated write, worker indexing, and search probes for the configured soak window.".to_string()
-		} else {
-			"ELF did not sustain the configured soak write/search window without a failed worker or retrieval probe.".to_string()
-		},
-		evidence: serde_json::json!({
-			"config": config,
-			"elapsed_seconds": elapsed_seconds,
-			"duration_met": duration_pass,
-			"worker_pass": worker_pass,
-			"write_note_ids": note_ids,
-			"worker_runs": worker_runs,
-			"query_summary": {
-				"total": query_results.len(),
-				"pass": pass_count,
-				"fail": query_fail_count,
-			},
-			"failed_queries": failed_queries,
-		}),
-	}))
-}
-
 fn soak_config() -> SoakConfig {
-	let profile = std::env::var("ELF_BASELINE_PROFILE").ok();
+	let profile = env::var("ELF_BASELINE_PROFILE").ok();
 	let (default_seconds, default_rounds) = match profile.as_deref() {
 		Some("stress") => (60, 6),
 		Some("scale" | "full") => (15, 3),
@@ -1291,17 +603,17 @@ fn soak_config() -> SoakConfig {
 		target_seconds: parse_env_u64("ELF_BASELINE_SOAK_SECONDS").unwrap_or(default_seconds),
 		write_rounds: parse_env_usize("ELF_BASELINE_SOAK_ROUNDS").unwrap_or(default_rounds),
 		probe_interval_millis: parse_env_u64("ELF_BASELINE_SOAK_PROBE_INTERVAL_MS")
-			.unwrap_or(1000)
+			.unwrap_or(1_000)
 			.max(100),
 	}
 }
 
 fn parse_env_u64(name: &str) -> Option<u64> {
-	std::env::var(name).ok()?.parse::<u64>().ok()
+	env::var(name).ok()?.parse::<u64>().ok()
 }
 
 fn parse_env_usize(name: &str) -> Option<usize> {
-	std::env::var(name).ok()?.parse::<usize>().ok()
+	env::var(name).ok()?.parse::<usize>().ok()
 }
 
 fn soak_add_request(index: usize) -> AddNoteRequest {
@@ -1405,11 +717,11 @@ fn concurrency_probe_indexes(note_count: usize) -> Vec<usize> {
 }
 
 fn resource_envelope_check(elapsed_seconds: f64) -> CheckResult {
-	let max_elapsed_seconds = std::env::var("ELF_BASELINE_MAX_ELF_SECONDS")
+	let max_elapsed_seconds = env::var("ELF_BASELINE_MAX_ELF_SECONDS")
 		.ok()
 		.and_then(|value| value.parse::<f64>().ok())
 		.unwrap_or(600.0);
-	let max_rss_kb = std::env::var("ELF_BASELINE_MAX_ELF_RSS_KB")
+	let max_rss_kb = env::var("ELF_BASELINE_MAX_ELF_RSS_KB")
 		.ok()
 		.and_then(|value| value.parse::<u64>().ok())
 		.unwrap_or(1_500_000);
@@ -1480,9 +792,11 @@ fn key_for_doc(doc: &str) -> String {
 	for ch in stem.chars() {
 		if ch.is_ascii_alphanumeric() {
 			key.push(ch.to_ascii_lowercase());
+
 			last_was_separator = false;
 		} else if !last_was_separator && !key.is_empty() {
 			key.push('_');
+
 			last_was_separator = true;
 		}
 	}
@@ -1593,8 +907,8 @@ fn contains_case_insensitive(haystack: &str, needle: &str) -> bool {
 	haystack.to_ascii_lowercase().contains(&needle.to_ascii_lowercase())
 }
 
-fn git_head() -> Result<String> {
-	if let Ok(head) = std::env::var("ELF_BASELINE_ELF_HEAD") {
+fn git_head() -> color_eyre::Result<String> {
+	if let Ok(head) = env::var("ELF_BASELINE_ELF_HEAD") {
 		let head = head.trim();
 
 		if !head.is_empty() {
@@ -1602,11 +916,746 @@ fn git_head() -> Result<String> {
 		}
 	}
 
-	let output = std::process::Command::new("git").args(["rev-parse", "HEAD"]).output()?;
+	let output = Command::new("git").args(["rev-parse", "HEAD"]).output()?;
 
 	if !output.status.success() {
-		return Err(eyre!("git rev-parse HEAD failed."));
+		return Err(eyre::eyre!("git rev-parse HEAD failed."));
 	}
 
 	Ok(String::from_utf8(output.stdout)?.trim().to_string())
+}
+
+#[tokio::main]
+async fn main() -> color_eyre::Result<()> {
+	color_eyre::install()?;
+
+	let args = Args::parse();
+	let out = args.out.clone();
+	let report = run(args).await?;
+	let raw = serde_json::to_string_pretty(&report)?;
+
+	fs::write(out, raw)?;
+
+	Ok(())
+}
+
+async fn run(args: Args) -> color_eyre::Result<ElfBaselineReport> {
+	let started_at = Instant::now();
+	let base_dsn = env::var("ELF_PG_DSN")
+		.map_err(|_| eyre::eyre!("ELF_PG_DSN must be set for live ELF baseline."))?;
+	let qdrant_url = env::var("ELF_QDRANT_GRPC_URL")
+		.or_else(|_| env::var("ELF_QDRANT_URL"))
+		.map_err(|_| eyre::eyre!("ELF_QDRANT_GRPC_URL or ELF_QDRANT_URL must be set."))?;
+	let test_db = TestDatabase::new(&base_dsn).await?;
+	let collection = test_db.collection_name("elf_live_baseline_notes");
+	let docs_collection = test_db.collection_name("elf_live_baseline_docs");
+	let runtime = BaselineRuntime {
+		config_path: args.config.clone(),
+		dsn: test_db.dsn().to_string(),
+		qdrant_url,
+		collection,
+		docs_collection,
+	};
+	let service = Arc::new(build_service(&runtime).await?);
+	let notes = load_corpus_notes(&args.corpus)?;
+	let note_ids = add_notes(&service, &notes).await?;
+	let initial_worker =
+		run_worker_until_indexed(&runtime, &service, &note_ids, "corpus_upsert").await?;
+	let rebuild = service.rebuild_qdrant().await?;
+	let query_manifest = load_queries(&args.queries)?;
+	let query_results = run_queries(&service, query_manifest.queries).await?;
+	let pass_count = query_results.iter().filter(|result| result.matched).count();
+	let fail_count = query_results.len().saturating_sub(pass_count);
+	let retrieval_status =
+		if fail_count == 0 { "retrieval_pass" } else { "retrieval_wrong_result" };
+	let mut checks = vec![retrieval_check(&query_results), worker_indexing_check(initial_worker)];
+
+	checks.extend(run_lifecycle_checks(&runtime, &service, &notes, &note_ids).await?);
+	checks.push(run_concurrent_write_check(&runtime, Arc::clone(&service)).await?);
+
+	if let Some(soak_check) = run_soak_stability_check(&runtime, Arc::clone(&service)).await? {
+		checks.push(soak_check);
+	}
+
+	checks.push(resource_envelope_check(started_at.elapsed().as_secs_f64()));
+
+	let check_summary = summarize_checks(&checks);
+	let status =
+		if check_summary.fail == 0 && check_summary.incomplete == 0 { "pass" } else { "fail" };
+	let reason = if status == "pass" {
+		"ELF added the corpus, rebuilt Qdrant, and returned expected evidence for every query"
+			.to_string()
+	} else {
+		format!(
+			"ELF failed {} live-baseline check(s) and left {} incomplete check(s)",
+			check_summary.fail, check_summary.incomplete
+		)
+	};
+	let report = ElfBaselineReport {
+		schema: "elf.live_baseline.elf_result/v1",
+		status,
+		retrieval_status,
+		reason,
+		head: git_head().unwrap_or_else(|_| "unknown".to_string()),
+		embedding: embedding_runtime_report(&service.cfg),
+		indexing: IndexingReport {
+			note_count: notes.len(),
+			rebuild_rebuilt_count: rebuild.rebuilt_count,
+			rebuild_missing_vector_count: rebuild.missing_vector_count,
+			rebuild_error_count: rebuild.error_count,
+		},
+		summary: QuerySummary { total: query_results.len(), pass: pass_count, fail: fail_count },
+		check_summary,
+		checks,
+		queries: query_results,
+	};
+
+	drop(service);
+
+	test_db.cleanup().await?;
+
+	Ok(report)
+}
+
+async fn build_service(runtime: &BaselineRuntime) -> color_eyre::Result<ElfService> {
+	let cfg = runtime_config(runtime)?;
+	let embedding_mode = embedding_mode()?;
+	let vector_dim = cfg.storage.qdrant.vector_dim;
+	let db = Db::connect(&cfg.storage.postgres).await?;
+
+	db.ensure_schema(cfg.storage.qdrant.vector_dim).await?;
+
+	let qdrant = QdrantStore::new(&cfg.storage.qdrant)?;
+
+	qdrant.ensure_collection().await?;
+
+	if embedding_mode == EmbeddingMode::Provider {
+		Ok(ElfService::new(cfg, db, qdrant))
+	} else {
+		Ok(ElfService::with_providers(cfg, db, qdrant, deterministic_providers(vector_dim)))
+	}
+}
+
+async fn build_worker_state(runtime: &BaselineRuntime) -> color_eyre::Result<WorkerState> {
+	let cfg = runtime_config(runtime)?;
+	let db = Db::connect(&cfg.storage.postgres).await?;
+
+	db.ensure_schema(cfg.storage.qdrant.vector_dim).await?;
+
+	let qdrant = QdrantStore::new(&cfg.storage.qdrant)?;
+
+	qdrant.ensure_collection().await?;
+
+	let docs_qdrant =
+		QdrantStore::new_with_collection(&cfg.storage.qdrant, &cfg.storage.qdrant.docs_collection)?;
+
+	docs_qdrant.ensure_collection().await?;
+
+	let tokenizer = elf_chunking::load_tokenizer(&cfg.chunking.tokenizer_repo)
+		.map_err(|err| eyre::eyre!("Failed to load tokenizer for live baseline worker: {err}"))?;
+	let chunking = ChunkingConfig {
+		max_tokens: cfg.chunking.max_tokens,
+		overlap_tokens: cfg.chunking.overlap_tokens,
+	};
+
+	Ok(WorkerState {
+		db,
+		qdrant,
+		docs_qdrant,
+		embedding: cfg.providers.embedding,
+		chunking,
+		tokenizer,
+	})
+}
+
+async fn add_notes(service: &ElfService, notes: &[CorpusNote]) -> color_eyre::Result<Vec<Uuid>> {
+	let request = AddNoteRequest {
+		tenant_id: TENANT_ID.to_string(),
+		project_id: PROJECT_ID.to_string(),
+		agent_id: AGENT_ID.to_string(),
+		scope: SCOPE.to_string(),
+		notes: notes
+			.iter()
+			.map(|note| AddNoteInput {
+				r#type: "fact".to_string(),
+				key: Some(note.key.clone()),
+				text: note.text.clone(),
+				structured: None,
+				importance: 0.9,
+				confidence: 0.95,
+				ttl_days: None,
+				source_ref: serde_json::json!({
+					"source": "ELF live baseline corpus",
+					"title": note.title,
+					"document": note.source_doc,
+				}),
+				write_policy: None,
+			})
+			.collect(),
+	};
+	let response = service.add_note(request).await?;
+	let mut ids = Vec::with_capacity(response.results.len());
+
+	for result in response.results {
+		let note_id =
+			result.note_id.ok_or_else(|| eyre::eyre!("ELF add_note did not return a note_id."))?;
+
+		ids.push(note_id);
+	}
+
+	Ok(ids)
+}
+
+async fn run_worker_until_indexed(
+	runtime: &BaselineRuntime,
+	service: &ElfService,
+	note_ids: &[Uuid],
+	label: &str,
+) -> color_eyre::Result<WorkerRunEvidence> {
+	let state = build_worker_state(runtime).await?;
+	let before = outbox_status_counts(service, note_ids).await?;
+	let max_iterations = worker_max_iterations(note_ids.len());
+	let mut iterations = 0_usize;
+
+	while iterations < max_iterations {
+		let after = outbox_status_counts(service, note_ids).await?;
+
+		if outbox_done(&after, note_ids.len()) {
+			let (chunk_rows, chunk_embedding_rows) = chunk_counts(service, note_ids).await?;
+			let failed_jobs = failed_outbox_jobs(service, note_ids).await?;
+
+			return Ok(WorkerRunEvidence {
+				label: label.to_string(),
+				expected_note_count: note_ids.len(),
+				iterations,
+				before,
+				after,
+				chunk_rows,
+				chunk_embedding_rows,
+				failed_jobs,
+			});
+		}
+
+		worker::process_once(&state).await?;
+
+		iterations += 1;
+	}
+
+	let after = outbox_status_counts(service, note_ids).await?;
+	let (chunk_rows, chunk_embedding_rows) = chunk_counts(service, note_ids).await?;
+	let failed_jobs = failed_outbox_jobs(service, note_ids).await?;
+
+	Ok(WorkerRunEvidence {
+		label: label.to_string(),
+		expected_note_count: note_ids.len(),
+		iterations,
+		before,
+		after,
+		chunk_rows,
+		chunk_embedding_rows,
+		failed_jobs,
+	})
+}
+
+async fn outbox_status_counts(
+	service: &ElfService,
+	note_ids: &[Uuid],
+) -> color_eyre::Result<BTreeMap<String, i64>> {
+	if note_ids.is_empty() {
+		return Ok(BTreeMap::new());
+	}
+
+	let rows = sqlx::query_as::<_, (String, i64)>(
+		"\
+SELECT status, COUNT(*)::bigint
+FROM indexing_outbox
+WHERE note_id = ANY($1)
+GROUP BY status
+ORDER BY status",
+	)
+	.bind(note_ids)
+	.fetch_all(&service.db.pool)
+	.await?;
+
+	Ok(rows.into_iter().collect())
+}
+
+async fn chunk_counts(service: &ElfService, note_ids: &[Uuid]) -> color_eyre::Result<(i64, i64)> {
+	if note_ids.is_empty() {
+		return Ok((0, 0));
+	}
+
+	let chunk_rows = sqlx::query_scalar::<_, i64>(
+		"\
+SELECT COUNT(*)::bigint
+FROM memory_note_chunks
+WHERE note_id = ANY($1)",
+	)
+	.bind(note_ids)
+	.fetch_one(&service.db.pool)
+	.await?;
+	let chunk_embedding_rows = sqlx::query_scalar::<_, i64>(
+		"\
+SELECT COUNT(*)::bigint
+FROM memory_note_chunks c
+JOIN note_chunk_embeddings e ON e.chunk_id = c.chunk_id
+WHERE c.note_id = ANY($1)",
+	)
+	.bind(note_ids)
+	.fetch_one(&service.db.pool)
+	.await?;
+
+	Ok((chunk_rows, chunk_embedding_rows))
+}
+
+async fn failed_outbox_jobs(
+	service: &ElfService,
+	note_ids: &[Uuid],
+) -> color_eyre::Result<Vec<FailedOutboxJob>> {
+	if note_ids.is_empty() {
+		return Ok(Vec::new());
+	}
+
+	let rows = sqlx::query_as::<_, (Uuid, Option<String>, String, i32, Option<String>)>(
+		"\
+SELECT o.note_id, n.key, o.op, o.attempts, o.last_error
+FROM indexing_outbox o
+LEFT JOIN memory_notes n ON n.note_id = o.note_id
+WHERE o.note_id = ANY($1)
+	AND o.status = 'FAILED'
+ORDER BY n.key NULLS LAST, o.note_id",
+	)
+	.bind(note_ids)
+	.fetch_all(&service.db.pool)
+	.await?;
+
+	Ok(rows
+		.into_iter()
+		.map(|(note_id, note_key, op, attempts, last_error)| FailedOutboxJob {
+			note_id,
+			note_key,
+			op,
+			attempts,
+			last_error,
+		})
+		.collect())
+}
+
+async fn run_queries(
+	service: &ElfService,
+	queries: Vec<QueryCase>,
+) -> color_eyre::Result<Vec<QueryResult>> {
+	let mut out = Vec::with_capacity(queries.len());
+
+	for case in queries {
+		out.push(run_single_query(service, case).await?);
+	}
+
+	Ok(out)
+}
+
+async fn run_single_query(
+	service: &ElfService,
+	case: QueryCase,
+) -> color_eyre::Result<QueryResult> {
+	let top_k = env::var("ELF_BASELINE_TOP_K")
+		.ok()
+		.and_then(|value| value.parse::<u32>().ok())
+		.unwrap_or(10);
+	let response = service
+		.search_raw(SearchRequest {
+			tenant_id: TENANT_ID.to_string(),
+			project_id: PROJECT_ID.to_string(),
+			agent_id: AGENT_ID.to_string(),
+			token_id: None,
+			payload_level: PayloadLevel::default(),
+			read_profile: "private_only".to_string(),
+			query: case.query.clone(),
+			top_k: Some(top_k),
+			candidate_k: Some(top_k.max(20).saturating_mul(4)),
+			filter: None,
+			record_hits: Some(false),
+			ranking: None,
+		})
+		.await?;
+	let top = response.items.first();
+	let top_text = top.map(|item| item.snippet.clone()).unwrap_or_default();
+	let matched_terms = case
+		.expected_terms
+		.iter()
+		.filter(|term| contains_case_insensitive(&top_text, term))
+		.cloned()
+		.collect::<Vec<_>>();
+	let top_key = top.and_then(|item| item.key.clone());
+	let expected_key = key_for_doc(&case.expected_doc);
+	let matched = matched_terms.len() == case.expected_terms.len()
+		|| top_key.as_deref().is_some_and(|key| key == expected_key);
+
+	Ok(QueryResult {
+		id: case.id,
+		query: case.query,
+		expected_doc: case.expected_doc,
+		expected_terms: case.expected_terms,
+		matched,
+		matched_terms,
+		top_note_key: top_key,
+		top_snippet: top.map(|item| item.snippet.clone()),
+		returned_count: response.items.len(),
+	})
+}
+
+async fn run_lifecycle_checks(
+	runtime: &BaselineRuntime,
+	service: &ElfService,
+	notes: &[CorpusNote],
+	note_ids: &[Uuid],
+) -> color_eyre::Result<Vec<CheckResult>> {
+	let Some(update_note) = notes.first() else {
+		return Ok(vec![incomplete_check(
+			"update_replaces_note_text",
+			"Corpus has no note to update.",
+		)]);
+	};
+	let Some(update_note_id) = note_ids.first().copied() else {
+		return Ok(vec![incomplete_check(
+			"update_replaces_note_text",
+			"ELF add_note returned no note_id for lifecycle update.",
+		)]);
+	};
+	let Some(delete_note) = notes.get(1) else {
+		return Ok(vec![incomplete_check(
+			"delete_suppresses_retrieval",
+			"Corpus has no note to delete.",
+		)]);
+	};
+	let Some(delete_note_id) = note_ids.get(1).copied() else {
+		return Ok(vec![incomplete_check(
+			"delete_suppresses_retrieval",
+			"ELF add_note returned no note_id for lifecycle delete.",
+		)]);
+	};
+	let Some(recovery_note) = notes.get(2) else {
+		return Ok(vec![incomplete_check(
+			"cold_start_recovery_search",
+			"Corpus has no stable note for recovery search.",
+		)]);
+	};
+
+	Ok(vec![
+		run_update_replacement_check(runtime, service, update_note, update_note_id).await?,
+		run_delete_suppression_check(runtime, service, delete_note, delete_note_id).await?,
+		run_cold_start_recovery_check(runtime, service, recovery_note).await?,
+	])
+}
+
+async fn run_update_replacement_check(
+	runtime: &BaselineRuntime,
+	service: &ElfService,
+	update_note: &CorpusNote,
+	update_note_id: Uuid,
+) -> color_eyre::Result<CheckResult> {
+	let update_text = "\
+	Rotated auth middleware validates JWT tokens with key id `kid-v4` under \
+	`RotatedJwtKeyPlan`. It still requires tenant scope `project_shared` for deployment \
+	operations after the emergency key rotation."
+		.to_string();
+	let update_response = service
+		.update(UpdateRequest {
+			tenant_id: TENANT_ID.to_string(),
+			project_id: PROJECT_ID.to_string(),
+			agent_id: AGENT_ID.to_string(),
+			note_id: update_note_id,
+			text: Some(update_text.clone()),
+			importance: None,
+			confidence: None,
+			ttl_days: None,
+		})
+		.await?;
+	let update_worker =
+		run_worker_until_indexed(runtime, service, &[update_note_id], "lifecycle_update").await?;
+	let update_query = run_single_query(
+		service,
+		QueryCase {
+			id: "lifecycle-update-new-marker".to_string(),
+			query: "Which rotated JWT key id does the auth middleware require?".to_string(),
+			expected_doc: update_note.source_doc.clone(),
+			expected_terms: vec!["kid-v4".to_string(), "RotatedJwtKeyPlan".to_string()],
+		},
+	)
+	.await?;
+	let old_marker_absent = update_query
+		.top_snippet
+		.as_deref()
+		.is_some_and(|snippet| !contains_case_insensitive(snippet, "kid-v3"));
+	let update_pass = update_query.matched
+		&& old_marker_absent
+		&& outbox_done(&update_worker.after, update_worker.expected_note_count);
+
+	Ok(CheckResult {
+		name: "update_replaces_note_text",
+		status: if update_pass { "pass" } else { "fail" },
+		reason: if update_pass {
+			"Service update plus worker indexing returned the new marker and removed the old marker from the top snippet.".to_string()
+		} else {
+			"Service update plus worker indexing did not produce a clean search result for the replacement marker.".to_string()
+		},
+		evidence: serde_json::json!({
+			"note_id": update_note_id,
+			"op": update_response.op,
+			"worker": update_worker,
+			"query": update_query,
+			"old_marker_absent": old_marker_absent,
+		}),
+	})
+}
+
+async fn run_delete_suppression_check(
+	runtime: &BaselineRuntime,
+	service: &ElfService,
+	delete_note: &CorpusNote,
+	delete_note_id: Uuid,
+) -> color_eyre::Result<CheckResult> {
+	let delete_response = service
+		.delete(DeleteRequest {
+			tenant_id: TENANT_ID.to_string(),
+			project_id: PROJECT_ID.to_string(),
+			agent_id: AGENT_ID.to_string(),
+			note_id: delete_note_id,
+		})
+		.await?;
+	let delete_worker =
+		run_worker_until_indexed(runtime, service, &[delete_note_id], "lifecycle_delete").await?;
+	let delete_query = run_single_query(
+		service,
+		QueryCase {
+			id: "lifecycle-delete-suppresses-note".to_string(),
+			query: delete_note.text.clone(),
+			expected_doc: delete_note.source_doc.clone(),
+			expected_terms: distinctive_terms(&delete_note.text, 2),
+		},
+	)
+	.await?;
+	let delete_pass = !delete_query.matched
+		&& outbox_done(&delete_worker.after, delete_worker.expected_note_count);
+
+	Ok(CheckResult {
+		name: "delete_suppresses_retrieval",
+		status: if delete_pass { "pass" } else { "fail" },
+		reason: if delete_pass {
+			"Service delete suppressed the deleted note from subsequent search results.".to_string()
+		} else {
+			"Deleted note was still retrievable after service delete and worker indexing."
+				.to_string()
+		},
+		evidence: serde_json::json!({
+			"note_id": delete_note_id,
+			"op": delete_response.op,
+			"worker": delete_worker,
+			"query": delete_query,
+		}),
+	})
+}
+
+async fn run_cold_start_recovery_check(
+	runtime: &BaselineRuntime,
+	service: &ElfService,
+	recovery_note: &CorpusNote,
+) -> color_eyre::Result<CheckResult> {
+	let recovery_service = build_service(runtime).await?;
+	let recovery_query = run_single_query(
+		&recovery_service,
+		QueryCase {
+			id: "lifecycle-cold-start-recovery".to_string(),
+			query: recovery_note.text.clone(),
+			expected_doc: recovery_note.source_doc.clone(),
+			expected_terms: distinctive_terms(&recovery_note.text, 2),
+		},
+	)
+	.await?;
+	let outbox_counts = pending_outbox_counts(service).await?;
+
+	Ok(CheckResult {
+		name: "cold_start_recovery_search",
+		status: if recovery_query.matched { "pass" } else { "fail" },
+		reason: if recovery_query.matched {
+			"A newly constructed service over the same Postgres and Qdrant stores retrieved persisted evidence.".to_string()
+		} else {
+			"A newly constructed service over the same stores could not retrieve persisted evidence.".to_string()
+		},
+		evidence: serde_json::json!({
+			"query": recovery_query,
+			"pending_outbox_by_op": outbox_counts,
+			"note": recovery_note.source_doc,
+		}),
+	})
+}
+
+async fn pending_outbox_counts(service: &ElfService) -> color_eyre::Result<BTreeMap<String, i64>> {
+	let rows = sqlx::query_as::<_, (String, i64)>(
+		"\
+SELECT op, COUNT(*)::bigint
+FROM indexing_outbox
+WHERE status = 'PENDING'
+GROUP BY op
+ORDER BY op",
+	)
+	.fetch_all(&service.db.pool)
+	.await?;
+
+	Ok(rows.into_iter().collect())
+}
+
+async fn run_concurrent_write_check(
+	runtime: &BaselineRuntime,
+	service: Arc<ElfService>,
+) -> color_eyre::Result<CheckResult> {
+	let note_count = concurrent_note_count();
+	let mut set = JoinSet::new();
+
+	for index in 0..note_count {
+		let request = concurrent_add_request(index);
+		let service_ref = Arc::clone(&service);
+
+		set.spawn(async move {
+			let response = service_ref.add_note(request).await?;
+			let note_id = response
+				.results
+				.first()
+				.and_then(|result| result.note_id)
+				.ok_or_else(|| eyre::eyre!("Concurrent add_note did not return a note_id."))?;
+
+			Ok::<Uuid, Report>(note_id)
+		});
+	}
+
+	let mut note_ids = Vec::with_capacity(note_count);
+
+	while let Some(joined) = set.join_next().await {
+		note_ids.push(joined??);
+	}
+
+	let worker_evidence =
+		run_worker_until_indexed(runtime, &service, &note_ids, "concurrent_upsert").await?;
+	let probe_indexes = concurrency_probe_indexes(note_count);
+	let mut query_results = Vec::new();
+
+	for index in probe_indexes {
+		query_results.push(run_single_query(&service, concurrent_query_case(index)).await?);
+	}
+
+	let pass_count = query_results.iter().filter(|result| result.matched).count();
+	let pass = outbox_done(&worker_evidence.after, worker_evidence.expected_note_count)
+		&& pass_count == query_results.len();
+
+	Ok(CheckResult {
+		name: "concurrent_write_search_e2e",
+		status: if pass { "pass" } else { "fail" },
+		reason: if pass {
+			"Concurrent add_note calls were indexed by the worker and remained searchable."
+				.to_string()
+		} else {
+			"Concurrent add_note calls did not all become searchable after worker indexing."
+				.to_string()
+		},
+		evidence: serde_json::json!({
+			"note_count": note_count,
+			"worker": worker_evidence,
+			"query_summary": {
+				"total": query_results.len(),
+				"pass": pass_count,
+				"fail": query_results.len().saturating_sub(pass_count),
+			},
+			"queries": query_results,
+		}),
+	})
+}
+
+async fn run_soak_stability_check(
+	runtime: &BaselineRuntime,
+	service: Arc<ElfService>,
+) -> color_eyre::Result<Option<CheckResult>> {
+	let config = soak_config();
+
+	if config.target_seconds == 0 && config.write_rounds == 0 {
+		return Ok(None);
+	}
+
+	let target_duration = Duration::from_secs(config.target_seconds);
+	let started_at = Instant::now();
+	let write_rounds = config.write_rounds.max(if config.target_seconds > 0 { 1 } else { 0 });
+	let mut note_ids = Vec::with_capacity(write_rounds);
+	let mut worker_runs = Vec::with_capacity(write_rounds);
+	let mut query_results = Vec::new();
+
+	for index in 0..write_rounds {
+		let response = service.add_note(soak_add_request(index)).await?;
+		let note_id = response
+			.results
+			.first()
+			.and_then(|result| result.note_id)
+			.ok_or_else(|| eyre::eyre!("Soak add_note did not return a note_id."))?;
+
+		note_ids.push(note_id);
+		worker_runs
+			.push(run_worker_until_indexed(runtime, &service, &[note_id], "soak_upsert").await?);
+		query_results.push(run_single_query(&service, soak_query_case(index)).await?);
+
+		if config.target_seconds > 0 && write_rounds > 1 {
+			let target_elapsed = target_duration.mul_f64((index + 1) as f64 / write_rounds as f64);
+
+			if started_at.elapsed() < target_elapsed {
+				time::sleep(target_elapsed.saturating_sub(started_at.elapsed())).await;
+			}
+		}
+	}
+
+	let mut probe_index = 0;
+
+	while started_at.elapsed() < target_duration {
+		let index = probe_index % write_rounds;
+
+		query_results.push(run_single_query(&service, soak_query_case(index)).await?);
+
+		probe_index += 1;
+
+		let sleep_for = Duration::from_millis(config.probe_interval_millis)
+			.min(target_duration.saturating_sub(started_at.elapsed()));
+
+		if !sleep_for.is_zero() {
+			time::sleep(sleep_for).await;
+		}
+	}
+
+	let elapsed_seconds = started_at.elapsed().as_secs_f64();
+	let pass_count = query_results.iter().filter(|result| result.matched).count();
+	let query_fail_count = query_results.len().saturating_sub(pass_count);
+	let worker_pass =
+		worker_runs.iter().all(|run| outbox_done(&run.after, run.expected_note_count));
+	let duration_pass = target_duration.is_zero() || started_at.elapsed() >= target_duration;
+	let pass = worker_pass && duration_pass && query_fail_count == 0;
+	let failed_queries = query_results.iter().filter(|result| !result.matched).collect::<Vec<_>>();
+
+	Ok(Some(CheckResult {
+		name: "soak_stability_e2e",
+		status: if pass { "pass" } else { "fail" },
+		reason: if pass {
+			"ELF sustained repeated write, worker indexing, and search probes for the configured soak window.".to_string()
+		} else {
+			"ELF did not sustain the configured soak write/search window without a failed worker or retrieval probe.".to_string()
+		},
+		evidence: serde_json::json!({
+			"config": config,
+			"elapsed_seconds": elapsed_seconds,
+			"duration_met": duration_pass,
+			"worker_pass": worker_pass,
+			"write_note_ids": note_ids,
+			"worker_runs": worker_runs,
+			"query_summary": {
+				"total": query_results.len(),
+				"pass": pass_count,
+				"fail": query_fail_count,
+			},
+			"failed_queries": failed_queries,
+		}),
+	}))
 }
