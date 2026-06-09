@@ -19,11 +19,11 @@ Verification: Re-run the commands in this report and compare
   checks. mem0, memsearch, and claude-mem returned wrong same-corpus retrieval results
   in the encoded smoke. OpenViking was incomplete because its local embedding dependency
   could not complete in the Docker runner.
-- The current evidence supports ELF as the stronger service-style memory candidate for
-  personal production use, assuming the current cold/backfill speed is acceptable and
-  benchmark iteration continues. qmd remains a strong local CLI baseline.
-- This report does not prove ELF is better than every project in every product
-  dimension. It records the result of the checked-in Docker benchmark contract.
+- Under the encoded service-style benchmark checks, ELF passed all ELF checks that were
+  run. Under the encoded local CLI smoke checks, qmd passed all qmd checks that were
+  run.
+- This report records results for the checked-in Docker benchmark contract. It does not
+  evaluate dimensions that are not encoded in the runner.
 
 ## ELF Production-Provider Stress Run
 
@@ -133,7 +133,7 @@ The benchmark is intentionally stricter than a feature checklist. It exercises w
 project can ingest the same corpus, return expected evidence for the same queries, and
 preserve basic lifecycle behavior under the runner's encoded contract.
 
-ELF's differentiators in this run:
+ELF checks covered in this run:
 
 - production-provider embeddings through the same service path used by ELF;
 - Postgres source-of-truth with Qdrant as a rebuildable derived index;
@@ -142,20 +142,19 @@ ELF's differentiators in this run:
 - report metadata that records corpus profile, document count, query count, project
   status, check summaries, elapsed seconds, and embedding configuration.
 
-The strongest external result in this run was qmd. It passed the local CLI smoke checks
-and remains useful as a retrieval-quality and debugging baseline. agentmemory needs a
-durable runtime adapter before cold-start comparisons are fair. mem0, memsearch, and
-claude-mem failed the encoded smoke retrieval; those failures may still warrant adapter
-tuning before broader claims. OpenViking was not quality-evaluated because the Docker
-local embedding install path did not complete.
+qmd was the external project that passed every encoded smoke check. agentmemory passed
+same-corpus retrieval, failed update replacement, and has incomplete cold-start coverage
+because the current adapter uses an in-memory SDK/KV mock. mem0, memsearch, and
+claude-mem failed the encoded smoke retrieval. OpenViking was not retrieval-evaluated
+because the Docker local embedding install path did not complete.
 
 ## Speed And Production Stance
 
 The 480-document ELF stress run took 1163 seconds, roughly 19.4 minutes, or about 2.4
 seconds per document end-to-end. That includes the service path, provider embedding
 calls, worker indexing, Qdrant rebuild/search, lifecycle checks, soak, and container
-overhead. This is acceptable for a personal cold/backfill run, but it is not the target
-shape for interactive ingestion.
+overhead. Whether that is acceptable depends on the production workflow: it is a
+cold/backfill measurement, not an interactive-ingest target.
 
 Throughput work should focus on:
 
