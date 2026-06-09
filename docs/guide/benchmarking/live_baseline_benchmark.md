@@ -240,6 +240,29 @@ The publisher summarizes one generated aggregate JSON report. For a combined rep
 that compares multiple runs, use the generated Markdown as input evidence and then add
 the interpretation manually under `docs/guide/benchmarking/`.
 
+## Real-World Job Smoke
+
+The live-baseline runner and real-world job runner publish separate report schemas.
+Live-baseline reports remain evidence for Docker retrieval and lifecycle checks only.
+They are not real-world suite wins.
+
+To run the checked-in real-world job smoke fixture and render its Markdown report:
+
+```sh
+cargo make real-world-job-smoke
+```
+
+Artifacts:
+
+```text
+tmp/real-world-job/real-world-job-smoke-report.json
+tmp/real-world-job/real-world-job-smoke-report.md
+```
+
+The smoke fixture lives under `apps/elf-eval/fixtures/real_world_job/smoke/` and uses
+`docs/spec/real_world_agent_memory_benchmark_v1.md` status terms, including
+`unsupported_claim`. Suites without checked-in jobs are reported as `not_encoded`.
+
 ## Clean Up
 
 ```sh
