@@ -1,0 +1,226 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "memory-evolution-deploy-method-001",
+  "suite": "memory_evolution",
+  "title": "Prefer the superseding production deployment method over the old smoke path",
+  "corpus": {
+    "corpus_id": "real-world-memory-evolution-2026-06-09",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "deploy-old-quickstart",
+        "kind": "runbook",
+        "text": "Old deployment method: use quickstart cargo run service terminals for local smoke only.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "deployment_method_superseded",
+            "evidence_id": "deploy-old-quickstart"
+          }
+        },
+        "created_at": "2026-06-02T00:00:00Z"
+      },
+      {
+        "evidence_id": "deploy-current-production-runbook",
+        "kind": "runbook",
+        "text": "Current single-user production operation uses Docker Compose production runbook with backup, restore, and Qdrant rebuild.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "deployment_method_superseded",
+            "evidence_id": "deploy-current-production-runbook"
+          }
+        },
+        "created_at": "2026-06-09T00:00:00Z"
+      },
+      {
+        "evidence_id": "deploy-supersession-rationale",
+        "kind": "decision",
+        "text": "Quickstart is no longer production guidance because backup, restore, rollback, and provider config handling must be explicit.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "deployment_method_superseded",
+            "evidence_id": "deploy-supersession-rationale"
+          }
+        },
+        "created_at": "2026-06-09T00:10:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_memory_evolution",
+      "answer": {
+        "content": "Use the Docker Compose production runbook with backup, restore, and Qdrant rebuild for production; the cargo run quickstart is only historical local-smoke guidance because production recovery handling must be explicit.",
+        "claims": [
+          {
+            "claim_id": "current_deployment_method",
+            "text": "Use the Docker Compose production runbook with backup, restore, and Qdrant rebuild for production.",
+            "evidence_ids": [
+              "deploy-current-production-runbook",
+              "deploy-old-quickstart",
+              "deploy-supersession-rationale"
+            ],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "deployment_update_rationale",
+            "text": "The quickstart was superseded because production recovery handling must be explicit.",
+            "evidence_ids": ["deploy-supersession-rationale"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": [
+          "deploy-current-production-runbook",
+          "deploy-supersession-rationale"
+        ],
+        "latency_ms": 1.4,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "deploy-quickstart",
+      "ts": "2026-06-02T00:00:00Z",
+      "actor": "agent",
+      "action": "recorded_runbook",
+      "evidence_ids": ["deploy-old-quickstart"],
+      "summary": "The quickstart path existed for local smoke use."
+    },
+    {
+      "event_id": "deploy-production-runbook",
+      "ts": "2026-06-09T00:00:00Z",
+      "actor": "agent",
+      "action": "updated_memory",
+      "evidence_ids": ["deploy-current-production-runbook", "deploy-supersession-rationale"],
+      "summary": "The production runbook became the current production method."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Which deployment path should I use for production now?",
+    "job_mode": "operate",
+    "constraints": ["cite_evidence", "distinguish_current_from_historical"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "current_deployment_method",
+        "text": "Use the Docker Compose production runbook with backup, restore, and Qdrant rebuild for production."
+      },
+      {
+        "claim_id": "deployment_update_rationale",
+        "text": "The quickstart was superseded because production recovery handling must be explicit."
+      }
+    ],
+    "must_not_include": [
+      "Use quickstart cargo run service terminals for production."
+    ],
+    "evidence_links": {
+      "current_deployment_method": [
+        "deploy-current-production-runbook",
+        "deploy-old-quickstart",
+        "deploy-supersession-rationale"
+      ],
+      "deployment_update_rationale": ["deploy-supersession-rationale"]
+    },
+    "answer_type": "ops_runbook",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "deploy-current-production-runbook",
+      "claim_id": "current_deployment_method",
+      "requirement": "cite",
+      "quote": "Docker Compose production runbook"
+    },
+    {
+      "evidence_id": "deploy-supersession-rationale",
+      "claim_id": "deployment_update_rationale",
+      "requirement": "explain",
+      "quote": "backup, restore, rollback"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "old-quickstart-production",
+      "type": "stale_fact",
+      "evidence_ids": ["deploy-old-quickstart"],
+      "failure_if_used": false
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "lifecycle_behavior": {
+        "weight": 0.35,
+        "max_points": 1.0,
+        "criteria": "Chooses the superseding production runbook."
+      },
+      "answer_correctness": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Answers with the current production method."
+      },
+      "evidence_grounding": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Cites current runbook and supersession rationale."
+      },
+      "trap_avoidance": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Does not turn the quickstart smoke path into production guidance."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": ["The fixture does not provide that evidence."],
+    "fallback_action": "state_blocker"
+  },
+  "memory_evolution": {
+    "current_evidence_ids": ["deploy-current-production-runbook"],
+    "historical_evidence_ids": ["deploy-old-quickstart"],
+    "stale_trap_ids": ["old-quickstart-production"],
+    "conflicts": [
+      {
+        "conflict_id": "deployment-method-supersession",
+        "claim_id": "current_deployment_method",
+        "current_evidence_id": "deploy-current-production-runbook",
+        "historical_evidence_id": "deploy-old-quickstart",
+        "resolved_by_evidence_id": "deploy-supersession-rationale"
+      }
+    ],
+    "update_rationale": {
+      "claim_id": "deployment_update_rationale",
+      "evidence_ids": ["deploy-supersession-rationale"],
+      "available": true
+    },
+    "temporal_validity": {
+      "required": false,
+      "encoded": false,
+      "follow_up": null
+    }
+  },
+  "tags": [
+    "synthetic",
+    "memory_evolution",
+    "reference_letta_core_block",
+    "no_live_claim"
+  ]
+}
