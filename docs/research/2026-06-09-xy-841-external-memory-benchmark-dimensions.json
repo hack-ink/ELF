@@ -1,0 +1,136 @@
+{
+  "schema": "research-run/2",
+  "run_id": "2026-06-09-xy-841-external-memory-benchmark-dimensions",
+  "question": "How should ELF map reviewed external memory projects to real-world benchmark dimensions without overstating docs-only evidence as benchmark proof?",
+  "success_criteria": [
+    "Map every reviewed external project in the issue scope to one or more real-world benchmark suites.",
+    "Separate benchmark-grounded adapter evidence from docs-grounded research claims.",
+    "Identify dimensions where ELF should not be treated as the reference yet.",
+    "Keep pending D0 projects as watch items unless current evidence is gathered in scope."
+  ],
+  "constraints": [
+    "Do not implement benchmark adapters or change ELF runtime behavior.",
+    "Do not make benchmark pass/fail claims without runnable evidence from checked-in reports.",
+    "Use existing reviewed docs and benchmark reports as the authority for this docs-only refresh."
+  ],
+  "stop_rule": "Stop once the comparison and inventory can route future real_world_job benchmark design without implying unproven external quality claims.",
+  "primary_hypothesis": "The capability map should treat qmd, claude-mem, agentmemory, mem0/OpenMemory, OpenViking, memsearch, llm-wiki, gbrain, Always-On Memory Agent, graphify, Letta, LangGraph, Graphiti/Zep, and nanograph as dimension references only where docs or benchmark evidence supports the fit; D0 RAG projects should remain watch items.",
+  "rival_hypotheses": [
+    "Use the current smoke benchmark status alone to rank external projects.",
+    "Treat official external README claims as sufficient benchmark-quality evidence.",
+    "Drop pending RAGFlow, LightRAG, and GraphRAG from the map until adapters exist."
+  ],
+  "falsifiers": [
+    "If a current runnable adapter report exists for a broader dimension, docs-only confidence would be too conservative.",
+    "If a listed project lacks any documented mechanism matching the assigned suite, the suite map would overstate its reference role.",
+    "If D0 watch items are assigned strengths, the map would violate the no-current-evidence boundary."
+  ],
+  "coverage": {
+    "mode": "repo_docs_and_existing_external_research",
+    "min_source_families": 3
+  },
+  "events": [
+    {
+      "seq": 1,
+      "type": "probe_completed",
+      "remaining_option_count": 3,
+      "independent_option_questions": [
+        "Which benchmark dimensions are already proven by ELF's checked-in adapter evidence?",
+        "Which projects should be treated as docs-grounded references for unencoded dimensions?",
+        "Which pending projects must stay as watch items?"
+      ],
+      "external_slices": []
+    },
+    {
+      "seq": 2,
+      "type": "evidence_recorded",
+      "evidence": [
+        {
+          "id": "E1",
+          "kind": "observation",
+          "summary": "README states that the June 9 Docker live baseline and production adoption gate prove a bounded ELF production-provider path, while the all-project smoke has ELF and qmd passing encoded checks and other external projects retaining typed failure or incomplete states.",
+          "source_family": "repo_docs",
+          "source_locator": "README.md"
+        },
+        {
+          "id": "E2",
+          "kind": "observation",
+          "summary": "The production adoption gate explicitly bounds external comparison as an objective adapter matrix, not an overall superiority claim, and records qmd pass, agentmemory lifecycle_fail, and memsearch/mem0/OpenViking/claude-mem incomplete or wrong-result states.",
+          "source_family": "benchmark_report",
+          "source_locator": "docs/guide/benchmarking/2026-06-09-production-adoption-gate-report.md"
+        },
+        {
+          "id": "E3",
+          "kind": "observation",
+          "summary": "The live baseline runbook defines pass, wrong_result, lifecycle_fail, incomplete, blocked, and not_encoded semantics, and warns that incomplete, blocked, and not_encoded are not passes.",
+          "source_family": "repo_runbook",
+          "source_locator": "docs/guide/benchmarking/live_baseline_benchmark.md"
+        },
+        {
+          "id": "E4",
+          "kind": "observation",
+          "summary": "The existing comparison contains D1/D2 docs-grounded mechanism research for agentmemory, qmd, claude-mem, mem0/OpenMemory, memsearch, OpenViking, llm-wiki, gbrain, Always-On Memory Agent, graphify, Letta, LangGraph, Graphiti/Zep, and nanograph.",
+          "source_family": "repo_research_docs",
+          "source_locator": "docs/guide/research/comparison_external_projects.md"
+        },
+        {
+          "id": "E5",
+          "kind": "observation",
+          "summary": "The inventory marks RAGFlow, LightRAG, and GraphRAG as D0 pending deep dives, so they can only be watch items in this lane.",
+          "source_family": "repo_research_docs",
+          "source_locator": "docs/guide/research/research_projects_inventory.md"
+        }
+      ]
+    },
+    {
+      "seq": 3,
+      "type": "tradeoffs_recorded",
+      "tradeoffs": [
+        {
+          "id": "T1",
+          "summary": "Using only current smoke results would hide useful future benchmark dimensions such as operator continuity, temporal graph validity, core/archival memory, and knowledge synthesis.",
+          "supporting_evidence_ids": [
+            "E2",
+            "E4"
+          ],
+          "disconfirming_evidence_ids": []
+        },
+        {
+          "id": "T2",
+          "summary": "Using docs-grounded references without labels would overstate external project quality because the benchmark runner has not reproduced most broader claims.",
+          "supporting_evidence_ids": [
+            "E2",
+            "E3"
+          ],
+          "disconfirming_evidence_ids": []
+        },
+        {
+          "id": "T3",
+          "summary": "Keeping D0 RAG projects as watch items preserves future coverage without pretending that adapter feasibility, resource envelope, or evidence quality has been audited.",
+          "supporting_evidence_ids": [
+            "E3",
+            "E5"
+          ],
+          "disconfirming_evidence_ids": []
+        }
+      ]
+    },
+    {
+      "seq": 4,
+      "type": "challenge_recorded",
+      "summary": "The main risk is that a broad suite map could read like a quality ranking. The mitigation is to label evidence class per project, repeat that only current adapter reports can support pass/fail claims, and call out ELF gaps by reference dimension instead of claiming overall superiority.",
+      "resolved": true
+    },
+    {
+      "seq": 5,
+      "type": "finalized_decision_ready",
+      "confidence": "medium",
+      "decision": "Update the comparison and inventory with a real-world benchmark-dimension map. Treat qmd, claude-mem, agentmemory, mem0/OpenMemory, memsearch, OpenViking, llm-wiki, gbrain, Always-On Memory Agent, graphify, Letta, LangGraph, Graphiti/Zep, and nanograph as reference projects for specific dimensions, but separate benchmark-grounded evidence from docs-grounded suite fit. Keep RAGFlow, LightRAG, and GraphRAG as D0 watch items.",
+      "missing_evidence": [
+        "No new upstream source refresh was performed in this lane.",
+        "No new benchmark adapter or real_world_job suite was executed.",
+        "Most non-smoke dimensions remain docs-grounded until future adapter evidence exists."
+      ]
+    }
+  ]
+}
