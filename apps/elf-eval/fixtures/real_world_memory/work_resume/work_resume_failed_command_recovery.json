@@ -1,0 +1,203 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "work-resume-failed-command-recovery-001",
+  "suite": "work_resume",
+  "title": "Recover from the current failed command without chasing stale lint evidence",
+  "corpus": {
+    "corpus_id": "real-world-memory-work-resume-2026-06-09",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "xy844-current-command-failure",
+        "kind": "trace",
+        "text": "Command log: cargo make real-world-job-smoke failed because apps/elf-eval/fixtures/real_world_memory/work_resume/ did not contain the required suite fixtures. Earlier lint warnings had already been repaired. The exact recovery action is to create the missing fixtures, then rerun cargo make real-world-job-smoke.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "work_resume_failed_command_recovery",
+            "evidence_id": "xy844-current-command-failure"
+          }
+        },
+        "created_at": "2026-06-09T08:10:00Z"
+      },
+      {
+        "evidence_id": "xy844-stale-lint-failure",
+        "kind": "trace",
+        "text": "Old command log: cargo make lint failed and the next action is to repair clippy warnings before touching fixtures.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "work_resume_failed_command_recovery",
+            "evidence_id": "xy844-stale-lint-failure"
+          }
+        },
+        "created_at": "2026-06-08T08:10:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_work_resume",
+      "answer": {
+        "content": "The current stop is the missing work_resume fixture suite, not the old lint warning. Create the missing fixtures under apps/elf-eval/fixtures/real_world_memory/work_resume/, then rerun `cargo make real-world-job-smoke`.",
+        "claims": [
+          {
+            "claim_id": "current_stop",
+            "text": "The current command failed because the required work_resume suite fixtures were missing.",
+            "evidence_ids": ["xy844-current-command-failure"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "recovery_action",
+            "text": "Create the missing fixtures, then rerun `cargo make real-world-job-smoke`.",
+            "evidence_ids": ["xy844-current-command-failure"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "stale_blocker",
+            "text": "The older lint warning is stale.",
+            "evidence_ids": ["xy844-current-command-failure"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["xy844-current-command-failure"],
+        "latency_ms": 2.1,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "xy844-old-lint-failure",
+      "ts": "2026-06-08T08:10:00Z",
+      "actor": "tool",
+      "action": "ran_command",
+      "evidence_ids": ["xy844-stale-lint-failure"],
+      "summary": "An older lint failure was recorded before fixture work began."
+    },
+    {
+      "event_id": "xy844-current-suite-failure",
+      "ts": "2026-06-09T08:10:00Z",
+      "actor": "tool",
+      "action": "ran_command",
+      "evidence_ids": ["xy844-current-command-failure"],
+      "summary": "The current suite command failed because the requested fixture directory lacked the required jobs."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "The lane failed a command. Tell me what failed now and the exact recovery command path without chasing stale errors.",
+    "job_mode": "resume",
+    "constraints": [
+      "cite_evidence",
+      "avoid_stale_logs",
+      "state_exact_next_action"
+    ]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "current_stop",
+        "text": "The current command failed because the required work_resume suite fixtures were missing."
+      },
+      {
+        "claim_id": "recovery_action",
+        "text": "Create the missing fixtures, then rerun `cargo make real-world-job-smoke`."
+      },
+      {
+        "claim_id": "stale_blocker",
+        "text": "The older lint warning is stale."
+      }
+    ],
+    "must_not_include": [
+      "Repair clippy warnings before touching fixtures.",
+      "Run `cargo make lint` next."
+    ],
+    "evidence_links": {
+      "current_stop": ["xy844-current-command-failure"],
+      "recovery_action": ["xy844-current-command-failure"],
+      "stale_blocker": ["xy844-current-command-failure"]
+    },
+    "answer_type": "resume_summary",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "xy844-current-command-failure",
+      "claim_id": "current_stop",
+      "requirement": "cite",
+      "quote": "failed because apps/elf-eval/fixtures/real_world_memory/work_resume/ did not contain the required suite fixtures"
+    },
+    {
+      "evidence_id": "xy844-current-command-failure",
+      "claim_id": "recovery_action",
+      "requirement": "use",
+      "quote": "The exact recovery action is to create the missing fixtures, then rerun cargo make real-world-job-smoke."
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "stale-lint-repair",
+      "type": "stale_fact",
+      "evidence_ids": ["xy844-stale-lint-failure"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Identifies the current failed command and recovery action."
+      },
+      "evidence_grounding": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Cites the current command log."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Does not use stale lint failure evidence."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Gives the recovery path that advances the benchmark suite."
+      },
+      "latency_resource": {
+        "weight": 0.1,
+        "max_points": 1.0,
+        "criteria": {
+          "max_latency_ms": 50.0,
+          "description": "Fixture-backed command recovery should be immediate."
+        }
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [
+      "The fixture does not provide that evidence."
+    ],
+    "fallback_action": "state_blocker"
+  },
+  "tags": [
+    "synthetic",
+    "fixture_backed",
+    "failed_command_recovery",
+    "no_live_claim"
+  ]
+}

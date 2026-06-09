@@ -1,0 +1,191 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "work-resume-next-action-extraction-001",
+  "suite": "work_resume",
+  "title": "Extract the exact next action across issue, PR, command, and runbook evidence",
+  "corpus": {
+    "corpus_id": "real-world-memory-work-resume-2026-06-09",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "xy844-next-action-handoff",
+        "kind": "runbook",
+        "text": "XY-844 handoff note: after adding the six work-resume continuity and capture/integration fixtures, run `cargo make real-world-job-smoke`, then run `cargo make fmt`, `cargo make lint-fix`, and `cargo make checks` before pushing branch y/elf-xy-844.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "work_resume_next_action_extraction",
+            "evidence_id": "xy844-next-action-handoff"
+          }
+        },
+        "created_at": "2026-06-09T08:20:00Z"
+      },
+      {
+        "evidence_id": "xy844-baseline-decoy",
+        "kind": "runbook",
+        "text": "Old benchmark runbook note: the next command for production adoption evidence is `cargo make baseline-live-docker`.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "work_resume_next_action_extraction",
+            "evidence_id": "xy844-baseline-decoy"
+          }
+        },
+        "created_at": "2026-06-08T08:20:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_work_resume",
+      "answer": {
+        "content": "The exact next action is to add the six work-resume continuity and capture/integration fixtures, run `cargo make real-world-job-smoke`, then run the pre-push gate: `cargo make fmt`, `cargo make lint-fix`, and `cargo make checks` before pushing y/elf-xy-844.",
+        "claims": [
+          {
+            "claim_id": "exact_next_action",
+            "text": "Add the six work-resume continuity and capture/integration fixtures.",
+            "evidence_ids": ["xy844-next-action-handoff"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "validation_sequence",
+            "text": "Run `cargo make real-world-job-smoke`, then `cargo make fmt`, `cargo make lint-fix`, and `cargo make checks` before pushing.",
+            "evidence_ids": ["xy844-next-action-handoff"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["xy844-next-action-handoff"],
+        "latency_ms": 2.5,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "xy844-baseline-decoy-event",
+      "ts": "2026-06-08T08:20:00Z",
+      "actor": "agent",
+      "action": "recorded_old_benchmark_command",
+      "evidence_ids": ["xy844-baseline-decoy"],
+      "summary": "An older production-adoption benchmark note mentioned the live baseline command."
+    },
+    {
+      "event_id": "xy844-current-next-action",
+      "ts": "2026-06-09T08:20:00Z",
+      "actor": "agent",
+      "action": "recorded_current_handoff",
+      "evidence_ids": ["xy844-next-action-handoff"],
+      "summary": "The current handoff specifies fixture additions and the validation sequence."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Across the issue, PR, log, and runbook evidence, what is the exact next action for XY-844?",
+    "job_mode": "resume",
+    "constraints": [
+      "cite_evidence",
+      "state_exact_next_action",
+      "avoid_wrong_benchmark_suite"
+    ]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "exact_next_action",
+        "text": "Add the six work-resume continuity and capture/integration fixtures."
+      },
+      {
+        "claim_id": "validation_sequence",
+        "text": "Run `cargo make real-world-job-smoke`, then `cargo make fmt`, `cargo make lint-fix`, and `cargo make checks` before pushing."
+      }
+    ],
+    "must_not_include": [
+      "Run `cargo make baseline-live-docker` next."
+    ],
+    "evidence_links": {
+      "exact_next_action": ["xy844-next-action-handoff"],
+      "validation_sequence": ["xy844-next-action-handoff"]
+    },
+    "answer_type": "work_plan",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "xy844-next-action-handoff",
+      "claim_id": "exact_next_action",
+      "requirement": "cite",
+      "quote": "after adding the six work-resume continuity and capture/integration fixtures"
+    },
+    {
+      "evidence_id": "xy844-next-action-handoff",
+      "claim_id": "validation_sequence",
+      "requirement": "use",
+      "quote": "run `cargo make real-world-job-smoke`, then run `cargo make fmt`, `cargo make lint-fix`, and `cargo make checks`"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "wrong-live-baseline-command",
+      "type": "decoy_evidence",
+      "evidence_ids": ["xy844-baseline-decoy"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Extracts the exact next action and validation sequence."
+      },
+      "evidence_grounding": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Uses the current handoff evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Avoids the live-baseline decoy command."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Gives an executable sequence without extra discovery."
+      },
+      "latency_resource": {
+        "weight": 0.1,
+        "max_points": 1.0,
+        "criteria": {
+          "max_latency_ms": 50.0,
+          "description": "Fixture-backed next-action extraction should be immediate."
+        }
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [
+      "The fixture does not provide that evidence."
+    ],
+    "fallback_action": "state_blocker"
+  },
+  "tags": [
+    "synthetic",
+    "fixture_backed",
+    "next_action",
+    "no_live_claim"
+  ]
+}
