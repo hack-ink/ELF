@@ -1,0 +1,121 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "operator-debug-relation-context-mislead-001",
+  "suite": "operator_debugging_ux",
+  "title": "Debug relation context that misleads search",
+  "corpus": {
+    "corpus_id": "operator-debugging-ux-2026-06-09",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "trace-relation-context",
+        "kind": "trace",
+        "text": "Trace 55555555-5555-4555-8555-555555555555 includes relation_context with deprecated predicate deployment_owner pointing to a stale owner, while the selected note text says the current owner is release engineering.",
+        "source_ref": {"schema": "source_ref/v1", "resolver": "real_world_job_fixture/v1", "ref": {"fixture": "operator_debugging_ux", "evidence_id": "trace-relation-context"}},
+        "created_at": "2026-06-09T02:25:00Z"
+      },
+      {
+        "evidence_id": "stale-relation-fact",
+        "kind": "adapter_state",
+        "text": "Stale graph fact: deployment_owner points to the old infra group and should not drive the current answer.",
+        "source_ref": {"schema": "source_ref/v1", "resolver": "real_world_job_fixture/v1", "ref": {"fixture": "operator_debugging_ux", "evidence_id": "stale-relation-fact"}},
+        "created_at": "2026-06-08T02:25:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_operator_ux",
+      "answer": {
+        "content": "Relation context misled the search because a deprecated deployment_owner fact conflicted with the selected note text.",
+        "claims": [
+          {
+            "claim_id": "root_cause",
+            "text": "A deprecated relation_context fact conflicted with the selected note text.",
+            "evidence_ids": ["trace-relation-context"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["trace-relation-context"],
+        "latency_ms": 2.9,
+        "cost": {"currency": "USD", "amount": 0.0, "input_tokens": 0, "output_tokens": 0}
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "relation-context-trace",
+      "ts": "2026-06-09T02:25:00Z",
+      "actor": "system",
+      "action": "captured_trace",
+      "evidence_ids": ["trace-relation-context"],
+      "summary": "The trace captured relation_context and selected note text for the misleading result."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Why did graph context point to the wrong owner?",
+    "job_mode": "debug",
+    "constraints": ["cite_evidence"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "root_cause",
+        "text": "A deprecated relation_context fact conflicted with the selected note text."
+      }
+    ],
+    "must_not_include": ["The old infra group is the current owner."],
+    "evidence_links": {"root_cause": ["trace-relation-context"]},
+    "answer_type": "debug_report",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "trace-relation-context",
+      "claim_id": "root_cause",
+      "requirement": "explain",
+      "quote": "relation_context with deprecated predicate deployment_owner pointing to a stale owner"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "trust-stale-relation",
+      "type": "stale_fact",
+      "evidence_ids": ["stale-relation-fact"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "debuggability": {"weight": 0.35, "max_points": 1.0, "criteria": "Uses relation context panel evidence."},
+      "evidence_grounding": {"weight": 0.3, "max_points": 1.0, "criteria": "Cites trace relation_context evidence."},
+      "workflow_helpfulness": {"weight": 0.2, "max_points": 1.0, "criteria": "Suggests relation invalidation or predicate repair."},
+      "answer_correctness": {"weight": 0.15, "max_points": 1.0, "criteria": "Does not trust the stale owner."}
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": ["unsupported high-confidence claim about a required decision or fact", "use of a negative trap marked failure_if_used = true"]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": ["The fixture does not provide that evidence."],
+    "fallback_action": "state_blocker"
+  },
+  "operator_debug": {
+    "failure_mode": "relation_context_misled_search",
+    "trace_id": "55555555-5555-4555-8555-555555555555",
+    "viewer_url": "/viewer?trace_id=55555555-5555-4555-8555-555555555555",
+    "admin_trace_bundle_url": "/v2/admin/traces/55555555-5555-4555-8555-555555555555/bundle?mode=full&stage_items_limit=128&candidates_limit=200",
+    "root_cause": "A deprecated graph relation remained visible in relation_context and conflicted with the selected note text.",
+    "steps_to_root_cause": 4,
+    "raw_sql_needed": false,
+    "dropped_candidate_visibility": "not dropped; misleading context is visible on selected result",
+    "trace_completeness": "complete",
+    "repair_action_clarity": "clear",
+    "viewer_panels": ["Selected Final Results", "Relation Context", "Stage Details"],
+    "cli_steps": ["open trace link", "inspect selected result relation count", "open Relation Context", "invalidate stale relation fact"],
+    "trace_evidence": ["trace-relation-context"],
+    "ux_gaps": []
+  },
+  "tags": ["synthetic", "operator_debugging_ux", "claude_mem_reference", "openmemory_reference", "no_live_claim"]
+}

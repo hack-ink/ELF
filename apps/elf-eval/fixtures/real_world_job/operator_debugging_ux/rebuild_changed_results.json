@@ -1,0 +1,135 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "operator-debug-rebuild-changed-results-001",
+  "suite": "operator_debugging_ux",
+  "title": "Debug result changes after Qdrant rebuild",
+  "corpus": {
+    "corpus_id": "operator-debugging-ux-2026-06-09",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "trace-before-rebuild",
+        "kind": "trace",
+        "text": "Before rebuild, trace 44444444-4444-4444-8444-444444444440 returned an orphan Qdrant candidate that no longer had an active source-of-truth note.",
+        "source_ref": {"schema": "source_ref/v1", "resolver": "real_world_job_fixture/v1", "ref": {"fixture": "operator_debugging_ux", "evidence_id": "trace-before-rebuild"}},
+        "created_at": "2026-06-09T02:15:00Z"
+      },
+      {
+        "evidence_id": "trace-after-rebuild",
+        "kind": "trace",
+        "text": "After rebuild, trace 44444444-4444-4444-8444-444444444444 shows the orphan candidate removed and the active Postgres-backed note selected.",
+        "source_ref": {"schema": "source_ref/v1", "resolver": "real_world_job_fixture/v1", "ref": {"fixture": "operator_debugging_ux", "evidence_id": "trace-after-rebuild"}},
+        "created_at": "2026-06-09T02:20:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_operator_ux",
+      "answer": {
+        "content": "Rebuild changed results because a stale derived-index candidate was removed and the active Postgres-backed note became top result.",
+        "claims": [
+          {
+            "claim_id": "root_cause",
+            "text": "Qdrant rebuild removed a stale derived-index candidate and selected the active source-of-truth note.",
+            "evidence_ids": ["trace-before-rebuild", "trace-after-rebuild"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["trace-before-rebuild", "trace-after-rebuild"],
+        "latency_ms": 3.3,
+        "cost": {"currency": "USD", "amount": 0.0, "input_tokens": 0, "output_tokens": 0}
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "before-rebuild-trace",
+      "ts": "2026-06-09T02:15:00Z",
+      "actor": "system",
+      "action": "captured_trace",
+      "evidence_ids": ["trace-before-rebuild"],
+      "summary": "The pre-rebuild trace included a stale derived-index candidate."
+    },
+    {
+      "event_id": "after-rebuild-trace",
+      "ts": "2026-06-09T02:20:00Z",
+      "actor": "system",
+      "action": "captured_trace",
+      "evidence_ids": ["trace-after-rebuild"],
+      "summary": "The post-rebuild trace selected only source-of-truth-backed evidence."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Why did search change after rebuild?",
+    "job_mode": "debug",
+    "constraints": ["cite_evidence"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "root_cause",
+        "text": "Qdrant rebuild removed a stale derived-index candidate and selected the active source-of-truth note."
+      }
+    ],
+    "must_not_include": ["Postgres source-of-truth changed during rebuild."],
+    "evidence_links": {"root_cause": ["trace-before-rebuild", "trace-after-rebuild"]},
+    "answer_type": "debug_report",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "trace-before-rebuild",
+      "claim_id": "root_cause",
+      "requirement": "explain",
+      "quote": "orphan Qdrant candidate that no longer had an active source-of-truth note"
+    },
+    {
+      "evidence_id": "trace-after-rebuild",
+      "claim_id": "root_cause",
+      "requirement": "explain",
+      "quote": "orphan candidate removed and the active Postgres-backed note selected"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "treat-qdrant-as-source-of-truth",
+      "type": "unsupported_prior",
+      "evidence_ids": ["trace-before-rebuild"],
+      "failure_if_used": false
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "debuggability": {"weight": 0.3, "max_points": 1.0, "criteria": "Compares before and after trace evidence."},
+      "evidence_grounding": {"weight": 0.3, "max_points": 1.0, "criteria": "Uses both rebuild traces."},
+      "workflow_helpfulness": {"weight": 0.25, "max_points": 1.0, "criteria": "Explains source-of-truth versus derived index repair."},
+      "answer_correctness": {"weight": 0.15, "max_points": 1.0, "criteria": "Does not claim Postgres changed."}
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": ["unsupported high-confidence claim about a required decision or fact"]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": ["The fixture does not provide that evidence."],
+    "fallback_action": "state_blocker"
+  },
+  "operator_debug": {
+    "failure_mode": "rebuild_changed_results",
+    "trace_id": "44444444-4444-4444-8444-444444444444",
+    "viewer_url": "/viewer?trace_id=44444444-4444-4444-8444-444444444444",
+    "admin_trace_bundle_url": "/v2/admin/traces/44444444-4444-4444-8444-444444444444/bundle?mode=full&stage_items_limit=128&candidates_limit=200",
+    "root_cause": "Rebuild removed stale derived-index state and restored source-of-truth-backed ranking.",
+    "steps_to_root_cause": 5,
+    "raw_sql_needed": false,
+    "dropped_candidate_visibility": "visible by comparing before and after trace candidates",
+    "trace_completeness": "complete",
+    "repair_action_clarity": "clear",
+    "viewer_panels": ["Trace", "Replay Candidates", "Selected Final Results"],
+    "cli_steps": ["open before trace", "open after trace", "compare replay candidates", "confirm active note selected", "keep Qdrant rebuild as repair"],
+    "trace_evidence": ["trace-before-rebuild", "trace-after-rebuild"],
+    "ux_gaps": []
+  },
+  "tags": ["synthetic", "operator_debugging_ux", "no_live_claim"]
+}

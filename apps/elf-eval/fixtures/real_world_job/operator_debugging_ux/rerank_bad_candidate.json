@@ -1,0 +1,121 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "operator-debug-rerank-bad-candidate-001",
+  "suite": "operator_debugging_ux",
+  "title": "Debug rerank promotion of a bad candidate",
+  "corpus": {
+    "corpus_id": "operator-debugging-ux-2026-06-09",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "trace-rerank-promotion",
+        "kind": "trace",
+        "text": "Trace 22222222-2222-4222-8222-222222222222 shows the correct candidate at retrieval rank 2 and the decoy at retrieval rank 5, then rerank.score promotes the decoy above the correct candidate.",
+        "source_ref": {"schema": "source_ref/v1", "resolver": "real_world_job_fixture/v1", "ref": {"fixture": "operator_debugging_ux", "evidence_id": "trace-rerank-promotion"}},
+        "created_at": "2026-06-09T02:05:00Z"
+      },
+      {
+        "evidence_id": "rerank-decoy-note",
+        "kind": "note",
+        "text": "Decoy note: deployment retry discussion shares query terms but belongs to a different project.",
+        "source_ref": {"schema": "source_ref/v1", "resolver": "real_world_job_fixture/v1", "ref": {"fixture": "operator_debugging_ux", "evidence_id": "rerank-decoy-note"}},
+        "created_at": "2026-06-09T02:06:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_operator_ux",
+      "answer": {
+        "content": "The wrong result came from rerank.score promoting a cross-project decoy over the correct retrieval candidate.",
+        "claims": [
+          {
+            "claim_id": "root_cause",
+            "text": "Rerank promoted a cross-project decoy above the correct retrieval candidate.",
+            "evidence_ids": ["trace-rerank-promotion"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["trace-rerank-promotion"],
+        "latency_ms": 2.1,
+        "cost": {"currency": "USD", "amount": 0.0, "input_tokens": 0, "output_tokens": 0}
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "rerank-trace-captured",
+      "ts": "2026-06-09T02:05:00Z",
+      "actor": "system",
+      "action": "captured_trace",
+      "evidence_ids": ["trace-rerank-promotion"],
+      "summary": "The trace captured retrieval ranks and rerank scores for the correct and decoy candidates."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Explain why the wrong note ranked first.",
+    "job_mode": "debug",
+    "constraints": ["cite_evidence"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "root_cause",
+        "text": "Rerank promoted a cross-project decoy above the correct retrieval candidate."
+      }
+    ],
+    "must_not_include": ["The correct candidate was missing from retrieval."],
+    "evidence_links": {"root_cause": ["trace-rerank-promotion"]},
+    "answer_type": "debug_report",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "trace-rerank-promotion",
+      "claim_id": "root_cause",
+      "requirement": "explain",
+      "quote": "rerank.score promotes the decoy above the correct candidate"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "accept-decoy-as-answer",
+      "type": "decoy_evidence",
+      "evidence_ids": ["rerank-decoy-note"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "debuggability": {"weight": 0.35, "max_points": 1.0, "criteria": "Uses rerank and replay candidate evidence."},
+      "evidence_grounding": {"weight": 0.3, "max_points": 1.0, "criteria": "Cites the trace rather than the decoy note."},
+      "workflow_helpfulness": {"weight": 0.2, "max_points": 1.0, "criteria": "Suggests rerank or scope repair."},
+      "answer_correctness": {"weight": 0.15, "max_points": 1.0, "criteria": "Names rerank promotion as the cause."}
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": ["unsupported high-confidence claim about a required decision or fact", "use of a negative trap marked failure_if_used = true"]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": ["The fixture does not provide that evidence."],
+    "fallback_action": "state_blocker"
+  },
+  "operator_debug": {
+    "failure_mode": "rerank_promoted_bad_candidate",
+    "trace_id": "22222222-2222-4222-8222-222222222222",
+    "viewer_url": "/viewer?trace_id=22222222-2222-4222-8222-222222222222",
+    "admin_trace_bundle_url": "/v2/admin/traces/22222222-2222-4222-8222-222222222222/bundle?mode=full&stage_items_limit=128&candidates_limit=200",
+    "root_cause": "The correct item was in the candidate set, but rerank.score elevated a cross-project decoy.",
+    "steps_to_root_cause": 3,
+    "raw_sql_needed": false,
+    "dropped_candidate_visibility": "not dropped; visible with lower final rank in Replay Candidates",
+    "trace_completeness": "complete",
+    "repair_action_clarity": "clear",
+    "viewer_panels": ["Selected Final Results", "Replay Candidates", "Providers And Ranking"],
+    "cli_steps": ["open trace bundle", "compare retrieval rank with final rank", "inspect rerank score", "tighten scope or rerank inputs"],
+    "trace_evidence": ["trace-rerank-promotion"],
+    "ux_gaps": []
+  },
+  "tags": ["synthetic", "operator_debugging_ux", "qmd_reference", "no_live_claim"]
+}
