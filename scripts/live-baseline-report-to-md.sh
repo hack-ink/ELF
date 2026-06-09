@@ -53,6 +53,8 @@ render_report() {
     ("- Queries: `" + (.corpus.query_count | tostring) + "`"),
     ("- Wrong-result count: `" + ((.wrong_result_count // 0) | tostring) + "`"),
     ("- Query latency mean: `" + ((.latency_ms.mean // 0) | tostring) + " ms`"),
+    ("- Query latency P50/P95/P99: `" + ((.latency_ms.p50 // 0) | tostring) + " ms`, `" + ((.latency_ms.p95 // 0) | tostring) + " ms`, `" + ((.latency_ms.p99 // 0) | tostring) + " ms`"),
+    ("- Query latency max: `" + ((.latency_ms.max // 0) | tostring) + " ms`"),
     ("- Project summary: `" + (.summary.pass // 0 | tostring) + " pass`, `" + (.summary.wrong_result // 0 | tostring) + " wrong_result`, `" + (.summary.lifecycle_fail // 0 | tostring) + " lifecycle_fail`, `" + (.summary.blocked // 0 | tostring) + " blocked`, `" + (.summary.incomplete // 0 | tostring) + " incomplete`, `" + (.summary.not_encoded // 0 | tostring) + " not_encoded`"),
     ("- Same-corpus summary: `" + (.same_corpus_summary.pass // 0 | tostring) + " pass`, `" + (.same_corpus_summary.wrong_result // 0 | tostring) + " wrong_result`, `" + (.same_corpus_summary.blocked // 0 | tostring) + " blocked`, `" + (.same_corpus_summary.incomplete // 0 | tostring) + " incomplete`, `" + (.same_corpus_summary.not_encoded // 0 | tostring) + " not_encoded`"),
     ("- Full check summary: `" + (.full_check_summary.pass // 0 | tostring) + "/" + (.full_check_summary.total // 0 | tostring) + " pass`, `" + (.full_check_summary.wrong_result // 0 | tostring) + " wrong_result`, `" + (.full_check_summary.lifecycle_fail // 0 | tostring) + " lifecycle_fail`, `" + (.full_check_summary.blocked // 0 | tostring) + " blocked`, `" + (.full_check_summary.incomplete // 0 | tostring) + " incomplete`, `" + (.full_check_summary.not_encoded // 0 | tostring) + " not_encoded`"),
@@ -86,7 +88,54 @@ render_report() {
               + " | `" + (.adapter.behaviors.update.status | md) + "`"
               + " | `" + (.adapter.behaviors.delete_or_expire.status | md) + "`"
               + " | `" + (.adapter.behaviors.cold_start_reload.status | md) + "`"
-              + " | `" + (.adapter.behaviors.scale_stress_profile.status | md) + "` |"
+              + " | `" + (
+                .adapter.behaviors.scale_stress_profile.status
+                // .adapter.behaviors.soak_profile.status
+                // .adapter.behaviors.resource_envelope.status
+                | md
+              ) + "` |"
+          ),
+          ""
+        else empty end
+    ),
+    (
+      [.projects[] | select(.cost_proxy != null)] as $costed
+      | if ($costed | length) > 0 then
+          "## Cost Proxy",
+          "",
+          "This is an input-size proxy for planning provider-backed runs, not a billing claim.",
+          "",
+          "| Project | Scope | Mode | Estimated Input Tokens | Rate | Estimated Cost |",
+          "| --- | --- | --- | --- | --- | --- |",
+          (
+            $costed[]
+            | "| " + (.project | md)
+              + " | " + (.cost_proxy.scope | md)
+              + " | `" + (.cost_proxy.embedding_mode | md) + "`"
+              + " | `" + (.cost_proxy.estimated_input_tokens | tostring) + "`"
+              + " | `" + ((.cost_proxy.configured_usd_per_1k_tokens // "-") | tostring) + "`"
+              + " | `" + ((.cost_proxy.estimated_usd // "-") | tostring) + "` |"
+          ),
+          ""
+        else empty end
+    ),
+    (
+      [.projects[] | select(.resource_envelope != null)] as $resources
+      | if ($resources | length) > 0 then
+          "## Resource Usage",
+          "",
+          "| Project | Elapsed | RSS KB | Max RSS KB | Postgres Bytes | Corpus Bytes | Report Bytes | Checkpoint Bytes |",
+          "| --- | --- | --- | --- | --- | --- | --- | --- |",
+          (
+            $resources[]
+            | "| " + (.project | md)
+              + " | `" + (.resource_envelope.elapsed_seconds | tostring) + "s`"
+              + " | `" + ((.resource_envelope.rss_kb // "-") | tostring) + "`"
+              + " | `" + (.resource_envelope.max_rss_kb | tostring) + "`"
+              + " | `" + ((.resource_envelope.postgres_database_bytes // "-") | tostring) + "`"
+              + " | `" + ((.resource_envelope.corpus_dir_bytes // "-") | tostring) + "`"
+              + " | `" + ((.resource_envelope.report_dir_bytes // "-") | tostring) + "`"
+              + " | `" + ((.resource_envelope.checkpoint_file_bytes // "-") | tostring) + "` |"
           ),
           ""
         else empty end
@@ -141,8 +190,8 @@ render_report() {
       | if ($backfilled | length) > 0 then
           "## Backfill",
           "",
-          "| Project | Sources | Completed | Batch | Workers | Resume | Duplicates | Backfill Elapsed |",
-          "| --- | --- | --- | --- | --- | --- | --- | --- |",
+          "| Project | Sources | Completed | Batch | Workers | Resume | Attempts | Skipped | Duplicates | Backfill Elapsed |",
+          "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
           (
             $backfilled[]
             | "| " + (.project | md)
@@ -158,8 +207,32 @@ render_report() {
                     "disabled"
                   end
                 ) + "`"
+              + " | `" + ((.backfill.resume.resume_attempts // 0) | tostring) + "`"
+              + " | `" + ((.backfill.skipped_completed // 0) | tostring) + "`"
               + " | `" + ((.backfill.duplicate_source_notes | length) | tostring) + "`"
               + " | `" + (.backfill.elapsed_seconds | tostring) + "s` |"
+          ),
+          ""
+        else empty end
+    ),
+    (
+      [.ops_cases[]?] as $groups
+      | if ($groups | length) > 0 then
+          "## Operational Cases",
+          "",
+          "| Project | Case | Default Status | Operator Status | Command | Evidence | Safety |",
+          "| --- | --- | --- | --- | --- | --- | --- |",
+          (
+            $groups[]
+            | .project as $project
+            | .cases[]
+            | "| " + ($project | md)
+              + " | `" + (.name | md) + "`"
+              + " | `" + (.default_status | md) + "`"
+              + " | `" + (.operator_status | md) + "`"
+              + " | `" + (.command | md) + "`"
+              + " | " + (.evidence | md)
+              + " | " + (.safety | md) + " |"
           ),
           ""
         else empty end

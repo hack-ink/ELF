@@ -15,7 +15,8 @@ query tasks, evidence expectations, and private-content safety rules.
 A production corpus manifest is a JSON object with:
 
 - `schema`: exactly `elf.production_corpus_manifest/v1`.
-- `manifest_id`: stable lower-risk identifier for the corpus snapshot.
+- `manifest_id`: stable lower-risk identifier for the corpus snapshot. Allowed
+  shape: `[a-z0-9][a-z0-9_.-]{1,80}`.
 - `description`: optional English summary.
 - `evidence`: non-empty array of production-style memory evidence items.
 - `queries`: non-empty array of task-oriented retrieval checks.
@@ -44,7 +45,8 @@ unsanitized private conversation content.
 
 Each `queries[]` item must include:
 
-- `query_id`: stable query identifier.
+- `query_id`: stable query identifier. Allowed shape:
+  `[a-z0-9][a-z0-9_.-]{1,80}`.
 - `task`: one of `resume_lane`, `recover_exact_command`, `explain_stale_blocker`,
   `find_prior_decision`, `compare_project_status`, or
   `detect_contradiction_update`.

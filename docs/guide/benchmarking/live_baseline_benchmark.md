@@ -66,6 +66,9 @@ query references an unknown evidence ID. It does not fall back to the checked-in
 synthetic fixture.
 Use `ELF_BASELINE_BACKFILL_DOCS` to set the generated corpus size for the backfill
 profile; values such as `10000` are supported for operator-controlled stress runs.
+Use `cargo make baseline-backfill-10k-docker` for the checked-in 10k operator profile.
+Use `cargo make baseline-backfill-100k-docker` only with
+`ELF_BASELINE_ENABLE_EXPENSIVE=1`; the task fails closed without that explicit guard.
 Use `ELF_BASELINE_CONCURRENT_NOTES`, `ELF_BASELINE_MAX_ELF_SECONDS`, and
 `ELF_BASELINE_MAX_ELF_RSS_KB` to tune ELF's concurrent-write and resource-envelope
 checks.
@@ -73,7 +76,9 @@ Use `ELF_BASELINE_SOAK_SECONDS`, `ELF_BASELINE_SOAK_ROUNDS`, and
 `ELF_BASELINE_SOAK_PROBE_INTERVAL_MS` to tune ELF's repeated write/search soak
 window. The smoke profile does not run soak by default; the scale/full profiles run a
 short 15-second soak by default, and the stress profile runs a 60-second soak by
-default.
+default. Use `cargo make baseline-soak-docker` for an explicit one-hour ELF-only soak,
+or override `ELF_BASELINE_SOAK_SECONDS` for a shorter or longer operator-controlled
+window.
 Use `ELF_BASELINE_ELF_EMBEDDING_MODE=provider` plus
 `ELF_BASELINE_ELF_EMBEDDING_API_BASE`, `ELF_BASELINE_ELF_EMBEDDING_API_KEY`,
 `ELF_BASELINE_ELF_EMBEDDING_MODEL`, and
@@ -94,6 +99,20 @@ directory by default, intentionally interrupts the first pass unless
 `ELF_BASELINE_BACKFILL_BATCH_SIZE`, `ELF_BASELINE_BACKFILL_INTERRUPT_AFTER`,
 `ELF_BASELINE_BACKFILL_CHECKPOINT`, and `ELF_BASELINE_WORKER_CONCURRENCY` when
 measuring import and indexing throughput.
+Set `ELF_BASELINE_COST_PER_1K_TOKENS_USD` to attach a planning-only cost proxy to
+ELF reports. The proxy estimates input tokens from primary corpus note text plus
+declared same-corpus query text; it is not a billing statement.
+
+The ELF report records:
+
+- duplicate source-note count and checkpoint resume state;
+- query latency mean, P50, P95, P99, and max;
+- local RSS, Postgres database bytes, corpus bytes, report-directory bytes, and
+  checkpoint-file bytes;
+- the optional cost proxy described above;
+- operator-case commands for private addendum, 10k/100k resume, provider outage,
+  Docker Compose start/stop/upgrade, migration rollback, Postgres restore, Qdrant
+  rebuild, and unattended soak.
 
 Current external same-corpus adapters:
 
@@ -163,6 +182,9 @@ ELF_BASELINE_PROFILE=scale ELF_BASELINE_SCALE_DOCS=240 cargo make baseline-live-
 ELF_BASELINE_PROFILE=stress cargo make baseline-live-docker
 ELF_BASELINE_PROJECTS=ELF ELF_BASELINE_PROFILE=backfill cargo make baseline-live-docker
 cargo make baseline-backfill-docker
+cargo make baseline-backfill-10k-docker
+ELF_BASELINE_ENABLE_EXPENSIVE=1 cargo make baseline-backfill-100k-docker
+ELF_BASELINE_SOAK_SECONDS=3600 cargo make baseline-soak-docker
 ```
 
 To iterate on one or more project adapters without rerunning the full matrix:
@@ -188,6 +210,27 @@ cargo make baseline-production-private
 The private manifest can contain sanitized inline `text` fields or `local_path` fields
 that point to local sanitized text/Markdown files. Keep private manifests and local
 evidence under `tmp/` or outside the repository. `tmp/` is ignored by git.
+The manifest `manifest_id`, evidence IDs, and query IDs are report-visible labels; keep
+them lower-case ASCII identifiers and do not encode private text in those fields.
+
+To run the same private profile and publish a safe Markdown addendum under `tmp/`:
+
+```sh
+ELF_BASELINE_PRODUCTION_CORPUS_MANIFEST=tmp/private-production-corpus/manifest.json \
+cargo make baseline-production-private-addendum
+```
+
+The default addendum path is:
+
+```text
+tmp/live-baseline/private-production-addendum.md
+```
+
+Override it with `ELF_BASELINE_PRIVATE_ADDENDUM`. The addendum intentionally reports
+manifest id, evidence ids, task labels, checks, latency, backfill, resource, cost
+proxy, and operator-case fields without embedding private evidence text or local
+private file paths. Raw JSON and logs remain under `tmp/live-baseline/` and must be
+reviewed before any manual copy into durable docs.
 
 The only host artifact is:
 
@@ -219,6 +262,8 @@ generated public `smoke`, `scale`, or `stress` profiles is not enough for person
 production adoption. Cite a `production-synthetic` report for fixture coverage, and
 cite a `production-private` report when making a private-corpus production-readiness
 claim.
+If no operator-owned private manifest is supplied, the private-corpus path is a
+bounded failure, not a pass.
 
 ## Publish A Markdown Report
 

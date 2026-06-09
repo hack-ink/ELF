@@ -25,6 +25,7 @@ cleanup, use `docs/guide/single_user_production.md`.
 
 - `live_baseline_benchmark.md`: run, clean up, publish, and interpret the live
   Docker-only benchmark matrix, including generated public and production-corpus
+  profiles, private addendum publication, opt-in 10k/100k backfill, and soak
   profiles.
 - `2026-06-09-live-baseline-report.md`: checked-in evidence snapshot for the June 9,
   2026 ELF production-provider stress run and all-project smoke comparison.
