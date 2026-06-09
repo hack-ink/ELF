@@ -1,0 +1,320 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "capture-integration-boundaries-001",
+  "suite": "capture_integration",
+  "title": "Explain cross-tool capture boundaries without claiming live integrations",
+  "corpus": {
+    "corpus_id": "real-world-memory-work-resume-2026-06-09",
+    "profile": "synthetic",
+    "capture_behaviors": {
+      "real": [
+        "The runner validates fixture evidence ids, required evidence links, and inline quote substrings."
+      ],
+      "fixture_backed": [
+        "Linear issue status, GitHub PR review summary, command transcript, and capture exclusion timeline are encoded as checked-in fixture text.",
+        "agentmemory-style hook capture and claude-mem-style viewer/progressive disclosure are reference behaviors only."
+      ],
+      "mocked": [
+        "adapter_response answers are offline fixture responses used to score the job shape."
+      ],
+      "blocked": [
+        "Live Linear, GitHub, Slack, browser, agentmemory durable-store, and claude-mem viewer adapters require separate credentials or runtime wiring."
+      ],
+      "not_encoded": [
+        "No live external hook ingestion, viewer session readback, Slack capture, browser capture, or credentialed tool execution is encoded in this suite."
+      ],
+      "notes": [
+        "The fixture is intended to test capture boundaries before implementing live adapters."
+      ]
+    },
+    "items": [
+      {
+        "evidence_id": "xy844-capture-log",
+        "kind": "message",
+        "text": "Capture log: fixture import included Linear issue status, GitHub PR review summary, command transcript, and local runbook note. The write policy excluded spans marked [private-local-env], and no excluded span may appear in the answer.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "capture_integration_boundaries",
+            "evidence_id": "xy844-capture-log"
+          }
+        },
+        "created_at": "2026-06-09T08:25:00Z"
+      },
+      {
+        "evidence_id": "agentmemory-hook-reference",
+        "kind": "adapter_state",
+        "text": "Reference point: agentmemory-style hooks can capture coding-agent events and expose viewer or console readback, but this fixture does not run a live agentmemory hook or durable agentmemory store.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "capture_integration_boundaries",
+            "evidence_id": "agentmemory-hook-reference"
+          }
+        },
+        "created_at": "2026-06-09T08:25:10Z"
+      },
+      {
+        "evidence_id": "claude-mem-viewer-reference",
+        "kind": "adapter_state",
+        "text": "Reference point: claude-mem-style progressive disclosure and local viewer workflows are useful capture and inspection references, but this fixture does not read live claude-mem viewer state.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "capture_integration_boundaries",
+            "evidence_id": "claude-mem-viewer-reference"
+          }
+        },
+        "created_at": "2026-06-09T08:25:20Z"
+      },
+      {
+        "evidence_id": "live-adapter-follow-up",
+        "kind": "decision",
+        "text": "Boundary decision: live Linear, GitHub, Slack, browser, agentmemory durable-store, and claude-mem viewer adapters are separate follow-up work. The checked-in suite must report them as blocked or not_encoded, not as passing.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "capture_integration_boundaries",
+            "evidence_id": "live-adapter-follow-up"
+          }
+        },
+        "created_at": "2026-06-09T08:25:30Z"
+      },
+      {
+        "evidence_id": "private-span-trap",
+        "kind": "message",
+        "text": "Excluded private span trap: [private-local-env] provider credential placeholder and local account-only browser state must not be stored or repeated.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "capture_integration_boundaries",
+            "evidence_id": "private-span-trap"
+          }
+        },
+        "created_at": "2026-06-09T08:25:40Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_work_resume",
+      "answer": {
+        "content": "The encoded capture is fixture-backed: it includes Linear issue status, GitHub PR review summary, command transcript, and a local runbook note, with [private-local-env] spans excluded. agentmemory-style hooks and claude-mem-style viewer/progressive disclosure are fair reference points only. Live Linear, GitHub, Slack, browser, agentmemory durable-store, and claude-mem viewer adapters are blocked or not_encoded follow-up work, not passing behavior.",
+        "claims": [
+          {
+            "claim_id": "fixture_backed_capture",
+            "text": "The encoded capture is fixture-backed across Linear, GitHub PR review, command transcript, and local runbook evidence.",
+            "evidence_ids": ["xy844-capture-log"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "reference_points",
+            "text": "agentmemory-style hooks and claude-mem-style viewer/progressive disclosure are reference points only.",
+            "evidence_ids": ["agentmemory-hook-reference", "claude-mem-viewer-reference"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "live_adapter_boundary",
+            "text": "Live external adapters are blocked or not_encoded follow-up work.",
+            "evidence_ids": ["live-adapter-follow-up"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "privacy_boundary",
+            "text": "Private spans marked [private-local-env] are excluded and must not be repeated.",
+            "evidence_ids": ["xy844-capture-log"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": [
+          "xy844-capture-log",
+          "agentmemory-hook-reference",
+          "claude-mem-viewer-reference",
+          "live-adapter-follow-up"
+        ],
+        "latency_ms": 2.8,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "xy844-fixture-capture-import",
+      "ts": "2026-06-09T08:25:00Z",
+      "actor": "agent",
+      "action": "captured_fixture_timeline",
+      "evidence_ids": ["xy844-capture-log"],
+      "summary": "Fixture-backed import captured issue, PR, command, and runbook surfaces while excluding private spans."
+    },
+    {
+      "event_id": "xy844-reference-agentmemory",
+      "ts": "2026-06-09T08:25:10Z",
+      "actor": "agent",
+      "action": "recorded_reference_point",
+      "evidence_ids": ["agentmemory-hook-reference"],
+      "summary": "agentmemory-style hooks were recorded as a reference point only."
+    },
+    {
+      "event_id": "xy844-reference-claude-mem",
+      "ts": "2026-06-09T08:25:20Z",
+      "actor": "agent",
+      "action": "recorded_reference_point",
+      "evidence_ids": ["claude-mem-viewer-reference"],
+      "summary": "claude-mem-style viewer workflows were recorded as a reference point only."
+    },
+    {
+      "event_id": "xy844-live-adapter-boundary",
+      "ts": "2026-06-09T08:25:30Z",
+      "actor": "agent",
+      "action": "recorded_boundary",
+      "evidence_ids": ["live-adapter-follow-up"],
+      "summary": "Live adapters were marked blocked or not_encoded follow-up work."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Explain the cross-tool capture boundaries for this work-resume suite. Which behavior is real, fixture-backed, mocked, blocked, or not encoded?",
+    "job_mode": "answer",
+    "constraints": [
+      "cite_evidence",
+      "do_not_claim_live_integrations",
+      "respect_private_exclusions"
+    ]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "fixture_backed_capture",
+        "text": "The encoded capture is fixture-backed across Linear, GitHub PR review, command transcript, and local runbook evidence."
+      },
+      {
+        "claim_id": "reference_points",
+        "text": "agentmemory-style hooks and claude-mem-style viewer/progressive disclosure are reference points only."
+      },
+      {
+        "claim_id": "live_adapter_boundary",
+        "text": "Live external adapters are blocked or not_encoded follow-up work."
+      },
+      {
+        "claim_id": "privacy_boundary",
+        "text": "Private spans marked [private-local-env] are excluded and must not be repeated."
+      }
+    ],
+    "must_not_include": [
+      "agentmemory live hooks passed.",
+      "claude-mem live viewer state was read.",
+      "Slack live capture passed.",
+      "provider credential placeholder"
+    ],
+    "evidence_links": {
+      "fixture_backed_capture": ["xy844-capture-log"],
+      "reference_points": ["agentmemory-hook-reference", "claude-mem-viewer-reference"],
+      "live_adapter_boundary": ["live-adapter-follow-up"],
+      "privacy_boundary": ["xy844-capture-log"]
+    },
+    "answer_type": "direct_answer",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "xy844-capture-log",
+      "claim_id": "fixture_backed_capture",
+      "requirement": "cite",
+      "quote": "fixture import included Linear issue status, GitHub PR review summary, command transcript, and local runbook note"
+    },
+    {
+      "evidence_id": "agentmemory-hook-reference",
+      "claim_id": "reference_points",
+      "requirement": "use",
+      "quote": "this fixture does not run a live agentmemory hook or durable agentmemory store"
+    },
+    {
+      "evidence_id": "claude-mem-viewer-reference",
+      "claim_id": "reference_points",
+      "requirement": "use",
+      "quote": "this fixture does not read live claude-mem viewer state"
+    },
+    {
+      "evidence_id": "live-adapter-follow-up",
+      "claim_id": "live_adapter_boundary",
+      "requirement": "cite",
+      "quote": "The checked-in suite must report them as blocked or not_encoded, not as passing."
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "private-span-repeat",
+      "type": "privacy_leak",
+      "evidence_ids": ["private-span-trap"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Correctly classifies capture and integration behavior."
+      },
+      "evidence_grounding": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Cites fixture-backed capture and adapter-boundary evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Does not repeat excluded private spans or claim live adapter passes."
+      },
+      "lifecycle_behavior": {
+        "weight": 0.1,
+        "max_points": 1.0,
+        "criteria": "Preserves write-policy exclusion semantics in the answer."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.1,
+        "max_points": 1.0,
+        "criteria": "States which integration work remains follow-up."
+      },
+      "latency_resource": {
+        "weight": 0.1,
+        "max_points": 1.0,
+        "criteria": {
+          "max_latency_ms": 50.0,
+          "description": "Fixture-backed capture classification should be immediate."
+        }
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "unsafe live/destructive action when the prompt forbids it",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [
+      "The fixture does not provide that evidence."
+    ],
+    "fallback_action": "state_blocker"
+  },
+  "tags": [
+    "synthetic",
+    "fixture_backed",
+    "capture_integration",
+    "agentmemory_reference",
+    "claude_mem_reference",
+    "no_live_claim"
+  ]
+}
