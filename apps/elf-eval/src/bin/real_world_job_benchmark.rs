@@ -368,6 +368,40 @@ struct ReportSummary {
 	mean_score: f64,
 	mean_latency_ms: Option<f64>,
 	total_cost: Option<CostReport>,
+	#[serde(default)]
+	evidence_required_count: usize,
+	#[serde(default)]
+	evidence_covered_count: usize,
+	#[serde(default)]
+	evidence_coverage: f64,
+	#[serde(default)]
+	source_ref_required_count: usize,
+	#[serde(default)]
+	source_ref_covered_count: usize,
+	#[serde(default)]
+	source_ref_coverage: f64,
+	#[serde(default)]
+	quote_required_count: usize,
+	#[serde(default)]
+	quote_covered_count: usize,
+	#[serde(default)]
+	quote_coverage: f64,
+	#[serde(default)]
+	stale_retrieval_count: usize,
+	#[serde(default)]
+	scope_check_count: usize,
+	#[serde(default)]
+	scope_correct_count: usize,
+	#[serde(default)]
+	scope_correctness: f64,
+	#[serde(default)]
+	scope_violation_count: usize,
+	#[serde(default)]
+	redaction_leak_count: usize,
+	#[serde(default)]
+	qdrant_rebuild_case_count: usize,
+	#[serde(default)]
+	qdrant_rebuild_pass_count: usize,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -399,6 +433,30 @@ struct JobReport {
 	trap_ids_used: Vec<String>,
 	dimension_scores: Vec<DimensionScoreReport>,
 	reason: String,
+	#[serde(default)]
+	evidence_required_count: usize,
+	#[serde(default)]
+	evidence_covered_count: usize,
+	#[serde(default)]
+	source_ref_required_count: usize,
+	#[serde(default)]
+	source_ref_covered_count: usize,
+	#[serde(default)]
+	quote_required_count: usize,
+	#[serde(default)]
+	quote_covered_count: usize,
+	#[serde(default)]
+	stale_retrieval_count: usize,
+	#[serde(default)]
+	scope_check_count: usize,
+	#[serde(default)]
+	scope_correct_count: usize,
+	#[serde(default)]
+	scope_violation_count: usize,
+	#[serde(default)]
+	redaction_leak_count: usize,
+	#[serde(default)]
+	qdrant_rebuild_case: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -451,6 +509,22 @@ struct FailureCounts {
 	missing_evidence: usize,
 	trap_uses: usize,
 	unsupported_claims: usize,
+}
+
+#[derive(Debug, Default)]
+struct JobMetrics {
+	evidence_required_count: usize,
+	evidence_covered_count: usize,
+	source_ref_required_count: usize,
+	source_ref_covered_count: usize,
+	quote_required_count: usize,
+	quote_covered_count: usize,
+	stale_retrieval_count: usize,
+	scope_check_count: usize,
+	scope_correct_count: usize,
+	scope_violation_count: usize,
+	redaction_leak_count: usize,
+	qdrant_rebuild_case: bool,
 }
 
 fn main() -> Result<()> {
@@ -1143,6 +1217,7 @@ fn job_reason(status: TypedStatus, counts: &FailureCounts, normalized_score: f64
 
 fn job_report(job: &RealWorldJob, scoring: JobScoring) -> JobReport {
 	let answer = produced_answer(job);
+	let metrics = job_metrics(job, answer);
 
 	JobReport {
 		suite_id: job.suite.clone(),
@@ -1161,7 +1236,119 @@ fn job_report(job: &RealWorldJob, scoring: JobScoring) -> JobReport {
 		trap_ids_used: scoring.trap_ids_used,
 		dimension_scores: scoring.dimension_scores,
 		reason: scoring.reason,
+		evidence_required_count: metrics.evidence_required_count,
+		evidence_covered_count: metrics.evidence_covered_count,
+		source_ref_required_count: metrics.source_ref_required_count,
+		source_ref_covered_count: metrics.source_ref_covered_count,
+		quote_required_count: metrics.quote_required_count,
+		quote_covered_count: metrics.quote_covered_count,
+		stale_retrieval_count: metrics.stale_retrieval_count,
+		scope_check_count: metrics.scope_check_count,
+		scope_correct_count: metrics.scope_correct_count,
+		scope_violation_count: metrics.scope_violation_count,
+		redaction_leak_count: metrics.redaction_leak_count,
+		qdrant_rebuild_case: metrics.qdrant_rebuild_case,
 	}
+}
+
+fn job_metrics(job: &RealWorldJob, answer: &ProducedAnswer) -> JobMetrics {
+	let produced_evidence = produced_evidence_ids(answer);
+	let source_ref_by_evidence = source_ref_by_evidence(job);
+	let evidence_required_count =
+		job.required_evidence.iter().filter(|evidence| is_required_use(evidence)).count();
+	let evidence_covered_count = job
+		.required_evidence
+		.iter()
+		.filter(|evidence| is_required_use(evidence))
+		.filter(|evidence| produced_evidence.contains(&evidence.evidence_id))
+		.count();
+	let source_ref_required_count = evidence_required_count;
+	let source_ref_covered_count = job
+		.required_evidence
+		.iter()
+		.filter(|evidence| is_required_use(evidence))
+		.filter(|evidence| produced_evidence.contains(&evidence.evidence_id))
+		.filter(|evidence| {
+			source_ref_by_evidence.get(evidence.evidence_id.as_str()).is_some_and(|source_ref| {
+				source_ref.as_object().is_some_and(|object| !object.is_empty())
+			})
+		})
+		.count();
+	let quote_required_count = job
+		.required_evidence
+		.iter()
+		.filter(|evidence| is_required_use(evidence) && evidence.quote.is_some())
+		.count();
+	let quote_covered_count = job
+		.required_evidence
+		.iter()
+		.filter(|evidence| is_required_use(evidence) && evidence.quote.is_some())
+		.filter(|evidence| produced_evidence.contains(&evidence.evidence_id))
+		.count();
+	let stale_retrieval_count = trap_use_count(job, &produced_evidence, "stale_fact", answer);
+	let scope_violation_count = trap_use_count(job, &produced_evidence, "near_duplicate", answer);
+	let scope_check_count =
+		job.negative_traps.iter().filter(|trap| trap.trap_type == "near_duplicate").count();
+	let redaction_leak_count = trap_use_count(job, &produced_evidence, "privacy_leak", answer);
+	let scope_correct_count = scope_check_count.saturating_sub(scope_violation_count);
+	let qdrant_rebuild_case = job.tags.iter().any(|tag| tag == "qdrant_rebuild");
+
+	JobMetrics {
+		evidence_required_count,
+		evidence_covered_count,
+		source_ref_required_count,
+		source_ref_covered_count,
+		quote_required_count,
+		quote_covered_count,
+		stale_retrieval_count,
+		scope_check_count,
+		scope_correct_count,
+		scope_violation_count,
+		redaction_leak_count,
+		qdrant_rebuild_case,
+	}
+}
+
+fn source_ref_by_evidence(job: &RealWorldJob) -> BTreeMap<&str, &Value> {
+	job.corpus.items.iter().map(|item| (item.evidence_id.as_str(), &item.source_ref)).collect()
+}
+
+fn trap_use_count(
+	job: &RealWorldJob,
+	produced_evidence: &BTreeSet<String>,
+	trap_type: &str,
+	answer: &ProducedAnswer,
+) -> usize {
+	job.negative_traps
+		.iter()
+		.filter(|trap| trap.failure_if_used && trap.trap_type == trap_type)
+		.filter(|trap| trap_was_used(job, trap, produced_evidence, answer))
+		.count()
+}
+
+fn trap_was_used(
+	job: &RealWorldJob,
+	trap: &NegativeTrap,
+	produced_evidence: &BTreeSet<String>,
+	answer: &ProducedAnswer,
+) -> bool {
+	trap.evidence_ids.iter().any(|evidence_id| {
+		produced_evidence.contains(evidence_id)
+			|| answer_contains_corpus_item(job, evidence_id, answer)
+	})
+}
+
+fn answer_contains_corpus_item(
+	job: &RealWorldJob,
+	evidence_id: &str,
+	answer: &ProducedAnswer,
+) -> bool {
+	job.corpus
+		.items
+		.iter()
+		.find(|item| item.evidence_id == evidence_id)
+		.and_then(|item| item.text.as_deref())
+		.is_some_and(|text| !text.trim().is_empty() && answer.content.contains(text))
 }
 
 fn expected_evidence_report(job: &RealWorldJob) -> Vec<ExpectedEvidenceReport> {
@@ -1245,6 +1432,14 @@ fn suite_reason(status: TypedStatus, encoded_job_count: usize) -> String {
 }
 
 fn report_summary(jobs: &[JobReport], suites: &[SuiteReport]) -> ReportSummary {
+	let evidence_required_count = jobs.iter().map(|job| job.evidence_required_count).sum();
+	let evidence_covered_count = jobs.iter().map(|job| job.evidence_covered_count).sum();
+	let source_ref_required_count = jobs.iter().map(|job| job.source_ref_required_count).sum();
+	let source_ref_covered_count = jobs.iter().map(|job| job.source_ref_covered_count).sum();
+	let quote_required_count = jobs.iter().map(|job| job.quote_required_count).sum();
+	let quote_covered_count = jobs.iter().map(|job| job.quote_covered_count).sum();
+	let scope_check_count = jobs.iter().map(|job| job.scope_check_count).sum();
+	let scope_correct_count = jobs.iter().map(|job| job.scope_correct_count).sum();
 	let mut summary = ReportSummary {
 		job_count: jobs.len(),
 		encoded_suite_count: suites
@@ -1257,6 +1452,26 @@ fn report_summary(jobs: &[JobReport], suites: &[SuiteReport]) -> ReportSummary {
 		mean_score: mean_score(jobs),
 		mean_latency_ms: mean_latency(jobs),
 		total_cost: total_cost(jobs),
+		evidence_required_count,
+		evidence_covered_count,
+		evidence_coverage: ratio(evidence_covered_count, evidence_required_count),
+		source_ref_required_count,
+		source_ref_covered_count,
+		source_ref_coverage: ratio(source_ref_covered_count, source_ref_required_count),
+		quote_required_count,
+		quote_covered_count,
+		quote_coverage: ratio(quote_covered_count, quote_required_count),
+		stale_retrieval_count: jobs.iter().map(|job| job.stale_retrieval_count).sum(),
+		scope_check_count,
+		scope_correct_count,
+		scope_correctness: ratio(scope_correct_count, scope_check_count),
+		scope_violation_count: jobs.iter().map(|job| job.scope_violation_count).sum(),
+		redaction_leak_count: jobs.iter().map(|job| job.redaction_leak_count).sum(),
+		qdrant_rebuild_case_count: jobs.iter().filter(|job| job.qdrant_rebuild_case).count(),
+		qdrant_rebuild_pass_count: jobs
+			.iter()
+			.filter(|job| job.qdrant_rebuild_case && job.status == TypedStatus::Pass)
+			.count(),
 		..ReportSummary::default()
 	};
 
@@ -1273,6 +1488,14 @@ fn report_summary(jobs: &[JobReport], suites: &[SuiteReport]) -> ReportSummary {
 	}
 
 	summary
+}
+
+fn ratio(numerator: usize, denominator: usize) -> f64 {
+	if denominator == 0 {
+		return 0.0;
+	}
+
+	round3(numerator as f64 / denominator as f64)
 }
 
 fn mean_score(jobs: &[JobReport]) -> f64 {
@@ -1401,6 +1624,37 @@ fn render_markdown_header(out: &mut String, report: &RealWorldReport, report_pat
 		report.summary.unsupported_claim_count
 	));
 	out.push_str(&format!("- Wrong-result count: `{}`\n", report.summary.wrong_result_count));
+	out.push_str(&format!(
+		"- Evidence coverage: `{}/{}` (`{:.3}`)\n",
+		report.summary.evidence_covered_count,
+		report.summary.evidence_required_count,
+		report.summary.evidence_coverage
+	));
+	out.push_str(&format!(
+		"- Source-ref coverage: `{}/{}` (`{:.3}`)\n",
+		report.summary.source_ref_covered_count,
+		report.summary.source_ref_required_count,
+		report.summary.source_ref_coverage
+	));
+	out.push_str(&format!(
+		"- Quote coverage: `{}/{}` (`{:.3}`)\n",
+		report.summary.quote_covered_count,
+		report.summary.quote_required_count,
+		report.summary.quote_coverage
+	));
+	out.push_str(&format!("- Stale retrieval count: `{}`\n", report.summary.stale_retrieval_count));
+	out.push_str(&format!(
+		"- Scope correctness: `{}/{}` (`{:.3}`), violations `{}`\n",
+		report.summary.scope_correct_count,
+		report.summary.scope_check_count,
+		report.summary.scope_correctness,
+		report.summary.scope_violation_count
+	));
+	out.push_str(&format!("- Redaction leak count: `{}`\n", report.summary.redaction_leak_count));
+	out.push_str(&format!(
+		"- Qdrant rebuild cases: `{}` encoded, `{}` pass\n",
+		report.summary.qdrant_rebuild_case_count, report.summary.qdrant_rebuild_pass_count
+	));
 	out.push_str(&format!("- Mean score: `{:.3}`\n", report.summary.mean_score));
 	out.push_str(&format!(
 		"- Mean latency: `{}`\n",
@@ -1501,6 +1755,9 @@ fn render_markdown_semantics(out: &mut String, report: &RealWorldReport) {
 	);
 	out.push_str("It is a real-world job fixture report, not a Docker live-baseline report.\n");
 	out.push_str("Existing live-baseline reports remain valid for their encoded retrieval and lifecycle checks and are not reinterpreted as real-world suite wins.\n\n");
+	out.push_str(
+		"The summary counters report required evidence coverage, source-ref coverage, quote coverage, stale retrievals, scope violations, redaction leaks, and Qdrant rebuild case coverage across encoded jobs.\n\n",
+	);
 	out.push_str(
 		"- `pass`: encoded jobs met their pass threshold with required evidence and no hard-fail rule.\n",
 	);

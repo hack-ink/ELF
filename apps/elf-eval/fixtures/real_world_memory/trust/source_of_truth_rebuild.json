@@ -1,0 +1,213 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "trust-sot-rebuild-001",
+  "suite": "trust_source_of_truth",
+  "title": "Answer from restored Postgres source-of-truth after Qdrant rebuild",
+  "corpus": {
+    "corpus_id": "real-world-memory-trust-2026-06-09",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "restore-proof-note",
+        "kind": "runbook",
+        "text": "Restore proof note: Postgres backup restored note single_user_restore_probe, and the search answer must cite this source note rather than Qdrant payload text.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "source_of_truth_rebuild",
+            "evidence_id": "restore-proof-note"
+          },
+          "locator": {
+            "quote": "Postgres backup restored note single_user_restore_probe"
+          }
+        },
+        "created_at": "2026-06-09T01:00:00Z"
+      },
+      {
+        "evidence_id": "qdrant-rebuild-proof",
+        "kind": "trace",
+        "text": "Qdrant rebuild proof: admin rebuild read vectors from Postgres chunk embeddings and returned rebuilt_count=1, missing_vector_count=0, error_count=0 before the final search.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "source_of_truth_rebuild",
+            "evidence_id": "qdrant-rebuild-proof"
+          },
+          "locator": {
+            "quote": "rebuilt_count=1, missing_vector_count=0, error_count=0"
+          }
+        },
+        "created_at": "2026-06-09T01:05:00Z"
+      },
+      {
+        "evidence_id": "index-only-decoy",
+        "kind": "adapter_state",
+        "text": "Decoy: a stale Qdrant-only payload says the restore can be trusted without checking Postgres source rows.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "source_of_truth_rebuild",
+            "evidence_id": "index-only-decoy"
+          }
+        },
+        "created_at": "2026-06-09T00:50:00Z"
+      },
+      {
+        "evidence_id": "unsupported-private-manifest-decoy",
+        "kind": "decision",
+        "text": "Unsupported prior: the same restore proof also proves a private production corpus passed.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "source_of_truth_rebuild",
+            "evidence_id": "unsupported-private-manifest-decoy"
+          }
+        },
+        "created_at": "2026-06-09T00:55:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "elf_real_world_memory_fixture",
+      "answer": {
+        "content": "Use the restored Postgres note as authoritative evidence: Postgres backup restored note single_user_restore_probe. Qdrant was rebuilt from Postgres chunk embeddings before the final search, with rebuilt_count=1, missing_vector_count=0, and error_count=0. This does not prove a private production corpus pass.",
+        "claims": [
+          {
+            "claim_id": "authoritative_restore_source",
+            "text": "Postgres backup restored note single_user_restore_probe.",
+            "evidence_ids": ["restore-proof-note"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "qdrant_rebuilt_from_sot",
+            "text": "Qdrant was rebuilt from Postgres chunk embeddings before the final search.",
+            "evidence_ids": ["qdrant-rebuild-proof"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["restore-proof-note", "qdrant-rebuild-proof"],
+        "latency_ms": 1.4,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "restore-postgres",
+      "ts": "2026-06-09T01:00:00Z",
+      "actor": "operator",
+      "action": "restored_postgres_backup",
+      "evidence_ids": ["restore-proof-note"],
+      "summary": "The authoritative source note came back from Postgres restore."
+    },
+    {
+      "event_id": "rebuild-qdrant",
+      "ts": "2026-06-09T01:05:00Z",
+      "actor": "tool",
+      "action": "rebuilt_qdrant_from_postgres_vectors",
+      "evidence_ids": ["qdrant-rebuild-proof"],
+      "summary": "Qdrant was rebuilt from Postgres-held chunk embeddings before answering."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Can I trust the restored memory answer, and what evidence proves the vector index was rebuilt from source-of-truth state?",
+    "job_mode": "answer",
+    "constraints": ["cite_evidence", "avoid_index_only_claims", "state_caveats"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "authoritative_restore_source",
+        "text": "Postgres backup restored note single_user_restore_probe."
+      },
+      {
+        "claim_id": "qdrant_rebuilt_from_sot",
+        "text": "Qdrant was rebuilt from Postgres chunk embeddings before the final search."
+      }
+    ],
+    "must_not_include": [
+      "the restore can be trusted without checking Postgres source rows",
+      "private production corpus passed"
+    ],
+    "evidence_links": {
+      "authoritative_restore_source": ["restore-proof-note"],
+      "qdrant_rebuilt_from_sot": ["qdrant-rebuild-proof"]
+    },
+    "answer_type": "direct_answer",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "restore-proof-note",
+      "claim_id": "authoritative_restore_source",
+      "requirement": "cite",
+      "quote": "Postgres backup restored note single_user_restore_probe"
+    },
+    {
+      "evidence_id": "qdrant-rebuild-proof",
+      "claim_id": "qdrant_rebuilt_from_sot",
+      "requirement": "cite",
+      "quote": "rebuilt_count=1, missing_vector_count=0, error_count=0"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "index-only-source-of-truth",
+      "type": "decoy_evidence",
+      "evidence_ids": ["index-only-decoy"],
+      "failure_if_used": true
+    },
+    {
+      "trap_id": "unsupported-private-corpus-pass",
+      "type": "unsupported_prior",
+      "evidence_ids": ["unsupported-private-manifest-decoy"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Identifies Postgres as source of truth and Qdrant as derived."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Cites restore and rebuild evidence with source refs."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Does not trust index-only or unsupported private-corpus decoys."
+      },
+      "lifecycle_behavior": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Demonstrates rebuild from source-of-truth state before answering."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "state_blocker"
+  },
+  "tags": ["synthetic", "trust", "source_ref", "qdrant_rebuild", "no_live_claim"]
+}
