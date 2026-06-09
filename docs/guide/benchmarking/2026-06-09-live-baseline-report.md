@@ -152,6 +152,13 @@ The benchmark is intentionally stricter than a feature checklist. It exercises w
 project can ingest the same corpus, return expected evidence for the same queries, and
 preserve basic lifecycle behavior under the runner's encoded contract.
 
+## Retrieval Observability
+
+Generated live-baseline reports include per-query ELF trace IDs when the ELF service
+path runs. Open the admin viewer at `/viewer`, paste a trace ID into the Traces panel,
+and inspect the full trace bundle to compare candidates, fusion/rerank terms, relation
+context, provider metadata, and selected final results without raw SQL.
+
 ELF checks covered in this run:
 
 - production-provider embeddings through the same service path used by ELF;

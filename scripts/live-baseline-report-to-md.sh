@@ -117,14 +117,15 @@ render_report() {
       | if ($query_projects | length) > 0 then
           "## Query Evidence",
           "",
-          "| Project | Query | Task | Expected Evidence | Allowed Alternates | Top Evidence | Matched | Latency |",
-          "| --- | --- | --- | --- | --- | --- | --- | --- |",
+          "| Project | Query | Trace ID | Task | Expected Evidence | Allowed Alternates | Top Evidence | Matched | Latency |",
+          "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
           (
             $query_projects[]
             | .project as $project
             | .queries[]
             | "| " + ($project | md)
               + " | `" + (.id | md) + "`"
+              + " | `" + ((.trace_id // "-") | md) + "`"
               + " | `" + ((.task // "-") | md) + "`"
               + " | `" + (((.expected_evidence_ids // []) | join(", ")) | md) + "`"
               + " | `" + (((.allowed_alternate_evidence_ids // []) | join(", ")) | md) + "`"
