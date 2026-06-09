@@ -208,8 +208,9 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [Detailed External Comparison](docs/guide/research/comparison_external_projects.md)
 - [Research Projects Inventory](docs/guide/research/research_projects_inventory.md)
 - [Agent Memory Selection Research Run](docs/research/2026-06-08-agent-memory-selection.json)
+- [Real-World Benchmark Dimension Research Run](docs/research/2026-06-09-xy-841-external-memory-benchmark-dimensions.json)
 
-Latest external research refresh: June 8, 2026.
+Latest external research refresh: June 9, 2026.
 
 ## Documentation
 
