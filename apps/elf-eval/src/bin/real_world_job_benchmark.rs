@@ -352,6 +352,8 @@ struct ProducedAnswer {
 	claims: Vec<ProducedClaim>,
 	#[serde(default)]
 	evidence_ids: Vec<String>,
+	#[serde(default)]
+	pages: Vec<DerivedPageArtifact>,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	latency_ms: Option<f64>,
 	#[serde(skip_serializing_if = "Option::is_none")]
@@ -369,6 +371,58 @@ struct ProducedClaim {
 	evidence_ids: Vec<String>,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	confidence: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct DerivedPageArtifact {
+	page_id: String,
+	page_type: String,
+	title: String,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	path: Option<String>,
+	#[serde(default)]
+	sections: Vec<DerivedPageSection>,
+	#[serde(default)]
+	backlinks: Vec<String>,
+	#[serde(default)]
+	lint_findings: Vec<DerivedPageLintFinding>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	rebuild: Option<DerivedPageRebuild>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct DerivedPageSection {
+	section_id: String,
+	heading: String,
+	role: String,
+	content: String,
+	#[serde(default)]
+	evidence_ids: Vec<String>,
+	#[serde(default)]
+	timeline_event_ids: Vec<String>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	unsupported_reason: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct DerivedPageLintFinding {
+	finding_id: String,
+	finding_type: String,
+	severity: String,
+	text: String,
+	#[serde(default)]
+	evidence_ids: Vec<String>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	trap_id: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct DerivedPageRebuild {
+	first_hash: String,
+	second_hash: String,
+	deterministic: bool,
+	#[serde(default)]
+	allowed_variance: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -622,6 +676,8 @@ struct ReportSummary {
 	operator_ux_gap_count: usize,
 	#[serde(default)]
 	consolidation: ConsolidationSummaryReport,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	knowledge: Option<KnowledgeSummary>,
 }
 
 #[derive(Debug, Default, Deserialize, Serialize)]
@@ -633,6 +689,23 @@ struct ConsolidationSummaryReport {
 	source_mutation_count: usize,
 	proposal_unsupported_claim_count: usize,
 	executable_gap_count: usize,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct KnowledgeSummary {
+	job_count: usize,
+	page_count: usize,
+	section_count: usize,
+	backlink_count: usize,
+	pages_with_backlinks: usize,
+	citation_coverage: f64,
+	stale_claim_detection: f64,
+	rebuild_determinism: f64,
+	backlink_coverage: f64,
+	page_usefulness: f64,
+	unsupported_summary_count: usize,
+	untraced_section_count: usize,
+	allowed_variance_count: usize,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -682,6 +755,8 @@ struct JobReport {
 	latency_ms: Option<f64>,
 	cost: Option<CostReport>,
 	trace_explainability: Option<TraceExplainability>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	knowledge: Option<KnowledgeJobMetrics>,
 	trap_ids_used: Vec<String>,
 	dimension_scores: Vec<DimensionScoreReport>,
 	reason: String,
@@ -788,6 +863,29 @@ struct UnsupportedClaimReport {
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct KnowledgeJobMetrics {
+	page_count: usize,
+	section_count: usize,
+	traced_section_count: usize,
+	flagged_unsupported_section_count: usize,
+	untraced_section_count: usize,
+	unsupported_summary_count: usize,
+	backlink_count: usize,
+	pages_with_backlinks: usize,
+	stale_trap_count: usize,
+	stale_traps_detected: usize,
+	rebuild_page_count: usize,
+	deterministic_rebuild_count: usize,
+	rebuild_failure_count: usize,
+	allowed_variance_count: usize,
+	citation_coverage: f64,
+	stale_claim_detection: f64,
+	rebuild_determinism: f64,
+	backlink_coverage: f64,
+	page_usefulness: f64,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 struct EvolutionSummary {
 	stale_answer_count: usize,
 	conflict_detection_count: usize,
@@ -832,6 +930,7 @@ struct JobScoring {
 	hard_fail_hits: Vec<String>,
 	unsupported_claims: Vec<UnsupportedClaimReport>,
 	wrong_result_count: usize,
+	knowledge: Option<KnowledgeJobMetrics>,
 	trap_ids_used: Vec<String>,
 	dimension_scores: Vec<DimensionScoreReport>,
 	reason: String,
@@ -859,6 +958,10 @@ struct FailureCounts {
 	review_action_failures: usize,
 	source_mutations: usize,
 	blocking_executable_gaps: usize,
+	untraced_page_sections: usize,
+	missed_stale_findings: usize,
+	rebuild_failures: usize,
+	page_usefulness_failures: usize,
 }
 
 #[derive(Debug, Default)]
@@ -976,6 +1079,7 @@ fn validate_job(job: &RealWorldJob, path: &Path) -> Result<()> {
 	validate_expected_answer(job, path)?;
 	validate_required_evidence(job, path)?;
 	validate_consolidation_fixture(job, path)?;
+	validate_adapter_response(job, path)?;
 	validate_scoring_rubric(job, path)?;
 	validate_allowed_uncertainty(job, path)?;
 	validate_operator_debug(job, path)?;
@@ -1235,6 +1339,93 @@ fn validate_consolidation_proposal(
 		return Err(eyre::eyre!(
 			"{} consolidation proposal diff must be a JSON object when present.",
 			path.display()
+		));
+	}
+
+	Ok(())
+}
+
+fn validate_adapter_response(job: &RealWorldJob, path: &Path) -> Result<()> {
+	let Some(adapter_response) = &job.corpus.adapter_response else {
+		return Ok(());
+	};
+	let evidence_ids = corpus_evidence_ids(job);
+	let event_ids = timeline_event_ids(job);
+
+	for page in &adapter_response.answer.pages {
+		validate_page_artifact(page, path, &evidence_ids, &event_ids)?;
+	}
+
+	Ok(())
+}
+
+fn validate_page_artifact(
+	page: &DerivedPageArtifact,
+	path: &Path,
+	evidence_ids: &BTreeSet<String>,
+	event_ids: &BTreeSet<String>,
+) -> Result<()> {
+	if page.page_id.trim().is_empty()
+		|| page.page_type.trim().is_empty()
+		|| page.title.trim().is_empty()
+	{
+		return Err(eyre::eyre!("{} has an incomplete derived page.", path.display()));
+	}
+
+	for section in &page.sections {
+		if section.section_id.trim().is_empty()
+			|| section.heading.trim().is_empty()
+			|| section.role.trim().is_empty()
+			|| section.content.trim().is_empty()
+		{
+			return Err(eyre::eyre!(
+				"{} page {} has an incomplete section.",
+				path.display(),
+				page.page_id
+			));
+		}
+
+		for evidence_id in &section.evidence_ids {
+			ensure_known_evidence(path, evidence_ids, evidence_id)?;
+		}
+		for event_id in &section.timeline_event_ids {
+			ensure_known_event(path, event_ids, event_id)?;
+		}
+	}
+	for backlink in &page.backlinks {
+		if backlink.trim().is_empty() {
+			return Err(eyre::eyre!(
+				"{} page {} has an empty backlink.",
+				path.display(),
+				page.page_id
+			));
+		}
+	}
+	for finding in &page.lint_findings {
+		if finding.finding_id.trim().is_empty()
+			|| finding.finding_type.trim().is_empty()
+			|| finding.severity.trim().is_empty()
+			|| finding.text.trim().is_empty()
+		{
+			return Err(eyre::eyre!(
+				"{} page {} has an incomplete lint finding.",
+				path.display(),
+				page.page_id
+			));
+		}
+
+		for evidence_id in &finding.evidence_ids {
+			ensure_known_evidence(path, evidence_ids, evidence_id)?;
+		}
+	}
+
+	if let Some(rebuild) = &page.rebuild
+		&& (rebuild.first_hash.trim().is_empty() || rebuild.second_hash.trim().is_empty())
+	{
+		return Err(eyre::eyre!(
+			"{} page {} has an incomplete rebuild record.",
+			path.display(),
+			page.page_id
 		));
 	}
 
@@ -1595,6 +1786,22 @@ fn corpus_text_by_id(job: &RealWorldJob) -> BTreeMap<&str, &str> {
 		.collect()
 }
 
+fn timeline_event_ids(job: &RealWorldJob) -> BTreeSet<String> {
+	job.timeline.iter().map(|event| event.event_id.clone()).collect()
+}
+
+fn ensure_known_event(path: &Path, known: &BTreeSet<String>, event_id: &str) -> Result<()> {
+	if !known.contains(event_id) {
+		return Err(eyre::eyre!(
+			"{} references unknown timeline event id {}.",
+			path.display(),
+			event_id
+		));
+	}
+
+	Ok(())
+}
+
 fn build_report(jobs: &[RealWorldJob], args: &RunArgs) -> Result<RealWorldReport> {
 	if jobs.is_empty() {
 		return Err(eyre::eyre!("At least one real_world_job fixture is required."));
@@ -1654,6 +1861,7 @@ fn score_job(job: &RealWorldJob) -> JobScoring {
 			hard_fail_hits: Vec::new(),
 			unsupported_claims: Vec::new(),
 			wrong_result_count: 0,
+			knowledge: None,
 			trap_ids_used,
 			dimension_scores: declared_not_encoded_dimension_scores(job),
 			reason: job
@@ -1669,7 +1877,11 @@ fn score_job(job: &RealWorldJob) -> JobScoring {
 	let missing_claims = missing_required_claims(job, answer);
 	let forbidden_claims = forbidden_claim_hits(job, answer);
 	let missing_evidence = missing_required_evidence(job, &produced_evidence);
+	let knowledge = knowledge_metrics(job, answer);
 	let mut unsupported_claims = unsupported_claims(job, answer);
+
+	unsupported_claims.extend(unsupported_page_claims(answer));
+
 	let operator_counts = operator_debug_failure_counts(job);
 	let latency_violations = latency_violations(job, answer);
 	let hard_fail_hits = hard_fail_hits(job, &unsupported_claims, &trap_ids_used);
@@ -1698,6 +1910,12 @@ fn score_job(job: &RealWorldJob) -> JobScoring {
 		review_action_failures: review_action_failures(consolidation.as_ref()),
 		source_mutations: consolidation.as_ref().map_or(0, |report| report.source_mutation_count),
 		blocking_executable_gaps: blocking_executable_gaps(consolidation.as_ref()),
+		untraced_page_sections: knowledge
+			.as_ref()
+			.map_or(0, |metrics| metrics.untraced_section_count),
+		missed_stale_findings: knowledge.as_ref().map_or(0, missed_stale_finding_count),
+		rebuild_failures: knowledge.as_ref().map_or(0, |metrics| metrics.rebuild_failure_count),
+		page_usefulness_failures: knowledge.as_ref().map_or(0, page_usefulness_failure_count),
 	};
 	let dimension_scores = dimension_scores(job, &counts);
 	let normalized_score = normalized_score(&dimension_scores);
@@ -1713,7 +1931,11 @@ fn score_job(job: &RealWorldJob) -> JobScoring {
 		+ counts.update_rationale_missing
 		+ counts.proposal_usefulness_failures
 		+ counts.lineage_failures
-		+ counts.review_action_failures;
+		+ counts.review_action_failures
+		+ counts.untraced_page_sections
+		+ counts.missed_stale_findings
+		+ counts.rebuild_failures
+		+ counts.page_usefulness_failures;
 	let status = job_status(
 		normalized_score,
 		job.scoring_rubric.pass_threshold,
@@ -1735,6 +1957,7 @@ fn score_job(job: &RealWorldJob) -> JobScoring {
 		hard_fail_hits,
 		unsupported_claims,
 		wrong_result_count,
+		knowledge,
 		trap_ids_used,
 		dimension_scores,
 		reason,
@@ -1789,6 +2012,7 @@ fn synthetic_answer(job: &RealWorldJob) -> &ProducedAnswer {
 		content: String::new(),
 		claims: Vec::new(),
 		evidence_ids: Vec::new(),
+		pages: Vec::new(),
 		latency_ms: None,
 		cost: None,
 		trace_explainability: None,
@@ -2024,6 +2248,145 @@ fn unsupported_claim_report(claim: &ProducedClaim, reason: &str) -> UnsupportedC
 	}
 }
 
+fn unsupported_page_claims(answer: &ProducedAnswer) -> Vec<UnsupportedClaimReport> {
+	answer
+		.pages
+		.iter()
+		.flat_map(|page| {
+			page.sections.iter().filter_map(|section| {
+				if section_is_traced(section) || section_is_flagged_unsupported(section) {
+					return None;
+				}
+
+				Some(UnsupportedClaimReport {
+					suite_id: String::new(),
+					job_id: String::new(),
+					claim_id: Some(format!("{}:{}", page.page_id, section.section_id)),
+					claim_text: bounded_text(section.content.as_str(), 240),
+					reason:
+						"derived page section has no source evidence and is not flagged unsupported"
+							.to_string(),
+					evidence_ids: section.evidence_ids.clone(),
+				})
+			})
+		})
+		.collect()
+}
+
+fn knowledge_metrics(job: &RealWorldJob, answer: &ProducedAnswer) -> Option<KnowledgeJobMetrics> {
+	if answer.pages.is_empty() {
+		return None;
+	}
+
+	let mut metrics = KnowledgeJobMetrics {
+		page_count: answer.pages.len(),
+		stale_trap_count: stale_traps(job).len(),
+		..KnowledgeJobMetrics::default()
+	};
+
+	for page in &answer.pages {
+		accumulate_page_metrics(page, &mut metrics);
+	}
+
+	metrics.stale_traps_detected = stale_traps(job)
+		.iter()
+		.filter(|trap| page_artifacts_detect_stale_trap(&answer.pages, trap))
+		.count();
+	metrics.citation_coverage = ratio(metrics.traced_section_count, metrics.section_count);
+	metrics.stale_claim_detection =
+		ratio_or_full(metrics.stale_traps_detected, metrics.stale_trap_count);
+	metrics.rebuild_determinism = ratio(metrics.deterministic_rebuild_count, metrics.page_count);
+	metrics.backlink_coverage = ratio(metrics.pages_with_backlinks, metrics.page_count);
+	metrics.page_usefulness = round3(
+		(metrics.citation_coverage
+			+ metrics.stale_claim_detection
+			+ metrics.rebuild_determinism
+			+ metrics.backlink_coverage)
+			/ 4.0,
+	);
+
+	Some(metrics)
+}
+
+fn stale_traps(job: &RealWorldJob) -> Vec<&NegativeTrap> {
+	job.negative_traps
+		.iter()
+		.filter(|trap| trap.trap_type == "stale_fact" && trap.failure_if_used)
+		.collect()
+}
+
+fn accumulate_page_metrics(page: &DerivedPageArtifact, metrics: &mut KnowledgeJobMetrics) {
+	if !page.backlinks.is_empty() {
+		metrics.pages_with_backlinks += 1;
+	}
+
+	metrics.backlink_count += page.backlinks.len();
+
+	for section in &page.sections {
+		metrics.section_count += 1;
+
+		if section_is_traced(section) {
+			metrics.traced_section_count += 1;
+		} else if section_is_flagged_unsupported(section) {
+			metrics.flagged_unsupported_section_count += 1;
+
+			if section.role == "summary" {
+				metrics.unsupported_summary_count += 1;
+			}
+		} else {
+			metrics.untraced_section_count += 1;
+		}
+	}
+
+	if let Some(rebuild) = &page.rebuild {
+		if !rebuild.allowed_variance.is_empty() {
+			metrics.allowed_variance_count += 1;
+		}
+		if rebuild_is_acceptable(rebuild) {
+			metrics.deterministic_rebuild_count += 1;
+		} else {
+			metrics.rebuild_failure_count += 1;
+		}
+	} else {
+		metrics.rebuild_failure_count += 1;
+	}
+
+	metrics.rebuild_page_count += 1;
+}
+
+fn section_is_traced(section: &DerivedPageSection) -> bool {
+	!section.evidence_ids.is_empty() || !section.timeline_event_ids.is_empty()
+}
+
+fn section_is_flagged_unsupported(section: &DerivedPageSection) -> bool {
+	section.unsupported_reason.as_ref().is_some_and(|reason| !reason.trim().is_empty())
+}
+
+fn rebuild_is_acceptable(rebuild: &DerivedPageRebuild) -> bool {
+	(rebuild.deterministic && rebuild.first_hash == rebuild.second_hash)
+		|| !rebuild.allowed_variance.is_empty()
+}
+
+fn page_artifacts_detect_stale_trap(pages: &[DerivedPageArtifact], trap: &NegativeTrap) -> bool {
+	pages.iter().any(|page| {
+		page.lint_findings.iter().any(|finding| {
+			finding.trap_id.as_deref() == Some(trap.trap_id.as_str())
+				|| finding
+					.evidence_ids
+					.iter()
+					.any(|evidence_id| trap.evidence_ids.contains(evidence_id))
+		})
+	})
+}
+
+fn missed_stale_finding_count(metrics: &KnowledgeJobMetrics) -> usize {
+	metrics.stale_trap_count.saturating_sub(metrics.stale_traps_detected)
+}
+
+fn page_usefulness_failure_count(metrics: &KnowledgeJobMetrics) -> usize {
+	if metrics.page_usefulness < 0.8 { 1 } else { 0 }
+}
+
 fn hard_fail_hits(
 	job: &RealWorldJob,
 	unsupported_claims: &[UnsupportedClaimReport],
@@ -2095,18 +2458,21 @@ fn dimension_score(dimension_id: &str, max_points: f64, counts: &FailureCounts) 
 				|| counts.operator_debug_repair_unclear > 0
 				|| counts.conflict_detection_missing > 0
 				|| counts.proposal_usefulness_failures > 0
-				|| counts.review_action_failures > 0,
+				|| counts.review_action_failures > 0
+				|| counts.page_usefulness_failures > 0,
 		"evidence_grounding" =>
 			counts.missing_evidence > 0
 				|| counts.unsupported_claims > 0
-				|| counts.lineage_failures > 0,
-		"trap_avoidance" => counts.trap_uses > 0,
+				|| counts.lineage_failures > 0
+				|| counts.untraced_page_sections > 0,
+		"trap_avoidance" => counts.trap_uses > 0 || counts.missed_stale_findings > 0,
 		"uncertainty_handling" => counts.unsupported_claims > 0,
 		"lifecycle_behavior" =>
 			counts.stale_answers > 0
 				|| counts.conflict_detection_missing > 0
 				|| counts.update_rationale_missing > 0
-				|| counts.source_mutations > 0,
+				|| counts.source_mutations > 0
+				|| counts.rebuild_failures > 0,
 		"source_immutability" => counts.source_mutations > 0,
 		"proposal_usefulness" => counts.proposal_usefulness_failures > 0,
 		"lineage_completeness" => counts.lineage_failures > 0,
@@ -2180,42 +2546,17 @@ fn job_status(
 }
 
 fn job_reason(status: TypedStatus, counts: &FailureCounts, normalized_score: f64) -> String {
+	let wrong_result_signal_count = wrong_result_signal_count(counts);
+
 	match status {
 		TypedStatus::Pass => format!("Job passed with normalized_score {normalized_score:.3}."),
 		TypedStatus::UnsupportedClaim => format!(
 			"Job produced {} unsupported claim(s), {} wrong-result signal(s), {} latency violation(s), and normalized_score {normalized_score:.3}.",
-			counts.unsupported_claims,
-			counts.missing_claims
-				+ counts.forbidden_claims
-				+ counts.missing_evidence
-				+ counts.trap_uses
-				+ counts.operator_debug_missing
-				+ counts.operator_debug_raw_sql
-				+ counts.operator_debug_trace_gaps
-				+ counts.operator_debug_repair_unclear
-				+ counts.conflict_detection_missing
-				+ counts.update_rationale_missing
-				+ counts.proposal_usefulness_failures
-				+ counts.lineage_failures
-				+ counts.review_action_failures,
-			counts.latency_violations
+			counts.unsupported_claims, wrong_result_signal_count, counts.latency_violations
 		),
 		TypedStatus::WrongResult => format!(
 			"Job produced {} wrong-result signal(s), {} latency violation(s), and normalized_score {normalized_score:.3}.",
-			counts.missing_claims
-				+ counts.forbidden_claims
-				+ counts.missing_evidence
-				+ counts.trap_uses
-				+ counts.operator_debug_missing
-				+ counts.operator_debug_raw_sql
-				+ counts.operator_debug_trace_gaps
-				+ counts.operator_debug_repair_unclear
-				+ counts.conflict_detection_missing
-				+ counts.update_rationale_missing
-				+ counts.proposal_usefulness_failures
-				+ counts.lineage_failures
-				+ counts.review_action_failures,
-			counts.latency_violations
+			wrong_result_signal_count, counts.latency_violations
 		),
 		TypedStatus::LifecycleFail => format!(
 			"Job produced {} source mutation(s) and normalized_score {normalized_score:.3}.",
@@ -2227,6 +2568,26 @@ fn job_reason(status: TypedStatus, counts: &FailureCounts, normalized_score: f64
 		),
 		_ => "Job did not reach a runnable scoring state.".to_string(),
 	}
+}
+
+fn wrong_result_signal_count(counts: &FailureCounts) -> usize {
+	counts.missing_claims
+		+ counts.forbidden_claims
+		+ counts.missing_evidence
+		+ counts.trap_uses
+		+ counts.operator_debug_missing
+		+ counts.operator_debug_raw_sql
+		+ counts.operator_debug_trace_gaps
+		+ counts.operator_debug_repair_unclear
+		+ counts.conflict_detection_missing
+		+ counts.update_rationale_missing
+		+ counts.proposal_usefulness_failures
+		+ counts.lineage_failures
+		+ counts.review_action_failures
+		+ counts.untraced_page_sections
+		+ counts.missed_stale_findings
+		+ counts.rebuild_failures
+		+ counts.page_usefulness_failures
 }
 
 fn job_report(job: &RealWorldJob, scoring: JobScoring) -> JobReport {
@@ -2266,6 +2627,7 @@ fn job_report(job: &RealWorldJob, scoring: JobScoring) -> JobReport {
 		latency_ms: answer.latency_ms,
 		cost: answer.cost.clone(),
 		trace_explainability: answer.trace_explainability.clone(),
+		knowledge: scoring.knowledge,
 		trap_ids_used: scoring.trap_ids_used,
 		dimension_scores: scoring.dimension_scores,
 		reason: scoring.reason,
@@ -2747,6 +3109,7 @@ fn report_summary(jobs: &[JobReport], suites: &[SuiteReport]) -> ReportSummary {
 			.map(|debug| debug.ux_gaps.len())
 			.sum(),
 		consolidation: consolidation_summary(jobs),
+		knowledge: knowledge_summary(jobs),
 		..ReportSummary::default()
 	};
 
@@ -2821,6 +3184,10 @@ fn ratio_or(numerator: usize, denominator: usize, empty_value: f64) -> f64 {
 	if denominator == 0 { empty_value } else { round3(numerator as f64 / denominator as f64) }
 }
 
+fn ratio_or_full(numerator: usize, denominator: usize) -> f64 {
+	ratio_or(numerator, denominator, 1.0)
+}
+
 fn consolidation_summary(jobs: &[JobReport]) -> ConsolidationSummaryReport {
 	let reports = jobs.iter().filter_map(|job| job.consolidation.as_ref()).collect::<Vec<_>>();
 
@@ -2852,6 +3219,60 @@ fn consolidation_summary(jobs: &[JobReport]) -> ConsolidationSummaryReport {
 			.sum(),
 		executable_gap_count,
 	}
+}
+
+fn knowledge_summary(jobs: &[JobReport]) -> Option<KnowledgeSummary> {
+	let knowledge_jobs = jobs.iter().filter_map(|job| job.knowledge.as_ref()).collect::<Vec<_>>();
+
+	if knowledge_jobs.is_empty() {
+		return None;
+	}
+
+	let job_count = knowledge_jobs.len();
+	let page_count = knowledge_jobs.iter().map(|metrics| metrics.page_count).sum::<usize>();
+	let section_count = knowledge_jobs.iter().map(|metrics| metrics.section_count).sum::<usize>();
+	let traced_section_count =
+		knowledge_jobs.iter().map(|metrics| metrics.traced_section_count).sum::<usize>();
+	let stale_trap_count =
+		knowledge_jobs.iter().map(|metrics| metrics.stale_trap_count).sum::<usize>();
+	let stale_traps_detected =
+		knowledge_jobs.iter().map(|metrics| metrics.stale_traps_detected).sum::<usize>();
+	let deterministic_rebuild_count =
+		knowledge_jobs.iter().map(|metrics| metrics.deterministic_rebuild_count).sum::<usize>();
+	let rebuild_page_count =
+		knowledge_jobs.iter().map(|metrics| metrics.rebuild_page_count).sum::<usize>();
+	let backlink_count = knowledge_jobs.iter().map(|metrics| metrics.backlink_count).sum::<usize>();
+	let pages_with_backlinks =
+		knowledge_jobs.iter().map(|metrics| metrics.pages_with_backlinks).sum::<usize>();
+	let page_usefulness = round3(
+		knowledge_jobs.iter().map(|metrics| metrics.page_usefulness).sum::<f64>()
+			/ job_count as f64,
+	);
+
+	Some(KnowledgeSummary {
+		job_count,
+		page_count,
+		section_count,
+		backlink_count,
+		pages_with_backlinks,
+		citation_coverage: ratio(traced_section_count, section_count),
+		stale_claim_detection: ratio_or_full(stale_traps_detected, stale_trap_count),
+		rebuild_determinism: ratio(deterministic_rebuild_count, rebuild_page_count),
+		backlink_coverage: ratio(pages_with_backlinks, page_count),
+		page_usefulness,
+		unsupported_summary_count: knowledge_jobs
+			.iter()
+			.map(|metrics| metrics.unsupported_summary_count)
+			.sum(),
+		untraced_section_count: knowledge_jobs
+			.iter()
+			.map(|metrics| metrics.untraced_section_count)
+			.sum(),
+		allowed_variance_count: knowledge_jobs
+			.iter()
+			.map(|metrics| metrics.allowed_variance_count)
+			.sum(),
+	})
 }
 
 fn mean_score(jobs: &[JobReport]) -> f64 {
@@ -2983,6 +3404,7 @@ fn render_markdown(report: &RealWorldReport, report_path: &Path) -> String {
 	render_markdown_evolution(&mut out, report);
 	render_markdown_trace_explainability(&mut out, report);
 	render_markdown_consolidation(&mut out, report);
+	render_markdown_knowledge(&mut out, report);
 	render_markdown_unsupported_claims(&mut out, report);
 	render_markdown_follow_ups(&mut out, report);
 	render_markdown_semantics(&mut out, report);
@@ -3094,6 +3516,28 @@ fn render_markdown_header(out: &mut String, report: &RealWorldReport, report_pat
 		report.summary.trace_incomplete_count
 	));
 	out.push_str(&format!("- Operator UX gaps: `{}`\n", report.summary.operator_ux_gap_count));
+
+	if let Some(knowledge) = &report.summary.knowledge {
+		out.push_str(&format!(
+			"- Knowledge citation coverage: `{:.3}`\n",
+			knowledge.citation_coverage
+		));
+		out.push_str(&format!(
+			"- Stale claim detection: `{:.3}`\n",
+			knowledge.stale_claim_detection
+		));
+		out.push_str(&format!("- Rebuild determinism: `{:.3}`\n", knowledge.rebuild_determinism));
+		out.push_str(&format!(
+			"- Backlinks: `{}` total, `{:.3}` page coverage\n",
+			knowledge.backlink_count, knowledge.backlink_coverage
+		));
+		out.push_str(&format!("- Page usefulness: `{:.3}`\n", knowledge.page_usefulness));
+		out.push_str(&format!(
+			"- Unsupported summary count: `{}`\n",
+			knowledge.unsupported_summary_count
+		));
+	}
+
 	out.push_str(&format!(
 		"- Private corpus redaction: `{}`\n\n",
 		md_inline(report.private_corpus_redaction.policy.as_str())
@@ -3451,6 +3895,42 @@ fn render_markdown_consolidation_gaps(out: &mut String, report: &RealWorldReport
 	out.push('\n');
 }
 
+fn render_markdown_knowledge(out: &mut String, report: &RealWorldReport) {
+	let knowledge_jobs =
+		report.jobs.iter().filter(|job| job.knowledge.is_some()).collect::<Vec<_>>();
+
+	if knowledge_jobs.is_empty() {
+		return;
+	}
+
+	out.push_str("## Knowledge Page Metrics\n\n");
+	out.push_str("| Job | Pages | Sections | Citation Coverage | Stale Claim Detection | Rebuild Determinism | Page Usefulness | Backlinks | Unsupported Summaries | Untraced Sections | Allowed Variance |\n");
+	out.push_str("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n");
+
+	for job in knowledge_jobs {
+		let Some(knowledge) = &job.knowledge else {
+			continue;
+		};
+
+		out.push_str(&format!(
+			"| {} | {} | {} | `{:.3}` | `{:.3}` | `{:.3}` | `{:.3}` | {} | {} | {} | {} |\n",
+			md_cell(job.job_id.as_str()),
+			knowledge.page_count,
+			knowledge.section_count,
+			knowledge.citation_coverage,
+			knowledge.stale_claim_detection,
+			knowledge.rebuild_determinism,
+			knowledge.page_usefulness,
+			knowledge.backlink_count,
+			knowledge.unsupported_summary_count,
+			knowledge.untraced_section_count,
+			knowledge.allowed_variance_count
+		));
+	}
+
+	out.push('\n');
+}
+
 fn render_markdown_unsupported_claims(out: &mut String, report: &RealWorldReport) {
 	out.push_str("## Unsupported Claims\n\n");
 
@@ -3520,6 +4000,7 @@ fn render_markdown_semantics(out: &mut String, report: &RealWorldReport) {
 	);
 	out.push_str("- `unsupported_claim`: a job produced a substantive claim not supported by the fixture evidence links.\n");
 	out.push_str("- `not_encoded`: a suite has no checked-in fixture, or an encoded fixture declares a capability gap so no pass/fail claim is allowed.\n\n");
+	out.push_str("For `knowledge_compilation` jobs, generated pages are benchmark artifacts. Page sections must cite source evidence or timeline events, or be explicitly flagged as unsupported. Flagged unsupported summaries are counted separately from hidden unsupported claims.\n\n");
 	out.push_str("## Suites With `not_encoded` Status\n\n");
 
 	if report.not_encoded_suites.is_empty() {
