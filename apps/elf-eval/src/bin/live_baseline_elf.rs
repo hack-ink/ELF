@@ -61,9 +61,35 @@ struct QueryManifest {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 struct QueryCase {
 	id: String,
+	task: Option<String>,
 	query: String,
 	expected_doc: String,
 	expected_terms: Vec<String>,
+	#[serde(default)]
+	allowed_alternate_docs: Vec<String>,
+	#[serde(default)]
+	expected_evidence_ids: Vec<String>,
+	#[serde(default)]
+	allowed_alternate_evidence_ids: Vec<String>,
+}
+impl QueryCase {
+	fn generated(
+		id: String,
+		query: String,
+		expected_doc: String,
+		expected_terms: Vec<String>,
+	) -> Self {
+		Self {
+			id,
+			task: None,
+			query,
+			expected_evidence_ids: vec![evidence_id_for_doc(&expected_doc)],
+			allowed_alternate_docs: Vec::new(),
+			allowed_alternate_evidence_ids: Vec::new(),
+			expected_doc,
+			expected_terms,
+		}
+	}
 }
 
 #[derive(Debug)]
@@ -158,6 +184,9 @@ struct QuerySummary {
 	total: usize,
 	pass: usize,
 	fail: usize,
+	wrong_result_count: usize,
+	latency_ms_total: f64,
+	latency_ms_mean: f64,
 }
 
 #[derive(Debug, Serialize)]
@@ -179,13 +208,20 @@ struct CheckResult {
 #[derive(Debug, Serialize)]
 struct QueryResult {
 	id: String,
+	task: Option<String>,
 	query: String,
 	expected_doc: String,
+	allowed_alternate_docs: Vec<String>,
 	expected_terms: Vec<String>,
+	expected_evidence_ids: Vec<String>,
+	allowed_alternate_evidence_ids: Vec<String>,
 	matched: bool,
 	matched_terms: Vec<String>,
+	top_evidence_id: Option<String>,
+	matched_evidence_id: Option<String>,
 	top_note_key: Option<String>,
 	top_snippet: Option<String>,
+	latency_ms: f64,
 	returned_count: usize,
 }
 
@@ -499,6 +535,16 @@ fn outbox_done(counts: &BTreeMap<String, i64>, expected_note_count: usize) -> bo
 fn retrieval_check(query_results: &[QueryResult]) -> CheckResult {
 	let pass_count = query_results.iter().filter(|result| result.matched).count();
 	let fail_count = query_results.len().saturating_sub(pass_count);
+	let expected_evidence_ids = query_results
+		.iter()
+		.map(|result| {
+			serde_json::json!({
+				"query_id": result.id,
+				"expected": result.expected_evidence_ids,
+				"allowed_alternates": result.allowed_alternate_evidence_ids,
+			})
+		})
+		.collect::<Vec<_>>();
 
 	CheckResult {
 		name: "same_corpus_retrieval",
@@ -512,6 +558,8 @@ fn retrieval_check(query_results: &[QueryResult]) -> CheckResult {
 			"total": query_results.len(),
 			"pass": pass_count,
 			"fail": fail_count,
+			"wrong_result_count": fail_count,
+			"expected_evidence_ids": expected_evidence_ids,
 		}),
 	}
 }
@@ -579,12 +627,12 @@ fn concurrent_add_request(index: usize) -> AddNoteRequest {
 fn concurrent_query_case(index: usize) -> QueryCase {
 	let marker = concurrent_marker(index);
 
-	QueryCase {
-		id: format!("concurrent-{index:03}"),
-		query: format!("Find the concurrent benchmark note containing marker {marker}."),
-		expected_doc: format!("concurrent-{index:03}.md"),
-		expected_terms: vec![marker],
-	}
+	QueryCase::generated(
+		format!("concurrent-{index:03}"),
+		format!("Find the concurrent benchmark note containing marker {marker}."),
+		format!("concurrent-{index:03}.md"),
+		vec![marker],
+	)
 }
 
 fn concurrent_marker(index: usize) -> String {
@@ -648,12 +696,12 @@ fn soak_query_case(index: usize) -> QueryCase {
 	let marker = soak_marker(index);
 	let (topic, _) = soak_topic(index);
 
-	QueryCase {
-		id: format!("soak-{index:03}"),
-		query: format!("Find the soak benchmark note about {topic} containing marker {marker}."),
-		expected_doc: format!("soak-{index:03}.md"),
-		expected_terms: vec![marker],
-	}
+	QueryCase::generated(
+		format!("soak-{index:03}"),
+		format!("Find the soak benchmark note about {topic} containing marker {marker}."),
+		format!("soak-{index:03}.md"),
+		vec![marker],
+	)
 }
 
 fn soak_marker(index: usize) -> String {
@@ -806,6 +854,19 @@ fn key_for_doc(doc: &str) -> String {
 	}
 
 	if key.is_empty() { "doc".to_string() } else { key }
+}
+
+fn evidence_id_for_doc(doc: &str) -> String {
+	Path::new(doc).file_stem().and_then(|stem| stem.to_str()).unwrap_or(doc).to_string()
+}
+
+fn expected_docs_for_case(case: &QueryCase) -> Vec<String> {
+	let mut docs = Vec::with_capacity(case.allowed_alternate_docs.len().saturating_add(1));
+
+	docs.push(case.expected_doc.clone());
+	docs.extend(case.allowed_alternate_docs.iter().cloned());
+
+	docs
 }
 
 fn embed_text(text: &str, vector_dim: u32) -> Vec<f32> {
@@ -966,6 +1027,8 @@ async fn run(args: Args) -> color_eyre::Result<ElfBaselineReport> {
 	let query_results = run_queries(&service, query_manifest.queries).await?;
 	let pass_count = query_results.iter().filter(|result| result.matched).count();
 	let fail_count = query_results.len().saturating_sub(pass_count);
+	let latency_ms_total = query_results.iter().map(|result| result.latency_ms).sum::<f64>();
+	let latency_ms_mean = latency_ms_total / query_results.len().max(1) as f64;
 	let retrieval_status =
 		if fail_count == 0 { "retrieval_pass" } else { "retrieval_wrong_result" };
 	let mut checks = vec![retrieval_check(&query_results), worker_indexing_check(initial_worker)];
@@ -1004,7 +1067,14 @@ async fn run(args: Args) -> color_eyre::Result<ElfBaselineReport> {
 			rebuild_missing_vector_count: rebuild.missing_vector_count,
 			rebuild_error_count: rebuild.error_count,
 		},
-		summary: QuerySummary { total: query_results.len(), pass: pass_count, fail: fail_count },
+		summary: QuerySummary {
+			total: query_results.len(),
+			pass: pass_count,
+			fail: fail_count,
+			wrong_result_count: fail_count,
+			latency_ms_total,
+			latency_ms_mean,
+		},
 		check_summary,
 		checks,
 		queries: query_results,
@@ -1262,13 +1332,14 @@ async fn run_single_query(
 		.ok()
 		.and_then(|value| value.parse::<u32>().ok())
 		.unwrap_or(10);
+	let started_at = Instant::now();
 	let response = service
 		.search_raw(SearchRequest {
 			tenant_id: TENANT_ID.to_string(),
 			project_id: PROJECT_ID.to_string(),
 			agent_id: AGENT_ID.to_string(),
 			token_id: None,
-			payload_level: PayloadLevel::default(),
+			payload_level: PayloadLevel::L2,
 			read_profile: "private_only".to_string(),
 			query: case.query.clone(),
 			top_k: Some(top_k),
@@ -1278,6 +1349,7 @@ async fn run_single_query(
 			ranking: None,
 		})
 		.await?;
+	let latency_ms = started_at.elapsed().as_secs_f64() * 1_000.0;
 	let top = response.items.first();
 	let top_text = top.map(|item| item.snippet.clone()).unwrap_or_default();
 	let matched_terms = case
@@ -1287,19 +1359,41 @@ async fn run_single_query(
 		.cloned()
 		.collect::<Vec<_>>();
 	let top_key = top.and_then(|item| item.key.clone());
-	let expected_key = key_for_doc(&case.expected_doc);
-	let matched = matched_terms.len() == case.expected_terms.len()
-		|| top_key.as_deref().is_some_and(|key| key == expected_key);
+	let expected_docs = expected_docs_for_case(&case);
+	let matched_doc =
+		top_key.as_deref().and_then(|key| expected_docs.iter().find(|doc| key_for_doc(doc) == key));
+	let top_evidence_id = top.and_then(|item| {
+		item.source_ref.get("document").and_then(Value::as_str).map(evidence_id_for_doc)
+	});
+	let matched_evidence_id = matched_doc.map(|doc| evidence_id_for_doc(doc));
+	let matched = matched_terms.len() == case.expected_terms.len() || matched_doc.is_some();
+	let expected_evidence_ids = if case.expected_evidence_ids.is_empty() {
+		vec![evidence_id_for_doc(&case.expected_doc)]
+	} else {
+		case.expected_evidence_ids.clone()
+	};
+	let allowed_alternate_evidence_ids = if case.allowed_alternate_evidence_ids.is_empty() {
+		case.allowed_alternate_docs.iter().map(|doc| evidence_id_for_doc(doc)).collect()
+	} else {
+		case.allowed_alternate_evidence_ids.clone()
+	};
 
 	Ok(QueryResult {
 		id: case.id,
+		task: case.task,
 		query: case.query,
 		expected_doc: case.expected_doc,
+		allowed_alternate_docs: case.allowed_alternate_docs,
 		expected_terms: case.expected_terms,
+		expected_evidence_ids,
+		allowed_alternate_evidence_ids,
 		matched,
 		matched_terms,
+		top_evidence_id,
+		matched_evidence_id,
 		top_note_key: top_key,
 		top_snippet: top.map(|item| item.snippet.clone()),
+		latency_ms,
 		returned_count: response.items.len(),
 	})
 }
@@ -1375,12 +1469,12 @@ async fn run_update_replacement_check(
 		run_worker_until_indexed(runtime, service, &[update_note_id], "lifecycle_update").await?;
 	let update_query = run_single_query(
 		service,
-		QueryCase {
-			id: "lifecycle-update-new-marker".to_string(),
-			query: "Which rotated JWT key id does the auth middleware require?".to_string(),
-			expected_doc: update_note.source_doc.clone(),
-			expected_terms: vec!["kid-v4".to_string(), "RotatedJwtKeyPlan".to_string()],
-		},
+		QueryCase::generated(
+			"lifecycle-update-new-marker".to_string(),
+			"Which rotated JWT key id does the auth middleware require?".to_string(),
+			update_note.source_doc.clone(),
+			vec!["kid-v4".to_string(), "RotatedJwtKeyPlan".to_string()],
+		),
 	)
 	.await?;
 	let old_marker_absent = update_query
@@ -1427,12 +1521,12 @@ async fn run_delete_suppression_check(
 		run_worker_until_indexed(runtime, service, &[delete_note_id], "lifecycle_delete").await?;
 	let delete_query = run_single_query(
 		service,
-		QueryCase {
-			id: "lifecycle-delete-suppresses-note".to_string(),
-			query: delete_note.text.clone(),
-			expected_doc: delete_note.source_doc.clone(),
-			expected_terms: distinctive_terms(&delete_note.text, 2),
-		},
+		QueryCase::generated(
+			"lifecycle-delete-suppresses-note".to_string(),
+			delete_note.text.clone(),
+			delete_note.source_doc.clone(),
+			distinctive_terms(&delete_note.text, 2),
+		),
 	)
 	.await?;
 	let delete_pass = !delete_query.matched
@@ -1464,12 +1558,12 @@ async fn run_cold_start_recovery_check(
 	let recovery_service = build_service(runtime).await?;
 	let recovery_query = run_single_query(
 		&recovery_service,
-		QueryCase {
-			id: "lifecycle-cold-start-recovery".to_string(),
-			query: recovery_note.text.clone(),
-			expected_doc: recovery_note.source_doc.clone(),
-			expected_terms: distinctive_terms(&recovery_note.text, 2),
-		},
+		QueryCase::generated(
+			"lifecycle-cold-start-recovery".to_string(),
+			recovery_note.text.clone(),
+			recovery_note.source_doc.clone(),
+			distinctive_terms(&recovery_note.text, 2),
+		),
 	)
 	.await?;
 	let outbox_counts = pending_outbox_counts(service).await?;

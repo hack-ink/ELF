@@ -20,9 +20,12 @@ Outputs: The smallest benchmarking guide or report needed to continue.
 ## Guides And Reports
 
 - `live_baseline_benchmark.md`: run, clean up, publish, and interpret the live
-  Docker-only benchmark matrix.
+  Docker-only benchmark matrix, including generated public and production-corpus
+  profiles.
 - `2026-06-09-live-baseline-report.md`: checked-in evidence snapshot for the June 9,
   2026 ELF production-provider stress run and all-project smoke comparison.
+- `2026-06-09-production-corpus-report.md`: checked-in synthetic production-corpus
+  ELF adoption benchmark report with task queries and evidence IDs.
 
 ## Update Rules
 

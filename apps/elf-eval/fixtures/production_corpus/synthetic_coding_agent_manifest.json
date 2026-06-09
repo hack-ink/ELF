@@ -1,0 +1,105 @@
+{
+  "schema": "elf.production_corpus_manifest/v1",
+  "manifest_id": "synthetic-coding-agent-prod-corpus-2026-06-09",
+  "description": "Synthetic, sanitized production-style coding-agent memory corpus for ELF adoption benchmarking.",
+  "evidence": [
+    {
+      "evidence_id": "issue-xy812-resume",
+      "category": "issue",
+      "title": "XY-812 Resume Lane",
+      "text": "XY-812 resume lane uses branch y/elf-xy-812. The next command is `cargo make trace-gate`; the stale blocker cleared after PR #108 merged."
+    },
+    {
+      "evidence_id": "pr-110-review",
+      "category": "pr",
+      "title": "PR 110 Review Status",
+      "text": "PR #110 is review-ready for the ELF viewer lane. It passed `cargo make checks` and waits for the non-draft review handoff."
+    },
+    {
+      "evidence_id": "worktree-xy791-repair",
+      "category": "worktree",
+      "title": "XY-791 Strict Config Repair",
+      "text": "Worktree XY-791 recovered strict-config repair after rebase. The exact gate was `cargo make fmt && cargo make lint-fix && cargo make checks`."
+    },
+    {
+      "evidence_id": "runbook-live-baseline",
+      "category": "runbook",
+      "title": "Private Production Corpus Runbook",
+      "text": "Private production fixtures use `ELF_BASELINE_PRODUCTION_CORPUS_MANIFEST` with `cargo make baseline-production-private` and stay out of git."
+    },
+    {
+      "evidence_id": "decision-qdrant-derived",
+      "category": "decision",
+      "title": "Qdrant Derived Index Decision",
+      "text": "Decision: Qdrant remains a rebuildable derived index. Postgres stores source-of-truth vectors, notes, chunks, and audit rows."
+    },
+    {
+      "evidence_id": "blocker-stale-qwen-key",
+      "category": "blocker",
+      "title": "Stale Provider Key Blocker",
+      "text": "Stale blocker: missing Qwen key applied only to provider stress runs. The synthetic production corpus uses local deterministic embeddings."
+    },
+    {
+      "evidence_id": "recovery-xy640-ledger",
+      "category": "recovery_note",
+      "title": "XY-640 Ledger Replay Recovery",
+      "text": "Recovery note: XY-640 ledger replay resumes from checkpoint `ledger-replay-42` and verifies the retained lane with `cargo make test`."
+    },
+    {
+      "evidence_id": "decision-xy818-supersedes",
+      "category": "decision",
+      "title": "Superseded Command Decision",
+      "text": "Update case: old command `cargo make lint` was superseded by `cargo make lint-fix` for Decodex ELF lanes."
+    }
+  ],
+  "queries": [
+    {
+      "query_id": "q-resume-lane",
+      "task": "resume_lane",
+      "query": "How do I resume XY-812 and what command is next?",
+      "expected_evidence_ids": ["issue-xy812-resume"],
+      "allowed_alternate_evidence_ids": [],
+      "expected_terms": ["XY-812", "cargo make trace-gate"]
+    },
+    {
+      "query_id": "q-recover-exact-command",
+      "task": "recover_exact_command",
+      "query": "Recover the exact repair gate command for XY-791 strict config.",
+      "expected_evidence_ids": ["worktree-xy791-repair"],
+      "allowed_alternate_evidence_ids": ["runbook-live-baseline"],
+      "expected_terms": ["XY-791", "cargo make fmt && cargo make lint-fix && cargo make checks"]
+    },
+    {
+      "query_id": "q-explain-stale-blocker",
+      "task": "explain_stale_blocker",
+      "query": "Why is the missing Qwen key blocker stale for the synthetic production corpus?",
+      "expected_evidence_ids": ["blocker-stale-qwen-key"],
+      "allowed_alternate_evidence_ids": [],
+      "expected_terms": ["missing Qwen key", "local deterministic embeddings"]
+    },
+    {
+      "query_id": "q-find-prior-decision",
+      "task": "find_prior_decision",
+      "query": "What prior decision explains why Qdrant can be rebuilt?",
+      "expected_evidence_ids": ["decision-qdrant-derived"],
+      "allowed_alternate_evidence_ids": [],
+      "expected_terms": ["Qdrant", "rebuildable derived index"]
+    },
+    {
+      "query_id": "q-compare-project-status",
+      "task": "compare_project_status",
+      "query": "Compare PR #110 and XY-640 status.",
+      "expected_evidence_ids": ["pr-110-review"],
+      "allowed_alternate_evidence_ids": ["recovery-xy640-ledger"],
+      "expected_terms": ["PR #110", "review-ready"]
+    },
+    {
+      "query_id": "q-detect-contradiction-update",
+      "task": "detect_contradiction_update",
+      "query": "Which command superseded cargo make lint for Decodex ELF lanes?",
+      "expected_evidence_ids": ["decision-xy818-supersedes"],
+      "allowed_alternate_evidence_ids": [],
+      "expected_terms": ["cargo make lint-fix", "superseded"]
+    }
+  ]
+}
