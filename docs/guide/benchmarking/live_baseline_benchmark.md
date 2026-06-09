@@ -10,6 +10,10 @@ Verification: `cargo make baseline-live-docker` writes `tmp/live-baseline/live-b
 
 ## Scope
 
+This guide is for benchmark evidence, not for operating a personal production ELF service. For
+single-user Docker Compose production start, stop, health, backup, restore, Qdrant rebuild,
+rollback, and cleanup commands, use `docs/guide/single_user_production.md`.
+
 The runner covers ELF plus the six external projects in the README comparison table:
 
 - ELF
