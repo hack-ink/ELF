@@ -675,7 +675,7 @@ fn resumable_backfill_check(report: &BackfillReport) -> CheckResult {
 
 	CheckResult {
 		name: "resumable_backfill_no_duplicates",
-		status: if pass { "pass" } else { "fail" },
+		status: if pass { "pass" } else { "lifecycle_fail" },
 		reason: if pass {
 			"Checkpointed backfill resumed from durable progress and did not duplicate source documents."
 				.to_string()
