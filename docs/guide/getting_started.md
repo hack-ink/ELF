@@ -169,5 +169,6 @@ Notes:
 
 - Evaluation: `docs/guide/evaluation.md`
 - Integration testing: `docs/guide/integration-testing.md`
+- Single-user production: `docs/guide/single_user_production.md`
 - Test taxonomy: `docs/guide/testing.md`
 - Agent setup: `docs/guide/agent-setup.md`
