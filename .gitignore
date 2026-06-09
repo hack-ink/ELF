@@ -10,6 +10,10 @@
 *.log
 .env*
 .turbo
+/backups/
+/elf.toml
+/elf.*.toml
+!/elf.example.toml
 model
 tmp
 
