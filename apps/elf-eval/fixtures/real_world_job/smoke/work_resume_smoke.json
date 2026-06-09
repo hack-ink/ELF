@@ -1,0 +1,183 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "work-resume-smoke-001",
+  "suite": "work_resume",
+  "title": "Resume an ELF retained lane without repeating completed work",
+  "corpus": {
+    "corpus_id": "real-world-job-smoke-coding-agent-2026-06-09",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "issue-xy812-resume",
+        "kind": "issue",
+        "text": "XY-812 resume lane uses branch y/elf-xy-812. The next command is `cargo make trace-gate`; the stale blocker cleared after PR #108 merged.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "work_resume_smoke",
+            "evidence_id": "issue-xy812-resume"
+          }
+        },
+        "created_at": "2026-06-09T00:00:00Z"
+      },
+      {
+        "evidence_id": "stale-command-trap",
+        "kind": "decision",
+        "text": "Old decision: run `cargo make lint` next for XY-812.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "work_resume_smoke",
+            "evidence_id": "stale-command-trap"
+          }
+        },
+        "created_at": "2026-06-08T00:00:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_smoke",
+      "answer": {
+        "content": "Resume XY-812 on branch y/elf-xy-812 and run `cargo make trace-gate` next; the stale blocker cleared after PR #108 merged.",
+        "claims": [
+          {
+            "claim_id": "resume_next_command",
+            "text": "Run `cargo make trace-gate` next for XY-812.",
+            "evidence_ids": ["issue-xy812-resume"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "stale_blocker_cleared",
+            "text": "The stale blocker cleared after PR #108 merged.",
+            "evidence_ids": ["issue-xy812-resume"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["issue-xy812-resume"],
+        "latency_ms": 1.2,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "xy812-stale-decision",
+      "ts": "2026-06-08T00:00:00Z",
+      "actor": "agent",
+      "action": "recorded_old_next_command",
+      "evidence_ids": ["stale-command-trap"],
+      "summary": "The old next command said to run cargo make lint."
+    },
+    {
+      "event_id": "xy812-current-resume",
+      "ts": "2026-06-09T00:00:00Z",
+      "actor": "agent",
+      "action": "updated_resume_evidence",
+      "evidence_ids": ["issue-xy812-resume"],
+      "summary": "The current resume evidence changed the next command to cargo make trace-gate and cleared the stale blocker."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Resume XY-812 and tell me the next command without repeating completed work.",
+    "job_mode": "resume",
+    "constraints": [
+      "cite_evidence",
+      "avoid_repeating_completed_work",
+      "state_blockers"
+    ]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "resume_next_command",
+        "text": "Run `cargo make trace-gate` next for XY-812."
+      },
+      {
+        "claim_id": "stale_blocker_cleared",
+        "text": "The stale blocker cleared after PR #108 merged."
+      }
+    ],
+    "must_not_include": [
+      "Run `cargo make lint` next for XY-812.",
+      "The stale blocker is still active."
+    ],
+    "evidence_links": {
+      "resume_next_command": ["issue-xy812-resume"],
+      "stale_blocker_cleared": ["issue-xy812-resume"]
+    },
+    "answer_type": "resume_summary",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "issue-xy812-resume",
+      "claim_id": "resume_next_command",
+      "requirement": "cite",
+      "quote": "The next command is `cargo make trace-gate`"
+    },
+    {
+      "evidence_id": "issue-xy812-resume",
+      "claim_id": "stale_blocker_cleared",
+      "requirement": "use",
+      "quote": "the stale blocker cleared after PR #108 merged"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "old-lint-command",
+      "type": "stale_fact",
+      "evidence_ids": ["stale-command-trap"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.35,
+        "max_points": 1.0,
+        "criteria": "Includes the current next command and current blocker state."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Uses the current issue evidence for every required claim."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Does not use stale command evidence."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Advances the resume job without repeated completed work."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [
+      "The fixture does not provide that evidence."
+    ],
+    "fallback_action": "state_blocker"
+  },
+  "tags": [
+    "synthetic",
+    "smoke",
+    "no_live_claim"
+  ]
+}

@@ -41,6 +41,8 @@ cleanup, use `docs/guide/single_user_production.md`.
 - Add a dated report when a new run changes README-level claims.
 - Keep generated raw JSON under `tmp/live-baseline/`; commit only reviewed Markdown
   summaries and durable scripts.
+- Keep generated real-world job smoke JSON and Markdown under `tmp/real-world-job/`;
+  commit fixture schemas, smoke fixtures, runner code, and durable docs only.
 - Link the newest decision-relevant report from README and this index.
 - When benchmark semantics change, update `live_baseline_benchmark.md` and the
   relevant spec before publishing a new result.
