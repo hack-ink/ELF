@@ -400,6 +400,9 @@ args = [
 # | real-world-memory                | composite |     |
 # | real-world-memory-json           | command   |     |
 # | real-world-memory-report         | command   |     |
+# | real-world-memory-evolution        | composite |     |
+# | real-world-memory-evolution-json   | command   |     |
+# | real-world-memory-evolution-report | command   |     |
 # | real-world-job-operator-ux       | composite |     |
 # | real-world-job-operator-ux-json  | command   |     |
 # | real-world-job-operator-ux-report | command  |     |
@@ -494,6 +497,55 @@ args = [
 	"tmp/real-world-memory/real-world-memory-report.json",
 	"--out",
 	"tmp/real-world-memory/real-world-memory-report.md",
+]
+
+[tasks.real-world-memory-evolution]
+workspace = false
+dependencies = [
+	"real-world-memory-evolution-report",
+]
+
+[tasks.real-world-memory-evolution-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_memory/evolution",
+	"--out",
+	"tmp/real-world-memory/evolution-report.json",
+	"--run-id",
+	"real-world-memory-evolution",
+	"--adapter-id",
+	"fixture_memory_evolution",
+	"--adapter-name",
+	"ELF fixture memory evolution",
+]
+
+[tasks.real-world-memory-evolution-report]
+workspace = false
+dependencies = [
+	"real-world-memory-evolution-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-memory/evolution-report.json",
+	"--out",
+	"tmp/real-world-memory/evolution-report.md",
 ]
 
 [tasks.real-world-job-operator-ux]

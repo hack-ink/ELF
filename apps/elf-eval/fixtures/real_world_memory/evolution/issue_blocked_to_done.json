@@ -1,0 +1,221 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "memory-evolution-issue-state-001",
+  "suite": "memory_evolution",
+  "title": "Report an issue as done after an earlier blocker cleared",
+  "corpus": {
+    "corpus_id": "real-world-memory-evolution-2026-06-09",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "issue-xy900-blocked",
+        "kind": "issue",
+        "text": "On 2026-06-06, XY-900 was blocked on missing real_world_job fixture/report implementation.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "issue_blocked_to_done",
+            "evidence_id": "issue-xy900-blocked"
+          }
+        },
+        "created_at": "2026-06-06T00:00:00Z"
+      },
+      {
+        "evidence_id": "issue-xy900-done",
+        "kind": "issue",
+        "text": "On 2026-06-09, XY-900 is done after PR #200 added the real_world_job fixture/report implementation.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "issue_blocked_to_done",
+            "evidence_id": "issue-xy900-done"
+          }
+        },
+        "created_at": "2026-06-09T00:00:00Z"
+      },
+      {
+        "evidence_id": "issue-xy900-resolution-rationale",
+        "kind": "decision",
+        "text": "The blocker cleared because the fixture/report runner now exists and publishes typed real-world job reports.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "issue_blocked_to_done",
+            "evidence_id": "issue-xy900-resolution-rationale"
+          }
+        },
+        "created_at": "2026-06-09T00:05:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_memory_evolution",
+      "answer": {
+        "content": "XY-900 is currently done after PR #200; the earlier missing real_world_job fixture/report blocker is historical and cleared because the runner now publishes typed reports.",
+        "claims": [
+          {
+            "claim_id": "current_issue_state",
+            "text": "XY-900 is currently done after PR #200.",
+            "evidence_ids": [
+              "issue-xy900-done",
+              "issue-xy900-blocked",
+              "issue-xy900-resolution-rationale"
+            ],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "issue_update_rationale",
+            "text": "The blocker cleared because the fixture/report runner now exists.",
+            "evidence_ids": ["issue-xy900-resolution-rationale"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["issue-xy900-done", "issue-xy900-resolution-rationale"],
+        "latency_ms": 1.3,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "xy900-blocked",
+      "ts": "2026-06-06T00:00:00Z",
+      "actor": "agent",
+      "action": "hit_blocker",
+      "evidence_ids": ["issue-xy900-blocked"],
+      "summary": "The issue was blocked on missing fixture/report implementation."
+    },
+    {
+      "event_id": "xy900-done",
+      "ts": "2026-06-09T00:00:00Z",
+      "actor": "agent",
+      "action": "updated_memory",
+      "evidence_ids": ["issue-xy900-done", "issue-xy900-resolution-rationale"],
+      "summary": "The implementation landed and the blocker cleared."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Is XY-900 still blocked, or is it done now?",
+    "job_mode": "resume",
+    "constraints": ["cite_evidence", "distinguish_current_from_historical"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "current_issue_state",
+        "text": "XY-900 is currently done after PR #200."
+      },
+      {
+        "claim_id": "issue_update_rationale",
+        "text": "The blocker cleared because the fixture/report runner now exists."
+      }
+    ],
+    "must_not_include": ["XY-900 is currently blocked."],
+    "evidence_links": {
+      "current_issue_state": [
+        "issue-xy900-done",
+        "issue-xy900-blocked",
+        "issue-xy900-resolution-rationale"
+      ],
+      "issue_update_rationale": ["issue-xy900-resolution-rationale"]
+    },
+    "answer_type": "resume_summary",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "issue-xy900-done",
+      "claim_id": "current_issue_state",
+      "requirement": "cite",
+      "quote": "XY-900 is done"
+    },
+    {
+      "evidence_id": "issue-xy900-resolution-rationale",
+      "claim_id": "issue_update_rationale",
+      "requirement": "explain",
+      "quote": "fixture/report runner now exists"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "old-issue-blocker-current",
+      "type": "stale_fact",
+      "evidence_ids": ["issue-xy900-blocked"],
+      "failure_if_used": false
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "lifecycle_behavior": {
+        "weight": 0.35,
+        "max_points": 1.0,
+        "criteria": "Reports the latest issue state rather than the historical blocker."
+      },
+      "answer_correctness": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "States that the issue is done and why."
+      },
+      "evidence_grounding": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Uses current completion and resolution evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Does not report the old blocker as current."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": ["The fixture does not provide that evidence."],
+    "fallback_action": "state_blocker"
+  },
+  "memory_evolution": {
+    "current_evidence_ids": ["issue-xy900-done"],
+    "historical_evidence_ids": ["issue-xy900-blocked"],
+    "stale_trap_ids": ["old-issue-blocker-current"],
+    "conflicts": [
+      {
+        "conflict_id": "issue-state-blocked-to-done",
+        "claim_id": "current_issue_state",
+        "current_evidence_id": "issue-xy900-done",
+        "historical_evidence_id": "issue-xy900-blocked",
+        "resolved_by_evidence_id": "issue-xy900-resolution-rationale"
+      }
+    ],
+    "update_rationale": {
+      "claim_id": "issue_update_rationale",
+      "evidence_ids": ["issue-xy900-resolution-rationale"],
+      "available": true
+    },
+    "temporal_validity": {
+      "required": false,
+      "encoded": false,
+      "follow_up": null
+    }
+  },
+  "tags": [
+    "synthetic",
+    "memory_evolution",
+    "reference_mem0_history",
+    "no_live_claim"
+  ]
+}

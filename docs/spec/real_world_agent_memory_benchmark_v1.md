@@ -67,6 +67,8 @@ runner execution.
   "scoring_rubric": {},
   "allowed_uncertainty": {},
   "operator_debug": {},
+  "encoding": {},
+  "memory_evolution": {},
   "tags": []
 }
 ```
@@ -88,6 +90,8 @@ runner execution.
 | `scoring_rubric` | object | Dimensions, weights, thresholds, and hard-fail rules for this job. |
 | `allowed_uncertainty` | object | Explicit uncertainty language and fallback behavior accepted for the job. |
 | `operator_debug` | object or null | Optional for most suites; required for `operator_debugging_ux` jobs. Records trace/viewer evidence and operator workflow scoring inputs. |
+| `encoding` | object | Optional job-level limitation declaration. Only `not_encoded`, `blocked`, and `incomplete` statuses are allowed here. |
+| `memory_evolution` | object or null | Optional for most suites; used by `memory_evolution` jobs to report current evidence, historical evidence, stale traps, conflicts, update rationale, and temporal-validity limitations. |
 | `tags` | array | Optional labels such as `private_corpus`, `synthetic`, `adapter_required`, or `no_live_claim`. |
 
 ### `corpus`
@@ -193,6 +197,41 @@ Trap types:
 - `privacy_leak`: private or excluded content that must not appear in the answer.
 
 Each trap MUST include `trap_id`, `type`, `evidence_ids`, and `failure_if_used`.
+
+### `encoding`
+
+`encoding` declares a fixture that is intentionally not scored as a runnable pass
+because the benchmark capability is not encoded or cannot run yet.
+
+Allowed `status` values:
+
+- `not_encoded`: the fixture documents a capability gap and must not claim pass.
+- `blocked`: required adapter, corpus, or system support is missing.
+- `incomplete`: fixture execution cannot reach a complete scored state.
+
+When `status` is present, `reason` MUST be a non-empty explanation. `follow_up` is
+optional, but when present it MUST include non-empty `title` and `reason` fields.
+
+### `memory_evolution`
+
+`memory_evolution` is used by jobs that test whether an answer distinguishes current
+facts, historical facts, stale facts, conflicts, corrected memories, and missing
+temporal validity support.
+
+Fields:
+
+- `current_evidence_ids`: evidence ids that support the current answer.
+- `historical_evidence_ids`: evidence ids that are historically true but not current
+  answers unless the prompt asks for history.
+- `stale_trap_ids`: negative trap ids that represent stale answers.
+- `conflicts`: array of conflicts with `conflict_id`, `claim_id`,
+  `current_evidence_id`, `historical_evidence_id`, and optional
+  `resolved_by_evidence_id`.
+- `update_rationale`: optional object with `claim_id`, `evidence_ids`, and
+  `available` to show whether the answer can explain why the memory changed.
+- `temporal_validity`: optional object with `required`, `encoded`, and optional
+  `follow_up`. When `required = true` and `encoded = false`, the job MUST declare
+  `encoding.status = "not_encoded"` or `encoding.status = "blocked"`.
 
 ### `operator_debug`
 
@@ -326,7 +365,8 @@ Suite status rules:
   no higher-risk `unsupported_claim` is present.
 - A suite is `unsupported_claim` when any hard-fail unsupported claim occurs.
 - A suite is `incomplete` or `blocked` when required jobs cannot run for those reasons.
-- A suite is `not_encoded` when no job in that suite is implemented.
+- A suite is `not_encoded` when no job in that suite is implemented, or when an
+  encoded fixture declares a job-level capability gap that prevents a suite pass claim.
 
 Reports MUST include:
 
@@ -336,6 +376,11 @@ Reports MUST include:
 - unsupported claim list with claim text or a bounded redacted description;
 - explicit `not_encoded` suite list;
 - private-corpus redaction policy when private fixtures are used.
+
+Reports that encode `memory_evolution` jobs SHOULD also include stale-answer counts,
+conflict detection counts, update rationale availability, and temporal-validity
+`not_encoded` counts. A temporal graph validity job MUST NOT be reported as `pass`
+until the runner can evaluate current-only versus historical relation facts.
 
 ## Claim Rules
 
