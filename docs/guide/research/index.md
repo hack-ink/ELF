@@ -10,6 +10,7 @@ Outputs: The smallest comparison or inventory document needed for implementation
 
 - `research_projects_inventory.md`: audited and pending external projects, research depth, and current planning surface.
 - `comparison_external_projects.md`: detailed capability comparison, project trade-offs, source map, and research-backed ELF directions.
+- `external_memory_improvement_plan.md`: prioritized June 2026 improvement backlog, issue queue, parallelization plan, and production-adoption gate from benchmark and external-project evidence.
 - `agentmemory_adapter.md`: fixture-backed agentmemory import and baseline adapter boundary for `elf-eval`.
 
 ## Machine-Readable Runs
