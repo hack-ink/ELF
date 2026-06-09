@@ -30,6 +30,9 @@ cleanup, use `docs/guide/single_user_production.md`.
   2026 ELF production-provider stress run and all-project smoke comparison.
 - `2026-06-09-production-corpus-report.md`: checked-in synthetic production-corpus
   ELF adoption benchmark report with task queries and evidence IDs.
+- `2026-06-09-production-adoption-gate-report.md`: XY-836 production adoption
+  decision report with fresh provider-backed synthetic, stress, backfill, restore, and
+  external adapter evidence.
 
 ## Update Rules
 
