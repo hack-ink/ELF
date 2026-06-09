@@ -113,6 +113,29 @@ flowchart TB
 
 ## Comparison
 
+### Checked-In Live Benchmark Snapshot
+
+The June 9, 2026 Docker-only live baseline uses the same generated corpus and query
+manifest across ELF and the external memory projects below. ELF was run with the
+production embedding provider path, `Qwen3-Embedding-8B`, and 4096-dimensional
+embeddings.
+
+- ELF production-provider stress run: 480 documents, 16 queries, `8/8` encoded checks,
+  `retrieval_pass`, and `pass` in 1163 seconds.
+- All-project smoke run: ELF and qmd passed every encoded check. agentmemory passed
+  same-corpus retrieval but failed or could not complete lifecycle checks. mem0,
+  memsearch, and claude-mem returned wrong same-corpus retrieval results in the encoded
+  smoke. OpenViking was `incomplete` because its local embedding dependency could not
+  complete in the Docker runner.
+- The benchmark runner and report publisher are checked in and Docker-isolated:
+  `cargo make baseline-live-docker`, `cargo make baseline-live-report`, and
+  `cargo make baseline-live-docker-clean`.
+
+Detailed evidence and interpretation:
+
+- [Live Baseline Benchmark Report - June 9, 2026](docs/guide/benchmarking/2026-06-09-live-baseline-report.md)
+- [Live Baseline Benchmark Runbook](docs/guide/benchmarking/live_baseline_benchmark.md)
+
 Quick comparison snapshot (objective/high-level).
 This table compares capability coverage, not overall project quality.
 
@@ -153,6 +176,8 @@ Project signature strengths (what each does especially well):
 
 Detailed comparison, mechanism-level analysis, and source map:
 
+- [Live Baseline Benchmark Report - June 9, 2026](docs/guide/benchmarking/2026-06-09-live-baseline-report.md)
+- [Live Baseline Benchmark Runbook](docs/guide/benchmarking/live_baseline_benchmark.md)
 - [Detailed External Comparison](docs/guide/research/comparison_external_projects.md)
 - [Research Projects Inventory](docs/guide/research/research_projects_inventory.md)
 - [Agent Memory Selection Research Run](docs/research/2026-06-08-agent-memory-selection.json)
@@ -163,6 +188,7 @@ Latest external research refresh: June 8, 2026.
 
 - Start here: `docs/index.md`
 - Operational guide index: `docs/guide/index.md`
+- Benchmarking guides and reports: `docs/guide/benchmarking/index.md`
 - Research index: `docs/guide/research/index.md`
 - Specifications: `docs/spec/index.md`
 - System contract: `docs/spec/system_elf_memory_service_v2.md`
