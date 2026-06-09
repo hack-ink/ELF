@@ -113,6 +113,15 @@ Each `items[]` entry MUST include:
 - `source_ref`: object; MAY be `{}` only for generated synthetic fixtures.
 - `created_at`: RFC3339 timestamp or `null` when time is intentionally irrelevant.
 
+Optional corpus fields:
+
+- `capture_behaviors`: object used by `capture_integration` jobs and fixture-backed
+  suites to classify integration evidence. Supported arrays are `real`,
+  `fixture_backed`, `mocked`, `blocked`, `not_encoded`, and `notes`.
+  `fixture_backed` means the behavior is represented by checked-in fixture evidence,
+  not by a live adapter pass. Reports MUST NOT convert `fixture_backed`, `mocked`,
+  `blocked`, or `not_encoded` behavior into a live integration success claim.
+
 Private corpus fixtures MUST use sanitized inline text or local refs excluded from git.
 Reports MAY publish evidence ids and score summaries without publishing private text.
 
@@ -376,6 +385,9 @@ Reports MUST include:
 - unsupported claim list with claim text or a bounded redacted description;
 - explicit `not_encoded` suite list;
 - private-corpus redaction policy when private fixtures are used.
+- capture/integration coverage classes when any fixture declares `capture_behaviors`,
+  preserving the `real`, `fixture_backed`, `mocked`, `blocked`, and `not_encoded`
+  distinction.
 
 Reports that encode `memory_evolution` jobs SHOULD also include stale-answer counts,
 conflict detection counts, update rationale availability, and temporal-validity

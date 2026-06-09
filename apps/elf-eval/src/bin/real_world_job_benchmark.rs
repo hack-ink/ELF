@@ -18,7 +18,7 @@ use elf_cli::VERSION;
 
 const JOB_SCHEMA: &str = "elf.real_world_job/v1";
 const REPORT_SCHEMA: &str = "elf.real_world_job_report/v1";
-const DEFAULT_FIXTURE_PATH: &str = "apps/elf-eval/fixtures/real_world_job/smoke";
+const DEFAULT_FIXTURE_PATH: &str = "apps/elf-eval/fixtures/real_world_memory/work_resume";
 const DEFAULT_REPORT_PATH: &str = "tmp/real-world-job/real-world-job-smoke-report.json";
 const DEFAULT_MARKDOWN_PATH: &str = "tmp/real-world-job/real-world-job-smoke-report.md";
 const DEFAULT_RUN_ID: &str = "real-world-job-smoke";
@@ -119,6 +119,8 @@ struct Corpus {
 	profile: CorpusProfile,
 	#[serde(default)]
 	items: Vec<CorpusItem>,
+	#[serde(default)]
+	capture_behaviors: CaptureIntegrationReport,
 
 	adapter_response: Option<AdapterResponse>,
 }
@@ -422,6 +424,7 @@ struct RealWorldReport {
 	runner_version: String,
 	corpus_profile: String,
 	adapter: AdapterReport,
+	capture_integration: CaptureIntegrationReport,
 	summary: ReportSummary,
 	suites: Vec<SuiteReport>,
 	jobs: Vec<JobReport>,
@@ -442,6 +445,22 @@ struct AdapterReport {
 	storage: TypedStatus,
 	runtime: TypedStatus,
 	notes: String,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct CaptureIntegrationReport {
+	#[serde(default)]
+	real: Vec<String>,
+	#[serde(default)]
+	fixture_backed: Vec<String>,
+	#[serde(default)]
+	mocked: Vec<String>,
+	#[serde(default)]
+	blocked: Vec<String>,
+	#[serde(default)]
+	not_encoded: Vec<String>,
+	#[serde(default)]
+	notes: Vec<String>,
 }
 
 #[derive(Debug, Default, Deserialize, Serialize)]
@@ -677,6 +696,7 @@ struct FailureCounts {
 	stale_answers: usize,
 	conflict_detection_missing: usize,
 	update_rationale_missing: usize,
+	latency_violations: usize,
 }
 
 #[derive(Debug, Default)]
@@ -942,6 +962,7 @@ fn validate_expected_answer(job: &RealWorldJob, path: &Path) -> Result<()> {
 
 fn validate_required_evidence(job: &RealWorldJob, path: &Path) -> Result<()> {
 	let evidence_ids = corpus_evidence_ids(job);
+	let corpus_text = corpus_text_by_id(job);
 
 	for evidence in &job.required_evidence {
 		if evidence.claim_id.trim().is_empty() || evidence.requirement.trim().is_empty() {
@@ -953,6 +974,17 @@ fn validate_required_evidence(job: &RealWorldJob, path: &Path) -> Result<()> {
 		if evidence.quote.is_none() && evidence.selector.is_none() {
 			return Err(eyre::eyre!(
 				"{} required evidence {} must provide quote or selector.",
+				path.display(),
+				evidence.evidence_id
+			));
+		}
+
+		if let Some(quote) = &evidence.quote
+			&& let Some(text) = corpus_text.get(evidence.evidence_id.as_str())
+			&& !text.contains(quote)
+		{
+			return Err(eyre::eyre!(
+				"{} required evidence quote for {} is not present in corpus text.",
 				path.display(),
 				evidence.evidence_id
 			));
@@ -1254,6 +1286,14 @@ fn corpus_evidence_ids(job: &RealWorldJob) -> BTreeSet<String> {
 	job.corpus.items.iter().map(|item| item.evidence_id.clone()).collect()
 }
 
+fn corpus_text_by_id(job: &RealWorldJob) -> BTreeMap<&str, &str> {
+	job.corpus
+		.items
+		.iter()
+		.filter_map(|item| item.text.as_deref().map(|text| (item.evidence_id.as_str(), text)))
+		.collect()
+}
+
 fn build_report(jobs: &[RealWorldJob], args: &RunArgs) -> Result<RealWorldReport> {
 	if jobs.is_empty() {
 		return Err(eyre::eyre!("At least one real_world_job fixture is required."));
@@ -1286,6 +1326,7 @@ fn build_report(jobs: &[RealWorldJob], args: &RunArgs) -> Result<RealWorldReport
 		runner_version: VERSION.to_string(),
 		corpus_profile: corpus_profile(jobs),
 		adapter: adapter_report(args),
+		capture_integration: capture_integration_report(jobs),
 		summary,
 		suites,
 		jobs: job_reports,
@@ -1327,6 +1368,7 @@ fn score_job(job: &RealWorldJob) -> JobScoring {
 	let missing_evidence = missing_required_evidence(job, &produced_evidence);
 	let mut unsupported_claims = unsupported_claims(job, answer);
 	let operator_counts = operator_debug_failure_counts(job);
+	let latency_violations = latency_violations(job, answer);
 	let hard_fail_hits = hard_fail_hits(job, &unsupported_claims, &trap_ids_used);
 	let evolution = evolution_job_report(job, answer, &trap_ids_used, forbidden_claims.len());
 	let stale_answers = evolution.as_ref().map_or(0, |report| report.stale_answer_count);
@@ -1347,6 +1389,7 @@ fn score_job(job: &RealWorldJob) -> JobScoring {
 		stale_answers,
 		conflict_detection_missing,
 		update_rationale_missing,
+		latency_violations,
 	};
 	let dimension_scores = dimension_scores(job, &counts);
 	let normalized_score = normalized_score(&dimension_scores);
@@ -1735,12 +1778,32 @@ fn dimension_score(dimension_id: &str, max_points: f64, counts: &FailureCounts) 
 				|| counts.operator_debug_missing > 0
 				|| counts.operator_debug_raw_sql > 0
 				|| counts.operator_debug_trace_gaps > 0,
-		"latency_resource" | "personalization_fit" =>
+		"latency_resource" => counts.latency_violations > 0,
+		"personalization_fit" | "ownership_correctness" =>
 			counts.missing_claims > 0 || counts.unsupported_claims > 0,
 		_ => counts.missing_claims > 0 || counts.unsupported_claims > 0 || counts.trap_uses > 0,
 	};
 
 	if failed { 0.0 } else { max_points }
+}
+
+fn latency_violations(job: &RealWorldJob, answer: &ProducedAnswer) -> usize {
+	let Some(max_latency_ms) = latency_threshold_ms(job) else {
+		return 0;
+	};
+	let Some(latency_ms) = answer.latency_ms else {
+		return 1;
+	};
+
+	usize::from(latency_ms > max_latency_ms)
+}
+
+fn latency_threshold_ms(job: &RealWorldJob) -> Option<f64> {
+	job.scoring_rubric
+		.dimensions
+		.get("latency_resource")
+		.and_then(|dimension| dimension.criteria.get("max_latency_ms"))
+		.and_then(Value::as_f64)
 }
 
 fn normalized_score(scores: &[DimensionScoreReport]) -> f64 {
@@ -1775,7 +1838,7 @@ fn job_reason(status: TypedStatus, counts: &FailureCounts, normalized_score: f64
 	match status {
 		TypedStatus::Pass => format!("Job passed with normalized_score {normalized_score:.3}."),
 		TypedStatus::UnsupportedClaim => format!(
-			"Job produced {} unsupported claim(s), {} wrong-result signal(s), and normalized_score {normalized_score:.3}.",
+			"Job produced {} unsupported claim(s), {} wrong-result signal(s), {} latency violation(s), and normalized_score {normalized_score:.3}.",
 			counts.unsupported_claims,
 			counts.missing_claims
 				+ counts.forbidden_claims
@@ -1786,10 +1849,11 @@ fn job_reason(status: TypedStatus, counts: &FailureCounts, normalized_score: f64
 				+ counts.operator_debug_trace_gaps
 				+ counts.operator_debug_repair_unclear
 				+ counts.conflict_detection_missing
-				+ counts.update_rationale_missing
+				+ counts.update_rationale_missing,
+			counts.latency_violations
 		),
 		TypedStatus::WrongResult => format!(
-			"Job produced {} wrong-result signal(s) and normalized_score {normalized_score:.3}.",
+			"Job produced {} wrong-result signal(s), {} latency violation(s), and normalized_score {normalized_score:.3}.",
 			counts.missing_claims
 				+ counts.forbidden_claims
 				+ counts.missing_evidence
@@ -1799,7 +1863,8 @@ fn job_reason(status: TypedStatus, counts: &FailureCounts, normalized_score: f64
 				+ counts.operator_debug_trace_gaps
 				+ counts.operator_debug_repair_unclear
 				+ counts.conflict_detection_missing
-				+ counts.update_rationale_missing
+				+ counts.update_rationale_missing,
+			counts.latency_violations
 		),
 		_ => "Job did not reach a runnable scoring state.".to_string(),
 	}
@@ -2244,6 +2309,42 @@ fn adapter_report(args: &RunArgs) -> AdapterReport {
 	}
 }
 
+fn capture_integration_report(jobs: &[RealWorldJob]) -> CaptureIntegrationReport {
+	let mut report = CaptureIntegrationReport::default();
+
+	for job in jobs {
+		extend_unique(&mut report.real, &job.corpus.capture_behaviors.real);
+		extend_unique(&mut report.fixture_backed, &job.corpus.capture_behaviors.fixture_backed);
+		extend_unique(&mut report.mocked, &job.corpus.capture_behaviors.mocked);
+		extend_unique(&mut report.blocked, &job.corpus.capture_behaviors.blocked);
+		extend_unique(&mut report.not_encoded, &job.corpus.capture_behaviors.not_encoded);
+		extend_unique(&mut report.notes, &job.corpus.capture_behaviors.notes);
+	}
+
+	if report.real.is_empty()
+		&& report.fixture_backed.is_empty()
+		&& report.mocked.is_empty()
+		&& report.blocked.is_empty()
+		&& report.not_encoded.is_empty()
+	{
+		report
+			.not_encoded
+			.push("No capture/integration behavior was declared by encoded fixtures.".to_string());
+	}
+
+	report
+}
+
+fn extend_unique(target: &mut Vec<String>, values: &[String]) {
+	let mut seen = target.iter().cloned().collect::<BTreeSet<_>>();
+
+	for value in values {
+		if seen.insert(value.clone()) {
+			target.push(value.clone());
+		}
+	}
+}
+
 fn private_corpus_redaction(jobs: &[RealWorldJob]) -> PrivateCorpusRedaction {
 	let private_fixture_count = jobs
 		.iter()
@@ -2264,6 +2365,7 @@ fn render_markdown(report: &RealWorldReport, report_path: &Path) -> String {
 	let mut out = String::new();
 
 	render_markdown_header(&mut out, report, report_path.as_str());
+	render_markdown_capture_integration(&mut out, report);
 	render_markdown_suites(&mut out, report);
 	render_markdown_jobs(&mut out, report);
 	render_markdown_operator_debugging(&mut out, report);
@@ -2275,6 +2377,40 @@ fn render_markdown(report: &RealWorldReport, report_path: &Path) -> String {
 	out
 }
 
+fn render_markdown_capture_integration(out: &mut String, report: &RealWorldReport) {
+	out.push_str("## Capture And Integration Coverage\n\n");
+	out.push_str("The real-world job runner is fixture-backed. This section separates encoded evidence from live adapter claims.\n\n");
+	out.push_str("| Class | Behaviors |\n");
+	out.push_str("| --- | --- |\n");
+	out.push_str(&format!("| real | {} |\n", md_list(report.capture_integration.real.as_slice())));
+	out.push_str(&format!(
+		"| fixture-backed | {} |\n",
+		md_list(report.capture_integration.fixture_backed.as_slice())
+	));
+	out.push_str(&format!(
+		"| mocked | {} |\n",
+		md_list(report.capture_integration.mocked.as_slice())
+	));
+	out.push_str(&format!(
+		"| blocked | {} |\n",
+		md_list(report.capture_integration.blocked.as_slice())
+	));
+	out.push_str(&format!(
+		"| not encoded | {} |\n",
+		md_list(report.capture_integration.not_encoded.as_slice())
+	));
+
+	if !report.capture_integration.notes.is_empty() {
+		out.push_str("\nNotes:\n");
+
+		for note in &report.capture_integration.notes {
+			out.push_str(&format!("- {}\n", md_cell(note.as_str())));
+		}
+	}
+
+	out.push('\n');
+}
+
 fn render_markdown_header(out: &mut String, report: &RealWorldReport, report_path: &str) {
 	out.push_str("# Real-World Job Benchmark Report\n\n");
 	out.push_str(
@@ -2284,7 +2420,7 @@ fn render_markdown_header(out: &mut String, report: &RealWorldReport, report_pat
 		"Read this when: You need a durable smoke report for real-world agent memory job fixtures.\n",
 	);
 	out.push_str(&format!("Inputs: `{}`.\n", md_inline(report_path)));
-	out.push_str("Depends on: `apps/elf-eval/fixtures/real_world_job/`, `docs/spec/real_world_agent_memory_benchmark_v1.md`, and `Makefile.toml`.\n");
+	out.push_str("Depends on: `apps/elf-eval/fixtures/real_world_memory/`, `docs/spec/real_world_agent_memory_benchmark_v1.md`, and `Makefile.toml`.\n");
 	out.push_str(
 		"Verification: Compare this Markdown summary with the source JSON before committing.\n\n",
 	);
@@ -2732,6 +2868,14 @@ fn md_cell(value: &str) -> String {
 
 fn md_url(value: &str) -> String {
 	value.replace(')', "%29").replace(' ', "%20")
+}
+
+fn md_list(values: &[String]) -> String {
+	if values.is_empty() {
+		return "-".to_string();
+	}
+
+	md_cell(values.join("; ").as_str())
 }
 
 fn round3(value: f64) -> f64 {

@@ -1,0 +1,194 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "work-resume-decodex-linear-status-001",
+  "suite": "work_resume",
+  "title": "Recover Decodex and Linear lane ownership before handoff",
+  "corpus": {
+    "corpus_id": "real-world-memory-work-resume-2026-06-09",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "xy844-current-lane-state",
+        "kind": "issue",
+        "text": "XY-844 current lane state: Linear status is In Progress, branch is y/elf-xy-844, routed GitHub identity is y, and routed Linear workspace is hackink. Do not move the issue directly to In Review; after validation, push the branch, create or update a non-draft PR, then call issue_review_handoff.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "work_resume_decodex_linear_status",
+            "evidence_id": "xy844-current-lane-state"
+          }
+        },
+        "created_at": "2026-06-09T08:05:00Z"
+      },
+      {
+        "evidence_id": "xy844-wrong-workspace-trap",
+        "kind": "decision",
+        "text": "Old context note: use GitHub identity x and Linear workspace helixbox for this lane, then move the issue directly to In Review after local tests.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "work_resume_decodex_linear_status",
+            "evidence_id": "xy844-wrong-workspace-trap"
+          }
+        },
+        "created_at": "2026-06-08T08:05:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_work_resume",
+      "answer": {
+        "content": "Keep XY-844 on branch y/elf-xy-844 with routed GitHub identity y and Linear workspace hackink. Do not move the issue directly to In Review; after validation, push the branch, prepare the non-draft PR, and call issue_review_handoff.",
+        "claims": [
+          {
+            "claim_id": "ownership",
+            "text": "Use branch y/elf-xy-844, GitHub identity y, and Linear workspace hackink.",
+            "evidence_ids": ["xy844-current-lane-state"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "handoff_path",
+            "text": "Do not move directly to In Review; use PR-backed issue_review_handoff after validation.",
+            "evidence_ids": ["xy844-current-lane-state"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["xy844-current-lane-state"],
+        "latency_ms": 2.4,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "xy844-wrong-identity-note",
+      "ts": "2026-06-08T08:05:00Z",
+      "actor": "agent",
+      "action": "recorded_wrong_identity",
+      "evidence_ids": ["xy844-wrong-workspace-trap"],
+      "summary": "An old context note pointed at the wrong routed identity and direct tracker transition."
+    },
+    {
+      "event_id": "xy844-current-identity",
+      "ts": "2026-06-09T08:05:00Z",
+      "actor": "agent",
+      "action": "read_lane_identity",
+      "evidence_ids": ["xy844-current-lane-state"],
+      "summary": "The lane readback established the current branch, identity, workspace, and handoff path."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Before resuming XY-844, tell me the current Decodex/Linear lane status and ownership path.",
+    "job_mode": "resume",
+    "constraints": [
+      "cite_evidence",
+      "preserve_ownership",
+      "do_not_mutate_tracker_directly"
+    ]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "ownership",
+        "text": "Use branch y/elf-xy-844, GitHub identity y, and Linear workspace hackink."
+      },
+      {
+        "claim_id": "handoff_path",
+        "text": "Do not move directly to In Review; use PR-backed issue_review_handoff after validation."
+      }
+    ],
+    "must_not_include": [
+      "Use GitHub identity x and Linear workspace helixbox.",
+      "Move the issue directly to In Review after local tests."
+    ],
+    "evidence_links": {
+      "ownership": ["xy844-current-lane-state"],
+      "handoff_path": ["xy844-current-lane-state"]
+    },
+    "answer_type": "resume_summary",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "xy844-current-lane-state",
+      "claim_id": "ownership",
+      "requirement": "cite",
+      "quote": "branch is y/elf-xy-844, routed GitHub identity is y, and routed Linear workspace is hackink"
+    },
+    {
+      "evidence_id": "xy844-current-lane-state",
+      "claim_id": "handoff_path",
+      "requirement": "use",
+      "quote": "Do not move the issue directly to In Review"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "wrong-routed-identity",
+      "type": "near_duplicate",
+      "evidence_ids": ["xy844-wrong-workspace-trap"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "States current lane state and handoff path."
+      },
+      "ownership_correctness": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Uses the routed branch, GitHub identity, and Linear workspace."
+      },
+      "evidence_grounding": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Grounds ownership and handoff claims in current lane evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Avoids wrong identity and direct In Review transition traps."
+      },
+      "latency_resource": {
+        "weight": 0.1,
+        "max_points": 1.0,
+        "criteria": {
+          "max_latency_ms": 50.0,
+          "description": "Fixture-backed status answer should be immediate."
+        }
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [
+      "The fixture does not provide that evidence."
+    ],
+    "fallback_action": "state_blocker"
+  },
+  "tags": [
+    "synthetic",
+    "fixture_backed",
+    "decodex",
+    "linear",
+    "ownership",
+    "no_live_claim"
+  ]
+}

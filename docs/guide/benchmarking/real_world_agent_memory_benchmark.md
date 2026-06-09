@@ -118,14 +118,18 @@ Current checked-in smoke increment:
 cargo make real-world-job-smoke
 ```
 
-This parses `apps/elf-eval/fixtures/real_world_job/smoke/`, writes
+This parses `apps/elf-eval/fixtures/real_world_memory/work_resume/`, writes
 `tmp/real-world-job/real-world-job-smoke-report.json`, and renders
-`tmp/real-world-job/real-world-job-smoke-report.md`. The smoke report includes suite
-id, job id, expected evidence, produced answer/evidence, unsupported-claim count,
-wrong-result count, latency/cost fields when available, and typed suite/job statuses.
-Untouched suites remain `not_encoded`.
+`tmp/real-world-job/real-world-job-smoke-report.md`.
 
-Current checked-in trust and personalization increment:
+The checked-in fixture slice covers stale worktree resume, Decodex/Linear lane status,
+failed command recovery, PR review blocker recovery, exact next-action extraction, and
+cross-tool capture boundaries. The smoke report includes suite id, job id, expected
+evidence, produced answer/evidence, unsupported-claim count, wrong-result count,
+latency/cost fields when available, capture/integration behavior classes, and typed
+suite/job statuses. Untouched suites remain `not_encoded`.
+
+Current checked-in full real-world memory increment:
 
 ```sh
 cargo make real-world-memory
@@ -139,18 +143,22 @@ The suite currently encodes:
 
 - `trust_source_of_truth`: evidence binding, source refs, and Qdrant rebuild from
   Postgres-held chunk embeddings before answering.
+- `work_resume`: stale worktree resume, Decodex/Linear lane status, failed command
+  recovery, PR review blocker recovery, and exact next-action extraction.
 - `memory_evolution`: TTL/delete suppression plus current-versus-historical preference,
   issue status, deployment method, benchmark conclusion, and temporal relation cases.
-- `capture_integration`: write-policy audit behavior for redaction/private exclusion.
+- `capture_integration`: write-policy audit behavior for redaction/private exclusion
+  and fixture-backed capture/integration boundary classification.
 - `personalization`: scoped stable preference correction without temporary or
   cross-project preference leakage.
 
 The generated report includes evidence coverage, source-ref coverage, quote coverage,
 unsupported-claim count, stale retrieval count, stale-answer count, conflict detection
 count, update rationale availability, temporal validity `not_encoded` count, scope
-correctness, redaction leak count, and Qdrant rebuild case/pass counts. The fixtures
-include negative traps for unsupported prior claims, stale deleted facts, stale
-historical facts, cross-project preference leakage, and private/redacted text leakage.
+correctness, redaction leak count, capture/integration behavior classes, and Qdrant
+rebuild case/pass counts. The fixtures include negative traps for stale blockers,
+unsupported prior claims, stale deleted facts, stale historical facts, cross-project
+preference leakage, and private/redacted text leakage.
 
 Narrow memory evolution increment:
 
