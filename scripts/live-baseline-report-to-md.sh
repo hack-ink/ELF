@@ -53,9 +53,9 @@ render_report() {
     ("- Queries: `" + (.corpus.query_count | tostring) + "`"),
     ("- Wrong-result count: `" + ((.wrong_result_count // 0) | tostring) + "`"),
     ("- Query latency mean: `" + ((.latency_ms.mean // 0) | tostring) + " ms`"),
-    ("- Project summary: `" + (.summary.pass | tostring) + " pass`, `" + (.summary.fail | tostring) + " fail`, `" + (.summary.incomplete | tostring) + " incomplete`"),
-    ("- Same-corpus summary: `" + (.same_corpus_summary.pass | tostring) + " pass`, `" + (.same_corpus_summary.fail | tostring) + " fail`, `" + (.same_corpus_summary.incomplete | tostring) + " incomplete`"),
-    ("- Full check summary: `" + (.full_check_summary.pass | tostring) + "/" + (.full_check_summary.total | tostring) + " pass`"),
+    ("- Project summary: `" + (.summary.pass // 0 | tostring) + " pass`, `" + (.summary.wrong_result // 0 | tostring) + " wrong_result`, `" + (.summary.lifecycle_fail // 0 | tostring) + " lifecycle_fail`, `" + (.summary.blocked // 0 | tostring) + " blocked`, `" + (.summary.incomplete // 0 | tostring) + " incomplete`, `" + (.summary.not_encoded // 0 | tostring) + " not_encoded`"),
+    ("- Same-corpus summary: `" + (.same_corpus_summary.pass // 0 | tostring) + " pass`, `" + (.same_corpus_summary.wrong_result // 0 | tostring) + " wrong_result`, `" + (.same_corpus_summary.blocked // 0 | tostring) + " blocked`, `" + (.same_corpus_summary.incomplete // 0 | tostring) + " incomplete`, `" + (.same_corpus_summary.not_encoded // 0 | tostring) + " not_encoded`"),
+    ("- Full check summary: `" + (.full_check_summary.pass // 0 | tostring) + "/" + (.full_check_summary.total // 0 | tostring) + " pass`, `" + (.full_check_summary.wrong_result // 0 | tostring) + " wrong_result`, `" + (.full_check_summary.lifecycle_fail // 0 | tostring) + " lifecycle_fail`, `" + (.full_check_summary.blocked // 0 | tostring) + " blocked`, `" + (.full_check_summary.incomplete // 0 | tostring) + " incomplete`, `" + (.full_check_summary.not_encoded // 0 | tostring) + " not_encoded`"),
     "",
     "## Projects",
     "",
@@ -71,6 +71,26 @@ render_report() {
         + " | " + (.reason | md) + " |"
     ),
     "",
+    (
+      [.projects[] | select(.adapter != null)] as $adapters
+      | if ($adapters | length) > 0 then
+          "## Adapter Behavior",
+          "",
+          "| Project | Storage | Retrieval | Update | Delete/Expire | Cold Start | Scale/Stress |",
+          "| --- | --- | --- | --- | --- | --- | --- |",
+          (
+            $adapters[]
+            | "| " + (.project | md)
+              + " | `" + (.adapter.storage.status | md) + "`"
+              + " | `" + (.adapter.behaviors.same_corpus_retrieval.status | md) + "`"
+              + " | `" + (.adapter.behaviors.update.status | md) + "`"
+              + " | `" + (.adapter.behaviors.delete_or_expire.status | md) + "`"
+              + " | `" + (.adapter.behaviors.cold_start_reload.status | md) + "`"
+              + " | `" + (.adapter.behaviors.scale_stress_profile.status | md) + "` |"
+          ),
+          ""
+        else empty end
+    ),
     (
       [.projects[] | select(.embedding != null)] as $embedded
       | if ($embedded | length) > 0 then
@@ -146,10 +166,13 @@ render_report() {
     "## Result Semantics",
     "",
     "- `pass`: every encoded check for the selected project and profile passed.",
-    "- `fail`: clone, install, import, build, retrieval, lifecycle, recovery, concurrency, soak, resource-envelope, or another declared check failed.",
-    "- `incomplete`: the encoded check could not complete without extra provider keys, host integration, native dependency support, durable runtime wiring, or more adapter work.",
+    "- `wrong_result`: a retrieval check completed but returned the wrong memory or missed expected evidence.",
+    "- `lifecycle_fail`: same-corpus retrieval may pass, but an encoded update, delete, cold-start, persistence, or related lifecycle check failed.",
+    "- `incomplete`: setup or a declared check could not complete because install, runtime, dependency, or adapter wiring failed in Docker.",
+    "- `blocked`: a safe check cannot run without external credentials, manual setup, durable runtime wiring, or host integration outside this run.",
+    "- `not_encoded`: the capability is not covered by the current adapter, so no pass/fail claim is allowed.",
     "",
-    "`incomplete` is not a pass; treat it as benchmark wiring debt."
+    "`incomplete`, `blocked`, and `not_encoded` are not passes; treat them as benchmark coverage debt."
   ' "${REPORT}"
 }
 
