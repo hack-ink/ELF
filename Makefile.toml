@@ -406,6 +406,9 @@ args = [
 # | real-world-job-operator-ux       | composite |     |
 # | real-world-job-operator-ux-json  | command   |     |
 # | real-world-job-operator-ux-report | command  |     |
+# | real-world-memory-retrieval        | composite |     |
+# | real-world-memory-retrieval-json   | command   |     |
+# | real-world-memory-retrieval-report | command   |     |
 
 [tasks.real-world-job-smoke]
 workspace = false
@@ -595,6 +598,55 @@ args = [
 	"tmp/real-world-job/real-world-job-operator-ux-report.json",
 	"--out",
 	"tmp/real-world-job/real-world-job-operator-ux-report.md",
+]
+
+[tasks.real-world-memory-retrieval]
+workspace = false
+dependencies = [
+	"real-world-memory-retrieval-report",
+]
+
+[tasks.real-world-memory-retrieval-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_memory/retrieval",
+	"--run-id",
+	"real-world-memory-retrieval",
+	"--adapter-id",
+	"fixture_retrieval",
+	"--adapter-name",
+	"ELF fixture retrieval cases",
+	"--out",
+	"tmp/real-world-memory/retrieval-report.json",
+]
+
+[tasks.real-world-memory-retrieval-report]
+workspace = false
+dependencies = [
+	"real-world-memory-retrieval-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-memory/retrieval-report.json",
+	"--out",
+	"tmp/real-world-memory/retrieval-report.md",
 ]
 
 
