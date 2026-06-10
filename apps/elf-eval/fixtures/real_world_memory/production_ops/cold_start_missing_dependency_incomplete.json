@@ -1,0 +1,187 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "production-ops-cold-start-dependency-001",
+  "suite": "production_ops",
+  "title": "Preserve cold-start dependency failure as incomplete instead of pass",
+  "encoding": {
+    "status": "incomplete",
+    "reason": "The fixture records a cold-start dependency failure path that could not reach the behavioral check; this must remain incomplete rather than a silent pass.",
+    "follow_up": {
+      "title": "[ELF benchmark P0] Pin Docker-compatible local embedding dependency for cold-start adapter checks",
+      "reason": "The adapter cannot fairly test cold-start recovery until its local embedding dependency can build or import in Docker."
+    }
+  },
+  "corpus": {
+    "corpus_id": "real-world-memory-production-ops-2026-06-10",
+    "profile": "external_adapter",
+    "items": [
+      {
+        "evidence_id": "local-embed-install-failure",
+        "kind": "adapter_state",
+        "text": "OpenViking cold-start check could not run because the Docker platform could not build or import llama-cpp-python for the local embedding path; the adapter status is incomplete with retrieval_status=local_embed_install_failed.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "cold_start_missing_dependency_incomplete",
+            "evidence_id": "local-embed-install-failure"
+          },
+          "locator": {
+            "quote": "could not build or import llama-cpp-python"
+          }
+        },
+        "created_at": "2026-06-09T08:38:14Z"
+      },
+      {
+        "evidence_id": "typed-incomplete-policy",
+        "kind": "runbook",
+        "text": "Use incomplete when install, import, build, adapter wiring, native dependency support, or local runtime setup failed.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "cold_start_missing_dependency_incomplete",
+            "evidence_id": "typed-incomplete-policy"
+          },
+          "locator": {
+            "quote": "Use incomplete when install, import, build"
+          }
+        },
+        "created_at": "2026-06-09T08:40:00Z"
+      },
+      {
+        "evidence_id": "dependency-pass-decoy",
+        "kind": "adapter_state",
+        "text": "Decoy: missing local embedding dependency should be reported as pass because no retrieval mismatch occurred.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "cold_start_missing_dependency_incomplete",
+            "evidence_id": "dependency-pass-decoy"
+          }
+        },
+        "created_at": "2026-06-09T08:30:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_production_ops",
+      "answer": {
+        "content": "The cold-start dependency failure is incomplete, not pass. The adapter could not build or import llama-cpp-python, so the behavioral cold-start check did not run and needs dependency repair before a pass claim.",
+        "claims": [
+          {
+            "claim_id": "cold_start_dependency_incomplete",
+            "text": "The cold-start dependency failure is incomplete, not pass.",
+            "evidence_ids": ["local-embed-install-failure", "typed-incomplete-policy"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["local-embed-install-failure", "typed-incomplete-policy"],
+        "latency_ms": 1.8,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "cold-start-dependency-failed",
+      "ts": "2026-06-09T08:38:14Z",
+      "actor": "tool",
+      "action": "hit_dependency_failure",
+      "evidence_ids": ["local-embed-install-failure"],
+      "summary": "The cold-start adapter path stopped before behavioral scoring because a native dependency could not build or import."
+    },
+    {
+      "event_id": "typed-incomplete-retained",
+      "ts": "2026-06-09T08:40:00Z",
+      "actor": "agent",
+      "action": "classified_failure",
+      "evidence_ids": ["typed-incomplete-policy"],
+      "summary": "The report kept dependency failures as incomplete typed states."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "How should the production-ops suite classify a cold-start check that cannot run because a dependency is missing?",
+    "job_mode": "operate",
+    "constraints": ["cite_evidence", "preserve_typed_status", "do_not_claim_pass"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "cold_start_dependency_incomplete",
+        "text": "The cold-start dependency failure is incomplete, not pass."
+      }
+    ],
+    "must_not_include": ["reported as pass"],
+    "evidence_links": {
+      "cold_start_dependency_incomplete": ["local-embed-install-failure", "typed-incomplete-policy"]
+    },
+    "answer_type": "direct_answer",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "local-embed-install-failure",
+      "claim_id": "cold_start_dependency_incomplete",
+      "requirement": "cite",
+      "quote": "could not build or import llama-cpp-python"
+    },
+    {
+      "evidence_id": "typed-incomplete-policy",
+      "claim_id": "cold_start_dependency_incomplete",
+      "requirement": "cite",
+      "quote": "Use incomplete when install, import, build"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "dependency-pass-decoy",
+      "type": "unsupported_prior",
+      "evidence_ids": ["dependency-pass-decoy"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "lifecycle_behavior": {
+        "weight": 0.35,
+        "max_points": 1.0,
+        "criteria": "Would test cold-start behavior only after dependency setup succeeds."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Cites dependency failure and typed-incomplete policy."
+      },
+      "uncertainty_handling": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "States that no pass claim is allowed."
+      },
+      "trap_avoidance": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Avoids dependency-pass decoy."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": true,
+    "acceptable_phrases": ["incomplete, not pass"],
+    "fallback_action": "state_blocker"
+  },
+  "tags": ["external_adapter", "production_ops", "cold_start", "dependency_boundary", "no_live_claim"]
+}
