@@ -37,3 +37,6 @@
 \ir tables/036_knowledge_page_sections.sql
 \ir tables/037_knowledge_page_source_refs.sql
 \ir tables/038_knowledge_page_lint_findings.sql
+\ir tables/039_core_memory_blocks.sql
+\ir tables/040_core_memory_block_attachments.sql
+\ir tables/041_core_memory_block_events.sql

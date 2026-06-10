@@ -323,6 +323,21 @@ impl ElfMcp {
 	}
 
 	#[rmcp::tool(
+		name = "elf_core_blocks_get",
+		description = "Fetch core memory blocks explicitly attached to the configured agent and read profile. This is separate from archival search.",
+		input_schema = core_blocks_get_schema()
+	)]
+	async fn elf_core_blocks_get(
+		&self,
+		mut params: JsonObject,
+	) -> Result<CallToolResult, ErrorData> {
+		// read_profile is part of the MCP server configuration and is not client-controlled.
+		let _ = take_optional_string(&mut params, "read_profile")?;
+
+		self.forward(HttpMethod::Get, "/v2/core-blocks", params, None).await
+	}
+
+	#[rmcp::tool(
 		name = "elf_searches_create",
 		description = "Create a search session using quick-find or planned-search mode. Response includes optional trajectory_summary for staged retrieval progress.",
 		input_schema = searches_create_schema()
@@ -1172,6 +1187,16 @@ fn docs_excerpts_get_schema() -> Arc<JsonObject> {
 	}))
 }
 
+fn core_blocks_get_schema() -> Arc<JsonObject> {
+	Arc::new(rmcp::object!({
+		"type": "object",
+		"additionalProperties": true,
+		"properties": {
+			"read_profile": { "type": ["string", "null"] }
+		}
+	}))
+}
+
 fn searches_create_schema() -> Arc<JsonObject> {
 	let filter_schema = rmcp::object!({
 		"type": "object",
@@ -1551,7 +1576,7 @@ mod tests {
 
 	type RequestRecorder = Arc<Mutex<Option<oneshot::Sender<RecordedRequest>>>>;
 
-	const ALL_TOOL_DEFINITIONS: [ToolDefinition; 29] = [
+	const ALL_TOOL_DEFINITIONS: [ToolDefinition; 30] = [
 		ToolDefinition::new(
 			"elf_notes_ingest",
 			HttpMethod::Post,
@@ -1575,6 +1600,12 @@ mod tests {
 			HttpMethod::Post,
 			"/v2/searches",
 			"Create a search session using quick-find or planned-search mode. Response includes optional trajectory_summary.",
+		),
+		ToolDefinition::new(
+			"elf_core_blocks_get",
+			HttpMethod::Get,
+			"/v2/core-blocks",
+			"Fetch core memory blocks explicitly attached to the configured agent and read profile.",
 		),
 		ToolDefinition::new(
 			"elf_searches_get",
@@ -1765,6 +1796,7 @@ mod tests {
 			"elf_notes_ingest",
 			"elf_graph_query",
 			"elf_events_ingest",
+			"elf_core_blocks_get",
 			"elf_searches_create",
 			"elf_searches_get",
 			"elf_searches_timeline",
