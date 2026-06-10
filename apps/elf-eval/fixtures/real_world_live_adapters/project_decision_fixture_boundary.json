@@ -1,0 +1,133 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "live-adapter-project-decision-boundary-001",
+  "suite": "project_decisions",
+  "title": "Live adapter retrieves the decision that fixture scoring must not imply service behavior",
+  "corpus": {
+    "corpus_id": "real-world-live-adapters-2026-06-10",
+    "profile": "external_adapter",
+    "items": [
+      {
+        "evidence_id": "fixture-live-service-boundary",
+        "kind": "decision",
+        "text": "Current adapter decision: fixture_backed results must not imply live-service behavior; live_real_world evidence is required before service/runtime superiority claims.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_live_adapter_fixture/v1",
+          "ref": {
+            "fixture": "project_decision_fixture_boundary",
+            "evidence_id": "fixture-live-service-boundary"
+          }
+        },
+        "created_at": "2026-06-10T06:20:00Z"
+      },
+      {
+        "evidence_id": "old-fixture-superiority-trap",
+        "kind": "decision",
+        "text": "Old adapter decision: fixture_backed scoring alone proves live-service superiority for ELF.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_live_adapter_fixture/v1",
+          "ref": {
+            "fixture": "project_decision_fixture_boundary",
+            "evidence_id": "old-fixture-superiority-trap"
+          }
+        },
+        "created_at": "2026-06-09T06:20:00Z"
+      }
+    ]
+  },
+  "timeline": [
+    {
+      "event_id": "old-fixture-superiority-recorded",
+      "ts": "2026-06-09T06:20:00Z",
+      "actor": "agent",
+      "action": "recorded_old_decision",
+      "evidence_ids": ["old-fixture-superiority-trap"],
+      "summary": "The old decision incorrectly treated fixture-backed scoring as live service proof."
+    },
+    {
+      "event_id": "fixture-live-boundary-recorded",
+      "ts": "2026-06-10T06:20:00Z",
+      "actor": "agent",
+      "action": "recorded_current_decision",
+      "evidence_ids": ["fixture-live-service-boundary"],
+      "summary": "The current decision requires live_real_world evidence before service/runtime superiority claims."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "What is the current decision about fixture_backed scoring and live-service behavior claims?",
+    "job_mode": "answer",
+    "constraints": ["cite_evidence", "avoid_stale_facts"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "fixture_boundary",
+        "text": "Current adapter decision: fixture_backed results must not imply live-service behavior; live_real_world evidence is required before service/runtime superiority claims."
+      }
+    ],
+    "must_not_include": [
+      "Old adapter decision: fixture_backed scoring alone proves live-service superiority for ELF."
+    ],
+    "evidence_links": {
+      "fixture_boundary": ["fixture-live-service-boundary"]
+    },
+    "answer_type": "decision",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "fixture-live-service-boundary",
+      "claim_id": "fixture_boundary",
+      "requirement": "cite",
+      "quote": "fixture_backed results must not imply live-service behavior"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "old-fixture-superiority-claim",
+      "type": "stale_fact",
+      "evidence_ids": ["old-fixture-superiority-trap"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.35,
+        "max_points": 1.0,
+        "criteria": "States the current fixture-backed boundary."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Cites the current decision evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Avoids the stale superiority decision."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Keeps README/adoption claim boundaries clear."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": ["The live adapter did not retrieve that evidence."],
+    "fallback_action": "state_blocker"
+  },
+  "tags": ["external_adapter", "live_real_world", "project_decisions"]
+}

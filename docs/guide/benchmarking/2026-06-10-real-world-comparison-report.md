@@ -107,22 +107,24 @@ separate:
 | --- | ---: | --- |
 | `fixture_backed` | 1 | ELF fixture scoring through checked-in real-world jobs. |
 | `live_baseline_only` | 6 | Docker same-corpus/lifecycle evidence from the live-baseline runner only. |
-| `live_real_world` | 0 | No external project currently executes `real_world_job` prompts and scoring. |
+| `live_real_world` | 2 | Targeted ELF and qmd adapters execute representative `real_world_job` prompts and scoring. |
 
 Adapter-level status after refreshing the manifest:
 
 | Project | Evidence class | Overall status | What is proven | What is not proven |
 | --- | --- | --- | --- | --- |
-| ELF | `fixture_backed` | `incomplete` | Fixture-backed real-world scoring passes 10 of 11 suites, with production-ops typed boundaries preserved. | A live end-to-end real-world service adapter is not encoded. |
-| qmd | `live_baseline_only` | `pass` | Docker same-corpus retrieval, update, delete, and cold-start live-baseline checks pass. | qmd does not yet run any real-world job suite. |
+| ELF | `fixture_backed` | `incomplete` | Fixture-backed real-world scoring passes 10 of 11 suites, with production-ops typed boundaries preserved. | Fixture-backed scoring is not live-service behavior; cite `elf_live_real_world` for the targeted live slice. |
+| ELF | `live_real_world` | `pass` | The targeted Docker slice materializes real_world_job answers through ElfService, worker indexing, and search_raw for work_resume, retrieval, and project_decisions. | This is not yet a full 11-suite live-service run or private-corpus proof. |
+| qmd | `live_baseline_only` | `pass` | Docker same-corpus retrieval, update, delete, and cold-start live-baseline checks pass. | Same-corpus checks are not real-world job scoring; cite `qmd_live_real_world` for the targeted live slice. |
+| qmd | `live_real_world` | `pass` | The targeted Docker slice indexes real_world_job corpora through qmd collection add/update/embed/query and scores generated answers. | This is not yet broad RAG/graph adapter coverage or full-suite external parity. |
 | agentmemory | `live_baseline_only` | `lifecycle_fail` | Same-corpus retrieval can run through current adapter. | Durable storage/cold-start lifecycle and real-world suites are blocked by the current in-memory adapter path. |
 | mem0/OpenMemory | `live_baseline_only` | `wrong_result` | Local OSS setup is represented separately from hosted/OpenMemory claims. | Same-corpus retrieval was not a clean pass and no real-world job adapter is encoded. |
 | memsearch | `live_baseline_only` | `wrong_result` | Markdown-first design remains a source-of-truth ergonomics reference. | Same-corpus retrieval was not a clean pass and real-world suites are incomplete/not encoded. |
 | OpenViking | `live_baseline_only` | `incomplete` | Hierarchical context trajectory remains a reference direction. | Docker local-embedding setup must be pinned before fair retrieval or real-world jobs can run. |
 | claude-mem | `live_baseline_only` | `wrong_result` | Progressive disclosure and local viewer remain UX references. | Current Docker evidence is not a clean same-corpus pass and progressive disclosure jobs are not encoded. |
 
-External summary counters: `7` adapter records, `6` external projects, `7` Docker-default,
-`0` host-global-install requirements, `0` live real-world adapters, `3` external
+External summary counters: `9` adapter records, `7` external project records, `9` Docker-default,
+`0` host-global-install requirements, `2` live real-world adapters, `3` external
 wrong-result overall states, `1` lifecycle-fail state, and `1` external incomplete state.
 
 ## Remaining Gaps
@@ -135,8 +137,8 @@ report:
 | ELF production-ops cold-start dependency fixture | `incomplete` | `[ELF benchmark P0] Pin Docker-compatible local embedding dependency for cold-start adapter checks`. |
 | ELF provider-backed production-ops gate | `blocked` | Run only with routed operator credentials; credentials were not supplied for this report. |
 | ELF private production corpus | `blocked` | Supply an operator-owned sanitized private manifest; private-corpus checks were a non-goal without that manifest. |
-| ELF fixture-backed scoring is not live service execution | `not_encoded` capability | `[ELF benchmark vNext] Replace fixture-only ELF answers with live real-world adapter execution where appropriate`. |
-| qmd real-world job adapter | `not_encoded` suites | Add a qmd adapter that executes `real_world_job` prompts and scoring before claiming real-world suite parity. |
+| Full ELF live-service real-world sweep | `not_encoded` beyond targeted slice | Expand `elf_live_real_world` beyond representative work_resume, retrieval, and project_decisions jobs before claiming full live-service suite coverage. |
+| Full qmd real-world job sweep | `not_encoded` beyond targeted slice | Expand `qmd_live_real_world` beyond the representative targeted slice before claiming broad real-world suite parity. |
 | agentmemory durable lifecycle | `lifecycle_fail` / `blocked` | `[ELF benchmark P0] Make agentmemory adapter lifecycle-durable and fail-typed`. |
 | mem0/OpenMemory same-corpus and real-world coverage | `wrong_result` / `not_encoded` | Add/fix a local OSS adapter before claiming lifecycle, personalization, or OpenMemory UI parity. |
 | memsearch same-corpus and real-world coverage | `wrong_result` / `incomplete` | Fix Docker same-corpus retrieval/reindex evidence before scoring Markdown-first real-world jobs. |
@@ -157,14 +159,15 @@ What ELF is better at in the current evidence:
 Where ELF is comparable or still being tested:
 
 - qmd remains the strongest local retrieval-debug baseline. It passes current
-  live-baseline checks, while ELF has the stronger evidence/provenance service contract.
+  live-baseline checks and now has targeted live real-world job evidence, while ELF has
+  the stronger evidence/provenance service contract.
 - The fixture-backed retrieval and memory-evolution suites pass, but this is not the
   same as proving every external project on the same real-world jobs.
 
 Where ELF is behind or not yet proven:
 
-- No external project has a live real-world adapter win, including ELF as a live service
-  adapter; the current ELF result is fixture-backed.
+- Only ELF and qmd have targeted live real-world adapter evidence; no external project
+  has full-suite live real-world parity yet.
 - Production-ops is intentionally not a full pass because credentialed and private
   corpus checks need operator-owned inputs.
 - ELF still needs to absorb external strengths: qmd-style local debug knobs,
