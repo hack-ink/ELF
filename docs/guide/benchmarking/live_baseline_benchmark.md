@@ -357,6 +357,25 @@ leave real-world suites as `not_encoded`, `blocked`, `incomplete`, `wrong_result
 `lifecycle_fail` until an adapter actually executes `real_world_job` prompts and
 scoring.
 
+The targeted live real-world adapter slice for ELF and qmd is separate from the
+same-corpus live baseline:
+
+```sh
+cargo make real-world-memory-live-adapters
+```
+
+This task runs in `docker-compose.baseline.yml`, materializes generated
+`adapter_response` fixtures through ELF's service runtime and qmd's local CLI
+retrieval path, then scores and publishes:
+
+```text
+tmp/real-world-memory/live-adapters/elf-report.json
+tmp/real-world-memory/live-adapters/elf-report.md
+tmp/real-world-memory/live-adapters/qmd-report.json
+tmp/real-world-memory/live-adapters/qmd-report.md
+tmp/real-world-memory/live-adapters/summary.json
+```
+
 To run the checked-in real-world job smoke fixture and render its Markdown report:
 
 ```sh
@@ -419,8 +438,9 @@ The retrieval fixture lives under
 `apps/elf-eval/fixtures/real_world_memory/retrieval/` and covers alternate phrasing,
 distractor-heavy corpora, multi-hop routing questions, current-versus-obsolete context
 selection, minimal sufficient context, and stage-level wrong-result explainability.
-It is still an offline fixture report; qmd and OpenViking remain reference systems
-unless an adapter actually runs and records typed evidence.
+It is still an offline fixture report. qmd has a separate targeted live adapter slice
+through `cargo make real-world-memory-live-adapters`; OpenViking remains a reference
+system unless an adapter actually runs and records typed evidence.
 
 To run the checked-in proposal-only consolidation fixtures:
 
