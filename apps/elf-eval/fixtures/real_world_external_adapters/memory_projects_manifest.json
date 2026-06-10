@@ -1060,15 +1060,20 @@
       "overall_status": "blocked",
       "setup": {
         "status": "blocked",
-        "evidence": "XY-882 marks RAGFlow as an adapter_candidate, but the runner still needs a Docker-safe tiny-corpus ingest/query smoke before any live adapter claim."
+        "evidence": "XY-885 adds a Docker-safe tiny-corpus evidence smoke command. The checked-in manifest remains a research gate until a generated artifact reaches RAGFlow query output.",
+        "command": "cargo make ragflow-docker-smoke",
+        "artifact": "tmp/real-world-memory/ragflow-smoke/ragflow-smoke.json"
       },
       "run": {
-        "status": "not_encoded",
-        "evidence": "No RAGFlow real_world_job or live-baseline adapter is encoded."
+        "status": "blocked",
+        "evidence": "The live path requires explicit resource-envelope opt-in and a local self-hosted RAGFlow API key; setup failures stay typed in the generated smoke artifact.",
+        "command": "ELF_RAGFLOW_SMOKE_START=1 ELF_RAGFLOW_SMOKE_ACCEPT_RESOURCE_ENVELOPE=1 cargo make ragflow-docker-smoke",
+        "artifact": "tmp/real-world-memory/ragflow-smoke/memory_projects_manifest.ragflow-smoke.json"
       },
       "result": {
         "status": "blocked",
-        "evidence": "No quality result is claimed until deployability, resource envelope, and output mapping are researched."
+        "evidence": "No quality result is claimed from the checked-in research gate. Generated smoke artifacts may become live_real_world only after RAGFlow returns reference chunks mapped to generated evidence ids.",
+        "artifact": "tmp/real-world-memory/ragflow-smoke/ragflow-smoke.json"
       },
       "capabilities": [
         {
@@ -1079,19 +1084,19 @@
         {
           "capability": "docker_service_setup",
           "status": "blocked",
-          "evidence": "The adapter must size the multi-service Docker setup and avoid host-global installs before running."
+          "evidence": "The smoke records official Docker setup, image/disk/startup envelope, CPU/GPU mode, vm.max_map_count handling, provider boundaries, and retry behavior."
         },
         {
           "capability": "real_world_job_adapter",
           "status": "not_encoded",
-          "evidence": "No job prompt, answer, evidence, or trap mapping is implemented."
+          "evidence": "The smoke maps RAGFlow reference chunks to generated evidence ids, but broad real_world_job scoring and quality claims remain not encoded."
         }
       ],
       "suites": [
         {
           "suite_id": "retrieval",
           "status": "blocked",
-          "evidence": "Corpus ingestion, query output, and evidence citation mapping need D1/D2 research."
+          "evidence": "The generated smoke can exercise tiny corpus ingest and retrieval-reference mapping, but the checked-in record stays blocked until a live artifact reaches query output."
         },
         {
           "suite_id": "knowledge_compilation",
@@ -1135,13 +1140,14 @@
           }
         ],
         "setup_path": "Implement a tiny Docker evidence-smoke runner using the official Docker deployment, dataset ingest API, and OpenAI-compatible query API.",
-        "runtime_boundary": "Future runs must use docker-compose.baseline.yml or a nested Docker-isolated service profile without host-global installs.",
-        "resource_expectation": "Large multi-service RAG stack; record CPU/GPU mode, memory, disk, startup time, and provider credential needs before scoring.",
+        "runtime_boundary": "Run scripts/ragflow-docker-evidence-smoke.sh through cargo make; the live path uses the official RAGFlow Docker Compose service boundary without host-global RAGFlow installs.",
+        "resource_expectation": "Large multi-service RAG stack; generated artifacts record CPU/GPU mode, memory, disk, image size, expanded disk notes, startup time, vm.max_map_count handling, and provider boundaries before scoring.",
         "retry_guidance": [
-          "Start with CPU mode and a generated tiny text corpus.",
-          "Record image pull/build size, expanded disk use, startup time, vm.max_map_count handling, and provider boundaries before scoring."
+          "Run cargo make ragflow-docker-smoke first to produce a typed preflight artifact.",
+          "Start the live path only with ELF_RAGFLOW_SMOKE_START=1 and ELF_RAGFLOW_SMOKE_ACCEPT_RESOURCE_ENVELOPE=1.",
+          "Keep private corpora and operator-owned provider credentials out of this smoke; map only generated public corpus reference chunks to evidence ids."
         ],
-        "research_depth": "D2 feasibility verdict: adapter_candidate (XY-882); research_gate only, adapter not encoded"
+        "research_depth": "D2 feasibility verdict plus XY-885 evidence-smoke implementation; checked-in record remains research_gate unless a generated artifact reaches query output"
       },
       "follow_up": {
         "title": "[ELF benchmark adapter] Implement RAGFlow Docker evidence-smoke adapter",
