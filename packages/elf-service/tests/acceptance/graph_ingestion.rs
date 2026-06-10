@@ -13,7 +13,8 @@ use elf_config::EmbeddingProviderConfig;
 use elf_domain::memory_policy::MemoryPolicyDecision;
 use elf_service::{
 	AddEventRequest, AddNoteInput, AddNoteRequest, BoxFuture, ElfService, EmbeddingProvider,
-	EventMessage, NoteOp, Providers, Result, StructuredFields,
+	EventMessage, GraphQueryEntityRef, GraphQueryPredicateRef, GraphQueryRequest, NoteOp,
+	Providers, RelationTemporalStatus, Result, StructuredFields,
 };
 
 const TEST_TENANT: &str = "t";
@@ -150,6 +151,21 @@ fn duplicate_fact_attaches_multiple_evidence_request() -> AddNoteRequest {
 				write_policy: None,
 			},
 		],
+	}
+}
+
+fn works_at_graph_query_request(as_of: OffsetDateTime) -> GraphQueryRequest {
+	GraphQueryRequest {
+		tenant_id: TEST_TENANT.to_string(),
+		project_id: TEST_PROJECT.to_string(),
+		agent_id: "a".to_string(),
+		read_profile: "private_only".to_string(),
+		subject: GraphQueryEntityRef::Surface { surface: "Alice".to_string() },
+		predicate: Some(GraphQueryPredicateRef::Surface { surface: "works at".to_string() }),
+		scopes: Some(vec![TEST_SCOPE.to_string()]),
+		as_of: Some(as_of),
+		limit: Some(10),
+		explain: Some(true),
 	}
 }
 
@@ -478,8 +494,9 @@ async fn add_note_single_predicate_supersedes_conflicting_fact() {
 
 	acceptance::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
 
-	add_fact_note(&service, "employment-a", "Alice works at Initech.", "works at", "Initech").await;
-
+	let old_note_id =
+		add_fact_note(&service, "employment-a", "Alice works at Initech.", "works at", "Initech")
+			.await;
 	let fact_a = graph_fact_row(&service.db.pool, "works at", "Initech").await;
 	let predicate_id = fact_a.predicate_id.expect("Expected predicate_id.");
 
@@ -509,6 +526,27 @@ async fn add_note_single_predicate_supersedes_conflicting_fact() {
 	let active_after = active_object_value_at(&service.db.pool, predicate_id, t_after).await;
 
 	assert_eq!(active_after.as_deref(), Some("Globex"));
+
+	let historical_replay = service
+		.graph_query(works_at_graph_query_request(t_before))
+		.await
+		.expect("historical graph query failed.");
+
+	assert_eq!(historical_replay.facts.len(), 1);
+	assert_eq!(historical_replay.facts[0].object.value.as_deref(), Some("Initech"));
+	assert_eq!(historical_replay.facts[0].valid_to, Some(fact_b.valid_from));
+	assert_eq!(historical_replay.facts[0].temporal_status, RelationTemporalStatus::Historical);
+	assert_eq!(historical_replay.facts[0].evidence_note_ids, vec![old_note_id]);
+
+	let current_readback = service
+		.graph_query(works_at_graph_query_request(t_after))
+		.await
+		.expect("current graph query failed.");
+
+	assert_eq!(current_readback.facts.len(), 1);
+	assert_eq!(current_readback.facts[0].object.value.as_deref(), Some("Globex"));
+	assert_eq!(current_readback.facts[0].temporal_status, RelationTemporalStatus::Current);
+	assert_eq!(current_readback.facts[0].evidence_note_ids, vec![note_id]);
 
 	let supersession_count =
 		supersession_count(&service.db.pool, fact_a.fact_id, fact_b.fact_id, note_id).await;

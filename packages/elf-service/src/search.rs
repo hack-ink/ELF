@@ -24,6 +24,7 @@ use uuid::Uuid;
 use crate::{
 	ElfService, Result,
 	access::{self, ORG_PROJECT_ID},
+	graph::RelationTemporalStatus,
 	ranking_explain_v2::{self, SEARCH_RANKING_EXPLAIN_SCHEMA_V2, TraceTermsArgs},
 };
 use elf_config::{Config, SearchCache};
@@ -69,7 +70,8 @@ WITH selected_facts AS (
 		object_entity.kind AS object_kind,
 		gf.object_value,
 		gf.valid_from,
-		gf.valid_to
+		gf.valid_to,
+		(gf.valid_from <= $4 AND (gf.valid_to IS NULL OR gf.valid_to > $4)) AS is_current
 	FROM unnest($7::uuid[]) AS snc(selected_note_id)
 	JOIN graph_fact_evidence gfe
 		ON gfe.note_id = snc.selected_note_id
@@ -90,8 +92,12 @@ WITH selected_facts AS (
 			OR gf.scope = ANY($6::text[])
 		)
 		AND gf.valid_from <= $4
-		AND (gf.valid_to IS NULL OR gf.valid_to > $4)
-	ORDER BY snc.selected_note_id, gf.fact_id, gf.valid_from DESC, gf.fact_id ASC
+	ORDER BY
+		snc.selected_note_id,
+		gf.fact_id,
+		(gf.valid_from <= $4 AND (gf.valid_to IS NULL OR gf.valid_to > $4)) DESC,
+		gf.valid_from DESC,
+		gf.fact_id ASC
 ),
 ranked_facts AS (
 	SELECT
@@ -107,9 +113,10 @@ ranked_facts AS (
 		object_value,
 		valid_from,
 		valid_to,
+		is_current,
 		ROW_NUMBER() OVER (
 			PARTITION BY selected_note_id
-			ORDER BY valid_from DESC, fact_id ASC
+			ORDER BY is_current DESC, valid_from DESC, fact_id ASC
 		) AS fact_rank
 	FROM selected_facts
 ),
@@ -127,6 +134,7 @@ bounded_facts AS (
 		object_value,
 		valid_from,
 		valid_to,
+		is_current,
 		fact_rank
 	FROM ranked_facts
 	WHERE fact_rank <= $9
@@ -145,6 +153,7 @@ evidence_ranked AS (
 		bf.object_value,
 		bf.valid_from,
 		bf.valid_to,
+		bf.is_current,
 		bf.fact_rank,
 		e.note_id AS evidence_note_id,
 		e.created_at AS evidence_created_at,
@@ -170,6 +179,7 @@ fact_contexts AS (
 		object_value,
 		valid_from,
 		valid_to,
+		is_current,
 		fact_rank,
 		ARRAY_AGG(evidence_note_id ORDER BY evidence_created_at ASC, evidence_note_id ASC) AS evidence_note_ids
 	FROM evidence_ranked
@@ -187,6 +197,7 @@ fact_contexts AS (
 		object_value,
 		valid_from,
 		valid_to,
+		is_current,
 		fact_rank
 )
 SELECT
@@ -202,6 +213,7 @@ SELECT
 	object_value,
 	valid_from,
 	valid_to,
+	is_current,
 	evidence_note_ids
 FROM fact_contexts
 ORDER BY note_id, fact_rank
@@ -335,6 +347,9 @@ pub struct SearchExplainRelationContext {
 	#[serde(with = "crate::time_serde::option")]
 	/// End of the fact validity window, if superseded.
 	pub valid_to: Option<OffsetDateTime>,
+	#[serde(default)]
+	/// Temporal state for the fact relative to the search read timestamp.
+	pub temporal_status: RelationTemporalStatus,
 	#[serde(default)]
 	/// Evidence note identifiers supporting the fact.
 	pub evidence_note_ids: Vec<Uuid>,
@@ -1208,6 +1223,7 @@ struct SearchRelationContextRow {
 	object_value: Option<String>,
 	valid_from: OffsetDateTime,
 	valid_to: Option<OffsetDateTime>,
+	is_current: bool,
 	evidence_note_ids: Vec<Uuid>,
 }
 
@@ -4745,6 +4761,11 @@ WHERE note_id = ANY($1::uuid[])
 					object,
 					valid_from: row.valid_from,
 					valid_to: row.valid_to,
+					temporal_status: if row.is_current {
+						RelationTemporalStatus::Current
+					} else {
+						RelationTemporalStatus::Historical
+					},
 					evidence_note_ids: row.evidence_note_ids,
 				},
 			);

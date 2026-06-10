@@ -194,6 +194,11 @@ Supersession rule (write-time):
 - An active fact is defined by: `valid_from <= now AND (valid_to IS NULL OR valid_to > now)`.
 - Active duplicate prevention is enforced by partial unique indexes.
 - When ingestion reintroduces a note equivalent to an existing active fact, the system reuses the existing fact row and appends additional evidence rows for the new note instead of creating another active duplicate fact row.
+- Graph read APIs should expose relation temporal state derived from the validity window:
+  - `current` when `valid_from <= read_at AND (valid_to IS NULL OR valid_to > read_at)`.
+  - `historical` when `valid_to <= read_at`.
+  - `future` when `valid_from > read_at`.
+- Search relation context may include historical facts when they are evidence-linked to a returned note, but it must label them as historical instead of silently treating them as current.
 
 ============================================================
 7. CALL EXAMPLES
