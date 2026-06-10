@@ -269,7 +269,7 @@ fn assert_external_adapter_manifest_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/capability_status_counts/mocked")
 			.and_then(Value::as_u64),
-		Some(2)
+		Some(1)
 	);
 	assert_eq!(
 		report
@@ -292,7 +292,10 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 	let qmd = find_by_field(adapters, "/adapter_id", "qmd_live_baseline")?;
 	let qmd_live = find_by_field(adapters, "/adapter_id", "qmd_live_real_world")?;
 	let agentmemory = find_by_field(adapters, "/adapter_id", "agentmemory_live_baseline")?;
+	let mem0 = find_by_field(adapters, "/adapter_id", "mem0_openmemory_live_baseline")?;
+	let memsearch = find_by_field(adapters, "/adapter_id", "memsearch_live_baseline")?;
 	let openviking = find_by_field(adapters, "/adapter_id", "openviking_live_baseline")?;
+	let claude_mem = find_by_field(adapters, "/adapter_id", "claude_mem_live_baseline")?;
 	let ragflow = find_by_field(adapters, "/adapter_id", "ragflow_research_gate")?;
 	let lightrag = find_by_field(adapters, "/adapter_id", "lightrag_research_gate")?;
 	let graphrag = find_by_field(adapters, "/adapter_id", "graphrag_research_gate")?;
@@ -324,6 +327,9 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 		agentmemory.pointer("/capabilities/1/status").and_then(Value::as_str),
 		Some("mocked")
 	);
+
+	assert_first_generation_adapter_records(mem0, memsearch, claude_mem);
+
 	assert_eq!(openviking.pointer("/overall_status").and_then(Value::as_str), Some("wrong_result"));
 	assert_eq!(ragflow.pointer("/evidence_class").and_then(Value::as_str), Some("research_gate"));
 	assert_eq!(ragflow.pointer("/overall_status").and_then(Value::as_str), Some("blocked"));
@@ -375,6 +381,29 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 	);
 
 	Ok(())
+}
+
+fn assert_first_generation_adapter_records(mem0: &Value, memsearch: &Value, claude_mem: &Value) {
+	assert_eq!(
+		mem0.pointer("/capabilities/2/capability").and_then(Value::as_str),
+		Some("local_lifecycle_update_delete_reload")
+	);
+	assert_eq!(mem0.pointer("/capabilities/2/status").and_then(Value::as_str), Some("real"));
+	assert_eq!(mem0.pointer("/capabilities/4/status").and_then(Value::as_str), Some("not_encoded"));
+	assert_eq!(
+		memsearch.pointer("/capabilities/2/capability").and_then(Value::as_str),
+		Some("reindex_update_delete_reload")
+	);
+	assert_eq!(memsearch.pointer("/capabilities/2/status").and_then(Value::as_str), Some("real"));
+	assert_eq!(claude_mem.pointer("/capabilities/1/status").and_then(Value::as_str), Some("real"));
+	assert_eq!(
+		claude_mem.pointer("/capabilities/3/capability").and_then(Value::as_str),
+		Some("repository_progressive_disclosure")
+	);
+	assert_eq!(
+		claude_mem.pointer("/capabilities/4/status").and_then(Value::as_str),
+		Some("not_encoded")
+	);
 }
 
 fn assert_graphiti_zep_adapter(adapter: &Value) {
