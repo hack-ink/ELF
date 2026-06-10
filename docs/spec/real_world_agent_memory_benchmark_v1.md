@@ -440,6 +440,9 @@ Reports MUST include:
 
 - run id, runner version, corpus profile, job ids, suite ids, project adapter metadata;
 - per-job status, normalized score, hard-fail hits, evidence ids used, trap ids used;
+- per-job `answer_type`, required caveat/refusal flags, and whether an unknown answer
+  is allowed, so current-decision, historical-decision, rationale, and caveat cases are
+  distinguishable in generated reports;
 - expected evidence recall and irrelevant context ratio at job, suite, and summary
   levels when the runner can derive them from fixture evidence ids;
 - trace explainability metadata when an adapter or fixture can identify retrieval

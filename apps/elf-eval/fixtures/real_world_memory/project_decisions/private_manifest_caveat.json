@@ -1,0 +1,251 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "project-decision-private-manifest-caveat-001",
+  "suite": "project_decisions",
+  "title": "State the bounded private-manifest caveat instead of overclaiming",
+  "corpus": {
+    "corpus_id": "real-world-memory-project-decisions-2026-06-10",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "private-manifest-current-caveat",
+        "kind": "decision",
+        "text": "Current caveat: no private production corpus manifest is available, so project_decisions reports cannot claim private-corpus validation.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_memory_fixture/v1",
+          "ref": {
+            "fixture": "private_manifest_caveat",
+            "evidence_id": "private-manifest-current-caveat"
+          }
+        },
+        "created_at": "2026-06-10T04:00:00Z"
+      },
+      {
+        "evidence_id": "private-manifest-uncertainty-policy",
+        "kind": "decision",
+        "text": "Uncertainty policy: when evidence is missing, answer with the bounded caveat and do not invent a private-manifest pass.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_memory_fixture/v1",
+          "ref": {
+            "fixture": "private_manifest_caveat",
+            "evidence_id": "private-manifest-uncertainty-policy"
+          }
+        },
+        "created_at": "2026-06-10T04:05:00Z"
+      },
+      {
+        "evidence_id": "private-manifest-supported-scope",
+        "kind": "decision",
+        "text": "Supported scope: the checked-in project_decisions fixtures prove only synthetic fixture-backed decision recovery for ELF.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_memory_fixture/v1",
+          "ref": {
+            "fixture": "private_manifest_caveat",
+            "evidence_id": "private-manifest-supported-scope"
+          }
+        },
+        "created_at": "2026-06-10T04:10:00Z"
+      },
+      {
+        "evidence_id": "private-manifest-overconfident-trap",
+        "kind": "decision",
+        "text": "Overconfident unsupported answer: the private production corpus passed and proves project_decisions parity.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_memory_fixture/v1",
+          "ref": {
+            "fixture": "private_manifest_caveat",
+            "evidence_id": "private-manifest-overconfident-trap"
+          }
+        },
+        "created_at": "2026-06-10T04:15:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_project_decisions",
+      "answer": {
+        "content": "No private production corpus manifest is available, so the project_decisions report cannot claim private-corpus validation. The supported scope is synthetic fixture-backed decision recovery for ELF, and the correct uncertainty policy is to keep that bounded caveat instead of inventing a private-manifest pass.",
+        "claims": [
+          {
+            "claim_id": "private_manifest_caveat",
+            "text": "No private production corpus manifest is available, so project_decisions reports cannot claim private-corpus validation.",
+            "evidence_ids": [
+              "private-manifest-current-caveat",
+              "private-manifest-uncertainty-policy"
+            ],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "supported_project_decision_scope",
+            "text": "The checked-in project_decisions fixtures prove only synthetic fixture-backed decision recovery for ELF.",
+            "evidence_ids": ["private-manifest-supported-scope"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": [
+          "private-manifest-current-caveat",
+          "private-manifest-uncertainty-policy",
+          "private-manifest-supported-scope"
+        ],
+        "latency_ms": 1.2,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "private-manifest-caveat-recorded",
+      "ts": "2026-06-10T04:00:00Z",
+      "actor": "agent",
+      "action": "made_decision",
+      "evidence_ids": [
+        "private-manifest-current-caveat",
+        "private-manifest-uncertainty-policy",
+        "private-manifest-supported-scope"
+      ],
+      "summary": "The suite records a bounded caveat for missing private-manifest evidence."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Does the new project_decisions suite prove private-corpus validation or external parity?",
+    "job_mode": "answer",
+    "constraints": [
+      "cite_evidence",
+      "state_caveats",
+      "avoid_overconfident_unsupported_answers"
+    ]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "private_manifest_caveat",
+        "text": "No private production corpus manifest is available, so project_decisions reports cannot claim private-corpus validation."
+      },
+      {
+        "claim_id": "supported_project_decision_scope",
+        "text": "The checked-in project_decisions fixtures prove only synthetic fixture-backed decision recovery for ELF."
+      }
+    ],
+    "must_not_include": [
+      "The private production corpus passed.",
+      "project_decisions parity is proven."
+    ],
+    "evidence_links": {
+      "private_manifest_caveat": [
+        "private-manifest-current-caveat",
+        "private-manifest-uncertainty-policy"
+      ],
+      "supported_project_decision_scope": ["private-manifest-supported-scope"]
+    },
+    "answer_type": "direct_answer",
+    "accepted_alternates": [],
+    "requires_caveat": true,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "private-manifest-current-caveat",
+      "claim_id": "private_manifest_caveat",
+      "requirement": "cite",
+      "quote": "no private production corpus manifest is available"
+    },
+    {
+      "evidence_id": "private-manifest-uncertainty-policy",
+      "claim_id": "private_manifest_caveat",
+      "requirement": "use",
+      "quote": "do not invent a private-manifest pass"
+    },
+    {
+      "evidence_id": "private-manifest-supported-scope",
+      "claim_id": "supported_project_decision_scope",
+      "requirement": "cite",
+      "quote": "only synthetic fixture-backed decision recovery"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "overconfident-private-manifest-pass",
+      "type": "unsupported_prior",
+      "evidence_ids": ["private-manifest-overconfident-trap"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "States that private-corpus validation and parity are not proven."
+      },
+      "evidence_grounding": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Cites caveat, uncertainty policy, and supported-scope evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Avoids the overconfident private-corpus pass trap."
+      },
+      "uncertainty_handling": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Uses a bounded caveat when private-manifest evidence is missing."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.1,
+        "max_points": 1.0,
+        "criteria": "Preserves the correct claim boundary for aggregate report interpretation."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true",
+      "missing required caveat"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": true,
+    "acceptable_phrases": [
+      "No private production corpus manifest is available",
+      "synthetic fixture-backed decision recovery"
+    ],
+    "fallback_action": "continue_with_caveat"
+  },
+  "memory_evolution": {
+    "current_evidence_ids": [
+      "private-manifest-current-caveat",
+      "private-manifest-uncertainty-policy",
+      "private-manifest-supported-scope"
+    ],
+    "historical_evidence_ids": [],
+    "stale_trap_ids": ["overconfident-private-manifest-pass"],
+    "conflicts": [],
+    "update_rationale": {
+      "claim_id": "private_manifest_caveat",
+      "evidence_ids": ["private-manifest-uncertainty-policy"],
+      "available": true
+    },
+    "temporal_validity": {
+      "required": false,
+      "encoded": false,
+      "follow_up": null
+    }
+  },
+  "tags": [
+    "synthetic",
+    "project_decisions",
+    "caveat",
+    "uncertainty"
+  ]
+}

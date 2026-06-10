@@ -736,6 +736,10 @@ struct JobReport {
 	job_id: String,
 	title: String,
 	status: TypedStatus,
+	answer_type: String,
+	requires_caveat: bool,
+	requires_refusal: bool,
+	can_answer_unknown: bool,
 	normalized_score: f64,
 	hard_fail_hits: Vec<String>,
 	expected_evidence: Vec<ExpectedEvidenceReport>,
@@ -2600,6 +2604,10 @@ fn job_report(job: &RealWorldJob, scoring: JobScoring) -> JobReport {
 		job_id: job.job_id.clone(),
 		title: job.title.clone(),
 		status: scoring.status,
+		answer_type: job.expected_answer.answer_type.clone(),
+		requires_caveat: job.expected_answer.requires_caveat,
+		requires_refusal: job.expected_answer.requires_refusal,
+		can_answer_unknown: job.allowed_uncertainty.can_answer_unknown,
 		normalized_score: round3(scoring.normalized_score),
 		hard_fail_hits: scoring.hard_fail_hits,
 		expected_evidence: expected_evidence_report(job),
@@ -3629,9 +3637,9 @@ fn render_markdown_suites(out: &mut String, report: &RealWorldReport) {
 
 fn render_markdown_jobs(out: &mut String, report: &RealWorldReport) {
 	out.push_str("## Jobs\n\n");
-	out.push_str("| Suite | Job | Status | Score | Evidence Recall | Irrelevant Context | Expected Evidence | Produced Evidence | Trace Failure Stage | Stale Answers | Conflicts | Update Rationale | Temporal Gap | Unsupported Claims | Wrong Results | Latency | Cost |\n");
+	out.push_str("| Suite | Job | Status | Answer Type | Caveat Required | Refusal Required | Unknown Allowed | Score | Evidence Recall | Irrelevant Context | Expected Evidence | Produced Evidence | Trace Failure Stage | Stale Answers | Conflicts | Update Rationale | Temporal Gap | Unsupported Claims | Wrong Results | Latency | Cost |\n");
 	out.push_str(
-		"| --- | --- | --- | ---: | ---: | ---: | --- | --- | --- | ---: | ---: | --- | --- | ---: | ---: | ---: | --- |\n",
+		"| --- | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | --- | --- | --- | ---: | ---: | --- | --- | ---: | ---: | ---: | --- |\n",
 	);
 
 	for job in &report.jobs {
@@ -3644,10 +3652,14 @@ fn render_markdown_jobs(out: &mut String, report: &RealWorldReport) {
 		let produced = job.produced_evidence.join(", ");
 
 		out.push_str(&format!(
-			"| {} | {} | `{}` | `{:.3}` | `{:.3}` | `{:.3}` | `{}` | `{}` | `{}` | {} | {} | `{}` | `{}` | {} | {} | `{}` | `{}` |\n",
+			"| {} | {} | `{}` | `{}` | `{}` | `{}` | `{}` | `{:.3}` | `{:.3}` | `{:.3}` | `{}` | `{}` | `{}` | {} | {} | `{}` | `{}` | {} | {} | `{}` | `{}` |\n",
 			md_cell(job.suite_id.as_str()),
 			md_cell(job.job_id.as_str()),
 			status_str(job.status),
+			md_inline(job.answer_type.as_str()),
+			bool_display(job.requires_caveat),
+			bool_display(job.requires_refusal),
+			bool_display(job.can_answer_unknown),
 			job.normalized_score,
 			job.retrieval_quality.expected_evidence_recall,
 			job.retrieval_quality.irrelevant_context_ratio,

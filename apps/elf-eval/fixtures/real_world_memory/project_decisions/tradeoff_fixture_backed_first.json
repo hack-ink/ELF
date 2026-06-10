@@ -1,0 +1,256 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "project-decision-tradeoff-fixture-backed-001",
+  "suite": "project_decisions",
+  "title": "Explain the rationale and caveat for fixture-backed project decision jobs",
+  "corpus": {
+    "corpus_id": "real-world-memory-project-decisions-2026-06-10",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "tradeoff-fixture-backed-first",
+        "kind": "decision",
+        "text": "Accepted tradeoff: encode project_decisions first as offline fixture-backed jobs, not as live external-adapter parity runs.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_memory_fixture/v1",
+          "ref": {
+            "fixture": "tradeoff_fixture_backed_first",
+            "evidence_id": "tradeoff-fixture-backed-first"
+          }
+        },
+        "created_at": "2026-06-10T03:00:00Z"
+      },
+      {
+        "evidence_id": "tradeoff-fixture-backed-rationale",
+        "kind": "decision",
+        "text": "Tradeoff rationale: fixture-backed jobs can lock evidence, negative traps, and typed outcomes now while external adapters remain unrun for this suite.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_memory_fixture/v1",
+          "ref": {
+            "fixture": "tradeoff_fixture_backed_first",
+            "evidence_id": "tradeoff-fixture-backed-rationale"
+          }
+        },
+        "created_at": "2026-06-10T03:05:00Z"
+      },
+      {
+        "evidence_id": "tradeoff-fixture-backed-caveat",
+        "kind": "decision",
+        "text": "Caveat: this suite must not claim external-project parity until external adapters actually run the project_decisions jobs.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_memory_fixture/v1",
+          "ref": {
+            "fixture": "tradeoff_fixture_backed_first",
+            "evidence_id": "tradeoff-fixture-backed-caveat"
+          }
+        },
+        "created_at": "2026-06-10T03:10:00Z"
+      },
+      {
+        "evidence_id": "tradeoff-external-parity-trap",
+        "kind": "decision",
+        "text": "Unsupported prior: qmd, agentmemory, and mem0 already passed the project_decisions suite.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_memory_fixture/v1",
+          "ref": {
+            "fixture": "tradeoff_fixture_backed_first",
+            "evidence_id": "tradeoff-external-parity-trap"
+          }
+        },
+        "created_at": "2026-06-10T03:15:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_project_decisions",
+      "answer": {
+        "content": "The accepted tradeoff is to encode project_decisions first as offline fixture-backed jobs. The rationale is that fixture-backed jobs can lock evidence, negative traps, and typed outcomes now while external adapters remain unrun. The caveat is that this suite must not claim external-project parity until external adapters actually run these jobs.",
+        "claims": [
+          {
+            "claim_id": "fixture_backed_tradeoff",
+            "text": "Encode project_decisions first as offline fixture-backed jobs.",
+            "evidence_ids": ["tradeoff-fixture-backed-first"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "fixture_backed_tradeoff_rationale",
+            "text": "Fixture-backed jobs can lock evidence, negative traps, and typed outcomes now while external adapters remain unrun.",
+            "evidence_ids": ["tradeoff-fixture-backed-rationale"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "fixture_backed_parity_caveat",
+            "text": "Do not claim external-project parity until external adapters run the project_decisions jobs.",
+            "evidence_ids": ["tradeoff-fixture-backed-caveat"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": [
+          "tradeoff-fixture-backed-first",
+          "tradeoff-fixture-backed-rationale",
+          "tradeoff-fixture-backed-caveat"
+        ],
+        "latency_ms": 1.3,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "fixture-backed-first-decision",
+      "ts": "2026-06-10T03:00:00Z",
+      "actor": "agent",
+      "action": "made_decision",
+      "evidence_ids": [
+        "tradeoff-fixture-backed-first",
+        "tradeoff-fixture-backed-rationale",
+        "tradeoff-fixture-backed-caveat"
+      ],
+      "summary": "The project_decisions suite was encoded as fixture-backed evidence first with a parity caveat."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Why are project_decisions fixtures offline first, and what claim boundary should the report preserve?",
+    "job_mode": "decide",
+    "constraints": [
+      "cite_evidence",
+      "state_rationale",
+      "state_caveats",
+      "do_not_claim_external_parity"
+    ]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "fixture_backed_tradeoff",
+        "text": "Encode project_decisions first as offline fixture-backed jobs."
+      },
+      {
+        "claim_id": "fixture_backed_tradeoff_rationale",
+        "text": "Fixture-backed jobs can lock evidence, negative traps, and typed outcomes now while external adapters remain unrun."
+      },
+      {
+        "claim_id": "fixture_backed_parity_caveat",
+        "text": "Do not claim external-project parity until external adapters run the project_decisions jobs."
+      }
+    ],
+    "must_not_include": [
+      "qmd, agentmemory, and mem0 already passed the project_decisions suite."
+    ],
+    "evidence_links": {
+      "fixture_backed_tradeoff": ["tradeoff-fixture-backed-first"],
+      "fixture_backed_tradeoff_rationale": ["tradeoff-fixture-backed-rationale"],
+      "fixture_backed_parity_caveat": ["tradeoff-fixture-backed-caveat"]
+    },
+    "answer_type": "decision_record",
+    "accepted_alternates": [],
+    "requires_caveat": true,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "tradeoff-fixture-backed-first",
+      "claim_id": "fixture_backed_tradeoff",
+      "requirement": "cite",
+      "quote": "offline fixture-backed jobs"
+    },
+    {
+      "evidence_id": "tradeoff-fixture-backed-rationale",
+      "claim_id": "fixture_backed_tradeoff_rationale",
+      "requirement": "explain",
+      "quote": "lock evidence, negative traps, and typed outcomes"
+    },
+    {
+      "evidence_id": "tradeoff-fixture-backed-caveat",
+      "claim_id": "fixture_backed_parity_caveat",
+      "requirement": "cite",
+      "quote": "must not claim external-project parity"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "external-parity-without-adapter-run",
+      "type": "unsupported_prior",
+      "evidence_ids": ["tradeoff-external-parity-trap"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "States the fixture-backed-first decision."
+      },
+      "evidence_grounding": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Cites decision, rationale, and caveat evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Avoids unsupported external parity claims."
+      },
+      "uncertainty_handling": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "States the external-adapter caveat instead of overclaiming."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Preserves the report boundary for future adapter work."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true",
+      "missing required caveat"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": true,
+    "acceptable_phrases": [
+      "must not claim external-project parity",
+      "external adapters remain unrun"
+    ],
+    "fallback_action": "continue_with_caveat"
+  },
+  "memory_evolution": {
+    "current_evidence_ids": [
+      "tradeoff-fixture-backed-first",
+      "tradeoff-fixture-backed-rationale",
+      "tradeoff-fixture-backed-caveat"
+    ],
+    "historical_evidence_ids": [],
+    "stale_trap_ids": ["external-parity-without-adapter-run"],
+    "conflicts": [],
+    "update_rationale": {
+      "claim_id": "fixture_backed_tradeoff_rationale",
+      "evidence_ids": ["tradeoff-fixture-backed-rationale"],
+      "available": true
+    },
+    "temporal_validity": {
+      "required": false,
+      "encoded": false,
+      "follow_up": null
+    }
+  },
+  "tags": [
+    "synthetic",
+    "project_decisions",
+    "tradeoff_rationale",
+    "no_external_parity_claim"
+  ]
+}
