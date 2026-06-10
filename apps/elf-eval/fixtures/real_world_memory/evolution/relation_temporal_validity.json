@@ -2,15 +2,8 @@
   "schema": "elf.real_world_job/v1",
   "job_id": "memory-evolution-relation-temporal-001",
   "suite": "memory_evolution",
-  "title": "Mark temporal relation validity as not encoded instead of faking a graph pass",
-  "encoding": {
-    "status": "not_encoded",
-    "reason": "ELF graph-lite currently returns bounded relation context, but this runner does not yet encode current-only versus historical temporal validity for relation facts.",
-    "follow_up": {
-      "title": "[ELF graph P1] Add temporal validity to graph-lite facts",
-      "reason": "Relation facts need valid_from and invalidated_at semantics before this job can claim a current-versus-historical graph pass."
-    }
-  },
+  "title": "Distinguish current and historical relation validity in graph-lite context",
+  "encoding": {},
   "corpus": {
     "corpus_id": "real-world-memory-evolution-2026-06-09",
     "profile": "synthetic",
@@ -23,7 +16,7 @@
           "schema": "source_ref/v1",
           "resolver": "real_world_job_fixture/v1",
           "ref": {
-            "fixture": "relation_temporal_validity_not_encoded",
+            "fixture": "relation_temporal_validity",
             "evidence_id": "relation-old-owner"
           }
         },
@@ -37,7 +30,7 @@
           "schema": "source_ref/v1",
           "resolver": "real_world_job_fixture/v1",
           "ref": {
-            "fixture": "relation_temporal_validity_not_encoded",
+            "fixture": "relation_temporal_validity",
             "evidence_id": "relation-current-owner"
           }
         },
@@ -51,13 +44,49 @@
           "schema": "source_ref/v1",
           "resolver": "real_world_job_fixture/v1",
           "ref": {
-            "fixture": "relation_temporal_validity_not_encoded",
+            "fixture": "relation_temporal_validity",
             "evidence_id": "relation-owner-rationale"
           }
         },
         "created_at": "2026-06-08T00:05:00Z"
       }
-    ]
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_memory_evolution",
+      "answer": {
+        "content": "Team Echo currently owns deployment method review. Team Delta owned deployment method review historically. The ownership moved after the single-user production runbook scope changed.",
+        "claims": [
+          {
+            "claim_id": "relation_current_owner",
+            "text": "Team Echo currently owns deployment method review.",
+            "evidence_ids": [
+              "relation-current-owner",
+              "relation-old-owner",
+              "relation-owner-rationale"
+            ],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "relation_historical_owner",
+            "text": "Team Delta owned deployment method review historically.",
+            "evidence_ids": ["relation-old-owner"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "relation_owner_update_rationale",
+            "text": "Ownership moved after single-user production runbook scope changed.",
+            "evidence_ids": ["relation-owner-rationale"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": [
+          "relation-current-owner",
+          "relation-old-owner",
+          "relation-owner-rationale"
+        ]
+      },
+      "consolidation": null
+    }
   },
   "timeline": [
     {
@@ -101,7 +130,8 @@
         "relation-old-owner",
         "relation-owner-rationale"
       ],
-      "relation_historical_owner": ["relation-old-owner"]
+      "relation_historical_owner": ["relation-old-owner"],
+      "relation_owner_update_rationale": ["relation-owner-rationale"]
     },
     "answer_type": "direct_answer",
     "accepted_alternates": [],
@@ -160,9 +190,9 @@
     ]
   },
   "allowed_uncertainty": {
-    "can_answer_unknown": true,
-    "acceptable_phrases": ["Temporal relation validity is not encoded in this runner."],
-    "fallback_action": "state_blocker"
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "score_temporal_relation_behavior"
   },
   "memory_evolution": {
     "current_evidence_ids": ["relation-current-owner"],
@@ -180,12 +210,11 @@
     "update_rationale": {
       "claim_id": "relation_owner_update_rationale",
       "evidence_ids": ["relation-owner-rationale"],
-      "available": false
+      "available": true
     },
     "temporal_validity": {
       "required": true,
-      "encoded": false,
-      "follow_up": "[ELF graph P1] Add temporal validity to graph-lite facts"
+      "encoded": true
     }
   },
   "tags": [
@@ -193,7 +222,7 @@
     "memory_evolution",
     "reference_graphiti_zep_temporal",
     "reference_nanograph_typed_query",
-    "not_encoded",
+    "graph_temporal_encoded",
     "no_live_claim"
   ]
 }

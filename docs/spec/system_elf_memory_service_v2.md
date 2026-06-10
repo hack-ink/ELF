@@ -1071,6 +1071,7 @@ Response:
             },
             "valid_from": "...",
             "valid_to": null,
+            "temporal_status": "current|historical|future",
             "evidence_note_ids": ["uuid", "uuid"]
           }
         ]
@@ -1084,6 +1085,9 @@ Notes:
 - `relation_context` is omitted unless `search.graph_context.enabled` is true.
 - When present, relation context is evidence-bound and bounded by `search.graph_context.max_facts_per_item` and
   `search.graph_context.max_evidence_notes_per_fact`.
+- `relation_context.temporal_status` is derived from the graph fact validity window at the search read timestamp.
+  Historical facts may be returned when they are evidence-linked to a selected note; they must be labeled
+  `historical` instead of being presented as current.
 - It is included wherever `SearchExplain` is returned, including admin trace surfaces (`/v2/admin/traces/*` and
   `/v2/admin/trace-items/*`), in addition to search responses.
 - Admin trace endpoints validate `tenant_id` + `project_id` only for access control. They are intended for
@@ -1657,6 +1661,7 @@ Response:
       "predicate_id": "uuid|null",
       "valid_from": "...",
       "valid_to": "...|null",
+      "temporal_status": "current|historical|future",
       "object": {
         "entity": {
           "entity_id": "uuid",
