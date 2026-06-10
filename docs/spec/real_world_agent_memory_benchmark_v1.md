@@ -469,10 +469,10 @@ Consolidation suite reports MUST also include:
 - source mutation count.
 
 For proposal-only consolidation jobs, source mutation count MUST be `0`. If the runner
-cannot execute a live consolidation primitive, the report MUST include an executable
-gap with a precise follow-up issue or issue title. A proposal-only fixture MAY still
-pass when it verifies checked-in proposal payloads and the gap explicitly says that no
-live worker generation claim is being made.
+or adapter cannot execute the consolidation primitive it claims to evaluate, the report
+MUST include an executable gap with a precise follow-up issue or issue title. Offline
+fixtures MAY still pass when they verify checked-in proposal payloads and clearly avoid
+claiming scheduled provider-backed generation.
 
 ## Claim Rules
 

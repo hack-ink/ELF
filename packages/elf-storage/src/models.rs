@@ -344,6 +344,8 @@ pub struct ConsolidationProposal {
 	pub diff: Value,
 	/// Proposal confidence score.
 	pub confidence: f32,
+	/// Serialized unsupported-claim flags.
+	pub unsupported_claim_flags: Value,
 	/// Serialized contradiction markers.
 	pub contradiction_markers: Value,
 	/// Serialized staleness markers.
@@ -362,6 +364,33 @@ pub struct ConsolidationProposal {
 	pub created_at: OffsetDateTime,
 	/// Last update timestamp.
 	pub updated_at: OffsetDateTime,
+}
+
+/// Persisted consolidation proposal review event row.
+#[derive(Debug, FromRow)]
+pub struct ConsolidationProposalReviewEvent {
+	/// Review event identifier.
+	pub review_id: Uuid,
+	/// Reviewed proposal identifier.
+	pub proposal_id: Uuid,
+	/// Parent consolidation run identifier.
+	pub run_id: Uuid,
+	/// Tenant that owns the proposal.
+	pub tenant_id: String,
+	/// Project that owns the proposal.
+	pub project_id: String,
+	/// Agent that performed the review action.
+	pub reviewer_agent_id: String,
+	/// Review action requested by the reviewer.
+	pub action: String,
+	/// Review state before the transition.
+	pub from_review_state: String,
+	/// Review state after the transition.
+	pub to_review_state: String,
+	/// Optional reviewer comment.
+	pub review_comment: Option<String>,
+	/// Creation timestamp.
+	pub created_at: OffsetDateTime,
 }
 
 /// Persisted document row.

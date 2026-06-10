@@ -109,6 +109,13 @@
             "actual_review_action": "discard",
             "source_mutations": [],
             "unsupported_claim_count": 1,
+            "unsupported_claim_flags": [
+              {
+                "claim_id": "unsupported-applied-worker-claim",
+                "message": "The fixture has no evidence that a consolidation worker applied source note edits in production.",
+                "source_ref": "unsupported-applied-draft"
+              }
+            ],
             "diff": {
               "summary": "Reject a stale source-rewrite synthesis and preserve it as a contradiction report.",
               "before": {},
@@ -121,14 +128,6 @@
                 "contradiction": "Older source-rewrite draft conflicts with the current proposal-only consolidation rule."
               }
             }
-          }
-        ],
-        "executable_gaps": [
-          {
-            "primitive": "live_consolidation_worker_generation",
-            "follow_up_issue": "[ELF vNext P1] Implement reviewable consolidation worker and proposal review flow",
-            "reason": "This fixture scores checked-in proposal payloads; it does not execute scheduled LLM generation.",
-            "blocks_fixture_pass": false
           }
         ]
       }

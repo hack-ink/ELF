@@ -9,12 +9,15 @@ use crate::{ElfService, Error, Result};
 use elf_domain::consolidation::{
 	self, CONSOLIDATION_CONTRACT_SCHEMA_V1, ConsolidationApplyIntent, ConsolidationInputRef,
 	ConsolidationLineage, ConsolidationMarkers, ConsolidationProposalContract,
-	ConsolidationProposalDiff, ConsolidationReviewState, ConsolidationRunState,
-	ConsolidationValidationError,
+	ConsolidationProposalDiff, ConsolidationReviewAction, ConsolidationReviewState,
+	ConsolidationRunState, ConsolidationUnsupportedClaimFlag, ConsolidationValidationError,
 };
 use elf_storage::{
-	consolidation::{ConsolidationProposalReviewUpdate, ConsolidationRunStateUpdate},
-	models::{ConsolidationProposal, ConsolidationRun},
+	consolidation::{
+		ConsolidationProposalReviewEventInsert, ConsolidationProposalReviewUpdate,
+		ConsolidationRunStateUpdate,
+	},
+	models::{ConsolidationProposal, ConsolidationProposalReviewEvent, ConsolidationRun},
 };
 
 const DEFAULT_LIST_LIMIT: i64 = 50;
@@ -33,7 +36,7 @@ pub struct ConsolidationRunCreateRequest {
 	pub job_kind: String,
 	/// Input references considered by the run.
 	pub input_refs: Vec<ConsolidationInputRef>,
-	#[serde(default)]
+	#[serde(default = "empty_object")]
 	/// Aggregate source snapshot metadata for the run.
 	pub source_snapshot: Value,
 	/// Run lineage.
@@ -52,7 +55,7 @@ pub struct ConsolidationProposalInput {
 	pub apply_intent: ConsolidationApplyIntent,
 	/// Source references directly supporting the proposal.
 	pub source_refs: Vec<ConsolidationInputRef>,
-	#[serde(default)]
+	#[serde(default = "empty_object")]
 	/// Aggregate source snapshot metadata for reviewer inspection.
 	pub source_snapshot: Value,
 	/// Proposal lineage.
@@ -60,14 +63,17 @@ pub struct ConsolidationProposalInput {
 	/// Fixture confidence in the proposal.
 	pub confidence: f32,
 	#[serde(default)]
+	/// Unsupported claims reviewers must inspect before accepting the proposal.
+	pub unsupported_claim_flags: Vec<ConsolidationUnsupportedClaimFlag>,
+	#[serde(default)]
 	/// Review markers for contradiction and staleness checks.
 	pub markers: ConsolidationMarkers,
 	/// Reviewable derived-output diff.
 	pub diff: ConsolidationProposalDiff,
-	#[serde(default)]
+	#[serde(default = "empty_object")]
 	/// Derived target reference, when the target already exists.
 	pub target_ref: Value,
-	#[serde(default)]
+	#[serde(default = "empty_object")]
 	/// Proposed derived output payload.
 	pub proposed_payload: Value,
 }
@@ -80,6 +86,7 @@ impl ConsolidationProposalInput {
 			source_snapshot: self.source_snapshot.clone(),
 			lineage: self.lineage.clone(),
 			confidence: self.confidence,
+			unsupported_claim_flags: self.unsupported_claim_flags.clone(),
 			markers: self.markers.clone(),
 			diff: self.diff.clone(),
 			target_ref: self.target_ref.clone(),
@@ -214,21 +221,65 @@ pub struct ConsolidationProposalsListResponse {
 	pub proposals: Vec<ConsolidationProposalResponse>,
 }
 
-/// Request to transition a proposal review state.
+/// Request to apply one proposal review action.
 #[derive(Clone, Debug, Deserialize)]
 pub struct ConsolidationProposalReviewRequest {
 	/// Tenant that owns the proposal.
 	pub tenant_id: String,
 	/// Project that owns the proposal.
 	pub project_id: String,
-	/// Agent performing the review transition.
+	/// Agent performing the review action.
 	pub reviewer_agent_id: String,
 	/// Proposal identifier.
 	pub proposal_id: Uuid,
-	/// Requested review state.
-	pub review_state: ConsolidationReviewState,
+	/// Requested review action.
+	pub review_action: ConsolidationReviewAction,
 	/// Optional reviewer comment.
 	pub review_comment: Option<String>,
+}
+
+/// Public consolidation proposal review audit DTO.
+#[derive(Clone, Debug, Serialize)]
+pub struct ConsolidationProposalReviewEventResponse {
+	/// Review event identifier.
+	pub review_id: Uuid,
+	/// Reviewed proposal identifier.
+	pub proposal_id: Uuid,
+	/// Parent consolidation run identifier.
+	pub run_id: Uuid,
+	/// Tenant that owns the proposal.
+	pub tenant_id: String,
+	/// Project that owns the proposal.
+	pub project_id: String,
+	/// Agent that performed the review action.
+	pub reviewer_agent_id: String,
+	/// Review action requested by the reviewer.
+	pub action: String,
+	/// Review state before the transition.
+	pub from_review_state: String,
+	/// Review state after the transition.
+	pub to_review_state: String,
+	/// Optional reviewer comment.
+	pub review_comment: Option<String>,
+	/// Creation timestamp.
+	pub created_at: OffsetDateTime,
+}
+impl From<ConsolidationProposalReviewEvent> for ConsolidationProposalReviewEventResponse {
+	fn from(event: ConsolidationProposalReviewEvent) -> Self {
+		Self {
+			review_id: event.review_id,
+			proposal_id: event.proposal_id,
+			run_id: event.run_id,
+			tenant_id: event.tenant_id,
+			project_id: event.project_id,
+			reviewer_agent_id: event.reviewer_agent_id,
+			action: event.action,
+			from_review_state: event.from_review_state,
+			to_review_state: event.to_review_state,
+			review_comment: event.review_comment,
+			created_at: event.created_at,
+		}
+	}
 }
 
 /// Public consolidation proposal DTO.
@@ -262,6 +313,8 @@ pub struct ConsolidationProposalResponse {
 	pub diff: Value,
 	/// Proposal confidence score.
 	pub confidence: f32,
+	/// Serialized unsupported-claim flags.
+	pub unsupported_claim_flags: Value,
 	/// Serialized contradiction markers.
 	pub contradiction_markers: Value,
 	/// Serialized staleness markers.
@@ -280,6 +333,8 @@ pub struct ConsolidationProposalResponse {
 	pub created_at: OffsetDateTime,
 	/// Last update timestamp.
 	pub updated_at: OffsetDateTime,
+	/// Append-only review events for detail readback.
+	pub review_events: Vec<ConsolidationProposalReviewEventResponse>,
 }
 impl From<ConsolidationProposal> for ConsolidationProposalResponse {
 	fn from(proposal: ConsolidationProposal) -> Self {
@@ -298,6 +353,7 @@ impl From<ConsolidationProposal> for ConsolidationProposalResponse {
 			lineage: proposal.lineage,
 			diff: proposal.diff,
 			confidence: proposal.confidence,
+			unsupported_claim_flags: proposal.unsupported_claim_flags,
 			contradiction_markers: proposal.contradiction_markers,
 			staleness_markers: proposal.staleness_markers,
 			target_ref: proposal.target_ref,
@@ -307,6 +363,7 @@ impl From<ConsolidationProposal> for ConsolidationProposalResponse {
 			reviewed_at: proposal.reviewed_at,
 			created_at: proposal.created_at,
 			updated_at: proposal.updated_at,
+			review_events: Vec::new(),
 		}
 	}
 }
@@ -453,8 +510,18 @@ impl ElfService {
 		.ok_or_else(|| Error::NotFound {
 			message: "consolidation proposal not found".to_string(),
 		})?;
+		let review_events = self
+			.consolidation_proposal_review_events(
+				req.tenant_id.as_str(),
+				req.project_id.as_str(),
+				req.proposal_id,
+			)
+			.await?;
+		let mut response = ConsolidationProposalResponse::from(proposal);
 
-		Ok(ConsolidationProposalResponse::from(proposal))
+		response.review_events = review_events;
+
+		Ok(response)
 	}
 
 	/// Lists consolidation proposals.
@@ -478,7 +545,7 @@ impl ElfService {
 		Ok(ConsolidationProposalsListResponse { proposals })
 	}
 
-	/// Applies one allowed proposal review-state transition.
+	/// Applies one allowed proposal review action.
 	pub async fn consolidation_proposal_review(
 		&self,
 		req: ConsolidationProposalReviewRequest,
@@ -505,27 +572,83 @@ impl ElfService {
 					message: "stored proposal review_state is invalid".to_string(),
 				}
 			})?;
+		let now = OffsetDateTime::now_utc();
+		let steps = review_steps(current, req.review_action)?;
+		let mut tx = self.db.pool.begin().await?;
+		let mut last_state = current;
+		let mut updated = existing;
 
-		current.validate_transition(req.review_state).map_err(validation_error)?;
+		for (action, next_state) in steps {
+			last_state.validate_transition(next_state).map_err(validation_error)?;
 
-		let updated = elf_storage::consolidation::update_consolidation_proposal_review(
+			elf_storage::consolidation::insert_consolidation_proposal_review_event(
+				&mut *tx,
+				ConsolidationProposalReviewEventInsert {
+					review_id: Uuid::new_v4(),
+					proposal_id: req.proposal_id,
+					run_id: updated.run_id,
+					tenant_id: req.tenant_id.as_str(),
+					project_id: req.project_id.as_str(),
+					reviewer_agent_id: req.reviewer_agent_id.as_str(),
+					action: action.as_str(),
+					from_review_state: last_state.as_str(),
+					to_review_state: next_state.as_str(),
+					review_comment: req.review_comment.as_deref(),
+					created_at: now,
+				},
+			)
+			.await?;
+
+			updated = elf_storage::consolidation::update_consolidation_proposal_review(
+				&mut *tx,
+				ConsolidationProposalReviewUpdate {
+					tenant_id: req.tenant_id.as_str(),
+					project_id: req.project_id.as_str(),
+					proposal_id: req.proposal_id,
+					review_state: next_state.as_str(),
+					reviewer_agent_id: req.reviewer_agent_id.as_str(),
+					review_comment: req.review_comment.as_deref(),
+					now,
+				},
+			)
+			.await?
+			.ok_or_else(|| Error::NotFound {
+				message: "consolidation proposal not found".to_string(),
+			})?;
+			last_state = next_state;
+		}
+
+		tx.commit().await?;
+
+		let review_events = self
+			.consolidation_proposal_review_events(
+				req.tenant_id.as_str(),
+				req.project_id.as_str(),
+				req.proposal_id,
+			)
+			.await?;
+		let mut response = ConsolidationProposalResponse::from(updated);
+
+		response.review_events = review_events;
+
+		Ok(response)
+	}
+
+	async fn consolidation_proposal_review_events(
+		&self,
+		tenant_id: &str,
+		project_id: &str,
+		proposal_id: Uuid,
+	) -> Result<Vec<ConsolidationProposalReviewEventResponse>> {
+		let events = elf_storage::consolidation::list_consolidation_proposal_review_events(
 			&self.db.pool,
-			ConsolidationProposalReviewUpdate {
-				tenant_id: req.tenant_id.as_str(),
-				project_id: req.project_id.as_str(),
-				proposal_id: req.proposal_id,
-				review_state: req.review_state.as_str(),
-				reviewer_agent_id: req.reviewer_agent_id.as_str(),
-				review_comment: req.review_comment.as_deref(),
-				now: OffsetDateTime::now_utc(),
-			},
+			tenant_id,
+			project_id,
+			proposal_id,
 		)
-		.await?
-		.ok_or_else(|| Error::NotFound {
-			message: "consolidation proposal not found".to_string(),
-		})?;
+		.await?;
 
-		Ok(ConsolidationProposalResponse::from(updated))
+		Ok(events.into_iter().map(ConsolidationProposalReviewEventResponse::from).collect())
 	}
 }
 
@@ -552,6 +675,7 @@ fn proposal_row_from_input(
 		lineage: to_value(&input.lineage)?,
 		diff: to_value(&input.diff)?,
 		confidence: input.confidence,
+		unsupported_claim_flags: to_value(&input.unsupported_claim_flags)?,
 		contradiction_markers: to_value(&input.markers.contradictions)?,
 		staleness_markers: to_value(&input.markers.staleness)?,
 		target_ref: input.target_ref,
@@ -593,6 +717,41 @@ fn validate_object(field: &str, value: &Value) -> Result<()> {
 
 fn validation_error(err: ConsolidationValidationError) -> Error {
 	Error::InvalidRequest { message: err.to_string() }
+}
+
+fn review_steps(
+	current: ConsolidationReviewState,
+	action: ConsolidationReviewAction,
+) -> Result<Vec<(ConsolidationReviewAction, ConsolidationReviewState)>> {
+	let steps = match action {
+		ConsolidationReviewAction::Approve =>
+			vec![(ConsolidationReviewAction::Approve, ConsolidationReviewState::Approved)],
+		ConsolidationReviewAction::Apply => match current {
+			ConsolidationReviewState::Proposed => vec![
+				(ConsolidationReviewAction::Approve, ConsolidationReviewState::Approved),
+				(ConsolidationReviewAction::Apply, ConsolidationReviewState::Applied),
+			],
+			ConsolidationReviewState::Approved =>
+				vec![(ConsolidationReviewAction::Apply, ConsolidationReviewState::Applied)],
+			ConsolidationReviewState::Rejected
+			| ConsolidationReviewState::Applied
+			| ConsolidationReviewState::Archived =>
+				vec![(ConsolidationReviewAction::Apply, ConsolidationReviewState::Applied)],
+		},
+		ConsolidationReviewAction::Discard =>
+			vec![(ConsolidationReviewAction::Discard, ConsolidationReviewState::Rejected)],
+		ConsolidationReviewAction::Defer =>
+			vec![(ConsolidationReviewAction::Defer, ConsolidationReviewState::Archived)],
+	};
+	let mut state = current;
+
+	for (_, next_state) in &steps {
+		state.validate_transition(*next_state).map_err(validation_error)?;
+
+		state = *next_state;
+	}
+
+	Ok(steps)
 }
 
 fn bounded_limit(limit: Option<u32>) -> i64 {
