@@ -25,18 +25,49 @@
     "adapter_response": {
       "adapter_id": "fixture_operator_ux",
       "answer": {
-        "content": "The auth retry policy note is the root cause; no expected deployment evidence was dropped.",
+        "content": "The expected evidence was dropped after recall by the read-profile filter; the auth retry policy note was only the selected decoy.",
         "claims": [
           {
-            "claim_id": "wrong_root_cause",
-            "text": "No expected evidence was dropped.",
-            "evidence_ids": ["trace-dropped-decoy"],
+            "claim_id": "root_cause",
+            "text": "The expected evidence was dropped after recall by the read-profile filter.",
+            "evidence_ids": ["trace-dropped-expected"],
             "confidence": "high"
           }
         ],
-        "evidence_ids": ["trace-dropped-decoy"],
+        "evidence_ids": ["trace-dropped-expected"],
         "latency_ms": 2.4,
-        "cost": {"currency": "USD", "amount": 0.0, "input_tokens": 0, "output_tokens": 0}
+        "cost": {"currency": "USD", "amount": 0.0, "input_tokens": 0, "output_tokens": 0},
+        "trace_explainability": {
+          "trace_id": "11111111-1111-4111-8111-111111111111",
+          "failure_stage": "filter.read_profile",
+          "failure_reason": "Expected evidence survived recall.candidates but was removed by the read-profile scope filter before final selection.",
+          "stages": [
+            {
+              "stage_name": "recall.candidates",
+              "kept_evidence": ["trace-dropped-expected", "trace-dropped-decoy"],
+              "dropped_evidence": [],
+              "demoted_evidence": [],
+              "distractor_evidence": ["trace-dropped-decoy"],
+              "notes": "Candidate recall found both expected evidence and the decoy top note."
+            },
+            {
+              "stage_name": "filter.read_profile",
+              "kept_evidence": ["trace-dropped-decoy"],
+              "dropped_evidence": ["trace-dropped-expected"],
+              "demoted_evidence": [],
+              "distractor_evidence": ["trace-dropped-decoy"],
+              "notes": "The expected evidence failed the read-profile scope check."
+            },
+            {
+              "stage_name": "selection.final",
+              "kept_evidence": ["trace-dropped-decoy"],
+              "dropped_evidence": ["trace-dropped-expected"],
+              "demoted_evidence": [],
+              "distractor_evidence": ["trace-dropped-decoy"],
+              "notes": "Final selection only saw the decoy after filtering."
+            }
+          ]
+        }
       }
     }
   },

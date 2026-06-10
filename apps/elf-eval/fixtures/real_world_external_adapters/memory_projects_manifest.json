@@ -1,0 +1,569 @@
+{
+  "schema": "elf.real_world_external_adapter_manifest/v1",
+  "manifest_id": "real-world-memory-project-adapters-2026-06-10",
+  "docker_isolation": {
+    "default": true,
+    "compose_file": "docker-compose.baseline.yml",
+    "runner": "scripts/live-baseline-benchmark.sh",
+    "artifact_dir": "tmp/live-baseline/",
+    "host_global_installs_required": false,
+    "notes": [
+      "External project runs default to Docker Compose and Docker-managed caches.",
+      "Real-world job fixture reports and live baseline reports use separate schemas and claim boundaries."
+    ]
+  },
+  "adapters": [
+    {
+      "adapter_id": "elf_real_world_memory_fixture",
+      "project": "ELF",
+      "adapter_kind": "offline_fixture_response",
+      "evidence_class": "fixture_backed",
+      "docker_default": true,
+      "host_global_installs_required": false,
+      "overall_status": "wrong_result",
+      "setup": {
+        "status": "pass",
+        "evidence": "The checked-in real_world_memory fixtures parse and score through the ELF fixture runner.",
+        "command": "cargo make real-world-memory",
+        "artifact": "tmp/real-world-memory/real-world-memory-report.json"
+      },
+      "run": {
+        "status": "wrong_result",
+        "evidence": "The current fixture set reports 27 jobs, 25 pass, 1 wrong_result, and 1 not_encoded.",
+        "command": "cargo make real-world-memory",
+        "artifact": "tmp/real-world-memory/real-world-memory-report.json"
+      },
+      "result": {
+        "status": "wrong_result",
+        "evidence": "This is fixture-backed ELF scoring, not a live external adapter result.",
+        "artifact": "tmp/real-world-memory/real-world-memory-report.md"
+      },
+      "capabilities": [
+        {
+          "capability": "real_world_job_fixture_scoring",
+          "status": "real",
+          "evidence": "The runner scores checked-in real_world_job records with expected evidence, traps, and typed status output."
+        },
+        {
+          "capability": "live_external_adapter_execution",
+          "status": "not_encoded",
+          "evidence": "The ELF fixture response path does not exercise an external memory project runtime."
+        },
+        {
+          "capability": "docker_isolated_baseline",
+          "status": "pass",
+          "evidence": "ELF live baseline runs execute through docker-compose.baseline.yml for retrieval and lifecycle evidence."
+        }
+      ],
+      "suites": [
+        {
+          "suite_id": "trust_source_of_truth",
+          "status": "pass",
+          "evidence": "Checked-in source-of-truth rebuild fixture is encoded and passing."
+        },
+        {
+          "suite_id": "work_resume",
+          "status": "pass",
+          "evidence": "Checked-in work-resume fixtures are encoded and passing."
+        },
+        {
+          "suite_id": "retrieval",
+          "status": "pass",
+          "evidence": "Checked-in retrieval fixtures are encoded; one deliberate operator-debug wrong-result case is reported under operator_debugging_ux."
+        },
+        {
+          "suite_id": "memory_evolution",
+          "status": "not_encoded",
+          "evidence": "The relation temporal-validity case is deliberately not_encoded until temporal graph validity is implemented."
+        },
+        {
+          "suite_id": "operator_debugging_ux",
+          "status": "wrong_result",
+          "evidence": "The aggregate fixture set includes one deliberate wrong-result trace attribution case."
+        },
+        {
+          "suite_id": "capture_integration",
+          "status": "pass",
+          "evidence": "The redaction and capture-boundary fixture is encoded and passing."
+        },
+        {
+          "suite_id": "personalization",
+          "status": "pass",
+          "evidence": "The scoped preference fixture is encoded and passing."
+        },
+        {
+          "suite_id": "consolidation",
+          "status": "pass",
+          "evidence": "Proposal-only consolidation fixtures are encoded and passing without source mutation."
+        },
+        {
+          "suite_id": "knowledge_compilation",
+          "status": "pass",
+          "evidence": "Knowledge page fixtures are encoded and passing with citation and rebuild metrics."
+        }
+      ],
+      "evidence": [
+        {
+          "kind": "fixture_dir",
+          "ref": "apps/elf-eval/fixtures/real_world_memory/",
+          "status": "real"
+        },
+        {
+          "kind": "command",
+          "ref": "cargo make real-world-memory",
+          "status": "pass"
+        }
+      ],
+      "notes": [
+        "This adapter record exists to keep ELF fixture results separate from live external adapter results."
+      ],
+      "follow_up": {
+        "title": "[ELF benchmark vNext] Replace fixture-only ELF answers with live real-world adapter execution where appropriate",
+        "reason": "The current report proves fixture scoring, not an end-to-end live real-world memory service run."
+      }
+    },
+    {
+      "adapter_id": "qmd_live_baseline",
+      "project": "qmd",
+      "adapter_kind": "docker_cli_same_corpus",
+      "evidence_class": "live_baseline_only",
+      "docker_default": true,
+      "host_global_installs_required": false,
+      "overall_status": "pass",
+      "setup": {
+        "status": "pass",
+        "evidence": "The live-baseline Docker runner installs qmd inside the baseline container.",
+        "command": "ELF_BASELINE_PROJECTS=qmd cargo make baseline-live-docker",
+        "artifact": "tmp/live-baseline/qmd.log"
+      },
+      "run": {
+        "status": "pass",
+        "evidence": "qmd same-corpus retrieval, update, delete, and cold-start checks are encoded in the live baseline runner.",
+        "command": "ELF_BASELINE_PROJECTS=qmd cargo make baseline-live-docker",
+        "artifact": "tmp/live-baseline/live-baseline-report.json"
+      },
+      "result": {
+        "status": "pass",
+        "evidence": "The current evidence is same-corpus live-baseline evidence only; no real_world_job qmd adapter is encoded yet.",
+        "artifact": "docs/guide/benchmarking/live_baseline_benchmark.md"
+      },
+      "capabilities": [
+        {
+          "capability": "same_corpus_retrieval",
+          "status": "pass",
+          "evidence": "qmd has an encoded Docker same-corpus retrieval adapter."
+        },
+        {
+          "capability": "update_delete_cold_start",
+          "status": "pass",
+          "evidence": "qmd lifecycle smoke checks are encoded in the live-baseline runner."
+        },
+        {
+          "capability": "real_world_job_adapter",
+          "status": "not_encoded",
+          "evidence": "No qmd adapter currently executes real_world_job prompts and answer scoring."
+        }
+      ],
+      "suites": [
+        {
+          "suite_id": "retrieval",
+          "status": "not_encoded",
+          "evidence": "qmd is a retrieval-debug reference, but no real_world_job retrieval adapter run is encoded."
+        },
+        {
+          "suite_id": "memory_evolution",
+          "status": "not_encoded",
+          "evidence": "Live-baseline lifecycle checks exist, but no real_world_job memory_evolution run is encoded."
+        },
+        {
+          "suite_id": "operator_debugging_ux",
+          "status": "not_encoded",
+          "evidence": "qmd debug ergonomics are a reference dimension; no operator_debugging_ux fixture is executed against qmd."
+        }
+      ],
+      "evidence": [
+        {
+          "kind": "runner",
+          "ref": "scripts/live-baseline-benchmark.sh",
+          "status": "real"
+        },
+        {
+          "kind": "compose",
+          "ref": "docker-compose.baseline.yml",
+          "status": "real"
+        }
+      ],
+      "notes": [
+        "Do not claim a qmd real-world suite pass until a real_world_job adapter executes qmd and records job-level evidence."
+      ]
+    },
+    {
+      "adapter_id": "agentmemory_live_baseline",
+      "project": "agentmemory",
+      "adapter_kind": "docker_sdk_mock_same_corpus",
+      "evidence_class": "live_baseline_only",
+      "docker_default": true,
+      "host_global_installs_required": false,
+      "overall_status": "lifecycle_fail",
+      "setup": {
+        "status": "pass",
+        "evidence": "The live-baseline Docker runner installs and exercises agentmemory package APIs.",
+        "command": "ELF_BASELINE_PROJECTS=agentmemory cargo make baseline-live-docker",
+        "artifact": "tmp/live-baseline/agentmemory.log"
+      },
+      "run": {
+        "status": "lifecycle_fail",
+        "evidence": "Same-corpus retrieval can run, but durable lifecycle behavior is not proven because the adapter uses an in-memory SDK/KV mock.",
+        "artifact": "tmp/live-baseline/live-baseline-report.json"
+      },
+      "result": {
+        "status": "lifecycle_fail",
+        "evidence": "agentmemory remains a reference for capture and continuity UX, but current Docker evidence is not a durable lifecycle pass.",
+        "artifact": "docs/guide/benchmarking/live_baseline_benchmark.md"
+      },
+      "capabilities": [
+        {
+          "capability": "same_corpus_retrieval",
+          "status": "pass",
+          "evidence": "The current adapter can run mem::remember and mem::search against the shared corpus."
+        },
+        {
+          "capability": "adapter_storage",
+          "status": "mocked",
+          "evidence": "The current adapter uses a process-local StateKV Map and in-memory index."
+        },
+        {
+          "capability": "durable_cold_start",
+          "status": "blocked",
+          "evidence": "A persistent upstream KV/index path or hosted runtime is needed before cold-start recovery can be fairly scored."
+        },
+        {
+          "capability": "real_world_job_adapter",
+          "status": "not_encoded",
+          "evidence": "No agentmemory adapter currently executes real_world_job prompts and answer scoring."
+        }
+      ],
+      "suites": [
+        {
+          "suite_id": "work_resume",
+          "status": "blocked",
+          "evidence": "A durable upstream agentmemory session/capture path is required before work-resume jobs can be compared fairly."
+        },
+        {
+          "suite_id": "capture_integration",
+          "status": "blocked",
+          "evidence": "The current fixture import boundary is offline and does not run live agentmemory hooks."
+        },
+        {
+          "suite_id": "memory_evolution",
+          "status": "blocked",
+          "evidence": "Durable update/supersede/delete history is not proven by the in-memory adapter."
+        }
+      ],
+      "evidence": [
+        {
+          "kind": "guide",
+          "ref": "docs/guide/research/agentmemory_adapter.md",
+          "status": "real"
+        },
+        {
+          "kind": "runner",
+          "ref": "scripts/live-baseline-benchmark.sh",
+          "status": "mocked"
+        }
+      ],
+      "notes": [
+        "The offline agentmemory fixture adapter is an import/comparison boundary and must not be treated as live benchmark proof."
+      ],
+      "follow_up": {
+        "title": "[ELF benchmark P0] Make agentmemory adapter lifecycle-durable and fail-typed",
+        "reason": "A durable upstream agentmemory storage path is required before lifecycle and real-world job suites can be fairly scored."
+      }
+    },
+    {
+      "adapter_id": "mem0_openmemory_live_baseline",
+      "project": "mem0/OpenMemory",
+      "adapter_kind": "docker_sdk_same_corpus",
+      "evidence_class": "live_baseline_only",
+      "docker_default": true,
+      "host_global_installs_required": false,
+      "overall_status": "wrong_result",
+      "setup": {
+        "status": "pass",
+        "evidence": "The live-baseline Docker runner can install mem0 and configure local FastEmbed/Qdrant paths.",
+        "command": "ELF_BASELINE_PROJECTS=mem0 cargo make baseline-live-docker",
+        "artifact": "tmp/live-baseline/mem0.log"
+      },
+      "run": {
+        "status": "wrong_result",
+        "evidence": "The current same-corpus retrieval result is typed wrong_result or incomplete in the checked-in benchmark evidence.",
+        "artifact": "tmp/live-baseline/live-baseline-report.json"
+      },
+      "result": {
+        "status": "wrong_result",
+        "evidence": "No real_world_job mem0/OpenMemory adapter is encoded; local same-corpus evidence must not be upgraded to suite coverage.",
+        "artifact": "docs/guide/research/comparison_external_projects.md"
+      },
+      "capabilities": [
+        {
+          "capability": "local_storage",
+          "status": "real",
+          "evidence": "The adapter targets local FastEmbed, Qdrant path storage, and local history DB paths in Docker."
+        },
+        {
+          "capability": "same_corpus_retrieval",
+          "status": "wrong_result",
+          "evidence": "The checked-in smoke evidence did not prove a correct same-corpus result for mem0."
+        },
+        {
+          "capability": "openmemory_ui_readback",
+          "status": "not_encoded",
+          "evidence": "OpenMemory UI readback is not encoded in the Docker baseline or real-world job runner."
+        },
+        {
+          "capability": "real_world_job_adapter",
+          "status": "not_encoded",
+          "evidence": "No mem0/OpenMemory adapter currently executes real_world_job prompts and answer scoring."
+        }
+      ],
+      "suites": [
+        {
+          "suite_id": "memory_evolution",
+          "status": "incomplete",
+          "evidence": "mem0 lifecycle/history is a target dimension, but current Docker evidence has not produced a complete real-world job result."
+        },
+        {
+          "suite_id": "personalization",
+          "status": "not_encoded",
+          "evidence": "Entity-scoped personalization is not encoded as a real_world_job adapter run."
+        },
+        {
+          "suite_id": "operator_debugging_ux",
+          "status": "not_encoded",
+          "evidence": "OpenMemory inspection is not encoded in this runner."
+        }
+      ],
+      "evidence": [
+        {
+          "kind": "runner",
+          "ref": "scripts/live-baseline-benchmark.sh",
+          "status": "real"
+        }
+      ],
+      "notes": [
+        "Separate local OSS mem0 evidence from hosted Platform and OpenMemory UI claims."
+      ]
+    },
+    {
+      "adapter_id": "memsearch_live_baseline",
+      "project": "memsearch",
+      "adapter_kind": "docker_cli_same_corpus",
+      "evidence_class": "live_baseline_only",
+      "docker_default": true,
+      "host_global_installs_required": false,
+      "overall_status": "wrong_result",
+      "setup": {
+        "status": "pass",
+        "evidence": "The live-baseline Docker runner can install memsearch and run its CLI path.",
+        "command": "ELF_BASELINE_PROJECTS=memsearch cargo make baseline-live-docker",
+        "artifact": "tmp/live-baseline/memsearch.log"
+      },
+      "run": {
+        "status": "wrong_result",
+        "evidence": "The current same-corpus retrieval evidence is not a clean pass for memsearch.",
+        "artifact": "tmp/live-baseline/live-baseline-report.json"
+      },
+      "result": {
+        "status": "wrong_result",
+        "evidence": "No real_world_job memsearch adapter is encoded; Markdown-first behavior remains a design reference.",
+        "artifact": "docs/guide/research/comparison_external_projects.md"
+      },
+      "capabilities": [
+        {
+          "capability": "canonical_markdown_store",
+          "status": "real",
+          "evidence": "memsearch is tracked as a Markdown-first source-of-truth reference."
+        },
+        {
+          "capability": "same_corpus_retrieval",
+          "status": "wrong_result",
+          "evidence": "The checked-in smoke evidence did not prove correct same-corpus retrieval."
+        },
+        {
+          "capability": "real_world_job_adapter",
+          "status": "not_encoded",
+          "evidence": "No memsearch adapter currently executes real_world_job prompts and answer scoring."
+        }
+      ],
+      "suites": [
+        {
+          "suite_id": "trust_source_of_truth",
+          "status": "incomplete",
+          "evidence": "The Markdown-first source model is relevant, but no real_world_job source-of-truth run is encoded."
+        },
+        {
+          "suite_id": "retrieval",
+          "status": "incomplete",
+          "evidence": "The live-baseline retrieval path is not a clean pass and no job-level run is encoded."
+        },
+        {
+          "suite_id": "memory_evolution",
+          "status": "incomplete",
+          "evidence": "Update/delete reindex semantics need a complete Docker evidence path before suite claims."
+        }
+      ],
+      "evidence": [
+        {
+          "kind": "runner",
+          "ref": "scripts/live-baseline-benchmark.sh",
+          "status": "real"
+        }
+      ],
+      "notes": [
+        "Do not mark memsearch worse solely because setup or local indexing is heavier; preserve the typed incomplete/wrong-result boundary."
+      ]
+    },
+    {
+      "adapter_id": "openviking_live_baseline",
+      "project": "OpenViking",
+      "adapter_kind": "docker_local_embed_same_corpus",
+      "evidence_class": "live_baseline_only",
+      "docker_default": true,
+      "host_global_installs_required": false,
+      "overall_status": "incomplete",
+      "setup": {
+        "status": "incomplete",
+        "evidence": "OpenViking local-embed setup can fail in Docker while building or importing local embedding dependencies.",
+        "command": "ELF_BASELINE_PROJECTS=OpenViking cargo make baseline-live-docker",
+        "artifact": "tmp/live-baseline/OpenViking.log"
+      },
+      "run": {
+        "status": "incomplete",
+        "evidence": "The adapter cannot reliably reach same-corpus add_resource/find behavior until local embedding setup is pinned for Docker.",
+        "artifact": "tmp/live-baseline/live-baseline-report.json"
+      },
+      "result": {
+        "status": "incomplete",
+        "evidence": "No real_world_job OpenViking adapter is encoded; current blocker is dependency setup, not a quality claim.",
+        "artifact": "docs/guide/benchmarking/live_baseline_benchmark.md"
+      },
+      "capabilities": [
+        {
+          "capability": "local_embed_setup",
+          "status": "incomplete",
+          "evidence": "Docker local embedding dependency setup is not reliable in the current adapter."
+        },
+        {
+          "capability": "context_trajectory",
+          "status": "not_encoded",
+          "evidence": "OpenViking staged/hierarchical retrieval is a reference dimension but is not encoded as a real_world_job run."
+        },
+        {
+          "capability": "real_world_job_adapter",
+          "status": "not_encoded",
+          "evidence": "No OpenViking adapter currently executes real_world_job prompts and answer scoring."
+        }
+      ],
+      "suites": [
+        {
+          "suite_id": "retrieval",
+          "status": "incomplete",
+          "evidence": "The local embedding install blocker prevents a fair retrieval job run."
+        },
+        {
+          "suite_id": "work_resume",
+          "status": "not_encoded",
+          "evidence": "Hierarchical context resume scenarios are not encoded for OpenViking."
+        },
+        {
+          "suite_id": "operator_debugging_ux",
+          "status": "not_encoded",
+          "evidence": "Stage trajectory readback is not encoded in this runner."
+        }
+      ],
+      "evidence": [
+        {
+          "kind": "runner",
+          "ref": "scripts/live-baseline-benchmark.sh",
+          "status": "incomplete"
+        }
+      ],
+      "notes": [
+        "Record OpenViking as incomplete until Docker-compatible local embeddings are pinned; do not treat setup weight as a negative quality result."
+      ],
+      "follow_up": {
+        "title": "[ELF benchmark adapter] Pin OpenViking Docker local embedding dependency path",
+        "reason": "The current adapter must reach add_resource/find before real-world job suites can be scored."
+      }
+    },
+    {
+      "adapter_id": "claude_mem_live_baseline",
+      "project": "claude-mem",
+      "adapter_kind": "docker_repository_same_corpus",
+      "evidence_class": "live_baseline_only",
+      "docker_default": true,
+      "host_global_installs_required": false,
+      "overall_status": "wrong_result",
+      "setup": {
+        "status": "pass",
+        "evidence": "The live-baseline Docker runner can install and build claude-mem.",
+        "command": "ELF_BASELINE_PROJECTS=claude-mem cargo make baseline-live-docker",
+        "artifact": "tmp/live-baseline/claude-mem.log"
+      },
+      "run": {
+        "status": "wrong_result",
+        "evidence": "The current same-corpus SQLite repository search is not a clean pass for claude-mem and lifecycle checks are not encoded.",
+        "artifact": "tmp/live-baseline/live-baseline-report.json"
+      },
+      "result": {
+        "status": "wrong_result",
+        "evidence": "No real_world_job claude-mem adapter is encoded; progressive disclosure remains a design reference.",
+        "artifact": "docs/guide/research/comparison_external_projects.md"
+      },
+      "capabilities": [
+        {
+          "capability": "same_corpus_retrieval",
+          "status": "wrong_result",
+          "evidence": "The current Docker adapter did not prove correct same-corpus retrieval."
+        },
+        {
+          "capability": "durable_storage",
+          "status": "mocked",
+          "evidence": "The current adapter uses in-memory SQLite and does not reopen a durable store."
+        },
+        {
+          "capability": "progressive_disclosure_real_world_job",
+          "status": "not_encoded",
+          "evidence": "search -> timeline -> observation workflows are not encoded against real_world_job prompts."
+        }
+      ],
+      "suites": [
+        {
+          "suite_id": "work_resume",
+          "status": "incomplete",
+          "evidence": "Hook-driven capture and progressive disclosure need a durable local repository run before work-resume suite claims."
+        },
+        {
+          "suite_id": "operator_debugging_ux",
+          "status": "not_encoded",
+          "evidence": "Local viewer/operator workflow is not encoded in the benchmark runner."
+        },
+        {
+          "suite_id": "capture_integration",
+          "status": "not_encoded",
+          "evidence": "claude-mem hooks are not executed by this runner."
+        }
+      ],
+      "evidence": [
+        {
+          "kind": "runner",
+          "ref": "scripts/live-baseline-benchmark.sh",
+          "status": "mocked"
+        }
+      ],
+      "notes": [
+        "claude-mem remains a UX reference; current Docker evidence is not a real-world progressive-disclosure pass."
+      ]
+    }
+  ]
+}

@@ -164,7 +164,12 @@ Detailed evidence and interpretation:
   This contract defines job-level suites for agent work. Checked-in fixture runners now
   cover a smoke work-resume slice and proposal-only consolidation cases through
   `cargo make real-world-job-smoke` and `cargo make real-world-memory-consolidation`,
-  but those reports are fixture-level evidence and not live external-adapter wins.
+  and `cargo make real-world-memory` now reports the first external adapter coverage
+  manifest for ELF, qmd, agentmemory, mem0/OpenMemory, claude-mem, memsearch, and
+  OpenViking. Those real-world reports still distinguish fixture-backed and
+  live-baseline-only evidence from true live real-world adapter runs; no external
+  project has a live real-world suite win until an adapter actually executes
+  `real_world_job` prompts and scoring.
 
 Quick comparison snapshot (objective/high-level).
 This table compares capability coverage, not overall project quality.
