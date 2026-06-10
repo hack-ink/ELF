@@ -7,6 +7,7 @@ mod english_only_boundary;
 mod evidence_binding;
 mod graph_ingestion;
 mod idempotency;
+mod knowledge_pages;
 mod outbox_eventual_consistency;
 mod rebuild_qdrant;
 mod sot_vectors;
@@ -489,6 +490,10 @@ TRUNCATE
 	doc_chunk_embeddings,
 	doc_chunks,
 	doc_documents,
+	knowledge_page_lint_findings,
+	knowledge_page_source_refs,
+	knowledge_page_sections,
+	knowledge_pages,
 	consolidation_run_jobs,
 	consolidation_proposal_reviews,
 	consolidation_proposals,

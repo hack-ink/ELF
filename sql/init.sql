@@ -33,3 +33,7 @@
 \ir tables/032_consolidation_proposals.sql
 \ir tables/033_consolidation_proposal_reviews.sql
 \ir tables/034_consolidation_run_jobs.sql
+\ir tables/035_knowledge_pages.sql
+\ir tables/036_knowledge_page_sections.sql
+\ir tables/037_knowledge_page_source_refs.sql
+\ir tables/038_knowledge_page_lint_findings.sql

@@ -7,6 +7,7 @@ pub mod db;
 pub mod doc_outbox;
 pub mod docs;
 pub mod graph;
+pub mod knowledge;
 pub mod models;
 pub mod outbox;
 pub mod qdrant;
