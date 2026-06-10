@@ -257,13 +257,13 @@ fn assert_external_adapter_manifest_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/overall_status_counts/blocked")
 			.and_then(Value::as_u64),
-		Some(5)
+		Some(6)
 	);
 	assert_eq!(
 		report
 			.pointer("/external_adapters/summary/overall_status_counts/not_encoded")
 			.and_then(Value::as_u64),
-		Some(8)
+		Some(7)
 	);
 	assert_eq!(
 		report
@@ -281,7 +281,7 @@ fn assert_external_adapter_manifest_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/suite_status_counts/blocked")
 			.and_then(Value::as_u64),
-		Some(9)
+		Some(11)
 	);
 }
 
@@ -297,6 +297,7 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 	let lightrag = find_by_field(adapters, "/adapter_id", "lightrag_research_gate")?;
 	let graphrag = find_by_field(adapters, "/adapter_id", "graphrag_research_gate")?;
 	let graphiti_zep = find_by_field(adapters, "/adapter_id", "graphiti_zep_research_gate")?;
+	let graphify = find_by_field(adapters, "/adapter_id", "graphify_research_gate")?;
 	let qmd_deep = find_by_field(adapters, "/adapter_id", "qmd_deep_profile_gate")?;
 
 	assert_eq!(elf.pointer("/evidence_class").and_then(Value::as_str), Some("fixture_backed"));
@@ -364,38 +365,64 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 		Some("cargo make graphrag-docker-smoke")
 	);
 	assert_eq!(graphrag.pointer("/suites/1/status").and_then(Value::as_str), Some("not_encoded"));
-	assert_eq!(
-		graphiti_zep.pointer("/evidence_class").and_then(Value::as_str),
-		Some("research_gate")
-	);
-	assert_eq!(graphiti_zep.pointer("/overall_status").and_then(Value::as_str), Some("blocked"));
-	assert_eq!(
-		graphiti_zep.pointer("/setup/command").and_then(Value::as_str),
-		Some("cargo make graphiti-zep-docker-temporal-smoke")
-	);
-	assert_eq!(
-		graphiti_zep.pointer("/run/command").and_then(Value::as_str),
-		Some(
-			"ELF_GRAPHITI_ZEP_SMOKE_START=1 ELF_GRAPHITI_ZEP_SMOKE_RUN=1 cargo make graphiti-zep-docker-temporal-smoke"
-		)
-	);
-	assert_eq!(
-		graphiti_zep.pointer("/suites/0/suite_id").and_then(Value::as_str),
-		Some("memory_evolution")
-	);
-	assert_eq!(graphiti_zep.pointer("/suites/0/status").and_then(Value::as_str), Some("blocked"));
-	assert_eq!(
-		graphiti_zep.pointer("/execution_metadata/research_depth").and_then(Value::as_str),
-		Some(
-			"D2 feasibility plus XY-888 Docker temporal smoke implementation; checked-in record remains research_gate unless a generated artifact reaches Graphiti search output"
-		)
-	);
+
+	assert_graphiti_zep_adapter(graphiti_zep);
+	assert_graphify_adapter(graphify);
+
 	assert_eq!(
 		qmd_deep.pointer("/capabilities/2/status").and_then(Value::as_str),
 		Some("unsupported")
 	);
 
 	Ok(())
+}
+
+fn assert_graphiti_zep_adapter(adapter: &Value) {
+	assert_eq!(adapter.pointer("/evidence_class").and_then(Value::as_str), Some("research_gate"));
+	assert_eq!(adapter.pointer("/overall_status").and_then(Value::as_str), Some("blocked"));
+	assert_eq!(
+		adapter.pointer("/setup/command").and_then(Value::as_str),
+		Some("cargo make graphiti-zep-docker-temporal-smoke")
+	);
+	assert_eq!(
+		adapter.pointer("/run/command").and_then(Value::as_str),
+		Some(
+			"ELF_GRAPHITI_ZEP_SMOKE_START=1 ELF_GRAPHITI_ZEP_SMOKE_RUN=1 cargo make graphiti-zep-docker-temporal-smoke"
+		)
+	);
+	assert_eq!(
+		adapter.pointer("/suites/0/suite_id").and_then(Value::as_str),
+		Some("memory_evolution")
+	);
+	assert_eq!(adapter.pointer("/suites/0/status").and_then(Value::as_str), Some("blocked"));
+	assert_eq!(
+		adapter.pointer("/execution_metadata/research_depth").and_then(Value::as_str),
+		Some(
+			"D2 feasibility plus XY-888 Docker temporal smoke implementation; checked-in record remains research_gate unless a generated artifact reaches Graphiti search output"
+		)
+	);
+}
+
+fn assert_graphify_adapter(adapter: &Value) {
+	assert_eq!(adapter.pointer("/evidence_class").and_then(Value::as_str), Some("research_gate"));
+	assert_eq!(adapter.pointer("/overall_status").and_then(Value::as_str), Some("blocked"));
+	assert_eq!(
+		adapter.pointer("/setup/command").and_then(Value::as_str),
+		Some("cargo make graphify-docker-graph-report-smoke")
+	);
+	assert_eq!(
+		adapter.pointer("/suites/0/suite_id").and_then(Value::as_str),
+		Some("knowledge_compilation")
+	);
+	assert_eq!(adapter.pointer("/suites/0/status").and_then(Value::as_str), Some("blocked"));
+	assert_eq!(adapter.pointer("/suites/1/suite_id").and_then(Value::as_str), Some("retrieval"));
+	assert_eq!(adapter.pointer("/suites/1/status").and_then(Value::as_str), Some("blocked"));
+	assert_eq!(
+		adapter.pointer("/execution_metadata/research_depth").and_then(Value::as_str),
+		Some(
+			"D1 feasibility verdict plus XY-889 Docker graph/report smoke implementation; checked-in record remains research_gate unless a generated artifact reaches graphify output"
+		)
+	);
 }
 
 fn assert_live_sweep_record(adapter: &Value) -> Result<()> {

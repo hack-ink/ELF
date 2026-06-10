@@ -31,6 +31,7 @@ rm -rf "${REPORT_DIR:?}/elf-fixtures" \
 	"${REPORT_DIR:?}/lightrag" \
 	"${REPORT_DIR:?}/graphrag" \
 	"${REPORT_DIR:?}/graphiti-zep" \
+	"${REPORT_DIR:?}/graphify" \
 	"${REPORT_DIR:?}/summary.json"
 
 cd "${ROOT_DIR}"
@@ -92,6 +93,11 @@ fi
 if [[ "${ELF_REAL_WORLD_LIVE_ENABLE_GRAPHITI_ZEP:-0}" == "1" ]]; then
   ELF_GRAPHITI_ZEP_SMOKE_REPORT_DIR="${REPORT_DIR}/graphiti-zep" \
     python3 scripts/graphiti-zep-docker-temporal-smoke.py
+fi
+
+if [[ "${ELF_REAL_WORLD_LIVE_ENABLE_GRAPHIFY:-0}" == "1" ]]; then
+  ELF_GRAPHIFY_SMOKE_REPORT_DIR="${REPORT_DIR}/graphify" \
+    python3 scripts/graphify-docker-graph-report-smoke.py
 fi
 
 jq -n \
@@ -182,6 +188,25 @@ if [[ -f "${REPORT_DIR}/graphiti-zep/summary.json" ]]; then
   mv "${REPORT_DIR}/summary.json.tmp" "${REPORT_DIR}/summary.json"
 fi
 
+if [[ -f "${REPORT_DIR}/graphify/summary.json" ]]; then
+  jq \
+    --slurpfile graphify_summary "${REPORT_DIR}/graphify/summary.json" \
+    '.adapters += [
+      {
+        adapter_id: $graphify_summary[0].adapter_id,
+        evidence_class: $graphify_summary[0].evidence_class,
+        materialization: $graphify_summary[0].materialization,
+        report: {
+          json: "tmp/real-world-memory/live-adapters/graphify/graphify-smoke.json",
+          markdown: null,
+          summary: $graphify_summary[0].materialization.status,
+          suites: $graphify_summary[0].manifest.suites
+        }
+      }
+    ]' "${REPORT_DIR}/summary.json" >"${REPORT_DIR}/summary.json.tmp"
+  mv "${REPORT_DIR}/summary.json.tmp" "${REPORT_DIR}/summary.json"
+fi
+
 echo "Live real-world adapter reports:"
 echo "  ${REPORT_DIR}/elf-report.json"
 echo "  ${REPORT_DIR}/elf-report.md"
@@ -198,5 +223,9 @@ fi
 if [[ -f "${REPORT_DIR}/graphiti-zep/summary.json" ]]; then
   echo "  ${REPORT_DIR}/graphiti-zep/graphiti-zep-smoke.json"
   echo "  ${REPORT_DIR}/graphiti-zep/summary.json"
+fi
+if [[ -f "${REPORT_DIR}/graphify/summary.json" ]]; then
+  echo "  ${REPORT_DIR}/graphify/graphify-smoke.json"
+  echo "  ${REPORT_DIR}/graphify/summary.json"
 fi
 echo "  ${REPORT_DIR}/summary.json"
