@@ -150,8 +150,8 @@ including the retrieval-quality slice below. The suite currently encodes:
   current-versus-obsolete selection, and minimal sufficient context.
 - `memory_evolution`: TTL/delete suppression plus current-versus-historical preference,
   issue status, deployment method, benchmark conclusion, and temporal relation cases.
-- `operator_debugging_ux`: deliberate wrong-result trace attribution that identifies
-  the retrieval stage that demoted expected evidence.
+- `operator_debugging_ux`: trace-backed stage attribution that identifies where
+  expected evidence was filtered, demoted, or selected against.
 - `capture_integration`: write-policy audit behavior for redaction/private exclusion
   and fixture-backed capture/integration boundary classification.
 - `personalization`: scoped stable preference correction without temporary or
@@ -195,11 +195,11 @@ This parses `apps/elf-eval/fixtures/real_world_memory/retrieval/`, writes
 `tmp/real-world-memory/retrieval-report.json`, and renders
 `tmp/real-world-memory/retrieval-report.md`. The fixture set covers alternate
 phrasing, distractor-heavy retrieval, multi-hop routing, current-versus-obsolete
-selection, minimal sufficient context, and a deliberate wrong-result trace attribution
-case. Reports include expected evidence recall, irrelevant context ratio, latency/cost,
-and optional trace explainability metadata. The qmd and OpenViking references in these
-fixtures are design references only; no parity claim is allowed unless an external
-adapter run actually provides evidence.
+selection, minimal sufficient context, and trace-backed stage attribution for
+operator debugging. Reports include expected evidence recall, irrelevant context ratio,
+latency/cost, and optional trace explainability metadata. The qmd and OpenViking
+references in these fixtures are design references only; no parity claim is allowed
+unless an external adapter run actually provides evidence.
 
 Operator debugging UX increment:
 
