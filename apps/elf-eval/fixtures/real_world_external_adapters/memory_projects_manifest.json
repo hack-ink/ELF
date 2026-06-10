@@ -137,7 +137,7 @@
       "evidence_class": "live_real_world",
       "docker_default": true,
       "host_global_installs_required": false,
-      "overall_status": "pass",
+      "overall_status": "wrong_result",
       "setup": {
         "status": "pass",
         "evidence": "The live adapter task runs inside docker-compose.baseline.yml with Docker-owned Postgres, Qdrant, Cargo, npm, qmd, and cache volumes.",
@@ -145,14 +145,14 @@
         "artifact": "tmp/real-world-memory/live-adapters/elf-materialization.json"
       },
       "run": {
-        "status": "pass",
-        "evidence": "ELF materializes real_world_job adapter_response objects through ElfService, worker indexing, and search_raw before scoring.",
+        "status": "wrong_result",
+        "evidence": "ELF materializes 38 real_world_job adapter_response objects through ElfService, worker indexing, and search_raw before scoring; the full sweep includes typed wrong_result, incomplete, blocked, and not_encoded records.",
         "command": "cargo make real-world-memory-live-adapters",
         "artifact": "tmp/real-world-memory/live-adapters/elf-report.json"
       },
       "result": {
-        "status": "pass",
-        "evidence": "The representative live adapter slice scores work_resume, retrieval, and project_decisions jobs from generated runtime answers.",
+        "status": "wrong_result",
+        "evidence": "The full live sweep scores 38 jobs across all 11 encoded suites: 18 pass, 5 wrong_result, 1 incomplete, 2 blocked, and 12 not_encoded. This is not a full-suite live pass.",
         "command": "cargo make real-world-memory-live-adapters",
         "artifact": "tmp/real-world-memory/live-adapters/elf-report.md"
       },
@@ -168,32 +168,87 @@
           "evidence": "The materializer uses ElfService, Postgres, Qdrant, deterministic providers, worker indexing, and search_raw in Docker."
         },
         {
+          "capability": "targeted_live_pass",
+          "status": "pass",
+          "evidence": "The answer-retrieval suites from the original representative slice still pass: work_resume, retrieval, and project_decisions."
+        },
+        {
+          "capability": "full_suite_live_sweep",
+          "status": "wrong_result",
+          "evidence": "The runner now emits per-job and per-suite live records for all 38 encoded jobs, but memory_evolution is wrong_result and several non-answer-generation suites remain typed non-pass."
+        },
+        {
+          "capability": "full_suite_live_pass",
+          "status": "wrong_result",
+          "evidence": "No full-suite live pass is claimed; generated reports preserve wrong_result, incomplete, blocked, and not_encoded outcomes."
+        },
+        {
           "capability": "typed_failure_reporting",
           "status": "pass",
-          "evidence": "Adapter setup/runtime failures are materialized as incomplete jobs with evidence JSON instead of silent claim upgrades."
+          "evidence": "Adapter setup/runtime limitations are materialized as typed jobs with evidence JSON instead of silent claim upgrades."
         }
       ],
       "suites": [
         {
+          "suite_id": "trust_source_of_truth",
+          "status": "pass",
+          "evidence": "The live adapter retrieved the restore/Qdrant rebuild proof evidence through the service runtime."
+        },
+        {
           "suite_id": "work_resume",
           "status": "pass",
-          "evidence": "The live adapter retrieves the current next-action evidence and avoids the stale same-corpus command trap."
+          "evidence": "The live adapter passed 5/5 work_resume jobs through service-runtime evidence retrieval."
         },
         {
           "suite_id": "retrieval",
           "status": "pass",
-          "evidence": "The live adapter retrieves the live_real_world claim boundary from the indexed corpus."
+          "evidence": "The live adapter passed 5/5 retrieval jobs through service-runtime evidence retrieval."
         },
         {
           "suite_id": "project_decisions",
           "status": "pass",
-          "evidence": "The live adapter retrieves the decision that fixture_backed results must not imply service-runtime behavior."
+          "evidence": "The live adapter passed 5/5 project_decisions jobs through service-runtime evidence retrieval."
+        },
+        {
+          "suite_id": "memory_evolution",
+          "status": "wrong_result",
+          "evidence": "The live adapter passed the delete/TTL case but failed five current-versus-historical conflict jobs because retrieval-backed answers did not provide the required historical conflict evidence links."
+        },
+        {
+          "suite_id": "consolidation",
+          "status": "not_encoded",
+          "evidence": "The live adapter sweep retrieves evidence-linked answers but does not generate or review consolidation proposals."
+        },
+        {
+          "suite_id": "knowledge_compilation",
+          "status": "not_encoded",
+          "evidence": "The live adapter sweep retrieves evidence-linked answers but does not generate derived knowledge pages."
+        },
+        {
+          "suite_id": "operator_debugging_ux",
+          "status": "not_encoded",
+          "evidence": "The live adapter sweep does not yet hydrate full operator trace/viewer diagnostics for this suite."
+        },
+        {
+          "suite_id": "capture_integration",
+          "status": "not_encoded",
+          "evidence": "The live adapter sweep does not exercise capture integrations or write-policy redaction boundaries."
+        },
+        {
+          "suite_id": "production_ops",
+          "status": "incomplete",
+          "evidence": "The live adapter sweep does not run backup/restore, private corpus, provider credential, or backfill operations; existing production-ops credential and private-manifest boundaries remain blocked and the cold-start dependency fixture remains incomplete."
+        },
+        {
+          "suite_id": "personalization",
+          "status": "pass",
+          "evidence": "The live adapter retrieved the scoped preference evidence and passed the personalization job."
         }
       ],
       "evidence": [
         {
           "kind": "fixture_dir",
-          "ref": "apps/elf-eval/fixtures/real_world_live_adapters/",
+          "ref": "apps/elf-eval/fixtures/real_world_memory/",
           "status": "real"
         },
         {
@@ -208,7 +263,9 @@
         }
       ],
       "notes": [
-        "This is the first Docker-isolated live real_world_job adapter path for ELF; broader suite expansion remains separate from the fixture-backed aggregate."
+        "This Docker-isolated live real_world_job record now covers the full encoded fixture corpus, not only the original three-suite representative slice.",
+        "The record is a full-suite sweep, not a full-suite pass; wrong_result, incomplete, blocked, and not_encoded states remain visible.",
+        "This record does not prove private-corpus production quality or provider-backed production operations."
       ]
     },
     {
@@ -250,7 +307,7 @@
         {
           "capability": "real_world_job_adapter",
           "status": "not_encoded",
-          "evidence": "No qmd adapter currently executes real_world_job prompts and answer scoring."
+          "evidence": "This live_baseline_only record does not execute real_world_job prompts; cite qmd_live_real_world for the full live real-world sweep."
         }
       ],
       "suites": [
@@ -293,7 +350,7 @@
       "evidence_class": "live_real_world",
       "docker_default": true,
       "host_global_installs_required": false,
-      "overall_status": "pass",
+      "overall_status": "wrong_result",
       "setup": {
         "status": "pass",
         "evidence": "The live adapter task clones and installs qmd inside the baseline Docker container when the checkout is absent.",
@@ -301,14 +358,14 @@
         "artifact": "tmp/real-world-memory/live-adapters/qmd-materialization.json"
       },
       "run": {
-        "status": "pass",
-        "evidence": "qmd indexes each real_world_job corpus through collection add, update, embed, and query --json before scoring generated answers.",
+        "status": "wrong_result",
+        "evidence": "qmd materializes 38 real_world_job adapter_response objects through collection add, update, embed, and query --json before scoring; the full sweep includes typed wrong_result, incomplete, blocked, and not_encoded records.",
         "command": "cargo make real-world-memory-live-adapters",
         "artifact": "tmp/real-world-memory/live-adapters/qmd-report.json"
       },
       "result": {
-        "status": "pass",
-        "evidence": "The representative live adapter slice scores qmd on work_resume, retrieval, and project_decisions jobs rather than same-corpus smoke checks only.",
+        "status": "wrong_result",
+        "evidence": "The full qmd live sweep scores 38 jobs across all 11 encoded suites: 18 pass, 5 wrong_result, 1 incomplete, 2 blocked, and 12 not_encoded. This is not a full-suite live pass.",
         "command": "cargo make real-world-memory-live-adapters",
         "artifact": "tmp/real-world-memory/live-adapters/qmd-report.md"
       },
@@ -324,32 +381,87 @@
           "evidence": "The adapter uses qmd collection add, update, embed -f, and query --json inside Docker."
         },
         {
+          "capability": "targeted_live_pass",
+          "status": "pass",
+          "evidence": "The answer-retrieval suites from the original representative slice still pass: work_resume, retrieval, and project_decisions."
+        },
+        {
+          "capability": "full_suite_live_sweep",
+          "status": "wrong_result",
+          "evidence": "The runner now emits per-job and per-suite live records for all 38 encoded jobs, but memory_evolution is wrong_result and several non-answer-generation suites remain typed non-pass."
+        },
+        {
+          "capability": "full_suite_live_pass",
+          "status": "wrong_result",
+          "evidence": "No full-suite live pass is claimed; generated reports preserve wrong_result, incomplete, blocked, and not_encoded outcomes."
+        },
+        {
           "capability": "typed_failure_reporting",
           "status": "pass",
-          "evidence": "qmd setup/runtime failures are materialized as incomplete jobs with command evidence and retry artifacts."
+          "evidence": "qmd setup/runtime limitations are materialized as typed jobs with command evidence and retry artifacts."
         }
       ],
       "suites": [
         {
+          "suite_id": "trust_source_of_truth",
+          "status": "pass",
+          "evidence": "qmd retrieved the restore/Qdrant rebuild proof evidence through the local CLI workflow."
+        },
+        {
           "suite_id": "work_resume",
           "status": "pass",
-          "evidence": "qmd retrieves the current next-action evidence and avoids the stale same-corpus command trap."
+          "evidence": "qmd passed 5/5 work_resume jobs through CLI evidence retrieval."
         },
         {
           "suite_id": "retrieval",
           "status": "pass",
-          "evidence": "qmd retrieves the live_real_world claim boundary from indexed real_world_job corpus files."
+          "evidence": "qmd passed 5/5 retrieval jobs through CLI evidence retrieval."
         },
         {
           "suite_id": "project_decisions",
           "status": "pass",
-          "evidence": "qmd retrieves the decision that fixture_backed results must not imply service-runtime behavior."
+          "evidence": "qmd passed 5/5 project_decisions jobs through CLI evidence retrieval."
+        },
+        {
+          "suite_id": "memory_evolution",
+          "status": "wrong_result",
+          "evidence": "qmd passed the delete/TTL case but failed five current-versus-historical conflict jobs because retrieval-backed answers did not provide the required historical conflict evidence links."
+        },
+        {
+          "suite_id": "consolidation",
+          "status": "not_encoded",
+          "evidence": "The qmd live adapter sweep retrieves evidence-linked answers but does not generate or review consolidation proposals."
+        },
+        {
+          "suite_id": "knowledge_compilation",
+          "status": "not_encoded",
+          "evidence": "The qmd live adapter sweep retrieves evidence-linked answers but does not generate derived knowledge pages."
+        },
+        {
+          "suite_id": "operator_debugging_ux",
+          "status": "not_encoded",
+          "evidence": "The qmd live adapter sweep does not yet hydrate full operator trace/viewer diagnostics for this suite."
+        },
+        {
+          "suite_id": "capture_integration",
+          "status": "not_encoded",
+          "evidence": "The qmd live adapter sweep does not exercise capture integrations or write-policy redaction boundaries."
+        },
+        {
+          "suite_id": "production_ops",
+          "status": "incomplete",
+          "evidence": "The qmd live adapter sweep does not run backup/restore, private corpus, provider credential, or backfill operations; existing production-ops credential and private-manifest boundaries remain blocked and the cold-start dependency fixture remains incomplete."
+        },
+        {
+          "suite_id": "personalization",
+          "status": "pass",
+          "evidence": "qmd retrieved the scoped preference evidence and passed the personalization job."
         }
       ],
       "evidence": [
         {
           "kind": "fixture_dir",
-          "ref": "apps/elf-eval/fixtures/real_world_live_adapters/",
+          "ref": "apps/elf-eval/fixtures/real_world_memory/",
           "status": "real"
         },
         {
@@ -364,7 +476,9 @@
         }
       ],
       "notes": [
-        "This qmd record is real-world job evidence and must not be conflated with the same-corpus qmd_live_baseline record."
+        "This qmd record is real-world job evidence and must not be conflated with the same-corpus qmd_live_baseline record.",
+        "The record is a full-suite sweep, not a full-suite pass; wrong_result, incomplete, blocked, and not_encoded states remain visible.",
+        "This record does not prove broad RAG/graph adapter parity or private-corpus production quality."
       ]
     },
     {

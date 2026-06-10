@@ -40,6 +40,9 @@ cleanup, use `docs/guide/single_user_production.md`.
 - `2026-06-10-real-world-comparison-report.md`: checked-in post-P1 real-world
   comparison report with aggregate fixture evidence, external-adapter evidence classes,
   remaining typed gaps, and adoption implications.
+- `2026-06-10-live-real-world-sweep-report.md`: XY-880 full-suite live real-world
+  sweep report for ELF and qmd, showing per-suite live pass and typed non-pass states
+  without claiming full-suite live parity.
 - `real_world_agent_memory_benchmark.md`: operator overview for the v1 real-world
   agent memory benchmark contract, including suite taxonomy, typed report states,
   knowledge-compilation fixture tasks, and the production-ops fixture target.

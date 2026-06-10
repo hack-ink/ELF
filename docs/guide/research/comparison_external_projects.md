@@ -62,14 +62,15 @@ That manifest is a contract and evidence ledger, not a leaderboard. It records w
 projects only have `live_baseline_only` Docker retrieval/lifecycle evidence, which
 capabilities are `mocked`, `blocked`, `unsupported`, `incomplete`, `wrong_result`, or
 `lifecycle_fail`, and which real-world suites remain `not_encoded`. The manifest now
-includes targeted `live_real_world` records for ELF and qmd through
-`cargo make real-world-memory-live-adapters`; it also includes `research_gate` records
-for RAGFlow, LightRAG, GraphRAG, Graphiti/Zep, Letta, LangGraph, nanograph,
-llm-wiki, gbrain, graphify, and deeper qmd/OpenViking profiles. Research gates carry
-source/setup/runtime/resource/retry metadata for future adapter work, but they are not
-fixture-backed, live-baseline-only, or live-real-world evidence. Other external
-projects remain live-baseline-only, incomplete, blocked, or not encoded until their
-own `real_world_job` adapters run.
+includes full-suite `live_real_world` sweep records for ELF and qmd through
+`cargo make real-world-memory-live-adapters`; both retain targeted live pass evidence
+for `work_resume`, `retrieval`, and `project_decisions`, but neither is a full-suite
+live pass. It also includes `research_gate` records for RAGFlow, LightRAG, GraphRAG,
+Graphiti/Zep, Letta, LangGraph, nanograph, llm-wiki, gbrain, graphify, and deeper
+qmd/OpenViking profiles. Research gates carry source/setup/runtime/resource/retry
+metadata for future adapter work, but they are not fixture-backed, live-baseline-only,
+or live-real-world evidence. Other external projects remain live-baseline-only,
+incomplete, blocked, or not encoded until their own `real_world_job` adapters run.
 
 XY-882 adds D1/D2 feasibility verdicts for the RAG and graph-memory research gates.
 `adapter_candidate` means an implementation follow-up is justified because a scoped
