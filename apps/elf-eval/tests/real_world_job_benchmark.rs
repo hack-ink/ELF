@@ -56,6 +56,10 @@ fn knowledge_fixture_dir() -> PathBuf {
 	real_world_memory_fixture_dir().join("knowledge")
 }
 
+fn production_ops_fixture_dir() -> PathBuf {
+	real_world_memory_fixture_dir().join("production_ops")
+}
+
 fn run_json_report_from(fixtures: PathBuf) -> Result<Value> {
 	let output = Command::new(env!("CARGO_BIN_EXE_real_world_job_benchmark"))
 		.arg("run")
@@ -269,7 +273,7 @@ fn real_world_report_includes_external_adapter_coverage_manifest() -> Result<()>
 fn runner_discovers_nested_fixture_layout() -> Result<()> {
 	let report = run_json_report_from(fixture_root())?;
 
-	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(32));
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(38));
 
 	Ok(())
 }
@@ -631,6 +635,49 @@ fn knowledge_json_report_renders_markdown_metrics() -> Result<()> {
 	Ok(())
 }
 
+#[test]
+fn production_ops_fixtures_report_bounded_typed_states() -> Result<()> {
+	let report = run_json_report_from(production_ops_fixture_dir())?;
+
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(6));
+	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(3));
+	assert_eq!(report.pointer("/summary/incomplete").and_then(Value::as_u64), Some(1));
+	assert_eq!(report.pointer("/summary/blocked").and_then(Value::as_u64), Some(2));
+	assert_eq!(report.pointer("/summary/not_encoded").and_then(Value::as_u64), Some(0));
+	assert_eq!(report.pointer("/summary/evidence_coverage").and_then(Value::as_f64), Some(1.0));
+	assert_eq!(
+		report.pointer("/summary/qdrant_rebuild_case_count").and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
+		report.pointer("/private_corpus_redaction/private_fixture_count").and_then(Value::as_u64),
+		Some(1)
+	);
+
+	let suites = array_at(&report, "/suites")?;
+	let production_ops = find_by_field(suites, "/suite_id", "production_ops")?;
+
+	assert_eq!(production_ops.pointer("/status").and_then(Value::as_str), Some("incomplete"));
+	assert_eq!(production_ops.pointer("/encoded_job_count").and_then(Value::as_u64), Some(6));
+
+	let jobs = array_at(&report, "/jobs")?;
+	let backfill = find_by_field(jobs, "/job_id", "production-ops-backfill-resume-001")?;
+	let restore = find_by_field(jobs, "/job_id", "production-ops-restore-cold-start-001")?;
+	let private_manifest =
+		find_by_field(jobs, "/job_id", "production-ops-private-manifest-blocked-001")?;
+	let credentials = find_by_field(jobs, "/job_id", "production-ops-credential-boundary-001")?;
+	let dependency = find_by_field(jobs, "/job_id", "production-ops-cold-start-dependency-001")?;
+
+	assert_eq!(backfill.pointer("/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(restore.pointer("/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(restore.pointer("/qdrant_rebuild_case").and_then(Value::as_bool), Some(true));
+	assert_eq!(private_manifest.pointer("/status").and_then(Value::as_str), Some("blocked"));
+	assert_eq!(credentials.pointer("/status").and_then(Value::as_str), Some("blocked"));
+	assert_eq!(dependency.pointer("/status").and_then(Value::as_str), Some("incomplete"));
+
+	Ok(())
+}
+
 fn assert_root_knowledge_summary(report: &Value) {
 	assert_eq!(report.pointer("/summary/knowledge/job_count").and_then(Value::as_u64), Some(2));
 	assert_eq!(report.pointer("/summary/knowledge/page_count").and_then(Value::as_u64), Some(4));
@@ -641,15 +688,17 @@ fn assert_root_knowledge_summary(report: &Value) {
 }
 
 fn assert_root_aggregate_summary(report: &Value) {
-	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(32));
-	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(31));
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(38));
+	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(34));
 	assert_eq!(report.pointer("/summary/wrong_result").and_then(Value::as_u64), Some(0));
+	assert_eq!(report.pointer("/summary/incomplete").and_then(Value::as_u64), Some(1));
+	assert_eq!(report.pointer("/summary/blocked").and_then(Value::as_u64), Some(2));
 	assert_eq!(report.pointer("/summary/not_encoded").and_then(Value::as_u64), Some(1));
 	assert_eq!(report.pointer("/summary/unsupported_claim_count").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/wrong_result_count").and_then(Value::as_u64), Some(0));
 	assert_eq!(
 		report.pointer("/summary/expected_evidence_recall").and_then(Value::as_f64),
-		Some(0.968)
+		Some(0.973)
 	);
 	assert_eq!(
 		report.pointer("/summary/irrelevant_context_ratio").and_then(Value::as_f64),
@@ -675,20 +724,20 @@ fn assert_root_aggregate_summary(report: &Value) {
 	assert_eq!(report.pointer("/summary/scope_violation_count").and_then(Value::as_u64), Some(0));
 	assert_eq!(
 		report.pointer("/summary/qdrant_rebuild_case_count").and_then(Value::as_u64),
-		Some(1)
+		Some(2)
 	);
 	assert_eq!(
 		report.pointer("/summary/qdrant_rebuild_pass_count").and_then(Value::as_u64),
-		Some(1)
+		Some(2)
 	);
 	assert_eq!(
 		report.pointer("/summary/evidence_required_count").and_then(Value::as_u64),
-		Some(69)
+		Some(82)
 	);
-	assert_eq!(report.pointer("/summary/evidence_covered_count").and_then(Value::as_u64), Some(67));
-	assert_eq!(report.pointer("/summary/evidence_coverage").and_then(Value::as_f64), Some(0.971));
-	assert_eq!(report.pointer("/summary/source_ref_coverage").and_then(Value::as_f64), Some(0.971));
-	assert_eq!(report.pointer("/summary/quote_coverage").and_then(Value::as_f64), Some(0.971));
+	assert_eq!(report.pointer("/summary/evidence_covered_count").and_then(Value::as_u64), Some(80));
+	assert_eq!(report.pointer("/summary/evidence_coverage").and_then(Value::as_f64), Some(0.976));
+	assert_eq!(report.pointer("/summary/source_ref_coverage").and_then(Value::as_f64), Some(0.976));
+	assert_eq!(report.pointer("/summary/quote_coverage").and_then(Value::as_f64), Some(0.976));
 	assert_eq!(
 		report.pointer("/summary/trace_explainability_count").and_then(Value::as_u64),
 		Some(1)
@@ -750,6 +799,11 @@ fn assert_root_aggregate_suites(report: &Value) -> Result<()> {
 
 	assert_eq!(debug_suite.pointer("/status").and_then(Value::as_str), Some("pass"));
 
+	let production_ops = find_by_field(suites, "/suite_id", "production_ops")?;
+
+	assert_eq!(production_ops.pointer("/status").and_then(Value::as_str), Some("incomplete"));
+	assert_eq!(production_ops.pointer("/encoded_job_count").and_then(Value::as_u64), Some(6));
+
 	Ok(())
 }
 
@@ -759,8 +813,14 @@ fn assert_root_aggregate_jobs(report: &Value) -> Result<()> {
 	let redaction = find_by_field(jobs, "/job_id", "capture-redaction-exclusion-001")?;
 	let personalization = find_by_field(jobs, "/job_id", "personalization-scoped-preference-001")?;
 	let stage_job = find_by_field(jobs, "/job_id", "operator-debug-stage-attribution-001")?;
+	let production_restore =
+		find_by_field(jobs, "/job_id", "production-ops-restore-cold-start-001")?;
 
 	assert_eq!(rebuild.pointer("/qdrant_rebuild_case").and_then(Value::as_bool), Some(true));
+	assert_eq!(
+		production_restore.pointer("/qdrant_rebuild_case").and_then(Value::as_bool),
+		Some(true)
+	);
 	assert_eq!(redaction.pointer("/redaction_leak_count").and_then(Value::as_u64), Some(0));
 	assert_eq!(personalization.pointer("/scope_check_count").and_then(Value::as_u64), Some(1));
 	assert_eq!(personalization.pointer("/scope_correct_count").and_then(Value::as_u64), Some(1));

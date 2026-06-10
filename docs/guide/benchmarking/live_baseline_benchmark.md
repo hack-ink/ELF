@@ -265,6 +265,19 @@ claim.
 If no operator-owned private manifest is supplied, the private-corpus path is a
 bounded failure, not a pass.
 
+For job-level production-ops coverage under the real-world benchmark contract, run:
+
+```sh
+cargo make real-world-memory-production-ops
+```
+
+That target parses checked-in fixture evidence for interrupted backfill resume,
+backup/restore readback, cold-start recovery, resource-envelope interpretation, and
+typed private-manifest, credential, and dependency boundaries. It does not run Docker,
+private corpus data, or provider-backed credentials, and it must not be used as a
+substitute for `baseline-production-private` when making a private-corpus readiness
+claim.
+
 ## Publish A Markdown Report
 
 After a run writes `tmp/live-baseline/live-baseline-report.json`, render a durable
