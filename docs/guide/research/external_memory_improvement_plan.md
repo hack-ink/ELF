@@ -229,6 +229,8 @@ Implementation shape:
 
 - Replace mock/in-memory external adapters with durable local modes where feasible.
 - For every external adapter, mark which behaviors are real, mocked, unsupported, or blocked.
+- For expanded RAG and graph-memory systems, use `research_gate` records until D1/D2
+  research, resource sizing, and Docker runtime boundaries are proven.
 - Add lifecycle checks: update, delete/expire, cold-start reload, and same-corpus retrieval.
 - Keep failures typed with the terms in this document.
 - Use `apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json`
