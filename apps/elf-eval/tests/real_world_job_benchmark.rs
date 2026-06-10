@@ -281,7 +281,7 @@ fn assert_external_adapter_manifest_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/suite_status_counts/blocked")
 			.and_then(Value::as_u64),
-		Some(11)
+		Some(10)
 	);
 }
 
@@ -294,6 +294,7 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 	let agentmemory = find_by_field(adapters, "/adapter_id", "agentmemory_live_baseline")?;
 	let openviking = find_by_field(adapters, "/adapter_id", "openviking_live_baseline")?;
 	let ragflow = find_by_field(adapters, "/adapter_id", "ragflow_research_gate")?;
+	let lightrag = find_by_field(adapters, "/adapter_id", "lightrag_research_gate")?;
 	let qmd_deep = find_by_field(adapters, "/adapter_id", "qmd_deep_profile_gate")?;
 
 	assert_eq!(elf.pointer("/evidence_class").and_then(Value::as_str), Some("fixture_backed"));
@@ -340,6 +341,20 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 	assert_eq!(
 		ragflow.pointer("/execution_metadata/sources/0/url").and_then(Value::as_str),
 		Some("https://github.com/infiniflow/ragflow")
+	);
+	assert_eq!(lightrag.pointer("/evidence_class").and_then(Value::as_str), Some("research_gate"));
+	assert_eq!(lightrag.pointer("/overall_status").and_then(Value::as_str), Some("blocked"));
+	assert_eq!(
+		lightrag.pointer("/setup/command").and_then(Value::as_str),
+		Some("cargo make lightrag-docker-context-smoke")
+	);
+	assert_eq!(
+		lightrag.pointer("/run/command").and_then(Value::as_str),
+		Some("ELF_LIGHTRAG_CONTEXT_START=1 cargo make lightrag-docker-context-smoke")
+	);
+	assert_eq!(
+		lightrag.pointer("/capabilities/3/status").and_then(Value::as_str),
+		Some("not_encoded")
 	);
 	assert_eq!(
 		qmd_deep.pointer("/capabilities/2/status").and_then(Value::as_str),
