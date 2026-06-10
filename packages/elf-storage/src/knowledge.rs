@@ -338,9 +338,16 @@ where
 {
 	sqlx::query(
 		"\
-DELETE FROM knowledge_page_lint_findings WHERE page_id = $1;
-DELETE FROM knowledge_page_source_refs WHERE page_id = $1;
-DELETE FROM knowledge_page_sections WHERE page_id = $1;",
+	WITH deleted_lint AS (
+		DELETE FROM knowledge_page_lint_findings
+		WHERE page_id = $1
+	),
+	deleted_source_refs AS (
+		DELETE FROM knowledge_page_source_refs
+		WHERE page_id = $1
+	)
+	DELETE FROM knowledge_page_sections
+	WHERE page_id = $1",
 	)
 	.bind(page_id)
 	.execute(executor)
