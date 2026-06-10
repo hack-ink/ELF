@@ -1,0 +1,1183 @@
+{
+  "schema": "elf.external_memory_pattern_radar_cursor/v1",
+  "cadence": "weekly",
+  "generated_at": "2026-06-10T08:32:00.790878Z",
+  "source_docs": [
+    "docs/guide/research/external_memory_improvement_plan.md",
+    "docs/guide/research/comparison_external_projects.md",
+    "docs/guide/research/research_projects_inventory.md",
+    "docs/spec/external_memory_pattern_radar_v1.md"
+  ],
+  "projects": [
+    {
+      "id": "agentmemory",
+      "name": "agentmemory",
+      "repo": "rohitg00/agentmemory",
+      "homepage": "https://github.com/rohitg00/agentmemory",
+      "watch_focus": [
+        "rw.operator-continuity",
+        "rw.resume-evidence",
+        "rw.lifecycle-staleness"
+      ],
+      "primary_references": [
+        "docs/guide/research/comparison_external_projects.md",
+        "docs/research/2026-06-08-agent-memory-selection.json",
+        "docs/research/2026-06-09-xy-841-external-memory-benchmark-dimensions.json"
+      ],
+      "coverage_evidence": [
+        {
+          "label": "adapter evidence boundary",
+          "path": "docs/guide/research/comparison_external_projects.md",
+          "summary": "agentmemory is tracked for operator continuity and resume evidence, but current benchmark evidence does not prove durable lifecycle quality."
+        }
+      ],
+      "last_seen": {
+        "observed_at": "2026-06-10T08:32:00.790878Z",
+        "source_url": "https://github.com/rohitg00/agentmemory",
+        "default_branch": "main",
+        "pushed_at": "2026-06-09T15:14:55Z",
+        "updated_at": "2026-06-10T08:30:03Z",
+        "latest_release": {
+          "tag_name": "v0.9.27",
+          "url": "https://github.com/rohitg00/agentmemory/releases/tag/v0.9.27",
+          "published_at": "2026-06-07T08:58:35Z"
+        },
+        "stars": 22180,
+        "open_issues": 264,
+        "description": "#1 Persistent memory for AI coding agents based on real-world benchmarks"
+      }
+    },
+    {
+      "id": "mem0",
+      "name": "mem0 / OpenMemory",
+      "repo": "mem0ai/mem0",
+      "homepage": "https://github.com/mem0ai/mem0",
+      "watch_focus": [
+        "rw.lifecycle-staleness",
+        "rw.graph-temporal",
+        "rw.operator-continuity"
+      ],
+      "primary_references": [
+        "docs/guide/research/comparison_external_projects.md",
+        "docs/research/2026-06-09-xy-841-external-memory-benchmark-dimensions.json"
+      ],
+      "coverage_evidence": [
+        {
+          "label": "lifecycle and graph reference",
+          "path": "docs/guide/research/comparison_external_projects.md",
+          "summary": "mem0 remains the ecosystem and entity-scoped lifecycle reference while ELF keeps deterministic evidence-bound writes."
+        }
+      ],
+      "last_seen": {
+        "observed_at": "2026-06-10T08:32:00.790878Z",
+        "source_url": "https://github.com/mem0ai/mem0",
+        "default_branch": "main",
+        "pushed_at": "2026-06-10T07:16:28Z",
+        "updated_at": "2026-06-10T08:18:56Z",
+        "latest_release": {
+          "tag_name": "cli-node-v0.2.8",
+          "url": "https://github.com/mem0ai/mem0/releases/tag/cli-node-v0.2.8",
+          "published_at": "2026-06-01T20:18:36Z"
+        },
+        "stars": 58237,
+        "open_issues": 413,
+        "description": "Universal memory layer for AI Agents"
+      }
+    },
+    {
+      "id": "qmd",
+      "name": "qmd",
+      "repo": "tobi/qmd",
+      "homepage": "https://github.com/tobi/qmd",
+      "watch_focus": [
+        "rw.retrieval-debug",
+        "rw.lifecycle-staleness",
+        "rw.resume-evidence"
+      ],
+      "primary_references": [
+        "docs/guide/research/comparison_external_projects.md",
+        "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json"
+      ],
+      "coverage_evidence": [
+        {
+          "label": "retrieval-debug baseline",
+          "path": "docs/guide/research/comparison_external_projects.md",
+          "summary": "qmd is the strongest local retrieval-debug reference and has targeted live real-world adapter evidence."
+        }
+      ],
+      "last_seen": {
+        "observed_at": "2026-06-10T08:32:00.790878Z",
+        "source_url": "https://github.com/tobi/qmd",
+        "default_branch": "main",
+        "pushed_at": "2026-06-08T16:50:52Z",
+        "updated_at": "2026-06-10T08:26:53Z",
+        "latest_release": {
+          "tag_name": "v2.5.3",
+          "url": "https://github.com/tobi/qmd/releases/tag/v2.5.3",
+          "published_at": "2026-05-29T03:24:20Z"
+        },
+        "stars": 26365,
+        "open_issues": 124,
+        "description": "mini cli search engine for your docs, knowledge bases, meeting notes, whatever. Tracking current sota approaches while being all local"
+      }
+    },
+    {
+      "id": "claude-mem",
+      "name": "claude-mem",
+      "repo": "thedotmack/claude-mem",
+      "homepage": "https://github.com/thedotmack/claude-mem",
+      "watch_focus": [
+        "rw.operator-continuity",
+        "rw.resume-evidence",
+        "rw.retrieval-debug"
+      ],
+      "primary_references": [
+        "docs/guide/research/comparison_external_projects.md",
+        "docs/research/2026-06-09-xy-841-external-memory-benchmark-dimensions.json"
+      ],
+      "coverage_evidence": [
+        {
+          "label": "progressive disclosure UX reference",
+          "path": "docs/guide/research/comparison_external_projects.md",
+          "summary": "claude-mem remains a product reference for progressive disclosure and viewer workflow, not a proven ELF replacement."
+        }
+      ],
+      "last_seen": {
+        "observed_at": "2026-06-10T08:32:00.790878Z",
+        "source_url": "https://github.com/thedotmack/claude-mem",
+        "default_branch": "main",
+        "pushed_at": "2026-06-10T07:22:33Z",
+        "updated_at": "2026-06-10T08:26:21Z",
+        "latest_release": {
+          "tag_name": "v13.5.4",
+          "url": "https://github.com/thedotmack/claude-mem/releases/tag/v13.5.4",
+          "published_at": "2026-06-10T07:22:17Z"
+        },
+        "stars": 81523,
+        "open_issues": 80,
+        "description": "Persistent Context Across Sessions for Every Agent –  Captures everything your agent does during sessions, compresses it with AI, and injects relevant context back into future sessions. Works with Claude Code, OpenClaw, Codex, Gemini, Hermes, Copilot, OpenCode + More"
+      }
+    },
+    {
+      "id": "openviking",
+      "name": "OpenViking",
+      "repo": "volcengine/OpenViking",
+      "homepage": "https://github.com/volcengine/OpenViking",
+      "watch_focus": [
+        "rw.context-trajectory",
+        "rw.resume-evidence",
+        "rw.retrieval-debug"
+      ],
+      "primary_references": [
+        "docs/guide/research/comparison_external_projects.md",
+        "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json"
+      ],
+      "coverage_evidence": [
+        {
+          "label": "trajectory reference",
+          "path": "docs/guide/research/comparison_external_projects.md",
+          "summary": "OpenViking informs hierarchical context trajectory while current adapter evidence remains incomplete."
+        }
+      ],
+      "last_seen": {
+        "observed_at": "2026-06-10T08:32:00.790878Z",
+        "source_url": "https://github.com/volcengine/OpenViking",
+        "default_branch": "main",
+        "pushed_at": "2026-06-10T08:29:16Z",
+        "updated_at": "2026-06-10T08:29:49Z",
+        "latest_release": {
+          "tag_name": "v0.3.24",
+          "url": "https://github.com/volcengine/OpenViking/releases/tag/v0.3.24",
+          "published_at": "2026-06-05T08:05:34Z"
+        },
+        "stars": 25438,
+        "open_issues": 221,
+        "description": "OpenViking is an open-source context database designed specifically for AI Agents(such as openclaw). OpenViking unifies the management of context (memory, resources, and skills) that Agents need through a file system paradigm, enabling hierarchical context delivery and self-evolving."
+      }
+    },
+    {
+      "id": "graphiti",
+      "name": "Graphiti / Zep",
+      "repo": "getzep/graphiti",
+      "homepage": "https://github.com/getzep/graphiti",
+      "watch_focus": [
+        "rw.graph-temporal",
+        "rw.resume-evidence"
+      ],
+      "primary_references": [
+        "docs/guide/research/comparison_external_projects.md",
+        "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json"
+      ],
+      "coverage_evidence": [
+        {
+          "label": "temporal graph reference",
+          "path": "docs/guide/research/comparison_external_projects.md",
+          "summary": "Graphiti/Zep remains the broader temporal graph workflow reference for current-versus-historical facts."
+        }
+      ],
+      "last_seen": {
+        "observed_at": "2026-06-10T08:32:00.790878Z",
+        "source_url": "https://github.com/getzep/graphiti",
+        "default_branch": "main",
+        "pushed_at": "2026-06-10T07:19:57Z",
+        "updated_at": "2026-06-10T08:29:29Z",
+        "latest_release": {
+          "tag_name": "v0.29.2",
+          "url": "https://github.com/getzep/graphiti/releases/tag/v0.29.2",
+          "published_at": "2026-06-08T14:25:35Z"
+        },
+        "stars": 27240,
+        "open_issues": 365,
+        "description": "Build Real-Time Knowledge Graphs for AI Agents"
+      }
+    },
+    {
+      "id": "letta",
+      "name": "Letta",
+      "repo": "letta-ai/letta",
+      "homepage": "https://github.com/letta-ai/letta",
+      "watch_focus": [
+        "rw.core-archival",
+        "rw.operator-continuity"
+      ],
+      "primary_references": [
+        "docs/guide/research/comparison_external_projects.md",
+        "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json"
+      ],
+      "coverage_evidence": [
+        {
+          "label": "core versus archival memory reference",
+          "path": "docs/guide/research/comparison_external_projects.md",
+          "summary": "Letta informs core memory block ergonomics while ELF keeps archival notes source-of-truth bound."
+        }
+      ],
+      "last_seen": {
+        "observed_at": "2026-06-10T08:32:00.790878Z",
+        "source_url": "https://github.com/letta-ai/letta",
+        "default_branch": "main",
+        "pushed_at": "2026-05-14T17:14:23Z",
+        "updated_at": "2026-06-10T08:26:18Z",
+        "latest_release": {
+          "tag_name": "0.16.8",
+          "url": "https://github.com/letta-ai/letta/releases/tag/0.16.8",
+          "published_at": "2026-05-14T17:14:24Z"
+        },
+        "stars": 23232,
+        "open_issues": 52,
+        "description": "Letta is the platform for building stateful agents: AI with advanced memory that can learn and self-improve over time."
+      }
+    },
+    {
+      "id": "lightrag",
+      "name": "LightRAG",
+      "repo": "HKUDS/LightRAG",
+      "homepage": "https://github.com/HKUDS/LightRAG",
+      "watch_focus": [
+        "rw.graph-navigation",
+        "rw.graph-temporal",
+        "rw.retrieval-debug"
+      ],
+      "primary_references": [
+        "docs/guide/research/research_projects_inventory.md",
+        "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json"
+      ],
+      "coverage_evidence": [
+        {
+          "label": "research gate",
+          "path": "docs/guide/research/research_projects_inventory.md",
+          "summary": "LightRAG is a D0 watch item with a research gate; no adapter strength claim is allowed yet."
+        }
+      ],
+      "last_seen": {
+        "observed_at": "2026-06-10T08:32:00.790878Z",
+        "source_url": "https://github.com/HKUDS/LightRAG",
+        "default_branch": "main",
+        "pushed_at": "2026-06-09T11:24:04Z",
+        "updated_at": "2026-06-10T08:28:11Z",
+        "latest_release": {
+          "tag_name": "v1.5.1",
+          "url": "https://github.com/HKUDS/LightRAG/releases/tag/v1.5.1",
+          "published_at": "2026-06-09T08:32:30Z"
+        },
+        "stars": 36379,
+        "open_issues": 227,
+        "description": "[EMNLP2025] \"LightRAG: Simple and Fast Retrieval-Augmented Generation\""
+      }
+    },
+    {
+      "id": "graphrag",
+      "name": "GraphRAG",
+      "repo": "microsoft/graphrag",
+      "homepage": "https://github.com/microsoft/graphrag",
+      "watch_focus": [
+        "rw.graph-navigation",
+        "rw.knowledge-synthesis",
+        "rw.retrieval-debug"
+      ],
+      "primary_references": [
+        "docs/guide/research/research_projects_inventory.md",
+        "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json"
+      ],
+      "coverage_evidence": [
+        {
+          "label": "research gate",
+          "path": "docs/guide/research/research_projects_inventory.md",
+          "summary": "GraphRAG is a D0 watch item with a research gate; no adapter strength claim is allowed yet."
+        }
+      ],
+      "last_seen": {
+        "observed_at": "2026-06-10T08:32:00.790878Z",
+        "source_url": "https://github.com/microsoft/graphrag",
+        "default_branch": "main",
+        "pushed_at": "2026-06-05T23:46:49Z",
+        "updated_at": "2026-06-10T08:27:19Z",
+        "latest_release": {
+          "tag_name": "v3.1.0",
+          "url": "https://github.com/microsoft/graphrag/releases/tag/v3.1.0",
+          "published_at": "2026-05-28T15:55:40Z"
+        },
+        "stars": 33610,
+        "open_issues": 141,
+        "description": "A modular graph-based Retrieval-Augmented Generation (RAG) system"
+      }
+    },
+    {
+      "id": "ragflow",
+      "name": "RAGFlow",
+      "repo": "infiniflow/ragflow",
+      "homepage": "https://github.com/infiniflow/ragflow",
+      "watch_focus": [
+        "rw.resume-evidence",
+        "rw.graph-navigation",
+        "rw.retrieval-debug"
+      ],
+      "primary_references": [
+        "docs/guide/research/research_projects_inventory.md",
+        "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json"
+      ],
+      "coverage_evidence": [
+        {
+          "label": "research gate",
+          "path": "docs/guide/research/research_projects_inventory.md",
+          "summary": "RAGFlow is a D0 watch item with a research gate; no adapter strength claim is allowed yet."
+        }
+      ],
+      "last_seen": {
+        "observed_at": "2026-06-10T08:32:00.790878Z",
+        "source_url": "https://github.com/infiniflow/ragflow",
+        "default_branch": "main",
+        "pushed_at": "2026-06-10T08:09:36Z",
+        "updated_at": "2026-06-10T08:29:00Z",
+        "latest_release": {
+          "tag_name": "v0.25.6",
+          "url": "https://github.com/infiniflow/ragflow/releases/tag/v0.25.6",
+          "published_at": "2026-05-27T01:50:19Z"
+        },
+        "stars": 82363,
+        "open_issues": 3360,
+        "description": "RAGFlow is a leading open-source Retrieval-Augmented Generation (RAG) engine that fuses cutting-edge RAG with Agent capabilities to create a superior context layer for LLMs"
+      }
+    },
+    {
+      "id": "memsearch",
+      "name": "memsearch",
+      "repo": "zilliztech/memsearch",
+      "homepage": "https://github.com/zilliztech/memsearch",
+      "watch_focus": [
+        "rw.lifecycle-staleness",
+        "rw.retrieval-debug",
+        "rw.resume-evidence"
+      ],
+      "primary_references": [
+        "docs/guide/research/comparison_external_projects.md"
+      ],
+      "coverage_evidence": [
+        {
+          "label": "markdown-first reference",
+          "path": "docs/guide/research/comparison_external_projects.md",
+          "summary": "memsearch remains a source-transparency reference while current adapter evidence is incomplete or wrong-result typed."
+        }
+      ],
+      "last_seen": {
+        "observed_at": "2026-06-10T08:32:00.790878Z",
+        "source_url": "https://github.com/zilliztech/memsearch",
+        "default_branch": "main",
+        "pushed_at": "2026-06-01T12:52:06Z",
+        "updated_at": "2026-06-10T08:11:17Z",
+        "latest_release": {
+          "tag_name": "v0.4.6",
+          "url": "https://github.com/zilliztech/memsearch/releases/tag/v0.4.6",
+          "published_at": "2026-05-29T07:28:49Z"
+        },
+        "stars": 1955,
+        "open_issues": 219,
+        "description": "A persistent, unified memory layer for all your AI agents (e.g. Claude Code, Codex), backed by Markdown and Milvus."
+      }
+    },
+    {
+      "id": "langgraph",
+      "name": "LangGraph",
+      "repo": "langchain-ai/langgraph",
+      "homepage": "https://github.com/langchain-ai/langgraph",
+      "watch_focus": [
+        "rw.replay-regression",
+        "rw.resume-evidence"
+      ],
+      "primary_references": [
+        "docs/guide/research/comparison_external_projects.md"
+      ],
+      "coverage_evidence": [
+        {
+          "label": "replay regression reference",
+          "path": "docs/guide/research/comparison_external_projects.md",
+          "summary": "LangGraph informs replay and checkpoint regression workflows; ELF traces do not replace full agent-state replay."
+        }
+      ],
+      "last_seen": {
+        "observed_at": "2026-06-10T08:32:00.790878Z",
+        "source_url": "https://github.com/langchain-ai/langgraph",
+        "default_branch": "main",
+        "pushed_at": "2026-06-09T22:41:05Z",
+        "updated_at": "2026-06-10T08:30:43Z",
+        "latest_release": {
+          "tag_name": "1.2.4",
+          "url": "https://github.com/langchain-ai/langgraph/releases/tag/1.2.4",
+          "published_at": "2026-06-02T17:07:49Z"
+        },
+        "stars": 34333,
+        "open_issues": 560,
+        "description": "Build resilient agents."
+      }
+    },
+    {
+      "id": "nanograph",
+      "name": "nanograph",
+      "repo": "nanograph/nanograph",
+      "homepage": "https://github.com/nanograph/nanograph",
+      "watch_focus": [
+        "rw.graph-temporal",
+        "rw.retrieval-debug"
+      ],
+      "primary_references": [
+        "docs/guide/research/comparison_external_projects.md",
+        "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json"
+      ],
+      "coverage_evidence": [
+        {
+          "label": "typed graph ergonomics reference",
+          "path": "docs/guide/research/comparison_external_projects.md",
+          "summary": "nanograph is a typed graph DX reference, not a full memory backend benchmark claim."
+        }
+      ],
+      "last_seen": {
+        "observed_at": "2026-06-10T08:32:00.790878Z",
+        "source_url": "https://github.com/nanograph/nanograph",
+        "default_branch": "main",
+        "pushed_at": "2026-05-17T01:49:29Z",
+        "updated_at": "2026-06-10T01:45:26Z",
+        "latest_release": {
+          "tag_name": "v1.3.0",
+          "url": "https://github.com/nanograph/nanograph/releases/tag/v1.3.0",
+          "published_at": "2026-05-16T23:25:46Z"
+        },
+        "stars": 150,
+        "open_issues": 0,
+        "description": "On-device property graph database. Schema-as-code. One CLI → One Folder. No Server. Think: DuckDB for graphs."
+      }
+    },
+    {
+      "id": "llm-wiki",
+      "name": "llm-wiki",
+      "repo": "nvk/llm-wiki",
+      "homepage": "https://github.com/nvk/llm-wiki",
+      "watch_focus": [
+        "rw.knowledge-synthesis",
+        "rw.resume-evidence"
+      ],
+      "primary_references": [
+        "docs/guide/research/comparison_external_projects.md"
+      ],
+      "coverage_evidence": [
+        {
+          "label": "derived knowledge pages reference",
+          "path": "docs/guide/research/comparison_external_projects.md",
+          "summary": "llm-wiki informs rebuildable cited knowledge pages and lint/repair loops."
+        }
+      ],
+      "last_seen": {
+        "observed_at": "2026-06-10T08:32:00.790878Z",
+        "source_url": "https://github.com/nvk/llm-wiki",
+        "default_branch": "master",
+        "pushed_at": "2026-05-23T16:07:33Z",
+        "updated_at": "2026-06-09T16:24:54Z",
+        "latest_release": {
+          "tag_name": "v0.10.2",
+          "url": "https://github.com/nvk/llm-wiki/releases/tag/v0.10.2",
+          "published_at": "2026-05-23T16:07:33Z"
+        },
+        "stars": 549,
+        "open_issues": 3,
+        "description": "LLM-compiled knowledge bases for any AI agent. Parallel multi-agent research, thesis-driven investigation, source ingestion, wiki compilation, querying, and artifact generation. "
+      }
+    },
+    {
+      "id": "gbrain",
+      "name": "gbrain",
+      "repo": "garrytan/gbrain",
+      "homepage": "https://github.com/garrytan/gbrain",
+      "watch_focus": [
+        "rw.knowledge-synthesis",
+        "rw.operator-continuity"
+      ],
+      "primary_references": [
+        "docs/guide/research/comparison_external_projects.md"
+      ],
+      "coverage_evidence": [
+        {
+          "label": "operational brain reference",
+          "path": "docs/guide/research/comparison_external_projects.md",
+          "summary": "gbrain informs current-truth and timeline presentation while ELF source notes remain authoritative."
+        }
+      ],
+      "last_seen": {
+        "observed_at": "2026-06-10T08:32:00.790878Z",
+        "source_url": "https://github.com/garrytan/gbrain",
+        "default_branch": "master",
+        "pushed_at": "2026-06-10T05:32:26Z",
+        "updated_at": "2026-06-10T08:19:11Z",
+        "latest_release": null,
+        "stars": 21971,
+        "open_issues": 740,
+        "description": "Garry's Opinionated OpenClaw/Hermes Agent Brain"
+      }
+    },
+    {
+      "id": "graphify",
+      "name": "graphify",
+      "repo": "safishamsi/graphify",
+      "homepage": "https://github.com/safishamsi/graphify",
+      "watch_focus": [
+        "rw.graph-navigation",
+        "rw.knowledge-synthesis",
+        "rw.resume-evidence"
+      ],
+      "primary_references": [
+        "docs/guide/research/comparison_external_projects.md"
+      ],
+      "coverage_evidence": [
+        {
+          "label": "graph-compressed navigation reference",
+          "path": "docs/guide/research/comparison_external_projects.md",
+          "summary": "graphify informs rebuildable graph reports and pre-search guidance without replacing ELF storage."
+        }
+      ],
+      "last_seen": {
+        "observed_at": "2026-06-10T08:32:00.790878Z",
+        "source_url": "https://github.com/safishamsi/graphify",
+        "default_branch": "v8",
+        "pushed_at": "2026-06-08T22:58:46Z",
+        "updated_at": "2026-06-10T08:28:45Z",
+        "latest_release": {
+          "tag_name": "v0.8.36",
+          "url": "https://github.com/safishamsi/graphify/releases/tag/v0.8.36",
+          "published_at": "2026-06-08T22:58:46Z"
+        },
+        "stars": 64475,
+        "open_issues": 330,
+        "description": "AI coding assistant skill (Claude Code, Codex, OpenCode, Cursor, Gemini CLI, and more). Turn any folder of code, SQL schemas, R scripts, shell scripts, docs, papers, images, or videos into a queryable knowledge graph. App code + database schema + infrastructure in one graph."
+      }
+    }
+  ],
+  "last_run": {
+    "schema": "elf.external_memory_pattern_radar_run/v1",
+    "run_id": "external-memory-pattern-radar-2026-06-10",
+    "generated_at": "2026-06-10T08:32:00.790878Z",
+    "mode": "live",
+    "summary": {
+      "project_count": 16,
+      "covered_count": 16,
+      "rejected_count": 0,
+      "gap_count": 0,
+      "create_issue_count": 0,
+      "defer_count": 0,
+      "no_issue_count": 16
+    },
+    "decisions": [
+      {
+        "project_id": "agentmemory",
+        "upstream_change": "No GitHub metadata delta was observed since the prior cursor.",
+        "reusable_pattern": "No new candidate pattern was identified in this run.",
+        "elf_verdict": "covered",
+        "product_value": "Current ELF coverage remains represented by the comparison and inventory evidence.",
+        "duplicate_coverage_evidence": [
+          {
+            "label": "adapter evidence boundary",
+            "path": "docs/guide/research/comparison_external_projects.md",
+            "summary": "agentmemory is tracked for operator continuity and resume evidence, but current benchmark evidence does not prove durable lifecycle quality."
+          }
+        ],
+        "safety_boundary": "No external runtime is adopted by default; existing ELF evidence remains authoritative.",
+        "issue_decision": {
+          "action": "no_issue",
+          "rationale": "No issue was created because the run found no source-backed gap.",
+          "duplicate_search": {
+            "queried": false,
+            "query": "",
+            "result": "not_required_no_issue",
+            "evidence": [
+              "No Linear search is required when the issue decision is no_issue."
+            ]
+          },
+          "proposed_issue": null
+        },
+        "acceptance_evidence": [
+          "No-issue decision recorded in the cursor.",
+          "Coverage evidence points at checked-in ELF research docs."
+        ],
+        "source_links": [
+          "https://github.com/rohitg00/agentmemory",
+          "https://github.com/rohitg00/agentmemory/releases/tag/v0.9.27"
+        ]
+      },
+      {
+        "project_id": "mem0",
+        "upstream_change": "No GitHub metadata delta was observed since the prior cursor.",
+        "reusable_pattern": "No new candidate pattern was identified in this run.",
+        "elf_verdict": "covered",
+        "product_value": "Current ELF coverage remains represented by the comparison and inventory evidence.",
+        "duplicate_coverage_evidence": [
+          {
+            "label": "lifecycle and graph reference",
+            "path": "docs/guide/research/comparison_external_projects.md",
+            "summary": "mem0 remains the ecosystem and entity-scoped lifecycle reference while ELF keeps deterministic evidence-bound writes."
+          }
+        ],
+        "safety_boundary": "No external runtime is adopted by default; existing ELF evidence remains authoritative.",
+        "issue_decision": {
+          "action": "no_issue",
+          "rationale": "No issue was created because the run found no source-backed gap.",
+          "duplicate_search": {
+            "queried": false,
+            "query": "",
+            "result": "not_required_no_issue",
+            "evidence": [
+              "No Linear search is required when the issue decision is no_issue."
+            ]
+          },
+          "proposed_issue": null
+        },
+        "acceptance_evidence": [
+          "No-issue decision recorded in the cursor.",
+          "Coverage evidence points at checked-in ELF research docs."
+        ],
+        "source_links": [
+          "https://github.com/mem0ai/mem0",
+          "https://github.com/mem0ai/mem0/releases/tag/cli-node-v0.2.8"
+        ]
+      },
+      {
+        "project_id": "qmd",
+        "upstream_change": "No GitHub metadata delta was observed since the prior cursor.",
+        "reusable_pattern": "No new candidate pattern was identified in this run.",
+        "elf_verdict": "covered",
+        "product_value": "Current ELF coverage remains represented by the comparison and inventory evidence.",
+        "duplicate_coverage_evidence": [
+          {
+            "label": "retrieval-debug baseline",
+            "path": "docs/guide/research/comparison_external_projects.md",
+            "summary": "qmd is the strongest local retrieval-debug reference and has targeted live real-world adapter evidence."
+          }
+        ],
+        "safety_boundary": "No external runtime is adopted by default; existing ELF evidence remains authoritative.",
+        "issue_decision": {
+          "action": "no_issue",
+          "rationale": "No issue was created because the run found no source-backed gap.",
+          "duplicate_search": {
+            "queried": false,
+            "query": "",
+            "result": "not_required_no_issue",
+            "evidence": [
+              "No Linear search is required when the issue decision is no_issue."
+            ]
+          },
+          "proposed_issue": null
+        },
+        "acceptance_evidence": [
+          "No-issue decision recorded in the cursor.",
+          "Coverage evidence points at checked-in ELF research docs."
+        ],
+        "source_links": [
+          "https://github.com/tobi/qmd",
+          "https://github.com/tobi/qmd/releases/tag/v2.5.3"
+        ]
+      },
+      {
+        "project_id": "claude-mem",
+        "upstream_change": "No GitHub metadata delta was observed since the prior cursor.",
+        "reusable_pattern": "No new candidate pattern was identified in this run.",
+        "elf_verdict": "covered",
+        "product_value": "Current ELF coverage remains represented by the comparison and inventory evidence.",
+        "duplicate_coverage_evidence": [
+          {
+            "label": "progressive disclosure UX reference",
+            "path": "docs/guide/research/comparison_external_projects.md",
+            "summary": "claude-mem remains a product reference for progressive disclosure and viewer workflow, not a proven ELF replacement."
+          }
+        ],
+        "safety_boundary": "No external runtime is adopted by default; existing ELF evidence remains authoritative.",
+        "issue_decision": {
+          "action": "no_issue",
+          "rationale": "No issue was created because the run found no source-backed gap.",
+          "duplicate_search": {
+            "queried": false,
+            "query": "",
+            "result": "not_required_no_issue",
+            "evidence": [
+              "No Linear search is required when the issue decision is no_issue."
+            ]
+          },
+          "proposed_issue": null
+        },
+        "acceptance_evidence": [
+          "No-issue decision recorded in the cursor.",
+          "Coverage evidence points at checked-in ELF research docs."
+        ],
+        "source_links": [
+          "https://github.com/thedotmack/claude-mem",
+          "https://github.com/thedotmack/claude-mem/releases/tag/v13.5.4"
+        ]
+      },
+      {
+        "project_id": "openviking",
+        "upstream_change": "No GitHub metadata delta was observed since the prior cursor.",
+        "reusable_pattern": "No new candidate pattern was identified in this run.",
+        "elf_verdict": "covered",
+        "product_value": "Current ELF coverage remains represented by the comparison and inventory evidence.",
+        "duplicate_coverage_evidence": [
+          {
+            "label": "trajectory reference",
+            "path": "docs/guide/research/comparison_external_projects.md",
+            "summary": "OpenViking informs hierarchical context trajectory while current adapter evidence remains incomplete."
+          }
+        ],
+        "safety_boundary": "No external runtime is adopted by default; existing ELF evidence remains authoritative.",
+        "issue_decision": {
+          "action": "no_issue",
+          "rationale": "No issue was created because the run found no source-backed gap.",
+          "duplicate_search": {
+            "queried": false,
+            "query": "",
+            "result": "not_required_no_issue",
+            "evidence": [
+              "No Linear search is required when the issue decision is no_issue."
+            ]
+          },
+          "proposed_issue": null
+        },
+        "acceptance_evidence": [
+          "No-issue decision recorded in the cursor.",
+          "Coverage evidence points at checked-in ELF research docs."
+        ],
+        "source_links": [
+          "https://github.com/volcengine/OpenViking",
+          "https://github.com/volcengine/OpenViking/releases/tag/v0.3.24"
+        ]
+      },
+      {
+        "project_id": "graphiti",
+        "upstream_change": "No GitHub metadata delta was observed since the prior cursor.",
+        "reusable_pattern": "No new candidate pattern was identified in this run.",
+        "elf_verdict": "covered",
+        "product_value": "Current ELF coverage remains represented by the comparison and inventory evidence.",
+        "duplicate_coverage_evidence": [
+          {
+            "label": "temporal graph reference",
+            "path": "docs/guide/research/comparison_external_projects.md",
+            "summary": "Graphiti/Zep remains the broader temporal graph workflow reference for current-versus-historical facts."
+          }
+        ],
+        "safety_boundary": "No external runtime is adopted by default; existing ELF evidence remains authoritative.",
+        "issue_decision": {
+          "action": "no_issue",
+          "rationale": "No issue was created because the run found no source-backed gap.",
+          "duplicate_search": {
+            "queried": false,
+            "query": "",
+            "result": "not_required_no_issue",
+            "evidence": [
+              "No Linear search is required when the issue decision is no_issue."
+            ]
+          },
+          "proposed_issue": null
+        },
+        "acceptance_evidence": [
+          "No-issue decision recorded in the cursor.",
+          "Coverage evidence points at checked-in ELF research docs."
+        ],
+        "source_links": [
+          "https://github.com/getzep/graphiti",
+          "https://github.com/getzep/graphiti/releases/tag/v0.29.2"
+        ]
+      },
+      {
+        "project_id": "letta",
+        "upstream_change": "No GitHub metadata delta was observed since the prior cursor.",
+        "reusable_pattern": "No new candidate pattern was identified in this run.",
+        "elf_verdict": "covered",
+        "product_value": "Current ELF coverage remains represented by the comparison and inventory evidence.",
+        "duplicate_coverage_evidence": [
+          {
+            "label": "core versus archival memory reference",
+            "path": "docs/guide/research/comparison_external_projects.md",
+            "summary": "Letta informs core memory block ergonomics while ELF keeps archival notes source-of-truth bound."
+          }
+        ],
+        "safety_boundary": "No external runtime is adopted by default; existing ELF evidence remains authoritative.",
+        "issue_decision": {
+          "action": "no_issue",
+          "rationale": "No issue was created because the run found no source-backed gap.",
+          "duplicate_search": {
+            "queried": false,
+            "query": "",
+            "result": "not_required_no_issue",
+            "evidence": [
+              "No Linear search is required when the issue decision is no_issue."
+            ]
+          },
+          "proposed_issue": null
+        },
+        "acceptance_evidence": [
+          "No-issue decision recorded in the cursor.",
+          "Coverage evidence points at checked-in ELF research docs."
+        ],
+        "source_links": [
+          "https://github.com/letta-ai/letta",
+          "https://github.com/letta-ai/letta/releases/tag/0.16.8"
+        ]
+      },
+      {
+        "project_id": "lightrag",
+        "upstream_change": "No GitHub metadata delta was observed since the prior cursor.",
+        "reusable_pattern": "No new candidate pattern was identified in this run.",
+        "elf_verdict": "covered",
+        "product_value": "Current ELF coverage remains represented by the comparison and inventory evidence.",
+        "duplicate_coverage_evidence": [
+          {
+            "label": "research gate",
+            "path": "docs/guide/research/research_projects_inventory.md",
+            "summary": "LightRAG is a D0 watch item with a research gate; no adapter strength claim is allowed yet."
+          }
+        ],
+        "safety_boundary": "No external runtime is adopted by default; existing ELF evidence remains authoritative.",
+        "issue_decision": {
+          "action": "no_issue",
+          "rationale": "No issue was created because the run found no source-backed gap.",
+          "duplicate_search": {
+            "queried": false,
+            "query": "",
+            "result": "not_required_no_issue",
+            "evidence": [
+              "No Linear search is required when the issue decision is no_issue."
+            ]
+          },
+          "proposed_issue": null
+        },
+        "acceptance_evidence": [
+          "No-issue decision recorded in the cursor.",
+          "Coverage evidence points at checked-in ELF research docs."
+        ],
+        "source_links": [
+          "https://github.com/HKUDS/LightRAG",
+          "https://github.com/HKUDS/LightRAG/releases/tag/v1.5.1"
+        ]
+      },
+      {
+        "project_id": "graphrag",
+        "upstream_change": "No GitHub metadata delta was observed since the prior cursor.",
+        "reusable_pattern": "No new candidate pattern was identified in this run.",
+        "elf_verdict": "covered",
+        "product_value": "Current ELF coverage remains represented by the comparison and inventory evidence.",
+        "duplicate_coverage_evidence": [
+          {
+            "label": "research gate",
+            "path": "docs/guide/research/research_projects_inventory.md",
+            "summary": "GraphRAG is a D0 watch item with a research gate; no adapter strength claim is allowed yet."
+          }
+        ],
+        "safety_boundary": "No external runtime is adopted by default; existing ELF evidence remains authoritative.",
+        "issue_decision": {
+          "action": "no_issue",
+          "rationale": "No issue was created because the run found no source-backed gap.",
+          "duplicate_search": {
+            "queried": false,
+            "query": "",
+            "result": "not_required_no_issue",
+            "evidence": [
+              "No Linear search is required when the issue decision is no_issue."
+            ]
+          },
+          "proposed_issue": null
+        },
+        "acceptance_evidence": [
+          "No-issue decision recorded in the cursor.",
+          "Coverage evidence points at checked-in ELF research docs."
+        ],
+        "source_links": [
+          "https://github.com/microsoft/graphrag",
+          "https://github.com/microsoft/graphrag/releases/tag/v3.1.0"
+        ]
+      },
+      {
+        "project_id": "ragflow",
+        "upstream_change": "No GitHub metadata delta was observed since the prior cursor.",
+        "reusable_pattern": "No new candidate pattern was identified in this run.",
+        "elf_verdict": "covered",
+        "product_value": "Current ELF coverage remains represented by the comparison and inventory evidence.",
+        "duplicate_coverage_evidence": [
+          {
+            "label": "research gate",
+            "path": "docs/guide/research/research_projects_inventory.md",
+            "summary": "RAGFlow is a D0 watch item with a research gate; no adapter strength claim is allowed yet."
+          }
+        ],
+        "safety_boundary": "No external runtime is adopted by default; existing ELF evidence remains authoritative.",
+        "issue_decision": {
+          "action": "no_issue",
+          "rationale": "No issue was created because the run found no source-backed gap.",
+          "duplicate_search": {
+            "queried": false,
+            "query": "",
+            "result": "not_required_no_issue",
+            "evidence": [
+              "No Linear search is required when the issue decision is no_issue."
+            ]
+          },
+          "proposed_issue": null
+        },
+        "acceptance_evidence": [
+          "No-issue decision recorded in the cursor.",
+          "Coverage evidence points at checked-in ELF research docs."
+        ],
+        "source_links": [
+          "https://github.com/infiniflow/ragflow",
+          "https://github.com/infiniflow/ragflow/releases/tag/v0.25.6"
+        ]
+      },
+      {
+        "project_id": "memsearch",
+        "upstream_change": "No GitHub metadata delta was observed since the prior cursor.",
+        "reusable_pattern": "No new candidate pattern was identified in this run.",
+        "elf_verdict": "covered",
+        "product_value": "Current ELF coverage remains represented by the comparison and inventory evidence.",
+        "duplicate_coverage_evidence": [
+          {
+            "label": "markdown-first reference",
+            "path": "docs/guide/research/comparison_external_projects.md",
+            "summary": "memsearch remains a source-transparency reference while current adapter evidence is incomplete or wrong-result typed."
+          }
+        ],
+        "safety_boundary": "No external runtime is adopted by default; existing ELF evidence remains authoritative.",
+        "issue_decision": {
+          "action": "no_issue",
+          "rationale": "No issue was created because the run found no source-backed gap.",
+          "duplicate_search": {
+            "queried": false,
+            "query": "",
+            "result": "not_required_no_issue",
+            "evidence": [
+              "No Linear search is required when the issue decision is no_issue."
+            ]
+          },
+          "proposed_issue": null
+        },
+        "acceptance_evidence": [
+          "No-issue decision recorded in the cursor.",
+          "Coverage evidence points at checked-in ELF research docs."
+        ],
+        "source_links": [
+          "https://github.com/zilliztech/memsearch",
+          "https://github.com/zilliztech/memsearch/releases/tag/v0.4.6"
+        ]
+      },
+      {
+        "project_id": "langgraph",
+        "upstream_change": "No GitHub metadata delta was observed since the prior cursor.",
+        "reusable_pattern": "No new candidate pattern was identified in this run.",
+        "elf_verdict": "covered",
+        "product_value": "Current ELF coverage remains represented by the comparison and inventory evidence.",
+        "duplicate_coverage_evidence": [
+          {
+            "label": "replay regression reference",
+            "path": "docs/guide/research/comparison_external_projects.md",
+            "summary": "LangGraph informs replay and checkpoint regression workflows; ELF traces do not replace full agent-state replay."
+          }
+        ],
+        "safety_boundary": "No external runtime is adopted by default; existing ELF evidence remains authoritative.",
+        "issue_decision": {
+          "action": "no_issue",
+          "rationale": "No issue was created because the run found no source-backed gap.",
+          "duplicate_search": {
+            "queried": false,
+            "query": "",
+            "result": "not_required_no_issue",
+            "evidence": [
+              "No Linear search is required when the issue decision is no_issue."
+            ]
+          },
+          "proposed_issue": null
+        },
+        "acceptance_evidence": [
+          "No-issue decision recorded in the cursor.",
+          "Coverage evidence points at checked-in ELF research docs."
+        ],
+        "source_links": [
+          "https://github.com/langchain-ai/langgraph",
+          "https://github.com/langchain-ai/langgraph/releases/tag/1.2.4"
+        ]
+      },
+      {
+        "project_id": "nanograph",
+        "upstream_change": "No GitHub metadata delta was observed since the prior cursor.",
+        "reusable_pattern": "No new candidate pattern was identified in this run.",
+        "elf_verdict": "covered",
+        "product_value": "Current ELF coverage remains represented by the comparison and inventory evidence.",
+        "duplicate_coverage_evidence": [
+          {
+            "label": "typed graph ergonomics reference",
+            "path": "docs/guide/research/comparison_external_projects.md",
+            "summary": "nanograph is a typed graph DX reference, not a full memory backend benchmark claim."
+          }
+        ],
+        "safety_boundary": "No external runtime is adopted by default; existing ELF evidence remains authoritative.",
+        "issue_decision": {
+          "action": "no_issue",
+          "rationale": "No issue was created because the run found no source-backed gap.",
+          "duplicate_search": {
+            "queried": false,
+            "query": "",
+            "result": "not_required_no_issue",
+            "evidence": [
+              "No Linear search is required when the issue decision is no_issue."
+            ]
+          },
+          "proposed_issue": null
+        },
+        "acceptance_evidence": [
+          "No-issue decision recorded in the cursor.",
+          "Coverage evidence points at checked-in ELF research docs."
+        ],
+        "source_links": [
+          "https://github.com/nanograph/nanograph",
+          "https://github.com/nanograph/nanograph/releases/tag/v1.3.0"
+        ]
+      },
+      {
+        "project_id": "llm-wiki",
+        "upstream_change": "No GitHub metadata delta was observed since the prior cursor.",
+        "reusable_pattern": "No new candidate pattern was identified in this run.",
+        "elf_verdict": "covered",
+        "product_value": "Current ELF coverage remains represented by the comparison and inventory evidence.",
+        "duplicate_coverage_evidence": [
+          {
+            "label": "derived knowledge pages reference",
+            "path": "docs/guide/research/comparison_external_projects.md",
+            "summary": "llm-wiki informs rebuildable cited knowledge pages and lint/repair loops."
+          }
+        ],
+        "safety_boundary": "No external runtime is adopted by default; existing ELF evidence remains authoritative.",
+        "issue_decision": {
+          "action": "no_issue",
+          "rationale": "No issue was created because the run found no source-backed gap.",
+          "duplicate_search": {
+            "queried": false,
+            "query": "",
+            "result": "not_required_no_issue",
+            "evidence": [
+              "No Linear search is required when the issue decision is no_issue."
+            ]
+          },
+          "proposed_issue": null
+        },
+        "acceptance_evidence": [
+          "No-issue decision recorded in the cursor.",
+          "Coverage evidence points at checked-in ELF research docs."
+        ],
+        "source_links": [
+          "https://github.com/nvk/llm-wiki",
+          "https://github.com/nvk/llm-wiki/releases/tag/v0.10.2"
+        ]
+      },
+      {
+        "project_id": "gbrain",
+        "upstream_change": "No GitHub metadata delta was observed since the prior cursor.",
+        "reusable_pattern": "No new candidate pattern was identified in this run.",
+        "elf_verdict": "covered",
+        "product_value": "Current ELF coverage remains represented by the comparison and inventory evidence.",
+        "duplicate_coverage_evidence": [
+          {
+            "label": "operational brain reference",
+            "path": "docs/guide/research/comparison_external_projects.md",
+            "summary": "gbrain informs current-truth and timeline presentation while ELF source notes remain authoritative."
+          }
+        ],
+        "safety_boundary": "No external runtime is adopted by default; existing ELF evidence remains authoritative.",
+        "issue_decision": {
+          "action": "no_issue",
+          "rationale": "No issue was created because the run found no source-backed gap.",
+          "duplicate_search": {
+            "queried": false,
+            "query": "",
+            "result": "not_required_no_issue",
+            "evidence": [
+              "No Linear search is required when the issue decision is no_issue."
+            ]
+          },
+          "proposed_issue": null
+        },
+        "acceptance_evidence": [
+          "No-issue decision recorded in the cursor.",
+          "Coverage evidence points at checked-in ELF research docs."
+        ],
+        "source_links": [
+          "https://github.com/garrytan/gbrain"
+        ]
+      },
+      {
+        "project_id": "graphify",
+        "upstream_change": "No GitHub metadata delta was observed since the prior cursor.",
+        "reusable_pattern": "No new candidate pattern was identified in this run.",
+        "elf_verdict": "covered",
+        "product_value": "Current ELF coverage remains represented by the comparison and inventory evidence.",
+        "duplicate_coverage_evidence": [
+          {
+            "label": "graph-compressed navigation reference",
+            "path": "docs/guide/research/comparison_external_projects.md",
+            "summary": "graphify informs rebuildable graph reports and pre-search guidance without replacing ELF storage."
+          }
+        ],
+        "safety_boundary": "No external runtime is adopted by default; existing ELF evidence remains authoritative.",
+        "issue_decision": {
+          "action": "no_issue",
+          "rationale": "No issue was created because the run found no source-backed gap.",
+          "duplicate_search": {
+            "queried": false,
+            "query": "",
+            "result": "not_required_no_issue",
+            "evidence": [
+              "No Linear search is required when the issue decision is no_issue."
+            ]
+          },
+          "proposed_issue": null
+        },
+        "acceptance_evidence": [
+          "No-issue decision recorded in the cursor.",
+          "Coverage evidence points at checked-in ELF research docs."
+        ],
+        "source_links": [
+          "https://github.com/safishamsi/graphify",
+          "https://github.com/safishamsi/graphify/releases/tag/v0.8.36"
+        ]
+      }
+    ]
+  }
+}
