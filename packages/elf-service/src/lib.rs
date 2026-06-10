@@ -7,6 +7,7 @@ pub mod add_note;
 pub mod admin;
 pub mod admin_graph_predicates;
 pub mod consolidation;
+pub mod core_blocks;
 pub mod delete;
 pub mod docs;
 pub mod graph;
@@ -45,6 +46,12 @@ pub use self::{
 		ConsolidationProposalsListRequest, ConsolidationProposalsListResponse,
 		ConsolidationRunCreateRequest, ConsolidationRunCreateResponse, ConsolidationRunGetRequest,
 		ConsolidationRunResponse, ConsolidationRunsListRequest, ConsolidationRunsListResponse,
+	},
+	core_blocks::{
+		CoreBlockAttachRequest, CoreBlockAttachResponse, CoreBlockDetachRequest,
+		CoreBlockDetachResponse, CoreBlockItem, CoreBlockRecord, CoreBlockUpsertRequest,
+		CoreBlockUpsertResponse, CoreBlocksGetRequest, CoreBlocksResponse,
+		ELF_CORE_MEMORY_BLOCKS_SCHEMA_V1,
 	},
 	delete::{DeleteRequest, DeleteResponse},
 	docs::{
