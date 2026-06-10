@@ -822,12 +822,21 @@ args = [
 # | real-world-memory-knowledge-json   | command   | |
 # | real-world-memory-knowledge-report | command   | |
 # | ragflow-docker-smoke               | command   | |
+# | lightrag-docker-context-smoke      | command   | |
 
 [tasks.ragflow-docker-smoke]
 workspace = false
 command = "bash"
 args = [
 	"scripts/ragflow-docker-evidence-smoke.sh",
+]
+
+[tasks.lightrag-docker-context-smoke]
+workspace = false
+command = "bash"
+args = [
+	"-lc",
+	"set -euo pipefail; start=\"$(printenv ELF_LIGHTRAG_CONTEXT_START || true)\"; status=0; if [ \"$start\" = \"1\" ]; then docker compose -f docker-compose.baseline.yml --profile lightrag up -d lightrag; fi; docker compose -f docker-compose.baseline.yml run --build --rm baseline-runner bash scripts/lightrag-docker-context-smoke.sh || status=$?; if [ \"$start\" = \"1\" ]; then docker compose -f docker-compose.baseline.yml --profile lightrag stop lightrag lightrag-mock-provider >/dev/null 2>&1 || true; fi; exit \"$status\"",
 ]
 
 [tasks.real-world-memory-knowledge]

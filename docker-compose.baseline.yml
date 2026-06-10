@@ -22,6 +22,56 @@ services:
     volumes:
       - elf-live-baseline-qdrant-data:/qdrant/storage
 
+  lightrag-mock-provider:
+    profiles:
+      - lightrag
+    image: python:3.13-slim
+    environment:
+      ELF_LIGHTRAG_MOCK_EMBEDDING_DIM: ${ELF_LIGHTRAG_EMBEDDING_DIM:-64}
+      ELF_LIGHTRAG_MOCK_HOST: 0.0.0.0
+      ELF_LIGHTRAG_MOCK_PORT: 8080
+    command:
+      - python
+      - /app/scripts/lightrag-mock-openai-provider.py
+    volumes:
+      - ./scripts/lightrag-mock-openai-provider.py:/app/scripts/lightrag-mock-openai-provider.py:ro
+
+  lightrag:
+    profiles:
+      - lightrag
+    image: ${ELF_LIGHTRAG_IMAGE:-ghcr.io/hkuds/lightrag:latest}
+    depends_on:
+      - lightrag-mock-provider
+    environment:
+      WORKING_DIR: /app/data/rag_storage
+      INPUT_DIR: /app/data/inputs
+      PROMPT_DIR: /app/data/prompts
+      HOST: 0.0.0.0
+      PORT: 9621
+      LLM_BINDING: ${ELF_LIGHTRAG_LLM_BINDING:-openai}
+      LLM_BINDING_HOST: ${ELF_LIGHTRAG_LLM_BINDING_HOST:-http://lightrag-mock-provider:8080/v1}
+      LLM_BINDING_API_KEY: ${ELF_LIGHTRAG_LLM_BINDING_API_KEY:-local-key}
+      LLM_MODEL: ${ELF_LIGHTRAG_LLM_MODEL:-elf-lightrag-mock}
+      EMBEDDING_BINDING: ${ELF_LIGHTRAG_EMBEDDING_BINDING:-openai}
+      EMBEDDING_BINDING_HOST: ${ELF_LIGHTRAG_EMBEDDING_BINDING_HOST:-http://lightrag-mock-provider:8080/v1}
+      EMBEDDING_BINDING_API_KEY: ${ELF_LIGHTRAG_EMBEDDING_BINDING_API_KEY:-local-key}
+      EMBEDDING_MODEL: ${ELF_LIGHTRAG_EMBEDDING_MODEL:-elf-lightrag-mock-embedding}
+      EMBEDDING_DIM: ${ELF_LIGHTRAG_EMBEDDING_DIM:-64}
+      RERANK_BY_DEFAULT: ${ELF_LIGHTRAG_RERANK_BY_DEFAULT:-False}
+      RERANK_BINDING: ${ELF_LIGHTRAG_RERANK_BINDING:-cohere}
+      RERANK_BINDING_HOST: ${ELF_LIGHTRAG_RERANK_BINDING_HOST:-http://lightrag-mock-provider:8080/rerank}
+      RERANK_BINDING_API_KEY: ${ELF_LIGHTRAG_RERANK_BINDING_API_KEY:-local-key}
+      RERANK_MODEL: ${ELF_LIGHTRAG_RERANK_MODEL:-elf-lightrag-mock-rerank}
+      MAX_ASYNC_LLM: ${ELF_LIGHTRAG_MAX_ASYNC_LLM:-1}
+      MAX_ASYNC_RERANK: ${ELF_LIGHTRAG_MAX_ASYNC_RERANK:-1}
+      MAX_PARALLEL_INSERT: ${ELF_LIGHTRAG_MAX_PARALLEL_INSERT:-1}
+      CHUNK_SIZE: ${ELF_LIGHTRAG_CHUNK_SIZE:-320}
+      CHUNK_OVERLAP_SIZE: ${ELF_LIGHTRAG_CHUNK_OVERLAP_SIZE:-32}
+    volumes:
+      - elf-live-baseline-lightrag-rag-storage:/app/data/rag_storage
+      - elf-live-baseline-lightrag-inputs:/app/data/inputs
+      - elf-live-baseline-lightrag-prompts:/app/data/prompts
+
   baseline-runner:
     build:
       context: .
@@ -100,6 +150,9 @@ volumes:
   elf-live-baseline-cargo-git:
   elf-live-baseline-cargo-registry:
   elf-live-baseline-huggingface-cache:
+  elf-live-baseline-lightrag-inputs:
+  elf-live-baseline-lightrag-prompts:
+  elf-live-baseline-lightrag-rag-storage:
   elf-live-baseline-npm-cache:
   elf-live-baseline-pip-cache:
   elf-live-baseline-postgres-data:
