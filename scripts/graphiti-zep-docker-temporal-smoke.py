@@ -368,8 +368,6 @@ def write_live_runner(path: Path) -> None:
         "falkordb": {
             "host": FALKORDB_HOST,
             "port": FALKORDB_PORT,
-            "username": FALKORDB_USERNAME or None,
-            "password": FALKORDB_PASSWORD or None,
             "database": FALKORDB_DATABASE,
         },
         "models": {
@@ -411,8 +409,8 @@ async def main():
     driver = FalkorDriver(
         host=config["host"],
         port=config["port"],
-        username=config.get("username"),
-        password=config.get("password"),
+        username=os.environ.get("ELF_GRAPHITI_ZEP_FALKORDB_USERNAME") or None,
+        password=os.environ.get("ELF_GRAPHITI_ZEP_FALKORDB_PASSWORD") or None,
         database=config.get("database") or "default_db",
     )
     graphiti = Graphiti(graph_driver=driver)
@@ -477,6 +475,10 @@ def run_graphiti(python: Path, command_records: list[CommandRecord]) -> tuple[li
 
     if API_BASE:
         env["OPENAI_BASE_URL"] = API_BASE
+    if FALKORDB_USERNAME:
+        env["ELF_GRAPHITI_ZEP_FALKORDB_USERNAME"] = FALKORDB_USERNAME
+    if FALKORDB_PASSWORD:
+        env["ELF_GRAPHITI_ZEP_FALKORDB_PASSWORD"] = FALKORDB_PASSWORD
 
     record = run_command("graphiti-live-run", [str(python), str(runner)], WORK_DIR, extra_env=env)
     command_records.append(record)
@@ -779,27 +781,6 @@ def write_fixture(facts: list[dict[str, Any]], status: StatusState, mapping: dic
     write_json(fixture_path, fixture)
 
     return fixture_path
-
-
-def scrub_report_secrets() -> None:
-    """Remove provider secrets from text artifacts before reporting."""
-
-    if not API_KEY:
-        return
-
-    for root in (WORK_DIR, LOG_DIR):
-        if not root.exists():
-            continue
-
-        for path in root.rglob("*"):
-            if not path.is_file() or path.suffix not in {".env", ".json", ".log", ".py", ".txt", ".yaml", ".yml"}:
-                continue
-            try:
-                content = path.read_text(encoding="utf-8")
-            except UnicodeDecodeError:
-                continue
-            if API_KEY in content:
-                path.write_text(content.replace(API_KEY, "<redacted>"), encoding="utf-8")
 
 
 def write_materialization(
@@ -1148,7 +1129,6 @@ def main() -> int:
                     status.failure_class = "graphiti_temporal_mapping_failed"
                     status.failure_reason = mapping["reason"]
 
-    scrub_report_secrets()
     fixture_path = write_fixture(facts, status, mapping)
     materialization = write_materialization(
         status,
