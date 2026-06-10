@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPORT_DIR="${ELF_REAL_WORLD_LIVE_REPORT_DIR:-${ROOT_DIR}/tmp/real-world-memory/live-adapters}"
-FIXTURE_DIR="${ELF_REAL_WORLD_LIVE_FIXTURES:-${ROOT_DIR}/apps/elf-eval/fixtures/real_world_live_adapters}"
+FIXTURE_DIR="${ELF_REAL_WORLD_LIVE_FIXTURES:-${ROOT_DIR}/apps/elf-eval/fixtures/real_world_memory}"
 WORK_DIR="${ELF_REAL_WORLD_LIVE_WORK_DIR:-/bench/real-world-live-adapters}"
 QMD_DIR="${ELF_REAL_WORLD_QMD_DIR:-/bench/repos/qmd}"
 
@@ -47,7 +47,7 @@ cargo run -p elf-eval --bin real_world_job_benchmark -- run \
   --adapter-behavior live_real_world_adapter \
   --adapter-storage-status pass \
   --adapter-runtime-status pass \
-  --adapter-notes "Materialized by real_world_live_adapter through ElfService, worker indexing, and search_raw."
+  --adapter-notes "Materialized by real_world_live_adapter through ElfService, worker indexing, and search_raw across the encoded real-world suite corpus; unsupported suite capabilities remain typed non-pass records."
 
 cargo run -p elf-eval --bin real_world_job_benchmark -- publish \
   --report "${REPORT_DIR}/elf-report.json" \
@@ -69,7 +69,7 @@ cargo run -p elf-eval --bin real_world_job_benchmark -- run \
   --adapter-behavior live_real_world_adapter \
   --adapter-storage-status pass \
   --adapter-runtime-status pass \
-  --adapter-notes "Materialized by real_world_live_adapter through qmd collection add, update, embed, and query --json."
+  --adapter-notes "Materialized by real_world_live_adapter through qmd collection add, update, embed, and query --json across the encoded real-world suite corpus; unsupported suite capabilities remain typed non-pass records."
 
 cargo run -p elf-eval --bin real_world_job_benchmark -- publish \
   --report "${REPORT_DIR}/qmd-report.json" \
@@ -81,9 +81,10 @@ jq -n \
   --slurpfile elf_report "${REPORT_DIR}/elf-report.json" \
   --slurpfile qmd_report "${REPORT_DIR}/qmd-report.json" \
   '{
-    schema: "elf.real_world_live_adapter_slice/v1",
-    generated_at: now | todateiso8601,
+    schema: "elf.real_world_live_adapter_sweep/v1",
+    generated_at: (now | todateiso8601),
     artifact_dir: (env.ELF_REAL_WORLD_LIVE_REPORT_DIR // "tmp/real-world-memory/live-adapters"),
+    fixture_dir: (env.ELF_REAL_WORLD_LIVE_FIXTURES // "apps/elf-eval/fixtures/real_world_memory"),
     adapters: [
       {
         adapter_id: "elf_live_real_world",
@@ -92,7 +93,8 @@ jq -n \
         report: {
           json: "tmp/real-world-memory/live-adapters/elf-report.json",
           markdown: "tmp/real-world-memory/live-adapters/elf-report.md",
-          summary: $elf_report[0].summary
+          summary: $elf_report[0].summary,
+          suites: $elf_report[0].suites
         }
       },
       {
@@ -102,7 +104,8 @@ jq -n \
         report: {
           json: "tmp/real-world-memory/live-adapters/qmd-report.json",
           markdown: "tmp/real-world-memory/live-adapters/qmd-report.md",
-          summary: $qmd_report[0].summary
+          summary: $qmd_report[0].summary,
+          suites: $qmd_report[0].suites
         }
       }
     ]
