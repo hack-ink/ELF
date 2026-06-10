@@ -71,6 +71,11 @@ fixture-backed, live-baseline-only, or live-real-world evidence. Other external
 projects remain live-baseline-only, incomplete, blocked, or not encoded until their
 own `real_world_job` adapters run.
 
+XY-882 adds D1/D2 feasibility verdicts for the RAG and graph-memory research gates.
+`adapter_candidate` means an implementation follow-up is justified because a scoped
+Docker boundary and evidence-linked output contract exist. It does not mean a Docker
+adapter has run, and it does not change the `research_gate` evidence class.
+
 Benchmark suite labels:
 
 | Suite | Real-world job shape |
@@ -106,15 +111,20 @@ Project-to-suite map:
 | Graphiti / Zep | `rw.graph-temporal`, `rw.resume-evidence` | Temporal entities, relations, fact triples, validity windows, and graph search directly target stale/contradictory factual memory. | Add fact triples with validity changes, query current and historical answers, and score invalidation/append behavior under contradiction traps. | Docs-grounded D1; no benchmark adapter evidence. Confidence: medium-high for temporal-graph dimension. | ELF graph-lite covers evidence-linked validity windows and current/historical relation context; Graphiti/Zep remains the reference for broader temporal graph workflows. |
 | nanograph | `rw.graph-temporal`, `rw.retrieval-debug` | Typed schema and typed query ergonomics are relevant to making ELF graph-lite interactions inspectable and hard to misuse. | Define typed graph schemas and queries for the same fact set, then score developer-visible validation, query shape, and explainability rather than retrieval quality alone. | Docs-grounded D1; no benchmark adapter evidence. Confidence: medium for DX reference, low for memory-system comparison. | ELF should borrow typed graph ergonomics without treating nanograph as a full memory backend. |
 
-Pending watch items remain D0 even when they have checked-in `research_gate` adapter
-records. Keep them out of benchmark strength claims until current D1/D2 evidence is
-gathered and a Docker-isolated adapter actually runs:
+XY-882 feasibility verdicts for RAG and graph-memory gates:
 
-| Watch item | Candidate suite if promoted | Minimum evidence needed before adapter or quality claims |
-| ---------- | --------------------------- | ------------------------------------------------------- |
-| RAGFlow | `rw.resume-evidence`, `rw.graph-navigation`, `rw.retrieval-debug` | D1/D2 deep dive on deployability, corpus ingestion, graph/RAG retrieval path, API/CLI outputs, and Docker resource envelope. |
-| LightRAG | `rw.graph-navigation`, `rw.graph-temporal`, `rw.retrieval-debug` | D1/D2 deep dive on graph extraction/update semantics, local persistence, query output, and whether stale/corrected facts can be tested fairly. |
-| GraphRAG | `rw.graph-navigation`, `rw.knowledge-synthesis`, `rw.retrieval-debug` | D1/D2 deep dive on indexing cost, graph summaries, update/rebuild behavior, source citation guarantees, and task-level output inspectability. |
+| Project | Verdict | Docker boundary | Evidence-linked output contract | Follow-up |
+| ------- | ------- | --------------- | ------------------------------- | --------- |
+| RAGFlow | `adapter_candidate` | Official Docker Compose path, but the first adapter must use a tiny CPU corpus and record the 4 CPU / 16 GB RAM / 50 GB disk envelope, image size, `vm.max_map_count`, provider needs, and retry behavior. | OpenAI-compatible and agent completion responses can include `reference.chunks` with chunk id, document id/name, metadata, dataset id, positions, and similarity fields. | [XY-885](https://linear.app/hack-ink/issue/XY-885/elf-benchmark-adapter-implement-ragflow-docker-evidence-smoke-adapter); no live pass claim. |
+| LightRAG | `adapter_candidate` | Docker Compose server with explicit LLM, embedding, rerank, storage, workspace, and data-volume configuration. | Context-only query modes can return the context prepared for the LLM; core APIs can insert documents with ids and source file paths. | [XY-886](https://linear.app/hack-ink/issue/XY-886/elf-benchmark-adapter-implement-lightrag-docker-context-export-adapter); no live pass claim. |
+| GraphRAG | `adapter_candidate` | Cost-bounded Docker Python CLI/API run over a generated tiny corpus with container-local parquet artifacts. | Output tables contain generated UUIDs, human-readable ids, source documents, text units, community reports, and text-unit links for graph summaries and relationships. | [XY-887](https://linear.app/hack-ink/issue/XY-887/elf-benchmark-adapter-implement-graphrag-cost-bounded-docker-adapter); no live pass claim. |
+| Graphiti / Zep | `adapter_candidate` | Docker-local FalkorDB or Neo4j plus Python SDK runner with provider config captured under benchmark artifacts. | Search results and fact triples expose UUIDs, fact text, and validity windows (`valid_at` / `invalid_at`) that map to memory-evolution scoring. | [XY-888](https://linear.app/hack-ink/issue/XY-888/elf-benchmark-adapter-implement-graphitizep-temporal-graph-adapter); no live pass claim. |
+| graphify | `adapter_candidate` | Docker-only CLI/materializer using `pip install graphifyy` over a mounted corpus; host-global assistant hooks are out of scope. | `graph.json`, `GRAPH_REPORT.md`, and graph query output include edge types, confidence tags, source files, and source locations. | [XY-889](https://linear.app/hack-ink/issue/XY-889/elf-benchmark-adapter-implement-graphify-docker-graph-report-adapter); no live pass claim. |
+| Letta | `research_only` | Docker server exists, but current docs require explicit embedding configuration and steer Letta Code evaluation toward non-Docker local/frontier-model exploration. | Core/archival memory and shared blocks remain useful semantics, but no contained evidence export is selected for this adapter batch. | No implementation issue. |
+| LangGraph | `research_only` | A Docker harness is possible, but the project is an agent-state/checkpoint framework rather than a standalone memory adapter. | Store search and checkpoints are references for replay-regression jobs, not a direct external memory output contract here. | No implementation issue. |
+| nanograph | `research_only` | Official positioning is one CLI / one folder / no server / no Docker. | Typed schema, query, CDC, and search ergonomics remain graph-lite DX inspiration. | No implementation issue. |
+| llm-wiki | `research_only` | Plugin or instruction-file workflow would require a contained harness before scoring; host-global plugin installs are not proof. | Wiki compile/query/lint/audit workflows are derived-knowledge references, not current adapter outputs. | No implementation issue. |
+| gbrain | `blocked` | A Docker-local brain repo and database setup path was not proven in this lane. | Compiled truth, timeline, and source attribution are strong, but not enough for implementation without contained setup proof. | No implementation issue until Docker setup is proven. |
 
 ## Where ELF Is Not Yet The Reference
 
@@ -129,7 +139,7 @@ gathered and a Docker-isolated adapter actually runs:
 | Agent replay and forkable regression debugging | LangGraph | ELF traces are replay evidence for retrieval, not full persisted agent-state replay with side-effect boundaries. |
 | Derived knowledge pages and lint/repair loops | llm-wiki, gbrain | ELF does not yet ship rebuildable entity/project pages with unsupported-claim lint as a first-class workflow. |
 | Scheduled consolidation as a product surface | Always-On Memory Agent | ELF's target should be reviewable derived consolidation, but the scheduling/operator-control workflow is not implemented. |
-| Graph-compressed navigation over large corpora | graphify, GraphRAG/LightRAG watch items | ELF relation context is bounded and evidence-linked, but broader graph report/navigation workflows remain future work. |
+| Graph-compressed navigation over large corpora | graphify, GraphRAG/LightRAG adapter candidates | ELF relation context is bounded and evidence-linked, but broader graph report/navigation workflows remain future work. |
 
 ## June 2026 Agentmemory And Dreaming Refresh
 
@@ -400,6 +410,20 @@ Snapshot date for this subsection: February 17, 2026.
 
 ## Extended Source Map
 
+- RAGFlow:
+  - https://ragflow.io/docs/
+  - https://github.com/infiniflow/ragflow/blob/main/docker/README.md
+  - https://raw.githubusercontent.com/infiniflow/ragflow/main/docs/references/http_api_reference.md
+- LightRAG:
+  - https://github.com/HKUDS/LightRAG
+  - https://raw.githubusercontent.com/HKUDS/LightRAG/main/docs/DockerDeployment.md
+  - https://raw.githubusercontent.com/HKUDS/LightRAG/main/docs/LightRAG-API-Server.md
+  - https://raw.githubusercontent.com/HKUDS/LightRAG/main/docs/ProgramingWithCore.md
+- GraphRAG:
+  - https://microsoft.github.io/graphrag/
+  - https://microsoft.github.io/graphrag/index/inputs/
+  - https://microsoft.github.io/graphrag/index/outputs/
+  - https://microsoft.github.io/graphrag/query/local_search/
 - mem0:
   - https://docs.mem0.ai/platform/features/entity-scoped-memory
   - https://docs.mem0.ai/platform/features/graph-memory
