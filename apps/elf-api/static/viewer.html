@@ -1463,13 +1463,14 @@
 			}
 			return section("Relation Context", [
 				table(
-					["Rank", "Scope", "Subject", "Predicate", "Object", "Evidence Notes"],
+					["Rank", "Scope", "Subject", "Predicate", "Object", "Temporal", "Evidence Notes"],
 					relations.map(({ item, context }) => [
 						item.rank,
 						context.scope,
 						getPath(context, ["subject", "canonical"]) || "none",
 						context.predicate,
 						getPath(context, ["object", "entity", "canonical"]) || getPath(context, ["object", "value"]) || "none",
+						context.temporal_status || "current",
 						(context.evidence_note_ids || []).join(", ")
 					])
 				)

@@ -15,8 +15,9 @@ use uuid::Uuid;
 use crate::acceptance::{self, SpyExtractor, StubEmbedding, StubRerank};
 use elf_config::ProviderConfig;
 use elf_service::{
-	BoxFuture, ElfService, NoteFetchResponse, PayloadLevel, Providers, RerankProvider, Result,
-	SearchDetailsRequest, SearchRequest, SearchTimelineRequest, TraceTrajectoryGetRequest,
+	BoxFuture, ElfService, NoteFetchResponse, PayloadLevel, Providers, RelationTemporalStatus,
+	RerankProvider, Result, SearchDetailsRequest, SearchRequest, SearchTimelineRequest,
+	TraceTrajectoryGetRequest,
 };
 use elf_storage::qdrant::{BM25_MODEL, BM25_VECTOR_NAME, DENSE_VECTOR_NAME};
 use elf_testkit::TestDatabase;
@@ -585,7 +586,7 @@ async fn setup_graph_context_test(
 async fn seed_relation_context_fixture(
 	service: &ElfService,
 	embedding_version: &str,
-) -> (Uuid, Uuid) {
+) -> (Uuid, Uuid, Uuid) {
 	let now = OffsetDateTime::now_utc();
 	let note_id = Uuid::new_v4();
 	let note_id_2 = Uuid::new_v4();
@@ -630,7 +631,7 @@ async fn seed_relation_context_fixture(
 		predicate_id,
 		"Bob",
 		older_fact_valid_from,
-		None,
+		Some(newer_fact_valid_from),
 	)
 	.await;
 	insert_graph_fact_evidence(
@@ -666,7 +667,7 @@ async fn seed_relation_context_fixture(
 	)
 	.await;
 
-	(note_id, newer_fact_id)
+	(note_id, newer_fact_id, older_fact_id)
 }
 
 #[tokio::test]
@@ -769,8 +770,70 @@ async fn search_raw_quick_includes_relation_context_and_respects_fact_bounds() {
 		"Expected the most recent fact after truncation."
 	);
 	assert_eq!(relation_context[0].object.value.as_deref(), Some("Carol"));
+	assert_eq!(relation_context[0].temporal_status, RelationTemporalStatus::Current);
+	assert!(relation_context[0].valid_to.is_none());
 	assert_eq!(relation_context[0].evidence_note_ids.len(), 1);
 	assert_eq!(relation_context[0].evidence_note_ids[0], note_id);
+
+	context.test_db.cleanup().await.expect("Failed to cleanup test database.");
+}
+
+#[tokio::test]
+#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
+async fn search_raw_quick_marks_historical_relation_context() {
+	let providers = build_providers(StubRerank);
+	let Some(context) = setup_graph_context_test(
+		"search_raw_quick_marks_historical_relation_context",
+		providers,
+		2,
+		2,
+	)
+	.await
+	else {
+		return;
+	};
+	let fixture = seed_relation_context_fixture(&context.service, &context.embedding_version).await;
+	let older_fact_id = fixture.2;
+	let response = context
+		.service
+		.search_raw_quick(SearchRequest {
+			tenant_id: "t".to_string(),
+			project_id: "p".to_string(),
+			agent_id: "a".to_string(),
+			token_id: None,
+			read_profile: "private_only".to_string(),
+			payload_level: Default::default(),
+			query: "Alice".to_string(),
+			top_k: Some(5),
+			candidate_k: Some(10),
+			filter: None,
+			record_hits: Some(false),
+			ranking: None,
+		})
+		.await
+		.expect("Search failed.");
+	let item = response.items.first().expect("Expected search result.");
+	let relation_context = item
+		.explain
+		.relation_context
+		.as_ref()
+		.expect("Expected relation context in search explain.");
+
+	assert_eq!(
+		relation_context.len(),
+		2,
+		"Expected current and historical relation facts in context.",
+	);
+	assert_eq!(relation_context[0].temporal_status, RelationTemporalStatus::Current);
+
+	let historical = relation_context
+		.iter()
+		.find(|context| context.fact_id == older_fact_id)
+		.expect("Expected historical fact in relation context.");
+
+	assert_eq!(historical.object.value.as_deref(), Some("Bob"));
+	assert_eq!(historical.temporal_status, RelationTemporalStatus::Historical);
+	assert!(historical.valid_to.is_some());
 
 	context.test_db.cleanup().await.expect("Failed to cleanup test database.");
 }

@@ -52,6 +52,7 @@ pub use self::{
 		TextPositionSelector, TextQuoteSelector,
 	},
 	error::{Error, Result},
+	graph::RelationTemporalStatus,
 	graph_query::{
 		ELF_GRAPH_QUERY_SCHEMA_V1, GraphQueryEntity, GraphQueryEntityRef, GraphQueryExplain,
 		GraphQueryFact, GraphQueryObject, GraphQueryObjectEntity, GraphQueryPredicate,

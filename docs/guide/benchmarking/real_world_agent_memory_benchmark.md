@@ -166,7 +166,7 @@ including the retrieval-quality slice below. The suite currently encodes:
 
 The generated report includes evidence coverage, source-ref coverage, quote coverage,
 unsupported-claim count, stale retrieval count, stale-answer count, conflict detection
-count, update rationale availability, temporal validity `not_encoded` count, scope
+count, update rationale availability, temporal validity encoding count, scope
 correctness, redaction leak count, capture/integration behavior classes, Qdrant
 rebuild case/pass counts, expected evidence recall, irrelevant context ratio,
 latency/cost, answer-type plus caveat/refusal/uncertainty flags, and trace
@@ -262,8 +262,8 @@ tmp/real-world-memory/evolution-report.md
 
 This parses `apps/elf-eval/fixtures/real_world_memory/evolution/` and reports only
 the cases added for current-versus-historical interpretation and temporal staleness.
-The relation temporal-validity fixture is deliberately `not_encoded` and declares the
-graph follow-up instead of claiming a fake graph pass.
+The relation temporal-validity fixture is encoded and scores current owner,
+historical owner, update rationale, and stale-owner trap behavior.
 
 Current checked-in retrieval-quality increment:
 
