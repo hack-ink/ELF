@@ -220,10 +220,14 @@ research gates. Its `external_adapters` report section distinguishes:
 - `research_gate`: checked-in source/setup/runtime/resource/retry metadata for a
   future adapter path, not fixture-backed or live execution evidence.
 
-Current state: the targeted `elf_live_real_world` and `qmd_live_real_world` adapter
-slice is encoded through `cargo make real-world-memory-live-adapters`. It materializes
-generated runtime answers for representative `work_resume`, `retrieval`, and
-`project_decisions` jobs before scoring. qmd still also keeps its separate
+Current state: the `elf_live_real_world` and `qmd_live_real_world` adapters run a full
+encoded-suite sweep through `cargo make real-world-memory-live-adapters`. Each adapter
+materializes generated runtime answers for 38 jobs across 11 suites before scoring.
+The original targeted `work_resume`, `retrieval`, and `project_decisions` slice still
+passes, but the full sweep is not a full-suite pass: memory_evolution is
+`wrong_result`, production_ops remains typed `incomplete`/`blocked`/`not_encoded`, and
+consolidation, knowledge_compilation, operator_debugging_ux, and capture_integration
+remain `not_encoded` for this live adapter path. qmd still also keeps its separate
 `live_baseline_only` same-corpus record for update/delete/cold-start checks; that
 record is not a real-world suite win. agentmemory is blocked on durable upstream
 storage for lifecycle proof. mem0/OpenMemory, memsearch, and claude-mem currently
@@ -236,7 +240,7 @@ adapter runs are implemented. These typed states describe benchmark coverage; do
 convert setup weight, missing research, or unencoded suites into broad project quality
 rankings.
 
-To run the targeted live adapter slice for ELF and qmd:
+To run the full live adapter sweep for ELF and qmd:
 
 ```sh
 cargo make real-world-memory-live-adapters
@@ -398,6 +402,6 @@ adoption, cite both the relevant live-baseline or restore proof and this real-wo
 fixture report; rerun `baseline-production-private` with an operator-owned manifest
 before claiming private-corpus retrieval quality.
 
-Do not treat the targeted live adapter slice as a private-corpus or full-suite
-production-adoption verdict. The current adoption gate remains an existing benchmark
-decision until broader real-world live adapter reports are implemented and published.
+Do not treat the full live adapter sweep as a private-corpus or production-ops
+adoption verdict. It is a full-suite sweep with typed non-pass states, not a
+full-suite pass.

@@ -359,7 +359,7 @@ scoring. The same manifest can also contain `research_gate` records for future a
 packs; those records provide source/setup/runtime/resource/retry guidance but are not
 live-baseline evidence.
 
-The targeted live real-world adapter slice for ELF and qmd is separate from the
+The full live real-world adapter sweep for ELF and qmd is separate from the
 same-corpus live baseline:
 
 ```sh
@@ -368,7 +368,11 @@ cargo make real-world-memory-live-adapters
 
 This task runs in `docker-compose.baseline.yml`, materializes generated
 `adapter_response` fixtures through ELF's service runtime and qmd's local CLI
-retrieval path, then scores and publishes:
+against the checked-in `real_world_memory` fixture corpus, then scores all encoded
+suites. It preserves typed non-pass states and does not claim a full-suite live pass
+when memory-evolution conflict evidence, production operations, capture integrations,
+derived pages, consolidation proposals, or operator-debugging traces are not proven.
+It publishes:
 
 ```text
 tmp/real-world-memory/live-adapters/elf-report.json
@@ -440,7 +444,7 @@ The retrieval fixture lives under
 `apps/elf-eval/fixtures/real_world_memory/retrieval/` and covers alternate phrasing,
 distractor-heavy corpora, multi-hop routing questions, current-versus-obsolete context
 selection, minimal sufficient context, and stage-level wrong-result explainability.
-It is still an offline fixture report. qmd has a separate targeted live adapter slice
+It is still an offline fixture report. qmd has a separate full live adapter sweep
 through `cargo make real-world-memory-live-adapters`; OpenViking remains a reference
 system unless an adapter actually runs and records typed evidence.
 
