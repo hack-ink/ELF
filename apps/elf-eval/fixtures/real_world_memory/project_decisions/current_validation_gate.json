@@ -1,0 +1,259 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "project-decision-current-validation-gate-001",
+  "suite": "project_decisions",
+  "title": "Recover the current validation gate instead of an old gate",
+  "corpus": {
+    "corpus_id": "real-world-memory-project-decisions-2026-06-10",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "validation-gate-old-lint-test",
+        "kind": "decision",
+        "text": "Historical validation gate: earlier runner work used lint and test as the main local proof before review.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_memory_fixture/v1",
+          "ref": {
+            "fixture": "current_validation_gate",
+            "evidence_id": "validation-gate-old-lint-test"
+          }
+        },
+        "created_at": "2026-06-08T18:00:00Z"
+      },
+      {
+        "evidence_id": "validation-gate-current-decodex",
+        "kind": "decision",
+        "text": "Current validation gate: before pushing a refreshed PR head, run cargo make fmt, cargo make lint-fix, and cargo make checks.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_memory_fixture/v1",
+          "ref": {
+            "fixture": "current_validation_gate",
+            "evidence_id": "validation-gate-current-decodex"
+          }
+        },
+        "created_at": "2026-06-10T02:00:00Z"
+      },
+      {
+        "evidence_id": "validation-gate-current-rationale",
+        "kind": "decision",
+        "text": "Gate rationale: formatting, automatic lint repair, and full checks prevent avoidable review churn before Decodex review handoff.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_memory_fixture/v1",
+          "ref": {
+            "fixture": "current_validation_gate",
+            "evidence_id": "validation-gate-current-rationale"
+          }
+        },
+        "created_at": "2026-06-10T02:05:00Z"
+      },
+      {
+        "evidence_id": "validation-gate-uncited-policy-trap",
+        "kind": "decision",
+        "text": "Uncited current-policy trap: describe the current validation gate from memory without citing the current gate evidence.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_memory_fixture/v1",
+          "ref": {
+            "fixture": "current_validation_gate",
+            "evidence_id": "validation-gate-uncited-policy-trap"
+          }
+        },
+        "created_at": "2026-06-10T02:10:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_project_decisions",
+      "answer": {
+        "content": "The current validation gate is cargo make fmt, cargo make lint-fix, and cargo make checks before pushing a refreshed PR head. The older lint-and-test gate is historical; the current gate adds formatting, automatic lint repair, and full checks to prevent avoidable review churn before Decodex review handoff.",
+        "claims": [
+          {
+            "claim_id": "current_validation_gate",
+            "text": "The current validation gate is cargo make fmt, cargo make lint-fix, and cargo make checks before pushing a refreshed PR head.",
+            "evidence_ids": [
+              "validation-gate-current-decodex",
+              "validation-gate-old-lint-test",
+              "validation-gate-current-rationale"
+            ],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "validation_gate_rationale",
+            "text": "The gate prevents avoidable review churn before Decodex review handoff.",
+            "evidence_ids": ["validation-gate-current-rationale"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": [
+          "validation-gate-current-decodex",
+          "validation-gate-old-lint-test",
+          "validation-gate-current-rationale"
+        ],
+        "latency_ms": 1.4,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "old-validation-gate",
+      "ts": "2026-06-08T18:00:00Z",
+      "actor": "agent",
+      "action": "made_decision",
+      "evidence_ids": ["validation-gate-old-lint-test"],
+      "summary": "The earlier validation gate centered on lint and test."
+    },
+    {
+      "event_id": "current-validation-gate",
+      "ts": "2026-06-10T02:00:00Z",
+      "actor": "operator",
+      "action": "updated_policy",
+      "evidence_ids": [
+        "validation-gate-current-decodex",
+        "validation-gate-current-rationale"
+      ],
+      "summary": "The current Decodex gate requires fmt, lint-fix, and checks before push or handoff."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "What is the current validation gate, and how is it different from the old gate?",
+    "job_mode": "decide",
+    "constraints": [
+      "cite_evidence",
+      "use_current_policy",
+      "distinguish_current_from_historical"
+    ]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "current_validation_gate",
+        "text": "The current validation gate is cargo make fmt, cargo make lint-fix, and cargo make checks before pushing a refreshed PR head."
+      },
+      {
+        "claim_id": "validation_gate_rationale",
+        "text": "The gate prevents avoidable review churn before Decodex review handoff."
+      }
+    ],
+    "must_not_include": [
+      "The current gate only requires lint and test."
+    ],
+    "evidence_links": {
+      "current_validation_gate": [
+        "validation-gate-current-decodex",
+        "validation-gate-old-lint-test",
+        "validation-gate-current-rationale"
+      ],
+      "validation_gate_rationale": ["validation-gate-current-rationale"]
+    },
+    "answer_type": "decision_record",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "validation-gate-current-decodex",
+      "claim_id": "current_validation_gate",
+      "requirement": "cite",
+      "quote": "run cargo make fmt, cargo make lint-fix, and cargo make checks"
+    },
+    {
+      "evidence_id": "validation-gate-old-lint-test",
+      "claim_id": "current_validation_gate",
+      "requirement": "use",
+      "quote": "Historical validation gate"
+    },
+    {
+      "evidence_id": "validation-gate-current-rationale",
+      "claim_id": "validation_gate_rationale",
+      "requirement": "explain",
+      "quote": "prevent avoidable review churn"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "uncited-current-policy-claim",
+      "type": "unsupported_prior",
+      "evidence_ids": ["validation-gate-uncited-policy-trap"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Reports the current gate and the historical old gate correctly."
+      },
+      "evidence_grounding": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Cites current policy, historical policy, and rationale evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Avoids uncited current-policy assertions."
+      },
+      "uncertainty_handling": {
+        "weight": 0.1,
+        "max_points": 1.0,
+        "criteria": "Does not hedge because current policy evidence exists."
+      },
+      "lifecycle_behavior": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Distinguishes current and historical policy with update rationale."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": ["The fixture does not provide that evidence."],
+    "fallback_action": "state_blocker"
+  },
+  "memory_evolution": {
+    "current_evidence_ids": ["validation-gate-current-decodex"],
+    "historical_evidence_ids": ["validation-gate-old-lint-test"],
+    "stale_trap_ids": ["uncited-current-policy-claim"],
+    "conflicts": [
+      {
+        "conflict_id": "validation-gate-updated",
+        "claim_id": "current_validation_gate",
+        "current_evidence_id": "validation-gate-current-decodex",
+        "historical_evidence_id": "validation-gate-old-lint-test",
+        "resolved_by_evidence_id": "validation-gate-current-rationale"
+      }
+    ],
+    "update_rationale": {
+      "claim_id": "validation_gate_rationale",
+      "evidence_ids": ["validation-gate-current-rationale"],
+      "available": true
+    },
+    "temporal_validity": {
+      "required": false,
+      "encoded": false,
+      "follow_up": null
+    }
+  },
+  "tags": [
+    "synthetic",
+    "project_decisions",
+    "validation_gate",
+    "current_policy"
+  ]
+}
