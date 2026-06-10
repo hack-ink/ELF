@@ -33,7 +33,10 @@ Current encoded result:
 - ELF and qmd passed every encoded smoke check.
 - agentmemory passed same-corpus retrieval but failed or could not complete lifecycle checks.
 - mem0, memsearch, and claude-mem returned wrong same-corpus retrieval results in the encoded smoke.
-- OpenViking was incomplete because its local embedding dependency could not complete inside the Docker runner.
+- OpenViking was incomplete in the June 9 run because its local embedding dependency
+  could not complete inside the Docker runner. XY-881 later pinned the Docker path to
+  a CPU `llama-cpp-python` wheel and moved the current OpenViking state to
+  `wrong_result` when `add_resource`/`find` misses expected evidence terms.
 
 What this proves:
 
@@ -83,7 +86,7 @@ Use these terms in future benchmark reports and Linear issues:
 | `pass` | Encoded check completed and returned expected result. | ELF same-corpus retrieval and lifecycle checks pass. |
 | `wrong_result` | The system completed but returned an incorrect memory or missed the expected evidence. | mem0/memsearch/claude-mem smoke retrieval mismatch. |
 | `lifecycle_fail` | Retrieval may work, but update/delete/cold-start/persistence behavior is wrong or incomplete. | agentmemory adapter passing retrieval but not lifecycle. |
-| `incomplete` | The benchmark could not reach the behavioral check due to install/runtime/dependency failure. | OpenViking local embedding install failure in Docker. |
+| `incomplete` | The benchmark could not reach the behavioral check due to install/runtime/dependency failure. | A pinned local embedding wheel/import failure before OpenViking `add_resource`/`find`. |
 | `not_encoded` | Capability is not currently covered by the benchmark, so no pass/fail claim is allowed. | Viewer quality and batch backfill UX. |
 | `blocked` | A safe test cannot run without external credentials, manual setup, or a dependency outside the issue scope. | Private corpus evaluation before sanitized corpus exists. |
 
@@ -240,7 +243,9 @@ Implementation shape:
 Acceptance:
 
 - agentmemory adapter either passes durable lifecycle checks or is explicitly marked blocked with evidence.
-- OpenViking incomplete state records a pinned dependency failure and retry path.
+- OpenViking records a pinned Docker local embedding retry path; install/import
+  failure remains `incomplete`, while evidence misses after `add_resource`/`find`
+  are `wrong_result`.
 - qmd smoke pass remains covered and gains scale/stress profiles.
 - Real-world reports include adapter coverage counters before any external adapter is
   allowed to claim a real-world suite pass.
