@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
-use time::OffsetDateTime;
+use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
 use crate::{ElfService, Error, Result};
@@ -578,8 +578,10 @@ impl ElfService {
 		let mut last_state = current;
 		let mut updated = existing;
 
-		for (action, next_state) in steps {
+		for (step_index, (action, next_state)) in steps.into_iter().enumerate() {
 			last_state.validate_transition(next_state).map_err(validation_error)?;
+
+			let transition_time = now.saturating_add(Duration::milliseconds(step_index as i64));
 
 			elf_storage::consolidation::insert_consolidation_proposal_review_event(
 				&mut *tx,
@@ -594,7 +596,7 @@ impl ElfService {
 					from_review_state: last_state.as_str(),
 					to_review_state: next_state.as_str(),
 					review_comment: req.review_comment.as_deref(),
-					created_at: now,
+					created_at: transition_time,
 				},
 			)
 			.await?;
@@ -608,7 +610,7 @@ impl ElfService {
 					review_state: next_state.as_str(),
 					reviewer_agent_id: req.reviewer_agent_id.as_str(),
 					review_comment: req.review_comment.as_deref(),
-					now,
+					now: transition_time,
 				},
 			)
 			.await?
