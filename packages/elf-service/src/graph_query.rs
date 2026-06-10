@@ -10,6 +10,7 @@ use uuid::Uuid;
 use crate::{
 	ElfService, Error, Result,
 	access::{self, ORG_PROJECT_ID},
+	graph::RelationTemporalStatus,
 	search,
 };
 use elf_storage::{graph, models::GraphEntity};
@@ -188,6 +189,8 @@ pub struct GraphQueryFact {
 	#[serde(with = "crate::time_serde::option")]
 	/// End of the fact validity window, if superseded.
 	pub valid_to: Option<OffsetDateTime>,
+	/// Temporal state for the fact relative to the service read timestamp.
+	pub temporal_status: RelationTemporalStatus,
 	/// Object payload for the fact.
 	pub object: GraphQueryObject,
 	/// Evidence note identifiers supporting the fact.
@@ -328,6 +331,7 @@ impl ElfService {
 			.map(|item| format!("{}:{}", item.scope, item.space_owner_agent_id))
 			.collect();
 		let predicate_id = predicate.as_ref().map(|predicate| predicate.id);
+		let read_at = OffsetDateTime::now_utc();
 		let rows = fetch_graph_query_rows(
 			&mut conn,
 			GraphQueryRowsFetchParams {
@@ -367,6 +371,11 @@ impl ElfService {
 					predicate_id: row.predicate_id,
 					valid_from: row.valid_from,
 					valid_to: row.valid_to,
+					temporal_status: crate::graph::relation_temporal_status(
+						row.valid_from,
+						row.valid_to,
+						read_at,
+					),
 					object,
 					evidence_note_ids: row.evidence_note_ids,
 				}
@@ -696,6 +705,7 @@ mod tests {
 
 	use crate::{
 		ELF_GRAPH_QUERY_SCHEMA_V1, Error, GraphQueryFact, GraphQueryObject, GraphQueryObjectEntity,
+		graph::RelationTemporalStatus,
 		graph_query::{self, GraphQueryEntityRef, GraphQueryRequest, OffsetDateTime},
 	};
 
@@ -737,6 +747,7 @@ mod tests {
 				predicate_id: None,
 				valid_from: OffsetDateTime::from_unix_timestamp(1).expect("valid timestamp"),
 				valid_to: None,
+				temporal_status: RelationTemporalStatus::Current,
 				object: GraphQueryObject {
 					entity: Some(GraphQueryObjectEntity {
 						entity_id: Uuid::from_u128(100),
@@ -755,6 +766,7 @@ mod tests {
 				predicate_id: None,
 				valid_from: OffsetDateTime::from_unix_timestamp(2).expect("valid timestamp"),
 				valid_to: None,
+				temporal_status: RelationTemporalStatus::Current,
 				object: GraphQueryObject {
 					entity: Some(GraphQueryObjectEntity {
 						entity_id: Uuid::from_u128(101),
@@ -773,6 +785,7 @@ mod tests {
 				predicate_id: None,
 				valid_from: OffsetDateTime::from_unix_timestamp(3).expect("valid timestamp"),
 				valid_to: None,
+				temporal_status: RelationTemporalStatus::Current,
 				object: GraphQueryObject { entity: None, value: Some("office".to_string()) },
 				evidence_note_ids: vec![],
 			},
