@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import csv
 import json
+import math
 import os
 import shutil
 import subprocess
@@ -868,7 +869,7 @@ def normalize_cell(value: Any) -> Any:
         return None
     if hasattr(value, "tolist"):
         return normalize_cell(value.tolist())
-    if isinstance(value, float) and value != value:
+    if isinstance(value, float) and math.isnan(value):
         return None
     if isinstance(value, (list, tuple, set)):
         return [normalize_cell(item) for item in value]
