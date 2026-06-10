@@ -580,7 +580,7 @@
       },
       "run": {
         "status": "wrong_result",
-        "evidence": "The current same-corpus retrieval result is typed wrong_result or incomplete in the checked-in benchmark evidence.",
+        "evidence": "The Docker runner exercises local OSS mem0 with FastEmbed, Qdrant path storage, Memory.update, Memory.delete, and cold-start reload; same-corpus retrieval remains typed wrong_result or incomplete when evidence is missed.",
         "artifact": "tmp/live-baseline/live-baseline-report.json"
       },
       "result": {
@@ -600,9 +600,19 @@
           "evidence": "The checked-in smoke evidence did not prove a correct same-corpus result for mem0."
         },
         {
+          "capability": "local_lifecycle_update_delete_reload",
+          "status": "real",
+          "evidence": "The Docker runner exercises public Memory.update, Memory.delete, and a new Memory.from_config over the same local Qdrant/history paths; any miss is reported as lifecycle_fail instead of pass."
+        },
+        {
           "capability": "openmemory_ui_readback",
           "status": "not_encoded",
           "evidence": "OpenMemory UI readback is not encoded in the Docker baseline or real-world job runner."
+        },
+        {
+          "capability": "hosted_managed_memory_claims",
+          "status": "not_encoded",
+          "evidence": "Hosted mem0 Platform behavior is outside the local OSS Docker adapter and is not counted as a local pass."
         },
         {
           "capability": "real_world_job_adapter",
@@ -613,8 +623,8 @@
       "suites": [
         {
           "suite_id": "memory_evolution",
-          "status": "incomplete",
-          "evidence": "mem0 lifecycle/history is a target dimension, but current Docker evidence has not produced a complete real-world job result."
+          "status": "wrong_result",
+          "evidence": "Local lifecycle checks are encoded in the Docker baseline, but real_world_job memory-evolution prompts are not executed and missed local evidence must remain typed non-pass."
         },
         {
           "suite_id": "personalization",
@@ -654,7 +664,7 @@
       },
       "run": {
         "status": "wrong_result",
-        "evidence": "The current same-corpus retrieval evidence is not a clean pass for memsearch.",
+        "evidence": "The Docker runner indexes a per-adapter corpus copy, rewrites and deletes files, reruns memsearch index, and records wrong_result or lifecycle_fail when expected evidence is missed.",
         "artifact": "tmp/live-baseline/live-baseline-report.json"
       },
       "result": {
@@ -674,6 +684,11 @@
           "evidence": "The checked-in smoke evidence did not prove correct same-corpus retrieval."
         },
         {
+          "capability": "reindex_update_delete_reload",
+          "status": "real",
+          "evidence": "The runner rewrites auth-memory.md, deletes a second corpus file, reruns memsearch index, and starts fresh memsearch search processes for update/delete/cold-start checks."
+        },
+        {
           "capability": "real_world_job_adapter",
           "status": "not_encoded",
           "evidence": "No memsearch adapter currently executes real_world_job prompts and answer scoring."
@@ -687,13 +702,13 @@
         },
         {
           "suite_id": "retrieval",
-          "status": "incomplete",
-          "evidence": "The live-baseline retrieval path is not a clean pass and no job-level run is encoded."
+          "status": "wrong_result",
+          "evidence": "The Docker same-corpus check reaches memsearch search, but current evidence is not a clean retrieval pass and no job-level run is encoded."
         },
         {
           "suite_id": "memory_evolution",
-          "status": "incomplete",
-          "evidence": "Update/delete reindex semantics need a complete Docker evidence path before suite claims."
+          "status": "wrong_result",
+          "evidence": "Update/delete reindex semantics are exercised in Docker; misses remain typed wrong_result or lifecycle_fail and do not become suite passes."
         }
       ],
       "evidence": [
@@ -823,7 +838,7 @@
       },
       "run": {
         "status": "wrong_result",
-        "evidence": "The current same-corpus SQLite repository search is not a clean pass for claude-mem and lifecycle checks are not encoded.",
+        "evidence": "The Docker runner now uses a durable SQLite file, exercises repository update/delete/reopen checks, and reports missed same-corpus or lifecycle evidence as typed non-pass.",
         "artifact": "tmp/live-baseline/live-baseline-report.json"
       },
       "result": {
@@ -839,20 +854,30 @@
         },
         {
           "capability": "durable_storage",
-          "status": "mocked",
-          "evidence": "The current adapter uses in-memory SQLite and does not reopen a durable store."
+          "status": "real",
+          "evidence": "The runner writes to a Docker-local SQLite file and constructs a new Database plus repository instances for cold-start recovery search."
+        },
+        {
+          "capability": "repository_lifecycle",
+          "status": "real",
+          "evidence": "The runner uses MemoryItemsRepository.update, deletes from the repository-owned memory_items table, and relies on repository FTS triggers for update/delete checks."
+        },
+        {
+          "capability": "repository_progressive_disclosure",
+          "status": "real",
+          "evidence": "The runner verifies search result to getById detail hydration and listSources source evidence on the durable repository path."
         },
         {
           "capability": "progressive_disclosure_real_world_job",
           "status": "not_encoded",
-          "evidence": "search -> timeline -> observation workflows are not encoded against real_world_job prompts."
+          "evidence": "Hook, timeline, viewer, and observation workflows are not encoded against real_world_job prompts."
         }
       ],
       "suites": [
         {
           "suite_id": "work_resume",
-          "status": "incomplete",
-          "evidence": "Hook-driven capture and progressive disclosure need a durable local repository run before work-resume suite claims."
+          "status": "wrong_result",
+          "evidence": "The durable repository run is encoded, but hook-driven capture and real_world_job work-resume prompts are not proven by that local repository check."
         },
         {
           "suite_id": "operator_debugging_ux",
@@ -869,11 +894,11 @@
         {
           "kind": "runner",
           "ref": "scripts/live-baseline-benchmark.sh",
-          "status": "mocked"
+          "status": "real"
         }
       ],
       "notes": [
-        "claude-mem remains a UX reference; current Docker evidence is not a real-world progressive-disclosure pass."
+        "claude-mem remains a UX reference; durable repository checks do not prove hook, viewer, or full real-world progressive-disclosure behavior."
       ]
     },
     {

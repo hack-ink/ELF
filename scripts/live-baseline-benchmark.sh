@@ -722,6 +722,16 @@ clone_project() {
   return 1
 }
 
+prepare_project_corpus() {
+  local project="$1"
+  local target="${WORK_DIR}/corpus-${project}"
+
+  rm -rf "${target}"
+  mkdir -p "${target}"
+  cp -R "${CORPUS_DIR}/." "${target}/"
+  echo "${target}"
+}
+
 finish_report() {
   jq -s \
     --arg schema "elf.live_baseline.report/v1" \
@@ -1393,6 +1403,7 @@ project_qmd() {
   local status_path="${REPORT_DIR}/${project}-status.txt"
   local driver_path="${REPOS_DIR}/${project}/elf-live-baseline-qmd.mjs"
   local home="${HOME_DIR}/${project}"
+  local corpus_path
   local head
   mkdir -p "${home}"
   cat >"${REPORT_DIR}/${project}-adapter.json" <<'JSON'
@@ -1441,6 +1452,7 @@ JSON
     json_record "${project}" "${repo}" "${head}" "incomplete" "not_run" "install/build failed" "${project}.log" "npm install/build"
     return
   fi
+  corpus_path="$(prepare_project_corpus "${project}")"
 
   cat >"${driver_path}" <<'JS'
 import { execFileSync } from "node:child_process";
@@ -1688,7 +1700,7 @@ writeFileSync(
 JS
 
   if run_cmd "${project}: embedded retrieval" 900 "${log_path}" \
-    "export HOME='${home}'; export XDG_CACHE_HOME='/root/.cache'; export QMD_FORCE_CPU=1; cd '${REPOS_DIR}/${project}' && npx tsx src/cli/qmd.ts collection add '${CORPUS_DIR}' --name elfbench && npx tsx src/cli/qmd.ts update && npx tsx src/cli/qmd.ts embed -f -c elfbench && npx tsx src/cli/qmd.ts status > '${status_path}' && node '${driver_path}' '${query_result_path}' '${REPORT_DIR}/queries.json' '${CORPUS_DIR}'"; then
+    "export HOME='${home}'; export XDG_CACHE_HOME='/root/.cache'; export QMD_FORCE_CPU=1; cd '${REPOS_DIR}/${project}' && npx tsx src/cli/qmd.ts collection add '${corpus_path}' --name elfbench && npx tsx src/cli/qmd.ts update && npx tsx src/cli/qmd.ts embed -f -c elfbench && npx tsx src/cli/qmd.ts status > '${status_path}' && node '${driver_path}' '${query_result_path}' '${REPORT_DIR}/queries.json' '${corpus_path}'"; then
     if jq -e '.checks and .check_summary' "${query_result_path}" >/dev/null 2>&1; then
       jq '{check_summary, checks}' "${query_result_path}" >"${REPORT_DIR}/${project}-checks.json"
     fi
@@ -1725,6 +1737,7 @@ project_memsearch() {
   local home="${HOME_DIR}/${project}"
   local result_path="${REPORT_DIR}/${project}-search.json"
   local driver_path="${REPOS_DIR}/${project}/elf-live-baseline-memsearch.py"
+  local corpus_path
   local head
   mkdir -p "${home}"
   cat >"${REPORT_DIR}/${project}-adapter.json" <<'JSON'
@@ -1773,6 +1786,7 @@ JSON
     json_record "${project}" "${repo}" "${head}" "incomplete" "not_run" "pip install failed" "${project}.log" "pip install -e .[local,onnx]"
     return
   fi
+  corpus_path="$(prepare_project_corpus "${project}")"
 
   cat >"${driver_path}" <<'PY'
 import json
@@ -1994,7 +2008,7 @@ out_path.write_text(
 PY
 
   if run_cmd "${project}: cli retrieval attempt" 240 "${log_path}" \
-    "export HOME='${home}'; export ELF_MEMSEARCH_RESULT_PATH='${result_path}'; export ELF_BASELINE_QUERIES_PATH='${REPORT_DIR}/queries.json'; export ELF_BASELINE_CORPUS_PATH='${CORPUS_DIR}'; cd '${REPOS_DIR}/${project}' && source .venv/bin/activate && memsearch --help && memsearch config set embedding.provider onnx && memsearch index '${CORPUS_DIR}' && python '${driver_path}'"; then
+    "export HOME='${home}'; export ELF_MEMSEARCH_RESULT_PATH='${result_path}'; export ELF_BASELINE_QUERIES_PATH='${REPORT_DIR}/queries.json'; export ELF_BASELINE_CORPUS_PATH='${corpus_path}'; cd '${REPOS_DIR}/${project}' && source .venv/bin/activate && memsearch --help && memsearch config set embedding.provider onnx && memsearch index '${corpus_path}' && python '${driver_path}'"; then
     if jq -e '.checks and .check_summary' "${result_path}" >/dev/null 2>&1; then
       jq '{check_summary, checks}' "${result_path}" >"${REPORT_DIR}/${project}-checks.json"
     fi
@@ -2027,6 +2041,7 @@ project_mem0() {
   local result_path="${REPORT_DIR}/${project}-search.json"
   local driver_path="${REPOS_DIR}/${project}/elf-live-baseline-mem0.py"
   local home="${HOME_DIR}/${project}"
+  local corpus_path
   local head
   mkdir -p "${home}"
   cat >"${REPORT_DIR}/${project}-adapter.json" <<'JSON'
@@ -2078,6 +2093,7 @@ PY"; then
     json_record "${project}" "${repo}" "${head}" "incomplete" "not_run" "pip install or import failed" "${project}.log" "pip install -e . fastembed ollama; import Memory"
     return
   fi
+  corpus_path="$(prepare_project_corpus "${project}")"
 
   cat >"${driver_path}" <<'PY'
 import gc
@@ -2396,7 +2412,7 @@ out_path.write_text(
 PY
 
   if run_cmd "${project}: local fastembed add/search" 900 "${log_path}" \
-    "export HOME='${home}'; export ELF_MEM0_HOME='${home}'; export ELF_MEM0_RESULT_PATH='${result_path}'; export ELF_BASELINE_CORPUS_PATH='${CORPUS_DIR}'; export ELF_BASELINE_QUERIES_PATH='${REPORT_DIR}/queries.json'; export MEM0_TELEMETRY=false; cd '${REPOS_DIR}/${project}' && source .venv/bin/activate && python '${driver_path}'"; then
+    "export HOME='${home}'; export ELF_MEM0_HOME='${home}'; export ELF_MEM0_RESULT_PATH='${result_path}'; export ELF_BASELINE_CORPUS_PATH='${corpus_path}'; export ELF_BASELINE_QUERIES_PATH='${REPORT_DIR}/queries.json'; export MEM0_TELEMETRY=false; cd '${REPOS_DIR}/${project}' && source .venv/bin/activate && python '${driver_path}'"; then
     if jq -e '.checks and .check_summary' "${result_path}" >/dev/null 2>&1; then
       jq '{check_summary, checks}' "${result_path}" >"${REPORT_DIR}/${project}-checks.json"
     fi
@@ -2731,39 +2747,47 @@ project_claude_mem() {
   local log_path="${REPORT_DIR}/${project}.log"
   local result_path="${REPORT_DIR}/${project}-search.json"
   local driver_path="${REPOS_DIR}/${project}/elf-live-baseline-claude-mem.ts"
+  local home="${HOME_DIR}/${project}"
+  local corpus_path
+  local db_path="${HOME_DIR}/${project}/claude-mem.sqlite"
   local head
+  mkdir -p "${home}"
   cat >"${REPORT_DIR}/${project}-adapter.json" <<'JSON'
 {
   "schema": "elf.live_baseline.adapter_metadata/v1",
   "project": "claude-mem",
   "storage": {
-    "status": "mocked",
-    "detail": "The adapter uses claude-mem repository classes with an in-memory SQLite database for same-corpus search."
+    "status": "real",
+    "detail": "The adapter uses claude-mem repository classes with a durable SQLite file inside Docker for same-corpus and lifecycle checks."
   },
   "behaviors": {
     "same_corpus_retrieval": {
-      "status": "mocked",
-      "surface": "MemoryItemsRepository.create/search over in-memory SQLite"
+      "status": "real",
+      "surface": "MemoryItemsRepository.create/search over a Docker-local SQLite database"
     },
     "update": {
-      "status": "not_encoded",
-      "surface": "no update replacement check is encoded"
+      "status": "real",
+      "surface": "MemoryItemsRepository.update against the stored memory item id"
     },
     "delete_or_expire": {
-      "status": "not_encoded",
-      "surface": "no delete or expiry check is encoded"
+      "status": "real",
+      "surface": "delete from the repository-owned SQLite memory_items table and verify FTS suppression"
     },
     "expire": {
       "status": "unsupported",
       "surface": "no TTL/expiry behavior is encoded in the local adapter"
     },
     "cold_start_reload": {
-      "status": "not_encoded",
-      "surface": "the current adapter uses :memory: SQLite and does not reopen a durable store"
+      "status": "real",
+      "surface": "new Database and repository instances over the same Docker-local SQLite file"
+    },
+    "progressive_disclosure": {
+      "status": "real",
+      "surface": "search returns bounded memory items and detail/source hydration uses getById plus listSources"
     },
     "scale_stress_profile": {
       "status": "incomplete",
-      "surface": "same-corpus smoke only until durable storage and lifecycle checks are encoded"
+      "surface": "durable smoke lifecycle path is encoded; scale/stress timing and resource thresholds are not yet calibrated"
     }
   }
 }
@@ -2778,6 +2802,7 @@ JSON
     json_record "${project}" "${repo}" "${head}" "incomplete" "not_run" "npm install/build failed" "${project}.log" "npm install/build"
     return
   fi
+  corpus_path="$(prepare_project_corpus "${project}")"
 
   cat >"${driver_path}" <<'TS'
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
@@ -2789,8 +2814,9 @@ import { ProjectsRepository } from "./src/storage/sqlite/projects.ts";
 const outPath = Bun.argv[2];
 const corpusPath = Bun.argv[3];
 const queriesPath = Bun.argv[4];
-if (!outPath || !corpusPath || !queriesPath) {
-  throw new Error("output path, corpus path, and query path are required");
+const dbPath = Bun.argv[5];
+if (!outPath || !corpusPath || !queriesPath || !dbPath) {
+  throw new Error("output path, corpus path, query path, and database path are required");
 }
 
 type QueryCase = {
@@ -2837,7 +2863,52 @@ function resultMatches(results: unknown[], query: QueryCase): boolean {
   });
 }
 
-const db = new Database(":memory:");
+function resultEntriesForSource(results: unknown[], source: string): unknown[] {
+  return results.filter((entry) => {
+    const files = (entry as { filesRead?: string[] }).filesRead ?? [];
+    return files.includes(source);
+  });
+}
+
+function makeCheck(
+  name: string,
+  status:
+    | "pass"
+    | "wrong_result"
+    | "lifecycle_fail"
+    | "incomplete"
+    | "blocked"
+    | "not_encoded",
+  reason: string,
+  evidence: unknown,
+) {
+  return { name, status, reason, evidence };
+}
+
+function summarizeChecks(checks: Array<{ status: string }>) {
+  const wrongResult = checks.filter((check) => check.status === "wrong_result")
+    .length;
+  const lifecycleFail = checks.filter(
+    (check) => check.status === "lifecycle_fail",
+  ).length;
+  return {
+    total: checks.length,
+    pass: checks.filter((check) => check.status === "pass").length,
+    fail: wrongResult + lifecycleFail,
+    wrong_result: wrongResult,
+    lifecycle_fail: lifecycleFail,
+    incomplete: checks.filter((check) => check.status === "incomplete").length,
+    blocked: checks.filter((check) => check.status === "blocked").length,
+    not_encoded: checks.filter((check) => check.status === "not_encoded")
+      .length,
+  };
+}
+
+function markerQuery(query: QueryCase): string {
+  return query.expected_terms.join(" ");
+}
+
+const db = new Database(dbPath);
 db.run("PRAGMA foreign_keys = ON");
 
 try {
@@ -2865,8 +2936,10 @@ try {
   const queries = JSON.parse(readFileSync(queriesPath, "utf8")).queries as QueryCase[];
   const topK = Number(process.env.ELF_BASELINE_TOP_K ?? "10");
 
-  const created = docs.map((doc) =>
-    memories.create({
+  const created = [];
+  const createdBySource = new Map<string, ReturnType<MemoryItemsRepository["create"]>>();
+  for (const doc of docs) {
+    const item = memories.create({
       projectId: project.id,
       kind: "manual",
       type: "fact",
@@ -2877,8 +2950,16 @@ try {
       concepts: doc.concepts,
       filesRead: [doc.file],
       metadata: { source: doc.file },
-    }),
-  );
+    });
+    const source = memories.addSource({
+      memoryItemId: item.id,
+      sourceType: "import",
+      sourceUri: `file://${doc.file}`,
+      metadata: { source: doc.file },
+    });
+    created.push({ item, source });
+    createdBySource.set(doc.file, item);
+  }
 
   const queryResults = queries.map((query) => {
     const results = memories.search(project.id, query.query, topK);
@@ -2893,54 +2974,190 @@ try {
   });
   const pass = queryResults.filter((result) => result.matched).length;
   const checks = [
-    {
-      name: "same_corpus_retrieval",
-      status: pass === queryResults.length ? "pass" : "wrong_result",
-      reason:
-        pass === queryResults.length
-          ? "claude-mem repository search returned expected evidence for every query."
-          : "claude-mem repository search missed one or more expected results.",
-      evidence: {
+    makeCheck(
+      "same_corpus_retrieval",
+      pass === queryResults.length ? "pass" : "wrong_result",
+      pass === queryResults.length
+        ? "claude-mem repository search returned expected evidence for every query."
+        : "claude-mem repository search missed one or more expected results.",
+      {
         total: queryResults.length,
         pass,
         fail: queryResults.length - pass,
       },
-    },
-    {
-      name: "update_replaces_note_text",
-      status: "not_encoded",
-      reason: "claude-mem update replacement is not encoded in this in-memory adapter.",
-      evidence: {},
-    },
-    {
-      name: "delete_suppresses_retrieval",
-      status: "not_encoded",
-      reason: "claude-mem delete or expiry behavior is not encoded in this in-memory adapter.",
-      evidence: {},
-    },
-    {
-      name: "cold_start_recovery_search",
-      status: "not_encoded",
-      reason: "claude-mem cold-start reload is not encoded because the adapter uses :memory: SQLite.",
-      evidence: {},
-    },
+    ),
   ];
-  const wrongResult = checks.filter((check) => check.status === "wrong_result")
-    .length;
-  const lifecycleFail = checks.filter(
-    (check) => check.status === "lifecycle_fail",
-  ).length;
-  const checkSummary = {
-    total: checks.length,
-    pass: checks.filter((check) => check.status === "pass").length,
-    fail: wrongResult + lifecycleFail,
-    wrong_result: wrongResult,
-    lifecycle_fail: lifecycleFail,
-    incomplete: checks.filter((check) => check.status === "incomplete").length,
-    blocked: checks.filter((check) => check.status === "blocked").length,
-    not_encoded: checks.filter((check) => check.status === "not_encoded")
-      .length,
+
+  const auth = createdBySource.get("auth-memory.md");
+  if (!auth) {
+    checks.push(
+      makeCheck(
+        "update_replaces_note_text",
+        "incomplete",
+        "The auth memory item was not created, so update replacement could not be exercised.",
+        { source: "auth-memory.md" },
+      ),
+    );
+  } else {
+    const updateText =
+      "Rotated auth middleware validates JWT tokens with key id `kid-v4` under `RotatedJwtKeyPlan`. It still requires tenant scope `project_shared` for deployment operations after the emergency key rotation.";
+    const update = memories.update(auth.id, {
+      title: "Auth Memory Updated",
+      text: updateText,
+      narrative: updateText,
+      facts: [updateText],
+      concepts: conceptsFor("auth-memory.md"),
+      filesRead: ["auth-memory.md"],
+      metadata: { source: "auth-memory.md", lifecycle: "updated" },
+    });
+    const updateQuery: QueryCase = {
+      id: "lifecycle-update-new-marker",
+      query: "Which rotated JWT key id does the auth middleware require?",
+      expected_doc: "auth-memory.md",
+      expected_terms: ["kid-v4", "RotatedJwtKeyPlan"],
+    };
+    const updateResults = memories.search(project.id, markerQuery(updateQuery), topK);
+    const updateMatched = resultMatches(updateResults, updateQuery);
+    const oldMarkerAbsent = resultEntriesForSource(updateResults, "auth-memory.md")
+      .every((entry) => !JSON.stringify(entry).toLowerCase().includes("kid-v3"));
+    checks.push(
+      makeCheck(
+        "update_replaces_note_text",
+        updateMatched && oldMarkerAbsent ? "pass" : "lifecycle_fail",
+        updateMatched && oldMarkerAbsent
+          ? "claude-mem update returned the new marker and did not return the old marker for the updated memory item."
+          : "claude-mem update did not cleanly replace the searchable auth memory item text.",
+        {
+          memory_item_id: auth.id,
+          update,
+          matched_new_marker: updateMatched,
+          old_marker_absent: oldMarkerAbsent,
+          results: updateResults,
+        },
+      ),
+    );
+  }
+
+  const deleteQuery = queries.find(
+    (query) =>
+      query.expected_doc !== "auth-memory.md" &&
+      query.expected_doc !== "database-memory.md" &&
+      createdBySource.has(query.expected_doc),
+  );
+  if (!deleteQuery) {
+    checks.push(
+      makeCheck(
+        "delete_suppresses_retrieval",
+        "incomplete",
+        "No non-update, non-recovery memory item was available, so delete suppression could not be exercised.",
+        { available_sources: Array.from(createdBySource.keys()).sort() },
+      ),
+    );
+  } else {
+    const deleteId = createdBySource.get(deleteQuery.expected_doc)!.id;
+    const deleteResult = db.prepare("DELETE FROM memory_items WHERE id = ?").run(deleteId);
+    const deleteResults = memories.search(project.id, markerQuery(deleteQuery), topK);
+    const deletedStillMatched = resultMatches(deleteResults, deleteQuery);
+    checks.push(
+      makeCheck(
+        "delete_suppresses_retrieval",
+        deletedStillMatched ? "lifecycle_fail" : "pass",
+        deletedStillMatched
+          ? "claude-mem SQLite delete returned success but the deleted memory item was still searchable."
+          : "claude-mem SQLite delete suppressed the deleted memory item from subsequent FTS search.",
+        {
+          memory_item_id: deleteId,
+          source: deleteQuery.expected_doc,
+          query: deleteQuery,
+          changes: deleteResult.changes,
+          deleted_still_matched: deletedStillMatched,
+          results: deleteResults,
+        },
+      ),
+    );
+  }
+
+  const progressQuery =
+    queries.find(
+      (query) =>
+        query.expected_doc === "database-memory.md" ||
+        (query.expected_doc !== "auth-memory.md" &&
+          query.expected_doc !== deleteQuery?.expected_doc),
+    ) ?? queries[0];
+  const progressResults = memories.search(project.id, markerQuery(progressQuery), topK);
+  const progressItem = progressResults.find((entry) =>
+    ((entry as { filesRead?: string[] }).filesRead ?? []).includes(
+      progressQuery.expected_doc,
+    ),
+  );
+  const detail = progressItem ? memories.getById(progressItem.id) : null;
+  const sources = detail ? memories.listSources(detail.id) : [];
+  const detailHasEvidence =
+    !!detail &&
+    !!detail.text &&
+    detail.facts.length > 0 &&
+    detail.concepts.length > 0 &&
+    detail.filesRead.includes(progressQuery.expected_doc);
+  const sourceHydrated = sources.some((source) =>
+    source.sourceUri?.includes(progressQuery.expected_doc),
+  );
+  checks.push(
+    makeCheck(
+      "progressive_disclosure_detail_hydration",
+      progressResults.length > 0 && detailHasEvidence && sourceHydrated
+        ? "pass"
+        : "lifecycle_fail",
+      progressResults.length > 0 && detailHasEvidence && sourceHydrated
+        ? "claude-mem search returned a bounded item that could be hydrated into detail and source evidence."
+        : "claude-mem search/detail/source hydration did not expose the expected progressive-disclosure evidence.",
+      {
+        query: progressQuery,
+        search_result_count: progressResults.length,
+        detail_has_evidence: detailHasEvidence,
+        source_hydrated: sourceHydrated,
+        detail,
+        sources,
+      },
+    ),
+  );
+
+  db.close();
+
+  const reopenedDb = new Database(dbPath);
+  reopenedDb.run("PRAGMA foreign_keys = ON");
+  const reopenedProjects = new ProjectsRepository(reopenedDb);
+  const reopenedMemories = new MemoryItemsRepository(reopenedDb);
+  const reopenedProject =
+    reopenedProjects.getByRootPath("/bench/corpus") ?? reopenedProjects.getById(project.id);
+  const recoveryQuery: QueryCase = {
+    id: "lifecycle-cold-start-recovery",
+    query:
+      "The invoice list N+1 query was fixed by eager loading invoice lines through `InvoiceLineBatcher`. Do not reintroduce per-row SQL calls in invoice rendering.",
+    expected_doc: "database-memory.md",
+    expected_terms: ["InvoiceLineBatcher", "N+1"],
   };
+  const recoveryResults = reopenedProject
+    ? reopenedMemories.search(reopenedProject.id, markerQuery(recoveryQuery), topK)
+    : [];
+  const recoveryMatched = resultMatches(recoveryResults, recoveryQuery);
+  checks.push(
+    makeCheck(
+      "cold_start_recovery_search",
+      recoveryMatched ? "pass" : "lifecycle_fail",
+      recoveryMatched
+        ? "A new claude-mem repository instance reopened the durable SQLite file and retrieved persisted evidence."
+        : "A new claude-mem repository instance did not retrieve expected persisted evidence from the durable SQLite file.",
+      {
+        db_path: dbPath,
+        expected_doc: recoveryQuery.expected_doc,
+        matched: recoveryMatched,
+        results: recoveryResults,
+      },
+    ),
+  );
+  reopenedDb.close();
+
+  const checkSummary = summarizeChecks(checks);
 
   writeFileSync(
     outPath,
@@ -2965,13 +3182,18 @@ try {
       2,
     ),
   );
-} finally {
-  db.close();
+} catch (err) {
+  try {
+    db.close();
+  } catch {
+    // Ignore close errors while surfacing the original benchmark failure.
+  }
+  throw err;
 }
 TS
 
-  if run_cmd "${project}: same-corpus sqlite search" 300 "${log_path}" \
-    "cd '${REPOS_DIR}/${project}' && bun '${driver_path}' '${result_path}' '${CORPUS_DIR}' '${REPORT_DIR}/queries.json'"; then
+  if run_cmd "${project}: same-corpus durable sqlite search" 300 "${log_path}" \
+    "cd '${REPOS_DIR}/${project}' && bun '${driver_path}' '${result_path}' '${corpus_path}' '${REPORT_DIR}/queries.json' '${db_path}'"; then
     if jq -e '.checks and .check_summary' "${result_path}" >/dev/null 2>&1; then
       jq '{check_summary, checks}' "${result_path}" >"${REPORT_DIR}/${project}-checks.json"
     fi
@@ -2988,14 +3210,14 @@ TS
       else
         retrieval_status="retrieval_wrong_result"
       fi
-      json_record "${project}" "${repo}" "${head}" "${typed_status}" "${retrieval_status}" "$(typed_status_reason "${project}" "${typed_status}")" "${project}.log" "npm install/build; MemoryItemsRepository.create/search"
+      json_record "${project}" "${repo}" "${head}" "${typed_status}" "${retrieval_status}" "$(typed_status_reason "${project}" "${typed_status}")" "${project}.log" "npm install/build; MemoryItemsRepository.create/update/search; durable SQLite reopen"
       return
     fi
-    json_record "${project}" "${repo}" "${head}" "incomplete" "invalid_json_result" "claude-mem same-corpus search did not produce a valid benchmark result" "${project}.log" "npm install/build; MemoryItemsRepository.create/search"
+    json_record "${project}" "${repo}" "${head}" "incomplete" "invalid_json_result" "claude-mem same-corpus search did not produce a valid benchmark result" "${project}.log" "npm install/build; MemoryItemsRepository.create/update/search; durable SQLite reopen"
     return
   fi
 
-  json_record "${project}" "${repo}" "${head}" "incomplete" "retrieval_command_failed" "claude-mem built, but same-corpus SQLite search did not pass in Docker" "${project}.log" "npm install/build; MemoryItemsRepository.create/search"
+  json_record "${project}" "${repo}" "${head}" "incomplete" "retrieval_command_failed" "claude-mem built, but same-corpus SQLite search did not pass in Docker" "${project}.log" "npm install/build; MemoryItemsRepository.create/update/search; durable SQLite reopen"
 }
 
 run_project "ELF" project_elf
