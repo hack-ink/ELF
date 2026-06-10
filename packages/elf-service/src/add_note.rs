@@ -23,6 +23,8 @@ use elf_domain::{
 };
 use elf_storage::models::MemoryNote;
 
+type AddNoteApplyOutput = (AddNoteResult, NoteOp, Option<Uuid>);
+
 const REJECT_STRUCTURED_INVALID: &str = "REJECT_STRUCTURED_INVALID";
 const IGNORE_DUPLICATE: &str = "IGNORE_DUPLICATE";
 const IGNORE_POLICY_THRESHOLD: &str = "IGNORE_POLICY_THRESHOLD";
@@ -161,7 +163,7 @@ impl ElfService {
 		let note_id = decision.note_id();
 		let ignore_reason_code =
 			Self::ignore_reason_code(policy_decision, base_decision, metadata.matched_dup);
-		let (result, note_op) = self
+		let (result, note_op, note_version_id) = self
 			.apply_policy_result(
 				&mut tx,
 				&decision,
@@ -181,6 +183,7 @@ impl ElfService {
 			ctx,
 			&note,
 			result.note_id,
+			note_version_id,
 			base_decision,
 			result.policy_decision,
 			note_op,
@@ -223,6 +226,7 @@ impl ElfService {
 				ctx,
 				note,
 				None,
+				None,
 				MemoryPolicyDecision::Reject,
 				MemoryPolicyDecision::Reject,
 				NoteOp::Rejected,
@@ -248,6 +252,7 @@ impl ElfService {
 				tx,
 				ctx,
 				note,
+				None,
 				None,
 				MemoryPolicyDecision::Reject,
 				MemoryPolicyDecision::Reject,
@@ -350,25 +355,28 @@ impl ElfService {
 		note_id: Uuid,
 		policy_decision: MemoryPolicyDecision,
 		ignore_reason_code: Option<&'static str>,
-	) -> Result<(AddNoteResult, NoteOp)> {
+	) -> Result<AddNoteApplyOutput> {
 		let should_apply = matches!(
 			policy_decision,
 			MemoryPolicyDecision::Remember | MemoryPolicyDecision::Update
 		);
 
 		if should_apply {
-			let result = match decision {
+			let (result, note_version_id) = match decision {
 				UpdateDecision::Add { .. } => {
-					self.handle_add_note_add(tx, ctx, note, note_id).await?;
+					let note_version_id = self.handle_add_note_add(tx, ctx, note, note_id).await?;
 
-					AddNoteResult {
-						note_id: Some(note_id),
-						op: NoteOp::Add,
-						policy_decision,
-						reason_code: None,
-						field_path: None,
-						write_policy_audit: None,
-					}
+					(
+						AddNoteResult {
+							note_id: Some(note_id),
+							op: NoteOp::Add,
+							policy_decision,
+							reason_code: None,
+							field_path: None,
+							write_policy_audit: None,
+						},
+						Some(note_version_id),
+					)
 				},
 				UpdateDecision::Update { .. } =>
 					self.handle_add_note_update(
@@ -381,7 +389,7 @@ impl ElfService {
 					)
 					.await?,
 				UpdateDecision::None { .. } => {
-					let mut none_result = self
+					let (mut none_result, note_version_id) = self
 						.handle_add_note_none(
 							tx,
 							ctx,
@@ -395,12 +403,12 @@ impl ElfService {
 
 					none_result.policy_decision = policy_decision;
 
-					none_result
+					(none_result, note_version_id)
 				},
 			};
 			let note_op = result.op;
 
-			Ok((result, note_op))
+			Ok((result, note_op, note_version_id))
 		} else {
 			let mut result = AddNoteResult {
 				note_id: Some(note_id),
@@ -418,7 +426,7 @@ impl ElfService {
 				UpdateDecision::Update { .. } | UpdateDecision::None { .. } => {},
 			}
 
-			Ok((result, NoteOp::None))
+			Ok((result, NoteOp::None, None))
 		}
 	}
 
@@ -429,6 +437,7 @@ impl ElfService {
 		ctx: &AddNoteContext<'_>,
 		note: &AddNoteInput,
 		note_id: Option<Uuid>,
+		note_version_id: Option<Uuid>,
 		base_decision: MemoryPolicyDecision,
 		policy_decision: MemoryPolicyDecision,
 		note_op: NoteOp,
@@ -450,6 +459,7 @@ impl ElfService {
 			note_type: note.r#type.as_str(),
 			note_key: note.key.as_deref(),
 			note_id,
+			note_version_id,
 			base_decision,
 			policy_decision,
 			note_op,
@@ -507,7 +517,7 @@ impl ElfService {
 		ctx: &AddNoteContext<'_>,
 		note: &AddNoteInput,
 		note_id: Uuid,
-	) -> Result<()> {
+	) -> Result<Uuid> {
 		access::ensure_active_project_scope_grant(
 			&mut **tx,
 			ctx.tenant_id,
@@ -542,7 +552,7 @@ impl ElfService {
 
 		insert_memory_note_tx(tx, &memory_note).await?;
 
-		crate::insert_version(
+		let note_version_id = crate::insert_version(
 			&mut **tx,
 			InsertVersionArgs {
 				note_id: memory_note.note_id,
@@ -576,7 +586,7 @@ impl ElfService {
 		)
 		.await?;
 
-		Ok(())
+		Ok(note_version_id)
 	}
 
 	async fn handle_add_note_update(
@@ -587,7 +597,7 @@ impl ElfService {
 		agent_id: &str,
 		now: OffsetDateTime,
 		policy_decision: MemoryPolicyDecision,
-	) -> Result<AddNoteResult> {
+	) -> Result<(AddNoteResult, Option<Uuid>)> {
 		let mut existing: MemoryNote = sqlx::query_as::<_, MemoryNote>(
 			"SELECT * FROM memory_notes WHERE note_id = $1 FOR UPDATE",
 		)
@@ -619,14 +629,17 @@ impl ElfService {
 			&& existing.source_ref == note.source_ref;
 
 		if unchanged {
-			return Ok(AddNoteResult {
-				note_id: Some(note_id),
-				op: NoteOp::None,
-				policy_decision: MemoryPolicyDecision::Ignore,
-				reason_code: None,
-				field_path: None,
-				write_policy_audit: None,
-			});
+			return Ok((
+				AddNoteResult {
+					note_id: Some(note_id),
+					op: NoteOp::None,
+					policy_decision: MemoryPolicyDecision::Ignore,
+					reason_code: None,
+					field_path: None,
+					write_policy_audit: None,
+				},
+				None,
+			));
 		}
 
 		access::ensure_active_project_scope_grant(
@@ -647,7 +660,7 @@ impl ElfService {
 
 		update_memory_note_tx(tx, &existing).await?;
 
-		crate::insert_version(
+		let note_version_id = crate::insert_version(
 			&mut **tx,
 			InsertVersionArgs {
 				note_id: existing.note_id,
@@ -681,14 +694,17 @@ impl ElfService {
 		)
 		.await?;
 
-		Ok(AddNoteResult {
-			note_id: Some(note_id),
-			op: NoteOp::Update,
-			policy_decision,
-			reason_code: None,
-			field_path: None,
-			write_policy_audit: None,
-		})
+		Ok((
+			AddNoteResult {
+				note_id: Some(note_id),
+				op: NoteOp::Update,
+				policy_decision,
+				reason_code: None,
+				field_path: None,
+				write_policy_audit: None,
+			},
+			Some(note_version_id),
+		))
 	}
 
 	#[allow(clippy::too_many_arguments)]
@@ -701,7 +717,7 @@ impl ElfService {
 		now: OffsetDateTime,
 		embed_version: &str,
 		policy_decision: MemoryPolicyDecision,
-	) -> Result<AddNoteResult> {
+	) -> Result<(AddNoteResult, Option<Uuid>)> {
 		let mut should_update = false;
 
 		if let Some(structured) = note.structured.as_ref() {
@@ -730,6 +746,26 @@ impl ElfService {
 		}
 
 		if should_update {
+			let note_row: MemoryNote =
+				sqlx::query_as("SELECT * FROM memory_notes WHERE note_id = $1")
+					.bind(note_id)
+					.fetch_one(&mut **tx)
+					.await?;
+			let snapshot = crate::note_snapshot(&note_row);
+			let note_version_id = crate::insert_version(
+				&mut **tx,
+				InsertVersionArgs {
+					note_id,
+					op: "UPDATE",
+					prev_snapshot: Some(snapshot.clone()),
+					new_snapshot: Some(snapshot),
+					reason: "add_note_structured",
+					actor: ctx.agent_id,
+					ts: now,
+				},
+			)
+			.await?;
+
 			if matches!(ctx.scope, "project_shared" | "org_shared") {
 				access::ensure_active_project_scope_grant(
 					&mut **tx,
@@ -741,24 +777,30 @@ impl ElfService {
 				.await?;
 			}
 
-			return Ok(AddNoteResult {
+			return Ok((
+				AddNoteResult {
+					note_id: Some(note_id),
+					op: NoteOp::Update,
+					policy_decision,
+					reason_code: None,
+					field_path: None,
+					write_policy_audit: None,
+				},
+				Some(note_version_id),
+			));
+		}
+
+		Ok((
+			AddNoteResult {
 				note_id: Some(note_id),
-				op: NoteOp::Update,
+				op: NoteOp::None,
 				policy_decision,
 				reason_code: None,
 				field_path: None,
 				write_policy_audit: None,
-			});
-		}
-
-		Ok(AddNoteResult {
-			note_id: Some(note_id),
-			op: NoteOp::None,
-			policy_decision,
-			reason_code: None,
-			field_path: None,
-			write_policy_audit: None,
-		})
+			},
+			None,
+		))
 	}
 
 	#[allow(clippy::too_many_arguments)]

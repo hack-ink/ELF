@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS memory_ingest_decisions (
 	note_type text NOT NULL,
 	note_key text NULL,
 	note_id uuid NULL,
+	note_version_id uuid NULL,
 	base_decision text NOT NULL,
 	policy_decision text NOT NULL,
 	note_op text NOT NULL,
@@ -21,13 +22,18 @@ CREATE TABLE IF NOT EXISTS memory_ingest_decisions (
 	CONSTRAINT ck_memory_ingest_decisions_policy_decision
 		CHECK (policy_decision IN ('remember', 'update', 'ignore', 'reject')),
 	CONSTRAINT ck_memory_ingest_decisions_note_op
-		CHECK (note_op IN ('ADD', 'UPDATE', 'NONE', 'DELETE', 'REJECTED'))
+	CHECK (note_op IN ('ADD', 'UPDATE', 'NONE', 'DELETE', 'REJECTED'))
 );
+
+ALTER TABLE memory_ingest_decisions
+	ADD COLUMN IF NOT EXISTS note_version_id uuid NULL;
 
 CREATE INDEX IF NOT EXISTS idx_memory_ingest_decisions_context
 	ON memory_ingest_decisions (tenant_id, project_id, agent_id, ts desc);
 CREATE INDEX IF NOT EXISTS idx_memory_ingest_decisions_note_id
 	ON memory_ingest_decisions (note_id);
+CREATE INDEX IF NOT EXISTS idx_memory_ingest_decisions_note_version_id
+	ON memory_ingest_decisions (note_version_id);
 CREATE INDEX IF NOT EXISTS idx_memory_ingest_decisions_policy_decision
 	ON memory_ingest_decisions (policy_decision);
 CREATE INDEX IF NOT EXISTS idx_memory_ingest_decisions_pipeline

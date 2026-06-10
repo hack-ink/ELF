@@ -8,6 +8,7 @@ mod evidence_binding;
 mod graph_ingestion;
 mod idempotency;
 mod knowledge_pages;
+mod memory_history;
 mod outbox_eventual_consistency;
 mod rebuild_qdrant;
 mod sot_vectors;

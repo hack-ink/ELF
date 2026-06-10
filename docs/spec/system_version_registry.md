@@ -50,6 +50,14 @@ This document is normative. When a new versioned identifier is introduced, it mu
 - Consumers: Admin tooling and MCP adapter (`elf_admin_note_provenance_get`), diagnostics runbooks.
 - Bump rule: Introduce a new bundle version only when existing keys/shape/required joins become incompatible with v1 clients.
 
+### Memory history schema
+
+- Identifier: `elf.memory_history/v1`.
+- Type: Admin memory history response envelope for chronological memory evolution readback.
+- Defined in: `docs/spec/system_provenance_mapping_v1.md`.
+- Consumers: Admin tooling and MCP adapter (`elf_admin_memory_history_get`), diagnostics runbooks, lifecycle benchmarks.
+- Bump rule: Introduce a new history version only when event shape or ordering semantics become incompatible with v1 clients.
+
 ### Doc Extension v1 docs filters contract
 
 - Identifier: `docs_search_filters/v1`.

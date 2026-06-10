@@ -298,6 +298,7 @@ struct MemoryEvolution {
 	conflicts: Vec<EvolutionConflict>,
 	update_rationale: Option<UpdateRationale>,
 	temporal_validity: Option<TemporalValidity>,
+	history_readback: Option<HistoryReadback>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -322,6 +323,14 @@ struct TemporalValidity {
 	required: bool,
 	encoded: bool,
 	follow_up: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct HistoryReadback {
+	encoded: bool,
+	#[serde(default)]
+	required_event_types: Vec<String>,
+	requires_note_version_links: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -763,6 +772,8 @@ struct ReportSummary {
 	update_rationale_available_count: usize,
 	#[serde(default)]
 	temporal_validity_not_encoded_count: usize,
+	#[serde(default)]
+	history_readback_encoded_count: usize,
 	expected_evidence_total: usize,
 	expected_evidence_matched: usize,
 	expected_evidence_recall: f64,
@@ -865,6 +876,8 @@ struct SuiteReport {
 	update_rationale_available_count: usize,
 	#[serde(default)]
 	temporal_validity_not_encoded_count: usize,
+	#[serde(default)]
+	history_readback_encoded_count: usize,
 	expected_evidence_recall: Option<f64>,
 	irrelevant_context_ratio: Option<f64>,
 	trace_explainability_count: usize,
@@ -896,6 +909,8 @@ struct JobReport {
 	update_rationale_available: bool,
 	#[serde(default)]
 	temporal_validity_not_encoded: bool,
+	#[serde(default)]
+	history_readback_encoded: bool,
 	retrieval_quality: RetrievalQualityReport,
 	latency_ms: Option<f64>,
 	cost: Option<CostReport>,
@@ -1036,6 +1051,7 @@ struct EvolutionSummary {
 	conflict_detection_count: usize,
 	update_rationale_available_count: usize,
 	temporal_validity_not_encoded_count: usize,
+	history_readback_encoded_count: usize,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -1050,6 +1066,9 @@ struct EvolutionJobReport {
 	temporal_validity_required: bool,
 	temporal_validity_encoded: bool,
 	temporal_validity_not_encoded: bool,
+	history_readback_encoded: bool,
+	history_event_types: Vec<String>,
+	history_requires_note_version_links: bool,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	follow_up: Option<String>,
 }
@@ -2265,6 +2284,16 @@ fn evolution_job_report(
 	let temporal_validity_encoded =
 		evolution.temporal_validity.as_ref().is_some_and(|temporal| temporal.encoded);
 	let temporal_validity_not_encoded = temporal_validity_required && !temporal_validity_encoded;
+	let history_readback_encoded =
+		evolution.history_readback.as_ref().is_some_and(|history| history.encoded);
+	let history_event_types = evolution
+		.history_readback
+		.as_ref()
+		.map_or_else(Vec::new, |history| history.required_event_types.clone());
+	let history_requires_note_version_links = evolution
+		.history_readback
+		.as_ref()
+		.is_some_and(|history| history.requires_note_version_links);
 	let follow_up = evolution
 		.temporal_validity
 		.as_ref()
@@ -2282,6 +2311,9 @@ fn evolution_job_report(
 		temporal_validity_required,
 		temporal_validity_encoded,
 		temporal_validity_not_encoded,
+		history_readback_encoded,
+		history_event_types,
+		history_requires_note_version_links,
 		follow_up,
 	})
 }
@@ -2783,6 +2815,10 @@ fn job_report(job: &RealWorldJob, scoring: JobScoring) -> JobReport {
 			.evolution
 			.as_ref()
 			.is_some_and(|report| report.temporal_validity_not_encoded),
+		history_readback_encoded: scoring
+			.evolution
+			.as_ref()
+			.is_some_and(|report| report.history_readback_encoded),
 		retrieval_quality,
 		latency_ms: answer.latency_ms,
 		cost: answer.cost.clone(),
@@ -3101,6 +3137,7 @@ fn suite_report(suite_id: &str, jobs: &[JobReport]) -> SuiteReport {
 			conflict_detection_count: 0,
 			update_rationale_available_count: 0,
 			temporal_validity_not_encoded_count: 0,
+			history_readback_encoded_count: 0,
 			expected_evidence_recall: None,
 			irrelevant_context_ratio: None,
 			trace_explainability_count: 0,
@@ -3118,6 +3155,8 @@ fn suite_report(suite_id: &str, jobs: &[JobReport]) -> SuiteReport {
 		suite_jobs.iter().filter(|job| job.update_rationale_available).count();
 	let temporal_validity_not_encoded_count =
 		suite_jobs.iter().filter(|job| job.temporal_validity_not_encoded).count();
+	let history_readback_encoded_count =
+		suite_jobs.iter().filter(|job| job.history_readback_encoded).count();
 	let trace_explainability_count =
 		suite_jobs.iter().filter(|job| job.trace_explainability.is_some()).count();
 
@@ -3132,6 +3171,7 @@ fn suite_report(suite_id: &str, jobs: &[JobReport]) -> SuiteReport {
 		conflict_detection_count,
 		update_rationale_available_count,
 		temporal_validity_not_encoded_count,
+		history_readback_encoded_count,
 		expected_evidence_recall: Some(expected_evidence_recall_for_jobs(&suite_jobs)),
 		irrelevant_context_ratio: Some(irrelevant_context_ratio_for_jobs(&suite_jobs)),
 		trace_explainability_count,
@@ -3205,6 +3245,10 @@ fn report_summary(jobs: &[JobReport], suites: &[SuiteReport]) -> ReportSummary {
 		temporal_validity_not_encoded_count: jobs
 			.iter()
 			.filter(|job| job.temporal_validity_not_encoded)
+			.count(),
+		history_readback_encoded_count: jobs
+			.iter()
+			.filter(|job| job.history_readback_encoded)
 			.count(),
 		expected_evidence_total: jobs
 			.iter()
@@ -3301,6 +3345,10 @@ fn evolution_summary(jobs: &[JobReport]) -> EvolutionSummary {
 		temporal_validity_not_encoded_count: jobs
 			.iter()
 			.filter(|job| job.temporal_validity_not_encoded)
+			.count(),
+		history_readback_encoded_count: jobs
+			.iter()
+			.filter(|job| job.history_readback_encoded)
 			.count(),
 	}
 }
@@ -4028,6 +4076,10 @@ fn render_markdown_header(out: &mut String, report: &RealWorldReport, report_pat
 		"- Temporal validity not encoded: `{}`\n",
 		report.summary.temporal_validity_not_encoded_count
 	));
+	out.push_str(&format!(
+		"- History readback encoded: `{}`\n",
+		report.summary.history_readback_encoded_count
+	));
 
 	render_markdown_quality_summary(out, report);
 
@@ -4131,13 +4183,13 @@ fn render_markdown_quality_summary(out: &mut String, report: &RealWorldReport) {
 fn render_markdown_suites(out: &mut String, report: &RealWorldReport) {
 	out.push_str("## Suites\n\n");
 	out.push_str(
-		"| Suite | Status | Jobs | Score | Evidence Recall | Irrelevant Context | Trace Explain | Stale Answers | Conflicts | Update Rationales | Temporal Gaps | Unsupported Claims | Wrong Results | Reason |\n",
+		"| Suite | Status | Jobs | Score | Evidence Recall | Irrelevant Context | Trace Explain | Stale Answers | Conflicts | Update Rationales | Temporal Gaps | History Readback | Unsupported Claims | Wrong Results | Reason |\n",
 	);
-	out.push_str("| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |\n");
+	out.push_str("| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |\n");
 
 	for suite in &report.suites {
 		out.push_str(&format!(
-			"| {} | `{}` | {} | `{}` | `{}` | `{}` | {} | {} | {} | {} | {} | {} | {} | {} |\n",
+			"| {} | `{}` | {} | `{}` | `{}` | `{}` | {} | {} | {} | {} | {} | {} | {} | {} | {} |\n",
 			md_cell(suite.suite_id.as_str()),
 			status_str(suite.status),
 			suite.encoded_job_count,
@@ -4149,6 +4201,7 @@ fn render_markdown_suites(out: &mut String, report: &RealWorldReport) {
 			suite.conflict_detection_count,
 			suite.update_rationale_available_count,
 			suite.temporal_validity_not_encoded_count,
+			suite.history_readback_encoded_count,
 			suite.unsupported_claim_count,
 			suite.wrong_result_count,
 			md_cell(suite.reason.as_str())
@@ -4306,8 +4359,12 @@ fn render_markdown_evolution(out: &mut String, report: &RealWorldReport) {
 		"- Temporal validity not encoded: `{}`\n\n",
 		report.evolution.temporal_validity_not_encoded_count
 	));
-	out.push_str("| Suite | Job | Current Evidence | Historical Evidence | Stale Traps Used | Conflict Count | Detected | Update Rationale | Temporal Validity | Follow-up |\n");
-	out.push_str("| --- | --- | --- | --- | --- | ---: | ---: | --- | --- | --- |\n");
+	out.push_str(&format!(
+		"- History readback encoded: `{}`\n\n",
+		report.evolution.history_readback_encoded_count
+	));
+	out.push_str("| Suite | Job | Current Evidence | Historical Evidence | Stale Traps Used | Conflict Count | Detected | Update Rationale | Temporal Validity | History Readback | Follow-up |\n");
+	out.push_str("| --- | --- | --- | --- | --- | ---: | ---: | --- | --- | --- | --- |\n");
 
 	for job in &report.jobs {
 		let Some(evolution) = &job.evolution else {
@@ -4315,7 +4372,7 @@ fn render_markdown_evolution(out: &mut String, report: &RealWorldReport) {
 		};
 
 		out.push_str(&format!(
-			"| {} | {} | `{}` | `{}` | `{}` | {} | {} | `{}` | `{}` | {} |\n",
+			"| {} | {} | `{}` | `{}` | `{}` | {} | {} | `{}` | `{}` | `{}` | {} |\n",
 			md_cell(job.suite_id.as_str()),
 			md_cell(job.job_id.as_str()),
 			md_inline(evolution.current_evidence.join(", ").as_str()),
@@ -4325,6 +4382,7 @@ fn render_markdown_evolution(out: &mut String, report: &RealWorldReport) {
 			evolution.conflict_detection_count,
 			bool_display(evolution.update_rationale_available),
 			temporal_display(evolution),
+			history_display(evolution),
 			md_cell(evolution.follow_up.as_deref().unwrap_or("-"))
 		));
 	}
@@ -4693,6 +4751,20 @@ fn temporal_display(evolution: &EvolutionJobReport) -> &'static str {
 	} else {
 		"-"
 	}
+}
+
+fn history_display(evolution: &EvolutionJobReport) -> String {
+	if !evolution.history_readback_encoded {
+		return "-".to_string();
+	}
+
+	let mut parts = vec![format!("events={}", evolution.history_event_types.join(","))];
+
+	if evolution.history_requires_note_version_links {
+		parts.push("note_version_links=true".to_string());
+	}
+
+	parts.join(";")
 }
 
 fn cost_display(cost: Option<&CostReport>) -> String {
