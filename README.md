@@ -141,10 +141,11 @@ with the production embedding provider path, `Qwen3-Embedding-8B`, and
   search recovered the restored note.
 - Fresh all-project smoke run: ELF and qmd passed every encoded check. agentmemory
   passed same-corpus retrieval but failed lifecycle/cold-start coverage. memsearch,
-  mem0, OpenViking, and claude-mem remained `incomplete` or wrong-result typed states;
-  those states are reported as limitations, not hidden as proof.
+  mem0, OpenViking, and claude-mem remained typed non-pass states. OpenViking now
+  reaches its pinned Docker local embedding path and is reported as `wrong_result`
+  when same-corpus evidence terms are missed; setup failures remain `incomplete`.
 - Real-world agent memory aggregate after the P1 benchmark batch: 38 fixture-backed
-  jobs across 11 suites, 35 pass, 1 incomplete, 2 blocked, 0 wrong-result,
+  jobs across 11 suites, 36 pass, 0 incomplete, 2 blocked, 0 wrong-result,
   0 not-encoded, and 0 unsupported-claim results. The remaining non-pass jobs are
   production-ops operator boundaries, not hidden benchmark wins.
 - Full-suite live real-world adapter sweep after XY-880: ELF and qmd now emit
@@ -157,8 +158,8 @@ with the production embedding provider path, `Qwen3-Embedding-8B`, and
   manifest now includes `research_gate` records for RAGFlow, LightRAG, GraphRAG,
   Graphiti/Zep, Letta, LangGraph, nanograph, llm-wiki, gbrain, graphify, and deeper
   qmd/OpenViking profiles. These records carry source/setup/runtime/resource/retry
-  metadata and typed `blocked`, `incomplete`, or `not_encoded` states; they are not
-  fixture-backed or live adapter pass evidence.
+  metadata and typed `blocked`, `incomplete`, `wrong_result`, or `not_encoded` states;
+  they are not fixture-backed or live adapter pass evidence.
 - The benchmark runner and report publisher are checked in and Docker-isolated:
   `cargo make baseline-live-docker`, `cargo make baseline-backfill-docker`,
   `cargo make baseline-production-private-addendum`,
