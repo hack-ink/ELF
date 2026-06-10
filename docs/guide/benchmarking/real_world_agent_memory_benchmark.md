@@ -146,12 +146,15 @@ including the retrieval-quality slice below. The suite currently encodes:
   Postgres-held chunk embeddings before answering.
 - `work_resume`: stale worktree resume, Decodex/Linear lane status, failed command
   recovery, PR review blocker recovery, and exact next-action extraction.
+- `project_decisions`: accepted durable decisions, superseded/reversed decisions,
+  old-versus-current validation gates, tradeoff rationale, and bounded caveat or
+  uncertainty handling.
 - `retrieval`: alternate phrasing, distractor-heavy retrieval, multi-hop routing,
   current-versus-obsolete selection, and minimal sufficient context.
 - `memory_evolution`: TTL/delete suppression plus current-versus-historical preference,
   issue status, deployment method, benchmark conclusion, and temporal relation cases.
-- `operator_debugging_ux`: deliberate wrong-result trace attribution that identifies
-  the retrieval stage that demoted expected evidence.
+- `operator_debugging_ux`: trace-backed stage attribution that identifies where
+  expected evidence was filtered, demoted, or selected against.
 - `capture_integration`: write-policy audit behavior for redaction/private exclusion
   and fixture-backed capture/integration boundary classification.
 - `personalization`: scoped stable preference correction without temporary or
@@ -162,10 +165,80 @@ unsupported-claim count, stale retrieval count, stale-answer count, conflict det
 count, update rationale availability, temporal validity `not_encoded` count, scope
 correctness, redaction leak count, capture/integration behavior classes, Qdrant
 rebuild case/pass counts, expected evidence recall, irrelevant context ratio,
-latency/cost, and trace explainability counters. The fixtures include negative traps
+latency/cost, answer-type plus caveat/refusal/uncertainty flags, and trace
+explainability counters. The fixtures include negative traps
 for stale blockers, unsupported prior claims, stale deleted facts, stale historical
 facts, cross-project preference leakage, private/redacted text leakage, obsolete
-retrieval context, and distractor context.
+retrieval context, project-decision stale reuse, missing rationale, uncited current
+policy claims, overconfident unsupported decision answers, and distractor context.
+
+Current checked-in project-decisions increment:
+
+```sh
+cargo make real-world-memory-project-decisions
+```
+
+This parses `apps/elf-eval/fixtures/real_world_memory/project_decisions/`, writes
+`tmp/real-world-memory/project-decisions/report.json`, and renders
+`tmp/real-world-memory/project-decisions/report.md`. The fixture set covers:
+
+- accepted decision recovery with required rationale;
+- superseded decision recovery where historical evidence must not become the current
+  answer;
+- old-versus-current validation gate recovery;
+- fixture-backed-first tradeoff rationale with an external-adapter parity caveat;
+- missing private-manifest uncertainty where the correct answer is a bounded caveat.
+
+The report exposes `answer_type`, `requires_caveat`, `requires_refusal`, and
+`can_answer_unknown` per job, and the memory-evolution table shows current evidence,
+historical evidence, conflict detections, and update-rationale availability. These jobs
+are fixture-backed only; they do not claim external adapter parity or private-corpus
+validation.
+
+The report also loads the checked-in external adapter coverage manifest by default:
+
+```text
+apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json
+```
+
+That manifest records the first memory-project set: ELF, qmd, agentmemory,
+mem0/OpenMemory, claude-mem, memsearch, and OpenViking. Its `external_adapters`
+report section distinguishes:
+
+- `fixture_backed`: checked-in real-world fixture scoring, such as the ELF fixture
+  response path.
+- `live_baseline_only`: Docker live-baseline retrieval/lifecycle evidence that is not
+  a real-world suite win.
+- `live_real_world`: future external adapters that actually execute `real_world_job`
+  prompts and scoring.
+
+Current state: no external project has a `live_real_world` adapter in this runner yet.
+qmd has Docker live-baseline pass evidence for the encoded same-corpus checks, but its
+real-world suites remain `not_encoded`. agentmemory is blocked on durable upstream
+storage for lifecycle proof. mem0/OpenMemory, memsearch, and claude-mem currently
+retain wrong-result or incomplete live-baseline states for the checked-in adapter
+evidence. OpenViking is incomplete until its local embedding setup is reliable inside
+Docker. These typed states describe benchmark coverage; do not treat them as broad
+project quality rankings.
+
+To run the fixture report without the manifest during local debugging:
+
+```sh
+cargo run -p elf-eval --bin real_world_job_benchmark -- \
+  run \
+  --fixtures apps/elf-eval/fixtures/real_world_memory \
+  --skip-external-adapter-manifest
+```
+
+To test an adapter-pack manifest before committing it:
+
+```sh
+cargo run -p elf-eval --bin real_world_job_benchmark -- \
+  run \
+  --fixtures apps/elf-eval/fixtures/real_world_memory \
+  --external-adapter-manifest path/to/manifest.json \
+  --out tmp/real-world-memory/adapter-contract-report.json
+```
 
 Narrow memory evolution increment:
 
@@ -195,11 +268,11 @@ This parses `apps/elf-eval/fixtures/real_world_memory/retrieval/`, writes
 `tmp/real-world-memory/retrieval-report.json`, and renders
 `tmp/real-world-memory/retrieval-report.md`. The fixture set covers alternate
 phrasing, distractor-heavy retrieval, multi-hop routing, current-versus-obsolete
-selection, minimal sufficient context, and a deliberate wrong-result trace attribution
-case. Reports include expected evidence recall, irrelevant context ratio, latency/cost,
-and optional trace explainability metadata. The qmd and OpenViking references in these
-fixtures are design references only; no parity claim is allowed unless an external
-adapter run actually provides evidence.
+selection, minimal sufficient context, and trace-backed stage attribution for
+operator debugging. Reports include expected evidence recall, irrelevant context ratio,
+latency/cost, and optional trace explainability metadata. The qmd and OpenViking
+references in these fixtures are design references only; no parity claim is allowed
+unless an external adapter run actually provides evidence.
 
 Operator debugging UX increment:
 

@@ -125,6 +125,88 @@ Optional corpus fields:
 Private corpus fixtures MUST use sanitized inline text or local refs excluded from git.
 Reports MAY publish evidence ids and score summaries without publishing private text.
 
+### External Adapter Manifest
+
+Real-world reports MAY include an external adapter manifest. When present, the manifest
+MUST use this schema id:
+
+```text
+elf.real_world_external_adapter_manifest/v1
+```
+
+The manifest is the stable adapter-pack contract for comparing external memory projects
+against `real_world_job` suites. It records what an adapter actually executed, which
+coverage is only fixture-backed or live-baseline-only, and which suites remain blocked,
+unsupported, incomplete, or not encoded. It MUST NOT be used to convert retrieval-only
+live-baseline evidence into a real-world suite win.
+
+Required manifest fields:
+
+- `manifest_id`: stable ASCII id for the checked-in or generated manifest.
+- `docker_isolation`: object describing the default execution boundary.
+- `adapters`: array of adapter records.
+
+`docker_isolation` MUST include:
+
+- `default`: boolean; MUST be `true` for repository-supported external adapter runs
+  unless a separate issue records why Docker is impossible.
+- `compose_file`: Docker Compose file used by the supported runner.
+- `runner`: script or command entrypoint used inside the Compose boundary.
+- `artifact_dir`: relative artifact directory for logs and reports.
+- `host_global_installs_required`: boolean; MUST be `false` for default external
+  runs.
+- `notes`: optional bounded explanatory strings.
+
+Each `adapters[]` record MUST include:
+
+- `adapter_id`: stable id unique within the manifest.
+- `project`: display name such as `qmd`, `agentmemory`, or `mem0/OpenMemory`.
+- `adapter_kind`: local execution shape, for example `docker_cli_same_corpus`,
+  `docker_sdk_same_corpus`, or `offline_fixture_response`.
+- `evidence_class`: one of `fixture_backed`, `live_baseline_only`, or
+  `live_real_world`.
+- `docker_default`: boolean.
+- `host_global_installs_required`: boolean.
+- `overall_status`: one adapter status from the table below.
+- `setup`, `run`, and `result`: evidence objects with `status`, `evidence`, and
+  optional `command` and `artifact`.
+- `capabilities`: array of capability coverage records with `capability`, `status`,
+  and `evidence`.
+- `suites`: array of real-world suite coverage records with `suite_id`, `status`, and
+  `evidence`.
+- `evidence`: array of evidence pointers with `kind`, `ref`, and `status`.
+- `notes`: optional bounded explanatory strings.
+- `follow_up`: optional `title` and `reason`.
+
+Adapter coverage status terms:
+
+| Term | Meaning |
+| --- | --- |
+| `real` | The adapter capability is exercised through the project's real local API, CLI, storage, or service surface. |
+| `mocked` | The adapter uses a mock, in-memory substitute, fixture replay, or other non-durable stand-in for the named capability. |
+| `unsupported` | The project or safe Docker profile does not expose the capability. This is not a quality penalty. |
+| `blocked` | The check cannot run safely without credentials, manual setup, durable runtime integration, private input, or host integration outside the run scope. |
+| `incomplete` | Setup, build, dependency, adapter wiring, parse, or runtime execution did not reach the behavioral check. |
+| `wrong_result` | The adapter reached execution but produced the wrong answer, memory, evidence, or action. |
+| `lifecycle_fail` | Retrieval may work, but encoded update, delete, expiry, cold-start, persistence, history, or supersession behavior failed. |
+| `pass` | The declared adapter check completed and met its encoded expectations. |
+| `not_encoded` | The capability, suite, or adapter path is not implemented in the runner, so no pass/fail claim is allowed. |
+
+Reports that load a manifest MUST emit an `external_adapters` section with schema id
+`elf.real_world_external_adapter_report/v1`, the manifest id, Docker isolation
+metadata, per-adapter records, and summary counters for:
+
+- adapter count, external project count, Docker-default count, host-global-install
+  count;
+- `fixture_backed`, `live_baseline_only`, and `live_real_world` evidence classes;
+- overall adapter statuses;
+- capability coverage statuses;
+- real-world suite coverage statuses.
+
+Adapter-pack issues SHOULD add new projects by appending adapter records to this
+manifest shape. They MUST NOT change these status meanings to make a project look
+better or worse.
+
 ### `timeline`
 
 `timeline` MUST model the user job as prior agent work, not just a bag of documents.
@@ -440,6 +522,9 @@ Reports MUST include:
 
 - run id, runner version, corpus profile, job ids, suite ids, project adapter metadata;
 - per-job status, normalized score, hard-fail hits, evidence ids used, trap ids used;
+- per-job `answer_type`, required caveat/refusal flags, and whether an unknown answer
+  is allowed, so current-decision, historical-decision, rationale, and caveat cases are
+  distinguishable in generated reports;
 - expected evidence recall and irrelevant context ratio at job, suite, and summary
   levels when the runner can derive them from fixture evidence ids;
 - trace explainability metadata when an adapter or fixture can identify retrieval
@@ -454,6 +539,10 @@ Reports MUST include:
 - capture/integration coverage classes when any fixture declares `capture_behaviors`,
   preserving the `real`, `fixture_backed`, `mocked`, `blocked`, and `not_encoded`
   distinction.
+- external adapter coverage when an external adapter manifest is loaded, preserving
+  `fixture_backed`, `live_baseline_only`, `live_real_world`, `real`, `mocked`,
+  `unsupported`, `blocked`, `incomplete`, `wrong_result`, `lifecycle_fail`, `pass`,
+  and `not_encoded` distinctions.
 
 Reports that encode `memory_evolution` jobs SHOULD also include stale-answer counts,
 conflict detection counts, update rationale availability, and temporal-validity
