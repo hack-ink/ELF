@@ -10,10 +10,11 @@ and the live-baseline reports linked from this guide.
 Depends on: `docs/spec/real_world_agent_memory_benchmark_v1.md`,
 `docs/guide/benchmarking/real_world_agent_memory_benchmark.md`, and
 `docs/guide/benchmarking/live_baseline_benchmark.md`.
-Verification: The commands listed below were run from branch `y/elf-xy-865`. The
-generated reports used runner version
-`0.2.0-89d30dc04a854771f2a62f607e1d13498ccb3073-aarch64-apple-darwin`; the working
-tree also contained the adapter manifest refresh recorded here.
+Verification: The original commands listed below were run from branch `y/elf-xy-865`.
+XY-881 refreshed `cargo make real-world-memory`, `cargo make real-world-memory-production-ops`,
+and `ELF_BASELINE_PROJECTS=OpenViking cargo make baseline-live-docker` from branch
+`y/elf-xy-881`. Tables below include that refresh where the OpenViking cold-start
+dependency boundary is discussed.
 
 ## Context
 
@@ -38,14 +39,14 @@ paths remain typed `blocked` boundaries, not passes.
 
 | Command | Generated artifact | Run ID | Generated at |
 | --- | --- | --- | --- |
-| `cargo make real-world-memory` | `tmp/real-world-memory/real-world-memory-report.{json,md}` | `real-world-memory` | `2026-06-10T04:21:32.545027Z` |
+| `cargo make real-world-memory` | `tmp/real-world-memory/real-world-memory-report.{json,md}` | `real-world-memory` | `2026-06-10T08:47:44.086502Z` |
 | `cargo make real-world-memory-project-decisions` | `tmp/real-world-memory/project-decisions/report.{json,md}` | `real-world-memory-project-decisions` | `2026-06-10T04:21:52.403238Z` |
-| `cargo make real-world-memory-production-ops` | `tmp/real-world-memory/production-ops-report.{json,md}` | `real-world-memory-production-ops` | `2026-06-10T04:21:59.520163Z` |
+| `cargo make real-world-memory-production-ops` | `tmp/real-world-memory/production-ops-report.{json,md}` | `real-world-memory-production-ops` | `2026-06-10T08:47:18.205778Z` |
 | `cargo make real-world-memory-evolution` | `tmp/real-world-memory/evolution-report.{json,md}` | `real-world-memory-evolution` | `2026-06-10T04:22:06.325152Z` |
 | `cargo make real-world-job-operator-ux` | `tmp/real-world-job/real-world-job-operator-ux-report.{json,md}` | `real-world-job-operator-ux` | `2026-06-10T04:22:12.28938Z` |
 
-All generated reports used runner version
-`0.2.0-89d30dc04a854771f2a62f607e1d13498ccb3073-aarch64-apple-darwin`.
+The refreshed real-world-memory reports used runner version
+`0.2.0-a8b25d00880bd3cf04707c3b2b328cd20a585396-aarch64-apple-darwin`.
 
 ## Aggregate Result
 
@@ -54,18 +55,18 @@ suites:
 
 | Metric | Value |
 | --- | ---: |
-| Pass | `35` |
-| Incomplete | `1` |
+| Pass | `36` |
+| Incomplete | `0` |
 | Blocked | `2` |
 | Wrong result | `0` |
 | Lifecycle fail | `0` |
 | Not encoded | `0` |
 | Unsupported claim | `0` |
-| Mean score | `0.921` |
-| Evidence coverage | `82/82` (`1.000`) |
-| Source-ref coverage | `82/82` (`1.000`) |
-| Quote coverage | `82/82` (`1.000`) |
-| Expected evidence recall | `75/75` (`1.000`) |
+| Mean score | `0.947` |
+| Evidence coverage | `84/84` (`1.000`) |
+| Source-ref coverage | `84/84` (`1.000`) |
+| Quote coverage | `84/84` (`1.000`) |
+| Expected evidence recall | `77/77` (`1.000`) |
 | Redaction leaks | `0` |
 | Scope violations | `0` |
 | Temporal validity gaps | `0` |
@@ -84,7 +85,7 @@ Suite-level outcomes:
 | `knowledge_compilation` | 2 | `pass` | `1.000` | Derived page fixtures passed with citation/rebuild checks. |
 | `operator_debugging_ux` | 1 | `pass` | `1.000` | Aggregate stage-attribution fixture passed. |
 | `capture_integration` | 2 | `pass` | `1.000` | Redaction and capture-boundary fixtures passed. |
-| `production_ops` | 6 | `incomplete` | `0.500` | Three jobs passed, one is a typed dependency `incomplete`, and two are typed operator `blocked`. |
+| `production_ops` | 6 | `blocked` | `0.667` | Four jobs passed, including the pinned OpenViking cold-start classification, and two operator-owned boundaries remain `blocked`. |
 | `personalization` | 1 | `pass` | `1.000` | Scoped preference correction passed. |
 
 ## Focused P1 Slices
@@ -94,7 +95,7 @@ Suite-level outcomes:
 | `cargo make real-world-memory-project-decisions` | 5 | `5` pass | Current decision, historical/reversed decision, validation gate, tradeoff rationale, and private-manifest caveat all passed. |
 | `cargo make real-world-memory-evolution` | 5 | `5` pass | Temporal relation validity is now encoded and passing; stale answers `0`, conflict detections `5`, update rationales `5`. |
 | `cargo make real-world-job-operator-ux` | 5 | `5` pass | Dropped evidence, rerank promotion, provider latency, rebuild change, and misleading relation-context debug cases passed with raw SQL needed `0`. |
-| `cargo make real-world-memory-production-ops` | 6 | `3` pass, `1` incomplete, `2` blocked | Restore/Qdrant rebuild, interrupted backfill resume, and resource envelope passed; local embedding dependency, provider credentials, and private manifest remain typed non-pass boundaries. |
+| `cargo make real-world-memory-production-ops` | 6 | `4` pass, `0` incomplete, `2` blocked | Restore/Qdrant rebuild, interrupted backfill resume, resource envelope, and pinned OpenViking cold-start classification passed; provider credentials and private manifest remain typed non-pass boundaries. |
 
 ## External Adapter Evidence
 
@@ -114,25 +115,28 @@ Adapter-level status after refreshing the manifest:
 
 | Project | Evidence class | Overall status | What is proven | What is not proven |
 | --- | --- | --- | --- | --- |
-| ELF | `fixture_backed` | `incomplete` | Fixture-backed real-world scoring passes 10 of 11 suites, with production-ops typed boundaries preserved. | Fixture-backed scoring is not live-service behavior; cite `elf_live_real_world` for the targeted live slice. |
+| ELF | `fixture_backed` | `blocked` | Fixture-backed real-world scoring passes every non-operator-owned suite and preserves the production-ops credential/private-manifest boundaries. | Fixture-backed scoring is not live-service behavior; cite `elf_live_real_world` for the targeted live slice. |
 | ELF | `live_real_world` | `pass` | The targeted Docker slice materializes real_world_job answers through ElfService, worker indexing, and search_raw for work_resume, retrieval, and project_decisions. | This is not yet a full 11-suite live-service run or private-corpus proof. |
 | qmd | `live_baseline_only` | `pass` | Docker same-corpus retrieval, update, delete, and cold-start live-baseline checks pass. | Same-corpus checks are not real-world job scoring; cite `qmd_live_real_world` for the targeted live slice. |
 | qmd | `live_real_world` | `pass` | The targeted Docker slice indexes real_world_job corpora through qmd collection add/update/embed/query and scores generated answers. | This is not yet broad RAG/graph adapter coverage or full-suite external parity. |
 | agentmemory | `live_baseline_only` | `lifecycle_fail` | Same-corpus retrieval can run through current adapter. | Durable storage/cold-start lifecycle and real-world suites are blocked by the current in-memory adapter path. |
 | mem0/OpenMemory | `live_baseline_only` | `wrong_result` | Local OSS setup is represented separately from hosted/OpenMemory claims. | Same-corpus retrieval was not a clean pass and no real-world job adapter is encoded. |
 | memsearch | `live_baseline_only` | `wrong_result` | Markdown-first design remains a source-of-truth ergonomics reference. | Same-corpus retrieval was not a clean pass and real-world suites are incomplete/not encoded. |
-| OpenViking | `live_baseline_only` | `incomplete` | Hierarchical context trajectory remains a reference direction. | Docker local-embedding setup must be pinned before fair retrieval or real-world jobs can run. |
+| OpenViking | `live_baseline_only` | `wrong_result` | The Docker local-embedding setup is pinned and reaches `add_resource`/`find`. | The same-corpus smoke still misses expected evidence terms; no real-world job adapter or context-trajectory suite is claimed. |
 | claude-mem | `live_baseline_only` | `wrong_result` | Progressive disclosure and local viewer remain UX references. | Current Docker evidence is not a clean same-corpus pass and progressive disclosure jobs are not encoded. |
 | qmd deep profile | `research_gate` | `not_encoded` | The stress-profile command path and source metadata are recorded for a future deeper retrieval-debug run. | No expanded qmd stress artifact or broader real-world suite pass is checked in. |
-| OpenViking deep profile | `research_gate` | `incomplete` | The deeper context-trajectory gate inherits the current Docker local-embedding setup blocker. | No hierarchical trajectory suite result is claimed. |
+| OpenViking deep profile | `research_gate` | `not_encoded` | The deeper context-trajectory gate can reuse the pinned Docker local-embedding setup path. | No hierarchical trajectory suite result is claimed until evidence-bearing same-corpus output is fixed. |
 | RAGFlow, LightRAG, GraphRAG | `research_gate` | `blocked` | Official sources and setup/resource/retry expectations are recorded. | D1/D2 research, Docker runtime proof, and evidence-output mapping are required before adapter implementation. |
 | Graphiti/Zep, Letta, LangGraph, nanograph, llm-wiki, gbrain, graphify | `research_gate` | `not_encoded` | D1/D2-inspired adapter directions have source/setup/runtime/resource/retry metadata. | No Docker-isolated `real_world_job` adapter has run for these projects. |
 
 External summary counters: `21` adapter records, `19` non-ELF adapter records,
 `21` Docker-default, `0` host-global-install requirements, `2` live real-world
 adapters, and `12` research-gate records. Overall adapter statuses are `3` pass,
-`3` wrong_result, `1` lifecycle_fail, `3` incomplete, `3` blocked, and
-`8` not_encoded.
+`4` wrong_result, `1` lifecycle_fail, `0` incomplete, `4` blocked, and
+`9` not_encoded.
+Real-world suite statuses are tracked separately as `16` pass, `1` wrong_result,
+`5` incomplete, `11` blocked, and `32` not_encoded, so a setup boundary is not hidden
+behind an aggregate status.
 
 ## Remaining Gaps
 
@@ -141,7 +145,7 @@ report:
 
 | Gap | Status | Follow-up or non-goal |
 | --- | --- | --- |
-| ELF production-ops cold-start dependency fixture | `incomplete` | `[ELF benchmark P0] Pin Docker-compatible local embedding dependency for cold-start adapter checks`. |
+| ELF production-ops cold-start dependency fixture | `pass` | XY-881 pins the Docker OpenViking local embedding path and preserves setup failures as `incomplete` if the wheel/import boundary fails on another platform. |
 | ELF provider-backed production-ops gate | `blocked` | Run only with routed operator credentials; credentials were not supplied for this report. |
 | ELF private production corpus | `blocked` | Supply an operator-owned sanitized private manifest; private-corpus checks were a non-goal without that manifest. |
 | Full ELF live-service real-world sweep | `not_encoded` beyond targeted slice | Expand `elf_live_real_world` beyond representative work_resume, retrieval, and project_decisions jobs before claiming full live-service suite coverage. |
@@ -149,7 +153,7 @@ report:
 | agentmemory durable lifecycle | `lifecycle_fail` / `blocked` | `[ELF benchmark P0] Make agentmemory adapter lifecycle-durable and fail-typed`. |
 | mem0/OpenMemory same-corpus and real-world coverage | `wrong_result` / `not_encoded` | Add/fix a local OSS adapter before claiming lifecycle, personalization, or OpenMemory UI parity. |
 | memsearch same-corpus and real-world coverage | `wrong_result` / `incomplete` | Fix Docker same-corpus retrieval/reindex evidence before scoring Markdown-first real-world jobs. |
-| OpenViking Docker local embedding path | `incomplete` | `[ELF benchmark adapter] Pin OpenViking Docker local embedding dependency path`. |
+| OpenViking Docker local embedding path | `wrong_result` | The pinned dependency path reaches `add_resource`/`find`; the remaining follow-up is evidence-bearing retrieval output, not setup. |
 | claude-mem durable/progressive-disclosure adapter | `wrong_result` / `not_encoded` | Add durable local repository and progressive-disclosure job coverage before UX parity claims. |
 | RAGFlow, LightRAG, and GraphRAG adapter feasibility | `blocked` research gates | Run D1/D2 research on setup, resource envelope, corpus ingest, query output, source mapping, and Docker retry path before implementation. |
 | Graphiti/Zep, Letta, LangGraph, nanograph, llm-wiki, gbrain, and graphify adapters | `not_encoded` research gates | Implement only after a scoped Docker path can emit evidence-linked outputs for the relevant real-world suites. |

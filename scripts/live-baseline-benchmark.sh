@@ -2431,23 +2431,28 @@ project_openviking() {
   local config_path="${REPORT_DIR}/${project}-ov.conf"
   local result_path="${REPORT_DIR}/${project}-search.json"
   local driver_path="${REPOS_DIR}/${project}/elf-live-baseline-openviking.py"
-  local local_embed_failure_pattern="llama-cpp-python|target specific option mismatch|failed-wheel-build-for-install|Failed building wheel|Failed to build llama-cpp-python|No module named 'llama_cpp'|Local embedding is enabled but 'llama-cpp-python' is not installed"
+  local constraints_path="${REPORT_DIR}/${project}-constraints.txt"
+  local llama_cpp_python_version="${ELF_BASELINE_OPENVIKING_LLAMA_CPP_PYTHON_VERSION:-0.3.28}"
+  local llama_cpp_python_index="${ELF_BASELINE_OPENVIKING_LLAMA_CPP_PYTHON_INDEX:-https://abetlen.github.io/llama-cpp-python/whl/cpu}"
+  local local_embed_failure_pattern="target specific option mismatch|failed-wheel-build-for-install|Failed building wheel for llama-cpp-python|Failed to build llama-cpp-python|Could not build wheels for llama-cpp-python|No module named 'llama_cpp'|Local embedding is enabled but 'llama-cpp-python' is not installed|No matching distribution found|Could not find a version that satisfies|not a supported wheel"
+  local local_embed_install_reason="OpenViking local-embed install failed in Docker for pinned llama-cpp-python==${llama_cpp_python_version} from the CPU wheel index, so same-corpus local retrieval could not be run"
+  local local_embed_command_summary="pip install -e .; openviking/ov --help; pip install llama-cpp-python==${llama_cpp_python_version} --extra-index-url ${llama_cpp_python_index} --only-binary llama-cpp-python; pip install -e .[local-embed]; OpenViking.add_resource/find"
   local head
   mkdir -p "${home}"
-  cat >"${REPORT_DIR}/${project}-adapter.json" <<'JSON'
+  cat >"${REPORT_DIR}/${project}-adapter.json" <<JSON
 {
   "schema": "elf.live_baseline.adapter_metadata/v1",
   "project": "OpenViking",
   "storage": {
-    "status": "incomplete",
-    "detail": "The adapter attempts OpenViking local storage, but Docker local-embed setup can fail before retrieval is reached."
+    "status": "real",
+    "detail": "The adapter uses OpenViking local storage after pinning the Docker local embedding dependency path."
   },
   "behaviors": {
     "same_corpus_retrieval": {
-      "status": "incomplete",
-      "surface": "OpenViking.add_resource and OpenViking.find after installing .[local-embed]",
-      "evidence": "The known Docker failure is llama-cpp-python build/import failure during local embedding setup.",
-      "retry": "Retry after pinning or providing a Docker-compatible llama-cpp-python/local embedding dependency."
+      "status": "real",
+      "surface": "OpenViking.add_resource and OpenViking.find after installing .[local-embed] with llama-cpp-python==${llama_cpp_python_version} from the CPU wheel index",
+      "evidence": "The Docker dependency boundary is the local llama-cpp-python wheel/import path, not provider-backed ELF embeddings. Once setup reaches add_resource/find, misses are reported as wrong_result.",
+      "retry": "Retry with ELF_BASELINE_PROJECTS=OpenViking cargo make baseline-live-docker; override ELF_BASELINE_OPENVIKING_LLAMA_CPP_PYTHON_VERSION or ELF_BASELINE_OPENVIKING_LLAMA_CPP_PYTHON_INDEX only when the pinned CPU wheel is unavailable for the Docker platform. Treat wheel install/import failures as incomplete, not wrong_result."
     },
     "update": {
       "status": "not_encoded",
@@ -2467,7 +2472,7 @@ project_openviking() {
     },
     "scale_stress_profile": {
       "status": "blocked",
-      "surface": "scale/stress is blocked until local-embed setup is reliable in Docker"
+      "surface": "scale/stress is blocked until smoke same-corpus retrieval returns evidence-bearing results"
     }
   }
 }
@@ -2661,18 +2666,22 @@ finally:
     client.close()
 PY
 
-  if ! run_cmd "${project}: install local embedding extras" 900 "${log_path}" \
-    "export HOME='${home}'; cd '${REPOS_DIR}/${project}' && .venv/bin/pip install -e '.[local-embed]'"; then
+  if ! run_cmd "${project}: install pinned local embedding extras" 900 "${log_path}" \
+    "export HOME='${home}'; cd '${REPOS_DIR}/${project}' && printf 'llama-cpp-python==${llama_cpp_python_version}\n' > '${constraints_path}' && .venv/bin/pip install --extra-index-url '${llama_cpp_python_index}' --only-binary llama-cpp-python -c '${constraints_path}' 'llama-cpp-python==${llama_cpp_python_version}' && .venv/bin/pip install --extra-index-url '${llama_cpp_python_index}' --only-binary llama-cpp-python -c '${constraints_path}' -e '.[local-embed]' && .venv/bin/python - <<'PY'
+import llama_cpp
+
+print('llama_cpp_import_ok', getattr(llama_cpp, '__version__', 'unknown'))
+PY"; then
     if rg -q "${local_embed_failure_pattern}" "${log_path}"; then
-      json_record "${project}" "${repo}" "${head}" "incomplete" "local_embed_install_failed" "OpenViking local-embed install failed in Docker while building llama-cpp-python for aarch64, so same-corpus local retrieval could not be run" "${project}.log" "pip install -e .; openviking/ov --help; pip install -e .[local-embed]"
+      json_record "${project}" "${repo}" "${head}" "incomplete" "local_embed_install_failed" "${local_embed_install_reason}" "${project}.log" "${local_embed_command_summary}"
       return
     fi
-    json_record "${project}" "${repo}" "${head}" "incomplete" "local_embed_install_failed" "OpenViking local-embed install failed in Docker, so same-corpus local retrieval could not be run" "${project}.log" "pip install -e .; openviking/ov --help; pip install -e .[local-embed]"
+    json_record "${project}" "${repo}" "${head}" "incomplete" "local_embed_install_failed" "${local_embed_install_reason}" "${project}.log" "${local_embed_command_summary}"
     return
   fi
 
   if rg -q "${local_embed_failure_pattern}" "${log_path}"; then
-    json_record "${project}" "${repo}" "${head}" "incomplete" "local_embed_install_failed" "OpenViking local-embed install returned success but the log contains llama-cpp-python build/import failure, so same-corpus local retrieval could not be run" "${project}.log" "pip install -e .; openviking/ov --help; pip install -e .[local-embed]"
+    json_record "${project}" "${repo}" "${head}" "incomplete" "local_embed_install_failed" "OpenViking pinned local-embed install returned success but the log contains llama-cpp-python wheel/import failure, so same-corpus local retrieval could not be run" "${project}.log" "${local_embed_command_summary}"
     return
   fi
 
@@ -2682,11 +2691,11 @@ PY
       jq '{check_summary, checks}' "${result_path}" >"${REPORT_DIR}/${project}-checks.json"
     fi
     if rg -q "${local_embed_failure_pattern}" "${log_path}"; then
-      json_record "${project}" "${repo}" "${head}" "incomplete" "local_embed_install_failed" "OpenViking local add_resource/find hit llama-cpp-python build/import failure, so same-corpus local retrieval could not be run" "${project}.log" "pip install -e .[local-embed]; OpenViking.add_resource/find"
+      json_record "${project}" "${repo}" "${head}" "incomplete" "local_embed_install_failed" "OpenViking local add_resource/find hit pinned llama-cpp-python wheel/import failure, so same-corpus local retrieval could not be run" "${project}.log" "${local_embed_command_summary}"
       return
     fi
     if [[ ! -s "${result_path}" ]] || ! jq -e . "${result_path}" >/dev/null 2>&1; then
-      json_record "${project}" "${repo}" "${head}" "incomplete" "retrieval_command_failed" "OpenViking local add_resource/find returned success but did not write a valid result JSON" "${project}.log" "pip install -e .[local-embed]; OpenViking.add_resource/find"
+      json_record "${project}" "${repo}" "${head}" "incomplete" "retrieval_command_failed" "OpenViking local add_resource/find returned success but did not write a valid result JSON" "${project}.log" "${local_embed_command_summary}"
       return
     fi
     if jq -e --argjson query_count "${QUERY_COUNT}" '
@@ -2701,19 +2710,19 @@ PY
       else
         retrieval_status="retrieval_wrong_result"
       fi
-      json_record "${project}" "${repo}" "${head}" "${typed_status}" "${retrieval_status}" "$(typed_status_reason "${project}" "${typed_status}")" "${project}.log" "pip install -e .[local-embed]; OpenViking.add_resource/find"
+      json_record "${project}" "${repo}" "${head}" "${typed_status}" "${retrieval_status}" "$(typed_status_reason "${project}" "${typed_status}")" "${project}.log" "${local_embed_command_summary}"
       return
     fi
-    json_record "${project}" "${repo}" "${head}" "incomplete" "invalid_json_result" "OpenViking local add_resource/find did not produce a valid benchmark result" "${project}.log" "pip install -e .[local-embed]; OpenViking.add_resource/find"
+    json_record "${project}" "${repo}" "${head}" "incomplete" "invalid_json_result" "OpenViking local add_resource/find did not produce a valid benchmark result" "${project}.log" "${local_embed_command_summary}"
     return
   fi
 
   if rg -q "${local_embed_failure_pattern}" "${log_path}"; then
-    json_record "${project}" "${repo}" "${head}" "incomplete" "local_embed_install_failed" "OpenViking local add_resource/find failed because llama-cpp-python was unavailable in Docker" "${project}.log" "pip install -e .[local-embed]; OpenViking.add_resource/find"
+    json_record "${project}" "${repo}" "${head}" "incomplete" "local_embed_install_failed" "OpenViking local add_resource/find failed because pinned llama-cpp-python was unavailable in Docker" "${project}.log" "${local_embed_command_summary}"
     return
   fi
 
-  json_record "${project}" "${repo}" "${head}" "incomplete" "retrieval_command_failed" "OpenViking local-embed installed, but same-corpus add_resource/find failed in Docker" "${project}.log" "pip install -e .[local-embed]; OpenViking.add_resource/find"
+  json_record "${project}" "${repo}" "${head}" "incomplete" "retrieval_command_failed" "OpenViking pinned local-embed installed, but same-corpus add_resource/find failed in Docker" "${project}.log" "${local_embed_command_summary}"
 }
 
 project_claude_mem() {

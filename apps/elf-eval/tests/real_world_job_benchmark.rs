@@ -239,7 +239,7 @@ fn assert_external_adapter_manifest_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/overall_status_counts/wrong_result")
 			.and_then(Value::as_u64),
-		Some(3)
+		Some(4)
 	);
 	assert_eq!(
 		report
@@ -251,19 +251,19 @@ fn assert_external_adapter_manifest_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/overall_status_counts/incomplete")
 			.and_then(Value::as_u64),
-		Some(3)
+		Some(0)
 	);
 	assert_eq!(
 		report
 			.pointer("/external_adapters/summary/overall_status_counts/blocked")
 			.and_then(Value::as_u64),
-		Some(3)
+		Some(4)
 	);
 	assert_eq!(
 		report
 			.pointer("/external_adapters/summary/overall_status_counts/not_encoded")
 			.and_then(Value::as_u64),
-		Some(8)
+		Some(9)
 	);
 	assert_eq!(
 		report
@@ -281,7 +281,7 @@ fn assert_external_adapter_manifest_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/suite_status_counts/blocked")
 			.and_then(Value::as_u64),
-		Some(10)
+		Some(11)
 	);
 }
 
@@ -297,7 +297,7 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 	let qmd_deep = find_by_field(adapters, "/adapter_id", "qmd_deep_profile_gate")?;
 
 	assert_eq!(elf.pointer("/evidence_class").and_then(Value::as_str), Some("fixture_backed"));
-	assert_eq!(elf.pointer("/overall_status").and_then(Value::as_str), Some("incomplete"));
+	assert_eq!(elf.pointer("/overall_status").and_then(Value::as_str), Some("blocked"));
 	assert_eq!(
 		elf_live.pointer("/evidence_class").and_then(Value::as_str),
 		Some("live_real_world")
@@ -316,7 +316,7 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 		agentmemory.pointer("/capabilities/1/status").and_then(Value::as_str),
 		Some("mocked")
 	);
-	assert_eq!(openviking.pointer("/overall_status").and_then(Value::as_str), Some("incomplete"));
+	assert_eq!(openviking.pointer("/overall_status").and_then(Value::as_str), Some("wrong_result"));
 	assert_eq!(ragflow.pointer("/evidence_class").and_then(Value::as_str), Some("research_gate"));
 	assert_eq!(ragflow.pointer("/overall_status").and_then(Value::as_str), Some("blocked"));
 	assert_eq!(
@@ -707,8 +707,8 @@ fn production_ops_fixtures_report_bounded_typed_states() -> Result<()> {
 	let report = run_json_report_from(production_ops_fixture_dir())?;
 
 	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(6));
-	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(3));
-	assert_eq!(report.pointer("/summary/incomplete").and_then(Value::as_u64), Some(1));
+	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(4));
+	assert_eq!(report.pointer("/summary/incomplete").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/blocked").and_then(Value::as_u64), Some(2));
 	assert_eq!(report.pointer("/summary/not_encoded").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/evidence_coverage").and_then(Value::as_f64), Some(1.0));
@@ -724,7 +724,7 @@ fn production_ops_fixtures_report_bounded_typed_states() -> Result<()> {
 	let suites = array_at(&report, "/suites")?;
 	let production_ops = find_by_field(suites, "/suite_id", "production_ops")?;
 
-	assert_eq!(production_ops.pointer("/status").and_then(Value::as_str), Some("incomplete"));
+	assert_eq!(production_ops.pointer("/status").and_then(Value::as_str), Some("blocked"));
 	assert_eq!(production_ops.pointer("/encoded_job_count").and_then(Value::as_u64), Some(6));
 
 	let jobs = array_at(&report, "/jobs")?;
@@ -740,7 +740,7 @@ fn production_ops_fixtures_report_bounded_typed_states() -> Result<()> {
 	assert_eq!(restore.pointer("/qdrant_rebuild_case").and_then(Value::as_bool), Some(true));
 	assert_eq!(private_manifest.pointer("/status").and_then(Value::as_str), Some("blocked"));
 	assert_eq!(credentials.pointer("/status").and_then(Value::as_str), Some("blocked"));
-	assert_eq!(dependency.pointer("/status").and_then(Value::as_str), Some("incomplete"));
+	assert_eq!(dependency.pointer("/status").and_then(Value::as_str), Some("pass"));
 
 	Ok(())
 }
@@ -756,9 +756,9 @@ fn assert_root_knowledge_summary(report: &Value) {
 
 fn assert_root_aggregate_summary(report: &Value) {
 	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(38));
-	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(35));
+	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(36));
 	assert_eq!(report.pointer("/summary/wrong_result").and_then(Value::as_u64), Some(0));
-	assert_eq!(report.pointer("/summary/incomplete").and_then(Value::as_u64), Some(1));
+	assert_eq!(report.pointer("/summary/incomplete").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/blocked").and_then(Value::as_u64), Some(2));
 	assert_eq!(report.pointer("/summary/not_encoded").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/unsupported_claim_count").and_then(Value::as_u64), Some(0));
@@ -799,9 +799,9 @@ fn assert_root_aggregate_summary(report: &Value) {
 	);
 	assert_eq!(
 		report.pointer("/summary/evidence_required_count").and_then(Value::as_u64),
-		Some(82)
+		Some(84)
 	);
-	assert_eq!(report.pointer("/summary/evidence_covered_count").and_then(Value::as_u64), Some(82));
+	assert_eq!(report.pointer("/summary/evidence_covered_count").and_then(Value::as_u64), Some(84));
 	assert_eq!(report.pointer("/summary/evidence_coverage").and_then(Value::as_f64), Some(1.0));
 	assert_eq!(report.pointer("/summary/source_ref_coverage").and_then(Value::as_f64), Some(1.0));
 	assert_eq!(report.pointer("/summary/quote_coverage").and_then(Value::as_f64), Some(1.0));
@@ -869,7 +869,7 @@ fn assert_root_aggregate_suites(report: &Value) -> Result<()> {
 
 	let production_ops = find_by_field(suites, "/suite_id", "production_ops")?;
 
-	assert_eq!(production_ops.pointer("/status").and_then(Value::as_str), Some("incomplete"));
+	assert_eq!(production_ops.pointer("/status").and_then(Value::as_str), Some("blocked"));
 	assert_eq!(production_ops.pointer("/encoded_job_count").and_then(Value::as_u64), Some(6));
 
 	Ok(())
