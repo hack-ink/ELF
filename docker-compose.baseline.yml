@@ -72,6 +72,13 @@ services:
       - elf-live-baseline-lightrag-inputs:/app/data/inputs
       - elf-live-baseline-lightrag-prompts:/app/data/prompts
 
+  graphiti-falkordb:
+    profiles:
+      - graphiti-zep
+    image: ${ELF_GRAPHITI_ZEP_FALKORDB_IMAGE:-falkordb/falkordb:edge}
+    volumes:
+      - elf-live-baseline-graphiti-falkordb:/data
+
   baseline-runner:
     build:
       context: .
@@ -149,6 +156,7 @@ services:
 volumes:
   elf-live-baseline-cargo-git:
   elf-live-baseline-cargo-registry:
+  elf-live-baseline-graphiti-falkordb:
   elf-live-baseline-huggingface-cache:
   elf-live-baseline-lightrag-inputs:
   elf-live-baseline-lightrag-prompts:
