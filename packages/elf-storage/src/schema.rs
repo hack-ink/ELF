@@ -84,6 +84,16 @@ fn expand_includes(sql: &str) -> String {
 				)),
 				"tables/034_consolidation_run_jobs.sql" =>
 					out.push_str(include_str!("../../../sql/tables/034_consolidation_run_jobs.sql")),
+				"tables/035_knowledge_pages.sql" =>
+					out.push_str(include_str!("../../../sql/tables/035_knowledge_pages.sql")),
+				"tables/036_knowledge_page_sections.sql" => out
+					.push_str(include_str!("../../../sql/tables/036_knowledge_page_sections.sql")),
+				"tables/037_knowledge_page_source_refs.sql" => out.push_str(include_str!(
+					"../../../sql/tables/037_knowledge_page_source_refs.sql"
+				)),
+				"tables/038_knowledge_page_lint_findings.sql" => out.push_str(include_str!(
+					"../../../sql/tables/038_knowledge_page_lint_findings.sql"
+				)),
 				"tables/023_memory_ingest_decisions.sql" => out
 					.push_str(include_str!("../../../sql/tables/023_memory_ingest_decisions.sql")),
 				"tables/024_memory_space_grants.sql" =>
@@ -98,4 +108,23 @@ fn expand_includes(sql: &str) -> String {
 	}
 
 	out
+}
+
+#[cfg(test)]
+mod tests {
+	use crate::schema;
+
+	#[test]
+	fn render_schema_expands_all_includes() {
+		let schema = schema::render_schema(4_096);
+
+		assert!(
+			!schema.contains("\\ir "),
+			"rendered schema must not leave psql include directives"
+		);
+		assert!(schema.contains("CREATE TABLE IF NOT EXISTS knowledge_pages"));
+		assert!(schema.contains("CREATE TABLE IF NOT EXISTS knowledge_page_sections"));
+		assert!(schema.contains("CREATE TABLE IF NOT EXISTS knowledge_page_source_refs"));
+		assert!(schema.contains("CREATE TABLE IF NOT EXISTS knowledge_page_lint_findings"));
+	}
 }
