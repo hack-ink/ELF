@@ -281,7 +281,7 @@ fn assert_external_adapter_manifest_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/suite_status_counts/blocked")
 			.and_then(Value::as_u64),
-		Some(10)
+		Some(8)
 	);
 }
 
@@ -295,6 +295,7 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 	let openviking = find_by_field(adapters, "/adapter_id", "openviking_live_baseline")?;
 	let ragflow = find_by_field(adapters, "/adapter_id", "ragflow_research_gate")?;
 	let lightrag = find_by_field(adapters, "/adapter_id", "lightrag_research_gate")?;
+	let graphrag = find_by_field(adapters, "/adapter_id", "graphrag_research_gate")?;
 	let qmd_deep = find_by_field(adapters, "/adapter_id", "qmd_deep_profile_gate")?;
 
 	assert_eq!(elf.pointer("/evidence_class").and_then(Value::as_str), Some("fixture_backed"));
@@ -356,6 +357,12 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 		lightrag.pointer("/capabilities/3/status").and_then(Value::as_str),
 		Some("not_encoded")
 	);
+	assert_eq!(graphrag.pointer("/evidence_class").and_then(Value::as_str), Some("research_gate"));
+	assert_eq!(
+		graphrag.pointer("/setup/command").and_then(Value::as_str),
+		Some("cargo make graphrag-docker-smoke")
+	);
+	assert_eq!(graphrag.pointer("/suites/1/status").and_then(Value::as_str), Some("not_encoded"));
 	assert_eq!(
 		qmd_deep.pointer("/capabilities/2/status").and_then(Value::as_str),
 		Some("unsupported")
