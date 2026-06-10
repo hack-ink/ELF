@@ -918,7 +918,7 @@
       "overall_status": "blocked",
       "setup": {
         "status": "blocked",
-        "evidence": "RAGFlow remains a large RAG system watch item; D1/D2 research must prove a Docker-safe corpus ingest and query path before adapter implementation."
+        "evidence": "XY-882 marks RAGFlow as an adapter_candidate, but the runner still needs a Docker-safe tiny-corpus ingest/query smoke before any live adapter claim."
       },
       "run": {
         "status": "not_encoded",
@@ -930,9 +930,9 @@
       },
       "capabilities": [
         {
-          "capability": "d1_d2_research_before_adapter",
-          "status": "blocked",
-          "evidence": "The inventory marks RAGFlow as D0 pending deep dive."
+          "capability": "adapter_candidate_verdict",
+          "status": "not_encoded",
+          "evidence": "XY-882 completed D1/D2 feasibility research and marks RAGFlow adapter_candidate; no adapter run is encoded."
         },
         {
           "capability": "docker_service_setup",
@@ -985,20 +985,25 @@
             "label": "RAGFlow docs",
             "url": "https://ragflow.io/docs/",
             "evidence": "Official deployment and setup documentation."
+          },
+          {
+            "label": "RAGFlow HTTP API reference",
+            "url": "https://raw.githubusercontent.com/infiniflow/ragflow/main/docs/references/http_api_reference.md",
+            "evidence": "Official reference for OpenAI-compatible responses with reference chunks and document metadata."
           }
         ],
-        "setup_path": "Research the official Docker deployment, corpus ingest API, query API, and artifact export before adding a runner.",
+        "setup_path": "Implement a tiny Docker evidence-smoke runner using the official Docker deployment, dataset ingest API, and OpenAI-compatible query API.",
         "runtime_boundary": "Future runs must use docker-compose.baseline.yml or a nested Docker-isolated service profile without host-global installs.",
         "resource_expectation": "Large multi-service RAG stack; record CPU/GPU mode, memory, disk, startup time, and provider credential needs before scoring.",
         "retry_guidance": [
-          "Complete a D1/D2 setup and API deep dive.",
-          "Prototype a tiny Docker smoke that reaches ingest and query before adding quality checks."
+          "Start with CPU mode and a generated tiny text corpus.",
+          "Record image pull/build size, expanded disk use, startup time, vm.max_map_count handling, and provider boundaries before scoring."
         ],
-        "research_depth": "D0 watch item; D1/D2 required"
+        "research_depth": "D2 feasibility verdict: adapter_candidate (XY-882); research_gate only, adapter not encoded"
       },
       "follow_up": {
-        "title": "[ELF benchmark adapter] Research RAGFlow Docker adapter feasibility",
-        "reason": "The project is too large to score fairly without setup, resource, and API mapping research."
+        "title": "[ELF benchmark adapter] Implement RAGFlow Docker evidence-smoke adapter",
+        "reason": "Created as XY-885. XY-882 found a Docker boundary and reference-chunk output contract; implementation must prove a tiny ingest/query run before any quality claim."
       }
     },
     {
@@ -1011,7 +1016,7 @@
       "overall_status": "blocked",
       "setup": {
         "status": "blocked",
-        "evidence": "LightRAG requires D1/D2 research on Docker setup, LLM/embedding configuration, persistence, and context output before adapter implementation."
+        "evidence": "XY-882 marks LightRAG as an adapter_candidate, but the runner still needs a Docker context-export adapter before any live result."
       },
       "run": {
         "status": "not_encoded",
@@ -1024,8 +1029,8 @@
       "capabilities": [
         {
           "capability": "graph_augmented_rag_setup",
-          "status": "blocked",
-          "evidence": "The inventory marks LightRAG as D0 pending deep dive."
+          "status": "not_encoded",
+          "evidence": "XY-882 completed setup/output feasibility research; graph-augmented RAG execution is still not encoded."
         },
         {
           "capability": "retrieved_context_export",
@@ -1078,20 +1083,30 @@
             "label": "LightRAG Docker docs",
             "url": "https://github.com/HKUDS/LightRAG/blob/main/docs/DockerDeployment.md",
             "evidence": "Official Docker deployment reference."
+          },
+          {
+            "label": "LightRAG API server docs",
+            "url": "https://github.com/HKUDS/LightRAG/blob/main/docs/LightRAG-API-Server.md",
+            "evidence": "Official query-mode and context-output reference."
+          },
+          {
+            "label": "LightRAG core programming docs",
+            "url": "https://github.com/HKUDS/LightRAG/blob/main/docs/ProgramingWithCore.md",
+            "evidence": "Official source-id and file-path citation reference."
           }
         ],
-        "setup_path": "Research Docker Compose with explicit LLM, embedding, rerank, and storage configuration before adding a benchmark runner.",
+        "setup_path": "Implement Docker Compose with explicit LLM, embedding, rerank, storage, workspace, and data-volume configuration, then export context-only query output.",
         "runtime_boundary": "Docker-only service profile with generated corpus mounted as container-local input.",
         "resource_expectation": "Graph extraction and local model choices may dominate runtime; record backend choices, cache sizes, and provider needs.",
         "retry_guidance": [
           "Run a tiny Docker ingest/query smoke with deterministic or local providers.",
           "Verify returned contexts can be mapped to required evidence IDs."
         ],
-        "research_depth": "D0 watch item; D1/D2 required"
+        "research_depth": "D2 feasibility verdict: adapter_candidate (XY-882); research_gate only, adapter not encoded"
       },
       "follow_up": {
-        "title": "[ELF benchmark adapter] Research LightRAG graph-RAG adapter feasibility",
-        "reason": "Graph extraction, persistence, and context output must be understood before fair scoring."
+        "title": "[ELF benchmark adapter] Implement LightRAG Docker context-export adapter",
+        "reason": "Created as XY-886. XY-882 found a Docker service path and context/source mapping contract; implementation must prove evidence export before scoring."
       }
     },
     {
@@ -1104,7 +1119,7 @@
       "overall_status": "blocked",
       "setup": {
         "status": "blocked",
-        "evidence": "GraphRAG indexing cost and source-citation mapping require D1/D2 research before adapter implementation."
+        "evidence": "XY-882 marks GraphRAG as an adapter_candidate, but indexing cost and source mapping still need a cost-bounded Docker implementation before live scoring."
       },
       "run": {
         "status": "not_encoded",
@@ -1118,7 +1133,7 @@
         {
           "capability": "indexing_resource_envelope",
           "status": "blocked",
-          "evidence": "Official docs warn that indexing can be expensive; the benchmark must start small and record costs."
+          "evidence": "XY-882 requires the first adapter to start with a tiny corpus and record indexing cost before any scale or quality claim."
         },
         {
           "capability": "source_citation_mapping",
@@ -1171,20 +1186,25 @@
             "label": "GraphRAG docs",
             "url": "https://microsoft.github.io/graphrag/",
             "evidence": "Official documentation for indexing and querying."
+          },
+          {
+            "label": "GraphRAG output tables",
+            "url": "https://microsoft.github.io/graphrag/index/outputs/",
+            "evidence": "Official output schema with document, text unit, community, and relationship identifiers."
           }
         ],
-        "setup_path": "Research a tiny CLI index/query path with explicit model configuration and source mapping.",
+        "setup_path": "Implement a tiny CLI/API index/query path with explicit model configuration and source mapping from parquet output tables.",
         "runtime_boundary": "Docker-only Python CLI run with generated corpus and container-local artifacts.",
         "resource_expectation": "Indexing may be expensive; record model calls, cache size, elapsed time, and maximum corpus size used.",
         "retry_guidance": [
-          "Complete D1/D2 indexing and query-output research.",
-          "Add a cost-bounded smoke before any scale or quality claim."
+          "Add a cost-bounded smoke before any scale or quality claim.",
+          "Fail typed if source document or text_unit identifiers cannot be mapped to expected evidence IDs."
         ],
-        "research_depth": "D0 watch item; D1/D2 required"
+        "research_depth": "D2 feasibility verdict: adapter_candidate (XY-882); research_gate only, adapter not encoded"
       },
       "follow_up": {
-        "title": "[ELF benchmark adapter] Research GraphRAG cost-bounded adapter path",
-        "reason": "Indexing cost, graph summaries, and citation guarantees need proof before scoring."
+        "title": "[ELF benchmark adapter] Implement GraphRAG cost-bounded Docker adapter",
+        "reason": "Created as XY-887. XY-882 found a Docker-bounded CLI/API path and output-table evidence handles; implementation must stay tiny and cost-recorded."
       }
     },
     {
@@ -1197,7 +1217,7 @@
       "overall_status": "not_encoded",
       "setup": {
         "status": "not_encoded",
-        "evidence": "Graphiti/Zep is D1 reviewed as a temporal graph-memory reference, but no Docker adapter is implemented."
+        "evidence": "XY-882 marks Graphiti/Zep as an adapter_candidate, but no Docker temporal graph adapter is implemented."
       },
       "run": {
         "status": "not_encoded",
@@ -1211,7 +1231,7 @@
         {
           "capability": "temporal_graph_memory",
           "status": "not_encoded",
-          "evidence": "Temporal fact validity is a reference dimension but not an executable adapter output."
+          "evidence": "Temporal fact validity has a scoped adapter candidate path, but no executable adapter output is encoded."
         },
         {
           "capability": "docker_graph_store_setup",
@@ -1259,16 +1279,30 @@
             "label": "Zep Graphiti overview",
             "url": "https://www.getzep.com/platform/graphiti/",
             "evidence": "Official product documentation for temporal context graph behavior."
+          },
+          {
+            "label": "Graphiti quick start",
+            "url": "https://help.getzep.com/graphiti/getting-started/quick-start",
+            "evidence": "Official setup, episode ingest, and search output reference."
+          },
+          {
+            "label": "Graphiti FalkorDB configuration",
+            "url": "https://help.getzep.com/graphiti/configuration/falkor-db-configuration",
+            "evidence": "Official Docker-local FalkorDB setup reference."
           }
         ],
-        "setup_path": "Define a Docker-local graph store and provider configuration, then encode add/query current-versus-historical fact jobs.",
+        "setup_path": "Implement a Docker-local FalkorDB or Neo4j graph store and provider configuration, then encode add/query current-versus-historical fact jobs.",
         "runtime_boundary": "Docker-only service or SDK run with graph store state under benchmark artifacts.",
         "resource_expectation": "Requires graph store plus LLM/embedding configuration; record service startup, storage size, and provider boundaries.",
         "retry_guidance": [
           "Prototype a tiny temporal fact add/query run.",
           "Map valid_at/invalid_at evidence to memory_evolution scoring."
         ],
-        "research_depth": "D1 reviewed; adapter not encoded"
+        "research_depth": "D1 feasibility verdict: adapter_candidate (XY-882); research_gate only, adapter not encoded"
+      },
+      "follow_up": {
+        "title": "[ELF benchmark adapter] Implement Graphiti/Zep temporal graph adapter",
+        "reason": "Created as XY-888. XY-882 found a Docker-local graph-store path and fact/validity-window output contract for memory_evolution scoring."
       }
     },
     {
@@ -1357,7 +1391,7 @@
           "Create a tiny Docker agent with archival memory search.",
           "Score core-versus-archival retrieval only after source evidence can be exported."
         ],
-        "research_depth": "D1 reviewed; adapter not encoded"
+        "research_depth": "D1 feasibility verdict: research_only (XY-882); core/archival reference, adapter not encoded"
       }
     },
     {
@@ -1431,7 +1465,7 @@
           "Encode one replay/fork failure recovery job.",
           "Keep LangGraph classified as replay reference unless memory retrieval is actually exercised."
         ],
-        "research_depth": "D1 reviewed; adapter not encoded"
+        "research_depth": "D1 feasibility verdict: research_only (XY-882); replay/checkpoint reference, adapter not encoded"
       }
     },
     {
@@ -1505,7 +1539,7 @@
           "Define a minimal schema for memory_evolution facts.",
           "Score typed query output only if it cites fixture evidence IDs."
         ],
-        "research_depth": "D1 reviewed; adapter not encoded"
+        "research_depth": "D1 feasibility verdict: research_only (XY-882); typed graph DX reference, adapter not encoded"
       }
     },
     {
@@ -1579,7 +1613,7 @@
           "Prototype a fixture-only page build with explicit citations.",
           "Do not score until generated sections can be mapped to evidence IDs."
         ],
-        "research_depth": "D1 reviewed; adapter not encoded"
+        "research_depth": "D1 feasibility verdict: research_only (XY-882); derived wiki workflow reference, adapter not encoded"
       }
     },
     {
@@ -1663,7 +1697,7 @@
           "Prototype a tiny brain repo with one current-truth page and timeline.",
           "Score only if compiled truth cites the source timeline evidence."
         ],
-        "research_depth": "D1 reviewed; adapter not encoded"
+        "research_depth": "D1 feasibility verdict: blocked (XY-882); Docker-local brain repo and database path not proven"
       }
     },
     {
@@ -1676,7 +1710,7 @@
       "overall_status": "not_encoded",
       "setup": {
         "status": "not_encoded",
-        "evidence": "graphify is D1 reviewed as a graph-navigation reference, but no Docker adapter is implemented."
+        "evidence": "XY-882 marks graphify as an adapter_candidate for a Docker-only CLI/materializer path, but no adapter is implemented."
       },
       "run": {
         "status": "not_encoded",
@@ -1690,7 +1724,7 @@
         {
           "capability": "graph_report_generation",
           "status": "not_encoded",
-          "evidence": "Graph reports and assistant query flows are not executed by the runner."
+          "evidence": "Graph reports and query output have a candidate scoring path, but they are not executed by the runner."
         },
         {
           "capability": "multimodal_code_graph",
@@ -1733,16 +1767,25 @@
             "label": "graphify repository",
             "url": "https://github.com/safishamsi/graphify",
             "evidence": "Official source for graphify graph extraction and query workflow."
+          },
+          {
+            "label": "graphify README",
+            "url": "https://github.com/safishamsi/graphify/blob/v3/README.md",
+            "evidence": "Official CLI, output artifact, query, and source-location contract."
           }
         ],
-        "setup_path": "Install graphify inside Docker, build a graph/report from a generated corpus, and export query evidence.",
-        "runtime_boundary": "Docker-only CLI or skill run over mounted benchmark corpus.",
+        "setup_path": "Install graphify inside Docker, build a graph/report from a generated corpus, and export query evidence without installing host-global assistant hooks.",
+        "runtime_boundary": "Docker-only CLI/materializer run over mounted benchmark corpus.",
         "resource_expectation": "Graph build cost scales with corpus and model choices; record build time, graph size, and generated report size.",
         "retry_guidance": [
           "Start with a generated public code/document corpus.",
           "Score graph-guided answers only when report nodes cite source evidence IDs."
         ],
-        "research_depth": "D1 reviewed; adapter not encoded"
+        "research_depth": "D1 feasibility verdict: adapter_candidate (XY-882); research_gate only, adapter not encoded"
+      },
+      "follow_up": {
+        "title": "[ELF benchmark adapter] Implement graphify Docker graph-report adapter",
+        "reason": "Created as XY-889. XY-882 found a Docker-only CLI/materializer path and source-file/source-location output contract."
       }
     }
   ]

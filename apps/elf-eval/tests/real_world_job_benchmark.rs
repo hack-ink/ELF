@@ -321,7 +321,9 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 	assert_eq!(ragflow.pointer("/overall_status").and_then(Value::as_str), Some("blocked"));
 	assert_eq!(
 		ragflow.pointer("/execution_metadata/research_depth").and_then(Value::as_str),
-		Some("D0 watch item; D1/D2 required")
+		Some(
+			"D2 feasibility verdict: adapter_candidate (XY-882); research_gate only, adapter not encoded"
+		)
 	);
 	assert_eq!(
 		ragflow.pointer("/execution_metadata/sources/0/url").and_then(Value::as_str),
