@@ -109,13 +109,49 @@ At minimum, lint must detect:
 - changed source status
 - changed source freshness timestamp
 - changed source content hash
+- persisted sections with no citations and no explicit unsupported reason
+- persisted sections with an explicit unsupported reason
+- sections whose citations have no normalized source backlinks
+- page-level low source coverage where `coverage_complete` is false or the cited
+  source count differs from the total source count
 
 Stale or missing source references must be stored in `knowledge_page_lint_findings`
 with `finding_type = "stale_source_ref"` and enough `details` to show stored versus
 current source state.
 
+Unsupported sections must be stored with `finding_type = "unsupported_claim"`.
+Missing citations must use `finding_type = "missing_citation"`.
+Missing normalized source backlinks must use `finding_type = "missing_source_ref"`.
+Incomplete page coverage must use `finding_type = "low_source_coverage"`.
+Every lint finding response must include repair or rebuild guidance. Guidance is
+advisory and must not mutate source memory.
+
 Lint findings are derived diagnostics. They must not mutate authoritative source
 memory.
+
+## Search and Viewer Readback
+
+Knowledge page search is a derived-artifact readback surface, not the authoritative
+note search surface. Page snippets may be shown beside search sessions only when they
+are labeled as derived knowledge page snippets and include visible citation and source
+coverage metadata.
+
+Page search results must include:
+
+- result type discriminator `knowledge_page_section`
+- page id, page kind, page key, title, status, section id, section key, heading, role
+- bounded section snippet
+- section citations and normalized source backlinks
+- page source coverage metadata
+- lint summary and trust state that distinguishes clean, warning, error, and low
+  coverage results
+- a derived-result notice that source notes, event audits, relation facts, and applied
+  proposals remain authoritative
+- repair or rebuild guidance when lint or source coverage indicates stale,
+  unsupported, missing, or weakly covered content
+
+Knowledge page snippets must not be inserted into note search results as if they were
+authoritative memory notes.
 
 ## Admin API
 
@@ -123,6 +159,7 @@ Minimal admin readback endpoints:
 
 - `POST /v2/admin/knowledge/pages/rebuild`
 - `GET /v2/admin/knowledge/pages`
+- `POST /v2/admin/knowledge/pages/search`
 - `GET /v2/admin/knowledge/pages/{page_id}`
 - `POST /v2/admin/knowledge/pages/{page_id}/lint`
 

@@ -526,7 +526,7 @@ pub struct KnowledgePageLintFinding {
 	pub page_id: Uuid,
 	/// Section associated with the finding, when available.
 	pub section_id: Option<Uuid>,
-	/// Finding type, such as stale_source_ref or unsupported_section.
+	/// Finding type, such as stale_source_ref or unsupported_claim.
 	pub finding_type: String,
 	/// Finding severity.
 	pub severity: String,
