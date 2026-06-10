@@ -61,8 +61,11 @@ The real-world job runner now carries a separate external adapter coverage manif
 That manifest is a contract and evidence ledger, not a leaderboard. It records which
 projects only have `live_baseline_only` Docker retrieval/lifecycle evidence, which
 capabilities are `mocked`, `blocked`, `unsupported`, `incomplete`, `wrong_result`, or
-`lifecycle_fail`, and which real-world suites remain `not_encoded`. No external project
-in the first manifest has `live_real_world` suite evidence yet.
+`lifecycle_fail`, and which real-world suites remain `not_encoded`. The manifest now
+includes targeted `live_real_world` records for ELF and qmd through
+`cargo make real-world-memory-live-adapters`; other external projects remain
+live-baseline-only, incomplete, blocked, or not encoded until their own
+`real_world_job` adapters run.
 
 Benchmark suite labels:
 

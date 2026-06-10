@@ -126,12 +126,90 @@
       ],
       "notes": [
         "This adapter record exists to keep ELF fixture results separate from live external adapter results.",
-        "The remaining non-pass ELF fixture states are production-ops operator boundaries: a Docker local-embedding dependency, provider credentials, and an operator-owned private corpus manifest."
+        "The remaining non-pass ELF fixture states are production-ops operator boundaries: a Docker local-embedding dependency, provider credentials, and an operator-owned private corpus manifest.",
+        "Use elf_live_real_world for service-runtime real_world_job evidence; this fixture-backed record must not imply live-service behavior."
+      ]
+    },
+    {
+      "adapter_id": "elf_live_real_world",
+      "project": "ELF",
+      "adapter_kind": "docker_service_real_world_job",
+      "evidence_class": "live_real_world",
+      "docker_default": true,
+      "host_global_installs_required": false,
+      "overall_status": "pass",
+      "setup": {
+        "status": "pass",
+        "evidence": "The live adapter task runs inside docker-compose.baseline.yml with Docker-owned Postgres, Qdrant, Cargo, npm, qmd, and cache volumes.",
+        "command": "cargo make real-world-memory-live-adapters",
+        "artifact": "tmp/real-world-memory/live-adapters/elf-materialization.json"
+      },
+      "run": {
+        "status": "pass",
+        "evidence": "ELF materializes real_world_job adapter_response objects through ElfService, worker indexing, and search_raw before scoring.",
+        "command": "cargo make real-world-memory-live-adapters",
+        "artifact": "tmp/real-world-memory/live-adapters/elf-report.json"
+      },
+      "result": {
+        "status": "pass",
+        "evidence": "The representative live adapter slice scores work_resume, retrieval, and project_decisions jobs from generated runtime answers.",
+        "command": "cargo make real-world-memory-live-adapters",
+        "artifact": "tmp/real-world-memory/live-adapters/elf-report.md"
+      },
+      "capabilities": [
+        {
+          "capability": "real_world_job_adapter",
+          "status": "pass",
+          "evidence": "The adapter executes real_world_job prompts after runtime ingestion and writes generated answer artifacts before scoring."
+        },
+        {
+          "capability": "service_runtime_execution",
+          "status": "real",
+          "evidence": "The materializer uses ElfService, Postgres, Qdrant, deterministic providers, worker indexing, and search_raw in Docker."
+        },
+        {
+          "capability": "typed_failure_reporting",
+          "status": "pass",
+          "evidence": "Adapter setup/runtime failures are materialized as incomplete jobs with evidence JSON instead of silent claim upgrades."
+        }
       ],
-      "follow_up": {
-        "title": "[ELF benchmark vNext] Replace fixture-only ELF answers with live real-world adapter execution where appropriate",
-        "reason": "The current report proves fixture scoring, not an end-to-end live real-world memory service run."
-      }
+      "suites": [
+        {
+          "suite_id": "work_resume",
+          "status": "pass",
+          "evidence": "The live adapter retrieves the current next-action evidence and avoids the stale same-corpus command trap."
+        },
+        {
+          "suite_id": "retrieval",
+          "status": "pass",
+          "evidence": "The live adapter retrieves the live_real_world claim boundary from the indexed corpus."
+        },
+        {
+          "suite_id": "project_decisions",
+          "status": "pass",
+          "evidence": "The live adapter retrieves the decision that fixture_backed results must not imply service-runtime behavior."
+        }
+      ],
+      "evidence": [
+        {
+          "kind": "fixture_dir",
+          "ref": "apps/elf-eval/fixtures/real_world_live_adapters/",
+          "status": "real"
+        },
+        {
+          "kind": "command",
+          "ref": "cargo make real-world-memory-live-adapters",
+          "status": "pass"
+        },
+        {
+          "kind": "artifact",
+          "ref": "tmp/real-world-memory/live-adapters/elf-report.json",
+          "status": "pass"
+        }
+      ],
+      "notes": [
+        "This is the first Docker-isolated live real_world_job adapter path for ELF; broader suite expansion remains separate from the fixture-backed aggregate."
+      ]
     },
     {
       "adapter_id": "qmd_live_baseline",
@@ -205,7 +283,88 @@
         }
       ],
       "notes": [
-        "Do not claim a qmd real-world suite pass until a real_world_job adapter executes qmd and records job-level evidence."
+        "This same-corpus record remains separate from qmd_live_real_world, which records real_world_job prompt execution and scoring evidence."
+      ]
+    },
+    {
+      "adapter_id": "qmd_live_real_world",
+      "project": "qmd",
+      "adapter_kind": "docker_cli_real_world_job",
+      "evidence_class": "live_real_world",
+      "docker_default": true,
+      "host_global_installs_required": false,
+      "overall_status": "pass",
+      "setup": {
+        "status": "pass",
+        "evidence": "The live adapter task clones and installs qmd inside the baseline Docker container when the checkout is absent.",
+        "command": "cargo make real-world-memory-live-adapters",
+        "artifact": "tmp/real-world-memory/live-adapters/qmd-materialization.json"
+      },
+      "run": {
+        "status": "pass",
+        "evidence": "qmd indexes each real_world_job corpus through collection add, update, embed, and query --json before scoring generated answers.",
+        "command": "cargo make real-world-memory-live-adapters",
+        "artifact": "tmp/real-world-memory/live-adapters/qmd-report.json"
+      },
+      "result": {
+        "status": "pass",
+        "evidence": "The representative live adapter slice scores qmd on work_resume, retrieval, and project_decisions jobs rather than same-corpus smoke checks only.",
+        "command": "cargo make real-world-memory-live-adapters",
+        "artifact": "tmp/real-world-memory/live-adapters/qmd-report.md"
+      },
+      "capabilities": [
+        {
+          "capability": "real_world_job_adapter",
+          "status": "pass",
+          "evidence": "qmd executes real_world_job prompts through its local CLI retrieval/query workflow and records generated answer artifacts."
+        },
+        {
+          "capability": "local_cli_retrieval",
+          "status": "real",
+          "evidence": "The adapter uses qmd collection add, update, embed -f, and query --json inside Docker."
+        },
+        {
+          "capability": "typed_failure_reporting",
+          "status": "pass",
+          "evidence": "qmd setup/runtime failures are materialized as incomplete jobs with command evidence and retry artifacts."
+        }
+      ],
+      "suites": [
+        {
+          "suite_id": "work_resume",
+          "status": "pass",
+          "evidence": "qmd retrieves the current next-action evidence and avoids the stale same-corpus command trap."
+        },
+        {
+          "suite_id": "retrieval",
+          "status": "pass",
+          "evidence": "qmd retrieves the live_real_world claim boundary from indexed real_world_job corpus files."
+        },
+        {
+          "suite_id": "project_decisions",
+          "status": "pass",
+          "evidence": "qmd retrieves the decision that fixture_backed results must not imply service-runtime behavior."
+        }
+      ],
+      "evidence": [
+        {
+          "kind": "fixture_dir",
+          "ref": "apps/elf-eval/fixtures/real_world_live_adapters/",
+          "status": "real"
+        },
+        {
+          "kind": "command",
+          "ref": "cargo make real-world-memory-live-adapters",
+          "status": "pass"
+        },
+        {
+          "kind": "artifact",
+          "ref": "tmp/real-world-memory/live-adapters/qmd-report.json",
+          "status": "pass"
+        }
+      ],
+      "notes": [
+        "This qmd record is real-world job evidence and must not be conflated with the same-corpus qmd_live_baseline record."
       ]
     },
     {
