@@ -980,6 +980,29 @@ Behavior:
 - These endpoints mirror the public note list/detail reads for local admin viewer use.
 - Note metadata that includes `created_at`, `hit_count`, and `last_hit_at` is available through `GET /v2/admin/notes/{note_id}/provenance`.
 
+Admin consolidation proposal review:
+- POST /v2/admin/consolidation/runs
+- GET /v2/admin/consolidation/runs
+- GET /v2/admin/consolidation/runs/{run_id}
+- GET /v2/admin/consolidation/proposals
+- GET /v2/admin/consolidation/proposals/{proposal_id}
+- POST /v2/admin/consolidation/proposals/{proposal_id}/review
+
+Behavior:
+- These endpoints expose fixture-driven or manually supplied consolidation runs and
+  reviewable derived proposals.
+- Proposal payloads must follow `elf.consolidation/v1`, carry source refs and
+  snapshots, and may include unsupported-claim flags, contradiction markers, and
+  staleness markers for reviewer inspection.
+- Review action values are `approve`, `apply`, `discard`, and `defer`.
+- `apply` records an approval transition before the applied transition when a proposal
+  starts from `proposed`.
+- Every review action writes append-only review audit events returned by proposal
+  detail readback.
+- These endpoints must not call LLM, embedding, rerank, or external provider adapters.
+- They must not mutate authoritative source notes, docs, events, traces, graph facts,
+  or search traces.
+
 POST /v2/admin/qdrant/rebuild
 
 Behavior:

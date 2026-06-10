@@ -216,7 +216,7 @@ fn consolidation_fixtures_report_reviewable_proposal_metrics() -> Result<()> {
 	);
 	assert_eq!(
 		report.pointer("/summary/consolidation/executable_gap_count").and_then(Value::as_u64),
-		Some(4)
+		Some(0)
 	);
 	assert_eq!(
 		report.pointer("/summary/consolidation/lineage_completeness").and_then(Value::as_f64),
@@ -838,8 +838,10 @@ fn consolidation_report_renders_markdown_metrics_and_gaps() -> Result<()> {
 
 	assert!(markdown.contains("## Consolidation"));
 	assert!(markdown.contains("Source Mutations"));
-	assert!(markdown.contains("live_consolidation_worker_generation"));
-	assert!(markdown.contains("[ELF vNext P1] Implement reviewable consolidation worker"));
+	assert!(markdown.contains("Proposal Unsupported Claims"));
+	assert!(markdown.contains("Executable Gaps"));
+	assert!(markdown.contains("consolidation-contradiction-report-discard-001"));
+	assert!(!markdown.contains("live_consolidation_worker_generation"));
 
 	Ok(())
 }

@@ -241,9 +241,9 @@ proposal usefulness, lineage completeness, review action correctness, proposal
 unsupported-claim count, executable gap count, and source mutation count. Source
 mutation count must remain `0` for proposal-only cases.
 
-These fixtures encode proposal expectations only. They do not claim that a live
-scheduled consolidation worker generated the proposals; the report records that missing
-primitive as an executable gap with a follow-up issue title.
+These fixtures use the same reviewable proposal shape as the runtime manual/fixture
+consolidation service. They remain offline fixture responses and do not claim scheduled
+provider-backed proposal generation.
 
 Current checked-in knowledge-compilation increment:
 

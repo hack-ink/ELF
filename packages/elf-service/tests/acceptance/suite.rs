@@ -1,6 +1,7 @@
 mod add_note_no_llm;
 mod chunk_search;
 mod chunking;
+mod consolidation;
 mod docs_extension_v1;
 mod english_only_boundary;
 mod evidence_binding;
@@ -488,6 +489,9 @@ TRUNCATE
 	doc_chunk_embeddings,
 	doc_chunks,
 	doc_documents,
+	consolidation_proposal_reviews,
+	consolidation_proposals,
+	consolidation_runs,
 	memory_notes",
 	)
 	.execute(executor)
