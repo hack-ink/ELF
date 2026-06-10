@@ -1,6 +1,6 @@
 //! Deterministic derived knowledge page rebuild and readback service APIs.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use serde::{Deserialize, Serialize};
 use serde_json::{self, Map, Value};
@@ -9,15 +9,18 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 use crate::{ElfService, Error, Result};
-use elf_domain::knowledge::{
-	KNOWLEDGE_PAGE_CONTRACT_SCHEMA_V1, KNOWLEDGE_PAGE_REBUILD_SCHEMA_V1,
-	KNOWLEDGE_PAGE_SOURCE_COVERAGE_SCHEMA_V1, KnowledgePageKind, KnowledgeSourceKind,
+use elf_domain::{
+	english_gate,
+	knowledge::{
+		KNOWLEDGE_PAGE_CONTRACT_SCHEMA_V1, KNOWLEDGE_PAGE_REBUILD_SCHEMA_V1,
+		KNOWLEDGE_PAGE_SOURCE_COVERAGE_SCHEMA_V1, KnowledgePageKind, KnowledgeSourceKind,
+	},
 };
 use elf_storage::{
 	knowledge::{
 		self, KnowledgeEventSource, KnowledgeNoteSource, KnowledgePageLintFindingInsert,
-		KnowledgePageSectionInsert, KnowledgePageSourceRefInsert, KnowledgePageUpsert,
-		KnowledgeProposalSource, KnowledgeRelationSource,
+		KnowledgePageSearchRow, KnowledgePageSectionInsert, KnowledgePageSourceRefInsert,
+		KnowledgePageUpsert, KnowledgeProposalSource, KnowledgeRelationSource,
 	},
 	models::{
 		KnowledgePage, KnowledgePageLintFinding, KnowledgePageSection, KnowledgePageSourceRef,
@@ -26,6 +29,7 @@ use elf_storage::{
 
 const DEFAULT_LIST_LIMIT: i64 = 50;
 const MAX_LIST_LIMIT: i64 = 200;
+const SEARCH_SNIPPET_CHARS: usize = 280;
 
 /// Request to rebuild one derived knowledge page from explicit source ids.
 #[derive(Clone, Debug, Deserialize)]
@@ -108,6 +112,21 @@ pub struct KnowledgePageLintRequest {
 	pub page_id: Uuid,
 }
 
+/// Request to search derived knowledge page sections.
+#[derive(Clone, Debug, Deserialize)]
+pub struct KnowledgePageSearchRequest {
+	/// Tenant that owns the pages.
+	pub tenant_id: String,
+	/// Project that owns the pages.
+	pub project_id: String,
+	/// English-only query for page title, key, heading, or section content.
+	pub query: String,
+	/// Optional page-kind filter.
+	pub page_kind: Option<KnowledgePageKind>,
+	/// Maximum number of section snippets to return.
+	pub limit: Option<u32>,
+}
+
 /// Response returned after linting one knowledge page.
 #[derive(Clone, Debug, Serialize)]
 pub struct KnowledgePageLintResponse {
@@ -115,6 +134,13 @@ pub struct KnowledgePageLintResponse {
 	pub page_id: Uuid,
 	/// Current lint findings.
 	pub findings: Vec<KnowledgePageLintFindingResponse>,
+}
+
+/// Response returned by derived knowledge page section search.
+#[derive(Clone, Debug, Serialize)]
+pub struct KnowledgePageSearchResponse {
+	/// Matching derived page snippets.
+	pub items: Vec<KnowledgePageSearchItem>,
 }
 
 /// Summary DTO for one derived knowledge page.
@@ -207,6 +233,14 @@ pub struct KnowledgePageSectionResponse {
 	pub citations: Value,
 	/// Reason this section is intentionally unsupported, when present.
 	pub unsupported_reason: Option<String>,
+	/// Count of section-local citations.
+	pub citation_count: usize,
+	/// Count of normalized source refs attached to this section.
+	pub source_ref_count: usize,
+	/// True when the section has both citations and normalized source backlinks.
+	pub coverage_complete: bool,
+	/// Section-local normalized source backlinks.
+	pub source_backlinks: Vec<KnowledgePageSectionSourceBacklink>,
 	/// Section content hash.
 	pub content_hash: String,
 	/// Creation timestamp.
@@ -226,9 +260,39 @@ impl From<KnowledgePageSection> for KnowledgePageSectionResponse {
 			ordinal: section.ordinal,
 			citations: section.citations,
 			unsupported_reason: section.unsupported_reason,
+			citation_count: 0,
+			source_ref_count: 0,
+			coverage_complete: false,
+			source_backlinks: Vec::new(),
 			content_hash: section.content_hash,
 			created_at: section.created_at,
 			updated_at: section.updated_at,
+		}
+	}
+}
+
+/// Section-local source backlink used by page readback and viewer provenance.
+#[derive(Clone, Debug, Serialize)]
+pub struct KnowledgePageSectionSourceBacklink {
+	/// Source kind.
+	pub source_kind: String,
+	/// Authoritative source identifier.
+	pub source_id: Uuid,
+	/// Captured source status.
+	pub source_status: Option<String>,
+	/// Captured source update timestamp.
+	pub source_updated_at: Option<OffsetDateTime>,
+	/// Captured source content hash.
+	pub source_content_hash: Option<String>,
+}
+impl From<&KnowledgePageSourceRef> for KnowledgePageSectionSourceBacklink {
+	fn from(source_ref: &KnowledgePageSourceRef) -> Self {
+		Self {
+			source_kind: source_ref.source_kind.clone(),
+			source_id: source_ref.source_id,
+			source_status: source_ref.source_status.clone(),
+			source_updated_at: source_ref.source_updated_at,
+			source_content_hash: source_ref.source_content_hash.clone(),
 		}
 	}
 }
@@ -298,11 +362,16 @@ pub struct KnowledgePageLintFindingResponse {
 	pub message: String,
 	/// Structured finding details.
 	pub details: Value,
+	/// Operator guidance for repair or rebuild.
+	pub repair_guidance: String,
 	/// Creation timestamp.
 	pub created_at: OffsetDateTime,
 }
 impl From<KnowledgePageLintFinding> for KnowledgePageLintFindingResponse {
 	fn from(finding: KnowledgePageLintFinding) -> Self {
+		let repair_guidance =
+			repair_guidance_for_finding_type(finding.finding_type.as_str()).to_string();
+
 		Self {
 			finding_id: finding.finding_id,
 			page_id: finding.page_id,
@@ -312,10 +381,77 @@ impl From<KnowledgePageLintFinding> for KnowledgePageLintFindingResponse {
 			source_kind: finding.source_kind,
 			source_id: finding.source_id,
 			message: finding.message,
+			repair_guidance,
 			details: finding.details,
 			created_at: finding.created_at,
 		}
 	}
+}
+
+/// Search result for one derived knowledge page section.
+#[derive(Clone, Debug, Serialize)]
+pub struct KnowledgePageSearchItem {
+	/// Result type discriminator for clients that mix pages with notes.
+	pub result_kind: String,
+	/// Derived page identifier.
+	pub page_id: Uuid,
+	/// Page kind.
+	pub page_kind: String,
+	/// Stable page key.
+	pub page_key: String,
+	/// Page title.
+	pub title: String,
+	/// Page lifecycle status.
+	pub status: String,
+	/// Section identifier.
+	pub section_id: Uuid,
+	/// Stable section key.
+	pub section_key: String,
+	/// Section heading.
+	pub heading: String,
+	/// Section role.
+	pub role: String,
+	/// Bounded matching section snippet.
+	pub snippet: String,
+	/// Section citations for visible provenance.
+	pub citations: Value,
+	/// Count of section-local citations.
+	pub citation_count: usize,
+	/// Count of normalized source refs attached to this section.
+	pub source_ref_count: usize,
+	/// Section-local source refs for backlink readback.
+	pub source_refs: Vec<KnowledgePageSourceRefResponse>,
+	/// Page-level source coverage metadata.
+	pub source_coverage: Value,
+	/// Page-level rebuild metadata.
+	pub rebuild_metadata: Value,
+	/// Lint summary for distinguishing clean, stale, and unsupported pages.
+	pub lint_summary: KnowledgePageLintSummary,
+	/// Trust state discriminator for viewer/search clients.
+	pub trust_state: String,
+	/// Explicit notice that the result is derived, not authoritative source truth.
+	pub derived_notice: String,
+	/// Repair or rebuild guidance when lint or coverage indicates risk.
+	pub repair_guidance: Option<String>,
+	/// Page update timestamp.
+	pub updated_at: OffsetDateTime,
+	/// Page rebuild timestamp.
+	pub rebuilt_at: OffsetDateTime,
+}
+
+/// Aggregate lint counts for page search results.
+#[derive(Clone, Debug, Serialize)]
+pub struct KnowledgePageLintSummary {
+	/// Error finding count.
+	pub error_count: i64,
+	/// Warning finding count.
+	pub warning_count: i64,
+	/// Info finding count.
+	pub info_count: i64,
+	/// True when at least one error finding exists.
+	pub has_errors: bool,
+	/// True when at least one warning finding exists.
+	pub has_warnings: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -540,6 +676,47 @@ impl ElfService {
 		Ok(KnowledgePagesListResponse { pages })
 	}
 
+	/// Searches derived knowledge page sections and returns provenance-rich snippets.
+	pub async fn knowledge_pages_search(
+		&self,
+		req: KnowledgePageSearchRequest,
+	) -> Result<KnowledgePageSearchResponse> {
+		validate_non_empty("tenant_id", req.tenant_id.as_str())?;
+		validate_non_empty("project_id", req.project_id.as_str())?;
+		validate_non_empty("query", req.query.as_str())?;
+
+		if !english_gate::is_english_natural_language(req.query.as_str()) {
+			return Err(Error::NonEnglishInput { field: "$.query".to_string() });
+		}
+
+		let query = req.query.trim().to_ascii_lowercase();
+		let query_pattern = format!("%{query}%");
+		let page_kind = req.page_kind.map(KnowledgePageKind::as_str);
+		let rows = knowledge::search_knowledge_page_sections(
+			&self.db.pool,
+			req.tenant_id.as_str(),
+			req.project_id.as_str(),
+			page_kind,
+			query_pattern.as_str(),
+			bounded_limit(req.limit),
+		)
+		.await?;
+		let page_ids = sorted_unique(&rows.iter().map(|row| row.page_id).collect::<Vec<_>>());
+		let source_refs =
+			knowledge::list_knowledge_page_source_refs_for_pages(&self.db.pool, &page_ids).await?;
+		let source_refs_by_section = source_refs_by_section(&source_refs);
+		let items = rows
+			.into_iter()
+			.map(|row| {
+				let refs = cloned_source_refs(source_refs_by_section.get(&row.section_id));
+
+				knowledge_page_search_item(row, refs, req.query.as_str())
+			})
+			.collect();
+
+		Ok(KnowledgePageSearchResponse { items })
+	}
+
 	/// Lints a derived knowledge page against current source snapshots.
 	pub async fn knowledge_page_lint(
 		&self,
@@ -555,7 +732,11 @@ impl ElfService {
 		.ok_or_else(|| Error::NotFound { message: "knowledge page not found".to_string() })?;
 		let source_refs =
 			knowledge::list_knowledge_page_source_refs(&self.db.pool, page.page_id).await?;
-		let findings = self.lint_source_refs(&page, &source_refs).await?;
+		let sections = knowledge::list_knowledge_page_sections(&self.db.pool, page.page_id).await?;
+		let mut findings = self.lint_source_refs(&page, &source_refs).await?;
+
+		findings.extend(lint_page_sections(&page, &sections, &source_refs));
+
 		let now = OffsetDateTime::now_utc();
 		let mut tx = self.db.pool.begin().await?;
 
@@ -578,16 +759,20 @@ impl ElfService {
 
 	async fn knowledge_page_response(&self, page: KnowledgePage) -> Result<KnowledgePageResponse> {
 		let page_id = page.page_id;
-		let sections = knowledge::list_knowledge_page_sections(&self.db.pool, page_id)
-			.await?
+		let section_rows = knowledge::list_knowledge_page_sections(&self.db.pool, page_id).await?;
+		let source_ref_rows =
+			knowledge::list_knowledge_page_source_refs(&self.db.pool, page_id).await?;
+		let source_refs_by_section = source_refs_by_section(&source_ref_rows);
+		let sections = section_rows
 			.into_iter()
-			.map(KnowledgePageSectionResponse::from)
+			.map(|section| {
+				let refs = cloned_source_refs(source_refs_by_section.get(&section.section_id));
+
+				section_response(section, refs)
+			})
 			.collect();
-		let source_refs = knowledge::list_knowledge_page_source_refs(&self.db.pool, page_id)
-			.await?
-			.into_iter()
-			.map(KnowledgePageSourceRefResponse::from)
-			.collect();
+		let source_refs =
+			source_ref_rows.into_iter().map(KnowledgePageSourceRefResponse::from).collect();
 		let lint_findings = knowledge::list_knowledge_page_lint_findings(&self.db.pool, page_id)
 			.await?
 			.into_iter()
@@ -607,46 +792,56 @@ impl ElfService {
 		req: &KnowledgePageRebuildRequest,
 		ids: &SourceIds,
 	) -> Result<Vec<SourceSnapshot>> {
+		let (notes, events, relations, proposals) = self
+			.resolve_existing_source_rows(req.tenant_id.as_str(), req.project_id.as_str(), ids)
+			.await?;
+
+		ids.require_counts(notes.len(), events.len(), relations.len(), proposals.len())?;
+
+		Ok(source_snapshots(notes, events, relations, proposals))
+	}
+
+	async fn resolve_existing_source_rows(
+		&self,
+		tenant_id: &str,
+		project_id: &str,
+		ids: &SourceIds,
+	) -> Result<(
+		Vec<KnowledgeNoteSource>,
+		Vec<KnowledgeEventSource>,
+		Vec<KnowledgeRelationSource>,
+		Vec<KnowledgeProposalSource>,
+	)> {
 		let notes = knowledge::fetch_knowledge_note_sources(
 			&self.db.pool,
-			req.tenant_id.as_str(),
-			req.project_id.as_str(),
+			tenant_id,
+			project_id,
 			&ids.note_ids,
 		)
 		.await?;
 		let events = knowledge::fetch_knowledge_event_sources(
 			&self.db.pool,
-			req.tenant_id.as_str(),
-			req.project_id.as_str(),
+			tenant_id,
+			project_id,
 			&ids.event_ids,
 		)
 		.await?;
 		let relations = knowledge::fetch_knowledge_relation_sources(
 			&self.db.pool,
-			req.tenant_id.as_str(),
-			req.project_id.as_str(),
+			tenant_id,
+			project_id,
 			&ids.relation_ids,
 		)
 		.await?;
 		let proposals = knowledge::fetch_knowledge_proposal_sources(
 			&self.db.pool,
-			req.tenant_id.as_str(),
-			req.project_id.as_str(),
+			tenant_id,
+			project_id,
 			&ids.proposal_ids,
 		)
 		.await?;
 
-		ids.require_counts(notes.len(), events.len(), relations.len(), proposals.len())?;
-
-		let mut sources = Vec::new();
-
-		sources.extend(notes.into_iter().map(note_source_snapshot));
-		sources.extend(events.into_iter().map(event_source_snapshot));
-		sources.extend(relations.into_iter().map(relation_source_snapshot));
-		sources.extend(proposals.into_iter().map(proposal_source_snapshot));
-		sources.sort_by_key(source_sort_key);
-
-		Ok(sources)
+		Ok((notes, events, relations, proposals))
 	}
 
 	async fn lint_source_refs(
@@ -679,26 +874,173 @@ impl ElfService {
 		page: &KnowledgePage,
 		ids: &SourceIds,
 	) -> Result<BTreeMap<String, SourceSnapshot>> {
-		let req = KnowledgePageRebuildRequest {
-			tenant_id: page.tenant_id.clone(),
-			project_id: page.project_id.clone(),
-			agent_id: String::new(),
-			page_kind: KnowledgePageKind::parse(page.page_kind.as_str()).ok_or_else(|| {
-				Error::InvalidRequest {
-					message: "stored knowledge page kind is invalid".to_string(),
-				}
-			})?,
-			page_key: page.page_key.clone(),
-			title: Some(page.title.clone()),
-			note_ids: ids.note_ids.clone(),
-			event_ids: ids.event_ids.clone(),
-			relation_ids: ids.relation_ids.clone(),
-			proposal_ids: ids.proposal_ids.clone(),
-			provider_metadata: empty_object(),
-		};
-		let mut sources = self.resolve_sources(&req, ids).await?;
+		let _page_kind = KnowledgePageKind::parse(page.page_kind.as_str()).ok_or_else(|| {
+			Error::InvalidRequest { message: "stored knowledge page kind is invalid".to_string() }
+		})?;
+		let (notes, events, relations, proposals) = self
+			.resolve_existing_source_rows(page.tenant_id.as_str(), page.project_id.as_str(), ids)
+			.await?;
+		let mut sources = source_snapshots(notes, events, relations, proposals);
 
 		Ok(sources.drain(..).map(|source| (source_key(&source), source)).collect())
+	}
+}
+
+fn source_snapshots(
+	notes: Vec<KnowledgeNoteSource>,
+	events: Vec<KnowledgeEventSource>,
+	relations: Vec<KnowledgeRelationSource>,
+	proposals: Vec<KnowledgeProposalSource>,
+) -> Vec<SourceSnapshot> {
+	let mut sources = Vec::new();
+
+	sources.extend(notes.into_iter().map(note_source_snapshot));
+	sources.extend(events.into_iter().map(event_source_snapshot));
+	sources.extend(relations.into_iter().map(relation_source_snapshot));
+	sources.extend(proposals.into_iter().map(proposal_source_snapshot));
+	sources.sort_by_key(source_sort_key);
+
+	sources
+}
+
+fn source_refs_by_section(
+	source_refs: &[KnowledgePageSourceRef],
+) -> HashMap<Uuid, Vec<KnowledgePageSourceRef>> {
+	let mut by_section = HashMap::<Uuid, Vec<KnowledgePageSourceRef>>::new();
+
+	for source_ref in source_refs {
+		let Some(section_id) = source_ref.section_id else {
+			continue;
+		};
+
+		by_section.entry(section_id).or_default().push(clone_source_ref(source_ref));
+	}
+
+	by_section
+}
+
+fn cloned_source_refs(
+	source_refs: Option<&Vec<KnowledgePageSourceRef>>,
+) -> Vec<KnowledgePageSourceRef> {
+	source_refs.map(|refs| refs.iter().map(clone_source_ref).collect()).unwrap_or_default()
+}
+
+fn clone_source_ref(source_ref: &KnowledgePageSourceRef) -> KnowledgePageSourceRef {
+	KnowledgePageSourceRef {
+		ref_id: source_ref.ref_id,
+		page_id: source_ref.page_id,
+		section_id: source_ref.section_id,
+		source_kind: source_ref.source_kind.clone(),
+		source_id: source_ref.source_id,
+		source_status: source_ref.source_status.clone(),
+		source_updated_at: source_ref.source_updated_at,
+		source_content_hash: source_ref.source_content_hash.clone(),
+		source_snapshot: source_ref.source_snapshot.clone(),
+		citation_metadata: source_ref.citation_metadata.clone(),
+		created_at: source_ref.created_at,
+	}
+}
+
+fn section_response(
+	section: KnowledgePageSection,
+	source_refs: Vec<KnowledgePageSourceRef>,
+) -> KnowledgePageSectionResponse {
+	let citation_count = citation_count(&section.citations);
+	let source_ref_count = source_refs.len();
+	let source_backlinks =
+		source_refs.iter().map(KnowledgePageSectionSourceBacklink::from).collect();
+
+	KnowledgePageSectionResponse {
+		citation_count,
+		source_ref_count,
+		coverage_complete: citation_count > 0 && source_ref_count > 0,
+		source_backlinks,
+		..KnowledgePageSectionResponse::from(section)
+	}
+}
+
+fn knowledge_page_search_item(
+	row: KnowledgePageSearchRow,
+	source_refs: Vec<KnowledgePageSourceRef>,
+	query: &str,
+) -> KnowledgePageSearchItem {
+	let source_ref_count = usize::try_from(row.section_source_ref_count).unwrap_or(0);
+	let citation_count = citation_count(&row.citations);
+	let lint_summary = KnowledgePageLintSummary {
+		error_count: row.lint_error_count,
+		warning_count: row.lint_warning_count,
+		info_count: row.lint_info_count,
+		has_errors: row.lint_error_count > 0,
+		has_warnings: row.lint_warning_count > 0,
+	};
+	let coverage_complete =
+		row.source_coverage.get("coverage_complete").and_then(Value::as_bool).unwrap_or(false);
+	let trust_state = search_trust_state(&lint_summary, coverage_complete, &row);
+	let repair_guidance = search_repair_guidance(&trust_state);
+
+	KnowledgePageSearchItem {
+		result_kind: "knowledge_page_section".to_string(),
+		page_id: row.page_id,
+		page_kind: row.page_kind,
+		page_key: row.page_key,
+		title: row.title,
+		status: row.status,
+		section_id: row.section_id,
+		section_key: row.section_key,
+		heading: row.heading,
+		role: row.role,
+		snippet: snippet_for_query(row.content.as_str(), query, SEARCH_SNIPPET_CHARS),
+		citations: row.citations,
+		citation_count,
+		source_ref_count,
+		source_refs: source_refs.into_iter().map(KnowledgePageSourceRefResponse::from).collect(),
+		source_coverage: row.source_coverage,
+		rebuild_metadata: row.rebuild_metadata,
+		lint_summary,
+		trust_state,
+		derived_notice:
+			"Derived knowledge page snippet. Verify cited source notes, events, relations, or proposals before treating it as authoritative."
+				.to_string(),
+		repair_guidance,
+		updated_at: row.page_updated_at,
+		rebuilt_at: row.rebuilt_at,
+	}
+}
+
+fn search_trust_state(
+	lint: &KnowledgePageLintSummary,
+	coverage_complete: bool,
+	row: &KnowledgePageSearchRow,
+) -> String {
+	if lint.has_errors {
+		return "derived_error".to_string();
+	}
+	if lint.has_warnings || row.unsupported_reason.is_some() {
+		return "derived_warning".to_string();
+	}
+
+	if !coverage_complete || row.section_source_ref_count == 0 {
+		return "derived_low_coverage".to_string();
+	}
+
+	"derived_clean".to_string()
+}
+
+fn search_repair_guidance(trust_state: &str) -> Option<String> {
+	match trust_state {
+		"derived_error" => Some(
+			"Run knowledge page lint, inspect stale or missing source refs, then rebuild the page from current authoritative sources."
+				.to_string(),
+		),
+		"derived_warning" => Some(
+			"Inspect unsupported or stale findings before using this derived snippet; rebuild after source review."
+				.to_string(),
+		),
+		"derived_low_coverage" => Some(
+			"Rebuild with complete citations or add source-backed sections before relying on this page."
+				.to_string(),
+		),
+		_ => None,
 	}
 }
 
@@ -777,15 +1119,144 @@ fn lint_unsupported_sections(sections: &[DraftSection]) -> Vec<LintDraft> {
 		.filter_map(|section| {
 			section.unsupported_reason.as_ref().map(|reason| LintDraft {
 				section_id: Some(section.section_id),
-				finding_type: "unsupported_section".to_string(),
+				finding_type: "unsupported_claim".to_string(),
 				severity: "warning".to_string(),
 				source_kind: None,
 				source_id: None,
-				message: format!("Knowledge page section lacks citations: {reason}"),
-				details: serde_json::json!({ "section_key": section.section_key }),
+				message: format!("Knowledge page section has unsupported content: {reason}"),
+				details: serde_json::json!({
+					"section_key": section.section_key,
+					"unsupported_reason": reason,
+					"repair_guidance": repair_guidance_for_finding_type("unsupported_claim"),
+				}),
 			})
 		})
 		.collect()
+}
+
+fn lint_page_sections(
+	page: &KnowledgePage,
+	sections: &[KnowledgePageSection],
+	source_refs: &[KnowledgePageSourceRef],
+) -> Vec<LintDraft> {
+	let source_refs_by_section = source_refs_by_section(source_refs);
+	let mut findings = Vec::new();
+
+	for section in sections {
+		findings.extend(lint_one_section(section, &source_refs_by_section));
+	}
+
+	if !coverage_complete(page.source_coverage.as_object()) {
+		findings.push(low_source_coverage_finding(page));
+	}
+
+	findings
+}
+
+fn lint_one_section(
+	section: &KnowledgePageSection,
+	source_refs_by_section: &HashMap<Uuid, Vec<KnowledgePageSourceRef>>,
+) -> Vec<LintDraft> {
+	let citation_count = citation_count(&section.citations);
+	let source_ref_count =
+		source_refs_by_section.get(&section.section_id).map(Vec::len).unwrap_or_default();
+	let mut findings = Vec::new();
+
+	if let Some(reason) = &section.unsupported_reason {
+		findings.push(section_finding(
+			section,
+			"unsupported_claim",
+			"warning",
+			"Knowledge page section contains unsupported content.",
+			serde_json::json!({
+				"unsupported_reason": reason,
+				"citation_count": citation_count,
+				"source_ref_count": source_ref_count,
+			}),
+		));
+	}
+
+	if citation_count == 0 && section.unsupported_reason.is_none() {
+		findings.push(section_finding(
+			section,
+			"missing_citation",
+			"error",
+			"Knowledge page section has no citations.",
+			serde_json::json!({ "source_ref_count": source_ref_count }),
+		));
+	}
+	if source_ref_count == 0 && section.unsupported_reason.is_none() {
+		findings.push(section_finding(
+			section,
+			"missing_source_ref",
+			"error",
+			"Knowledge page section has no normalized source backlinks.",
+			serde_json::json!({ "citation_count": citation_count }),
+		));
+	}
+
+	findings
+}
+
+fn section_finding(
+	section: &KnowledgePageSection,
+	finding_type: &str,
+	severity: &str,
+	message: &str,
+	details: Value,
+) -> LintDraft {
+	LintDraft {
+		section_id: Some(section.section_id),
+		finding_type: finding_type.to_string(),
+		severity: severity.to_string(),
+		source_kind: None,
+		source_id: None,
+		message: message.to_string(),
+		details: with_repair_guidance(
+			details,
+			section.section_key.as_str(),
+			repair_guidance_for_finding_type(finding_type),
+		),
+	}
+}
+
+fn low_source_coverage_finding(page: &KnowledgePage) -> LintDraft {
+	LintDraft {
+		section_id: None,
+		finding_type: "low_source_coverage".to_string(),
+		severity: "warning".to_string(),
+		source_kind: None,
+		source_id: None,
+		message: "Knowledge page source coverage is incomplete.".to_string(),
+		details: serde_json::json!({
+			"source_coverage": page.source_coverage.clone(),
+			"repair_guidance": repair_guidance_for_finding_type("low_source_coverage"),
+		}),
+	}
+}
+
+fn with_repair_guidance(details: Value, section_key: &str, guidance: &str) -> Value {
+	let mut object = details.as_object().cloned().unwrap_or_default();
+
+	object.insert("section_key".to_string(), Value::String(section_key.to_string()));
+	object.insert("repair_guidance".to_string(), Value::String(guidance.to_string()));
+
+	Value::Object(object)
+}
+
+fn coverage_complete(coverage: Option<&Map<String, Value>>) -> bool {
+	let Some(coverage) = coverage else {
+		return false;
+	};
+	let source_count = coverage.get("source_count").and_then(Value::as_u64).unwrap_or(0);
+	let cited_count = coverage.get("cited_source_count").and_then(Value::as_u64).unwrap_or(0);
+	let complete = coverage.get("coverage_complete").and_then(Value::as_bool).unwrap_or(false);
+
+	complete && source_count == cited_count
+}
+
+fn citation_count(citations: &Value) -> usize {
+	citations.as_array().map(Vec::len).unwrap_or_default()
 }
 
 fn source_indexes(sources: &[SourceSnapshot], kind: KnowledgeSourceKind) -> Vec<usize> {
@@ -1062,6 +1533,7 @@ fn missing_source_finding(source_ref: &KnowledgePageSourceRef) -> LintDraft {
 		details: serde_json::json!({
 			"source_kind": source_ref.source_kind.clone(),
 			"source_id": source_ref.source_id,
+			"repair_guidance": repair_guidance_for_finding_type("stale_source_ref"),
 		}),
 	}
 }
@@ -1088,7 +1560,24 @@ fn stale_source_finding(
 				"updated_at": current.updated_at,
 				"content_hash": current.content_hash.clone(),
 			},
+			"repair_guidance": repair_guidance_for_finding_type("stale_source_ref"),
 		}),
+	}
+}
+
+fn repair_guidance_for_finding_type(finding_type: &str) -> &'static str {
+	match finding_type {
+		"stale_source_ref" =>
+			"Inspect the stale or missing source, then rebuild the page from current authoritative sources.",
+		"unsupported_claim" =>
+			"Replace the unsupported section content with source-backed text or rebuild from cited sources.",
+		"missing_citation" =>
+			"Rebuild the page section with explicit citations or mark the section unsupported with a reason.",
+		"missing_source_ref" =>
+			"Rebuild the page so each section citation is normalized into knowledge_page_source_refs.",
+		"low_source_coverage" =>
+			"Rebuild with all intended sources or remove uncited material before relying on this page.",
+		_ => "Inspect the finding and rebuild the page after source review.",
 	}
 }
 
@@ -1096,6 +1585,77 @@ fn source_changed(source_ref: &KnowledgePageSourceRef, current: &SourceSnapshot)
 	source_ref.source_status.as_deref() != current.status.as_deref()
 		|| source_ref.source_updated_at != current.updated_at
 		|| source_ref.source_content_hash.as_deref() != current.content_hash.as_deref()
+}
+
+fn snippet_for_query(content: &str, query: &str, max_chars: usize) -> String {
+	let normalized = normalize_whitespace(content);
+	let query = query.trim();
+
+	if query.is_empty() {
+		return truncate_chars(normalized.as_str(), max_chars);
+	}
+
+	let lower = normalized.to_ascii_lowercase();
+	let lower_query = query.to_ascii_lowercase();
+	let Some(byte_idx) = lower.find(lower_query.as_str()) else {
+		return truncate_chars(normalized.as_str(), max_chars);
+	};
+	let before_chars = normalized[..byte_idx].chars().count();
+	let start = before_chars.saturating_sub(40);
+	let mut snippet: String = normalized.chars().skip(start).take(max_chars).collect();
+
+	if start > 0 {
+		snippet = format!("...{snippet}");
+	}
+	if normalized.chars().count() > start + snippet.chars().count() {
+		snippet.push_str("...");
+	}
+
+	snippet
+}
+
+fn normalize_whitespace(raw: &str) -> String {
+	let mut out = String::with_capacity(raw.len());
+	let mut prev_space = false;
+
+	for ch in raw.chars() {
+		if ch.is_whitespace() {
+			if !prev_space {
+				out.push(' ');
+
+				prev_space = true;
+			}
+
+			continue;
+		}
+
+		out.push(ch);
+
+		prev_space = false;
+	}
+
+	out.trim().to_string()
+}
+
+fn truncate_chars(raw: &str, max_chars: usize) -> String {
+	if raw.chars().count() <= max_chars {
+		return raw.to_string();
+	}
+
+	const TRUNCATION_MARKER: &str = "...";
+
+	let marker_chars = TRUNCATION_MARKER.chars().count();
+
+	if max_chars <= marker_chars {
+		return TRUNCATION_MARKER.chars().take(max_chars).collect();
+	}
+
+	let truncated_chars = max_chars - marker_chars;
+	let mut out = raw.chars().take(truncated_chars).collect::<String>();
+
+	out.push_str(TRUNCATION_MARKER);
+
+	out
 }
 
 fn source_sort_key(source: &SourceSnapshot) -> (String, Uuid) {
@@ -1293,8 +1853,8 @@ async fn insert_lint_finding(
 #[cfg(test)]
 mod tests {
 	use crate::knowledge::{
-		self, KnowledgePageKind, KnowledgePageSourceRef, KnowledgeSourceKind, OffsetDateTime,
-		SourceSnapshot, Uuid,
+		self, KnowledgePage, KnowledgePageKind, KnowledgePageSearchRow, KnowledgePageSection,
+		KnowledgePageSourceRef, KnowledgeSourceKind, OffsetDateTime, SourceSnapshot, Uuid,
 	};
 
 	fn test_source(kind: KnowledgeSourceKind, raw_id: u128, line: &str) -> SourceSnapshot {
@@ -1407,5 +1967,139 @@ mod tests {
 		assert_eq!(finding.finding_type, "stale_source_ref");
 		assert_eq!(finding.source_kind, Some(KnowledgeSourceKind::Note));
 		assert_eq!(finding.source_id, Some(source_id));
+	}
+
+	#[test]
+	fn lint_page_sections_detects_unsupported_missing_and_low_coverage() {
+		let page = test_page();
+		let unsupported = test_section(
+			Uuid::from_u128(10),
+			"unsupported",
+			serde_json::json!([]),
+			Some("No source supports this claim.".to_string()),
+		);
+		let missing = test_section(Uuid::from_u128(11), "missing", serde_json::json!([]), None);
+		let findings = knowledge::lint_page_sections(&page, &[unsupported, missing], &[]);
+		let finding_types =
+			findings.iter().map(|finding| finding.finding_type.as_str()).collect::<Vec<_>>();
+
+		assert!(finding_types.contains(&"unsupported_claim"));
+		assert!(finding_types.contains(&"missing_citation"));
+		assert!(finding_types.contains(&"missing_source_ref"));
+		assert!(finding_types.contains(&"low_source_coverage"));
+		assert!(findings.iter().all(|finding| {
+			finding
+				.details
+				.get("repair_guidance")
+				.and_then(serde_json::Value::as_str)
+				.is_some_and(|guidance| !guidance.is_empty())
+		}));
+	}
+
+	#[test]
+	fn search_item_marks_derived_page_snippet_with_provenance() {
+		let section_id = Uuid::from_u128(20);
+		let source_ref = test_source_ref(section_id);
+		let row = KnowledgePageSearchRow {
+			page_id: Uuid::from_u128(21),
+			page_kind: "project".to_string(),
+			page_key: "elf".to_string(),
+			title: "ELF Knowledge".to_string(),
+			status: "active".to_string(),
+			source_coverage: serde_json::json!({
+				"source_count": 1,
+				"cited_source_count": 1,
+				"coverage_complete": true
+			}),
+			rebuild_metadata: serde_json::json!({ "deterministic": true }),
+			page_updated_at: OffsetDateTime::UNIX_EPOCH,
+			rebuilt_at: OffsetDateTime::UNIX_EPOCH,
+			section_id,
+			section_key: "source-notes".to_string(),
+			heading: "Source Notes".to_string(),
+			role: "current_truth".to_string(),
+			content: "Derived knowledge pages cite source notes before they are trusted."
+				.to_string(),
+			ordinal: 0,
+			citations: serde_json::json!([{ "source_kind": "note", "source_id": source_ref.source_id }]),
+			unsupported_reason: None,
+			lint_error_count: 0,
+			lint_warning_count: 1,
+			lint_info_count: 0,
+			section_source_ref_count: 1,
+		};
+		let item = knowledge::knowledge_page_search_item(row, vec![source_ref], "source notes");
+
+		assert_eq!(item.result_kind, "knowledge_page_section");
+		assert_eq!(item.trust_state, "derived_warning");
+		assert_eq!(item.citation_count, 1);
+		assert_eq!(item.source_ref_count, 1);
+		assert_eq!(item.source_refs.len(), 1);
+		assert!(item.derived_notice.contains("Derived knowledge page snippet"));
+		assert!(item.repair_guidance.is_some());
+		assert!(item.snippet.contains("source notes"));
+	}
+
+	fn test_page() -> KnowledgePage {
+		KnowledgePage {
+			page_id: Uuid::from_u128(1),
+			tenant_id: "tenant".to_string(),
+			project_id: "project".to_string(),
+			page_kind: "project".to_string(),
+			page_key: "elf".to_string(),
+			title: "ELF".to_string(),
+			contract_schema: "elf.knowledge_page/v1".to_string(),
+			status: "active".to_string(),
+			rebuild_source_hash: "source-hash".to_string(),
+			content_hash: "content-hash".to_string(),
+			source_coverage: serde_json::json!({
+				"source_count": 2,
+				"cited_source_count": 1,
+				"coverage_complete": false
+			}),
+			source_snapshot: serde_json::json!({}),
+			rebuild_metadata: serde_json::json!({}),
+			created_at: OffsetDateTime::UNIX_EPOCH,
+			updated_at: OffsetDateTime::UNIX_EPOCH,
+			rebuilt_at: OffsetDateTime::UNIX_EPOCH,
+		}
+	}
+
+	fn test_section(
+		section_id: Uuid,
+		section_key: &str,
+		citations: serde_json::Value,
+		unsupported_reason: Option<String>,
+	) -> KnowledgePageSection {
+		KnowledgePageSection {
+			section_id,
+			page_id: Uuid::from_u128(1),
+			section_key: section_key.to_string(),
+			heading: section_key.to_string(),
+			role: "current_truth".to_string(),
+			content: "Section content.".to_string(),
+			ordinal: 0,
+			citations,
+			unsupported_reason,
+			content_hash: "section-hash".to_string(),
+			created_at: OffsetDateTime::UNIX_EPOCH,
+			updated_at: OffsetDateTime::UNIX_EPOCH,
+		}
+	}
+
+	fn test_source_ref(section_id: Uuid) -> KnowledgePageSourceRef {
+		KnowledgePageSourceRef {
+			ref_id: Uuid::from_u128(30),
+			page_id: Uuid::from_u128(21),
+			section_id: Some(section_id),
+			source_kind: "note".to_string(),
+			source_id: Uuid::from_u128(31),
+			source_status: Some("active".to_string()),
+			source_updated_at: Some(OffsetDateTime::UNIX_EPOCH),
+			source_content_hash: Some("source-hash".to_string()),
+			source_snapshot: serde_json::json!({}),
+			citation_metadata: serde_json::json!({}),
+			created_at: OffsetDateTime::UNIX_EPOCH,
+		}
 	}
 }

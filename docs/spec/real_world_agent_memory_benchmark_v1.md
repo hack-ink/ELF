@@ -312,7 +312,7 @@ is not a hidden unsupported claim because the page explicitly marks the gap.
 Each `lint_findings[]` entry SHOULD include:
 
 - `finding_id`
-- `finding_type`: for example `stale_claim`, `unsupported_section`, or
+- `finding_type`: for example `stale_claim`, `unsupported_claim`, or
   `contradiction`.
 - `severity`
 - `text`

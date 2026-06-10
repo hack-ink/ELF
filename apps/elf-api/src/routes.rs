@@ -53,17 +53,18 @@ use elf_service::{
 	EventMessage, GranteeKind, GraphQueryEntityRef, GraphQueryPredicateRef, GraphQueryRequest,
 	GraphQueryResponse, IngestionProfileSelector, KnowledgePageGetRequest,
 	KnowledgePageLintRequest, KnowledgePageLintResponse, KnowledgePageRebuildRequest,
-	KnowledgePageRebuildResponse, KnowledgePageResponse, KnowledgePagesListRequest,
-	KnowledgePagesListResponse, ListRequest, ListResponse, NoteFetchRequest, NoteFetchResponse,
-	NoteProvenanceBundleResponse, NoteProvenanceGetRequest, PayloadLevel, PublishNoteRequest,
-	QueryPlan, RankingRequestOverride, RebuildReport, SearchDetailsRequest, SearchDetailsResult,
-	SearchExplainRequest, SearchExplainResponse, SearchIndexItem, SearchRequest, SearchResponse,
-	SearchSessionGetRequest, SearchTimelineGroup, SearchTimelineRequest, SearchTrajectoryResponse,
-	SearchTrajectorySummary, ShareScope, SpaceGrantRevokeRequest, SpaceGrantRevokeResponse,
-	SpaceGrantUpsertRequest, SpaceGrantsListRequest, TextPositionSelector, TextQuoteSelector,
-	TraceBundleGetRequest, TraceBundleResponse, TraceGetRequest, TraceGetResponse,
-	TraceRecentListRequest, TraceRecentListResponse, TraceTrajectoryGetRequest,
-	UnpublishNoteRequest, UpdateRequest, UpdateResponse, search::TraceBundleMode,
+	KnowledgePageRebuildResponse, KnowledgePageResponse, KnowledgePageSearchRequest,
+	KnowledgePageSearchResponse, KnowledgePagesListRequest, KnowledgePagesListResponse,
+	ListRequest, ListResponse, NoteFetchRequest, NoteFetchResponse, NoteProvenanceBundleResponse,
+	NoteProvenanceGetRequest, PayloadLevel, PublishNoteRequest, QueryPlan, RankingRequestOverride,
+	RebuildReport, SearchDetailsRequest, SearchDetailsResult, SearchExplainRequest,
+	SearchExplainResponse, SearchIndexItem, SearchRequest, SearchResponse, SearchSessionGetRequest,
+	SearchTimelineGroup, SearchTimelineRequest, SearchTrajectoryResponse, SearchTrajectorySummary,
+	ShareScope, SpaceGrantRevokeRequest, SpaceGrantRevokeResponse, SpaceGrantUpsertRequest,
+	SpaceGrantsListRequest, TextPositionSelector, TextQuoteSelector, TraceBundleGetRequest,
+	TraceBundleResponse, TraceGetRequest, TraceGetResponse, TraceRecentListRequest,
+	TraceRecentListResponse, TraceTrajectoryGetRequest, UnpublishNoteRequest, UpdateRequest,
+	UpdateResponse, search::TraceBundleMode,
 };
 
 /// JSON OpenAPI contract route.
@@ -138,6 +139,7 @@ const VIEWER_HTML: &str = include_str!("../static/viewer.html");
 		consolidation_proposal_review,
 		knowledge_page_rebuild,
 		knowledge_pages_list,
+		knowledge_pages_search,
 		knowledge_page_get,
 		knowledge_page_lint,
 		rebuild_qdrant,
@@ -389,6 +391,13 @@ struct KnowledgePageRebuildBody {
 
 #[derive(Clone, Debug, Deserialize)]
 struct KnowledgePagesListQuery {
+	page_kind: Option<KnowledgePageKind>,
+	limit: Option<u32>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct KnowledgePagesSearchBody {
+	query: String,
 	page_kind: Option<KnowledgePageKind>,
 	limit: Option<u32>,
 }
@@ -678,6 +687,7 @@ pub fn admin_router(state: AppState) -> Router {
 		)
 		.route("/v2/admin/knowledge/pages", routing::get(knowledge_pages_list))
 		.route("/v2/admin/knowledge/pages/rebuild", routing::post(knowledge_page_rebuild))
+		.route("/v2/admin/knowledge/pages/search", routing::post(knowledge_pages_search))
 		.route("/v2/admin/knowledge/pages/{page_id}", routing::get(knowledge_page_get))
 		.route("/v2/admin/knowledge/pages/{page_id}/lint", routing::post(knowledge_page_lint))
 		.route("/v2/admin/qdrant/rebuild", routing::post(rebuild_qdrant))
@@ -2796,6 +2806,45 @@ async fn knowledge_pages_list(
 }
 
 #[utoipa::path(
+	post,
+	path = "/v2/admin/knowledge/pages/search",
+	tag = "knowledge",
+	request_body = Value,
+	responses(
+		(status = 200, description = "Knowledge page section search results.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Admin access required.", body = ErrorBody),
+		(status = 422, description = "Non-English input rejected.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
+async fn knowledge_pages_search(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	payload: Result<Json<KnowledgePagesSearchBody>, JsonRejection>,
+) -> Result<Json<KnowledgePageSearchResponse>, ApiError> {
+	let ctx = RequestContext::from_headers(&headers)?;
+	let Json(payload) = payload.map_err(|err| {
+		tracing::warn!(error = %err, "Invalid request payload.");
+
+		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+	})?;
+	let response = state
+		.service
+		.knowledge_pages_search(KnowledgePageSearchRequest {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+			query: payload.query,
+			page_kind: payload.page_kind,
+			limit: payload.limit,
+		})
+		.await?;
+
+	Ok(Json(response))
+}
+
+#[utoipa::path(
 	get,
 	path = "/v2/admin/knowledge/pages/{page_id}",
 	tag = "knowledge",
@@ -3451,12 +3500,15 @@ mod tests {
 		assert!(html.contains("/v2/admin/traces/recent"));
 		assert!(html.contains("/v2/admin/traces/${encodeURIComponent(traceId)}/bundle"));
 		assert!(html.contains("/v2/admin/notes/"));
+		assert!(html.contains("/v2/admin/knowledge/pages/search"));
 		assert!(html.contains("mode: \"full\""));
 		assert!(html.contains("candidates_limit: 200"));
 		assert!(html.contains("Replay Candidates"));
 		assert!(html.contains("Selected Final Results"));
 		assert!(html.contains("Providers And Ranking"));
 		assert!(html.contains("Relation Context"));
+		assert!(html.contains("Knowledge Page Snippets"));
+		assert!(html.contains("Derived page: source notes"));
 		assert!(html.contains("directTraceId"));
 		assert!(html.contains("trace_id"));
 		assert!(html.contains("loadInitialTrace"));
