@@ -6,7 +6,7 @@ Inputs: Existing research notes, open architecture questions, and tracked adopti
 Depends on: `docs/guide/research/comparison_external_projects.md`.
 Outputs: A current inventory of reviewed and pending external projects.
 
-Last updated: June 9, 2026.
+Last updated: June 10, 2026.
 
 ## Legend
 
@@ -34,10 +34,10 @@ Last updated: June 9, 2026.
 | [Letta](https://github.com/letta-ai/letta) | D1 | Reviewed | `rw.core-archival`, `rw.operator-continuity` | Core vs archival memory split, shared blocks | `docs/guide/research/comparison_external_projects.md`; `docs/research/2026-06-09-xy-841-external-memory-benchmark-dimensions.json` |
 | [LangGraph](https://docs.langchain.com/oss/python/langgraph/persistence) | D1 | Reviewed | `rw.replay-regression`, `rw.resume-evidence` | Checkpoint/replay mindset for quality regression workflows | `docs/guide/research/comparison_external_projects.md`; `docs/research/2026-06-09-xy-841-external-memory-benchmark-dimensions.json` |
 | [Graphiti / Zep](https://help.getzep.com/graphiti/core-concepts/temporal-awareness) | D1 | Reviewed | `rw.graph-temporal`, `rw.resume-evidence` | Temporal fact validity model for graph-like memory evolution | `docs/guide/research/comparison_external_projects.md`; `docs/research/2026-06-09-xy-841-external-memory-benchmark-dimensions.json` |
-| [nanograph](https://github.com/aaltshuler/nanograph) | D1 | Reviewed | `rw.graph-temporal`, `rw.retrieval-debug` | Typed schema + typed query ergonomics for graph-lite developer experience | `docs/guide/research/comparison_external_projects.md`; `docs/research/2026-06-09-xy-841-external-memory-benchmark-dimensions.json` |
-| [RAGFlow](https://github.com/infiniflow/ragflow) | D0 | Watch item; pending deep dive | Candidate `rw.resume-evidence`, `rw.graph-navigation`, `rw.retrieval-debug`; no strength claim | Potential framework integration discussion; not yet audited to adoption level | Discussion history only; see watch-item evidence requirements in `docs/guide/research/comparison_external_projects.md` |
-| [LightRAG](https://github.com/HKUDS/LightRAG) | D0 | Watch item; pending deep dive | Candidate `rw.graph-navigation`, `rw.graph-temporal`, `rw.retrieval-debug`; no strength claim | Graph-augmented RAG strategy relevance; not yet audited to adoption level | Discussion history only; see watch-item evidence requirements in `docs/guide/research/comparison_external_projects.md` |
-| [GraphRAG](https://www.microsoft.com/en-us/research/project/graphrag/) | D0 | Watch item; pending deep dive | Candidate `rw.graph-navigation`, `rw.knowledge-synthesis`, `rw.retrieval-debug`; no strength claim | Graph-based retrieval concepts; not yet audited to implementation decision level | Discussion history only; see watch-item evidence requirements in `docs/guide/research/comparison_external_projects.md` |
+| [nanograph](https://github.com/nanograph/nanograph) | D1 | Reviewed; research gate added | `rw.graph-temporal`, `rw.retrieval-debug` | Typed schema + typed query ergonomics for graph-lite developer experience | `docs/guide/research/comparison_external_projects.md`; `docs/research/2026-06-09-xy-841-external-memory-benchmark-dimensions.json`; `apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json` |
+| [RAGFlow](https://github.com/infiniflow/ragflow) | D0 | Research gate added; D1/D2 still required before adapter | Candidate `rw.resume-evidence`, `rw.graph-navigation`, `rw.retrieval-debug`; no strength claim | Potential framework integration discussion; not yet audited to adoption level | `apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json`; see watch-item evidence requirements in `docs/guide/research/comparison_external_projects.md` |
+| [LightRAG](https://github.com/HKUDS/LightRAG) | D0 | Research gate added; D1/D2 still required before adapter | Candidate `rw.graph-navigation`, `rw.graph-temporal`, `rw.retrieval-debug`; no strength claim | Graph-augmented RAG strategy relevance; not yet audited to adoption level | `apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json`; see watch-item evidence requirements in `docs/guide/research/comparison_external_projects.md` |
+| [GraphRAG](https://github.com/microsoft/graphrag) | D0 | Research gate added; D1/D2 still required before adapter | Candidate `rw.graph-navigation`, `rw.knowledge-synthesis`, `rw.retrieval-debug`; no strength claim | Graph-based retrieval concepts; not yet audited to implementation decision level | `apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json`; see watch-item evidence requirements in `docs/guide/research/comparison_external_projects.md` |
 
 ## June 2026 Activity Snapshot
 
