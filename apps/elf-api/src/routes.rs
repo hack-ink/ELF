@@ -47,21 +47,23 @@ use elf_service::{
 	ConsolidationProposalReviewRequest, ConsolidationProposalsListRequest,
 	ConsolidationProposalsListResponse, ConsolidationRunCreateRequest,
 	ConsolidationRunCreateResponse, ConsolidationRunGetRequest, ConsolidationRunResponse,
-	ConsolidationRunsListRequest, ConsolidationRunsListResponse, DeleteRequest, DeleteResponse,
-	DocType, DocsExcerptResponse, DocsExcerptsGetRequest, DocsGetRequest, DocsGetResponse,
-	DocsPutRequest, DocsPutResponse, DocsSearchL0Request, DocsSearchL0Response, Error,
-	EventMessage, GranteeKind, GraphQueryEntityRef, GraphQueryPredicateRef, GraphQueryRequest,
-	GraphQueryResponse, IngestionProfileSelector, KnowledgePageGetRequest,
-	KnowledgePageLintRequest, KnowledgePageLintResponse, KnowledgePageRebuildRequest,
-	KnowledgePageRebuildResponse, KnowledgePageResponse, KnowledgePageSearchRequest,
-	KnowledgePageSearchResponse, KnowledgePagesListRequest, KnowledgePagesListResponse,
-	ListRequest, ListResponse, MemoryHistoryGetRequest, MemoryHistoryResponse, NoteFetchRequest,
-	NoteFetchResponse, NoteProvenanceBundleResponse, NoteProvenanceGetRequest, PayloadLevel,
-	PublishNoteRequest, QueryPlan, RankingRequestOverride, RebuildReport, SearchDetailsRequest,
-	SearchDetailsResult, SearchExplainRequest, SearchExplainResponse, SearchIndexItem,
-	SearchRequest, SearchResponse, SearchSessionGetRequest, SearchTimelineGroup,
-	SearchTimelineRequest, SearchTrajectoryResponse, SearchTrajectorySummary, ShareScope,
-	SpaceGrantRevokeRequest, SpaceGrantRevokeResponse, SpaceGrantUpsertRequest,
+	ConsolidationRunsListRequest, ConsolidationRunsListResponse, CoreBlockAttachRequest,
+	CoreBlockAttachResponse, CoreBlockDetachRequest, CoreBlockDetachResponse,
+	CoreBlockUpsertRequest, CoreBlockUpsertResponse, CoreBlocksGetRequest, CoreBlocksResponse,
+	DeleteRequest, DeleteResponse, DocType, DocsExcerptResponse, DocsExcerptsGetRequest,
+	DocsGetRequest, DocsGetResponse, DocsPutRequest, DocsPutResponse, DocsSearchL0Request,
+	DocsSearchL0Response, Error, EventMessage, GranteeKind, GraphQueryEntityRef,
+	GraphQueryPredicateRef, GraphQueryRequest, GraphQueryResponse, IngestionProfileSelector,
+	KnowledgePageGetRequest, KnowledgePageLintRequest, KnowledgePageLintResponse,
+	KnowledgePageRebuildRequest, KnowledgePageRebuildResponse, KnowledgePageResponse,
+	KnowledgePageSearchRequest, KnowledgePageSearchResponse, KnowledgePagesListRequest,
+	KnowledgePagesListResponse, ListRequest, ListResponse, MemoryHistoryGetRequest,
+	MemoryHistoryResponse, NoteFetchRequest, NoteFetchResponse, NoteProvenanceBundleResponse,
+	NoteProvenanceGetRequest, PayloadLevel, PublishNoteRequest, QueryPlan, RankingRequestOverride,
+	RebuildReport, SearchDetailsRequest, SearchDetailsResult, SearchExplainRequest,
+	SearchExplainResponse, SearchIndexItem, SearchRequest, SearchResponse, SearchSessionGetRequest,
+	SearchTimelineGroup, SearchTimelineRequest, SearchTrajectoryResponse, SearchTrajectorySummary,
+	ShareScope, SpaceGrantRevokeRequest, SpaceGrantRevokeResponse, SpaceGrantUpsertRequest,
 	SpaceGrantsListRequest, TextPositionSelector, TextQuoteSelector, TraceBundleGetRequest,
 	TraceBundleResponse, TraceGetRequest, TraceGetResponse, TraceRecentListRequest,
 	TraceRecentListResponse, TraceTrajectoryGetRequest, UnpublishNoteRequest, UpdateRequest,
@@ -112,6 +114,10 @@ const VIEWER_HTML: &str = include_str!("../static/viewer.html");
 		docs_get,
 		docs_search_l0,
 		docs_excerpts_get,
+		core_blocks_get,
+		admin_core_block_upsert,
+		admin_core_block_attach,
+		admin_core_block_detach,
 		graph_query,
 		searches_create,
 		searches_get,
@@ -216,6 +222,25 @@ struct DocsPutBody {
 
 	write_policy: Option<WritePolicy>,
 	content: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct CoreBlockUpsertBody {
+	block_id: Option<Uuid>,
+	scope: String,
+	key: String,
+	title: String,
+	content: String,
+	#[serde(default)]
+	source_ref: Value,
+	reason: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct CoreBlockAttachBody {
+	target_agent_id: String,
+	read_profile: String,
+	reason: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -612,6 +637,7 @@ pub fn router(state: AppState) -> Router {
 		.route("/health", routing::get(health))
 		.route("/v2/notes/ingest", routing::post(notes_ingest))
 		.route("/v2/events/ingest", routing::post(events_ingest))
+		.route("/v2/core-blocks", routing::get(core_blocks_get))
 		.route("/v2/searches", routing::post(searches_create))
 		.route("/v2/searches/{search_id}", routing::get(searches_get))
 		.route("/v2/searches/{search_id}/timeline", routing::get(searches_timeline))
@@ -654,6 +680,15 @@ pub fn admin_router(state: AppState) -> Router {
 		.route("/v2/admin/searches/{search_id}", routing::get(searches_get))
 		.route("/v2/admin/searches/{search_id}/timeline", routing::get(searches_timeline))
 		.route("/v2/admin/searches/{search_id}/notes", routing::post(searches_notes))
+		.route("/v2/admin/core-blocks", routing::post(admin_core_block_upsert))
+		.route(
+			"/v2/admin/core-blocks/{block_id}/attachments",
+			routing::post(admin_core_block_attach),
+		)
+		.route(
+			"/v2/admin/core-blocks/attachments/{attachment_id}",
+			routing::delete(admin_core_block_detach),
+		)
 		.route("/v2/admin/notes", routing::get(notes_list))
 		.route("/v2/admin/notes/{note_id}", routing::get(notes_get))
 		.route(
@@ -1354,6 +1389,165 @@ async fn docs_put(
 			source_ref: payload.source_ref,
 			write_policy: payload.write_policy,
 			content: payload.content,
+		})
+		.await?;
+
+	Ok(Json(response))
+}
+
+#[utoipa::path(
+	get,
+	path = "/v2/core-blocks",
+	tag = "core_blocks",
+	responses(
+		(status = 200, description = "Attached core memory blocks.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Scope denied.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
+async fn core_blocks_get(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+) -> Result<Json<CoreBlocksResponse>, ApiError> {
+	let ctx = RequestContext::from_headers(&headers)?;
+	let read_profile = required_read_profile(&headers)?;
+	let response = state
+		.service
+		.core_blocks_get(CoreBlocksGetRequest {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+			agent_id: ctx.agent_id,
+			read_profile,
+		})
+		.await?;
+
+	Ok(Json(response))
+}
+
+#[utoipa::path(
+	post,
+	path = "/v2/admin/core-blocks",
+	tag = "core_blocks",
+	request_body = Value,
+	responses(
+		(status = 200, description = "Core block was stored.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Scope denied.", body = ErrorBody),
+		(status = 409, description = "Core block conflict.", body = ErrorBody),
+		(status = 422, description = "Non-English input rejected.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
+async fn admin_core_block_upsert(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	role: Option<Extension<SecurityAuthRole>>,
+	payload: Result<Json<CoreBlockUpsertBody>, JsonRejection>,
+) -> Result<Json<CoreBlockUpsertResponse>, ApiError> {
+	let ctx = RequestContext::from_headers(&headers)?;
+	let Json(payload) = payload.map_err(|err| {
+		tracing::warn!(error = %err, "Invalid request payload.");
+
+		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+	})?;
+	let role = role.map(|Extension(role)| role);
+
+	if payload.scope.trim() == "org_shared" {
+		require_admin_for_org_shared_writes(state.service.cfg.security.auth_mode.as_str(), role)?;
+	}
+
+	let response = state
+		.service
+		.core_block_upsert(CoreBlockUpsertRequest {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+			agent_id: ctx.agent_id,
+			block_id: payload.block_id,
+			scope: payload.scope,
+			key: payload.key,
+			title: payload.title,
+			content: payload.content,
+			source_ref: payload.source_ref,
+			reason: payload.reason,
+		})
+		.await?;
+
+	Ok(Json(response))
+}
+
+#[utoipa::path(
+	post,
+	path = "/v2/admin/core-blocks/{block_id}/attachments",
+	tag = "core_blocks",
+	params(("block_id" = Uuid, Path, description = "Core block ID.")),
+	request_body = Value,
+	responses(
+		(status = 200, description = "Core block was attached.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Scope denied.", body = ErrorBody),
+		(status = 404, description = "Core block was not found.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
+async fn admin_core_block_attach(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	Path(block_id): Path<Uuid>,
+	payload: Result<Json<CoreBlockAttachBody>, JsonRejection>,
+) -> Result<Json<CoreBlockAttachResponse>, ApiError> {
+	let ctx = RequestContext::from_headers(&headers)?;
+	let Json(payload) = payload.map_err(|err| {
+		tracing::warn!(error = %err, "Invalid request payload.");
+
+		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+	})?;
+	let response = state
+		.service
+		.core_block_attach(CoreBlockAttachRequest {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+			agent_id: ctx.agent_id,
+			block_id,
+			target_agent_id: payload.target_agent_id,
+			read_profile: payload.read_profile,
+			reason: payload.reason,
+		})
+		.await?;
+
+	Ok(Json(response))
+}
+
+#[utoipa::path(
+	delete,
+	path = "/v2/admin/core-blocks/attachments/{attachment_id}",
+	tag = "core_blocks",
+	params(("attachment_id" = Uuid, Path, description = "Core block attachment ID.")),
+	responses(
+		(status = 200, description = "Core block attachment was detached.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Scope denied.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
+async fn admin_core_block_detach(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	Path(attachment_id): Path<Uuid>,
+) -> Result<Json<CoreBlockDetachResponse>, ApiError> {
+	let ctx = RequestContext::from_headers(&headers)?;
+	let response = state
+		.service
+		.core_block_detach(CoreBlockDetachRequest {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+			agent_id: ctx.agent_id,
+			attachment_id,
+			reason: None,
 		})
 		.await?;
 

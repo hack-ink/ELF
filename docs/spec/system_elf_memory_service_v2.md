@@ -41,6 +41,7 @@ Optional future work:
 ============================================================
 I1. Postgres with pgvector is the only source of truth for:
     - memory notes
+    - scoped core memory blocks and attachments
     - chunk embedding vectors
     - chunk metadata
     - pooled note embeddings (derived)
@@ -630,6 +631,80 @@ details must include:
 - min_importance
 - write_policy_audits (add_note: single object, add_event: array of message audits, optional)
 
+5.15 core_memory_blocks (authoritative always-attached context blocks)
+- block_id uuid primary key
+- tenant_id text not null
+- project_id text not null
+- agent_id text not null
+- scope text not null
+- key text not null
+- title text not null
+- content text not null
+- source_ref jsonb not null
+- status text not null
+- created_at timestamptz not null
+- updated_at timestamptz not null
+
+Rules:
+- Core blocks are small read-only operating context, separate from archival note search.
+- Core blocks must not be indexed into Qdrant or returned by archival search unless a future explicit contract says so.
+- source_ref must be a JSON object and is returned with block readback.
+- scope, write permission, English gate, auth, and shared-grant rules apply.
+
+Indexes:
+- uq_core_memory_blocks_active_key: (tenant_id, project_id, agent_id, scope, key) WHERE status = 'active'
+- idx_core_memory_blocks_scope_status: (tenant_id, project_id, scope, status)
+
+5.16 core_memory_block_attachments (explicit block attachment)
+- attachment_id uuid primary key
+- block_id uuid not null references core_memory_blocks(block_id) on delete cascade
+- tenant_id text not null
+- project_id text not null
+- agent_id text not null
+- read_profile text not null
+- attached_by_agent_id text not null
+- attached_at timestamptz not null
+- detached_by_agent_id text null
+- detached_at timestamptz null
+
+Rules:
+- Active attachment is exact to tenant_id, project_id, agent_id, read_profile, and block_id.
+- Attachment does not bypass scope access. Readback still applies read_profile scope resolution,
+  private-owner checks, shared grants, and block status.
+- Detached rows remain as audit evidence.
+
+Indexes:
+- uq_core_memory_block_attachments_active:
+  (tenant_id, project_id, agent_id, read_profile, block_id) WHERE detached_at IS NULL
+- idx_core_memory_block_attachments_read:
+  (tenant_id, project_id, agent_id, read_profile, detached_at)
+- idx_core_memory_block_attachments_block: (block_id, detached_at)
+
+5.17 core_memory_block_events (append-only block audit)
+- event_id uuid primary key
+- block_id uuid not null references core_memory_blocks(block_id) on delete cascade
+- attachment_id uuid null references core_memory_block_attachments(attachment_id) on delete set null
+- tenant_id text not null
+- project_id text not null
+- actor_agent_id text not null
+- event_type text not null
+- target_agent_id text null
+- read_profile text null
+- prev_snapshot jsonb null
+- new_snapshot jsonb null
+- reason text not null
+- ts timestamptz not null
+
+event_type values:
+- block_created
+- block_updated
+- attachment_added
+- attachment_removed
+
+Rules:
+- Every block create/update and attachment add/remove writes one event.
+- Block readback may include audit history for returned blocks.
+
 ============================================================
 6. QDRANT COLLECTION (DERIVED INDEX ONLY)
 ============================================================
@@ -981,6 +1056,17 @@ Admin read-only note mirror:
 Behavior:
 - These endpoints mirror the public note list/detail reads for local admin viewer use.
 - Note metadata that includes `created_at`, `hit_count`, and `last_hit_at` is available through `GET /v2/admin/notes/{note_id}/provenance`.
+
+Admin core memory block management:
+- POST /v2/admin/core-blocks
+- POST /v2/admin/core-blocks/{block_id}/attachments
+- DELETE /v2/admin/core-blocks/attachments/{attachment_id}
+
+Behavior:
+- These endpoints create/update core blocks and attach/detach them for exact tenant/project/agent/read_profile readback.
+- Core blocks are read-only to normal public callers; public callers only read attached blocks.
+- Mutations write append-only `core_memory_block_events`.
+- Core blocks are not note-search hits and do not write Qdrant points, search sessions, search traces, or note outbox rows.
 
 Admin consolidation proposal review:
 - POST /v2/admin/consolidation/runs
@@ -1787,6 +1873,47 @@ Notes:
 - `evidence_note_ids` is ordered by evidence creation time and capped to 16 IDs per fact.
 - `explain` defaults to false; when true, response includes `explain.schema = "elf.graph_query/v1"`.
 
+GET /v2/core-blocks
+
+Headers:
+- X-ELF-Tenant-Id, X-ELF-Project-Id, X-ELF-Agent-Id
+- X-ELF-Read-Profile
+
+Response:
+{
+  "schema": "elf.core_memory_blocks/v1",
+  "tenant_id": "string",
+  "project_id": "string",
+  "agent_id": "string",
+  "read_profile": "private_only|private_plus_project|all_scopes",
+  "items": [
+    {
+      "block_id": "uuid",
+      "attachment_id": "uuid",
+      "tenant_id": "string",
+      "project_id": "string",
+      "agent_id": "block-owner-agent",
+      "scope": "agent_private|project_shared|org_shared",
+      "key": "string",
+      "title": "string",
+      "content": "small English operating context",
+      "source_ref": { ... },
+      "status": "active",
+      "updated_at": "...",
+      "attached_at": "...",
+      "attached_by_agent_id": "string",
+      "audit_history": [ ... ]
+    }
+  ]
+}
+
+Notes:
+- This endpoint is not archival search. It does not embed, rerank, search Qdrant,
+  create a search session, or record note hits.
+- A block is returned only when it has an active attachment for the exact
+  tenant/project/agent/read_profile and the block is readable under that read_profile's
+  scopes and shared grants.
+
 POST /v2/searches
 
 Headers:
@@ -2120,6 +2247,7 @@ Original query:
 - Tools map 1:1 to v2 endpoints:
   - elf_notes_ingest -> POST /v2/notes/ingest
   - elf_events_ingest -> POST /v2/events/ingest
+  - elf_core_blocks_get -> GET /v2/core-blocks
   - elf_graph_query -> POST /v2/graph/query
   - elf_searches_create -> POST /v2/searches
   - elf_searches_get -> GET /v2/searches/{search_id}
