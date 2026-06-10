@@ -37,6 +37,9 @@ cleanup, use `docs/guide/single_user_production.md`.
 - `2026-06-09-operator-debugging-ux-report.md`: checked-in real-world job
   operator-debugging UX report with trace/viewer links, raw-SQL avoidance, root-cause
   step counts, dropped-candidate visibility, and repair-action clarity.
+- `2026-06-10-real-world-comparison-report.md`: checked-in post-P1 real-world
+  comparison report with aggregate fixture evidence, external-adapter evidence classes,
+  remaining typed gaps, and adoption implications.
 - `real_world_agent_memory_benchmark.md`: operator overview for the v1 real-world
   agent memory benchmark contract, including suite taxonomy, typed report states,
   knowledge-compilation fixture tasks, and the production-ops fixture target.
