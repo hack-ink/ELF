@@ -29,6 +29,7 @@ rm -rf "${REPORT_DIR:?}/elf-fixtures" \
   "${REPORT_DIR:?}/qmd-report.json" \
   "${REPORT_DIR:?}/qmd-report.md" \
   "${REPORT_DIR:?}/lightrag" \
+  "${REPORT_DIR:?}/graphrag" \
   "${REPORT_DIR:?}/summary.json"
 
 cd "${ROOT_DIR}"
@@ -82,6 +83,11 @@ if [[ "${ELF_REAL_WORLD_LIVE_ENABLE_LIGHTRAG:-0}" == "1" ]]; then
     bash scripts/lightrag-docker-context-smoke.sh
 fi
 
+if [[ "${ELF_REAL_WORLD_LIVE_ENABLE_GRAPHRAG:-0}" == "1" ]]; then
+  ELF_GRAPHRAG_SMOKE_REPORT_DIR="${REPORT_DIR}/graphrag" \
+    python3 scripts/graphrag-docker-smoke.py
+fi
+
 jq -n \
   --slurpfile elf_materialization "${REPORT_DIR}/elf-materialization.json" \
   --slurpfile qmd_materialization "${REPORT_DIR}/qmd-materialization.json" \
@@ -132,6 +138,25 @@ if [[ -f "${REPORT_DIR}/lightrag/summary.json" ]]; then
   mv "${REPORT_DIR}/summary.json.tmp" "${REPORT_DIR}/summary.json"
 fi
 
+if [[ -f "${REPORT_DIR}/graphrag/summary.json" ]]; then
+  jq \
+    --slurpfile graphrag_summary "${REPORT_DIR}/graphrag/summary.json" \
+    '.adapters += [
+      {
+        adapter_id: $graphrag_summary[0].adapter_id,
+        evidence_class: $graphrag_summary[0].evidence_class,
+        materialization: $graphrag_summary[0].materialization,
+        report: {
+          json: "tmp/real-world-memory/live-adapters/graphrag/graphrag-smoke.json",
+          markdown: null,
+          summary: $graphrag_summary[0].materialization.status,
+          suites: $graphrag_summary[0].manifest.suites
+        }
+      }
+    ]' "${REPORT_DIR}/summary.json" >"${REPORT_DIR}/summary.json.tmp"
+  mv "${REPORT_DIR}/summary.json.tmp" "${REPORT_DIR}/summary.json"
+fi
+
 echo "Live real-world adapter reports:"
 echo "  ${REPORT_DIR}/elf-report.json"
 echo "  ${REPORT_DIR}/elf-report.md"
@@ -140,5 +165,9 @@ echo "  ${REPORT_DIR}/qmd-report.md"
 if [[ -f "${REPORT_DIR}/lightrag/summary.json" ]]; then
   echo "  ${REPORT_DIR}/lightrag/lightrag-report.json"
   echo "  ${REPORT_DIR}/lightrag/lightrag-report.md"
+fi
+if [[ -f "${REPORT_DIR}/graphrag/summary.json" ]]; then
+  echo "  ${REPORT_DIR}/graphrag/graphrag-smoke.json"
+  echo "  ${REPORT_DIR}/graphrag/summary.json"
 fi
 echo "  ${REPORT_DIR}/summary.json"
