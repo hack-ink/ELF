@@ -28,9 +28,10 @@ rm -rf "${REPORT_DIR:?}/elf-fixtures" \
   "${REPORT_DIR:?}/elf-report.md" \
   "${REPORT_DIR:?}/qmd-report.json" \
   "${REPORT_DIR:?}/qmd-report.md" \
-  "${REPORT_DIR:?}/lightrag" \
-  "${REPORT_DIR:?}/graphrag" \
-  "${REPORT_DIR:?}/summary.json"
+	"${REPORT_DIR:?}/lightrag" \
+	"${REPORT_DIR:?}/graphrag" \
+	"${REPORT_DIR:?}/graphiti-zep" \
+	"${REPORT_DIR:?}/summary.json"
 
 cd "${ROOT_DIR}"
 
@@ -86,6 +87,11 @@ fi
 if [[ "${ELF_REAL_WORLD_LIVE_ENABLE_GRAPHRAG:-0}" == "1" ]]; then
   ELF_GRAPHRAG_SMOKE_REPORT_DIR="${REPORT_DIR}/graphrag" \
     python3 scripts/graphrag-docker-smoke.py
+fi
+
+if [[ "${ELF_REAL_WORLD_LIVE_ENABLE_GRAPHITI_ZEP:-0}" == "1" ]]; then
+  ELF_GRAPHITI_ZEP_SMOKE_REPORT_DIR="${REPORT_DIR}/graphiti-zep" \
+    python3 scripts/graphiti-zep-docker-temporal-smoke.py
 fi
 
 jq -n \
@@ -157,6 +163,25 @@ if [[ -f "${REPORT_DIR}/graphrag/summary.json" ]]; then
   mv "${REPORT_DIR}/summary.json.tmp" "${REPORT_DIR}/summary.json"
 fi
 
+if [[ -f "${REPORT_DIR}/graphiti-zep/summary.json" ]]; then
+  jq \
+    --slurpfile graphiti_summary "${REPORT_DIR}/graphiti-zep/summary.json" \
+    '.adapters += [
+      {
+        adapter_id: $graphiti_summary[0].adapter_id,
+        evidence_class: $graphiti_summary[0].evidence_class,
+        materialization: $graphiti_summary[0].materialization,
+        report: {
+          json: "tmp/real-world-memory/live-adapters/graphiti-zep/graphiti-zep-smoke.json",
+          markdown: null,
+          summary: $graphiti_summary[0].materialization.status,
+          suites: $graphiti_summary[0].manifest.suites
+        }
+      }
+    ]' "${REPORT_DIR}/summary.json" >"${REPORT_DIR}/summary.json.tmp"
+  mv "${REPORT_DIR}/summary.json.tmp" "${REPORT_DIR}/summary.json"
+fi
+
 echo "Live real-world adapter reports:"
 echo "  ${REPORT_DIR}/elf-report.json"
 echo "  ${REPORT_DIR}/elf-report.md"
@@ -169,5 +194,9 @@ fi
 if [[ -f "${REPORT_DIR}/graphrag/summary.json" ]]; then
   echo "  ${REPORT_DIR}/graphrag/graphrag-smoke.json"
   echo "  ${REPORT_DIR}/graphrag/summary.json"
+fi
+if [[ -f "${REPORT_DIR}/graphiti-zep/summary.json" ]]; then
+  echo "  ${REPORT_DIR}/graphiti-zep/graphiti-zep-smoke.json"
+  echo "  ${REPORT_DIR}/graphiti-zep/summary.json"
 fi
 echo "  ${REPORT_DIR}/summary.json"
