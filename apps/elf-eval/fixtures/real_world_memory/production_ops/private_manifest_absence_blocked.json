@@ -1,0 +1,198 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "production-ops-private-manifest-blocked-001",
+  "suite": "production_ops",
+  "title": "Report missing private production manifest as bounded blocked caveat",
+  "encoding": {
+    "status": "blocked",
+    "reason": "No operator-owned private production corpus manifest is checked in or available to this fixture; no private-corpus pass can be claimed.",
+    "follow_up": {
+      "title": "Supply an operator-owned private production corpus manifest",
+      "reason": "A real private-corpus pass requires a sanitized local manifest supplied outside checked-in fixtures."
+    }
+  },
+  "corpus": {
+    "corpus_id": "real-world-memory-production-ops-2026-06-10",
+    "profile": "private_sanitized",
+    "items": [
+      {
+        "evidence_id": "private-manifest-guard",
+        "kind": "runbook",
+        "text": "Private manifest guard: cargo make baseline-production-private failed closed because ELF_BASELINE_PRODUCTION_CORPUS_MANIFEST was unset; no private-corpus pass is claimed.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "private_manifest_absence_blocked",
+            "evidence_id": "private-manifest-guard"
+          },
+          "locator": {
+            "quote": "ELF_BASELINE_PRODUCTION_CORPUS_MANIFEST was unset"
+          }
+        },
+        "created_at": "2026-06-09T08:00:00Z"
+      },
+      {
+        "evidence_id": "private-bounded-failure-policy",
+        "kind": "decision",
+        "text": "If no operator-owned private manifest is supplied, the private-corpus path is a bounded failure, not a pass.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "private_manifest_absence_blocked",
+            "evidence_id": "private-bounded-failure-policy"
+          },
+          "locator": {
+            "quote": "bounded failure, not a pass"
+          }
+        },
+        "created_at": "2026-06-09T08:05:00Z"
+      },
+      {
+        "evidence_id": "private-pass-decoy",
+        "kind": "decision",
+        "text": "Decoy: the absence of private data means the private production corpus benchmark passed with zero findings.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "private_manifest_absence_blocked",
+            "evidence_id": "private-pass-decoy"
+          }
+        },
+        "created_at": "2026-06-09T07:55:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_production_ops",
+      "answer": {
+        "content": "No private-corpus pass is claimed. The private production corpus path is blocked until an operator supplies a sanitized manifest, and the current evidence is a bounded failure, not a pass.",
+        "claims": [
+          {
+            "claim_id": "private_manifest_blocked",
+            "text": "No private-corpus pass is claimed.",
+            "evidence_ids": ["private-manifest-guard"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "private_bounded_failure",
+            "text": "The missing private manifest is a bounded failure, not a pass.",
+            "evidence_ids": ["private-bounded-failure-policy"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["private-manifest-guard", "private-bounded-failure-policy"],
+        "latency_ms": 1.6,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "private-manifest-missing",
+      "ts": "2026-06-09T08:00:00Z",
+      "actor": "tool",
+      "action": "failed_closed_manifest_guard",
+      "evidence_ids": ["private-manifest-guard"],
+      "summary": "The private-corpus task stopped at the missing manifest guard."
+    },
+    {
+      "event_id": "bounded-private-caveat-recorded",
+      "ts": "2026-06-09T08:05:00Z",
+      "actor": "agent",
+      "action": "recorded_bounded_caveat",
+      "evidence_ids": ["private-bounded-failure-policy"],
+      "summary": "The report kept the missing private corpus as a bounded non-pass state."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Can this real-world suite claim private-corpus production-ops coverage without my private manifest?",
+    "job_mode": "operate",
+    "constraints": ["cite_evidence", "state_blockers", "do_not_run_private_data"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "private_manifest_blocked",
+        "text": "No private-corpus pass is claimed."
+      },
+      {
+        "claim_id": "private_bounded_failure",
+        "text": "The missing private manifest is a bounded failure, not a pass."
+      }
+    ],
+    "must_not_include": ["private production corpus benchmark passed"],
+    "evidence_links": {
+      "private_manifest_blocked": ["private-manifest-guard"],
+      "private_bounded_failure": ["private-bounded-failure-policy"]
+    },
+    "answer_type": "direct_answer",
+    "accepted_alternates": [],
+    "requires_caveat": true,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "private-manifest-guard",
+      "claim_id": "private_manifest_blocked",
+      "requirement": "cite",
+      "quote": "ELF_BASELINE_PRODUCTION_CORPUS_MANIFEST was unset"
+    },
+    {
+      "evidence_id": "private-bounded-failure-policy",
+      "claim_id": "private_bounded_failure",
+      "requirement": "cite",
+      "quote": "bounded failure, not a pass"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "private-zero-findings-pass-decoy",
+      "type": "unsupported_prior",
+      "evidence_ids": ["private-pass-decoy"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "uncertainty_handling": {
+        "weight": 0.35,
+        "max_points": 1.0,
+        "criteria": "States the private manifest blocker instead of claiming pass."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Cites manifest guard and bounded-failure policy."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Avoids zero-findings pass decoy."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Names the operator-owned manifest follow-up."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": true,
+    "acceptable_phrases": ["No private-corpus pass is claimed", "bounded failure, not a pass"],
+    "fallback_action": "state_blocker"
+  },
+  "tags": ["private_corpus", "production_ops", "manifest_guard", "blocked", "no_live_claim"]
+}

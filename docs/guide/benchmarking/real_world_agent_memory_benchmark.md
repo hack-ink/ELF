@@ -157,6 +157,10 @@ including the retrieval-quality slice below. The suite currently encodes:
   expected evidence was filtered, demoted, or selected against.
 - `capture_integration`: write-policy audit behavior for redaction/private exclusion
   and fixture-backed capture/integration boundary classification.
+- `production_ops`: interrupted generated backfill resume, backup/restore plus
+  cold-start readback, resource-envelope interpretation, missing dependency
+  `incomplete` classification, missing private manifest `blocked` classification, and
+  provider credential boundary `blocked` classification.
 - `personalization`: scoped stable preference correction without temporary or
   cross-project preference leakage.
 
@@ -166,11 +170,14 @@ count, update rationale availability, temporal validity `not_encoded` count, sco
 correctness, redaction leak count, capture/integration behavior classes, Qdrant
 rebuild case/pass counts, expected evidence recall, irrelevant context ratio,
 latency/cost, answer-type plus caveat/refusal/uncertainty flags, and trace
-explainability counters. The fixtures include negative traps
-for stale blockers, unsupported prior claims, stale deleted facts, stale historical
-facts, cross-project preference leakage, private/redacted text leakage, obsolete
-retrieval context, project-decision stale reuse, missing rationale, uncited current
-policy claims, overconfident unsupported decision answers, and distractor context.
+explainability counters, production-ops blocked/incomplete job states, and
+private-corpus redaction policy. The fixtures include negative traps for stale
+blockers, unsupported prior claims, stale deleted facts, stale historical facts,
+cross-project preference leakage, private/redacted text leakage, obsolete retrieval
+context, project-decision stale reuse, missing rationale, uncited current policy
+claims, overconfident unsupported decision answers, distractor context,
+index-only restore claims, private-corpus pass claims without a manifest, and
+checked-in credential leakage.
 
 Current checked-in project-decisions increment:
 
@@ -332,6 +339,38 @@ artifacts only: every section must cite source evidence or timeline events, or i
 be explicitly flagged unsupported. The report publishes citation coverage, stale claim
 detection, rebuild determinism, aggregate backlink counts and page coverage, page
 usefulness, unsupported summary count, and untraced section count.
+
+Current checked-in production-ops increment:
+
+```sh
+cargo make real-world-memory-production-ops
+```
+
+Artifacts:
+
+```text
+tmp/real-world-memory/production-ops-report.json
+tmp/real-world-memory/production-ops-report.md
+```
+
+The production-ops fixtures live under
+`apps/elf-eval/fixtures/real_world_memory/production_ops/`. They encode user-job
+readback over existing public benchmark and restore evidence: interrupted backfill
+resume from checkpoint, clean-run comparison, backup/restore readback, Qdrant rebuild
+from Postgres-held vectors, cold-start search recovery, and resource-envelope
+interpretation.
+
+The same slice deliberately keeps non-pass boundaries typed. A missing private
+production manifest is `blocked`, unavailable provider credentials are `blocked`, and
+a cold-start adapter dependency failure is `incomplete`. These states are evidence for
+operator caveats, not proof of private-corpus or provider-backed production success.
+
+This suite does not run private corpus data, does not require or publish credentials,
+does not perform live Docker restore/backfill work, and does not reinterpret older
+live-baseline reports as real-world production-ops wins. For personal production
+adoption, cite both the relevant live-baseline or restore proof and this real-world
+fixture report; rerun `baseline-production-private` with an operator-owned manifest
+before claiming private-corpus retrieval quality.
 
 Do not generate large fixtures or update production-adoption verdicts while adding the
 contract. The current adoption gate remains an existing benchmark decision until new

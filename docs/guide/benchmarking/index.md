@@ -38,8 +38,8 @@ cleanup, use `docs/guide/single_user_production.md`.
   operator-debugging UX report with trace/viewer links, raw-SQL avoidance, root-cause
   step counts, dropped-candidate visibility, and repair-action clarity.
 - `real_world_agent_memory_benchmark.md`: operator overview for the v1 real-world
-  agent memory benchmark contract, including suite taxonomy, typed report states, and
-  the knowledge-compilation fixture task.
+  agent memory benchmark contract, including suite taxonomy, typed report states,
+  knowledge-compilation fixture tasks, and the production-ops fixture target.
 - `real_world_memory_evolution.md`: run and interpret the checked-in memory evolution
   jobs for current facts, historical facts, stale traps, conflicts, update rationales,
   and temporal graph limitations.
@@ -51,8 +51,9 @@ cleanup, use `docs/guide/single_user_production.md`.
   summaries and durable scripts.
 - Keep generated real-world job smoke JSON and Markdown under `tmp/real-world-job/`;
   commit fixture schemas, smoke fixtures, runner code, and durable docs only.
-- Keep generated real-world memory trust/personalization/knowledge JSON and Markdown
-  under `tmp/real-world-memory/`; commit fixtures, runner code, and durable docs only.
+- Keep generated real-world memory trust/personalization/knowledge/production-ops JSON
+  and Markdown under `tmp/real-world-memory/`; commit fixtures, runner code, and
+  durable docs only.
 - Link the newest decision-relevant report from README and this index.
 - When benchmark semantics change, update `live_baseline_benchmark.md` and the
   relevant spec before publishing a new result.

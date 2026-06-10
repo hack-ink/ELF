@@ -1,0 +1,204 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "production-ops-backfill-resume-001",
+  "suite": "production_ops",
+  "title": "Resume interrupted generated backfill from checkpoint without duplicate source notes",
+  "corpus": {
+    "corpus_id": "real-world-memory-production-ops-2026-06-10",
+    "profile": "generated_public",
+    "items": [
+      {
+        "evidence_id": "backfill-checkpoint-state",
+        "kind": "trace",
+        "text": "Backfill report live-baseline-20260609092144 completed 2000 of 2000 documents, resumed from checkpoint offset 1000 to 2000, and found zero duplicate source notes.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "interrupted_import_resume_checkpoint",
+            "evidence_id": "backfill-checkpoint-state"
+          },
+          "locator": {
+            "quote": "resumed from checkpoint offset 1000 to 2000"
+          }
+        },
+        "created_at": "2026-06-09T09:21:44Z"
+      },
+      {
+        "evidence_id": "backfill-clean-compare",
+        "kind": "trace",
+        "text": "Clean comparison matched all 16 of 16 query results after the resumed import.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "interrupted_import_resume_checkpoint",
+            "evidence_id": "backfill-clean-compare"
+          },
+          "locator": {
+            "quote": "matched all 16 of 16 query results"
+          }
+        },
+        "created_at": "2026-06-09T09:22:30Z"
+      },
+      {
+        "evidence_id": "backfill-restart-decoy",
+        "kind": "adapter_state",
+        "text": "Decoy: interrupted imports must restart from zero because the checkpoint duplicated source notes.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "interrupted_import_resume_checkpoint",
+            "evidence_id": "backfill-restart-decoy"
+          }
+        },
+        "created_at": "2026-06-09T09:00:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_production_ops",
+      "answer": {
+        "content": "Resume from checkpoint offset 1000 to 2000 completed the 2000 document backfill. The resumed backfill found zero duplicate source notes, and search quality after resume matched the clean run for all 16 queries.",
+        "claims": [
+          {
+            "claim_id": "resume_checkpoint",
+            "text": "Resume from checkpoint offset 1000 to 2000 completed the 2000 document backfill.",
+            "evidence_ids": ["backfill-checkpoint-state"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "no_duplicate_sources",
+            "text": "The resumed backfill found zero duplicate source notes.",
+            "evidence_ids": ["backfill-checkpoint-state"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "clean_compare_matched",
+            "text": "Search quality after resume matched the clean run for all 16 queries.",
+            "evidence_ids": ["backfill-clean-compare"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["backfill-checkpoint-state", "backfill-clean-compare"],
+        "latency_ms": 2.0,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "backfill-interrupted",
+      "ts": "2026-06-09T09:21:44Z",
+      "actor": "tool",
+      "action": "interrupted_backfill",
+      "evidence_ids": ["backfill-checkpoint-state"],
+      "summary": "The generated public backfill was interrupted at the checkpoint boundary."
+    },
+    {
+      "event_id": "backfill-resumed",
+      "ts": "2026-06-09T09:22:30Z",
+      "actor": "tool",
+      "action": "resumed_backfill",
+      "evidence_ids": ["backfill-checkpoint-state", "backfill-clean-compare"],
+      "summary": "The resumed import completed without duplicate source notes and matched a clean comparison."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "What does the production-ops fixture prove about interrupted backfill resume behavior?",
+    "job_mode": "operate",
+    "constraints": ["cite_evidence", "state_checkpoint", "avoid_restarting_completed_work"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "resume_checkpoint",
+        "text": "Resume from checkpoint offset 1000 to 2000 completed the 2000 document backfill."
+      },
+      {
+        "claim_id": "no_duplicate_sources",
+        "text": "The resumed backfill found zero duplicate source notes."
+      },
+      {
+        "claim_id": "clean_compare_matched",
+        "text": "Search quality after resume matched the clean run for all 16 queries."
+      }
+    ],
+    "must_not_include": [
+      "interrupted imports must restart from zero",
+      "the checkpoint duplicated source notes"
+    ],
+    "evidence_links": {
+      "resume_checkpoint": ["backfill-checkpoint-state"],
+      "no_duplicate_sources": ["backfill-checkpoint-state"],
+      "clean_compare_matched": ["backfill-clean-compare"]
+    },
+    "answer_type": "direct_answer",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "backfill-checkpoint-state",
+      "claim_id": "resume_checkpoint",
+      "requirement": "cite",
+      "quote": "resumed from checkpoint offset 1000 to 2000"
+    },
+    {
+      "evidence_id": "backfill-clean-compare",
+      "claim_id": "clean_compare_matched",
+      "requirement": "cite",
+      "quote": "matched all 16 of 16 query results"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "restart-from-zero-decoy",
+      "type": "decoy_evidence",
+      "evidence_ids": ["backfill-restart-decoy"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "lifecycle_behavior": {
+        "weight": 0.35,
+        "max_points": 1.0,
+        "criteria": "Uses checkpoint resume and duplicate-source evidence."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Cites checkpoint and clean-comparison artifacts."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Does not restart completed work or cite duplicate-source decoys."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Answers with the next operational interpretation."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "state_blocker"
+  },
+  "tags": ["generated_public", "production_ops", "backfill_resume", "checkpoint", "no_live_claim"]
+}
