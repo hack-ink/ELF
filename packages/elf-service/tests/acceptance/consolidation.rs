@@ -4,6 +4,7 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 use crate::acceptance::{self, SpyExtractor, StubEmbedding, StubRerank};
+use elf_chunking::ChunkingConfig;
 use elf_domain::consolidation::{
 	ConsolidationApplyIntent, ConsolidationInputRef, ConsolidationLineage, ConsolidationMarker,
 	ConsolidationMarkerSeverity, ConsolidationMarkers, ConsolidationProposalDiff,
@@ -12,10 +13,13 @@ use elf_domain::consolidation::{
 };
 use elf_service::{
 	AddNoteInput, AddNoteRequest, ConsolidationProposalGetRequest, ConsolidationProposalInput,
-	ConsolidationProposalReviewRequest, ConsolidationRunCreateRequest,
-	ConsolidationRunCreateResponse, ElfService, Providers,
+	ConsolidationProposalReviewRequest, ConsolidationProposalsListRequest,
+	ConsolidationProposalsListResponse, ConsolidationRunCreateRequest,
+	ConsolidationRunCreateResponse, ConsolidationRunGetRequest, ElfService, Providers,
 };
+use elf_storage::{db::Db, qdrant::QdrantStore};
 use elf_testkit::TestDatabase;
+use elf_worker::worker::{self, WorkerState};
 
 const TENANT_ID: &str = "tenant_consolidation";
 const PROJECT_ID: &str = "project_consolidation";
@@ -86,6 +90,15 @@ fn proposal_input(source: &ConsolidationInputRef, kind: &str) -> ConsolidationPr
 			"text": "Fact: Consolidation proposals are derived and reviewable."
 		}),
 	}
+}
+
+fn proposal_id_by_kind(response: &ConsolidationProposalsListResponse, proposal_kind: &str) -> Uuid {
+	response
+		.proposals
+		.iter()
+		.find(|proposal| proposal.proposal_kind == proposal_kind)
+		.map(|proposal| proposal.proposal_id)
+		.expect("proposal kind should be present")
 }
 
 async fn setup_service(test_name: &str) -> Option<ConsolidationFixture> {
@@ -170,6 +183,49 @@ async fn create_run_with_proposals(
 		.expect("consolidation run should be created")
 }
 
+async fn process_consolidation_worker(service: &ElfService) {
+	let tokenizer = elf_chunking::load_tokenizer(&service.cfg.chunking.tokenizer_repo)
+		.expect("worker tokenizer should load");
+	let mut embedding = acceptance::dummy_embedding_provider();
+
+	embedding.dimensions = service.cfg.storage.qdrant.vector_dim;
+
+	let worker_state = WorkerState {
+		db: Db::connect(&service.cfg.storage.postgres).await.expect("Failed to connect worker DB."),
+		qdrant: QdrantStore::new(&service.cfg.storage.qdrant)
+			.expect("Failed to build Qdrant store."),
+		docs_qdrant: QdrantStore::new_with_collection(
+			&service.cfg.storage.qdrant,
+			&service.cfg.storage.qdrant.docs_collection,
+		)
+		.expect("Failed to build docs Qdrant store."),
+		embedding,
+		chunking: ChunkingConfig {
+			max_tokens: service.cfg.chunking.max_tokens,
+			overlap_tokens: service.cfg.chunking.overlap_tokens,
+		},
+		tokenizer,
+	};
+
+	worker::process_once(&worker_state).await.expect("consolidation worker should process once");
+}
+
+async fn materialized_proposals(
+	service: &ElfService,
+	run_id: Uuid,
+) -> ConsolidationProposalsListResponse {
+	service
+		.consolidation_proposals_list(ConsolidationProposalsListRequest {
+			tenant_id: TENANT_ID.to_string(),
+			project_id: PROJECT_ID.to_string(),
+			run_id: Some(run_id),
+			review_state: None,
+			limit: None,
+		})
+		.await
+		.expect("consolidation proposals should be listed")
+}
+
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run this test."]
 async fn apply_action_is_audited_without_source_rewrite() {
@@ -185,9 +241,32 @@ async fn apply_action_is_audited_without_source_rewrite() {
 	let created =
 		create_run_with_proposals(service, &source, vec![proposal_input(&source, "derived_note")])
 			.await;
-	let proposal = &created.proposals[0];
 
-	assert_eq!(created.run.status, "completed");
+	assert_eq!(created.run.status, "pending");
+	assert!(created.proposals.is_empty());
+
+	process_consolidation_worker(service).await;
+
+	let completed = service
+		.consolidation_run_get(ConsolidationRunGetRequest {
+			tenant_id: TENANT_ID.to_string(),
+			project_id: PROJECT_ID.to_string(),
+			run_id: created.run.run_id,
+		})
+		.await
+		.expect("consolidation run should remain readable");
+	let materialized = materialized_proposals(service, created.run.run_id).await;
+	let proposal = &materialized.proposals[0];
+	let job_status: String =
+		sqlx::query_scalar("SELECT status FROM consolidation_run_jobs WHERE job_id = $1")
+			.bind(created.job_id)
+			.fetch_one(&service.db.pool)
+			.await
+			.expect("consolidation job should be queryable");
+
+	assert_eq!(completed.status, "completed");
+	assert_eq!(job_status, "DONE");
+	assert_eq!(materialized.proposals.len(), 1);
 	assert_eq!(proposal.review_state, "proposed");
 	assert_eq!(proposal.unsupported_claim_flags.as_array().map(Vec::len), Some(1));
 	assert_eq!(proposal.contradiction_markers.as_array().map(Vec::len), Some(1));
@@ -253,8 +332,12 @@ async fn discard_and_defer_actions_remain_auditable() {
 		],
 	)
 	.await;
-	let discarded_id = created.proposals[0].proposal_id;
-	let deferred_id = created.proposals[1].proposal_id;
+
+	process_consolidation_worker(service).await;
+
+	let materialized = materialized_proposals(service, created.run.run_id).await;
+	let discarded_id = proposal_id_by_kind(&materialized, "contradiction_report");
+	let deferred_id = proposal_id_by_kind(&materialized, "preference_candidate");
 	let discarded = service
 		.consolidation_proposal_review(ConsolidationProposalReviewRequest {
 			tenant_id: TENANT_ID.to_string(),

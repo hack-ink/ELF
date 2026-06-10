@@ -82,6 +82,8 @@ fn expand_includes(sql: &str) -> String {
 				"tables/033_consolidation_proposal_reviews.sql" => out.push_str(include_str!(
 					"../../../sql/tables/033_consolidation_proposal_reviews.sql"
 				)),
+				"tables/034_consolidation_run_jobs.sql" =>
+					out.push_str(include_str!("../../../sql/tables/034_consolidation_run_jobs.sql")),
 				"tables/023_memory_ingest_decisions.sql" => out
 					.push_str(include_str!("../../../sql/tables/023_memory_ingest_decisions.sql")),
 				"tables/024_memory_space_grants.sql" =>

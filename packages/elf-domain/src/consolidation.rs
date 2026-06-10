@@ -63,6 +63,8 @@ pub enum ConsolidationValidationError {
 		/// Name of the invalid field.
 		field: &'static str,
 	},
+	/// The queued contract schema did not match the consolidation v1 contract.
+	InvalidContractSchema,
 }
 impl Display for ConsolidationValidationError {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -79,6 +81,8 @@ impl Display for ConsolidationValidationError {
 			Self::InvalidRunTransition { from, to } =>
 				write!(f, "invalid consolidation run transition from {from:?} to {to:?}"),
 			Self::UnknownState { field } => write!(f, "{field} is not a known state"),
+			Self::InvalidContractSchema =>
+				write!(f, "contract_schema must be elf.consolidation/v1"),
 		}
 	}
 }
@@ -538,6 +542,30 @@ impl ConsolidationProposalContract {
 
 		validate_json_object("target_ref", &self.target_ref)?;
 		validate_json_object("proposed_payload", &self.proposed_payload)?;
+
+		Ok(())
+	}
+}
+
+/// Worker payload for materializing one consolidation run.
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+pub struct ConsolidationJobPayload {
+	/// Versioned consolidation contract schema.
+	pub contract_schema: String,
+	#[serde(default)]
+	/// Proposals to persist for review.
+	pub proposals: Vec<ConsolidationProposalContract>,
+}
+impl ConsolidationJobPayload {
+	/// Validates the queued worker payload and all proposal contracts.
+	pub fn validate(&self) -> Result<(), ConsolidationValidationError> {
+		if self.contract_schema != CONSOLIDATION_CONTRACT_SCHEMA_V1 {
+			return Err(ConsolidationValidationError::InvalidContractSchema);
+		}
+
+		for proposal in &self.proposals {
+			proposal.validate()?;
+		}
 
 		Ok(())
 	}

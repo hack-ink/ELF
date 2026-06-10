@@ -489,6 +489,7 @@ TRUNCATE
 	doc_chunk_embeddings,
 	doc_chunks,
 	doc_documents,
+	consolidation_run_jobs,
 	consolidation_proposal_reviews,
 	consolidation_proposals,
 	consolidation_runs,

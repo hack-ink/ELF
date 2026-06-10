@@ -991,6 +991,9 @@ Admin consolidation proposal review:
 Behavior:
 - These endpoints expose fixture-driven or manually supplied consolidation runs and
   reviewable derived proposals.
+- Creating a consolidation run enqueues a deterministic `consolidation_run_jobs`
+  worker job and returns `job_id`; the worker materializes supplied proposal payloads
+  into `consolidation_proposals`.
 - Proposal payloads must follow `elf.consolidation/v1`, carry source refs and
   snapshots, and may include unsupported-claim flags, contradiction markers, and
   staleness markers for reviewer inspection.
