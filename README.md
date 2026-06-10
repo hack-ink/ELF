@@ -120,15 +120,20 @@ flowchart TB
 
 ### Checked-In Live Benchmark Snapshot
 
-The June 9, 2026 Docker-only live baseline and production adoption gate use generated
-corpus/query manifests across ELF and the external memory projects below. ELF was run
-with the production embedding provider path, `Qwen3-Embedding-8B`, and
-4096-dimensional embeddings where provider-backed ELF evidence was required.
+The June 9, 2026 Docker-only live baseline and production adoption gate, plus the
+June 10 post-adapter adoption refresh, use generated corpus/query manifests across ELF
+and the external memory projects below. ELF was run with the production embedding
+provider path, `Qwen3-Embedding-8B`, and 4096-dimensional embeddings where
+provider-backed ELF evidence was required.
 
 - Production adoption gate verdict: ELF is ready for personal production use with
   bounded caveats. The private production corpus profile was not run because no
   operator-owned private manifest was available; the task failed closed at the missing
   manifest guard, so no private-corpus pass is claimed.
+- Post-adapter production adoption refresh verdict: keep adopting ELF for personal
+  production use with bounded caveats. The full live real-world sweep, OpenViking
+  dependency refresh, and RAG/graph research gates sharpen the limits but do not
+  create a new production blocker.
 - ELF production-provider synthetic run: 8 documents, 6 queries, `8/8` encoded checks,
   `retrieval_pass`, and `pass` in 59 seconds.
 - ELF production-provider stress run: 480 documents, 16 queries, `9/9` encoded checks,
@@ -177,6 +182,7 @@ Detailed evidence and interpretation:
 - [Production Adoption Gate Report - June 9, 2026](docs/guide/benchmarking/2026-06-09-production-adoption-gate-report.md)
 - [Real-World Comparison Report - June 10, 2026](docs/guide/benchmarking/2026-06-10-real-world-comparison-report.md)
 - [Live Real-World Adapter Sweep Report - June 10, 2026](docs/guide/benchmarking/2026-06-10-live-real-world-sweep-report.md)
+- [Post-Adapter Production Adoption Refresh - June 10, 2026](docs/guide/benchmarking/2026-06-10-production-adoption-refresh.md)
 - [Live Baseline Benchmark Runbook](docs/guide/benchmarking/live_baseline_benchmark.md)
 - [Single-User Production Runbook](docs/guide/single_user_production.md)
 - Benchmark contract:
@@ -245,6 +251,9 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [Live Baseline Benchmark Report - June 9, 2026](docs/guide/benchmarking/2026-06-09-live-baseline-report.md)
 - [Synthetic Production Corpus Benchmark Report - June 9, 2026](docs/guide/benchmarking/2026-06-09-production-corpus-report.md)
 - [Production Adoption Gate Report - June 9, 2026](docs/guide/benchmarking/2026-06-09-production-adoption-gate-report.md)
+- [Real-World Comparison Report - June 10, 2026](docs/guide/benchmarking/2026-06-10-real-world-comparison-report.md)
+- [Live Real-World Adapter Sweep Report - June 10, 2026](docs/guide/benchmarking/2026-06-10-live-real-world-sweep-report.md)
+- [Post-Adapter Production Adoption Refresh - June 10, 2026](docs/guide/benchmarking/2026-06-10-production-adoption-refresh.md)
 - [Live Baseline Benchmark Runbook](docs/guide/benchmarking/live_baseline_benchmark.md)
 - [Real-World Agent Memory Benchmark](docs/guide/benchmarking/real_world_agent_memory_benchmark.md)
 - [External Memory Improvement Plan](docs/guide/research/external_memory_improvement_plan.md)
@@ -252,9 +261,10 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [Research Projects Inventory](docs/guide/research/research_projects_inventory.md)
 - [Agent Memory Selection Research Run](docs/research/2026-06-08-agent-memory-selection.json)
 - [Real-World Benchmark Dimension Research Run](docs/research/2026-06-09-xy-841-external-memory-benchmark-dimensions.json)
+- [RAG/Graph Adapter Feasibility Research Run](docs/research/2026-06-10-xy-882-rag-graph-adapter-feasibility.json)
 
 Latest real-world benchmark report: June 10, 2026. Latest external research refresh:
-June 9, 2026.
+June 10, 2026.
 
 ## Documentation
 
