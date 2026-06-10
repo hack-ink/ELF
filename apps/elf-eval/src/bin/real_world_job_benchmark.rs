@@ -28,6 +28,10 @@ const DEFAULT_EXTERNAL_ADAPTER_MANIFEST_PATH: &str =
 const DEFAULT_RUN_ID: &str = "real-world-job-smoke";
 const DEFAULT_ADAPTER_ID: &str = "fixture_smoke";
 const DEFAULT_ADAPTER_NAME: &str = "ELF fixture smoke";
+const DEFAULT_ADAPTER_BEHAVIOR: &str = "offline_fixture_response";
+const DEFAULT_ADAPTER_STORAGE_STATUS: &str = "not_encoded";
+const DEFAULT_ADAPTER_RUNTIME_STATUS: &str = "not_encoded";
+const DEFAULT_ADAPTER_NOTES: &str = "Offline runner scores checked-in fixture responses; it does not exercise a live external adapter.";
 const NOT_ENCODED_REASON: &str = "No checked-in real_world_job fixture is encoded for this suite.";
 const FORBIDDEN_SOURCE_MUTATION_KEYS: [&str; 7] = [
 	"delete_source",
@@ -89,6 +93,18 @@ struct RunArgs {
 	/// Human-readable adapter name recorded in the generated report.
 	#[arg(long, default_value = DEFAULT_ADAPTER_NAME)]
 	adapter_name: String,
+	/// Adapter behavior label recorded in the generated report.
+	#[arg(long, default_value = DEFAULT_ADAPTER_BEHAVIOR)]
+	adapter_behavior: String,
+	/// Adapter storage typed status recorded in the generated report.
+	#[arg(long, default_value = DEFAULT_ADAPTER_STORAGE_STATUS)]
+	adapter_storage_status: String,
+	/// Adapter runtime typed status recorded in the generated report.
+	#[arg(long, default_value = DEFAULT_ADAPTER_RUNTIME_STATUS)]
+	adapter_runtime_status: String,
+	/// Adapter notes recorded in the generated report.
+	#[arg(long, default_value = DEFAULT_ADAPTER_NOTES)]
+	adapter_notes: String,
 	/// Real-world external adapter manifest to include in report coverage.
 	#[arg(long, value_name = "FILE", default_value = DEFAULT_EXTERNAL_ADAPTER_MANIFEST_PATH)]
 	external_adapter_manifest: PathBuf,
@@ -1988,7 +2004,7 @@ fn build_report(jobs: &[RealWorldJob], args: &RunArgs) -> Result<RealWorldReport
 		generated_at: OffsetDateTime::now_utc().format(&Rfc3339)?,
 		runner_version: VERSION.to_string(),
 		corpus_profile: corpus_profile(jobs),
-		adapter: adapter_report(args),
+		adapter: adapter_report(args)?,
 		external_adapters,
 		capture_integration: capture_integration_report(jobs),
 		summary,
@@ -3492,14 +3508,35 @@ fn corpus_profile(jobs: &[RealWorldJob]) -> String {
 	}
 }
 
-fn adapter_report(args: &RunArgs) -> AdapterReport {
-	AdapterReport {
+fn adapter_report(args: &RunArgs) -> Result<AdapterReport> {
+	Ok(AdapterReport {
 		adapter_id: args.adapter_id.clone(),
 		name: args.adapter_name.clone(),
-		behavior: "offline_fixture_response".to_string(),
-		storage: TypedStatus::NotEncoded,
-		runtime: TypedStatus::NotEncoded,
-		notes: "Offline runner scores checked-in fixture responses; it does not exercise a live external adapter.".to_string(),
+		behavior: args.adapter_behavior.clone(),
+		storage: typed_status_from_arg(
+			args.adapter_storage_status.as_str(),
+			"--adapter-storage-status",
+		)?,
+		runtime: typed_status_from_arg(
+			args.adapter_runtime_status.as_str(),
+			"--adapter-runtime-status",
+		)?,
+		notes: args.adapter_notes.clone(),
+	})
+}
+
+fn typed_status_from_arg(raw: &str, flag: &str) -> Result<TypedStatus> {
+	match raw {
+		"pass" => Ok(TypedStatus::Pass),
+		"wrong_result" => Ok(TypedStatus::WrongResult),
+		"lifecycle_fail" => Ok(TypedStatus::LifecycleFail),
+		"incomplete" => Ok(TypedStatus::Incomplete),
+		"blocked" => Ok(TypedStatus::Blocked),
+		"not_encoded" => Ok(TypedStatus::NotEncoded),
+		"unsupported_claim" => Ok(TypedStatus::UnsupportedClaim),
+		_ => Err(eyre::eyre!(
+			"{flag} must be one of pass, wrong_result, lifecycle_fail, incomplete, blocked, not_encoded, or unsupported_claim."
+		)),
 	}
 }
 
@@ -3860,7 +3897,13 @@ fn render_markdown(report: &RealWorldReport, report_path: &Path) -> String {
 
 fn render_markdown_capture_integration(out: &mut String, report: &RealWorldReport) {
 	out.push_str("## Capture And Integration Coverage\n\n");
-	out.push_str("The real-world job runner is fixture-backed. This section separates encoded evidence from live adapter claims.\n\n");
+
+	if report.adapter.behavior == DEFAULT_ADAPTER_BEHAVIOR {
+		out.push_str("The real-world job runner is fixture-backed. This section separates encoded evidence from live adapter claims.\n\n");
+	} else {
+		out.push_str("This report scores materialized adapter responses. Capture and integration classes still describe the job corpus, not broad external adapter coverage.\n\n");
+	}
+
 	out.push_str("| Class | Behaviors |\n");
 	out.push_str("| --- | --- |\n");
 	out.push_str(&format!("| real | {} |\n", md_list(report.capture_integration.real.as_slice())));

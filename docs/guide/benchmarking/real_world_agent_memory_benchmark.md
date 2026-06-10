@@ -216,17 +216,38 @@ report section distinguishes:
   response path.
 - `live_baseline_only`: Docker live-baseline retrieval/lifecycle evidence that is not
   a real-world suite win.
-- `live_real_world`: future external adapters that actually execute `real_world_job`
+- `live_real_world`: external adapters that actually execute `real_world_job`
   prompts and scoring.
 
-Current state: no external project has a `live_real_world` adapter in this runner yet.
-qmd has Docker live-baseline pass evidence for the encoded same-corpus checks, but its
-real-world suites remain `not_encoded`. agentmemory is blocked on durable upstream
+Current state: the targeted `elf_live_real_world` and `qmd_live_real_world` adapter
+slice is encoded through `cargo make real-world-memory-live-adapters`. It materializes
+generated runtime answers for representative `work_resume`, `retrieval`, and
+`project_decisions` jobs before scoring. qmd still also keeps its separate
+`live_baseline_only` same-corpus record for update/delete/cold-start checks; that
+record is not a real-world suite win. agentmemory is blocked on durable upstream
 storage for lifecycle proof. mem0/OpenMemory, memsearch, and claude-mem currently
 retain wrong-result or incomplete live-baseline states for the checked-in adapter
 evidence. OpenViking is incomplete until its local embedding setup is reliable inside
 Docker. These typed states describe benchmark coverage; do not treat them as broad
 project quality rankings.
+
+To run the targeted live adapter slice for ELF and qmd:
+
+```sh
+cargo make real-world-memory-live-adapters
+```
+
+Artifacts:
+
+```text
+tmp/real-world-memory/live-adapters/elf-materialization.json
+tmp/real-world-memory/live-adapters/elf-report.json
+tmp/real-world-memory/live-adapters/elf-report.md
+tmp/real-world-memory/live-adapters/qmd-materialization.json
+tmp/real-world-memory/live-adapters/qmd-report.json
+tmp/real-world-memory/live-adapters/qmd-report.md
+tmp/real-world-memory/live-adapters/summary.json
+```
 
 To run the fixture report without the manifest during local debugging:
 
@@ -372,6 +393,6 @@ adoption, cite both the relevant live-baseline or restore proof and this real-wo
 fixture report; rerun `baseline-production-private` with an operator-owned manifest
 before claiming private-corpus retrieval quality.
 
-Do not generate large fixtures or update production-adoption verdicts while adding the
-contract. The current adoption gate remains an existing benchmark decision until new
-real-world job reports are implemented and published.
+Do not treat the targeted live adapter slice as a private-corpus or full-suite
+production-adoption verdict. The current adoption gate remains an existing benchmark
+decision until broader real-world live adapter reports are implemented and published.

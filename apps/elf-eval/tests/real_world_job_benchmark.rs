@@ -122,11 +122,11 @@ fn smoke_fixture_produces_typed_json_report() -> Result<()> {
 	assert_eq!(report.pointer("/summary/wrong_result_count").and_then(Value::as_u64), Some(0));
 	assert_eq!(
 		report.pointer("/external_adapters/summary/adapter_count").and_then(Value::as_u64),
-		Some(7)
+		Some(9)
 	);
 	assert_eq!(
 		report.pointer("/external_adapters/summary/live_real_world_count").and_then(Value::as_u64),
-		Some(0)
+		Some(2)
 	);
 
 	let jobs = array_at(&report, "/jobs")?;
@@ -194,11 +194,11 @@ fn real_world_report_includes_external_adapter_coverage_manifest() -> Result<()>
 	);
 	assert_eq!(
 		report.pointer("/external_adapters/summary/adapter_count").and_then(Value::as_u64),
-		Some(7)
+		Some(9)
 	);
 	assert_eq!(
 		report.pointer("/external_adapters/summary/external_project_count").and_then(Value::as_u64),
-		Some(6)
+		Some(7)
 	);
 	assert_eq!(
 		report.pointer("/external_adapters/summary/fixture_backed_count").and_then(Value::as_u64),
@@ -212,13 +212,13 @@ fn real_world_report_includes_external_adapter_coverage_manifest() -> Result<()>
 	);
 	assert_eq!(
 		report.pointer("/external_adapters/summary/live_real_world_count").and_then(Value::as_u64),
-		Some(0)
+		Some(2)
 	);
 	assert_eq!(
 		report
 			.pointer("/external_adapters/summary/overall_status_counts/pass")
 			.and_then(Value::as_u64),
-		Some(1)
+		Some(3)
 	);
 	assert_eq!(
 		report
@@ -253,14 +253,28 @@ fn real_world_report_includes_external_adapter_coverage_manifest() -> Result<()>
 
 	let adapters = array_at(&report, "/external_adapters/adapters")?;
 	let elf = find_by_field(adapters, "/adapter_id", "elf_real_world_memory_fixture")?;
+	let elf_live = find_by_field(adapters, "/adapter_id", "elf_live_real_world")?;
 	let qmd = find_by_field(adapters, "/adapter_id", "qmd_live_baseline")?;
+	let qmd_live = find_by_field(adapters, "/adapter_id", "qmd_live_real_world")?;
 	let agentmemory = find_by_field(adapters, "/adapter_id", "agentmemory_live_baseline")?;
 	let openviking = find_by_field(adapters, "/adapter_id", "openviking_live_baseline")?;
 
 	assert_eq!(elf.pointer("/evidence_class").and_then(Value::as_str), Some("fixture_backed"));
 	assert_eq!(elf.pointer("/overall_status").and_then(Value::as_str), Some("incomplete"));
+	assert_eq!(
+		elf_live.pointer("/evidence_class").and_then(Value::as_str),
+		Some("live_real_world")
+	);
+	assert_eq!(elf_live.pointer("/overall_status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(elf_live.pointer("/suites/0/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(qmd.pointer("/overall_status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(qmd.pointer("/suites/0/status").and_then(Value::as_str), Some("not_encoded"));
+	assert_eq!(
+		qmd_live.pointer("/evidence_class").and_then(Value::as_str),
+		Some("live_real_world")
+	);
+	assert_eq!(qmd_live.pointer("/overall_status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(qmd_live.pointer("/suites/0/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(
 		agentmemory.pointer("/capabilities/1/status").and_then(Value::as_str),
 		Some("mocked")
@@ -586,6 +600,7 @@ fn generated_json_report_renders_markdown() -> Result<()> {
 	assert!(markdown.contains("Capture And Integration Coverage"));
 	assert!(markdown.contains("External Adapter Coverage"));
 	assert!(markdown.contains("live-baseline-only"));
+	assert!(markdown.contains("live real-world"));
 	assert!(markdown.contains("does not convert live-baseline retrieval results"));
 	assert!(markdown.contains("fixture-backed"));
 	assert!(markdown.contains("Answer Type"));
