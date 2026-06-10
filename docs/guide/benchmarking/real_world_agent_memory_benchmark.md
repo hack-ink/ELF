@@ -146,6 +146,9 @@ including the retrieval-quality slice below. The suite currently encodes:
   Postgres-held chunk embeddings before answering.
 - `work_resume`: stale worktree resume, Decodex/Linear lane status, failed command
   recovery, PR review blocker recovery, and exact next-action extraction.
+- `project_decisions`: accepted durable decisions, superseded/reversed decisions,
+  old-versus-current validation gates, tradeoff rationale, and bounded caveat or
+  uncertainty handling.
 - `retrieval`: alternate phrasing, distractor-heavy retrieval, multi-hop routing,
   current-versus-obsolete selection, and minimal sufficient context.
 - `memory_evolution`: TTL/delete suppression plus current-versus-historical preference,
@@ -162,10 +165,35 @@ unsupported-claim count, stale retrieval count, stale-answer count, conflict det
 count, update rationale availability, temporal validity `not_encoded` count, scope
 correctness, redaction leak count, capture/integration behavior classes, Qdrant
 rebuild case/pass counts, expected evidence recall, irrelevant context ratio,
-latency/cost, and trace explainability counters. The fixtures include negative traps
+latency/cost, answer-type plus caveat/refusal/uncertainty flags, and trace
+explainability counters. The fixtures include negative traps
 for stale blockers, unsupported prior claims, stale deleted facts, stale historical
 facts, cross-project preference leakage, private/redacted text leakage, obsolete
-retrieval context, and distractor context.
+retrieval context, project-decision stale reuse, missing rationale, uncited current
+policy claims, overconfident unsupported decision answers, and distractor context.
+
+Current checked-in project-decisions increment:
+
+```sh
+cargo make real-world-memory-project-decisions
+```
+
+This parses `apps/elf-eval/fixtures/real_world_memory/project_decisions/`, writes
+`tmp/real-world-memory/project-decisions/report.json`, and renders
+`tmp/real-world-memory/project-decisions/report.md`. The fixture set covers:
+
+- accepted decision recovery with required rationale;
+- superseded decision recovery where historical evidence must not become the current
+  answer;
+- old-versus-current validation gate recovery;
+- fixture-backed-first tradeoff rationale with an external-adapter parity caveat;
+- missing private-manifest uncertainty where the correct answer is a bounded caveat.
+
+The report exposes `answer_type`, `requires_caveat`, `requires_refusal`, and
+`can_answer_unknown` per job, and the memory-evolution table shows current evidence,
+historical evidence, conflict detections, and update-rationale availability. These jobs
+are fixture-backed only; they do not claim external adapter parity or private-corpus
+validation.
 
 The report also loads the checked-in external adapter coverage manifest by default:
 
