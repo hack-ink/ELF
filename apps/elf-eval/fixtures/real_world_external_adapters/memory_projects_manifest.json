@@ -1943,46 +1943,61 @@
       "evidence_class": "research_gate",
       "docker_default": true,
       "host_global_installs_required": false,
-      "overall_status": "not_encoded",
+      "overall_status": "blocked",
       "setup": {
-        "status": "not_encoded",
-        "evidence": "XY-882 marks graphify as an adapter_candidate for a Docker-only CLI/materializer path, but no adapter is implemented."
+        "status": "blocked",
+        "evidence": "XY-889 adds a Docker-only graph/report smoke command. The checked-in manifest remains a research gate until a generated artifact reaches graphify graph/report output.",
+        "command": "cargo make graphify-docker-graph-report-smoke",
+        "artifact": "tmp/real-world-memory/graphify-smoke/graphify-smoke.json"
       },
       "run": {
-        "status": "not_encoded",
-        "evidence": "No graphify graph/report build is encoded."
+        "status": "blocked",
+        "evidence": "The smoke installs graphify in a container-local venv, runs over a generated public corpus, and records typed setup/runtime failure if graph/report build or query output is unavailable.",
+        "command": "cargo make graphify-docker-graph-report-smoke",
+        "artifact": "tmp/real-world-memory/graphify-smoke/summary.json"
       },
       "result": {
-        "status": "not_encoded",
-        "evidence": "No graph-navigation or knowledge-compilation result is claimed."
+        "status": "blocked",
+        "evidence": "No graph-navigation or knowledge-compilation quality result is claimed from the checked-in research gate. Generated smoke artifacts may become live_real_world only after graph.json, GRAPH_REPORT.md, and graphify query output map to generated evidence ids.",
+        "artifact": "tmp/real-world-memory/graphify-smoke/graphify-smoke.json"
       },
       "capabilities": [
         {
+          "capability": "docker_cli_boundary",
+          "status": "blocked",
+          "evidence": "The smoke uses docker-compose.baseline.yml baseline-runner, a container-local Python venv, and isolated assistant config paths; it does not install host-global assistant hooks."
+        },
+        {
           "capability": "graph_report_generation",
-          "status": "not_encoded",
-          "evidence": "Graph reports and query output have a candidate scoring path, but they are not executed by the runner."
+          "status": "blocked",
+          "evidence": "The smoke captures graphify-out/graph.json, GRAPH_REPORT.md, cache metadata, command logs, build time, graph size, and report size when build succeeds."
+        },
+        {
+          "capability": "real_world_job_adapter",
+          "status": "blocked",
+          "evidence": "The smoke maps node labels, edge types, confidence tags, source files, source locations, report text, and query output to generated real_world_job evidence ids when graphify reaches output."
         },
         {
           "capability": "multimodal_code_graph",
           "status": "not_encoded",
-          "evidence": "Multimodal graph extraction is a reference capability but not scored."
+          "evidence": "Multimodal extraction for videos, images, PDFs, or broad codebase understanding is a reference capability but not scored by this smoke."
         },
         {
-          "capability": "real_world_job_adapter",
+          "capability": "quality_or_scale_claim",
           "status": "not_encoded",
-          "evidence": "No graphify materializer exists."
+          "evidence": "The smoke does not claim broad graph quality, private corpus behavior, scale, or authoritative memory-store behavior."
         }
       ],
       "suites": [
         {
           "suite_id": "knowledge_compilation",
-          "status": "not_encoded",
-          "evidence": "Graph report citation and lint behavior are not scored."
+          "status": "blocked",
+          "evidence": "The generated smoke can exercise graph/report evidence mapping for one generated knowledge-compilation fixture, but the checked-in record stays blocked until a live artifact reaches graph/report output."
         },
         {
           "suite_id": "retrieval",
-          "status": "not_encoded",
-          "evidence": "Graph-guided query output is not mapped to required evidence."
+          "status": "blocked",
+          "evidence": "Graph-guided query output is mapped only for the generated smoke when available; broad retrieval quality scoring remains unclaimed."
         },
         {
           "suite_id": "work_resume",
@@ -1995,6 +2010,16 @@
           "kind": "source",
           "ref": "https://github.com/safishamsi/graphify",
           "status": "real"
+        },
+        {
+          "kind": "command",
+          "ref": "cargo make graphify-docker-graph-report-smoke",
+          "status": "blocked"
+        },
+        {
+          "kind": "artifact",
+          "ref": "tmp/real-world-memory/graphify-smoke/graphify-smoke.json",
+          "status": "blocked"
         }
       ],
       "execution_metadata": {
@@ -2010,14 +2035,15 @@
             "evidence": "Official CLI, output artifact, query, and source-location contract."
           }
         ],
-        "setup_path": "Install graphify inside Docker, build a graph/report from a generated corpus, and export query evidence without installing host-global assistant hooks.",
-        "runtime_boundary": "Docker-only CLI/materializer run over mounted benchmark corpus.",
-        "resource_expectation": "Graph build cost scales with corpus and model choices; record build time, graph size, and generated report size.",
+        "setup_path": "Run cargo make graphify-docker-graph-report-smoke to install graphify in Docker, build graph/report artifacts from a generated public corpus, and export query evidence without installing host-global assistant hooks.",
+        "runtime_boundary": "docker-compose.baseline.yml baseline-runner, container-local Python venv, isolated HOME/config paths, generated public corpus, and artifacts under tmp/real-world-memory/graphify-smoke.",
+        "resource_expectation": "Graph build cost scales with corpus and model choices; generated artifacts record package reference, provider/model boundary, build time, graph size, report size, cache size, timeout, and retry behavior.",
         "retry_guidance": [
-          "Start with a generated public code/document corpus.",
-          "Score graph-guided answers only when report nodes cite source evidence IDs."
+          "Run cargo make graphify-docker-graph-report-smoke first; setup/runtime failures must remain typed artifacts, not pass claims.",
+          "Do not use graphify host assistant hook installs or operator-owned assistant configuration as proof.",
+          "Score graph-guided answers only when graph.json, GRAPH_REPORT.md, and graphify query output map to generated evidence ids."
         ],
-        "research_depth": "D1 feasibility verdict: adapter_candidate (XY-882); research_gate only, adapter not encoded"
+        "research_depth": "D1 feasibility verdict plus XY-889 Docker graph/report smoke implementation; checked-in record remains research_gate unless a generated artifact reaches graphify output"
       },
       "follow_up": {
         "title": "[ELF benchmark adapter] Implement graphify Docker graph-report adapter",
