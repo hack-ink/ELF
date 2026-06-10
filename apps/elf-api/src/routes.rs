@@ -55,12 +55,13 @@ use elf_service::{
 	KnowledgePageLintRequest, KnowledgePageLintResponse, KnowledgePageRebuildRequest,
 	KnowledgePageRebuildResponse, KnowledgePageResponse, KnowledgePageSearchRequest,
 	KnowledgePageSearchResponse, KnowledgePagesListRequest, KnowledgePagesListResponse,
-	ListRequest, ListResponse, NoteFetchRequest, NoteFetchResponse, NoteProvenanceBundleResponse,
-	NoteProvenanceGetRequest, PayloadLevel, PublishNoteRequest, QueryPlan, RankingRequestOverride,
-	RebuildReport, SearchDetailsRequest, SearchDetailsResult, SearchExplainRequest,
-	SearchExplainResponse, SearchIndexItem, SearchRequest, SearchResponse, SearchSessionGetRequest,
-	SearchTimelineGroup, SearchTimelineRequest, SearchTrajectoryResponse, SearchTrajectorySummary,
-	ShareScope, SpaceGrantRevokeRequest, SpaceGrantRevokeResponse, SpaceGrantUpsertRequest,
+	ListRequest, ListResponse, MemoryHistoryGetRequest, MemoryHistoryResponse, NoteFetchRequest,
+	NoteFetchResponse, NoteProvenanceBundleResponse, NoteProvenanceGetRequest, PayloadLevel,
+	PublishNoteRequest, QueryPlan, RankingRequestOverride, RebuildReport, SearchDetailsRequest,
+	SearchDetailsResult, SearchExplainRequest, SearchExplainResponse, SearchIndexItem,
+	SearchRequest, SearchResponse, SearchSessionGetRequest, SearchTimelineGroup,
+	SearchTimelineRequest, SearchTrajectoryResponse, SearchTrajectorySummary, ShareScope,
+	SpaceGrantRevokeRequest, SpaceGrantRevokeResponse, SpaceGrantUpsertRequest,
 	SpaceGrantsListRequest, TextPositionSelector, TextQuoteSelector, TraceBundleGetRequest,
 	TraceBundleResponse, TraceGetRequest, TraceGetResponse, TraceRecentListRequest,
 	TraceRecentListResponse, TraceTrajectoryGetRequest, UnpublishNoteRequest, UpdateRequest,
@@ -154,6 +155,7 @@ const VIEWER_HTML: &str = include_str!("../static/viewer.html");
 		admin_graph_predicate_alias_add,
 		admin_graph_predicate_aliases_list,
 		admin_note_provenance_get,
+		admin_note_history_get,
 	),
 	components(schemas(
 		AdminIngestionProfileDefaultResponseV2,
@@ -707,6 +709,7 @@ pub fn admin_router(state: AppState) -> Router {
 			routing::post(admin_graph_predicate_alias_add).get(admin_graph_predicate_aliases_list),
 		)
 		.route("/v2/admin/notes/{note_id}/provenance", routing::get(admin_note_provenance_get))
+		.route("/v2/admin/notes/{note_id}/history", routing::get(admin_note_history_get))
 		.with_state(state)
 		.layer(DefaultBodyLimit::max(MAX_REQUEST_BYTES))
 		.layer(middleware::from_fn_with_state(auth_state, admin_auth_middleware));
@@ -2472,6 +2475,38 @@ async fn admin_note_provenance_get(
 	let response = state
 		.service
 		.note_provenance_get(NoteProvenanceGetRequest {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+			note_id,
+		})
+		.await?;
+
+	Ok(Json(response))
+}
+
+#[utoipa::path(
+	get,
+	path = "/v2/admin/notes/{note_id}/history",
+	tag = "admin",
+	params(("note_id" = Uuid, Path, description = "Note ID.")),
+	responses(
+		(status = 200, description = "Memory history timeline.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Admin access required.", body = ErrorBody),
+		(status = 404, description = "Note was not found.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
+async fn admin_note_history_get(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	Path(note_id): Path<Uuid>,
+) -> Result<Json<MemoryHistoryResponse>, ApiError> {
+	let ctx = RequestContext::from_headers(&headers)?;
+	let response = state
+		.service
+		.memory_history_get(MemoryHistoryGetRequest {
 			tenant_id: ctx.tenant_id,
 			project_id: ctx.project_id,
 			note_id,
