@@ -1419,46 +1419,61 @@
       "evidence_class": "research_gate",
       "docker_default": true,
       "host_global_installs_required": false,
-      "overall_status": "not_encoded",
+      "overall_status": "blocked",
       "setup": {
-        "status": "not_encoded",
-        "evidence": "XY-882 marks Graphiti/Zep as an adapter_candidate, but no Docker temporal graph adapter is implemented."
+        "status": "blocked",
+        "evidence": "XY-888 adds a Docker-contained Graphiti/Zep temporal smoke command. The checked-in manifest remains a research gate until a generated artifact reaches Graphiti search output.",
+        "command": "cargo make graphiti-zep-docker-temporal-smoke",
+        "artifact": "tmp/real-world-memory/graphiti-zep-smoke/graphiti-zep-smoke.json"
       },
       "run": {
-        "status": "not_encoded",
-        "evidence": "No temporal graph fact add/query job is encoded."
+        "status": "blocked",
+        "evidence": "The default smoke records a typed setup/runtime failure if live execution is not explicitly enabled. Set ELF_GRAPHITI_ZEP_SMOKE_START=1 and ELF_GRAPHITI_ZEP_SMOKE_RUN=1 with explicit provider configuration to start Docker-local FalkorDB and run Graphiti.",
+        "command": "ELF_GRAPHITI_ZEP_SMOKE_START=1 ELF_GRAPHITI_ZEP_SMOKE_RUN=1 cargo make graphiti-zep-docker-temporal-smoke",
+        "artifact": "tmp/real-world-memory/graphiti-zep-smoke/summary.json"
       },
       "result": {
-        "status": "not_encoded",
-        "evidence": "No current-versus-historical real_world_job pass is claimed."
+        "status": "blocked",
+        "evidence": "No temporal graph quality result is claimed from the checked-in research gate. Generated smoke artifacts may become live_real_world only after Graphiti/Zep returns UUID, fact, valid_at, and invalid_at output mapped to generated memory_evolution evidence ids.",
+        "artifact": "tmp/real-world-memory/graphiti-zep-smoke/graphiti-zep-smoke.json"
       },
       "capabilities": [
         {
           "capability": "temporal_graph_memory",
-          "status": "not_encoded",
-          "evidence": "Temporal fact validity has a scoped adapter candidate path, but no executable adapter output is encoded."
+          "status": "blocked",
+          "evidence": "The smoke materializes generated current, historical, and rationale facts with validity windows, but the checked-in record stays blocked until a live artifact maps search output."
         },
         {
           "capability": "docker_graph_store_setup",
           "status": "blocked",
-          "evidence": "A safe local graph store, embedding, and LLM configuration must be documented before execution."
+          "evidence": "The task uses a Docker Compose graphiti-zep profile for FalkorDB and a container-local Python venv; no host-global graph database or hosted Zep service is used."
         },
         {
           "capability": "real_world_job_adapter",
+          "status": "blocked",
+          "evidence": "The generated smoke fixture maps Graphiti/Zep temporal fact output to memory_evolution expected evidence ids when search output is available."
+        },
+        {
+          "capability": "quality_or_scale_claim",
           "status": "not_encoded",
-          "evidence": "No Graphiti/Zep materializer or scorer mapping exists."
+          "evidence": "The smoke does not claim broad graph-memory quality, managed Zep service behavior, private-corpus behavior, or large-corpus performance."
         }
       ],
       "suites": [
         {
           "suite_id": "memory_evolution",
-          "status": "not_encoded",
-          "evidence": "Current/historical fact validity jobs are not encoded for Graphiti/Zep."
+          "status": "blocked",
+          "evidence": "Generated current/historical relation facts are encoded, but the checked-in manifest stays blocked until the Docker smoke returns validity-window search output."
         },
         {
           "suite_id": "retrieval",
           "status": "not_encoded",
-          "evidence": "Hybrid graph retrieval output is not mapped to evidence IDs."
+          "evidence": "Hybrid graph retrieval reachability is not scored beyond the temporal search smoke."
+        },
+        {
+          "suite_id": "production_ops",
+          "status": "not_encoded",
+          "evidence": "The smoke records setup and provider boundaries but does not encode backup, restore, private corpus, or hosted-service operations."
         }
       ],
       "evidence": [
@@ -1471,6 +1486,16 @@
           "kind": "source",
           "ref": "https://www.getzep.com/platform/graphiti/",
           "status": "real"
+        },
+        {
+          "kind": "command",
+          "ref": "cargo make graphiti-zep-docker-temporal-smoke",
+          "status": "blocked"
+        },
+        {
+          "kind": "artifact",
+          "ref": "tmp/real-world-memory/graphiti-zep-smoke/graphiti-zep-smoke.json",
+          "status": "blocked"
         }
       ],
       "execution_metadata": {
@@ -1494,16 +1519,22 @@
             "label": "Graphiti FalkorDB configuration",
             "url": "https://help.getzep.com/graphiti/configuration/falkor-db-configuration",
             "evidence": "Official Docker-local FalkorDB setup reference."
+          },
+          {
+            "label": "Graphiti fact triples",
+            "url": "https://help.getzep.com/graphiti/working-with-data/adding-fact-triples",
+            "evidence": "Official manual fact-triple ingest contract."
           }
         ],
-        "setup_path": "Implement a Docker-local FalkorDB or Neo4j graph store and provider configuration, then encode add/query current-versus-historical fact jobs.",
-        "runtime_boundary": "Docker-only service or SDK run with graph store state under benchmark artifacts.",
-        "resource_expectation": "Requires graph store plus LLM/embedding configuration; record service startup, storage size, and provider boundaries.",
+        "setup_path": "Run cargo make graphiti-zep-docker-temporal-smoke for a typed artifact; set ELF_GRAPHITI_ZEP_SMOKE_START=1 ELF_GRAPHITI_ZEP_SMOKE_RUN=1 with explicit provider configuration for a live attempt.",
+        "runtime_boundary": "docker-compose.baseline.yml baseline-runner plus graphiti-zep FalkorDB profile, container-local Python venv, generated public temporal facts, and report artifacts under tmp/real-world-memory/graphiti-zep-smoke.",
+        "resource_expectation": "Requires Docker-local FalkorDB plus LLM/embedding configuration; generated artifacts record service startup, storage size, provider boundaries, fact count, and timeout before scoring.",
         "retry_guidance": [
-          "Prototype a tiny temporal fact add/query run.",
-          "Map valid_at/invalid_at evidence to memory_evolution scoring."
+          "Run cargo make graphiti-zep-docker-temporal-smoke first to produce a typed blocked artifact.",
+          "Start the live path only with ELF_GRAPHITI_ZEP_SMOKE_START=1, ELF_GRAPHITI_ZEP_SMOKE_RUN=1, and explicit provider configuration.",
+          "Treat missing validity windows or unmapped current/historical facts as wrong_result, not pass."
         ],
-        "research_depth": "D1 feasibility verdict: adapter_candidate (XY-882); research_gate only, adapter not encoded"
+        "research_depth": "D2 feasibility plus XY-888 Docker temporal smoke implementation; checked-in record remains research_gate unless a generated artifact reaches Graphiti search output"
       },
       "follow_up": {
         "title": "[ELF benchmark adapter] Implement Graphiti/Zep temporal graph adapter",
