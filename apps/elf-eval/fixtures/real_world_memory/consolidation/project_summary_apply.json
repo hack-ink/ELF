@@ -114,14 +114,6 @@
               }
             }
           }
-        ],
-        "executable_gaps": [
-          {
-            "primitive": "live_consolidation_worker_generation",
-            "follow_up_issue": "[ELF vNext P1] Implement reviewable consolidation worker and proposal review flow",
-            "reason": "This fixture scores checked-in proposal payloads; it does not execute scheduled LLM generation.",
-            "blocks_fixture_pass": false
-          }
         ]
       }
     }

@@ -117,6 +117,7 @@ Required fields:
 - `lineage`
 - `diff`
 - `confidence`
+- `unsupported_claim_flags`
 - `contradiction_markers`
 - `staleness_markers`
 - `target_ref`
@@ -131,6 +132,12 @@ Required fields:
 
 `lineage` must include non-empty `source_refs`. It may also include `parent_run_id`
 and `parent_proposal_ids`.
+
+`unsupported_claim_flags` is a reviewer prompt array. Each flag has:
+
+- `claim_id`: optional stable claim identifier
+- `message`: non-empty reviewer-facing text
+- `source`: optional source reference
 
 `contradiction_markers` and `staleness_markers` are review prompts. Each marker has:
 
@@ -186,6 +193,17 @@ Terminal states are `rejected`, `applied`, and `archived`.
 `applied` means the proposal has been approved and marked as applied to the derived
 target. It does not mean authoritative source memory was changed.
 
+Operator review actions map to the lifecycle states:
+
+- `approve`: `proposed -> approved`
+- `apply`: `approved -> applied`, or `proposed -> approved -> applied` with both
+  transitions audited
+- `discard`: `proposed|approved -> rejected`
+- `defer`: `proposed|approved -> archived`
+
+Every review transition must write an append-only audit event with proposal id, run id,
+reviewer agent id, action, prior state, next state, optional comment, and timestamp.
+
 ## Service Boundary
 
 The first implementation exposes fixture-driven service flows:
@@ -195,7 +213,8 @@ The first implementation exposes fixture-driven service flows:
 - get a consolidation run
 - list consolidation proposals
 - get a consolidation proposal
-- transition proposal review state
+- transition proposal review state through `approve`, `apply`, `discard`, and `defer`
+  actions with review-event readback
 
 These flows must not call LLM, embedding, rerank, or external provider adapters.
 

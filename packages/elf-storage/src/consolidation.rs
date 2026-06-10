@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::{
 	Result,
-	models::{ConsolidationProposal, ConsolidationRun},
+	models::{ConsolidationProposal, ConsolidationProposalReviewEvent, ConsolidationRun},
 };
 
 const CONSOLIDATION_RUN_SELECT: &str = "\
@@ -45,6 +45,7 @@ SELECT
 	lineage,
 	diff,
 	confidence,
+	COALESCE(unsupported_claim_flags, '[]'::jsonb) AS unsupported_claim_flags,
 	COALESCE(contradiction_markers, '[]'::jsonb) AS contradiction_markers,
 	COALESCE(staleness_markers, '[]'::jsonb) AS staleness_markers,
 	COALESCE(target_ref, '{}'::jsonb) AS target_ref,
@@ -90,6 +91,32 @@ pub struct ConsolidationProposalReviewUpdate<'a> {
 	pub review_comment: Option<&'a str>,
 	/// Update timestamp.
 	pub now: OffsetDateTime,
+}
+
+/// Arguments for inserting a consolidation proposal review event.
+pub struct ConsolidationProposalReviewEventInsert<'a> {
+	/// Review event identifier.
+	pub review_id: Uuid,
+	/// Reviewed proposal identifier.
+	pub proposal_id: Uuid,
+	/// Parent consolidation run identifier.
+	pub run_id: Uuid,
+	/// Tenant that owns the proposal.
+	pub tenant_id: &'a str,
+	/// Project that owns the proposal.
+	pub project_id: &'a str,
+	/// Reviewing agent identifier.
+	pub reviewer_agent_id: &'a str,
+	/// Review action requested by the reviewer.
+	pub action: &'a str,
+	/// Review state before the transition.
+	pub from_review_state: &'a str,
+	/// Review state after the transition.
+	pub to_review_state: &'a str,
+	/// Optional reviewer comment.
+	pub review_comment: Option<&'a str>,
+	/// Creation timestamp.
+	pub created_at: OffsetDateTime,
 }
 
 /// Inserts one consolidation run.
@@ -271,6 +298,7 @@ INSERT INTO consolidation_proposals (
 	lineage,
 	diff,
 	confidence,
+	unsupported_claim_flags,
 	contradiction_markers,
 	staleness_markers,
 	target_ref,
@@ -281,7 +309,7 @@ INSERT INTO consolidation_proposals (
 	created_at,
 	updated_at
 )
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)",
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)",
 	)
 	.bind(proposal.proposal_id)
 	.bind(proposal.run_id)
@@ -297,6 +325,7 @@ VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$
 	.bind(&proposal.lineage)
 	.bind(&proposal.diff)
 	.bind(proposal.confidence)
+	.bind(&proposal.unsupported_claim_flags)
 	.bind(&proposal.contradiction_markers)
 	.bind(&proposal.staleness_markers)
 	.bind(&proposal.target_ref)
@@ -361,6 +390,7 @@ SELECT
 	lineage,
 	diff,
 	confidence,
+	COALESCE(unsupported_claim_flags, '[]'::jsonb) AS unsupported_claim_flags,
 	COALESCE(contradiction_markers, '[]'::jsonb) AS contradiction_markers,
 	COALESCE(staleness_markers, '[]'::jsonb) AS staleness_markers,
 	COALESCE(target_ref, '{}'::jsonb) AS target_ref,
@@ -422,6 +452,7 @@ RETURNING
 	lineage,
 	diff,
 	confidence,
+	COALESCE(unsupported_claim_flags, '[]'::jsonb) AS unsupported_claim_flags,
 	COALESCE(contradiction_markers, '[]'::jsonb) AS contradiction_markers,
 	COALESCE(staleness_markers, '[]'::jsonb) AS staleness_markers,
 	COALESCE(target_ref, '{}'::jsonb) AS target_ref,
@@ -443,4 +474,83 @@ RETURNING
 	.await?;
 
 	Ok(row)
+}
+
+/// Inserts one proposal review audit event.
+pub async fn insert_consolidation_proposal_review_event<'e, E>(
+	executor: E,
+	args: ConsolidationProposalReviewEventInsert<'_>,
+) -> Result<()>
+where
+	E: PgExecutor<'e>,
+{
+	sqlx::query(
+		"\
+INSERT INTO consolidation_proposal_reviews (
+	review_id,
+	proposal_id,
+	run_id,
+	tenant_id,
+	project_id,
+	reviewer_agent_id,
+	action,
+	from_review_state,
+	to_review_state,
+	review_comment,
+	created_at
+)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
+	)
+	.bind(args.review_id)
+	.bind(args.proposal_id)
+	.bind(args.run_id)
+	.bind(args.tenant_id)
+	.bind(args.project_id)
+	.bind(args.reviewer_agent_id)
+	.bind(args.action)
+	.bind(args.from_review_state)
+	.bind(args.to_review_state)
+	.bind(args.review_comment)
+	.bind(args.created_at)
+	.execute(executor)
+	.await?;
+
+	Ok(())
+}
+
+/// Lists review events for one consolidation proposal.
+pub async fn list_consolidation_proposal_review_events<'e, E>(
+	executor: E,
+	tenant_id: &str,
+	project_id: &str,
+	proposal_id: Uuid,
+) -> Result<Vec<ConsolidationProposalReviewEvent>>
+where
+	E: PgExecutor<'e>,
+{
+	let rows = sqlx::query_as::<_, ConsolidationProposalReviewEvent>(
+		"\
+SELECT
+	review_id,
+	proposal_id,
+	run_id,
+	tenant_id,
+	project_id,
+	reviewer_agent_id,
+	action,
+	from_review_state,
+	to_review_state,
+	review_comment,
+	created_at
+FROM consolidation_proposal_reviews
+WHERE tenant_id = $1 AND project_id = $2 AND proposal_id = $3
+ORDER BY created_at ASC, review_id ASC",
+	)
+	.bind(tenant_id)
+	.bind(project_id)
+	.bind(proposal_id)
+	.fetch_all(executor)
+	.await?;
+
+	Ok(rows)
 }
