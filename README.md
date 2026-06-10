@@ -147,14 +147,20 @@ with the production embedding provider path, `Qwen3-Embedding-8B`, and
   jobs across 11 suites, 35 pass, 1 incomplete, 2 blocked, 0 wrong-result,
   0 not-encoded, and 0 unsupported-claim results. The remaining non-pass jobs are
   production-ops operator boundaries, not hidden benchmark wins.
+- Targeted live real-world adapter slice after XY-868: ELF and qmd now have
+  Docker-isolated `live_real_world` records for representative `work_resume`,
+  `retrieval`, and `project_decisions` jobs through
+  `cargo make real-world-memory-live-adapters`. This does not imply full-suite
+  live-service parity, broad adapter parity, or private-corpus production proof.
 - The benchmark runner and report publisher are checked in and Docker-isolated:
   `cargo make baseline-live-docker`, `cargo make baseline-backfill-docker`,
   `cargo make baseline-production-private-addendum`,
   `cargo make baseline-backfill-10k-docker`,
   `cargo make baseline-backfill-100k-docker`,
-  `cargo make baseline-soak-docker`, `cargo make baseline-live-report`, and
-  `cargo make baseline-live-docker-clean`. Expensive 100k and long-soak profiles are
-  opt-in and do not run in normal checks.
+  `cargo make baseline-soak-docker`, `cargo make baseline-live-report`,
+  `cargo make real-world-memory-live-adapters`, and
+  `cargo make baseline-live-docker-clean`. Expensive 100k and long-soak profiles
+  are opt-in and do not run in normal checks.
 
 Detailed evidence and interpretation:
 
@@ -170,8 +176,8 @@ Detailed evidence and interpretation:
   now reports fixture-backed ELF evidence plus the external adapter coverage manifest
   for ELF, qmd, agentmemory, mem0/OpenMemory, claude-mem, memsearch, and OpenViking.
   The report still distinguishes fixture-backed and live-baseline-only evidence from
-  true live real-world adapter runs; no external project has a live real-world suite win
-  until an adapter actually executes `real_world_job` prompts and scoring.
+  true live real-world adapter runs; only the targeted ELF and qmd live adapter slice
+  currently executes `real_world_job` prompts and scoring.
 
 Evidence-backed position after the June 10 real-world report:
 
@@ -179,12 +185,12 @@ Evidence-backed position after the June 10 real-world report:
   deterministic ingestion boundaries, Postgres source-of-truth plus rebuildable Qdrant
   indexing, scoped service APIs, and fixture-backed provenance/resume/evolution checks.
 - ELF and qmd are both strong in the current encoded retrieval evidence: qmd remains
-  the local retrieval-debug baseline, while ELF has the stronger service and provenance
-  contract.
-- ELF is still behind or not yet proven on live real-world external adapters,
-  private-corpus production quality, credentialed production-ops gates, qmd-style local
-  debug knobs, agentmemory/claude-mem/OpenMemory-style continuity UX, OpenViking-style
-  context trajectory, and hosted managed memory.
+  the local retrieval-debug baseline and now has targeted live real-world job evidence,
+  while ELF has the stronger service and provenance contract.
+- ELF is still behind or not yet proven on full-suite live real-world external
+  adapters, private-corpus production quality, credentialed production-ops gates,
+  qmd-style local debug knobs, agentmemory/claude-mem/OpenMemory-style continuity UX,
+  OpenViking-style context trajectory, and hosted managed memory.
 
 Quick comparison snapshot (objective/high-level).
 This table compares capability coverage, not overall project quality.

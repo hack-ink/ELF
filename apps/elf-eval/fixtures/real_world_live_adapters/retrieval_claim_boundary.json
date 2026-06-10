@@ -1,0 +1,133 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "live-adapter-retrieval-claim-boundary-001",
+  "suite": "retrieval",
+  "title": "Live adapter retrieves the live-real-world claim boundary",
+  "corpus": {
+    "corpus_id": "real-world-live-adapters-2026-06-10",
+    "profile": "external_adapter",
+    "items": [
+      {
+        "evidence_id": "live-real-world-claim-boundary",
+        "kind": "decision",
+        "text": "Live adapter claim boundary: qmd and ELF may be reported as `live_real_world` only when generated JSON and Markdown artifacts include command evidence, artifact paths, and typed status.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_live_adapter_fixture/v1",
+          "ref": {
+            "fixture": "retrieval_claim_boundary",
+            "evidence_id": "live-real-world-claim-boundary"
+          }
+        },
+        "created_at": "2026-06-10T06:10:00Z"
+      },
+      {
+        "evidence_id": "fixture-only-claim-trap",
+        "kind": "decision",
+        "text": "Incorrect claim: fixture-only ELF scoring is enough to imply live service behavior for real-world jobs.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_live_adapter_fixture/v1",
+          "ref": {
+            "fixture": "retrieval_claim_boundary",
+            "evidence_id": "fixture-only-claim-trap"
+          }
+        },
+        "created_at": "2026-06-09T06:10:00Z"
+      }
+    ]
+  },
+  "timeline": [
+    {
+      "event_id": "fixture-only-trap-recorded",
+      "ts": "2026-06-09T06:10:00Z",
+      "actor": "agent",
+      "action": "recorded_invalid_claim",
+      "evidence_ids": ["fixture-only-claim-trap"],
+      "summary": "An invalid claim conflated fixture-only scoring with live service behavior."
+    },
+    {
+      "event_id": "live-real-world-boundary-recorded",
+      "ts": "2026-06-10T06:10:00Z",
+      "actor": "agent",
+      "action": "recorded_claim_boundary",
+      "evidence_ids": ["live-real-world-claim-boundary"],
+      "summary": "The live claim boundary requires generated JSON/Markdown artifacts and typed status."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "When may qmd and ELF be reported as live_real_world in the real-world benchmark?",
+    "job_mode": "answer",
+    "constraints": ["cite_evidence", "avoid_unsupported_claims"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "claim_boundary",
+        "text": "Live adapter claim boundary: qmd and ELF may be reported as `live_real_world` only when generated JSON and Markdown artifacts include command evidence, artifact paths, and typed status."
+      }
+    ],
+    "must_not_include": [
+      "Incorrect claim: fixture-only ELF scoring is enough to imply live service behavior for real-world jobs."
+    ],
+    "evidence_links": {
+      "claim_boundary": ["live-real-world-claim-boundary"]
+    },
+    "answer_type": "direct_answer",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "live-real-world-claim-boundary",
+      "claim_id": "claim_boundary",
+      "requirement": "use",
+      "quote": "generated JSON and Markdown artifacts include command evidence"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "fixture-only-live-claim",
+      "type": "unsupported_claim",
+      "evidence_ids": ["fixture-only-claim-trap"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.35,
+        "max_points": 1.0,
+        "criteria": "States the artifact and typed-status boundary for live_real_world claims."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Uses the live-real-world claim boundary evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Avoids the fixture-only live-service claim."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Keeps the claim boundary explicit."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": ["The live adapter did not retrieve that evidence."],
+    "fallback_action": "state_blocker"
+  },
+  "tags": ["external_adapter", "live_real_world", "retrieval"]
+}
