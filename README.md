@@ -147,11 +147,12 @@ with the production embedding provider path, `Qwen3-Embedding-8B`, and
   jobs across 11 suites, 35 pass, 1 incomplete, 2 blocked, 0 wrong-result,
   0 not-encoded, and 0 unsupported-claim results. The remaining non-pass jobs are
   production-ops operator boundaries, not hidden benchmark wins.
-- Targeted live real-world adapter slice after XY-868: ELF and qmd now have
-  Docker-isolated `live_real_world` records for representative `work_resume`,
-  `retrieval`, and `project_decisions` jobs through
-  `cargo make real-world-memory-live-adapters`. This does not imply full-suite
-  live-service parity, broad adapter parity, or private-corpus production proof.
+- Full-suite live real-world adapter sweep after XY-880: ELF and qmd now emit
+  Docker-isolated `live_real_world` records for all 38 encoded jobs across 11 suites
+  through `cargo make real-world-memory-live-adapters`. Both keep the original
+  targeted `work_resume`, `retrieval`, and `project_decisions` slice passing, but the
+  full sweep is not a full-suite pass: each adapter reports 18 pass, 5 wrong_result,
+  1 incomplete, 2 blocked, and 12 not_encoded jobs.
 - Expanded adapter-pack coverage after XY-834: the real-world external adapter
   manifest now includes `research_gate` records for RAGFlow, LightRAG, GraphRAG,
   Graphiti/Zep, Letta, LangGraph, nanograph, llm-wiki, gbrain, graphify, and deeper
@@ -174,6 +175,7 @@ Detailed evidence and interpretation:
 - [Synthetic Production Corpus Benchmark Report - June 9, 2026](docs/guide/benchmarking/2026-06-09-production-corpus-report.md)
 - [Production Adoption Gate Report - June 9, 2026](docs/guide/benchmarking/2026-06-09-production-adoption-gate-report.md)
 - [Real-World Comparison Report - June 10, 2026](docs/guide/benchmarking/2026-06-10-real-world-comparison-report.md)
+- [Live Real-World Adapter Sweep Report - June 10, 2026](docs/guide/benchmarking/2026-06-10-live-real-world-sweep-report.md)
 - [Live Baseline Benchmark Runbook](docs/guide/benchmarking/live_baseline_benchmark.md)
 - [Single-User Production Runbook](docs/guide/single_user_production.md)
 - Benchmark contract:
@@ -182,8 +184,9 @@ Detailed evidence and interpretation:
   now reports fixture-backed ELF evidence plus the external adapter coverage manifest
   for the first memory-project set plus expanded RAG and graph-memory research gates.
   The report still distinguishes fixture-backed, live-baseline-only, research-gate,
-  and true live real-world adapter evidence; only the targeted ELF and qmd live
-  adapter slice currently executes `real_world_job` prompts and scoring.
+  and true live real-world adapter evidence; ELF and qmd now execute a full encoded
+  live sweep, but that sweep still contains typed non-pass states and is not
+  full-suite parity.
 
 Evidence-backed position after the June 10 real-world report:
 
@@ -191,10 +194,10 @@ Evidence-backed position after the June 10 real-world report:
   deterministic ingestion boundaries, Postgres source-of-truth plus rebuildable Qdrant
   indexing, scoped service APIs, and fixture-backed provenance/resume/evolution checks.
 - ELF and qmd are both strong in the current encoded retrieval evidence: qmd remains
-  the local retrieval-debug baseline and now has targeted live real-world job evidence,
-  while ELF has the stronger service and provenance contract.
-- ELF is still behind or not yet proven on full-suite live real-world external
-  adapters, private-corpus production quality, credentialed production-ops gates,
+  the local retrieval-debug baseline and now has full-suite live sweep evidence with
+  typed non-pass states, while ELF has the stronger service and provenance contract.
+- ELF is still behind or not yet proven on full-suite live real-world pass parity,
+  private-corpus production quality, credentialed production-ops gates,
   qmd-style local debug knobs, agentmemory/claude-mem/OpenMemory-style continuity UX,
   OpenViking-style context trajectory, and hosted managed memory.
 
