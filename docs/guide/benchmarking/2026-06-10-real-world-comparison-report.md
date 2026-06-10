@@ -16,6 +16,11 @@ and `ELF_BASELINE_PROJECTS=OpenViking cargo make baseline-live-docker` from bran
 `y/elf-xy-881`. Tables below include that refresh where the OpenViking cold-start
 dependency boundary is discussed.
 
+Postscript: XY-880 superseded the live-adapter state in this report for ELF and qmd.
+The successor evidence is
+`docs/guide/benchmarking/2026-06-10-live-real-world-sweep-report.md`: ELF and qmd now
+emit full-suite live sweep records, but neither has a full-suite live pass.
+
 ## Context
 
 Dependency batch state at report time:
@@ -108,17 +113,33 @@ separate:
 | --- | ---: | --- |
 | `fixture_backed` | 1 | ELF fixture scoring through checked-in real-world jobs. |
 | `live_baseline_only` | 6 | Docker same-corpus/lifecycle evidence from the live-baseline runner only. |
-| `live_real_world` | 2 | Targeted ELF and qmd adapters execute representative `real_world_job` prompts and scoring. |
+| `live_real_world` | 2 | ELF and qmd adapters execute the full encoded-suite `real_world_job` sweep with typed non-pass states preserved. |
 | `research_gate` | 12 | Source/setup/runtime/resource/retry metadata for future adapter paths; not fixture-backed or live execution evidence. |
+
+XY-882 added D1/D2 feasibility verdicts inside the research-gate lane. RAGFlow
+([XY-885](https://linear.app/hack-ink/issue/XY-885/elf-benchmark-adapter-implement-ragflow-docker-evidence-smoke-adapter)),
+LightRAG
+([XY-886](https://linear.app/hack-ink/issue/XY-886/elf-benchmark-adapter-implement-lightrag-docker-context-export-adapter)),
+GraphRAG
+([XY-887](https://linear.app/hack-ink/issue/XY-887/elf-benchmark-adapter-implement-graphrag-cost-bounded-docker-adapter)),
+Graphiti/Zep
+([XY-888](https://linear.app/hack-ink/issue/XY-888/elf-benchmark-adapter-implement-graphitizep-temporal-graph-adapter)),
+and graphify
+([XY-889](https://linear.app/hack-ink/issue/XY-889/elf-benchmark-adapter-implement-graphify-docker-graph-report-adapter))
+are now adapter implementation candidates because they have scoped Docker boundaries
+and evidence-linked output contracts. Letta, LangGraph, nanograph, and llm-wiki remain
+`research_only`; gbrain remains `blocked` until a Docker-local brain repo and database
+path is proven. These verdicts do not change any record into live adapter pass
+evidence.
 
 Adapter-level status after refreshing the manifest:
 
 | Project | Evidence class | Overall status | What is proven | What is not proven |
 | --- | --- | --- | --- | --- |
 | ELF | `fixture_backed` | `blocked` | Fixture-backed real-world scoring passes every non-operator-owned suite and preserves the production-ops credential/private-manifest boundaries. | Fixture-backed scoring is not live-service behavior; cite `elf_live_real_world` for the targeted live slice. |
-| ELF | `live_real_world` | `pass` | The targeted Docker slice materializes real_world_job answers through ElfService, worker indexing, and search_raw for work_resume, retrieval, and project_decisions. | This is not yet a full 11-suite live-service run or private-corpus proof. |
+| ELF | `live_real_world` | `wrong_result` | The Docker live sweep materializes all encoded real_world_job records through ElfService, worker indexing, and search_raw; the original targeted answer-retrieval slice still passes. | This is not a full-suite live pass or private-corpus proof; typed wrong_result, incomplete, blocked, and not_encoded states remain visible. |
 | qmd | `live_baseline_only` | `pass` | Docker same-corpus retrieval, update, delete, and cold-start live-baseline checks pass. | Same-corpus checks are not real-world job scoring; cite `qmd_live_real_world` for the targeted live slice. |
-| qmd | `live_real_world` | `pass` | The targeted Docker slice indexes real_world_job corpora through qmd collection add/update/embed/query and scores generated answers. | This is not yet broad RAG/graph adapter coverage or full-suite external parity. |
+| qmd | `live_real_world` | `wrong_result` | The Docker live sweep indexes the encoded real_world_job corpora through qmd collection add/update/embed/query and preserves per-suite scoring evidence. | This is not a full-suite live pass or broad RAG/graph adapter coverage; typed wrong_result, incomplete, blocked, and not_encoded states remain visible. |
 | agentmemory | `live_baseline_only` | `lifecycle_fail` | Same-corpus retrieval can run through current adapter. | Durable storage/cold-start lifecycle and real-world suites are blocked by the current in-memory adapter path. |
 | mem0/OpenMemory | `live_baseline_only` | `wrong_result` | Local OSS setup is represented separately from hosted/OpenMemory claims. | Same-corpus retrieval was not a clean pass and no real-world job adapter is encoded. |
 | memsearch | `live_baseline_only` | `wrong_result` | Markdown-first design remains a source-of-truth ergonomics reference. | Same-corpus retrieval was not a clean pass and real-world suites are incomplete/not encoded. |
@@ -126,16 +147,16 @@ Adapter-level status after refreshing the manifest:
 | claude-mem | `live_baseline_only` | `wrong_result` | Progressive disclosure and local viewer remain UX references. | Current Docker evidence is not a clean same-corpus pass and progressive disclosure jobs are not encoded. |
 | qmd deep profile | `research_gate` | `not_encoded` | The stress-profile command path and source metadata are recorded for a future deeper retrieval-debug run. | No expanded qmd stress artifact or broader real-world suite pass is checked in. |
 | OpenViking deep profile | `research_gate` | `not_encoded` | The deeper context-trajectory gate can reuse the pinned Docker local-embedding setup path. | No hierarchical trajectory suite result is claimed until evidence-bearing same-corpus output is fixed. |
-| RAGFlow, LightRAG, GraphRAG | `research_gate` | `blocked` | Official sources and setup/resource/retry expectations are recorded. | D1/D2 research, Docker runtime proof, and evidence-output mapping are required before adapter implementation. |
-| Graphiti/Zep, Letta, LangGraph, nanograph, llm-wiki, gbrain, graphify | `research_gate` | `not_encoded` | D1/D2-inspired adapter directions have source/setup/runtime/resource/retry metadata. | No Docker-isolated `real_world_job` adapter has run for these projects. |
+| RAGFlow, LightRAG, GraphRAG | `research_gate` | `blocked` | Official sources, setup/resource/retry expectations, and XY-882 adapter-candidate verdicts are recorded. | Docker runtime proof and real_world_job evidence-output mapping are still required before any live adapter claim. |
+| Graphiti/Zep, Letta, LangGraph, nanograph, llm-wiki, gbrain, graphify | `research_gate` | `not_encoded` | XY-882 records Graphiti/Zep and graphify as adapter candidates, Letta/LangGraph/nanograph/llm-wiki as research-only, and gbrain as blocked. | No Docker-isolated `real_world_job` adapter has run for these projects. |
 
 External summary counters: `21` adapter records, `19` non-ELF adapter records,
 `21` Docker-default, `0` host-global-install requirements, `2` live real-world
-adapters, and `12` research-gate records. Overall adapter statuses are `3` pass,
-`4` wrong_result, `1` lifecycle_fail, `0` incomplete, `4` blocked, and
+adapters, and `12` research-gate records. Overall adapter statuses are `1` pass,
+`6` wrong_result, `1` lifecycle_fail, `0` incomplete, `4` blocked, and
 `9` not_encoded.
-Real-world suite statuses are tracked separately as `16` pass, `1` wrong_result,
-`5` incomplete, `11` blocked, and `32` not_encoded, so a setup boundary is not hidden
+Real-world suite statuses are tracked separately as `20` pass, `3` wrong_result,
+`7` incomplete, `11` blocked, and `40` not_encoded, so a setup boundary is not hidden
 behind an aggregate status.
 
 ## Remaining Gaps
@@ -148,15 +169,16 @@ report:
 | ELF production-ops cold-start dependency fixture | `pass` | XY-881 pins the Docker OpenViking local embedding path and preserves setup failures as `incomplete` if the wheel/import boundary fails on another platform. |
 | ELF provider-backed production-ops gate | `blocked` | Run only with routed operator credentials; credentials were not supplied for this report. |
 | ELF private production corpus | `blocked` | Supply an operator-owned sanitized private manifest; private-corpus checks were a non-goal without that manifest. |
-| Full ELF live-service real-world sweep | `not_encoded` beyond targeted slice | Expand `elf_live_real_world` beyond representative work_resume, retrieval, and project_decisions jobs before claiming full live-service suite coverage. |
-| Full qmd real-world job sweep | `not_encoded` beyond targeted slice | Expand `qmd_live_real_world` beyond the representative targeted slice before claiming broad real-world suite parity. |
+| Full ELF live-service real-world sweep | `wrong_result` | XY-880 expanded `elf_live_real_world` to the full encoded suite corpus; the result is intentionally typed non-pass rather than a full-suite live pass. |
+| Full qmd real-world job sweep | `wrong_result` | XY-880 expanded `qmd_live_real_world` to the full encoded suite corpus; the result is intentionally typed non-pass rather than broad real-world suite parity. |
 | agentmemory durable lifecycle | `lifecycle_fail` / `blocked` | `[ELF benchmark P0] Make agentmemory adapter lifecycle-durable and fail-typed`. |
 | mem0/OpenMemory same-corpus and real-world coverage | `wrong_result` / `not_encoded` | Add/fix a local OSS adapter before claiming lifecycle, personalization, or OpenMemory UI parity. |
 | memsearch same-corpus and real-world coverage | `wrong_result` / `incomplete` | Fix Docker same-corpus retrieval/reindex evidence before scoring Markdown-first real-world jobs. |
 | OpenViking Docker local embedding path | `wrong_result` | The pinned dependency path reaches `add_resource`/`find`; the remaining follow-up is evidence-bearing retrieval output, not setup. |
 | claude-mem durable/progressive-disclosure adapter | `wrong_result` / `not_encoded` | Add durable local repository and progressive-disclosure job coverage before UX parity claims. |
-| RAGFlow, LightRAG, and GraphRAG adapter feasibility | `blocked` research gates | Run D1/D2 research on setup, resource envelope, corpus ingest, query output, source mapping, and Docker retry path before implementation. |
-| Graphiti/Zep, Letta, LangGraph, nanograph, llm-wiki, gbrain, and graphify adapters | `not_encoded` research gates | Implement only after a scoped Docker path can emit evidence-linked outputs for the relevant real-world suites. |
+| RAGFlow, LightRAG, GraphRAG, Graphiti/Zep, and graphify adapters | `research_gate` adapter candidates | Follow-up issues [XY-885](https://linear.app/hack-ink/issue/XY-885/elf-benchmark-adapter-implement-ragflow-docker-evidence-smoke-adapter), [XY-886](https://linear.app/hack-ink/issue/XY-886/elf-benchmark-adapter-implement-lightrag-docker-context-export-adapter), [XY-887](https://linear.app/hack-ink/issue/XY-887/elf-benchmark-adapter-implement-graphrag-cost-bounded-docker-adapter), [XY-888](https://linear.app/hack-ink/issue/XY-888/elf-benchmark-adapter-implement-graphitizep-temporal-graph-adapter), and [XY-889](https://linear.app/hack-ink/issue/XY-889/elf-benchmark-adapter-implement-graphify-docker-graph-report-adapter) must run only Docker-contained adapter smokes that emit evidence-linked outputs before any live result claim. |
+| Letta, LangGraph, nanograph, and llm-wiki adapters | `research_only` research gates | Keep as architecture or workflow references until a contained output contract is selected. |
+| gbrain adapter | `blocked` research gate | Revisit only after a Docker-local brain repo and database path can be proven without operator-owned state. |
 
 ## Adoption Implications
 
