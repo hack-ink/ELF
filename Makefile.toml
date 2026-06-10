@@ -400,6 +400,9 @@ args = [
 # | real-world-memory                      | composite |     |
 # | real-world-memory-json                 | command   |     |
 # | real-world-memory-report               | command   |     |
+# | real-world-memory-project-decisions        | composite | |
+# | real-world-memory-project-decisions-json   | command   | |
+# | real-world-memory-project-decisions-report | command   | |
 # | real-world-memory-evolution            | composite |     |
 # | real-world-memory-evolution-json       | command   |     |
 # | real-world-memory-evolution-report     | command   |     |
@@ -503,6 +506,55 @@ args = [
 	"tmp/real-world-memory/real-world-memory-report.json",
 	"--out",
 	"tmp/real-world-memory/real-world-memory-report.md",
+]
+
+[tasks.real-world-memory-project-decisions]
+workspace = false
+dependencies = [
+	"real-world-memory-project-decisions-report",
+]
+
+[tasks.real-world-memory-project-decisions-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_memory/project_decisions",
+	"--out",
+	"tmp/real-world-memory/project-decisions/report.json",
+	"--run-id",
+	"real-world-memory-project-decisions",
+	"--adapter-id",
+	"fixture_project_decisions",
+	"--adapter-name",
+	"ELF project decision fixture",
+]
+
+[tasks.real-world-memory-project-decisions-report]
+workspace = false
+dependencies = [
+	"real-world-memory-project-decisions-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-memory/project-decisions/report.json",
+	"--out",
+	"tmp/real-world-memory/project-decisions/report.md",
 ]
 
 [tasks.real-world-memory-evolution]
