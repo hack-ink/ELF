@@ -1006,6 +1006,22 @@ Behavior:
 - They must not mutate authoritative source notes, docs, events, traces, graph facts,
   or search traces.
 
+Admin derived knowledge pages:
+- POST /v2/admin/knowledge/pages/rebuild
+- GET /v2/admin/knowledge/pages
+- GET /v2/admin/knowledge/pages/{page_id}
+- POST /v2/admin/knowledge/pages/{page_id}/lint
+
+Behavior:
+- These endpoints expose deterministic rebuild, list/detail readback, and stale-source
+  lint for derived knowledge pages.
+- Page payloads must follow `elf.knowledge_page/v1`, preserve section citations, and
+  write normalized source refs for lint.
+- Pages are derived and rebuildable; rebuilding or linting a page must not mutate
+  authoritative notes, event audits, graph facts, consolidation proposals, docs,
+  traces, or source pointers.
+- The detailed contract is defined in `system_knowledge_pages_v1.md`.
+
 POST /v2/admin/qdrant/rebuild
 
 Behavior:
