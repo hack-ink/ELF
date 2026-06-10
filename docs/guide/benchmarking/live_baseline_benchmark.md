@@ -290,6 +290,13 @@ the interpretation manually under `docs/guide/benchmarking/`.
 The live-baseline runner and real-world job runner publish separate report schemas.
 Live-baseline reports remain evidence for Docker retrieval and lifecycle checks only.
 They are not real-world suite wins.
+The real-world runner loads
+`apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json`
+by default and records live-baseline-only external adapter evidence under
+`external_adapters`; those records preserve the typed setup/run evidence but still
+leave real-world suites as `not_encoded`, `blocked`, `incomplete`, `wrong_result`, or
+`lifecycle_fail` until an adapter actually executes `real_world_job` prompts and
+scoring.
 
 To run the checked-in real-world job smoke fixture and render its Markdown report:
 

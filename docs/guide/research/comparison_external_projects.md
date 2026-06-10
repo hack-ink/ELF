@@ -56,6 +56,14 @@ or could not prove durable lifecycle behavior; memsearch, mem0, OpenViking, and
 claude-mem retained `incomplete`, wrong-result, or not-encoded states. All broader suite
 fit below is research guidance, not a benchmark result.
 
+The real-world job runner now carries a separate external adapter coverage manifest:
+`apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json`.
+That manifest is a contract and evidence ledger, not a leaderboard. It records which
+projects only have `live_baseline_only` Docker retrieval/lifecycle evidence, which
+capabilities are `mocked`, `blocked`, `unsupported`, `incomplete`, `wrong_result`, or
+`lifecycle_fail`, and which real-world suites remain `not_encoded`. No external project
+in the first manifest has `live_real_world` suite evidence yet.
+
 Benchmark suite labels:
 
 | Suite | Real-world job shape |
