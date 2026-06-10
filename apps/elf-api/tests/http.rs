@@ -850,6 +850,10 @@ async fn openapi_json_route_serves_generated_contract() {
 	assert_openapi_method(&spec, "/v2/admin/consolidation/proposals", "get");
 	assert_openapi_method(&spec, "/v2/admin/consolidation/proposals/{proposal_id}", "get");
 	assert_openapi_method(&spec, "/v2/admin/consolidation/proposals/{proposal_id}/review", "post");
+	assert_openapi_method(&spec, "/v2/admin/knowledge/pages/rebuild", "post");
+	assert_openapi_method(&spec, "/v2/admin/knowledge/pages", "get");
+	assert_openapi_method(&spec, "/v2/admin/knowledge/pages/{page_id}", "get");
+	assert_openapi_method(&spec, "/v2/admin/knowledge/pages/{page_id}/lint", "post");
 }
 
 #[tokio::test]
@@ -875,6 +879,7 @@ async fn scalar_docs_route_serves_api_reference_html() {
 	assert!(html.contains("@scalar/api-reference"));
 	assert!(html.contains("/v2/admin/events/ingestion-profiles/default"));
 	assert!(html.contains("/v2/admin/consolidation/proposals"));
+	assert!(html.contains("/v2/admin/knowledge/pages"));
 }
 
 #[tokio::test]
