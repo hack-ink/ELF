@@ -1,0 +1,47 @@
+name: External Memory Pattern Radar
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Weekly on Wednesday at 04:20 UTC.
+    - cron: "20 4 * * 3"
+
+concurrency:
+  group: external-memory-pattern-radar
+  cancel-in-progress: true
+
+jobs:
+  radar:
+    name: Run read-only radar artifact refresh
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch latest code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+
+      - name: Set up Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6
+        with:
+          cache: true
+          rustflags: ""
+
+      - name: Install cargo-make
+        uses: taiki-e/install-action@0631aa6515c7d545823c67cfae7ef4fc7f490154
+        with:
+          tool: cargo-make
+
+      - name: Run radar artifact refresh
+        run: cargo make external-memory-radar-artifact
+
+      - name: Upload radar artifacts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: external-memory-pattern-radar-${{ github.run_id }}
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            tmp/external-memory-pattern-radar/cursor.json
+            tmp/external-memory-pattern-radar/latest.md

@@ -43,6 +43,8 @@ Question this index answers: "what must remain true?"
   corpus manifest schema for adoption benchmark runs.
 - `real_world_agent_memory_benchmark_v1.md`: Real-world agent memory benchmark job
   schema, suite taxonomy, scoring dimensions, and report state semantics.
+- `external_memory_pattern_radar_v1.md`: Weekly external memory pattern radar cursor,
+  run, decision, and issue-creation boundary schema.
 
 ## Spec document contract
 
