@@ -32,9 +32,16 @@
     "adapter_response": {
       "adapter_id": "fixture_retrieval",
       "answer": {
-        "content": "The trace shows the expected evidence was present in recall.candidates but demoted at rerank.score; however, the selected answer followed the stale top-k smoke-only evidence.",
-        "claims": [],
-        "evidence_ids": ["stage-decoy"],
+        "content": "Expected evidence was present in recall.candidates but demoted at rerank.score; the selected stale top-k smoke-only evidence was the decoy to repair against.",
+        "claims": [
+          {
+            "claim_id": "stage_attribution",
+            "text": "Expected evidence was present in recall.candidates but demoted at rerank.score.",
+            "evidence_ids": ["stage-target"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["stage-target"],
         "latency_ms": 18.2,
         "cost": {
           "currency": "USD",
@@ -202,5 +209,5 @@
     "trace_evidence": ["stage-target", "stage-decoy"],
     "ux_gaps": []
   },
-  "tags": ["synthetic", "operator_debugging_ux", "trace_explainability", "wrong_result", "no_live_claim"]
+  "tags": ["synthetic", "operator_debugging_ux", "trace_explainability", "stage_attribution", "no_live_claim"]
 }
