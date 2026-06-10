@@ -97,6 +97,57 @@ Allowed run transitions:
 
 Terminal states are `completed`, `failed`, and `cancelled`.
 
+## Worker Job Contract
+
+Storage table: `consolidation_run_jobs`.
+
+The first runtime implementation is queue-backed and deterministic. Creating a
+fixture or manual consolidation run stores the immutable run input snapshot, enqueues
+one worker job, and returns the run plus `job_id`. The worker materializes queued
+proposal payloads into `consolidation_proposals`; API creation must not call LLM,
+embedding, rerank, or external provider adapters.
+
+Required fields:
+
+- `job_id`
+- `run_id`
+- `tenant_id`
+- `project_id`
+- `agent_id`
+- `job_kind`
+- `status`
+- `payload`
+- `attempts`
+- `last_error`
+- `available_at`
+- `created_at`
+- `updated_at`
+
+Job states:
+
+- `PENDING`
+- `CLAIMED`
+- `DONE`
+- `FAILED`
+
+`payload` is a JSON object with:
+
+- `contract_schema = "elf.consolidation/v1"`
+- `proposals`: array of proposal contracts matching this spec
+
+Worker rules:
+
+- Claim one due `PENDING`, expired `CLAIMED`, or retryable `FAILED` job with a lease.
+- Validate `payload.contract_schema` and every proposal before persistence.
+- Transition the run through `pending -> running -> completed` when materialization
+  succeeds.
+- Insert proposals with `review_state = proposed`.
+- Mark the job `DONE` in the same transaction as the proposal and run-state writes.
+- On failure, mark the job `FAILED`, increment attempts, preserve a bounded error, and
+  schedule retry.
+- Never mutate authoritative source notes, events, docs, traces, graph facts, or
+  search traces.
+
 ## Proposal Contract
 
 Storage table: `consolidation_proposals`.
@@ -117,6 +168,7 @@ Required fields:
 - `lineage`
 - `diff`
 - `confidence`
+- `unsupported_claim_flags`
 - `contradiction_markers`
 - `staleness_markers`
 - `target_ref`
@@ -131,6 +183,12 @@ Required fields:
 
 `lineage` must include non-empty `source_refs`. It may also include `parent_run_id`
 and `parent_proposal_ids`.
+
+`unsupported_claim_flags` is a reviewer prompt array. Each flag has:
+
+- `claim_id`: optional stable claim identifier
+- `message`: non-empty reviewer-facing text
+- `source`: optional source reference
 
 `contradiction_markers` and `staleness_markers` are review prompts. Each marker has:
 
@@ -186,16 +244,28 @@ Terminal states are `rejected`, `applied`, and `archived`.
 `applied` means the proposal has been approved and marked as applied to the derived
 target. It does not mean authoritative source memory was changed.
 
+Operator review actions map to the lifecycle states:
+
+- `approve`: `proposed -> approved`
+- `apply`: `approved -> applied`, or `proposed -> approved -> applied` with both
+  transitions audited
+- `discard`: `proposed|approved -> rejected`
+- `defer`: `proposed|approved -> archived`
+
+Every review transition must write an append-only audit event with proposal id, run id,
+reviewer agent id, action, prior state, next state, optional comment, and timestamp.
+
 ## Service Boundary
 
 The first implementation exposes fixture-driven service flows:
 
-- create a consolidation run with optional proposal payloads
+- create a consolidation run with optional proposal payloads and queued worker `job_id`
 - list consolidation runs
 - get a consolidation run
 - list consolidation proposals
 - get a consolidation proposal
-- transition proposal review state
+- transition proposal review state through `approve`, `apply`, `discard`, and `defer`
+  actions with review-event readback
 
 These flows must not call LLM, embedding, rerank, or external provider adapters.
 

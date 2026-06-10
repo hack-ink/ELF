@@ -40,10 +40,10 @@ pub use self::{
 	},
 	consolidation::{
 		ConsolidationProposalGetRequest, ConsolidationProposalInput, ConsolidationProposalResponse,
-		ConsolidationProposalReviewRequest, ConsolidationProposalsListRequest,
-		ConsolidationProposalsListResponse, ConsolidationRunCreateRequest,
-		ConsolidationRunCreateResponse, ConsolidationRunGetRequest, ConsolidationRunResponse,
-		ConsolidationRunsListRequest, ConsolidationRunsListResponse,
+		ConsolidationProposalReviewEventResponse, ConsolidationProposalReviewRequest,
+		ConsolidationProposalsListRequest, ConsolidationProposalsListResponse,
+		ConsolidationRunCreateRequest, ConsolidationRunCreateResponse, ConsolidationRunGetRequest,
+		ConsolidationRunResponse, ConsolidationRunsListRequest, ConsolidationRunsListResponse,
 	},
 	delete::{DeleteRequest, DeleteResponse},
 	docs::{
