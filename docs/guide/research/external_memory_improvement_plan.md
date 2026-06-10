@@ -231,12 +231,17 @@ Implementation shape:
 - For every external adapter, mark which behaviors are real, mocked, unsupported, or blocked.
 - Add lifecycle checks: update, delete/expire, cold-start reload, and same-corpus retrieval.
 - Keep failures typed with the terms in this document.
+- Use `apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json`
+  as the real-world adapter coverage contract so fixture-only, live-baseline-only, and
+  future live-real-world evidence stay separate.
 
 Acceptance:
 
 - agentmemory adapter either passes durable lifecycle checks or is explicitly marked blocked with evidence.
 - OpenViking incomplete state records a pinned dependency failure and retry path.
 - qmd smoke pass remains covered and gains scale/stress profiles.
+- Real-world reports include adapter coverage counters before any external adapter is
+  allowed to claim a real-world suite pass.
 
 Linear mapping:
 
