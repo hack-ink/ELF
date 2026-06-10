@@ -460,6 +460,8 @@ struct ConsolidationProposalFixture {
 	#[serde(default)]
 	unsupported_claim_count: usize,
 	#[serde(default)]
+	unsupported_claim_flags: Vec<Value>,
+	#[serde(default)]
 	diff: Value,
 }
 
@@ -1481,6 +1483,12 @@ fn validate_consolidation_proposal(
 	if !proposal.diff.is_null() && !proposal.diff.is_object() {
 		return Err(eyre::eyre!(
 			"{} consolidation proposal diff must be a JSON object when present.",
+			path.display()
+		));
+	}
+	if proposal.unsupported_claim_flags.iter().any(|flag| !flag.is_object()) {
+		return Err(eyre::eyre!(
+			"{} consolidation unsupported-claim flags must be JSON objects.",
 			path.display()
 		));
 	}
@@ -2852,7 +2860,9 @@ fn consolidation_proposal_report(
 		review_action_correct: proposal.expected_review_action == proposal.actual_review_action,
 		source_mutation_count: proposal.source_mutations.len()
 			+ forbidden_diff_key_count(&proposal.diff),
-		unsupported_claim_count: proposal.unsupported_claim_count,
+		unsupported_claim_count: proposal
+			.unsupported_claim_count
+			.max(proposal.unsupported_claim_flags.len()),
 	}
 }
 
