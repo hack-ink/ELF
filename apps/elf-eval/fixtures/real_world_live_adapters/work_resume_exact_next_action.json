@@ -1,0 +1,133 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "live-adapter-work-resume-next-action-001",
+  "suite": "work_resume",
+  "title": "Live adapter retrieves the current next action instead of a stale baseline command",
+  "corpus": {
+    "corpus_id": "real-world-live-adapters-2026-06-10",
+    "profile": "external_adapter",
+    "items": [
+      {
+        "evidence_id": "xy868-current-next-action",
+        "kind": "runbook",
+        "text": "Exact next action for XY-868: run `cargo make real-world-memory-live-adapters`, then run `cargo make fmt`, `cargo make lint-fix`, and `cargo make checks` before pushing branch y/elf-xy-868.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_live_adapter_fixture/v1",
+          "ref": {
+            "fixture": "work_resume_exact_next_action",
+            "evidence_id": "xy868-current-next-action"
+          }
+        },
+        "created_at": "2026-06-10T06:00:00Z"
+      },
+      {
+        "evidence_id": "xy868-stale-baseline-command",
+        "kind": "runbook",
+        "text": "Old XY-868 note: only run `cargo make baseline-live-docker`; do not add live real-world adapter evidence.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_live_adapter_fixture/v1",
+          "ref": {
+            "fixture": "work_resume_exact_next_action",
+            "evidence_id": "xy868-stale-baseline-command"
+          }
+        },
+        "created_at": "2026-06-09T06:00:00Z"
+      }
+    ]
+  },
+  "timeline": [
+    {
+      "event_id": "xy868-stale-note",
+      "ts": "2026-06-09T06:00:00Z",
+      "actor": "agent",
+      "action": "recorded_stale_command",
+      "evidence_ids": ["xy868-stale-baseline-command"],
+      "summary": "A stale note pointed only at the same-corpus live-baseline command."
+    },
+    {
+      "event_id": "xy868-current-live-adapter-action",
+      "ts": "2026-06-10T06:00:00Z",
+      "actor": "agent",
+      "action": "recorded_current_next_action",
+      "evidence_ids": ["xy868-current-next-action"],
+      "summary": "The current note identifies the live-adapter task and pre-push validation sequence."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "What is the exact next action and validation sequence for XY-868 live real-world adapters?",
+    "job_mode": "resume",
+    "constraints": ["cite_evidence", "avoid_stale_facts", "state_exact_next_action"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "next_action",
+        "text": "Exact next action for XY-868: run `cargo make real-world-memory-live-adapters`, then run `cargo make fmt`, `cargo make lint-fix`, and `cargo make checks` before pushing branch y/elf-xy-868."
+      }
+    ],
+    "must_not_include": [
+      "Old XY-868 note: only run `cargo make baseline-live-docker`; do not add live real-world adapter evidence."
+    ],
+    "evidence_links": {
+      "next_action": ["xy868-current-next-action"]
+    },
+    "answer_type": "work_plan",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "xy868-current-next-action",
+      "claim_id": "next_action",
+      "requirement": "cite",
+      "quote": "run `cargo make real-world-memory-live-adapters`"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "stale-baseline-only-command",
+      "type": "stale_fact",
+      "evidence_ids": ["xy868-stale-baseline-command"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.35,
+        "max_points": 1.0,
+        "criteria": "Returns the current live-adapter command and validation sequence."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Cites the current next-action evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Avoids the stale same-corpus live-baseline command."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Keeps the answer executable."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": ["The live adapter did not retrieve that evidence."],
+    "fallback_action": "state_blocker"
+  },
+  "tags": ["external_adapter", "live_real_world", "work_resume"]
+}

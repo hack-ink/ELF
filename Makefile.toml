@@ -418,6 +418,7 @@ args = [
 # | real-world-memory-production-ops        | composite |     |
 # | real-world-memory-production-ops-json   | command   |     |
 # | real-world-memory-production-ops-report | command   |     |
+# | real-world-memory-live-adapters         | command   |     |
 
 [tasks.real-world-job-smoke]
 workspace = false
@@ -803,6 +804,14 @@ args = [
 	"tmp/real-world-memory/consolidation/report.json",
 	"--out",
 	"tmp/real-world-memory/consolidation/report.md",
+]
+
+[tasks.real-world-memory-live-adapters]
+workspace = false
+command = "bash"
+args = [
+	"-lc",
+	"set -euo pipefail; docker compose -f docker-compose.baseline.yml run --build --rm baseline-runner bash scripts/real-world-live-adapters.sh",
 ]
 
 
