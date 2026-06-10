@@ -162,9 +162,9 @@ Each `adapters[]` record MUST include:
 - `adapter_id`: stable id unique within the manifest.
 - `project`: display name such as `qmd`, `agentmemory`, or `mem0/OpenMemory`.
 - `adapter_kind`: local execution shape, for example `docker_cli_same_corpus`,
-  `docker_sdk_same_corpus`, or `offline_fixture_response`.
-- `evidence_class`: one of `fixture_backed`, `live_baseline_only`, or
-  `live_real_world`.
+  `docker_sdk_same_corpus`, `offline_fixture_response`, or `research_gate`.
+- `evidence_class`: one of `fixture_backed`, `live_baseline_only`,
+  `live_real_world`, or `research_gate`.
 - `docker_default`: boolean.
 - `host_global_installs_required`: boolean.
 - `overall_status`: one adapter status from the table below.
@@ -177,6 +177,30 @@ Each `adapters[]` record MUST include:
 - `evidence`: array of evidence pointers with `kind`, `ref`, and `status`.
 - `notes`: optional bounded explanatory strings.
 - `follow_up`: optional `title` and `reason`.
+- `execution_metadata`: optional object used by expanded adapter packs and research
+  gates. When present, it MUST include `sources`, `setup_path`,
+  `runtime_boundary`, `resource_expectation`, and `retry_guidance`. It MAY include
+  `research_depth`.
+
+`research_gate` evidence class means the adapter record is a checked-in gating record
+for future implementation, not a benchmark execution result. It is used when a project
+needs D1/D2 research, resource sizing, credentials, Docker runtime proof, or source
+mapping before a fair adapter can run. A `research_gate` record MUST NOT be counted as
+fixture-backed, live-baseline-only, or live-real-world evidence.
+
+`execution_metadata.sources[]` entries MUST include:
+
+- `label`: short source label.
+- `url`: official source, docs, or repository URL.
+- `evidence`: bounded description of why the source matters.
+
+`execution_metadata` fields:
+
+- `setup_path`: intended setup path or the setup blocker to resolve.
+- `runtime_boundary`: Docker/service/CLI/process boundary expected for safe runs.
+- `resource_expectation`: expected resource or credential envelope, including unknowns.
+- `retry_guidance`: one or more concrete next checks before claiming pass/fail.
+- `research_depth`: optional `D0`, `D1`, or `D2` research state.
 
 Adapter coverage status terms:
 
@@ -198,7 +222,8 @@ metadata, per-adapter records, and summary counters for:
 
 - adapter count, external project count, Docker-default count, host-global-install
   count;
-- `fixture_backed`, `live_baseline_only`, and `live_real_world` evidence classes;
+- `fixture_backed`, `live_baseline_only`, `live_real_world`, and `research_gate`
+  evidence classes;
 - overall adapter statuses;
 - capability coverage statuses;
 - real-world suite coverage statuses.
@@ -542,9 +567,9 @@ Reports MUST include:
   preserving the `real`, `fixture_backed`, `mocked`, `blocked`, and `not_encoded`
   distinction.
 - external adapter coverage when an external adapter manifest is loaded, preserving
-  `fixture_backed`, `live_baseline_only`, `live_real_world`, `real`, `mocked`,
-  `unsupported`, `blocked`, `incomplete`, `wrong_result`, `lifecycle_fail`, `pass`,
-  and `not_encoded` distinctions.
+  `fixture_backed`, `live_baseline_only`, `live_real_world`, `research_gate`,
+  `real`, `mocked`, `unsupported`, `blocked`, `incomplete`, `wrong_result`,
+  `lifecycle_fail`, `pass`, and `not_encoded` distinctions.
 
 Reports that encode `memory_evolution` jobs SHOULD also include stale-answer counts,
 conflict detection counts, update rationale availability, and temporal-validity

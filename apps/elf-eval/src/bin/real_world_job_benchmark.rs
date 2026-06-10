@@ -686,6 +686,8 @@ struct ExternalAdapterReport {
 	suites: Vec<AdapterSuiteCoverage>,
 	#[serde(default)]
 	evidence: Vec<AdapterEvidencePointer>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	execution_metadata: Option<AdapterExecutionMetadata>,
 	#[serde(default)]
 	notes: Vec<String>,
 	#[serde(skip_serializing_if = "Option::is_none")]
@@ -724,6 +726,26 @@ struct AdapterEvidencePointer {
 	status: AdapterCoverageStatus,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct AdapterExecutionMetadata {
+	#[serde(default)]
+	sources: Vec<AdapterSource>,
+	setup_path: String,
+	runtime_boundary: String,
+	resource_expectation: String,
+	#[serde(default)]
+	retry_guidance: Vec<String>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	research_depth: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct AdapterSource {
+	label: String,
+	url: String,
+	evidence: String,
+}
+
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 struct ExternalAdapterSummary {
 	adapter_count: usize,
@@ -733,6 +755,8 @@ struct ExternalAdapterSummary {
 	fixture_backed_count: usize,
 	live_baseline_only_count: usize,
 	live_real_world_count: usize,
+	#[serde(default)]
+	research_gate_count: usize,
 	overall_status_counts: AdapterStatusCounts,
 	capability_status_counts: AdapterStatusCounts,
 	suite_status_counts: AdapterStatusCounts,
@@ -3719,7 +3743,7 @@ fn validate_external_adapter(path: &Path, adapter: &ExternalAdapterReport) -> Re
 	}
 	if !matches!(
 		adapter.evidence_class.as_str(),
-		"fixture_backed" | "live_baseline_only" | "live_real_world"
+		"fixture_backed" | "live_baseline_only" | "live_real_world" | "research_gate"
 	) {
 		return Err(eyre::eyre!(
 			"{} adapter {} has unsupported evidence_class {}.",
@@ -3740,6 +3764,7 @@ fn validate_external_adapter(path: &Path, adapter: &ExternalAdapterReport) -> Re
 	validate_adapter_capabilities(path, adapter)?;
 	validate_adapter_suites(path, adapter)?;
 	validate_adapter_evidence(path, adapter)?;
+	validate_adapter_execution_metadata(path, adapter)?;
 
 	if let Some(follow_up) = &adapter.follow_up
 		&& (follow_up.title.trim().is_empty() || follow_up.reason.trim().is_empty())
@@ -3822,6 +3847,40 @@ fn validate_adapter_evidence(path: &Path, adapter: &ExternalAdapterReport) -> Re
 	Ok(())
 }
 
+fn validate_adapter_execution_metadata(path: &Path, adapter: &ExternalAdapterReport) -> Result<()> {
+	let Some(metadata) = &adapter.execution_metadata else {
+		return Ok(());
+	};
+
+	if metadata.setup_path.trim().is_empty()
+		|| metadata.runtime_boundary.trim().is_empty()
+		|| metadata.resource_expectation.trim().is_empty()
+		|| metadata.retry_guidance.iter().any(|guidance| guidance.trim().is_empty())
+		|| metadata.sources.is_empty()
+	{
+		return Err(eyre::eyre!(
+			"{} adapter {} has incomplete execution metadata.",
+			path.display(),
+			adapter.adapter_id
+		));
+	}
+
+	for source in &metadata.sources {
+		if source.label.trim().is_empty()
+			|| source.url.trim().is_empty()
+			|| source.evidence.trim().is_empty()
+		{
+			return Err(eyre::eyre!(
+				"{} adapter {} has incomplete source metadata.",
+				path.display(),
+				adapter.adapter_id
+			));
+		}
+	}
+
+	Ok(())
+}
+
 fn external_adapter_summary(adapters: &[ExternalAdapterReport]) -> ExternalAdapterSummary {
 	let mut summary = ExternalAdapterSummary {
 		adapter_count: adapters.len(),
@@ -3846,6 +3905,7 @@ fn accumulate_adapter_summary(
 	summary.fixture_backed_count += usize::from(adapter.evidence_class == "fixture_backed");
 	summary.live_baseline_only_count += usize::from(adapter.evidence_class == "live_baseline_only");
 	summary.live_real_world_count += usize::from(adapter.evidence_class == "live_real_world");
+	summary.research_gate_count += usize::from(adapter.evidence_class == "research_gate");
 
 	increment_adapter_status_count(&mut summary.overall_status_counts, adapter.overall_status);
 
@@ -4013,10 +4073,11 @@ fn render_markdown_external_adapters(out: &mut String, report: &RealWorldReport)
 		summary.host_global_install_required_count
 	));
 	out.push_str(&format!(
-		"- Evidence classes: `{}` fixture-backed, `{}` live-baseline-only, `{}` live real-world\n",
+		"- Evidence classes: `{}` fixture-backed, `{}` live-baseline-only, `{}` live real-world, `{}` research-gate\n",
 		summary.fixture_backed_count,
 		summary.live_baseline_only_count,
-		summary.live_real_world_count
+		summary.live_real_world_count,
+		summary.research_gate_count
 	));
 	out.push_str(&format!(
 		"- Overall statuses: `{}`\n",
@@ -4065,7 +4126,41 @@ fn render_markdown_external_adapters(out: &mut String, report: &RealWorldReport)
 		}
 	}
 
+	render_markdown_adapter_execution_metadata(out, report.external_adapters.adapters.as_slice());
+
 	out.push('\n');
+}
+
+fn render_markdown_adapter_execution_metadata(
+	out: &mut String,
+	adapters: &[ExternalAdapterReport],
+) {
+	let mut wrote_header = false;
+
+	for adapter in adapters {
+		let Some(metadata) = &adapter.execution_metadata else {
+			continue;
+		};
+
+		if !wrote_header {
+			out.push_str("\n### Adapter Execution Metadata\n\n");
+			out.push_str("| Adapter | Sources | Setup Path | Runtime Boundary | Resource Expectation | Retry Guidance | Research Depth |\n");
+			out.push_str("| --- | --- | --- | --- | --- | --- | --- |\n");
+
+			wrote_header = true;
+		}
+
+		out.push_str(&format!(
+			"| `{}` | {} | {} | {} | {} | {} | {} |\n",
+			md_inline(adapter.adapter_id.as_str()),
+			adapter_sources_cell(metadata.sources.as_slice()),
+			md_cell(metadata.setup_path.as_str()),
+			md_cell(metadata.runtime_boundary.as_str()),
+			md_cell(metadata.resource_expectation.as_str()),
+			md_list(metadata.retry_guidance.as_slice()),
+			md_cell(metadata.research_depth.as_deref().unwrap_or("not recorded"))
+		));
+	}
 }
 
 fn render_markdown_header(out: &mut String, report: &RealWorldReport, report_path: &str) {
@@ -4726,6 +4821,25 @@ fn adapter_evidence_cell(adapter: &ExternalAdapterReport) -> String {
 		.unwrap_or(adapter.result.evidence.as_str());
 
 	format!("setup: `{}`<br>result: `{}`", md_inline(setup), md_inline(result))
+}
+
+fn adapter_sources_cell(sources: &[AdapterSource]) -> String {
+	if sources.is_empty() {
+		return "`none`".to_string();
+	}
+
+	sources
+		.iter()
+		.map(|source| {
+			format!(
+				"[{}]({}): {}",
+				md_cell(source.label.as_str()),
+				md_url(source.url.as_str()),
+				md_cell(source.evidence.as_str())
+			)
+		})
+		.collect::<Vec<_>>()
+		.join("<br>")
 }
 
 fn trace_failure_stage(trace: Option<&TraceExplainability>) -> Option<&str> {

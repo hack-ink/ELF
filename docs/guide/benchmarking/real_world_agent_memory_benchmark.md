@@ -208,9 +208,8 @@ The report also loads the checked-in external adapter coverage manifest by defau
 apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json
 ```
 
-That manifest records the first memory-project set: ELF, qmd, agentmemory,
-mem0/OpenMemory, claude-mem, memsearch, and OpenViking. Its `external_adapters`
-report section distinguishes:
+That manifest records the first memory-project set plus expanded RAG and graph-memory
+research gates. Its `external_adapters` report section distinguishes:
 
 - `fixture_backed`: checked-in real-world fixture scoring, such as the ELF fixture
   response path.
@@ -218,6 +217,8 @@ report section distinguishes:
   a real-world suite win.
 - `live_real_world`: external adapters that actually execute `real_world_job`
   prompts and scoring.
+- `research_gate`: checked-in source/setup/runtime/resource/retry metadata for a
+  future adapter path, not fixture-backed or live execution evidence.
 
 Current state: the targeted `elf_live_real_world` and `qmd_live_real_world` adapter
 slice is encoded through `cargo make real-world-memory-live-adapters`. It materializes
@@ -228,8 +229,12 @@ record is not a real-world suite win. agentmemory is blocked on durable upstream
 storage for lifecycle proof. mem0/OpenMemory, memsearch, and claude-mem currently
 retain wrong-result or incomplete live-baseline states for the checked-in adapter
 evidence. OpenViking is incomplete until its local embedding setup is reliable inside
-Docker. These typed states describe benchmark coverage; do not treat them as broad
-project quality rankings.
+Docker. The expanded RAG and graph-memory records for RAGFlow, LightRAG, GraphRAG,
+Graphiti/Zep, Letta, LangGraph, nanograph, llm-wiki, gbrain, graphify, and deeper
+qmd/OpenViking profiles are `research_gate` records until their Docker-isolated
+adapter runs are implemented. These typed states describe benchmark coverage; do not
+convert setup weight, missing research, or unencoded suites into broad project quality
+rankings.
 
 To run the targeted live adapter slice for ELF and qmd:
 

@@ -734,6 +734,1016 @@
       "notes": [
         "claude-mem remains a UX reference; current Docker evidence is not a real-world progressive-disclosure pass."
       ]
+    },
+    {
+      "adapter_id": "qmd_deep_profile_gate",
+      "project": "qmd",
+      "adapter_kind": "docker_cli_deep_profile_gate",
+      "evidence_class": "research_gate",
+      "docker_default": true,
+      "host_global_installs_required": false,
+      "overall_status": "not_encoded",
+      "setup": {
+        "status": "pass",
+        "evidence": "qmd already has a Docker CLI live-baseline adapter; this gate records the deeper profile extension before a separate scaled run is claimed.",
+        "command": "ELF_BASELINE_PROJECTS=qmd ELF_BASELINE_PROFILE=stress cargo make baseline-live-docker",
+        "artifact": "tmp/live-baseline/qmd.log"
+      },
+      "run": {
+        "status": "not_encoded",
+        "evidence": "No expanded qmd stress or real_world_job deep-profile artifact is checked in for this adapter-pack gate."
+      },
+      "result": {
+        "status": "not_encoded",
+        "evidence": "qmd deep retrieval-debug evidence remains a planned profile, not a new pass claim."
+      },
+      "capabilities": [
+        {
+          "capability": "stress_profile_retrieval_debug",
+          "status": "not_encoded",
+          "evidence": "The stress command path exists, but this adapter-pack gate has not published a deep qmd profile result."
+        },
+        {
+          "capability": "real_world_job_adapter",
+          "status": "not_encoded",
+          "evidence": "The qmd live real-world slice covers representative jobs only; expanded retrieval-debug suites need their own materialized adapter run."
+        },
+        {
+          "capability": "host_global_install_boundary",
+          "status": "unsupported",
+          "evidence": "Repository-supported qmd benchmark runs must stay inside docker-compose.baseline.yml and must not require host-global installs."
+        }
+      ],
+      "suites": [
+        {
+          "suite_id": "retrieval",
+          "status": "not_encoded",
+          "evidence": "A deeper stress retrieval-debug report is not checked in for this gate."
+        },
+        {
+          "suite_id": "operator_debugging_ux",
+          "status": "not_encoded",
+          "evidence": "qmd query planning and score readback are not yet scored as operator-debugging real_world_job outputs."
+        }
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "ref": "https://github.com/tobi/qmd",
+          "status": "real"
+        },
+        {
+          "kind": "runner",
+          "ref": "scripts/live-baseline-benchmark.sh",
+          "status": "real"
+        }
+      ],
+      "execution_metadata": {
+        "sources": [
+          {
+            "label": "qmd repository",
+            "url": "https://github.com/tobi/qmd",
+            "evidence": "Official qmd source for local hybrid search, CLI setup, and query behavior."
+          }
+        ],
+        "setup_path": "Use the existing Docker baseline qmd install, collection add, update, embed, and query flow with scale or stress profiles.",
+        "runtime_boundary": "docker-compose.baseline.yml baseline-runner container with project files and caches inside Docker volumes.",
+        "resource_expectation": "CPU local embedding and rerank cost scale with corpus size; record elapsed time and qmd log artifacts before claims.",
+        "retry_guidance": [
+          "Run qmd stress profile in Docker and publish the artifact path.",
+          "Map qmd JSON output to retrieval-debug real_world_job scoring before suite claims."
+        ],
+        "research_depth": "D2 reviewed; deep profile not encoded"
+      },
+      "notes": [
+        "This gate deepens qmd planning without changing the existing qmd pass evidence from the smoke live baseline."
+      ]
+    },
+    {
+      "adapter_id": "openviking_deep_profile_gate",
+      "project": "OpenViking",
+      "adapter_kind": "docker_local_embed_deep_profile_gate",
+      "evidence_class": "research_gate",
+      "docker_default": true,
+      "host_global_installs_required": false,
+      "overall_status": "incomplete",
+      "setup": {
+        "status": "incomplete",
+        "evidence": "OpenViking deep-profile work is blocked at the same Docker local-embedding dependency boundary as the current live-baseline adapter.",
+        "command": "ELF_BASELINE_PROJECTS=OpenViking cargo make baseline-live-docker",
+        "artifact": "tmp/live-baseline/OpenViking.log"
+      },
+      "run": {
+        "status": "incomplete",
+        "evidence": "The adapter cannot fairly exercise hierarchical trajectory behavior until add_resource/find reaches execution in Docker."
+      },
+      "result": {
+        "status": "incomplete",
+        "evidence": "No OpenViking deep context-trajectory result is claimed from a setup-blocked run."
+      },
+      "capabilities": [
+        {
+          "capability": "docker_local_embed_setup",
+          "status": "incomplete",
+          "evidence": "The local embedding setup must be pinned before deep profile runs can execute."
+        },
+        {
+          "capability": "hierarchical_context_trajectory",
+          "status": "not_encoded",
+          "evidence": "Stage trajectory scoring is not encoded until setup reaches runnable OpenViking APIs."
+        },
+        {
+          "capability": "host_global_install_boundary",
+          "status": "unsupported",
+          "evidence": "The adapter pack must not ask operators to install OpenViking dependencies globally on the host."
+        }
+      ],
+      "suites": [
+        {
+          "suite_id": "retrieval",
+          "status": "incomplete",
+          "evidence": "Same-corpus retrieval setup remains incomplete in Docker."
+        },
+        {
+          "suite_id": "work_resume",
+          "status": "not_encoded",
+          "evidence": "No OpenViking resume or context trajectory real_world_job run is encoded."
+        },
+        {
+          "suite_id": "operator_debugging_ux",
+          "status": "not_encoded",
+          "evidence": "Trajectory readback is a reference feature but not a scored adapter output."
+        }
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "ref": "https://github.com/volcengine/OpenViking/",
+          "status": "real"
+        },
+        {
+          "kind": "runner",
+          "ref": "scripts/live-baseline-benchmark.sh",
+          "status": "incomplete"
+        }
+      ],
+      "execution_metadata": {
+        "sources": [
+          {
+            "label": "OpenViking repository",
+            "url": "https://github.com/volcengine/OpenViking/",
+            "evidence": "Official source for OpenViking local context database, resource, and retrieval APIs."
+          }
+        ],
+        "setup_path": "Pin a Docker-compatible local embedding path, then run OpenViking add_resource/find before any deep profile scoring.",
+        "runtime_boundary": "docker-compose.baseline.yml baseline-runner container; no host model or compiler setup outside Docker.",
+        "resource_expectation": "Local embedding builds can be native-toolchain and model heavy; record build logs, model cache size, and elapsed time.",
+        "retry_guidance": [
+          "Pin or prebuild the local embedding dependency in the baseline image.",
+          "Only then add context-trajectory real_world_job scoring for hierarchical retrieval."
+        ],
+        "research_depth": "D2 reviewed; runtime setup incomplete"
+      },
+      "notes": [
+        "OpenViking remains a context-trajectory reference, but this gate prevents setup failure from becoming a quality judgment."
+      ]
+    },
+    {
+      "adapter_id": "ragflow_research_gate",
+      "project": "RAGFlow",
+      "adapter_kind": "research_gate",
+      "evidence_class": "research_gate",
+      "docker_default": true,
+      "host_global_installs_required": false,
+      "overall_status": "blocked",
+      "setup": {
+        "status": "blocked",
+        "evidence": "RAGFlow remains a large RAG system watch item; D1/D2 research must prove a Docker-safe corpus ingest and query path before adapter implementation."
+      },
+      "run": {
+        "status": "not_encoded",
+        "evidence": "No RAGFlow real_world_job or live-baseline adapter is encoded."
+      },
+      "result": {
+        "status": "blocked",
+        "evidence": "No quality result is claimed until deployability, resource envelope, and output mapping are researched."
+      },
+      "capabilities": [
+        {
+          "capability": "d1_d2_research_before_adapter",
+          "status": "blocked",
+          "evidence": "The inventory marks RAGFlow as D0 pending deep dive."
+        },
+        {
+          "capability": "docker_service_setup",
+          "status": "blocked",
+          "evidence": "The adapter must size the multi-service Docker setup and avoid host-global installs before running."
+        },
+        {
+          "capability": "real_world_job_adapter",
+          "status": "not_encoded",
+          "evidence": "No job prompt, answer, evidence, or trap mapping is implemented."
+        }
+      ],
+      "suites": [
+        {
+          "suite_id": "retrieval",
+          "status": "blocked",
+          "evidence": "Corpus ingestion, query output, and evidence citation mapping need D1/D2 research."
+        },
+        {
+          "suite_id": "knowledge_compilation",
+          "status": "not_encoded",
+          "evidence": "RAGFlow knowledge output is not mapped to real_world_job page or citation scoring."
+        },
+        {
+          "suite_id": "production_ops",
+          "status": "blocked",
+          "evidence": "Resource envelope and service startup retry guidance must be documented first."
+        }
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "ref": "https://github.com/infiniflow/ragflow",
+          "status": "real"
+        },
+        {
+          "kind": "source",
+          "ref": "https://ragflow.io/docs/",
+          "status": "real"
+        }
+      ],
+      "execution_metadata": {
+        "sources": [
+          {
+            "label": "RAGFlow repository",
+            "url": "https://github.com/infiniflow/ragflow",
+            "evidence": "Official source for RAGFlow service code and Docker Compose setup."
+          },
+          {
+            "label": "RAGFlow docs",
+            "url": "https://ragflow.io/docs/",
+            "evidence": "Official deployment and setup documentation."
+          }
+        ],
+        "setup_path": "Research the official Docker deployment, corpus ingest API, query API, and artifact export before adding a runner.",
+        "runtime_boundary": "Future runs must use docker-compose.baseline.yml or a nested Docker-isolated service profile without host-global installs.",
+        "resource_expectation": "Large multi-service RAG stack; record CPU/GPU mode, memory, disk, startup time, and provider credential needs before scoring.",
+        "retry_guidance": [
+          "Complete a D1/D2 setup and API deep dive.",
+          "Prototype a tiny Docker smoke that reaches ingest and query before adding quality checks."
+        ],
+        "research_depth": "D0 watch item; D1/D2 required"
+      },
+      "follow_up": {
+        "title": "[ELF benchmark adapter] Research RAGFlow Docker adapter feasibility",
+        "reason": "The project is too large to score fairly without setup, resource, and API mapping research."
+      }
+    },
+    {
+      "adapter_id": "lightrag_research_gate",
+      "project": "LightRAG",
+      "adapter_kind": "research_gate",
+      "evidence_class": "research_gate",
+      "docker_default": true,
+      "host_global_installs_required": false,
+      "overall_status": "blocked",
+      "setup": {
+        "status": "blocked",
+        "evidence": "LightRAG requires D1/D2 research on Docker setup, LLM/embedding configuration, persistence, and context output before adapter implementation."
+      },
+      "run": {
+        "status": "not_encoded",
+        "evidence": "No LightRAG real_world_job adapter is encoded."
+      },
+      "result": {
+        "status": "blocked",
+        "evidence": "No graph-RAG quality claim is allowed until a Docker-safe adapter reaches query output."
+      },
+      "capabilities": [
+        {
+          "capability": "graph_augmented_rag_setup",
+          "status": "blocked",
+          "evidence": "The inventory marks LightRAG as D0 pending deep dive."
+        },
+        {
+          "capability": "retrieved_context_export",
+          "status": "blocked",
+          "evidence": "The adapter must prove it can extract evidence-bearing retrieved contexts for scoring."
+        },
+        {
+          "capability": "real_world_job_adapter",
+          "status": "not_encoded",
+          "evidence": "No LightRAG fixture materializer or scorer mapping exists."
+        }
+      ],
+      "suites": [
+        {
+          "suite_id": "retrieval",
+          "status": "blocked",
+          "evidence": "Graph/vector retrieval output mapping needs research."
+        },
+        {
+          "suite_id": "memory_evolution",
+          "status": "blocked",
+          "evidence": "Stale/corrected fact update behavior is not yet audited."
+        },
+        {
+          "suite_id": "operator_debugging_ux",
+          "status": "not_encoded",
+          "evidence": "Trace or context-debug output is not mapped to benchmark scoring."
+        }
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "ref": "https://github.com/HKUDS/LightRAG",
+          "status": "real"
+        },
+        {
+          "kind": "source",
+          "ref": "https://github.com/HKUDS/LightRAG/blob/main/docs/DockerDeployment.md",
+          "status": "real"
+        }
+      ],
+      "execution_metadata": {
+        "sources": [
+          {
+            "label": "LightRAG repository",
+            "url": "https://github.com/HKUDS/LightRAG",
+            "evidence": "Official source for LightRAG server, Docker, and retrieval modes."
+          },
+          {
+            "label": "LightRAG Docker docs",
+            "url": "https://github.com/HKUDS/LightRAG/blob/main/docs/DockerDeployment.md",
+            "evidence": "Official Docker deployment reference."
+          }
+        ],
+        "setup_path": "Research Docker Compose with explicit LLM, embedding, rerank, and storage configuration before adding a benchmark runner.",
+        "runtime_boundary": "Docker-only service profile with generated corpus mounted as container-local input.",
+        "resource_expectation": "Graph extraction and local model choices may dominate runtime; record backend choices, cache sizes, and provider needs.",
+        "retry_guidance": [
+          "Run a tiny Docker ingest/query smoke with deterministic or local providers.",
+          "Verify returned contexts can be mapped to required evidence IDs."
+        ],
+        "research_depth": "D0 watch item; D1/D2 required"
+      },
+      "follow_up": {
+        "title": "[ELF benchmark adapter] Research LightRAG graph-RAG adapter feasibility",
+        "reason": "Graph extraction, persistence, and context output must be understood before fair scoring."
+      }
+    },
+    {
+      "adapter_id": "graphrag_research_gate",
+      "project": "GraphRAG",
+      "adapter_kind": "research_gate",
+      "evidence_class": "research_gate",
+      "docker_default": true,
+      "host_global_installs_required": false,
+      "overall_status": "blocked",
+      "setup": {
+        "status": "blocked",
+        "evidence": "GraphRAG indexing cost and source-citation mapping require D1/D2 research before adapter implementation."
+      },
+      "run": {
+        "status": "not_encoded",
+        "evidence": "No GraphRAG real_world_job adapter is encoded."
+      },
+      "result": {
+        "status": "blocked",
+        "evidence": "No graph-navigation or knowledge-synthesis result is claimed from docs-only research."
+      },
+      "capabilities": [
+        {
+          "capability": "indexing_resource_envelope",
+          "status": "blocked",
+          "evidence": "Official docs warn that indexing can be expensive; the benchmark must start small and record costs."
+        },
+        {
+          "capability": "source_citation_mapping",
+          "status": "blocked",
+          "evidence": "The adapter must map graph summaries and query output back to benchmark evidence IDs."
+        },
+        {
+          "capability": "real_world_job_adapter",
+          "status": "not_encoded",
+          "evidence": "No GraphRAG materializer or scorer mapping exists."
+        }
+      ],
+      "suites": [
+        {
+          "suite_id": "knowledge_compilation",
+          "status": "blocked",
+          "evidence": "Community summaries and graph reports need source coverage checks before scoring."
+        },
+        {
+          "suite_id": "retrieval",
+          "status": "blocked",
+          "evidence": "Query output and expected-evidence mapping are not researched."
+        },
+        {
+          "suite_id": "production_ops",
+          "status": "blocked",
+          "evidence": "Indexing resource envelope is not established."
+        }
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "ref": "https://github.com/microsoft/graphrag",
+          "status": "real"
+        },
+        {
+          "kind": "source",
+          "ref": "https://microsoft.github.io/graphrag/",
+          "status": "real"
+        }
+      ],
+      "execution_metadata": {
+        "sources": [
+          {
+            "label": "GraphRAG repository",
+            "url": "https://github.com/microsoft/graphrag",
+            "evidence": "Official Microsoft GraphRAG source and setup reference."
+          },
+          {
+            "label": "GraphRAG docs",
+            "url": "https://microsoft.github.io/graphrag/",
+            "evidence": "Official documentation for indexing and querying."
+          }
+        ],
+        "setup_path": "Research a tiny CLI index/query path with explicit model configuration and source mapping.",
+        "runtime_boundary": "Docker-only Python CLI run with generated corpus and container-local artifacts.",
+        "resource_expectation": "Indexing may be expensive; record model calls, cache size, elapsed time, and maximum corpus size used.",
+        "retry_guidance": [
+          "Complete D1/D2 indexing and query-output research.",
+          "Add a cost-bounded smoke before any scale or quality claim."
+        ],
+        "research_depth": "D0 watch item; D1/D2 required"
+      },
+      "follow_up": {
+        "title": "[ELF benchmark adapter] Research GraphRAG cost-bounded adapter path",
+        "reason": "Indexing cost, graph summaries, and citation guarantees need proof before scoring."
+      }
+    },
+    {
+      "adapter_id": "graphiti_zep_research_gate",
+      "project": "Graphiti/Zep",
+      "adapter_kind": "research_gate",
+      "evidence_class": "research_gate",
+      "docker_default": true,
+      "host_global_installs_required": false,
+      "overall_status": "not_encoded",
+      "setup": {
+        "status": "not_encoded",
+        "evidence": "Graphiti/Zep is D1 reviewed as a temporal graph-memory reference, but no Docker adapter is implemented."
+      },
+      "run": {
+        "status": "not_encoded",
+        "evidence": "No temporal graph fact add/query job is encoded."
+      },
+      "result": {
+        "status": "not_encoded",
+        "evidence": "No current-versus-historical real_world_job pass is claimed."
+      },
+      "capabilities": [
+        {
+          "capability": "temporal_graph_memory",
+          "status": "not_encoded",
+          "evidence": "Temporal fact validity is a reference dimension but not an executable adapter output."
+        },
+        {
+          "capability": "docker_graph_store_setup",
+          "status": "blocked",
+          "evidence": "A safe local graph store, embedding, and LLM configuration must be documented before execution."
+        },
+        {
+          "capability": "real_world_job_adapter",
+          "status": "not_encoded",
+          "evidence": "No Graphiti/Zep materializer or scorer mapping exists."
+        }
+      ],
+      "suites": [
+        {
+          "suite_id": "memory_evolution",
+          "status": "not_encoded",
+          "evidence": "Current/historical fact validity jobs are not encoded for Graphiti/Zep."
+        },
+        {
+          "suite_id": "retrieval",
+          "status": "not_encoded",
+          "evidence": "Hybrid graph retrieval output is not mapped to evidence IDs."
+        }
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "ref": "https://github.com/getzep/graphiti",
+          "status": "real"
+        },
+        {
+          "kind": "source",
+          "ref": "https://www.getzep.com/platform/graphiti/",
+          "status": "real"
+        }
+      ],
+      "execution_metadata": {
+        "sources": [
+          {
+            "label": "Graphiti repository",
+            "url": "https://github.com/getzep/graphiti",
+            "evidence": "Official open-source temporal context graph engine."
+          },
+          {
+            "label": "Zep Graphiti overview",
+            "url": "https://www.getzep.com/platform/graphiti/",
+            "evidence": "Official product documentation for temporal context graph behavior."
+          }
+        ],
+        "setup_path": "Define a Docker-local graph store and provider configuration, then encode add/query current-versus-historical fact jobs.",
+        "runtime_boundary": "Docker-only service or SDK run with graph store state under benchmark artifacts.",
+        "resource_expectation": "Requires graph store plus LLM/embedding configuration; record service startup, storage size, and provider boundaries.",
+        "retry_guidance": [
+          "Prototype a tiny temporal fact add/query run.",
+          "Map valid_at/invalid_at evidence to memory_evolution scoring."
+        ],
+        "research_depth": "D1 reviewed; adapter not encoded"
+      }
+    },
+    {
+      "adapter_id": "letta_research_gate",
+      "project": "Letta",
+      "adapter_kind": "research_gate",
+      "evidence_class": "research_gate",
+      "docker_default": true,
+      "host_global_installs_required": false,
+      "overall_status": "not_encoded",
+      "setup": {
+        "status": "not_encoded",
+        "evidence": "Letta is D1 reviewed as a core/archival memory reference, but no Docker real_world_job adapter is implemented."
+      },
+      "run": {
+        "status": "not_encoded",
+        "evidence": "No Letta core block, archival memory, or shared-memory job is encoded."
+      },
+      "result": {
+        "status": "not_encoded",
+        "evidence": "No Letta personalization or project-decision suite result is claimed."
+      },
+      "capabilities": [
+        {
+          "capability": "core_archival_memory",
+          "status": "not_encoded",
+          "evidence": "Core blocks and archival memory are reference semantics but not scored."
+        },
+        {
+          "capability": "docker_embedding_configuration",
+          "status": "blocked",
+          "evidence": "Docker setup requires explicit embedding configuration before archival retrieval can be tested."
+        },
+        {
+          "capability": "real_world_job_adapter",
+          "status": "not_encoded",
+          "evidence": "No Letta materializer or scorer mapping exists."
+        }
+      ],
+      "suites": [
+        {
+          "suite_id": "personalization",
+          "status": "not_encoded",
+          "evidence": "Core memory preference application is not encoded for Letta."
+        },
+        {
+          "suite_id": "project_decisions",
+          "status": "not_encoded",
+          "evidence": "Archival memory decision retrieval is not encoded for Letta."
+        },
+        {
+          "suite_id": "work_resume",
+          "status": "not_encoded",
+          "evidence": "Agent resumption through Letta memory blocks is not encoded."
+        }
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "ref": "https://github.com/letta-ai/letta",
+          "status": "real"
+        },
+        {
+          "kind": "source",
+          "ref": "https://docs.letta.com/guides/docker/",
+          "status": "real"
+        }
+      ],
+      "execution_metadata": {
+        "sources": [
+          {
+            "label": "Letta repository",
+            "url": "https://github.com/letta-ai/letta",
+            "evidence": "Official source for Letta stateful agents and memory."
+          },
+          {
+            "label": "Letta Docker docs",
+            "url": "https://docs.letta.com/guides/docker/",
+            "evidence": "Official Docker deployment guide and embedding configuration boundary."
+          }
+        ],
+        "setup_path": "Define Docker server setup, embedding model configuration, and a core/archival memory fixture flow.",
+        "runtime_boundary": "Docker-only Letta server or CLI flow with benchmark-created agents and no host-global state.",
+        "resource_expectation": "Embedding model and agent server state must be explicit; record storage and provider boundaries.",
+        "retry_guidance": [
+          "Create a tiny Docker agent with archival memory search.",
+          "Score core-versus-archival retrieval only after source evidence can be exported."
+        ],
+        "research_depth": "D1 reviewed; adapter not encoded"
+      }
+    },
+    {
+      "adapter_id": "langgraph_research_gate",
+      "project": "LangGraph",
+      "adapter_kind": "research_gate",
+      "evidence_class": "research_gate",
+      "docker_default": true,
+      "host_global_installs_required": false,
+      "overall_status": "not_encoded",
+      "setup": {
+        "status": "not_encoded",
+        "evidence": "LangGraph is D1 reviewed as a replay/checkpoint reference, not a direct memory backend adapter."
+      },
+      "run": {
+        "status": "not_encoded",
+        "evidence": "No checkpoint replay real_world_job harness is encoded."
+      },
+      "result": {
+        "status": "not_encoded",
+        "evidence": "No production-ops or resume suite result is claimed."
+      },
+      "capabilities": [
+        {
+          "capability": "checkpoint_replay_regression",
+          "status": "not_encoded",
+          "evidence": "Replay/fork behavior needs an agent graph harness before scoring."
+        },
+        {
+          "capability": "standalone_memory_backend",
+          "status": "unsupported",
+          "evidence": "LangGraph persistence is an agent-state/checkpoint layer, not a drop-in memory retrieval backend."
+        },
+        {
+          "capability": "real_world_job_adapter",
+          "status": "not_encoded",
+          "evidence": "No LangGraph benchmark materializer exists."
+        }
+      ],
+      "suites": [
+        {
+          "suite_id": "production_ops",
+          "status": "not_encoded",
+          "evidence": "Checkpoint recovery and replay regression are not encoded."
+        },
+        {
+          "suite_id": "work_resume",
+          "status": "not_encoded",
+          "evidence": "Resume from checkpoint with memory reads is not encoded."
+        }
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "ref": "https://docs.langchain.com/oss/python/langgraph/persistence",
+          "status": "real"
+        }
+      ],
+      "execution_metadata": {
+        "sources": [
+          {
+            "label": "LangGraph persistence docs",
+            "url": "https://docs.langchain.com/oss/python/langgraph/persistence",
+            "evidence": "Official documentation for checkpoints, replay, fork, and persistence behavior."
+          }
+        ],
+        "setup_path": "Build a tiny LangGraph agent with a checkpointer and explicit memory read/write steps before scoring.",
+        "runtime_boundary": "Docker-only Python harness with checkpoint store under the artifact directory.",
+        "resource_expectation": "Small runtime expected, but LLM calls and side effects must be stubbed or deterministic before replay claims.",
+        "retry_guidance": [
+          "Encode one replay/fork failure recovery job.",
+          "Keep LangGraph classified as replay reference unless memory retrieval is actually exercised."
+        ],
+        "research_depth": "D1 reviewed; adapter not encoded"
+      }
+    },
+    {
+      "adapter_id": "nanograph_research_gate",
+      "project": "nanograph",
+      "adapter_kind": "research_gate",
+      "evidence_class": "research_gate",
+      "docker_default": true,
+      "host_global_installs_required": false,
+      "overall_status": "not_encoded",
+      "setup": {
+        "status": "not_encoded",
+        "evidence": "nanograph is D1 reviewed as typed graph DX, but no Docker adapter is implemented."
+      },
+      "run": {
+        "status": "not_encoded",
+        "evidence": "No typed graph schema/query real_world_job run is encoded."
+      },
+      "result": {
+        "status": "not_encoded",
+        "evidence": "No graph temporal or retrieval-debug result is claimed."
+      },
+      "capabilities": [
+        {
+          "capability": "typed_graph_schema",
+          "status": "not_encoded",
+          "evidence": "Schema-as-code and typed query ergonomics need a benchmark harness."
+        },
+        {
+          "capability": "memory_backend_comparison",
+          "status": "unsupported",
+          "evidence": "nanograph is a graph database reference, not a complete agent memory service."
+        },
+        {
+          "capability": "real_world_job_adapter",
+          "status": "not_encoded",
+          "evidence": "No nanograph materializer exists."
+        }
+      ],
+      "suites": [
+        {
+          "suite_id": "memory_evolution",
+          "status": "not_encoded",
+          "evidence": "Typed current/historical fact jobs are not encoded."
+        },
+        {
+          "suite_id": "retrieval",
+          "status": "not_encoded",
+          "evidence": "Typed query explainability is not scored."
+        }
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "ref": "https://github.com/nanograph/nanograph",
+          "status": "real"
+        }
+      ],
+      "execution_metadata": {
+        "sources": [
+          {
+            "label": "nanograph repository",
+            "url": "https://github.com/nanograph/nanograph",
+            "evidence": "Official source for on-device typed property graph behavior."
+          }
+        ],
+        "setup_path": "Build or install nanograph inside Docker and load a typed graph fixture from generated corpus facts.",
+        "runtime_boundary": "Docker-only CLI run with graph folder under benchmark artifacts.",
+        "resource_expectation": "Light local graph runtime expected; record binary build/install time and graph artifact size.",
+        "retry_guidance": [
+          "Define a minimal schema for memory_evolution facts.",
+          "Score typed query output only if it cites fixture evidence IDs."
+        ],
+        "research_depth": "D1 reviewed; adapter not encoded"
+      }
+    },
+    {
+      "adapter_id": "llm_wiki_research_gate",
+      "project": "llm-wiki",
+      "adapter_kind": "research_gate",
+      "evidence_class": "research_gate",
+      "docker_default": true,
+      "host_global_installs_required": false,
+      "overall_status": "not_encoded",
+      "setup": {
+        "status": "not_encoded",
+        "evidence": "llm-wiki is D1 reviewed as a knowledge-compilation reference, but no plugin or generated-page adapter is implemented."
+      },
+      "run": {
+        "status": "not_encoded",
+        "evidence": "No llm-wiki corpus-to-page run is encoded."
+      },
+      "result": {
+        "status": "not_encoded",
+        "evidence": "No knowledge page citation or lint result is claimed."
+      },
+      "capabilities": [
+        {
+          "capability": "knowledge_page_compilation",
+          "status": "not_encoded",
+          "evidence": "Wiki generation and citation lint are not executed by the runner."
+        },
+        {
+          "capability": "live_service_runtime",
+          "status": "unsupported",
+          "evidence": "llm-wiki is a plugin/workflow reference rather than a service adapter."
+        },
+        {
+          "capability": "real_world_job_adapter",
+          "status": "not_encoded",
+          "evidence": "No page materializer or scorer mapping exists."
+        }
+      ],
+      "suites": [
+        {
+          "suite_id": "knowledge_compilation",
+          "status": "not_encoded",
+          "evidence": "Corpus-to-wiki output is not encoded."
+        },
+        {
+          "suite_id": "work_resume",
+          "status": "not_encoded",
+          "evidence": "Resume answers from wiki pages are not encoded."
+        }
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "ref": "https://github.com/nvk/llm-wiki",
+          "status": "real"
+        }
+      ],
+      "execution_metadata": {
+        "sources": [
+          {
+            "label": "llm-wiki repository",
+            "url": "https://github.com/nvk/llm-wiki",
+            "evidence": "Official source for the LLM Wiki plugin and knowledge-base workflow."
+          }
+        ],
+        "setup_path": "Research plugin bootstrap inside a Docker-contained Codex or file-based harness, then materialize page artifacts.",
+        "runtime_boundary": "Docker-only plugin or fixture materializer; no user-global Codex plugin install.",
+        "resource_expectation": "LLM generation cost depends on page build; record provider boundary and generated artifact size.",
+        "retry_guidance": [
+          "Prototype a fixture-only page build with explicit citations.",
+          "Do not score until generated sections can be mapped to evidence IDs."
+        ],
+        "research_depth": "D1 reviewed; adapter not encoded"
+      }
+    },
+    {
+      "adapter_id": "gbrain_research_gate",
+      "project": "gbrain",
+      "adapter_kind": "research_gate",
+      "evidence_class": "research_gate",
+      "docker_default": true,
+      "host_global_installs_required": false,
+      "overall_status": "not_encoded",
+      "setup": {
+        "status": "not_encoded",
+        "evidence": "gbrain is D1 reviewed as a compiled-truth and timeline reference, but no Docker adapter is implemented."
+      },
+      "run": {
+        "status": "not_encoded",
+        "evidence": "No gbrain brain-repo import or compiled-truth run is encoded."
+      },
+      "result": {
+        "status": "not_encoded",
+        "evidence": "No knowledge-synthesis or operator-continuity result is claimed."
+      },
+      "capabilities": [
+        {
+          "capability": "compiled_truth_timeline",
+          "status": "not_encoded",
+          "evidence": "Compiled truth plus timeline output is a reference pattern but not scored."
+        },
+        {
+          "capability": "postgres_backed_brain_repo",
+          "status": "blocked",
+          "evidence": "A Docker-local brain repo and Postgres setup path must be proven before execution."
+        },
+        {
+          "capability": "real_world_job_adapter",
+          "status": "not_encoded",
+          "evidence": "No gbrain materializer exists."
+        }
+      ],
+      "suites": [
+        {
+          "suite_id": "knowledge_compilation",
+          "status": "not_encoded",
+          "evidence": "Compiled truth and timeline pages are not scored."
+        },
+        {
+          "suite_id": "operator_debugging_ux",
+          "status": "not_encoded",
+          "evidence": "Operator continuity through brain pages is not encoded."
+        }
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "ref": "https://github.com/garrytan/gbrain",
+          "status": "real"
+        },
+        {
+          "kind": "source",
+          "ref": "https://github.com/garrytan/gbrain/blob/master/docs/guides/compiled-truth.md",
+          "status": "real"
+        }
+      ],
+      "execution_metadata": {
+        "sources": [
+          {
+            "label": "gbrain repository",
+            "url": "https://github.com/garrytan/gbrain",
+            "evidence": "Official source for brain repo and retrieval workflow."
+          },
+          {
+            "label": "compiled truth guide",
+            "url": "https://github.com/garrytan/gbrain/blob/master/docs/guides/compiled-truth.md",
+            "evidence": "Official guide for compiled truth plus timeline behavior."
+          }
+        ],
+        "setup_path": "Create a Docker-local brain repo fixture, run import/sync, and export compiled truth plus timeline evidence.",
+        "runtime_boundary": "Docker-only repository and database state with no operator-owned brain repo.",
+        "resource_expectation": "Postgres-backed sync and embedding choices must be explicit; record DB size and import time.",
+        "retry_guidance": [
+          "Prototype a tiny brain repo with one current-truth page and timeline.",
+          "Score only if compiled truth cites the source timeline evidence."
+        ],
+        "research_depth": "D1 reviewed; adapter not encoded"
+      }
+    },
+    {
+      "adapter_id": "graphify_research_gate",
+      "project": "graphify",
+      "adapter_kind": "research_gate",
+      "evidence_class": "research_gate",
+      "docker_default": true,
+      "host_global_installs_required": false,
+      "overall_status": "not_encoded",
+      "setup": {
+        "status": "not_encoded",
+        "evidence": "graphify is D1 reviewed as a graph-navigation reference, but no Docker adapter is implemented."
+      },
+      "run": {
+        "status": "not_encoded",
+        "evidence": "No graphify graph/report build is encoded."
+      },
+      "result": {
+        "status": "not_encoded",
+        "evidence": "No graph-navigation or knowledge-compilation result is claimed."
+      },
+      "capabilities": [
+        {
+          "capability": "graph_report_generation",
+          "status": "not_encoded",
+          "evidence": "Graph reports and assistant query flows are not executed by the runner."
+        },
+        {
+          "capability": "multimodal_code_graph",
+          "status": "not_encoded",
+          "evidence": "Multimodal graph extraction is a reference capability but not scored."
+        },
+        {
+          "capability": "real_world_job_adapter",
+          "status": "not_encoded",
+          "evidence": "No graphify materializer exists."
+        }
+      ],
+      "suites": [
+        {
+          "suite_id": "knowledge_compilation",
+          "status": "not_encoded",
+          "evidence": "Graph report citation and lint behavior are not scored."
+        },
+        {
+          "suite_id": "retrieval",
+          "status": "not_encoded",
+          "evidence": "Graph-guided query output is not mapped to required evidence."
+        },
+        {
+          "suite_id": "work_resume",
+          "status": "not_encoded",
+          "evidence": "Resume answers from graph context are not encoded."
+        }
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "ref": "https://github.com/safishamsi/graphify",
+          "status": "real"
+        }
+      ],
+      "execution_metadata": {
+        "sources": [
+          {
+            "label": "graphify repository",
+            "url": "https://github.com/safishamsi/graphify",
+            "evidence": "Official source for graphify graph extraction and query workflow."
+          }
+        ],
+        "setup_path": "Install graphify inside Docker, build a graph/report from a generated corpus, and export query evidence.",
+        "runtime_boundary": "Docker-only CLI or skill run over mounted benchmark corpus.",
+        "resource_expectation": "Graph build cost scales with corpus and model choices; record build time, graph size, and generated report size.",
+        "retry_guidance": [
+          "Start with a generated public code/document corpus.",
+          "Score graph-guided answers only when report nodes cite source evidence IDs."
+        ],
+        "research_depth": "D1 reviewed; adapter not encoded"
+      }
     }
   ]
 }

@@ -355,7 +355,9 @@ by default and records live-baseline-only external adapter evidence under
 `external_adapters`; those records preserve the typed setup/run evidence but still
 leave real-world suites as `not_encoded`, `blocked`, `incomplete`, `wrong_result`, or
 `lifecycle_fail` until an adapter actually executes `real_world_job` prompts and
-scoring.
+scoring. The same manifest can also contain `research_gate` records for future adapter
+packs; those records provide source/setup/runtime/resource/retry guidance but are not
+live-baseline evidence.
 
 The targeted live real-world adapter slice for ELF and qmd is separate from the
 same-corpus live baseline:
