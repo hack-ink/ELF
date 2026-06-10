@@ -86,6 +86,10 @@ fn find_by_field<'a>(items: &'a [Value], field: &str, expected: &str) -> Result<
 		.ok_or_else(|| eyre::eyre!("missing item with {field} = {expected}"))
 }
 
+fn array_contains_str(value: &Value, pointer: &str, expected: &str) -> Result<bool> {
+	Ok(array_at(value, pointer)?.iter().any(|item| item.as_str() == Some(expected)))
+}
+
 fn set_json_pointer(value: &mut Value, pointer: &str, replacement: Value) -> Result<()> {
 	let target =
 		value.pointer_mut(pointer).ok_or_else(|| eyre::eyre!("missing JSON pointer {pointer}"))?;
@@ -171,13 +175,18 @@ fn operator_debug_fixture_reports_trace_links_and_failure_details() -> Result<()
 	assert_eq!(report.pointer("/summary/raw_sql_needed_count").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/trace_incomplete_count").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/operator_ux_gap_count").and_then(Value::as_u64), Some(0));
-	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(4));
-	assert_eq!(report.pointer("/summary/unsupported_claim").and_then(Value::as_u64), Some(1));
+	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(5));
+	assert_eq!(report.pointer("/summary/unsupported_claim").and_then(Value::as_u64), Some(0));
+	assert_eq!(report.pointer("/summary/unsupported_claim_count").and_then(Value::as_u64), Some(0));
+	assert_eq!(
+		report.pointer("/summary/trace_explainability_count").and_then(Value::as_u64),
+		Some(1)
+	);
 
 	let jobs = array_at(&report, "/jobs")?;
 	let dropped = find_by_field(jobs, "/job_id", "operator-debug-dropped-evidence-001")?;
 
-	assert_eq!(dropped.pointer("/status").and_then(Value::as_str), Some("unsupported_claim"));
+	assert_eq!(dropped.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(
 		dropped.pointer("/operator_debug/raw_sql_needed").and_then(Value::as_bool),
 		Some(false)
@@ -190,6 +199,21 @@ fn operator_debug_fixture_reports_trace_links_and_failure_details() -> Result<()
 		dropped.pointer("/operator_debug/viewer_url").and_then(Value::as_str),
 		Some("/viewer?trace_id=11111111-1111-4111-8111-111111111111")
 	);
+	assert_eq!(
+		dropped.pointer("/trace_explainability/failure_stage").and_then(Value::as_str),
+		Some("filter.read_profile")
+	);
+	assert!(array_contains_str(
+		dropped,
+		"/trace_explainability/stages/1/dropped_evidence",
+		"trace-dropped-expected"
+	)?);
+	assert!(array_contains_str(
+		dropped,
+		"/trace_explainability/stages/1/distractor_evidence",
+		"trace-dropped-decoy"
+	)?);
+	assert!(array_contains_str(dropped, "/produced_evidence", "trace-dropped-expected")?);
 
 	Ok(())
 }
@@ -422,20 +446,20 @@ fn real_world_memory_fixtures_report_aggregate_metrics() -> Result<()> {
 	let report = run_json_report_from(real_world_memory_fixture_dir())?;
 
 	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(27));
-	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(25));
-	assert_eq!(report.pointer("/summary/wrong_result").and_then(Value::as_u64), Some(1));
+	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(26));
+	assert_eq!(report.pointer("/summary/wrong_result").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/not_encoded").and_then(Value::as_u64), Some(1));
 	assert_eq!(report.pointer("/summary/unsupported_claim_count").and_then(Value::as_u64), Some(0));
-	assert_eq!(report.pointer("/summary/wrong_result_count").and_then(Value::as_u64), Some(3));
+	assert_eq!(report.pointer("/summary/wrong_result_count").and_then(Value::as_u64), Some(0));
 	assert_eq!(
 		report.pointer("/summary/expected_evidence_recall").and_then(Value::as_f64),
-		Some(0.938)
+		Some(0.958)
 	);
 	assert_eq!(
 		report.pointer("/summary/irrelevant_context_ratio").and_then(Value::as_f64),
-		Some(0.02)
+		Some(0.0)
 	);
-	assert_eq!(report.pointer("/summary/stale_retrieval_count").and_then(Value::as_u64), Some(1));
+	assert_eq!(report.pointer("/summary/stale_retrieval_count").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/stale_answer_count").and_then(Value::as_u64), Some(0));
 	assert_eq!(
 		report.pointer("/summary/conflict_detection_count").and_then(Value::as_u64),
@@ -465,17 +489,17 @@ fn real_world_memory_fixtures_report_aggregate_metrics() -> Result<()> {
 		report.pointer("/summary/evidence_required_count").and_then(Value::as_u64),
 		Some(55)
 	);
-	assert_eq!(report.pointer("/summary/evidence_covered_count").and_then(Value::as_u64), Some(52));
-	assert_eq!(report.pointer("/summary/evidence_coverage").and_then(Value::as_f64), Some(0.945));
-	assert_eq!(report.pointer("/summary/source_ref_coverage").and_then(Value::as_f64), Some(0.945));
-	assert_eq!(report.pointer("/summary/quote_coverage").and_then(Value::as_f64), Some(0.945));
+	assert_eq!(report.pointer("/summary/evidence_covered_count").and_then(Value::as_u64), Some(53));
+	assert_eq!(report.pointer("/summary/evidence_coverage").and_then(Value::as_f64), Some(0.964));
+	assert_eq!(report.pointer("/summary/source_ref_coverage").and_then(Value::as_f64), Some(0.964));
+	assert_eq!(report.pointer("/summary/quote_coverage").and_then(Value::as_f64), Some(0.964));
 	assert_eq!(
 		report.pointer("/summary/trace_explainability_count").and_then(Value::as_u64),
 		Some(1)
 	);
 	assert_eq!(
 		report.pointer("/summary/wrong_result_stage_attribution_count").and_then(Value::as_u64),
-		Some(1)
+		Some(0)
 	);
 	assert_eq!(
 		report.pointer("/summary/consolidation/proposal_count").and_then(Value::as_u64),
@@ -504,6 +528,7 @@ fn real_world_memory_fixtures_report_aggregate_metrics() -> Result<()> {
 		"personalization",
 		"consolidation",
 		"knowledge_compilation",
+		"operator_debugging_ux",
 	] {
 		let suite = find_by_field(suites, "/suite_id", suite_id)?;
 
@@ -516,7 +541,7 @@ fn real_world_memory_fixtures_report_aggregate_metrics() -> Result<()> {
 
 	let debug_suite = find_by_field(suites, "/suite_id", "operator_debugging_ux")?;
 
-	assert_eq!(debug_suite.pointer("/status").and_then(Value::as_str), Some("wrong_result"));
+	assert_eq!(debug_suite.pointer("/status").and_then(Value::as_str), Some("pass"));
 
 	let jobs = array_at(&report, "/jobs")?;
 	let rebuild = find_by_field(jobs, "/job_id", "trust-sot-rebuild-001")?;
@@ -528,10 +553,12 @@ fn real_world_memory_fixtures_report_aggregate_metrics() -> Result<()> {
 	assert_eq!(redaction.pointer("/redaction_leak_count").and_then(Value::as_u64), Some(0));
 	assert_eq!(personalization.pointer("/scope_check_count").and_then(Value::as_u64), Some(1));
 	assert_eq!(personalization.pointer("/scope_correct_count").and_then(Value::as_u64), Some(1));
+	assert_eq!(stage_job.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(
 		stage_job.pointer("/trace_explainability/failure_stage").and_then(Value::as_str),
 		Some("rerank.score")
 	);
+	assert!(array_contains_str(stage_job, "/produced_evidence", "stage-target")?);
 
 	Ok(())
 }
@@ -541,15 +568,15 @@ fn retrieval_fixtures_report_quality_and_trace_attribution() -> Result<()> {
 	let report = run_json_report_from(retrieval_fixture_dir())?;
 
 	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(6));
-	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(5));
-	assert_eq!(report.pointer("/summary/wrong_result").and_then(Value::as_u64), Some(1));
+	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(6));
+	assert_eq!(report.pointer("/summary/wrong_result").and_then(Value::as_u64), Some(0));
 	assert_eq!(
 		report.pointer("/summary/expected_evidence_recall").and_then(Value::as_f64),
-		Some(0.857)
+		Some(1.0)
 	);
 	assert_eq!(
 		report.pointer("/summary/irrelevant_context_ratio").and_then(Value::as_f64),
-		Some(0.143)
+		Some(0.0)
 	);
 	assert_eq!(
 		report.pointer("/summary/trace_explainability_count").and_then(Value::as_u64),
@@ -557,7 +584,7 @@ fn retrieval_fixtures_report_quality_and_trace_attribution() -> Result<()> {
 	);
 	assert_eq!(
 		report.pointer("/summary/wrong_result_stage_attribution_count").and_then(Value::as_u64),
-		Some(1)
+		Some(0)
 	);
 
 	let suites = array_at(&report, "/suites")?;
@@ -566,23 +593,76 @@ fn retrieval_fixtures_report_quality_and_trace_attribution() -> Result<()> {
 
 	assert_eq!(retrieval_suite.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(retrieval_suite.pointer("/encoded_job_count").and_then(Value::as_u64), Some(5));
-	assert_eq!(debug_suite.pointer("/status").and_then(Value::as_str), Some("wrong_result"));
+	assert_eq!(debug_suite.pointer("/status").and_then(Value::as_str), Some("pass"));
 
 	let jobs = array_at(&report, "/jobs")?;
 	let stage_job = find_by_field(jobs, "/job_id", "operator-debug-stage-attribution-001")?;
 
-	assert_eq!(stage_job.pointer("/status").and_then(Value::as_str), Some("wrong_result"));
+	assert_eq!(stage_job.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(
 		stage_job.pointer("/trace_explainability/failure_stage").and_then(Value::as_str),
 		Some("rerank.score")
 	);
 	assert_eq!(
 		stage_job.pointer("/retrieval_quality/expected_evidence_recall").and_then(Value::as_f64),
-		Some(0.0)
+		Some(1.0)
 	);
 	assert_eq!(
 		stage_job.pointer("/retrieval_quality/irrelevant_context_ratio").and_then(Value::as_f64),
-		Some(1.0)
+		Some(0.0)
+	);
+
+	Ok(())
+}
+
+#[test]
+fn stage_attribution_fixture_still_fails_when_decoy_is_used() -> Result<()> {
+	let fixture_path = retrieval_fixture_dir().join("stage_explainability_wrong_result.json");
+	let mut fixture = serde_json::from_str::<Value>(&fs::read_to_string(fixture_path)?)?;
+
+	set_json_pointer(
+		&mut fixture,
+		"/corpus/adapter_response/answer/content",
+		Value::String(
+			"The trace shows the expected evidence was present in recall.candidates but demoted at rerank.score; however, the selected answer followed the stale top-k smoke-only evidence.".to_string(),
+		),
+	)?;
+	set_json_pointer(
+		&mut fixture,
+		"/corpus/adapter_response/answer/claims",
+		serde_json::json!([]),
+	)?;
+	set_json_pointer(
+		&mut fixture,
+		"/corpus/adapter_response/answer/evidence_ids",
+		serde_json::json!(["stage-decoy"]),
+	)?;
+
+	let temp_dir =
+		env::temp_dir().join(format!("elf-real-world-stage-decoy-test-{}", process::id()));
+
+	fs::create_dir_all(&temp_dir)?;
+	fs::write(temp_dir.join("stage_decoy.json"), serde_json::to_vec_pretty(&fixture)?)?;
+
+	let report = run_json_report_from(temp_dir)?;
+
+	assert_eq!(report.pointer("/summary/wrong_result").and_then(Value::as_u64), Some(1));
+	assert_eq!(
+		report.pointer("/summary/wrong_result_stage_attribution_count").and_then(Value::as_u64),
+		Some(1)
+	);
+
+	let jobs = array_at(&report, "/jobs")?;
+	let job = find_by_field(jobs, "/job_id", "operator-debug-stage-attribution-001")?;
+
+	assert_eq!(job.pointer("/status").and_then(Value::as_str), Some("wrong_result"));
+	assert_eq!(
+		job.pointer("/trace_explainability/failure_stage").and_then(Value::as_str),
+		Some("rerank.score")
+	);
+	assert_eq!(
+		job.pointer("/retrieval_quality/trap_context_count").and_then(Value::as_u64),
+		Some(1)
 	);
 
 	Ok(())
