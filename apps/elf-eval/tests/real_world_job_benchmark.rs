@@ -37,6 +37,10 @@ fn operator_debug_fixture_dir() -> PathBuf {
 		.join("operator_debugging_ux")
 }
 
+fn project_decisions_fixture_dir() -> PathBuf {
+	real_world_memory_fixture_dir().join("project_decisions")
+}
+
 fn retrieval_fixture_dir() -> PathBuf {
 	Path::new(env!("CARGO_MANIFEST_DIR"))
 		.join("fixtures")
@@ -154,7 +158,7 @@ fn smoke_fixture_produces_typed_json_report() -> Result<()> {
 fn runner_discovers_nested_fixture_layout() -> Result<()> {
 	let report = run_json_report_from(fixture_root())?;
 
-	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(27));
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(32));
 
 	Ok(())
 }
@@ -332,6 +336,88 @@ fn knowledge_fixtures_report_page_metrics() -> Result<()> {
 }
 
 #[test]
+fn project_decisions_fixtures_report_decision_policy_cases() -> Result<()> {
+	let report = run_json_report_from(project_decisions_fixture_dir())?;
+
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(5));
+	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(5));
+	assert_eq!(report.pointer("/summary/wrong_result").and_then(Value::as_u64), Some(0));
+	assert_eq!(report.pointer("/summary/not_encoded").and_then(Value::as_u64), Some(0));
+	assert_eq!(
+		report.pointer("/summary/conflict_detection_count").and_then(Value::as_u64),
+		Some(2)
+	);
+	assert_eq!(
+		report.pointer("/summary/update_rationale_available_count").and_then(Value::as_u64),
+		Some(5)
+	);
+	assert_eq!(
+		report.pointer("/summary/expected_evidence_recall").and_then(Value::as_f64),
+		Some(1.0)
+	);
+
+	let suites = array_at(&report, "/suites")?;
+	let project_decisions = find_by_field(suites, "/suite_id", "project_decisions")?;
+
+	assert_eq!(project_decisions.pointer("/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(project_decisions.pointer("/encoded_job_count").and_then(Value::as_u64), Some(5));
+	assert_eq!(
+		project_decisions.pointer("/update_rationale_available_count").and_then(Value::as_u64),
+		Some(5)
+	);
+
+	let jobs = array_at(&report, "/jobs")?;
+	let accepted = find_by_field(jobs, "/job_id", "project-decision-accepted-typed-failures-001")?;
+	let reversal = find_by_field(jobs, "/job_id", "project-decision-reversal-live-baseline-001")?;
+	let validation =
+		find_by_field(jobs, "/job_id", "project-decision-current-validation-gate-001")?;
+	let tradeoff = find_by_field(jobs, "/job_id", "project-decision-tradeoff-fixture-backed-001")?;
+	let caveat = find_by_field(jobs, "/job_id", "project-decision-private-manifest-caveat-001")?;
+
+	assert_eq!(accepted.pointer("/answer_type").and_then(Value::as_str), Some("decision_record"));
+	assert_eq!(
+		accepted.pointer("/expected_evidence").and_then(Value::as_array).map(Vec::len),
+		Some(2)
+	);
+	assert_eq!(
+		reversal.pointer("/evolution/historical_evidence/0").and_then(Value::as_str),
+		Some("live-baseline-suite-win-old")
+	);
+	assert_eq!(
+		validation.pointer("/evolution/current_evidence/0").and_then(Value::as_str),
+		Some("validation-gate-current-decodex")
+	);
+	assert_eq!(tradeoff.pointer("/requires_caveat").and_then(Value::as_bool), Some(true));
+	assert_eq!(caveat.pointer("/can_answer_unknown").and_then(Value::as_bool), Some(true));
+
+	for job in jobs {
+		let expected_evidence = array_at(job, "/expected_evidence")?;
+
+		assert!(
+			!expected_evidence.is_empty(),
+			"project decision job {} must declare required evidence",
+			job.pointer("/job_id").and_then(Value::as_str).unwrap_or("<unknown>")
+		);
+	}
+	for entry in fs::read_dir(project_decisions_fixture_dir())? {
+		let path = entry?.path();
+
+		if path.extension().and_then(|ext| ext.to_str()) != Some("json") {
+			continue;
+		}
+
+		let fixture = serde_json::from_str::<Value>(&fs::read_to_string(path)?)?;
+		let required_evidence = array_at(&fixture, "/required_evidence")?;
+		let negative_traps = array_at(&fixture, "/negative_traps")?;
+
+		assert!(!required_evidence.is_empty());
+		assert!(!negative_traps.is_empty());
+	}
+
+	Ok(())
+}
+
+#[test]
 fn generated_json_report_renders_markdown() -> Result<()> {
 	let report = run_json_report()?;
 	let temp_dir = env::temp_dir().join(format!("elf-real-world-job-test-{}", process::id()));
@@ -363,6 +449,9 @@ fn generated_json_report_renders_markdown() -> Result<()> {
 	assert!(markdown.contains("work_resume"));
 	assert!(markdown.contains("Capture And Integration Coverage"));
 	assert!(markdown.contains("fixture-backed"));
+	assert!(markdown.contains("Answer Type"));
+	assert!(markdown.contains("Caveat Required"));
+	assert!(markdown.contains("Refusal Required"));
 	assert!(markdown.contains("agentmemory-style hook capture"));
 	assert!(markdown.contains("xy844-current-worktree"));
 	assert!(markdown.contains("Existing live-baseline reports remain valid"));
@@ -417,33 +506,30 @@ fn assert_root_knowledge_summary(report: &Value) {
 	);
 }
 
-#[test]
-fn real_world_memory_fixtures_report_aggregate_metrics() -> Result<()> {
-	let report = run_json_report_from(real_world_memory_fixture_dir())?;
-
-	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(27));
-	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(25));
+fn assert_root_aggregate_summary(report: &Value) {
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(32));
+	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(30));
 	assert_eq!(report.pointer("/summary/wrong_result").and_then(Value::as_u64), Some(1));
 	assert_eq!(report.pointer("/summary/not_encoded").and_then(Value::as_u64), Some(1));
 	assert_eq!(report.pointer("/summary/unsupported_claim_count").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/wrong_result_count").and_then(Value::as_u64), Some(3));
 	assert_eq!(
 		report.pointer("/summary/expected_evidence_recall").and_then(Value::as_f64),
-		Some(0.938)
+		Some(0.952)
 	);
 	assert_eq!(
 		report.pointer("/summary/irrelevant_context_ratio").and_then(Value::as_f64),
-		Some(0.02)
+		Some(0.015)
 	);
 	assert_eq!(report.pointer("/summary/stale_retrieval_count").and_then(Value::as_u64), Some(1));
 	assert_eq!(report.pointer("/summary/stale_answer_count").and_then(Value::as_u64), Some(0));
 	assert_eq!(
 		report.pointer("/summary/conflict_detection_count").and_then(Value::as_u64),
-		Some(4)
+		Some(6)
 	);
 	assert_eq!(
 		report.pointer("/summary/update_rationale_available_count").and_then(Value::as_u64),
-		Some(4)
+		Some(9)
 	);
 	assert_eq!(
 		report.pointer("/summary/temporal_validity_not_encoded_count").and_then(Value::as_u64),
@@ -463,12 +549,12 @@ fn real_world_memory_fixtures_report_aggregate_metrics() -> Result<()> {
 	);
 	assert_eq!(
 		report.pointer("/summary/evidence_required_count").and_then(Value::as_u64),
-		Some(55)
+		Some(69)
 	);
-	assert_eq!(report.pointer("/summary/evidence_covered_count").and_then(Value::as_u64), Some(52));
-	assert_eq!(report.pointer("/summary/evidence_coverage").and_then(Value::as_f64), Some(0.945));
-	assert_eq!(report.pointer("/summary/source_ref_coverage").and_then(Value::as_f64), Some(0.945));
-	assert_eq!(report.pointer("/summary/quote_coverage").and_then(Value::as_f64), Some(0.945));
+	assert_eq!(report.pointer("/summary/evidence_covered_count").and_then(Value::as_u64), Some(66));
+	assert_eq!(report.pointer("/summary/evidence_coverage").and_then(Value::as_f64), Some(0.957));
+	assert_eq!(report.pointer("/summary/source_ref_coverage").and_then(Value::as_f64), Some(0.957));
+	assert_eq!(report.pointer("/summary/quote_coverage").and_then(Value::as_f64), Some(0.957));
 	assert_eq!(
 		report.pointer("/summary/trace_explainability_count").and_then(Value::as_u64),
 		Some(1)
@@ -492,13 +578,16 @@ fn real_world_memory_fixtures_report_aggregate_metrics() -> Result<()> {
 		Some(1)
 	);
 
-	assert_root_knowledge_summary(&report);
+	assert_root_knowledge_summary(report);
+}
 
-	let suites = array_at(&report, "/suites")?;
+fn assert_root_aggregate_suites(report: &Value) -> Result<()> {
+	let suites = array_at(report, "/suites")?;
 
 	for suite_id in [
 		"trust_source_of_truth",
 		"work_resume",
+		"project_decisions",
 		"retrieval",
 		"capture_integration",
 		"personalization",
@@ -514,11 +603,23 @@ fn real_world_memory_fixtures_report_aggregate_metrics() -> Result<()> {
 
 	assert_eq!(memory_evolution.pointer("/status").and_then(Value::as_str), Some("not_encoded"));
 
+	let project_decisions = find_by_field(suites, "/suite_id", "project_decisions")?;
+
+	assert_eq!(project_decisions.pointer("/encoded_job_count").and_then(Value::as_u64), Some(5));
+	assert_eq!(
+		project_decisions.pointer("/update_rationale_available_count").and_then(Value::as_u64),
+		Some(5)
+	);
+
 	let debug_suite = find_by_field(suites, "/suite_id", "operator_debugging_ux")?;
 
 	assert_eq!(debug_suite.pointer("/status").and_then(Value::as_str), Some("wrong_result"));
 
-	let jobs = array_at(&report, "/jobs")?;
+	Ok(())
+}
+
+fn assert_root_aggregate_jobs(report: &Value) -> Result<()> {
+	let jobs = array_at(report, "/jobs")?;
 	let rebuild = find_by_field(jobs, "/job_id", "trust-sot-rebuild-001")?;
 	let redaction = find_by_field(jobs, "/job_id", "capture-redaction-exclusion-001")?;
 	let personalization = find_by_field(jobs, "/job_id", "personalization-scoped-preference-001")?;
@@ -532,6 +633,17 @@ fn real_world_memory_fixtures_report_aggregate_metrics() -> Result<()> {
 		stage_job.pointer("/trace_explainability/failure_stage").and_then(Value::as_str),
 		Some("rerank.score")
 	);
+
+	Ok(())
+}
+
+#[test]
+fn real_world_memory_fixtures_report_aggregate_metrics() -> Result<()> {
+	let report = run_json_report_from(real_world_memory_fixture_dir())?;
+
+	assert_root_aggregate_summary(&report);
+	assert_root_aggregate_suites(&report)?;
+	assert_root_aggregate_jobs(&report)?;
 
 	Ok(())
 }

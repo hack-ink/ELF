@@ -1,0 +1,259 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "project-decision-reversal-live-baseline-001",
+  "suite": "project_decisions",
+  "title": "Distinguish a superseded live-baseline claim from the current suite boundary",
+  "corpus": {
+    "corpus_id": "real-world-memory-project-decisions-2026-06-10",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "live-baseline-suite-win-old",
+        "kind": "decision",
+        "text": "Historical decision: a draft allowed live-baseline passes to be cited as real-world job suite wins.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_memory_fixture/v1",
+          "ref": {
+            "fixture": "reversed_live_baseline_suite_win",
+            "evidence_id": "live-baseline-suite-win-old"
+          }
+        },
+        "created_at": "2026-06-08T12:00:00Z"
+      },
+      {
+        "evidence_id": "live-baseline-suite-win-current",
+        "kind": "decision",
+        "text": "Current decision: live-baseline passes are retrieval and lifecycle evidence only; real-world job suite wins require fixture-backed real_world_job reports.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_memory_fixture/v1",
+          "ref": {
+            "fixture": "reversed_live_baseline_suite_win",
+            "evidence_id": "live-baseline-suite-win-current"
+          }
+        },
+        "created_at": "2026-06-09T12:00:00Z"
+      },
+      {
+        "evidence_id": "live-baseline-reversal-rationale",
+        "kind": "decision",
+        "text": "Reversal rationale: query-level live-baseline checks cannot prove durable decision recovery, rationale recovery, or unsupported-claim handling.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_memory_fixture/v1",
+          "ref": {
+            "fixture": "reversed_live_baseline_suite_win",
+            "evidence_id": "live-baseline-reversal-rationale"
+          }
+        },
+        "created_at": "2026-06-09T12:05:00Z"
+      },
+      {
+        "evidence_id": "live-baseline-stale-reuse-trap",
+        "kind": "decision",
+        "text": "Stale reuse trap: cite the historical live-baseline-as-suite-win draft as the current project decision.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_memory_fixture/v1",
+          "ref": {
+            "fixture": "reversed_live_baseline_suite_win",
+            "evidence_id": "live-baseline-stale-reuse-trap"
+          }
+        },
+        "created_at": "2026-06-09T12:10:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_project_decisions",
+      "answer": {
+        "content": "The current decision is that live-baseline passes are retrieval and lifecycle evidence only; real-world job suite wins require fixture-backed real_world_job reports. The earlier draft that allowed live-baseline suite wins is historical, and it changed because query-level checks do not prove durable decision recovery, rationale recovery, or unsupported-claim handling.",
+        "claims": [
+          {
+            "claim_id": "current_live_baseline_boundary",
+            "text": "Live-baseline passes are retrieval and lifecycle evidence only, not real-world job suite wins.",
+            "evidence_ids": [
+              "live-baseline-suite-win-current",
+              "live-baseline-suite-win-old",
+              "live-baseline-reversal-rationale"
+            ],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "live_baseline_reversal_rationale",
+            "text": "The decision changed because query-level checks do not prove durable decision recovery, rationale recovery, or unsupported-claim handling.",
+            "evidence_ids": ["live-baseline-reversal-rationale"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": [
+          "live-baseline-suite-win-current",
+          "live-baseline-suite-win-old",
+          "live-baseline-reversal-rationale"
+        ],
+        "latency_ms": 1.2,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "draft-live-baseline-suite-win",
+      "ts": "2026-06-08T12:00:00Z",
+      "actor": "agent",
+      "action": "made_decision",
+      "evidence_ids": ["live-baseline-suite-win-old"],
+      "summary": "A draft treated live-baseline passes as real-world job suite wins."
+    },
+    {
+      "event_id": "current-live-baseline-boundary",
+      "ts": "2026-06-09T12:00:00Z",
+      "actor": "agent",
+      "action": "updated_memory",
+      "evidence_ids": [
+        "live-baseline-suite-win-current",
+        "live-baseline-reversal-rationale"
+      ],
+      "summary": "The current decision limited live-baseline evidence to retrieval and lifecycle checks."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Can we still cite live-baseline passes as real-world job suite wins, or was that reversed?",
+    "job_mode": "decide",
+    "constraints": [
+      "cite_evidence",
+      "distinguish_current_from_historical",
+      "state_rationale"
+    ]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "current_live_baseline_boundary",
+        "text": "Live-baseline passes are retrieval and lifecycle evidence only, not real-world job suite wins."
+      },
+      {
+        "claim_id": "live_baseline_reversal_rationale",
+        "text": "The decision changed because query-level checks do not prove durable decision recovery, rationale recovery, or unsupported-claim handling."
+      }
+    ],
+    "must_not_include": [
+      "Live-baseline passes are real-world job suite wins."
+    ],
+    "evidence_links": {
+      "current_live_baseline_boundary": [
+        "live-baseline-suite-win-current",
+        "live-baseline-suite-win-old",
+        "live-baseline-reversal-rationale"
+      ],
+      "live_baseline_reversal_rationale": ["live-baseline-reversal-rationale"]
+    },
+    "answer_type": "decision_record",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "live-baseline-suite-win-current",
+      "claim_id": "current_live_baseline_boundary",
+      "requirement": "cite",
+      "quote": "real-world job suite wins require fixture-backed real_world_job reports"
+    },
+    {
+      "evidence_id": "live-baseline-suite-win-old",
+      "claim_id": "current_live_baseline_boundary",
+      "requirement": "use",
+      "quote": "Historical decision"
+    },
+    {
+      "evidence_id": "live-baseline-reversal-rationale",
+      "claim_id": "live_baseline_reversal_rationale",
+      "requirement": "explain",
+      "quote": "cannot prove durable decision recovery, rationale recovery, or unsupported-claim handling"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "stale-live-baseline-suite-win-reuse",
+      "type": "stale_fact",
+      "evidence_ids": ["live-baseline-stale-reuse-trap"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Reports the current boundary and marks the older decision historical."
+      },
+      "evidence_grounding": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Cites current, historical, and rationale evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Does not reuse the stale draft as the current decision."
+      },
+      "uncertainty_handling": {
+        "weight": 0.1,
+        "max_points": 1.0,
+        "criteria": "Does not overstate live-baseline evidence."
+      },
+      "lifecycle_behavior": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Shows the decision reversal and available update rationale."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": ["The fixture does not provide that evidence."],
+    "fallback_action": "state_blocker"
+  },
+  "memory_evolution": {
+    "current_evidence_ids": ["live-baseline-suite-win-current"],
+    "historical_evidence_ids": ["live-baseline-suite-win-old"],
+    "stale_trap_ids": ["stale-live-baseline-suite-win-reuse"],
+    "conflicts": [
+      {
+        "conflict_id": "live-baseline-suite-win-reversed",
+        "claim_id": "current_live_baseline_boundary",
+        "current_evidence_id": "live-baseline-suite-win-current",
+        "historical_evidence_id": "live-baseline-suite-win-old",
+        "resolved_by_evidence_id": "live-baseline-reversal-rationale"
+      }
+    ],
+    "update_rationale": {
+      "claim_id": "live_baseline_reversal_rationale",
+      "evidence_ids": ["live-baseline-reversal-rationale"],
+      "available": true
+    },
+    "temporal_validity": {
+      "required": false,
+      "encoded": false,
+      "follow_up": null
+    }
+  },
+  "tags": [
+    "synthetic",
+    "project_decisions",
+    "reversal",
+    "current_vs_historical"
+  ]
+}
