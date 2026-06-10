@@ -1,0 +1,194 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "production-ops-resource-envelope-001",
+  "suite": "production_ops",
+  "title": "Report generated backfill resource envelope and operator planning caveat",
+  "corpus": {
+    "corpus_id": "real-world-memory-production-ops-2026-06-10",
+    "profile": "generated_public",
+    "items": [
+      {
+        "evidence_id": "resource-envelope-check",
+        "kind": "trace",
+        "text": "Resource envelope check measured 2793.629 seconds against a 3600-second limit and 167652 KB RSS against a 1500000 KB limit.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "resource_envelope_budget",
+            "evidence_id": "resource-envelope-check"
+          },
+          "locator": {
+            "quote": "2793.629 seconds against a 3600-second limit"
+          }
+        },
+        "created_at": "2026-06-09T09:30:00Z"
+      },
+      {
+        "evidence_id": "large-import-planning-caveat",
+        "kind": "runbook",
+        "text": "Large imports should be planned as batch jobs, not interactive operations.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "resource_envelope_budget",
+            "evidence_id": "large-import-planning-caveat"
+          },
+          "locator": {
+            "quote": "planned as batch jobs"
+          }
+        },
+        "created_at": "2026-06-09T09:35:00Z"
+      },
+      {
+        "evidence_id": "interactive-import-decoy",
+        "kind": "decision",
+        "text": "Decoy: the 2000 document provider backfill is small enough to treat as an interactive operation.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "resource_envelope_budget",
+            "evidence_id": "interactive-import-decoy"
+          }
+        },
+        "created_at": "2026-06-09T09:20:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_production_ops",
+      "answer": {
+        "content": "The resource envelope passed: 2793.629 seconds was within the 3600-second limit, and 167652 KB RSS was within the 1500000 KB limit. Large imports should be planned as batch jobs, not interactive operations.",
+        "claims": [
+          {
+            "claim_id": "resource_envelope_passed",
+            "text": "The resource envelope passed within the elapsed-time and RSS limits.",
+            "evidence_ids": ["resource-envelope-check"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "large_import_batch_caveat",
+            "text": "Large imports should be planned as batch jobs, not interactive operations.",
+            "evidence_ids": ["large-import-planning-caveat"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["resource-envelope-check", "large-import-planning-caveat"],
+        "latency_ms": 2.3,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "resource-envelope-measured",
+      "ts": "2026-06-09T09:30:00Z",
+      "actor": "tool",
+      "action": "measured_resource_envelope",
+      "evidence_ids": ["resource-envelope-check"],
+      "summary": "The generated provider backfill stayed within the configured resource envelope."
+    },
+    {
+      "event_id": "resource-caveat-recorded",
+      "ts": "2026-06-09T09:35:00Z",
+      "actor": "operator",
+      "action": "recorded_planning_caveat",
+      "evidence_ids": ["large-import-planning-caveat"],
+      "summary": "The production adoption gate kept the batch-job caveat for large imports."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "How should I interpret the resource envelope evidence for production backfill?",
+    "job_mode": "operate",
+    "constraints": ["cite_evidence", "state_resource_limits", "state_operator_caveat"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "resource_envelope_passed",
+        "text": "The resource envelope passed within the elapsed-time and RSS limits."
+      },
+      {
+        "claim_id": "large_import_batch_caveat",
+        "text": "Large imports should be planned as batch jobs, not interactive operations."
+      }
+    ],
+    "must_not_include": ["treat as an interactive operation"],
+    "evidence_links": {
+      "resource_envelope_passed": ["resource-envelope-check"],
+      "large_import_batch_caveat": ["large-import-planning-caveat"]
+    },
+    "answer_type": "direct_answer",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "resource-envelope-check",
+      "claim_id": "resource_envelope_passed",
+      "requirement": "cite",
+      "quote": "2793.629 seconds against a 3600-second limit"
+    },
+    {
+      "evidence_id": "large-import-planning-caveat",
+      "claim_id": "large_import_batch_caveat",
+      "requirement": "cite",
+      "quote": "planned as batch jobs"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "interactive-import-decoy",
+      "type": "unsafe_action",
+      "evidence_ids": ["interactive-import-decoy"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "latency_resource": {
+        "weight": 0.35,
+        "max_points": 1.0,
+        "criteria": {
+          "max_latency_ms": 100.0,
+          "resource_expectation": "Report elapsed and RSS limits plus caveat."
+        }
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Cites resource envelope and caveat evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Does not encourage interactive large imports."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Interprets the result for operator planning."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "unsafe live/destructive action when the prompt forbids it",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "state_blocker"
+  },
+  "tags": ["generated_public", "production_ops", "resource_envelope", "no_live_claim"]
+}
