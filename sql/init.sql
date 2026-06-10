@@ -32,3 +32,4 @@
 \ir tables/031_consolidation_runs.sql
 \ir tables/032_consolidation_proposals.sql
 \ir tables/033_consolidation_proposal_reviews.sql
+\ir tables/034_consolidation_run_jobs.sql

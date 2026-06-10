@@ -6,7 +6,8 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 use elf_domain::consolidation::{
-	ConsolidationApplyIntent, ConsolidationInputRef, ConsolidationLineage, ConsolidationMarkers,
+	CONSOLIDATION_CONTRACT_SCHEMA_V1, ConsolidationApplyIntent, ConsolidationInputRef,
+	ConsolidationJobPayload, ConsolidationLineage, ConsolidationMarkers,
 	ConsolidationProposalContract, ConsolidationProposalDiff, ConsolidationReviewAction,
 	ConsolidationReviewState, ConsolidationRunState, ConsolidationSourceKind,
 	ConsolidationSourceSnapshot, ConsolidationUnsupportedClaimFlag, ConsolidationValidationError,
@@ -139,6 +140,21 @@ fn run_lifecycle_rejects_skipping_generation_state() {
 			.validate_transition(ConsolidationRunState::Completed)
 			.is_ok()
 	);
+}
+
+#[test]
+fn queued_payload_requires_consolidation_contract_schema() {
+	let source = source_ref();
+	let mut payload = ConsolidationJobPayload {
+		contract_schema: CONSOLIDATION_CONTRACT_SCHEMA_V1.to_string(),
+		proposals: vec![proposal_contract(source)],
+	};
+
+	assert!(payload.validate().is_ok());
+
+	payload.contract_schema = "elf.consolidation/v0".to_string();
+
+	assert_eq!(payload.validate(), Err(ConsolidationValidationError::InvalidContractSchema));
 }
 
 fn proposal_contract(source: ConsolidationInputRef) -> ConsolidationProposalContract {
