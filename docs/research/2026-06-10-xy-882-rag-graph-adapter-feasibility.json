@@ -1,0 +1,348 @@
+{
+  "schema": "research-run/2",
+  "run_id": "2026-06-10-xy-882-rag-graph-adapter-feasibility",
+  "question": "Which RAG and graph-memory research gates should become Docker-bounded adapter implementation candidates for ELF real-world benchmarks?",
+  "success_criteria": [
+    "Give RAGFlow, LightRAG, GraphRAG, Graphiti/Zep, Letta, LangGraph, nanograph, llm-wiki, gbrain, and graphify one explicit verdict: adapter_candidate, research_only, blocked, or reject.",
+    "Separate setup/resource feasibility from product quality; heavy setup is not treated as a quality failure.",
+    "Require adapter_candidate projects to have both a Docker-contained path and an evidence-linked output contract.",
+    "Keep all researched projects in the research_gate evidence class until a Docker adapter executes real_world_job scoring."
+  ],
+  "constraints": [
+    "Do not implement adapters in this issue.",
+    "Do not use host-global installs as proof.",
+    "Do not claim live adapter pass evidence from source or docs review.",
+    "Create implementation follow-ups only for adapter candidates with a scoped Docker boundary and evidence-linked output."
+  ],
+  "stop_rule": "Stop when every target project has a verdict, adapter candidates have scoped follow-up issue titles, and the docs/manifest still label these records as research gates rather than live evidence.",
+  "primary_hypothesis": "RAGFlow, LightRAG, GraphRAG, Graphiti/Zep, and graphify have enough Docker-bounded setup and evidence-output shape to justify implementation follow-ups; Letta, LangGraph, nanograph, and llm-wiki remain research-only references; gbrain remains blocked until a Docker-local brain repo/database path is proven.",
+  "rival_hypotheses": [
+    "All projects should remain research-only because none has executed in the benchmark runner.",
+    "All projects with official Docker or CLI instructions should become adapter candidates.",
+    "RAGFlow should be rejected because its official resource envelope is large."
+  ],
+  "falsifiers": [
+    "If a candidate cannot run without host-global state, it is not an adapter implementation candidate for this benchmark lane.",
+    "If a candidate cannot emit source IDs, document IDs, file locations, citations, or equivalent evidence handles, it cannot support real_world_job scoring.",
+    "If a project is a useful architecture reference but not a standalone memory/retrieval output path, it should remain research_only."
+  ],
+  "coverage": {
+    "mode": "primary_source_docs_and_existing_repo_contracts",
+    "min_source_families": 4
+  },
+  "events": [
+    {
+      "seq": 1,
+      "type": "probe_completed",
+      "remaining_option_count": 4,
+      "independent_option_questions": [
+        "Does the project expose a Docker-contained setup path?",
+        "Does the project expose corpus ingest and query output that can map back to source evidence?",
+        "Is the project a direct adapter candidate, a reference-only design input, blocked by missing Docker proof, or rejected?"
+      ],
+      "external_slices": [
+        "RAGFlow",
+        "LightRAG",
+        "GraphRAG",
+        "Graphiti/Zep",
+        "Letta",
+        "LangGraph",
+        "nanograph",
+        "llm-wiki",
+        "gbrain",
+        "graphify"
+      ]
+    },
+    {
+      "seq": 2,
+      "type": "evidence_recorded",
+      "evidence": [
+        {
+          "id": "E1",
+          "kind": "contract",
+          "summary": "The real-world benchmark spec defines research_gate records as source/setup/runtime/resource/retry metadata for future implementation; research gates must not count as fixture-backed, live-baseline, or live-real-world evidence.",
+          "source_family": "repo_spec",
+          "source_locator": "docs/spec/real_world_agent_memory_benchmark_v1.md"
+        },
+        {
+          "id": "E2",
+          "kind": "setup",
+          "summary": "RAGFlow official quickstart documents Docker startup, 4 CPU / 16 GB RAM / 50 GB disk prerequisites, x86/Nvidia support, image-size caveats, dataset creation, chunk visibility, and citation-backed retrieval testing.",
+          "source_family": "upstream_docs",
+          "source_locator": "https://ragflow.io/docs/"
+        },
+        {
+          "id": "E3",
+          "kind": "output_contract",
+          "summary": "RAGFlow HTTP API can include reference metadata and returns reference chunks containing chunk id, content, document id, document name, document metadata, dataset id, positions, and similarity scores.",
+          "source_family": "upstream_docs",
+          "source_locator": "https://raw.githubusercontent.com/infiniflow/ragflow/main/docs/references/http_api_reference.md"
+        },
+        {
+          "id": "E4",
+          "kind": "setup",
+          "summary": "LightRAG Docker docs describe docker compose startup, generated compose files, persistent data paths, environment-driven LLM and embedding configuration, and optional Docker-local vLLM embedding/rerank services.",
+          "source_family": "upstream_docs",
+          "source_locator": "https://raw.githubusercontent.com/HKUDS/LightRAG/main/docs/DockerDeployment.md"
+        },
+        {
+          "id": "E5",
+          "kind": "output_contract",
+          "summary": "LightRAG supports query prefixes including context-only modes, can return the context prepared for the LLM, supports inserting documents with stable ids, and traces sources through file_paths.",
+          "source_family": "upstream_docs",
+          "source_locator": "https://raw.githubusercontent.com/HKUDS/LightRAG/main/docs/LightRAG-API-Server.md"
+        },
+        {
+          "id": "E6",
+          "kind": "output_contract",
+          "summary": "GraphRAG writes parquet output tables with UUIDs and human-readable ids; communities and reports carry text_unit_ids, and text_units carry raw text plus document ids and relationship/entity ids.",
+          "source_family": "upstream_docs",
+          "source_locator": "https://microsoft.github.io/graphrag/index/outputs/"
+        },
+        {
+          "id": "E7",
+          "kind": "setup",
+          "summary": "GraphRAG input and query docs describe a CLI/API indexing and local-search path over structured documents, raw text chunks, graph data, and query context builders.",
+          "source_family": "upstream_docs",
+          "source_locator": "https://microsoft.github.io/graphrag/"
+        },
+        {
+          "id": "E8",
+          "kind": "output_contract",
+          "summary": "Graphiti/Zep requires Python plus Neo4j or FalkorDB, supports Docker-local FalkorDB, adds episodes or fact triples, and search results include UUID, fact text, valid_at, and invalid_at fields.",
+          "source_family": "upstream_docs",
+          "source_locator": "https://help.getzep.com/graphiti/getting-started/quick-start"
+        },
+        {
+          "id": "E9",
+          "kind": "boundary",
+          "summary": "Letta remains a strong core/archival memory reference, but Docker use needs explicit embedding configuration and the current docs steer new Letta Code users away from Docker-first evaluation.",
+          "source_family": "upstream_docs",
+          "source_locator": "https://docs.letta.com/guides/docker/"
+        },
+        {
+          "id": "E10",
+          "kind": "boundary",
+          "summary": "LangGraph persistence provides checkpoints, replay, stores, and semantic memory search, but it is an agent-state framework rather than a standalone external memory service adapter.",
+          "source_family": "upstream_docs",
+          "source_locator": "https://docs.langchain.com/oss/python/langgraph/persistence"
+        },
+        {
+          "id": "E11",
+          "kind": "boundary",
+          "summary": "nanograph documents one CLI, one folder, schema-as-code, no server, no cloud, and no Docker; this makes it a graph-lite DX reference rather than a Docker adapter candidate for this lane.",
+          "source_family": "upstream_docs",
+          "source_locator": "https://www.nanograph.io/"
+        },
+        {
+          "id": "E12",
+          "kind": "boundary",
+          "summary": "llm-wiki ships as agent plugins or portable instructions with wiki query, compile, lint, audit, and output workflows; it is a derived knowledge workflow reference, not a service adapter candidate without a contained plugin harness.",
+          "source_family": "upstream_docs",
+          "source_locator": "https://github.com/nvk/llm-wiki"
+        },
+        {
+          "id": "E13",
+          "kind": "boundary",
+          "summary": "gbrain has strong compiled-truth, append-only timeline, and source attribution contracts, but this lane did not prove a Docker-local brain repository and database setup path.",
+          "source_family": "upstream_docs",
+          "source_locator": "https://raw.githubusercontent.com/garrytan/gbrain/master/docs/guides/compiled-truth.md"
+        },
+        {
+          "id": "E14",
+          "kind": "output_contract",
+          "summary": "graphify can run over a folder, produces graph.html, GRAPH_REPORT.md, graph.json, and cache artifacts, and query output includes node labels, edge types, confidence tags, source files, and source locations.",
+          "source_family": "upstream_docs",
+          "source_locator": "https://raw.githubusercontent.com/safishamsi/graphify/v3/README.md"
+        }
+      ]
+    },
+    {
+      "seq": 3,
+      "type": "project_verdicts_recorded",
+      "verdicts": [
+        {
+          "project": "RAGFlow",
+          "verdict": "adapter_candidate",
+          "supporting_evidence_ids": [
+            "E2",
+            "E3"
+          ],
+          "docker_boundary": "Nested Docker service profile or baseline compose service using official RAGFlow Docker Compose, capped to a tiny corpus and CPU mode first.",
+          "output_contract": "Map RAGFlow reference.chunks fields to real_world_job expected evidence ids.",
+          "follow_up_title": "[ELF benchmark adapter] Implement RAGFlow Docker evidence-smoke adapter",
+          "follow_up_issue": "XY-885",
+          "follow_up_url": "https://linear.app/hack-ink/issue/XY-885/elf-benchmark-adapter-implement-ragflow-docker-evidence-smoke-adapter"
+        },
+        {
+          "project": "LightRAG",
+          "verdict": "adapter_candidate",
+          "supporting_evidence_ids": [
+            "E4",
+            "E5"
+          ],
+          "docker_boundary": "Docker Compose LightRAG server with explicit LLM, embedding, rerank, and data-volume configuration.",
+          "output_contract": "Use context-only query modes and file_paths-backed citations for evidence scoring.",
+          "follow_up_title": "[ELF benchmark adapter] Implement LightRAG Docker context-export adapter",
+          "follow_up_issue": "XY-886",
+          "follow_up_url": "https://linear.app/hack-ink/issue/XY-886/elf-benchmark-adapter-implement-lightrag-docker-context-export-adapter"
+        },
+        {
+          "project": "GraphRAG",
+          "verdict": "adapter_candidate",
+          "supporting_evidence_ids": [
+            "E6",
+            "E7"
+          ],
+          "docker_boundary": "Cost-bounded Docker Python CLI/API run over a generated tiny corpus with container-local parquet artifacts.",
+          "output_contract": "Map documents, text_units, communities, and community_reports output tables back to source evidence ids.",
+          "follow_up_title": "[ELF benchmark adapter] Implement GraphRAG cost-bounded Docker adapter",
+          "follow_up_issue": "XY-887",
+          "follow_up_url": "https://linear.app/hack-ink/issue/XY-887/elf-benchmark-adapter-implement-graphrag-cost-bounded-docker-adapter"
+        },
+        {
+          "project": "Graphiti/Zep",
+          "verdict": "adapter_candidate",
+          "supporting_evidence_ids": [
+            "E8"
+          ],
+          "docker_boundary": "Docker-local FalkorDB or Neo4j plus Python SDK runner with provider configuration explicit in benchmark artifacts.",
+          "output_contract": "Score UUID, fact, valid_at, and invalid_at search output against memory_evolution current/historical evidence.",
+          "follow_up_title": "[ELF benchmark adapter] Implement Graphiti/Zep temporal graph adapter",
+          "follow_up_issue": "XY-888",
+          "follow_up_url": "https://linear.app/hack-ink/issue/XY-888/elf-benchmark-adapter-implement-graphitizep-temporal-graph-adapter"
+        },
+        {
+          "project": "Letta",
+          "verdict": "research_only",
+          "supporting_evidence_ids": [
+            "E9"
+          ],
+          "reason": "Keep as core/archival memory semantics reference; do not create an implementation issue until a supported, contained server path can export archival evidence for scoring."
+        },
+        {
+          "project": "LangGraph",
+          "verdict": "research_only",
+          "supporting_evidence_ids": [
+            "E10"
+          ],
+          "reason": "Keep as checkpoint/replay regression reference; it is not a standalone external memory adapter candidate in this benchmark lane."
+        },
+        {
+          "project": "nanograph",
+          "verdict": "research_only",
+          "supporting_evidence_ids": [
+            "E11"
+          ],
+          "reason": "Keep as typed graph DX inspiration; official positioning is no server/no Docker and no real_world_job evidence contract is proven."
+        },
+        {
+          "project": "llm-wiki",
+          "verdict": "research_only",
+          "supporting_evidence_ids": [
+            "E12"
+          ],
+          "reason": "Keep as derived knowledge-page workflow inspiration; no host-global plugin install may be used as adapter proof."
+        },
+        {
+          "project": "gbrain",
+          "verdict": "blocked",
+          "supporting_evidence_ids": [
+            "E13"
+          ],
+          "reason": "The evidence contract is strong, but a Docker-local brain repo and database path must be proven before an implementation issue is safe."
+        },
+        {
+          "project": "graphify",
+          "verdict": "adapter_candidate",
+          "supporting_evidence_ids": [
+            "E14"
+          ],
+          "docker_boundary": "Docker-only CLI/materializer run using pip-installed graphifyy over mounted benchmark corpus, with no assistant global hook install.",
+          "output_contract": "Score graph.json query output and GRAPH_REPORT.md source-file/source-location references against expected evidence.",
+          "follow_up_title": "[ELF benchmark adapter] Implement graphify Docker graph-report adapter",
+          "follow_up_issue": "XY-889",
+          "follow_up_url": "https://linear.app/hack-ink/issue/XY-889/elf-benchmark-adapter-implement-graphify-docker-graph-report-adapter"
+        }
+      ]
+    },
+    {
+      "seq": 4,
+      "type": "tradeoffs_recorded",
+      "tradeoffs": [
+        {
+          "id": "T1",
+          "summary": "RAGFlow is resource-heavy, but the official Docker and reference chunk output make it an adapter candidate as long as the follow-up starts with a tiny corpus and records resource bounds instead of making a quality claim.",
+          "supporting_evidence_ids": [
+            "E2",
+            "E3"
+          ],
+          "disconfirming_evidence_ids": []
+        },
+        {
+          "id": "T2",
+          "summary": "LightRAG and GraphRAG can become adapter candidates because both expose bounded ingest/query paths and source mapping, but their first adapter issues must remain cost-bounded.",
+          "supporting_evidence_ids": [
+            "E4",
+            "E5",
+            "E6",
+            "E7"
+          ],
+          "disconfirming_evidence_ids": []
+        },
+        {
+          "id": "T3",
+          "summary": "Graphiti/Zep is a stronger adapter candidate than generic graph-memory references because it can emit temporal facts with validity windows and run against Docker-local graph stores.",
+          "supporting_evidence_ids": [
+            "E8"
+          ],
+          "disconfirming_evidence_ids": []
+        },
+        {
+          "id": "T4",
+          "summary": "Letta, LangGraph, nanograph, and llm-wiki should still inform ELF design, but creating adapter implementation issues now would blur reference workflows with executable memory-service evidence.",
+          "supporting_evidence_ids": [
+            "E9",
+            "E10",
+            "E11",
+            "E12"
+          ],
+          "disconfirming_evidence_ids": []
+        },
+        {
+          "id": "T5",
+          "summary": "gbrain has a good citation and current-truth/timeline contract, but the missing Docker-local brain repo/database setup keeps it blocked rather than adapter_candidate.",
+          "supporting_evidence_ids": [
+            "E13"
+          ],
+          "disconfirming_evidence_ids": []
+        },
+        {
+          "id": "T6",
+          "summary": "graphify is an adapter candidate only if implemented as an isolated CLI/materializer over generated corpus artifacts, not as a host-global assistant hook install.",
+          "supporting_evidence_ids": [
+            "E14"
+          ],
+          "disconfirming_evidence_ids": []
+        }
+      ]
+    },
+    {
+      "seq": 5,
+      "type": "challenge_recorded",
+      "summary": "The main risk is that adapter_candidate could be read as benchmark evidence. The mitigation is to keep evidence_class=research_gate, keep overall status non-pass, and state that follow-up implementation issues must still run Docker and real_world_job scoring before any live evidence claim.",
+      "resolved": true
+    },
+    {
+      "seq": 6,
+      "type": "finalized_decision_ready",
+      "confidence": "medium",
+      "decision": "Create implementation follow-ups only for RAGFlow, LightRAG, GraphRAG, Graphiti/Zep, and graphify. Keep Letta, LangGraph, nanograph, and llm-wiki as research_only references. Keep gbrain blocked pending a Docker-local brain repo/database proof. Do not change any research_gate record into live evidence until an adapter executes inside Docker and emits evidence-linked outputs.",
+      "missing_evidence": [
+        "No Docker adapter was implemented or executed in this lane.",
+        "No host-global install was used as proof.",
+        "Provider credentials and private corpora remain out of scope."
+      ]
+    }
+  ]
+}
