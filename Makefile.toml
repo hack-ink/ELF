@@ -872,6 +872,135 @@ args = [
 ]
 
 
+# External memory pattern radar
+# | task                               | type      | cwd |
+# | ---------------------------------- | --------- | --- |
+# | external-memory-radar              | command   |     |
+# | external-memory-radar-artifact     | composite |     |
+# | external-memory-radar-artifact-json | command  |     |
+# | external-memory-radar-artifact-validate | command | |
+# | external-memory-radar-dry-run      | composite |     |
+# | external-memory-radar-dry-run-json | command   |     |
+# | external-memory-radar-dry-run-validate | command |  |
+# | external-memory-radar-validate     | command   |     |
+
+[tasks.external-memory-radar]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"external_memory_pattern_radar",
+	"--",
+	"run",
+	"--cursor",
+	"docs/research/external_memory_pattern_radar/cursor.json",
+	"--summary",
+	"docs/research/external_memory_pattern_radar/latest.md",
+]
+
+[tasks.external-memory-radar-artifact]
+workspace = false
+dependencies = [
+	"external-memory-radar-artifact-json",
+	"external-memory-radar-artifact-validate",
+]
+
+[tasks.external-memory-radar-artifact-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"external_memory_pattern_radar",
+	"--",
+	"run",
+	"--cursor",
+	"docs/research/external_memory_pattern_radar/cursor.json",
+	"--out-cursor",
+	"tmp/external-memory-pattern-radar/cursor.json",
+	"--summary",
+	"tmp/external-memory-pattern-radar/latest.md",
+]
+
+[tasks.external-memory-radar-artifact-validate]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"external_memory_pattern_radar",
+	"--",
+	"validate",
+	"--cursor",
+	"tmp/external-memory-pattern-radar/cursor.json",
+]
+
+[tasks.external-memory-radar-dry-run]
+workspace = false
+dependencies = [
+	"external-memory-radar-dry-run-json",
+	"external-memory-radar-dry-run-validate",
+]
+
+[tasks.external-memory-radar-dry-run-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"external_memory_pattern_radar",
+	"--",
+	"run",
+	"--mode",
+	"offline",
+	"--cursor",
+	"docs/research/external_memory_pattern_radar/cursor.json",
+	"--out-cursor",
+	"tmp/external-memory-pattern-radar/cursor.json",
+	"--summary",
+	"tmp/external-memory-pattern-radar/latest.md",
+]
+
+[tasks.external-memory-radar-dry-run-validate]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"external_memory_pattern_radar",
+	"--",
+	"validate",
+	"--cursor",
+	"tmp/external-memory-pattern-radar/cursor.json",
+]
+
+[tasks.external-memory-radar-validate]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"external_memory_pattern_radar",
+	"--",
+	"validate",
+	"--cursor",
+	"docs/research/external_memory_pattern_radar/cursor.json",
+]
+
+
 # Meta
 # | task   | type      | cwd |
 # | ------ | --------- | --- |
