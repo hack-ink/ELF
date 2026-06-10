@@ -143,6 +143,10 @@ with the production embedding provider path, `Qwen3-Embedding-8B`, and
   passed same-corpus retrieval but failed lifecycle/cold-start coverage. memsearch,
   mem0, OpenViking, and claude-mem remained `incomplete` or wrong-result typed states;
   those states are reported as limitations, not hidden as proof.
+- Real-world agent memory aggregate after the P1 benchmark batch: 38 fixture-backed
+  jobs across 11 suites, 35 pass, 1 incomplete, 2 blocked, 0 wrong-result,
+  0 not-encoded, and 0 unsupported-claim results. The remaining non-pass jobs are
+  production-ops operator boundaries, not hidden benchmark wins.
 - The benchmark runner and report publisher are checked in and Docker-isolated:
   `cargo make baseline-live-docker`, `cargo make baseline-backfill-docker`,
   `cargo make baseline-production-private-addendum`,
@@ -157,19 +161,30 @@ Detailed evidence and interpretation:
 - [Live Baseline Benchmark Report - June 9, 2026](docs/guide/benchmarking/2026-06-09-live-baseline-report.md)
 - [Synthetic Production Corpus Benchmark Report - June 9, 2026](docs/guide/benchmarking/2026-06-09-production-corpus-report.md)
 - [Production Adoption Gate Report - June 9, 2026](docs/guide/benchmarking/2026-06-09-production-adoption-gate-report.md)
+- [Real-World Comparison Report - June 10, 2026](docs/guide/benchmarking/2026-06-10-real-world-comparison-report.md)
 - [Live Baseline Benchmark Runbook](docs/guide/benchmarking/live_baseline_benchmark.md)
 - [Single-User Production Runbook](docs/guide/single_user_production.md)
-- Future benchmark contract:
+- Benchmark contract:
   [Real-World Agent Memory Benchmark v1](docs/spec/real_world_agent_memory_benchmark_v1.md).
-  This contract defines job-level suites for agent work. Checked-in fixture runners now
-  cover a smoke work-resume slice and proposal-only consolidation cases through
-  `cargo make real-world-job-smoke` and `cargo make real-world-memory-consolidation`,
-  and `cargo make real-world-memory` now reports the first external adapter coverage
-  manifest for ELF, qmd, agentmemory, mem0/OpenMemory, claude-mem, memsearch, and
-  OpenViking. Those real-world reports still distinguish fixture-backed and
-  live-baseline-only evidence from true live real-world adapter runs; no external
-  project has a live real-world suite win until an adapter actually executes
-  `real_world_job` prompts and scoring.
+  This contract defines job-level suites for agent work. `cargo make real-world-memory`
+  now reports fixture-backed ELF evidence plus the external adapter coverage manifest
+  for ELF, qmd, agentmemory, mem0/OpenMemory, claude-mem, memsearch, and OpenViking.
+  The report still distinguishes fixture-backed and live-baseline-only evidence from
+  true live real-world adapter runs; no external project has a live real-world suite win
+  until an adapter actually executes `real_world_job` prompts and scoring.
+
+Evidence-backed position after the June 10 real-world report:
+
+- ELF is better evidenced than the tested alternatives on evidence-bound writes,
+  deterministic ingestion boundaries, Postgres source-of-truth plus rebuildable Qdrant
+  indexing, scoped service APIs, and fixture-backed provenance/resume/evolution checks.
+- ELF and qmd are both strong in the current encoded retrieval evidence: qmd remains
+  the local retrieval-debug baseline, while ELF has the stronger service and provenance
+  contract.
+- ELF is still behind or not yet proven on live real-world external adapters,
+  private-corpus production quality, credentialed production-ops gates, qmd-style local
+  debug knobs, agentmemory/claude-mem/OpenMemory-style continuity UX, OpenViking-style
+  context trajectory, and hosted managed memory.
 
 Quick comparison snapshot (objective/high-level).
 This table compares capability coverage, not overall project quality.
@@ -222,7 +237,8 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [Agent Memory Selection Research Run](docs/research/2026-06-08-agent-memory-selection.json)
 - [Real-World Benchmark Dimension Research Run](docs/research/2026-06-09-xy-841-external-memory-benchmark-dimensions.json)
 
-Latest external research refresh: June 9, 2026.
+Latest real-world benchmark report: June 10, 2026. Latest external research refresh:
+June 9, 2026.
 
 ## Documentation
 
