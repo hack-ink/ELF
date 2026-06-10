@@ -15,6 +15,11 @@ generated reports used runner version
 `0.2.0-89d30dc04a854771f2a62f607e1d13498ccb3073-aarch64-apple-darwin`; the working
 tree also contained the adapter manifest refresh recorded here.
 
+Postscript: XY-880 superseded the live-adapter state in this report for ELF and qmd.
+The successor evidence is
+`docs/guide/benchmarking/2026-06-10-live-real-world-sweep-report.md`: ELF and qmd now
+emit full-suite live sweep records, but neither has a full-suite live pass.
+
 ## Context
 
 Dependency batch state at report time:

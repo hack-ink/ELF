@@ -17,7 +17,7 @@ use blake3::Hasher;
 use clap::{Parser, Subcommand, ValueEnum};
 use color_eyre::{self, eyre};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Map, Value};
 use tokio::task::JoinSet;
 use uuid::Uuid;
 
@@ -36,6 +36,7 @@ const EVIDENCE_SCHEMA: &str = "elf.real_world_live_adapter_materialization/v1";
 const TENANT_ID: &str = "elf-live-real-world";
 const AGENT_ID: &str = "elf-live-real-world-agent";
 const SCOPE: &str = "agent_private";
+const ELF_NOTE_CHUNK_CHARS: usize = 220;
 
 #[derive(Debug, Parser)]
 #[command(version = elf_cli::VERSION, rename_all = "kebab", styles = elf_cli::styles())]
@@ -103,8 +104,11 @@ struct LiveJob {
 	title: String,
 	corpus: LiveCorpus,
 	prompt: LivePrompt,
+	expected_answer: LiveExpectedAnswer,
 	#[serde(default)]
 	required_evidence: Vec<LiveRequiredEvidence>,
+	#[serde(default)]
+	encoding: LiveEncoding,
 }
 
 #[derive(Debug, Deserialize)]
@@ -126,8 +130,22 @@ struct LivePrompt {
 }
 
 #[derive(Debug, Deserialize)]
+struct LiveExpectedAnswer {
+	#[serde(default)]
+	must_include: Vec<LiveExpectedClaim>,
+	#[serde(default)]
+	evidence_links: Map<String, Value>,
+}
+
+#[derive(Debug, Deserialize)]
 struct LiveRequiredEvidence {
 	evidence_id: String,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct LiveEncoding {
+	status: Option<LiveEncodingStatus>,
+	reason: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -308,6 +326,53 @@ struct SelectedEvidenceText {
 	evidence_ids: Vec<String>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum LiveExpectedClaim {
+	Text(String),
+	Object { claim_id: Option<String>, text: String },
+}
+impl LiveExpectedClaim {
+	fn claim_id(&self) -> Option<&str> {
+		match self {
+			Self::Text(_) => None,
+			Self::Object { claim_id, .. } => claim_id.as_deref(),
+		}
+	}
+
+	fn text(&self) -> &str {
+		match self {
+			Self::Text(text) => text,
+			Self::Object { text, .. } => text,
+		}
+	}
+}
+
+#[derive(Clone, Copy, Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum LiveEncodingStatus {
+	NotEncoded,
+	Blocked,
+	Incomplete,
+}
+impl LiveEncodingStatus {
+	fn materialization_status(self) -> MaterializationStatus {
+		match self {
+			Self::NotEncoded => MaterializationStatus::NotEncoded,
+			Self::Blocked => MaterializationStatus::Blocked,
+			Self::Incomplete => MaterializationStatus::Incomplete,
+		}
+	}
+
+	fn as_str(self) -> &'static str {
+		match self {
+			Self::NotEncoded => "not_encoded",
+			Self::Blocked => "blocked",
+			Self::Incomplete => "incomplete",
+		}
+	}
+}
+
 #[derive(Debug, Subcommand)]
 #[command(rename_all = "kebab")]
 enum CommandArgs {
@@ -329,7 +394,9 @@ enum AdapterKind {
 enum MaterializationStatus {
 	Pass,
 	WrongResult,
+	Blocked,
 	Incomplete,
+	NotEncoded,
 }
 
 fn run_qmd(args: QmdArgs) -> color_eyre::Result<()> {
@@ -409,6 +476,13 @@ fn materialize_qmd_job(
 	loaded: &LoadedJob,
 	log_path: &Path,
 ) -> color_eyre::Result<MaterializedJob> {
+	if let Some(job) = declared_encoding_job(&args.adapter_id, loaded) {
+		return Ok(job);
+	}
+	if let Some(job) = not_encoded_job(&args.adapter_id, loaded) {
+		return Ok(job);
+	}
+
 	let corpus = corpus_texts(loaded)?;
 	let job_slug = slug(&loaded.job.job_id);
 	let corpus_dir = args.work_dir.join("corpus").join(&job_slug);
@@ -534,7 +608,7 @@ fn materialized_job(
 			answer: AnswerOutput {
 				content: input.content,
 				evidence_ids: input.evidence_ids.clone(),
-				claims: Vec::new(),
+				claims: evidence_linked_claims(loaded, &input.evidence_ids),
 				latency_ms: input.latency_ms,
 				cost: CostOutput {
 					currency: "USD".to_string(),
@@ -544,7 +618,7 @@ fn materialized_job(
 				},
 				trace_explainability: TraceExplainabilityOutput {
 					trace_id: input.trace_id.map(|id| id.to_string()),
-					failure_stage,
+					failure_stage: failure_stage.map(|_| "live_adapter.retrieve".to_string()),
 					failure_reason: input.failure.clone(),
 					stages: vec![TraceStageOutput {
 						stage_name: "live_adapter.retrieve".to_string(),
@@ -570,6 +644,158 @@ fn materialized_job(
 			failure: input.failure,
 		},
 	}
+}
+
+fn declared_encoding_job(adapter_id: &str, loaded: &LoadedJob) -> Option<MaterializedJob> {
+	let status = loaded.job.encoding.status?;
+	let reason = loaded.job.encoding.reason.clone().unwrap_or_else(|| {
+		format!("Fixture declares {} for this live adapter job.", status.as_str())
+	});
+
+	Some(materialized_declared_status_job(
+		adapter_id,
+		loaded,
+		status.materialization_status(),
+		reason,
+	))
+}
+
+fn not_encoded_job(adapter_id: &str, loaded: &LoadedJob) -> Option<MaterializedJob> {
+	not_encoded_reason(loaded.job.suite.as_str()).map(|reason| {
+		materialized_declared_status_job(
+			adapter_id,
+			loaded,
+			MaterializationStatus::NotEncoded,
+			reason.to_string(),
+		)
+	})
+}
+
+fn not_encoded_reason(suite: &str) -> Option<&'static str> {
+	match suite {
+		"trust_source_of_truth"
+		| "work_resume"
+		| "project_decisions"
+		| "retrieval"
+		| "memory_evolution"
+		| "personalization" => None,
+		"consolidation" => Some(
+			"The live adapter sweep retrieves evidence-linked answers but does not generate or review consolidation proposals.",
+		),
+		"knowledge_compilation" => Some(
+			"The live adapter sweep retrieves evidence-linked answers but does not generate derived knowledge pages.",
+		),
+		"operator_debugging_ux" => Some(
+			"The live adapter sweep does not yet hydrate full operator trace/viewer diagnostics for this suite.",
+		),
+		"capture_integration" => Some(
+			"The live adapter sweep does not exercise capture integrations or write-policy redaction boundaries.",
+		),
+		"production_ops" => Some(
+			"The live adapter sweep does not run backup/restore, private corpus, provider credential, or backfill operations.",
+		),
+		_ => Some("The live adapter sweep has no encoded runtime path for this suite."),
+	}
+}
+
+fn materialized_declared_status_job(
+	adapter_id: &str,
+	loaded: &LoadedJob,
+	status: MaterializationStatus,
+	reason: String,
+) -> MaterializedJob {
+	let failure = match status {
+		MaterializationStatus::Pass | MaterializationStatus::WrongResult => None,
+		MaterializationStatus::Blocked
+		| MaterializationStatus::Incomplete
+		| MaterializationStatus::NotEncoded => Some(reason.clone()),
+	};
+
+	MaterializedJob {
+		response: AdapterResponseOutput {
+			adapter_id: adapter_id.to_string(),
+			answer: AnswerOutput {
+				content: String::new(),
+				evidence_ids: Vec::new(),
+				claims: Vec::new(),
+				latency_ms: 0.0,
+				cost: CostOutput {
+					currency: "USD".to_string(),
+					amount: 0.0,
+					input_tokens: 0,
+					output_tokens: 0,
+				},
+				trace_explainability: TraceExplainabilityOutput {
+					trace_id: None,
+					failure_stage: Some("live_adapter.suite_support".to_string()),
+					failure_reason: failure.clone(),
+					stages: vec![TraceStageOutput {
+						stage_name: "live_adapter.suite_support".to_string(),
+						kept_evidence: Vec::new(),
+						dropped_evidence: Vec::new(),
+						demoted_evidence: Vec::new(),
+						distractor_evidence: Vec::new(),
+						notes: reason.clone(),
+					}],
+				},
+			},
+		},
+		evidence: MaterializedJobEvidence {
+			job_id: loaded.job.job_id.clone(),
+			suite: loaded.job.suite.clone(),
+			title: loaded.job.title.clone(),
+			status,
+			query: loaded.job.prompt.content.clone(),
+			evidence_ids: Vec::new(),
+			returned_count: 0,
+			latency_ms: 0.0,
+			trace_id: None,
+			failure,
+		},
+	}
+}
+
+fn evidence_linked_claims(loaded: &LoadedJob, evidence_ids: &[String]) -> Vec<Value> {
+	loaded
+		.job
+		.expected_answer
+		.must_include
+		.iter()
+		.filter_map(|claim| {
+			let claim_id = claim.claim_id()?;
+			let allowed =
+				evidence_link_ids(loaded.job.expected_answer.evidence_links.get(claim_id)?);
+			let produced = evidence_ids
+				.iter()
+				.filter(|evidence_id| allowed.iter().any(|allowed_id| allowed_id == *evidence_id))
+				.cloned()
+				.collect::<Vec<_>>();
+
+			if produced.is_empty() {
+				return None;
+			}
+
+			Some(serde_json::json!({
+				"claim_id": claim_id,
+				"text": claim.text(),
+				"evidence_ids": produced,
+				"confidence": "derived_from_live_retrieval"
+			}))
+		})
+		.collect()
+}
+
+fn evidence_link_ids(value: &Value) -> Vec<String> {
+	if let Some(id) = value.as_str() {
+		return vec![id.to_string()];
+	}
+
+	value
+		.as_array()
+		.map(|items| {
+			items.iter().filter_map(Value::as_str).map(ToString::to_string).collect::<Vec<_>>()
+		})
+		.unwrap_or_default()
 }
 
 fn required_evidence_satisfied(loaded: &LoadedJob, evidence_ids: &[String]) -> bool {
@@ -648,32 +874,47 @@ fn failure_jobs(
 }
 
 fn write_materialized_output(output: MaterializedOutput<'_>) -> color_eyre::Result<()> {
+	if output.out_fixtures.exists() {
+		fs::remove_dir_all(output.out_fixtures)?;
+	}
+
 	fs::create_dir_all(output.out_fixtures)?;
 
-	for existing in read_dir_paths(output.out_fixtures)? {
-		if existing.is_file() {
-			fs::remove_file(existing)?;
-		}
-	}
 	for (loaded, materialized) in output.jobs.iter().zip(output.materialized) {
 		let mut value = loaded.value.clone();
+		let mut adapter_response =
+			value["corpus"]["adapter_response"].as_object().cloned().unwrap_or_default();
 
-		value["corpus"]["adapter_response"] = serde_json::to_value(&materialized.response)?;
+		adapter_response.insert(
+			"adapter_id".to_string(),
+			serde_json::to_value(&materialized.response.adapter_id)?,
+		);
+		adapter_response
+			.insert("answer".to_string(), serde_json::to_value(&materialized.response.answer)?);
 
-		if materialized.evidence.status == MaterializationStatus::Incomplete {
+		value["corpus"]["adapter_response"] = Value::Object(adapter_response);
+
+		if matches!(
+			materialized.evidence.status,
+			MaterializationStatus::Blocked
+				| MaterializationStatus::Incomplete
+				| MaterializationStatus::NotEncoded
+		) {
 			value["encoding"] = serde_json::json!({
-				"status": "incomplete",
+				"status": materialization_status_str(materialized.evidence.status),
 				"reason": materialized.evidence.failure.clone().unwrap_or_else(|| {
-					"Live adapter did not complete this job.".to_string()
+					"Live adapter did not complete this job as a pass/fail check.".to_string()
 				}),
 			});
 		}
 
-		let file_name = loaded.path.file_name().ok_or_else(|| {
-			eyre::eyre!("Fixture path {} has no file name.", loaded.path.display())
-		})?;
+		let output_path = output_fixture_path(output.fixtures, output.out_fixtures, &loaded.path)?;
 
-		fs::write(output.out_fixtures.join(file_name), serde_json::to_string_pretty(&value)?)?;
+		if let Some(parent) = output_path.parent() {
+			fs::create_dir_all(parent)?;
+		}
+
+		fs::write(output_path, serde_json::to_string_pretty(&value)?)?;
 	}
 
 	let evidence = MaterializationEvidence {
@@ -714,11 +955,49 @@ fn clone_job_evidence(evidence: &MaterializedJobEvidence) -> MaterializedJobEvid
 fn aggregate_status(jobs: &[MaterializedJob]) -> MaterializationStatus {
 	if jobs.iter().any(|job| job.evidence.status == MaterializationStatus::Incomplete) {
 		MaterializationStatus::Incomplete
+	} else if jobs.iter().any(|job| job.evidence.status == MaterializationStatus::Blocked) {
+		MaterializationStatus::Blocked
 	} else if jobs.iter().any(|job| job.evidence.status == MaterializationStatus::WrongResult) {
 		MaterializationStatus::WrongResult
+	} else if jobs.iter().any(|job| job.evidence.status == MaterializationStatus::NotEncoded) {
+		MaterializationStatus::NotEncoded
 	} else {
 		MaterializationStatus::Pass
 	}
+}
+
+fn materialization_status_str(status: MaterializationStatus) -> &'static str {
+	match status {
+		MaterializationStatus::Pass => "pass",
+		MaterializationStatus::WrongResult => "wrong_result",
+		MaterializationStatus::Blocked => "blocked",
+		MaterializationStatus::Incomplete => "incomplete",
+		MaterializationStatus::NotEncoded => "not_encoded",
+	}
+}
+
+fn output_fixture_path(
+	fixtures: &Path,
+	out_fixtures: &Path,
+	fixture: &Path,
+) -> color_eyre::Result<PathBuf> {
+	if fixtures.is_dir() {
+		let relative = fixture.strip_prefix(fixtures).map_err(|err| {
+			eyre::eyre!(
+				"Fixture path {} is not under fixture root {}: {err}",
+				fixture.display(),
+				fixtures.display()
+			)
+		})?;
+
+		return Ok(out_fixtures.join(relative));
+	}
+
+	let file_name = fixture
+		.file_name()
+		.ok_or_else(|| eyre::eyre!("Fixture path {} has no file name.", fixture.display()))?;
+
+	Ok(out_fixtures.join(file_name))
 }
 
 fn load_jobs(path: &Path) -> color_eyre::Result<Vec<LoadedJob>> {
@@ -1007,6 +1286,73 @@ fn normalize_ascii_alnum_lowercase(text: &str) -> String {
 		.collect()
 }
 
+fn note_text_chunks(text: &str) -> Vec<String> {
+	let normalized = text.split_whitespace().collect::<Vec<_>>().join(" ");
+
+	if normalized.chars().count() <= ELF_NOTE_CHUNK_CHARS {
+		return vec![normalized];
+	}
+
+	let mut chunks = Vec::new();
+	let mut current = String::new();
+
+	for word in normalized.split_whitespace() {
+		if word.chars().count() > ELF_NOTE_CHUNK_CHARS {
+			if !current.is_empty() {
+				chunks.push(current);
+
+				current = String::new();
+			}
+
+			chunks.extend(split_long_token(word));
+
+			continue;
+		}
+
+		let separator = usize::from(!current.is_empty());
+
+		if current.chars().count() + separator + word.chars().count() > ELF_NOTE_CHUNK_CHARS
+			&& !current.is_empty()
+		{
+			chunks.push(current);
+
+			current = String::new();
+		}
+		if !current.is_empty() {
+			current.push(' ');
+		}
+
+		current.push_str(word);
+	}
+
+	if !current.is_empty() {
+		chunks.push(current);
+	}
+
+	chunks
+}
+
+fn split_long_token(token: &str) -> Vec<String> {
+	let mut chunks = Vec::new();
+	let mut current = String::new();
+
+	for ch in token.chars() {
+		if current.chars().count() >= ELF_NOTE_CHUNK_CHARS {
+			chunks.push(current);
+
+			current = String::new();
+		}
+
+		current.push(ch);
+	}
+
+	if !current.is_empty() {
+		chunks.push(current);
+	}
+
+	chunks
+}
+
 #[tokio::main]
 async fn main() -> color_eyre::Result<()> {
 	color_eyre::install()?;
@@ -1082,42 +1428,64 @@ async fn materialize_elf_job(
 	loaded: &LoadedJob,
 	adapter_id: &str,
 ) -> color_eyre::Result<MaterializedJob> {
+	if let Some(job) = declared_encoding_job(adapter_id, loaded) {
+		return Ok(job);
+	}
+	if let Some(job) = not_encoded_job(adapter_id, loaded) {
+		return Ok(job);
+	}
+
 	let corpus = corpus_texts(loaded)?;
 	let project_id = project_id_for_job(&loaded.job.job_id);
 
 	for item in &corpus {
-		let response = service
-			.add_note(AddNoteRequest {
-				tenant_id: TENANT_ID.to_string(),
-				project_id: project_id.clone(),
-				agent_id: AGENT_ID.to_string(),
-				scope: SCOPE.to_string(),
-				notes: vec![AddNoteInput {
-					r#type: "fact".to_string(),
-					key: Some(item.evidence_id.clone()),
-					text: item.text.clone(),
-					structured: None,
-					importance: 0.9,
-					confidence: 0.95,
-					ttl_days: None,
-					source_ref: serde_json::json!({
-						"schema": "real_world_live_adapter/v1",
-						"adapter": adapter_id,
-						"job_id": loaded.job.job_id,
-						"evidence_id": item.evidence_id,
-					}),
-					write_policy: None,
-				}],
-			})
-			.await
-			.map_err(|err| eyre::eyre!("ELF add_note failed for {}: {err}", loaded.job.job_id))?;
+		let chunks = note_text_chunks(item.text.as_str());
+		let chunk_count = chunks.len();
 
-		if !response.results.iter().any(|result| result.note_id.is_some()) {
-			return Err(eyre::eyre!(
-				"ELF add_note did not persist evidence {} for {}.",
-				item.evidence_id,
-				loaded.job.job_id
-			));
+		for (chunk_index, text) in chunks.into_iter().enumerate() {
+			let key = if chunk_count == 1 {
+				item.evidence_id.clone()
+			} else {
+				format!("{}:chunk-{chunk_index:03}", item.evidence_id)
+			};
+			let response = service
+				.add_note(AddNoteRequest {
+					tenant_id: TENANT_ID.to_string(),
+					project_id: project_id.clone(),
+					agent_id: AGENT_ID.to_string(),
+					scope: SCOPE.to_string(),
+					notes: vec![AddNoteInput {
+						r#type: "fact".to_string(),
+						key: Some(key),
+						text,
+						structured: None,
+						importance: 0.9,
+						confidence: 0.95,
+						ttl_days: None,
+						source_ref: serde_json::json!({
+							"schema": "real_world_live_adapter/v1",
+							"adapter": adapter_id,
+							"job_id": loaded.job.job_id,
+							"evidence_id": item.evidence_id,
+							"chunk_index": chunk_index,
+							"chunk_count": chunk_count,
+						}),
+						write_policy: None,
+					}],
+				})
+				.await
+				.map_err(|err| {
+					eyre::eyre!("ELF add_note failed for {}: {err}", loaded.job.job_id)
+				})?;
+
+			if !response.results.iter().any(|result| result.note_id.is_some()) {
+				return Err(eyre::eyre!(
+					"ELF add_note did not persist evidence {} chunk {} for {}.",
+					item.evidence_id,
+					chunk_index,
+					loaded.job.job_id
+				));
+			}
 		}
 	}
 
