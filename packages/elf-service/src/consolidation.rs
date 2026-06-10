@@ -8,14 +8,15 @@ use uuid::Uuid;
 use crate::{ElfService, Error, Result};
 use elf_domain::consolidation::{
 	self, CONSOLIDATION_CONTRACT_SCHEMA_V1, ConsolidationApplyIntent, ConsolidationInputRef,
-	ConsolidationLineage, ConsolidationMarkers, ConsolidationProposalContract,
-	ConsolidationProposalDiff, ConsolidationReviewAction, ConsolidationReviewState,
-	ConsolidationRunState, ConsolidationUnsupportedClaimFlag, ConsolidationValidationError,
+	ConsolidationJobPayload, ConsolidationLineage, ConsolidationMarkers,
+	ConsolidationProposalContract, ConsolidationProposalDiff, ConsolidationReviewAction,
+	ConsolidationReviewState, ConsolidationRunState, ConsolidationUnsupportedClaimFlag,
+	ConsolidationValidationError,
 };
 use elf_storage::{
 	consolidation::{
 		ConsolidationProposalReviewEventInsert, ConsolidationProposalReviewUpdate,
-		ConsolidationRunStateUpdate,
+		ConsolidationRunJobInsert,
 	},
 	models::{ConsolidationProposal, ConsolidationProposalReviewEvent, ConsolidationRun},
 };
@@ -32,7 +33,7 @@ pub struct ConsolidationRunCreateRequest {
 	pub project_id: String,
 	/// Agent registering the run.
 	pub agent_id: String,
-	/// Job kind, such as `fixture`, `manual`, or `scheduled`.
+	/// Job kind, such as `fixture` or `manual`.
 	pub job_kind: String,
 	/// Input references considered by the run.
 	pub input_refs: Vec<ConsolidationInputRef>,
@@ -78,22 +79,20 @@ pub struct ConsolidationProposalInput {
 	pub proposed_payload: Value,
 }
 impl ConsolidationProposalInput {
-	fn validate(&self) -> Result<()> {
-		let contract = ConsolidationProposalContract {
-			proposal_kind: self.proposal_kind.clone(),
+	fn into_contract(self) -> ConsolidationProposalContract {
+		ConsolidationProposalContract {
+			proposal_kind: self.proposal_kind,
 			apply_intent: self.apply_intent,
-			source_refs: self.source_refs.clone(),
-			source_snapshot: self.source_snapshot.clone(),
-			lineage: self.lineage.clone(),
+			source_refs: self.source_refs,
+			source_snapshot: self.source_snapshot,
+			lineage: self.lineage,
 			confidence: self.confidence,
-			unsupported_claim_flags: self.unsupported_claim_flags.clone(),
-			markers: self.markers.clone(),
-			diff: self.diff.clone(),
-			target_ref: self.target_ref.clone(),
-			proposed_payload: self.proposed_payload.clone(),
-		};
-
-		contract.validate().map_err(validation_error)
+			unsupported_claim_flags: self.unsupported_claim_flags,
+			markers: self.markers,
+			diff: self.diff,
+			target_ref: self.target_ref,
+			proposed_payload: self.proposed_payload,
+		}
 	}
 }
 
@@ -102,6 +101,8 @@ impl ConsolidationProposalInput {
 pub struct ConsolidationRunCreateResponse {
 	/// Created run.
 	pub run: ConsolidationRunResponse,
+	/// Enqueued worker job identifier.
+	pub job_id: Uuid,
 	/// Proposals stored with the run.
 	pub proposals: Vec<ConsolidationProposalResponse>,
 }
@@ -148,7 +149,7 @@ pub struct ConsolidationRunResponse {
 	pub agent_id: String,
 	/// Versioned consolidation contract schema.
 	pub contract_schema: String,
-	/// Job kind, such as fixture, manual, or scheduled.
+	/// Job kind, such as fixture or manual.
 	pub job_kind: String,
 	/// Current run state.
 	pub status: String,
@@ -383,25 +384,26 @@ impl ElfService {
 
 		req.lineage.validate().map_err(validation_error)?;
 
-		for proposal in &req.proposals {
-			proposal.validate()?;
-		}
-
-		let has_proposals = !req.proposals.is_empty();
-		let now = OffsetDateTime::now_utc();
-		let run_state = if has_proposals {
-			ConsolidationRunState::Running
-		} else {
-			ConsolidationRunState::Pending
+		let proposal_contracts =
+			req.proposals.into_iter().map(ConsolidationProposalInput::into_contract).collect();
+		let payload = ConsolidationJobPayload {
+			contract_schema: CONSOLIDATION_CONTRACT_SCHEMA_V1.to_string(),
+			proposals: proposal_contracts,
 		};
+
+		payload.validate().map_err(validation_error)?;
+
+		let now = OffsetDateTime::now_utc();
+		let run_state = ConsolidationRunState::Pending;
 		let run_id = Uuid::new_v4();
-		let mut run = ConsolidationRun {
+		let job_id = Uuid::new_v4();
+		let run = ConsolidationRun {
 			run_id,
 			tenant_id: req.tenant_id.clone(),
 			project_id: req.project_id.clone(),
 			agent_id: req.agent_id.clone(),
 			contract_schema: CONSOLIDATION_CONTRACT_SCHEMA_V1.to_string(),
-			job_kind: req.job_kind,
+			job_kind: req.job_kind.clone(),
 			status: run_state.as_str().to_string(),
 			input_refs: to_value(&req.input_refs)?,
 			source_snapshot: req.source_snapshot,
@@ -411,53 +413,32 @@ impl ElfService {
 			updated_at: now,
 			completed_at: terminal_time(run_state, now),
 		};
-		let mut proposals = Vec::with_capacity(req.proposals.len());
+		let payload_value = to_value(&payload)?;
 		let mut tx = self.db.pool.begin().await?;
 
 		elf_storage::consolidation::insert_consolidation_run(&mut *tx, &run).await?;
-
-		for input in req.proposals {
-			let proposal = proposal_row_from_input(
+		elf_storage::consolidation::insert_consolidation_run_job(
+			&mut *tx,
+			ConsolidationRunJobInsert {
+				job_id,
 				run_id,
-				req.tenant_id.as_str(),
-				req.project_id.as_str(),
-				req.agent_id.as_str(),
+				tenant_id: req.tenant_id.as_str(),
+				project_id: req.project_id.as_str(),
+				agent_id: req.agent_id.as_str(),
+				job_kind: req.job_kind.as_str(),
+				payload: &payload_value,
 				now,
-				input,
-			)?;
-
-			elf_storage::consolidation::insert_consolidation_proposal(&mut *tx, &proposal).await?;
-
-			proposals.push(ConsolidationProposalResponse::from(proposal));
-		}
-
-		if has_proposals {
-			run_state
-				.validate_transition(ConsolidationRunState::Completed)
-				.map_err(validation_error)?;
-
-			let terminal_error = empty_object();
-
-			run = elf_storage::consolidation::update_consolidation_run_state(
-				&mut *tx,
-				ConsolidationRunStateUpdate {
-					tenant_id: req.tenant_id.as_str(),
-					project_id: req.project_id.as_str(),
-					run_id,
-					status: ConsolidationRunState::Completed.as_str(),
-					error: &terminal_error,
-					now,
-				},
-			)
-			.await?
-			.ok_or_else(|| Error::NotFound {
-				message: "consolidation run not found".to_string(),
-			})?;
-		}
+			},
+		)
+		.await?;
 
 		tx.commit().await?;
 
-		Ok(ConsolidationRunCreateResponse { run: ConsolidationRunResponse::from(run), proposals })
+		Ok(ConsolidationRunCreateResponse {
+			run: ConsolidationRunResponse::from(run),
+			job_id,
+			proposals: Vec::new(),
+		})
 	}
 
 	/// Fetches one consolidation run.
@@ -654,42 +635,6 @@ impl ElfService {
 	}
 }
 
-fn proposal_row_from_input(
-	run_id: Uuid,
-	tenant_id: &str,
-	project_id: &str,
-	agent_id: &str,
-	now: OffsetDateTime,
-	input: ConsolidationProposalInput,
-) -> Result<ConsolidationProposal> {
-	Ok(ConsolidationProposal {
-		proposal_id: Uuid::new_v4(),
-		run_id,
-		tenant_id: tenant_id.to_string(),
-		project_id: project_id.to_string(),
-		agent_id: agent_id.to_string(),
-		contract_schema: CONSOLIDATION_CONTRACT_SCHEMA_V1.to_string(),
-		proposal_kind: input.proposal_kind,
-		apply_intent: input.apply_intent.as_str().to_string(),
-		review_state: ConsolidationReviewState::Proposed.as_str().to_string(),
-		source_refs: to_value(&input.source_refs)?,
-		source_snapshot: input.source_snapshot,
-		lineage: to_value(&input.lineage)?,
-		diff: to_value(&input.diff)?,
-		confidence: input.confidence,
-		unsupported_claim_flags: to_value(&input.unsupported_claim_flags)?,
-		contradiction_markers: to_value(&input.markers.contradictions)?,
-		staleness_markers: to_value(&input.markers.staleness)?,
-		target_ref: input.target_ref,
-		proposed_payload: input.proposed_payload,
-		reviewer_agent_id: None,
-		review_comment: None,
-		reviewed_at: None,
-		created_at: now,
-		updated_at: now,
-	})
-}
-
 fn validate_context(tenant_id: &str, project_id: &str, agent_id: &str) -> Result<()> {
 	validate_non_empty("tenant_id", tenant_id)?;
 	validate_non_empty("project_id", project_id)?;
@@ -698,7 +643,14 @@ fn validate_context(tenant_id: &str, project_id: &str, agent_id: &str) -> Result
 }
 
 fn validate_job_kind(job_kind: &str) -> Result<()> {
-	validate_non_empty("job_kind", job_kind)
+	validate_non_empty("job_kind", job_kind)?;
+
+	match job_kind {
+		"fixture" | "manual" => Ok(()),
+		_ => Err(Error::InvalidRequest {
+			message: "job_kind must be fixture or manual for consolidation v1.".to_string(),
+		}),
+	}
 }
 
 fn validate_non_empty(field: &'static str, value: &str) -> Result<()> {

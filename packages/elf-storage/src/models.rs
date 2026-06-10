@@ -393,6 +393,37 @@ pub struct ConsolidationProposalReviewEvent {
 	pub created_at: OffsetDateTime,
 }
 
+/// Persisted consolidation worker job row.
+#[derive(Debug, FromRow)]
+pub struct ConsolidationRunJob {
+	/// Worker job identifier.
+	pub job_id: Uuid,
+	/// Consolidation run to materialize.
+	pub run_id: Uuid,
+	/// Tenant that owns the run.
+	pub tenant_id: String,
+	/// Project that owns the run.
+	pub project_id: String,
+	/// Agent that registered the run.
+	pub agent_id: String,
+	/// Job kind, such as fixture or manual.
+	pub job_kind: String,
+	/// Current job status.
+	pub status: String,
+	/// Queued proposal payload.
+	pub payload: Value,
+	/// Number of attempts already made.
+	pub attempts: i32,
+	/// Most recent failure text, if any.
+	pub last_error: Option<String>,
+	/// Earliest time the job may be claimed again.
+	pub available_at: OffsetDateTime,
+	/// Creation timestamp.
+	pub created_at: OffsetDateTime,
+	/// Last update timestamp.
+	pub updated_at: OffsetDateTime,
+}
+
 /// Persisted document row.
 #[derive(Debug, FromRow)]
 pub struct DocDocument {
