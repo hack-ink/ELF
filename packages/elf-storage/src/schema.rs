@@ -94,6 +94,13 @@ fn expand_includes(sql: &str) -> String {
 				"tables/038_knowledge_page_lint_findings.sql" => out.push_str(include_str!(
 					"../../../sql/tables/038_knowledge_page_lint_findings.sql"
 				)),
+				"tables/039_core_memory_blocks.sql" =>
+					out.push_str(include_str!("../../../sql/tables/039_core_memory_blocks.sql")),
+				"tables/040_core_memory_block_attachments.sql" => out.push_str(include_str!(
+					"../../../sql/tables/040_core_memory_block_attachments.sql"
+				)),
+				"tables/041_core_memory_block_events.sql" => out
+					.push_str(include_str!("../../../sql/tables/041_core_memory_block_events.sql")),
 				"tables/023_memory_ingest_decisions.sql" => out
 					.push_str(include_str!("../../../sql/tables/023_memory_ingest_decisions.sql")),
 				"tables/024_memory_space_grants.sql" =>
@@ -126,5 +133,8 @@ mod tests {
 		assert!(schema.contains("CREATE TABLE IF NOT EXISTS knowledge_page_sections"));
 		assert!(schema.contains("CREATE TABLE IF NOT EXISTS knowledge_page_source_refs"));
 		assert!(schema.contains("CREATE TABLE IF NOT EXISTS knowledge_page_lint_findings"));
+		assert!(schema.contains("CREATE TABLE IF NOT EXISTS core_memory_blocks"));
+		assert!(schema.contains("CREATE TABLE IF NOT EXISTS core_memory_block_attachments"));
+		assert!(schema.contains("CREATE TABLE IF NOT EXISTS core_memory_block_events"));
 	}
 }
