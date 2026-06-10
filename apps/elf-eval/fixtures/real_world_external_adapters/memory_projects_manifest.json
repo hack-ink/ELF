@@ -1288,48 +1288,63 @@
       "overall_status": "blocked",
       "setup": {
         "status": "blocked",
-        "evidence": "XY-882 marks GraphRAG as an adapter_candidate, but indexing cost and source mapping still need a cost-bounded Docker implementation before live scoring."
+        "evidence": "XY-887 adds a Docker-safe generated-corpus GraphRAG smoke command. The checked-in manifest remains a research gate until a generated artifact reaches GraphRAG parquet output.",
+        "command": "cargo make graphrag-docker-smoke",
+        "artifact": "tmp/real-world-memory/graphrag-smoke/graphrag-smoke.json"
       },
       "run": {
-        "status": "not_encoded",
-        "evidence": "No GraphRAG real_world_job adapter is encoded."
+        "status": "blocked",
+        "evidence": "The default smoke records a typed blocked artifact without model calls; set ELF_GRAPHRAG_SMOKE_RUN=1 with explicit provider configuration to attempt live GraphRAG index/query.",
+        "command": "ELF_GRAPHRAG_SMOKE_RUN=1 cargo make graphrag-docker-smoke",
+        "artifact": "tmp/real-world-memory/graphrag-smoke/summary.json"
       },
       "result": {
         "status": "blocked",
-        "evidence": "No graph-navigation or knowledge-synthesis result is claimed from docs-only research."
+        "evidence": "No graph-navigation or knowledge-synthesis result is claimed from the checked-in research gate. Generated smoke artifacts may become live_real_world only after GraphRAG output tables map to generated evidence ids.",
+        "artifact": "tmp/real-world-memory/graphrag-smoke/memory_projects_manifest.graphrag-smoke.json"
       },
       "capabilities": [
         {
           "capability": "indexing_resource_envelope",
           "status": "blocked",
-          "evidence": "XY-882 requires the first adapter to start with a tiny corpus and record indexing cost before any scale or quality claim."
+          "evidence": "The smoke bounds the generated public corpus, timeout, GraphRAG package, model configuration, cache size, output size, elapsed time, and observed cache entries."
         },
         {
           "capability": "source_citation_mapping",
           "status": "blocked",
-          "evidence": "The adapter must map graph summaries and query output back to benchmark evidence IDs."
+          "evidence": "The generated artifact maps GraphRAG documents, text_units, communities, community_reports, entities, and relationships parquet rows back to real_world_job evidence ids when available."
         },
         {
           "capability": "real_world_job_adapter",
+          "status": "blocked",
+          "evidence": "The smoke writes a generated real_world_job fixture for the tiny corpus, but the checked-in record stays blocked until live GraphRAG output maps to expected evidence ids."
+        },
+        {
+          "capability": "quality_or_scale_claim",
           "status": "not_encoded",
-          "evidence": "No GraphRAG materializer or scorer mapping exists."
+          "evidence": "The smoke does not claim broad graph-navigation quality, knowledge-synthesis quality, private corpora, or large-corpus indexing."
         }
       ],
       "suites": [
         {
           "suite_id": "knowledge_compilation",
           "status": "blocked",
-          "evidence": "Community summaries and graph reports need source coverage checks before scoring."
+          "evidence": "The generated smoke can exercise parquet table source coverage for one tiny knowledge-compilation fixture, but the checked-in record stays blocked until live output exists."
         },
         {
           "suite_id": "retrieval",
-          "status": "blocked",
-          "evidence": "Query output and expected-evidence mapping are not researched."
+          "status": "not_encoded",
+          "evidence": "The smoke may run local search for reachability, but retrieval quality scoring is not encoded."
         },
         {
           "suite_id": "production_ops",
-          "status": "blocked",
-          "evidence": "Indexing resource envelope is not established."
+          "status": "not_encoded",
+          "evidence": "Resource bounds are recorded, but no production-ops suite scoring is encoded."
+        },
+        {
+          "suite_id": "memory_evolution",
+          "status": "not_encoded",
+          "evidence": "GraphRAG update/delete/current-versus-historical behavior is not encoded by the smoke."
         }
       ],
       "evidence": [
@@ -1342,6 +1357,16 @@
           "kind": "source",
           "ref": "https://microsoft.github.io/graphrag/",
           "status": "real"
+        },
+        {
+          "kind": "command",
+          "ref": "cargo make graphrag-docker-smoke",
+          "status": "blocked"
+        },
+        {
+          "kind": "artifact",
+          "ref": "tmp/real-world-memory/graphrag-smoke/graphrag-smoke.json",
+          "status": "blocked"
         }
       ],
       "execution_metadata": {
@@ -1357,19 +1382,30 @@
             "evidence": "Official documentation for indexing and querying."
           },
           {
+            "label": "GraphRAG input docs",
+            "url": "https://microsoft.github.io/graphrag/index/inputs/",
+            "evidence": "Official input format and document metadata reference."
+          },
+          {
             "label": "GraphRAG output tables",
             "url": "https://microsoft.github.io/graphrag/index/outputs/",
             "evidence": "Official output schema with document, text unit, community, and relationship identifiers."
+          },
+          {
+            "label": "GraphRAG local search docs",
+            "url": "https://microsoft.github.io/graphrag/query/local_search/",
+            "evidence": "Official local-search context and graph traversal reference."
           }
         ],
-        "setup_path": "Implement a tiny CLI/API index/query path with explicit model configuration and source mapping from parquet output tables.",
-        "runtime_boundary": "Docker-only Python CLI run with generated corpus and container-local artifacts.",
-        "resource_expectation": "Indexing may be expensive; record model calls, cache size, elapsed time, and maximum corpus size used.",
+        "setup_path": "Run cargo make graphrag-docker-smoke for a typed preflight artifact; set ELF_GRAPHRAG_SMOKE_RUN=1 with explicit provider configuration for a live GraphRAG index/query attempt.",
+        "runtime_boundary": "docker-compose.baseline.yml baseline-runner, container-local Python venv, generated public corpus, and report artifacts under tmp/real-world-memory/graphrag-smoke.",
+        "resource_expectation": "The default profile uses a generated public corpus capped by ELF_GRAPHRAG_MAX_DOCS and ELF_GRAPHRAG_MAX_INPUT_CHARS, pins GraphRAG through ELF_GRAPHRAG_PACKAGE, and records elapsed time, cache size, output size, and observed cache entries.",
         "retry_guidance": [
-          "Add a cost-bounded smoke before any scale or quality claim.",
+          "Run cargo make graphrag-docker-smoke first; missing provider configuration must remain a typed blocked artifact, not a pass claim.",
+          "Enable ELF_GRAPHRAG_SMOKE_RUN=1 only for generated public corpus indexing with explicit provider configuration.",
           "Fail typed if source document or text_unit identifiers cannot be mapped to expected evidence IDs."
         ],
-        "research_depth": "D2 feasibility verdict: adapter_candidate (XY-882); research_gate only, adapter not encoded"
+        "research_depth": "D2 feasibility plus XY-887 Docker smoke implementation; checked-in record remains research_gate unless a generated artifact reaches GraphRAG output"
       },
       "follow_up": {
         "title": "[ELF benchmark adapter] Implement GraphRAG cost-bounded Docker adapter",

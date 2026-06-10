@@ -823,6 +823,7 @@ args = [
 # | real-world-memory-knowledge-report | command   | |
 # | ragflow-docker-smoke               | command   | |
 # | lightrag-docker-context-smoke      | command   | |
+# | graphrag-docker-smoke              | command   | |
 
 [tasks.ragflow-docker-smoke]
 workspace = false
@@ -837,6 +838,14 @@ command = "bash"
 args = [
 	"-lc",
 	"set -euo pipefail; start=\"$(printenv ELF_LIGHTRAG_CONTEXT_START || true)\"; status=0; if [ \"$start\" = \"1\" ]; then docker compose -f docker-compose.baseline.yml --profile lightrag up -d lightrag; fi; docker compose -f docker-compose.baseline.yml run --build --rm baseline-runner bash scripts/lightrag-docker-context-smoke.sh || status=$?; if [ \"$start\" = \"1\" ]; then docker compose -f docker-compose.baseline.yml --profile lightrag stop lightrag lightrag-mock-provider >/dev/null 2>&1 || true; fi; exit \"$status\"",
+]
+
+[tasks.graphrag-docker-smoke]
+workspace = false
+command = "bash"
+args = [
+	"-lc",
+	"set -euo pipefail; docker compose -f docker-compose.baseline.yml run --build --rm -e ELF_GRAPHRAG_SMOKE_RUN -e ELF_GRAPHRAG_SMOKE_REPORT_DIR -e ELF_GRAPHRAG_SMOKE_WORK_DIR -e ELF_GRAPHRAG_SMOKE_INSTALL -e ELF_GRAPHRAG_VERSION -e ELF_GRAPHRAG_PACKAGE -e ELF_GRAPHRAG_REF -e ELF_GRAPHRAG_CHAT_MODEL -e ELF_GRAPHRAG_EMBEDDING_MODEL -e ELF_GRAPHRAG_API_BASE -e ELF_GRAPHRAG_API_KEY -e ELF_GRAPHRAG_INDEX_METHOD -e ELF_GRAPHRAG_QUERY_METHOD -e ELF_GRAPHRAG_TIMEOUT_SECONDS -e ELF_GRAPHRAG_MAX_DOCS -e ELF_GRAPHRAG_MAX_INPUT_CHARS baseline-runner python3 scripts/graphrag-docker-smoke.py",
 ]
 
 [tasks.real-world-memory-knowledge]
