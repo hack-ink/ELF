@@ -353,8 +353,8 @@ cargo make real-world-memory-evolution
 
 It lives under `apps/elf-eval/fixtures/real_world_memory/evolution/` and reports
 stale-answer count, conflict detection count, update rationale availability, temporal
-validity gaps, and unsupported claims. Its relation-temporal fixture is deliberately
-`not_encoded` until graph-lite temporal validity is implemented.
+validity encoding, and unsupported claims. Its relation-temporal fixture is encoded as
+a normal pass/fail check for current versus historical graph-lite relation context.
 
 To run the checked-in retrieval-quality real-world fixtures:
 

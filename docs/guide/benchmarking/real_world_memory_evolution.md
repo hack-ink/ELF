@@ -2,7 +2,7 @@
 
 Goal: Run and interpret the checked-in memory evolution real-world job fixtures.
 Read this when: You need to test current facts, historical facts, stale facts,
-conflicts, corrected memories, and temporal validity limitations.
+conflicts, corrected memories, and temporal relation validity.
 Inputs: `apps/elf-eval/fixtures/real_world_memory/evolution/`,
 `apps/elf-eval/src/bin/real_world_job_benchmark.rs`, and `Makefile.toml`.
 Depends on: `docs/spec/real_world_agent_memory_benchmark_v1.md`,
@@ -23,13 +23,12 @@ The checked-in fixture set covers:
 - Issue state evolution from blocked to done.
 - Production deployment guidance superseding a local smoke quickstart.
 - Benchmark adoption verdict reversal with a bounded private-corpus caveat.
-- Relation fact current-versus-historical ownership, encoded as `not_encoded`
-  because temporal graph validity is not yet implemented in the runner.
+- Relation fact current-versus-historical ownership with graph-lite temporal
+  validity encoded as a normal pass/fail fixture.
 
 The relation case borrows from Graphiti/Zep temporal validity and nanograph typed
-query ergonomics. It intentionally does not fake a pass for graph temporal behavior.
-The report declares the follow-up `[ELF graph P1] Add temporal validity to graph-lite
-facts`.
+query ergonomics while preserving ELF's Postgres source-of-truth and evidence-link
+requirements.
 
 ## Run
 
@@ -55,10 +54,11 @@ The runner reports memory evolution counters at summary, suite, and job levels:
 - `update_rationale_available_count`: jobs where the produced answer cites the
   update rationale.
 - `temporal_validity_not_encoded_count`: jobs that require temporal graph validity
-  but are deliberately declared `not_encoded`.
+  but are deliberately declared `not_encoded`; this should be `0` for the checked-in
+  evolution fixture set.
 - `unsupported_claim_count`: existing real-world job unsupported claim counter.
 
 Runnable jobs should have `stale_answer_count = 0`, nonzero conflict detection, and
-an update rationale when the fixture provides one. A temporal validity gap should
-remain `not_encoded` until graph-lite facts can model current-only and historical
-relation validity.
+an update rationale when the fixture provides one. The relation temporal-validity job
+should report temporal validity as encoded and pass only when current and historical
+relation evidence are distinguished.
