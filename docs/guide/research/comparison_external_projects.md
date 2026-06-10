@@ -63,9 +63,13 @@ projects only have `live_baseline_only` Docker retrieval/lifecycle evidence, whi
 capabilities are `mocked`, `blocked`, `unsupported`, `incomplete`, `wrong_result`, or
 `lifecycle_fail`, and which real-world suites remain `not_encoded`. The manifest now
 includes targeted `live_real_world` records for ELF and qmd through
-`cargo make real-world-memory-live-adapters`; other external projects remain
-live-baseline-only, incomplete, blocked, or not encoded until their own
-`real_world_job` adapters run.
+`cargo make real-world-memory-live-adapters`; it also includes `research_gate` records
+for RAGFlow, LightRAG, GraphRAG, Graphiti/Zep, Letta, LangGraph, nanograph,
+llm-wiki, gbrain, graphify, and deeper qmd/OpenViking profiles. Research gates carry
+source/setup/runtime/resource/retry metadata for future adapter work, but they are not
+fixture-backed, live-baseline-only, or live-real-world evidence. Other external
+projects remain live-baseline-only, incomplete, blocked, or not encoded until their
+own `real_world_job` adapters run.
 
 Benchmark suite labels:
 
@@ -102,8 +106,9 @@ Project-to-suite map:
 | Graphiti / Zep | `rw.graph-temporal`, `rw.resume-evidence` | Temporal entities, relations, fact triples, validity windows, and graph search directly target stale/contradictory factual memory. | Add fact triples with validity changes, query current and historical answers, and score invalidation/append behavior under contradiction traps. | Docs-grounded D1; no benchmark adapter evidence. Confidence: medium-high for temporal-graph dimension. | ELF graph-lite covers evidence-linked validity windows and current/historical relation context; Graphiti/Zep remains the reference for broader temporal graph workflows. |
 | nanograph | `rw.graph-temporal`, `rw.retrieval-debug` | Typed schema and typed query ergonomics are relevant to making ELF graph-lite interactions inspectable and hard to misuse. | Define typed graph schemas and queries for the same fact set, then score developer-visible validation, query shape, and explainability rather than retrieval quality alone. | Docs-grounded D1; no benchmark adapter evidence. Confidence: medium for DX reference, low for memory-system comparison. | ELF should borrow typed graph ergonomics without treating nanograph as a full memory backend. |
 
-Pending watch items remain D0. Keep them out of benchmark strength claims until current
-evidence is gathered:
+Pending watch items remain D0 even when they have checked-in `research_gate` adapter
+records. Keep them out of benchmark strength claims until current D1/D2 evidence is
+gathered and a Docker-isolated adapter actually runs:
 
 | Watch item | Candidate suite if promoted | Minimum evidence needed before adapter or quality claims |
 | ---------- | --------------------------- | ------------------------------------------------------- |
@@ -282,7 +287,7 @@ Capability notes:
 - [gbrain](https://github.com/garrytan/gbrain): Strong operational knowledge-brain shape with primary-home routing, `compiled_truth` + timeline pages, and explicit maintenance/enrichment workflows. Trade-off: page-first ontology and personal-brain workflow assumptions would over-couple ELF core to one UI/content model if copied directly.
 - [Always-On Memory Agent](https://github.com/GoogleCloudPlatform/generative-ai/tree/main/gemini/agents/always-on-memory-agent): Strong always-on ingest/consolidate/query loop with multimodal inbox, timer-driven consolidation, simple SQLite persistence, and a lightweight dashboard/API. Trade-off: memory formation is LLM-first, so it does not preserve ELF-style deterministic write boundaries or evidence-bound fact contracts.
 - [graphify](https://github.com/safishamsi/graphify): Strong multimodal graph compression with deterministic AST extraction for code, explicit `EXTRACTED`/`INFERRED`/`AMBIGUOUS` relation tagging, and always-on assistant hooks. Trade-off: it is closer to a graph-guided corpus understanding skill than a multi-tenant memory service, so its graph artifact should be treated as a derived operator surface rather than a source-of-truth memory backend.
-- [nanograph](https://github.com/aaltshuler/nanograph): Strong typed schema + typed query developer ergonomics. Trade-off: focuses on graph-first DX patterns rather than ELF's evidence-bound notes + multi-tenant service contract.
+- [nanograph](https://github.com/nanograph/nanograph): Strong typed schema + typed query developer ergonomics. Trade-off: focuses on graph-first DX patterns rather than ELF's evidence-bound notes + multi-tenant service contract.
 
 ## nanograph Snapshot (New)
 
@@ -293,9 +298,9 @@ Snapshot date for this subsection: March 4, 2026.
 
 Primary references:
 
-- [nanograph](https://github.com/aaltshuler/nanograph)
-- [Schema docs](https://github.com/aaltshuler/nanograph/blob/main/docs/user/schema.md)
-- [Query docs](https://github.com/aaltshuler/nanograph/blob/main/docs/user/queries.md)
+- [nanograph](https://github.com/nanograph/nanograph)
+- [Schema docs](https://github.com/nanograph/nanograph/blob/main/docs/user/schema.md)
+- [Query docs](https://github.com/nanograph/nanograph/blob/main/docs/user/queries.md)
 
 ## LLM Wiki And Operational Brain Snapshot (New)
 
