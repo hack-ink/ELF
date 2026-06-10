@@ -6,10 +6,11 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 use elf_domain::consolidation::{
-	ConsolidationApplyIntent, ConsolidationInputRef, ConsolidationLineage, ConsolidationMarkers,
-	ConsolidationProposalContract, ConsolidationProposalDiff, ConsolidationReviewState,
-	ConsolidationRunState, ConsolidationSourceKind, ConsolidationSourceSnapshot,
-	ConsolidationValidationError,
+	CONSOLIDATION_CONTRACT_SCHEMA_V1, ConsolidationApplyIntent, ConsolidationInputRef,
+	ConsolidationJobPayload, ConsolidationLineage, ConsolidationMarkers,
+	ConsolidationProposalContract, ConsolidationProposalDiff, ConsolidationReviewAction,
+	ConsolidationReviewState, ConsolidationRunState, ConsolidationSourceKind,
+	ConsolidationSourceSnapshot, ConsolidationUnsupportedClaimFlag, ConsolidationValidationError,
 };
 
 #[test]
@@ -63,9 +64,39 @@ fn proposal_contract_rejects_destructive_diff_payloads() {
 }
 
 #[test]
+fn unsupported_claim_flags_require_reviewer_text() {
+	let source = source_ref();
+	let mut proposal = proposal_contract(source.clone());
+
+	proposal.unsupported_claim_flags = vec![ConsolidationUnsupportedClaimFlag {
+		claim_id: Some("unsupported-worker-claim".to_string()),
+		message: " ".to_string(),
+		source: Some(source),
+	}];
+
+	assert_eq!(
+		proposal.validate(),
+		Err(ConsolidationValidationError::EmptyText { field: "unsupported_claim_flags.message" })
+	);
+}
+
+#[test]
 fn destructive_apply_intents_are_not_part_of_the_contract() {
 	let parsed =
 		serde_json::from_value::<ConsolidationApplyIntent>(serde_json::json!("delete_source_note"));
+
+	assert!(parsed.is_err());
+}
+
+#[test]
+fn review_actions_use_explicit_operator_vocabulary() {
+	let action = serde_json::from_value::<ConsolidationReviewAction>(serde_json::json!("defer"))
+		.expect("review action should parse");
+
+	assert_eq!(action.as_str(), "defer");
+
+	let parsed =
+		serde_json::from_value::<ConsolidationReviewAction>(serde_json::json!("silently_apply"));
 
 	assert!(parsed.is_err());
 }
@@ -111,6 +142,21 @@ fn run_lifecycle_rejects_skipping_generation_state() {
 	);
 }
 
+#[test]
+fn queued_payload_requires_consolidation_contract_schema() {
+	let source = source_ref();
+	let mut payload = ConsolidationJobPayload {
+		contract_schema: CONSOLIDATION_CONTRACT_SCHEMA_V1.to_string(),
+		proposals: vec![proposal_contract(source)],
+	};
+
+	assert!(payload.validate().is_ok());
+
+	payload.contract_schema = "elf.consolidation/v0".to_string();
+
+	assert_eq!(payload.validate(), Err(ConsolidationValidationError::InvalidContractSchema));
+}
+
 fn proposal_contract(source: ConsolidationInputRef) -> ConsolidationProposalContract {
 	let lineage = ConsolidationLineage {
 		source_refs: vec![source.clone()],
@@ -125,6 +171,7 @@ fn proposal_contract(source: ConsolidationInputRef) -> ConsolidationProposalCont
 		source_snapshot: serde_json::json!({ "window": "fixture" }),
 		lineage,
 		confidence: 0.85,
+		unsupported_claim_flags: Vec::new(),
 		markers: ConsolidationMarkers::default(),
 		diff: ConsolidationProposalDiff {
 			summary: "Create one derived note from stable evidence.".to_string(),

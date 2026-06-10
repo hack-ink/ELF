@@ -2,19 +2,23 @@
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
-use time::OffsetDateTime;
+use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
 use crate::{ElfService, Error, Result};
 use elf_domain::consolidation::{
 	self, CONSOLIDATION_CONTRACT_SCHEMA_V1, ConsolidationApplyIntent, ConsolidationInputRef,
-	ConsolidationLineage, ConsolidationMarkers, ConsolidationProposalContract,
-	ConsolidationProposalDiff, ConsolidationReviewState, ConsolidationRunState,
+	ConsolidationJobPayload, ConsolidationLineage, ConsolidationMarkers,
+	ConsolidationProposalContract, ConsolidationProposalDiff, ConsolidationReviewAction,
+	ConsolidationReviewState, ConsolidationRunState, ConsolidationUnsupportedClaimFlag,
 	ConsolidationValidationError,
 };
 use elf_storage::{
-	consolidation::{ConsolidationProposalReviewUpdate, ConsolidationRunStateUpdate},
-	models::{ConsolidationProposal, ConsolidationRun},
+	consolidation::{
+		ConsolidationProposalReviewEventInsert, ConsolidationProposalReviewUpdate,
+		ConsolidationRunJobInsert,
+	},
+	models::{ConsolidationProposal, ConsolidationProposalReviewEvent, ConsolidationRun},
 };
 
 const DEFAULT_LIST_LIMIT: i64 = 50;
@@ -29,11 +33,11 @@ pub struct ConsolidationRunCreateRequest {
 	pub project_id: String,
 	/// Agent registering the run.
 	pub agent_id: String,
-	/// Job kind, such as `fixture`, `manual`, or `scheduled`.
+	/// Job kind, such as `fixture` or `manual`.
 	pub job_kind: String,
 	/// Input references considered by the run.
 	pub input_refs: Vec<ConsolidationInputRef>,
-	#[serde(default)]
+	#[serde(default = "empty_object")]
 	/// Aggregate source snapshot metadata for the run.
 	pub source_snapshot: Value,
 	/// Run lineage.
@@ -52,7 +56,7 @@ pub struct ConsolidationProposalInput {
 	pub apply_intent: ConsolidationApplyIntent,
 	/// Source references directly supporting the proposal.
 	pub source_refs: Vec<ConsolidationInputRef>,
-	#[serde(default)]
+	#[serde(default = "empty_object")]
 	/// Aggregate source snapshot metadata for reviewer inspection.
 	pub source_snapshot: Value,
 	/// Proposal lineage.
@@ -60,33 +64,35 @@ pub struct ConsolidationProposalInput {
 	/// Fixture confidence in the proposal.
 	pub confidence: f32,
 	#[serde(default)]
+	/// Unsupported claims reviewers must inspect before accepting the proposal.
+	pub unsupported_claim_flags: Vec<ConsolidationUnsupportedClaimFlag>,
+	#[serde(default)]
 	/// Review markers for contradiction and staleness checks.
 	pub markers: ConsolidationMarkers,
 	/// Reviewable derived-output diff.
 	pub diff: ConsolidationProposalDiff,
-	#[serde(default)]
+	#[serde(default = "empty_object")]
 	/// Derived target reference, when the target already exists.
 	pub target_ref: Value,
-	#[serde(default)]
+	#[serde(default = "empty_object")]
 	/// Proposed derived output payload.
 	pub proposed_payload: Value,
 }
 impl ConsolidationProposalInput {
-	fn validate(&self) -> Result<()> {
-		let contract = ConsolidationProposalContract {
-			proposal_kind: self.proposal_kind.clone(),
+	fn into_contract(self) -> ConsolidationProposalContract {
+		ConsolidationProposalContract {
+			proposal_kind: self.proposal_kind,
 			apply_intent: self.apply_intent,
-			source_refs: self.source_refs.clone(),
-			source_snapshot: self.source_snapshot.clone(),
-			lineage: self.lineage.clone(),
+			source_refs: self.source_refs,
+			source_snapshot: self.source_snapshot,
+			lineage: self.lineage,
 			confidence: self.confidence,
-			markers: self.markers.clone(),
-			diff: self.diff.clone(),
-			target_ref: self.target_ref.clone(),
-			proposed_payload: self.proposed_payload.clone(),
-		};
-
-		contract.validate().map_err(validation_error)
+			unsupported_claim_flags: self.unsupported_claim_flags,
+			markers: self.markers,
+			diff: self.diff,
+			target_ref: self.target_ref,
+			proposed_payload: self.proposed_payload,
+		}
 	}
 }
 
@@ -95,6 +101,8 @@ impl ConsolidationProposalInput {
 pub struct ConsolidationRunCreateResponse {
 	/// Created run.
 	pub run: ConsolidationRunResponse,
+	/// Enqueued worker job identifier.
+	pub job_id: Uuid,
 	/// Proposals stored with the run.
 	pub proposals: Vec<ConsolidationProposalResponse>,
 }
@@ -141,7 +149,7 @@ pub struct ConsolidationRunResponse {
 	pub agent_id: String,
 	/// Versioned consolidation contract schema.
 	pub contract_schema: String,
-	/// Job kind, such as fixture, manual, or scheduled.
+	/// Job kind, such as fixture or manual.
 	pub job_kind: String,
 	/// Current run state.
 	pub status: String,
@@ -214,21 +222,65 @@ pub struct ConsolidationProposalsListResponse {
 	pub proposals: Vec<ConsolidationProposalResponse>,
 }
 
-/// Request to transition a proposal review state.
+/// Request to apply one proposal review action.
 #[derive(Clone, Debug, Deserialize)]
 pub struct ConsolidationProposalReviewRequest {
 	/// Tenant that owns the proposal.
 	pub tenant_id: String,
 	/// Project that owns the proposal.
 	pub project_id: String,
-	/// Agent performing the review transition.
+	/// Agent performing the review action.
 	pub reviewer_agent_id: String,
 	/// Proposal identifier.
 	pub proposal_id: Uuid,
-	/// Requested review state.
-	pub review_state: ConsolidationReviewState,
+	/// Requested review action.
+	pub review_action: ConsolidationReviewAction,
 	/// Optional reviewer comment.
 	pub review_comment: Option<String>,
+}
+
+/// Public consolidation proposal review audit DTO.
+#[derive(Clone, Debug, Serialize)]
+pub struct ConsolidationProposalReviewEventResponse {
+	/// Review event identifier.
+	pub review_id: Uuid,
+	/// Reviewed proposal identifier.
+	pub proposal_id: Uuid,
+	/// Parent consolidation run identifier.
+	pub run_id: Uuid,
+	/// Tenant that owns the proposal.
+	pub tenant_id: String,
+	/// Project that owns the proposal.
+	pub project_id: String,
+	/// Agent that performed the review action.
+	pub reviewer_agent_id: String,
+	/// Review action requested by the reviewer.
+	pub action: String,
+	/// Review state before the transition.
+	pub from_review_state: String,
+	/// Review state after the transition.
+	pub to_review_state: String,
+	/// Optional reviewer comment.
+	pub review_comment: Option<String>,
+	/// Creation timestamp.
+	pub created_at: OffsetDateTime,
+}
+impl From<ConsolidationProposalReviewEvent> for ConsolidationProposalReviewEventResponse {
+	fn from(event: ConsolidationProposalReviewEvent) -> Self {
+		Self {
+			review_id: event.review_id,
+			proposal_id: event.proposal_id,
+			run_id: event.run_id,
+			tenant_id: event.tenant_id,
+			project_id: event.project_id,
+			reviewer_agent_id: event.reviewer_agent_id,
+			action: event.action,
+			from_review_state: event.from_review_state,
+			to_review_state: event.to_review_state,
+			review_comment: event.review_comment,
+			created_at: event.created_at,
+		}
+	}
 }
 
 /// Public consolidation proposal DTO.
@@ -262,6 +314,8 @@ pub struct ConsolidationProposalResponse {
 	pub diff: Value,
 	/// Proposal confidence score.
 	pub confidence: f32,
+	/// Serialized unsupported-claim flags.
+	pub unsupported_claim_flags: Value,
 	/// Serialized contradiction markers.
 	pub contradiction_markers: Value,
 	/// Serialized staleness markers.
@@ -280,6 +334,8 @@ pub struct ConsolidationProposalResponse {
 	pub created_at: OffsetDateTime,
 	/// Last update timestamp.
 	pub updated_at: OffsetDateTime,
+	/// Append-only review events for detail readback.
+	pub review_events: Vec<ConsolidationProposalReviewEventResponse>,
 }
 impl From<ConsolidationProposal> for ConsolidationProposalResponse {
 	fn from(proposal: ConsolidationProposal) -> Self {
@@ -298,6 +354,7 @@ impl From<ConsolidationProposal> for ConsolidationProposalResponse {
 			lineage: proposal.lineage,
 			diff: proposal.diff,
 			confidence: proposal.confidence,
+			unsupported_claim_flags: proposal.unsupported_claim_flags,
 			contradiction_markers: proposal.contradiction_markers,
 			staleness_markers: proposal.staleness_markers,
 			target_ref: proposal.target_ref,
@@ -307,6 +364,7 @@ impl From<ConsolidationProposal> for ConsolidationProposalResponse {
 			reviewed_at: proposal.reviewed_at,
 			created_at: proposal.created_at,
 			updated_at: proposal.updated_at,
+			review_events: Vec::new(),
 		}
 	}
 }
@@ -326,25 +384,26 @@ impl ElfService {
 
 		req.lineage.validate().map_err(validation_error)?;
 
-		for proposal in &req.proposals {
-			proposal.validate()?;
-		}
-
-		let has_proposals = !req.proposals.is_empty();
-		let now = OffsetDateTime::now_utc();
-		let run_state = if has_proposals {
-			ConsolidationRunState::Running
-		} else {
-			ConsolidationRunState::Pending
+		let proposal_contracts =
+			req.proposals.into_iter().map(ConsolidationProposalInput::into_contract).collect();
+		let payload = ConsolidationJobPayload {
+			contract_schema: CONSOLIDATION_CONTRACT_SCHEMA_V1.to_string(),
+			proposals: proposal_contracts,
 		};
+
+		payload.validate().map_err(validation_error)?;
+
+		let now = OffsetDateTime::now_utc();
+		let run_state = ConsolidationRunState::Pending;
 		let run_id = Uuid::new_v4();
-		let mut run = ConsolidationRun {
+		let job_id = Uuid::new_v4();
+		let run = ConsolidationRun {
 			run_id,
 			tenant_id: req.tenant_id.clone(),
 			project_id: req.project_id.clone(),
 			agent_id: req.agent_id.clone(),
 			contract_schema: CONSOLIDATION_CONTRACT_SCHEMA_V1.to_string(),
-			job_kind: req.job_kind,
+			job_kind: req.job_kind.clone(),
 			status: run_state.as_str().to_string(),
 			input_refs: to_value(&req.input_refs)?,
 			source_snapshot: req.source_snapshot,
@@ -354,53 +413,32 @@ impl ElfService {
 			updated_at: now,
 			completed_at: terminal_time(run_state, now),
 		};
-		let mut proposals = Vec::with_capacity(req.proposals.len());
+		let payload_value = to_value(&payload)?;
 		let mut tx = self.db.pool.begin().await?;
 
 		elf_storage::consolidation::insert_consolidation_run(&mut *tx, &run).await?;
-
-		for input in req.proposals {
-			let proposal = proposal_row_from_input(
+		elf_storage::consolidation::insert_consolidation_run_job(
+			&mut *tx,
+			ConsolidationRunJobInsert {
+				job_id,
 				run_id,
-				req.tenant_id.as_str(),
-				req.project_id.as_str(),
-				req.agent_id.as_str(),
+				tenant_id: req.tenant_id.as_str(),
+				project_id: req.project_id.as_str(),
+				agent_id: req.agent_id.as_str(),
+				job_kind: req.job_kind.as_str(),
+				payload: &payload_value,
 				now,
-				input,
-			)?;
-
-			elf_storage::consolidation::insert_consolidation_proposal(&mut *tx, &proposal).await?;
-
-			proposals.push(ConsolidationProposalResponse::from(proposal));
-		}
-
-		if has_proposals {
-			run_state
-				.validate_transition(ConsolidationRunState::Completed)
-				.map_err(validation_error)?;
-
-			let terminal_error = empty_object();
-
-			run = elf_storage::consolidation::update_consolidation_run_state(
-				&mut *tx,
-				ConsolidationRunStateUpdate {
-					tenant_id: req.tenant_id.as_str(),
-					project_id: req.project_id.as_str(),
-					run_id,
-					status: ConsolidationRunState::Completed.as_str(),
-					error: &terminal_error,
-					now,
-				},
-			)
-			.await?
-			.ok_or_else(|| Error::NotFound {
-				message: "consolidation run not found".to_string(),
-			})?;
-		}
+			},
+		)
+		.await?;
 
 		tx.commit().await?;
 
-		Ok(ConsolidationRunCreateResponse { run: ConsolidationRunResponse::from(run), proposals })
+		Ok(ConsolidationRunCreateResponse {
+			run: ConsolidationRunResponse::from(run),
+			job_id,
+			proposals: Vec::new(),
+		})
 	}
 
 	/// Fetches one consolidation run.
@@ -453,8 +491,18 @@ impl ElfService {
 		.ok_or_else(|| Error::NotFound {
 			message: "consolidation proposal not found".to_string(),
 		})?;
+		let review_events = self
+			.consolidation_proposal_review_events(
+				req.tenant_id.as_str(),
+				req.project_id.as_str(),
+				req.proposal_id,
+			)
+			.await?;
+		let mut response = ConsolidationProposalResponse::from(proposal);
 
-		Ok(ConsolidationProposalResponse::from(proposal))
+		response.review_events = review_events;
+
+		Ok(response)
 	}
 
 	/// Lists consolidation proposals.
@@ -478,7 +526,7 @@ impl ElfService {
 		Ok(ConsolidationProposalsListResponse { proposals })
 	}
 
-	/// Applies one allowed proposal review-state transition.
+	/// Applies one allowed proposal review action.
 	pub async fn consolidation_proposal_review(
 		&self,
 		req: ConsolidationProposalReviewRequest,
@@ -505,63 +553,86 @@ impl ElfService {
 					message: "stored proposal review_state is invalid".to_string(),
 				}
 			})?;
+		let now = OffsetDateTime::now_utc();
+		let steps = review_steps(current, req.review_action)?;
+		let mut tx = self.db.pool.begin().await?;
+		let mut last_state = current;
+		let mut updated = existing;
 
-		current.validate_transition(req.review_state).map_err(validation_error)?;
+		for (step_index, (action, next_state)) in steps.into_iter().enumerate() {
+			last_state.validate_transition(next_state).map_err(validation_error)?;
 
-		let updated = elf_storage::consolidation::update_consolidation_proposal_review(
-			&self.db.pool,
-			ConsolidationProposalReviewUpdate {
-				tenant_id: req.tenant_id.as_str(),
-				project_id: req.project_id.as_str(),
-				proposal_id: req.proposal_id,
-				review_state: req.review_state.as_str(),
-				reviewer_agent_id: req.reviewer_agent_id.as_str(),
-				review_comment: req.review_comment.as_deref(),
-				now: OffsetDateTime::now_utc(),
-			},
-		)
-		.await?
-		.ok_or_else(|| Error::NotFound {
-			message: "consolidation proposal not found".to_string(),
-		})?;
+			let transition_time = now.saturating_add(Duration::milliseconds(step_index as i64));
 
-		Ok(ConsolidationProposalResponse::from(updated))
+			elf_storage::consolidation::insert_consolidation_proposal_review_event(
+				&mut *tx,
+				ConsolidationProposalReviewEventInsert {
+					review_id: Uuid::new_v4(),
+					proposal_id: req.proposal_id,
+					run_id: updated.run_id,
+					tenant_id: req.tenant_id.as_str(),
+					project_id: req.project_id.as_str(),
+					reviewer_agent_id: req.reviewer_agent_id.as_str(),
+					action: action.as_str(),
+					from_review_state: last_state.as_str(),
+					to_review_state: next_state.as_str(),
+					review_comment: req.review_comment.as_deref(),
+					created_at: transition_time,
+				},
+			)
+			.await?;
+
+			updated = elf_storage::consolidation::update_consolidation_proposal_review(
+				&mut *tx,
+				ConsolidationProposalReviewUpdate {
+					tenant_id: req.tenant_id.as_str(),
+					project_id: req.project_id.as_str(),
+					proposal_id: req.proposal_id,
+					review_state: next_state.as_str(),
+					reviewer_agent_id: req.reviewer_agent_id.as_str(),
+					review_comment: req.review_comment.as_deref(),
+					now: transition_time,
+				},
+			)
+			.await?
+			.ok_or_else(|| Error::NotFound {
+				message: "consolidation proposal not found".to_string(),
+			})?;
+			last_state = next_state;
+		}
+
+		tx.commit().await?;
+
+		let review_events = self
+			.consolidation_proposal_review_events(
+				req.tenant_id.as_str(),
+				req.project_id.as_str(),
+				req.proposal_id,
+			)
+			.await?;
+		let mut response = ConsolidationProposalResponse::from(updated);
+
+		response.review_events = review_events;
+
+		Ok(response)
 	}
-}
 
-fn proposal_row_from_input(
-	run_id: Uuid,
-	tenant_id: &str,
-	project_id: &str,
-	agent_id: &str,
-	now: OffsetDateTime,
-	input: ConsolidationProposalInput,
-) -> Result<ConsolidationProposal> {
-	Ok(ConsolidationProposal {
-		proposal_id: Uuid::new_v4(),
-		run_id,
-		tenant_id: tenant_id.to_string(),
-		project_id: project_id.to_string(),
-		agent_id: agent_id.to_string(),
-		contract_schema: CONSOLIDATION_CONTRACT_SCHEMA_V1.to_string(),
-		proposal_kind: input.proposal_kind,
-		apply_intent: input.apply_intent.as_str().to_string(),
-		review_state: ConsolidationReviewState::Proposed.as_str().to_string(),
-		source_refs: to_value(&input.source_refs)?,
-		source_snapshot: input.source_snapshot,
-		lineage: to_value(&input.lineage)?,
-		diff: to_value(&input.diff)?,
-		confidence: input.confidence,
-		contradiction_markers: to_value(&input.markers.contradictions)?,
-		staleness_markers: to_value(&input.markers.staleness)?,
-		target_ref: input.target_ref,
-		proposed_payload: input.proposed_payload,
-		reviewer_agent_id: None,
-		review_comment: None,
-		reviewed_at: None,
-		created_at: now,
-		updated_at: now,
-	})
+	async fn consolidation_proposal_review_events(
+		&self,
+		tenant_id: &str,
+		project_id: &str,
+		proposal_id: Uuid,
+	) -> Result<Vec<ConsolidationProposalReviewEventResponse>> {
+		let events = elf_storage::consolidation::list_consolidation_proposal_review_events(
+			&self.db.pool,
+			tenant_id,
+			project_id,
+			proposal_id,
+		)
+		.await?;
+
+		Ok(events.into_iter().map(ConsolidationProposalReviewEventResponse::from).collect())
+	}
 }
 
 fn validate_context(tenant_id: &str, project_id: &str, agent_id: &str) -> Result<()> {
@@ -572,7 +643,14 @@ fn validate_context(tenant_id: &str, project_id: &str, agent_id: &str) -> Result
 }
 
 fn validate_job_kind(job_kind: &str) -> Result<()> {
-	validate_non_empty("job_kind", job_kind)
+	validate_non_empty("job_kind", job_kind)?;
+
+	match job_kind {
+		"fixture" | "manual" => Ok(()),
+		_ => Err(Error::InvalidRequest {
+			message: "job_kind must be fixture or manual for consolidation v1.".to_string(),
+		}),
+	}
 }
 
 fn validate_non_empty(field: &'static str, value: &str) -> Result<()> {
@@ -593,6 +671,41 @@ fn validate_object(field: &str, value: &Value) -> Result<()> {
 
 fn validation_error(err: ConsolidationValidationError) -> Error {
 	Error::InvalidRequest { message: err.to_string() }
+}
+
+fn review_steps(
+	current: ConsolidationReviewState,
+	action: ConsolidationReviewAction,
+) -> Result<Vec<(ConsolidationReviewAction, ConsolidationReviewState)>> {
+	let steps = match action {
+		ConsolidationReviewAction::Approve =>
+			vec![(ConsolidationReviewAction::Approve, ConsolidationReviewState::Approved)],
+		ConsolidationReviewAction::Apply => match current {
+			ConsolidationReviewState::Proposed => vec![
+				(ConsolidationReviewAction::Approve, ConsolidationReviewState::Approved),
+				(ConsolidationReviewAction::Apply, ConsolidationReviewState::Applied),
+			],
+			ConsolidationReviewState::Approved =>
+				vec![(ConsolidationReviewAction::Apply, ConsolidationReviewState::Applied)],
+			ConsolidationReviewState::Rejected
+			| ConsolidationReviewState::Applied
+			| ConsolidationReviewState::Archived =>
+				vec![(ConsolidationReviewAction::Apply, ConsolidationReviewState::Applied)],
+		},
+		ConsolidationReviewAction::Discard =>
+			vec![(ConsolidationReviewAction::Discard, ConsolidationReviewState::Rejected)],
+		ConsolidationReviewAction::Defer =>
+			vec![(ConsolidationReviewAction::Defer, ConsolidationReviewState::Archived)],
+	};
+	let mut state = current;
+
+	for (_, next_state) in &steps {
+		state.validate_transition(*next_state).map_err(validation_error)?;
+
+		state = *next_state;
+	}
+
+	Ok(steps)
 }
 
 fn bounded_limit(limit: Option<u32>) -> i64 {

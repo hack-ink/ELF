@@ -344,6 +344,8 @@ pub struct ConsolidationProposal {
 	pub diff: Value,
 	/// Proposal confidence score.
 	pub confidence: f32,
+	/// Serialized unsupported-claim flags.
+	pub unsupported_claim_flags: Value,
 	/// Serialized contradiction markers.
 	pub contradiction_markers: Value,
 	/// Serialized staleness markers.
@@ -358,6 +360,64 @@ pub struct ConsolidationProposal {
 	pub review_comment: Option<String>,
 	/// Timestamp of the last review transition.
 	pub reviewed_at: Option<OffsetDateTime>,
+	/// Creation timestamp.
+	pub created_at: OffsetDateTime,
+	/// Last update timestamp.
+	pub updated_at: OffsetDateTime,
+}
+
+/// Persisted consolidation proposal review event row.
+#[derive(Debug, FromRow)]
+pub struct ConsolidationProposalReviewEvent {
+	/// Review event identifier.
+	pub review_id: Uuid,
+	/// Reviewed proposal identifier.
+	pub proposal_id: Uuid,
+	/// Parent consolidation run identifier.
+	pub run_id: Uuid,
+	/// Tenant that owns the proposal.
+	pub tenant_id: String,
+	/// Project that owns the proposal.
+	pub project_id: String,
+	/// Agent that performed the review action.
+	pub reviewer_agent_id: String,
+	/// Review action requested by the reviewer.
+	pub action: String,
+	/// Review state before the transition.
+	pub from_review_state: String,
+	/// Review state after the transition.
+	pub to_review_state: String,
+	/// Optional reviewer comment.
+	pub review_comment: Option<String>,
+	/// Creation timestamp.
+	pub created_at: OffsetDateTime,
+}
+
+/// Persisted consolidation worker job row.
+#[derive(Debug, FromRow)]
+pub struct ConsolidationRunJob {
+	/// Worker job identifier.
+	pub job_id: Uuid,
+	/// Consolidation run to materialize.
+	pub run_id: Uuid,
+	/// Tenant that owns the run.
+	pub tenant_id: String,
+	/// Project that owns the run.
+	pub project_id: String,
+	/// Agent that registered the run.
+	pub agent_id: String,
+	/// Job kind, such as fixture or manual.
+	pub job_kind: String,
+	/// Current job status.
+	pub status: String,
+	/// Queued proposal payload.
+	pub payload: Value,
+	/// Number of attempts already made.
+	pub attempts: i32,
+	/// Most recent failure text, if any.
+	pub last_error: Option<String>,
+	/// Earliest time the job may be claimed again.
+	pub available_at: OffsetDateTime,
 	/// Creation timestamp.
 	pub created_at: OffsetDateTime,
 	/// Last update timestamp.

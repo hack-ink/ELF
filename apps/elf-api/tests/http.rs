@@ -844,6 +844,12 @@ async fn openapi_json_route_serves_generated_contract() {
 	assert_openapi_method(&spec, "/v2/admin/searches/raw", "post");
 	assert_openapi_method(&spec, "/v2/admin/events/ingestion-profiles/default", "get");
 	assert_openapi_method(&spec, "/v2/admin/events/ingestion-profiles/default", "put");
+	assert_openapi_method(&spec, "/v2/admin/consolidation/runs", "post");
+	assert_openapi_method(&spec, "/v2/admin/consolidation/runs", "get");
+	assert_openapi_method(&spec, "/v2/admin/consolidation/runs/{run_id}", "get");
+	assert_openapi_method(&spec, "/v2/admin/consolidation/proposals", "get");
+	assert_openapi_method(&spec, "/v2/admin/consolidation/proposals/{proposal_id}", "get");
+	assert_openapi_method(&spec, "/v2/admin/consolidation/proposals/{proposal_id}/review", "post");
 }
 
 #[tokio::test]
@@ -868,6 +874,7 @@ async fn scalar_docs_route_serves_api_reference_html() {
 
 	assert!(html.contains("@scalar/api-reference"));
 	assert!(html.contains("/v2/admin/events/ingestion-profiles/default"));
+	assert!(html.contains("/v2/admin/consolidation/proposals"));
 }
 
 #[tokio::test]

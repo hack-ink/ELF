@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS consolidation_proposals (
 	lineage jsonb NOT NULL,
 	diff jsonb NOT NULL,
 	confidence real NOT NULL,
+	unsupported_claim_flags jsonb NOT NULL DEFAULT '[]'::jsonb,
 	contradiction_markers jsonb NOT NULL DEFAULT '[]'::jsonb,
 	staleness_markers jsonb NOT NULL DEFAULT '[]'::jsonb,
 	target_ref jsonb NOT NULL DEFAULT '{}'::jsonb,
@@ -74,6 +75,15 @@ ALTER TABLE consolidation_proposals
 ALTER TABLE consolidation_proposals
 	ADD CONSTRAINT ck_consolidation_proposals_confidence
 		CHECK (confidence >= 0.0 AND confidence <= 1.0);
+
+ALTER TABLE consolidation_proposals
+	ADD COLUMN IF NOT EXISTS unsupported_claim_flags jsonb NOT NULL DEFAULT '[]'::jsonb;
+
+ALTER TABLE consolidation_proposals
+	DROP CONSTRAINT IF EXISTS ck_consolidation_proposals_unsupported_claim_flags;
+ALTER TABLE consolidation_proposals
+	ADD CONSTRAINT ck_consolidation_proposals_unsupported_claim_flags
+		CHECK (jsonb_typeof(unsupported_claim_flags) = 'array');
 
 ALTER TABLE consolidation_proposals
 	DROP CONSTRAINT IF EXISTS ck_consolidation_proposals_contradiction_markers;
