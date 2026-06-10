@@ -212,6 +212,11 @@
       "required": false,
       "encoded": false,
       "follow_up": null
+    },
+    "history_readback": {
+      "encoded": true,
+      "required_event_types": ["add", "update", "ignore"],
+      "requires_note_version_links": true
     }
   },
   "tags": [

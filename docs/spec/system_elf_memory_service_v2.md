@@ -603,6 +603,7 @@ Indexes:
 - note_type text not null
 - note_key text null
 - note_id uuid null
+- note_version_id uuid null
 - base_decision text not null
 - policy_decision text not null
 - note_op text not null
@@ -612,6 +613,7 @@ Indexes:
 
 Indexing:
 - idx_memory_ingest_decisions_tenant_scope_pipeline: (tenant_id, project_id, agent_id, scope, pipeline, ts)
+- idx_memory_ingest_decisions_note_version_id: (note_version_id)
 
 details must include:
 - similarity_best
@@ -1412,6 +1414,48 @@ Response:
   "recent_traces": [...]
 }
 
+GET /v2/admin/notes/{note_id}/history
+
+Headers:
+- X-ELF-Tenant-Id (required)
+- X-ELF-Project-Id (required)
+- X-ELF-Agent-Id (required)
+
+Path:
+- note_id: uuid
+
+Response:
+{
+  "schema": "elf.memory_history/v1",
+  "note_id": "uuid",
+  "events": [
+    {
+      "event_id": "string",
+      "event_type": "add|update|ignore|reject|expire|delete|derived|applied|invalidated|related",
+      "subject_type": "note",
+      "note_id": "uuid",
+      "source_table": "string",
+      "source_id": "uuid|null",
+      "related_note_version_id": "uuid|null",
+      "related_decision_id": "uuid|null",
+      "related_proposal_id": "uuid|null",
+      "actor": "string|null",
+      "op": "string|null",
+      "reason_code": "string|null",
+      "summary": "string",
+      "details": { ... },
+      "ts": "..."
+    }
+  ]
+}
+
+Notes:
+- History events are a chronological read-only projection over durable source tables.
+- Ingest decisions that produce note versions should set `note_version_id` so history
+  can link the decision to the resulting note version.
+- Derived, applied, and invalidated events come from consolidation proposals and
+  review events that reference the note in `source_refs`.
+
 ============================================================
 15. HTTP API (PUBLIC)
 ============================================================
@@ -2106,6 +2150,7 @@ Original query:
   - elf_admin_trace_item_get -> GET /v2/admin/trace-items/{item_id}
   - elf_admin_trace_bundle_get -> GET /v2/admin/traces/{trace_id}/bundle
   - elf_admin_note_provenance_get -> GET /v2/admin/notes/{note_id}/provenance
+  - elf_admin_memory_history_get -> GET /v2/admin/notes/{note_id}/history
 - The MCP server must contain zero business logic or policy.
 - All policy remains in elf-api and elf-service.
 
