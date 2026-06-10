@@ -20,7 +20,7 @@
       "evidence_class": "fixture_backed",
       "docker_default": true,
       "host_global_installs_required": false,
-      "overall_status": "wrong_result",
+      "overall_status": "incomplete",
       "setup": {
         "status": "pass",
         "evidence": "The checked-in real_world_memory fixtures parse and score through the ELF fixture runner.",
@@ -28,13 +28,13 @@
         "artifact": "tmp/real-world-memory/real-world-memory-report.json"
       },
       "run": {
-        "status": "wrong_result",
-        "evidence": "The current fixture set reports 27 jobs, 25 pass, 1 wrong_result, and 1 not_encoded.",
+        "status": "incomplete",
+        "evidence": "The current fixture set reports 38 jobs, 35 pass, 1 incomplete, 2 blocked, 0 wrong_result, 0 not_encoded, and 0 unsupported_claim.",
         "command": "cargo make real-world-memory",
         "artifact": "tmp/real-world-memory/real-world-memory-report.json"
       },
       "result": {
-        "status": "wrong_result",
+        "status": "incomplete",
         "evidence": "This is fixture-backed ELF scoring, not a live external adapter result.",
         "artifact": "tmp/real-world-memory/real-world-memory-report.md"
       },
@@ -67,29 +67,19 @@
           "evidence": "Checked-in work-resume fixtures are encoded and passing."
         },
         {
+          "suite_id": "project_decisions",
+          "status": "pass",
+          "evidence": "Checked-in project-decision fixtures cover accepted decisions, reversals, current validation gates, rationale, and bounded caveats."
+        },
+        {
           "suite_id": "retrieval",
           "status": "pass",
-          "evidence": "Checked-in retrieval fixtures are encoded; one deliberate operator-debug wrong-result case is reported under operator_debugging_ux."
+          "evidence": "Checked-in retrieval fixtures cover alternate phrasing, distractors, multi-hop routing, current-versus-obsolete selection, and minimal context."
         },
         {
           "suite_id": "memory_evolution",
-          "status": "not_encoded",
-          "evidence": "The relation temporal-validity case is deliberately not_encoded until temporal graph validity is implemented."
-        },
-        {
-          "suite_id": "operator_debugging_ux",
-          "status": "wrong_result",
-          "evidence": "The aggregate fixture set includes one deliberate wrong-result trace attribution case."
-        },
-        {
-          "suite_id": "capture_integration",
           "status": "pass",
-          "evidence": "The redaction and capture-boundary fixture is encoded and passing."
-        },
-        {
-          "suite_id": "personalization",
-          "status": "pass",
-          "evidence": "The scoped preference fixture is encoded and passing."
+          "evidence": "Checked-in memory-evolution fixtures cover current-versus-historical facts and the relation temporal-validity case is encoded."
         },
         {
           "suite_id": "consolidation",
@@ -100,6 +90,26 @@
           "suite_id": "knowledge_compilation",
           "status": "pass",
           "evidence": "Knowledge page fixtures are encoded and passing with citation and rebuild metrics."
+        },
+        {
+          "suite_id": "operator_debugging_ux",
+          "status": "pass",
+          "evidence": "Operator-debugging fixtures now expose stage attribution and dropped-candidate evidence without raw SQL."
+        },
+        {
+          "suite_id": "capture_integration",
+          "status": "pass",
+          "evidence": "The redaction and capture-boundary fixture is encoded and passing."
+        },
+        {
+          "suite_id": "production_ops",
+          "status": "incomplete",
+          "evidence": "Production-ops fixtures encode restore, Qdrant rebuild, backfill resume, resource-envelope interpretation, plus typed incomplete and blocked operator boundaries."
+        },
+        {
+          "suite_id": "personalization",
+          "status": "pass",
+          "evidence": "The scoped preference fixture is encoded and passing."
         }
       ],
       "evidence": [
@@ -115,7 +125,8 @@
         }
       ],
       "notes": [
-        "This adapter record exists to keep ELF fixture results separate from live external adapter results."
+        "This adapter record exists to keep ELF fixture results separate from live external adapter results.",
+        "The remaining non-pass ELF fixture states are production-ops operator boundaries: a Docker local-embedding dependency, provider credentials, and an operator-owned private corpus manifest."
       ],
       "follow_up": {
         "title": "[ELF benchmark vNext] Replace fixture-only ELF answers with live real-world adapter execution where appropriate",
