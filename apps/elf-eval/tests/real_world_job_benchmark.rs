@@ -224,7 +224,7 @@ fn real_world_report_includes_external_adapter_coverage_manifest() -> Result<()>
 		report
 			.pointer("/external_adapters/summary/overall_status_counts/wrong_result")
 			.and_then(Value::as_u64),
-		Some(4)
+		Some(3)
 	);
 	assert_eq!(
 		report
@@ -236,7 +236,7 @@ fn real_world_report_includes_external_adapter_coverage_manifest() -> Result<()>
 		report
 			.pointer("/external_adapters/summary/overall_status_counts/incomplete")
 			.and_then(Value::as_u64),
-		Some(1)
+		Some(2)
 	);
 	assert_eq!(
 		report
@@ -258,6 +258,7 @@ fn real_world_report_includes_external_adapter_coverage_manifest() -> Result<()>
 	let openviking = find_by_field(adapters, "/adapter_id", "openviking_live_baseline")?;
 
 	assert_eq!(elf.pointer("/evidence_class").and_then(Value::as_str), Some("fixture_backed"));
+	assert_eq!(elf.pointer("/overall_status").and_then(Value::as_str), Some("incomplete"));
 	assert_eq!(qmd.pointer("/overall_status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(qmd.pointer("/suites/0/status").and_then(Value::as_str), Some("not_encoded"));
 	assert_eq!(
