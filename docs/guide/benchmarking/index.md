@@ -47,6 +47,10 @@ cleanup, use `docs/guide/single_user_production.md`.
   adoption refresh that keeps the decision at adopt with bounded caveats and separates
   fixture, live adapter, private corpus, credentialed, blocked, and research-gate
   evidence.
+- `2026-06-11-competitor-strength-evidence-matrix.md`: XY-897 competitor-strength
+  matrix contract that maps every tracked memory/RAG/graph project to its strongest
+  scenario, current evidence class, typed blockers, next measurement gate, and ELF
+  borrow-if-stronger direction.
 - `real_world_agent_memory_benchmark.md`: operator overview for the v1 real-world
   agent memory benchmark contract, including suite taxonomy, typed report states,
   knowledge-compilation fixture tasks, and the production-ops fixture target.
