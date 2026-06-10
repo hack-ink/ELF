@@ -264,6 +264,24 @@ fn init_test_tracing() {
 	let _ = tracing_subscriber::fmt().with_max_level(Level::ERROR).with_test_writer().try_init();
 }
 
+fn context_request(
+	method: &str,
+	uri: impl AsRef<str>,
+	agent_id: &str,
+	read_profile: &str,
+) -> Request<Body> {
+	Request::builder()
+		.method(method)
+		.uri(uri.as_ref())
+		.header("content-type", "application/json")
+		.header("X-ELF-Tenant-Id", TEST_TENANT_ID)
+		.header("X-ELF-Project-Id", TEST_PROJECT_ID)
+		.header("X-ELF-Agent-Id", agent_id)
+		.header("X-ELF-Read-Profile", read_profile)
+		.body(Body::empty())
+		.expect("Failed to build context request.")
+}
+
 async fn test_env() -> Option<(TestDatabase, String, String)> {
 	let base_dsn = match elf_testkit::env_dsn() {
 		Some(value) => value,
@@ -362,6 +380,93 @@ async fn insert_project_scope_grant(
 	.execute(&state.service.db.pool)
 	.await
 	.expect("Failed to seed project scope grant.");
+}
+
+async fn search_session_count(state: &AppState) -> i64 {
+	sqlx::query_scalar("SELECT COUNT(*) FROM search_sessions")
+		.fetch_one(&state.service.db.pool)
+		.await
+		.expect("Failed to count search sessions.")
+}
+
+async fn post_admin_json(
+	app: &Router,
+	uri: impl AsRef<str>,
+	agent_id: &str,
+	body: serde_json::Value,
+) -> (StatusCode, serde_json::Value) {
+	let request = Request::builder()
+		.method("POST")
+		.uri(uri.as_ref())
+		.header("content-type", "application/json")
+		.header("X-ELF-Tenant-Id", TEST_TENANT_ID)
+		.header("X-ELF-Project-Id", TEST_PROJECT_ID)
+		.header("X-ELF-Agent-Id", agent_id)
+		.body(Body::from(body.to_string()))
+		.expect("Failed to build admin JSON request.");
+	let response = app.clone().oneshot(request).await.expect("Failed to call admin route.");
+	let status = response.status();
+	let body = body::to_bytes(response.into_body(), usize::MAX)
+		.await
+		.expect("Failed to read admin response body.");
+
+	(status, serde_json::from_slice(&body).expect("Failed to parse admin response."))
+}
+
+async fn create_core_block(admin_app: &Router, scope: &str, key: &str, content: &str) -> Uuid {
+	let payload = serde_json::json!({
+		"scope": scope,
+		"key": key,
+		"title": "Operating context",
+		"content": content,
+		"source_ref": {
+			"schema": "core_block_source/v1",
+			"ref": { "issue": "XY-832" }
+		}
+	});
+	let (status, body) =
+		post_admin_json(admin_app, "/v2/admin/core-blocks", TEST_AGENT_A, payload).await;
+
+	assert_eq!(status, StatusCode::OK);
+
+	Uuid::parse_str(
+		body.pointer("/block/block_id")
+			.and_then(serde_json::Value::as_str)
+			.expect("Missing core block id."),
+	)
+	.expect("Invalid core block id.")
+}
+
+async fn attach_core_block(
+	admin_app: &Router,
+	block_id: Uuid,
+	target_agent_id: &str,
+	read_profile: &str,
+) -> (StatusCode, serde_json::Value) {
+	let payload = serde_json::json!({
+		"target_agent_id": target_agent_id,
+		"read_profile": read_profile,
+		"reason": "Attach fixture block."
+	});
+	let uri = format!("/v2/admin/core-blocks/{block_id}/attachments");
+
+	post_admin_json(admin_app, uri, TEST_AGENT_A, payload).await
+}
+
+async fn get_core_blocks(app: &Router, agent_id: &str, read_profile: &str) -> serde_json::Value {
+	let response = app
+		.clone()
+		.oneshot(context_request("GET", "/v2/core-blocks", agent_id, read_profile))
+		.await
+		.expect("Failed to fetch core blocks.");
+
+	assert_eq!(response.status(), StatusCode::OK);
+
+	let body = body::to_bytes(response.into_body(), usize::MAX)
+		.await
+		.expect("Failed to read core blocks response body.");
+
+	serde_json::from_slice(&body).expect("Failed to parse core blocks response.")
 }
 
 async fn active_project_grant_count(state: &AppState, owner_agent_id: &str) -> i64 {
@@ -839,8 +944,12 @@ async fn openapi_json_route_serves_generated_contract() {
 	assert_openapi_method(&spec, "/health", "get");
 	assert_openapi_method(&spec, "/v2/notes/ingest", "post");
 	assert_openapi_method(&spec, "/v2/events/ingest", "post");
+	assert_openapi_method(&spec, "/v2/core-blocks", "get");
 	assert_openapi_method(&spec, "/v2/docs/search/l0", "post");
 	assert_openapi_method(&spec, "/v2/searches/{search_id}/notes", "post");
+	assert_openapi_method(&spec, "/v2/admin/core-blocks", "post");
+	assert_openapi_method(&spec, "/v2/admin/core-blocks/{block_id}/attachments", "post");
+	assert_openapi_method(&spec, "/v2/admin/core-blocks/attachments/{attachment_id}", "delete");
 	assert_openapi_method(&spec, "/v2/admin/searches/raw", "post");
 	assert_openapi_method(&spec, "/v2/admin/events/ingestion-profiles/default", "get");
 	assert_openapi_method(&spec, "/v2/admin/events/ingestion-profiles/default", "put");
@@ -984,6 +1093,83 @@ async fn sharing_visibility_requires_explicit_project_grant() {
 		serde_json::from_slice(&body).expect("Failed to parse get response.");
 
 	assert_eq!(note_json["error_code"], "INVALID_REQUEST");
+
+	test_db.cleanup().await.expect("Failed to cleanup test database.");
+}
+
+#[tokio::test]
+#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_GRPC_URL (or ELF_QDRANT_URL) to run."]
+async fn core_blocks_are_explicitly_attached_and_separate_from_archival_search() {
+	let Some((test_db, qdrant_url, collection)) = test_env().await else {
+		return;
+	};
+	let config = test_config(test_db.dsn().to_string(), qdrant_url, collection);
+	let state = AppState::new(config).await.expect("Failed to initialize app state.");
+	let app = routes::router(state.clone());
+	let admin_app = routes::admin_router(state.clone());
+	let private_block_id = create_core_block(
+		&admin_app,
+		"agent_private",
+		"private_operating_context",
+		"Preference: Keep core context separate from archival search.",
+	)
+	.await;
+	let note_id = Uuid::new_v4();
+
+	insert_note(
+		&state,
+		note_id,
+		"agent_private",
+		TEST_AGENT_A,
+		"Fact: This archival note must not appear in attached core blocks.",
+	)
+	.await;
+
+	let (status, _) =
+		attach_core_block(&admin_app, private_block_id, TEST_AGENT_A, "private_only").await;
+	let before_sessions = search_session_count(&state).await;
+	let blocks = get_core_blocks(&app, TEST_AGENT_A, "private_only").await;
+	let after_sessions = search_session_count(&state).await;
+
+	assert_eq!(status, StatusCode::OK);
+	assert_eq!(before_sessions, after_sessions);
+	assert_eq!(blocks["schema"], "elf.core_memory_blocks/v1");
+	assert_eq!(blocks["items"].as_array().expect("items array").len(), 1);
+	assert_eq!(
+		blocks["items"][0]["content"],
+		"Preference: Keep core context separate from archival search."
+	);
+	assert_eq!(blocks["items"][0]["source_ref"]["schema"], "core_block_source/v1");
+	assert!(blocks["items"][0]["audit_history"].as_array().expect("audit history").len() >= 2);
+	assert!(!blocks.to_string().contains("archival note must not appear"));
+
+	let b_private = get_core_blocks(&app, TEST_AGENT_B, "private_only").await;
+
+	assert_eq!(b_private["items"].as_array().expect("items array").len(), 0);
+
+	let shared_block_id = create_core_block(
+		&admin_app,
+		"project_shared",
+		"shared_operating_context",
+		"Constraint: Shared core context requires explicit project grant and attachment.",
+	)
+	.await;
+	let (denied_status, _) =
+		attach_core_block(&admin_app, shared_block_id, TEST_AGENT_B, "private_plus_project").await;
+
+	assert_eq!(denied_status, StatusCode::FORBIDDEN);
+
+	insert_project_scope_grant(&state, TEST_AGENT_A, TEST_AGENT_A).await;
+
+	let (shared_status, _) =
+		attach_core_block(&admin_app, shared_block_id, TEST_AGENT_B, "private_plus_project").await;
+	let b_shared = get_core_blocks(&app, TEST_AGENT_B, "private_plus_project").await;
+	let b_wrong_profile = get_core_blocks(&app, TEST_AGENT_B, "private_only").await;
+
+	assert_eq!(shared_status, StatusCode::OK);
+	assert_eq!(b_shared["items"].as_array().expect("items array").len(), 1);
+	assert_eq!(b_shared["items"][0]["scope"], "project_shared");
+	assert_eq!(b_wrong_profile["items"].as_array().expect("items array").len(), 0);
 
 	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }
