@@ -278,6 +278,52 @@ private corpus data, or provider-backed credentials, and it must not be used as 
 substitute for `baseline-production-private` when making a private-corpus readiness
 claim.
 
+## Local CLI Wrappers
+
+The `elf` CLI delegates benchmark and backfill operations to the same `cargo make` tasks listed
+above. It is a local convenience wrapper, not a second benchmark runner.
+
+Build the CLI:
+
+```sh
+cargo build -p elf --bin elf
+```
+
+Run the default resumable backfill profile:
+
+```sh
+target/debug/elf backfill
+```
+
+Override the generated document count or worker concurrency:
+
+```sh
+target/debug/elf backfill --docs 2000 --worker-concurrency 4
+target/debug/elf backfill --ten-k
+target/debug/elf backfill --hundred-k --enable-expensive
+```
+
+Run the live baseline or production corpus profiles through the CLI wrapper:
+
+```sh
+target/debug/elf benchmark run --kind live --profile stress --projects ELF
+target/debug/elf benchmark run --kind production-synthetic
+target/debug/elf benchmark run \
+  --kind production-private \
+  --production-corpus-manifest tmp/private-production-corpus/manifest.json
+```
+
+Render a Markdown report from the generated JSON:
+
+```sh
+target/debug/elf benchmark report \
+  --report tmp/live-baseline/live-baseline-report.json \
+  --out tmp/live-baseline/live-baseline-report.md
+```
+
+Add `--dry-run` to `backfill`, `benchmark run`, or `benchmark report` to print the resolved task and
+environment as JSON without running Docker or writing a report.
+
 ## Publish A Markdown Report
 
 After a run writes `tmp/live-baseline/live-baseline-report.json`, render a durable

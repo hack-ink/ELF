@@ -944,6 +944,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "elf"
+version = "0.2.0"
+dependencies = [
+ "clap",
+ "color-eyre",
+ "elf-cli",
+ "reqwest 0.13.4",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "elf-api"
 version = "0.2.0"
 dependencies = [

@@ -396,7 +396,7 @@ curl -fsS -X POST http://127.0.0.1:51892/v2/searches \
     "top_k": 5,
     "candidate_k": 20,
     "payload_level": "l0"
-  }'
+}'
 ```
 
 ### Clean-Volume Proof Path
@@ -607,7 +607,77 @@ Recorded evidence:
 - Search after restore and Qdrant rebuild returned the same restored note.
 - Cleanup removed the isolated proof containers and volumes.
 
-## 10. Failure And Secret Rules
+## 10. Local CLI Wrappers
+
+The `elf` CLI is a thin local wrapper over the same HTTP contracts used above. It does not read or
+write storage directly, bypass auth, or change scope/read-profile rules. Build it with the service
+binaries:
+
+```sh
+cargo build -p elf --bin elf
+```
+
+By default the CLI targets the runbook loopback ports and smoke context:
+
+- `ELF_API_URL` or `--api-url`: default `http://127.0.0.1:51892`.
+- `ELF_ADMIN_URL` or `--admin-url`: default `http://127.0.0.1:51891`.
+- `ELF_TENANT_ID`, `ELF_PROJECT_ID`, and `ELF_AGENT_ID`: default `local-tenant`,
+  `local-project`, and `local-agent`.
+- `ELF_READ_PROFILE` or `--read-profile`: default `private_only`.
+- `ELF_USER_TOKEN` or `--token`: bearer token for public endpoints when static-key auth is enabled.
+- `ELF_ADMIN_TOKEN` or `--admin-token`: admin bearer token for admin endpoints.
+
+Check API health and get machine-readable status:
+
+```sh
+target/debug/elf status --pretty
+```
+
+Add a deterministic note through `POST /v2/notes/ingest`. `--source-id` is copied into
+`source_ref.ref.source_id` and echoed in the CLI output for debugging:
+
+```sh
+target/debug/elf add-note \
+  --key single_user_restore_probe_cli \
+  --source-id single-user-runbook:restore-probe-cli \
+  --text "The single-user production CLI smoke note is stored through the HTTP add-note contract." \
+  --importance 0.8 \
+  --confidence 0.95 \
+  --ttl-days 14 \
+  --pretty
+```
+
+Search through `POST /v2/searches`. The JSON output includes `trace_id`, `search_id`, and note ids:
+
+```sh
+target/debug/elf search \
+  --query "Where is the single-user production CLI smoke note stored?" \
+  --top-k 5 \
+  --candidate-k 20 \
+  --payload-level l0 \
+  --pretty
+```
+
+Use admin diagnostics when you need source refs, trace bundles, provenance, or a Qdrant rebuild
+readback. These commands require an admin token when `security.auth_mode = "static_keys"`:
+
+```sh
+target/debug/elf diagnostics raw-search \
+  --query "Where is the single-user production CLI smoke note stored?" \
+  --payload-level l2 \
+  --pretty
+
+target/debug/elf diagnostics recent-traces --limit 10 --pretty
+target/debug/elf diagnostics trace-bundle --trace-id TRACE_ID --mode bounded --pretty
+target/debug/elf diagnostics note-provenance --note-id NOTE_ID --pretty
+target/debug/elf diagnostics qdrant-rebuild --pretty
+```
+
+For batch backfill and benchmark reports, use the wrappers documented in
+`docs/guide/benchmarking/live_baseline_benchmark.md`. Those wrappers delegate to the checked-in
+`cargo make` tasks and keep benchmark artifacts under `tmp/live-baseline/`.
+
+## 11. Failure And Secret Rules
 
 - Missing or invalid config fails startup.
 - `security.reject_non_english = false` fails config validation.
