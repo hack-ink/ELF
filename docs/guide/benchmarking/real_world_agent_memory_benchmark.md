@@ -158,9 +158,9 @@ including the retrieval-quality slice below. The suite currently encodes:
 - `capture_integration`: write-policy audit behavior for redaction/private exclusion
   and fixture-backed capture/integration boundary classification.
 - `production_ops`: interrupted generated backfill resume, backup/restore plus
-  cold-start readback, resource-envelope interpretation, missing dependency
-  `incomplete` classification, missing private manifest `blocked` classification, and
-  provider credential boundary `blocked` classification.
+  cold-start readback, resource-envelope interpretation, pinned OpenViking local
+  embedding runtime/wrong-result classification, missing private manifest `blocked`
+  classification, and provider credential boundary `blocked` classification.
 - `personalization`: scoped stable preference correction without temporary or
   cross-project preference leakage.
 
@@ -170,7 +170,7 @@ count, update rationale availability, temporal validity encoding count, scope
 correctness, redaction leak count, capture/integration behavior classes, Qdrant
 rebuild case/pass counts, expected evidence recall, irrelevant context ratio,
 latency/cost, answer-type plus caveat/refusal/uncertainty flags, and trace
-explainability counters, production-ops blocked/incomplete job states, and
+explainability counters, production-ops blocked/wrong-result job states, and
 private-corpus redaction policy. The fixtures include negative traps for stale
 blockers, unsupported prior claims, stale deleted facts, stale historical facts,
 cross-project preference leakage, private/redacted text leakage, obsolete retrieval
@@ -228,8 +228,9 @@ generated runtime answers for representative `work_resume`, `retrieval`, and
 record is not a real-world suite win. agentmemory is blocked on durable upstream
 storage for lifecycle proof. mem0/OpenMemory, memsearch, and claude-mem currently
 retain wrong-result or incomplete live-baseline states for the checked-in adapter
-evidence. OpenViking is incomplete until its local embedding setup is reliable inside
-Docker. The expanded RAG and graph-memory records for RAGFlow, LightRAG, GraphRAG,
+evidence. OpenViking now reaches its pinned Docker local embedding setup but remains a
+same-corpus `wrong_result` until it returns evidence-bearing retrieval output. The
+expanded RAG and graph-memory records for RAGFlow, LightRAG, GraphRAG,
 Graphiti/Zep, Letta, LangGraph, nanograph, llm-wiki, gbrain, graphify, and deeper
 qmd/OpenViking profiles are `research_gate` records until their Docker-isolated
 adapter runs are implemented. These typed states describe benchmark coverage; do not
@@ -388,8 +389,12 @@ interpretation.
 
 The same slice deliberately keeps non-pass boundaries typed. A missing private
 production manifest is `blocked`, unavailable provider credentials are `blocked`, and
-a cold-start adapter dependency failure is `incomplete`. These states are evidence for
-operator caveats, not proof of private-corpus or provider-backed production success.
+the OpenViking cold-start dependency fixture now records a pinned Docker-local
+embedding path that reaches `OpenViking.add_resource` and `OpenViking.find` but returns
+`wrong_result` evidence for the smoke queries. If the pinned wheel cannot install or
+import on a Docker platform, that setup boundary remains `incomplete`. These states
+are evidence for operator caveats, not proof of private-corpus, provider-backed
+production, or external-adapter quality success.
 
 This suite does not run private corpus data, does not require or publish credentials,
 does not perform live Docker restore/backfill work, and does not reinterpret older

@@ -20,7 +20,7 @@
       "evidence_class": "fixture_backed",
       "docker_default": true,
       "host_global_installs_required": false,
-      "overall_status": "incomplete",
+      "overall_status": "blocked",
       "setup": {
         "status": "pass",
         "evidence": "The checked-in real_world_memory fixtures parse and score through the ELF fixture runner.",
@@ -28,13 +28,13 @@
         "artifact": "tmp/real-world-memory/real-world-memory-report.json"
       },
       "run": {
-        "status": "incomplete",
-        "evidence": "The current fixture set reports 38 jobs, 35 pass, 1 incomplete, 2 blocked, 0 wrong_result, 0 not_encoded, and 0 unsupported_claim.",
+        "status": "blocked",
+        "evidence": "The current fixture set reports 38 jobs, 36 pass, 0 incomplete, 2 blocked, 0 wrong_result, 0 not_encoded, and 0 unsupported_claim.",
         "command": "cargo make real-world-memory",
         "artifact": "tmp/real-world-memory/real-world-memory-report.json"
       },
       "result": {
-        "status": "incomplete",
+        "status": "blocked",
         "evidence": "This is fixture-backed ELF scoring, not a live external adapter result.",
         "artifact": "tmp/real-world-memory/real-world-memory-report.md"
       },
@@ -103,8 +103,8 @@
         },
         {
           "suite_id": "production_ops",
-          "status": "incomplete",
-          "evidence": "Production-ops fixtures encode restore, Qdrant rebuild, backfill resume, resource-envelope interpretation, plus typed incomplete and blocked operator boundaries."
+          "status": "blocked",
+          "evidence": "Production-ops fixtures encode restore, Qdrant rebuild, backfill resume, resource-envelope interpretation, OpenViking wrong-result classification, plus typed blocked operator boundaries."
         },
         {
           "suite_id": "personalization",
@@ -126,7 +126,7 @@
       ],
       "notes": [
         "This adapter record exists to keep ELF fixture results separate from live external adapter results.",
-        "The remaining non-pass ELF fixture states are production-ops operator boundaries: a Docker local-embedding dependency, provider credentials, and an operator-owned private corpus manifest.",
+        "The remaining non-pass ELF fixture states are production-ops operator boundaries: provider credentials and an operator-owned private corpus manifest.",
         "Use elf_live_real_world for service-runtime real_world_job evidence; this fixture-backed record must not imply live-service behavior."
       ]
     },
@@ -600,28 +600,33 @@
       "evidence_class": "live_baseline_only",
       "docker_default": true,
       "host_global_installs_required": false,
-      "overall_status": "incomplete",
+      "overall_status": "wrong_result",
       "setup": {
-        "status": "incomplete",
-        "evidence": "OpenViking local-embed setup can fail in Docker while building or importing local embedding dependencies.",
+        "status": "pass",
+        "evidence": "OpenViking local-embed setup installed and imported pinned llama-cpp-python==0.3.28 from the CPU wheel index in Docker.",
         "command": "ELF_BASELINE_PROJECTS=OpenViking cargo make baseline-live-docker",
         "artifact": "tmp/live-baseline/OpenViking.log"
       },
       "run": {
-        "status": "incomplete",
-        "evidence": "The adapter cannot reliably reach same-corpus add_resource/find behavior until local embedding setup is pinned for Docker.",
+        "status": "wrong_result",
+        "evidence": "The adapter reached same-corpus add_resource/find, but returned 0 of 3 expected evidence-term matches in the smoke run.",
         "artifact": "tmp/live-baseline/live-baseline-report.json"
       },
       "result": {
-        "status": "incomplete",
-        "evidence": "No real_world_job OpenViking adapter is encoded; current blocker is dependency setup, not a quality claim.",
+        "status": "wrong_result",
+        "evidence": "The current OpenViking Docker evidence is a behavioral wrong_result, not a local embedding setup blocker and not a real_world_job pass.",
         "artifact": "docs/guide/benchmarking/live_baseline_benchmark.md"
       },
       "capabilities": [
         {
           "capability": "local_embed_setup",
-          "status": "incomplete",
-          "evidence": "Docker local embedding dependency setup is not reliable in the current adapter."
+          "status": "pass",
+          "evidence": "Docker local embedding dependency setup is pinned to llama-cpp-python==0.3.28 from https://abetlen.github.io/llama-cpp-python/whl/cpu and reached import/runtime in the smoke run."
+        },
+        {
+          "capability": "same_corpus_retrieval",
+          "status": "wrong_result",
+          "evidence": "OpenViking add_resource/find returned resources but missed expected evidence-term matches for every smoke query."
         },
         {
           "capability": "context_trajectory",
@@ -637,8 +642,8 @@
       "suites": [
         {
           "suite_id": "retrieval",
-          "status": "incomplete",
-          "evidence": "The local embedding install blocker prevents a fair retrieval job run."
+          "status": "wrong_result",
+          "evidence": "The Docker-local setup reached add_resource/find, but the retrieval check returned 0/3 expected evidence-term matches."
         },
         {
           "suite_id": "work_resume",
@@ -655,15 +660,37 @@
         {
           "kind": "runner",
           "ref": "scripts/live-baseline-benchmark.sh",
-          "status": "incomplete"
+          "status": "wrong_result"
         }
       ],
+      "execution_metadata": {
+        "sources": [
+          {
+            "label": "OpenViking repository",
+            "url": "https://github.com/volcengine/OpenViking/",
+            "evidence": "Official source for OpenViking local context database, resource, and retrieval APIs."
+          },
+          {
+            "label": "llama-cpp-python CPU wheel index",
+            "url": "https://abetlen.github.io/llama-cpp-python/whl/cpu",
+            "evidence": "Official prebuilt CPU wheel index used by the Docker-local embedding pin."
+          }
+        ],
+        "setup_path": "Run ELF_BASELINE_PROJECTS=OpenViking cargo make baseline-live-docker. The runner installs llama-cpp-python==0.3.28 with --only-binary llama-cpp-python from the CPU wheel index before OpenViking add_resource/find.",
+        "runtime_boundary": "docker-compose.baseline.yml baseline-runner container; no host-global OpenViking, llama-cpp-python, or model service install is required.",
+        "resource_expectation": "Local embedding setup may download a CPU wheel and model assets; record OpenViking.log, elapsed time, and cache size before claiming adapter quality.",
+        "retry_guidance": [
+          "Use the default pinned CPU wheel path first.",
+          "Override ELF_BASELINE_OPENVIKING_LLAMA_CPP_PYTHON_VERSION or ELF_BASELINE_OPENVIKING_LLAMA_CPP_PYTHON_INDEX only when the default wheel is unavailable for the Docker platform.",
+          "Treat install/import failure as incomplete, not wrong_result; treat add_resource/find evidence misses as wrong_result."
+        ]
+      },
       "notes": [
-        "Record OpenViking as incomplete until Docker-compatible local embeddings are pinned; do not treat setup weight as a negative quality result."
+        "Record OpenViking as wrong_result now that the pinned Docker local embedding path reaches add_resource/find but misses expected evidence."
       ],
       "follow_up": {
-        "title": "[ELF benchmark adapter] Pin OpenViking Docker local embedding dependency path",
-        "reason": "The current adapter must reach add_resource/find before real-world job suites can be scored."
+        "title": "Fix OpenViking evidence-bearing same-corpus retrieval output",
+        "reason": "The current adapter reaches add_resource/find but must return evidence-bearing content before real-world job suites can be scored."
       }
     },
     {
@@ -826,26 +853,26 @@
       "evidence_class": "research_gate",
       "docker_default": true,
       "host_global_installs_required": false,
-      "overall_status": "incomplete",
+      "overall_status": "not_encoded",
       "setup": {
-        "status": "incomplete",
-        "evidence": "OpenViking deep-profile work is blocked at the same Docker local-embedding dependency boundary as the current live-baseline adapter.",
+        "status": "pass",
+        "evidence": "The default pinned OpenViking local embedding dependency path reaches runtime in Docker.",
         "command": "ELF_BASELINE_PROJECTS=OpenViking cargo make baseline-live-docker",
         "artifact": "tmp/live-baseline/OpenViking.log"
       },
       "run": {
-        "status": "incomplete",
-        "evidence": "The adapter cannot fairly exercise hierarchical trajectory behavior until add_resource/find reaches execution in Docker."
+        "status": "not_encoded",
+        "evidence": "The adapter cannot fairly exercise hierarchical trajectory behavior until same-corpus add_resource/find returns evidence-bearing results."
       },
       "result": {
-        "status": "incomplete",
-        "evidence": "No OpenViking deep context-trajectory result is claimed from a setup-blocked run."
+        "status": "not_encoded",
+        "evidence": "No OpenViking deep context-trajectory result is claimed from the current wrong-result smoke run."
       },
       "capabilities": [
         {
           "capability": "docker_local_embed_setup",
-          "status": "incomplete",
-          "evidence": "The local embedding setup must be pinned before deep profile runs can execute."
+          "status": "pass",
+          "evidence": "The local embedding setup is pinned and reaches import/runtime in Docker."
         },
         {
           "capability": "hierarchical_context_trajectory",
@@ -861,8 +888,8 @@
       "suites": [
         {
           "suite_id": "retrieval",
-          "status": "incomplete",
-          "evidence": "Same-corpus retrieval setup remains incomplete in Docker."
+          "status": "not_encoded",
+          "evidence": "Deep retrieval scoring is deferred until the smoke adapter returns evidence-bearing same-corpus output."
         },
         {
           "suite_id": "work_resume",
@@ -884,7 +911,7 @@
         {
           "kind": "runner",
           "ref": "scripts/live-baseline-benchmark.sh",
-          "status": "incomplete"
+          "status": "wrong_result"
         }
       ],
       "execution_metadata": {
@@ -895,17 +922,18 @@
             "evidence": "Official source for OpenViking local context database, resource, and retrieval APIs."
           }
         ],
-        "setup_path": "Pin a Docker-compatible local embedding path, then run OpenViking add_resource/find before any deep profile scoring.",
+        "setup_path": "Use the pinned Docker local embedding path from scripts/live-baseline-benchmark.sh, then run OpenViking add_resource/find before any deep profile scoring.",
         "runtime_boundary": "docker-compose.baseline.yml baseline-runner container; no host model or compiler setup outside Docker.",
-        "resource_expectation": "Local embedding builds can be native-toolchain and model heavy; record build logs, model cache size, and elapsed time.",
+        "resource_expectation": "Local embedding setup can download CPU wheels and model assets; record build/import logs, model cache size, and elapsed time.",
         "retry_guidance": [
-          "Pin or prebuild the local embedding dependency in the baseline image.",
-          "Only then add context-trajectory real_world_job scoring for hierarchical retrieval."
+          "Run the default pinned llama-cpp-python==0.3.28 CPU wheel path first.",
+          "Override the OpenViking llama-cpp-python version or index only when the default wheel is unavailable for the Docker platform.",
+          "Fix evidence-bearing same-corpus output before adding context-trajectory real_world_job scoring for hierarchical retrieval."
         ],
-        "research_depth": "D2 reviewed; runtime setup incomplete"
+        "research_depth": "D2 reviewed; local embedding setup pinned; deep profile not encoded"
       },
       "notes": [
-        "OpenViking remains a context-trajectory reference, but this gate prevents setup failure from becoming a quality judgment."
+        "OpenViking remains a context-trajectory reference, but this gate prevents a smoke wrong_result from becoming a deep-profile claim."
       ]
     },
     {
