@@ -1,7 +1,9 @@
 //! Provenance inspection APIs.
 
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{self, Value};
 use sqlx::{FromRow, PgPool};
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -14,6 +16,8 @@ const NOTE_PROVENANCE_INGEST_DECISIONS_LIMIT: i64 = 100;
 const NOTE_PROVENANCE_NOTE_VERSIONS_LIMIT: i64 = 100;
 const NOTE_PROVENANCE_OUTBOX_LIMIT: i64 = 100;
 const NOTE_PROVENANCE_RECENT_TRACES_LIMIT: i64 = 20;
+const NOTE_PROVENANCE_HISTORY_LIMIT: i64 = 200;
+const MEMORY_HISTORY_SCHEMA_V1: &str = "elf.memory_history/v1";
 
 /// Request payload for note provenance lookup.
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -24,6 +28,28 @@ pub struct NoteProvenanceGetRequest {
 	pub project_id: String,
 	/// Identifier of the note to inspect.
 	pub note_id: Uuid,
+}
+
+/// Request payload for memory-history lookup.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct MemoryHistoryGetRequest {
+	/// Tenant that owns the memory.
+	pub tenant_id: String,
+	/// Project that owns the memory.
+	pub project_id: String,
+	/// Identifier of the note to inspect.
+	pub note_id: Uuid,
+}
+
+/// Timeline response for one memory.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct MemoryHistoryResponse {
+	/// History schema identifier.
+	pub schema: String,
+	/// Inspected note identifier.
+	pub note_id: Uuid,
+	/// Chronological memory events.
+	pub events: Vec<MemoryHistoryEvent>,
 }
 
 /// Full provenance bundle for one note.
@@ -41,6 +67,8 @@ pub struct NoteProvenanceBundleResponse {
 	pub indexing_outbox: Vec<NoteProvenanceIndexingOutbox>,
 	/// Recent search traces that referenced the note.
 	pub recent_traces: Vec<NoteProvenanceRecentTrace>,
+	/// Chronological memory event timeline for the note.
+	pub history: Vec<MemoryHistoryEvent>,
 }
 
 /// Current note snapshot returned by provenance APIs.
@@ -133,6 +161,9 @@ pub struct NoteProvenanceIngestDecision {
 	pub note_key: Option<String>,
 	/// Note identifier, when a note was persisted or matched.
 	pub note_id: Option<Uuid>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	/// Note version produced by this decision, when applicable.
+	pub note_version_id: Option<Uuid>,
 	/// Pre-policy base decision.
 	pub base_decision: String,
 	/// Final policy decision.
@@ -159,6 +190,7 @@ impl From<NoteIngestDecisionRow> for NoteProvenanceIngestDecision {
 			note_type: row.note_type,
 			note_key: row.note_key,
 			note_id: row.note_id,
+			note_version_id: row.note_version_id,
 			base_decision: row.base_decision,
 			policy_decision: row.policy_decision,
 			note_op: row.note_op,
@@ -272,6 +304,48 @@ pub struct NoteProvenanceRecentTrace {
 	pub created_at: OffsetDateTime,
 }
 
+/// One normalized memory-history event.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct MemoryHistoryEvent {
+	/// Stable event identifier within its source table.
+	pub event_id: String,
+	/// Normalized event type.
+	pub event_type: String,
+	/// Subject kind for the event.
+	pub subject_type: String,
+	/// Inspected note identifier.
+	pub note_id: Uuid,
+	/// Durable source table behind the event.
+	pub source_table: String,
+	/// Source row identifier when available.
+	pub source_id: Option<Uuid>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	/// Related note version, when an ingest decision produced a version row.
+	pub related_note_version_id: Option<Uuid>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	/// Related ingest decision, when a version or history event was caused by ingestion.
+	pub related_decision_id: Option<Uuid>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	/// Related consolidation proposal, when a derived memory proposal references the note.
+	pub related_proposal_id: Option<Uuid>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	/// Actor that caused the event, when available.
+	pub actor: Option<String>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	/// Source operation string.
+	pub op: Option<String>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	/// Machine-readable reason code, when available.
+	pub reason_code: Option<String>,
+	/// Human-readable one-line event summary.
+	pub summary: String,
+	/// Source-specific event details.
+	pub details: Value,
+	#[serde(with = "crate::time_serde")]
+	/// Event timestamp.
+	pub ts: OffsetDateTime,
+}
+
 #[derive(Clone, Debug)]
 struct ValidatedNoteProvenanceRequest {
 	tenant_id: String,
@@ -290,6 +364,7 @@ struct NoteIngestDecisionRow {
 	note_type: String,
 	note_key: Option<String>,
 	note_id: Option<Uuid>,
+	note_version_id: Option<Uuid>,
 	base_decision: String,
 	policy_decision: String,
 	note_op: String,
@@ -335,6 +410,40 @@ struct NoteRecentTraceRow {
 	created_at: OffsetDateTime,
 }
 
+#[derive(FromRow)]
+struct NoteDerivedProposalRow {
+	proposal_id: Uuid,
+	run_id: Uuid,
+	agent_id: String,
+	proposal_kind: String,
+	apply_intent: String,
+	review_state: String,
+	source_refs: Value,
+	source_snapshot: Value,
+	lineage: Value,
+	diff: Value,
+	confidence: f32,
+	target_ref: Value,
+	proposed_payload: Value,
+	created_at: OffsetDateTime,
+}
+
+#[derive(FromRow)]
+struct NoteProposalReviewRow {
+	review_id: Uuid,
+	proposal_id: Uuid,
+	run_id: Uuid,
+	reviewer_agent_id: String,
+	action: String,
+	from_review_state: String,
+	to_review_state: String,
+	review_comment: Option<String>,
+	created_at: OffsetDateTime,
+	proposal_kind: String,
+	apply_intent: String,
+	diff: Value,
+}
+
 impl ElfService {
 	/// Loads the current note plus recent provenance tables as one bundle.
 	pub async fn note_provenance_get(
@@ -371,6 +480,7 @@ WHERE note_id = $1
 			req.note_id,
 		)
 		.await?;
+		let history = load_memory_history_events(&self.db.pool, &req, &note_row).await?;
 
 		Ok(NoteProvenanceBundleResponse {
 			schema: NOTE_PROVENANCE_BUNDLE_SCHEMA_V1.to_string(),
@@ -379,6 +489,42 @@ WHERE note_id = $1
 			note_versions,
 			indexing_outbox,
 			recent_traces,
+			history,
+		})
+	}
+
+	/// Loads the normalized memory-history timeline for one note.
+	pub async fn memory_history_get(
+		&self,
+		req: MemoryHistoryGetRequest,
+	) -> Result<MemoryHistoryResponse> {
+		let req = validate_note_provenance_request(NoteProvenanceGetRequest {
+			tenant_id: req.tenant_id,
+			project_id: req.project_id,
+			note_id: req.note_id,
+		})?;
+		let note_row = sqlx::query_as::<_, MemoryNote>(
+			"\
+SELECT *
+FROM memory_notes
+WHERE note_id = $1
+  AND tenant_id = $2
+  AND project_id = $3",
+		)
+		.bind(req.note_id)
+		.bind(&req.tenant_id)
+		.bind(&req.project_id)
+		.fetch_optional(&self.db.pool)
+		.await?;
+		let Some(note_row) = note_row else {
+			return Err(Error::InvalidRequest { message: "Note not found.".to_string() });
+		};
+		let events = load_memory_history_events(&self.db.pool, &req, &note_row).await?;
+
+		Ok(MemoryHistoryResponse {
+			schema: MEMORY_HISTORY_SCHEMA_V1.to_string(),
+			note_id: req.note_id,
+			events,
 		})
 	}
 }
@@ -414,6 +560,248 @@ fn to_recent_trace(item: NoteRecentTraceRow) -> NoteProvenanceRecentTrace {
 	}
 }
 
+fn version_history_event(
+	version: &NoteProvenanceNoteVersion,
+	decision: Option<&&NoteProvenanceIngestDecision>,
+) -> MemoryHistoryEvent {
+	let event_type = version_event_type(version.op.as_str(), version.reason.as_str());
+	let related_decision_id = decision.map(|decision| decision.decision_id);
+	let details = serde_json::json!({
+		"reason": version.reason,
+		"prev_snapshot": version.prev_snapshot,
+		"new_snapshot": version.new_snapshot,
+		"ingest_decision": decision.map(|decision| serde_json::json!({
+			"decision_id": decision.decision_id,
+			"pipeline": decision.pipeline,
+			"base_decision": decision.base_decision,
+			"policy_decision": decision.policy_decision,
+			"note_op": decision.note_op,
+			"reason_code": decision.reason_code,
+		})),
+	});
+
+	MemoryHistoryEvent {
+		event_id: format!("memory_note_versions:{}", version.version_id),
+		event_type: event_type.to_string(),
+		subject_type: "note".to_string(),
+		note_id: version.note_id,
+		source_table: "memory_note_versions".to_string(),
+		source_id: Some(version.version_id),
+		related_note_version_id: Some(version.version_id),
+		related_decision_id,
+		related_proposal_id: None,
+		actor: Some(version.actor.clone()),
+		op: Some(version.op.clone()),
+		reason_code: None,
+		summary: version_summary(event_type, version.reason.as_str()),
+		details,
+		ts: version.ts,
+	}
+}
+
+fn decision_history_event(
+	note_id: Uuid,
+	decision: &NoteProvenanceIngestDecision,
+) -> MemoryHistoryEvent {
+	let event_type = decision_event_type(decision);
+	let details = serde_json::json!({
+		"pipeline": decision.pipeline,
+		"note_type": decision.note_type,
+		"note_key": decision.note_key,
+		"base_decision": decision.base_decision,
+		"policy_decision": decision.policy_decision,
+		"note_op": decision.note_op,
+		"details": decision.details,
+	});
+
+	MemoryHistoryEvent {
+		event_id: format!("memory_ingest_decisions:{}", decision.decision_id),
+		event_type: event_type.to_string(),
+		subject_type: "note".to_string(),
+		note_id,
+		source_table: "memory_ingest_decisions".to_string(),
+		source_id: Some(decision.decision_id),
+		related_note_version_id: decision.note_version_id,
+		related_decision_id: Some(decision.decision_id),
+		related_proposal_id: None,
+		actor: Some(decision.agent_id.clone()),
+		op: Some(decision.note_op.clone()),
+		reason_code: decision.reason_code.clone(),
+		summary: decision_summary(event_type, decision),
+		details,
+		ts: decision.ts,
+	}
+}
+
+fn expire_history_event(note: &MemoryNote, expires_at: OffsetDateTime) -> MemoryHistoryEvent {
+	MemoryHistoryEvent {
+		event_id: format!("memory_notes:{}:expire:{expires_at}", note.note_id),
+		event_type: "expire".to_string(),
+		subject_type: "note".to_string(),
+		note_id: note.note_id,
+		source_table: "memory_notes".to_string(),
+		source_id: Some(note.note_id),
+		related_note_version_id: None,
+		related_decision_id: None,
+		related_proposal_id: None,
+		actor: Some(note.agent_id.clone()),
+		op: Some("EXPIRE".to_string()),
+		reason_code: None,
+		summary: "Note reached its persisted expires_at timestamp.".to_string(),
+		details: serde_json::json!({
+			"status": note.status,
+			"expires_at": expires_at,
+		}),
+		ts: expires_at,
+	}
+}
+
+fn derived_proposal_history_event(
+	note_id: Uuid,
+	proposal: NoteDerivedProposalRow,
+) -> MemoryHistoryEvent {
+	MemoryHistoryEvent {
+		event_id: format!("consolidation_proposals:{}", proposal.proposal_id),
+		event_type: "derived".to_string(),
+		subject_type: "note".to_string(),
+		note_id,
+		source_table: "consolidation_proposals".to_string(),
+		source_id: Some(proposal.proposal_id),
+		related_note_version_id: None,
+		related_decision_id: None,
+		related_proposal_id: Some(proposal.proposal_id),
+		actor: Some(proposal.agent_id),
+		op: Some(proposal.apply_intent.clone()),
+		reason_code: None,
+		summary: format!(
+			"Derived proposal '{}' was created with review_state '{}'.",
+			proposal.proposal_kind, proposal.review_state
+		),
+		details: serde_json::json!({
+			"run_id": proposal.run_id,
+			"proposal_kind": proposal.proposal_kind,
+			"apply_intent": proposal.apply_intent,
+			"review_state": proposal.review_state,
+			"source_refs": proposal.source_refs,
+			"source_snapshot": proposal.source_snapshot,
+			"lineage": proposal.lineage,
+			"diff": proposal.diff,
+			"confidence": proposal.confidence,
+			"target_ref": proposal.target_ref,
+			"proposed_payload": proposal.proposed_payload,
+		}),
+		ts: proposal.created_at,
+	}
+}
+
+fn proposal_review_history_event(
+	note_id: Uuid,
+	review: NoteProposalReviewRow,
+) -> MemoryHistoryEvent {
+	let event_type = proposal_review_event_type(review.action.as_str());
+
+	MemoryHistoryEvent {
+		event_id: format!("consolidation_proposal_reviews:{}", review.review_id),
+		event_type: event_type.to_string(),
+		subject_type: "note".to_string(),
+		note_id,
+		source_table: "consolidation_proposal_reviews".to_string(),
+		source_id: Some(review.review_id),
+		related_note_version_id: None,
+		related_decision_id: None,
+		related_proposal_id: Some(review.proposal_id),
+		actor: Some(review.reviewer_agent_id),
+		op: Some(review.action.clone()),
+		reason_code: None,
+		summary: format!(
+			"Proposal review action '{}' moved '{}' from '{}' to '{}'.",
+			review.action, review.proposal_kind, review.from_review_state, review.to_review_state
+		),
+		details: serde_json::json!({
+			"proposal_id": review.proposal_id,
+			"run_id": review.run_id,
+			"proposal_kind": review.proposal_kind,
+			"apply_intent": review.apply_intent,
+			"from_review_state": review.from_review_state,
+			"to_review_state": review.to_review_state,
+			"review_comment": review.review_comment,
+			"diff": review.diff,
+		}),
+		ts: review.created_at,
+	}
+}
+
+fn should_emit_decision_event(decision: &NoteProvenanceIngestDecision) -> bool {
+	if matches!(decision.note_op.as_str(), "NONE" | "REJECTED") {
+		return true;
+	}
+
+	decision.note_version_id.is_none()
+}
+
+fn version_event_type(op: &str, reason: &str) -> &'static str {
+	let reason = reason.to_ascii_lowercase();
+
+	match op {
+		"ADD" => "add",
+		"UPDATE" => "update",
+		"DELETE" if reason.contains("expire") => "expire",
+		"DELETE" => "delete",
+		"PUBLISH" | "UNPUBLISH" => "related",
+		"DEPRECATE" | "INVALIDATE" => "invalidated",
+		_ => "related",
+	}
+}
+
+fn decision_event_type(decision: &NoteProvenanceIngestDecision) -> &'static str {
+	if decision.policy_decision == "reject" || decision.note_op == "REJECTED" {
+		return "reject";
+	}
+	if decision.policy_decision == "ignore" || decision.note_op == "NONE" {
+		return "ignore";
+	}
+
+	match decision.note_op.as_str() {
+		"ADD" => "add",
+		"UPDATE" => "update",
+		"DELETE" => "delete",
+		_ => "related",
+	}
+}
+
+fn proposal_review_event_type(action: &str) -> &'static str {
+	match action {
+		"apply" => "applied",
+		"discard" | "defer" => "invalidated",
+		"approve" => "related",
+		_ => "related",
+	}
+}
+
+fn version_summary(event_type: &str, reason: &str) -> String {
+	match event_type {
+		"add" => format!("Note was added by {reason}."),
+		"update" => format!("Note was updated by {reason}."),
+		"delete" => format!("Note was deleted by {reason}."),
+		"expire" => format!("Note expired through {reason}."),
+		"invalidated" => format!("Note was invalidated by {reason}."),
+		_ => format!("Note recorded related transition {reason}."),
+	}
+}
+
+fn decision_summary(event_type: &str, decision: &NoteProvenanceIngestDecision) -> String {
+	let reason = decision.reason_code.as_deref().unwrap_or("no_reason_code");
+
+	match event_type {
+		"ignore" => format!("Ingestion ignored candidate memory with {reason}."),
+		"reject" => format!("Ingestion rejected candidate memory with {reason}."),
+		_ => format!(
+			"Ingestion recorded {} decision for operation {}.",
+			decision.policy_decision, decision.note_op
+		),
+	}
+}
+
 async fn load_ingest_decisions(
 	pool: &PgPool,
 	req: &ValidatedNoteProvenanceRequest,
@@ -430,6 +818,7 @@ SELECT
 	note_type,
 	note_key,
 	note_id,
+	note_version_id,
 	base_decision,
 	policy_decision,
 	note_op,
@@ -554,6 +943,142 @@ LIMIT $4",
 	.await?;
 
 	Ok(rows.into_iter().map(to_recent_trace).collect())
+}
+
+async fn load_memory_history_events(
+	pool: &PgPool,
+	req: &ValidatedNoteProvenanceRequest,
+	note: &MemoryNote,
+) -> Result<Vec<MemoryHistoryEvent>> {
+	let decisions = load_ingest_decisions(pool, req).await?;
+	let versions = load_note_versions(pool, &req.tenant_id, &req.project_id, req.note_id).await?;
+	let proposal_ref = serde_json::json!([{ "kind": "note", "id": req.note_id }]);
+	let proposals = load_derived_proposals_for_note(pool, req, &proposal_ref).await?;
+	let reviews = load_proposal_reviews_for_note(pool, req, &proposal_ref).await?;
+	let mut decision_by_version = HashMap::new();
+
+	for decision in &decisions {
+		if let Some(version_id) = decision.note_version_id {
+			decision_by_version.insert(version_id, decision);
+		}
+	}
+
+	let mut events = Vec::new();
+
+	for version in &versions {
+		events.push(version_history_event(version, decision_by_version.get(&version.version_id)));
+	}
+	for decision in &decisions {
+		if should_emit_decision_event(decision) {
+			events.push(decision_history_event(req.note_id, decision));
+		}
+	}
+
+	if let Some(expires_at) = note.expires_at
+		&& expires_at <= OffsetDateTime::now_utc()
+		&& !events.iter().any(|event| event.event_type == "expire")
+	{
+		events.push(expire_history_event(note, expires_at));
+	}
+
+	for proposal in proposals {
+		events.push(derived_proposal_history_event(req.note_id, proposal));
+	}
+	for review in reviews {
+		events.push(proposal_review_history_event(req.note_id, review));
+	}
+
+	events.sort_by(|left, right| {
+		left.ts.cmp(&right.ts).then_with(|| left.event_id.cmp(&right.event_id))
+	});
+
+	let history_limit = NOTE_PROVENANCE_HISTORY_LIMIT as usize;
+
+	if events.len() > history_limit {
+		let drop_count = events.len() - history_limit;
+
+		events.drain(0..drop_count);
+	}
+
+	Ok(events)
+}
+
+async fn load_derived_proposals_for_note(
+	pool: &PgPool,
+	req: &ValidatedNoteProvenanceRequest,
+	proposal_ref: &Value,
+) -> Result<Vec<NoteDerivedProposalRow>> {
+	let rows = sqlx::query_as::<_, NoteDerivedProposalRow>(
+		"\
+SELECT
+	proposal_id,
+	run_id,
+	agent_id,
+	proposal_kind,
+	apply_intent,
+	review_state,
+	source_refs,
+	source_snapshot,
+	lineage,
+	diff,
+	confidence,
+	COALESCE(target_ref, '{}'::jsonb) AS target_ref,
+	COALESCE(proposed_payload, '{}'::jsonb) AS proposed_payload,
+	created_at
+FROM consolidation_proposals
+WHERE tenant_id = $1
+	AND project_id = $2
+	AND source_refs @> $3
+ORDER BY created_at DESC, proposal_id DESC
+LIMIT $4",
+	)
+	.bind(&req.tenant_id)
+	.bind(&req.project_id)
+	.bind(proposal_ref)
+	.bind(NOTE_PROVENANCE_HISTORY_LIMIT)
+	.fetch_all(pool)
+	.await?;
+
+	Ok(rows)
+}
+
+async fn load_proposal_reviews_for_note(
+	pool: &PgPool,
+	req: &ValidatedNoteProvenanceRequest,
+	proposal_ref: &Value,
+) -> Result<Vec<NoteProposalReviewRow>> {
+	let rows = sqlx::query_as::<_, NoteProposalReviewRow>(
+		"\
+SELECT
+	reviews.review_id,
+	reviews.proposal_id,
+	reviews.run_id,
+	reviews.reviewer_agent_id,
+	reviews.action,
+	reviews.from_review_state,
+	reviews.to_review_state,
+	reviews.review_comment,
+	reviews.created_at,
+	proposals.proposal_kind,
+	proposals.apply_intent,
+	proposals.diff
+FROM consolidation_proposal_reviews reviews
+JOIN consolidation_proposals proposals
+	ON proposals.proposal_id = reviews.proposal_id
+WHERE reviews.tenant_id = $1
+	AND reviews.project_id = $2
+	AND proposals.source_refs @> $3
+ORDER BY reviews.created_at DESC, reviews.review_id DESC
+LIMIT $4",
+	)
+	.bind(&req.tenant_id)
+	.bind(&req.project_id)
+	.bind(proposal_ref)
+	.bind(NOTE_PROVENANCE_HISTORY_LIMIT)
+	.fetch_all(pool)
+	.await?;
+
+	Ok(rows)
 }
 
 #[cfg(test)]

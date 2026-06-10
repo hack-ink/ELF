@@ -1027,8 +1027,16 @@ fn memory_evolution_fixtures_report_temporal_and_staleness_metrics() -> Result<(
 		Some(0)
 	);
 	assert_eq!(
+		report.pointer("/summary/history_readback_encoded_count").and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
 		report.pointer("/evolution/temporal_validity_not_encoded_count").and_then(Value::as_u64),
 		Some(0)
+	);
+	assert_eq!(
+		report.pointer("/evolution/history_readback_encoded_count").and_then(Value::as_u64),
+		Some(1)
 	);
 
 	let suites = array_at(&report, "/suites")?;
@@ -1039,10 +1047,28 @@ fn memory_evolution_fixtures_report_temporal_and_staleness_metrics() -> Result<(
 		memory_evolution.pointer("/temporal_validity_not_encoded_count").and_then(Value::as_u64),
 		Some(0)
 	);
+	assert_eq!(
+		memory_evolution.pointer("/history_readback_encoded_count").and_then(Value::as_u64),
+		Some(1)
+	);
 
 	let jobs = array_at(&report, "/jobs")?;
+	let preference_job = find_by_field(jobs, "/job_id", "memory-evolution-preference-001")?;
 	let relation_job = find_by_field(jobs, "/job_id", "memory-evolution-relation-temporal-001")?;
 
+	assert_eq!(
+		preference_job.pointer("/evolution/history_readback_encoded").and_then(Value::as_bool),
+		Some(true)
+	);
+	assert!(array_contains_str(preference_job, "/evolution/history_event_types", "add")?);
+	assert!(array_contains_str(preference_job, "/evolution/history_event_types", "update")?);
+	assert!(array_contains_str(preference_job, "/evolution/history_event_types", "ignore")?);
+	assert_eq!(
+		preference_job
+			.pointer("/evolution/history_requires_note_version_links")
+			.and_then(Value::as_bool),
+		Some(true)
+	);
 	assert_eq!(relation_job.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(
 		relation_job.pointer("/evolution/temporal_validity_not_encoded").and_then(Value::as_bool),

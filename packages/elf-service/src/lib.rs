@@ -83,6 +83,7 @@ pub use self::{
 		SearchTimelineGroup, SearchTimelineRequest, SearchTimelineResponse,
 	},
 	provenance::{
+		MemoryHistoryEvent, MemoryHistoryGetRequest, MemoryHistoryResponse,
 		NoteProvenanceBundleResponse, NoteProvenanceGetRequest, NoteProvenanceIndexingOutbox,
 		NoteProvenanceIngestDecision, NoteProvenanceNote, NoteProvenanceNoteVersion,
 		NoteProvenanceRecentTrace,
@@ -575,11 +576,12 @@ where
 	})
 }
 
-pub(crate) async fn insert_version<'e, E>(executor: E, args: InsertVersionArgs<'_>) -> Result<()>
+pub(crate) async fn insert_version<'e, E>(executor: E, args: InsertVersionArgs<'_>) -> Result<Uuid>
 where
 	E: PgExecutor<'e>,
 {
 	let InsertVersionArgs { note_id, op, prev_snapshot, new_snapshot, reason, actor, ts } = args;
+	let version_id = Uuid::new_v4();
 
 	sqlx::query(
 		"\
@@ -595,7 +597,7 @@ INSERT INTO memory_note_versions (
 )
 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
 	)
-	.bind(Uuid::new_v4())
+	.bind(version_id)
 	.bind(note_id)
 	.bind(op)
 	.bind(prev_snapshot)
@@ -606,7 +608,7 @@ VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
 	.execute(executor)
 	.await?;
 
-	Ok(())
+	Ok(version_id)
 }
 
 pub(crate) async fn enqueue_outbox_tx<'e, E>(

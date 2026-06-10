@@ -2375,6 +2375,58 @@ async fn admin_note_provenance_includes_request_id_on_success() {
 
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_GRPC_URL (or ELF_QDRANT_URL) to run."]
+async fn admin_note_history_includes_request_id_on_success() {
+	let Some((test_db, qdrant_url, collection)) = test_env().await else {
+		return;
+	};
+	let mut config = test_config(test_db.dsn().to_string(), qdrant_url, collection);
+
+	config.security.auth_mode = "off".to_string();
+
+	let state = AppState::new(config).await.expect("Failed to initialize app state.");
+	let app = routes::admin_router(state.clone());
+	let note_id = Uuid::new_v4();
+	let request_id = Uuid::new_v4();
+
+	insert_note(&state, note_id, "agent_private", TEST_AGENT_A, "History integration test note.")
+		.await;
+
+	let response = app
+		.oneshot(
+			Request::builder()
+				.uri(format!("/v2/admin/notes/{note_id}/history"))
+				.header("X-ELF-Tenant-Id", TEST_TENANT_ID)
+				.header("X-ELF-Project-Id", TEST_PROJECT_ID)
+				.header("X-ELF-Agent-Id", TEST_AGENT_A)
+				.header("X-ELF-Request-Id", request_id.to_string())
+				.body(Body::empty())
+				.expect("Failed to build history request."),
+		)
+		.await
+		.expect("Failed to call admin note history.");
+
+	assert_eq!(response.status(), StatusCode::OK);
+
+	let expected_request_id = request_id.to_string();
+
+	assert_eq!(
+		response.headers().get("X-ELF-Request-Id").and_then(|value| value.to_str().ok()),
+		Some(expected_request_id.as_str())
+	);
+
+	let body = body::to_bytes(response.into_body(), usize::MAX)
+		.await
+		.expect("Failed to read history response body.");
+	let json: serde_json::Value = serde_json::from_slice(&body).expect("Failed to parse response.");
+
+	assert_eq!(json["schema"], "elf.memory_history/v1");
+	assert_eq!(json["request_id"], request_id.to_string());
+
+	test_db.cleanup().await.expect("Failed to cleanup test database.");
+}
+
+#[tokio::test]
+#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_GRPC_URL (or ELF_QDRANT_URL) to run."]
 async fn admin_note_provenance_rejects_invalid_request_id_header() {
 	let Some((test_db, qdrant_url, collection)) = test_env().await else {
 		return;
