@@ -252,6 +252,53 @@ pub struct KnowledgeProposalSource {
 	pub updated_at: OffsetDateTime,
 }
 
+/// Searchable knowledge page section row with page and lint metadata.
+#[derive(Debug, FromRow)]
+pub struct KnowledgePageSearchRow {
+	/// Derived page identifier.
+	pub page_id: Uuid,
+	/// Page kind.
+	pub page_kind: String,
+	/// Stable page key.
+	pub page_key: String,
+	/// Page title.
+	pub title: String,
+	/// Page lifecycle status.
+	pub status: String,
+	/// Source coverage metadata.
+	pub source_coverage: Value,
+	/// Rebuild metadata.
+	pub rebuild_metadata: Value,
+	/// Page update timestamp.
+	pub page_updated_at: OffsetDateTime,
+	/// Page rebuild timestamp.
+	pub rebuilt_at: OffsetDateTime,
+	/// Section identifier.
+	pub section_id: Uuid,
+	/// Stable section key.
+	pub section_key: String,
+	/// Section heading.
+	pub heading: String,
+	/// Section role.
+	pub role: String,
+	/// Section content.
+	pub content: String,
+	/// Section display order.
+	pub ordinal: i32,
+	/// Section citations.
+	pub citations: Value,
+	/// Reason the section is unsupported, when present.
+	pub unsupported_reason: Option<String>,
+	/// Number of error lint findings for the page.
+	pub lint_error_count: i64,
+	/// Number of warning lint findings for the page.
+	pub lint_warning_count: i64,
+	/// Number of info lint findings for the page.
+	pub lint_info_count: i64,
+	/// Number of normalized source refs for this section.
+	pub section_source_ref_count: i64,
+}
+
 /// Upserts one derived knowledge page and returns the persisted row.
 pub async fn upsert_knowledge_page<'e, E>(
 	executor: E,
@@ -650,6 +697,43 @@ ORDER BY source_kind ASC, source_id ASC, ref_id ASC",
 	Ok(rows)
 }
 
+/// Lists normalized source refs for a set of knowledge pages.
+pub async fn list_knowledge_page_source_refs_for_pages<'e, E>(
+	executor: E,
+	page_ids: &[Uuid],
+) -> Result<Vec<KnowledgePageSourceRef>>
+where
+	E: PgExecutor<'e>,
+{
+	if page_ids.is_empty() {
+		return Ok(Vec::new());
+	}
+
+	let rows = sqlx::query_as::<_, KnowledgePageSourceRef>(
+		"\
+SELECT
+	ref_id,
+	page_id,
+	section_id,
+	source_kind,
+	source_id,
+	source_status,
+	source_updated_at,
+	source_content_hash,
+	source_snapshot,
+	citation_metadata,
+	created_at
+FROM knowledge_page_source_refs
+WHERE page_id = ANY($1::uuid[])
+ORDER BY page_id ASC, source_kind ASC, source_id ASC, ref_id ASC",
+	)
+	.bind(page_ids)
+	.fetch_all(executor)
+	.await?;
+
+	Ok(rows)
+}
+
 /// Lists lint findings for one knowledge page.
 pub async fn list_knowledge_page_lint_findings<'e, E>(
 	executor: E,
@@ -676,6 +760,93 @@ WHERE page_id = $1
 ORDER BY severity DESC, created_at ASC, finding_id ASC",
 	)
 	.bind(page_id)
+	.fetch_all(executor)
+	.await?;
+
+	Ok(rows)
+}
+
+/// Searches derived knowledge page sections by page and section text.
+pub async fn search_knowledge_page_sections<'e, E>(
+	executor: E,
+	tenant_id: &str,
+	project_id: &str,
+	page_kind: Option<&str>,
+	query_pattern: &str,
+	limit: i64,
+) -> Result<Vec<KnowledgePageSearchRow>>
+where
+	E: PgExecutor<'e>,
+{
+	let rows = sqlx::query_as::<_, KnowledgePageSearchRow>(
+		"\
+WITH page_lint AS (
+	SELECT
+		page_id,
+		count(*) FILTER (WHERE severity = 'error') AS error_count,
+		count(*) FILTER (WHERE severity = 'warning') AS warning_count,
+		count(*) FILTER (WHERE severity = 'info') AS info_count
+	FROM knowledge_page_lint_findings
+	GROUP BY page_id
+),
+section_refs AS (
+	SELECT section_id, count(*) AS source_ref_count
+	FROM knowledge_page_source_refs
+	GROUP BY section_id
+)
+SELECT
+	p.page_id,
+	p.page_kind,
+	p.page_key,
+	p.title,
+	p.status,
+	p.source_coverage,
+	p.rebuild_metadata,
+	p.updated_at AS page_updated_at,
+	p.rebuilt_at,
+	s.section_id,
+	s.section_key,
+	s.heading,
+	s.role,
+	s.content,
+	s.ordinal,
+	s.citations,
+	s.unsupported_reason,
+	COALESCE(page_lint.error_count, 0)::bigint AS lint_error_count,
+	COALESCE(page_lint.warning_count, 0)::bigint AS lint_warning_count,
+	COALESCE(page_lint.info_count, 0)::bigint AS lint_info_count,
+	COALESCE(section_refs.source_ref_count, 0)::bigint AS section_source_ref_count
+FROM knowledge_pages p
+JOIN knowledge_page_sections s ON s.page_id = p.page_id
+LEFT JOIN page_lint ON page_lint.page_id = p.page_id
+LEFT JOIN section_refs ON section_refs.section_id = s.section_id
+WHERE p.tenant_id = $1
+	AND p.project_id = $2
+	AND p.status IN ('active', 'stale')
+	AND ($3::text IS NULL OR p.page_kind = $3)
+	AND (
+		lower(p.title) LIKE $4
+		OR lower(p.page_key) LIKE $4
+		OR lower(s.heading) LIKE $4
+		OR lower(s.content) LIKE $4
+	)
+ORDER BY
+	CASE
+		WHEN lower(p.title) LIKE $4 THEN 4
+		WHEN lower(s.heading) LIKE $4 THEN 3
+		WHEN lower(p.page_key) LIKE $4 THEN 2
+		ELSE 1
+	END DESC,
+	p.updated_at DESC,
+	s.ordinal ASC,
+	p.page_id DESC
+LIMIT $5",
+	)
+	.bind(tenant_id)
+	.bind(project_id)
+	.bind(page_kind)
+	.bind(query_pattern)
+	.bind(limit)
 	.fetch_all(executor)
 	.await?;
 
