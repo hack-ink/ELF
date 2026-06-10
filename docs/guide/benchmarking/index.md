@@ -43,6 +43,10 @@ cleanup, use `docs/guide/single_user_production.md`.
 - `2026-06-10-live-real-world-sweep-report.md`: XY-880 full-suite live real-world
   sweep report for ELF and qmd, showing per-suite live pass and typed non-pass states
   without claiming full-suite live parity.
+- `2026-06-10-production-adoption-refresh.md`: XY-884 post-adapter production
+  adoption refresh that keeps the decision at adopt with bounded caveats and separates
+  fixture, live adapter, private corpus, credentialed, blocked, and research-gate
+  evidence.
 - `real_world_agent_memory_benchmark.md`: operator overview for the v1 real-world
   agent memory benchmark contract, including suite taxonomy, typed report states,
   knowledge-compilation fixture tasks, and the production-ops fixture target.
