@@ -569,6 +569,21 @@ impl ElfMcp {
 	}
 
 	#[rmcp::tool(
+		name = "elf_admin_memory_history_get",
+		description = "Fetch chronological memory history for one note.",
+		input_schema = admin_memory_history_get_schema()
+	)]
+	async fn elf_admin_memory_history_get(
+		&self,
+		mut params: JsonObject,
+	) -> Result<CallToolResult, ErrorData> {
+		let note_id = take_required_string(&mut params, "note_id")?;
+		let path = format!("/v2/admin/notes/{note_id}/history");
+
+		self.forward(HttpMethod::Get, &path, JsonObject::new(), None).await
+	}
+
+	#[rmcp::tool(
 		name = "elf_admin_trace_bundle_get",
 		description = "Fetch trace bundle for replay and diagnostics by trace_id.",
 		input_schema = admin_trace_bundle_get_schema()
@@ -1383,6 +1398,10 @@ fn admin_note_provenance_get_schema() -> Arc<JsonObject> {
 	}))
 }
 
+fn admin_memory_history_get_schema() -> Arc<JsonObject> {
+	admin_note_provenance_get_schema()
+}
+
 fn admin_trace_bundle_get_schema() -> Arc<JsonObject> {
 	Arc::new(rmcp::object!({
 		"type": "object",
@@ -1532,7 +1551,7 @@ mod tests {
 
 	type RequestRecorder = Arc<Mutex<Option<oneshot::Sender<RecordedRequest>>>>;
 
-	const ALL_TOOL_DEFINITIONS: [ToolDefinition; 28] = [
+	const ALL_TOOL_DEFINITIONS: [ToolDefinition; 29] = [
 		ToolDefinition::new(
 			"elf_notes_ingest",
 			HttpMethod::Post,
@@ -1660,6 +1679,12 @@ mod tests {
 			"Fetch provenance bundle for a note.",
 		),
 		ToolDefinition::new(
+			"elf_admin_memory_history_get",
+			HttpMethod::Get,
+			"/v2/admin/notes/{note_id}/history",
+			"Fetch chronological memory history for a note.",
+		),
+		ToolDefinition::new(
 			"elf_admin_trace_bundle_get",
 			HttpMethod::Get,
 			"/v2/admin/traces/{trace_id}/bundle",
@@ -1758,6 +1783,7 @@ mod tests {
 			"elf_admin_trajectory_get",
 			"elf_admin_trace_item_get",
 			"elf_admin_note_provenance_get",
+			"elf_admin_memory_history_get",
 			"elf_admin_trace_bundle_get",
 			"elf_admin_events_ingestion_profiles_list",
 			"elf_admin_events_ingestion_profiles_create",
@@ -1869,6 +1895,7 @@ mod tests {
 			mcp.api_base_for_path("/v2/admin/notes/abcd/provenance"),
 			"http://127.0.0.1:9001"
 		);
+		assert_eq!(mcp.api_base_for_path("/v2/admin/notes/abcd/history"), "http://127.0.0.1:9001");
 		assert_eq!(mcp.api_base_for_path("/v2/searches"), "http://127.0.0.1:9000");
 	}
 

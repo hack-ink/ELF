@@ -32,12 +32,17 @@ For a note-level traceability trail:
 - Equivalent HTTP endpoint:
   - `GET /v2/admin/notes/{note_id}/provenance`
   - Schema: `elf.note_provenance_bundle/v1`
+- Memory history readback:
+  - MCP tool: `elf_admin_memory_history_get`
+  - `GET /v2/admin/notes/{note_id}/history`
+  - Schema: `elf.memory_history/v1`
 
 Returned bundle sections:
 
 - `note`
 - `ingest_decisions`
 - `note_versions`
+- `history`
 - `indexing_outbox`
 - `recent_traces`
 
@@ -61,6 +66,7 @@ Recommended loop:
 1. Start from a user-facing error `trace_id` or note `note_id`.
 2. Query `elf_admin_trace_*` family to inspect trajectory and trace items.
 3. Use `elf_admin_note_provenance_get` to connect trace history with ingest and indexing state.
+4. Use `elf_admin_memory_history_get` when you only need chronological memory evolution events.
 
 ## 4) MCP admin/debug surface map
 
@@ -70,3 +76,4 @@ Recommended loop:
 - `elf_admin_trace_item_get` -> `GET /v2/admin/trace-items/{item_id}`
 - `elf_admin_trace_bundle_get` -> `GET /v2/admin/traces/{trace_id}/bundle`
 - `elf_admin_note_provenance_get` -> `GET /v2/admin/notes/{note_id}/provenance`
+- `elf_admin_memory_history_get` -> `GET /v2/admin/notes/{note_id}/history`

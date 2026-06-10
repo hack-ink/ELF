@@ -14,6 +14,7 @@ pub(crate) struct IngestAuditArgs<'a> {
 	pub note_type: &'a str,
 	pub note_key: Option<&'a str>,
 	pub note_id: Option<Uuid>,
+	pub note_version_id: Option<Uuid>,
 	pub base_decision: MemoryPolicyDecision,
 	pub policy_decision: MemoryPolicyDecision,
 	pub note_op: NoteOp,
@@ -49,6 +50,7 @@ pub(crate) async fn insert_ingest_decision(
 		note_type,
 		note_key,
 		note_id,
+		note_version_id,
 		base_decision,
 		policy_decision,
 		note_op,
@@ -83,6 +85,7 @@ INSERT INTO memory_ingest_decisions (
 	note_type,
 	note_key,
 	note_id,
+	note_version_id,
 	base_decision,
 	policy_decision,
 	note_op,
@@ -90,7 +93,7 @@ INSERT INTO memory_ingest_decisions (
 	details,
 	ts
 )
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)",
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)",
 	)
 	.bind(Uuid::new_v4())
 	.bind(tenant_id)
@@ -101,6 +104,7 @@ VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)",
 	.bind(note_type)
 	.bind(note_key)
 	.bind(note_id)
+	.bind(note_version_id)
 	.bind(memory_policy_decision_to_str(base_decision))
 	.bind(memory_policy_decision_to_str(policy_decision))
 	.bind(note_op_to_str(note_op))
