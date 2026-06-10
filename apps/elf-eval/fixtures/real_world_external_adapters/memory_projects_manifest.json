@@ -1164,48 +1164,58 @@
       "overall_status": "blocked",
       "setup": {
         "status": "blocked",
-        "evidence": "XY-882 marks LightRAG as an adapter_candidate, but the runner still needs a Docker context-export adapter before any live result."
+        "evidence": "XY-886 adds a Docker-profile context-export smoke command. The checked-in manifest remains a research gate until a generated artifact reaches LightRAG context/source output.",
+        "command": "cargo make lightrag-docker-context-smoke",
+        "artifact": "tmp/real-world-memory/lightrag-context/lightrag-materialization.json"
       },
       "run": {
-        "status": "not_encoded",
-        "evidence": "No LightRAG real_world_job adapter is encoded."
+        "status": "blocked",
+        "evidence": "The default smoke records a typed setup/runtime failure if the LightRAG API is unavailable; set ELF_LIGHTRAG_CONTEXT_START=1 to start the opt-in Docker service profile.",
+        "command": "ELF_LIGHTRAG_CONTEXT_START=1 cargo make lightrag-docker-context-smoke",
+        "artifact": "tmp/real-world-memory/lightrag-context/summary.json"
       },
       "result": {
         "status": "blocked",
-        "evidence": "No graph-RAG quality claim is allowed until a Docker-safe adapter reaches query output."
+        "evidence": "No graph-RAG quality result is claimed from the checked-in research gate. Generated smoke artifacts may become live_real_world only after LightRAG returns context or references mapped to generated evidence ids.",
+        "artifact": "tmp/real-world-memory/lightrag-context/lightrag-report.json"
       },
       "capabilities": [
         {
-          "capability": "graph_augmented_rag_setup",
-          "status": "not_encoded",
-          "evidence": "XY-882 completed setup/output feasibility research; graph-augmented RAG execution is still not encoded."
+          "capability": "docker_service_setup",
+          "status": "blocked",
+          "evidence": "The opt-in compose profile records explicit LightRAG image, LLM, embedding, rerank, workspace, and Docker volume configuration without host-global installs."
         },
         {
           "capability": "retrieved_context_export",
           "status": "blocked",
-          "evidence": "The adapter must prove it can extract evidence-bearing retrieved contexts for scoring."
+          "evidence": "The materializer calls /documents/texts, waits on /documents/track_status, and queries /query with only_need_context plus chunk references when the service is reachable."
         },
         {
           "capability": "real_world_job_adapter",
+          "status": "blocked",
+          "evidence": "The LightRAG materializer rewrites generated retrieval fixtures with adapter_response evidence only when source paths or context map to required evidence ids."
+        },
+        {
+          "capability": "quality_or_scale_claim",
           "status": "not_encoded",
-          "evidence": "No LightRAG fixture materializer or scorer mapping exists."
+          "evidence": "The smoke does not score broad graph-RAG quality, private corpora, scale, or comparative ranking claims."
         }
       ],
       "suites": [
         {
           "suite_id": "retrieval",
           "status": "blocked",
-          "evidence": "Graph/vector retrieval output mapping needs research."
+          "evidence": "The generated smoke can exercise retrieval context/source mapping for retrieval fixtures, but the checked-in record stays blocked until a live artifact reaches query output."
         },
         {
           "suite_id": "memory_evolution",
-          "status": "blocked",
-          "evidence": "Stale/corrected fact update behavior is not yet audited."
+          "status": "not_encoded",
+          "evidence": "LightRAG update/delete/current-versus-historical behavior is not encoded by the context-export smoke."
         },
         {
           "suite_id": "operator_debugging_ux",
           "status": "not_encoded",
-          "evidence": "Trace or context-debug output is not mapped to benchmark scoring."
+          "evidence": "The smoke records context/source mappings, but full trace or viewer diagnostics are not mapped to benchmark scoring."
         }
       ],
       "evidence": [
@@ -1218,6 +1228,16 @@
           "kind": "source",
           "ref": "https://github.com/HKUDS/LightRAG/blob/main/docs/DockerDeployment.md",
           "status": "real"
+        },
+        {
+          "kind": "command",
+          "ref": "cargo make lightrag-docker-context-smoke",
+          "status": "blocked"
+        },
+        {
+          "kind": "artifact",
+          "ref": "tmp/real-world-memory/lightrag-context/lightrag-materialization.json",
+          "status": "blocked"
         }
       ],
       "execution_metadata": {
@@ -1243,14 +1263,15 @@
             "evidence": "Official source-id and file-path citation reference."
           }
         ],
-        "setup_path": "Implement Docker Compose with explicit LLM, embedding, rerank, storage, workspace, and data-volume configuration, then export context-only query output.",
-        "runtime_boundary": "Docker-only service profile with generated corpus mounted as container-local input.",
-        "resource_expectation": "Graph extraction and local model choices may dominate runtime; record backend choices, cache sizes, and provider needs.",
+        "setup_path": "Run cargo make lightrag-docker-context-smoke for a typed preflight artifact; set ELF_LIGHTRAG_CONTEXT_START=1 to start the opt-in LightRAG Docker profile and attempt live context export.",
+        "runtime_boundary": "docker-compose.baseline.yml baseline-runner plus opt-in lightrag and lightrag-mock-provider services; generated source files and LightRAG data stay in Docker-mounted artifact paths and Docker volumes.",
+        "resource_expectation": "The default profile uses the official LightRAG image, a local OpenAI-compatible mock provider, 64-dimensional embeddings, rerank disabled for context queries, cargo/pip/Hugging Face caches, and Docker volumes for rag_storage, inputs, and prompts.",
         "retry_guidance": [
-          "Run a tiny Docker ingest/query smoke with deterministic or local providers.",
-          "Verify returned contexts can be mapped to required evidence IDs."
+          "Run cargo make lightrag-docker-context-smoke first; a missing API must remain a typed incomplete artifact, not a pass claim.",
+          "Set ELF_LIGHTRAG_CONTEXT_START=1 only when Docker may pull/start the LightRAG service profile.",
+          "Score retrieval only when returned context, references.file_path, or references.content map to required evidence ids."
         ],
-        "research_depth": "D2 feasibility verdict: adapter_candidate (XY-882); research_gate only, adapter not encoded"
+        "research_depth": "D2 feasibility plus XY-886 context-export implementation; checked-in record remains research_gate unless a generated artifact reaches query output"
       },
       "follow_up": {
         "title": "[ELF benchmark adapter] Implement LightRAG Docker context-export adapter",

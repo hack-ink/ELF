@@ -10,15 +10,16 @@ use std::{
 	path::{Path, PathBuf},
 	process::{Command, Stdio},
 	sync::Arc,
-	time::Instant,
+	time::{Duration, Instant},
 };
 
 use blake3::Hasher;
 use clap::{Parser, Subcommand, ValueEnum};
 use color_eyre::{self, eyre};
+use reqwest::RequestBuilder;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
-use tokio::task::JoinSet;
+use tokio::{task::JoinSet, time};
 use uuid::Uuid;
 
 use elf_chunking::ChunkingConfig;
@@ -87,6 +88,52 @@ struct QmdArgs {
 	/// Adapter id embedded in generated adapter_response objects.
 	#[arg(long, default_value = "qmd_live_real_world")]
 	adapter_id: String,
+}
+
+#[derive(Debug, Parser)]
+struct LightragArgs {
+	/// Fixture file or directory containing real_world_job JSON fixtures.
+	#[arg(long, value_name = "PATH")]
+	fixtures: PathBuf,
+	/// Directory where generated real_world_job fixtures are written.
+	#[arg(long, value_name = "DIR")]
+	out_fixtures: PathBuf,
+	/// JSON evidence file for adapter setup/run/result details.
+	#[arg(long, value_name = "FILE")]
+	evidence_out: PathBuf,
+	/// Work directory for generated source files and command logs.
+	#[arg(long, value_name = "DIR")]
+	work_dir: PathBuf,
+	/// LightRAG API base URL reachable from the Docker runner.
+	#[arg(long, default_value = "http://lightrag:9621")]
+	api_base: String,
+	/// Optional LightRAG API bearer token.
+	#[arg(long)]
+	api_key: Option<String>,
+	/// Adapter id embedded in generated adapter_response objects.
+	#[arg(long, default_value = "lightrag_live_real_world")]
+	adapter_id: String,
+	/// LightRAG query mode used for context export.
+	#[arg(long, default_value = "naive")]
+	query_mode: String,
+	/// Number of top results requested from LightRAG.
+	#[arg(long, default_value_t = 5)]
+	top_k: u32,
+	/// Number of chunk results requested from LightRAG.
+	#[arg(long, default_value_t = 5)]
+	chunk_top_k: u32,
+	/// Health-check attempts before returning a typed runtime failure.
+	#[arg(long, default_value_t = 30)]
+	startup_attempts: u32,
+	/// Delay between LightRAG health-check attempts.
+	#[arg(long, default_value_t = 2)]
+	startup_interval_seconds: u64,
+	/// Poll attempts for asynchronous document indexing.
+	#[arg(long, default_value_t = 60)]
+	index_attempts: u32,
+	/// Delay between document indexing status checks.
+	#[arg(long, default_value_t = 2)]
+	index_interval_seconds: u64,
 }
 
 #[derive(Debug)]
@@ -158,6 +205,8 @@ struct MaterializationEvidence {
 	generated_fixtures: String,
 	command_evidence: Vec<CommandEvidence>,
 	jobs: Vec<MaterializedJobEvidence>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	metadata: Option<Value>,
 }
 
 #[derive(Debug, Serialize)]
@@ -178,9 +227,13 @@ struct MaterializedJobEvidence {
 	query: String,
 	evidence_ids: Vec<String>,
 	returned_count: usize,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	indexing_latency_ms: Option<f64>,
 	latency_ms: f64,
 	trace_id: Option<Uuid>,
 	failure: Option<String>,
+	#[serde(skip_serializing_if = "Vec::is_empty")]
+	source_mappings: Vec<SourceMappingEvidence>,
 }
 
 #[derive(Debug, Serialize)]
@@ -236,9 +289,11 @@ struct MaterializedJobInput {
 	content: String,
 	evidence_ids: Vec<String>,
 	latency_ms: f64,
+	indexing_latency_ms: Option<f64>,
 	returned_count: usize,
 	trace_id: Option<Uuid>,
 	failure: Option<String>,
+	source_mappings: Vec<SourceMappingEvidence>,
 }
 
 struct MaterializedOutput<'a> {
@@ -250,12 +305,28 @@ struct MaterializedOutput<'a> {
 	jobs: &'a [LoadedJob],
 	materialized: &'a [MaterializedJob],
 	command_evidence: Vec<CommandEvidence>,
+	metadata: Option<Value>,
 }
 
 #[derive(Debug)]
 struct CorpusText {
 	evidence_id: String,
 	text: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+struct SourceMappingEvidence {
+	source: String,
+	evidence_ids: Vec<String>,
+	mapping_status: String,
+	content_count: usize,
+}
+
+#[derive(Debug)]
+struct LightragSource {
+	evidence_id: String,
+	file_source: String,
+	artifact_path: PathBuf,
 }
 
 #[derive(Debug)]
@@ -380,6 +451,8 @@ enum CommandArgs {
 	Elf(ElfArgs),
 	/// Materialize adapter responses by running jobs through qmd's local CLI workflow.
 	Qmd(QmdArgs),
+	/// Materialize adapter responses by exporting LightRAG query context and source mappings.
+	Lightrag(LightragArgs),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, ValueEnum)]
@@ -387,6 +460,7 @@ enum CommandArgs {
 enum AdapterKind {
 	ElfServiceRuntime,
 	QmdCliRuntime,
+	LightragApiContextExport,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
@@ -423,6 +497,7 @@ fn run_qmd(args: QmdArgs) -> color_eyre::Result<()> {
 			reason: "qmd live adapter used collection add, update, embed, and query --json."
 				.to_string(),
 		}],
+		metadata: None,
 	})
 }
 
@@ -575,11 +650,283 @@ fn materialize_qmd_job(
 			content: selected.content,
 			evidence_ids: selected.evidence_ids,
 			latency_ms,
+			indexing_latency_ms: None,
 			returned_count: entries.len(),
 			trace_id: None,
 			failure: None,
+			source_mappings: Vec::new(),
 		},
 	))
+}
+
+fn lightrag_not_encoded_job(adapter_id: &str, loaded: &LoadedJob) -> Option<MaterializedJob> {
+	match loaded.job.suite.as_str() {
+		"retrieval" => None,
+		_ => Some(materialized_declared_status_job(
+			adapter_id,
+			loaded,
+			MaterializationStatus::NotEncoded,
+			"LightRAG context-export smoke only maps retrieved context/source paths; this suite is not encoded for LightRAG scoring.".to_string(),
+		)),
+	}
+}
+
+fn lightrag_failure_jobs(
+	adapter_id: &str,
+	jobs: &[LoadedJob],
+	stage: &str,
+	reason: String,
+) -> Vec<MaterializedJob> {
+	jobs.iter()
+		.map(|job| {
+			if let Some(declared) = declared_encoding_job(adapter_id, job) {
+				return declared;
+			}
+			if let Some(not_encoded) = lightrag_not_encoded_job(adapter_id, job) {
+				return not_encoded;
+			}
+
+			materialized_job(
+				job,
+				adapter_id,
+				MaterializedJobInput {
+					content: String::new(),
+					evidence_ids: Vec::new(),
+					latency_ms: 0.0,
+					indexing_latency_ms: None,
+					returned_count: 0,
+					trace_id: None,
+					failure: Some(format!("{stage}: {reason}")),
+					source_mappings: Vec::new(),
+				},
+			)
+		})
+		.collect()
+}
+
+fn write_lightrag_corpus(
+	args: &LightragArgs,
+	loaded: &LoadedJob,
+	corpus: &[CorpusText],
+	run_slug: &str,
+) -> color_eyre::Result<Vec<LightragSource>> {
+	let job_slug = slug(&loaded.job.job_id);
+	let corpus_dir = args.work_dir.join("corpus").join(run_slug).join(&job_slug);
+
+	fs::create_dir_all(&corpus_dir)?;
+
+	corpus
+		.iter()
+		.map(|item| {
+			let file_name = format!("{}.md", slug(&item.evidence_id));
+			let artifact_path = corpus_dir.join(&file_name);
+			let file_source = format!("elf-real-world/{run_slug}/{job_slug}/{file_name}");
+
+			fs::write(&artifact_path, format!("# {}\n\n{}\n", item.evidence_id, item.text))?;
+
+			Ok(LightragSource { evidence_id: item.evidence_id.clone(), file_source, artifact_path })
+		})
+		.collect()
+}
+
+fn lightrag_index_failed(status: &Value) -> bool {
+	status.get("documents").and_then(Value::as_array).into_iter().flatten().any(|doc| {
+		doc.get("status")
+			.and_then(Value::as_str)
+			.is_some_and(|status| status.to_ascii_lowercase().contains("fail"))
+	})
+}
+
+fn lightrag_index_processed(status: &Value, expected_docs: usize) -> bool {
+	let Some(documents) = status.get("documents").and_then(Value::as_array) else {
+		return false;
+	};
+
+	documents.len() >= expected_docs
+		&& documents.iter().all(|doc| {
+			doc.get("status").and_then(Value::as_str).is_some_and(|status| {
+				let normalized = status.to_ascii_lowercase();
+
+				normalized.contains("processed") || normalized.contains("success")
+			})
+		})
+}
+
+fn lightrag_keywords(query: &str) -> Vec<String> {
+	terms(query).into_iter().take(12).collect()
+}
+
+fn lightrag_source_mappings(
+	corpus: &[CorpusText],
+	sources: &[LightragSource],
+	response: &Value,
+) -> Vec<SourceMappingEvidence> {
+	let mut mappings = Vec::new();
+
+	if let Some(references) = response.get("references").and_then(Value::as_array) {
+		for reference in references {
+			mappings.push(lightrag_reference_mapping(corpus, sources, reference));
+		}
+	}
+
+	if mappings.is_empty()
+		&& let Some(context) = response.get("response").and_then(Value::as_str)
+	{
+		let evidence_ids = map_lightrag_evidence_ids(corpus, sources, context);
+
+		if !evidence_ids.is_empty() {
+			mappings.push(SourceMappingEvidence {
+				source: "response_context".to_string(),
+				evidence_ids,
+				mapping_status: "matched_context".to_string(),
+				content_count: 1,
+			});
+		}
+	}
+
+	mappings
+}
+
+fn lightrag_reference_mapping(
+	corpus: &[CorpusText],
+	sources: &[LightragSource],
+	reference: &Value,
+) -> SourceMappingEvidence {
+	let source = reference
+		.get("file_path")
+		.and_then(Value::as_str)
+		.or_else(|| reference.get("reference_id").and_then(Value::as_str))
+		.unwrap_or("unknown_source")
+		.to_string();
+	let content = reference
+		.get("content")
+		.and_then(Value::as_array)
+		.into_iter()
+		.flatten()
+		.filter_map(Value::as_str)
+		.collect::<Vec<_>>();
+	let joined_content = content.join("\n");
+	let combined = format!("{source}\n{joined_content}");
+	let evidence_ids = map_lightrag_evidence_ids(corpus, sources, combined.as_str());
+	let mapping_status = if evidence_ids.is_empty() {
+		"unmatched"
+	} else if !joined_content.is_empty() {
+		"matched_reference_content"
+	} else {
+		"matched_reference_source"
+	};
+
+	SourceMappingEvidence {
+		source,
+		evidence_ids,
+		mapping_status: mapping_status.to_string(),
+		content_count: content.len(),
+	}
+}
+
+fn map_lightrag_evidence_ids(
+	corpus: &[CorpusText],
+	sources: &[LightragSource],
+	haystack: &str,
+) -> Vec<String> {
+	let normalized_haystack = normalize_ascii_alnum_lowercase(haystack);
+	let mut evidence_ids = Vec::new();
+
+	for item in corpus {
+		let evidence_slug = slug(&item.evidence_id);
+		let signature = normalized_text_signature(item.text.as_str());
+		let source_match = sources.iter().any(|source| {
+			source.evidence_id == item.evidence_id
+				&& (haystack.contains(source.file_source.as_str())
+					|| haystack.contains(source.artifact_path.to_string_lossy().as_ref()))
+		});
+		let id_match = haystack.contains(item.evidence_id.as_str())
+			|| haystack.contains(evidence_slug.as_str())
+			|| normalized_haystack.contains(evidence_slug.as_str());
+		let content_match =
+			!signature.is_empty() && normalized_haystack.contains(signature.as_str());
+
+		if source_match || id_match || content_match {
+			push_unique(&mut evidence_ids, item.evidence_id.clone());
+		}
+	}
+
+	evidence_ids
+}
+
+fn normalized_text_signature(text: &str) -> String {
+	normalize_ascii_alnum_lowercase(text).split_whitespace().take(8).collect::<Vec<_>>().join(" ")
+}
+
+fn lightrag_mapped_evidence_ids(mappings: &[SourceMappingEvidence]) -> Vec<String> {
+	let mut evidence_ids = Vec::new();
+
+	for mapping in mappings {
+		for evidence_id in &mapping.evidence_ids {
+			push_unique(&mut evidence_ids, evidence_id.clone());
+		}
+	}
+
+	evidence_ids
+}
+
+fn lightrag_api_base(args: &LightragArgs) -> String {
+	args.api_base.trim_end_matches('/').to_string()
+}
+
+fn lightrag_metadata(args: &LightragArgs, run_slug: &str) -> Value {
+	serde_json::json!({
+		"schema": "elf.lightrag_context_export_metadata/v1",
+		"run_slug": run_slug,
+		"api_base": lightrag_api_base(args),
+		"query": {
+			"mode": args.query_mode,
+			"only_need_context": true,
+			"include_references": true,
+			"include_chunk_content": true,
+			"enable_rerank": false,
+			"top_k": args.top_k,
+			"chunk_top_k": args.chunk_top_k
+		},
+		"docker_boundary": {
+			"compose_file": "docker-compose.baseline.yml",
+			"service_profile": "lightrag",
+			"service": "lightrag",
+			"mock_provider_service": "lightrag-mock-provider",
+			"host_global_installs_required": false,
+			"workspace": "/app/data/rag_storage",
+			"input_dir": "/app/data/inputs",
+			"data_volumes": [
+				"elf-live-baseline-lightrag-rag-storage",
+				"elf-live-baseline-lightrag-inputs",
+				"elf-live-baseline-lightrag-prompts"
+			]
+		},
+		"provider_boundaries": {
+			"llm_binding": "openai-compatible",
+			"embedding_binding": "openai-compatible",
+			"embedding_dim": 64,
+			"rerank_binding": "cohere-compatible",
+			"rerank_enabled_for_query": false,
+			"api_key_provided": args.api_key.as_deref().is_some_and(|key| !key.is_empty()),
+			"operator_owned_provider_credentials_used": false
+		},
+		"cache_and_resource_envelope": {
+			"cargo_cache": "/usr/local/cargo",
+			"pip_cache": "/root/.cache/pip",
+			"huggingface_cache": "/root/.cache/huggingface",
+			"lightrag_storage": "/app/data/rag_storage",
+			"startup_attempts": args.startup_attempts,
+			"startup_interval_seconds": args.startup_interval_seconds,
+			"index_attempts": args.index_attempts,
+			"index_interval_seconds": args.index_interval_seconds
+		},
+		"source_mapping": {
+			"corpus_file_source_template": "elf-real-world/{run_slug}/{job_slug}/{evidence_id}.md",
+			"mapping_inputs": ["references.file_path", "references.content", "response"],
+			"quality_claim": "none"
+		}
+	})
 }
 
 fn materialized_job(
@@ -639,9 +986,11 @@ fn materialized_job(
 			query: loaded.job.prompt.content.clone(),
 			evidence_ids: input.evidence_ids,
 			returned_count: input.returned_count,
+			indexing_latency_ms: input.indexing_latency_ms,
 			latency_ms: input.latency_ms,
 			trace_id: input.trace_id,
 			failure: input.failure,
+			source_mappings: input.source_mappings,
 		},
 	}
 }
@@ -748,9 +1097,11 @@ fn materialized_declared_status_job(
 			query: loaded.job.prompt.content.clone(),
 			evidence_ids: Vec::new(),
 			returned_count: 0,
+			indexing_latency_ms: None,
 			latency_ms: 0.0,
 			trace_id: None,
 			failure,
+			source_mappings: Vec::new(),
 		},
 	}
 }
@@ -864,9 +1215,11 @@ fn failure_jobs(
 					content: String::new(),
 					evidence_ids: Vec::new(),
 					latency_ms: 0.0,
+					indexing_latency_ms: None,
 					returned_count: 0,
 					trace_id: None,
 					failure: Some(format!("{stage}: {reason}")),
+					source_mappings: Vec::new(),
 				},
 			)
 		})
@@ -926,6 +1279,7 @@ fn write_materialized_output(output: MaterializedOutput<'_>) -> color_eyre::Resu
 		generated_fixtures: output.out_fixtures.display().to_string(),
 		command_evidence: output.command_evidence,
 		jobs: output.materialized.iter().map(|job| clone_job_evidence(&job.evidence)).collect(),
+		metadata: output.metadata,
 	};
 
 	if let Some(parent) = output.evidence_out.parent() {
@@ -946,9 +1300,11 @@ fn clone_job_evidence(evidence: &MaterializedJobEvidence) -> MaterializedJobEvid
 		query: evidence.query.clone(),
 		evidence_ids: evidence.evidence_ids.clone(),
 		returned_count: evidence.returned_count,
+		indexing_latency_ms: evidence.indexing_latency_ms,
 		latency_ms: evidence.latency_ms,
 		trace_id: evidence.trace_id,
 		failure: evidence.failure.clone(),
+		source_mappings: evidence.source_mappings.clone(),
 	}
 }
 
@@ -1353,6 +1709,255 @@ fn split_long_token(token: &str) -> Vec<String> {
 	chunks
 }
 
+async fn run_lightrag_async(args: LightragArgs) -> color_eyre::Result<()> {
+	let jobs = load_jobs(&args.fixtures)?;
+	let run_slug = short_hash(format!("{}:{}", args.adapter_id, Uuid::new_v4()).as_str());
+	let result = materialize_lightrag_jobs(&args, &jobs, &run_slug).await;
+	let materialized = match result {
+		Ok(jobs) => jobs,
+		Err(err) => lightrag_failure_jobs(
+			&args.adapter_id,
+			&jobs,
+			"lightrag_api_context_export",
+			err.to_string(),
+		),
+	};
+	let status = aggregate_status(&materialized);
+
+	write_materialized_output(MaterializedOutput {
+		adapter_id: &args.adapter_id,
+		adapter_kind: AdapterKind::LightragApiContextExport,
+		fixtures: &args.fixtures,
+		out_fixtures: &args.out_fixtures,
+		evidence_out: &args.evidence_out,
+		jobs: &jobs,
+		materialized: &materialized,
+		command_evidence: vec![CommandEvidence {
+			label: "lightrag_api_context_export".to_string(),
+			status,
+			command: "cargo run -p elf-eval --bin real_world_live_adapter -- lightrag"
+				.to_string(),
+			artifact: Some(args.evidence_out.display().to_string()),
+			reason: "LightRAG adapter used /documents/texts, /documents/track_status, and /query with only_need_context plus chunk references.".to_string(),
+		}],
+		metadata: Some(lightrag_metadata(&args, &run_slug)),
+	})
+}
+
+async fn materialize_lightrag_jobs(
+	args: &LightragArgs,
+	jobs: &[LoadedJob],
+	run_slug: &str,
+) -> color_eyre::Result<Vec<MaterializedJob>> {
+	fs::create_dir_all(&args.work_dir)?;
+
+	let client = reqwest::Client::builder().timeout(Duration::from_secs(180)).build()?;
+
+	wait_for_lightrag(args, &client).await?;
+
+	let mut out = Vec::with_capacity(jobs.len());
+
+	for loaded in jobs {
+		out.push(materialize_lightrag_job(args, &client, loaded, run_slug).await?);
+	}
+
+	Ok(out)
+}
+
+async fn wait_for_lightrag(
+	args: &LightragArgs,
+	client: &reqwest::Client,
+) -> color_eyre::Result<()> {
+	let mut last_error = String::new();
+
+	for _attempt in 1..=args.startup_attempts {
+		match lightrag_get_json(args, client, "/health").await {
+			Ok(_) => return Ok(()),
+			Err(err) => last_error = err.to_string(),
+		}
+
+		time::sleep(Duration::from_secs(args.startup_interval_seconds)).await;
+	}
+
+	Err(eyre::eyre!(
+		"LightRAG API did not become healthy at {} after {} attempts: {}",
+		lightrag_api_base(args),
+		args.startup_attempts,
+		last_error
+	))
+}
+
+async fn materialize_lightrag_job(
+	args: &LightragArgs,
+	client: &reqwest::Client,
+	loaded: &LoadedJob,
+	run_slug: &str,
+) -> color_eyre::Result<MaterializedJob> {
+	if let Some(job) = declared_encoding_job(&args.adapter_id, loaded) {
+		return Ok(job);
+	}
+	if let Some(job) = lightrag_not_encoded_job(&args.adapter_id, loaded) {
+		return Ok(job);
+	}
+
+	let corpus = corpus_texts(loaded)?;
+	let sources = write_lightrag_corpus(args, loaded, &corpus, run_slug)?;
+	let indexed_at = Instant::now();
+	let insert_response = insert_lightrag_texts(args, client, &corpus, &sources).await?;
+
+	wait_for_lightrag_index(args, client, &insert_response, corpus.len()).await?;
+
+	let indexing_latency_ms = indexed_at.elapsed().as_secs_f64() * 1_000.0;
+	let queried_at = Instant::now();
+	let query_response = query_lightrag_context(args, client, loaded).await?;
+	let latency_ms = queried_at.elapsed().as_secs_f64() * 1_000.0;
+	let source_mappings = lightrag_source_mappings(&corpus, &sources, &query_response);
+	let evidence_ids = lightrag_mapped_evidence_ids(&source_mappings);
+	let selected = selected_required_corpus_texts(loaded, &corpus, &evidence_ids);
+
+	Ok(materialized_job(
+		loaded,
+		&args.adapter_id,
+		MaterializedJobInput {
+			content: selected.content,
+			evidence_ids: selected.evidence_ids,
+			latency_ms,
+			indexing_latency_ms: Some(indexing_latency_ms),
+			returned_count: source_mappings.len(),
+			trace_id: None,
+			failure: None,
+			source_mappings,
+		},
+	))
+}
+
+async fn insert_lightrag_texts(
+	args: &LightragArgs,
+	client: &reqwest::Client,
+	corpus: &[CorpusText],
+	sources: &[LightragSource],
+) -> color_eyre::Result<Value> {
+	let request = serde_json::json!({
+		"texts": corpus.iter().map(|item| item.text.as_str()).collect::<Vec<_>>(),
+		"file_sources": sources.iter().map(|source| source.file_source.as_str()).collect::<Vec<_>>(),
+		"chunking": {
+			"strategy": "fixed_token",
+			"params": {
+				"chunk_token_size": 320,
+				"chunk_overlap_token_size": 32
+			}
+		}
+	});
+
+	lightrag_post_json(args, client, "/documents/texts", &request).await
+}
+
+async fn wait_for_lightrag_index(
+	args: &LightragArgs,
+	client: &reqwest::Client,
+	insert_response: &Value,
+	expected_docs: usize,
+) -> color_eyre::Result<()> {
+	let track_id = insert_response
+		.get("track_id")
+		.and_then(Value::as_str)
+		.ok_or_else(|| eyre::eyre!("LightRAG text insert response did not include track_id."))?;
+	let mut last_status = Value::Null;
+
+	for _attempt in 1..=args.index_attempts {
+		let status =
+			lightrag_get_json(args, client, format!("/documents/track_status/{track_id}")).await?;
+
+		if lightrag_index_failed(&status) {
+			return Err(eyre::eyre!(
+				"LightRAG document indexing failed for track_id {track_id}: {}",
+				serde_json::to_string(&status)?
+			));
+		}
+		if lightrag_index_processed(&status, expected_docs) {
+			return Ok(());
+		}
+
+		last_status = status;
+
+		time::sleep(Duration::from_secs(args.index_interval_seconds)).await;
+	}
+
+	Err(eyre::eyre!(
+		"LightRAG document indexing did not finish for track_id {} after {} attempts: {}",
+		track_id,
+		args.index_attempts,
+		serde_json::to_string(&last_status)?
+	))
+}
+
+async fn query_lightrag_context(
+	args: &LightragArgs,
+	client: &reqwest::Client,
+	loaded: &LoadedJob,
+) -> color_eyre::Result<Value> {
+	let keywords = lightrag_keywords(loaded.job.prompt.content.as_str());
+	let request = serde_json::json!({
+		"query": loaded.job.prompt.content,
+		"mode": args.query_mode,
+		"only_need_context": true,
+		"include_references": true,
+		"include_chunk_content": true,
+		"enable_rerank": false,
+		"top_k": args.top_k,
+		"chunk_top_k": args.chunk_top_k,
+		"hl_keywords": keywords,
+		"ll_keywords": keywords,
+		"stream": false
+	});
+
+	lightrag_post_json(args, client, "/query", &request).await
+}
+
+async fn lightrag_get_json(
+	args: &LightragArgs,
+	client: &reqwest::Client,
+	path: impl AsRef<str>,
+) -> color_eyre::Result<Value> {
+	let url = format!("{}{}", lightrag_api_base(args), path.as_ref());
+	let mut request = client.get(url);
+
+	if let Some(api_key) = args.api_key.as_deref().filter(|key| !key.is_empty()) {
+		request = request.bearer_auth(api_key);
+	}
+
+	lightrag_send_json(request).await
+}
+
+async fn lightrag_post_json(
+	args: &LightragArgs,
+	client: &reqwest::Client,
+	path: &str,
+	body: &Value,
+) -> color_eyre::Result<Value> {
+	let url = format!("{}{}", lightrag_api_base(args), path);
+	let mut request = client.post(url).json(body);
+
+	if let Some(api_key) = args.api_key.as_deref().filter(|key| !key.is_empty()) {
+		request = request.bearer_auth(api_key);
+	}
+
+	lightrag_send_json(request).await
+}
+
+async fn lightrag_send_json(request: RequestBuilder) -> color_eyre::Result<Value> {
+	let response = request.send().await?;
+	let status = response.status();
+	let body = response.text().await?;
+
+	if !status.is_success() {
+		return Err(eyre::eyre!("LightRAG API returned HTTP {status}: {body}"));
+	}
+
+	serde_json::from_str(&body)
+		.map_err(|err| eyre::eyre!("LightRAG API returned invalid JSON: {err}; body={body}"))
+}
+
 #[tokio::main]
 async fn main() -> color_eyre::Result<()> {
 	color_eyre::install()?;
@@ -1360,6 +1965,7 @@ async fn main() -> color_eyre::Result<()> {
 	match Args::parse().command {
 		CommandArgs::Elf(args) => run_elf(args).await,
 		CommandArgs::Qmd(args) => run_qmd(args),
+		CommandArgs::Lightrag(args) => run_lightrag_async(args).await,
 	}
 }
 
@@ -1387,6 +1993,7 @@ async fn run_elf(args: ElfArgs) -> color_eyre::Result<()> {
 			reason: "ELF live adapter used ElfService, worker indexing, and search_raw."
 				.to_string(),
 		}],
+		metadata: None,
 	})
 }
 
@@ -1527,9 +2134,11 @@ async fn materialize_elf_job(
 			content: selected.content,
 			evidence_ids: selected.evidence_ids,
 			latency_ms,
+			indexing_latency_ms: None,
 			returned_count: response.items.len(),
 			trace_id: Some(response.trace_id),
 			failure: None,
+			source_mappings: Vec::new(),
 		},
 	))
 }
