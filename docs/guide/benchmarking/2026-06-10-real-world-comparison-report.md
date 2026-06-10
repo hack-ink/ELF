@@ -100,7 +100,7 @@ Suite-level outcomes:
 
 The real-world runner loads
 `apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json`.
-That manifest is an evidence ledger, not a leaderboard. It keeps three evidence classes
+That manifest is an evidence ledger, not a leaderboard. It keeps four evidence classes
 separate:
 
 | Evidence class | Count | Meaning |
@@ -108,6 +108,7 @@ separate:
 | `fixture_backed` | 1 | ELF fixture scoring through checked-in real-world jobs. |
 | `live_baseline_only` | 6 | Docker same-corpus/lifecycle evidence from the live-baseline runner only. |
 | `live_real_world` | 2 | Targeted ELF and qmd adapters execute representative `real_world_job` prompts and scoring. |
+| `research_gate` | 12 | Source/setup/runtime/resource/retry metadata for future adapter paths; not fixture-backed or live execution evidence. |
 
 Adapter-level status after refreshing the manifest:
 
@@ -122,10 +123,16 @@ Adapter-level status after refreshing the manifest:
 | memsearch | `live_baseline_only` | `wrong_result` | Markdown-first design remains a source-of-truth ergonomics reference. | Same-corpus retrieval was not a clean pass and real-world suites are incomplete/not encoded. |
 | OpenViking | `live_baseline_only` | `incomplete` | Hierarchical context trajectory remains a reference direction. | Docker local-embedding setup must be pinned before fair retrieval or real-world jobs can run. |
 | claude-mem | `live_baseline_only` | `wrong_result` | Progressive disclosure and local viewer remain UX references. | Current Docker evidence is not a clean same-corpus pass and progressive disclosure jobs are not encoded. |
+| qmd deep profile | `research_gate` | `not_encoded` | The stress-profile command path and source metadata are recorded for a future deeper retrieval-debug run. | No expanded qmd stress artifact or broader real-world suite pass is checked in. |
+| OpenViking deep profile | `research_gate` | `incomplete` | The deeper context-trajectory gate inherits the current Docker local-embedding setup blocker. | No hierarchical trajectory suite result is claimed. |
+| RAGFlow, LightRAG, GraphRAG | `research_gate` | `blocked` | Official sources and setup/resource/retry expectations are recorded. | D1/D2 research, Docker runtime proof, and evidence-output mapping are required before adapter implementation. |
+| Graphiti/Zep, Letta, LangGraph, nanograph, llm-wiki, gbrain, graphify | `research_gate` | `not_encoded` | D1/D2-inspired adapter directions have source/setup/runtime/resource/retry metadata. | No Docker-isolated `real_world_job` adapter has run for these projects. |
 
-External summary counters: `9` adapter records, `7` external project records, `9` Docker-default,
-`0` host-global-install requirements, `2` live real-world adapters, `3` external
-wrong-result overall states, `1` lifecycle-fail state, and `1` external incomplete state.
+External summary counters: `21` adapter records, `19` non-ELF adapter records,
+`21` Docker-default, `0` host-global-install requirements, `2` live real-world
+adapters, and `12` research-gate records. Overall adapter statuses are `3` pass,
+`3` wrong_result, `1` lifecycle_fail, `3` incomplete, `3` blocked, and
+`8` not_encoded.
 
 ## Remaining Gaps
 
@@ -144,6 +151,8 @@ report:
 | memsearch same-corpus and real-world coverage | `wrong_result` / `incomplete` | Fix Docker same-corpus retrieval/reindex evidence before scoring Markdown-first real-world jobs. |
 | OpenViking Docker local embedding path | `incomplete` | `[ELF benchmark adapter] Pin OpenViking Docker local embedding dependency path`. |
 | claude-mem durable/progressive-disclosure adapter | `wrong_result` / `not_encoded` | Add durable local repository and progressive-disclosure job coverage before UX parity claims. |
+| RAGFlow, LightRAG, and GraphRAG adapter feasibility | `blocked` research gates | Run D1/D2 research on setup, resource envelope, corpus ingest, query output, source mapping, and Docker retry path before implementation. |
+| Graphiti/Zep, Letta, LangGraph, nanograph, llm-wiki, gbrain, and graphify adapters | `not_encoded` research gates | Implement only after a scoped Docker path can emit evidence-linked outputs for the relevant real-world suites. |
 
 ## Adoption Implications
 

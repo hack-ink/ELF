@@ -152,6 +152,12 @@ with the production embedding provider path, `Qwen3-Embedding-8B`, and
   `retrieval`, and `project_decisions` jobs through
   `cargo make real-world-memory-live-adapters`. This does not imply full-suite
   live-service parity, broad adapter parity, or private-corpus production proof.
+- Expanded adapter-pack coverage after XY-834: the real-world external adapter
+  manifest now includes `research_gate` records for RAGFlow, LightRAG, GraphRAG,
+  Graphiti/Zep, Letta, LangGraph, nanograph, llm-wiki, gbrain, graphify, and deeper
+  qmd/OpenViking profiles. These records carry source/setup/runtime/resource/retry
+  metadata and typed `blocked`, `incomplete`, or `not_encoded` states; they are not
+  fixture-backed or live adapter pass evidence.
 - The benchmark runner and report publisher are checked in and Docker-isolated:
   `cargo make baseline-live-docker`, `cargo make baseline-backfill-docker`,
   `cargo make baseline-production-private-addendum`,
@@ -174,10 +180,10 @@ Detailed evidence and interpretation:
   [Real-World Agent Memory Benchmark v1](docs/spec/real_world_agent_memory_benchmark_v1.md).
   This contract defines job-level suites for agent work. `cargo make real-world-memory`
   now reports fixture-backed ELF evidence plus the external adapter coverage manifest
-  for ELF, qmd, agentmemory, mem0/OpenMemory, claude-mem, memsearch, and OpenViking.
-  The report still distinguishes fixture-backed and live-baseline-only evidence from
-  true live real-world adapter runs; only the targeted ELF and qmd live adapter slice
-  currently executes `real_world_job` prompts and scoring.
+  for the first memory-project set plus expanded RAG and graph-memory research gates.
+  The report still distinguishes fixture-backed, live-baseline-only, research-gate,
+  and true live real-world adapter evidence; only the targeted ELF and qmd live
+  adapter slice currently executes `real_world_job` prompts and scoring.
 
 Evidence-backed position after the June 10 real-world report:
 

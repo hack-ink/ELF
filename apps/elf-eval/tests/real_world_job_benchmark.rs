@@ -122,11 +122,15 @@ fn smoke_fixture_produces_typed_json_report() -> Result<()> {
 	assert_eq!(report.pointer("/summary/wrong_result_count").and_then(Value::as_u64), Some(0));
 	assert_eq!(
 		report.pointer("/external_adapters/summary/adapter_count").and_then(Value::as_u64),
-		Some(9)
+		Some(21)
 	);
 	assert_eq!(
 		report.pointer("/external_adapters/summary/live_real_world_count").and_then(Value::as_u64),
 		Some(2)
+	);
+	assert_eq!(
+		report.pointer("/external_adapters/summary/research_gate_count").and_then(Value::as_u64),
+		Some(12)
 	);
 
 	let jobs = array_at(&report, "/jobs")?;
@@ -174,6 +178,13 @@ fn smoke_fixture_produces_typed_json_report() -> Result<()> {
 fn real_world_report_includes_external_adapter_coverage_manifest() -> Result<()> {
 	let report = run_json_report_from(real_world_memory_fixture_dir())?;
 
+	assert_external_adapter_manifest_summary(&report);
+	assert_external_adapter_manifest_records(&report)?;
+
+	Ok(())
+}
+
+fn assert_external_adapter_manifest_summary(report: &Value) {
 	assert_eq!(
 		report.pointer("/external_adapters/schema").and_then(Value::as_str),
 		Some("elf.real_world_external_adapter_report/v1")
@@ -194,11 +205,11 @@ fn real_world_report_includes_external_adapter_coverage_manifest() -> Result<()>
 	);
 	assert_eq!(
 		report.pointer("/external_adapters/summary/adapter_count").and_then(Value::as_u64),
-		Some(9)
+		Some(21)
 	);
 	assert_eq!(
 		report.pointer("/external_adapters/summary/external_project_count").and_then(Value::as_u64),
-		Some(7)
+		Some(19)
 	);
 	assert_eq!(
 		report.pointer("/external_adapters/summary/fixture_backed_count").and_then(Value::as_u64),
@@ -213,6 +224,10 @@ fn real_world_report_includes_external_adapter_coverage_manifest() -> Result<()>
 	assert_eq!(
 		report.pointer("/external_adapters/summary/live_real_world_count").and_then(Value::as_u64),
 		Some(2)
+	);
+	assert_eq!(
+		report.pointer("/external_adapters/summary/research_gate_count").and_then(Value::as_u64),
+		Some(12)
 	);
 	assert_eq!(
 		report
@@ -236,7 +251,19 @@ fn real_world_report_includes_external_adapter_coverage_manifest() -> Result<()>
 		report
 			.pointer("/external_adapters/summary/overall_status_counts/incomplete")
 			.and_then(Value::as_u64),
-		Some(2)
+		Some(3)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/overall_status_counts/blocked")
+			.and_then(Value::as_u64),
+		Some(3)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/overall_status_counts/not_encoded")
+			.and_then(Value::as_u64),
+		Some(8)
 	);
 	assert_eq!(
 		report
@@ -246,18 +273,28 @@ fn real_world_report_includes_external_adapter_coverage_manifest() -> Result<()>
 	);
 	assert_eq!(
 		report
+			.pointer("/external_adapters/summary/capability_status_counts/unsupported")
+			.and_then(Value::as_u64),
+		Some(5)
+	);
+	assert_eq!(
+		report
 			.pointer("/external_adapters/summary/suite_status_counts/blocked")
 			.and_then(Value::as_u64),
-		Some(3)
+		Some(10)
 	);
+}
 
-	let adapters = array_at(&report, "/external_adapters/adapters")?;
+fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
+	let adapters = array_at(report, "/external_adapters/adapters")?;
 	let elf = find_by_field(adapters, "/adapter_id", "elf_real_world_memory_fixture")?;
 	let elf_live = find_by_field(adapters, "/adapter_id", "elf_live_real_world")?;
 	let qmd = find_by_field(adapters, "/adapter_id", "qmd_live_baseline")?;
 	let qmd_live = find_by_field(adapters, "/adapter_id", "qmd_live_real_world")?;
 	let agentmemory = find_by_field(adapters, "/adapter_id", "agentmemory_live_baseline")?;
 	let openviking = find_by_field(adapters, "/adapter_id", "openviking_live_baseline")?;
+	let ragflow = find_by_field(adapters, "/adapter_id", "ragflow_research_gate")?;
+	let qmd_deep = find_by_field(adapters, "/adapter_id", "qmd_deep_profile_gate")?;
 
 	assert_eq!(elf.pointer("/evidence_class").and_then(Value::as_str), Some("fixture_backed"));
 	assert_eq!(elf.pointer("/overall_status").and_then(Value::as_str), Some("incomplete"));
@@ -280,6 +317,20 @@ fn real_world_report_includes_external_adapter_coverage_manifest() -> Result<()>
 		Some("mocked")
 	);
 	assert_eq!(openviking.pointer("/overall_status").and_then(Value::as_str), Some("incomplete"));
+	assert_eq!(ragflow.pointer("/evidence_class").and_then(Value::as_str), Some("research_gate"));
+	assert_eq!(ragflow.pointer("/overall_status").and_then(Value::as_str), Some("blocked"));
+	assert_eq!(
+		ragflow.pointer("/execution_metadata/research_depth").and_then(Value::as_str),
+		Some("D0 watch item; D1/D2 required")
+	);
+	assert_eq!(
+		ragflow.pointer("/execution_metadata/sources/0/url").and_then(Value::as_str),
+		Some("https://github.com/infiniflow/ragflow")
+	);
+	assert_eq!(
+		qmd_deep.pointer("/capabilities/2/status").and_then(Value::as_str),
+		Some("unsupported")
+	);
 
 	Ok(())
 }
