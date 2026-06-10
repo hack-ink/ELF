@@ -157,11 +157,18 @@ Current deeper checks:
   stress default is a bounded 60-second signal.
 
 OpenViking attempts the official `.[local-embed]` path plus `OpenViking.add_resource`
-and `OpenViking.find`. If the Docker platform cannot build or import
-`llama-cpp-python`, the project is recorded as `incomplete` with
+and `OpenViking.find`. The Docker runner first pins the local embedding dependency to
+`llama-cpp-python==0.3.28` from the official CPU wheel index
+`https://abetlen.github.io/llama-cpp-python/whl/cpu` and installs it with
+`--only-binary llama-cpp-python`. Override
+`ELF_BASELINE_OPENVIKING_LLAMA_CPP_PYTHON_VERSION` or
+`ELF_BASELINE_OPENVIKING_LLAMA_CPP_PYTHON_INDEX` only when the pinned wheel is
+unavailable for the Docker platform. If the pinned wheel cannot install or import, the
+project is recorded as `incomplete` with
 `retrieval_status = "local_embed_install_failed"` rather than as a retrieval failure.
-The adapter metadata includes retry guidance to pin or provide a Docker-compatible
-local embedding dependency before scaling the OpenViking profile.
+When the pinned dependency reaches `add_resource`/`find`, evidence misses are recorded
+as `wrong_result`/`retrieval_wrong_result`. This local dependency check is separate
+from provider-backed ELF/Qwen3 embedding evidence.
 
 ## Checked-In Reports
 

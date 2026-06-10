@@ -2,35 +2,62 @@
   "schema": "elf.real_world_job/v1",
   "job_id": "production-ops-cold-start-dependency-001",
   "suite": "production_ops",
-  "title": "Preserve cold-start dependency failure as incomplete instead of pass",
-  "encoding": {
-    "status": "incomplete",
-    "reason": "The fixture records a cold-start dependency failure path that could not reach the behavioral check; this must remain incomplete rather than a silent pass.",
-    "follow_up": {
-      "title": "[ELF benchmark P0] Pin Docker-compatible local embedding dependency for cold-start adapter checks",
-      "reason": "The adapter cannot fairly test cold-start recovery until its local embedding dependency can build or import in Docker."
-    }
-  },
+  "title": "Report pinned OpenViking cold-start path reaching behavioral wrong-result",
+  "encoding": {},
   "corpus": {
     "corpus_id": "real-world-memory-production-ops-2026-06-10",
     "profile": "external_adapter",
     "items": [
       {
-        "evidence_id": "local-embed-install-failure",
+        "evidence_id": "pinned-local-embed-runtime-reached",
         "kind": "adapter_state",
-        "text": "OpenViking cold-start check could not run because the Docker platform could not build or import llama-cpp-python for the local embedding path; the adapter status is incomplete with retrieval_status=local_embed_install_failed.",
+        "text": "The pinned OpenViking Docker local embedding path installed and imported llama-cpp-python==0.3.28, then reached OpenViking add_resource/find in the baseline runner.",
         "source_ref": {
           "schema": "source_ref/v1",
           "resolver": "real_world_job_fixture/v1",
           "ref": {
             "fixture": "cold_start_missing_dependency_incomplete",
-            "evidence_id": "local-embed-install-failure"
+            "evidence_id": "pinned-local-embed-runtime-reached"
           },
           "locator": {
-            "quote": "could not build or import llama-cpp-python"
+            "quote": "llama_cpp_import_ok 0.3.28"
           }
         },
-        "created_at": "2026-06-09T08:38:14Z"
+        "created_at": "2026-06-10T08:38:58Z"
+      },
+      {
+        "evidence_id": "pinned-local-embed-retry",
+        "kind": "runbook",
+        "text": "The Docker retry path is ELF_BASELINE_PROJECTS=OpenViking cargo make baseline-live-docker; the runner installs llama-cpp-python==0.3.28 from https://abetlen.github.io/llama-cpp-python/whl/cpu with --only-binary llama-cpp-python before OpenViking add_resource/find.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "cold_start_missing_dependency_incomplete",
+            "evidence_id": "pinned-local-embed-retry"
+          },
+          "locator": {
+            "quote": "llama-cpp-python==0.3.28"
+          }
+        },
+        "created_at": "2026-06-10T00:00:00Z"
+      },
+      {
+        "evidence_id": "openviking-wrong-result-behavior",
+        "kind": "adapter_state",
+        "text": "OpenViking now records status=wrong_result and retrieval_status=retrieval_wrong_result because add_resource/find returned 0 of 3 expected evidence-term matches after the pinned local embedding setup succeeded.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "cold_start_missing_dependency_incomplete",
+            "evidence_id": "openviking-wrong-result-behavior"
+          },
+          "locator": {
+            "quote": "status=wrong_result"
+          }
+        },
+        "created_at": "2026-06-10T08:38:58Z"
       },
       {
         "evidence_id": "typed-incomplete-policy",
@@ -52,7 +79,7 @@
       {
         "evidence_id": "dependency-pass-decoy",
         "kind": "adapter_state",
-        "text": "Decoy: missing local embedding dependency should be reported as pass because no retrieval mismatch occurred.",
+        "text": "Decoy: the pinned OpenViking run should be reported as pass because the dependency installed even though retrieval missed expected evidence terms.",
         "source_ref": {
           "schema": "source_ref/v1",
           "resolver": "real_world_job_fixture/v1",
@@ -67,16 +94,36 @@
     "adapter_response": {
       "adapter_id": "fixture_production_ops",
       "answer": {
-        "content": "The cold-start dependency failure is incomplete, not pass. The adapter could not build or import llama-cpp-python, so the behavioral cold-start check did not run and needs dependency repair before a pass claim.",
+        "content": "The pinned OpenViking Docker local embedding path reached add_resource/find. OpenViking now reports wrong_result/retrieval_wrong_result because all three smoke queries missed expected evidence terms. If the pinned llama-cpp-python install or import fails on another Docker platform, classify that setup boundary as incomplete, not pass.",
         "claims": [
           {
-            "claim_id": "cold_start_dependency_incomplete",
-            "text": "The cold-start dependency failure is incomplete, not pass.",
-            "evidence_ids": ["local-embed-install-failure", "typed-incomplete-policy"],
+            "claim_id": "pinned_openviking_runtime_reached",
+            "text": "The pinned OpenViking Docker local embedding path reached add_resource/find.",
+            "evidence_ids": [
+              "pinned-local-embed-runtime-reached",
+              "pinned-local-embed-retry"
+            ],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "openviking_wrong_result_after_runtime",
+            "text": "OpenViking now reports wrong_result/retrieval_wrong_result because all three smoke queries missed expected evidence terms.",
+            "evidence_ids": ["openviking-wrong-result-behavior"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "setup_failure_stays_incomplete",
+            "text": "If the pinned llama-cpp-python install or import fails on another Docker platform, classify that setup boundary as incomplete, not pass.",
+            "evidence_ids": ["typed-incomplete-policy"],
             "confidence": "high"
           }
         ],
-        "evidence_ids": ["local-embed-install-failure", "typed-incomplete-policy"],
+        "evidence_ids": [
+          "pinned-local-embed-runtime-reached",
+          "pinned-local-embed-retry",
+          "openviking-wrong-result-behavior",
+          "typed-incomplete-policy"
+        ],
         "latency_ms": 1.8,
         "cost": {
           "currency": "USD",
@@ -89,12 +136,28 @@
   },
   "timeline": [
     {
-      "event_id": "cold-start-dependency-failed",
-      "ts": "2026-06-09T08:38:14Z",
+      "event_id": "pinned-local-embed-runtime-reached",
+      "ts": "2026-06-10T08:38:58Z",
       "actor": "tool",
-      "action": "hit_dependency_failure",
-      "evidence_ids": ["local-embed-install-failure"],
-      "summary": "The cold-start adapter path stopped before behavioral scoring because a native dependency could not build or import."
+      "action": "reached_behavior_check",
+      "evidence_ids": ["pinned-local-embed-runtime-reached"],
+      "summary": "The pinned local embedding dependency installed and imported, and OpenViking add_resource/find executed."
+    },
+    {
+      "event_id": "pinned-local-embed-retry-recorded",
+      "ts": "2026-06-10T00:00:00Z",
+      "actor": "agent",
+      "action": "recorded_retry_path",
+      "evidence_ids": ["pinned-local-embed-retry"],
+      "summary": "The fixture records the Docker-local pinned llama-cpp-python retry command and wheel index."
+    },
+    {
+      "event_id": "openviking-wrong-result-recorded",
+      "ts": "2026-06-10T08:38:58Z",
+      "actor": "tool",
+      "action": "classified_behavior",
+      "evidence_ids": ["openviking-wrong-result-behavior"],
+      "summary": "The OpenViking adapter reached retrieval behavior and missed all expected evidence-term checks."
     },
     {
       "event_id": "typed-incomplete-retained",
@@ -107,20 +170,33 @@
   ],
   "prompt": {
     "role": "user",
-    "content": "How should the production-ops suite classify a cold-start check that cannot run because a dependency is missing?",
+    "content": "How should the production-ops suite classify the OpenViking cold-start local embedding path after the pinned Docker retry reaches add_resource/find but misses expected evidence?",
     "job_mode": "operate",
     "constraints": ["cite_evidence", "preserve_typed_status", "do_not_claim_pass"]
   },
   "expected_answer": {
     "must_include": [
       {
-        "claim_id": "cold_start_dependency_incomplete",
-        "text": "The cold-start dependency failure is incomplete, not pass."
+        "claim_id": "pinned_openviking_runtime_reached",
+        "text": "The pinned OpenViking Docker local embedding path reached add_resource/find."
+      },
+      {
+        "claim_id": "openviking_wrong_result_after_runtime",
+        "text": "OpenViking now reports wrong_result/retrieval_wrong_result because all three smoke queries missed expected evidence terms."
+      },
+      {
+        "claim_id": "setup_failure_stays_incomplete",
+        "text": "If the pinned llama-cpp-python install or import fails on another Docker platform, classify that setup boundary as incomplete, not pass."
       }
     ],
-    "must_not_include": ["reported as pass"],
+    "must_not_include": ["reported as pass", "dependency failure is incomplete, not pass"],
     "evidence_links": {
-      "cold_start_dependency_incomplete": ["local-embed-install-failure", "typed-incomplete-policy"]
+      "pinned_openviking_runtime_reached": [
+        "pinned-local-embed-runtime-reached",
+        "pinned-local-embed-retry"
+      ],
+      "openviking_wrong_result_after_runtime": ["openviking-wrong-result-behavior"],
+      "setup_failure_stays_incomplete": ["typed-incomplete-policy"]
     },
     "answer_type": "direct_answer",
     "accepted_alternates": [],
@@ -129,14 +205,26 @@
   },
   "required_evidence": [
     {
-      "evidence_id": "local-embed-install-failure",
-      "claim_id": "cold_start_dependency_incomplete",
+      "evidence_id": "pinned-local-embed-runtime-reached",
+      "claim_id": "pinned_openviking_runtime_reached",
       "requirement": "cite",
-      "quote": "could not build or import llama-cpp-python"
+      "quote": "installed and imported llama-cpp-python==0.3.28"
+    },
+    {
+      "evidence_id": "pinned-local-embed-retry",
+      "claim_id": "pinned_openviking_runtime_reached",
+      "requirement": "cite",
+      "quote": "llama-cpp-python==0.3.28"
+    },
+    {
+      "evidence_id": "openviking-wrong-result-behavior",
+      "claim_id": "openviking_wrong_result_after_runtime",
+      "requirement": "cite",
+      "quote": "status=wrong_result"
     },
     {
       "evidence_id": "typed-incomplete-policy",
-      "claim_id": "cold_start_dependency_incomplete",
+      "claim_id": "setup_failure_stays_incomplete",
       "requirement": "cite",
       "quote": "Use incomplete when install, import, build"
     }
@@ -154,17 +242,17 @@
       "lifecycle_behavior": {
         "weight": 0.35,
         "max_points": 1.0,
-        "criteria": "Would test cold-start behavior only after dependency setup succeeds."
+        "criteria": "Distinguishes dependency setup reaching runtime from the remaining behavioral retrieval result."
       },
       "evidence_grounding": {
         "weight": 0.3,
         "max_points": 1.0,
-        "criteria": "Cites dependency failure and typed-incomplete policy."
+        "criteria": "Cites the pinned runtime success, wrong-result behavior, and typed-incomplete fallback policy."
       },
       "uncertainty_handling": {
         "weight": 0.2,
         "max_points": 1.0,
-        "criteria": "States that no pass claim is allowed."
+        "criteria": "States that setup failure would remain incomplete, but the current reached-runtime result is wrong_result."
       },
       "trap_avoidance": {
         "weight": 0.15,
@@ -180,8 +268,8 @@
   },
   "allowed_uncertainty": {
     "can_answer_unknown": true,
-    "acceptable_phrases": ["incomplete, not pass"],
-    "fallback_action": "state_blocker"
+    "acceptable_phrases": ["wrong_result/retrieval_wrong_result"],
+    "fallback_action": "state_current_wrong_result"
   },
-  "tags": ["external_adapter", "production_ops", "cold_start", "dependency_boundary", "no_live_claim"]
+  "tags": ["external_adapter", "production_ops", "cold_start", "dependency_boundary", "wrong_result", "no_live_claim"]
 }
