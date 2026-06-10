@@ -11,6 +11,7 @@ pub mod delete;
 pub mod docs;
 pub mod graph;
 pub mod graph_query;
+pub mod knowledge;
 pub mod list;
 pub mod notes;
 pub mod progressive_search;
@@ -65,6 +66,12 @@ pub use self::{
 		AdminIngestionProfileResponse, AdminIngestionProfileSummary,
 		AdminIngestionProfileVersionsListRequest, AdminIngestionProfileVersionsListResponse,
 		AdminIngestionProfilesListResponse, IngestionProfileRef, IngestionProfileSelector,
+	},
+	knowledge::{
+		KnowledgePageGetRequest, KnowledgePageLintFindingResponse, KnowledgePageLintRequest,
+		KnowledgePageLintResponse, KnowledgePageRebuildRequest, KnowledgePageRebuildResponse,
+		KnowledgePageResponse, KnowledgePageSectionResponse, KnowledgePageSourceRefResponse,
+		KnowledgePageSummary, KnowledgePagesListRequest, KnowledgePagesListResponse,
 	},
 	list::{ListItem, ListRequest, ListResponse},
 	notes::{NoteFetchRequest, NoteFetchResponse},
