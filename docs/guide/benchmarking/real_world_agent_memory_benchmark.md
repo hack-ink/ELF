@@ -167,6 +167,51 @@ for stale blockers, unsupported prior claims, stale deleted facts, stale histori
 facts, cross-project preference leakage, private/redacted text leakage, obsolete
 retrieval context, and distractor context.
 
+The report also loads the checked-in external adapter coverage manifest by default:
+
+```text
+apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json
+```
+
+That manifest records the first memory-project set: ELF, qmd, agentmemory,
+mem0/OpenMemory, claude-mem, memsearch, and OpenViking. Its `external_adapters`
+report section distinguishes:
+
+- `fixture_backed`: checked-in real-world fixture scoring, such as the ELF fixture
+  response path.
+- `live_baseline_only`: Docker live-baseline retrieval/lifecycle evidence that is not
+  a real-world suite win.
+- `live_real_world`: future external adapters that actually execute `real_world_job`
+  prompts and scoring.
+
+Current state: no external project has a `live_real_world` adapter in this runner yet.
+qmd has Docker live-baseline pass evidence for the encoded same-corpus checks, but its
+real-world suites remain `not_encoded`. agentmemory is blocked on durable upstream
+storage for lifecycle proof. mem0/OpenMemory, memsearch, and claude-mem currently
+retain wrong-result or incomplete live-baseline states for the checked-in adapter
+evidence. OpenViking is incomplete until its local embedding setup is reliable inside
+Docker. These typed states describe benchmark coverage; do not treat them as broad
+project quality rankings.
+
+To run the fixture report without the manifest during local debugging:
+
+```sh
+cargo run -p elf-eval --bin real_world_job_benchmark -- \
+  run \
+  --fixtures apps/elf-eval/fixtures/real_world_memory \
+  --skip-external-adapter-manifest
+```
+
+To test an adapter-pack manifest before committing it:
+
+```sh
+cargo run -p elf-eval --bin real_world_job_benchmark -- \
+  run \
+  --fixtures apps/elf-eval/fixtures/real_world_memory \
+  --external-adapter-manifest path/to/manifest.json \
+  --out tmp/real-world-memory/adapter-contract-report.json
+```
+
 Narrow memory evolution increment:
 
 ```sh
