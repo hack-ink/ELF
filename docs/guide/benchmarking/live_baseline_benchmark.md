@@ -123,16 +123,22 @@ Current external same-corpus adapters:
   cold-start recovery is recorded as `blocked` until a persistent agentmemory KV/index
   path or hosted runtime is wired into the harness.
 - qmd: adds the corpus as a collection, embeds it locally, and runs structured hybrid
-  `query --json` for every query case. It also rewrites and deletes corpus files,
-  then reruns `qmd update`, `qmd embed -f`, and fresh `qmd query` processes.
+  `query --json` for every query case. It also works from a per-adapter corpus copy,
+  rewrites and deletes files in that copy, then reruns `qmd update`, `qmd embed -f`,
+  and fresh `qmd query` processes.
 - memsearch: indexes the corpus with the local ONNX embedder and runs CLI search.
-  It also rewrites and deletes corpus files, then reruns `memsearch index` and
-  fresh `memsearch search` processes.
+  It also works from a per-adapter corpus copy, rewrites and deletes files in that
+  copy, then reruns `memsearch index` and fresh `memsearch search` processes.
 - mem0: writes the corpus with `infer=false` and searches local FastEmbed + Qdrant
   path storage. It also runs public `Memory.update`, `Memory.delete`, and a new
-  `Memory.from_config` over the same local paths. No LLM inference is required.
-- claude-mem: writes every corpus document into the SQLite memory repository and runs
-  repository search for every query case.
+  `Memory.from_config` over the same local paths from a per-adapter corpus copy. No
+  LLM inference is required. OpenMemory UI and hosted Platform behavior are not
+  counted as local OSS passes.
+- claude-mem: writes every corpus document into a Docker-local durable SQLite memory
+  repository, runs repository search for every query case, updates one item, deletes
+  one item, reopens the same SQLite file with fresh repository instances, and checks
+  search-to-detail/source hydration. Hook, viewer, and full timeline progressive
+  disclosure remain separate from this local repository check.
 
 Current deeper checks:
 
@@ -148,9 +154,13 @@ Current deeper checks:
 - agentmemory: same-corpus retrieval and delete suppression are exercised; update
   replacement is probed through superseding `mem::remember`; cold-start recovery is
   `blocked` because the current adapter runs against an in-memory SDK/KV mock.
-- claude-mem and OpenViking: same-corpus retrieval only when their local runtime path
-  can complete. Update, delete, and recovery checks are `not_encoded` for these two
-  adapters.
+- claude-mem: same-corpus retrieval, update replacement, delete suppression,
+  cold-start search recovery, and repository-level progressive detail/source
+  hydration through a durable local SQLite repository. Hook, viewer, and full timeline
+  progressive disclosure remain `not_encoded` until a real adapter executes those
+  surfaces.
+- OpenViking: same-corpus retrieval only when its local runtime path can complete.
+  Update, delete, and recovery checks are `not_encoded` for this adapter.
 - Concurrent write, soak stability, and resource-envelope checks are currently encoded
   for ELF. They are not yet encoded for the external adapters. Multi-hour production
   soak is still operator-controlled through `ELF_BASELINE_SOAK_SECONDS`; the checked-in
