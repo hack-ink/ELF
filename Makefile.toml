@@ -821,6 +821,14 @@ args = [
 # | real-world-memory-knowledge        | composite | |
 # | real-world-memory-knowledge-json   | command   | |
 # | real-world-memory-knowledge-report | command   | |
+# | ragflow-docker-smoke               | command   | |
+
+[tasks.ragflow-docker-smoke]
+workspace = false
+command = "bash"
+args = [
+	"scripts/ragflow-docker-evidence-smoke.sh",
+]
 
 [tasks.real-world-memory-knowledge]
 workspace = false

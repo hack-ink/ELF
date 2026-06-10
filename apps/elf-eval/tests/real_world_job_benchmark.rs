@@ -326,8 +326,16 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 	assert_eq!(
 		ragflow.pointer("/execution_metadata/research_depth").and_then(Value::as_str),
 		Some(
-			"D2 feasibility verdict: adapter_candidate (XY-882); research_gate only, adapter not encoded"
+			"D2 feasibility verdict plus XY-885 evidence-smoke implementation; checked-in record remains research_gate unless a generated artifact reaches query output"
 		)
+	);
+	assert_eq!(
+		ragflow.pointer("/setup/command").and_then(Value::as_str),
+		Some("cargo make ragflow-docker-smoke")
+	);
+	assert_eq!(
+		ragflow.pointer("/result/artifact").and_then(Value::as_str),
+		Some("tmp/real-world-memory/ragflow-smoke/ragflow-smoke.json")
 	);
 	assert_eq!(
 		ragflow.pointer("/execution_metadata/sources/0/url").and_then(Value::as_str),
