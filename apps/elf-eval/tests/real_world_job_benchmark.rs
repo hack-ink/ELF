@@ -233,13 +233,13 @@ fn assert_external_adapter_manifest_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/overall_status_counts/pass")
 			.and_then(Value::as_u64),
-		Some(3)
+		Some(1)
 	);
 	assert_eq!(
 		report
 			.pointer("/external_adapters/summary/overall_status_counts/wrong_result")
 			.and_then(Value::as_u64),
-		Some(4)
+		Some(6)
 	);
 	assert_eq!(
 		report
@@ -302,16 +302,20 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 		elf_live.pointer("/evidence_class").and_then(Value::as_str),
 		Some("live_real_world")
 	);
-	assert_eq!(elf_live.pointer("/overall_status").and_then(Value::as_str), Some("pass"));
-	assert_eq!(elf_live.pointer("/suites/0/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(elf_live.pointer("/overall_status").and_then(Value::as_str), Some("wrong_result"));
+
+	assert_live_sweep_record(elf_live)?;
+
 	assert_eq!(qmd.pointer("/overall_status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(qmd.pointer("/suites/0/status").and_then(Value::as_str), Some("not_encoded"));
 	assert_eq!(
 		qmd_live.pointer("/evidence_class").and_then(Value::as_str),
 		Some("live_real_world")
 	);
-	assert_eq!(qmd_live.pointer("/overall_status").and_then(Value::as_str), Some("pass"));
-	assert_eq!(qmd_live.pointer("/suites/0/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(qmd_live.pointer("/overall_status").and_then(Value::as_str), Some("wrong_result"));
+
+	assert_live_sweep_record(qmd_live)?;
+
 	assert_eq!(
 		agentmemory.pointer("/capabilities/1/status").and_then(Value::as_str),
 		Some("mocked")
@@ -321,7 +325,9 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 	assert_eq!(ragflow.pointer("/overall_status").and_then(Value::as_str), Some("blocked"));
 	assert_eq!(
 		ragflow.pointer("/execution_metadata/research_depth").and_then(Value::as_str),
-		Some("D0 watch item; D1/D2 required")
+		Some(
+			"D2 feasibility verdict: adapter_candidate (XY-882); research_gate only, adapter not encoded"
+		)
 	);
 	assert_eq!(
 		ragflow.pointer("/execution_metadata/sources/0/url").and_then(Value::as_str),
@@ -331,6 +337,26 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 		qmd_deep.pointer("/capabilities/2/status").and_then(Value::as_str),
 		Some("unsupported")
 	);
+
+	Ok(())
+}
+
+fn assert_live_sweep_record(adapter: &Value) -> Result<()> {
+	let suites = array_at(adapter, "/suites")?;
+	let capabilities = array_at(adapter, "/capabilities")?;
+	let targeted = find_by_field(capabilities, "/capability", "targeted_live_pass")?;
+	let full_pass = find_by_field(capabilities, "/capability", "full_suite_live_pass")?;
+	let work_resume = find_by_field(suites, "/suite_id", "work_resume")?;
+	let memory_evolution = find_by_field(suites, "/suite_id", "memory_evolution")?;
+	let production_ops = find_by_field(suites, "/suite_id", "production_ops")?;
+	let consolidation = find_by_field(suites, "/suite_id", "consolidation")?;
+
+	assert_eq!(targeted.pointer("/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(full_pass.pointer("/status").and_then(Value::as_str), Some("wrong_result"));
+	assert_eq!(work_resume.pointer("/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(memory_evolution.pointer("/status").and_then(Value::as_str), Some("wrong_result"));
+	assert_eq!(production_ops.pointer("/status").and_then(Value::as_str), Some("incomplete"));
+	assert_eq!(consolidation.pointer("/status").and_then(Value::as_str), Some("not_encoded"));
 
 	Ok(())
 }
