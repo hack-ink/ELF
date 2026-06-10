@@ -1,0 +1,232 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "production-ops-restore-cold-start-001",
+  "suite": "production_ops",
+  "title": "Read back restored memory after Docker cold start and Qdrant rebuild",
+  "corpus": {
+    "corpus_id": "real-world-memory-production-ops-2026-06-10",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "restore-search-before",
+        "kind": "trace",
+        "text": "Before restore, search returned one result for key single_user_restore_probe with trace 535e49be-250f-483c-8845-b4116e591dac.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "backup_restore_cold_start_readback",
+            "evidence_id": "restore-search-before"
+          },
+          "locator": {
+            "quote": "search returned one result for key single_user_restore_probe"
+          }
+        },
+        "created_at": "2026-06-09T10:00:00Z"
+      },
+      {
+        "evidence_id": "restore-qdrant-rebuild",
+        "kind": "trace",
+        "text": "After restoring Postgres backup, Qdrant rebuild returned rebuilt_count=1, missing_vector_count=0, error_count=0.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "backup_restore_cold_start_readback",
+            "evidence_id": "restore-qdrant-rebuild"
+          },
+          "locator": {
+            "quote": "rebuilt_count=1, missing_vector_count=0, error_count=0"
+          }
+        },
+        "created_at": "2026-06-09T10:03:00Z"
+      },
+      {
+        "evidence_id": "restore-search-after",
+        "kind": "trace",
+        "text": "After cold start and rebuild, search returned one result for key single_user_restore_probe with trace e995263d-8f0-4472-9a32-354d5cceed33.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "backup_restore_cold_start_readback",
+            "evidence_id": "restore-search-after"
+          },
+          "locator": {
+            "quote": "After cold start and rebuild, search returned one result"
+          }
+        },
+        "created_at": "2026-06-09T10:05:00Z"
+      },
+      {
+        "evidence_id": "qdrant-authority-decoy",
+        "kind": "adapter_state",
+        "text": "Decoy: a Qdrant backup alone is the source of truth, so Postgres restore evidence is optional.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "backup_restore_cold_start_readback",
+            "evidence_id": "qdrant-authority-decoy"
+          }
+        },
+        "created_at": "2026-06-09T09:50:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_production_ops",
+      "answer": {
+        "content": "The restore proof recovered key single_user_restore_probe after a Docker cold start. Qdrant rebuild returned rebuilt_count=1, missing_vector_count=0, error_count=0, and search after cold start returned one result for the restored key.",
+        "claims": [
+          {
+            "claim_id": "restore_recovered_key",
+            "text": "The restore proof recovered key single_user_restore_probe after a Docker cold start.",
+            "evidence_ids": ["restore-search-before", "restore-search-after"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "qdrant_rebuild_counts",
+            "text": "Qdrant rebuild returned rebuilt_count=1, missing_vector_count=0, error_count=0.",
+            "evidence_ids": ["restore-qdrant-rebuild"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "cold_start_readback",
+            "text": "Search after cold start returned one result for the restored key.",
+            "evidence_ids": ["restore-search-after"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["restore-search-before", "restore-qdrant-rebuild", "restore-search-after"],
+        "latency_ms": 2.1,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "pre-restore-search",
+      "ts": "2026-06-09T10:00:00Z",
+      "actor": "tool",
+      "action": "searched_before_restore",
+      "evidence_ids": ["restore-search-before"],
+      "summary": "The proof captured the searchable key before restore."
+    },
+    {
+      "event_id": "post-restore-rebuild",
+      "ts": "2026-06-09T10:03:00Z",
+      "actor": "tool",
+      "action": "rebuilt_qdrant_from_postgres_vectors",
+      "evidence_ids": ["restore-qdrant-rebuild"],
+      "summary": "Qdrant was rebuilt from Postgres-held vectors."
+    },
+    {
+      "event_id": "post-cold-start-search",
+      "ts": "2026-06-09T10:05:00Z",
+      "actor": "tool",
+      "action": "searched_after_cold_start",
+      "evidence_ids": ["restore-search-after"],
+      "summary": "The restored key was searchable after the cold-start path."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "What evidence shows backup restore and cold-start readback worked?",
+    "job_mode": "operate",
+    "constraints": ["cite_evidence", "do_not_treat_qdrant_as_source_of_truth"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "restore_recovered_key",
+        "text": "The restore proof recovered key single_user_restore_probe after a Docker cold start."
+      },
+      {
+        "claim_id": "qdrant_rebuild_counts",
+        "text": "Qdrant rebuild returned rebuilt_count=1, missing_vector_count=0, error_count=0."
+      },
+      {
+        "claim_id": "cold_start_readback",
+        "text": "Search after cold start returned one result for the restored key."
+      }
+    ],
+    "must_not_include": ["Qdrant backup alone is the source of truth"],
+    "evidence_links": {
+      "restore_recovered_key": ["restore-search-before", "restore-search-after"],
+      "qdrant_rebuild_counts": ["restore-qdrant-rebuild"],
+      "cold_start_readback": ["restore-search-after"]
+    },
+    "answer_type": "direct_answer",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "restore-search-before",
+      "claim_id": "restore_recovered_key",
+      "requirement": "cite",
+      "quote": "search returned one result for key single_user_restore_probe"
+    },
+    {
+      "evidence_id": "restore-qdrant-rebuild",
+      "claim_id": "qdrant_rebuild_counts",
+      "requirement": "cite",
+      "quote": "rebuilt_count=1, missing_vector_count=0, error_count=0"
+    },
+    {
+      "evidence_id": "restore-search-after",
+      "claim_id": "cold_start_readback",
+      "requirement": "cite",
+      "quote": "After cold start and rebuild, search returned one result"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "qdrant-source-of-truth-decoy",
+      "type": "decoy_evidence",
+      "evidence_ids": ["qdrant-authority-decoy"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "lifecycle_behavior": {
+        "weight": 0.35,
+        "max_points": 1.0,
+        "criteria": "Explains backup restore, cold start, and rebuild behavior."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Cites pre-restore, rebuild, and post-restore readback evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Does not treat Qdrant as authoritative."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "States what the operator can rely on."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "state_blocker"
+  },
+  "tags": ["synthetic", "production_ops", "restore", "cold_start", "qdrant_rebuild", "no_live_claim"]
+}
