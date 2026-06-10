@@ -15,7 +15,7 @@ The objective position is:
 - Better than the tested alternatives on evidence-bound writes, deterministic ingestion boundaries, source-of-truth discipline, rebuildable indexing, multi-tenant service shape, and the current encoded Docker benchmark.
 - Comparable to the best tested alternative, qmd, on local retrieval quality under the smoke scenario, but ELF has a stronger service/provenance model while qmd has stronger local retrieval-debug ergonomics.
 - Behind agentmemory, claude-mem/OpenMemory-style tools, and some managed-memory products on operator UX, visible memory inspection, and turn-by-turn operational comfort.
-- Behind Graphiti/Zep, Letta, and mem0-style systems on some memory semantics: temporal graph validity, explicit memory history, core-vs-archival blocks, and reviewable memory evolution.
+- Behind Graphiti/Zep, Letta, and mem0-style systems on some broader memory semantics: temporal graph workflows beyond graph-lite relation context, explicit memory history, core-vs-archival blocks, and reviewable memory evolution.
 - Not yet proven on large private personal corpus migration, repeated batch backfill, cold-start persistence across every adapter, or long-running unattended production operation.
 
 So the answer is not "ELF is universally better." The current evidence supports "ELF is the better foundation for this repo's desired high-trust, evidence-linked memory system, and it can become the better personal-production choice if the P0 work lands and is benchmarked."
@@ -84,7 +84,7 @@ Use these terms in future benchmark reports and Linear issues:
 | `wrong_result` | The system completed but returned an incorrect memory or missed the expected evidence. | mem0/memsearch/claude-mem smoke retrieval mismatch. |
 | `lifecycle_fail` | Retrieval may work, but update/delete/cold-start/persistence behavior is wrong or incomplete. | agentmemory adapter passing retrieval but not lifecycle. |
 | `incomplete` | The benchmark could not reach the behavioral check due to install/runtime/dependency failure. | OpenViking local embedding install failure in Docker. |
-| `not_encoded` | Capability is not currently covered by the benchmark, so no pass/fail claim is allowed. | Viewer quality, batch backfill UX, graph temporal validity. |
+| `not_encoded` | Capability is not currently covered by the benchmark, so no pass/fail claim is allowed. | Viewer quality and batch backfill UX. |
 | `blocked` | A safe test cannot run without external credentials, manual setup, or a dependency outside the issue scope. | Private corpus evaluation before sanitized corpus exists. |
 
 ## Priority Program
@@ -319,21 +319,21 @@ Adopt from:
 
 Implementation shape:
 
-- Add valid_from, valid_to or invalidated_at semantics for relation facts.
-- Keep append-only relation history.
-- Add APIs for current facts vs historical facts.
-- Extend search relation_context to respect temporal validity.
+- Use `valid_from` and `valid_to` semantics for relation facts.
+- Keep append-only relation history and supersession evidence.
+- Expose current versus historical temporal status in graph query and search relation context.
+- Keep broader typed graph query ergonomics scoped to XY-70.
 
 Acceptance:
 
 - Contradictory facts do not overwrite silently.
-- Search can choose current-only or historical relation context.
-- Tests cover invalidation and old-state replay.
+- Search relation context labels current and historical facts.
+- Tests cover invalidation, current readback, and old-state replay.
 
 Linear mapping:
 
 - Existing related: XY-70 covers graph-lite typed schema/query.
-- New issue required: `[ELF graph P1] Add temporal validity to graph-lite facts`.
+- Focused implementation issue: XY-863 `[ELF graph P1] Add temporal validity to graph-lite relation context`.
 
 #### P1.4 Memory History and Evolution API
 
@@ -518,7 +518,7 @@ Linear mapping:
 | 5 | P0 | Make external adapters lifecycle-durable and fail-typed | New, follows XY-801 | yes | fair external comparison |
 | 6 | P1 | Implement reviewable consolidation worker and proposal review flow | follows XY-800 | partly | knowledge pages |
 | 7 | P1 | Split XY-286 into derived page storage, rebuild, lint, and viewer/search integration | XY-286 | partly | durable knowledge layer |
-| 8 | P1 | Add temporal validity to graph-lite facts | follows/relates XY-70 | yes | time-aware relation context |
+| 8 | P1 | Add temporal validity to graph-lite relation context | XY-863, follows/relates XY-70 | yes | time-aware relation context |
 | 9 | P1 | Add memory history and evolution readback API | New | yes | lifecycle auditability |
 | 10 | P1 | Add scoped core memory blocks with archival separation | New | yes | agent operating context |
 | 11 | P1 | Add staged search trajectory profiles | New or XY-27 follow-up | after XY-27 | advanced retrieval tuning |

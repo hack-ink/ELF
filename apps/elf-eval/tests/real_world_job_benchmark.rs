@@ -689,16 +689,16 @@ fn assert_root_knowledge_summary(report: &Value) {
 
 fn assert_root_aggregate_summary(report: &Value) {
 	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(38));
-	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(34));
+	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(35));
 	assert_eq!(report.pointer("/summary/wrong_result").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/incomplete").and_then(Value::as_u64), Some(1));
 	assert_eq!(report.pointer("/summary/blocked").and_then(Value::as_u64), Some(2));
-	assert_eq!(report.pointer("/summary/not_encoded").and_then(Value::as_u64), Some(1));
+	assert_eq!(report.pointer("/summary/not_encoded").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/unsupported_claim_count").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/wrong_result_count").and_then(Value::as_u64), Some(0));
 	assert_eq!(
 		report.pointer("/summary/expected_evidence_recall").and_then(Value::as_f64),
-		Some(0.973)
+		Some(1.0)
 	);
 	assert_eq!(
 		report.pointer("/summary/irrelevant_context_ratio").and_then(Value::as_f64),
@@ -708,15 +708,15 @@ fn assert_root_aggregate_summary(report: &Value) {
 	assert_eq!(report.pointer("/summary/stale_answer_count").and_then(Value::as_u64), Some(0));
 	assert_eq!(
 		report.pointer("/summary/conflict_detection_count").and_then(Value::as_u64),
-		Some(6)
+		Some(7)
 	);
 	assert_eq!(
 		report.pointer("/summary/update_rationale_available_count").and_then(Value::as_u64),
-		Some(9)
+		Some(10)
 	);
 	assert_eq!(
 		report.pointer("/summary/temporal_validity_not_encoded_count").and_then(Value::as_u64),
-		Some(1)
+		Some(0)
 	);
 	assert_eq!(report.pointer("/summary/redaction_leak_count").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/scope_check_count").and_then(Value::as_u64), Some(2));
@@ -734,10 +734,10 @@ fn assert_root_aggregate_summary(report: &Value) {
 		report.pointer("/summary/evidence_required_count").and_then(Value::as_u64),
 		Some(82)
 	);
-	assert_eq!(report.pointer("/summary/evidence_covered_count").and_then(Value::as_u64), Some(80));
-	assert_eq!(report.pointer("/summary/evidence_coverage").and_then(Value::as_f64), Some(0.976));
-	assert_eq!(report.pointer("/summary/source_ref_coverage").and_then(Value::as_f64), Some(0.976));
-	assert_eq!(report.pointer("/summary/quote_coverage").and_then(Value::as_f64), Some(0.976));
+	assert_eq!(report.pointer("/summary/evidence_covered_count").and_then(Value::as_u64), Some(82));
+	assert_eq!(report.pointer("/summary/evidence_coverage").and_then(Value::as_f64), Some(1.0));
+	assert_eq!(report.pointer("/summary/source_ref_coverage").and_then(Value::as_f64), Some(1.0));
+	assert_eq!(report.pointer("/summary/quote_coverage").and_then(Value::as_f64), Some(1.0));
 	assert_eq!(
 		report.pointer("/summary/trace_explainability_count").and_then(Value::as_u64),
 		Some(1)
@@ -777,6 +777,7 @@ fn assert_root_aggregate_suites(report: &Value) -> Result<()> {
 		"consolidation",
 		"knowledge_compilation",
 		"operator_debugging_ux",
+		"memory_evolution",
 	] {
 		let suite = find_by_field(suites, "/suite_id", suite_id)?;
 
@@ -785,7 +786,7 @@ fn assert_root_aggregate_suites(report: &Value) -> Result<()> {
 
 	let memory_evolution = find_by_field(suites, "/suite_id", "memory_evolution")?;
 
-	assert_eq!(memory_evolution.pointer("/status").and_then(Value::as_str), Some("not_encoded"));
+	assert_eq!(memory_evolution.pointer("/status").and_then(Value::as_str), Some("pass"));
 
 	let project_decisions = find_by_field(suites, "/suite_id", "project_decisions")?;
 
@@ -812,6 +813,7 @@ fn assert_root_aggregate_jobs(report: &Value) -> Result<()> {
 	let rebuild = find_by_field(jobs, "/job_id", "trust-sot-rebuild-001")?;
 	let redaction = find_by_field(jobs, "/job_id", "capture-redaction-exclusion-001")?;
 	let personalization = find_by_field(jobs, "/job_id", "personalization-scoped-preference-001")?;
+	let relation_job = find_by_field(jobs, "/job_id", "memory-evolution-relation-temporal-001")?;
 	let stage_job = find_by_field(jobs, "/job_id", "operator-debug-stage-attribution-001")?;
 	let production_restore =
 		find_by_field(jobs, "/job_id", "production-ops-restore-cold-start-001")?;
@@ -825,6 +827,7 @@ fn assert_root_aggregate_jobs(report: &Value) -> Result<()> {
 	assert_eq!(personalization.pointer("/scope_check_count").and_then(Value::as_u64), Some(1));
 	assert_eq!(personalization.pointer("/scope_correct_count").and_then(Value::as_u64), Some(1));
 	assert_eq!(stage_job.pointer("/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(relation_job.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(
 		stage_job.pointer("/trace_explainability/failure_stage").and_then(Value::as_str),
 		Some("rerank.score")
@@ -992,54 +995,51 @@ fn memory_evolution_fixtures_report_temporal_and_staleness_metrics() -> Result<(
 
 	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(5));
 	assert_eq!(report.pointer("/summary/encoded_suite_count").and_then(Value::as_u64), Some(1));
-	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(4));
-	assert_eq!(report.pointer("/summary/not_encoded").and_then(Value::as_u64), Some(1));
+	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(5));
+	assert_eq!(report.pointer("/summary/not_encoded").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/stale_answer_count").and_then(Value::as_u64), Some(0));
 	assert_eq!(
 		report.pointer("/summary/conflict_detection_count").and_then(Value::as_u64),
-		Some(4)
+		Some(5)
 	);
 	assert_eq!(
 		report.pointer("/summary/update_rationale_available_count").and_then(Value::as_u64),
-		Some(4)
+		Some(5)
 	);
 	assert_eq!(
 		report.pointer("/summary/temporal_validity_not_encoded_count").and_then(Value::as_u64),
-		Some(1)
+		Some(0)
 	);
 	assert_eq!(
 		report.pointer("/evolution/temporal_validity_not_encoded_count").and_then(Value::as_u64),
-		Some(1)
+		Some(0)
 	);
 
 	let suites = array_at(&report, "/suites")?;
 	let memory_evolution = find_by_field(suites, "/suite_id", "memory_evolution")?;
 
-	assert_eq!(memory_evolution.pointer("/status").and_then(Value::as_str), Some("not_encoded"));
+	assert_eq!(memory_evolution.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(
 		memory_evolution.pointer("/temporal_validity_not_encoded_count").and_then(Value::as_u64),
-		Some(1)
+		Some(0)
 	);
 
 	let jobs = array_at(&report, "/jobs")?;
 	let relation_job = find_by_field(jobs, "/job_id", "memory-evolution-relation-temporal-001")?;
 
-	assert_eq!(relation_job.pointer("/status").and_then(Value::as_str), Some("not_encoded"));
+	assert_eq!(relation_job.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(
 		relation_job.pointer("/evolution/temporal_validity_not_encoded").and_then(Value::as_bool),
+		Some(false)
+	);
+	assert_eq!(
+		relation_job.pointer("/evolution/temporal_validity_encoded").and_then(Value::as_bool),
 		Some(true)
 	);
 
 	let follow_ups = array_at(&report, "/follow_ups")?;
 
-	assert_eq!(follow_ups.len(), 1);
-	assert_eq!(
-		follow_ups
-			.first()
-			.and_then(|follow_up| follow_up.pointer("/title"))
-			.and_then(Value::as_str),
-		Some("[ELF graph P1] Add temporal validity to graph-lite facts")
-	);
+	assert!(follow_ups.is_empty());
 
 	Ok(())
 }
@@ -1163,8 +1163,9 @@ fn memory_evolution_report_renders_markdown_counters() -> Result<()> {
 	let markdown = fs::read_to_string(markdown_path)?;
 
 	assert!(markdown.contains("## Memory Evolution"));
-	assert!(markdown.contains("Temporal validity not encoded: `1`"));
-	assert!(markdown.contains("[ELF graph P1] Add temporal validity to graph-lite facts"));
+	assert!(markdown.contains("Temporal validity not encoded: `0`"));
+	assert!(markdown.contains("| memory_evolution | memory-evolution-relation-temporal-001"));
+	assert!(markdown.contains("`encoded`"));
 
 	Ok(())
 }

@@ -382,6 +382,8 @@ Fields:
 - `temporal_validity`: optional object with `required`, `encoded`, and optional
   `follow_up`. When `required = true` and `encoded = false`, the job MUST declare
   `encoding.status = "not_encoded"` or `encoding.status = "blocked"`.
+  When `encoded = true`, the job is scored normally and must include concrete
+  produced evidence for current and historical validity behavior.
 
 ### `operator_debug`
 
@@ -547,7 +549,7 @@ Reports MUST include:
 Reports that encode `memory_evolution` jobs SHOULD also include stale-answer counts,
 conflict detection counts, update rationale availability, and temporal-validity
 `not_encoded` counts. A temporal graph validity job MUST NOT be reported as `pass`
-until the runner can evaluate current-only versus historical relation facts.
+unless the runner can evaluate current-only versus historical relation facts.
 
 Consolidation suite reports MUST also include:
 
