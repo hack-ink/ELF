@@ -112,6 +112,14 @@ fn smoke_fixture_produces_typed_json_report() -> Result<()> {
 	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(6));
 	assert_eq!(report.pointer("/summary/unsupported_claim_count").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/wrong_result_count").and_then(Value::as_u64), Some(0));
+	assert_eq!(
+		report.pointer("/external_adapters/summary/adapter_count").and_then(Value::as_u64),
+		Some(7)
+	);
+	assert_eq!(
+		report.pointer("/external_adapters/summary/live_real_world_count").and_then(Value::as_u64),
+		Some(0)
+	);
 
 	let jobs = array_at(&report, "/jobs")?;
 	let job = find_by_field(jobs, "/job_id", "work-resume-stale-worktree-001")?;
@@ -150,6 +158,105 @@ fn smoke_fixture_produces_typed_json_report() -> Result<()> {
 	assert!(capture_not_encoded.iter().any(|value| {
 		value.as_str().is_some_and(|item| item.contains("No live external hook ingestion"))
 	}));
+
+	Ok(())
+}
+
+#[test]
+fn real_world_report_includes_external_adapter_coverage_manifest() -> Result<()> {
+	let report = run_json_report_from(real_world_memory_fixture_dir())?;
+
+	assert_eq!(
+		report.pointer("/external_adapters/schema").and_then(Value::as_str),
+		Some("elf.real_world_external_adapter_report/v1")
+	);
+	assert_eq!(
+		report.pointer("/external_adapters/manifest_id").and_then(Value::as_str),
+		Some("real-world-memory-project-adapters-2026-06-10")
+	);
+	assert_eq!(
+		report.pointer("/external_adapters/docker_isolation/default").and_then(Value::as_bool),
+		Some(true)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/docker_isolation/host_global_installs_required")
+			.and_then(Value::as_bool),
+		Some(false)
+	);
+	assert_eq!(
+		report.pointer("/external_adapters/summary/adapter_count").and_then(Value::as_u64),
+		Some(7)
+	);
+	assert_eq!(
+		report.pointer("/external_adapters/summary/external_project_count").and_then(Value::as_u64),
+		Some(6)
+	);
+	assert_eq!(
+		report.pointer("/external_adapters/summary/fixture_backed_count").and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/live_baseline_only_count")
+			.and_then(Value::as_u64),
+		Some(6)
+	);
+	assert_eq!(
+		report.pointer("/external_adapters/summary/live_real_world_count").and_then(Value::as_u64),
+		Some(0)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/overall_status_counts/pass")
+			.and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/overall_status_counts/wrong_result")
+			.and_then(Value::as_u64),
+		Some(4)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/overall_status_counts/lifecycle_fail")
+			.and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/overall_status_counts/incomplete")
+			.and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/capability_status_counts/mocked")
+			.and_then(Value::as_u64),
+		Some(2)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/suite_status_counts/blocked")
+			.and_then(Value::as_u64),
+		Some(3)
+	);
+
+	let adapters = array_at(&report, "/external_adapters/adapters")?;
+	let elf = find_by_field(adapters, "/adapter_id", "elf_real_world_memory_fixture")?;
+	let qmd = find_by_field(adapters, "/adapter_id", "qmd_live_baseline")?;
+	let agentmemory = find_by_field(adapters, "/adapter_id", "agentmemory_live_baseline")?;
+	let openviking = find_by_field(adapters, "/adapter_id", "openviking_live_baseline")?;
+
+	assert_eq!(elf.pointer("/evidence_class").and_then(Value::as_str), Some("fixture_backed"));
+	assert_eq!(qmd.pointer("/overall_status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(qmd.pointer("/suites/0/status").and_then(Value::as_str), Some("not_encoded"));
+	assert_eq!(
+		agentmemory.pointer("/capabilities/1/status").and_then(Value::as_str),
+		Some("mocked")
+	);
+	assert_eq!(openviking.pointer("/overall_status").and_then(Value::as_str), Some("incomplete"));
 
 	Ok(())
 }
@@ -386,6 +493,9 @@ fn generated_json_report_renders_markdown() -> Result<()> {
 	assert!(markdown.contains("# Real-World Job Benchmark Report"));
 	assert!(markdown.contains("work_resume"));
 	assert!(markdown.contains("Capture And Integration Coverage"));
+	assert!(markdown.contains("External Adapter Coverage"));
+	assert!(markdown.contains("live-baseline-only"));
+	assert!(markdown.contains("does not convert live-baseline retrieval results"));
 	assert!(markdown.contains("fixture-backed"));
 	assert!(markdown.contains("agentmemory-style hook capture"));
 	assert!(markdown.contains("xy844-current-worktree"));

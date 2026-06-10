@@ -18,9 +18,13 @@ use elf_cli::VERSION;
 
 const JOB_SCHEMA: &str = "elf.real_world_job/v1";
 const REPORT_SCHEMA: &str = "elf.real_world_job_report/v1";
+const EXTERNAL_ADAPTER_MANIFEST_SCHEMA: &str = "elf.real_world_external_adapter_manifest/v1";
+const EXTERNAL_ADAPTER_REPORT_SCHEMA: &str = "elf.real_world_external_adapter_report/v1";
 const DEFAULT_FIXTURE_PATH: &str = "apps/elf-eval/fixtures/real_world_memory/work_resume";
 const DEFAULT_REPORT_PATH: &str = "tmp/real-world-job/real-world-job-smoke-report.json";
 const DEFAULT_MARKDOWN_PATH: &str = "tmp/real-world-job/real-world-job-smoke-report.md";
+const DEFAULT_EXTERNAL_ADAPTER_MANIFEST_PATH: &str =
+	"apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json";
 const DEFAULT_RUN_ID: &str = "real-world-job-smoke";
 const DEFAULT_ADAPTER_ID: &str = "fixture_smoke";
 const DEFAULT_ADAPTER_NAME: &str = "ELF fixture smoke";
@@ -85,6 +89,12 @@ struct RunArgs {
 	/// Human-readable adapter name recorded in the generated report.
 	#[arg(long, default_value = DEFAULT_ADAPTER_NAME)]
 	adapter_name: String,
+	/// Real-world external adapter manifest to include in report coverage.
+	#[arg(long, value_name = "FILE", default_value = DEFAULT_EXTERNAL_ADAPTER_MANIFEST_PATH)]
+	external_adapter_manifest: PathBuf,
+	/// Skip loading the real-world external adapter coverage manifest.
+	#[arg(long)]
+	skip_external_adapter_manifest: bool,
 }
 
 #[derive(Debug, Parser)]
@@ -562,6 +572,8 @@ struct RealWorldReport {
 	runner_version: String,
 	corpus_profile: String,
 	adapter: AdapterReport,
+	#[serde(default)]
+	external_adapters: ExternalAdapterSection,
 	capture_integration: CaptureIntegrationReport,
 	summary: ReportSummary,
 	suites: Vec<SuiteReport>,
@@ -583,6 +595,133 @@ struct AdapterReport {
 	storage: TypedStatus,
 	runtime: TypedStatus,
 	notes: String,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum AdapterCoverageStatus {
+	Real,
+	Mocked,
+	Unsupported,
+	Blocked,
+	Incomplete,
+	WrongResult,
+	LifecycleFail,
+	Pass,
+	NotEncoded,
+}
+
+#[derive(Debug, Deserialize)]
+struct ExternalAdapterManifest {
+	schema: String,
+	manifest_id: String,
+	docker_isolation: ExternalDockerIsolation,
+	#[serde(default)]
+	adapters: Vec<ExternalAdapterReport>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct ExternalAdapterSection {
+	schema: String,
+	manifest_id: String,
+	docker_isolation: ExternalDockerIsolation,
+	summary: ExternalAdapterSummary,
+	#[serde(default)]
+	adapters: Vec<ExternalAdapterReport>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct ExternalDockerIsolation {
+	default: bool,
+	compose_file: String,
+	runner: String,
+	artifact_dir: String,
+	host_global_installs_required: bool,
+	#[serde(default)]
+	notes: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct ExternalAdapterReport {
+	adapter_id: String,
+	project: String,
+	adapter_kind: String,
+	evidence_class: String,
+	docker_default: bool,
+	host_global_installs_required: bool,
+	overall_status: AdapterCoverageStatus,
+	setup: AdapterExecutionEvidence,
+	run: AdapterExecutionEvidence,
+	result: AdapterExecutionEvidence,
+	#[serde(default)]
+	capabilities: Vec<AdapterCapabilityCoverage>,
+	#[serde(default)]
+	suites: Vec<AdapterSuiteCoverage>,
+	#[serde(default)]
+	evidence: Vec<AdapterEvidencePointer>,
+	#[serde(default)]
+	notes: Vec<String>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	follow_up: Option<FollowUpInput>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct AdapterExecutionEvidence {
+	status: AdapterCoverageStatus,
+	evidence: String,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	command: Option<String>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	artifact: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct AdapterCapabilityCoverage {
+	capability: String,
+	status: AdapterCoverageStatus,
+	evidence: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct AdapterSuiteCoverage {
+	suite_id: String,
+	status: AdapterCoverageStatus,
+	evidence: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct AdapterEvidencePointer {
+	kind: String,
+	#[serde(rename = "ref")]
+	reference: String,
+	status: AdapterCoverageStatus,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct ExternalAdapterSummary {
+	adapter_count: usize,
+	external_project_count: usize,
+	docker_default_count: usize,
+	host_global_install_required_count: usize,
+	fixture_backed_count: usize,
+	live_baseline_only_count: usize,
+	live_real_world_count: usize,
+	overall_status_counts: AdapterStatusCounts,
+	capability_status_counts: AdapterStatusCounts,
+	suite_status_counts: AdapterStatusCounts,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct AdapterStatusCounts {
+	real: usize,
+	mocked: usize,
+	unsupported: usize,
+	blocked: usize,
+	incomplete: usize,
+	wrong_result: usize,
+	lifecycle_fail: usize,
+	pass: usize,
+	not_encoded: usize,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -1826,6 +1965,10 @@ fn build_report(jobs: &[RealWorldJob], args: &RunArgs) -> Result<RealWorldReport
 	let summary = report_summary(&job_reports, &suites);
 	let evolution = evolution_summary(&job_reports);
 	let follow_ups = follow_up_reports(jobs);
+	let external_adapters = external_adapter_section(
+		&args.external_adapter_manifest,
+		args.skip_external_adapter_manifest,
+	)?;
 
 	Ok(RealWorldReport {
 		schema: REPORT_SCHEMA.to_string(),
@@ -1834,6 +1977,7 @@ fn build_report(jobs: &[RealWorldJob], args: &RunArgs) -> Result<RealWorldReport
 		runner_version: VERSION.to_string(),
 		corpus_profile: corpus_profile(jobs),
 		adapter: adapter_report(args),
+		external_adapters,
 		capture_integration: capture_integration_report(jobs),
 		summary,
 		suites,
@@ -3341,6 +3485,289 @@ fn adapter_report(args: &RunArgs) -> AdapterReport {
 	}
 }
 
+fn external_adapter_section(
+	manifest_path: &Path,
+	skip_manifest: bool,
+) -> Result<ExternalAdapterSection> {
+	if skip_manifest {
+		return Ok(empty_external_adapter_section("skipped"));
+	}
+
+	let manifest_path = resolve_external_adapter_manifest_path(manifest_path);
+
+	if !manifest_path.exists() {
+		return Ok(empty_external_adapter_section("missing"));
+	}
+
+	let raw = fs::read_to_string(&manifest_path)?;
+	let manifest = serde_json::from_str::<ExternalAdapterManifest>(&raw).map_err(|err| {
+		eyre::eyre!("Failed to parse external adapter manifest {}: {err}", manifest_path.display())
+	})?;
+
+	validate_external_adapter_manifest(&manifest, &manifest_path)?;
+
+	let summary = external_adapter_summary(&manifest.adapters);
+
+	Ok(ExternalAdapterSection {
+		schema: EXTERNAL_ADAPTER_REPORT_SCHEMA.to_string(),
+		manifest_id: manifest.manifest_id,
+		docker_isolation: manifest.docker_isolation,
+		summary,
+		adapters: manifest.adapters,
+	})
+}
+
+fn empty_external_adapter_section(reason: &str) -> ExternalAdapterSection {
+	ExternalAdapterSection {
+		schema: EXTERNAL_ADAPTER_REPORT_SCHEMA.to_string(),
+		manifest_id: reason.to_string(),
+		docker_isolation: ExternalDockerIsolation::default(),
+		summary: ExternalAdapterSummary::default(),
+		adapters: Vec::new(),
+	}
+}
+
+fn resolve_external_adapter_manifest_path(path: &Path) -> PathBuf {
+	if path.exists() || path.is_absolute() {
+		return path.to_path_buf();
+	}
+
+	let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+	let Some(workspace_root) = manifest_dir.parent().and_then(Path::parent) else {
+		return path.to_path_buf();
+	};
+	let workspace_candidate = workspace_root.join(path);
+
+	if workspace_candidate.exists() { workspace_candidate } else { path.to_path_buf() }
+}
+
+fn validate_external_adapter_manifest(
+	manifest: &ExternalAdapterManifest,
+	path: &Path,
+) -> Result<()> {
+	if manifest.schema != EXTERNAL_ADAPTER_MANIFEST_SCHEMA {
+		return Err(eyre::eyre!(
+			"{} has schema {}, expected {EXTERNAL_ADAPTER_MANIFEST_SCHEMA}.",
+			path.display(),
+			manifest.schema
+		));
+	}
+	if manifest.manifest_id.trim().is_empty() {
+		return Err(eyre::eyre!("{} has an empty manifest_id.", path.display()));
+	}
+
+	validate_external_docker_isolation(path, &manifest.docker_isolation)?;
+
+	validate_external_adapters(path, &manifest.adapters)
+}
+
+fn validate_external_docker_isolation(path: &Path, docker: &ExternalDockerIsolation) -> Result<()> {
+	if docker.compose_file.trim().is_empty()
+		|| docker.runner.trim().is_empty()
+		|| docker.artifact_dir.trim().is_empty()
+	{
+		return Err(eyre::eyre!("{} has incomplete docker_isolation metadata.", path.display()));
+	}
+	if !docker.default {
+		return Err(eyre::eyre!(
+			"{} external adapter manifest must default to Docker isolation.",
+			path.display()
+		));
+	}
+	if docker.host_global_installs_required {
+		return Err(eyre::eyre!(
+			"{} external adapter manifest must not require host-global installs by default.",
+			path.display()
+		));
+	}
+
+	Ok(())
+}
+
+fn validate_external_adapters(path: &Path, adapters: &[ExternalAdapterReport]) -> Result<()> {
+	if adapters.is_empty() {
+		return Err(eyre::eyre!("{} declares no external adapters.", path.display()));
+	}
+
+	let mut seen = BTreeSet::new();
+
+	for adapter in adapters {
+		validate_external_adapter(path, adapter)?;
+
+		if !seen.insert(adapter.adapter_id.as_str()) {
+			return Err(eyre::eyre!(
+				"{} declares duplicate adapter_id {}.",
+				path.display(),
+				adapter.adapter_id
+			));
+		}
+	}
+
+	Ok(())
+}
+
+fn validate_external_adapter(path: &Path, adapter: &ExternalAdapterReport) -> Result<()> {
+	if adapter.adapter_id.trim().is_empty()
+		|| adapter.project.trim().is_empty()
+		|| adapter.adapter_kind.trim().is_empty()
+		|| adapter.evidence_class.trim().is_empty()
+	{
+		return Err(eyre::eyre!("{} has an incomplete external adapter.", path.display()));
+	}
+	if !matches!(
+		adapter.evidence_class.as_str(),
+		"fixture_backed" | "live_baseline_only" | "live_real_world"
+	) {
+		return Err(eyre::eyre!(
+			"{} adapter {} has unsupported evidence_class {}.",
+			path.display(),
+			adapter.adapter_id,
+			adapter.evidence_class
+		));
+	}
+	if adapter.docker_default && adapter.host_global_installs_required {
+		return Err(eyre::eyre!(
+			"{} adapter {} is Docker-default but requires host-global installs.",
+			path.display(),
+			adapter.adapter_id
+		));
+	}
+
+	validate_adapter_execution(path, adapter)?;
+	validate_adapter_capabilities(path, adapter)?;
+	validate_adapter_suites(path, adapter)?;
+	validate_adapter_evidence(path, adapter)?;
+
+	if let Some(follow_up) = &adapter.follow_up
+		&& (follow_up.title.trim().is_empty() || follow_up.reason.trim().is_empty())
+	{
+		return Err(eyre::eyre!(
+			"{} adapter {} has an incomplete follow_up.",
+			path.display(),
+			adapter.adapter_id
+		));
+	}
+
+	Ok(())
+}
+
+fn validate_adapter_execution(path: &Path, adapter: &ExternalAdapterReport) -> Result<()> {
+	for evidence in [&adapter.setup, &adapter.run, &adapter.result] {
+		if evidence.evidence.trim().is_empty()
+			|| evidence.command.as_deref().is_some_and(str::is_empty)
+			|| evidence.artifact.as_deref().is_some_and(str::is_empty)
+		{
+			return Err(eyre::eyre!(
+				"{} adapter {} has incomplete setup/run/result evidence.",
+				path.display(),
+				adapter.adapter_id
+			));
+		}
+	}
+
+	Ok(())
+}
+
+fn validate_adapter_capabilities(path: &Path, adapter: &ExternalAdapterReport) -> Result<()> {
+	for capability in &adapter.capabilities {
+		if capability.capability.trim().is_empty() || capability.evidence.trim().is_empty() {
+			return Err(eyre::eyre!(
+				"{} adapter {} has incomplete capability coverage.",
+				path.display(),
+				adapter.adapter_id
+			));
+		}
+	}
+
+	Ok(())
+}
+
+fn validate_adapter_suites(path: &Path, adapter: &ExternalAdapterReport) -> Result<()> {
+	for suite in &adapter.suites {
+		if !SUITES.contains(&suite.suite_id.as_str()) {
+			return Err(eyre::eyre!(
+				"{} adapter {} references unknown suite {}.",
+				path.display(),
+				adapter.adapter_id,
+				suite.suite_id
+			));
+		}
+		if suite.evidence.trim().is_empty() {
+			return Err(eyre::eyre!(
+				"{} adapter {} has suite {} without evidence.",
+				path.display(),
+				adapter.adapter_id,
+				suite.suite_id
+			));
+		}
+	}
+
+	Ok(())
+}
+
+fn validate_adapter_evidence(path: &Path, adapter: &ExternalAdapterReport) -> Result<()> {
+	for evidence in &adapter.evidence {
+		if evidence.kind.trim().is_empty() || evidence.reference.trim().is_empty() {
+			return Err(eyre::eyre!(
+				"{} adapter {} has incomplete evidence pointers.",
+				path.display(),
+				adapter.adapter_id
+			));
+		}
+	}
+
+	Ok(())
+}
+
+fn external_adapter_summary(adapters: &[ExternalAdapterReport]) -> ExternalAdapterSummary {
+	let mut summary = ExternalAdapterSummary {
+		adapter_count: adapters.len(),
+		external_project_count: adapters.iter().filter(|adapter| adapter.project != "ELF").count(),
+		..ExternalAdapterSummary::default()
+	};
+
+	for adapter in adapters {
+		accumulate_adapter_summary(&mut summary, adapter);
+	}
+
+	summary
+}
+
+fn accumulate_adapter_summary(
+	summary: &mut ExternalAdapterSummary,
+	adapter: &ExternalAdapterReport,
+) {
+	summary.docker_default_count += usize::from(adapter.docker_default);
+	summary.host_global_install_required_count +=
+		usize::from(adapter.host_global_installs_required);
+	summary.fixture_backed_count += usize::from(adapter.evidence_class == "fixture_backed");
+	summary.live_baseline_only_count += usize::from(adapter.evidence_class == "live_baseline_only");
+	summary.live_real_world_count += usize::from(adapter.evidence_class == "live_real_world");
+
+	increment_adapter_status_count(&mut summary.overall_status_counts, adapter.overall_status);
+
+	for capability in &adapter.capabilities {
+		increment_adapter_status_count(&mut summary.capability_status_counts, capability.status);
+	}
+	for suite in &adapter.suites {
+		increment_adapter_status_count(&mut summary.suite_status_counts, suite.status);
+	}
+}
+
+fn increment_adapter_status_count(counts: &mut AdapterStatusCounts, status: AdapterCoverageStatus) {
+	match status {
+		AdapterCoverageStatus::Real => counts.real += 1,
+		AdapterCoverageStatus::Mocked => counts.mocked += 1,
+		AdapterCoverageStatus::Unsupported => counts.unsupported += 1,
+		AdapterCoverageStatus::Blocked => counts.blocked += 1,
+		AdapterCoverageStatus::Incomplete => counts.incomplete += 1,
+		AdapterCoverageStatus::WrongResult => counts.wrong_result += 1,
+		AdapterCoverageStatus::LifecycleFail => counts.lifecycle_fail += 1,
+		AdapterCoverageStatus::Pass => counts.pass += 1,
+		AdapterCoverageStatus::NotEncoded => counts.not_encoded += 1,
+	}
+}
+
 fn capture_integration_report(jobs: &[RealWorldJob]) -> CaptureIntegrationReport {
 	let mut report = CaptureIntegrationReport::default();
 
@@ -3397,6 +3824,7 @@ fn render_markdown(report: &RealWorldReport, report_path: &Path) -> String {
 	let mut out = String::new();
 
 	render_markdown_header(&mut out, report, report_path.as_str());
+	render_markdown_external_adapters(&mut out, report);
 	render_markdown_capture_integration(&mut out, report);
 	render_markdown_suites(&mut out, report);
 	render_markdown_jobs(&mut out, report);
@@ -3440,6 +3868,91 @@ fn render_markdown_capture_integration(out: &mut String, report: &RealWorldRepor
 
 		for note in &report.capture_integration.notes {
 			out.push_str(&format!("- {}\n", md_cell(note.as_str())));
+		}
+	}
+
+	out.push('\n');
+}
+
+fn render_markdown_external_adapters(out: &mut String, report: &RealWorldReport) {
+	out.push_str("## External Adapter Coverage\n\n");
+
+	if report.external_adapters.adapters.is_empty() {
+		out.push_str("No external adapter coverage manifest was loaded for this report.\n\n");
+
+		return;
+	}
+
+	let summary = &report.external_adapters.summary;
+
+	out.push_str("This section is manifest-backed. It records external adapter coverage and blockers, but it does not convert live-baseline retrieval results into real-world suite wins.\n\n");
+	out.push_str(&format!(
+		"- Manifest: `{}`\n",
+		md_inline(report.external_adapters.manifest_id.as_str())
+	));
+	out.push_str(&format!(
+		"- Docker default: `{}` via `{}`; artifact dir `{}`\n",
+		report.external_adapters.docker_isolation.default,
+		md_inline(report.external_adapters.docker_isolation.compose_file.as_str()),
+		md_inline(report.external_adapters.docker_isolation.artifact_dir.as_str())
+	));
+	out.push_str(&format!(
+		"- Adapter records: `{}` total, `{}` external project(s), `{}` Docker-default, `{}` requiring host-global installs\n",
+		summary.adapter_count,
+		summary.external_project_count,
+		summary.docker_default_count,
+		summary.host_global_install_required_count
+	));
+	out.push_str(&format!(
+		"- Evidence classes: `{}` fixture-backed, `{}` live-baseline-only, `{}` live real-world\n",
+		summary.fixture_backed_count,
+		summary.live_baseline_only_count,
+		summary.live_real_world_count
+	));
+	out.push_str(&format!(
+		"- Overall statuses: `{}`\n",
+		adapter_status_counts_display(&summary.overall_status_counts)
+	));
+	out.push_str(&format!(
+		"- Capability coverage statuses: `{}`\n",
+		adapter_status_counts_display(&summary.capability_status_counts)
+	));
+	out.push_str(&format!(
+		"- Real-world suite statuses: `{}`\n\n",
+		adapter_status_counts_display(&summary.suite_status_counts)
+	));
+	out.push_str("| Project | Adapter | Evidence Class | Overall | Setup | Run | Result | Docker | Suites | Evidence |\n");
+	out.push_str("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n");
+
+	for adapter in &report.external_adapters.adapters {
+		out.push_str(&format!(
+			"| {} | `{}` | `{}` | `{}` | `{}` | `{}` | `{}` | `{}` | {} | {} |\n",
+			md_cell(adapter.project.as_str()),
+			md_inline(adapter.adapter_id.as_str()),
+			md_inline(adapter.evidence_class.as_str()),
+			adapter_status_str(adapter.overall_status),
+			adapter_status_str(adapter.setup.status),
+			adapter_status_str(adapter.run.status),
+			adapter_status_str(adapter.result.status),
+			adapter.docker_default,
+			adapter_suite_cell(adapter.suites.as_slice()),
+			adapter_evidence_cell(adapter)
+		));
+	}
+
+	out.push_str("\n### Adapter Capability Details\n\n");
+	out.push_str("| Adapter | Capability | Status | Evidence |\n");
+	out.push_str("| --- | --- | --- | --- |\n");
+
+	for adapter in &report.external_adapters.adapters {
+		for capability in &adapter.capabilities {
+			out.push_str(&format!(
+				"| `{}` | {} | `{}` | {} |\n",
+				md_inline(adapter.adapter_id.as_str()),
+				md_cell(capability.capability.as_str()),
+				adapter_status_str(capability.status),
+				md_cell(capability.evidence.as_str())
+			));
 		}
 	}
 
@@ -4022,6 +4535,74 @@ fn status_str(status: TypedStatus) -> &'static str {
 		TypedStatus::NotEncoded => "not_encoded",
 		TypedStatus::UnsupportedClaim => "unsupported_claim",
 	}
+}
+
+fn adapter_status_str(status: AdapterCoverageStatus) -> &'static str {
+	match status {
+		AdapterCoverageStatus::Real => "real",
+		AdapterCoverageStatus::Mocked => "mocked",
+		AdapterCoverageStatus::Unsupported => "unsupported",
+		AdapterCoverageStatus::Blocked => "blocked",
+		AdapterCoverageStatus::Incomplete => "incomplete",
+		AdapterCoverageStatus::WrongResult => "wrong_result",
+		AdapterCoverageStatus::LifecycleFail => "lifecycle_fail",
+		AdapterCoverageStatus::Pass => "pass",
+		AdapterCoverageStatus::NotEncoded => "not_encoded",
+	}
+}
+
+fn adapter_status_counts_display(counts: &AdapterStatusCounts) -> String {
+	[
+		("real", counts.real),
+		("mocked", counts.mocked),
+		("unsupported", counts.unsupported),
+		("blocked", counts.blocked),
+		("incomplete", counts.incomplete),
+		("wrong_result", counts.wrong_result),
+		("lifecycle_fail", counts.lifecycle_fail),
+		("pass", counts.pass),
+		("not_encoded", counts.not_encoded),
+	]
+	.into_iter()
+	.filter(|(_, count)| *count > 0)
+	.map(|(status, count)| format!("{status}={count}"))
+	.collect::<Vec<_>>()
+	.join(", ")
+}
+
+fn adapter_suite_cell(suites: &[AdapterSuiteCoverage]) -> String {
+	if suites.is_empty() {
+		return "`none`".to_string();
+	}
+
+	suites
+		.iter()
+		.map(|suite| {
+			format!(
+				"`{}`: `{}`",
+				md_inline(suite.suite_id.as_str()),
+				adapter_status_str(suite.status)
+			)
+		})
+		.collect::<Vec<_>>()
+		.join("<br>")
+}
+
+fn adapter_evidence_cell(adapter: &ExternalAdapterReport) -> String {
+	let setup = adapter
+		.setup
+		.command
+		.as_deref()
+		.or(adapter.setup.artifact.as_deref())
+		.unwrap_or(adapter.setup.evidence.as_str());
+	let result = adapter
+		.result
+		.artifact
+		.as_deref()
+		.or(adapter.result.command.as_deref())
+		.unwrap_or(adapter.result.evidence.as_str());
+
+	format!("setup: `{}`<br>result: `{}`", md_inline(setup), md_inline(result))
 }
 
 fn trace_failure_stage(trace: Option<&TraceExplainability>) -> Option<&str> {
