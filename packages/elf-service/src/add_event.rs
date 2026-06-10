@@ -25,6 +25,7 @@ use elf_domain::{
 use elf_storage::models::MemoryNote;
 
 type ProcessedEventOutput = (Vec<EventMessage>, Vec<bool>, Option<Vec<WritePolicyAudit>>);
+type AddEventPersistOutput = (AddEventResult, Option<Uuid>);
 
 const REJECT_STRUCTURED_INVALID: &str = "REJECT_STRUCTURED_INVALID";
 const IGNORE_DUPLICATE: &str = "IGNORE_DUPLICATE";
@@ -366,6 +367,8 @@ impl ElfService {
 			ignore_reason_code,
 		);
 
+		let mut note_version_id = None;
+
 		if should_apply && !dry_run {
 			let persist_args = PersistExtractedNoteArgs {
 				req,
@@ -395,10 +398,12 @@ impl ElfService {
 				now,
 				embed_version,
 			};
-
-			result = self
+			let persisted = self
 				.persist_extracted_note_decision(tx, persist_args, decision, policy_decision)
 				.await?;
+
+			result = persisted.0;
+			note_version_id = persisted.1;
 		}
 
 		result.write_policy_audits = write_policy_audits.cloned();
@@ -410,6 +415,7 @@ impl ElfService {
 			note,
 			note_data.note_type.as_str(),
 			result.note_id,
+			note_version_id,
 			base_decision,
 			policy_decision,
 			result.op,
@@ -461,6 +467,7 @@ impl ElfService {
 				note,
 				note_data.note_type.as_str(),
 				None,
+				None,
 				MemoryPolicyDecision::Reject,
 				MemoryPolicyDecision::Reject,
 				NoteOp::Rejected,
@@ -496,6 +503,7 @@ impl ElfService {
 				ctx,
 				note,
 				note_data.note_type.as_str(),
+				None,
 				None,
 				MemoryPolicyDecision::Reject,
 				MemoryPolicyDecision::Reject,
@@ -533,6 +541,7 @@ impl ElfService {
 				ctx,
 				note,
 				note_data.note_type.as_str(),
+				None,
 				None,
 				MemoryPolicyDecision::Reject,
 				MemoryPolicyDecision::Reject,
@@ -594,7 +603,7 @@ impl ElfService {
 		args: PersistExtractedNoteArgs<'_>,
 		decision: UpdateDecision,
 		policy_decision: MemoryPolicyDecision,
-	) -> Result<AddEventResult> {
+	) -> Result<AddEventPersistOutput> {
 		match (decision, args) {
 			(UpdateDecision::Add { note_id, .. }, args) =>
 				self.persist_extracted_note_add(tx, args, note_id, policy_decision).await,
@@ -611,7 +620,7 @@ impl ElfService {
 		args: PersistExtractedNoteArgs<'_>,
 		note_id: Uuid,
 		policy_decision: MemoryPolicyDecision,
-	) -> Result<AddEventResult> {
+	) -> Result<AddEventPersistOutput> {
 		access::ensure_active_project_scope_grant(
 			&mut **tx,
 			args.req.tenant_id.as_str(),
@@ -644,7 +653,7 @@ impl ElfService {
 
 		insert_memory_note_tx(tx, &memory_note).await?;
 
-		crate::insert_version(
+		let note_version_id = crate::insert_version(
 			&mut **tx,
 			InsertVersionArgs {
 				note_id: memory_note.note_id,
@@ -657,6 +666,7 @@ impl ElfService {
 			},
 		)
 		.await?;
+
 		crate::enqueue_outbox_tx(
 			&mut **tx,
 			memory_note.note_id,
@@ -684,15 +694,18 @@ impl ElfService {
 			.await?;
 		}
 
-		Ok(AddEventResult {
-			note_id: Some(note_id),
-			op: NoteOp::Add,
-			policy_decision,
-			reason_code: None,
-			reason: args.reason.cloned(),
-			field_path: None,
-			write_policy_audits: None,
-		})
+		Ok((
+			AddEventResult {
+				note_id: Some(note_id),
+				op: NoteOp::Add,
+				policy_decision,
+				reason_code: None,
+				reason: args.reason.cloned(),
+				field_path: None,
+				write_policy_audits: None,
+			},
+			Some(note_version_id),
+		))
 	}
 
 	async fn persist_extracted_note_update(
@@ -701,7 +714,7 @@ impl ElfService {
 		args: PersistExtractedNoteArgs<'_>,
 		note_id: Uuid,
 		policy_decision: MemoryPolicyDecision,
-	) -> Result<AddEventResult> {
+	) -> Result<AddEventPersistOutput> {
 		let mut existing: MemoryNote = sqlx::query_as::<_, MemoryNote>(
 			"SELECT * FROM memory_notes WHERE note_id = $1 FOR UPDATE",
 		)
@@ -729,7 +742,7 @@ impl ElfService {
 
 		update_memory_note_tx(tx, &existing).await?;
 
-		crate::insert_version(
+		let note_version_id = crate::insert_version(
 			&mut **tx,
 			InsertVersionArgs {
 				note_id: existing.note_id,
@@ -742,6 +755,7 @@ impl ElfService {
 			},
 		)
 		.await?;
+
 		crate::enqueue_outbox_tx(
 			&mut **tx,
 			existing.note_id,
@@ -769,15 +783,18 @@ impl ElfService {
 			.await?;
 		}
 
-		Ok(AddEventResult {
-			note_id: Some(note_id),
-			op: NoteOp::Update,
-			policy_decision,
-			reason_code: None,
-			reason: args.reason.cloned(),
-			field_path: None,
-			write_policy_audits: None,
-		})
+		Ok((
+			AddEventResult {
+				note_id: Some(note_id),
+				op: NoteOp::Update,
+				policy_decision,
+				reason_code: None,
+				reason: args.reason.cloned(),
+				field_path: None,
+				write_policy_audits: None,
+			},
+			Some(note_version_id),
+		))
 	}
 
 	async fn persist_extracted_note_none(
@@ -786,7 +803,7 @@ impl ElfService {
 		args: PersistExtractedNoteArgs<'_>,
 		note_id: Uuid,
 		policy_decision: MemoryPolicyDecision,
-	) -> Result<AddEventResult> {
+	) -> Result<AddEventPersistOutput> {
 		let mut did_update = false;
 
 		if let Some(structured) = args.structured
@@ -818,6 +835,26 @@ impl ElfService {
 		}
 
 		if did_update {
+			let note_row: MemoryNote =
+				sqlx::query_as("SELECT * FROM memory_notes WHERE note_id = $1")
+					.bind(note_id)
+					.fetch_one(&mut **tx)
+					.await?;
+			let snapshot = crate::note_snapshot(&note_row);
+			let note_version_id = crate::insert_version(
+				&mut **tx,
+				InsertVersionArgs {
+					note_id,
+					op: "UPDATE",
+					prev_snapshot: Some(snapshot.clone()),
+					new_snapshot: Some(snapshot),
+					reason: "add_event_structured",
+					actor: args.req.agent_id.as_str(),
+					ts: args.now,
+				},
+			)
+			.await?;
+
 			if matches!(args.scope, "project_shared" | "org_shared") {
 				access::ensure_active_project_scope_grant(
 					&mut **tx,
@@ -829,26 +866,32 @@ impl ElfService {
 				.await?;
 			}
 
-			return Ok(AddEventResult {
+			return Ok((
+				AddEventResult {
+					note_id: Some(note_id),
+					op: NoteOp::Update,
+					policy_decision,
+					reason_code: None,
+					reason: args.reason.cloned(),
+					field_path: None,
+					write_policy_audits: None,
+				},
+				Some(note_version_id),
+			));
+		}
+
+		Ok((
+			AddEventResult {
 				note_id: Some(note_id),
-				op: NoteOp::Update,
+				op: NoteOp::None,
 				policy_decision,
 				reason_code: None,
 				reason: args.reason.cloned(),
 				field_path: None,
 				write_policy_audits: None,
-			});
-		}
-
-		Ok(AddEventResult {
-			note_id: Some(note_id),
-			op: NoteOp::None,
-			policy_decision,
-			reason_code: None,
-			reason: args.reason.cloned(),
-			field_path: None,
-			write_policy_audits: None,
-		})
+			},
+			None,
+		))
 	}
 }
 
@@ -1207,6 +1250,7 @@ async fn record_ingest_decision(
 	note: &ExtractedNote,
 	note_type: &str,
 	note_id: Option<Uuid>,
+	note_version_id: Option<Uuid>,
 	base_decision: MemoryPolicyDecision,
 	policy_decision: MemoryPolicyDecision,
 	note_op: NoteOp,
@@ -1232,6 +1276,7 @@ async fn record_ingest_decision(
 		note_type,
 		note_key: note.key.as_deref(),
 		note_id,
+		note_version_id,
 		base_decision,
 		policy_decision,
 		note_op,
