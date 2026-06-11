@@ -70,6 +70,10 @@ cleanup, use `docs/guide/single_user_production.md`.
   records Graphiti/Zep and Letta claim boundaries, and turns qmd, mem0/OpenMemory,
   Graphiti/Zep, Letta, and adjacent project strengths into benchmark-gated ELF
   optimization directions.
+- `2026-06-11-qmd-openviking-strength-profile-report.md`: XY-899 strength-profile
+  report that separates qmd retrieval quality from debug/replay ergonomics, records
+  qmd wrong-result diagnosis classes, and preserves OpenViking context-trajectory
+  surfaces as `not_tested` until staged/hierarchical evidence is encoded.
 - `real_world_agent_memory_benchmark.md`: operator overview for the v1 real-world
   agent memory benchmark contract, including suite taxonomy, typed report states,
   knowledge-compilation fixture tasks, and the production-ops fixture target.

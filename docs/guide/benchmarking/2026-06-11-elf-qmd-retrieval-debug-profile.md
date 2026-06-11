@@ -67,11 +67,13 @@ Full live sweep context remains a non-pass for both systems:
 | Adapter | Jobs | Pass | Wrong result | Blocked | Not encoded | Mean score | Mean latency |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | ELF live service adapter | `38` | `18` | `5` | `2` | `13` | `0.525` | `5.823 ms` |
-| qmd live CLI adapter | `38` | `18` | `5` | `2` | `13` | `0.512` | `705.877 ms` |
+| qmd live CLI adapter | `38` | `17` | `6` | `2` | `13` | `0.486` | `691.163 ms` |
 
 Do not overread the latency row. The ELF adapter is a service-runtime path and the qmd
 adapter is a CLI materialization path; the row is useful as observed harness evidence,
-not as an apples-to-apples product latency benchmark.
+not as an apples-to-apples product latency benchmark. The aggregate pass-count
+difference comes from the memory-evolution delete/TTL tombstone job; it does not erase
+qmd's local retrieval-debug ergonomics advantage.
 
 ## Stress Baseline
 

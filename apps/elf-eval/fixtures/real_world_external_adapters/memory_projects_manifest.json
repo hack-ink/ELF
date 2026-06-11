@@ -1,6 +1,6 @@
 {
   "schema": "elf.real_world_external_adapter_manifest/v1",
-  "manifest_id": "real-world-memory-project-adapters-2026-06-10",
+  "manifest_id": "real-world-memory-project-adapters-2026-06-11",
   "docker_isolation": {
     "default": true,
     "compose_file": "docker-compose.baseline.yml",
@@ -146,13 +146,13 @@
       },
       "run": {
         "status": "wrong_result",
-        "evidence": "ELF materializes 38 real_world_job adapter_response objects through ElfService, worker indexing, and search_raw before scoring; the full sweep includes typed wrong_result, incomplete, blocked, and not_encoded records.",
+        "evidence": "ELF materializes 38 real_world_job adapter_response objects through ElfService, worker indexing, and search_raw before scoring; the fresh full sweep includes typed wrong_result, blocked, and not_encoded records.",
         "command": "cargo make real-world-memory-live-adapters",
         "artifact": "tmp/real-world-memory/live-adapters/elf-report.json"
       },
       "result": {
         "status": "wrong_result",
-        "evidence": "The full live sweep scores 38 jobs across all 11 encoded suites: 18 pass, 5 wrong_result, 1 incomplete, 2 blocked, and 12 not_encoded. This is not a full-suite live pass.",
+        "evidence": "The fresh ELF live sweep scores 38 jobs across all 11 encoded suites: 18 pass, 5 wrong_result, 2 blocked, and 13 not_encoded. This is not a full-suite live pass.",
         "command": "cargo make real-world-memory-live-adapters",
         "artifact": "tmp/real-world-memory/live-adapters/elf-report.md"
       },
@@ -180,7 +180,7 @@
         {
           "capability": "full_suite_live_pass",
           "status": "wrong_result",
-          "evidence": "No full-suite live pass is claimed; generated reports preserve wrong_result, incomplete, blocked, and not_encoded outcomes."
+          "evidence": "No full-suite live pass is claimed; generated reports preserve wrong_result, blocked, and not_encoded outcomes."
         },
         {
           "capability": "typed_failure_reporting",
@@ -236,8 +236,8 @@
         },
         {
           "suite_id": "production_ops",
-          "status": "incomplete",
-          "evidence": "The live adapter sweep does not run backup/restore, private corpus, provider credential, or backfill operations; existing production-ops credential and private-manifest boundaries remain blocked and the cold-start dependency fixture remains incomplete."
+          "status": "blocked",
+          "evidence": "The live adapter sweep preserves encoded production-ops operator-boundary jobs as blocked; backup/restore, private corpus, provider credential, and backfill operations are not claimed as live adapter passes."
         },
         {
           "suite_id": "personalization",
@@ -264,7 +264,7 @@
       ],
       "notes": [
         "This Docker-isolated live real_world_job record now covers the full encoded fixture corpus, not only the original three-suite representative slice.",
-        "The record is a full-suite sweep, not a full-suite pass; wrong_result, incomplete, blocked, and not_encoded states remain visible.",
+        "The record is a full-suite sweep, not a full-suite pass; wrong_result, blocked, and not_encoded states remain visible.",
         "This record does not prove private-corpus production quality or provider-backed production operations."
       ]
     },
@@ -359,13 +359,13 @@
       },
       "run": {
         "status": "wrong_result",
-        "evidence": "qmd materializes 38 real_world_job adapter_response objects through collection add, update, embed, and query --json before scoring; the full sweep includes typed wrong_result, incomplete, blocked, and not_encoded records.",
+        "evidence": "qmd materializes 38 real_world_job adapter_response objects through collection add, update, embed, and query --json before scoring; the fresh full sweep includes typed wrong_result, blocked, and not_encoded records.",
         "command": "cargo make real-world-memory-live-adapters",
         "artifact": "tmp/real-world-memory/live-adapters/qmd-report.json"
       },
       "result": {
         "status": "wrong_result",
-        "evidence": "The full qmd live sweep scores 38 jobs across all 11 encoded suites: 18 pass, 5 wrong_result, 1 incomplete, 2 blocked, and 12 not_encoded. This is not a full-suite live pass.",
+        "evidence": "The fresh qmd live sweep scores 38 jobs across all 11 encoded suites: 17 pass, 6 wrong_result, 2 blocked, and 13 not_encoded. This is not a full-suite live pass.",
         "command": "cargo make real-world-memory-live-adapters",
         "artifact": "tmp/real-world-memory/live-adapters/qmd-report.md"
       },
@@ -393,7 +393,7 @@
         {
           "capability": "full_suite_live_pass",
           "status": "wrong_result",
-          "evidence": "No full-suite live pass is claimed; generated reports preserve wrong_result, incomplete, blocked, and not_encoded outcomes."
+          "evidence": "No full-suite live pass is claimed; generated reports preserve wrong_result, blocked, and not_encoded outcomes."
         },
         {
           "capability": "typed_failure_reporting",
@@ -425,7 +425,7 @@
         {
           "suite_id": "memory_evolution",
           "status": "wrong_result",
-          "evidence": "qmd passed the delete/TTL case but failed five current-versus-historical conflict jobs because retrieval-backed answers did not provide the required historical conflict evidence links."
+          "evidence": "qmd failed all six memory-evolution jobs in the fresh June 11 diagnostic, including the delete/TTL tombstone job where qmd retrieved only the current plan and missed the tombstone evidence."
         },
         {
           "suite_id": "consolidation",
@@ -449,8 +449,8 @@
         },
         {
           "suite_id": "production_ops",
-          "status": "incomplete",
-          "evidence": "The qmd live adapter sweep does not run backup/restore, private corpus, provider credential, or backfill operations; existing production-ops credential and private-manifest boundaries remain blocked and the cold-start dependency fixture remains incomplete."
+          "status": "blocked",
+          "evidence": "The qmd live adapter sweep preserves the encoded production-ops operator-boundary jobs as blocked; no qmd production-ops pass claim is allowed from this adapter."
         },
         {
           "suite_id": "personalization",
@@ -477,7 +477,7 @@
       ],
       "notes": [
         "This qmd record is real-world job evidence and must not be conflated with the same-corpus qmd_live_baseline record.",
-        "The record is a full-suite sweep, not a full-suite pass; wrong_result, incomplete, blocked, and not_encoded states remain visible.",
+        "The record is a full-suite sweep, not a full-suite pass; wrong_result, blocked, and not_encoded states remain visible.",
         "This record does not prove broad RAG/graph adapter parity or private-corpus production quality."
       ]
     },
@@ -917,11 +917,12 @@
       },
       "run": {
         "status": "not_encoded",
-        "evidence": "No expanded qmd stress or real_world_job deep-profile artifact is checked in for this adapter-pack gate."
+        "evidence": "The XY-899 strength-profile report is checked in, but no new live qmd deep-profile adapter artifact is claimed from it."
       },
       "result": {
         "status": "not_encoded",
-        "evidence": "qmd deep retrieval-debug evidence remains a planned profile, not a new pass claim."
+        "evidence": "The XY-899 report records qmd scenario-level retrieval/debug/replay outcomes and wrong-result diagnosis taxonomy, while expansion/fusion/rerank scoring remains not_encoded.",
+        "artifact": "docs/research/2026-06-11-qmd-openviking-strength-profile-report.json"
       },
       "capabilities": [
         {
@@ -988,7 +989,7 @@
     {
       "adapter_id": "openviking_deep_profile_gate",
       "project": "OpenViking",
-      "adapter_kind": "docker_local_embed_deep_profile_gate",
+      "adapter_kind": "docker_local_embed_context_trajectory_gate",
       "evidence_class": "research_gate",
       "docker_default": true,
       "host_global_installs_required": false,
@@ -1001,11 +1002,12 @@
       },
       "run": {
         "status": "not_encoded",
-        "evidence": "The adapter cannot fairly exercise hierarchical trajectory behavior until same-corpus add_resource/find returns evidence-bearing results."
+        "evidence": "The XY-899 strength-profile report records staged retrieval, hierarchy selection, recursive/context expansion, and missed-term evidence as typed not_tested or wrong_result states; no new live trajectory adapter artifact is claimed."
       },
       "result": {
         "status": "not_encoded",
-        "evidence": "No OpenViking deep context-trajectory result is claimed from the current wrong-result smoke run."
+        "evidence": "No OpenViking deep context-trajectory result is claimed from the current wrong-result smoke run; the XY-899 report preserves the trajectory surfaces as not_tested.",
+        "artifact": "docs/research/2026-06-11-qmd-openviking-strength-profile-report.json"
       },
       "capabilities": [
         {

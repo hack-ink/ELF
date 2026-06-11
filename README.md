@@ -153,12 +153,15 @@ provider-backed ELF evidence was required.
   jobs across 11 suites, 36 pass, 0 incomplete, 2 blocked, 0 wrong-result,
   0 not-encoded, and 0 unsupported-claim results. The remaining non-pass jobs are
   production-ops operator boundaries, not hidden benchmark wins.
-- Full-suite live real-world adapter sweep after XY-880: ELF and qmd now emit
+- Full-suite live real-world adapter sweep after XY-899: ELF and qmd emit
   Docker-isolated `live_real_world` records for all 38 encoded jobs across 11 suites
   through `cargo make real-world-memory-live-adapters`. Both keep the original
   targeted `work_resume`, `retrieval`, and `project_decisions` slice passing, but the
-  full sweep is not a full-suite pass: each adapter reports 18 pass, 5 wrong_result,
-  1 incomplete, 2 blocked, and 12 not_encoded jobs.
+  full sweep is not a full-suite pass. The fresh ELF sweep reports 18 pass,
+  5 wrong_result, 2 blocked, and 13 not_encoded jobs. The fresh qmd sweep reports
+  17 pass, 6 wrong_result, 2 blocked, and 13 not_encoded jobs. The difference is the
+  delete/TTL tombstone case; qmd remains the local retrieval-debug UX reference, and
+  no broad ELF-over-qmd claim is allowed.
 - Expanded adapter-pack coverage after XY-834: the real-world external adapter
   manifest now includes `research_gate` records for RAGFlow, LightRAG, GraphRAG,
   Graphiti/Zep, Letta, LangGraph, nanograph, llm-wiki, gbrain, graphify, and deeper
@@ -183,6 +186,7 @@ Detailed evidence and interpretation:
 - [Real-World Comparison Report - June 10, 2026](docs/guide/benchmarking/2026-06-10-real-world-comparison-report.md)
 - [Live Real-World Adapter Sweep Report - June 10, 2026](docs/guide/benchmarking/2026-06-10-live-real-world-sweep-report.md)
 - [Post-Adapter Production Adoption Refresh - June 10, 2026](docs/guide/benchmarking/2026-06-10-production-adoption-refresh.md)
+- [qmd and OpenViking Strength-Profile Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-qmd-openviking-strength-profile-report.md)
 - [Live Baseline Benchmark Runbook](docs/guide/benchmarking/live_baseline_benchmark.md)
 - [Single-User Production Runbook](docs/guide/single_user_production.md)
 - Benchmark contract:
@@ -263,8 +267,8 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [Real-World Benchmark Dimension Research Run](docs/research/2026-06-09-xy-841-external-memory-benchmark-dimensions.json)
 - [RAG/Graph Adapter Feasibility Research Run](docs/research/2026-06-10-xy-882-rag-graph-adapter-feasibility.json)
 
-Latest real-world benchmark report: June 10, 2026. Latest external research refresh:
-June 10, 2026.
+Latest real-world benchmark report: June 11, 2026. Latest external research refresh:
+June 11, 2026.
 
 ## Documentation
 

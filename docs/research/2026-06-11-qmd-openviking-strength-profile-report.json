@@ -1,0 +1,362 @@
+{
+  "schema": "elf.competitor_strength_profile_report/v1",
+  "run_id": "2026-06-11-qmd-openviking-strength-profile",
+  "created_at": "2026-06-11",
+  "scope": "Scenario-level qmd retrieval-debug and OpenViking context-trajectory strength profile outcomes for XY-899.",
+  "inputs": [
+    "docs/guide/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md",
+    "docs/guide/benchmarking/2026-06-11-elf-qmd-memory-evolution-diagnostic.md",
+    "docs/guide/benchmarking/2026-06-11-elf-qmd-retrieval-debug-profile.md",
+    "docs/spec/real_world_agent_memory_benchmark_v1.md",
+    "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json",
+    "scripts/real-world-live-adapters.sh"
+  ],
+  "outcome_terms": [
+    "elf_win",
+    "tie",
+    "elf_loss",
+    "not_tested"
+  ],
+  "result_type_terms": [
+    "pass",
+    "wrong_result",
+    "blocked",
+    "incomplete",
+    "not_encoded",
+    "unsupported"
+  ],
+  "evidence_class_terms": [
+    "fixture_backed",
+    "live_baseline_only",
+    "live_real_world",
+    "research_gate"
+  ],
+  "summary": {
+    "qmd": {
+      "overall_against_strengths": "elf_loss_on_debug_replay_ergonomics",
+      "retrieval_quality": "tie",
+      "debug_replay_ergonomics": "elf_loss",
+      "expansion_fusion_rerank": "not_tested",
+      "claim": "ELF ties qmd on encoded retrieval correctness and equivalent update/delete/cold-start behavior, loses the currently evidenced local debug/replay ergonomics surface, and remains untested on scored expansion, fusion, and rerank controls."
+    },
+    "openviking": {
+      "overall_against_strengths": "not_tested",
+      "claim": "ELF does not have a measured win, tie, or loss against OpenViking context-trajectory strengths. The current OpenViking Docker smoke reaches add_resource/find but is wrong_result on evidence terms, while staged trajectory, hierarchy selection, and recursive expansion remain research-gate/not_encoded."
+    }
+  },
+  "qmd_strength_profile": {
+    "scenario_outcomes": [
+      {
+        "scenario_id": "qmd-retrieval-quality",
+        "surface": "retrieval quality",
+        "evidence_class": "live_real_world",
+        "result_type": "pass",
+        "elf_status": "pass",
+        "qmd_status": "pass",
+        "elf_outcome": "tie",
+        "retrieval_quality": "ELF and qmd each pass 5/5 live real-world retrieval jobs with 6/6 expected evidence matched.",
+        "debug_replay_ergonomics": "not scored by this scenario",
+        "source_artifacts": [
+          "tmp/real-world-memory/live-adapters/elf-report.json",
+          "tmp/real-world-memory/live-adapters/qmd-report.json",
+          "docs/guide/benchmarking/2026-06-11-elf-qmd-retrieval-debug-profile.md"
+        ]
+      },
+      {
+        "scenario_id": "qmd-local-query-transparency",
+        "surface": "local query transparency",
+        "evidence_class": "live_baseline_only",
+        "result_type": "pass",
+        "elf_status": "partial",
+        "qmd_status": "pass",
+        "elf_outcome": "elf_loss",
+        "retrieval_quality": "not a correctness scenario",
+        "debug_replay_ergonomics": "qmd stress artifacts expose per-query top-10 files, line numbers, snippets, scores, and distractor density; ELF stress artifacts expose trace ids and top evidence but do not hydrate the candidate list in the checked-in report.",
+        "source_artifacts": [
+          "scripts/live-baseline-benchmark.sh",
+          "docs/guide/benchmarking/2026-06-11-elf-qmd-retrieval-debug-profile.md"
+        ]
+      },
+      {
+        "scenario_id": "qmd-expansion-fusion-rerank-controls",
+        "surface": "expansion, fusion, and rerank controls",
+        "evidence_class": "research_gate",
+        "result_type": "not_encoded",
+        "elf_status": "not_encoded",
+        "qmd_status": "not_encoded",
+        "elf_outcome": "not_tested",
+        "retrieval_quality": "not scored",
+        "debug_replay_ergonomics": "The qmd materializer and stress baseline use structured lex/vec query input with --no-rerank; no scenario scores expansion, fusion, or rerank superiority for either system.",
+        "source_artifacts": [
+          "scripts/real-world-live-adapters.sh",
+          "docs/guide/benchmarking/2026-06-11-elf-qmd-retrieval-debug-profile.md"
+        ]
+      },
+      {
+        "scenario_id": "qmd-stale-context-isolation",
+        "surface": "stale context isolation",
+        "evidence_class": "live_real_world",
+        "result_type": "pass",
+        "elf_status": "pass",
+        "qmd_status": "pass",
+        "elf_outcome": "tie",
+        "retrieval_quality": "Both adapters pass the encoded retrieval current-vs-obsolete and distractor-heavy jobs.",
+        "debug_replay_ergonomics": "The debug explanation of stale-candidate rejection is not scored beyond the job answer and evidence match.",
+        "source_artifacts": [
+          "apps/elf-eval/fixtures/real_world_memory/retrieval/current_vs_obsolete.json",
+          "apps/elf-eval/fixtures/real_world_memory/retrieval/distractor_heavy.json",
+          "docs/guide/benchmarking/2026-06-11-elf-qmd-retrieval-debug-profile.md"
+        ]
+      },
+      {
+        "scenario_id": "qmd-update-delete-cold-start",
+        "surface": "update, delete, and cold-start behavior",
+        "evidence_class": "live_baseline_only",
+        "result_type": "pass",
+        "elf_status": "pass",
+        "qmd_status": "pass",
+        "elf_outcome": "tie",
+        "retrieval_quality": "Equivalent qmd and ELF stress-baseline lifecycle checks pass for update replacement, delete suppression, and cold-start recovery.",
+        "debug_replay_ergonomics": "ELF has additional service lifecycle, backfill, rebuild, and resource evidence, but the equivalent qmd strength surface is a tie.",
+        "source_artifacts": [
+          "tmp/live-baseline/live-baseline-report.json",
+          "docs/guide/benchmarking/2026-06-11-elf-qmd-retrieval-debug-profile.md"
+        ]
+      },
+      {
+        "scenario_id": "qmd-operator-debug-evidence",
+        "surface": "operator-debug evidence",
+        "evidence_class": "live_real_world",
+        "result_type": "not_encoded",
+        "elf_status": "not_encoded",
+        "qmd_status": "not_encoded",
+        "elf_outcome": "not_tested",
+        "retrieval_quality": "not scored",
+        "debug_replay_ergonomics": "The live real-world sweep marks operator_debugging_ux not_encoded for both ELF and qmd. ELF fixture-backed operator-debug jobs pass, but they are not live adapter evidence.",
+        "source_artifacts": [
+          "tmp/real-world-memory/live-adapters/elf-report.json",
+          "tmp/real-world-memory/live-adapters/qmd-report.json",
+          "apps/elf-eval/fixtures/real_world_memory/retrieval/stage_explainability_wrong_result.json"
+        ]
+      },
+      {
+        "scenario_id": "qmd-local-replayability",
+        "surface": "local replayability",
+        "evidence_class": "live_baseline_only",
+        "result_type": "pass",
+        "elf_status": "partial",
+        "qmd_status": "pass",
+        "elf_outcome": "elf_loss",
+        "retrieval_quality": "not a correctness scenario",
+        "debug_replay_ergonomics": "qmd's measured replay path is collection add, update, embed -f, and query --json in a fresh CLI process; ELF has service traces and admin bundle endpoints, but the checked-in stress report does not give an equally short per-query replay artifact.",
+        "source_artifacts": [
+          "scripts/live-baseline-benchmark.sh",
+          "docs/guide/benchmarking/2026-06-11-elf-qmd-retrieval-debug-profile.md"
+        ]
+      },
+      {
+        "scenario_id": "qmd-wrong-result-diagnosis",
+        "surface": "wrong-result diagnosis",
+        "evidence_class": "research_gate",
+        "result_type": "not_encoded",
+        "elf_status": "partial",
+        "qmd_status": "partial",
+        "elf_outcome": "not_tested",
+        "retrieval_quality": "The memory-evolution diagnostic classifies qmd misses and selected-but-not-narrated lifecycle failures from produced evidence; candidate-drop classification remains untested because qmd live job artifacts do not expose candidate-stage traces.",
+        "debug_replay_ergonomics": "The report taxonomy supports absent evidence, retrieved-but-dropped evidence, selected-but-not-narrated evidence, and lifecycle-contradicted evidence. Current qmd data exercises absent and selected-but-not-narrated classes; retrieved-but-dropped remains not observed.",
+        "source_artifacts": [
+          "docs/guide/benchmarking/2026-06-11-elf-qmd-memory-evolution-diagnostic.md"
+        ]
+      }
+    ],
+    "win_tie_loss_summary": {
+      "elf_win": 0,
+      "tie": 3,
+      "elf_loss": 2,
+      "not_tested": 3
+    },
+    "wrong_result_diagnosis": {
+      "taxonomy": [
+        {
+          "class": "evidence_absent",
+          "meaning": "Required evidence is absent from the adapter-produced evidence ids.",
+          "coverage": "observed"
+        },
+        {
+          "class": "retrieved_but_dropped",
+          "meaning": "Required evidence appears in an intermediate candidate set but is absent from the final selected/narrated answer.",
+          "coverage": "not_observed_candidate_trace_missing"
+        },
+        {
+          "class": "selected_but_not_narrated",
+          "meaning": "Evidence is selected or available, but the answer does not narrate the required current-vs-historical or lifecycle relationship.",
+          "coverage": "observed"
+        },
+        {
+          "class": "contradicted_by_lifecycle_evidence",
+          "meaning": "The answer is contradicted or made incomplete by available current, historical, supersession, or tombstone evidence.",
+          "coverage": "observed"
+        }
+      ],
+      "jobs": [
+        {
+          "job_id": "memory-evolution-benchmark-verdict-001",
+          "qmd_status": "wrong_result",
+          "score": 0.15,
+          "classifications": [
+            "evidence_absent",
+            "selected_but_not_narrated",
+            "contradicted_by_lifecycle_evidence"
+          ],
+          "missing_evidence": [
+            "verdict-bounded-private-caveat"
+          ],
+          "diagnosis": "qmd missed the caveat evidence and did not represent the superseded not-ready verdict as historical."
+        },
+        {
+          "job_id": "memory-evolution-deploy-method-001",
+          "qmd_status": "wrong_result",
+          "score": 0.4,
+          "classifications": [
+            "selected_but_not_narrated",
+            "contradicted_by_lifecycle_evidence"
+          ],
+          "missing_evidence": [],
+          "diagnosis": "qmd retrieved current runbook and rationale evidence, but did not preserve the old quickstart path as historical."
+        },
+        {
+          "job_id": "memory-evolution-issue-state-001",
+          "qmd_status": "wrong_result",
+          "score": 0.4,
+          "classifications": [
+            "selected_but_not_narrated",
+            "contradicted_by_lifecycle_evidence"
+          ],
+          "missing_evidence": [],
+          "diagnosis": "qmd found current done state and rationale evidence, but did not surface the earlier blocked state as superseded history."
+        },
+        {
+          "job_id": "memory-evolution-preference-001",
+          "qmd_status": "wrong_result",
+          "score": 0.15,
+          "classifications": [
+            "evidence_absent",
+            "selected_but_not_narrated",
+            "contradicted_by_lifecycle_evidence"
+          ],
+          "missing_evidence": [
+            "pref-current-concise-rationale"
+          ],
+          "diagnosis": "qmd only returned rationale evidence and did not preserve the old terse preference as historical."
+        },
+        {
+          "job_id": "memory-evolution-relation-temporal-001",
+          "qmd_status": "wrong_result",
+          "score": 0.35,
+          "classifications": [
+            "selected_but_not_narrated",
+            "contradicted_by_lifecycle_evidence"
+          ],
+          "missing_evidence": [],
+          "diagnosis": "qmd retrieved current and historical owners, but did not produce temporal-validity explanation or update rationale."
+        },
+        {
+          "job_id": "memory-evolution-delete-ttl-001",
+          "qmd_status": "wrong_result",
+          "score": 0.5,
+          "classifications": [
+            "evidence_absent",
+            "contradicted_by_lifecycle_evidence"
+          ],
+          "missing_evidence": [
+            "delete-tombstone"
+          ],
+          "diagnosis": "qmd retrieved the current plan but missed the tombstone evidence, so the delete/TTL lifecycle answer remains a typed wrong_result."
+        }
+      ]
+    }
+  },
+  "openviking_context_trajectory_profile": {
+    "scenario_outcomes": [
+      {
+        "scenario_id": "openviking-local-embed-setup",
+        "surface": "Docker local embedding setup",
+        "evidence_class": "live_baseline_only",
+        "result_type": "pass",
+        "openviking_status": "pass",
+        "elf_equivalent_status": "unsupported",
+        "elf_outcome": "not_tested",
+        "typed_blocker": null,
+        "evidence": "The pinned llama-cpp-python==0.3.28 CPU wheel path installed and OpenViking reached add_resource/find in Docker."
+      },
+      {
+        "scenario_id": "openviking-evidence-bearing-retrieval-precondition",
+        "surface": "same-corpus evidence-bearing retrieval precondition",
+        "evidence_class": "live_baseline_only",
+        "result_type": "wrong_result",
+        "openviking_status": "wrong_result",
+        "elf_equivalent_status": "pass",
+        "elf_outcome": "not_tested",
+        "typed_blocker": "output_missed_expected_terms",
+        "evidence": "OpenViking add_resource/find returned resources but matched 0/3 expected evidence-term checks; this is a wrong_result smoke output, not a trajectory comparison."
+      },
+      {
+        "scenario_id": "openviking-staged-retrieval-trajectory",
+        "surface": "staged retrieval trajectory",
+        "evidence_class": "research_gate",
+        "result_type": "not_encoded",
+        "openviking_status": "not_encoded",
+        "elf_equivalent_status": "not_encoded",
+        "elf_outcome": "not_tested",
+        "typed_blocker": "needs_evidence_bearing_same_corpus_output",
+        "evidence": "No stage trajectory scoring is claimed until OpenViking returns evidence-bearing same-corpus output."
+      },
+      {
+        "scenario_id": "openviking-hierarchy-selection",
+        "surface": "hierarchy selection",
+        "evidence_class": "research_gate",
+        "result_type": "not_encoded",
+        "openviking_status": "not_encoded",
+        "elf_equivalent_status": "unsupported",
+        "elf_outcome": "not_tested",
+        "typed_blocker": "hierarchy_output_not_scored",
+        "evidence": "The viking:// hierarchy model remains a reference strength, but no real_world_job output scores hierarchy selection."
+      },
+      {
+        "scenario_id": "openviking-recursive-context-expansion",
+        "surface": "recursive/context expansion",
+        "evidence_class": "research_gate",
+        "result_type": "not_encoded",
+        "openviking_status": "not_encoded",
+        "elf_equivalent_status": "not_encoded",
+        "elf_outcome": "not_tested",
+        "typed_blocker": "recursive_expansion_not_materialized",
+        "evidence": "Recursive/context expansion remains unmaterialized in the Docker adapter; no pass/fail quality claim is allowed."
+      },
+      {
+        "scenario_id": "openviking-missed-expected-terms-evidence",
+        "surface": "typed failure evidence when expected terms are missed",
+        "evidence_class": "live_baseline_only",
+        "result_type": "wrong_result",
+        "openviking_status": "wrong_result",
+        "elf_equivalent_status": "pass",
+        "elf_outcome": "not_tested",
+        "typed_blocker": "retrieval_wrong_result",
+        "evidence": "The baseline report preserves missed expected terms as wrong_result instead of loosening evidence expectations or reporting setup failure."
+      }
+    ],
+    "win_tie_loss_summary": {
+      "elf_win": 0,
+      "tie": 0,
+      "elf_loss": 0,
+      "not_tested": 6
+    }
+  },
+  "claim_boundaries": [
+    "ELF does not broadly beat qmd; it ties retrieval correctness but loses the measured debug/replay ergonomics surface.",
+    "qmd expansion, fusion, and rerank superiority remains not_tested because the current qmd paths use --no-rerank and do not score internals.",
+    "ELF does not beat OpenViking on context trajectory; OpenViking trajectory strengths remain not_tested behind a wrong_result same-corpus output precondition.",
+    "Research_gate records are follow-up gates, not pass evidence.",
+    "Missing equivalent surfaces are encoded as unsupported or not_encoded rather than fake losses."
+  ]
+}
