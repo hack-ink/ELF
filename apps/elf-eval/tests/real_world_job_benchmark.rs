@@ -60,6 +60,91 @@ fn production_ops_fixture_dir() -> PathBuf {
 	real_world_memory_fixture_dir().join("production_ops")
 }
 
+fn workspace_root() -> Result<PathBuf> {
+	let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+	let root = manifest_dir
+		.parent()
+		.and_then(Path::parent)
+		.ok_or_else(|| eyre::eyre!("could not resolve workspace root"))?;
+
+	Ok(root.to_path_buf())
+}
+
+fn strength_profile_report_path() -> Result<PathBuf> {
+	Ok(workspace_root()?
+		.join("docs")
+		.join("research")
+		.join("2026-06-11-qmd-openviking-strength-profile-report.json"))
+}
+
+fn strength_profile_markdown_path() -> Result<PathBuf> {
+	Ok(workspace_root()?
+		.join("docs")
+		.join("guide")
+		.join("benchmarking")
+		.join("2026-06-11-qmd-openviking-strength-profile-report.md"))
+}
+
+fn measurement_coverage_audit_path() -> Result<PathBuf> {
+	Ok(workspace_root()?
+		.join("docs")
+		.join("guide")
+		.join("benchmarking")
+		.join("2026-06-11-measurement-coverage-audit.md"))
+}
+
+fn measurement_coverage_audit_json_path() -> Result<PathBuf> {
+	Ok(workspace_root()?
+		.join("docs")
+		.join("research")
+		.join("2026-06-11-measurement-coverage-audit.json"))
+}
+
+fn retrieval_debug_profile_json_path() -> Result<PathBuf> {
+	Ok(workspace_root()?
+		.join("docs")
+		.join("research")
+		.join("2026-06-11-elf-qmd-retrieval-debug-profile.json"))
+}
+
+fn competitor_strength_matrix_path() -> Result<PathBuf> {
+	Ok(workspace_root()?
+		.join("docs")
+		.join("guide")
+		.join("benchmarking")
+		.join("2026-06-11-competitor-strength-evidence-matrix.md"))
+}
+
+fn competitor_strength_matrix_json_path() -> Result<PathBuf> {
+	Ok(workspace_root()?
+		.join("docs")
+		.join("research")
+		.join("2026-06-11-xy-897-competitor-strength-matrix.json"))
+}
+
+fn readme_path() -> Result<PathBuf> {
+	Ok(workspace_root()?.join("README.md"))
+}
+
+fn benchmarking_index_path() -> Result<PathBuf> {
+	Ok(workspace_root()?.join("docs").join("guide").join("benchmarking").join("index.md"))
+}
+
+fn iteration_direction_report_path() -> Result<PathBuf> {
+	Ok(workspace_root()?
+		.join("docs")
+		.join("guide")
+		.join("benchmarking")
+		.join("2026-06-11-elf-iteration-direction-from-competitor-benchmarks.md"))
+}
+
+fn external_adapter_manifest_path() -> PathBuf {
+	Path::new(env!("CARGO_MANIFEST_DIR"))
+		.join("fixtures")
+		.join("real_world_external_adapters")
+		.join("memory_projects_manifest.json")
+}
+
 fn run_json_report_from(fixtures: PathBuf) -> Result<Value> {
 	let output = Command::new(env!("CARGO_BIN_EXE_real_world_job_benchmark"))
 		.arg("run")
@@ -96,6 +181,17 @@ fn find_by_field<'a>(items: &'a [Value], field: &str, expected: &str) -> Result<
 
 fn array_contains_str(value: &Value, pointer: &str, expected: &str) -> Result<bool> {
 	Ok(array_at(value, pointer)?.iter().any(|item| item.as_str() == Some(expected)))
+}
+
+fn string_array_at(value: &Value, pointer: &str) -> Result<Vec<String>> {
+	array_at(value, pointer)?
+		.iter()
+		.map(|item| {
+			item.as_str()
+				.map(str::to_owned)
+				.ok_or_else(|| eyre::eyre!("non-string entry at {pointer}"))
+		})
+		.collect()
 }
 
 fn set_json_pointer(value: &mut Value, pointer: &str, replacement: Value) -> Result<()> {
@@ -461,6 +557,7 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 	let graphiti_zep = find_by_field(adapters, "/adapter_id", "graphiti_zep_research_gate")?;
 	let graphify = find_by_field(adapters, "/adapter_id", "graphify_docker_smoke")?;
 	let qmd_deep = find_by_field(adapters, "/adapter_id", "qmd_deep_profile_gate")?;
+	let openviking_deep = find_by_field(adapters, "/adapter_id", "openviking_deep_profile_gate")?;
 
 	assert_eq!(elf.pointer("/evidence_class").and_then(Value::as_str), Some("fixture_backed"));
 	assert_eq!(elf.pointer("/overall_status").and_then(Value::as_str), Some("blocked"));
@@ -470,17 +567,20 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 	);
 	assert_eq!(elf_live.pointer("/overall_status").and_then(Value::as_str), Some("wrong_result"));
 
-	assert_live_sweep_record(elf_live)?;
+	assert_live_sweep_record(elf_live, "blocked")?;
 
 	assert_eq!(qmd.pointer("/overall_status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(qmd.pointer("/suites/0/status").and_then(Value::as_str), Some("not_encoded"));
+
+	assert_qmd_live_baseline_record(qmd);
+
 	assert_eq!(
 		qmd_live.pointer("/evidence_class").and_then(Value::as_str),
 		Some("live_real_world")
 	);
 	assert_eq!(qmd_live.pointer("/overall_status").and_then(Value::as_str), Some("wrong_result"));
 
-	assert_live_sweep_record(qmd_live)?;
+	assert_live_sweep_record(qmd_live, "blocked")?;
 
 	assert_eq!(
 		agentmemory.pointer("/capabilities/1/status").and_then(Value::as_str),
@@ -538,8 +638,49 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 		qmd_deep.pointer("/capabilities/2/status").and_then(Value::as_str),
 		Some("unsupported")
 	);
+	assert_eq!(
+		qmd_deep.pointer("/result/artifact").and_then(Value::as_str),
+		Some("docs/research/2026-06-11-qmd-openviking-strength-profile-report.json")
+	);
+	assert_eq!(
+		openviking_deep.pointer("/adapter_kind").and_then(Value::as_str),
+		Some("docker_local_embed_context_trajectory_gate")
+	);
+
+	assert_openviking_deep_profile_gate(openviking_deep);
+
+	assert_eq!(
+		openviking_deep.pointer("/result/artifact").and_then(Value::as_str),
+		Some("docs/research/2026-06-11-qmd-openviking-strength-profile-report.json")
+	);
 
 	Ok(())
+}
+
+fn assert_qmd_live_baseline_record(adapter: &Value) {
+	let result_evidence = adapter.pointer("/result/evidence").and_then(Value::as_str);
+	let retrieval_evidence = adapter.pointer("/suites/0/evidence").and_then(Value::as_str);
+
+	assert!(result_evidence.is_some_and(|evidence| {
+		evidence.contains("This live_baseline_only record is same-corpus evidence only")
+			&& evidence.contains("cite qmd_live_real_world for the full live real-world sweep")
+			&& !evidence.contains("no real_world_job qmd adapter is encoded yet")
+	}));
+	assert!(retrieval_evidence.is_some_and(|evidence| {
+		evidence.contains("does not execute real_world_job retrieval prompts")
+			&& evidence.contains("cite qmd_live_real_world for the live retrieval adapter run")
+			&& !evidence.contains("no real_world_job retrieval adapter run is encoded")
+	}));
+}
+
+fn assert_openviking_deep_profile_gate(adapter: &Value) {
+	let trajectory_evidence = adapter.pointer("/capabilities/1/evidence").and_then(Value::as_str);
+
+	assert!(trajectory_evidence.is_some_and(|evidence| {
+		evidence.contains("evidence-bearing same-corpus output")
+			&& evidence.contains("wrong_result missed-term evidence")
+			&& !evidence.contains("setup reaches runnable OpenViking APIs")
+	}));
 }
 
 fn assert_first_generation_adapter_records(
@@ -821,7 +962,7 @@ fn live_adapter_aggregate_forwards_graph_rag_smoke_controls() -> Result<()> {
 	Ok(())
 }
 
-fn assert_live_sweep_record(adapter: &Value) -> Result<()> {
+fn assert_live_sweep_record(adapter: &Value, production_ops_status: &str) -> Result<()> {
 	let suites = array_at(adapter, "/suites")?;
 	let capabilities = array_at(adapter, "/capabilities")?;
 	let targeted = find_by_field(capabilities, "/capability", "targeted_live_pass")?;
@@ -830,13 +971,37 @@ fn assert_live_sweep_record(adapter: &Value) -> Result<()> {
 	let memory_evolution = find_by_field(suites, "/suite_id", "memory_evolution")?;
 	let production_ops = find_by_field(suites, "/suite_id", "production_ops")?;
 	let consolidation = find_by_field(suites, "/suite_id", "consolidation")?;
+	let knowledge = find_by_field(suites, "/suite_id", "knowledge_compilation")?;
+	let operator_debug = find_by_field(suites, "/suite_id", "operator_debugging_ux")?;
+	let capture = find_by_field(suites, "/suite_id", "capture_integration")?;
+	let personalization = find_by_field(suites, "/suite_id", "personalization")?;
+	let trust_sot = find_by_field(suites, "/suite_id", "trust_source_of_truth")?;
+	let retrieval = find_by_field(suites, "/suite_id", "retrieval")?;
+	let project_decisions = find_by_field(suites, "/suite_id", "project_decisions")?;
 
+	assert_eq!(suites.len(), 11);
 	assert_eq!(targeted.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(full_pass.pointer("/status").and_then(Value::as_str), Some("wrong_result"));
+	assert!(
+		adapter
+			.pointer("/result/evidence")
+			.and_then(Value::as_str)
+			.is_some_and(|evidence| evidence.contains("38 jobs across all 11 encoded suites"))
+	);
+	assert_eq!(trust_sot.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(work_resume.pointer("/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(retrieval.pointer("/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(project_decisions.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(memory_evolution.pointer("/status").and_then(Value::as_str), Some("wrong_result"));
-	assert_eq!(production_ops.pointer("/status").and_then(Value::as_str), Some("blocked"));
+	assert_eq!(
+		production_ops.pointer("/status").and_then(Value::as_str),
+		Some(production_ops_status)
+	);
 	assert_eq!(consolidation.pointer("/status").and_then(Value::as_str), Some("not_encoded"));
+	assert_eq!(knowledge.pointer("/status").and_then(Value::as_str), Some("not_encoded"));
+	assert_eq!(operator_debug.pointer("/status").and_then(Value::as_str), Some("not_encoded"));
+	assert_eq!(capture.pointer("/status").and_then(Value::as_str), Some("not_encoded"));
+	assert_eq!(personalization.pointer("/status").and_then(Value::as_str), Some("pass"));
 
 	Ok(())
 }
@@ -1122,6 +1287,572 @@ fn project_decisions_fixtures_report_decision_policy_cases() -> Result<()> {
 	}
 
 	Ok(())
+}
+
+#[test]
+fn qmd_openviking_strength_profile_report_preserves_claim_boundaries() -> Result<()> {
+	let report =
+		serde_json::from_str::<Value>(&fs::read_to_string(strength_profile_report_path()?)?)?;
+	let markdown = fs::read_to_string(strength_profile_markdown_path()?)?;
+	let readme = fs::read_to_string(readme_path()?)?;
+	let benchmarking_index = fs::read_to_string(benchmarking_index_path()?)?;
+	let iteration_direction = fs::read_to_string(iteration_direction_report_path()?)?;
+
+	assert_strength_profile_summary(&report);
+	assert_strength_profile_terms(&report)?;
+	assert_qmd_strength_profile(&report)?;
+	assert_qmd_wrong_result_diagnosis(&report)?;
+	assert_openviking_strength_profile(&report)?;
+	assert_strength_profile_json_claim_boundaries(&report)?;
+	assert_strength_profile_markdown_boundaries(&markdown);
+	assert_operator_facing_strength_profile_boundaries(
+		&readme,
+		&benchmarking_index,
+		&iteration_direction,
+	);
+
+	Ok(())
+}
+
+#[test]
+fn current_benchmark_reports_preserve_live_sweep_boundaries() -> Result<()> {
+	let measurement_audit = fs::read_to_string(measurement_coverage_audit_path()?)?;
+	let measurement_audit_json = serde_json::from_str::<Value>(&fs::read_to_string(
+		measurement_coverage_audit_json_path()?,
+	)?)?;
+	let competitor_matrix = fs::read_to_string(competitor_strength_matrix_path()?)?;
+	let competitor_matrix_json = serde_json::from_str::<Value>(&fs::read_to_string(
+		competitor_strength_matrix_json_path()?,
+	)?)?;
+	let external_manifest = fs::read_to_string(external_adapter_manifest_path())?;
+	let retrieval_debug_profile =
+		serde_json::from_str::<Value>(&fs::read_to_string(retrieval_debug_profile_json_path()?)?)?;
+
+	assert!(
+		measurement_audit.contains(
+			"| `memory_evolution` | `6` | `pass:1`, `wrong_result:5` | `wrong_result:6` |"
+		)
+	);
+	assert!(
+		measurement_audit
+			.contains("qmd live fails 6/6 jobs after missing the delete/TTL tombstone evidence")
+	);
+	assert!(
+		competitor_matrix
+			.contains("broader live suites remain `wrong_result`, `blocked`, or `not_encoded`")
+	);
+	assert!(external_manifest.contains(
+		"The record is a full-suite sweep, not a full-suite pass; wrong_result, blocked, and not_encoded states remain visible."
+	));
+	assert!(external_manifest.contains(
+		"The qmd live real-world sweep covers the current encoded fixture corpus; expanded retrieval-debug strength suites still need their own materialized adapter run."
+	));
+
+	for stale_phrase in [
+		"same live sweep shape as ELF",
+		"ELF and qmd live fail 5/6 jobs",
+		"both systems currently fail 5/6 live memory-evolution jobs",
+		"wrong_result, incomplete, blocked, and not_encoded states remain visible",
+		"broader live suites remain `wrong_result`, `incomplete`, or `not_encoded`",
+		"The qmd live real-world slice covers representative jobs only",
+	] {
+		assert!(!measurement_audit.contains(stale_phrase));
+		assert!(!competitor_matrix.contains(stale_phrase));
+		assert!(!external_manifest.contains(stale_phrase));
+	}
+
+	let qmd_live = find_by_field(
+		array_at(&measurement_audit_json, "/live_real_world_adapters")?,
+		"/adapter",
+		"qmd live CLI adapter",
+	)?;
+
+	assert_eq!(qmd_live.pointer("/pass").and_then(Value::as_u64), Some(17));
+	assert_eq!(qmd_live.pointer("/wrong_result").and_then(Value::as_u64), Some(6));
+	assert_eq!(qmd_live.pointer("/expected_evidence_matched").and_then(Value::as_u64), Some(38));
+	assert_eq!(qmd_live.pointer("/evidence_covered_count").and_then(Value::as_u64), Some(45));
+
+	let memory_evolution = find_by_field(
+		array_at(&measurement_audit_json, "/live_suite_breakdown")?,
+		"/suite",
+		"memory_evolution",
+	)?;
+
+	assert_eq!(
+		memory_evolution.pointer("/elf_status_counts/wrong_result").and_then(Value::as_u64),
+		Some(5)
+	);
+	assert_eq!(
+		memory_evolution.pointer("/qmd_status_counts/wrong_result").and_then(Value::as_u64),
+		Some(6)
+	);
+	assert_eq!(
+		retrieval_debug_profile
+			.pointer("/live_real_world_full_sweep_context/qmd/pass")
+			.and_then(Value::as_u64),
+		Some(17)
+	);
+	assert_eq!(
+		retrieval_debug_profile
+			.pointer("/live_real_world_full_sweep_context/qmd/wrong_result")
+			.and_then(Value::as_u64),
+		Some(6)
+	);
+
+	assert_competitor_strength_matrix_json(&competitor_matrix_json)?;
+
+	Ok(())
+}
+
+fn assert_competitor_strength_matrix_json(matrix: &Value) -> Result<()> {
+	let projects = array_at(matrix, "/project_matrix")?;
+	let qmd = find_by_field(projects, "/project", "qmd")?;
+	let mem0 = find_by_field(projects, "/project", "mem0/OpenMemory")?;
+	let openviking = find_by_field(projects, "/project", "OpenViking")?;
+
+	assert_eq!(
+		qmd.pointer("/current_evidence_class").and_then(Value::as_str),
+		Some("live_real_world")
+	);
+	assert_eq!(qmd.pointer("/measured_status").and_then(Value::as_str), Some("wrong_result"));
+	assert_eq!(
+		qmd.pointer("/unsupported_or_blocked_status/state").and_then(Value::as_str),
+		Some("not_encoded")
+	);
+	assert!(qmd.pointer("/benchmark_before_claim").and_then(Value::as_str).is_some_and(|claim| {
+		claim.contains("before claiming ELF wins, ties, or loses on retrieval debugging")
+	}));
+	assert!(
+		qmd.pointer("/borrow_if_stronger")
+			.and_then(Value::as_str)
+			.is_some_and(|claim| claim.contains("transparent local knobs"))
+	);
+	assert_eq!(mem0.pointer("/measured_status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(
+		mem0.pointer("/unsupported_or_blocked_status/state").and_then(Value::as_str),
+		Some("not_encoded")
+	);
+	assert!(
+		mem0.pointer("/benchmark_before_claim")
+			.and_then(Value::as_str)
+			.is_some_and(|claim| claim.contains("preference/entity history"))
+	);
+	assert_eq!(
+		openviking.pointer("/current_evidence_class").and_then(Value::as_str),
+		Some("live_baseline_only")
+	);
+	assert_eq!(
+		openviking.pointer("/measured_status").and_then(Value::as_str),
+		Some("wrong_result")
+	);
+	assert_eq!(
+		openviking.pointer("/unsupported_or_blocked_status/state").and_then(Value::as_str),
+		Some("not_encoded")
+	);
+	assert!(
+		openviking
+			.pointer("/unsupported_or_blocked_status/details")
+			.and_then(Value::as_str)
+			.is_some_and(|details| details.contains("same-corpus output misses expected evidence"))
+	);
+	assert!(
+		openviking
+			.pointer("/benchmark_before_claim")
+			.and_then(Value::as_str)
+			.is_some_and(|claim| claim.contains("evidence-bearing same-corpus output pass"))
+	);
+
+	let scenarios = array_at(matrix, "/scenario_matrix")?;
+	let retrieval_debug = find_by_field(scenarios, "/scenario_id", "retrieval_debug")?;
+	let context_trajectory = find_by_field(scenarios, "/scenario_id", "context_trajectory")?;
+
+	assert!(
+		retrieval_debug
+			.pointer("/current_state")
+			.and_then(Value::as_str)
+			.is_some_and(|state| state.contains("Measured tie on encoded retrieval answers"))
+	);
+	assert!(retrieval_debug.pointer("/current_state").and_then(Value::as_str).is_some_and(
+		|state| state.contains("qmd remains stronger on local debug ergonomics not fully scored")
+	));
+	assert!(
+		context_trajectory
+			.pointer("/current_state")
+			.and_then(Value::as_str)
+			.is_some_and(|state| state.contains("not a measured live winner"))
+	);
+	assert!(
+		context_trajectory
+			.pointer("/next_measurement")
+			.and_then(Value::as_str)
+			.is_some_and(|measurement| measurement.contains("evidence-bearing retrieval pass"))
+	);
+
+	Ok(())
+}
+
+fn assert_strength_profile_summary(report: &Value) {
+	assert_eq!(
+		report.pointer("/schema").and_then(Value::as_str),
+		Some("elf.competitor_strength_profile_report/v1")
+	);
+	assert_eq!(
+		report.pointer("/summary/qmd/retrieval_quality").and_then(Value::as_str),
+		Some("tie")
+	);
+	assert_eq!(
+		report.pointer("/summary/qmd/local_query_transparency").and_then(Value::as_str),
+		Some("not_tested")
+	);
+	assert_eq!(
+		report.pointer("/summary/qmd/local_replayability").and_then(Value::as_str),
+		Some("not_tested")
+	);
+	assert_eq!(
+		report.pointer("/summary/qmd/overall_outcome").and_then(Value::as_str),
+		Some("not_tested")
+	);
+	assert_eq!(
+		report.pointer("/summary/openviking/overall_outcome").and_then(Value::as_str),
+		Some("not_tested")
+	);
+	assert_eq!(
+		report
+			.pointer("/qmd_strength_profile/win_tie_loss_summary/elf_win")
+			.and_then(Value::as_u64),
+		Some(0)
+	);
+	assert_eq!(
+		report.pointer("/qmd_strength_profile/win_tie_loss_summary/tie").and_then(Value::as_u64),
+		Some(3)
+	);
+	assert_eq!(
+		report
+			.pointer("/qmd_strength_profile/win_tie_loss_summary/elf_loss")
+			.and_then(Value::as_u64),
+		Some(0)
+	);
+	assert_eq!(
+		report
+			.pointer("/qmd_strength_profile/win_tie_loss_summary/not_tested")
+			.and_then(Value::as_u64),
+		Some(5)
+	);
+	assert_eq!(
+		report
+			.pointer("/openviking_context_trajectory_profile/win_tie_loss_summary/not_tested")
+			.and_then(Value::as_u64),
+		Some(5)
+	);
+	assert_eq!(
+		report
+			.pointer("/openviking_context_trajectory_profile/win_tie_loss_summary/elf_win")
+			.and_then(Value::as_u64),
+		Some(1)
+	);
+}
+
+fn assert_strength_profile_terms(report: &Value) -> Result<()> {
+	let result_terms = array_at(report, "/result_type_terms")?;
+	let coverage_terms = array_at(report, "/coverage_status_terms")?;
+	let outcome_terms = array_at(report, "/outcome_terms")?;
+	let actual_result_terms = string_array_at(report, "/result_type_terms")?;
+	let actual_coverage_terms = string_array_at(report, "/coverage_status_terms")?;
+
+	assert_eq!(
+		actual_result_terms,
+		[
+			"pass",
+			"wrong_result",
+			"blocked",
+			"incomplete",
+			"lifecycle_fail",
+			"not_encoded",
+			"unsupported_claim",
+		]
+		.map(str::to_owned)
+	);
+	assert_eq!(
+		actual_coverage_terms,
+		[
+			"pass",
+			"wrong_result",
+			"blocked",
+			"incomplete",
+			"lifecycle_fail",
+			"not_encoded",
+			"unsupported",
+			"unsupported_claim",
+		]
+		.map(str::to_owned)
+	);
+	assert!(!result_terms.iter().any(|term| term.as_str() == Some("unsupported")));
+	assert!(!result_terms.iter().any(|term| term.as_str() == Some("partial")));
+	assert!(!coverage_terms.iter().any(|term| term.as_str() == Some("partial")));
+	assert!(result_terms.iter().any(|term| term.as_str() == Some("unsupported_claim")));
+	assert!(coverage_terms.iter().any(|term| term.as_str() == Some("unsupported")));
+
+	assert_value_in_terms(report, "/summary/qmd/overall_outcome", outcome_terms)?;
+	assert_value_in_terms(report, "/summary/openviking/overall_outcome", outcome_terms)?;
+
+	for scenario in array_at(report, "/qmd_strength_profile/scenario_outcomes")? {
+		assert_value_in_terms(scenario, "/result_type", result_terms)?;
+		assert_value_in_terms(scenario, "/elf_status", coverage_terms)?;
+		assert_value_in_terms(scenario, "/qmd_status", coverage_terms)?;
+	}
+	for scenario in array_at(report, "/openviking_context_trajectory_profile/scenario_outcomes")? {
+		assert_value_in_terms(scenario, "/result_type", result_terms)?;
+		assert_value_in_terms(scenario, "/openviking_status", coverage_terms)?;
+		assert_value_in_terms(scenario, "/elf_equivalent_status", coverage_terms)?;
+	}
+
+	Ok(())
+}
+
+fn assert_value_in_terms(value: &Value, pointer: &str, terms: &[Value]) -> Result<()> {
+	let actual = value
+		.pointer(pointer)
+		.and_then(Value::as_str)
+		.ok_or_else(|| eyre::eyre!("missing string at {pointer}"))?;
+
+	assert!(
+		terms.iter().any(|term| term.as_str() == Some(actual)),
+		"{actual} at {pointer} is not declared in the report term list"
+	);
+
+	Ok(())
+}
+
+fn assert_qmd_strength_profile(report: &Value) -> Result<()> {
+	let qmd_scenarios = array_at(report, "/qmd_strength_profile/scenario_outcomes")?;
+	let local_transparency =
+		find_by_field(qmd_scenarios, "/scenario_id", "qmd-local-query-transparency")?;
+	let retrieval = find_by_field(qmd_scenarios, "/scenario_id", "qmd-retrieval-quality")?;
+	let rerank_controls =
+		find_by_field(qmd_scenarios, "/scenario_id", "qmd-expansion-fusion-rerank-controls")?;
+	let stale_isolation =
+		find_by_field(qmd_scenarios, "/scenario_id", "qmd-stale-context-isolation")?;
+	let lifecycle = find_by_field(qmd_scenarios, "/scenario_id", "qmd-update-delete-cold-start")?;
+	let operator_debug =
+		find_by_field(qmd_scenarios, "/scenario_id", "qmd-operator-debug-evidence")?;
+	let replayability = find_by_field(qmd_scenarios, "/scenario_id", "qmd-local-replayability")?;
+	let wrong_result = find_by_field(qmd_scenarios, "/scenario_id", "qmd-wrong-result-diagnosis")?;
+
+	assert_eq!(qmd_scenarios.len(), 8);
+	assert_eq!(retrieval.pointer("/elf_outcome").and_then(Value::as_str), Some("tie"));
+	assert_eq!(
+		local_transparency.pointer("/elf_outcome").and_then(Value::as_str),
+		Some("not_tested")
+	);
+	assert_eq!(
+		local_transparency.pointer("/result_type").and_then(Value::as_str),
+		Some("not_encoded")
+	);
+	assert_eq!(
+		rerank_controls.pointer("/result_type").and_then(Value::as_str),
+		Some("not_encoded")
+	);
+	assert_eq!(stale_isolation.pointer("/result_type").and_then(Value::as_str), Some("pass"));
+	assert_eq!(stale_isolation.pointer("/elf_outcome").and_then(Value::as_str), Some("tie"));
+	assert_eq!(lifecycle.pointer("/result_type").and_then(Value::as_str), Some("pass"));
+	assert_eq!(lifecycle.pointer("/elf_outcome").and_then(Value::as_str), Some("tie"));
+	assert_eq!(operator_debug.pointer("/result_type").and_then(Value::as_str), Some("not_encoded"));
+	assert_eq!(operator_debug.pointer("/elf_outcome").and_then(Value::as_str), Some("not_tested"));
+	assert_eq!(replayability.pointer("/result_type").and_then(Value::as_str), Some("not_encoded"));
+	assert_eq!(replayability.pointer("/elf_outcome").and_then(Value::as_str), Some("not_tested"));
+	assert_eq!(
+		wrong_result.pointer("/evidence_class").and_then(Value::as_str),
+		Some("research_gate")
+	);
+	assert_eq!(wrong_result.pointer("/result_type").and_then(Value::as_str), Some("not_encoded"));
+
+	Ok(())
+}
+
+fn assert_qmd_wrong_result_diagnosis(report: &Value) -> Result<()> {
+	let taxonomy = array_at(report, "/qmd_strength_profile/wrong_result_diagnosis/taxonomy")?;
+	let absent = find_by_field(taxonomy, "/class", "evidence_absent")?;
+	let dropped = find_by_field(taxonomy, "/class", "retrieved_but_dropped")?;
+	let narrated = find_by_field(taxonomy, "/class", "selected_but_not_narrated")?;
+	let lifecycle = find_by_field(taxonomy, "/class", "contradicted_by_lifecycle_evidence")?;
+
+	assert_eq!(absent.pointer("/coverage").and_then(Value::as_str), Some("observed"));
+	assert_eq!(
+		dropped.pointer("/coverage").and_then(Value::as_str),
+		Some("not_observed_candidate_trace_missing")
+	);
+	assert_eq!(narrated.pointer("/coverage").and_then(Value::as_str), Some("observed"));
+	assert_eq!(lifecycle.pointer("/coverage").and_then(Value::as_str), Some("observed"));
+
+	let qmd_diagnosis_jobs = array_at(report, "/qmd_strength_profile/wrong_result_diagnosis/jobs")?;
+	let delete_job =
+		find_by_field(qmd_diagnosis_jobs, "/job_id", "memory-evolution-delete-ttl-001")?;
+
+	assert_eq!(qmd_diagnosis_jobs.len(), 6);
+	assert_eq!(delete_job.pointer("/qmd_status").and_then(Value::as_str), Some("wrong_result"));
+	assert!(array_contains_str(delete_job, "/missing_evidence", "delete-tombstone")?);
+	assert!(
+		delete_job
+			.pointer("/diagnosis")
+			.and_then(Value::as_str)
+			.is_some_and(|diagnosis| diagnosis.contains("typed wrong_result"))
+	);
+
+	Ok(())
+}
+
+fn assert_openviking_strength_profile(report: &Value) -> Result<()> {
+	let openviking_scenarios =
+		array_at(report, "/openviking_context_trajectory_profile/scenario_outcomes")?;
+	let trajectory = find_by_field(
+		openviking_scenarios,
+		"/scenario_id",
+		"openviking-staged-retrieval-trajectory",
+	)?;
+	let precondition = find_by_field(
+		openviking_scenarios,
+		"/scenario_id",
+		"openviking-evidence-bearing-retrieval-precondition",
+	)?;
+	let local_embed_setup =
+		find_by_field(openviking_scenarios, "/scenario_id", "openviking-local-embed-setup")?;
+	let missed_terms = find_by_field(
+		openviking_scenarios,
+		"/scenario_id",
+		"openviking-missed-expected-terms-evidence",
+	)?;
+	let hierarchy =
+		find_by_field(openviking_scenarios, "/scenario_id", "openviking-hierarchy-selection")?;
+	let recursive_expansion = find_by_field(
+		openviking_scenarios,
+		"/scenario_id",
+		"openviking-recursive-context-expansion",
+	)?;
+
+	assert_eq!(openviking_scenarios.len(), 6);
+	assert_eq!(
+		trajectory.pointer("/evidence_class").and_then(Value::as_str),
+		Some("research_gate")
+	);
+	assert_eq!(trajectory.pointer("/result_type").and_then(Value::as_str), Some("not_encoded"));
+	assert_eq!(local_embed_setup.pointer("/result_type").and_then(Value::as_str), Some("pass"));
+	assert_eq!(
+		local_embed_setup.pointer("/elf_outcome").and_then(Value::as_str),
+		Some("not_tested")
+	);
+	assert_eq!(local_embed_setup.pointer("/typed_blocker"), Some(&Value::Null));
+	assert_eq!(precondition.pointer("/result_type").and_then(Value::as_str), Some("wrong_result"));
+	assert_eq!(precondition.pointer("/elf_outcome").and_then(Value::as_str), Some("elf_win"));
+	assert_eq!(
+		precondition.pointer("/typed_blocker").and_then(Value::as_str),
+		Some("output_missed_expected_terms")
+	);
+	assert_eq!(missed_terms.pointer("/result_type").and_then(Value::as_str), Some("wrong_result"));
+	assert_eq!(missed_terms.pointer("/elf_outcome").and_then(Value::as_str), Some("not_tested"));
+	assert_eq!(hierarchy.pointer("/result_type").and_then(Value::as_str), Some("not_encoded"));
+	assert_eq!(hierarchy.pointer("/elf_outcome").and_then(Value::as_str), Some("not_tested"));
+	assert_eq!(
+		recursive_expansion.pointer("/result_type").and_then(Value::as_str),
+		Some("not_encoded")
+	);
+	assert_eq!(
+		recursive_expansion.pointer("/elf_outcome").and_then(Value::as_str),
+		Some("not_tested")
+	);
+
+	Ok(())
+}
+
+fn assert_strength_profile_json_claim_boundaries(report: &Value) -> Result<()> {
+	assert!(array_contains_str(
+		report,
+		"/claim_boundaries",
+		"ELF does not broadly beat qmd; it ties encoded retrieval and lifecycle correctness, keeps qmd query transparency as not_tested for comparative scoring, and leaves replayability not_tested."
+	)?);
+	assert!(array_contains_str(
+		report,
+		"/claim_boundaries",
+		"qmd expansion, fusion, and rerank superiority remains not_tested because the current qmd paths use --no-rerank and do not score internals."
+	)?);
+	assert!(array_contains_str(
+		report,
+		"/claim_boundaries",
+		"ELF does not beat OpenViking on context trajectory; OpenViking trajectory strengths remain not_tested behind a wrong_result same-corpus output precondition."
+	)?);
+	assert!(array_contains_str(
+		report,
+		"/claim_boundaries",
+		"Research_gate records are follow-up gates, not pass evidence."
+	)?);
+	assert!(array_contains_str(
+		report,
+		"/claim_boundaries",
+		"Missing equivalent surfaces are encoded as unsupported or not_encoded rather than fake losses."
+	)?);
+
+	Ok(())
+}
+
+fn assert_strength_profile_markdown_boundaries(markdown: &str) {
+	assert!(
+		markdown.contains(
+			"| Wrong-result diagnosis | `research_gate` | `not_encoded` | `not_tested` |"
+		)
+	);
+	assert!(
+		markdown.contains("ELF ties qmd on the current encoded retrieval-correctness surfaces")
+	);
+	assert!(markdown.contains("qmd remains the local retrieval-debug UX reference"));
+	assert!(markdown.contains("not scored as comparative ELF wins or losses"));
+	assert!(markdown.contains("ELF currently wins only the equivalent OpenViking same-corpus"));
+	assert!(markdown.contains("Do not claim ELF broadly beats qmd"));
+	assert!(markdown.contains(
+		"Do not claim ELF beats OpenViking on staged retrieval, hierarchy, or recursive"
+	));
+	assert!(markdown.contains(
+		"Do not turn `research_gate`, `not_encoded`, or `unsupported` surfaces into wins"
+	));
+	assert!(markdown.contains("no pass evidence is claimed"));
+	assert!(markdown.contains("typed `wrong_result` state"));
+}
+
+fn assert_operator_facing_strength_profile_boundaries(
+	readme: &str,
+	benchmarking_index: &str,
+	iteration_direction: &str,
+) {
+	assert!(readme.contains("Full-suite live real-world adapter sweep after XY-899"));
+	assert!(readme.contains("fresh ELF sweep reports 18 pass"));
+	assert!(readme.contains("5 wrong_result, 2 blocked, and 13 not_encoded jobs"));
+	assert!(readme.contains("fresh qmd sweep reports"));
+	assert!(readme.contains("17 pass, 6 wrong_result, 2 blocked, and 13 not_encoded jobs"));
+	assert!(readme.contains("The difference is the"));
+	assert!(readme.contains("delete/TTL tombstone case"));
+	assert!(readme.contains("qmd remains the local retrieval-debug UX reference"));
+	assert!(readme.contains("no broad ELF-over-qmd claim is allowed"));
+	assert!(readme.contains("qmd and OpenViking Strength-Profile Report - June 11, 2026"));
+	assert!(benchmarking_index.contains("2026-06-11-qmd-openviking-strength-profile-report.md"));
+	assert!(
+		benchmarking_index.contains("separates qmd retrieval quality from debug/replay ergonomics")
+	);
+	assert!(benchmarking_index.contains("preserves OpenViking context-trajectory"));
+	assert!(
+		benchmarking_index
+			.contains("surfaces as `not_tested` until staged/hierarchical evidence is encoded")
+	);
+	assert!(
+		iteration_direction
+			.contains("ELF and qmd are tied on the encoded live retrieval, work-resume, and")
+	);
+	assert!(iteration_direction.contains("ELF does not yet beat qmd's local retrieval-debug"));
+	assert!(
+		iteration_direction
+			.contains("ELF beats OpenViking on context trajectory. That scenario is not encoded.")
+	);
+	assert!(
+		iteration_direction
+			.contains("Do not promote a reference project into a win/loss claim until")
+	);
 }
 
 #[test]
