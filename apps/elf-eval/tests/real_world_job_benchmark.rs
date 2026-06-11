@@ -190,6 +190,14 @@ fn readme_path() -> Result<PathBuf> {
 	Ok(workspace_root()?.join("README.md"))
 }
 
+fn comparison_external_projects_path() -> Result<PathBuf> {
+	Ok(workspace_root()?
+		.join("docs")
+		.join("guide")
+		.join("research")
+		.join("comparison_external_projects.md"))
+}
+
 fn benchmarking_index_path() -> Result<PathBuf> {
 	Ok(workspace_root()?.join("docs").join("guide").join("benchmarking").join("index.md"))
 }
@@ -274,31 +282,45 @@ fn run_external_manifest_with_letta_attachment_mutation<F>(
 where
 	F: FnOnce(&mut Value) -> Result<()>,
 {
+	run_external_manifest_scenario_mutation(
+		slug,
+		"letta_research_gate",
+		"core_block_attachment_readback",
+		mutation,
+	)
+}
+
+fn run_external_manifest_scenario_mutation<F>(
+	slug: &str,
+	adapter_id: &str,
+	scenario_id: &str,
+	mutation: F,
+) -> Result<Output>
+where
+	F: FnOnce(&mut Value) -> Result<()>,
+{
 	let mut manifest =
 		serde_json::from_str::<Value>(&fs::read_to_string(external_adapter_manifest_path())?)?;
 	let adapters = manifest
 		.pointer_mut("/adapters")
 		.and_then(Value::as_array_mut)
 		.ok_or_else(|| eyre::eyre!("missing manifest adapters"))?;
-	let letta = adapters
+	let adapter = adapters
 		.iter_mut()
-		.find(|adapter| {
-			adapter.pointer("/adapter_id").and_then(Value::as_str) == Some("letta_research_gate")
-		})
-		.ok_or_else(|| eyre::eyre!("missing Letta adapter"))?;
-	let scenarios = letta
+		.find(|adapter| adapter.pointer("/adapter_id").and_then(Value::as_str) == Some(adapter_id))
+		.ok_or_else(|| eyre::eyre!("missing {adapter_id} adapter"))?;
+	let scenarios = adapter
 		.pointer_mut("/scenarios")
 		.and_then(Value::as_array_mut)
-		.ok_or_else(|| eyre::eyre!("missing Letta scenarios"))?;
-	let attachment = scenarios
+		.ok_or_else(|| eyre::eyre!("missing {adapter_id} scenarios"))?;
+	let scenario = scenarios
 		.iter_mut()
 		.find(|scenario| {
-			scenario.pointer("/scenario_id").and_then(Value::as_str)
-				== Some("core_block_attachment_readback")
+			scenario.pointer("/scenario_id").and_then(Value::as_str) == Some(scenario_id)
 		})
-		.ok_or_else(|| eyre::eyre!("missing Letta attachment scenario"))?;
+		.ok_or_else(|| eyre::eyre!("missing {scenario_id} scenario"))?;
 
-	mutation(attachment)?;
+	mutation(scenario)?;
 
 	let temp_dir = env::temp_dir().join(format!("elf-real-world-{slug}-{}", process::id()));
 
@@ -495,7 +517,7 @@ fn external_adapter_run_summarizes_nonzero_scenario_losses() -> Result<()> {
 		report
 			.pointer("/external_adapters/summary/scenario_outcome_counts/not_tested")
 			.and_then(Value::as_u64),
-		Some(11)
+		Some(10)
 	);
 
 	let adapters = array_at(&report, "/external_adapters/adapters")?;
@@ -719,13 +741,13 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/scenario_outcome_counts/not_tested")
 			.and_then(Value::as_u64),
-		Some(12)
+		Some(11)
 	);
 	assert_eq!(
 		report
 			.pointer("/external_adapters/summary/scenario_outcome_counts/blocked")
 			.and_then(Value::as_u64),
-		Some(4)
+		Some(5)
 	);
 	assert_eq!(
 		report
@@ -1097,6 +1119,10 @@ fn assert_first_generation_adapter_records(
 		Some("wins")
 	);
 	assert_eq!(agentmemory.pointer("/scenarios/2/status").and_then(Value::as_str), Some("blocked"));
+	assert_eq!(
+		agentmemory.pointer("/scenarios/2/comparison_outcome").and_then(Value::as_str),
+		Some("blocked")
+	);
 	assert_eq!(
 		mem0.pointer("/capabilities/2/capability").and_then(Value::as_str),
 		Some("local_lifecycle_update_delete_reload")
@@ -1514,6 +1540,49 @@ fn external_adapter_manifest_rejects_unmeasured_win_loss_scenario_positions() ->
 }
 
 #[test]
+fn external_adapter_manifest_rejects_blocked_status_without_blocked_outcome() -> Result<()> {
+	let output = run_external_manifest_scenario_mutation(
+		"invalid-blocked-scenario-outcome-test",
+		"letta_research_gate",
+		"stale_core_detection",
+		|scenario| {
+			scenario
+				.as_object_mut()
+				.ok_or_else(|| eyre::eyre!("scenario is not an object"))?
+				.remove("comparison_outcome");
+
+			Ok(())
+		},
+	)?;
+
+	assert!(!output.status.success(), "invalid blocked scenario unexpectedly passed");
+	assert!(
+		String::from_utf8_lossy(&output.stderr)
+			.contains("blocked status without blocked comparison outcome")
+	);
+
+	Ok(())
+}
+
+#[test]
+fn external_adapter_manifest_rejects_conflicting_scenario_position_and_outcome() -> Result<()> {
+	let output = run_external_manifest_with_letta_attachment_mutation(
+		"invalid-scenario-position-outcome-test",
+		|scenario| {
+			set_json_pointer(scenario, "/status", serde_json::json!("pass"))?;
+			set_json_pointer(scenario, "/elf_position", serde_json::json!("ties"))?;
+
+			set_json_pointer(scenario, "/comparison_outcome", serde_json::json!("loss"))
+		},
+	)?;
+
+	assert!(!output.status.success(), "conflicting scenario unexpectedly passed");
+	assert!(String::from_utf8_lossy(&output.stderr).contains("ties position with loss outcome"));
+
+	Ok(())
+}
+
+#[test]
 fn live_adapter_supports_elf_capture_write_policy_without_external_hook_claims() -> Result<()> {
 	let workspace = workspace_root()?;
 	let live_adapter =
@@ -1648,6 +1717,8 @@ fn capture_write_policy_live_report_preserves_competitor_boundaries() -> Result<
 	assert!(markdown.contains("Do not claim ELF broadly beats agentmemory or claude-mem"));
 	assert!(benchmarking_index.contains("2026-06-11-capture-write-policy-live-report.md"));
 	assert!(readme.contains("Capture/Write-Policy Live Report - June 11, 2026"));
+	assert!(readme.contains("mem0/OpenMemory"));
+	assert!(readme.contains("and memsearch now pass their scoped local baseline"));
 
 	Ok(())
 }
@@ -2039,6 +2110,7 @@ fn current_benchmark_reports_preserve_live_sweep_boundaries() -> Result<()> {
 	)?)?;
 	let iteration_direction = fs::read_to_string(iteration_direction_report_path()?)?;
 	let external_manifest = fs::read_to_string(external_adapter_manifest_path())?;
+	let comparison_external_projects = fs::read_to_string(comparison_external_projects_path()?)?;
 	let retrieval_debug_profile =
 		serde_json::from_str::<Value>(&fs::read_to_string(retrieval_debug_profile_json_path()?)?)?;
 	let temporal_history = serde_json::from_str::<Value>(&fs::read_to_string(
@@ -2050,6 +2122,7 @@ fn current_benchmark_reports_preserve_live_sweep_boundaries() -> Result<()> {
 		&competitor_matrix,
 		&iteration_direction,
 		&external_manifest,
+		&comparison_external_projects,
 	);
 
 	let qmd_live = find_by_field(
@@ -2114,6 +2187,7 @@ fn assert_current_report_text_boundaries(
 	competitor_matrix: &str,
 	iteration_direction: &str,
 	external_manifest: &str,
+	comparison_external_projects: &str,
 ) {
 	assert!(
 		measurement_audit.contains(
@@ -2124,6 +2198,7 @@ fn assert_current_report_text_boundaries(
 		measurement_audit
 			.contains("qmd live fails 6/6 jobs after missing the delete/TTL tombstone evidence")
 	);
+	assert!(measurement_audit.contains("Basic local smoke and local OSS history/readback pass"));
 
 	assert_measurement_audit_adapter_status_counts(measurement_audit);
 
@@ -2142,6 +2217,14 @@ fn assert_current_report_text_boundaries(
 	assert!(external_manifest.contains(
 		"The qmd live real-world sweep covers the current encoded fixture corpus; expanded retrieval-debug strength suites still need their own materialized adapter run."
 	));
+	assert!(
+		comparison_external_projects
+			.contains("Benchmark-grounded for scoped local OSS same-corpus retrieval")
+	);
+	assert!(
+		comparison_external_projects
+			.contains("Benchmark-grounded for local same-corpus retrieval, reindex/update/delete")
+	);
 	assert!(iteration_direction.contains("| Jobs | `49` |"));
 	assert!(iteration_direction.contains("| Encoded suites | `13` |"));
 	assert!(iteration_direction.contains("| Pass | `44` |"));
@@ -2158,11 +2241,15 @@ fn assert_current_report_text_boundaries(
 		"| Jobs | `40` |",
 		"| Encoded suites | `11` |",
 		"| Pass | `38` |",
+		"history/UI/hosted/graph behavior remains",
+		"current local adapter is incomplete/wrong-result",
+		"current adapter is incomplete/invalid-result",
 	] {
 		assert!(!measurement_audit.contains(stale_phrase));
 		assert!(!competitor_matrix.contains(stale_phrase));
 		assert!(!iteration_direction.contains(stale_phrase));
 		assert!(!external_manifest.contains(stale_phrase));
+		assert!(!comparison_external_projects.contains(stale_phrase));
 	}
 }
 
@@ -2187,10 +2274,19 @@ fn qmd_trace_replay_diagnostics_report_preserves_claim_boundaries() -> Result<()
 	assert!(benchmarking_index.contains("qmd top-10/replay artifact"));
 	assert!(benchmarking_index.contains("ELF trace/admin surfaces"));
 	assert!(adoption_report.contains("| Retrieval quality and local debug UX | `loss` |"));
+	assert!(adoption_report.contains("Letta scenario rows remain"));
+	assert!(adoption_report.contains("blocked or `not_tested`"));
 	assert!(
 		adoption_report
 			.contains("Do not claim qmd's trace/replay artifact win is a broad qmd-over-ELF")
 	);
+	assert!(array_at(&adoption_json, "/adoption_decision/remaining_caveats")?.iter().any(
+		|caveat| {
+			caveat.as_str().is_some_and(|text| {
+				text.contains("Letta scenario rows remain blocked or not_tested")
+			})
+		}
+	));
 
 	assert_trace_replay_adoption_json(&adoption_json)?;
 
@@ -3005,7 +3101,7 @@ fn generated_json_report_renders_markdown() -> Result<()> {
 	assert!(markdown.contains("### Adapter Scenario Judgments"));
 	assert!(markdown.contains("ELF scenario positions: `wins=8, ties=9, loses=1, untested=18`"));
 	assert!(markdown.contains(
-		"Scenario comparison outcomes: `win=8, tie=9, loss=1, not_tested=12, blocked=4, non_goal=2`"
+		"Scenario comparison outcomes: `win=8, tie=9, loss=1, not_tested=11, blocked=5, non_goal=2`"
 	));
 	assert!(markdown.contains("| `claude_mem_live_baseline` | `same_corpus_retrieval`"));
 	assert!(markdown.contains("| `memsearch_live_baseline` | `ttl_expiry_lifecycle`"));
