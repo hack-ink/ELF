@@ -72,7 +72,13 @@ jq -n \
     artifact_dir: (env.ELF_LIGHTRAG_CONTEXT_REPORT_DIR // "tmp/real-world-memory/lightrag-context"),
     fixture_dir: (env.ELF_LIGHTRAG_CONTEXT_FIXTURES // "apps/elf-eval/fixtures/real_world_memory/retrieval"),
     adapter_id: (env.ELF_LIGHTRAG_ADAPTER_ID // "lightrag_live_real_world"),
-    evidence_class: "live_real_world_when_materialization_passes",
+    evidence_class: (
+      if ($materialization[0].status == "pass" or $materialization[0].status == "wrong_result") then
+        "live_real_world"
+      else
+        "research_gate"
+      end
+    ),
     materialization: $materialization[0],
     report: {
       json: "tmp/real-world-memory/lightrag-context/lightrag-report.json",
