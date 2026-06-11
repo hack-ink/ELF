@@ -23,9 +23,10 @@ What is proven today:
 
 - ELF has a strong fixture-backed real-world benchmark contract: 38 jobs, 36 pass,
   2 blocked operator boundaries, and no wrong results in the fixture aggregate.
-- ELF and qmd have comparable full-suite live real-world sweeps. They are effectively
-  tied on pass/fail shape: each has 38 jobs, 18 pass, 5 wrong_result, 2 blocked, and
-  13 not_encoded.
+- ELF and qmd have comparable full-suite live real-world sweeps. The latest generated
+  artifacts are close but no longer identical: ELF has 38 jobs with 18 pass,
+  5 wrong_result, 2 blocked, and 13 not_encoded, while qmd has 17 pass,
+  6 wrong_result, 2 blocked, and 13 not_encoded.
 - ELF is ahead on production-operation evidence among tracked systems because it has
   checked-in provider synthetic, stress, backfill, backup/restore, and Qdrant rebuild
   evidence.
@@ -82,8 +83,8 @@ live adapter or competitor runtime can complete those jobs.
 
 | Adapter | Jobs | Pass | Wrong result | Blocked | Not encoded | Mean score | Mean latency | Evidence recall | Evidence coverage |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| ELF live service adapter | `38` | `18` | `5` | `2` | `13` | `0.525` | `5.100 ms` | `41/77` | `48/84` |
-| qmd live CLI adapter | `38` | `18` | `5` | `2` | `13` | `0.512` | `719.758 ms` | `41/77` | `48/84` |
+| ELF live service adapter | `38` | `18` | `5` | `2` | `13` | `0.525` | `6.823 ms` | `41/77` | `48/84` |
+| qmd live CLI adapter | `38` | `17` | `6` | `2` | `13` | `0.486` | `819.626 ms` | `38/77` | `45/84` |
 
 This supports a narrow tie on the currently encoded live real-world suite shape. It
 does not support a broad ELF-over-qmd claim because qmd remains the stronger
@@ -124,16 +125,15 @@ The checked-in manifest records 21 adapter records across 17 unique project name
 
 | Overall status | Adapter records |
 | --- | ---: |
-| `pass` | `1` |
-| `wrong_result` | `6` |
+| `pass` | `3` |
+| `wrong_result` | `4` |
 | `lifecycle_fail` | `1` |
 | `blocked` | `6` |
 | `not_encoded` | `7` |
 
-The generated JSON report also emits `external_project_count: 19`, while the unique
-project-name count from the manifest is 17. The runner currently computes that field
-as adapter records whose project is not `ELF`, not as unique external project names.
-Interpret the unique manifest project list as the project coverage count.
+The generated JSON report now emits `external_project_count` as the distinct non-ELF
+project-name count. The manifest still has 21 adapter records across 17 unique project
+names, of which 16 are external projects.
 
 ## Project Coverage
 
@@ -214,9 +214,8 @@ Order these by decision value, not implementation convenience:
    - Output: Docker-contained artifacts mapped to evidence ids, or typed setup and
      resource blockers.
 
-Before publishing the next aggregate report, clarify or rename the generated
-`external_project_count` field so readers do not confuse non-ELF adapter records with
-unique external projects.
+Keep the generated `external_project_count` field aligned with unique non-ELF project
+names so readers do not confuse adapter records with project coverage.
 
 ## Fail Criteria
 

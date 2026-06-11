@@ -209,7 +209,7 @@ fn assert_external_adapter_manifest_summary(report: &Value) {
 	);
 	assert_eq!(
 		report.pointer("/external_adapters/summary/external_project_count").and_then(Value::as_u64),
-		Some(19)
+		Some(16)
 	);
 	assert_eq!(
 		report.pointer("/external_adapters/summary/fixture_backed_count").and_then(Value::as_u64),
@@ -281,7 +281,13 @@ fn assert_external_adapter_manifest_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/suite_status_counts/blocked")
 			.and_then(Value::as_u64),
-		Some(11)
+		Some(13)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/suite_status_counts/incomplete")
+			.and_then(Value::as_u64),
+		Some(0)
 	);
 
 	assert_external_adapter_manifest_scenario_summary(report);
@@ -593,7 +599,7 @@ fn assert_live_sweep_record(adapter: &Value) -> Result<()> {
 	assert_eq!(full_pass.pointer("/status").and_then(Value::as_str), Some("wrong_result"));
 	assert_eq!(work_resume.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(memory_evolution.pointer("/status").and_then(Value::as_str), Some("wrong_result"));
-	assert_eq!(production_ops.pointer("/status").and_then(Value::as_str), Some("incomplete"));
+	assert_eq!(production_ops.pointer("/status").and_then(Value::as_str), Some("blocked"));
 	assert_eq!(consolidation.pointer("/status").and_then(Value::as_str), Some("not_encoded"));
 
 	Ok(())
