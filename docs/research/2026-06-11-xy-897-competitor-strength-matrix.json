@@ -117,7 +117,7 @@
       "unsupported_or_blocked_status": {
         "state": "not_encoded",
         "typed_reason": "deep_profile_and_non_retrieval_suites_not_encoded",
-        "details": "The full live sweep passes targeted retrieval suites but keeps memory_evolution wrong_result and several broader suites not_encoded or incomplete."
+        "details": "The full live sweep passes targeted retrieval suites but keeps memory_evolution wrong_result and several broader suites not_encoded or blocked."
       },
       "benchmark_before_claim": "Run qmd deep retrieval/debug profile and full-suite live real-world replay with trace-level diagnostics before claiming ELF wins, ties, or loses on retrieval debugging.",
       "borrow_if_stronger": "Borrow transparent local knobs for query rewriting, weighted fusion, rerank explanation, and command-line replay."
