@@ -161,10 +161,11 @@ provider-backed ELF evidence was required.
   1 incomplete, 2 blocked, and 12 not_encoded jobs.
 - Expanded adapter-pack coverage after XY-834: the real-world external adapter
   manifest now includes `research_gate` records for RAGFlow, LightRAG, GraphRAG,
-  Graphiti/Zep, Letta, LangGraph, nanograph, llm-wiki, gbrain, graphify, and deeper
-  qmd/OpenViking profiles. These records carry source/setup/runtime/resource/retry
-  metadata and typed `blocked`, `incomplete`, `wrong_result`, or `not_encoded` states;
-  they are not fixture-backed or live adapter pass evidence.
+  Graphiti/Zep, Letta, LangGraph, nanograph, llm-wiki, gbrain, and deeper
+  qmd/OpenViking profiles, while graphify now has a scored tiny Docker smoke record.
+  These records carry source/setup/runtime/resource/retry metadata and typed
+  `blocked`, `incomplete`, `wrong_result`, or `not_encoded` states; they are not
+  fixture-backed or live adapter pass evidence.
 - Graph/RAG scored-smoke promotion after XY-900: RAGFlow, LightRAG, GraphRAG,
   Graphiti/Zep, and graphify smokes now emit scored or typed non-pass
   `real_world_job` adapter reports when run. graphify currently reaches a tiny Docker
