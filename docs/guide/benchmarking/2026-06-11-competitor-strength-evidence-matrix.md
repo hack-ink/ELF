@@ -41,7 +41,7 @@ Current boundary:
 
 ## Current Ledger Summary
 
-The current manifest has 21 adapter records across 19 external projects.
+The current manifest has 21 adapter records across 16 external projects plus ELF.
 Evidence-class counts: 1 `fixture_backed`, 6 `live_baseline_only`, 3
 `live_real_world`, and 11 `research_gate`. Overall adapter-status counts: 1 `pass`,
 7 `wrong_result`, 1 `lifecycle_fail`, 5 `blocked`, and 7 `not_encoded`.
