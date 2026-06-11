@@ -54,10 +54,10 @@ The strongest current statement is:
 | Not encoded | `0` |
 | Unsupported claim | `0` |
 | Mean score | `0.898` |
-| Evidence coverage | `110/110` |
-| Source-ref coverage | `110/110` |
-| Quote coverage | `110/110` |
-| Expected evidence recall | `99/99` |
+| Evidence coverage | `111/111` |
+| Source-ref coverage | `111/111` |
+| Quote coverage | `111/111` |
+| Expected evidence recall | `100/100` |
 
 This proves the fixture contract is broad and well controlled. It does not prove that
 every live adapter or every competitor runtime passes those scenarios.
