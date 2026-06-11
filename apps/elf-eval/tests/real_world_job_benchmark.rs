@@ -184,6 +184,76 @@ fn real_world_report_includes_external_adapter_coverage_manifest() -> Result<()>
 	Ok(())
 }
 
+#[test]
+fn external_adapter_run_summarizes_nonzero_scenario_losses() -> Result<()> {
+	let manifest_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+		.join("fixtures")
+		.join("real_world_external_adapters")
+		.join("memory_projects_manifest.json");
+	let mut manifest = serde_json::from_str::<Value>(&fs::read_to_string(manifest_path)?)?;
+	let adapters = manifest
+		.pointer_mut("/adapters")
+		.and_then(Value::as_array_mut)
+		.ok_or_else(|| eyre::eyre!("missing manifest adapters"))?;
+	let adapter = adapters
+		.iter_mut()
+		.find(|adapter| {
+			adapter.pointer("/adapter_id").and_then(Value::as_str)
+				== Some("agentmemory_live_baseline")
+		})
+		.ok_or_else(|| eyre::eyre!("missing agentmemory adapter"))?;
+
+	set_json_pointer(adapter, "/scenarios/0/elf_position", serde_json::json!("loses"))?;
+
+	let temp_dir =
+		env::temp_dir().join(format!("elf-real-world-loss-manifest-test-{}", process::id()));
+
+	fs::create_dir_all(&temp_dir)?;
+
+	let manifest_path = temp_dir.join("memory_projects_manifest.json");
+
+	fs::write(&manifest_path, serde_json::to_vec_pretty(&manifest)?)?;
+
+	let output = Command::new(env!("CARGO_BIN_EXE_real_world_job_benchmark"))
+		.arg("run")
+		.arg("--fixtures")
+		.arg(fixture_dir())
+		.arg("--external-adapter-manifest")
+		.arg(&manifest_path)
+		.output()?;
+
+	assert!(
+		output.status.success(),
+		"real_world_job runner failed: {}",
+		String::from_utf8_lossy(&output.stderr),
+	);
+
+	let report = serde_json::from_slice::<Value>(&output.stdout)?;
+
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_position_counts/loses")
+			.and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_position_counts/untested")
+			.and_then(Value::as_u64),
+		Some(8)
+	);
+
+	let adapters = array_at(&report, "/external_adapters/adapters")?;
+	let agentmemory = find_by_field(adapters, "/adapter_id", "agentmemory_live_baseline")?;
+
+	assert_eq!(
+		agentmemory.pointer("/scenarios/0/elf_position").and_then(Value::as_str),
+		Some("loses")
+	);
+
+	Ok(())
+}
+
 fn assert_external_adapter_manifest_summary(report: &Value) {
 	assert_eq!(
 		report.pointer("/external_adapters/schema").and_then(Value::as_str),
@@ -934,6 +1004,139 @@ fn generated_json_report_renders_markdown() -> Result<()> {
 	assert!(markdown.contains("ELF scenario positions: `wins=2, ties=2, untested=9`"));
 	assert!(markdown.contains("| `claude_mem_live_baseline` | `same_corpus_retrieval`"));
 	assert!(markdown.contains("| `memsearch_live_baseline` | `ttl_expiry_lifecycle`"));
+
+	Ok(())
+}
+
+#[test]
+fn external_adapter_markdown_renders_nonzero_scenario_losses() -> Result<()> {
+	let mut report = run_json_report()?;
+	let adapters = report
+		.pointer_mut("/external_adapters/adapters")
+		.and_then(Value::as_array_mut)
+		.ok_or_else(|| eyre::eyre!("missing external adapter records"))?;
+	let adapter = adapters
+		.iter_mut()
+		.find(|adapter| {
+			adapter.pointer("/adapter_id").and_then(Value::as_str)
+				== Some("agentmemory_live_baseline")
+		})
+		.ok_or_else(|| eyre::eyre!("missing agentmemory adapter"))?;
+
+	set_json_pointer(adapter, "/scenarios/0/elf_position", serde_json::json!("loses"))?;
+	set_json_pointer(
+		&mut report,
+		"/external_adapters/summary/scenario_position_counts",
+		serde_json::json!({
+			"wins": 2,
+			"ties": 2,
+			"loses": 1,
+			"untested": 8
+		}),
+	)?;
+
+	let temp_dir =
+		env::temp_dir().join(format!("elf-real-world-loss-scenario-test-{}", process::id()));
+
+	fs::create_dir_all(&temp_dir)?;
+
+	let report_path = temp_dir.join("report.json");
+	let markdown_path = temp_dir.join("report.md");
+
+	fs::write(&report_path, serde_json::to_vec_pretty(&report)?)?;
+
+	let output = Command::new(env!("CARGO_BIN_EXE_real_world_job_benchmark"))
+		.arg("publish")
+		.arg("--report")
+		.arg(&report_path)
+		.arg("--out")
+		.arg(&markdown_path)
+		.output()?;
+
+	assert!(
+		output.status.success(),
+		"real_world_job publisher failed: {}",
+		String::from_utf8_lossy(&output.stderr),
+	);
+
+	let markdown = fs::read_to_string(markdown_path)?;
+
+	assert!(markdown.contains("ELF scenario positions: `wins=2, ties=2, loses=1, untested=8`"));
+	assert!(markdown.contains(
+		"| `agentmemory_live_baseline` | `basic_same_corpus_retrieval` | `retrieval` | `pass` | `loses` |"
+	));
+
+	Ok(())
+}
+
+#[test]
+fn external_adapter_markdown_omits_scenario_summary_when_manifest_has_no_scenarios() -> Result<()> {
+	let mut report = run_json_report()?;
+	let adapters = report
+		.pointer_mut("/external_adapters/adapters")
+		.and_then(Value::as_array_mut)
+		.ok_or_else(|| eyre::eyre!("missing external adapter records"))?;
+
+	for adapter in adapters {
+		set_json_pointer(adapter, "/scenarios", serde_json::json!([]))?;
+	}
+
+	set_json_pointer(
+		&mut report,
+		"/external_adapters/summary/scenario_status_counts",
+		serde_json::json!({
+			"real": 0,
+			"mocked": 0,
+			"unsupported": 0,
+			"blocked": 0,
+			"incomplete": 0,
+			"wrong_result": 0,
+			"lifecycle_fail": 0,
+			"pass": 0,
+			"not_encoded": 0
+		}),
+	)?;
+	set_json_pointer(
+		&mut report,
+		"/external_adapters/summary/scenario_position_counts",
+		serde_json::json!({
+			"wins": 0,
+			"ties": 0,
+			"loses": 0,
+			"untested": 0
+		}),
+	)?;
+
+	let temp_dir =
+		env::temp_dir().join(format!("elf-real-world-no-scenario-test-{}", process::id()));
+
+	fs::create_dir_all(&temp_dir)?;
+
+	let report_path = temp_dir.join("report.json");
+	let markdown_path = temp_dir.join("report.md");
+
+	fs::write(&report_path, serde_json::to_vec_pretty(&report)?)?;
+
+	let output = Command::new(env!("CARGO_BIN_EXE_real_world_job_benchmark"))
+		.arg("publish")
+		.arg("--report")
+		.arg(&report_path)
+		.arg("--out")
+		.arg(&markdown_path)
+		.output()?;
+
+	assert!(
+		output.status.success(),
+		"real_world_job publisher failed: {}",
+		String::from_utf8_lossy(&output.stderr),
+	);
+
+	let markdown = fs::read_to_string(markdown_path)?;
+
+	assert!(markdown.contains("External Adapter Coverage"));
+	assert!(!markdown.contains("Scenario coverage statuses:"));
+	assert!(!markdown.contains("ELF scenario positions:"));
+	assert!(!markdown.contains("### Adapter Scenario Judgments"));
 
 	Ok(())
 }

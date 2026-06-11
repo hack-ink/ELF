@@ -41,12 +41,13 @@ production," but the competitiveness objective remains open.
 
 ## Fresh Runs
 
-These commands were run from an isolated report worktree based on `origin/main`:
+These commands were run in the current XY-898 lane after adapter-report consistency
+repairs:
 
 | Command | Result | Runtime |
 | --- | --- | ---: |
-| `cargo make real-world-memory` | pass | 42.38 seconds |
-| `cargo make real-world-memory-live-adapters` | pass | 121.93 seconds |
+| `cargo make real-world-memory` | pass | 11.91 seconds |
+| `cargo make real-world-memory-live-adapters` | pass | 121.51 seconds |
 
 The live adapter run emitted repeated Qdrant client/server compatibility warnings, but
 the command completed successfully and produced ELF and qmd JSON/Markdown reports.
@@ -84,33 +85,36 @@ live adapter or competitor runtime can complete those jobs.
 
 | Adapter | Jobs | Pass | Wrong result | Blocked | Not encoded | Mean score | Mean latency | Evidence recall | Evidence coverage |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| ELF live service adapter | `38` | `18` | `5` | `2` | `13` | `0.525` | `6.823 ms` | `41/77` | `48/84` |
-| qmd live CLI adapter | `38` | `17` | `6` | `2` | `13` | `0.486` | `819.626 ms` | `38/77` | `45/84` |
+| ELF live service adapter | `38` | `18` | `5` | `2` | `13` | `0.525` | `6.761 ms` | `41/77` | `48/84` |
+| qmd live CLI adapter | `38` | `17` | `6` | `2` | `13` | `0.486` | `842.057 ms` | `38/77` | `45/84` |
 
-This supports a narrow tie on the currently encoded live real-world suite shape. It
-does not support a broad ELF-over-qmd claim because qmd remains the stronger
-retrieval-debug UX reference and its deep profile is still not encoded.
+This supports a near tie on the currently encoded live real-world suite shape, with
+ELF one job ahead in this fresh run. It does not support a broad ELF-over-qmd claim
+because qmd remains the stronger retrieval-debug UX reference and its deep profile is
+still not encoded.
 
 ### Live Suite Breakdown
 
-ELF and qmd had the same suite status shape:
+ELF and qmd have the same status shape outside `memory_evolution`. The difference is
+`memory-evolution-delete-ttl-001`: ELF passes that job while qmd reports
+`wrong_result`, leaving ELF at five memory-evolution wrong results and qmd at six.
 
-| Suite | Jobs | Status breakdown |
-| --- | ---: | --- |
-| `trust_source_of_truth` | `1` | `pass:1` |
-| `work_resume` | `5` | `pass:5` |
-| `retrieval` | `5` | `pass:5` |
-| `project_decisions` | `5` | `pass:5` |
-| `personalization` | `1` | `pass:1` |
-| `memory_evolution` | `6` | `pass:1`, `wrong_result:5` |
-| `capture_integration` | `2` | `not_encoded:2` |
-| `consolidation` | `4` | `not_encoded:4` |
-| `knowledge_compilation` | `2` | `not_encoded:2` |
-| `operator_debugging_ux` | `1` | `not_encoded:1` |
-| `production_ops` | `6` | `blocked:2`, `not_encoded:4` |
+| Suite | Jobs | ELF breakdown | qmd breakdown |
+| --- | ---: | --- | --- |
+| `trust_source_of_truth` | `1` | `pass:1` | `pass:1` |
+| `work_resume` | `5` | `pass:5` | `pass:5` |
+| `retrieval` | `5` | `pass:5` | `pass:5` |
+| `project_decisions` | `5` | `pass:5` | `pass:5` |
+| `personalization` | `1` | `pass:1` | `pass:1` |
+| `memory_evolution` | `6` | `pass:1`, `wrong_result:5` | `wrong_result:6` |
+| `capture_integration` | `2` | `not_encoded:2` | `not_encoded:2` |
+| `consolidation` | `4` | `not_encoded:4` | `not_encoded:4` |
+| `knowledge_compilation` | `2` | `not_encoded:2` | `not_encoded:2` |
+| `operator_debugging_ux` | `1` | `not_encoded:1` | `not_encoded:1` |
+| `production_ops` | `6` | `blocked:2`, `not_encoded:4` | `blocked:2`, `not_encoded:4` |
 
-The five live wrong results are all memory-evolution jobs. The live adapters retrieve
-current evidence but do not yet provide the required historical conflict evidence
+The live wrong results are all memory-evolution jobs. The live adapters retrieve
+current evidence but do not yet provide all required historical conflict evidence
 links for current-vs-historical reasoning.
 
 ## External Adapter Ledger
@@ -141,7 +145,7 @@ names, of which 16 are external projects.
 | Project | Best current evidence | Current measured state | Strongest unproven scenario | Next measurement before claim |
 | --- | --- | --- | --- | --- |
 | ELF | `fixture_backed` plus `live_real_world` | Fixture aggregate passes except 2 blocked operator boundaries; live full sweep is `wrong_result`. | Full live memory evolution, live consolidation, live knowledge pages, live capture, live production ops. | Memory-evolution diagnostic report, then live operator/capture/consolidation reports. |
-| qmd | `live_real_world` plus `live_baseline_only` | Same live sweep shape as ELF; same-corpus baseline passes. | Deep retrieval-debug ergonomics and trace replay. | qmd/ELF deep retrieval-debug profile with expansion, fusion, rerank, and dropped-candidate traces. |
+| qmd | `live_real_world` plus `live_baseline_only` | Same-corpus baseline passes; current live sweep is one memory-evolution job behind ELF. | Deep retrieval-debug ergonomics and trace replay. | qmd/ELF deep retrieval-debug profile with expansion, fusion, rerank, and dropped-candidate traces. |
 | agentmemory | `live_baseline_only` | `lifecycle_fail`. | Durable coding-agent continuity and capture hooks. | Durable lifecycle and work-resume/capture adapter report. |
 | mem0/OpenMemory | `live_baseline_only` | Basic local smoke now passes; history/UI/hosted/graph behavior remains `not_encoded`. | Entity history, lifecycle UI, OpenMemory inspection. | Entity-history, deletion-audit, and UI/export readback report. |
 | memsearch | `live_baseline_only` | Basic canonical Markdown reindex/reload smoke now passes; real-world prompt coverage remains `not_encoded`. | Markdown canonical store and local reindex clarity. | Source-of-truth and retrieval-debug real-world adapter report. |

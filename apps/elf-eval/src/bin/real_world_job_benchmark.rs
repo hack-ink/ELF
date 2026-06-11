@@ -4184,14 +4184,19 @@ fn render_markdown_external_adapters(out: &mut String, report: &RealWorldReport)
 		"- Real-world suite statuses: `{}`\n",
 		adapter_status_counts_display(&summary.suite_status_counts)
 	));
-	out.push_str(&format!(
-		"- Scenario coverage statuses: `{}`\n",
-		adapter_status_counts_display(&summary.scenario_status_counts)
-	));
-	out.push_str(&format!(
-		"- ELF scenario positions: `{}`\n\n",
-		scenario_position_counts_display(&summary.scenario_position_counts)
-	));
+
+	if has_adapter_scenarios(report.external_adapters.adapters.as_slice()) {
+		out.push_str(&format!(
+			"- Scenario coverage statuses: `{}`\n",
+			adapter_status_counts_display(&summary.scenario_status_counts)
+		));
+		out.push_str(&format!(
+			"- ELF scenario positions: `{}`\n",
+			scenario_position_counts_display(&summary.scenario_position_counts)
+		));
+	}
+
+	out.push('\n');
 	out.push_str("| Project | Adapter | Evidence Class | Overall | Setup | Run | Result | Docker | Suites | Evidence |\n");
 	out.push_str("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n");
 
@@ -4234,7 +4239,7 @@ fn render_markdown_external_adapters(out: &mut String, report: &RealWorldReport)
 }
 
 fn render_markdown_adapter_scenarios(out: &mut String, adapters: &[ExternalAdapterReport]) {
-	if !adapters.iter().any(|adapter| !adapter.scenarios.is_empty()) {
+	if !has_adapter_scenarios(adapters) {
 		return;
 	}
 
@@ -4259,6 +4264,10 @@ fn render_markdown_adapter_scenarios(out: &mut String, adapters: &[ExternalAdapt
 			));
 		}
 	}
+}
+
+fn has_adapter_scenarios(adapters: &[ExternalAdapterReport]) -> bool {
+	adapters.iter().any(|adapter| !adapter.scenarios.is_empty())
 }
 
 fn render_markdown_adapter_execution_metadata(

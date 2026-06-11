@@ -1,5 +1,5 @@
 {
-  "schema": "elf.benchmark_measurement_coverage_audit/v1",
+  "schema": "elf.benchmark_measurement_coverage_audit/v2",
   "run_id": "2026-06-11-measurement-coverage-audit",
   "source_revision": "current XY-898 lane after adapter-report consistency repairs",
   "created_at": "2026-06-11",
@@ -8,13 +8,13 @@
     {
       "command": "cargo make real-world-memory",
       "status": "pass",
-      "runtime_seconds": 42.38,
+      "runtime_seconds": 11.91,
       "artifact": "tmp/real-world-memory/real-world-memory-report.json"
     },
     {
       "command": "cargo make real-world-memory-live-adapters",
       "status": "pass",
-      "runtime_seconds": 121.93,
+      "runtime_seconds": 121.51,
       "artifact": "tmp/real-world-memory/live-adapters/"
     }
   ],
@@ -45,7 +45,7 @@
       "blocked": 2,
       "not_encoded": 13,
       "mean_score": 0.525,
-      "mean_latency_ms": 6.823,
+      "mean_latency_ms": 6.761,
       "expected_evidence_total": 77,
       "expected_evidence_matched": 41,
       "evidence_required_count": 84,
@@ -60,26 +60,84 @@
       "blocked": 2,
       "not_encoded": 13,
       "mean_score": 0.486,
-      "mean_latency_ms": 819.626,
+      "mean_latency_ms": 842.057,
       "expected_evidence_total": 77,
       "expected_evidence_matched": 38,
       "evidence_required_count": 84,
       "evidence_covered_count": 45
     }
   ],
-  "live_suite_breakdown": [
-    {"suite": "trust_source_of_truth", "jobs": 1, "status_counts": {"pass": 1}},
-    {"suite": "work_resume", "jobs": 5, "status_counts": {"pass": 5}},
-    {"suite": "retrieval", "jobs": 5, "status_counts": {"pass": 5}},
-    {"suite": "project_decisions", "jobs": 5, "status_counts": {"pass": 5}},
-    {"suite": "personalization", "jobs": 1, "status_counts": {"pass": 1}},
-    {"suite": "memory_evolution", "jobs": 6, "status_counts": {"pass": 1, "wrong_result": 5}},
-    {"suite": "capture_integration", "jobs": 2, "status_counts": {"not_encoded": 2}},
-    {"suite": "consolidation", "jobs": 4, "status_counts": {"not_encoded": 4}},
-    {"suite": "knowledge_compilation", "jobs": 2, "status_counts": {"not_encoded": 2}},
-    {"suite": "operator_debugging_ux", "jobs": 1, "status_counts": {"not_encoded": 1}},
-    {"suite": "production_ops", "jobs": 6, "status_counts": {"blocked": 2, "not_encoded": 4}}
-  ],
+  "live_suite_breakdown": {
+    "delta": "ELF passes memory-evolution-delete-ttl-001 while qmd reports wrong_result; other suite status shapes match.",
+    "suites": [
+      {
+        "suite": "trust_source_of_truth",
+        "jobs": 1,
+        "elf_status_counts": {"pass": 1},
+        "qmd_status_counts": {"pass": 1}
+      },
+      {
+        "suite": "work_resume",
+        "jobs": 5,
+        "elf_status_counts": {"pass": 5},
+        "qmd_status_counts": {"pass": 5}
+      },
+      {
+        "suite": "retrieval",
+        "jobs": 5,
+        "elf_status_counts": {"pass": 5},
+        "qmd_status_counts": {"pass": 5}
+      },
+      {
+        "suite": "project_decisions",
+        "jobs": 5,
+        "elf_status_counts": {"pass": 5},
+        "qmd_status_counts": {"pass": 5}
+      },
+      {
+        "suite": "personalization",
+        "jobs": 1,
+        "elf_status_counts": {"pass": 1},
+        "qmd_status_counts": {"pass": 1}
+      },
+      {
+        "suite": "memory_evolution",
+        "jobs": 6,
+        "elf_status_counts": {"pass": 1, "wrong_result": 5},
+        "qmd_status_counts": {"wrong_result": 6}
+      },
+      {
+        "suite": "capture_integration",
+        "jobs": 2,
+        "elf_status_counts": {"not_encoded": 2},
+        "qmd_status_counts": {"not_encoded": 2}
+      },
+      {
+        "suite": "consolidation",
+        "jobs": 4,
+        "elf_status_counts": {"not_encoded": 4},
+        "qmd_status_counts": {"not_encoded": 4}
+      },
+      {
+        "suite": "knowledge_compilation",
+        "jobs": 2,
+        "elf_status_counts": {"not_encoded": 2},
+        "qmd_status_counts": {"not_encoded": 2}
+      },
+      {
+        "suite": "operator_debugging_ux",
+        "jobs": 1,
+        "elf_status_counts": {"not_encoded": 1},
+        "qmd_status_counts": {"not_encoded": 1}
+      },
+      {
+        "suite": "production_ops",
+        "jobs": 6,
+        "elf_status_counts": {"blocked": 2, "not_encoded": 4},
+        "qmd_status_counts": {"blocked": 2, "not_encoded": 4}
+      }
+    ]
+  },
   "adapter_ledger": {
     "adapter_records": 21,
     "unique_project_names": 17,
@@ -99,7 +157,7 @@
     }
   },
   "claim_boundary": {
-    "elf_vs_qmd": "tie_on_current_encoded_live_real_world_shape_not_overall_win",
+    "elf_vs_qmd": "near_tie_on_current_encoded_live_real_world_shape_not_overall_win",
     "elf_personal_production": "credible_with_bounded_caveats",
     "broad_competitor_superiority": "not_proven",
     "major_unmeasured_strengths": [
