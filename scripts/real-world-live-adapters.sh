@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPORT_DIR="${ELF_REAL_WORLD_LIVE_REPORT_DIR:-${ROOT_DIR}/tmp/real-world-memory/live-adapters}"
 FIXTURE_DIR="${ELF_REAL_WORLD_LIVE_FIXTURES:-${ROOT_DIR}/apps/elf-eval/fixtures/real_world_memory}"
+OPERATOR_FIXTURE_DIR="${ELF_REAL_WORLD_OPERATOR_DEBUG_FIXTURES:-${ROOT_DIR}/apps/elf-eval/fixtures/real_world_job/operator_debugging_ux}"
+INPUT_FIXTURE_DIR="${REPORT_DIR}/input-fixtures"
 WORK_DIR="${ELF_REAL_WORLD_LIVE_WORK_DIR:-/bench/real-world-live-adapters}"
 QMD_DIR="${ELF_REAL_WORLD_QMD_DIR:-/bench/repos/qmd}"
 
@@ -20,7 +22,8 @@ for cmd in bash cargo git jq npm npx; do
 done
 
 mkdir -p "${REPORT_DIR}" "${WORK_DIR}"
-rm -rf "${REPORT_DIR:?}/elf-fixtures" \
+rm -rf "${INPUT_FIXTURE_DIR}" \
+  "${REPORT_DIR:?}/elf-fixtures" \
   "${REPORT_DIR:?}/qmd-fixtures" \
   "${REPORT_DIR:?}/elf-materialization.json" \
   "${REPORT_DIR:?}/qmd-materialization.json" \
@@ -37,8 +40,13 @@ rm -rf "${REPORT_DIR:?}/elf-fixtures" \
 
 cd "${ROOT_DIR}"
 
+mkdir -p "${INPUT_FIXTURE_DIR}"
+cp -R "${FIXTURE_DIR}/." "${INPUT_FIXTURE_DIR}/"
+mkdir -p "${INPUT_FIXTURE_DIR}/operator_debugging_ux"
+cp -R "${OPERATOR_FIXTURE_DIR}/." "${INPUT_FIXTURE_DIR}/operator_debugging_ux/"
+
 cargo run -p elf-eval --bin real_world_live_adapter -- elf \
-  --fixtures "${FIXTURE_DIR}" \
+  --fixtures "${INPUT_FIXTURE_DIR}" \
   --out-fixtures "${REPORT_DIR}/elf-fixtures" \
   --evidence-out "${REPORT_DIR}/elf-materialization.json" \
   --config config/local/elf.docker.toml
@@ -59,7 +67,7 @@ cargo run -p elf-eval --bin real_world_job_benchmark -- publish \
   --out "${REPORT_DIR}/elf-report.md"
 
 cargo run -p elf-eval --bin real_world_live_adapter -- qmd \
-  --fixtures "${FIXTURE_DIR}" \
+  --fixtures "${INPUT_FIXTURE_DIR}" \
   --out-fixtures "${REPORT_DIR}/qmd-fixtures" \
   --evidence-out "${REPORT_DIR}/qmd-materialization.json" \
   --qmd-dir "${QMD_DIR}" \
@@ -116,6 +124,8 @@ jq -n \
 	    generated_at: (now | todateiso8601),
 	    artifact_dir: (env.ELF_REAL_WORLD_LIVE_REPORT_DIR // "tmp/real-world-memory/live-adapters"),
 	    fixture_dir: (env.ELF_REAL_WORLD_LIVE_FIXTURES // "apps/elf-eval/fixtures/real_world_memory"),
+	    operator_debug_fixture_dir: (env.ELF_REAL_WORLD_OPERATOR_DEBUG_FIXTURES // "apps/elf-eval/fixtures/real_world_job/operator_debugging_ux"),
+	    combined_fixture_dir: "tmp/real-world-memory/live-adapters/input-fixtures",
 	    graph_rag_smoke_controls: {
 	      inclusion_flags: {
 	        ragflow: (env.ELF_REAL_WORLD_LIVE_ENABLE_RAGFLOW // "0"),

@@ -237,23 +237,24 @@ production-ops operator boundaries plus the XY-928 OpenViking `context_trajector
 gates for staged retrieval, hierarchy selection, and recursive/context expansion.
 
 Current live-adapter state: the `elf_live_real_world` and `qmd_live_real_world` adapters run a full
-encoded-suite sweep through `cargo make real-world-memory-live-adapters`. Each adapter
-materializes generated runtime answers for 40 jobs across 11 suites before scoring.
-The fixture-only `core_archival_memory` suite can also be run through
-`cargo make real-world-memory-core-archival`; it is not yet included in that live
-sweep.
+checked-in suite sweep through `cargo make real-world-memory-live-adapters`. Each adapter
+materializes generated runtime answers for 55 jobs across 13 suites before scoring,
+including the operator-debug fixture tree.
 The original targeted `work_resume`, `retrieval`, and `project_decisions` slice still
-passes, and ELF now passes the live `capture_integration` self-checks for redaction,
-exclusions, source ids, evidence binding, and no secret leakage. The full sweep is
-still not a full-suite pass: memory_evolution is `wrong_result`, production_ops keeps
-operator-owned blocked boundaries, and consolidation, knowledge_compilation, and
-operator_debugging_ux remain `not_encoded` for this live adapter path. qmd keeps
-`capture_integration` typed `not_encoded` and still also keeps its separate
-`live_baseline_only` same-corpus record for update/delete/cold-start checks; that
-record is not a real-world suite win. agentmemory is blocked on durable upstream
-storage for lifecycle proof and capture breadth. mem0/OpenMemory, memsearch, and
-claude-mem no longer share one live-baseline boundary: mem0/OpenMemory and memsearch
-now pass scoped local baseline paths, while OpenMemory product UI/export, hosted
+passes. ELF now also passes live `capture_integration` self-checks for redaction,
+exclusions, source ids, evidence binding, and no secret leakage; live consolidation
+proposal review; live knowledge-page rebuild/lint; and live operator-debug trace
+metadata. The full sweep is still not a full-suite pass: memory_evolution is
+`wrong_result`, production_ops keeps operator-owned blocked boundaries,
+core_archival_memory remains typed `not_encoded` for this live adapter path, and
+context_trajectory remains blocked. qmd keeps `capture_integration`, consolidation,
+knowledge_compilation, and core_archival_memory typed non-pass, is `wrong_result` for
+operator-debug trace hydration, and still also keeps its separate `live_baseline_only`
+same-corpus record for update/delete/cold-start checks; that record is not a
+real-world suite win. agentmemory is blocked on durable upstream storage for lifecycle
+proof and capture breadth. mem0/OpenMemory, memsearch, and claude-mem no longer share
+one live-baseline boundary: mem0/OpenMemory and memsearch now pass scoped local
+baseline paths, while OpenMemory product UI/export, hosted
 Platform behavior, optional graph memory, memsearch real-world prompt/TTL coverage,
 and claude-mem hook/viewer capture remain blocked, unsupported, not encoded, or
 wrong-result for the checked-in adapter evidence. OpenViking now reaches its pinned

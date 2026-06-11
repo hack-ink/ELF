@@ -1551,7 +1551,7 @@ fn validate_consolidation_fixture(job: &RealWorldJob, path: &Path) -> Result<()>
 	let consolidation =
 		job.corpus.adapter_response.as_ref().and_then(|response| response.consolidation.as_ref());
 
-	if job.suite == "consolidation" && consolidation.is_none() {
+	if job.suite == "consolidation" && consolidation.is_none() && job.encoding.status.is_none() {
 		return Err(eyre::eyre!(
 			"{} consolidation jobs must provide adapter_response.consolidation.",
 			path.display()
