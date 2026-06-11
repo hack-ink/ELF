@@ -199,7 +199,7 @@ Detailed evidence and interpretation:
   live sweep, but that sweep still contains typed non-pass states and is not
   full-suite parity.
 
-Evidence-backed position after the June 10 real-world report:
+Evidence-backed position after the June 11 real-world reports:
 
 - ELF is better evidenced than the tested alternatives on evidence-bound writes,
   deterministic ingestion boundaries, Postgres source-of-truth plus rebuildable Qdrant
