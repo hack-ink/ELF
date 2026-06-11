@@ -66,7 +66,17 @@ cargo run -p elf-eval --bin real_world_job_benchmark -- publish \
 jq -n \
   --slurpfile materialization "${REPORT_DIR}/lightrag-materialization.json" \
   --slurpfile report "${REPORT_DIR}/lightrag-report.json" \
-  '{
+  'def count($key): ($report[0].summary[$key] // 0);
+  def scored_status:
+    if count("wrong_result") > 0 then "wrong_result"
+    elif count("lifecycle_fail") > 0 then "lifecycle_fail"
+    elif count("incomplete") > 0 then "incomplete"
+    elif count("blocked") > 0 then "blocked"
+    elif count("not_encoded") > 0 then "not_encoded"
+    elif count("pass") > 0 then "pass"
+    else "not_encoded"
+    end;
+  {
     schema: "elf.lightrag_context_export_smoke/v1",
     generated_at: (now | todateiso8601),
     artifact_dir: (env.ELF_LIGHTRAG_CONTEXT_REPORT_DIR // "tmp/real-world-memory/lightrag-context"),
@@ -79,6 +89,26 @@ jq -n \
         "research_gate"
       end
     ),
+    status_boundary: {
+      materialization: "API reachability, ingest, context export, and evidence-mapping state emitted by the adapter",
+      report: "post-score real_world_job outcome; use this for quality status"
+    },
+    scored_benchmark: {
+      schema: "elf.scored_benchmark_status/v1",
+      source: "real_world_job_benchmark",
+      status: scored_status,
+      counts: {
+        pass: count("pass"),
+        wrong_result: count("wrong_result"),
+        lifecycle_fail: count("lifecycle_fail"),
+        incomplete: count("incomplete"),
+        blocked: count("blocked"),
+        not_encoded: count("not_encoded")
+      },
+      job_count: ($report[0].summary.job_count // 0),
+      mean_score: ($report[0].summary.mean_score // null),
+      evidence_coverage: ($report[0].summary.evidence_coverage // null)
+    },
     materialization: $materialization[0],
     report: {
       json: "tmp/real-world-memory/lightrag-context/lightrag-report.json",

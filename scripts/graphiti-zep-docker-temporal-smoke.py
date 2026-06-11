@@ -194,6 +194,42 @@ def run_scored_report(fixture_path: Path, manifest_path: Path, status: StatusSta
     }
 
 
+def scored_benchmark(report: dict[str, Any] | None) -> dict[str, Any]:
+    """Extract the post-score benchmark status from a real_world_job report."""
+
+    if report is None:
+        return {
+            "schema": "elf.scored_benchmark_status/v1",
+            "source": "real_world_job_benchmark",
+            "status": "pending",
+            "reason": "The smoke materialization was written before benchmark scoring completed.",
+        }
+
+    summary = report.get("summary", {})
+    counts = {
+        status: int(summary.get(status, 0) or 0)
+        for status in (
+            "pass",
+            "wrong_result",
+            "lifecycle_fail",
+            "incomplete",
+            "blocked",
+            "not_encoded",
+        )
+    }
+    status = next((name for name, count in counts.items() if name != "pass" and count > 0), "pass")
+
+    return {
+        "schema": "elf.scored_benchmark_status/v1",
+        "source": "real_world_job_benchmark",
+        "status": status,
+        "counts": counts,
+        "job_count": int(summary.get("job_count", 0) or 0),
+        "mean_score": summary.get("mean_score"),
+        "evidence_coverage": summary.get("evidence_coverage"),
+    }
+
+
 def command_available(command: str) -> bool:
     """Return whether a command is on PATH."""
 
@@ -859,6 +895,7 @@ def write_materialization(
     search_results: list[dict[str, Any]],
     mapping: dict[str, Any],
     started_at: float,
+    report: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Write the primary smoke artifact."""
 
@@ -870,6 +907,16 @@ def write_materialization(
         "adapter_id": "graphiti_zep_temporal_smoke",
         "project": "Graphiti/Zep",
         "status": status.overall,
+        "materialization_status": {
+            "source": "smoke_materialization",
+            "setup": status.setup,
+            "run": status.run,
+            "result": status.result,
+            "overall": status.overall,
+            "failure_class": status.failure_class,
+            "failure_reason": status.failure_reason,
+        },
+        "scored_benchmark": scored_benchmark(report),
         "evidence_class": status.evidence_class,
         "failure": {
             "class": status.failure_class or None,
@@ -880,6 +927,8 @@ def write_materialization(
             "manifest": rel(MANIFEST_OUT),
             "summary": rel(SUMMARY_OUT),
             "fixture": rel(fixture_path),
+            "scored_report_json": rel(REPORT_JSON),
+            "scored_report_markdown": rel(REPORT_MD),
         },
         "docker_boundary": {
             "compose_file": "docker-compose.baseline.yml",
@@ -1085,9 +1134,16 @@ def write_summary(materialization: dict[str, Any], manifest: dict[str, Any], rep
             "generated_at": utc_now(),
             "adapter_id": "graphiti_zep_temporal_smoke",
             "evidence_class": materialization["evidence_class"],
+            "status_boundary": {
+                "materialization": "setup/run/evidence-mapping state emitted by the smoke runner",
+                "manifest": "external adapter declaration consumed by the scorer",
+                "scored_benchmark": "post-score real_world_job outcome; use this for quality status",
+            },
+            "scored_benchmark": materialization["scored_benchmark"],
             "materialization": materialization,
             "manifest": {
                 "json": rel(MANIFEST_OUT),
+                "status_source": "external_adapter_manifest_pre_score",
                 "summary": manifest["adapters"][0]["overall_status"],
                 "suites": manifest["adapters"][0]["suites"],
             },
@@ -1210,6 +1266,17 @@ def main() -> int:
     )
     manifest = write_manifest(status)
     report = run_scored_report(fixture_path, MANIFEST_OUT, status)
+    materialization = write_materialization(
+        status,
+        facts,
+        fixture_path,
+        command_records,
+        inserted,
+        search_results,
+        mapping,
+        started_at,
+        report,
+    )
     write_summary(materialization, manifest, report)
     print(f"Graphiti/Zep smoke artifact: {OUT}")
     print(f"Graphiti/Zep smoke manifest: {MANIFEST_OUT}")

@@ -10,6 +10,7 @@ FIXTURE_DIR="${ELF_RAGFLOW_SMOKE_FIXTURE_DIR:-${ARTIFACT_DIR}/ragflow-fixtures}"
 FIXTURE_PATH="${ELF_RAGFLOW_SMOKE_FIXTURE_PATH:-${FIXTURE_DIR}/retrieval/ragflow_evidence_smoke.json}"
 REPORT_JSON="${ELF_RAGFLOW_SMOKE_REPORT_JSON:-${ARTIFACT_DIR}/ragflow-report.json}"
 REPORT_MD="${ELF_RAGFLOW_SMOKE_REPORT_MD:-${ARTIFACT_DIR}/ragflow-report.md}"
+SCORED_BENCHMARK="${ELF_RAGFLOW_SMOKE_SCORED_BENCHMARK:-${ARTIFACT_DIR}/scored-benchmark.json}"
 WORK_DIR="${ELF_RAGFLOW_SMOKE_WORK_DIR:-${ARTIFACT_DIR}/work}"
 RAGFLOW_REPO_URL="${ELF_RAGFLOW_REPO_URL:-https://github.com/infiniflow/ragflow.git}"
 RAGFLOW_REF="${ELF_RAGFLOW_REF:-v0.25.6}"
@@ -41,7 +42,10 @@ mkdir -p \
 	"$(dirname "${SUMMARY_OUT}")" \
 	"$(dirname "${FIXTURE_PATH}")" \
 	"$(dirname "${REPORT_JSON}")" \
-	"$(dirname "${REPORT_MD}")"
+	"$(dirname "${REPORT_MD}")" \
+	"$(dirname "${SCORED_BENCHMARK}")"
+
+rm -f "${OUT}" "${MANIFEST_OUT}" "${SUMMARY_OUT}" "${REPORT_JSON}" "${REPORT_MD}" "${SCORED_BENCHMARK}"
 
 DOCKER_INFO="${ARTIFACT_DIR}/docker-info.json"
 IMAGE_INSPECT="${ARTIFACT_DIR}/ragflow-image-inspect.json"
@@ -508,6 +512,44 @@ cleanup_stack() {
 	) >"${COMPOSE_DOWN_LOG}" 2>&1 || true
 }
 
+write_scored_benchmark() {
+	if [[ -s "${REPORT_JSON}" ]]; then
+		jq 'def count($key): (.summary[$key] // 0);
+			def scored_status:
+				if count("wrong_result") > 0 then "wrong_result"
+				elif count("lifecycle_fail") > 0 then "lifecycle_fail"
+				elif count("incomplete") > 0 then "incomplete"
+				elif count("blocked") > 0 then "blocked"
+				elif count("not_encoded") > 0 then "not_encoded"
+				elif count("pass") > 0 then "pass"
+				else "not_encoded"
+				end;
+			{
+				schema: "elf.scored_benchmark_status/v1",
+				source: "real_world_job_benchmark",
+				status: scored_status,
+				counts: {
+					pass: count("pass"),
+					wrong_result: count("wrong_result"),
+					lifecycle_fail: count("lifecycle_fail"),
+					incomplete: count("incomplete"),
+					blocked: count("blocked"),
+					not_encoded: count("not_encoded")
+				},
+				job_count: (.summary.job_count // 0),
+				mean_score: (.summary.mean_score // null),
+				evidence_coverage: (.summary.evidence_coverage // null)
+			}' "${REPORT_JSON}" >"${SCORED_BENCHMARK}"
+	else
+		jq -n '{
+			schema: "elf.scored_benchmark_status/v1",
+			source: "real_world_job_benchmark",
+			status: "pending",
+			reason: "The smoke materialization was written before benchmark scoring completed."
+		}' >"${SCORED_BENCHMARK}"
+	fi
+}
+
 write_artifact() {
 	local generated_at out_rel manifest_rel fixture_rel report_json_rel report_md_rel docker_status git_status curl_status jq_status
 	generated_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
@@ -588,6 +630,7 @@ write_artifact() {
 		--slurpfile document_response "${DOCUMENT_RESPONSE}" \
 		--slurpfile chunk_response "${CHUNK_RESPONSE}" \
 		--slurpfile retrieval_response "${RETRIEVAL_RESPONSE}" \
+		--slurpfile scored_benchmark "${SCORED_BENCHMARK}" \
 		--slurpfile startup_attempts <(jq -s '.' "${STARTUP_ATTEMPTS_JSONL}") \
 		'{
 			schema: $schema,
@@ -596,6 +639,8 @@ write_artifact() {
 			adapter_id: $adapter_id,
 			evidence_class: $evidence_class,
 			overall_status: $overall_status,
+			status_source: "smoke_materialization",
+			scored_benchmark: $scored_benchmark[0],
 			no_quality_claim: true,
 			failure: (
 				if $failure_class == "" then null
@@ -1097,14 +1142,21 @@ write_summary() {
 		--slurpfile report "${REPORT_JSON}" \
 		'{
 			schema: "elf.ragflow_docker_smoke_summary/v1",
-			generated_at: (now | todateiso8601),
-			adapter_id: "ragflow_docker_evidence_smoke",
-			evidence_class: $materialization[0].evidence_class,
-			materialization: $materialization[0],
-			manifest: {
-				json: ($materialization[0].artifacts.external_adapter_manifest // "tmp/real-world-memory/ragflow-smoke/memory_projects_manifest.ragflow-smoke.json"),
-				summary: $manifest[0].adapters[0].overall_status,
-				suites: $manifest[0].adapters[0].suites
+				generated_at: (now | todateiso8601),
+				adapter_id: "ragflow_docker_evidence_smoke",
+				evidence_class: $materialization[0].evidence_class,
+				status_boundary: {
+					materialization: "setup/run/evidence-mapping state emitted by the smoke runner",
+					manifest: "external adapter declaration consumed by the scorer",
+					scored_benchmark: "post-score real_world_job outcome; use this for quality status"
+				},
+				scored_benchmark: $materialization[0].scored_benchmark,
+				materialization: $materialization[0],
+				manifest: {
+					json: ($materialization[0].artifacts.external_adapter_manifest // "tmp/real-world-memory/ragflow-smoke/memory_projects_manifest.ragflow-smoke.json"),
+					status_source: "external_adapter_manifest_pre_score",
+					summary: $manifest[0].adapters[0].overall_status,
+					suites: $manifest[0].adapters[0].suites
 			},
 			report: {
 				json: ($materialization[0].artifacts.scored_report_json // "tmp/real-world-memory/ragflow-smoke/ragflow-report.json"),
@@ -1116,10 +1168,13 @@ write_summary() {
 }
 
 write_outputs() {
+	write_scored_benchmark
 	write_artifact
 	write_manifest
 	write_fixture
 	write_scored_report
+	write_scored_benchmark
+	write_artifact
 	write_summary
 	echo "RAGFlow smoke artifact: ${OUT}"
 	echo "RAGFlow smoke manifest: ${MANIFEST_OUT}"
