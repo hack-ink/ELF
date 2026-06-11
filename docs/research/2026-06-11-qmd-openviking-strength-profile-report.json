@@ -44,13 +44,13 @@
   ],
   "summary": {
     "qmd": {
-      "overall_outcome": "elf_loss",
-      "overall_rationale": "ELF loses the measured qmd query-transparency surface while replayability remains not_tested.",
+      "overall_outcome": "not_tested",
+      "overall_rationale": "ELF ties qmd on encoded retrieval and lifecycle surfaces; qmd query-transparency, replayability, and expansion/fusion/rerank strengths remain not_tested for comparative scoring because equivalent scored ELF surfaces are not encoded.",
       "retrieval_quality": "tie",
-      "local_query_transparency": "elf_loss",
+      "local_query_transparency": "not_tested",
       "local_replayability": "not_tested",
       "expansion_fusion_rerank": "not_tested",
-      "claim": "ELF ties qmd on encoded retrieval correctness and equivalent update/delete/cold-start behavior, loses the currently evidenced local query-transparency surface, and remains untested on scored replayability, expansion, fusion, and rerank controls."
+      "claim": "ELF ties qmd on encoded retrieval correctness and equivalent update/delete/cold-start behavior. qmd remains the local retrieval-debug UX reference, but ELF has no scored loss on query-transparency, replayability, expansion, fusion, or rerank controls until equivalent comparative surfaces are encoded."
     },
     "openviking": {
       "overall_outcome": "not_tested",
@@ -80,12 +80,12 @@
         "scenario_id": "qmd-local-query-transparency",
         "surface": "local query transparency",
         "evidence_class": "live_baseline_only",
-        "result_type": "pass",
+        "result_type": "not_encoded",
         "elf_status": "not_encoded",
         "qmd_status": "pass",
-        "elf_outcome": "elf_loss",
+        "elf_outcome": "not_tested",
         "retrieval_quality": "not a correctness scenario",
-        "debug_replay_ergonomics": "qmd stress artifacts expose per-query top-10 files, line numbers, snippets, scores, and distractor density; ELF stress artifacts expose trace ids and top evidence but do not hydrate the candidate list in the checked-in report.",
+        "debug_replay_ergonomics": "qmd stress artifacts expose per-query top-10 files, line numbers, snippets, scores, and distractor density; ELF stress artifacts expose trace ids and top evidence but do not hydrate an equivalent candidate list in the checked-in report, so this surface is not scored as a comparative ELF loss.",
         "source_artifacts": [
           "scripts/live-baseline-benchmark.sh",
           "docs/guide/benchmarking/2026-06-11-elf-qmd-retrieval-debug-profile.md"
@@ -186,8 +186,8 @@
     "win_tie_loss_summary": {
       "elf_win": 0,
       "tie": 3,
-      "elf_loss": 1,
-      "not_tested": 4
+      "elf_loss": 0,
+      "not_tested": 5
     },
     "wrong_result_diagnosis": {
       "taxonomy": [
@@ -367,7 +367,7 @@
     }
   },
   "claim_boundaries": [
-    "ELF does not broadly beat qmd; it ties retrieval correctness, loses the measured query-transparency surface, and leaves replayability not_tested.",
+    "ELF does not broadly beat qmd; it ties encoded retrieval and lifecycle correctness, keeps qmd query transparency as not_tested for comparative scoring, and leaves replayability not_tested.",
     "qmd expansion, fusion, and rerank superiority remains not_tested because the current qmd paths use --no-rerank and do not score internals.",
     "ELF does not beat OpenViking on context trajectory; OpenViking trajectory strengths remain not_tested behind a wrong_result same-corpus output precondition.",
     "Research_gate records are follow-up gates, not pass evidence.",
