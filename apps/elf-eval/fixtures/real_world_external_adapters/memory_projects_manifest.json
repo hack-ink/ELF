@@ -858,6 +858,7 @@
           "suite_id": "work_resume",
           "status": "blocked",
           "elf_position": "untested",
+          "comparison_outcome": "blocked",
           "evidence": "agentmemory's relevant strength is durable coding-agent continuity and capture, but the Docker harness has not proven a persistent session/capture path. Keep work_resume and capture claims blocked until a durable local adapter path exists.",
           "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json"
         },

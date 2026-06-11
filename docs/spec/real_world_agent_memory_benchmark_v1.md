@@ -190,12 +190,14 @@ Each `adapters[]` record MUST include:
   optional `suite_id`, `status`, `elf_position`, optional `comparison_outcome`,
   `evidence`, and optional `command` and `artifact`. `elf_position` MUST be one of
   `wins`, `ties`, `loses`, or `untested`. `comparison_outcome`, when present, MUST be
-  one of `win`, `tie`, `loss`, `not_tested`, `blocked`, or `non_goal`. Reports SHOULD
-  derive `comparison_outcome` from `elf_position` when omitted, but SHOULD use the
-  explicit field for scenarios where the legacy ELF-relative position is less precise
-  than the report outcome. Scenario judgments are report inputs for dimension-level
-  comparison; they MUST NOT convert live-baseline-only evidence into real-world suite
-  pass claims.
+  one of `win`, `tie`, `loss`, `not_tested`, `blocked`, or `non_goal`. Scenario rows
+  with `status = "blocked"` MUST set `comparison_outcome = "blocked"` explicitly so a
+  blocked evidence path is not derived from `elf_position = "untested"` as
+  `not_tested`. Reports SHOULD derive `comparison_outcome` from `elf_position` when
+  omitted for non-blocked rows, but SHOULD use the explicit field for scenarios where
+  the legacy ELF-relative position is less precise than the report outcome. Scenario
+  judgments are report inputs for dimension-level comparison; they MUST NOT convert
+  live-baseline-only evidence into real-world suite pass claims.
 - `evidence`: array of evidence pointers with `kind`, `ref`, and `status`.
 - `notes`: optional bounded explanatory strings.
 - `follow_up`: optional `title` and `reason`.

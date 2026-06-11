@@ -3946,6 +3946,14 @@ fn validate_adapter_scenarios(path: &Path, adapter: &ExternalAdapterReport) -> R
 
 		let outcome = scenario_comparison_outcome(scenario);
 
+		if blocked_status_missing_blocked_outcome(scenario.status, scenario.comparison_outcome) {
+			return Err(eyre::eyre!(
+				"{} adapter {} scenario {} uses blocked status without blocked comparison outcome.",
+				path.display(),
+				adapter.adapter_id,
+				scenario.scenario_id
+			));
+		}
 		if unmeasured_status_has_measured_outcome(scenario.status, outcome) {
 			return Err(eyre::eyre!(
 				"{} adapter {} scenario {} uses {} status with {} outcome.",
@@ -3966,9 +3974,26 @@ fn validate_adapter_scenarios(path: &Path, adapter: &ExternalAdapterReport) -> R
 				scenario_position_str(scenario.elf_position)
 			));
 		}
+		if explicit_outcome_conflicts_with_position(scenario) {
+			return Err(eyre::eyre!(
+				"{} adapter {} scenario {} uses {} position with {} outcome.",
+				path.display(),
+				adapter.adapter_id,
+				scenario.scenario_id,
+				scenario_position_str(scenario.elf_position),
+				scenario_comparison_outcome_str(outcome)
+			));
+		}
 	}
 
 	Ok(())
+}
+
+fn blocked_status_missing_blocked_outcome(
+	status: AdapterCoverageStatus,
+	outcome: Option<ScenarioComparisonOutcome>,
+) -> bool {
+	status == AdapterCoverageStatus::Blocked && outcome != Some(ScenarioComparisonOutcome::Blocked)
 }
 
 fn unmeasured_status_has_measured_outcome(
@@ -4002,6 +4027,29 @@ fn unmeasured_status_has_measured_position(
 	) && matches!(
 		position,
 		ElfScenarioPosition::Wins | ElfScenarioPosition::Ties | ElfScenarioPosition::Loses
+	)
+}
+
+fn explicit_outcome_conflicts_with_position(scenario: &AdapterScenarioJudgment) -> bool {
+	let Some(outcome) = scenario.comparison_outcome else {
+		return false;
+	};
+
+	!position_supports_outcome(scenario.elf_position, outcome)
+}
+
+fn position_supports_outcome(
+	position: ElfScenarioPosition,
+	outcome: ScenarioComparisonOutcome,
+) -> bool {
+	matches!(
+		(position, outcome),
+		(ElfScenarioPosition::Wins, ScenarioComparisonOutcome::Win)
+			| (ElfScenarioPosition::Ties, ScenarioComparisonOutcome::Tie)
+			| (ElfScenarioPosition::Loses, ScenarioComparisonOutcome::Loss)
+			| (ElfScenarioPosition::Untested, ScenarioComparisonOutcome::NotTested)
+			| (ElfScenarioPosition::Untested, ScenarioComparisonOutcome::Blocked)
+			| (ElfScenarioPosition::Untested, ScenarioComparisonOutcome::NonGoal)
 	)
 }
 

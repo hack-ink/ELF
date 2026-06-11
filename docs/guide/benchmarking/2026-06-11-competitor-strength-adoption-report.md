@@ -42,9 +42,10 @@ The remaining caveats are material:
   memory, and graph/RAG navigation remain unproven. XY-928 encodes OpenViking staged
   trajectory, hierarchy selection, and recursive/context expansion as blocked fixtures
   behind same-corpus evidence output and missing staged artifacts. XY-927 adds
-  fixture-only `core_archival_memory` coverage, but Letta comparison remains blocked
-  until the selected contained export/readback path exists. mem0 local OSS preference
-  history is measured separately and is an ELF loss on the current correction history
+  fixture-only `core_archival_memory` coverage, but Letta scenario rows remain
+  blocked or `not_tested` until the selected contained export/readback path exists.
+  mem0 local OSS preference history is measured separately and is an ELF loss on the
+  current correction history
   scenario. The XY-923 follow-up also scores qmd's immediate top-10/replay artifact
   ergonomics as stronger than ELF's default stress report, while expansion, fusion,
   and rerank remain untested. XY-932 adds a narrow live operator-debug slice where
