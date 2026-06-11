@@ -845,6 +845,7 @@ fn qmd_openviking_strength_profile_report_preserves_claim_boundaries() -> Result
 	assert_qmd_strength_profile(&report)?;
 	assert_qmd_wrong_result_diagnosis(&report)?;
 	assert_openviking_strength_profile(&report)?;
+	assert_strength_profile_json_claim_boundaries(&report)?;
 	assert_strength_profile_markdown_boundaries(&markdown);
 
 	Ok(())
@@ -1074,12 +1075,56 @@ fn assert_openviking_strength_profile(report: &Value) -> Result<()> {
 	Ok(())
 }
 
+fn assert_strength_profile_json_claim_boundaries(report: &Value) -> Result<()> {
+	assert!(array_contains_str(
+		report,
+		"/claim_boundaries",
+		"ELF does not broadly beat qmd; it ties retrieval correctness but loses the measured debug/replay ergonomics surface."
+	)?);
+	assert!(array_contains_str(
+		report,
+		"/claim_boundaries",
+		"qmd expansion, fusion, and rerank superiority remains not_tested because the current qmd paths use --no-rerank and do not score internals."
+	)?);
+	assert!(array_contains_str(
+		report,
+		"/claim_boundaries",
+		"ELF does not beat OpenViking on context trajectory; OpenViking trajectory strengths remain not_tested behind a wrong_result same-corpus output precondition."
+	)?);
+	assert!(array_contains_str(
+		report,
+		"/claim_boundaries",
+		"Research_gate records are follow-up gates, not pass evidence."
+	)?);
+	assert!(array_contains_str(
+		report,
+		"/claim_boundaries",
+		"Missing equivalent surfaces are encoded as unsupported or not_encoded rather than fake losses."
+	)?);
+
+	Ok(())
+}
+
 fn assert_strength_profile_markdown_boundaries(markdown: &str) {
 	assert!(
 		markdown.contains(
 			"| Wrong-result diagnosis | `research_gate` | `not_encoded` | `not_tested` |"
 		)
 	);
+	assert!(
+		markdown.contains("ELF ties qmd on the current encoded retrieval-correctness surfaces")
+	);
+	assert!(markdown.contains(
+		"qmd remains stronger than ELF on the currently evidenced local query transparency"
+	));
+	assert!(markdown.contains("ELF currently wins only the equivalent OpenViking same-corpus"));
+	assert!(markdown.contains("Do not claim ELF broadly beats qmd"));
+	assert!(markdown.contains(
+		"Do not claim ELF beats OpenViking on staged retrieval, hierarchy, or recursive"
+	));
+	assert!(markdown.contains(
+		"Do not turn `research_gate`, `not_encoded`, or `unsupported` surfaces into wins"
+	));
 	assert!(markdown.contains("no pass evidence is claimed"));
 	assert!(markdown.contains("typed `wrong_result` state"));
 }
