@@ -550,7 +550,7 @@
           "suite_id": "retrieval",
           "status": "pass",
           "elf_position": "untested",
-          "evidence": "Fresh comparable baseline run live-baseline-20260611045504 reports agentmemory retrieval_pass with 3/3 same-corpus retrieval checks through mem::remember and mem::search. This is live-baseline-only evidence through an in-memory mock, not a real_world_job suite pass.",
+          "evidence": "Fresh comparable baseline run live-baseline-20260611061612 reports agentmemory retrieval_pass with 3/3 same-corpus retrieval checks through mem::remember and mem::search. This is live-baseline-only evidence through an in-memory mock, not a real_world_job suite pass.",
           "command": "ELF_BASELINE_PROJECTS=ELF,agentmemory,mem0,memsearch,claude-mem cargo make baseline-live-docker",
           "artifact": "tmp/live-baseline/live-baseline-report.json"
         },
@@ -559,7 +559,7 @@
           "suite_id": "memory_evolution",
           "status": "lifecycle_fail",
           "elf_position": "wins",
-          "evidence": "Fresh comparable baseline run live-baseline-20260611045504 reports ELF passing 8/8 local lifecycle checks, while agentmemory update_replaces_note_text is lifecycle_fail and cold_start_recovery_search is blocked because the harness uses an in-memory SDK/KV mock. This is an ELF baseline win only at the local lifecycle-smoke evidence class.",
+          "evidence": "Fresh comparable baseline run live-baseline-20260611061612 reports ELF passing 8/8 local lifecycle checks, while agentmemory update_replaces_note_text is lifecycle_fail and cold_start_recovery_search is blocked because the harness uses an in-memory SDK/KV mock. This is an ELF baseline win only at the local lifecycle-smoke evidence class.",
           "command": "ELF_BASELINE_PROJECTS=ELF,agentmemory,mem0,memsearch,claude-mem cargo make baseline-live-docker",
           "artifact": "tmp/live-baseline/live-baseline-report.json"
         },
@@ -608,7 +608,7 @@
       },
       "run": {
         "status": "pass",
-        "evidence": "Fresh comparable baseline run live-baseline-20260611045504 exercises local OSS mem0 with FastEmbed, Qdrant path storage, Memory.update, Memory.delete, and cold-start reload; mem0 passed 4/4 encoded checks.",
+        "evidence": "Fresh comparable baseline run live-baseline-20260611061612 exercises local OSS mem0 with FastEmbed, Qdrant path storage, Memory.update, Memory.delete, and cold-start reload; mem0 passed 4/4 encoded checks.",
         "artifact": "tmp/live-baseline/live-baseline-report.json"
       },
       "result": {
@@ -625,7 +625,7 @@
         {
           "capability": "same_corpus_retrieval",
           "status": "pass",
-          "evidence": "Fresh comparable baseline run live-baseline-20260611045504 reports mem0 retrieval_pass with 3/3 same-corpus retrieval checks."
+          "evidence": "Fresh comparable baseline run live-baseline-20260611061612 reports mem0 retrieval_pass with 3/3 same-corpus retrieval checks."
         },
         {
           "capability": "local_lifecycle_update_delete_reload",
@@ -671,7 +671,7 @@
           "suite_id": "memory_evolution",
           "status": "pass",
           "elf_position": "ties",
-          "evidence": "Fresh comparable baseline run live-baseline-20260611045504 reports ELF passing 8/8 local lifecycle checks and mem0 passing 4/4 same-corpus retrieval, update, delete, and cold-start reload checks. This is a basic local lifecycle tie at the encoded smoke surface, not a claim about OpenMemory UI, hosted behavior, entity history, or graph memory.",
+          "evidence": "Fresh comparable baseline run live-baseline-20260611061612 reports ELF passing 8/8 local lifecycle checks and mem0 passing 4/4 same-corpus retrieval, update, delete, and cold-start reload checks. This is a basic local lifecycle tie at the encoded smoke surface, not a claim about OpenMemory UI, hosted behavior, entity history, or graph memory.",
           "command": "ELF_BASELINE_PROJECTS=ELF,agentmemory,mem0,memsearch,claude-mem cargo make baseline-live-docker",
           "artifact": "tmp/live-baseline/live-baseline-report.json"
         },
@@ -719,7 +719,7 @@
       },
       "run": {
         "status": "pass",
-        "evidence": "Fresh comparable baseline run live-baseline-20260611045504 indexes a per-adapter corpus copy, rewrites and deletes files, reruns memsearch index, and reports memsearch 4/4 encoded checks passing.",
+        "evidence": "Fresh comparable baseline run live-baseline-20260611061612 indexes a per-adapter corpus copy, rewrites and deletes files, reruns memsearch index, and reports memsearch 4/4 encoded checks passing.",
         "artifact": "tmp/live-baseline/live-baseline-report.json"
       },
       "result": {
@@ -736,7 +736,7 @@
         {
           "capability": "same_corpus_retrieval",
           "status": "pass",
-          "evidence": "Fresh comparable baseline run live-baseline-20260611045504 reports memsearch retrieval_pass with 3/3 same-corpus retrieval checks."
+          "evidence": "Fresh comparable baseline run live-baseline-20260611061612 reports memsearch retrieval_pass with 3/3 same-corpus retrieval checks."
         },
         {
           "capability": "reindex_update_delete_reload",
@@ -772,7 +772,7 @@
           "suite_id": "trust_source_of_truth",
           "status": "pass",
           "elf_position": "untested",
-          "evidence": "Fresh comparable baseline run live-baseline-20260611045504 reports memsearch passed same-corpus retrieval, update reindex, delete suppression, and cold-start reload over a canonical Markdown corpus. ELF has no directly comparable canonical Markdown source-store scenario in this baseline, so the ELF position remains untested.",
+          "evidence": "Fresh comparable baseline run live-baseline-20260611061612 reports memsearch passed same-corpus retrieval, update reindex, delete suppression, and cold-start reload over a canonical Markdown corpus. ELF has no directly comparable canonical Markdown source-store scenario in this baseline, so the ELF position remains untested.",
           "command": "ELF_BASELINE_PROJECTS=ELF,agentmemory,mem0,memsearch,claude-mem cargo make baseline-live-docker",
           "artifact": "tmp/live-baseline/live-baseline-report.json"
         },
@@ -978,7 +978,7 @@
           "suite_id": "retrieval",
           "status": "wrong_result",
           "elf_position": "wins",
-          "evidence": "Fresh comparable baseline run live-baseline-20260611045504 reports ELF retrieval_pass and claude-mem same_corpus_retrieval as wrong_result with 0/3 expected query checks passing, while its durable repository setup completed. This is an ELF baseline win for the narrow retrieval smoke scenario.",
+          "evidence": "Fresh comparable baseline run live-baseline-20260611061612 reports ELF retrieval_pass and claude-mem same_corpus_retrieval as wrong_result with 0/3 expected query checks passing, while its durable repository setup completed. This is an ELF baseline win for the narrow retrieval smoke scenario.",
           "command": "ELF_BASELINE_PROJECTS=ELF,agentmemory,mem0,memsearch,claude-mem cargo make baseline-live-docker",
           "artifact": "tmp/live-baseline/live-baseline-report.json"
         },
@@ -987,7 +987,7 @@
           "suite_id": "memory_evolution",
           "status": "pass",
           "elf_position": "ties",
-          "evidence": "Fresh comparable baseline run live-baseline-20260611045504 reports ELF passing local lifecycle checks and claude-mem update, delete, and cold-start reload checks passing over a durable Docker-local SQLite repository. This is a local lifecycle-smoke tie, not a hook-driven work-resume or full progressive-disclosure job pass.",
+          "evidence": "Fresh comparable baseline run live-baseline-20260611061612 reports ELF passing local lifecycle checks and claude-mem update, delete, and cold-start reload checks passing over a durable Docker-local SQLite repository. This is a local lifecycle-smoke tie, not a hook-driven work-resume or full progressive-disclosure job pass.",
           "command": "ELF_BASELINE_PROJECTS=ELF,agentmemory,mem0,memsearch,claude-mem cargo make baseline-live-docker",
           "artifact": "tmp/live-baseline/live-baseline-report.json"
         },

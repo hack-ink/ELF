@@ -29,7 +29,7 @@ suite passes:
 
 | Command | Result | Runtime | Artifact |
 | --- | --- | ---: | --- |
-| `ELF_BASELINE_PROJECTS=ELF,agentmemory,mem0,memsearch,claude-mem cargo make baseline-live-docker` | fail with typed non-pass projects | 233.69 seconds | `tmp/live-baseline/live-baseline-report.json` |
+| `ELF_BASELINE_PROJECTS=ELF,agentmemory,mem0,memsearch,claude-mem cargo make baseline-live-docker` | fail with typed non-pass projects | 295.74 seconds | `tmp/live-baseline/live-baseline-report.json` |
 
 The aggregate failed because two projects remained typed non-pass, not because setup
 collapsed:
