@@ -1,0 +1,141 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "graph-rag-lightrag-context-sources-001",
+  "suite": "retrieval",
+  "title": "Score LightRAG context-source references only after the Docker API exports source paths",
+  "encoding": {
+    "status": "incomplete",
+    "reason": "LightRAG representative context-source scoring is incomplete when the opt-in Docker API service is not started or does not export context, references, or file paths for the generated corpus.",
+    "follow_up": {
+      "title": "Run LightRAG context-source export with the Docker service profile",
+      "reason": "The representative job can score source references after /query only_need_context returns generated file paths or content that maps to evidence ids."
+    }
+  },
+  "corpus": {
+    "corpus_id": "graph-rag-representative-2026-06-11",
+    "profile": "external_adapter",
+    "items": [
+      {
+        "evidence_id": "lightrag-context-output-contract",
+        "kind": "adapter_contract",
+        "text": "LightRAG representative contract: score context navigation only when /query context export returns generated source file paths, source snippets, or reference content mapped to benchmark evidence ids.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "lightrag_context_sources_incomplete",
+            "evidence_id": "lightrag-context-output-contract"
+          },
+          "locator": {
+            "quote": "/query context export returns generated source file paths, source snippets, or reference content"
+          }
+        },
+        "created_at": "2026-06-11T17:05:00Z"
+      },
+      {
+        "evidence_id": "lightrag-service-boundary",
+        "kind": "adapter_blocker",
+        "text": "LightRAG boundary: missing or unreachable Docker API service is an incomplete setup state, not evidence of graph-RAG citation quality.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "lightrag_context_sources_incomplete",
+            "evidence_id": "lightrag-service-boundary"
+          },
+          "locator": {
+            "quote": "missing or unreachable Docker API service is an incomplete setup state"
+          }
+        },
+        "created_at": "2026-06-11T17:06:00Z"
+      }
+    ]
+  },
+  "timeline": [
+    {
+      "event_id": "lightrag-context-contract-recorded",
+      "ts": "2026-06-11T17:05:00Z",
+      "actor": "agent",
+      "action": "recorded_adapter_contract",
+      "evidence_ids": ["lightrag-context-output-contract"],
+      "summary": "LightRAG context-source scoring needs context export with generated source mappings."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Score LightRAG source-reference navigation only when context export is available.",
+    "job_mode": "answer",
+    "constraints": ["cite_source_paths", "typed_incomplete_setup", "no_graph_rag_quality_claim"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "context_source_contract",
+        "text": "LightRAG context-source scoring requires exported context or references mapped to evidence ids."
+      }
+    ],
+    "must_not_include": [
+      "LightRAG passes representative graph-RAG navigation.",
+      "ELF beats LightRAG on source-reference navigation."
+    ],
+    "evidence_links": {
+      "context_source_contract": ["lightrag-context-output-contract", "lightrag-service-boundary"]
+    },
+    "answer_type": "typed_incomplete",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "lightrag-context-output-contract",
+      "claim_id": "context_source_contract",
+      "requirement": "cite",
+      "quote": "/query context export returns generated source file paths, source snippets, or reference content"
+    },
+    {
+      "evidence_id": "lightrag-service-boundary",
+      "claim_id": "context_source_contract",
+      "requirement": "explain",
+      "quote": "missing or unreachable Docker API service is an incomplete setup state"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "lightrag-context-pass-claim",
+      "type": "unsupported_claim",
+      "evidence_ids": ["lightrag-service-boundary"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Must preserve incomplete setup status when the API does not export context."
+      },
+      "evidence_grounding": {
+        "weight": 0.5,
+        "max_points": 1.0,
+        "criteria": "Must require generated source paths or content mappings before scoring."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Must not treat service reachability as graph-RAG quality."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "preserve_incomplete_setup_state"
+  },
+  "tags": ["external_adapter", "graph_rag", "lightrag", "context_sources", "typed_incomplete"]
+}

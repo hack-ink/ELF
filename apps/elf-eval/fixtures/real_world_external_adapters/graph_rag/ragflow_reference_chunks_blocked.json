@@ -1,0 +1,149 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "graph-rag-ragflow-reference-chunks-001",
+  "suite": "retrieval",
+  "title": "Keep RAGFlow reference-chunk citation scoring blocked until live chunks map to evidence ids",
+  "encoding": {
+    "status": "blocked",
+    "reason": "RAGFlow reference-chunk citation scoring requires an explicit Docker resource opt-in plus a local API key before returned reference chunks can be mapped to generated evidence ids.",
+    "follow_up": {
+      "title": "Run RAGFlow reference-chunk citation job with Docker resource opt-in",
+      "reason": "The representative job can score only after the RAGFlow smoke returns reference chunks containing document, chunk, and content fields for the generated public corpus."
+    }
+  },
+  "corpus": {
+    "corpus_id": "graph-rag-representative-2026-06-11",
+    "profile": "external_adapter",
+    "items": [
+      {
+        "evidence_id": "ragflow-reference-chunk-contract",
+        "kind": "adapter_contract",
+        "text": "RAGFlow representative contract: score only when returned reference chunks include generated document ids, chunk ids, content, and document metadata that map to benchmark evidence ids.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "ragflow_reference_chunks_blocked",
+            "evidence_id": "ragflow-reference-chunk-contract"
+          },
+          "locator": {
+            "quote": "returned reference chunks include generated document ids, chunk ids, content, and document metadata"
+          }
+        },
+        "created_at": "2026-06-11T17:00:00Z"
+      },
+      {
+        "evidence_id": "ragflow-resource-boundary",
+        "kind": "adapter_blocker",
+        "text": "RAGFlow blocker: the checked-in smoke remains typed blocked until Docker resource-envelope opt-in and explicit local API configuration are present.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "ragflow_reference_chunks_blocked",
+            "evidence_id": "ragflow-resource-boundary"
+          },
+          "locator": {
+            "quote": "Docker resource-envelope opt-in and explicit local API configuration"
+          }
+        },
+        "created_at": "2026-06-11T17:01:00Z"
+      }
+    ]
+  },
+  "timeline": [
+    {
+      "event_id": "ragflow-reference-contract-recorded",
+      "ts": "2026-06-11T17:00:00Z",
+      "actor": "agent",
+      "action": "recorded_adapter_contract",
+      "evidence_ids": ["ragflow-reference-chunk-contract"],
+      "summary": "RAGFlow can be scored only from generated reference chunks with stable evidence mapping."
+    },
+    {
+      "event_id": "ragflow-blocker-recorded",
+      "ts": "2026-06-11T17:01:00Z",
+      "actor": "agent",
+      "action": "recorded_typed_blocker",
+      "evidence_ids": ["ragflow-resource-boundary"],
+      "summary": "RAGFlow representative scoring remains blocked by resource and API setup."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Score RAGFlow citation quality only if reference chunks from the generated corpus are available.",
+    "job_mode": "answer",
+    "constraints": ["cite_chunk_references", "preserve_typed_blocker", "no_smoke_to_quality_claim"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "reference_chunk_contract",
+        "text": "RAGFlow citation scoring requires returned reference chunks mapped to generated evidence ids."
+      }
+    ],
+    "must_not_include": [
+      "RAGFlow passes broad citation quality.",
+      "ELF beats RAGFlow on RAG citation quality."
+    ],
+    "evidence_links": {
+      "reference_chunk_contract": ["ragflow-reference-chunk-contract", "ragflow-resource-boundary"]
+    },
+    "answer_type": "typed_blocker",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "ragflow-reference-chunk-contract",
+      "claim_id": "reference_chunk_contract",
+      "requirement": "cite",
+      "quote": "returned reference chunks include generated document ids, chunk ids, content, and document metadata"
+    },
+    {
+      "evidence_id": "ragflow-resource-boundary",
+      "claim_id": "reference_chunk_contract",
+      "requirement": "explain",
+      "quote": "Docker resource-envelope opt-in and explicit local API configuration"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "ragflow-smoke-quality-win",
+      "type": "unsupported_claim",
+      "evidence_ids": ["ragflow-resource-boundary"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Must preserve the blocked citation-scoring boundary."
+      },
+      "evidence_grounding": {
+        "weight": 0.5,
+        "max_points": 1.0,
+        "criteria": "Must require reference chunk ids and document metadata before scoring."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Must not convert the smoke contract into a broad RAGFlow quality claim."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "preserve_typed_blocker"
+  },
+  "tags": ["external_adapter", "graph_rag", "ragflow", "reference_chunks", "typed_blocked"]
+}

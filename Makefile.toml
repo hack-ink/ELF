@@ -431,6 +431,9 @@ args = [
 # | real-world-memory-core-archival         | composite |     |
 # | real-world-memory-core-archival-json    | command   |     |
 # | real-world-memory-core-archival-report  | command   |     |
+# | real-world-memory-graph-rag             | composite |     |
+# | real-world-memory-graph-rag-json        | command   |     |
+# | real-world-memory-graph-rag-report      | command   |     |
 # | real-world-memory-live-adapters         | command   |     |
 
 [tasks.real-world-job-smoke]
@@ -874,6 +877,55 @@ args = [
 	"tmp/real-world-memory/core-archival/report.json",
 	"--out",
 	"tmp/real-world-memory/core-archival/report.md",
+]
+
+[tasks.real-world-memory-graph-rag]
+workspace = false
+dependencies = [
+	"real-world-memory-graph-rag-report",
+]
+
+[tasks.real-world-memory-graph-rag-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_external_adapters/graph_rag",
+	"--out",
+	"tmp/real-world-memory/graph-rag/report.json",
+	"--run-id",
+	"real-world-memory-graph-rag",
+	"--adapter-id",
+	"fixture_graph_rag_external_adapters",
+	"--adapter-name",
+	"Graph/RAG representative external-adapter fixtures",
+]
+
+[tasks.real-world-memory-graph-rag-report]
+workspace = false
+dependencies = [
+	"real-world-memory-graph-rag-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-memory/graph-rag/report.json",
+	"--out",
+	"tmp/real-world-memory/graph-rag/report.md",
 ]
 
 [tasks.real-world-memory-live-adapters]
