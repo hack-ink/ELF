@@ -1,6 +1,6 @@
 {
   "schema": "elf.real_world_external_adapter_manifest/v1",
-  "manifest_id": "real-world-memory-project-adapters-2026-06-11-mem0-history",
+  "manifest_id": "real-world-memory-project-adapters-2026-06-11-openmemory-ui-export",
   "docker_isolation": {
     "default": true,
     "compose_file": "docker-compose.baseline.yml",
@@ -608,13 +608,13 @@
       },
       "run": {
         "status": "pass",
-        "evidence": "Fresh scoped baseline run live-baseline-20260611113003 exercises local OSS mem0 with FastEmbed, Qdrant path storage, Memory.update, Memory.delete, Memory.history, Memory.get_all, entity filters, and cold-start reload; mem0 passed 8/8 encoded checks.",
-        "command": "ELF_BASELINE_PROJECTS=mem0 cargo make baseline-live-docker",
+        "evidence": "Fresh scoped baseline run live-baseline-20260611122416 exercises local OSS mem0 with FastEmbed, Qdrant path storage, Memory.update, Memory.delete, Memory.history, Memory.get_all, entity filters, and cold-start reload; mem0 passed 8/8 encoded SDK checks. XY-931 adds a separate OpenMemory export-helper setup probe artifact and keeps that blocked UI/export result out of the SDK check summary.",
+        "command": "cargo make openmemory-ui-export-readback",
         "artifact": "tmp/live-baseline/live-baseline-report.json"
       },
       "result": {
         "status": "pass",
-        "evidence": "The local OSS mem0 baseline now passes same-corpus retrieval, update/delete/reload, preference correction history, entity-scoped personalization, local get_all export-style readback, and deletion audit history. It still does not launch the OpenMemory UI, hosted Platform export flow, optional graph memory, or a real_world_job prompt adapter.",
+        "evidence": "The local OSS mem0 baseline now passes same-corpus retrieval, update/delete/reload, preference correction history, entity-scoped personalization, local get_all export-style readback, and deletion audit history. The separate OpenMemory export-helper setup probe is blocked because Docker is unavailable inside the baseline-runner container before any product app database readback can run. It still does not claim hosted Platform export, optional graph memory, or a real_world_job prompt adapter.",
         "artifact": "tmp/live-baseline/live-baseline-report.json"
       },
       "capabilities": [
@@ -626,7 +626,7 @@
         {
           "capability": "same_corpus_retrieval",
           "status": "pass",
-          "evidence": "Fresh scoped baseline run live-baseline-20260611113003 reports mem0 retrieval_pass with 3/3 same-corpus retrieval checks."
+          "evidence": "Fresh scoped baseline run live-baseline-20260611122416 reports mem0 retrieval_pass with 3/3 same-corpus retrieval checks."
         },
         {
           "capability": "local_lifecycle_update_delete_reload",
@@ -656,7 +656,7 @@
         {
           "capability": "openmemory_ui_readback",
           "status": "blocked",
-          "evidence": "The Docker live-baseline runner does not launch the OpenMemory web UI, dashboard authentication, or browser export flow. Local SDK get_all readback is measured separately and must not be reused as UI evidence."
+          "evidence": "XY-931 runs a bounded OpenMemory export-helper setup probe after the mem0 SDK corpus checks. The probe finds the OpenMemory tree, UI package, compose file, and export helper, then records a setup blocker because the export helper requires Docker access to a running OpenMemory container. Local SDK get_all readback is measured separately and must not be reused as UI evidence."
         },
         {
           "capability": "hosted_managed_memory_claims",
@@ -688,7 +688,7 @@
         {
           "suite_id": "operator_debugging_ux",
           "status": "blocked",
-          "evidence": "Local SDK get_all inspection is measured, but OpenMemory UI/export readback is blocked because the Docker runner does not launch the web UI or hosted export flow."
+          "evidence": "Local SDK get_all inspection is measured, but OpenMemory UI/export readback is blocked by the XY-931 export-helper setup probe until a dedicated OpenMemory compose/import path can load the same corpus into the OpenMemory app database."
         }
       ],
       "scenarios": [
@@ -708,7 +708,7 @@
           "status": "pass",
           "elf_position": "loses",
           "comparison_outcome": "loss",
-          "evidence": "Fresh scoped baseline run live-baseline-20260611113003 reports mem0 preference_correction_history as pass. ELF-side evidence comes from cargo make real-world-memory-live-adapters as summarized in docs/guide/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md, which records ELF live memory-evolution preference as wrong_result. The current measured comparison is therefore an ELF loss on this history dimension until ELF temporal reconciliation is fixed.",
+          "evidence": "Fresh scoped baseline run live-baseline-20260611122416 reports mem0 preference_correction_history as pass. ELF-side evidence comes from cargo make real-world-memory-live-adapters as summarized in docs/guide/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md, which records ELF live memory-evolution preference as wrong_result. The current measured comparison is therefore an ELF loss on this history dimension until ELF temporal reconciliation is fixed.",
           "command": "mem0: ELF_BASELINE_PROJECTS=mem0 cargo make baseline-live-docker; ELF: cargo make real-world-memory-live-adapters",
           "artifact": "mem0: tmp/live-baseline/mem0-checks.json; ELF: tmp/real-world-memory/live-adapters/ and docs/guide/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md"
         },
@@ -718,7 +718,7 @@
           "status": "pass",
           "elf_position": "ties",
           "comparison_outcome": "tie",
-          "evidence": "Fresh scoped baseline run live-baseline-20260611113003 reports mem0 entity_scoped_personalization as pass. ELF-side evidence comes from cargo make real-world-memory-live-adapters as summarized in docs/guide/benchmarking/2026-06-11-competitor-strength-adoption-report.md, which records ELF and qmd passing the encoded personalization slice. This is a measured tie on the current scoped-preference surface.",
+          "evidence": "Fresh scoped baseline run live-baseline-20260611122416 reports mem0 entity_scoped_personalization as pass. ELF-side evidence comes from cargo make real-world-memory-live-adapters as summarized in docs/guide/benchmarking/2026-06-11-competitor-strength-adoption-report.md, which records ELF and qmd passing the encoded personalization slice. This is a measured tie on the current scoped-preference surface.",
           "command": "mem0: ELF_BASELINE_PROJECTS=mem0 cargo make baseline-live-docker; ELF: cargo make real-world-memory-live-adapters",
           "artifact": "mem0: tmp/live-baseline/mem0-checks.json; ELF: tmp/real-world-memory/live-adapters/ and docs/guide/benchmarking/2026-06-11-competitor-strength-adoption-report.md"
         },
@@ -728,7 +728,7 @@
           "status": "pass",
           "elf_position": "ties",
           "comparison_outcome": "tie",
-          "evidence": "Fresh scoped baseline run live-baseline-20260611113003 reports mem0 delete_history_audit_readback as pass. ELF-side evidence comes from cargo make real-world-memory-live-adapters as summarized in docs/guide/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md, which records ELF passing the delete/TTL tombstone job. The current measured delete-audit comparison is a tie.",
+          "evidence": "Fresh scoped baseline run live-baseline-20260611122416 reports mem0 delete_history_audit_readback as pass. ELF-side evidence comes from cargo make real-world-memory-live-adapters as summarized in docs/guide/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md, which records ELF passing the delete/TTL tombstone job. The current measured delete-audit comparison is a tie.",
           "command": "mem0: ELF_BASELINE_PROJECTS=mem0 cargo make baseline-live-docker; ELF: cargo make real-world-memory-live-adapters",
           "artifact": "mem0: tmp/live-baseline/mem0-checks.json; ELF: tmp/real-world-memory/live-adapters/ and docs/guide/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md"
         },
@@ -738,7 +738,7 @@
           "status": "pass",
           "elf_position": "untested",
           "comparison_outcome": "not_tested",
-          "evidence": "Fresh scoped baseline run live-baseline-20260611113003 reports mem0 local_get_all_export_readback as pass. This is local SDK inspection/export-style readback, not OpenMemory UI evidence; ELF has no directly comparable live UI/export scoring row in this run.",
+          "evidence": "Fresh scoped baseline run live-baseline-20260611122416 reports mem0 local_get_all_export_readback as pass. This is local SDK inspection/export-style readback, not OpenMemory UI evidence; ELF has no directly comparable live UI/export scoring row in this run.",
           "command": "ELF_BASELINE_PROJECTS=mem0 cargo make baseline-live-docker",
           "artifact": "tmp/live-baseline/mem0-checks.json"
         },
@@ -748,8 +748,9 @@
           "status": "blocked",
           "elf_position": "untested",
           "comparison_outcome": "blocked",
-          "evidence": "The local Docker runner does not launch OpenMemory UI/dashboard export, and hosted Platform export remains outside local OSS evidence. Basic lifecycle and local get_all readback are not reused as UI/export proof.",
-          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json"
+          "evidence": "The XY-931 OpenMemory export-helper setup probe is Docker-contained in the mem0 baseline run. It detects the OpenMemory product tree, UI package, compose file, and export helper, but Docker is unavailable inside the baseline-runner container before the helper can reach a running OpenMemory product container or app database. Basic lifecycle and local SDK get_all readback are not reused as UI/export proof.",
+          "command": "cargo make openmemory-ui-export-readback",
+          "artifact": "tmp/live-baseline/mem0-openmemory-ui-export.json"
         },
         {
           "scenario_id": "hosted_platform_export",
@@ -778,7 +779,8 @@
         }
       ],
       "notes": [
-        "Separate local OSS mem0 evidence from hosted Platform and OpenMemory UI claims."
+        "Separate local OSS mem0 SDK evidence from OpenMemory product UI/export claims.",
+        "A blocked OpenMemory export-helper setup probe is not an ELF win or loss until the product app can import and export the same local corpus."
       ]
     },
     {

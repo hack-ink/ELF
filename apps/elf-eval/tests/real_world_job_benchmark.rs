@@ -137,6 +137,13 @@ fn competitor_strength_adoption_report_json_path() -> Result<PathBuf> {
 		.join("2026-06-11-competitor-strength-adoption-report.json"))
 }
 
+fn temporal_history_competitor_gap_json_path() -> Result<PathBuf> {
+	Ok(workspace_root()?
+		.join("docs")
+		.join("research")
+		.join("2026-06-11-temporal-history-competitor-gap-report.json"))
+}
+
 fn competitor_strength_matrix_path() -> Result<PathBuf> {
 	Ok(workspace_root()?
 		.join("docs")
@@ -399,7 +406,7 @@ fn assert_external_adapter_manifest_summary(report: &Value) {
 	);
 	assert_eq!(
 		report.pointer("/external_adapters/manifest_id").and_then(Value::as_str),
-		Some("real-world-memory-project-adapters-2026-06-11-mem0-history")
+		Some("real-world-memory-project-adapters-2026-06-11-openmemory-ui-export")
 	);
 	assert_eq!(
 		report.pointer("/external_adapters/docker_isolation/default").and_then(Value::as_bool),
@@ -813,6 +820,20 @@ fn assert_first_generation_adapter_records(
 	);
 	assert_eq!(mem0.pointer("/scenarios/5/status").and_then(Value::as_str), Some("blocked"));
 	assert_eq!(
+		mem0.pointer("/scenarios/5/command").and_then(Value::as_str),
+		Some("cargo make openmemory-ui-export-readback")
+	);
+	assert_eq!(
+		mem0.pointer("/scenarios/5/artifact").and_then(Value::as_str),
+		Some("tmp/live-baseline/mem0-openmemory-ui-export.json")
+	);
+	assert!(
+		mem0.pointer("/capabilities/7/evidence")
+			.and_then(Value::as_str)
+			.is_some_and(|evidence| evidence.contains("export-helper setup probe")
+				&& evidence.contains("requires Docker access"))
+	);
+	assert_eq!(
 		mem0.pointer("/scenarios/6/comparison_outcome").and_then(Value::as_str),
 		Some("non_goal")
 	);
@@ -1062,6 +1083,48 @@ fn live_adapter_aggregate_forwards_graph_rag_smoke_controls() -> Result<()> {
 	assert!(
 		makefile.contains("--profile graphiti-zep up -d graphiti-falkordb"),
 		"aggregate task should start Graphiti/Zep profile when ELF_GRAPHITI_ZEP_SMOKE_START=1",
+	);
+
+	Ok(())
+}
+
+#[test]
+fn openmemory_ui_export_probe_has_dedicated_docker_task() -> Result<()> {
+	let workspace_root = workspace_root()?;
+	let makefile = fs::read_to_string(workspace_root.join("Makefile.toml"))?;
+	let compose = fs::read_to_string(workspace_root.join("docker-compose.baseline.yml"))?;
+	let script = fs::read_to_string(workspace_root.join("scripts/live-baseline-benchmark.sh"))?;
+	let report = serde_json::from_str::<Value>(&fs::read_to_string(
+		workspace_root.join("docs/research/2026-06-11-xy-931-openmemory-ui-export-readback.json"),
+	)?)?;
+
+	assert!(makefile.contains("[tasks.openmemory-ui-export-readback]"));
+	assert!(makefile.contains("export ELF_BASELINE_PROJECTS=mem0"));
+	assert!(compose.contains("ELF_MEM0_OPENMEMORY_EXPORT_USER_ID"));
+	assert!(compose.contains("ELF_MEM0_OPENMEMORY_EXPORT_CONTAINER"));
+	assert!(script.contains("probe_mem0_openmemory_ui_export"));
+	assert!(script.contains("mem0-openmemory-ui-export.json"));
+	assert!(script.contains("DOCKER_UNAVAILABLE_IN_BASELINE_RUNNER"));
+	assert!(script.contains("sdk_get_all_is_ui_export_evidence: false"));
+	assert!(
+		script.contains("SDK same-corpus retrieval and every encoded SDK behavior check passed")
+	);
+	assert_eq!(report.pointer("/classification/status").and_then(Value::as_str), Some("blocked"));
+	assert_eq!(
+		report.pointer("/classification/reason_code").and_then(Value::as_str),
+		Some("DOCKER_UNAVAILABLE_IN_BASELINE_RUNNER")
+	);
+	assert_eq!(
+		report
+			.pointer("/same_corpus_boundary/sdk_get_all_is_ui_export_evidence")
+			.and_then(Value::as_bool),
+		Some(false)
+	);
+	assert_eq!(
+		report
+			.pointer("/claim_boundary/elf_can_compare_against_openmemory_ui_export_after_this_run")
+			.and_then(Value::as_bool),
+		Some(false)
 	);
 
 	Ok(())
@@ -1432,6 +1495,9 @@ fn current_benchmark_reports_preserve_live_sweep_boundaries() -> Result<()> {
 	let external_manifest = fs::read_to_string(external_adapter_manifest_path())?;
 	let retrieval_debug_profile =
 		serde_json::from_str::<Value>(&fs::read_to_string(retrieval_debug_profile_json_path()?)?)?;
+	let temporal_history = serde_json::from_str::<Value>(&fs::read_to_string(
+		temporal_history_competitor_gap_json_path()?,
+	)?)?;
 
 	assert!(
 		measurement_audit.contains(
@@ -1505,6 +1571,20 @@ fn current_benchmark_reports_preserve_live_sweep_boundaries() -> Result<()> {
 	);
 
 	assert_competitor_strength_matrix_json(&competitor_matrix_json)?;
+
+	let openmemory_command = find_by_field(
+		array_at(&temporal_history, "/commands")?,
+		"/command",
+		"cargo make openmemory-ui-export-readback",
+	)?;
+
+	assert!(
+		openmemory_command
+			.pointer("/artifact")
+			.and_then(Value::as_str)
+			.is_some_and(|artifact| artifact.contains("tmp/live-baseline/mem0-checks.json")
+				&& artifact.contains("tmp/live-baseline/mem0-openmemory-ui-export.json"))
+	);
 
 	Ok(())
 }
@@ -1680,12 +1760,16 @@ fn assert_competitor_strength_matrix_json(matrix: &Value) -> Result<()> {
 	assert_eq!(mem0.pointer("/measured_status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(
 		mem0.pointer("/unsupported_or_blocked_status/state").and_then(Value::as_str),
-		Some("not_encoded")
+		Some("blocked")
+	);
+	assert_eq!(
+		mem0.pointer("/unsupported_or_blocked_status/typed_reason").and_then(Value::as_str),
+		Some("openmemory_export_helper_setup_blocked")
 	);
 	assert!(
 		mem0.pointer("/benchmark_before_claim")
 			.and_then(Value::as_str)
-			.is_some_and(|claim| claim.contains("preference/entity history"))
+			.is_some_and(|claim| claim.contains("OpenMemory product app import/export"))
 	);
 	assert_eq!(
 		openviking.pointer("/current_evidence_class").and_then(Value::as_str),
