@@ -2320,6 +2320,27 @@ fn external_adapter_markdown_omits_scenario_summary_when_manifest_has_no_scenari
 }
 
 #[test]
+fn mem0_delete_audit_probe_requires_explicit_delete_history_event() -> Result<()> {
+	let script =
+		fs::read_to_string(workspace_root()?.join("scripts").join("live-baseline-benchmark.sh"))?;
+
+	assert!(script.contains("def history_has_event"));
+	assert!(script.contains("str(entry.get(\"event\", \"\")).upper() == expected"));
+	assert!(
+		script.contains(
+			"history_has_event(\n        delete_history[\"history\"],\n        \"DELETE\","
+		)
+	);
+	assert!(
+		!script.contains(
+			"contains_terms(\n        delete_history[\"history\"],\n        [\"delete\"],"
+		)
+	);
+
+	Ok(())
+}
+
+#[test]
 fn knowledge_json_report_renders_markdown_metrics() -> Result<()> {
 	let report = run_json_report_from(knowledge_fixture_dir())?;
 	let temp_dir = env::temp_dir().join(format!("elf-real-world-knowledge-test-{}", process::id()));

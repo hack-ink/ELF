@@ -179,7 +179,7 @@ provider-backed ELF evidence was required.
 - mem0/OpenMemory history follow-up after XY-924: the local OSS mem0 adapter now
   passes encoded preference correction history, entity-scoped personalization, local
   `get_all` export-style readback, and deletion audit history in
-  `live-baseline-20260611105855`. The comparison records ELF as a loss on preference
+  `live-baseline-20260611111119`. The comparison records ELF as a loss on preference
   correction history, ties on scoped personalization and delete audit, `not_tested`
   for local SDK export-style parity, `blocked` for OpenMemory UI/export, and
   `non_goal` for hosted Platform export and optional graph memory in the local OSS

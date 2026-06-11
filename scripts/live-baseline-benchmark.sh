@@ -2218,6 +2218,25 @@ def contains_terms(value, terms):
     return all(term.lower() in text for term in terms)
 
 
+def history_entries(history):
+    if isinstance(history, dict):
+        for key in ("results", "history", "memories"):
+            entries = history.get(key)
+            if isinstance(entries, list):
+                return entries
+    if isinstance(history, list):
+        return history
+    return []
+
+
+def history_has_event(history, expected_event):
+    expected = expected_event.upper()
+    return any(
+        isinstance(entry, dict) and str(entry.get("event", "")).upper() == expected
+        for entry in history_entries(history)
+    )
+
+
 def first_memory_id(add_result):
     results = add_result.get("results", []) if isinstance(add_result, dict) else []
     if results and isinstance(results[0], dict):
@@ -2601,9 +2620,9 @@ else:
         )
     )
     delete_history = memory_history(memory, delete_id)
-    delete_history_has_event = delete_history["available"] and contains_terms(
+    delete_history_has_event = delete_history["available"] and history_has_event(
         delete_history["history"],
-        ["delete"],
+        "DELETE",
     )
     if not delete_history["available"]:
         delete_audit_status = "blocked"
