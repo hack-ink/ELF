@@ -234,6 +234,17 @@ struct MaterializedJobEvidence {
 	failure: Option<String>,
 	#[serde(skip_serializing_if = "Vec::is_empty")]
 	source_mappings: Vec<SourceMappingEvidence>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	operator_debug: Option<OperatorDebugMaterializationEvidence>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+struct OperatorDebugMaterializationEvidence {
+	trace_available: bool,
+	replay_command_available: bool,
+	candidate_drop_visibility: String,
+	repair_action_clarity: String,
+	raw_sql_needed: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -282,6 +293,7 @@ struct TraceStageOutput {
 struct MaterializedJob {
 	response: AdapterResponseOutput,
 	evidence: MaterializedJobEvidence,
+	operator_debug: Option<Value>,
 }
 
 #[derive(Debug)]
@@ -294,6 +306,8 @@ struct MaterializedJobInput {
 	trace_id: Option<Uuid>,
 	failure: Option<String>,
 	source_mappings: Vec<SourceMappingEvidence>,
+	operator_debug: Option<Value>,
+	operator_debug_evidence: Option<OperatorDebugMaterializationEvidence>,
 }
 
 struct MaterializedOutput<'a> {
@@ -642,6 +656,14 @@ fn materialize_qmd_job(
 	}
 
 	let selected = selected_required_corpus_texts(loaded, &corpus, &evidence_ids);
+	let replay_command = qmd_replay_command(&loaded.job.prompt.content, collection.as_str());
+	let (operator_debug, operator_debug_evidence) = operator_debug_output(
+		AdapterKind::QmdCliRuntime,
+		loaded,
+		None,
+		replay_command,
+		log_path.display().to_string(),
+	);
 
 	Ok(materialized_job(
 		loaded,
@@ -655,6 +677,8 @@ fn materialize_qmd_job(
 			trace_id: None,
 			failure: None,
 			source_mappings: Vec::new(),
+			operator_debug,
+			operator_debug_evidence,
 		},
 	))
 }
@@ -698,6 +722,8 @@ fn lightrag_failure_jobs(
 					trace_id: None,
 					failure: Some(format!("{stage}: {reason}")),
 					source_mappings: Vec::new(),
+					operator_debug: None,
+					operator_debug_evidence: None,
 				},
 			)
 		})
@@ -978,6 +1004,7 @@ fn materialized_job(
 				},
 			},
 		},
+		operator_debug: input.operator_debug,
 		evidence: MaterializedJobEvidence {
 			job_id: loaded.job.job_id.clone(),
 			suite: loaded.job.suite.clone(),
@@ -991,11 +1018,16 @@ fn materialized_job(
 			trace_id: input.trace_id,
 			failure: input.failure,
 			source_mappings: input.source_mappings,
+			operator_debug: input.operator_debug_evidence,
 		},
 	}
 }
 
 fn declared_encoding_job(adapter_id: &str, loaded: &LoadedJob) -> Option<MaterializedJob> {
+	if is_operator_debug_live_adapter(adapter_id, loaded.job.suite.as_str()) {
+		return None;
+	}
+
 	let status = loaded.job.encoding.status?;
 	let reason = loaded.job.encoding.reason.clone().unwrap_or_else(|| {
 		format!("Fixture declares {} for this live adapter job.", status.as_str())
@@ -1010,6 +1042,10 @@ fn declared_encoding_job(adapter_id: &str, loaded: &LoadedJob) -> Option<Materia
 }
 
 fn not_encoded_job(adapter_id: &str, loaded: &LoadedJob) -> Option<MaterializedJob> {
+	if is_operator_debug_live_adapter(adapter_id, loaded.job.suite.as_str()) {
+		return None;
+	}
+
 	not_encoded_reason(loaded.job.suite.as_str()).map(|reason| {
 		materialized_declared_status_job(
 			adapter_id,
@@ -1018,6 +1054,11 @@ fn not_encoded_job(adapter_id: &str, loaded: &LoadedJob) -> Option<MaterializedJ
 			reason.to_string(),
 		)
 	})
+}
+
+fn is_operator_debug_live_adapter(adapter_id: &str, suite: &str) -> bool {
+	suite == "operator_debugging_ux"
+		&& matches!(adapter_id, "elf_operator_debug_live" | "qmd_operator_debug_live")
 }
 
 fn not_encoded_reason(suite: &str) -> Option<&'static str> {
@@ -1035,7 +1076,7 @@ fn not_encoded_reason(suite: &str) -> Option<&'static str> {
 			"The live adapter sweep retrieves evidence-linked answers but does not generate derived knowledge pages.",
 		),
 		"operator_debugging_ux" => Some(
-			"The live adapter sweep does not yet hydrate full operator trace/viewer diagnostics for this suite.",
+			"The full live adapter sweep keeps operator trace/viewer diagnostics in a focused operator-debug slice.",
 		),
 		"capture_integration" => Some(
 			"The live adapter sweep does not exercise capture integrations or write-policy redaction boundaries.",
@@ -1102,8 +1143,156 @@ fn materialized_declared_status_job(
 			trace_id: None,
 			failure,
 			source_mappings: Vec::new(),
+			operator_debug: None,
 		},
+		operator_debug: None,
 	}
+}
+
+fn operator_debug_output(
+	adapter_kind: AdapterKind,
+	loaded: &LoadedJob,
+	trace_id: Option<Uuid>,
+	replay_command: String,
+	replay_artifact: String,
+) -> (Option<Value>, Option<OperatorDebugMaterializationEvidence>) {
+	if loaded.job.suite != "operator_debugging_ux" {
+		return (None, None);
+	}
+
+	let Some(source) = loaded.value.get("operator_debug") else {
+		return (None, None);
+	};
+	let mut debug = source.clone();
+	let Some(object) = debug.as_object_mut() else {
+		return (None, None);
+	};
+	let trace_available = trace_id.is_some();
+	let replay_command_available = !replay_command.trim().is_empty();
+	let raw_sql_needed = false;
+	let repair_action_clarity = if replay_command_available { "clear" } else { "unclear" };
+	let candidate_drop_visibility =
+		operator_debug_candidate_visibility(adapter_kind, object).to_string();
+
+	object.insert("trace_available".to_string(), Value::Bool(trace_available));
+	object.insert("replay_command_available".to_string(), Value::Bool(replay_command_available));
+	object.insert("raw_sql_needed".to_string(), Value::Bool(raw_sql_needed));
+	object.insert(
+		"dropped_candidate_visibility".to_string(),
+		Value::String(candidate_drop_visibility.clone()),
+	);
+	object.insert(
+		"trace_completeness".to_string(),
+		Value::String(operator_debug_trace_completeness(adapter_kind, trace_available).to_string()),
+	);
+	object.insert(
+		"repair_action_clarity".to_string(),
+		Value::String(repair_action_clarity.to_string()),
+	);
+	object.insert("replay_command".to_string(), Value::String(replay_command.clone()));
+	object.insert("replay_artifact".to_string(), Value::String(replay_artifact));
+
+	match adapter_kind {
+		AdapterKind::ElfServiceRuntime =>
+			if let Some(trace_id) = trace_id {
+				let trace_id = trace_id.to_string();
+
+				object.insert("trace_id".to_string(), Value::String(trace_id.clone()));
+				object.insert(
+					"viewer_url".to_string(),
+					Value::String(format!("/viewer?trace_id={trace_id}")),
+				);
+				object.insert(
+					"admin_trace_bundle_url".to_string(),
+					Value::String(format!(
+						"/v2/admin/traces/{trace_id}/bundle?mode=full&stage_items_limit=128&candidates_limit=200"
+					)),
+				);
+			},
+		AdapterKind::QmdCliRuntime => {
+			object.remove("trace_id");
+			object.remove("viewer_url");
+			object.remove("admin_trace_bundle_url");
+			object.insert("viewer_panels".to_string(), serde_json::json!(["qmd JSON Replay Rows"]));
+		},
+		AdapterKind::LightragApiContextExport => {},
+	}
+
+	let mut cli_steps = string_array_from_object(object, "cli_steps");
+
+	push_unique(&mut cli_steps, replay_command);
+
+	object.insert("cli_steps".to_string(), serde_json::json!(cli_steps));
+
+	(
+		Some(debug),
+		Some(OperatorDebugMaterializationEvidence {
+			trace_available,
+			replay_command_available,
+			candidate_drop_visibility,
+			repair_action_clarity: repair_action_clarity.to_string(),
+			raw_sql_needed,
+		}),
+	)
+}
+
+fn operator_debug_trace_completeness(
+	adapter_kind: AdapterKind,
+	trace_available: bool,
+) -> &'static str {
+	match adapter_kind {
+		AdapterKind::ElfServiceRuntime if trace_available => "complete",
+		AdapterKind::ElfServiceRuntime => "missing",
+		AdapterKind::QmdCliRuntime | AdapterKind::LightragApiContextExport => "not_available",
+	}
+}
+
+fn operator_debug_candidate_visibility(
+	adapter_kind: AdapterKind,
+	object: &Map<String, Value>,
+) -> &str {
+	match adapter_kind {
+		AdapterKind::ElfServiceRuntime => object
+			.get("dropped_candidate_visibility")
+			.and_then(Value::as_str)
+			.unwrap_or("visible through trace bundle replay candidates"),
+		AdapterKind::QmdCliRuntime =>
+			"qmd top-k replay output is available, but intermediate candidate-drop stages are not exposed",
+		AdapterKind::LightragApiContextExport => "not encoded for this adapter",
+	}
+}
+
+fn string_array_from_object(object: &Map<String, Value>, key: &str) -> Vec<String> {
+	object
+		.get(key)
+		.and_then(Value::as_array)
+		.map(|items| items.iter().filter_map(Value::as_str).map(ToString::to_string).collect())
+		.unwrap_or_default()
+}
+
+fn elf_replay_command(trace_id: Uuid, project_id: &str) -> String {
+	format!(
+		"curl -fsS {} -H {} -H {} -H {}",
+		shell_quote(format!(
+			"http://127.0.0.1:51891/v2/admin/traces/{trace_id}/bundle?mode=full&stage_items_limit=128&candidates_limit=200"
+		)
+		.as_str()),
+		shell_quote("X-ELF-Tenant-Id: elf-live-real-world"),
+		shell_quote(format!("X-ELF-Project-Id: {project_id}").as_str()),
+		shell_quote("X-ELF-Agent-Id: elf-live-real-world-agent")
+	)
+}
+
+fn qmd_replay_command(query: &str, collection: &str) -> String {
+	format!(
+		"npx tsx src/cli/qmd.ts query {} -c {} --json --no-rerank --min-score 0 -n 5",
+		shell_quote(format!("lex: {query}\nvec: {query}").as_str()),
+		shell_quote(collection)
+	)
+}
+
+fn shell_quote(value: &str) -> String {
+	format!("'{}'", value.replace('\'', "'\\''"))
 }
 
 fn evidence_linked_claims(loaded: &LoadedJob, evidence_ids: &[String]) -> Vec<Value> {
@@ -1220,6 +1409,8 @@ fn failure_jobs(
 					trace_id: None,
 					failure: Some(format!("{stage}: {reason}")),
 					source_mappings: Vec::new(),
+					operator_debug: None,
+					operator_debug_evidence: None,
 				},
 			)
 		})
@@ -1246,6 +1437,10 @@ fn write_materialized_output(output: MaterializedOutput<'_>) -> color_eyre::Resu
 			.insert("answer".to_string(), serde_json::to_value(&materialized.response.answer)?);
 
 		value["corpus"]["adapter_response"] = Value::Object(adapter_response);
+
+		if let Some(operator_debug) = &materialized.operator_debug {
+			value["operator_debug"] = operator_debug.clone();
+		}
 
 		if matches!(
 			materialized.evidence.status,
@@ -1305,6 +1500,7 @@ fn clone_job_evidence(evidence: &MaterializedJobEvidence) -> MaterializedJobEvid
 		trace_id: evidence.trace_id,
 		failure: evidence.failure.clone(),
 		source_mappings: evidence.source_mappings.clone(),
+		operator_debug: evidence.operator_debug.clone(),
 	}
 }
 
@@ -1827,6 +2023,8 @@ async fn materialize_lightrag_job(
 			trace_id: None,
 			failure: None,
 			source_mappings,
+			operator_debug: None,
+			operator_debug_evidence: None,
 		},
 	))
 }
@@ -2045,7 +2243,75 @@ async fn materialize_elf_job(
 	let corpus = corpus_texts(loaded)?;
 	let project_id = project_id_for_job(&loaded.job.job_id);
 
-	for item in &corpus {
+	ingest_elf_corpus(service, loaded, adapter_id, project_id.as_str(), &corpus).await?;
+	run_worker(runtime).await?;
+
+	let started_at = Instant::now();
+	let response = service
+		.search_raw(SearchRequest {
+			tenant_id: TENANT_ID.to_string(),
+			project_id: project_id.clone(),
+			agent_id: AGENT_ID.to_string(),
+			token_id: None,
+			payload_level: PayloadLevel::L2,
+			read_profile: "private_only".to_string(),
+			query: loaded.job.prompt.content.clone(),
+			top_k: Some(5),
+			candidate_k: Some(20),
+			filter: None,
+			record_hits: Some(false),
+			ranking: None,
+		})
+		.await
+		.map_err(|err| eyre::eyre!("ELF search_raw failed for {}: {err}", loaded.job.job_id))?;
+	let latency_ms = started_at.elapsed().as_secs_f64() * 1_000.0;
+	let mut evidence_ids = Vec::new();
+
+	for item in &response.items {
+		if let Some(evidence_id) = item.source_ref.get("evidence_id").and_then(Value::as_str) {
+			push_unique(&mut evidence_ids, evidence_id.to_string());
+		}
+	}
+
+	let selected = selected_required_corpus_texts(loaded, &corpus, &evidence_ids);
+	let replay_command = elf_replay_command(response.trace_id, project_id.as_str());
+	let (operator_debug, operator_debug_evidence) = operator_debug_output(
+		AdapterKind::ElfServiceRuntime,
+		loaded,
+		Some(response.trace_id),
+		replay_command,
+		format!(
+			"/v2/admin/traces/{}/bundle?mode=full&stage_items_limit=128&candidates_limit=200",
+			response.trace_id
+		),
+	);
+
+	Ok(materialized_job(
+		loaded,
+		adapter_id,
+		MaterializedJobInput {
+			content: selected.content,
+			evidence_ids: selected.evidence_ids,
+			latency_ms,
+			indexing_latency_ms: None,
+			returned_count: response.items.len(),
+			trace_id: Some(response.trace_id),
+			failure: None,
+			source_mappings: Vec::new(),
+			operator_debug,
+			operator_debug_evidence,
+		},
+	))
+}
+
+async fn ingest_elf_corpus(
+	service: &ElfService,
+	loaded: &LoadedJob,
+	adapter_id: &str,
+	project_id: &str,
+	corpus: &[CorpusText],
+) -> color_eyre::Result<()> {
+	for item in corpus {
 		let chunks = note_text_chunks(item.text.as_str());
 		let chunk_count = chunks.len();
 
@@ -2058,7 +2324,7 @@ async fn materialize_elf_job(
 			let response = service
 				.add_note(AddNoteRequest {
 					tenant_id: TENANT_ID.to_string(),
-					project_id: project_id.clone(),
+					project_id: project_id.to_string(),
 					agent_id: AGENT_ID.to_string(),
 					scope: SCOPE.to_string(),
 					notes: vec![AddNoteInput {
@@ -2096,51 +2362,7 @@ async fn materialize_elf_job(
 		}
 	}
 
-	run_worker(runtime).await?;
-
-	let started_at = Instant::now();
-	let response = service
-		.search_raw(SearchRequest {
-			tenant_id: TENANT_ID.to_string(),
-			project_id,
-			agent_id: AGENT_ID.to_string(),
-			token_id: None,
-			payload_level: PayloadLevel::L2,
-			read_profile: "private_only".to_string(),
-			query: loaded.job.prompt.content.clone(),
-			top_k: Some(5),
-			candidate_k: Some(20),
-			filter: None,
-			record_hits: Some(false),
-			ranking: None,
-		})
-		.await
-		.map_err(|err| eyre::eyre!("ELF search_raw failed for {}: {err}", loaded.job.job_id))?;
-	let latency_ms = started_at.elapsed().as_secs_f64() * 1_000.0;
-	let mut evidence_ids = Vec::new();
-
-	for item in &response.items {
-		if let Some(evidence_id) = item.source_ref.get("evidence_id").and_then(Value::as_str) {
-			push_unique(&mut evidence_ids, evidence_id.to_string());
-		}
-	}
-
-	let selected = selected_required_corpus_texts(loaded, &corpus, &evidence_ids);
-
-	Ok(materialized_job(
-		loaded,
-		adapter_id,
-		MaterializedJobInput {
-			content: selected.content,
-			evidence_ids: selected.evidence_ids,
-			latency_ms,
-			indexing_latency_ms: None,
-			returned_count: response.items.len(),
-			trace_id: Some(response.trace_id),
-			failure: None,
-			source_mappings: Vec::new(),
-		},
-	))
+	Ok(())
 }
 
 async fn build_service(runtime: &BaselineRuntime) -> color_eyre::Result<ElfService> {

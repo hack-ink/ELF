@@ -34,6 +34,9 @@ What is proven today:
   trajectory, mem0/OpenMemory entity history and UI, Letta core-vs-archival memory,
   Graphiti/Zep temporal graph behavior, graph/RAG navigation, agentmemory and
   claude-mem capture/continuity, and knowledge-page workflows remain non-claims.
+  The separate XY-932 operator-debug live slice now scores ELF against qmd for trace
+  hydration and candidate-drop visibility, but does not cover OpenMemory or
+  claude-mem UI flows.
 
 So the current adoption decision can remain "credible for bounded personal
 production," but the competitiveness objective remains open.
@@ -119,19 +122,19 @@ conflict evidence links for current-vs-historical reasoning.
 
 ## External Adapter Ledger
 
-The checked-in manifest records 21 adapter records across 17 unique project names.
+The checked-in manifest records 23 adapter records across 17 unique project names.
 
 | Evidence class | Adapter records | Meaning |
 | --- | ---: | --- |
 | `fixture_backed` | `1` | ELF fixture scoring only. |
 | `live_baseline_only` | `6` | Docker same-corpus or lifecycle evidence without real-world job scoring. |
-| `live_real_world` | `3` | ELF and qmd live real-world sweeps plus graphify's tiny scored Docker smoke. |
+| `live_real_world` | `5` | ELF and qmd live real-world sweeps, graphify's tiny scored Docker smoke, and the narrow ELF/qmd operator-debug live slice. |
 | `research_gate` | `11` | Setup, source, resource, or output-contract gate only. |
 
 | Overall status | Adapter records |
 | --- | ---: |
-| `pass` | `3` |
-| `wrong_result` | `5` |
+| `pass` | `4` |
+| `wrong_result` | `6` |
 | `lifecycle_fail` | `1` |
 | `blocked` | `5` |
 | `not_encoded` | `7` |
@@ -144,8 +147,8 @@ records `unique_project_names: 17` for the full project list including ELF.
 
 | Project | Best current evidence | Current measured state | Strongest unproven scenario | Next measurement before claim |
 | --- | --- | --- | --- | --- |
-| ELF | `fixture_backed` plus `live_real_world` | Fixture aggregate passes except 2 blocked operator boundaries; live full sweep is `wrong_result`. | Full live memory evolution, live consolidation, live knowledge pages, live capture, live production ops. | Memory-evolution diagnostic report, then live operator/capture/consolidation reports. |
-| qmd | `live_real_world` plus `live_baseline_only` | Fresh full sweep is one pass behind ELF because qmd misses the delete/TTL tombstone job; same-corpus baseline passes. | Deep retrieval-debug ergonomics and trace replay. | qmd/ELF deep retrieval-debug profile with expansion, fusion, rerank, and dropped-candidate traces. |
+| ELF | `fixture_backed` plus `live_real_world` | Fixture aggregate passes except 2 blocked operator boundaries; live full sweep is `wrong_result`; narrow operator-debug live slice passes. | Full live memory evolution, live consolidation, live knowledge pages, live capture, live production ops, and broader operator UI runners. | Memory-evolution diagnostic report, then live capture/consolidation/knowledge reports and OpenMemory/claude-mem UI runners. |
+| qmd | `live_real_world` plus `live_baseline_only` | Fresh full sweep is one pass behind ELF because qmd misses the delete/TTL tombstone job; same-corpus baseline passes; narrow operator-debug live slice ties replay commands but is `wrong_result` for trace hydration and candidate-drop visibility. | Deep retrieval-debug ergonomics and trace replay beyond the narrow operator-debug slice. | qmd/ELF deep retrieval-debug profile with expansion, fusion, rerank, and dropped-candidate traces. |
 | agentmemory | `live_baseline_only` | `lifecycle_fail`. | Durable coding-agent continuity and capture hooks. | Durable lifecycle and work-resume/capture adapter report. |
 | mem0/OpenMemory | `live_baseline_only` | Basic local smoke now passes; history/UI/hosted/graph behavior remains `not_encoded`. | Entity history, lifecycle UI, OpenMemory inspection. | Entity-history, deletion-audit, and UI/export readback report. |
 | memsearch | `live_baseline_only` | Basic canonical Markdown reindex/reload smoke now passes; real-world prompt coverage remains `not_encoded`. | Markdown canonical store and local reindex clarity. | Source-of-truth and retrieval-debug real-world adapter report. |
@@ -173,7 +176,7 @@ records `unique_project_names: 17` for the full project list including ELF.
 | Memory evolution | ELF live fails 5/6 jobs; qmd live fails 6/6 jobs after missing the delete/TTL tombstone evidence; fixture aggregate passes. | No broad live superiority claim. | Historical conflict evidence links and Graphiti/Zep temporal comparison. |
 | Consolidation | Fixture aggregate passes; live adapters are not encoded. | Fixture-only claim. | Live proposal generation with lineage, confidence, and review-action audit. |
 | Knowledge pages | Fixture aggregate passes; live adapters are not encoded. | Fixture-only claim. | Live page rebuild/lint plus llm-wiki, gbrain, GraphRAG, and graphify comparisons. |
-| Operator debugging | Fixture aggregate passes; live adapters are not encoded. | Fixture-only claim. | Trace hydration, stage attribution, dropped-candidate, and repair-action scoring. |
+| Operator debugging | Fixture aggregate passes; narrow ELF/qmd live operator-debug slice is scored with ELF `pass` and qmd `wrong_result`. | Narrow ELF/qmd live claim only: ELF wins trace hydration, candidate-drop visibility, and selected-but-not-narrated evidence; replay-command and repair-action clarity are tied. | OpenMemory and claude-mem UI/export or viewer runners before any broader operator-UX claim. |
 | Capture/write policy | Fixture aggregate passes; live adapters are not encoded. | Fixture-only claim. | agentmemory/claude-mem style capture with redaction and evidence binding. |
 | Production ops | ELF has separate production-provider/backfill/restore evidence; live sweep is not a full production-ops pass. | Bounded personal-production adoption claim with caveats. | Private corpus manifest and credentialed provider gates. |
 | Personalization | ELF and qmd live pass one scoped preference job. | Narrow encoded pass only. | mem0/OpenMemory and Letta entity/preference history comparison. |

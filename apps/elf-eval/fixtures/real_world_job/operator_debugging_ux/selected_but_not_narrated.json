@@ -1,0 +1,160 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "operator-debug-selected-not-narrated-001",
+  "suite": "operator_debugging_ux",
+  "title": "Debug evidence selected but not narrated",
+  "corpus": {
+    "corpus_id": "operator-debugging-ux-2026-06-11",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "trace-selected-not-narrated",
+        "kind": "trace",
+        "text": "Trace 66666666-6666-4666-8666-666666666666 shows final selection included supersession evidence for the release owner change, but the generated answer narrated only the current owner and omitted the selected historical handoff evidence.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "operator_debugging_ux",
+            "evidence_id": "trace-selected-not-narrated"
+          }
+        },
+        "created_at": "2026-06-11T02:30:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_operator_ux",
+      "answer": {
+        "content": "The trace selected the supersession evidence, but the answer did not narrate it.",
+        "claims": [
+          {
+            "claim_id": "root_cause",
+            "text": "The trace selected the supersession evidence, but the answer did not narrate it.",
+            "evidence_ids": ["trace-selected-not-narrated"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["trace-selected-not-narrated"],
+        "latency_ms": 2.7,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        },
+        "trace_explainability": {
+          "trace_id": "66666666-6666-4666-8666-666666666666",
+          "failure_stage": "selection.narration",
+          "failure_reason": "The selected evidence was present in the final set, but the answer omitted the historical handoff narration.",
+          "stages": [
+            {
+              "stage_name": "selection.final",
+              "kept_evidence": ["trace-selected-not-narrated"],
+              "dropped_evidence": [],
+              "demoted_evidence": [],
+              "distractor_evidence": [],
+              "notes": "Final selection retained the trace that explains the supersession history."
+            },
+            {
+              "stage_name": "selection.narration",
+              "kept_evidence": ["trace-selected-not-narrated"],
+              "dropped_evidence": [],
+              "demoted_evidence": [],
+              "distractor_evidence": [],
+              "notes": "The narration step did not surface the selected historical handoff evidence."
+            }
+          ]
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "selected-not-narrated-trace",
+      "ts": "2026-06-11T02:30:00Z",
+      "actor": "system",
+      "action": "captured_trace",
+      "evidence_ids": ["trace-selected-not-narrated"],
+      "summary": "The trace captured selected evidence that the final answer failed to narrate."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Why did the debug answer miss the release owner handoff even though the trace had the evidence?",
+    "job_mode": "debug",
+    "constraints": ["cite_evidence", "state_repair_action"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "root_cause",
+        "text": "The trace selected the supersession evidence, but the answer did not narrate it."
+      }
+    ],
+    "must_not_include": ["The supersession evidence was absent from final selection."],
+    "evidence_links": {
+      "root_cause": ["trace-selected-not-narrated"]
+    },
+    "answer_type": "debug_report",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "trace-selected-not-narrated",
+      "claim_id": "root_cause",
+      "requirement": "explain",
+      "quote": "final selection included supersession evidence for the release owner change"
+    }
+  ],
+  "negative_traps": [],
+  "scoring_rubric": {
+    "dimensions": {
+      "debuggability": {
+        "weight": 0.35,
+        "max_points": 1.0,
+        "criteria": "Identifies that the evidence was selected but not narrated."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Cites selected trace evidence."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Names a narration or answer-composition repair action."
+      },
+      "answer_correctness": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Does not claim the evidence was absent."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": ["unsupported high-confidence claim about a required decision or fact"]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": ["The fixture does not provide that evidence."],
+    "fallback_action": "state_blocker"
+  },
+  "operator_debug": {
+    "failure_mode": "selected_but_not_narrated",
+    "trace_id": "66666666-6666-4666-8666-666666666666",
+    "viewer_url": "/viewer?trace_id=66666666-6666-4666-8666-666666666666",
+    "admin_trace_bundle_url": "/v2/admin/traces/66666666-6666-4666-8666-666666666666/bundle?mode=full&stage_items_limit=128&candidates_limit=200",
+    "root_cause": "The evidence survived final selection, but answer composition failed to narrate the selected supersession context.",
+    "steps_to_root_cause": 3,
+    "raw_sql_needed": false,
+    "dropped_candidate_visibility": "not dropped; selected evidence is visible in final results and narration stage details",
+    "trace_completeness": "complete",
+    "repair_action_clarity": "clear",
+    "viewer_panels": ["Selected Final Results", "Stage Details", "Trace"],
+    "cli_steps": ["open trace bundle", "inspect final selected evidence", "inspect narration stage", "repair answer composition"],
+    "trace_evidence": ["trace-selected-not-narrated"],
+    "ux_gaps": []
+  },
+  "tags": ["synthetic", "operator_debugging_ux", "qmd_reference", "no_live_claim"]
+}
