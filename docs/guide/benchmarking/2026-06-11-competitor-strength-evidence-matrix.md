@@ -125,7 +125,7 @@ now explicit:
 | LightRAG context export | XY-886 | yes | Docker service setup and explicit provider config. | Retrieved context export and source file-path citations. |
 | GraphRAG cost-bounded adapter | XY-887 | yes | Tiny corpus cost/resource envelope. | Document, text-unit, graph-summary, and citation output tables. |
 | Graphiti/Zep temporal graph adapter | XY-888 | yes | Docker-local graph store setup. | Current/historical/future fact validity and evidence ids. |
-| graphify graph report adapter | XY-889 | yes | Docker CLI graph/report generation proof. | `graph.json` and `GRAPH_REPORT` evidence for graph navigation and knowledge synthesis. |
+| graphify graph report adapter | XY-889 plus post-XY-900 expansion | yes | Representative graph/RAG jobs beyond the tiny scored smoke. | `graph.json` and `GRAPH_REPORT` evidence mapped to scored graph navigation and knowledge synthesis ids. |
 | Private corpus and credentialed production ops | Operator-owned benchmark gates | no | Sanitized private manifest and routed provider credentials. | Private-corpus retrieval quality and credentialed production-ops evidence. |
 | Letta, LangGraph, nanograph, llm-wiki direct adapters | Research-only until output contract | no | Contained evidence export or non-memory-backend comparability contract. | Run only after each has a comparable output contract; otherwise keep as product-reference evidence. |
 
