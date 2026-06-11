@@ -66,17 +66,18 @@ sweeps for ELF and qmd:
 
 | Adapter | Jobs | Pass | Wrong result | Incomplete | Blocked | Not encoded | Mean score | Evidence recall |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| ELF live service adapter | `38` | `18` | `5` | `1` | `2` | `12` | `0.514` | `41/75` |
-| qmd live CLI adapter | `38` | `18` | `5` | `1` | `2` | `12` | `0.512` | `41/75` |
+| ELF live service adapter | `38` | `18` | `5` | `0` | `2` | `13` | `0.525` | `41/77` |
+| qmd live CLI adapter | `38` | `17` | `6` | `0` | `2` | `13` | `0.486` | `38/77` |
 
 Interpretation:
 
-- This is a tie for the currently encoded live real-world sweep.
+- This is not a full-suite live pass for either system. ELF is one pass ahead in the
+  fresh aggregate because qmd misses the delete/TTL tombstone job.
 - Both pass `trust_source_of_truth`, `work_resume`, `project_decisions`,
   `retrieval`, and `personalization`.
-- Both fail `memory_evolution` live conflict evidence with `wrong_result`.
+- Both fail most `memory_evolution` live conflict evidence with `wrong_result`.
 - Both leave consolidation, knowledge compilation, operator debugging, capture
-  integration, and parts of production operations as `not_encoded` or incomplete.
+  integration, and parts of production operations as `not_encoded` or blocked.
 
 ### Production Evidence
 
