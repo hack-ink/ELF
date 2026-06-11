@@ -20,20 +20,20 @@
     "operator_boundary": "Private corpus and credentialed production-ops checks remain blocked until operator-owned inputs are supplied."
   },
   "manifest_summary": {
-    "adapter_records": 21,
+    "adapter_records": 23,
     "project_count": 17,
     "evidence_class_counts": {
       "fixture_backed": 1,
       "live_baseline_only": 6,
-      "live_real_world": 3,
+      "live_real_world": 5,
       "research_gate": 11
     },
     "overall_status_counts": {
       "lifecycle_fail": 1,
       "blocked": 5,
       "not_encoded": 7,
-      "pass": 3,
-      "wrong_result": 5
+      "pass": 4,
+      "wrong_result": 6
     }
   },
   "state_taxonomy": [
@@ -90,12 +90,12 @@
       "measured_status": "wrong_result",
       "proof": {
         "command": "cargo make real-world-memory-live-adapters",
-        "artifact": "tmp/real-world-memory/live-adapters/elf-report.md"
+        "artifact": "tmp/real-world-memory/live-adapters/elf-report.md; tmp/real-world-job/operator-ux-live-adapters/elf-report.md"
       },
       "unsupported_or_blocked_status": {
         "state": "blocked",
         "typed_reason": "private_manifest_and_provider_credentials",
-        "details": "Fixture production-ops keeps private corpus and provider credential gates blocked; live sweep keeps broader non-retrieval suites typed non-pass."
+        "details": "Fixture production-ops keeps private corpus and provider credential gates blocked; the full live sweep keeps broader non-retrieval suites typed non-pass, while the narrow operator-debug slice now passes."
       },
       "benchmark_before_claim": "A full-suite live_real_world pass plus separate private-corpus and credentialed production-ops evidence is required before broad live parity or production proof claims.",
       "borrow_if_stronger": "Keep borrowing qmd debug knobs, OpenViking staged trajectory, mem0 history, Letta core memory, and graph/RAG navigation patterns where they remain stronger."
@@ -112,14 +112,14 @@
       "measured_status": "wrong_result",
       "proof": {
         "command": "cargo make real-world-memory-live-adapters",
-        "artifact": "tmp/real-world-memory/live-adapters/qmd-report.md"
+        "artifact": "tmp/real-world-memory/live-adapters/qmd-report.md; tmp/real-world-job/operator-ux-live-adapters/qmd-report.md"
       },
       "unsupported_or_blocked_status": {
         "state": "not_encoded",
         "typed_reason": "deep_profile_and_non_retrieval_suites_not_encoded",
-        "details": "The full live sweep passes targeted retrieval suites but keeps memory_evolution wrong_result and several broader suites not_encoded or blocked."
+        "details": "The full live sweep passes targeted retrieval suites but keeps memory_evolution wrong_result and several broader suites not_encoded or blocked; the narrow operator-debug slice ties replay commands but is wrong_result for trace hydration and candidate-drop visibility."
       },
-      "benchmark_before_claim": "Run qmd deep retrieval/debug profile and full-suite live real-world replay with trace-level diagnostics before claiming ELF wins, ties, or loses on retrieval debugging.",
+      "benchmark_before_claim": "Keep qmd deep retrieval/debug profiling separate from the narrow operator-debug live slice; no broad ELF-over-qmd or qmd-over-ELF claim is allowed until comparable stage artifacts exist.",
       "borrow_if_stronger": "Borrow transparent local knobs for query rewriting, weighted fusion, rerank explanation, and command-line replay."
     },
     {
@@ -491,11 +491,11 @@
     {
       "scenario_id": "operator_debugging",
       "scenario": "operator debugging",
-      "current_elf_evidence": "ELF fixture-backed operator_debugging_ux passes, but ELF live_real_world operator_debugging_ux is not_encoded.",
+      "current_elf_evidence": "ELF fixture-backed operator_debugging_ux passes, and the narrow live_real_world operator-debug slice passes for trace hydration, candidate-drop visibility, selected-but-not-narrated evidence, replay-command availability, and repair-action clarity.",
       "strongest_competitor_or_reference": "qmd, claude-mem, OpenMemory",
-      "current_competitor_evidence": "qmd has local debug strengths but operator_debugging_ux is not_encoded in live sweeps; claude-mem and OpenMemory UX are not_encoded.",
-      "current_state": "Operator debugging remains mostly product/UX evidence, not comparable live benchmark evidence.",
-      "next_measurement": "Score trace hydration, candidate-stage attribution, raw-SQL avoidance, and repair-action clarity through live viewer or CLI artifacts."
+      "current_competitor_evidence": "qmd now has a narrow live_real_world operator-debug slice: replay-command availability and repair-action clarity pass, but trace hydration, candidate-drop stage visibility, and selected-but-not-narrated evidence are wrong_result. claude-mem and OpenMemory UX remain not_encoded or blocked.",
+      "current_state": "ELF has a narrow comparable live win over qmd for trace hydration and candidate-drop visibility, while OpenMemory and claude-mem UI workflows remain unmeasured.",
+      "next_measurement": "Add bounded OpenMemory and claude-mem UI/export or viewer runners before any broader operator-UX claim."
     },
     {
       "scenario_id": "capture_write_policy",
