@@ -26,7 +26,7 @@
     "manifest_id": "real-world-memory-project-adapters-2026-06-11-first-generation-continuity-source-store",
     "scenario_outcome_counts": {
       "win": 9,
-      "tie": 8,
+      "tie": 9,
       "loss": 1,
       "not_tested": 8,
       "blocked": 6,
@@ -37,7 +37,7 @@
       "blocked": 6,
       "wrong_result": 5,
       "lifecycle_fail": 1,
-      "pass": 19,
+      "pass": 20,
       "not_encoded": 2
     }
   },
