@@ -5,6 +5,11 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ARTIFACT_DIR="${ELF_RAGFLOW_SMOKE_ARTIFACT_DIR:-${ROOT_DIR}/tmp/real-world-memory/ragflow-smoke}"
 OUT="${ELF_RAGFLOW_SMOKE_OUT:-${ARTIFACT_DIR}/ragflow-smoke.json}"
 MANIFEST_OUT="${ELF_RAGFLOW_SMOKE_MANIFEST_OUT:-${ARTIFACT_DIR}/memory_projects_manifest.ragflow-smoke.json}"
+SUMMARY_OUT="${ELF_RAGFLOW_SMOKE_SUMMARY_OUT:-${ARTIFACT_DIR}/summary.json}"
+FIXTURE_DIR="${ELF_RAGFLOW_SMOKE_FIXTURE_DIR:-${ARTIFACT_DIR}/ragflow-fixtures}"
+FIXTURE_PATH="${ELF_RAGFLOW_SMOKE_FIXTURE_PATH:-${FIXTURE_DIR}/retrieval/ragflow_evidence_smoke.json}"
+REPORT_JSON="${ELF_RAGFLOW_SMOKE_REPORT_JSON:-${ARTIFACT_DIR}/ragflow-report.json}"
+REPORT_MD="${ELF_RAGFLOW_SMOKE_REPORT_MD:-${ARTIFACT_DIR}/ragflow-report.md}"
 WORK_DIR="${ELF_RAGFLOW_SMOKE_WORK_DIR:-${ARTIFACT_DIR}/work}"
 RAGFLOW_REPO_URL="${ELF_RAGFLOW_REPO_URL:-https://github.com/infiniflow/ragflow.git}"
 RAGFLOW_REF="${ELF_RAGFLOW_REF:-v0.25.6}"
@@ -28,7 +33,15 @@ DOCUMENT_NAME="${RUN_ID}.txt"
 EVIDENCE_TOKEN="ELF_RAGFLOW_SMOKE_TOKEN_${RUN_ID}"
 CORPUS_TEXT="RAGFlow smoke evidence ${EVIDENCE_TOKEN}: the ELF adapter maps returned reference chunks to the ragflow-smoke-anchor evidence id."
 
-mkdir -p "${ARTIFACT_DIR}" "${WORK_DIR}" "$(dirname "${OUT}")" "$(dirname "${MANIFEST_OUT}")"
+mkdir -p \
+	"${ARTIFACT_DIR}" \
+	"${WORK_DIR}" \
+	"$(dirname "${OUT}")" \
+	"$(dirname "${MANIFEST_OUT}")" \
+	"$(dirname "${SUMMARY_OUT}")" \
+	"$(dirname "${FIXTURE_PATH}")" \
+	"$(dirname "${REPORT_JSON}")" \
+	"$(dirname "${REPORT_MD}")"
 
 DOCKER_INFO="${ARTIFACT_DIR}/docker-info.json"
 IMAGE_INSPECT="${ARTIFACT_DIR}/ragflow-image-inspect.json"
@@ -496,10 +509,13 @@ cleanup_stack() {
 }
 
 write_artifact() {
-	local generated_at out_rel manifest_rel docker_status git_status curl_status jq_status
+	local generated_at out_rel manifest_rel fixture_rel report_json_rel report_md_rel docker_status git_status curl_status jq_status
 	generated_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 	out_rel="$(relative_path "${OUT}")"
 	manifest_rel="$(relative_path "${MANIFEST_OUT}")"
+	fixture_rel="$(relative_path "${FIXTURE_PATH}")"
+	report_json_rel="$(relative_path "${REPORT_JSON}")"
+	report_md_rel="$(relative_path "${REPORT_MD}")"
 	docker_status="$(optional_command_status docker)"
 	git_status="$(optional_command_status git)"
 	curl_status="$(optional_command_status curl)"
@@ -519,6 +535,9 @@ write_artifact() {
 		--arg failure_reason "${FAILURE_REASON}" \
 		--arg out_rel "${out_rel}" \
 		--arg manifest_rel "${manifest_rel}" \
+		--arg fixture_rel "${fixture_rel}" \
+		--arg report_json_rel "${report_json_rel}" \
+		--arg report_md_rel "${report_md_rel}" \
 		--arg artifact_dir "$(relative_path "${ARTIFACT_DIR}")" \
 		--arg work_dir "$(relative_path "${WORK_DIR}")" \
 		--arg repo_url "${RAGFLOW_REPO_URL}" \
@@ -589,6 +608,9 @@ write_artifact() {
 			artifacts: {
 				smoke: $out_rel,
 				external_adapter_manifest: $manifest_rel,
+				generated_fixture: $fixture_rel,
+				scored_report_json: $report_json_rel,
+				scored_report_markdown: $report_md_rel,
 				artifact_dir: $artifact_dir,
 				work_dir: $work_dir
 			},
@@ -893,6 +915,218 @@ write_manifest() {
 		}' >"${MANIFEST_OUT}"
 }
 
+write_fixture() {
+	local result_status reason
+	result_status="$(json_status "${RESULT_STATUS}")"
+	reason="${FAILURE_REASON}"
+
+	jq -n \
+		--arg run_id "${RUN_ID}" \
+		--arg evidence_id "${EVIDENCE_ID}" \
+		--arg evidence_token "${EVIDENCE_TOKEN}" \
+		--arg corpus_text "${CORPUS_TEXT}" \
+		--arg result_status "${result_status}" \
+		--arg failure_reason "${reason}" \
+		'{
+			schema: "elf.real_world_job/v1",
+			job_id: "ragflow-evidence-smoke-001",
+			suite: "retrieval",
+			title: "Map RAGFlow reference chunks to generated evidence",
+			corpus: {
+				corpus_id: "ragflow-generated-public-smoke",
+				profile: "generated_public",
+				items: [
+					{
+						evidence_id: $evidence_id,
+						kind: "document",
+						text: $corpus_text,
+						source_ref: {
+							schema: "source_ref/v1",
+							resolver: "ragflow_smoke/v1",
+							ref: {
+								run_id: $run_id,
+								evidence_token: $evidence_token
+							}
+						},
+						created_at: "2026-06-10T00:00:00Z"
+					}
+				],
+				adapter_response: {
+					adapter_id: "ragflow_docker_evidence_smoke",
+					answer: {
+						content: (
+							if $result_status == "pass" then
+								"RAGFlow returned reference chunks that map to the generated ragflow-smoke-anchor evidence id."
+							else
+								""
+							end
+						),
+						claims: (
+							if $result_status == "pass" then
+								[
+									{
+										claim_id: "ragflow_reference_mapping",
+										text: "RAGFlow reference chunks map to the generated ragflow-smoke-anchor evidence id.",
+										evidence_ids: [$evidence_id],
+										confidence: "derived_from_ragflow_reference_chunk_mapping"
+									}
+								]
+							else
+								[]
+							end
+						),
+						evidence_ids: (if $result_status == "pass" then [$evidence_id] else [] end),
+						latency_ms: 0.0,
+						cost: {
+							currency: "USD",
+							amount: 0.0,
+							input_tokens: 0,
+							output_tokens: 0
+						}
+					}
+				}
+			},
+			timeline: [
+				{
+					event_id: "ragflow-smoke-corpus-generated",
+					ts: "2026-06-10T00:00:00Z",
+					actor: "system",
+					action: "generated_public_corpus",
+					evidence_ids: [$evidence_id],
+					summary: "The RAGFlow smoke generated a tiny public corpus for reference chunk mapping."
+				}
+			],
+			prompt: {
+				role: "user",
+				content: "Which RAGFlow smoke evidence token maps to the generated reference chunk?",
+				job_mode: "answer",
+				constraints: ["cite_evidence", "avoid_broad_quality_claims"]
+			},
+			expected_answer: {
+				must_include: [
+					{
+						claim_id: "ragflow_reference_mapping",
+						text: "RAGFlow reference chunks map to the generated ragflow-smoke-anchor evidence id."
+					}
+				],
+				must_not_include: ["RAGFlow passed a broad graph/RAG quality benchmark."],
+				evidence_links: {
+					ragflow_reference_mapping: [$evidence_id]
+				},
+				answer_type: "direct_answer",
+				accepted_alternates: [],
+				requires_caveat: true,
+				requires_refusal: false
+			},
+			required_evidence: [
+				{
+					evidence_id: $evidence_id,
+					claim_id: "ragflow_reference_mapping",
+					requirement: "cite",
+					quote: "ragflow-smoke-anchor evidence id"
+				}
+			],
+			negative_traps: [],
+			scoring_rubric: {
+				dimensions: {
+					answer_correctness: {
+						weight: 0.3,
+						max_points: 1.0,
+						criteria: "States the generated evidence mapping without broad quality claims."
+					},
+					evidence_grounding: {
+						weight: 0.45,
+						max_points: 1.0,
+						criteria: "Maps returned RAGFlow reference chunks to the generated evidence id."
+					},
+					trap_avoidance: {
+						weight: 0.15,
+						max_points: 1.0,
+						criteria: "Does not claim broad RAGFlow quality from the tiny smoke."
+					},
+					latency_resource: {
+						weight: 0.1,
+						max_points: 1.0,
+						criteria: "Records setup, resource, provider, and reference-mapping boundaries."
+					}
+				},
+				pass_threshold: 0.75,
+				hard_fail_rules: []
+			},
+			allowed_uncertainty: {
+				can_answer_unknown: false,
+				acceptable_phrases: ["tiny generated corpus", "reference chunk smoke only"],
+				fallback_action: "state_blocker"
+			},
+			operator_debug: null,
+			encoding: {},
+			memory_evolution: null,
+			tags: ["external_adapter", "generated_public", "ragflow", "no_live_claim"]
+		}
+		| if ["blocked", "incomplete", "not_encoded"] | index($result_status) then
+			.encoding = {status: $result_status, reason: $failure_reason}
+		else
+			.
+		end' >"${FIXTURE_PATH}"
+}
+
+write_scored_report() {
+	(
+		cd "${ROOT_DIR}"
+		cargo run -p elf-eval --bin real_world_job_benchmark -- run \
+			--fixtures "${FIXTURE_PATH}" \
+			--out "${REPORT_JSON}" \
+			--run-id real-world-memory-live-ragflow \
+			--adapter-id ragflow_docker_evidence_smoke \
+			--adapter-name "RAGFlow Docker evidence smoke adapter" \
+			--adapter-behavior docker_service_evidence_smoke \
+			--adapter-storage-status "$(json_status "${SETUP_STATUS}")" \
+			--adapter-runtime-status "$(json_status "${OVERALL_STATUS}")" \
+			--adapter-notes "Generated by the RAGFlow Docker evidence smoke; pass or wrong_result requires reference chunks mapped to generated evidence ids, while resource/setup/API-key limits remain typed." \
+			--external-adapter-manifest "${MANIFEST_OUT}"
+		cargo run -p elf-eval --bin real_world_job_benchmark -- publish \
+			--report "${REPORT_JSON}" \
+			--out "${REPORT_MD}"
+	)
+}
+
+write_summary() {
+	jq -n \
+		--slurpfile materialization "${OUT}" \
+		--slurpfile manifest "${MANIFEST_OUT}" \
+		--slurpfile report "${REPORT_JSON}" \
+		'{
+			schema: "elf.ragflow_docker_smoke_summary/v1",
+			generated_at: (now | todateiso8601),
+			adapter_id: "ragflow_docker_evidence_smoke",
+			evidence_class: $materialization[0].evidence_class,
+			materialization: $materialization[0],
+			manifest: {
+				json: ($materialization[0].artifacts.external_adapter_manifest // "tmp/real-world-memory/ragflow-smoke/memory_projects_manifest.ragflow-smoke.json"),
+				summary: $manifest[0].adapters[0].overall_status,
+				suites: $manifest[0].adapters[0].suites
+			},
+			report: {
+				json: ($materialization[0].artifacts.scored_report_json // "tmp/real-world-memory/ragflow-smoke/ragflow-report.json"),
+				markdown: ($materialization[0].artifacts.scored_report_markdown // "tmp/real-world-memory/ragflow-smoke/ragflow-report.md"),
+				summary: $report[0].summary,
+				suites: $report[0].suites
+			}
+		}' >"${SUMMARY_OUT}"
+}
+
+write_outputs() {
+	write_artifact
+	write_manifest
+	write_fixture
+	write_scored_report
+	write_summary
+	echo "RAGFlow smoke artifact: ${OUT}"
+	echo "RAGFlow smoke manifest: ${MANIFEST_OUT}"
+	echo "RAGFlow smoke report: ${REPORT_JSON}"
+	echo "RAGFlow smoke summary: ${SUMMARY_OUT}"
+}
+
 for cmd in jq curl; do
 	required_command "${cmd}"
 done
@@ -904,10 +1138,7 @@ if ! command -v docker >/dev/null 2>&1; then
 	RESULT_STATUS="incomplete"
 	FAILURE_CLASS="docker_cli_missing"
 	FAILURE_REASON="Docker CLI is required for the RAGFlow evidence smoke."
-	write_artifact
-	write_manifest
-	echo "RAGFlow smoke artifact: ${OUT}"
-	echo "RAGFlow smoke manifest: ${MANIFEST_OUT}"
+	write_outputs
 	exit 0
 fi
 
@@ -917,10 +1148,7 @@ if ! capture_docker_info; then
 	RESULT_STATUS="incomplete"
 	FAILURE_CLASS="docker_unavailable"
 	FAILURE_REASON="Docker is installed but docker info failed; RAGFlow Docker setup was not attempted."
-	write_artifact
-	write_manifest
-	echo "RAGFlow smoke artifact: ${OUT}"
-	echo "RAGFlow smoke manifest: ${MANIFEST_OUT}"
+	write_outputs
 	exit 0
 fi
 
@@ -935,26 +1163,17 @@ if [[ "${ARCH}" != "x86_64" && "${ARCH}" != "amd64" && "${ALLOW_ARM}" != "1" ]];
 	RESULT_STATUS="blocked"
 	FAILURE_CLASS="unsupported_ragflow_docker_architecture"
 	FAILURE_REASON="Official RAGFlow quickstart supports x86 CPU and Nvidia GPU Docker images; set ELF_RAGFLOW_SMOKE_ALLOW_ARM=1 only for an explicitly built ARM image path."
-	write_artifact
-	write_manifest
-	echo "RAGFlow smoke artifact: ${OUT}"
-	echo "RAGFlow smoke manifest: ${MANIFEST_OUT}"
+	write_outputs
 	exit 0
 fi
 
 if [[ "${START_RAGFLOW}" != "1" ]]; then
-	write_artifact
-	write_manifest
-	echo "RAGFlow smoke artifact: ${OUT}"
-	echo "RAGFlow smoke manifest: ${MANIFEST_OUT}"
+	write_outputs
 	exit 0
 fi
 
 if [[ "${ACCEPT_RESOURCE_ENVELOPE}" != "1" ]]; then
-	write_artifact
-	write_manifest
-	echo "RAGFlow smoke artifact: ${OUT}"
-	echo "RAGFlow smoke manifest: ${MANIFEST_OUT}"
+	write_outputs
 	exit 0
 fi
 
@@ -964,10 +1183,7 @@ if ! command -v git >/dev/null 2>&1; then
 	RESULT_STATUS="incomplete"
 	FAILURE_CLASS="git_missing_for_ragflow_source"
 	FAILURE_REASON="git is required to fetch the official RAGFlow Docker Compose files for this smoke."
-	write_artifact
-	write_manifest
-	echo "RAGFlow smoke artifact: ${OUT}"
-	echo "RAGFlow smoke manifest: ${MANIFEST_OUT}"
+	write_outputs
 	exit 0
 fi
 
@@ -1004,8 +1220,4 @@ if [[ "${SETUP_STATUS}" == "pass" ]]; then
 fi
 
 cleanup_stack
-write_artifact
-write_manifest
-
-echo "RAGFlow smoke artifact: ${OUT}"
-echo "RAGFlow smoke manifest: ${MANIFEST_OUT}"
+write_outputs

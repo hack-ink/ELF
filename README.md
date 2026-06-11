@@ -165,6 +165,13 @@ provider-backed ELF evidence was required.
   qmd/OpenViking profiles. These records carry source/setup/runtime/resource/retry
   metadata and typed `blocked`, `incomplete`, `wrong_result`, or `not_encoded` states;
   they are not fixture-backed or live adapter pass evidence.
+- Graph/RAG scored-smoke promotion after XY-900: RAGFlow, LightRAG, GraphRAG,
+  Graphiti/Zep, and graphify smokes now emit scored or typed non-pass
+  `real_world_job` adapter reports when run. graphify currently reaches a tiny Docker
+  graph/report smoke and scores `wrong_result`; the other in-scope projects remain
+  typed blocked or incomplete without explicit service, resource, or provider setup.
+  These reports preserve the smoke-only boundary and do not create an ELF win claim
+  against graph/RAG strengths.
 - The benchmark runner and report publisher are checked in and Docker-isolated:
   `cargo make baseline-live-docker`, `cargo make baseline-backfill-docker`,
   `cargo make baseline-production-private-addendum`,
@@ -183,6 +190,7 @@ Detailed evidence and interpretation:
 - [Real-World Comparison Report - June 10, 2026](docs/guide/benchmarking/2026-06-10-real-world-comparison-report.md)
 - [Live Real-World Adapter Sweep Report - June 10, 2026](docs/guide/benchmarking/2026-06-10-live-real-world-sweep-report.md)
 - [Post-Adapter Production Adoption Refresh - June 10, 2026](docs/guide/benchmarking/2026-06-10-production-adoption-refresh.md)
+- [Graph/RAG Scored Smoke Adapter Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-graph-rag-scored-smoke-adapter-report.md)
 - [Live Baseline Benchmark Runbook](docs/guide/benchmarking/live_baseline_benchmark.md)
 - [Single-User Production Runbook](docs/guide/single_user_production.md)
 - Benchmark contract:
@@ -254,6 +262,9 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [Real-World Comparison Report - June 10, 2026](docs/guide/benchmarking/2026-06-10-real-world-comparison-report.md)
 - [Live Real-World Adapter Sweep Report - June 10, 2026](docs/guide/benchmarking/2026-06-10-live-real-world-sweep-report.md)
 - [Post-Adapter Production Adoption Refresh - June 10, 2026](docs/guide/benchmarking/2026-06-10-production-adoption-refresh.md)
+- [Competitor Strength Evidence Matrix - June 11, 2026](docs/guide/benchmarking/2026-06-11-competitor-strength-evidence-matrix.md)
+- [Temporal History Competitor Gap Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md)
+- [Graph/RAG Scored Smoke Adapter Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-graph-rag-scored-smoke-adapter-report.md)
 - [Live Baseline Benchmark Runbook](docs/guide/benchmarking/live_baseline_benchmark.md)
 - [Real-World Agent Memory Benchmark](docs/guide/benchmarking/real_world_agent_memory_benchmark.md)
 - [External Memory Improvement Plan](docs/guide/research/external_memory_improvement_plan.md)
@@ -263,7 +274,7 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [Real-World Benchmark Dimension Research Run](docs/research/2026-06-09-xy-841-external-memory-benchmark-dimensions.json)
 - [RAG/Graph Adapter Feasibility Research Run](docs/research/2026-06-10-xy-882-rag-graph-adapter-feasibility.json)
 
-Latest real-world benchmark report: June 10, 2026. Latest external research refresh:
+Latest real-world benchmark report: June 11, 2026. Latest external research refresh:
 June 10, 2026.
 
 ## Documentation

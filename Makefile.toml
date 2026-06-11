@@ -811,7 +811,7 @@ workspace = false
 command = "bash"
 args = [
 	"-lc",
-	"set -euo pipefail; docker compose -f docker-compose.baseline.yml run --build --rm baseline-runner bash scripts/real-world-live-adapters.sh",
+	"set -euo pipefail; docker compose -f docker-compose.baseline.yml run --build --rm -e ELF_REAL_WORLD_LIVE_ENABLE_RAGFLOW -e ELF_REAL_WORLD_LIVE_ENABLE_LIGHTRAG -e ELF_REAL_WORLD_LIVE_ENABLE_GRAPHRAG -e ELF_REAL_WORLD_LIVE_ENABLE_GRAPHITI_ZEP -e ELF_REAL_WORLD_LIVE_ENABLE_GRAPHIFY baseline-runner bash scripts/real-world-live-adapters.sh",
 ]
 
 
