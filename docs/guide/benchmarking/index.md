@@ -54,6 +54,10 @@ cleanup, use `docs/guide/single_user_production.md`.
 - `2026-06-11-elf-iteration-direction-from-competitor-benchmarks.md`: current
   optimization-direction report that translates measured benchmark data and competitor
   strengths into prioritized ELF iteration themes and explicit non-claims.
+- `2026-06-11-measurement-coverage-audit.md`: fresh coverage audit that separates
+  current measured ELF/qmd data, fixture evidence, external adapter ledger coverage,
+  scenario non-claims, and the next measurement reports needed before stronger
+  competitor claims.
 - `real_world_agent_memory_benchmark.md`: operator overview for the v1 real-world
   agent memory benchmark contract, including suite taxonomy, typed report states,
   knowledge-compilation fixture tasks, and the production-ops fixture target.
