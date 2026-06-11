@@ -83,7 +83,7 @@
   "adapter_ledger": {
     "adapter_records": 21,
     "unique_project_names": 17,
-    "external_project_count_note": "The generated report field external_project_count currently counts non-ELF adapter records, not unique external project names.",
+    "external_project_count_note": "At audit commit 286af8b, the generated report field external_project_count counted non-ELF adapter records, not unique external project names; XY-900 later repaired the runner to report unique non-ELF project names.",
     "evidence_class_counts": {
       "fixture_backed": 1,
       "live_baseline_only": 6,

@@ -2029,7 +2029,7 @@
       },
       "result": {
         "status": "wrong_result",
-        "evidence": "The smoke emits graphify-report.json and graphify-report.md from one generated knowledge_compilation job. The current scored report maps evidence ids but remains wrong_result because the normalized score is below the pass threshold.",
+        "evidence": "The smoke emits graphify-report.json and graphify-report.md from one generated knowledge_compilation job. The current scored report maps evidence ids but remains wrong_result because the scoring rubric still records a wrong-result signal.",
         "artifact": "tmp/real-world-memory/graphify-smoke/graphify-report.json"
       },
       "capabilities": [
