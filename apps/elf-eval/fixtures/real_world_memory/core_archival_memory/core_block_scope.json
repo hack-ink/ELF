@@ -1,0 +1,192 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "core-archival-core-block-scope-001",
+  "suite": "core_archival_memory",
+  "title": "Apply core block scope and private-owner checks before readback",
+  "corpus": {
+    "corpus_id": "real-world-memory-core-archival-2026-06-11",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "core-scope-project-shared-readable",
+        "kind": "core_block",
+        "text": "Scope evidence: project_shared block release_gate is readable for tenant local-tenant project ELF agent local-agent only when the active attachment and read_profile all_scopes allow project_shared.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "core_block_scope",
+            "evidence_id": "core-scope-project-shared-readable"
+          },
+          "locator": {
+            "quote": "active attachment and read_profile all_scopes allow project_shared"
+          }
+        },
+        "created_at": "2026-06-11T04:10:00Z"
+      },
+      {
+        "evidence_id": "core-scope-private-owner",
+        "kind": "core_block",
+        "text": "Private owner evidence: agent_private block agent_a_workflow belongs to agent-a and must not be returned to agent-b even if agent-b has a matching read_profile label.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "core_block_scope",
+            "evidence_id": "core-scope-private-owner"
+          },
+          "locator": {
+            "quote": "must not be returned to agent-b"
+          }
+        },
+        "created_at": "2026-06-11T04:11:00Z"
+      },
+      {
+        "evidence_id": "core-scope-bypass-trap",
+        "kind": "stale_claim",
+        "text": "Stale shortcut: a core block attachment bypasses read_profile scope checks, private-owner checks, and shared grants.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "core_block_scope",
+            "evidence_id": "core-scope-bypass-trap"
+          }
+        },
+        "created_at": "2026-06-11T04:09:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_core_archival_memory",
+      "answer": {
+        "content": "Return the release_gate core block only when the active attachment and all_scopes read profile allow project_shared. Do not return agent_a_workflow to agent-b, because private-owner checks still apply to agent_private core blocks.",
+        "claims": [
+          {
+            "claim_id": "shared_core_scope_allowed",
+            "text": "The project_shared release_gate block is readable only when attachment and read_profile allow project_shared.",
+            "evidence_ids": ["core-scope-project-shared-readable"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "private_core_scope_denied",
+            "text": "The agent_private agent_a_workflow block must not be returned to agent-b.",
+            "evidence_ids": ["core-scope-private-owner"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["core-scope-project-shared-readable", "core-scope-private-owner"],
+        "latency_ms": 1.1,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "core-release-gate-shared",
+      "ts": "2026-06-11T04:10:00Z",
+      "actor": "agent",
+      "action": "attachment_added",
+      "evidence_ids": ["core-scope-project-shared-readable"],
+      "summary": "The release_gate block was attached with project_shared scope."
+    },
+    {
+      "event_id": "core-agent-a-private",
+      "ts": "2026-06-11T04:11:00Z",
+      "actor": "agent-a",
+      "action": "block_created",
+      "evidence_ids": ["core-scope-private-owner"],
+      "summary": "The agent_a_workflow block remained private to agent-a."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "For core memory readback, which shared block can this agent see, and can agent-b also see agent-a's private block?",
+    "job_mode": "answer",
+    "constraints": ["cite_evidence", "enforce_scope", "avoid_private_owner_leakage"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "shared_core_scope_allowed",
+        "text": "The project_shared release_gate block is readable only when attachment and read_profile allow project_shared."
+      },
+      {
+        "claim_id": "private_core_scope_denied",
+        "text": "The agent_private agent_a_workflow block must not be returned to agent-b."
+      }
+    ],
+    "must_not_include": [
+      "a core block attachment bypasses read_profile scope checks"
+    ],
+    "evidence_links": {
+      "shared_core_scope_allowed": ["core-scope-project-shared-readable"],
+      "private_core_scope_denied": ["core-scope-private-owner"]
+    },
+    "answer_type": "direct_answer",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "core-scope-project-shared-readable",
+      "claim_id": "shared_core_scope_allowed",
+      "requirement": "cite",
+      "quote": "active attachment and read_profile all_scopes allow project_shared"
+    },
+    {
+      "evidence_id": "core-scope-private-owner",
+      "claim_id": "private_core_scope_denied",
+      "requirement": "cite",
+      "quote": "must not be returned to agent-b"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "core-attachment-bypasses-scope",
+      "type": "scope_leak",
+      "evidence_ids": ["core-scope-bypass-trap"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Applies readable shared scope and denied private owner scope."
+      },
+      "evidence_grounding": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Cites scope and private-owner evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Avoids scope-bypass claims."
+      },
+      "ownership_correctness": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Does not leak private core blocks across agents."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": ["The fixture does not provide that evidence."],
+    "fallback_action": "state_blocker"
+  },
+  "tags": ["synthetic", "core_archival_memory", "scope", "private_owner", "no_live_claim"]
+}
