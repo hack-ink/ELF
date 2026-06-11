@@ -37,12 +37,13 @@ The remaining caveats are material:
 - Credentialed provider production-ops gates are blocked until explicit provider
   setup exists.
 - Several competitor strengths remain `not_tested` or blocked: OpenMemory
-  UI/export, hosted mem0 Platform behavior, OpenViking trajectory, Letta
-  core-vs-archival memory, and graph/RAG navigation. mem0 local OSS preference
-  history is now measured separately and is an ELF loss on the current correction
-  history scenario. The XY-923 follow-up also scores qmd's immediate top-10/replay
-  artifact ergonomics as stronger than ELF's default stress report, while
-  expansion, fusion, rerank, and candidate-drop diagnosis remain untested.
+  UI/export is blocked by the XY-931 export-helper setup probe, hosted mem0 Platform
+  behavior remains a non-goal, and OpenViking trajectory, Letta core-vs-archival
+  memory, and graph/RAG navigation remain unproven. mem0 local OSS preference history
+  is measured separately and is an ELF loss on the current correction history
+  scenario. The XY-923 follow-up also scores qmd's immediate top-10/replay artifact
+  ergonomics as stronger than ELF's default stress report, while expansion, fusion,
+  rerank, and candidate-drop diagnosis remain untested.
 
 ## Evidence Classes
 
@@ -70,7 +71,7 @@ results, or lifecycle failures into one aggregate leaderboard.
 | `cargo make real-world-memory` | `2026-06-11-measurement-coverage-audit.md` | ELF fixture aggregate covers 38 jobs across 11 suites with 36 pass and 2 blocked production-ops operator boundaries. |
 | `cargo make real-world-memory-live-adapters` | `2026-06-11-measurement-coverage-audit.md` | ELF live service adapter reports 18 pass, 5 wrong_result, 2 blocked, and 13 not_encoded jobs; qmd reports 17 pass, 6 wrong_result, 2 blocked, and 13 not_encoded jobs. |
 | `ELF_BASELINE_PROJECTS=ELF,agentmemory,mem0,memsearch,claude-mem cargo make baseline-live-docker` | `2026-06-11-first-generation-oss-adapter-promotion-report.md` | mem0/OpenMemory and memsearch pass basic local baseline smokes; agentmemory remains lifecycle_fail and claude-mem remains wrong_result. |
-| `ELF_BASELINE_PROJECTS=mem0 cargo make baseline-live-docker` | `2026-06-11-mem0-openmemory-history-ui-export-report.md` | mem0 local OSS passes preference correction history, entity-scoped personalization, local `get_all` export-style readback, and deletion audit history; OpenMemory UI/export remains blocked and hosted Platform export remains non-goal. |
+| `cargo make openmemory-ui-export-readback` | `2026-06-11-mem0-openmemory-history-ui-export-report.md` | mem0 local OSS passes preference correction history, entity-scoped personalization, local `get_all` export-style readback, and deletion audit history; OpenMemory export-helper setup emits a separate blocked artifact with `DOCKER_UNAVAILABLE_IN_BASELINE_RUNNER`, and hosted Platform export remains non-goal. |
 | `ELF_GRAPHITI_ZEP_SMOKE_START=1 ELF_GRAPHITI_ZEP_SMOKE_RUN=1 cargo make graphiti-zep-docker-temporal-smoke` | `2026-06-11-temporal-history-competitor-gap-report.md` | Graphiti/Zep temporal smoke remains blocked by `provider_api_key_missing`. |
 | `cargo make graphify-docker-graph-report-smoke` | `2026-06-11-graph-rag-scored-smoke-adapter-report.md` | graphify reaches tiny Docker graph/report scoring but remains wrong_result. |
 | `cargo make baseline-production-synthetic`, `cargo make baseline-backfill-docker`, backup/restore, Qdrant rebuild proof | `2026-06-10-production-adoption-refresh.md` | ELF has provider synthetic, stress, backfill, restore, and rebuild evidence; private-corpus proof is blocked by missing operator-owned manifest. |
@@ -88,7 +89,7 @@ results, or lifecycle failures into one aggregate leaderboard.
 | Memory evolution and temporal history | `loss` | `fixture_backed`, `live_real_world`, `live_baseline_only`, `wrong_result`, `blocked` | ELF fixture memory evolution passes, but live ELF passes only delete/TTL and reports five wrong_result jobs where current-vs-historical state is not reconciled. The mem0 local OSS preference-correction history scenario is now measured and is also an ELF loss. | XY-905 |
 | Consolidation/proposal review | `not_tested` | `fixture_backed`, `not_encoded` | ELF fixture consolidation passes, but live consolidation proposal generation and review-action scoring are not encoded. | XY-926 |
 | Knowledge page compilation | `not_tested` | `fixture_backed`, `live_real_world`, `wrong_result`, `research_gate`, `not_encoded` | ELF fixture knowledge pages pass, but live knowledge compilation is not encoded; graphify reaches a tiny scored smoke and remains wrong_result. | XY-926, XY-929 |
-| Operator debugging/viewer UX | `not_tested` | `fixture_backed`, `live_baseline_only`, `blocked`, `not_encoded`, `research_gate` | ELF fixture operator-debugging UX passes. mem0 local SDK `get_all` readback is measured, but OpenMemory UI/export remains blocked and must not be inferred from SDK readback. Live trace/viewer scoring and qmd/OpenMemory/claude-mem UX comparisons remain unscored. | XY-923, XY-926 |
+| Operator debugging/viewer UX | `not_tested` | `fixture_backed`, `live_baseline_only`, `blocked`, `not_encoded`, `research_gate` | ELF fixture operator-debugging UX passes. mem0 local SDK `get_all` readback is measured, but the XY-931 OpenMemory export-helper setup probe is blocked by missing Docker/OpenMemory product container access and must not be inferred from SDK readback. Live trace/viewer scoring and qmd/OpenMemory/claude-mem UX comparisons remain unscored. | XY-923, XY-926 |
 | Capture/write policy and redaction | `not_tested` | `fixture_backed`, `live_baseline_only`, `blocked`, `not_encoded` | ELF fixture capture/write-policy jobs pass, but live capture integration and agentmemory/claude-mem capture hooks are not comparable yet. | XY-925, XY-926 |
 | Production ops, restore, backfill, and rebuild | `win` | `live_baseline_only`, `blocked` | ELF has the strongest measured local production-operation story: provider synthetic, stress, resumable backfill, backup/restore, and Qdrant rebuild evidence. | XY-930 |
 | Private corpus and provider boundaries | `blocked` | `blocked` | Private production profile fails closed without an operator-owned manifest; provider-backed production-ops gates require explicit credentials. | XY-930 |
@@ -103,7 +104,7 @@ results, or lifecycle failures into one aggregate leaderboard.
 | --- | --- | --- | --- |
 | XY-905 | P0 | Backlog | Live temporal reconciliation answer and trace contract. |
 | XY-923 | P0 | Backlog | qmd trace-level replay and wrong-result diagnostics. |
-| XY-924 | P0 | Encoded local OSS history; UI/export still gated | mem0/OpenMemory local OSS history and SDK export-style readback are measured; OpenMemory UI/export still needs a UI runner before any product-UX claim. |
+| XY-924/XY-931 | P0 | Encoded local OSS history; UI/export setup blocker measured | mem0/OpenMemory local OSS history and SDK export-style readback are measured; OpenMemory UI/export has a blocked export-helper setup probe and still needs a dedicated compose/import path before any product-UX comparison. |
 | XY-925 | P1 | Backlog | First-generation OSS continuity and source-store adapters. |
 | XY-926 | P1 | Backlog | Live operator-debugging, capture, consolidation, and knowledge-page suites. |
 | XY-927 | P1 | Backlog | Letta-style core-vs-archival memory comparison. |
@@ -131,8 +132,8 @@ results, or lifecycle failures into one aggregate leaderboard.
   or retrieval-quality win.
 - Do not claim ELF beats mem0/OpenMemory on preference history, UI/export, hosted
   behavior, or graph memory. The local OSS correction-history scenario is currently
-  an ELF loss, while OpenMemory UI/export, hosted behavior, and graph memory remain
-  outside measured local OSS evidence.
+  an ELF loss, while OpenMemory UI/export is a measured setup blocker and hosted
+  behavior plus graph memory remain outside measured local OSS evidence.
 - Do not claim ELF beats OpenViking on staged context trajectory.
 - Do not claim ELF beats Letta on core-vs-archival memory.
 - Do not claim graph/RAG parity from smoke-only evidence.

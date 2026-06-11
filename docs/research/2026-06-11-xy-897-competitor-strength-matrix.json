@@ -151,15 +151,15 @@
       ],
       "measured_status": "pass",
       "proof": {
-        "command": "ELF_BASELINE_PROJECTS=ELF,agentmemory,mem0,memsearch,claude-mem cargo make baseline-live-docker",
+        "command": "cargo make openmemory-ui-export-readback",
         "artifact": "tmp/live-baseline/live-baseline-report.json"
       },
       "unsupported_or_blocked_status": {
-        "state": "not_encoded",
-        "typed_reason": "history_ui_hosted_graph_claims_not_encoded",
-        "details": "Basic local OSS same-corpus/update/delete/reload smoke now passes, but hosted/OpenMemory UI parity, entity/preference history, deletion-audit readback, optional graph memory, and real-world personalization coverage are not encoded."
+        "state": "blocked",
+        "typed_reason": "openmemory_export_helper_setup_blocked",
+        "details": "Local OSS same-corpus/update/delete/reload, entity/preference history, deletion-audit readback, and SDK get_all readback now pass. OpenMemory UI/export remains blocked by the XY-931 export-helper setup probe until a product app import/export path can load the same corpus. Hosted Platform export is unsupported in the local OSS lane, and optional graph memory plus real-world prompt adapter coverage remain not_encoded."
       },
-      "benchmark_before_claim": "Encode memory_evolution preference/entity history, deletion audit readback, personalization, OpenMemory UI/export readback, and optional graph-context jobs.",
+      "benchmark_before_claim": "Add a Docker-contained OpenMemory product app import/export path, then score browser/API readback separately from SDK get_all; keep hosted Platform and graph memory opt-in or non-goal unless explicitly enabled.",
       "borrow_if_stronger": "Borrow entity-scoped memory history, lifecycle surfaces, async update ergonomics, and OpenMemory-style inspection UX."
     },
     {
@@ -466,9 +466,9 @@
       "scenario": "temporal/current-vs-historical memory",
       "current_elf_evidence": "ELF fixture-backed memory_evolution passes, but ELF live_real_world memory_evolution is wrong_result.",
       "strongest_competitor_or_reference": "Graphiti/Zep, mem0/OpenMemory",
-      "current_competitor_evidence": "Graphiti/Zep is research_gate blocked; mem0/OpenMemory now passes basic live_baseline_only local lifecycle smoke but preference/entity history, deletion audit, UI/export, and graph-memory scenarios are not_encoded.",
+      "current_competitor_evidence": "Graphiti/Zep is research_gate blocked; mem0/OpenMemory local OSS preference history, entity scope, deletion audit, and SDK get_all now pass; OpenMemory UI/export is blocked by the export-helper setup probe; graph-memory scenarios are not_encoded.",
       "current_state": "No project has a comparable live pass for current-vs-historical evidence; ELF cannot claim live superiority yet.",
-      "next_measurement": "Fix ELF/qmd live memory_evolution evidence links, encode mem0/OpenMemory history and UI/export jobs, and run XY-888 Graphiti/Zep temporal graph adapter."
+      "next_measurement": "Fix ELF/qmd live memory_evolution evidence links, add OpenMemory product app import/export readback, and run XY-888 Graphiti/Zep temporal graph adapter."
     },
     {
       "scenario_id": "consolidation",
