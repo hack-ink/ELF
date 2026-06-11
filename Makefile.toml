@@ -306,6 +306,7 @@ args = [
 # | baseline-backfill-10k-docker | command |  |
 # | baseline-backfill-100k-docker | command | |
 # | baseline-soak-docker       | command |     |
+# | openmemory-ui-export-readback | command |   |
 
 [tasks.baseline-live-docker]
 workspace = false
@@ -340,6 +341,14 @@ args = [
 	"down",
 	"-v",
 	"--remove-orphans",
+]
+
+[tasks.openmemory-ui-export-readback]
+workspace = false
+command = "bash"
+args = [
+	"-lc",
+	"set -euo pipefail; head=\"$(git rev-parse HEAD)\"; if [ -n \"$(git status --porcelain)\" ]; then head=\"$head+dirty\"; fi; export ELF_BASELINE_ELF_HEAD=\"$head\"; export ELF_BASELINE_PROJECTS=mem0; docker compose -f docker-compose.baseline.yml run --build --rm baseline-runner",
 ]
 
 [tasks.baseline-production-synthetic]

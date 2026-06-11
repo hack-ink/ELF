@@ -17,13 +17,13 @@ The overall goal is not complete. ELF does not yet have complete, comparable
 benchmark wins across all tracked memory projects and all user-important memory
 scenarios.
 
-Update after XY-924: mem0/OpenMemory local OSS history and local SDK export-style
-readback are now measured in
-`2026-06-11-mem0-openmemory-history-ui-export-report.md`. That report records mem0
+Update after XY-924 and XY-931: mem0/OpenMemory local OSS history, local SDK
+export-style readback, and a bounded OpenMemory export-helper setup probe are now measured
+in `2026-06-11-mem0-openmemory-history-ui-export-report.md`. That report records mem0
 passes for preference correction history, entity-scoped personalization, deletion
 audit history, and local `get_all` readback, while keeping OpenMemory UI/export
-blocked and hosted Platform export plus optional graph memory as local-lane
-non-goals.
+blocked by `DOCKER_UNAVAILABLE_IN_BASELINE_RUNNER` and hosted Platform export plus
+optional graph memory as local-lane non-goals.
 
 The current evidence supports a narrower judgment:
 
@@ -136,7 +136,7 @@ the right snippets.
 | Retrieval/debug | qmd transparent CLI, expansion/fusion/rerank/replay ergonomics | ELF/qmd live adapters pass retrieval suites; previous qmd debug profile exists | ELF is not clearly stronger. qmd remains the debug-UX bar. |
 | Current-vs-historical memory | Graphiti/Zep temporal validity; mem0 history surfaces | ELF/qmd live memory-evolution wrong_result; Graphiti/Zep blocked; mem0 local OSS preference correction history now passes, but mem0 real-world prompt history is not encoded | ELF has a measured gap. It only narrowly beats qmd's current run and loses the local OSS preference-correction history scenario to mem0. |
 | Delete/tombstone lifecycle | ELF production ops and qmd local replay | ELF passes delete/TTL job; qmd misses tombstone | ELF has a narrow measured win over qmd on this job. |
-| Entity preference history | mem0/OpenMemory | XY-924 local OSS run passes mem0 preference correction history and entity-scoped personalization; OpenMemory UI/export remains blocked | ELF loses the preference-correction history scenario and ties the scoped-personalization scenario; no OpenMemory UI/export claim is allowed. |
+| Entity preference history | mem0/OpenMemory | XY-924 local OSS run passes mem0 preference correction history and entity-scoped personalization; XY-931 OpenMemory export-helper setup probe is blocked by missing Docker/OpenMemory product container access inside the baseline runner | ELF loses the preference-correction history scenario and ties the scoped-personalization scenario; no OpenMemory UI/export claim is allowed. |
 | Core-vs-archival memory | Letta core memory blocks versus archival memory | Research-only, no contained live output | Not comparable. Borrow design only. |
 | Context trajectory | OpenViking staged context and hierarchy | Existing adapter remains not encoded or wrong_result for trajectory | Not comparable. Need staged trajectory benchmark. |
 | Capture and continuity | agentmemory, claude-mem hooks/viewers | Existing adapters are baseline-only and undermeasured | Not comparable. Need capture/write-policy and work-resume adapters. |
@@ -148,7 +148,7 @@ the right snippets.
 | Source | Best idea to absorb | Benchmark gate before any claim |
 | --- | --- | --- |
 | Graphiti/Zep | Validity windows, `valid_at`/`invalid_at`, current/historical/future fact separation, temporal relation provenance | Provider-backed Docker temporal smoke must map current, historical, and rationale facts to scored evidence ids. |
-| mem0/OpenMemory | Entity-scoped memory history, user-visible lifecycle inspection, update/delete ergonomics | Local OSS history, correction, deletion, and SDK `get_all` readback are now scored; UI/export readback still needs a bounded OpenMemory runner. |
+| mem0/OpenMemory | Entity-scoped memory history, user-visible lifecycle inspection, update/delete ergonomics | Local OSS history, correction, deletion, and SDK `get_all` readback are now scored; UI/export readback has a bounded export-helper setup probe but remains blocked until OpenMemory can run with the same corpus in its product app database. |
 | Letta | Always-loaded core memory blocks separated from archival search | Add core-vs-archival jobs for attachment scope, provenance, fallback, and stale-core avoidance. |
 | qmd | Local replay, candidate inspection, expansion/fusion/rerank debug knobs | ELF trace artifacts must show candidate generation, rerank, dropped evidence, conflict candidates, and replay commands. |
 | OpenViking | Staged context trajectory and hierarchy | Encode trajectory jobs after evidence-bearing same-corpus output passes. |
@@ -186,9 +186,10 @@ the product behavior users actually care about:
 5. optional graph-memory behavior only if the OSS path is reproducible in Docker.
 
 Target benchmark status: local OSS history jobs are now encoded with per-scenario
-claims. OpenMemory UI/export readback remains blocked until a UI runner exists, and
-hosted Platform export plus optional graph memory remain non-goals for the local OSS
-lane.
+claims. OpenMemory UI/export readback has a bounded export-helper setup probe, but it
+remains blocked until a dedicated OpenMemory compose/import path can load the same
+corpus into the OpenMemory app database. Hosted Platform export plus optional graph
+memory remain non-goals for the local OSS lane.
 
 ### P0 - qmd-Level Debugging And Replay
 
@@ -261,8 +262,9 @@ Not allowed:
 
 - Do not claim all goals are complete.
 - Do not claim ELF beats all tracked memory projects.
-- Do not claim ELF beats mem0/OpenMemory on UI, hosted behavior, entity history, or
-  graph memory.
+- Do not claim ELF beats mem0/OpenMemory on UI/export, hosted behavior, entity
+  history, or graph memory. The current UI/export result is a setup blocker, not a
+  comparison win.
 - Do not claim ELF beats Graphiti/Zep on temporal validity.
 - Do not claim ELF beats Letta on core-vs-archival memory.
 - Do not treat fixture pass, baseline smoke pass, and live real-world pass as the
@@ -271,7 +273,8 @@ Not allowed:
 ## Next Concrete Report/Issue Directions
 
 1. Open or refine a P0 issue for ELF live temporal reconciliation and trace contract.
-2. Open a P0 benchmark issue for mem0/OpenMemory history and UI/export readback.
+2. Follow up the XY-931 OpenMemory UI/export blocker with a Docker Compose/import
+   path that loads the same corpus into the OpenMemory product app database.
 3. Open a P0 benchmark issue for ELF/qmd trace-level replay and wrong-result
    diagnosis.
 4. Open a P1 benchmark issue for Letta-style core-vs-archival memory.

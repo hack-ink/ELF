@@ -92,7 +92,7 @@ cleanup, use `docs/guide/single_user_production.md`.
   competitor-strength adoption report with the bounded personal-production decision,
   scenario-level win/tie/loss/not-tested matrix, claim boundaries, and optimization
   issue queue.
-- `2026-06-11-mem0-openmemory-history-ui-export-report.md`: XY-924
+- `2026-06-11-mem0-openmemory-history-ui-export-report.md`: XY-924 plus XY-931
   mem0/OpenMemory local OSS history, preference-correction, deletion-audit,
   personalization, and export-readback comparison with normalized
   win/tie/loss/not-tested/blocked/non-goal outcomes and explicit hosted/UI/graph

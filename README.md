@@ -176,10 +176,12 @@ provider-backed ELF evidence was required.
   typed blocked or incomplete without explicit service, resource, or provider setup.
   These reports preserve the smoke-only boundary and do not create an ELF win claim
   against graph/RAG strengths.
-- mem0/OpenMemory history follow-up after XY-924: the local OSS mem0 adapter now
-  passes encoded preference correction history, entity-scoped personalization, local
-  `get_all` export-style readback, and deletion audit history in
-  `live-baseline-20260611113003`. The comparison records ELF as a loss on preference
+- mem0/OpenMemory history follow-up after XY-924 and XY-931: the local OSS mem0
+  adapter now passes encoded preference correction history, entity-scoped
+  personalization, local `get_all` export-style readback, and deletion audit history.
+  The separate OpenMemory export-helper setup probe in `live-baseline-20260611122416`
+  records `blocked` with `DOCKER_UNAVAILABLE_IN_BASELINE_RUNNER`, so SDK `get_all`
+  is still not UI/export evidence. The comparison records ELF as a loss on preference
   correction history, ties on scoped personalization and delete audit, `not_tested`
   for local SDK export-style parity, `blocked` for OpenMemory UI/export, and
   `non_goal` for hosted Platform export and optional graph memory in the local OSS
