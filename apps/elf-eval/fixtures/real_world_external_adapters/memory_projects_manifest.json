@@ -482,6 +482,274 @@
       ]
     },
     {
+      "adapter_id": "elf_operator_debug_live",
+      "project": "ELF",
+      "adapter_kind": "docker_service_operator_debug_real_world_job",
+      "evidence_class": "live_real_world",
+      "docker_default": true,
+      "host_global_installs_required": false,
+      "overall_status": "pass",
+      "setup": {
+        "status": "pass",
+        "evidence": "The narrow operator-debug live task runs inside docker-compose.baseline.yml with Docker-owned Postgres, Qdrant, Cargo, npm, qmd, and cache volumes.",
+        "command": "cargo make real-world-job-operator-ux-live-adapters",
+        "artifact": "tmp/real-world-job/operator-ux-live-adapters/elf-materialization.json"
+      },
+      "run": {
+        "status": "pass",
+        "evidence": "ELF materializes operator_debugging_ux adapter_response objects through ElfService, worker indexing, search_raw trace ids, and generated operator_debug metadata.",
+        "command": "cargo make real-world-job-operator-ux-live-adapters",
+        "artifact": "tmp/real-world-job/operator-ux-live-adapters/elf-report.json"
+      },
+      "result": {
+        "status": "pass",
+        "evidence": "The narrow live slice scores operator-debugging jobs with trace availability, replay command availability, candidate-drop visibility, repair-action clarity, and raw-SQL avoidance separated in job-level evidence.",
+        "command": "cargo make real-world-job-operator-ux-live-adapters",
+        "artifact": "tmp/real-world-job/operator-ux-live-adapters/elf-report.md"
+      },
+      "capabilities": [
+        {
+          "capability": "operator_debug_real_world_job_adapter",
+          "status": "pass",
+          "evidence": "The adapter executes the checked-in operator_debugging_ux jobs through the live service materializer and generated scoring fixtures."
+        },
+        {
+          "capability": "trace_hydration_metadata",
+          "status": "pass",
+          "evidence": "Generated operator_debug records include service trace ids, viewer links, admin trace-bundle URLs, and trace_available=true."
+        },
+        {
+          "capability": "replay_command_metadata",
+          "status": "pass",
+          "evidence": "Generated operator_debug records include admin trace-bundle curl replay commands; no raw SQL path is required."
+        },
+        {
+          "capability": "candidate_drop_visibility",
+          "status": "pass",
+          "evidence": "The operator-debug jobs keep dropped-candidate visibility as explicit job-level evidence instead of relying on direct database inspection."
+        },
+        {
+          "capability": "openmemory_or_claude_mem_ui_runner",
+          "status": "not_encoded",
+          "evidence": "This ELF live slice does not launch OpenMemory or claude-mem UI flows."
+        }
+      ],
+      "suites": [
+        {
+          "suite_id": "operator_debugging_ux",
+          "status": "pass",
+          "evidence": "The narrow live operator-debug slice scores trace hydration, stage attribution, candidate-drop visibility, selected-but-not-narrated diagnosis, and repair-action clarity through generated ELF live artifacts."
+        }
+      ],
+      "scenarios": [
+        {
+          "scenario_id": "operator_debug_trace_hydration",
+          "suite_id": "operator_debugging_ux",
+          "status": "pass",
+          "elf_position": "wins",
+          "comparison_outcome": "win",
+          "evidence": "ELF generated trace_available=true, service trace ids, viewer URLs, and admin trace-bundle replay URLs for the operator-debug jobs; qmd has replay rows but no ELF trace hydration surface.",
+          "command": "cargo make real-world-job-operator-ux-live-adapters",
+          "artifact": "tmp/real-world-job/operator-ux-live-adapters/elf-report.json"
+        },
+        {
+          "scenario_id": "operator_debug_replay_command",
+          "suite_id": "operator_debugging_ux",
+          "status": "pass",
+          "elf_position": "ties",
+          "comparison_outcome": "tie",
+          "evidence": "ELF generated admin trace-bundle replay commands; qmd generated local CLI query replay commands. These are comparable replay-command availability artifacts, not equivalent UI quality claims.",
+          "command": "cargo make real-world-job-operator-ux-live-adapters",
+          "artifact": "tmp/real-world-job/operator-ux-live-adapters/summary.json"
+        },
+        {
+          "scenario_id": "operator_debug_candidate_drop_visibility",
+          "suite_id": "operator_debugging_ux",
+          "status": "pass",
+          "elf_position": "wins",
+          "comparison_outcome": "win",
+          "evidence": "ELF generated operator_debug candidate-drop visibility from trace and replay-candidate metadata without direct SQL assumptions; qmd keeps only top-k replay rows and lacks intermediate candidate-drop stages.",
+          "command": "cargo make real-world-job-operator-ux-live-adapters",
+          "artifact": "tmp/real-world-job/operator-ux-live-adapters/elf-materialization.json"
+        },
+        {
+          "scenario_id": "operator_debug_repair_action_clarity",
+          "suite_id": "operator_debugging_ux",
+          "status": "pass",
+          "elf_position": "ties",
+          "comparison_outcome": "tie",
+          "evidence": "ELF and qmd generated clear repair/replay steps for the narrow operator-debug jobs; OpenMemory and claude-mem UI repair paths remain blocked or not encoded.",
+          "command": "cargo make real-world-job-operator-ux-live-adapters",
+          "artifact": "tmp/real-world-job/operator-ux-live-adapters/summary.json"
+        },
+        {
+          "scenario_id": "operator_debug_selected_but_not_narrated",
+          "suite_id": "operator_debugging_ux",
+          "status": "pass",
+          "elf_position": "wins",
+          "comparison_outcome": "win",
+          "evidence": "The new selected-but-not-narrated job scores whether selected trace evidence is available for answer-composition repair without direct database inspection.",
+          "command": "cargo make real-world-job-operator-ux-live-adapters",
+          "artifact": "tmp/real-world-job/operator-ux-live-adapters/elf-report.json"
+        }
+      ],
+      "evidence": [
+        {
+          "kind": "fixture_dir",
+          "ref": "apps/elf-eval/fixtures/real_world_job/operator_debugging_ux/",
+          "status": "real"
+        },
+        {
+          "kind": "command",
+          "ref": "cargo make real-world-job-operator-ux-live-adapters",
+          "status": "pass"
+        },
+        {
+          "kind": "artifact",
+          "ref": "tmp/real-world-job/operator-ux-live-adapters/elf-report.json",
+          "status": "pass"
+        }
+      ],
+      "notes": [
+        "This is a narrow operator-debug live slice, not a full-suite live pass.",
+        "The record does not implement product UI improvements and does not claim broad qmd/OpenMemory/claude-mem superiority."
+      ]
+    },
+    {
+      "adapter_id": "qmd_operator_debug_live",
+      "project": "qmd",
+      "adapter_kind": "docker_cli_operator_debug_real_world_job",
+      "evidence_class": "live_real_world",
+      "docker_default": true,
+      "host_global_installs_required": false,
+      "overall_status": "wrong_result",
+      "setup": {
+        "status": "pass",
+        "evidence": "The narrow operator-debug live task clones and installs qmd inside the baseline Docker container when the checkout is absent.",
+        "command": "cargo make real-world-job-operator-ux-live-adapters",
+        "artifact": "tmp/real-world-job/operator-ux-live-adapters/qmd-materialization.json"
+      },
+      "run": {
+        "status": "wrong_result",
+        "evidence": "qmd materializes operator_debugging_ux adapter_response objects through collection add, update, embed, and query --json, then records local replay-command metadata but no service trace hydration.",
+        "command": "cargo make real-world-job-operator-ux-live-adapters",
+        "artifact": "tmp/real-world-job/operator-ux-live-adapters/qmd-report.json"
+      },
+      "result": {
+        "status": "wrong_result",
+        "evidence": "The narrow live slice gives qmd explicit replay-command evidence, but operator-debug jobs remain wrong_result where trace availability, trace completeness, or candidate-drop stage visibility is required.",
+        "command": "cargo make real-world-job-operator-ux-live-adapters",
+        "artifact": "tmp/real-world-job/operator-ux-live-adapters/qmd-report.md"
+      },
+      "capabilities": [
+        {
+          "capability": "operator_debug_real_world_job_adapter",
+          "status": "pass",
+          "evidence": "The adapter executes the checked-in operator_debugging_ux jobs through qmd local CLI materialization and generated scoring fixtures."
+        },
+        {
+          "capability": "local_replay_command_metadata",
+          "status": "pass",
+          "evidence": "Generated operator_debug records include qmd query replay commands tied to per-job collections."
+        },
+        {
+          "capability": "trace_hydration_metadata",
+          "status": "wrong_result",
+          "evidence": "Generated qmd operator_debug records have trace_available=false and no ELF viewer/admin trace bundle because qmd exposes local replay rows rather than service trace hydration."
+        },
+        {
+          "capability": "candidate_drop_visibility",
+          "status": "wrong_result",
+          "evidence": "qmd top-k replay output is available, but intermediate candidate-drop stages are not exposed in the generated artifact."
+        },
+        {
+          "capability": "openmemory_or_claude_mem_ui_runner",
+          "status": "not_encoded",
+          "evidence": "This qmd live slice does not launch OpenMemory or claude-mem UI flows."
+        }
+      ],
+      "suites": [
+        {
+          "suite_id": "operator_debugging_ux",
+          "status": "wrong_result",
+          "evidence": "The narrow qmd operator-debug slice scores local replay commands but remains wrong_result for trace hydration and candidate-drop stage visibility."
+        }
+      ],
+      "scenarios": [
+        {
+          "scenario_id": "operator_debug_trace_hydration",
+          "suite_id": "operator_debugging_ux",
+          "status": "wrong_result",
+          "elf_position": "wins",
+          "comparison_outcome": "win",
+          "evidence": "qmd generated replay-command metadata but trace_available=false, so ELF wins only this trace-hydration dimension; this is not a broad qmd loss.",
+          "command": "cargo make real-world-job-operator-ux-live-adapters",
+          "artifact": "tmp/real-world-job/operator-ux-live-adapters/qmd-report.json"
+        },
+        {
+          "scenario_id": "operator_debug_replay_command",
+          "suite_id": "operator_debugging_ux",
+          "status": "pass",
+          "elf_position": "ties",
+          "comparison_outcome": "tie",
+          "evidence": "qmd generated local CLI query replay commands for the same operator-debugging scenarios; ELF generated admin trace-bundle curl commands.",
+          "command": "cargo make real-world-job-operator-ux-live-adapters",
+          "artifact": "tmp/real-world-job/operator-ux-live-adapters/summary.json"
+        },
+        {
+          "scenario_id": "operator_debug_candidate_drop_visibility",
+          "suite_id": "operator_debugging_ux",
+          "status": "wrong_result",
+          "elf_position": "wins",
+          "comparison_outcome": "win",
+          "evidence": "qmd generated top-k replay output but not intermediate retrieved-but-dropped stage visibility, so candidate-drop diagnosis remains a qmd wrong_result in this narrow slice.",
+          "command": "cargo make real-world-job-operator-ux-live-adapters",
+          "artifact": "tmp/real-world-job/operator-ux-live-adapters/qmd-materialization.json"
+        },
+        {
+          "scenario_id": "operator_debug_repair_action_clarity",
+          "suite_id": "operator_debugging_ux",
+          "status": "pass",
+          "elf_position": "ties",
+          "comparison_outcome": "tie",
+          "evidence": "qmd generated clear local replay steps for repair investigation, matching ELF on repair-action clarity while differing on trace hydration.",
+          "command": "cargo make real-world-job-operator-ux-live-adapters",
+          "artifact": "tmp/real-world-job/operator-ux-live-adapters/qmd-report.json"
+        },
+        {
+          "scenario_id": "operator_debug_selected_but_not_narrated",
+          "suite_id": "operator_debugging_ux",
+          "status": "wrong_result",
+          "elf_position": "wins",
+          "comparison_outcome": "win",
+          "evidence": "qmd can replay top-k rows, but the generated artifact does not expose service trace narration stages for the selected-but-not-narrated diagnosis.",
+          "command": "cargo make real-world-job-operator-ux-live-adapters",
+          "artifact": "tmp/real-world-job/operator-ux-live-adapters/qmd-report.json"
+        }
+      ],
+      "evidence": [
+        {
+          "kind": "fixture_dir",
+          "ref": "apps/elf-eval/fixtures/real_world_job/operator_debugging_ux/",
+          "status": "real"
+        },
+        {
+          "kind": "command",
+          "ref": "cargo make real-world-job-operator-ux-live-adapters",
+          "status": "wrong_result"
+        },
+        {
+          "kind": "artifact",
+          "ref": "tmp/real-world-job/operator-ux-live-adapters/qmd-report.json",
+          "status": "wrong_result"
+        }
+      ],
+      "notes": [
+        "This is a narrow operator-debug live slice, not a full-suite live pass.",
+        "qmd's replay-command availability remains useful; the wrong_result status is limited to trace hydration and candidate-drop stage visibility."
+      ]
+    },
+    {
       "adapter_id": "agentmemory_live_baseline",
       "project": "agentmemory",
       "adapter_kind": "docker_sdk_mock_same_corpus",

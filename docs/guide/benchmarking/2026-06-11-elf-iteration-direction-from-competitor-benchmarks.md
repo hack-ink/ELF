@@ -26,7 +26,8 @@ The strongest current statement is:
   evidence.
 - ELF and qmd are tied on the encoded live retrieval, work-resume, and
   project-decision slices. ELF does not yet beat qmd's local retrieval-debug
-  ergonomics.
+  ergonomics, but ELF now has a narrow live operator-debug win over qmd on trace
+  hydration and candidate-drop visibility.
 - Many competitor strengths are still undermeasured: OpenViking context trajectory,
   mem0/OpenMemory entity history and UI, agentmemory and claude-mem continuity
   capture, Letta core-vs-archival memory, Graphiti/Zep temporal graph behavior, and
@@ -76,8 +77,10 @@ Interpretation:
 - Both pass `trust_source_of_truth`, `work_resume`, `project_decisions`,
   `retrieval`, and `personalization`.
 - Both fail most `memory_evolution` live conflict evidence with `wrong_result`.
-- Both leave consolidation, knowledge compilation, operator debugging, capture
-  integration, and production-ops operator boundaries as `not_encoded` or `blocked`.
+- Both leave consolidation, knowledge compilation, capture integration, and
+  production-ops operator boundaries as `not_encoded` or `blocked`. Operator
+  debugging has a separate narrow live slice: ELF passes it, while qmd remains
+  `wrong_result` for trace hydration and candidate-drop stage visibility.
 
 ### Production Evidence
 
@@ -96,21 +99,21 @@ private-corpus quality proof.
 
 ### External Adapter Ledger
 
-The current adapter manifest records 21 adapter records across 17 projects:
+The current adapter manifest records 23 adapter records across 17 projects:
 
 | Evidence class | Count | Meaning |
 | --- | ---: | --- |
 | `fixture_backed` | `1` | ELF real-world fixture scoring. |
 | `live_baseline_only` | `6` | Docker same-corpus or lifecycle evidence without real-world job scoring. |
-| `live_real_world` | `3` | ELF and qmd full-suite live sweeps plus graphify's tiny scored Docker smoke. |
+| `live_real_world` | `5` | ELF and qmd full-suite live sweeps, graphify's tiny scored Docker smoke, and the narrow ELF/qmd operator-debug live slice. |
 | `research_gate` | `11` | Source/setup/resource/output-contract evidence only. |
 
 Overall adapter statuses:
 
 | Status | Count |
 | --- | ---: |
-| `pass` | `3` |
-| `wrong_result` | `5` |
+| `pass` | `4` |
+| `wrong_result` | `6` |
 | `lifecycle_fail` | `1` |
 | `blocked` | `5` |
 | `not_encoded` | `7` |
@@ -130,7 +133,7 @@ one misleading score.
 | Temporal memory | ELF fixture passes, but live memory evolution is wrong_result. | Prioritize current-vs-historical evidence links and Graphiti/Zep-style validity windows. |
 | Consolidation | ELF fixture passes, but live proposal generation is not encoded. | Build reviewable derived proposals with source refs, confidence, unsupported-claim flags, and apply/defer/discard audit. |
 | Knowledge pages | ELF fixture pages pass; live knowledge generation is not encoded. | Borrow llm-wiki lint/query-save loops, gbrain timelines, and graphify reports behind rebuild/lint benchmarks. |
-| Operator debugging | Fixture UX passes; live trace/viewer scoring is not encoded. | Make viewer/CLI debugging a scored live surface, not just an admin convenience. |
+| Operator debugging | Fixture UX passes and the narrow live trace/viewer slice is scored: ELF passes, qmd ties replay/repair clarity but is wrong_result for trace hydration and candidate-drop visibility. | Expand coverage to OpenMemory and claude-mem UI/export or viewer runners before any broader operator-UX claim. |
 | Capture/write policy | Fixture capture boundary passes; live capture is not encoded. | Borrow agentmemory/claude-mem capture hooks while preserving redaction and evidence binding. |
 | Production ops | ELF has the strongest checked-in evidence, with private/credential gates blocked. | Keep Docker-first production proof and add private corpus only when an operator-owned manifest exists. |
 | Personalization | ELF live personalization passes; mem0/OpenMemory and Letta are not encoded. | Add entity-scoped preference history and UI readback before claiming stronger personalization. |
@@ -184,11 +187,13 @@ near tie.
    - Benchmark gate: qmd deep profile plus ELF/qmd trace-level replay report.
 
 3. Live operator debugging UX
-   - Current state: fixture pass, live `not_encoded`.
+   - Current state: fixture pass; narrow live ELF/qmd slice scored with ELF `pass`
+     and qmd `wrong_result`.
    - Borrow from: claude-mem viewer, OpenMemory inspector, qmd command output.
-   - Target: no raw SQL needed to explain a bad memory result.
-   - Benchmark gate: live operator-debugging jobs score trace hydration, stage
-     attribution, and repair-action clarity.
+   - Target: no raw SQL needed to explain a bad memory result, across service traces,
+     CLI replay, and bounded local viewer surfaces.
+   - Benchmark gate: add OpenMemory and claude-mem UI/export or viewer runners before
+     claiming broader operator-debug UX superiority.
 
 ### P1 - Turn ELF Into A Better Daily Memory Product
 
@@ -253,7 +258,8 @@ Do not claim:
   fails closed without an operator-owned manifest.
 - ELF beats OpenViking on context trajectory. That scenario is not encoded.
 - ELF beats mem0/OpenMemory on hosted memory, entity history, UI, or optional graph
-  memory. Those scenarios are not encoded.
+  memory. Those scenarios are not encoded; the operator-debug win is only against
+  qmd on a narrow trace/replay slice.
 - ELF beats Letta on core-vs-archival memory. That scenario is not encoded.
 - ELF beats RAGFlow, LightRAG, GraphRAG, Graphiti/Zep, or graphify on graph/RAG
   navigation. Current evidence is research-gate or blocked except graphify's tiny
@@ -278,7 +284,7 @@ The next reporting work should be ordered by decision value:
 
 1. ELF/qmd retrieval-debug deep profile.
 2. ELF live memory-evolution repair report.
-3. Operator-debugging live trace/viewer report.
+3. OpenMemory and claude-mem operator-debug UI/export runners.
 4. Capture/write-policy live adapter report.
 5. OpenViking context-trajectory report after evidence-bearing retrieval works.
 6. RAG/graph adapter pack report after Docker-contained outputs map to evidence ids.
