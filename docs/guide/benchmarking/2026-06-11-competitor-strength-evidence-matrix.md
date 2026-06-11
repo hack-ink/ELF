@@ -41,10 +41,10 @@ Current boundary:
 
 ## Current Ledger Summary
 
-The current manifest has 21 adapter records across 17 projects. Evidence-class counts:
-1 `fixture_backed`, 6 `live_baseline_only`, 2 `live_real_world`, and 12
-`research_gate`. Overall adapter-status counts: 1 `pass`, 6 `wrong_result`, 1
-`lifecycle_fail`, 6 `blocked`, and 7 `not_encoded`.
+The current manifest has 21 adapter records across 16 external projects plus ELF.
+Evidence-class counts: 1 `fixture_backed`, 6 `live_baseline_only`, 3
+`live_real_world`, and 11 `research_gate`. Overall adapter-status counts: 1 `pass`,
+7 `wrong_result`, 1 `lifecycle_fail`, 5 `blocked`, and 7 `not_encoded`.
 
 ## State Taxonomy
 
@@ -87,7 +87,7 @@ lifecycle-fail -> `lifecycle_fail`, and not-encoded -> `not_encoded`.
 | nanograph | Typed graph schema and query ergonomics for graph-lite developer experience. | `research_gate`. | `not_encoded`: `docs/research/2026-06-10-xy-882-rag-graph-adapter-feasibility.json`. | `unsupported`: not a memory backend comparison target. | Non-goal for direct win/loss unless a contained memory-backed target emerges; measure ELF graph-lite DX instead. | Typed relation schema, query ergonomics, and small graph developer experience. |
 | llm-wiki | LLM-maintained wiki or knowledge-page workflow with query-save and lint loops. | `research_gate`. | `not_encoded`: `docs/research/2026-06-10-xy-882-rag-graph-adapter-feasibility.json`. | `unsupported`: no live service runtime for adapter proof. | Select contained plugin or instruction harness, then score knowledge pages for citations, unsupported claims, rebuild, and stale-source lint. | Maintained wiki workflows, page lint, query-save loops, and topic-scoped navigation. |
 | gbrain | Operational knowledge brain with compiled_truth pages, timelines, enrichment, and maintenance loops. | `research_gate`. | `not_encoded`: `docs/research/2026-06-10-xy-882-rag-graph-adapter-feasibility.json`. | `blocked`: Docker-local brain repo and database path are missing. | Prove Docker-local repository/database setup, then encode compiled_truth/timeline and operator-continuity jobs. | Compiled truth pages, timeline maintenance, and human-operable knowledge-brain navigation. |
-| graphify | Graph-compressed navigation with `graph.json` and `GRAPH_REPORT` evidence outputs. | `research_gate`. | `blocked`: `cargo make graphify-docker-graph-report-smoke`, `tmp/real-world-memory/graphify-smoke/graphify-smoke.json`. | `blocked`: Docker CLI graph/report generation is not proven; host-global assistant hooks are out of scope. | XY-889 Docker-only graph/report adapter over `graph.json` and `GRAPH_REPORT.md`. | Graph compression, source-location graph reports, and navigation hints for large code or document spaces. |
+| graphify | Graph-compressed navigation with `graph.json` and `GRAPH_REPORT` evidence outputs. | Scored tiny `live_real_world` smoke; not broad graph-quality proof. | `wrong_result`: `cargo make graphify-docker-graph-report-smoke`, `tmp/real-world-memory/graphify-smoke/graphify-report.json`. | `not_encoded`: broad graph navigation, multimodal, private-corpus, and large-corpus quality remain outside the tiny smoke. | Expand beyond the generated smoke only after graph/report output maps to scored evidence on representative graph/RAG jobs. | Graph compression, source-location graph reports, and navigation hints for large code or document spaces. |
 
 ## Scenario Matrix
 
@@ -99,14 +99,14 @@ lifecycle-fail -> `lifecycle_fail`, and not-encoded -> `not_encoded`.
 | Source-of-truth | Fixture and live trust_source_of_truth pass. | memsearch. | memsearch canonical-store evidence exists, but source-of-truth is `incomplete` and retrieval is `wrong_result`. | Fix memsearch reindex/retrieval evidence and score source-of-truth rebuild/reload jobs. |
 | Temporal/current-vs-historical memory | Fixture memory_evolution passes; live memory_evolution is `wrong_result`. | Graphiti/Zep, mem0/OpenMemory. | Graphiti/Zep is `research_gate` `blocked`; mem0/OpenMemory is `wrong_result`. | Fix ELF/qmd live memory_evolution evidence links and run XY-888. |
 | Consolidation | Fixture consolidation passes; live consolidation is `not_encoded`. | agentmemory, managed-memory references, llm-wiki. | No manifest project has live consolidation scoring. | Run reviewable consolidation proposal generation with source refs, unsupported-claim flags, and audit transitions. |
-| Knowledge pages | Fixture knowledge_compilation passes; live knowledge_compilation is `not_encoded`. | llm-wiki, gbrain, GraphRAG, graphify. | llm-wiki and gbrain are `research_gate` `not_encoded` or `blocked`; GraphRAG and graphify are `blocked`. | Encode live derived-page rebuild/lint scoring and run contained knowledge/RAG adapters only after setup proof. |
+| Knowledge pages | Fixture knowledge_compilation passes; live knowledge_compilation is `not_encoded`. | llm-wiki, gbrain, GraphRAG, graphify. | llm-wiki and gbrain are `research_gate` `not_encoded` or `blocked`; GraphRAG is `blocked`; graphify has a tiny scored smoke `wrong_result`. | Encode live derived-page rebuild/lint scoring and run contained knowledge/RAG adapters only after setup proof. |
 | Operator debugging | Fixture operator_debugging_ux passes; live operator_debugging_ux is `not_encoded`. | qmd, claude-mem, OpenMemory. | qmd has debug strengths but operator_debugging_ux is `not_encoded`; claude-mem and OpenMemory UX are `not_encoded`. | Score trace hydration, stage attribution, raw-SQL avoidance, and repair-action clarity through live artifacts. |
 | Capture/write policy | Fixture capture_integration passes; live capture_integration is `not_encoded`. | agentmemory, claude-mem. | agentmemory capture is `blocked`; claude-mem capture is `not_encoded`. | Run live capture/write-policy jobs proving redaction, exclusion, evidence binding, and no secret leakage. |
 | Production ops | Fixture production_ops has 4 pass and 2 blocked; live production_ops is `incomplete`; production adoption has provider/backfill/restore evidence. | ELF production gate, qmd, RAG/RAGFlow resource gates. | qmd live production_ops is `incomplete`; RAG/resource gates are `research_gate` `blocked`. | Rerun private-corpus and credentialed gates only when operator-owned manifest and credentials exist. |
 | Personalization | Fixture and live personalization pass. | mem0/OpenMemory, Letta. | mem0/OpenMemory and Letta personalization are `not_encoded`. | Encode scoped preference readback for mem0/OpenMemory and Letta before personalization superiority claims. |
 | Context trajectory | ELF has trace direction but no comparable staged trajectory scenario. | OpenViking. | OpenViking setup is pinned, same-corpus retrieval is `wrong_result`, and hierarchy trajectory is `not_encoded`. | Make OpenViking evidence-bearing retrieval pass, then score staged context trajectory outputs. |
 | Core-vs-archival memory | ELF core-block semantics exist in the service contract, but comparative benchmark coverage is not encoded here. | Letta. | Letta is `research_gate` `not_encoded` until contained export proof exists. | Add ELF core-block versus archival-search jobs; compare Letta only after contained export proof. |
-| Graph/RAG navigation | ELF relation context is not enough to claim graph/RAG navigation parity. | RAGFlow, LightRAG, GraphRAG, Graphiti/Zep, graphify. | All named RAG/graph projects are `research_gate` `blocked` or `not_encoded`. | Run XY-885 through XY-889 Docker-contained adapters with evidence-linked outputs. |
+| Graph/RAG navigation | ELF relation context is not enough to claim graph/RAG navigation parity. | RAGFlow, LightRAG, GraphRAG, Graphiti/Zep, graphify. | RAGFlow, LightRAG, GraphRAG, and Graphiti/Zep remain `research_gate` blocked/incomplete without explicit setup; graphify has only a tiny scored smoke `wrong_result`. | Run larger contained graph/RAG adapters with evidence-linked outputs before any ELF graph/RAG win, tie, or loss claim. |
 
 ## Parallelizable Benchmark Follow-Ups
 
@@ -125,7 +125,7 @@ now explicit:
 | LightRAG context export | XY-886 | yes | Docker service setup and explicit provider config. | Retrieved context export and source file-path citations. |
 | GraphRAG cost-bounded adapter | XY-887 | yes | Tiny corpus cost/resource envelope. | Document, text-unit, graph-summary, and citation output tables. |
 | Graphiti/Zep temporal graph adapter | XY-888 | yes | Docker-local graph store setup. | Current/historical/future fact validity and evidence ids. |
-| graphify graph report adapter | XY-889 | yes | Docker CLI graph/report generation proof. | `graph.json` and `GRAPH_REPORT` evidence for graph navigation and knowledge synthesis. |
+| graphify graph report adapter | XY-889 plus post-XY-900 expansion | yes | Representative graph/RAG jobs beyond the tiny scored smoke. | `graph.json` and `GRAPH_REPORT` evidence mapped to scored graph navigation and knowledge synthesis ids. |
 | Private corpus and credentialed production ops | Operator-owned benchmark gates | no | Sanitized private manifest and routed provider credentials. | Private-corpus retrieval quality and credentialed production-ops evidence. |
 | Letta, LangGraph, nanograph, llm-wiki direct adapters | Research-only until output contract | no | Contained evidence export or non-memory-backend comparability contract. | Run only after each has a comparable output contract; otherwise keep as product-reference evidence. |
 

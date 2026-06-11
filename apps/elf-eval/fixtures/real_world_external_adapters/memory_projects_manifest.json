@@ -1,6 +1,6 @@
 {
   "schema": "elf.real_world_external_adapter_manifest/v1",
-  "manifest_id": "real-world-memory-project-adapters-2026-06-10",
+  "manifest_id": "real-world-memory-project-adapters-2026-06-11",
   "docker_isolation": {
     "default": true,
     "compose_file": "docker-compose.baseline.yml",
@@ -1085,7 +1085,7 @@
       "overall_status": "blocked",
       "setup": {
         "status": "blocked",
-        "evidence": "XY-885 adds a Docker-safe tiny-corpus evidence smoke command. The checked-in manifest remains a research gate until a generated artifact reaches RAGFlow query output.",
+        "evidence": "XY-900 promotes the Docker-safe tiny-corpus evidence smoke into a generated real_world_job report while the checked-in row remains smoke-only research_gate evidence.",
         "command": "cargo make ragflow-docker-smoke",
         "artifact": "tmp/real-world-memory/ragflow-smoke/ragflow-smoke.json"
       },
@@ -1097,8 +1097,8 @@
       },
       "result": {
         "status": "blocked",
-        "evidence": "No quality result is claimed from the checked-in research gate. Generated smoke artifacts may become live_real_world only after RAGFlow returns reference chunks mapped to generated evidence ids.",
-        "artifact": "tmp/real-world-memory/ragflow-smoke/ragflow-smoke.json"
+        "evidence": "The smoke now emits ragflow-report.json and ragflow-report.md from one generated retrieval job. Pass or wrong_result is allowed only when returned reference chunks map to generated evidence ids; resource, setup, and API-key limits remain typed blockers.",
+        "artifact": "tmp/real-world-memory/ragflow-smoke/ragflow-report.json"
       },
       "capabilities": [
         {
@@ -1113,15 +1113,20 @@
         },
         {
           "capability": "real_world_job_adapter",
+          "status": "blocked",
+          "evidence": "One generated retrieval job is scored from the smoke artifact or typed blocked when resource, service, or local API-key boundaries stop execution."
+        },
+        {
+          "capability": "quality_or_scale_claim",
           "status": "not_encoded",
-          "evidence": "The smoke maps RAGFlow reference chunks to generated evidence ids, but broad real_world_job scoring and quality claims remain not encoded."
+          "evidence": "The scored smoke does not claim broad RAGFlow quality, private corpus behavior, scale, or comparative ranking."
         }
       ],
       "suites": [
         {
           "suite_id": "retrieval",
           "status": "blocked",
-          "evidence": "The generated smoke can exercise tiny corpus ingest and retrieval-reference mapping, but the checked-in record stays blocked until a live artifact reaches query output."
+          "evidence": "The generated retrieval smoke is scored as pass, wrong_result, blocked, or incomplete by ragflow-report.json; the checked-in row remains blocked until live reference chunks map to evidence ids."
         },
         {
           "suite_id": "knowledge_compilation",
@@ -1144,6 +1149,16 @@
           "kind": "source",
           "ref": "https://ragflow.io/docs/",
           "status": "real"
+        },
+        {
+          "kind": "artifact",
+          "ref": "tmp/real-world-memory/ragflow-smoke/ragflow-report.json",
+          "status": "blocked"
+        },
+        {
+          "kind": "artifact",
+          "ref": "tmp/real-world-memory/ragflow-smoke/ragflow-report.md",
+          "status": "blocked"
         }
       ],
       "execution_metadata": {
@@ -1172,8 +1187,12 @@
           "Start the live path only with ELF_RAGFLOW_SMOKE_START=1 and ELF_RAGFLOW_SMOKE_ACCEPT_RESOURCE_ENVELOPE=1.",
           "Keep private corpora and operator-owned provider credentials out of this smoke; map only generated public corpus reference chunks to evidence ids."
         ],
-        "research_depth": "D2 feasibility verdict plus XY-885 evidence-smoke implementation; checked-in record remains research_gate unless a generated artifact reaches query output"
+        "research_depth": "D2 feasibility verdict plus XY-885 evidence-smoke implementation and XY-900 scored smoke promotion; checked-in record remains research_gate unless a generated artifact reaches query output"
       },
+      "notes": [
+        "Status class: smoke-only scored adapter path with typed resource/setup/API-key blockers.",
+        "Do not interpret ragflow-report.json as broad RAGFlow quality evidence unless reference chunks map to generated evidence ids."
+      ],
       "follow_up": {
         "title": "[ELF benchmark adapter] Implement RAGFlow Docker evidence-smoke adapter",
         "reason": "Created as XY-885. XY-882 found a Docker boundary and reference-chunk output contract; implementation must prove a tiny ingest/query run before any quality claim."
@@ -1189,7 +1208,7 @@
       "overall_status": "blocked",
       "setup": {
         "status": "blocked",
-        "evidence": "XY-886 adds a Docker-profile context-export smoke command. The checked-in manifest remains a research gate until a generated artifact reaches LightRAG context/source output.",
+        "evidence": "XY-886 adds a Docker-profile context-export smoke command, and XY-900 keeps its generated retrieval fixtures scored through real_world_job_benchmark. The checked-in row remains smoke-only research_gate evidence.",
         "command": "cargo make lightrag-docker-context-smoke",
         "artifact": "tmp/real-world-memory/lightrag-context/lightrag-materialization.json"
       },
@@ -1201,7 +1220,7 @@
       },
       "result": {
         "status": "blocked",
-        "evidence": "No graph-RAG quality result is claimed from the checked-in research gate. Generated smoke artifacts may become live_real_world only after LightRAG returns context or references mapped to generated evidence ids.",
+        "evidence": "The smoke emits lightrag-report.json and lightrag-report.md over generated retrieval jobs. Pass or wrong_result is allowed only when returned context, references, or file paths map to generated evidence ids.",
         "artifact": "tmp/real-world-memory/lightrag-context/lightrag-report.json"
       },
       "capabilities": [
@@ -1263,6 +1282,11 @@
           "kind": "artifact",
           "ref": "tmp/real-world-memory/lightrag-context/lightrag-materialization.json",
           "status": "blocked"
+        },
+        {
+          "kind": "artifact",
+          "ref": "tmp/real-world-memory/lightrag-context/lightrag-report.md",
+          "status": "blocked"
         }
       ],
       "execution_metadata": {
@@ -1296,8 +1320,12 @@
           "Set ELF_LIGHTRAG_CONTEXT_START=1 only when Docker may pull/start the LightRAG service profile.",
           "Score retrieval only when returned context, references.file_path, or references.content map to required evidence ids."
         ],
-        "research_depth": "D2 feasibility plus XY-886 context-export implementation; checked-in record remains research_gate unless a generated artifact reaches query output"
+        "research_depth": "D2 feasibility plus XY-886 context-export implementation and XY-900 scored smoke aggregation; checked-in record remains research_gate unless a generated artifact reaches query output"
       },
+      "notes": [
+        "Status class: smoke-only scored adapter path with typed service/setup blockers.",
+        "Do not interpret lightrag-report.json as broad graph-RAG quality evidence unless generated source/context mappings score as pass."
+      ],
       "follow_up": {
         "title": "[ELF benchmark adapter] Implement LightRAG Docker context-export adapter",
         "reason": "Created as XY-886. XY-882 found a Docker service path and context/source mapping contract; implementation must prove evidence export before scoring."
@@ -1313,7 +1341,7 @@
       "overall_status": "blocked",
       "setup": {
         "status": "blocked",
-        "evidence": "XY-887 adds a Docker-safe generated-corpus GraphRAG smoke command. The checked-in manifest remains a research gate until a generated artifact reaches GraphRAG parquet output.",
+        "evidence": "XY-900 promotes the Docker-safe generated-corpus GraphRAG smoke into a scored knowledge_compilation report while the checked-in row remains smoke-only research_gate evidence.",
         "command": "cargo make graphrag-docker-smoke",
         "artifact": "tmp/real-world-memory/graphrag-smoke/graphrag-smoke.json"
       },
@@ -1325,8 +1353,8 @@
       },
       "result": {
         "status": "blocked",
-        "evidence": "No graph-navigation or knowledge-synthesis result is claimed from the checked-in research gate. Generated smoke artifacts may become live_real_world only after GraphRAG output tables map to generated evidence ids.",
-        "artifact": "tmp/real-world-memory/graphrag-smoke/memory_projects_manifest.graphrag-smoke.json"
+        "evidence": "The smoke now emits graphrag-report.json and graphrag-report.md from one generated knowledge_compilation job. Pass or wrong_result is allowed only when GraphRAG output tables map to generated evidence ids.",
+        "artifact": "tmp/real-world-memory/graphrag-smoke/graphrag-report.json"
       },
       "capabilities": [
         {
@@ -1342,7 +1370,7 @@
         {
           "capability": "real_world_job_adapter",
           "status": "blocked",
-          "evidence": "The smoke writes a generated real_world_job fixture for the tiny corpus, but the checked-in record stays blocked until live GraphRAG output maps to expected evidence ids."
+          "evidence": "The smoke writes a generated real_world_job fixture and scored report; provider/setup limits remain blocked until live GraphRAG output maps to expected evidence ids."
         },
         {
           "capability": "quality_or_scale_claim",
@@ -1392,6 +1420,11 @@
           "kind": "artifact",
           "ref": "tmp/real-world-memory/graphrag-smoke/graphrag-smoke.json",
           "status": "blocked"
+        },
+        {
+          "kind": "artifact",
+          "ref": "tmp/real-world-memory/graphrag-smoke/graphrag-report.md",
+          "status": "blocked"
         }
       ],
       "execution_metadata": {
@@ -1430,8 +1463,12 @@
           "Enable ELF_GRAPHRAG_SMOKE_RUN=1 only for generated public corpus indexing with explicit provider configuration.",
           "Fail typed if source document or text_unit identifiers cannot be mapped to expected evidence IDs."
         ],
-        "research_depth": "D2 feasibility plus XY-887 Docker smoke implementation; checked-in record remains research_gate unless a generated artifact reaches GraphRAG output"
+        "research_depth": "D2 feasibility plus XY-887 Docker smoke implementation and XY-900 scored smoke promotion; checked-in record remains research_gate unless a generated artifact reaches GraphRAG output"
       },
+      "notes": [
+        "Status class: smoke-only scored adapter path with typed provider/setup blockers.",
+        "Do not interpret graphrag-report.json as broad graph-navigation or knowledge-synthesis quality evidence unless output tables map to generated evidence ids."
+      ],
       "follow_up": {
         "title": "[ELF benchmark adapter] Implement GraphRAG cost-bounded Docker adapter",
         "reason": "Created as XY-887. XY-882 found a Docker-bounded CLI/API path and output-table evidence handles; implementation must stay tiny and cost-recorded."
@@ -1447,7 +1484,7 @@
       "overall_status": "blocked",
       "setup": {
         "status": "blocked",
-        "evidence": "XY-888 adds a Docker-contained Graphiti/Zep temporal smoke command. The checked-in manifest remains a research gate until a generated artifact reaches Graphiti search output.",
+        "evidence": "XY-900 promotes the Docker-contained Graphiti/Zep temporal smoke into a scored memory_evolution report while the checked-in row remains smoke-only research_gate evidence.",
         "command": "cargo make graphiti-zep-docker-temporal-smoke",
         "artifact": "tmp/real-world-memory/graphiti-zep-smoke/graphiti-zep-smoke.json"
       },
@@ -1459,8 +1496,8 @@
       },
       "result": {
         "status": "blocked",
-        "evidence": "No temporal graph quality result is claimed from the checked-in research gate. Generated smoke artifacts may become live_real_world only after Graphiti/Zep returns UUID, fact, valid_at, and invalid_at output mapped to generated memory_evolution evidence ids.",
-        "artifact": "tmp/real-world-memory/graphiti-zep-smoke/graphiti-zep-smoke.json"
+        "evidence": "The smoke now emits graphiti-zep-report.json and graphiti-zep-report.md from one generated memory_evolution job. The default blocker is live-run opt-in disabled; when ELF_GRAPHITI_ZEP_SMOKE_START=1 and ELF_GRAPHITI_ZEP_SMOKE_RUN=1 are set without provider credentials, the blocker is provider_api_key_missing. No hosted Zep service or unrecorded credentials are used.",
+        "artifact": "tmp/real-world-memory/graphiti-zep-smoke/graphiti-zep-report.json"
       },
       "capabilities": [
         {
@@ -1476,7 +1513,7 @@
         {
           "capability": "real_world_job_adapter",
           "status": "blocked",
-          "evidence": "The generated smoke fixture maps Graphiti/Zep temporal fact output to memory_evolution expected evidence ids when search output is available."
+          "evidence": "The generated temporal-validity fixture is scored or typed blocked; live quality evidence requires Graphiti/Zep search output mapped to current and historical evidence ids."
         },
         {
           "capability": "quality_or_scale_claim",
@@ -1521,6 +1558,11 @@
           "kind": "artifact",
           "ref": "tmp/real-world-memory/graphiti-zep-smoke/graphiti-zep-smoke.json",
           "status": "blocked"
+        },
+        {
+          "kind": "artifact",
+          "ref": "tmp/real-world-memory/graphiti-zep-smoke/graphiti-zep-report.md",
+          "status": "blocked"
         }
       ],
       "execution_metadata": {
@@ -1559,8 +1601,12 @@
           "Start the live path only with ELF_GRAPHITI_ZEP_SMOKE_START=1, ELF_GRAPHITI_ZEP_SMOKE_RUN=1, and explicit provider configuration.",
           "Treat missing validity windows or unmapped current/historical facts as wrong_result, not pass."
         ],
-        "research_depth": "D2 feasibility plus XY-888 Docker temporal smoke implementation; checked-in record remains research_gate unless a generated artifact reaches Graphiti search output"
+        "research_depth": "D2 feasibility plus XY-888 Docker temporal smoke implementation and XY-900 scored smoke promotion; checked-in record remains research_gate unless a generated artifact reaches Graphiti search output"
       },
+      "notes": [
+        "Status class: smoke-only scored adapter path with typed live-run opt-in, provider, and setup blockers.",
+        "Graphiti/Zep remains the temporal-validity reference; do not claim ELF-over-Graphiti/Zep until provider-backed temporal output maps to scored evidence ids."
+      ],
       "follow_up": {
         "title": "[ELF benchmark adapter] Implement Graphiti/Zep temporal graph adapter",
         "reason": "Created as XY-888. XY-882 found a Docker-local graph-store path and fact/validity-window output contract for memory_evolution scoring."
@@ -1962,45 +2008,45 @@
       }
     },
     {
-      "adapter_id": "graphify_research_gate",
+      "adapter_id": "graphify_docker_smoke",
       "project": "graphify",
-      "adapter_kind": "research_gate",
-      "evidence_class": "research_gate",
+      "adapter_kind": "docker_cli_real_world_job",
+      "evidence_class": "live_real_world",
       "docker_default": true,
       "host_global_installs_required": false,
-      "overall_status": "blocked",
+      "overall_status": "wrong_result",
       "setup": {
-        "status": "blocked",
-        "evidence": "XY-889 adds a Docker-only graph/report smoke command. The checked-in manifest remains a research gate until a generated artifact reaches graphify graph/report output.",
+        "status": "pass",
+        "evidence": "XY-900 validation reached the Docker-only graph/report smoke setup inside the baseline runner without host-global assistant hooks.",
         "command": "cargo make graphify-docker-graph-report-smoke",
         "artifact": "tmp/real-world-memory/graphify-smoke/graphify-smoke.json"
       },
       "run": {
-        "status": "blocked",
-        "evidence": "The smoke installs graphify in a container-local venv, runs over a generated public corpus, and records typed setup/runtime failure if graph/report build or query output is unavailable.",
+        "status": "pass",
+        "evidence": "The smoke installed graphify in a container-local venv, ran over a generated public corpus, and produced graph/report/query output for scoring.",
         "command": "cargo make graphify-docker-graph-report-smoke",
         "artifact": "tmp/real-world-memory/graphify-smoke/summary.json"
       },
       "result": {
-        "status": "blocked",
-        "evidence": "No graph-navigation or knowledge-compilation quality result is claimed from the checked-in research gate. Generated smoke artifacts may become live_real_world only after graph.json, GRAPH_REPORT.md, and graphify query output map to generated evidence ids.",
-        "artifact": "tmp/real-world-memory/graphify-smoke/graphify-smoke.json"
+        "status": "wrong_result",
+        "evidence": "The smoke emits graphify-report.json and graphify-report.md from one generated knowledge_compilation job. The current scored report maps evidence ids but remains wrong_result because the scoring rubric still records a wrong-result signal.",
+        "artifact": "tmp/real-world-memory/graphify-smoke/graphify-report.json"
       },
       "capabilities": [
         {
           "capability": "docker_cli_boundary",
-          "status": "blocked",
+          "status": "pass",
           "evidence": "The smoke uses docker-compose.baseline.yml baseline-runner, a container-local Python venv, and isolated assistant config paths; it does not install host-global assistant hooks."
         },
         {
           "capability": "graph_report_generation",
-          "status": "blocked",
-          "evidence": "The smoke captures graphify-out/graph.json, GRAPH_REPORT.md, cache metadata, command logs, build time, graph size, and report size when build succeeds."
+          "status": "pass",
+          "evidence": "The smoke captures graphify-out/graph.json, GRAPH_REPORT.md, cache metadata, command logs, build time, graph size, and report size."
         },
         {
           "capability": "real_world_job_adapter",
-          "status": "blocked",
-          "evidence": "The smoke maps node labels, edge types, confidence tags, source files, source locations, report text, and query output to generated real_world_job evidence ids when graphify reaches output."
+          "status": "wrong_result",
+          "evidence": "The smoke writes a generated real_world_job fixture and scored report; current knowledge_compilation scoring is wrong_result, not pass."
         },
         {
           "capability": "multimodal_code_graph",
@@ -2016,13 +2062,13 @@
       "suites": [
         {
           "suite_id": "knowledge_compilation",
-          "status": "blocked",
-          "evidence": "The generated smoke can exercise graph/report evidence mapping for one generated knowledge-compilation fixture, but the checked-in record stays blocked until a live artifact reaches graph/report output."
+          "status": "wrong_result",
+          "evidence": "The generated smoke exercised graph/report evidence mapping for one generated knowledge-compilation fixture and scored wrong_result with mean_score 0.75."
         },
         {
           "suite_id": "retrieval",
           "status": "blocked",
-          "evidence": "Graph-guided query output is mapped only for the generated smoke when available; broad retrieval quality scoring remains unclaimed."
+          "evidence": "Graph-guided query output is present only as support for the generated knowledge_compilation smoke; broad retrieval quality scoring remains unclaimed."
         },
         {
           "suite_id": "work_resume",
@@ -2039,12 +2085,17 @@
         {
           "kind": "command",
           "ref": "cargo make graphify-docker-graph-report-smoke",
-          "status": "blocked"
+          "status": "wrong_result"
         },
         {
           "kind": "artifact",
           "ref": "tmp/real-world-memory/graphify-smoke/graphify-smoke.json",
-          "status": "blocked"
+          "status": "pass"
+        },
+        {
+          "kind": "artifact",
+          "ref": "tmp/real-world-memory/graphify-smoke/graphify-report.md",
+          "status": "wrong_result"
         }
       ],
       "execution_metadata": {
@@ -2068,8 +2119,12 @@
           "Do not use graphify host assistant hook installs or operator-owned assistant configuration as proof.",
           "Score graph-guided answers only when graph.json, GRAPH_REPORT.md, and graphify query output map to generated evidence ids."
         ],
-        "research_depth": "D1 feasibility verdict plus XY-889 Docker graph/report smoke implementation; checked-in record remains research_gate unless a generated artifact reaches graphify output"
+        "research_depth": "D1 feasibility verdict plus XY-889 Docker graph/report smoke implementation and XY-900 scored smoke promotion; current Docker validation reaches graphify output and scores the tiny knowledge_compilation job as wrong_result"
       },
+      "notes": [
+        "Status class: live Docker scored smoke with a current wrong_result outcome.",
+        "Do not interpret graphify-report.json as broad graph-navigation or knowledge-compilation quality evidence; the tiny smoke is scored and currently non-pass."
+      ],
       "follow_up": {
         "title": "[ELF benchmark adapter] Implement graphify Docker graph-report adapter",
         "reason": "Created as XY-889. XY-882 found a Docker-only CLI/materializer path and source-file/source-location output contract."
