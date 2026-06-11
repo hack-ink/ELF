@@ -84,6 +84,10 @@ cleanup, use `docs/guide/single_user_production.md`.
   Graphiti/Zep, and graphify smoke contracts into scored or typed non-pass
   `real_world_job` adapter reports without converting smoke evidence into quality
   claims.
+- `2026-06-11-competitor-strength-adoption-report.md`: XY-901 final
+  competitor-strength adoption report with the bounded personal-production decision,
+  scenario-level win/tie/loss/not-tested matrix, claim boundaries, and optimization
+  issue queue.
 - `real_world_agent_memory_benchmark.md`: operator overview for the v1 real-world
   agent memory benchmark contract, including suite taxonomy, typed report states,
   knowledge-compilation fixture tasks, and the production-ops fixture target.
