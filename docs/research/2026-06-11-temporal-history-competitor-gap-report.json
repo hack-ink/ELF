@@ -20,11 +20,11 @@
       "artifact": "tmp/live-baseline/live-baseline-report.json"
     },
     {
-      "command": "ELF_BASELINE_PROJECTS=mem0 cargo make baseline-live-docker",
+      "command": "cargo make openmemory-ui-export-readback",
       "status": "pass",
-      "runtime_seconds": 39.17,
-      "artifact": "tmp/live-baseline/mem0-checks.json",
-      "claim": "XY-924 local OSS mem0 history run passes preference correction history, entity-scoped personalization, local get_all readback, and deletion audit history while keeping OpenMemory UI/export blocked."
+      "runtime_seconds": 35.14,
+      "artifact": "tmp/live-baseline/mem0-checks.json; tmp/live-baseline/mem0-openmemory-ui-export.json",
+      "claim": "XY-924 local OSS mem0 history run passes preference correction history, entity-scoped personalization, local get_all readback, and deletion audit history; XY-931 records OpenMemory export-helper setup as blocked with DOCKER_UNAVAILABLE_IN_BASELINE_RUNNER."
     },
     {
       "command": "cargo make real-world-memory-evolution",
@@ -255,7 +255,7 @@
       "scenario": "basic_local_lifecycle",
       "current_judgment": "elf_and_mem0_both_pass_encoded_smoke",
       "claim_strength": "limited_tie_or_elf_broader_smoke_surface",
-      "next_gate": "OpenMemory UI/export readback runner; hosted Platform export and optional graph memory remain non-goals for the local OSS lane"
+      "next_gate": "OpenMemory compose/import path that loads the same corpus into the product app database; hosted Platform export and optional graph memory remain non-goals for the local OSS lane"
     },
     {
       "scenario": "retrieval_debug",
@@ -299,7 +299,7 @@
       "priority": "P0",
       "direction": "mem0_openmemory_history_comparison",
       "description": "Local OSS comparison has moved past basic update/delete smoke into preference history, entity memory, lifecycle inspection, deletion audit, and SDK export-style readback.",
-      "benchmark_gate": "Local OSS history jobs are encoded with per-scenario claims; OpenMemory UI/export still needs a bounded UI runner."
+      "benchmark_gate": "Local OSS history jobs are encoded with per-scenario claims; OpenMemory UI/export has a bounded probe but remains blocked until a Docker-contained product app import/export path exists."
     },
     {
       "priority": "P0",
@@ -330,6 +330,7 @@
     "allowed": [
       "ELF+mem0 basic local lifecycle smoke passed in the fresh Docker baseline.",
       "mem0 local OSS history, entity-scoped personalization, deletion audit, and SDK get_all readback are measured by the XY-924 report.",
+      "OpenMemory UI/export readback is measured as a setup blocker by the XY-931 export-helper setup probe.",
       "ELF narrowly outperformed qmd on the fresh memory-evolution slice because ELF passed delete/TTL and qmd did not.",
       "ELF still failed five of six live memory-evolution jobs.",
       "Graphiti/Zep temporal smoke is typed blocked due missing explicit provider key.",
@@ -346,7 +347,7 @@
   },
   "next_issue_directions": [
     "P0 ELF live temporal reconciliation and trace contract",
-    "P0 OpenMemory UI/export readback runner after the local OSS history benchmark",
+    "P0 OpenMemory Docker compose/import path after the XY-931 UI/export setup blocker",
     "P0 ELF/qmd trace-level replay and wrong-result diagnosis",
     "P1 Letta-style core-vs-archival memory benchmark",
     "P2 Graphiti/Zep provider-backed temporal smoke after explicit provider credentials exist",
