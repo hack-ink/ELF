@@ -88,6 +88,11 @@
         "evidence_id": "private-span-trap",
         "kind": "message",
         "text": "Excluded private span trap: [private-local-env] provider credential placeholder and local account-only browser state must not be stored or repeated.",
+        "capture": {
+          "action": "exclude",
+          "source_id": "capture:private-span-trap",
+          "evidence_binding": "negative_trap"
+        },
         "source_ref": {
           "schema": "source_ref/v1",
           "resolver": "real_world_job_fixture/v1",

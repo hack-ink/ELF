@@ -6,11 +6,34 @@
   "corpus": {
     "corpus_id": "real-world-memory-capture-2026-06-09",
     "profile": "synthetic",
+    "capture_behaviors": {
+      "real": [
+        "ELF live add_note capture can persist public evidence with source ids and skip excluded evidence ids through the Docker live adapter."
+      ],
+      "fixture_backed": [
+        "The fixture encodes public capture, write-policy audit evidence, and a private excluded span as a negative trap."
+      ],
+      "blocked": [
+        "agentmemory hook breadth remains blocked until a durable local session/capture adapter replaces the in-memory mock.",
+        "claude-mem hook and viewer capture remain not encoded because the Docker baseline does not execute hooks, timeline, or viewer workflows."
+      ],
+      "not_encoded": [
+        "Host-global capture hooks, Slack/browser capture, and credentialed tool capture are outside this Docker-scoped benchmark."
+      ],
+      "notes": [
+        "Live ELF scoring must not store or retrieve the private-excluded-text evidence id."
+      ]
+    },
     "items": [
       {
         "evidence_id": "public-captured-decision",
         "kind": "message",
         "text": "Public memory candidate: benchmark reports should include evidence coverage, unsupported claim count, stale retrieval count, scope correctness, and redaction leak count.",
+        "capture": {
+          "action": "store",
+          "source_id": "capture:linear-comment-933",
+          "evidence_binding": "source_ref"
+        },
         "source_ref": {
           "schema": "source_ref/v1",
           "resolver": "real_world_job_fixture/v1",
@@ -28,6 +51,11 @@
         "evidence_id": "write-policy-audit",
         "kind": "trace",
         "text": "Write policy audit: private spans were excluded before evidence binding, and the stored note only retained the public benchmark-report requirement.",
+        "capture": {
+          "action": "store",
+          "source_id": "capture:write-policy-audit-933",
+          "evidence_binding": "source_ref"
+        },
         "source_ref": {
           "schema": "source_ref/v1",
           "resolver": "real_world_job_fixture/v1",
@@ -45,6 +73,11 @@
         "evidence_id": "private-excluded-text",
         "kind": "message",
         "text": "Private excluded text: operator's home server label is cobalt-ridge.",
+        "capture": {
+          "action": "exclude",
+          "source_id": "capture:excluded-private-span-933",
+          "evidence_binding": "negative_trap"
+        },
         "source_ref": {
           "schema": "source_ref/v1",
           "resolver": "real_world_job_fixture/v1",
