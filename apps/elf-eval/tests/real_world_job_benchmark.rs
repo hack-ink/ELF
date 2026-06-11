@@ -255,11 +255,11 @@ fn smoke_fixture_produces_typed_json_report() -> Result<()> {
 	assert_eq!(report.pointer("/summary/wrong_result_count").and_then(Value::as_u64), Some(0));
 	assert_eq!(
 		report.pointer("/external_adapters/summary/adapter_count").and_then(Value::as_u64),
-		Some(21)
+		Some(23)
 	);
 	assert_eq!(
 		report.pointer("/external_adapters/summary/live_real_world_count").and_then(Value::as_u64),
-		Some(3)
+		Some(5)
 	);
 	assert_eq!(
 		report.pointer("/external_adapters/summary/research_gate_count").and_then(Value::as_u64),
@@ -420,7 +420,7 @@ fn assert_external_adapter_manifest_summary(report: &Value) {
 	);
 	assert_eq!(
 		report.pointer("/external_adapters/summary/adapter_count").and_then(Value::as_u64),
-		Some(21)
+		Some(23)
 	);
 	assert_eq!(
 		report.pointer("/external_adapters/summary/external_project_count").and_then(Value::as_u64),
@@ -438,7 +438,7 @@ fn assert_external_adapter_manifest_summary(report: &Value) {
 	);
 	assert_eq!(
 		report.pointer("/external_adapters/summary/live_real_world_count").and_then(Value::as_u64),
-		Some(3)
+		Some(5)
 	);
 	assert_eq!(
 		report.pointer("/external_adapters/summary/research_gate_count").and_then(Value::as_u64),
@@ -448,13 +448,13 @@ fn assert_external_adapter_manifest_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/overall_status_counts/pass")
 			.and_then(Value::as_u64),
-		Some(3)
+		Some(4)
 	);
 	assert_eq!(
 		report
 			.pointer("/external_adapters/summary/overall_status_counts/wrong_result")
 			.and_then(Value::as_u64),
-		Some(5)
+		Some(6)
 	);
 	assert_eq!(
 		report
@@ -543,7 +543,7 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/scenario_status_counts/wrong_result")
 			.and_then(Value::as_u64),
-		Some(1)
+		Some(4)
 	);
 	assert_eq!(
 		report
@@ -555,7 +555,7 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/scenario_status_counts/pass")
 			.and_then(Value::as_u64),
-		Some(9)
+		Some(16)
 	);
 	assert_eq!(
 		report
@@ -567,13 +567,13 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/scenario_position_counts/wins")
 			.and_then(Value::as_u64),
-		Some(2)
+		Some(8)
 	);
 	assert_eq!(
 		report
 			.pointer("/external_adapters/summary/scenario_position_counts/ties")
 			.and_then(Value::as_u64),
-		Some(4)
+		Some(8)
 	);
 	assert_eq!(
 		report
@@ -591,13 +591,13 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/scenario_outcome_counts/win")
 			.and_then(Value::as_u64),
-		Some(2)
+		Some(8)
 	);
 	assert_eq!(
 		report
 			.pointer("/external_adapters/summary/scenario_outcome_counts/tie")
 			.and_then(Value::as_u64),
-		Some(4)
+		Some(8)
 	);
 	assert_eq!(
 		report
@@ -629,8 +629,10 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 	let adapters = array_at(report, "/external_adapters/adapters")?;
 	let elf = find_by_field(adapters, "/adapter_id", "elf_real_world_memory_fixture")?;
 	let elf_live = find_by_field(adapters, "/adapter_id", "elf_live_real_world")?;
+	let elf_operator_debug = find_by_field(adapters, "/adapter_id", "elf_operator_debug_live")?;
 	let qmd = find_by_field(adapters, "/adapter_id", "qmd_live_baseline")?;
 	let qmd_live = find_by_field(adapters, "/adapter_id", "qmd_live_real_world")?;
+	let qmd_operator_debug = find_by_field(adapters, "/adapter_id", "qmd_operator_debug_live")?;
 	let agentmemory = find_by_field(adapters, "/adapter_id", "agentmemory_live_baseline")?;
 	let mem0 = find_by_field(adapters, "/adapter_id", "mem0_openmemory_live_baseline")?;
 	let memsearch = find_by_field(adapters, "/adapter_id", "memsearch_live_baseline")?;
@@ -653,6 +655,7 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 	assert_eq!(elf_live.pointer("/overall_status").and_then(Value::as_str), Some("wrong_result"));
 
 	assert_live_sweep_record(elf_live, "blocked")?;
+	assert_operator_debug_live_adapter_records(elf_operator_debug, qmd_operator_debug)?;
 
 	assert_eq!(qmd.pointer("/overall_status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(qmd.pointer("/suites/0/status").and_then(Value::as_str), Some("not_encoded"));
@@ -756,6 +759,111 @@ fn assert_qmd_live_baseline_record(adapter: &Value) {
 			&& evidence.contains("cite qmd_live_real_world for the live retrieval adapter run")
 			&& !evidence.contains("no real_world_job retrieval adapter run is encoded")
 	}));
+}
+
+fn assert_operator_debug_live_adapter_records(elf: &Value, qmd: &Value) -> Result<()> {
+	assert_eq!(elf.pointer("/evidence_class").and_then(Value::as_str), Some("live_real_world"));
+	assert_eq!(elf.pointer("/overall_status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(
+		elf.pointer("/setup/command").and_then(Value::as_str),
+		Some("cargo make real-world-job-operator-ux-live-adapters")
+	);
+	assert_eq!(
+		elf.pointer("/suites/0/suite_id").and_then(Value::as_str),
+		Some("operator_debugging_ux")
+	);
+	assert_eq!(elf.pointer("/suites/0/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(
+		elf.pointer("/capabilities/1/capability").and_then(Value::as_str),
+		Some("trace_hydration_metadata")
+	);
+	assert_eq!(elf.pointer("/capabilities/1/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(
+		elf.pointer("/capabilities/2/capability").and_then(Value::as_str),
+		Some("replay_command_metadata")
+	);
+	assert_eq!(elf.pointer("/capabilities/2/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(
+		elf.pointer("/capabilities/3/capability").and_then(Value::as_str),
+		Some("candidate_drop_visibility")
+	);
+	assert_eq!(elf.pointer("/capabilities/3/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(
+		elf.pointer("/capabilities/4/capability").and_then(Value::as_str),
+		Some("openmemory_or_claude_mem_ui_runner")
+	);
+	assert_eq!(elf.pointer("/capabilities/4/status").and_then(Value::as_str), Some("not_encoded"));
+
+	let elf_scenarios = array_at(elf, "/scenarios")?;
+	let elf_trace = find_by_field(elf_scenarios, "/scenario_id", "operator_debug_trace_hydration")?;
+	let elf_replay = find_by_field(elf_scenarios, "/scenario_id", "operator_debug_replay_command")?;
+	let elf_candidate =
+		find_by_field(elf_scenarios, "/scenario_id", "operator_debug_candidate_drop_visibility")?;
+	let elf_repair =
+		find_by_field(elf_scenarios, "/scenario_id", "operator_debug_repair_action_clarity")?;
+	let elf_selected =
+		find_by_field(elf_scenarios, "/scenario_id", "operator_debug_selected_but_not_narrated")?;
+
+	assert_eq!(elf_scenarios.len(), 5);
+	assert_eq!(elf_trace.pointer("/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(elf_trace.pointer("/comparison_outcome").and_then(Value::as_str), Some("win"));
+	assert_eq!(elf_replay.pointer("/comparison_outcome").and_then(Value::as_str), Some("tie"));
+	assert_eq!(elf_candidate.pointer("/comparison_outcome").and_then(Value::as_str), Some("win"));
+	assert_eq!(elf_repair.pointer("/comparison_outcome").and_then(Value::as_str), Some("tie"));
+	assert_eq!(elf_selected.pointer("/comparison_outcome").and_then(Value::as_str), Some("win"));
+	assert_eq!(qmd.pointer("/evidence_class").and_then(Value::as_str), Some("live_real_world"));
+	assert_eq!(qmd.pointer("/overall_status").and_then(Value::as_str), Some("wrong_result"));
+	assert_eq!(
+		qmd.pointer("/suites/0/suite_id").and_then(Value::as_str),
+		Some("operator_debugging_ux")
+	);
+	assert_eq!(qmd.pointer("/suites/0/status").and_then(Value::as_str), Some("wrong_result"));
+	assert_eq!(
+		qmd.pointer("/capabilities/1/capability").and_then(Value::as_str),
+		Some("local_replay_command_metadata")
+	);
+	assert_eq!(qmd.pointer("/capabilities/1/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(
+		qmd.pointer("/capabilities/2/capability").and_then(Value::as_str),
+		Some("trace_hydration_metadata")
+	);
+	assert_eq!(qmd.pointer("/capabilities/2/status").and_then(Value::as_str), Some("wrong_result"));
+	assert_eq!(
+		qmd.pointer("/capabilities/3/capability").and_then(Value::as_str),
+		Some("candidate_drop_visibility")
+	);
+	assert_eq!(qmd.pointer("/capabilities/3/status").and_then(Value::as_str), Some("wrong_result"));
+	assert_eq!(qmd.pointer("/capabilities/4/status").and_then(Value::as_str), Some("not_encoded"));
+
+	let qmd_scenarios = array_at(qmd, "/scenarios")?;
+	let qmd_trace = find_by_field(qmd_scenarios, "/scenario_id", "operator_debug_trace_hydration")?;
+	let qmd_replay = find_by_field(qmd_scenarios, "/scenario_id", "operator_debug_replay_command")?;
+	let qmd_candidate =
+		find_by_field(qmd_scenarios, "/scenario_id", "operator_debug_candidate_drop_visibility")?;
+	let qmd_repair =
+		find_by_field(qmd_scenarios, "/scenario_id", "operator_debug_repair_action_clarity")?;
+	let qmd_selected =
+		find_by_field(qmd_scenarios, "/scenario_id", "operator_debug_selected_but_not_narrated")?;
+
+	assert_eq!(qmd_scenarios.len(), 5);
+	assert_eq!(qmd_trace.pointer("/status").and_then(Value::as_str), Some("wrong_result"));
+	assert_eq!(qmd_trace.pointer("/comparison_outcome").and_then(Value::as_str), Some("win"));
+	assert_eq!(qmd_replay.pointer("/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(qmd_replay.pointer("/comparison_outcome").and_then(Value::as_str), Some("tie"));
+	assert_eq!(qmd_candidate.pointer("/status").and_then(Value::as_str), Some("wrong_result"));
+	assert_eq!(qmd_candidate.pointer("/comparison_outcome").and_then(Value::as_str), Some("win"));
+	assert_eq!(qmd_repair.pointer("/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(qmd_repair.pointer("/comparison_outcome").and_then(Value::as_str), Some("tie"));
+	assert_eq!(qmd_selected.pointer("/status").and_then(Value::as_str), Some("wrong_result"));
+	assert_eq!(qmd_selected.pointer("/comparison_outcome").and_then(Value::as_str), Some("win"));
+	assert!(array_at(elf, "/notes")?.iter().any(|note| {
+		note.as_str().is_some_and(|text| text.contains("narrow operator-debug live slice"))
+	}));
+	assert!(array_at(qmd, "/notes")?.iter().any(|note| {
+		note.as_str().is_some_and(|text| text.contains("narrow operator-debug live slice"))
+	}));
+
+	Ok(())
 }
 
 fn assert_openviking_deep_profile_gate(adapter: &Value) {
@@ -1130,6 +1238,40 @@ fn openmemory_ui_export_probe_has_dedicated_docker_task() -> Result<()> {
 	Ok(())
 }
 
+#[test]
+fn operator_debug_live_adapter_task_is_docker_scoped() -> Result<()> {
+	let workspace = workspace_root()?;
+	let makefile = fs::read_to_string(workspace.join("Makefile.toml"))?;
+	let script = fs::read_to_string(
+		workspace.join("scripts").join("real-world-operator-debug-live-adapters.sh"),
+	)?;
+	let live_adapter =
+		fs::read_to_string(workspace.join("apps/elf-eval/src/bin/real_world_live_adapter.rs"))?;
+	let benchmark =
+		fs::read_to_string(workspace.join("apps/elf-eval/src/bin/real_world_job_benchmark.rs"))?;
+
+	assert!(makefile.contains("[tasks.real-world-job-operator-ux-live-adapters]"));
+	assert!(makefile.contains("docker compose -f docker-compose.baseline.yml run --build --rm"));
+	assert!(makefile.contains("scripts/real-world-operator-debug-live-adapters.sh"));
+	assert!(script.contains("apps/elf-eval/fixtures/real_world_job/operator_debugging_ux"));
+	assert!(script.contains("elf_operator_debug_live"));
+	assert!(script.contains("qmd_operator_debug_live"));
+	assert!(script.contains("elf.real_world_operator_debug_live_adapter_sweep/v1"));
+	assert!(script.contains("trace_available"));
+	assert!(script.contains("replay_command_available"));
+	assert!(live_adapter.contains("fn operator_debug_output("));
+	assert!(live_adapter.contains("fn qmd_replay_command("));
+	assert!(live_adapter.contains("fn elf_replay_command("));
+	assert!(
+		!live_adapter
+			.contains("does not yet hydrate full operator trace/viewer diagnostics for this suite")
+	);
+	assert!(benchmark.contains("Replay command:"));
+	assert!(benchmark.contains("replay_command_available"));
+
+	Ok(())
+}
+
 fn assert_live_sweep_record(adapter: &Value, production_ops_status: &str) -> Result<()> {
 	let suites = array_at(adapter, "/suites")?;
 	let capabilities = array_at(adapter, "/capabilities")?;
@@ -1187,24 +1329,25 @@ fn runner_discovers_nested_fixture_layout() -> Result<()> {
 fn operator_debug_fixture_reports_trace_links_and_failure_details() -> Result<()> {
 	let report = run_json_report_from(operator_debug_fixture_dir())?;
 
-	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(5));
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(6));
 	assert_eq!(
 		report.pointer("/summary/operator_debug_job_count").and_then(Value::as_u64),
-		Some(5)
+		Some(6)
 	);
 	assert_eq!(report.pointer("/summary/raw_sql_needed_count").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/trace_incomplete_count").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/operator_ux_gap_count").and_then(Value::as_u64), Some(0));
-	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(5));
+	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(6));
 	assert_eq!(report.pointer("/summary/unsupported_claim").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/unsupported_claim_count").and_then(Value::as_u64), Some(0));
 	assert_eq!(
 		report.pointer("/summary/trace_explainability_count").and_then(Value::as_u64),
-		Some(1)
+		Some(2)
 	);
 
 	let jobs = array_at(&report, "/jobs")?;
 	let dropped = find_by_field(jobs, "/job_id", "operator-debug-dropped-evidence-001")?;
+	let selected = find_by_field(jobs, "/job_id", "operator-debug-selected-not-narrated-001")?;
 
 	assert_eq!(dropped.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(
@@ -1234,6 +1377,15 @@ fn operator_debug_fixture_reports_trace_links_and_failure_details() -> Result<()
 		"trace-dropped-decoy"
 	)?);
 	assert!(array_contains_str(dropped, "/produced_evidence", "trace-dropped-expected")?);
+	assert_eq!(selected.pointer("/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(
+		selected.pointer("/trace_explainability/failure_stage").and_then(Value::as_str),
+		Some("selection.narration")
+	);
+	assert_eq!(
+		selected.pointer("/operator_debug/failure_mode").and_then(Value::as_str),
+		Some("selected_but_not_narrated")
+	);
 
 	Ok(())
 }
@@ -1639,6 +1791,8 @@ fn assert_trace_replay_diagnostics_json(report: &Value) -> Result<()> {
 		report.pointer("/summary/outcome_counts/not_tested").and_then(Value::as_u64),
 		Some(4)
 	);
+	assert_eq!(report.pointer("/summary/outcome_counts/win").and_then(Value::as_u64), Some(4));
+	assert_eq!(report.pointer("/summary/outcome_counts/tie").and_then(Value::as_u64), Some(5));
 	assert_eq!(report.pointer("/summary/outcome_counts/non_goal").and_then(Value::as_u64), Some(1));
 
 	let scenarios = array_at(report, "/scenario_outcomes")?;
@@ -1647,6 +1801,16 @@ fn assert_trace_replay_diagnostics_json(report: &Value) -> Result<()> {
 	let replay = find_by_field(scenarios, "/scenario_id", "replay_command_locality")?;
 	let trace_surface =
 		find_by_field(scenarios, "/scenario_id", "trace_admin_replay_surface_availability")?;
+	let operator_trace =
+		find_by_field(scenarios, "/scenario_id", "operator_debug_trace_hydration")?;
+	let operator_replay =
+		find_by_field(scenarios, "/scenario_id", "operator_debug_replay_command_availability")?;
+	let operator_candidate =
+		find_by_field(scenarios, "/scenario_id", "operator_debug_candidate_drop_visibility")?;
+	let operator_repair =
+		find_by_field(scenarios, "/scenario_id", "operator_debug_repair_action_clarity")?;
+	let operator_selected =
+		find_by_field(scenarios, "/scenario_id", "operator_debug_selected_but_not_narrated")?;
 	let expansion = find_by_field(scenarios, "/scenario_id", "query_expansion_attribution")?;
 	let dense_sparse =
 		find_by_field(scenarios, "/scenario_id", "dense_sparse_channel_attribution")?;
@@ -1658,11 +1822,31 @@ fn assert_trace_replay_diagnostics_json(report: &Value) -> Result<()> {
 	let tombstone =
 		find_by_field(scenarios, "/scenario_id", "evidence_absent_tombstone_diagnostics")?;
 
-	assert_eq!(scenarios.len(), 11);
+	assert_eq!(scenarios.len(), 16);
 	assert_eq!(retrieval.pointer("/outcome").and_then(Value::as_str), Some("tie"));
 	assert_eq!(top10.pointer("/outcome").and_then(Value::as_str), Some("loss"));
 	assert_eq!(replay.pointer("/outcome").and_then(Value::as_str), Some("loss"));
 	assert_eq!(trace_surface.pointer("/outcome").and_then(Value::as_str), Some("tie"));
+	assert_eq!(
+		operator_trace.pointer("/evidence_class").and_then(Value::as_str),
+		Some("live_real_world")
+	);
+	assert_eq!(operator_trace.pointer("/result_type").and_then(Value::as_str), Some("pass"));
+	assert_eq!(operator_trace.pointer("/outcome").and_then(Value::as_str), Some("win"));
+	assert_eq!(operator_replay.pointer("/outcome").and_then(Value::as_str), Some("tie"));
+	assert_eq!(operator_candidate.pointer("/outcome").and_then(Value::as_str), Some("win"));
+	assert!(array_contains_str(
+		operator_candidate,
+		"/typed_non_pass_states",
+		"retrieved_but_dropped"
+	)?);
+	assert_eq!(operator_repair.pointer("/outcome").and_then(Value::as_str), Some("tie"));
+	assert_eq!(operator_selected.pointer("/outcome").and_then(Value::as_str), Some("win"));
+	assert!(array_contains_str(
+		operator_selected,
+		"/typed_non_pass_states",
+		"selected_but_not_narrated"
+	)?);
 	assert_eq!(expansion.pointer("/outcome").and_then(Value::as_str), Some("not_tested"));
 	assert_eq!(dense_sparse.pointer("/outcome").and_then(Value::as_str), Some("not_tested"));
 	assert_eq!(fusion.pointer("/outcome").and_then(Value::as_str), Some("not_tested"));
@@ -1687,6 +1871,11 @@ fn assert_trace_replay_diagnostics_json(report: &Value) -> Result<()> {
 	assert!(array_contains_str(
 		report,
 		"/claim_boundaries",
+		"ELF narrowly wins the live operator-debug trace hydration and candidate-drop visibility slice against qmd; qmd still ties replay-command and repair-action clarity."
+	)?);
+	assert!(array_contains_str(
+		report,
+		"/claim_boundaries",
 		"Do not claim qmd beats ELF as a memory system overall."
 	)?);
 
@@ -1697,11 +1886,22 @@ fn assert_trace_replay_diagnostics_markdown(markdown: &str) {
 	assert!(markdown.contains("Retrieval correctness is still tied"));
 	assert!(markdown.contains("| Default top-10 candidate artifact |"));
 	assert!(markdown.contains("| Replay command locality |"));
+	assert!(
+		markdown
+			.contains("| Operator-debug trace hydration | `live_real_world` | `pass` | `win` |")
+	);
+	assert!(markdown.contains(
+		"| Operator-debug replay command availability | `live_real_world` | `pass` | `tie` |"
+	));
+	assert!(markdown.contains(
+		"| Operator-debug candidate-drop visibility | `live_real_world` | `pass` | `win` |"
+	));
 	assert!(markdown.contains("| Rerank attribution | `live_baseline_only` | `non_goal` |"));
 	assert!(markdown.contains("| Candidate-drop diagnostics | `research_gate` | `not_encoded` |"));
-	assert!(markdown.contains("`retrieved_but_dropped` | Defined but `not_tested`"));
+	assert!(markdown.contains("`retrieved_but_dropped` | Defined globally as `not_tested`"));
 	assert!(markdown.contains("npx tsx src/cli/qmd.ts query"));
 	assert!(markdown.contains("cargo run -p elf-eval -- --config-a"));
+	assert!(markdown.contains("cargo make real-world-job-operator-ux-live-adapters"));
 	assert!(markdown.contains("Do not claim qmd beats ELF as a memory system overall"));
 	assert!(markdown.contains("Do not score rerank superiority from a qmd `--no-rerank` run"));
 }
@@ -1711,6 +1911,11 @@ fn assert_trace_replay_adoption_json(adoption: &Value) -> Result<()> {
 		array_at(adoption, "/scenario_outcomes")?,
 		"/scenario_id",
 		"local_debug_replay_ux",
+	)?;
+	let operator_debug = find_by_field(
+		array_at(adoption, "/scenario_outcomes")?,
+		"/scenario_id",
+		"operator_debugging_viewer_ux",
 	)?;
 
 	assert_eq!(local_debug.pointer("/outcome").and_then(Value::as_str), Some("loss"));
@@ -1730,6 +1935,23 @@ fn assert_trace_replay_adoption_json(adoption: &Value) -> Result<()> {
 		"/claim_boundaries/not_allowed",
 		"Do not claim qmd's trace/replay artifact win is a broad qmd-over-ELF memory-system or retrieval-quality win."
 	)?);
+	assert_eq!(operator_debug.pointer("/outcome").and_then(Value::as_str), Some("win"));
+	assert!(
+		operator_debug
+			.pointer("/measured_claim")
+			.and_then(Value::as_str)
+			.is_some_and(|claim| claim.contains("narrow live operator-debug win over qmd"))
+	);
+	assert!(array_contains_str(
+		operator_debug,
+		"/command_artifacts",
+		"tmp/real-world-job/operator-ux-live-adapters/summary.json"
+	)?);
+	assert!(array_contains_str(
+		adoption,
+		"/claim_boundaries/not_allowed",
+		"Do not claim ELF broadly beats OpenMemory or claude-mem viewer UX from the narrow ELF/qmd operator-debug slice."
+	)?);
 
 	Ok(())
 }
@@ -1739,6 +1961,12 @@ fn assert_competitor_strength_matrix_json(matrix: &Value) -> Result<()> {
 	let qmd = find_by_field(projects, "/project", "qmd")?;
 	let mem0 = find_by_field(projects, "/project", "mem0/OpenMemory")?;
 	let openviking = find_by_field(projects, "/project", "OpenViking")?;
+	let scenarios = array_at(matrix, "/scenario_matrix")?;
+	let retrieval_debug = find_by_field(scenarios, "/scenario_id", "retrieval_debug")?;
+	let operator_debug = find_by_field(scenarios, "/scenario_id", "operator_debugging")?;
+	let context_trajectory = find_by_field(scenarios, "/scenario_id", "context_trajectory")?;
+
+	assert_competitor_strength_matrix_manifest_counts(matrix);
 
 	assert_eq!(
 		qmd.pointer("/current_evidence_class").and_then(Value::as_str),
@@ -1750,7 +1978,8 @@ fn assert_competitor_strength_matrix_json(matrix: &Value) -> Result<()> {
 		Some("not_encoded")
 	);
 	assert!(qmd.pointer("/benchmark_before_claim").and_then(Value::as_str).is_some_and(|claim| {
-		claim.contains("before claiming ELF wins, ties, or loses on retrieval debugging")
+		claim.contains("Keep qmd deep retrieval/debug profiling separate")
+			&& claim.contains("narrow operator-debug live slice")
 	}));
 	assert!(
 		qmd.pointer("/borrow_if_stronger")
@@ -1795,11 +2024,6 @@ fn assert_competitor_strength_matrix_json(matrix: &Value) -> Result<()> {
 			.and_then(Value::as_str)
 			.is_some_and(|claim| claim.contains("evidence-bearing same-corpus output pass"))
 	);
-
-	let scenarios = array_at(matrix, "/scenario_matrix")?;
-	let retrieval_debug = find_by_field(scenarios, "/scenario_id", "retrieval_debug")?;
-	let context_trajectory = find_by_field(scenarios, "/scenario_id", "context_trajectory")?;
-
 	assert!(
 		retrieval_debug
 			.pointer("/current_state")
@@ -1809,6 +2033,24 @@ fn assert_competitor_strength_matrix_json(matrix: &Value) -> Result<()> {
 	assert!(retrieval_debug.pointer("/current_state").and_then(Value::as_str).is_some_and(
 		|state| state.contains("qmd remains stronger on local debug ergonomics not fully scored")
 	));
+	assert!(
+		operator_debug
+			.pointer("/current_elf_evidence")
+			.and_then(Value::as_str)
+			.is_some_and(|claim| claim.contains("narrow live_real_world operator-debug slice"))
+	);
+	assert!(
+		operator_debug
+			.pointer("/current_competitor_evidence")
+			.and_then(Value::as_str)
+			.is_some_and(|claim| claim.contains("qmd now has a narrow live_real_world"))
+	);
+	assert!(
+		operator_debug
+			.pointer("/next_measurement")
+			.and_then(Value::as_str)
+			.is_some_and(|claim| claim.contains("OpenMemory and claude-mem UI/export"))
+	);
 	assert!(
 		context_trajectory
 			.pointer("/current_state")
@@ -1823,6 +2065,29 @@ fn assert_competitor_strength_matrix_json(matrix: &Value) -> Result<()> {
 	);
 
 	Ok(())
+}
+
+fn assert_competitor_strength_matrix_manifest_counts(matrix: &Value) {
+	assert_eq!(
+		matrix.pointer("/manifest_summary/adapter_records").and_then(Value::as_u64),
+		Some(23)
+	);
+	assert_eq!(
+		matrix
+			.pointer("/manifest_summary/evidence_class_counts/live_real_world")
+			.and_then(Value::as_u64),
+		Some(5)
+	);
+	assert_eq!(
+		matrix.pointer("/manifest_summary/overall_status_counts/pass").and_then(Value::as_u64),
+		Some(4)
+	);
+	assert_eq!(
+		matrix
+			.pointer("/manifest_summary/overall_status_counts/wrong_result")
+			.and_then(Value::as_u64),
+		Some(6)
+	);
 }
 
 fn assert_strength_profile_summary(report: &Value) {
@@ -2232,9 +2497,9 @@ fn generated_json_report_renders_markdown() -> Result<()> {
 	assert!(markdown.contains("xy844-current-worktree"));
 	assert!(markdown.contains("Existing live-baseline reports remain valid"));
 	assert!(markdown.contains("### Adapter Scenario Judgments"));
-	assert!(markdown.contains("ELF scenario positions: `wins=2, ties=4, loses=1, untested=11`"));
+	assert!(markdown.contains("ELF scenario positions: `wins=8, ties=8, loses=1, untested=11`"));
 	assert!(markdown.contains(
-		"Scenario comparison outcomes: `win=2, tie=4, loss=1, not_tested=8, blocked=1, non_goal=2`"
+		"Scenario comparison outcomes: `win=8, tie=8, loss=1, not_tested=8, blocked=1, non_goal=2`"
 	));
 	assert!(markdown.contains("| `claude_mem_live_baseline` | `same_corpus_retrieval`"));
 	assert!(markdown.contains("| `memsearch_live_baseline` | `ttl_expiry_lifecycle`"));

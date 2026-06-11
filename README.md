@@ -162,6 +162,14 @@ provider-backed ELF evidence was required.
   17 pass, 6 wrong_result, 2 blocked, and 13 not_encoded jobs. The difference is the
   delete/TTL tombstone case; qmd remains the local retrieval-debug UX reference, and
   no broad ELF-over-qmd claim is allowed.
+- Live operator-debugging slice after XY-932: `cargo make
+  real-world-job-operator-ux-live-adapters` emits narrow Docker-isolated
+  `live_real_world` records for ELF and qmd over the operator-debugging fixtures.
+  ELF passes trace hydration, candidate-drop visibility, selected-but-not-narrated
+  evidence, replay-command availability, and repair-action clarity. qmd ties replay
+  command and repair-action clarity but is `wrong_result` for trace hydration and
+  candidate-drop stage visibility. OpenMemory UI/export and claude-mem viewer flows
+  remain blocked or not encoded, so this is not a broad viewer-product claim.
 - Expanded adapter-pack coverage after XY-834: the real-world external adapter
   manifest now includes `research_gate` records for RAGFlow, LightRAG, GraphRAG,
   Graphiti/Zep, Letta, LangGraph, nanograph, llm-wiki, gbrain, and deeper
