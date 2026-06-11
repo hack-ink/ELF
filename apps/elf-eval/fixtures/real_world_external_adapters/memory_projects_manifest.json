@@ -1496,7 +1496,7 @@
       },
       "result": {
         "status": "blocked",
-        "evidence": "The smoke now emits graphiti-zep-report.json and graphiti-zep-report.md from one generated memory_evolution job. The current typed blocker remains provider_api_key_missing until explicit provider configuration is supplied; no hosted Zep service or unrecorded credentials are used.",
+        "evidence": "The smoke now emits graphiti-zep-report.json and graphiti-zep-report.md from one generated memory_evolution job. The default blocker is live-run opt-in disabled; when ELF_GRAPHITI_ZEP_SMOKE_START=1 and ELF_GRAPHITI_ZEP_SMOKE_RUN=1 are set without provider credentials, the blocker is provider_api_key_missing. No hosted Zep service or unrecorded credentials are used.",
         "artifact": "tmp/real-world-memory/graphiti-zep-smoke/graphiti-zep-report.json"
       },
       "capabilities": [
@@ -1604,7 +1604,7 @@
         "research_depth": "D2 feasibility plus XY-888 Docker temporal smoke implementation and XY-900 scored smoke promotion; checked-in record remains research_gate unless a generated artifact reaches Graphiti search output"
       },
       "notes": [
-        "Status class: smoke-only scored adapter path with typed provider/setup blockers.",
+        "Status class: smoke-only scored adapter path with typed live-run opt-in, provider, and setup blockers.",
         "Graphiti/Zep remains the temporal-validity reference; do not claim ELF-over-Graphiti/Zep until provider-backed temporal output maps to scored evidence ids."
       ],
       "follow_up": {

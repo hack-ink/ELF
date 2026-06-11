@@ -6,7 +6,7 @@ Inputs: Existing research notes, open architecture questions, and tracked adopti
 Depends on: `docs/guide/research/comparison_external_projects.md`.
 Outputs: A current inventory of reviewed and pending external projects.
 
-Last updated: June 10, 2026.
+Last updated: June 11, 2026.
 
 ## Legend
 
