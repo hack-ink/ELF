@@ -93,6 +93,20 @@ fn measurement_coverage_audit_path() -> Result<PathBuf> {
 		.join("2026-06-11-measurement-coverage-audit.md"))
 }
 
+fn measurement_coverage_audit_json_path() -> Result<PathBuf> {
+	Ok(workspace_root()?
+		.join("docs")
+		.join("research")
+		.join("2026-06-11-measurement-coverage-audit.json"))
+}
+
+fn retrieval_debug_profile_json_path() -> Result<PathBuf> {
+	Ok(workspace_root()?
+		.join("docs")
+		.join("research")
+		.join("2026-06-11-elf-qmd-retrieval-debug-profile.json"))
+}
+
 fn competitor_strength_matrix_path() -> Result<PathBuf> {
 	Ok(workspace_root()?
 		.join("docs")
@@ -839,8 +853,13 @@ fn qmd_openviking_strength_profile_report_preserves_claim_boundaries() -> Result
 #[test]
 fn current_benchmark_reports_preserve_live_sweep_boundaries() -> Result<()> {
 	let measurement_audit = fs::read_to_string(measurement_coverage_audit_path()?)?;
+	let measurement_audit_json = serde_json::from_str::<Value>(&fs::read_to_string(
+		measurement_coverage_audit_json_path()?,
+	)?)?;
 	let competitor_matrix = fs::read_to_string(competitor_strength_matrix_path()?)?;
 	let external_manifest = fs::read_to_string(external_adapter_manifest_path())?;
+	let retrieval_debug_profile =
+		serde_json::from_str::<Value>(&fs::read_to_string(retrieval_debug_profile_json_path()?)?)?;
 
 	assert!(
 		measurement_audit.contains(
@@ -871,6 +890,44 @@ fn current_benchmark_reports_preserve_live_sweep_boundaries() -> Result<()> {
 		assert!(!external_manifest.contains(stale_phrase));
 	}
 
+	let qmd_live = find_by_field(
+		array_at(&measurement_audit_json, "/live_real_world_adapters")?,
+		"/adapter",
+		"qmd live CLI adapter",
+	)?;
+
+	assert_eq!(qmd_live.pointer("/pass").and_then(Value::as_u64), Some(17));
+	assert_eq!(qmd_live.pointer("/wrong_result").and_then(Value::as_u64), Some(6));
+	assert_eq!(qmd_live.pointer("/expected_evidence_matched").and_then(Value::as_u64), Some(38));
+	assert_eq!(qmd_live.pointer("/evidence_covered_count").and_then(Value::as_u64), Some(45));
+
+	let memory_evolution = find_by_field(
+		array_at(&measurement_audit_json, "/live_suite_breakdown")?,
+		"/suite",
+		"memory_evolution",
+	)?;
+
+	assert_eq!(
+		memory_evolution.pointer("/elf_status_counts/wrong_result").and_then(Value::as_u64),
+		Some(5)
+	);
+	assert_eq!(
+		memory_evolution.pointer("/qmd_status_counts/wrong_result").and_then(Value::as_u64),
+		Some(6)
+	);
+	assert_eq!(
+		retrieval_debug_profile
+			.pointer("/live_real_world_full_sweep_context/qmd/pass")
+			.and_then(Value::as_u64),
+		Some(17)
+	);
+	assert_eq!(
+		retrieval_debug_profile
+			.pointer("/live_real_world_full_sweep_context/qmd/wrong_result")
+			.and_then(Value::as_u64),
+		Some(6)
+	);
+
 	Ok(())
 }
 
@@ -889,7 +946,7 @@ fn assert_strength_profile_summary(report: &Value) {
 	);
 	assert_eq!(
 		report.pointer("/summary/openviking/overall_against_strengths").and_then(Value::as_str),
-		Some("not_tested")
+		Some("not_tested_on_context_trajectory")
 	);
 	assert_eq!(
 		report
@@ -917,7 +974,13 @@ fn assert_strength_profile_summary(report: &Value) {
 		report
 			.pointer("/openviking_context_trajectory_profile/win_tie_loss_summary/not_tested")
 			.and_then(Value::as_u64),
-		Some(6)
+		Some(4)
+	);
+	assert_eq!(
+		report
+			.pointer("/openviking_context_trajectory_profile/win_tie_loss_summary/elf_win")
+			.and_then(Value::as_u64),
+		Some(2)
 	);
 }
 
@@ -1002,6 +1065,7 @@ fn assert_openviking_strength_profile(report: &Value) -> Result<()> {
 	);
 	assert_eq!(trajectory.pointer("/result_type").and_then(Value::as_str), Some("not_encoded"));
 	assert_eq!(precondition.pointer("/result_type").and_then(Value::as_str), Some("wrong_result"));
+	assert_eq!(precondition.pointer("/elf_outcome").and_then(Value::as_str), Some("elf_win"));
 	assert_eq!(
 		precondition.pointer("/typed_blocker").and_then(Value::as_str),
 		Some("output_missed_expected_terms")

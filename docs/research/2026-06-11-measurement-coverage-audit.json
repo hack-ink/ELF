@@ -55,16 +55,16 @@
       "adapter": "qmd live CLI adapter",
       "job_count": 38,
       "encoded_suite_count": 11,
-      "pass": 18,
-      "wrong_result": 5,
+      "pass": 17,
+      "wrong_result": 6,
       "blocked": 2,
       "not_encoded": 13,
-      "mean_score": 0.512,
-      "mean_latency_ms": 719.758,
+      "mean_score": 0.486,
+      "mean_latency_ms": 691.163,
       "expected_evidence_total": 77,
-      "expected_evidence_matched": 41,
+      "expected_evidence_matched": 38,
       "evidence_required_count": 84,
-      "evidence_covered_count": 48
+      "evidence_covered_count": 45
     }
   ],
   "live_suite_breakdown": [
@@ -73,7 +73,7 @@
     {"suite": "retrieval", "jobs": 5, "status_counts": {"pass": 5}},
     {"suite": "project_decisions", "jobs": 5, "status_counts": {"pass": 5}},
     {"suite": "personalization", "jobs": 1, "status_counts": {"pass": 1}},
-    {"suite": "memory_evolution", "jobs": 6, "status_counts": {"pass": 1, "wrong_result": 5}},
+    {"suite": "memory_evolution", "jobs": 6, "elf_status_counts": {"pass": 1, "wrong_result": 5}, "qmd_status_counts": {"wrong_result": 6}},
     {"suite": "capture_integration", "jobs": 2, "status_counts": {"not_encoded": 2}},
     {"suite": "consolidation", "jobs": 4, "status_counts": {"not_encoded": 4}},
     {"suite": "knowledge_compilation", "jobs": 2, "status_counts": {"not_encoded": 2}},
@@ -99,7 +99,7 @@
     }
   },
   "claim_boundary": {
-    "elf_vs_qmd": "tie_on_current_encoded_live_real_world_shape_not_overall_win",
+    "elf_vs_qmd": "narrow_elf_lead_from_delete_ttl_not_overall_win",
     "elf_personal_production": "credible_with_bounded_caveats",
     "broad_competitor_superiority": "not_proven",
     "major_unmeasured_strengths": [

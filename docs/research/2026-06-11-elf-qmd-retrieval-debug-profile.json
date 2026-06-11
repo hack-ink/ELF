@@ -48,12 +48,12 @@
     },
     "qmd": {
       "job_count": 38,
-      "pass": 18,
-      "wrong_result": 5,
+      "pass": 17,
+      "wrong_result": 6,
       "blocked": 2,
       "not_encoded": 13,
-      "mean_score": 0.512,
-      "mean_latency_ms": 705.877
+      "mean_score": 0.486,
+      "mean_latency_ms": 691.163
     }
   },
   "stress_baseline": {
