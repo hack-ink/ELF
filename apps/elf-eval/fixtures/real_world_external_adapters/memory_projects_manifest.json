@@ -29,7 +29,7 @@
       },
       "run": {
         "status": "blocked",
-        "evidence": "The current fixture set reports 40 jobs, 38 pass, 0 incomplete, 2 blocked, 0 wrong_result, 0 not_encoded, and 0 unsupported_claim.",
+        "evidence": "The current fixture set reports 46 jobs across 12 suites: 44 pass, 0 incomplete, 2 blocked, 0 wrong_result, 0 not_encoded, and 0 unsupported_claim. The six core_archival_memory jobs pass as ELF fixture evidence, not as live Letta comparison evidence.",
         "command": "cargo make real-world-memory",
         "artifact": "tmp/real-world-memory/real-world-memory-report.json"
       },
@@ -100,6 +100,11 @@
           "suite_id": "capture_integration",
           "status": "pass",
           "evidence": "Four redaction, exclusion, source-id, evidence-binding, and capture-boundary fixtures are encoded and passing."
+        },
+        {
+          "suite_id": "core_archival_memory",
+          "status": "pass",
+          "evidence": "Six fixture jobs score core block attachment, scope, provenance, stale-core detection, archival fallback, and project-decision recovery separately from archival note search."
         },
         {
           "suite_id": "production_ops",
