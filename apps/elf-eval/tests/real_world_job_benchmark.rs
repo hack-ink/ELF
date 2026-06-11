@@ -1923,6 +1923,7 @@ fn current_benchmark_reports_preserve_live_sweep_boundaries() -> Result<()> {
 	let competitor_matrix_json = serde_json::from_str::<Value>(&fs::read_to_string(
 		competitor_strength_matrix_json_path()?,
 	)?)?;
+	let iteration_direction = fs::read_to_string(iteration_direction_report_path()?)?;
 	let external_manifest = fs::read_to_string(external_adapter_manifest_path())?;
 	let retrieval_debug_profile =
 		serde_json::from_str::<Value>(&fs::read_to_string(retrieval_debug_profile_json_path()?)?)?;
@@ -1949,6 +1950,16 @@ fn current_benchmark_reports_preserve_live_sweep_boundaries() -> Result<()> {
 	assert!(external_manifest.contains(
 		"The qmd live real-world sweep covers the current encoded fixture corpus; expanded retrieval-debug strength suites still need their own materialized adapter run."
 	));
+	assert!(iteration_direction.contains("| Jobs | `46` |"));
+	assert!(iteration_direction.contains("| Encoded suites | `12` |"));
+	assert!(iteration_direction.contains("| Pass | `44` |"));
+	assert!(iteration_direction.contains("| Evidence coverage | `101/101` |"));
+	assert!(iteration_direction.contains("| Expected evidence recall | `93/93` |"));
+	assert!(competitor_matrix.contains("scenario-level `live_baseline_only` tie"));
+	assert!(
+		competitor_matrix
+			.contains("broader real-world personalization prompt adapter remains `not_encoded`")
+	);
 
 	for stale_phrase in [
 		"same live sweep shape as ELF",
@@ -1957,9 +1968,13 @@ fn current_benchmark_reports_preserve_live_sweep_boundaries() -> Result<()> {
 		"wrong_result, incomplete, blocked, and not_encoded states remain visible",
 		"broader live suites remain `wrong_result`, `incomplete`, or `not_encoded`",
 		"The qmd live real-world slice covers representative jobs only",
+		"| Jobs | `40` |",
+		"| Encoded suites | `11` |",
+		"| Pass | `38` |",
 	] {
 		assert!(!measurement_audit.contains(stale_phrase));
 		assert!(!competitor_matrix.contains(stale_phrase));
+		assert!(!iteration_direction.contains(stale_phrase));
 		assert!(!external_manifest.contains(stale_phrase));
 	}
 
@@ -2243,6 +2258,7 @@ fn assert_competitor_strength_matrix_json(matrix: &Value) -> Result<()> {
 	let scenarios = array_at(matrix, "/scenario_matrix")?;
 	let retrieval_debug = find_by_field(scenarios, "/scenario_id", "retrieval_debug")?;
 	let operator_debug = find_by_field(scenarios, "/scenario_id", "operator_debugging")?;
+	let personalization = find_by_field(scenarios, "/scenario_id", "personalization")?;
 	let context_trajectory = find_by_field(scenarios, "/scenario_id", "context_trajectory")?;
 
 	assert_competitor_strength_matrix_manifest_counts(matrix);
@@ -2330,6 +2346,9 @@ fn assert_competitor_strength_matrix_json(matrix: &Value) -> Result<()> {
 			.and_then(Value::as_str)
 			.is_some_and(|claim| claim.contains("OpenMemory and claude-mem UI/export"))
 	);
+
+	assert_personalization_matrix_record(personalization);
+
 	assert!(
 		context_trajectory
 			.pointer("/current_state")
@@ -2344,6 +2363,25 @@ fn assert_competitor_strength_matrix_json(matrix: &Value) -> Result<()> {
 	);
 
 	Ok(())
+}
+
+fn assert_personalization_matrix_record(personalization: &Value) {
+	assert!(
+		personalization
+			.pointer("/current_competitor_evidence")
+			.and_then(Value::as_str)
+			.is_some_and(|claim| claim.contains("scenario-level live_baseline_only tie")
+				&& claim.contains(
+					"broader real_world_job personalization prompt adapter remains not_encoded"
+				))
+	);
+	assert!(
+		personalization
+			.pointer("/current_state")
+			.and_then(Value::as_str)
+			.is_some_and(|state| state.contains("ties the scoped-personalization smoke")
+				&& state.contains("not yet comparable across the broader suite"))
+	);
 }
 
 fn assert_competitor_strength_matrix_manifest_counts(matrix: &Value) {
