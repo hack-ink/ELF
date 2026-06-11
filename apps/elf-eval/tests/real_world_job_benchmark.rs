@@ -1429,6 +1429,59 @@ fn operator_debug_live_adapter_task_is_docker_scoped() -> Result<()> {
 }
 
 #[test]
+fn external_adapter_manifest_rejects_unmeasured_win_loss_scenario_outcomes() -> Result<()> {
+	let mut manifest =
+		serde_json::from_str::<Value>(&fs::read_to_string(external_adapter_manifest_path())?)?;
+	let adapters = manifest
+		.pointer_mut("/adapters")
+		.and_then(Value::as_array_mut)
+		.ok_or_else(|| eyre::eyre!("missing manifest adapters"))?;
+	let letta = adapters
+		.iter_mut()
+		.find(|adapter| {
+			adapter.pointer("/adapter_id").and_then(Value::as_str) == Some("letta_research_gate")
+		})
+		.ok_or_else(|| eyre::eyre!("missing Letta adapter"))?;
+	let scenarios = letta
+		.pointer_mut("/scenarios")
+		.and_then(Value::as_array_mut)
+		.ok_or_else(|| eyre::eyre!("missing Letta scenarios"))?;
+	let attachment = scenarios
+		.iter_mut()
+		.find(|scenario| {
+			scenario.pointer("/scenario_id").and_then(Value::as_str)
+				== Some("core_block_attachment_readback")
+		})
+		.ok_or_else(|| eyre::eyre!("missing Letta attachment scenario"))?;
+
+	set_json_pointer(attachment, "/comparison_outcome", serde_json::json!("win"))?;
+
+	let temp_dir =
+		env::temp_dir().join(format!("elf-real-world-invalid-scenario-test-{}", process::id()));
+
+	fs::create_dir_all(&temp_dir)?;
+
+	let manifest_path = temp_dir.join("memory_projects_manifest.json");
+
+	fs::write(&manifest_path, serde_json::to_vec_pretty(&manifest)?)?;
+
+	let output = Command::new(env!("CARGO_BIN_EXE_real_world_job_benchmark"))
+		.arg("run")
+		.arg("--fixtures")
+		.arg(fixture_dir())
+		.arg("--external-adapter-manifest")
+		.arg(&manifest_path)
+		.output()?;
+
+	assert!(!output.status.success(), "invalid scenario outcome unexpectedly passed");
+	assert!(
+		String::from_utf8_lossy(&output.stderr).contains("not_encoded status with win outcome")
+	);
+
+	Ok(())
+}
+
+#[test]
 fn live_adapter_supports_elf_capture_write_policy_without_external_hook_claims() -> Result<()> {
 	let workspace = workspace_root()?;
 	let live_adapter =
@@ -2060,8 +2113,8 @@ fn assert_current_report_text_boundaries(
 	assert!(iteration_direction.contains("| Jobs | `49` |"));
 	assert!(iteration_direction.contains("| Encoded suites | `13` |"));
 	assert!(iteration_direction.contains("| Pass | `44` |"));
-	assert!(iteration_direction.contains("| Evidence coverage | `110/110` |"));
-	assert!(iteration_direction.contains("| Expected evidence recall | `99/99` |"));
+	assert!(iteration_direction.contains("| Evidence coverage | `111/111` |"));
+	assert!(iteration_direction.contains("| Expected evidence recall | `100/100` |"));
 
 	for stale_phrase in [
 		"same live sweep shape as ELF",
@@ -2850,10 +2903,10 @@ fn assert_iteration_direction_current_measurement_counts(markdown: &str) {
 		"| Encoded suites | `13` |",
 		"| Blocked | `5` |",
 		"| Mean score | `0.898` |",
-		"| Evidence coverage | `110/110` |",
-		"| Source-ref coverage | `110/110` |",
-		"| Quote coverage | `110/110` |",
-		"| Expected evidence recall | `99/99` |",
+		"| Evidence coverage | `111/111` |",
+		"| Source-ref coverage | `111/111` |",
+		"| Quote coverage | `111/111` |",
+		"| Expected evidence recall | `100/100` |",
 		"| `blocked` | `7` |",
 		"| `not_encoded` | `5` |",
 		"`live_baseline_only`, `fixture_backed`, and `research_gate`",
@@ -3211,6 +3264,14 @@ fn core_archival_memory_fixtures_score_separate_core_and_archival_jobs() -> Resu
 		Some(1.0)
 	);
 	assert_eq!(report.pointer("/summary/evidence_coverage").and_then(Value::as_f64), Some(1.0));
+	assert_eq!(
+		report.pointer("/summary/evidence_required_count").and_then(Value::as_u64),
+		Some(14)
+	);
+	assert_eq!(report.pointer("/summary/evidence_covered_count").and_then(Value::as_u64), Some(14));
+	assert_eq!(report.pointer("/summary/scope_check_count").and_then(Value::as_u64), Some(1));
+	assert_eq!(report.pointer("/summary/scope_correct_count").and_then(Value::as_u64), Some(1));
+	assert_eq!(report.pointer("/summary/scope_violation_count").and_then(Value::as_u64), Some(0));
 
 	let suites = array_at(&report, "/suites")?;
 	let core = find_by_field(suites, "/suite_id", "core_archival_memory")?;
@@ -3233,6 +3294,24 @@ fn core_archival_memory_fixtures_score_separate_core_and_archival_jobs() -> Resu
 		assert_eq!(job.pointer("/suite_id").and_then(Value::as_str), Some("core_archival_memory"));
 		assert_eq!(job.pointer("/status").and_then(Value::as_str), Some("pass"));
 	}
+
+	let scope = find_by_field(jobs, "/job_id", "core-archival-core-block-scope-001")?;
+	let decision = find_by_field(jobs, "/job_id", "core-archival-project-decision-recovery-001")?;
+
+	assert_eq!(scope.pointer("/scope_check_count").and_then(Value::as_u64), Some(1));
+	assert_eq!(scope.pointer("/scope_correct_count").and_then(Value::as_u64), Some(1));
+	assert_eq!(scope.pointer("/scope_violation_count").and_then(Value::as_u64), Some(0));
+	assert!(
+		decision
+			.pointer("/produced_answer")
+			.and_then(Value::as_str)
+			.is_some_and(|content| content.contains("Letta remains blocked or not_tested"))
+	);
+	assert!(
+		array_at(decision, "/produced_evidence")?
+			.iter()
+			.any(|id| id.as_str() == Some("decision-letta-export-boundary"))
+	);
 
 	Ok(())
 }
@@ -3319,8 +3398,8 @@ fn assert_root_aggregate_summary(report: &Value) {
 		Some(0)
 	);
 	assert_eq!(report.pointer("/summary/redaction_leak_count").and_then(Value::as_u64), Some(0));
-	assert_eq!(report.pointer("/summary/scope_check_count").and_then(Value::as_u64), Some(2));
-	assert_eq!(report.pointer("/summary/scope_correct_count").and_then(Value::as_u64), Some(2));
+	assert_eq!(report.pointer("/summary/scope_check_count").and_then(Value::as_u64), Some(3));
+	assert_eq!(report.pointer("/summary/scope_correct_count").and_then(Value::as_u64), Some(3));
 	assert_eq!(report.pointer("/summary/scope_violation_count").and_then(Value::as_u64), Some(0));
 	assert_eq!(
 		report.pointer("/summary/qdrant_rebuild_case_count").and_then(Value::as_u64),
@@ -3332,11 +3411,11 @@ fn assert_root_aggregate_summary(report: &Value) {
 	);
 	assert_eq!(
 		report.pointer("/summary/evidence_required_count").and_then(Value::as_u64),
-		Some(110)
+		Some(111)
 	);
 	assert_eq!(
 		report.pointer("/summary/evidence_covered_count").and_then(Value::as_u64),
-		Some(110)
+		Some(111)
 	);
 	assert_eq!(report.pointer("/summary/evidence_coverage").and_then(Value::as_f64), Some(1.0));
 	assert_eq!(report.pointer("/summary/source_ref_coverage").and_then(Value::as_f64), Some(1.0));

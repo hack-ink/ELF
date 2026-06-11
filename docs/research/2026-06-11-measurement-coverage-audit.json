@@ -36,10 +36,10 @@
     "unsupported_claim": 0,
     "mean_score": 0.898,
     "mean_latency_ms": 3.94,
-    "expected_evidence_total": 99,
-    "expected_evidence_matched": 99,
-    "evidence_required_count": 110,
-    "evidence_covered_count": 110
+    "expected_evidence_total": 100,
+    "expected_evidence_matched": 100,
+    "evidence_required_count": 111,
+    "evidence_covered_count": 111
   },
   "live_real_world_adapters": [
     {

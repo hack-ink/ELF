@@ -90,10 +90,10 @@ failure.
 | Unsupported claim | `0` |
 | Mean score | `0.898` |
 | Mean latency | `3.940 ms` |
-| Expected evidence recall | `99/99` |
-| Evidence coverage | `110/110` |
-| Source-ref coverage | `110/110` |
-| Quote coverage | `110/110` |
+| Expected evidence recall | `100/100` |
+| Evidence coverage | `111/111` |
+| Source-ref coverage | `111/111` |
+| Quote coverage | `111/111` |
 
 This proves fixture contract breadth and scoring behavior. It does not prove every
 live adapter or competitor runtime can complete those jobs.
