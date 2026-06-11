@@ -161,16 +161,18 @@ provider-backed ELF evidence was required.
   jobs for core block attachment, scope, provenance, stale-core detection,
   archival fallback, and project-decision recovery; it does not create an
   ELF-over-Letta claim.
-- Full-suite live real-world adapter sweep after XY-899: ELF and qmd emit
-  Docker-isolated `live_real_world` records for all 40 encoded jobs across 11 suites
+- Full-suite live real-world adapter sweep after XY-926: ELF and qmd emit
+  Docker-isolated `live_real_world` records for all 55 checked-in jobs across 13 suites
   through `cargo make real-world-memory-live-adapters`. Both keep the original
   targeted `work_resume`, `retrieval`, and `project_decisions` slice passing, but the
-  full sweep is not a full-suite pass. The fresh ELF sweep reports 22 pass,
-  5 wrong_result, 2 blocked, and 11 not_encoded jobs. The fresh qmd sweep reports
-  17 pass, 6 wrong_result, 2 blocked, and 15 not_encoded jobs. The differences are
-  the delete/TTL tombstone case plus ELF-only capture/write-policy live self-checks;
-  qmd remains the local retrieval-debug UX reference, and no broad ELF-over-qmd claim
-  is allowed.
+  full sweep is not a full-suite pass. ELF now live-scores capture/write-policy,
+  consolidation proposal review, knowledge-page rebuild/lint, and operator-debugging
+  fixtures. The remaining ELF non-pass boundaries are memory-evolution wrong results,
+  production-ops operator boundaries, the core/archival live adapter gap, and blocked
+  context-trajectory measurement. qmd remains the local retrieval-debug UX reference;
+  it keeps consolidation, knowledge, capture, and core/archival typed non-pass states
+  and is `wrong_result` for operator-debug trace hydration, so no broad ELF-over-qmd
+  claim is allowed.
 - Live operator-debugging slice after XY-932: `cargo make
   real-world-job-operator-ux-live-adapters` emits narrow Docker-isolated
   `live_real_world` records for ELF and qmd over the operator-debugging fixtures.
