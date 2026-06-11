@@ -15,9 +15,9 @@
   ],
   "fresh_run": {
     "command": "ELF_BASELINE_PROJECTS=agentmemory,mem0,memsearch,claude-mem cargo make baseline-live-docker",
-    "run_id": "live-baseline-20260611015125",
+    "run_id": "live-baseline-20260611043440",
     "status": "fail",
-    "runtime_seconds": 244.42,
+    "runtime_seconds": 237.29,
     "artifact": "tmp/live-baseline/live-baseline-report.json",
     "summary": {
       "total": 4,
