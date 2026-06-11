@@ -6,7 +6,8 @@ Read this when: You need to answer whether ELF has enough empirical evidence to
 claim a win, tie, loss, or non-claim against tracked memory, RAG, graph, and
 agent-continuity projects.
 Inputs: Fresh local runs of `cargo make real-world-memory` and
-`cargo make real-world-memory-live-adapters` on commit `286af8b`, plus
+`cargo make real-world-memory-live-adapters` in the current XY-898 lane after
+adapter-report consistency repairs, plus
 `apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json`,
 `2026-06-11-competitor-strength-evidence-matrix.md`, and
 `2026-06-11-elf-iteration-direction-from-competitor-benchmarks.md`.
@@ -39,12 +40,13 @@ production," but the competitiveness objective remains open.
 
 ## Fresh Runs
 
-These commands were run from an isolated report worktree based on `origin/main`:
+These commands were run in the current XY-898 lane after adapter-report consistency
+repairs:
 
 | Command | Result | Runtime |
 | --- | --- | ---: |
-| `cargo make real-world-memory` | pass | 42.38 seconds |
-| `cargo make real-world-memory-live-adapters` | pass | 121.93 seconds |
+| `cargo make real-world-memory` | pass | 11.91 seconds |
+| `cargo make real-world-memory-live-adapters` | pass | 121.51 seconds |
 
 The live adapter run emitted repeated Qdrant client/server compatibility warnings, but
 the command completed successfully and produced ELF and qmd JSON/Markdown reports.
@@ -85,17 +87,18 @@ live adapter or competitor runtime can complete those jobs.
 | ELF live service adapter | `38` | `18` | `5` | `2` | `13` | `0.525` | `5.100 ms` | `41/77` | `48/84` |
 | qmd live CLI adapter | `38` | `17` | `6` | `2` | `13` | `0.486` | `691.163 ms` | `38/77` | `45/84` |
 
-This supports a narrow ELF lead only on the fresh aggregate count and only because of
-the delete/TTL tombstone case. It does not support a broad ELF-over-qmd claim because
-qmd remains the stronger retrieval-debug UX reference and its deep profile is still
-not encoded.
+This supports a near tie on the currently encoded live real-world suite shape, with
+ELF one job ahead because qmd misses the delete/TTL tombstone case. It does not
+support a broad ELF-over-qmd claim because qmd remains the stronger retrieval-debug UX
+reference and its deep profile is still not encoded.
 
 ### Live Suite Breakdown
 
-ELF and qmd have the same suite status shape for most encoded suites, but the fresh
-memory-evolution diagnostic splits them on the delete/TTL tombstone job:
+ELF and qmd have the same status shape outside `memory_evolution`. The difference is
+`memory-evolution-delete-ttl-001`: ELF passes that job while qmd reports
+`wrong_result`, leaving ELF at five memory-evolution wrong results and qmd at six.
 
-| Suite | Jobs | ELF status breakdown | qmd status breakdown |
+| Suite | Jobs | ELF breakdown | qmd breakdown |
 | --- | ---: | --- | --- |
 | `trust_source_of_truth` | `1` | `pass:1` | `pass:1` |
 | `work_resume` | `5` | `pass:5` | `pass:5` |
@@ -122,15 +125,15 @@ The checked-in manifest records 21 adapter records across 17 unique project name
 | --- | ---: | --- |
 | `fixture_backed` | `1` | ELF fixture scoring only. |
 | `live_baseline_only` | `6` | Docker same-corpus or lifecycle evidence without real-world job scoring. |
-| `live_real_world` | `2` | ELF and qmd live real-world sweeps. |
-| `research_gate` | `12` | Setup, source, resource, or output-contract gate only. |
+| `live_real_world` | `3` | ELF and qmd live real-world sweeps plus graphify's tiny scored Docker smoke. |
+| `research_gate` | `11` | Setup, source, resource, or output-contract gate only. |
 
 | Overall status | Adapter records |
 | --- | ---: |
-| `pass` | `1` |
-| `wrong_result` | `6` |
+| `pass` | `3` |
+| `wrong_result` | `5` |
 | `lifecycle_fail` | `1` |
-| `blocked` | `6` |
+| `blocked` | `5` |
 | `not_encoded` | `7` |
 
 The generated JSON report emits `external_project_count: 16`, matching the unique
@@ -144,8 +147,8 @@ records `unique_project_names: 17` for the full project list including ELF.
 | ELF | `fixture_backed` plus `live_real_world` | Fixture aggregate passes except 2 blocked operator boundaries; live full sweep is `wrong_result`. | Full live memory evolution, live consolidation, live knowledge pages, live capture, live production ops. | Memory-evolution diagnostic report, then live operator/capture/consolidation reports. |
 | qmd | `live_real_world` plus `live_baseline_only` | Fresh full sweep is one pass behind ELF because qmd misses the delete/TTL tombstone job; same-corpus baseline passes. | Deep retrieval-debug ergonomics and trace replay. | qmd/ELF deep retrieval-debug profile with expansion, fusion, rerank, and dropped-candidate traces. |
 | agentmemory | `live_baseline_only` | `lifecycle_fail`. | Durable coding-agent continuity and capture hooks. | Durable lifecycle and work-resume/capture adapter report. |
-| mem0/OpenMemory | `live_baseline_only` | `wrong_result`. | Entity history, lifecycle UI, OpenMemory inspection. | Same-corpus repair first, then entity-history and UI-readback report. |
-| memsearch | `live_baseline_only` | `wrong_result`; source-of-truth is `incomplete`. | Markdown canonical store and local reindex clarity. | Reindex/update/delete/reload plus source-of-truth report. |
+| mem0/OpenMemory | `live_baseline_only` | Basic local smoke now passes; history/UI/hosted/graph behavior remains `not_encoded`. | Entity history, lifecycle UI, OpenMemory inspection. | Entity-history, deletion-audit, and UI/export readback report. |
+| memsearch | `live_baseline_only` | Basic canonical Markdown reindex/reload smoke now passes; real-world prompt coverage remains `not_encoded`. | Markdown canonical store and local reindex clarity. | Source-of-truth and retrieval-debug real-world adapter report. |
 | OpenViking | `live_baseline_only` plus `research_gate` | Same-corpus retrieval is `wrong_result`; trajectory is `not_encoded`. | Hierarchical staged context trajectory. | Evidence-bearing retrieval fix, then staged trajectory report. |
 | claude-mem | `live_baseline_only` | `wrong_result`. | Progressive disclosure and automatic capture review. | Work-resume, operator-debugging, and capture/write-policy report. |
 | RAGFlow | `research_gate` | `blocked`. | RAG app workflow with document/chunk references. | Tiny Docker evidence-smoke with `reference.chunks` mapped to evidence ids. |
@@ -157,7 +160,7 @@ records `unique_project_names: 17` for the full project list including ELF.
 | nanograph | `research_gate` | `not_encoded`; full memory backend is unsupported. | Typed graph schema and query ergonomics. | Typed relation query report only if evidence ids can be emitted. |
 | llm-wiki | `research_gate` | `not_encoded`. | Wiki/page generation, query-save, lint and repair loops. | Contained page-generation report with citation and unsupported-claim lint. |
 | gbrain | `research_gate` | `not_encoded`; setup path is blocked. | Compiled truth pages, timelines, and brain navigation. | Docker-local brain repo setup proof, then compiled-truth/timeline report. |
-| graphify | `research_gate` | `blocked`. | Graph-compressed navigation with `graph.json` and `GRAPH_REPORT`. | Docker graph/report output report mapped to benchmark evidence ids. |
+| graphify | `live_real_world` | Tiny scored smoke is `wrong_result`. | Graph-compressed navigation with `graph.json` and `GRAPH_REPORT`. | Expand beyond the generated smoke only after graph/report output maps to scored evidence on representative graph/RAG jobs. |
 
 ## Scenario Coverage And Claims
 
@@ -176,7 +179,7 @@ records `unique_project_names: 17` for the full project list including ELF.
 | Personalization | ELF and qmd live pass one scoped preference job. | Narrow encoded pass only. | mem0/OpenMemory and Letta entity/preference history comparison. |
 | Context trajectory | Not comparable. | No claim. | OpenViking staged hierarchy/trajectory scoring. |
 | Core-vs-archival memory | Not comparable. | No claim. | Letta contained export and ELF core-block benchmark. |
-| Graph/RAG navigation | Research gates and blocked adapters only. | No claim. | RAGFlow, LightRAG, GraphRAG, Graphiti/Zep, and graphify Docker reports. |
+| Graph/RAG navigation | RAGFlow, LightRAG, GraphRAG, and Graphiti/Zep remain typed research gates; graphify has a tiny scored `wrong_result` smoke. | No graph/RAG parity claim; only graphify's bounded non-pass smoke can be cited. | Larger contained RAG/graph adapters with evidence-linked outputs before any ELF graph/RAG win, tie, or loss claim. |
 
 ## Next Measurement Reports
 
