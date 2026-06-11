@@ -1,0 +1,124 @@
+{
+  "schema": "elf.benchmark_measurement_coverage_audit/v1",
+  "run_id": "2026-06-11-measurement-coverage-audit",
+  "commit": "286af8b",
+  "created_at": "2026-06-11",
+  "scope": "ELF memory-system competitiveness measurement coverage, external competitor comparison evidence, and next report directions",
+  "commands": [
+    {
+      "command": "cargo make real-world-memory",
+      "status": "pass",
+      "runtime_seconds": 42.38,
+      "artifact": "tmp/real-world-memory/real-world-memory-report.json"
+    },
+    {
+      "command": "cargo make real-world-memory-live-adapters",
+      "status": "pass",
+      "runtime_seconds": 121.93,
+      "artifact": "tmp/real-world-memory/live-adapters/"
+    }
+  ],
+  "fixture_aggregate": {
+    "job_count": 38,
+    "encoded_suite_count": 11,
+    "pass": 36,
+    "wrong_result": 0,
+    "lifecycle_fail": 0,
+    "incomplete": 0,
+    "blocked": 2,
+    "not_encoded": 0,
+    "unsupported_claim": 0,
+    "mean_score": 0.947,
+    "mean_latency_ms": 4.411,
+    "expected_evidence_total": 77,
+    "expected_evidence_matched": 77,
+    "evidence_required_count": 84,
+    "evidence_covered_count": 84
+  },
+  "live_real_world_adapters": [
+    {
+      "adapter": "ELF live service adapter",
+      "job_count": 38,
+      "encoded_suite_count": 11,
+      "pass": 18,
+      "wrong_result": 5,
+      "blocked": 2,
+      "not_encoded": 13,
+      "mean_score": 0.525,
+      "mean_latency_ms": 5.1,
+      "expected_evidence_total": 77,
+      "expected_evidence_matched": 41,
+      "evidence_required_count": 84,
+      "evidence_covered_count": 48
+    },
+    {
+      "adapter": "qmd live CLI adapter",
+      "job_count": 38,
+      "encoded_suite_count": 11,
+      "pass": 18,
+      "wrong_result": 5,
+      "blocked": 2,
+      "not_encoded": 13,
+      "mean_score": 0.512,
+      "mean_latency_ms": 719.758,
+      "expected_evidence_total": 77,
+      "expected_evidence_matched": 41,
+      "evidence_required_count": 84,
+      "evidence_covered_count": 48
+    }
+  ],
+  "live_suite_breakdown": [
+    {"suite": "trust_source_of_truth", "jobs": 1, "status_counts": {"pass": 1}},
+    {"suite": "work_resume", "jobs": 5, "status_counts": {"pass": 5}},
+    {"suite": "retrieval", "jobs": 5, "status_counts": {"pass": 5}},
+    {"suite": "project_decisions", "jobs": 5, "status_counts": {"pass": 5}},
+    {"suite": "personalization", "jobs": 1, "status_counts": {"pass": 1}},
+    {"suite": "memory_evolution", "jobs": 6, "status_counts": {"pass": 1, "wrong_result": 5}},
+    {"suite": "capture_integration", "jobs": 2, "status_counts": {"not_encoded": 2}},
+    {"suite": "consolidation", "jobs": 4, "status_counts": {"not_encoded": 4}},
+    {"suite": "knowledge_compilation", "jobs": 2, "status_counts": {"not_encoded": 2}},
+    {"suite": "operator_debugging_ux", "jobs": 1, "status_counts": {"not_encoded": 1}},
+    {"suite": "production_ops", "jobs": 6, "status_counts": {"blocked": 2, "not_encoded": 4}}
+  ],
+  "adapter_ledger": {
+    "adapter_records": 21,
+    "unique_project_names": 17,
+    "external_project_count_note": "The generated report field external_project_count currently counts non-ELF adapter records, not unique external project names.",
+    "evidence_class_counts": {
+      "fixture_backed": 1,
+      "live_baseline_only": 6,
+      "live_real_world": 2,
+      "research_gate": 12
+    },
+    "overall_status_counts": {
+      "pass": 1,
+      "wrong_result": 6,
+      "lifecycle_fail": 1,
+      "blocked": 6,
+      "not_encoded": 7
+    }
+  },
+  "claim_boundary": {
+    "elf_vs_qmd": "tie_on_current_encoded_live_real_world_shape_not_overall_win",
+    "elf_personal_production": "credible_with_bounded_caveats",
+    "broad_competitor_superiority": "not_proven",
+    "major_unmeasured_strengths": [
+      "qmd_deep_retrieval_debug",
+      "OpenViking_context_trajectory",
+      "mem0_OpenMemory_entity_history_ui",
+      "agentmemory_claude_mem_capture_continuity",
+      "Letta_core_vs_archival_memory",
+      "Graphiti_Zep_temporal_graph",
+      "RAG_graph_navigation",
+      "llm_wiki_gbrain_graphify_knowledge_workflows"
+    ]
+  },
+  "next_reports": [
+    "ELF/qmd retrieval-debug deep profile",
+    "ELF/qmd live memory-evolution diagnostic",
+    "Live operator-debugging and capture/write-policy report",
+    "Continuity and context-trajectory report",
+    "Personalization and core-memory report",
+    "Knowledge and graph/RAG report pack"
+  ]
+}
