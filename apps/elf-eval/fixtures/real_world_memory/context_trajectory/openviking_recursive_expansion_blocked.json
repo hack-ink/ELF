@@ -1,0 +1,261 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "context-trajectory-openviking-recursive-expansion-001",
+  "suite": "context_trajectory",
+  "title": "Gate OpenViking recursive context expansion on materialized expansion paths",
+  "encoding": {
+    "status": "blocked",
+    "reason": "OpenViking recursive/context expansion is encoded as a benchmark job, but scoring is blocked until the adapter materializes expansion paths and same-corpus evidence ids are correct.",
+    "follow_up": {
+      "title": "Materialize OpenViking recursive context expansion paths",
+      "reason": "The adapter must emit the seed context, expanded child contexts, final evidence ids, and pruned branches before recursive expansion quality can be scored."
+    }
+  },
+  "corpus": {
+    "corpus_id": "real-world-memory-context-trajectory-2026-06-11",
+    "profile": "external_adapter",
+    "items": [
+      {
+        "evidence_id": "recursive-expansion-output-contract",
+        "kind": "adapter_state",
+        "text": "A scored recursive/context expansion job must report the seed context, expanded child contexts, final evidence ids, and pruned branches for the same user prompt.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "openviking_recursive_expansion_blocked",
+            "evidence_id": "recursive-expansion-output-contract"
+          },
+          "locator": {
+            "quote": "seed context, expanded child contexts, final evidence ids, and pruned branches"
+          }
+        },
+        "created_at": "2026-06-11T00:00:00Z"
+      },
+      {
+        "evidence_id": "recursive-same-corpus-gate",
+        "kind": "adapter_state",
+        "text": "Recursive/context expansion scoring stays blocked until same-corpus retrieval returns the expected evidence ids and the recursive path output is scored.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "openviking_recursive_expansion_blocked",
+            "evidence_id": "recursive-same-corpus-gate"
+          },
+          "locator": {
+            "quote": "same-corpus retrieval returns the expected evidence ids"
+          }
+        },
+        "created_at": "2026-06-11T00:00:00Z"
+      },
+      {
+        "evidence_id": "recursive-elf-comparison-gate",
+        "kind": "runbook",
+        "text": "ELF recursive or trace expansion may be compared only where the same recursive/context expansion scenario is encoded and both sides publish expansion-path artifacts.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "openviking_recursive_expansion_blocked",
+            "evidence_id": "recursive-elf-comparison-gate"
+          },
+          "locator": {
+            "quote": "both sides publish expansion-path artifacts"
+          }
+        },
+        "created_at": "2026-06-11T00:00:00Z"
+      },
+      {
+        "evidence_id": "recursive-expansion-win-decoy",
+        "kind": "adapter_state",
+        "text": "Decoy: ELF should be scored as tying OpenViking recursive expansion because both systems have trace-related documentation.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "openviking_recursive_expansion_blocked",
+            "evidence_id": "recursive-expansion-win-decoy"
+          }
+        },
+        "created_at": "2026-06-10T00:00:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_context_trajectory",
+      "answer": {
+        "content": "OpenViking recursive/context expansion is blocked until expansion paths and expected evidence ids are materialized. No ELF tie, win, or loss is allowed until both systems publish comparable expansion-path artifacts for the same scenario.",
+        "claims": [
+          {
+            "claim_id": "recursive_expansion_blocked",
+            "text": "OpenViking recursive/context expansion is blocked until expansion paths and expected evidence ids are materialized.",
+            "evidence_ids": [
+              "recursive-expansion-output-contract",
+              "recursive-same-corpus-gate"
+            ],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "recursive_comparison_not_scored",
+            "text": "No ELF tie, win, or loss is allowed until both systems publish comparable expansion-path artifacts for the same scenario.",
+            "evidence_ids": ["recursive-elf-comparison-gate"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": [
+          "recursive-expansion-output-contract",
+          "recursive-same-corpus-gate",
+          "recursive-elf-comparison-gate"
+        ],
+        "latency_ms": 0.0,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "recursive-output-contract-recorded",
+      "ts": "2026-06-11T00:00:00Z",
+      "actor": "agent",
+      "action": "encoded_output_contract",
+      "evidence_ids": ["recursive-expansion-output-contract"],
+      "summary": "The fixture records the recursive expansion artifact needed before scoring."
+    },
+    {
+      "event_id": "recursive-scoring-blocked",
+      "ts": "2026-06-11T00:01:00Z",
+      "actor": "agent",
+      "action": "blocked_scoring",
+      "evidence_ids": ["recursive-same-corpus-gate"],
+      "summary": "The benchmark blocks recursive expansion scoring until expected evidence ids and expansion paths are available."
+    },
+    {
+      "event_id": "recursive-comparison-gated",
+      "ts": "2026-06-11T00:02:00Z",
+      "actor": "agent",
+      "action": "preserved_claim_boundary",
+      "evidence_ids": ["recursive-elf-comparison-gate"],
+      "summary": "The benchmark requires comparable expansion-path artifacts before any ELF comparison."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Can the benchmark score OpenViking recursive context expansion against ELF?",
+    "job_mode": "answer",
+    "constraints": [
+      "cite_evidence",
+      "preserve_typed_status",
+      "do_not_claim_tie_without_comparable_artifacts"
+    ]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "recursive_expansion_blocked",
+        "text": "OpenViking recursive/context expansion is blocked until expansion paths and expected evidence ids are materialized."
+      },
+      {
+        "claim_id": "recursive_comparison_not_scored",
+        "text": "No ELF tie, win, or loss is allowed until both systems publish comparable expansion-path artifacts for the same scenario."
+      }
+    ],
+    "must_not_include": [
+      "ELF ties OpenViking recursive expansion",
+      "OpenViking recursive expansion passed"
+    ],
+    "evidence_links": {
+      "recursive_expansion_blocked": [
+        "recursive-expansion-output-contract",
+        "recursive-same-corpus-gate"
+      ],
+      "recursive_comparison_not_scored": ["recursive-elf-comparison-gate"]
+    },
+    "answer_type": "direct_answer",
+    "accepted_alternates": [],
+    "requires_caveat": true,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "recursive-expansion-output-contract",
+      "claim_id": "recursive_expansion_blocked",
+      "requirement": "cite",
+      "quote": "seed context, expanded child contexts, final evidence ids, and pruned branches"
+    },
+    {
+      "evidence_id": "recursive-same-corpus-gate",
+      "claim_id": "recursive_expansion_blocked",
+      "requirement": "cite",
+      "quote": "same-corpus retrieval returns the expected evidence ids"
+    },
+    {
+      "evidence_id": "recursive-elf-comparison-gate",
+      "claim_id": "recursive_comparison_not_scored",
+      "requirement": "cite",
+      "quote": "both sides publish expansion-path artifacts"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "recursive-expansion-trace-doc-decoy",
+      "type": "unsupported_prior",
+      "evidence_ids": ["recursive-expansion-win-decoy"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "States recursive/context expansion is blocked, not tied or passed."
+      },
+      "evidence_grounding": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Cites expansion-path and same-corpus evidence gates."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Does not convert documentation or trace presence into a scored tie."
+      },
+      "uncertainty_handling": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Keeps the recursive expansion comparison caveated as blocked."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.1,
+        "max_points": 1.0,
+        "criteria": "Names expansion-path artifacts required next."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": true,
+    "acceptable_phrases": [
+      "Recursive expansion is blocked.",
+      "Comparable expansion-path artifacts are missing."
+    ],
+    "fallback_action": "state_blocker"
+  },
+  "tags": [
+    "external_adapter",
+    "openviking",
+    "context_trajectory",
+    "recursive_expansion",
+    "blocked",
+    "no_live_claim"
+  ]
+}
