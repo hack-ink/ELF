@@ -44,7 +44,8 @@
   ],
   "summary": {
     "qmd": {
-      "overall_against_strengths": "elf_loss_on_query_transparency_replay_untested",
+      "overall_outcome": "elf_loss",
+      "overall_rationale": "ELF loses the measured qmd query-transparency surface while replayability remains not_tested.",
       "retrieval_quality": "tie",
       "local_query_transparency": "elf_loss",
       "local_replayability": "not_tested",
@@ -52,7 +53,8 @@
       "claim": "ELF ties qmd on encoded retrieval correctness and equivalent update/delete/cold-start behavior, loses the currently evidenced local query-transparency surface, and remains untested on scored replayability, expansion, fusion, and rerank controls."
     },
     "openviking": {
-      "overall_against_strengths": "not_tested_on_context_trajectory",
+      "overall_outcome": "not_tested",
+      "overall_rationale": "OpenViking context-trajectory strengths remain not_tested; ELF has only one same-corpus retrieval precondition win.",
       "claim": "ELF has one measured win on the same-corpus evidence-bearing precondition where OpenViking currently returns wrong_result. ELF does not have a measured win, tie, or loss against OpenViking context-trajectory strengths because staged trajectory, hierarchy selection, and recursive expansion remain research-gate/not_encoded."
     }
   },

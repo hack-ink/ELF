@@ -244,8 +244,9 @@ These are needed for broad credibility but should not block personal production 
 
 Do not claim:
 
-- ELF beats qmd overall. Current live sweep is essentially tied, and qmd still owns
-  stronger local retrieval-debug ergonomics.
+- ELF beats qmd overall. ELF is one pass ahead in the fresh aggregate because qmd
+  misses the delete/TTL tombstone job, but neither adapter has full-suite live pass
+  evidence and qmd still owns stronger local retrieval-debug ergonomics.
 - ELF has full-suite live real-world pass evidence. It does not.
 - ELF has private-corpus production quality proof. The private profile currently
   fails closed without an operator-owned manifest.
