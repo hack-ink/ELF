@@ -21,10 +21,13 @@ The measured qmd judgment is narrower:
 
 - Retrieval quality: `tie`. ELF and qmd both pass the encoded live real-world
   retrieval suite and both pass the 480-document stress retrieval baseline.
-- Debug/replay ergonomics: `elf_loss`. qmd's current artifacts expose directly
-  inspectable top-10 JSON rows with files, line numbers, snippets, scores, and short
-  replay commands. ELF has stronger service traces and production-operation evidence,
-  but the checked-in stress report does not hydrate an equivalent candidate list.
+- Local query transparency: `elf_loss`. qmd's current artifacts expose directly
+  inspectable top-10 JSON rows with files, line numbers, snippets, and scores. ELF
+  has stronger service traces and production-operation evidence, but the checked-in
+  stress report does not hydrate an equivalent candidate list.
+- Local replayability: `not_tested`. qmd has a concise observed CLI replay path, and
+  ELF has service traces plus admin bundle endpoints, but no scored replayability rule
+  compares those surfaces yet.
 - Expansion/fusion/rerank controls: `not_tested`. The current qmd materializer and
   stress run use `--no-rerank`; no scored expansion/fusion/rerank profile exists.
 
@@ -50,13 +53,13 @@ The measured OpenViking judgment is split by surface:
 | Stale context isolation | `live_real_world` | `pass` | `tie` | Both systems pass the encoded current-vs-obsolete and distractor-heavy retrieval jobs. |
 | Update/delete/cold-start behavior | `live_baseline_only` | `pass` | `tie` | Equivalent update replacement, delete suppression, and cold-start recovery checks pass for both. |
 | Operator-debug evidence | `live_real_world` | `not_encoded` | `not_tested` | The live sweep marks operator-debugging UX `not_encoded` for both systems. |
-| Local replayability | `live_baseline_only` | `pass` | `elf_loss` | qmd has a shorter checked-in CLI replay path for the current stress profile. |
+| Local replayability | `live_baseline_only` | `not_encoded` | `not_tested` | qmd has a shorter observed CLI replay path, but no scored replayability rule compares it with ELF's trace/admin replay surfaces yet. |
 | Wrong-result diagnosis | `research_gate` | `not_encoded` | `not_tested` | The report classifies qmd memory-evolution failures, but qmd candidate-drop traces are not yet materialized and no pass evidence is claimed. |
 
-Summary: qmd strength-profile outcomes are `0` ELF wins, `3` ties, `2` ELF losses,
-and `3` not-tested scenarios. This distinguishes retrieval quality from
-debug/replay ergonomics: the retrieval result is tied, but the checked-in debug
-artifact ergonomics currently favor qmd.
+Summary: qmd strength-profile outcomes are `0` ELF wins, `3` ties, `1` ELF loss,
+and `4` not-tested scenarios. This distinguishes retrieval quality from
+debug/replay ergonomics: the retrieval result is tied, the checked-in query-debug
+artifact ergonomics currently favor qmd, and replayability remains unscored.
 
 ## qmd Wrong-Result Diagnosis
 
@@ -83,13 +86,13 @@ diagnosis evidence, not as a broad ELF-over-qmd claim.
 | Staged retrieval trajectory | `research_gate` | `not_encoded` | `not_tested` | `needs_evidence_bearing_same_corpus_output` |
 | Hierarchy selection | `research_gate` | `not_encoded` | `not_tested` | `hierarchy_output_not_scored` |
 | Recursive/context expansion | `research_gate` | `not_encoded` | `not_tested` | `recursive_expansion_not_materialized` |
-| Missed expected terms evidence | `live_baseline_only` | `wrong_result` | `elf_win` | `retrieval_wrong_result` |
+| Missed expected terms evidence | `live_baseline_only` | `wrong_result` | `not_tested` | `retrieval_wrong_result` |
 
-Summary: OpenViking profile outcomes are `2` ELF wins, `0` ties, `0` ELF losses, and
-`4` not-tested scenarios. The two wins are only same-corpus evidence-bearing
-preconditions and missed-term failure evidence. The current smoke wrong-result is
-useful typed failure evidence, but it is not a scored staged-trajectory comparison,
-so context-trajectory strengths remain not tested.
+Summary: OpenViking profile outcomes are `1` ELF win, `0` ties, `0` ELF losses, and
+`5` not-tested scenarios. The single win is only the same-corpus evidence-bearing
+precondition. The current smoke wrong-result is useful typed failure evidence, but it
+is not a second comparative win and not a scored staged-trajectory comparison, so
+context-trajectory strengths remain not tested.
 
 ## Claim Boundaries
 
@@ -97,12 +100,12 @@ Allowed:
 
 - ELF ties qmd on the current encoded retrieval-correctness surfaces.
 - qmd remains stronger than ELF on the currently evidenced local query transparency
-  and replay artifact ergonomics.
+  artifact ergonomics; replayability is observed but not scored.
 - qmd expansion/fusion/rerank superiority is untested.
 - OpenViking's Docker local embedding setup reaches runtime, but context trajectory
   remains untested because evidence-bearing same-corpus retrieval is not passing.
 - ELF currently wins only the equivalent OpenViking same-corpus retrieval
-  precondition surfaces, not OpenViking's staged trajectory strengths.
+  precondition surface, not OpenViking's staged trajectory strengths.
 
 Not allowed:
 
