@@ -156,13 +156,13 @@
       },
       "run": {
         "status": "wrong_result",
-        "evidence": "ELF materializes 40 real_world_job adapter_response objects through ElfService, worker indexing, search_raw, and live capture/write-policy ingestion before scoring; the full sweep includes typed wrong_result, blocked, and not_encoded job records.",
+        "evidence": "ELF materializes 55 real_world_job adapter_response objects through ElfService, worker indexing, search_raw, live capture/write-policy ingestion, live consolidation proposal review, live knowledge-page rebuild/lint, and operator-debug trace metadata before scoring; the full sweep includes typed wrong_result, blocked, and not_encoded job records.",
         "command": "cargo make real-world-memory-live-adapters",
         "artifact": "tmp/real-world-memory/live-adapters/elf-report.json"
       },
       "result": {
         "status": "wrong_result",
-        "evidence": "The fresh full live sweep scores 40 jobs across all 11 encoded suites: 22 pass, 5 wrong_result, 0 incomplete, 2 blocked, and 11 not_encoded. This is not a full-suite live pass.",
+        "evidence": "The fresh full live sweep scores 55 jobs across all 13 checked-in suites, including live-scored consolidation, knowledge-page, capture/write-policy, and operator-debug suites. This is not a full-suite live pass because memory-evolution, production-ops, core-archival, and context-trajectory gaps remain typed non-pass records.",
         "command": "cargo make real-world-memory-live-adapters",
         "artifact": "tmp/real-world-memory/live-adapters/elf-report.md"
       },
@@ -185,7 +185,7 @@
         {
           "capability": "full_suite_live_sweep",
           "status": "wrong_result",
-          "evidence": "The runner now emits per-job and per-suite live records for all 40 encoded jobs, but memory_evolution is wrong_result and several non-answer-generation suites remain typed non-pass."
+          "evidence": "The runner now emits per-job and per-suite live records for all 55 checked-in jobs, including the operator-debug fixture tree, but memory_evolution is wrong_result and production/core/context boundaries remain typed non-pass."
         },
         {
           "capability": "full_suite_live_pass",
@@ -226,18 +226,18 @@
         },
         {
           "suite_id": "consolidation",
-          "status": "not_encoded",
-          "evidence": "The live adapter sweep retrieves evidence-linked answers but does not generate or review consolidation proposals."
+          "status": "pass",
+          "evidence": "The live adapter creates consolidation runs, materializes proposal jobs through the worker, preserves source lineage and unsupported-claim flags, and applies/defer/discards proposals through review audit transitions."
         },
         {
           "suite_id": "knowledge_compilation",
-          "status": "not_encoded",
-          "evidence": "The live adapter sweep retrieves evidence-linked answers but does not generate derived knowledge pages."
+          "status": "pass",
+          "evidence": "The live adapter rebuilds derived knowledge pages through ElfService, searches page sections, lints stale source refs after runtime source updates, and emits citation/backlink/unsupported-section page artifacts."
         },
         {
           "suite_id": "operator_debugging_ux",
-          "status": "not_encoded",
-          "evidence": "The live adapter sweep does not yet hydrate full operator trace/viewer diagnostics for this suite."
+          "status": "pass",
+          "evidence": "The full live sweep includes operator_debugging_ux fixtures and emits trace ids, viewer/admin trace-bundle links, replay commands, dropped-candidate visibility, repair-action clarity, and raw_sql_needed=false."
         },
         {
           "suite_id": "capture_integration",
@@ -253,6 +253,16 @@
           "suite_id": "personalization",
           "status": "pass",
           "evidence": "The live adapter retrieved the scoped preference evidence and passed the personalization job."
+        },
+        {
+          "suite_id": "core_archival_memory",
+          "status": "not_encoded",
+          "evidence": "The full live adapter sweep preserves the core/archival fixture gap as typed not_encoded; this issue does not add live core-block attachment/readback materialization."
+        },
+        {
+          "suite_id": "context_trajectory",
+          "status": "blocked",
+          "evidence": "The OpenViking-style context trajectory fixtures remain blocked by live staged-trajectory and recursive-expansion measurement gaps."
         }
       ],
       "scenarios": [
@@ -265,12 +275,47 @@
           "evidence": "ELF live capture/write-policy jobs pass for redaction, exclusions, source ids, evidence binding, and no secret leakage. This is an ELF self-check, not a win over external hook systems.",
           "command": "cargo make real-world-memory-live-adapters",
           "artifact": "tmp/real-world-memory/live-adapters/elf-materialization.json"
+        },
+        {
+          "scenario_id": "live_consolidation_proposal_review",
+          "suite_id": "consolidation",
+          "status": "pass",
+          "elf_position": "ties",
+          "comparison_outcome": "tie",
+          "evidence": "ELF live consolidation jobs now exercise source lineage, unsupported-claim flags, and apply/defer/discard review audit transitions. This is an ELF service self-check, not a broad competitor win.",
+          "command": "cargo make real-world-memory-live-adapters",
+          "artifact": "tmp/real-world-memory/live-adapters/elf-materialization.json"
+        },
+        {
+          "scenario_id": "live_knowledge_page_rebuild_lint",
+          "suite_id": "knowledge_compilation",
+          "status": "pass",
+          "elf_position": "ties",
+          "comparison_outcome": "tie",
+          "evidence": "ELF live knowledge jobs now exercise page rebuild, search, stale-source lint, citations, backlinks, and unsupported-section handling. This is an ELF service self-check, not a broad knowledge-product win.",
+          "command": "cargo make real-world-memory-live-adapters",
+          "artifact": "tmp/real-world-memory/live-adapters/elf-materialization.json"
+        },
+        {
+          "scenario_id": "full_sweep_operator_debug",
+          "suite_id": "operator_debugging_ux",
+          "status": "pass",
+          "elf_position": "wins",
+          "comparison_outcome": "win",
+          "evidence": "ELF full live sweep now includes the operator-debug fixture tree with hydrated trace ids, trace-bundle replay commands, dropped-candidate visibility, repair guidance, and no raw SQL requirement.",
+          "command": "cargo make real-world-memory-live-adapters",
+          "artifact": "tmp/real-world-memory/live-adapters/elf-materialization.json"
         }
       ],
       "evidence": [
         {
           "kind": "fixture_dir",
           "ref": "apps/elf-eval/fixtures/real_world_memory/",
+          "status": "real"
+        },
+        {
+          "kind": "fixture_dir",
+          "ref": "apps/elf-eval/fixtures/real_world_job/operator_debugging_ux/",
           "status": "real"
         },
         {
@@ -381,13 +426,13 @@
       },
       "run": {
         "status": "wrong_result",
-        "evidence": "qmd materializes 40 real_world_job adapter_response objects through collection add, update, embed, and query --json before scoring; the full sweep includes typed wrong_result, blocked, and not_encoded job records.",
+        "evidence": "qmd materializes 55 real_world_job adapter_response objects through collection add, update, embed, and query --json before scoring; the full sweep includes typed wrong_result, blocked, and not_encoded job records, with operator-debug fixtures scored through qmd replay metadata rather than ELF trace hydration.",
         "command": "cargo make real-world-memory-live-adapters",
         "artifact": "tmp/real-world-memory/live-adapters/qmd-report.json"
       },
       "result": {
         "status": "wrong_result",
-        "evidence": "The fresh full qmd live sweep scores 40 jobs across all 11 encoded suites: 17 pass, 6 wrong_result, 0 incomplete, 2 blocked, and 15 not_encoded. This is not a full-suite live pass.",
+        "evidence": "The fresh full qmd live sweep scores 55 jobs across all 13 checked-in suites, preserving consolidation, knowledge-page, capture, production-ops, core-archival, and context-trajectory gaps as typed non-pass records. This is not a full-suite live pass.",
         "command": "cargo make real-world-memory-live-adapters",
         "artifact": "tmp/real-world-memory/live-adapters/qmd-report.md"
       },
@@ -410,7 +455,7 @@
         {
           "capability": "full_suite_live_sweep",
           "status": "wrong_result",
-          "evidence": "The runner now emits per-job and per-suite live records for all 40 encoded jobs, but memory_evolution is wrong_result and several non-answer-generation suites remain typed non-pass."
+          "evidence": "The runner now emits per-job and per-suite live records for all 55 checked-in jobs, including the operator-debug fixture tree, but memory_evolution and operator_debugging_ux are wrong_result while non-qmd product surfaces remain typed not_encoded or blocked."
         },
         {
           "capability": "full_suite_live_pass",
@@ -461,8 +506,8 @@
         },
         {
           "suite_id": "operator_debugging_ux",
-          "status": "not_encoded",
-          "evidence": "The qmd live adapter sweep does not yet hydrate full operator trace/viewer diagnostics for this suite."
+          "status": "wrong_result",
+          "evidence": "The full qmd live sweep includes operator_debugging_ux fixtures and records replay-command metadata, but it lacks ELF trace hydration, viewer links, and intermediate candidate-drop stages, so the suite remains wrong_result."
         },
         {
           "suite_id": "capture_integration",
@@ -478,12 +523,27 @@
           "suite_id": "personalization",
           "status": "pass",
           "evidence": "qmd retrieved the scoped preference evidence and passed the personalization job."
+        },
+        {
+          "suite_id": "core_archival_memory",
+          "status": "not_encoded",
+          "evidence": "The qmd live adapter sweep preserves the core/archival fixture gap as typed not_encoded; qmd does not expose ELF core-block attachment/readback materialization."
+        },
+        {
+          "suite_id": "context_trajectory",
+          "status": "blocked",
+          "evidence": "The OpenViking-style context trajectory fixtures remain blocked by live staged-trajectory and recursive-expansion measurement gaps."
         }
       ],
       "evidence": [
         {
           "kind": "fixture_dir",
           "ref": "apps/elf-eval/fixtures/real_world_memory/",
+          "status": "real"
+        },
+        {
+          "kind": "fixture_dir",
+          "ref": "apps/elf-eval/fixtures/real_world_job/operator_debugging_ux/",
           "status": "real"
         },
         {

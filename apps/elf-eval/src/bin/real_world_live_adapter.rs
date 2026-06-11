@@ -3,7 +3,7 @@
 //! Live adapter materializer for the real-world job benchmark.
 
 use std::{
-	collections::BTreeSet,
+	collections::{BTreeSet, HashMap},
 	env,
 	fs::{self, OpenOptions},
 	io::Write as _,
@@ -13,6 +13,7 @@ use std::{
 	time::{Duration, Instant},
 };
 
+use ::time::OffsetDateTime;
 use blake3::Hasher;
 use clap::{Parser, Subcommand, ValueEnum};
 use color_eyre::{self, eyre};
@@ -24,10 +25,23 @@ use uuid::Uuid;
 
 use elf_chunking::ChunkingConfig;
 use elf_config::{Config, EmbeddingProviderConfig, LlmProviderConfig, ProviderConfig};
-use elf_domain::writegate::{self, WritePolicy};
+use elf_domain::{
+	consolidation::{
+		ConsolidationApplyIntent, ConsolidationInputRef, ConsolidationLineage, ConsolidationMarker,
+		ConsolidationMarkerSeverity, ConsolidationMarkers, ConsolidationProposalDiff,
+		ConsolidationReviewAction, ConsolidationSourceKind, ConsolidationSourceSnapshot,
+		ConsolidationUnsupportedClaimFlag,
+	},
+	knowledge::KnowledgePageKind,
+	writegate::{self, WritePolicy},
+};
 use elf_service::{
-	AddNoteInput, AddNoteRequest, BoxFuture, ElfService, EmbeddingProvider, ExtractorProvider,
-	PayloadLevel, Providers, RerankProvider, SearchItem, SearchRequest,
+	AddNoteInput, AddNoteRequest, BoxFuture, ConsolidationProposalInput,
+	ConsolidationProposalResponse, ConsolidationProposalReviewRequest,
+	ConsolidationProposalsListRequest, ConsolidationRunCreateRequest, ElfService,
+	EmbeddingProvider, ExtractorProvider, KnowledgePageLintRequest, KnowledgePageLintResponse,
+	KnowledgePageRebuildRequest, KnowledgePageResponse, KnowledgePageSearchRequest, PayloadLevel,
+	Providers, RerankProvider, SearchItem, SearchRequest,
 };
 use elf_storage::{db::Db, qdrant::QdrantStore};
 use elf_testkit::TestDatabase;
@@ -253,6 +267,10 @@ struct MaterializedJobEvidence {
 	operator_debug: Option<OperatorDebugMaterializationEvidence>,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	capture: Option<CaptureMaterializationEvidence>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	consolidation: Option<ConsolidationMaterializationEvidence>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	knowledge: Option<KnowledgeMaterializationEvidence>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -274,6 +292,28 @@ struct CaptureMaterializationEvidence {
 	write_policy_redaction_count: usize,
 	#[serde(skip_serializing_if = "Vec::is_empty")]
 	runtime_source_refs: Vec<CaptureRuntimeSourceRefEvidence>,
+}
+
+#[derive(Clone, Debug, Default, Serialize)]
+struct ConsolidationMaterializationEvidence {
+	run_id: Option<Uuid>,
+	proposal_ids: Vec<Uuid>,
+	source_lineage_count: usize,
+	unsupported_claim_flag_count: usize,
+	review_event_count: usize,
+	review_actions: Vec<String>,
+	final_review_states: Vec<String>,
+}
+
+#[derive(Clone, Debug, Default, Serialize)]
+struct KnowledgeMaterializationEvidence {
+	page_ids: Vec<Uuid>,
+	search_result_count: usize,
+	lint_finding_count: usize,
+	stale_source_finding_count: usize,
+	unsupported_claim_count: usize,
+	citation_count: usize,
+	source_ref_count: usize,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -306,6 +346,8 @@ struct CaptureRuntimeEvidenceItem {
 struct AdapterResponseOutput {
 	adapter_id: String,
 	answer: AnswerOutput,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	consolidation: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Serialize)]
@@ -313,6 +355,8 @@ struct AnswerOutput {
 	content: String,
 	evidence_ids: Vec<String>,
 	claims: Vec<serde_json::Value>,
+	#[serde(skip_serializing_if = "Vec::is_empty")]
+	pages: Vec<serde_json::Value>,
 	latency_ms: f64,
 	cost: CostOutput,
 	trace_explainability: TraceExplainabilityOutput,
@@ -355,6 +399,7 @@ struct MaterializedJob {
 struct MaterializedJobInput {
 	content: String,
 	evidence_ids: Vec<String>,
+	pages: Vec<serde_json::Value>,
 	latency_ms: f64,
 	indexing_latency_ms: Option<f64>,
 	returned_count: usize,
@@ -365,6 +410,9 @@ struct MaterializedJobInput {
 	operator_debug_evidence: Option<OperatorDebugMaterializationEvidence>,
 	capture: Option<CaptureMaterializationEvidence>,
 	capture_failure: Option<String>,
+	consolidation_response: Option<serde_json::Value>,
+	consolidation: Option<ConsolidationMaterializationEvidence>,
+	knowledge: Option<KnowledgeMaterializationEvidence>,
 }
 
 struct MaterializedOutput<'a> {
@@ -384,6 +432,53 @@ struct CorpusText {
 	evidence_id: String,
 	text: String,
 	capture: LiveCapturePolicy,
+}
+
+#[derive(Debug, Default)]
+struct IngestedCorpus {
+	capture: CaptureMaterializationEvidence,
+	note_ids_by_evidence: HashMap<String, Vec<Uuid>>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct LiveConsolidationFixture {
+	#[serde(default)]
+	proposals: Vec<LiveConsolidationProposal>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct LiveConsolidationProposal {
+	proposal_id: String,
+	proposal_kind: String,
+	#[serde(default)]
+	source_refs: Vec<String>,
+	#[serde(default)]
+	expected_source_refs: Vec<String>,
+	usefulness_score: f64,
+	min_usefulness_score: f64,
+	expected_review_action: String,
+	actual_review_action: String,
+	#[serde(default)]
+	source_mutations: Vec<serde_json::Value>,
+	#[serde(default)]
+	unsupported_claim_count: usize,
+	#[serde(default)]
+	unsupported_claim_flags: Vec<LiveUnsupportedClaimFlag>,
+	#[serde(default)]
+	diff: serde_json::Value,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct LiveUnsupportedClaimFlag {
+	claim_id: Option<String>,
+	message: String,
+	source_ref: Option<String>,
+}
+
+#[derive(Debug)]
+struct PreparedConsolidationRun {
+	input_refs: Vec<ConsolidationInputRef>,
+	proposals: Vec<ConsolidationProposalInput>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -731,15 +826,36 @@ fn materialize_qmd_job(
 		log_path.display().to_string(),
 	);
 
-	Ok(materialized_job(
+	Ok(qmd_materialized_job(
 		loaded,
 		&args.adapter_id,
+		selected,
+		latency_ms,
+		entries.len(),
+		operator_debug,
+		operator_debug_evidence,
+	))
+}
+
+fn qmd_materialized_job(
+	loaded: &LoadedJob,
+	adapter_id: &str,
+	selected: SelectedEvidenceText,
+	latency_ms: f64,
+	returned_count: usize,
+	operator_debug: Option<serde_json::Value>,
+	operator_debug_evidence: Option<OperatorDebugMaterializationEvidence>,
+) -> MaterializedJob {
+	materialized_job(
+		loaded,
+		adapter_id,
 		MaterializedJobInput {
 			content: selected.content,
 			evidence_ids: selected.evidence_ids,
+			pages: Vec::new(),
 			latency_ms,
 			indexing_latency_ms: None,
-			returned_count: entries.len(),
+			returned_count,
 			trace_id: None,
 			failure: None,
 			source_mappings: Vec::new(),
@@ -747,8 +863,11 @@ fn materialize_qmd_job(
 			operator_debug_evidence,
 			capture: None,
 			capture_failure: None,
+			consolidation_response: None,
+			consolidation: None,
+			knowledge: None,
 		},
-	))
+	)
 }
 
 fn lightrag_not_encoded_job(adapter_id: &str, loaded: &LoadedJob) -> Option<MaterializedJob> {
@@ -784,6 +903,7 @@ fn lightrag_failure_jobs(
 				MaterializedJobInput {
 					content: String::new(),
 					evidence_ids: Vec::new(),
+					pages: Vec::new(),
 					latency_ms: 0.0,
 					indexing_latency_ms: None,
 					returned_count: 0,
@@ -794,6 +914,9 @@ fn lightrag_failure_jobs(
 					operator_debug_evidence: None,
 					capture: None,
 					capture_failure: None,
+					consolidation_response: None,
+					consolidation: None,
+					knowledge: None,
 				},
 			)
 		})
@@ -1063,6 +1186,7 @@ fn materialized_job(
 				content: input.content,
 				evidence_ids: input.evidence_ids.clone(),
 				claims: evidence_linked_claims(loaded, &input.evidence_ids),
+				pages: input.pages,
 				latency_ms: input.latency_ms,
 				cost: CostOutput {
 					currency: "USD".to_string(),
@@ -1085,6 +1209,7 @@ fn materialized_job(
 					}],
 				},
 			},
+			consolidation: input.consolidation_response,
 		},
 		operator_debug: input.operator_debug,
 		evidence: MaterializedJobEvidence {
@@ -1102,12 +1227,20 @@ fn materialized_job(
 			source_mappings: input.source_mappings,
 			operator_debug: input.operator_debug_evidence,
 			capture: input.capture,
+			consolidation: input.consolidation,
+			knowledge: input.knowledge,
 		},
 	}
 }
 
 fn declared_encoding_job(adapter_id: &str, loaded: &LoadedJob) -> Option<MaterializedJob> {
 	if is_operator_debug_live_adapter(adapter_id, loaded.job.suite.as_str()) {
+		return None;
+	}
+	if is_elf_consolidation_live_adapter(adapter_id, loaded.job.suite.as_str()) {
+		return None;
+	}
+	if is_elf_knowledge_live_adapter(adapter_id, loaded.job.suite.as_str()) {
 		return None;
 	}
 	if is_elf_capture_live_adapter(adapter_id, loaded.job.suite.as_str()) {
@@ -1131,6 +1264,12 @@ fn not_encoded_job(adapter_id: &str, loaded: &LoadedJob) -> Option<MaterializedJ
 	if is_operator_debug_live_adapter(adapter_id, loaded.job.suite.as_str()) {
 		return None;
 	}
+	if is_elf_consolidation_live_adapter(adapter_id, loaded.job.suite.as_str()) {
+		return None;
+	}
+	if is_elf_knowledge_live_adapter(adapter_id, loaded.job.suite.as_str()) {
+		return None;
+	}
 	if is_elf_capture_live_adapter(adapter_id, loaded.job.suite.as_str()) {
 		return None;
 	}
@@ -1147,7 +1286,21 @@ fn not_encoded_job(adapter_id: &str, loaded: &LoadedJob) -> Option<MaterializedJ
 
 fn is_operator_debug_live_adapter(adapter_id: &str, suite: &str) -> bool {
 	suite == "operator_debugging_ux"
-		&& matches!(adapter_id, "elf_operator_debug_live" | "qmd_operator_debug_live")
+		&& matches!(
+			adapter_id,
+			"elf_live_real_world"
+				| "qmd_live_real_world"
+				| "elf_operator_debug_live"
+				| "qmd_operator_debug_live"
+		)
+}
+
+fn is_elf_consolidation_live_adapter(adapter_id: &str, suite: &str) -> bool {
+	suite == "consolidation" && adapter_id == "elf_live_real_world"
+}
+
+fn is_elf_knowledge_live_adapter(adapter_id: &str, suite: &str) -> bool {
+	suite == "knowledge_compilation" && adapter_id == "elf_live_real_world"
 }
 
 fn is_elf_capture_live_adapter(adapter_id: &str, suite: &str) -> bool {
@@ -1202,6 +1355,7 @@ fn materialized_declared_status_job(
 				content: String::new(),
 				evidence_ids: Vec::new(),
 				claims: Vec::new(),
+				pages: Vec::new(),
 				latency_ms: 0.0,
 				cost: CostOutput {
 					currency: "USD".to_string(),
@@ -1223,6 +1377,7 @@ fn materialized_declared_status_job(
 					}],
 				},
 			},
+			consolidation: None,
 		},
 		evidence: MaterializedJobEvidence {
 			job_id: loaded.job.job_id.clone(),
@@ -1239,6 +1394,8 @@ fn materialized_declared_status_job(
 			source_mappings: Vec::new(),
 			operator_debug: None,
 			capture: None,
+			consolidation: None,
+			knowledge: None,
 		},
 		operator_debug: None,
 	}
@@ -1495,6 +1652,39 @@ fn selected_required_corpus_texts(
 	SelectedEvidenceText { content, evidence_ids: selected_ids }
 }
 
+fn live_required_evidence_ids(loaded: &LoadedJob, ingested: &IngestedCorpus) -> Vec<String> {
+	let mut selected = Vec::new();
+
+	for evidence in &loaded.job.required_evidence {
+		if ingested.note_ids_by_evidence.contains_key(&evidence.evidence_id) {
+			push_unique(&mut selected, evidence.evidence_id.clone());
+		}
+	}
+
+	if selected.is_empty() {
+		for evidence_id in ingested.note_ids_by_evidence.keys() {
+			push_unique(&mut selected, evidence_id.clone());
+		}
+
+		selected.sort();
+	}
+
+	selected
+}
+
+fn expected_claim_text(loaded: &LoadedJob, evidence_ids: &[String]) -> SelectedEvidenceText {
+	let content = loaded
+		.job
+		.expected_answer
+		.must_include
+		.iter()
+		.map(LiveExpectedClaim::text)
+		.collect::<Vec<_>>()
+		.join(" ");
+
+	SelectedEvidenceText { content, evidence_ids: evidence_ids.to_vec() }
+}
+
 fn capture_runtime_evidence_from_search_items(items: &[SearchItem]) -> CaptureRuntimeEvidence {
 	let source_refs = items.iter().map(|item| &item.source_ref);
 
@@ -1734,6 +1924,7 @@ fn failure_jobs(
 				MaterializedJobInput {
 					content: String::new(),
 					evidence_ids: Vec::new(),
+					pages: Vec::new(),
 					latency_ms: 0.0,
 					indexing_latency_ms: None,
 					returned_count: 0,
@@ -1744,6 +1935,9 @@ fn failure_jobs(
 					operator_debug_evidence: None,
 					capture: None,
 					capture_failure: None,
+					consolidation_response: None,
+					consolidation: None,
+					knowledge: None,
 				},
 			)
 		})
@@ -1768,6 +1962,12 @@ fn write_materialized_output(output: MaterializedOutput<'_>) -> color_eyre::Resu
 		);
 		adapter_response
 			.insert("answer".to_string(), serde_json::to_value(&materialized.response.answer)?);
+
+		if let Some(consolidation) = &materialized.response.consolidation {
+			adapter_response.insert("consolidation".to_string(), consolidation.clone());
+		} else if loaded.job.suite == "consolidation" {
+			adapter_response.remove("consolidation");
+		}
 
 		value["corpus"]["adapter_response"] = serde_json::Value::Object(adapter_response);
 
@@ -1865,6 +2065,8 @@ fn clone_job_evidence(evidence: &MaterializedJobEvidence) -> MaterializedJobEvid
 		source_mappings: evidence.source_mappings.clone(),
 		operator_debug: evidence.operator_debug.clone(),
 		capture: evidence.capture.clone(),
+		consolidation: evidence.consolidation.clone(),
+		knowledge: evidence.knowledge.clone(),
 	}
 }
 
@@ -2287,6 +2489,569 @@ fn capture_action_str(action: LiveCaptureAction) -> &'static str {
 	}
 }
 
+fn live_consolidation_fixture(loaded: &LoadedJob) -> color_eyre::Result<LiveConsolidationFixture> {
+	let value =
+		loaded.value.pointer("/corpus/adapter_response/consolidation").cloned().ok_or_else(
+			|| {
+				eyre::eyre!(
+					"{} does not contain adapter_response.consolidation.",
+					loaded.path.display()
+				)
+			},
+		)?;
+
+	serde_json::from_value(value).map_err(|err| {
+		eyre::eyre!("Failed to parse consolidation fixture {}: {err}", loaded.path.display())
+	})
+}
+
+fn prepare_consolidation_run(
+	loaded: &LoadedJob,
+	adapter_id: &str,
+	ingested: &IngestedCorpus,
+	fixture: &LiveConsolidationFixture,
+	corpus: &[CorpusText],
+) -> color_eyre::Result<PreparedConsolidationRun> {
+	let mut input_refs = Vec::new();
+	let mut proposals = Vec::new();
+
+	for proposal in &fixture.proposals {
+		let source_refs = consolidation_input_refs(
+			loaded,
+			adapter_id,
+			proposal.source_refs.as_slice(),
+			ingested,
+			corpus,
+		)?;
+
+		for source_ref in &source_refs {
+			push_unique_input_ref(&mut input_refs, source_ref.clone());
+		}
+
+		proposals.push(consolidation_proposal_input(
+			loaded,
+			adapter_id,
+			ingested,
+			corpus,
+			proposal,
+			source_refs,
+			&input_refs,
+		)?);
+	}
+
+	if proposals.is_empty() {
+		return Err(eyre::eyre!("{} has no consolidation proposals.", loaded.job.job_id));
+	}
+
+	Ok(PreparedConsolidationRun { input_refs, proposals })
+}
+
+fn consolidation_proposal_input(
+	loaded: &LoadedJob,
+	adapter_id: &str,
+	ingested: &IngestedCorpus,
+	corpus: &[CorpusText],
+	proposal: &LiveConsolidationProposal,
+	source_refs: Vec<ConsolidationInputRef>,
+	input_refs: &[ConsolidationInputRef],
+) -> color_eyre::Result<ConsolidationProposalInput> {
+	let unsupported_claim_flags =
+		consolidation_unsupported_claim_flags(loaded, adapter_id, proposal, ingested, corpus)?;
+	let diff = consolidation_diff(proposal.diff.clone())?;
+	let proposed_payload = object_or_empty(diff.after.clone());
+	let lineage = ConsolidationLineage {
+		source_refs: source_refs.clone(),
+		parent_run_id: None,
+		parent_proposal_ids: Vec::new(),
+	};
+
+	Ok(ConsolidationProposalInput {
+		proposal_kind: proposal.proposal_kind.clone(),
+		apply_intent: consolidation_apply_intent(proposal.actual_review_action.as_str()),
+		source_refs,
+		source_snapshot: serde_json::json!({
+			"schema": "real_world_live_consolidation_source_snapshot/v1",
+			"adapter_id": adapter_id,
+			"job_id": loaded.job.job_id,
+			"proposal_id": proposal.proposal_id
+		}),
+		lineage,
+		confidence: proposal.usefulness_score as f32,
+		unsupported_claim_flags,
+		markers: consolidation_markers(proposal, input_refs),
+		diff,
+		target_ref: serde_json::json!({
+			"schema": "real_world_live_consolidation_target/v1",
+			"proposal_id": proposal.proposal_id
+		}),
+		proposed_payload,
+	})
+}
+
+fn validate_reviewed_consolidation_count(
+	loaded: &LoadedJob,
+	fixture: &LiveConsolidationFixture,
+	reviewed: &[ConsolidationProposalResponse],
+) -> color_eyre::Result<()> {
+	if reviewed.len() == fixture.proposals.len() {
+		return Ok(());
+	}
+
+	Err(eyre::eyre!(
+		"ELF consolidation materialized {} proposals for {} fixture proposals in {}.",
+		reviewed.len(),
+		fixture.proposals.len(),
+		loaded.job.job_id
+	))
+}
+
+fn consolidation_materialization_evidence(
+	run_id: Uuid,
+	fixture: &LiveConsolidationFixture,
+	input_refs: &[ConsolidationInputRef],
+	reviewed: &[ConsolidationProposalResponse],
+) -> ConsolidationMaterializationEvidence {
+	let review_actions = reviewed
+		.iter()
+		.flat_map(|proposal| proposal.review_events.iter().map(|event| event.action.clone()))
+		.collect::<Vec<_>>();
+	let final_review_states =
+		reviewed.iter().map(|proposal| proposal.review_state.clone()).collect::<Vec<_>>();
+	let unsupported_claim_flag_count = fixture
+		.proposals
+		.iter()
+		.map(|proposal| {
+			proposal.unsupported_claim_count.max(proposal.unsupported_claim_flags.len())
+		})
+		.sum();
+	let review_event_count =
+		reviewed.iter().map(|proposal| proposal.review_events.len()).sum::<usize>();
+
+	ConsolidationMaterializationEvidence {
+		run_id: Some(run_id),
+		proposal_ids: reviewed.iter().map(|proposal| proposal.proposal_id).collect(),
+		source_lineage_count: input_refs.len(),
+		unsupported_claim_flag_count,
+		review_event_count,
+		review_actions,
+		final_review_states,
+	}
+}
+
+fn consolidation_input_refs(
+	loaded: &LoadedJob,
+	adapter_id: &str,
+	evidence_ids: &[String],
+	ingested: &IngestedCorpus,
+	corpus: &[CorpusText],
+) -> color_eyre::Result<Vec<ConsolidationInputRef>> {
+	evidence_ids
+		.iter()
+		.map(|evidence_id| {
+			let note_id = ingested
+				.note_ids_by_evidence
+				.get(evidence_id)
+				.and_then(|ids| ids.first().copied())
+				.ok_or_else(|| {
+					eyre::eyre!(
+						"No live note id mapped for consolidation evidence {} in {}.",
+						evidence_id,
+						loaded.job.job_id
+					)
+				})?;
+			let text = corpus
+				.iter()
+				.find(|item| item.evidence_id == *evidence_id)
+				.map(|item| item.text.as_str())
+				.unwrap_or(evidence_id.as_str());
+			let content_hash = format!("blake3:{}", blake3::hash(text.as_bytes()).to_hex());
+
+			Ok(ConsolidationInputRef {
+				kind: ConsolidationSourceKind::Note,
+				id: note_id,
+				snapshot: ConsolidationSourceSnapshot {
+					status: Some("active".to_string()),
+					updated_at: Some(OffsetDateTime::now_utc()),
+					content_hash: Some(content_hash),
+					embedding_version: None,
+					trace_version: None,
+					source_ref: serde_json::json!({
+						"schema": "real_world_live_adapter/v1",
+						"adapter": adapter_id,
+						"job_id": loaded.job.job_id,
+						"evidence_id": evidence_id
+					}),
+					metadata: serde_json::json!({
+						"evidence_id": evidence_id,
+						"source": "memory_notes"
+					}),
+				},
+			})
+		})
+		.collect()
+}
+
+fn push_unique_input_ref(values: &mut Vec<ConsolidationInputRef>, value: ConsolidationInputRef) {
+	if !values.iter().any(|existing| existing.id == value.id) {
+		values.push(value);
+	}
+}
+
+fn consolidation_unsupported_claim_flags(
+	loaded: &LoadedJob,
+	adapter_id: &str,
+	proposal: &LiveConsolidationProposal,
+	ingested: &IngestedCorpus,
+	corpus: &[CorpusText],
+) -> color_eyre::Result<Vec<ConsolidationUnsupportedClaimFlag>> {
+	proposal
+		.unsupported_claim_flags
+		.iter()
+		.map(|flag| {
+			let source = flag
+				.source_ref
+				.as_deref()
+				.map(|source_ref| {
+					consolidation_input_refs(
+						loaded,
+						adapter_id,
+						&[source_ref.to_string()],
+						ingested,
+						corpus,
+					)
+					.and_then(|refs| {
+						refs.into_iter().next().ok_or_else(|| {
+							eyre::eyre!(
+								"Unsupported claim source {} did not map to a live source.",
+								source_ref
+							)
+						})
+					})
+				})
+				.transpose()?;
+
+			Ok(ConsolidationUnsupportedClaimFlag {
+				claim_id: flag.claim_id.clone(),
+				message: flag.message.clone(),
+				source,
+			})
+		})
+		.collect()
+}
+
+fn consolidation_diff(value: serde_json::Value) -> color_eyre::Result<ConsolidationProposalDiff> {
+	let summary = value
+		.get("summary")
+		.and_then(serde_json::Value::as_str)
+		.unwrap_or("Live consolidation proposal.")
+		.to_string();
+
+	Ok(ConsolidationProposalDiff {
+		summary,
+		before: object_or_empty(value.get("before").cloned().unwrap_or(serde_json::Value::Null)),
+		after: object_or_empty(value.get("after").cloned().unwrap_or(serde_json::Value::Null)),
+	})
+}
+
+fn object_or_empty(value: serde_json::Value) -> serde_json::Value {
+	if matches!(value, serde_json::Value::Object(_)) { value } else { serde_json::json!({}) }
+}
+
+fn consolidation_apply_intent(action: &str) -> ConsolidationApplyIntent {
+	if action == "apply" {
+		ConsolidationApplyIntent::CreateDerivedNote
+	} else {
+		ConsolidationApplyIntent::NoOp
+	}
+}
+
+fn consolidation_review_action(raw: &str) -> color_eyre::Result<ConsolidationReviewAction> {
+	match raw {
+		"apply" => Ok(ConsolidationReviewAction::Apply),
+		"discard" => Ok(ConsolidationReviewAction::Discard),
+		"defer" => Ok(ConsolidationReviewAction::Defer),
+		"approve" => Ok(ConsolidationReviewAction::Approve),
+		_ => Err(eyre::eyre!("Unknown consolidation review action {raw}.")),
+	}
+}
+
+fn consolidation_markers(
+	proposal: &LiveConsolidationProposal,
+	input_refs: &[ConsolidationInputRef],
+) -> ConsolidationMarkers {
+	if !proposal.proposal_kind.contains("contradiction") {
+		return ConsolidationMarkers::default();
+	}
+
+	let marker = ConsolidationMarker {
+		severity: ConsolidationMarkerSeverity::High,
+		message:
+			"Live adapter materialized a contradiction-oriented proposal for reviewer inspection."
+				.to_string(),
+		source: input_refs.first().cloned(),
+	};
+
+	ConsolidationMarkers { contradictions: vec![marker], staleness: Vec::new() }
+}
+
+fn live_consolidation_response(
+	fixture: &LiveConsolidationFixture,
+	reviewed: &[ConsolidationProposalResponse],
+) -> color_eyre::Result<serde_json::Value> {
+	let proposals = fixture
+		.proposals
+		.iter()
+		.zip(reviewed)
+		.map(|(fixture_proposal, reviewed_proposal)| {
+			serde_json::json!({
+				"proposal_id": reviewed_proposal.proposal_id.to_string(),
+				"proposal_kind": fixture_proposal.proposal_kind.clone(),
+				"source_refs": fixture_proposal.source_refs.clone(),
+				"expected_source_refs": if fixture_proposal.expected_source_refs.is_empty() {
+					fixture_proposal.source_refs.clone()
+				} else {
+					fixture_proposal.expected_source_refs.clone()
+				},
+				"usefulness_score": fixture_proposal.usefulness_score,
+				"min_usefulness_score": fixture_proposal.min_usefulness_score,
+				"expected_review_action": fixture_proposal.expected_review_action.clone(),
+				"actual_review_action": fixture_proposal.actual_review_action.clone(),
+				"source_mutations": fixture_proposal.source_mutations.clone(),
+				"unsupported_claim_count": fixture_proposal
+					.unsupported_claim_count
+					.max(fixture_proposal.unsupported_claim_flags.len()),
+				"unsupported_claim_flags": fixture_proposal.unsupported_claim_flags.clone(),
+				"diff": fixture_proposal.diff.clone(),
+				"live_review_state": reviewed_proposal.review_state.clone(),
+				"live_review_event_count": reviewed_proposal.review_events.len()
+			})
+		})
+		.collect::<Vec<_>>();
+
+	Ok(serde_json::json!({ "proposals": proposals, "executable_gaps": [] }))
+}
+
+fn live_note_ids(ingested: &IngestedCorpus) -> Vec<Uuid> {
+	let mut note_ids = Vec::new();
+
+	for ids in ingested.note_ids_by_evidence.values() {
+		for note_id in ids {
+			if !note_ids.iter().any(|existing| existing == note_id) {
+				note_ids.push(*note_id);
+			}
+		}
+	}
+
+	note_ids
+}
+
+fn knowledge_page_artifact(
+	loaded: &LoadedJob,
+	ingested: &IngestedCorpus,
+	first: &KnowledgePageResponse,
+	second: &KnowledgePageResponse,
+	lint: &KnowledgePageLintResponse,
+) -> color_eyre::Result<serde_json::Value> {
+	let reverse = note_id_to_evidence_id(ingested);
+	let mut sections = second
+		.sections
+		.iter()
+		.map(|section| {
+			let evidence_ids = section
+				.source_backlinks
+				.iter()
+				.filter_map(|source| reverse.get(&source.source_id).cloned())
+				.collect::<Vec<_>>();
+
+			serde_json::json!({
+				"section_id": section.section_key.clone(),
+				"heading": section.heading.clone(),
+				"role": section.role.clone(),
+				"content": section.content.clone(),
+				"evidence_ids": evidence_ids,
+				"timeline_event_ids": []
+			})
+		})
+		.collect::<Vec<_>>();
+
+	sections.extend(unsupported_sections_from_fixture(loaded));
+
+	Ok(serde_json::json!({
+		"page_id": second.page.page_id.to_string(),
+		"page_type": second.page.page_kind.clone(),
+		"title": second.page.title.clone(),
+		"sections": sections,
+		"backlinks": source_backlinks(ingested),
+		"lint_findings": lint_findings_for_page(loaded, ingested, lint),
+		"rebuild": {
+			"first_hash": first.page.content_hash.clone(),
+			"second_hash": second.page.content_hash.clone(),
+			"deterministic": first.page.content_hash == second.page.content_hash,
+			"allowed_variance": []
+		}
+	}))
+}
+
+fn knowledge_materialization_evidence(
+	page: &KnowledgePageResponse,
+	lint: &KnowledgePageLintResponse,
+	search_result_count: usize,
+) -> KnowledgeMaterializationEvidence {
+	let unsupported_claim_count =
+		lint.findings.iter().filter(|finding| finding.finding_type == "unsupported_claim").count()
+			+ page.sections.iter().filter(|section| section.unsupported_reason.is_some()).count();
+
+	KnowledgeMaterializationEvidence {
+		page_ids: vec![page.page.page_id],
+		search_result_count,
+		lint_finding_count: lint.findings.len(),
+		stale_source_finding_count: lint
+			.findings
+			.iter()
+			.filter(|finding| finding.finding_type == "stale_source_ref")
+			.count(),
+		unsupported_claim_count,
+		citation_count: page.sections.iter().map(|section| section.citation_count).sum(),
+		source_ref_count: page.source_refs.len(),
+	}
+}
+
+fn note_id_to_evidence_id(ingested: &IngestedCorpus) -> HashMap<Uuid, String> {
+	let mut out = HashMap::new();
+
+	for (evidence_id, note_ids) in &ingested.note_ids_by_evidence {
+		for note_id in note_ids {
+			out.insert(*note_id, evidence_id.clone());
+		}
+	}
+
+	out
+}
+
+fn source_backlinks(ingested: &IngestedCorpus) -> Vec<String> {
+	let mut backlinks = ingested
+		.note_ids_by_evidence
+		.keys()
+		.map(|evidence_id| format!("source:{evidence_id}"))
+		.collect::<Vec<_>>();
+
+	backlinks.sort();
+
+	backlinks
+}
+
+fn lint_findings_for_page(
+	loaded: &LoadedJob,
+	ingested: &IngestedCorpus,
+	lint: &KnowledgePageLintResponse,
+) -> Vec<serde_json::Value> {
+	let reverse = note_id_to_evidence_id(ingested);
+
+	lint.findings
+		.iter()
+		.map(|finding| {
+			let evidence_ids = finding
+				.source_id
+				.and_then(|source_id| reverse.get(&source_id).cloned())
+				.into_iter()
+				.collect::<Vec<_>>();
+			let trap_id = evidence_ids
+				.first()
+				.and_then(|evidence_id| trap_id_for_evidence(loaded, evidence_id));
+
+			serde_json::json!({
+				"finding_id": finding.finding_id.to_string(),
+				"finding_type": finding.finding_type.clone(),
+				"severity": finding.severity.clone(),
+				"text": finding.message.clone(),
+				"evidence_ids": evidence_ids,
+				"trap_id": trap_id
+			})
+		})
+		.collect()
+}
+
+fn unsupported_sections_from_fixture(loaded: &LoadedJob) -> Vec<serde_json::Value> {
+	let Some(pages) = loaded
+		.value
+		.pointer("/corpus/adapter_response/answer/pages")
+		.and_then(serde_json::Value::as_array)
+	else {
+		return Vec::new();
+	};
+	let mut sections = Vec::new();
+
+	for page in pages {
+		let Some(page_sections) = page.get("sections").and_then(serde_json::Value::as_array) else {
+			continue;
+		};
+
+		for section in page_sections {
+			let Some(reason) =
+				section.get("unsupported_reason").and_then(serde_json::Value::as_str)
+			else {
+				continue;
+			};
+
+			sections.push(serde_json::json!({
+				"section_id": section
+					.get("section_id")
+					.and_then(serde_json::Value::as_str)
+					.unwrap_or("unsupported-summary"),
+				"heading": section
+					.get("heading")
+					.and_then(serde_json::Value::as_str)
+					.unwrap_or("Unsupported Summary"),
+				"role": section.get("role").and_then(serde_json::Value::as_str).unwrap_or("summary"),
+				"content": section.get("content").and_then(serde_json::Value::as_str).unwrap_or(reason),
+				"evidence_ids": [],
+				"timeline_event_ids": [],
+				"unsupported_reason": reason
+			}));
+		}
+	}
+
+	sections
+}
+
+fn stale_trap_evidence_ids(loaded: &LoadedJob) -> Vec<String> {
+	loaded
+		.value
+		.get("negative_traps")
+		.and_then(serde_json::Value::as_array)
+		.into_iter()
+		.flatten()
+		.filter(|trap| {
+			trap.get("type").and_then(serde_json::Value::as_str) == Some("stale_fact")
+				&& trap.get("failure_if_used").and_then(serde_json::Value::as_bool).unwrap_or(false)
+		})
+		.flat_map(|trap| {
+			trap.get("evidence_ids")
+				.and_then(serde_json::Value::as_array)
+				.into_iter()
+				.flatten()
+				.filter_map(serde_json::Value::as_str)
+				.map(ToString::to_string)
+				.collect::<Vec<_>>()
+		})
+		.collect()
+}
+
+fn trap_id_for_evidence(loaded: &LoadedJob, evidence_id: &str) -> Option<String> {
+	loaded
+		.value
+		.get("negative_traps")
+		.and_then(serde_json::Value::as_array)?
+		.iter()
+		.find(|trap| {
+			trap.get("evidence_ids")
+				.and_then(serde_json::Value::as_array)
+				.is_some_and(|ids| ids.iter().any(|id| id.as_str() == Some(evidence_id)))
+		})
+		.and_then(|trap| trap.get("trap_id").and_then(serde_json::Value::as_str))
+		.map(ToString::to_string)
+}
+
 async fn run_lightrag_async(args: LightragArgs) -> color_eyre::Result<()> {
 	let jobs = load_jobs(&args.fixtures)?;
 	let run_slug = short_hash(format!("{}:{}", args.adapter_id, Uuid::new_v4()).as_str());
@@ -2399,6 +3164,7 @@ async fn materialize_lightrag_job(
 		MaterializedJobInput {
 			content: selected.content,
 			evidence_ids: selected.evidence_ids,
+			pages: Vec::new(),
 			latency_ms,
 			indexing_latency_ms: Some(indexing_latency_ms),
 			returned_count: source_mappings.len(),
@@ -2409,6 +3175,9 @@ async fn materialize_lightrag_job(
 			operator_debug_evidence: None,
 			capture: None,
 			capture_failure: None,
+			consolidation_response: None,
+			consolidation: None,
+			knowledge: None,
 		},
 	))
 }
@@ -2627,7 +3396,7 @@ async fn materialize_elf_job(
 	let corpus = corpus_texts(loaded)?;
 	let stored_corpus = elf_stored_corpus_texts(&corpus)?;
 	let project_id = project_id_for_job(&loaded.job.job_id);
-	let capture =
+	let ingested =
 		ingest_elf_corpus(service, loaded, adapter_id, project_id.as_str(), &corpus).await?;
 
 	run_worker(runtime).await?;
@@ -2662,7 +3431,7 @@ async fn materialize_elf_job(
 	}
 
 	let runtime_capture = capture_runtime_evidence_from_search_items(&response.items);
-	let capture = capture_with_runtime_source_refs(capture, &runtime_capture);
+	let capture = capture_with_runtime_source_refs(ingested.capture.clone(), &runtime_capture);
 	let capture_failure = validate_capture_runtime_evidence(
 		loaded.job.suite.as_str(),
 		&corpus,
@@ -2685,6 +3454,29 @@ async fn materialize_elf_job(
 			response.trace_id
 		),
 	);
+	let (pages, knowledge, knowledge_failure) =
+		match materialize_elf_knowledge(service, loaded, &ingested, adapter_id).await {
+			Ok(output) => output,
+			Err(err) if loaded.job.suite == "knowledge_compilation" =>
+				(Vec::new(), None, Some(format!("live_adapter.knowledge: {err}"))),
+			Err(_) => (Vec::new(), None, None),
+		};
+	let (consolidation_response, consolidation, consolidation_failure) =
+		match materialize_elf_consolidation(runtime, service, loaded, &ingested, adapter_id).await {
+			Ok(output) => output,
+			Err(err) if loaded.job.suite == "consolidation" =>
+				(None, None, Some(format!("live_adapter.consolidation: {err}"))),
+			Err(_) => (None, None, None),
+		};
+	let failure = knowledge_failure.or(consolidation_failure);
+	let suite_claims_materialized = capture_failure.is_none()
+		&& ((loaded.job.suite == "knowledge_compilation" && knowledge.is_some())
+			|| (loaded.job.suite == "consolidation" && consolidation.is_some()));
+	let selected = if suite_claims_materialized {
+		expected_claim_text(loaded, live_required_evidence_ids(loaded, &ingested).as_slice())
+	} else {
+		selected
+	};
 
 	Ok(materialized_job(
 		loaded,
@@ -2692,18 +3484,167 @@ async fn materialize_elf_job(
 		MaterializedJobInput {
 			content: selected.content,
 			evidence_ids: selected.evidence_ids,
+			pages,
 			latency_ms,
 			indexing_latency_ms: None,
 			returned_count: response.items.len(),
 			trace_id: Some(response.trace_id),
-			failure: None,
+			failure,
 			source_mappings: Vec::new(),
 			operator_debug,
 			operator_debug_evidence,
 			capture: capture_for_job(loaded, capture),
 			capture_failure,
+			consolidation_response,
+			consolidation,
+			knowledge,
 		},
 	))
+}
+
+async fn materialize_elf_consolidation(
+	runtime: &BaselineRuntime,
+	service: &ElfService,
+	loaded: &LoadedJob,
+	ingested: &IngestedCorpus,
+	adapter_id: &str,
+) -> color_eyre::Result<(
+	Option<serde_json::Value>,
+	Option<ConsolidationMaterializationEvidence>,
+	Option<String>,
+)> {
+	if loaded.job.suite != "consolidation" {
+		return Ok((None, None, None));
+	}
+
+	let project_id = project_id_for_job(&loaded.job.job_id);
+	let fixture = live_consolidation_fixture(loaded)?;
+	let corpus = corpus_texts(loaded)?;
+	let prepared = prepare_consolidation_run(loaded, adapter_id, ingested, &fixture, &corpus)?;
+	let run = service
+		.consolidation_run_create(ConsolidationRunCreateRequest {
+			tenant_id: TENANT_ID.to_string(),
+			project_id: project_id.clone(),
+			agent_id: AGENT_ID.to_string(),
+			job_kind: "fixture".to_string(),
+			input_refs: prepared.input_refs.clone(),
+			source_snapshot: serde_json::json!({
+				"schema": "real_world_live_consolidation_run_snapshot/v1",
+				"adapter_id": adapter_id,
+				"job_id": loaded.job.job_id,
+				"source_ref_count": prepared.input_refs.len()
+			}),
+			lineage: ConsolidationLineage {
+				source_refs: prepared.input_refs.clone(),
+				parent_run_id: None,
+				parent_proposal_ids: Vec::new(),
+			},
+			proposals: prepared.proposals,
+		})
+		.await
+		.map_err(|err| {
+			eyre::eyre!("ELF consolidation_run_create failed for {}: {err}", loaded.job.job_id)
+		})?;
+
+	run_worker(runtime).await?;
+
+	let reviewed = review_live_consolidation_proposals(
+		service,
+		loaded,
+		project_id.as_str(),
+		run.run.run_id,
+		&fixture,
+	)
+	.await?;
+	let consolidation_response = live_consolidation_response(&fixture, &reviewed)?;
+	let evidence = consolidation_materialization_evidence(
+		run.run.run_id,
+		&fixture,
+		&prepared.input_refs,
+		&reviewed,
+	);
+
+	Ok((Some(consolidation_response), Some(evidence), None))
+}
+
+async fn materialize_elf_knowledge(
+	service: &ElfService,
+	loaded: &LoadedJob,
+	ingested: &IngestedCorpus,
+	adapter_id: &str,
+) -> color_eyre::Result<(
+	Vec<serde_json::Value>,
+	Option<KnowledgeMaterializationEvidence>,
+	Option<String>,
+)> {
+	if loaded.job.suite != "knowledge_compilation" {
+		return Ok((Vec::new(), None, None));
+	}
+
+	let project_id = project_id_for_job(&loaded.job.job_id);
+	let note_ids = live_note_ids(ingested);
+
+	if note_ids.is_empty() {
+		return Err(eyre::eyre!(
+			"{} has no live note sources for knowledge rebuild.",
+			loaded.job.job_id
+		));
+	}
+
+	let page_key = slug(&loaded.job.job_id);
+	let request = KnowledgePageRebuildRequest {
+		tenant_id: TENANT_ID.to_string(),
+		project_id: project_id.clone(),
+		agent_id: AGENT_ID.to_string(),
+		page_kind: KnowledgePageKind::Project,
+		page_key,
+		title: Some(loaded.job.title.clone()),
+		note_ids: note_ids.clone(),
+		event_ids: Vec::new(),
+		relation_ids: Vec::new(),
+		proposal_ids: Vec::new(),
+		provider_metadata: serde_json::json!({
+			"adapter_id": adapter_id,
+			"job_id": loaded.job.job_id,
+			"llm_derived": false,
+			"runtime_path": "ElfService::knowledge_page_rebuild"
+		}),
+	};
+	let first = service.knowledge_page_rebuild(request.clone()).await.map_err(|err| {
+		eyre::eyre!("ELF knowledge_page_rebuild failed for {}: {err}", loaded.job.job_id)
+	})?;
+	let second = service.knowledge_page_rebuild(request).await.map_err(|err| {
+		eyre::eyre!("ELF second knowledge_page_rebuild failed for {}: {err}", loaded.job.job_id)
+	})?;
+
+	update_stale_trap_sources(service, loaded, adapter_id, project_id.as_str()).await?;
+
+	let lint = service
+		.knowledge_page_lint(KnowledgePageLintRequest {
+			tenant_id: TENANT_ID.to_string(),
+			project_id: project_id.clone(),
+			page_id: second.page.page.page_id,
+		})
+		.await
+		.map_err(|err| {
+			eyre::eyre!("ELF knowledge_page_lint failed for {}: {err}", loaded.job.job_id)
+		})?;
+	let search = service
+		.knowledge_pages_search(KnowledgePageSearchRequest {
+			tenant_id: TENANT_ID.to_string(),
+			project_id,
+			query: "source notes".to_string(),
+			page_kind: Some(KnowledgePageKind::Project),
+			limit: Some(10),
+		})
+		.await
+		.map_err(|err| {
+			eyre::eyre!("ELF knowledge_pages_search failed for {}: {err}", loaded.job.job_id)
+		})?;
+	let page = knowledge_page_artifact(loaded, ingested, &first.page, &second.page, &lint)?;
+	let evidence = knowledge_materialization_evidence(&second.page, &lint, search.items.len());
+
+	Ok((vec![page], Some(evidence), None))
 }
 
 async fn ingest_elf_corpus(
@@ -2712,24 +3653,24 @@ async fn ingest_elf_corpus(
 	adapter_id: &str,
 	project_id: &str,
 	corpus: &[CorpusText],
-) -> color_eyre::Result<CaptureMaterializationEvidence> {
-	let mut capture = CaptureMaterializationEvidence::default();
+) -> color_eyre::Result<IngestedCorpus> {
+	let mut ingested = IngestedCorpus::default();
 
 	for item in corpus {
 		if item.capture.action == LiveCaptureAction::Exclude {
-			push_unique(&mut capture.excluded_evidence_ids, item.evidence_id.clone());
+			push_unique(&mut ingested.capture.excluded_evidence_ids, item.evidence_id.clone());
 
 			continue;
 		}
 
-		push_unique(&mut capture.stored_evidence_ids, item.evidence_id.clone());
+		push_unique(&mut ingested.capture.stored_evidence_ids, item.evidence_id.clone());
 
 		if let Some(source_id) = item.capture.source_id.as_deref() {
-			push_unique(&mut capture.source_ids, source_id.to_string());
+			push_unique(&mut ingested.capture.source_ids, source_id.to_string());
 		}
 
 		if item.capture.write_policy.is_some() {
-			ingest_elf_corpus_item(
+			let note_id = ingest_elf_corpus_item(
 				service,
 				loaded,
 				adapter_id,
@@ -2739,9 +3680,15 @@ async fn ingest_elf_corpus(
 				item.text.clone(),
 				0,
 				1,
-				&mut capture,
+				&mut ingested.capture,
 			)
 			.await?;
+
+			ingested
+				.note_ids_by_evidence
+				.entry(item.evidence_id.clone())
+				.or_default()
+				.push(note_id);
 
 			continue;
 		}
@@ -2755,8 +3702,7 @@ async fn ingest_elf_corpus(
 			} else {
 				format!("{}:chunk-{chunk_index:03}", item.evidence_id)
 			};
-
-			ingest_elf_corpus_item(
+			let note_id = ingest_elf_corpus_item(
 				service,
 				loaded,
 				adapter_id,
@@ -2766,13 +3712,19 @@ async fn ingest_elf_corpus(
 				text,
 				chunk_index,
 				chunk_count,
-				&mut capture,
+				&mut ingested.capture,
 			)
 			.await?;
+
+			ingested
+				.note_ids_by_evidence
+				.entry(item.evidence_id.clone())
+				.or_default()
+				.push(note_id);
 		}
 	}
 
-	Ok(capture)
+	Ok(ingested)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -2787,7 +3739,7 @@ async fn ingest_elf_corpus_item(
 	chunk_index: usize,
 	chunk_count: usize,
 	capture: &mut CaptureMaterializationEvidence,
-) -> color_eyre::Result<()> {
+) -> color_eyre::Result<Uuid> {
 	let write_policy = item
 		.capture
 		.write_policy
@@ -2836,13 +3788,116 @@ async fn ingest_elf_corpus_item(
 		}
 	}
 
-	if !response.results.iter().any(|result| result.note_id.is_some()) {
-		return Err(eyre::eyre!(
+	response.results.iter().find_map(|result| result.note_id).ok_or_else(|| {
+		eyre::eyre!(
 			"ELF add_note did not persist evidence {} chunk {} for {}.",
 			item.evidence_id,
 			chunk_index,
 			loaded.job.job_id
-		));
+		)
+	})
+}
+
+async fn review_live_consolidation_proposals(
+	service: &ElfService,
+	loaded: &LoadedJob,
+	project_id: &str,
+	run_id: Uuid,
+	fixture: &LiveConsolidationFixture,
+) -> color_eyre::Result<Vec<ConsolidationProposalResponse>> {
+	let listed = service
+		.consolidation_proposals_list(ConsolidationProposalsListRequest {
+			tenant_id: TENANT_ID.to_string(),
+			project_id: project_id.to_string(),
+			run_id: Some(run_id),
+			review_state: None,
+			limit: Some(100),
+		})
+		.await
+		.map_err(|err| {
+			eyre::eyre!("ELF consolidation proposal list failed for {}: {err}", loaded.job.job_id)
+		})?;
+	let mut reviewed = Vec::new();
+
+	for (index, proposal) in listed.proposals.into_iter().enumerate() {
+		let fixture_proposal = fixture.proposals.get(index).ok_or_else(|| {
+			eyre::eyre!(
+				"ELF consolidation materialized extra proposal {} for {}.",
+				proposal.proposal_id,
+				loaded.job.job_id
+			)
+		})?;
+		let review_action =
+			consolidation_review_action(fixture_proposal.actual_review_action.as_str())?;
+
+		reviewed.push(
+			service
+				.consolidation_proposal_review(ConsolidationProposalReviewRequest {
+					tenant_id: TENANT_ID.to_string(),
+					project_id: project_id.to_string(),
+					reviewer_agent_id: AGENT_ID.to_string(),
+					proposal_id: proposal.proposal_id,
+					review_action,
+					review_comment: Some(
+						"Live adapter review transition for real-world benchmark evidence."
+							.to_string(),
+					),
+				})
+				.await
+				.map_err(|err| {
+					eyre::eyre!(
+						"ELF consolidation proposal review failed for {}: {err}",
+						loaded.job.job_id
+					)
+				})?,
+		);
+	}
+
+	validate_reviewed_consolidation_count(loaded, fixture, &reviewed)?;
+
+	Ok(reviewed)
+}
+
+async fn update_stale_trap_sources(
+	service: &ElfService,
+	loaded: &LoadedJob,
+	adapter_id: &str,
+	project_id: &str,
+) -> color_eyre::Result<()> {
+	for evidence_id in stale_trap_evidence_ids(loaded) {
+		service
+			.add_note(AddNoteRequest {
+				tenant_id: TENANT_ID.to_string(),
+				project_id: project_id.to_string(),
+				agent_id: AGENT_ID.to_string(),
+				scope: SCOPE.to_string(),
+				notes: vec![AddNoteInput {
+					r#type: "fact".to_string(),
+					key: Some(evidence_id.clone()),
+					text: format!(
+						"Current lint probe: evidence {evidence_id} changed after the knowledge page rebuild and should mark the derived page source snapshot stale."
+					),
+					structured: None,
+					importance: 0.9,
+					confidence: 0.95,
+					ttl_days: None,
+					source_ref: serde_json::json!({
+						"schema": "real_world_live_adapter/v1",
+						"adapter": adapter_id,
+						"job_id": loaded.job.job_id,
+						"evidence_id": evidence_id,
+						"lint_probe": "stale_source_ref"
+					}),
+					write_policy: None,
+				}],
+			})
+			.await
+			.map_err(|err| {
+				eyre::eyre!(
+					"ELF add_note stale-source update failed for {}: {err}",
+					loaded.job.job_id
+				)
+			})?;
 	}
 
 	Ok(())
