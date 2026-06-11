@@ -2073,6 +2073,26 @@ project_mem0() {
       "status": "real",
       "surface": "new Memory.from_config over the same local Qdrant/history paths"
     },
+    "preference_history": {
+      "status": "real",
+      "surface": "Memory.history after a local preference correction update"
+    },
+    "entity_scope_personalization": {
+      "status": "real",
+      "surface": "Memory.add/search with user_id, agent_id, and run_id filters"
+    },
+    "deletion_audit": {
+      "status": "real",
+      "surface": "Memory.history after Memory.delete"
+    },
+    "local_export_readback": {
+      "status": "real",
+      "surface": "Memory.get_all over local OSS storage for inspection/export-style readback"
+    },
+    "openmemory_ui_export": {
+      "status": "blocked",
+      "surface": "the Docker live-baseline runner does not launch the OpenMemory web UI or hosted Platform export flow"
+    },
     "scale_stress_profile": {
       "status": "incomplete",
       "surface": "smoke lifecycle path is encoded; scale/stress timing and resource thresholds are not yet calibrated"
@@ -2170,21 +2190,103 @@ for text, source in docs:
 
 
 def result_entries(search):
-    return search.get("results", []) if isinstance(search, dict) else []
+    if isinstance(search, dict):
+        for key in ("results", "memories"):
+            entries = search.get(key)
+            if isinstance(entries, list):
+                return entries
+    if isinstance(search, list):
+        return search
+    return []
 
 
-def search_memory(memory_instance, query_text):
+def search_memory(memory_instance, query_text, filters=None):
     return memory_instance.search(
         query_text,
-        filters={"user_id": "elf-bench"},
+        filters=filters or {"user_id": "elf-bench"},
         top_k=top_k,
         threshold=0.0,
     )
 
 
+def json_lower(value):
+    return json.dumps(value, default=str).lower()
+
+
+def contains_terms(value, terms):
+    text = json_lower(value)
+    return all(term.lower() in text for term in terms)
+
+
+def first_memory_id(add_result):
+    results = add_result.get("results", []) if isinstance(add_result, dict) else []
+    if results and isinstance(results[0], dict):
+        return results[0].get("id")
+    return None
+
+
+def memory_history(memory_instance, memory_id):
+    if not hasattr(memory_instance, "history"):
+        return {
+            "available": False,
+            "history": None,
+            "error": "Memory.history is unavailable",
+        }
+    try:
+        return {
+            "available": True,
+            "history": memory_instance.history(memory_id),
+            "error": None,
+        }
+    except Exception as exc:
+        return {
+            "available": False,
+            "history": None,
+            "error": repr(exc),
+        }
+
+
+def get_all_memories(memory_instance, filters):
+    if not hasattr(memory_instance, "get_all"):
+        return {
+            "available": False,
+            "memories": None,
+            "error": "Memory.get_all is unavailable",
+        }
+    try:
+        return {
+            "available": True,
+            "memories": memory_instance.get_all(filters=filters),
+            "error": None,
+        }
+    except TypeError:
+        try:
+            return {
+                "available": True,
+                "memories": memory_instance.get_all(
+                    user_id=filters.get("user_id"),
+                    agent_id=filters.get("agent_id"),
+                    run_id=filters.get("run_id"),
+                ),
+                "error": None,
+            }
+        except Exception as exc:
+            return {
+                "available": False,
+                "memories": None,
+                "error": repr(exc),
+            }
+    except Exception as exc:
+        return {
+            "available": False,
+            "memories": None,
+            "error": repr(exc),
+        }
+
+
 def matches_expected(search, expected_doc, expected_terms):
     for entry in result_entries(search):
-        entry_text = json.dumps(entry, default=str).lower()
+        entry_text = json_lower(entry)
         source = ((entry.get("metadata") or {}).get("source") or "")
         if source == expected_doc and all(
             term.lower() in entry_text for term in expected_terms
@@ -2304,6 +2406,152 @@ else:
         )
     )
 
+history_filters = {
+    "user_id": "elf-history-user",
+    "agent_id": "elf-history-agent",
+    "run_id": "elf-project",
+}
+old_preference = (
+    "Preference v1 for ELF: provide verbose tutorial explanations for every answer."
+)
+current_preference = (
+    "Preference v2 for ELF: answer concisely with evidence-linked bullets."
+)
+preference_add = memory.add(
+    old_preference,
+    user_id=history_filters["user_id"],
+    agent_id=history_filters["agent_id"],
+    run_id=history_filters["run_id"],
+    metadata={"source": "preference-history", "kind": "preference"},
+    infer=False,
+)
+preference_id = first_memory_id(preference_add)
+if not preference_id:
+    checks.append(
+        make_check(
+            "preference_correction_history",
+            "incomplete",
+            "The preference memory id was not returned, so correction history could not be inspected.",
+            {"add_result": preference_add},
+        )
+    )
+else:
+    preference_update = memory.update(
+        preference_id,
+        current_preference,
+        metadata={"source": "preference-history", "kind": "preference"},
+    )
+    preference_history = memory_history(memory, preference_id)
+    preference_search = search_memory(
+        memory,
+        "How should answers be written for the ELF project?",
+        history_filters,
+    )
+    history_has_old = contains_terms(preference_history["history"], ["verbose tutorial"])
+    history_has_current = contains_terms(
+        preference_history["history"],
+        ["concise", "evidence-linked"],
+    )
+    search_has_current = contains_terms(
+        result_entries(preference_search),
+        ["concise", "evidence-linked"],
+    )
+    search_omits_old = "verbose tutorial" not in json_lower(result_entries(preference_search))
+    if not preference_history["available"]:
+        preference_status = "blocked"
+        preference_reason = "Memory.history could not be read for the updated preference memory."
+    elif history_has_old and history_has_current and search_has_current and search_omits_old:
+        preference_status = "pass"
+        preference_reason = "mem0 history preserved the old and current preference while search returned only the current correction."
+    else:
+        preference_status = "lifecycle_fail"
+        preference_reason = "mem0 did not expose a clean preference correction chain with current-only search readback."
+    checks.append(
+        make_check(
+            "preference_correction_history",
+            preference_status,
+            preference_reason,
+            {
+                "memory_id": preference_id,
+                "add_result": preference_add,
+                "update_result": preference_update,
+                "history_available": preference_history["available"],
+                "history_error": preference_history["error"],
+                "history_has_old": history_has_old,
+                "history_has_current": history_has_current,
+                "search_has_current": search_has_current,
+                "search_omits_old": search_omits_old,
+                "history": preference_history["history"],
+                "search": preference_search,
+            },
+        )
+    )
+
+other_scope_add = memory.add(
+    "Preference for PubFi: answer in long-form Chinese prose with no bullets.",
+    user_id=history_filters["user_id"],
+    agent_id=history_filters["agent_id"],
+    run_id="pubfi-project",
+    metadata={"source": "pubfi-preference", "kind": "preference"},
+    infer=False,
+)
+entity_search = search_memory(
+    memory,
+    "What answer style preference applies here?",
+    history_filters,
+)
+entity_search_text = json_lower(result_entries(entity_search))
+entity_has_current = "evidence-linked bullets" in entity_search_text
+entity_omits_other = "long-form chinese" not in entity_search_text
+checks.append(
+    make_check(
+        "entity_scoped_personalization",
+        "pass" if entity_has_current and entity_omits_other else "lifecycle_fail",
+        "mem0 search respected user_id, agent_id, and run_id filters for the current preference scope."
+        if entity_has_current and entity_omits_other
+        else "mem0 entity-scoped search did not isolate the current preference from another run/project scope.",
+        {
+            "current_memory_id": preference_id,
+            "other_scope_add": other_scope_add,
+            "filters": history_filters,
+            "has_current": entity_has_current,
+            "omits_other_scope": entity_omits_other,
+            "search": entity_search,
+        },
+    )
+)
+
+export_readback = get_all_memories(memory, history_filters)
+export_has_current = contains_terms(
+    export_readback["memories"],
+    ["concise", "evidence-linked"],
+)
+export_omits_other = "long-form chinese" not in json_lower(export_readback["memories"])
+if not export_readback["available"]:
+    export_status = "blocked"
+    export_reason = "Memory.get_all could not be read for local OSS inspection/export-style evidence."
+elif export_has_current and export_omits_other:
+    export_status = "pass"
+    export_reason = "mem0 get_all returned local export-style readback for the current scoped preference without the other scope."
+else:
+    export_status = "lifecycle_fail"
+    export_reason = "mem0 get_all did not return the current scoped preference cleanly for local export-style readback."
+checks.append(
+    make_check(
+        "local_get_all_export_readback",
+        export_status,
+        export_reason,
+        {
+            "available": export_readback["available"],
+            "error": export_readback["error"],
+            "filters": history_filters,
+            "has_current": export_has_current,
+            "omits_other_scope": export_omits_other,
+            "memories": export_readback["memories"],
+        },
+    )
+)
+
 delete_query = next(
     (
         query
@@ -2349,6 +2597,36 @@ else:
                 "delete_result": delete_result,
                 "deleted_still_matched": deleted_still_matched,
                 "search": delete_search,
+            },
+        )
+    )
+    delete_history = memory_history(memory, delete_id)
+    delete_history_has_event = delete_history["available"] and contains_terms(
+        delete_history["history"],
+        ["delete"],
+    )
+    if not delete_history["available"]:
+        delete_audit_status = "blocked"
+        delete_audit_reason = "Memory.history could not be read after delete, so deletion audit readback is blocked."
+    elif delete_history_has_event and not deleted_still_matched:
+        delete_audit_status = "pass"
+        delete_audit_reason = "mem0 history exposed a delete event and search suppressed the deleted memory."
+    else:
+        delete_audit_status = "lifecycle_fail"
+        delete_audit_reason = "mem0 did not expose a delete audit event while suppressing the deleted memory."
+    checks.append(
+        make_check(
+            "delete_history_audit_readback",
+            delete_audit_status,
+            delete_audit_reason,
+            {
+                "memory_id": delete_id,
+                "source": delete_source,
+                "history_available": delete_history["available"],
+                "history_error": delete_history["error"],
+                "history_has_delete_event": delete_history_has_event,
+                "deleted_still_matched": deleted_still_matched,
+                "history": delete_history["history"],
             },
         )
     )
@@ -2429,7 +2707,7 @@ PY
       else
         retrieval_status="retrieval_wrong_result"
       fi
-      json_record "${project}" "${repo}" "${head}" "${typed_status}" "${retrieval_status}" "$(typed_status_reason "${project}" "${typed_status}")" "${project}.log" "pip install -e . fastembed ollama; Memory.from_config; add/update/delete/search"
+      json_record "${project}" "${repo}" "${head}" "${typed_status}" "${retrieval_status}" "$(typed_status_reason "${project}" "${typed_status}")" "${project}.log" "pip install -e . fastembed ollama; Memory.from_config; add/update/delete/history/get_all/search"
       return
     fi
     json_record "${project}" "${repo}" "${head}" "incomplete" "invalid_json_result" "mem0 command completed, but did not produce a valid benchmark result" "${project}.log" "pip install -e . fastembed ollama; Memory.from_config; add infer=false; search"
