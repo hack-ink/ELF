@@ -12,7 +12,7 @@
       "Live temporal reconciliation remains wrong_result for five of six memory_evolution jobs.",
       "Private-corpus production quality is blocked until an operator-owned manifest exists.",
       "Credentialed provider production-ops gates are blocked until explicit provider setup exists.",
-      "Several competitor strengths remain not_tested: mem0/OpenMemory history/UI, OpenViking trajectory, Letta core-vs-archival memory, and graph/RAG navigation. The XY-923 follow-up now scores qmd immediate top-10/replay artifact ergonomics as stronger than ELF's default stress report, while expansion, fusion, rerank, and candidate-drop diagnosis remain untested."
+      "Several competitor strengths remain not_tested or blocked: OpenMemory UI/export, hosted mem0 Platform behavior, OpenViking trajectory, Letta core-vs-archival memory, and graph/RAG navigation. mem0 local OSS preference history is now measured separately and is an ELF loss on the current correction-history scenario. The XY-923 follow-up now scores qmd immediate top-10/replay artifact ergonomics as stronger than ELF's default stress report, while expansion, fusion, rerank, and candidate-drop diagnosis remain untested."
     ]
   },
   "evidence_class_terms": [
@@ -50,6 +50,11 @@
       "command": "ELF_BASELINE_PROJECTS=ELF,agentmemory,mem0,memsearch,claude-mem cargo make baseline-live-docker",
       "artifact": "docs/guide/benchmarking/2026-06-11-first-generation-oss-adapter-promotion-report.md",
       "claim": "mem0/OpenMemory and memsearch pass basic local baseline smokes; agentmemory remains lifecycle_fail and claude-mem remains wrong_result on same-corpus retrieval."
+    },
+    {
+      "command": "ELF_BASELINE_PROJECTS=mem0 cargo make baseline-live-docker",
+      "artifact": "docs/guide/benchmarking/2026-06-11-mem0-openmemory-history-ui-export-report.md",
+      "claim": "mem0 local OSS passes preference correction history, entity-scoped personalization, local get_all export-style readback, and deletion audit history; OpenMemory UI/export remains blocked and hosted Platform export remains non-goal."
     },
     {
       "command": "ELF_GRAPHITI_ZEP_SMOKE_START=1 ELF_GRAPHITI_ZEP_SMOKE_RUN=1 cargo make graphiti-zep-docker-temporal-smoke",
@@ -142,8 +147,8 @@
       "scenario_id": "memory_evolution_temporal_history",
       "title": "Memory evolution and temporal history",
       "outcome": "loss",
-      "evidence_classes": ["fixture_backed", "live_real_world", "wrong_result", "blocked"],
-      "measured_claim": "ELF fixture memory_evolution passes, but live ELF passes only the delete/TTL job and reports five wrong_result jobs where evidence is retrieved but current-vs-historical state is not reconciled.",
+      "evidence_classes": ["fixture_backed", "live_real_world", "live_baseline_only", "wrong_result", "blocked"],
+      "measured_claim": "ELF fixture memory_evolution passes, but live ELF passes only the delete/TTL job and reports five wrong_result jobs where evidence is retrieved but current-vs-historical state is not reconciled. The mem0 local OSS preference-correction history scenario is now measured and is also an ELF loss.",
       "command_artifacts": [
         "docs/guide/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md",
         "docs/research/2026-06-11-temporal-history-competitor-gap-report.json"
@@ -180,8 +185,8 @@
       "scenario_id": "operator_debugging_viewer_ux",
       "title": "Operator debugging/viewer UX",
       "outcome": "not_tested",
-      "evidence_classes": ["fixture_backed", "not_encoded", "research_gate"],
-      "measured_claim": "ELF fixture operator-debugging UX passes, but live trace/viewer scoring is not encoded and qmd/OpenMemory/claude-mem UX comparisons are unscored.",
+      "evidence_classes": ["fixture_backed", "live_baseline_only", "blocked", "not_encoded", "research_gate"],
+      "measured_claim": "ELF fixture operator-debugging UX passes. mem0 local SDK get_all readback is measured, but OpenMemory UI/export remains blocked and must not be inferred from SDK readback. Live trace/viewer scoring and qmd/OpenMemory/claude-mem UX comparisons remain unscored.",
       "command_artifacts": [
         "docs/guide/benchmarking/2026-06-11-measurement-coverage-audit.md",
         "docs/guide/benchmarking/2026-06-11-qmd-openviking-strength-profile-report.md"
@@ -232,13 +237,14 @@
       "scenario_id": "personalization_scoped_preferences",
       "title": "Personalization and scoped preferences",
       "outcome": "tie",
-      "evidence_classes": ["fixture_backed", "live_real_world", "not_encoded"],
-      "measured_claim": "ELF and qmd both pass the single encoded live personalization job. mem0/OpenMemory and Letta personalization/history are not encoded.",
+      "evidence_classes": ["fixture_backed", "live_real_world", "live_baseline_only", "not_encoded"],
+      "measured_claim": "ELF and qmd both pass the single encoded live personalization job. mem0 local OSS now passes entity-scoped personalization, so scoped preference behavior is a measured tie; preference correction history remains a separate ELF loss.",
       "command_artifacts": [
-        "docs/guide/benchmarking/2026-06-11-measurement-coverage-audit.md"
+        "docs/guide/benchmarking/2026-06-11-measurement-coverage-audit.md",
+        "docs/guide/benchmarking/2026-06-11-mem0-openmemory-history-ui-export-report.md"
       ],
-      "follow_up_issues": ["XY-924", "XY-927"],
-      "caveat": "The tie does not prove entity history, UI readback, or long-term preference evolution."
+      "follow_up_issues": ["XY-927"],
+      "caveat": "The tie is scoped to encoded personalization and local OSS entity filters; OpenMemory UI readback and long-term preference evolution remain separate surfaces."
     },
     {
       "scenario_id": "context_trajectory_hierarchical_retrieval",
@@ -294,8 +300,8 @@
     {
       "issue": "XY-924",
       "priority": "P0",
-      "state": "Backlog",
-      "gap": "mem0/OpenMemory history and UI-export comparison."
+      "state": "Encoded local OSS history; UI/export still gated",
+      "gap": "mem0/OpenMemory local OSS history and SDK export-style readback are measured; OpenMemory UI/export still needs a UI runner before any product-UX claim."
     },
     {
       "issue": "XY-925",
@@ -351,7 +357,7 @@
     "not_allowed": [
       "Do not claim ELF broadly beats qmd.",
       "Do not claim qmd's trace/replay artifact win is a broad qmd-over-ELF memory-system or retrieval-quality win.",
-      "Do not claim ELF beats mem0/OpenMemory on history, UI/export, hosted behavior, or graph memory.",
+      "Do not claim ELF beats mem0/OpenMemory on preference history, UI/export, hosted behavior, or graph memory. The local OSS correction-history scenario is currently an ELF loss, while OpenMemory UI/export, hosted behavior, and graph memory remain outside measured local OSS evidence.",
       "Do not claim ELF beats OpenViking on staged context trajectory.",
       "Do not claim ELF beats Letta on core-vs-archival memory.",
       "Do not claim graph/RAG parity from smoke-only evidence.",

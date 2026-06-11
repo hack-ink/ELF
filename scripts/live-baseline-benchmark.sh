@@ -2471,6 +2471,14 @@ else:
         preference_history["history"],
         ["concise", "evidence-linked"],
     )
+    history_has_add_event = preference_history["available"] and history_has_event(
+        preference_history["history"],
+        "ADD",
+    )
+    history_has_update_event = preference_history["available"] and history_has_event(
+        preference_history["history"],
+        "UPDATE",
+    )
     search_has_current = contains_terms(
         result_entries(preference_search),
         ["concise", "evidence-linked"],
@@ -2479,9 +2487,16 @@ else:
     if not preference_history["available"]:
         preference_status = "blocked"
         preference_reason = "Memory.history could not be read for the updated preference memory."
-    elif history_has_old and history_has_current and search_has_current and search_omits_old:
+    elif (
+        history_has_old
+        and history_has_current
+        and history_has_add_event
+        and history_has_update_event
+        and search_has_current
+        and search_omits_old
+    ):
         preference_status = "pass"
-        preference_reason = "mem0 history preserved the old and current preference while search returned only the current correction."
+        preference_reason = "mem0 history preserved ADD and UPDATE preference events while search returned only the current correction."
     else:
         preference_status = "lifecycle_fail"
         preference_reason = "mem0 did not expose a clean preference correction chain with current-only search readback."
@@ -2498,6 +2513,8 @@ else:
                 "history_error": preference_history["error"],
                 "history_has_old": history_has_old,
                 "history_has_current": history_has_current,
+                "history_has_add_event": history_has_add_event,
+                "history_has_update_event": history_has_update_event,
                 "search_has_current": search_has_current,
                 "search_omits_old": search_omits_old,
                 "history": preference_history["history"],
