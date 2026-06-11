@@ -160,6 +160,17 @@ fn array_contains_str(value: &Value, pointer: &str, expected: &str) -> Result<bo
 	Ok(array_at(value, pointer)?.iter().any(|item| item.as_str() == Some(expected)))
 }
 
+fn string_array_at(value: &Value, pointer: &str) -> Result<Vec<String>> {
+	array_at(value, pointer)?
+		.iter()
+		.map(|item| {
+			item.as_str()
+				.map(str::to_owned)
+				.ok_or_else(|| eyre::eyre!("non-string entry at {pointer}"))
+		})
+		.collect()
+}
+
 fn set_json_pointer(value: &mut Value, pointer: &str, replacement: Value) -> Result<()> {
 	let target =
 		value.pointer_mut(pointer).ok_or_else(|| eyre::eyre!("missing JSON pointer {pointer}"))?;
@@ -538,16 +549,37 @@ fn assert_live_sweep_record(adapter: &Value, production_ops_status: &str) -> Res
 	let memory_evolution = find_by_field(suites, "/suite_id", "memory_evolution")?;
 	let production_ops = find_by_field(suites, "/suite_id", "production_ops")?;
 	let consolidation = find_by_field(suites, "/suite_id", "consolidation")?;
+	let knowledge = find_by_field(suites, "/suite_id", "knowledge_compilation")?;
+	let operator_debug = find_by_field(suites, "/suite_id", "operator_debugging_ux")?;
+	let capture = find_by_field(suites, "/suite_id", "capture_integration")?;
+	let personalization = find_by_field(suites, "/suite_id", "personalization")?;
+	let trust_sot = find_by_field(suites, "/suite_id", "trust_source_of_truth")?;
+	let retrieval = find_by_field(suites, "/suite_id", "retrieval")?;
+	let project_decisions = find_by_field(suites, "/suite_id", "project_decisions")?;
 
+	assert_eq!(suites.len(), 11);
 	assert_eq!(targeted.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(full_pass.pointer("/status").and_then(Value::as_str), Some("wrong_result"));
+	assert!(
+		adapter
+			.pointer("/result/evidence")
+			.and_then(Value::as_str)
+			.is_some_and(|evidence| evidence.contains("38 jobs across all 11 encoded suites"))
+	);
+	assert_eq!(trust_sot.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(work_resume.pointer("/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(retrieval.pointer("/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(project_decisions.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(memory_evolution.pointer("/status").and_then(Value::as_str), Some("wrong_result"));
 	assert_eq!(
 		production_ops.pointer("/status").and_then(Value::as_str),
 		Some(production_ops_status)
 	);
 	assert_eq!(consolidation.pointer("/status").and_then(Value::as_str), Some("not_encoded"));
+	assert_eq!(knowledge.pointer("/status").and_then(Value::as_str), Some("not_encoded"));
+	assert_eq!(operator_debug.pointer("/status").and_then(Value::as_str), Some("not_encoded"));
+	assert_eq!(capture.pointer("/status").and_then(Value::as_str), Some("not_encoded"));
+	assert_eq!(personalization.pointer("/status").and_then(Value::as_str), Some("pass"));
 
 	Ok(())
 }
@@ -955,8 +987,12 @@ fn assert_strength_profile_summary(report: &Value) {
 		Some("not_tested")
 	);
 	assert_eq!(
-		report.pointer("/summary/openviking/overall_against_strengths").and_then(Value::as_str),
-		Some("not_tested_on_context_trajectory")
+		report.pointer("/summary/qmd/overall_outcome").and_then(Value::as_str),
+		Some("elf_loss")
+	);
+	assert_eq!(
+		report.pointer("/summary/openviking/overall_outcome").and_then(Value::as_str),
+		Some("not_tested")
 	);
 	assert_eq!(
 		report
@@ -997,10 +1033,45 @@ fn assert_strength_profile_summary(report: &Value) {
 fn assert_strength_profile_terms(report: &Value) -> Result<()> {
 	let result_terms = array_at(report, "/result_type_terms")?;
 	let coverage_terms = array_at(report, "/coverage_status_terms")?;
+	let outcome_terms = array_at(report, "/outcome_terms")?;
+	let actual_result_terms = string_array_at(report, "/result_type_terms")?;
+	let actual_coverage_terms = string_array_at(report, "/coverage_status_terms")?;
 
+	assert_eq!(
+		actual_result_terms,
+		[
+			"pass",
+			"wrong_result",
+			"blocked",
+			"incomplete",
+			"lifecycle_fail",
+			"not_encoded",
+			"unsupported_claim",
+		]
+		.map(str::to_owned)
+	);
+	assert_eq!(
+		actual_coverage_terms,
+		[
+			"pass",
+			"wrong_result",
+			"blocked",
+			"incomplete",
+			"lifecycle_fail",
+			"not_encoded",
+			"unsupported",
+			"unsupported_claim",
+		]
+		.map(str::to_owned)
+	);
 	assert!(!result_terms.iter().any(|term| term.as_str() == Some("unsupported")));
+	assert!(!result_terms.iter().any(|term| term.as_str() == Some("partial")));
+	assert!(!coverage_terms.iter().any(|term| term.as_str() == Some("partial")));
 	assert!(result_terms.iter().any(|term| term.as_str() == Some("unsupported_claim")));
 	assert!(coverage_terms.iter().any(|term| term.as_str() == Some("unsupported")));
+
+	assert_value_in_terms(report, "/summary/qmd/overall_outcome", outcome_terms)?;
+	assert_value_in_terms(report, "/summary/openviking/overall_outcome", outcome_terms)?;
 
 	for scenario in array_at(report, "/qmd_strength_profile/scenario_outcomes")? {
 		assert_value_in_terms(scenario, "/result_type", result_terms)?;
