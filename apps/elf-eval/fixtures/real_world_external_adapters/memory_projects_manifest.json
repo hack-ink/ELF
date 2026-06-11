@@ -1,6 +1,6 @@
 {
   "schema": "elf.real_world_external_adapter_manifest/v1",
-  "manifest_id": "real-world-memory-project-adapters-2026-06-11",
+  "manifest_id": "real-world-memory-project-adapters-2026-06-11-mem0-history",
   "docker_isolation": {
     "default": true,
     "compose_file": "docker-compose.baseline.yml",
@@ -608,12 +608,13 @@
       },
       "run": {
         "status": "pass",
-        "evidence": "Fresh comparable baseline run live-baseline-20260611061612 exercises local OSS mem0 with FastEmbed, Qdrant path storage, Memory.update, Memory.delete, and cold-start reload; mem0 passed 4/4 encoded checks.",
+        "evidence": "Fresh scoped baseline run live-baseline-20260611113003 exercises local OSS mem0 with FastEmbed, Qdrant path storage, Memory.update, Memory.delete, Memory.history, Memory.get_all, entity filters, and cold-start reload; mem0 passed 8/8 encoded checks.",
+        "command": "ELF_BASELINE_PROJECTS=mem0 cargo make baseline-live-docker",
         "artifact": "tmp/live-baseline/live-baseline-report.json"
       },
       "result": {
         "status": "pass",
-        "evidence": "The local OSS mem0 baseline now passes basic same-corpus/update/delete/reload smoke. No real_world_job mem0/OpenMemory adapter, OpenMemory UI, hosted Platform, entity-history, or graph-memory behavior is encoded.",
+        "evidence": "The local OSS mem0 baseline now passes same-corpus retrieval, update/delete/reload, preference correction history, entity-scoped personalization, local get_all export-style readback, and deletion audit history. It still does not launch the OpenMemory UI, hosted Platform export flow, optional graph memory, or a real_world_job prompt adapter.",
         "artifact": "tmp/live-baseline/live-baseline-report.json"
       },
       "capabilities": [
@@ -625,44 +626,69 @@
         {
           "capability": "same_corpus_retrieval",
           "status": "pass",
-          "evidence": "Fresh comparable baseline run live-baseline-20260611061612 reports mem0 retrieval_pass with 3/3 same-corpus retrieval checks."
+          "evidence": "Fresh scoped baseline run live-baseline-20260611113003 reports mem0 retrieval_pass with 3/3 same-corpus retrieval checks."
         },
         {
           "capability": "local_lifecycle_update_delete_reload",
           "status": "pass",
-          "evidence": "The Docker runner exercises public Memory.update, Memory.delete, and a new Memory.from_config over the same local Qdrant/history paths; the fresh scoped run reports 4/4 encoded checks passing."
+          "evidence": "The Docker runner exercises public Memory.update, Memory.delete, and a new Memory.from_config over the same local Qdrant/history paths; the fresh scoped run reports those lifecycle checks passing."
+        },
+        {
+          "capability": "preference_correction_history",
+          "status": "pass",
+          "evidence": "The fresh scoped run reports preference_correction_history as pass: Memory.history preserved explicit ADD and UPDATE records with old and current preference text, and search returned only the current correction."
+        },
+        {
+          "capability": "entity_scoped_personalization",
+          "status": "pass",
+          "evidence": "The fresh scoped run reports entity_scoped_personalization as pass: user_id, agent_id, and run_id filters returned the ELF scoped preference and omitted a PubFi scoped preference."
+        },
+        {
+          "capability": "local_get_all_export_readback",
+          "status": "pass",
+          "evidence": "The fresh scoped run reports local_get_all_export_readback as pass: Memory.get_all returned the current scoped preference and omitted the other scope."
+        },
+        {
+          "capability": "deletion_audit_history",
+          "status": "pass",
+          "evidence": "The fresh scoped run reports delete_history_audit_readback as pass: Memory.history exposed a DELETE event and search suppressed the deleted memory."
         },
         {
           "capability": "openmemory_ui_readback",
-          "status": "not_encoded",
-          "evidence": "OpenMemory UI readback is not encoded in the Docker baseline or real-world job runner."
+          "status": "blocked",
+          "evidence": "The Docker live-baseline runner does not launch the OpenMemory web UI, dashboard authentication, or browser export flow. Local SDK get_all readback is measured separately and must not be reused as UI evidence."
         },
         {
           "capability": "hosted_managed_memory_claims",
-          "status": "not_encoded",
-          "evidence": "Hosted mem0 Platform behavior is outside the local OSS Docker adapter and is not counted as a local pass."
+          "status": "unsupported",
+          "evidence": "Hosted mem0 Platform behavior and Platform UI export are outside the local OSS Docker adapter and are non-goals for this local evidence record."
         },
         {
           "capability": "real_world_job_adapter",
           "status": "not_encoded",
           "evidence": "No mem0/OpenMemory adapter currently executes real_world_job prompts and answer scoring."
+        },
+        {
+          "capability": "optional_graph_memory",
+          "status": "not_encoded",
+          "evidence": "Optional graph memory is not enabled in the default local OSS path and remains an opt-in scenario gate rather than a default pass/fail claim."
         }
       ],
       "suites": [
         {
           "suite_id": "memory_evolution",
           "status": "not_encoded",
-          "evidence": "Basic local lifecycle checks now pass in Docker, but real_world_job memory-evolution prompts, preference history, deletion audit readback, and entity history are not encoded for mem0/OpenMemory."
+          "evidence": "Scenario-level local OSS checks now measure preference correction history and deletion audit readback, but no mem0 real_world_job memory_evolution prompt adapter is encoded."
         },
         {
           "suite_id": "personalization",
           "status": "not_encoded",
-          "evidence": "Entity-scoped personalization is not encoded as a real_world_job adapter run."
+          "evidence": "Scenario-level local OSS checks now measure entity-scoped personalization, but no mem0 real_world_job personalization prompt adapter is encoded."
         },
         {
           "suite_id": "operator_debugging_ux",
-          "status": "not_encoded",
-          "evidence": "OpenMemory inspection is not encoded in this runner."
+          "status": "blocked",
+          "evidence": "Local SDK get_all inspection is measured, but OpenMemory UI/export readback is blocked because the Docker runner does not launch the web UI or hosted export flow."
         }
       ],
       "scenarios": [
@@ -671,25 +697,77 @@
           "suite_id": "memory_evolution",
           "status": "pass",
           "elf_position": "ties",
-          "evidence": "Fresh comparable baseline run live-baseline-20260611061612 reports ELF passing 8/8 local lifecycle checks and mem0 passing 4/4 same-corpus retrieval, update, delete, and cold-start reload checks. This is a basic local lifecycle tie at the encoded smoke surface, not a claim about OpenMemory UI, hosted behavior, entity history, or graph memory.",
+          "comparison_outcome": "tie",
+          "evidence": "Prior comparable baseline run live-baseline-20260611061612 reports ELF passing 8/8 local lifecycle checks and mem0 passing basic same-corpus retrieval, update, delete, and cold-start reload checks. This remains a basic local lifecycle tie at the encoded smoke surface and is not reused as history/UI evidence.",
           "command": "ELF_BASELINE_PROJECTS=ELF,agentmemory,mem0,memsearch,claude-mem cargo make baseline-live-docker",
           "artifact": "tmp/live-baseline/live-baseline-report.json"
         },
         {
-          "scenario_id": "preference_entity_history",
+          "scenario_id": "preference_correction_history",
           "suite_id": "personalization",
-          "status": "not_encoded",
+          "status": "pass",
+          "elf_position": "loses",
+          "comparison_outcome": "loss",
+          "evidence": "Fresh scoped baseline run live-baseline-20260611113003 reports mem0 preference_correction_history as pass. ELF-side evidence comes from cargo make real-world-memory-live-adapters as summarized in docs/guide/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md, which records ELF live memory-evolution preference as wrong_result. The current measured comparison is therefore an ELF loss on this history dimension until ELF temporal reconciliation is fixed.",
+          "command": "mem0: ELF_BASELINE_PROJECTS=mem0 cargo make baseline-live-docker; ELF: cargo make real-world-memory-live-adapters",
+          "artifact": "mem0: tmp/live-baseline/mem0-checks.json; ELF: tmp/real-world-memory/live-adapters/ and docs/guide/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md"
+        },
+        {
+          "scenario_id": "entity_scoped_personalization",
+          "suite_id": "personalization",
+          "status": "pass",
+          "elf_position": "ties",
+          "comparison_outcome": "tie",
+          "evidence": "Fresh scoped baseline run live-baseline-20260611113003 reports mem0 entity_scoped_personalization as pass. ELF-side evidence comes from cargo make real-world-memory-live-adapters as summarized in docs/guide/benchmarking/2026-06-11-competitor-strength-adoption-report.md, which records ELF and qmd passing the encoded personalization slice. This is a measured tie on the current scoped-preference surface.",
+          "command": "mem0: ELF_BASELINE_PROJECTS=mem0 cargo make baseline-live-docker; ELF: cargo make real-world-memory-live-adapters",
+          "artifact": "mem0: tmp/live-baseline/mem0-checks.json; ELF: tmp/real-world-memory/live-adapters/ and docs/guide/benchmarking/2026-06-11-competitor-strength-adoption-report.md"
+        },
+        {
+          "scenario_id": "delete_audit_readback",
+          "suite_id": "memory_evolution",
+          "status": "pass",
+          "elf_position": "ties",
+          "comparison_outcome": "tie",
+          "evidence": "Fresh scoped baseline run live-baseline-20260611113003 reports mem0 delete_history_audit_readback as pass. ELF-side evidence comes from cargo make real-world-memory-live-adapters as summarized in docs/guide/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md, which records ELF passing the delete/TTL tombstone job. The current measured delete-audit comparison is a tie.",
+          "command": "mem0: ELF_BASELINE_PROJECTS=mem0 cargo make baseline-live-docker; ELF: cargo make real-world-memory-live-adapters",
+          "artifact": "mem0: tmp/live-baseline/mem0-checks.json; ELF: tmp/real-world-memory/live-adapters/ and docs/guide/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md"
+        },
+        {
+          "scenario_id": "local_get_all_export_readback",
+          "suite_id": "operator_debugging_ux",
+          "status": "pass",
           "elf_position": "untested",
-          "evidence": "mem0/OpenMemory's strongest next comparison is preference and entity-scoped history. The current local OSS Docker baseline does not inspect memory history events, correction chains, or entity-scoped readback under real_world_job scoring.",
-          "artifact": "docs/guide/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md"
+          "comparison_outcome": "not_tested",
+          "evidence": "Fresh scoped baseline run live-baseline-20260611113003 reports mem0 local_get_all_export_readback as pass. This is local SDK inspection/export-style readback, not OpenMemory UI evidence; ELF has no directly comparable live UI/export scoring row in this run.",
+          "command": "ELF_BASELINE_PROJECTS=mem0 cargo make baseline-live-docker",
+          "artifact": "tmp/live-baseline/mem0-checks.json"
         },
         {
           "scenario_id": "openmemory_ui_export_readback",
           "suite_id": "operator_debugging_ux",
+          "status": "blocked",
+          "elf_position": "untested",
+          "comparison_outcome": "blocked",
+          "evidence": "The local Docker runner does not launch OpenMemory UI/dashboard export, and hosted Platform export remains outside local OSS evidence. Basic lifecycle and local get_all readback are not reused as UI/export proof.",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json"
+        },
+        {
+          "scenario_id": "hosted_platform_export",
+          "suite_id": "operator_debugging_ux",
+          "status": "unsupported",
+          "elf_position": "untested",
+          "comparison_outcome": "non_goal",
+          "evidence": "Hosted mem0 Platform export is explicitly outside the local OSS Docker comparison and is not counted as a local pass, loss, or blocker.",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json"
+        },
+        {
+          "scenario_id": "optional_graph_memory",
+          "suite_id": "memory_evolution",
           "status": "not_encoded",
           "elf_position": "untested",
-          "evidence": "OpenMemory UI/export readback is not exercised by the local OSS Docker baseline and hosted Platform behavior remains out of scope for local OSS evidence.",
-          "artifact": "docs/guide/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md"
+          "comparison_outcome": "non_goal",
+          "evidence": "Optional graph memory is kept as an opt-in scenario gate. It is not enabled in the default mem0 local OSS run and is not part of the default pass/fail comparison.",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json"
         }
       ],
       "evidence": [
