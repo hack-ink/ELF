@@ -29,11 +29,11 @@
       "research_gate": 11
     },
     "overall_status_counts": {
-      "pass": 1,
-      "wrong_result": 7,
       "lifecycle_fail": 1,
       "blocked": 5,
-      "not_encoded": 7
+      "not_encoded": 7,
+      "pass": 3,
+      "wrong_result": 5
     }
   },
   "state_taxonomy": [
@@ -117,7 +117,7 @@
       "unsupported_or_blocked_status": {
         "state": "not_encoded",
         "typed_reason": "deep_profile_and_non_retrieval_suites_not_encoded",
-        "details": "The full live sweep passes targeted retrieval suites but keeps memory_evolution wrong_result and several broader suites not_encoded or incomplete."
+        "details": "The full live sweep passes targeted retrieval suites but keeps memory_evolution wrong_result and several broader suites not_encoded or blocked."
       },
       "benchmark_before_claim": "Run qmd deep retrieval/debug profile and full-suite live real-world replay with trace-level diagnostics before claiming ELF wins, ties, or loses on retrieval debugging.",
       "borrow_if_stronger": "Borrow transparent local knobs for query rewriting, weighted fusion, rerank explanation, and command-line replay."
@@ -149,17 +149,17 @@
       "supporting_evidence_classes": [
         "live_baseline_only"
       ],
-      "measured_status": "wrong_result",
+      "measured_status": "pass",
       "proof": {
-        "command": "ELF_BASELINE_PROJECTS=mem0 cargo make baseline-live-docker",
+        "command": "ELF_BASELINE_PROJECTS=ELF,agentmemory,mem0,memsearch,claude-mem cargo make baseline-live-docker",
         "artifact": "tmp/live-baseline/live-baseline-report.json"
       },
       "unsupported_or_blocked_status": {
         "state": "not_encoded",
-        "typed_reason": "openmemory_ui_and_hosted_claims_not_encoded",
-        "details": "Local OSS setup is represented, but hosted/OpenMemory UI parity and real-world personalization coverage are not encoded."
+        "typed_reason": "history_ui_hosted_graph_claims_not_encoded",
+        "details": "Basic local OSS same-corpus/update/delete/reload smoke now passes, but hosted/OpenMemory UI parity, entity/preference history, deletion-audit readback, optional graph memory, and real-world personalization coverage are not encoded."
       },
-      "benchmark_before_claim": "Fix the local adapter's same-corpus result, then encode memory_evolution, personalization, OpenMemory UI readback, and optional graph-context jobs.",
+      "benchmark_before_claim": "Encode memory_evolution preference/entity history, deletion audit readback, personalization, OpenMemory UI/export readback, and optional graph-context jobs.",
       "borrow_if_stronger": "Borrow entity-scoped memory history, lifecycle surfaces, async update ergonomics, and OpenMemory-style inspection UX."
     },
     {
@@ -169,17 +169,17 @@
       "supporting_evidence_classes": [
         "live_baseline_only"
       ],
-      "measured_status": "wrong_result",
+      "measured_status": "pass",
       "proof": {
-        "command": "ELF_BASELINE_PROJECTS=memsearch cargo make baseline-live-docker",
+        "command": "ELF_BASELINE_PROJECTS=ELF,agentmemory,mem0,memsearch,claude-mem cargo make baseline-live-docker",
         "artifact": "tmp/live-baseline/live-baseline-report.json"
       },
       "unsupported_or_blocked_status": {
-        "state": "incomplete",
-        "typed_reason": "source_of_truth_and_reindex_real_world_jobs_incomplete",
-        "details": "Same-corpus retrieval is wrong_result and source-of-truth plus real-world reindex behavior is not yet cleanly scored."
+        "state": "not_encoded",
+        "typed_reason": "source_of_truth_and_reindex_real_world_jobs_not_encoded",
+        "details": "Basic canonical Markdown same-corpus/reindex/update/delete/reload smoke now passes, but source-of-truth, retrieval-debug, and memory-evolution real-world prompt adapters are not encoded."
       },
-      "benchmark_before_claim": "Fix Docker same-corpus retrieval and reindex/update/delete reload evidence, then score source-of-truth and retrieval-debug real-world jobs.",
+      "benchmark_before_claim": "Score source-of-truth and retrieval-debug real-world jobs over the canonical Markdown store; keep TTL/expiry unsupported unless a comparable path exists.",
       "borrow_if_stronger": "Borrow the canonical markdown-store ergonomics, local reindex clarity, and user-inspectable source files."
     },
     {
@@ -457,18 +457,18 @@
       "scenario": "source-of-truth",
       "current_elf_evidence": "ELF fixture-backed trust_source_of_truth passes and ELF live_real_world trust_source_of_truth passes.",
       "strongest_competitor_or_reference": "memsearch",
-      "current_competitor_evidence": "memsearch has live_baseline_only canonical store evidence but trust_source_of_truth is incomplete and retrieval is wrong_result.",
-      "current_state": "ELF has stronger measured source-of-truth evidence; memsearch remains a local-store ergonomics reference.",
-      "next_measurement": "Fix memsearch same-corpus retrieval/reindex evidence, then run source-of-truth rebuild and reload jobs before any win/loss claim."
+      "current_competitor_evidence": "memsearch has live_baseline_only canonical store evidence and now passes same-corpus retrieval, reindex/update/delete, and cold-start reload smoke, but trust_source_of_truth real-world prompts are not_encoded.",
+      "current_state": "ELF has stronger measured real-world source-of-truth evidence; memsearch now ties the local canonical-store reindex/reload smoke and remains a local-store ergonomics reference.",
+      "next_measurement": "Run memsearch source-of-truth rebuild and reload real_world_job prompts before any suite-level win/loss claim."
     },
     {
       "scenario_id": "temporal_current_historical",
       "scenario": "temporal/current-vs-historical memory",
       "current_elf_evidence": "ELF fixture-backed memory_evolution passes, but ELF live_real_world memory_evolution is wrong_result.",
       "strongest_competitor_or_reference": "Graphiti/Zep, mem0/OpenMemory",
-      "current_competitor_evidence": "Graphiti/Zep is research_gate blocked; mem0/OpenMemory is live_baseline_only wrong_result.",
+      "current_competitor_evidence": "Graphiti/Zep is research_gate blocked; mem0/OpenMemory now passes basic live_baseline_only local lifecycle smoke but preference/entity history, deletion audit, UI/export, and graph-memory scenarios are not_encoded.",
       "current_state": "No project has a comparable live pass for current-vs-historical evidence; ELF cannot claim live superiority yet.",
-      "next_measurement": "Fix ELF/qmd live memory_evolution evidence links and run XY-888 Graphiti/Zep temporal graph adapter."
+      "next_measurement": "Fix ELF/qmd live memory_evolution evidence links, encode mem0/OpenMemory history and UI/export jobs, and run XY-888 Graphiti/Zep temporal graph adapter."
     },
     {
       "scenario_id": "consolidation",
@@ -509,9 +509,9 @@
     {
       "scenario_id": "production_ops",
       "scenario": "production ops",
-      "current_elf_evidence": "ELF production runbooks and fixture production_ops cover restore, Qdrant rebuild, backfill resume, resource envelope, and typed private/credential blockers; live_real_world production_ops is incomplete.",
+      "current_elf_evidence": "ELF production runbooks and fixture production_ops cover restore, Qdrant rebuild, backfill resume, resource envelope, and typed private/credential blockers; live_real_world production_ops is blocked.",
       "strongest_competitor_or_reference": "ELF production gate, qmd, RAG/RAGFlow resource gates",
-      "current_competitor_evidence": "qmd live production_ops is incomplete; RAGFlow/GraphRAG/LightRAG resource gates are research_gate blocked.",
+      "current_competitor_evidence": "qmd live production_ops is blocked; RAGFlow/GraphRAG/LightRAG resource gates are research_gate blocked.",
       "current_state": "ELF has the strongest checked-in production evidence, but private corpus and credentialed gates remain blocked.",
       "next_measurement": "Rerun private-corpus and credentialed production-ops gates only when operator-owned manifest and credentials are supplied."
     },
@@ -568,18 +568,18 @@
       "measurement": "Update, delete, cold-start reload, work_resume, and capture/write-policy jobs."
     },
     {
-      "workstream": "mem0/OpenMemory local and UI coverage",
+      "workstream": "mem0/OpenMemory history and UI coverage",
       "issue_or_candidate": "new adapter repair issue",
       "parallelizable": true,
-      "blocked_by": "Comparable local OSS path for UI/readback evidence.",
-      "measurement": "Same-corpus fix plus memory_evolution, personalization, and OpenMemory inspection jobs."
+      "blocked_by": "Comparable local OSS path for history/UI/readback evidence.",
+      "measurement": "Preference/entity history, deletion audit readback, personalization, OpenMemory inspection/export, and optional graph-context jobs."
     },
     {
-      "workstream": "memsearch source-of-truth and reindex coverage",
+      "workstream": "memsearch source-of-truth real-world coverage",
       "issue_or_candidate": "new adapter repair issue",
       "parallelizable": true,
-      "blocked_by": "Docker same-corpus retrieval and reindex correctness.",
-      "measurement": "Canonical markdown store, rebuild/reindex, retrieval, update/delete/reload jobs."
+      "blocked_by": "Real-world prompt adapter over the canonical Markdown store.",
+      "measurement": "Source-of-truth rebuild/reload jobs and retrieval-debug jobs that preserve baseline reindex/update/delete evidence without converting it into suite pass claims."
     },
     {
       "workstream": "OpenViking context trajectory",
