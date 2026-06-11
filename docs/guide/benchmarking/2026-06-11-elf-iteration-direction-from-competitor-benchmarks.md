@@ -102,17 +102,17 @@ The current adapter manifest records 21 adapter records across 17 projects:
 | --- | ---: | --- |
 | `fixture_backed` | `1` | ELF real-world fixture scoring. |
 | `live_baseline_only` | `6` | Docker same-corpus or lifecycle evidence without real-world job scoring. |
-| `live_real_world` | `2` | ELF and qmd full-suite live sweeps. |
-| `research_gate` | `12` | Source/setup/resource/output-contract evidence only. |
+| `live_real_world` | `3` | ELF and qmd full-suite live sweeps plus graphify's tiny scored Docker smoke. |
+| `research_gate` | `11` | Source/setup/resource/output-contract evidence only. |
 
 Overall adapter statuses:
 
 | Status | Count |
 | --- | ---: |
 | `pass` | `3` |
-| `wrong_result` | `4` |
+| `wrong_result` | `5` |
 | `lifecycle_fail` | `1` |
-| `blocked` | `6` |
+| `blocked` | `5` |
 | `not_encoded` | `7` |
 
 The ledger is intentionally not a leaderboard. It prevents fixture evidence,
@@ -136,7 +136,7 @@ one misleading score.
 | Personalization | ELF live personalization passes; mem0/OpenMemory and Letta are not encoded. | Add entity-scoped preference history and UI readback before claiming stronger personalization. |
 | Context trajectory | Not comparable yet; OpenViking remains the reference. | Score staged retrieval, hierarchy expansion, and trajectory readback. |
 | Core-vs-archival | Product gap, not a measured comparison yet. | Borrow Letta's core memory block shape with explicit scope, provenance, and read-only attachment. |
-| Graph/RAG navigation | Research gates only. | Run RAGFlow, LightRAG, GraphRAG, Graphiti/Zep, and graphify adapters only when Docker outputs map to evidence ids. |
+| Graph/RAG navigation | RAGFlow, LightRAG, GraphRAG, and Graphiti/Zep remain research gates; graphify has a tiny scored `wrong_result` smoke. | Run larger contained graph/RAG adapters before any broad graph-navigation claim. |
 
 ## Project Guidance Matrix
 
@@ -158,7 +158,7 @@ one misleading score.
 | nanograph | `research_gate`; current status is `not_encoded` or `unsupported` as a full memory backend. | Typed graph schema and query ergonomics. | Borrow graph-lite DX and typed relation query ideas. |
 | llm-wiki | `research_gate`; current status is `not_encoded`. | Maintained wiki pages, query-save, lint, and repair loops. | Use as a reference for rebuildable, cited knowledge pages. |
 | gbrain | `research_gate`; current status is `not_encoded` and setup-blocked. | Compiled truth pages, timelines, and human-operable knowledge navigation. | Borrow current-truth plus timeline presentation after Docker-local setup proof exists. |
-| graphify | `research_gate`; current status is `blocked`. | `graph.json`, `GRAPH_REPORT`, source-location graph navigation. | Borrow graph-compressed navigation only after Docker graph/report output maps to evidence ids. |
+| graphify | `live_real_world`; tiny scored smoke is `wrong_result`. | `graph.json`, `GRAPH_REPORT`, source-location graph navigation. | Treat the tiny smoke as bounded non-pass evidence and expand only after representative graph/RAG jobs map to evidence ids. |
 
 ## Optimization Direction
 
@@ -224,8 +224,8 @@ These improve day-to-day usefulness while preserving ELF's evidence-bound core.
 These are needed for broad credibility but should not block personal production use.
 
 1. RAG and graph adapters
-   - Current state: RAGFlow, LightRAG, GraphRAG, Graphiti/Zep, and graphify are
-     adapter candidates, but still `research_gate`.
+   - Current state: RAGFlow, LightRAG, GraphRAG, and Graphiti/Zep remain typed
+     research gates; graphify has a tiny scored `wrong_result` smoke.
    - Benchmark gate: Docker-contained adapters must emit evidence-linked outputs
      before any live pass claim.
 
@@ -255,7 +255,8 @@ Do not claim:
   memory. Those scenarios are not encoded.
 - ELF beats Letta on core-vs-archival memory. That scenario is not encoded.
 - ELF beats RAGFlow, LightRAG, GraphRAG, Graphiti/Zep, or graphify on graph/RAG
-  navigation. Current evidence is research-gate or blocked.
+  navigation. Current evidence is research-gate or blocked except graphify's tiny
+  non-pass smoke.
 
 ## Suggested Report Cadence
 
