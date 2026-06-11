@@ -34,8 +34,8 @@ What is proven today:
 - ELF now has live capture/write-policy self-check evidence for redaction, exclusions,
   source ids, evidence binding, and no secret leakage. This is not a broad
   capture-hook win over agentmemory or claude-mem: agentmemory comparison is blocked
-  by mocked/in-memory storage, and claude-mem hook/viewer capture remains untested in
-  the Docker real-world job runner.
+  by mocked/in-memory storage, and claude-mem hook/viewer capture remains blocked
+  until Docker-contained hook/viewer evidence exists.
 - ELF is ahead on production-operation evidence among tracked systems because it has
   checked-in provider synthetic, stress, backfill, backup/restore, and Qdrant rebuild
   evidence.
@@ -165,9 +165,9 @@ records `unique_project_names: 17` for the full project list including ELF.
 | qmd | `live_real_world` plus `live_baseline_only` | Fresh full sweep is five passes behind ELF because qmd misses the delete/TTL tombstone job and keeps capture/write-policy jobs typed `not_encoded`; same-corpus baseline passes; narrow operator-debug live slice ties replay commands but is `wrong_result` for trace hydration and candidate-drop visibility. | Deep retrieval-debug ergonomics and trace replay beyond the narrow operator-debug slice. | qmd/ELF deep retrieval-debug profile with expansion, fusion, rerank, and dropped-candidate traces. |
 | agentmemory | `live_baseline_only` | `lifecycle_fail`; capture comparison is `blocked` because the Docker baseline uses a process-local StateKV Map and in-memory index, with no durable local session/capture path for source ids, exclusions, write-policy audit, or evidence-bound output. | Durable coding-agent continuity and capture hooks. | Durable lifecycle and work-resume/capture adapter report. |
 | mem0/OpenMemory | `live_baseline_only` | Basic local smoke now passes; history/UI/hosted/graph behavior remains `not_encoded`. | Entity history, lifecycle UI, OpenMemory inspection. | Entity-history, deletion-audit, and UI/export readback report. |
-| memsearch | `live_baseline_only` | Basic canonical Markdown reindex/reload smoke now passes; real-world prompt coverage remains `not_encoded`. | Markdown canonical store and local reindex clarity. | Source-of-truth and retrieval-debug real-world adapter report. |
+| memsearch | `live_baseline_only`; XY-925 `fixture_backed` | Basic canonical Markdown reindex/reload smoke passes, and XY-925 adds fixture-backed source-store and retrieval-debug prompts without claiming a live memsearch adapter pass. | Markdown canonical store and local reindex clarity. | Runtime source-of-truth and retrieval-debug adapter execution over the existing prompt jobs. |
 | OpenViking | `live_baseline_only` plus `fixture_backed` and `research_gate` | Same-corpus retrieval is `wrong_result`; staged retrieval, hierarchy selection, and recursive/context expansion are encoded as blocked fixtures. | Hierarchical staged context trajectory. | Evidence-bearing retrieval fix, then materialized staged trajectory report. |
-| claude-mem | `live_baseline_only` | `wrong_result`; capture breadth is `not_encoded` because hooks, timeline, observations, viewer capture, and automatic capture review were not run against real-world jobs. | Progressive disclosure and automatic capture review. | Work-resume, operator-debugging, and capture/write-policy report. |
+| claude-mem | `live_baseline_only`; XY-925 `fixture_backed` | Same-corpus retrieval remains `wrong_result`; XY-925 adds fixture-backed progressive-disclosure and retrieval-repair prompts, with hook capture and viewer/operator workflows still blocked. | Progressive disclosure and automatic capture review. | Work-resume, operator-debugging, capture/write-policy, and viewer/operator runtime report. |
 | RAGFlow | `research_gate` | `blocked`. | RAG app workflow with document/chunk references. | Tiny Docker evidence-smoke with `reference.chunks` mapped to evidence ids. |
 | LightRAG | `research_gate` | `blocked`. | Graph/RAG context export with source-path citations. | Docker context-export report with explicit provider config and source citation mapping. |
 | GraphRAG | `research_gate` | `blocked`. | Graph summaries and document/text-unit evidence tables. | Cost-bounded Docker adapter report over a tiny corpus. |
@@ -191,7 +191,7 @@ records `unique_project_names: 17` for the full project list including ELF.
 | Consolidation | Fixture aggregate passes; live adapters are not encoded. | Fixture-only claim. | Live proposal generation with lineage, confidence, and review-action audit. |
 | Knowledge pages | Fixture aggregate passes; live adapters are not encoded. | Fixture-only claim. | Live page rebuild/lint plus llm-wiki, gbrain, GraphRAG, and graphify comparisons. |
 | Operator debugging | Fixture aggregate passes; narrow ELF/qmd live operator-debug slice is scored with ELF `pass` and qmd `wrong_result`. | Narrow ELF/qmd live claim only: ELF wins trace hydration, candidate-drop visibility, and selected-but-not-narrated evidence; replay-command and repair-action clarity are tied. | OpenMemory and claude-mem UI/export or viewer runners before any broader operator-UX claim. |
-| Capture/write policy | Fixture aggregate passes; ELF live service adapter passes 4/4 capture jobs with zero redaction leaks; qmd is `not_encoded`; agentmemory is `blocked`; claude-mem is `not_encoded`. | ELF has live self-check evidence for redaction, exclusions, source ids, evidence binding, and no secret leakage. Against agentmemory/claude-mem capture breadth, the comparison remains blocked or untested. | Durable agentmemory and claude-mem capture-hook runners with evidence-bound output. |
+| Capture/write policy | Fixture aggregate passes; ELF live service adapter passes 4/4 capture jobs with zero redaction leaks; qmd is `not_encoded`; agentmemory is `blocked`; claude-mem hook/viewer capture is `blocked`. | ELF has live self-check evidence for redaction, exclusions, source ids, evidence binding, and no secret leakage. Against agentmemory/claude-mem capture breadth, the comparison remains blocked until durable hook/viewer evidence exists. | Durable agentmemory and claude-mem capture-hook runners with evidence-bound output. |
 | Production ops | ELF has separate production-provider/backfill/restore evidence; live sweep is not a full production-ops pass. | Bounded personal-production adoption claim with caveats. | Private corpus manifest and credentialed provider gates. |
 | Personalization | ELF and qmd live pass one scoped preference job. | Narrow encoded pass only. | mem0/OpenMemory and Letta entity/preference history comparison. |
 | Context trajectory | Not comparable. | No claim. | OpenViking staged hierarchy/trajectory scoring. |
@@ -216,7 +216,7 @@ Order these by decision value, not implementation convenience:
 
 3. External capture-hook report for agentmemory and claude-mem
    - Why: ELF now has a live capture/write-policy self-check, but the strongest
-     agentmemory and claude-mem capture-breadth claims are still blocked or untested.
+     agentmemory and claude-mem capture-breadth claims are still blocked.
    - Output: durable local capture artifacts, source ids, redaction/exclusion audit,
      and typed blocker reasons when hooks or viewer capture cannot run in Docker.
 

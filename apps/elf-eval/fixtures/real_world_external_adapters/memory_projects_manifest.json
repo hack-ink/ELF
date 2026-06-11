@@ -1,6 +1,6 @@
 {
   "schema": "elf.real_world_external_adapter_manifest/v1",
-  "manifest_id": "real-world-memory-project-adapters-2026-06-11-openmemory-ui-export",
+  "manifest_id": "real-world-memory-project-adapters-2026-06-11-first-generation-continuity-source-store",
   "docker_isolation": {
     "default": true,
     "compose_file": "docker-compose.baseline.yml",
@@ -595,7 +595,7 @@
           "status": "pass",
           "elf_position": "ties",
           "comparison_outcome": "tie",
-          "evidence": "ELF and qmd generated clear repair/replay steps for the narrow operator-debug jobs; OpenMemory and claude-mem UI repair paths remain blocked or not encoded.",
+          "evidence": "ELF and qmd generated clear repair/replay steps for the narrow operator-debug jobs; OpenMemory UI/export remains blocked, and claude-mem UI repair paths remain blocked until Docker-contained hook/viewer evidence exists.",
           "command": "cargo make real-world-job-operator-ux-live-adapters",
           "artifact": "tmp/real-world-job/operator-ux-live-adapters/summary.json"
         },
@@ -807,9 +807,19 @@
           "evidence": "A persistent upstream KV/index path or hosted runtime is needed before cold-start recovery can be fairly scored."
         },
         {
+          "capability": "durable_work_resume_capture_path",
+          "status": "blocked",
+          "evidence": "XY-925 selects the next local path as a Docker-contained agentmemory session directory with persisted SDK KV store, observation log, and searchable index across a fresh process; the current StateKV Map and in-memory index still block scoring."
+        },
+        {
+          "capability": "write_policy_hook_capture",
+          "status": "blocked",
+          "evidence": "Capture/write-policy jobs require live agentmemory hook observations plus persisted write-policy audit evidence. The current adapter does not execute those hooks."
+        },
+        {
           "capability": "real_world_job_adapter",
-          "status": "not_encoded",
-          "evidence": "No agentmemory adapter currently executes real_world_job prompts and answer scoring."
+          "status": "blocked",
+          "evidence": "XY-925 adds fixture-backed blocked prompt coverage for the required durable path, but no live agentmemory real_world_job adapter executes prompts until the persistent local store exists."
         }
       ],
       "suites": [
@@ -835,6 +845,7 @@
           "suite_id": "retrieval",
           "status": "pass",
           "elf_position": "untested",
+          "comparison_outcome": "not_tested",
           "evidence": "Fresh comparable baseline run live-baseline-20260611061612 reports agentmemory retrieval_pass with 3/3 same-corpus retrieval checks through mem::remember and mem::search. This is live-baseline-only evidence through an in-memory mock, not a real_world_job suite pass.",
           "command": "ELF_BASELINE_PROJECTS=ELF,agentmemory,mem0,memsearch,claude-mem cargo make baseline-live-docker",
           "artifact": "tmp/live-baseline/live-baseline-report.json"
@@ -844,6 +855,7 @@
           "suite_id": "memory_evolution",
           "status": "lifecycle_fail",
           "elf_position": "wins",
+          "comparison_outcome": "win",
           "evidence": "Fresh comparable baseline run live-baseline-20260611061612 reports ELF passing 8/8 local lifecycle checks, while agentmemory update_replaces_note_text is lifecycle_fail and cold_start_recovery_search is blocked because the harness uses an in-memory SDK/KV mock. This is an ELF baseline win only at the local lifecycle-smoke evidence class.",
           "command": "ELF_BASELINE_PROJECTS=ELF,agentmemory,mem0,memsearch,claude-mem cargo make baseline-live-docker",
           "artifact": "tmp/live-baseline/live-baseline-report.json"
@@ -853,8 +865,20 @@
           "suite_id": "work_resume",
           "status": "blocked",
           "elf_position": "untested",
-          "evidence": "agentmemory's relevant strength is durable coding-agent continuity and capture, but the Docker harness has not proven a persistent session/capture path. Keep work_resume and capture claims blocked until a durable local adapter path exists.",
-          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json"
+          "comparison_outcome": "blocked",
+          "evidence": "agentmemory's relevant strength is durable coding-agent continuity and capture, but the Docker harness has not proven a persistent session/capture path. XY-925 selects the durable local path as a Docker-contained session directory that persists the SDK KV store and searchable index across a fresh process; keep work_resume and capture claims blocked until that path exists.",
+          "command": "cargo make real-world-first-generation-oss",
+          "artifact": "tmp/real-world-memory/first-generation-oss/report.json"
+        },
+        {
+          "scenario_id": "durable_work_resume_local_path",
+          "suite_id": "work_resume",
+          "status": "blocked",
+          "elf_position": "untested",
+          "comparison_outcome": "blocked",
+          "evidence": "The selected comparable path is explicit: capture into a Docker-local agentmemory session directory, persist the SDK KV/index and observation log, restart a fresh process, then score work_resume prompts. The checked-in fixture records this as blocked rather than scoring the current mock.",
+          "command": "cargo make real-world-first-generation-oss",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/first_generation_oss/agentmemory_durable_capture_path_blocked.json"
         },
         {
           "scenario_id": "capture_write_policy_hooks",
@@ -862,8 +886,9 @@
           "status": "blocked",
           "elf_position": "untested",
           "comparison_outcome": "blocked",
-          "evidence": "agentmemory capture breadth is blocked for comparison because the current Docker baseline uses a process-local StateKV Map and in-memory index; no durable local session/capture path stores source ids, exclusions, write-policy audit, or evidence-bound capture output.",
-          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json"
+          "evidence": "agentmemory capture/write-policy comparison needs live hook observations and write-policy audit evidence persisted through the selected local store. The fixture preserves this as a typed blocker and does not convert the mem::remember smoke into capture proof.",
+          "command": "cargo make real-world-first-generation-oss",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/first_generation_oss/agentmemory_durable_capture_path_blocked.json"
         }
       ],
       "evidence": [
@@ -1120,19 +1145,24 @@
         {
           "capability": "real_world_job_adapter",
           "status": "not_encoded",
-          "evidence": "No memsearch adapter currently executes real_world_job prompts and answer scoring."
+          "evidence": "XY-925 adds fixture-backed prompt coverage for the Markdown source-store and retrieval-debug jobs, but no live memsearch runtime adapter executes real_world_job prompts and answer scoring."
+        },
+        {
+          "capability": "markdown_source_store_prompt_jobs",
+          "status": "pass",
+          "evidence": "The first-generation OSS fixture slice encodes source-of-truth rebuild/reload and retrieval-debug prompts over the canonical Markdown store while preserving the live-baseline-only evidence boundary."
         }
       ],
       "suites": [
         {
           "suite_id": "trust_source_of_truth",
           "status": "not_encoded",
-          "evidence": "The Markdown-first source model passed the local reindex/reload smoke, but no real_world_job source-of-truth prompt run is encoded."
+          "evidence": "The Markdown-first source model passed the local reindex/reload smoke, and XY-925 adds fixture-backed source-of-truth prompt coverage over the canonical Markdown store. No live memsearch runtime adapter executes prompt scoring yet, so this is not a suite pass."
         },
         {
           "suite_id": "retrieval",
           "status": "not_encoded",
-          "evidence": "The Docker same-corpus check now passes, but no job-level real_world retrieval run is encoded for memsearch."
+          "evidence": "The Docker same-corpus check passes, and XY-925 adds fixture-backed retrieval-debug prompt coverage over memsearch CLI replay and Markdown source inspection. No live memsearch runtime adapter executes retrieval prompt scoring yet, so this is not a suite pass."
         },
         {
           "suite_id": "memory_evolution",
@@ -1146,15 +1176,37 @@
           "suite_id": "trust_source_of_truth",
           "status": "pass",
           "elf_position": "untested",
+          "comparison_outcome": "not_tested",
           "evidence": "Fresh comparable baseline run live-baseline-20260611061612 reports memsearch passed same-corpus retrieval, update reindex, delete suppression, and cold-start reload over a canonical Markdown corpus. ELF has no directly comparable canonical Markdown source-store scenario in this baseline, so the ELF position remains untested.",
           "command": "ELF_BASELINE_PROJECTS=ELF,agentmemory,mem0,memsearch,claude-mem cargo make baseline-live-docker",
           "artifact": "tmp/live-baseline/live-baseline-report.json"
+        },
+        {
+          "scenario_id": "markdown_source_store_rebuild_reload_prompt",
+          "suite_id": "trust_source_of_truth",
+          "status": "pass",
+          "elf_position": "untested",
+          "comparison_outcome": "not_tested",
+          "evidence": "XY-925 adds a checked-in real_world_job prompt fixture that asks for the memsearch source-of-truth path and rebuild/reload boundary: canonical Markdown files are authoritative, while the index is derived by rerunning memsearch index. This is fixture-backed scenario coverage plus baseline artifact evidence, not a memsearch live real_world_job suite pass.",
+          "command": "cargo make real-world-first-generation-oss",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/first_generation_oss/memsearch_markdown_rebuild_reload.json"
+        },
+        {
+          "scenario_id": "markdown_retrieval_debug_prompt",
+          "suite_id": "operator_debugging_ux",
+          "status": "pass",
+          "elf_position": "untested",
+          "comparison_outcome": "not_tested",
+          "evidence": "XY-925 adds a checked-in retrieval-debug prompt over memsearch's canonical Markdown store. The expected debug surface is CLI replay plus Markdown source inspection and reindexing; staged expansion/fusion/rerank/candidate-drop trace bundles remain not encoded for memsearch.",
+          "command": "cargo make real-world-first-generation-oss",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/first_generation_oss/memsearch_retrieval_debug_prompt.json"
         },
         {
           "scenario_id": "ttl_expiry_lifecycle",
           "suite_id": "memory_evolution",
           "status": "unsupported",
           "elf_position": "untested",
+          "comparison_outcome": "non_goal",
           "evidence": "The encoded memsearch CLI path supports reindex/delete but no TTL or expiry behavior. Unsupported TTL behavior is preserved as unsupported competitor evidence and does not create an ELF win/loss claim without a directly comparable scenario artifact.",
           "artifact": "tmp/live-baseline/live-baseline-report.json"
         },
@@ -1163,7 +1215,8 @@
           "suite_id": "retrieval",
           "status": "not_encoded",
           "elf_position": "untested",
-          "evidence": "No memsearch adapter currently executes real_world_job prompts and answer scoring; baseline retrieval/reindex evidence must stay separate from suite pass claims.",
+          "comparison_outcome": "not_tested",
+          "evidence": "No live memsearch runtime adapter currently executes real_world_job prompts and answer scoring. XY-925 fixture-backed prompt jobs document the source-store and retrieval-debug shape, while baseline retrieval/reindex evidence remains separate from suite pass claims.",
           "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json"
         }
       ],
@@ -1325,25 +1378,35 @@
         },
         {
           "capability": "progressive_disclosure_real_world_job",
-          "status": "not_encoded",
-          "evidence": "Hook, timeline, viewer, and observation workflows are not encoded against real_world_job prompts."
+          "status": "pass",
+          "evidence": "XY-925 adds fixture-backed prompt coverage for the Docker-contained repository progressive-disclosure path: search result to getById detail hydration and listSources evidence on durable SQLite. Hook, timeline, and viewer workflows remain blocked separately."
+        },
+        {
+          "capability": "retrieval_repair_artifact",
+          "status": "wrong_result",
+          "evidence": "The same-corpus retrieval smoke remains wrong_result, and XY-925 records a repair prompt that tells operators to rerun ELF_BASELINE_PROJECTS=claude-mem cargo make baseline-live-docker before inspecting tmp/live-baseline/claude-mem.log and tmp/live-baseline/claude-mem-checks.json."
+        },
+        {
+          "capability": "hook_capture_viewer_workflow",
+          "status": "blocked",
+          "evidence": "The current Docker runner does not launch claude-mem hooks, timeline capture, local viewer readback, or an operator workflow over the same corpus."
         }
       ],
       "suites": [
         {
           "suite_id": "work_resume",
-          "status": "wrong_result",
+          "status": "not_encoded",
           "evidence": "The durable repository run is encoded, but hook-driven capture and real_world_job work-resume prompts are not proven by that local repository check."
         },
         {
           "suite_id": "operator_debugging_ux",
-          "status": "not_encoded",
-          "evidence": "Local viewer/operator workflow is not encoded in the benchmark runner."
+          "status": "blocked",
+          "evidence": "XY-925 adds fixture-backed progressive-disclosure and retrieval-repair prompt coverage, but local viewer/operator workflow remains blocked until a Docker-contained viewer or equivalent readback runner exists."
         },
         {
           "suite_id": "capture_integration",
-          "status": "not_encoded",
-          "evidence": "claude-mem hooks are not executed by this runner."
+          "status": "blocked",
+          "evidence": "claude-mem hook capture remains blocked because hooks, timeline capture, and observation workflows are not executed by this runner."
         }
       ],
       "scenarios": [
@@ -1352,15 +1415,27 @@
           "suite_id": "retrieval",
           "status": "wrong_result",
           "elf_position": "wins",
+          "comparison_outcome": "win",
           "evidence": "Fresh comparable baseline run live-baseline-20260611061612 reports ELF retrieval_pass and claude-mem same_corpus_retrieval as wrong_result with 0/3 expected query checks passing, while its durable repository setup completed. This is an ELF baseline win for the narrow retrieval smoke scenario.",
           "command": "ELF_BASELINE_PROJECTS=ELF,agentmemory,mem0,memsearch,claude-mem cargo make baseline-live-docker",
           "artifact": "tmp/live-baseline/live-baseline-report.json"
+        },
+        {
+          "scenario_id": "retrieval_repair_artifact_path",
+          "suite_id": "retrieval",
+          "status": "wrong_result",
+          "elf_position": "wins",
+          "comparison_outcome": "win",
+          "evidence": "XY-925 adds a checked-in repair prompt that preserves the claude-mem wrong_result and names rerun/inspection targets from the reproducible Docker baseline: tmp/live-baseline/claude-mem.log and tmp/live-baseline/claude-mem-checks.json. This is repair evidence for a miss, not a retrieval pass.",
+          "command": "cargo make real-world-first-generation-oss",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/first_generation_oss/claude_mem_retrieval_repair.json"
         },
         {
           "scenario_id": "repository_lifecycle_reload",
           "suite_id": "memory_evolution",
           "status": "pass",
           "elf_position": "ties",
+          "comparison_outcome": "tie",
           "evidence": "Fresh comparable baseline run live-baseline-20260611061612 reports ELF passing local lifecycle checks and claude-mem update, delete, and cold-start reload checks passing over a durable Docker-local SQLite repository. This is a local lifecycle-smoke tie, not a hook-driven work-resume or full progressive-disclosure job pass.",
           "command": "ELF_BASELINE_PROJECTS=ELF,agentmemory,mem0,memsearch,claude-mem cargo make baseline-live-docker",
           "artifact": "tmp/live-baseline/live-baseline-report.json"
@@ -1370,17 +1445,40 @@
           "suite_id": "operator_debugging_ux",
           "status": "pass",
           "elf_position": "untested",
+          "comparison_outcome": "not_tested",
           "evidence": "claude-mem passed the repository-level search-to-detail/source hydration check, which is a useful progressive-disclosure signal. ELF does not have a directly comparable claude-mem-style progressive-disclosure scenario in this baseline, so the ELF position remains untested rather than a loss claim.",
           "command": "ELF_BASELINE_PROJECTS=ELF,agentmemory,mem0,memsearch,claude-mem cargo make baseline-live-docker",
           "artifact": "tmp/live-baseline/live-baseline-report.json"
         },
         {
+          "scenario_id": "progressive_disclosure_prompt",
+          "suite_id": "operator_debugging_ux",
+          "status": "pass",
+          "elf_position": "untested",
+          "comparison_outcome": "not_tested",
+          "evidence": "XY-925 adds fixture-backed prompt coverage that asks for the measured claude-mem progressive-disclosure boundary: repository search results hydrate through getById and listSources on durable SQLite, but hooks, timeline, viewer, and live prompt scoring are not executed.",
+          "command": "cargo make real-world-first-generation-oss",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/first_generation_oss/claude_mem_progressive_disclosure.json"
+        },
+        {
           "scenario_id": "hook_capture_viewer_workflow",
           "suite_id": "capture_integration",
-          "status": "not_encoded",
+          "status": "blocked",
           "elf_position": "untested",
-          "evidence": "The Docker baseline uses repository classes only. claude-mem hooks, timeline, observations, viewer capture, and automatic capture review workflows are not executed by the runner, so capture breadth remains untested rather than an ELF win/loss.",
-          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json"
+          "comparison_outcome": "blocked",
+          "evidence": "The Docker baseline uses repository classes only. claude-mem hooks, viewer, timeline, and observation workflows are not executed by the runner, so XY-925 preserves this as a typed blocker rather than not_encoded prose.",
+          "command": "cargo make real-world-first-generation-oss",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/first_generation_oss/claude_mem_hook_viewer_blocked.json"
+        },
+        {
+          "scenario_id": "viewer_operator_workflow",
+          "suite_id": "operator_debugging_ux",
+          "status": "blocked",
+          "elf_position": "untested",
+          "comparison_outcome": "blocked",
+          "evidence": "A fair claude-mem viewer/operator comparison needs a Docker-contained run that opens the local viewer or equivalent readback over the same durable SQLite corpus and emits timeline, detail hydration, and repair-command artifacts. That path is not available in the current runner.",
+          "command": "cargo make real-world-first-generation-oss",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/first_generation_oss/claude_mem_hook_viewer_blocked.json"
         }
       ],
       "evidence": [

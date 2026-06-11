@@ -199,7 +199,7 @@
       "elf_status": "pass",
       "qmd_status": "pass",
       "outcome": "tie",
-      "diagnostic_judgment": "Both live operator-debug adapters emit concrete next steps for replay or trace-bundle inspection; OpenMemory and claude-mem UI repair paths remain blocked or not encoded.",
+      "diagnostic_judgment": "Both live operator-debug adapters emit concrete next steps for replay or trace-bundle inspection; OpenMemory UI/export remains blocked, and claude-mem UI repair paths remain blocked until Docker-contained hook/viewer evidence exists.",
       "artifacts": [
         "tmp/real-world-job/operator-ux-live-adapters/summary.json"
       ]
@@ -364,6 +364,6 @@
     "Do not collapse not_tested, non_goal, or wrong_result into pass evidence.",
     "ELF narrowly wins the live operator-debug trace hydration and candidate-drop visibility slice against qmd; qmd still ties replay-command and repair-action clarity.",
     "Expansion, dense/sparse contribution, fusion, rerank-on quality, and broad retrieved-but-dropped diagnosis outside the operator-debug slice remain unproven.",
-    "Do not convert the XY-932 operator-debug trace slice into a broad viewer-product win over OpenMemory or claude-mem; those UI paths remain blocked or not encoded."
+    "Do not convert the XY-932 operator-debug trace slice into a broad viewer-product win over OpenMemory or claude-mem; OpenMemory UI/export remains blocked, and claude-mem UI repair paths remain blocked until Docker-contained hook/viewer evidence exists."
   ]
 }

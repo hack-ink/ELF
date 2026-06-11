@@ -69,7 +69,7 @@ This is not a broad qmd-over-ELF claim. It is a scored local-debug artifact gap.
 | Operator-debug trace hydration | `live_real_world` | `pass` | `win` | ELF live operator-debug jobs generate trace ids, viewer URLs, admin trace-bundle URLs, and `trace_available=true`; qmd generates local replay commands but no service trace hydration surface. |
 | Operator-debug replay command availability | `live_real_world` | `pass` | `tie` | ELF emits admin trace-bundle curl commands and qmd emits local CLI query replay commands for the same operator-debugging scenarios; this scores command availability, not equivalent UI quality. |
 | Operator-debug candidate-drop visibility | `live_real_world` | `pass` | `win` | ELF exposes dropped-candidate visibility through generated operator-debug metadata without direct SQL assumptions; qmd exposes top-k replay rows but no intermediate candidate-drop stages in this slice. |
-| Operator-debug repair-action clarity | `live_real_world` | `pass` | `tie` | Both live operator-debug adapters emit concrete next steps for replay or trace-bundle inspection; OpenMemory and claude-mem UI repair paths remain blocked or not encoded. |
+| Operator-debug repair-action clarity | `live_real_world` | `pass` | `tie` | Both live operator-debug adapters emit concrete next steps for replay or trace-bundle inspection; OpenMemory UI/export remains blocked, and claude-mem UI repair paths remain blocked until Docker-contained hook/viewer evidence exists. |
 | Operator-debug selected-but-not-narrated evidence | `live_real_world` | `pass` | `win` | The operator-debug slice now scores selected-but-not-narrated evidence as a trace/answer-composition repair surface without direct database inspection. |
 | Query expansion attribution | `research_gate` | `not_encoded` | `not_tested` | No comparable artifact shows expansion variants or dynamic expansion decisions for both systems. |
 | Dense/sparse channel attribution | `research_gate` | `not_encoded` | `not_tested` | ELF uses dense plus BM25 and qmd uses structured `lex:` plus `vec:`, but the scored artifacts do not expose comparable per-channel contribution. |
@@ -139,7 +139,9 @@ Not allowed:
 - Do not score rerank superiority from a qmd `--no-rerank` run.
 - Do not collapse `not_tested`, `non_goal`, or `wrong_result` into pass evidence.
 - Do not convert the XY-932 operator-debug trace slice into a broad viewer-product win
-  over OpenMemory or claude-mem; those UI paths remain blocked or not encoded.
+  over OpenMemory or claude-mem; OpenMemory UI/export remains blocked, and
+  claude-mem UI repair paths remain blocked until Docker-contained hook/viewer
+  evidence exists.
 
 ## Follow-Up Gate
 
