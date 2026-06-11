@@ -8,6 +8,8 @@
     "docs/guide/benchmarking/2026-06-10-production-adoption-refresh.md",
     "docs/guide/benchmarking/2026-06-10-real-world-comparison-report.md",
     "docs/guide/benchmarking/2026-06-10-live-real-world-sweep-report.md",
+    "docs/guide/benchmarking/2026-06-11-measurement-coverage-audit.md",
+    "docs/guide/benchmarking/2026-06-11-competitor-strength-adoption-report.md",
     "docs/guide/research/external_memory_improvement_plan.md",
     "docs/guide/research/research_projects_inventory.md",
     "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json",
@@ -30,8 +32,8 @@
     },
     "overall_status_counts": {
       "lifecycle_fail": 1,
-      "blocked": 6,
-      "not_encoded": 6,
+      "blocked": 7,
+      "not_encoded": 5,
       "pass": 4,
       "wrong_result": 6
     }
@@ -313,17 +315,17 @@
       "supporting_evidence_classes": [
         "research_gate"
       ],
-      "measured_status": "not_encoded",
+      "measured_status": "blocked",
       "proof": {
-        "command": null,
-        "artifact": "docs/research/2026-06-10-xy-882-rag-graph-adapter-feasibility.json"
+        "command": "blocked until a Docker-only benchmark-created agent export is implemented",
+        "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json"
       },
       "unsupported_or_blocked_status": {
         "state": "blocked",
-        "typed_reason": "contained_evidence_export_path_not_selected",
-        "details": "Research-only until a supported contained server path can export core/archival evidence without relying on unsupported setup."
+        "typed_reason": "contained_export_readback_artifact_missing",
+        "details": "The selected contract requires a benchmark-created Letta agent export with core block JSON, archival search/readback JSON, and source ids before any scenario claim can be scored."
       },
-      "benchmark_before_claim": "Select a contained evidence export contract, then encode core-vs-archival memory, personalization, and project-decision jobs.",
+      "benchmark_before_claim": "Implement and run the contained export/readback adapter before any Letta win, tie, or loss claim; keep personalization and project-decision scenarios blocked or not tested until that evidence exists.",
       "borrow_if_stronger": "Borrow explicit core memory block ergonomics, archival separation, and shared operating context readback."
     },
     {
@@ -449,11 +451,11 @@
     {
       "scenario_id": "project_decisions",
       "scenario": "project decisions",
-      "current_elf_evidence": "ELF fixture-backed and live_real_world project_decisions suites pass.",
+      "current_elf_evidence": "ELF fixture-backed and live_real_world project_decisions suites pass; the ELF core_archival_memory fixture also scores project-decision recovery through core routing plus archival rationale.",
       "strongest_competitor_or_reference": "qmd, Letta",
-      "current_competitor_evidence": "qmd live_real_world project_decisions passes; Letta project_decisions is research_gate not_encoded.",
-      "current_state": "ELF and qmd are the only measured live competitors for this scenario.",
-      "next_measurement": "Add core/archival decision-memory jobs for Letta only after a contained export path exists; otherwise keep Letta as design reference."
+      "current_competitor_evidence": "qmd live_real_world project_decisions passes; Letta project-decision recovery is research_gate not_tested or blocked until the contained export path exists.",
+      "current_state": "ELF and qmd are the only measured live competitors for this scenario; Letta remains a product-reference comparison target.",
+      "next_measurement": "Run the Letta core/archival export/readback contract before treating project-decision recovery as a comparable scenario."
     },
     {
       "scenario_id": "source_of_truth",
@@ -539,11 +541,11 @@
     {
       "scenario_id": "core_vs_archival_memory",
       "scenario": "core-vs-archival memory",
-      "current_elf_evidence": "ELF spec and admin surfaces define core blocks, but comparative benchmark coverage is not yet encoded here.",
+      "current_elf_evidence": "ELF fixture core_archival_memory passes 6/6 and scores core block attachment, scope, provenance, stale-core detection, archival fallback, and project-decision recovery separately from archival note search.",
       "strongest_competitor_or_reference": "Letta",
-      "current_competitor_evidence": "Letta is research_gate not_encoded until a contained evidence export path is selected.",
-      "current_state": "Scenario is a product gap measurement target, not a current win/loss surface.",
-      "next_measurement": "Add core-block versus archival-search jobs for ELF and only compare Letta after contained export proof exists."
+      "current_competitor_evidence": "Letta is research_gate blocked/not_tested until the selected contained export/readback artifact exists.",
+      "current_state": "ELF has fixture-only core-block evidence; Letta remains unscored, so no win, tie, or loss claim is allowed.",
+      "next_measurement": "Implement the Letta export/readback adapter, then compare only scenarios whose core block JSON, archival search/readback JSON, and source ids are present."
     },
     {
       "scenario_id": "graph_rag_navigation",
@@ -649,10 +651,10 @@
     },
     {
       "workstream": "Letta, LangGraph, nanograph, llm-wiki direct adapters",
-      "issue_or_candidate": "research-only until output contract",
+      "issue_or_candidate": "Letta export artifact blocked; others research-only until output contract",
       "parallelizable": false,
-      "blocked_by": "Contained evidence export or non-memory-backend comparability contract.",
-      "measurement": "Only run after each has a comparable output contract; otherwise treat as product-reference evidence."
+      "blocked_by": "Letta needs the selected contained export/readback artifact; the others need a non-memory-backend comparability contract.",
+      "measurement": "Only run after comparable output exists; otherwise treat as product-reference evidence."
     }
   ]
 }

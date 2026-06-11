@@ -29,7 +29,7 @@
       },
       "run": {
         "status": "blocked",
-        "evidence": "The current fixture set reports 43 jobs, 38 pass, 0 incomplete, 5 blocked, 0 wrong_result, 0 not_encoded, and 0 unsupported_claim.",
+        "evidence": "The current fixture set reports 49 jobs across 13 suites: 44 pass, 0 incomplete, 5 blocked, 0 wrong_result, 0 not_encoded, and 0 unsupported_claim. The six core_archival_memory jobs pass as ELF fixture evidence, not as live Letta comparison evidence; context_trajectory remains blocked behind OpenViking staged-artifact materialization.",
         "command": "cargo make real-world-memory",
         "artifact": "tmp/real-world-memory/real-world-memory-report.json"
       },
@@ -100,6 +100,11 @@
           "suite_id": "capture_integration",
           "status": "pass",
           "evidence": "Four redaction, exclusion, source-id, evidence-binding, and capture-boundary fixtures are encoded and passing."
+        },
+        {
+          "suite_id": "core_archival_memory",
+          "status": "pass",
+          "evidence": "Six fixture jobs score core block attachment, scope, provenance, stale-core detection, archival fallback, and project-decision recovery separately from archival note search."
         },
         {
           "suite_id": "production_ops",
@@ -2212,24 +2217,24 @@
       "evidence_class": "research_gate",
       "docker_default": true,
       "host_global_installs_required": false,
-      "overall_status": "not_encoded",
+      "overall_status": "blocked",
       "setup": {
-        "status": "not_encoded",
-        "evidence": "Letta is D1 reviewed as a core/archival memory reference, but no Docker real_world_job adapter is implemented."
+        "status": "blocked",
+        "evidence": "Letta is D1 reviewed as a core/archival memory reference. The contained comparison contract is a Docker-only benchmark-created agent export that must return core block JSON, archival search readback, and source ids before any scenario claim is scored."
       },
       "run": {
         "status": "not_encoded",
-        "evidence": "No Letta core block, archival memory, or shared-memory job is encoded."
+        "evidence": "No Letta materializer currently creates the benchmark agent, imports the ELF core_archival_memory fixture corpus, or exports comparable core and archival evidence."
       },
       "result": {
         "status": "not_encoded",
-        "evidence": "No Letta personalization or project-decision suite result is claimed."
+        "evidence": "No Letta core block, archival fallback, stale-core, scope, provenance, or project-decision result is claimed."
       },
       "capabilities": [
         {
           "capability": "core_archival_memory",
-          "status": "not_encoded",
-          "evidence": "Core blocks and archival memory are reference semantics but not scored."
+          "status": "blocked",
+          "evidence": "ELF fixture jobs now score core block attachment, scope, provenance, stale-core detection, archival fallback, and project-decision recovery separately from archival note search; Letta remains blocked until its export maps equivalent source ids."
         },
         {
           "capability": "docker_embedding_configuration",
@@ -2257,6 +2262,67 @@
           "suite_id": "work_resume",
           "status": "not_encoded",
           "evidence": "Agent resumption through Letta memory blocks is not encoded."
+        },
+        {
+          "suite_id": "core_archival_memory",
+          "status": "blocked",
+          "evidence": "ELF fixture coverage exists, but Letta has no contained export/readback artifact for the same core-vs-archival jobs."
+        }
+      ],
+      "scenarios": [
+        {
+          "scenario_id": "core_block_attachment_readback",
+          "suite_id": "core_archival_memory",
+          "status": "not_encoded",
+          "elf_position": "untested",
+          "comparison_outcome": "not_tested",
+          "evidence": "ELF fixture core-archival-core-block-attachment-001 scores exact core block attachment and keeps core readback out of Qdrant-backed archival search. Letta has no comparable exported core block attachment evidence.",
+          "artifact": "apps/elf-eval/fixtures/real_world_memory/core_archival_memory/core_block_attachment.json"
+        },
+        {
+          "scenario_id": "core_block_scope_readback",
+          "suite_id": "core_archival_memory",
+          "status": "not_encoded",
+          "elf_position": "untested",
+          "comparison_outcome": "not_tested",
+          "evidence": "ELF fixture core-archival-core-block-scope-001 scores read_profile, shared scope, and private-owner boundaries. Letta scope behavior remains unscored without a contained export of agent, block, and visibility metadata.",
+          "artifact": "apps/elf-eval/fixtures/real_world_memory/core_archival_memory/core_block_scope.json"
+        },
+        {
+          "scenario_id": "core_block_provenance_readback",
+          "suite_id": "core_archival_memory",
+          "status": "not_encoded",
+          "elf_position": "untested",
+          "comparison_outcome": "not_tested",
+          "evidence": "ELF fixture core-archival-core-block-provenance-001 scores source_ref and audit_history readback. Letta provenance remains not_tested until exported core memory includes stable source ids and audit-equivalent events.",
+          "artifact": "apps/elf-eval/fixtures/real_world_memory/core_archival_memory/core_block_provenance.json"
+        },
+        {
+          "scenario_id": "stale_core_detection",
+          "suite_id": "core_archival_memory",
+          "status": "blocked",
+          "elf_position": "untested",
+          "comparison_outcome": "blocked",
+          "evidence": "ELF fixture core-archival-stale-core-detection-001 scores archival evidence superseding a stale core block. Letta stale-core comparison is blocked until core export and archival readback can be joined by source ids.",
+          "artifact": "apps/elf-eval/fixtures/real_world_memory/core_archival_memory/stale_core_detection.json"
+        },
+        {
+          "scenario_id": "archival_fallback_readback",
+          "suite_id": "core_archival_memory",
+          "status": "blocked",
+          "elf_position": "untested",
+          "comparison_outcome": "blocked",
+          "evidence": "ELF fixture core-archival-archival-fallback-001 scores fallback from insufficient core memory to archival note search. Letta fallback comparison is blocked until archival search output can be exported with source ids.",
+          "artifact": "apps/elf-eval/fixtures/real_world_memory/core_archival_memory/archival_fallback.json"
+        },
+        {
+          "scenario_id": "core_archival_project_decision_recovery",
+          "suite_id": "core_archival_memory",
+          "status": "not_encoded",
+          "elf_position": "untested",
+          "comparison_outcome": "not_tested",
+          "evidence": "ELF fixture core-archival-project-decision-recovery-001 scores core routing plus archival decision rationale. Letta project-decision recovery remains not_tested until the contained export/readback contract exists.",
+          "artifact": "apps/elf-eval/fixtures/real_world_memory/core_archival_memory/project_decision_recovery.json"
         }
       ],
       "evidence": [
@@ -2284,14 +2350,15 @@
             "evidence": "Official Docker deployment guide and embedding configuration boundary."
           }
         ],
-        "setup_path": "Define Docker server setup, embedding model configuration, and a core/archival memory fixture flow.",
-        "runtime_boundary": "Docker-only Letta server or CLI flow with benchmark-created agents and no host-global state.",
-        "resource_expectation": "Embedding model and agent server state must be explicit; record storage and provider boundaries.",
+        "setup_path": "Use a Docker-only Letta server or CLI flow that creates a benchmark-owned agent, loads the checked-in core_archival_memory fixture corpus, writes core memory and archival memory with fixture source ids, then exports core block JSON plus archival search/readback JSON.",
+        "runtime_boundary": "Docker-only Letta server or CLI flow with benchmark-created agents, benchmark-owned storage, no host-global state, and no unstated hosted service dependency.",
+        "resource_expectation": "Embedding model, agent server state, exported core memory, archival search output, and provider boundaries must be explicit in the artifact.",
         "retry_guidance": [
-          "Create a tiny Docker agent with archival memory search.",
-          "Score core-versus-archival retrieval only after source evidence can be exported."
+          "Create a tiny Docker agent with core memory and archival memory loaded from the ELF core_archival_memory fixtures.",
+          "Export core block readback, archival search results, source ids, and any audit-equivalent metadata as JSON before scoring.",
+          "Score core-versus-archival scenarios only after source evidence can be exported and mapped to the fixture evidence ids."
         ],
-        "research_depth": "D1 feasibility verdict: research_only (XY-882); core/archival reference, adapter not encoded"
+        "research_depth": "D1 feasibility verdict: research_only (XY-882); XY-927 selects the contained export/readback contract, but the Letta adapter remains blocked until that artifact exists"
       }
     },
     {

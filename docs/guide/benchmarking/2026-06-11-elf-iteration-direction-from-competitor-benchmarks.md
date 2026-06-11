@@ -44,20 +44,20 @@ The strongest current statement is:
 
 | Metric | Value |
 | --- | ---: |
-| Jobs | `43` |
-| Encoded suites | `12` |
-| Pass | `38` |
+| Jobs | `49` |
+| Encoded suites | `13` |
+| Pass | `44` |
 | Blocked | `5` |
 | Wrong result | `0` |
 | Lifecycle fail | `0` |
 | Incomplete | `0` |
 | Not encoded | `0` |
 | Unsupported claim | `0` |
-| Mean score | `0.884` |
-| Evidence coverage | `97/97` |
-| Source-ref coverage | `97/97` |
-| Quote coverage | `97/97` |
-| Expected evidence recall | `89/89` |
+| Mean score | `0.898` |
+| Evidence coverage | `111/111` |
+| Source-ref coverage | `111/111` |
+| Quote coverage | `111/111` |
+| Expected evidence recall | `100/100` |
 
 This proves the fixture contract is broad and well controlled. It does not prove that
 every live adapter or every competitor runtime passes those scenarios.
@@ -118,8 +118,8 @@ Overall adapter statuses:
 | `pass` | `4` |
 | `wrong_result` | `6` |
 | `lifecycle_fail` | `1` |
-| `blocked` | `6` |
-| `not_encoded` | `6` |
+| `blocked` | `7` |
+| `not_encoded` | `5` |
 
 The ledger is intentionally not a leaderboard. It prevents fixture evidence,
 same-corpus checks, research gates, and live real-world runs from being collapsed into
@@ -131,7 +131,7 @@ one misleading score.
 | --- | --- | --- |
 | Retrieval/debug | ELF and qmd are tied on encoded live retrieval; qmd remains the stronger debug UX reference. | Add trace-level replay, expansion/fusion/rerank knobs, candidate-drop diagnosis, and command-line replay. |
 | Work resume | ELF live work-resume passes; continuity-oriented competitors are undermeasured. | Borrow agentmemory/claude-mem capture breadth and OpenViking staged context, but require durable adapter proof. |
-| Project decisions | ELF and qmd live project-decision suites pass; Letta is not encoded. | Add core-vs-archival decision-memory scenarios before comparing Letta. |
+| Project decisions | ELF and qmd live project-decision suites pass; ELF fixture-backed `core_archival_memory` also scores project-decision recovery, while Letta remains blocked without export evidence. | Run the Letta core/archival export/readback contract before treating project-decision recovery as comparable. |
 | Source of truth | ELF has the strongest measured source-of-truth evidence. | Borrow memsearch's local canonical-store ergonomics without making files or vectors authoritative. |
 | Temporal memory | ELF fixture passes, but live memory evolution is wrong_result. | Prioritize current-vs-historical evidence links and Graphiti/Zep-style validity windows. |
 | Consolidation | ELF fixture passes, but live proposal generation is not encoded. | Build reviewable derived proposals with source refs, confidence, unsupported-claim flags, and apply/defer/discard audit. |
@@ -139,9 +139,9 @@ one misleading score.
 | Operator debugging | Fixture UX passes and the narrow live trace/viewer slice is scored: ELF passes, qmd ties replay/repair clarity but is wrong_result for trace hydration and candidate-drop visibility. | Expand coverage to OpenMemory and claude-mem UI/export or viewer runners before any broader operator-UX claim. |
 | Capture/write policy | ELF live capture/write-policy self-check passes with zero redaction leaks; qmd is `not_encoded`; agentmemory is `blocked`; claude-mem is `not_encoded`. | Borrow agentmemory/claude-mem capture breadth only after durable local hook/viewer evidence exists, while preserving redaction and evidence binding. |
 | Production ops | ELF has the strongest checked-in evidence, with private/credential gates blocked. | Keep Docker-first production proof and add private corpus only when an operator-owned manifest exists. |
-| Personalization | ELF live personalization passes; mem0/OpenMemory and Letta are not encoded. | Add entity-scoped preference history and UI readback before claiming stronger personalization. |
+| Personalization | ELF live personalization passes; mem0/OpenMemory ties the entity-scoped personalization smoke but still lacks a broader real-world prompt adapter, and Letta scoped preference readback remains not tested until its contained export path exists. | Add broader entity/preference history and UI readback before claiming stronger personalization. |
 | Context trajectory | Not comparable yet; OpenViking remains the reference. | Score staged retrieval, hierarchy expansion, and trajectory readback. |
-| Core-vs-archival | Product gap, not a measured comparison yet. | Borrow Letta's core memory block shape with explicit scope, provenance, and read-only attachment. |
+| Core-vs-archival | ELF fixture-backed `core_archival_memory` passes 6/6, but Letta remains blocked/not tested because no contained export artifact exists. | Borrow Letta's core memory block shape while keeping any win/tie/loss claim gated on exported core block, archival readback, and source-id evidence. |
 | Graph/RAG navigation | RAGFlow, LightRAG, GraphRAG, and Graphiti/Zep remain research gates; graphify has a tiny scored `wrong_result` smoke. | Run larger contained graph/RAG adapters before any broad graph-navigation claim. |
 
 ## Project Guidance Matrix
@@ -159,7 +159,7 @@ one misleading score.
 | LightRAG | `research_gate`; current status is `blocked`. | Lightweight graph/RAG context export and source-path citation shape. | Borrow context-export ideas for graph/RAG navigation after Docker proof. |
 | GraphRAG | `research_gate`; current status is `blocked`. | Graph summaries, document/text-unit tables, local/global search separation. | Borrow graph summary artifacts for knowledge pages and graph navigation after cost-bounded output proof. |
 | Graphiti/Zep | `research_gate`; current status is `blocked`. | Temporal graph facts, validity windows, current-vs-historical answers. | Use as the semantic model for ELF temporal memory and relation validity benchmarks. |
-| Letta | `research_gate`; current status is `not_encoded`. | Core memory blocks versus archival memory. | Add explicit scoped core blocks in ELF, but compare Letta only after a contained export path exists. |
+| Letta | `research_gate`; current status is `blocked` until the selected contained export/readback artifact exists. | Core memory blocks versus archival memory. | Keep ELF's fixture-backed core block coverage separate from Letta comparison claims; compare Letta only after exported core and archival evidence exists. |
 | LangGraph | `research_gate`; current status is `not_encoded` or `unsupported` as a direct memory backend. | Checkpoint, replay, fork, and regression debugging for agent state. | Borrow replay/regression patterns for benchmark infrastructure, not as direct memory parity. |
 | nanograph | `research_gate`; current status is `not_encoded` or `unsupported` as a full memory backend. | Typed graph schema and query ergonomics. | Borrow graph-lite DX and typed relation query ideas. |
 | llm-wiki | `research_gate`; current status is `not_encoded`. | Maintained wiki pages, query-save, lint, and repair loops. | Use as a reference for rebuildable, cited knowledge pages. |
@@ -227,8 +227,10 @@ These improve day-to-day usefulness while preserving ELF's evidence-bound core.
    - Borrow from: Letta core memory versus archival memory.
    - ELF shape: scoped read-only blocks with provenance and attachment rules, separate
      from archival search.
-   - Benchmark gate: core-vs-archival jobs prove correct attachment, sharing, and
-     fallback to search.
+   - Benchmark gate: ELF fixture jobs now prove attachment, scope, provenance,
+     stale-core detection, archival fallback, and project-decision recovery; Letta
+     comparison remains gated on exported core block, archival readback, and source-id
+     evidence.
 
 ### P2 - Expand External Comparison Without Fake Wins
 
@@ -269,7 +271,9 @@ Do not claim:
 - ELF beats mem0/OpenMemory on hosted memory, entity history, UI, or optional graph
   memory. Those scenarios are not encoded; the operator-debug win is only against
   qmd on a narrow trace/replay slice.
-- ELF beats Letta on core-vs-archival memory. That scenario is not encoded.
+- ELF beats Letta on core-vs-archival memory. ELF has fixture-backed coverage, but
+  Letta remains blocked/not tested until the selected contained export/readback path
+  produces comparable source-id-mapped evidence.
 - ELF beats RAGFlow, LightRAG, GraphRAG, Graphiti/Zep, or graphify on graph/RAG
   navigation. Current evidence is research-gate or blocked except graphify's tiny
   non-pass smoke.

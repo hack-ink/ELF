@@ -145,15 +145,22 @@ provider-backed ELF evidence was required.
   rebuild returned `rebuilt_count=1`, `missing_vector_count=0`, `error_count=0`, and
   search recovered the restored note.
 - Fresh all-project smoke run: ELF and qmd passed every encoded check. agentmemory
-  passed same-corpus retrieval but failed lifecycle/cold-start coverage. memsearch,
-  mem0, OpenViking, and claude-mem remained typed non-pass states. OpenViking now
-  reaches its pinned Docker local embedding path and is reported as `wrong_result`
-  when same-corpus evidence terms are missed; setup failures remain `incomplete`.
-- Real-world agent memory aggregate after XY-928: 43 fixture-backed jobs across
-  12 suites, 38 pass, 0 incomplete, 5 blocked, 0 wrong-result, 0 not-encoded, and
-  0 unsupported-claim results. The remaining non-pass jobs are production-ops
-  operator boundaries plus blocked OpenViking staged trajectory, hierarchy selection,
-  and recursive/context expansion measurement gates, not hidden benchmark wins.
+  passed same-corpus retrieval but failed lifecycle/cold-start coverage. mem0/OpenMemory
+  and memsearch now pass their scoped local baseline smokes, while OpenMemory
+  UI/export, hosted mem0 Platform, optional graph memory, and broader memsearch prompt
+  and TTL coverage remain blocked, unsupported, or not encoded. OpenViking now reaches
+  its pinned Docker local embedding path and is reported as `wrong_result` when
+  same-corpus evidence terms are missed; claude-mem and OpenViking non-retrieval
+  coverage remain typed non-pass states.
+- Real-world agent memory aggregate after XY-927 and XY-928: 49 fixture-backed
+  jobs across 13 suites, 44 pass, 0 incomplete, 5 blocked, 0 wrong-result,
+  0 not-encoded, and 0 unsupported-claim results. The remaining non-pass jobs are
+  production-ops operator boundaries plus blocked OpenViking staged trajectory,
+  hierarchy selection, and recursive/context expansion measurement gates, not
+  hidden benchmark wins. The new `core_archival_memory` suite passes 6 fixture
+  jobs for core block attachment, scope, provenance, stale-core detection,
+  archival fallback, and project-decision recovery; it does not create an
+  ELF-over-Letta claim.
 - Full-suite live real-world adapter sweep after XY-899: ELF and qmd emit
   Docker-isolated `live_real_world` records for all 40 encoded jobs across 11 suites
   through `cargo make real-world-memory-live-adapters`. Both keep the original

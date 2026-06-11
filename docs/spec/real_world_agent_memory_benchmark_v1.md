@@ -190,12 +190,14 @@ Each `adapters[]` record MUST include:
   optional `suite_id`, `status`, `elf_position`, optional `comparison_outcome`,
   `evidence`, and optional `command` and `artifact`. `elf_position` MUST be one of
   `wins`, `ties`, `loses`, or `untested`. `comparison_outcome`, when present, MUST be
-  one of `win`, `tie`, `loss`, `not_tested`, `blocked`, or `non_goal`. Reports SHOULD
-  derive `comparison_outcome` from `elf_position` when omitted, but SHOULD use the
-  explicit field for scenarios where the legacy ELF-relative position is less precise
-  than the report outcome. Scenario judgments are report inputs for dimension-level
-  comparison; they MUST NOT convert live-baseline-only evidence into real-world suite
-  pass claims.
+  one of `win`, `tie`, `loss`, `not_tested`, `blocked`, or `non_goal`. Scenario rows
+  with `status = "blocked"` MUST set `comparison_outcome = "blocked"` explicitly so a
+  blocked evidence path is not derived from `elf_position = "untested"` as
+  `not_tested`. Reports SHOULD derive `comparison_outcome` from `elf_position` when
+  omitted for non-blocked rows, but SHOULD use the explicit field for scenarios where
+  the legacy ELF-relative position is less precise than the report outcome. Scenario
+  judgments are report inputs for dimension-level comparison; they MUST NOT convert
+  live-baseline-only evidence into real-world suite pass claims.
 - `evidence`: array of evidence pointers with `kind`, `ref`, and `status`.
 - `notes`: optional bounded explanatory strings.
 - `follow_up`: optional `title` and `reason`.
@@ -537,6 +539,7 @@ Suite ids are stable public names. Each suite MUST contain at least one
 | `capture_integration` | Evaluate how accurately work observations become usable memory across agents and tools. | Capture a session decision; exclude private spans; import external agent observations. | Hook/import logs, write policy audits, excluded spans, resulting note ids. | answer_correctness, evidence_grounding, trap_avoidance, lifecycle_behavior. | agentmemory, claude-mem, memsearch, mem0. |
 | `production_ops` | Prove safe operation under backup, restore, backfill, cold start, resource, and credential boundaries. | Resume interrupted import; restore from backup; report missing private manifest as bounded caveat. | Command/report artifacts, resource envelope, checkpoint state, failure guard evidence. | lifecycle_behavior, latency_resource, uncertainty_handling, evidence_grounding. | ELF, qmd, memsearch, LangGraph. |
 | `personalization` | Apply user/project preferences correctly without leaking across scopes or overfitting stale preferences. | Remember preferred response style; avoid using another project tenant's note; update a preference. | Scoped memory ids, preference versions, tenant/project/agent context, negative cross-scope traps. | personalization_fit, trap_avoidance, evidence_grounding, answer_correctness. | mem0, Letta, agentmemory, ELF. |
+| `core_archival_memory` | Verify always-loaded core memory behavior separately from archival note search and derived retrieval indexes. | Read an attached core block; enforce core block scope; detect stale core state from archival evidence; fall back to archival notes; recover a decision from core routing plus archival rationale. | Core block ids, attachment ids, read_profile/scope metadata, source_ref and audit history, archival note evidence ids, stale-core traps, and explicit no-Qdrant-core-block boundary evidence. | answer_correctness, evidence_grounding, trap_avoidance, lifecycle_behavior, workflow_helpfulness. | Letta, ELF. |
 | `context_trajectory` | Measure staged context trajectory, hierarchy selection, and recursive/context expansion without converting setup or retrieval preconditions into trajectory wins. | Explain whether a staged trajectory can be scored; identify selected hierarchy nodes; report recursive expansion paths and pruned branches. | Same-corpus expected evidence ids, matched/missing evidence ids, stage artifacts, selected hierarchy nodes, expansion paths, comparable ELF trace/session artifacts when a comparison is claimed. | answer_correctness, evidence_grounding, trap_avoidance, debuggability, workflow_helpfulness. | OpenViking, ELF, qmd. |
 
 ## Report Semantics

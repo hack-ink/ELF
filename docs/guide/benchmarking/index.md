@@ -55,9 +55,9 @@ cleanup, use `docs/guide/single_user_production.md`.
   optimization-direction report that translates measured benchmark data and competitor
   strengths into prioritized ELF iteration themes and explicit non-claims.
 - `2026-06-11-measurement-coverage-audit.md`: fresh coverage audit that separates
-  current measured ELF/qmd data, fixture evidence, external adapter ledger coverage,
-  scenario non-claims, and the next measurement reports needed before stronger
-  competitor claims.
+  current measured ELF/qmd data, fixture evidence including the XY-927
+  `core_archival_memory` suite, external adapter ledger coverage, scenario non-claims,
+  and the next measurement reports needed before stronger competitor claims.
 - `2026-06-11-elf-qmd-retrieval-debug-profile.md`: fresh ELF/qmd retrieval-debug
   profile with real-world retrieval-suite evidence, 480-document stress baseline
   evidence, qmd top-10 artifact inspection, and explicit rerank/fusion non-claims.
@@ -95,9 +95,10 @@ cleanup, use `docs/guide/single_user_production.md`.
   `real_world_job` adapter reports without converting smoke evidence into quality
   claims.
 - `2026-06-11-competitor-strength-adoption-report.md`: XY-901 final
-  competitor-strength adoption report with the bounded personal-production decision,
-  scenario-level win/tie/loss/not-tested matrix, claim boundaries, and optimization
-  issue queue.
+  competitor-strength adoption report, updated by XY-927 with fixture-backed
+  core-vs-archival coverage and a blocked Letta export/readback boundary, plus the
+  bounded personal-production decision, scenario-level win/tie/loss/not-tested
+  matrix, claim boundaries, and optimization issue queue.
 - `2026-06-11-capture-write-policy-live-report.md`: XY-933 live capture/write-policy
   report that scores ELF redaction, exclusions, source ids, evidence binding, and no
   secret leakage while preserving typed blocked/untested boundaries for agentmemory
