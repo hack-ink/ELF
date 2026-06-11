@@ -37,12 +37,12 @@ Platform export jobs, and does not enable optional graph memory.
 
 | Command | Result | Runtime | Artifact |
 | --- | --- | ---: | --- |
-| `ELF_BASELINE_PROJECTS=mem0 cargo make baseline-live-docker` | `pass`; mem0 `8/8` encoded checks pass | 35.50 seconds wall; 33 seconds project runtime | `tmp/live-baseline/live-baseline-report.json`, `tmp/live-baseline/mem0-checks.json` |
-| `cargo make real-world-memory` | `pass`; refreshed external adapter report published | 10.18 seconds | `tmp/real-world-memory/real-world-memory-report.json`, `tmp/real-world-memory/real-world-memory-report.md` |
+| `ELF_BASELINE_PROJECTS=mem0 cargo make baseline-live-docker` | `pass`; mem0 `8/8` encoded checks pass | 39.17 seconds wall; 36 seconds project runtime | `tmp/live-baseline/live-baseline-report.json`, `tmp/live-baseline/mem0-checks.json` |
+| `cargo make real-world-memory` | `pass`; refreshed external adapter report published | 8.88 seconds | `tmp/real-world-memory/real-world-memory-report.json`, `tmp/real-world-memory/real-world-memory-report.md` |
 
-Fresh mem0 run id: `live-baseline-20260611111119`.
+Fresh mem0 run id: `live-baseline-20260611113003`.
 
-Generated external adapter summary:
+Generated external adapter summary for all external adapter manifest rows:
 
 - Scenario statuses: `unsupported=2`, `blocked=2`, `wrong_result=1`,
   `lifecycle_fail=1`, `pass=9`, `not_encoded=3`.
@@ -50,12 +50,15 @@ Generated external adapter summary:
 - Normalized comparison outcomes: `win=2`, `tie=4`, `loss=1`,
   `not_tested=8`, `blocked=1`, `non_goal=2`.
 
+mem0/OpenMemory rows in this report contain eight scenarios: `loss=1`,
+`tie=3`, `not_tested=1`, `blocked=1`, and `non_goal=2`.
+
 ## Scenario Outcomes
 
 | Scenario | mem0/OpenMemory evidence | ELF comparison outcome | Status | Command | Artifact |
 | --- | --- | --- | --- | --- | --- |
 | Basic local lifecycle | mem0 passes same-corpus retrieval, update, delete, and cold-start reload in the prior first-generation baseline. | `tie` | `pass` | `ELF_BASELINE_PROJECTS=ELF,agentmemory,mem0,memsearch,claude-mem cargo make baseline-live-docker` | `tmp/live-baseline/live-baseline-report.json` |
-| Preference correction history | `Memory.history` preserves old and current preference records; search returns only the current correction. | `loss` | `pass` | mem0: `ELF_BASELINE_PROJECTS=mem0 cargo make baseline-live-docker`; ELF: `cargo make real-world-memory-live-adapters` | mem0: `tmp/live-baseline/mem0-checks.json`; ELF: `tmp/real-world-memory/live-adapters/`, `docs/guide/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md` |
+| Preference correction history | `Memory.history` exposes explicit `ADD` and `UPDATE` preference records; search returns only the current correction. | `loss` | `pass` | mem0: `ELF_BASELINE_PROJECTS=mem0 cargo make baseline-live-docker`; ELF: `cargo make real-world-memory-live-adapters` | mem0: `tmp/live-baseline/mem0-checks.json`; ELF: `tmp/real-world-memory/live-adapters/`, `docs/guide/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md` |
 | Entity-scoped personalization | `search()` with `user_id`, `agent_id`, and `run_id` filters returns the ELF-scoped preference and omits a PubFi-scoped preference. | `tie` | `pass` | mem0: `ELF_BASELINE_PROJECTS=mem0 cargo make baseline-live-docker`; ELF: `cargo make real-world-memory-live-adapters` | mem0: `tmp/live-baseline/mem0-checks.json`; ELF: `tmp/real-world-memory/live-adapters/`, `docs/guide/benchmarking/2026-06-11-competitor-strength-adoption-report.md` |
 | Delete audit readback | `Memory.history` exposes a `DELETE` event and post-delete search suppresses the deleted memory. | `tie` | `pass` | mem0: `ELF_BASELINE_PROJECTS=mem0 cargo make baseline-live-docker`; ELF: `cargo make real-world-memory-live-adapters` | mem0: `tmp/live-baseline/mem0-checks.json`; ELF: `tmp/real-world-memory/live-adapters/`, `docs/guide/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md` |
 | Local SDK export-style readback | `Memory.get_all` returns the current scoped preference and omits the other scope. | `not_tested` | `pass` | `ELF_BASELINE_PROJECTS=mem0 cargo make baseline-live-docker` | `tmp/live-baseline/mem0-checks.json` |
@@ -81,6 +84,7 @@ The `preference_correction_history` check verifies all of:
 - history is available;
 - history contains the original preference;
 - history contains the corrected preference;
+- history contains explicit `ADD` and `UPDATE` events;
 - search contains the corrected preference;
 - search omits the old preference.
 
@@ -119,7 +123,7 @@ Allowed:
 
 - mem0/OpenMemory local OSS passes the new encoded history, correction,
   personalization, deletion-audit, and local `get_all` readback checks in run
-  `live-baseline-20260611111119`.
+  `live-baseline-20260611113003`.
 - ELF currently has a measured `loss` against mem0 on the preference correction
   history dimension because the June 11 temporal/history report records ELF's live
   memory-evolution preference job as `wrong_result`.

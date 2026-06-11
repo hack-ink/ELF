@@ -2326,6 +2326,12 @@ fn mem0_delete_audit_probe_requires_explicit_delete_history_event() -> Result<()
 
 	assert!(script.contains("def history_has_event"));
 	assert!(script.contains("str(entry.get(\"event\", \"\")).upper() == expected"));
+	assert!(script.contains(
+		"history_has_event(\n        preference_history[\"history\"],\n        \"ADD\","
+	));
+	assert!(script.contains(
+		"history_has_event(\n        preference_history[\"history\"],\n        \"UPDATE\","
+	));
 	assert!(
 		script.contains(
 			"history_has_event(\n        delete_history[\"history\"],\n        \"DELETE\","
