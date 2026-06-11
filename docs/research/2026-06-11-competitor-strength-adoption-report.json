@@ -12,7 +12,7 @@
       "Live temporal reconciliation remains wrong_result for five of six memory_evolution jobs.",
       "Private-corpus production quality is blocked until an operator-owned manifest exists.",
       "Credentialed provider production-ops gates are blocked until explicit provider setup exists.",
-      "Several competitor strengths remain not_tested or blocked: OpenMemory UI/export is blocked by the XY-931 export-helper setup probe, hosted mem0 Platform behavior remains a non-goal, and OpenViking trajectory, Letta core-vs-archival memory, and graph/RAG navigation remain unproven. XY-928 encodes OpenViking staged trajectory, hierarchy selection, and recursive/context expansion as blocked fixtures behind same-corpus evidence output and missing staged artifacts. mem0 local OSS preference history is measured separately and is an ELF loss on the current correction-history scenario. The XY-923 follow-up scores qmd immediate top-10/replay artifact ergonomics as stronger than ELF's default stress report, while expansion, fusion, and rerank remain untested. XY-932 adds a narrow live operator-debug slice where ELF beats qmd on trace hydration and candidate-drop visibility, but OpenMemory UI/export and claude-mem viewer workflows remain blocked or not encoded. XY-933 adds an ELF live capture/write-policy self-check, but agentmemory capture breadth is blocked by mocked/in-memory storage and claude-mem hook/viewer capture remains untested."
+      "Several competitor strengths remain not_tested or blocked: OpenMemory UI/export is blocked by the XY-931 export-helper setup probe, hosted mem0 Platform behavior remains a non-goal, and Letta core-vs-archival memory plus graph/RAG navigation remain unproven. XY-928 encodes OpenViking staged trajectory, hierarchy selection, and recursive/context expansion as blocked fixtures behind same-corpus evidence output and missing staged artifacts. mem0 local OSS preference history is measured separately and is an ELF loss on the current correction-history scenario. The XY-923 follow-up scores qmd immediate top-10/replay artifact ergonomics as stronger than ELF's default stress report, while expansion, fusion, and rerank remain untested. XY-932 adds a narrow live operator-debug slice where ELF beats qmd on trace hydration and candidate-drop visibility, but OpenMemory UI/export and claude-mem viewer workflows remain blocked or not encoded. XY-925 adds fixture-backed first-generation OSS prompt coverage and typed blockers for agentmemory durable continuity, memsearch Markdown source-store/debug jobs, and claude-mem progressive-disclosure, retrieval-repair, hook, and viewer/operator surfaces without creating live external real-world suite passes. XY-933 adds an ELF live capture/write-policy self-check, but agentmemory and claude-mem hook-capture breadth remain blocked until Docker-contained hook/viewer evidence exists."
     ]
   },
   "evidence_class_terms": [
@@ -62,6 +62,11 @@
       "claim": "mem0/OpenMemory and memsearch pass basic local baseline smokes; agentmemory remains lifecycle_fail and claude-mem remains wrong_result on same-corpus retrieval."
     },
     {
+      "command": "cargo make real-world-first-generation-oss",
+      "artifact": "docs/guide/benchmarking/2026-06-11-first-generation-oss-continuity-source-store-report.md",
+      "claim": "First-generation OSS fixture slice reports 6 jobs: 4 pass, 2 blocked, full evidence/source-ref/quote coverage, and manifest scenario outcomes across win, tie, loss, not_tested, blocked, and non_goal without promoting smoke evidence into live suite passes."
+    },
+    {
       "command": "cargo make openmemory-ui-export-readback",
       "artifact": "docs/guide/benchmarking/2026-06-11-mem0-openmemory-history-ui-export-report.md",
       "claim": "mem0 local OSS passes preference correction history, entity-scoped personalization, local get_all export-style readback, and deletion audit history; OpenMemory export-helper setup emits a separate blocked artifact with DOCKER_UNAVAILABLE_IN_BASELINE_RUNNER, and hosted Platform export remains non-goal."
@@ -103,7 +108,7 @@
         "docs/guide/benchmarking/2026-06-10-production-adoption-refresh.md"
       ],
       "follow_up_issues": [],
-      "caveat": "memsearch canonical Markdown reindex/reload is a useful ergonomics reference, but real-world source-of-truth prompts are not encoded."
+      "caveat": "XY-925 encodes fixture-backed memsearch canonical Markdown source-store prompts, but no live memsearch real_world_job runtime adapter pass is claimed."
     },
     {
       "scenario_id": "work_resume_coding_agent_continuity",
@@ -116,13 +121,13 @@
         "blocked",
         "not_encoded"
       ],
-      "measured_claim": "ELF and qmd both pass the encoded live work_resume jobs. agentmemory, claude-mem, and OpenViking continuity strengths remain blocked or not encoded.",
+      "measured_claim": "ELF and qmd both pass the encoded live work_resume jobs. XY-925 selects agentmemory's durable local path but keeps it blocked until the SDK KV/index and observation log survive a fresh process; claude-mem and OpenViking continuity strengths remain blocked or not encoded.",
       "command_artifacts": [
         "docs/guide/benchmarking/2026-06-11-measurement-coverage-audit.md",
-        "docs/guide/benchmarking/2026-06-11-first-generation-oss-adapter-promotion-report.md"
+        "docs/guide/benchmarking/2026-06-11-first-generation-oss-adapter-promotion-report.md",
+        "docs/guide/benchmarking/2026-06-11-first-generation-oss-continuity-source-store-report.md"
       ],
       "follow_up_issues": [
-        "XY-925",
         "XY-928"
       ],
       "caveat": "The tie is only for encoded live work_resume behavior, not for broad capture hooks or staged context."
@@ -256,17 +261,18 @@
         "blocked",
         "not_encoded"
       ],
-      "measured_claim": "ELF now has a narrow live operator-debug win over qmd on trace hydration, candidate-drop visibility, and selected-but-not-narrated evidence. ELF ties qmd on replay-command availability and repair-action clarity. OpenMemory UI/export remains blocked and claude-mem UI remains not encoded, so this is not a broad viewer-product superiority claim.",
+      "measured_claim": "ELF now has a narrow live operator-debug win over qmd on trace hydration, candidate-drop visibility, and selected-but-not-narrated evidence. ELF ties qmd on replay-command availability and repair-action clarity. XY-925 adds claude-mem progressive-disclosure and retrieval-repair prompt coverage, but claude-mem viewer/operator workflows and OpenMemory UI/export remain blocked, so this is not a broad viewer-product superiority claim.",
       "command_artifacts": [
         "tmp/real-world-job/operator-ux-live-adapters/summary.json",
         "tmp/real-world-job/operator-ux-live-adapters/elf-report.json",
         "tmp/real-world-job/operator-ux-live-adapters/qmd-report.json",
-        "docs/guide/benchmarking/2026-06-11-elf-qmd-trace-replay-diagnostics-report.md"
+        "docs/guide/benchmarking/2026-06-11-elf-qmd-trace-replay-diagnostics-report.md",
+        "docs/guide/benchmarking/2026-06-11-first-generation-oss-continuity-source-store-report.md"
       ],
       "follow_up_issues": [
         "XY-926"
       ],
-      "caveat": "The live slice compares ELF and qmd only; OpenMemory UI/export and claude-mem viewer workflows remain typed blocked or not_encoded until a bounded local runner exists."
+      "caveat": "The live slice compares ELF and qmd only; OpenMemory UI/export and claude-mem viewer workflows remain typed blocked until a bounded local runner exists."
     },
     {
       "scenario_id": "capture_write_policy_redaction",
@@ -279,15 +285,17 @@
         "blocked",
         "not_encoded"
       ],
-      "measured_claim": "ELF live capture/write-policy self-check jobs pass for redaction, exclusions, source ids, evidence binding, and no secret leakage. qmd remains not_encoded; agentmemory comparison is blocked by mocked/in-memory storage; claude-mem capture breadth is not_encoded because hooks, timeline, observations, viewer capture, and automatic capture review were not run against real-world jobs.",
+      "measured_claim": "ELF live capture/write-policy self-check jobs pass for redaction, exclusions, source ids, evidence binding, and no secret leakage. qmd remains not_encoded; XY-925 records agentmemory and claude-mem hook capture as typed blockers until Docker-contained hook observations and write-policy/viewer readback artifacts exist.",
       "command_artifacts": [
         "docs/guide/benchmarking/2026-06-11-measurement-coverage-audit.md",
         "docs/guide/benchmarking/2026-06-11-capture-write-policy-live-report.md",
-        "docs/guide/benchmarking/2026-06-11-first-generation-oss-adapter-promotion-report.md"
+        "docs/guide/benchmarking/2026-06-11-first-generation-oss-adapter-promotion-report.md",
+        "docs/guide/benchmarking/2026-06-11-first-generation-oss-continuity-source-store-report.md"
       ],
       "follow_up_issues": [
         "XY-933",
-        "XY-925"
+        "XY-925",
+        "XY-926"
       ],
       "caveat": "This is an ELF self-check and qmd not_encoded delta, not a broad capture-breadth win over agentmemory or claude-mem."
     },
@@ -427,8 +435,8 @@
     {
       "issue": "XY-925",
       "priority": "P1",
-      "state": "Backlog",
-      "gap": "First-generation OSS continuity and source-store adapters."
+      "state": "Fixture slice encoded; runtime paths still blocked",
+      "gap": "First-generation OSS prompt coverage and typed blockers are recorded for agentmemory, memsearch, and claude-mem; durable agentmemory hooks and claude-mem viewer/operator runs still need runtime adapters."
     },
     {
       "issue": "XY-926",
