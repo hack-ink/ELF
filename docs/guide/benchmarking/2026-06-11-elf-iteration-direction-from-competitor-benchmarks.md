@@ -44,18 +44,18 @@ The strongest current statement is:
 
 | Metric | Value |
 | --- | ---: |
-| Jobs | `40` |
-| Encoded suites | `11` |
-| Pass | `38` |
+| Jobs | `46` |
+| Encoded suites | `12` |
+| Pass | `44` |
 | Blocked | `2` |
 | Wrong result | `0` |
 | Lifecycle fail | `0` |
 | Incomplete | `0` |
 | Not encoded | `0` |
 | Unsupported claim | `0` |
-| Mean score | `0.950` |
-| Evidence coverage | `88/88` |
-| Expected evidence recall | `80/80` |
+| Mean score | `0.957` |
+| Evidence coverage | `101/101` |
+| Expected evidence recall | `93/93` |
 
 This proves the fixture contract is broad and well controlled. It does not prove that
 every live adapter or every competitor runtime passes those scenarios.
@@ -137,7 +137,7 @@ one misleading score.
 | Operator debugging | Fixture UX passes and the narrow live trace/viewer slice is scored: ELF passes, qmd ties replay/repair clarity but is wrong_result for trace hydration and candidate-drop visibility. | Expand coverage to OpenMemory and claude-mem UI/export or viewer runners before any broader operator-UX claim. |
 | Capture/write policy | ELF live capture/write-policy self-check passes with zero redaction leaks; qmd is `not_encoded`; agentmemory is `blocked`; claude-mem is `not_encoded`. | Borrow agentmemory/claude-mem capture breadth only after durable local hook/viewer evidence exists, while preserving redaction and evidence binding. |
 | Production ops | ELF has the strongest checked-in evidence, with private/credential gates blocked. | Keep Docker-first production proof and add private corpus only when an operator-owned manifest exists. |
-| Personalization | ELF live personalization passes; mem0/OpenMemory is not encoded and Letta scoped preference readback remains not tested until its contained export path exists. | Add entity-scoped preference history and UI readback before claiming stronger personalization. |
+| Personalization | ELF live personalization passes; mem0/OpenMemory ties the entity-scoped personalization smoke but still lacks a broader real-world prompt adapter, and Letta scoped preference readback remains not tested until its contained export path exists. | Add broader entity/preference history and UI readback before claiming stronger personalization. |
 | Context trajectory | Not comparable yet; OpenViking remains the reference. | Score staged retrieval, hierarchy expansion, and trajectory readback. |
 | Core-vs-archival | ELF fixture-backed `core_archival_memory` passes 6/6, but Letta remains blocked/not tested because no contained export artifact exists. | Borrow Letta's core memory block shape while keeping any win/tie/loss claim gated on exported core block, archival readback, and source-id evidence. |
 | Graph/RAG navigation | RAGFlow, LightRAG, GraphRAG, and Graphiti/Zep remain research gates; graphify has a tiny scored `wrong_result` smoke. | Run larger contained graph/RAG adapters before any broad graph-navigation claim. |

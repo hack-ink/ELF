@@ -522,9 +522,9 @@
       "scenario": "personalization",
       "current_elf_evidence": "ELF fixture-backed personalization passes and ELF live_real_world personalization passes.",
       "strongest_competitor_or_reference": "mem0/OpenMemory, Letta",
-      "current_competitor_evidence": "mem0/OpenMemory personalization is not_encoded and Letta scoped preference readback remains not_tested until the contained core/archival export path exists.",
-      "current_state": "ELF and qmd have live encoded evidence; personalization-specialized competitors are not yet comparable.",
-      "next_measurement": "Encode mem0/OpenMemory and Letta scoped-preference readback jobs before making personalization superiority claims."
+      "current_competitor_evidence": "mem0/OpenMemory has a scenario-level live_baseline_only tie for entity_scoped_personalization, while the broader real_world_job personalization prompt adapter remains not_encoded; Letta scoped preference readback remains not_tested until the contained core/archival export path exists.",
+      "current_state": "ELF and qmd have live encoded personalization evidence; mem0/OpenMemory ties the scoped-personalization smoke but is not yet comparable across the broader suite, and Letta remains unscored.",
+      "next_measurement": "Encode broader mem0/OpenMemory real_world_job personalization prompts and Letta scoped-preference readback jobs before making personalization superiority claims."
     },
     {
       "scenario_id": "context_trajectory",
