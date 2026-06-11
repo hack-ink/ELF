@@ -208,7 +208,8 @@ provider-backed ELF evidence was required.
   source refs, write-policy redaction audit counts, evidence binding, and no secret
   leakage. qmd remains `not_encoded` for this suite. agentmemory capture comparison is
   blocked by mocked/in-memory storage, and claude-mem hook/viewer capture remains
-  untested, so no broad capture-breadth superiority claim is allowed.
+  blocked until Docker-contained hook/viewer capture evidence exists, so no broad
+  capture-breadth superiority claim is allowed.
 - The benchmark runner and report publisher are checked in and Docker-isolated:
   `cargo make baseline-live-docker`, `cargo make baseline-backfill-docker`,
   `cargo make baseline-production-private-addendum`,
