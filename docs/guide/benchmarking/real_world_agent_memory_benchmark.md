@@ -59,6 +59,7 @@ compile knowledge, and state honest uncertainty.
 | Production ops | Backfill, restore, cold start, resource, and bounded-failure behavior. | Resume interrupted import without duplicate source notes. |
 | Personalization | Scoped preferences without cross-tenant leakage. | Apply the user's current preference and ignore another project's note. |
 | Core/archival memory | Always-loaded core memory behavior kept separate from archival note search. | Detect a stale core block and fall back to archival evidence. |
+| Context trajectory | Staged context trajectory, hierarchy selection, and recursive expansion. | Block OpenViking trajectory scoring until same-corpus evidence ids and comparable stage artifacts exist. |
 
 ## External Reference Mapping
 
@@ -168,6 +169,9 @@ including the retrieval-quality slice below. The suite currently encodes:
 - `core_archival_memory`: core block attachment, scope, provenance, stale-core
   detection, archival fallback, and project-decision recovery through core routing
   plus archival rationale.
+- `context_trajectory`: OpenViking staged retrieval, hierarchy selection, and
+  recursive/context expansion jobs encoded as `blocked` until same-corpus expected
+  evidence ids and comparable stage artifacts are available.
 
 The generated report includes evidence coverage, source-ref coverage, quote coverage,
 unsupported-claim count, stale retrieval count, stale-answer count, conflict detection
@@ -225,7 +229,12 @@ research gates. Its `external_adapters` report section distinguishes:
 - `research_gate`: checked-in source/setup/runtime/resource/retry metadata for a
   future adapter path, not fixture-backed or live execution evidence.
 
-Current state: the `elf_live_real_world` and `qmd_live_real_world` adapters run a full
+Current fixture state: `cargo make real-world-memory` covers 43 jobs across 12 suites,
+with 38 pass and 5 blocked. The blocked jobs are production-ops operator boundaries
+plus the XY-928 OpenViking `context_trajectory` gates for staged retrieval, hierarchy
+selection, and recursive/context expansion.
+
+Current live-adapter state: the `elf_live_real_world` and `qmd_live_real_world` adapters run a full
 encoded-suite sweep through `cargo make real-world-memory-live-adapters`. Each adapter
 materializes generated runtime answers for 40 jobs across 11 suites before scoring.
 The newer fixture-only `core_archival_memory` suite is scored separately and is not yet
@@ -243,7 +252,10 @@ storage for lifecycle proof and capture breadth. mem0/OpenMemory, memsearch, and
 claude-mem currently retain wrong-result, not-encoded, or incomplete live-baseline
 states for the checked-in adapter evidence. OpenViking now reaches its pinned Docker
 local embedding setup but remains a same-corpus `wrong_result` until it returns
-evidence-bearing retrieval output. The expanded RAG and graph-memory records for
+evidence-bearing retrieval output. The checked-in `context_trajectory` fixtures keep
+OpenViking staged retrieval, hierarchy selection, and recursive/context expansion
+blocked until same-corpus evidence ids match and staged artifacts are materialized.
+The expanded RAG and graph-memory records for
 RAGFlow, LightRAG, GraphRAG, Graphiti/Zep, Letta, LangGraph, nanograph, llm-wiki,
 gbrain, graphify, and deeper qmd/OpenViking profiles are `research_gate` records until
 their Docker-isolated adapter runs are implemented. These typed states describe

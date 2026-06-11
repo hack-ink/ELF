@@ -1,0 +1,260 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "context-trajectory-openviking-staged-retrieval-001",
+  "suite": "context_trajectory",
+  "title": "Gate OpenViking staged retrieval trajectory on evidence-bearing same-corpus output",
+  "encoding": {
+    "status": "blocked",
+    "reason": "OpenViking staged retrieval trajectory is encoded as a benchmark job, but scoring is blocked until same-corpus output returns expected evidence ids and comparable staged artifacts exist.",
+    "follow_up": {
+      "title": "Run OpenViking staged trajectory after same-corpus evidence passes",
+      "reason": "The adapter must first publish matched expected evidence ids for every same-corpus query, then emit stage-level context trajectory output that can be compared with the equivalent ELF trace/session trajectory."
+    }
+  },
+  "corpus": {
+    "corpus_id": "real-world-memory-context-trajectory-2026-06-11",
+    "profile": "external_adapter",
+    "items": [
+      {
+        "evidence_id": "openviking-evidence-id-output-contract",
+        "kind": "adapter_state",
+        "text": "The OpenViking Docker baseline must emit expected_evidence_ids, matched_evidence_ids, and missing_evidence_ids for every same-corpus query before staged trajectory scoring is allowed.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "repo_file/v1",
+          "ref": {
+            "path": "scripts/live-baseline-benchmark.sh"
+          },
+          "locator": {
+            "symbol": "project_openviking"
+          }
+        },
+        "created_at": "2026-06-11T00:00:00Z"
+      },
+      {
+        "evidence_id": "openviking-same-corpus-precondition-blocked",
+        "kind": "adapter_state",
+        "text": "OpenViking staged retrieval trajectory remains blocked while same-corpus retrieval is wrong_result or while matched_evidence_ids does not cover every expected evidence id.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "openviking_staged_retrieval_blocked",
+            "evidence_id": "openviking-same-corpus-precondition-blocked"
+          },
+          "locator": {
+            "quote": "same-corpus retrieval is wrong_result"
+          }
+        },
+        "created_at": "2026-06-11T00:00:00Z"
+      },
+      {
+        "evidence_id": "elf-comparison-requires-comparable-trajectory",
+        "kind": "runbook",
+        "text": "ELF trace or search-session trajectory may be compared only after the same context-trajectory scenario is encoded and both systems publish comparable stage artifacts.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "openviking_staged_retrieval_blocked",
+            "evidence_id": "elf-comparison-requires-comparable-trajectory"
+          },
+          "locator": {
+            "quote": "both systems publish comparable stage artifacts"
+          }
+        },
+        "created_at": "2026-06-11T00:00:00Z"
+      },
+      {
+        "evidence_id": "trajectory-win-decoy",
+        "kind": "adapter_state",
+        "text": "Decoy: ELF should be scored as winning staged trajectory because OpenViking same-corpus retrieval is currently wrong_result.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "openviking_staged_retrieval_blocked",
+            "evidence_id": "trajectory-win-decoy"
+          }
+        },
+        "created_at": "2026-06-10T00:00:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_context_trajectory",
+      "answer": {
+        "content": "OpenViking staged retrieval trajectory is blocked until same-corpus output matches expected evidence ids. No ELF win, tie, or loss is allowed until both systems publish comparable stage artifacts for the same context-trajectory scenario.",
+        "claims": [
+          {
+            "claim_id": "staged_trajectory_blocked",
+            "text": "OpenViking staged retrieval trajectory is blocked until same-corpus output matches expected evidence ids.",
+            "evidence_ids": [
+              "openviking-evidence-id-output-contract",
+              "openviking-same-corpus-precondition-blocked"
+            ],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "elf_comparison_not_scored",
+            "text": "No ELF win, tie, or loss is allowed until both systems publish comparable stage artifacts for the same context-trajectory scenario.",
+            "evidence_ids": ["elf-comparison-requires-comparable-trajectory"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": [
+          "openviking-evidence-id-output-contract",
+          "openviking-same-corpus-precondition-blocked",
+          "elf-comparison-requires-comparable-trajectory"
+        ],
+        "latency_ms": 0.0,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "openviking-evidence-id-contract-added",
+      "ts": "2026-06-11T00:00:00Z",
+      "actor": "agent",
+      "action": "encoded_output_contract",
+      "evidence_ids": ["openviking-evidence-id-output-contract"],
+      "summary": "The OpenViking baseline output contract now names expected, matched, and missing evidence ids per query."
+    },
+    {
+      "event_id": "staged-trajectory-blocked",
+      "ts": "2026-06-11T00:01:00Z",
+      "actor": "agent",
+      "action": "blocked_scoring",
+      "evidence_ids": ["openviking-same-corpus-precondition-blocked"],
+      "summary": "The staged trajectory benchmark remains blocked behind same-corpus evidence-bearing output."
+    },
+    {
+      "event_id": "elf-comparison-gated",
+      "ts": "2026-06-11T00:02:00Z",
+      "actor": "agent",
+      "action": "preserved_claim_boundary",
+      "evidence_ids": ["elf-comparison-requires-comparable-trajectory"],
+      "summary": "The benchmark does not compare ELF trajectory output until both sides emit comparable artifacts."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Can the benchmark score OpenViking staged retrieval trajectory against ELF now?",
+    "job_mode": "debug",
+    "constraints": [
+      "cite_evidence",
+      "preserve_typed_status",
+      "do_not_claim_elf_win_without_comparable_artifacts"
+    ]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "staged_trajectory_blocked",
+        "text": "OpenViking staged retrieval trajectory is blocked until same-corpus output matches expected evidence ids."
+      },
+      {
+        "claim_id": "elf_comparison_not_scored",
+        "text": "No ELF win, tie, or loss is allowed until both systems publish comparable stage artifacts for the same context-trajectory scenario."
+      }
+    ],
+    "must_not_include": [
+      "ELF wins staged trajectory",
+      "OpenViking staged trajectory passed"
+    ],
+    "evidence_links": {
+      "staged_trajectory_blocked": [
+        "openviking-evidence-id-output-contract",
+        "openviking-same-corpus-precondition-blocked"
+      ],
+      "elf_comparison_not_scored": ["elf-comparison-requires-comparable-trajectory"]
+    },
+    "answer_type": "debug_report",
+    "accepted_alternates": [],
+    "requires_caveat": true,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "openviking-evidence-id-output-contract",
+      "claim_id": "staged_trajectory_blocked",
+      "requirement": "cite",
+      "quote": "expected_evidence_ids, matched_evidence_ids, and missing_evidence_ids"
+    },
+    {
+      "evidence_id": "openviking-same-corpus-precondition-blocked",
+      "claim_id": "staged_trajectory_blocked",
+      "requirement": "cite",
+      "quote": "same-corpus retrieval is wrong_result"
+    },
+    {
+      "evidence_id": "elf-comparison-requires-comparable-trajectory",
+      "claim_id": "elf_comparison_not_scored",
+      "requirement": "cite",
+      "quote": "both systems publish comparable stage artifacts"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "trajectory-win-from-precondition-decoy",
+      "type": "unsupported_prior",
+      "evidence_ids": ["trajectory-win-decoy"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "States the staged trajectory job is blocked, not won or passed."
+      },
+      "evidence_grounding": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Cites the evidence-id output contract and comparable-artifact gate."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Avoids converting the same-corpus wrong_result into an ELF trajectory win."
+      },
+      "debuggability": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Identifies the blocked precondition and next artifact needed."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.1,
+        "max_points": 1.0,
+        "criteria": "Gives a concrete next benchmark gate."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": true,
+    "acceptable_phrases": [
+      "The staged trajectory score is blocked.",
+      "Comparable stage artifacts are missing."
+    ],
+    "fallback_action": "state_blocker"
+  },
+  "tags": [
+    "external_adapter",
+    "openviking",
+    "context_trajectory",
+    "staged_retrieval",
+    "blocked",
+    "no_live_claim"
+  ]
+}
