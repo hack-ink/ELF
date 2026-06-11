@@ -647,6 +647,17 @@ enum ElfScenarioPosition {
 	Untested,
 }
 
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum ScenarioComparisonOutcome {
+	Win,
+	Tie,
+	Loss,
+	NotTested,
+	Blocked,
+	NonGoal,
+}
+
 #[derive(Debug, Deserialize)]
 struct ExternalAdapterManifest {
 	schema: String,
@@ -736,6 +747,8 @@ struct AdapterScenarioJudgment {
 	suite_id: Option<String>,
 	status: AdapterCoverageStatus,
 	elf_position: ElfScenarioPosition,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	comparison_outcome: Option<ScenarioComparisonOutcome>,
 	evidence: String,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	command: Option<String>,
@@ -789,6 +802,8 @@ struct ExternalAdapterSummary {
 	scenario_status_counts: AdapterStatusCounts,
 	#[serde(default)]
 	scenario_position_counts: ScenarioPositionCounts,
+	#[serde(default)]
+	scenario_outcome_counts: ScenarioOutcomeCounts,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -810,6 +825,16 @@ struct ScenarioPositionCounts {
 	ties: usize,
 	loses: usize,
 	untested: usize,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct ScenarioOutcomeCounts {
+	win: usize,
+	tie: usize,
+	loss: usize,
+	not_tested: usize,
+	blocked: usize,
+	non_goal: usize,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -3993,6 +4018,10 @@ fn accumulate_adapter_summary(
 			&mut summary.scenario_position_counts,
 			scenario.elf_position,
 		);
+		increment_scenario_outcome_count(
+			&mut summary.scenario_outcome_counts,
+			scenario_comparison_outcome(scenario),
+		);
 	}
 }
 
@@ -4019,6 +4048,29 @@ fn increment_scenario_position_count(
 		ElfScenarioPosition::Ties => counts.ties += 1,
 		ElfScenarioPosition::Loses => counts.loses += 1,
 		ElfScenarioPosition::Untested => counts.untested += 1,
+	}
+}
+
+fn scenario_comparison_outcome(scenario: &AdapterScenarioJudgment) -> ScenarioComparisonOutcome {
+	scenario.comparison_outcome.unwrap_or(match scenario.elf_position {
+		ElfScenarioPosition::Wins => ScenarioComparisonOutcome::Win,
+		ElfScenarioPosition::Ties => ScenarioComparisonOutcome::Tie,
+		ElfScenarioPosition::Loses => ScenarioComparisonOutcome::Loss,
+		ElfScenarioPosition::Untested => ScenarioComparisonOutcome::NotTested,
+	})
+}
+
+fn increment_scenario_outcome_count(
+	counts: &mut ScenarioOutcomeCounts,
+	outcome: ScenarioComparisonOutcome,
+) {
+	match outcome {
+		ScenarioComparisonOutcome::Win => counts.win += 1,
+		ScenarioComparisonOutcome::Tie => counts.tie += 1,
+		ScenarioComparisonOutcome::Loss => counts.loss += 1,
+		ScenarioComparisonOutcome::NotTested => counts.not_tested += 1,
+		ScenarioComparisonOutcome::Blocked => counts.blocked += 1,
+		ScenarioComparisonOutcome::NonGoal => counts.non_goal += 1,
 	}
 }
 
@@ -4192,6 +4244,10 @@ fn render_markdown_external_adapters(out: &mut String, report: &RealWorldReport)
 			"- ELF scenario positions: `{}`\n",
 			scenario_position_counts_display(&summary.scenario_position_counts)
 		));
+		out.push_str(&format!(
+			"- Scenario comparison outcomes: `{}`\n",
+			scenario_outcome_counts_display(&summary.scenario_outcome_counts)
+		));
 	}
 
 	out.push('\n');
@@ -4242,7 +4298,7 @@ fn render_markdown_adapter_scenarios(out: &mut String, adapters: &[ExternalAdapt
 	}
 
 	out.push_str("\n### Adapter Scenario Judgments\n\n");
-	out.push_str("| Adapter | Scenario | Suite | Status | ELF Position | Evidence |\n");
+	out.push_str("| Adapter | Scenario | Suite | Status | Outcome | Evidence |\n");
 	out.push_str("| --- | --- | --- | --- | --- | --- |\n");
 
 	for adapter in adapters {
@@ -4257,7 +4313,7 @@ fn render_markdown_adapter_scenarios(out: &mut String, adapters: &[ExternalAdapt
 					.map(|suite| format!("`{}`", md_inline(suite)))
 					.unwrap_or_else(|| "`none`".to_string()),
 				adapter_status_str(scenario.status),
-				scenario_position_str(scenario.elf_position),
+				scenario_comparison_outcome_str(scenario_comparison_outcome(scenario)),
 				adapter_scenario_evidence_cell(scenario)
 			));
 		}
@@ -4906,12 +4962,14 @@ fn adapter_status_str(status: AdapterCoverageStatus) -> &'static str {
 	}
 }
 
-fn scenario_position_str(position: ElfScenarioPosition) -> &'static str {
-	match position {
-		ElfScenarioPosition::Wins => "wins",
-		ElfScenarioPosition::Ties => "ties",
-		ElfScenarioPosition::Loses => "loses",
-		ElfScenarioPosition::Untested => "untested",
+fn scenario_comparison_outcome_str(outcome: ScenarioComparisonOutcome) -> &'static str {
+	match outcome {
+		ScenarioComparisonOutcome::Win => "win",
+		ScenarioComparisonOutcome::Tie => "tie",
+		ScenarioComparisonOutcome::Loss => "loss",
+		ScenarioComparisonOutcome::NotTested => "not_tested",
+		ScenarioComparisonOutcome::Blocked => "blocked",
+		ScenarioComparisonOutcome::NonGoal => "non_goal",
 	}
 }
 
@@ -4944,6 +5002,22 @@ fn scenario_position_counts_display(counts: &ScenarioPositionCounts) -> String {
 	.into_iter()
 	.filter(|(_, count)| *count > 0)
 	.map(|(position, count)| format!("{position}={count}"))
+	.collect::<Vec<_>>()
+	.join(", ")
+}
+
+fn scenario_outcome_counts_display(counts: &ScenarioOutcomeCounts) -> String {
+	[
+		("win", counts.win),
+		("tie", counts.tie),
+		("loss", counts.loss),
+		("not_tested", counts.not_tested),
+		("blocked", counts.blocked),
+		("non_goal", counts.non_goal),
+	]
+	.into_iter()
+	.filter(|(_, count)| *count > 0)
+	.map(|(outcome, count)| format!("{outcome}={count}"))
 	.collect::<Vec<_>>()
 	.join(", ")
 }

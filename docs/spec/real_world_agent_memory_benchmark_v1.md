@@ -175,10 +175,15 @@ Each `adapters[]` record MUST include:
 - `suites`: array of real-world suite coverage records with `suite_id`, `status`, and
   `evidence`.
 - `scenarios`: optional array of scenario judgment records with `scenario_id`,
-  optional `suite_id`, `status`, `elf_position`, `evidence`, and optional `command`
-  and `artifact`. `elf_position` MUST be one of `wins`, `ties`, `loses`, or
-  `untested`. Scenario judgments are report inputs for dimension-level comparison;
-  they MUST NOT convert live-baseline-only evidence into real-world suite pass claims.
+  optional `suite_id`, `status`, `elf_position`, optional `comparison_outcome`,
+  `evidence`, and optional `command` and `artifact`. `elf_position` MUST be one of
+  `wins`, `ties`, `loses`, or `untested`. `comparison_outcome`, when present, MUST be
+  one of `win`, `tie`, `loss`, `not_tested`, `blocked`, or `non_goal`. Reports SHOULD
+  derive `comparison_outcome` from `elf_position` when omitted, but SHOULD use the
+  explicit field for scenarios where the legacy ELF-relative position is less precise
+  than the report outcome. Scenario judgments are report inputs for dimension-level
+  comparison; they MUST NOT convert live-baseline-only evidence into real-world suite
+  pass claims.
 - `evidence`: array of evidence pointers with `kind`, `ref`, and `status`.
 - `notes`: optional bounded explanatory strings.
 - `follow_up`: optional `title` and `reason`.
@@ -580,7 +585,9 @@ Reports MUST include:
 - external adapter coverage when an external adapter manifest is loaded, preserving
   `fixture_backed`, `live_baseline_only`, `live_real_world`, `research_gate`,
   `real`, `mocked`, `unsupported`, `blocked`, `incomplete`, `wrong_result`,
-  `lifecycle_fail`, `pass`, and `not_encoded` distinctions.
+  `lifecycle_fail`, `pass`, and `not_encoded` distinctions. Scenario summaries MUST
+  preserve status counts, legacy `elf_position` counts, and normalized
+  `comparison_outcome` counts when scenario judgments are present.
 
 Reports that encode `memory_evolution` jobs SHOULD also include stale-answer counts,
 conflict detection counts, update rationale availability, and temporal-validity

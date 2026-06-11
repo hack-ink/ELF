@@ -176,6 +176,14 @@ provider-backed ELF evidence was required.
   typed blocked or incomplete without explicit service, resource, or provider setup.
   These reports preserve the smoke-only boundary and do not create an ELF win claim
   against graph/RAG strengths.
+- mem0/OpenMemory history follow-up after XY-924: the local OSS mem0 adapter now
+  passes encoded preference correction history, entity-scoped personalization, local
+  `get_all` export-style readback, and deletion audit history in
+  `live-baseline-20260611113003`. The comparison records ELF as a loss on preference
+  correction history, ties on scoped personalization and delete audit, `not_tested`
+  for local SDK export-style parity, `blocked` for OpenMemory UI/export, and
+  `non_goal` for hosted Platform export and optional graph memory in the local OSS
+  lane.
 - The benchmark runner and report publisher are checked in and Docker-isolated:
   `cargo make baseline-live-docker`, `cargo make baseline-backfill-docker`,
   `cargo make baseline-production-private-addendum`,
@@ -197,6 +205,7 @@ Detailed evidence and interpretation:
 - [qmd and OpenViking Strength-Profile Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-qmd-openviking-strength-profile-report.md)
 - [ELF/qmd Trace Replay Diagnostics Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-elf-qmd-trace-replay-diagnostics-report.md)
 - [Graph/RAG Scored Smoke Adapter Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-graph-rag-scored-smoke-adapter-report.md)
+- [mem0/OpenMemory History and UI Export Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-mem0-openmemory-history-ui-export-report.md)
 - [Live Baseline Benchmark Runbook](docs/guide/benchmarking/live_baseline_benchmark.md)
 - [Single-User Production Runbook](docs/guide/single_user_production.md)
 - Benchmark contract:
@@ -272,6 +281,7 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [Temporal History Competitor Gap Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md)
 - [ELF/qmd Trace Replay Diagnostics Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-elf-qmd-trace-replay-diagnostics-report.md)
 - [Graph/RAG Scored Smoke Adapter Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-graph-rag-scored-smoke-adapter-report.md)
+- [mem0/OpenMemory History and UI Export Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-mem0-openmemory-history-ui-export-report.md)
 - [Live Baseline Benchmark Runbook](docs/guide/benchmarking/live_baseline_benchmark.md)
 - [Real-World Agent Memory Benchmark](docs/guide/benchmarking/real_world_agent_memory_benchmark.md)
 - [External Memory Improvement Plan](docs/guide/research/external_memory_improvement_plan.md)
