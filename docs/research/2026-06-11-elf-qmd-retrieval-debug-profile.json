@@ -1,0 +1,154 @@
+{
+  "schema": "elf.retrieval_debug_profile_report/v1",
+  "run_id": "2026-06-11-elf-qmd-retrieval-debug-profile",
+  "commit": "38c586d",
+  "created_at": "2026-06-11",
+  "scope": "ELF versus qmd retrieval correctness, stress same-corpus behavior, and retrieval-debug artifact comparison",
+  "commands": [
+    {
+      "command": "cargo make real-world-memory-live-adapters",
+      "status": "pass",
+      "runtime_seconds": 116.76,
+      "artifact": "tmp/real-world-memory/live-adapters/"
+    },
+    {
+      "command": "ELF_BASELINE_PROJECTS=ELF,qmd ELF_BASELINE_PROFILE=stress cargo make baseline-live-docker",
+      "status": "pass",
+      "runtime_seconds": 149.41,
+      "artifact": "tmp/live-baseline/live-baseline-report.json"
+    }
+  ],
+  "live_real_world_retrieval": {
+    "elf": {
+      "jobs": 5,
+      "pass": 5,
+      "expected_evidence": 6,
+      "matched_evidence": 6,
+      "produced_evidence": 6,
+      "mean_score": 1.0
+    },
+    "qmd": {
+      "jobs": 5,
+      "pass": 5,
+      "expected_evidence": 6,
+      "matched_evidence": 6,
+      "produced_evidence": 6,
+      "mean_score": 1.0
+    }
+  },
+  "live_real_world_full_sweep_context": {
+    "elf": {
+      "job_count": 38,
+      "pass": 18,
+      "wrong_result": 5,
+      "blocked": 2,
+      "not_encoded": 13,
+      "mean_score": 0.525,
+      "mean_latency_ms": 5.823
+    },
+    "qmd": {
+      "job_count": 38,
+      "pass": 18,
+      "wrong_result": 5,
+      "blocked": 2,
+      "not_encoded": 13,
+      "mean_score": 0.512,
+      "mean_latency_ms": 705.877
+    }
+  },
+  "stress_baseline": {
+    "profile": "stress",
+    "document_count": 480,
+    "query_count": 16,
+    "verdict": "pass",
+    "summary": {
+      "projects": 2,
+      "pass": 2,
+      "fail": 0,
+      "full_checks": 13,
+      "full_checks_pass": 13
+    },
+    "elf": {
+      "head": "38c586d49167d2e4118c921765c11fbec0a60af9",
+      "status": "pass",
+      "retrieval_status": "retrieval_pass",
+      "elapsed_seconds": 81,
+      "query_pass": 16,
+      "query_total": 16,
+      "expected_top1": 16,
+      "latency_ms_mean": 29.80780025,
+      "latency_ms_p95": 31.298164,
+      "backfill_source_count": 480,
+      "backfill_completed_count": 480,
+      "resume_attempts": 2,
+      "duplicate_source_notes": 0,
+      "resource_elapsed_seconds": 71.303126711,
+      "rss_kb": 54724,
+      "estimated_input_tokens": 27023,
+      "checks": [
+        "resumable_backfill_no_duplicates",
+        "same_corpus_retrieval",
+        "async_worker_indexing_e2e",
+        "update_replaces_note_text",
+        "delete_suppresses_retrieval",
+        "cold_start_recovery_search",
+        "concurrent_write_search_e2e",
+        "soak_stability_e2e",
+        "resource_envelope"
+      ]
+    },
+    "qmd": {
+      "head": "636602409c862db077f38d9006df7f0bdca17ff3",
+      "status": "pass",
+      "retrieval_status": "retrieval_pass",
+      "elapsed_seconds": 66,
+      "query_pass": 16,
+      "query_total": 16,
+      "expected_top1": 16,
+      "mean_expected_rank": 1.0,
+      "mean_distractors_in_top10": 7.9375,
+      "checks": [
+        "same_corpus_retrieval",
+        "update_replaces_note_text",
+        "delete_suppresses_retrieval",
+        "cold_start_recovery_search"
+      ]
+    },
+    "per_query": [
+      {"id": "q-auth", "elf_matched_top_evidence": true, "elf_latency_ms": 30.57141, "qmd_expected_rank": 1, "qmd_top10_distractors": 6},
+      {"id": "q-auth-alt", "elf_matched_top_evidence": true, "elf_latency_ms": 30.500951, "qmd_expected_rank": 1, "qmd_top10_distractors": 7},
+      {"id": "q-database", "elf_matched_top_evidence": true, "elf_latency_ms": 30.533742, "qmd_expected_rank": 1, "qmd_top10_distractors": 8},
+      {"id": "q-database-alt", "elf_matched_top_evidence": true, "elf_latency_ms": 31.280581, "qmd_expected_rank": 1, "qmd_top10_distractors": 8},
+      {"id": "q-deploy", "elf_matched_top_evidence": true, "elf_latency_ms": 29.958447, "qmd_expected_rank": 1, "qmd_top10_distractors": 9},
+      {"id": "q-deploy-alt", "elf_matched_top_evidence": true, "elf_latency_ms": 31.298164, "qmd_expected_rank": 1, "qmd_top10_distractors": 8},
+      {"id": "q-retention", "elf_matched_top_evidence": true, "elf_latency_ms": 30.433992, "qmd_expected_rank": 1, "qmd_top10_distractors": 8},
+      {"id": "q-retention-alt", "elf_matched_top_evidence": true, "elf_latency_ms": 29.1944, "qmd_expected_rank": 1, "qmd_top10_distractors": 9},
+      {"id": "q-incident", "elf_matched_top_evidence": true, "elf_latency_ms": 30.838953, "qmd_expected_rank": 1, "qmd_top10_distractors": 7},
+      {"id": "q-incident-alt", "elf_matched_top_evidence": true, "elf_latency_ms": 28.700106, "qmd_expected_rank": 1, "qmd_top10_distractors": 9},
+      {"id": "q-billing", "elf_matched_top_evidence": true, "elf_latency_ms": 30.092115, "qmd_expected_rank": 1, "qmd_top10_distractors": 7},
+      {"id": "q-billing-alt", "elf_matched_top_evidence": true, "elf_latency_ms": 28.855273, "qmd_expected_rank": 1, "qmd_top10_distractors": 9},
+      {"id": "q-search", "elf_matched_top_evidence": true, "elf_latency_ms": 29.479694, "qmd_expected_rank": 1, "qmd_top10_distractors": 8},
+      {"id": "q-search-alt", "elf_matched_top_evidence": true, "elf_latency_ms": 28.641688, "qmd_expected_rank": 1, "qmd_top10_distractors": 7},
+      {"id": "q-recovery", "elf_matched_top_evidence": true, "elf_latency_ms": 28.357061, "qmd_expected_rank": 1, "qmd_top10_distractors": 8},
+      {"id": "q-recovery-alt", "elf_matched_top_evidence": true, "elf_latency_ms": 28.188227, "qmd_expected_rank": 1, "qmd_top10_distractors": 9}
+    ]
+  },
+  "debug_artifact_judgment": {
+    "retrieval_correctness": "tie_on_encoded_surfaces",
+    "qmd_advantage": "direct_top10_json_results_with_file_line_score_snippet_and_distractor_visibility",
+    "elf_advantage": "service_lifecycle_backfill_qdrant_rebuild_resource_envelope_source_of_truth_and_trace_ids",
+    "unmeasured": [
+      "qmd_rerank_quality",
+      "elf_rerank_quality",
+      "expansion_fusion_stage_quality",
+      "operator_debugging_ux_live_suite"
+    ]
+  },
+  "next_measurement_work": [
+    "hydrate ELF trace candidates into stress reports",
+    "add qmd query latency and candidate-density aggregates",
+    "add rerank-on qmd profile or keep rerank as unmeasured",
+    "add scored operator-debugging retrieval jobs for both systems",
+    "add expansion/fusion trace profile"
+  ]
+}
