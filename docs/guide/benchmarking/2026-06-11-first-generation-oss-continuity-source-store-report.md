@@ -47,7 +47,7 @@ External adapter manifest scenario outcomes now preserve every normalized outcom
 | Outcome | Count |
 | --- | ---: |
 | win | 9 |
-| tie | 8 |
+| tie | 9 |
 | loss | 1 |
 | not_tested | 8 |
 | blocked | 6 |
