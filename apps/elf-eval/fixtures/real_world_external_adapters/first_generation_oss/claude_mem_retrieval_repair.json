@@ -1,0 +1,192 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "first-gen-claude-mem-retrieval-repair-001",
+  "suite": "retrieval",
+  "title": "Preserve claude-mem retrieval repair evidence after same-corpus miss",
+  "corpus": {
+    "corpus_id": "first-generation-oss-claude-mem-2026-06-11",
+    "profile": "external_adapter",
+    "items": [
+      {
+        "evidence_id": "claude-mem-same-corpus-miss",
+        "kind": "adapter_artifact",
+        "text": "claude-mem retrieval repair evidence: the Docker baseline built the durable SQLite repository but same-corpus retrieval returned 0 of 3 expected query checks, so retrieval quality remains wrong_result.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "claude_mem_retrieval_repair",
+            "evidence_id": "claude-mem-same-corpus-miss"
+          },
+          "locator": {
+            "quote": "same-corpus retrieval returned 0 of 3 expected query checks"
+          }
+        },
+        "created_at": "2026-06-11T10:40:00Z"
+      },
+      {
+        "evidence_id": "claude-mem-repair-command",
+        "kind": "debug_command",
+        "text": "claude-mem repair command: rerun ELF_BASELINE_PROJECTS=claude-mem cargo make baseline-live-docker, then inspect tmp/live-baseline/claude-mem.log and tmp/live-baseline/claude-mem-checks.json before changing retrieval scoring.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "claude_mem_retrieval_repair",
+            "evidence_id": "claude-mem-repair-command"
+          },
+          "locator": {
+            "quote": "inspect tmp/live-baseline/claude-mem.log"
+          }
+        },
+        "created_at": "2026-06-11T10:41:00Z"
+      },
+      {
+        "evidence_id": "claude-mem-retrieval-pass-decoy",
+        "kind": "adapter_state",
+        "text": "Decoy: because claude-mem repository lifecycle passed, same-corpus retrieval also passed.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "claude_mem_retrieval_repair",
+            "evidence_id": "claude-mem-retrieval-pass-decoy"
+          }
+        },
+        "created_at": "2026-06-11T10:39:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_first_generation_oss",
+      "answer": {
+        "content": "claude-mem retrieval remains wrong_result: the durable SQLite repository built, but same-corpus retrieval returned 0 of 3 expected query checks. The repair path is to rerun the claude-mem baseline, inspect tmp/live-baseline/claude-mem.log and tmp/live-baseline/claude-mem-checks.json, then fix retrieval before any pass claim.",
+        "claims": [
+          {
+            "claim_id": "retrieval_wrong_result",
+            "text": "claude-mem same-corpus retrieval returned 0 of 3 expected query checks.",
+            "evidence_ids": ["claude-mem-same-corpus-miss"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "repair_artifact_path",
+            "text": "The repair path is to inspect tmp/live-baseline/claude-mem.log and tmp/live-baseline/claude-mem-checks.json.",
+            "evidence_ids": ["claude-mem-repair-command"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["claude-mem-same-corpus-miss", "claude-mem-repair-command"],
+        "latency_ms": 1.4,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "claude-mem-wrong-result-recorded",
+      "ts": "2026-06-11T10:40:00Z",
+      "actor": "benchmark",
+      "action": "recorded_same_corpus_wrong_result",
+      "evidence_ids": ["claude-mem-same-corpus-miss"],
+      "summary": "The same-corpus result remains wrong_result despite durable repository lifecycle evidence."
+    },
+    {
+      "event_id": "claude-mem-repair-artifact-recorded",
+      "ts": "2026-06-11T10:41:00Z",
+      "actor": "benchmark",
+      "action": "recorded_repair_artifact_path",
+      "evidence_ids": ["claude-mem-repair-command"],
+      "summary": "The repair path points at the reproducible Docker baseline and logs."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Did claude-mem retrieval pass, and what artifact should I inspect to repair the miss?",
+    "job_mode": "debug",
+    "constraints": ["cite_evidence", "preserve_wrong_result", "name_repair_artifact"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "retrieval_wrong_result",
+        "text": "claude-mem same-corpus retrieval returned 0 of 3 expected query checks."
+      },
+      {
+        "claim_id": "repair_artifact_path",
+        "text": "The repair path is to inspect tmp/live-baseline/claude-mem.log and tmp/live-baseline/claude-mem-checks.json."
+      }
+    ],
+    "must_not_include": [
+      "same-corpus retrieval also passed"
+    ],
+    "evidence_links": {
+      "retrieval_wrong_result": ["claude-mem-same-corpus-miss"],
+      "repair_artifact_path": ["claude-mem-repair-command"]
+    },
+    "answer_type": "debug_report",
+    "accepted_alternates": [],
+    "requires_caveat": true,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "claude-mem-same-corpus-miss",
+      "claim_id": "retrieval_wrong_result",
+      "requirement": "cite",
+      "quote": "same-corpus retrieval returned 0 of 3 expected query checks"
+    },
+    {
+      "evidence_id": "claude-mem-repair-command",
+      "claim_id": "repair_artifact_path",
+      "requirement": "explain",
+      "quote": "inspect tmp/live-baseline/claude-mem.log and tmp/live-baseline/claude-mem-checks.json"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "lifecycle-pass-implies-retrieval-pass",
+      "type": "unsupported_prior",
+      "evidence_ids": ["claude-mem-retrieval-pass-decoy"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Keeps same-corpus retrieval as wrong_result."
+      },
+      "evidence_grounding": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Cites the wrong-result artifact and repair command."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Names the concrete artifact path for repair."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Does not infer retrieval pass from lifecycle pass."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "state_blocker"
+  },
+  "tags": ["external_adapter", "claude-mem", "retrieval", "wrong_result", "repair"]
+}

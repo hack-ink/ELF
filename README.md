@@ -172,6 +172,13 @@ provider-backed ELF evidence was required.
   command and repair-action clarity but is `wrong_result` for trace hydration and
   candidate-drop stage visibility. OpenMemory UI/export and claude-mem viewer flows
   remain blocked or not encoded, so this is not a broad viewer-product claim.
+- First-generation OSS continuity/source-store follow-up after XY-925: `cargo make
+  real-world-first-generation-oss` emits a fixture-backed external-adapter slice for
+  agentmemory, memsearch, and claude-mem with 6 jobs, 4 pass, 2 blocked, and full
+  evidence/source-ref/quote coverage. It selects agentmemory's durable local path,
+  adds memsearch canonical Markdown source-store and retrieval-debug prompt coverage,
+  and records claude-mem progressive-disclosure/retrieval-repair coverage while
+  keeping hook and viewer/operator workflows blocked.
 - Expanded adapter-pack coverage after XY-834: the real-world external adapter
   manifest now includes `research_gate` records for RAGFlow, LightRAG, GraphRAG,
   Graphiti/Zep, Letta, LangGraph, nanograph, llm-wiki, gbrain, and deeper
@@ -208,7 +215,8 @@ provider-backed ELF evidence was required.
   `cargo make baseline-backfill-10k-docker`,
   `cargo make baseline-backfill-100k-docker`,
   `cargo make baseline-soak-docker`, `cargo make baseline-live-report`,
-  `cargo make real-world-memory-live-adapters`, and
+  `cargo make real-world-memory-live-adapters`,
+  `cargo make real-world-first-generation-oss`, and
   `cargo make baseline-live-docker-clean`. Expensive 100k and long-soak profiles
   are opt-in and do not run in normal checks.
 
@@ -225,6 +233,7 @@ Detailed evidence and interpretation:
 - [Graph/RAG Scored Smoke Adapter Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-graph-rag-scored-smoke-adapter-report.md)
 - [mem0/OpenMemory History and UI Export Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-mem0-openmemory-history-ui-export-report.md)
 - [Capture/Write-Policy Live Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-capture-write-policy-live-report.md)
+- [First-Generation OSS Continuity and Source-Store Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-first-generation-oss-continuity-source-store-report.md)
 - [Live Baseline Benchmark Runbook](docs/guide/benchmarking/live_baseline_benchmark.md)
 - [Single-User Production Runbook](docs/guide/single_user_production.md)
 - Benchmark contract:
@@ -303,6 +312,7 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [Graph/RAG Scored Smoke Adapter Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-graph-rag-scored-smoke-adapter-report.md)
 - [mem0/OpenMemory History and UI Export Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-mem0-openmemory-history-ui-export-report.md)
 - [Capture/Write-Policy Live Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-capture-write-policy-live-report.md)
+- [First-Generation OSS Continuity and Source-Store Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-first-generation-oss-continuity-source-store-report.md)
 - [Live Baseline Benchmark Runbook](docs/guide/benchmarking/live_baseline_benchmark.md)
 - [Real-World Agent Memory Benchmark](docs/guide/benchmarking/real_world_agent_memory_benchmark.md)
 - [External Memory Improvement Plan](docs/guide/research/external_memory_improvement_plan.md)
