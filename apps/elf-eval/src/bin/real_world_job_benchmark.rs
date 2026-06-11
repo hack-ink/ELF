@@ -54,6 +54,7 @@ const SUITES: &[&str] = &[
 	"capture_integration",
 	"production_ops",
 	"personalization",
+	"context_trajectory",
 ];
 
 #[derive(Debug, Parser)]
