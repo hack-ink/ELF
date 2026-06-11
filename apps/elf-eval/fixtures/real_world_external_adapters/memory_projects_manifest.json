@@ -595,7 +595,7 @@
           "status": "pass",
           "elf_position": "ties",
           "comparison_outcome": "tie",
-          "evidence": "ELF and qmd generated clear repair/replay steps for the narrow operator-debug jobs; OpenMemory and claude-mem UI repair paths remain blocked or not encoded.",
+          "evidence": "ELF and qmd generated clear repair/replay steps for the narrow operator-debug jobs; OpenMemory UI/export remains blocked, and claude-mem UI repair paths remain blocked until Docker-contained hook/viewer evidence exists.",
           "command": "cargo make real-world-job-operator-ux-live-adapters",
           "artifact": "tmp/real-world-job/operator-ux-live-adapters/summary.json"
         },

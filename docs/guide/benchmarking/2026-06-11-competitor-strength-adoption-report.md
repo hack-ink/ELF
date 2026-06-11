@@ -48,7 +48,8 @@ The remaining caveats are material:
   ergonomics as stronger than ELF's default stress report, while expansion, fusion,
   and rerank remain untested. XY-932 adds a narrow live operator-debug slice where
   ELF beats qmd on trace hydration and candidate-drop visibility, but OpenMemory
-  UI/export and claude-mem viewer workflows remain blocked or not encoded. XY-925
+  UI/export remains blocked and claude-mem viewer workflows remain blocked until
+  Docker-contained hook/viewer evidence exists. XY-925
   now adds fixture-backed first-generation OSS prompt coverage and typed blockers for
   agentmemory durable continuity, memsearch Markdown source-store/debug jobs, and
   claude-mem progressive-disclosure, retrieval-repair, hook, and viewer/operator
@@ -97,7 +98,7 @@ results, or lifecycle failures into one aggregate leaderboard.
 | Scenario | ELF outcome | Evidence classes | Measured claim | Follow-up |
 | --- | --- | --- | --- | --- |
 | Source-of-truth rebuild and evidence-bound writes | `win` | `fixture_backed`, `live_real_world`, `live_baseline_only` | ELF has the strongest measured source-of-truth and rebuild story: Postgres is authoritative, Qdrant is rebuildable, trust-source jobs pass, and production restore/rebuild proof exists. | None |
-| Work resume and coding-agent continuity | `tie` | `fixture_backed`, `live_real_world`, `live_baseline_only`, `blocked`, `not_encoded` | ELF and qmd both pass encoded live `work_resume` jobs. XY-925 selects agentmemory's next durable local path but keeps it blocked until the SDK KV/index and observation log survive a fresh process; claude-mem and OpenViking continuity strengths remain blocked or not encoded. | XY-928 |
+| Work resume and coding-agent continuity | `tie` | `fixture_backed`, `live_real_world`, `live_baseline_only`, `blocked`, `not_encoded` | ELF and qmd both pass encoded live `work_resume` jobs. XY-925 selects agentmemory's next durable local path but keeps it blocked until the SDK KV/index and observation log survive a fresh process; claude-mem work_resume remains `not_encoded`, and OpenViking continuity trajectory remains `blocked`. | XY-928 |
 | Project decisions and reversals | `tie` | `fixture_backed`, `live_real_world`, `research_gate`, `not_encoded` | ELF and qmd both pass encoded `project_decisions` jobs; Letta-style core/archival decision memory is not tested. | XY-927 |
 | Retrieval quality | `tie` | `fixture_backed`, `live_real_world`, `live_baseline_only` | ELF and qmd both pass encoded live retrieval and stress/same-corpus retrieval evidence. | XY-923 |
 | Retrieval quality and local debug UX | `loss` | `live_baseline_only`, `research_gate`, `wrong_result`, `not_encoded` | The XY-923 trace/replay report scores qmd stronger on immediate top-10 candidate artifacts and short CLI replay commands. ELF keeps useful service trace/admin replay surfaces, and expansion, fusion, rerank-on, and candidate-drop diagnostics remain untested. | XY-923 |
