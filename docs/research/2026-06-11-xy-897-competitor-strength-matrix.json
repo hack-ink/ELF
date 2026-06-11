@@ -32,8 +32,8 @@
     },
     "overall_status_counts": {
       "lifecycle_fail": 1,
-      "blocked": 6,
-      "not_encoded": 6,
+      "blocked": 7,
+      "not_encoded": 5,
       "pass": 4,
       "wrong_result": 6
     }

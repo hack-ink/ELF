@@ -49,7 +49,7 @@ Current boundary:
 The current manifest has 23 adapter records across 16 external projects plus ELF.
 Evidence-class counts: 1 `fixture_backed`, 6 `live_baseline_only`, 5
 `live_real_world`, and 11 `research_gate`. Overall adapter-status counts: 4 `pass`,
-6 `wrong_result`, 1 `lifecycle_fail`, 6 `blocked`, and 6 `not_encoded`.
+6 `wrong_result`, 1 `lifecycle_fail`, 7 `blocked`, and 5 `not_encoded`.
 
 ## State Taxonomy
 
