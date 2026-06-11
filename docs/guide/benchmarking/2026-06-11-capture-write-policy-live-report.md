@@ -53,7 +53,7 @@ The ELF materialization artifact records:
 | --- | --- | --- |
 | qmd live real-world adapter | `untested` | ELF executes and passes 4/4 live capture jobs; qmd keeps the same jobs typed `not_encoded`, so this remains an ELF self-check rather than a qmd comparison result. |
 | agentmemory capture hooks | `blocked` | The current Docker baseline uses a process-local StateKV Map and in-memory index. No durable local session/capture path stores source ids, exclusions, write-policy audit, or evidence-bound output. |
-| claude-mem capture/viewer flows | `untested` | The checked evidence exercises repository storage, lifecycle, progressive disclosure, and same-corpus retrieval only. Hooks, timeline, observations, viewer capture, and automatic capture review are not run against real-world jobs. |
+| claude-mem capture/viewer flows | `blocked` | The checked evidence exercises repository storage, lifecycle, progressive disclosure, and same-corpus retrieval only. Hooks, timeline, observations, viewer capture, and automatic capture review need a Docker-contained hook/viewer runner before scoring. |
 
 ## Claims Allowed
 
@@ -62,7 +62,7 @@ The ELF materialization artifact records:
 - qmd remains `not_encoded` for capture/write-policy jobs in the full live sweep.
 - agentmemory capture comparison is blocked by mocked/in-memory storage and lack of a
   durable local capture artifact.
-- claude-mem capture breadth is untested until a Docker-contained hook/viewer capture
+- claude-mem capture breadth is blocked until a Docker-contained hook/viewer capture
   runner exists.
 
 ## Claims Not Allowed

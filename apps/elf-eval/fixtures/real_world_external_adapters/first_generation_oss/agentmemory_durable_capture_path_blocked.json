@@ -1,0 +1,208 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "first-gen-agentmemory-durable-capture-blocked-001",
+  "suite": "capture_integration",
+  "title": "Select the durable agentmemory capture path before scoring hooks",
+  "encoding": {
+    "status": "blocked",
+    "reason": "agentmemory's current Docker baseline still uses a process-local SDK/KV mock, so work-resume and write-policy hook capture cannot be scored until a persistent local session, KV, and index path survives a fresh process.",
+    "follow_up": {
+      "title": "Wire agentmemory durable local session capture for work-resume jobs",
+      "reason": "The fair path is a Docker-contained adapter that persists the agentmemory observation log, KV store, and searchable index between capture and replay processes."
+    }
+  },
+  "corpus": {
+    "corpus_id": "first-generation-oss-agentmemory-2026-06-11",
+    "profile": "external_adapter",
+    "items": [
+      {
+        "evidence_id": "agentmemory-selected-durable-path",
+        "kind": "adapter_plan",
+        "text": "Selected agentmemory path: run capture hooks into a Docker-local session directory, persist the SDK KV store and searchable index, restart a fresh process, then score work_resume and write-policy prompts against that recovered store.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "agentmemory_durable_capture_path_blocked",
+            "evidence_id": "agentmemory-selected-durable-path"
+          },
+          "locator": {
+            "quote": "persist the SDK KV store and searchable index"
+          }
+        },
+        "created_at": "2026-06-11T10:00:00Z"
+      },
+      {
+        "evidence_id": "agentmemory-mock-boundary",
+        "kind": "adapter_blocker",
+        "text": "Current blocker: the live-baseline adapter registers agentmemory functions against a process-local StateKV Map and in-memory index, so it cannot prove cold-start recovery or hook capture durability.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "agentmemory_durable_capture_path_blocked",
+            "evidence_id": "agentmemory-mock-boundary"
+          },
+          "locator": {
+            "quote": "process-local StateKV Map and in-memory index"
+          }
+        },
+        "created_at": "2026-06-11T10:01:00Z"
+      },
+      {
+        "evidence_id": "agentmemory-pass-decoy",
+        "kind": "adapter_state",
+        "text": "Decoy: agentmemory same-corpus retrieval passing through the mock proves durable coding-agent continuity and write-policy capture.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "agentmemory_durable_capture_path_blocked",
+            "evidence_id": "agentmemory-pass-decoy"
+          }
+        },
+        "created_at": "2026-06-11T09:59:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_first_generation_oss",
+      "answer": {
+        "content": "agentmemory remains blocked for durable work-resume and write-policy hook capture. The selected local path is a Docker-contained session directory that persists the SDK KV store and searchable index across a fresh process; the current StateKV Map and in-memory index cannot prove that.",
+        "claims": [
+          {
+            "claim_id": "selected_durable_path",
+            "text": "The selected local path persists the SDK KV store and searchable index across a fresh process.",
+            "evidence_ids": ["agentmemory-selected-durable-path"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "current_mock_blocker",
+            "text": "The current StateKV Map and in-memory index cannot prove durable continuity.",
+            "evidence_ids": ["agentmemory-mock-boundary"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["agentmemory-selected-durable-path", "agentmemory-mock-boundary"],
+        "latency_ms": 1.0,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    },
+    "capture_behaviors": {
+      "blocked": [
+        "agentmemory durable hook capture waits for a persistent Docker-local session, KV, and index path."
+      ],
+      "notes": [
+        "Same-corpus mock retrieval is not promoted into work-resume or capture integration pass evidence."
+      ]
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "agentmemory-durable-path-selected",
+      "ts": "2026-06-11T10:00:00Z",
+      "actor": "benchmark",
+      "action": "selected_durable_adapter_path",
+      "evidence_ids": ["agentmemory-selected-durable-path"],
+      "summary": "The next fair agentmemory path must persist capture state across a fresh process."
+    },
+    {
+      "event_id": "agentmemory-mock-blocker-preserved",
+      "ts": "2026-06-11T10:01:00Z",
+      "actor": "benchmark",
+      "action": "kept_blocked_state",
+      "evidence_ids": ["agentmemory-mock-boundary"],
+      "summary": "The current in-memory adapter remains blocked for durable continuity."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "What local agentmemory path should be used for work-resume and write-policy capture, and can the current mock be scored?",
+    "job_mode": "operate",
+    "constraints": ["cite_evidence", "state_blockers", "do_not_promote_mock_smoke"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "selected_durable_path",
+        "text": "The selected local path persists the SDK KV store and searchable index across a fresh process."
+      },
+      {
+        "claim_id": "current_mock_blocker",
+        "text": "The current StateKV Map and in-memory index cannot prove durable continuity."
+      }
+    ],
+    "must_not_include": [
+      "same-corpus retrieval passing through the mock proves durable coding-agent continuity"
+    ],
+    "evidence_links": {
+      "selected_durable_path": ["agentmemory-selected-durable-path"],
+      "current_mock_blocker": ["agentmemory-mock-boundary"]
+    },
+    "answer_type": "blocked_plan",
+    "accepted_alternates": [],
+    "requires_caveat": true,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "agentmemory-selected-durable-path",
+      "claim_id": "selected_durable_path",
+      "requirement": "cite",
+      "quote": "persist the SDK KV store and searchable index"
+    },
+    {
+      "evidence_id": "agentmemory-mock-boundary",
+      "claim_id": "current_mock_blocker",
+      "requirement": "cite",
+      "quote": "process-local StateKV Map and in-memory index"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "mock-smoke-durable-pass",
+      "type": "unsupported_prior",
+      "evidence_ids": ["agentmemory-pass-decoy"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "uncertainty_handling": {
+        "weight": 0.35,
+        "max_points": 1.0,
+        "criteria": "Keeps the durable path blocked until persistent state is proven."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Names the concrete local path needed for the next adapter."
+      },
+      "evidence_grounding": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Cites the selected path and the current mock boundary."
+      },
+      "trap_avoidance": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Does not promote the mock same-corpus smoke into durable continuity proof."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "state_blocker"
+  },
+  "tags": ["external_adapter", "agentmemory", "capture_integration", "blocked", "no_live_claim"]
+}
