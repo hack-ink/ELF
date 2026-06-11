@@ -375,6 +375,9 @@ leave real-world suites as `not_encoded`, `blocked`, `incomplete`, `wrong_result
 scoring. The same manifest can also contain `research_gate` records for future adapter
 packs; those records provide source/setup/runtime/resource/retry guidance but are not
 live-baseline evidence.
+The manifest may also include scenario judgments with an ELF position of `wins`,
+`ties`, `loses`, or `untested`; these are dimension-level report inputs and do not
+upgrade live-baseline-only evidence into real-world suite pass evidence.
 
 The full live real-world adapter sweep for ELF and qmd is separate from the
 same-corpus live baseline:

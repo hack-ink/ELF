@@ -184,6 +184,76 @@ fn real_world_report_includes_external_adapter_coverage_manifest() -> Result<()>
 	Ok(())
 }
 
+#[test]
+fn external_adapter_run_summarizes_nonzero_scenario_losses() -> Result<()> {
+	let manifest_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+		.join("fixtures")
+		.join("real_world_external_adapters")
+		.join("memory_projects_manifest.json");
+	let mut manifest = serde_json::from_str::<Value>(&fs::read_to_string(manifest_path)?)?;
+	let adapters = manifest
+		.pointer_mut("/adapters")
+		.and_then(Value::as_array_mut)
+		.ok_or_else(|| eyre::eyre!("missing manifest adapters"))?;
+	let adapter = adapters
+		.iter_mut()
+		.find(|adapter| {
+			adapter.pointer("/adapter_id").and_then(Value::as_str)
+				== Some("agentmemory_live_baseline")
+		})
+		.ok_or_else(|| eyre::eyre!("missing agentmemory adapter"))?;
+
+	set_json_pointer(adapter, "/scenarios/0/elf_position", serde_json::json!("loses"))?;
+
+	let temp_dir =
+		env::temp_dir().join(format!("elf-real-world-loss-manifest-test-{}", process::id()));
+
+	fs::create_dir_all(&temp_dir)?;
+
+	let manifest_path = temp_dir.join("memory_projects_manifest.json");
+
+	fs::write(&manifest_path, serde_json::to_vec_pretty(&manifest)?)?;
+
+	let output = Command::new(env!("CARGO_BIN_EXE_real_world_job_benchmark"))
+		.arg("run")
+		.arg("--fixtures")
+		.arg(fixture_dir())
+		.arg("--external-adapter-manifest")
+		.arg(&manifest_path)
+		.output()?;
+
+	assert!(
+		output.status.success(),
+		"real_world_job runner failed: {}",
+		String::from_utf8_lossy(&output.stderr),
+	);
+
+	let report = serde_json::from_slice::<Value>(&output.stdout)?;
+
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_position_counts/loses")
+			.and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_position_counts/untested")
+			.and_then(Value::as_u64),
+		Some(8)
+	);
+
+	let adapters = array_at(&report, "/external_adapters/adapters")?;
+	let agentmemory = find_by_field(adapters, "/adapter_id", "agentmemory_live_baseline")?;
+
+	assert_eq!(
+		agentmemory.pointer("/scenarios/0/elf_position").and_then(Value::as_str),
+		Some("loses")
+	);
+
+	Ok(())
+}
+
 fn assert_external_adapter_manifest_summary(report: &Value) {
 	assert_eq!(
 		report.pointer("/external_adapters/schema").and_then(Value::as_str),
@@ -233,13 +303,13 @@ fn assert_external_adapter_manifest_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/overall_status_counts/pass")
 			.and_then(Value::as_u64),
-		Some(1)
+		Some(3)
 	);
 	assert_eq!(
 		report
 			.pointer("/external_adapters/summary/overall_status_counts/wrong_result")
 			.and_then(Value::as_u64),
-		Some(7)
+		Some(5)
 	);
 	assert_eq!(
 		report
@@ -281,7 +351,96 @@ fn assert_external_adapter_manifest_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/suite_status_counts/blocked")
 			.and_then(Value::as_u64),
-		Some(10)
+		Some(12)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/suite_status_counts/incomplete")
+			.and_then(Value::as_u64),
+		Some(0)
+	);
+
+	assert_external_adapter_manifest_scenario_summary(report);
+}
+
+fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_status_counts/real")
+			.and_then(Value::as_u64),
+		Some(0)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_status_counts/mocked")
+			.and_then(Value::as_u64),
+		Some(0)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_status_counts/unsupported")
+			.and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_status_counts/blocked")
+			.and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_status_counts/incomplete")
+			.and_then(Value::as_u64),
+		Some(0)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_status_counts/wrong_result")
+			.and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_status_counts/lifecycle_fail")
+			.and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_status_counts/pass")
+			.and_then(Value::as_u64),
+		Some(5)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_status_counts/not_encoded")
+			.and_then(Value::as_u64),
+		Some(4)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_position_counts/wins")
+			.and_then(Value::as_u64),
+		Some(2)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_position_counts/ties")
+			.and_then(Value::as_u64),
+		Some(2)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_position_counts/loses")
+			.and_then(Value::as_u64),
+		Some(0)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_position_counts/untested")
+			.and_then(Value::as_u64),
+		Some(9)
 	);
 }
 
@@ -328,7 +487,7 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 		Some("mocked")
 	);
 
-	assert_first_generation_adapter_records(mem0, memsearch, claude_mem);
+	assert_first_generation_adapter_records(agentmemory, mem0, memsearch, claude_mem);
 
 	assert_eq!(openviking.pointer("/overall_status").and_then(Value::as_str), Some("wrong_result"));
 	assert_eq!(ragflow.pointer("/evidence_class").and_then(Value::as_str), Some("research_gate"));
@@ -383,18 +542,55 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 	Ok(())
 }
 
-fn assert_first_generation_adapter_records(mem0: &Value, memsearch: &Value, claude_mem: &Value) {
+fn assert_first_generation_adapter_records(
+	agentmemory: &Value,
+	mem0: &Value,
+	memsearch: &Value,
+	claude_mem: &Value,
+) {
+	assert_eq!(
+		agentmemory.pointer("/scenarios/1/status").and_then(Value::as_str),
+		Some("lifecycle_fail")
+	);
+	assert_eq!(
+		agentmemory.pointer("/scenarios/1/elf_position").and_then(Value::as_str),
+		Some("wins")
+	);
+	assert_eq!(agentmemory.pointer("/scenarios/2/status").and_then(Value::as_str), Some("blocked"));
 	assert_eq!(
 		mem0.pointer("/capabilities/2/capability").and_then(Value::as_str),
 		Some("local_lifecycle_update_delete_reload")
 	);
-	assert_eq!(mem0.pointer("/capabilities/2/status").and_then(Value::as_str), Some("real"));
+	assert_eq!(mem0.pointer("/capabilities/2/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(mem0.pointer("/capabilities/4/status").and_then(Value::as_str), Some("not_encoded"));
+	assert_eq!(mem0.pointer("/scenarios/0/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(mem0.pointer("/scenarios/0/elf_position").and_then(Value::as_str), Some("ties"));
+	assert_eq!(
+		mem0.pointer("/scenarios/2/scenario_id").and_then(Value::as_str),
+		Some("openmemory_ui_export_readback")
+	);
+	assert_eq!(mem0.pointer("/scenarios/2/status").and_then(Value::as_str), Some("not_encoded"));
 	assert_eq!(
 		memsearch.pointer("/capabilities/2/capability").and_then(Value::as_str),
 		Some("reindex_update_delete_reload")
 	);
-	assert_eq!(memsearch.pointer("/capabilities/2/status").and_then(Value::as_str), Some("real"));
+	assert_eq!(memsearch.pointer("/capabilities/2/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(
+		memsearch.pointer("/scenarios/0/scenario_id").and_then(Value::as_str),
+		Some("canonical_markdown_reindex_reload")
+	);
+	assert_eq!(
+		memsearch.pointer("/scenarios/0/elf_position").and_then(Value::as_str),
+		Some("untested")
+	);
+	assert_eq!(
+		memsearch.pointer("/scenarios/1/status").and_then(Value::as_str),
+		Some("unsupported")
+	);
+	assert_eq!(
+		memsearch.pointer("/scenarios/1/elf_position").and_then(Value::as_str),
+		Some("untested")
+	);
 	assert_eq!(claude_mem.pointer("/capabilities/1/status").and_then(Value::as_str), Some("real"));
 	assert_eq!(
 		claude_mem.pointer("/capabilities/3/capability").and_then(Value::as_str),
@@ -404,6 +600,11 @@ fn assert_first_generation_adapter_records(mem0: &Value, memsearch: &Value, clau
 		claude_mem.pointer("/capabilities/4/status").and_then(Value::as_str),
 		Some("not_encoded")
 	);
+	assert_eq!(
+		claude_mem.pointer("/scenarios/0/status").and_then(Value::as_str),
+		Some("wrong_result")
+	);
+	assert_eq!(claude_mem.pointer("/scenarios/1/status").and_then(Value::as_str), Some("pass"));
 }
 
 fn assert_graphiti_zep_adapter(adapter: &Value) {
@@ -634,7 +835,7 @@ fn assert_live_sweep_record(adapter: &Value) -> Result<()> {
 	assert_eq!(full_pass.pointer("/status").and_then(Value::as_str), Some("wrong_result"));
 	assert_eq!(work_resume.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(memory_evolution.pointer("/status").and_then(Value::as_str), Some("wrong_result"));
-	assert_eq!(production_ops.pointer("/status").and_then(Value::as_str), Some("incomplete"));
+	assert_eq!(production_ops.pointer("/status").and_then(Value::as_str), Some("blocked"));
 	assert_eq!(consolidation.pointer("/status").and_then(Value::as_str), Some("not_encoded"));
 
 	Ok(())
@@ -965,6 +1166,143 @@ fn generated_json_report_renders_markdown() -> Result<()> {
 	assert!(markdown.contains("agentmemory-style hook capture"));
 	assert!(markdown.contains("xy844-current-worktree"));
 	assert!(markdown.contains("Existing live-baseline reports remain valid"));
+	assert!(markdown.contains("### Adapter Scenario Judgments"));
+	assert!(markdown.contains("ELF scenario positions: `wins=2, ties=2, untested=9`"));
+	assert!(markdown.contains("| `claude_mem_live_baseline` | `same_corpus_retrieval`"));
+	assert!(markdown.contains("| `memsearch_live_baseline` | `ttl_expiry_lifecycle`"));
+
+	Ok(())
+}
+
+#[test]
+fn external_adapter_markdown_renders_nonzero_scenario_losses() -> Result<()> {
+	let mut report = run_json_report()?;
+	let adapters = report
+		.pointer_mut("/external_adapters/adapters")
+		.and_then(Value::as_array_mut)
+		.ok_or_else(|| eyre::eyre!("missing external adapter records"))?;
+	let adapter = adapters
+		.iter_mut()
+		.find(|adapter| {
+			adapter.pointer("/adapter_id").and_then(Value::as_str)
+				== Some("agentmemory_live_baseline")
+		})
+		.ok_or_else(|| eyre::eyre!("missing agentmemory adapter"))?;
+
+	set_json_pointer(adapter, "/scenarios/0/elf_position", serde_json::json!("loses"))?;
+	set_json_pointer(
+		&mut report,
+		"/external_adapters/summary/scenario_position_counts",
+		serde_json::json!({
+			"wins": 2,
+			"ties": 2,
+			"loses": 1,
+			"untested": 8
+		}),
+	)?;
+
+	let temp_dir =
+		env::temp_dir().join(format!("elf-real-world-loss-scenario-test-{}", process::id()));
+
+	fs::create_dir_all(&temp_dir)?;
+
+	let report_path = temp_dir.join("report.json");
+	let markdown_path = temp_dir.join("report.md");
+
+	fs::write(&report_path, serde_json::to_vec_pretty(&report)?)?;
+
+	let output = Command::new(env!("CARGO_BIN_EXE_real_world_job_benchmark"))
+		.arg("publish")
+		.arg("--report")
+		.arg(&report_path)
+		.arg("--out")
+		.arg(&markdown_path)
+		.output()?;
+
+	assert!(
+		output.status.success(),
+		"real_world_job publisher failed: {}",
+		String::from_utf8_lossy(&output.stderr),
+	);
+
+	let markdown = fs::read_to_string(markdown_path)?;
+
+	assert!(markdown.contains("ELF scenario positions: `wins=2, ties=2, loses=1, untested=8`"));
+	assert!(markdown.contains(
+		"| `agentmemory_live_baseline` | `basic_same_corpus_retrieval` | `retrieval` | `pass` | `loses` |"
+	));
+
+	Ok(())
+}
+
+#[test]
+fn external_adapter_markdown_omits_scenario_summary_when_manifest_has_no_scenarios() -> Result<()> {
+	let mut report = run_json_report()?;
+	let adapters = report
+		.pointer_mut("/external_adapters/adapters")
+		.and_then(Value::as_array_mut)
+		.ok_or_else(|| eyre::eyre!("missing external adapter records"))?;
+
+	for adapter in adapters {
+		set_json_pointer(adapter, "/scenarios", serde_json::json!([]))?;
+	}
+
+	set_json_pointer(
+		&mut report,
+		"/external_adapters/summary/scenario_status_counts",
+		serde_json::json!({
+			"real": 0,
+			"mocked": 0,
+			"unsupported": 0,
+			"blocked": 0,
+			"incomplete": 0,
+			"wrong_result": 0,
+			"lifecycle_fail": 0,
+			"pass": 0,
+			"not_encoded": 0
+		}),
+	)?;
+	set_json_pointer(
+		&mut report,
+		"/external_adapters/summary/scenario_position_counts",
+		serde_json::json!({
+			"wins": 0,
+			"ties": 0,
+			"loses": 0,
+			"untested": 0
+		}),
+	)?;
+
+	let temp_dir =
+		env::temp_dir().join(format!("elf-real-world-no-scenario-test-{}", process::id()));
+
+	fs::create_dir_all(&temp_dir)?;
+
+	let report_path = temp_dir.join("report.json");
+	let markdown_path = temp_dir.join("report.md");
+
+	fs::write(&report_path, serde_json::to_vec_pretty(&report)?)?;
+
+	let output = Command::new(env!("CARGO_BIN_EXE_real_world_job_benchmark"))
+		.arg("publish")
+		.arg("--report")
+		.arg(&report_path)
+		.arg("--out")
+		.arg(&markdown_path)
+		.output()?;
+
+	assert!(
+		output.status.success(),
+		"real_world_job publisher failed: {}",
+		String::from_utf8_lossy(&output.stderr),
+	);
+
+	let markdown = fs::read_to_string(markdown_path)?;
+
+	assert!(markdown.contains("External Adapter Coverage"));
+	assert!(!markdown.contains("Scenario coverage statuses:"));
+	assert!(!markdown.contains("ELF scenario positions:"));
+	assert!(!markdown.contains("### Adapter Scenario Judgments"));
 
 	Ok(())
 }

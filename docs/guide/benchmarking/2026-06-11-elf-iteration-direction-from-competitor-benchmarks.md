@@ -66,17 +66,18 @@ sweeps for ELF and qmd:
 
 | Adapter | Jobs | Pass | Wrong result | Incomplete | Blocked | Not encoded | Mean score | Evidence recall |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| ELF live service adapter | `38` | `18` | `5` | `1` | `2` | `12` | `0.514` | `41/75` |
-| qmd live CLI adapter | `38` | `18` | `5` | `1` | `2` | `12` | `0.512` | `41/75` |
+| ELF live service adapter | `38` | `18` | `5` | `0` | `2` | `13` | `0.525` | `41/77` |
+| qmd live CLI adapter | `38` | `17` | `6` | `0` | `2` | `13` | `0.486` | `38/77` |
 
 Interpretation:
 
-- This is a tie for the currently encoded live real-world sweep.
+- This is a near tie for the currently encoded live real-world sweep, with ELF one
+  job ahead in this fresh run.
 - Both pass `trust_source_of_truth`, `work_resume`, `project_decisions`,
   `retrieval`, and `personalization`.
 - Both fail `memory_evolution` live conflict evidence with `wrong_result`.
 - Both leave consolidation, knowledge compilation, operator debugging, capture
-  integration, and parts of production operations as `not_encoded` or incomplete.
+  integration, and production-ops operator boundaries as `not_encoded` or `blocked`.
 
 ### Production Evidence
 
@@ -108,8 +109,8 @@ Overall adapter statuses:
 
 | Status | Count |
 | --- | ---: |
-| `pass` | `1` |
-| `wrong_result` | `7` |
+| `pass` | `3` |
+| `wrong_result` | `5` |
 | `lifecycle_fail` | `1` |
 | `blocked` | `5` |
 | `not_encoded` | `7` |
@@ -144,8 +145,8 @@ one misleading score.
 | ELF | `fixture_backed` plus `live_real_world`; live full sweep is `wrong_result`. | Evidence-linked memory service, strict provenance, rebuildable Qdrant, production backfill/restore proof. | Keep this as the core; do not weaken source-of-truth or typed failure semantics while adding product ergonomics. |
 | qmd | `live_real_world` plus `live_baseline_only`; targeted retrieval passes, full sweep is `wrong_result`. | Local retrieval-debug workflow, transparent CLI, weighted fusion, rerank, replayable commands. | Treat qmd as the retrieval-debug bar. ELF should match its introspection and local replay without becoming CLI-only. |
 | agentmemory | `live_baseline_only`; current status is `lifecycle_fail`. | Coding-agent continuity, hooks, MCP/REST packaging, viewer/console observability. | Borrow capture breadth and continuity UX, but require durable lifecycle proof before claims. |
-| mem0/OpenMemory | `live_baseline_only`; current status is `wrong_result`. | Entity-scoped memory, lifecycle/history surfaces, hosted ecosystem, OpenMemory UI. | Add entity/preference history and UI readback patterns, while keeping hosted claims out of local OSS benchmarks. |
-| memsearch | `live_baseline_only`; current status is `wrong_result` with source-of-truth gaps. | Markdown-first canonical store and local reindex clarity. | Borrow local inspectability and canonical-file ergonomics, not file-as-authority semantics. |
+| mem0/OpenMemory | `live_baseline_only`; basic local smoke now passes, while entity/preference history, hosted ecosystem, graph memory, and OpenMemory UI remain untested locally. | Entity-scoped memory, lifecycle/history surfaces, hosted ecosystem, OpenMemory UI. | Add entity/preference history and UI readback patterns, while keeping hosted claims out of local OSS benchmarks. |
+| memsearch | `live_baseline_only`; canonical Markdown reindex/reload smoke now passes, while real-world source-of-truth prompts remain unencoded. | Markdown-first canonical store and local reindex clarity. | Borrow local inspectability and canonical-file ergonomics, not file-as-authority semantics. |
 | OpenViking | `live_baseline_only` plus `research_gate`; current status is `wrong_result`. | Filesystem-like context model, hierarchy, staged context trajectory. | Add staged retrieval and trajectory scoring after same-corpus evidence output is correct. |
 | claude-mem | `live_baseline_only`; current status is `wrong_result`. | Progressive disclosure, automatic capture, local viewer workflow. | Borrow progressive disclosure and viewer comfort; benchmark capture and operator-debugging live paths. |
 | RAGFlow | `research_gate`; current status is `blocked`. | Full RAG application workflow with document/chunk/reference handles. | Use as a resource-aware RAG adapter benchmark, not as a current ELF competitor win/loss. |
@@ -235,9 +236,10 @@ These are needed for broad credibility but should not block personal production 
      scoring.
 
 3. mem0/OpenMemory and memsearch coverage
-   - Current state: both are `wrong_result` or partially incomplete in local checks.
-   - Benchmark gate: fix same-corpus correctness first; only then score entity
-     history, UI readback, markdown store, and reindex workflows.
+   - Current state: both now pass the basic local OSS smoke, but their strongest
+     real-world scenarios remain unencoded.
+   - Benchmark gate: score mem0/OpenMemory entity history and UI readback, plus
+     memsearch source-of-truth and retrieval-debug workflows.
 
 ## What Not To Claim Yet
 

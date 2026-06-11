@@ -6,7 +6,8 @@ Read this when: You need to answer whether ELF has enough empirical evidence to
 claim a win, tie, loss, or non-claim against tracked memory, RAG, graph, and
 agent-continuity projects.
 Inputs: Fresh local runs of `cargo make real-world-memory` and
-`cargo make real-world-memory-live-adapters` on commit `286af8b`, plus
+`cargo make real-world-memory-live-adapters` in the current XY-898 lane after
+adapter-report consistency repairs, plus
 `apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json`,
 `2026-06-11-competitor-strength-evidence-matrix.md`, and
 `2026-06-11-elf-iteration-direction-from-competitor-benchmarks.md`.
@@ -23,9 +24,10 @@ What is proven today:
 
 - ELF has a strong fixture-backed real-world benchmark contract: 38 jobs, 36 pass,
   2 blocked operator boundaries, and no wrong results in the fixture aggregate.
-- ELF and qmd have comparable full-suite live real-world sweeps. They are effectively
-  tied on pass/fail shape: each has 38 jobs, 18 pass, 5 wrong_result, 2 blocked, and
-  13 not_encoded.
+- ELF and qmd have comparable full-suite live real-world sweeps. The latest generated
+  artifacts are close but no longer identical: ELF has 38 jobs with 18 pass,
+  5 wrong_result, 2 blocked, and 13 not_encoded, while qmd has 17 pass,
+  6 wrong_result, 2 blocked, and 13 not_encoded.
 - ELF is ahead on production-operation evidence among tracked systems because it has
   checked-in provider synthetic, stress, backfill, backup/restore, and Qdrant rebuild
   evidence.
@@ -39,12 +41,13 @@ production," but the competitiveness objective remains open.
 
 ## Fresh Runs
 
-These commands were run from an isolated report worktree based on `origin/main`:
+These commands were run in the current XY-898 lane after adapter-report consistency
+repairs:
 
 | Command | Result | Runtime |
 | --- | --- | ---: |
-| `cargo make real-world-memory` | pass | 42.38 seconds |
-| `cargo make real-world-memory-live-adapters` | pass | 121.93 seconds |
+| `cargo make real-world-memory` | pass | 11.91 seconds |
+| `cargo make real-world-memory-live-adapters` | pass | 121.51 seconds |
 
 The live adapter run emitted repeated Qdrant client/server compatibility warnings, but
 the command completed successfully and produced ELF and qmd JSON/Markdown reports.
@@ -82,33 +85,36 @@ live adapter or competitor runtime can complete those jobs.
 
 | Adapter | Jobs | Pass | Wrong result | Blocked | Not encoded | Mean score | Mean latency | Evidence recall | Evidence coverage |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| ELF live service adapter | `38` | `18` | `5` | `2` | `13` | `0.525` | `5.100 ms` | `41/77` | `48/84` |
-| qmd live CLI adapter | `38` | `18` | `5` | `2` | `13` | `0.512` | `719.758 ms` | `41/77` | `48/84` |
+| ELF live service adapter | `38` | `18` | `5` | `2` | `13` | `0.525` | `6.761 ms` | `41/77` | `48/84` |
+| qmd live CLI adapter | `38` | `17` | `6` | `2` | `13` | `0.486` | `842.057 ms` | `38/77` | `45/84` |
 
-This supports a narrow tie on the currently encoded live real-world suite shape. It
-does not support a broad ELF-over-qmd claim because qmd remains the stronger
-retrieval-debug UX reference and its deep profile is still not encoded.
+This supports a near tie on the currently encoded live real-world suite shape, with
+ELF one job ahead in this fresh run. It does not support a broad ELF-over-qmd claim
+because qmd remains the stronger retrieval-debug UX reference and its deep profile is
+still not encoded.
 
 ### Live Suite Breakdown
 
-ELF and qmd had the same suite status shape:
+ELF and qmd have the same status shape outside `memory_evolution`. The difference is
+`memory-evolution-delete-ttl-001`: ELF passes that job while qmd reports
+`wrong_result`, leaving ELF at five memory-evolution wrong results and qmd at six.
 
-| Suite | Jobs | Status breakdown |
-| --- | ---: | --- |
-| `trust_source_of_truth` | `1` | `pass:1` |
-| `work_resume` | `5` | `pass:5` |
-| `retrieval` | `5` | `pass:5` |
-| `project_decisions` | `5` | `pass:5` |
-| `personalization` | `1` | `pass:1` |
-| `memory_evolution` | `6` | `pass:1`, `wrong_result:5` |
-| `capture_integration` | `2` | `not_encoded:2` |
-| `consolidation` | `4` | `not_encoded:4` |
-| `knowledge_compilation` | `2` | `not_encoded:2` |
-| `operator_debugging_ux` | `1` | `not_encoded:1` |
-| `production_ops` | `6` | `blocked:2`, `not_encoded:4` |
+| Suite | Jobs | ELF breakdown | qmd breakdown |
+| --- | ---: | --- | --- |
+| `trust_source_of_truth` | `1` | `pass:1` | `pass:1` |
+| `work_resume` | `5` | `pass:5` | `pass:5` |
+| `retrieval` | `5` | `pass:5` | `pass:5` |
+| `project_decisions` | `5` | `pass:5` | `pass:5` |
+| `personalization` | `1` | `pass:1` | `pass:1` |
+| `memory_evolution` | `6` | `pass:1`, `wrong_result:5` | `wrong_result:6` |
+| `capture_integration` | `2` | `not_encoded:2` | `not_encoded:2` |
+| `consolidation` | `4` | `not_encoded:4` | `not_encoded:4` |
+| `knowledge_compilation` | `2` | `not_encoded:2` | `not_encoded:2` |
+| `operator_debugging_ux` | `1` | `not_encoded:1` | `not_encoded:1` |
+| `production_ops` | `6` | `blocked:2`, `not_encoded:4` | `blocked:2`, `not_encoded:4` |
 
-The five live wrong results are all memory-evolution jobs. The live adapters retrieve
-current evidence but do not yet provide the required historical conflict evidence
+The live wrong results are all memory-evolution jobs. The live adapters retrieve
+current evidence but do not yet provide all required historical conflict evidence
 links for current-vs-historical reasoning.
 
 ## External Adapter Ledger
@@ -124,8 +130,8 @@ The checked-in manifest records 21 adapter records across 17 unique project name
 
 | Overall status | Adapter records |
 | --- | ---: |
-| `pass` | `1` |
-| `wrong_result` | `7` |
+| `pass` | `3` |
+| `wrong_result` | `5` |
 | `lifecycle_fail` | `1` |
 | `blocked` | `5` |
 | `not_encoded` | `7` |
@@ -139,10 +145,10 @@ when ELF is included.
 | Project | Best current evidence | Current measured state | Strongest unproven scenario | Next measurement before claim |
 | --- | --- | --- | --- | --- |
 | ELF | `fixture_backed` plus `live_real_world` | Fixture aggregate passes except 2 blocked operator boundaries; live full sweep is `wrong_result`. | Full live memory evolution, live consolidation, live knowledge pages, live capture, live production ops. | Memory-evolution diagnostic report, then live operator/capture/consolidation reports. |
-| qmd | `live_real_world` plus `live_baseline_only` | Same live sweep shape as ELF; same-corpus baseline passes. | Deep retrieval-debug ergonomics and trace replay. | qmd/ELF deep retrieval-debug profile with expansion, fusion, rerank, and dropped-candidate traces. |
+| qmd | `live_real_world` plus `live_baseline_only` | Same-corpus baseline passes; current live sweep is one memory-evolution job behind ELF. | Deep retrieval-debug ergonomics and trace replay. | qmd/ELF deep retrieval-debug profile with expansion, fusion, rerank, and dropped-candidate traces. |
 | agentmemory | `live_baseline_only` | `lifecycle_fail`. | Durable coding-agent continuity and capture hooks. | Durable lifecycle and work-resume/capture adapter report. |
-| mem0/OpenMemory | `live_baseline_only` | `wrong_result`. | Entity history, lifecycle UI, OpenMemory inspection. | Same-corpus repair first, then entity-history and UI-readback report. |
-| memsearch | `live_baseline_only` | `wrong_result`; source-of-truth is `incomplete`. | Markdown canonical store and local reindex clarity. | Reindex/update/delete/reload plus source-of-truth report. |
+| mem0/OpenMemory | `live_baseline_only` | Basic local smoke now passes; history/UI/hosted/graph behavior remains `not_encoded`. | Entity history, lifecycle UI, OpenMemory inspection. | Entity-history, deletion-audit, and UI/export readback report. |
+| memsearch | `live_baseline_only` | Basic canonical Markdown reindex/reload smoke now passes; real-world prompt coverage remains `not_encoded`. | Markdown canonical store and local reindex clarity. | Source-of-truth and retrieval-debug real-world adapter report. |
 | OpenViking | `live_baseline_only` plus `research_gate` | Same-corpus retrieval is `wrong_result`; trajectory is `not_encoded`. | Hierarchical staged context trajectory. | Evidence-bearing retrieval fix, then staged trajectory report. |
 | claude-mem | `live_baseline_only` | `wrong_result`. | Progressive disclosure and automatic capture review. | Work-resume, operator-debugging, and capture/write-policy report. |
 | RAGFlow | `research_gate` | `blocked`. | RAG app workflow with document/chunk references. | Tiny Docker evidence-smoke with `reference.chunks` mapped to evidence ids. |
