@@ -174,6 +174,11 @@ Each `adapters[]` record MUST include:
   and `evidence`.
 - `suites`: array of real-world suite coverage records with `suite_id`, `status`, and
   `evidence`.
+- `scenarios`: optional array of scenario judgment records with `scenario_id`,
+  optional `suite_id`, `status`, `elf_position`, `evidence`, and optional `command`
+  and `artifact`. `elf_position` MUST be one of `wins`, `ties`, `loses`, or
+  `untested`. Scenario judgments are report inputs for dimension-level comparison;
+  they MUST NOT convert live-baseline-only evidence into real-world suite pass claims.
 - `evidence`: array of evidence pointers with `kind`, `ref`, and `status`.
 - `notes`: optional bounded explanatory strings.
 - `follow_up`: optional `title` and `reason`.

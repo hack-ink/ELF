@@ -191,7 +191,7 @@ fn assert_external_adapter_manifest_summary(report: &Value) {
 	);
 	assert_eq!(
 		report.pointer("/external_adapters/manifest_id").and_then(Value::as_str),
-		Some("real-world-memory-project-adapters-2026-06-10")
+		Some("real-world-memory-project-adapters-2026-06-11")
 	);
 	assert_eq!(
 		report.pointer("/external_adapters/docker_isolation/default").and_then(Value::as_bool),
@@ -233,13 +233,13 @@ fn assert_external_adapter_manifest_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/overall_status_counts/pass")
 			.and_then(Value::as_u64),
-		Some(1)
+		Some(3)
 	);
 	assert_eq!(
 		report
 			.pointer("/external_adapters/summary/overall_status_counts/wrong_result")
 			.and_then(Value::as_u64),
-		Some(6)
+		Some(4)
 	);
 	assert_eq!(
 		report
@@ -282,6 +282,35 @@ fn assert_external_adapter_manifest_summary(report: &Value) {
 			.pointer("/external_adapters/summary/suite_status_counts/blocked")
 			.and_then(Value::as_u64),
 		Some(11)
+	);
+
+	assert_external_adapter_manifest_scenario_summary(report);
+}
+
+fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_status_counts/pass")
+			.and_then(Value::as_u64),
+		Some(5)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_status_counts/not_encoded")
+			.and_then(Value::as_u64),
+		Some(4)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_position_counts/wins")
+			.and_then(Value::as_u64),
+		Some(3)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_position_counts/ties")
+			.and_then(Value::as_u64),
+		Some(3)
 	);
 }
 
@@ -388,13 +417,32 @@ fn assert_first_generation_adapter_records(mem0: &Value, memsearch: &Value, clau
 		mem0.pointer("/capabilities/2/capability").and_then(Value::as_str),
 		Some("local_lifecycle_update_delete_reload")
 	);
-	assert_eq!(mem0.pointer("/capabilities/2/status").and_then(Value::as_str), Some("real"));
+	assert_eq!(mem0.pointer("/capabilities/2/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(mem0.pointer("/capabilities/4/status").and_then(Value::as_str), Some("not_encoded"));
+	assert_eq!(mem0.pointer("/scenarios/0/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(mem0.pointer("/scenarios/0/elf_position").and_then(Value::as_str), Some("ties"));
+	assert_eq!(
+		mem0.pointer("/scenarios/2/scenario_id").and_then(Value::as_str),
+		Some("openmemory_ui_export_readback")
+	);
+	assert_eq!(mem0.pointer("/scenarios/2/status").and_then(Value::as_str), Some("not_encoded"));
 	assert_eq!(
 		memsearch.pointer("/capabilities/2/capability").and_then(Value::as_str),
 		Some("reindex_update_delete_reload")
 	);
-	assert_eq!(memsearch.pointer("/capabilities/2/status").and_then(Value::as_str), Some("real"));
+	assert_eq!(memsearch.pointer("/capabilities/2/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(
+		memsearch.pointer("/scenarios/0/scenario_id").and_then(Value::as_str),
+		Some("canonical_markdown_reindex_reload")
+	);
+	assert_eq!(
+		memsearch.pointer("/scenarios/1/status").and_then(Value::as_str),
+		Some("unsupported")
+	);
+	assert_eq!(
+		memsearch.pointer("/scenarios/1/elf_position").and_then(Value::as_str),
+		Some("wins")
+	);
 	assert_eq!(claude_mem.pointer("/capabilities/1/status").and_then(Value::as_str), Some("real"));
 	assert_eq!(
 		claude_mem.pointer("/capabilities/3/capability").and_then(Value::as_str),
@@ -404,6 +452,11 @@ fn assert_first_generation_adapter_records(mem0: &Value, memsearch: &Value, clau
 		claude_mem.pointer("/capabilities/4/status").and_then(Value::as_str),
 		Some("not_encoded")
 	);
+	assert_eq!(
+		claude_mem.pointer("/scenarios/0/status").and_then(Value::as_str),
+		Some("wrong_result")
+	);
+	assert_eq!(claude_mem.pointer("/scenarios/1/status").and_then(Value::as_str), Some("pass"));
 }
 
 fn assert_graphiti_zep_adapter(adapter: &Value) {
