@@ -115,6 +115,13 @@ fn competitor_strength_matrix_path() -> Result<PathBuf> {
 		.join("2026-06-11-competitor-strength-evidence-matrix.md"))
 }
 
+fn competitor_strength_matrix_json_path() -> Result<PathBuf> {
+	Ok(workspace_root()?
+		.join("docs")
+		.join("research")
+		.join("2026-06-11-xy-897-competitor-strength-matrix.json"))
+}
+
 fn readme_path() -> Result<PathBuf> {
 	Ok(workspace_root()?.join("README.md"))
 }
@@ -947,6 +954,9 @@ fn current_benchmark_reports_preserve_live_sweep_boundaries() -> Result<()> {
 		measurement_coverage_audit_json_path()?,
 	)?)?;
 	let competitor_matrix = fs::read_to_string(competitor_strength_matrix_path()?)?;
+	let competitor_matrix_json = serde_json::from_str::<Value>(&fs::read_to_string(
+		competitor_strength_matrix_json_path()?,
+	)?)?;
 	let external_manifest = fs::read_to_string(external_adapter_manifest_path())?;
 	let retrieval_debug_profile =
 		serde_json::from_str::<Value>(&fs::read_to_string(retrieval_debug_profile_json_path()?)?)?;
@@ -1020,6 +1030,84 @@ fn current_benchmark_reports_preserve_live_sweep_boundaries() -> Result<()> {
 			.pointer("/live_real_world_full_sweep_context/qmd/wrong_result")
 			.and_then(Value::as_u64),
 		Some(6)
+	);
+
+	assert_competitor_strength_matrix_json(&competitor_matrix_json)?;
+
+	Ok(())
+}
+
+fn assert_competitor_strength_matrix_json(matrix: &Value) -> Result<()> {
+	let projects = array_at(matrix, "/project_matrix")?;
+	let qmd = find_by_field(projects, "/project", "qmd")?;
+	let openviking = find_by_field(projects, "/project", "OpenViking")?;
+
+	assert_eq!(
+		qmd.pointer("/current_evidence_class").and_then(Value::as_str),
+		Some("live_real_world")
+	);
+	assert_eq!(qmd.pointer("/measured_status").and_then(Value::as_str), Some("wrong_result"));
+	assert_eq!(
+		qmd.pointer("/unsupported_or_blocked_status/state").and_then(Value::as_str),
+		Some("not_encoded")
+	);
+	assert!(qmd.pointer("/benchmark_before_claim").and_then(Value::as_str).is_some_and(|claim| {
+		claim.contains("before claiming ELF wins, ties, or loses on retrieval debugging")
+	}));
+	assert!(
+		qmd.pointer("/borrow_if_stronger")
+			.and_then(Value::as_str)
+			.is_some_and(|claim| claim.contains("transparent local knobs"))
+	);
+	assert_eq!(
+		openviking.pointer("/current_evidence_class").and_then(Value::as_str),
+		Some("live_baseline_only")
+	);
+	assert_eq!(
+		openviking.pointer("/measured_status").and_then(Value::as_str),
+		Some("wrong_result")
+	);
+	assert_eq!(
+		openviking.pointer("/unsupported_or_blocked_status/state").and_then(Value::as_str),
+		Some("not_encoded")
+	);
+	assert!(
+		openviking
+			.pointer("/unsupported_or_blocked_status/details")
+			.and_then(Value::as_str)
+			.is_some_and(|details| details.contains("same-corpus output misses expected evidence"))
+	);
+	assert!(
+		openviking
+			.pointer("/benchmark_before_claim")
+			.and_then(Value::as_str)
+			.is_some_and(|claim| claim.contains("evidence-bearing same-corpus output pass"))
+	);
+
+	let scenarios = array_at(matrix, "/scenario_matrix")?;
+	let retrieval_debug = find_by_field(scenarios, "/scenario_id", "retrieval_debug")?;
+	let context_trajectory = find_by_field(scenarios, "/scenario_id", "context_trajectory")?;
+
+	assert!(
+		retrieval_debug
+			.pointer("/current_state")
+			.and_then(Value::as_str)
+			.is_some_and(|state| state.contains("Measured tie on encoded retrieval answers"))
+	);
+	assert!(retrieval_debug.pointer("/current_state").and_then(Value::as_str).is_some_and(
+		|state| state.contains("qmd remains stronger on local debug ergonomics not fully scored")
+	));
+	assert!(
+		context_trajectory
+			.pointer("/current_state")
+			.and_then(Value::as_str)
+			.is_some_and(|state| state.contains("not a measured live winner"))
+	);
+	assert!(
+		context_trajectory
+			.pointer("/next_measurement")
+			.and_then(Value::as_str)
+			.is_some_and(|measurement| measurement.contains("evidence-bearing retrieval pass"))
 	);
 
 	Ok(())
@@ -1320,6 +1408,12 @@ fn assert_operator_facing_strength_profile_boundaries(
 	iteration_direction: &str,
 ) {
 	assert!(readme.contains("Full-suite live real-world adapter sweep after XY-899"));
+	assert!(readme.contains("fresh ELF sweep reports 18 pass"));
+	assert!(readme.contains("5 wrong_result, 2 blocked, and 13 not_encoded jobs"));
+	assert!(readme.contains("fresh qmd sweep reports"));
+	assert!(readme.contains("17 pass, 6 wrong_result, 2 blocked, and 13 not_encoded jobs"));
+	assert!(readme.contains("The difference is the"));
+	assert!(readme.contains("delete/TTL tombstone case"));
 	assert!(readme.contains("qmd remains the local retrieval-debug UX reference"));
 	assert!(readme.contains("no broad ELF-over-qmd claim is allowed"));
 	assert!(readme.contains("qmd and OpenViking Strength-Profile Report - June 11, 2026"));
