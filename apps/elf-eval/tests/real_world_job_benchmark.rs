@@ -115,6 +115,22 @@ fn competitor_strength_matrix_path() -> Result<PathBuf> {
 		.join("2026-06-11-competitor-strength-evidence-matrix.md"))
 }
 
+fn readme_path() -> Result<PathBuf> {
+	Ok(workspace_root()?.join("README.md"))
+}
+
+fn benchmarking_index_path() -> Result<PathBuf> {
+	Ok(workspace_root()?.join("docs").join("guide").join("benchmarking").join("index.md"))
+}
+
+fn iteration_direction_report_path() -> Result<PathBuf> {
+	Ok(workspace_root()?
+		.join("docs")
+		.join("guide")
+		.join("benchmarking")
+		.join("2026-06-11-elf-iteration-direction-from-competitor-benchmarks.md"))
+}
+
 fn external_adapter_manifest_path() -> PathBuf {
 	Path::new(env!("CARGO_MANIFEST_DIR"))
 		.join("fixtures")
@@ -872,6 +888,9 @@ fn qmd_openviking_strength_profile_report_preserves_claim_boundaries() -> Result
 	let report =
 		serde_json::from_str::<Value>(&fs::read_to_string(strength_profile_report_path()?)?)?;
 	let markdown = fs::read_to_string(strength_profile_markdown_path()?)?;
+	let readme = fs::read_to_string(readme_path()?)?;
+	let benchmarking_index = fs::read_to_string(benchmarking_index_path()?)?;
+	let iteration_direction = fs::read_to_string(iteration_direction_report_path()?)?;
 
 	assert_strength_profile_summary(&report);
 	assert_strength_profile_terms(&report)?;
@@ -880,6 +899,11 @@ fn qmd_openviking_strength_profile_report_preserves_claim_boundaries() -> Result
 	assert_openviking_strength_profile(&report)?;
 	assert_strength_profile_json_claim_boundaries(&report)?;
 	assert_strength_profile_markdown_boundaries(&markdown);
+	assert_operator_facing_strength_profile_boundaries(
+		&readme,
+		&benchmarking_index,
+		&iteration_direction,
+	);
 
 	Ok(())
 }
@@ -980,7 +1004,7 @@ fn assert_strength_profile_summary(report: &Value) {
 	);
 	assert_eq!(
 		report.pointer("/summary/qmd/local_query_transparency").and_then(Value::as_str),
-		Some("elf_loss")
+		Some("not_tested")
 	);
 	assert_eq!(
 		report.pointer("/summary/qmd/local_replayability").and_then(Value::as_str),
@@ -988,7 +1012,7 @@ fn assert_strength_profile_summary(report: &Value) {
 	);
 	assert_eq!(
 		report.pointer("/summary/qmd/overall_outcome").and_then(Value::as_str),
-		Some("elf_loss")
+		Some("not_tested")
 	);
 	assert_eq!(
 		report.pointer("/summary/openviking/overall_outcome").and_then(Value::as_str),
@@ -1008,13 +1032,13 @@ fn assert_strength_profile_summary(report: &Value) {
 		report
 			.pointer("/qmd_strength_profile/win_tie_loss_summary/elf_loss")
 			.and_then(Value::as_u64),
-		Some(1)
+		Some(0)
 	);
 	assert_eq!(
 		report
 			.pointer("/qmd_strength_profile/win_tie_loss_summary/not_tested")
 			.and_then(Value::as_u64),
-		Some(4)
+		Some(5)
 	);
 	assert_eq!(
 		report
@@ -1115,7 +1139,11 @@ fn assert_qmd_strength_profile(report: &Value) -> Result<()> {
 	assert_eq!(retrieval.pointer("/elf_outcome").and_then(Value::as_str), Some("tie"));
 	assert_eq!(
 		local_transparency.pointer("/elf_outcome").and_then(Value::as_str),
-		Some("elf_loss")
+		Some("not_tested")
+	);
+	assert_eq!(
+		local_transparency.pointer("/result_type").and_then(Value::as_str),
+		Some("not_encoded")
 	);
 	assert_eq!(
 		rerank_controls.pointer("/result_type").and_then(Value::as_str),
@@ -1205,7 +1233,7 @@ fn assert_strength_profile_json_claim_boundaries(report: &Value) -> Result<()> {
 	assert!(array_contains_str(
 		report,
 		"/claim_boundaries",
-		"ELF does not broadly beat qmd; it ties retrieval correctness, loses the measured query-transparency surface, and leaves replayability not_tested."
+		"ELF does not broadly beat qmd; it ties encoded retrieval and lifecycle correctness, keeps qmd query transparency as not_tested for comparative scoring, and leaves replayability not_tested."
 	)?);
 	assert!(array_contains_str(
 		report,
@@ -1240,10 +1268,8 @@ fn assert_strength_profile_markdown_boundaries(markdown: &str) {
 	assert!(
 		markdown.contains("ELF ties qmd on the current encoded retrieval-correctness surfaces")
 	);
-	assert!(markdown.contains(
-		"qmd remains stronger than ELF on the currently evidenced local query transparency"
-	));
-	assert!(markdown.contains("replayability remains unscored"));
+	assert!(markdown.contains("qmd remains the local retrieval-debug UX reference"));
+	assert!(markdown.contains("not scored as comparative ELF wins or losses"));
 	assert!(markdown.contains("ELF currently wins only the equivalent OpenViking same-corpus"));
 	assert!(markdown.contains("Do not claim ELF broadly beats qmd"));
 	assert!(markdown.contains(
@@ -1254,6 +1280,39 @@ fn assert_strength_profile_markdown_boundaries(markdown: &str) {
 	));
 	assert!(markdown.contains("no pass evidence is claimed"));
 	assert!(markdown.contains("typed `wrong_result` state"));
+}
+
+fn assert_operator_facing_strength_profile_boundaries(
+	readme: &str,
+	benchmarking_index: &str,
+	iteration_direction: &str,
+) {
+	assert!(readme.contains("Full-suite live real-world adapter sweep after XY-899"));
+	assert!(readme.contains("qmd remains the local retrieval-debug UX reference"));
+	assert!(readme.contains("no broad ELF-over-qmd claim is allowed"));
+	assert!(readme.contains("qmd and OpenViking Strength-Profile Report - June 11, 2026"));
+	assert!(benchmarking_index.contains("2026-06-11-qmd-openviking-strength-profile-report.md"));
+	assert!(
+		benchmarking_index.contains("separates qmd retrieval quality from debug/replay ergonomics")
+	);
+	assert!(benchmarking_index.contains("preserves OpenViking context-trajectory"));
+	assert!(
+		benchmarking_index
+			.contains("surfaces as `not_tested` until staged/hierarchical evidence is encoded")
+	);
+	assert!(
+		iteration_direction
+			.contains("ELF and qmd are tied on the encoded live retrieval, work-resume, and")
+	);
+	assert!(iteration_direction.contains("ELF does not yet beat qmd's local retrieval-debug"));
+	assert!(
+		iteration_direction
+			.contains("ELF beats OpenViking on context trajectory. That scenario is not encoded.")
+	);
+	assert!(
+		iteration_direction
+			.contains("Do not promote a reference project into a win/loss claim until")
+	);
 }
 
 #[test]

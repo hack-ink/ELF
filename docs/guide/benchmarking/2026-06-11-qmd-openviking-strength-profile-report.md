@@ -21,10 +21,11 @@ The measured qmd judgment is narrower:
 
 - Retrieval quality: `tie`. ELF and qmd both pass the encoded live real-world
   retrieval suite and both pass the 480-document stress retrieval baseline.
-- Local query transparency: `elf_loss`. qmd's current artifacts expose directly
+- Local query transparency: `not_tested`. qmd's current artifacts expose directly
   inspectable top-10 JSON rows with files, line numbers, snippets, and scores. ELF
   has stronger service traces and production-operation evidence, but the checked-in
-  stress report does not hydrate an equivalent candidate list.
+  stress report does not hydrate an equivalent candidate list, so no scored ELF loss
+  is claimed for this surface.
 - Local replayability: `not_tested`. qmd has a concise observed CLI replay path, and
   ELF has service traces plus admin bundle endpoints, but no scored replayability rule
   compares those surfaces yet.
@@ -48,7 +49,7 @@ The measured OpenViking judgment is split by surface:
 | Scenario | Evidence Class | Result Type | ELF Outcome | What It Means |
 | --- | --- | --- | --- | --- |
 | Retrieval quality | `live_real_world` | `pass` | `tie` | Both systems pass 5/5 live retrieval jobs with 6/6 expected evidence matched. |
-| Local query transparency | `live_baseline_only` | `pass` | `elf_loss` | qmd exposes top-10 files, line numbers, snippets, scores, and distractor density directly in the stress artifact. |
+| Local query transparency | `live_baseline_only` | `not_encoded` | `not_tested` | qmd exposes top-10 files, line numbers, snippets, scores, and distractor density directly in the stress artifact, but the equivalent ELF candidate-list surface is not encoded. |
 | Expansion/fusion/rerank controls | `research_gate` | `not_encoded` | `not_tested` | No scored profile proves either system's expansion, fusion, or rerank superiority. |
 | Stale context isolation | `live_real_world` | `pass` | `tie` | Both systems pass the encoded current-vs-obsolete and distractor-heavy retrieval jobs. |
 | Update/delete/cold-start behavior | `live_baseline_only` | `pass` | `tie` | Equivalent update replacement, delete suppression, and cold-start recovery checks pass for both. |
@@ -56,10 +57,11 @@ The measured OpenViking judgment is split by surface:
 | Local replayability | `live_baseline_only` | `not_encoded` | `not_tested` | qmd has a shorter observed CLI replay path, but no scored replayability rule compares it with ELF's trace/admin replay surfaces yet. |
 | Wrong-result diagnosis | `research_gate` | `not_encoded` | `not_tested` | The report classifies qmd memory-evolution failures, but qmd candidate-drop traces are not yet materialized and no pass evidence is claimed. |
 
-Summary: qmd strength-profile outcomes are `0` ELF wins, `3` ties, `1` ELF loss,
-and `4` not-tested scenarios. This distinguishes retrieval quality from
-debug/replay ergonomics: the retrieval result is tied, the checked-in query-debug
-artifact ergonomics currently favor qmd, and replayability remains unscored.
+Summary: qmd strength-profile outcomes are `0` ELF wins, `3` ties, `0` ELF losses,
+and `5` not-tested scenarios. This distinguishes retrieval quality from
+debug/replay ergonomics: the retrieval result is tied, qmd remains the local
+retrieval-debug UX reference, and query transparency plus replayability remain
+unscored for comparative ELF win/loss claims.
 
 ## qmd Wrong-Result Diagnosis
 
@@ -99,8 +101,9 @@ context-trajectory strengths remain not tested.
 Allowed:
 
 - ELF ties qmd on the current encoded retrieval-correctness surfaces.
-- qmd remains stronger than ELF on the currently evidenced local query transparency
-  artifact ergonomics; replayability is observed but not scored.
+- qmd remains the local retrieval-debug UX reference on the currently evidenced query
+  transparency artifact ergonomics; query transparency and replayability are observed
+  but not scored as comparative ELF wins or losses.
 - qmd expansion/fusion/rerank superiority is untested.
 - OpenViking's Docker local embedding setup reaches runtime, but context trajectory
   remains untested because evidence-bearing same-corpus retrieval is not passing.
