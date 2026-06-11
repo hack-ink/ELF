@@ -40,8 +40,11 @@ The remaining caveats are material:
 - Several competitor strengths remain `not_tested` or blocked: OpenMemory
   UI/export is blocked by the XY-931 export-helper setup probe, hosted mem0 Platform
   behavior remains a non-goal, and OpenViking trajectory, Letta core-vs-archival
-  memory, and graph/RAG navigation remain unproven. XY-928 encodes OpenViking staged
-  trajectory, hierarchy selection, and recursive/context expansion as blocked fixtures
+  memory, and broad graph/RAG navigation remain unproven. XY-929 adds a
+  representative graph/RAG fixture slice with typed blockers, one incomplete LightRAG
+  job, and one graphify wrong_result job, but it does not create any broad graph/RAG
+  win, tie, or loss claim. XY-928 encodes OpenViking staged trajectory, hierarchy
+  selection, and recursive/context expansion as blocked fixtures
   behind same-corpus evidence output and missing staged artifacts. XY-927 adds
   fixture-only `core_archival_memory` coverage, but Letta scenario rows remain
   blocked or `not_tested` until the selected contained export/readback path exists.
@@ -75,6 +78,7 @@ results, or lifecycle failures into one aggregate leaderboard.
 | `smoke_only` | A tiny setup or output-shape smoke ran. |
 | `research_gate` | Source/setup/resource/output-contract evidence exists only as research. |
 | `blocked` | A credential, private input, provider, or setup boundary is missing. |
+| `incomplete` | Setup reached a partial adapter path but did not reach the behavioral scoring surface. |
 | `unsupported` | The project shape is not comparable for the scenario. |
 | `not_encoded` | The benchmark does not yet cover the scenario. |
 | `wrong_result` | The system ran but produced the wrong memory answer or evidence. |
@@ -94,6 +98,7 @@ results, or lifecycle failures into one aggregate leaderboard.
 | `cargo make openmemory-ui-export-readback` | `2026-06-11-mem0-openmemory-history-ui-export-report.md` | mem0 local OSS passes preference correction history, entity-scoped personalization, local `get_all` export-style readback, and deletion audit history; OpenMemory export-helper setup emits a separate blocked artifact with `DOCKER_UNAVAILABLE_IN_BASELINE_RUNNER`, and hosted Platform export remains non-goal. |
 | `ELF_GRAPHITI_ZEP_SMOKE_START=1 ELF_GRAPHITI_ZEP_SMOKE_RUN=1 cargo make graphiti-zep-docker-temporal-smoke` | `2026-06-11-temporal-history-competitor-gap-report.md` | Graphiti/Zep temporal smoke remains blocked by `provider_api_key_missing`. |
 | `cargo make graphify-docker-graph-report-smoke` | `2026-06-11-graph-rag-scored-smoke-adapter-report.md` | graphify reaches tiny Docker graph/report scoring but remains wrong_result. |
+| `cargo make real-world-memory-graph-rag` | `tmp/real-world-memory/graph-rag/report.json` | Representative graph/RAG fixtures produce typed non-pass reports: RAGFlow, GraphRAG, and Graphiti/Zep blocked; LightRAG incomplete with comparison blocked; graphify wrong_result; llm-wiki not_tested; gbrain blocked; private/hosted profiles non_goal. |
 | `cargo make baseline-production-synthetic`, `cargo make baseline-backfill-docker`, backup/restore, Qdrant rebuild proof | `2026-06-10-production-adoption-refresh.md` | ELF has provider synthetic, stress, backfill, restore, and rebuild evidence; private-corpus proof is blocked by missing operator-owned manifest. |
 | `ELF_BASELINE_PROJECTS=ELF,qmd ELF_BASELINE_PROFILE=stress cargo make baseline-live-docker` plus ELF trace-bundle and qmd CLI replay commands | `2026-06-11-elf-qmd-trace-replay-diagnostics-report.md` | Retrieval correctness remains tied, but qmd wins current immediate top-10/replay artifact ergonomics; ELF trace/admin surfaces are useful but not yet hydrated into the default stress artifact. |
 
@@ -108,7 +113,7 @@ results, or lifecycle failures into one aggregate leaderboard.
 | Retrieval quality and local debug UX | `loss` | `live_baseline_only`, `research_gate`, `wrong_result`, `not_encoded` | The XY-923 trace/replay report scores qmd stronger on immediate top-10 candidate artifacts and short CLI replay commands. ELF keeps useful service trace/admin replay surfaces, and expansion, fusion, rerank-on, and candidate-drop diagnostics remain untested. | XY-923 |
 | Memory evolution and temporal history | `loss` | `fixture_backed`, `live_real_world`, `live_baseline_only`, `wrong_result`, `blocked` | ELF fixture memory evolution passes, but live ELF passes only delete/TTL and reports five wrong_result jobs where current-vs-historical state is not reconciled. The mem0 local OSS preference-correction history scenario is now measured and is also an ELF loss. | XY-905 |
 | Consolidation/proposal review | `not_tested` | `fixture_backed`, `not_encoded` | ELF fixture consolidation passes, but live consolidation proposal generation and review-action scoring are not encoded. | XY-926 |
-| Knowledge page compilation | `not_tested` | `fixture_backed`, `live_real_world`, `wrong_result`, `research_gate`, `not_encoded` | ELF fixture knowledge pages pass, but live knowledge compilation is not encoded; graphify reaches a tiny scored smoke and remains wrong_result. | XY-926, XY-929 |
+| Knowledge page compilation | `not_tested` | `fixture_backed`, `live_real_world`, `wrong_result`, `research_gate`, `blocked`, `not_encoded` | ELF fixture knowledge pages pass, but live knowledge compilation is not encoded. The XY-929 graph/RAG representative slice scores graphify as wrong_result and keeps GraphRAG, llm-wiki, and gbrain as blocked or not_tested references. | XY-926, XY-929 |
 | Operator debugging/viewer UX | `win` | `fixture_backed`, `live_real_world`, `blocked`, `not_encoded` | ELF now has a narrow live operator-debug win over qmd on trace hydration, candidate-drop visibility, and selected-but-not-narrated evidence. ELF ties qmd on replay-command availability and repair-action clarity. XY-925 adds claude-mem progressive-disclosure and retrieval-repair prompt coverage, but claude-mem viewer/operator workflows and OpenMemory UI/export remain blocked, so this is not a broad viewer-product superiority claim. | XY-926 |
 | Capture/write policy and redaction | `not_tested` | `fixture_backed`, `live_real_world`, `live_baseline_only`, `blocked`, `not_encoded` | ELF live capture/write-policy self-check jobs pass for redaction, exclusions, source ids, evidence binding, and no secret leakage. qmd remains `not_encoded`; agentmemory and claude-mem hook-capture comparisons remain `blocked` until Docker-contained hook observations and write-policy/viewer readback artifacts exist, so no broad capture-hook superiority claim is allowed. | XY-933, XY-925 |
 | Production ops, restore, backfill, and rebuild | `win` | `live_baseline_only`, `blocked` | ELF has the strongest measured local production-operation story: provider synthetic, stress, resumable backfill, backup/restore, and Qdrant rebuild evidence. | XY-930 |
@@ -116,7 +121,7 @@ results, or lifecycle failures into one aggregate leaderboard.
 | Personalization and scoped preferences | `tie` | `fixture_backed`, `live_real_world`, `live_baseline_only`, `not_encoded` | ELF and qmd both pass the single encoded live personalization job. mem0 local OSS now passes entity-scoped personalization, so scoped preference behavior is a measured tie; preference correction history remains a separate ELF loss. | XY-927 |
 | Context trajectory and hierarchical retrieval | `not_tested` | `fixture_backed`, `live_baseline_only`, `research_gate`, `wrong_result`, `blocked` | OpenViking reaches the pinned Docker local embedding path and now exposes expected/matched/missing evidence ids, but same-corpus evidence is still wrong_result; staged trajectory, hierarchy selection, and recursive expansion are encoded as blocked fixtures, not scored comparisons. | XY-928 |
 | Core-vs-archival memory | `blocked` | `fixture_backed`, `research_gate`, `blocked`, `not_encoded` | ELF now has 6 fixture-backed `core_archival_memory` jobs that score core block attachment, scope, provenance, stale-core detection, archival fallback, and project-decision recovery separately from archival note search. Letta remains blocked or not tested until its contained export/readback artifact maps core and archival source ids. | XY-927 |
-| Graph/RAG navigation and citations | `not_tested` | `smoke_only`, `research_gate`, `blocked`, `wrong_result`, `not_encoded` | Graph/RAG smokes produce scored or typed non-pass adapter reports where possible, but broad graph/RAG navigation and citation quality are not tested. | XY-929 |
+| Graph/RAG navigation and citations | `not_tested` | `smoke_only`, `research_gate`, `blocked`, `incomplete`, `wrong_result`, `not_encoded` | `cargo make real-world-memory-graph-rag` adds representative citation, graph-summary, temporal-validity, graph-report, stale-source-lint, and unsupported-claim fixtures. The slice is typed non-pass: RAGFlow, GraphRAG, and Graphiti/Zep are blocked; LightRAG is incomplete with comparison blocked; graphify is wrong_result; llm-wiki is not_tested; gbrain is blocked. Broad graph/RAG navigation and citation quality remain not_tested. | XY-929 |
 
 ## Follow-Up Queue
 
@@ -130,7 +135,7 @@ results, or lifecycle failures into one aggregate leaderboard.
 | XY-933 | P1 | Live ELF self-check encoded | Capture/write-policy redaction, exclusion, source-id, evidence-binding, and no-leak scoring for ELF; durable agentmemory/claude-mem capture-hook comparison remains blocked. |
 | XY-927 | P1 | Fixture encoded; Letta export blocked | ELF core-vs-archival fixture coverage is encoded; a contained Letta export/readback adapter remains future work before win/tie/loss claims. |
 | XY-928 | P1 | Encoded blocked fixtures | OpenViking context-trajectory and hierarchy benchmark is encoded but blocked until evidence-bearing same-corpus and staged artifacts exist. |
-| XY-929 | P2 | Backlog | Graph/RAG adapters beyond scored smokes. |
+| XY-929 | P2 | Representative fixture slice encoded; live contracts still blocked or typed non-pass | Graph/RAG adapters now have representative citation/navigation/lint fixtures, but live evidence-linked output contracts are still blocked, incomplete, wrong_result, not_tested, or non_goal. |
 | XY-930 | P1 | Backlog | Private-corpus and credentialed production gates after operator inputs exist. |
 | XY-906 | Ops | Todo | Decodex registered-project review-config schema drift blocks Decodex loading of ELF. |
 
@@ -152,7 +157,7 @@ results, or lifecycle failures into one aggregate leaderboard.
 - ELF has a live temporal reconciliation loss against the benchmark expectation:
   five memory-evolution jobs remain `wrong_result`.
 - Most competitor strengths outside qmd retrieval are `not_tested`, `blocked`,
-  `smoke_only`, or `research_gate`.
+  `incomplete`, `smoke_only`, or `research_gate`.
 
 ## Claims Not Allowed
 
@@ -169,7 +174,8 @@ results, or lifecycle failures into one aggregate leaderboard.
   current comparison is blocked for their hook/viewer capture paths.
 - Do not claim ELF beats OpenViking on staged context trajectory.
 - Do not claim ELF beats Letta on core-vs-archival memory.
-- Do not claim graph/RAG parity from smoke-only evidence.
+- Do not claim graph/RAG parity from smoke-only or typed non-pass representative
+  evidence.
 - Do not promote `fixture_backed`, `live_baseline_only`, `smoke_only`,
-  `research_gate`, `blocked`, `wrong_result`, `lifecycle_fail`, `unsupported`, or
-  `not_encoded` states into a generic pass/fail score.
+  `research_gate`, `blocked`, `incomplete`, `wrong_result`, `lifecycle_fail`,
+  `unsupported`, or `not_encoded` states into a generic pass/fail score.
