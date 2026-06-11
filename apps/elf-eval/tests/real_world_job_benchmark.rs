@@ -393,6 +393,7 @@ fn external_adapter_run_summarizes_nonzero_scenario_losses() -> Result<()> {
 		.ok_or_else(|| eyre::eyre!("missing agentmemory adapter"))?;
 
 	set_json_pointer(adapter, "/scenarios/0/elf_position", serde_json::json!("loses"))?;
+	set_json_pointer(adapter, "/scenarios/0/comparison_outcome", serde_json::json!("loss"))?;
 
 	let temp_dir =
 		env::temp_dir().join(format!("elf-real-world-loss-manifest-test-{}", process::id()));
@@ -429,7 +430,7 @@ fn external_adapter_run_summarizes_nonzero_scenario_losses() -> Result<()> {
 		report
 			.pointer("/external_adapters/summary/scenario_position_counts/untested")
 			.and_then(Value::as_u64),
-		Some(11)
+		Some(16)
 	);
 	assert_eq!(
 		report
@@ -462,7 +463,9 @@ fn assert_external_adapter_manifest_summary(report: &Value) {
 	);
 	assert_eq!(
 		report.pointer("/external_adapters/manifest_id").and_then(Value::as_str),
-		Some("real-world-memory-project-adapters-2026-06-11-openmemory-ui-export")
+		Some(
+			"real-world-memory-project-adapters-2026-06-11-first-generation-continuity-source-store"
+		)
 	);
 	assert_eq!(
 		report.pointer("/external_adapters/docker_isolation/default").and_then(Value::as_bool),
@@ -500,6 +503,12 @@ fn assert_external_adapter_manifest_summary(report: &Value) {
 		report.pointer("/external_adapters/summary/research_gate_count").and_then(Value::as_u64),
 		Some(11)
 	);
+
+	assert_external_adapter_manifest_status_summary(report);
+	assert_external_adapter_manifest_scenario_summary(report);
+}
+
+fn assert_external_adapter_manifest_status_summary(report: &Value) {
 	assert_eq!(
 		report
 			.pointer("/external_adapters/summary/overall_status_counts/pass")
@@ -552,7 +561,13 @@ fn assert_external_adapter_manifest_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/suite_status_counts/blocked")
 			.and_then(Value::as_u64),
-		Some(16)
+		Some(18)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/suite_status_counts/pass")
+			.and_then(Value::as_u64),
+		Some(24)
 	);
 	assert_eq!(
 		report
@@ -560,8 +575,12 @@ fn assert_external_adapter_manifest_summary(report: &Value) {
 			.and_then(Value::as_u64),
 		Some(0)
 	);
-
-	assert_external_adapter_manifest_scenario_summary(report);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/suite_status_counts/not_encoded")
+			.and_then(Value::as_u64),
+		Some(38)
+	);
 }
 
 fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
@@ -587,7 +606,7 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/scenario_status_counts/blocked")
 			.and_then(Value::as_u64),
-		Some(3)
+		Some(6)
 	);
 	assert_eq!(
 		report
@@ -599,7 +618,7 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/scenario_status_counts/wrong_result")
 			.and_then(Value::as_u64),
-		Some(4)
+		Some(5)
 	);
 	assert_eq!(
 		report
@@ -611,19 +630,19 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/scenario_status_counts/pass")
 			.and_then(Value::as_u64),
-		Some(17)
+		Some(20)
 	);
 	assert_eq!(
 		report
 			.pointer("/external_adapters/summary/scenario_status_counts/not_encoded")
 			.and_then(Value::as_u64),
-		Some(3)
+		Some(2)
 	);
 	assert_eq!(
 		report
 			.pointer("/external_adapters/summary/scenario_position_counts/wins")
 			.and_then(Value::as_u64),
-		Some(8)
+		Some(9)
 	);
 	assert_eq!(
 		report
@@ -641,13 +660,13 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/scenario_position_counts/untested")
 			.and_then(Value::as_u64),
-		Some(12)
+		Some(17)
 	);
 	assert_eq!(
 		report
 			.pointer("/external_adapters/summary/scenario_outcome_counts/win")
 			.and_then(Value::as_u64),
-		Some(8)
+		Some(9)
 	);
 	assert_eq!(
 		report
@@ -671,13 +690,13 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/scenario_outcome_counts/blocked")
 			.and_then(Value::as_u64),
-		Some(2)
+		Some(6)
 	);
 	assert_eq!(
 		report
 			.pointer("/external_adapters/summary/scenario_outcome_counts/non_goal")
 			.and_then(Value::as_u64),
-		Some(2)
+		Some(3)
 	);
 }
 
@@ -964,6 +983,13 @@ fn assert_first_generation_adapter_records(
 	memsearch: &Value,
 	claude_mem: &Value,
 ) {
+	assert_agentmemory_first_generation_records(agentmemory);
+	assert_mem0_first_generation_records(mem0);
+	assert_memsearch_first_generation_records(memsearch);
+	assert_claude_mem_first_generation_records(claude_mem);
+}
+
+fn assert_agentmemory_first_generation_records(agentmemory: &Value) {
 	assert_eq!(
 		agentmemory.pointer("/scenarios/1/status").and_then(Value::as_str),
 		Some("lifecycle_fail")
@@ -973,6 +999,9 @@ fn assert_first_generation_adapter_records(
 		Some("wins")
 	);
 	assert_eq!(agentmemory.pointer("/scenarios/2/status").and_then(Value::as_str), Some("blocked"));
+}
+
+fn assert_mem0_first_generation_records(mem0: &Value) {
 	assert_eq!(
 		mem0.pointer("/capabilities/2/capability").and_then(Value::as_str),
 		Some("local_lifecycle_update_delete_reload")
@@ -1027,6 +1056,9 @@ fn assert_first_generation_adapter_records(
 		mem0.pointer("/scenarios/6/comparison_outcome").and_then(Value::as_str),
 		Some("non_goal")
 	);
+}
+
+fn assert_memsearch_first_generation_records(memsearch: &Value) {
 	assert_eq!(
 		memsearch.pointer("/capabilities/2/capability").and_then(Value::as_str),
 		Some("reindex_update_delete_reload")
@@ -1040,28 +1072,83 @@ fn assert_first_generation_adapter_records(
 		memsearch.pointer("/scenarios/0/elf_position").and_then(Value::as_str),
 		Some("untested")
 	);
-	assert_eq!(
-		memsearch.pointer("/scenarios/1/status").and_then(Value::as_str),
-		Some("unsupported")
-	);
+	assert_eq!(memsearch.pointer("/suites/0/status").and_then(Value::as_str), Some("pass"));
+	assert!(memsearch.pointer("/suites/0/evidence").and_then(Value::as_str).is_some_and(
+		|evidence| evidence.contains("fixture-backed source-of-truth prompt coverage")
+			&& evidence.contains("No live memsearch runtime adapter executes prompt scoring yet.")
+	));
+	assert_eq!(memsearch.pointer("/suites/1/status").and_then(Value::as_str), Some("pass"));
+	assert!(memsearch.pointer("/suites/1/evidence").and_then(Value::as_str).is_some_and(
+		|evidence| evidence.contains("fixture-backed retrieval-debug prompt coverage")
+			&& evidence.contains(
+				"No live memsearch runtime adapter executes retrieval prompt scoring yet."
+			)
+	));
+	assert_eq!(memsearch.pointer("/scenarios/1/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(
 		memsearch.pointer("/scenarios/1/elf_position").and_then(Value::as_str),
 		Some("untested")
 	);
+	assert_eq!(
+		memsearch.pointer("/scenarios/3/status").and_then(Value::as_str),
+		Some("unsupported")
+	);
+	assert_eq!(
+		memsearch.pointer("/capabilities/4/capability").and_then(Value::as_str),
+		Some("markdown_source_store_prompt_jobs")
+	);
+	assert_eq!(memsearch.pointer("/capabilities/4/status").and_then(Value::as_str), Some("pass"));
+}
+
+fn assert_claude_mem_first_generation_records(claude_mem: &Value) {
 	assert_eq!(claude_mem.pointer("/capabilities/1/status").and_then(Value::as_str), Some("real"));
 	assert_eq!(
 		claude_mem.pointer("/capabilities/3/capability").and_then(Value::as_str),
 		Some("repository_progressive_disclosure")
 	);
+	assert_eq!(claude_mem.pointer("/capabilities/4/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(
-		claude_mem.pointer("/capabilities/4/status").and_then(Value::as_str),
-		Some("not_encoded")
+		claude_mem.pointer("/capabilities/6/status").and_then(Value::as_str),
+		Some("blocked")
+	);
+	assert_eq!(claude_mem.pointer("/suites/0/status").and_then(Value::as_str), Some("not_encoded"));
+	assert_eq!(claude_mem.pointer("/suites/1/status").and_then(Value::as_str), Some("blocked"));
+	assert!(
+		claude_mem
+			.pointer("/suites/1/evidence")
+			.and_then(Value::as_str)
+			.is_some_and(|evidence| evidence.contains("fixture-backed progressive-disclosure")
+				&& evidence.contains("viewer/operator workflow remains blocked"))
+	);
+	assert_eq!(claude_mem.pointer("/suites/2/status").and_then(Value::as_str), Some("blocked"));
+	assert!(
+		claude_mem
+			.pointer("/suites/2/evidence")
+			.and_then(Value::as_str)
+			.is_some_and(|evidence| evidence.contains("hook capture remains blocked"))
 	);
 	assert_eq!(
 		claude_mem.pointer("/scenarios/0/status").and_then(Value::as_str),
 		Some("wrong_result")
 	);
-	assert_eq!(claude_mem.pointer("/scenarios/1/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(
+		claude_mem.pointer("/scenarios/1/scenario_id").and_then(Value::as_str),
+		Some("retrieval_repair_artifact_path")
+	);
+	assert_eq!(
+		claude_mem.pointer("/scenarios/1/status").and_then(Value::as_str),
+		Some("wrong_result")
+	);
+	assert!(
+		claude_mem
+			.pointer("/scenarios/1/evidence")
+			.and_then(Value::as_str)
+			.is_some_and(|evidence| evidence.contains("rerun/inspection targets")
+				&& evidence.contains("tmp/live-baseline/claude-mem-checks.json"))
+	);
+	assert_eq!(claude_mem.pointer("/scenarios/2/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(claude_mem.pointer("/scenarios/4/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(claude_mem.pointer("/scenarios/5/status").and_then(Value::as_str), Some("blocked"));
 }
 
 fn assert_graphiti_zep_adapter(adapter: &Value) {
@@ -1901,6 +1988,8 @@ fn current_benchmark_reports_preserve_live_sweep_boundaries() -> Result<()> {
 		competitor_matrix
 			.contains("broader live suites remain `wrong_result`, `blocked`, or `not_encoded`")
 	);
+	assert!(competitor_matrix.contains("claude-mem work_resume remains `not_encoded`"));
+	assert!(!competitor_matrix.contains("claude-mem `wrong_result`, OpenViking work_resume"));
 	assert!(external_manifest.contains(
 		"The record is a full-suite sweep, not a full-suite pass; wrong_result, blocked, and not_encoded states remain visible."
 	));
@@ -2195,15 +2284,20 @@ fn assert_trace_replay_adoption_json(adoption: &Value) -> Result<()> {
 
 fn assert_competitor_strength_matrix_json(matrix: &Value) -> Result<()> {
 	let projects = array_at(matrix, "/project_matrix")?;
-	let qmd = find_by_field(projects, "/project", "qmd")?;
-	let mem0 = find_by_field(projects, "/project", "mem0/OpenMemory")?;
-	let openviking = find_by_field(projects, "/project", "OpenViking")?;
 	let scenarios = array_at(matrix, "/scenario_matrix")?;
-	let retrieval_debug = find_by_field(scenarios, "/scenario_id", "retrieval_debug")?;
-	let operator_debug = find_by_field(scenarios, "/scenario_id", "operator_debugging")?;
-	let context_trajectory = find_by_field(scenarios, "/scenario_id", "context_trajectory")?;
 
 	assert_competitor_strength_matrix_manifest_counts(matrix);
+	assert_competitor_strength_matrix_project_json(projects)?;
+	assert_competitor_strength_matrix_scenario_json(scenarios)?;
+
+	Ok(())
+}
+
+fn assert_competitor_strength_matrix_project_json(projects: &[Value]) -> Result<()> {
+	let qmd = find_by_field(projects, "/project", "qmd")?;
+	let mem0 = find_by_field(projects, "/project", "mem0/OpenMemory")?;
+	let claude_mem = find_by_field(projects, "/project", "claude-mem")?;
+	let openviking = find_by_field(projects, "/project", "OpenViking")?;
 
 	assert_eq!(
 		qmd.pointer("/current_evidence_class").and_then(Value::as_str),
@@ -2237,6 +2331,13 @@ fn assert_competitor_strength_matrix_json(matrix: &Value) -> Result<()> {
 			.and_then(Value::as_str)
 			.is_some_and(|claim| claim.contains("OpenMemory product app import/export"))
 	);
+	assert!(
+		claude_mem
+			.pointer("/unsupported_or_blocked_status/details")
+			.and_then(Value::as_str)
+			.is_some_and(|details| details.contains("rerun/inspection targets")
+				&& details.contains("tmp/live-baseline/claude-mem-checks.json"))
+	);
 	assert_eq!(
 		openviking.pointer("/current_evidence_class").and_then(Value::as_str),
 		Some("live_baseline_only")
@@ -2261,6 +2362,16 @@ fn assert_competitor_strength_matrix_json(matrix: &Value) -> Result<()> {
 			.and_then(Value::as_str)
 			.is_some_and(|claim| claim.contains("evidence-bearing same-corpus output pass"))
 	);
+
+	Ok(())
+}
+
+fn assert_competitor_strength_matrix_scenario_json(scenarios: &[Value]) -> Result<()> {
+	let retrieval_debug = find_by_field(scenarios, "/scenario_id", "retrieval_debug")?;
+	let work_resume = find_by_field(scenarios, "/scenario_id", "work_resume")?;
+	let operator_debug = find_by_field(scenarios, "/scenario_id", "operator_debugging")?;
+	let context_trajectory = find_by_field(scenarios, "/scenario_id", "context_trajectory")?;
+
 	assert!(
 		retrieval_debug
 			.pointer("/current_state")
@@ -2270,6 +2381,13 @@ fn assert_competitor_strength_matrix_json(matrix: &Value) -> Result<()> {
 	assert!(retrieval_debug.pointer("/current_state").and_then(Value::as_str).is_some_and(
 		|state| state.contains("qmd remains stronger on local debug ergonomics not fully scored")
 	));
+	assert!(
+		work_resume
+			.pointer("/current_competitor_evidence")
+			.and_then(Value::as_str)
+			.is_some_and(|claim| claim.contains("claude-mem work_resume remains not_encoded")
+				&& !claim.contains("claude-mem is wrong_result"))
+	);
 	assert!(
 		operator_debug
 			.pointer("/current_elf_evidence")
@@ -2792,9 +2910,9 @@ fn generated_json_report_renders_markdown() -> Result<()> {
 	assert!(markdown.contains("xy844-current-worktree"));
 	assert!(markdown.contains("Existing live-baseline reports remain valid"));
 	assert!(markdown.contains("### Adapter Scenario Judgments"));
-	assert!(markdown.contains("ELF scenario positions: `wins=8, ties=9, loses=1, untested=12`"));
+	assert!(markdown.contains("ELF scenario positions: `wins=9, ties=9, loses=1, untested=17`"));
 	assert!(markdown.contains(
-		"Scenario comparison outcomes: `win=8, tie=9, loss=1, not_tested=8, blocked=2, non_goal=2`"
+		"Scenario comparison outcomes: `win=9, tie=9, loss=1, not_tested=8, blocked=6, non_goal=3`"
 	));
 	assert!(markdown.contains("| `claude_mem_live_baseline` | `same_corpus_retrieval`"));
 	assert!(markdown.contains("| `memsearch_live_baseline` | `ttl_expiry_lifecycle`"));
@@ -2818,6 +2936,7 @@ fn external_adapter_markdown_renders_nonzero_scenario_losses() -> Result<()> {
 		.ok_or_else(|| eyre::eyre!("missing agentmemory adapter"))?;
 
 	set_json_pointer(adapter, "/scenarios/0/elf_position", serde_json::json!("loses"))?;
+	set_json_pointer(adapter, "/scenarios/0/comparison_outcome", serde_json::json!("loss"))?;
 	set_json_pointer(
 		&mut report,
 		"/external_adapters/summary/scenario_position_counts",

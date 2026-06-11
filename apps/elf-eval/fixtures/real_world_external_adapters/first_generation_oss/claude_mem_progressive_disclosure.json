@@ -1,0 +1,215 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "first-gen-claude-mem-progressive-disclosure-001",
+  "suite": "operator_debugging_ux",
+  "title": "Preserve claude-mem progressive-disclosure evidence boundary",
+  "corpus": {
+    "corpus_id": "first-generation-oss-claude-mem-2026-06-11",
+    "profile": "external_adapter",
+    "items": [
+      {
+        "evidence_id": "claude-mem-detail-hydration",
+        "kind": "adapter_artifact",
+        "text": "claude-mem progressive evidence: the Docker repository path verified search result to getById detail hydration plus listSources source evidence on a durable SQLite repository.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "claude_mem_progressive_disclosure",
+            "evidence_id": "claude-mem-detail-hydration"
+          },
+          "locator": {
+            "quote": "getById detail hydration plus listSources source evidence"
+          }
+        },
+        "created_at": "2026-06-11T10:30:00Z"
+      },
+      {
+        "evidence_id": "claude-mem-progressive-boundary",
+        "kind": "claim_boundary",
+        "text": "claude-mem boundary: repository search-to-detail hydration is useful progressive-disclosure evidence, but it does not execute hooks, timeline capture, viewer workflows, or real-world prompt scoring.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "claude_mem_progressive_disclosure",
+            "evidence_id": "claude-mem-progressive-boundary"
+          },
+          "locator": {
+            "quote": "does not execute hooks, timeline capture, viewer workflows"
+          }
+        },
+        "created_at": "2026-06-11T10:31:00Z"
+      },
+      {
+        "evidence_id": "claude-mem-viewer-decoy",
+        "kind": "adapter_state",
+        "text": "Decoy: repository detail hydration proves claude-mem viewer and hook workflows pass.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "claude_mem_progressive_disclosure",
+            "evidence_id": "claude-mem-viewer-decoy"
+          }
+        },
+        "created_at": "2026-06-11T10:29:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_first_generation_oss",
+      "answer": {
+        "content": "claude-mem has Docker-contained progressive-disclosure evidence at the repository layer: search results can be hydrated through getById and listSources on durable SQLite. That should stay separate from hook, timeline, viewer, and real-world prompt scoring, which are not executed by the current runner.",
+        "claims": [
+          {
+            "claim_id": "repository_progressive_evidence",
+            "text": "claude-mem search results can be hydrated through getById and listSources on durable SQLite.",
+            "evidence_ids": ["claude-mem-detail-hydration"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "viewer_hook_boundary",
+            "text": "Hook, timeline, viewer, and real-world prompt scoring are not executed by the current runner.",
+            "evidence_ids": ["claude-mem-progressive-boundary"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["claude-mem-detail-hydration", "claude-mem-progressive-boundary"],
+        "latency_ms": 1.3,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "claude-mem-detail-hydration-recorded",
+      "ts": "2026-06-11T10:30:00Z",
+      "actor": "benchmark",
+      "action": "recorded_progressive_disclosure_evidence",
+      "evidence_ids": ["claude-mem-detail-hydration"],
+      "summary": "The Docker repository path exposes search-to-detail/source hydration."
+    },
+    {
+      "event_id": "claude-mem-viewer-boundary-recorded",
+      "ts": "2026-06-11T10:31:00Z",
+      "actor": "benchmark",
+      "action": "preserved_viewer_hook_boundary",
+      "evidence_ids": ["claude-mem-progressive-boundary"],
+      "summary": "Repository hydration is not promoted into hook or viewer pass evidence."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "What claude-mem progressive-disclosure evidence is measured, and what remains outside the Docker-contained path?",
+    "job_mode": "debug",
+    "constraints": ["cite_evidence", "separate_repository_from_viewer", "avoid_hook_claims"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "repository_progressive_evidence",
+        "text": "claude-mem search results can be hydrated through getById and listSources on durable SQLite."
+      },
+      {
+        "claim_id": "viewer_hook_boundary",
+        "text": "Hook, timeline, viewer, and real-world prompt scoring are not executed by the current runner."
+      }
+    ],
+    "must_not_include": [
+      "repository detail hydration proves claude-mem viewer and hook workflows pass"
+    ],
+    "evidence_links": {
+      "repository_progressive_evidence": ["claude-mem-detail-hydration"],
+      "viewer_hook_boundary": ["claude-mem-progressive-boundary"]
+    },
+    "answer_type": "debug_report",
+    "accepted_alternates": [],
+    "requires_caveat": true,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "claude-mem-detail-hydration",
+      "claim_id": "repository_progressive_evidence",
+      "requirement": "cite",
+      "quote": "getById detail hydration plus listSources source evidence"
+    },
+    {
+      "evidence_id": "claude-mem-progressive-boundary",
+      "claim_id": "viewer_hook_boundary",
+      "requirement": "cite",
+      "quote": "does not execute hooks, timeline capture, viewer workflows"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "repository-hydration-viewer-pass",
+      "type": "unsupported_prior",
+      "evidence_ids": ["claude-mem-viewer-decoy"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "debuggability": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Explains the measured progressive-disclosure path."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Cites detail hydration and boundary evidence."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Separates repository evidence from viewer/hook follow-up."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Does not promote repository hydration into viewer or hook claims."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "state_blocker"
+  },
+  "operator_debug": {
+    "failure_mode": "viewer_hook_workflow_not_encoded",
+    "trace_id": "claude-mem-repository-detail",
+    "root_cause": "The Docker-contained evidence stops at repository detail/source hydration and does not run the product viewer or hooks.",
+    "steps_to_root_cause": 2,
+    "raw_sql_needed": false,
+    "dropped_candidate_visibility": "repository search result can be hydrated to detail and source rows",
+    "trace_completeness": "complete",
+    "repair_action_clarity": "clear",
+    "trace_available": true,
+    "replay_command_available": true,
+    "replay_command": "ELF_BASELINE_PROJECTS=claude-mem cargo make baseline-live-docker",
+    "replay_artifact": "tmp/live-baseline/claude-mem.log",
+    "viewer_panels": ["Repository Search Result", "Memory Item Detail", "Source List"],
+    "cli_steps": [
+      "run the claude-mem Docker baseline",
+      "inspect getById detail hydration",
+      "inspect listSources evidence",
+      "keep hook and viewer workflows blocked until separately encoded"
+    ],
+    "trace_evidence": ["claude-mem-detail-hydration", "claude-mem-progressive-boundary"],
+    "ux_gaps": []
+  },
+  "tags": ["external_adapter", "claude-mem", "operator_debugging_ux", "progressive_disclosure", "no_live_claim"]
+}

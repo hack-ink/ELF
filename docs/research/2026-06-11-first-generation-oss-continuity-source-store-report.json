@@ -1,0 +1,140 @@
+{
+  "schema": "elf.first_generation_oss_continuity_source_store_report/v1",
+  "report_id": "xy-925-first-generation-oss-continuity-source-store-2026-06-11",
+  "authority": "XY-925",
+  "created_at": "2026-06-11T00:00:00Z",
+  "scope": "Fixture-backed first-generation OSS prompt coverage and typed blockers for agentmemory, memsearch, and claude-mem without promoting smoke evidence into real-world suite pass evidence.",
+  "validation": {
+    "command": "cargo make real-world-first-generation-oss",
+    "status": "pass",
+    "json_artifact": "tmp/real-world-memory/first-generation-oss/report.json",
+    "markdown_artifact": "tmp/real-world-memory/first-generation-oss/report.md",
+    "summary": {
+      "job_count": 6,
+      "encoded_suite_count": 4,
+      "pass": 4,
+      "blocked": 2,
+      "evidence_coverage": 1.0,
+      "source_ref_coverage": 1.0,
+      "quote_coverage": 1.0,
+      "operator_debug_job_count": 2,
+      "raw_sql_needed_count": 0
+    }
+  },
+  "manifest": {
+    "path": "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json",
+    "manifest_id": "real-world-memory-project-adapters-2026-06-11-first-generation-continuity-source-store",
+    "scenario_outcome_counts": {
+      "win": 9,
+      "tie": 8,
+      "loss": 1,
+      "not_tested": 8,
+      "blocked": 6,
+      "non_goal": 3
+    },
+    "scenario_status_counts": {
+      "unsupported": 2,
+      "blocked": 6,
+      "wrong_result": 5,
+      "lifecycle_fail": 1,
+      "pass": 19,
+      "not_encoded": 2
+    }
+  },
+  "scenario_judgments": [
+    {
+      "project": "agentmemory",
+      "scenario_id": "durable_work_resume_local_path",
+      "suite_id": "work_resume",
+      "status": "blocked",
+      "comparison_outcome": "blocked",
+      "evidence": "The selected local path is a Docker-contained session directory that persists the SDK KV/index and observation log across a fresh process.",
+      "command": "cargo make real-world-first-generation-oss",
+      "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/first_generation_oss/agentmemory_durable_capture_path_blocked.json"
+    },
+    {
+      "project": "agentmemory",
+      "scenario_id": "capture_write_policy_hooks",
+      "suite_id": "capture_integration",
+      "status": "blocked",
+      "comparison_outcome": "blocked",
+      "evidence": "Live agentmemory hook observations and persisted write-policy audit evidence are required before capture/write-policy scoring.",
+      "command": "cargo make real-world-first-generation-oss",
+      "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/first_generation_oss/agentmemory_durable_capture_path_blocked.json"
+    },
+    {
+      "project": "memsearch",
+      "scenario_id": "markdown_source_store_rebuild_reload_prompt",
+      "suite_id": "trust_source_of_truth",
+      "status": "pass",
+      "comparison_outcome": "not_tested",
+      "evidence": "The prompt fixture covers canonical Markdown files as source of truth and memsearch index as derived rebuild/reload behavior.",
+      "command": "cargo make real-world-first-generation-oss",
+      "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/first_generation_oss/memsearch_markdown_rebuild_reload.json"
+    },
+    {
+      "project": "memsearch",
+      "scenario_id": "markdown_retrieval_debug_prompt",
+      "suite_id": "operator_debugging_ux",
+      "status": "pass",
+      "comparison_outcome": "not_tested",
+      "evidence": "The prompt fixture covers CLI replay, Markdown source inspection, and reindexing while keeping staged trace bundles not encoded.",
+      "command": "cargo make real-world-first-generation-oss",
+      "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/first_generation_oss/memsearch_retrieval_debug_prompt.json"
+    },
+    {
+      "project": "claude-mem",
+      "scenario_id": "retrieval_repair_artifact_path",
+      "suite_id": "retrieval",
+      "status": "wrong_result",
+      "comparison_outcome": "win",
+      "evidence": "The prompt fixture preserves claude-mem same-corpus retrieval as wrong_result and names rerun/inspection targets tmp/live-baseline/claude-mem.log plus tmp/live-baseline/claude-mem-checks.json.",
+      "command": "cargo make real-world-first-generation-oss",
+      "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/first_generation_oss/claude_mem_retrieval_repair.json"
+    },
+    {
+      "project": "claude-mem",
+      "scenario_id": "progressive_disclosure_prompt",
+      "suite_id": "operator_debugging_ux",
+      "status": "pass",
+      "comparison_outcome": "not_tested",
+      "evidence": "The prompt fixture covers repository search-to-detail/source hydration on durable SQLite and separates it from hook/viewer claims.",
+      "command": "cargo make real-world-first-generation-oss",
+      "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/first_generation_oss/claude_mem_progressive_disclosure.json"
+    },
+    {
+      "project": "claude-mem",
+      "scenario_id": "hook_capture_viewer_workflow",
+      "suite_id": "capture_integration",
+      "status": "blocked",
+      "comparison_outcome": "blocked",
+      "evidence": "The current Docker baseline uses repository classes only and does not execute hooks, timeline capture, or viewer workflows.",
+      "command": "cargo make real-world-first-generation-oss",
+      "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/first_generation_oss/claude_mem_hook_viewer_blocked.json"
+    },
+    {
+      "project": "claude-mem",
+      "scenario_id": "viewer_operator_workflow",
+      "suite_id": "operator_debugging_ux",
+      "status": "blocked",
+      "comparison_outcome": "blocked",
+      "evidence": "A fair viewer/operator comparison needs Docker-contained readback over the same durable SQLite corpus.",
+      "command": "cargo make real-world-first-generation-oss",
+      "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/first_generation_oss/claude_mem_hook_viewer_blocked.json"
+    }
+  ],
+  "claim_boundaries": {
+    "allowed": [
+      "agentmemory has a selected durable local path for future work-resume and capture/write-policy scoring.",
+      "memsearch has checked-in source-store and retrieval-debug prompt coverage over the canonical Markdown store.",
+      "claude-mem has checked-in progressive-disclosure and retrieval-repair prompt coverage for the Docker-contained repository path.",
+      "claude-mem hook capture and viewer/operator workflows remain typed blockers."
+    ],
+    "not_allowed": [
+      "Do not claim agentmemory durable continuity from the in-memory same-corpus smoke.",
+      "Do not claim memsearch full real-world suite parity from Markdown reindex/reload smoke or fixture-backed prompt coverage.",
+      "Do not claim claude-mem retrieval passed; same-corpus retrieval remains wrong_result.",
+      "Do not claim claude-mem hooks or viewer workflows pass from repository class-level hydration evidence."
+    ]
+  }
+}
