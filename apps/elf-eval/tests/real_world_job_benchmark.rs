@@ -1565,19 +1565,29 @@ fn capture_write_policy_live_report_preserves_competitor_boundaries() -> Result<
 	assert!(agentmemory.pointer("/reason").and_then(Value::as_str).is_some_and(|reason| {
 		reason.contains("process-local StateKV Map") && reason.contains("in-memory index")
 	}));
-	assert_eq!(claude_mem.pointer("/position").and_then(Value::as_str), Some("untested"));
+	assert_eq!(claude_mem.pointer("/position").and_then(Value::as_str), Some("blocked"));
 	assert!(
 		claude_mem
 			.pointer("/reason")
 			.and_then(Value::as_str)
-			.is_some_and(|reason| reason.contains("hooks, timeline, observations"))
+			.is_some_and(|reason| reason.contains("hooks, timeline, observations")
+				&& reason.contains("Docker-contained hook/viewer runner"))
 	);
 	assert!(markdown.contains("ELF now has live capture/write-policy self-check evidence"));
 	assert!(markdown.contains("not an ELF-over-qmd win"));
+	assert!(markdown.contains("| claude-mem capture/viewer flows | `blocked` |"));
+	assert!(!markdown.contains("claude-mem capture breadth is untested"));
 	assert!(markdown.contains("runtime `source_ref` metadata returned by search"));
 	assert!(markdown.contains("Do not claim ELF broadly beats agentmemory or claude-mem"));
 	assert!(benchmarking_index.contains("2026-06-11-capture-write-policy-live-report.md"));
 	assert!(readme.contains("Capture/Write-Policy Live Report - June 11, 2026"));
+
+	let readme_normalized = readme.split_whitespace().collect::<Vec<_>>().join(" ");
+
+	assert!(
+		readme_normalized
+			.contains("claude-mem hook/viewer capture remains blocked until Docker-contained")
+	);
 
 	Ok(())
 }
@@ -1985,6 +1995,7 @@ fn current_benchmark_reports_preserve_live_sweep_boundaries() -> Result<()> {
 	);
 
 	assert_measurement_audit_adapter_status_counts(&measurement_audit);
+	assert_first_generation_current_summary_boundaries(&measurement_audit, &competitor_matrix);
 
 	assert!(
 		competitor_matrix
@@ -2067,6 +2078,26 @@ fn current_benchmark_reports_preserve_live_sweep_boundaries() -> Result<()> {
 	);
 
 	Ok(())
+}
+
+fn assert_first_generation_current_summary_boundaries(
+	measurement_audit: &str,
+	competitor_matrix: &str,
+) {
+	assert!(measurement_audit.contains("claude-mem hook/viewer capture is `blocked`"));
+	assert!(!measurement_audit.contains("claude-mem hook/viewer capture remains untested"));
+	assert!(!measurement_audit.contains("blocked or untested"));
+	assert!(competitor_matrix.contains(
+		"Overall adapter-status counts: 4 `pass`,\n6 `wrong_result`, 1 `lifecycle_fail`, 6 `blocked`, and 6 `not_encoded`."
+	));
+	assert!(!competitor_matrix.contains("5 `blocked`, and 7 `not_encoded`"));
+	assert!(
+		competitor_matrix
+			.contains("mem0/OpenMemory local OSS entity-scoped personalization now passes")
+	);
+	assert!(
+		!competitor_matrix.contains("mem0/OpenMemory and Letta personalization are `not_encoded`")
+	);
 }
 
 #[test]
@@ -2407,6 +2438,23 @@ fn assert_competitor_strength_matrix_scenario_json(scenarios: &[Value]) -> Resul
 			.pointer("/next_measurement")
 			.and_then(Value::as_str)
 			.is_some_and(|claim| claim.contains("OpenMemory and claude-mem UI/export"))
+	);
+
+	let personalization = find_by_field(scenarios, "/scenario_id", "personalization")?;
+
+	assert!(
+		personalization
+			.pointer("/current_competitor_evidence")
+			.and_then(Value::as_str)
+			.is_some_and(|claim| claim
+				.contains("mem0/OpenMemory local OSS entity-scoped personalization now passes")
+				&& claim.contains("Letta personalization is research_gate not_encoded"))
+	);
+	assert!(
+		personalization
+			.pointer("/current_state")
+			.and_then(Value::as_str)
+			.is_some_and(|state| state.contains("scoped personalization is a tie"))
 	);
 	assert!(
 		context_trajectory

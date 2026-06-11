@@ -34,8 +34,8 @@ What is proven today:
 - ELF now has live capture/write-policy self-check evidence for redaction, exclusions,
   source ids, evidence binding, and no secret leakage. This is not a broad
   capture-hook win over agentmemory or claude-mem: agentmemory comparison is blocked
-  by mocked/in-memory storage, and claude-mem hook/viewer capture remains untested in
-  the Docker real-world job runner.
+  by mocked/in-memory storage, and claude-mem hook/viewer capture remains blocked
+  until Docker-contained hook/viewer evidence exists.
 - ELF is ahead on production-operation evidence among tracked systems because it has
   checked-in provider synthetic, stress, backfill, backup/restore, and Qdrant rebuild
   evidence.
@@ -191,7 +191,7 @@ records `unique_project_names: 17` for the full project list including ELF.
 | Consolidation | Fixture aggregate passes; live adapters are not encoded. | Fixture-only claim. | Live proposal generation with lineage, confidence, and review-action audit. |
 | Knowledge pages | Fixture aggregate passes; live adapters are not encoded. | Fixture-only claim. | Live page rebuild/lint plus llm-wiki, gbrain, GraphRAG, and graphify comparisons. |
 | Operator debugging | Fixture aggregate passes; narrow ELF/qmd live operator-debug slice is scored with ELF `pass` and qmd `wrong_result`. | Narrow ELF/qmd live claim only: ELF wins trace hydration, candidate-drop visibility, and selected-but-not-narrated evidence; replay-command and repair-action clarity are tied. | OpenMemory and claude-mem UI/export or viewer runners before any broader operator-UX claim. |
-| Capture/write policy | Fixture aggregate passes; ELF live service adapter passes 4/4 capture jobs with zero redaction leaks; qmd is `not_encoded`; agentmemory is `blocked`; claude-mem is `not_encoded`. | ELF has live self-check evidence for redaction, exclusions, source ids, evidence binding, and no secret leakage. Against agentmemory/claude-mem capture breadth, the comparison remains blocked or untested. | Durable agentmemory and claude-mem capture-hook runners with evidence-bound output. |
+| Capture/write policy | Fixture aggregate passes; ELF live service adapter passes 4/4 capture jobs with zero redaction leaks; qmd is `not_encoded`; agentmemory is `blocked`; claude-mem hook/viewer capture is `blocked`. | ELF has live self-check evidence for redaction, exclusions, source ids, evidence binding, and no secret leakage. Against agentmemory/claude-mem capture breadth, the comparison remains blocked until durable hook/viewer evidence exists. | Durable agentmemory and claude-mem capture-hook runners with evidence-bound output. |
 | Production ops | ELF has separate production-provider/backfill/restore evidence; live sweep is not a full production-ops pass. | Bounded personal-production adoption claim with caveats. | Private corpus manifest and credentialed provider gates. |
 | Personalization | ELF and qmd live pass one scoped preference job. | Narrow encoded pass only. | mem0/OpenMemory and Letta entity/preference history comparison. |
 | Context trajectory | Not comparable. | No claim. | OpenViking staged hierarchy/trajectory scoring. |
@@ -216,7 +216,7 @@ Order these by decision value, not implementation convenience:
 
 3. External capture-hook report for agentmemory and claude-mem
    - Why: ELF now has a live capture/write-policy self-check, but the strongest
-     agentmemory and claude-mem capture-breadth claims are still blocked or untested.
+     agentmemory and claude-mem capture-breadth claims are still blocked.
    - Output: durable local capture artifacts, source ids, redaction/exclusion audit,
      and typed blocker reasons when hooks or viewer capture cannot run in Docker.
 

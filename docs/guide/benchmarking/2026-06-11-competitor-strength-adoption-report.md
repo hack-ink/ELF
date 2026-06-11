@@ -158,7 +158,7 @@ results, or lifecycle failures into one aggregate leaderboard.
 - Do not claim ELF broadly beats OpenMemory or claude-mem viewer UX from the narrow
   ELF/qmd operator-debug slice.
 - Do not claim ELF broadly beats agentmemory or claude-mem on capture breadth; the
-  current comparison is blocked or untested for their hook/viewer capture paths.
+  current comparison is blocked for their hook/viewer capture paths.
 - Do not claim ELF beats OpenViking on staged context trajectory.
 - Do not claim ELF beats Letta on core-vs-archival memory.
 - Do not claim graph/RAG parity from smoke-only evidence.
