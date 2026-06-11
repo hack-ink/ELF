@@ -35,9 +35,11 @@ The remaining caveats are material:
   exists.
 - Credentialed provider production-ops gates are blocked until explicit provider
   setup exists.
-- Several competitor strengths remain `not_tested`: qmd replay/debug UX,
-  mem0/OpenMemory history/UI, OpenViking trajectory, Letta core-vs-archival memory,
-  and graph/RAG navigation.
+- Several competitor strengths remain `not_tested`: mem0/OpenMemory history/UI,
+  OpenViking trajectory, Letta core-vs-archival memory, and graph/RAG navigation.
+  The XY-923 follow-up now scores qmd's immediate top-10/replay artifact ergonomics
+  as stronger than ELF's default stress report, while expansion, fusion, rerank, and
+  candidate-drop diagnosis remain untested.
 
 ## Evidence Classes
 
@@ -68,6 +70,7 @@ results, or lifecycle failures into one aggregate leaderboard.
 | `ELF_GRAPHITI_ZEP_SMOKE_START=1 ELF_GRAPHITI_ZEP_SMOKE_RUN=1 cargo make graphiti-zep-docker-temporal-smoke` | `2026-06-11-temporal-history-competitor-gap-report.md` | Graphiti/Zep temporal smoke remains blocked by `provider_api_key_missing`. |
 | `cargo make graphify-docker-graph-report-smoke` | `2026-06-11-graph-rag-scored-smoke-adapter-report.md` | graphify reaches tiny Docker graph/report scoring but remains wrong_result. |
 | `cargo make baseline-production-synthetic`, `cargo make baseline-backfill-docker`, backup/restore, Qdrant rebuild proof | `2026-06-10-production-adoption-refresh.md` | ELF has provider synthetic, stress, backfill, restore, and rebuild evidence; private-corpus proof is blocked by missing operator-owned manifest. |
+| `ELF_BASELINE_PROJECTS=ELF,qmd ELF_BASELINE_PROFILE=stress cargo make baseline-live-docker` plus ELF trace-bundle and qmd CLI replay commands | `2026-06-11-elf-qmd-trace-replay-diagnostics-report.md` | Retrieval correctness remains tied, but qmd wins current immediate top-10/replay artifact ergonomics; ELF trace/admin surfaces are useful but not yet hydrated into the default stress artifact. |
 
 ## Scenario Matrix
 
@@ -77,7 +80,7 @@ results, or lifecycle failures into one aggregate leaderboard.
 | Work resume and coding-agent continuity | `tie` | `fixture_backed`, `live_real_world`, `live_baseline_only`, `blocked`, `not_encoded` | ELF and qmd both pass encoded live `work_resume` jobs; agentmemory, claude-mem, and OpenViking continuity strengths remain blocked or not encoded. | XY-925, XY-928 |
 | Project decisions and reversals | `tie` | `fixture_backed`, `live_real_world`, `research_gate`, `not_encoded` | ELF and qmd both pass encoded `project_decisions` jobs; Letta-style core/archival decision memory is not tested. | XY-927 |
 | Retrieval quality | `tie` | `fixture_backed`, `live_real_world`, `live_baseline_only` | ELF and qmd both pass encoded live retrieval and stress/same-corpus retrieval evidence. | XY-923 |
-| Retrieval quality and local debug UX | `not_tested` | `live_baseline_only`, `research_gate`, `not_encoded` | qmd remains the local retrieval-debug UX reference, but no scored rule compares qmd top-10/replay artifacts with ELF trace/admin bundle surfaces. | XY-923 |
+| Retrieval quality and local debug UX | `loss` | `live_baseline_only`, `research_gate`, `wrong_result`, `not_encoded` | The XY-923 trace/replay report scores qmd stronger on immediate top-10 candidate artifacts and short CLI replay commands. ELF keeps useful service trace/admin replay surfaces, and expansion, fusion, rerank-on, and candidate-drop diagnostics remain untested. | XY-923 |
 | Memory evolution and temporal history | `loss` | `fixture_backed`, `live_real_world`, `wrong_result`, `blocked` | ELF fixture memory evolution passes, but live ELF passes only delete/TTL and reports five wrong_result jobs where current-vs-historical state is not reconciled. | XY-905 |
 | Consolidation/proposal review | `not_tested` | `fixture_backed`, `not_encoded` | ELF fixture consolidation passes, but live consolidation proposal generation and review-action scoring are not encoded. | XY-926 |
 | Knowledge page compilation | `not_tested` | `fixture_backed`, `live_real_world`, `wrong_result`, `research_gate`, `not_encoded` | ELF fixture knowledge pages pass, but live knowledge compilation is not encoded; graphify reaches a tiny scored smoke and remains wrong_result. | XY-926, XY-929 |
@@ -120,6 +123,8 @@ results, or lifecycle failures into one aggregate leaderboard.
 ## Claims Not Allowed
 
 - Do not claim ELF broadly beats qmd.
+- Do not claim qmd's trace/replay artifact win is a broad qmd-over-ELF memory-system
+  or retrieval-quality win.
 - Do not claim ELF beats mem0/OpenMemory on history, UI/export, hosted behavior, or
   graph memory.
 - Do not claim ELF beats OpenViking on staged context trajectory.
@@ -128,4 +133,3 @@ results, or lifecycle failures into one aggregate leaderboard.
 - Do not promote `fixture_backed`, `live_baseline_only`, `smoke_only`,
   `research_gate`, `blocked`, `wrong_result`, `lifecycle_fail`, `unsupported`, or
   `not_encoded` states into a generic pass/fail score.
-
