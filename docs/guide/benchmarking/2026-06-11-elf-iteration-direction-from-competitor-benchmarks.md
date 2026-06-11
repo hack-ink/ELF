@@ -72,10 +72,10 @@ sweeps for ELF and qmd:
 Interpretation:
 
 - This is a near tie for the currently encoded live real-world sweep, with ELF one
-  job ahead in this fresh run.
+  job ahead in this fresh run because qmd misses the delete/TTL tombstone job.
 - Both pass `trust_source_of_truth`, `work_resume`, `project_decisions`,
   `retrieval`, and `personalization`.
-- Both fail `memory_evolution` live conflict evidence with `wrong_result`.
+- Both fail most `memory_evolution` live conflict evidence with `wrong_result`.
 - Both leave consolidation, knowledge compilation, operator debugging, capture
   integration, and production-ops operator boundaries as `not_encoded` or `blocked`.
 
@@ -245,8 +245,9 @@ These are needed for broad credibility but should not block personal production 
 
 Do not claim:
 
-- ELF beats qmd overall. Current live sweep is essentially tied, and qmd still owns
-  stronger local retrieval-debug ergonomics.
+- ELF beats qmd overall. ELF is one pass ahead in the fresh aggregate because qmd
+  misses the delete/TTL tombstone job, but neither adapter has full-suite live pass
+  evidence and qmd still owns stronger local retrieval-debug ergonomics.
 - ELF has full-suite live real-world pass evidence. It does not.
 - ELF has private-corpus production quality proof. The private profile currently
   fails closed without an operator-owned manifest.
