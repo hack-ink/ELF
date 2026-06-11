@@ -290,6 +290,48 @@ fn assert_external_adapter_manifest_summary(report: &Value) {
 fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 	assert_eq!(
 		report
+			.pointer("/external_adapters/summary/scenario_status_counts/real")
+			.and_then(Value::as_u64),
+		Some(0)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_status_counts/mocked")
+			.and_then(Value::as_u64),
+		Some(0)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_status_counts/unsupported")
+			.and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_status_counts/blocked")
+			.and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_status_counts/incomplete")
+			.and_then(Value::as_u64),
+		Some(0)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_status_counts/wrong_result")
+			.and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_status_counts/lifecycle_fail")
+			.and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
+		report
 			.pointer("/external_adapters/summary/scenario_status_counts/pass")
 			.and_then(Value::as_u64),
 		Some(5)
@@ -304,13 +346,25 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/scenario_position_counts/wins")
 			.and_then(Value::as_u64),
-		Some(3)
+		Some(2)
 	);
 	assert_eq!(
 		report
 			.pointer("/external_adapters/summary/scenario_position_counts/ties")
 			.and_then(Value::as_u64),
-		Some(3)
+		Some(2)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_position_counts/loses")
+			.and_then(Value::as_u64),
+		Some(0)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_position_counts/untested")
+			.and_then(Value::as_u64),
+		Some(9)
 	);
 }
 
@@ -357,7 +411,7 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 		Some("mocked")
 	);
 
-	assert_first_generation_adapter_records(mem0, memsearch, claude_mem);
+	assert_first_generation_adapter_records(agentmemory, mem0, memsearch, claude_mem);
 
 	assert_eq!(openviking.pointer("/overall_status").and_then(Value::as_str), Some("wrong_result"));
 	assert_eq!(ragflow.pointer("/evidence_class").and_then(Value::as_str), Some("research_gate"));
@@ -412,7 +466,21 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 	Ok(())
 }
 
-fn assert_first_generation_adapter_records(mem0: &Value, memsearch: &Value, claude_mem: &Value) {
+fn assert_first_generation_adapter_records(
+	agentmemory: &Value,
+	mem0: &Value,
+	memsearch: &Value,
+	claude_mem: &Value,
+) {
+	assert_eq!(
+		agentmemory.pointer("/scenarios/1/status").and_then(Value::as_str),
+		Some("lifecycle_fail")
+	);
+	assert_eq!(
+		agentmemory.pointer("/scenarios/1/elf_position").and_then(Value::as_str),
+		Some("wins")
+	);
+	assert_eq!(agentmemory.pointer("/scenarios/2/status").and_then(Value::as_str), Some("blocked"));
 	assert_eq!(
 		mem0.pointer("/capabilities/2/capability").and_then(Value::as_str),
 		Some("local_lifecycle_update_delete_reload")
@@ -436,12 +504,16 @@ fn assert_first_generation_adapter_records(mem0: &Value, memsearch: &Value, clau
 		Some("canonical_markdown_reindex_reload")
 	);
 	assert_eq!(
+		memsearch.pointer("/scenarios/0/elf_position").and_then(Value::as_str),
+		Some("untested")
+	);
+	assert_eq!(
 		memsearch.pointer("/scenarios/1/status").and_then(Value::as_str),
 		Some("unsupported")
 	);
 	assert_eq!(
 		memsearch.pointer("/scenarios/1/elf_position").and_then(Value::as_str),
-		Some("wins")
+		Some("untested")
 	);
 	assert_eq!(claude_mem.pointer("/capabilities/1/status").and_then(Value::as_str), Some("real"));
 	assert_eq!(
@@ -852,6 +924,10 @@ fn generated_json_report_renders_markdown() -> Result<()> {
 	assert!(markdown.contains("agentmemory-style hook capture"));
 	assert!(markdown.contains("xy844-current-worktree"));
 	assert!(markdown.contains("Existing live-baseline reports remain valid"));
+	assert!(markdown.contains("### Adapter Scenario Judgments"));
+	assert!(markdown.contains("ELF scenario positions: `wins=2, ties=2, untested=9`"));
+	assert!(markdown.contains("| `claude_mem_live_baseline` | `same_corpus_retrieval`"));
+	assert!(markdown.contains("| `memsearch_live_baseline` | `ttl_expiry_lifecycle`"));
 
 	Ok(())
 }
