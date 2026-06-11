@@ -842,6 +842,7 @@ fn qmd_openviking_strength_profile_report_preserves_claim_boundaries() -> Result
 	let markdown = fs::read_to_string(strength_profile_markdown_path()?)?;
 
 	assert_strength_profile_summary(&report);
+	assert_strength_profile_terms(&report)?;
 	assert_qmd_strength_profile(&report)?;
 	assert_qmd_wrong_result_diagnosis(&report)?;
 	assert_openviking_strength_profile(&report)?;
@@ -878,6 +879,9 @@ fn current_benchmark_reports_preserve_live_sweep_boundaries() -> Result<()> {
 	assert!(external_manifest.contains(
 		"The record is a full-suite sweep, not a full-suite pass; wrong_result, blocked, and not_encoded states remain visible."
 	));
+	assert!(external_manifest.contains(
+		"The qmd live real-world sweep covers the current encoded fixture corpus; expanded retrieval-debug strength suites still need their own materialized adapter run."
+	));
 
 	for stale_phrase in [
 		"same live sweep shape as ELF",
@@ -885,6 +889,7 @@ fn current_benchmark_reports_preserve_live_sweep_boundaries() -> Result<()> {
 		"both systems currently fail 5/6 live memory-evolution jobs",
 		"wrong_result, incomplete, blocked, and not_encoded states remain visible",
 		"broader live suites remain `wrong_result`, `incomplete`, or `not_encoded`",
+		"The qmd live real-world slice covers representative jobs only",
 	] {
 		assert!(!measurement_audit.contains(stale_phrase));
 		assert!(!competitor_matrix.contains(stale_phrase));
@@ -942,8 +947,12 @@ fn assert_strength_profile_summary(report: &Value) {
 		Some("tie")
 	);
 	assert_eq!(
-		report.pointer("/summary/qmd/debug_replay_ergonomics").and_then(Value::as_str),
+		report.pointer("/summary/qmd/local_query_transparency").and_then(Value::as_str),
 		Some("elf_loss")
+	);
+	assert_eq!(
+		report.pointer("/summary/qmd/local_replayability").and_then(Value::as_str),
+		Some("not_tested")
 	);
 	assert_eq!(
 		report.pointer("/summary/openviking/overall_against_strengths").and_then(Value::as_str),
@@ -963,26 +972,62 @@ fn assert_strength_profile_summary(report: &Value) {
 		report
 			.pointer("/qmd_strength_profile/win_tie_loss_summary/elf_loss")
 			.and_then(Value::as_u64),
-		Some(2)
+		Some(1)
 	);
 	assert_eq!(
 		report
 			.pointer("/qmd_strength_profile/win_tie_loss_summary/not_tested")
 			.and_then(Value::as_u64),
-		Some(3)
+		Some(4)
 	);
 	assert_eq!(
 		report
 			.pointer("/openviking_context_trajectory_profile/win_tie_loss_summary/not_tested")
 			.and_then(Value::as_u64),
-		Some(4)
+		Some(5)
 	);
 	assert_eq!(
 		report
 			.pointer("/openviking_context_trajectory_profile/win_tie_loss_summary/elf_win")
 			.and_then(Value::as_u64),
-		Some(2)
+		Some(1)
 	);
+}
+
+fn assert_strength_profile_terms(report: &Value) -> Result<()> {
+	let result_terms = array_at(report, "/result_type_terms")?;
+	let coverage_terms = array_at(report, "/coverage_status_terms")?;
+
+	assert!(!result_terms.iter().any(|term| term.as_str() == Some("unsupported")));
+	assert!(result_terms.iter().any(|term| term.as_str() == Some("unsupported_claim")));
+	assert!(coverage_terms.iter().any(|term| term.as_str() == Some("unsupported")));
+
+	for scenario in array_at(report, "/qmd_strength_profile/scenario_outcomes")? {
+		assert_value_in_terms(scenario, "/result_type", result_terms)?;
+		assert_value_in_terms(scenario, "/elf_status", coverage_terms)?;
+		assert_value_in_terms(scenario, "/qmd_status", coverage_terms)?;
+	}
+	for scenario in array_at(report, "/openviking_context_trajectory_profile/scenario_outcomes")? {
+		assert_value_in_terms(scenario, "/result_type", result_terms)?;
+		assert_value_in_terms(scenario, "/openviking_status", coverage_terms)?;
+		assert_value_in_terms(scenario, "/elf_equivalent_status", coverage_terms)?;
+	}
+
+	Ok(())
+}
+
+fn assert_value_in_terms(value: &Value, pointer: &str, terms: &[Value]) -> Result<()> {
+	let actual = value
+		.pointer(pointer)
+		.and_then(Value::as_str)
+		.ok_or_else(|| eyre::eyre!("missing string at {pointer}"))?;
+
+	assert!(
+		terms.iter().any(|term| term.as_str() == Some(actual)),
+		"{actual} at {pointer} is not declared in the report term list"
+	);
+
+	Ok(())
 }
 
 fn assert_qmd_strength_profile(report: &Value) -> Result<()> {
@@ -992,6 +1037,7 @@ fn assert_qmd_strength_profile(report: &Value) -> Result<()> {
 	let retrieval = find_by_field(qmd_scenarios, "/scenario_id", "qmd-retrieval-quality")?;
 	let rerank_controls =
 		find_by_field(qmd_scenarios, "/scenario_id", "qmd-expansion-fusion-rerank-controls")?;
+	let replayability = find_by_field(qmd_scenarios, "/scenario_id", "qmd-local-replayability")?;
 	let wrong_result = find_by_field(qmd_scenarios, "/scenario_id", "qmd-wrong-result-diagnosis")?;
 
 	assert_eq!(qmd_scenarios.len(), 8);
@@ -1004,6 +1050,8 @@ fn assert_qmd_strength_profile(report: &Value) -> Result<()> {
 		rerank_controls.pointer("/result_type").and_then(Value::as_str),
 		Some("not_encoded")
 	);
+	assert_eq!(replayability.pointer("/result_type").and_then(Value::as_str), Some("not_encoded"));
+	assert_eq!(replayability.pointer("/elf_outcome").and_then(Value::as_str), Some("not_tested"));
 	assert_eq!(
 		wrong_result.pointer("/evidence_class").and_then(Value::as_str),
 		Some("research_gate")
@@ -1058,6 +1106,11 @@ fn assert_openviking_strength_profile(report: &Value) -> Result<()> {
 		"/scenario_id",
 		"openviking-evidence-bearing-retrieval-precondition",
 	)?;
+	let missed_terms = find_by_field(
+		openviking_scenarios,
+		"/scenario_id",
+		"openviking-missed-expected-terms-evidence",
+	)?;
 
 	assert_eq!(openviking_scenarios.len(), 6);
 	assert_eq!(
@@ -1071,6 +1124,8 @@ fn assert_openviking_strength_profile(report: &Value) -> Result<()> {
 		precondition.pointer("/typed_blocker").and_then(Value::as_str),
 		Some("output_missed_expected_terms")
 	);
+	assert_eq!(missed_terms.pointer("/result_type").and_then(Value::as_str), Some("wrong_result"));
+	assert_eq!(missed_terms.pointer("/elf_outcome").and_then(Value::as_str), Some("not_tested"));
 
 	Ok(())
 }
@@ -1079,7 +1134,7 @@ fn assert_strength_profile_json_claim_boundaries(report: &Value) -> Result<()> {
 	assert!(array_contains_str(
 		report,
 		"/claim_boundaries",
-		"ELF does not broadly beat qmd; it ties retrieval correctness but loses the measured debug/replay ergonomics surface."
+		"ELF does not broadly beat qmd; it ties retrieval correctness, loses the measured query-transparency surface, and leaves replayability not_tested."
 	)?);
 	assert!(array_contains_str(
 		report,
@@ -1117,6 +1172,7 @@ fn assert_strength_profile_markdown_boundaries(markdown: &str) {
 	assert!(markdown.contains(
 		"qmd remains stronger than ELF on the currently evidenced local query transparency"
 	));
+	assert!(markdown.contains("replayability remains unscored"));
 	assert!(markdown.contains("ELF currently wins only the equivalent OpenViking same-corpus"));
 	assert!(markdown.contains("Do not claim ELF broadly beats qmd"));
 	assert!(markdown.contains(

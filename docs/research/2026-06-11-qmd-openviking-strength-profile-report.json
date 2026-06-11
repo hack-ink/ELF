@@ -22,8 +22,19 @@
     "wrong_result",
     "blocked",
     "incomplete",
+    "lifecycle_fail",
     "not_encoded",
-    "unsupported"
+    "unsupported_claim"
+  ],
+  "coverage_status_terms": [
+    "pass",
+    "wrong_result",
+    "blocked",
+    "incomplete",
+    "lifecycle_fail",
+    "not_encoded",
+    "unsupported",
+    "unsupported_claim"
   ],
   "evidence_class_terms": [
     "fixture_backed",
@@ -33,15 +44,16 @@
   ],
   "summary": {
     "qmd": {
-      "overall_against_strengths": "elf_loss_on_debug_replay_ergonomics",
+      "overall_against_strengths": "elf_loss_on_query_transparency_replay_untested",
       "retrieval_quality": "tie",
-      "debug_replay_ergonomics": "elf_loss",
+      "local_query_transparency": "elf_loss",
+      "local_replayability": "not_tested",
       "expansion_fusion_rerank": "not_tested",
-      "claim": "ELF ties qmd on encoded retrieval correctness and equivalent update/delete/cold-start behavior, loses the currently evidenced local debug/replay ergonomics surface, and remains untested on scored expansion, fusion, and rerank controls."
+      "claim": "ELF ties qmd on encoded retrieval correctness and equivalent update/delete/cold-start behavior, loses the currently evidenced local query-transparency surface, and remains untested on scored replayability, expansion, fusion, and rerank controls."
     },
     "openviking": {
       "overall_against_strengths": "not_tested_on_context_trajectory",
-      "claim": "ELF has measured wins only on same-corpus evidence-bearing preconditions where OpenViking currently returns wrong_result. ELF does not have a measured win, tie, or loss against OpenViking context-trajectory strengths because staged trajectory, hierarchy selection, and recursive expansion remain research-gate/not_encoded."
+      "claim": "ELF has one measured win on the same-corpus evidence-bearing precondition where OpenViking currently returns wrong_result. ELF does not have a measured win, tie, or loss against OpenViking context-trajectory strengths because staged trajectory, hierarchy selection, and recursive expansion remain research-gate/not_encoded."
     }
   },
   "qmd_strength_profile": {
@@ -67,7 +79,7 @@
         "surface": "local query transparency",
         "evidence_class": "live_baseline_only",
         "result_type": "pass",
-        "elf_status": "partial",
+        "elf_status": "not_encoded",
         "qmd_status": "pass",
         "elf_outcome": "elf_loss",
         "retrieval_quality": "not a correctness scenario",
@@ -143,12 +155,12 @@
         "scenario_id": "qmd-local-replayability",
         "surface": "local replayability",
         "evidence_class": "live_baseline_only",
-        "result_type": "pass",
-        "elf_status": "partial",
+        "result_type": "not_encoded",
+        "elf_status": "not_encoded",
         "qmd_status": "pass",
-        "elf_outcome": "elf_loss",
+        "elf_outcome": "not_tested",
         "retrieval_quality": "not a correctness scenario",
-        "debug_replay_ergonomics": "qmd's measured replay path is collection add, update, embed -f, and query --json in a fresh CLI process; ELF has service traces and admin bundle endpoints, but the checked-in stress report does not give an equally short per-query replay artifact.",
+        "debug_replay_ergonomics": "qmd's observed replay path is collection add, update, embed -f, and query --json in a fresh CLI process; ELF has service traces and admin bundle endpoints, but no scored replayability rule compares the two surfaces yet.",
         "source_artifacts": [
           "scripts/live-baseline-benchmark.sh",
           "docs/guide/benchmarking/2026-06-11-elf-qmd-retrieval-debug-profile.md"
@@ -159,8 +171,8 @@
         "surface": "wrong-result diagnosis",
         "evidence_class": "research_gate",
         "result_type": "not_encoded",
-        "elf_status": "partial",
-        "qmd_status": "partial",
+        "elf_status": "not_encoded",
+        "qmd_status": "not_encoded",
         "elf_outcome": "not_tested",
         "retrieval_quality": "The memory-evolution diagnostic classifies qmd misses and selected-but-not-narrated lifecycle failures from produced evidence; candidate-drop classification remains untested because qmd live job artifacts do not expose candidate-stage traces.",
         "debug_replay_ergonomics": "The report taxonomy supports absent evidence, retrieved-but-dropped evidence, selected-but-not-narrated evidence, and lifecycle-contradicted evidence. Current qmd data exercises absent and selected-but-not-narrated classes; retrieved-but-dropped remains not observed.",
@@ -172,8 +184,8 @@
     "win_tie_loss_summary": {
       "elf_win": 0,
       "tie": 3,
-      "elf_loss": 2,
-      "not_tested": 3
+      "elf_loss": 1,
+      "not_tested": 4
     },
     "wrong_result_diagnosis": {
       "taxonomy": [
@@ -340,20 +352,20 @@
         "result_type": "wrong_result",
         "openviking_status": "wrong_result",
         "elf_equivalent_status": "pass",
-        "elf_outcome": "elf_win",
+        "elf_outcome": "not_tested",
         "typed_blocker": "retrieval_wrong_result",
-        "evidence": "The baseline report preserves missed expected terms as wrong_result instead of loosening evidence expectations or reporting setup failure."
+        "evidence": "The baseline report preserves the same missed expected terms as wrong_result instead of loosening evidence expectations or reporting setup failure; this row documents typed failure evidence and is not counted as a second comparative win."
       }
     ],
     "win_tie_loss_summary": {
-      "elf_win": 2,
+      "elf_win": 1,
       "tie": 0,
       "elf_loss": 0,
-      "not_tested": 4
+      "not_tested": 5
     }
   },
   "claim_boundaries": [
-    "ELF does not broadly beat qmd; it ties retrieval correctness but loses the measured debug/replay ergonomics surface.",
+    "ELF does not broadly beat qmd; it ties retrieval correctness, loses the measured query-transparency surface, and leaves replayability not_tested.",
     "qmd expansion, fusion, and rerank superiority remains not_tested because the current qmd paths use --no-rerank and do not score internals.",
     "ELF does not beat OpenViking on context trajectory; OpenViking trajectory strengths remain not_tested behind a wrong_result same-corpus output precondition.",
     "Research_gate records are follow-up gates, not pass evidence.",
