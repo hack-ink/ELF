@@ -49,7 +49,7 @@
     {
       "command": "cargo make real-world-memory-live-adapters",
       "artifact": "docs/guide/benchmarking/2026-06-11-capture-write-policy-live-report.md",
-      "claim": "ELF live capture/write-policy jobs pass for redaction, exclusions, source ids, evidence binding, and no secret leakage; qmd remains not_encoded, agentmemory is blocked, and claude-mem is untested for capture breadth."
+      "claim": "ELF live capture/write-policy jobs pass for redaction, exclusions, source ids, evidence binding, and no secret leakage; qmd remains not_encoded, while agentmemory and claude-mem capture breadth are blocked until durable hook/viewer evidence exists."
     },
     {
       "command": "cargo make real-world-job-operator-ux-live-adapters",

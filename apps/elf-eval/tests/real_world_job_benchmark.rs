@@ -567,7 +567,7 @@ fn assert_external_adapter_manifest_status_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/suite_status_counts/pass")
 			.and_then(Value::as_u64),
-		Some(24)
+		Some(22)
 	);
 	assert_eq!(
 		report
@@ -579,7 +579,7 @@ fn assert_external_adapter_manifest_status_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/suite_status_counts/not_encoded")
 			.and_then(Value::as_u64),
-		Some(38)
+		Some(40)
 	);
 }
 
@@ -1072,17 +1072,18 @@ fn assert_memsearch_first_generation_records(memsearch: &Value) {
 		memsearch.pointer("/scenarios/0/elf_position").and_then(Value::as_str),
 		Some("untested")
 	);
-	assert_eq!(memsearch.pointer("/suites/0/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(memsearch.pointer("/suites/0/status").and_then(Value::as_str), Some("not_encoded"));
 	assert!(memsearch.pointer("/suites/0/evidence").and_then(Value::as_str).is_some_and(
 		|evidence| evidence.contains("fixture-backed source-of-truth prompt coverage")
-			&& evidence.contains("No live memsearch runtime adapter executes prompt scoring yet.")
+			&& evidence.contains("No live memsearch runtime adapter executes prompt scoring yet")
+			&& evidence.contains("not a suite pass")
 	));
-	assert_eq!(memsearch.pointer("/suites/1/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(memsearch.pointer("/suites/1/status").and_then(Value::as_str), Some("not_encoded"));
 	assert!(memsearch.pointer("/suites/1/evidence").and_then(Value::as_str).is_some_and(
 		|evidence| evidence.contains("fixture-backed retrieval-debug prompt coverage")
 			&& evidence.contains(
-				"No live memsearch runtime adapter executes retrieval prompt scoring yet."
-			)
+				"No live memsearch runtime adapter executes retrieval prompt scoring yet"
+			) && evidence.contains("not a suite pass")
 	));
 	assert_eq!(memsearch.pointer("/scenarios/1/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(
