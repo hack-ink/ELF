@@ -58,6 +58,9 @@ cleanup, use `docs/guide/single_user_production.md`.
   current measured ELF/qmd data, fixture evidence, external adapter ledger coverage,
   scenario non-claims, and the next measurement reports needed before stronger
   competitor claims.
+- `2026-06-11-elf-qmd-retrieval-debug-profile.md`: fresh ELF/qmd retrieval-debug
+  profile with real-world retrieval-suite evidence, 480-document stress baseline
+  evidence, qmd top-10 artifact inspection, and explicit rerank/fusion non-claims.
 - `real_world_agent_memory_benchmark.md`: operator overview for the v1 real-world
   agent memory benchmark contract, including suite taxonomy, typed report states,
   knowledge-compilation fixture tasks, and the production-ops fixture target.
