@@ -1,0 +1,261 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "context-trajectory-openviking-hierarchy-selection-001",
+  "suite": "context_trajectory",
+  "title": "Gate OpenViking hierarchy selection scoring on scored hierarchy output",
+  "encoding": {
+    "status": "blocked",
+    "reason": "OpenViking hierarchy selection is encoded as a benchmark job, but scoring is blocked until the adapter emits selected hierarchy nodes with evidence ids after the same-corpus precondition passes.",
+    "follow_up": {
+      "title": "Materialize OpenViking selected hierarchy nodes",
+      "reason": "The context-trajectory adapter must return selected parent, child, and resource nodes with evidence ids before hierarchy quality can be scored against ELF."
+    }
+  },
+  "corpus": {
+    "corpus_id": "real-world-memory-context-trajectory-2026-06-11",
+    "profile": "external_adapter",
+    "items": [
+      {
+        "evidence_id": "hierarchy-selection-output-contract",
+        "kind": "adapter_state",
+        "text": "A scored OpenViking hierarchy selection job must report the selected parent context, selected child context, final resource evidence ids, and the rejected sibling or decoy context.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "openviking_hierarchy_selection_blocked",
+            "evidence_id": "hierarchy-selection-output-contract"
+          },
+          "locator": {
+            "quote": "selected parent context, selected child context, final resource evidence ids"
+          }
+        },
+        "created_at": "2026-06-11T00:00:00Z"
+      },
+      {
+        "evidence_id": "same-corpus-before-hierarchy",
+        "kind": "adapter_state",
+        "text": "Hierarchy selection remains blocked until OpenViking same-corpus retrieval covers every expected evidence id instead of only reaching setup and returning wrong_result.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "openviking_hierarchy_selection_blocked",
+            "evidence_id": "same-corpus-before-hierarchy"
+          },
+          "locator": {
+            "quote": "covers every expected evidence id"
+          }
+        },
+        "created_at": "2026-06-11T00:00:00Z"
+      },
+      {
+        "evidence_id": "hierarchy-comparison-requires-elf-equivalent",
+        "kind": "runbook",
+        "text": "ELF hierarchy or trace behavior may be compared only if the same hierarchy-selection scenario is encoded and produces comparable selected-node and rejected-node evidence.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "openviking_hierarchy_selection_blocked",
+            "evidence_id": "hierarchy-comparison-requires-elf-equivalent"
+          },
+          "locator": {
+            "quote": "same hierarchy-selection scenario is encoded"
+          }
+        },
+        "created_at": "2026-06-11T00:00:00Z"
+      },
+      {
+        "evidence_id": "hierarchy-design-win-decoy",
+        "kind": "adapter_state",
+        "text": "Decoy: OpenViking should win hierarchy selection solely because its design uses viking:// hierarchy paths.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "openviking_hierarchy_selection_blocked",
+            "evidence_id": "hierarchy-design-win-decoy"
+          }
+        },
+        "created_at": "2026-06-10T00:00:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_context_trajectory",
+      "answer": {
+        "content": "OpenViking hierarchy selection is blocked until selected hierarchy nodes and evidence ids are materialized. OpenViking's hierarchy design remains a reference, not a scored win, tie, or loss, until comparable output exists.",
+        "claims": [
+          {
+            "claim_id": "hierarchy_selection_blocked",
+            "text": "OpenViking hierarchy selection is blocked until selected hierarchy nodes and evidence ids are materialized.",
+            "evidence_ids": [
+              "hierarchy-selection-output-contract",
+              "same-corpus-before-hierarchy"
+            ],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "design_reference_not_score",
+            "text": "OpenViking's hierarchy design remains a reference, not a scored win, tie, or loss, until comparable output exists.",
+            "evidence_ids": ["hierarchy-comparison-requires-elf-equivalent"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": [
+          "hierarchy-selection-output-contract",
+          "same-corpus-before-hierarchy",
+          "hierarchy-comparison-requires-elf-equivalent"
+        ],
+        "latency_ms": 0.0,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "hierarchy-output-contract-recorded",
+      "ts": "2026-06-11T00:00:00Z",
+      "actor": "agent",
+      "action": "encoded_output_contract",
+      "evidence_ids": ["hierarchy-selection-output-contract"],
+      "summary": "The fixture records the minimum hierarchy readback needed before scoring."
+    },
+    {
+      "event_id": "hierarchy-precondition-blocked",
+      "ts": "2026-06-11T00:01:00Z",
+      "actor": "agent",
+      "action": "blocked_scoring",
+      "evidence_ids": ["same-corpus-before-hierarchy"],
+      "summary": "The benchmark blocks hierarchy selection scoring until same-corpus evidence ids match."
+    },
+    {
+      "event_id": "hierarchy-comparison-gated",
+      "ts": "2026-06-11T00:02:00Z",
+      "actor": "agent",
+      "action": "preserved_claim_boundary",
+      "evidence_ids": ["hierarchy-comparison-requires-elf-equivalent"],
+      "summary": "The benchmark requires comparable ELF and OpenViking hierarchy artifacts before any win/tie/loss."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Can the benchmark score OpenViking hierarchy selection quality against ELF?",
+    "job_mode": "answer",
+    "constraints": [
+      "cite_evidence",
+      "preserve_typed_status",
+      "separate_design_reference_from_scored_output"
+    ]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "hierarchy_selection_blocked",
+        "text": "OpenViking hierarchy selection is blocked until selected hierarchy nodes and evidence ids are materialized."
+      },
+      {
+        "claim_id": "design_reference_not_score",
+        "text": "OpenViking's hierarchy design remains a reference, not a scored win, tie, or loss, until comparable output exists."
+      }
+    ],
+    "must_not_include": [
+      "OpenViking wins hierarchy selection",
+      "ELF wins hierarchy selection"
+    ],
+    "evidence_links": {
+      "hierarchy_selection_blocked": [
+        "hierarchy-selection-output-contract",
+        "same-corpus-before-hierarchy"
+      ],
+      "design_reference_not_score": ["hierarchy-comparison-requires-elf-equivalent"]
+    },
+    "answer_type": "direct_answer",
+    "accepted_alternates": [],
+    "requires_caveat": true,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "hierarchy-selection-output-contract",
+      "claim_id": "hierarchy_selection_blocked",
+      "requirement": "cite",
+      "quote": "selected parent context, selected child context, final resource evidence ids"
+    },
+    {
+      "evidence_id": "same-corpus-before-hierarchy",
+      "claim_id": "hierarchy_selection_blocked",
+      "requirement": "cite",
+      "quote": "covers every expected evidence id"
+    },
+    {
+      "evidence_id": "hierarchy-comparison-requires-elf-equivalent",
+      "claim_id": "design_reference_not_score",
+      "requirement": "cite",
+      "quote": "same hierarchy-selection scenario is encoded"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "hierarchy-design-win-decoy",
+      "type": "unsupported_prior",
+      "evidence_ids": ["hierarchy-design-win-decoy"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "States hierarchy selection is blocked until output is materialized."
+      },
+      "evidence_grounding": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Cites hierarchy output requirements and same-corpus precondition evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Does not convert design references into scored wins or losses."
+      },
+      "uncertainty_handling": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Keeps the hierarchy comparison caveated as blocked."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.1,
+        "max_points": 1.0,
+        "criteria": "Names the selected-node artifact needed next."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": true,
+    "acceptable_phrases": [
+      "Hierarchy selection is blocked.",
+      "Comparable selected-node evidence is missing."
+    ],
+    "fallback_action": "state_blocker"
+  },
+  "tags": [
+    "external_adapter",
+    "openviking",
+    "context_trajectory",
+    "hierarchy_selection",
+    "blocked",
+    "no_live_claim"
+  ]
+}
