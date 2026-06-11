@@ -1309,7 +1309,7 @@ def write_manifest(status: StatusState) -> dict[str, Any]:
                     "research_depth": "D1 feasibility plus XY-889 Docker graph/report smoke implementation; generated artifact decides live evidence class.",
                 },
                 "notes": [
-                    "The checked-in manifest record remains research_gate; generated smoke artifacts carry live status.",
+                    "The checked-in manifest carries the current graphify status; generated smoke artifacts carry the run-specific live status.",
                     "graphify output is treated as a derived graph/report adapter, not an authoritative ELF memory store.",
                 ],
             }

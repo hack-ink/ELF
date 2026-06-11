@@ -87,16 +87,17 @@
     "evidence_class_counts": {
       "fixture_backed": 1,
       "live_baseline_only": 6,
-      "live_real_world": 2,
-      "research_gate": 12
+      "live_real_world": 3,
+      "research_gate": 11
     },
     "overall_status_counts": {
       "pass": 1,
-      "wrong_result": 6,
+      "wrong_result": 7,
       "lifecycle_fail": 1,
-      "blocked": 6,
+      "blocked": 5,
       "not_encoded": 7
-    }
+    },
+    "xy900_update_note": "XY-900 promotes graphify from research_gate/blocked to a tiny scored live_real_world wrong_result smoke; broad graph/RAG quality remains unproven."
   },
   "claim_boundary": {
     "elf_vs_qmd": "tie_on_current_encoded_live_real_world_shape_not_overall_win",

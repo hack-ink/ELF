@@ -132,7 +132,7 @@ the right snippets.
 | Core-vs-archival memory | Letta core memory blocks versus archival memory | Research-only, no contained live output | Not comparable. Borrow design only. |
 | Context trajectory | OpenViking staged context and hierarchy | Existing adapter remains not encoded or wrong_result for trajectory | Not comparable. Need staged trajectory benchmark. |
 | Capture and continuity | agentmemory, claude-mem hooks/viewers | Existing adapters are baseline-only and undermeasured | Not comparable. Need capture/write-policy and work-resume adapters. |
-| Knowledge pages and graph/RAG navigation | llm-wiki, gbrain, graphify, RAGFlow, LightRAG, GraphRAG | Research-gate or blocked adapter state | Not comparable. Need Docker-contained evidence-linked adapters. |
+| Knowledge pages and graph/RAG navigation | llm-wiki, gbrain, graphify, RAGFlow, LightRAG, GraphRAG | llm-wiki/gbrain/GraphRAG/RAGFlow/LightRAG remain research-gate or blocked; graphify has a tiny scored `wrong_result` smoke | Not comparable for graph/RAG parity. Need larger Docker-contained evidence-linked adapters. |
 | Production operation discipline | ELF backfill, restore, typed gates | Existing production adoption reports plus current benchmark discipline | ELF has the strongest measured local production-operation story, with private/provider gates still typed blocked. |
 
 ## What ELF Should Borrow

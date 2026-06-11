@@ -119,15 +119,15 @@ The checked-in manifest records 21 adapter records across 17 unique project name
 | --- | ---: | --- |
 | `fixture_backed` | `1` | ELF fixture scoring only. |
 | `live_baseline_only` | `6` | Docker same-corpus or lifecycle evidence without real-world job scoring. |
-| `live_real_world` | `2` | ELF and qmd live real-world sweeps. |
-| `research_gate` | `12` | Setup, source, resource, or output-contract gate only. |
+| `live_real_world` | `3` | ELF and qmd live real-world sweeps plus graphify's tiny scored Docker smoke. |
+| `research_gate` | `11` | Setup, source, resource, or output-contract gate only. |
 
 | Overall status | Adapter records |
 | --- | ---: |
 | `pass` | `1` |
-| `wrong_result` | `6` |
+| `wrong_result` | `7` |
 | `lifecycle_fail` | `1` |
-| `blocked` | `6` |
+| `blocked` | `5` |
 | `not_encoded` | `7` |
 
 The generated JSON report emits `external_project_count: 16`, matching the unique
@@ -154,7 +154,7 @@ when ELF is included.
 | nanograph | `research_gate` | `not_encoded`; full memory backend is unsupported. | Typed graph schema and query ergonomics. | Typed relation query report only if evidence ids can be emitted. |
 | llm-wiki | `research_gate` | `not_encoded`. | Wiki/page generation, query-save, lint and repair loops. | Contained page-generation report with citation and unsupported-claim lint. |
 | gbrain | `research_gate` | `not_encoded`; setup path is blocked. | Compiled truth pages, timelines, and brain navigation. | Docker-local brain repo setup proof, then compiled-truth/timeline report. |
-| graphify | `research_gate` | `blocked`. | Graph-compressed navigation with `graph.json` and `GRAPH_REPORT`. | Docker graph/report output report mapped to benchmark evidence ids. |
+| graphify | `live_real_world` | Tiny scored smoke is `wrong_result`. | Graph-compressed navigation with `graph.json` and `GRAPH_REPORT`. | Expand beyond the generated smoke only after graph/report output maps to scored evidence on representative graph/RAG jobs. |
 
 ## Scenario Coverage And Claims
 
@@ -173,7 +173,7 @@ when ELF is included.
 | Personalization | ELF and qmd live pass one scoped preference job. | Narrow encoded pass only. | mem0/OpenMemory and Letta entity/preference history comparison. |
 | Context trajectory | Not comparable. | No claim. | OpenViking staged hierarchy/trajectory scoring. |
 | Core-vs-archival memory | Not comparable. | No claim. | Letta contained export and ELF core-block benchmark. |
-| Graph/RAG navigation | Research gates and blocked adapters only. | No claim. | RAGFlow, LightRAG, GraphRAG, Graphiti/Zep, and graphify Docker reports. |
+| Graph/RAG navigation | RAGFlow, LightRAG, GraphRAG, and Graphiti/Zep remain typed research gates; graphify has a tiny scored `wrong_result` smoke. | No graph/RAG parity claim; only graphify's bounded non-pass smoke can be cited. | Larger contained RAG/graph adapters with evidence-linked outputs before any ELF graph/RAG win, tie, or loss claim. |
 
 ## Next Measurement Reports
 
