@@ -405,6 +405,9 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 
 	assert_eq!(qmd.pointer("/overall_status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(qmd.pointer("/suites/0/status").and_then(Value::as_str), Some("not_encoded"));
+
+	assert_qmd_live_baseline_record(qmd);
+
 	assert_eq!(
 		qmd_live.pointer("/evidence_class").and_then(Value::as_str),
 		Some("live_real_world")
@@ -477,12 +480,41 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 		openviking_deep.pointer("/adapter_kind").and_then(Value::as_str),
 		Some("docker_local_embed_context_trajectory_gate")
 	);
+
+	assert_openviking_deep_profile_gate(openviking_deep);
+
 	assert_eq!(
 		openviking_deep.pointer("/result/artifact").and_then(Value::as_str),
 		Some("docs/research/2026-06-11-qmd-openviking-strength-profile-report.json")
 	);
 
 	Ok(())
+}
+
+fn assert_qmd_live_baseline_record(adapter: &Value) {
+	let result_evidence = adapter.pointer("/result/evidence").and_then(Value::as_str);
+	let retrieval_evidence = adapter.pointer("/suites/0/evidence").and_then(Value::as_str);
+
+	assert!(result_evidence.is_some_and(|evidence| {
+		evidence.contains("This live_baseline_only record is same-corpus evidence only")
+			&& evidence.contains("cite qmd_live_real_world for the full live real-world sweep")
+			&& !evidence.contains("no real_world_job qmd adapter is encoded yet")
+	}));
+	assert!(retrieval_evidence.is_some_and(|evidence| {
+		evidence.contains("does not execute real_world_job retrieval prompts")
+			&& evidence.contains("cite qmd_live_real_world for the live retrieval adapter run")
+			&& !evidence.contains("no real_world_job retrieval adapter run is encoded")
+	}));
+}
+
+fn assert_openviking_deep_profile_gate(adapter: &Value) {
+	let trajectory_evidence = adapter.pointer("/capabilities/1/evidence").and_then(Value::as_str);
+
+	assert!(trajectory_evidence.is_some_and(|evidence| {
+		evidence.contains("evidence-bearing same-corpus output")
+			&& evidence.contains("wrong_result missed-term evidence")
+			&& !evidence.contains("setup reaches runnable OpenViking APIs")
+	}));
 }
 
 fn assert_first_generation_adapter_records(mem0: &Value, memsearch: &Value, claude_mem: &Value) {

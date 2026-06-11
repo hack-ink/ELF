@@ -290,7 +290,7 @@
       },
       "result": {
         "status": "pass",
-        "evidence": "The current evidence is same-corpus live-baseline evidence only; no real_world_job qmd adapter is encoded yet.",
+        "evidence": "This live_baseline_only record is same-corpus evidence only; cite qmd_live_real_world for the full live real-world sweep.",
         "artifact": "docs/guide/benchmarking/live_baseline_benchmark.md"
       },
       "capabilities": [
@@ -314,7 +314,7 @@
         {
           "suite_id": "retrieval",
           "status": "not_encoded",
-          "evidence": "qmd is a retrieval-debug reference, but no real_world_job retrieval adapter run is encoded."
+          "evidence": "This live_baseline_only record does not execute real_world_job retrieval prompts; cite qmd_live_real_world for the live retrieval adapter run."
         },
         {
           "suite_id": "memory_evolution",
@@ -1018,7 +1018,7 @@
         {
           "capability": "hierarchical_context_trajectory",
           "status": "not_encoded",
-          "evidence": "Stage trajectory scoring is not encoded until setup reaches runnable OpenViking APIs."
+          "evidence": "Stage trajectory scoring remains not encoded until the smoke adapter returns evidence-bearing same-corpus output instead of the current wrong_result missed-term evidence."
         },
         {
           "capability": "host_global_install_boundary",
