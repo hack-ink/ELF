@@ -28,11 +28,14 @@ The measured qmd judgment is narrower:
 - Expansion/fusion/rerank controls: `not_tested`. The current qmd materializer and
   stress run use `--no-rerank`; no scored expansion/fusion/rerank profile exists.
 
-The measured OpenViking judgment is:
+The measured OpenViking judgment is split by surface:
 
-- Context trajectory: `not_tested`. The pinned Docker local embedding path reaches
-  `add_resource`/`find`, but the same-corpus smoke remains `wrong_result` because
-  expected evidence terms are missed.
+- Same-corpus evidence-bearing preconditions: `elf_win`. The pinned Docker local
+  embedding path reaches `add_resource`/`find`, but the OpenViking smoke remains
+  `wrong_result` because expected evidence terms are missed while ELF passes the
+  equivalent retrieval precondition.
+- Context trajectory strengths: `not_tested`. The current OpenViking wrong-result
+  smoke is not a scored staged-trajectory comparison.
 - Staged retrieval, hierarchy selection, and recursive/context expansion remain
   `research_gate` / `not_encoded`; no ELF win, tie, or loss is claimed against those
   strengths.
@@ -76,15 +79,17 @@ diagnosis evidence, not as a broad ELF-over-qmd claim.
 | Scenario | Evidence Class | Result Type | ELF Outcome | Typed Blocker |
 | --- | --- | --- | --- | --- |
 | Docker local embedding setup | `live_baseline_only` | `pass` | `not_tested` | none |
-| Same-corpus evidence-bearing retrieval precondition | `live_baseline_only` | `wrong_result` | `not_tested` | `output_missed_expected_terms` |
+| Same-corpus evidence-bearing retrieval precondition | `live_baseline_only` | `wrong_result` | `elf_win` | `output_missed_expected_terms` |
 | Staged retrieval trajectory | `research_gate` | `not_encoded` | `not_tested` | `needs_evidence_bearing_same_corpus_output` |
 | Hierarchy selection | `research_gate` | `not_encoded` | `not_tested` | `hierarchy_output_not_scored` |
 | Recursive/context expansion | `research_gate` | `not_encoded` | `not_tested` | `recursive_expansion_not_materialized` |
-| Missed expected terms evidence | `live_baseline_only` | `wrong_result` | `not_tested` | `retrieval_wrong_result` |
+| Missed expected terms evidence | `live_baseline_only` | `wrong_result` | `elf_win` | `retrieval_wrong_result` |
 
-Summary: OpenViking context-trajectory outcomes are `0` ELF wins, `0` ties, `0` ELF
-losses, and `6` not-tested scenarios. The current smoke wrong-result is useful typed
-failure evidence, but it is not a scored staged-trajectory comparison.
+Summary: OpenViking profile outcomes are `2` ELF wins, `0` ties, `0` ELF losses, and
+`4` not-tested scenarios. The two wins are only same-corpus evidence-bearing
+preconditions and missed-term failure evidence. The current smoke wrong-result is
+useful typed failure evidence, but it is not a scored staged-trajectory comparison,
+so context-trajectory strengths remain not tested.
 
 ## Claim Boundaries
 
@@ -96,6 +101,8 @@ Allowed:
 - qmd expansion/fusion/rerank superiority is untested.
 - OpenViking's Docker local embedding setup reaches runtime, but context trajectory
   remains untested because evidence-bearing same-corpus retrieval is not passing.
+- ELF currently wins only the equivalent OpenViking same-corpus retrieval
+  precondition surfaces, not OpenViking's staged trajectory strengths.
 
 Not allowed:
 
