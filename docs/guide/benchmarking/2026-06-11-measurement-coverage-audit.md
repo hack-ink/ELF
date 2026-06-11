@@ -5,9 +5,10 @@ not comparable, and which measurement reports should guide future ELF iteration.
 Read this when: You need to answer whether ELF has enough empirical evidence to
 claim a win, tie, loss, or non-claim against tracked memory, RAG, graph, and
 agent-continuity projects.
-Inputs: Fresh local runs of `cargo make real-world-memory` and
-`cargo make real-world-memory-live-adapters` in the current XY-933 lane after live
-capture/write-policy scoring, plus
+Inputs: A fresh local `cargo make real-world-memory` run in the current XY-928 lane
+after OpenViking context-trajectory fixture encoding, the retained XY-933
+`cargo make real-world-memory-live-adapters` evidence after live capture/write-policy
+scoring, plus
 `apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json`,
 `2026-06-11-competitor-strength-evidence-matrix.md`, and
 `2026-06-11-elf-iteration-direction-from-competitor-benchmarks.md`.
@@ -22,8 +23,10 @@ tracked project's strongest scenario.
 
 What is proven today:
 
-- ELF has a strong fixture-backed real-world benchmark contract: 40 jobs, 38 pass,
-  2 blocked operator boundaries, and no wrong results in the fixture aggregate.
+- ELF has a strong fixture-backed real-world benchmark contract: 43 jobs, 38 pass,
+  5 blocked operator or measurement-gate boundaries, and no wrong results in the
+  fixture aggregate. The added XY-928 `context_trajectory` jobs are blocked
+  OpenViking staged/hierarchy/recursive gates, not ELF wins.
 - ELF and qmd have comparable full-suite live real-world sweeps, but neither has a
   full-suite live pass. ELF is five passes ahead in the fresh aggregate because qmd
   misses the memory-evolution delete/TTL tombstone job and the capture/write-policy
@@ -50,12 +53,13 @@ production," but the competitiveness objective remains open.
 
 ## Fresh Runs
 
-These commands were run in the current XY-933 lane after live capture/write-policy
-scoring:
+The fixture command was refreshed in the current XY-928 lane after the OpenViking
+context-trajectory fixtures were added. The live-adapter command records the retained
+XY-933 evidence after live capture/write-policy scoring:
 
 | Command | Result | Runtime |
 | --- | --- | ---: |
-| `cargo make real-world-memory` | pass | 7.11 seconds |
+| `cargo make real-world-memory` | pass | 11.09 seconds |
 | `cargo make real-world-memory-live-adapters` | pass | 137.66 seconds |
 
 The live adapter run emitted repeated Qdrant client/server compatibility warnings, but
@@ -69,21 +73,21 @@ failure.
 
 | Metric | Value |
 | --- | ---: |
-| Jobs | `40` |
-| Encoded suites | `11` |
+| Jobs | `43` |
+| Encoded suites | `12` |
 | Pass | `38` |
-| Blocked | `2` |
+| Blocked | `5` |
 | Wrong result | `0` |
 | Lifecycle fail | `0` |
 | Incomplete | `0` |
 | Not encoded | `0` |
 | Unsupported claim | `0` |
-| Mean score | `0.950` |
-| Mean latency | `4.244 ms` |
-| Expected evidence recall | `80/80` |
-| Evidence coverage | `88/88` |
-| Source-ref coverage | `88/88` |
-| Quote coverage | `88/88` |
+| Mean score | `0.884` |
+| Mean latency | `3.940 ms` |
+| Expected evidence recall | `89/89` |
+| Evidence coverage | `97/97` |
+| Source-ref coverage | `97/97` |
+| Quote coverage | `97/97` |
 
 This proves fixture contract breadth and scoring behavior. It does not prove every
 live adapter or competitor runtime can complete those jobs.
@@ -146,8 +150,8 @@ The checked-in manifest records 23 adapter records across 17 unique project name
 | `pass` | `4` |
 | `wrong_result` | `6` |
 | `lifecycle_fail` | `1` |
-| `blocked` | `5` |
-| `not_encoded` | `7` |
+| `blocked` | `6` |
+| `not_encoded` | `6` |
 
 The generated JSON report emits `external_project_count: 16`, matching the unique
 non-ELF project-name count from the manifest. The companion audit JSON separately
@@ -157,12 +161,12 @@ records `unique_project_names: 17` for the full project list including ELF.
 
 | Project | Best current evidence | Current measured state | Strongest unproven scenario | Next measurement before claim |
 | --- | --- | --- | --- | --- |
-| ELF | `fixture_backed` plus `live_real_world` | Fixture aggregate passes except 2 blocked operator boundaries; live full sweep is `wrong_result`; live capture/write-policy and narrow operator-debug slices pass. | Full live memory evolution, live consolidation, live knowledge pages, live production ops, competitor capture hooks, and broader operator UI runners. | Memory-evolution diagnostic report, then consolidation/knowledge reports plus agentmemory/claude-mem capture and OpenMemory/claude-mem UI runners. |
+| ELF | `fixture_backed` plus `live_real_world` | Fixture aggregate passes except 5 blocked operator or measurement-gate boundaries; live full sweep is `wrong_result`; live capture/write-policy and narrow operator-debug slices pass. | Full live memory evolution, live consolidation, live knowledge pages, live production ops, competitor capture hooks, OpenViking staged trajectory artifacts, and broader operator UI runners. | Memory-evolution diagnostic report, then consolidation/knowledge reports plus agentmemory/claude-mem capture, OpenViking staged trajectory artifacts, and OpenMemory/claude-mem UI runners. |
 | qmd | `live_real_world` plus `live_baseline_only` | Fresh full sweep is five passes behind ELF because qmd misses the delete/TTL tombstone job and keeps capture/write-policy jobs typed `not_encoded`; same-corpus baseline passes; narrow operator-debug live slice ties replay commands but is `wrong_result` for trace hydration and candidate-drop visibility. | Deep retrieval-debug ergonomics and trace replay beyond the narrow operator-debug slice. | qmd/ELF deep retrieval-debug profile with expansion, fusion, rerank, and dropped-candidate traces. |
 | agentmemory | `live_baseline_only` | `lifecycle_fail`; capture comparison is `blocked` because the Docker baseline uses a process-local StateKV Map and in-memory index, with no durable local session/capture path for source ids, exclusions, write-policy audit, or evidence-bound output. | Durable coding-agent continuity and capture hooks. | Durable lifecycle and work-resume/capture adapter report. |
 | mem0/OpenMemory | `live_baseline_only` | Basic local smoke now passes; history/UI/hosted/graph behavior remains `not_encoded`. | Entity history, lifecycle UI, OpenMemory inspection. | Entity-history, deletion-audit, and UI/export readback report. |
 | memsearch | `live_baseline_only` | Basic canonical Markdown reindex/reload smoke now passes; real-world prompt coverage remains `not_encoded`. | Markdown canonical store and local reindex clarity. | Source-of-truth and retrieval-debug real-world adapter report. |
-| OpenViking | `live_baseline_only` plus `research_gate` | Same-corpus retrieval is `wrong_result`; trajectory is `not_encoded`. | Hierarchical staged context trajectory. | Evidence-bearing retrieval fix, then staged trajectory report. |
+| OpenViking | `live_baseline_only` plus `fixture_backed` and `research_gate` | Same-corpus retrieval is `wrong_result`; staged retrieval, hierarchy selection, and recursive/context expansion are encoded as blocked fixtures. | Hierarchical staged context trajectory. | Evidence-bearing retrieval fix, then materialized staged trajectory report. |
 | claude-mem | `live_baseline_only` | `wrong_result`; capture breadth is `not_encoded` because hooks, timeline, observations, viewer capture, and automatic capture review were not run against real-world jobs. | Progressive disclosure and automatic capture review. | Work-resume, operator-debugging, and capture/write-policy report. |
 | RAGFlow | `research_gate` | `blocked`. | RAG app workflow with document/chunk references. | Tiny Docker evidence-smoke with `reference.chunks` mapped to evidence ids. |
 | LightRAG | `research_gate` | `blocked`. | Graph/RAG context export with source-path citations. | Docker context-export report with explicit provider config and source citation mapping. |

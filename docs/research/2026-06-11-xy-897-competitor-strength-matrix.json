@@ -30,8 +30,8 @@
     },
     "overall_status_counts": {
       "lifecycle_fail": 1,
-      "blocked": 5,
-      "not_encoded": 7,
+      "blocked": 6,
+      "not_encoded": 6,
       "pass": 4,
       "wrong_result": 6
     }
@@ -188,6 +188,7 @@
       "current_evidence_class": "live_baseline_only",
       "supporting_evidence_classes": [
         "live_baseline_only",
+        "fixture_backed",
         "research_gate"
       ],
       "measured_status": "wrong_result",
@@ -196,9 +197,9 @@
         "artifact": "tmp/live-baseline/live-baseline-report.json"
       },
       "unsupported_or_blocked_status": {
-        "state": "not_encoded",
-        "typed_reason": "hierarchical_context_trajectory_not_encoded",
-        "details": "Pinned Docker local embedding setup reaches add_resource/find, but same-corpus output misses expected evidence and trajectory jobs are not encoded."
+        "state": "blocked",
+        "typed_reason": "hierarchical_context_trajectory_blocked",
+        "details": "Pinned Docker local embedding setup reaches add_resource/find, but same-corpus output misses expected evidence; staged retrieval, hierarchy selection, and recursive/context expansion jobs are encoded as blocked fixtures."
       },
       "benchmark_before_claim": "First make evidence-bearing same-corpus output pass, then run a context-trajectory suite that scores staged retrieval paths and hierarchy expansion.",
       "borrow_if_stronger": "Borrow the viking-style filesystem context model, trajectory readback, and staged retrieval planning."
@@ -529,7 +530,7 @@
       "scenario": "context trajectory",
       "current_elf_evidence": "ELF has trace and trajectory directions, but staged context trajectory is not yet a comparable live scenario.",
       "strongest_competitor_or_reference": "OpenViking",
-      "current_competitor_evidence": "OpenViking Docker setup is pinned, same-corpus retrieval is wrong_result, and hierarchical trajectory is research_gate not_encoded.",
+      "current_competitor_evidence": "OpenViking Docker setup is pinned, same-corpus retrieval is wrong_result, and hierarchical trajectory jobs are fixture-backed blocked gates.",
       "current_state": "OpenViking remains the strongest design reference, but not a measured live winner.",
       "next_measurement": "Make OpenViking same-corpus evidence-bearing retrieval pass, then score hierarchical expansion and staged context trajectory outputs."
     },

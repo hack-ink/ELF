@@ -8,7 +8,8 @@ Inputs: The June 11 retrieval-debug, memory-evolution, and temporal-history repo
 the real-world benchmark spec, the external adapter manifest, and
 `scripts/real-world-live-adapters.sh`.
 Outputs: Scenario-level win/tie/loss/not-tested judgments, qmd wrong-result
-diagnosis taxonomy, OpenViking typed trajectory blockers, and claim boundaries.
+diagnosis taxonomy, OpenViking typed trajectory blockers, blocked context-trajectory
+jobs, and claim boundaries.
 
 Machine-readable companion:
 `docs/research/2026-06-11-qmd-openviking-strength-profile-report.json`.
@@ -38,11 +39,13 @@ The measured OpenViking judgment is split by surface:
   embedding path reaches `add_resource`/`find`, but the OpenViking smoke remains
   `wrong_result` because expected evidence terms are missed while ELF passes the
   equivalent retrieval precondition.
-- Context trajectory strengths: `not_tested`. The current OpenViking wrong-result
-  smoke is not a scored staged-trajectory comparison.
+- Context trajectory strengths: `blocked` / `not_tested`. The OpenViking
+  same-corpus artifact now exposes expected, matched, and missing evidence ids, and
+  the staged retrieval, hierarchy selection, and recursive/context expansion jobs are
+  encoded as blocked fixtures.
 - Staged retrieval, hierarchy selection, and recursive/context expansion remain
-  `research_gate` / `not_encoded`; no ELF win, tie, or loss is claimed against those
-  strengths.
+  unscored until OpenViking returns evidence-bearing same-corpus output and comparable
+  stage artifacts; no ELF win, tie, or loss is claimed against those strengths.
 
 ## qmd Scenario Outcomes
 
@@ -85,16 +88,17 @@ diagnosis evidence, not as a broad ELF-over-qmd claim.
 | --- | --- | --- | --- | --- |
 | Docker local embedding setup | `live_baseline_only` | `pass` | `not_tested` | none |
 | Same-corpus evidence-bearing retrieval precondition | `live_baseline_only` | `wrong_result` | `elf_win` | `output_missed_expected_terms` |
-| Staged retrieval trajectory | `research_gate` | `not_encoded` | `not_tested` | `needs_evidence_bearing_same_corpus_output` |
-| Hierarchy selection | `research_gate` | `not_encoded` | `not_tested` | `hierarchy_output_not_scored` |
-| Recursive/context expansion | `research_gate` | `not_encoded` | `not_tested` | `recursive_expansion_not_materialized` |
+| Staged retrieval trajectory | `fixture_backed` | `blocked` | `not_tested` | `needs_evidence_bearing_same_corpus_output` |
+| Hierarchy selection | `fixture_backed` | `blocked` | `not_tested` | `hierarchy_output_not_scored` |
+| Recursive/context expansion | `fixture_backed` | `blocked` | `not_tested` | `recursive_expansion_not_materialized` |
 | Missed expected terms evidence | `live_baseline_only` | `wrong_result` | `not_tested` | `retrieval_wrong_result` |
 
 Summary: OpenViking profile outcomes are `1` ELF win, `0` ties, `0` ELF losses, and
 `5` not-tested scenarios. The single win is only the same-corpus evidence-bearing
-precondition. The current smoke wrong-result is useful typed failure evidence, but it
-is not a second comparative win and not a scored staged-trajectory comparison, so
-context-trajectory strengths remain not tested.
+precondition. The current smoke wrong-result is useful typed failure evidence, and the
+three context-trajectory fixtures make the staged, hierarchy, and recursive jobs
+visible as blocked work. They are not scored staged-trajectory comparisons, so
+context-trajectory strengths remain not tested for win/tie/loss claims.
 
 ## Claim Boundaries
 
@@ -105,8 +109,10 @@ Allowed:
   transparency artifact ergonomics; query transparency and replayability are observed
   but not scored as comparative ELF wins or losses.
 - qmd expansion/fusion/rerank superiority is untested.
-- OpenViking's Docker local embedding setup reaches runtime, but context trajectory
-  remains untested because evidence-bearing same-corpus retrieval is not passing.
+- OpenViking's Docker local embedding setup reaches runtime, and the baseline output
+  now exposes expected/matched/missing evidence ids, but context trajectory remains
+  blocked because evidence-bearing same-corpus retrieval is not passing and staged
+  artifacts are not materialized.
 - ELF currently wins only the equivalent OpenViking same-corpus retrieval
   precondition surface, not OpenViking's staged trajectory strengths.
 
@@ -116,8 +122,8 @@ Not allowed:
 - Do not claim qmd's debug ergonomics are equivalent to retrieval quality.
 - Do not claim ELF beats OpenViking on staged retrieval, hierarchy, or recursive
   context expansion.
-- Do not turn `research_gate`, `not_encoded`, or `unsupported` surfaces into wins or
-  losses.
+- Do not turn `research_gate`, `blocked`, `not_encoded`, or `unsupported` surfaces
+  into wins or losses.
 
 ## Validation Hook
 

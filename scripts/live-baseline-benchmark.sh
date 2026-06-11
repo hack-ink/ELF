@@ -3054,6 +3054,18 @@ project_openviking() {
       "status": "not_encoded",
       "surface": "no restart/reopen check is encoded until local same-corpus retrieval completes"
     },
+    "staged_retrieval_trajectory": {
+      "status": "blocked",
+      "surface": "no staged retrieval trajectory check is scored until same-corpus retrieval matches expected evidence ids"
+    },
+    "hierarchy_selection": {
+      "status": "blocked",
+      "surface": "no hierarchy selection check is scored until same-corpus retrieval matches expected evidence ids"
+    },
+    "recursive_context_expansion": {
+      "status": "blocked",
+      "surface": "no recursive/context expansion check is scored until same-corpus retrieval matches expected evidence ids"
+    },
     "scale_stress_profile": {
       "status": "blocked",
       "surface": "scale/stress is blocked until smoke same-corpus retrieval returns evidence-bearing results"
@@ -3135,11 +3147,42 @@ queries_path = Path(os.environ["ELF_BASELINE_QUERIES_PATH"])
 top_k = int(os.environ.get("ELF_BASELINE_TOP_K", "10"))
 
 
+def expected_evidence_ids(query):
+    ids = query.get("expected_evidence_ids") or []
+    if ids:
+        return ids
+    expected_doc = query["expected_doc"]
+    return [expected_doc[:-3] if expected_doc.endswith(".md") else expected_doc]
+
+
+def allowed_evidence_ids(query):
+    return query.get("allowed_alternate_evidence_ids") or []
+
+
+def result_raw(found):
+    return json.dumps(to_jsonable(found), ensure_ascii=False, default=str).lower()
+
+
+def visible_evidence_ids(found, query):
+    raw = result_raw(found)
+    candidate_ids = [*expected_evidence_ids(query), *allowed_evidence_ids(query)]
+    visible = []
+    for evidence_id in candidate_ids:
+        lowered = evidence_id.lower()
+        if lowered in raw or f"{lowered}.md" in raw:
+            visible.append(evidence_id)
+    return visible
+
+
 def result_matches(found, query):
-    raw = json.dumps(to_jsonable(found), ensure_ascii=False, default=str).lower()
-    return query["expected_doc"].lower() in raw and all(
-        term.lower() in raw for term in query["expected_terms"]
-    )
+    raw = result_raw(found)
+    expected_docs = [
+        query["expected_doc"],
+        *query.get("allowed_alternate_docs", []),
+    ]
+    has_doc = any(expected_doc.lower() in raw for expected_doc in expected_docs)
+    has_terms = all(term.lower() in raw for term in query["expected_terms"])
+    return has_doc and has_terms
 
 
 client = OpenViking(path=data_path)
@@ -3163,17 +3206,49 @@ try:
             score_threshold=0.0,
             level=[2],
         )
+        matched_evidence_ids = visible_evidence_ids(found, query)
+        required_evidence_ids = expected_evidence_ids(query)
         query_results.append(
             {
                 "id": query["id"],
                 "query": query["query"],
                 "expected_doc": query["expected_doc"],
                 "expected_terms": query["expected_terms"],
+                "expected_evidence_ids": required_evidence_ids,
+                "allowed_alternate_evidence_ids": allowed_evidence_ids(query),
+                "matched_evidence_ids": matched_evidence_ids,
+                "missing_evidence_ids": [
+                    evidence_id
+                    for evidence_id in required_evidence_ids
+                    if evidence_id not in matched_evidence_ids
+                ],
                 "matched": result_matches(found, query),
                 "find": to_jsonable(found),
             }
         )
     pass_count = sum(1 for result in query_results if result["matched"])
+    evidence_total = sum(len(result["expected_evidence_ids"]) for result in query_results)
+    evidence_matched = sum(
+        len(
+            [
+                evidence_id
+                for evidence_id in result["matched_evidence_ids"]
+                if evidence_id in result["expected_evidence_ids"]
+            ]
+        )
+        for result in query_results
+    )
+    same_corpus_output_correct = (
+        pass_count == len(query_results)
+        and evidence_total > 0
+        and evidence_matched == evidence_total
+    )
+    trajectory_gate_status = "not_encoded" if same_corpus_output_correct else "blocked"
+    trajectory_gate_reason = (
+        "OpenViking same-corpus retrieval matched expected evidence ids, but staged trajectory scoring is not encoded in this Docker adapter."
+        if trajectory_gate_status == "not_encoded"
+        else "OpenViking staged trajectory scoring is blocked until same-corpus retrieval matches expected evidence ids."
+    )
     checks = [
         {
             "name": "same_corpus_retrieval",
@@ -3185,6 +3260,21 @@ try:
                 "total": len(query_results),
                 "pass": pass_count,
                 "fail": len(query_results) - pass_count,
+            },
+        },
+        {
+            "name": "same_corpus_expected_evidence_ids_visible",
+            "status": "pass"
+            if all(result["expected_evidence_ids"] for result in query_results)
+            else "incomplete",
+            "reason": "OpenViking query results expose expected, matched, and missing evidence ids for every same-corpus query.",
+            "evidence": {
+                "total_queries": len(query_results),
+                "queries_with_expected_evidence_ids": sum(
+                    1 for result in query_results if result["expected_evidence_ids"]
+                ),
+                "expected_evidence_total": evidence_total,
+                "expected_evidence_matched": evidence_matched,
             },
         },
         {
@@ -3204,6 +3294,40 @@ try:
             "status": "not_encoded",
             "reason": "OpenViking cold-start reload is not encoded until the local retrieval path is stable in Docker.",
             "evidence": {},
+        },
+        {
+            "name": "staged_retrieval_trajectory",
+            "status": trajectory_gate_status,
+            "reason": trajectory_gate_reason,
+            "evidence": {
+                "blocked_by": "same_corpus_expected_evidence_miss"
+                if trajectory_gate_status == "blocked"
+                else None
+            },
+        },
+        {
+            "name": "hierarchy_selection",
+            "status": trajectory_gate_status,
+            "reason": trajectory_gate_reason.replace(
+                "staged trajectory", "hierarchy selection"
+            ),
+            "evidence": {
+                "blocked_by": "same_corpus_expected_evidence_miss"
+                if trajectory_gate_status == "blocked"
+                else None
+            },
+        },
+        {
+            "name": "recursive_context_expansion",
+            "status": trajectory_gate_status,
+            "reason": trajectory_gate_reason.replace(
+                "staged trajectory", "recursive/context expansion"
+            ),
+            "evidence": {
+                "blocked_by": "same_corpus_expected_evidence_miss"
+                if trajectory_gate_status == "blocked"
+                else None
+            },
         },
     ]
     wrong_result_count = sum(
