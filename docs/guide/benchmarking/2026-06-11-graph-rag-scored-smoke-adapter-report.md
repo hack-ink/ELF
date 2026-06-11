@@ -50,7 +50,9 @@ Each promoted smoke now writes a generated fixture and scored report:
 | graphify | `tmp/real-world-memory/graphify-smoke/graphify-report.json` and `.md` |
 
 The aggregate live-adapter sweep can include these reports through explicit opt-in
-flags:
+flags. These flags include an adapter in the aggregate report; provider-backed,
+service-started, or resource-heavy live attempts still require the adapter-specific
+controls listed by each smoke task:
 
 - `ELF_REAL_WORLD_LIVE_ENABLE_RAGFLOW=1`
 - `ELF_REAL_WORLD_LIVE_ENABLE_LIGHTRAG=1`

@@ -43,7 +43,9 @@ Last updated: June 10, 2026.
 
 XY-882 resolved the D1/D2 feasibility gate for the RAG and graph-memory
 `research_gate` records. These verdicts do not change any project into live adapter
-evidence; they only decide whether an implementation follow-up is justified.
+evidence by themselves; they only decide whether an implementation follow-up is
+justified. XY-900 later promotes graphify's generated-corpus Docker smoke into a
+scored tiny `live_real_world` non-pass record, but not broad graph-quality proof.
 
 | Project | Verdict | Follow-up rule |
 | ------- | ------- | -------------- |
@@ -51,7 +53,7 @@ evidence; they only decide whether an implementation follow-up is justified.
 | LightRAG | `adapter_candidate` | Follow-up issue: [XY-886](https://linear.app/hack-ink/issue/XY-886/elf-benchmark-adapter-implement-lightrag-docker-context-export-adapter), a Docker context-export adapter using explicit LLM/embedding config and source file-path citations. |
 | GraphRAG | `adapter_candidate` | Follow-up issue: [XY-887](https://linear.app/hack-ink/issue/XY-887/elf-benchmark-adapter-implement-graphrag-cost-bounded-docker-adapter), a cost-bounded Docker CLI/API adapter over a tiny corpus and parquet output tables. |
 | Graphiti / Zep | `adapter_candidate` | Follow-up issue: [XY-888](https://linear.app/hack-ink/issue/XY-888/elf-benchmark-adapter-implement-graphitizep-temporal-graph-adapter), a Docker-local temporal graph adapter that scores current/historical fact validity. |
-| graphify | `adapter_candidate` | Follow-up issue: [XY-889](https://linear.app/hack-ink/issue/XY-889/elf-benchmark-adapter-implement-graphify-docker-graph-report-adapter), a Docker-only CLI/materializer adapter over `graph.json` and `GRAPH_REPORT.md`; host-global assistant hooks remain out of scope. The checked-in manifest remains a research gate, while generated smoke artifacts may carry live status. |
+| graphify | `adapter_candidate` | Follow-up issue: [XY-889](https://linear.app/hack-ink/issue/XY-889/elf-benchmark-adapter-implement-graphify-docker-graph-report-adapter), a Docker-only CLI/materializer adapter over `graph.json` and `GRAPH_REPORT.md`; host-global assistant hooks remain out of scope. XY-900 promotes the checked-in graphify row to a scored tiny Docker smoke with `wrong_result`; it is still not broad graph-navigation quality proof. |
 | Letta | `research_only` | Keep as a core/archival memory reference until a supported contained path can export archival-memory evidence for scoring. |
 | LangGraph | `research_only` | Keep as a checkpoint/replay regression reference, not a standalone external memory adapter. |
 | nanograph | `research_only` | Keep as typed graph DX inspiration; official shape is no server/no Docker. |

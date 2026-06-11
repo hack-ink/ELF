@@ -202,6 +202,42 @@ def run_scored_report(fixture_path: Path, manifest_path: Path, status: StatusSta
     }
 
 
+def scored_benchmark(report: dict[str, Any] | None) -> dict[str, Any]:
+    """Extract the post-score benchmark status from a real_world_job report."""
+
+    if report is None:
+        return {
+            "schema": "elf.scored_benchmark_status/v1",
+            "source": "real_world_job_benchmark",
+            "status": "pending",
+            "reason": "The smoke materialization was written before benchmark scoring completed.",
+        }
+
+    summary = report.get("summary", {})
+    counts = {
+        status: int(summary.get(status, 0) or 0)
+        for status in (
+            "pass",
+            "wrong_result",
+            "lifecycle_fail",
+            "incomplete",
+            "blocked",
+            "not_encoded",
+        )
+    }
+    status = next((name for name, count in counts.items() if name != "pass" and count > 0), "pass")
+
+    return {
+        "schema": "elf.scored_benchmark_status/v1",
+        "source": "real_world_job_benchmark",
+        "status": status,
+        "counts": counts,
+        "job_count": int(summary.get("job_count", 0) or 0),
+        "mean_score": summary.get("mean_score"),
+        "evidence_coverage": summary.get("evidence_coverage"),
+    }
+
+
 def dir_size(path: Path) -> int:
     """Return total file size for a directory or file."""
 
@@ -1031,6 +1067,7 @@ def write_materialization(
     command_records: list[CommandRecord],
     mappings: dict[str, Any],
     started_at: float,
+    report: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Write the primary smoke artifact."""
 
@@ -1046,6 +1083,7 @@ def write_materialization(
         "adapter_id": "graphify_docker_smoke",
         "evidence_class": status.evidence_class,
         "status": {
+            "source": "smoke_materialization",
             "setup": status.setup,
             "run": status.run,
             "result": status.result,
@@ -1053,6 +1091,7 @@ def write_materialization(
             "failure_class": status.failure_class,
             "failure_reason": status.failure_reason,
         },
+        "scored_benchmark": scored_benchmark(report),
         "artifacts": {
             "generated_corpus_csv": rel(corpus_csv),
             "generated_corpus_dir": rel(CORPUS_DIR),
@@ -1063,6 +1102,8 @@ def write_materialization(
             "query_output": query_record.stdout_artifact if query_record else None,
             "manifest": rel(MANIFEST_OUT),
             "summary": rel(SUMMARY_OUT),
+            "scored_report_json": rel(REPORT_JSON),
+            "scored_report_markdown": rel(REPORT_MD),
         },
         "docker_boundary": {
             "compose_file": "docker-compose.baseline.yml",
@@ -1256,9 +1297,16 @@ def write_summary(materialization: dict[str, Any], manifest: dict[str, Any], rep
             "generated_at": utc_now(),
             "adapter_id": "graphify_docker_smoke",
             "evidence_class": materialization["evidence_class"],
+            "status_boundary": {
+                "materialization": "setup/run/evidence-mapping state emitted by the smoke runner",
+                "manifest": "external adapter declaration consumed by the scorer",
+                "scored_benchmark": "post-score real_world_job outcome; use this for quality status",
+            },
+            "scored_benchmark": materialization["scored_benchmark"],
             "materialization": materialization,
             "manifest": {
                 "json": rel(MANIFEST_OUT),
+                "status_source": "external_adapter_manifest_pre_score",
                 "summary": manifest["adapters"][0]["overall_status"],
                 "suites": manifest["adapters"][0]["suites"],
             },
@@ -1378,6 +1426,16 @@ def main() -> int:
     )
     manifest = write_manifest(status)
     report = run_scored_report(fixture_path, MANIFEST_OUT, status)
+    materialization = write_materialization(
+        status,
+        corpus,
+        fixture_path,
+        corpus_csv,
+        command_records,
+        mappings,
+        started_at,
+        report,
+    )
     write_summary(materialization, manifest, report)
     print(f"graphify smoke artifact: {OUT}")
     print(f"graphify smoke manifest: {MANIFEST_OUT}")
