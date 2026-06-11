@@ -1,0 +1,192 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "core-archival-core-block-attachment-001",
+  "suite": "core_archival_memory",
+  "title": "Read an explicitly attached core block without treating it as archival search",
+  "corpus": {
+    "corpus_id": "real-world-memory-core-archival-2026-06-11",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "core-attachment-active",
+        "kind": "core_block",
+        "text": "Core block attachment: key project_style has an active attachment for tenant local-tenant project ELF agent local-agent read_profile private_plus_project.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "core_block_attachment",
+            "evidence_id": "core-attachment-active"
+          },
+          "locator": {
+            "quote": "active attachment for tenant local-tenant project ELF agent local-agent read_profile private_plus_project"
+          }
+        },
+        "created_at": "2026-06-11T04:00:00Z"
+      },
+      {
+        "evidence_id": "core-attachment-not-search",
+        "kind": "core_block_contract",
+        "text": "Core block readback is not archival search; it does not embed, rerank, search Qdrant, create a search session, or record note hits.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "core_block_attachment",
+            "evidence_id": "core-attachment-not-search"
+          },
+          "locator": {
+            "quote": "does not embed, rerank, search Qdrant"
+          }
+        },
+        "created_at": "2026-06-11T04:01:00Z"
+      },
+      {
+        "evidence_id": "core-attachment-qdrant-trap",
+        "kind": "stale_claim",
+        "text": "Stale shortcut: core blocks are indexed into Qdrant and returned as normal archival note search hits.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "core_block_attachment",
+            "evidence_id": "core-attachment-qdrant-trap"
+          }
+        },
+        "created_at": "2026-06-11T03:59:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_core_archival_memory",
+      "answer": {
+        "content": "Return the project_style core block because it has an active attachment for the exact tenant, project, agent, and private_plus_project read profile. Keep that readback separate from archival search because core blocks do not embed, rerank, search Qdrant, create search sessions, or record note hits.",
+        "claims": [
+          {
+            "claim_id": "attached_core_block_readback",
+            "text": "The project_style core block is returned through its exact active attachment.",
+            "evidence_ids": ["core-attachment-active"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "core_not_archival_search",
+            "text": "Core block readback is separate from archival search and Qdrant-derived note retrieval.",
+            "evidence_ids": ["core-attachment-not-search"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["core-attachment-active", "core-attachment-not-search"],
+        "latency_ms": 1.0,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "core-project-style-attached",
+      "ts": "2026-06-11T04:00:00Z",
+      "actor": "agent",
+      "action": "attachment_added",
+      "evidence_ids": ["core-attachment-active"],
+      "summary": "The project_style core block was attached for the exact read profile."
+    },
+    {
+      "event_id": "core-archival-boundary-recorded",
+      "ts": "2026-06-11T04:01:00Z",
+      "actor": "agent",
+      "action": "recorded_contract",
+      "evidence_ids": ["core-attachment-not-search"],
+      "summary": "The core block readback boundary was recorded separately from archival search."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Which always-loaded project style block is attached for this agent, and should it appear as a normal archival search hit?",
+    "job_mode": "answer",
+    "constraints": ["cite_evidence", "separate_core_from_archival_search", "avoid_qdrant_core_block_claims"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "attached_core_block_readback",
+        "text": "The project_style core block is returned through its exact active attachment."
+      },
+      {
+        "claim_id": "core_not_archival_search",
+        "text": "Core block readback is separate from archival search and Qdrant-derived note retrieval."
+      }
+    ],
+    "must_not_include": [
+      "core blocks are indexed into Qdrant and returned as normal archival note search hits"
+    ],
+    "evidence_links": {
+      "attached_core_block_readback": ["core-attachment-active"],
+      "core_not_archival_search": ["core-attachment-not-search"]
+    },
+    "answer_type": "direct_answer",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "core-attachment-active",
+      "claim_id": "attached_core_block_readback",
+      "requirement": "cite",
+      "quote": "active attachment for tenant local-tenant project ELF agent local-agent read_profile private_plus_project"
+    },
+    {
+      "evidence_id": "core-attachment-not-search",
+      "claim_id": "core_not_archival_search",
+      "requirement": "cite",
+      "quote": "does not embed, rerank, search Qdrant"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "qdrant-core-block-search-hit",
+      "type": "stale_fact",
+      "evidence_ids": ["core-attachment-qdrant-trap"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Identifies the attached core block."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Cites attachment and core-search boundary evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Avoids indexing core blocks into Qdrant-backed archival search."
+      },
+      "lifecycle_behavior": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Preserves explicit attachment semantics."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": ["The fixture does not provide that evidence."],
+    "fallback_action": "state_blocker"
+  },
+  "tags": ["synthetic", "core_archival_memory", "core_block", "attachment", "no_live_claim"]
+}

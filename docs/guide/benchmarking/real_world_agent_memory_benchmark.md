@@ -58,6 +58,7 @@ compile knowledge, and state honest uncertainty.
 | Capture/integration | Accuracy of hooks, imports, exclusions, and write policies. | Capture a session decision while excluding private spans. |
 | Production ops | Backfill, restore, cold start, resource, and bounded-failure behavior. | Resume interrupted import without duplicate source notes. |
 | Personalization | Scoped preferences without cross-tenant leakage. | Apply the user's current preference and ignore another project's note. |
+| Core/archival memory | Always-loaded core memory behavior kept separate from archival note search. | Detect a stale core block and fall back to archival evidence. |
 
 ## External Reference Mapping
 
@@ -163,6 +164,9 @@ including the retrieval-quality slice below. The suite currently encodes:
   classification, and provider credential boundary `blocked` classification.
 - `personalization`: scoped stable preference correction without temporary or
   cross-project preference leakage.
+- `core_archival_memory`: core block attachment, scope, provenance, stale-core
+  detection, archival fallback, and project-decision recovery through core routing
+  plus archival rationale.
 
 The generated report includes evidence coverage, source-ref coverage, quote coverage,
 unsupported-claim count, stale retrieval count, stale-answer count, conflict detection
@@ -221,8 +225,10 @@ research gates. Its `external_adapters` report section distinguishes:
   future adapter path, not fixture-backed or live execution evidence.
 
 Current state: the `elf_live_real_world` and `qmd_live_real_world` adapters run a full
-encoded-suite sweep through `cargo make real-world-memory-live-adapters`. Each adapter
-materializes generated runtime answers for 38 jobs across 11 suites before scoring.
+encoded-suite sweep through `cargo make real-world-memory-live-adapters`. The latest
+recorded live sweep materializes generated runtime answers for 38 jobs across 11
+suites before scoring; the newer fixture-only `core_archival_memory` suite is not yet
+included in that live sweep.
 The original targeted `work_resume`, `retrieval`, and `project_decisions` slice still
 passes, but the full sweep is not a full-suite pass: memory_evolution is
 `wrong_result`, production_ops remains typed `incomplete`/`blocked`/`not_encoded`, and

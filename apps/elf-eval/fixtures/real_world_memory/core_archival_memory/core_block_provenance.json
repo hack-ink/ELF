@@ -1,0 +1,192 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "core-archival-core-block-provenance-001",
+  "suite": "core_archival_memory",
+  "title": "Return source refs and audit events for core block assertions",
+  "corpus": {
+    "corpus_id": "real-world-memory-core-archival-2026-06-11",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "core-provenance-source-ref",
+        "kind": "core_block",
+        "text": "Provenance evidence: core block release_policy returns source_ref schema source_ref/v1 with resolver real_world_job_fixture/v1 and locator quote retained for reviewer inspection.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "core_block_provenance",
+            "evidence_id": "core-provenance-source-ref"
+          },
+          "locator": {
+            "quote": "source_ref schema source_ref/v1"
+          }
+        },
+        "created_at": "2026-06-11T04:20:00Z"
+      },
+      {
+        "evidence_id": "core-provenance-audit-events",
+        "kind": "core_block_event",
+        "text": "Audit evidence: release_policy has append-only events block_created, block_updated, and attachment_added returned in audit_history.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "core_block_provenance",
+            "evidence_id": "core-provenance-audit-events"
+          },
+          "locator": {
+            "quote": "block_created, block_updated, and attachment_added"
+          }
+        },
+        "created_at": "2026-06-11T04:21:00Z"
+      },
+      {
+        "evidence_id": "core-provenance-trusted-memory-trap",
+        "kind": "stale_claim",
+        "text": "Stale shortcut: always-loaded core memory is trusted without returning source_ref or audit_history.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "core_block_provenance",
+            "evidence_id": "core-provenance-trusted-memory-trap"
+          }
+        },
+        "created_at": "2026-06-11T04:19:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_core_archival_memory",
+      "answer": {
+        "content": "The release_policy core block must return its source_ref with source_ref/v1 resolver data and retain the locator quote for inspection. Its provenance also includes append-only block_created, block_updated, and attachment_added events in audit_history.",
+        "claims": [
+          {
+            "claim_id": "core_source_ref_returned",
+            "text": "The release_policy core block returns source_ref/v1 provenance.",
+            "evidence_ids": ["core-provenance-source-ref"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "core_audit_history_returned",
+            "text": "The release_policy core block returns block_created, block_updated, and attachment_added audit events.",
+            "evidence_ids": ["core-provenance-audit-events"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["core-provenance-source-ref", "core-provenance-audit-events"],
+        "latency_ms": 1.0,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "core-release-policy-created",
+      "ts": "2026-06-11T04:20:00Z",
+      "actor": "agent",
+      "action": "block_created",
+      "evidence_ids": ["core-provenance-source-ref"],
+      "summary": "The release_policy block was created with a source_ref pointer."
+    },
+    {
+      "event_id": "core-release-policy-attached",
+      "ts": "2026-06-11T04:21:00Z",
+      "actor": "agent",
+      "action": "attachment_added",
+      "evidence_ids": ["core-provenance-audit-events"],
+      "summary": "The release_policy block attachment event was added to audit history."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "What provenance should a returned core release_policy block include?",
+    "job_mode": "answer",
+    "constraints": ["cite_evidence", "include_source_ref", "include_audit_history"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "core_source_ref_returned",
+        "text": "The release_policy core block returns source_ref/v1 provenance."
+      },
+      {
+        "claim_id": "core_audit_history_returned",
+        "text": "The release_policy core block returns block_created, block_updated, and attachment_added audit events."
+      }
+    ],
+    "must_not_include": [
+      "always-loaded core memory is trusted without returning source_ref or audit_history"
+    ],
+    "evidence_links": {
+      "core_source_ref_returned": ["core-provenance-source-ref"],
+      "core_audit_history_returned": ["core-provenance-audit-events"]
+    },
+    "answer_type": "provenance_bundle",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "core-provenance-source-ref",
+      "claim_id": "core_source_ref_returned",
+      "requirement": "cite",
+      "quote": "source_ref schema source_ref/v1"
+    },
+    {
+      "evidence_id": "core-provenance-audit-events",
+      "claim_id": "core_audit_history_returned",
+      "requirement": "cite",
+      "quote": "block_created, block_updated, and attachment_added"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "trusted-core-no-provenance",
+      "type": "unsupported_claim",
+      "evidence_ids": ["core-provenance-trusted-memory-trap"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "States the returned provenance fields."
+      },
+      "evidence_grounding": {
+        "weight": 0.35,
+        "max_points": 1.0,
+        "criteria": "Cites source_ref and audit-history evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Avoids trusted-without-provenance claims."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Answers in a reviewer-usable provenance bundle shape."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": ["The fixture does not provide that evidence."],
+    "fallback_action": "state_blocker"
+  },
+  "tags": ["synthetic", "core_archival_memory", "provenance", "audit_history", "source_ref"]
+}

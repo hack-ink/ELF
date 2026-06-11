@@ -38,14 +38,15 @@ The remaining caveats are material:
   setup exists.
 - Several competitor strengths remain `not_tested` or blocked: OpenMemory
   UI/export is blocked by the XY-931 export-helper setup probe, hosted mem0 Platform
-  behavior remains a non-goal, and OpenViking trajectory, Letta core-vs-archival
-  memory, and graph/RAG navigation remain unproven. mem0 local OSS preference history
-  is measured separately and is an ELF loss on the current correction history
-  scenario. The XY-923 follow-up also scores qmd's immediate top-10/replay artifact
-  ergonomics as stronger than ELF's default stress report, while expansion, fusion,
-  and rerank remain untested. XY-932 adds a narrow live operator-debug slice where
-  ELF beats qmd on trace hydration and candidate-drop visibility, but OpenMemory
-  UI/export and claude-mem viewer workflows remain blocked or not encoded.
+  behavior remains a non-goal, OpenViking trajectory and graph/RAG navigation remain
+  unproven, and Letta core-vs-archival comparison is blocked until the selected
+  contained export/readback path exists. mem0 local OSS preference history is
+  measured separately and is an ELF loss on the current correction history scenario.
+  The XY-923 follow-up also scores qmd's immediate top-10/replay artifact ergonomics
+  as stronger than ELF's default stress report, while expansion, fusion, and rerank
+  remain untested. XY-932 adds a narrow live operator-debug slice where ELF beats qmd
+  on trace hydration and candidate-drop visibility, but OpenMemory UI/export and
+  claude-mem viewer workflows remain blocked or not encoded.
 
 ## Evidence Classes
 
@@ -70,7 +71,8 @@ results, or lifecycle failures into one aggregate leaderboard.
 
 | Command or run | Artifact | Supported claim |
 | --- | --- | --- |
-| `cargo make real-world-memory` | `2026-06-11-measurement-coverage-audit.md` | ELF fixture aggregate covers 38 jobs across 11 suites with 36 pass and 2 blocked production-ops operator boundaries. |
+| `cargo make real-world-memory` | `2026-06-11-measurement-coverage-audit.md` | ELF fixture aggregate covers 44 jobs across 12 suites with 42 pass and 2 blocked production-ops operator boundaries, including 6 passing `core_archival_memory` jobs. |
+| `cargo make real-world-memory-core-archival` | `tmp/real-world-memory/core-archival/report.json` | ELF core-block behavior is scored separately from archival note search for attachment, scope, provenance, stale-core detection, archival fallback, and project-decision recovery. |
 | `cargo make real-world-memory-live-adapters` | `2026-06-11-measurement-coverage-audit.md` | ELF live service adapter reports 18 pass, 5 wrong_result, 2 blocked, and 13 not_encoded jobs; qmd reports 17 pass, 6 wrong_result, 2 blocked, and 13 not_encoded jobs. |
 | `cargo make real-world-job-operator-ux-live-adapters` | `tmp/real-world-job/operator-ux-live-adapters/summary.json` | The narrow live operator-debug slice scores ELF as pass and qmd as wrong_result: ELF wins trace hydration, candidate-drop visibility, and selected-but-not-narrated evidence; both systems expose replay commands and repair-action guidance. |
 | `ELF_BASELINE_PROJECTS=ELF,agentmemory,mem0,memsearch,claude-mem cargo make baseline-live-docker` | `2026-06-11-first-generation-oss-adapter-promotion-report.md` | mem0/OpenMemory and memsearch pass basic local baseline smokes; agentmemory remains lifecycle_fail and claude-mem remains wrong_result. |
@@ -86,7 +88,7 @@ results, or lifecycle failures into one aggregate leaderboard.
 | --- | --- | --- | --- | --- |
 | Source-of-truth rebuild and evidence-bound writes | `win` | `fixture_backed`, `live_real_world`, `live_baseline_only` | ELF has the strongest measured source-of-truth and rebuild story: Postgres is authoritative, Qdrant is rebuildable, trust-source jobs pass, and production restore/rebuild proof exists. | None |
 | Work resume and coding-agent continuity | `tie` | `fixture_backed`, `live_real_world`, `live_baseline_only`, `blocked`, `not_encoded` | ELF and qmd both pass encoded live `work_resume` jobs; agentmemory, claude-mem, and OpenViking continuity strengths remain blocked or not encoded. | XY-925, XY-928 |
-| Project decisions and reversals | `tie` | `fixture_backed`, `live_real_world`, `research_gate`, `not_encoded` | ELF and qmd both pass encoded `project_decisions` jobs; Letta-style core/archival decision memory is not tested. | XY-927 |
+| Project decisions and reversals | `tie` | `fixture_backed`, `live_real_world`, `research_gate`, `not_encoded` | ELF and qmd both pass encoded `project_decisions` jobs. The ELF `core_archival_memory` fixture also scores project-decision recovery through core routing plus archival rationale, but Letta-style comparison remains blocked without contained export evidence. | XY-927 |
 | Retrieval quality | `tie` | `fixture_backed`, `live_real_world`, `live_baseline_only` | ELF and qmd both pass encoded live retrieval and stress/same-corpus retrieval evidence. | XY-923 |
 | Retrieval quality and local debug UX | `loss` | `live_baseline_only`, `research_gate`, `wrong_result`, `not_encoded` | The XY-923 trace/replay report scores qmd stronger on immediate top-10 candidate artifacts and short CLI replay commands. ELF keeps useful service trace/admin replay surfaces, and expansion, fusion, rerank-on, and candidate-drop diagnostics remain untested. | XY-923 |
 | Memory evolution and temporal history | `loss` | `fixture_backed`, `live_real_world`, `live_baseline_only`, `wrong_result`, `blocked` | ELF fixture memory evolution passes, but live ELF passes only delete/TTL and reports five wrong_result jobs where current-vs-historical state is not reconciled. The mem0 local OSS preference-correction history scenario is now measured and is also an ELF loss. | XY-905 |
@@ -98,7 +100,7 @@ results, or lifecycle failures into one aggregate leaderboard.
 | Private corpus and provider boundaries | `blocked` | `blocked` | Private production profile fails closed without an operator-owned manifest; provider-backed production-ops gates require explicit credentials. | XY-930 |
 | Personalization and scoped preferences | `tie` | `fixture_backed`, `live_real_world`, `live_baseline_only`, `not_encoded` | ELF and qmd both pass the single encoded live personalization job. mem0 local OSS now passes entity-scoped personalization, so scoped preference behavior is a measured tie; preference correction history remains a separate ELF loss. | XY-927 |
 | Context trajectory and hierarchical retrieval | `not_tested` | `live_baseline_only`, `research_gate`, `wrong_result`, `not_encoded` | OpenViking reaches the pinned Docker local embedding path but misses expected same-corpus evidence; staged trajectory/hierarchy scoring is not encoded. | XY-928 |
-| Core-vs-archival memory | `not_tested` | `research_gate`, `not_encoded` | ELF has core block semantics in the service contract, but comparable core-vs-archival jobs and a contained Letta export path are not encoded. | XY-927 |
+| Core-vs-archival memory | `blocked` | `fixture_backed`, `research_gate`, `blocked`, `not_encoded` | ELF now has 6 fixture-backed `core_archival_memory` jobs that score core block attachment, scope, provenance, stale-core detection, archival fallback, and project-decision recovery separately from archival note search. Letta remains blocked or not tested until its contained export/readback artifact maps core and archival source ids. | XY-927 |
 | Graph/RAG navigation and citations | `not_tested` | `smoke_only`, `research_gate`, `blocked`, `wrong_result`, `not_encoded` | Graph/RAG smokes produce scored or typed non-pass adapter reports where possible, but broad graph/RAG navigation and citation quality are not tested. | XY-929 |
 
 ## Follow-Up Queue
@@ -110,7 +112,7 @@ results, or lifecycle failures into one aggregate leaderboard.
 | XY-924/XY-931 | P0 | Encoded local OSS history; UI/export setup blocker measured | mem0/OpenMemory local OSS history and SDK export-style readback are measured; OpenMemory UI/export has a blocked export-helper setup probe and still needs a dedicated compose/import path before any product-UX comparison. |
 | XY-925 | P1 | Backlog | First-generation OSS continuity and source-store adapters. |
 | XY-926 | P1 | Backlog | Live operator-debugging, capture, consolidation, and knowledge-page suites. |
-| XY-927 | P1 | Backlog | Letta-style core-vs-archival memory comparison. |
+| XY-927 | P1 | Fixture encoded; Letta export blocked | ELF core-vs-archival fixture coverage is encoded; a contained Letta export/readback adapter remains future work before win/tie/loss claims. |
 | XY-928 | P1 | Backlog | OpenViking context-trajectory and hierarchy benchmark. |
 | XY-929 | P2 | Backlog | Graph/RAG adapters beyond scored smokes. |
 | XY-930 | P1 | Backlog | Private-corpus and credentialed production gates after operator inputs exist. |
@@ -123,6 +125,9 @@ results, or lifecycle failures into one aggregate leaderboard.
   evidence among the tracked systems.
 - ELF ties qmd on encoded live retrieval, work-resume, project-decisions, and
   personalization slices.
+- ELF fixture-backed `core_archival_memory` coverage passes attachment, scope,
+  provenance, stale-core detection, archival fallback, and project-decision recovery
+  jobs separately from archival search.
 - ELF has a narrow live operator-debug win over qmd for trace hydration,
   candidate-drop visibility, and selected-but-not-narrated evidence, with
   replay-command availability and repair-action clarity tied.

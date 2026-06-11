@@ -1,14 +1,20 @@
 {
   "schema": "elf.benchmark_measurement_coverage_audit/v2",
   "run_id": "2026-06-11-measurement-coverage-audit",
-  "source_revision": "current XY-898 lane after adapter-report consistency repairs",
+  "source_revision": "current benchmark lane after adapter-report consistency repairs and XY-927 core-vs-archival fixture update",
   "created_at": "2026-06-11",
   "scope": "ELF memory-system competitiveness measurement coverage, external competitor comparison evidence, and next report directions",
   "commands": [
     {
+      "command": "cargo make real-world-memory-core-archival",
+      "status": "pass",
+      "runtime_seconds": 57.01,
+      "artifact": "tmp/real-world-memory/core-archival/report.json"
+    },
+    {
       "command": "cargo make real-world-memory",
       "status": "pass",
-      "runtime_seconds": 11.91,
+      "runtime_seconds": 8.94,
       "artifact": "tmp/real-world-memory/real-world-memory-report.json"
     },
     {
@@ -19,21 +25,21 @@
     }
   ],
   "fixture_aggregate": {
-    "job_count": 38,
-    "encoded_suite_count": 11,
-    "pass": 36,
+    "job_count": 44,
+    "encoded_suite_count": 12,
+    "pass": 42,
     "wrong_result": 0,
     "lifecycle_fail": 0,
     "incomplete": 0,
     "blocked": 2,
     "not_encoded": 0,
     "unsupported_claim": 0,
-    "mean_score": 0.947,
-    "mean_latency_ms": 4.411,
-    "expected_evidence_total": 77,
-    "expected_evidence_matched": 77,
-    "evidence_required_count": 84,
-    "evidence_covered_count": 84
+    "mean_score": 0.955,
+    "mean_latency_ms": 3.958,
+    "expected_evidence_total": 90,
+    "expected_evidence_matched": 90,
+    "evidence_required_count": 97,
+    "evidence_covered_count": 97
   },
   "live_real_world_adapters": [
     {
@@ -197,8 +203,8 @@
       "pass": 4,
       "wrong_result": 6,
       "lifecycle_fail": 1,
-      "blocked": 5,
-      "not_encoded": 7
+      "blocked": 6,
+      "not_encoded": 6
     },
     "xy900_update_note": "XY-900 promotes graphify from research_gate/blocked to a tiny scored live_real_world wrong_result smoke; broad graph/RAG quality remains unproven.",
     "xy932_update_note": "XY-932 adds narrow ELF/qmd operator-debug live_real_world records: ELF pass and qmd wrong_result for trace hydration/candidate-drop visibility, with OpenMemory and claude-mem UI still unmeasured."
@@ -212,7 +218,7 @@
       "OpenViking_context_trajectory",
       "mem0_OpenMemory_entity_history_ui",
       "agentmemory_claude_mem_capture_continuity",
-      "Letta_core_vs_archival_memory",
+      "Letta_core_vs_archival_export_path",
       "Graphiti_Zep_temporal_graph",
       "RAG_graph_navigation",
       "llm_wiki_gbrain_graphify_knowledge_workflows"

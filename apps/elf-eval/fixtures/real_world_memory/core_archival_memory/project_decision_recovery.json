@@ -1,0 +1,230 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "core-archival-project-decision-recovery-001",
+  "suite": "core_archival_memory",
+  "title": "Recover a project decision from core routing and archival rationale",
+  "corpus": {
+    "corpus_id": "real-world-memory-core-archival-2026-06-11",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "decision-core-routing-block",
+        "kind": "core_block",
+        "text": "Core decision routing block: keep the benchmark outcome policy always attached and route detailed rationale to archival notes.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "project_decision_recovery",
+            "evidence_id": "decision-core-routing-block"
+          },
+          "locator": {
+            "quote": "route detailed rationale to archival notes"
+          }
+        },
+        "created_at": "2026-06-11T04:50:00Z"
+      },
+      {
+        "evidence_id": "decision-archival-outcome-policy",
+        "kind": "decision",
+        "text": "Archival decision record: scenario outcomes use win, tie, loss, not_tested, blocked, or non_goal only when scenario evidence supports them.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "project_decision_recovery",
+            "evidence_id": "decision-archival-outcome-policy"
+          },
+          "locator": {
+            "quote": "use win, tie, loss, not_tested, blocked, or non_goal only when scenario evidence supports them"
+          }
+        },
+        "created_at": "2026-06-11T04:51:00Z"
+      },
+      {
+        "evidence_id": "decision-archival-core-search-boundary",
+        "kind": "decision",
+        "text": "Archival project decision: core blocks stay separate from archival note search and Qdrant-derived retrieval.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "project_decision_recovery",
+            "evidence_id": "decision-archival-core-search-boundary"
+          },
+          "locator": {
+            "quote": "core blocks stay separate from archival note search"
+          }
+        },
+        "created_at": "2026-06-11T04:52:00Z"
+      },
+      {
+        "evidence_id": "decision-letta-win-trap",
+        "kind": "unsupported_claim",
+        "text": "Wrong claim: Letta comparison can be scored as an ELF win because ELF has core blocks.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "project_decision_recovery",
+            "evidence_id": "decision-letta-win-trap"
+          }
+        },
+        "created_at": "2026-06-11T04:49:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_core_archival_memory",
+      "answer": {
+        "content": "Use the always-attached core routing block to find the benchmark outcome policy, then cite archival notes for the detailed decision. The archival decision says to use win, tie, loss, not_tested, blocked, or non_goal only when scenario evidence supports them. It also says core blocks stay separate from archival note search and Qdrant-derived retrieval, so no ELF-over-Letta claim follows from ELF having core blocks.",
+        "claims": [
+          {
+            "claim_id": "core_routes_to_archival_rationale",
+            "text": "The core routing block points detailed decision rationale to archival notes.",
+            "evidence_ids": ["decision-core-routing-block"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "outcomes_require_evidence",
+            "text": "Scenario outcomes use win, tie, loss, not_tested, blocked, or non_goal only when evidence supports them.",
+            "evidence_ids": ["decision-archival-outcome-policy"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "core_archival_boundary_preserved",
+            "text": "Core blocks stay separate from archival note search and Qdrant-derived retrieval.",
+            "evidence_ids": ["decision-archival-core-search-boundary"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": [
+          "decision-core-routing-block",
+          "decision-archival-outcome-policy",
+          "decision-archival-core-search-boundary"
+        ],
+        "latency_ms": 1.4,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "decision-routing-core-attached",
+      "ts": "2026-06-11T04:50:00Z",
+      "actor": "agent",
+      "action": "attachment_added",
+      "evidence_ids": ["decision-core-routing-block"],
+      "summary": "A core block kept the outcome-policy routing pointer always attached."
+    },
+    {
+      "event_id": "decision-outcome-policy-archived",
+      "ts": "2026-06-11T04:51:00Z",
+      "actor": "agent",
+      "action": "recorded_decision",
+      "evidence_ids": ["decision-archival-outcome-policy", "decision-archival-core-search-boundary"],
+      "summary": "Archival notes recorded the detailed outcome policy and core-search boundary."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "What is the benchmark outcome policy, and does having ELF core blocks make Letta a measured loss?",
+    "job_mode": "decide",
+    "constraints": ["cite_evidence", "recover_project_decision", "avoid_unsupported_letta_claims"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "core_routes_to_archival_rationale",
+        "text": "The core routing block points detailed decision rationale to archival notes."
+      },
+      {
+        "claim_id": "outcomes_require_evidence",
+        "text": "Scenario outcomes use win, tie, loss, not_tested, blocked, or non_goal only when evidence supports them."
+      },
+      {
+        "claim_id": "core_archival_boundary_preserved",
+        "text": "Core blocks stay separate from archival note search and Qdrant-derived retrieval."
+      }
+    ],
+    "must_not_include": [
+      "Letta comparison can be scored as an ELF win because ELF has core blocks"
+    ],
+    "evidence_links": {
+      "core_routes_to_archival_rationale": ["decision-core-routing-block"],
+      "outcomes_require_evidence": ["decision-archival-outcome-policy"],
+      "core_archival_boundary_preserved": ["decision-archival-core-search-boundary"]
+    },
+    "answer_type": "decision_record",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "decision-core-routing-block",
+      "claim_id": "core_routes_to_archival_rationale",
+      "requirement": "cite",
+      "quote": "route detailed rationale to archival notes"
+    },
+    {
+      "evidence_id": "decision-archival-outcome-policy",
+      "claim_id": "outcomes_require_evidence",
+      "requirement": "cite",
+      "quote": "use win, tie, loss, not_tested, blocked, or non_goal only when scenario evidence supports them"
+    },
+    {
+      "evidence_id": "decision-archival-core-search-boundary",
+      "claim_id": "core_archival_boundary_preserved",
+      "requirement": "cite",
+      "quote": "core blocks stay separate from archival note search"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "unsupported-letta-loss-from-elf-core",
+      "type": "unsupported_claim",
+      "evidence_ids": ["decision-letta-win-trap"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Recovers the benchmark outcome policy."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Cites core routing and archival decision evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Avoids an unsupported Letta win or loss claim."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Explains how core memory and archival decision evidence work together."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": ["The fixture does not provide that evidence."],
+    "fallback_action": "state_blocker"
+  },
+  "tags": ["synthetic", "core_archival_memory", "project_decisions", "letta_boundary", "no_live_claim"]
+}
