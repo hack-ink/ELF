@@ -229,16 +229,19 @@ research gates. Its `external_adapters` report section distinguishes:
 - `research_gate`: checked-in source/setup/runtime/resource/retry metadata for a
   future adapter path, not fixture-backed or live execution evidence.
 
-Current fixture state: `cargo make real-world-memory` covers 43 jobs across 12 suites,
-with 38 pass and 5 blocked. The blocked jobs are production-ops operator boundaries
-plus the XY-928 OpenViking `context_trajectory` gates for staged retrieval, hierarchy
-selection, and recursive/context expansion.
+Current fixture state: `cargo make real-world-memory` covers 49 jobs across 13 suites,
+with 44 pass and 5 blocked. The added `core_archival_memory` suite contributes six
+passing fixture jobs for core block attachment, scope, provenance, stale-core
+detection, archival fallback, and project-decision recovery. The blocked jobs are
+production-ops operator boundaries plus the XY-928 OpenViking `context_trajectory`
+gates for staged retrieval, hierarchy selection, and recursive/context expansion.
 
 Current live-adapter state: the `elf_live_real_world` and `qmd_live_real_world` adapters run a full
 encoded-suite sweep through `cargo make real-world-memory-live-adapters`. Each adapter
 materializes generated runtime answers for 40 jobs across 11 suites before scoring.
-The newer fixture-only `core_archival_memory` suite is scored separately and is not yet
-included in that live sweep.
+The fixture-only `core_archival_memory` suite can also be run through
+`cargo make real-world-memory-core-archival`; it is not yet included in that live
+sweep.
 The original targeted `work_resume`, `retrieval`, and `project_decisions` slice still
 passes, and ELF now passes the live `capture_integration` self-checks for redaction,
 exclusions, source ids, evidence binding, and no secret leakage. The full sweep is
