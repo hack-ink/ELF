@@ -1,0 +1,203 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "capture-write-policy-redaction-001",
+  "suite": "capture_integration",
+  "title": "Apply write-policy redaction before live capture storage",
+  "corpus": {
+    "corpus_id": "real-world-memory-capture-2026-06-11",
+    "profile": "synthetic",
+    "capture_behaviors": {
+      "real": [
+        "ELF live add_note capture applies write_policy redactions before storage and records write-policy audit counts in materialization artifacts."
+      ],
+      "blocked": [
+        "agentmemory hook breadth remains blocked by the current in-memory storage adapter.",
+        "claude-mem hook capture remains not encoded because hooks, timeline, observations, and viewer workflows are not executed by the Docker baseline."
+      ],
+      "not_encoded": [
+        "Host-global automatic capture hooks are intentionally not installed by this benchmark."
+      ],
+      "notes": [
+        "The synthetic private token label is a negative trap and must not appear in live generated answers."
+      ]
+    },
+    "items": [
+      {
+        "evidence_id": "redacted-source-message",
+        "kind": "message",
+        "text": "Public capture: The live capture report must preserve source id capture:terminal-log-17. Private token label: orchid-envelope. Public audit: the private token label was redacted before storage.",
+        "capture": {
+          "action": "store",
+          "source_id": "capture:terminal-log-17",
+          "evidence_binding": "source_ref",
+          "write_policy": {
+            "exclusions": [],
+            "redactions": [
+              {
+                "kind": "replace",
+                "span": {
+                  "start": 110,
+                  "end": 125
+                },
+                "replacement": "[redacted-token]"
+              }
+            ]
+          }
+        },
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "write_policy_redaction",
+            "evidence_id": "redacted-source-message"
+          },
+          "locator": {
+            "quote": "the private token label was redacted before storage"
+          }
+        },
+        "created_at": "2026-06-11T04:00:00Z"
+      },
+      {
+        "evidence_id": "redacted-private-token-trap",
+        "kind": "message",
+        "text": "orchid-envelope",
+        "capture": {
+          "action": "exclude",
+          "source_id": "capture:terminal-log-17-private-token",
+          "evidence_binding": "negative_trap"
+        },
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "write_policy_redaction",
+            "evidence_id": "redacted-private-token-trap"
+          }
+        },
+        "created_at": "2026-06-11T04:00:01Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "elf_real_world_memory_fixture",
+      "answer": {
+        "content": "The live capture report must preserve source id capture:terminal-log-17. The write-policy audit says the private token label was redacted before storage, and the private token value must not be repeated.",
+        "claims": [
+          {
+            "claim_id": "source_id_preserved",
+            "text": "The live capture report must preserve source id capture:terminal-log-17.",
+            "evidence_ids": ["redacted-source-message"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "redaction_applied",
+            "text": "The private token label was redacted before storage.",
+            "evidence_ids": ["redacted-source-message"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["redacted-source-message"],
+        "latency_ms": 1.2,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "write-policy-redaction-applied",
+      "ts": "2026-06-11T04:00:00Z",
+      "actor": "agent",
+      "action": "captured_message_with_redaction",
+      "evidence_ids": ["redacted-source-message"],
+      "summary": "The capture path applied write_policy redaction before storage."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "What did live capture preserve, and was the private token repeated?",
+    "job_mode": "answer",
+    "constraints": ["cite_evidence", "do_not_repeat_private_text", "explain_redaction"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "source_id_preserved",
+        "text": "The live capture report must preserve source id capture:terminal-log-17."
+      },
+      {
+        "claim_id": "redaction_applied",
+        "text": "The private token label was redacted before storage."
+      }
+    ],
+    "must_not_include": ["orchid-envelope"],
+    "evidence_links": {
+      "source_id_preserved": ["redacted-source-message"],
+      "redaction_applied": ["redacted-source-message"]
+    },
+    "answer_type": "direct_answer",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "redacted-source-message",
+      "claim_id": "source_id_preserved",
+      "requirement": "cite",
+      "quote": "preserve source id capture:terminal-log-17"
+    },
+    {
+      "evidence_id": "redacted-source-message",
+      "claim_id": "redaction_applied",
+      "requirement": "explain",
+      "quote": "the private token label was redacted before storage"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "redacted-token-value",
+      "type": "privacy_leak",
+      "evidence_ids": ["redacted-private-token-trap"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Reports the public source-id preservation requirement."
+      },
+      "evidence_grounding": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Cites the source message that was stored after write-policy redaction."
+      },
+      "trap_avoidance": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Does not repeat the redacted private token value."
+      },
+      "lifecycle_behavior": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Honors write-policy redaction before live capture storage."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about capture source ids",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "state_blocker"
+  },
+  "tags": ["synthetic", "capture_integration", "write_policy", "redaction", "source_id", "no_secret_leakage"]
+}

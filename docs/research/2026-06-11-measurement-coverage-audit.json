@@ -1,79 +1,79 @@
 {
   "schema": "elf.benchmark_measurement_coverage_audit/v2",
   "run_id": "2026-06-11-measurement-coverage-audit",
-  "source_revision": "current benchmark lane after adapter-report consistency repairs and XY-927 core-vs-archival fixture update",
+  "source_revision": "current benchmark lane after XY-927 core-vs-archival fixture coverage and XY-933 live capture/write-policy scoring",
   "created_at": "2026-06-11",
   "scope": "ELF memory-system competitiveness measurement coverage, external competitor comparison evidence, and next report directions",
   "commands": [
     {
       "command": "cargo make real-world-memory-core-archival",
       "status": "pass",
-      "runtime_seconds": 57.01,
+      "runtime_seconds": 12.14,
       "artifact": "tmp/real-world-memory/core-archival/report.json"
     },
     {
       "command": "cargo make real-world-memory",
       "status": "pass",
-      "runtime_seconds": 8.94,
+      "runtime_seconds": 9.11,
       "artifact": "tmp/real-world-memory/real-world-memory-report.json"
     },
     {
       "command": "cargo make real-world-memory-live-adapters",
       "status": "pass",
-      "runtime_seconds": 121.51,
+      "runtime_seconds": 137.66,
       "artifact": "tmp/real-world-memory/live-adapters/"
     }
   ],
   "fixture_aggregate": {
-    "job_count": 44,
+    "job_count": 46,
     "encoded_suite_count": 12,
-    "pass": 42,
+    "pass": 44,
     "wrong_result": 0,
     "lifecycle_fail": 0,
     "incomplete": 0,
     "blocked": 2,
     "not_encoded": 0,
     "unsupported_claim": 0,
-    "mean_score": 0.955,
-    "mean_latency_ms": 3.958,
-    "expected_evidence_total": 90,
-    "expected_evidence_matched": 90,
-    "evidence_required_count": 97,
-    "evidence_covered_count": 97
+    "mean_score": 0.957,
+    "mean_latency_ms": 3.833,
+    "expected_evidence_total": 93,
+    "expected_evidence_matched": 93,
+    "evidence_required_count": 101,
+    "evidence_covered_count": 101
   },
   "live_real_world_adapters": [
     {
       "adapter": "ELF live service adapter",
-      "job_count": 38,
+      "job_count": 40,
       "encoded_suite_count": 11,
-      "pass": 18,
+      "pass": 22,
       "wrong_result": 5,
       "blocked": 2,
-      "not_encoded": 13,
-      "mean_score": 0.525,
-      "mean_latency_ms": 6.761,
-      "expected_evidence_total": 77,
-      "expected_evidence_matched": 41,
-      "evidence_required_count": 84,
-      "evidence_covered_count": 48
+      "not_encoded": 11,
+      "mean_score": 0.599,
+      "mean_latency_ms": 6.98,
+      "expected_evidence_total": 80,
+      "expected_evidence_matched": 50,
+      "evidence_required_count": 88,
+      "evidence_covered_count": 58
     },
     {
       "adapter": "qmd live CLI adapter",
-      "job_count": 38,
+      "job_count": 40,
       "encoded_suite_count": 11,
       "pass": 17,
       "wrong_result": 6,
       "blocked": 2,
-      "not_encoded": 13,
-      "mean_score": 0.486,
-      "mean_latency_ms": 691.163,
-      "expected_evidence_total": 77,
+      "not_encoded": 15,
+      "mean_score": 0.461,
+      "mean_latency_ms": 792.543,
+      "expected_evidence_total": 80,
       "expected_evidence_matched": 38,
-      "evidence_required_count": 84,
+      "evidence_required_count": 88,
       "evidence_covered_count": 45
     }
   ],
-  "live_suite_delta": "ELF passes memory-evolution-delete-ttl-001 while qmd reports wrong_result; other suite status shapes match.",
+  "live_suite_delta": "ELF passes memory-evolution-delete-ttl-001 while qmd reports wrong_result; ELF also passes the live capture/write-policy suite while qmd remains not_encoded for capture_integration.",
   "live_suite_breakdown": [
     {
       "suite": "trust_source_of_truth",
@@ -138,12 +138,12 @@
     },
     {
       "suite": "capture_integration",
-      "jobs": 2,
+      "jobs": 4,
       "elf_status_counts": {
-        "not_encoded": 2
+        "pass": 4
       },
       "qmd_status_counts": {
-        "not_encoded": 2
+        "not_encoded": 4
       }
     },
     {
@@ -207,7 +207,8 @@
       "not_encoded": 6
     },
     "xy900_update_note": "XY-900 promotes graphify from research_gate/blocked to a tiny scored live_real_world wrong_result smoke; broad graph/RAG quality remains unproven.",
-    "xy932_update_note": "XY-932 adds narrow ELF/qmd operator-debug live_real_world records: ELF pass and qmd wrong_result for trace hydration/candidate-drop visibility, with OpenMemory and claude-mem UI still unmeasured."
+    "xy932_update_note": "XY-932 adds narrow ELF/qmd operator-debug live_real_world records: ELF pass and qmd wrong_result for trace hydration/candidate-drop visibility, with OpenMemory and claude-mem UI still unmeasured.",
+    "xy933_update_note": "XY-933 adds live ELF capture/write-policy scoring: ELF passes 4/4 capture_integration jobs with zero redaction leaks, qmd remains not_encoded, agentmemory comparison is blocked by mocked/in-memory storage, and claude-mem capture hooks remain not_encoded."
   },
   "claim_boundary": {
     "elf_vs_qmd": "near_tie_with_narrow_delete_ttl_elf_lead_not_overall_win",
@@ -217,7 +218,7 @@
       "qmd_deep_retrieval_debug",
       "OpenViking_context_trajectory",
       "mem0_OpenMemory_entity_history_ui",
-      "agentmemory_claude_mem_capture_continuity",
+      "agentmemory_claude_mem_capture_breadth",
       "Letta_core_vs_archival_export_path",
       "Graphiti_Zep_temporal_graph",
       "RAG_graph_navigation",
@@ -227,7 +228,7 @@
   "next_reports": [
     "ELF/qmd retrieval-debug deep profile",
     "ELF/qmd live memory-evolution diagnostic",
-    "Live operator-debugging and capture/write-policy report",
+    "External capture-hook report for agentmemory and claude-mem",
     "Continuity and context-trajectory report",
     "Personalization and core-memory report",
     "Knowledge and graph/RAG report pack"

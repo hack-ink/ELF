@@ -150,7 +150,7 @@ provider-backed ELF evidence was required.
   reaches its pinned Docker local embedding path and is reported as `wrong_result`
   when same-corpus evidence terms are missed; setup failures remain `incomplete`.
 - Real-world agent memory aggregate after the P1 benchmark batch and XY-927
-  core-vs-archival fixture update: 44 fixture-backed jobs across 12 suites, 42 pass,
+  core-vs-archival fixture update: 46 fixture-backed jobs across 12 suites, 44 pass,
   0 incomplete, 2 blocked, 0 wrong-result, 0 not-encoded, and 0 unsupported-claim
   results. The remaining non-pass jobs are production-ops operator boundaries, not
   hidden benchmark wins. The new `core_archival_memory` suite passes 6 fixture jobs
@@ -158,15 +158,15 @@ provider-backed ELF evidence was required.
   fallback, and project-decision recovery; it does not create an ELF-over-Letta
   claim.
 - Full-suite live real-world adapter sweep after XY-899: ELF and qmd emit
-  Docker-isolated `live_real_world` records for the previously measured 38 encoded
-  jobs across 11 suites through `cargo make real-world-memory-live-adapters`. Both
-  keep the original
+  Docker-isolated `live_real_world` records for all 40 encoded jobs across 11 suites
+  through `cargo make real-world-memory-live-adapters`. Both keep the original
   targeted `work_resume`, `retrieval`, and `project_decisions` slice passing, but the
-  full sweep is not a full-suite pass. The fresh ELF sweep reports 18 pass,
-  5 wrong_result, 2 blocked, and 13 not_encoded jobs. The fresh qmd sweep reports
-  17 pass, 6 wrong_result, 2 blocked, and 13 not_encoded jobs. The difference is the
-  delete/TTL tombstone case; qmd remains the local retrieval-debug UX reference, and
-  no broad ELF-over-qmd claim is allowed.
+  full sweep is not a full-suite pass. The fresh ELF sweep reports 22 pass,
+  5 wrong_result, 2 blocked, and 11 not_encoded jobs. The fresh qmd sweep reports
+  17 pass, 6 wrong_result, 2 blocked, and 15 not_encoded jobs. The differences are
+  the delete/TTL tombstone case plus ELF-only capture/write-policy live self-checks;
+  qmd remains the local retrieval-debug UX reference, and no broad ELF-over-qmd claim
+  is allowed.
 - Live operator-debugging slice after XY-932: `cargo make
   real-world-job-operator-ux-live-adapters` emits narrow Docker-isolated
   `live_real_world` records for ELF and qmd over the operator-debugging fixtures.
@@ -199,6 +199,12 @@ provider-backed ELF evidence was required.
   for local SDK export-style parity, `blocked` for OpenMemory UI/export, and
   `non_goal` for hosted Platform export and optional graph memory in the local OSS
   lane.
+- Capture/write-policy live follow-up after XY-933: ELF now passes 4/4 live
+  `capture_integration` jobs with zero redaction leaks, source ids preserved in
+  source refs, write-policy redaction audit counts, evidence binding, and no secret
+  leakage. qmd remains `not_encoded` for this suite. agentmemory capture comparison is
+  blocked by mocked/in-memory storage, and claude-mem hook/viewer capture remains
+  untested, so no broad capture-breadth superiority claim is allowed.
 - The benchmark runner and report publisher are checked in and Docker-isolated:
   `cargo make baseline-live-docker`, `cargo make baseline-backfill-docker`,
   `cargo make baseline-production-private-addendum`,
@@ -221,6 +227,7 @@ Detailed evidence and interpretation:
 - [ELF/qmd Trace Replay Diagnostics Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-elf-qmd-trace-replay-diagnostics-report.md)
 - [Graph/RAG Scored Smoke Adapter Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-graph-rag-scored-smoke-adapter-report.md)
 - [mem0/OpenMemory History and UI Export Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-mem0-openmemory-history-ui-export-report.md)
+- [Capture/Write-Policy Live Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-capture-write-policy-live-report.md)
 - [Live Baseline Benchmark Runbook](docs/guide/benchmarking/live_baseline_benchmark.md)
 - [Single-User Production Runbook](docs/guide/single_user_production.md)
 - Benchmark contract:
@@ -243,7 +250,8 @@ Evidence-backed position after the June 11 real-world reports:
   typed non-pass states, while ELF has the stronger service and provenance contract.
 - ELF is still behind or not yet proven on full-suite live real-world pass parity,
   private-corpus production quality, credentialed production-ops gates,
-  qmd-style local debug knobs, agentmemory/claude-mem/OpenMemory-style continuity UX,
+  qmd-style local debug knobs, agentmemory/claude-mem/OpenMemory-style capture and
+  continuity UX,
   OpenViking-style context trajectory, and hosted managed memory.
 
 Quick comparison snapshot (objective/high-level).
@@ -297,6 +305,7 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [ELF/qmd Trace Replay Diagnostics Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-elf-qmd-trace-replay-diagnostics-report.md)
 - [Graph/RAG Scored Smoke Adapter Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-graph-rag-scored-smoke-adapter-report.md)
 - [mem0/OpenMemory History and UI Export Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-mem0-openmemory-history-ui-export-report.md)
+- [Capture/Write-Policy Live Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-capture-write-policy-live-report.md)
 - [Live Baseline Benchmark Runbook](docs/guide/benchmarking/live_baseline_benchmark.md)
 - [Real-World Agent Memory Benchmark](docs/guide/benchmarking/real_world_agent_memory_benchmark.md)
 - [External Memory Improvement Plan](docs/guide/research/external_memory_improvement_plan.md)

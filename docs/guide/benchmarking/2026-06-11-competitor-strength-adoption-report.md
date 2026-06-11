@@ -46,7 +46,10 @@ The remaining caveats are material:
   as stronger than ELF's default stress report, while expansion, fusion, and rerank
   remain untested. XY-932 adds a narrow live operator-debug slice where ELF beats qmd
   on trace hydration and candidate-drop visibility, but OpenMemory UI/export and
-  claude-mem viewer workflows remain blocked or not encoded.
+  claude-mem viewer workflows remain blocked or not encoded. XY-933
+  adds an ELF live capture/write-policy self-check, but agentmemory capture breadth
+  is blocked by mocked/in-memory storage and claude-mem hook/viewer capture remains
+  untested.
 
 ## Evidence Classes
 
@@ -71,9 +74,10 @@ results, or lifecycle failures into one aggregate leaderboard.
 
 | Command or run | Artifact | Supported claim |
 | --- | --- | --- |
-| `cargo make real-world-memory` | `2026-06-11-measurement-coverage-audit.md` | ELF fixture aggregate covers 44 jobs across 12 suites with 42 pass and 2 blocked production-ops operator boundaries, including 6 passing `core_archival_memory` jobs. |
+| `cargo make real-world-memory` | `2026-06-11-measurement-coverage-audit.md` | ELF fixture aggregate covers 46 jobs across 12 suites with 44 pass and 2 blocked production-ops operator boundaries, including 6 passing `core_archival_memory` jobs. |
 | `cargo make real-world-memory-core-archival` | `tmp/real-world-memory/core-archival/report.json` | ELF core-block behavior is scored separately from archival note search for attachment, scope, provenance, stale-core detection, archival fallback, and project-decision recovery. |
-| `cargo make real-world-memory-live-adapters` | `2026-06-11-measurement-coverage-audit.md` | ELF live service adapter reports 18 pass, 5 wrong_result, 2 blocked, and 13 not_encoded jobs; qmd reports 17 pass, 6 wrong_result, 2 blocked, and 13 not_encoded jobs. |
+| `cargo make real-world-memory-live-adapters` | `2026-06-11-measurement-coverage-audit.md` | ELF live service adapter reports 22 pass, 5 wrong_result, 2 blocked, and 11 not_encoded jobs; qmd reports 17 pass, 6 wrong_result, 2 blocked, and 15 not_encoded jobs. |
+| `cargo make real-world-memory-live-adapters` | `2026-06-11-capture-write-policy-live-report.md` | ELF live capture/write-policy jobs pass for redaction, exclusions, source ids, evidence binding, and no secret leakage; qmd remains not_encoded, agentmemory is blocked, and claude-mem is untested for capture breadth. |
 | `cargo make real-world-job-operator-ux-live-adapters` | `tmp/real-world-job/operator-ux-live-adapters/summary.json` | The narrow live operator-debug slice scores ELF as pass and qmd as wrong_result: ELF wins trace hydration, candidate-drop visibility, and selected-but-not-narrated evidence; both systems expose replay commands and repair-action guidance. |
 | `ELF_BASELINE_PROJECTS=ELF,agentmemory,mem0,memsearch,claude-mem cargo make baseline-live-docker` | `2026-06-11-first-generation-oss-adapter-promotion-report.md` | mem0/OpenMemory and memsearch pass basic local baseline smokes; agentmemory remains lifecycle_fail and claude-mem remains wrong_result. |
 | `cargo make openmemory-ui-export-readback` | `2026-06-11-mem0-openmemory-history-ui-export-report.md` | mem0 local OSS passes preference correction history, entity-scoped personalization, local `get_all` export-style readback, and deletion audit history; OpenMemory export-helper setup emits a separate blocked artifact with `DOCKER_UNAVAILABLE_IN_BASELINE_RUNNER`, and hosted Platform export remains non-goal. |
@@ -95,7 +99,7 @@ results, or lifecycle failures into one aggregate leaderboard.
 | Consolidation/proposal review | `not_tested` | `fixture_backed`, `not_encoded` | ELF fixture consolidation passes, but live consolidation proposal generation and review-action scoring are not encoded. | XY-926 |
 | Knowledge page compilation | `not_tested` | `fixture_backed`, `live_real_world`, `wrong_result`, `research_gate`, `not_encoded` | ELF fixture knowledge pages pass, but live knowledge compilation is not encoded; graphify reaches a tiny scored smoke and remains wrong_result. | XY-926, XY-929 |
 | Operator debugging/viewer UX | `win` | `fixture_backed`, `live_real_world`, `blocked`, `not_encoded` | ELF now has a narrow live operator-debug win over qmd on trace hydration, candidate-drop visibility, and selected-but-not-narrated evidence. ELF ties qmd on replay-command availability and repair-action clarity. OpenMemory UI/export remains blocked and claude-mem UI remains not encoded, so this is not a broad viewer-product superiority claim. | XY-926 |
-| Capture/write policy and redaction | `not_tested` | `fixture_backed`, `live_baseline_only`, `blocked`, `not_encoded` | ELF fixture capture/write-policy jobs pass, but live capture integration and agentmemory/claude-mem capture hooks are not comparable yet. | XY-925, XY-926 |
+| Capture/write policy and redaction | `not_tested` | `fixture_backed`, `live_real_world`, `live_baseline_only`, `blocked`, `not_encoded` | ELF live capture/write-policy self-check jobs pass for redaction, exclusions, source ids, evidence binding, and no secret leakage. qmd remains `not_encoded`; agentmemory comparison is `blocked`; claude-mem capture breadth is `not_encoded`, so no broad capture-hook superiority claim is allowed. | XY-933, XY-925 |
 | Production ops, restore, backfill, and rebuild | `win` | `live_baseline_only`, `blocked` | ELF has the strongest measured local production-operation story: provider synthetic, stress, resumable backfill, backup/restore, and Qdrant rebuild evidence. | XY-930 |
 | Private corpus and provider boundaries | `blocked` | `blocked` | Private production profile fails closed without an operator-owned manifest; provider-backed production-ops gates require explicit credentials. | XY-930 |
 | Personalization and scoped preferences | `tie` | `fixture_backed`, `live_real_world`, `live_baseline_only`, `not_encoded` | ELF and qmd both pass the single encoded live personalization job. mem0 local OSS now passes entity-scoped personalization, so scoped preference behavior is a measured tie; preference correction history remains a separate ELF loss. | XY-927 |
@@ -111,7 +115,8 @@ results, or lifecycle failures into one aggregate leaderboard.
 | XY-923 | P0 | Backlog | qmd trace-level replay and wrong-result diagnostics. |
 | XY-924/XY-931 | P0 | Encoded local OSS history; UI/export setup blocker measured | mem0/OpenMemory local OSS history and SDK export-style readback are measured; OpenMemory UI/export has a blocked export-helper setup probe and still needs a dedicated compose/import path before any product-UX comparison. |
 | XY-925 | P1 | Backlog | First-generation OSS continuity and source-store adapters. |
-| XY-926 | P1 | Backlog | Live operator-debugging, capture, consolidation, and knowledge-page suites. |
+| XY-926 | P1 | Backlog | Live consolidation and knowledge-page suites; broad operator-debugging remains dependent on OpenMemory and claude-mem UI runners. |
+| XY-933 | P1 | Live ELF self-check encoded | Capture/write-policy redaction, exclusion, source-id, evidence-binding, and no-leak scoring for ELF; durable agentmemory/claude-mem capture-hook comparison remains blocked or untested. |
 | XY-927 | P1 | Fixture encoded; Letta export blocked | ELF core-vs-archival fixture coverage is encoded; a contained Letta export/readback adapter remains future work before win/tie/loss claims. |
 | XY-928 | P1 | Backlog | OpenViking context-trajectory and hierarchy benchmark. |
 | XY-929 | P2 | Backlog | Graph/RAG adapters beyond scored smokes. |
@@ -131,6 +136,8 @@ results, or lifecycle failures into one aggregate leaderboard.
 - ELF has a narrow live operator-debug win over qmd for trace hydration,
   candidate-drop visibility, and selected-but-not-narrated evidence, with
   replay-command availability and repair-action clarity tied.
+- ELF live capture/write-policy self-checks pass for redaction, exclusions, source
+  ids, evidence binding, and no secret leakage.
 - ELF has a live temporal reconciliation loss against the benchmark expectation:
   five memory-evolution jobs remain `wrong_result`.
 - Most competitor strengths outside qmd retrieval are `not_tested`, `blocked`,
@@ -147,6 +154,8 @@ results, or lifecycle failures into one aggregate leaderboard.
   behavior plus graph memory remain outside measured local OSS evidence.
 - Do not claim ELF broadly beats OpenMemory or claude-mem viewer UX from the narrow
   ELF/qmd operator-debug slice.
+- Do not claim ELF broadly beats agentmemory or claude-mem on capture breadth; the
+  current comparison is blocked or untested for their hook/viewer capture paths.
 - Do not claim ELF beats OpenViking on staged context trajectory.
 - Do not claim ELF beats Letta on core-vs-archival memory.
 - Do not claim graph/RAG parity from smoke-only evidence.
