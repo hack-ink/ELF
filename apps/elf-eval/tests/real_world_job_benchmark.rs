@@ -705,6 +705,21 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 
 	assert_eq!(elf.pointer("/evidence_class").and_then(Value::as_str), Some("fixture_backed"));
 	assert_eq!(elf.pointer("/overall_status").and_then(Value::as_str), Some("blocked"));
+	assert!(elf.pointer("/run/evidence").and_then(Value::as_str).is_some_and(|evidence| {
+		evidence.contains("46 jobs across 12 suites")
+			&& evidence.contains("44 pass")
+			&& evidence.contains("core_archival_memory")
+	}));
+
+	let elf_suites = array_at(elf, "/suites")?;
+	let elf_core_archival = find_by_field(elf_suites, "/suite_id", "core_archival_memory")?;
+
+	assert_eq!(elf_core_archival.pointer("/status").and_then(Value::as_str), Some("pass"));
+	assert!(elf_core_archival.pointer("/evidence").and_then(Value::as_str).is_some_and(
+		|evidence| evidence.contains("core block attachment")
+			&& evidence.contains("project-decision recovery")
+			&& evidence.contains("archival note search")
+	));
 	assert_eq!(
 		elf_live.pointer("/evidence_class").and_then(Value::as_str),
 		Some("live_real_world")

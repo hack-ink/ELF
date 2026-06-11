@@ -7,6 +7,8 @@ non-claim against a tracked memory, RAG, or graph project.
 Inputs: `docs/guide/benchmarking/2026-06-10-production-adoption-refresh.md`,
 `docs/guide/benchmarking/2026-06-10-real-world-comparison-report.md`,
 `docs/guide/benchmarking/2026-06-10-live-real-world-sweep-report.md`,
+`docs/guide/benchmarking/2026-06-11-measurement-coverage-audit.md`,
+`docs/guide/benchmarking/2026-06-11-competitor-strength-adoption-report.md`,
 `docs/guide/research/external_memory_improvement_plan.md`,
 `docs/guide/research/research_projects_inventory.md`,
 `apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json`,
@@ -29,9 +31,10 @@ Current boundary:
   live pass. The fresh ELF sweep produced 40 jobs with 22 pass, 5 wrong_result,
   0 incomplete, 2 blocked, and 11 not_encoded; the fresh qmd sweep produced 17 pass,
   6 wrong_result, 0 incomplete, 2 blocked, and 15 not_encoded.
-- ELF fixture evidence is strong: `cargo make real-world-memory` reports 40 jobs
-  across 11 suites with 38 pass and 2 blocked production-ops operator boundaries.
-  That proves the fixture contract, not live-service parity.
+- ELF fixture evidence is strong: `cargo make real-world-memory` reports 46 jobs
+  across 12 suites with 44 pass and 2 blocked production-ops operator boundaries.
+  The added `core_archival_memory` suite contributes 6 fixture-only passes for ELF
+  core-block behavior; it does not create an ELF-over-Letta claim.
 - qmd is the strongest measured local retrieval-debug comparison, but the current
   evidence still separates its same-corpus/live-retrieval strengths from the full-suite
   live non-pass sweep.
@@ -45,7 +48,7 @@ Current boundary:
 The current manifest has 23 adapter records across 16 external projects plus ELF.
 Evidence-class counts: 1 `fixture_backed`, 6 `live_baseline_only`, 5
 `live_real_world`, and 11 `research_gate`. Overall adapter-status counts: 4 `pass`,
-6 `wrong_result`, 1 `lifecycle_fail`, 5 `blocked`, and 7 `not_encoded`.
+6 `wrong_result`, 1 `lifecycle_fail`, 6 `blocked`, and 6 `not_encoded`.
 
 ## State Taxonomy
 
@@ -83,7 +86,7 @@ lifecycle-fail -> `lifecycle_fail`, and not-encoded -> `not_encoded`.
 | LightRAG | Lightweight graph/RAG context export with source file-path citation shape. | `research_gate`. | `blocked`: `ELF_LIGHTRAG_CONTEXT_START=1 cargo make lightrag-docker-context-smoke`, `tmp/real-world-memory/lightrag-context/summary.json`. | `blocked`: Docker service setup and context export are not proven. | XY-886 Docker context-export adapter with explicit provider config and source citation mapping. | Context-only query modes, graph-aware retrieval layout, and file-path citation readback. |
 | GraphRAG | GraphRAG indexing, graph summaries, and document/text-unit evidence tables. | `research_gate`. | `blocked`: `ELF_GRAPHRAG_SMOKE_RUN=1 cargo make graphrag-docker-smoke`, `tmp/real-world-memory/graphrag-smoke/summary.json`. | `blocked`: indexing resource envelope and source citation mapping are not proven. | XY-887 cost-bounded Docker adapter over a tiny corpus and scored output tables. | Graph summary artifacts, local/global search separation, and source table evidence mapping. |
 | Graphiti/Zep | Temporal graph memory with current, historical, and future fact validity windows. | `research_gate`. | `blocked`: `ELF_GRAPHITI_ZEP_SMOKE_START=1 ELF_GRAPHITI_ZEP_SMOKE_RUN=1 cargo make graphiti-zep-docker-temporal-smoke`, `tmp/real-world-memory/graphiti-zep-smoke/summary.json`. | `blocked`: Docker graph-store and temporal adapter are not proven. | XY-888 Docker-local temporal graph adapter scoring current/historical fact validity. | Temporal fact windows, invalidation/supersession semantics, and graph fact provenance. |
-| Letta | Core memory blocks versus archival memory with explicit operating-context surfaces. | `research_gate`. | `not_encoded`: `docs/research/2026-06-10-xy-882-rag-graph-adapter-feasibility.json`. | `blocked`: contained evidence export path is not selected. | Select contained export contract, then encode core-vs-archival, personalization, and project-decision jobs. | Core memory block ergonomics, archival separation, and shared operating context readback. |
+| Letta | Core memory blocks versus archival memory with explicit operating-context surfaces. | `research_gate`. | `blocked`: the selected comparison contract is a Docker-only benchmark-created agent export that returns core block JSON, archival search/readback JSON, and source ids; no materialized export exists yet. | `blocked`: no Letta materializer currently creates the benchmark agent, imports the ELF `core_archival_memory` fixture corpus, or exports comparable core and archival evidence. | Implement and run the contained export/readback adapter before any Letta win, tie, or loss claim; keep personalization and project-decision scenarios blocked or not tested until that evidence exists. | Core memory block ergonomics, archival separation, and shared operating context readback. |
 | LangGraph | Checkpoint/replay regression workflow and durable state replay for agent runs. | `research_gate`. | `not_encoded`: `docs/research/2026-06-10-xy-882-rag-graph-adapter-feasibility.json`. | `unsupported`: not a standalone memory backend adapter. | Non-goal for direct win/loss until a standalone memory output contract exists; use replay jobs as benchmark infrastructure reference. | Checkpoint replay, deterministic regression, and state-diff evaluation patterns. |
 | nanograph | Typed graph schema and query ergonomics for graph-lite developer experience. | `research_gate`. | `not_encoded`: `docs/research/2026-06-10-xy-882-rag-graph-adapter-feasibility.json`. | `unsupported`: not a memory backend comparison target. | Non-goal for direct win/loss unless a contained memory-backed target emerges; measure ELF graph-lite DX instead. | Typed relation schema, query ergonomics, and small graph developer experience. |
 | llm-wiki | LLM-maintained wiki or knowledge-page workflow with query-save and lint loops. | `research_gate`. | `not_encoded`: `docs/research/2026-06-10-xy-882-rag-graph-adapter-feasibility.json`. | `unsupported`: no live service runtime for adapter proof. | Select contained plugin or instruction harness, then score knowledge pages for citations, unsupported claims, rebuild, and stale-source lint. | Maintained wiki workflows, page lint, query-save loops, and topic-scoped navigation. |
@@ -96,7 +99,7 @@ lifecycle-fail -> `lifecycle_fail`, and not-encoded -> `not_encoded`.
 | --- | --- | --- | --- | --- |
 | Retrieval/debug | Fixture retrieval passes; live retrieval passes. | qmd. | qmd live retrieval passes and live baseline passes, but full-suite live status is `wrong_result`. | Run qmd deep profile and ELF/qmd trace-level replay with expansion, fusion, rerank, and candidate-drop diagnostics. |
 | Work resume | Fixture and live work_resume pass. | agentmemory, claude-mem, OpenViking. | agentmemory `lifecycle_fail`, claude-mem `wrong_result`, OpenViking work_resume `not_encoded`. | Encode durable work_resume adapters or keep each blocked with lifecycle/setup evidence. |
-| Project decisions | Fixture and live project_decisions pass. | qmd, Letta. | qmd live project_decisions pass; Letta is `research_gate` `not_encoded`. | Add Letta core/archival decision jobs only after a contained export path exists. |
+| Project decisions | Fixture and live project_decisions pass; the ELF core-archival fixture also scores project-decision recovery through core routing plus archival rationale. | qmd, Letta. | qmd live project_decisions pass; Letta project-decision recovery is `research_gate` `not_tested` or `blocked` until the contained export path exists. | Run the Letta core/archival export/readback contract before treating project-decision recovery as a comparable scenario. |
 | Source-of-truth | Fixture and live trust_source_of_truth pass. | memsearch. | memsearch canonical-store, reindex, delete, and reload smoke now passes, but source-of-truth real_world_job prompts are `not_encoded`. | Score memsearch source-of-truth rebuild/reload jobs before any suite-level win/loss claim. |
 | Temporal/current-vs-historical memory | Fixture memory_evolution passes; live memory_evolution is `wrong_result`. | Graphiti/Zep, mem0/OpenMemory. | Graphiti/Zep is `research_gate` `blocked`; mem0/OpenMemory local OSS preference history, entity scope, deletion audit, and SDK `get_all` now pass; OpenMemory UI/export is blocked by the export-helper setup probe; graph-memory scenarios are `not_encoded`. | Fix ELF/qmd live memory_evolution evidence links, add OpenMemory product app import/export readback, and run XY-888. |
 | Consolidation | Fixture consolidation passes; live consolidation is `not_encoded`. | agentmemory, managed-memory references, llm-wiki. | No manifest project has live consolidation scoring. | Run reviewable consolidation proposal generation with source refs, unsupported-claim flags, and audit transitions. |
@@ -104,9 +107,9 @@ lifecycle-fail -> `lifecycle_fail`, and not-encoded -> `not_encoded`.
 | Operator debugging | Fixture operator_debugging_ux passes, and the narrow live operator-debug slice passes for trace hydration, candidate-drop visibility, selected-but-not-narrated evidence, replay-command availability, and repair-action clarity. | qmd, claude-mem, OpenMemory. | qmd ties replay-command availability and repair-action clarity but is `wrong_result` for trace hydration, candidate-drop stage visibility, and selected-but-not-narrated evidence; claude-mem and OpenMemory UX remain `not_encoded` or blocked. | Add bounded OpenMemory and claude-mem UI/export or viewer runners before any broader operator-UX claim. |
 | Capture/write policy | Fixture capture_integration passes; ELF live capture_integration passes 4/4 with zero redaction leaks, source ids, write-policy audit, and evidence binding. | agentmemory, claude-mem. | agentmemory capture is `blocked` by mocked/in-memory storage; claude-mem hook/viewer capture is `not_encoded`. | Run durable agentmemory and claude-mem capture-hook jobs proving redaction, exclusion, evidence binding, source ids, and no secret leakage. |
 | Production ops | Fixture production_ops has 4 pass and 2 blocked; live production_ops is `blocked`; production adoption has provider/backfill/restore evidence. | ELF production gate, qmd, RAG/RAGFlow resource gates. | qmd live production_ops is `blocked`; RAG/resource gates are `research_gate` `blocked`. | Rerun private-corpus and credentialed gates only when operator-owned manifest and credentials exist. |
-| Personalization | Fixture and live personalization pass. | mem0/OpenMemory, Letta. | mem0/OpenMemory and Letta personalization are `not_encoded`. | Encode scoped preference readback for mem0/OpenMemory and Letta before personalization superiority claims. |
+| Personalization | Fixture and live personalization pass. | mem0/OpenMemory, Letta. | mem0/OpenMemory personalization is `not_encoded`; Letta scoped preference readback remains `not_tested` until the contained core/archival export path exists. | Encode scoped preference readback for mem0/OpenMemory and Letta before personalization superiority claims. |
 | Context trajectory | ELF has trace direction but no comparable staged trajectory scenario. | OpenViking. | OpenViking setup is pinned, same-corpus retrieval is `wrong_result`, and hierarchy trajectory is `not_encoded`. | Make OpenViking evidence-bearing retrieval pass, then score staged context trajectory outputs. |
-| Core-vs-archival memory | ELF core-block semantics exist in the service contract, but comparative benchmark coverage is not encoded here. | Letta. | Letta is `research_gate` `not_encoded` until contained export proof exists. | Add ELF core-block versus archival-search jobs; compare Letta only after contained export proof. |
+| Core-vs-archival memory | Fixture `core_archival_memory` passes 6/6 and scores core block attachment, scope, provenance, stale-core detection, archival fallback, and project-decision recovery separately from archival note search. | Letta. | Letta is `research_gate` `blocked`/`not_tested` until the selected contained export/readback artifact exists. | Implement the Letta export/readback adapter, then compare only scenarios whose core block JSON, archival search/readback JSON, and source ids are present. |
 | Graph/RAG navigation | ELF relation context is not enough to claim graph/RAG navigation parity. | RAGFlow, LightRAG, GraphRAG, Graphiti/Zep, graphify. | RAGFlow, LightRAG, GraphRAG, and Graphiti/Zep remain `research_gate` blocked/incomplete without explicit setup; graphify has only a tiny scored smoke `wrong_result`. | Run larger contained graph/RAG adapters with evidence-linked outputs before any ELF graph/RAG win, tie, or loss claim. |
 
 ## Parallelizable Benchmark Follow-Ups
@@ -129,7 +132,7 @@ now explicit:
 | Graphiti/Zep temporal graph adapter | XY-888 | yes | Docker-local graph store setup. | Current/historical/future fact validity and evidence ids. |
 | graphify graph report adapter | XY-889 plus post-XY-900 expansion | yes | Representative graph/RAG jobs beyond the tiny scored smoke. | `graph.json` and `GRAPH_REPORT` evidence mapped to scored graph navigation and knowledge synthesis ids. |
 | Private corpus and credentialed production ops | Operator-owned benchmark gates | no | Sanitized private manifest and routed provider credentials. | Private-corpus retrieval quality and credentialed production-ops evidence. |
-| Letta, LangGraph, nanograph, llm-wiki direct adapters | Research-only until output contract | no | Contained evidence export or non-memory-backend comparability contract. | Run only after each has a comparable output contract; otherwise keep as product-reference evidence. |
+| Letta, LangGraph, nanograph, llm-wiki direct adapters | Letta export artifact blocked; others research-only until output contract | no | Letta needs the selected contained export/readback artifact; the others need a non-memory-backend comparability contract. | Run only after comparable output exists; otherwise keep as product-reference evidence. |
 
 ## Validation Contract
 
