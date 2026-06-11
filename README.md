@@ -170,8 +170,9 @@ provider-backed ELF evidence was required.
   ELF passes trace hydration, candidate-drop visibility, selected-but-not-narrated
   evidence, replay-command availability, and repair-action clarity. qmd ties replay
   command and repair-action clarity but is `wrong_result` for trace hydration and
-  candidate-drop stage visibility. OpenMemory UI/export and claude-mem viewer flows
-  remain blocked or not encoded, so this is not a broad viewer-product claim.
+  candidate-drop stage visibility. OpenMemory UI/export remains blocked, and
+  claude-mem viewer flows remain blocked until Docker-contained hook/viewer evidence
+  exists, so this is not a broad viewer-product claim.
 - First-generation OSS continuity/source-store follow-up after XY-925: `cargo make
   real-world-first-generation-oss` emits a fixture-backed external-adapter slice for
   agentmemory, memsearch, and claude-mem with 6 jobs, 4 pass, 2 blocked, and full

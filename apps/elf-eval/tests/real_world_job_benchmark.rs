@@ -78,6 +78,10 @@ fn workspace_root() -> Result<PathBuf> {
 	Ok(root.to_path_buf())
 }
 
+fn collapse_whitespace(text: &str) -> String {
+	text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
 fn strength_profile_report_path() -> Result<PathBuf> {
 	Ok(workspace_root()?
 		.join("docs")
@@ -1581,11 +1585,8 @@ fn capture_write_policy_live_report_preserves_competitor_boundaries() -> Result<
 	assert!(markdown.contains("Do not claim ELF broadly beats agentmemory or claude-mem"));
 	assert!(benchmarking_index.contains("2026-06-11-capture-write-policy-live-report.md"));
 	assert!(readme.contains("Capture/Write-Policy Live Report - June 11, 2026"));
-
-	let readme_normalized = readme.split_whitespace().collect::<Vec<_>>().join(" ");
-
 	assert!(
-		readme_normalized
+		collapse_whitespace(&readme)
 			.contains("claude-mem hook/viewer capture remains blocked until Docker-contained")
 	);
 
@@ -2017,6 +2018,7 @@ fn current_benchmark_reports_preserve_live_sweep_boundaries() -> Result<()> {
 		"wrong_result, incomplete, blocked, and not_encoded states remain visible",
 		"broader live suites remain `wrong_result`, `incomplete`, or `not_encoded`",
 		"The qmd live real-world slice covers representative jobs only",
+		"blocked or not encoded",
 	] {
 		assert!(!measurement_audit.contains(stale_phrase));
 		assert!(!competitor_matrix.contains(stale_phrase));
@@ -2121,6 +2123,15 @@ fn qmd_trace_replay_diagnostics_report_preserves_claim_boundaries() -> Result<()
 	assert!(benchmarking_index.contains("qmd top-10/replay artifact"));
 	assert!(benchmarking_index.contains("ELF trace/admin surfaces"));
 	assert!(adoption_report.contains("| Retrieval quality and local debug UX | `loss` |"));
+
+	assert_trace_replay_viewer_blocker_boundaries(
+		&readme,
+		&markdown,
+		&adoption_report,
+		&report,
+		&adoption_json,
+	)?;
+
 	assert!(
 		adoption_report
 			.contains("Do not claim qmd's trace/replay artifact win is a broad qmd-over-ELF")
@@ -2263,6 +2274,41 @@ fn assert_trace_replay_diagnostics_markdown(markdown: &str) {
 	assert!(markdown.contains("cargo make real-world-job-operator-ux-live-adapters"));
 	assert!(markdown.contains("Do not claim qmd beats ELF as a memory system overall"));
 	assert!(markdown.contains("Do not score rerank superiority from a qmd `--no-rerank` run"));
+}
+
+fn assert_trace_replay_viewer_blocker_boundaries(
+	readme: &str,
+	markdown: &str,
+	adoption_report: &str,
+	report: &Value,
+	adoption_json: &Value,
+) -> Result<()> {
+	let checked_surfaces = [
+		collapse_whitespace(readme),
+		collapse_whitespace(markdown),
+		collapse_whitespace(adoption_report),
+		report.to_string(),
+		adoption_json.to_string(),
+	];
+
+	for surface in checked_surfaces {
+		assert!(!surface.contains("blocked or not encoded"));
+	}
+
+	assert!(
+		collapse_whitespace(readme)
+			.contains("claude-mem viewer flows remain blocked until Docker-contained")
+	);
+	assert!(
+		collapse_whitespace(markdown)
+			.contains("claude-mem UI repair paths remain blocked until Docker-contained")
+	);
+	assert!(
+		collapse_whitespace(adoption_report)
+			.contains("claude-mem viewer workflows remain blocked until Docker-contained")
+	);
+
+	Ok(())
 }
 
 fn assert_trace_replay_adoption_json(adoption: &Value) -> Result<()> {
