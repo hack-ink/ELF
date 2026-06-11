@@ -290,7 +290,7 @@
       },
       "result": {
         "status": "pass",
-        "evidence": "The current evidence is same-corpus live-baseline evidence only; no real_world_job qmd adapter is encoded yet.",
+        "evidence": "This live_baseline_only record is same-corpus evidence only; cite qmd_live_real_world for the full live real-world sweep.",
         "artifact": "docs/guide/benchmarking/live_baseline_benchmark.md"
       },
       "capabilities": [
@@ -314,7 +314,7 @@
         {
           "suite_id": "retrieval",
           "status": "not_encoded",
-          "evidence": "qmd is a retrieval-debug reference, but no real_world_job retrieval adapter run is encoded."
+          "evidence": "This live_baseline_only record does not execute real_world_job retrieval prompts; cite qmd_live_real_world for the live retrieval adapter run."
         },
         {
           "suite_id": "memory_evolution",
@@ -425,7 +425,7 @@
         {
           "suite_id": "memory_evolution",
           "status": "wrong_result",
-          "evidence": "qmd passed the delete/TTL case but failed five current-versus-historical conflict jobs because retrieval-backed answers did not provide the required historical conflict evidence links."
+          "evidence": "qmd failed all six memory-evolution jobs in the fresh June 11 diagnostic, including the delete/TTL tombstone job where qmd retrieved only the current plan and missed the tombstone evidence."
         },
         {
           "suite_id": "consolidation",
@@ -1036,11 +1036,12 @@
       },
       "run": {
         "status": "not_encoded",
-        "evidence": "No expanded qmd stress or real_world_job deep-profile artifact is checked in for this adapter-pack gate."
+        "evidence": "The XY-899 strength-profile report is checked in, but no new live qmd deep-profile adapter artifact is claimed from it."
       },
       "result": {
         "status": "not_encoded",
-        "evidence": "qmd deep retrieval-debug evidence remains a planned profile, not a new pass claim."
+        "evidence": "The XY-899 report records qmd scenario-level retrieval/debug/replay outcomes and wrong-result diagnosis taxonomy, while expansion/fusion/rerank scoring remains not_encoded.",
+        "artifact": "docs/research/2026-06-11-qmd-openviking-strength-profile-report.json"
       },
       "capabilities": [
         {
@@ -1051,7 +1052,7 @@
         {
           "capability": "real_world_job_adapter",
           "status": "not_encoded",
-          "evidence": "The qmd live real-world slice covers representative jobs only; expanded retrieval-debug suites need their own materialized adapter run."
+          "evidence": "The qmd live real-world sweep covers the current encoded fixture corpus; expanded retrieval-debug strength suites still need their own materialized adapter run."
         },
         {
           "capability": "host_global_install_boundary",
@@ -1107,7 +1108,7 @@
     {
       "adapter_id": "openviking_deep_profile_gate",
       "project": "OpenViking",
-      "adapter_kind": "docker_local_embed_deep_profile_gate",
+      "adapter_kind": "docker_local_embed_context_trajectory_gate",
       "evidence_class": "research_gate",
       "docker_default": true,
       "host_global_installs_required": false,
@@ -1120,11 +1121,12 @@
       },
       "run": {
         "status": "not_encoded",
-        "evidence": "The adapter cannot fairly exercise hierarchical trajectory behavior until same-corpus add_resource/find returns evidence-bearing results."
+        "evidence": "The XY-899 strength-profile report records staged retrieval, hierarchy selection, recursive/context expansion, and missed-term evidence as typed not_tested or wrong_result states; no new live trajectory adapter artifact is claimed."
       },
       "result": {
         "status": "not_encoded",
-        "evidence": "No OpenViking deep context-trajectory result is claimed from the current wrong-result smoke run."
+        "evidence": "No OpenViking deep context-trajectory result is claimed from the current wrong-result smoke run; the XY-899 report preserves the trajectory surfaces as not_tested.",
+        "artifact": "docs/research/2026-06-11-qmd-openviking-strength-profile-report.json"
       },
       "capabilities": [
         {
@@ -1135,7 +1137,7 @@
         {
           "capability": "hierarchical_context_trajectory",
           "status": "not_encoded",
-          "evidence": "Stage trajectory scoring is not encoded until setup reaches runnable OpenViking APIs."
+          "evidence": "Stage trajectory scoring remains not encoded until the smoke adapter returns evidence-bearing same-corpus output instead of the current wrong_result missed-term evidence."
         },
         {
           "capability": "host_global_install_boundary",

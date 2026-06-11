@@ -233,6 +233,12 @@ metadata, per-adapter records, and summary counters for:
 - capability coverage statuses;
 - real-world suite coverage statuses.
 
+For `elf.real_world_external_adapter_report/v1`, `adapter_count` is the number of
+adapter records in the loaded manifest. `external_project_count` is the number of
+unique non-ELF project names represented by those records, not the number of non-ELF
+adapter records. Multiple adapter records for the same external project MUST count as
+one external project in this summary.
+
 Adapter-pack issues SHOULD add new projects by appending adapter records to this
 manifest shape. They MUST NOT change these status meanings to make a project look
 better or worse.

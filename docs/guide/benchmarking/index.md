@@ -70,6 +70,10 @@ cleanup, use `docs/guide/single_user_production.md`.
   records Graphiti/Zep and Letta claim boundaries, and turns qmd, mem0/OpenMemory,
   Graphiti/Zep, Letta, and adjacent project strengths into benchmark-gated ELF
   optimization directions.
+- `2026-06-11-qmd-openviking-strength-profile-report.md`: XY-899 strength-profile
+  report that separates qmd retrieval quality from debug/replay ergonomics, records
+  qmd wrong-result diagnosis classes, and preserves OpenViking context-trajectory
+  surfaces as `not_tested` until staged/hierarchical evidence is encoded.
 - `2026-06-11-first-generation-oss-adapter-promotion-report.md`: XY-898
   first-generation OSS adapter promotion report that updates agentmemory,
   mem0/OpenMemory, memsearch, and claude-mem with fresh scenario-level baseline

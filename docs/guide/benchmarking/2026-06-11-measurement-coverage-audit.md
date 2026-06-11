@@ -24,10 +24,9 @@ What is proven today:
 
 - ELF has a strong fixture-backed real-world benchmark contract: 38 jobs, 36 pass,
   2 blocked operator boundaries, and no wrong results in the fixture aggregate.
-- ELF and qmd have comparable full-suite live real-world sweeps. The latest generated
-  artifacts are close but no longer identical: ELF has 38 jobs with 18 pass,
-  5 wrong_result, 2 blocked, and 13 not_encoded, while qmd has 17 pass,
-  6 wrong_result, 2 blocked, and 13 not_encoded.
+- ELF and qmd have comparable full-suite live real-world sweeps, but neither has a
+  full-suite live pass. ELF is one pass ahead in the fresh aggregate because qmd
+  misses the memory-evolution delete/TTL tombstone job.
 - ELF is ahead on production-operation evidence among tracked systems because it has
   checked-in provider synthetic, stress, backfill, backup/restore, and Qdrant rebuild
   evidence.
@@ -85,13 +84,13 @@ live adapter or competitor runtime can complete those jobs.
 
 | Adapter | Jobs | Pass | Wrong result | Blocked | Not encoded | Mean score | Mean latency | Evidence recall | Evidence coverage |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| ELF live service adapter | `38` | `18` | `5` | `2` | `13` | `0.525` | `6.761 ms` | `41/77` | `48/84` |
-| qmd live CLI adapter | `38` | `17` | `6` | `2` | `13` | `0.486` | `842.057 ms` | `38/77` | `45/84` |
+| ELF live service adapter | `38` | `18` | `5` | `2` | `13` | `0.525` | `5.100 ms` | `41/77` | `48/84` |
+| qmd live CLI adapter | `38` | `17` | `6` | `2` | `13` | `0.486` | `691.163 ms` | `38/77` | `45/84` |
 
 This supports a near tie on the currently encoded live real-world suite shape, with
-ELF one job ahead in this fresh run. It does not support a broad ELF-over-qmd claim
-because qmd remains the stronger retrieval-debug UX reference and its deep profile is
-still not encoded.
+ELF one job ahead because qmd misses the delete/TTL tombstone case. It does not
+support a broad ELF-over-qmd claim because qmd remains the stronger retrieval-debug UX
+reference and its deep profile is still not encoded.
 
 ### Live Suite Breakdown
 
@@ -113,9 +112,10 @@ ELF and qmd have the same status shape outside `memory_evolution`. The differenc
 | `operator_debugging_ux` | `1` | `not_encoded:1` | `not_encoded:1` |
 | `production_ops` | `6` | `blocked:2`, `not_encoded:4` | `blocked:2`, `not_encoded:4` |
 
-The live wrong results are all memory-evolution jobs. The live adapters retrieve
-current evidence but do not yet provide all required historical conflict evidence
-links for current-vs-historical reasoning.
+The ELF live wrong results are five memory-evolution jobs. qmd has those same conflict
+evidence failures plus the delete/TTL tombstone miss. The live adapters retrieve
+current evidence in several cases but do not yet provide the required historical
+conflict evidence links for current-vs-historical reasoning.
 
 ## External Adapter Ledger
 
@@ -137,15 +137,15 @@ The checked-in manifest records 21 adapter records across 17 unique project name
 | `not_encoded` | `7` |
 
 The generated JSON report emits `external_project_count: 16`, matching the unique
-non-ELF project-name count from the manifest. The full project-name count remains 17
-when ELF is included.
+non-ELF project-name count from the manifest. The companion audit JSON separately
+records `unique_project_names: 17` for the full project list including ELF.
 
 ## Project Coverage
 
 | Project | Best current evidence | Current measured state | Strongest unproven scenario | Next measurement before claim |
 | --- | --- | --- | --- | --- |
 | ELF | `fixture_backed` plus `live_real_world` | Fixture aggregate passes except 2 blocked operator boundaries; live full sweep is `wrong_result`. | Full live memory evolution, live consolidation, live knowledge pages, live capture, live production ops. | Memory-evolution diagnostic report, then live operator/capture/consolidation reports. |
-| qmd | `live_real_world` plus `live_baseline_only` | Same-corpus baseline passes; current live sweep is one memory-evolution job behind ELF. | Deep retrieval-debug ergonomics and trace replay. | qmd/ELF deep retrieval-debug profile with expansion, fusion, rerank, and dropped-candidate traces. |
+| qmd | `live_real_world` plus `live_baseline_only` | Fresh full sweep is one pass behind ELF because qmd misses the delete/TTL tombstone job; same-corpus baseline passes. | Deep retrieval-debug ergonomics and trace replay. | qmd/ELF deep retrieval-debug profile with expansion, fusion, rerank, and dropped-candidate traces. |
 | agentmemory | `live_baseline_only` | `lifecycle_fail`. | Durable coding-agent continuity and capture hooks. | Durable lifecycle and work-resume/capture adapter report. |
 | mem0/OpenMemory | `live_baseline_only` | Basic local smoke now passes; history/UI/hosted/graph behavior remains `not_encoded`. | Entity history, lifecycle UI, OpenMemory inspection. | Entity-history, deletion-audit, and UI/export readback report. |
 | memsearch | `live_baseline_only` | Basic canonical Markdown reindex/reload smoke now passes; real-world prompt coverage remains `not_encoded`. | Markdown canonical store and local reindex clarity. | Source-of-truth and retrieval-debug real-world adapter report. |
@@ -170,7 +170,7 @@ when ELF is included.
 | Work resume | ELF and qmd live pass. | ELF is credible on encoded work resume. | agentmemory, claude-mem, and OpenViking comparable continuity adapters. |
 | Project decisions | ELF and qmd live pass. | ELF is credible on encoded project-decision recovery. | Letta core/archival decision memory comparison. |
 | Source of truth | ELF and qmd live pass; ELF has stronger production restore/rebuild evidence. | ELF has strongest measured source-of-truth discipline. | memsearch source-of-truth reindex/reload evidence. |
-| Memory evolution | ELF and qmd live fail 5/6 jobs; fixture aggregate passes. | No live superiority claim. | Historical conflict evidence links and Graphiti/Zep temporal comparison. |
+| Memory evolution | ELF live fails 5/6 jobs; qmd live fails 6/6 jobs after missing the delete/TTL tombstone evidence; fixture aggregate passes. | No broad live superiority claim. | Historical conflict evidence links and Graphiti/Zep temporal comparison. |
 | Consolidation | Fixture aggregate passes; live adapters are not encoded. | Fixture-only claim. | Live proposal generation with lineage, confidence, and review-action audit. |
 | Knowledge pages | Fixture aggregate passes; live adapters are not encoded. | Fixture-only claim. | Live page rebuild/lint plus llm-wiki, gbrain, GraphRAG, and graphify comparisons. |
 | Operator debugging | Fixture aggregate passes; live adapters are not encoded. | Fixture-only claim. | Trace hydration, stage attribution, dropped-candidate, and repair-action scoring. |
@@ -192,7 +192,8 @@ Order these by decision value, not implementation convenience:
      rerank, dropped candidates, and command-line replay.
 
 2. ELF/qmd live memory-evolution diagnostic
-   - Why: both systems currently fail 5/6 live memory-evolution jobs.
+   - Why: ELF currently fails 5/6 live memory-evolution jobs and qmd fails 6/6,
+     including the delete/TTL tombstone case.
    - Output: per-job evidence-link failure analysis for current-vs-historical facts,
      supersession, and relation temporal validity.
 
@@ -219,9 +220,9 @@ Order these by decision value, not implementation convenience:
    - Output: Docker-contained artifacts mapped to evidence ids, or typed setup and
      resource blockers.
 
-Before publishing the next aggregate report, keep the generated `external_project_count`
-field tied to unique non-ELF project names so readers do not confuse adapter records
-with unique external projects.
+Before publishing the next aggregate report, keep `external_project_count` aligned
+with unique non-ELF project names so readers do not confuse project coverage with
+adapter-record coverage.
 
 ## Fail Criteria
 
