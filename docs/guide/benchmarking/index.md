@@ -65,6 +65,11 @@ cleanup, use `docs/guide/single_user_production.md`.
   memory-evolution diagnostic showing fixture pass, live ELF/qmd current-vs-historical
   wrong-result patterns, qmd tombstone evidence miss, and temporal-reconciliation
   iteration directions.
+- `2026-06-11-temporal-history-competitor-gap-report.md`: fresh report-only
+  temporal/history competitor-gap report that updates the mem0 basic lifecycle result,
+  records Graphiti/Zep and Letta claim boundaries, and turns qmd, mem0/OpenMemory,
+  Graphiti/Zep, Letta, and adjacent project strengths into benchmark-gated ELF
+  optimization directions.
 - `real_world_agent_memory_benchmark.md`: operator overview for the v1 real-world
   agent memory benchmark contract, including suite taxonomy, typed report states,
   knowledge-compilation fixture tasks, and the production-ops fixture target.

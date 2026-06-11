@@ -1,0 +1,347 @@
+{
+  "schema": "elf.temporal_history_competitor_gap_report/v1",
+  "run_id": "2026-06-11-temporal-history-competitor-gap-report",
+  "commit": "d6d9051f9e28384410308ac952936fcdb021dbc2",
+  "created_at": "2026-06-11",
+  "scope": "Report-only competitor gap assessment for temporal/history memory, lifecycle smoke, and future ELF optimization direction",
+  "role_boundary": "No ELF optimization implementation is included; this report records evidence, claim boundaries, and future optimization directions.",
+  "commands": [
+    {
+      "command": "ELF_GRAPHITI_ZEP_SMOKE_START=1 ELF_GRAPHITI_ZEP_SMOKE_RUN=1 cargo make graphiti-zep-docker-temporal-smoke",
+      "status": "blocked",
+      "typed_status": "provider_api_key_missing",
+      "runtime_seconds": 3.5,
+      "artifact": "tmp/real-world-memory/graphiti-zep-smoke/summary.json"
+    },
+    {
+      "command": "ELF_BASELINE_PROJECTS=ELF,mem0 cargo make baseline-live-docker",
+      "status": "pass",
+      "runtime_seconds": 50.14,
+      "artifact": "tmp/live-baseline/live-baseline-report.json"
+    },
+    {
+      "command": "cargo make real-world-memory-evolution",
+      "status": "pass",
+      "runtime_seconds": 59.65,
+      "artifact": "tmp/real-world-memory/evolution-report.json"
+    },
+    {
+      "command": "cargo make real-world-memory-live-adapters",
+      "status": "pass",
+      "runtime_seconds": 166.61,
+      "artifact": "tmp/real-world-memory/live-adapters/"
+    }
+  ],
+  "executive_judgment": {
+    "goal_complete": false,
+    "summary": "ELF is a credible personal-production foundation, but the current evidence does not prove broad superiority across all tracked memory projects or all user-important scenarios.",
+    "highest_priority_gap": "temporal_reconciliation_and_lifecycle_readback",
+    "main_reason": "In live memory-evolution jobs, ELF retrieves the required evidence but does not represent current, historical, superseded, and deleted facts as explicit answer and trace state."
+  },
+  "basic_local_lifecycle": {
+    "run_id": "live-baseline-20260611010431",
+    "project_filter": "ELF,mem0",
+    "verdict": "pass",
+    "summary": {
+      "total": 2,
+      "pass": 2,
+      "wrong_result": 0,
+      "lifecycle_fail": 0,
+      "incomplete": 0,
+      "blocked": 0,
+      "not_encoded": 0
+    },
+    "same_corpus_summary": {
+      "total": 2,
+      "pass": 2,
+      "fail": 0
+    },
+    "full_check_summary": {
+      "total": 12,
+      "pass": 12,
+      "fail": 0,
+      "wrong_result": 0,
+      "lifecycle_fail": 0,
+      "incomplete": 0,
+      "blocked": 0,
+      "not_encoded": 0
+    },
+    "projects": [
+      {
+        "project": "ELF",
+        "status": "pass",
+        "elapsed_seconds": 11,
+        "checks": 8,
+        "checks_passed": 8,
+        "passed_capabilities": [
+          "resumable_backfill_no_duplicates",
+          "same_corpus_retrieval",
+          "async_worker_indexing_e2e",
+          "update_replaces_note_text",
+          "delete_suppresses_retrieval",
+          "cold_start_recovery_search",
+          "concurrent_write_search_e2e",
+          "resource_envelope"
+        ]
+      },
+      {
+        "project": "mem0",
+        "status": "pass",
+        "elapsed_seconds": 36,
+        "checks": 4,
+        "checks_passed": 4,
+        "passed_capabilities": [
+          "same_corpus_retrieval",
+          "update_replaces_note_text",
+          "delete_suppresses_retrieval",
+          "cold_start_recovery_search"
+        ],
+        "not_measured": [
+          "OpenMemory UI",
+          "hosted ecosystem behavior",
+          "entity history quality",
+          "optional graph memory",
+          "real-world memory_evolution jobs"
+        ]
+      }
+    ],
+    "claim": "ELF and mem0 both pass the encoded local Docker lifecycle smoke; this does not prove ELF beats mem0/OpenMemory on its strongest product surfaces."
+  },
+  "fixture_memory_evolution": {
+    "job_count": 5,
+    "pass": 5,
+    "wrong_result": 0,
+    "mean_score": 1.0,
+    "expected_evidence_total": 11,
+    "expected_evidence_matched": 11,
+    "conflict_detection_count": 5,
+    "update_rationale_available_count": 5,
+    "history_readback_encoded_count": 1
+  },
+  "live_real_world_context": {
+    "elf": {
+      "job_count": 38,
+      "encoded_suite_count": 11,
+      "pass": 18,
+      "wrong_result": 5,
+      "wrong_result_signal_count": 6,
+      "blocked": 2,
+      "not_encoded": 13,
+      "mean_score": 0.525,
+      "mean_latency_ms": 9.888,
+      "expected_evidence_total": 77,
+      "expected_evidence_matched": 41,
+      "evidence_required_count": 84,
+      "evidence_covered_count": 48
+    },
+    "qmd": {
+      "job_count": 38,
+      "encoded_suite_count": 11,
+      "pass": 17,
+      "wrong_result": 6,
+      "wrong_result_signal_count": 11,
+      "blocked": 2,
+      "not_encoded": 13,
+      "mean_score": 0.486,
+      "mean_latency_ms": 1132.646,
+      "expected_evidence_total": 77,
+      "expected_evidence_matched": 38,
+      "evidence_required_count": 84,
+      "evidence_covered_count": 45
+    }
+  },
+  "live_memory_evolution": {
+    "elf": {
+      "encoded_jobs": 6,
+      "pass": 1,
+      "wrong_result_jobs": 5,
+      "score_mean": 0.492,
+      "expected_evidence_recall": 1.0,
+      "diagnosis": "ELF retrieved all required memory-evolution evidence but did not emit lifecycle-aware current-vs-historical answer behavior on five jobs."
+    },
+    "qmd": {
+      "encoded_jobs": 6,
+      "pass": 0,
+      "wrong_result_jobs": 6,
+      "score_mean": 0.325,
+      "expected_evidence_recall": 0.769,
+      "diagnosis": "qmd had the same missing temporal-conflict pattern and additionally missed evidence, including the delete tombstone."
+    },
+    "job_matrix": [
+      {
+        "job_id": "memory-evolution-benchmark-verdict-001",
+        "elf_status": "wrong_result",
+        "elf_score": 0.4,
+        "elf_evidence": "3/3",
+        "qmd_status": "wrong_result",
+        "qmd_score": 0.15,
+        "qmd_evidence": "2/3",
+        "diagnosis": "ELF found current verdict, caveat, and rationale but did not represent the superseded verdict as historical."
+      },
+      {
+        "job_id": "memory-evolution-deploy-method-001",
+        "elf_status": "wrong_result",
+        "elf_score": 0.4,
+        "elf_evidence": "2/2",
+        "qmd_status": "wrong_result",
+        "qmd_score": 0.4,
+        "qmd_evidence": "2/2",
+        "diagnosis": "Both found current runbook and rationale, but neither preserved the old quickstart path as historical."
+      },
+      {
+        "job_id": "memory-evolution-issue-state-001",
+        "elf_status": "wrong_result",
+        "elf_score": 0.4,
+        "elf_evidence": "2/2",
+        "qmd_status": "wrong_result",
+        "qmd_score": 0.4,
+        "qmd_evidence": "2/2",
+        "diagnosis": "Both found current done state and rationale, but neither surfaced the earlier blocked state as history."
+      },
+      {
+        "job_id": "memory-evolution-preference-001",
+        "elf_status": "wrong_result",
+        "elf_score": 0.4,
+        "elf_evidence": "2/2",
+        "qmd_status": "wrong_result",
+        "qmd_score": 0.15,
+        "qmd_evidence": "1/2",
+        "diagnosis": "ELF found current preference and rationale, but did not preserve old preference history."
+      },
+      {
+        "job_id": "memory-evolution-relation-temporal-001",
+        "elf_status": "wrong_result",
+        "elf_score": 0.35,
+        "elf_evidence": "2/2",
+        "qmd_status": "wrong_result",
+        "qmd_score": 0.35,
+        "qmd_evidence": "2/2",
+        "diagnosis": "Both found current and old owners, but did not emit temporal-validity explanation."
+      },
+      {
+        "job_id": "memory-evolution-delete-ttl-001",
+        "elf_status": "pass",
+        "elf_score": 1.0,
+        "elf_evidence": "2/2",
+        "qmd_status": "wrong_result",
+        "qmd_score": 0.5,
+        "qmd_evidence": "1/2",
+        "diagnosis": "ELF found tombstone and current plan; qmd missed tombstone."
+      }
+    ]
+  },
+  "graphiti_zep_temporal_smoke": {
+    "run_id": "graphiti-zep-docker-smoke-20260611010309",
+    "evidence_class": "research_gate",
+    "status": "blocked",
+    "failure_class": "provider_api_key_missing",
+    "failure_reason": "Graphiti/Zep live temporal search requires an explicit provider API key; no hosted Zep service or unrecorded provider credentials were used.",
+    "expected_evidence_ids": [
+      "graphiti-zep-old-owner",
+      "graphiti-zep-current-owner",
+      "graphiti-zep-owner-rationale"
+    ],
+    "claim": "Graphiti/Zep remains a temporal-validity reference, but no live pass or ELF superiority claim is supported."
+  },
+  "scenario_judgments": [
+    {
+      "scenario": "basic_local_lifecycle",
+      "current_judgment": "elf_and_mem0_both_pass_encoded_smoke",
+      "claim_strength": "limited_tie_or_elf_broader_smoke_surface",
+      "next_gate": "mem0/OpenMemory history and UI/export readback benchmark"
+    },
+    {
+      "scenario": "retrieval_debug",
+      "current_judgment": "qmd_remains_debug_ux_reference",
+      "claim_strength": "no_elf_win_claim",
+      "next_gate": "ELF/qmd trace-level replay and wrong-result diagnosis"
+    },
+    {
+      "scenario": "current_vs_historical_memory",
+      "current_judgment": "elf_narrowly_beats_qmd_but_still_fails_temporal_product_quality",
+      "claim_strength": "narrow_job_slice_only",
+      "next_gate": "ELF live memory_evolution pass for all six jobs"
+    },
+    {
+      "scenario": "temporal_graph_validity",
+      "current_judgment": "graphiti_zep_blocked_reference",
+      "claim_strength": "no_comparable_claim",
+      "next_gate": "provider-backed Graphiti/Zep Docker temporal smoke"
+    },
+    {
+      "scenario": "core_vs_archival_memory",
+      "current_judgment": "letta_research_only_reference",
+      "claim_strength": "no_comparable_claim",
+      "next_gate": "contained Letta export path and core-vs-archival jobs"
+    },
+    {
+      "scenario": "production_operation_discipline",
+      "current_judgment": "elf_strongest_measured_local_story",
+      "claim_strength": "bounded_by_private_and_provider_gates",
+      "next_gate": "private-corpus and credentialed production-ops evidence only when operator inputs exist"
+    }
+  ],
+  "optimization_direction_order": [
+    {
+      "priority": "P0",
+      "direction": "temporal_reconciliation_contract",
+      "description": "Add answer and trace semantics for current winner, historical loser, update rationale, tombstone, and supersession state.",
+      "benchmark_gate": "ELF live memory_evolution pass for all six jobs."
+    },
+    {
+      "priority": "P0",
+      "direction": "mem0_openmemory_history_comparison",
+      "description": "Move past basic update/delete smoke into preference history, entity memory, lifecycle inspection, deletion audit, and UI/export readback.",
+      "benchmark_gate": "Comparable ELF and mem0/OpenMemory history jobs with typed evidence classes."
+    },
+    {
+      "priority": "P0",
+      "direction": "qmd_level_debugging_and_replay",
+      "description": "Expose query expansion, sparse/dense retrieval, fusion, rerank, dropped candidates, conflict candidates, and replay commands.",
+      "benchmark_gate": "Every wrong result has a replayable trace that localizes absent, dropped, selected-but-not-narrated, or contradicted evidence."
+    },
+    {
+      "priority": "P1",
+      "direction": "core_memory_blocks",
+      "description": "Evaluate Letta-style core memory blocks with provenance, attachment rules, stale-core detection, and archival fallback.",
+      "benchmark_gate": "Core-vs-archival jobs prove correct attachment, sharing, update visibility, and stale-core avoidance."
+    },
+    {
+      "priority": "P1",
+      "direction": "capture_consolidation_knowledge_pages",
+      "description": "Score safe capture, reviewable consolidation, cited knowledge pages, timelines, and operator UX as live surfaces.",
+      "benchmark_gate": "Live capture, consolidation, knowledge, and operator-debugging suites move from not_encoded or fixture-only to comparable evidence."
+    },
+    {
+      "priority": "P2",
+      "direction": "graph_rag_and_context_trajectory_adapters",
+      "description": "Measure Graphiti/Zep, RAGFlow, LightRAG, GraphRAG, graphify, OpenViking, llm-wiki, and gbrain with evidence-linked output contracts.",
+      "benchmark_gate": "Docker-contained or explicitly typed provider-backed adapters emit scored evidence outputs."
+    }
+  ],
+  "claim_boundaries": {
+    "allowed": [
+      "ELF+mem0 basic local lifecycle smoke passed in the fresh Docker baseline.",
+      "ELF narrowly outperformed qmd on the fresh memory-evolution slice because ELF passed delete/TTL and qmd did not.",
+      "ELF still failed five of six live memory-evolution jobs.",
+      "Graphiti/Zep temporal smoke is typed blocked due missing explicit provider key.",
+      "Letta is a design reference, not a measured comparable competitor in this report."
+    ],
+    "not_allowed": [
+      "All goals are complete.",
+      "ELF beats all tracked memory projects.",
+      "ELF beats mem0/OpenMemory on UI, hosted behavior, entity history, or graph memory.",
+      "ELF beats Graphiti/Zep on temporal validity.",
+      "ELF beats Letta on core-vs-archival memory.",
+      "Fixture pass, baseline smoke pass, and live real-world pass are interchangeable evidence classes."
+    ]
+  },
+  "next_issue_directions": [
+    "P0 ELF live temporal reconciliation and trace contract",
+    "P0 mem0/OpenMemory history and UI/export readback benchmark",
+    "P0 ELF/qmd trace-level replay and wrong-result diagnosis",
+    "P1 Letta-style core-vs-archival memory benchmark",
+    "P2 Graphiti/Zep provider-backed temporal smoke after explicit provider credentials exist",
+    "P2 graph/RAG and knowledge-page Docker-contained evidence adapters"
+  ]
+}
