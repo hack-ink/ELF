@@ -51,6 +51,9 @@ cleanup, use `docs/guide/single_user_production.md`.
   matrix contract that maps every tracked memory/RAG/graph project to its strongest
   scenario, current evidence class, typed blockers, next measurement gate, and ELF
   borrow-if-stronger direction.
+- `2026-06-11-elf-iteration-direction-from-competitor-benchmarks.md`: current
+  optimization-direction report that translates measured benchmark data and competitor
+  strengths into prioritized ELF iteration themes and explicit non-claims.
 - `real_world_agent_memory_benchmark.md`: operator overview for the v1 real-world
   agent memory benchmark contract, including suite taxonomy, typed report states,
   knowledge-compilation fixture tasks, and the production-ops fixture target.
