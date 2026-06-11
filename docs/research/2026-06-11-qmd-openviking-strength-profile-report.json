@@ -40,8 +40,8 @@
       "claim": "ELF ties qmd on encoded retrieval correctness and equivalent update/delete/cold-start behavior, loses the currently evidenced local debug/replay ergonomics surface, and remains untested on scored expansion, fusion, and rerank controls."
     },
     "openviking": {
-      "overall_against_strengths": "not_tested",
-      "claim": "ELF does not have a measured win, tie, or loss against OpenViking context-trajectory strengths. The current OpenViking Docker smoke reaches add_resource/find but is wrong_result on evidence terms, while staged trajectory, hierarchy selection, and recursive expansion remain research-gate/not_encoded."
+      "overall_against_strengths": "not_tested_on_context_trajectory",
+      "claim": "ELF has measured wins only on same-corpus evidence-bearing preconditions where OpenViking currently returns wrong_result. ELF does not have a measured win, tie, or loss against OpenViking context-trajectory strengths because staged trajectory, hierarchy selection, and recursive expansion remain research-gate/not_encoded."
     }
   },
   "qmd_strength_profile": {
@@ -296,7 +296,7 @@
         "result_type": "wrong_result",
         "openviking_status": "wrong_result",
         "elf_equivalent_status": "pass",
-        "elf_outcome": "not_tested",
+        "elf_outcome": "elf_win",
         "typed_blocker": "output_missed_expected_terms",
         "evidence": "OpenViking add_resource/find returned resources but matched 0/3 expected evidence-term checks; this is a wrong_result smoke output, not a trajectory comparison."
       },
@@ -340,16 +340,16 @@
         "result_type": "wrong_result",
         "openviking_status": "wrong_result",
         "elf_equivalent_status": "pass",
-        "elf_outcome": "not_tested",
+        "elf_outcome": "elf_win",
         "typed_blocker": "retrieval_wrong_result",
         "evidence": "The baseline report preserves missed expected terms as wrong_result instead of loosening evidence expectations or reporting setup failure."
       }
     ],
     "win_tie_loss_summary": {
-      "elf_win": 0,
+      "elf_win": 2,
       "tie": 0,
       "elf_loss": 0,
-      "not_tested": 6
+      "not_tested": 4
     }
   },
   "claim_boundaries": [
