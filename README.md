@@ -196,13 +196,16 @@ provider-backed ELF evidence was required.
   These records carry source/setup/runtime/resource/retry metadata and typed
   `blocked`, `incomplete`, `wrong_result`, or `not_encoded` states; they are not
   fixture-backed or live adapter pass evidence.
-- Graph/RAG scored-smoke promotion after XY-900: RAGFlow, LightRAG, GraphRAG,
-  Graphiti/Zep, and graphify smokes now emit scored or typed non-pass
-  `real_world_job` adapter reports when run. graphify currently reaches a tiny Docker
-  graph/report smoke and scores `wrong_result`; the other in-scope projects remain
-  typed blocked or incomplete without explicit service, resource, or provider setup.
-  These reports preserve the smoke-only boundary and do not create an ELF win claim
-  against graph/RAG strengths.
+- Graph/RAG scored-smoke promotion after XY-900 and representative slice after XY-929:
+  RAGFlow, LightRAG, GraphRAG, Graphiti/Zep, and graphify smokes now emit scored or
+  typed non-pass `real_world_job` adapter reports when run. `cargo make
+  real-world-memory-graph-rag` adds representative graph/RAG citation, summary,
+  temporal-validity, graph-report, stale-source-lint, and unsupported-claim fixtures:
+  RAGFlow, GraphRAG, and Graphiti/Zep are blocked; LightRAG is incomplete with
+  comparison blocked; graphify is `wrong_result`; llm-wiki is not_tested; gbrain is
+  blocked; private and hosted graph/RAG profiles are non_goal. These reports preserve
+  the smoke and typed non-pass boundaries and do not create an ELF win claim against
+  graph/RAG strengths.
 - mem0/OpenMemory history follow-up after XY-924 and XY-931: the local OSS mem0
   adapter now passes encoded preference correction history, entity-scoped
   personalization, local `get_all` export-style readback, and deletion audit history.

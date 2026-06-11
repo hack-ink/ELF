@@ -1,0 +1,146 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "graph-rag-graphrag-output-tables-001",
+  "suite": "knowledge_compilation",
+  "title": "Score GraphRAG output-table citations only after provider-backed tables map to evidence ids",
+  "encoding": {
+    "status": "blocked",
+    "reason": "GraphRAG representative knowledge-synthesis scoring is blocked until an explicitly provider-backed Docker run emits output tables whose document, text-unit, community, and report identifiers map to generated evidence ids.",
+    "follow_up": {
+      "title": "Run GraphRAG representative output-table citation job with explicit provider config",
+      "reason": "The representative job can score graph summaries and citations only after parquet output tables and local-search context are mapped to benchmark evidence ids."
+    }
+  },
+  "corpus": {
+    "corpus_id": "graph-rag-representative-2026-06-11",
+    "profile": "external_adapter",
+    "items": [
+      {
+        "evidence_id": "graphrag-output-table-contract",
+        "kind": "adapter_contract",
+        "text": "GraphRAG representative contract: score graph summaries only when documents, text_units, communities, community_reports, entities, and relationships tables map to generated evidence ids.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "graphrag_output_tables_blocked",
+            "evidence_id": "graphrag-output-table-contract"
+          },
+          "locator": {
+            "quote": "documents, text_units, communities, community_reports, entities, and relationships tables"
+          }
+        },
+        "created_at": "2026-06-11T17:10:00Z"
+      },
+      {
+        "evidence_id": "graphrag-provider-boundary",
+        "kind": "adapter_blocker",
+        "text": "GraphRAG blocker: live indexing and local search require explicit provider configuration; missing provider configuration remains a typed blocker.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "graphrag_output_tables_blocked",
+            "evidence_id": "graphrag-provider-boundary"
+          },
+          "locator": {
+            "quote": "live indexing and local search require explicit provider configuration"
+          }
+        },
+        "created_at": "2026-06-11T17:11:00Z"
+      }
+    ]
+  },
+  "timeline": [
+    {
+      "event_id": "graphrag-output-contract-recorded",
+      "ts": "2026-06-11T17:10:00Z",
+      "actor": "agent",
+      "action": "recorded_adapter_contract",
+      "evidence_ids": ["graphrag-output-table-contract"],
+      "summary": "GraphRAG representative scoring requires output tables and source ids."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Compile a GraphRAG graph-summary benchmark only when output tables and citations exist.",
+    "job_mode": "compile",
+    "constraints": ["cite_output_tables", "score_graph_summaries", "typed_provider_blocker"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "output_table_contract",
+        "text": "GraphRAG graph-summary scoring requires output tables mapped to generated evidence ids."
+      }
+    ],
+    "must_not_include": [
+      "GraphRAG passes graph-summary quality without provider-backed output tables.",
+      "ELF beats GraphRAG on graph synthesis."
+    ],
+    "evidence_links": {
+      "output_table_contract": ["graphrag-output-table-contract", "graphrag-provider-boundary"]
+    },
+    "answer_type": "typed_blocker",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "graphrag-output-table-contract",
+      "claim_id": "output_table_contract",
+      "requirement": "cite",
+      "quote": "documents, text_units, communities, community_reports, entities, and relationships tables"
+    },
+    {
+      "evidence_id": "graphrag-provider-boundary",
+      "claim_id": "output_table_contract",
+      "requirement": "explain",
+      "quote": "live indexing and local search require explicit provider configuration"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "graphrag-providerless-pass",
+      "type": "unsupported_claim",
+      "evidence_ids": ["graphrag-provider-boundary"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Must keep GraphRAG provider-backed output as a prerequisite."
+      },
+      "evidence_grounding": {
+        "weight": 0.45,
+        "max_points": 1.0,
+        "criteria": "Must require output-table identifiers before citation scoring."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Must identify graph-summary and citation artifacts needed for rerun."
+      },
+      "trap_avoidance": {
+        "weight": 0.1,
+        "max_points": 1.0,
+        "criteria": "Must not turn a provider blocker into a graph-synthesis pass."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "preserve_provider_blocker"
+  },
+  "tags": ["external_adapter", "graph_rag", "graphrag", "output_tables", "typed_blocked"]
+}

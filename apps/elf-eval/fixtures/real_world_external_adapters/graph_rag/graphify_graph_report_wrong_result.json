@@ -1,0 +1,285 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "graph-rag-graphify-graph-report-001",
+  "suite": "knowledge_compilation",
+  "title": "Score graphify graph-report navigation, stale-source lint, and unsupported summaries",
+  "corpus": {
+    "corpus_id": "graph-rag-representative-2026-06-11",
+    "profile": "external_adapter",
+    "items": [
+      {
+        "evidence_id": "graphify-graph-summary-output",
+        "kind": "adapter_artifact",
+        "text": "graphify representative output: graph.json links the ELF memory service node to Qdrant rebuild and graph report mapping nodes with source file references.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "graphify_graph_report_wrong_result",
+            "evidence_id": "graphify-graph-summary-output"
+          },
+          "locator": {
+            "quote": "graph.json links the ELF memory service node to Qdrant rebuild and graph report mapping nodes"
+          }
+        },
+        "created_at": "2026-06-11T17:20:00Z"
+      },
+      {
+        "evidence_id": "graphify-source-location-output",
+        "kind": "adapter_artifact",
+        "text": "graphify source-location output: query output includes source files and line-like locations for generated corpus snippets.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "graphify_graph_report_wrong_result",
+            "evidence_id": "graphify-source-location-output"
+          },
+          "locator": {
+            "quote": "query output includes source files and line-like locations"
+          }
+        },
+        "created_at": "2026-06-11T17:21:00Z"
+      },
+      {
+        "evidence_id": "graphify-derived-report-boundary",
+        "kind": "claim_boundary",
+        "text": "graphify boundary: GRAPH_REPORT.md is a derived graph/report artifact and must not be treated as authoritative ELF memory.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "graphify_graph_report_wrong_result",
+            "evidence_id": "graphify-derived-report-boundary"
+          },
+          "locator": {
+            "quote": "GRAPH_REPORT.md is a derived graph/report artifact"
+          }
+        },
+        "created_at": "2026-06-11T17:22:00Z"
+      },
+      {
+        "evidence_id": "graphify-stale-source-trap",
+        "kind": "adapter_state",
+        "text": "Stale graphify trap: GRAPH_REPORT.md became the authoritative ELF memory store and replaces source notes.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "graphify_graph_report_wrong_result",
+            "evidence_id": "graphify-stale-source-trap"
+          },
+          "locator": {
+            "quote": "GRAPH_REPORT.md became the authoritative ELF memory store"
+          }
+        },
+        "created_at": "2026-06-11T17:19:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_graph_rag_external_adapters",
+      "answer": {
+        "content": "graphify provides derived graph/report navigation: graph.json links the ELF memory service, Qdrant rebuild, and graph report mapping nodes, and query output carries source-file locations. The graph/report output is derived graph/report evidence, not authoritative ELF memory.",
+        "claims": [
+          {
+            "claim_id": "graph_report_navigation",
+            "text": "graphify graph.json links the ELF memory service, Qdrant rebuild, and graph report mapping nodes.",
+            "evidence_ids": ["graphify-graph-summary-output"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "source_location_citations",
+            "text": "graphify query output includes source files and line-like locations for generated corpus snippets.",
+            "evidence_ids": ["graphify-source-location-output"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "derived_report_boundary",
+            "text": "GRAPH_REPORT.md is a derived graph/report artifact and must not be treated as authoritative ELF memory.",
+            "evidence_ids": ["graphify-derived-report-boundary"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": [
+          "graphify-graph-summary-output",
+          "graphify-source-location-output",
+          "graphify-derived-report-boundary"
+        ],
+        "pages": [
+          {
+            "page_id": "graphify:representative-graph-report",
+            "page_type": "concept",
+            "title": "graphify Representative Graph Report",
+            "path": "tmp/real-world-memory/graph-rag/graphify/GRAPH_REPORT.md",
+            "sections": [
+              {
+                "section_id": "graph-summary",
+                "heading": "Graph Summary",
+                "role": "summary",
+                "content": "graph.json links the ELF memory service, Qdrant rebuild, and graph report mapping nodes.",
+                "evidence_ids": ["graphify-graph-summary-output"],
+                "timeline_event_ids": ["graphify-graph-output-recorded"]
+              },
+              {
+                "section_id": "source-locations",
+                "heading": "Source Locations",
+                "role": "citations",
+                "content": "Query output includes source files and line-like locations for generated corpus snippets.",
+                "evidence_ids": ["graphify-source-location-output"],
+                "timeline_event_ids": ["graphify-source-location-recorded"]
+              },
+              {
+                "section_id": "unsupported-quality-summary",
+                "heading": "Unsupported Quality Summary",
+                "role": "summary",
+                "content": "This fixture does not prove broad graph-navigation quality for graphify or an ELF-over-graphify result.",
+                "evidence_ids": [],
+                "timeline_event_ids": [],
+                "unsupported_reason": "The representative fixture is based on bounded graph/report output and not a broad quality evaluation."
+              }
+            ],
+            "backlinks": ["project:elf-memory-service", "entity:qdrant-rebuild"],
+            "lint_findings": [],
+            "rebuild": {
+              "first_hash": "blake3:graphify-representative-001",
+              "second_hash": "blake3:graphify-representative-001",
+              "deterministic": true,
+              "allowed_variance": []
+            }
+          }
+        ],
+        "latency_ms": 4.2,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "graphify-stale-source-recorded",
+      "ts": "2026-06-11T17:19:00Z",
+      "actor": "agent",
+      "action": "recorded_stale_graph_report_claim",
+      "evidence_ids": ["graphify-stale-source-trap"],
+      "summary": "A stale trap claims graphify output became authoritative memory."
+    },
+    {
+      "event_id": "graphify-graph-output-recorded",
+      "ts": "2026-06-11T17:20:00Z",
+      "actor": "adapter",
+      "action": "recorded_graph_summary_output",
+      "evidence_ids": ["graphify-graph-summary-output"],
+      "summary": "The representative output includes graph summary links."
+    },
+    {
+      "event_id": "graphify-source-location-recorded",
+      "ts": "2026-06-11T17:21:00Z",
+      "actor": "adapter",
+      "action": "recorded_source_locations",
+      "evidence_ids": ["graphify-source-location-output"],
+      "summary": "The representative output includes source-file and location citations."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Use graphify graph/report output to explain the graph navigation path, source citations, stale-source lint state, and unsupported quality boundary.",
+    "job_mode": "compile",
+    "constraints": ["cite_graph_report", "score_stale_lint", "flag_unsupported_summary", "no_broad_quality_claim"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "graph_report_navigation",
+        "text": "graphify graph.json links the ELF memory service, Qdrant rebuild, and graph report mapping nodes."
+      },
+      {
+        "claim_id": "source_location_citations",
+        "text": "graphify query output includes source files and line-like locations for generated corpus snippets."
+      },
+      {
+        "claim_id": "derived_report_boundary",
+        "text": "GRAPH_REPORT.md is a derived graph/report artifact and must not be treated as authoritative ELF memory."
+      }
+    ],
+    "must_not_include": [
+      "GRAPH_REPORT.md became the authoritative ELF memory store.",
+      "ELF beats graphify on graph-navigation quality."
+    ],
+    "evidence_links": {
+      "graph_report_navigation": ["graphify-graph-summary-output"],
+      "source_location_citations": ["graphify-source-location-output"],
+      "derived_report_boundary": ["graphify-derived-report-boundary"]
+    },
+    "answer_type": "compiled_knowledge",
+    "accepted_alternates": [],
+    "requires_caveat": true,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "graphify-graph-summary-output",
+      "claim_id": "graph_report_navigation",
+      "requirement": "cite",
+      "quote": "graph.json links the ELF memory service node to Qdrant rebuild and graph report mapping nodes"
+    },
+    {
+      "evidence_id": "graphify-source-location-output",
+      "claim_id": "source_location_citations",
+      "requirement": "cite",
+      "quote": "query output includes source files and line-like locations"
+    },
+    {
+      "evidence_id": "graphify-derived-report-boundary",
+      "claim_id": "derived_report_boundary",
+      "requirement": "cite",
+      "quote": "GRAPH_REPORT.md is a derived graph/report artifact"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "graphify-authoritative-report-trap",
+      "type": "stale_fact",
+      "evidence_ids": ["graphify-stale-source-trap"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Must identify the graph/report navigation path and source citation boundary."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Must cite graph summary, source-location, and derived-report boundary evidence."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Must expose graph report, source citations, stale-source lint, and unsupported-summary handling."
+      },
+      "trap_avoidance": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Must lint the stale authoritative-report trap instead of silently missing it."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": true,
+    "acceptable_phrases": ["derived graph/report evidence"],
+    "fallback_action": "state_bounded_graph_report_boundary"
+  },
+  "tags": ["external_adapter", "graph_rag", "graphify", "graph_report", "stale_source_lint", "unsupported_summary"]
+}

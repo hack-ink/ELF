@@ -1,0 +1,197 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "graph-rag-graphiti-temporal-validity-001",
+  "suite": "memory_evolution",
+  "title": "Keep Graphiti/Zep temporal-validity scoring provider-blocked until current and historical facts return",
+  "encoding": {
+    "status": "blocked",
+    "reason": "Graphiti/Zep representative temporal-validity scoring requires explicit provider configuration before Docker-local Graphiti can return current, historical, and rationale facts with validity windows.",
+    "follow_up": {
+      "title": "Run Graphiti/Zep temporal-validity job with explicit provider config",
+      "reason": "The representative job can score only after Graphiti search output maps current and historical validity-window facts to generated evidence ids."
+    }
+  },
+  "corpus": {
+    "corpus_id": "graph-rag-representative-2026-06-11",
+    "profile": "external_adapter",
+    "items": [
+      {
+        "evidence_id": "graphiti-current-fact-contract",
+        "kind": "adapter_contract",
+        "text": "Graphiti/Zep representative contract: a current fact must carry a validity window and map to the generated current evidence id.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "graphiti_temporal_validity_blocked",
+            "evidence_id": "graphiti-current-fact-contract"
+          },
+          "locator": {
+            "quote": "a current fact must carry a validity window"
+          }
+        },
+        "created_at": "2026-06-11T17:15:00Z"
+      },
+      {
+        "evidence_id": "graphiti-historical-fact-contract",
+        "kind": "adapter_contract",
+        "text": "Graphiti/Zep representative contract: a historical fact must remain queryable as historical instead of being presented as the current fact.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "graphiti_temporal_validity_blocked",
+            "evidence_id": "graphiti-historical-fact-contract"
+          },
+          "locator": {
+            "quote": "a historical fact must remain queryable as historical"
+          }
+        },
+        "created_at": "2026-06-11T17:16:00Z"
+      },
+      {
+        "evidence_id": "graphiti-provider-boundary",
+        "kind": "adapter_blocker",
+        "text": "Graphiti/Zep blocker: the live temporal smoke is provider-bound and must report provider_api_key_missing when explicit credentials are absent.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "graphiti_temporal_validity_blocked",
+            "evidence_id": "graphiti-provider-boundary"
+          },
+          "locator": {
+            "quote": "must report provider_api_key_missing when explicit credentials are absent"
+          }
+        },
+        "created_at": "2026-06-11T17:17:00Z"
+      }
+    ]
+  },
+  "timeline": [
+    {
+      "event_id": "graphiti-temporal-contract-recorded",
+      "ts": "2026-06-11T17:15:00Z",
+      "actor": "agent",
+      "action": "recorded_temporal_contract",
+      "evidence_ids": ["graphiti-current-fact-contract", "graphiti-historical-fact-contract"],
+      "summary": "Graphiti/Zep representative scoring requires current and historical validity-window facts."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Score Graphiti/Zep temporal validity only when current and historical facts with validity windows are returned.",
+    "job_mode": "answer",
+    "constraints": ["distinguish_current_from_historical", "cite_temporal_facts", "typed_provider_blocker"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "graphiti_temporal_contract",
+        "text": "Graphiti/Zep temporal scoring requires current and historical facts with validity windows."
+      }
+    ],
+    "must_not_include": [
+      "Graphiti/Zep temporal validity passes without provider-backed output.",
+      "ELF beats Graphiti/Zep temporal graph memory."
+    ],
+    "evidence_links": {
+      "graphiti_temporal_contract": [
+        "graphiti-current-fact-contract",
+        "graphiti-historical-fact-contract",
+        "graphiti-provider-boundary"
+      ]
+    },
+    "answer_type": "typed_blocker",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "graphiti-current-fact-contract",
+      "claim_id": "graphiti_temporal_contract",
+      "requirement": "cite",
+      "quote": "a current fact must carry a validity window"
+    },
+    {
+      "evidence_id": "graphiti-historical-fact-contract",
+      "claim_id": "graphiti_temporal_contract",
+      "requirement": "cite",
+      "quote": "a historical fact must remain queryable as historical"
+    },
+    {
+      "evidence_id": "graphiti-provider-boundary",
+      "claim_id": "graphiti_temporal_contract",
+      "requirement": "explain",
+      "quote": "must report provider_api_key_missing when explicit credentials are absent"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "graphiti-providerless-temporal-pass",
+      "type": "stale_fact",
+      "evidence_ids": ["graphiti-historical-fact-contract"],
+      "failure_if_used": false
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "lifecycle_behavior": {
+        "weight": 0.4,
+        "max_points": 1.0,
+        "criteria": "Must distinguish current and historical validity windows before scoring."
+      },
+      "answer_correctness": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Must preserve the provider-backed temporal boundary."
+      },
+      "evidence_grounding": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Must cite current, historical, and provider-boundary evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.1,
+        "max_points": 1.0,
+        "criteria": "Must not report historical facts as current."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "preserve_provider_blocker"
+  },
+  "memory_evolution": {
+    "current_evidence_ids": ["graphiti-current-fact-contract"],
+    "historical_evidence_ids": ["graphiti-historical-fact-contract"],
+    "stale_trap_ids": ["graphiti-providerless-temporal-pass"],
+    "conflicts": [
+      {
+        "conflict_id": "graphiti-current-historical-validity",
+        "claim_id": "graphiti_temporal_contract",
+        "current_evidence_id": "graphiti-current-fact-contract",
+        "historical_evidence_id": "graphiti-historical-fact-contract",
+        "resolved_by_evidence_id": "graphiti-provider-boundary"
+      }
+    ],
+    "update_rationale": {
+      "claim_id": "graphiti_temporal_contract",
+      "evidence_ids": ["graphiti-provider-boundary"],
+      "available": true
+    },
+    "temporal_validity": {
+      "required": true,
+      "encoded": false,
+      "follow_up": "Run the provider-backed Graphiti/Zep temporal smoke and map validity windows to evidence ids."
+    }
+  },
+  "tags": ["external_adapter", "graph_rag", "graphiti_zep", "temporal_validity", "typed_blocked"]
+}
