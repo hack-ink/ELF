@@ -12,7 +12,7 @@
       "Live temporal reconciliation remains wrong_result for five of six memory_evolution jobs.",
       "Private-corpus production quality is blocked until an operator-owned manifest exists.",
       "Credentialed provider production-ops gates are blocked until explicit provider setup exists.",
-      "Several competitor strengths remain not_tested: qmd replay/debug UX, mem0/OpenMemory history/UI, OpenViking trajectory, Letta core-vs-archival memory, and graph/RAG navigation."
+      "Several competitor strengths remain not_tested: mem0/OpenMemory history/UI, OpenViking trajectory, Letta core-vs-archival memory, and graph/RAG navigation. The XY-923 follow-up now scores qmd immediate top-10/replay artifact ergonomics as stronger than ELF's default stress report, while expansion, fusion, rerank, and candidate-drop diagnosis remain untested."
     ]
   },
   "evidence_class_terms": [
@@ -65,6 +65,11 @@
       "command": "cargo make baseline-production-synthetic, cargo make baseline-backfill-docker, backup/restore plus Qdrant rebuild proof",
       "artifact": "docs/guide/benchmarking/2026-06-10-production-adoption-refresh.md",
       "claim": "ELF has provider synthetic, stress, backfill, restore, and rebuild evidence, while private-corpus proof remains blocked by missing operator-owned manifest."
+    },
+    {
+      "command": "ELF_BASELINE_PROJECTS=ELF,qmd ELF_BASELINE_PROFILE=stress cargo make baseline-live-docker plus ELF trace-bundle and qmd CLI replay commands",
+      "artifact": "docs/guide/benchmarking/2026-06-11-elf-qmd-trace-replay-diagnostics-report.md",
+      "claim": "Retrieval correctness remains tied, but qmd wins current immediate top-10/replay artifact ergonomics; ELF trace/admin surfaces are useful but not yet hydrated into the default stress artifact."
     }
   ],
   "scenario_outcomes": [
@@ -122,15 +127,16 @@
     {
       "scenario_id": "local_debug_replay_ux",
       "title": "Retrieval quality and local debug UX",
-      "outcome": "not_tested",
-      "evidence_classes": ["live_baseline_only", "research_gate", "not_encoded"],
-      "measured_claim": "qmd remains the local retrieval-debug UX reference, but no scored rule compares qmd top-10/replay artifacts with ELF trace/admin bundle surfaces.",
+      "outcome": "loss",
+      "evidence_classes": ["live_baseline_only", "research_gate", "wrong_result", "not_encoded"],
+      "measured_claim": "The XY-923 trace/replay report scores qmd stronger on immediate top-10 candidate artifacts and short CLI replay commands. ELF keeps useful service trace/admin replay surfaces, and expansion, fusion, rerank-on, and candidate-drop diagnostics remain untested.",
       "command_artifacts": [
         "docs/guide/benchmarking/2026-06-11-qmd-openviking-strength-profile-report.md",
-        "docs/guide/benchmarking/2026-06-11-elf-qmd-retrieval-debug-profile.md"
+        "docs/guide/benchmarking/2026-06-11-elf-qmd-retrieval-debug-profile.md",
+        "docs/guide/benchmarking/2026-06-11-elf-qmd-trace-replay-diagnostics-report.md"
       ],
       "follow_up_issues": ["XY-923"],
-      "caveat": "No ELF loss is claimed until comparable replay and candidate-diagnosis evidence is scored."
+      "caveat": "The loss is a local-debug artifact loss only; retrieval correctness remains tied and no broad qmd-over-ELF memory-system claim is allowed."
     },
     {
       "scenario_id": "memory_evolution_temporal_history",
@@ -344,6 +350,7 @@
     ],
     "not_allowed": [
       "Do not claim ELF broadly beats qmd.",
+      "Do not claim qmd's trace/replay artifact win is a broad qmd-over-ELF memory-system or retrieval-quality win.",
       "Do not claim ELF beats mem0/OpenMemory on history, UI/export, hosted behavior, or graph memory.",
       "Do not claim ELF beats OpenViking on staged context trajectory.",
       "Do not claim ELF beats Letta on core-vs-archival memory.",
