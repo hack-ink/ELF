@@ -891,6 +891,9 @@ args = [
 # | real-world-memory-knowledge        | composite | |
 # | real-world-memory-knowledge-json   | command   | |
 # | real-world-memory-knowledge-report | command   | |
+# | real-world-first-generation-oss        | composite | |
+# | real-world-first-generation-oss-json   | command   | |
+# | real-world-first-generation-oss-report | command   | |
 # | ragflow-docker-smoke                    | command   | |
 # | lightrag-docker-context-smoke           | command   | |
 # | graphrag-docker-smoke                   | command   | |
@@ -983,6 +986,55 @@ args = [
 	"tmp/real-world-memory/knowledge-report.json",
 	"--out",
 	"tmp/real-world-memory/knowledge-report.md",
+]
+
+[tasks.real-world-first-generation-oss]
+workspace = false
+dependencies = [
+	"real-world-first-generation-oss-report",
+]
+
+[tasks.real-world-first-generation-oss-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_external_adapters/first_generation_oss",
+	"--out",
+	"tmp/real-world-memory/first-generation-oss/report.json",
+	"--run-id",
+	"first-generation-oss-continuity-source-store",
+	"--adapter-id",
+	"fixture_first_generation_oss",
+	"--adapter-name",
+	"First-generation OSS fixture coverage",
+]
+
+[tasks.real-world-first-generation-oss-report]
+workspace = false
+dependencies = [
+	"real-world-first-generation-oss-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-memory/first-generation-oss/report.json",
+	"--out",
+	"tmp/real-world-memory/first-generation-oss/report.md",
 ]
 
 

@@ -1,0 +1,254 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "first-gen-memsearch-retrieval-debug-001",
+  "suite": "operator_debugging_ux",
+  "title": "Debug memsearch retrieval through Markdown file and index artifacts",
+  "corpus": {
+    "corpus_id": "first-generation-oss-memsearch-2026-06-11",
+    "profile": "external_adapter",
+    "items": [
+      {
+        "evidence_id": "memsearch-debug-command",
+        "kind": "debug_command",
+        "text": "memsearch retrieval-debug evidence: rerun memsearch search with --top-k, inspect the matching Markdown file, and rerun memsearch index after any file rewrite or delete.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "memsearch_retrieval_debug_prompt",
+            "evidence_id": "memsearch-debug-command"
+          },
+          "locator": {
+            "quote": "inspect the matching Markdown file"
+          }
+        },
+        "created_at": "2026-06-11T10:20:00Z"
+      },
+      {
+        "evidence_id": "memsearch-debug-boundary",
+        "kind": "claim_boundary",
+        "text": "memsearch debug boundary: the current adapter exposes CLI search output and canonical Markdown files, but it does not emit staged query-expansion, fusion, rerank, or candidate-drop trace bundles.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "memsearch_retrieval_debug_prompt",
+            "evidence_id": "memsearch-debug-boundary"
+          },
+          "locator": {
+            "quote": "does not emit staged query-expansion, fusion, rerank, or candidate-drop trace bundles"
+          }
+        },
+        "created_at": "2026-06-11T10:21:00Z"
+      },
+      {
+        "evidence_id": "memsearch-trace-decoy",
+        "kind": "adapter_state",
+        "text": "Decoy: memsearch exposes the same staged retrieval trajectory and candidate-drop trace bundle as ELF.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "memsearch_retrieval_debug_prompt",
+            "evidence_id": "memsearch-trace-decoy"
+          }
+        },
+        "created_at": "2026-06-11T10:19:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_first_generation_oss",
+      "answer": {
+        "content": "For memsearch retrieval debugging, rerun memsearch search with --top-k, inspect the matching Markdown file, and rerun memsearch index after file changes. The useful debug surface is source-file transparency plus CLI replay; staged expansion, fusion, rerank, and candidate-drop trace bundles are not emitted by the current adapter.",
+        "claims": [
+          {
+            "claim_id": "debug_replay_path",
+            "text": "Rerun memsearch search with --top-k and inspect the matching Markdown file.",
+            "evidence_ids": ["memsearch-debug-command"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "trace_boundary",
+            "text": "The current adapter does not emit staged expansion, fusion, rerank, or candidate-drop trace bundles.",
+            "evidence_ids": ["memsearch-debug-boundary"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["memsearch-debug-command", "memsearch-debug-boundary"],
+        "latency_ms": 1.1,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        },
+        "trace_explainability": {
+          "trace_id": "memsearch-cli-debug",
+          "failure_stage": "trace_bundle",
+          "failure_reason": "memsearch exposes CLI replay and source Markdown inspection, not staged retrieval trace bundles.",
+          "stages": [
+            {
+              "stage_name": "cli.search",
+              "kept_evidence": ["memsearch-debug-command"],
+              "dropped_evidence": [],
+              "demoted_evidence": [],
+              "distractor_evidence": ["memsearch-trace-decoy"],
+              "notes": "CLI replay can reproduce the visible result set."
+            },
+            {
+              "stage_name": "source.markdown",
+              "kept_evidence": ["memsearch-debug-command"],
+              "dropped_evidence": [],
+              "demoted_evidence": [],
+              "distractor_evidence": [],
+              "notes": "The Markdown file remains inspectable as canonical source."
+            },
+            {
+              "stage_name": "trace_bundle",
+              "kept_evidence": ["memsearch-debug-boundary"],
+              "dropped_evidence": [],
+              "demoted_evidence": [],
+              "distractor_evidence": ["memsearch-trace-decoy"],
+              "notes": "Candidate-drop trace bundles are not encoded for memsearch."
+            }
+          ]
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "memsearch-debug-path-recorded",
+      "ts": "2026-06-11T10:20:00Z",
+      "actor": "benchmark",
+      "action": "recorded_debug_path",
+      "evidence_ids": ["memsearch-debug-command"],
+      "summary": "The retrieval-debug job points at CLI replay and source Markdown inspection."
+    },
+    {
+      "event_id": "memsearch-trace-boundary-recorded",
+      "ts": "2026-06-11T10:21:00Z",
+      "actor": "benchmark",
+      "action": "recorded_trace_gap",
+      "evidence_ids": ["memsearch-debug-boundary"],
+      "summary": "The job keeps staged trace bundles as not encoded for memsearch."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "How should I debug a wrong memsearch retrieval result, and what trace visibility is not available?",
+    "job_mode": "debug",
+    "constraints": ["cite_evidence", "identify_debug_surface", "avoid_trace_overclaim"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "debug_replay_path",
+        "text": "Rerun memsearch search with --top-k and inspect the matching Markdown file."
+      },
+      {
+        "claim_id": "trace_boundary",
+        "text": "The current adapter does not emit staged expansion, fusion, rerank, or candidate-drop trace bundles."
+      }
+    ],
+    "must_not_include": [
+      "memsearch exposes the same staged retrieval trajectory and candidate-drop trace bundle as ELF"
+    ],
+    "evidence_links": {
+      "debug_replay_path": ["memsearch-debug-command"],
+      "trace_boundary": ["memsearch-debug-boundary"]
+    },
+    "answer_type": "debug_report",
+    "accepted_alternates": [],
+    "requires_caveat": true,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "memsearch-debug-command",
+      "claim_id": "debug_replay_path",
+      "requirement": "explain",
+      "quote": "inspect the matching Markdown file"
+    },
+    {
+      "evidence_id": "memsearch-debug-boundary",
+      "claim_id": "trace_boundary",
+      "requirement": "explain",
+      "quote": "does not emit staged query-expansion, fusion, rerank, or candidate-drop trace bundles"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "memsearch-full-trace-decoy",
+      "type": "unsupported_prior",
+      "evidence_ids": ["memsearch-trace-decoy"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "debuggability": {
+        "weight": 0.35,
+        "max_points": 1.0,
+        "criteria": "Names the available memsearch debug path."
+      },
+      "evidence_grounding": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Cites CLI/source debug and trace-boundary evidence."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Provides a concrete replay and reindex sequence."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Does not overclaim staged trace visibility."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "state_blocker"
+  },
+  "operator_debug": {
+    "failure_mode": "memsearch_trace_bundle_not_encoded",
+    "trace_id": "memsearch-cli-debug",
+    "root_cause": "memsearch debugging is available through CLI replay and canonical Markdown inspection, while staged candidate-drop trace bundles are not encoded.",
+    "steps_to_root_cause": 3,
+    "raw_sql_needed": false,
+    "dropped_candidate_visibility": "not encoded; inspect CLI search output and Markdown source instead",
+    "trace_completeness": "complete",
+    "repair_action_clarity": "clear",
+    "trace_available": false,
+    "replay_command_available": true,
+    "replay_command": "memsearch search '<query>' --top-k 10 && memsearch index <markdown-corpus>",
+    "replay_artifact": "tmp/live-baseline/memsearch.log",
+    "viewer_panels": ["CLI Search Output", "Markdown Source File", "Index Rebuild Log"],
+    "cli_steps": [
+      "rerun memsearch search with --top-k",
+      "open the matching Markdown file",
+      "edit or delete the canonical file if needed",
+      "rerun memsearch index",
+      "rerun search from a fresh process"
+    ],
+    "trace_evidence": ["memsearch-debug-command", "memsearch-debug-boundary"],
+    "ux_gaps": [
+      {
+        "gap_id": "staged-trace-bundle-not-encoded",
+        "severity": "medium",
+        "description": "No staged expansion/fusion/rerank/candidate-drop bundle is emitted by the current memsearch adapter.",
+        "follow_up_issue": "XY-925"
+      }
+    ]
+  },
+  "tags": ["external_adapter", "memsearch", "operator_debugging_ux", "retrieval_debug", "no_live_claim"]
+}
