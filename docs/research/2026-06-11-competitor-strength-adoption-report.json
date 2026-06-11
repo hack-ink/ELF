@@ -1,0 +1,354 @@
+{
+  "schema": "elf.competitor_strength_adoption_report/v1",
+  "report_id": "xy-901-competitor-strength-adoption-report-2026-06-11",
+  "authority": "XY-901",
+  "created_at": "2026-06-11T00:00:00Z",
+  "adoption_decision": {
+    "personal_production_adoptable": true,
+    "verdict": "adopt_with_bounded_caveats",
+    "summary": "ELF is currently adoptable for bounded personal production use because source-of-truth, evidence-bound writes, rebuild/backfill/restore, and typed benchmark evidence are stronger than the measured alternatives. It is not a broad competitor-superiority claim.",
+    "remaining_caveats": [
+      "Full-suite live real-world pass parity is not proven.",
+      "Live temporal reconciliation remains wrong_result for five of six memory_evolution jobs.",
+      "Private-corpus production quality is blocked until an operator-owned manifest exists.",
+      "Credentialed provider production-ops gates are blocked until explicit provider setup exists.",
+      "Several competitor strengths remain not_tested: qmd replay/debug UX, mem0/OpenMemory history/UI, OpenViking trajectory, Letta core-vs-archival memory, and graph/RAG navigation."
+    ]
+  },
+  "evidence_class_terms": [
+    "fixture_backed",
+    "live_baseline_only",
+    "live_real_world",
+    "smoke_only",
+    "research_gate",
+    "blocked",
+    "unsupported",
+    "not_encoded",
+    "wrong_result",
+    "lifecycle_fail"
+  ],
+  "outcome_terms": [
+    "win",
+    "tie",
+    "loss",
+    "not_tested",
+    "blocked",
+    "non_goal"
+  ],
+  "source_artifacts": [
+    {
+      "command": "cargo make real-world-memory",
+      "artifact": "docs/guide/benchmarking/2026-06-11-measurement-coverage-audit.md",
+      "claim": "ELF fixture aggregate covers 38 jobs across 11 suites with 36 pass and 2 blocked production-ops operator boundaries."
+    },
+    {
+      "command": "cargo make real-world-memory-live-adapters",
+      "artifact": "docs/guide/benchmarking/2026-06-11-measurement-coverage-audit.md",
+      "claim": "ELF live service adapter reports 18 pass, 5 wrong_result, 2 blocked, and 13 not_encoded jobs; qmd reports 17 pass, 6 wrong_result, 2 blocked, and 13 not_encoded jobs."
+    },
+    {
+      "command": "ELF_BASELINE_PROJECTS=ELF,agentmemory,mem0,memsearch,claude-mem cargo make baseline-live-docker",
+      "artifact": "docs/guide/benchmarking/2026-06-11-first-generation-oss-adapter-promotion-report.md",
+      "claim": "mem0/OpenMemory and memsearch pass basic local baseline smokes; agentmemory remains lifecycle_fail and claude-mem remains wrong_result on same-corpus retrieval."
+    },
+    {
+      "command": "ELF_GRAPHITI_ZEP_SMOKE_START=1 ELF_GRAPHITI_ZEP_SMOKE_RUN=1 cargo make graphiti-zep-docker-temporal-smoke",
+      "artifact": "docs/guide/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md",
+      "claim": "Graphiti/Zep temporal smoke remains blocked by provider_api_key_missing when live provider execution is explicitly enabled without credentials."
+    },
+    {
+      "command": "cargo make graphify-docker-graph-report-smoke",
+      "artifact": "docs/guide/benchmarking/2026-06-11-graph-rag-scored-smoke-adapter-report.md",
+      "claim": "graphify reaches tiny Docker graph/report scoring but remains wrong_result; broad graph/RAG quality is not tested."
+    },
+    {
+      "command": "cargo make baseline-production-synthetic, cargo make baseline-backfill-docker, backup/restore plus Qdrant rebuild proof",
+      "artifact": "docs/guide/benchmarking/2026-06-10-production-adoption-refresh.md",
+      "claim": "ELF has provider synthetic, stress, backfill, restore, and rebuild evidence, while private-corpus proof remains blocked by missing operator-owned manifest."
+    }
+  ],
+  "scenario_outcomes": [
+    {
+      "scenario_id": "source_of_truth_rebuild_evidence_writes",
+      "title": "Source-of-truth rebuild and evidence-bound writes",
+      "outcome": "win",
+      "evidence_classes": ["fixture_backed", "live_real_world", "live_baseline_only"],
+      "measured_claim": "ELF has the strongest measured source-of-truth and rebuild story: Postgres is authoritative, Qdrant is rebuildable, trust_source_of_truth passes in fixture and live sweeps, and production restore/rebuild proof exists.",
+      "command_artifacts": [
+        "docs/guide/benchmarking/2026-06-11-measurement-coverage-audit.md",
+        "docs/guide/benchmarking/2026-06-10-production-adoption-refresh.md"
+      ],
+      "follow_up_issues": [],
+      "caveat": "memsearch canonical Markdown reindex/reload is a useful ergonomics reference, but real-world source-of-truth prompts are not encoded."
+    },
+    {
+      "scenario_id": "work_resume_coding_agent_continuity",
+      "title": "Work resume and coding-agent continuity",
+      "outcome": "tie",
+      "evidence_classes": ["fixture_backed", "live_real_world", "live_baseline_only", "blocked", "not_encoded"],
+      "measured_claim": "ELF and qmd both pass the encoded live work_resume jobs. agentmemory, claude-mem, and OpenViking continuity strengths remain blocked or not encoded.",
+      "command_artifacts": [
+        "docs/guide/benchmarking/2026-06-11-measurement-coverage-audit.md",
+        "docs/guide/benchmarking/2026-06-11-first-generation-oss-adapter-promotion-report.md"
+      ],
+      "follow_up_issues": ["XY-925", "XY-928"],
+      "caveat": "The tie is only for encoded live work_resume behavior, not for broad capture hooks or staged context."
+    },
+    {
+      "scenario_id": "project_decisions_reversals",
+      "title": "Project decisions and reversals",
+      "outcome": "tie",
+      "evidence_classes": ["fixture_backed", "live_real_world", "research_gate", "not_encoded"],
+      "measured_claim": "ELF and qmd both pass encoded project_decisions jobs. Letta-style core/archival decision memory is not tested.",
+      "command_artifacts": [
+        "docs/guide/benchmarking/2026-06-11-measurement-coverage-audit.md"
+      ],
+      "follow_up_issues": ["XY-927"],
+      "caveat": "No Letta comparison exists until a contained export path is selected."
+    },
+    {
+      "scenario_id": "retrieval_quality",
+      "title": "Retrieval quality",
+      "outcome": "tie",
+      "evidence_classes": ["fixture_backed", "live_real_world", "live_baseline_only"],
+      "measured_claim": "ELF and qmd both pass the encoded live retrieval suite and both pass stress/same-corpus retrieval evidence.",
+      "command_artifacts": [
+        "docs/guide/benchmarking/2026-06-11-qmd-openviking-strength-profile-report.md",
+        "docs/guide/benchmarking/2026-06-11-measurement-coverage-audit.md"
+      ],
+      "follow_up_issues": ["XY-923"],
+      "caveat": "Retrieval correctness is separate from debug/replay ergonomics."
+    },
+    {
+      "scenario_id": "local_debug_replay_ux",
+      "title": "Retrieval quality and local debug UX",
+      "outcome": "not_tested",
+      "evidence_classes": ["live_baseline_only", "research_gate", "not_encoded"],
+      "measured_claim": "qmd remains the local retrieval-debug UX reference, but no scored rule compares qmd top-10/replay artifacts with ELF trace/admin bundle surfaces.",
+      "command_artifacts": [
+        "docs/guide/benchmarking/2026-06-11-qmd-openviking-strength-profile-report.md",
+        "docs/guide/benchmarking/2026-06-11-elf-qmd-retrieval-debug-profile.md"
+      ],
+      "follow_up_issues": ["XY-923"],
+      "caveat": "No ELF loss is claimed until comparable replay and candidate-diagnosis evidence is scored."
+    },
+    {
+      "scenario_id": "memory_evolution_temporal_history",
+      "title": "Memory evolution and temporal history",
+      "outcome": "loss",
+      "evidence_classes": ["fixture_backed", "live_real_world", "wrong_result", "blocked"],
+      "measured_claim": "ELF fixture memory_evolution passes, but live ELF passes only the delete/TTL job and reports five wrong_result jobs where evidence is retrieved but current-vs-historical state is not reconciled.",
+      "command_artifacts": [
+        "docs/guide/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md",
+        "docs/research/2026-06-11-temporal-history-competitor-gap-report.json"
+      ],
+      "follow_up_issues": ["XY-905"],
+      "caveat": "Graphiti/Zep remains a temporal-validity reference, but its local provider-backed smoke is blocked by provider_api_key_missing."
+    },
+    {
+      "scenario_id": "consolidation_proposal_review",
+      "title": "Consolidation/proposal review",
+      "outcome": "not_tested",
+      "evidence_classes": ["fixture_backed", "not_encoded"],
+      "measured_claim": "ELF fixture consolidation passes, but live consolidation proposal generation and review-action scoring are not encoded.",
+      "command_artifacts": [
+        "docs/guide/benchmarking/2026-06-11-measurement-coverage-audit.md"
+      ],
+      "follow_up_issues": ["XY-926"],
+      "caveat": "Fixture evidence cannot be promoted into live proposal-quality proof."
+    },
+    {
+      "scenario_id": "knowledge_page_compilation",
+      "title": "Knowledge page compilation",
+      "outcome": "not_tested",
+      "evidence_classes": ["fixture_backed", "live_real_world", "wrong_result", "research_gate", "not_encoded"],
+      "measured_claim": "ELF fixture knowledge pages pass, but live knowledge compilation is not encoded. graphify reaches a tiny scored smoke and remains wrong_result.",
+      "command_artifacts": [
+        "docs/guide/benchmarking/2026-06-11-measurement-coverage-audit.md",
+        "docs/guide/benchmarking/2026-06-11-graph-rag-scored-smoke-adapter-report.md"
+      ],
+      "follow_up_issues": ["XY-926", "XY-929"],
+      "caveat": "llm-wiki, gbrain, GraphRAG, and graphify remain references until representative citation/lint jobs are scored."
+    },
+    {
+      "scenario_id": "operator_debugging_viewer_ux",
+      "title": "Operator debugging/viewer UX",
+      "outcome": "not_tested",
+      "evidence_classes": ["fixture_backed", "not_encoded", "research_gate"],
+      "measured_claim": "ELF fixture operator-debugging UX passes, but live trace/viewer scoring is not encoded and qmd/OpenMemory/claude-mem UX comparisons are unscored.",
+      "command_artifacts": [
+        "docs/guide/benchmarking/2026-06-11-measurement-coverage-audit.md",
+        "docs/guide/benchmarking/2026-06-11-qmd-openviking-strength-profile-report.md"
+      ],
+      "follow_up_issues": ["XY-923", "XY-926"],
+      "caveat": "No raw-SQL-avoidance or repair-action live benchmark exists yet."
+    },
+    {
+      "scenario_id": "capture_write_policy_redaction",
+      "title": "Capture/write policy and redaction",
+      "outcome": "not_tested",
+      "evidence_classes": ["fixture_backed", "live_baseline_only", "blocked", "not_encoded"],
+      "measured_claim": "ELF fixture capture/write-policy jobs pass, but live capture integration remains not encoded and agentmemory/claude-mem capture hooks are not comparable yet.",
+      "command_artifacts": [
+        "docs/guide/benchmarking/2026-06-11-measurement-coverage-audit.md",
+        "docs/guide/benchmarking/2026-06-11-first-generation-oss-adapter-promotion-report.md"
+      ],
+      "follow_up_issues": ["XY-925", "XY-926"],
+      "caveat": "Future evidence must prove redaction, exclusions, evidence binding, and no secret leakage."
+    },
+    {
+      "scenario_id": "production_ops_restore_backfill",
+      "title": "Production ops, restore, backfill, and rebuild",
+      "outcome": "win",
+      "evidence_classes": ["live_baseline_only", "blocked"],
+      "measured_claim": "ELF has the strongest measured local production-operation story: provider synthetic, stress, resumable backfill, backup/restore, and Qdrant rebuild evidence are checked in.",
+      "command_artifacts": [
+        "docs/guide/benchmarking/2026-06-09-production-adoption-gate-report.md",
+        "docs/guide/benchmarking/2026-06-10-production-adoption-refresh.md"
+      ],
+      "follow_up_issues": ["XY-930"],
+      "caveat": "Private-corpus and credentialed provider gates remain blocked, so this is not private production quality proof."
+    },
+    {
+      "scenario_id": "private_corpus_provider_boundaries",
+      "title": "Private corpus and provider boundaries",
+      "outcome": "blocked",
+      "evidence_classes": ["blocked"],
+      "measured_claim": "The private production profile fails closed without an operator-owned manifest, and provider-backed production-ops gates require explicit credentials.",
+      "command_artifacts": [
+        "docs/guide/benchmarking/2026-06-09-production-adoption-gate-report.md",
+        "docs/guide/benchmarking/2026-06-10-production-adoption-refresh.md"
+      ],
+      "follow_up_issues": ["XY-930"],
+      "caveat": "The blocker is an input boundary, not a hidden benchmark pass or loss."
+    },
+    {
+      "scenario_id": "personalization_scoped_preferences",
+      "title": "Personalization and scoped preferences",
+      "outcome": "tie",
+      "evidence_classes": ["fixture_backed", "live_real_world", "not_encoded"],
+      "measured_claim": "ELF and qmd both pass the single encoded live personalization job. mem0/OpenMemory and Letta personalization/history are not encoded.",
+      "command_artifacts": [
+        "docs/guide/benchmarking/2026-06-11-measurement-coverage-audit.md"
+      ],
+      "follow_up_issues": ["XY-924", "XY-927"],
+      "caveat": "The tie does not prove entity history, UI readback, or long-term preference evolution."
+    },
+    {
+      "scenario_id": "context_trajectory_hierarchical_retrieval",
+      "title": "Context trajectory and hierarchical retrieval",
+      "outcome": "not_tested",
+      "evidence_classes": ["live_baseline_only", "research_gate", "wrong_result", "not_encoded"],
+      "measured_claim": "OpenViking reaches the pinned Docker local embedding path but misses expected same-corpus evidence, and staged trajectory/hierarchy scoring is not encoded.",
+      "command_artifacts": [
+        "docs/guide/benchmarking/2026-06-11-qmd-openviking-strength-profile-report.md"
+      ],
+      "follow_up_issues": ["XY-928"],
+      "caveat": "ELF only has a narrow precondition win over OpenViking, not a trajectory win."
+    },
+    {
+      "scenario_id": "core_vs_archival_memory",
+      "title": "Core-vs-archival memory",
+      "outcome": "not_tested",
+      "evidence_classes": ["research_gate", "not_encoded"],
+      "measured_claim": "ELF has core block semantics in the service contract, but comparable core-vs-archival benchmark jobs and a contained Letta export path are not encoded.",
+      "command_artifacts": [
+        "docs/spec/system_elf_memory_service_v2.md",
+        "docs/guide/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md"
+      ],
+      "follow_up_issues": ["XY-927"],
+      "caveat": "No ELF-over-Letta claim is allowed."
+    },
+    {
+      "scenario_id": "graph_rag_navigation_citations",
+      "title": "Graph/RAG navigation and citations",
+      "outcome": "not_tested",
+      "evidence_classes": ["smoke_only", "research_gate", "blocked", "wrong_result", "not_encoded"],
+      "measured_claim": "Graph/RAG smokes now produce scored or typed non-pass adapter reports where possible, but broad graph/RAG navigation and citation quality are not tested.",
+      "command_artifacts": [
+        "docs/guide/benchmarking/2026-06-11-graph-rag-scored-smoke-adapter-report.md"
+      ],
+      "follow_up_issues": ["XY-929"],
+      "caveat": "RAGFlow, LightRAG, GraphRAG, Graphiti/Zep, llm-wiki, and gbrain remain blocked, research_gate, or not_encoded; graphify only has a tiny wrong_result smoke."
+    }
+  ],
+  "follow_up_queue": [
+    {
+      "issue": "XY-905",
+      "priority": "P0",
+      "state": "Backlog",
+      "gap": "Live temporal reconciliation answer and trace contract."
+    },
+    {
+      "issue": "XY-923",
+      "priority": "P0",
+      "state": "Backlog",
+      "gap": "qmd trace-level replay and wrong-result diagnostics."
+    },
+    {
+      "issue": "XY-924",
+      "priority": "P0",
+      "state": "Backlog",
+      "gap": "mem0/OpenMemory history and UI-export comparison."
+    },
+    {
+      "issue": "XY-925",
+      "priority": "P1",
+      "state": "Backlog",
+      "gap": "First-generation OSS continuity and source-store adapters."
+    },
+    {
+      "issue": "XY-926",
+      "priority": "P1",
+      "state": "Backlog",
+      "gap": "Live operator-debugging, capture, consolidation, and knowledge-page suites."
+    },
+    {
+      "issue": "XY-927",
+      "priority": "P1",
+      "state": "Backlog",
+      "gap": "Letta-style core-vs-archival memory comparison."
+    },
+    {
+      "issue": "XY-928",
+      "priority": "P1",
+      "state": "Backlog",
+      "gap": "OpenViking context-trajectory and hierarchy benchmark."
+    },
+    {
+      "issue": "XY-929",
+      "priority": "P2",
+      "state": "Backlog",
+      "gap": "Graph/RAG adapters beyond scored smokes."
+    },
+    {
+      "issue": "XY-930",
+      "priority": "P1",
+      "state": "Backlog",
+      "gap": "Private-corpus and credentialed production gates after operator inputs exist."
+    },
+    {
+      "issue": "XY-906",
+      "priority": "ops",
+      "state": "Todo",
+      "gap": "Decodex registered-project review-config schema drift blocks Decodex loading of elf."
+    }
+  ],
+  "claim_boundaries": {
+    "allowed": [
+      "ELF is adoptable for bounded personal production use with caveats.",
+      "ELF has the strongest measured source-of-truth, rebuild, restore, and backfill evidence among the tracked systems.",
+      "ELF ties qmd on encoded live retrieval, work_resume, project_decisions, and personalization slices.",
+      "ELF has a live temporal reconciliation loss against the benchmark expectation: five memory_evolution jobs remain wrong_result.",
+      "Most competitor strengths outside qmd retrieval are not_tested, blocked, smoke_only, or research_gate."
+    ],
+    "not_allowed": [
+      "Do not claim ELF broadly beats qmd.",
+      "Do not claim ELF beats mem0/OpenMemory on history, UI/export, hosted behavior, or graph memory.",
+      "Do not claim ELF beats OpenViking on staged context trajectory.",
+      "Do not claim ELF beats Letta on core-vs-archival memory.",
+      "Do not claim graph/RAG parity from smoke-only evidence.",
+      "Do not promote fixture-backed, live_baseline_only, smoke_only, research_gate, blocked, wrong_result, lifecycle_fail, unsupported, or not_encoded states into a generic pass/fail score."
+    ]
+  }
+}
