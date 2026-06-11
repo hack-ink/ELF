@@ -141,20 +141,21 @@
   "adapter_ledger": {
     "adapter_records": 21,
     "unique_project_names": 17,
-    "external_project_count_note": "The generated report field external_project_count now reports distinct non-ELF project names; the manifest has 16 external projects and 17 total project names including ELF.",
+    "external_project_count_note": "The generated report field external_project_count reports unique non-ELF project names after the XY-900 runner repair; the manifest has 16 external projects and 17 total project names including ELF.",
     "evidence_class_counts": {
       "fixture_backed": 1,
       "live_baseline_only": 6,
-      "live_real_world": 2,
-      "research_gate": 12
+      "live_real_world": 3,
+      "research_gate": 11
     },
     "overall_status_counts": {
       "pass": 3,
-      "wrong_result": 4,
+      "wrong_result": 5,
       "lifecycle_fail": 1,
-      "blocked": 6,
+      "blocked": 5,
       "not_encoded": 7
-    }
+    },
+    "xy900_update_note": "XY-900 promotes graphify from research_gate/blocked to a tiny scored live_real_world wrong_result smoke; broad graph/RAG quality remains unproven."
   },
   "claim_boundary": {
     "elf_vs_qmd": "near_tie_on_current_encoded_live_real_world_shape_not_overall_win",
