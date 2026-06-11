@@ -1,7 +1,7 @@
 {
   "schema": "elf.benchmark_measurement_coverage_audit/v1",
   "run_id": "2026-06-11-measurement-coverage-audit",
-  "commit": "286af8b",
+  "source_revision": "current XY-898 lane after adapter-report consistency repairs",
   "created_at": "2026-06-11",
   "scope": "ELF memory-system competitiveness measurement coverage, external competitor comparison evidence, and next report directions",
   "commands": [

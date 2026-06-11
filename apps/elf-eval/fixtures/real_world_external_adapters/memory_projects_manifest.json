@@ -264,7 +264,7 @@
       ],
       "notes": [
         "This Docker-isolated live real_world_job record now covers the full encoded fixture corpus, not only the original three-suite representative slice.",
-        "The record is a full-suite sweep, not a full-suite pass; wrong_result, incomplete, blocked, and not_encoded states remain visible.",
+        "The record is a full-suite sweep, not a full-suite pass; wrong_result, blocked, and not_encoded states remain visible.",
         "This record does not prove private-corpus production quality or provider-backed production operations."
       ]
     },
@@ -477,7 +477,7 @@
       ],
       "notes": [
         "This qmd record is real-world job evidence and must not be conflated with the same-corpus qmd_live_baseline record.",
-        "The record is a full-suite sweep, not a full-suite pass; wrong_result, incomplete, blocked, and not_encoded states remain visible.",
+        "The record is a full-suite sweep, not a full-suite pass; wrong_result, blocked, and not_encoded states remain visible.",
         "This record does not prove broad RAG/graph adapter parity or private-corpus production quality."
       ]
     },

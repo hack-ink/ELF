@@ -6,7 +6,8 @@ Read this when: You need to answer whether ELF has enough empirical evidence to
 claim a win, tie, loss, or non-claim against tracked memory, RAG, graph, and
 agent-continuity projects.
 Inputs: Fresh local runs of `cargo make real-world-memory` and
-`cargo make real-world-memory-live-adapters` on commit `286af8b`, plus
+`cargo make real-world-memory-live-adapters` in the current XY-898 lane after
+adapter-report consistency repairs, plus
 `apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json`,
 `2026-06-11-competitor-strength-evidence-matrix.md`, and
 `2026-06-11-elf-iteration-direction-from-competitor-benchmarks.md`.
