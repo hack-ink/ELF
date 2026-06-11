@@ -146,13 +146,13 @@
       },
       "run": {
         "status": "wrong_result",
-        "evidence": "ELF materializes 38 real_world_job adapter_response objects through ElfService, worker indexing, and search_raw before scoring; the full sweep includes typed wrong_result, incomplete, blocked, and not_encoded records.",
+        "evidence": "ELF materializes 38 real_world_job adapter_response objects through ElfService, worker indexing, and search_raw before scoring; the full sweep includes typed wrong_result, blocked, and not_encoded job records.",
         "command": "cargo make real-world-memory-live-adapters",
         "artifact": "tmp/real-world-memory/live-adapters/elf-report.json"
       },
       "result": {
         "status": "wrong_result",
-        "evidence": "The full live sweep scores 38 jobs across all 11 encoded suites: 18 pass, 5 wrong_result, 1 incomplete, 2 blocked, and 12 not_encoded. This is not a full-suite live pass.",
+        "evidence": "The fresh full live sweep scores 38 jobs across all 11 encoded suites: 18 pass, 5 wrong_result, 0 incomplete, 2 blocked, and 13 not_encoded. This is not a full-suite live pass.",
         "command": "cargo make real-world-memory-live-adapters",
         "artifact": "tmp/real-world-memory/live-adapters/elf-report.md"
       },
@@ -180,7 +180,7 @@
         {
           "capability": "full_suite_live_pass",
           "status": "wrong_result",
-          "evidence": "No full-suite live pass is claimed; generated reports preserve wrong_result, incomplete, blocked, and not_encoded outcomes."
+          "evidence": "No full-suite live pass is claimed; generated reports preserve wrong_result, blocked, and not_encoded job outcomes."
         },
         {
           "capability": "typed_failure_reporting",
@@ -236,8 +236,8 @@
         },
         {
           "suite_id": "production_ops",
-          "status": "incomplete",
-          "evidence": "The live adapter sweep does not run backup/restore, private corpus, provider credential, or backfill operations; existing production-ops credential and private-manifest boundaries remain blocked and the cold-start dependency fixture remains incomplete."
+          "status": "blocked",
+          "evidence": "The live adapter sweep does not run backup/restore, private corpus, provider credential, or backfill operations; existing production-ops credential and private-manifest boundaries remain blocked."
         },
         {
           "suite_id": "personalization",
@@ -359,13 +359,13 @@
       },
       "run": {
         "status": "wrong_result",
-        "evidence": "qmd materializes 38 real_world_job adapter_response objects through collection add, update, embed, and query --json before scoring; the full sweep includes typed wrong_result, incomplete, blocked, and not_encoded records.",
+        "evidence": "qmd materializes 38 real_world_job adapter_response objects through collection add, update, embed, and query --json before scoring; the full sweep includes typed wrong_result, blocked, and not_encoded job records.",
         "command": "cargo make real-world-memory-live-adapters",
         "artifact": "tmp/real-world-memory/live-adapters/qmd-report.json"
       },
       "result": {
         "status": "wrong_result",
-        "evidence": "The full qmd live sweep scores 38 jobs across all 11 encoded suites: 18 pass, 5 wrong_result, 1 incomplete, 2 blocked, and 12 not_encoded. This is not a full-suite live pass.",
+        "evidence": "The fresh full qmd live sweep scores 38 jobs across all 11 encoded suites: 17 pass, 6 wrong_result, 0 incomplete, 2 blocked, and 13 not_encoded. This is not a full-suite live pass.",
         "command": "cargo make real-world-memory-live-adapters",
         "artifact": "tmp/real-world-memory/live-adapters/qmd-report.md"
       },
@@ -393,7 +393,7 @@
         {
           "capability": "full_suite_live_pass",
           "status": "wrong_result",
-          "evidence": "No full-suite live pass is claimed; generated reports preserve wrong_result, incomplete, blocked, and not_encoded outcomes."
+          "evidence": "No full-suite live pass is claimed; generated reports preserve wrong_result, blocked, and not_encoded job outcomes."
         },
         {
           "capability": "typed_failure_reporting",
@@ -449,8 +449,8 @@
         },
         {
           "suite_id": "production_ops",
-          "status": "incomplete",
-          "evidence": "The qmd live adapter sweep does not run backup/restore, private corpus, provider credential, or backfill operations; existing production-ops credential and private-manifest boundaries remain blocked and the cold-start dependency fixture remains incomplete."
+          "status": "blocked",
+          "evidence": "The qmd live adapter sweep does not run backup/restore, private corpus, provider credential, or backfill operations; existing production-ops credential and private-manifest boundaries remain blocked."
         },
         {
           "suite_id": "personalization",
