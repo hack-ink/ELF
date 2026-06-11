@@ -1,0 +1,206 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "core-archival-stale-core-detection-001",
+  "suite": "core_archival_memory",
+  "title": "Detect a stale core block when archival evidence supersedes it",
+  "corpus": {
+    "corpus_id": "real-world-memory-core-archival-2026-06-11",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "stale-core-validation-gate",
+        "kind": "core_block",
+        "text": "Stale core block: the validation gate is cargo make lint and cargo make test.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "stale_core_detection",
+            "evidence_id": "stale-core-validation-gate"
+          }
+        },
+        "created_at": "2026-06-10T10:00:00Z"
+      },
+      {
+        "evidence_id": "archival-current-validation-gate",
+        "kind": "decision",
+        "text": "Archival decision update: before pushing a refreshed PR head, run cargo make fmt, cargo make lint-fix, and cargo make checks.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "stale_core_detection",
+            "evidence_id": "archival-current-validation-gate"
+          },
+          "locator": {
+            "quote": "cargo make fmt, cargo make lint-fix, and cargo make checks"
+          }
+        },
+        "created_at": "2026-06-11T04:30:00Z"
+      },
+      {
+        "evidence_id": "archival-supersedes-core-rationale",
+        "kind": "decision",
+        "text": "Rationale: archival note evidence supersedes the attached core block until the core block is updated from source-of-truth state.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "stale_core_detection",
+            "evidence_id": "archival-supersedes-core-rationale"
+          },
+          "locator": {
+            "quote": "supersedes the attached core block"
+          }
+        },
+        "created_at": "2026-06-11T04:31:00Z"
+      },
+      {
+        "evidence_id": "stale-core-answer-trap",
+        "kind": "stale_claim",
+        "text": "Wrong answer trap: cite the core block as current and skip archival evidence.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "stale_core_detection",
+            "evidence_id": "stale-core-answer-trap"
+          }
+        },
+        "created_at": "2026-06-11T04:29:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_core_archival_memory",
+      "answer": {
+        "content": "Treat the attached validation-gate core block as stale. The current archival decision says to run cargo make fmt, cargo make lint-fix, and cargo make checks before pushing a refreshed PR head, and the archival rationale says that evidence supersedes the core block until it is updated from source-of-truth state.",
+        "claims": [
+          {
+            "claim_id": "stale_core_detected",
+            "text": "The attached validation-gate core block is stale.",
+            "evidence_ids": ["archival-supersedes-core-rationale"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "archival_current_gate",
+            "text": "The current archival validation gate is cargo make fmt, cargo make lint-fix, and cargo make checks.",
+            "evidence_ids": ["archival-current-validation-gate"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["archival-current-validation-gate", "archival-supersedes-core-rationale"],
+        "latency_ms": 1.2,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "old-core-gate-attached",
+      "ts": "2026-06-10T10:00:00Z",
+      "actor": "agent",
+      "action": "block_created",
+      "evidence_ids": ["stale-core-validation-gate"],
+      "summary": "A core block recorded an old validation gate."
+    },
+    {
+      "event_id": "archival-gate-updated",
+      "ts": "2026-06-11T04:30:00Z",
+      "actor": "agent",
+      "action": "updated_decision",
+      "evidence_ids": ["archival-current-validation-gate", "archival-supersedes-core-rationale"],
+      "summary": "Archival evidence superseded the old core validation gate."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "The attached core block says the gate is lint and test. Is that still current before a refreshed PR push?",
+    "job_mode": "answer",
+    "constraints": ["cite_evidence", "detect_stale_core", "prefer_current_archival_evidence"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "stale_core_detected",
+        "text": "The attached validation-gate core block is stale."
+      },
+      {
+        "claim_id": "archival_current_gate",
+        "text": "The current archival validation gate is cargo make fmt, cargo make lint-fix, and cargo make checks."
+      }
+    ],
+    "must_not_include": [
+      "the validation gate is cargo make lint and cargo make test"
+    ],
+    "evidence_links": {
+      "stale_core_detected": ["archival-supersedes-core-rationale"],
+      "archival_current_gate": ["archival-current-validation-gate"]
+    },
+    "answer_type": "current_state_with_stale_core_caveat",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "archival-current-validation-gate",
+      "claim_id": "archival_current_gate",
+      "requirement": "cite",
+      "quote": "cargo make fmt, cargo make lint-fix, and cargo make checks"
+    },
+    {
+      "evidence_id": "archival-supersedes-core-rationale",
+      "claim_id": "stale_core_detected",
+      "requirement": "explain",
+      "quote": "supersedes the attached core block"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "stale-core-current-answer",
+      "type": "stale_fact",
+      "evidence_ids": ["stale-core-validation-gate", "stale-core-answer-trap"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "States that the attached core block is stale."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Cites current archival evidence and supersession rationale."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Avoids answering from stale core memory."
+      },
+      "lifecycle_behavior": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Detects stale core state when archival evidence supersedes it."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": ["The fixture does not provide that evidence."],
+    "fallback_action": "state_blocker"
+  },
+  "tags": ["synthetic", "core_archival_memory", "stale_core", "archival_supersession", "no_live_claim"]
+}

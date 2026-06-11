@@ -54,6 +54,7 @@ const SUITES: &[&str] = &[
 	"capture_integration",
 	"production_ops",
 	"personalization",
+	"core_archival_memory",
 	"context_trajectory",
 ];
 
@@ -3110,9 +3111,15 @@ fn job_metrics(job: &RealWorldJob, answer: &ProducedAnswer) -> JobMetrics {
 		.filter(|evidence| produced_evidence.contains(&evidence.evidence_id))
 		.count();
 	let stale_retrieval_count = trap_use_count(job, &produced_evidence, "stale_fact", answer);
-	let scope_violation_count = trap_use_count(job, &produced_evidence, "near_duplicate", answer);
-	let scope_check_count =
-		job.negative_traps.iter().filter(|trap| trap.trap_type == "near_duplicate").count();
+	let scope_violation_count = ["near_duplicate", "scope_leak"]
+		.into_iter()
+		.map(|trap_type| trap_use_count(job, &produced_evidence, trap_type, answer))
+		.sum();
+	let scope_check_count = job
+		.negative_traps
+		.iter()
+		.filter(|trap| is_scope_trap_type(trap.trap_type.as_str()))
+		.count();
 	let redaction_leak_count = trap_use_count(job, &produced_evidence, "privacy_leak", answer);
 	let scope_correct_count = scope_check_count.saturating_sub(scope_violation_count);
 	let qdrant_rebuild_case = job.tags.iter().any(|tag| tag == "qdrant_rebuild");
@@ -3135,6 +3142,10 @@ fn job_metrics(job: &RealWorldJob, answer: &ProducedAnswer) -> JobMetrics {
 
 fn source_ref_by_evidence(job: &RealWorldJob) -> BTreeMap<&str, &Value> {
 	job.corpus.items.iter().map(|item| (item.evidence_id.as_str(), &item.source_ref)).collect()
+}
+
+fn is_scope_trap_type(trap_type: &str) -> bool {
+	matches!(trap_type, "near_duplicate" | "scope_leak")
 }
 
 fn trap_use_count(
@@ -3932,9 +3943,114 @@ fn validate_adapter_scenarios(path: &Path, adapter: &ExternalAdapterReport) -> R
 				suite_id
 			));
 		}
+
+		let outcome = scenario_comparison_outcome(scenario);
+
+		if blocked_status_missing_blocked_outcome(scenario.status, scenario.comparison_outcome) {
+			return Err(eyre::eyre!(
+				"{} adapter {} scenario {} uses blocked status without blocked comparison outcome.",
+				path.display(),
+				adapter.adapter_id,
+				scenario.scenario_id
+			));
+		}
+		if unmeasured_status_has_measured_outcome(scenario.status, outcome) {
+			return Err(eyre::eyre!(
+				"{} adapter {} scenario {} uses {} status with {} outcome.",
+				path.display(),
+				adapter.adapter_id,
+				scenario.scenario_id,
+				adapter_status_str(scenario.status),
+				scenario_comparison_outcome_str(outcome)
+			));
+		}
+		if unmeasured_status_has_measured_position(scenario.status, scenario.elf_position) {
+			return Err(eyre::eyre!(
+				"{} adapter {} scenario {} uses {} status with {} position.",
+				path.display(),
+				adapter.adapter_id,
+				scenario.scenario_id,
+				adapter_status_str(scenario.status),
+				scenario_position_str(scenario.elf_position)
+			));
+		}
+		if explicit_outcome_conflicts_with_position(scenario) {
+			return Err(eyre::eyre!(
+				"{} adapter {} scenario {} uses {} position with {} outcome.",
+				path.display(),
+				adapter.adapter_id,
+				scenario.scenario_id,
+				scenario_position_str(scenario.elf_position),
+				scenario_comparison_outcome_str(outcome)
+			));
+		}
 	}
 
 	Ok(())
+}
+
+fn blocked_status_missing_blocked_outcome(
+	status: AdapterCoverageStatus,
+	outcome: Option<ScenarioComparisonOutcome>,
+) -> bool {
+	status == AdapterCoverageStatus::Blocked && outcome != Some(ScenarioComparisonOutcome::Blocked)
+}
+
+fn unmeasured_status_has_measured_outcome(
+	status: AdapterCoverageStatus,
+	outcome: ScenarioComparisonOutcome,
+) -> bool {
+	matches!(
+		status,
+		AdapterCoverageStatus::Blocked
+			| AdapterCoverageStatus::Incomplete
+			| AdapterCoverageStatus::NotEncoded
+			| AdapterCoverageStatus::Unsupported
+	) && matches!(
+		outcome,
+		ScenarioComparisonOutcome::Win
+			| ScenarioComparisonOutcome::Tie
+			| ScenarioComparisonOutcome::Loss
+	)
+}
+
+fn unmeasured_status_has_measured_position(
+	status: AdapterCoverageStatus,
+	position: ElfScenarioPosition,
+) -> bool {
+	matches!(
+		status,
+		AdapterCoverageStatus::Blocked
+			| AdapterCoverageStatus::Incomplete
+			| AdapterCoverageStatus::NotEncoded
+			| AdapterCoverageStatus::Unsupported
+	) && matches!(
+		position,
+		ElfScenarioPosition::Wins | ElfScenarioPosition::Ties | ElfScenarioPosition::Loses
+	)
+}
+
+fn explicit_outcome_conflicts_with_position(scenario: &AdapterScenarioJudgment) -> bool {
+	let Some(outcome) = scenario.comparison_outcome else {
+		return false;
+	};
+
+	!position_supports_outcome(scenario.elf_position, outcome)
+}
+
+fn position_supports_outcome(
+	position: ElfScenarioPosition,
+	outcome: ScenarioComparisonOutcome,
+) -> bool {
+	matches!(
+		(position, outcome),
+		(ElfScenarioPosition::Wins, ScenarioComparisonOutcome::Win)
+			| (ElfScenarioPosition::Ties, ScenarioComparisonOutcome::Tie)
+			| (ElfScenarioPosition::Loses, ScenarioComparisonOutcome::Loss)
+			| (ElfScenarioPosition::Untested, ScenarioComparisonOutcome::NotTested)
+			| (ElfScenarioPosition::Untested, ScenarioComparisonOutcome::Blocked)
+			| (ElfScenarioPosition::Untested, ScenarioComparisonOutcome::NonGoal)
+	)
 }
 
 fn validate_adapter_evidence(path: &Path, adapter: &ExternalAdapterReport) -> Result<()> {
@@ -4991,6 +5107,15 @@ fn scenario_comparison_outcome_str(outcome: ScenarioComparisonOutcome) -> &'stat
 		ScenarioComparisonOutcome::NotTested => "not_tested",
 		ScenarioComparisonOutcome::Blocked => "blocked",
 		ScenarioComparisonOutcome::NonGoal => "non_goal",
+	}
+}
+
+fn scenario_position_str(position: ElfScenarioPosition) -> &'static str {
+	match position {
+		ElfScenarioPosition::Wins => "wins",
+		ElfScenarioPosition::Ties => "ties",
+		ElfScenarioPosition::Loses => "loses",
+		ElfScenarioPosition::Untested => "untested",
 	}
 }
 
