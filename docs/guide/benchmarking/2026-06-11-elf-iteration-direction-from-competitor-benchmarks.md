@@ -44,18 +44,20 @@ The strongest current statement is:
 
 | Metric | Value |
 | --- | ---: |
-| Jobs | `46` |
-| Encoded suites | `12` |
+| Jobs | `49` |
+| Encoded suites | `13` |
 | Pass | `44` |
-| Blocked | `2` |
+| Blocked | `5` |
 | Wrong result | `0` |
 | Lifecycle fail | `0` |
 | Incomplete | `0` |
 | Not encoded | `0` |
 | Unsupported claim | `0` |
-| Mean score | `0.957` |
-| Evidence coverage | `101/101` |
-| Expected evidence recall | `93/93` |
+| Mean score | `0.898` |
+| Evidence coverage | `110/110` |
+| Source-ref coverage | `110/110` |
+| Quote coverage | `110/110` |
+| Expected evidence recall | `99/99` |
 
 This proves the fixture contract is broad and well controlled. It does not prove that
 every live adapter or every competitor runtime passes those scenarios.
@@ -116,8 +118,8 @@ Overall adapter statuses:
 | `pass` | `4` |
 | `wrong_result` | `6` |
 | `lifecycle_fail` | `1` |
-| `blocked` | `6` |
-| `not_encoded` | `6` |
+| `blocked` | `7` |
+| `not_encoded` | `5` |
 
 The ledger is intentionally not a leaderboard. It prevents fixture evidence,
 same-corpus checks, research gates, and live real-world runs from being collapsed into
@@ -151,7 +153,7 @@ one misleading score.
 | agentmemory | `live_baseline_only`; current status is `lifecycle_fail`; capture breadth comparison is blocked by process-local StateKV Map and in-memory index. | Coding-agent continuity, hooks, MCP/REST packaging, viewer/console observability. | Borrow capture breadth and continuity UX, but require durable lifecycle and capture artifact proof before claims. |
 | mem0/OpenMemory | `live_baseline_only`; basic local smoke now passes, while entity/preference history, hosted ecosystem, graph memory, and OpenMemory UI remain untested locally. | Entity-scoped memory, lifecycle/history surfaces, hosted ecosystem, OpenMemory UI. | Add entity/preference history and UI readback patterns, while keeping hosted claims out of local OSS benchmarks. |
 | memsearch | `live_baseline_only`; canonical Markdown reindex/reload smoke now passes, while real-world source-of-truth prompts remain unencoded. | Markdown-first canonical store and local reindex clarity. | Borrow local inspectability and canonical-file ergonomics, not file-as-authority semantics. |
-| OpenViking | `live_baseline_only` plus `research_gate`; current status is `wrong_result`. | Filesystem-like context model, hierarchy, staged context trajectory. | Add staged retrieval and trajectory scoring after same-corpus evidence output is correct. |
+| OpenViking | `live_baseline_only`, `fixture_backed`, and `research_gate`; current status is `wrong_result` for same-corpus evidence and `blocked` for fixture-backed trajectory gates. | Filesystem-like context model, hierarchy, staged context trajectory. | Add staged retrieval and trajectory scoring after same-corpus evidence output is correct. |
 | claude-mem | `live_baseline_only`; current status is `wrong_result`; hook/viewer capture breadth is not encoded. | Progressive disclosure, automatic capture, local viewer workflow. | Borrow progressive disclosure and viewer comfort; benchmark capture and operator-debugging live paths before claims. |
 | RAGFlow | `research_gate`; current status is `blocked`. | Full RAG application workflow with document/chunk/reference handles. | Use as a resource-aware RAG adapter benchmark, not as a current ELF competitor win/loss. |
 | LightRAG | `research_gate`; current status is `blocked`. | Lightweight graph/RAG context export and source-path citation shape. | Borrow context-export ideas for graph/RAG navigation after Docker proof. |
@@ -242,7 +244,8 @@ These are needed for broad credibility but should not block personal production 
 
 2. OpenViking context trajectory
    - Current state: setup is pinned, same-corpus retrieval is `wrong_result`, and
-     staged trajectory is `not_encoded`.
+     staged trajectory, hierarchy selection, and recursive/context expansion are
+     encoded as `blocked` fixtures.
    - Benchmark gate: evidence-bearing retrieval pass, then staged hierarchy/trajectory
      scoring.
 
@@ -263,7 +266,8 @@ Do not claim:
 - ELF has full-suite live real-world pass evidence. It does not.
 - ELF has private-corpus production quality proof. The private profile currently
   fails closed without an operator-owned manifest.
-- ELF beats OpenViking on context trajectory. That scenario is not encoded.
+- ELF beats OpenViking on context trajectory. The scenario is encoded as blocked, not
+  scored.
 - ELF beats mem0/OpenMemory on hosted memory, entity history, UI, or optional graph
   memory. Those scenarios are not encoded; the operator-debug win is only against
   qmd on a narrow trace/replay slice.

@@ -12,7 +12,7 @@
       "Live temporal reconciliation remains wrong_result for five of six memory_evolution jobs.",
       "Private-corpus production quality is blocked until an operator-owned manifest exists.",
       "Credentialed provider production-ops gates are blocked until explicit provider setup exists.",
-      "Several competitor strengths remain not_tested or blocked: OpenMemory UI/export is blocked by the XY-931 export-helper setup probe, hosted mem0 Platform behavior remains a non-goal, OpenViking trajectory and graph/RAG navigation remain unproven, and Letta core-vs-archival comparison is blocked until the selected contained export/readback path exists. mem0 local OSS preference history is measured separately and is an ELF loss on the current correction-history scenario. The XY-923 follow-up scores qmd immediate top-10/replay artifact ergonomics as stronger than ELF's default stress report, while expansion, fusion, and rerank remain untested. XY-932 adds a narrow live operator-debug slice where ELF beats qmd on trace hydration and candidate-drop visibility, but OpenMemory UI/export and claude-mem viewer workflows remain blocked or not encoded. XY-933 adds an ELF live capture/write-policy self-check, but agentmemory capture breadth is blocked by mocked/in-memory storage and claude-mem hook/viewer capture remains untested."
+      "Several competitor strengths remain not_tested or blocked: OpenMemory UI/export is blocked by the XY-931 export-helper setup probe, hosted mem0 Platform behavior remains a non-goal, and OpenViking trajectory, Letta core-vs-archival memory, and graph/RAG navigation remain unproven. XY-928 encodes OpenViking staged trajectory, hierarchy selection, and recursive/context expansion as blocked fixtures behind same-corpus evidence output and missing staged artifacts. XY-927 adds six ELF fixture-backed core_archival_memory jobs, but the Letta comparison remains blocked until the selected contained export/readback path exists. mem0 local OSS preference history is measured separately and is an ELF loss on the current correction-history scenario. The XY-923 follow-up scores qmd immediate top-10/replay artifact ergonomics as stronger than ELF's default stress report, while expansion, fusion, and rerank remain untested. XY-932 adds a narrow live operator-debug slice where ELF beats qmd on trace hydration and candidate-drop visibility, but OpenMemory UI/export and claude-mem viewer workflows remain blocked or not encoded. XY-933 adds an ELF live capture/write-policy self-check, but agentmemory capture breadth is blocked by mocked/in-memory storage and claude-mem hook/viewer capture remains untested."
     ]
   },
   "evidence_class_terms": [
@@ -39,7 +39,7 @@
     {
       "command": "cargo make real-world-memory",
       "artifact": "docs/guide/benchmarking/2026-06-11-measurement-coverage-audit.md",
-      "claim": "ELF fixture aggregate covers 46 jobs across 12 suites with 44 pass and 2 blocked production-ops operator boundaries, including 6 passing core_archival_memory jobs."
+      "claim": "ELF fixture aggregate covers 49 jobs across 13 suites with 44 pass and 5 blocked production-ops or OpenViking context-trajectory measurement gates, including 6 passing core_archival_memory jobs."
     },
     {
       "command": "cargo make real-world-memory-core-archival",
@@ -356,12 +356,13 @@
       "title": "Context trajectory and hierarchical retrieval",
       "outcome": "not_tested",
       "evidence_classes": [
+        "fixture_backed",
         "live_baseline_only",
         "research_gate",
         "wrong_result",
-        "not_encoded"
+        "blocked"
       ],
-      "measured_claim": "OpenViking reaches the pinned Docker local embedding path but misses expected same-corpus evidence, and staged trajectory/hierarchy scoring is not encoded.",
+      "measured_claim": "OpenViking reaches the pinned Docker local embedding path and now exposes expected/matched/missing evidence ids, but same-corpus evidence is still wrong_result; staged trajectory, hierarchy selection, and recursive expansion are encoded as blocked fixtures, not scored comparisons.",
       "command_artifacts": [
         "docs/guide/benchmarking/2026-06-11-qmd-openviking-strength-profile-report.md"
       ],
@@ -460,7 +461,7 @@
       "issue": "XY-928",
       "priority": "P1",
       "state": "Backlog",
-      "gap": "OpenViking context-trajectory and hierarchy benchmark."
+      "gap": "OpenViking context-trajectory and hierarchy benchmark is encoded but blocked until evidence-bearing same-corpus and staged artifacts exist."
     },
     {
       "issue": "XY-929",

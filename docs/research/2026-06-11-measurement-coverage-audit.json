@@ -1,7 +1,7 @@
 {
   "schema": "elf.benchmark_measurement_coverage_audit/v2",
   "run_id": "2026-06-11-measurement-coverage-audit",
-  "source_revision": "current benchmark lane after XY-927 core-vs-archival fixture coverage and XY-933 live capture/write-policy scoring",
+  "source_revision": "current benchmark lane after XY-927 core-vs-archival fixture coverage, XY-928 context-trajectory blocked fixtures, and XY-933 live capture/write-policy scoring",
   "created_at": "2026-06-11",
   "scope": "ELF memory-system competitiveness measurement coverage, external competitor comparison evidence, and next report directions",
   "commands": [
@@ -14,7 +14,7 @@
     {
       "command": "cargo make real-world-memory",
       "status": "pass",
-      "runtime_seconds": 9.11,
+      "runtime_seconds": 11.09,
       "artifact": "tmp/real-world-memory/real-world-memory-report.json"
     },
     {
@@ -25,21 +25,21 @@
     }
   ],
   "fixture_aggregate": {
-    "job_count": 46,
-    "encoded_suite_count": 12,
+    "job_count": 49,
+    "encoded_suite_count": 13,
     "pass": 44,
     "wrong_result": 0,
     "lifecycle_fail": 0,
     "incomplete": 0,
-    "blocked": 2,
+    "blocked": 5,
     "not_encoded": 0,
     "unsupported_claim": 0,
-    "mean_score": 0.957,
-    "mean_latency_ms": 3.833,
-    "expected_evidence_total": 93,
-    "expected_evidence_matched": 93,
-    "evidence_required_count": 101,
-    "evidence_covered_count": 101
+    "mean_score": 0.898,
+    "mean_latency_ms": 3.94,
+    "expected_evidence_total": 99,
+    "expected_evidence_matched": 99,
+    "evidence_required_count": 110,
+    "evidence_covered_count": 110
   },
   "live_real_world_adapters": [
     {
@@ -208,7 +208,8 @@
     },
     "xy900_update_note": "XY-900 promotes graphify from research_gate/blocked to a tiny scored live_real_world wrong_result smoke; broad graph/RAG quality remains unproven.",
     "xy932_update_note": "XY-932 adds narrow ELF/qmd operator-debug live_real_world records: ELF pass and qmd wrong_result for trace hydration/candidate-drop visibility, with OpenMemory and claude-mem UI still unmeasured.",
-    "xy933_update_note": "XY-933 adds live ELF capture/write-policy scoring: ELF passes 4/4 capture_integration jobs with zero redaction leaks, qmd remains not_encoded, agentmemory comparison is blocked by mocked/in-memory storage, and claude-mem capture hooks remain not_encoded."
+    "xy933_update_note": "XY-933 adds live ELF capture/write-policy scoring: ELF passes 4/4 capture_integration jobs with zero redaction leaks, qmd remains not_encoded, agentmemory comparison is blocked by mocked/in-memory storage, and claude-mem capture hooks remain not_encoded.",
+    "xy928_update_note": "XY-928 adds three blocked context_trajectory fixtures for OpenViking staged retrieval, hierarchy selection, and recursive/context expansion; no trajectory win/tie/loss is claimed."
   },
   "claim_boundary": {
     "elf_vs_qmd": "near_tie_with_narrow_delete_ttl_elf_lead_not_overall_win",

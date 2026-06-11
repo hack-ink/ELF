@@ -54,8 +54,8 @@
     },
     "openviking": {
       "overall_outcome": "not_tested",
-      "overall_rationale": "OpenViking context-trajectory strengths remain not_tested; ELF has only one same-corpus retrieval precondition win.",
-      "claim": "ELF has one measured win on the same-corpus evidence-bearing precondition where OpenViking currently returns wrong_result. ELF does not have a measured win, tie, or loss against OpenViking context-trajectory strengths because staged trajectory, hierarchy selection, and recursive expansion remain research-gate/not_encoded."
+      "overall_rationale": "OpenViking context-trajectory strengths remain blocked/not_tested; ELF has only one same-corpus retrieval precondition win.",
+      "claim": "ELF has one measured win on the same-corpus evidence-bearing precondition where OpenViking currently returns wrong_result. ELF does not have a measured win, tie, or loss against OpenViking context-trajectory strengths because staged trajectory, hierarchy selection, and recursive expansion are encoded as blocked fixtures until scored staged output exists."
     }
   },
   "qmd_strength_profile": {
@@ -317,35 +317,35 @@
       {
         "scenario_id": "openviking-staged-retrieval-trajectory",
         "surface": "staged retrieval trajectory",
-        "evidence_class": "research_gate",
-        "result_type": "not_encoded",
-        "openviking_status": "not_encoded",
+        "evidence_class": "fixture_backed",
+        "result_type": "blocked",
+        "openviking_status": "blocked",
         "elf_equivalent_status": "not_encoded",
         "elf_outcome": "not_tested",
         "typed_blocker": "needs_evidence_bearing_same_corpus_output",
-        "evidence": "No stage trajectory scoring is claimed until OpenViking returns evidence-bearing same-corpus output."
+        "evidence": "The context_trajectory fixture context-trajectory-openviking-staged-retrieval-001 is encoded as blocked until OpenViking returns evidence-bearing same-corpus output and comparable staged artifacts."
       },
       {
         "scenario_id": "openviking-hierarchy-selection",
         "surface": "hierarchy selection",
-        "evidence_class": "research_gate",
-        "result_type": "not_encoded",
-        "openviking_status": "not_encoded",
+        "evidence_class": "fixture_backed",
+        "result_type": "blocked",
+        "openviking_status": "blocked",
         "elf_equivalent_status": "unsupported",
         "elf_outcome": "not_tested",
         "typed_blocker": "hierarchy_output_not_scored",
-        "evidence": "The viking:// hierarchy model remains a reference strength, but no real_world_job output scores hierarchy selection."
+        "evidence": "The context_trajectory fixture context-trajectory-openviking-hierarchy-selection-001 is encoded as blocked until selected hierarchy nodes and evidence ids are materialized."
       },
       {
         "scenario_id": "openviking-recursive-context-expansion",
         "surface": "recursive/context expansion",
-        "evidence_class": "research_gate",
-        "result_type": "not_encoded",
-        "openviking_status": "not_encoded",
+        "evidence_class": "fixture_backed",
+        "result_type": "blocked",
+        "openviking_status": "blocked",
         "elf_equivalent_status": "not_encoded",
         "elf_outcome": "not_tested",
         "typed_blocker": "recursive_expansion_not_materialized",
-        "evidence": "Recursive/context expansion remains unmaterialized in the Docker adapter; no pass/fail quality claim is allowed."
+        "evidence": "The context_trajectory fixture context-trajectory-openviking-recursive-expansion-001 is encoded as blocked until expansion paths and expected evidence ids are materialized."
       },
       {
         "scenario_id": "openviking-missed-expected-terms-evidence",
@@ -369,8 +369,8 @@
   "claim_boundaries": [
     "ELF does not broadly beat qmd; it ties encoded retrieval and lifecycle correctness, keeps qmd query transparency as not_tested for comparative scoring, and leaves replayability not_tested.",
     "qmd expansion, fusion, and rerank superiority remains not_tested because the current qmd paths use --no-rerank and do not score internals.",
-    "ELF does not beat OpenViking on context trajectory; OpenViking trajectory strengths remain not_tested behind a wrong_result same-corpus output precondition.",
-    "Research_gate records are follow-up gates, not pass evidence.",
-    "Missing equivalent surfaces are encoded as unsupported or not_encoded rather than fake losses."
+    "ELF does not beat OpenViking on context trajectory; OpenViking trajectory strengths remain blocked/not_tested behind a wrong_result same-corpus output precondition and missing staged artifacts.",
+    "Research_gate and blocked fixture records are follow-up gates, not pass evidence.",
+    "Missing equivalent surfaces are encoded as unsupported, blocked, or not_encoded rather than fake losses."
   ]
 }

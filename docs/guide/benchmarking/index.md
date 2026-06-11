@@ -72,8 +72,9 @@ cleanup, use `docs/guide/single_user_production.md`.
   optimization directions.
 - `2026-06-11-qmd-openviking-strength-profile-report.md`: XY-899 strength-profile
   report that separates qmd retrieval quality from debug/replay ergonomics, records
-  qmd wrong-result diagnosis classes, and preserves OpenViking context-trajectory
-  surfaces as `not_tested` until staged/hierarchical evidence is encoded.
+  qmd wrong-result diagnosis classes, and preserves XY-928 OpenViking
+  context-trajectory surfaces as blocked/not-tested until scored staged,
+  hierarchical, and recursive evidence exists.
 - `2026-06-11-elf-qmd-trace-replay-diagnostics-report.md`: XY-923 trace-level
   replay and wrong-result diagnostics report that scores qmd top-10/replay artifact
   ergonomics against ELF trace/admin surfaces while keeping retrieval correctness,
