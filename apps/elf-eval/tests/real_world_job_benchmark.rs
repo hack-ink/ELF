@@ -222,11 +222,11 @@ fn smoke_fixture_produces_typed_json_report() -> Result<()> {
 	);
 	assert_eq!(
 		report.pointer("/external_adapters/summary/live_real_world_count").and_then(Value::as_u64),
-		Some(2)
+		Some(3)
 	);
 	assert_eq!(
 		report.pointer("/external_adapters/summary/research_gate_count").and_then(Value::as_u64),
-		Some(12)
+		Some(11)
 	);
 
 	let jobs = array_at(&report, "/jobs")?;
@@ -280,6 +280,76 @@ fn real_world_report_includes_external_adapter_coverage_manifest() -> Result<()>
 	Ok(())
 }
 
+#[test]
+fn external_adapter_run_summarizes_nonzero_scenario_losses() -> Result<()> {
+	let manifest_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+		.join("fixtures")
+		.join("real_world_external_adapters")
+		.join("memory_projects_manifest.json");
+	let mut manifest = serde_json::from_str::<Value>(&fs::read_to_string(manifest_path)?)?;
+	let adapters = manifest
+		.pointer_mut("/adapters")
+		.and_then(Value::as_array_mut)
+		.ok_or_else(|| eyre::eyre!("missing manifest adapters"))?;
+	let adapter = adapters
+		.iter_mut()
+		.find(|adapter| {
+			adapter.pointer("/adapter_id").and_then(Value::as_str)
+				== Some("agentmemory_live_baseline")
+		})
+		.ok_or_else(|| eyre::eyre!("missing agentmemory adapter"))?;
+
+	set_json_pointer(adapter, "/scenarios/0/elf_position", serde_json::json!("loses"))?;
+
+	let temp_dir =
+		env::temp_dir().join(format!("elf-real-world-loss-manifest-test-{}", process::id()));
+
+	fs::create_dir_all(&temp_dir)?;
+
+	let manifest_path = temp_dir.join("memory_projects_manifest.json");
+
+	fs::write(&manifest_path, serde_json::to_vec_pretty(&manifest)?)?;
+
+	let output = Command::new(env!("CARGO_BIN_EXE_real_world_job_benchmark"))
+		.arg("run")
+		.arg("--fixtures")
+		.arg(fixture_dir())
+		.arg("--external-adapter-manifest")
+		.arg(&manifest_path)
+		.output()?;
+
+	assert!(
+		output.status.success(),
+		"real_world_job runner failed: {}",
+		String::from_utf8_lossy(&output.stderr),
+	);
+
+	let report = serde_json::from_slice::<Value>(&output.stdout)?;
+
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_position_counts/loses")
+			.and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_position_counts/untested")
+			.and_then(Value::as_u64),
+		Some(8)
+	);
+
+	let adapters = array_at(&report, "/external_adapters/adapters")?;
+	let agentmemory = find_by_field(adapters, "/adapter_id", "agentmemory_live_baseline")?;
+
+	assert_eq!(
+		agentmemory.pointer("/scenarios/0/elf_position").and_then(Value::as_str),
+		Some("loses")
+	);
+
+	Ok(())
+}
+
 fn assert_external_adapter_manifest_summary(report: &Value) {
 	assert_eq!(
 		report.pointer("/external_adapters/schema").and_then(Value::as_str),
@@ -319,23 +389,23 @@ fn assert_external_adapter_manifest_summary(report: &Value) {
 	);
 	assert_eq!(
 		report.pointer("/external_adapters/summary/live_real_world_count").and_then(Value::as_u64),
-		Some(2)
+		Some(3)
 	);
 	assert_eq!(
 		report.pointer("/external_adapters/summary/research_gate_count").and_then(Value::as_u64),
-		Some(12)
+		Some(11)
 	);
 	assert_eq!(
 		report
 			.pointer("/external_adapters/summary/overall_status_counts/pass")
 			.and_then(Value::as_u64),
-		Some(1)
+		Some(3)
 	);
 	assert_eq!(
 		report
 			.pointer("/external_adapters/summary/overall_status_counts/wrong_result")
 			.and_then(Value::as_u64),
-		Some(6)
+		Some(5)
 	);
 	assert_eq!(
 		report
@@ -353,7 +423,7 @@ fn assert_external_adapter_manifest_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/overall_status_counts/blocked")
 			.and_then(Value::as_u64),
-		Some(6)
+		Some(5)
 	);
 	assert_eq!(
 		report
@@ -377,7 +447,96 @@ fn assert_external_adapter_manifest_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/suite_status_counts/blocked")
 			.and_then(Value::as_u64),
-		Some(13)
+		Some(12)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/suite_status_counts/incomplete")
+			.and_then(Value::as_u64),
+		Some(0)
+	);
+
+	assert_external_adapter_manifest_scenario_summary(report);
+}
+
+fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_status_counts/real")
+			.and_then(Value::as_u64),
+		Some(0)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_status_counts/mocked")
+			.and_then(Value::as_u64),
+		Some(0)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_status_counts/unsupported")
+			.and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_status_counts/blocked")
+			.and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_status_counts/incomplete")
+			.and_then(Value::as_u64),
+		Some(0)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_status_counts/wrong_result")
+			.and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_status_counts/lifecycle_fail")
+			.and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_status_counts/pass")
+			.and_then(Value::as_u64),
+		Some(5)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_status_counts/not_encoded")
+			.and_then(Value::as_u64),
+		Some(4)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_position_counts/wins")
+			.and_then(Value::as_u64),
+		Some(2)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_position_counts/ties")
+			.and_then(Value::as_u64),
+		Some(2)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_position_counts/loses")
+			.and_then(Value::as_u64),
+		Some(0)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_position_counts/untested")
+			.and_then(Value::as_u64),
+		Some(9)
 	);
 }
 
@@ -396,7 +555,7 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 	let lightrag = find_by_field(adapters, "/adapter_id", "lightrag_research_gate")?;
 	let graphrag = find_by_field(adapters, "/adapter_id", "graphrag_research_gate")?;
 	let graphiti_zep = find_by_field(adapters, "/adapter_id", "graphiti_zep_research_gate")?;
-	let graphify = find_by_field(adapters, "/adapter_id", "graphify_research_gate")?;
+	let graphify = find_by_field(adapters, "/adapter_id", "graphify_docker_smoke")?;
 	let qmd_deep = find_by_field(adapters, "/adapter_id", "qmd_deep_profile_gate")?;
 	let openviking_deep = find_by_field(adapters, "/adapter_id", "openviking_deep_profile_gate")?;
 
@@ -428,7 +587,7 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 		Some("mocked")
 	);
 
-	assert_first_generation_adapter_records(mem0, memsearch, claude_mem);
+	assert_first_generation_adapter_records(agentmemory, mem0, memsearch, claude_mem);
 
 	assert_eq!(openviking.pointer("/overall_status").and_then(Value::as_str), Some("wrong_result"));
 	assert_eq!(ragflow.pointer("/evidence_class").and_then(Value::as_str), Some("research_gate"));
@@ -436,7 +595,7 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 	assert_eq!(
 		ragflow.pointer("/execution_metadata/research_depth").and_then(Value::as_str),
 		Some(
-			"D2 feasibility verdict plus XY-885 evidence-smoke implementation; checked-in record remains research_gate unless a generated artifact reaches query output"
+			"D2 feasibility verdict plus XY-885 evidence-smoke implementation and XY-900 scored smoke promotion; checked-in record remains research_gate unless a generated artifact reaches query output"
 		)
 	);
 	assert_eq!(
@@ -445,7 +604,7 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 	);
 	assert_eq!(
 		ragflow.pointer("/result/artifact").and_then(Value::as_str),
-		Some("tmp/real-world-memory/ragflow-smoke/ragflow-smoke.json")
+		Some("tmp/real-world-memory/ragflow-smoke/ragflow-report.json")
 	);
 	assert_eq!(
 		ragflow.pointer("/execution_metadata/sources/0/url").and_then(Value::as_str),
@@ -473,7 +632,7 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 	assert_eq!(graphrag.pointer("/suites/1/status").and_then(Value::as_str), Some("not_encoded"));
 
 	assert_graphiti_zep_adapter(graphiti_zep);
-	assert_graphify_adapter(graphify);
+	assert_graphify_adapter(graphify)?;
 
 	assert_eq!(
 		qmd_deep.pointer("/capabilities/2/status").and_then(Value::as_str),
@@ -524,18 +683,55 @@ fn assert_openviking_deep_profile_gate(adapter: &Value) {
 	}));
 }
 
-fn assert_first_generation_adapter_records(mem0: &Value, memsearch: &Value, claude_mem: &Value) {
+fn assert_first_generation_adapter_records(
+	agentmemory: &Value,
+	mem0: &Value,
+	memsearch: &Value,
+	claude_mem: &Value,
+) {
+	assert_eq!(
+		agentmemory.pointer("/scenarios/1/status").and_then(Value::as_str),
+		Some("lifecycle_fail")
+	);
+	assert_eq!(
+		agentmemory.pointer("/scenarios/1/elf_position").and_then(Value::as_str),
+		Some("wins")
+	);
+	assert_eq!(agentmemory.pointer("/scenarios/2/status").and_then(Value::as_str), Some("blocked"));
 	assert_eq!(
 		mem0.pointer("/capabilities/2/capability").and_then(Value::as_str),
 		Some("local_lifecycle_update_delete_reload")
 	);
-	assert_eq!(mem0.pointer("/capabilities/2/status").and_then(Value::as_str), Some("real"));
+	assert_eq!(mem0.pointer("/capabilities/2/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(mem0.pointer("/capabilities/4/status").and_then(Value::as_str), Some("not_encoded"));
+	assert_eq!(mem0.pointer("/scenarios/0/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(mem0.pointer("/scenarios/0/elf_position").and_then(Value::as_str), Some("ties"));
+	assert_eq!(
+		mem0.pointer("/scenarios/2/scenario_id").and_then(Value::as_str),
+		Some("openmemory_ui_export_readback")
+	);
+	assert_eq!(mem0.pointer("/scenarios/2/status").and_then(Value::as_str), Some("not_encoded"));
 	assert_eq!(
 		memsearch.pointer("/capabilities/2/capability").and_then(Value::as_str),
 		Some("reindex_update_delete_reload")
 	);
-	assert_eq!(memsearch.pointer("/capabilities/2/status").and_then(Value::as_str), Some("real"));
+	assert_eq!(memsearch.pointer("/capabilities/2/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(
+		memsearch.pointer("/scenarios/0/scenario_id").and_then(Value::as_str),
+		Some("canonical_markdown_reindex_reload")
+	);
+	assert_eq!(
+		memsearch.pointer("/scenarios/0/elf_position").and_then(Value::as_str),
+		Some("untested")
+	);
+	assert_eq!(
+		memsearch.pointer("/scenarios/1/status").and_then(Value::as_str),
+		Some("unsupported")
+	);
+	assert_eq!(
+		memsearch.pointer("/scenarios/1/elf_position").and_then(Value::as_str),
+		Some("untested")
+	);
 	assert_eq!(claude_mem.pointer("/capabilities/1/status").and_then(Value::as_str), Some("real"));
 	assert_eq!(
 		claude_mem.pointer("/capabilities/3/capability").and_then(Value::as_str),
@@ -545,6 +741,11 @@ fn assert_first_generation_adapter_records(mem0: &Value, memsearch: &Value, clau
 		claude_mem.pointer("/capabilities/4/status").and_then(Value::as_str),
 		Some("not_encoded")
 	);
+	assert_eq!(
+		claude_mem.pointer("/scenarios/0/status").and_then(Value::as_str),
+		Some("wrong_result")
+	);
+	assert_eq!(claude_mem.pointer("/scenarios/1/status").and_then(Value::as_str), Some("pass"));
 }
 
 fn assert_graphiti_zep_adapter(adapter: &Value) {
@@ -568,14 +769,17 @@ fn assert_graphiti_zep_adapter(adapter: &Value) {
 	assert_eq!(
 		adapter.pointer("/execution_metadata/research_depth").and_then(Value::as_str),
 		Some(
-			"D2 feasibility plus XY-888 Docker temporal smoke implementation; checked-in record remains research_gate unless a generated artifact reaches Graphiti search output"
+			"D2 feasibility plus XY-888 Docker temporal smoke implementation and XY-900 scored smoke promotion; checked-in record remains research_gate unless a generated artifact reaches Graphiti search output"
 		)
 	);
 }
 
-fn assert_graphify_adapter(adapter: &Value) {
-	assert_eq!(adapter.pointer("/evidence_class").and_then(Value::as_str), Some("research_gate"));
-	assert_eq!(adapter.pointer("/overall_status").and_then(Value::as_str), Some("blocked"));
+fn assert_graphify_adapter(adapter: &Value) -> Result<()> {
+	assert_eq!(adapter.pointer("/evidence_class").and_then(Value::as_str), Some("live_real_world"));
+	assert_eq!(adapter.pointer("/overall_status").and_then(Value::as_str), Some("wrong_result"));
+	assert_eq!(adapter.pointer("/setup/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(adapter.pointer("/run/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(adapter.pointer("/result/status").and_then(Value::as_str), Some("wrong_result"));
 	assert_eq!(
 		adapter.pointer("/setup/command").and_then(Value::as_str),
 		Some("cargo make graphify-docker-graph-report-smoke")
@@ -584,15 +788,178 @@ fn assert_graphify_adapter(adapter: &Value) {
 		adapter.pointer("/suites/0/suite_id").and_then(Value::as_str),
 		Some("knowledge_compilation")
 	);
-	assert_eq!(adapter.pointer("/suites/0/status").and_then(Value::as_str), Some("blocked"));
+	assert_eq!(adapter.pointer("/suites/0/status").and_then(Value::as_str), Some("wrong_result"));
 	assert_eq!(adapter.pointer("/suites/1/suite_id").and_then(Value::as_str), Some("retrieval"));
 	assert_eq!(adapter.pointer("/suites/1/status").and_then(Value::as_str), Some("blocked"));
 	assert_eq!(
 		adapter.pointer("/execution_metadata/research_depth").and_then(Value::as_str),
 		Some(
-			"D1 feasibility verdict plus XY-889 Docker graph/report smoke implementation; checked-in record remains research_gate unless a generated artifact reaches graphify output"
+			"D1 feasibility verdict plus XY-889 Docker graph/report smoke implementation and XY-900 scored smoke promotion; current Docker validation reaches graphify output and scores the tiny knowledge_compilation job as wrong_result"
 		)
 	);
+
+	let capabilities = array_at(adapter, "/capabilities")?;
+	let quality = find_by_field(capabilities, "/capability", "quality_or_scale_claim")?;
+
+	assert_eq!(quality.pointer("/status").and_then(Value::as_str), Some("not_encoded"));
+	assert!(array_at(adapter, "/notes")?.iter().any(|note| {
+		note.as_str().is_some_and(|text| text.contains("tiny smoke") && text.contains("non-pass"))
+	}));
+
+	Ok(())
+}
+
+#[test]
+fn graphify_generated_manifest_keeps_retrieval_unscored() -> Result<()> {
+	let manifest = serde_json::json!({
+		"schema": "elf.real_world_external_adapter_manifest/v1",
+		"manifest_id": "graphify-generated-manifest-test",
+		"docker_isolation": {
+			"default": true,
+			"compose_file": "docker-compose.baseline.yml",
+			"runner": "scripts/graphify-docker-graph-report-smoke.py",
+			"artifact_dir": "tmp/real-world-memory/graphify-smoke",
+			"host_global_installs_required": false,
+			"notes": ["Synthetic graphify generated-manifest regression test."]
+		},
+		"adapters": [{
+			"adapter_id": "graphify_docker_smoke",
+			"project": "graphify",
+			"adapter_kind": "docker_cli_graph_report_smoke",
+			"evidence_class": "live_real_world",
+			"docker_default": true,
+			"host_global_installs_required": false,
+			"overall_status": "wrong_result",
+			"setup": {
+				"status": "pass",
+				"evidence": "setup evidence",
+				"command": "cargo make graphify-docker-graph-report-smoke",
+				"artifact": "tmp/real-world-memory/graphify-smoke/graphify-smoke.json"
+			},
+			"run": {
+				"status": "pass",
+				"evidence": "run evidence",
+				"command": "cargo make graphify-docker-graph-report-smoke",
+				"artifact": "tmp/real-world-memory/graphify-smoke/summary.json"
+			},
+			"result": {
+				"status": "wrong_result",
+				"evidence": "result evidence",
+				"artifact": "tmp/real-world-memory/graphify-smoke/graphify-report.json"
+			},
+			"capabilities": [{
+				"capability": "quality_or_scale_claim",
+				"status": "not_encoded",
+				"evidence": "No broad graph quality claim."
+			}],
+			"suites": [
+				{
+					"suite_id": "knowledge_compilation",
+					"status": "wrong_result",
+					"evidence": "Only the generated graph/report evidence-mapping job is represented."
+				},
+				{
+					"suite_id": "retrieval",
+					"status": "blocked",
+					"evidence": "The smoke uses graphify query output only to support source mapping; broad retrieval quality is not scored."
+				}
+			],
+			"evidence": [],
+			"execution_metadata": {
+				"setup_path": "cargo make graphify-docker-graph-report-smoke",
+				"runtime_boundary": "Docker-only generated graph/report smoke.",
+				"resource_expectation": "Tiny generated corpus only.",
+				"retry_guidance": [],
+				"sources": [{
+					"label": "graphify",
+					"url": "https://github.com/safishamsi/graphify",
+					"evidence": "Synthetic generated-manifest regression source."
+				}],
+				"research_depth": "Generated smoke manifest path"
+			},
+			"notes": ["tiny smoke non-pass"]
+		}]
+	});
+	let temp_dir =
+		env::temp_dir().join(format!("elf-real-world-graphify-manifest-test-{}", process::id()));
+
+	fs::create_dir_all(&temp_dir)?;
+
+	let manifest_path = temp_dir.join("manifest.json");
+	let report_path = temp_dir.join("report.json");
+
+	fs::write(&manifest_path, serde_json::to_vec_pretty(&manifest)?)?;
+
+	let output = Command::new(env!("CARGO_BIN_EXE_real_world_job_benchmark"))
+		.arg("run")
+		.arg("--fixtures")
+		.arg(fixture_dir())
+		.arg("--out")
+		.arg(&report_path)
+		.arg("--external-adapter-manifest")
+		.arg(&manifest_path)
+		.output()?;
+
+	assert!(
+		output.status.success(),
+		"real_world_job runner failed: {}",
+		String::from_utf8_lossy(&output.stderr),
+	);
+
+	let report: Value = serde_json::from_slice(&fs::read(&report_path)?)?;
+	let adapters = array_at(&report, "/external_adapters/adapters")?;
+	let graphify = find_by_field(adapters, "/adapter_id", "graphify_docker_smoke")?;
+	let suites = array_at(graphify, "/suites")?;
+	let retrieval = find_by_field(suites, "/suite_id", "retrieval")?;
+
+	assert_eq!(retrieval.pointer("/status").and_then(Value::as_str), Some("blocked"));
+	assert!(
+		retrieval
+			.pointer("/evidence")
+			.and_then(Value::as_str)
+			.is_some_and(|text| { text.contains("broad retrieval quality is not scored") })
+	);
+
+	Ok(())
+}
+
+#[test]
+fn live_adapter_aggregate_forwards_graph_rag_smoke_controls() -> Result<()> {
+	let makefile = fs::read_to_string(
+		Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..").join("Makefile.toml"),
+	)?;
+
+	for env_name in [
+		"ELF_REAL_WORLD_LIVE_ENABLE_RAGFLOW",
+		"ELF_REAL_WORLD_LIVE_ENABLE_LIGHTRAG",
+		"ELF_REAL_WORLD_LIVE_ENABLE_GRAPHRAG",
+		"ELF_REAL_WORLD_LIVE_ENABLE_GRAPHITI_ZEP",
+		"ELF_REAL_WORLD_LIVE_ENABLE_GRAPHIFY",
+		"ELF_RAGFLOW_SMOKE_START",
+		"ELF_RAGFLOW_SMOKE_ACCEPT_RESOURCE_ENVELOPE",
+		"ELF_GRAPHRAG_SMOKE_RUN",
+		"ELF_GRAPHRAG_API_KEY",
+		"ELF_GRAPHITI_ZEP_SMOKE_START",
+		"ELF_GRAPHITI_ZEP_SMOKE_RUN",
+		"ELF_GRAPHITI_ZEP_API_KEY",
+		"ELF_GRAPHIFY_SMOKE_RUN",
+	] {
+		assert!(
+			makefile.contains(&format!("-e {env_name}")),
+			"real-world-memory-live-adapters must forward {env_name}",
+		);
+	}
+
+	assert!(
+		makefile.contains("--profile lightrag up -d lightrag"),
+		"aggregate task should start LightRAG profile when ELF_LIGHTRAG_CONTEXT_START=1",
+	);
+	assert!(
+		makefile.contains("--profile graphiti-zep up -d graphiti-falkordb"),
+		"aggregate task should start Graphiti/Zep profile when ELF_GRAPHITI_ZEP_SMOKE_START=1",
+	);
+
+	Ok(())
 }
 
 fn assert_live_sweep_record(adapter: &Value, production_ops_status: &str) -> Result<()> {
@@ -1060,7 +1427,7 @@ fn assert_competitor_strength_matrix_json(matrix: &Value) -> Result<()> {
 			.and_then(Value::as_str)
 			.is_some_and(|claim| claim.contains("transparent local knobs"))
 	);
-	assert_eq!(mem0.pointer("/measured_status").and_then(Value::as_str), Some("wrong_result"));
+	assert_eq!(mem0.pointer("/measured_status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(
 		mem0.pointer("/unsupported_or_blocked_status/state").and_then(Value::as_str),
 		Some("not_encoded")
@@ -1068,7 +1435,7 @@ fn assert_competitor_strength_matrix_json(matrix: &Value) -> Result<()> {
 	assert!(
 		mem0.pointer("/benchmark_before_claim")
 			.and_then(Value::as_str)
-			.is_some_and(|claim| claim.contains("Fix the local adapter's same-corpus result"))
+			.is_some_and(|claim| claim.contains("preference/entity history"))
 	);
 	assert_eq!(
 		openviking.pointer("/current_evidence_class").and_then(Value::as_str),
@@ -1530,6 +1897,143 @@ fn generated_json_report_renders_markdown() -> Result<()> {
 	assert!(markdown.contains("agentmemory-style hook capture"));
 	assert!(markdown.contains("xy844-current-worktree"));
 	assert!(markdown.contains("Existing live-baseline reports remain valid"));
+	assert!(markdown.contains("### Adapter Scenario Judgments"));
+	assert!(markdown.contains("ELF scenario positions: `wins=2, ties=2, untested=9`"));
+	assert!(markdown.contains("| `claude_mem_live_baseline` | `same_corpus_retrieval`"));
+	assert!(markdown.contains("| `memsearch_live_baseline` | `ttl_expiry_lifecycle`"));
+
+	Ok(())
+}
+
+#[test]
+fn external_adapter_markdown_renders_nonzero_scenario_losses() -> Result<()> {
+	let mut report = run_json_report()?;
+	let adapters = report
+		.pointer_mut("/external_adapters/adapters")
+		.and_then(Value::as_array_mut)
+		.ok_or_else(|| eyre::eyre!("missing external adapter records"))?;
+	let adapter = adapters
+		.iter_mut()
+		.find(|adapter| {
+			adapter.pointer("/adapter_id").and_then(Value::as_str)
+				== Some("agentmemory_live_baseline")
+		})
+		.ok_or_else(|| eyre::eyre!("missing agentmemory adapter"))?;
+
+	set_json_pointer(adapter, "/scenarios/0/elf_position", serde_json::json!("loses"))?;
+	set_json_pointer(
+		&mut report,
+		"/external_adapters/summary/scenario_position_counts",
+		serde_json::json!({
+			"wins": 2,
+			"ties": 2,
+			"loses": 1,
+			"untested": 8
+		}),
+	)?;
+
+	let temp_dir =
+		env::temp_dir().join(format!("elf-real-world-loss-scenario-test-{}", process::id()));
+
+	fs::create_dir_all(&temp_dir)?;
+
+	let report_path = temp_dir.join("report.json");
+	let markdown_path = temp_dir.join("report.md");
+
+	fs::write(&report_path, serde_json::to_vec_pretty(&report)?)?;
+
+	let output = Command::new(env!("CARGO_BIN_EXE_real_world_job_benchmark"))
+		.arg("publish")
+		.arg("--report")
+		.arg(&report_path)
+		.arg("--out")
+		.arg(&markdown_path)
+		.output()?;
+
+	assert!(
+		output.status.success(),
+		"real_world_job publisher failed: {}",
+		String::from_utf8_lossy(&output.stderr),
+	);
+
+	let markdown = fs::read_to_string(markdown_path)?;
+
+	assert!(markdown.contains("ELF scenario positions: `wins=2, ties=2, loses=1, untested=8`"));
+	assert!(markdown.contains(
+		"| `agentmemory_live_baseline` | `basic_same_corpus_retrieval` | `retrieval` | `pass` | `loses` |"
+	));
+
+	Ok(())
+}
+
+#[test]
+fn external_adapter_markdown_omits_scenario_summary_when_manifest_has_no_scenarios() -> Result<()> {
+	let mut report = run_json_report()?;
+	let adapters = report
+		.pointer_mut("/external_adapters/adapters")
+		.and_then(Value::as_array_mut)
+		.ok_or_else(|| eyre::eyre!("missing external adapter records"))?;
+
+	for adapter in adapters {
+		set_json_pointer(adapter, "/scenarios", serde_json::json!([]))?;
+	}
+
+	set_json_pointer(
+		&mut report,
+		"/external_adapters/summary/scenario_status_counts",
+		serde_json::json!({
+			"real": 0,
+			"mocked": 0,
+			"unsupported": 0,
+			"blocked": 0,
+			"incomplete": 0,
+			"wrong_result": 0,
+			"lifecycle_fail": 0,
+			"pass": 0,
+			"not_encoded": 0
+		}),
+	)?;
+	set_json_pointer(
+		&mut report,
+		"/external_adapters/summary/scenario_position_counts",
+		serde_json::json!({
+			"wins": 0,
+			"ties": 0,
+			"loses": 0,
+			"untested": 0
+		}),
+	)?;
+
+	let temp_dir =
+		env::temp_dir().join(format!("elf-real-world-no-scenario-test-{}", process::id()));
+
+	fs::create_dir_all(&temp_dir)?;
+
+	let report_path = temp_dir.join("report.json");
+	let markdown_path = temp_dir.join("report.md");
+
+	fs::write(&report_path, serde_json::to_vec_pretty(&report)?)?;
+
+	let output = Command::new(env!("CARGO_BIN_EXE_real_world_job_benchmark"))
+		.arg("publish")
+		.arg("--report")
+		.arg(&report_path)
+		.arg("--out")
+		.arg(&markdown_path)
+		.output()?;
+
+	assert!(
+		output.status.success(),
+		"real_world_job publisher failed: {}",
+		String::from_utf8_lossy(&output.stderr),
+	);
+
+	let markdown = fs::read_to_string(markdown_path)?;
+
+	assert!(markdown.contains("External Adapter Coverage"));
+	assert!(!markdown.contains("Scenario coverage statuses:"));
+	assert!(!markdown.contains("ELF scenario positions:"));
+	assert!(!markdown.contains("### Adapter Scenario Judgments"));
 
 	Ok(())
 }
