@@ -156,8 +156,8 @@ The checked-in manifest records 23 adapter records across 17 unique project name
 | `pass` | `4` |
 | `wrong_result` | `6` |
 | `lifecycle_fail` | `1` |
-| `blocked` | `6` |
-| `not_encoded` | `6` |
+| `blocked` | `7` |
+| `not_encoded` | `5` |
 
 The generated JSON report emits `external_project_count: 16`, matching the unique
 non-ELF project-name count from the manifest. The companion audit JSON separately

@@ -5,7 +5,7 @@
 use std::{
 	env, fs,
 	path::{Path, PathBuf},
-	process::{self, Command},
+	process::{self, Command, Output},
 };
 
 use color_eyre::{Result, eyre};
@@ -265,6 +265,56 @@ fn set_json_pointer(value: &mut Value, pointer: &str, replacement: Value) -> Res
 	*target = replacement;
 
 	Ok(())
+}
+
+fn run_external_manifest_with_letta_attachment_mutation<F>(
+	slug: &str,
+	mutation: F,
+) -> Result<Output>
+where
+	F: FnOnce(&mut Value) -> Result<()>,
+{
+	let mut manifest =
+		serde_json::from_str::<Value>(&fs::read_to_string(external_adapter_manifest_path())?)?;
+	let adapters = manifest
+		.pointer_mut("/adapters")
+		.and_then(Value::as_array_mut)
+		.ok_or_else(|| eyre::eyre!("missing manifest adapters"))?;
+	let letta = adapters
+		.iter_mut()
+		.find(|adapter| {
+			adapter.pointer("/adapter_id").and_then(Value::as_str) == Some("letta_research_gate")
+		})
+		.ok_or_else(|| eyre::eyre!("missing Letta adapter"))?;
+	let scenarios = letta
+		.pointer_mut("/scenarios")
+		.and_then(Value::as_array_mut)
+		.ok_or_else(|| eyre::eyre!("missing Letta scenarios"))?;
+	let attachment = scenarios
+		.iter_mut()
+		.find(|scenario| {
+			scenario.pointer("/scenario_id").and_then(Value::as_str)
+				== Some("core_block_attachment_readback")
+		})
+		.ok_or_else(|| eyre::eyre!("missing Letta attachment scenario"))?;
+
+	mutation(attachment)?;
+
+	let temp_dir = env::temp_dir().join(format!("elf-real-world-{slug}-{}", process::id()));
+
+	fs::create_dir_all(&temp_dir)?;
+
+	let manifest_path = temp_dir.join("memory_projects_manifest.json");
+
+	fs::write(&manifest_path, serde_json::to_vec_pretty(&manifest)?)?;
+
+	Ok(Command::new(env!("CARGO_BIN_EXE_real_world_job_benchmark"))
+		.arg("run")
+		.arg("--fixtures")
+		.arg(fixture_dir())
+		.arg("--external-adapter-manifest")
+		.arg(&manifest_path)
+		.output()?)
 }
 
 #[test]
@@ -1430,52 +1480,34 @@ fn operator_debug_live_adapter_task_is_docker_scoped() -> Result<()> {
 
 #[test]
 fn external_adapter_manifest_rejects_unmeasured_win_loss_scenario_outcomes() -> Result<()> {
-	let mut manifest =
-		serde_json::from_str::<Value>(&fs::read_to_string(external_adapter_manifest_path())?)?;
-	let adapters = manifest
-		.pointer_mut("/adapters")
-		.and_then(Value::as_array_mut)
-		.ok_or_else(|| eyre::eyre!("missing manifest adapters"))?;
-	let letta = adapters
-		.iter_mut()
-		.find(|adapter| {
-			adapter.pointer("/adapter_id").and_then(Value::as_str) == Some("letta_research_gate")
-		})
-		.ok_or_else(|| eyre::eyre!("missing Letta adapter"))?;
-	let scenarios = letta
-		.pointer_mut("/scenarios")
-		.and_then(Value::as_array_mut)
-		.ok_or_else(|| eyre::eyre!("missing Letta scenarios"))?;
-	let attachment = scenarios
-		.iter_mut()
-		.find(|scenario| {
-			scenario.pointer("/scenario_id").and_then(Value::as_str)
-				== Some("core_block_attachment_readback")
-		})
-		.ok_or_else(|| eyre::eyre!("missing Letta attachment scenario"))?;
-
-	set_json_pointer(attachment, "/comparison_outcome", serde_json::json!("win"))?;
-
-	let temp_dir =
-		env::temp_dir().join(format!("elf-real-world-invalid-scenario-test-{}", process::id()));
-
-	fs::create_dir_all(&temp_dir)?;
-
-	let manifest_path = temp_dir.join("memory_projects_manifest.json");
-
-	fs::write(&manifest_path, serde_json::to_vec_pretty(&manifest)?)?;
-
-	let output = Command::new(env!("CARGO_BIN_EXE_real_world_job_benchmark"))
-		.arg("run")
-		.arg("--fixtures")
-		.arg(fixture_dir())
-		.arg("--external-adapter-manifest")
-		.arg(&manifest_path)
-		.output()?;
+	let output = run_external_manifest_with_letta_attachment_mutation(
+		"invalid-scenario-outcome-test",
+		|scenario| set_json_pointer(scenario, "/comparison_outcome", serde_json::json!("win")),
+	)?;
 
 	assert!(!output.status.success(), "invalid scenario outcome unexpectedly passed");
 	assert!(
 		String::from_utf8_lossy(&output.stderr).contains("not_encoded status with win outcome")
+	);
+
+	Ok(())
+}
+
+#[test]
+fn external_adapter_manifest_rejects_unmeasured_win_loss_scenario_positions() -> Result<()> {
+	let output = run_external_manifest_with_letta_attachment_mutation(
+		"invalid-scenario-position-test",
+		|scenario| {
+			set_json_pointer(scenario, "/status", serde_json::json!("not_encoded"))?;
+			set_json_pointer(scenario, "/elf_position", serde_json::json!("wins"))?;
+
+			set_json_pointer(scenario, "/comparison_outcome", serde_json::json!("not_tested"))
+		},
+	)?;
+
+	assert!(!output.status.success(), "invalid scenario position unexpectedly passed");
+	assert!(
+		String::from_utf8_lossy(&output.stderr).contains("not_encoded status with wins position")
 	);
 
 	Ok(())
@@ -2500,13 +2532,13 @@ fn assert_competitor_strength_matrix_manifest_counts(matrix: &Value) {
 	);
 	assert_eq!(
 		matrix.pointer("/manifest_summary/overall_status_counts/blocked").and_then(Value::as_u64),
-		Some(6)
+		Some(7)
 	);
 	assert_eq!(
 		matrix
 			.pointer("/manifest_summary/overall_status_counts/not_encoded")
 			.and_then(Value::as_u64),
-		Some(6)
+		Some(5)
 	);
 	assert_eq!(
 		matrix
@@ -2886,13 +2918,13 @@ fn assert_operator_facing_strength_profile_boundaries(
 
 fn assert_measurement_audit_adapter_status_counts(markdown: &str) {
 	for expected in [
-		"| `blocked` | `6` |",
-		"| `not_encoded` | `6` |",
+		"| `blocked` | `7` |",
+		"| `not_encoded` | `5` |",
 		"The generated JSON report emits `external_project_count: 16`",
 	] {
 		assert!(markdown.contains(expected), "missing measurement audit text: {expected}");
 	}
-	for stale in ["| `blocked` | `5` |", "| `not_encoded` | `7` |"] {
+	for stale in ["| `blocked` | `6` |", "| `not_encoded` | `6` |"] {
 		assert!(!markdown.contains(stale), "stale measurement audit text: {stale}");
 	}
 }
