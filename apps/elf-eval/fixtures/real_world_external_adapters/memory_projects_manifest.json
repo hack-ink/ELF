@@ -1156,13 +1156,13 @@
       "suites": [
         {
           "suite_id": "trust_source_of_truth",
-          "status": "pass",
-          "evidence": "The Markdown-first source model passed the local reindex/reload smoke, and XY-925 adds fixture-backed source-of-truth prompt coverage over the canonical Markdown store. No live memsearch runtime adapter executes prompt scoring yet."
+          "status": "not_encoded",
+          "evidence": "The Markdown-first source model passed the local reindex/reload smoke, and XY-925 adds fixture-backed source-of-truth prompt coverage over the canonical Markdown store. No live memsearch runtime adapter executes prompt scoring yet, so this is not a suite pass."
         },
         {
           "suite_id": "retrieval",
-          "status": "pass",
-          "evidence": "The Docker same-corpus check passes, and XY-925 adds fixture-backed retrieval-debug prompt coverage over memsearch CLI replay and Markdown source inspection. No live memsearch runtime adapter executes retrieval prompt scoring yet."
+          "status": "not_encoded",
+          "evidence": "The Docker same-corpus check passes, and XY-925 adds fixture-backed retrieval-debug prompt coverage over memsearch CLI replay and Markdown source inspection. No live memsearch runtime adapter executes retrieval prompt scoring yet, so this is not a suite pass."
         },
         {
           "suite_id": "memory_evolution",
