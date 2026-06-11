@@ -305,7 +305,7 @@ fn assert_external_adapter_manifest_summary(report: &Value) {
 	);
 	assert_eq!(
 		report.pointer("/external_adapters/summary/external_project_count").and_then(Value::as_u64),
-		Some(19)
+		Some(16)
 	);
 	assert_eq!(
 		report.pointer("/external_adapters/summary/fixture_backed_count").and_then(Value::as_u64),
@@ -1040,6 +1040,7 @@ fn current_benchmark_reports_preserve_live_sweep_boundaries() -> Result<()> {
 fn assert_competitor_strength_matrix_json(matrix: &Value) -> Result<()> {
 	let projects = array_at(matrix, "/project_matrix")?;
 	let qmd = find_by_field(projects, "/project", "qmd")?;
+	let mem0 = find_by_field(projects, "/project", "mem0/OpenMemory")?;
 	let openviking = find_by_field(projects, "/project", "OpenViking")?;
 
 	assert_eq!(
@@ -1058,6 +1059,16 @@ fn assert_competitor_strength_matrix_json(matrix: &Value) -> Result<()> {
 		qmd.pointer("/borrow_if_stronger")
 			.and_then(Value::as_str)
 			.is_some_and(|claim| claim.contains("transparent local knobs"))
+	);
+	assert_eq!(mem0.pointer("/measured_status").and_then(Value::as_str), Some("wrong_result"));
+	assert_eq!(
+		mem0.pointer("/unsupported_or_blocked_status/state").and_then(Value::as_str),
+		Some("not_encoded")
+	);
+	assert!(
+		mem0.pointer("/benchmark_before_claim")
+			.and_then(Value::as_str)
+			.is_some_and(|claim| claim.contains("Fix the local adapter's same-corpus result"))
 	);
 	assert_eq!(
 		openviking.pointer("/current_evidence_class").and_then(Value::as_str),
@@ -1252,6 +1263,11 @@ fn assert_qmd_strength_profile(report: &Value) -> Result<()> {
 	let retrieval = find_by_field(qmd_scenarios, "/scenario_id", "qmd-retrieval-quality")?;
 	let rerank_controls =
 		find_by_field(qmd_scenarios, "/scenario_id", "qmd-expansion-fusion-rerank-controls")?;
+	let stale_isolation =
+		find_by_field(qmd_scenarios, "/scenario_id", "qmd-stale-context-isolation")?;
+	let lifecycle = find_by_field(qmd_scenarios, "/scenario_id", "qmd-update-delete-cold-start")?;
+	let operator_debug =
+		find_by_field(qmd_scenarios, "/scenario_id", "qmd-operator-debug-evidence")?;
 	let replayability = find_by_field(qmd_scenarios, "/scenario_id", "qmd-local-replayability")?;
 	let wrong_result = find_by_field(qmd_scenarios, "/scenario_id", "qmd-wrong-result-diagnosis")?;
 
@@ -1269,6 +1285,12 @@ fn assert_qmd_strength_profile(report: &Value) -> Result<()> {
 		rerank_controls.pointer("/result_type").and_then(Value::as_str),
 		Some("not_encoded")
 	);
+	assert_eq!(stale_isolation.pointer("/result_type").and_then(Value::as_str), Some("pass"));
+	assert_eq!(stale_isolation.pointer("/elf_outcome").and_then(Value::as_str), Some("tie"));
+	assert_eq!(lifecycle.pointer("/result_type").and_then(Value::as_str), Some("pass"));
+	assert_eq!(lifecycle.pointer("/elf_outcome").and_then(Value::as_str), Some("tie"));
+	assert_eq!(operator_debug.pointer("/result_type").and_then(Value::as_str), Some("not_encoded"));
+	assert_eq!(operator_debug.pointer("/elf_outcome").and_then(Value::as_str), Some("not_tested"));
 	assert_eq!(replayability.pointer("/result_type").and_then(Value::as_str), Some("not_encoded"));
 	assert_eq!(replayability.pointer("/elf_outcome").and_then(Value::as_str), Some("not_tested"));
 	assert_eq!(
@@ -1325,10 +1347,19 @@ fn assert_openviking_strength_profile(report: &Value) -> Result<()> {
 		"/scenario_id",
 		"openviking-evidence-bearing-retrieval-precondition",
 	)?;
+	let local_embed_setup =
+		find_by_field(openviking_scenarios, "/scenario_id", "openviking-local-embed-setup")?;
 	let missed_terms = find_by_field(
 		openviking_scenarios,
 		"/scenario_id",
 		"openviking-missed-expected-terms-evidence",
+	)?;
+	let hierarchy =
+		find_by_field(openviking_scenarios, "/scenario_id", "openviking-hierarchy-selection")?;
+	let recursive_expansion = find_by_field(
+		openviking_scenarios,
+		"/scenario_id",
+		"openviking-recursive-context-expansion",
 	)?;
 
 	assert_eq!(openviking_scenarios.len(), 6);
@@ -1337,6 +1368,12 @@ fn assert_openviking_strength_profile(report: &Value) -> Result<()> {
 		Some("research_gate")
 	);
 	assert_eq!(trajectory.pointer("/result_type").and_then(Value::as_str), Some("not_encoded"));
+	assert_eq!(local_embed_setup.pointer("/result_type").and_then(Value::as_str), Some("pass"));
+	assert_eq!(
+		local_embed_setup.pointer("/elf_outcome").and_then(Value::as_str),
+		Some("not_tested")
+	);
+	assert_eq!(local_embed_setup.pointer("/typed_blocker"), Some(&Value::Null));
 	assert_eq!(precondition.pointer("/result_type").and_then(Value::as_str), Some("wrong_result"));
 	assert_eq!(precondition.pointer("/elf_outcome").and_then(Value::as_str), Some("elf_win"));
 	assert_eq!(
@@ -1345,6 +1382,16 @@ fn assert_openviking_strength_profile(report: &Value) -> Result<()> {
 	);
 	assert_eq!(missed_terms.pointer("/result_type").and_then(Value::as_str), Some("wrong_result"));
 	assert_eq!(missed_terms.pointer("/elf_outcome").and_then(Value::as_str), Some("not_tested"));
+	assert_eq!(hierarchy.pointer("/result_type").and_then(Value::as_str), Some("not_encoded"));
+	assert_eq!(hierarchy.pointer("/elf_outcome").and_then(Value::as_str), Some("not_tested"));
+	assert_eq!(
+		recursive_expansion.pointer("/result_type").and_then(Value::as_str),
+		Some("not_encoded")
+	);
+	assert_eq!(
+		recursive_expansion.pointer("/elf_outcome").and_then(Value::as_str),
+		Some("not_tested")
+	);
 
 	Ok(())
 }

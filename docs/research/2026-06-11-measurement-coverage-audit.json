@@ -83,7 +83,7 @@
   "adapter_ledger": {
     "adapter_records": 21,
     "unique_project_names": 17,
-    "external_project_count_note": "The generated report field external_project_count currently counts non-ELF adapter records, not unique external project names.",
+    "external_project_count_note": "The generated report field external_project_count counts unique non-ELF project names, not adapter records.",
     "evidence_class_counts": {
       "fixture_backed": 1,
       "live_baseline_only": 6,
