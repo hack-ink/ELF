@@ -29,7 +29,7 @@
       },
       "run": {
         "status": "blocked",
-        "evidence": "The current fixture set reports 40 jobs, 38 pass, 0 incomplete, 2 blocked, 0 wrong_result, 0 not_encoded, and 0 unsupported_claim.",
+        "evidence": "The current fixture set reports 43 jobs, 38 pass, 0 incomplete, 5 blocked, 0 wrong_result, 0 not_encoded, and 0 unsupported_claim.",
         "command": "cargo make real-world-memory",
         "artifact": "tmp/real-world-memory/real-world-memory-report.json"
       },
@@ -110,6 +110,11 @@
           "suite_id": "personalization",
           "status": "pass",
           "evidence": "The scoped preference fixture is encoded and passing."
+        },
+        {
+          "suite_id": "context_trajectory",
+          "status": "blocked",
+          "evidence": "OpenViking staged retrieval, hierarchy selection, and recursive/context expansion fixtures are encoded as blocked until same-corpus evidence ids and staged artifacts are materialized."
         }
       ],
       "evidence": [
@@ -126,7 +131,7 @@
       ],
       "notes": [
         "This adapter record exists to keep ELF fixture results separate from live external adapter results.",
-        "The remaining non-pass ELF fixture states are production-ops operator boundaries: provider credentials and an operator-owned private corpus manifest.",
+        "The remaining non-pass ELF fixture states are production-ops operator boundaries plus OpenViking context-trajectory measurement gates.",
         "Use elf_live_real_world for service-runtime real_world_job evidence; this fixture-backed record must not imply live-service behavior."
       ]
     },
@@ -1189,7 +1194,7 @@
       },
       "run": {
         "status": "wrong_result",
-        "evidence": "The adapter reached same-corpus add_resource/find, but returned 0 of 3 expected evidence-term matches in the smoke run.",
+        "evidence": "The adapter reached same-corpus add_resource/find and now exposes expected/matched/missing evidence ids, but returned 0 of 3 expected evidence-term matches in the smoke run.",
         "artifact": "tmp/live-baseline/live-baseline-report.json"
       },
       "result": {
@@ -1210,8 +1215,8 @@
         },
         {
           "capability": "context_trajectory",
-          "status": "not_encoded",
-          "evidence": "OpenViking staged/hierarchical retrieval is a reference dimension but is not encoded as a real_world_job run."
+          "status": "blocked",
+          "evidence": "OpenViking staged/hierarchical retrieval is now encoded as blocked context_trajectory fixtures until same-corpus expected evidence ids match and staged artifacts are materialized."
         },
         {
           "capability": "real_world_job_adapter",
@@ -1231,9 +1236,9 @@
           "evidence": "Hierarchical context resume scenarios are not encoded for OpenViking."
         },
         {
-          "suite_id": "operator_debugging_ux",
-          "status": "not_encoded",
-          "evidence": "Stage trajectory readback is not encoded in this runner."
+          "suite_id": "context_trajectory",
+          "status": "blocked",
+          "evidence": "The staged retrieval, hierarchy selection, and recursive/context expansion fixtures are encoded as blocked behind same-corpus evidence output and staged artifact readback."
         }
       ],
       "evidence": [
@@ -1266,11 +1271,11 @@
         ]
       },
       "notes": [
-        "Record OpenViking as wrong_result now that the pinned Docker local embedding path reaches add_resource/find but misses expected evidence."
+        "Record OpenViking as wrong_result now that the pinned Docker local embedding path reaches add_resource/find but misses expected evidence; keep context_trajectory as blocked until staged artifacts exist."
       ],
       "follow_up": {
-        "title": "Fix OpenViking evidence-bearing same-corpus retrieval output",
-        "reason": "The current adapter reaches add_resource/find but must return evidence-bearing content before real-world job suites can be scored."
+        "title": "Fix OpenViking evidence-bearing same-corpus retrieval output and materialize staged artifacts",
+        "reason": "The current adapter reaches add_resource/find and exposes expected evidence ids, but must match evidence ids and return stage/hierarchy/recursive artifacts before trajectory quality can be scored."
       }
     },
     {
@@ -1481,7 +1486,7 @@
       "evidence_class": "research_gate",
       "docker_default": true,
       "host_global_installs_required": false,
-      "overall_status": "not_encoded",
+      "overall_status": "blocked",
       "setup": {
         "status": "pass",
         "evidence": "The default pinned OpenViking local embedding dependency path reaches runtime in Docker.",
@@ -1489,12 +1494,12 @@
         "artifact": "tmp/live-baseline/OpenViking.log"
       },
       "run": {
-        "status": "not_encoded",
-        "evidence": "The XY-899 strength-profile report records staged retrieval, hierarchy selection, recursive/context expansion, and missed-term evidence as typed not_tested or wrong_result states; no new live trajectory adapter artifact is claimed."
+        "status": "blocked",
+        "evidence": "The XY-928 context_trajectory fixtures encode staged retrieval, hierarchy selection, and recursive/context expansion as blocked; no live trajectory adapter artifact is claimed."
       },
       "result": {
-        "status": "not_encoded",
-        "evidence": "No OpenViking deep context-trajectory result is claimed from the current wrong-result smoke run; the XY-899 report preserves the trajectory surfaces as not_tested.",
+        "status": "blocked",
+        "evidence": "No OpenViking deep context-trajectory result is claimed from the current wrong-result smoke run; the XY-928 fixtures preserve trajectory surfaces as blocked/not_tested.",
         "artifact": "docs/research/2026-06-11-qmd-openviking-strength-profile-report.json"
       },
       "capabilities": [
@@ -1505,8 +1510,8 @@
         },
         {
           "capability": "hierarchical_context_trajectory",
-          "status": "not_encoded",
-          "evidence": "Stage trajectory scoring remains not encoded until the smoke adapter returns evidence-bearing same-corpus output instead of the current wrong_result missed-term evidence."
+          "status": "blocked",
+          "evidence": "Stage trajectory scoring is encoded as blocked until the smoke adapter returns evidence-bearing same-corpus output and selected hierarchy/expansion artifacts."
         },
         {
           "capability": "host_global_install_boundary",
@@ -1517,13 +1522,13 @@
       "suites": [
         {
           "suite_id": "retrieval",
-          "status": "not_encoded",
-          "evidence": "Deep retrieval scoring is deferred until the smoke adapter returns evidence-bearing same-corpus output."
+          "status": "wrong_result",
+          "evidence": "Same-corpus retrieval is still the precondition and remains wrong_result in the live baseline."
         },
         {
-          "suite_id": "work_resume",
-          "status": "not_encoded",
-          "evidence": "No OpenViking resume or context trajectory real_world_job run is encoded."
+          "suite_id": "context_trajectory",
+          "status": "blocked",
+          "evidence": "OpenViking staged retrieval, hierarchy selection, and recursive/context expansion jobs are encoded as blocked fixtures."
         },
         {
           "suite_id": "operator_debugging_ux",
@@ -1557,12 +1562,12 @@
         "retry_guidance": [
           "Run the default pinned llama-cpp-python==0.3.28 CPU wheel path first.",
           "Override the OpenViking llama-cpp-python version or index only when the default wheel is unavailable for the Docker platform.",
-          "Fix evidence-bearing same-corpus output before adding context-trajectory real_world_job scoring for hierarchical retrieval."
+          "Fix evidence-bearing same-corpus output and materialize selected hierarchy/expansion artifacts before converting blocked context_trajectory fixtures into scored jobs."
         ],
-        "research_depth": "D2 reviewed; local embedding setup pinned; deep profile not encoded"
+        "research_depth": "D2 reviewed; local embedding setup pinned; blocked fixtures encoded"
       },
       "notes": [
-        "OpenViking remains a context-trajectory reference, but this gate prevents a smoke wrong_result from becoming a deep-profile claim."
+        "OpenViking remains a context-trajectory reference, but this gate prevents a smoke wrong_result or blocked fixture from becoming a deep-profile win claim."
       ]
     },
     {
