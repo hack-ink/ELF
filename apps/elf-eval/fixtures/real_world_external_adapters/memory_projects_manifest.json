@@ -1797,6 +1797,27 @@
           "evidence": "Resource envelope and service startup retry guidance must be documented first."
         }
       ],
+      "scenarios": [
+        {
+          "scenario_id": "reference_chunk_citation_mapping",
+          "suite_id": "retrieval",
+          "status": "blocked",
+          "elf_position": "untested",
+          "comparison_outcome": "blocked",
+          "evidence": "XY-929 adds a representative blocked fixture for RAGFlow reference-chunk citation scoring. The job must remain blocked until returned reference chunks include generated document ids, chunk ids, content, and document metadata mapped to benchmark evidence ids.",
+          "command": "cargo make real-world-memory-graph-rag",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/graph_rag/ragflow_reference_chunks_blocked.json"
+        },
+        {
+          "scenario_id": "private_or_large_corpus_ragflow_quality",
+          "suite_id": "retrieval",
+          "status": "not_encoded",
+          "elf_position": "untested",
+          "comparison_outcome": "non_goal",
+          "evidence": "Private corpus, large-corpus, and hosted RAGFlow quality are outside the generated-public Docker representative lane and must not be inferred from smoke reports.",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json"
+        }
+      ],
       "evidence": [
         {
           "kind": "source",
@@ -1918,6 +1939,27 @@
           "suite_id": "operator_debugging_ux",
           "status": "not_encoded",
           "evidence": "The smoke records context/source mappings, but full trace or viewer diagnostics are not mapped to benchmark scoring."
+        }
+      ],
+      "scenarios": [
+        {
+          "scenario_id": "context_source_reference_mapping",
+          "suite_id": "retrieval",
+          "status": "incomplete",
+          "elf_position": "untested",
+          "comparison_outcome": "blocked",
+          "evidence": "XY-929 adds a representative incomplete fixture for LightRAG context/source-reference scoring. The job cannot score until the opt-in Docker API exports generated source file paths, snippets, or reference content.",
+          "command": "cargo make real-world-memory-graph-rag",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/graph_rag/lightrag_context_sources_incomplete.json"
+        },
+        {
+          "scenario_id": "graph_rag_navigation_quality",
+          "suite_id": "retrieval",
+          "status": "not_encoded",
+          "elf_position": "untested",
+          "comparison_outcome": "not_tested",
+          "evidence": "LightRAG graph-RAG navigation quality remains not_tested beyond the context-source output contract; no ELF win, tie, or loss is claimed.",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json"
         }
       ],
       "evidence": [
@@ -2058,6 +2100,27 @@
           "evidence": "GraphRAG update/delete/current-versus-historical behavior is not encoded by the smoke."
         }
       ],
+      "scenarios": [
+        {
+          "scenario_id": "output_table_citation_mapping",
+          "suite_id": "knowledge_compilation",
+          "status": "blocked",
+          "elf_position": "untested",
+          "comparison_outcome": "blocked",
+          "evidence": "XY-929 adds a representative blocked fixture for GraphRAG output-table citation scoring. The job requires provider-backed Docker output tables whose document, text-unit, community, report, entity, and relationship identifiers map to generated evidence ids.",
+          "command": "cargo make real-world-memory-graph-rag",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/graph_rag/graphrag_output_tables_blocked.json"
+        },
+        {
+          "scenario_id": "graph_summary_synthesis_quality",
+          "suite_id": "knowledge_compilation",
+          "status": "not_encoded",
+          "elf_position": "untested",
+          "comparison_outcome": "not_tested",
+          "evidence": "GraphRAG graph-summary synthesis quality remains not_tested until provider-backed output tables and local-search context are scored beyond the smoke contract.",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json"
+        }
+      ],
       "evidence": [
         {
           "kind": "source",
@@ -2194,6 +2257,27 @@
           "suite_id": "production_ops",
           "status": "not_encoded",
           "evidence": "The smoke records setup and provider boundaries but does not encode backup, restore, private corpus, or hosted-service operations."
+        }
+      ],
+      "scenarios": [
+        {
+          "scenario_id": "temporal_validity_window_mapping",
+          "suite_id": "memory_evolution",
+          "status": "blocked",
+          "elf_position": "untested",
+          "comparison_outcome": "blocked",
+          "evidence": "XY-929 adds a representative blocked fixture for Graphiti/Zep temporal-validity scoring. The job remains blocked until provider-backed Docker output maps current and historical validity-window facts to generated evidence ids.",
+          "command": "cargo make real-world-memory-graph-rag",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/graph_rag/graphiti_temporal_validity_blocked.json"
+        },
+        {
+          "scenario_id": "hosted_zep_temporal_memory",
+          "suite_id": "memory_evolution",
+          "status": "unsupported",
+          "elf_position": "untested",
+          "comparison_outcome": "non_goal",
+          "evidence": "Hosted Zep service behavior is outside the Docker-local representative lane; no hosted-service result is used as ELF win/loss evidence.",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json"
         }
       ],
       "evidence": [
@@ -2618,6 +2702,17 @@
           "evidence": "Resume answers from wiki pages are not encoded."
         }
       ],
+      "scenarios": [
+        {
+          "scenario_id": "wiki_page_citation_lint",
+          "suite_id": "knowledge_compilation",
+          "status": "not_encoded",
+          "elf_position": "untested",
+          "comparison_outcome": "not_tested",
+          "evidence": "llm-wiki remains a knowledge-workflow reference. No Docker-contained plugin or file-based page materializer emits cited wiki sections for scoring.",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json"
+        }
+      ],
       "evidence": [
         {
           "kind": "source",
@@ -2690,6 +2785,17 @@
           "suite_id": "operator_debugging_ux",
           "status": "not_encoded",
           "evidence": "Operator continuity through brain pages is not encoded."
+        }
+      ],
+      "scenarios": [
+        {
+          "scenario_id": "compiled_truth_timeline_export",
+          "suite_id": "knowledge_compilation",
+          "status": "blocked",
+          "elf_position": "untested",
+          "comparison_outcome": "blocked",
+          "evidence": "gbrain compiled-truth and timeline scoring remains blocked until a Docker-local brain repository and database setup emits current-truth pages with source timeline evidence.",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json"
         }
       ],
       "evidence": [
@@ -2794,6 +2900,27 @@
           "suite_id": "work_resume",
           "status": "not_encoded",
           "evidence": "Resume answers from graph context are not encoded."
+        }
+      ],
+      "scenarios": [
+        {
+          "scenario_id": "graph_report_navigation_lint",
+          "suite_id": "knowledge_compilation",
+          "status": "wrong_result",
+          "elf_position": "untested",
+          "comparison_outcome": "not_tested",
+          "evidence": "XY-929 adds a representative graphify fixture that scores graph report navigation, source-location citations, stale-source lint, and unsupported-summary handling as wrong_result because stale-source lint is still missing. This remains graphify non-pass evidence, not an ELF victory claim.",
+          "command": "cargo make real-world-memory-graph-rag",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/graph_rag/graphify_graph_report_wrong_result.json"
+        },
+        {
+          "scenario_id": "broad_graph_navigation_quality",
+          "suite_id": "retrieval",
+          "status": "not_encoded",
+          "elf_position": "untested",
+          "comparison_outcome": "not_tested",
+          "evidence": "Broad graph-navigation, codebase, multimodal, and private-corpus quality remain not_tested; the graphify evidence is bounded to generated graph/report artifacts.",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json"
         }
       ],
       "evidence": [
