@@ -1035,6 +1035,7 @@ dependencies = [
  "elf-chunking",
  "elf-cli",
  "elf-config",
+ "elf-domain",
  "elf-service",
  "elf-storage",
  "elf-testkit",

@@ -18,15 +18,16 @@ use clap::{Parser, Subcommand, ValueEnum};
 use color_eyre::{self, eyre};
 use reqwest::RequestBuilder;
 use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value};
+use serde_json::{self, Map};
 use tokio::{task::JoinSet, time};
 use uuid::Uuid;
 
 use elf_chunking::ChunkingConfig;
 use elf_config::{Config, EmbeddingProviderConfig, LlmProviderConfig, ProviderConfig};
+use elf_domain::writegate::{self, WritePolicy};
 use elf_service::{
 	AddNoteInput, AddNoteRequest, BoxFuture, ElfService, EmbeddingProvider, ExtractorProvider,
-	PayloadLevel, Providers, RerankProvider, SearchRequest,
+	PayloadLevel, Providers, RerankProvider, SearchItem, SearchRequest,
 };
 use elf_storage::{db::Db, qdrant::QdrantStore};
 use elf_testkit::TestDatabase;
@@ -139,7 +140,7 @@ struct LightragArgs {
 #[derive(Debug)]
 struct LoadedJob {
 	path: PathBuf,
-	value: Value,
+	value: serde_json::Value,
 	job: LiveJob,
 }
 
@@ -169,6 +170,20 @@ struct LiveCorpusItem {
 	evidence_id: String,
 	text: Option<String>,
 	local_ref: Option<String>,
+	#[serde(default)]
+	capture: LiveCapturePolicy,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+struct LiveCapturePolicy {
+	#[serde(default)]
+	action: LiveCaptureAction,
+
+	source_id: Option<String>,
+
+	evidence_binding: Option<String>,
+
+	write_policy: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -181,7 +196,7 @@ struct LiveExpectedAnswer {
 	#[serde(default)]
 	must_include: Vec<LiveExpectedClaim>,
 	#[serde(default)]
-	evidence_links: Map<String, Value>,
+	evidence_links: Map<String, serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -206,7 +221,7 @@ struct MaterializationEvidence {
 	command_evidence: Vec<CommandEvidence>,
 	jobs: Vec<MaterializedJobEvidence>,
 	#[serde(skip_serializing_if = "Option::is_none")]
-	metadata: Option<Value>,
+	metadata: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Serialize)]
@@ -236,6 +251,8 @@ struct MaterializedJobEvidence {
 	source_mappings: Vec<SourceMappingEvidence>,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	operator_debug: Option<OperatorDebugMaterializationEvidence>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	capture: Option<CaptureMaterializationEvidence>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -245,6 +262,44 @@ struct OperatorDebugMaterializationEvidence {
 	candidate_drop_visibility: String,
 	repair_action_clarity: String,
 	raw_sql_needed: bool,
+}
+
+#[derive(Clone, Debug, Default, Serialize)]
+struct CaptureMaterializationEvidence {
+	stored_evidence_ids: Vec<String>,
+	excluded_evidence_ids: Vec<String>,
+	source_ids: Vec<String>,
+	write_policy_audit_count: usize,
+	write_policy_exclusion_count: usize,
+	write_policy_redaction_count: usize,
+	#[serde(skip_serializing_if = "Vec::is_empty")]
+	runtime_source_refs: Vec<CaptureRuntimeSourceRefEvidence>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+struct CaptureRuntimeSourceRefEvidence {
+	evidence_id: String,
+	source_ref: serde_json::Value,
+}
+
+#[derive(Clone, Debug, Default)]
+struct CaptureRuntimeEvidence {
+	items: Vec<CaptureRuntimeEvidenceItem>,
+}
+impl CaptureRuntimeEvidence {
+	fn item_for(&self, evidence_id: &str) -> Option<&CaptureRuntimeEvidenceItem> {
+		self.items.iter().find(|item| item.evidence_id == evidence_id)
+	}
+}
+
+#[derive(Clone, Debug)]
+struct CaptureRuntimeEvidenceItem {
+	evidence_id: String,
+	source_id: Option<String>,
+	evidence_binding: Option<String>,
+	write_policy_applied: bool,
+	capture_action: Option<String>,
+	source_ref: serde_json::Value,
 }
 
 #[derive(Debug, Serialize)]
@@ -257,7 +312,7 @@ struct AdapterResponseOutput {
 struct AnswerOutput {
 	content: String,
 	evidence_ids: Vec<String>,
-	claims: Vec<Value>,
+	claims: Vec<serde_json::Value>,
 	latency_ms: f64,
 	cost: CostOutput,
 	trace_explainability: TraceExplainabilityOutput,
@@ -293,7 +348,7 @@ struct TraceStageOutput {
 struct MaterializedJob {
 	response: AdapterResponseOutput,
 	evidence: MaterializedJobEvidence,
-	operator_debug: Option<Value>,
+	operator_debug: Option<serde_json::Value>,
 }
 
 #[derive(Debug)]
@@ -306,8 +361,10 @@ struct MaterializedJobInput {
 	trace_id: Option<Uuid>,
 	failure: Option<String>,
 	source_mappings: Vec<SourceMappingEvidence>,
-	operator_debug: Option<Value>,
+	operator_debug: Option<serde_json::Value>,
 	operator_debug_evidence: Option<OperatorDebugMaterializationEvidence>,
+	capture: Option<CaptureMaterializationEvidence>,
+	capture_failure: Option<String>,
 }
 
 struct MaterializedOutput<'a> {
@@ -319,13 +376,14 @@ struct MaterializedOutput<'a> {
 	jobs: &'a [LoadedJob],
 	materialized: &'a [MaterializedJob],
 	command_evidence: Vec<CommandEvidence>,
-	metadata: Option<Value>,
+	metadata: Option<serde_json::Value>,
 }
 
 #[derive(Debug)]
 struct CorpusText {
 	evidence_id: String,
 	text: String,
+	capture: LiveCapturePolicy,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -399,8 +457,8 @@ impl ExtractorProvider for NoopExtractor {
 	fn extract<'a>(
 		&'a self,
 		_cfg: &'a LlmProviderConfig,
-		_messages: &'a [Value],
-	) -> BoxFuture<'a, elf_service::Result<Value>> {
+		_messages: &'a [serde_json::Value],
+	) -> BoxFuture<'a, elf_service::Result<serde_json::Value>> {
 		Box::pin(async move { Ok(serde_json::json!({ "notes": [] })) })
 	}
 }
@@ -409,6 +467,14 @@ impl ExtractorProvider for NoopExtractor {
 struct SelectedEvidenceText {
 	content: String,
 	evidence_ids: Vec<String>,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum LiveCaptureAction {
+	#[default]
+	Store,
+	Exclude,
 }
 
 #[derive(Debug, Deserialize)]
@@ -637,7 +703,7 @@ fn materialize_qmd_job(
 		log_path,
 	)?;
 	let latency_ms = started_at.elapsed().as_secs_f64() * 1_000.0;
-	let results = serde_json::from_str::<Value>(&stdout).map_err(|err| {
+	let results = serde_json::from_str::<serde_json::Value>(&stdout).map_err(|err| {
 		eyre::eyre!("qmd query did not return JSON for {}: {err}", loaded.job.job_id)
 	})?;
 	let entries = results.as_array().cloned().unwrap_or_default();
@@ -679,6 +745,8 @@ fn materialize_qmd_job(
 			source_mappings: Vec::new(),
 			operator_debug,
 			operator_debug_evidence,
+			capture: None,
+			capture_failure: None,
 		},
 	))
 }
@@ -724,6 +792,8 @@ fn lightrag_failure_jobs(
 					source_mappings: Vec::new(),
 					operator_debug: None,
 					operator_debug_evidence: None,
+					capture: None,
+					capture_failure: None,
 				},
 			)
 		})
@@ -755,22 +825,22 @@ fn write_lightrag_corpus(
 		.collect()
 }
 
-fn lightrag_index_failed(status: &Value) -> bool {
-	status.get("documents").and_then(Value::as_array).into_iter().flatten().any(|doc| {
+fn lightrag_index_failed(status: &serde_json::Value) -> bool {
+	status.get("documents").and_then(serde_json::Value::as_array).into_iter().flatten().any(|doc| {
 		doc.get("status")
-			.and_then(Value::as_str)
+			.and_then(serde_json::Value::as_str)
 			.is_some_and(|status| status.to_ascii_lowercase().contains("fail"))
 	})
 }
 
-fn lightrag_index_processed(status: &Value, expected_docs: usize) -> bool {
-	let Some(documents) = status.get("documents").and_then(Value::as_array) else {
+fn lightrag_index_processed(status: &serde_json::Value, expected_docs: usize) -> bool {
+	let Some(documents) = status.get("documents").and_then(serde_json::Value::as_array) else {
 		return false;
 	};
 
 	documents.len() >= expected_docs
 		&& documents.iter().all(|doc| {
-			doc.get("status").and_then(Value::as_str).is_some_and(|status| {
+			doc.get("status").and_then(serde_json::Value::as_str).is_some_and(|status| {
 				let normalized = status.to_ascii_lowercase();
 
 				normalized.contains("processed") || normalized.contains("success")
@@ -785,18 +855,18 @@ fn lightrag_keywords(query: &str) -> Vec<String> {
 fn lightrag_source_mappings(
 	corpus: &[CorpusText],
 	sources: &[LightragSource],
-	response: &Value,
+	response: &serde_json::Value,
 ) -> Vec<SourceMappingEvidence> {
 	let mut mappings = Vec::new();
 
-	if let Some(references) = response.get("references").and_then(Value::as_array) {
+	if let Some(references) = response.get("references").and_then(serde_json::Value::as_array) {
 		for reference in references {
 			mappings.push(lightrag_reference_mapping(corpus, sources, reference));
 		}
 	}
 
 	if mappings.is_empty()
-		&& let Some(context) = response.get("response").and_then(Value::as_str)
+		&& let Some(context) = response.get("response").and_then(serde_json::Value::as_str)
 	{
 		let evidence_ids = map_lightrag_evidence_ids(corpus, sources, context);
 
@@ -816,20 +886,20 @@ fn lightrag_source_mappings(
 fn lightrag_reference_mapping(
 	corpus: &[CorpusText],
 	sources: &[LightragSource],
-	reference: &Value,
+	reference: &serde_json::Value,
 ) -> SourceMappingEvidence {
 	let source = reference
 		.get("file_path")
-		.and_then(Value::as_str)
-		.or_else(|| reference.get("reference_id").and_then(Value::as_str))
+		.and_then(serde_json::Value::as_str)
+		.or_else(|| reference.get("reference_id").and_then(serde_json::Value::as_str))
 		.unwrap_or("unknown_source")
 		.to_string();
 	let content = reference
 		.get("content")
-		.and_then(Value::as_array)
+		.and_then(serde_json::Value::as_array)
 		.into_iter()
 		.flatten()
-		.filter_map(Value::as_str)
+		.filter_map(serde_json::Value::as_str)
 		.collect::<Vec<_>>();
 	let joined_content = content.join("\n");
 	let combined = format!("{source}\n{joined_content}");
@@ -900,7 +970,7 @@ fn lightrag_api_base(args: &LightragArgs) -> String {
 	args.api_base.trim_end_matches('/').to_string()
 }
 
-fn lightrag_metadata(args: &LightragArgs, run_slug: &str) -> Value {
+fn lightrag_metadata(args: &LightragArgs, run_slug: &str) -> serde_json::Value {
 	serde_json::json!({
 		"schema": "elf.lightrag_context_export_metadata/v1",
 		"run_slug": run_slug,
@@ -960,7 +1030,9 @@ fn materialized_job(
 	adapter_id: &str,
 	input: MaterializedJobInput,
 ) -> MaterializedJob {
-	let required_evidence_satisfied = required_evidence_satisfied(loaded, &input.evidence_ids);
+	let capture_failure = input.capture_failure.clone();
+	let required_evidence_satisfied =
+		capture_failure.is_none() && required_evidence_satisfied(loaded, &input.evidence_ids);
 	let status = if input.failure.is_some() {
 		MaterializationStatus::Incomplete
 	} else if !required_evidence_satisfied {
@@ -968,8 +1040,17 @@ fn materialized_job(
 	} else {
 		MaterializationStatus::Pass
 	};
-	let failure_stage = input.failure.as_ref().map(|_| "adapter_runtime".to_string());
-	let stage_notes = if !required_evidence_satisfied {
+	let failure_stage = if input.failure.is_some() {
+		Some("live_adapter.retrieve".to_string())
+	} else if capture_failure.is_some() {
+		Some("live_adapter.capture_policy".to_string())
+	} else {
+		None
+	};
+	let failure_reason = input.failure.clone().or(capture_failure);
+	let stage_notes = if let Some(reason) = &failure_reason {
+		reason.clone()
+	} else if !required_evidence_satisfied {
 		"Adapter did not return all required mapped evidence for this job.".to_string()
 	} else {
 		"Adapter returned mapped evidence through its live retrieval path.".to_string()
@@ -991,10 +1072,11 @@ fn materialized_job(
 				},
 				trace_explainability: TraceExplainabilityOutput {
 					trace_id: input.trace_id.map(|id| id.to_string()),
-					failure_stage: failure_stage.map(|_| "live_adapter.retrieve".to_string()),
-					failure_reason: input.failure.clone(),
+					failure_stage: failure_stage.clone(),
+					failure_reason: failure_reason.clone(),
 					stages: vec![TraceStageOutput {
-						stage_name: "live_adapter.retrieve".to_string(),
+						stage_name: failure_stage
+							.unwrap_or_else(|| "live_adapter.retrieve".to_string()),
 						kept_evidence: input.evidence_ids.clone(),
 						dropped_evidence: Vec::new(),
 						demoted_evidence: Vec::new(),
@@ -1016,15 +1098,19 @@ fn materialized_job(
 			indexing_latency_ms: input.indexing_latency_ms,
 			latency_ms: input.latency_ms,
 			trace_id: input.trace_id,
-			failure: input.failure,
+			failure: failure_reason,
 			source_mappings: input.source_mappings,
 			operator_debug: input.operator_debug_evidence,
+			capture: input.capture,
 		},
 	}
 }
 
 fn declared_encoding_job(adapter_id: &str, loaded: &LoadedJob) -> Option<MaterializedJob> {
 	if is_operator_debug_live_adapter(adapter_id, loaded.job.suite.as_str()) {
+		return None;
+	}
+	if is_elf_capture_live_adapter(adapter_id, loaded.job.suite.as_str()) {
 		return None;
 	}
 
@@ -1045,6 +1131,9 @@ fn not_encoded_job(adapter_id: &str, loaded: &LoadedJob) -> Option<MaterializedJ
 	if is_operator_debug_live_adapter(adapter_id, loaded.job.suite.as_str()) {
 		return None;
 	}
+	if is_elf_capture_live_adapter(adapter_id, loaded.job.suite.as_str()) {
+		return None;
+	}
 
 	not_encoded_reason(loaded.job.suite.as_str()).map(|reason| {
 		materialized_declared_status_job(
@@ -1059,6 +1148,11 @@ fn not_encoded_job(adapter_id: &str, loaded: &LoadedJob) -> Option<MaterializedJ
 fn is_operator_debug_live_adapter(adapter_id: &str, suite: &str) -> bool {
 	suite == "operator_debugging_ux"
 		&& matches!(adapter_id, "elf_operator_debug_live" | "qmd_operator_debug_live")
+}
+
+fn is_elf_capture_live_adapter(adapter_id: &str, suite: &str) -> bool {
+	suite == "capture_integration"
+		&& matches!(adapter_id, "elf_live_real_world" | "elf_capture_write_policy_live")
 }
 
 fn not_encoded_reason(suite: &str) -> Option<&'static str> {
@@ -1144,6 +1238,7 @@ fn materialized_declared_status_job(
 			failure,
 			source_mappings: Vec::new(),
 			operator_debug: None,
+			capture: None,
 		},
 		operator_debug: None,
 	}
@@ -1155,7 +1250,7 @@ fn operator_debug_output(
 	trace_id: Option<Uuid>,
 	replay_command: String,
 	replay_artifact: String,
-) -> (Option<Value>, Option<OperatorDebugMaterializationEvidence>) {
+) -> (Option<serde_json::Value>, Option<OperatorDebugMaterializationEvidence>) {
 	if loaded.job.suite != "operator_debugging_ux" {
 		return (None, None);
 	}
@@ -1174,37 +1269,42 @@ fn operator_debug_output(
 	let candidate_drop_visibility =
 		operator_debug_candidate_visibility(adapter_kind, object).to_string();
 
-	object.insert("trace_available".to_string(), Value::Bool(trace_available));
-	object.insert("replay_command_available".to_string(), Value::Bool(replay_command_available));
-	object.insert("raw_sql_needed".to_string(), Value::Bool(raw_sql_needed));
+	object.insert("trace_available".to_string(), serde_json::Value::Bool(trace_available));
+	object.insert(
+		"replay_command_available".to_string(),
+		serde_json::Value::Bool(replay_command_available),
+	);
+	object.insert("raw_sql_needed".to_string(), serde_json::Value::Bool(raw_sql_needed));
 	object.insert(
 		"dropped_candidate_visibility".to_string(),
-		Value::String(candidate_drop_visibility.clone()),
+		serde_json::Value::String(candidate_drop_visibility.clone()),
 	);
 	object.insert(
 		"trace_completeness".to_string(),
-		Value::String(operator_debug_trace_completeness(adapter_kind, trace_available).to_string()),
+		serde_json::Value::String(
+			operator_debug_trace_completeness(adapter_kind, trace_available).to_string(),
+		),
 	);
 	object.insert(
 		"repair_action_clarity".to_string(),
-		Value::String(repair_action_clarity.to_string()),
+		serde_json::Value::String(repair_action_clarity.to_string()),
 	);
-	object.insert("replay_command".to_string(), Value::String(replay_command.clone()));
-	object.insert("replay_artifact".to_string(), Value::String(replay_artifact));
+	object.insert("replay_command".to_string(), serde_json::Value::String(replay_command.clone()));
+	object.insert("replay_artifact".to_string(), serde_json::Value::String(replay_artifact));
 
 	match adapter_kind {
 		AdapterKind::ElfServiceRuntime =>
 			if let Some(trace_id) = trace_id {
 				let trace_id = trace_id.to_string();
 
-				object.insert("trace_id".to_string(), Value::String(trace_id.clone()));
+				object.insert("trace_id".to_string(), serde_json::Value::String(trace_id.clone()));
 				object.insert(
 					"viewer_url".to_string(),
-					Value::String(format!("/viewer?trace_id={trace_id}")),
+					serde_json::Value::String(format!("/viewer?trace_id={trace_id}")),
 				);
 				object.insert(
 					"admin_trace_bundle_url".to_string(),
-					Value::String(format!(
+					serde_json::Value::String(format!(
 						"/v2/admin/traces/{trace_id}/bundle?mode=full&stage_items_limit=128&candidates_limit=200"
 					)),
 				);
@@ -1249,12 +1349,12 @@ fn operator_debug_trace_completeness(
 
 fn operator_debug_candidate_visibility(
 	adapter_kind: AdapterKind,
-	object: &Map<String, Value>,
+	object: &Map<String, serde_json::Value>,
 ) -> &str {
 	match adapter_kind {
 		AdapterKind::ElfServiceRuntime => object
 			.get("dropped_candidate_visibility")
-			.and_then(Value::as_str)
+			.and_then(serde_json::Value::as_str)
 			.unwrap_or("visible through trace bundle replay candidates"),
 		AdapterKind::QmdCliRuntime =>
 			"qmd top-k replay output is available, but intermediate candidate-drop stages are not exposed",
@@ -1262,11 +1362,13 @@ fn operator_debug_candidate_visibility(
 	}
 }
 
-fn string_array_from_object(object: &Map<String, Value>, key: &str) -> Vec<String> {
+fn string_array_from_object(object: &Map<String, serde_json::Value>, key: &str) -> Vec<String> {
 	object
 		.get(key)
-		.and_then(Value::as_array)
-		.map(|items| items.iter().filter_map(Value::as_str).map(ToString::to_string).collect())
+		.and_then(serde_json::Value::as_array)
+		.map(|items| {
+			items.iter().filter_map(serde_json::Value::as_str).map(ToString::to_string).collect()
+		})
 		.unwrap_or_default()
 }
 
@@ -1295,7 +1397,7 @@ fn shell_quote(value: &str) -> String {
 	format!("'{}'", value.replace('\'', "'\\''"))
 }
 
-fn evidence_linked_claims(loaded: &LoadedJob, evidence_ids: &[String]) -> Vec<Value> {
+fn evidence_linked_claims(loaded: &LoadedJob, evidence_ids: &[String]) -> Vec<serde_json::Value> {
 	loaded
 		.job
 		.expected_answer
@@ -1325,7 +1427,7 @@ fn evidence_linked_claims(loaded: &LoadedJob, evidence_ids: &[String]) -> Vec<Va
 		.collect()
 }
 
-fn evidence_link_ids(value: &Value) -> Vec<String> {
+fn evidence_link_ids(value: &serde_json::Value) -> Vec<String> {
 	if let Some(id) = value.as_str() {
 		return vec![id.to_string()];
 	}
@@ -1333,7 +1435,11 @@ fn evidence_link_ids(value: &Value) -> Vec<String> {
 	value
 		.as_array()
 		.map(|items| {
-			items.iter().filter_map(Value::as_str).map(ToString::to_string).collect::<Vec<_>>()
+			items
+				.iter()
+				.filter_map(serde_json::Value::as_str)
+				.map(ToString::to_string)
+				.collect::<Vec<_>>()
 		})
 		.unwrap_or_default()
 }
@@ -1389,6 +1495,231 @@ fn selected_required_corpus_texts(
 	SelectedEvidenceText { content, evidence_ids: selected_ids }
 }
 
+fn capture_runtime_evidence_from_search_items(items: &[SearchItem]) -> CaptureRuntimeEvidence {
+	let source_refs = items.iter().map(|item| &item.source_ref);
+
+	capture_runtime_evidence_from_source_refs(source_refs)
+}
+
+fn capture_runtime_evidence_from_source_refs<'a>(
+	source_refs: impl IntoIterator<Item = &'a serde_json::Value>,
+) -> CaptureRuntimeEvidence {
+	let mut runtime = CaptureRuntimeEvidence::default();
+
+	for source_ref in source_refs {
+		let Some(evidence_id) = source_ref.get("evidence_id").and_then(serde_json::Value::as_str)
+		else {
+			continue;
+		};
+
+		if runtime.items.iter().any(|item| item.evidence_id == evidence_id) {
+			continue;
+		}
+
+		runtime.items.push(CaptureRuntimeEvidenceItem {
+			evidence_id: evidence_id.to_string(),
+			source_id: source_ref
+				.get("source_id")
+				.and_then(serde_json::Value::as_str)
+				.map(ToString::to_string),
+			evidence_binding: source_ref
+				.get("evidence_binding")
+				.and_then(serde_json::Value::as_str)
+				.map(ToString::to_string),
+			write_policy_applied: source_ref
+				.get("write_policy_applied")
+				.and_then(serde_json::Value::as_bool)
+				.unwrap_or(false),
+			capture_action: source_ref
+				.get("capture_action")
+				.and_then(serde_json::Value::as_str)
+				.map(ToString::to_string),
+			source_ref: source_ref.clone(),
+		});
+	}
+
+	runtime
+}
+
+fn capture_with_runtime_source_refs(
+	mut capture: CaptureMaterializationEvidence,
+	runtime: &CaptureRuntimeEvidence,
+) -> CaptureMaterializationEvidence {
+	capture.source_ids.clear();
+	capture.runtime_source_refs.clear();
+
+	for item in &runtime.items {
+		if let Some(source_id) = item.source_id.as_deref() {
+			push_unique(&mut capture.source_ids, source_id.to_string());
+		}
+
+		capture.runtime_source_refs.push(CaptureRuntimeSourceRefEvidence {
+			evidence_id: item.evidence_id.clone(),
+			source_ref: item.source_ref.clone(),
+		});
+	}
+
+	capture
+}
+
+fn validate_capture_runtime_evidence(
+	suite: &str,
+	corpus: &[CorpusText],
+	capture: &CaptureMaterializationEvidence,
+	runtime: &CaptureRuntimeEvidence,
+) -> Option<String> {
+	if suite != "capture_integration" {
+		return None;
+	}
+
+	let mut failures = Vec::new();
+	let mut expected_redactions = 0_usize;
+	let mut expected_exclusions = 0_usize;
+
+	for item in corpus {
+		match item.capture.action {
+			LiveCaptureAction::Exclude => {
+				if runtime.item_for(item.evidence_id.as_str()).is_some() {
+					failures.push(format!(
+						"excluded evidence {} was returned by live search",
+						item.evidence_id
+					));
+				}
+				if capture.stored_evidence_ids.iter().any(|id| id == &item.evidence_id) {
+					failures.push(format!(
+						"excluded evidence {} was stored by live ingestion",
+						item.evidence_id
+					));
+				}
+				if !capture.excluded_evidence_ids.iter().any(|id| id == &item.evidence_id) {
+					failures.push(format!(
+						"excluded evidence {} was not recorded as excluded",
+						item.evidence_id
+					));
+				}
+			},
+			LiveCaptureAction::Store => {
+				let runtime_item = runtime.item_for(item.evidence_id.as_str());
+
+				if let Some(expected_source_id) = item.capture.source_id.as_deref() {
+					match runtime_item.and_then(|observed| observed.source_id.as_deref()) {
+						Some(observed) if observed == expected_source_id => {},
+						Some(observed) => failures.push(format!(
+							"evidence {} returned source_id {observed}, expected {expected_source_id}",
+							item.evidence_id
+						)),
+						None => failures.push(format!(
+							"evidence {} did not return expected source_id {expected_source_id}",
+							item.evidence_id
+						)),
+					}
+				}
+				if let Some(expected_binding) = item.capture.evidence_binding.as_deref() {
+					match runtime_item.and_then(|observed| observed.evidence_binding.as_deref()) {
+						Some(observed) if observed == expected_binding => {},
+						Some(observed) => failures.push(format!(
+							"evidence {} returned evidence_binding {observed}, expected {expected_binding}",
+							item.evidence_id
+						)),
+						None => failures.push(format!(
+							"evidence {} did not return expected evidence_binding {expected_binding}",
+							item.evidence_id
+						)),
+					}
+				}
+				if let Some(policy_value) = &item.capture.write_policy {
+					match write_policy_from_value(policy_value, item.evidence_id.as_str()) {
+						Ok(policy) => {
+							expected_exclusions += policy.exclusions.len();
+							expected_redactions += policy.redactions.len();
+						},
+						Err(err) => failures.push(err.to_string()),
+					}
+
+					if !runtime_item.is_some_and(|observed| observed.write_policy_applied) {
+						failures.push(format!(
+							"evidence {} did not return write_policy_applied=true",
+							item.evidence_id
+						));
+					}
+				}
+				if let Some(observed) =
+					runtime_item.and_then(|observed| observed.capture_action.as_deref())
+					&& observed != capture_action_str(item.capture.action)
+				{
+					failures.push(format!(
+						"evidence {} returned capture_action {observed}, expected {}",
+						item.evidence_id,
+						capture_action_str(item.capture.action)
+					));
+				}
+			},
+		}
+	}
+
+	if capture.write_policy_exclusion_count < expected_exclusions {
+		failures.push(format!(
+			"write-policy exclusion count {} was below expected {expected_exclusions}",
+			capture.write_policy_exclusion_count
+		));
+	}
+	if capture.write_policy_redaction_count < expected_redactions {
+		failures.push(format!(
+			"write-policy redaction count {} was below expected {expected_redactions}",
+			capture.write_policy_redaction_count
+		));
+	}
+	if expected_exclusions + expected_redactions > 0 && capture.write_policy_audit_count == 0 {
+		failures
+			.push("write-policy audit count was zero despite expected policy effects".to_string());
+	}
+	if failures.is_empty() {
+		None
+	} else {
+		Some(format!("Capture runtime validation failed: {}", failures.join("; ")))
+	}
+}
+
+fn elf_stored_corpus_texts(corpus: &[CorpusText]) -> color_eyre::Result<Vec<CorpusText>> {
+	let mut stored = Vec::new();
+
+	for item in corpus {
+		if item.capture.action == LiveCaptureAction::Exclude {
+			continue;
+		}
+
+		stored.push(CorpusText {
+			evidence_id: item.evidence_id.clone(),
+			text: transformed_capture_text(item)?.trim().to_string(),
+			capture: item.capture.clone(),
+		});
+	}
+
+	Ok(stored)
+}
+
+fn transformed_capture_text(item: &CorpusText) -> color_eyre::Result<String> {
+	let Some(policy_value) = &item.capture.write_policy else {
+		return Ok(item.text.clone());
+	};
+	let policy = write_policy_from_value(policy_value, item.evidence_id.as_str())?;
+	let result =
+		writegate::apply_write_policy(item.text.as_str(), Some(&policy)).map_err(|err| {
+			eyre::eyre!("Invalid write_policy for evidence {}: {err:?}", item.evidence_id)
+		})?;
+
+	Ok(result.transformed)
+}
+
+fn write_policy_from_value(
+	value: &serde_json::Value,
+	evidence_id: &str,
+) -> color_eyre::Result<WritePolicy> {
+	serde_json::from_value::<WritePolicy>(value.clone()).map_err(|err| {
+		eyre::eyre!("Failed to parse write_policy for evidence {evidence_id}: {err}")
+	})
+}
+
 fn failure_jobs(
 	adapter_id: &str,
 	jobs: &[LoadedJob],
@@ -1411,6 +1742,8 @@ fn failure_jobs(
 					source_mappings: Vec::new(),
 					operator_debug: None,
 					operator_debug_evidence: None,
+					capture: None,
+					capture_failure: None,
 				},
 			)
 		})
@@ -1436,10 +1769,15 @@ fn write_materialized_output(output: MaterializedOutput<'_>) -> color_eyre::Resu
 		adapter_response
 			.insert("answer".to_string(), serde_json::to_value(&materialized.response.answer)?);
 
-		value["corpus"]["adapter_response"] = Value::Object(adapter_response);
+		value["corpus"]["adapter_response"] = serde_json::Value::Object(adapter_response);
 
 		if let Some(operator_debug) = &materialized.operator_debug {
 			value["operator_debug"] = operator_debug.clone();
+		}
+		if let Some(capture) = &materialized.evidence.capture {
+			apply_capture_runtime_source_refs(&mut value, capture);
+
+			value["capture_materialization"] = serde_json::to_value(capture)?;
 		}
 
 		if matches!(
@@ -1486,6 +1824,31 @@ fn write_materialized_output(output: MaterializedOutput<'_>) -> color_eyre::Resu
 	Ok(())
 }
 
+fn apply_capture_runtime_source_refs(
+	value: &mut serde_json::Value,
+	capture: &CaptureMaterializationEvidence,
+) {
+	let Some(items) = value.pointer_mut("/corpus/items").and_then(serde_json::Value::as_array_mut)
+	else {
+		return;
+	};
+
+	for item in items {
+		let Some(evidence_id) = item.get("evidence_id").and_then(serde_json::Value::as_str) else {
+			continue;
+		};
+		let Some(source_ref) = capture
+			.runtime_source_refs
+			.iter()
+			.find(|source_ref| source_ref.evidence_id == evidence_id)
+		else {
+			continue;
+		};
+
+		item["source_ref"] = source_ref.source_ref.clone();
+	}
+}
+
 fn clone_job_evidence(evidence: &MaterializedJobEvidence) -> MaterializedJobEvidence {
 	MaterializedJobEvidence {
 		job_id: evidence.job_id.clone(),
@@ -1501,6 +1864,7 @@ fn clone_job_evidence(evidence: &MaterializedJobEvidence) -> MaterializedJobEvid
 		failure: evidence.failure.clone(),
 		source_mappings: evidence.source_mappings.clone(),
 		operator_debug: evidence.operator_debug.clone(),
+		capture: evidence.capture.clone(),
 	}
 }
 
@@ -1558,7 +1922,7 @@ fn load_jobs(path: &Path) -> color_eyre::Result<Vec<LoadedJob>> {
 
 	for fixture in paths {
 		let raw = fs::read_to_string(&fixture)?;
-		let value = serde_json::from_str::<Value>(&raw)
+		let value = serde_json::from_str::<serde_json::Value>(&raw)
 			.map_err(|err| eyre::eyre!("Failed to parse {} as JSON: {err}", fixture.display()))?;
 		let job = serde_json::from_value::<LiveJob>(value.clone()).map_err(|err| {
 			eyre::eyre!("Failed to parse {} as real_world_job: {err}", fixture.display())
@@ -1631,7 +1995,11 @@ fn corpus_texts(loaded: &LoadedJob) -> color_eyre::Result<Vec<CorpusText>> {
 				},
 			};
 
-			Ok(CorpusText { evidence_id: item.evidence_id.clone(), text: text.trim().to_string() })
+			Ok(CorpusText {
+				evidence_id: item.evidence_id.clone(),
+				text: text.trim().to_string(),
+				capture: item.capture.clone(),
+			})
 		})
 		.collect()
 }
@@ -1905,6 +2273,20 @@ fn split_long_token(token: &str) -> Vec<String> {
 	chunks
 }
 
+fn capture_for_job(
+	loaded: &LoadedJob,
+	capture: CaptureMaterializationEvidence,
+) -> Option<CaptureMaterializationEvidence> {
+	if loaded.job.suite == "capture_integration" { Some(capture) } else { None }
+}
+
+fn capture_action_str(action: LiveCaptureAction) -> &'static str {
+	match action {
+		LiveCaptureAction::Store => "store",
+		LiveCaptureAction::Exclude => "exclude",
+	}
+}
+
 async fn run_lightrag_async(args: LightragArgs) -> color_eyre::Result<()> {
 	let jobs = load_jobs(&args.fixtures)?;
 	let run_slug = short_hash(format!("{}:{}", args.adapter_id, Uuid::new_v4()).as_str());
@@ -2025,6 +2407,8 @@ async fn materialize_lightrag_job(
 			source_mappings,
 			operator_debug: None,
 			operator_debug_evidence: None,
+			capture: None,
+			capture_failure: None,
 		},
 	))
 }
@@ -2034,7 +2418,7 @@ async fn insert_lightrag_texts(
 	client: &reqwest::Client,
 	corpus: &[CorpusText],
 	sources: &[LightragSource],
-) -> color_eyre::Result<Value> {
+) -> color_eyre::Result<serde_json::Value> {
 	let request = serde_json::json!({
 		"texts": corpus.iter().map(|item| item.text.as_str()).collect::<Vec<_>>(),
 		"file_sources": sources.iter().map(|source| source.file_source.as_str()).collect::<Vec<_>>(),
@@ -2053,14 +2437,14 @@ async fn insert_lightrag_texts(
 async fn wait_for_lightrag_index(
 	args: &LightragArgs,
 	client: &reqwest::Client,
-	insert_response: &Value,
+	insert_response: &serde_json::Value,
 	expected_docs: usize,
 ) -> color_eyre::Result<()> {
 	let track_id = insert_response
 		.get("track_id")
-		.and_then(Value::as_str)
+		.and_then(serde_json::Value::as_str)
 		.ok_or_else(|| eyre::eyre!("LightRAG text insert response did not include track_id."))?;
-	let mut last_status = Value::Null;
+	let mut last_status = serde_json::Value::Null;
 
 	for _attempt in 1..=args.index_attempts {
 		let status =
@@ -2093,7 +2477,7 @@ async fn query_lightrag_context(
 	args: &LightragArgs,
 	client: &reqwest::Client,
 	loaded: &LoadedJob,
-) -> color_eyre::Result<Value> {
+) -> color_eyre::Result<serde_json::Value> {
 	let keywords = lightrag_keywords(loaded.job.prompt.content.as_str());
 	let request = serde_json::json!({
 		"query": loaded.job.prompt.content,
@@ -2116,7 +2500,7 @@ async fn lightrag_get_json(
 	args: &LightragArgs,
 	client: &reqwest::Client,
 	path: impl AsRef<str>,
-) -> color_eyre::Result<Value> {
+) -> color_eyre::Result<serde_json::Value> {
 	let url = format!("{}{}", lightrag_api_base(args), path.as_ref());
 	let mut request = client.get(url);
 
@@ -2131,8 +2515,8 @@ async fn lightrag_post_json(
 	args: &LightragArgs,
 	client: &reqwest::Client,
 	path: &str,
-	body: &Value,
-) -> color_eyre::Result<Value> {
+	body: &serde_json::Value,
+) -> color_eyre::Result<serde_json::Value> {
 	let url = format!("{}{}", lightrag_api_base(args), path);
 	let mut request = client.post(url).json(body);
 
@@ -2143,7 +2527,7 @@ async fn lightrag_post_json(
 	lightrag_send_json(request).await
 }
 
-async fn lightrag_send_json(request: RequestBuilder) -> color_eyre::Result<Value> {
+async fn lightrag_send_json(request: RequestBuilder) -> color_eyre::Result<serde_json::Value> {
 	let response = request.send().await?;
 	let status = response.status();
 	let body = response.text().await?;
@@ -2241,9 +2625,11 @@ async fn materialize_elf_job(
 	}
 
 	let corpus = corpus_texts(loaded)?;
+	let stored_corpus = elf_stored_corpus_texts(&corpus)?;
 	let project_id = project_id_for_job(&loaded.job.job_id);
+	let capture =
+		ingest_elf_corpus(service, loaded, adapter_id, project_id.as_str(), &corpus).await?;
 
-	ingest_elf_corpus(service, loaded, adapter_id, project_id.as_str(), &corpus).await?;
 	run_worker(runtime).await?;
 
 	let started_at = Instant::now();
@@ -2268,12 +2654,26 @@ async fn materialize_elf_job(
 	let mut evidence_ids = Vec::new();
 
 	for item in &response.items {
-		if let Some(evidence_id) = item.source_ref.get("evidence_id").and_then(Value::as_str) {
+		if let Some(evidence_id) =
+			item.source_ref.get("evidence_id").and_then(serde_json::Value::as_str)
+		{
 			push_unique(&mut evidence_ids, evidence_id.to_string());
 		}
 	}
 
-	let selected = selected_required_corpus_texts(loaded, &corpus, &evidence_ids);
+	let runtime_capture = capture_runtime_evidence_from_search_items(&response.items);
+	let capture = capture_with_runtime_source_refs(capture, &runtime_capture);
+	let capture_failure = validate_capture_runtime_evidence(
+		loaded.job.suite.as_str(),
+		&corpus,
+		&capture,
+		&runtime_capture,
+	);
+	let selected = if let Some(failure) = &capture_failure {
+		SelectedEvidenceText { content: failure.clone(), evidence_ids: Vec::new() }
+	} else {
+		selected_required_corpus_texts(loaded, &stored_corpus, &evidence_ids)
+	};
 	let replay_command = elf_replay_command(response.trace_id, project_id.as_str());
 	let (operator_debug, operator_debug_evidence) = operator_debug_output(
 		AdapterKind::ElfServiceRuntime,
@@ -2300,6 +2700,8 @@ async fn materialize_elf_job(
 			source_mappings: Vec::new(),
 			operator_debug,
 			operator_debug_evidence,
+			capture: capture_for_job(loaded, capture),
+			capture_failure,
 		},
 	))
 }
@@ -2310,8 +2712,40 @@ async fn ingest_elf_corpus(
 	adapter_id: &str,
 	project_id: &str,
 	corpus: &[CorpusText],
-) -> color_eyre::Result<()> {
+) -> color_eyre::Result<CaptureMaterializationEvidence> {
+	let mut capture = CaptureMaterializationEvidence::default();
+
 	for item in corpus {
+		if item.capture.action == LiveCaptureAction::Exclude {
+			push_unique(&mut capture.excluded_evidence_ids, item.evidence_id.clone());
+
+			continue;
+		}
+
+		push_unique(&mut capture.stored_evidence_ids, item.evidence_id.clone());
+
+		if let Some(source_id) = item.capture.source_id.as_deref() {
+			push_unique(&mut capture.source_ids, source_id.to_string());
+		}
+
+		if item.capture.write_policy.is_some() {
+			ingest_elf_corpus_item(
+				service,
+				loaded,
+				adapter_id,
+				project_id,
+				item,
+				item.evidence_id.clone(),
+				item.text.clone(),
+				0,
+				1,
+				&mut capture,
+			)
+			.await?;
+
+			continue;
+		}
+
 		let chunks = note_text_chunks(item.text.as_str());
 		let chunk_count = chunks.len();
 
@@ -2321,45 +2755,94 @@ async fn ingest_elf_corpus(
 			} else {
 				format!("{}:chunk-{chunk_index:03}", item.evidence_id)
 			};
-			let response = service
-				.add_note(AddNoteRequest {
-					tenant_id: TENANT_ID.to_string(),
-					project_id: project_id.to_string(),
-					agent_id: AGENT_ID.to_string(),
-					scope: SCOPE.to_string(),
-					notes: vec![AddNoteInput {
-						r#type: "fact".to_string(),
-						key: Some(key),
-						text,
-						structured: None,
-						importance: 0.9,
-						confidence: 0.95,
-						ttl_days: None,
-						source_ref: serde_json::json!({
-							"schema": "real_world_live_adapter/v1",
-							"adapter": adapter_id,
-							"job_id": loaded.job.job_id,
-							"evidence_id": item.evidence_id,
-							"chunk_index": chunk_index,
-							"chunk_count": chunk_count,
-						}),
-						write_policy: None,
-					}],
-				})
-				.await
-				.map_err(|err| {
-					eyre::eyre!("ELF add_note failed for {}: {err}", loaded.job.job_id)
-				})?;
 
-			if !response.results.iter().any(|result| result.note_id.is_some()) {
-				return Err(eyre::eyre!(
-					"ELF add_note did not persist evidence {} chunk {} for {}.",
-					item.evidence_id,
-					chunk_index,
-					loaded.job.job_id
-				));
-			}
+			ingest_elf_corpus_item(
+				service,
+				loaded,
+				adapter_id,
+				project_id,
+				item,
+				key,
+				text,
+				chunk_index,
+				chunk_count,
+				&mut capture,
+			)
+			.await?;
 		}
+	}
+
+	Ok(capture)
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn ingest_elf_corpus_item(
+	service: &ElfService,
+	loaded: &LoadedJob,
+	adapter_id: &str,
+	project_id: &str,
+	item: &CorpusText,
+	key: String,
+	text: String,
+	chunk_index: usize,
+	chunk_count: usize,
+	capture: &mut CaptureMaterializationEvidence,
+) -> color_eyre::Result<()> {
+	let write_policy = item
+		.capture
+		.write_policy
+		.as_ref()
+		.map(|policy| write_policy_from_value(policy, item.evidence_id.as_str()))
+		.transpose()?;
+	let response = service
+		.add_note(AddNoteRequest {
+			tenant_id: TENANT_ID.to_string(),
+			project_id: project_id.to_string(),
+			agent_id: AGENT_ID.to_string(),
+			scope: SCOPE.to_string(),
+			notes: vec![AddNoteInput {
+				r#type: "fact".to_string(),
+				key: Some(key),
+				text,
+				structured: None,
+				importance: 0.9,
+				confidence: 0.95,
+				ttl_days: None,
+				source_ref: serde_json::json!({
+					"schema": "real_world_live_adapter/v1",
+					"adapter": adapter_id,
+					"job_id": loaded.job.job_id,
+					"evidence_id": item.evidence_id,
+					"source_id": item.capture.source_id.as_deref(),
+					"capture_action": capture_action_str(item.capture.action),
+					"evidence_binding": item.capture.evidence_binding.as_deref(),
+					"write_policy_applied": item.capture.write_policy.is_some(),
+					"chunk_index": chunk_index,
+					"chunk_count": chunk_count,
+				}),
+				write_policy,
+			}],
+		})
+		.await
+		.map_err(|err| eyre::eyre!("ELF add_note failed for {}: {err}", loaded.job.job_id))?;
+
+	for result in &response.results {
+		if let Some(audit) = &result.write_policy_audit
+			&& (!audit.exclusions.is_empty() || !audit.redactions.is_empty())
+		{
+			capture.write_policy_audit_count += 1;
+			capture.write_policy_exclusion_count += audit.exclusions.len();
+			capture.write_policy_redaction_count += audit.redactions.len();
+		}
+	}
+
+	if !response.results.iter().any(|result| result.note_id.is_some()) {
+		return Err(eyre::eyre!(
+			"ELF add_note did not persist evidence {} chunk {} for {}.",
+			item.evidence_id,
+			chunk_index,
+			loaded.job.job_id
+		));
 	}
 
 	Ok(())
@@ -2430,4 +2913,138 @@ async fn run_worker(runtime: &BaselineRuntime) -> color_eyre::Result<()> {
 	}
 
 	Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+	use serde_json::Value;
+
+	fn capture_item(
+		evidence_id: &str,
+		action: super::LiveCaptureAction,
+		source_id: Option<&str>,
+		evidence_binding: Option<&str>,
+		write_policy: Option<Value>,
+	) -> super::CorpusText {
+		super::CorpusText {
+			evidence_id: evidence_id.to_string(),
+			text: "Public capture text.".to_string(),
+			capture: super::LiveCapturePolicy {
+				action,
+				source_id: source_id.map(ToString::to_string),
+				evidence_binding: evidence_binding.map(ToString::to_string),
+				write_policy,
+			},
+		}
+	}
+
+	fn capture_evidence(
+		stored: &[&str],
+		excluded: &[&str],
+	) -> super::CaptureMaterializationEvidence {
+		super::CaptureMaterializationEvidence {
+			stored_evidence_ids: stored.iter().map(|id| (*id).to_string()).collect(),
+			excluded_evidence_ids: excluded.iter().map(|id| (*id).to_string()).collect(),
+			source_ids: Vec::new(),
+			write_policy_audit_count: 0,
+			write_policy_exclusion_count: 0,
+			write_policy_redaction_count: 0,
+			runtime_source_refs: Vec::new(),
+		}
+	}
+
+	#[test]
+	fn capture_runtime_validation_requires_returned_source_id() {
+		let corpus = vec![capture_item(
+			"source-a",
+			super::LiveCaptureAction::Store,
+			Some("capture:a"),
+			None,
+			None,
+		)];
+		let capture = capture_evidence(&["source-a"], &[]);
+		let runtime = super::capture_runtime_evidence_from_source_refs([&serde_json::json!({
+			"evidence_id": "source-a",
+			"capture_action": "store"
+		})]);
+		let failure = super::validate_capture_runtime_evidence(
+			"capture_integration",
+			&corpus,
+			&capture,
+			&runtime,
+		)
+		.expect("missing runtime source_id should fail capture validation");
+
+		assert!(failure.contains("did not return expected source_id capture:a"));
+	}
+
+	#[test]
+	fn capture_runtime_validation_rejects_returned_excluded_evidence() {
+		let corpus = vec![capture_item(
+			"private-trap",
+			super::LiveCaptureAction::Exclude,
+			Some("capture:private"),
+			Some("negative_trap"),
+			None,
+		)];
+		let capture = capture_evidence(&[], &["private-trap"]);
+		let runtime = super::capture_runtime_evidence_from_source_refs([&serde_json::json!({
+			"evidence_id": "private-trap",
+			"source_id": "capture:private",
+			"capture_action": "store"
+		})]);
+		let failure = super::validate_capture_runtime_evidence(
+			"capture_integration",
+			&corpus,
+			&capture,
+			&runtime,
+		)
+		.expect("returned excluded evidence should fail capture validation");
+
+		assert!(failure.contains("excluded evidence private-trap was returned by live search"));
+	}
+
+	#[test]
+	fn capture_runtime_source_refs_are_written_into_generated_fixture() {
+		let mut value = serde_json::json!({
+			"corpus": {
+				"items": [
+					{
+						"evidence_id": "source-a",
+						"source_ref": {
+							"schema": "source_ref/v1",
+							"resolver": "fixture"
+						}
+					}
+				]
+			}
+		});
+		let mut capture = capture_evidence(&["source-a"], &[]);
+
+		capture.runtime_source_refs.push(super::CaptureRuntimeSourceRefEvidence {
+			evidence_id: "source-a".to_string(),
+			source_ref: serde_json::json!({
+				"schema": "real_world_live_adapter/v1",
+				"evidence_id": "source-a",
+				"source_id": "capture:a",
+				"capture_action": "store",
+				"evidence_binding": "source_ref"
+			}),
+		});
+
+		super::apply_capture_runtime_source_refs(&mut value, &capture);
+
+		assert_eq!(
+			value
+				.pointer("/corpus/items/0/source_ref/source_id")
+				.and_then(serde_json::Value::as_str),
+			Some("capture:a")
+		);
+		assert_eq!(
+			value
+				.pointer("/corpus/items/0/source_ref/evidence_binding")
+				.and_then(serde_json::Value::as_str),
+			Some("source_ref")
+		);
+	}
 }

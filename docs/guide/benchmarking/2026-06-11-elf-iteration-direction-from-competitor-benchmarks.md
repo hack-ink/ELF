@@ -29,8 +29,8 @@ The strongest current statement is:
   ergonomics, but ELF now has a narrow live operator-debug win over qmd on trace
   hydration and candidate-drop visibility.
 - Many competitor strengths are still undermeasured: OpenViking context trajectory,
-  mem0/OpenMemory entity history and UI, agentmemory and claude-mem continuity
-  capture, Letta core-vs-archival memory, Graphiti/Zep temporal graph behavior, and
+  mem0/OpenMemory entity history and UI, agentmemory and claude-mem capture breadth,
+  Letta core-vs-archival memory, Graphiti/Zep temporal graph behavior, and
   llm-wiki/gbrain/graphify knowledge workflows.
 - The right next strategy is not to replace ELF with any one project. It is to keep
   ELF's evidence-bound core and absorb the best measured or plausible product
@@ -44,18 +44,18 @@ The strongest current statement is:
 
 | Metric | Value |
 | --- | ---: |
-| Jobs | `38` |
+| Jobs | `40` |
 | Encoded suites | `11` |
-| Pass | `36` |
+| Pass | `38` |
 | Blocked | `2` |
 | Wrong result | `0` |
 | Lifecycle fail | `0` |
 | Incomplete | `0` |
 | Not encoded | `0` |
 | Unsupported claim | `0` |
-| Mean score | `0.947` |
-| Evidence coverage | `84/84` |
-| Expected evidence recall | `77/77` |
+| Mean score | `0.950` |
+| Evidence coverage | `88/88` |
+| Expected evidence recall | `80/80` |
 
 This proves the fixture contract is broad and well controlled. It does not prove that
 every live adapter or every competitor runtime passes those scenarios.
@@ -67,20 +67,21 @@ sweeps for ELF and qmd:
 
 | Adapter | Jobs | Pass | Wrong result | Incomplete | Blocked | Not encoded | Mean score | Evidence recall |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| ELF live service adapter | `38` | `18` | `5` | `0` | `2` | `13` | `0.525` | `41/77` |
-| qmd live CLI adapter | `38` | `17` | `6` | `0` | `2` | `13` | `0.486` | `38/77` |
+| ELF live service adapter | `40` | `22` | `5` | `0` | `2` | `11` | `0.599` | `50/80` |
+| qmd live CLI adapter | `40` | `17` | `6` | `0` | `2` | `15` | `0.461` | `38/80` |
 
 Interpretation:
 
-- This is a near tie for the currently encoded live real-world sweep, with ELF one
-  job ahead in this fresh run because qmd misses the delete/TTL tombstone job.
+- ELF is five passes ahead in this full live sweep because qmd misses the delete/TTL
+  tombstone job and keeps the capture/write-policy suite typed `not_encoded`.
 - Both pass `trust_source_of_truth`, `work_resume`, `project_decisions`,
   `retrieval`, and `personalization`.
 - Both fail most `memory_evolution` live conflict evidence with `wrong_result`.
-- Both leave consolidation, knowledge compilation, capture integration, and
-  production-ops operator boundaries as `not_encoded` or `blocked`. Operator
-  debugging has a separate narrow live slice: ELF passes it, while qmd remains
-  `wrong_result` for trace hydration and candidate-drop stage visibility.
+- ELF now passes live `capture_integration`; qmd keeps that suite `not_encoded`.
+  Both leave consolidation, knowledge compilation, and production-ops operator
+  boundaries as `not_encoded` or `blocked`. Operator debugging has a separate narrow
+  live slice: ELF passes it, while qmd remains `wrong_result` for trace hydration and
+  candidate-drop stage visibility.
 
 ### Production Evidence
 
@@ -134,7 +135,7 @@ one misleading score.
 | Consolidation | ELF fixture passes, but live proposal generation is not encoded. | Build reviewable derived proposals with source refs, confidence, unsupported-claim flags, and apply/defer/discard audit. |
 | Knowledge pages | ELF fixture pages pass; live knowledge generation is not encoded. | Borrow llm-wiki lint/query-save loops, gbrain timelines, and graphify reports behind rebuild/lint benchmarks. |
 | Operator debugging | Fixture UX passes and the narrow live trace/viewer slice is scored: ELF passes, qmd ties replay/repair clarity but is wrong_result for trace hydration and candidate-drop visibility. | Expand coverage to OpenMemory and claude-mem UI/export or viewer runners before any broader operator-UX claim. |
-| Capture/write policy | Fixture capture boundary passes; live capture is not encoded. | Borrow agentmemory/claude-mem capture hooks while preserving redaction and evidence binding. |
+| Capture/write policy | ELF live capture/write-policy self-check passes with zero redaction leaks; qmd is `not_encoded`; agentmemory is `blocked`; claude-mem is `not_encoded`. | Borrow agentmemory/claude-mem capture breadth only after durable local hook/viewer evidence exists, while preserving redaction and evidence binding. |
 | Production ops | ELF has the strongest checked-in evidence, with private/credential gates blocked. | Keep Docker-first production proof and add private corpus only when an operator-owned manifest exists. |
 | Personalization | ELF live personalization passes; mem0/OpenMemory and Letta are not encoded. | Add entity-scoped preference history and UI readback before claiming stronger personalization. |
 | Context trajectory | Not comparable yet; OpenViking remains the reference. | Score staged retrieval, hierarchy expansion, and trajectory readback. |
@@ -145,13 +146,13 @@ one misleading score.
 
 | Project | Current evidence | User-facing strength | ELF direction |
 | --- | --- | --- | --- |
-| ELF | `fixture_backed` plus `live_real_world`; live full sweep is `wrong_result`. | Evidence-linked memory service, strict provenance, rebuildable Qdrant, production backfill/restore proof. | Keep this as the core; do not weaken source-of-truth or typed failure semantics while adding product ergonomics. |
+| ELF | `fixture_backed` plus `live_real_world`; live full sweep is `wrong_result`; live capture/write-policy self-check passes. | Evidence-linked memory service, strict provenance, rebuildable Qdrant, production backfill/restore proof. | Keep this as the core; do not weaken source-of-truth, write-policy, or typed failure semantics while adding product ergonomics. |
 | qmd | `live_real_world` plus `live_baseline_only`; targeted retrieval passes, full sweep is `wrong_result`. | Local retrieval-debug workflow, transparent CLI, weighted fusion, rerank, replayable commands. | Treat qmd as the retrieval-debug bar. ELF should match its introspection and local replay without becoming CLI-only. |
-| agentmemory | `live_baseline_only`; current status is `lifecycle_fail`. | Coding-agent continuity, hooks, MCP/REST packaging, viewer/console observability. | Borrow capture breadth and continuity UX, but require durable lifecycle proof before claims. |
+| agentmemory | `live_baseline_only`; current status is `lifecycle_fail`; capture breadth comparison is blocked by process-local StateKV Map and in-memory index. | Coding-agent continuity, hooks, MCP/REST packaging, viewer/console observability. | Borrow capture breadth and continuity UX, but require durable lifecycle and capture artifact proof before claims. |
 | mem0/OpenMemory | `live_baseline_only`; basic local smoke now passes, while entity/preference history, hosted ecosystem, graph memory, and OpenMemory UI remain untested locally. | Entity-scoped memory, lifecycle/history surfaces, hosted ecosystem, OpenMemory UI. | Add entity/preference history and UI readback patterns, while keeping hosted claims out of local OSS benchmarks. |
 | memsearch | `live_baseline_only`; canonical Markdown reindex/reload smoke now passes, while real-world source-of-truth prompts remain unencoded. | Markdown-first canonical store and local reindex clarity. | Borrow local inspectability and canonical-file ergonomics, not file-as-authority semantics. |
 | OpenViking | `live_baseline_only` plus `research_gate`; current status is `wrong_result`. | Filesystem-like context model, hierarchy, staged context trajectory. | Add staged retrieval and trajectory scoring after same-corpus evidence output is correct. |
-| claude-mem | `live_baseline_only`; current status is `wrong_result`. | Progressive disclosure, automatic capture, local viewer workflow. | Borrow progressive disclosure and viewer comfort; benchmark capture and operator-debugging live paths. |
+| claude-mem | `live_baseline_only`; current status is `wrong_result`; hook/viewer capture breadth is not encoded. | Progressive disclosure, automatic capture, local viewer workflow. | Borrow progressive disclosure and viewer comfort; benchmark capture and operator-debugging live paths before claims. |
 | RAGFlow | `research_gate`; current status is `blocked`. | Full RAG application workflow with document/chunk/reference handles. | Use as a resource-aware RAG adapter benchmark, not as a current ELF competitor win/loss. |
 | LightRAG | `research_gate`; current status is `blocked`. | Lightweight graph/RAG context export and source-path citation shape. | Borrow context-export ideas for graph/RAG navigation after Docker proof. |
 | GraphRAG | `research_gate`; current status is `blocked`. | Graph summaries, document/text-unit tables, local/global search separation. | Borrow graph summary artifacts for knowledge pages and graph navigation after cost-bounded output proof. |
@@ -167,8 +168,8 @@ one misleading score.
 
 ### P0 - Close Measured Quality Gaps
 
-These are the highest leverage because current evidence already shows an ELF gap or a
-near tie.
+These are the highest leverage because current evidence already shows an ELF gap, a
+close competitor surface, or a still-unmeasured product strength.
 
 1. Live memory evolution correctness
    - Current state: fixture pass, live `wrong_result`.
@@ -201,9 +202,12 @@ These improve day-to-day usefulness while preserving ELF's evidence-bound core.
 
 1. Capture and continuity
    - Borrow from: agentmemory hook breadth and claude-mem automatic capture review.
-   - ELF shape: live ingestion must preserve redaction, excluded spans, source ids,
-     and write-policy audit.
-   - Benchmark gate: capture/write-policy live jobs with no secret leakage.
+   - Current state: ELF live capture/write-policy self-check passes; agentmemory is
+     blocked and claude-mem is not encoded for capture breadth.
+   - ELF shape: live ingestion must continue to preserve redaction, excluded spans,
+     source ids, and write-policy audit.
+   - Benchmark gate: durable agentmemory and claude-mem capture-hook runners with
+     no secret leakage and evidence-bound output.
 
 2. Reviewable consolidation
    - Borrow from: managed memory dreaming and Always-On Memory Agent scheduling.
@@ -250,9 +254,10 @@ These are needed for broad credibility but should not block personal production 
 
 Do not claim:
 
-- ELF beats qmd overall. ELF is one pass ahead in the fresh aggregate because qmd
-  misses the delete/TTL tombstone job, but neither adapter has full-suite live pass
-  evidence and qmd still owns stronger local retrieval-debug ergonomics.
+- ELF beats qmd overall. ELF is five passes ahead in the fresh aggregate because qmd
+  misses the delete/TTL tombstone job and keeps capture/write-policy jobs
+  `not_encoded`, but neither adapter has full-suite live pass evidence and qmd still
+  owns stronger local retrieval-debug ergonomics.
 - ELF has full-suite live real-world pass evidence. It does not.
 - ELF has private-corpus production quality proof. The private profile currently
   fails closed without an operator-owned manifest.
@@ -285,7 +290,7 @@ The next reporting work should be ordered by decision value:
 1. ELF/qmd retrieval-debug deep profile.
 2. ELF live memory-evolution repair report.
 3. OpenMemory and claude-mem operator-debug UI/export runners.
-4. Capture/write-policy live adapter report.
+4. agentmemory and claude-mem capture-hook breadth report.
 5. OpenViking context-trajectory report after evidence-bearing retrieval works.
 6. RAG/graph adapter pack report after Docker-contained outputs map to evidence ids.
 
