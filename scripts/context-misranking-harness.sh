@@ -205,7 +205,7 @@ min_importance = 0.0
 enabled        = true
 max_tokens     = 512
 overlap_tokens = 128
-tokenizer_repo = "gpt2"
+tokenizer_repo = "config/local/tokenizer.wordlevel.json"
 
 [search.expansion]
 include_original = true
