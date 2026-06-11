@@ -428,6 +428,9 @@ args = [
 # | real-world-memory-production-ops        | composite |     |
 # | real-world-memory-production-ops-json   | command   |     |
 # | real-world-memory-production-ops-report | command   |     |
+# | real-world-memory-core-archival         | composite |     |
+# | real-world-memory-core-archival-json    | command   |     |
+# | real-world-memory-core-archival-report  | command   |     |
 # | real-world-memory-live-adapters         | command   |     |
 
 [tasks.real-world-job-smoke]
@@ -822,6 +825,55 @@ args = [
 	"tmp/real-world-memory/consolidation/report.json",
 	"--out",
 	"tmp/real-world-memory/consolidation/report.md",
+]
+
+[tasks.real-world-memory-core-archival]
+workspace = false
+dependencies = [
+	"real-world-memory-core-archival-report",
+]
+
+[tasks.real-world-memory-core-archival-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_memory/core_archival_memory",
+	"--out",
+	"tmp/real-world-memory/core-archival/report.json",
+	"--run-id",
+	"real-world-memory-core-archival",
+	"--adapter-id",
+	"fixture_core_archival_memory",
+	"--adapter-name",
+	"ELF core and archival memory fixture",
+]
+
+[tasks.real-world-memory-core-archival-report]
+workspace = false
+dependencies = [
+	"real-world-memory-core-archival-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-memory/core-archival/report.json",
+	"--out",
+	"tmp/real-world-memory/core-archival/report.md",
 ]
 
 [tasks.real-world-memory-live-adapters]
