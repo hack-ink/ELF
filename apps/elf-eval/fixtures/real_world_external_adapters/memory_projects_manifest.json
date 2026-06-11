@@ -933,7 +933,7 @@
         {
           "capability": "real_world_job_adapter",
           "status": "not_encoded",
-          "evidence": "The qmd live real-world slice covers representative jobs only; expanded retrieval-debug suites need their own materialized adapter run."
+          "evidence": "The qmd live real-world sweep covers the current encoded fixture corpus; expanded retrieval-debug strength suites still need their own materialized adapter run."
         },
         {
           "capability": "host_global_install_boundary",
