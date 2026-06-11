@@ -70,6 +70,11 @@ cleanup, use `docs/guide/single_user_production.md`.
   records Graphiti/Zep and Letta claim boundaries, and turns qmd, mem0/OpenMemory,
   Graphiti/Zep, Letta, and adjacent project strengths into benchmark-gated ELF
   optimization directions.
+- `2026-06-11-first-generation-oss-adapter-promotion-report.md`: XY-898
+  first-generation OSS adapter promotion report that updates agentmemory,
+  mem0/OpenMemory, memsearch, and claude-mem with fresh scenario-level baseline
+  evidence and ELF win/tie/loss/untested positions without converting baseline-only
+  evidence into real-world suite wins.
 - `real_world_agent_memory_benchmark.md`: operator overview for the v1 real-world
   agent memory benchmark contract, including suite taxonomy, typed report states,
   knowledge-compilation fixture tasks, and the production-ops fixture target.

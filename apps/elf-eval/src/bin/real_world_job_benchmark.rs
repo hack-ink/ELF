@@ -638,6 +638,15 @@ enum AdapterCoverageStatus {
 	NotEncoded,
 }
 
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum ElfScenarioPosition {
+	Wins,
+	Ties,
+	Loses,
+	Untested,
+}
+
 #[derive(Debug, Deserialize)]
 struct ExternalAdapterManifest {
 	schema: String,
@@ -685,6 +694,8 @@ struct ExternalAdapterReport {
 	#[serde(default)]
 	suites: Vec<AdapterSuiteCoverage>,
 	#[serde(default)]
+	scenarios: Vec<AdapterScenarioJudgment>,
+	#[serde(default)]
 	evidence: Vec<AdapterEvidencePointer>,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	execution_metadata: Option<AdapterExecutionMetadata>,
@@ -716,6 +727,20 @@ struct AdapterSuiteCoverage {
 	suite_id: String,
 	status: AdapterCoverageStatus,
 	evidence: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct AdapterScenarioJudgment {
+	scenario_id: String,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	suite_id: Option<String>,
+	status: AdapterCoverageStatus,
+	elf_position: ElfScenarioPosition,
+	evidence: String,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	command: Option<String>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	artifact: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -760,6 +785,10 @@ struct ExternalAdapterSummary {
 	overall_status_counts: AdapterStatusCounts,
 	capability_status_counts: AdapterStatusCounts,
 	suite_status_counts: AdapterStatusCounts,
+	#[serde(default)]
+	scenario_status_counts: AdapterStatusCounts,
+	#[serde(default)]
+	scenario_position_counts: ScenarioPositionCounts,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -773,6 +802,14 @@ struct AdapterStatusCounts {
 	lifecycle_fail: usize,
 	pass: usize,
 	not_encoded: usize,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct ScenarioPositionCounts {
+	wins: usize,
+	ties: usize,
+	loses: usize,
+	untested: usize,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -3763,6 +3800,7 @@ fn validate_external_adapter(path: &Path, adapter: &ExternalAdapterReport) -> Re
 	validate_adapter_execution(path, adapter)?;
 	validate_adapter_capabilities(path, adapter)?;
 	validate_adapter_suites(path, adapter)?;
+	validate_adapter_scenarios(path, adapter)?;
 	validate_adapter_evidence(path, adapter)?;
 	validate_adapter_execution_metadata(path, adapter)?;
 
@@ -3826,6 +3864,36 @@ fn validate_adapter_suites(path: &Path, adapter: &ExternalAdapterReport) -> Resu
 				path.display(),
 				adapter.adapter_id,
 				suite.suite_id
+			));
+		}
+	}
+
+	Ok(())
+}
+
+fn validate_adapter_scenarios(path: &Path, adapter: &ExternalAdapterReport) -> Result<()> {
+	for scenario in &adapter.scenarios {
+		if scenario.scenario_id.trim().is_empty()
+			|| scenario.evidence.trim().is_empty()
+			|| scenario.command.as_deref().is_some_and(str::is_empty)
+			|| scenario.artifact.as_deref().is_some_and(str::is_empty)
+		{
+			return Err(eyre::eyre!(
+				"{} adapter {} has incomplete scenario judgment.",
+				path.display(),
+				adapter.adapter_id
+			));
+		}
+
+		if let Some(suite_id) = &scenario.suite_id
+			&& !SUITES.contains(&suite_id.as_str())
+		{
+			return Err(eyre::eyre!(
+				"{} adapter {} scenario {} references unknown suite {}.",
+				path.display(),
+				adapter.adapter_id,
+				scenario.scenario_id,
+				suite_id
 			));
 		}
 	}
@@ -3915,6 +3983,13 @@ fn accumulate_adapter_summary(
 	for suite in &adapter.suites {
 		increment_adapter_status_count(&mut summary.suite_status_counts, suite.status);
 	}
+	for scenario in &adapter.scenarios {
+		increment_adapter_status_count(&mut summary.scenario_status_counts, scenario.status);
+		increment_scenario_position_count(
+			&mut summary.scenario_position_counts,
+			scenario.elf_position,
+		);
+	}
 }
 
 fn increment_adapter_status_count(counts: &mut AdapterStatusCounts, status: AdapterCoverageStatus) {
@@ -3928,6 +4003,18 @@ fn increment_adapter_status_count(counts: &mut AdapterStatusCounts, status: Adap
 		AdapterCoverageStatus::LifecycleFail => counts.lifecycle_fail += 1,
 		AdapterCoverageStatus::Pass => counts.pass += 1,
 		AdapterCoverageStatus::NotEncoded => counts.not_encoded += 1,
+	}
+}
+
+fn increment_scenario_position_count(
+	counts: &mut ScenarioPositionCounts,
+	position: ElfScenarioPosition,
+) {
+	match position {
+		ElfScenarioPosition::Wins => counts.wins += 1,
+		ElfScenarioPosition::Ties => counts.ties += 1,
+		ElfScenarioPosition::Loses => counts.loses += 1,
+		ElfScenarioPosition::Untested => counts.untested += 1,
 	}
 }
 
@@ -4088,8 +4175,16 @@ fn render_markdown_external_adapters(out: &mut String, report: &RealWorldReport)
 		adapter_status_counts_display(&summary.capability_status_counts)
 	));
 	out.push_str(&format!(
-		"- Real-world suite statuses: `{}`\n\n",
+		"- Real-world suite statuses: `{}`\n",
 		adapter_status_counts_display(&summary.suite_status_counts)
+	));
+	out.push_str(&format!(
+		"- Scenario coverage statuses: `{}`\n",
+		adapter_status_counts_display(&summary.scenario_status_counts)
+	));
+	out.push_str(&format!(
+		"- ELF scenario positions: `{}`\n\n",
+		scenario_position_counts_display(&summary.scenario_position_counts)
 	));
 	out.push_str("| Project | Adapter | Evidence Class | Overall | Setup | Run | Result | Docker | Suites | Evidence |\n");
 	out.push_str("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n");
@@ -4126,9 +4221,38 @@ fn render_markdown_external_adapters(out: &mut String, report: &RealWorldReport)
 		}
 	}
 
+	render_markdown_adapter_scenarios(out, report.external_adapters.adapters.as_slice());
 	render_markdown_adapter_execution_metadata(out, report.external_adapters.adapters.as_slice());
 
 	out.push('\n');
+}
+
+fn render_markdown_adapter_scenarios(out: &mut String, adapters: &[ExternalAdapterReport]) {
+	if !adapters.iter().any(|adapter| !adapter.scenarios.is_empty()) {
+		return;
+	}
+
+	out.push_str("\n### Adapter Scenario Judgments\n\n");
+	out.push_str("| Adapter | Scenario | Suite | Status | ELF Position | Evidence |\n");
+	out.push_str("| --- | --- | --- | --- | --- | --- |\n");
+
+	for adapter in adapters {
+		for scenario in &adapter.scenarios {
+			out.push_str(&format!(
+				"| `{}` | `{}` | {} | `{}` | `{}` | {} |\n",
+				md_inline(adapter.adapter_id.as_str()),
+				md_inline(scenario.scenario_id.as_str()),
+				scenario
+					.suite_id
+					.as_deref()
+					.map(|suite| format!("`{}`", md_inline(suite)))
+					.unwrap_or_else(|| "`none`".to_string()),
+				adapter_status_str(scenario.status),
+				scenario_position_str(scenario.elf_position),
+				adapter_scenario_evidence_cell(scenario)
+			));
+		}
+	}
 }
 
 fn render_markdown_adapter_execution_metadata(
@@ -4769,6 +4893,15 @@ fn adapter_status_str(status: AdapterCoverageStatus) -> &'static str {
 	}
 }
 
+fn scenario_position_str(position: ElfScenarioPosition) -> &'static str {
+	match position {
+		ElfScenarioPosition::Wins => "wins",
+		ElfScenarioPosition::Ties => "ties",
+		ElfScenarioPosition::Loses => "loses",
+		ElfScenarioPosition::Untested => "untested",
+	}
+}
+
 fn adapter_status_counts_display(counts: &AdapterStatusCounts) -> String {
 	[
 		("real", counts.real),
@@ -4784,6 +4917,20 @@ fn adapter_status_counts_display(counts: &AdapterStatusCounts) -> String {
 	.into_iter()
 	.filter(|(_, count)| *count > 0)
 	.map(|(status, count)| format!("{status}={count}"))
+	.collect::<Vec<_>>()
+	.join(", ")
+}
+
+fn scenario_position_counts_display(counts: &ScenarioPositionCounts) -> String {
+	[
+		("wins", counts.wins),
+		("ties", counts.ties),
+		("loses", counts.loses),
+		("untested", counts.untested),
+	]
+	.into_iter()
+	.filter(|(_, count)| *count > 0)
+	.map(|(position, count)| format!("{position}={count}"))
 	.collect::<Vec<_>>()
 	.join(", ")
 }
@@ -4821,6 +4968,22 @@ fn adapter_evidence_cell(adapter: &ExternalAdapterReport) -> String {
 		.unwrap_or(adapter.result.evidence.as_str());
 
 	format!("setup: `{}`<br>result: `{}`", md_inline(setup), md_inline(result))
+}
+
+fn adapter_scenario_evidence_cell(scenario: &AdapterScenarioJudgment) -> String {
+	let evidence = md_cell(scenario.evidence.as_str());
+	let command = scenario
+		.command
+		.as_deref()
+		.map(|command| format!("<br>command: `{}`", md_inline(command)))
+		.unwrap_or_default();
+	let artifact = scenario
+		.artifact
+		.as_deref()
+		.map(|artifact| format!("<br>artifact: `{}`", md_inline(artifact)))
+		.unwrap_or_default();
+
+	format!("{evidence}{command}{artifact}")
 }
 
 fn adapter_sources_cell(sources: &[AdapterSource]) -> String {
