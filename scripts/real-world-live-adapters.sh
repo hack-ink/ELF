@@ -28,11 +28,12 @@ rm -rf "${REPORT_DIR:?}/elf-fixtures" \
   "${REPORT_DIR:?}/elf-report.md" \
   "${REPORT_DIR:?}/qmd-report.json" \
   "${REPORT_DIR:?}/qmd-report.md" \
-	"${REPORT_DIR:?}/lightrag" \
-	"${REPORT_DIR:?}/graphrag" \
-	"${REPORT_DIR:?}/graphiti-zep" \
-	"${REPORT_DIR:?}/graphify" \
-	"${REPORT_DIR:?}/summary.json"
+  "${REPORT_DIR:?}/ragflow" \
+  "${REPORT_DIR:?}/lightrag" \
+  "${REPORT_DIR:?}/graphrag" \
+  "${REPORT_DIR:?}/graphiti-zep" \
+  "${REPORT_DIR:?}/graphify" \
+  "${REPORT_DIR:?}/summary.json"
 
 cd "${ROOT_DIR}"
 
@@ -79,6 +80,11 @@ cargo run -p elf-eval --bin real_world_job_benchmark -- publish \
   --report "${REPORT_DIR}/qmd-report.json" \
   --out "${REPORT_DIR}/qmd-report.md"
 
+if [[ "${ELF_REAL_WORLD_LIVE_ENABLE_RAGFLOW:-0}" == "1" ]]; then
+  ELF_RAGFLOW_SMOKE_ARTIFACT_DIR="${REPORT_DIR}/ragflow" \
+    bash scripts/ragflow-docker-evidence-smoke.sh
+fi
+
 if [[ "${ELF_REAL_WORLD_LIVE_ENABLE_LIGHTRAG:-0}" == "1" ]]; then
   ELF_LIGHTRAG_CONTEXT_REPORT_DIR="${REPORT_DIR}/lightrag" \
     ELF_LIGHTRAG_CONTEXT_FIXTURES="${ELF_LIGHTRAG_CONTEXT_FIXTURES:-${FIXTURE_DIR}/retrieval}" \
@@ -106,11 +112,34 @@ jq -n \
   --slurpfile elf_report "${REPORT_DIR}/elf-report.json" \
   --slurpfile qmd_report "${REPORT_DIR}/qmd-report.json" \
   '{
-    schema: "elf.real_world_live_adapter_sweep/v1",
-    generated_at: (now | todateiso8601),
-    artifact_dir: (env.ELF_REAL_WORLD_LIVE_REPORT_DIR // "tmp/real-world-memory/live-adapters"),
-    fixture_dir: (env.ELF_REAL_WORLD_LIVE_FIXTURES // "apps/elf-eval/fixtures/real_world_memory"),
-    adapters: [
+	    schema: "elf.real_world_live_adapter_sweep/v1",
+	    generated_at: (now | todateiso8601),
+	    artifact_dir: (env.ELF_REAL_WORLD_LIVE_REPORT_DIR // "tmp/real-world-memory/live-adapters"),
+	    fixture_dir: (env.ELF_REAL_WORLD_LIVE_FIXTURES // "apps/elf-eval/fixtures/real_world_memory"),
+	    graph_rag_smoke_controls: {
+	      inclusion_flags: {
+	        ragflow: (env.ELF_REAL_WORLD_LIVE_ENABLE_RAGFLOW // "0"),
+	        lightrag: (env.ELF_REAL_WORLD_LIVE_ENABLE_LIGHTRAG // "0"),
+	        graphrag: (env.ELF_REAL_WORLD_LIVE_ENABLE_GRAPHRAG // "0"),
+	        graphiti_zep: (env.ELF_REAL_WORLD_LIVE_ENABLE_GRAPHITI_ZEP // "0"),
+	        graphify: (env.ELF_REAL_WORLD_LIVE_ENABLE_GRAPHIFY // "0")
+	      },
+	      live_attempt_boundary: "Inclusion flags only add smoke adapters to this aggregate sweep. Provider, service-start, and resource-heavy live attempts still require each adapter-specific control.",
+	      service_start_controls: {
+	        lightrag: (env.ELF_LIGHTRAG_CONTEXT_START // "0"),
+	        graphiti_zep: (env.ELF_GRAPHITI_ZEP_SMOKE_START // "0")
+	      },
+	      provider_or_resource_controls_forwarded: [
+	        "ELF_RAGFLOW_SMOKE_START",
+	        "ELF_RAGFLOW_SMOKE_ACCEPT_RESOURCE_ENVELOPE",
+	        "ELF_GRAPHRAG_SMOKE_RUN",
+	        "ELF_GRAPHRAG_API_KEY",
+	        "ELF_GRAPHITI_ZEP_SMOKE_RUN",
+	        "ELF_GRAPHITI_ZEP_API_KEY",
+	        "ELF_GRAPHIFY_SMOKE_RUN"
+	      ]
+	    },
+	    adapters: [
       {
         adapter_id: "elf_live_real_world",
         evidence_class: "live_real_world",
@@ -136,15 +165,33 @@ jq -n \
     ]
   }' >"${REPORT_DIR}/summary.json"
 
+if [[ -f "${REPORT_DIR}/ragflow/summary.json" ]]; then
+  jq \
+    --slurpfile ragflow_summary "${REPORT_DIR}/ragflow/summary.json" \
+    '.adapters += [
+      {
+	        adapter_id: $ragflow_summary[0].adapter_id,
+	        evidence_class: $ragflow_summary[0].evidence_class,
+	        status_boundary: $ragflow_summary[0].status_boundary,
+	        scored_benchmark: $ragflow_summary[0].scored_benchmark,
+	        materialization: $ragflow_summary[0].materialization,
+	        report: $ragflow_summary[0].report
+      }
+    ]' "${REPORT_DIR}/summary.json" >"${REPORT_DIR}/summary.json.tmp"
+  mv "${REPORT_DIR}/summary.json.tmp" "${REPORT_DIR}/summary.json"
+fi
+
 if [[ -f "${REPORT_DIR}/lightrag/summary.json" ]]; then
   jq \
     --slurpfile lightrag_summary "${REPORT_DIR}/lightrag/summary.json" \
     '.adapters += [
       {
-        adapter_id: $lightrag_summary[0].adapter_id,
-        evidence_class: $lightrag_summary[0].evidence_class,
-        materialization: $lightrag_summary[0].materialization,
-        report: $lightrag_summary[0].report
+	        adapter_id: $lightrag_summary[0].adapter_id,
+	        evidence_class: $lightrag_summary[0].evidence_class,
+	        status_boundary: $lightrag_summary[0].status_boundary,
+	        scored_benchmark: $lightrag_summary[0].scored_benchmark,
+	        materialization: $lightrag_summary[0].materialization,
+	        report: $lightrag_summary[0].report
       }
     ]' "${REPORT_DIR}/summary.json" >"${REPORT_DIR}/summary.json.tmp"
   mv "${REPORT_DIR}/summary.json.tmp" "${REPORT_DIR}/summary.json"
@@ -155,15 +202,12 @@ if [[ -f "${REPORT_DIR}/graphrag/summary.json" ]]; then
     --slurpfile graphrag_summary "${REPORT_DIR}/graphrag/summary.json" \
     '.adapters += [
       {
-        adapter_id: $graphrag_summary[0].adapter_id,
-        evidence_class: $graphrag_summary[0].evidence_class,
-        materialization: $graphrag_summary[0].materialization,
-        report: {
-          json: "tmp/real-world-memory/live-adapters/graphrag/graphrag-smoke.json",
-          markdown: null,
-          summary: $graphrag_summary[0].materialization.status,
-          suites: $graphrag_summary[0].manifest.suites
-        }
+	        adapter_id: $graphrag_summary[0].adapter_id,
+	        evidence_class: $graphrag_summary[0].evidence_class,
+	        status_boundary: $graphrag_summary[0].status_boundary,
+	        scored_benchmark: $graphrag_summary[0].scored_benchmark,
+	        materialization: $graphrag_summary[0].materialization,
+	        report: $graphrag_summary[0].report
       }
     ]' "${REPORT_DIR}/summary.json" >"${REPORT_DIR}/summary.json.tmp"
   mv "${REPORT_DIR}/summary.json.tmp" "${REPORT_DIR}/summary.json"
@@ -174,15 +218,12 @@ if [[ -f "${REPORT_DIR}/graphiti-zep/summary.json" ]]; then
     --slurpfile graphiti_summary "${REPORT_DIR}/graphiti-zep/summary.json" \
     '.adapters += [
       {
-        adapter_id: $graphiti_summary[0].adapter_id,
-        evidence_class: $graphiti_summary[0].evidence_class,
-        materialization: $graphiti_summary[0].materialization,
-        report: {
-          json: "tmp/real-world-memory/live-adapters/graphiti-zep/graphiti-zep-smoke.json",
-          markdown: null,
-          summary: $graphiti_summary[0].materialization.status,
-          suites: $graphiti_summary[0].manifest.suites
-        }
+	        adapter_id: $graphiti_summary[0].adapter_id,
+	        evidence_class: $graphiti_summary[0].evidence_class,
+	        status_boundary: $graphiti_summary[0].status_boundary,
+	        scored_benchmark: $graphiti_summary[0].scored_benchmark,
+	        materialization: $graphiti_summary[0].materialization,
+	        report: $graphiti_summary[0].report
       }
     ]' "${REPORT_DIR}/summary.json" >"${REPORT_DIR}/summary.json.tmp"
   mv "${REPORT_DIR}/summary.json.tmp" "${REPORT_DIR}/summary.json"
@@ -193,15 +234,12 @@ if [[ -f "${REPORT_DIR}/graphify/summary.json" ]]; then
     --slurpfile graphify_summary "${REPORT_DIR}/graphify/summary.json" \
     '.adapters += [
       {
-        adapter_id: $graphify_summary[0].adapter_id,
-        evidence_class: $graphify_summary[0].evidence_class,
-        materialization: $graphify_summary[0].materialization,
-        report: {
-          json: "tmp/real-world-memory/live-adapters/graphify/graphify-smoke.json",
-          markdown: null,
-          summary: $graphify_summary[0].materialization.status,
-          suites: $graphify_summary[0].manifest.suites
-        }
+	        adapter_id: $graphify_summary[0].adapter_id,
+	        evidence_class: $graphify_summary[0].evidence_class,
+	        status_boundary: $graphify_summary[0].status_boundary,
+	        scored_benchmark: $graphify_summary[0].scored_benchmark,
+	        materialization: $graphify_summary[0].materialization,
+	        report: $graphify_summary[0].report
       }
     ]' "${REPORT_DIR}/summary.json" >"${REPORT_DIR}/summary.json.tmp"
   mv "${REPORT_DIR}/summary.json.tmp" "${REPORT_DIR}/summary.json"
@@ -212,19 +250,31 @@ echo "  ${REPORT_DIR}/elf-report.json"
 echo "  ${REPORT_DIR}/elf-report.md"
 echo "  ${REPORT_DIR}/qmd-report.json"
 echo "  ${REPORT_DIR}/qmd-report.md"
+if [[ -f "${REPORT_DIR}/ragflow/summary.json" ]]; then
+  echo "  ${REPORT_DIR}/ragflow/ragflow-report.json"
+  echo "  ${REPORT_DIR}/ragflow/ragflow-report.md"
+  echo "  ${REPORT_DIR}/ragflow/summary.json"
+fi
 if [[ -f "${REPORT_DIR}/lightrag/summary.json" ]]; then
   echo "  ${REPORT_DIR}/lightrag/lightrag-report.json"
   echo "  ${REPORT_DIR}/lightrag/lightrag-report.md"
+  echo "  ${REPORT_DIR}/lightrag/summary.json"
 fi
 if [[ -f "${REPORT_DIR}/graphrag/summary.json" ]]; then
+  echo "  ${REPORT_DIR}/graphrag/graphrag-report.json"
+  echo "  ${REPORT_DIR}/graphrag/graphrag-report.md"
   echo "  ${REPORT_DIR}/graphrag/graphrag-smoke.json"
   echo "  ${REPORT_DIR}/graphrag/summary.json"
 fi
 if [[ -f "${REPORT_DIR}/graphiti-zep/summary.json" ]]; then
+  echo "  ${REPORT_DIR}/graphiti-zep/graphiti-zep-report.json"
+  echo "  ${REPORT_DIR}/graphiti-zep/graphiti-zep-report.md"
   echo "  ${REPORT_DIR}/graphiti-zep/graphiti-zep-smoke.json"
   echo "  ${REPORT_DIR}/graphiti-zep/summary.json"
 fi
 if [[ -f "${REPORT_DIR}/graphify/summary.json" ]]; then
+  echo "  ${REPORT_DIR}/graphify/graphify-report.json"
+  echo "  ${REPORT_DIR}/graphify/graphify-report.md"
   echo "  ${REPORT_DIR}/graphify/graphify-smoke.json"
   echo "  ${REPORT_DIR}/graphify/summary.json"
 fi

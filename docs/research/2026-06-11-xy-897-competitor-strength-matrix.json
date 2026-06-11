@@ -25,15 +25,15 @@
     "evidence_class_counts": {
       "fixture_backed": 1,
       "live_baseline_only": 6,
-      "live_real_world": 2,
-      "research_gate": 12
+      "live_real_world": 3,
+      "research_gate": 11
     },
     "overall_status_counts": {
       "lifecycle_fail": 1,
-      "blocked": 6,
+      "blocked": 5,
       "not_encoded": 7,
       "pass": 3,
-      "wrong_result": 4
+      "wrong_result": 5
     }
   },
   "state_taxonomy": [
@@ -406,21 +406,21 @@
     {
       "project": "graphify",
       "strongest_user_facing_scenario": "Graph-compressed navigation with graph.json and GRAPH_REPORT evidence outputs.",
-      "current_evidence_class": "research_gate",
+      "current_evidence_class": "live_real_world",
       "supporting_evidence_classes": [
-        "research_gate"
+        "live_real_world"
       ],
-      "measured_status": "blocked",
+      "measured_status": "wrong_result",
       "proof": {
         "command": "cargo make graphify-docker-graph-report-smoke",
-        "artifact": "tmp/real-world-memory/graphify-smoke/graphify-smoke.json"
+        "artifact": "tmp/real-world-memory/graphify-smoke/graphify-report.json"
       },
       "unsupported_or_blocked_status": {
-        "state": "blocked",
-        "typed_reason": "docker_cli_graph_report_generation_not_proven",
-        "details": "Adapter candidate, but graph report generation and real-world scoring are still blocked; host-global assistant hooks are out of scope."
+        "state": "not_encoded",
+        "typed_reason": "broad_graph_navigation_not_encoded",
+        "details": "The tiny generated graph/report smoke scores wrong_result; broad graph navigation, rebuild behavior, private-corpus, and large-corpus quality remain not encoded."
       },
-      "benchmark_before_claim": "Run XY-889 Docker-only graph/report adapter over graph.json and GRAPH_REPORT.md, then score graph navigation and knowledge-synthesis evidence.",
+      "benchmark_before_claim": "Expand beyond the tiny generated smoke and score representative graph/RAG navigation jobs before any broad graphify quality or ELF comparison claim.",
       "borrow_if_stronger": "Borrow graph compression, source-location graph reports, and navigation hints for large code or document spaces."
     }
   ],
@@ -484,9 +484,9 @@
       "scenario": "knowledge pages",
       "current_elf_evidence": "ELF fixture-backed knowledge_compilation passes, but live_real_world knowledge_compilation is not_encoded.",
       "strongest_competitor_or_reference": "llm-wiki, gbrain, GraphRAG, graphify",
-      "current_competitor_evidence": "llm-wiki and gbrain are research_gate not_encoded or blocked; GraphRAG and graphify are research_gate blocked.",
-      "current_state": "No live knowledge-page competitor result exists; ELF has only fixture-backed derived-page evidence.",
-      "next_measurement": "Encode live knowledge-page rebuild/lint scoring for ELF and run contained llm-wiki, gbrain, GraphRAG, or graphify adapters only after setup proof exists."
+      "current_competitor_evidence": "llm-wiki and gbrain are research_gate not_encoded or blocked; GraphRAG remains research_gate blocked; graphify has a tiny live_real_world wrong_result smoke.",
+      "current_state": "No live knowledge-page competitor pass exists; graphify has only bounded non-pass tiny-smoke evidence and ELF has fixture-backed derived-page evidence.",
+      "next_measurement": "Encode live knowledge-page rebuild/lint scoring for ELF and run larger contained llm-wiki, gbrain, GraphRAG, or graphify adapters only after setup proof exists."
     },
     {
       "scenario_id": "operator_debugging",
@@ -547,9 +547,9 @@
       "scenario": "graph/RAG navigation",
       "current_elf_evidence": "ELF relation context and graph-lite work are not enough to claim graph/RAG navigation parity.",
       "strongest_competitor_or_reference": "RAGFlow, LightRAG, GraphRAG, Graphiti/Zep, graphify",
-      "current_competitor_evidence": "All named RAG/graph projects are research_gate blocked or not_encoded, with adapter-candidate follow-ups for RAGFlow, LightRAG, GraphRAG, Graphiti/Zep, and graphify.",
-      "current_state": "No RAG/graph project has live_real_world pass evidence; research gates define follow-up adapter work only.",
-      "next_measurement": "Run XY-885 through XY-889 Docker-contained adapters and require evidence-linked outputs before any graph/RAG navigation claim."
+      "current_competitor_evidence": "RAGFlow, LightRAG, GraphRAG, and Graphiti/Zep remain research_gate blocked or incomplete; graphify has a tiny live_real_world wrong_result smoke.",
+      "current_state": "No RAG/graph project has live_real_world pass evidence; graphify supplies only bounded non-pass tiny-smoke evidence.",
+      "next_measurement": "Run larger Docker-contained adapters and require evidence-linked outputs before any graph/RAG navigation claim."
     }
   ],
   "parallelizable_followups": [
@@ -625,10 +625,10 @@
     },
     {
       "workstream": "graphify graph report adapter",
-      "issue_or_candidate": "XY-889",
+      "issue_or_candidate": "XY-889 plus post-XY-900 expansion",
       "parallelizable": true,
-      "blocked_by": "Docker CLI graph/report generation proof.",
-      "measurement": "graph.json and GRAPH_REPORT evidence for graph navigation and knowledge synthesis."
+      "blocked_by": "Representative graph/RAG navigation and quality proof beyond the tiny generated smoke.",
+      "measurement": "Graph/report evidence over representative graph/RAG jobs, with graph.json and GRAPH_REPORT outputs mapped to scored evidence ids."
     },
     {
       "workstream": "Private corpus and credentialed production ops",

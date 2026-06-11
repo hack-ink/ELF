@@ -126,11 +126,11 @@ fn smoke_fixture_produces_typed_json_report() -> Result<()> {
 	);
 	assert_eq!(
 		report.pointer("/external_adapters/summary/live_real_world_count").and_then(Value::as_u64),
-		Some(2)
+		Some(3)
 	);
 	assert_eq!(
 		report.pointer("/external_adapters/summary/research_gate_count").and_then(Value::as_u64),
-		Some(12)
+		Some(11)
 	);
 
 	let jobs = array_at(&report, "/jobs")?;
@@ -293,11 +293,11 @@ fn assert_external_adapter_manifest_summary(report: &Value) {
 	);
 	assert_eq!(
 		report.pointer("/external_adapters/summary/live_real_world_count").and_then(Value::as_u64),
-		Some(2)
+		Some(3)
 	);
 	assert_eq!(
 		report.pointer("/external_adapters/summary/research_gate_count").and_then(Value::as_u64),
-		Some(12)
+		Some(11)
 	);
 	assert_eq!(
 		report
@@ -309,7 +309,7 @@ fn assert_external_adapter_manifest_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/overall_status_counts/wrong_result")
 			.and_then(Value::as_u64),
-		Some(4)
+		Some(5)
 	);
 	assert_eq!(
 		report
@@ -327,7 +327,7 @@ fn assert_external_adapter_manifest_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/overall_status_counts/blocked")
 			.and_then(Value::as_u64),
-		Some(6)
+		Some(5)
 	);
 	assert_eq!(
 		report
@@ -351,7 +351,7 @@ fn assert_external_adapter_manifest_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/suite_status_counts/blocked")
 			.and_then(Value::as_u64),
-		Some(13)
+		Some(12)
 	);
 	assert_eq!(
 		report
@@ -459,7 +459,7 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 	let lightrag = find_by_field(adapters, "/adapter_id", "lightrag_research_gate")?;
 	let graphrag = find_by_field(adapters, "/adapter_id", "graphrag_research_gate")?;
 	let graphiti_zep = find_by_field(adapters, "/adapter_id", "graphiti_zep_research_gate")?;
-	let graphify = find_by_field(adapters, "/adapter_id", "graphify_research_gate")?;
+	let graphify = find_by_field(adapters, "/adapter_id", "graphify_docker_smoke")?;
 	let qmd_deep = find_by_field(adapters, "/adapter_id", "qmd_deep_profile_gate")?;
 
 	assert_eq!(elf.pointer("/evidence_class").and_then(Value::as_str), Some("fixture_backed"));
@@ -495,7 +495,7 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 	assert_eq!(
 		ragflow.pointer("/execution_metadata/research_depth").and_then(Value::as_str),
 		Some(
-			"D2 feasibility verdict plus XY-885 evidence-smoke implementation; checked-in record remains research_gate unless a generated artifact reaches query output"
+			"D2 feasibility verdict plus XY-885 evidence-smoke implementation and XY-900 scored smoke promotion; checked-in record remains research_gate unless a generated artifact reaches query output"
 		)
 	);
 	assert_eq!(
@@ -504,7 +504,7 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 	);
 	assert_eq!(
 		ragflow.pointer("/result/artifact").and_then(Value::as_str),
-		Some("tmp/real-world-memory/ragflow-smoke/ragflow-smoke.json")
+		Some("tmp/real-world-memory/ragflow-smoke/ragflow-report.json")
 	);
 	assert_eq!(
 		ragflow.pointer("/execution_metadata/sources/0/url").and_then(Value::as_str),
@@ -532,7 +532,7 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 	assert_eq!(graphrag.pointer("/suites/1/status").and_then(Value::as_str), Some("not_encoded"));
 
 	assert_graphiti_zep_adapter(graphiti_zep);
-	assert_graphify_adapter(graphify);
+	assert_graphify_adapter(graphify)?;
 
 	assert_eq!(
 		qmd_deep.pointer("/capabilities/2/status").and_then(Value::as_str),
@@ -628,14 +628,17 @@ fn assert_graphiti_zep_adapter(adapter: &Value) {
 	assert_eq!(
 		adapter.pointer("/execution_metadata/research_depth").and_then(Value::as_str),
 		Some(
-			"D2 feasibility plus XY-888 Docker temporal smoke implementation; checked-in record remains research_gate unless a generated artifact reaches Graphiti search output"
+			"D2 feasibility plus XY-888 Docker temporal smoke implementation and XY-900 scored smoke promotion; checked-in record remains research_gate unless a generated artifact reaches Graphiti search output"
 		)
 	);
 }
 
-fn assert_graphify_adapter(adapter: &Value) {
-	assert_eq!(adapter.pointer("/evidence_class").and_then(Value::as_str), Some("research_gate"));
-	assert_eq!(adapter.pointer("/overall_status").and_then(Value::as_str), Some("blocked"));
+fn assert_graphify_adapter(adapter: &Value) -> Result<()> {
+	assert_eq!(adapter.pointer("/evidence_class").and_then(Value::as_str), Some("live_real_world"));
+	assert_eq!(adapter.pointer("/overall_status").and_then(Value::as_str), Some("wrong_result"));
+	assert_eq!(adapter.pointer("/setup/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(adapter.pointer("/run/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(adapter.pointer("/result/status").and_then(Value::as_str), Some("wrong_result"));
 	assert_eq!(
 		adapter.pointer("/setup/command").and_then(Value::as_str),
 		Some("cargo make graphify-docker-graph-report-smoke")
@@ -644,15 +647,178 @@ fn assert_graphify_adapter(adapter: &Value) {
 		adapter.pointer("/suites/0/suite_id").and_then(Value::as_str),
 		Some("knowledge_compilation")
 	);
-	assert_eq!(adapter.pointer("/suites/0/status").and_then(Value::as_str), Some("blocked"));
+	assert_eq!(adapter.pointer("/suites/0/status").and_then(Value::as_str), Some("wrong_result"));
 	assert_eq!(adapter.pointer("/suites/1/suite_id").and_then(Value::as_str), Some("retrieval"));
 	assert_eq!(adapter.pointer("/suites/1/status").and_then(Value::as_str), Some("blocked"));
 	assert_eq!(
 		adapter.pointer("/execution_metadata/research_depth").and_then(Value::as_str),
 		Some(
-			"D1 feasibility verdict plus XY-889 Docker graph/report smoke implementation; checked-in record remains research_gate unless a generated artifact reaches graphify output"
+			"D1 feasibility verdict plus XY-889 Docker graph/report smoke implementation and XY-900 scored smoke promotion; current Docker validation reaches graphify output and scores the tiny knowledge_compilation job as wrong_result"
 		)
 	);
+
+	let capabilities = array_at(adapter, "/capabilities")?;
+	let quality = find_by_field(capabilities, "/capability", "quality_or_scale_claim")?;
+
+	assert_eq!(quality.pointer("/status").and_then(Value::as_str), Some("not_encoded"));
+	assert!(array_at(adapter, "/notes")?.iter().any(|note| {
+		note.as_str().is_some_and(|text| text.contains("tiny smoke") && text.contains("non-pass"))
+	}));
+
+	Ok(())
+}
+
+#[test]
+fn graphify_generated_manifest_keeps_retrieval_unscored() -> Result<()> {
+	let manifest = serde_json::json!({
+		"schema": "elf.real_world_external_adapter_manifest/v1",
+		"manifest_id": "graphify-generated-manifest-test",
+		"docker_isolation": {
+			"default": true,
+			"compose_file": "docker-compose.baseline.yml",
+			"runner": "scripts/graphify-docker-graph-report-smoke.py",
+			"artifact_dir": "tmp/real-world-memory/graphify-smoke",
+			"host_global_installs_required": false,
+			"notes": ["Synthetic graphify generated-manifest regression test."]
+		},
+		"adapters": [{
+			"adapter_id": "graphify_docker_smoke",
+			"project": "graphify",
+			"adapter_kind": "docker_cli_graph_report_smoke",
+			"evidence_class": "live_real_world",
+			"docker_default": true,
+			"host_global_installs_required": false,
+			"overall_status": "wrong_result",
+			"setup": {
+				"status": "pass",
+				"evidence": "setup evidence",
+				"command": "cargo make graphify-docker-graph-report-smoke",
+				"artifact": "tmp/real-world-memory/graphify-smoke/graphify-smoke.json"
+			},
+			"run": {
+				"status": "pass",
+				"evidence": "run evidence",
+				"command": "cargo make graphify-docker-graph-report-smoke",
+				"artifact": "tmp/real-world-memory/graphify-smoke/summary.json"
+			},
+			"result": {
+				"status": "wrong_result",
+				"evidence": "result evidence",
+				"artifact": "tmp/real-world-memory/graphify-smoke/graphify-report.json"
+			},
+			"capabilities": [{
+				"capability": "quality_or_scale_claim",
+				"status": "not_encoded",
+				"evidence": "No broad graph quality claim."
+			}],
+			"suites": [
+				{
+					"suite_id": "knowledge_compilation",
+					"status": "wrong_result",
+					"evidence": "Only the generated graph/report evidence-mapping job is represented."
+				},
+				{
+					"suite_id": "retrieval",
+					"status": "blocked",
+					"evidence": "The smoke uses graphify query output only to support source mapping; broad retrieval quality is not scored."
+				}
+			],
+			"evidence": [],
+			"execution_metadata": {
+				"setup_path": "cargo make graphify-docker-graph-report-smoke",
+				"runtime_boundary": "Docker-only generated graph/report smoke.",
+				"resource_expectation": "Tiny generated corpus only.",
+				"retry_guidance": [],
+				"sources": [{
+					"label": "graphify",
+					"url": "https://github.com/safishamsi/graphify",
+					"evidence": "Synthetic generated-manifest regression source."
+				}],
+				"research_depth": "Generated smoke manifest path"
+			},
+			"notes": ["tiny smoke non-pass"]
+		}]
+	});
+	let temp_dir =
+		env::temp_dir().join(format!("elf-real-world-graphify-manifest-test-{}", process::id()));
+
+	fs::create_dir_all(&temp_dir)?;
+
+	let manifest_path = temp_dir.join("manifest.json");
+	let report_path = temp_dir.join("report.json");
+
+	fs::write(&manifest_path, serde_json::to_vec_pretty(&manifest)?)?;
+
+	let output = Command::new(env!("CARGO_BIN_EXE_real_world_job_benchmark"))
+		.arg("run")
+		.arg("--fixtures")
+		.arg(fixture_dir())
+		.arg("--out")
+		.arg(&report_path)
+		.arg("--external-adapter-manifest")
+		.arg(&manifest_path)
+		.output()?;
+
+	assert!(
+		output.status.success(),
+		"real_world_job runner failed: {}",
+		String::from_utf8_lossy(&output.stderr),
+	);
+
+	let report: Value = serde_json::from_slice(&fs::read(&report_path)?)?;
+	let adapters = array_at(&report, "/external_adapters/adapters")?;
+	let graphify = find_by_field(adapters, "/adapter_id", "graphify_docker_smoke")?;
+	let suites = array_at(graphify, "/suites")?;
+	let retrieval = find_by_field(suites, "/suite_id", "retrieval")?;
+
+	assert_eq!(retrieval.pointer("/status").and_then(Value::as_str), Some("blocked"));
+	assert!(
+		retrieval
+			.pointer("/evidence")
+			.and_then(Value::as_str)
+			.is_some_and(|text| { text.contains("broad retrieval quality is not scored") })
+	);
+
+	Ok(())
+}
+
+#[test]
+fn live_adapter_aggregate_forwards_graph_rag_smoke_controls() -> Result<()> {
+	let makefile = fs::read_to_string(
+		Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..").join("Makefile.toml"),
+	)?;
+
+	for env_name in [
+		"ELF_REAL_WORLD_LIVE_ENABLE_RAGFLOW",
+		"ELF_REAL_WORLD_LIVE_ENABLE_LIGHTRAG",
+		"ELF_REAL_WORLD_LIVE_ENABLE_GRAPHRAG",
+		"ELF_REAL_WORLD_LIVE_ENABLE_GRAPHITI_ZEP",
+		"ELF_REAL_WORLD_LIVE_ENABLE_GRAPHIFY",
+		"ELF_RAGFLOW_SMOKE_START",
+		"ELF_RAGFLOW_SMOKE_ACCEPT_RESOURCE_ENVELOPE",
+		"ELF_GRAPHRAG_SMOKE_RUN",
+		"ELF_GRAPHRAG_API_KEY",
+		"ELF_GRAPHITI_ZEP_SMOKE_START",
+		"ELF_GRAPHITI_ZEP_SMOKE_RUN",
+		"ELF_GRAPHITI_ZEP_API_KEY",
+		"ELF_GRAPHIFY_SMOKE_RUN",
+	] {
+		assert!(
+			makefile.contains(&format!("-e {env_name}")),
+			"real-world-memory-live-adapters must forward {env_name}",
+		);
+	}
+
+	assert!(
+		makefile.contains("--profile lightrag up -d lightrag"),
+		"aggregate task should start LightRAG profile when ELF_LIGHTRAG_CONTEXT_START=1",
+	);
+	assert!(
+		makefile.contains("--profile graphiti-zep up -d graphiti-falkordb"),
+		"aggregate task should start Graphiti/Zep profile when ELF_GRAPHITI_ZEP_SMOKE_START=1",
+	);
+
+	Ok(())
 }
 
 fn assert_live_sweep_record(adapter: &Value) -> Result<()> {

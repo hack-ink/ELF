@@ -75,6 +75,11 @@ cleanup, use `docs/guide/single_user_production.md`.
   mem0/OpenMemory, memsearch, and claude-mem with fresh scenario-level baseline
   evidence and ELF win/tie/loss/untested positions without converting baseline-only
   evidence into real-world suite wins.
+- `2026-06-11-graph-rag-scored-smoke-adapter-report.md`: XY-900 graph/RAG
+  scored-smoke adapter report that promotes RAGFlow, LightRAG, GraphRAG,
+  Graphiti/Zep, and graphify smoke contracts into scored or typed non-pass
+  `real_world_job` adapter reports without converting smoke evidence into quality
+  claims.
 - `real_world_agent_memory_benchmark.md`: operator overview for the v1 real-world
   agent memory benchmark contract, including suite taxonomy, typed report states,
   knowledge-compilation fixture tasks, and the production-ops fixture target.
