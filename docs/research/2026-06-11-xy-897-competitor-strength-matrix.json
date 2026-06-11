@@ -151,7 +151,7 @@
       ],
       "measured_status": "pass",
       "proof": {
-        "command": "ELF_BASELINE_PROJECTS=agentmemory,mem0,memsearch,claude-mem cargo make baseline-live-docker",
+        "command": "ELF_BASELINE_PROJECTS=ELF,agentmemory,mem0,memsearch,claude-mem cargo make baseline-live-docker",
         "artifact": "tmp/live-baseline/live-baseline-report.json"
       },
       "unsupported_or_blocked_status": {
@@ -171,7 +171,7 @@
       ],
       "measured_status": "pass",
       "proof": {
-        "command": "ELF_BASELINE_PROJECTS=agentmemory,mem0,memsearch,claude-mem cargo make baseline-live-docker",
+        "command": "ELF_BASELINE_PROJECTS=ELF,agentmemory,mem0,memsearch,claude-mem cargo make baseline-live-docker",
         "artifact": "tmp/live-baseline/live-baseline-report.json"
       },
       "unsupported_or_blocked_status": {
