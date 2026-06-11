@@ -14,6 +14,12 @@ gates.
 This is benchmark/report evidence only. No ELF retrieval, ranking, memory-quality, or
 service behavior optimization is implemented here.
 
+Update after XY-924: mem0/OpenMemory history and local SDK export-style readback are
+now measured in
+`2026-06-11-mem0-openmemory-history-ui-export-report.md`. The basic lifecycle result
+in this report remains valid, but the mem0 history/UI rows below are historical
+pre-XY-924 gaps and must not be treated as the current complete mem0 comparison.
+
 The updated external adapter manifest now includes scenario-level judgments for the
 first-generation OSS memory projects. These judgments are intentionally narrower than
 suite passes:
