@@ -22,6 +22,7 @@ uuid               = { workspace = true }
 elf-chunking = { workspace = true }
 elf-cli      = { workspace = true }
 elf-config   = { workspace = true }
+elf-domain   = { workspace = true }
 elf-service  = { workspace = true }
 elf-storage  = { workspace = true }
 elf-testkit  = { workspace = true }
