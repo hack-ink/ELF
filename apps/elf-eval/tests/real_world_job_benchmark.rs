@@ -1465,8 +1465,9 @@ fn live_adapter_supports_elf_capture_write_policy_without_external_hook_claims()
 	assert!(manifest.contains("\"scenario_id\": \"capture_write_policy_hooks\""));
 	assert!(manifest.contains("\"comparison_outcome\": \"blocked\""));
 	assert!(manifest.contains("Four redaction, exclusion, source-id, evidence-binding"));
-	assert!(manifest.contains("no durable local session/capture path stores source ids"));
-	assert!(manifest.contains("hooks, timeline, observations, viewer capture"));
+	assert!(manifest.contains("durable upstream agentmemory session/capture path"));
+	assert!(manifest.contains("Docker-contained session directory"));
+	assert!(manifest.contains("claude-mem hooks, viewer, timeline, and observation workflows"));
 
 	Ok(())
 }
