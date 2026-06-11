@@ -263,12 +263,29 @@ returns evidence-bearing retrieval output. The checked-in `context_trajectory`
 fixtures keep OpenViking staged retrieval, hierarchy selection, and recursive/context
 expansion blocked until same-corpus evidence ids match and staged artifacts are
 materialized.
-The expanded RAG and graph-memory records for
-RAGFlow, LightRAG, GraphRAG, Graphiti/Zep, Letta, LangGraph, nanograph, llm-wiki,
-gbrain, graphify, and deeper qmd/OpenViking profiles are `research_gate` records until
-their Docker-isolated adapter runs are implemented. These typed states describe
-benchmark coverage; do not convert setup weight, missing research, or unencoded suites
-into broad project quality rankings.
+The expanded RAG and graph-memory records for RAGFlow, LightRAG, GraphRAG,
+Graphiti/Zep, Letta, LangGraph, nanograph, llm-wiki, gbrain, graphify, and deeper
+qmd/OpenViking profiles stay `research_gate`, typed non-pass, or not-encoded records
+until Docker-contained or provider-backed evidence-linked outputs exist. XY-929 adds a
+focused representative slice for graph/RAG navigation, citation mapping, graph
+summaries, temporal validity, graph reports, stale-source lint, and unsupported-claim
+handling:
+
+```sh
+cargo make real-world-memory-graph-rag
+```
+
+Artifacts:
+
+```text
+tmp/real-world-memory/graph-rag/report.json
+tmp/real-world-memory/graph-rag/report.md
+```
+
+This slice is allowed to report blocked, incomplete, wrong_result, not_tested, and
+non_goal outcomes. These typed states describe benchmark coverage; do not convert setup
+weight, missing research, smoke output, or representative non-pass fixtures into broad
+project quality rankings.
 
 To run the full live adapter sweep for ELF and qmd:
 

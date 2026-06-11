@@ -72,6 +72,13 @@ fn context_trajectory_fixture_dir() -> PathBuf {
 	real_world_memory_fixture_dir().join("context_trajectory")
 }
 
+fn graph_rag_external_fixture_dir() -> PathBuf {
+	Path::new(env!("CARGO_MANIFEST_DIR"))
+		.join("fixtures")
+		.join("real_world_external_adapters")
+		.join("graph_rag")
+}
+
 fn workspace_root() -> Result<PathBuf> {
 	let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
 	let root = manifest_dir
@@ -510,7 +517,7 @@ fn external_adapter_run_summarizes_nonzero_scenario_losses() -> Result<()> {
 		report
 			.pointer("/external_adapters/summary/scenario_position_counts/untested")
 			.and_then(Value::as_u64),
-		Some(22)
+		Some(34)
 	);
 	assert_eq!(
 		report
@@ -522,7 +529,7 @@ fn external_adapter_run_summarizes_nonzero_scenario_losses() -> Result<()> {
 		report
 			.pointer("/external_adapters/summary/scenario_outcome_counts/not_tested")
 			.and_then(Value::as_u64),
-		Some(11)
+		Some(16)
 	);
 
 	let adapters = array_at(&report, "/external_adapters/adapters")?;
@@ -680,25 +687,25 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/scenario_status_counts/unsupported")
 			.and_then(Value::as_u64),
-		Some(2)
+		Some(3)
 	);
 	assert_eq!(
 		report
 			.pointer("/external_adapters/summary/scenario_status_counts/blocked")
 			.and_then(Value::as_u64),
-		Some(8)
+		Some(12)
 	);
 	assert_eq!(
 		report
 			.pointer("/external_adapters/summary/scenario_status_counts/incomplete")
 			.and_then(Value::as_u64),
-		Some(0)
+		Some(1)
 	);
 	assert_eq!(
 		report
 			.pointer("/external_adapters/summary/scenario_status_counts/wrong_result")
 			.and_then(Value::as_u64),
-		Some(5)
+		Some(6)
 	);
 	assert_eq!(
 		report
@@ -716,7 +723,7 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/scenario_status_counts/not_encoded")
 			.and_then(Value::as_u64),
-		Some(6)
+		Some(11)
 	);
 	assert_eq!(
 		report
@@ -740,7 +747,7 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/scenario_position_counts/untested")
 			.and_then(Value::as_u64),
-		Some(23)
+		Some(35)
 	);
 	assert_eq!(
 		report
@@ -764,19 +771,19 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/scenario_outcome_counts/not_tested")
 			.and_then(Value::as_u64),
-		Some(12)
+		Some(17)
 	);
 	assert_eq!(
 		report
 			.pointer("/external_adapters/summary/scenario_outcome_counts/blocked")
 			.and_then(Value::as_u64),
-		Some(8)
+		Some(13)
 	);
 	assert_eq!(
 		report
 			.pointer("/external_adapters/summary/scenario_outcome_counts/non_goal")
 			.and_then(Value::as_u64),
-		Some(3)
+		Some(5)
 	);
 }
 
@@ -838,6 +845,7 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 	assert_graph_rag_research_gate_records(ragflow, lightrag, graphrag);
 	assert_graphiti_zep_adapter(graphiti_zep);
 	assert_graphify_adapter(graphify)?;
+	assert_graph_rag_representative_scenarios(ragflow, lightrag, graphrag, graphiti_zep, graphify)?;
 	assert_letta_core_archival_gate(letta)?;
 	assert_qmd_deep_profile_gate(qmd_deep);
 
@@ -1367,6 +1375,63 @@ fn assert_graphify_adapter(adapter: &Value) -> Result<()> {
 	Ok(())
 }
 
+fn assert_graph_rag_representative_scenarios(
+	ragflow: &Value,
+	lightrag: &Value,
+	graphrag: &Value,
+	graphiti_zep: &Value,
+	graphify: &Value,
+) -> Result<()> {
+	let ragflow_scenarios = array_at(ragflow, "/scenarios")?;
+	let lightrag_scenarios = array_at(lightrag, "/scenarios")?;
+	let graphrag_scenarios = array_at(graphrag, "/scenarios")?;
+	let graphiti_scenarios = array_at(graphiti_zep, "/scenarios")?;
+	let graphify_scenarios = array_at(graphify, "/scenarios")?;
+	let ragflow_chunk =
+		find_by_field(ragflow_scenarios, "/scenario_id", "reference_chunk_citation_mapping")?;
+	let lightrag_context =
+		find_by_field(lightrag_scenarios, "/scenario_id", "context_source_reference_mapping")?;
+	let graphrag_tables =
+		find_by_field(graphrag_scenarios, "/scenario_id", "output_table_citation_mapping")?;
+	let graphiti_temporal =
+		find_by_field(graphiti_scenarios, "/scenario_id", "temporal_validity_window_mapping")?;
+	let graphify_lint =
+		find_by_field(graphify_scenarios, "/scenario_id", "graph_report_navigation_lint")?;
+
+	assert_eq!(
+		ragflow_chunk.pointer("/comparison_outcome").and_then(Value::as_str),
+		Some("blocked")
+	);
+	assert_eq!(lightrag_context.pointer("/status").and_then(Value::as_str), Some("incomplete"));
+	assert_eq!(
+		lightrag_context.pointer("/comparison_outcome").and_then(Value::as_str),
+		Some("blocked")
+	);
+	assert_eq!(
+		graphrag_tables.pointer("/artifact").and_then(Value::as_str),
+		Some(
+			"apps/elf-eval/fixtures/real_world_external_adapters/graph_rag/graphrag_output_tables_blocked.json"
+		)
+	);
+	assert_eq!(
+		graphiti_temporal.pointer("/comparison_outcome").and_then(Value::as_str),
+		Some("blocked")
+	);
+	assert_eq!(graphify_lint.pointer("/status").and_then(Value::as_str), Some("wrong_result"));
+	assert_eq!(
+		graphify_lint.pointer("/comparison_outcome").and_then(Value::as_str),
+		Some("not_tested")
+	);
+	assert!(
+		graphify_lint
+			.pointer("/evidence")
+			.and_then(Value::as_str)
+			.is_some_and(|evidence| evidence.contains("not an ELF victory claim"))
+	);
+
+	Ok(())
+}
+
 #[test]
 fn graphify_generated_manifest_keeps_retrieval_unscored() -> Result<()> {
 	let manifest = serde_json::json!({
@@ -1477,6 +1542,61 @@ fn graphify_generated_manifest_keeps_retrieval_unscored() -> Result<()> {
 			.and_then(Value::as_str)
 			.is_some_and(|text| { text.contains("broad retrieval quality is not scored") })
 	);
+
+	Ok(())
+}
+
+#[test]
+fn graph_rag_representative_fixtures_report_typed_non_pass_states() -> Result<()> {
+	let report = run_json_report_from(graph_rag_external_fixture_dir())?;
+
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(5));
+	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(0));
+	assert_eq!(report.pointer("/summary/wrong_result").and_then(Value::as_u64), Some(1));
+	assert_eq!(report.pointer("/summary/incomplete").and_then(Value::as_u64), Some(1));
+	assert_eq!(report.pointer("/summary/blocked").and_then(Value::as_u64), Some(3));
+	assert_eq!(
+		report.pointer("/summary/knowledge/citation_coverage").and_then(Value::as_f64),
+		Some(0.667)
+	);
+	assert_eq!(
+		report.pointer("/summary/knowledge/stale_claim_detection").and_then(Value::as_f64),
+		Some(0.0)
+	);
+	assert_eq!(
+		report.pointer("/summary/knowledge/unsupported_summary_count").and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
+		report.pointer("/summary/temporal_validity_not_encoded_count").and_then(Value::as_u64),
+		Some(1)
+	);
+
+	let jobs = array_at(&report, "/jobs")?;
+	let ragflow = find_by_field(jobs, "/job_id", "graph-rag-ragflow-reference-chunks-001")?;
+	let lightrag = find_by_field(jobs, "/job_id", "graph-rag-lightrag-context-sources-001")?;
+	let graphrag = find_by_field(jobs, "/job_id", "graph-rag-graphrag-output-tables-001")?;
+	let graphiti = find_by_field(jobs, "/job_id", "graph-rag-graphiti-temporal-validity-001")?;
+	let graphify = find_by_field(jobs, "/job_id", "graph-rag-graphify-graph-report-001")?;
+
+	assert_eq!(ragflow.pointer("/status").and_then(Value::as_str), Some("blocked"));
+	assert_eq!(lightrag.pointer("/status").and_then(Value::as_str), Some("incomplete"));
+	assert_eq!(graphrag.pointer("/status").and_then(Value::as_str), Some("blocked"));
+	assert_eq!(graphiti.pointer("/status").and_then(Value::as_str), Some("blocked"));
+	assert_eq!(graphify.pointer("/status").and_then(Value::as_str), Some("wrong_result"));
+	assert_eq!(
+		graphify.pointer("/knowledge/stale_claim_detection").and_then(Value::as_f64),
+		Some(0.0)
+	);
+	assert_eq!(
+		graphify.pointer("/knowledge/unsupported_summary_count").and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
+		graphiti.pointer("/evolution/temporal_validity_not_encoded").and_then(Value::as_bool),
+		Some(true)
+	);
+	assert!(array_contains_str(graphify, "/produced_evidence", "graphify-source-location-output")?);
 
 	Ok(())
 }
@@ -3346,9 +3466,9 @@ fn generated_json_report_renders_markdown() -> Result<()> {
 	assert!(markdown.contains("xy844-current-worktree"));
 	assert!(markdown.contains("Existing live-baseline reports remain valid"));
 	assert!(markdown.contains("### Adapter Scenario Judgments"));
-	assert!(markdown.contains("ELF scenario positions: `wins=10, ties=11, loses=1, untested=23`"));
+	assert!(markdown.contains("ELF scenario positions: `wins=10, ties=11, loses=1, untested=35`"));
 	assert!(markdown.contains(
-		"Scenario comparison outcomes: `win=10, tie=11, loss=1, not_tested=12, blocked=8, non_goal=3`"
+		"Scenario comparison outcomes: `win=10, tie=11, loss=1, not_tested=17, blocked=13, non_goal=5`"
 	));
 	assert!(markdown.contains("| `claude_mem_live_baseline` | `same_corpus_retrieval`"));
 	assert!(markdown.contains("| `memsearch_live_baseline` | `ttl_expiry_lifecycle`"));

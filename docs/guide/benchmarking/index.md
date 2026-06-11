@@ -90,15 +90,17 @@ cleanup, use `docs/guide/single_user_production.md`.
   source-store/debug jobs, and claude-mem progressive-disclosure, retrieval-repair,
   hook, and viewer/operator surfaces.
 - `2026-06-11-graph-rag-scored-smoke-adapter-report.md`: XY-900 graph/RAG
-  scored-smoke adapter report that promotes RAGFlow, LightRAG, GraphRAG,
-  Graphiti/Zep, and graphify smoke contracts into scored or typed non-pass
-  `real_world_job` adapter reports without converting smoke evidence into quality
-  claims.
+  scored-smoke adapter report, updated by XY-929 with a representative
+  graph/RAG fixture slice, that keeps RAGFlow, LightRAG, GraphRAG, Graphiti/Zep,
+  graphify, llm-wiki, and gbrain outputs as scored or typed non-pass
+  `real_world_job` evidence without converting smoke or representative
+  non-pass evidence into quality claims.
 - `2026-06-11-competitor-strength-adoption-report.md`: XY-901 final
   competitor-strength adoption report, updated by XY-927 with fixture-backed
-  core-vs-archival coverage and a blocked Letta export/readback boundary, plus the
-  bounded personal-production decision, scenario-level win/tie/loss/not-tested
-  matrix, claim boundaries, and optimization issue queue.
+  core-vs-archival coverage and by XY-929 with representative graph/RAG
+  typed non-pass fixtures, plus the bounded personal-production decision,
+  scenario-level win/tie/loss/not-tested matrix, claim boundaries, and
+  optimization issue queue.
 - `2026-06-11-capture-write-policy-live-report.md`: XY-933 live capture/write-policy
   report that scores ELF redaction, exclusions, source ids, evidence binding, and no
   secret leakage while preserving typed blocked/untested boundaries for agentmemory
