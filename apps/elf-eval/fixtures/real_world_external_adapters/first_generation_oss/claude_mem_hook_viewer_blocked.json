@@ -1,0 +1,208 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "first-gen-claude-mem-hook-viewer-blocked-001",
+  "suite": "capture_integration",
+  "title": "Keep claude-mem hook and viewer workflows blocked until Docker-contained",
+  "encoding": {
+    "status": "blocked",
+    "reason": "The current claude-mem Docker baseline exercises repository classes and durable SQLite only; it does not launch hooks, timeline capture, the local viewer, or an operator workflow over the same corpus.",
+    "follow_up": {
+      "title": "Encode claude-mem hook capture and viewer workflow in Docker",
+      "reason": "A fair UX comparison requires hook observations, timeline/viewer readback, and retrieval repair artifacts produced inside the same containerized run."
+    }
+  },
+  "corpus": {
+    "corpus_id": "first-generation-oss-claude-mem-2026-06-11",
+    "profile": "external_adapter",
+    "items": [
+      {
+        "evidence_id": "claude-mem-hook-viewer-blocker",
+        "kind": "adapter_blocker",
+        "text": "claude-mem hook/viewer blocker: the current Docker runner uses repository classes only and does not execute hook capture, local viewer timeline readback, or operator repair workflows.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "claude_mem_hook_viewer_blocked",
+            "evidence_id": "claude-mem-hook-viewer-blocker"
+          },
+          "locator": {
+            "quote": "does not execute hook capture, local viewer timeline readback"
+          }
+        },
+        "created_at": "2026-06-11T10:50:00Z"
+      },
+      {
+        "evidence_id": "claude-mem-needed-docker-path",
+        "kind": "adapter_plan",
+        "text": "Needed claude-mem path: run hook capture and viewer/operator readback inside Docker against the same durable SQLite corpus, then emit timeline, detail hydration, and repair-command artifacts.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "claude_mem_hook_viewer_blocked",
+            "evidence_id": "claude-mem-needed-docker-path"
+          },
+          "locator": {
+            "quote": "run hook capture and viewer/operator readback inside Docker"
+          }
+        },
+        "created_at": "2026-06-11T10:51:00Z"
+      },
+      {
+        "evidence_id": "claude-mem-hook-pass-decoy",
+        "kind": "adapter_state",
+        "text": "Decoy: repository class tests prove claude-mem hook capture and viewer workflows pass.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "claude_mem_hook_viewer_blocked",
+            "evidence_id": "claude-mem-hook-pass-decoy"
+          }
+        },
+        "created_at": "2026-06-11T10:49:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_first_generation_oss",
+      "answer": {
+        "content": "claude-mem hook capture and viewer/operator workflows remain blocked. The current runner uses repository classes only; the next comparable path must run hook capture plus viewer/operator readback inside Docker against the same durable SQLite corpus and emit timeline, hydration, and repair-command artifacts.",
+        "claims": [
+          {
+            "claim_id": "hook_viewer_blocked",
+            "text": "The current runner does not execute hook capture or local viewer timeline readback.",
+            "evidence_ids": ["claude-mem-hook-viewer-blocker"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "needed_docker_path",
+            "text": "The needed path is hook capture and viewer/operator readback inside Docker against the same durable SQLite corpus.",
+            "evidence_ids": ["claude-mem-needed-docker-path"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["claude-mem-hook-viewer-blocker", "claude-mem-needed-docker-path"],
+        "latency_ms": 1.0,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    },
+    "capture_behaviors": {
+      "blocked": [
+        "claude-mem hook capture and viewer/operator readback are not Docker-contained yet."
+      ],
+      "notes": [
+        "Repository class lifecycle and hydration evidence must not be reused as hook or viewer workflow proof."
+      ]
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "claude-mem-hook-viewer-blocker-recorded",
+      "ts": "2026-06-11T10:50:00Z",
+      "actor": "benchmark",
+      "action": "recorded_blocker",
+      "evidence_ids": ["claude-mem-hook-viewer-blocker"],
+      "summary": "Hook capture and local viewer readback are outside the current Docker runner."
+    },
+    {
+      "event_id": "claude-mem-needed-path-recorded",
+      "ts": "2026-06-11T10:51:00Z",
+      "actor": "benchmark",
+      "action": "selected_next_path",
+      "evidence_ids": ["claude-mem-needed-docker-path"],
+      "summary": "The next fair path must run hook capture and viewer/operator readback inside Docker."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Can claude-mem hook capture and viewer workflows be scored from the current Docker baseline?",
+    "job_mode": "operate",
+    "constraints": ["cite_evidence", "state_blockers", "avoid_repository_overclaim"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "hook_viewer_blocked",
+        "text": "The current runner does not execute hook capture or local viewer timeline readback."
+      },
+      {
+        "claim_id": "needed_docker_path",
+        "text": "The needed path is hook capture and viewer/operator readback inside Docker against the same durable SQLite corpus."
+      }
+    ],
+    "must_not_include": [
+      "repository class tests prove claude-mem hook capture and viewer workflows pass"
+    ],
+    "evidence_links": {
+      "hook_viewer_blocked": ["claude-mem-hook-viewer-blocker"],
+      "needed_docker_path": ["claude-mem-needed-docker-path"]
+    },
+    "answer_type": "blocked_plan",
+    "accepted_alternates": [],
+    "requires_caveat": true,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "claude-mem-hook-viewer-blocker",
+      "claim_id": "hook_viewer_blocked",
+      "requirement": "cite",
+      "quote": "does not execute hook capture, local viewer timeline readback"
+    },
+    {
+      "evidence_id": "claude-mem-needed-docker-path",
+      "claim_id": "needed_docker_path",
+      "requirement": "explain",
+      "quote": "run hook capture and viewer/operator readback inside Docker"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "repository-class-hook-viewer-pass",
+      "type": "unsupported_prior",
+      "evidence_ids": ["claude-mem-hook-pass-decoy"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "uncertainty_handling": {
+        "weight": 0.35,
+        "max_points": 1.0,
+        "criteria": "Keeps hook/viewer workflow blocked until a Docker-contained run exists."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Names the next comparable Docker path."
+      },
+      "evidence_grounding": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Cites the current blocker and needed path."
+      },
+      "trap_avoidance": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Does not reuse repository class checks as hook/viewer proof."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "state_blocker"
+  },
+  "tags": ["external_adapter", "claude-mem", "capture_integration", "blocked", "no_live_claim"]
+}

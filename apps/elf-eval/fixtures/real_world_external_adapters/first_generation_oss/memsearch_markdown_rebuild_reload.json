@@ -1,0 +1,192 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "first-gen-memsearch-markdown-rebuild-reload-001",
+  "suite": "trust_source_of_truth",
+  "title": "Verify memsearch canonical Markdown rebuild and reload boundary",
+  "corpus": {
+    "corpus_id": "first-generation-oss-memsearch-2026-06-11",
+    "profile": "external_adapter",
+    "items": [
+      {
+        "evidence_id": "memsearch-canonical-markdown-store",
+        "kind": "source_store",
+        "text": "memsearch source-store evidence: the canonical Markdown corpus file is the source of truth, and the index is rebuilt by rerunning memsearch index over the file tree.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "memsearch_markdown_rebuild_reload",
+            "evidence_id": "memsearch-canonical-markdown-store"
+          },
+          "locator": {
+            "quote": "canonical Markdown corpus file is the source of truth"
+          }
+        },
+        "created_at": "2026-06-11T10:10:00Z"
+      },
+      {
+        "evidence_id": "memsearch-reload-proof",
+        "kind": "adapter_artifact",
+        "text": "memsearch reload proof: the Docker baseline rewrote auth-memory.md, deleted another corpus file, reran memsearch index, and a fresh memsearch search process retrieved the replacement marker while suppressing deleted evidence.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "memsearch_markdown_rebuild_reload",
+            "evidence_id": "memsearch-reload-proof"
+          },
+          "locator": {
+            "quote": "a fresh memsearch search process retrieved the replacement marker"
+          }
+        },
+        "created_at": "2026-06-11T10:11:00Z"
+      },
+      {
+        "evidence_id": "memsearch-suite-pass-decoy",
+        "kind": "claim_boundary",
+        "text": "Decoy: because memsearch reload passed a Docker smoke, memsearch has passed the full real-world source-of-truth suite.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "memsearch_markdown_rebuild_reload",
+            "evidence_id": "memsearch-suite-pass-decoy"
+          }
+        },
+        "created_at": "2026-06-11T10:09:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_first_generation_oss",
+      "answer": {
+        "content": "memsearch's comparable source-store path is the canonical Markdown corpus file, with the derived index rebuilt by rerunning memsearch index. The Docker smoke proves rewrite, delete, reindex, and fresh-process reload behavior, but it must not be promoted to a full real-world suite pass.",
+        "claims": [
+          {
+            "claim_id": "markdown_is_source_store",
+            "text": "The canonical Markdown corpus file is the source of truth for memsearch.",
+            "evidence_ids": ["memsearch-canonical-markdown-store"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "rebuild_reload_smoke",
+            "text": "The Docker smoke proves rewrite, delete, reindex, and fresh-process reload behavior.",
+            "evidence_ids": ["memsearch-reload-proof"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["memsearch-canonical-markdown-store", "memsearch-reload-proof"],
+        "latency_ms": 1.2,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "memsearch-markdown-store-selected",
+      "ts": "2026-06-11T10:10:00Z",
+      "actor": "benchmark",
+      "action": "selected_canonical_markdown_store",
+      "evidence_ids": ["memsearch-canonical-markdown-store"],
+      "summary": "The memsearch comparable source-store job uses the Markdown corpus as authoritative state."
+    },
+    {
+      "event_id": "memsearch-reload-artifact-recorded",
+      "ts": "2026-06-11T10:11:00Z",
+      "actor": "benchmark",
+      "action": "recorded_reindex_reload_smoke",
+      "evidence_ids": ["memsearch-reload-proof"],
+      "summary": "The Docker smoke supplies command-level reindex/reload evidence."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "What is the comparable memsearch source-of-truth path, and what does the rebuild/reload evidence prove?",
+    "job_mode": "answer",
+    "constraints": ["cite_evidence", "state_claim_boundary", "avoid_suite_promotion"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "markdown_is_source_store",
+        "text": "The canonical Markdown corpus file is the source of truth for memsearch."
+      },
+      {
+        "claim_id": "rebuild_reload_smoke",
+        "text": "The Docker smoke proves rewrite, delete, reindex, and fresh-process reload behavior."
+      }
+    ],
+    "must_not_include": [
+      "memsearch has passed the full real-world source-of-truth suite"
+    ],
+    "evidence_links": {
+      "markdown_is_source_store": ["memsearch-canonical-markdown-store"],
+      "rebuild_reload_smoke": ["memsearch-reload-proof"]
+    },
+    "answer_type": "direct_answer",
+    "accepted_alternates": [],
+    "requires_caveat": true,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "memsearch-canonical-markdown-store",
+      "claim_id": "markdown_is_source_store",
+      "requirement": "cite",
+      "quote": "canonical Markdown corpus file is the source of truth"
+    },
+    {
+      "evidence_id": "memsearch-reload-proof",
+      "claim_id": "rebuild_reload_smoke",
+      "requirement": "cite",
+      "quote": "a fresh memsearch search process retrieved the replacement marker"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "memsearch-smoke-suite-pass",
+      "type": "unsupported_prior",
+      "evidence_ids": ["memsearch-suite-pass-decoy"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Identifies Markdown as source store and index as rebuildable derived state."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Cites source-store and reload proof evidence."
+      },
+      "lifecycle_behavior": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Explains rewrite, delete, reindex, and fresh-process reload behavior."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Does not promote smoke evidence into full suite pass evidence."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "state_blocker"
+  },
+  "tags": ["external_adapter", "memsearch", "source_store", "markdown", "no_live_claim"]
+}

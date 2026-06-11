@@ -169,19 +169,20 @@
       "strongest_user_facing_scenario": "Markdown-first canonical store with rebuildable local index and practical hybrid retrieval.",
       "current_evidence_class": "live_baseline_only",
       "supporting_evidence_classes": [
-        "live_baseline_only"
+        "live_baseline_only",
+        "fixture_backed"
       ],
       "measured_status": "pass",
       "proof": {
-        "command": "ELF_BASELINE_PROJECTS=ELF,agentmemory,mem0,memsearch,claude-mem cargo make baseline-live-docker",
-        "artifact": "tmp/live-baseline/live-baseline-report.json"
+        "command": "ELF_BASELINE_PROJECTS=ELF,agentmemory,mem0,memsearch,claude-mem cargo make baseline-live-docker; cargo make real-world-first-generation-oss",
+        "artifact": "tmp/live-baseline/live-baseline-report.json; tmp/real-world-memory/first-generation-oss/report.json"
       },
       "unsupported_or_blocked_status": {
         "state": "not_encoded",
-        "typed_reason": "source_of_truth_and_reindex_real_world_jobs_not_encoded",
-        "details": "Basic canonical Markdown same-corpus/reindex/update/delete/reload smoke now passes, but source-of-truth, retrieval-debug, and memory-evolution real-world prompt adapters are not encoded."
+        "typed_reason": "live_prompt_runtime_adapter_not_encoded",
+        "details": "Basic canonical Markdown same-corpus/reindex/update/delete/reload smoke passes, and XY-925 adds fixture-backed source-store and retrieval-debug prompts. No live memsearch runtime adapter executes prompt scoring yet; memory-evolution prompt adapters remain not encoded and TTL/expiry is unsupported by the current CLI path."
       },
-      "benchmark_before_claim": "Score source-of-truth and retrieval-debug real-world jobs over the canonical Markdown store; keep TTL/expiry unsupported unless a comparable path exists.",
+      "benchmark_before_claim": "Promote the fixture-backed source-store and retrieval-debug prompts into a live memsearch real-world adapter before any suite-level win/loss claim; keep TTL/expiry unsupported unless a comparable path exists.",
       "borrow_if_stronger": "Borrow the canonical markdown-store ergonomics, local reindex clarity, and user-inspectable source files."
     },
     {
@@ -211,19 +212,20 @@
       "strongest_user_facing_scenario": "Progressive disclosure, automatic capture loop, repository-local lifecycle, and practical local viewer workflow.",
       "current_evidence_class": "live_baseline_only",
       "supporting_evidence_classes": [
-        "live_baseline_only"
+        "live_baseline_only",
+        "fixture_backed"
       ],
       "measured_status": "wrong_result",
       "proof": {
-        "command": "ELF_BASELINE_PROJECTS=claude-mem cargo make baseline-live-docker",
-        "artifact": "tmp/live-baseline/live-baseline-report.json"
+        "command": "ELF_BASELINE_PROJECTS=claude-mem cargo make baseline-live-docker; cargo make real-world-first-generation-oss",
+        "artifact": "tmp/live-baseline/live-baseline-report.json; tmp/real-world-memory/first-generation-oss/report.json"
       },
       "unsupported_or_blocked_status": {
-        "state": "not_encoded",
-        "typed_reason": "progressive_disclosure_and_capture_real_world_jobs_not_encoded",
-        "details": "Current Docker evidence is not a clean retrieval pass, and progressive-disclosure plus hook/viewer capture jobs are not encoded."
+        "state": "blocked",
+        "typed_reason": "hook_viewer_runtime_paths_blocked",
+        "details": "Same-corpus retrieval remains wrong_result; XY-925 adds fixture-backed progressive-disclosure and retrieval-repair prompts. Hook capture and viewer/operator workflows still lack a Docker-contained runner, and the repair prompt lists rerun/inspection targets tmp/live-baseline/claude-mem.log plus tmp/live-baseline/claude-mem-checks.json."
       },
-      "benchmark_before_claim": "Add durable repository-backed work_resume, operator_debugging_ux, capture/write-policy, and progressive-disclosure jobs.",
+      "benchmark_before_claim": "Promote durable repository-backed work_resume, operator_debugging_ux, capture/write-policy, viewer/operator, and progressive-disclosure prompts into a live claude-mem adapter before any broader UX claim.",
       "borrow_if_stronger": "Borrow progressive disclosure, automatic capture review loops, and local viewer/operator comfort."
     },
     {
@@ -442,7 +444,7 @@
       "scenario": "work resume",
       "current_elf_evidence": "ELF fixture-backed work_resume passes and ELF live_real_world work_resume passes.",
       "strongest_competitor_or_reference": "agentmemory, claude-mem, OpenViking",
-      "current_competitor_evidence": "agentmemory is live_baseline_only with lifecycle_fail; claude-mem is wrong_result; OpenViking work_resume is not_encoded.",
+      "current_competitor_evidence": "agentmemory is live_baseline_only with lifecycle_fail; claude-mem work_resume remains not_encoded pending a durable repository-backed adapter; OpenViking work_resume is not_encoded.",
       "current_state": "ELF and qmd have current encoded live pass evidence, but continuity-oriented competitors remain undermeasured.",
       "next_measurement": "Encode durable agentmemory, claude-mem, and OpenViking work_resume adapters or declare each blocked with lifecycle/setup evidence."
     },
@@ -460,9 +462,9 @@
       "scenario": "source-of-truth",
       "current_elf_evidence": "ELF fixture-backed trust_source_of_truth passes and ELF live_real_world trust_source_of_truth passes.",
       "strongest_competitor_or_reference": "memsearch",
-      "current_competitor_evidence": "memsearch has live_baseline_only canonical store evidence and now passes same-corpus retrieval, reindex/update/delete, and cold-start reload smoke, but trust_source_of_truth real-world prompts are not_encoded.",
-      "current_state": "ELF has stronger measured real-world source-of-truth evidence; memsearch now ties the local canonical-store reindex/reload smoke and remains a local-store ergonomics reference.",
-      "next_measurement": "Run memsearch source-of-truth rebuild and reload real_world_job prompts before any suite-level win/loss claim."
+      "current_competitor_evidence": "memsearch canonical-store, reindex, delete, and reload smoke passes; XY-925 fixture-backed source-of-truth prompts now cover the canonical Markdown rebuild/reload boundary, but no live memsearch prompt adapter pass is claimed.",
+      "current_state": "ELF has stronger measured live real-world source-of-truth evidence; memsearch now ties the local canonical-store reindex/reload smoke and has fixture-backed prompt coverage as a local-store ergonomics reference.",
+      "next_measurement": "Promote memsearch source-of-truth rebuild/reload prompts into a live adapter before any suite-level win/loss claim."
     },
     {
       "scenario_id": "temporal_current_historical",
@@ -496,8 +498,8 @@
       "scenario": "operator debugging",
       "current_elf_evidence": "ELF fixture-backed operator_debugging_ux passes, and the narrow live_real_world operator-debug slice passes for trace hydration, candidate-drop visibility, selected-but-not-narrated evidence, replay-command availability, and repair-action clarity.",
       "strongest_competitor_or_reference": "qmd, claude-mem, OpenMemory",
-      "current_competitor_evidence": "qmd now has a narrow live_real_world operator-debug slice: replay-command availability and repair-action clarity pass, but trace hydration, candidate-drop stage visibility, and selected-but-not-narrated evidence are wrong_result. claude-mem and OpenMemory UX remain not_encoded or blocked.",
-      "current_state": "ELF has a narrow comparable live win over qmd for trace hydration and candidate-drop visibility, while OpenMemory and claude-mem UI workflows remain unmeasured.",
+      "current_competitor_evidence": "qmd now has a narrow live_real_world operator-debug slice: replay-command availability and repair-action clarity pass, but trace hydration, candidate-drop stage visibility, and selected-but-not-narrated evidence are wrong_result. XY-925 adds claude-mem progressive-disclosure and retrieval-repair prompt coverage, while claude-mem viewer/operator and OpenMemory UI/export remain blocked.",
+      "current_state": "ELF has a narrow comparable live win over qmd for trace hydration and candidate-drop visibility, while OpenMemory and claude-mem viewer/operator workflows remain blocked for broad UX claims.",
       "next_measurement": "Add bounded OpenMemory and claude-mem UI/export or viewer runners before any broader operator-UX claim."
     },
     {
@@ -505,8 +507,8 @@
       "scenario": "capture/write policy",
       "current_elf_evidence": "ELF fixture-backed capture_integration passes, and ELF live_real_world capture_integration passes 4/4 with zero redaction leaks, source ids, write-policy audit, and evidence binding.",
       "strongest_competitor_or_reference": "agentmemory, claude-mem",
-      "current_competitor_evidence": "agentmemory capture_integration is blocked by mocked/in-memory storage and claude-mem hook/viewer capture is not_encoded.",
-      "current_state": "ELF has live capture/write-policy self-check evidence, but agentmemory and claude-mem capture-breadth comparisons remain blocked or untested.",
+      "current_competitor_evidence": "agentmemory and claude-mem hook capture remain blocked until Docker-contained hook observations and write-policy/viewer readback artifacts exist.",
+      "current_state": "ELF has live capture/write-policy self-check evidence, but agentmemory and claude-mem capture-breadth comparisons remain blocked.",
       "next_measurement": "Run durable agentmemory and claude-mem capture-hook jobs that prove redaction, exclusion, evidence binding, source ids, and no secret leakage."
     },
     {
@@ -523,9 +525,9 @@
       "scenario": "personalization",
       "current_elf_evidence": "ELF fixture-backed personalization passes and ELF live_real_world personalization passes.",
       "strongest_competitor_or_reference": "mem0/OpenMemory, Letta",
-      "current_competitor_evidence": "mem0/OpenMemory has a scenario-level live_baseline_only tie for entity_scoped_personalization, while the broader real_world_job personalization prompt adapter remains not_encoded; Letta scoped preference readback remains not_tested until the contained core/archival export path exists.",
-      "current_state": "ELF and qmd have live encoded personalization evidence; mem0/OpenMemory ties the scoped-personalization smoke but is not yet comparable across the broader suite, and Letta remains unscored.",
-      "next_measurement": "Encode broader mem0/OpenMemory real_world_job personalization prompts and Letta scoped-preference readback jobs before making personalization superiority claims."
+      "current_competitor_evidence": "mem0/OpenMemory local OSS entity-scoped personalization now passes; OpenMemory UI/export remains blocked, hosted Platform export is non-goal, optional graph memory remains outside local OSS scoring, and Letta personalization is research_gate not_encoded.",
+      "current_state": "ELF, qmd, and mem0 local OSS have measured scoped-preference evidence, so scoped personalization is a tie on the current surface; mem0 preference-correction history remains a separate ELF loss.",
+      "next_measurement": "Add OpenMemory product app import/export and contained Letta scoped-preference readback before making broader personalization superiority claims."
     },
     {
       "scenario_id": "context_trajectory",
@@ -585,11 +587,11 @@
       "measurement": "Preference/entity history, deletion audit readback, personalization, OpenMemory inspection/export, and optional graph-context jobs."
     },
     {
-      "workstream": "memsearch source-of-truth real-world coverage",
+      "workstream": "memsearch source-of-truth live adapter coverage",
       "issue_or_candidate": "new adapter repair issue",
       "parallelizable": true,
-      "blocked_by": "Real-world prompt adapter over the canonical Markdown store.",
-      "measurement": "Source-of-truth rebuild/reload jobs and retrieval-debug jobs that preserve baseline reindex/update/delete evidence without converting it into suite pass claims."
+      "blocked_by": "Fixture-backed source-store and retrieval-debug prompts are encoded by XY-925; live prompt execution remains missing.",
+      "measurement": "Runtime adapter execution for the existing source-of-truth rebuild/reload and retrieval-debug prompt jobs without converting baseline smoke into suite pass claims."
     },
     {
       "workstream": "OpenViking context trajectory",
@@ -599,11 +601,11 @@
       "measurement": "Hierarchical expansion, staged trajectory, and resume/retrieval evidence jobs."
     },
     {
-      "workstream": "claude-mem progressive disclosure",
+      "workstream": "claude-mem hook/viewer runtime coverage",
       "issue_or_candidate": "new adapter issue",
       "parallelizable": true,
-      "blocked_by": "Durable repository path and progressive-disclosure output contract.",
-      "measurement": "Work resume, operator debugging, capture/write-policy, and progressive disclosure jobs."
+      "blocked_by": "Fixture-backed progressive-disclosure and retrieval-repair prompts are encoded by XY-925; hook capture and viewer/operator workflows remain blocked.",
+      "measurement": "Work resume, operator debugging, capture/write-policy, viewer/operator, and live progressive-disclosure adapter execution."
     },
     {
       "workstream": "RAGFlow evidence smoke",
