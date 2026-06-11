@@ -421,6 +421,7 @@ args = [
 # | real-world-job-operator-ux             | composite |     |
 # | real-world-job-operator-ux-json        | command   |     |
 # | real-world-job-operator-ux-report      | command   |     |
+# | real-world-job-operator-ux-live-adapters | command |     |
 # | real-world-memory-retrieval            | composite |     |
 # | real-world-memory-retrieval-json       | command   |     |
 # | real-world-memory-retrieval-report     | command   |     |
@@ -666,6 +667,14 @@ args = [
 	"tmp/real-world-job/real-world-job-operator-ux-report.json",
 	"--out",
 	"tmp/real-world-job/real-world-job-operator-ux-report.md",
+]
+
+[tasks.real-world-job-operator-ux-live-adapters]
+workspace = false
+command = "bash"
+args = [
+	"-lc",
+	"docker compose -f docker-compose.baseline.yml run --build --rm -e ELF_OPERATOR_DEBUG_LIVE_REPORT_DIR -e ELF_OPERATOR_DEBUG_LIVE_FIXTURES -e ELF_OPERATOR_DEBUG_LIVE_WORK_DIR -e ELF_OPERATOR_DEBUG_QMD_DIR baseline-runner bash scripts/real-world-operator-debug-live-adapters.sh",
 ]
 
 [tasks.real-world-memory-retrieval]

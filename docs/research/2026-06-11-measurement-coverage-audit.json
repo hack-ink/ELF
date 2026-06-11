@@ -72,88 +72,136 @@
     {
       "suite": "trust_source_of_truth",
       "jobs": 1,
-      "elf_status_counts": {"pass": 1},
-      "qmd_status_counts": {"pass": 1}
+      "elf_status_counts": {
+        "pass": 1
+      },
+      "qmd_status_counts": {
+        "pass": 1
+      }
     },
     {
       "suite": "work_resume",
       "jobs": 5,
-      "elf_status_counts": {"pass": 5},
-      "qmd_status_counts": {"pass": 5}
+      "elf_status_counts": {
+        "pass": 5
+      },
+      "qmd_status_counts": {
+        "pass": 5
+      }
     },
     {
       "suite": "retrieval",
       "jobs": 5,
-      "elf_status_counts": {"pass": 5},
-      "qmd_status_counts": {"pass": 5}
+      "elf_status_counts": {
+        "pass": 5
+      },
+      "qmd_status_counts": {
+        "pass": 5
+      }
     },
     {
       "suite": "project_decisions",
       "jobs": 5,
-      "elf_status_counts": {"pass": 5},
-      "qmd_status_counts": {"pass": 5}
+      "elf_status_counts": {
+        "pass": 5
+      },
+      "qmd_status_counts": {
+        "pass": 5
+      }
     },
     {
       "suite": "personalization",
       "jobs": 1,
-      "elf_status_counts": {"pass": 1},
-      "qmd_status_counts": {"pass": 1}
+      "elf_status_counts": {
+        "pass": 1
+      },
+      "qmd_status_counts": {
+        "pass": 1
+      }
     },
     {
       "suite": "memory_evolution",
       "jobs": 6,
-      "elf_status_counts": {"pass": 1, "wrong_result": 5},
-      "qmd_status_counts": {"wrong_result": 6}
+      "elf_status_counts": {
+        "pass": 1,
+        "wrong_result": 5
+      },
+      "qmd_status_counts": {
+        "wrong_result": 6
+      }
     },
     {
       "suite": "capture_integration",
       "jobs": 2,
-      "elf_status_counts": {"not_encoded": 2},
-      "qmd_status_counts": {"not_encoded": 2}
+      "elf_status_counts": {
+        "not_encoded": 2
+      },
+      "qmd_status_counts": {
+        "not_encoded": 2
+      }
     },
     {
       "suite": "consolidation",
       "jobs": 4,
-      "elf_status_counts": {"not_encoded": 4},
-      "qmd_status_counts": {"not_encoded": 4}
+      "elf_status_counts": {
+        "not_encoded": 4
+      },
+      "qmd_status_counts": {
+        "not_encoded": 4
+      }
     },
     {
       "suite": "knowledge_compilation",
       "jobs": 2,
-      "elf_status_counts": {"not_encoded": 2},
-      "qmd_status_counts": {"not_encoded": 2}
+      "elf_status_counts": {
+        "not_encoded": 2
+      },
+      "qmd_status_counts": {
+        "not_encoded": 2
+      }
     },
     {
       "suite": "operator_debugging_ux",
       "jobs": 1,
-      "elf_status_counts": {"not_encoded": 1},
-      "qmd_status_counts": {"not_encoded": 1}
+      "elf_status_counts": {
+        "not_encoded": 1
+      },
+      "qmd_status_counts": {
+        "not_encoded": 1
+      }
     },
     {
       "suite": "production_ops",
       "jobs": 6,
-      "elf_status_counts": {"blocked": 2, "not_encoded": 4},
-      "qmd_status_counts": {"blocked": 2, "not_encoded": 4}
+      "elf_status_counts": {
+        "blocked": 2,
+        "not_encoded": 4
+      },
+      "qmd_status_counts": {
+        "blocked": 2,
+        "not_encoded": 4
+      }
     }
   ],
   "adapter_ledger": {
-    "adapter_records": 21,
+    "adapter_records": 23,
     "unique_project_names": 17,
     "external_project_count_note": "The generated report field external_project_count reports unique non-ELF project names after the XY-900 runner repair; the manifest has 16 external projects and 17 total project names including ELF.",
     "evidence_class_counts": {
       "fixture_backed": 1,
       "live_baseline_only": 6,
-      "live_real_world": 3,
+      "live_real_world": 5,
       "research_gate": 11
     },
     "overall_status_counts": {
-      "pass": 3,
-      "wrong_result": 5,
+      "pass": 4,
+      "wrong_result": 6,
       "lifecycle_fail": 1,
       "blocked": 5,
       "not_encoded": 7
     },
-    "xy900_update_note": "XY-900 promotes graphify from research_gate/blocked to a tiny scored live_real_world wrong_result smoke; broad graph/RAG quality remains unproven."
+    "xy900_update_note": "XY-900 promotes graphify from research_gate/blocked to a tiny scored live_real_world wrong_result smoke; broad graph/RAG quality remains unproven.",
+    "xy932_update_note": "XY-932 adds narrow ELF/qmd operator-debug live_real_world records: ELF pass and qmd wrong_result for trace hydration/candidate-drop visibility, with OpenMemory and claude-mem UI still unmeasured."
   },
   "claim_boundary": {
     "elf_vs_qmd": "near_tie_with_narrow_delete_ttl_elf_lead_not_overall_win",

@@ -534,6 +534,14 @@ struct OperatorDebugEvidence {
 	dropped_candidate_visibility: String,
 	trace_completeness: String,
 	repair_action_clarity: String,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	trace_available: Option<bool>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	replay_command_available: Option<bool>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	replay_command: Option<String>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	replay_artifact: Option<String>,
 	#[serde(default)]
 	viewer_panels: Vec<String>,
 	#[serde(default)]
@@ -1787,6 +1795,8 @@ fn validate_operator_debug(job: &RealWorldJob, path: &Path) -> Result<()> {
 		debug.admin_trace_bundle_url.as_deref(),
 		"admin_trace_bundle_url",
 	)?;
+	validate_optional_debug_field(path, debug.replay_command.as_deref(), "replay_command")?;
+	validate_optional_debug_field(path, debug.replay_artifact.as_deref(), "replay_artifact")?;
 	validate_non_empty_debug_list(path, &debug.viewer_panels, "viewer_panels")?;
 	validate_non_empty_debug_list(path, &debug.cli_steps, "cli_steps")?;
 	validate_non_empty_debug_list(path, &debug.trace_evidence, "trace_evidence")?;
@@ -4598,16 +4608,18 @@ fn render_markdown_operator_debugging(out: &mut String, report: &RealWorldReport
 		return;
 	}
 
-	out.push_str("| Job | Failure Mode | Trace Evidence | Steps | Raw SQL | Dropped Candidate Visibility | Trace Completeness | Repair Clarity | UX Gaps |\n");
-	out.push_str("| --- | --- | --- | ---: | --- | --- | --- | --- | --- |\n");
+	out.push_str("| Job | Failure Mode | Trace Evidence | Trace Available | Replay Command | Steps | Raw SQL | Dropped Candidate Visibility | Trace Completeness | Repair Clarity | UX Gaps |\n");
+	out.push_str("| --- | --- | --- | --- | --- | ---: | --- | --- | --- | --- | --- |\n");
 
 	for job in jobs {
 		if let Some(debug) = &job.operator_debug {
 			out.push_str(&format!(
-				"| {} | {} | {} | {} | `{}` | {} | `{}` | `{}` | {} |\n",
+				"| {} | {} | {} | `{}` | `{}` | {} | `{}` | {} | `{}` | `{}` | {} |\n",
 				md_cell(job.job_id.as_str()),
 				md_cell(debug.failure_mode.as_str()),
 				debug_trace_cell(debug),
+				debug.trace_available.unwrap_or(debug.trace_id.is_some()),
+				debug.replay_command_available.unwrap_or(debug.replay_command.is_some()),
 				debug.steps_to_root_cause,
 				debug.raw_sql_needed,
 				md_cell(debug.dropped_candidate_visibility.as_str()),
@@ -4632,6 +4644,14 @@ fn render_markdown_operator_debugging(out: &mut String, report: &RealWorldReport
 				"- CLI steps: `{}`\n",
 				md_inline(debug.cli_steps.join(" -> ").as_str())
 			));
+
+			if let Some(command) = &debug.replay_command {
+				out.push_str(&format!("- Replay command: `{}`\n", md_inline(command.as_str())));
+			}
+			if let Some(artifact) = &debug.replay_artifact {
+				out.push_str(&format!("- Replay artifact: `{}`\n", md_inline(artifact.as_str())));
+			}
+
 			out.push_str(&format!(
 				"- Trace evidence: `{}`\n",
 				md_inline(debug.trace_evidence.join(", ").as_str())
