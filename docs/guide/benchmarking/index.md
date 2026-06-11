@@ -84,6 +84,11 @@ cleanup, use `docs/guide/single_user_production.md`.
   mem0/OpenMemory, memsearch, and claude-mem with fresh scenario-level baseline
   evidence and ELF win/tie/loss/untested positions without converting baseline-only
   evidence into real-world suite wins.
+- `2026-06-11-first-generation-oss-continuity-source-store-report.md`: XY-925
+  follow-up report that adds first-generation OSS fixture-backed prompt coverage and
+  typed blockers for agentmemory durable continuity, memsearch canonical Markdown
+  source-store/debug jobs, and claude-mem progressive-disclosure, retrieval-repair,
+  hook, and viewer/operator surfaces.
 - `2026-06-11-graph-rag-scored-smoke-adapter-report.md`: XY-900 graph/RAG
   scored-smoke adapter report that promotes RAGFlow, LightRAG, GraphRAG,
   Graphiti/Zep, and graphify smoke contracts into scored or typed non-pass
