@@ -45,7 +45,7 @@
       "blocked": 2,
       "not_encoded": 13,
       "mean_score": 0.525,
-      "mean_latency_ms": 5.1,
+      "mean_latency_ms": 6.823,
       "expected_evidence_total": 77,
       "expected_evidence_matched": 41,
       "evidence_required_count": 84,
@@ -55,16 +55,16 @@
       "adapter": "qmd live CLI adapter",
       "job_count": 38,
       "encoded_suite_count": 11,
-      "pass": 18,
-      "wrong_result": 5,
+      "pass": 17,
+      "wrong_result": 6,
       "blocked": 2,
       "not_encoded": 13,
-      "mean_score": 0.512,
-      "mean_latency_ms": 719.758,
+      "mean_score": 0.486,
+      "mean_latency_ms": 819.626,
       "expected_evidence_total": 77,
-      "expected_evidence_matched": 41,
+      "expected_evidence_matched": 38,
       "evidence_required_count": 84,
-      "evidence_covered_count": 48
+      "evidence_covered_count": 45
     }
   ],
   "live_suite_breakdown": [
@@ -83,7 +83,7 @@
   "adapter_ledger": {
     "adapter_records": 21,
     "unique_project_names": 17,
-    "external_project_count_note": "The generated report field external_project_count currently counts non-ELF adapter records, not unique external project names.",
+    "external_project_count_note": "The generated report field external_project_count now reports distinct non-ELF project names; the manifest has 16 external projects and 17 total project names including ELF.",
     "evidence_class_counts": {
       "fixture_backed": 1,
       "live_baseline_only": 6,
@@ -91,8 +91,8 @@
       "research_gate": 12
     },
     "overall_status_counts": {
-      "pass": 1,
-      "wrong_result": 6,
+      "pass": 3,
+      "wrong_result": 4,
       "lifecycle_fail": 1,
       "blocked": 6,
       "not_encoded": 7

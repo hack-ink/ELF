@@ -3950,9 +3950,15 @@ fn validate_adapter_execution_metadata(path: &Path, adapter: &ExternalAdapterRep
 }
 
 fn external_adapter_summary(adapters: &[ExternalAdapterReport]) -> ExternalAdapterSummary {
+	let external_project_count = adapters
+		.iter()
+		.filter(|adapter| adapter.project != "ELF")
+		.map(|adapter| adapter.project.as_str())
+		.collect::<BTreeSet<_>>()
+		.len();
 	let mut summary = ExternalAdapterSummary {
 		adapter_count: adapters.len(),
-		external_project_count: adapters.iter().filter(|adapter| adapter.project != "ELF").count(),
+		external_project_count,
 		..ExternalAdapterSummary::default()
 	};
 
