@@ -95,10 +95,10 @@
       "unsupported_or_blocked_status": {
         "state": "blocked",
         "typed_reason": "private_manifest_and_provider_credentials",
-        "details": "Fixture production-ops keeps private corpus and provider credential gates blocked; the full live sweep keeps broader non-retrieval suites typed non-pass, while the narrow operator-debug slice now passes."
+        "details": "Fixture production-ops keeps private corpus and provider credential gates blocked; the full live sweep keeps broader non-retrieval suites typed non-pass, while the narrow operator-debug and live capture/write-policy slices now pass."
       },
-      "benchmark_before_claim": "A full-suite live_real_world pass plus separate private-corpus and credentialed production-ops evidence is required before broad live parity or production proof claims.",
-      "borrow_if_stronger": "Keep borrowing qmd debug knobs, OpenViking staged trajectory, mem0 history, Letta core memory, and graph/RAG navigation patterns where they remain stronger."
+      "benchmark_before_claim": "A full-suite live_real_world pass plus separate private-corpus, credentialed production-ops, and durable external capture-hook evidence is required before broad live parity, production, or capture-breadth claims.",
+      "borrow_if_stronger": "Keep borrowing qmd debug knobs, OpenViking staged trajectory, mem0 history, Letta core memory, agentmemory/claude-mem capture breadth, and graph/RAG navigation patterns where they remain stronger."
     },
     {
       "project": "qmd",
@@ -136,8 +136,8 @@
       },
       "unsupported_or_blocked_status": {
         "state": "blocked",
-        "typed_reason": "durable_lifecycle_adapter_missing",
-        "details": "Same-corpus retrieval can run, but durable cold-start and real-world job adapter coverage are blocked by the current adapter path."
+        "typed_reason": "durable_lifecycle_and_capture_adapter_missing",
+        "details": "Same-corpus retrieval can run, but durable cold-start, capture-hook persistence, and real-world job adapter coverage are blocked by the current process-local StateKV Map and in-memory index path."
       },
       "benchmark_before_claim": "Add a durable local adapter that covers update, delete, cold-start reload, work resume, capture/write policy, and lifecycle-staleness jobs.",
       "borrow_if_stronger": "Borrow cross-agent hooks, packaging, continuity scenarios, and operator-visible viewer affordances."
@@ -217,8 +217,8 @@
       },
       "unsupported_or_blocked_status": {
         "state": "not_encoded",
-        "typed_reason": "progressive_disclosure_real_world_jobs_not_encoded",
-        "details": "Current Docker evidence is not a clean retrieval pass and progressive-disclosure jobs are not encoded."
+        "typed_reason": "progressive_disclosure_and_capture_real_world_jobs_not_encoded",
+        "details": "Current Docker evidence is not a clean retrieval pass, and progressive-disclosure plus hook/viewer capture jobs are not encoded."
       },
       "benchmark_before_claim": "Add durable repository-backed work_resume, operator_debugging_ux, capture/write-policy, and progressive-disclosure jobs.",
       "borrow_if_stronger": "Borrow progressive disclosure, automatic capture review loops, and local viewer/operator comfort."
@@ -500,11 +500,11 @@
     {
       "scenario_id": "capture_write_policy",
       "scenario": "capture/write policy",
-      "current_elf_evidence": "ELF fixture-backed capture_integration passes, but ELF live_real_world capture_integration is not_encoded.",
+      "current_elf_evidence": "ELF fixture-backed capture_integration passes, and ELF live_real_world capture_integration passes 4/4 with zero redaction leaks, source ids, write-policy audit, and evidence binding.",
       "strongest_competitor_or_reference": "agentmemory, claude-mem",
-      "current_competitor_evidence": "agentmemory capture_integration is blocked and claude-mem capture_integration is not_encoded.",
-      "current_state": "ELF fixture evidence is strongest, but live capture and write-policy behavior still needs runtime scoring.",
-      "next_measurement": "Run capture/write-policy jobs that prove redaction, exclusion, evidence binding, and no secret leakage through live ingestion paths."
+      "current_competitor_evidence": "agentmemory capture_integration is blocked by mocked/in-memory storage and claude-mem hook/viewer capture is not_encoded.",
+      "current_state": "ELF has live capture/write-policy self-check evidence, but agentmemory and claude-mem capture-breadth comparisons remain blocked or untested.",
+      "next_measurement": "Run durable agentmemory and claude-mem capture-hook jobs that prove redaction, exclusion, evidence binding, source ids, and no secret leakage."
     },
     {
       "scenario_id": "production_ops",
@@ -566,6 +566,13 @@
       "parallelizable": true,
       "blocked_by": "Durable local adapter path selection.",
       "measurement": "Update, delete, cold-start reload, work_resume, and capture/write-policy jobs."
+    },
+    {
+      "workstream": "agentmemory/claude-mem capture-hook breadth",
+      "issue_or_candidate": "follow-up after XY-933",
+      "parallelizable": true,
+      "blocked_by": "Docker-contained hook/viewer capture path with durable artifacts.",
+      "measurement": "Source ids, redaction/exclusion audit, evidence-bound output, and typed blocker reporting."
     },
     {
       "workstream": "mem0/OpenMemory history and UI coverage",

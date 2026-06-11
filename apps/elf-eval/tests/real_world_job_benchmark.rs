@@ -48,6 +48,10 @@ fn retrieval_fixture_dir() -> PathBuf {
 		.join("retrieval")
 }
 
+fn capture_fixture_dir() -> PathBuf {
+	real_world_memory_fixture_dir().join("capture_integration")
+}
+
 fn consolidation_fixture_dir() -> PathBuf {
 	real_world_memory_fixture_dir().join("consolidation")
 }
@@ -135,6 +139,21 @@ fn competitor_strength_adoption_report_json_path() -> Result<PathBuf> {
 		.join("docs")
 		.join("research")
 		.join("2026-06-11-competitor-strength-adoption-report.json"))
+}
+
+fn capture_write_policy_live_report_path() -> Result<PathBuf> {
+	Ok(workspace_root()?
+		.join("docs")
+		.join("research")
+		.join("2026-06-11-capture-write-policy-live-report.json"))
+}
+
+fn capture_write_policy_live_markdown_path() -> Result<PathBuf> {
+	Ok(workspace_root()?
+		.join("docs")
+		.join("guide")
+		.join("benchmarking")
+		.join("2026-06-11-capture-write-policy-live-report.md"))
 }
 
 fn temporal_history_competitor_gap_json_path() -> Result<PathBuf> {
@@ -318,6 +337,39 @@ fn real_world_report_includes_external_adapter_coverage_manifest() -> Result<()>
 }
 
 #[test]
+fn capture_integration_fixtures_score_redaction_and_source_ids() -> Result<()> {
+	let report = run_json_report_from(capture_fixture_dir())?;
+
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(3));
+	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(3));
+	assert_eq!(report.pointer("/summary/redaction_leak_count").and_then(Value::as_u64), Some(0));
+	assert_eq!(report.pointer("/summary/evidence_coverage").and_then(Value::as_f64), Some(1.0));
+	assert_eq!(report.pointer("/summary/source_ref_coverage").and_then(Value::as_f64), Some(1.0));
+
+	let suites = array_at(&report, "/suites")?;
+	let capture = find_by_field(suites, "/suite_id", "capture_integration")?;
+
+	assert_eq!(capture.pointer("/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(capture.pointer("/encoded_job_count").and_then(Value::as_u64), Some(3));
+
+	let jobs = array_at(&report, "/jobs")?;
+	let source_id = find_by_field(jobs, "/job_id", "capture-source-id-binding-001")?;
+	let redaction = find_by_field(jobs, "/job_id", "capture-write-policy-redaction-001")?;
+
+	assert!(array_contains_str(source_id, "/produced_evidence", "source-id-release-summary")?);
+	assert!(array_contains_str(source_id, "/produced_evidence", "source-id-command-log")?);
+	assert_eq!(redaction.pointer("/redaction_leak_count").and_then(Value::as_u64), Some(0));
+	assert!(
+		redaction
+			.pointer("/produced_answer")
+			.and_then(Value::as_str)
+			.is_some_and(|answer| !answer.contains("orchid-envelope"))
+	);
+
+	Ok(())
+}
+
+#[test]
 fn external_adapter_run_summarizes_nonzero_scenario_losses() -> Result<()> {
 	let manifest_path = Path::new(env!("CARGO_MANIFEST_DIR"))
 		.join("fixtures")
@@ -373,7 +425,7 @@ fn external_adapter_run_summarizes_nonzero_scenario_losses() -> Result<()> {
 		report
 			.pointer("/external_adapters/summary/scenario_position_counts/untested")
 			.and_then(Value::as_u64),
-		Some(10)
+		Some(11)
 	);
 	assert_eq!(
 		report
@@ -531,7 +583,7 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/scenario_status_counts/blocked")
 			.and_then(Value::as_u64),
-		Some(2)
+		Some(3)
 	);
 	assert_eq!(
 		report
@@ -555,7 +607,7 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/scenario_status_counts/pass")
 			.and_then(Value::as_u64),
-		Some(16)
+		Some(17)
 	);
 	assert_eq!(
 		report
@@ -573,7 +625,7 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/scenario_position_counts/ties")
 			.and_then(Value::as_u64),
-		Some(8)
+		Some(9)
 	);
 	assert_eq!(
 		report
@@ -585,7 +637,7 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/scenario_position_counts/untested")
 			.and_then(Value::as_u64),
-		Some(11)
+		Some(12)
 	);
 	assert_eq!(
 		report
@@ -597,7 +649,7 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/scenario_outcome_counts/tie")
 			.and_then(Value::as_u64),
-		Some(8)
+		Some(9)
 	);
 	assert_eq!(
 		report
@@ -615,7 +667,7 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/scenario_outcome_counts/blocked")
 			.and_then(Value::as_u64),
-		Some(1)
+		Some(2)
 	);
 	assert_eq!(
 		report
@@ -1272,9 +1324,149 @@ fn operator_debug_live_adapter_task_is_docker_scoped() -> Result<()> {
 	Ok(())
 }
 
+#[test]
+fn live_adapter_supports_elf_capture_write_policy_without_external_hook_claims() -> Result<()> {
+	let workspace = workspace_root()?;
+	let live_adapter =
+		fs::read_to_string(workspace.join("apps/elf-eval/src/bin/real_world_live_adapter.rs"))?;
+	let manifest = fs::read_to_string(
+		workspace
+			.join("apps/elf-eval/fixtures/real_world_external_adapters")
+			.join("memory_projects_manifest.json"),
+	)?;
+
+	assert!(live_adapter.contains("fn is_elf_capture_live_adapter("));
+	assert!(live_adapter.contains("suite == \"capture_integration\""));
+	assert!(live_adapter.contains("write_policy_audit_count"));
+	assert!(live_adapter.contains("excluded_evidence_ids"));
+	assert!(live_adapter.contains("source_id"));
+	assert!(live_adapter.contains("runtime_source_refs"));
+	assert!(live_adapter.contains("validate_capture_runtime_evidence"));
+	assert!(live_adapter.contains("capture_failure"));
+	assert!(live_adapter.contains("The live adapter sweep has no encoded runtime path"));
+	assert!(manifest.contains("\"scenario_id\": \"live_capture_write_policy\""));
+	assert!(manifest.contains("\"scenario_id\": \"capture_write_policy_hooks\""));
+	assert!(manifest.contains("\"comparison_outcome\": \"blocked\""));
+	assert!(manifest.contains("Four redaction, exclusion, source-id, evidence-binding"));
+	assert!(manifest.contains("no durable local session/capture path stores source ids"));
+	assert!(manifest.contains("hooks, timeline, observations, viewer capture"));
+
+	Ok(())
+}
+
+#[test]
+fn capture_write_policy_live_report_preserves_competitor_boundaries() -> Result<()> {
+	let report = serde_json::from_str::<Value>(&fs::read_to_string(
+		capture_write_policy_live_report_path()?,
+	)?)?;
+	let markdown = fs::read_to_string(capture_write_policy_live_markdown_path()?)?;
+	let benchmarking_index = fs::read_to_string(benchmarking_index_path()?)?;
+	let readme = fs::read_to_string(readme_path()?)?;
+
+	assert_eq!(
+		report.pointer("/schema").and_then(Value::as_str),
+		Some("elf.capture_write_policy_live_report/v1")
+	);
+	assert_eq!(report.pointer("/authority").and_then(Value::as_str), Some("XY-933"));
+	assert_eq!(
+		report
+			.pointer("/live_capture_results/elf_live_real_world/suite_status")
+			.and_then(Value::as_str),
+		Some("pass")
+	);
+	assert_eq!(
+		report
+			.pointer("/live_capture_results/elf_live_real_world/encoded_job_count")
+			.and_then(Value::as_u64),
+		Some(4)
+	);
+	assert_eq!(
+		report
+			.pointer("/live_capture_results/elf_live_real_world/redaction_leak_count")
+			.and_then(Value::as_u64),
+		Some(0)
+	);
+	assert_eq!(
+		report
+			.pointer("/live_capture_results/qmd_live_real_world/suite_status")
+			.and_then(Value::as_str),
+		Some("not_encoded")
+	);
+
+	let jobs = array_at(&report, "/jobs")?;
+	let source_binding = find_by_field(jobs, "/job_id", "capture-source-id-binding-001")?;
+	let source_binding_refs = array_at(source_binding, "/runtime_source_refs")?;
+	let release_summary_ref =
+		find_by_field(source_binding_refs, "/evidence_id", "source-id-release-summary")?;
+
+	assert!(array_contains_str(source_binding, "/source_ids", "capture:issue-comment-42")?);
+	assert_eq!(
+		release_summary_ref.pointer("/source_id").and_then(Value::as_str),
+		Some("capture:issue-comment-42")
+	);
+	assert_eq!(
+		release_summary_ref.pointer("/evidence_binding").and_then(Value::as_str),
+		Some("source_ref")
+	);
+
+	let write_policy = find_by_field(jobs, "/job_id", "capture-write-policy-redaction-001")?;
+
+	assert_eq!(
+		write_policy.pointer("/write_policy_redaction_count").and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
+		write_policy
+			.pointer("/runtime_source_refs/0/write_policy_applied")
+			.and_then(Value::as_bool),
+		Some(true)
+	);
+
+	let boundary = find_by_field(jobs, "/job_id", "capture-integration-boundaries-001")?;
+
+	assert!(array_contains_str(boundary, "/excluded_evidence_ids", "private-span-trap")?);
+	assert!(!array_contains_str(boundary, "/stored_evidence_ids", "private-span-trap")?);
+	assert!(
+		array_at(boundary, "/runtime_source_refs")?
+			.iter()
+			.all(|item| item.pointer("/evidence_id").and_then(Value::as_str)
+				!= Some("private-span-trap"))
+	);
+
+	let positions = array_at(&report, "/competitor_positions")?;
+	let qmd = find_by_field(positions, "/project", "qmd")?;
+	let agentmemory = find_by_field(positions, "/project", "agentmemory")?;
+	let claude_mem = find_by_field(positions, "/project", "claude-mem")?;
+
+	assert_eq!(qmd.pointer("/position").and_then(Value::as_str), Some("untested"));
+	assert!(qmd.pointer("/reason").and_then(Value::as_str).is_some_and(|reason| {
+		reason.contains("typed not_encoded") && reason.contains("ELF self-check")
+	}));
+	assert_eq!(agentmemory.pointer("/position").and_then(Value::as_str), Some("blocked"));
+	assert!(agentmemory.pointer("/reason").and_then(Value::as_str).is_some_and(|reason| {
+		reason.contains("process-local StateKV Map") && reason.contains("in-memory index")
+	}));
+	assert_eq!(claude_mem.pointer("/position").and_then(Value::as_str), Some("untested"));
+	assert!(
+		claude_mem
+			.pointer("/reason")
+			.and_then(Value::as_str)
+			.is_some_and(|reason| reason.contains("hooks, timeline, observations"))
+	);
+	assert!(markdown.contains("ELF now has live capture/write-policy self-check evidence"));
+	assert!(markdown.contains("not an ELF-over-qmd win"));
+	assert!(markdown.contains("runtime `source_ref` metadata returned by search"));
+	assert!(markdown.contains("Do not claim ELF broadly beats agentmemory or claude-mem"));
+	assert!(benchmarking_index.contains("2026-06-11-capture-write-policy-live-report.md"));
+	assert!(readme.contains("Capture/Write-Policy Live Report - June 11, 2026"));
+
+	Ok(())
+}
+
 fn assert_live_sweep_record(adapter: &Value, production_ops_status: &str) -> Result<()> {
 	let suites = array_at(adapter, "/suites")?;
 	let capabilities = array_at(adapter, "/capabilities")?;
+	let adapter_id = adapter.pointer("/adapter_id").and_then(Value::as_str).unwrap_or_default();
 	let targeted = find_by_field(capabilities, "/capability", "targeted_live_pass")?;
 	let full_pass = find_by_field(capabilities, "/capability", "full_suite_live_pass")?;
 	let work_resume = find_by_field(suites, "/suite_id", "work_resume")?;
@@ -1296,7 +1488,7 @@ fn assert_live_sweep_record(adapter: &Value, production_ops_status: &str) -> Res
 		adapter
 			.pointer("/result/evidence")
 			.and_then(Value::as_str)
-			.is_some_and(|evidence| evidence.contains("38 jobs across all 11 encoded suites"))
+			.is_some_and(|evidence| evidence.contains("40 jobs across all 11 encoded suites"))
 	);
 	assert_eq!(trust_sot.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(work_resume.pointer("/status").and_then(Value::as_str), Some("pass"));
@@ -1310,7 +1502,19 @@ fn assert_live_sweep_record(adapter: &Value, production_ops_status: &str) -> Res
 	assert_eq!(consolidation.pointer("/status").and_then(Value::as_str), Some("not_encoded"));
 	assert_eq!(knowledge.pointer("/status").and_then(Value::as_str), Some("not_encoded"));
 	assert_eq!(operator_debug.pointer("/status").and_then(Value::as_str), Some("not_encoded"));
-	assert_eq!(capture.pointer("/status").and_then(Value::as_str), Some("not_encoded"));
+
+	if adapter_id == "elf_live_real_world" {
+		assert_eq!(capture.pointer("/status").and_then(Value::as_str), Some("pass"));
+		assert!(
+			capture
+				.pointer("/evidence")
+				.and_then(Value::as_str)
+				.is_some_and(|evidence| evidence.contains("4/4 capture_integration jobs"))
+		);
+	} else {
+		assert_eq!(capture.pointer("/status").and_then(Value::as_str), Some("not_encoded"));
+	}
+
 	assert_eq!(personalization.pointer("/status").and_then(Value::as_str), Some("pass"));
 
 	Ok(())
@@ -1320,7 +1524,7 @@ fn assert_live_sweep_record(adapter: &Value, production_ops_status: &str) -> Res
 fn runner_discovers_nested_fixture_layout() -> Result<()> {
 	let report = run_json_report_from(fixture_root())?;
 
-	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(38));
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(40));
 
 	Ok(())
 }
@@ -2421,14 +2625,15 @@ fn assert_operator_facing_strength_profile_boundaries(
 	iteration_direction: &str,
 ) {
 	assert!(readme.contains("Full-suite live real-world adapter sweep after XY-899"));
-	assert!(readme.contains("fresh ELF sweep reports 18 pass"));
-	assert!(readme.contains("5 wrong_result, 2 blocked, and 13 not_encoded jobs"));
+	assert!(readme.contains("fresh ELF sweep reports 22 pass"));
+	assert!(readme.contains("5 wrong_result, 2 blocked, and 11 not_encoded jobs"));
 	assert!(readme.contains("fresh qmd sweep reports"));
-	assert!(readme.contains("17 pass, 6 wrong_result, 2 blocked, and 13 not_encoded jobs"));
-	assert!(readme.contains("The difference is the"));
+	assert!(readme.contains("17 pass, 6 wrong_result, 2 blocked, and 15 not_encoded jobs"));
+	assert!(readme.contains("The differences are"));
 	assert!(readme.contains("delete/TTL tombstone case"));
+	assert!(readme.contains("ELF-only capture/write-policy live self-checks"));
 	assert!(readme.contains("qmd remains the local retrieval-debug UX reference"));
-	assert!(readme.contains("no broad ELF-over-qmd claim is allowed"));
+	assert!(readme.contains("no broad ELF-over-qmd claim"));
 	assert!(readme.contains("qmd and OpenViking Strength-Profile Report - June 11, 2026"));
 	assert!(benchmarking_index.contains("2026-06-11-qmd-openviking-strength-profile-report.md"));
 	assert!(
@@ -2497,9 +2702,9 @@ fn generated_json_report_renders_markdown() -> Result<()> {
 	assert!(markdown.contains("xy844-current-worktree"));
 	assert!(markdown.contains("Existing live-baseline reports remain valid"));
 	assert!(markdown.contains("### Adapter Scenario Judgments"));
-	assert!(markdown.contains("ELF scenario positions: `wins=8, ties=8, loses=1, untested=11`"));
+	assert!(markdown.contains("ELF scenario positions: `wins=8, ties=9, loses=1, untested=12`"));
 	assert!(markdown.contains(
-		"Scenario comparison outcomes: `win=8, tie=8, loss=1, not_tested=8, blocked=1, non_goal=2`"
+		"Scenario comparison outcomes: `win=8, tie=9, loss=1, not_tested=8, blocked=2, non_goal=2`"
 	));
 	assert!(markdown.contains("| `claude_mem_live_baseline` | `same_corpus_retrieval`"));
 	assert!(markdown.contains("| `memsearch_live_baseline` | `ttl_expiry_lifecycle`"));
@@ -2786,8 +2991,8 @@ fn assert_root_knowledge_summary(report: &Value) {
 }
 
 fn assert_root_aggregate_summary(report: &Value) {
-	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(38));
-	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(36));
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(40));
+	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(38));
 	assert_eq!(report.pointer("/summary/wrong_result").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/incomplete").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/blocked").and_then(Value::as_u64), Some(2));
@@ -2830,9 +3035,9 @@ fn assert_root_aggregate_summary(report: &Value) {
 	);
 	assert_eq!(
 		report.pointer("/summary/evidence_required_count").and_then(Value::as_u64),
-		Some(84)
+		Some(88)
 	);
-	assert_eq!(report.pointer("/summary/evidence_covered_count").and_then(Value::as_u64), Some(84));
+	assert_eq!(report.pointer("/summary/evidence_covered_count").and_then(Value::as_u64), Some(88));
 	assert_eq!(report.pointer("/summary/evidence_coverage").and_then(Value::as_f64), Some(1.0));
 	assert_eq!(report.pointer("/summary/source_ref_coverage").and_then(Value::as_f64), Some(1.0));
 	assert_eq!(report.pointer("/summary/quote_coverage").and_then(Value::as_f64), Some(1.0));
