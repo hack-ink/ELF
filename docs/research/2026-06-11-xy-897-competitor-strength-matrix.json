@@ -523,9 +523,9 @@
       "scenario": "personalization",
       "current_elf_evidence": "ELF fixture-backed personalization passes and ELF live_real_world personalization passes.",
       "strongest_competitor_or_reference": "mem0/OpenMemory, Letta",
-      "current_competitor_evidence": "mem0/OpenMemory personalization is not_encoded and Letta personalization is research_gate not_encoded.",
-      "current_state": "ELF and qmd have live encoded evidence; personalization-specialized competitors are not yet comparable.",
-      "next_measurement": "Encode mem0/OpenMemory and Letta scoped-preference readback jobs before making personalization superiority claims."
+      "current_competitor_evidence": "mem0/OpenMemory local OSS entity-scoped personalization now passes; OpenMemory UI/export remains blocked, hosted Platform export is non-goal, optional graph memory remains outside local OSS scoring, and Letta personalization is research_gate not_encoded.",
+      "current_state": "ELF, qmd, and mem0 local OSS have measured scoped-preference evidence, so scoped personalization is a tie on the current surface; mem0 preference-correction history remains a separate ELF loss.",
+      "next_measurement": "Add OpenMemory product app import/export and contained Letta scoped-preference readback before making broader personalization superiority claims."
     },
     {
       "scenario_id": "context_trajectory",
