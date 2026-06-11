@@ -60,6 +60,10 @@ fn production_ops_fixture_dir() -> PathBuf {
 	real_world_memory_fixture_dir().join("production_ops")
 }
 
+fn core_archival_memory_fixture_dir() -> PathBuf {
+	real_world_memory_fixture_dir().join("core_archival_memory")
+}
+
 fn workspace_root() -> Result<PathBuf> {
 	let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
 	let root = manifest_dir
@@ -373,7 +377,7 @@ fn external_adapter_run_summarizes_nonzero_scenario_losses() -> Result<()> {
 		report
 			.pointer("/external_adapters/summary/scenario_position_counts/untested")
 			.and_then(Value::as_u64),
-		Some(10)
+		Some(16)
 	);
 	assert_eq!(
 		report
@@ -385,7 +389,7 @@ fn external_adapter_run_summarizes_nonzero_scenario_losses() -> Result<()> {
 		report
 			.pointer("/external_adapters/summary/scenario_outcome_counts/not_tested")
 			.and_then(Value::as_u64),
-		Some(7)
+		Some(11)
 	);
 
 	let adapters = array_at(&report, "/external_adapters/adapters")?;
@@ -472,13 +476,13 @@ fn assert_external_adapter_manifest_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/overall_status_counts/blocked")
 			.and_then(Value::as_u64),
-		Some(5)
+		Some(6)
 	);
 	assert_eq!(
 		report
 			.pointer("/external_adapters/summary/overall_status_counts/not_encoded")
 			.and_then(Value::as_u64),
-		Some(7)
+		Some(6)
 	);
 	assert_eq!(
 		report
@@ -496,7 +500,7 @@ fn assert_external_adapter_manifest_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/suite_status_counts/blocked")
 			.and_then(Value::as_u64),
-		Some(13)
+		Some(14)
 	);
 	assert_eq!(
 		report
@@ -531,7 +535,7 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/scenario_status_counts/blocked")
 			.and_then(Value::as_u64),
-		Some(2)
+		Some(4)
 	);
 	assert_eq!(
 		report
@@ -561,7 +565,7 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/scenario_status_counts/not_encoded")
 			.and_then(Value::as_u64),
-		Some(3)
+		Some(7)
 	);
 	assert_eq!(
 		report
@@ -585,7 +589,7 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/scenario_position_counts/untested")
 			.and_then(Value::as_u64),
-		Some(11)
+		Some(17)
 	);
 	assert_eq!(
 		report
@@ -609,13 +613,13 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/scenario_outcome_counts/not_tested")
 			.and_then(Value::as_u64),
-		Some(8)
+		Some(12)
 	);
 	assert_eq!(
 		report
 			.pointer("/external_adapters/summary/scenario_outcome_counts/blocked")
 			.and_then(Value::as_u64),
-		Some(1)
+		Some(3)
 	);
 	assert_eq!(
 		report
@@ -645,6 +649,7 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 	let graphify = find_by_field(adapters, "/adapter_id", "graphify_docker_smoke")?;
 	let qmd_deep = find_by_field(adapters, "/adapter_id", "qmd_deep_profile_gate")?;
 	let openviking_deep = find_by_field(adapters, "/adapter_id", "openviking_deep_profile_gate")?;
+	let letta = find_by_field(adapters, "/adapter_id", "letta_research_gate")?;
 
 	assert_eq!(elf.pointer("/evidence_class").and_then(Value::as_str), Some("fixture_backed"));
 	assert_eq!(elf.pointer("/overall_status").and_then(Value::as_str), Some("blocked"));
@@ -678,6 +683,36 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 	assert_first_generation_adapter_records(agentmemory, mem0, memsearch, claude_mem);
 
 	assert_eq!(openviking.pointer("/overall_status").and_then(Value::as_str), Some("wrong_result"));
+
+	assert_graph_rag_research_gate_records(ragflow, lightrag, graphrag);
+	assert_graphiti_zep_adapter(graphiti_zep);
+	assert_graphify_adapter(graphify)?;
+	assert_letta_core_archival_gate(letta)?;
+
+	assert_eq!(
+		qmd_deep.pointer("/capabilities/2/status").and_then(Value::as_str),
+		Some("unsupported")
+	);
+	assert_eq!(
+		qmd_deep.pointer("/result/artifact").and_then(Value::as_str),
+		Some("docs/research/2026-06-11-qmd-openviking-strength-profile-report.json")
+	);
+	assert_eq!(
+		openviking_deep.pointer("/adapter_kind").and_then(Value::as_str),
+		Some("docker_local_embed_context_trajectory_gate")
+	);
+
+	assert_openviking_deep_profile_gate(openviking_deep);
+
+	assert_eq!(
+		openviking_deep.pointer("/result/artifact").and_then(Value::as_str),
+		Some("docs/research/2026-06-11-qmd-openviking-strength-profile-report.json")
+	);
+
+	Ok(())
+}
+
+fn assert_graph_rag_research_gate_records(ragflow: &Value, lightrag: &Value, graphrag: &Value) {
 	assert_eq!(ragflow.pointer("/evidence_class").and_then(Value::as_str), Some("research_gate"));
 	assert_eq!(ragflow.pointer("/overall_status").and_then(Value::as_str), Some("blocked"));
 	assert_eq!(
@@ -718,29 +753,54 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 		Some("cargo make graphrag-docker-smoke")
 	);
 	assert_eq!(graphrag.pointer("/suites/1/status").and_then(Value::as_str), Some("not_encoded"));
+}
 
-	assert_graphiti_zep_adapter(graphiti_zep);
-	assert_graphify_adapter(graphify)?;
+fn assert_letta_core_archival_gate(adapter: &Value) -> Result<()> {
+	assert_eq!(adapter.pointer("/overall_status").and_then(Value::as_str), Some("blocked"));
+	assert!(
+		adapter
+			.pointer("/setup/evidence")
+			.and_then(Value::as_str)
+			.is_some_and(|evidence| evidence.contains("Docker-only benchmark-created agent export"))
+	);
+	assert!(adapter.pointer("/execution_metadata/setup_path").and_then(Value::as_str).is_some_and(
+		|setup| setup.contains("exports core block JSON plus archival search/readback JSON")
+	));
+
+	let suites = array_at(adapter, "/suites")?;
+	let core_suite = find_by_field(suites, "/suite_id", "core_archival_memory")?;
+
+	assert_eq!(core_suite.pointer("/status").and_then(Value::as_str), Some("blocked"));
+
+	let scenarios = array_at(adapter, "/scenarios")?;
+	let attachment = find_by_field(scenarios, "/scenario_id", "core_block_attachment_readback")?;
+	let scope = find_by_field(scenarios, "/scenario_id", "core_block_scope_readback")?;
+	let provenance = find_by_field(scenarios, "/scenario_id", "core_block_provenance_readback")?;
+	let stale = find_by_field(scenarios, "/scenario_id", "stale_core_detection")?;
+	let fallback = find_by_field(scenarios, "/scenario_id", "archival_fallback_readback")?;
+	let decision =
+		find_by_field(scenarios, "/scenario_id", "core_archival_project_decision_recovery")?;
+
+	assert_eq!(scenarios.len(), 6);
+
+	for scenario in [attachment, scope, provenance, stale, fallback, decision] {
+		assert_eq!(scenario.pointer("/elf_position").and_then(Value::as_str), Some("untested"));
+		assert!(
+			["not_tested", "blocked"].contains(
+				&scenario
+					.pointer("/comparison_outcome")
+					.and_then(Value::as_str)
+					.ok_or_else(|| eyre::eyre!("missing Letta comparison_outcome"))?
+			)
+		);
+	}
 
 	assert_eq!(
-		qmd_deep.pointer("/capabilities/2/status").and_then(Value::as_str),
-		Some("unsupported")
+		attachment.pointer("/comparison_outcome").and_then(Value::as_str),
+		Some("not_tested")
 	);
-	assert_eq!(
-		qmd_deep.pointer("/result/artifact").and_then(Value::as_str),
-		Some("docs/research/2026-06-11-qmd-openviking-strength-profile-report.json")
-	);
-	assert_eq!(
-		openviking_deep.pointer("/adapter_kind").and_then(Value::as_str),
-		Some("docker_local_embed_context_trajectory_gate")
-	);
-
-	assert_openviking_deep_profile_gate(openviking_deep);
-
-	assert_eq!(
-		openviking_deep.pointer("/result/artifact").and_then(Value::as_str),
-		Some("docs/research/2026-06-11-qmd-openviking-strength-profile-report.json")
-	);
+	assert_eq!(stale.pointer("/comparison_outcome").and_then(Value::as_str), Some("blocked"));
+	assert_eq!(fallback.pointer("/comparison_outcome").and_then(Value::as_str), Some("blocked"));
 
 	Ok(())
 }
@@ -1320,7 +1380,7 @@ fn assert_live_sweep_record(adapter: &Value, production_ops_status: &str) -> Res
 fn runner_discovers_nested_fixture_layout() -> Result<()> {
 	let report = run_json_report_from(fixture_root())?;
 
-	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(38));
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(44));
 
 	Ok(())
 }
@@ -2497,9 +2557,9 @@ fn generated_json_report_renders_markdown() -> Result<()> {
 	assert!(markdown.contains("xy844-current-worktree"));
 	assert!(markdown.contains("Existing live-baseline reports remain valid"));
 	assert!(markdown.contains("### Adapter Scenario Judgments"));
-	assert!(markdown.contains("ELF scenario positions: `wins=8, ties=8, loses=1, untested=11`"));
+	assert!(markdown.contains("ELF scenario positions: `wins=8, ties=8, loses=1, untested=17`"));
 	assert!(markdown.contains(
-		"Scenario comparison outcomes: `win=8, tie=8, loss=1, not_tested=8, blocked=1, non_goal=2`"
+		"Scenario comparison outcomes: `win=8, tie=8, loss=1, not_tested=12, blocked=3, non_goal=2`"
 	));
 	assert!(markdown.contains("| `claude_mem_live_baseline` | `same_corpus_retrieval`"));
 	assert!(markdown.contains("| `memsearch_live_baseline` | `ttl_expiry_lifecycle`"));
@@ -2776,6 +2836,46 @@ fn production_ops_fixtures_report_bounded_typed_states() -> Result<()> {
 	Ok(())
 }
 
+#[test]
+fn core_archival_memory_fixtures_score_separate_core_and_archival_jobs() -> Result<()> {
+	let report = run_json_report_from(core_archival_memory_fixture_dir())?;
+
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(6));
+	assert_eq!(report.pointer("/summary/encoded_suite_count").and_then(Value::as_u64), Some(1));
+	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(6));
+	assert_eq!(report.pointer("/summary/wrong_result").and_then(Value::as_u64), Some(0));
+	assert_eq!(report.pointer("/summary/blocked").and_then(Value::as_u64), Some(0));
+	assert_eq!(
+		report.pointer("/summary/expected_evidence_recall").and_then(Value::as_f64),
+		Some(1.0)
+	);
+	assert_eq!(report.pointer("/summary/evidence_coverage").and_then(Value::as_f64), Some(1.0));
+
+	let suites = array_at(&report, "/suites")?;
+	let core = find_by_field(suites, "/suite_id", "core_archival_memory")?;
+
+	assert_eq!(core.pointer("/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(core.pointer("/encoded_job_count").and_then(Value::as_u64), Some(6));
+
+	let jobs = array_at(&report, "/jobs")?;
+
+	for job_id in [
+		"core-archival-core-block-attachment-001",
+		"core-archival-core-block-scope-001",
+		"core-archival-core-block-provenance-001",
+		"core-archival-stale-core-detection-001",
+		"core-archival-archival-fallback-001",
+		"core-archival-project-decision-recovery-001",
+	] {
+		let job = find_by_field(jobs, "/job_id", job_id)?;
+
+		assert_eq!(job.pointer("/suite_id").and_then(Value::as_str), Some("core_archival_memory"));
+		assert_eq!(job.pointer("/status").and_then(Value::as_str), Some("pass"));
+	}
+
+	Ok(())
+}
+
 fn assert_root_knowledge_summary(report: &Value) {
 	assert_eq!(report.pointer("/summary/knowledge/job_count").and_then(Value::as_u64), Some(2));
 	assert_eq!(report.pointer("/summary/knowledge/page_count").and_then(Value::as_u64), Some(4));
@@ -2786,8 +2886,8 @@ fn assert_root_knowledge_summary(report: &Value) {
 }
 
 fn assert_root_aggregate_summary(report: &Value) {
-	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(38));
-	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(36));
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(44));
+	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(42));
 	assert_eq!(report.pointer("/summary/wrong_result").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/incomplete").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/blocked").and_then(Value::as_u64), Some(2));
@@ -2830,9 +2930,9 @@ fn assert_root_aggregate_summary(report: &Value) {
 	);
 	assert_eq!(
 		report.pointer("/summary/evidence_required_count").and_then(Value::as_u64),
-		Some(84)
+		Some(97)
 	);
-	assert_eq!(report.pointer("/summary/evidence_covered_count").and_then(Value::as_u64), Some(84));
+	assert_eq!(report.pointer("/summary/evidence_covered_count").and_then(Value::as_u64), Some(97));
 	assert_eq!(report.pointer("/summary/evidence_coverage").and_then(Value::as_f64), Some(1.0));
 	assert_eq!(report.pointer("/summary/source_ref_coverage").and_then(Value::as_f64), Some(1.0));
 	assert_eq!(report.pointer("/summary/quote_coverage").and_then(Value::as_f64), Some(1.0));
@@ -2876,6 +2976,7 @@ fn assert_root_aggregate_suites(report: &Value) -> Result<()> {
 		"knowledge_compilation",
 		"operator_debugging_ux",
 		"memory_evolution",
+		"core_archival_memory",
 	] {
 		let suite = find_by_field(suites, "/suite_id", suite_id)?;
 
@@ -2898,6 +2999,11 @@ fn assert_root_aggregate_suites(report: &Value) -> Result<()> {
 
 	assert_eq!(debug_suite.pointer("/status").and_then(Value::as_str), Some("pass"));
 
+	let core_suite = find_by_field(suites, "/suite_id", "core_archival_memory")?;
+
+	assert_eq!(core_suite.pointer("/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(core_suite.pointer("/encoded_job_count").and_then(Value::as_u64), Some(6));
+
 	let production_ops = find_by_field(suites, "/suite_id", "production_ops")?;
 
 	assert_eq!(production_ops.pointer("/status").and_then(Value::as_str), Some("blocked"));
@@ -2915,6 +3021,8 @@ fn assert_root_aggregate_jobs(report: &Value) -> Result<()> {
 	let stage_job = find_by_field(jobs, "/job_id", "operator-debug-stage-attribution-001")?;
 	let production_restore =
 		find_by_field(jobs, "/job_id", "production-ops-restore-cold-start-001")?;
+	let core_fallback = find_by_field(jobs, "/job_id", "core-archival-archival-fallback-001")?;
+	let stale_core = find_by_field(jobs, "/job_id", "core-archival-stale-core-detection-001")?;
 
 	assert_eq!(rebuild.pointer("/qdrant_rebuild_case").and_then(Value::as_bool), Some(true));
 	assert_eq!(
@@ -2926,6 +3034,8 @@ fn assert_root_aggregate_jobs(report: &Value) -> Result<()> {
 	assert_eq!(personalization.pointer("/scope_correct_count").and_then(Value::as_u64), Some(1));
 	assert_eq!(stage_job.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(relation_job.pointer("/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(core_fallback.pointer("/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(stale_core.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(
 		stage_job.pointer("/trace_explainability/failure_stage").and_then(Value::as_str),
 		Some("rerank.score")

@@ -12,7 +12,7 @@
       "Live temporal reconciliation remains wrong_result for five of six memory_evolution jobs.",
       "Private-corpus production quality is blocked until an operator-owned manifest exists.",
       "Credentialed provider production-ops gates are blocked until explicit provider setup exists.",
-      "Several competitor strengths remain not_tested or blocked: OpenMemory UI/export is blocked by the XY-931 export-helper setup probe, hosted mem0 Platform behavior remains a non-goal, and OpenViking trajectory, Letta core-vs-archival memory, and graph/RAG navigation remain unproven. mem0 local OSS preference history is measured separately and is an ELF loss on the current correction-history scenario. The XY-923 follow-up scores qmd immediate top-10/replay artifact ergonomics as stronger than ELF's default stress report, while expansion, fusion, and rerank remain untested. XY-932 adds a narrow live operator-debug slice where ELF beats qmd on trace hydration and candidate-drop visibility, but OpenMemory UI/export and claude-mem viewer workflows remain blocked or not encoded."
+      "Several competitor strengths remain not_tested or blocked: OpenMemory UI/export is blocked by the XY-931 export-helper setup probe, hosted mem0 Platform behavior remains a non-goal, OpenViking trajectory and graph/RAG navigation remain unproven, and Letta core-vs-archival comparison is blocked until the selected contained export/readback path exists. mem0 local OSS preference history is measured separately and is an ELF loss on the current correction-history scenario. The XY-923 follow-up scores qmd immediate top-10/replay artifact ergonomics as stronger than ELF's default stress report, while expansion, fusion, and rerank remain untested. XY-932 adds a narrow live operator-debug slice where ELF beats qmd on trace hydration and candidate-drop visibility, but OpenMemory UI/export and claude-mem viewer workflows remain blocked or not encoded."
     ]
   },
   "evidence_class_terms": [
@@ -39,7 +39,12 @@
     {
       "command": "cargo make real-world-memory",
       "artifact": "docs/guide/benchmarking/2026-06-11-measurement-coverage-audit.md",
-      "claim": "ELF fixture aggregate covers 38 jobs across 11 suites with 36 pass and 2 blocked production-ops operator boundaries."
+      "claim": "ELF fixture aggregate covers 44 jobs across 12 suites with 42 pass and 2 blocked production-ops operator boundaries, including 6 passing core_archival_memory jobs."
+    },
+    {
+      "command": "cargo make real-world-memory-core-archival",
+      "artifact": "tmp/real-world-memory/core-archival/report.json",
+      "claim": "ELF core_archival_memory fixture coverage scores core block attachment, scope, provenance, stale-core detection, archival fallback, and project-decision recovery separately from archival note search."
     },
     {
       "command": "cargo make real-world-memory-live-adapters",
@@ -132,14 +137,14 @@
         "research_gate",
         "not_encoded"
       ],
-      "measured_claim": "ELF and qmd both pass encoded project_decisions jobs. Letta-style core/archival decision memory is not tested.",
+      "measured_claim": "ELF and qmd both pass encoded project_decisions jobs. The new ELF core_archival_memory fixture also scores project-decision recovery through core routing plus archival rationale, but Letta-style comparison remains blocked without contained export evidence.",
       "command_artifacts": [
         "docs/guide/benchmarking/2026-06-11-measurement-coverage-audit.md"
       ],
       "follow_up_issues": [
         "XY-927"
       ],
-      "caveat": "No Letta comparison exists until a contained export path is selected."
+      "caveat": "No Letta comparison exists until the selected contained export/readback path produces source-id-mapped evidence."
     },
     {
       "scenario_id": "retrieval_quality",
@@ -361,20 +366,24 @@
     {
       "scenario_id": "core_vs_archival_memory",
       "title": "Core-vs-archival memory",
-      "outcome": "not_tested",
+      "outcome": "blocked",
       "evidence_classes": [
+        "fixture_backed",
         "research_gate",
+        "blocked",
         "not_encoded"
       ],
-      "measured_claim": "ELF has core block semantics in the service contract, but comparable core-vs-archival benchmark jobs and a contained Letta export path are not encoded.",
+      "measured_claim": "ELF now has 6 fixture-backed core_archival_memory jobs that score core block attachment, scope, provenance, stale-core detection, archival fallback, and project-decision recovery separately from archival note search. Letta remains blocked or not_tested until its contained export/readback artifact maps core and archival source ids.",
       "command_artifacts": [
         "docs/spec/system_elf_memory_service_v2.md",
-        "docs/guide/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md"
+        "apps/elf-eval/fixtures/real_world_memory/core_archival_memory",
+        "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json",
+        "tmp/real-world-memory/core-archival/report.json"
       ],
       "follow_up_issues": [
         "XY-927"
       ],
-      "caveat": "No ELF-over-Letta claim is allowed."
+      "caveat": "No ELF-over-Letta claim is allowed; the selected Letta path must export core block JSON, archival search/readback JSON, and source ids before scoring."
     },
     {
       "scenario_id": "graph_rag_navigation_citations",
@@ -431,8 +440,8 @@
     {
       "issue": "XY-927",
       "priority": "P1",
-      "state": "Backlog",
-      "gap": "Letta-style core-vs-archival memory comparison."
+      "state": "Fixture encoded; Letta export blocked",
+      "gap": "ELF core_archival_memory fixture coverage is encoded; a contained Letta export/readback adapter remains future work before win/tie/loss claims."
     },
     {
       "issue": "XY-928",
@@ -464,6 +473,7 @@
       "ELF is adoptable for bounded personal production use with caveats.",
       "ELF has the strongest measured source-of-truth, rebuild, restore, and backfill evidence among the tracked systems.",
       "ELF ties qmd on encoded live retrieval, work_resume, project_decisions, and personalization slices.",
+      "ELF fixture-backed core_archival_memory coverage passes attachment, scope, provenance, stale-core detection, archival fallback, and project-decision recovery jobs separately from archival search.",
       "ELF has a live temporal reconciliation loss against the benchmark expectation: five memory_evolution jobs remain wrong_result.",
       "Most competitor strengths outside qmd retrieval are not_tested, blocked, smoke_only, or research_gate.",
       "ELF has a narrow live operator-debug win over qmd for trace hydration, candidate-drop visibility, and selected-but-not-narrated evidence, with replay-command availability and repair-action clarity tied."

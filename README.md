@@ -149,13 +149,18 @@ provider-backed ELF evidence was required.
   mem0, OpenViking, and claude-mem remained typed non-pass states. OpenViking now
   reaches its pinned Docker local embedding path and is reported as `wrong_result`
   when same-corpus evidence terms are missed; setup failures remain `incomplete`.
-- Real-world agent memory aggregate after the P1 benchmark batch: 38 fixture-backed
-  jobs across 11 suites, 36 pass, 0 incomplete, 2 blocked, 0 wrong-result,
-  0 not-encoded, and 0 unsupported-claim results. The remaining non-pass jobs are
-  production-ops operator boundaries, not hidden benchmark wins.
+- Real-world agent memory aggregate after the P1 benchmark batch and XY-927
+  core-vs-archival fixture update: 44 fixture-backed jobs across 12 suites, 42 pass,
+  0 incomplete, 2 blocked, 0 wrong-result, 0 not-encoded, and 0 unsupported-claim
+  results. The remaining non-pass jobs are production-ops operator boundaries, not
+  hidden benchmark wins. The new `core_archival_memory` suite passes 6 fixture jobs
+  for core block attachment, scope, provenance, stale-core detection, archival
+  fallback, and project-decision recovery; it does not create an ELF-over-Letta
+  claim.
 - Full-suite live real-world adapter sweep after XY-899: ELF and qmd emit
-  Docker-isolated `live_real_world` records for all 38 encoded jobs across 11 suites
-  through `cargo make real-world-memory-live-adapters`. Both keep the original
+  Docker-isolated `live_real_world` records for the previously measured 38 encoded
+  jobs across 11 suites through `cargo make real-world-memory-live-adapters`. Both
+  keep the original
   targeted `work_resume`, `retrieval`, and `project_decisions` slice passing, but the
   full sweep is not a full-suite pass. The fresh ELF sweep reports 18 pass,
   5 wrong_result, 2 blocked, and 13 not_encoded jobs. The fresh qmd sweep reports

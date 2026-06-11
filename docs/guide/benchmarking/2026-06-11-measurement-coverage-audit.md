@@ -5,9 +5,9 @@ not comparable, and which measurement reports should guide future ELF iteration.
 Read this when: You need to answer whether ELF has enough empirical evidence to
 claim a win, tie, loss, or non-claim against tracked memory, RAG, graph, and
 agent-continuity projects.
-Inputs: Fresh local runs of `cargo make real-world-memory` and
-`cargo make real-world-memory-live-adapters` in the current XY-898 lane after
-adapter-report consistency repairs, plus
+Inputs: Fresh local runs of `cargo make real-world-memory-core-archival`,
+`cargo make real-world-memory`, and the earlier `cargo make real-world-memory-live-adapters`
+measurement in the current benchmark lane after adapter-report consistency repairs, plus
 `apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json`,
 `2026-06-11-competitor-strength-evidence-matrix.md`, and
 `2026-06-11-elf-iteration-direction-from-competitor-benchmarks.md`.
@@ -22,8 +22,11 @@ tracked project's strongest scenario.
 
 What is proven today:
 
-- ELF has a strong fixture-backed real-world benchmark contract: 38 jobs, 36 pass,
-  2 blocked operator boundaries, and no wrong results in the fixture aggregate.
+- ELF has a strong fixture-backed real-world benchmark contract: 44 jobs across 12
+  suites, 42 pass, 2 blocked operator boundaries, and no wrong results in the
+  fixture aggregate. The new `core_archival_memory` suite contributes 6 passing jobs
+  for core block attachment, scope, provenance, stale-core detection, archival
+  fallback, and project-decision recovery.
 - ELF and qmd have comparable full-suite live real-world sweeps, but neither has a
   full-suite live pass. ELF is one pass ahead in the fresh aggregate because qmd
   misses the memory-evolution delete/TTL tombstone job.
@@ -31,9 +34,10 @@ What is proven today:
   checked-in provider synthetic, stress, backfill, backup/restore, and Qdrant rebuild
   evidence.
 - The current comparison still undermeasures most competitor strengths. OpenViking
-  trajectory, mem0/OpenMemory entity history and UI, Letta core-vs-archival memory,
-  Graphiti/Zep temporal graph behavior, graph/RAG navigation, agentmemory and
-  claude-mem capture/continuity, and knowledge-page workflows remain non-claims.
+  trajectory, mem0/OpenMemory entity history and UI, Letta product export/readback
+  for core-vs-archival memory, Graphiti/Zep temporal graph behavior, graph/RAG
+  navigation, agentmemory and claude-mem capture/continuity, and knowledge-page
+  workflows remain non-claims.
   The separate XY-932 operator-debug live slice now scores ELF against qmd for trace
   hydration and candidate-drop visibility, but does not cover OpenMemory or
   claude-mem UI flows.
@@ -43,12 +47,13 @@ production," but the competitiveness objective remains open.
 
 ## Fresh Runs
 
-These commands were run in the current XY-898 lane after adapter-report consistency
-repairs:
+These commands were run in the current benchmark lanes after adapter-report
+consistency repairs and the XY-927 core-vs-archival fixture update:
 
 | Command | Result | Runtime |
 | --- | --- | ---: |
-| `cargo make real-world-memory` | pass | 11.91 seconds |
+| `cargo make real-world-memory-core-archival` | pass | 57.01 seconds |
+| `cargo make real-world-memory` | pass | 8.94 seconds |
 | `cargo make real-world-memory-live-adapters` | pass | 121.51 seconds |
 
 The live adapter run emitted repeated Qdrant client/server compatibility warnings, but
@@ -62,21 +67,21 @@ failure.
 
 | Metric | Value |
 | --- | ---: |
-| Jobs | `38` |
-| Encoded suites | `11` |
-| Pass | `36` |
+| Jobs | `44` |
+| Encoded suites | `12` |
+| Pass | `42` |
 | Blocked | `2` |
 | Wrong result | `0` |
 | Lifecycle fail | `0` |
 | Incomplete | `0` |
 | Not encoded | `0` |
 | Unsupported claim | `0` |
-| Mean score | `0.947` |
-| Mean latency | `4.411 ms` |
-| Expected evidence recall | `77/77` |
-| Evidence coverage | `84/84` |
-| Source-ref coverage | `84/84` |
-| Quote coverage | `84/84` |
+| Mean score | `0.955` |
+| Mean latency | `3.958 ms` |
+| Expected evidence recall | `90/90` |
+| Evidence coverage | `97/97` |
+| Source-ref coverage | `97/97` |
+| Quote coverage | `97/97` |
 
 This proves fixture contract breadth and scoring behavior. It does not prove every
 live adapter or competitor runtime can complete those jobs.
@@ -136,8 +141,8 @@ The checked-in manifest records 23 adapter records across 17 unique project name
 | `pass` | `4` |
 | `wrong_result` | `6` |
 | `lifecycle_fail` | `1` |
-| `blocked` | `5` |
-| `not_encoded` | `7` |
+| `blocked` | `6` |
+| `not_encoded` | `6` |
 
 The generated JSON report emits `external_project_count: 16`, matching the unique
 non-ELF project-name count from the manifest. The companion audit JSON separately
@@ -158,7 +163,7 @@ records `unique_project_names: 17` for the full project list including ELF.
 | LightRAG | `research_gate` | `blocked`. | Graph/RAG context export with source-path citations. | Docker context-export report with explicit provider config and source citation mapping. |
 | GraphRAG | `research_gate` | `blocked`. | Graph summaries and document/text-unit evidence tables. | Cost-bounded Docker adapter report over a tiny corpus. |
 | Graphiti/Zep | `research_gate` | `blocked`. | Temporal graph facts and validity windows. | Docker-local temporal graph adapter report for current and historical facts. |
-| Letta | `research_gate` | `not_encoded`. | Core memory blocks versus archival memory. | Contained export contract, then core-vs-archival and decision-memory report. |
+| Letta | `research_gate` | `blocked` for the selected contained export/readback path; scenario rows remain `not_tested` or `blocked`. | Core memory blocks versus archival memory. | Implement the Docker-only export/readback adapter before any Letta win/tie/loss claim. |
 | LangGraph | `research_gate` | `not_encoded`; direct memory backend is unsupported. | Checkpoint replay and fork/regression debugging. | Treat as benchmark-infra reference unless a memory-output contract emerges. |
 | nanograph | `research_gate` | `not_encoded`; full memory backend is unsupported. | Typed graph schema and query ergonomics. | Typed relation query report only if evidence ids can be emitted. |
 | llm-wiki | `research_gate` | `not_encoded`. | Wiki/page generation, query-save, lint and repair loops. | Contained page-generation report with citation and unsupported-claim lint. |
@@ -171,7 +176,7 @@ records `unique_project_names: 17` for the full project list including ELF.
 | --- | --- | --- | --- |
 | Retrieval/debug | ELF and qmd live retrieval pass; qmd same-corpus baseline passes. | Tie on encoded live retrieval; no ELF-over-qmd UX claim. | qmd/ELF deep trace replay and debug ergonomics scoring. |
 | Work resume | ELF and qmd live pass. | ELF is credible on encoded work resume. | agentmemory, claude-mem, and OpenViking comparable continuity adapters. |
-| Project decisions | ELF and qmd live pass. | ELF is credible on encoded project-decision recovery. | Letta core/archival decision memory comparison. |
+| Project decisions | ELF and qmd live pass; ELF fixture coverage also passes core routing plus archival rationale recovery. | ELF is credible on encoded project-decision recovery. | Letta core/archival decision memory export and scoring. |
 | Source of truth | ELF and qmd live pass; ELF has stronger production restore/rebuild evidence. | ELF has strongest measured source-of-truth discipline. | memsearch source-of-truth reindex/reload evidence. |
 | Memory evolution | ELF live fails 5/6 jobs; qmd live fails 6/6 jobs after missing the delete/TTL tombstone evidence; fixture aggregate passes. | No broad live superiority claim. | Historical conflict evidence links and Graphiti/Zep temporal comparison. |
 | Consolidation | Fixture aggregate passes; live adapters are not encoded. | Fixture-only claim. | Live proposal generation with lineage, confidence, and review-action audit. |
@@ -181,7 +186,7 @@ records `unique_project_names: 17` for the full project list including ELF.
 | Production ops | ELF has separate production-provider/backfill/restore evidence; live sweep is not a full production-ops pass. | Bounded personal-production adoption claim with caveats. | Private corpus manifest and credentialed provider gates. |
 | Personalization | ELF and qmd live pass one scoped preference job. | Narrow encoded pass only. | mem0/OpenMemory and Letta entity/preference history comparison. |
 | Context trajectory | Not comparable. | No claim. | OpenViking staged hierarchy/trajectory scoring. |
-| Core-vs-archival memory | Not comparable. | No claim. | Letta contained export and ELF core-block benchmark. |
+| Core-vs-archival memory | ELF fixture suite passes 6/6; Letta comparison is blocked until export/readback evidence exists. | Fixture-only ELF core-block claim; no ELF-over-Letta claim. | Letta contained export/readback artifact with core block JSON, archival search/readback JSON, and source ids. |
 | Graph/RAG navigation | RAGFlow, LightRAG, GraphRAG, and Graphiti/Zep remain typed research gates; graphify has a tiny scored `wrong_result` smoke. | No graph/RAG parity claim; only graphify's bounded non-pass smoke can be cited. | Larger contained RAG/graph adapters with evidence-linked outputs before any ELF graph/RAG win, tie, or loss claim. |
 
 ## Next Measurement Reports
