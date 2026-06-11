@@ -3956,6 +3956,16 @@ fn validate_adapter_scenarios(path: &Path, adapter: &ExternalAdapterReport) -> R
 				scenario_comparison_outcome_str(outcome)
 			));
 		}
+		if unmeasured_status_has_measured_position(scenario.status, scenario.elf_position) {
+			return Err(eyre::eyre!(
+				"{} adapter {} scenario {} uses {} status with {} position.",
+				path.display(),
+				adapter.adapter_id,
+				scenario.scenario_id,
+				adapter_status_str(scenario.status),
+				scenario_position_str(scenario.elf_position)
+			));
+		}
 	}
 
 	Ok(())
@@ -3976,6 +3986,22 @@ fn unmeasured_status_has_measured_outcome(
 		ScenarioComparisonOutcome::Win
 			| ScenarioComparisonOutcome::Tie
 			| ScenarioComparisonOutcome::Loss
+	)
+}
+
+fn unmeasured_status_has_measured_position(
+	status: AdapterCoverageStatus,
+	position: ElfScenarioPosition,
+) -> bool {
+	matches!(
+		status,
+		AdapterCoverageStatus::Blocked
+			| AdapterCoverageStatus::Incomplete
+			| AdapterCoverageStatus::NotEncoded
+			| AdapterCoverageStatus::Unsupported
+	) && matches!(
+		position,
+		ElfScenarioPosition::Wins | ElfScenarioPosition::Ties | ElfScenarioPosition::Loses
 	)
 }
 
@@ -5033,6 +5059,15 @@ fn scenario_comparison_outcome_str(outcome: ScenarioComparisonOutcome) -> &'stat
 		ScenarioComparisonOutcome::NotTested => "not_tested",
 		ScenarioComparisonOutcome::Blocked => "blocked",
 		ScenarioComparisonOutcome::NonGoal => "non_goal",
+	}
+}
+
+fn scenario_position_str(position: ElfScenarioPosition) -> &'static str {
+	match position {
+		ElfScenarioPosition::Wins => "wins",
+		ElfScenarioPosition::Ties => "ties",
+		ElfScenarioPosition::Loses => "loses",
+		ElfScenarioPosition::Untested => "untested",
 	}
 }
 

@@ -203,8 +203,8 @@
       "pass": 4,
       "wrong_result": 6,
       "lifecycle_fail": 1,
-      "blocked": 6,
-      "not_encoded": 6
+      "blocked": 7,
+      "not_encoded": 5
     },
     "xy900_update_note": "XY-900 promotes graphify from research_gate/blocked to a tiny scored live_real_world wrong_result smoke; broad graph/RAG quality remains unproven.",
     "xy932_update_note": "XY-932 adds narrow ELF/qmd operator-debug live_real_world records: ELF pass and qmd wrong_result for trace hydration/candidate-drop visibility, with OpenMemory and claude-mem UI still unmeasured.",
