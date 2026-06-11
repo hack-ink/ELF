@@ -23,9 +23,11 @@ tie, or loss against the in-scope graph/RAG strengths from smoke evidence alone.
 reaches graph/report output and scores one tiny `knowledge_compilation` job as
 `wrong_result`; that is a bounded graphify non-pass, not an ELF victory claim.
 
-Graphiti/Zep remains the temporal-validity reference. The fresh provider-backed attempt
-is still typed `blocked` with `provider_api_key_missing`; no hosted Zep service or
-unrecorded provider credentials are used or implied.
+Graphiti/Zep remains the temporal-validity reference. The default checked-in smoke is
+typed `blocked` before live execution because `ELF_GRAPHITI_ZEP_SMOKE_START=1` and
+`ELF_GRAPHITI_ZEP_SMOKE_RUN=1` are not set. When that live path is explicitly enabled
+without provider credentials, the blocker remains `provider_api_key_missing`; no
+hosted Zep service or unrecorded provider credentials are used or implied.
 
 ## Scored Smoke Status
 
@@ -34,7 +36,7 @@ unrecorded provider credentials are used or implied.
 | RAGFlow | `retrieval`: reference chunks mapped to generated evidence ids | `cargo make ragflow-docker-smoke` | `blocked` or `incomplete` by execution boundary | Smoke-only. No RAGFlow quality claim until returned reference chunks map to `ragflow-smoke-anchor`. |
 | LightRAG | `retrieval`: context/source export mapped to fixture evidence ids | `cargo make lightrag-docker-context-smoke` | `incomplete` when the API service is not started | Smoke-only. No graph-RAG quality claim until context or references map to generated evidence ids. |
 | GraphRAG | `knowledge_compilation`: output tables mapped to generated evidence ids | `cargo make graphrag-docker-smoke` | `blocked` | Smoke-only. No graph-navigation or synthesis claim until output tables map to generated evidence ids. |
-| Graphiti/Zep | `memory_evolution`: current and historical validity facts | `cargo make graphiti-zep-docker-temporal-smoke` | `blocked` | Provider-bound. No ELF-over-Graphiti/Zep claim until temporal output maps to scored evidence ids. |
+| Graphiti/Zep | `memory_evolution`: current and historical validity facts | `cargo make graphiti-zep-docker-temporal-smoke` | `blocked` before live opt-in; `provider_api_key_missing` when live path is enabled without explicit credentials | Provider-bound. No ELF-over-Graphiti/Zep claim until temporal output maps to scored evidence ids. |
 | graphify | `knowledge_compilation`: `graph.json`, `GRAPH_REPORT.md`, and query output mapping | `cargo make graphify-docker-graph-report-smoke` | `wrong_result` after setup/run pass | Scored tiny smoke. The graph/report output maps to evidence ids, but the job remains non-pass; no broad graph-navigation quality claim follows. |
 
 ## Artifact Contract
@@ -87,8 +89,9 @@ Allowed:
   evidence ids or where scored output remains typed non-pass.
 - Say graphify reached a tiny Docker graph/report smoke and currently scores
   `wrong_result`.
-- Say Graphiti/Zep remains provider-blocked and is still the temporal-validity
-  reference.
+- Say Graphiti/Zep remains blocked by default live-run opt-in, and provider-blocked
+  when that live path is explicitly enabled without credentials; it remains the
+  temporal-validity reference.
 
 Not allowed:
 
