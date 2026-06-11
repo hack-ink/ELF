@@ -17,6 +17,14 @@ The overall goal is not complete. ELF does not yet have complete, comparable
 benchmark wins across all tracked memory projects and all user-important memory
 scenarios.
 
+Update after XY-924: mem0/OpenMemory local OSS history and local SDK export-style
+readback are now measured in
+`2026-06-11-mem0-openmemory-history-ui-export-report.md`. That report records mem0
+passes for preference correction history, entity-scoped personalization, deletion
+audit history, and local `get_all` readback, while keeping OpenMemory UI/export
+blocked and hosted Platform export plus optional graph memory as local-lane
+non-goals.
+
 The current evidence supports a narrower judgment:
 
 - ELF remains a strong personal-production foundation because its core source of
