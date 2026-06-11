@@ -156,8 +156,9 @@ including the retrieval-quality slice below. The suite currently encodes:
   issue status, deployment method, benchmark conclusion, and temporal relation cases.
 - `operator_debugging_ux`: trace-backed stage attribution that identifies where
   expected evidence was filtered, demoted, or selected against.
-- `capture_integration`: write-policy audit behavior for redaction/private exclusion
-  and fixture-backed capture/integration boundary classification.
+- `capture_integration`: write-policy audit behavior for redaction/private exclusion,
+  source-id preservation, evidence binding, no secret leakage, and fixture-backed
+  capture/integration boundary classification.
 - `production_ops`: interrupted generated backfill resume, backup/restore plus
   cold-start readback, resource-envelope interpretation, pinned OpenViking local
   embedding runtime/wrong-result classification, missing private manifest `blocked`
@@ -225,27 +226,29 @@ research gates. Its `external_adapters` report section distinguishes:
   future adapter path, not fixture-backed or live execution evidence.
 
 Current state: the `elf_live_real_world` and `qmd_live_real_world` adapters run a full
-encoded-suite sweep through `cargo make real-world-memory-live-adapters`. The latest
-recorded live sweep materializes generated runtime answers for 38 jobs across 11
-suites before scoring; the newer fixture-only `core_archival_memory` suite is not yet
+encoded-suite sweep through `cargo make real-world-memory-live-adapters`. Each adapter
+materializes generated runtime answers for 40 jobs across 11 suites before scoring.
+The newer fixture-only `core_archival_memory` suite is scored separately and is not yet
 included in that live sweep.
 The original targeted `work_resume`, `retrieval`, and `project_decisions` slice still
-passes, but the full sweep is not a full-suite pass: memory_evolution is
-`wrong_result`, production_ops remains typed `incomplete`/`blocked`/`not_encoded`, and
-consolidation, knowledge_compilation, operator_debugging_ux, and capture_integration
-remain `not_encoded` for this live adapter path. qmd still also keeps its separate
+passes, and ELF now passes the live `capture_integration` self-checks for redaction,
+exclusions, source ids, evidence binding, and no secret leakage. The full sweep is
+still not a full-suite pass: memory_evolution is `wrong_result`, production_ops keeps
+operator-owned blocked boundaries, and consolidation, knowledge_compilation, and
+operator_debugging_ux remain `not_encoded` for this live adapter path. qmd keeps
+`capture_integration` typed `not_encoded` and still also keeps its separate
 `live_baseline_only` same-corpus record for update/delete/cold-start checks; that
 record is not a real-world suite win. agentmemory is blocked on durable upstream
-storage for lifecycle proof. mem0/OpenMemory, memsearch, and claude-mem currently
-retain wrong-result or incomplete live-baseline states for the checked-in adapter
-evidence. OpenViking now reaches its pinned Docker local embedding setup but remains a
-same-corpus `wrong_result` until it returns evidence-bearing retrieval output. The
-expanded RAG and graph-memory records for RAGFlow, LightRAG, GraphRAG,
-Graphiti/Zep, Letta, LangGraph, nanograph, llm-wiki, gbrain, graphify, and deeper
-qmd/OpenViking profiles are `research_gate` records until their Docker-isolated
-adapter runs are implemented. These typed states describe benchmark coverage; do not
-convert setup weight, missing research, or unencoded suites into broad project quality
-rankings.
+storage for lifecycle proof and capture breadth. mem0/OpenMemory, memsearch, and
+claude-mem currently retain wrong-result, not-encoded, or incomplete live-baseline
+states for the checked-in adapter evidence. OpenViking now reaches its pinned Docker
+local embedding setup but remains a same-corpus `wrong_result` until it returns
+evidence-bearing retrieval output. The expanded RAG and graph-memory records for
+RAGFlow, LightRAG, GraphRAG, Graphiti/Zep, Letta, LangGraph, nanograph, llm-wiki,
+gbrain, graphify, and deeper qmd/OpenViking profiles are `research_gate` records until
+their Docker-isolated adapter runs are implemented. These typed states describe
+benchmark coverage; do not convert setup weight, missing research, or unencoded suites
+into broad project quality rankings.
 
 To run the full live adapter sweep for ELF and qmd:
 

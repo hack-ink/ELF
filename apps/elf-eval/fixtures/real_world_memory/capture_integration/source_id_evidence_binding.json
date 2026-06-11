@@ -1,0 +1,187 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "capture-source-id-binding-001",
+  "suite": "capture_integration",
+  "title": "Preserve source ids and evidence binding during live capture",
+  "corpus": {
+    "corpus_id": "real-world-memory-capture-2026-06-11",
+    "profile": "synthetic",
+    "capture_behaviors": {
+      "real": [
+        "ELF live add_note capture stores source_id values in source_ref and returns evidence-bound notes through search_raw."
+      ],
+      "blocked": [
+        "agentmemory host-global capture hooks are not installed; durable capture breadth remains blocked until a Docker-local session path exists.",
+        "claude-mem hook/viewer capture breadth remains not encoded in the Docker baseline."
+      ],
+      "notes": [
+        "This job is a source-id and evidence-binding check, not a host-global hook installation."
+      ]
+    },
+    "items": [
+      {
+        "evidence_id": "source-id-release-summary",
+        "kind": "message",
+        "text": "Public capture: The source id capture:issue-comment-42 is bound to the release-summary requirement. Public audit: source ids remained attached to evidence-bound notes.",
+        "capture": {
+          "action": "store",
+          "source_id": "capture:issue-comment-42",
+          "evidence_binding": "source_ref"
+        },
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "source_id_evidence_binding",
+            "evidence_id": "source-id-release-summary"
+          },
+          "locator": {
+            "quote": "source ids remained attached to evidence-bound notes"
+          }
+        },
+        "created_at": "2026-06-11T04:10:00Z"
+      },
+      {
+        "evidence_id": "source-id-command-log",
+        "kind": "trace",
+        "text": "Public capture: command log source id capture:command-log-7 proves the benchmark ran inside Docker and did not require host-global hooks.",
+        "capture": {
+          "action": "store",
+          "source_id": "capture:command-log-7",
+          "evidence_binding": "source_ref"
+        },
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "source_id_evidence_binding",
+            "evidence_id": "source-id-command-log"
+          },
+          "locator": {
+            "quote": "did not require host-global hooks"
+          }
+        },
+        "created_at": "2026-06-11T04:11:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "elf_real_world_memory_fixture",
+      "answer": {
+        "content": "The release-summary requirement is bound to source id capture:issue-comment-42, and source ids remained attached to evidence-bound notes. The command-log evidence says the benchmark ran inside Docker and did not require host-global hooks.",
+        "claims": [
+          {
+            "claim_id": "source_id_bound",
+            "text": "The source id capture:issue-comment-42 is bound to the release-summary requirement.",
+            "evidence_ids": ["source-id-release-summary"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "docker_no_host_hooks",
+            "text": "The benchmark ran inside Docker and did not require host-global hooks.",
+            "evidence_ids": ["source-id-command-log"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["source-id-release-summary", "source-id-command-log"],
+        "latency_ms": 1.1,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "source-id-capture-import",
+      "ts": "2026-06-11T04:10:00Z",
+      "actor": "agent",
+      "action": "captured_source_ids",
+      "evidence_ids": ["source-id-release-summary", "source-id-command-log"],
+      "summary": "The capture path recorded source ids in evidence-bound source refs."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Which source ids were preserved by live capture, and did the benchmark require host-global hooks?",
+    "job_mode": "answer",
+    "constraints": ["cite_evidence", "preserve_source_ids", "do_not_claim_host_global_hooks"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "source_id_bound",
+        "text": "The source id capture:issue-comment-42 is bound to the release-summary requirement."
+      },
+      {
+        "claim_id": "docker_no_host_hooks",
+        "text": "The benchmark ran inside Docker and did not require host-global hooks."
+      }
+    ],
+    "must_not_include": [
+      "host-global hooks were installed",
+      "agentmemory hooks passed",
+      "claude-mem hooks passed"
+    ],
+    "evidence_links": {
+      "source_id_bound": ["source-id-release-summary"],
+      "docker_no_host_hooks": ["source-id-command-log"]
+    },
+    "answer_type": "direct_answer",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "source-id-release-summary",
+      "claim_id": "source_id_bound",
+      "requirement": "cite",
+      "quote": "source ids remained attached to evidence-bound notes"
+    },
+    {
+      "evidence_id": "source-id-command-log",
+      "claim_id": "docker_no_host_hooks",
+      "requirement": "cite",
+      "quote": "did not require host-global hooks"
+    }
+  ],
+  "negative_traps": [],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Reports preserved source ids and Docker-scoped capture."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Cites both source-id evidence records."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Does not claim host-global hooks or external hook passes."
+      },
+      "lifecycle_behavior": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Preserves source ids as evidence-bound capture metadata."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about external hook execution",
+      "missing evidence binding for a source-id claim"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "state_blocker"
+  },
+  "tags": ["synthetic", "capture_integration", "source_id", "evidence_binding", "no_host_global_hooks"]
+}
