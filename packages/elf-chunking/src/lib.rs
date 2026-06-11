@@ -128,10 +128,14 @@ fn overlap_tail(text: &str, overlap_tokens: u32, tokenizer: &Tokenizer) -> Strin
 mod tests {
 	use crate::ChunkingConfig;
 
+	fn local_dev_tokenizer_path() -> std::path::PathBuf {
+		std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+			.join("../../config/local/tokenizer.wordlevel.json")
+	}
+
 	#[test]
 	fn loads_local_dev_tokenizer_fixture() {
-		let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-			.join("../../config/local/tokenizer.wordlevel.json");
+		let path = local_dev_tokenizer_path();
 		let tokenizer = crate::load_tokenizer(path.to_str().expect("Path must be valid UTF-8"))
 			.expect("Local dev tokenizer must load.");
 		let cfg = ChunkingConfig { max_tokens: 10, overlap_tokens: 2 };
@@ -143,11 +147,14 @@ mod tests {
 
 	#[test]
 	fn splits_into_chunks_with_overlap() {
-		let cfg = ChunkingConfig { max_tokens: 10, overlap_tokens: 2 };
-		let tokenizer = crate::load_tokenizer("Qwen/Qwen3-Embedding-8B").unwrap();
+		let cfg = ChunkingConfig { max_tokens: 2, overlap_tokens: 1 };
+		let path = local_dev_tokenizer_path();
+		let tokenizer = crate::load_tokenizer(path.to_str().expect("Path must be valid UTF-8"))
+			.expect("Local dev tokenizer must load.");
 		let chunks = crate::split_text("One. Two. Three. Four.", &cfg, &tokenizer);
 
-		assert!(!chunks.is_empty());
+		assert!(chunks.len() > 1);
 		assert!(chunks[0].text.contains("One"));
+		assert!(chunks.last().expect("Chunk should exist").text.contains("Four"));
 	}
 }

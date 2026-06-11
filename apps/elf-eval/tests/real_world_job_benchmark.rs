@@ -360,13 +360,25 @@ fn external_adapter_run_summarizes_nonzero_scenario_losses() -> Result<()> {
 		report
 			.pointer("/external_adapters/summary/scenario_position_counts/loses")
 			.and_then(Value::as_u64),
-		Some(1)
+		Some(2)
 	);
 	assert_eq!(
 		report
 			.pointer("/external_adapters/summary/scenario_position_counts/untested")
 			.and_then(Value::as_u64),
-		Some(8)
+		Some(10)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_outcome_counts/loss")
+			.and_then(Value::as_u64),
+		Some(2)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_outcome_counts/not_tested")
+			.and_then(Value::as_u64),
+		Some(7)
 	);
 
 	let adapters = array_at(&report, "/external_adapters/adapters")?;
@@ -387,7 +399,7 @@ fn assert_external_adapter_manifest_summary(report: &Value) {
 	);
 	assert_eq!(
 		report.pointer("/external_adapters/manifest_id").and_then(Value::as_str),
-		Some("real-world-memory-project-adapters-2026-06-11")
+		Some("real-world-memory-project-adapters-2026-06-11-mem0-history")
 	);
 	assert_eq!(
 		report.pointer("/external_adapters/docker_isolation/default").and_then(Value::as_bool),
@@ -471,13 +483,13 @@ fn assert_external_adapter_manifest_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/capability_status_counts/unsupported")
 			.and_then(Value::as_u64),
-		Some(5)
+		Some(6)
 	);
 	assert_eq!(
 		report
 			.pointer("/external_adapters/summary/suite_status_counts/blocked")
 			.and_then(Value::as_u64),
-		Some(12)
+		Some(13)
 	);
 	assert_eq!(
 		report
@@ -506,13 +518,13 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/scenario_status_counts/unsupported")
 			.and_then(Value::as_u64),
-		Some(1)
+		Some(2)
 	);
 	assert_eq!(
 		report
 			.pointer("/external_adapters/summary/scenario_status_counts/blocked")
 			.and_then(Value::as_u64),
-		Some(1)
+		Some(2)
 	);
 	assert_eq!(
 		report
@@ -536,13 +548,13 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/scenario_status_counts/pass")
 			.and_then(Value::as_u64),
-		Some(5)
+		Some(9)
 	);
 	assert_eq!(
 		report
 			.pointer("/external_adapters/summary/scenario_status_counts/not_encoded")
 			.and_then(Value::as_u64),
-		Some(4)
+		Some(3)
 	);
 	assert_eq!(
 		report
@@ -554,19 +566,55 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/scenario_position_counts/ties")
 			.and_then(Value::as_u64),
-		Some(2)
+		Some(4)
 	);
 	assert_eq!(
 		report
 			.pointer("/external_adapters/summary/scenario_position_counts/loses")
 			.and_then(Value::as_u64),
-		Some(0)
+		Some(1)
 	);
 	assert_eq!(
 		report
 			.pointer("/external_adapters/summary/scenario_position_counts/untested")
 			.and_then(Value::as_u64),
-		Some(9)
+		Some(11)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_outcome_counts/win")
+			.and_then(Value::as_u64),
+		Some(2)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_outcome_counts/tie")
+			.and_then(Value::as_u64),
+		Some(4)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_outcome_counts/loss")
+			.and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_outcome_counts/not_tested")
+			.and_then(Value::as_u64),
+		Some(8)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_outcome_counts/blocked")
+			.and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
+		report
+			.pointer("/external_adapters/summary/scenario_outcome_counts/non_goal")
+			.and_then(Value::as_u64),
+		Some(2)
 	);
 }
 
@@ -733,14 +781,41 @@ fn assert_first_generation_adapter_records(
 		Some("local_lifecycle_update_delete_reload")
 	);
 	assert_eq!(mem0.pointer("/capabilities/2/status").and_then(Value::as_str), Some("pass"));
-	assert_eq!(mem0.pointer("/capabilities/4/status").and_then(Value::as_str), Some("not_encoded"));
+	assert_eq!(
+		mem0.pointer("/capabilities/3/capability").and_then(Value::as_str),
+		Some("preference_correction_history")
+	);
+	assert_eq!(mem0.pointer("/capabilities/3/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(
+		mem0.pointer("/capabilities/7/capability").and_then(Value::as_str),
+		Some("openmemory_ui_readback")
+	);
+	assert_eq!(mem0.pointer("/capabilities/7/status").and_then(Value::as_str), Some("blocked"));
+	assert_eq!(
+		mem0.pointer("/capabilities/8/capability").and_then(Value::as_str),
+		Some("hosted_managed_memory_claims")
+	);
+	assert_eq!(mem0.pointer("/capabilities/8/status").and_then(Value::as_str), Some("unsupported"));
 	assert_eq!(mem0.pointer("/scenarios/0/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(mem0.pointer("/scenarios/0/elf_position").and_then(Value::as_str), Some("ties"));
 	assert_eq!(
-		mem0.pointer("/scenarios/2/scenario_id").and_then(Value::as_str),
+		mem0.pointer("/scenarios/1/scenario_id").and_then(Value::as_str),
+		Some("preference_correction_history")
+	);
+	assert_eq!(mem0.pointer("/scenarios/1/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(
+		mem0.pointer("/scenarios/1/comparison_outcome").and_then(Value::as_str),
+		Some("loss")
+	);
+	assert_eq!(
+		mem0.pointer("/scenarios/5/scenario_id").and_then(Value::as_str),
 		Some("openmemory_ui_export_readback")
 	);
-	assert_eq!(mem0.pointer("/scenarios/2/status").and_then(Value::as_str), Some("not_encoded"));
+	assert_eq!(mem0.pointer("/scenarios/5/status").and_then(Value::as_str), Some("blocked"));
+	assert_eq!(
+		mem0.pointer("/scenarios/6/comparison_outcome").and_then(Value::as_str),
+		Some("non_goal")
+	);
 	assert_eq!(
 		memsearch.pointer("/capabilities/2/capability").and_then(Value::as_str),
 		Some("reindex_update_delete_reload")
@@ -2073,7 +2148,10 @@ fn generated_json_report_renders_markdown() -> Result<()> {
 	assert!(markdown.contains("xy844-current-worktree"));
 	assert!(markdown.contains("Existing live-baseline reports remain valid"));
 	assert!(markdown.contains("### Adapter Scenario Judgments"));
-	assert!(markdown.contains("ELF scenario positions: `wins=2, ties=2, untested=9`"));
+	assert!(markdown.contains("ELF scenario positions: `wins=2, ties=4, loses=1, untested=11`"));
+	assert!(markdown.contains(
+		"Scenario comparison outcomes: `win=2, tie=4, loss=1, not_tested=8, blocked=1, non_goal=2`"
+	));
 	assert!(markdown.contains("| `claude_mem_live_baseline` | `same_corpus_retrieval`"));
 	assert!(markdown.contains("| `memsearch_live_baseline` | `ttl_expiry_lifecycle`"));
 
@@ -2101,9 +2179,21 @@ fn external_adapter_markdown_renders_nonzero_scenario_losses() -> Result<()> {
 		"/external_adapters/summary/scenario_position_counts",
 		serde_json::json!({
 			"wins": 2,
-			"ties": 2,
-			"loses": 1,
-			"untested": 8
+			"ties": 4,
+			"loses": 2,
+			"untested": 10
+		}),
+	)?;
+	set_json_pointer(
+		&mut report,
+		"/external_adapters/summary/scenario_outcome_counts",
+		serde_json::json!({
+			"win": 2,
+			"tie": 4,
+			"loss": 2,
+			"not_tested": 7,
+			"blocked": 1,
+			"non_goal": 2
 		}),
 	)?;
 
@@ -2133,9 +2223,12 @@ fn external_adapter_markdown_renders_nonzero_scenario_losses() -> Result<()> {
 
 	let markdown = fs::read_to_string(markdown_path)?;
 
-	assert!(markdown.contains("ELF scenario positions: `wins=2, ties=2, loses=1, untested=8`"));
+	assert!(markdown.contains("ELF scenario positions: `wins=2, ties=4, loses=2, untested=10`"));
 	assert!(markdown.contains(
-		"| `agentmemory_live_baseline` | `basic_same_corpus_retrieval` | `retrieval` | `pass` | `loses` |"
+		"Scenario comparison outcomes: `win=2, tie=4, loss=2, not_tested=7, blocked=1, non_goal=2`"
+	));
+	assert!(markdown.contains(
+		"| `agentmemory_live_baseline` | `basic_same_corpus_retrieval` | `retrieval` | `pass` | `loss` |"
 	));
 
 	Ok(())
@@ -2178,6 +2271,18 @@ fn external_adapter_markdown_omits_scenario_summary_when_manifest_has_no_scenari
 			"untested": 0
 		}),
 	)?;
+	set_json_pointer(
+		&mut report,
+		"/external_adapters/summary/scenario_outcome_counts",
+		serde_json::json!({
+			"win": 0,
+			"tie": 0,
+			"loss": 0,
+			"not_tested": 0,
+			"blocked": 0,
+			"non_goal": 0
+		}),
+	)?;
 
 	let temp_dir =
 		env::temp_dir().join(format!("elf-real-world-no-scenario-test-{}", process::id()));
@@ -2208,7 +2313,35 @@ fn external_adapter_markdown_omits_scenario_summary_when_manifest_has_no_scenari
 	assert!(markdown.contains("External Adapter Coverage"));
 	assert!(!markdown.contains("Scenario coverage statuses:"));
 	assert!(!markdown.contains("ELF scenario positions:"));
+	assert!(!markdown.contains("Scenario comparison outcomes:"));
 	assert!(!markdown.contains("### Adapter Scenario Judgments"));
+
+	Ok(())
+}
+
+#[test]
+fn mem0_delete_audit_probe_requires_explicit_delete_history_event() -> Result<()> {
+	let script =
+		fs::read_to_string(workspace_root()?.join("scripts").join("live-baseline-benchmark.sh"))?;
+
+	assert!(script.contains("def history_has_event"));
+	assert!(script.contains("str(entry.get(\"event\", \"\")).upper() == expected"));
+	assert!(script.contains(
+		"history_has_event(\n        preference_history[\"history\"],\n        \"ADD\","
+	));
+	assert!(script.contains(
+		"history_has_event(\n        preference_history[\"history\"],\n        \"UPDATE\","
+	));
+	assert!(
+		script.contains(
+			"history_has_event(\n        delete_history[\"history\"],\n        \"DELETE\","
+		)
+	);
+	assert!(
+		!script.contains(
+			"contains_terms(\n        delete_history[\"history\"],\n        [\"delete\"],"
+		)
+	);
 
 	Ok(())
 }
