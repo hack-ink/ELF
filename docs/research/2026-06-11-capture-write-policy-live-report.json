@@ -1,0 +1,220 @@
+{
+  "schema": "elf.capture_write_policy_live_report/v1",
+  "report_id": "xy-933-capture-write-policy-live-report-2026-06-11",
+  "authority": "XY-933",
+  "created_at": "2026-06-11T14:31:00Z",
+  "commands": [
+    {
+      "command": "cargo make real-world-memory",
+      "status": "pass",
+      "artifact": "tmp/real-world-memory/real-world-memory-report.json"
+    },
+    {
+      "command": "cargo make real-world-memory-live-adapters",
+      "status": "pass",
+      "artifact": "tmp/real-world-memory/live-adapters/summary.json"
+    }
+  ],
+  "fixture_aggregate": {
+    "job_count": 40,
+    "pass": 38,
+    "blocked": 2,
+    "capture_integration": {
+      "encoded_job_count": 4,
+      "status": "pass",
+      "score_mean": 1.0,
+      "redaction_leak_count": 0,
+      "evidence_required_count": 10,
+      "evidence_covered_count": 10,
+      "source_ref_required_count": 10,
+      "source_ref_covered_count": 10
+    }
+  },
+  "live_capture_results": {
+    "elf_live_real_world": {
+      "suite_status": "pass",
+      "encoded_job_count": 4,
+      "redaction_leak_count": 0,
+      "expected_evidence_recall": 1.0,
+      "evidence_required_count": 10,
+      "evidence_covered_count": 10,
+      "source_ref_required_count": 10,
+      "source_ref_covered_count": 10,
+      "artifact": "tmp/real-world-memory/live-adapters/elf-report.json",
+      "materialization_artifact": "tmp/real-world-memory/live-adapters/elf-materialization.json"
+    },
+    "qmd_live_real_world": {
+      "suite_status": "not_encoded",
+      "encoded_job_count": 4,
+      "redaction_leak_count": 0,
+      "expected_evidence_recall": 0.0,
+      "evidence_required_count": 10,
+      "evidence_covered_count": 0,
+      "source_ref_required_count": 10,
+      "source_ref_covered_count": 0,
+      "artifact": "tmp/real-world-memory/live-adapters/qmd-report.json"
+    }
+  },
+  "jobs": [
+    {
+      "job_id": "capture-redaction-exclusion-001",
+      "status": "pass",
+      "stored_evidence_ids": [
+        "public-captured-decision",
+        "write-policy-audit"
+      ],
+      "excluded_evidence_ids": [
+        "private-excluded-text"
+      ],
+      "source_ids": [
+        "capture:linear-comment-933",
+        "capture:write-policy-audit-933"
+      ],
+      "runtime_source_refs": [
+        {
+          "evidence_id": "public-captured-decision",
+          "source_id": "capture:linear-comment-933",
+          "evidence_binding": "source_ref",
+          "write_policy_applied": false
+        },
+        {
+          "evidence_id": "write-policy-audit",
+          "source_id": "capture:write-policy-audit-933",
+          "evidence_binding": "source_ref",
+          "write_policy_applied": false
+        }
+      ],
+      "write_policy_audit_count": 0,
+      "write_policy_redaction_count": 0,
+      "redaction_leak_count": 0
+    },
+    {
+      "job_id": "capture-source-id-binding-001",
+      "status": "pass",
+      "stored_evidence_ids": [
+        "source-id-release-summary",
+        "source-id-command-log"
+      ],
+      "excluded_evidence_ids": [],
+      "source_ids": [
+        "capture:issue-comment-42",
+        "capture:command-log-7"
+      ],
+      "runtime_source_refs": [
+        {
+          "evidence_id": "source-id-release-summary",
+          "source_id": "capture:issue-comment-42",
+          "evidence_binding": "source_ref",
+          "write_policy_applied": false
+        },
+        {
+          "evidence_id": "source-id-command-log",
+          "source_id": "capture:command-log-7",
+          "evidence_binding": "source_ref",
+          "write_policy_applied": false
+        }
+      ],
+      "write_policy_audit_count": 0,
+      "write_policy_redaction_count": 0,
+      "redaction_leak_count": 0
+    },
+    {
+      "job_id": "capture-write-policy-redaction-001",
+      "status": "pass",
+      "stored_evidence_ids": [
+        "redacted-source-message"
+      ],
+      "excluded_evidence_ids": [
+        "redacted-private-token-trap"
+      ],
+      "source_ids": [
+        "capture:terminal-log-17"
+      ],
+      "runtime_source_refs": [
+        {
+          "evidence_id": "redacted-source-message",
+          "source_id": "capture:terminal-log-17",
+          "evidence_binding": "source_ref",
+          "write_policy_applied": true
+        }
+      ],
+      "write_policy_audit_count": 1,
+      "write_policy_redaction_count": 1,
+      "redaction_leak_count": 0
+    },
+    {
+      "job_id": "capture-integration-boundaries-001",
+      "status": "pass",
+      "stored_evidence_ids": [
+        "xy844-capture-log",
+        "agentmemory-hook-reference",
+        "claude-mem-viewer-reference",
+        "live-adapter-follow-up"
+      ],
+      "excluded_evidence_ids": [
+        "private-span-trap"
+      ],
+      "source_ids": [],
+      "runtime_source_refs": [
+        {
+          "evidence_id": "live-adapter-follow-up",
+          "source_id": null,
+          "evidence_binding": null,
+          "write_policy_applied": false
+        },
+        {
+          "evidence_id": "agentmemory-hook-reference",
+          "source_id": null,
+          "evidence_binding": null,
+          "write_policy_applied": false
+        },
+        {
+          "evidence_id": "xy844-capture-log",
+          "source_id": null,
+          "evidence_binding": null,
+          "write_policy_applied": false
+        },
+        {
+          "evidence_id": "claude-mem-viewer-reference",
+          "source_id": null,
+          "evidence_binding": null,
+          "write_policy_applied": false
+        }
+      ],
+      "write_policy_audit_count": 0,
+      "write_policy_redaction_count": 0,
+      "redaction_leak_count": 0
+    }
+  ],
+  "competitor_positions": [
+    {
+      "project": "qmd",
+      "position": "untested",
+      "reason": "ELF executes and passes 4/4 live capture jobs; qmd keeps capture_integration typed not_encoded in the same live sweep, so this is an ELF self-check rather than a qmd comparison result."
+    },
+    {
+      "project": "agentmemory",
+      "position": "blocked",
+      "reason": "The current Docker baseline uses a process-local StateKV Map and in-memory index; no durable local session/capture path stores source ids, exclusions, write-policy audit, or evidence-bound output."
+    },
+    {
+      "project": "claude-mem",
+      "position": "untested",
+      "reason": "Repository storage, lifecycle, progressive disclosure, and same-corpus retrieval are checked; hooks, timeline, observations, viewer capture, and automatic capture review are not run against real-world jobs."
+    }
+  ],
+  "claim_boundary": {
+    "allowed": [
+      "ELF live capture/write-policy self-checks pass for redaction, exclusions, source ids, evidence binding, and no secret leakage.",
+      "qmd remains not_encoded for capture/write-policy jobs in the full live sweep.",
+      "agentmemory capture comparison is blocked by mocked/in-memory storage and lack of a durable local capture artifact.",
+      "claude-mem capture breadth is untested until a Docker-contained hook/viewer capture runner exists."
+    ],
+    "not_allowed": [
+      "Do not claim ELF broadly beats agentmemory or claude-mem on capture breadth.",
+      "Do not use host-global hooks as benchmark evidence.",
+      "Do not weaken ELF write-policy, redaction, or evidence-binding constraints for benchmark convenience.",
+      "Do not convert fixture-backed or live-baseline-only capture references into a live real-world competitor pass."
+    ]
+  }
+}

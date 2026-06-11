@@ -113,6 +113,18 @@ Each `items[]` entry MUST include:
 - `source_ref`: object; MAY be `{}` only for generated synthetic fixtures.
 - `created_at`: RFC3339 timestamp or `null` when time is intentionally irrelevant.
 
+Each `items[]` entry MAY include:
+
+- `capture`: object used by live capture/write-policy materializers. Supported fields:
+  - `action`: `store` or `exclude`. `exclude` means the item is an expected capture
+    input but MUST NOT be stored in the evaluated memory system.
+  - `source_id`: optional stable source identifier that must be preserved in the
+    resulting source reference when the item is stored.
+  - `evidence_binding`: optional label for the evidence-binding mode the live adapter
+    must preserve.
+  - `write_policy`: optional write-policy object applied before storage. Redactions
+    and exclusions from this policy must be counted in the materialization artifact.
+
 Optional corpus fields:
 
 - `capture_behaviors`: object used by `capture_integration` jobs and fixture-backed
