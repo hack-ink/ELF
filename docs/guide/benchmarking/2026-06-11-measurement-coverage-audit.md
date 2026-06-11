@@ -130,10 +130,9 @@ The checked-in manifest records 21 adapter records across 17 unique project name
 | `blocked` | `6` |
 | `not_encoded` | `7` |
 
-The generated JSON report also emits `external_project_count: 19`, while the unique
-project-name count from the manifest is 17. The runner currently computes that field
-as adapter records whose project is not `ELF`, not as unique external project names.
-Interpret the unique manifest project list as the project coverage count.
+The generated JSON report emits `external_project_count: 16`, matching the unique
+non-ELF project-name count from the manifest. The full project-name count remains 17
+when ELF is included.
 
 ## Project Coverage
 
@@ -214,9 +213,9 @@ Order these by decision value, not implementation convenience:
    - Output: Docker-contained artifacts mapped to evidence ids, or typed setup and
      resource blockers.
 
-Before publishing the next aggregate report, clarify or rename the generated
-`external_project_count` field so readers do not confuse non-ELF adapter records with
-unique external projects.
+Before publishing the next aggregate report, keep the generated `external_project_count`
+field tied to unique non-ELF project names so readers do not confuse adapter records
+with unique external projects.
 
 ## Fail Criteria
 

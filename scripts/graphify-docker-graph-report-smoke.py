@@ -10,7 +10,7 @@ import shutil
 import subprocess
 import sys
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -236,6 +236,39 @@ def scored_benchmark(report: dict[str, Any] | None) -> dict[str, Any]:
         "mean_score": summary.get("mean_score"),
         "evidence_coverage": summary.get("evidence_coverage"),
     }
+
+
+def status_with_scored_result(status: StatusState, report: dict[str, Any]) -> StatusState:
+    """Return a manifest status that follows the scored real_world_job outcome."""
+
+    scored = scored_benchmark(report)
+    scored_status = scored.get("status")
+    if scored_status not in {
+        "pass",
+        "wrong_result",
+        "lifecycle_fail",
+        "incomplete",
+        "blocked",
+        "not_encoded",
+    }:
+        return status
+
+    manifest_status = replace(status)
+    manifest_status.result = str(scored_status)
+    manifest_status.overall = str(scored_status)
+
+    if scored_status == "pass":
+        manifest_status.failure_class = ""
+        manifest_status.failure_reason = ""
+    elif scored_status == "wrong_result":
+        manifest_status.failure_class = "scored_benchmark_wrong_result"
+        manifest_status.failure_reason = (
+            "The graphify smoke materialized graph/report evidence, but the scored "
+            "real_world_job outcome is wrong_result; inspect graphify-report.json for "
+            "wrong-result signals."
+        )
+
+    return manifest_status
 
 
 def dir_size(path: Path) -> int:
@@ -1222,7 +1255,7 @@ def write_manifest(status: StatusState) -> dict[str, Any]:
                     },
                     {
                         "suite_id": "retrieval",
-                        "status": status.result if status.result in {"pass", "wrong_result"} else status.run,
+                        "status": "blocked",
                         "evidence": "The smoke uses graphify query output only to support source mapping; broad retrieval quality is not scored.",
                     },
                     {
@@ -1306,7 +1339,7 @@ def write_summary(materialization: dict[str, Any], manifest: dict[str, Any], rep
             "materialization": materialization,
             "manifest": {
                 "json": rel(MANIFEST_OUT),
-                "status_source": "external_adapter_manifest_pre_score",
+                "status_source": "external_adapter_manifest_score_aligned",
                 "summary": manifest["adapters"][0]["overall_status"],
                 "suites": manifest["adapters"][0]["suites"],
             },
@@ -1426,6 +1459,10 @@ def main() -> int:
     )
     manifest = write_manifest(status)
     report = run_scored_report(fixture_path, MANIFEST_OUT, status)
+    manifest_status = status_with_scored_result(status, report)
+    if manifest_status.overall != status.overall or manifest_status.result != status.result:
+        manifest = write_manifest(manifest_status)
+        report = run_scored_report(fixture_path, MANIFEST_OUT, manifest_status)
     materialization = write_materialization(
         status,
         corpus,
