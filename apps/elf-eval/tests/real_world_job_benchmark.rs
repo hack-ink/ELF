@@ -641,13 +641,13 @@ fn assert_external_adapter_manifest_status_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/suite_status_counts/blocked")
 			.and_then(Value::as_u64),
-		Some(19)
+		Some(21)
 	);
 	assert_eq!(
 		report
 			.pointer("/external_adapters/summary/suite_status_counts/pass")
 			.and_then(Value::as_u64),
-		Some(23)
+		Some(26)
 	);
 	assert_eq!(
 		report
@@ -659,7 +659,7 @@ fn assert_external_adapter_manifest_status_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/suite_status_counts/not_encoded")
 			.and_then(Value::as_u64),
-		Some(40)
+		Some(38)
 	);
 }
 
@@ -710,7 +710,7 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/scenario_status_counts/pass")
 			.and_then(Value::as_u64),
-		Some(20)
+		Some(23)
 	);
 	assert_eq!(
 		report
@@ -722,13 +722,13 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/scenario_position_counts/wins")
 			.and_then(Value::as_u64),
-		Some(9)
+		Some(10)
 	);
 	assert_eq!(
 		report
 			.pointer("/external_adapters/summary/scenario_position_counts/ties")
 			.and_then(Value::as_u64),
-		Some(9)
+		Some(11)
 	);
 	assert_eq!(
 		report
@@ -746,13 +746,13 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/scenario_outcome_counts/win")
 			.and_then(Value::as_u64),
-		Some(9)
+		Some(10)
 	);
 	assert_eq!(
 		report
 			.pointer("/external_adapters/summary/scenario_outcome_counts/tie")
 			.and_then(Value::as_u64),
-		Some(9)
+		Some(11)
 	);
 	assert_eq!(
 		report
@@ -1679,6 +1679,8 @@ fn live_adapter_supports_elf_capture_write_policy_without_external_hook_claims()
 	let workspace = workspace_root()?;
 	let live_adapter =
 		fs::read_to_string(workspace.join("apps/elf-eval/src/bin/real_world_live_adapter.rs"))?;
+	let live_script =
+		fs::read_to_string(workspace.join("scripts").join("real-world-live-adapters.sh"))?;
 	let manifest = fs::read_to_string(
 		workspace
 			.join("apps/elf-eval/fixtures/real_world_external_adapters")
@@ -1693,7 +1695,13 @@ fn live_adapter_supports_elf_capture_write_policy_without_external_hook_claims()
 	assert!(live_adapter.contains("runtime_source_refs"));
 	assert!(live_adapter.contains("validate_capture_runtime_evidence"));
 	assert!(live_adapter.contains("capture_failure"));
-	assert!(live_adapter.contains("The live adapter sweep has no encoded runtime path"));
+	assert!(live_adapter.contains("fn materialize_elf_consolidation("));
+	assert!(live_adapter.contains("ConsolidationProposalReviewRequest"));
+	assert!(live_adapter.contains("fn materialize_elf_knowledge("));
+	assert!(live_adapter.contains("KnowledgePageLintRequest"));
+	assert!(live_script.contains("OPERATOR_FIXTURE_DIR"));
+	assert!(live_script.contains("INPUT_FIXTURE_DIR"));
+	assert!(live_script.contains("operator_debugging_ux"));
 	assert!(manifest.contains("\"scenario_id\": \"live_capture_write_policy\""));
 	assert!(manifest.contains("\"scenario_id\": \"capture_write_policy_hooks\""));
 	assert!(manifest.contains("\"comparison_outcome\": \"blocked\""));
@@ -1701,6 +1709,46 @@ fn live_adapter_supports_elf_capture_write_policy_without_external_hook_claims()
 	assert!(manifest.contains("durable upstream agentmemory session/capture path"));
 	assert!(manifest.contains("Docker-contained session directory"));
 	assert!(manifest.contains("claude-mem hooks, viewer, timeline, and observation workflows"));
+
+	Ok(())
+}
+
+#[test]
+fn declared_not_encoded_consolidation_jobs_do_not_require_fake_proposals() -> Result<()> {
+	let fixture_path = consolidation_fixture_dir().join("contradiction_report_discard.json");
+	let mut fixture = serde_json::from_str::<Value>(&fs::read_to_string(fixture_path)?)?;
+
+	fixture
+		.pointer_mut("/corpus/adapter_response")
+		.and_then(Value::as_object_mut)
+		.ok_or_else(|| eyre::eyre!("missing adapter_response object"))?
+		.remove("consolidation");
+
+	let encoding = serde_json::json!({
+		"status": "not_encoded",
+		"reason": "The qmd live adapter retrieves evidence-linked answers but does not generate or review consolidation proposals."
+	});
+
+	fixture
+		.as_object_mut()
+		.ok_or_else(|| eyre::eyre!("fixture is not an object"))?
+		.insert("encoding".to_string(), encoding);
+
+	let temp_dir =
+		env::temp_dir().join(format!("elf-real-world-not-encoded-consolidation-{}", process::id()));
+
+	fs::create_dir_all(&temp_dir)?;
+	fs::write(
+		temp_dir.join("not_encoded_consolidation.json"),
+		serde_json::to_vec_pretty(&fixture)?,
+	)?;
+
+	let report = run_json_report_from(temp_dir)?;
+	let jobs = array_at(&report, "/jobs")?;
+	let job = find_by_field(jobs, "/job_id", "consolidation-contradiction-report-discard-001")?;
+
+	assert_eq!(job.pointer("/status").and_then(Value::as_str), Some("not_encoded"));
+	assert_eq!(report.pointer("/summary/not_encoded").and_then(Value::as_u64), Some(1));
 
 	Ok(())
 }
@@ -1837,18 +1885,20 @@ fn assert_live_sweep_record(adapter: &Value, production_ops_status: &str) -> Res
 	let operator_debug = find_by_field(suites, "/suite_id", "operator_debugging_ux")?;
 	let capture = find_by_field(suites, "/suite_id", "capture_integration")?;
 	let personalization = find_by_field(suites, "/suite_id", "personalization")?;
+	let core_archival = find_by_field(suites, "/suite_id", "core_archival_memory")?;
+	let context_trajectory = find_by_field(suites, "/suite_id", "context_trajectory")?;
 	let trust_sot = find_by_field(suites, "/suite_id", "trust_source_of_truth")?;
 	let retrieval = find_by_field(suites, "/suite_id", "retrieval")?;
 	let project_decisions = find_by_field(suites, "/suite_id", "project_decisions")?;
 
-	assert_eq!(suites.len(), 11);
+	assert_eq!(suites.len(), 13);
 	assert_eq!(targeted.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(full_pass.pointer("/status").and_then(Value::as_str), Some("wrong_result"));
 	assert!(
 		adapter
 			.pointer("/result/evidence")
 			.and_then(Value::as_str)
-			.is_some_and(|evidence| evidence.contains("40 jobs across all 11 encoded suites"))
+			.is_some_and(|evidence| evidence.contains("55 jobs across all 13 checked-in suites"))
 	);
 	assert_eq!(trust_sot.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(work_resume.pointer("/status").and_then(Value::as_str), Some("pass"));
@@ -1859,11 +1909,11 @@ fn assert_live_sweep_record(adapter: &Value, production_ops_status: &str) -> Res
 		production_ops.pointer("/status").and_then(Value::as_str),
 		Some(production_ops_status)
 	);
-	assert_eq!(consolidation.pointer("/status").and_then(Value::as_str), Some("not_encoded"));
-	assert_eq!(knowledge.pointer("/status").and_then(Value::as_str), Some("not_encoded"));
-	assert_eq!(operator_debug.pointer("/status").and_then(Value::as_str), Some("not_encoded"));
 
 	if adapter_id == "elf_live_real_world" {
+		assert_eq!(consolidation.pointer("/status").and_then(Value::as_str), Some("pass"));
+		assert_eq!(knowledge.pointer("/status").and_then(Value::as_str), Some("pass"));
+		assert_eq!(operator_debug.pointer("/status").and_then(Value::as_str), Some("pass"));
 		assert_eq!(capture.pointer("/status").and_then(Value::as_str), Some("pass"));
 		assert!(
 			capture
@@ -1872,10 +1922,15 @@ fn assert_live_sweep_record(adapter: &Value, production_ops_status: &str) -> Res
 				.is_some_and(|evidence| evidence.contains("4/4 capture_integration jobs"))
 		);
 	} else {
+		assert_eq!(consolidation.pointer("/status").and_then(Value::as_str), Some("not_encoded"));
+		assert_eq!(knowledge.pointer("/status").and_then(Value::as_str), Some("not_encoded"));
+		assert_eq!(operator_debug.pointer("/status").and_then(Value::as_str), Some("wrong_result"));
 		assert_eq!(capture.pointer("/status").and_then(Value::as_str), Some("not_encoded"));
 	}
 
 	assert_eq!(personalization.pointer("/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(core_archival.pointer("/status").and_then(Value::as_str), Some("not_encoded"));
+	assert_eq!(context_trajectory.pointer("/status").and_then(Value::as_str), Some("blocked"));
 
 	Ok(())
 }
@@ -3160,16 +3215,23 @@ fn assert_operator_facing_strength_profile_boundaries(
 	benchmarking_index: &str,
 	iteration_direction: &str,
 ) {
-	assert!(readme.contains("Full-suite live real-world adapter sweep after XY-899"));
-	assert!(readme.contains("fresh ELF sweep reports 22 pass"));
-	assert!(readme.contains("5 wrong_result, 2 blocked, and 11 not_encoded jobs"));
-	assert!(readme.contains("fresh qmd sweep reports"));
-	assert!(readme.contains("17 pass, 6 wrong_result, 2 blocked, and 15 not_encoded jobs"));
-	assert!(readme.contains("The differences are"));
-	assert!(readme.contains("delete/TTL tombstone case"));
-	assert!(readme.contains("ELF-only capture/write-policy live self-checks"));
+	assert!(readme.contains("Full-suite live real-world adapter sweep after XY-926"));
+	assert!(readme.contains("all 55 checked-in jobs across 13 suites"));
+	assert!(readme.contains("ELF now live-scores capture/write-policy"));
+	assert!(readme.contains("consolidation proposal review"));
+	assert!(readme.contains("knowledge-page rebuild/lint"));
+	assert!(readme.contains("operator-debugging fixtures"));
+	assert!(readme.contains("memory-evolution wrong results"));
+	assert!(readme.contains("production-ops operator boundaries"));
+	assert!(readme.contains("core/archival live adapter gap"));
+	assert!(readme.contains("context-trajectory measurement"));
+	assert!(
+		readme
+			.contains("consolidation, knowledge, capture, and core/archival typed non-pass states")
+	);
+	assert!(readme.contains("operator-debug trace hydration"));
 	assert!(readme.contains("qmd remains the local retrieval-debug UX reference"));
-	assert!(readme.contains("no broad ELF-over-qmd claim"));
+	assert!(readme.contains("broad ELF-over-qmd"));
 	assert!(readme.contains("qmd and OpenViking Strength-Profile Report - June 11, 2026"));
 	assert!(benchmarking_index.contains("2026-06-11-qmd-openviking-strength-profile-report.md"));
 	assert!(
@@ -3284,9 +3346,9 @@ fn generated_json_report_renders_markdown() -> Result<()> {
 	assert!(markdown.contains("xy844-current-worktree"));
 	assert!(markdown.contains("Existing live-baseline reports remain valid"));
 	assert!(markdown.contains("### Adapter Scenario Judgments"));
-	assert!(markdown.contains("ELF scenario positions: `wins=9, ties=9, loses=1, untested=23`"));
+	assert!(markdown.contains("ELF scenario positions: `wins=10, ties=11, loses=1, untested=23`"));
 	assert!(markdown.contains(
-		"Scenario comparison outcomes: `win=9, tie=9, loss=1, not_tested=12, blocked=8, non_goal=3`"
+		"Scenario comparison outcomes: `win=10, tie=11, loss=1, not_tested=12, blocked=8, non_goal=3`"
 	));
 	assert!(markdown.contains("| `claude_mem_live_baseline` | `same_corpus_retrieval`"));
 	assert!(markdown.contains("| `memsearch_live_baseline` | `ttl_expiry_lifecycle`"));
