@@ -74,6 +74,10 @@ cleanup, use `docs/guide/single_user_production.md`.
   report that separates qmd retrieval quality from debug/replay ergonomics, records
   qmd wrong-result diagnosis classes, and preserves OpenViking context-trajectory
   surfaces as `not_tested` until staged/hierarchical evidence is encoded.
+- `2026-06-11-elf-qmd-trace-replay-diagnostics-report.md`: XY-923 trace-level
+  replay and wrong-result diagnostics report that scores qmd top-10/replay artifact
+  ergonomics against ELF trace/admin surfaces while keeping retrieval correctness,
+  rerank, fusion, candidate-drop, and typed non-pass boundaries separate.
 - `2026-06-11-first-generation-oss-adapter-promotion-report.md`: XY-898
   first-generation OSS adapter promotion report that updates agentmemory,
   mem0/OpenMemory, memsearch, and claude-mem with fresh scenario-level baseline
