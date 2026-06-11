@@ -1,0 +1,197 @@
+{
+  "schema": "elf.memory_evolution_diagnostic_report/v1",
+  "run_id": "2026-06-11-elf-qmd-memory-evolution-diagnostic",
+  "commit": "87a388b6f33ff0142359876e5d9632fc096ee956",
+  "created_at": "2026-06-11",
+  "scope": "ELF versus qmd live memory-evolution behavior, current-vs-historical conflict diagnosis, and optimization directions",
+  "commands": [
+    {
+      "command": "cargo make real-world-memory-evolution",
+      "status": "pass",
+      "runtime_seconds": 50.34,
+      "artifact": "tmp/real-world-memory/evolution-report.json"
+    },
+    {
+      "command": "cargo make real-world-memory-live-adapters",
+      "status": "pass",
+      "runtime_seconds": 112.26,
+      "artifact": "tmp/real-world-memory/live-adapters/"
+    }
+  ],
+  "fixture_memory_evolution": {
+    "job_count": 5,
+    "pass": 5,
+    "wrong_result": 0,
+    "mean_score": 1.0,
+    "expected_evidence_total": 11,
+    "expected_evidence_matched": 11,
+    "conflict_detection_count": 5,
+    "update_rationale_available_count": 5,
+    "history_readback_encoded_count": 1
+  },
+  "live_full_sweep_context": {
+    "elf": {
+      "job_count": 38,
+      "pass": 18,
+      "wrong_result": 5,
+      "blocked": 2,
+      "not_encoded": 13,
+      "mean_score": 0.525,
+      "mean_latency_ms": 8.62,
+      "expected_evidence_total": 77,
+      "expected_evidence_matched": 41,
+      "evidence_required_count": 84,
+      "evidence_covered_count": 48
+    },
+    "qmd": {
+      "job_count": 38,
+      "pass": 17,
+      "wrong_result": 6,
+      "blocked": 2,
+      "not_encoded": 13,
+      "mean_score": 0.486,
+      "mean_latency_ms": 691.163,
+      "expected_evidence_total": 77,
+      "expected_evidence_matched": 38,
+      "evidence_required_count": 84,
+      "evidence_covered_count": 45
+    }
+  },
+  "live_memory_evolution": {
+    "elf": {
+      "jobs": 6,
+      "pass": 1,
+      "wrong_result": 5,
+      "mean_score": 0.4916666666666667,
+      "expected_evidence_total": 13,
+      "expected_evidence_matched": 13,
+      "produced_evidence_total": 13,
+      "diagnosis": "ELF retrieved all required evidence but failed supersession jobs because conflict detection and lifecycle-aware current-vs-historical answer behavior were not emitted."
+    },
+    "qmd": {
+      "jobs": 6,
+      "pass": 0,
+      "wrong_result": 6,
+      "mean_score": 0.325,
+      "expected_evidence_total": 13,
+      "expected_evidence_matched": 10,
+      "produced_evidence_total": 10,
+      "diagnosis": "qmd had the same missing conflict-detection pattern and additionally missed three required evidence links, including the delete tombstone."
+    }
+  },
+  "job_diagnosis": [
+    {
+      "job_id": "memory-evolution-benchmark-verdict-001",
+      "elf_status": "wrong_result",
+      "elf_score": 0.4,
+      "qmd_status": "wrong_result",
+      "qmd_score": 0.15,
+      "diagnosis": "ELF retrieved current verdict, caveat, and rationale but did not cite the old not-ready verdict as historical; qmd also missed private-corpus caveat evidence."
+    },
+    {
+      "job_id": "memory-evolution-deploy-method-001",
+      "elf_status": "wrong_result",
+      "elf_score": 0.4,
+      "qmd_status": "wrong_result",
+      "qmd_score": 0.4,
+      "diagnosis": "Both retrieved the current runbook and supersession rationale but did not preserve the old quickstart path as historical conflict evidence."
+    },
+    {
+      "job_id": "memory-evolution-issue-state-001",
+      "elf_status": "wrong_result",
+      "elf_score": 0.4,
+      "qmd_status": "wrong_result",
+      "qmd_score": 0.4,
+      "diagnosis": "Both answered the current done state and rationale but did not surface the earlier blocked state as superseded history."
+    },
+    {
+      "job_id": "memory-evolution-preference-001",
+      "elf_status": "wrong_result",
+      "elf_score": 0.4,
+      "qmd_status": "wrong_result",
+      "qmd_score": 0.15,
+      "diagnosis": "ELF retrieved current preference and rationale but did not preserve the old terse preference as historical; qmd only returned rationale evidence."
+    },
+    {
+      "job_id": "memory-evolution-relation-temporal-001",
+      "elf_status": "wrong_result",
+      "elf_score": 0.35,
+      "qmd_status": "wrong_result",
+      "qmd_score": 0.35,
+      "diagnosis": "Both retrieved current and historical owners but did not emit scored temporal-validity explanation or update rationale."
+    },
+    {
+      "job_id": "memory-evolution-delete-ttl-001",
+      "elf_status": "pass",
+      "elf_score": 1.0,
+      "qmd_status": "wrong_result",
+      "qmd_score": 0.5,
+      "diagnosis": "ELF retrieved tombstone and current plan evidence; qmd retrieved only the current plan and missed the tombstone."
+    }
+  ],
+  "elf_failure_pattern": {
+    "wrong_result_jobs": 5,
+    "answer_correctness_score": 0.0,
+    "evidence_grounding_score": 1.0,
+    "lifecycle_behavior_score": 0.0,
+    "trap_avoidance_score": 1.0,
+    "interpretation": "The issue is lifecycle-aware reconciliation and narration, not basic evidence retrieval."
+  },
+  "claim_boundary": {
+    "fixture_claim": "fixture_memory_evolution_passes",
+    "live_claim": "elf_narrowly_outscores_qmd_on_this_fresh_slice_but_does_not_solve_memory_evolution",
+    "not_allowed": [
+      "ELF broadly beats qmd as a memory system",
+      "ELF has solved temporal memory evolution",
+      "fixture pass is production proof",
+      "Graphiti/Zep, mem0/OpenMemory, or Letta are beaten"
+    ]
+  },
+  "optimization_directions": [
+    {
+      "direction": "temporal_reconciliation_layer",
+      "description": "Detect current and historical evidence for the same claim, choose the current winner, preserve the historical loser, and cite update rationale."
+    },
+    {
+      "direction": "history_readback_and_note_version_links",
+      "description": "Expose add/update/delete/ignore history and version links for user preference and entity memory changes."
+    },
+    {
+      "direction": "tombstone_and_invalidation_evidence",
+      "description": "Treat deletion and TTL tombstones as answerable evidence instead of only suppressing stale retrieval."
+    },
+    {
+      "direction": "trace_conflict_candidates",
+      "description": "Hydrate trace artifacts with conflict candidates, current winners, historical losers, dropped candidates, and replay commands."
+    }
+  ],
+  "borrow_from": [
+    {
+      "project": "Graphiti/Zep",
+      "borrow": "temporal fact windows, invalidation, supersession, and graph fact provenance",
+      "benchmark_gate": "Graphiti/Zep temporal graph adapter for current, historical, and future-valid facts"
+    },
+    {
+      "project": "mem0/OpenMemory",
+      "borrow": "entity-scoped history, lifecycle inspection, and memory UI/readback",
+      "benchmark_gate": "entity and preference history readback with correction and deletion evidence"
+    },
+    {
+      "project": "Letta",
+      "borrow": "core memory blocks versus archival memory",
+      "benchmark_gate": "core-vs-archival jobs for operating context and historical retrieval"
+    },
+    {
+      "project": "qmd",
+      "borrow": "local replay and candidate inspection ergonomics",
+      "benchmark_gate": "ELF trace hydration with conflict candidates and replay commands"
+    }
+  ],
+  "next_reports": [
+    "Live temporal reconciliation report",
+    "Graphiti/Zep temporal graph comparison",
+    "mem0/OpenMemory history comparison",
+    "qmd tombstone/delete diagnostic",
+    "ELF trace-candidate conflict profile"
+  ]
+}
