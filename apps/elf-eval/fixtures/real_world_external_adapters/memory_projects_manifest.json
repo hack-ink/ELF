@@ -608,7 +608,7 @@
       },
       "run": {
         "status": "pass",
-        "evidence": "Fresh scoped baseline run live-baseline-20260611105855 exercises local OSS mem0 with FastEmbed, Qdrant path storage, Memory.update, Memory.delete, Memory.history, Memory.get_all, entity filters, and cold-start reload; mem0 passed 8/8 encoded checks.",
+        "evidence": "Fresh scoped baseline run live-baseline-20260611111119 exercises local OSS mem0 with FastEmbed, Qdrant path storage, Memory.update, Memory.delete, Memory.history, Memory.get_all, entity filters, and cold-start reload; mem0 passed 8/8 encoded checks.",
         "command": "ELF_BASELINE_PROJECTS=mem0 cargo make baseline-live-docker",
         "artifact": "tmp/live-baseline/live-baseline-report.json"
       },
@@ -626,7 +626,7 @@
         {
           "capability": "same_corpus_retrieval",
           "status": "pass",
-          "evidence": "Fresh scoped baseline run live-baseline-20260611105855 reports mem0 retrieval_pass with 3/3 same-corpus retrieval checks."
+          "evidence": "Fresh scoped baseline run live-baseline-20260611111119 reports mem0 retrieval_pass with 3/3 same-corpus retrieval checks."
         },
         {
           "capability": "local_lifecycle_update_delete_reload",
@@ -708,9 +708,9 @@
           "status": "pass",
           "elf_position": "loses",
           "comparison_outcome": "loss",
-          "evidence": "Fresh scoped baseline run live-baseline-20260611105855 reports mem0 preference_correction_history as pass. The June 11 temporal report records ELF live memory-evolution preference as wrong_result, so the current measured comparison is an ELF loss on this history dimension until ELF temporal reconciliation is fixed.",
-          "command": "ELF_BASELINE_PROJECTS=mem0 cargo make baseline-live-docker",
-          "artifact": "tmp/live-baseline/mem0-checks.json"
+          "evidence": "Fresh scoped baseline run live-baseline-20260611111119 reports mem0 preference_correction_history as pass. ELF-side evidence comes from cargo make real-world-memory-live-adapters as summarized in docs/guide/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md, which records ELF live memory-evolution preference as wrong_result. The current measured comparison is therefore an ELF loss on this history dimension until ELF temporal reconciliation is fixed.",
+          "command": "mem0: ELF_BASELINE_PROJECTS=mem0 cargo make baseline-live-docker; ELF: cargo make real-world-memory-live-adapters",
+          "artifact": "mem0: tmp/live-baseline/mem0-checks.json; ELF: tmp/real-world-memory/live-adapters/ and docs/guide/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md"
         },
         {
           "scenario_id": "entity_scoped_personalization",
@@ -718,9 +718,9 @@
           "status": "pass",
           "elf_position": "ties",
           "comparison_outcome": "tie",
-          "evidence": "Fresh scoped baseline run live-baseline-20260611105855 reports mem0 entity_scoped_personalization as pass. Existing live real-world evidence records ELF and qmd passing the encoded personalization slice, so this is a measured tie on the current scoped-preference surface.",
-          "command": "ELF_BASELINE_PROJECTS=mem0 cargo make baseline-live-docker",
-          "artifact": "tmp/live-baseline/mem0-checks.json"
+          "evidence": "Fresh scoped baseline run live-baseline-20260611111119 reports mem0 entity_scoped_personalization as pass. ELF-side evidence comes from cargo make real-world-memory-live-adapters as summarized in docs/guide/benchmarking/2026-06-11-competitor-strength-adoption-report.md, which records ELF and qmd passing the encoded personalization slice. This is a measured tie on the current scoped-preference surface.",
+          "command": "mem0: ELF_BASELINE_PROJECTS=mem0 cargo make baseline-live-docker; ELF: cargo make real-world-memory-live-adapters",
+          "artifact": "mem0: tmp/live-baseline/mem0-checks.json; ELF: tmp/real-world-memory/live-adapters/ and docs/guide/benchmarking/2026-06-11-competitor-strength-adoption-report.md"
         },
         {
           "scenario_id": "delete_audit_readback",
@@ -728,9 +728,9 @@
           "status": "pass",
           "elf_position": "ties",
           "comparison_outcome": "tie",
-          "evidence": "Fresh scoped baseline run live-baseline-20260611105855 reports mem0 delete_history_audit_readback as pass. The June 11 temporal report records ELF passing the delete/TTL tombstone job, so the current measured delete-audit comparison is a tie.",
-          "command": "ELF_BASELINE_PROJECTS=mem0 cargo make baseline-live-docker",
-          "artifact": "tmp/live-baseline/mem0-checks.json"
+          "evidence": "Fresh scoped baseline run live-baseline-20260611111119 reports mem0 delete_history_audit_readback as pass. ELF-side evidence comes from cargo make real-world-memory-live-adapters as summarized in docs/guide/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md, which records ELF passing the delete/TTL tombstone job. The current measured delete-audit comparison is a tie.",
+          "command": "mem0: ELF_BASELINE_PROJECTS=mem0 cargo make baseline-live-docker; ELF: cargo make real-world-memory-live-adapters",
+          "artifact": "mem0: tmp/live-baseline/mem0-checks.json; ELF: tmp/real-world-memory/live-adapters/ and docs/guide/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md"
         },
         {
           "scenario_id": "local_get_all_export_readback",
@@ -738,7 +738,7 @@
           "status": "pass",
           "elf_position": "untested",
           "comparison_outcome": "not_tested",
-          "evidence": "Fresh scoped baseline run live-baseline-20260611105855 reports mem0 local_get_all_export_readback as pass. This is local SDK inspection/export-style readback, not OpenMemory UI evidence; ELF has no directly comparable live UI/export scoring row in this run.",
+          "evidence": "Fresh scoped baseline run live-baseline-20260611111119 reports mem0 local_get_all_export_readback as pass. This is local SDK inspection/export-style readback, not OpenMemory UI evidence; ELF has no directly comparable live UI/export scoring row in this run.",
           "command": "ELF_BASELINE_PROJECTS=mem0 cargo make baseline-live-docker",
           "artifact": "tmp/live-baseline/mem0-checks.json"
         },
