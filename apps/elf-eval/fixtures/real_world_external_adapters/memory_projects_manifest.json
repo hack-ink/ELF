@@ -29,7 +29,7 @@
       },
       "run": {
         "status": "blocked",
-        "evidence": "The current fixture set reports 38 jobs, 36 pass, 0 incomplete, 2 blocked, 0 wrong_result, 0 not_encoded, and 0 unsupported_claim.",
+        "evidence": "The current fixture set reports 40 jobs, 38 pass, 0 incomplete, 2 blocked, 0 wrong_result, 0 not_encoded, and 0 unsupported_claim.",
         "command": "cargo make real-world-memory",
         "artifact": "tmp/real-world-memory/real-world-memory-report.json"
       },
@@ -99,7 +99,7 @@
         {
           "suite_id": "capture_integration",
           "status": "pass",
-          "evidence": "The redaction and capture-boundary fixture is encoded and passing."
+          "evidence": "Four redaction, exclusion, source-id, evidence-binding, and capture-boundary fixtures are encoded and passing."
         },
         {
           "suite_id": "production_ops",
@@ -146,13 +146,13 @@
       },
       "run": {
         "status": "wrong_result",
-        "evidence": "ELF materializes 38 real_world_job adapter_response objects through ElfService, worker indexing, and search_raw before scoring; the full sweep includes typed wrong_result, blocked, and not_encoded job records.",
+        "evidence": "ELF materializes 40 real_world_job adapter_response objects through ElfService, worker indexing, search_raw, and live capture/write-policy ingestion before scoring; the full sweep includes typed wrong_result, blocked, and not_encoded job records.",
         "command": "cargo make real-world-memory-live-adapters",
         "artifact": "tmp/real-world-memory/live-adapters/elf-report.json"
       },
       "result": {
         "status": "wrong_result",
-        "evidence": "The fresh full live sweep scores 38 jobs across all 11 encoded suites: 18 pass, 5 wrong_result, 0 incomplete, 2 blocked, and 13 not_encoded. This is not a full-suite live pass.",
+        "evidence": "The fresh full live sweep scores 40 jobs across all 11 encoded suites: 22 pass, 5 wrong_result, 0 incomplete, 2 blocked, and 11 not_encoded. This is not a full-suite live pass.",
         "command": "cargo make real-world-memory-live-adapters",
         "artifact": "tmp/real-world-memory/live-adapters/elf-report.md"
       },
@@ -175,7 +175,7 @@
         {
           "capability": "full_suite_live_sweep",
           "status": "wrong_result",
-          "evidence": "The runner now emits per-job and per-suite live records for all 38 encoded jobs, but memory_evolution is wrong_result and several non-answer-generation suites remain typed non-pass."
+          "evidence": "The runner now emits per-job and per-suite live records for all 40 encoded jobs, but memory_evolution is wrong_result and several non-answer-generation suites remain typed non-pass."
         },
         {
           "capability": "full_suite_live_pass",
@@ -231,8 +231,8 @@
         },
         {
           "suite_id": "capture_integration",
-          "status": "not_encoded",
-          "evidence": "The live adapter sweep does not exercise capture integrations or write-policy redaction boundaries."
+          "status": "pass",
+          "evidence": "The live adapter passes 4/4 capture_integration jobs through Docker-local ELF ingestion, including capture-boundary classification, excluded evidence ids, source ids in source_ref, write_policy redaction audit counts, evidence binding, and zero secret leakage."
         },
         {
           "suite_id": "production_ops",
@@ -243,6 +243,18 @@
           "suite_id": "personalization",
           "status": "pass",
           "evidence": "The live adapter retrieved the scoped preference evidence and passed the personalization job."
+        }
+      ],
+      "scenarios": [
+        {
+          "scenario_id": "live_capture_write_policy",
+          "suite_id": "capture_integration",
+          "status": "pass",
+          "elf_position": "ties",
+          "comparison_outcome": "tie",
+          "evidence": "ELF live capture/write-policy jobs pass for redaction, exclusions, source ids, evidence binding, and no secret leakage. This is an ELF self-check, not a win over external hook systems.",
+          "command": "cargo make real-world-memory-live-adapters",
+          "artifact": "tmp/real-world-memory/live-adapters/elf-materialization.json"
         }
       ],
       "evidence": [
@@ -359,13 +371,13 @@
       },
       "run": {
         "status": "wrong_result",
-        "evidence": "qmd materializes 38 real_world_job adapter_response objects through collection add, update, embed, and query --json before scoring; the full sweep includes typed wrong_result, blocked, and not_encoded job records.",
+        "evidence": "qmd materializes 40 real_world_job adapter_response objects through collection add, update, embed, and query --json before scoring; the full sweep includes typed wrong_result, blocked, and not_encoded job records.",
         "command": "cargo make real-world-memory-live-adapters",
         "artifact": "tmp/real-world-memory/live-adapters/qmd-report.json"
       },
       "result": {
         "status": "wrong_result",
-        "evidence": "The fresh full qmd live sweep scores 38 jobs across all 11 encoded suites: 17 pass, 6 wrong_result, 0 incomplete, 2 blocked, and 13 not_encoded. This is not a full-suite live pass.",
+        "evidence": "The fresh full qmd live sweep scores 40 jobs across all 11 encoded suites: 17 pass, 6 wrong_result, 0 incomplete, 2 blocked, and 15 not_encoded. This is not a full-suite live pass.",
         "command": "cargo make real-world-memory-live-adapters",
         "artifact": "tmp/real-world-memory/live-adapters/qmd-report.md"
       },
@@ -388,7 +400,7 @@
         {
           "capability": "full_suite_live_sweep",
           "status": "wrong_result",
-          "evidence": "The runner now emits per-job and per-suite live records for all 38 encoded jobs, but memory_evolution is wrong_result and several non-answer-generation suites remain typed non-pass."
+          "evidence": "The runner now emits per-job and per-suite live records for all 40 encoded jobs, but memory_evolution is wrong_result and several non-answer-generation suites remain typed non-pass."
         },
         {
           "capability": "full_suite_live_pass",
@@ -445,7 +457,7 @@
         {
           "suite_id": "capture_integration",
           "status": "not_encoded",
-          "evidence": "The qmd live adapter sweep does not exercise capture integrations or write-policy redaction boundaries."
+          "evidence": "The qmd live adapter sweep does not exercise capture integrations or write-policy redaction boundaries; all capture_integration jobs remain typed not_encoded for qmd."
         },
         {
           "suite_id": "production_ops",
@@ -837,6 +849,15 @@
           "status": "blocked",
           "elf_position": "untested",
           "evidence": "agentmemory's relevant strength is durable coding-agent continuity and capture, but the Docker harness has not proven a persistent session/capture path. Keep work_resume and capture claims blocked until a durable local adapter path exists.",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json"
+        },
+        {
+          "scenario_id": "capture_write_policy_hooks",
+          "suite_id": "capture_integration",
+          "status": "blocked",
+          "elf_position": "untested",
+          "comparison_outcome": "blocked",
+          "evidence": "agentmemory capture breadth is blocked for comparison because the current Docker baseline uses a process-local StateKV Map and in-memory index; no durable local session/capture path stores source ids, exclusions, write-policy audit, or evidence-bound capture output.",
           "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json"
         }
       ],
@@ -1353,7 +1374,7 @@
           "suite_id": "capture_integration",
           "status": "not_encoded",
           "elf_position": "untested",
-          "evidence": "The Docker baseline uses repository classes only. claude-mem hooks, viewer, timeline, and observation workflows are not executed by the runner.",
+          "evidence": "The Docker baseline uses repository classes only. claude-mem hooks, timeline, observations, viewer capture, and automatic capture review workflows are not executed by the runner, so capture breadth remains untested rather than an ELF win/loss.",
           "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json"
         }
       ],
