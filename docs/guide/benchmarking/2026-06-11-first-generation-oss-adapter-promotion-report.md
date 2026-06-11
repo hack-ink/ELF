@@ -29,13 +29,14 @@ suite passes:
 
 | Command | Result | Runtime | Artifact |
 | --- | --- | ---: | --- |
-| `ELF_BASELINE_PROJECTS=agentmemory,mem0,memsearch,claude-mem cargo make baseline-live-docker` | fail with typed non-pass projects | 237.29 seconds | `tmp/live-baseline/live-baseline-report.json` |
+| `ELF_BASELINE_PROJECTS=ELF,agentmemory,mem0,memsearch,claude-mem cargo make baseline-live-docker` | fail with typed non-pass projects | 233.69 seconds | `tmp/live-baseline/live-baseline-report.json` |
 
 The aggregate failed because two projects remained typed non-pass, not because setup
 collapsed:
 
 | Project | Status | Retrieval | Checks | Scenario meaning |
 | --- | --- | --- | ---: | --- |
+| ELF | `pass` | `retrieval_pass` | `8/8` pass | Baseline reference for same-class scenario comparisons; no ELF optimization change was made. |
 | agentmemory | `lifecycle_fail` | `retrieval_pass` | `2/4` pass, `1` lifecycle_fail, `1` blocked | Same-corpus retrieval runs, but update supersession and durable cold-start are not proven through the in-memory mock. |
 | mem0/OpenMemory | `pass` | `retrieval_pass` | `4/4` pass | Basic local OSS same-corpus, update, delete, and cold-start smoke passes. |
 | memsearch | `pass` | `retrieval_pass` | `4/4` pass | Canonical Markdown reindex/update/delete/reload smoke passes. |
@@ -51,8 +52,8 @@ collapsed:
 | mem0/OpenMemory | basic local lifecycle | `pass` | `ties` | ELF and mem0 both pass the encoded local lifecycle smoke; mem0 is no longer a basic-smoke failure. |
 | mem0/OpenMemory | preference/entity history | `not_encoded` | `untested` | History, correction chains, entity scope, and deletion audit are not scored. |
 | mem0/OpenMemory | OpenMemory UI/export readback | `not_encoded` | `untested` | Local OSS UI/export readback is not executed; hosted behavior remains out of scope. |
-| memsearch | canonical Markdown reindex/reload | `pass` | `ties` | Baseline reindex/update/delete/reload passes over the canonical file store. |
-| memsearch | TTL/expiry lifecycle | `unsupported` | `wins` | The encoded CLI path has reindex/delete but no TTL/expiry behavior. |
+| memsearch | canonical Markdown reindex/reload | `pass` | `untested` | Baseline reindex/update/delete/reload passes over the canonical file store; ELF has no directly comparable canonical Markdown source-store scenario in this run. |
+| memsearch | TTL/expiry lifecycle | `unsupported` | `untested` | The encoded CLI path has reindex/delete but no TTL/expiry behavior; unsupported competitor evidence does not create an ELF win/loss without a comparable scenario artifact. |
 | memsearch | real-world prompt adapter | `not_encoded` | `untested` | No memsearch real_world_job prompt adapter is encoded. |
 | claude-mem | same-corpus retrieval | `wrong_result` | `wins` | The durable repository path runs but misses expected retrieval evidence. |
 | claude-mem | repository lifecycle reload | `pass` | `ties` | Update, delete, and cold-start reload pass over Docker-local SQLite. |
@@ -60,8 +61,8 @@ collapsed:
 | claude-mem | hook capture viewer workflow | `not_encoded` | `untested` | Hooks, viewer, timeline, and observations are not executed. |
 
 Summary: 13 scenario judgments: 5 `pass`, 1 `wrong_result`, 1 `lifecycle_fail`,
-1 `blocked`, 1 `unsupported`, and 4 `not_encoded`. ELF positions are 3 `wins`,
-3 `ties`, 0 `loses`, and 7 `untested`.
+1 `blocked`, 1 `unsupported`, and 4 `not_encoded`. ELF positions are 2 `wins`,
+2 `ties`, 0 `loses`, and 9 `untested`.
 
 ## Manifest And Report Changes
 
