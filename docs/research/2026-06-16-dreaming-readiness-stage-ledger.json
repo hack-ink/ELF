@@ -1,0 +1,454 @@
+{
+  "schema": "elf.dreaming_readiness_stage_ledger/v1",
+  "ledger_id": "xy-951-dreaming-readiness-stage-ledger-2026-06-16",
+  "authority": "XY-951",
+  "created_at": "2026-06-16T00:00:00Z",
+  "purpose": "Define the benchmark evidence gate that every Dreaming-inspired ELF optimization stage must update before claiming completion.",
+  "source_evidence_cutoff": "Checked-in benchmark and research evidence through 2026-06-11; no new live/provider/private benchmark pass is claimed by this ledger.",
+  "typed_status_terms": [
+    "pass",
+    "wrong_result",
+    "blocked",
+    "not_tested",
+    "not_encoded",
+    "incomplete",
+    "lifecycle_fail",
+    "unsupported",
+    "non_goal"
+  ],
+  "judgment_terms": [
+    "improved",
+    "regressed",
+    "unchanged",
+    "blocked",
+    "not_tested"
+  ],
+  "count_fields": [
+    "pass",
+    "wrong_result",
+    "blocked",
+    "not_tested",
+    "not_encoded"
+  ],
+  "gate_rules": [
+    "Every downstream Dreaming or competitor-improvement stage must write a post-stage JSON report and Markdown summary before claiming phase completion.",
+    "Post-stage reports must compare against this ledger's baseline counts and set exactly one comparison_judgment: improved, regressed, unchanged, blocked, or not_tested.",
+    "Typed non-pass states must remain typed; blocked, not_tested, not_encoded, incomplete, lifecycle_fail, unsupported, and wrong_result must not be collapsed into a generic fail or hidden under pass.",
+    "Fixture-backed evidence may prove benchmark shape but must not be promoted into live_real_world product quality.",
+    "Private-corpus and provider-backed production gates remain typed blocked unless the operator supplies explicit inputs; those blockers are tracked under XY-930.",
+    "The live memory_evolution loss remains open until XY-905 changes behavior and reruns the live gate."
+  ],
+  "summary": {
+    "improved": [],
+    "regressed": [],
+    "unchanged": [
+      "current_vs_historical_correctness",
+      "preference_evolution",
+      "deletion_ttl_tombstone_behavior",
+      "final_competitor_retest_status"
+    ],
+    "blocked": [
+      "scheduled_memory_task_readiness"
+    ],
+    "not_tested": [
+      "reviewable_consolidation",
+      "memory_summary_top_of_mind_behavior",
+      "proactive_brief_readiness"
+    ]
+  },
+  "stage_gates": [
+    {
+      "stage_id": "current_vs_historical_correctness",
+      "stage_name": "Current-vs-historical correctness",
+      "dependent_issue": "XY-905",
+      "evidence_class": "live_real_world",
+      "baseline_commands": [
+        {
+          "command": "cargo make real-world-memory-evolution",
+          "artifact": "tmp/real-world-memory/evolution-report.json",
+          "purpose": "Fixture gate for current facts, historical facts, conflicts, and update rationales."
+        },
+        {
+          "command": "cargo make real-world-memory-live-adapters",
+          "artifact": "tmp/real-world-memory/live-adapters/",
+          "purpose": "Live ELF/qmd real-world adapter gate for the memory_evolution suite."
+        }
+      ],
+      "post_stage_commands": [
+        {
+          "command": "cargo make real-world-memory-evolution",
+          "required_artifact": "tmp/real-world-memory/evolution-report.json"
+        },
+        {
+          "command": "cargo make real-world-memory-live-adapters",
+          "required_artifact": "tmp/real-world-memory/live-adapters/"
+        }
+      ],
+      "evidence_files": [
+        "docs/guide/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md",
+        "docs/research/2026-06-11-temporal-history-competitor-gap-report.json",
+        "docs/guide/benchmarking/2026-06-11-competitor-strength-adoption-report.md"
+      ],
+      "baseline_counts": {
+        "pass": 1,
+        "wrong_result": 5,
+        "blocked": 0,
+        "not_tested": 0,
+        "not_encoded": 0
+      },
+      "baseline_basis": "ELF live service adapter memory_evolution suite: one delete/TTL job passes and five current-vs-historical jobs are wrong_result.",
+      "comparison_judgment": "unchanged",
+      "regression_rule": "Any new wrong_result, missed evidence, or loss of the delete/TTL pass is a regression.",
+      "improvement_rule": "An improvement requires fewer live ELF wrong_result jobs without increasing blocked/not_tested counts.",
+      "next_optimization_direction": "Implement current/historical/rationale/tombstone answer and trace selection before claiming temporal memory is solved."
+    },
+    {
+      "stage_id": "preference_evolution",
+      "stage_name": "Preference evolution and correction history",
+      "dependent_issue": "XY-905",
+      "evidence_class": "live_real_world",
+      "baseline_commands": [
+        {
+          "command": "cargo make real-world-memory-evolution",
+          "artifact": "tmp/real-world-memory/evolution-report.json",
+          "purpose": "Fixture gate for the preference-change job."
+        },
+        {
+          "command": "cargo make real-world-memory-live-adapters",
+          "artifact": "tmp/real-world-memory/live-adapters/",
+          "purpose": "Live adapter gate for memory-evolution-preference-001."
+        },
+        {
+          "command": "cargo make openmemory-ui-export-readback",
+          "artifact": "docs/guide/benchmarking/2026-06-11-mem0-openmemory-history-ui-export-report.md",
+          "purpose": "External comparison boundary for mem0/OpenMemory preference correction and export-style history."
+        }
+      ],
+      "post_stage_commands": [
+        {
+          "command": "cargo make real-world-memory-evolution",
+          "required_artifact": "tmp/real-world-memory/evolution-report.json"
+        },
+        {
+          "command": "cargo make real-world-memory-live-adapters",
+          "required_artifact": "tmp/real-world-memory/live-adapters/"
+        },
+        {
+          "command": "cargo make openmemory-ui-export-readback",
+          "required_artifact": "tmp/live-baseline/"
+        }
+      ],
+      "evidence_files": [
+        "docs/guide/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md",
+        "docs/guide/benchmarking/2026-06-11-mem0-openmemory-history-ui-export-report.md",
+        "docs/research/2026-06-11-temporal-history-competitor-gap-report.json"
+      ],
+      "baseline_counts": {
+        "pass": 0,
+        "wrong_result": 1,
+        "blocked": 0,
+        "not_tested": 0,
+        "not_encoded": 0
+      },
+      "baseline_basis": "ELF live memory-evolution-preference-001 is wrong_result; mem0 local OSS preference correction history is measured as an ELF loss.",
+      "comparison_judgment": "unchanged",
+      "regression_rule": "Any loss of fixture preference correctness or any new blocked/not_tested live preference gate is a regression.",
+      "improvement_rule": "An improvement requires live preference correction history to pass while preserving old preference history as historical evidence.",
+      "next_optimization_direction": "Add explicit preference correction history and answer fields that name the current preference, the superseded preference, and the rationale evidence."
+    },
+    {
+      "stage_id": "deletion_ttl_tombstone_behavior",
+      "stage_name": "Deletion, TTL, and tombstone behavior",
+      "dependent_issue": "XY-905",
+      "evidence_class": "live_real_world",
+      "baseline_commands": [
+        {
+          "command": "cargo make real-world-memory",
+          "artifact": "tmp/real-world-memory/real-world-memory-report.json",
+          "purpose": "Aggregate fixture gate containing memory-evolution-delete-ttl-001."
+        },
+        {
+          "command": "cargo make real-world-memory-live-adapters",
+          "artifact": "tmp/real-world-memory/live-adapters/",
+          "purpose": "Live adapter gate for tombstone behavior."
+        }
+      ],
+      "post_stage_commands": [
+        {
+          "command": "cargo make real-world-memory",
+          "required_artifact": "tmp/real-world-memory/real-world-memory-report.json"
+        },
+        {
+          "command": "cargo make real-world-memory-live-adapters",
+          "required_artifact": "tmp/real-world-memory/live-adapters/"
+        }
+      ],
+      "evidence_files": [
+        "docs/guide/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md",
+        "docs/guide/benchmarking/2026-06-11-measurement-coverage-audit.md"
+      ],
+      "baseline_counts": {
+        "pass": 1,
+        "wrong_result": 0,
+        "blocked": 0,
+        "not_tested": 0,
+        "not_encoded": 0
+      },
+      "baseline_basis": "ELF live memory-evolution-delete-ttl-001 passes with tombstone and current-plan evidence; qmd misses the tombstone.",
+      "comparison_judgment": "unchanged",
+      "regression_rule": "Losing tombstone evidence, returning stale deleted content, or failing the aggregate fixture is a regression.",
+      "improvement_rule": "This stage is already pass for ELF; improvement requires preserving the pass while reducing adjacent memory_evolution wrong_result counts.",
+      "next_optimization_direction": "Keep tombstone and TTL invalidation evidence answerable as temporal reconciliation is repaired."
+    },
+    {
+      "stage_id": "reviewable_consolidation",
+      "stage_name": "Reviewable consolidation",
+      "dependent_issue": "XY-926",
+      "evidence_class": "fixture_backed",
+      "baseline_commands": [
+        {
+          "command": "cargo make real-world-memory-consolidation",
+          "artifact": "tmp/real-world-memory/consolidation/report.json",
+          "purpose": "Fixture gate for review actions, lineage, unsupported claims, contradiction, and source immutability."
+        }
+      ],
+      "post_stage_commands": [
+        {
+          "command": "cargo make real-world-memory-consolidation",
+          "required_artifact": "tmp/real-world-memory/consolidation/report.json"
+        },
+        {
+          "command": "cargo make real-world-memory-live-adapters",
+          "required_artifact": "tmp/real-world-memory/live-adapters/"
+        }
+      ],
+      "evidence_files": [
+        "docs/spec/system_consolidation_proposals_v1.md",
+        "docs/guide/benchmarking/2026-06-11-competitor-strength-adoption-report.md",
+        "apps/elf-eval/fixtures/real_world_memory/consolidation/"
+      ],
+      "baseline_counts": {
+        "pass": 4,
+        "wrong_result": 0,
+        "blocked": 0,
+        "not_tested": 1,
+        "not_encoded": 1
+      },
+      "baseline_basis": "Consolidation fixtures pass, but live consolidation proposal generation and review-action scoring are not encoded.",
+      "comparison_judgment": "not_tested",
+      "regression_rule": "Any source mutation, missing lineage, or collapse of review actions into an automatic rewrite is a regression.",
+      "improvement_rule": "An improvement requires live or service-backed consolidation scoring without provider hidden state and without mutating authoritative sources.",
+      "next_optimization_direction": "Keep Dreaming output derived and reviewable: proposal lineage, confidence, unsupported-claim flags, apply/defer/discard audit, and immutable source snapshots."
+    },
+    {
+      "stage_id": "memory_summary_top_of_mind_behavior",
+      "stage_name": "Memory summary and top-of-mind behavior",
+      "dependent_issue": "XY-926",
+      "evidence_class": "fixture_backed",
+      "baseline_commands": [
+        {
+          "command": "cargo make real-world-memory-knowledge",
+          "artifact": "tmp/real-world-memory/knowledge-report.json",
+          "purpose": "Fixture gate for derived knowledge pages, citations, stale-source lint, and repair guidance."
+        },
+        {
+          "command": "cargo make real-world-memory-core-archival",
+          "artifact": "tmp/real-world-memory/core-archival/report.json",
+          "purpose": "Fixture gate for always-attached core block attachment, scope, provenance, stale-core detection, and archival fallback."
+        }
+      ],
+      "post_stage_commands": [
+        {
+          "command": "cargo make real-world-memory-knowledge",
+          "required_artifact": "tmp/real-world-memory/knowledge-report.json"
+        },
+        {
+          "command": "cargo make real-world-memory-core-archival",
+          "required_artifact": "tmp/real-world-memory/core-archival/report.json"
+        },
+        {
+          "command": "cargo make real-world-memory-live-adapters",
+          "required_artifact": "tmp/real-world-memory/live-adapters/"
+        }
+      ],
+      "evidence_files": [
+        "docs/guide/benchmarking/2026-06-11-competitor-strength-adoption-report.md",
+        "apps/elf-eval/fixtures/real_world_memory/knowledge/",
+        "apps/elf-eval/fixtures/real_world_memory/core_archival_memory/"
+      ],
+      "baseline_counts": {
+        "pass": 8,
+        "wrong_result": 0,
+        "blocked": 0,
+        "not_tested": 1,
+        "not_encoded": 1
+      },
+      "baseline_basis": "Knowledge and core/archival fixtures pass, but live knowledge compilation and top-of-mind product behavior are not encoded.",
+      "comparison_judgment": "not_tested",
+      "regression_rule": "Any stale summary, unsupported section, missing source id, or stale core block presented as current is a regression.",
+      "improvement_rule": "An improvement requires live top-of-mind or summary readback that remains source-linked and linted for stale/unsupported claims.",
+      "next_optimization_direction": "Build summaries as derived, cited, rebuildable pages or core blocks; do not replace authoritative notes with hidden summaries."
+    },
+    {
+      "stage_id": "proactive_brief_readiness",
+      "stage_name": "Proactive brief readiness",
+      "dependent_issue": "XY-926",
+      "evidence_class": "not_encoded",
+      "baseline_commands": [
+        {
+          "command": "cargo make real-world-first-generation-oss",
+          "artifact": "tmp/real-world-memory/first-generation-oss/report.json",
+          "purpose": "Regression guard for claude-mem progressive-disclosure and retrieval-repair reference behavior."
+        },
+        {
+          "command": "cargo make real-world-job-operator-ux",
+          "artifact": "tmp/real-world-job/real-world-job-operator-ux-report.json",
+          "purpose": "Regression guard for operator-facing trace and repair-action clarity."
+        }
+      ],
+      "post_stage_commands": [
+        {
+          "command": "cargo make real-world-first-generation-oss",
+          "required_artifact": "tmp/real-world-memory/first-generation-oss/report.json"
+        },
+        {
+          "command": "cargo make real-world-job-operator-ux",
+          "required_artifact": "tmp/real-world-job/real-world-job-operator-ux-report.json"
+        },
+        {
+          "command": "cargo make real-world-memory-live-adapters",
+          "required_artifact": "tmp/real-world-memory/live-adapters/"
+        }
+      ],
+      "evidence_files": [
+        "docs/research/2026-06-08-agent-memory-selection.json",
+        "docs/guide/benchmarking/2026-06-11-first-generation-oss-continuity-source-store-report.md",
+        "docs/guide/benchmarking/2026-06-11-competitor-strength-adoption-report.md"
+      ],
+      "baseline_counts": {
+        "pass": 0,
+        "wrong_result": 0,
+        "blocked": 0,
+        "not_tested": 1,
+        "not_encoded": 1
+      },
+      "baseline_basis": "No direct proactive-brief real_world_job suite exists; adjacent progressive-disclosure and operator-debug fixtures are reference guards only.",
+      "comparison_judgment": "not_tested",
+      "regression_rule": "A proactive brief that is uncited, leaks excluded content, or cannot explain source selection is a regression.",
+      "improvement_rule": "An improvement requires a direct proactive-brief fixture or live adapter report with cited source ids and typed non-pass handling.",
+      "next_optimization_direction": "Add proactive briefs only as source-linked derived output with repair guidance and no secret or excluded-span leakage."
+    },
+    {
+      "stage_id": "scheduled_memory_task_readiness",
+      "stage_name": "Scheduled memory task readiness",
+      "dependent_issue": "XY-926",
+      "evidence_class": "blocked",
+      "baseline_commands": [
+        {
+          "command": "cargo make real-world-memory-consolidation",
+          "artifact": "tmp/real-world-memory/consolidation/report.json",
+          "purpose": "Current closest fixture gate for deterministic fixture/manual consolidation runs."
+        }
+      ],
+      "post_stage_commands": [
+        {
+          "command": "cargo make real-world-memory-consolidation",
+          "required_artifact": "tmp/real-world-memory/consolidation/report.json"
+        },
+        {
+          "command": "cargo make real-world-memory-live-adapters",
+          "required_artifact": "tmp/real-world-memory/live-adapters/"
+        }
+      ],
+      "evidence_files": [
+        "docs/spec/system_consolidation_proposals_v1.md",
+        "docs/research/2026-06-08-agent-memory-selection.json"
+      ],
+      "baseline_counts": {
+        "pass": 0,
+        "wrong_result": 0,
+        "blocked": 1,
+        "not_tested": 0,
+        "not_encoded": 0
+      },
+      "baseline_basis": "The consolidation spec permits fixture and manual job_kind only; scheduled is explicitly future work and no scheduled-memory-task benchmark is encoded.",
+      "comparison_judgment": "blocked",
+      "regression_rule": "Adding scheduled tasks without reviewable output, immutable source snapshots, and explicit operator review is a regression.",
+      "improvement_rule": "An improvement requires a scheduled-task fixture or live report that keeps task output reviewable and records provider/private boundaries as typed blockers.",
+      "next_optimization_direction": "Model scheduled tasks as queued derived proposal runs first; do not allow a scheduler to mutate authoritative memory silently."
+    },
+    {
+      "stage_id": "final_competitor_retest_status",
+      "stage_name": "Final competitor retest status",
+      "dependent_issue": "XY-951",
+      "evidence_class": "live_real_world",
+      "baseline_commands": [
+        {
+          "command": "cargo make real-world-memory-live-adapters",
+          "artifact": "tmp/real-world-memory/live-adapters/",
+          "purpose": "Full encoded ELF/qmd live real-world sweep."
+        },
+        {
+          "command": "cargo make real-world-first-generation-oss",
+          "artifact": "tmp/real-world-memory/first-generation-oss/report.json",
+          "purpose": "First-generation OSS prompt fixture and typed blocker slice."
+        },
+        {
+          "command": "cargo make real-world-memory-graph-rag",
+          "artifact": "tmp/real-world-memory/graph-rag/report.json",
+          "purpose": "Representative graph/RAG typed non-pass fixture slice."
+        },
+        {
+          "command": "cargo make openmemory-ui-export-readback",
+          "artifact": "tmp/live-baseline/",
+          "purpose": "mem0/OpenMemory local OSS history and export-readback boundary."
+        },
+        {
+          "command": "cargo make baseline-production-private-addendum",
+          "artifact": "tmp/live-baseline/private-production-addendum.md",
+          "purpose": "Private-corpus addendum; remains blocked unless an operator-owned manifest is supplied."
+        }
+      ],
+      "post_stage_commands": [
+        {
+          "command": "cargo make real-world-memory-live-adapters",
+          "required_artifact": "tmp/real-world-memory/live-adapters/"
+        },
+        {
+          "command": "cargo make real-world-first-generation-oss",
+          "required_artifact": "tmp/real-world-memory/first-generation-oss/report.json"
+        },
+        {
+          "command": "cargo make real-world-memory-graph-rag",
+          "required_artifact": "tmp/real-world-memory/graph-rag/report.json"
+        },
+        {
+          "command": "cargo make openmemory-ui-export-readback",
+          "required_artifact": "tmp/live-baseline/"
+        },
+        {
+          "command": "cargo make baseline-production-private-addendum",
+          "required_artifact": "tmp/live-baseline/private-production-addendum.md"
+        }
+      ],
+      "evidence_files": [
+        "docs/guide/benchmarking/2026-06-11-competitor-strength-adoption-report.md",
+        "docs/research/2026-06-11-competitor-strength-adoption-report.json",
+        "docs/guide/benchmarking/2026-06-11-graph-rag-scored-smoke-adapter-report.md",
+        "docs/guide/benchmarking/2026-06-11-first-generation-oss-continuity-source-store-report.md"
+      ],
+      "baseline_counts": {
+        "pass": 22,
+        "wrong_result": 5,
+        "blocked": 2,
+        "not_tested": 11,
+        "not_encoded": 11
+      },
+      "baseline_basis": "ELF full live real-world sweep: 22 pass, 5 wrong_result, 2 blocked, and 11 not_encoded jobs. The not_encoded jobs are represented as not_tested for this stage gate while preserving the raw not_encoded count.",
+      "comparison_judgment": "unchanged",
+      "regression_rule": "Any higher wrong_result/blocked/not_tested count, missing typed blocker, or unsupported broad competitor win claim is a regression.",
+      "improvement_rule": "An improvement requires reduced live wrong_result or not_tested counts with no weakened evidence-class boundary and no private/provider claim without inputs.",
+      "next_optimization_direction": "Rerun the full relevant competitor matrix after each product optimization and update the Markdown/JSON ledger with improved, regressed, unchanged, blocked, and not_tested buckets."
+    }
+  ]
+}
