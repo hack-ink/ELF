@@ -182,6 +182,21 @@ fn temporal_history_competitor_gap_json_path() -> Result<PathBuf> {
 		.join("2026-06-11-temporal-history-competitor-gap-report.json"))
 }
 
+fn dreaming_readiness_stage_ledger_json_path() -> Result<PathBuf> {
+	Ok(workspace_root()?
+		.join("docs")
+		.join("research")
+		.join("2026-06-16-dreaming-readiness-stage-ledger.json"))
+}
+
+fn dreaming_readiness_stage_ledger_markdown_path() -> Result<PathBuf> {
+	Ok(workspace_root()?
+		.join("docs")
+		.join("guide")
+		.join("benchmarking")
+		.join("2026-06-16-dreaming-readiness-stage-ledger.md"))
+}
+
 fn competitor_strength_matrix_path() -> Result<PathBuf> {
 	Ok(workspace_root()?
 		.join("docs")
@@ -3663,6 +3678,155 @@ fn mem0_delete_audit_probe_requires_explicit_delete_history_event() -> Result<()
 	);
 
 	Ok(())
+}
+
+#[test]
+fn dreaming_readiness_stage_ledger_preserves_gate_shape() -> Result<()> {
+	let ledger = serde_json::from_str::<Value>(&fs::read_to_string(
+		dreaming_readiness_stage_ledger_json_path()?,
+	)?)?;
+	let markdown = fs::read_to_string(dreaming_readiness_stage_ledger_markdown_path()?)?;
+	let stages = array_at(&ledger, "/stage_gates")?;
+
+	assert_dreaming_readiness_ledger_header(&ledger)?;
+	assert_dreaming_readiness_stage_shape(&ledger, stages)?;
+	assert_dreaming_readiness_baseline_counts(&ledger, stages)?;
+	assert_dreaming_readiness_markdown_boundaries(&markdown);
+
+	Ok(())
+}
+
+fn assert_dreaming_readiness_ledger_header(ledger: &Value) -> Result<()> {
+	assert_eq!(
+		ledger.pointer("/schema").and_then(Value::as_str),
+		Some("elf.dreaming_readiness_stage_ledger/v1")
+	);
+	assert_eq!(ledger.pointer("/authority").and_then(Value::as_str), Some("XY-951"));
+
+	for term in ["improved", "regressed", "unchanged", "blocked", "not_tested"] {
+		assert!(array_contains_str(ledger, "/judgment_terms", term)?);
+	}
+	for term in ["pass", "wrong_result", "blocked", "not_tested", "not_encoded"] {
+		assert!(array_contains_str(ledger, "/count_fields", term)?);
+	}
+
+	Ok(())
+}
+
+fn assert_dreaming_readiness_stage_shape(ledger: &Value, stages: &[Value]) -> Result<()> {
+	assert_eq!(stages.len(), 8);
+
+	for stage_id in [
+		"current_vs_historical_correctness",
+		"preference_evolution",
+		"deletion_ttl_tombstone_behavior",
+		"reviewable_consolidation",
+		"memory_summary_top_of_mind_behavior",
+		"proactive_brief_readiness",
+		"scheduled_memory_task_readiness",
+		"final_competitor_retest_status",
+	] {
+		find_by_field(stages, "/stage_id", stage_id)?;
+	}
+	for stage in stages {
+		let stage_id =
+			stage.pointer("/stage_id").and_then(Value::as_str).unwrap_or("<missing stage_id>");
+
+		assert!(
+			!array_at(stage, "/baseline_commands")?.is_empty(),
+			"{stage_id} missing baseline commands"
+		);
+		assert!(
+			!array_at(stage, "/post_stage_commands")?.is_empty(),
+			"{stage_id} missing post-stage commands"
+		);
+		assert!(
+			!array_at(stage, "/evidence_files")?.is_empty(),
+			"{stage_id} missing evidence files"
+		);
+
+		for count_field in ["pass", "wrong_result", "blocked", "not_tested"] {
+			let pointer = format!("/baseline_counts/{count_field}");
+
+			assert!(
+				stage.pointer(&pointer).and_then(Value::as_u64).is_some(),
+				"{stage_id} missing {pointer}"
+			);
+		}
+
+		let judgment = stage
+			.pointer("/comparison_judgment")
+			.and_then(Value::as_str)
+			.ok_or_else(|| eyre::eyre!("{stage_id} missing comparison_judgment"))?;
+
+		assert!(array_contains_str(ledger, "/judgment_terms", judgment)?);
+	}
+
+	Ok(())
+}
+
+fn assert_dreaming_readiness_baseline_counts(ledger: &Value, stages: &[Value]) -> Result<()> {
+	let current = find_by_field(stages, "/stage_id", "current_vs_historical_correctness")?;
+
+	assert_eq!(current.pointer("/baseline_counts/pass").and_then(Value::as_u64), Some(1));
+	assert_eq!(current.pointer("/baseline_counts/wrong_result").and_then(Value::as_u64), Some(5));
+	assert_eq!(current.pointer("/comparison_judgment").and_then(Value::as_str), Some("unchanged"));
+	assert!(
+		current
+			.pointer("/baseline_basis")
+			.and_then(Value::as_str)
+			.is_some_and(|basis| basis.contains("five current-vs-historical jobs"))
+	);
+
+	let preference = find_by_field(stages, "/stage_id", "preference_evolution")?;
+
+	assert_eq!(
+		preference.pointer("/baseline_counts/wrong_result").and_then(Value::as_u64),
+		Some(1)
+	);
+
+	let tombstone = find_by_field(stages, "/stage_id", "deletion_ttl_tombstone_behavior")?;
+
+	assert_eq!(tombstone.pointer("/baseline_counts/pass").and_then(Value::as_u64), Some(1));
+
+	let consolidation = find_by_field(stages, "/stage_id", "reviewable_consolidation")?;
+
+	assert_eq!(
+		consolidation.pointer("/comparison_judgment").and_then(Value::as_str),
+		Some("not_tested")
+	);
+	assert_eq!(
+		consolidation.pointer("/baseline_counts/not_encoded").and_then(Value::as_u64),
+		Some(1)
+	);
+
+	let scheduled = find_by_field(stages, "/stage_id", "scheduled_memory_task_readiness")?;
+
+	assert_eq!(scheduled.pointer("/comparison_judgment").and_then(Value::as_str), Some("blocked"));
+	assert_eq!(scheduled.pointer("/baseline_counts/blocked").and_then(Value::as_u64), Some(1));
+
+	let retest = find_by_field(stages, "/stage_id", "final_competitor_retest_status")?;
+
+	assert_eq!(retest.pointer("/baseline_counts/pass").and_then(Value::as_u64), Some(22));
+	assert_eq!(retest.pointer("/baseline_counts/wrong_result").and_then(Value::as_u64), Some(5));
+	assert_eq!(retest.pointer("/baseline_counts/blocked").and_then(Value::as_u64), Some(2));
+	assert_eq!(retest.pointer("/baseline_counts/not_tested").and_then(Value::as_u64), Some(11));
+	assert_eq!(retest.pointer("/baseline_counts/not_encoded").and_then(Value::as_u64), Some(11));
+	assert!(array_at(ledger, "/summary/improved")?.is_empty());
+	assert!(array_at(ledger, "/summary/regressed")?.is_empty());
+	assert!(array_contains_str(ledger, "/summary/unchanged", "current_vs_historical_correctness")?);
+	assert!(array_contains_str(ledger, "/summary/blocked", "scheduled_memory_task_readiness")?);
+	assert!(array_contains_str(ledger, "/summary/not_tested", "proactive_brief_readiness")?);
+
+	Ok(())
+}
+
+fn assert_dreaming_readiness_markdown_boundaries(markdown: &str) {
+	assert!(markdown.contains("`improved`: none"));
+	assert!(markdown.contains("`regressed`: none"));
+	assert!(markdown.contains("live `memory_evolution` is not solved until"));
+	assert!(markdown.contains("XY-905"));
+	assert!(markdown.contains("Do not claim this ledger fixes temporal reconciliation"));
 }
 
 #[test]
