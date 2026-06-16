@@ -1,0 +1,131 @@
+{
+  "schema": "elf.proactive_brief_scoring_report/v1",
+  "issue": "XY-953",
+  "created_at": "2026-06-16T14:33:01Z",
+  "purpose": "Record fixture-backed proactive project brief scoring without claiming scheduler, private-corpus, OpenAI Pulse, or hosted managed-memory parity.",
+  "evidence_class": "fixture_backed",
+  "commands": [
+    {
+      "command": "cargo make real-world-memory-proactive-brief",
+      "status": "pass",
+      "artifact": "tmp/real-world-memory/proactive-brief/report.json",
+      "markdown_artifact": "tmp/real-world-memory/proactive-brief/report.md"
+    },
+    {
+      "command": "cargo make real-world-memory",
+      "status": "pass",
+      "artifact": "tmp/real-world-memory/real-world-memory-report.json",
+      "markdown_artifact": "tmp/real-world-memory/real-world-memory-report.md"
+    }
+  ],
+  "proactive_brief_summary": {
+    "job_count": 5,
+    "pass": 4,
+    "blocked": 1,
+    "wrong_result": 0,
+    "unsupported_claim_count": 0,
+    "evidence_required_count": 8,
+    "evidence_covered_count": 8,
+    "expected_evidence_recall": 1.0,
+    "suggestion_count": 5,
+    "evidence_ref_coverage": 1.0,
+    "freshness_coverage": 1.0,
+    "action_rationale_coverage": 1.0,
+    "recommended_count": 2,
+    "deferred_count": 2,
+    "rejected_count": 1,
+    "current_suggestion_count": 2,
+    "non_current_suggestion_count": 3,
+    "stale_warning_count": 3,
+    "invalid_current_suggestion_count": 0,
+    "untraced_suggestion_count": 0,
+    "unsupported_current_suggestion_count": 0,
+    "tombstone_violation_count": 0,
+    "source_trace_selected_count": 7,
+    "source_trace_stale_count": 2,
+    "source_trace_superseded_count": 2,
+    "source_trace_tombstone_count": 1
+  },
+  "root_fixture_summary_after_xy953": {
+    "job_count": 55,
+    "encoded_suite_count": 15,
+    "pass": 49,
+    "wrong_result": 0,
+    "incomplete": 0,
+    "blocked": 6,
+    "not_encoded": 0,
+    "unsupported_claim_count": 0,
+    "evidence_required_count": 123,
+    "evidence_covered_count": 123,
+    "expected_evidence_recall": 1.0,
+    "source_ref_coverage": 1.0,
+    "quote_coverage": 1.0,
+    "mean_score": 0.891
+  },
+  "scenario_results": [
+    {
+      "job_id": "proactive-daily-project-brief-001",
+      "status": "pass",
+      "suggestion_kind": "daily_project_brief",
+      "decision": "recommend",
+      "evidence_refs": 2,
+      "freshness_status": "current"
+    },
+    {
+      "job_id": "proactive-resume-work-brief-001",
+      "status": "pass",
+      "suggestion_kind": "resume_work",
+      "decision": "recommend",
+      "evidence_refs": 2,
+      "freshness_status": "current"
+    },
+    {
+      "job_id": "proactive-stale-decision-audit-001",
+      "status": "pass",
+      "suggestion_kind": "stale_decision_audit",
+      "decision": "defer",
+      "evidence_refs": 2,
+      "freshness_status": "superseded"
+    },
+    {
+      "job_id": "proactive-stale-plan-preference-warning-001",
+      "status": "pass",
+      "suggestion_kind": "stale_plan_preference_warning",
+      "decisions": ["defer", "reject"],
+      "evidence_refs": 5,
+      "freshness_statuses": ["expired", "superseded", "tombstoned"]
+    },
+    {
+      "job_id": "proactive-private-corpus-refresh-blocked-001",
+      "status": "blocked",
+      "suggestion_kind": "private_corpus_refresh",
+      "blocker": "No operator-owned private production corpus manifest is available; private-corpus refresh suggestions stay blocked under XY-930."
+    }
+  ],
+  "stage_ledger_delta": {
+    "stage_id": "proactive_brief_readiness",
+    "baseline_counts": {
+      "pass": 0,
+      "wrong_result": 0,
+      "blocked": 0,
+      "not_tested": 1,
+      "not_encoded": 1
+    },
+    "post_stage_counts": {
+      "pass": 4,
+      "wrong_result": 0,
+      "blocked": 1,
+      "not_tested": 0,
+      "not_encoded": 0
+    },
+    "comparison_judgment": "improved",
+    "next_optimization_direction": "Move from fixture-backed proactive brief scoring into service-native generated brief readback and later live adapter materialization; keep scheduling and private-corpus refresh behind their owned lanes and operator inputs."
+  },
+  "claim_boundaries": [
+    "Do not claim OpenAI Pulse parity from this fixture-backed report.",
+    "Do not claim hosted managed-memory parity from this fixture-backed report.",
+    "Do not claim background scheduling or a morning-dashboard UI.",
+    "Do not claim private-corpus refresh quality without operator-owned inputs under XY-930.",
+    "Treat proactive briefs as derived output that must remain source-linked and reviewable."
+  ]
+}
