@@ -196,5 +196,23 @@
     "acceptable_phrases": [],
     "fallback_action": "state_blocker"
   },
+  "memory_evolution": {
+    "current_evidence_ids": ["current-benchmark-plan"],
+    "historical_evidence_ids": [],
+    "tombstone_evidence_ids": ["delete-tombstone"],
+    "invalidation_evidence_ids": ["delete-tombstone"],
+    "stale_trap_ids": ["stale-deleted-plan"],
+    "conflicts": [],
+    "update_rationale": {
+      "claim_id": "deleted_fact_suppressed",
+      "evidence_ids": ["delete-tombstone"],
+      "available": true
+    },
+    "temporal_validity": {
+      "required": false,
+      "encoded": false,
+      "follow_up": null
+    }
+  },
   "tags": ["synthetic", "ttl", "delete", "stale_fact", "no_live_claim"]
 }

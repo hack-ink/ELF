@@ -167,12 +167,20 @@ provider-backed ELF evidence was required.
   targeted `work_resume`, `retrieval`, and `project_decisions` slice passing, but the
   full sweep is not a full-suite pass. ELF now live-scores capture/write-policy,
   consolidation proposal review, knowledge-page rebuild/lint, and operator-debugging
-  fixtures. The remaining ELF non-pass boundaries are memory-evolution wrong results,
-  production-ops operator boundaries, the core/archival live adapter gap, and blocked
-  context-trajectory measurement. qmd remains the local retrieval-debug UX reference;
+  fixtures. The remaining ELF non-pass boundaries are production-ops operator
+  boundaries, the core/archival live adapter gap, and blocked context-trajectory
+  measurement. qmd remains the local retrieval-debug UX reference;
   it keeps consolidation, knowledge, capture, and core/archival typed non-pass states
   and is `wrong_result` for operator-debug trace hydration, so no broad ELF-over-qmd
   claim is allowed.
+- Live temporal reconciliation after XY-905: `cargo make real-world-memory-live-adapters`
+  now reports ELF live `memory_evolution` as 6/6 pass, score mean `1.000`,
+  conflict detection count `5`, update rationale count `6`, and zero
+  selected-but-not-narrated conflict evidence. The report adds current, historical,
+  rationale, tombstone, invalidation, selected, dropped, and lifecycle-demoted
+  evidence fields. qmd remains `wrong_result` on the same slice, but this is not a
+  broad qmd, Graphiti/Zep, mem0/OpenMemory, Letta, hosted-memory, or private-corpus
+  superiority claim.
 - Live operator-debugging slice after XY-932: `cargo make
   real-world-job-operator-ux-live-adapters` emits narrow Docker-isolated
   `live_real_world` records for ELF and qmd over the operator-debugging fixtures.
@@ -248,6 +256,7 @@ Detailed evidence and interpretation:
 - [mem0/OpenMemory History and UI Export Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-mem0-openmemory-history-ui-export-report.md)
 - [Capture/Write-Policy Live Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-capture-write-policy-live-report.md)
 - [First-Generation OSS Continuity and Source-Store Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-first-generation-oss-continuity-source-store-report.md)
+- [Live Temporal Reconciliation Report - June 16, 2026](docs/guide/benchmarking/2026-06-16-live-temporal-reconciliation-report.md)
 - [Live Baseline Benchmark Runbook](docs/guide/benchmarking/live_baseline_benchmark.md)
 - [Single-User Production Runbook](docs/guide/single_user_production.md)
 - Benchmark contract:
@@ -260,7 +269,7 @@ Detailed evidence and interpretation:
   live sweep, but that sweep still contains typed non-pass states and is not
   full-suite parity.
 
-Evidence-backed position after the June 11 real-world reports:
+Evidence-backed position after the June 16 temporal reconciliation report:
 
 - ELF is better evidenced than the tested alternatives on evidence-bound writes,
   deterministic ingestion boundaries, Postgres source-of-truth plus rebuildable Qdrant
@@ -327,6 +336,7 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [mem0/OpenMemory History and UI Export Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-mem0-openmemory-history-ui-export-report.md)
 - [Capture/Write-Policy Live Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-capture-write-policy-live-report.md)
 - [First-Generation OSS Continuity and Source-Store Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-first-generation-oss-continuity-source-store-report.md)
+- [Live Temporal Reconciliation Report - June 16, 2026](docs/guide/benchmarking/2026-06-16-live-temporal-reconciliation-report.md)
 - [Live Baseline Benchmark Runbook](docs/guide/benchmarking/live_baseline_benchmark.md)
 - [Real-World Agent Memory Benchmark](docs/guide/benchmarking/real_world_agent_memory_benchmark.md)
 - [External Memory Improvement Plan](docs/guide/research/external_memory_improvement_plan.md)
@@ -336,7 +346,7 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [Real-World Benchmark Dimension Research Run](docs/research/2026-06-09-xy-841-external-memory-benchmark-dimensions.json)
 - [RAG/Graph Adapter Feasibility Research Run](docs/research/2026-06-10-xy-882-rag-graph-adapter-feasibility.json)
 
-Latest real-world benchmark report: June 11, 2026. Latest external research refresh:
+Latest real-world benchmark report: June 16, 2026. Latest external research refresh:
 June 11, 2026.
 
 ## Documentation
