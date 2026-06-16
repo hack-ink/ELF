@@ -40,12 +40,17 @@
     {
       "command": "cargo make real-world-memory",
       "artifact": "docs/guide/benchmarking/2026-06-11-measurement-coverage-audit.md",
-      "claim": "ELF fixture aggregate covers 50 jobs across 14 suites with 45 pass and 5 blocked production-ops or OpenViking context-trajectory measurement gates, including 6 passing core_archival_memory jobs and 1 passing memory_summary source-trace job."
+      "claim": "ELF fixture aggregate covers 55 jobs across 15 suites with 49 pass and 6 blocked production-ops, private-corpus, or OpenViking context-trajectory measurement gates, including 6 passing core_archival_memory jobs, 1 passing memory_summary source-trace job, and 4 passing proactive_brief suggestion jobs plus 1 private-corpus blocker."
     },
     {
       "command": "cargo make real-world-memory-summary",
       "artifact": "tmp/real-world-memory/memory-summary/report.json",
       "claim": "The memory summary fixture scores reviewable top-of-mind, background, stale, superseded, tombstoned, and derived project-profile entries with source refs, freshness metadata, rationale, and unsupported-claim flags; this is fixture-backed contract evidence, not managed-memory parity."
+    },
+    {
+      "command": "cargo make real-world-memory-proactive-brief",
+      "artifact": "tmp/real-world-memory/proactive-brief/report.json",
+      "claim": "The proactive brief fixture scores daily project brief, resume-work brief, stale decision audit, stale plan/preference warning, and private-corpus refresh blocker scenarios with evidence refs, freshness/currentness markers, action rationale, and stale/tombstone guards; this is fixture-backed contract evidence, not Pulse or hosted managed-memory parity."
     },
     {
       "command": "cargo make real-world-memory-core-archival",

@@ -1,0 +1,124 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "proactive-private-corpus-refresh-blocked-001",
+  "suite": "proactive_brief",
+  "title": "Block private-corpus refresh suggestions when no operator manifest exists",
+  "corpus": {
+    "corpus_id": "real-world-memory-proactive-private-refresh-2026-06-16",
+    "profile": "private_sanitized",
+    "items": [
+      {
+        "evidence_id": "private-refresh-no-manifest",
+        "kind": "blocker",
+        "text": "Private corpus refresh blocker: no operator-owned private production corpus manifest is checked in or available to this fixture.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "private_corpus_refresh_blocked",
+            "evidence_id": "private-refresh-no-manifest"
+          },
+          "locator": {
+            "quote": "no operator-owned private production corpus manifest"
+          }
+        },
+        "created_at": "2026-06-16T06:20:00Z"
+      },
+      {
+        "evidence_id": "xy930-private-input-boundary",
+        "kind": "issue",
+        "text": "XY-930 owns private-corpus and credentialed production gates when operator inputs exist; fixture-only output must not claim a private-corpus refresh pass.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "private_corpus_refresh_blocked",
+            "evidence_id": "xy930-private-input-boundary"
+          },
+          "locator": {
+            "quote": "XY-930 owns private-corpus and credentialed production gates"
+          }
+        },
+        "created_at": "2026-06-16T06:21:00Z"
+      }
+    ]
+  },
+  "timeline": [
+    {
+      "event_id": "private-refresh-blocked-recorded",
+      "ts": "2026-06-16T06:20:00Z",
+      "actor": "agent",
+      "action": "recorded_private_input_blocker",
+      "evidence_ids": ["private-refresh-no-manifest", "xy930-private-input-boundary"],
+      "summary": "The private-corpus refresh suggestion remains blocked until operator-owned inputs exist."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Suggest a private-corpus refresh when private inputs exist.",
+    "job_mode": "proactive_brief",
+    "constraints": [
+      "do_not_require_private_corpus",
+      "block_without_operator_manifest",
+      "tie_blocker_to_xy930"
+    ]
+  },
+  "expected_answer": {
+    "must_include": [],
+    "must_not_include": [
+      "private-corpus refresh passed",
+      "private production corpus quality is proven"
+    ],
+    "evidence_links": {},
+    "answer_type": "proactive_project_brief",
+    "accepted_alternates": [],
+    "requires_caveat": true,
+    "requires_refusal": true
+  },
+  "required_evidence": [],
+  "negative_traps": [],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "The fixture records the private-corpus refresh as blocked."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "The blocker points to the missing manifest and XY-930 boundary."
+      },
+      "uncertainty_handling": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "No private-corpus pass is claimed."
+      },
+      "lifecycle_behavior": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "The blocked state remains typed and not hidden as pass."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": true,
+    "acceptable_phrases": [
+      "No operator-owned private production corpus manifest is available."
+    ],
+    "fallback_action": "block_private_refresh_until_xy930_inputs_exist"
+  },
+  "encoding": {
+    "status": "blocked",
+    "reason": "No operator-owned private production corpus manifest is available; private-corpus refresh suggestions stay blocked under XY-930.",
+    "follow_up": {
+      "title": "XY-930 private-corpus input gate",
+      "reason": "Run private-corpus and credentialed production gates only when operator-owned inputs exist."
+    }
+  },
+  "tags": ["private_sanitized", "proactive_brief", "private_corpus_refresh", "xy930_blocked"]
+}

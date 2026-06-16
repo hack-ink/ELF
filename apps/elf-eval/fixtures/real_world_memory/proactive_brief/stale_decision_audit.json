@@ -1,0 +1,218 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "proactive-stale-decision-audit-001",
+  "suite": "proactive_brief",
+  "title": "Warn about a stale project decision before suggesting work",
+  "corpus": {
+    "corpus_id": "real-world-memory-proactive-brief-2026-06-16",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "stale-decision-old-gate",
+        "kind": "decision",
+        "text": "Historical decision: use only cargo make real-world-job-operator-ux to evaluate proactive readiness.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "stale_decision_audit",
+            "evidence_id": "stale-decision-old-gate"
+          }
+        },
+        "created_at": "2026-06-15T09:00:00Z"
+      },
+      {
+        "evidence_id": "stale-decision-new-gate",
+        "kind": "decision",
+        "text": "Current decision: proactive readiness must use the direct real-world-memory-proactive-brief suite before any proactive brief pass claim.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "stale_decision_audit",
+            "evidence_id": "stale-decision-new-gate"
+          },
+          "locator": {
+            "quote": "direct real-world-memory-proactive-brief suite"
+          }
+        },
+        "created_at": "2026-06-16T05:40:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_proactive_brief",
+      "answer": {
+        "content": "Stale decision audit: defer the old operator-ux-only readiness decision and use the direct real-world-memory-proactive-brief suite for any proactive pass claim.",
+        "claims": [
+          {
+            "claim_id": "stale_decision_replaced",
+            "text": "The operator-ux-only proactive readiness decision is superseded by the direct proactive brief suite.",
+            "evidence_ids": ["stale-decision-old-gate", "stale-decision-new-gate"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["stale-decision-old-gate", "stale-decision-new-gate"],
+        "proactive_briefs": [
+          {
+            "brief_id": "brief-stale-decision-audit-2026-06-16",
+            "contract_schema": "elf.proactive_project_brief/v1",
+            "generated_at": "2026-06-16T05:45:00Z",
+            "tenant_id": "fixture-tenant",
+            "project_id": "elf",
+            "agent_id": "xy-953-fixture-agent",
+            "read_profile": "private_plus_project",
+            "brief_kind": "stale_decision_audit",
+            "suggestions": [
+              {
+                "suggestion_id": "audit-old-operator-ux-only-gate",
+                "suggestion_kind": "stale_decision_audit",
+                "title": "Defer the old operator-ux-only readiness gate",
+                "body": "Do not use the old operator-ux-only decision as current readiness evidence; it is superseded by the direct proactive brief suite.",
+                "evidence_refs": ["stale-decision-old-gate", "stale-decision-new-gate"],
+                "freshness": {
+                  "status": "superseded",
+                  "observed_at": "2026-06-16T05:40:00Z",
+                  "valid_from": "2026-06-15T09:00:00Z",
+                  "valid_to": "2026-06-16T05:40:00Z",
+                  "last_confirmed_at": "2026-06-16T05:45:00Z",
+                  "superseded_by": ["stale-decision-new-gate"],
+                  "tombstone_refs": []
+                },
+                "action": {
+                  "decision": "defer",
+                  "reason_code": "DEFER_SUPERSEDED_DECISION",
+                  "reason": "The old decision is retained as history and must not be used as the current proactive-readiness gate."
+                },
+                "unsupported_claim_flags": []
+              }
+            ],
+            "source_trace": {
+              "selected_source_refs": [
+                {
+                  "evidence_id": "stale-decision-new-gate",
+                  "status": "current",
+                  "reason": "Current proactive-readiness gate."
+                }
+              ],
+              "dropped_source_refs": [],
+              "stale_source_refs": [],
+              "superseded_source_refs": [
+                {
+                  "evidence_id": "stale-decision-old-gate",
+                  "status": "superseded",
+                  "reason": "Replaced by the direct proactive brief suite.",
+                  "superseded_by": "stale-decision-new-gate"
+                }
+              ],
+              "tombstone_source_refs": [],
+              "unsupported_claim_flags": []
+            }
+          }
+        ],
+        "latency_ms": 2.0,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "stale-decision-replaced",
+      "ts": "2026-06-16T05:40:00Z",
+      "actor": "agent",
+      "action": "superseded_decision",
+      "evidence_ids": ["stale-decision-old-gate", "stale-decision-new-gate"],
+      "summary": "The direct proactive brief suite superseded the old operator-ux-only readiness gate."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Audit stale project decisions before generating proactive suggestions.",
+    "job_mode": "proactive_brief",
+    "constraints": ["cite_evidence", "mark_currentness", "include_defer_reason"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "stale_decision_replaced",
+        "text": "The operator-ux-only proactive readiness decision is superseded by the direct proactive brief suite."
+      }
+    ],
+    "must_not_include": ["use only cargo make real-world-job-operator-ux to evaluate proactive readiness"],
+    "evidence_links": {
+      "stale_decision_replaced": ["stale-decision-old-gate", "stale-decision-new-gate"]
+    },
+    "answer_type": "proactive_project_brief",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "stale-decision-old-gate",
+      "claim_id": "stale_decision_replaced",
+      "requirement": "cite",
+      "quote": "Historical decision"
+    },
+    {
+      "evidence_id": "stale-decision-new-gate",
+      "claim_id": "stale_decision_replaced",
+      "requirement": "cite",
+      "quote": "direct real-world-memory-proactive-brief suite"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "stale-decision-current-trap",
+      "type": "stale_fact",
+      "evidence_ids": ["stale-decision-old-gate"],
+      "failure_if_used": false
+    }
+  ],
+  "proactive_brief": {
+    "required_suggestion_kinds": ["stale_decision_audit"]
+  },
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Brief identifies the superseded decision."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "The stale-decision warning cites old and new evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "The old decision is not presented as current."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "The warning gives a defer reason."
+      },
+      "lifecycle_behavior": {
+        "weight": 0.1,
+        "max_points": 1.0,
+        "criteria": "Supersession markers are present."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": true,
+    "acceptable_phrases": ["No superseding decision is available."],
+    "fallback_action": "defer_stale_decision"
+  },
+  "tags": ["synthetic", "proactive_brief", "stale_decision_audit", "fixture_backed"]
+}

@@ -60,6 +60,10 @@ fn memory_summary_fixture_dir() -> PathBuf {
 	real_world_memory_fixture_dir().join("memory_summary")
 }
 
+fn proactive_brief_fixture_dir() -> PathBuf {
+	real_world_memory_fixture_dir().join("proactive_brief")
+}
+
 fn knowledge_fixture_dir() -> PathBuf {
 	real_world_memory_fixture_dir().join("knowledge")
 }
@@ -701,13 +705,13 @@ fn assert_external_adapter_manifest_status_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/suite_status_counts/blocked")
 			.and_then(Value::as_u64),
-		Some(21)
+		Some(22)
 	);
 	assert_eq!(
 		report
 			.pointer("/external_adapters/summary/suite_status_counts/pass")
 			.and_then(Value::as_u64),
-		Some(26)
+		Some(27)
 	);
 	assert_eq!(
 		report
@@ -1022,11 +1026,12 @@ fn assert_elf_fixture_adapter_record(adapter: &Value) -> Result<()> {
 	assert_eq!(adapter.pointer("/evidence_class").and_then(Value::as_str), Some("fixture_backed"));
 	assert_eq!(adapter.pointer("/overall_status").and_then(Value::as_str), Some("blocked"));
 	assert!(adapter.pointer("/run/evidence").and_then(Value::as_str).is_some_and(|evidence| {
-		evidence.contains("50 jobs across 14 suites")
-			&& evidence.contains("45 pass")
-			&& evidence.contains("5 blocked")
+		evidence.contains("55 jobs across 15 suites")
+			&& evidence.contains("49 pass")
+			&& evidence.contains("6 blocked")
 			&& evidence.contains("core_archival_memory")
 			&& evidence.contains("memory_summary")
+			&& evidence.contains("proactive_brief")
 			&& evidence.contains("context_trajectory")
 	}));
 
@@ -2231,7 +2236,7 @@ fn assert_live_sweep_record(adapter: &Value, production_ops_status: &str) -> Res
 fn runner_discovers_nested_fixture_layout() -> Result<()> {
 	let report = run_json_report_from(fixture_root())?;
 
-	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(50));
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(55));
 
 	Ok(())
 }
@@ -2685,11 +2690,11 @@ fn assert_current_report_text_boundaries(
 		comparison_external_projects
 			.contains("Benchmark-grounded for local same-corpus retrieval, reindex/update/delete")
 	);
-	assert!(iteration_direction.contains("| Jobs | `50` |"));
-	assert!(iteration_direction.contains("| Encoded suites | `14` |"));
-	assert!(iteration_direction.contains("| Pass | `45` |"));
-	assert!(iteration_direction.contains("| Evidence coverage | `115/115` |"));
-	assert!(iteration_direction.contains("| Expected evidence recall | `107/107` |"));
+	assert!(iteration_direction.contains("| Jobs | `55` |"));
+	assert!(iteration_direction.contains("| Encoded suites | `15` |"));
+	assert!(iteration_direction.contains("| Pass | `49` |"));
+	assert!(iteration_direction.contains("| Evidence coverage | `123/123` |"));
+	assert!(iteration_direction.contains("| Expected evidence recall | `115/115` |"));
 
 	for stale_phrase in [
 		"same live sweep shape as ELF",
@@ -2700,7 +2705,12 @@ fn assert_current_report_text_boundaries(
 		"The qmd live real-world slice covers representative jobs only",
 		"| Jobs | `40` |",
 		"| Encoded suites | `11` |",
+		"| Jobs | `50` |",
+		"| Encoded suites | `14` |",
 		"| Pass | `38` |",
+		"| Pass | `45` |",
+		"| Evidence coverage | `115/115` |",
+		"| Expected evidence recall | `107/107` |",
 		"history/UI/hosted/graph behavior remains",
 		"current local adapter is incomplete/wrong-result",
 		"current adapter is incomplete/invalid-result",
@@ -3672,14 +3682,14 @@ fn assert_measurement_audit_adapter_status_counts(markdown: &str) {
 
 fn assert_iteration_direction_current_measurement_counts(markdown: &str) {
 	for expected in [
-		"| Jobs | `50` |",
-		"| Encoded suites | `14` |",
-		"| Blocked | `5` |",
-		"| Mean score | `0.900` |",
-		"| Evidence coverage | `115/115` |",
-		"| Source-ref coverage | `115/115` |",
-		"| Quote coverage | `115/115` |",
-		"| Expected evidence recall | `107/107` |",
+		"| Jobs | `55` |",
+		"| Encoded suites | `15` |",
+		"| Blocked | `6` |",
+		"| Mean score | `0.891` |",
+		"| Evidence coverage | `123/123` |",
+		"| Source-ref coverage | `123/123` |",
+		"| Quote coverage | `123/123` |",
+		"| Expected evidence recall | `115/115` |",
 		"| `blocked` | `7` |",
 		"| `not_encoded` | `5` |",
 		"`live_baseline_only`, `fixture_backed`, and `research_gate`",
@@ -3690,9 +3700,14 @@ fn assert_iteration_direction_current_measurement_counts(markdown: &str) {
 	for stale in [
 		"| Jobs | `40` |",
 		"| Encoded suites | `11` |",
+		"| Jobs | `50` |",
+		"| Encoded suites | `14` |",
 		"| Mean score | `0.950` |",
+		"| Mean score | `0.900` |",
 		"| Evidence coverage | `88/88` |",
+		"| Evidence coverage | `115/115` |",
 		"| Expected evidence recall | `80/80` |",
+		"| Expected evidence recall | `107/107` |",
 		"| `blocked` | `5` |",
 		"| `not_encoded` | `7` |",
 		"`live_baseline_only` plus `research_gate`",
@@ -4123,13 +4138,15 @@ fn assert_dreaming_readiness_baseline_counts(ledger: &Value, stages: &[Value]) -
 		"/summary/improved",
 		"memory_summary_top_of_mind_behavior"
 	)?);
+	assert!(array_contains_str(ledger, "/summary/improved", "proactive_brief_readiness")?);
 	assert!(array_at(ledger, "/summary/regressed")?.is_empty());
 	assert!(array_contains_str(ledger, "/summary/unchanged", "deletion_ttl_tombstone_behavior")?);
 	assert!(array_contains_str(ledger, "/summary/unchanged", "final_competitor_retest_status")?);
 	assert!(array_contains_str(ledger, "/summary/blocked", "scheduled_memory_task_readiness")?);
-	assert!(array_contains_str(ledger, "/summary/not_tested", "proactive_brief_readiness")?);
+	assert!(array_at(ledger, "/summary/not_tested")?.is_empty());
 
 	assert_dreaming_memory_summary_stage(stages)?;
+	assert_dreaming_proactive_brief_stage(stages)?;
 
 	Ok(())
 }
@@ -4157,13 +4174,60 @@ fn assert_dreaming_memory_summary_stage(stages: &[Value]) -> Result<()> {
 	Ok(())
 }
 
+fn assert_dreaming_proactive_brief_stage(stages: &[Value]) -> Result<()> {
+	let proactive_stage = find_by_field(stages, "/stage_id", "proactive_brief_readiness")?;
+
+	assert_eq!(
+		proactive_stage.pointer("/comparison_judgment").and_then(Value::as_str),
+		Some("improved")
+	);
+	assert_eq!(proactive_stage.pointer("/post_stage_counts/pass").and_then(Value::as_u64), Some(4));
+	assert_eq!(
+		proactive_stage.pointer("/post_stage_counts/blocked").and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
+		proactive_stage.pointer("/post_stage_counts/evidence_ref_coverage").and_then(Value::as_f64),
+		Some(1.0)
+	);
+	assert_eq!(
+		proactive_stage.pointer("/post_stage_counts/freshness_coverage").and_then(Value::as_f64),
+		Some(1.0)
+	);
+	assert_eq!(
+		proactive_stage
+			.pointer("/post_stage_counts/action_rationale_coverage")
+			.and_then(Value::as_f64),
+		Some(1.0)
+	);
+	assert_eq!(
+		proactive_stage
+			.pointer("/post_stage_counts/tombstone_violation_count")
+			.and_then(Value::as_u64),
+		Some(0)
+	);
+	assert!(
+		proactive_stage
+			.pointer("/post_stage_basis")
+			.and_then(Value::as_str)
+			.is_some_and(|basis| basis.contains("five proactive_brief fixture jobs")
+				&& basis.contains("typed private-corpus refresh blocker"))
+	);
+
+	Ok(())
+}
+
 fn assert_dreaming_readiness_markdown_boundaries(markdown: &str) {
 	assert!(
 		markdown.contains("`improved`: current-vs-historical correctness, preference evolution")
 			&& markdown.contains("reviewable")
-			&& markdown.contains("consolidation, and memory-summary/top-of-mind fixture readback")
+			&& markdown.contains("proactive brief")
 	);
 	assert!(markdown.contains("memory-summary/top-of-mind fixture readback"));
+	assert!(markdown.contains("XY-953 adds a direct `proactive_brief` suite"));
+	assert!(markdown.contains(
+		"Do not claim fixture-backed proactive brief scoring proves OpenAI Pulse parity"
+	));
 	assert!(markdown.contains("`regressed`: none"));
 	assert!(markdown.contains("the XY-905 run passes all six memory-evolution jobs"));
 	assert!(markdown.contains("XY-952 adds a reviewable `elf.memory_summary/v1`"));
@@ -4475,6 +4539,207 @@ fn memory_summary_fixture_fails_tombstone_entries_without_tombstone_refs() -> Re
 }
 
 #[test]
+fn proactive_brief_fixtures_score_source_linked_suggestions() -> Result<()> {
+	let report = run_json_report_from(proactive_brief_fixture_dir())?;
+
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(5));
+	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(4));
+	assert_eq!(report.pointer("/summary/blocked").and_then(Value::as_u64), Some(1));
+	assert_eq!(report.pointer("/summary/wrong_result").and_then(Value::as_u64), Some(0));
+	assert_eq!(report.pointer("/summary/unsupported_claim").and_then(Value::as_u64), Some(0));
+	assert_eq!(
+		report.pointer("/summary/proactive_brief/brief_count").and_then(Value::as_u64),
+		Some(4)
+	);
+	assert_eq!(
+		report.pointer("/summary/proactive_brief/suggestion_count").and_then(Value::as_u64),
+		Some(5)
+	);
+	assert_eq!(
+		report.pointer("/summary/proactive_brief/evidence_ref_coverage").and_then(Value::as_f64),
+		Some(1.0)
+	);
+	assert_eq!(
+		report.pointer("/summary/proactive_brief/freshness_coverage").and_then(Value::as_f64),
+		Some(1.0)
+	);
+	assert_eq!(
+		report
+			.pointer("/summary/proactive_brief/action_rationale_coverage")
+			.and_then(Value::as_f64),
+		Some(1.0)
+	);
+	assert_eq!(
+		report
+			.pointer("/summary/proactive_brief/invalid_current_suggestion_count")
+			.and_then(Value::as_u64),
+		Some(0)
+	);
+	assert_eq!(
+		report
+			.pointer("/summary/proactive_brief/tombstone_violation_count")
+			.and_then(Value::as_u64),
+		Some(0)
+	);
+	assert_eq!(
+		report.pointer("/summary/proactive_brief/rejected_count").and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
+		report.pointer("/summary/proactive_brief/deferred_count").and_then(Value::as_u64),
+		Some(2)
+	);
+
+	let suites = array_at(&report, "/suites")?;
+	let proactive = find_by_field(suites, "/suite_id", "proactive_brief")?;
+
+	assert_eq!(proactive.pointer("/status").and_then(Value::as_str), Some("blocked"));
+	assert_eq!(proactive.pointer("/encoded_job_count").and_then(Value::as_u64), Some(5));
+
+	let jobs = array_at(&report, "/jobs")?;
+	let daily = find_by_field(jobs, "/job_id", "proactive-daily-project-brief-001")?;
+	let private = find_by_field(jobs, "/job_id", "proactive-private-corpus-refresh-blocked-001")?;
+
+	assert_eq!(daily.pointer("/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(
+		daily.pointer("/proactive_brief/evidence_ref_coverage").and_then(Value::as_f64),
+		Some(1.0)
+	);
+	assert_eq!(private.pointer("/status").and_then(Value::as_str), Some("blocked"));
+	assert!(
+		report
+			.pointer("/follow_ups/0/title")
+			.and_then(Value::as_str)
+			.is_some_and(|title| title.contains("XY-930"))
+	);
+
+	Ok(())
+}
+
+#[test]
+fn proactive_brief_markdown_renders_source_and_freshness_metrics() -> Result<()> {
+	let report = run_json_report_from(proactive_brief_fixture_dir())?;
+	let temp_dir =
+		env::temp_dir().join(format!("elf-real-world-proactive-brief-test-{}", process::id()));
+
+	fs::create_dir_all(&temp_dir)?;
+
+	let report_path = temp_dir.join("proactive-brief-report.json");
+	let markdown_path = temp_dir.join("proactive-brief-report.md");
+
+	fs::write(&report_path, serde_json::to_vec_pretty(&report)?)?;
+
+	let output = Command::new(env!("CARGO_BIN_EXE_real_world_job_benchmark"))
+		.arg("publish")
+		.arg("--report")
+		.arg(&report_path)
+		.arg("--out")
+		.arg(&markdown_path)
+		.output()?;
+
+	assert!(
+		output.status.success(),
+		"real_world_job publisher failed: {}",
+		String::from_utf8_lossy(&output.stderr),
+	);
+
+	let markdown = fs::read_to_string(markdown_path)?;
+
+	assert!(markdown.contains("Proactive Brief Metrics"));
+	assert!(markdown.contains("proactive-daily-project-brief-001"));
+	assert!(markdown.contains("Proactive evidence-ref coverage"));
+	assert!(markdown.contains("Invalid Current"));
+	assert!(markdown.contains("Tombstone Violations"));
+
+	Ok(())
+}
+
+#[test]
+fn proactive_brief_fixture_fails_unsupported_suggestions() -> Result<()> {
+	let fixture_path = proactive_brief_fixture_dir().join("daily_project_brief.json");
+	let mut fixture = load_json(&fixture_path)?;
+
+	fixture["corpus"]["adapter_response"]["answer"]["proactive_briefs"][0]["suggestions"][0]["evidence_refs"] =
+		Value::Array(Vec::new());
+
+	let temp_dir =
+		env::temp_dir().join(format!("elf-proactive-unsupported-test-{}", process::id()));
+
+	fs::create_dir_all(&temp_dir)?;
+	fs::write(temp_dir.join("unsupported_brief.json"), serde_json::to_vec_pretty(&fixture)?)?;
+
+	let report = run_json_report_from(temp_dir)?;
+	let jobs = array_at(&report, "/jobs")?;
+	let job = find_by_field(jobs, "/job_id", "proactive-daily-project-brief-001")?;
+
+	assert_eq!(job.pointer("/status").and_then(Value::as_str), Some("unsupported_claim"));
+	assert_eq!(
+		job.pointer("/proactive_brief/untraced_suggestion_count").and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(report.pointer("/summary/unsupported_claim").and_then(Value::as_u64), Some(1));
+
+	Ok(())
+}
+
+#[test]
+fn proactive_brief_fixture_fails_stale_decisions_presented_current() -> Result<()> {
+	let fixture_path = proactive_brief_fixture_dir().join("stale_decision_audit.json");
+	let mut fixture = load_json(&fixture_path)?;
+
+	fixture["corpus"]["adapter_response"]["answer"]["proactive_briefs"][0]["suggestions"][0]["freshness"]
+		["status"] = Value::String("current".to_string());
+
+	let temp_dir =
+		env::temp_dir().join(format!("elf-proactive-stale-current-test-{}", process::id()));
+
+	fs::create_dir_all(&temp_dir)?;
+	fs::write(temp_dir.join("stale_current_brief.json"), serde_json::to_vec_pretty(&fixture)?)?;
+
+	let report = run_json_report_from(temp_dir)?;
+	let jobs = array_at(&report, "/jobs")?;
+	let job = find_by_field(jobs, "/job_id", "proactive-stale-decision-audit-001")?;
+
+	assert_eq!(job.pointer("/status").and_then(Value::as_str), Some("wrong_result"));
+	assert_eq!(
+		job.pointer("/proactive_brief/invalid_current_suggestion_count").and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(report.pointer("/summary/wrong_result").and_then(Value::as_u64), Some(1));
+
+	Ok(())
+}
+
+#[test]
+fn proactive_brief_fixture_fails_tombstone_ttl_violations() -> Result<()> {
+	let fixture_path = proactive_brief_fixture_dir().join("stale_plan_preference_warning.json");
+	let mut fixture = load_json(&fixture_path)?;
+
+	fixture["corpus"]["adapter_response"]["answer"]["proactive_briefs"][0]["suggestions"][0]["freshness"]
+		["status"] = Value::String("current".to_string());
+	fixture["corpus"]["adapter_response"]["answer"]["proactive_briefs"][0]["suggestions"][0]["action"]
+		["decision"] = Value::String("recommend".to_string());
+
+	let temp_dir = env::temp_dir().join(format!("elf-proactive-tombstone-test-{}", process::id()));
+
+	fs::create_dir_all(&temp_dir)?;
+	fs::write(temp_dir.join("tombstone_current_brief.json"), serde_json::to_vec_pretty(&fixture)?)?;
+
+	let report = run_json_report_from(temp_dir)?;
+	let jobs = array_at(&report, "/jobs")?;
+	let job = find_by_field(jobs, "/job_id", "proactive-stale-plan-preference-warning-001")?;
+
+	assert_eq!(job.pointer("/status").and_then(Value::as_str), Some("wrong_result"));
+	assert_eq!(
+		job.pointer("/proactive_brief/tombstone_violation_count").and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(report.pointer("/summary/wrong_result").and_then(Value::as_u64), Some(1));
+
+	Ok(())
+}
+
+#[test]
 fn production_ops_fixtures_report_bounded_typed_states() -> Result<()> {
 	let report = run_json_report_from(production_ops_fixture_dir())?;
 
@@ -4633,12 +4898,12 @@ fn assert_root_knowledge_summary(report: &Value) {
 }
 
 fn assert_root_aggregate_summary(report: &Value) {
-	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(50));
-	assert_eq!(report.pointer("/summary/encoded_suite_count").and_then(Value::as_u64), Some(14));
-	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(45));
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(55));
+	assert_eq!(report.pointer("/summary/encoded_suite_count").and_then(Value::as_u64), Some(15));
+	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(49));
 	assert_eq!(report.pointer("/summary/wrong_result").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/incomplete").and_then(Value::as_u64), Some(0));
-	assert_eq!(report.pointer("/summary/blocked").and_then(Value::as_u64), Some(5));
+	assert_eq!(report.pointer("/summary/blocked").and_then(Value::as_u64), Some(6));
 	assert_eq!(report.pointer("/summary/not_encoded").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/unsupported_claim_count").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/wrong_result_count").and_then(Value::as_u64), Some(0));
@@ -4678,11 +4943,11 @@ fn assert_root_aggregate_summary(report: &Value) {
 	);
 	assert_eq!(
 		report.pointer("/summary/evidence_required_count").and_then(Value::as_u64),
-		Some(115)
+		Some(123)
 	);
 	assert_eq!(
 		report.pointer("/summary/evidence_covered_count").and_then(Value::as_u64),
-		Some(115)
+		Some(123)
 	);
 	assert_eq!(report.pointer("/summary/evidence_coverage").and_then(Value::as_f64), Some(1.0));
 	assert_eq!(report.pointer("/summary/source_ref_coverage").and_then(Value::as_f64), Some(1.0));
@@ -4723,6 +4988,44 @@ fn assert_root_aggregate_summary(report: &Value) {
 	);
 
 	assert_root_knowledge_summary(report);
+	assert_root_proactive_brief_summary(report);
+}
+
+fn assert_root_proactive_brief_summary(report: &Value) {
+	assert_eq!(
+		report.pointer("/summary/proactive_brief/job_count").and_then(Value::as_u64),
+		Some(4)
+	);
+	assert_eq!(
+		report.pointer("/summary/proactive_brief/suggestion_count").and_then(Value::as_u64),
+		Some(5)
+	);
+	assert_eq!(
+		report.pointer("/summary/proactive_brief/evidence_ref_coverage").and_then(Value::as_f64),
+		Some(1.0)
+	);
+	assert_eq!(
+		report.pointer("/summary/proactive_brief/freshness_coverage").and_then(Value::as_f64),
+		Some(1.0)
+	);
+	assert_eq!(
+		report
+			.pointer("/summary/proactive_brief/action_rationale_coverage")
+			.and_then(Value::as_f64),
+		Some(1.0)
+	);
+	assert_eq!(
+		report
+			.pointer("/summary/proactive_brief/invalid_current_suggestion_count")
+			.and_then(Value::as_u64),
+		Some(0)
+	);
+	assert_eq!(
+		report
+			.pointer("/summary/proactive_brief/tombstone_violation_count")
+			.and_then(Value::as_u64),
+		Some(0)
+	);
 }
 
 fn assert_root_aggregate_suites(report: &Value) -> Result<()> {
@@ -4772,6 +5075,11 @@ fn assert_root_aggregate_suites(report: &Value) -> Result<()> {
 
 	assert_eq!(production_ops.pointer("/status").and_then(Value::as_str), Some("blocked"));
 	assert_eq!(production_ops.pointer("/encoded_job_count").and_then(Value::as_u64), Some(6));
+
+	let proactive = find_by_field(suites, "/suite_id", "proactive_brief")?;
+
+	assert_eq!(proactive.pointer("/status").and_then(Value::as_str), Some("blocked"));
+	assert_eq!(proactive.pointer("/encoded_job_count").and_then(Value::as_u64), Some(5));
 
 	let context_trajectory = find_by_field(suites, "/suite_id", "context_trajectory")?;
 

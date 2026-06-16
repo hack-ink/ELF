@@ -152,17 +152,20 @@ provider-backed ELF evidence was required.
   its pinned Docker local embedding path and is reported as `wrong_result` when
   same-corpus evidence terms are missed; claude-mem and OpenViking non-retrieval
   coverage remain typed non-pass states.
-- Real-world agent memory aggregate after XY-952: 50 fixture-backed
-  jobs across 14 suites, 45 pass, 0 incomplete, 5 blocked, 0 wrong-result,
+- Real-world agent memory aggregate after XY-953: 55 fixture-backed
+  jobs across 15 suites, 49 pass, 0 incomplete, 6 blocked, 0 wrong-result,
   0 not-encoded, and 0 unsupported-claim results. The remaining non-pass jobs are
   production-ops operator boundaries plus blocked OpenViking staged trajectory,
-  hierarchy selection, and recursive/context expansion measurement gates, not
-  hidden benchmark wins. The `core_archival_memory` suite passes 6 fixture jobs for
-  core block attachment, scope, provenance, stale-core detection, archival fallback,
-  and project-decision recovery; it does not create an ELF-over-Letta claim. The new
+  hierarchy selection, recursive/context expansion measurement gates, and the
+  private-corpus refresh blocker tied to XY-930, not hidden benchmark wins. The
+  `core_archival_memory` suite passes 6 fixture jobs for core block attachment, scope,
+  provenance, stale-core detection, archival fallback, and project-decision recovery;
+  it does not create an ELF-over-Letta claim. The
   `memory_summary` fixture passes 1 source-trace job for reviewable top-of-mind,
   background, stale, superseded, tombstoned, and derived project-profile entries; it
-  does not create a managed-memory parity claim.
+  does not create a managed-memory parity claim. The new `proactive_brief` fixture
+  scores 5 jobs, with 4 pass and 1 blocked private-corpus case; it does not create
+  Pulse or hosted managed-memory parity.
 - Full-suite live real-world adapter sweep after XY-926: ELF and qmd emit
   Docker-isolated `live_real_world` records for all 55 checked-in jobs across 13 suites
   through `cargo make real-world-memory-live-adapters`. Both keep the original
@@ -268,6 +271,7 @@ Detailed evidence and interpretation:
 - [Live Consolidation Proposal Scoring Report - June 16, 2026](docs/guide/benchmarking/2026-06-16-live-consolidation-proposal-scoring-report.md)
 - [First-Generation OSS Continuity and Source-Store Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-first-generation-oss-continuity-source-store-report.md)
 - [Live Temporal Reconciliation Report - June 16, 2026](docs/guide/benchmarking/2026-06-16-live-temporal-reconciliation-report.md)
+- [Proactive Brief Scoring Report - June 16, 2026](docs/guide/benchmarking/2026-06-16-proactive-brief-scoring-report.md)
 - [Live Baseline Benchmark Runbook](docs/guide/benchmarking/live_baseline_benchmark.md)
 - [Single-User Production Runbook](docs/guide/single_user_production.md)
 - Benchmark contract:
@@ -349,6 +353,7 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [Live Consolidation Proposal Scoring Report - June 16, 2026](docs/guide/benchmarking/2026-06-16-live-consolidation-proposal-scoring-report.md)
 - [First-Generation OSS Continuity and Source-Store Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-first-generation-oss-continuity-source-store-report.md)
 - [Live Temporal Reconciliation Report - June 16, 2026](docs/guide/benchmarking/2026-06-16-live-temporal-reconciliation-report.md)
+- [Proactive Brief Scoring Report - June 16, 2026](docs/guide/benchmarking/2026-06-16-proactive-brief-scoring-report.md)
 - [Live Baseline Benchmark Runbook](docs/guide/benchmarking/live_baseline_benchmark.md)
 - [Real-World Agent Memory Benchmark](docs/guide/benchmarking/real_world_agent_memory_benchmark.md)
 - [External Memory Improvement Plan](docs/guide/research/external_memory_improvement_plan.md)

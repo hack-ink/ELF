@@ -1,0 +1,267 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "proactive-daily-project-brief-001",
+  "suite": "proactive_brief",
+  "title": "Generate a daily project brief from current project memory",
+  "corpus": {
+    "corpus_id": "real-world-memory-proactive-brief-2026-06-16",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "daily-current-validation-gate",
+        "kind": "decision",
+        "text": "Current project decision: before review handoff, the ELF lane must run the proactive brief fixture command and targeted real_world_job_benchmark tests.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "daily_project_brief",
+            "evidence_id": "daily-current-validation-gate"
+          },
+          "locator": {
+            "quote": "run the proactive brief fixture command"
+          }
+        },
+        "created_at": "2026-06-16T04:00:00Z"
+      },
+      {
+        "evidence_id": "daily-current-ledger-update",
+        "kind": "plan",
+        "text": "Current plan: update the XY-951 Dreaming-readiness stage ledger with the proactive brief benchmark delta and next optimization direction.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "daily_project_brief",
+            "evidence_id": "daily-current-ledger-update"
+          },
+          "locator": {
+            "quote": "update the XY-951 Dreaming-readiness stage ledger"
+          }
+        },
+        "created_at": "2026-06-16T04:05:00Z"
+      },
+      {
+        "evidence_id": "daily-old-parity-trap",
+        "kind": "note",
+        "text": "Stale note: fixture-only proactive briefs prove parity with OpenAI Pulse and hosted managed products.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "daily_project_brief",
+            "evidence_id": "daily-old-parity-trap"
+          }
+        },
+        "created_at": "2026-06-15T10:00:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_proactive_brief",
+      "answer": {
+        "content": "Daily brief: run the proactive brief benchmark command, keep the XY-951 ledger update next, and do not claim Pulse or hosted managed-product parity from fixture-only evidence.",
+        "claims": [
+          {
+            "claim_id": "daily_validation_gate",
+            "text": "The next validation step is the proactive brief fixture command plus targeted real_world_job_benchmark tests.",
+            "evidence_ids": ["daily-current-validation-gate"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "daily_ledger_update",
+            "text": "The XY-951 stage ledger must record the proactive brief benchmark delta.",
+            "evidence_ids": ["daily-current-ledger-update"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["daily-current-validation-gate", "daily-current-ledger-update"],
+        "proactive_briefs": [
+          {
+            "brief_id": "brief-daily-project-2026-06-16",
+            "contract_schema": "elf.proactive_project_brief/v1",
+            "generated_at": "2026-06-16T04:30:00Z",
+            "tenant_id": "fixture-tenant",
+            "project_id": "elf",
+            "agent_id": "xy-953-fixture-agent",
+            "read_profile": "private_plus_project",
+            "brief_kind": "daily_project_brief",
+            "suggestions": [
+              {
+                "suggestion_id": "daily-run-proactive-gate",
+                "suggestion_kind": "daily_project_brief",
+                "title": "Run the proactive brief benchmark gate",
+                "body": "Run the proactive brief fixture command before claiming the lane is validation-ready, then update the XY-951 ledger.",
+                "evidence_refs": ["daily-current-validation-gate", "daily-current-ledger-update"],
+                "freshness": {
+                  "status": "current",
+                  "observed_at": "2026-06-16T04:05:00Z",
+                  "valid_from": "2026-06-16T04:00:00Z",
+                  "valid_to": null,
+                  "last_confirmed_at": "2026-06-16T04:30:00Z",
+                  "superseded_by": [],
+                  "tombstone_refs": []
+                },
+                "action": {
+                  "decision": "recommend",
+                  "reason_code": "RECOMMEND_CURRENT_EVIDENCE_BOUND_BRIEF",
+                  "reason": "Both source refs are current project-memory items and no tombstone or supersession source is selected."
+                },
+                "unsupported_claim_flags": []
+              }
+            ],
+            "source_trace": {
+              "selected_source_refs": [
+                {
+                  "evidence_id": "daily-current-validation-gate",
+                  "status": "current",
+                  "reason": "Required validation command source."
+                },
+                {
+                  "evidence_id": "daily-current-ledger-update",
+                  "status": "current",
+                  "reason": "Required ledger update source."
+                }
+              ],
+              "dropped_source_refs": [],
+              "stale_source_refs": [
+                {
+                  "evidence_id": "daily-old-parity-trap",
+                  "status": "stale",
+                  "reason": "Fixture-only evidence cannot prove Pulse parity."
+                }
+              ],
+              "superseded_source_refs": [],
+              "tombstone_source_refs": [],
+              "unsupported_claim_flags": []
+            }
+          }
+        ],
+        "latency_ms": 2.0,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "daily-gate-recorded",
+      "ts": "2026-06-16T04:00:00Z",
+      "actor": "agent",
+      "action": "recorded_current_gate",
+      "evidence_ids": ["daily-current-validation-gate"],
+      "summary": "The current validation gate was recorded as proactive fixture plus targeted tests."
+    },
+    {
+      "event_id": "daily-ledger-action-recorded",
+      "ts": "2026-06-16T04:05:00Z",
+      "actor": "agent",
+      "action": "recorded_ledger_action",
+      "evidence_ids": ["daily-current-ledger-update"],
+      "summary": "The ledger update remained the next optimization artifact."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Generate a daily project brief with only source-linked current recommendations.",
+    "job_mode": "proactive_brief",
+    "constraints": [
+      "cite_evidence",
+      "mark_currentness",
+      "include_action_rationale",
+      "do_not_claim_pulse_parity"
+    ]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "daily_validation_gate",
+        "text": "The next validation step is the proactive brief fixture command plus targeted real_world_job_benchmark tests."
+      },
+      {
+        "claim_id": "daily_ledger_update",
+        "text": "The XY-951 stage ledger must record the proactive brief benchmark delta."
+      }
+    ],
+    "must_not_include": [
+      "fixture-only proactive briefs prove parity with OpenAI Pulse",
+      "fixture-only proactive briefs prove hosted managed-product parity"
+    ],
+    "evidence_links": {
+      "daily_validation_gate": ["daily-current-validation-gate"],
+      "daily_ledger_update": ["daily-current-ledger-update"]
+    },
+    "answer_type": "proactive_project_brief",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "daily-current-validation-gate",
+      "claim_id": "daily_validation_gate",
+      "requirement": "cite",
+      "quote": "proactive brief fixture command"
+    },
+    {
+      "evidence_id": "daily-current-ledger-update",
+      "claim_id": "daily_ledger_update",
+      "requirement": "cite",
+      "quote": "XY-951 Dreaming-readiness stage ledger"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "daily-fixture-parity-trap",
+      "type": "stale_fact",
+      "evidence_ids": ["daily-old-parity-trap"],
+      "failure_if_used": true
+    }
+  ],
+  "proactive_brief": {
+    "required_suggestion_kinds": ["daily_project_brief"]
+  },
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Brief names the current validation and ledger actions."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Every proactive suggestion has evidence refs."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "The stale Pulse parity trap is not selected."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "The suggestion is actionable for the current lane."
+      },
+      "lifecycle_behavior": {
+        "weight": 0.1,
+        "max_points": 1.0,
+        "criteria": "Freshness and currentness markers prevent stale facts from being current recommendations."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": true,
+    "acceptable_phrases": ["No hosted parity claim is supported by this fixture."],
+    "fallback_action": "defer_unsupported_claim"
+  },
+  "tags": ["synthetic", "proactive_brief", "daily_project_brief", "fixture_backed"]
+}
