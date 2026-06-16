@@ -402,6 +402,27 @@ These fixtures use the same reviewable proposal shape as the runtime manual/fixt
 consolidation service. They remain offline fixture responses and do not claim scheduled
 provider-backed proposal generation.
 
+Current live consolidation increment:
+
+```sh
+cargo make real-world-memory-live-consolidation
+```
+
+This runs only `apps/elf-eval/fixtures/real_world_memory/consolidation/` through the
+ELF live service adapter and writes:
+
+```text
+tmp/real-world-memory/live-consolidation/elf-materialization.json
+tmp/real-world-memory/live-consolidation/elf-report.json
+tmp/real-world-memory/live-consolidation/elf-report.md
+tmp/real-world-memory/live-consolidation/summary.json
+```
+
+The live increment proves service-backed proposal materialization and review audit for
+the current checked-in consolidation jobs. It does not implement scheduled production
+consolidation, live provider-generated proposal quality, source-of-truth rewrites, or
+knowledge-page rebuild/lint scoring.
+
 Current checked-in knowledge-compilation increment:
 
 ```sh

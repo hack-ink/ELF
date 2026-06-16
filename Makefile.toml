@@ -418,6 +418,7 @@ args = [
 # | real-world-memory-consolidation        | composite |     |
 # | real-world-memory-consolidation-json   | command   |     |
 # | real-world-memory-consolidation-report | command   |     |
+# | real-world-memory-live-consolidation   | command   |     |
 # | real-world-job-operator-ux             | composite |     |
 # | real-world-job-operator-ux-json        | command   |     |
 # | real-world-job-operator-ux-report      | command   |     |
@@ -828,6 +829,14 @@ args = [
 	"tmp/real-world-memory/consolidation/report.json",
 	"--out",
 	"tmp/real-world-memory/consolidation/report.md",
+]
+
+[tasks.real-world-memory-live-consolidation]
+workspace = false
+command = "bash"
+args = [
+	"-lc",
+	"docker compose -f docker-compose.baseline.yml run --build --rm -e ELF_CONSOLIDATION_LIVE_REPORT_DIR -e ELF_CONSOLIDATION_LIVE_FIXTURES baseline-runner bash scripts/real-world-consolidation-live-adapter.sh",
 ]
 
 [tasks.real-world-memory-core-archival]

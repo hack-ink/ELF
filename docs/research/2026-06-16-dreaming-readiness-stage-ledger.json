@@ -4,7 +4,7 @@
   "authority": "XY-951",
   "created_at": "2026-06-16T00:00:00Z",
   "purpose": "Define the benchmark evidence gate that every Dreaming-inspired ELF optimization stage must update before claiming completion.",
-  "source_evidence_cutoff": "Checked-in benchmark and research evidence through the XY-905 live temporal reconciliation run on 2026-06-16; no private-corpus or provider-backed production pass is claimed by this ledger.",
+  "source_evidence_cutoff": "Checked-in benchmark and research evidence through the XY-905 live temporal reconciliation run and XY-934 live consolidation proposal scoring run on 2026-06-16; no private-corpus or provider-backed production pass is claimed by this ledger.",
   "typed_status_terms": [
     "pass",
     "wrong_result",
@@ -36,12 +36,14 @@
     "Typed non-pass states must remain typed; blocked, not_tested, not_encoded, incomplete, lifecycle_fail, unsupported, and wrong_result must not be collapsed into a generic fail or hidden under pass.",
     "Fixture-backed evidence may prove benchmark shape but must not be promoted into live_real_world product quality.",
     "Private-corpus and provider-backed production gates remain typed blocked unless the operator supplies explicit inputs; those blockers are tracked under XY-930.",
-    "The XY-905 post-stage live memory_evolution result is a narrow temporal reconciliation improvement only; it must not be converted into private-corpus, hosted memory, or broad competitor superiority claims."
+    "The XY-905 post-stage live memory_evolution result is a narrow temporal reconciliation improvement only; it must not be converted into private-corpus, hosted memory, or broad competitor superiority claims.",
+    "The XY-934 live consolidation result is a narrow ELF self-check only; it must not be converted into broad managed dreaming, Always-On Memory Agent, qmd, agentmemory, or llm-wiki superiority claims without comparable contained runners."
   ],
   "summary": {
     "improved": [
       "current_vs_historical_correctness",
-      "preference_evolution"
+      "preference_evolution",
+      "reviewable_consolidation"
     ],
     "regressed": [],
     "unchanged": [
@@ -52,7 +54,6 @@
       "scheduled_memory_task_readiness"
     ],
     "not_tested": [
-      "reviewable_consolidation",
       "memory_summary_top_of_mind_behavior",
       "proactive_brief_readiness"
     ]
@@ -234,8 +235,8 @@
     {
       "stage_id": "reviewable_consolidation",
       "stage_name": "Reviewable consolidation",
-      "dependent_issue": "XY-926",
-      "evidence_class": "fixture_backed",
+      "dependent_issue": "XY-934",
+      "evidence_class": "live_real_world",
       "baseline_commands": [
         {
           "command": "cargo make real-world-memory-consolidation",
@@ -249,13 +250,18 @@
           "required_artifact": "tmp/real-world-memory/consolidation/report.json"
         },
         {
+          "command": "cargo make real-world-memory-live-consolidation",
+          "required_artifact": "tmp/real-world-memory/live-consolidation/summary.json"
+        },
+        {
           "command": "cargo make real-world-memory-live-adapters",
           "required_artifact": "tmp/real-world-memory/live-adapters/"
         }
       ],
       "evidence_files": [
         "docs/spec/system_consolidation_proposals_v1.md",
-        "docs/guide/benchmarking/2026-06-11-competitor-strength-adoption-report.md",
+        "docs/guide/benchmarking/2026-06-16-live-consolidation-proposal-scoring-report.md",
+        "docs/research/2026-06-16-live-consolidation-proposal-scoring-report.json",
         "apps/elf-eval/fixtures/real_world_memory/consolidation/"
       ],
       "baseline_counts": {
@@ -265,11 +271,19 @@
         "not_tested": 1,
         "not_encoded": 1
       },
-      "baseline_basis": "Consolidation fixtures pass, but live consolidation proposal generation and review-action scoring are not encoded.",
-      "comparison_judgment": "not_tested",
+      "baseline_basis": "Before XY-934, consolidation fixtures passed but live consolidation proposal generation and review-action scoring were not encoded.",
+      "post_stage_counts": {
+        "pass": 4,
+        "wrong_result": 0,
+        "blocked": 0,
+        "not_tested": 0,
+        "not_encoded": 0
+      },
+      "post_stage_basis": "XY-934 adds ELF live service-backed proposal materialization, source lineage, confidence/usefulness, unsupported-claim flags, apply/defer/discard audit, and zero source mutations for 4 consolidation jobs.",
+      "comparison_judgment": "improved",
       "regression_rule": "Any source mutation, missing lineage, or collapse of review actions into an automatic rewrite is a regression.",
-      "improvement_rule": "An improvement requires live or service-backed consolidation scoring without provider hidden state and without mutating authoritative sources.",
-      "next_optimization_direction": "Keep Dreaming output derived and reviewable: proposal lineage, confidence, unsupported-claim flags, apply/defer/discard audit, and immutable source snapshots."
+      "improvement_rule": "The stage is improved when live or service-backed consolidation scoring exists without provider hidden state and without mutating authoritative sources.",
+      "next_optimization_direction": "Keep Dreaming output derived and reviewable, and add direct competitor/reference runners only when they emit comparable source ids, confidence, unsupported-claim flags, and review audit artifacts."
     },
     {
       "stage_id": "memory_summary_top_of_mind_behavior",
