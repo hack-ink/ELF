@@ -1,0 +1,589 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "memory-summary-source-trace-001",
+  "suite": "memory_summary",
+  "title": "Read back a reviewable current memory summary with source trace",
+  "corpus": {
+    "corpus_id": "real-world-memory-summary-2026-06-16",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "summary-contract-current",
+        "kind": "decision",
+        "text": "Current decision: ELF memory summaries are derived reviewable readback artifacts and must not mutate authoritative source notes.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "reviewable_summary_source_trace",
+            "evidence_id": "summary-contract-current"
+          },
+          "locator": {
+            "quote": "derived reviewable readback artifacts"
+          }
+        },
+        "created_at": "2026-06-16T02:00:00Z"
+      },
+      {
+        "evidence_id": "summary-background-sot",
+        "kind": "fact",
+        "text": "Background memory: Postgres remains the source of truth while Qdrant is a rebuildable derived retrieval index.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "reviewable_summary_source_trace",
+            "evidence_id": "summary-background-sot"
+          },
+          "locator": {
+            "quote": "Postgres remains the source of truth"
+          }
+        },
+        "created_at": "2026-06-10T09:00:00Z"
+      },
+      {
+        "evidence_id": "stale-summary-gap",
+        "kind": "note",
+        "text": "Stale summary note: memory-summary and top-of-mind behavior are not encoded and should stay not_tested.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "reviewable_summary_source_trace",
+            "evidence_id": "stale-summary-gap"
+          }
+        },
+        "created_at": "2026-06-15T08:00:00Z"
+      },
+      {
+        "evidence_id": "xy952-summary-contract",
+        "kind": "decision",
+        "text": "XY-952 update: memory-summary and top-of-mind behavior now has a fixture-backed reviewable source-trace contract.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "reviewable_summary_source_trace",
+            "evidence_id": "xy952-summary-contract"
+          },
+          "locator": {
+            "quote": "fixture-backed reviewable source-trace contract"
+          }
+        },
+        "created_at": "2026-06-16T02:30:00Z"
+      },
+      {
+        "evidence_id": "superseded-live-evolution-loss",
+        "kind": "report",
+        "text": "Historical report: before XY-905, ELF live memory_evolution had one pass and five wrong_result jobs.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "reviewable_summary_source_trace",
+            "evidence_id": "superseded-live-evolution-loss"
+          }
+        },
+        "created_at": "2026-06-11T10:00:00Z"
+      },
+      {
+        "evidence_id": "xy905-live-evolution-pass",
+        "kind": "report",
+        "text": "Current report: after XY-905, ELF live memory_evolution passes all six encoded jobs with current, historical, rationale, tombstone, and invalidation evidence.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "reviewable_summary_source_trace",
+            "evidence_id": "xy905-live-evolution-pass"
+          },
+          "locator": {
+            "quote": "passes all six encoded jobs"
+          }
+        },
+        "created_at": "2026-06-16T02:20:00Z"
+      },
+      {
+        "evidence_id": "summary-temporary-claim",
+        "kind": "note",
+        "text": "Temporary summary claim: publish a managed-memory parity claim from fixture-only summary evidence.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "reviewable_summary_source_trace",
+            "evidence_id": "summary-temporary-claim"
+          }
+        },
+        "created_at": "2026-06-15T11:00:00Z"
+      },
+      {
+        "evidence_id": "summary-ttl-tombstone",
+        "kind": "trace",
+        "text": "Summary tombstone: the fixture-only managed-memory parity claim expired at 2026-06-16T00:00:00Z and must be excluded from current top-of-mind memory.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "reviewable_summary_source_trace",
+            "evidence_id": "summary-ttl-tombstone"
+          },
+          "locator": {
+            "quote": "must be excluded from current top-of-mind memory"
+          }
+        },
+        "created_at": "2026-06-16T00:00:00Z"
+      },
+      {
+        "evidence_id": "summary-contract-non-parity-boundary",
+        "kind": "decision",
+        "text": "Boundary: the local memory-summary contract is not evidence of parity with OpenAI or Anthropic managed memory products.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "reviewable_summary_source_trace",
+            "evidence_id": "summary-contract-non-parity-boundary"
+          },
+          "locator": {
+            "quote": "not evidence of parity"
+          }
+        },
+        "created_at": "2026-06-16T02:40:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_memory_summary",
+      "answer": {
+        "content": "The reviewable memory summary keeps the current XY-952 source-trace contract top of mind, keeps the Postgres/Qdrant source-of-truth rule as background, downgrades the old not-tested summary gap and pre-XY-905 live loss, preserves the TTL tombstone for the parity claim, and excludes unsupported managed-memory parity as a derived project-profile candidate.",
+        "claims": [
+          {
+            "claim_id": "summary_contract_reviewable",
+            "text": "The memory summary is a derived reviewable readback artifact and must not mutate authoritative notes.",
+            "evidence_ids": ["summary-contract-current"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "summary_stage_now_fixture_backed",
+            "text": "The memory-summary stage now has a fixture-backed reviewable source-trace contract.",
+            "evidence_ids": ["xy952-summary-contract"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "summary_preserves_tombstone",
+            "text": "The expired managed-memory parity claim is excluded from current top-of-mind memory.",
+            "evidence_ids": ["summary-ttl-tombstone"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "summary_excludes_unsupported_parity",
+            "text": "The local memory-summary contract is not evidence of parity with managed memory products.",
+            "evidence_ids": ["summary-contract-non-parity-boundary"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": [
+          "summary-contract-current",
+          "xy952-summary-contract",
+          "summary-ttl-tombstone",
+          "summary-contract-non-parity-boundary"
+        ],
+        "memory_summaries": [
+          {
+            "summary_id": "summary-xy952-reviewable-memory",
+            "contract_schema": "elf.memory_summary/v1",
+            "generated_at": "2026-06-16T03:00:00Z",
+            "tenant_id": "fixture-tenant",
+            "project_id": "elf",
+            "agent_id": "xy-952-fixture-agent",
+            "read_profile": "private_plus_project",
+            "entries": [
+              {
+                "entry_id": "top-xy952-contract",
+                "category": "top_of_mind",
+                "text": "Memory summaries now use a reviewable source-trace contract.",
+                "source_refs": ["xy952-summary-contract"],
+                "freshness": {
+                  "status": "current",
+                  "observed_at": "2026-06-16T02:30:00Z",
+                  "valid_from": "2026-06-16T02:30:00Z",
+                  "valid_to": null,
+                  "last_confirmed_at": "2026-06-16T03:00:00Z",
+                  "superseded_by": [],
+                  "tombstone_refs": []
+                },
+                "rationale": {
+                  "decision": "included",
+                  "reason_code": "TOP_OF_MIND_CURRENT_REVIEWABLE_SUMMARY_CONTRACT",
+                  "reason": "The current issue lane is adding the summary/source-trace contract and benchmark guard."
+                },
+                "unsupported_claim_flags": []
+              },
+              {
+                "entry_id": "background-source-truth",
+                "category": "background",
+                "text": "Postgres remains authoritative while Qdrant remains a rebuildable derived index.",
+                "source_refs": ["summary-background-sot"],
+                "freshness": {
+                  "status": "background",
+                  "observed_at": "2026-06-10T09:00:00Z",
+                  "valid_from": "2026-06-10T09:00:00Z",
+                  "valid_to": null,
+                  "last_confirmed_at": "2026-06-16T03:00:00Z",
+                  "superseded_by": [],
+                  "tombstone_refs": []
+                },
+                "rationale": {
+                  "decision": "included",
+                  "reason_code": "BACKGROUND_STABLE_SOURCE_OF_TRUTH_BOUNDARY",
+                  "reason": "The source-of-truth boundary is stable context, not urgent top-of-mind work."
+                },
+                "unsupported_claim_flags": []
+              },
+              {
+                "entry_id": "stale-summary-not-tested",
+                "category": "stale",
+                "text": "The old memory-summary stage state was not_tested before XY-952.",
+                "source_refs": ["stale-summary-gap"],
+                "freshness": {
+                  "status": "stale",
+                  "observed_at": "2026-06-15T08:00:00Z",
+                  "valid_from": "2026-06-15T08:00:00Z",
+                  "valid_to": "2026-06-16T02:30:00Z",
+                  "last_confirmed_at": "2026-06-15T08:00:00Z",
+                  "superseded_by": ["xy952-summary-contract"],
+                  "tombstone_refs": []
+                },
+                "rationale": {
+                  "decision": "downgraded",
+                  "reason_code": "DOWNGRADED_STALE_SUMMARY_STAGE_REPLACED",
+                  "reason": "XY-952 adds a fixture-backed contract, so the earlier not_tested state is history."
+                },
+                "unsupported_claim_flags": []
+              },
+              {
+                "entry_id": "superseded-live-evolution-loss",
+                "category": "superseded",
+                "text": "The pre-XY-905 live memory_evolution loss is historical.",
+                "source_refs": ["superseded-live-evolution-loss"],
+                "freshness": {
+                  "status": "superseded",
+                  "observed_at": "2026-06-11T10:00:00Z",
+                  "valid_from": "2026-06-11T10:00:00Z",
+                  "valid_to": "2026-06-16T02:20:00Z",
+                  "last_confirmed_at": "2026-06-11T10:00:00Z",
+                  "superseded_by": ["xy905-live-evolution-pass"],
+                  "tombstone_refs": []
+                },
+                "rationale": {
+                  "decision": "downgraded",
+                  "reason_code": "SUPERSEDED_BY_XY905_LIVE_RECONCILIATION",
+                  "reason": "The XY-905 report superseded the older live memory_evolution wrong_result state."
+                },
+                "unsupported_claim_flags": []
+              },
+              {
+                "entry_id": "tombstone-managed-parity-claim",
+                "category": "tombstone",
+                "text": "The fixture-only managed-memory parity claim is tombstoned and excluded.",
+                "source_refs": ["summary-ttl-tombstone"],
+                "freshness": {
+                  "status": "tombstoned",
+                  "observed_at": "2026-06-16T00:00:00Z",
+                  "valid_from": "2026-06-15T11:00:00Z",
+                  "valid_to": "2026-06-16T00:00:00Z",
+                  "last_confirmed_at": "2026-06-16T00:00:00Z",
+                  "superseded_by": [],
+                  "tombstone_refs": ["summary-ttl-tombstone"]
+                },
+                "rationale": {
+                  "decision": "excluded",
+                  "reason_code": "TOMBSTONE_TTL_INVALIDATED_PARITY_CLAIM",
+                  "reason": "The tombstone says the parity claim expired and must not appear as current top-of-mind memory."
+                },
+                "unsupported_claim_flags": []
+              },
+              {
+                "entry_id": "derived-project-profile-summary-boundary",
+                "category": "derived_project_profile",
+                "text": "Project profile: ELF summaries are reviewable derived readback, not authoritative notes.",
+                "source_refs": ["summary-contract-current", "summary-background-sot"],
+                "freshness": {
+                  "status": "current",
+                  "observed_at": "2026-06-16T02:00:00Z",
+                  "valid_from": "2026-06-16T02:00:00Z",
+                  "valid_to": null,
+                  "last_confirmed_at": "2026-06-16T03:00:00Z",
+                  "superseded_by": [],
+                  "tombstone_refs": []
+                },
+                "rationale": {
+                  "decision": "included",
+                  "reason_code": "DERIVED_PROFILE_SOURCE_BACKED_BOUNDARY",
+                  "reason": "The derived project profile is source-backed and labels summaries as non-authoritative."
+                },
+                "unsupported_claim_flags": []
+              },
+              {
+                "entry_id": "derived-project-profile-parity-excluded",
+                "category": "derived_project_profile",
+                "text": "Excluded candidate: the local summary contract proves parity with managed memory products.",
+                "source_refs": [],
+                "freshness": {
+                  "status": "unsupported",
+                  "observed_at": "2026-06-16T03:00:00Z",
+                  "valid_from": null,
+                  "valid_to": null,
+                  "last_confirmed_at": null,
+                  "superseded_by": [],
+                  "tombstone_refs": []
+                },
+                "rationale": {
+                  "decision": "excluded",
+                  "reason_code": "EXCLUDED_UNSUPPORTED_MANAGED_MEMORY_PARITY",
+                  "reason": "The local contract is not comparable live evidence for OpenAI or Anthropic managed memory products."
+                },
+                "unsupported_claim_flags": [
+                  {
+                    "claim_id": "managed_memory_parity",
+                    "message": "No comparable live managed-memory runner exists for this lane.",
+                    "source": {
+                      "evidence_id": "summary-contract-non-parity-boundary"
+                    }
+                  }
+                ]
+              }
+            ],
+            "source_trace": {
+              "selected_source_refs": [
+                {
+                  "evidence_id": "xy952-summary-contract",
+                  "status": "active",
+                  "reason": "current top-of-mind contract evidence"
+                },
+                {
+                  "evidence_id": "summary-background-sot",
+                  "status": "active",
+                  "reason": "stable background source-of-truth evidence"
+                }
+              ],
+              "dropped_source_refs": [
+                {
+                  "evidence_id": "summary-temporary-claim",
+                  "status": "expired",
+                  "reason": "tombstoned parity claim"
+                }
+              ],
+              "stale_source_refs": [
+                {
+                  "evidence_id": "stale-summary-gap",
+                  "status": "stale",
+                  "reason": "superseded by XY-952 fixture-backed contract",
+                  "superseded_by": "xy952-summary-contract"
+                }
+              ],
+              "superseded_source_refs": [
+                {
+                  "evidence_id": "superseded-live-evolution-loss",
+                  "status": "superseded",
+                  "reason": "XY-905 live report superseded the old loss",
+                  "superseded_by": "xy905-live-evolution-pass"
+                }
+              ],
+              "tombstone_source_refs": [
+                {
+                  "evidence_id": "summary-ttl-tombstone",
+                  "status": "tombstoned",
+                  "reason": "TTL invalidation suppresses the parity claim"
+                }
+              ],
+              "unsupported_claim_flags": [
+                {
+                  "claim_id": "managed_memory_parity",
+                  "message": "Fixture-backed contract evidence is not managed-memory parity evidence."
+                }
+              ]
+            }
+          }
+        ],
+        "latency_ms": 1.1,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "summary-gap-recorded",
+      "ts": "2026-06-15T08:00:00Z",
+      "actor": "agent",
+      "action": "recorded_not_tested_stage",
+      "evidence_ids": ["stale-summary-gap"],
+      "summary": "The stage ledger recorded memory summary behavior as not_tested."
+    },
+    {
+      "event_id": "temporary-parity-claim-expired",
+      "ts": "2026-06-16T00:00:00Z",
+      "actor": "worker",
+      "action": "ttl_invalidated_claim",
+      "evidence_ids": ["summary-ttl-tombstone"],
+      "summary": "The temporary parity claim was tombstoned."
+    },
+    {
+      "event_id": "xy952-contract-recorded",
+      "ts": "2026-06-16T02:30:00Z",
+      "actor": "agent",
+      "action": "recorded_summary_contract",
+      "evidence_ids": ["xy952-summary-contract"],
+      "summary": "The summary/source-trace contract became fixture-backed."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Show the current memory summary surface and explain why stale, tombstoned, and unsupported derived memories are not top-of-mind current facts.",
+    "job_mode": "summary_readback",
+    "constraints": [
+      "cite_evidence",
+      "preserve_current_vs_historical_truth",
+      "expose_source_trace",
+      "do_not_claim_managed_memory_parity"
+    ]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "summary_contract_reviewable",
+        "text": "The memory summary is a derived reviewable readback artifact and must not mutate authoritative notes."
+      },
+      {
+        "claim_id": "summary_stage_now_fixture_backed",
+        "text": "The memory-summary stage now has a fixture-backed reviewable source-trace contract."
+      },
+      {
+        "claim_id": "summary_preserves_tombstone",
+        "text": "The expired managed-memory parity claim is excluded from current top-of-mind memory."
+      },
+      {
+        "claim_id": "summary_excludes_unsupported_parity",
+        "text": "The local memory-summary contract is not evidence of parity with managed memory products."
+      }
+    ],
+    "must_not_include": [
+      "ELF has parity with managed memory products.",
+      "memory summaries are authoritative source notes",
+      "memory-summary and top-of-mind behavior are not encoded and should stay not_tested"
+    ],
+    "evidence_links": {
+      "summary_contract_reviewable": ["summary-contract-current"],
+      "summary_stage_now_fixture_backed": ["xy952-summary-contract"],
+      "summary_preserves_tombstone": ["summary-ttl-tombstone"],
+      "summary_excludes_unsupported_parity": ["summary-contract-non-parity-boundary"]
+    },
+    "answer_type": "reviewable_memory_summary",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "summary-contract-current",
+      "claim_id": "summary_contract_reviewable",
+      "requirement": "cite",
+      "quote": "derived reviewable readback artifacts"
+    },
+    {
+      "evidence_id": "xy952-summary-contract",
+      "claim_id": "summary_stage_now_fixture_backed",
+      "requirement": "cite",
+      "quote": "fixture-backed reviewable source-trace contract"
+    },
+    {
+      "evidence_id": "summary-ttl-tombstone",
+      "claim_id": "summary_preserves_tombstone",
+      "requirement": "cite",
+      "quote": "must be excluded from current top-of-mind memory"
+    },
+    {
+      "evidence_id": "summary-contract-non-parity-boundary",
+      "claim_id": "summary_excludes_unsupported_parity",
+      "requirement": "cite",
+      "quote": "not evidence of parity"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "stale-summary-gap-current",
+      "type": "stale_fact",
+      "evidence_ids": ["stale-summary-gap"],
+      "failure_if_used": true
+    },
+    {
+      "trap_id": "temporary-parity-claim-current",
+      "type": "stale_fact",
+      "evidence_ids": ["summary-temporary-claim"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "States that the summary is reviewable derived readback and identifies the current fixture-backed contract."
+      },
+      "evidence_grounding": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Summary entries and answer claims carry source refs or explicit unsupported-claim flags."
+      },
+      "lifecycle_behavior": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Stale, superseded, and tombstoned entries are downgraded or excluded instead of treated as current top-of-mind facts."
+      },
+      "trap_avoidance": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Avoids stale not_tested and expired parity traps as current facts."
+      },
+      "uncertainty_handling": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Unsupported managed-memory parity is flagged or excluded, not silently asserted."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true",
+      "stale, superseded, or tombstoned memory must not appear as current top-of-mind",
+      "derived summary entries must have source refs or unsupported-claim flags"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "state_blocker"
+  },
+  "memory_summary": {
+    "required_categories": [
+      "top_of_mind",
+      "background",
+      "stale",
+      "superseded",
+      "tombstone",
+      "derived_project_profile"
+    ]
+  },
+  "tags": [
+    "synthetic",
+    "memory_summary",
+    "source_trace",
+    "reviewable_derived_readback",
+    "no_live_claim"
+  ]
+}
