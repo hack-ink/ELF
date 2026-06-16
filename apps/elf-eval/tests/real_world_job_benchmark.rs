@@ -4120,9 +4120,9 @@ fn assert_dreaming_readiness_baseline_counts(ledger: &Value, stages: &[Value]) -
 
 fn assert_dreaming_readiness_markdown_boundaries(markdown: &str) {
 	assert!(
-		markdown.contains(
-			"`improved`: current-vs-historical correctness, preference evolution, and reviewable consolidation"
-		)
+		markdown
+			.contains("`improved`: current-vs-historical correctness, preference evolution, and")
+			&& markdown.contains("reviewable consolidation")
 	);
 	assert!(markdown.contains("`regressed`: none"));
 	assert!(markdown.contains("the XY-905 run passes all six memory-evolution jobs"));
