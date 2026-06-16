@@ -105,6 +105,10 @@ cleanup, use `docs/guide/single_user_production.md`.
   report that scores ELF redaction, exclusions, source ids, evidence binding, and no
   secret leakage while preserving typed blocked/untested boundaries for agentmemory
   and claude-mem capture breadth.
+- `2026-06-16-live-consolidation-proposal-scoring-report.md`: XY-934 live
+  consolidation proposal scoring report that separates fixture-backed consolidation
+  passes from service-backed live proposal materialization, lineage, confidence,
+  unsupported-claim flags, and apply/defer/discard audit evidence.
 - `2026-06-11-mem0-openmemory-history-ui-export-report.md`: XY-924 plus XY-931
   mem0/OpenMemory local OSS history, preference-correction, deletion-audit,
   personalization, and export-readback comparison with normalized
