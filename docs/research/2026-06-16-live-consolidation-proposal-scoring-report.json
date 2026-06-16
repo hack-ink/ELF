@@ -1,0 +1,137 @@
+{
+  "schema": "elf.live_consolidation_proposal_scoring_report/v1",
+  "report_id": "xy-934-live-consolidation-proposal-scoring-2026-06-16",
+  "authority": "XY-934",
+  "created_at": "2026-06-16T00:00:00Z",
+  "commands": [
+    {
+      "command": "cargo make real-world-memory-consolidation",
+      "status": "pass",
+      "artifact": "tmp/real-world-memory/consolidation/report.json"
+    },
+    {
+      "command": "cargo make real-world-memory-live-consolidation",
+      "status": "pass",
+      "artifact": "tmp/real-world-memory/live-consolidation/summary.json"
+    }
+  ],
+  "fixture_aggregate": {
+    "suite_id": "consolidation",
+    "evidence_class": "fixture_backed",
+    "encoded_job_count": 4,
+    "suite_status": "pass",
+    "proposal_count": 4,
+    "source_mutation_count": 0,
+    "proposal_unsupported_claim_count": 1,
+    "lineage_completeness": 1.0,
+    "review_action_correctness": 1.0,
+    "executable_gap_count": 0
+  },
+  "live_consolidation_results": {
+    "elf_live_real_world": {
+      "evidence_class": "live_real_world",
+      "suite_status": "pass",
+      "encoded_job_count": 4,
+      "proposal_count": 4,
+      "source_mutation_count": 0,
+      "proposal_unsupported_claim_count": 1,
+      "lineage_completeness": 1.0,
+      "review_action_correctness": 1.0,
+      "review_event_count": 6,
+      "artifact": "tmp/real-world-memory/live-consolidation/elf-report.json",
+      "materialization_artifact": "tmp/real-world-memory/live-consolidation/elf-materialization.json"
+    },
+    "qmd_live_real_world": {
+      "evidence_class": "live_real_world",
+      "suite_status": "not_encoded",
+      "encoded_job_count": 4,
+      "proposal_count": 0,
+      "artifact": "tmp/real-world-memory/live-adapters/qmd-report.json"
+    }
+  },
+  "jobs": [
+    {
+      "job_id": "consolidation-project-summary-apply-001",
+      "status": "pass",
+      "proposal_kind": "project_summary",
+      "source_lineage_count": 2,
+      "usefulness_score": 0.93,
+      "min_usefulness_score": 0.8,
+      "review_action": "apply",
+      "final_review_state": "applied",
+      "review_event_count": 2,
+      "unsupported_claim_flag_count": 0,
+      "source_mutation_count": 0
+    },
+    {
+      "job_id": "consolidation-weekly-decision-summary-apply-001",
+      "status": "pass",
+      "proposal_kind": "weekly_decision_summary",
+      "source_lineage_count": 2,
+      "usefulness_score": 0.91,
+      "min_usefulness_score": 0.8,
+      "review_action": "apply",
+      "final_review_state": "applied",
+      "review_event_count": 2,
+      "unsupported_claim_flag_count": 0,
+      "source_mutation_count": 0
+    },
+    {
+      "job_id": "consolidation-preference-candidate-defer-001",
+      "status": "pass",
+      "proposal_kind": "preference_candidate",
+      "source_lineage_count": 2,
+      "usefulness_score": 0.86,
+      "min_usefulness_score": 0.75,
+      "review_action": "defer",
+      "final_review_state": "archived",
+      "review_event_count": 1,
+      "unsupported_claim_flag_count": 0,
+      "source_mutation_count": 0
+    },
+    {
+      "job_id": "consolidation-contradiction-report-discard-001",
+      "status": "pass",
+      "proposal_kind": "contradiction_report",
+      "source_lineage_count": 3,
+      "usefulness_score": 0.9,
+      "min_usefulness_score": 0.8,
+      "review_action": "discard",
+      "final_review_state": "rejected",
+      "review_event_count": 1,
+      "unsupported_claim_flag_count": 1,
+      "source_mutation_count": 0
+    }
+  ],
+  "reference_positions": [
+    {
+      "project": "qmd",
+      "position": "untested",
+      "reason": "qmd keeps consolidation jobs typed not_encoded in the full live sweep; no proposal generation or review-action audit runner exists for qmd."
+    },
+    {
+      "project": "managed_dreaming_memory_systems",
+      "position": "product_reference",
+      "reason": "Managed dreaming motivates the derived proposal-review shape, but no contained runner emits comparable source ids, confidence, unsupported-claim flags, and review audit artifacts."
+    },
+    {
+      "project": "always_on_memory_agent_patterns",
+      "position": "product_reference",
+      "reason": "Always-on scheduling remains a reference only; XY-934 does not implement scheduled consolidation and does not allow silent source-of-truth rewrites."
+    }
+  ],
+  "claim_boundary": {
+    "allowed": [
+      "ELF live consolidation self-checks pass for proposal materialization, source lineage, confidence/usefulness thresholds, unsupported-claim flags, and apply/defer/discard audit transitions.",
+      "Fixture consolidation passes and live service-backed consolidation evidence are separate evidence classes.",
+      "qmd and other tracked projects remain untested or reference-only for live consolidation proposal scoring until a contained runner emits comparable artifacts.",
+      "Derived-output safety claims are tied to source lineage, immutable source snapshots, zero source mutations, and review-action artifacts."
+    ],
+    "not_allowed": [
+      "Do not claim scheduled production consolidation exists.",
+      "Do not claim live provider-generated consolidation quality; the accepted elf.consolidation/v1 service boundary is deterministic fixture/manual proposal materialization.",
+      "Do not claim ELF broadly beats managed dreaming, Always-On Memory Agent, agentmemory, qmd, or llm-wiki on consolidation without comparable contained live runners.",
+      "Do not mix knowledge-page rebuild/lint scoring into the consolidation claim."
+    ]
+  }
+}

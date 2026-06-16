@@ -478,11 +478,11 @@
     {
       "scenario_id": "consolidation",
       "scenario": "consolidation",
-      "current_elf_evidence": "ELF fixture-backed consolidation passes, but live_real_world consolidation is not_encoded.",
-      "strongest_competitor_or_reference": "agentmemory, managed dreaming references, llm-wiki",
-      "current_competitor_evidence": "Manifest projects do not yet have live consolidation scoring; llm-wiki knowledge workflow is research_gate not_encoded.",
-      "current_state": "Fixture-only ELF evidence is useful, but no live proposal-generation parity claim is allowed.",
-      "next_measurement": "Run a reviewable consolidation-worker benchmark that emits proposals, source refs, unsupported-claim flags, and apply/discard/defer audit events."
+      "current_elf_evidence": "ELF fixture-backed consolidation passes, and XY-934 adds live_real_world service-backed proposal scoring with source lineage, confidence/usefulness, unsupported-claim flags, apply/defer/discard audit, and zero source mutations.",
+      "strongest_competitor_or_reference": "managed dreaming, Always-On Memory Agent patterns, agentmemory, llm-wiki",
+      "current_competitor_evidence": "No direct live competitor runner emits comparable consolidation artifacts; qmd remains not_encoded and managed dreaming plus Always-On Memory Agent patterns are product references only.",
+      "current_state": "ELF has live consolidation self-check evidence, but no broad consolidation superiority or direct competitor parity claim is allowed without contained external runners.",
+      "next_measurement": "Add contained competitor/reference runners only if they can emit source ids, confidence, unsupported-claim flags, and review-action audit artifacts."
     },
     {
       "scenario_id": "knowledge_pages",
