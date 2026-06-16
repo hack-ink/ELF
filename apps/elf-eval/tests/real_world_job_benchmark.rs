@@ -197,6 +197,21 @@ fn dreaming_readiness_stage_ledger_markdown_path() -> Result<PathBuf> {
 		.join("2026-06-16-dreaming-readiness-stage-ledger.md"))
 }
 
+fn live_temporal_reconciliation_report_json_path() -> Result<PathBuf> {
+	Ok(workspace_root()?
+		.join("docs")
+		.join("research")
+		.join("2026-06-16-live-temporal-reconciliation-report.json"))
+}
+
+fn live_temporal_reconciliation_report_markdown_path() -> Result<PathBuf> {
+	Ok(workspace_root()?
+		.join("docs")
+		.join("guide")
+		.join("benchmarking")
+		.join("2026-06-16-live-temporal-reconciliation-report.md"))
+}
+
 fn competitor_strength_matrix_path() -> Result<PathBuf> {
 	Ok(workspace_root()?
 		.join("docs")
@@ -2557,6 +2572,94 @@ fn assert_current_report_text_boundaries(
 }
 
 #[test]
+fn live_temporal_reconciliation_report_records_xy905_before_after() -> Result<()> {
+	let report = serde_json::from_str::<Value>(&fs::read_to_string(
+		live_temporal_reconciliation_report_json_path()?,
+	)?)?;
+	let markdown = fs::read_to_string(live_temporal_reconciliation_report_markdown_path()?)?;
+	let benchmarking_index = fs::read_to_string(benchmarking_index_path()?)?;
+	let readme = fs::read_to_string(readme_path()?)?;
+
+	assert_eq!(
+		report.pointer("/schema").and_then(Value::as_str),
+		Some("elf.live_temporal_reconciliation_report/v1")
+	);
+	assert_eq!(report.pointer("/authority").and_then(Value::as_str), Some("XY-905"));
+	assert_eq!(
+		report
+			.pointer("/baseline/elf_memory_evolution/job_status_counts/pass")
+			.and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
+		report
+			.pointer("/baseline/elf_memory_evolution/job_status_counts/wrong_result")
+			.and_then(Value::as_u64),
+		Some(5)
+	);
+	assert_eq!(
+		report
+			.pointer("/post_stage/elf_memory_evolution/job_status_counts/pass")
+			.and_then(Value::as_u64),
+		Some(6)
+	);
+	assert_eq!(
+		report
+			.pointer("/post_stage/elf_memory_evolution/job_status_counts/wrong_result")
+			.and_then(Value::as_u64),
+		Some(0)
+	);
+	assert_eq!(
+		report.pointer("/post_stage/elf_memory_evolution/suite_status").and_then(Value::as_str),
+		Some("pass")
+	);
+	assert_eq!(
+		report.pointer("/post_stage/qmd_memory_evolution/suite_status").and_then(Value::as_str),
+		Some("wrong_result")
+	);
+	assert_eq!(
+		report
+			.pointer("/comparison_judgment/current_vs_historical_correctness")
+			.and_then(Value::as_str),
+		Some("improved")
+	);
+	assert_eq!(
+		report
+			.pointer("/comparison_judgment/deletion_ttl_tombstone_behavior")
+			.and_then(Value::as_str),
+		Some("unchanged")
+	);
+	assert!(array_contains_str(
+		&report,
+		"/trace_contract/answer_fields",
+		"selected_historical_evidence"
+	)?);
+	assert!(array_contains_str(
+		&report,
+		"/trace_contract/materialization_fields",
+		"current_winner_evidence_ids"
+	)?);
+	assert!(array_contains_str(
+		&report,
+		"/trace_contract/trace_stages",
+		"temporal_reconciliation.conflict_candidates"
+	)?);
+	assert!(report.pointer("/trace_contract/negative_gate").and_then(Value::as_str).is_some_and(
+		|gate| gate.contains("selected conflict evidence id") && gate.contains("wrong_result")
+	));
+	assert!(markdown.contains("ELF passing all six memory-evolution jobs"));
+	assert!(markdown.contains("selected-but-not-narrated conflicts as `wrong_result`"));
+	assert!(markdown.contains("Do not claim ELF beats Graphiti/Zep"));
+	assert!(benchmarking_index.contains("2026-06-16-live-temporal-reconciliation-report.md"));
+	assert!(
+		readme.contains("Live Temporal Reconciliation Report - June 16, 2026")
+			&& readme.contains("now reports ELF live `memory_evolution` as 6/6 pass")
+	);
+
+	Ok(())
+}
+
+#[test]
 fn qmd_trace_replay_diagnostics_report_preserves_claim_boundaries() -> Result<()> {
 	let report = serde_json::from_str::<Value>(&fs::read_to_string(
 		trace_replay_diagnostics_report_path()?,
@@ -3356,10 +3459,13 @@ fn assert_operator_facing_strength_profile_boundaries(
 	assert!(readme.contains("consolidation proposal review"));
 	assert!(readme.contains("knowledge-page rebuild/lint"));
 	assert!(readme.contains("operator-debugging fixtures"));
-	assert!(readme.contains("memory-evolution wrong results"));
+	assert!(!readme.contains("memory-evolution wrong results"));
+	assert!(readme.contains("Live temporal reconciliation after XY-905"));
+	assert!(readme.contains("now reports ELF live `memory_evolution` as 6/6 pass"));
+	assert!(readme.contains("broad qmd, Graphiti/Zep, mem0/OpenMemory, Letta"));
 	assert!(readme.contains("production-ops operator boundaries"));
 	assert!(readme.contains("core/archival live adapter gap"));
-	assert!(readme.contains("context-trajectory measurement"));
+	assert!(collapse_whitespace(readme).contains("blocked context-trajectory measurement"));
 	assert!(
 		readme
 			.contains("consolidation, knowledge, capture, and core/archival typed non-pass states")
@@ -3745,7 +3851,7 @@ fn assert_dreaming_readiness_stage_shape(ledger: &Value, stages: &[Value]) -> Re
 			"{stage_id} missing evidence files"
 		);
 
-		for count_field in ["pass", "wrong_result", "blocked", "not_tested"] {
+		for count_field in string_array_at(ledger, "/count_fields")? {
 			let pointer = format!("/baseline_counts/{count_field}");
 
 			assert!(
@@ -3770,12 +3876,20 @@ fn assert_dreaming_readiness_baseline_counts(ledger: &Value, stages: &[Value]) -
 
 	assert_eq!(current.pointer("/baseline_counts/pass").and_then(Value::as_u64), Some(1));
 	assert_eq!(current.pointer("/baseline_counts/wrong_result").and_then(Value::as_u64), Some(5));
-	assert_eq!(current.pointer("/comparison_judgment").and_then(Value::as_str), Some("unchanged"));
+	assert_eq!(current.pointer("/post_stage_counts/pass").and_then(Value::as_u64), Some(6));
+	assert_eq!(current.pointer("/post_stage_counts/wrong_result").and_then(Value::as_u64), Some(0));
+	assert_eq!(current.pointer("/comparison_judgment").and_then(Value::as_str), Some("improved"));
 	assert!(
 		current
 			.pointer("/baseline_basis")
 			.and_then(Value::as_str)
 			.is_some_and(|basis| basis.contains("five current-vs-historical jobs"))
+	);
+	assert!(
+		current
+			.pointer("/post_stage_basis")
+			.and_then(Value::as_str)
+			.is_some_and(|basis| basis.contains("passes all six encoded jobs"))
 	);
 
 	let preference = find_by_field(stages, "/stage_id", "preference_evolution")?;
@@ -3784,10 +3898,30 @@ fn assert_dreaming_readiness_baseline_counts(ledger: &Value, stages: &[Value]) -
 		preference.pointer("/baseline_counts/wrong_result").and_then(Value::as_u64),
 		Some(1)
 	);
+	assert_eq!(preference.pointer("/post_stage_counts/pass").and_then(Value::as_u64), Some(1));
+	assert_eq!(
+		preference.pointer("/post_stage_counts/wrong_result").and_then(Value::as_u64),
+		Some(0)
+	);
+	assert_eq!(
+		preference.pointer("/comparison_judgment").and_then(Value::as_str),
+		Some("improved")
+	);
 
 	let tombstone = find_by_field(stages, "/stage_id", "deletion_ttl_tombstone_behavior")?;
 
 	assert_eq!(tombstone.pointer("/baseline_counts/pass").and_then(Value::as_u64), Some(1));
+	assert_eq!(tombstone.pointer("/post_stage_counts/pass").and_then(Value::as_u64), Some(1));
+	assert_eq!(
+		tombstone.pointer("/comparison_judgment").and_then(Value::as_str),
+		Some("unchanged")
+	);
+	assert!(
+		tombstone
+			.pointer("/post_stage_basis")
+			.and_then(Value::as_str)
+			.is_some_and(|basis| basis.contains("tombstone and invalidation evidence"))
+	);
 
 	let consolidation = find_by_field(stages, "/stage_id", "reviewable_consolidation")?;
 
@@ -3812,9 +3946,11 @@ fn assert_dreaming_readiness_baseline_counts(ledger: &Value, stages: &[Value]) -
 	assert_eq!(retest.pointer("/baseline_counts/blocked").and_then(Value::as_u64), Some(2));
 	assert_eq!(retest.pointer("/baseline_counts/not_tested").and_then(Value::as_u64), Some(11));
 	assert_eq!(retest.pointer("/baseline_counts/not_encoded").and_then(Value::as_u64), Some(11));
-	assert!(array_at(ledger, "/summary/improved")?.is_empty());
+	assert!(array_contains_str(ledger, "/summary/improved", "current_vs_historical_correctness")?);
+	assert!(array_contains_str(ledger, "/summary/improved", "preference_evolution")?);
 	assert!(array_at(ledger, "/summary/regressed")?.is_empty());
-	assert!(array_contains_str(ledger, "/summary/unchanged", "current_vs_historical_correctness")?);
+	assert!(array_contains_str(ledger, "/summary/unchanged", "deletion_ttl_tombstone_behavior")?);
+	assert!(array_contains_str(ledger, "/summary/unchanged", "final_competitor_retest_status")?);
 	assert!(array_contains_str(ledger, "/summary/blocked", "scheduled_memory_task_readiness")?);
 	assert!(array_contains_str(ledger, "/summary/not_tested", "proactive_brief_readiness")?);
 
@@ -3822,11 +3958,16 @@ fn assert_dreaming_readiness_baseline_counts(ledger: &Value, stages: &[Value]) -
 }
 
 fn assert_dreaming_readiness_markdown_boundaries(markdown: &str) {
-	assert!(markdown.contains("`improved`: none"));
+	assert!(
+		markdown.contains("`improved`: current-vs-historical correctness and preference evolution")
+	);
 	assert!(markdown.contains("`regressed`: none"));
-	assert!(markdown.contains("live `memory_evolution` is not solved until"));
+	assert!(markdown.contains("the XY-905 run passes all six memory-evolution jobs"));
 	assert!(markdown.contains("XY-905"));
-	assert!(markdown.contains("Do not claim this ledger fixes temporal reconciliation"));
+	assert!(
+		markdown
+			.contains("Do not claim this ledger fixes preference history against mem0/OpenMemory")
+	);
 }
 
 #[test]
@@ -4051,7 +4192,7 @@ fn assert_root_aggregate_summary(report: &Value) {
 	);
 	assert_eq!(
 		report.pointer("/summary/update_rationale_available_count").and_then(Value::as_u64),
-		Some(10)
+		Some(11)
 	);
 	assert_eq!(
 		report.pointer("/summary/temporal_validity_not_encoded_count").and_then(Value::as_u64),
@@ -4167,6 +4308,7 @@ fn assert_root_aggregate_jobs(report: &Value) -> Result<()> {
 	let redaction = find_by_field(jobs, "/job_id", "capture-redaction-exclusion-001")?;
 	let personalization = find_by_field(jobs, "/job_id", "personalization-scoped-preference-001")?;
 	let relation_job = find_by_field(jobs, "/job_id", "memory-evolution-relation-temporal-001")?;
+	let delete_job = find_by_field(jobs, "/job_id", "memory-evolution-delete-ttl-001")?;
 	let stage_job = find_by_field(jobs, "/job_id", "operator-debug-stage-attribution-001")?;
 	let production_restore =
 		find_by_field(jobs, "/job_id", "production-ops-restore-cold-start-001")?;
@@ -4183,6 +4325,15 @@ fn assert_root_aggregate_jobs(report: &Value) -> Result<()> {
 	assert_eq!(personalization.pointer("/scope_correct_count").and_then(Value::as_u64), Some(1));
 	assert_eq!(stage_job.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(relation_job.pointer("/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(delete_job.pointer("/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(
+		delete_job.pointer("/evolution/selected_tombstone_evidence/0").and_then(Value::as_str),
+		Some("delete-tombstone")
+	);
+	assert_eq!(
+		delete_job.pointer("/evolution/selected_invalidation_evidence/0").and_then(Value::as_str),
+		Some("delete-tombstone")
+	);
 	assert_eq!(core_fallback.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(stale_core.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(
@@ -4410,6 +4561,18 @@ fn memory_evolution_fixtures_report_temporal_and_staleness_metrics() -> Result<(
 			.and_then(Value::as_bool),
 		Some(true)
 	);
+	assert_eq!(
+		preference_job.pointer("/evolution/selected_current_evidence/0").and_then(Value::as_str),
+		Some("pref-current-concise-rationale")
+	);
+	assert_eq!(
+		preference_job.pointer("/evolution/selected_historical_evidence/0").and_then(Value::as_str),
+		Some("pref-old-terse-bullets")
+	);
+	assert_eq!(
+		preference_job.pointer("/evolution/selected_rationale_evidence/0").and_then(Value::as_str),
+		Some("pref-update-rationale")
+	);
 	assert_eq!(relation_job.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(
 		relation_job.pointer("/evolution/temporal_validity_not_encoded").and_then(Value::as_bool),
@@ -4423,6 +4586,61 @@ fn memory_evolution_fixtures_report_temporal_and_staleness_metrics() -> Result<(
 	let follow_ups = array_at(&report, "/follow_ups")?;
 
 	assert!(follow_ups.is_empty());
+
+	Ok(())
+}
+
+#[test]
+fn memory_evolution_conflict_still_fails_when_selected_evidence_is_not_narrated() -> Result<()> {
+	let fixture_path =
+		evolution_fixture_dir().join("preference_changed_current_vs_historical.json");
+	let mut fixture = serde_json::from_str::<Value>(&fs::read_to_string(fixture_path)?)?;
+
+	set_json_pointer(
+		&mut fixture,
+		"/corpus/adapter_response/answer/evidence_ids",
+		serde_json::json!([
+			"pref-current-concise-rationale",
+			"pref-old-terse-bullets",
+			"pref-update-rationale"
+		]),
+	)?;
+	set_json_pointer(
+		&mut fixture,
+		"/corpus/adapter_response/answer/claims",
+		serde_json::json!([
+			{
+				"claim_id": "current_preference",
+				"text": "Use concise prose with explicit evidence before bullets.",
+				"evidence_ids": ["pref-current-concise-rationale", "pref-update-rationale"],
+				"confidence": "high"
+			},
+			{
+				"claim_id": "preference_update_rationale",
+				"text": "The preference changed because terse bullets hid rationale.",
+				"evidence_ids": ["pref-update-rationale"],
+				"confidence": "high"
+			}
+		]),
+	)?;
+
+	let temp_dir =
+		env::temp_dir().join(format!("elf-real-world-memory-conflict-test-{}", process::id()));
+
+	fs::create_dir_all(&temp_dir)?;
+	fs::write(temp_dir.join("conflict.json"), serde_json::to_vec_pretty(&fixture)?)?;
+
+	let report = run_json_report_from(temp_dir)?;
+	let jobs = array_at(&report, "/jobs")?;
+	let job = find_by_field(jobs, "/job_id", "memory-evolution-preference-001")?;
+
+	assert_eq!(job.pointer("/status").and_then(Value::as_str), Some("wrong_result"));
+	assert_eq!(job.pointer("/evolution/conflict_detection_count").and_then(Value::as_u64), Some(0));
+	assert!(array_contains_str(
+		job,
+		"/evolution/selected_but_not_narrated_evidence",
+		"pref-old-terse-bullets"
+	)?);
 
 	Ok(())
 }

@@ -311,6 +311,10 @@ struct MemoryEvolution {
 	#[serde(default)]
 	historical_evidence_ids: Vec<String>,
 	#[serde(default)]
+	tombstone_evidence_ids: Vec<String>,
+	#[serde(default)]
+	invalidation_evidence_ids: Vec<String>,
+	#[serde(default)]
 	stale_trap_ids: Vec<String>,
 	#[serde(default)]
 	conflicts: Vec<EvolutionConflict>,
@@ -1170,6 +1174,16 @@ struct EvolutionSummary {
 struct EvolutionJobReport {
 	current_evidence: Vec<String>,
 	historical_evidence: Vec<String>,
+	tombstone_evidence: Vec<String>,
+	invalidation_evidence: Vec<String>,
+	selected_current_evidence: Vec<String>,
+	selected_historical_evidence: Vec<String>,
+	selected_rationale_evidence: Vec<String>,
+	selected_tombstone_evidence: Vec<String>,
+	selected_invalidation_evidence: Vec<String>,
+	conflict_candidate_evidence: Vec<String>,
+	retrieved_but_dropped_evidence: Vec<String>,
+	selected_but_not_narrated_evidence: Vec<String>,
 	stale_trap_ids_used: Vec<String>,
 	stale_answer_count: usize,
 	conflict_count: usize,
@@ -1858,8 +1872,12 @@ fn validate_memory_evolution(job: &RealWorldJob, path: &Path) -> Result<()> {
 	let trap_ids =
 		job.negative_traps.iter().map(|trap| trap.trap_id.as_str()).collect::<BTreeSet<_>>();
 
-	for evidence_id in
-		evolution.current_evidence_ids.iter().chain(evolution.historical_evidence_ids.iter())
+	for evidence_id in evolution
+		.current_evidence_ids
+		.iter()
+		.chain(evolution.historical_evidence_ids.iter())
+		.chain(evolution.tombstone_evidence_ids.iter())
+		.chain(evolution.invalidation_evidence_ids.iter())
 	{
 		ensure_known_evidence(path, &evidence_ids, evidence_id)?;
 	}
@@ -2381,6 +2399,7 @@ fn evolution_job_report(
 	forbidden_claim_count: usize,
 ) -> Option<EvolutionJobReport> {
 	let evolution = job.memory_evolution.as_ref()?;
+	let produced = produced_evidence_ids(answer);
 	let stale_trap_ids_used = stale_trap_ids_used(job, evolution, trap_ids_used);
 	let stale_answer_count =
 		stale_answer_count(job, evolution, &stale_trap_ids_used, forbidden_claim_count);
@@ -2417,6 +2436,28 @@ fn evolution_job_report(
 	Some(EvolutionJobReport {
 		current_evidence: evolution.current_evidence_ids.clone(),
 		historical_evidence: evolution.historical_evidence_ids.clone(),
+		tombstone_evidence: evolution.tombstone_evidence_ids.clone(),
+		invalidation_evidence: evolution.invalidation_evidence_ids.clone(),
+		selected_current_evidence: selected_evolution_evidence(
+			&evolution.current_evidence_ids,
+			&produced,
+		),
+		selected_historical_evidence: selected_evolution_evidence(
+			&evolution.historical_evidence_ids,
+			&produced,
+		),
+		selected_rationale_evidence: selected_rationale_evidence(evolution, &produced),
+		selected_tombstone_evidence: selected_evolution_evidence(
+			&evolution.tombstone_evidence_ids,
+			&produced,
+		),
+		selected_invalidation_evidence: selected_evolution_evidence(
+			&evolution.invalidation_evidence_ids,
+			&produced,
+		),
+		conflict_candidate_evidence: selected_conflict_candidate_evidence(evolution, &produced),
+		retrieved_but_dropped_evidence: trace_dropped_evidence(answer),
+		selected_but_not_narrated_evidence: selected_but_not_narrated_evidence(answer),
 		stale_answer_count,
 		stale_trap_ids_used,
 		conflict_count: evolution.conflicts.len(),
@@ -2446,6 +2487,77 @@ fn stale_answer_count(
 	let stale_forbidden_claims = if stale_trap_count > 0 { forbidden_claim_count } else { 0 };
 
 	stale_trap_ids_used.len().max(stale_forbidden_claims)
+}
+
+fn selected_evolution_evidence(
+	evidence_ids: &[String],
+	produced: &BTreeSet<String>,
+) -> Vec<String> {
+	evidence_ids.iter().filter(|evidence_id| produced.contains(*evidence_id)).cloned().collect()
+}
+
+fn selected_rationale_evidence(
+	evolution: &MemoryEvolution,
+	produced: &BTreeSet<String>,
+) -> Vec<String> {
+	evolution.update_rationale.as_ref().map_or_else(Vec::new, |rationale| {
+		selected_evolution_evidence(&rationale.evidence_ids, produced)
+	})
+}
+
+fn selected_conflict_candidate_evidence(
+	evolution: &MemoryEvolution,
+	produced: &BTreeSet<String>,
+) -> Vec<String> {
+	let mut evidence_ids = Vec::new();
+
+	for conflict in &evolution.conflicts {
+		push_if_produced(&mut evidence_ids, conflict.current_evidence_id.as_str(), produced);
+		push_if_produced(&mut evidence_ids, conflict.historical_evidence_id.as_str(), produced);
+
+		if let Some(evidence_id) = &conflict.resolved_by_evidence_id {
+			push_if_produced(&mut evidence_ids, evidence_id.as_str(), produced);
+		}
+	}
+
+	evidence_ids
+}
+
+fn push_if_produced(out: &mut Vec<String>, evidence_id: &str, produced: &BTreeSet<String>) {
+	if produced.contains(evidence_id) && !out.iter().any(|id| id == evidence_id) {
+		out.push(evidence_id.to_string());
+	}
+}
+
+fn trace_dropped_evidence(answer: &ProducedAnswer) -> Vec<String> {
+	let mut evidence = Vec::new();
+
+	if let Some(trace) = &answer.trace_explainability {
+		for stage in &trace.stages {
+			for evidence_id in &stage.dropped_evidence {
+				if !evidence.iter().any(|id| id == evidence_id) {
+					evidence.push(evidence_id.clone());
+				}
+			}
+		}
+	}
+
+	evidence
+}
+
+fn selected_but_not_narrated_evidence(answer: &ProducedAnswer) -> Vec<String> {
+	let narrated = answer
+		.claims
+		.iter()
+		.flat_map(|claim| claim.evidence_ids.iter().map(String::as_str))
+		.collect::<BTreeSet<_>>();
+
+	answer
+		.evidence_ids
+		.iter()
+		.filter(|evidence_id| !narrated.contains(evidence_id.as_str()))
+		.cloned()
+		.collect()
 }
 
 fn stale_trap_ids_used(
@@ -4831,8 +4943,8 @@ fn render_markdown_evolution(out: &mut String, report: &RealWorldReport) {
 		"- History readback encoded: `{}`\n\n",
 		report.evolution.history_readback_encoded_count
 	));
-	out.push_str("| Suite | Job | Current Evidence | Historical Evidence | Stale Traps Used | Conflict Count | Detected | Update Rationale | Temporal Validity | History Readback | Follow-up |\n");
-	out.push_str("| --- | --- | --- | --- | --- | ---: | ---: | --- | --- | --- | --- |\n");
+	out.push_str("| Suite | Job | Current Evidence | Historical Evidence | Tombstone/Invalidation | Selected Current | Selected Historical | Selected Rationale | Selected Tombstone/Invalidation | Selected But Not Narrated | Stale Traps Used | Conflict Count | Detected | Update Rationale | Temporal Validity | History Readback | Follow-up |\n");
+	out.push_str("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | ---: | ---: | --- | --- | --- | --- |\n");
 
 	for job in &report.jobs {
 		let Some(evolution) = &job.evolution else {
@@ -4840,11 +4952,35 @@ fn render_markdown_evolution(out: &mut String, report: &RealWorldReport) {
 		};
 
 		out.push_str(&format!(
-			"| {} | {} | `{}` | `{}` | `{}` | {} | {} | `{}` | `{}` | `{}` | {} |\n",
+			"| {} | {} | `{}` | `{}` | `{}` | `{}` | `{}` | `{}` | `{}` | `{}` | `{}` | {} | {} | `{}` | `{}` | `{}` | {} |\n",
 			md_cell(job.suite_id.as_str()),
 			md_cell(job.job_id.as_str()),
 			md_inline(evolution.current_evidence.join(", ").as_str()),
 			md_inline(evolution.historical_evidence.join(", ").as_str()),
+			md_inline(
+				evolution
+					.tombstone_evidence
+					.iter()
+					.chain(evolution.invalidation_evidence.iter())
+					.cloned()
+					.collect::<Vec<_>>()
+					.join(", ")
+					.as_str()
+			),
+			md_inline(evolution.selected_current_evidence.join(", ").as_str()),
+			md_inline(evolution.selected_historical_evidence.join(", ").as_str()),
+			md_inline(evolution.selected_rationale_evidence.join(", ").as_str()),
+			md_inline(
+				evolution
+					.selected_tombstone_evidence
+					.iter()
+					.chain(evolution.selected_invalidation_evidence.iter())
+					.cloned()
+					.collect::<Vec<_>>()
+					.join(", ")
+					.as_str()
+			),
+			md_inline(evolution.selected_but_not_narrated_evidence.join(", ").as_str()),
 			md_inline(evolution.stale_trap_ids_used.join(", ").as_str()),
 			evolution.conflict_count,
 			evolution.conflict_detection_count,

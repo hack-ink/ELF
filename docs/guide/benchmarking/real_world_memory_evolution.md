@@ -56,9 +56,14 @@ The runner reports memory evolution counters at summary, suite, and job levels:
 - `temporal_validity_not_encoded_count`: jobs that require temporal graph validity
   but are deliberately declared `not_encoded`; this should be `0` for the checked-in
   evolution fixture set.
+- selected lifecycle evidence fields at job level:
+  `selected_current_evidence`, `selected_historical_evidence`,
+  `selected_rationale_evidence`, `selected_tombstone_evidence`, and
+  `selected_invalidation_evidence`.
 - `unsupported_claim_count`: existing real-world job unsupported claim counter.
 
 Runnable jobs should have `stale_answer_count = 0`, nonzero conflict detection, and
 an update rationale when the fixture provides one. The relation temporal-validity job
 should report temporal validity as encoded and pass only when current and historical
-relation evidence are distinguished.
+relation evidence are distinguished. Delete/TTL jobs should keep tombstone or
+invalidation evidence selected while suppressing the deleted fact as a current answer.
