@@ -35,6 +35,8 @@ Question this index answers: "what must remain true?"
   and storage invariants.
 - `system_consolidation_proposals_v1.md`: Reviewable derived consolidation run and
   proposal contract over immutable source evidence.
+- `system_memory_summary_v1.md`: Reviewable current/background/stale/superseded/
+  tombstoned/derived memory summary and source-trace contract.
 - `system_knowledge_pages_v1.md`: Derived project/entity/concept/issue/decision page
   storage, rebuild, citation, and stale-source lint contract.
 - `system_competitive_parity_gate_v1.md`: Docker-only adoption gate that decides

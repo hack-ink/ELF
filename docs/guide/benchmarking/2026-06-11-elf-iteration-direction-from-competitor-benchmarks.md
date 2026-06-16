@@ -44,20 +44,20 @@ The strongest current statement is:
 
 | Metric | Value |
 | --- | ---: |
-| Jobs | `49` |
-| Encoded suites | `13` |
-| Pass | `44` |
+| Jobs | `50` |
+| Encoded suites | `14` |
+| Pass | `45` |
 | Blocked | `5` |
 | Wrong result | `0` |
 | Lifecycle fail | `0` |
 | Incomplete | `0` |
 | Not encoded | `0` |
 | Unsupported claim | `0` |
-| Mean score | `0.898` |
-| Evidence coverage | `111/111` |
-| Source-ref coverage | `111/111` |
-| Quote coverage | `111/111` |
-| Expected evidence recall | `100/100` |
+| Mean score | `0.900` |
+| Evidence coverage | `115/115` |
+| Source-ref coverage | `115/115` |
+| Quote coverage | `115/115` |
+| Expected evidence recall | `107/107` |
 
 This proves the fixture contract is broad and well controlled. It does not prove that
 every live adapter or every competitor runtime passes those scenarios.
@@ -136,7 +136,7 @@ one misleading score.
 | Source of truth | ELF has the strongest measured source-of-truth evidence. | Borrow memsearch's local canonical-store ergonomics without making files or vectors authoritative. |
 | Temporal memory | ELF fixture passes, but live memory evolution is wrong_result. | Prioritize current-vs-historical evidence links and Graphiti/Zep-style validity windows. |
 | Consolidation | ELF fixture passes and XY-934 adds live service-backed proposal materialization, lineage, confidence/usefulness, unsupported-claim flags, and apply/defer/discard audit; direct competitor runners remain untested. | Keep derived proposal review as the safety boundary and add competitor/reference runners only when they emit comparable artifacts. |
-| Knowledge pages | ELF fixture pages pass; live knowledge generation is not encoded. | Borrow llm-wiki lint/query-save loops, gbrain timelines, and graphify reports behind rebuild/lint benchmarks. |
+| Memory summaries and knowledge pages | ELF fixture pages pass, and XY-952 adds a fixture-backed `memory_summary` source-trace contract; live top-of-mind behavior and live knowledge generation are not encoded. | Borrow llm-wiki lint/query-save loops, gbrain timelines, graphify reports, and managed-memory review patterns behind source-linked summary and rebuild/lint benchmarks. |
 | Operator debugging | Fixture UX passes and the narrow live trace/viewer slice is scored: ELF passes, qmd ties replay/repair clarity but is wrong_result for trace hydration and candidate-drop visibility. | Expand coverage to OpenMemory and claude-mem UI/export or viewer runners before any broader operator-UX claim. |
 | Capture/write policy | ELF live capture/write-policy self-check passes with zero redaction leaks; qmd is `not_encoded`; agentmemory is `blocked`; claude-mem is `not_encoded`. | Borrow agentmemory/claude-mem capture breadth only after durable local hook/viewer evidence exists, while preserving redaction and evidence binding. |
 | Production ops | ELF has the strongest checked-in evidence, with private/credential gates blocked. | Keep Docker-first production proof and add private corpus only when an operator-owned manifest exists. |

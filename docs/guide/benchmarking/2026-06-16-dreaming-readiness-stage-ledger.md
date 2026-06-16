@@ -7,8 +7,8 @@ need the baseline command matrix, typed evidence status, post-stage outcome, and
 report shape required before claiming the stage improved.
 Inputs: `docs/research/2026-06-16-dreaming-readiness-stage-ledger.json`, the June 11
 competitor-strength, temporal-history, and iteration-direction reports, the XY-905
-June 16 live temporal reconciliation report, the consolidation proposal spec, and the
-checked-in real-world fixture suites.
+June 16 live temporal reconciliation report, the consolidation proposal spec, the
+memory summary spec, and the checked-in real-world fixture suites.
 Outputs: A stage-by-stage ledger that downstream issues can update with
 `improved`, `regressed`, `unchanged`, `blocked`, or `not_tested` judgments.
 
@@ -20,14 +20,13 @@ and now includes the XY-905 post-stage result for live temporal reconciliation.
 
 Current stage status:
 
-- `improved`: current-vs-historical correctness, preference evolution, and
-  reviewable consolidation.
+- `improved`: current-vs-historical correctness, preference evolution, reviewable
+  consolidation, and memory-summary/top-of-mind fixture readback.
 - `regressed`: none.
 - `unchanged`: deletion/TTL/tombstone behavior and the final competitor retest
   baseline.
 - `blocked`: scheduled-memory-task readiness.
-- `not_tested`: memory-summary/top-of-mind live behavior and proactive brief
-  readiness.
+- `not_tested`: proactive brief readiness.
 
 The known live `memory_evolution` loss is now repaired for the encoded ELF live
 adapter slice: the XY-905 run passes all six memory-evolution jobs and reports
@@ -39,6 +38,12 @@ Reviewable consolidation is also improved for the narrow ELF self-check: XY-934 
 service-backed proposal materialization, source lineage, confidence/usefulness,
 unsupported-claim flags, apply/defer/discard audit transitions, and zero source
 mutations. Direct competitor runners remain untested or product-reference only.
+
+Memory summary and top-of-mind behavior is improved only at the fixture-backed
+contract level: XY-952 adds a reviewable `elf.memory_summary/v1` source-trace fixture
+that distinguishes current top-of-mind, background, stale, superseded, tombstoned, and
+derived project-profile entries. It does not prove live top-of-mind product behavior or
+parity with managed memory products.
 
 ## Ledger Rules
 
@@ -64,7 +69,7 @@ mutations. Direct competitor runners remain untested or product-reference only.
 | Preference evolution and correction history | `cargo make real-world-memory-evolution`; `cargo make real-world-memory-live-adapters`; `cargo make openmemory-ui-export-readback` | Same commands; include mem0/OpenMemory boundary evidence | `pass=0`, `wrong_result=1`, `blocked=0`, `not_tested=0`, `not_encoded=0` | `pass=1`, `wrong_result=0`, `blocked=0`, `not_tested=0`, `not_encoded=0` | `improved` | Measure preference correction against mem0/OpenMemory history and UI/export surfaces before making any broader history-quality claim. |
 | Deletion, TTL, and tombstone behavior | `cargo make real-world-memory`; `cargo make real-world-memory-live-adapters` | Same commands | `pass=1`, `wrong_result=0`, `blocked=0`, `not_tested=0`, `not_encoded=0` | `pass=1`, `wrong_result=0`, `blocked=0`, `not_tested=0`, `not_encoded=0` | `unchanged` | Extend tombstone and TTL readback beyond the single encoded job into update/delete/recreate history cases. |
 | Reviewable consolidation | `cargo make real-world-memory-consolidation` | `cargo make real-world-memory-consolidation`; `cargo make real-world-memory-live-consolidation`; `cargo make real-world-memory-live-adapters` | `pass=4`, `wrong_result=0`, `blocked=0`, `not_tested=1`, `not_encoded=1` | `pass=4`, `wrong_result=0`, `blocked=0`, `not_tested=0`, `not_encoded=0` | `improved` | Keep Dreaming output derived and reviewable, and add direct competitor/reference runners only when they emit comparable source ids, confidence, unsupported-claim flags, and review audit artifacts. |
-| Memory summary and top-of-mind behavior | `cargo make real-world-memory-knowledge`; `cargo make real-world-memory-core-archival` | Same commands plus `cargo make real-world-memory-live-adapters` | `pass=8`, `wrong_result=0`, `blocked=0`, `not_tested=1`, `not_encoded=1` | not run by XY-905 | `not_tested` | Build summaries as cited, rebuildable derived pages or core blocks; do not turn hidden summaries into authoritative memory. |
+| Memory summary and top-of-mind behavior | `cargo make real-world-memory-knowledge`; `cargo make real-world-memory-core-archival` | `cargo make real-world-memory-summary`; `cargo make real-world-memory-knowledge`; `cargo make real-world-memory-core-archival`; `cargo make real-world-memory-live-adapters` | `pass=8`, `wrong_result=0`, `blocked=0`, `not_tested=1`, `not_encoded=1` | `pass=9`, `wrong_result=0`, `blocked=0`, `not_tested=0`, `not_encoded=0` | `improved` | Move from fixture-backed summary/source-trace readback into service-native admin readback and later live top-of-mind behavior; do not turn hidden summaries into authoritative memory. |
 | Proactive brief readiness | `cargo make real-world-first-generation-oss`; `cargo make real-world-job-operator-ux` | Same commands plus `cargo make real-world-memory-live-adapters` | `pass=0`, `wrong_result=0`, `blocked=0`, `not_tested=1`, `not_encoded=1` | not run by XY-905 | `not_tested` | Add direct proactive-brief fixtures before any pass claim; briefs must be source-linked and repairable. |
 | Scheduled memory task readiness | `cargo make real-world-memory-consolidation` | `cargo make real-world-memory-consolidation`; `cargo make real-world-memory-live-adapters` | `pass=0`, `wrong_result=0`, `blocked=1`, `not_tested=0`, `not_encoded=0` | not run by XY-905 | `blocked` | Scheduled runs are future work; start with queued derived proposal runs and keep operator review mandatory. |
 | Final competitor retest status | `cargo make real-world-memory-live-adapters`; `cargo make real-world-first-generation-oss`; `cargo make real-world-memory-graph-rag`; `cargo make openmemory-ui-export-readback`; `cargo make baseline-production-private-addendum` when operator input exists | Same commands; private/provider commands may remain typed blocked under XY-930 | `pass=22`, `wrong_result=5`, `blocked=2`, `not_tested=11`, `not_encoded=11` | partial XY-905 evidence: ELF live adapter `pass=40`, `wrong_result=0`, `blocked=5`, `not_encoded=10` | `unchanged` | Rerun the broader competitor matrix after each optimization; the XY-905 live adapter improvement does not replace private/provider or external competitor gates. |
@@ -77,7 +82,7 @@ mutations. Direct competitor runners remain untested or product-reference only.
 | Preference evolution and correction history | `docs/guide/benchmarking/2026-06-16-live-temporal-reconciliation-report.md`; `docs/research/2026-06-16-live-temporal-reconciliation-report.json`; `docs/guide/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md`; `docs/guide/benchmarking/2026-06-11-mem0-openmemory-history-ui-export-report.md`; `docs/research/2026-06-11-temporal-history-competitor-gap-report.json` |
 | Deletion, TTL, and tombstone behavior | `docs/guide/benchmarking/2026-06-16-live-temporal-reconciliation-report.md`; `docs/research/2026-06-16-live-temporal-reconciliation-report.json`; `docs/guide/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md`; `docs/guide/benchmarking/2026-06-11-measurement-coverage-audit.md` |
 | Reviewable consolidation | `docs/spec/system_consolidation_proposals_v1.md`; `apps/elf-eval/fixtures/real_world_memory/consolidation/`; `docs/guide/benchmarking/2026-06-16-live-consolidation-proposal-scoring-report.md`; `docs/research/2026-06-16-live-consolidation-proposal-scoring-report.json` |
-| Memory summary and top-of-mind behavior | `apps/elf-eval/fixtures/real_world_memory/knowledge/`; `apps/elf-eval/fixtures/real_world_memory/core_archival_memory/`; `docs/guide/benchmarking/2026-06-11-competitor-strength-adoption-report.md` |
+| Memory summary and top-of-mind behavior | `docs/spec/system_memory_summary_v1.md`; `apps/elf-eval/fixtures/real_world_memory/memory_summary/`; `apps/elf-eval/fixtures/real_world_memory/knowledge/`; `apps/elf-eval/fixtures/real_world_memory/core_archival_memory/`; `docs/guide/benchmarking/2026-06-11-competitor-strength-adoption-report.md` |
 | Proactive brief readiness | `docs/research/2026-06-08-agent-memory-selection.json`; `docs/guide/benchmarking/2026-06-11-first-generation-oss-continuity-source-store-report.md` |
 | Scheduled memory task readiness | `docs/spec/system_consolidation_proposals_v1.md`; `docs/research/2026-06-08-agent-memory-selection.json` |
 | Final competitor retest status | `docs/guide/benchmarking/2026-06-11-competitor-strength-adoption-report.md`; `docs/research/2026-06-11-competitor-strength-adoption-report.json`; `docs/guide/benchmarking/2026-06-11-graph-rag-scored-smoke-adapter-report.md`; `docs/guide/benchmarking/2026-06-11-first-generation-oss-continuity-source-store-report.md` |
@@ -109,6 +114,8 @@ Allowed:
   files.
 - The current ledger preserves typed non-pass states and records the XY-905 live
   memory-evolution improvement.
+- The current ledger records the XY-952 fixture-backed memory-summary/source-trace
+  contract improvement.
 - Fixture-backed knowledge and core/archival jobs can be used as regression guards for
   report shape.
 - Reviewable consolidation now has ELF live service-backed proposal scoring evidence,
@@ -117,8 +124,8 @@ Allowed:
 Not allowed:
 
 - Do not claim this ledger proves preference history against mem0/OpenMemory,
-  proactive briefs, scheduled tasks, private-corpus gates, hosted memory, broad
-  consolidation superiority, or competitor adapters.
+  live top-of-mind behavior, proactive briefs, scheduled tasks, private-corpus gates,
+  hosted memory, broad consolidation superiority, or competitor adapters.
 - Do not claim ELF has full-suite live real-world pass evidence.
 - Do not claim private-corpus or provider-backed production quality without the
   operator-owned inputs required by XY-930.

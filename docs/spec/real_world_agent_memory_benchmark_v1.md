@@ -69,6 +69,7 @@ runner execution.
   "operator_debug": {},
   "encoding": {},
   "memory_evolution": {},
+  "memory_summary": {},
   "tags": []
 }
 ```
@@ -92,6 +93,7 @@ runner execution.
 | `operator_debug` | object or null | Optional for most suites; required for `operator_debugging_ux` jobs. Records trace/viewer evidence and operator workflow scoring inputs. |
 | `encoding` | object | Optional job-level limitation declaration. Only `not_encoded`, `blocked`, and `incomplete` statuses are allowed here. |
 | `memory_evolution` | object or null | Optional for most suites; used by `memory_evolution` jobs to report current evidence, historical evidence, stale traps, conflicts, update rationale, and temporal-validity limitations. |
+| `memory_summary` | object or null | Optional for most suites; used by `memory_summary` jobs to report reviewable summary/source-trace metrics defined in `system_memory_summary_v1.md`. |
 | `tags` | array | Optional labels such as `private_corpus`, `synthetic`, `adapter_required`, or `no_live_claim`. |
 
 ### `corpus`
@@ -538,6 +540,7 @@ Suite ids are stable public names. Each suite MUST contain at least one
 | `retrieval` | Measure task-relevant retrieval quality beyond top-k keyword matching. | Answer a task query with expected evidence; find alternate phrasing; avoid near-duplicate project evidence. | Expected evidence ids, allowed alternates, decoy evidence ids, trace ids when available. | answer_correctness, evidence_grounding, trap_avoidance, latency_resource. | qmd, ELF, memsearch, OpenViking. |
 | `memory_evolution` | Verify updates, deletes, expiry, supersession, contradiction handling, and history. | Apply a new preference; suppress a deleted memory; explain what superseded an old fact. | Before/after memory versions, ingest decision rows or adapter history, current timeline event. | lifecycle_behavior, answer_correctness, evidence_grounding, trap_avoidance. | mem0, ELF, Graphiti/Zep, Letta. |
 | `consolidation` | Test reviewable derived memory formation without hidden source mutation. | Produce a consolidation proposal; identify unsupported claims; discard stale synthesis. | Source inputs, derived proposal id, lineage, review state, conflict markers. | answer_correctness, evidence_grounding, uncertainty_handling, debuggability. | Claude Dreams, Gemini CLI Auto Memory, Always-On Memory Agent, ELF. |
+| `memory_summary` | Test reviewable top-of-mind, background, stale, superseded, tombstoned, and derived project-profile memory readback. | Produce a current memory summary; downgrade stale memory; expose a TTL tombstone; refuse an unsupported derived profile claim. | Summary entry source refs, freshness and validity markers, source trace, inclusion/downgrade/exclusion rationale, unsupported-claim flags. | answer_correctness, evidence_grounding, lifecycle_behavior, trap_avoidance, uncertainty_handling. | OpenAI Dreaming, Claude Dreams, Always-On Memory Agent, ELF. |
 | `knowledge_compilation` | Compile evidence into maintained project/entity/concept pages while preserving provenance. | Build a project status page; answer from compiled truth plus timeline; lint a stale page section. | Page section sources, backlinks, timeline entries, lint evidence. | answer_correctness, evidence_grounding, workflow_helpfulness, trap_avoidance. | llm-wiki, gbrain, graphify, ELF. |
 | `operator_debugging_ux` | Show whether a wrong or ambiguous memory result can be debugged without raw store spelunking. | Explain why a result ranked first; inspect a trace; identify which stage dropped expected evidence. | Trace bundle, retrieval trajectory, candidate metrics, viewer or CLI readback. | debuggability, evidence_grounding, workflow_helpfulness, answer_correctness. | claude-mem, qmd, agentmemory, ELF. |
 | `capture_integration` | Evaluate how accurately work observations become usable memory across agents and tools. | Capture a session decision; exclude private spans; import external agent observations. | Hook/import logs, write policy audits, excluded spans, resulting note ids. | answer_correctness, evidence_grounding, trap_avoidance, lifecycle_behavior. | agentmemory, claude-mem, memsearch, mem0. |
@@ -613,6 +616,22 @@ Reports that encode `memory_evolution` jobs SHOULD also include stale-answer cou
 conflict detection counts, update rationale availability, and temporal-validity
 `not_encoded` counts. A temporal graph validity job MUST NOT be reported as `pass`
 unless the runner can evaluate current-only versus historical relation facts.
+
+Reports that encode `memory_summary` jobs MUST also include:
+
+- summary artifact count and entry count;
+- source-ref coverage for included or downgraded summary entries;
+- freshness-marker and rationale coverage;
+- stale-current violation count for top-of-mind entries;
+- derived entries missing both source refs and unsupported-claim flags;
+- unsupported derived candidate count.
+- unsupported derived entries included as current memory.
+
+A `memory_summary` job MUST NOT pass when stale, superseded, or tombstoned entries are
+presented as current top-of-mind facts. A derived project-profile entry MUST NOT pass
+unless it has source refs or explicit unsupported-claim flags. A derived entry with
+unsupported-claim flags MUST NOT pass when it is included as current memory instead of
+being excluded or downgraded for review.
 
 Consolidation suite reports MUST also include:
 
