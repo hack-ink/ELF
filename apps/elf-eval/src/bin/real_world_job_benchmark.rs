@@ -51,6 +51,7 @@ const SUITES: &[&str] = &[
 	"consolidation",
 	"memory_summary",
 	"proactive_brief",
+	"scheduled_memory",
 	"knowledge_compilation",
 	"operator_debugging_ux",
 	"capture_integration",
@@ -152,6 +153,7 @@ struct RealWorldJob {
 	memory_evolution: Option<MemoryEvolution>,
 	memory_summary: Option<MemorySummaryExpectation>,
 	proactive_brief: Option<ProactiveBriefExpectation>,
+	scheduled_memory: Option<ScheduledMemoryExpectation>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -372,6 +374,12 @@ struct ProactiveBriefExpectation {
 }
 
 #[derive(Debug, Deserialize)]
+struct ScheduledMemoryExpectation {
+	#[serde(default)]
+	required_task_kinds: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
 struct ScoringRubric {
 	#[serde(default)]
 	dimensions: BTreeMap<String, RubricDimension>,
@@ -415,6 +423,8 @@ struct ProducedAnswer {
 	memory_summaries: Vec<MemorySummaryArtifact>,
 	#[serde(default)]
 	proactive_briefs: Vec<ProactiveBriefArtifact>,
+	#[serde(default)]
+	scheduled_tasks: Vec<ScheduledMemoryTaskArtifact>,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	latency_ms: Option<f64>,
 	#[serde(skip_serializing_if = "Option::is_none")]
@@ -598,6 +608,61 @@ struct ProactiveSuggestionAction {
 	decision: String,
 	reason_code: String,
 	reason: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct ScheduledMemoryTaskArtifact {
+	task_run_id: String,
+	contract_schema: String,
+	generated_at: String,
+	scheduled_for: String,
+	tenant_id: String,
+	project_id: String,
+	agent_id: String,
+	read_profile: String,
+	task_kind: String,
+	#[serde(default)]
+	outputs: Vec<ScheduledMemoryOutput>,
+	source_trace: MemorySummarySourceTrace,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	execution_trace: Option<ScheduledMemoryExecutionTrace>,
+	#[serde(default)]
+	source_mutations: Vec<Value>,
+	#[serde(default)]
+	unsupported_claim_flags: Vec<Value>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct ScheduledMemoryOutput {
+	output_id: String,
+	output_kind: String,
+	text: String,
+	#[serde(default)]
+	evidence_refs: Vec<String>,
+	freshness: MemorySummaryFreshness,
+	action: ProactiveSuggestionAction,
+	#[serde(default)]
+	unsupported_claim_flags: Vec<Value>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct ScheduledMemoryExecutionTrace {
+	trace_id: String,
+	trigger_kind: String,
+	status: String,
+	started_at: String,
+	completed_at: String,
+	output_ref: String,
+	#[serde(default)]
+	stages: Vec<ScheduledMemoryTraceStage>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct ScheduledMemoryTraceStage {
+	stage_name: String,
+	summary: String,
+	#[serde(default)]
+	evidence_refs: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -1083,6 +1148,8 @@ struct ReportSummary {
 	#[serde(skip_serializing_if = "Option::is_none")]
 	proactive_brief: Option<ProactiveBriefSummaryReport>,
 	#[serde(skip_serializing_if = "Option::is_none")]
+	scheduled_memory: Option<ScheduledMemorySummaryReport>,
+	#[serde(skip_serializing_if = "Option::is_none")]
 	knowledge: Option<KnowledgeSummary>,
 }
 
@@ -1156,6 +1223,38 @@ struct ProactiveBriefSummaryReport {
 	invalid_current_suggestion_count: usize,
 	untraced_suggestion_count: usize,
 	unsupported_current_suggestion_count: usize,
+	tombstone_violation_count: usize,
+	source_trace_selected_count: usize,
+	source_trace_dropped_count: usize,
+	source_trace_stale_count: usize,
+	source_trace_superseded_count: usize,
+	source_trace_tombstone_count: usize,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct ScheduledMemorySummaryReport {
+	job_count: usize,
+	task_run_count: usize,
+	output_count: usize,
+	required_task_kind_count: usize,
+	covered_required_task_kind_count: usize,
+	missing_required_task_kind_count: usize,
+	evidence_ref_required_count: usize,
+	evidence_ref_output_count: usize,
+	evidence_ref_coverage: f64,
+	freshness_marker_count: usize,
+	freshness_coverage: f64,
+	action_rationale_count: usize,
+	action_rationale_coverage: f64,
+	trace_required_count: usize,
+	trace_complete_count: usize,
+	trace_coverage: f64,
+	source_mutation_count: usize,
+	current_output_count: usize,
+	non_current_output_count: usize,
+	invalid_current_output_count: usize,
+	untraced_output_count: usize,
+	unsupported_current_output_count: usize,
 	tombstone_violation_count: usize,
 	source_trace_selected_count: usize,
 	source_trace_dropped_count: usize,
@@ -1242,6 +1341,8 @@ struct JobReport {
 	memory_summary: Option<MemorySummaryJobMetrics>,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	proactive_brief: Option<ProactiveBriefJobMetrics>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	scheduled_memory: Option<ScheduledMemoryJobMetrics>,
 	trap_ids_used: Vec<String>,
 	dimension_scores: Vec<DimensionScoreReport>,
 	reason: String,
@@ -1436,6 +1537,37 @@ struct ProactiveBriefJobMetrics {
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct ScheduledMemoryJobMetrics {
+	task_run_count: usize,
+	output_count: usize,
+	required_task_kind_count: usize,
+	covered_required_task_kind_count: usize,
+	missing_required_task_kind_count: usize,
+	evidence_ref_required_count: usize,
+	evidence_ref_output_count: usize,
+	evidence_ref_coverage: f64,
+	freshness_marker_count: usize,
+	freshness_coverage: f64,
+	action_rationale_count: usize,
+	action_rationale_coverage: f64,
+	trace_required_count: usize,
+	trace_complete_count: usize,
+	trace_coverage: f64,
+	source_mutation_count: usize,
+	current_output_count: usize,
+	non_current_output_count: usize,
+	invalid_current_output_count: usize,
+	untraced_output_count: usize,
+	unsupported_current_output_count: usize,
+	tombstone_violation_count: usize,
+	source_trace_selected_count: usize,
+	source_trace_dropped_count: usize,
+	source_trace_stale_count: usize,
+	source_trace_superseded_count: usize,
+	source_trace_tombstone_count: usize,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 struct EvolutionSummary {
 	stale_answer_count: usize,
 	conflict_detection_count: usize,
@@ -1502,6 +1634,7 @@ struct JobScoring {
 	consolidation: Option<ConsolidationJobReport>,
 	memory_summary: Option<MemorySummaryJobMetrics>,
 	proactive_brief: Option<ProactiveBriefJobMetrics>,
+	scheduled_memory: Option<ScheduledMemoryJobMetrics>,
 }
 
 #[derive(Debug, Default)]
@@ -1537,6 +1670,14 @@ struct FailureCounts {
 	proactive_brief_missing_kinds: usize,
 	proactive_brief_unsupported_current_suggestions: usize,
 	proactive_brief_tombstone_violations: usize,
+	scheduled_memory_invalid_current_outputs: usize,
+	scheduled_memory_untraced_outputs: usize,
+	scheduled_memory_missing_freshness: usize,
+	scheduled_memory_missing_action_rationale: usize,
+	scheduled_memory_missing_task_kinds: usize,
+	scheduled_memory_unsupported_current_outputs: usize,
+	scheduled_memory_tombstone_violations: usize,
+	scheduled_memory_missing_trace: usize,
 	untraced_page_sections: usize,
 	missed_stale_findings: usize,
 	rebuild_failures: usize,
@@ -1666,6 +1807,7 @@ fn validate_job(job: &RealWorldJob, path: &Path) -> Result<()> {
 	validate_memory_evolution(job, path)?;
 	validate_memory_summary_expectation(job, path)?;
 	validate_proactive_brief_expectation(job, path)?;
+	validate_scheduled_memory_expectation(job, path)?;
 	validate_trace_explainability(job, path)?;
 
 	Ok(())
@@ -1948,6 +2090,9 @@ fn validate_adapter_response(job: &RealWorldJob, path: &Path) -> Result<()> {
 	for brief in &adapter_response.answer.proactive_briefs {
 		validate_proactive_brief_artifact(brief, path, &evidence_ids)?;
 	}
+	for task in &adapter_response.answer.scheduled_tasks {
+		validate_scheduled_memory_artifact(task, path, &evidence_ids)?;
+	}
 
 	if job.suite == "memory_summary"
 		&& adapter_response.answer.memory_summaries.is_empty()
@@ -1964,6 +2109,15 @@ fn validate_adapter_response(job: &RealWorldJob, path: &Path) -> Result<()> {
 	{
 		return Err(eyre::eyre!(
 			"{} proactive_brief jobs must provide adapter_response.answer.proactive_briefs.",
+			path.display()
+		));
+	}
+	if job.suite == "scheduled_memory"
+		&& adapter_response.answer.scheduled_tasks.is_empty()
+		&& job.encoding.status.is_none()
+	{
+		return Err(eyre::eyre!(
+			"{} scheduled_memory jobs must provide adapter_response.answer.scheduled_tasks.",
 			path.display()
 		));
 	}
@@ -2281,6 +2435,179 @@ fn validate_proactive_suggestion(
 	Ok(())
 }
 
+fn validate_scheduled_memory_artifact(
+	task: &ScheduledMemoryTaskArtifact,
+	path: &Path,
+	evidence_ids: &BTreeSet<String>,
+) -> Result<()> {
+	if task.task_run_id.trim().is_empty()
+		|| task.contract_schema != "elf.scheduled_memory_task/v1"
+		|| task.generated_at.trim().is_empty()
+		|| task.scheduled_for.trim().is_empty()
+		|| task.tenant_id.trim().is_empty()
+		|| task.project_id.trim().is_empty()
+		|| task.agent_id.trim().is_empty()
+		|| task.read_profile.trim().is_empty()
+		|| task.task_kind.trim().is_empty()
+		|| task.outputs.is_empty()
+	{
+		return Err(eyre::eyre!("{} has an incomplete scheduled memory task.", path.display()));
+	}
+	if !is_scheduled_task_kind(task.task_kind.as_str()) {
+		return Err(eyre::eyre!(
+			"{} has unknown scheduled task kind {}.",
+			path.display(),
+			task.task_kind
+		));
+	}
+
+	validate_optional_rfc3339(&task.generated_at, path, task.task_run_id.as_str())?;
+	validate_optional_rfc3339(&task.scheduled_for, path, task.task_run_id.as_str())?;
+
+	for output in &task.outputs {
+		validate_scheduled_memory_output(output, path, evidence_ids)?;
+	}
+	for mutation in &task.source_mutations {
+		if !mutation.is_object() {
+			return Err(eyre::eyre!(
+				"{} scheduled memory source mutations must be JSON objects.",
+				path.display()
+			));
+		}
+	}
+	for flag in &task.unsupported_claim_flags {
+		if !flag.is_object() {
+			return Err(eyre::eyre!(
+				"{} scheduled memory unsupported-claim flags must be JSON objects.",
+				path.display()
+			));
+		}
+	}
+
+	validate_memory_summary_source_trace(&task.source_trace, path, evidence_ids)?;
+
+	if let Some(trace) = &task.execution_trace {
+		validate_scheduled_memory_trace(trace, path, evidence_ids)?;
+	}
+
+	Ok(())
+}
+
+fn validate_scheduled_memory_output(
+	output: &ScheduledMemoryOutput,
+	path: &Path,
+	evidence_ids: &BTreeSet<String>,
+) -> Result<()> {
+	if output.output_id.trim().is_empty()
+		|| output.output_kind.trim().is_empty()
+		|| output.text.trim().is_empty()
+	{
+		return Err(eyre::eyre!("{} has an incomplete scheduled memory output.", path.display()));
+	}
+	if !is_scheduled_task_kind(output.output_kind.as_str()) {
+		return Err(eyre::eyre!(
+			"{} has unknown scheduled output kind {}.",
+			path.display(),
+			output.output_kind
+		));
+	}
+	if !is_memory_summary_freshness_status(output.freshness.status.as_str()) {
+		return Err(eyre::eyre!(
+			"{} has unknown scheduled output freshness status {}.",
+			path.display(),
+			output.freshness.status
+		));
+	}
+	if !is_proactive_action_decision(output.action.decision.as_str()) {
+		return Err(eyre::eyre!(
+			"{} has unknown scheduled output action decision {}.",
+			path.display(),
+			output.action.decision
+		));
+	}
+	if output.action.reason_code.trim().is_empty() || output.action.reason.trim().is_empty() {
+		return Err(eyre::eyre!(
+			"{} has incomplete scheduled output action rationale.",
+			path.display()
+		));
+	}
+
+	for evidence_id in &output.evidence_refs {
+		ensure_known_evidence(path, evidence_ids, evidence_id)?;
+	}
+	for evidence_id in &output.freshness.tombstone_refs {
+		ensure_known_evidence(path, evidence_ids, evidence_id)?;
+	}
+	for flag in &output.unsupported_claim_flags {
+		if !flag.is_object() {
+			return Err(eyre::eyre!(
+				"{} scheduled output unsupported-claim flags must be JSON objects.",
+				path.display()
+			));
+		}
+	}
+
+	validate_optional_summary_time(
+		path,
+		output.freshness.observed_at.as_deref(),
+		output.output_id.as_str(),
+	)?;
+	validate_optional_summary_time(
+		path,
+		output.freshness.valid_from.as_deref(),
+		output.output_id.as_str(),
+	)?;
+	validate_optional_summary_time(
+		path,
+		output.freshness.valid_to.as_deref(),
+		output.output_id.as_str(),
+	)?;
+	validate_optional_summary_time(
+		path,
+		output.freshness.last_confirmed_at.as_deref(),
+		output.output_id.as_str(),
+	)?;
+
+	Ok(())
+}
+
+fn validate_scheduled_memory_trace(
+	trace: &ScheduledMemoryExecutionTrace,
+	path: &Path,
+	evidence_ids: &BTreeSet<String>,
+) -> Result<()> {
+	if trace.trace_id.trim().is_empty()
+		|| trace.trigger_kind.trim().is_empty()
+		|| trace.status.trim().is_empty()
+		|| trace.started_at.trim().is_empty()
+		|| trace.completed_at.trim().is_empty()
+		|| trace.output_ref.trim().is_empty()
+	{
+		return Err(eyre::eyre!(
+			"{} has an incomplete scheduled memory execution trace.",
+			path.display()
+		));
+	}
+
+	validate_optional_rfc3339(&trace.started_at, path, trace.trace_id.as_str())?;
+	validate_optional_rfc3339(&trace.completed_at, path, trace.trace_id.as_str())?;
+
+	for stage in &trace.stages {
+		if stage.stage_name.trim().is_empty() || stage.summary.trim().is_empty() {
+			return Err(eyre::eyre!(
+				"{} has an incomplete scheduled memory trace stage.",
+				path.display()
+			));
+		}
+
+		for evidence_id in &stage.evidence_refs {
+			ensure_known_evidence(path, evidence_ids, evidence_id)?;
+		}
+	}
+
+	Ok(())
+}
+
 fn validate_optional_summary_time(path: &Path, value: Option<&str>, id: &str) -> Result<()> {
 	if let Some(value) = value {
 		validate_optional_rfc3339(value, path, id)?;
@@ -2324,6 +2651,17 @@ fn is_proactive_suggestion_kind(kind: &str) -> bool {
 			| "stale_decision_audit"
 			| "stale_plan_preference_warning"
 			| "private_corpus_refresh"
+	)
+}
+
+fn is_scheduled_task_kind(kind: &str) -> bool {
+	matches!(
+		kind,
+		"weekly_project_status_summary"
+			| "stale_preference_plan_audit"
+			| "stale_decision_audit"
+			| "knowledge_page_refresh_suggestion"
+			| "private_provider_scheduler"
 	)
 }
 
@@ -2549,6 +2887,31 @@ fn validate_proactive_brief_expectation(job: &RealWorldJob, path: &Path) -> Resu
 		if !is_proactive_suggestion_kind(kind.as_str()) {
 			return Err(eyre::eyre!(
 				"{} proactive_brief expectation references unknown suggestion kind {}.",
+				path.display(),
+				kind
+			));
+		}
+	}
+
+	Ok(())
+}
+
+fn validate_scheduled_memory_expectation(job: &RealWorldJob, path: &Path) -> Result<()> {
+	let Some(scheduled) = &job.scheduled_memory else {
+		if job.suite == "scheduled_memory" && job.encoding.status.is_none() {
+			return Err(eyre::eyre!(
+				"{} scheduled_memory jobs must provide scheduled_memory expectations.",
+				path.display()
+			));
+		}
+
+		return Ok(());
+	};
+
+	for kind in &scheduled.required_task_kinds {
+		if !is_scheduled_task_kind(kind.as_str()) {
+			return Err(eyre::eyre!(
+				"{} scheduled_memory expectation references unknown task kind {}.",
 				path.display(),
 				kind
 			));
@@ -2824,11 +3187,13 @@ fn score_job(job: &RealWorldJob) -> JobScoring {
 	let knowledge = knowledge_metrics(job, answer);
 	let memory_summary = memory_summary_metrics(job, answer);
 	let proactive_brief = proactive_brief_metrics(job, answer);
+	let scheduled_memory = scheduled_memory_metrics(job, answer);
 	let mut unsupported_claims = unsupported_claims(job, answer);
 
 	unsupported_claims.extend(unsupported_page_claims(answer));
 	unsupported_claims.extend(unsupported_memory_summary_claims(job, answer));
 	unsupported_claims.extend(unsupported_proactive_suggestions(job, answer));
+	unsupported_claims.extend(unsupported_scheduled_outputs(job, answer));
 
 	let operator_counts = operator_debug_failure_counts(job);
 	let latency_violations = latency_violations(job, answer);
@@ -2869,6 +3234,7 @@ fn score_job(job: &RealWorldJob) -> JobScoring {
 
 	apply_memory_summary_failure_counts(&mut counts, memory_summary.as_ref());
 	apply_proactive_brief_failure_counts(&mut counts, proactive_brief.as_ref());
+	apply_scheduled_memory_failure_counts(&mut counts, scheduled_memory.as_ref());
 
 	let dimension_scores = dimension_scores(job, &counts);
 	let normalized_score = normalized_score(&dimension_scores);
@@ -2902,6 +3268,7 @@ fn score_job(job: &RealWorldJob) -> JobScoring {
 		consolidation,
 		memory_summary,
 		proactive_brief,
+		scheduled_memory,
 	}
 }
 
@@ -2943,6 +3310,28 @@ fn apply_proactive_brief_failure_counts(
 	counts.proactive_brief_tombstone_violations = metrics.tombstone_violation_count;
 }
 
+fn apply_scheduled_memory_failure_counts(
+	counts: &mut FailureCounts,
+	metrics: Option<&ScheduledMemoryJobMetrics>,
+) {
+	let Some(metrics) = metrics else {
+		return;
+	};
+
+	counts.scheduled_memory_invalid_current_outputs = metrics.invalid_current_output_count;
+	counts.scheduled_memory_untraced_outputs = metrics.untraced_output_count;
+	counts.scheduled_memory_missing_freshness =
+		metrics.output_count.saturating_sub(metrics.freshness_marker_count);
+	counts.scheduled_memory_missing_action_rationale =
+		metrics.output_count.saturating_sub(metrics.action_rationale_count);
+	counts.scheduled_memory_missing_task_kinds = metrics.missing_required_task_kind_count;
+	counts.scheduled_memory_unsupported_current_outputs = metrics.unsupported_current_output_count;
+	counts.scheduled_memory_tombstone_violations = metrics.tombstone_violation_count;
+	counts.scheduled_memory_missing_trace =
+		metrics.trace_required_count.saturating_sub(metrics.trace_complete_count);
+	counts.source_mutations += metrics.source_mutation_count;
+}
+
 fn score_declared_job(
 	job: &RealWorldJob,
 	status: TypedStatus,
@@ -2968,6 +3357,7 @@ fn score_declared_job(
 		consolidation,
 		memory_summary: None,
 		proactive_brief: None,
+		scheduled_memory: None,
 	}
 }
 
@@ -2998,6 +3388,14 @@ fn wrong_result_count(counts: &FailureCounts) -> usize {
 		+ counts.proactive_brief_missing_kinds
 		+ counts.proactive_brief_unsupported_current_suggestions
 		+ counts.proactive_brief_tombstone_violations
+		+ counts.scheduled_memory_invalid_current_outputs
+		+ counts.scheduled_memory_untraced_outputs
+		+ counts.scheduled_memory_missing_freshness
+		+ counts.scheduled_memory_missing_action_rationale
+		+ counts.scheduled_memory_missing_task_kinds
+		+ counts.scheduled_memory_unsupported_current_outputs
+		+ counts.scheduled_memory_tombstone_violations
+		+ counts.scheduled_memory_missing_trace
 		+ counts.untraced_page_sections
 		+ counts.missed_stale_findings
 		+ counts.rebuild_failures
@@ -3053,6 +3451,7 @@ fn synthetic_answer(job: &RealWorldJob) -> &ProducedAnswer {
 		pages: Vec::new(),
 		memory_summaries: Vec::new(),
 		proactive_briefs: Vec::new(),
+		scheduled_tasks: Vec::new(),
 		latency_ms: None,
 		cost: None,
 		trace_explainability: None,
@@ -3068,6 +3467,11 @@ fn produced_evidence_ids(answer: &ProducedAnswer) -> BTreeSet<String> {
 	for brief in &answer.proactive_briefs {
 		for suggestion in &brief.suggestions {
 			evidence.extend(suggestion.evidence_refs.iter().cloned());
+		}
+	}
+	for task in &answer.scheduled_tasks {
+		for output in &task.outputs {
+			evidence.extend(output.evidence_refs.iter().cloned());
 		}
 	}
 
@@ -3948,6 +4352,210 @@ fn proactive_unsupported_claim_report(
 	}
 }
 
+fn scheduled_memory_metrics(
+	job: &RealWorldJob,
+	answer: &ProducedAnswer,
+) -> Option<ScheduledMemoryJobMetrics> {
+	if answer.scheduled_tasks.is_empty() {
+		return None;
+	}
+
+	let mut metrics = ScheduledMemoryJobMetrics {
+		task_run_count: answer.scheduled_tasks.len(),
+		required_task_kind_count: job
+			.scheduled_memory
+			.as_ref()
+			.map_or(0, |scheduled| scheduled.required_task_kinds.len()),
+		..ScheduledMemoryJobMetrics::default()
+	};
+	let mut task_kinds = BTreeSet::new();
+
+	for task in &answer.scheduled_tasks {
+		accumulate_scheduled_memory_metrics(task, &mut metrics, &mut task_kinds);
+	}
+
+	let covered_required_task_kind_count = job.scheduled_memory.as_ref().map_or(0, |scheduled| {
+		scheduled.required_task_kinds.iter().filter(|kind| task_kinds.contains(*kind)).count()
+	});
+
+	metrics.covered_required_task_kind_count = covered_required_task_kind_count;
+	metrics.missing_required_task_kind_count =
+		metrics.required_task_kind_count.saturating_sub(covered_required_task_kind_count);
+	metrics.evidence_ref_coverage =
+		ratio(metrics.evidence_ref_output_count, metrics.evidence_ref_required_count);
+	metrics.freshness_coverage = ratio(metrics.freshness_marker_count, metrics.output_count);
+	metrics.action_rationale_coverage = ratio(metrics.action_rationale_count, metrics.output_count);
+	metrics.trace_coverage = ratio(metrics.trace_complete_count, metrics.trace_required_count);
+
+	Some(metrics)
+}
+
+fn accumulate_scheduled_memory_metrics(
+	task: &ScheduledMemoryTaskArtifact,
+	metrics: &mut ScheduledMemoryJobMetrics,
+	task_kinds: &mut BTreeSet<String>,
+) {
+	metrics.source_trace_selected_count += task.source_trace.selected_source_refs.len();
+	metrics.source_trace_dropped_count += task.source_trace.dropped_source_refs.len();
+	metrics.source_trace_stale_count += task.source_trace.stale_source_refs.len();
+	metrics.source_trace_superseded_count += task.source_trace.superseded_source_refs.len();
+	metrics.source_trace_tombstone_count += task.source_trace.tombstone_source_refs.len();
+	metrics.trace_required_count += 1;
+	metrics.source_mutation_count += task.source_mutations.len()
+		+ task.source_mutations.iter().map(forbidden_diff_key_count).sum::<usize>();
+
+	task_kinds.insert(task.task_kind.clone());
+
+	if scheduled_trace_is_complete(task.execution_trace.as_ref()) {
+		metrics.trace_complete_count += 1;
+	}
+
+	let non_current_refs = memory_summary_non_current_trace_refs(&task.source_trace);
+	let tombstone_refs = proactive_tombstone_trace_refs(&task.source_trace);
+
+	for output in &task.outputs {
+		metrics.output_count += 1;
+		metrics.evidence_ref_required_count += 1;
+
+		if output.evidence_refs.is_empty() {
+			metrics.untraced_output_count += 1;
+		} else {
+			metrics.evidence_ref_output_count += 1;
+		}
+		if scheduled_output_has_freshness(output) {
+			metrics.freshness_marker_count += 1;
+		}
+		if scheduled_output_has_action_rationale(output) {
+			metrics.action_rationale_count += 1;
+		}
+		if output.freshness.status == "current" {
+			metrics.current_output_count += 1;
+		} else {
+			metrics.non_current_output_count += 1;
+		}
+		if scheduled_output_is_invalid_current(output, &non_current_refs) {
+			metrics.invalid_current_output_count += 1;
+		}
+		if scheduled_output_is_unsupported_current(output) {
+			metrics.unsupported_current_output_count += 1;
+		}
+		if scheduled_output_is_tombstone_violation(output, &tombstone_refs) {
+			metrics.tombstone_violation_count += 1;
+		}
+	}
+}
+
+fn scheduled_trace_is_complete(trace: Option<&ScheduledMemoryExecutionTrace>) -> bool {
+	let Some(trace) = trace else {
+		return false;
+	};
+
+	trace.status == "completed"
+		&& !trace.trace_id.trim().is_empty()
+		&& !trace.output_ref.trim().is_empty()
+		&& !trace.stages.is_empty()
+		&& trace
+			.stages
+			.iter()
+			.any(|stage| stage.stage_name == "output_readback" && !stage.evidence_refs.is_empty())
+}
+
+fn scheduled_output_has_freshness(output: &ScheduledMemoryOutput) -> bool {
+	if output.freshness.status.trim().is_empty() {
+		return false;
+	}
+
+	match output.freshness.status.as_str() {
+		"superseded" => !output.freshness.superseded_by.is_empty(),
+		"tombstoned" => !output.freshness.tombstone_refs.is_empty(),
+		_ => true,
+	}
+}
+
+fn scheduled_output_has_action_rationale(output: &ScheduledMemoryOutput) -> bool {
+	!output.action.decision.trim().is_empty()
+		&& !output.action.reason_code.trim().is_empty()
+		&& !output.action.reason.trim().is_empty()
+}
+
+fn scheduled_output_is_invalid_current(
+	output: &ScheduledMemoryOutput,
+	non_current_refs: &BTreeSet<&str>,
+) -> bool {
+	output.freshness.status == "current"
+		&& (!output.freshness.superseded_by.is_empty()
+			|| !output.freshness.tombstone_refs.is_empty()
+			|| output
+				.evidence_refs
+				.iter()
+				.any(|evidence_id| non_current_refs.contains(evidence_id.as_str())))
+}
+
+fn scheduled_output_is_unsupported_current(output: &ScheduledMemoryOutput) -> bool {
+	!output.unsupported_claim_flags.is_empty()
+		&& (output.action.decision == "recommend" || output.freshness.status == "current")
+}
+
+fn scheduled_output_is_tombstone_violation(
+	output: &ScheduledMemoryOutput,
+	tombstone_refs: &BTreeSet<&str>,
+) -> bool {
+	output.freshness.status == "current"
+		&& (!output.freshness.tombstone_refs.is_empty()
+			|| output
+				.evidence_refs
+				.iter()
+				.any(|evidence_id| tombstone_refs.contains(evidence_id.as_str())))
+}
+
+fn unsupported_scheduled_outputs(
+	job: &RealWorldJob,
+	answer: &ProducedAnswer,
+) -> Vec<UnsupportedClaimReport> {
+	answer
+		.scheduled_tasks
+		.iter()
+		.flat_map(|task| {
+			task.outputs.iter().filter_map(|output| {
+				if output.evidence_refs.is_empty() {
+					return Some(scheduled_unsupported_claim_report(
+						job,
+						task,
+						output,
+						"scheduled task output has no evidence refs",
+					));
+				}
+				if scheduled_output_is_unsupported_current(output) {
+					return Some(scheduled_unsupported_claim_report(
+						job,
+						task,
+						output,
+						"unsupported scheduled task claim is still recommended or marked current",
+					));
+				}
+
+				None
+			})
+		})
+		.collect()
+}
+
+fn scheduled_unsupported_claim_report(
+	job: &RealWorldJob,
+	task: &ScheduledMemoryTaskArtifact,
+	output: &ScheduledMemoryOutput,
+	reason: &str,
+) -> UnsupportedClaimReport {
+	UnsupportedClaimReport {
+		suite_id: job.suite.clone(),
+		job_id: job.job_id.clone(),
+		claim_id: Some(format!("{}:{}", task.task_run_id, output.output_id)),
+		claim_text: bounded_text(output.text.as_str(), 240),
+		reason: reason.to_string(),
+		evidence_ids: output.evidence_refs.clone(),
+	}
+}
+
 fn hard_fail_hits(
 	job: &RealWorldJob,
 	unsupported_claims: &[UnsupportedClaimReport],
@@ -4027,6 +4635,11 @@ fn dimension_score(dimension_id: &str, max_points: f64, counts: &FailureCounts) 
 				|| counts.proactive_brief_missing_kinds > 0
 				|| counts.proactive_brief_unsupported_current_suggestions > 0
 				|| counts.proactive_brief_tombstone_violations > 0
+				|| counts.scheduled_memory_invalid_current_outputs > 0
+				|| counts.scheduled_memory_missing_task_kinds > 0
+				|| counts.scheduled_memory_unsupported_current_outputs > 0
+				|| counts.scheduled_memory_tombstone_violations > 0
+				|| counts.scheduled_memory_missing_trace > 0
 				|| counts.page_usefulness_failures > 0,
 		"evidence_grounding" =>
 			counts.missing_evidence > 0
@@ -4034,17 +4647,22 @@ fn dimension_score(dimension_id: &str, max_points: f64, counts: &FailureCounts) 
 				|| counts.lineage_failures > 0
 				|| counts.memory_summary_untraced_entries > 0
 				|| counts.proactive_brief_untraced_suggestions > 0
+				|| counts.scheduled_memory_untraced_outputs > 0
+				|| counts.scheduled_memory_missing_trace > 0
 				|| counts.untraced_page_sections > 0,
 		"trap_avoidance" =>
 			counts.trap_uses > 0
 				|| counts.memory_summary_invalid_current_entries > 0
 				|| counts.proactive_brief_invalid_current_suggestions > 0
 				|| counts.proactive_brief_tombstone_violations > 0
+				|| counts.scheduled_memory_invalid_current_outputs > 0
+				|| counts.scheduled_memory_tombstone_violations > 0
 				|| counts.missed_stale_findings > 0,
 		"uncertainty_handling" =>
 			counts.unsupported_claims > 0
 				|| counts.memory_summary_unsupported_current_entries > 0
-				|| counts.proactive_brief_unsupported_current_suggestions > 0,
+				|| counts.proactive_brief_unsupported_current_suggestions > 0
+				|| counts.scheduled_memory_unsupported_current_outputs > 0,
 		"lifecycle_behavior" =>
 			counts.stale_answers > 0
 				|| counts.conflict_detection_missing > 0
@@ -4059,6 +4677,12 @@ fn dimension_score(dimension_id: &str, max_points: f64, counts: &FailureCounts) 
 				|| counts.proactive_brief_missing_action_rationale > 0
 				|| counts.proactive_brief_unsupported_current_suggestions > 0
 				|| counts.proactive_brief_tombstone_violations > 0
+				|| counts.scheduled_memory_invalid_current_outputs > 0
+				|| counts.scheduled_memory_missing_freshness > 0
+				|| counts.scheduled_memory_missing_action_rationale > 0
+				|| counts.scheduled_memory_unsupported_current_outputs > 0
+				|| counts.scheduled_memory_tombstone_violations > 0
+				|| counts.scheduled_memory_missing_trace > 0
 				|| counts.rebuild_failures > 0,
 		"source_immutability" => counts.source_mutations > 0,
 		"proposal_usefulness" => counts.proposal_usefulness_failures > 0,
@@ -4069,7 +4693,9 @@ fn dimension_score(dimension_id: &str, max_points: f64, counts: &FailureCounts) 
 				|| counts.unsupported_claims > 0
 				|| counts.operator_debug_missing > 0
 				|| counts.operator_debug_raw_sql > 0
-				|| counts.operator_debug_trace_gaps > 0,
+				|| counts.operator_debug_trace_gaps > 0
+				|| counts.scheduled_memory_missing_trace > 0,
+		"trace_readback" => counts.scheduled_memory_missing_trace > 0,
 		"latency_resource" => counts.latency_violations > 0,
 		"personalization_fit" | "ownership_correctness" =>
 			counts.missing_claims > 0 || counts.unsupported_claims > 0,
@@ -4177,6 +4803,21 @@ fn wrong_result_signal_count(counts: &FailureCounts) -> usize {
 		+ counts.memory_summary_missing_rationale
 		+ counts.memory_summary_missing_categories
 		+ counts.memory_summary_unsupported_current_entries
+		+ counts.proactive_brief_invalid_current_suggestions
+		+ counts.proactive_brief_untraced_suggestions
+		+ counts.proactive_brief_missing_freshness
+		+ counts.proactive_brief_missing_action_rationale
+		+ counts.proactive_brief_missing_kinds
+		+ counts.proactive_brief_unsupported_current_suggestions
+		+ counts.proactive_brief_tombstone_violations
+		+ counts.scheduled_memory_invalid_current_outputs
+		+ counts.scheduled_memory_untraced_outputs
+		+ counts.scheduled_memory_missing_freshness
+		+ counts.scheduled_memory_missing_action_rationale
+		+ counts.scheduled_memory_missing_task_kinds
+		+ counts.scheduled_memory_unsupported_current_outputs
+		+ counts.scheduled_memory_tombstone_violations
+		+ counts.scheduled_memory_missing_trace
 		+ counts.untraced_page_sections
 		+ counts.missed_stale_findings
 		+ counts.rebuild_failures
@@ -4231,6 +4872,7 @@ fn job_report(job: &RealWorldJob, scoring: JobScoring) -> JobReport {
 		knowledge: scoring.knowledge,
 		memory_summary: scoring.memory_summary,
 		proactive_brief: scoring.proactive_brief,
+		scheduled_memory: scoring.scheduled_memory,
 		trap_ids_used: scoring.trap_ids_used,
 		dimension_scores: scoring.dimension_scores,
 		reason: scoring.reason,
@@ -4734,6 +5376,7 @@ fn report_summary(jobs: &[JobReport], suites: &[SuiteReport]) -> ReportSummary {
 		consolidation: consolidation_summary(jobs),
 		memory_summary: memory_summary_summary(jobs),
 		proactive_brief: proactive_brief_summary(jobs),
+		scheduled_memory: scheduled_memory_summary(jobs),
 		knowledge: knowledge_summary(jobs),
 		..ReportSummary::default()
 	};
@@ -5031,6 +5674,106 @@ fn proactive_brief_summary(jobs: &[JobReport]) -> Option<ProactiveBriefSummaryRe
 			.map(|metrics| metrics.source_trace_superseded_count)
 			.sum(),
 		source_trace_tombstone_count: proactive_jobs
+			.iter()
+			.map(|metrics| metrics.source_trace_tombstone_count)
+			.sum(),
+	})
+}
+
+fn scheduled_memory_summary(jobs: &[JobReport]) -> Option<ScheduledMemorySummaryReport> {
+	let scheduled_jobs =
+		jobs.iter().filter_map(|job| job.scheduled_memory.as_ref()).collect::<Vec<_>>();
+
+	if scheduled_jobs.is_empty() {
+		return None;
+	}
+
+	let job_count = scheduled_jobs.len();
+	let output_count = scheduled_jobs.iter().map(|metrics| metrics.output_count).sum::<usize>();
+	let evidence_ref_required_count =
+		scheduled_jobs.iter().map(|metrics| metrics.evidence_ref_required_count).sum();
+	let evidence_ref_output_count =
+		scheduled_jobs.iter().map(|metrics| metrics.evidence_ref_output_count).sum();
+	let freshness_marker_count =
+		scheduled_jobs.iter().map(|metrics| metrics.freshness_marker_count).sum();
+	let action_rationale_count =
+		scheduled_jobs.iter().map(|metrics| metrics.action_rationale_count).sum();
+	let trace_required_count =
+		scheduled_jobs.iter().map(|metrics| metrics.trace_required_count).sum();
+	let trace_complete_count =
+		scheduled_jobs.iter().map(|metrics| metrics.trace_complete_count).sum();
+
+	Some(ScheduledMemorySummaryReport {
+		job_count,
+		task_run_count: scheduled_jobs.iter().map(|metrics| metrics.task_run_count).sum(),
+		output_count,
+		required_task_kind_count: scheduled_jobs
+			.iter()
+			.map(|metrics| metrics.required_task_kind_count)
+			.sum(),
+		covered_required_task_kind_count: scheduled_jobs
+			.iter()
+			.map(|metrics| metrics.covered_required_task_kind_count)
+			.sum(),
+		missing_required_task_kind_count: scheduled_jobs
+			.iter()
+			.map(|metrics| metrics.missing_required_task_kind_count)
+			.sum(),
+		evidence_ref_required_count,
+		evidence_ref_output_count,
+		evidence_ref_coverage: ratio(evidence_ref_output_count, evidence_ref_required_count),
+		freshness_marker_count,
+		freshness_coverage: ratio(freshness_marker_count, output_count),
+		action_rationale_count,
+		action_rationale_coverage: ratio(action_rationale_count, output_count),
+		trace_required_count,
+		trace_complete_count,
+		trace_coverage: ratio(trace_complete_count, trace_required_count),
+		source_mutation_count: scheduled_jobs
+			.iter()
+			.map(|metrics| metrics.source_mutation_count)
+			.sum(),
+		current_output_count: scheduled_jobs
+			.iter()
+			.map(|metrics| metrics.current_output_count)
+			.sum(),
+		non_current_output_count: scheduled_jobs
+			.iter()
+			.map(|metrics| metrics.non_current_output_count)
+			.sum(),
+		invalid_current_output_count: scheduled_jobs
+			.iter()
+			.map(|metrics| metrics.invalid_current_output_count)
+			.sum(),
+		untraced_output_count: scheduled_jobs
+			.iter()
+			.map(|metrics| metrics.untraced_output_count)
+			.sum(),
+		unsupported_current_output_count: scheduled_jobs
+			.iter()
+			.map(|metrics| metrics.unsupported_current_output_count)
+			.sum(),
+		tombstone_violation_count: scheduled_jobs
+			.iter()
+			.map(|metrics| metrics.tombstone_violation_count)
+			.sum(),
+		source_trace_selected_count: scheduled_jobs
+			.iter()
+			.map(|metrics| metrics.source_trace_selected_count)
+			.sum(),
+		source_trace_dropped_count: scheduled_jobs
+			.iter()
+			.map(|metrics| metrics.source_trace_dropped_count)
+			.sum(),
+		source_trace_stale_count: scheduled_jobs
+			.iter()
+			.map(|metrics| metrics.source_trace_stale_count)
+			.sum(),
+		source_trace_superseded_count: scheduled_jobs
+			.iter()
+			.map(|metrics| metrics.source_trace_superseded_count)
+			.sum(),
+		source_trace_tombstone_count: scheduled_jobs
 			.iter()
 			.map(|metrics| metrics.source_trace_tombstone_count)
 			.sum(),
@@ -5749,6 +6492,7 @@ fn render_markdown(report: &RealWorldReport, report_path: &Path) -> String {
 	render_markdown_consolidation(&mut out, report);
 	render_markdown_memory_summary(&mut out, report);
 	render_markdown_proactive_brief(&mut out, report);
+	render_markdown_scheduled_memory(&mut out, report);
 	render_markdown_knowledge(&mut out, report);
 	render_markdown_unsupported_claims(&mut out, report);
 	render_markdown_follow_ups(&mut out, report);
@@ -6117,6 +6861,32 @@ fn render_markdown_optional_summary_metrics(out: &mut String, summary: &ReportSu
 		out.push_str(&format!(
 			"- Proactive rejected/deferred suggestions: `{}` rejected, `{}` deferred\n",
 			proactive.rejected_count, proactive.deferred_count
+		));
+	}
+	if let Some(scheduled) = &summary.scheduled_memory {
+		out.push_str(&format!(
+			"- Scheduled memory outputs: `{}` across `{}` task run(s)\n",
+			scheduled.output_count, scheduled.task_run_count
+		));
+		out.push_str(&format!(
+			"- Scheduled memory evidence-ref coverage: `{}/{}` (`{:.3}`)\n",
+			scheduled.evidence_ref_output_count,
+			scheduled.evidence_ref_required_count,
+			scheduled.evidence_ref_coverage
+		));
+		out.push_str(&format!(
+			"- Scheduled memory freshness/action/trace coverage: `{:.3}` / `{:.3}` / `{:.3}`\n",
+			scheduled.freshness_coverage,
+			scheduled.action_rationale_coverage,
+			scheduled.trace_coverage
+		));
+		out.push_str(&format!(
+			"- Scheduled memory stale/currentness violations: `{}` invalid current, `{}` tombstone violation(s)\n",
+			scheduled.invalid_current_output_count, scheduled.tombstone_violation_count
+		));
+		out.push_str(&format!(
+			"- Scheduled memory source mutations: `{}`\n",
+			scheduled.source_mutation_count
 		));
 	}
 }
@@ -6633,6 +7403,47 @@ fn render_markdown_proactive_brief(out: &mut String, report: &RealWorldReport) {
 	out.push('\n');
 }
 
+fn render_markdown_scheduled_memory(out: &mut String, report: &RealWorldReport) {
+	let scheduled_jobs =
+		report.jobs.iter().filter(|job| job.scheduled_memory.is_some()).collect::<Vec<_>>();
+
+	if scheduled_jobs.is_empty() {
+		return;
+	}
+
+	out.push_str("## Scheduled Memory Metrics\n\n");
+	out.push_str("| Job | Task Runs | Outputs | Kinds | Evidence Coverage | Freshness | Action Rationale | Trace Coverage | Invalid Current | Untraced | Unsupported Current | Tombstone Violations | Source Mutations |\n");
+	out.push_str(
+		"| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n",
+	);
+
+	for job in scheduled_jobs {
+		let Some(metrics) = &job.scheduled_memory else {
+			continue;
+		};
+
+		out.push_str(&format!(
+			"| {} | {} | {} | `{}/{}` | `{:.3}` | `{:.3}` | `{:.3}` | `{:.3}` | {} | {} | {} | {} | {} |\n",
+			md_cell(job.job_id.as_str()),
+			metrics.task_run_count,
+			metrics.output_count,
+			metrics.covered_required_task_kind_count,
+			metrics.required_task_kind_count,
+			metrics.evidence_ref_coverage,
+			metrics.freshness_coverage,
+			metrics.action_rationale_coverage,
+			metrics.trace_coverage,
+			metrics.invalid_current_output_count,
+			metrics.untraced_output_count,
+			metrics.unsupported_current_output_count,
+			metrics.tombstone_violation_count,
+			metrics.source_mutation_count
+		));
+	}
+
+	out.push('\n');
+}
+
 fn render_markdown_unsupported_claims(out: &mut String, report: &RealWorldReport) {
 	out.push_str("## Unsupported Claims\n\n");
 
@@ -6705,6 +7516,7 @@ fn render_markdown_semantics(out: &mut String, report: &RealWorldReport) {
 	out.push_str("For `knowledge_compilation` jobs, generated pages are benchmark artifacts. Page sections must cite source evidence or timeline events, or be explicitly flagged as unsupported. Flagged unsupported summaries are counted separately from hidden unsupported claims.\n\n");
 	out.push_str("For `memory_summary` jobs, summary artifacts are derived review surfaces. Top-of-mind entries must be current, included or downgraded entries must carry source refs, and derived project-profile entries must either cite sources or be explicitly flagged as unsupported.\n\n");
 	out.push_str("For `proactive_brief` jobs, brief artifacts are fixture-scored derived outputs, not scheduled UI behavior. Every suggestion must carry evidence refs, freshness/currentness metadata, and an action rationale; stale, superseded, or tombstoned sources must not be presented as current recommendations.\n\n");
+	out.push_str("For `scheduled_memory` jobs, task artifacts are deterministic fixture-scored stand-ins for asynchronous work. Every output must carry evidence refs, freshness/currentness metadata, action rationale, and execution trace/readback evidence; scheduled tasks must not mutate source notes silently or claim hosted scheduler/private-provider parity from fixture-only output.\n\n");
 	out.push_str("## Suites With `not_encoded` Status\n\n");
 
 	if report.not_encoded_suites.is_empty() {

@@ -1,0 +1,129 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "scheduled-private-provider-scheduler-blocked-001",
+  "suite": "scheduled_memory",
+  "title": "Block private/provider scheduled tasks without operator inputs",
+  "corpus": {
+    "corpus_id": "real-world-memory-scheduled-private-provider-2026-06-17",
+    "profile": "private_sanitized",
+    "items": [
+      {
+        "evidence_id": "scheduled-private-provider-missing-inputs",
+        "kind": "blocker",
+        "text": "Private/provider scheduled task blocker: no operator-owned private production corpus manifest, provider credentials, or hosted scheduler configuration is available to this fixture.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "private_provider_scheduler_blocked",
+            "evidence_id": "scheduled-private-provider-missing-inputs"
+          },
+          "locator": {
+            "quote": "no operator-owned private production corpus manifest"
+          }
+        },
+        "created_at": "2026-06-17T00:50:00Z"
+      },
+      {
+        "evidence_id": "scheduled-private-provider-xy930-boundary",
+        "kind": "issue",
+        "text": "XY-930 owns private-corpus and credentialed production gates when operator inputs exist; fixture-only scheduled-memory output must not claim private/provider scheduler quality.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "private_provider_scheduler_blocked",
+            "evidence_id": "scheduled-private-provider-xy930-boundary"
+          },
+          "locator": {
+            "quote": "XY-930 owns private-corpus and credentialed production gates"
+          }
+        },
+        "created_at": "2026-06-17T00:51:00Z"
+      }
+    ]
+  },
+  "timeline": [
+    {
+      "event_id": "scheduled-private-provider-blocked-recorded",
+      "ts": "2026-06-17T00:51:00Z",
+      "actor": "scheduler_fixture",
+      "action": "recorded_private_provider_blocker",
+      "evidence_ids": [
+        "scheduled-private-provider-missing-inputs",
+        "scheduled-private-provider-xy930-boundary"
+      ],
+      "summary": "Private/provider scheduled task scoring remains blocked until operator-owned inputs exist."
+    }
+  ],
+  "prompt": {
+    "role": "system",
+    "content": "Run private/provider scheduled memory tasks when operator inputs exist.",
+    "job_mode": "scheduled_memory",
+    "constraints": [
+      "do_not_require_private_corpus",
+      "block_without_operator_inputs",
+      "tie_blocker_to_xy930"
+    ]
+  },
+  "expected_answer": {
+    "must_include": [],
+    "must_not_include": [
+      "private/provider scheduled task quality is proven",
+      "hosted scheduler production behavior passed",
+      "private production corpus scheduled refresh passed"
+    ],
+    "evidence_links": {},
+    "answer_type": "scheduled_memory_task",
+    "accepted_alternates": [],
+    "requires_caveat": true,
+    "requires_refusal": true
+  },
+  "required_evidence": [],
+  "negative_traps": [],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "The fixture records private/provider scheduled tasks as blocked."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "The blocker points to missing operator inputs and XY-930."
+      },
+      "uncertainty_handling": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "No private/provider scheduler pass is claimed."
+      },
+      "lifecycle_behavior": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "The blocked state remains typed and visible."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": true,
+    "acceptable_phrases": [
+      "No operator-owned private production corpus manifest is available.",
+      "No hosted scheduler configuration is available."
+    ],
+    "fallback_action": "block_private_provider_scheduler_until_xy930_inputs_exist"
+  },
+  "encoding": {
+    "status": "blocked",
+    "reason": "No operator-owned private production corpus manifest, provider credentials, or hosted scheduler configuration is available; private/provider scheduled tasks stay blocked under XY-930.",
+    "follow_up": {
+      "title": "XY-930 private/provider scheduled-memory input gate",
+      "reason": "Run private-corpus, provider-backed, and hosted scheduler gates only when operator-owned inputs exist."
+    }
+  },
+  "tags": ["private_sanitized", "scheduled_memory", "private_provider_scheduler", "xy930_blocked"]
+}
