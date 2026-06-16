@@ -175,6 +175,21 @@ fn capture_write_policy_live_markdown_path() -> Result<PathBuf> {
 		.join("2026-06-11-capture-write-policy-live-report.md"))
 }
 
+fn live_consolidation_proposal_scoring_report_path() -> Result<PathBuf> {
+	Ok(workspace_root()?
+		.join("docs")
+		.join("research")
+		.join("2026-06-16-live-consolidation-proposal-scoring-report.json"))
+}
+
+fn live_consolidation_proposal_scoring_markdown_path() -> Result<PathBuf> {
+	Ok(workspace_root()?
+		.join("docs")
+		.join("guide")
+		.join("benchmarking")
+		.join("2026-06-16-live-consolidation-proposal-scoring-report.md"))
+}
+
 fn temporal_history_competitor_gap_json_path() -> Result<PathBuf> {
 	Ok(workspace_root()?
 		.join("docs")
@@ -2021,6 +2036,124 @@ fn capture_write_policy_live_report_preserves_competitor_boundaries() -> Result<
 	Ok(())
 }
 
+#[test]
+fn live_consolidation_report_preserves_reviewable_output_boundaries() -> Result<()> {
+	let workspace = workspace_root()?;
+	let report = serde_json::from_str::<Value>(&fs::read_to_string(
+		live_consolidation_proposal_scoring_report_path()?,
+	)?)?;
+	let markdown = fs::read_to_string(live_consolidation_proposal_scoring_markdown_path()?)?;
+	let benchmarking_index = fs::read_to_string(benchmarking_index_path()?)?;
+	let readme = fs::read_to_string(readme_path()?)?;
+	let benchmark_guide = fs::read_to_string(
+		workspace
+			.join("docs")
+			.join("guide")
+			.join("benchmarking")
+			.join("real_world_agent_memory_benchmark.md"),
+	)?;
+	let makefile = fs::read_to_string(workspace.join("Makefile.toml"))?;
+	let live_script =
+		fs::read_to_string(workspace.join("scripts/real-world-consolidation-live-adapter.sh"))?;
+	let live_adapter =
+		fs::read_to_string(workspace.join("apps/elf-eval/src/bin/real_world_live_adapter.rs"))?;
+
+	assert_eq!(
+		report.pointer("/schema").and_then(Value::as_str),
+		Some("elf.live_consolidation_proposal_scoring_report/v1")
+	);
+	assert_eq!(report.pointer("/authority").and_then(Value::as_str), Some("XY-934"));
+	assert_eq!(
+		report
+			.pointer("/live_consolidation_results/elf_live_real_world/suite_status")
+			.and_then(Value::as_str),
+		Some("pass")
+	);
+	assert_eq!(
+		report
+			.pointer("/live_consolidation_results/elf_live_real_world/encoded_job_count")
+			.and_then(Value::as_u64),
+		Some(4)
+	);
+	assert_eq!(
+		report
+			.pointer("/live_consolidation_results/elf_live_real_world/proposal_count")
+			.and_then(Value::as_u64),
+		Some(4)
+	);
+	assert_eq!(
+		report
+			.pointer("/live_consolidation_results/elf_live_real_world/source_mutation_count")
+			.and_then(Value::as_u64),
+		Some(0)
+	);
+	assert_eq!(
+		report
+			.pointer("/live_consolidation_results/elf_live_real_world/review_event_count")
+			.and_then(Value::as_u64),
+		Some(6)
+	);
+	assert_eq!(
+		report
+			.pointer("/live_consolidation_results/qmd_live_real_world/suite_status")
+			.and_then(Value::as_str),
+		Some("not_encoded")
+	);
+
+	let jobs = array_at(&report, "/jobs")?;
+	let project_summary =
+		find_by_field(jobs, "/job_id", "consolidation-project-summary-apply-001")?;
+	let preference =
+		find_by_field(jobs, "/job_id", "consolidation-preference-candidate-defer-001")?;
+	let contradiction =
+		find_by_field(jobs, "/job_id", "consolidation-contradiction-report-discard-001")?;
+
+	assert_eq!(
+		project_summary.pointer("/final_review_state").and_then(Value::as_str),
+		Some("applied")
+	);
+	assert_eq!(project_summary.pointer("/review_event_count").and_then(Value::as_u64), Some(2));
+	assert_eq!(preference.pointer("/final_review_state").and_then(Value::as_str), Some("archived"));
+	assert_eq!(
+		contradiction.pointer("/final_review_state").and_then(Value::as_str),
+		Some("rejected")
+	);
+	assert_eq!(
+		contradiction.pointer("/unsupported_claim_flag_count").and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(contradiction.pointer("/source_lineage_count").and_then(Value::as_u64), Some(3));
+
+	let positions = array_at(&report, "/reference_positions")?;
+	let qmd = find_by_field(positions, "/project", "qmd")?;
+	let managed = find_by_field(positions, "/project", "managed_dreaming_memory_systems")?;
+	let always_on = find_by_field(positions, "/project", "always_on_memory_agent_patterns")?;
+
+	assert_eq!(qmd.pointer("/position").and_then(Value::as_str), Some("untested"));
+	assert_eq!(managed.pointer("/position").and_then(Value::as_str), Some("product_reference"));
+	assert_eq!(always_on.pointer("/position").and_then(Value::as_str), Some("product_reference"));
+	assert!(markdown.contains("ELF now has service-backed live consolidation proposal scoring"));
+	assert!(markdown.contains("This is not scheduled production consolidation"));
+	assert!(markdown.contains("Source mutations"));
+	assert!(markdown.contains("Do not mix knowledge-page rebuild/lint scoring"));
+	assert!(
+		benchmarking_index.contains("2026-06-16-live-consolidation-proposal-scoring-report.md")
+	);
+	assert!(readme.contains("Live Consolidation Proposal Scoring Report - June 16, 2026"));
+	assert!(readme.contains("real-world-memory-live-consolidation"));
+	assert!(benchmark_guide.contains("Current live consolidation increment"));
+	assert!(benchmark_guide.contains("tmp/real-world-memory/live-consolidation/summary.json"));
+	assert!(makefile.contains("[tasks.real-world-memory-live-consolidation]"));
+	assert!(makefile.contains("scripts/real-world-consolidation-live-adapter.sh"));
+	assert!(live_script.contains("elf.real_world_consolidation_live_adapter_sweep/v1"));
+	assert!(live_script.contains("real_world_live_adapter -- elf"));
+	assert!(!live_script.contains("real_world_live_adapter -- qmd"));
+	assert!(live_adapter.contains("fn materialize_elf_consolidation("));
+	assert!(live_adapter.contains("ConsolidationProposalReviewRequest"));
+
+	Ok(())
+}
+
 fn assert_live_sweep_record(adapter: &Value, production_ops_status: &str) -> Result<()> {
 	let suites = array_at(adapter, "/suites")?;
 	let capabilities = array_at(adapter, "/capabilities")?;
@@ -3016,6 +3149,7 @@ fn assert_competitor_strength_matrix_scenario_json(scenarios: &[Value]) -> Resul
 	let work_resume = find_by_field(scenarios, "/scenario_id", "work_resume")?;
 	let operator_debug = find_by_field(scenarios, "/scenario_id", "operator_debugging")?;
 	let context_trajectory = find_by_field(scenarios, "/scenario_id", "context_trajectory")?;
+	let consolidation = find_by_field(scenarios, "/scenario_id", "consolidation")?;
 
 	assert!(
 		retrieval_debug
@@ -3050,6 +3184,20 @@ fn assert_competitor_strength_matrix_scenario_json(scenarios: &[Value]) -> Resul
 			.pointer("/next_measurement")
 			.and_then(Value::as_str)
 			.is_some_and(|claim| claim.contains("OpenMemory and claude-mem UI/export"))
+	);
+	assert!(
+		consolidation
+			.pointer("/current_elf_evidence")
+			.and_then(Value::as_str)
+			.is_some_and(|claim| claim.contains("XY-934 adds live_real_world")
+				&& claim.contains("zero source mutations"))
+	);
+	assert!(
+		consolidation
+			.pointer("/current_competitor_evidence")
+			.and_then(Value::as_str)
+			.is_some_and(|claim| claim.contains("qmd remains not_encoded")
+				&& claim.contains("product references only"))
 	);
 
 	let personalization = find_by_field(scenarios, "/scenario_id", "personalization")?;
@@ -3927,11 +4075,23 @@ fn assert_dreaming_readiness_baseline_counts(ledger: &Value, stages: &[Value]) -
 
 	assert_eq!(
 		consolidation.pointer("/comparison_judgment").and_then(Value::as_str),
-		Some("not_tested")
+		Some("improved")
 	);
 	assert_eq!(
 		consolidation.pointer("/baseline_counts/not_encoded").and_then(Value::as_u64),
 		Some(1)
+	);
+	assert_eq!(consolidation.pointer("/post_stage_counts/pass").and_then(Value::as_u64), Some(4));
+	assert_eq!(
+		consolidation.pointer("/post_stage_counts/not_encoded").and_then(Value::as_u64),
+		Some(0)
+	);
+	assert!(
+		consolidation
+			.pointer("/post_stage_basis")
+			.and_then(Value::as_str)
+			.is_some_and(|basis| basis.contains("apply/defer/discard audit")
+				&& basis.contains("zero source mutations"))
 	);
 
 	let scheduled = find_by_field(stages, "/stage_id", "scheduled_memory_task_readiness")?;
@@ -3948,6 +4108,7 @@ fn assert_dreaming_readiness_baseline_counts(ledger: &Value, stages: &[Value]) -
 	assert_eq!(retest.pointer("/baseline_counts/not_encoded").and_then(Value::as_u64), Some(11));
 	assert!(array_contains_str(ledger, "/summary/improved", "current_vs_historical_correctness")?);
 	assert!(array_contains_str(ledger, "/summary/improved", "preference_evolution")?);
+	assert!(array_contains_str(ledger, "/summary/improved", "reviewable_consolidation")?);
 	assert!(array_at(ledger, "/summary/regressed")?.is_empty());
 	assert!(array_contains_str(ledger, "/summary/unchanged", "deletion_ttl_tombstone_behavior")?);
 	assert!(array_contains_str(ledger, "/summary/unchanged", "final_competitor_retest_status")?);
@@ -3959,15 +4120,18 @@ fn assert_dreaming_readiness_baseline_counts(ledger: &Value, stages: &[Value]) -
 
 fn assert_dreaming_readiness_markdown_boundaries(markdown: &str) {
 	assert!(
-		markdown.contains("`improved`: current-vs-historical correctness and preference evolution")
+		markdown
+			.contains("`improved`: current-vs-historical correctness, preference evolution, and")
+			&& markdown.contains("reviewable consolidation")
 	);
 	assert!(markdown.contains("`regressed`: none"));
 	assert!(markdown.contains("the XY-905 run passes all six memory-evolution jobs"));
 	assert!(markdown.contains("XY-905"));
 	assert!(
 		markdown
-			.contains("Do not claim this ledger fixes preference history against mem0/OpenMemory")
+			.contains("Do not claim this ledger proves preference history against mem0/OpenMemory")
 	);
+	assert!(markdown.contains("Reviewable consolidation now has ELF live service-backed"));
 }
 
 #[test]

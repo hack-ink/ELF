@@ -229,16 +229,19 @@
       "outcome": "not_tested",
       "evidence_classes": [
         "fixture_backed",
+        "live_real_world",
+        "research_gate",
         "not_encoded"
       ],
-      "measured_claim": "ELF fixture consolidation passes, but live consolidation proposal generation and review-action scoring are not encoded.",
+      "measured_claim": "ELF fixture consolidation passes, and XY-934 adds live service-backed proposal materialization, source lineage, confidence/usefulness, unsupported-claim flags, and apply/defer/discard audit evidence. Managed dreaming and Always-On Memory Agent patterns remain product references, not direct live competitors.",
       "command_artifacts": [
-        "docs/guide/benchmarking/2026-06-11-measurement-coverage-audit.md"
+        "docs/guide/benchmarking/2026-06-16-live-consolidation-proposal-scoring-report.md",
+        "docs/research/2026-06-16-live-consolidation-proposal-scoring-report.json"
       ],
       "follow_up_issues": [
-        "XY-926"
+        "XY-934"
       ],
-      "caveat": "Fixture evidence cannot be promoted into live proposal-quality proof."
+      "caveat": "The live evidence is an ELF self-check for deterministic fixture/manual proposal materialization; no direct managed dreaming, Always-On Memory Agent, qmd, agentmemory, or llm-wiki live competitor runner is claimed."
     },
     {
       "scenario_id": "knowledge_page_compilation",
