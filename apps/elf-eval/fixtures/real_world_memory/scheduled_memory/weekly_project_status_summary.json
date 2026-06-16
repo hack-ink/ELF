@@ -1,0 +1,299 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "scheduled-weekly-project-status-summary-001",
+  "suite": "scheduled_memory",
+  "title": "Run a weekly project status summary from current memory",
+  "corpus": {
+    "corpus_id": "real-world-memory-scheduled-2026-06-17",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "scheduled-weekly-current-gate",
+        "kind": "decision",
+        "text": "Current scheduled-memory gate: run cargo make real-world-memory-scheduled and targeted real_world_job_benchmark tests before any validation-ready claim.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "weekly_project_status_summary",
+            "evidence_id": "scheduled-weekly-current-gate"
+          },
+          "locator": {
+            "quote": "real-world-memory-scheduled"
+          }
+        },
+        "created_at": "2026-06-17T00:10:00Z"
+      },
+      {
+        "evidence_id": "scheduled-weekly-ledger-update",
+        "kind": "plan",
+        "text": "Current ledger action: update the XY-951 scheduled-memory-task readiness stage with the scheduled benchmark delta and regression analysis.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "weekly_project_status_summary",
+            "evidence_id": "scheduled-weekly-ledger-update"
+          },
+          "locator": {
+            "quote": "XY-951 scheduled-memory-task readiness stage"
+          }
+        },
+        "created_at": "2026-06-17T00:12:00Z"
+      },
+      {
+        "evidence_id": "scheduled-weekly-hosted-parity-trap",
+        "kind": "note",
+        "text": "Stale claim: fixture-backed scheduled memory proves parity with ChatGPT Tasks, Pulse, and managed background products.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "weekly_project_status_summary",
+            "evidence_id": "scheduled-weekly-hosted-parity-trap"
+          }
+        },
+        "created_at": "2026-06-16T20:00:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_scheduled_memory",
+      "answer": {
+        "content": "Weekly scheduled summary: run cargo make real-world-memory-scheduled, update the XY-951 scheduled-memory-task readiness ledger, and do not claim hosted scheduled-product parity from fixture evidence.",
+        "claims": [
+          {
+            "claim_id": "scheduled_weekly_gate",
+            "text": "The scheduled-memory validation gate is cargo make real-world-memory-scheduled plus targeted real_world_job_benchmark tests.",
+            "evidence_ids": ["scheduled-weekly-current-gate"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "scheduled_weekly_ledger",
+            "text": "The XY-951 scheduled-memory-task readiness stage needs the scheduled benchmark delta and regression analysis.",
+            "evidence_ids": ["scheduled-weekly-ledger-update"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["scheduled-weekly-current-gate", "scheduled-weekly-ledger-update"],
+        "scheduled_tasks": [
+          {
+            "task_run_id": "scheduled-weekly-status-2026-06-17",
+            "contract_schema": "elf.scheduled_memory_task/v1",
+            "generated_at": "2026-06-17T00:30:00Z",
+            "scheduled_for": "2026-06-17T00:25:00Z",
+            "tenant_id": "fixture-tenant",
+            "project_id": "elf",
+            "agent_id": "xy-954-fixture-agent",
+            "read_profile": "private_plus_project",
+            "task_kind": "weekly_project_status_summary",
+            "outputs": [
+              {
+                "output_id": "weekly-summary-validation-ready-next-step",
+                "output_kind": "weekly_project_status_summary",
+                "text": "Run the scheduled-memory fixture command, update the XY-951 scheduled-memory-task readiness stage, and keep hosted scheduler parity out of the claim.",
+                "evidence_refs": [
+                  "scheduled-weekly-current-gate",
+                  "scheduled-weekly-ledger-update"
+                ],
+                "freshness": {
+                  "status": "current",
+                  "observed_at": "2026-06-17T00:12:00Z",
+                  "valid_from": "2026-06-17T00:10:00Z",
+                  "valid_to": null,
+                  "last_confirmed_at": "2026-06-17T00:30:00Z",
+                  "superseded_by": [],
+                  "tombstone_refs": []
+                },
+                "action": {
+                  "decision": "recommend",
+                  "reason_code": "RECOMMEND_CURRENT_SCHEDULED_GATE",
+                  "reason": "Both selected source refs are current project-memory items and the hosted parity trap was dropped."
+                },
+                "unsupported_claim_flags": []
+              }
+            ],
+            "source_trace": {
+              "selected_source_refs": [
+                {
+                  "evidence_id": "scheduled-weekly-current-gate",
+                  "status": "current",
+                  "reason": "Current scheduled-memory validation command."
+                },
+                {
+                  "evidence_id": "scheduled-weekly-ledger-update",
+                  "status": "current",
+                  "reason": "Current ledger update requirement."
+                }
+              ],
+              "dropped_source_refs": [],
+              "stale_source_refs": [
+                {
+                  "evidence_id": "scheduled-weekly-hosted-parity-trap",
+                  "status": "stale",
+                  "reason": "Fixture evidence cannot prove hosted scheduled-product parity."
+                }
+              ],
+              "superseded_source_refs": [],
+              "tombstone_source_refs": [],
+              "unsupported_claim_flags": []
+            },
+            "execution_trace": {
+              "trace_id": "trace-scheduled-weekly-status-2026-06-17",
+              "trigger_kind": "fixture_schedule",
+              "status": "completed",
+              "started_at": "2026-06-17T00:25:00Z",
+              "completed_at": "2026-06-17T00:30:00Z",
+              "output_ref": "weekly-summary-validation-ready-next-step",
+              "stages": [
+                {
+                  "stage_name": "memory_read",
+                  "summary": "Read current validation and ledger sources.",
+                  "evidence_refs": ["scheduled-weekly-current-gate", "scheduled-weekly-ledger-update"]
+                },
+                {
+                  "stage_name": "stale_filter",
+                  "summary": "Dropped hosted parity trap before output.",
+                  "evidence_refs": ["scheduled-weekly-hosted-parity-trap"]
+                },
+                {
+                  "stage_name": "output_readback",
+                  "summary": "Recorded source-linked scheduled output for review.",
+                  "evidence_refs": ["scheduled-weekly-current-gate", "scheduled-weekly-ledger-update"]
+                }
+              ]
+            },
+            "source_mutations": [],
+            "unsupported_claim_flags": []
+          }
+        ],
+        "latency_ms": 2.0,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "scheduled-weekly-run-created",
+      "ts": "2026-06-17T00:25:00Z",
+      "actor": "scheduler_fixture",
+      "action": "started_scheduled_task",
+      "evidence_ids": ["scheduled-weekly-current-gate"],
+      "summary": "The weekly scheduled task started from current project memory."
+    },
+    {
+      "event_id": "scheduled-weekly-output-recorded",
+      "ts": "2026-06-17T00:30:00Z",
+      "actor": "scheduler_fixture",
+      "action": "recorded_source_linked_output",
+      "evidence_ids": ["scheduled-weekly-current-gate", "scheduled-weekly-ledger-update"],
+      "summary": "The scheduled output was recorded with readback trace and source refs."
+    }
+  ],
+  "prompt": {
+    "role": "system",
+    "content": "Run the weekly project status summary scheduled task.",
+    "job_mode": "scheduled_memory",
+    "constraints": [
+      "cite_evidence",
+      "mark_currentness",
+      "record_execution_trace",
+      "do_not_claim_hosted_scheduler_parity"
+    ]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "scheduled_weekly_gate",
+        "text": "The scheduled-memory validation gate is cargo make real-world-memory-scheduled plus targeted real_world_job_benchmark tests."
+      },
+      {
+        "claim_id": "scheduled_weekly_ledger",
+        "text": "The XY-951 scheduled-memory-task readiness stage needs the scheduled benchmark delta and regression analysis."
+      }
+    ],
+    "must_not_include": [
+      "fixture-backed scheduled memory proves parity with ChatGPT Tasks",
+      "fixture-backed scheduled memory proves parity with Pulse",
+      "fixture-backed scheduled memory proves parity with managed background products"
+    ],
+    "evidence_links": {
+      "scheduled_weekly_gate": ["scheduled-weekly-current-gate"],
+      "scheduled_weekly_ledger": ["scheduled-weekly-ledger-update"]
+    },
+    "answer_type": "scheduled_memory_task",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "scheduled-weekly-current-gate",
+      "claim_id": "scheduled_weekly_gate",
+      "requirement": "cite",
+      "quote": "real-world-memory-scheduled"
+    },
+    {
+      "evidence_id": "scheduled-weekly-ledger-update",
+      "claim_id": "scheduled_weekly_ledger",
+      "requirement": "cite",
+      "quote": "XY-951 scheduled-memory-task readiness stage"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "scheduled-weekly-hosted-parity-trap",
+      "type": "stale_fact",
+      "evidence_ids": ["scheduled-weekly-hosted-parity-trap"],
+      "failure_if_used": true
+    }
+  ],
+  "scheduled_memory": {
+    "required_task_kinds": ["weekly_project_status_summary"]
+  },
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Scheduled output names the current scheduled-memory command and ledger update."
+      },
+      "evidence_grounding": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Every scheduled output carries source evidence refs."
+      },
+      "trace_readback": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "The task run records execution trace and output readback."
+      },
+      "trap_avoidance": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "The hosted parity trap is not selected as current evidence."
+      },
+      "lifecycle_behavior": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Freshness and currentness markers are present."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true",
+      "scheduled task output lacks execution trace readback"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": true,
+    "acceptable_phrases": ["No hosted scheduler parity claim is supported by this fixture."],
+    "fallback_action": "defer_hosted_scheduler_claim"
+  },
+  "tags": ["synthetic", "scheduled_memory", "weekly_project_status_summary", "fixture_backed"]
+}

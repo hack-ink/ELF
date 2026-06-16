@@ -1,0 +1,304 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "scheduled-knowledge-page-refresh-suggestion-001",
+  "suite": "scheduled_memory",
+  "title": "Suggest a knowledge-page refresh from scheduled memory",
+  "corpus": {
+    "corpus_id": "real-world-memory-scheduled-2026-06-17",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "scheduled-knowledge-page-stale-finding",
+        "kind": "fact",
+        "text": "Knowledge-page lint finding: the project ELF benchmark suite page references the old scheduled-memory blocked state after the scheduled_memory fixture suite was added.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "knowledge_page_refresh_suggestion",
+            "evidence_id": "scheduled-knowledge-page-stale-finding"
+          },
+          "locator": {
+            "quote": "old scheduled-memory blocked state"
+          }
+        },
+        "created_at": "2026-06-17T00:22:00Z"
+      },
+      {
+        "evidence_id": "scheduled-knowledge-reviewable-refresh",
+        "kind": "constraint",
+        "text": "Current knowledge-page refresh rule: scheduled tasks may suggest a reviewable rebuild, but they must not silently rewrite authoritative source notes.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "knowledge_page_refresh_suggestion",
+            "evidence_id": "scheduled-knowledge-reviewable-refresh"
+          },
+          "locator": {
+            "quote": "must not silently rewrite authoritative source notes"
+          }
+        },
+        "created_at": "2026-06-17T00:24:00Z"
+      },
+      {
+        "evidence_id": "scheduled-knowledge-silent-rewrite-trap",
+        "kind": "note",
+        "text": "Stale claim: a scheduled knowledge refresh may rewrite authoritative source notes automatically after lint finds a stale page.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "knowledge_page_refresh_suggestion",
+            "evidence_id": "scheduled-knowledge-silent-rewrite-trap"
+          }
+        },
+        "created_at": "2026-06-16T18:00:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_scheduled_memory",
+      "answer": {
+        "content": "Scheduled knowledge-page refresh suggestion: suggest a reviewable rebuild because lint found the old scheduled-memory blocked state, and do not silently rewrite source notes.",
+        "claims": [
+          {
+            "claim_id": "scheduled_knowledge_refresh_suggested",
+            "text": "A reviewable knowledge-page rebuild should be suggested because the page still references the old scheduled-memory blocked state.",
+            "evidence_ids": [
+              "scheduled-knowledge-page-stale-finding",
+              "scheduled-knowledge-reviewable-refresh"
+            ],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": [
+          "scheduled-knowledge-page-stale-finding",
+          "scheduled-knowledge-reviewable-refresh"
+        ],
+        "scheduled_tasks": [
+          {
+            "task_run_id": "scheduled-knowledge-refresh-2026-06-17",
+            "contract_schema": "elf.scheduled_memory_task/v1",
+            "generated_at": "2026-06-17T00:45:00Z",
+            "scheduled_for": "2026-06-17T00:42:00Z",
+            "tenant_id": "fixture-tenant",
+            "project_id": "elf",
+            "agent_id": "xy-954-fixture-agent",
+            "read_profile": "private_plus_project",
+            "task_kind": "knowledge_page_refresh_suggestion",
+            "outputs": [
+              {
+                "output_id": "scheduled-suggest-reviewable-knowledge-rebuild",
+                "output_kind": "knowledge_page_refresh_suggestion",
+                "text": "Suggest a reviewable knowledge-page rebuild for the stale scheduled-memory blocked-state reference; do not rewrite source notes silently.",
+                "evidence_refs": [
+                  "scheduled-knowledge-page-stale-finding",
+                  "scheduled-knowledge-reviewable-refresh"
+                ],
+                "freshness": {
+                  "status": "current",
+                  "observed_at": "2026-06-17T00:24:00Z",
+                  "valid_from": "2026-06-17T00:22:00Z",
+                  "valid_to": null,
+                  "last_confirmed_at": "2026-06-17T00:45:00Z",
+                  "superseded_by": [],
+                  "tombstone_refs": []
+                },
+                "action": {
+                  "decision": "recommend",
+                  "reason_code": "RECOMMEND_REVIEWABLE_KNOWLEDGE_REBUILD",
+                  "reason": "The lint finding is current and the refresh rule requires reviewable derived output instead of source mutation."
+                },
+                "unsupported_claim_flags": []
+              }
+            ],
+            "source_trace": {
+              "selected_source_refs": [
+                {
+                  "evidence_id": "scheduled-knowledge-page-stale-finding",
+                  "status": "current",
+                  "reason": "Current stale-page lint finding."
+                },
+                {
+                  "evidence_id": "scheduled-knowledge-reviewable-refresh",
+                  "status": "current",
+                  "reason": "Current refresh boundary."
+                }
+              ],
+              "dropped_source_refs": [],
+              "stale_source_refs": [
+                {
+                  "evidence_id": "scheduled-knowledge-silent-rewrite-trap",
+                  "status": "stale",
+                  "reason": "Silent authoritative source-note rewrites are not allowed."
+                }
+              ],
+              "superseded_source_refs": [],
+              "tombstone_source_refs": [],
+              "unsupported_claim_flags": []
+            },
+            "execution_trace": {
+              "trace_id": "trace-scheduled-knowledge-refresh-2026-06-17",
+              "trigger_kind": "fixture_schedule",
+              "status": "completed",
+              "started_at": "2026-06-17T00:42:00Z",
+              "completed_at": "2026-06-17T00:45:00Z",
+              "output_ref": "scheduled-suggest-reviewable-knowledge-rebuild",
+              "stages": [
+                {
+                  "stage_name": "memory_read",
+                  "summary": "Read current lint finding and refresh boundary.",
+                  "evidence_refs": [
+                    "scheduled-knowledge-page-stale-finding",
+                    "scheduled-knowledge-reviewable-refresh"
+                  ]
+                },
+                {
+                  "stage_name": "mutation_guard",
+                  "summary": "Rejected silent authoritative source-note rewrite.",
+                  "evidence_refs": ["scheduled-knowledge-silent-rewrite-trap"]
+                },
+                {
+                  "stage_name": "output_readback",
+                  "summary": "Recorded reviewable knowledge-page refresh suggestion.",
+                  "evidence_refs": [
+                    "scheduled-knowledge-page-stale-finding",
+                    "scheduled-knowledge-reviewable-refresh"
+                  ]
+                }
+              ]
+            },
+            "source_mutations": [],
+            "unsupported_claim_flags": []
+          }
+        ],
+        "latency_ms": 2.0,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "scheduled-knowledge-lint-recorded",
+      "ts": "2026-06-17T00:22:00Z",
+      "actor": "knowledge_lint_fixture",
+      "action": "recorded_stale_page_finding",
+      "evidence_ids": ["scheduled-knowledge-page-stale-finding"],
+      "summary": "The stale scheduled-memory blocked-state page reference was recorded."
+    },
+    {
+      "event_id": "scheduled-knowledge-refresh-output-recorded",
+      "ts": "2026-06-17T00:45:00Z",
+      "actor": "scheduler_fixture",
+      "action": "recorded_source_linked_output",
+      "evidence_ids": [
+        "scheduled-knowledge-page-stale-finding",
+        "scheduled-knowledge-reviewable-refresh"
+      ],
+      "summary": "The scheduled task recorded a reviewable knowledge-page refresh suggestion."
+    }
+  ],
+  "prompt": {
+    "role": "system",
+    "content": "Run the scheduled knowledge-page refresh suggestion task.",
+    "job_mode": "scheduled_memory",
+    "constraints": [
+      "cite_evidence",
+      "mark_currentness",
+      "record_execution_trace",
+      "do_not_mutate_source_notes_silently"
+    ]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "scheduled_knowledge_refresh_suggested",
+        "text": "A reviewable knowledge-page rebuild should be suggested because the page still references the old scheduled-memory blocked state."
+      }
+    ],
+    "must_not_include": [
+      "scheduled knowledge refresh may rewrite authoritative source notes automatically"
+    ],
+    "evidence_links": {
+      "scheduled_knowledge_refresh_suggested": [
+        "scheduled-knowledge-page-stale-finding",
+        "scheduled-knowledge-reviewable-refresh"
+      ]
+    },
+    "answer_type": "scheduled_memory_task",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "scheduled-knowledge-page-stale-finding",
+      "claim_id": "scheduled_knowledge_refresh_suggested",
+      "requirement": "cite",
+      "quote": "old scheduled-memory blocked state"
+    },
+    {
+      "evidence_id": "scheduled-knowledge-reviewable-refresh",
+      "claim_id": "scheduled_knowledge_refresh_suggested",
+      "requirement": "cite",
+      "quote": "must not silently rewrite authoritative source notes"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "scheduled-knowledge-silent-rewrite-trap",
+      "type": "stale_fact",
+      "evidence_ids": ["scheduled-knowledge-silent-rewrite-trap"],
+      "failure_if_used": true
+    }
+  ],
+  "scheduled_memory": {
+    "required_task_kinds": ["knowledge_page_refresh_suggestion"]
+  },
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Output suggests the reviewable knowledge-page rebuild."
+      },
+      "evidence_grounding": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Output cites lint finding and refresh boundary evidence."
+      },
+      "trace_readback": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Execution trace includes output readback."
+      },
+      "trap_avoidance": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Silent source-note rewrite trap is not selected."
+      },
+      "source_immutability": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Scheduled refresh suggestion leaves source mutation count at zero."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "scheduled task output lacks execution trace readback",
+      "source mutation count must remain zero"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": true,
+    "acceptable_phrases": ["No reviewable rebuild boundary is available."],
+    "fallback_action": "defer_knowledge_refresh"
+  },
+  "tags": ["synthetic", "scheduled_memory", "knowledge_page_refresh_suggestion", "fixture_backed"]
+}

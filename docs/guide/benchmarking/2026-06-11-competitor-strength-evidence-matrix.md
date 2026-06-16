@@ -31,15 +31,18 @@ Current boundary:
   live pass. The fresh ELF sweep produced 40 jobs with 22 pass, 5 wrong_result,
   0 incomplete, 2 blocked, and 11 not_encoded; the fresh qmd sweep produced 17 pass,
   6 wrong_result, 0 incomplete, 2 blocked, and 15 not_encoded.
-- ELF fixture evidence is strong: `cargo make real-world-memory` reports 55 jobs
-  across 15 suites with 49 pass and 6 blocked production-ops, private-corpus, or
+- ELF fixture evidence is strong: `cargo make real-world-memory` reports 60 jobs
+  across 16 suites with 53 pass and 7 blocked production-ops, private-corpus, private/provider scheduler, or
   OpenViking context-trajectory measurement gates. The `core_archival_memory` suite
   contributes 6 fixture-only passes for ELF core-block behavior; it does not create
   an ELF-over-Letta claim. The `memory_summary` suite contributes one fixture-backed
   source-trace pass; it does not create managed-memory parity evidence. The
   `proactive_brief` suite contributes four fixture-backed source-linked suggestion
   passes and one private-corpus blocker; it does not create Pulse or hosted
-  managed-memory parity. This proves the fixture contract, not live-service parity.
+  managed-memory parity. The `scheduled_memory` suite contributes four fixture-backed
+  scheduled task readbacks plus one private/provider scheduler blocker; it does not
+  create hosted scheduler, ChatGPT Tasks, Pulse, notification, or provider-backed
+  private-corpus parity. This proves the fixture contract, not live-service parity.
 - qmd is the strongest measured local retrieval-debug comparison, but the current
   evidence still separates its same-corpus/live-retrieval strengths from the full-suite
   live non-pass sweep.

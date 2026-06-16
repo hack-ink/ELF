@@ -1,0 +1,283 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "scheduled-stale-decision-audit-001",
+  "suite": "scheduled_memory",
+  "title": "Audit a stale project decision during a scheduled task",
+  "corpus": {
+    "corpus_id": "real-world-memory-scheduled-2026-06-17",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "scheduled-old-consolidation-only-decision",
+        "kind": "decision",
+        "text": "Historical decision: scheduled-memory readiness stays blocked and should only run cargo make real-world-memory-consolidation.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "stale_decision_audit",
+            "evidence_id": "scheduled-old-consolidation-only-decision"
+          },
+          "locator": {
+            "quote": "only run cargo make real-world-memory-consolidation"
+          }
+        },
+        "created_at": "2026-06-16T05:00:00Z"
+      },
+      {
+        "evidence_id": "scheduled-current-direct-suite-decision",
+        "kind": "decision",
+        "text": "Current decision: scheduled-memory readiness must use the direct real-world-memory-scheduled fixture suite plus aggregate real-world-memory regression guard.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "stale_decision_audit",
+            "evidence_id": "scheduled-current-direct-suite-decision"
+          },
+          "locator": {
+            "quote": "direct real-world-memory-scheduled fixture suite"
+          }
+        },
+        "created_at": "2026-06-17T00:20:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_scheduled_memory",
+      "answer": {
+        "content": "Scheduled stale decision audit: the consolidation-only readiness decision is superseded by the direct real-world-memory-scheduled fixture suite plus aggregate real-world-memory regression guard.",
+        "claims": [
+          {
+            "claim_id": "scheduled_decision_superseded",
+            "text": "The consolidation-only scheduled readiness decision is superseded by the direct scheduled-memory fixture suite.",
+            "evidence_ids": [
+              "scheduled-old-consolidation-only-decision",
+              "scheduled-current-direct-suite-decision"
+            ],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": [
+          "scheduled-old-consolidation-only-decision",
+          "scheduled-current-direct-suite-decision"
+        ],
+        "scheduled_tasks": [
+          {
+            "task_run_id": "scheduled-stale-decision-audit-2026-06-17",
+            "contract_schema": "elf.scheduled_memory_task/v1",
+            "generated_at": "2026-06-17T00:40:00Z",
+            "scheduled_for": "2026-06-17T00:37:00Z",
+            "tenant_id": "fixture-tenant",
+            "project_id": "elf",
+            "agent_id": "xy-954-fixture-agent",
+            "read_profile": "private_plus_project",
+            "task_kind": "stale_decision_audit",
+            "outputs": [
+              {
+                "output_id": "scheduled-defer-consolidation-only-decision",
+                "output_kind": "stale_decision_audit",
+                "text": "Defer the consolidation-only scheduled readiness decision; the current gate is the direct scheduled-memory fixture suite plus aggregate regression guard.",
+                "evidence_refs": [
+                  "scheduled-old-consolidation-only-decision",
+                  "scheduled-current-direct-suite-decision"
+                ],
+                "freshness": {
+                  "status": "superseded",
+                  "observed_at": "2026-06-17T00:20:00Z",
+                  "valid_from": "2026-06-16T05:00:00Z",
+                  "valid_to": "2026-06-17T00:20:00Z",
+                  "last_confirmed_at": "2026-06-17T00:40:00Z",
+                  "superseded_by": ["scheduled-current-direct-suite-decision"],
+                  "tombstone_refs": []
+                },
+                "action": {
+                  "decision": "defer",
+                  "reason_code": "DEFER_SUPERSEDED_DECISION",
+                  "reason": "The old consolidation-only decision is retained as history and is not the current scheduled-memory readiness gate."
+                },
+                "unsupported_claim_flags": []
+              }
+            ],
+            "source_trace": {
+              "selected_source_refs": [
+                {
+                  "evidence_id": "scheduled-current-direct-suite-decision",
+                  "status": "current",
+                  "reason": "Current direct scheduled-memory readiness gate."
+                }
+              ],
+              "dropped_source_refs": [],
+              "stale_source_refs": [],
+              "superseded_source_refs": [
+                {
+                  "evidence_id": "scheduled-old-consolidation-only-decision",
+                  "status": "superseded",
+                  "reason": "Replaced by the direct scheduled-memory fixture suite.",
+                  "superseded_by": "scheduled-current-direct-suite-decision"
+                }
+              ],
+              "tombstone_source_refs": [],
+              "unsupported_claim_flags": []
+            },
+            "execution_trace": {
+              "trace_id": "trace-scheduled-stale-decision-audit-2026-06-17",
+              "trigger_kind": "fixture_schedule",
+              "status": "completed",
+              "started_at": "2026-06-17T00:37:00Z",
+              "completed_at": "2026-06-17T00:40:00Z",
+              "output_ref": "scheduled-defer-consolidation-only-decision",
+              "stages": [
+                {
+                  "stage_name": "memory_read",
+                  "summary": "Read historical and current scheduled-readiness decisions.",
+                  "evidence_refs": [
+                    "scheduled-old-consolidation-only-decision",
+                    "scheduled-current-direct-suite-decision"
+                  ]
+                },
+                {
+                  "stage_name": "supersession_check",
+                  "summary": "Classified the consolidation-only decision as superseded.",
+                  "evidence_refs": [
+                    "scheduled-old-consolidation-only-decision",
+                    "scheduled-current-direct-suite-decision"
+                  ]
+                },
+                {
+                  "stage_name": "output_readback",
+                  "summary": "Recorded scheduled stale-decision output for review.",
+                  "evidence_refs": ["scheduled-current-direct-suite-decision"]
+                }
+              ]
+            },
+            "source_mutations": [],
+            "unsupported_claim_flags": []
+          }
+        ],
+        "latency_ms": 2.0,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "scheduled-direct-suite-decision-recorded",
+      "ts": "2026-06-17T00:20:00Z",
+      "actor": "agent",
+      "action": "recorded_current_decision",
+      "evidence_ids": ["scheduled-current-direct-suite-decision"],
+      "summary": "The direct scheduled-memory fixture suite became the current readiness gate."
+    },
+    {
+      "event_id": "scheduled-decision-audit-output-recorded",
+      "ts": "2026-06-17T00:40:00Z",
+      "actor": "scheduler_fixture",
+      "action": "recorded_source_linked_output",
+      "evidence_ids": [
+        "scheduled-old-consolidation-only-decision",
+        "scheduled-current-direct-suite-decision"
+      ],
+      "summary": "The stale decision audit was recorded with supersession evidence."
+    }
+  ],
+  "prompt": {
+    "role": "system",
+    "content": "Run the scheduled stale decision audit.",
+    "job_mode": "scheduled_memory",
+    "constraints": [
+      "cite_evidence",
+      "mark_superseded_decisions",
+      "record_execution_trace",
+      "do_not_use_old_decision_as_current"
+    ]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "scheduled_decision_superseded",
+        "text": "The consolidation-only scheduled readiness decision is superseded by the direct scheduled-memory fixture suite."
+      }
+    ],
+    "must_not_include": ["scheduled-memory readiness stays blocked and should only run cargo make real-world-memory-consolidation"],
+    "evidence_links": {
+      "scheduled_decision_superseded": [
+        "scheduled-old-consolidation-only-decision",
+        "scheduled-current-direct-suite-decision"
+      ]
+    },
+    "answer_type": "scheduled_memory_task",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "scheduled-old-consolidation-only-decision",
+      "claim_id": "scheduled_decision_superseded",
+      "requirement": "cite",
+      "quote": "only run cargo make real-world-memory-consolidation"
+    },
+    {
+      "evidence_id": "scheduled-current-direct-suite-decision",
+      "claim_id": "scheduled_decision_superseded",
+      "requirement": "cite",
+      "quote": "direct real-world-memory-scheduled fixture suite"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "scheduled-consolidation-only-current-trap",
+      "type": "stale_fact",
+      "evidence_ids": ["scheduled-old-consolidation-only-decision"],
+      "failure_if_used": false
+    }
+  ],
+  "scheduled_memory": {
+    "required_task_kinds": ["stale_decision_audit"]
+  },
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Audit identifies the superseded decision and current replacement."
+      },
+      "evidence_grounding": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Audit cites both old and new decision evidence."
+      },
+      "trace_readback": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Execution trace includes output readback."
+      },
+      "trap_avoidance": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "The old decision is not presented as current."
+      },
+      "lifecycle_behavior": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Supersession markers are present."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "scheduled task output lacks execution trace readback"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": true,
+    "acceptable_phrases": ["No current scheduled-memory decision is available."],
+    "fallback_action": "defer_superseded_decision"
+  },
+  "tags": ["synthetic", "scheduled_memory", "stale_decision_audit", "fixture_backed"]
+}
