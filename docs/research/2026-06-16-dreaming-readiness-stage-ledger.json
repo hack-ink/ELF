@@ -4,7 +4,7 @@
   "authority": "XY-951",
   "created_at": "2026-06-16T00:00:00Z",
   "purpose": "Define the benchmark evidence gate that every Dreaming-inspired ELF optimization stage must update before claiming completion.",
-  "source_evidence_cutoff": "Checked-in benchmark and research evidence through 2026-06-11; no new live/provider/private benchmark pass is claimed by this ledger.",
+  "source_evidence_cutoff": "Checked-in benchmark and research evidence through the XY-905 live temporal reconciliation run on 2026-06-16; no private-corpus or provider-backed production pass is claimed by this ledger.",
   "typed_status_terms": [
     "pass",
     "wrong_result",
@@ -36,14 +36,15 @@
     "Typed non-pass states must remain typed; blocked, not_tested, not_encoded, incomplete, lifecycle_fail, unsupported, and wrong_result must not be collapsed into a generic fail or hidden under pass.",
     "Fixture-backed evidence may prove benchmark shape but must not be promoted into live_real_world product quality.",
     "Private-corpus and provider-backed production gates remain typed blocked unless the operator supplies explicit inputs; those blockers are tracked under XY-930.",
-    "The live memory_evolution loss remains open until XY-905 changes behavior and reruns the live gate."
+    "The XY-905 post-stage live memory_evolution result is a narrow temporal reconciliation improvement only; it must not be converted into private-corpus, hosted memory, or broad competitor superiority claims."
   ],
   "summary": {
-    "improved": [],
+    "improved": [
+      "current_vs_historical_correctness",
+      "preference_evolution"
+    ],
     "regressed": [],
     "unchanged": [
-      "current_vs_historical_correctness",
-      "preference_evolution",
       "deletion_ttl_tombstone_behavior",
       "final_competitor_retest_status"
     ],
@@ -85,6 +86,8 @@
         }
       ],
       "evidence_files": [
+        "docs/guide/benchmarking/2026-06-16-live-temporal-reconciliation-report.md",
+        "docs/research/2026-06-16-live-temporal-reconciliation-report.json",
         "docs/guide/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md",
         "docs/research/2026-06-11-temporal-history-competitor-gap-report.json",
         "docs/guide/benchmarking/2026-06-11-competitor-strength-adoption-report.md"
@@ -97,10 +100,18 @@
         "not_encoded": 0
       },
       "baseline_basis": "ELF live service adapter memory_evolution suite: one delete/TTL job passes and five current-vs-historical jobs are wrong_result.",
-      "comparison_judgment": "unchanged",
+      "post_stage_counts": {
+        "pass": 6,
+        "wrong_result": 0,
+        "blocked": 0,
+        "not_tested": 0,
+        "not_encoded": 0
+      },
+      "post_stage_basis": "XY-905 live real-world adapter sweep: ELF memory_evolution suite passes all six encoded jobs with current, historical, rationale, tombstone, and temporal-validity evidence selected where present.",
+      "comparison_judgment": "improved",
       "regression_rule": "Any new wrong_result, missed evidence, or loss of the delete/TTL pass is a regression.",
       "improvement_rule": "An improvement requires fewer live ELF wrong_result jobs without increasing blocked/not_tested counts.",
-      "next_optimization_direction": "Implement current/historical/rationale/tombstone answer and trace selection before claiming temporal memory is solved."
+      "next_optimization_direction": "Move from benchmark materialization into service-native temporal reconciliation APIs and compare against mem0/OpenMemory history and Graphiti/Zep temporal graph evidence without broad superiority claims."
     },
     {
       "stage_id": "preference_evolution",
@@ -139,6 +150,8 @@
         }
       ],
       "evidence_files": [
+        "docs/guide/benchmarking/2026-06-16-live-temporal-reconciliation-report.md",
+        "docs/research/2026-06-16-live-temporal-reconciliation-report.json",
         "docs/guide/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md",
         "docs/guide/benchmarking/2026-06-11-mem0-openmemory-history-ui-export-report.md",
         "docs/research/2026-06-11-temporal-history-competitor-gap-report.json"
@@ -151,10 +164,18 @@
         "not_encoded": 0
       },
       "baseline_basis": "ELF live memory-evolution-preference-001 is wrong_result; mem0 local OSS preference correction history is measured as an ELF loss.",
-      "comparison_judgment": "unchanged",
+      "post_stage_counts": {
+        "pass": 1,
+        "wrong_result": 0,
+        "blocked": 0,
+        "not_tested": 0,
+        "not_encoded": 0
+      },
+      "post_stage_basis": "XY-905 live real-world adapter sweep: ELF memory-evolution-preference-001 passes with current preference, historical preference, and rationale evidence selected and narrated.",
+      "comparison_judgment": "improved",
       "regression_rule": "Any loss of fixture preference correctness or any new blocked/not_tested live preference gate is a regression.",
       "improvement_rule": "An improvement requires live preference correction history to pass while preserving old preference history as historical evidence.",
-      "next_optimization_direction": "Add explicit preference correction history and answer fields that name the current preference, the superseded preference, and the rationale evidence."
+      "next_optimization_direction": "Measure preference correction against mem0/OpenMemory history and UI/export surfaces before making any broader history-quality claim."
     },
     {
       "stage_id": "deletion_ttl_tombstone_behavior",
@@ -184,6 +205,8 @@
         }
       ],
       "evidence_files": [
+        "docs/guide/benchmarking/2026-06-16-live-temporal-reconciliation-report.md",
+        "docs/research/2026-06-16-live-temporal-reconciliation-report.json",
         "docs/guide/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md",
         "docs/guide/benchmarking/2026-06-11-measurement-coverage-audit.md"
       ],
@@ -195,10 +218,18 @@
         "not_encoded": 0
       },
       "baseline_basis": "ELF live memory-evolution-delete-ttl-001 passes with tombstone and current-plan evidence; qmd misses the tombstone.",
+      "post_stage_counts": {
+        "pass": 1,
+        "wrong_result": 0,
+        "blocked": 0,
+        "not_tested": 0,
+        "not_encoded": 0
+      },
+      "post_stage_basis": "XY-905 live real-world adapter sweep preserved the delete/TTL pass and now reports tombstone and invalidation evidence in the memory_evolution readback fields.",
       "comparison_judgment": "unchanged",
       "regression_rule": "Losing tombstone evidence, returning stale deleted content, or failing the aggregate fixture is a regression.",
       "improvement_rule": "This stage is already pass for ELF; improvement requires preserving the pass while reducing adjacent memory_evolution wrong_result counts.",
-      "next_optimization_direction": "Keep tombstone and TTL invalidation evidence answerable as temporal reconciliation is repaired."
+      "next_optimization_direction": "Extend tombstone and TTL readback beyond the single encoded job into update/delete/recreate history cases."
     },
     {
       "stage_id": "reviewable_consolidation",

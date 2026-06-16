@@ -115,6 +115,11 @@ cleanup, use `docs/guide/single_user_production.md`.
   post-stage command matrix, typed improved/regressed/unchanged/blocked/not-tested
   buckets, and machine-readable companion file
   `docs/research/2026-06-16-dreaming-readiness-stage-ledger.json`.
+- `2026-06-16-live-temporal-reconciliation-report.md`: XY-905 live temporal
+  reconciliation follow-up showing ELF live `memory_evolution` moving from
+  `pass=1`, `wrong_result=5` to `pass=6`, `wrong_result=0`, with trace/readback
+  fields for selected current, historical, rationale, tombstone, invalidation,
+  dropped, and non-narrated evidence.
 - `real_world_agent_memory_benchmark.md`: operator overview for the v1 real-world
   agent memory benchmark contract, including suite taxonomy, typed report states,
   knowledge-compilation fixture tasks, and the production-ops fixture target.
