@@ -44,23 +44,26 @@ The strongest current statement is:
 
 | Metric | Value |
 | --- | ---: |
-| Jobs | `50` |
-| Encoded suites | `14` |
-| Pass | `45` |
-| Blocked | `5` |
+| Jobs | `55` |
+| Encoded suites | `15` |
+| Pass | `49` |
+| Blocked | `6` |
 | Wrong result | `0` |
 | Lifecycle fail | `0` |
 | Incomplete | `0` |
 | Not encoded | `0` |
 | Unsupported claim | `0` |
-| Mean score | `0.900` |
-| Evidence coverage | `115/115` |
-| Source-ref coverage | `115/115` |
-| Quote coverage | `115/115` |
-| Expected evidence recall | `107/107` |
+| Mean score | `0.891` |
+| Evidence coverage | `123/123` |
+| Source-ref coverage | `123/123` |
+| Quote coverage | `123/123` |
+| Expected evidence recall | `115/115` |
 
 This proves the fixture contract is broad and well controlled. It does not prove that
 every live adapter or every competitor runtime passes those scenarios.
+The new `proactive_brief` fixture slice contributes four passing evidence-linked
+suggestion jobs and one typed private-corpus blocker tied to XY-930; it does not
+prove Pulse or hosted managed-memory parity.
 
 ### Live Real-World Sweep
 
