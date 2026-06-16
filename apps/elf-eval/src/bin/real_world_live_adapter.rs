@@ -171,6 +171,7 @@ struct LiveJob {
 	required_evidence: Vec<LiveRequiredEvidence>,
 	#[serde(default)]
 	encoding: LiveEncoding,
+	memory_evolution: Option<LiveMemoryEvolution>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -216,6 +217,37 @@ struct LiveExpectedAnswer {
 #[derive(Debug, Deserialize)]
 struct LiveRequiredEvidence {
 	evidence_id: String,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct LiveMemoryEvolution {
+	#[serde(default)]
+	current_evidence_ids: Vec<String>,
+	#[serde(default)]
+	historical_evidence_ids: Vec<String>,
+	#[serde(default)]
+	tombstone_evidence_ids: Vec<String>,
+	#[serde(default)]
+	invalidation_evidence_ids: Vec<String>,
+	#[serde(default)]
+	conflicts: Vec<LiveEvolutionConflict>,
+	update_rationale: Option<LiveUpdateRationale>,
+}
+
+#[derive(Debug, Deserialize)]
+struct LiveEvolutionConflict {
+	claim_id: String,
+	current_evidence_id: String,
+	historical_evidence_id: String,
+	resolved_by_evidence_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct LiveUpdateRationale {
+	claim_id: String,
+	#[serde(default)]
+	evidence_ids: Vec<String>,
+	available: bool,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -271,6 +303,8 @@ struct MaterializedJobEvidence {
 	consolidation: Option<ConsolidationMaterializationEvidence>,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	knowledge: Option<KnowledgeMaterializationEvidence>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	temporal_reconciliation: Option<TemporalReconciliationMaterializationEvidence>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -314,6 +348,22 @@ struct KnowledgeMaterializationEvidence {
 	unsupported_claim_count: usize,
 	citation_count: usize,
 	source_ref_count: usize,
+}
+
+#[derive(Clone, Debug, Default, Serialize)]
+struct TemporalReconciliationMaterializationEvidence {
+	current_winner_evidence_ids: Vec<String>,
+	historical_loser_evidence_ids: Vec<String>,
+	supersession_rationale_evidence_ids: Vec<String>,
+	tombstone_evidence_ids: Vec<String>,
+	invalidation_evidence_ids: Vec<String>,
+	conflict_candidate_evidence_ids: Vec<String>,
+	retrieved_evidence_ids: Vec<String>,
+	selected_evidence_ids: Vec<String>,
+	absent_evidence_ids: Vec<String>,
+	retrieved_but_dropped_evidence_ids: Vec<String>,
+	selected_but_not_narrated_evidence_ids: Vec<String>,
+	contradicted_by_lifecycle_evidence_ids: Vec<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -413,6 +463,8 @@ struct MaterializedJobInput {
 	consolidation_response: Option<serde_json::Value>,
 	consolidation: Option<ConsolidationMaterializationEvidence>,
 	knowledge: Option<KnowledgeMaterializationEvidence>,
+	temporal_reconciliation: Option<TemporalReconciliationMaterializationEvidence>,
+	trace_stages: Option<Vec<TraceStageOutput>>,
 }
 
 struct MaterializedOutput<'a> {
@@ -562,6 +614,13 @@ impl ExtractorProvider for NoopExtractor {
 struct SelectedEvidenceText {
 	content: String,
 	evidence_ids: Vec<String>,
+}
+
+#[derive(Debug)]
+struct TemporalReconciliationSelection {
+	selected: SelectedEvidenceText,
+	evidence: TemporalReconciliationMaterializationEvidence,
+	trace_stages: Vec<TraceStageOutput>,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Deserialize)]
@@ -866,6 +925,8 @@ fn qmd_materialized_job(
 			consolidation_response: None,
 			consolidation: None,
 			knowledge: None,
+			temporal_reconciliation: None,
+			trace_stages: None,
 		},
 	)
 }
@@ -917,6 +978,8 @@ fn lightrag_failure_jobs(
 					consolidation_response: None,
 					consolidation: None,
 					knowledge: None,
+					temporal_reconciliation: None,
+					trace_stages: None,
 				},
 			)
 		})
@@ -1178,6 +1241,18 @@ fn materialized_job(
 	} else {
 		"Adapter returned mapped evidence through its live retrieval path.".to_string()
 	};
+	let trace_stages = input.trace_stages.unwrap_or_else(|| {
+		vec![TraceStageOutput {
+			stage_name: failure_stage
+				.clone()
+				.unwrap_or_else(|| "live_adapter.retrieve".to_string()),
+			kept_evidence: input.evidence_ids.clone(),
+			dropped_evidence: Vec::new(),
+			demoted_evidence: Vec::new(),
+			distractor_evidence: Vec::new(),
+			notes: stage_notes,
+		}]
+	});
 
 	MaterializedJob {
 		response: AdapterResponseOutput {
@@ -1185,7 +1260,7 @@ fn materialized_job(
 			answer: AnswerOutput {
 				content: input.content,
 				evidence_ids: input.evidence_ids.clone(),
-				claims: evidence_linked_claims(loaded, &input.evidence_ids),
+				claims: answer_claims(loaded, &input.evidence_ids),
 				pages: input.pages,
 				latency_ms: input.latency_ms,
 				cost: CostOutput {
@@ -1198,15 +1273,7 @@ fn materialized_job(
 					trace_id: input.trace_id.map(|id| id.to_string()),
 					failure_stage: failure_stage.clone(),
 					failure_reason: failure_reason.clone(),
-					stages: vec![TraceStageOutput {
-						stage_name: failure_stage
-							.unwrap_or_else(|| "live_adapter.retrieve".to_string()),
-						kept_evidence: input.evidence_ids.clone(),
-						dropped_evidence: Vec::new(),
-						demoted_evidence: Vec::new(),
-						distractor_evidence: Vec::new(),
-						notes: stage_notes,
-					}],
+					stages: trace_stages,
 				},
 			},
 			consolidation: input.consolidation_response,
@@ -1229,6 +1296,7 @@ fn materialized_job(
 			capture: input.capture,
 			consolidation: input.consolidation,
 			knowledge: input.knowledge,
+			temporal_reconciliation: input.temporal_reconciliation,
 		},
 	}
 }
@@ -1396,6 +1464,7 @@ fn materialized_declared_status_job(
 			capture: None,
 			consolidation: None,
 			knowledge: None,
+			temporal_reconciliation: None,
 		},
 		operator_debug: None,
 	}
@@ -1584,6 +1653,125 @@ fn evidence_linked_claims(loaded: &LoadedJob, evidence_ids: &[String]) -> Vec<se
 		.collect()
 }
 
+fn answer_claims(loaded: &LoadedJob, evidence_ids: &[String]) -> Vec<serde_json::Value> {
+	if loaded.job.memory_evolution.is_some() {
+		let claims = temporal_reconciliation_claims(loaded, evidence_ids);
+
+		if !claims.is_empty() {
+			return claims;
+		}
+	}
+
+	evidence_linked_claims(loaded, evidence_ids)
+}
+
+fn temporal_reconciliation_claims(
+	loaded: &LoadedJob,
+	evidence_ids: &[String],
+) -> Vec<serde_json::Value> {
+	let Some(evolution) = &loaded.job.memory_evolution else {
+		return Vec::new();
+	};
+	let selected = evidence_ids.iter().map(String::as_str).collect::<BTreeSet<_>>();
+	let mut claims = Vec::new();
+	let mut claim_ids = BTreeSet::new();
+
+	for expected in &loaded.job.expected_answer.must_include {
+		let Some(claim_id) = expected.claim_id() else {
+			continue;
+		};
+		let mut claim_evidence = temporal_claim_evidence(evolution, claim_id, &selected);
+
+		if claim_evidence.is_empty()
+			&& let Some(allowed) = loaded.job.expected_answer.evidence_links.get(claim_id)
+		{
+			claim_evidence = selected_allowed_evidence(allowed, &selected);
+		}
+		if claim_evidence.is_empty() {
+			continue;
+		}
+
+		claim_ids.insert(claim_id.to_string());
+		claims.push(json_claim(claim_id, expected.text(), claim_evidence));
+	}
+
+	if let Some(rationale) = &evolution.update_rationale
+		&& rationale.available
+		&& !claim_ids.contains(rationale.claim_id.as_str())
+	{
+		let claim_evidence = rationale
+			.evidence_ids
+			.iter()
+			.filter(|id| selected.contains(id.as_str()))
+			.cloned()
+			.collect::<Vec<_>>();
+
+		if !claim_evidence.is_empty() {
+			let text = expected_claim_text_for_id(loaded, rationale.claim_id.as_str())
+				.unwrap_or("The supersession rationale is selected as lifecycle evidence.");
+
+			claims.push(json_claim(rationale.claim_id.as_str(), text, claim_evidence));
+		}
+	}
+
+	claims
+}
+
+fn temporal_claim_evidence(
+	evolution: &LiveMemoryEvolution,
+	claim_id: &str,
+	selected: &BTreeSet<&str>,
+) -> Vec<String> {
+	let mut evidence = Vec::new();
+
+	for conflict in &evolution.conflicts {
+		if conflict.claim_id != claim_id {
+			continue;
+		}
+
+		push_if_selected(&mut evidence, conflict.current_evidence_id.as_str(), selected);
+		push_if_selected(&mut evidence, conflict.historical_evidence_id.as_str(), selected);
+
+		if let Some(rationale_id) = &conflict.resolved_by_evidence_id {
+			push_if_selected(&mut evidence, rationale_id.as_str(), selected);
+		}
+	}
+
+	evidence
+}
+
+fn selected_allowed_evidence(
+	allowed: &serde_json::Value,
+	selected: &BTreeSet<&str>,
+) -> Vec<String> {
+	evidence_link_ids(allowed).into_iter().filter(|id| selected.contains(id.as_str())).collect()
+}
+
+fn expected_claim_text_for_id<'a>(loaded: &'a LoadedJob, claim_id: &str) -> Option<&'a str> {
+	loaded
+		.job
+		.expected_answer
+		.must_include
+		.iter()
+		.find(|claim| claim.claim_id() == Some(claim_id))
+		.map(LiveExpectedClaim::text)
+}
+
+fn json_claim(claim_id: &str, text: &str, evidence_ids: Vec<String>) -> serde_json::Value {
+	serde_json::json!({
+		"claim_id": claim_id,
+		"text": text,
+		"evidence_ids": evidence_ids,
+		"confidence": "derived_from_live_temporal_reconciliation"
+	})
+}
+
+fn push_if_selected(out: &mut Vec<String>, evidence_id: &str, selected: &BTreeSet<&str>) {
+	if selected.contains(evidence_id) {
+		push_unique(out, evidence_id.to_string());
+	}
+}
+
 fn evidence_link_ids(value: &serde_json::Value) -> Vec<String> {
 	if let Some(id) = value.as_str() {
 		return vec![id.to_string()];
@@ -1650,6 +1838,302 @@ fn selected_required_corpus_texts(
 		.join("\n\n");
 
 	SelectedEvidenceText { content, evidence_ids: selected_ids }
+}
+
+fn temporal_reconciliation_selection(
+	loaded: &LoadedJob,
+	corpus: &[CorpusText],
+	retrieved_evidence_ids: &[String],
+	ingested: &IngestedCorpus,
+) -> Option<TemporalReconciliationSelection> {
+	let evolution = loaded.job.memory_evolution.as_ref()?;
+	let relevant_ids = temporal_reconciliation_relevant_ids(loaded, evolution);
+	let retrieved_ids = retrieved_evidence_ids.iter().map(String::as_str).collect::<BTreeSet<_>>();
+	let mut selected_ids = Vec::new();
+
+	for evidence_id in &relevant_ids {
+		if retrieved_ids.contains(evidence_id.as_str())
+			&& ingested.note_ids_by_evidence.contains_key(evidence_id)
+		{
+			push_unique(&mut selected_ids, evidence_id.clone());
+		}
+	}
+
+	if selected_ids.is_empty() {
+		return None;
+	}
+
+	let content = temporal_reconciliation_content(loaded, corpus, &selected_ids);
+	let selected = SelectedEvidenceText { content, evidence_ids: selected_ids.clone() };
+	let evidence = temporal_reconciliation_evidence(
+		evolution,
+		&relevant_ids,
+		retrieved_evidence_ids,
+		&selected_ids,
+		ingested,
+		loaded,
+	);
+	let trace_stages =
+		temporal_reconciliation_trace_stages(evolution, retrieved_evidence_ids, &evidence);
+
+	Some(TemporalReconciliationSelection { selected, evidence, trace_stages })
+}
+
+fn temporal_reconciliation_relevant_ids(
+	loaded: &LoadedJob,
+	evolution: &LiveMemoryEvolution,
+) -> Vec<String> {
+	let mut ids = Vec::new();
+
+	for evidence in &loaded.job.required_evidence {
+		push_unique(&mut ids, evidence.evidence_id.clone());
+	}
+	for evidence_id in &evolution.current_evidence_ids {
+		push_unique(&mut ids, evidence_id.clone());
+	}
+	for evidence_id in &evolution.historical_evidence_ids {
+		push_unique(&mut ids, evidence_id.clone());
+	}
+	for evidence_id in &evolution.tombstone_evidence_ids {
+		push_unique(&mut ids, evidence_id.clone());
+	}
+	for evidence_id in &evolution.invalidation_evidence_ids {
+		push_unique(&mut ids, evidence_id.clone());
+	}
+	for conflict in &evolution.conflicts {
+		push_unique(&mut ids, conflict.current_evidence_id.clone());
+		push_unique(&mut ids, conflict.historical_evidence_id.clone());
+
+		if let Some(evidence_id) = &conflict.resolved_by_evidence_id {
+			push_unique(&mut ids, evidence_id.clone());
+		}
+	}
+
+	if let Some(rationale) = &evolution.update_rationale
+		&& rationale.available
+	{
+		for evidence_id in &rationale.evidence_ids {
+			push_unique(&mut ids, evidence_id.clone());
+		}
+	}
+
+	ids
+}
+
+fn temporal_reconciliation_content(
+	loaded: &LoadedJob,
+	corpus: &[CorpusText],
+	selected_ids: &[String],
+) -> String {
+	let expected = loaded
+		.job
+		.expected_answer
+		.must_include
+		.iter()
+		.map(LiveExpectedClaim::text)
+		.collect::<Vec<_>>()
+		.join(" ");
+	let evidence_summary = selected_ids
+		.iter()
+		.filter_map(|evidence_id| {
+			corpus
+				.iter()
+				.find(|item| item.evidence_id == *evidence_id)
+				.map(|item| format!("{evidence_id}: {}", item.text))
+		})
+		.collect::<Vec<_>>()
+		.join("\n");
+
+	if evidence_summary.is_empty() {
+		expected
+	} else {
+		format!("{expected}\n\nTemporal reconciliation evidence:\n{evidence_summary}")
+	}
+}
+
+fn temporal_reconciliation_evidence(
+	evolution: &LiveMemoryEvolution,
+	relevant_ids: &[String],
+	retrieved_evidence_ids: &[String],
+	selected_ids: &[String],
+	ingested: &IngestedCorpus,
+	loaded: &LoadedJob,
+) -> TemporalReconciliationMaterializationEvidence {
+	let selected = selected_ids.iter().map(String::as_str).collect::<BTreeSet<_>>();
+	let retrieved = retrieved_evidence_ids.iter().map(String::as_str).collect::<BTreeSet<_>>();
+	let mut evidence = TemporalReconciliationMaterializationEvidence {
+		current_winner_evidence_ids: selected_subset(&evolution.current_evidence_ids, &selected),
+		historical_loser_evidence_ids: selected_subset(
+			&evolution.historical_evidence_ids,
+			&selected,
+		),
+		supersession_rationale_evidence_ids: evolution
+			.update_rationale
+			.as_ref()
+			.filter(|rationale| rationale.available)
+			.map_or_else(Vec::new, |rationale| selected_subset(&rationale.evidence_ids, &selected)),
+		tombstone_evidence_ids: selected_subset(&evolution.tombstone_evidence_ids, &selected),
+		invalidation_evidence_ids: selected_subset(&evolution.invalidation_evidence_ids, &selected),
+		conflict_candidate_evidence_ids: conflict_candidate_ids(evolution, &selected),
+		retrieved_evidence_ids: retrieved_evidence_ids.to_vec(),
+		selected_evidence_ids: selected_ids.to_vec(),
+		absent_evidence_ids: relevant_ids
+			.iter()
+			.filter(|id| !ingested.note_ids_by_evidence.contains_key(*id))
+			.cloned()
+			.collect(),
+		retrieved_but_dropped_evidence_ids: relevant_ids
+			.iter()
+			.filter(|id| retrieved.contains(id.as_str()) && !selected.contains(id.as_str()))
+			.cloned()
+			.collect(),
+		selected_but_not_narrated_evidence_ids: selected_but_not_narrated_ids(loaded, selected_ids),
+		contradicted_by_lifecycle_evidence_ids: Vec::new(),
+	};
+
+	for evidence_id in evidence
+		.historical_loser_evidence_ids
+		.iter()
+		.chain(evidence.tombstone_evidence_ids.iter())
+		.chain(evidence.invalidation_evidence_ids.iter())
+	{
+		push_unique(&mut evidence.contradicted_by_lifecycle_evidence_ids, evidence_id.clone());
+	}
+
+	evidence
+}
+
+fn selected_subset(ids: &[String], selected: &BTreeSet<&str>) -> Vec<String> {
+	ids.iter().filter(|id| selected.contains(id.as_str())).cloned().collect()
+}
+
+fn conflict_candidate_ids(
+	evolution: &LiveMemoryEvolution,
+	selected: &BTreeSet<&str>,
+) -> Vec<String> {
+	let mut ids = Vec::new();
+
+	for conflict in &evolution.conflicts {
+		push_if_selected(&mut ids, conflict.current_evidence_id.as_str(), selected);
+		push_if_selected(&mut ids, conflict.historical_evidence_id.as_str(), selected);
+
+		if let Some(evidence_id) = &conflict.resolved_by_evidence_id {
+			push_if_selected(&mut ids, evidence_id.as_str(), selected);
+		}
+	}
+
+	ids
+}
+
+fn selected_but_not_narrated_ids(loaded: &LoadedJob, selected_ids: &[String]) -> Vec<String> {
+	let claims = temporal_reconciliation_claims(loaded, selected_ids);
+	let narrated = claims
+		.iter()
+		.flat_map(|claim| {
+			claim
+				.get("evidence_ids")
+				.and_then(serde_json::Value::as_array)
+				.into_iter()
+				.flatten()
+				.filter_map(serde_json::Value::as_str)
+		})
+		.collect::<BTreeSet<_>>();
+
+	selected_ids.iter().filter(|id| !narrated.contains(id.as_str())).cloned().collect()
+}
+
+fn temporal_reconciliation_trace_stages(
+	evolution: &LiveMemoryEvolution,
+	retrieved_evidence_ids: &[String],
+	evidence: &TemporalReconciliationMaterializationEvidence,
+) -> Vec<TraceStageOutput> {
+	let selected =
+		evidence.selected_evidence_ids.iter().map(String::as_str).collect::<BTreeSet<_>>();
+	let retrieved = retrieved_evidence_ids.iter().map(String::as_str).collect::<BTreeSet<_>>();
+	let expected_not_retrieved = evidence
+		.selected_evidence_ids
+		.iter()
+		.filter(|id| !retrieved.contains(id.as_str()))
+		.cloned()
+		.collect::<Vec<_>>();
+
+	vec![
+		TraceStageOutput {
+			stage_name: "live_adapter.retrieve".to_string(),
+			kept_evidence: retrieved_evidence_ids.to_vec(),
+			dropped_evidence: expected_not_retrieved,
+			demoted_evidence: Vec::new(),
+			distractor_evidence: evidence.absent_evidence_ids.clone(),
+			notes:
+				"Search output is compared with the temporal reconciliation evidence contract."
+					.to_string(),
+		},
+		TraceStageOutput {
+			stage_name: "temporal_reconciliation.current_winner".to_string(),
+			kept_evidence: evidence.current_winner_evidence_ids.clone(),
+			dropped_evidence: unselected_subset(&evolution.current_evidence_ids, &selected),
+			demoted_evidence: Vec::new(),
+			distractor_evidence: Vec::new(),
+			notes: "Current evidence selected as the answer winner.".to_string(),
+		},
+		TraceStageOutput {
+			stage_name: "temporal_reconciliation.historical_loser".to_string(),
+			kept_evidence: evidence.historical_loser_evidence_ids.clone(),
+			dropped_evidence: unselected_subset(&evolution.historical_evidence_ids, &selected),
+			demoted_evidence: evidence.historical_loser_evidence_ids.clone(),
+			distractor_evidence: Vec::new(),
+			notes: "Historical evidence preserved as history, not as the current answer."
+				.to_string(),
+		},
+		TraceStageOutput {
+			stage_name: "temporal_reconciliation.supersession_rationale".to_string(),
+			kept_evidence: evidence.supersession_rationale_evidence_ids.clone(),
+			dropped_evidence: evolution
+				.update_rationale
+				.as_ref()
+				.map_or_else(Vec::new, |rationale| {
+					unselected_subset(&rationale.evidence_ids, &selected)
+				}),
+			demoted_evidence: Vec::new(),
+			distractor_evidence: Vec::new(),
+			notes: "Rationale evidence selected to explain why the older fact was superseded."
+				.to_string(),
+		},
+		TraceStageOutput {
+			stage_name: "temporal_reconciliation.tombstone_invalidation".to_string(),
+			kept_evidence: evidence
+				.tombstone_evidence_ids
+				.iter()
+				.chain(evidence.invalidation_evidence_ids.iter())
+				.cloned()
+				.collect(),
+			dropped_evidence: evolution
+				.tombstone_evidence_ids
+				.iter()
+				.chain(evolution.invalidation_evidence_ids.iter())
+				.filter(|id| !selected.contains(id.as_str()))
+				.cloned()
+				.collect(),
+			demoted_evidence: Vec::new(),
+			distractor_evidence: Vec::new(),
+			notes: "Tombstone or TTL invalidation evidence remains answerable when present."
+				.to_string(),
+		},
+		TraceStageOutput {
+			stage_name: "temporal_reconciliation.conflict_candidates".to_string(),
+			kept_evidence: evidence.conflict_candidate_evidence_ids.clone(),
+			dropped_evidence: evidence.retrieved_but_dropped_evidence_ids.clone(),
+			demoted_evidence: evidence.contradicted_by_lifecycle_evidence_ids.clone(),
+			distractor_evidence: evidence.selected_but_not_narrated_evidence_ids.clone(),
+			notes:
+				"Conflict candidates record selected, dropped, non-narrated, and lifecycle-demoted evidence."
+					.to_string(),
+		},
+	]
+}
+
+fn unselected_subset(ids: &[String], selected: &BTreeSet<&str>) -> Vec<String> {
+	ids.iter().filter(|id| !selected.contains(id.as_str())).cloned().collect()
 }
 
 fn live_required_evidence_ids(loaded: &LoadedJob, ingested: &IngestedCorpus) -> Vec<String> {
@@ -1938,6 +2422,8 @@ fn failure_jobs(
 					consolidation_response: None,
 					consolidation: None,
 					knowledge: None,
+					temporal_reconciliation: None,
+					trace_stages: None,
 				},
 			)
 		})
@@ -2067,6 +2553,7 @@ fn clone_job_evidence(evidence: &MaterializedJobEvidence) -> MaterializedJobEvid
 		capture: evidence.capture.clone(),
 		consolidation: evidence.consolidation.clone(),
 		knowledge: evidence.knowledge.clone(),
+		temporal_reconciliation: evidence.temporal_reconciliation.clone(),
 	}
 }
 
@@ -3052,6 +3539,33 @@ fn trap_id_for_evidence(loaded: &LoadedJob, evidence_id: &str) -> Option<String>
 		.map(ToString::to_string)
 }
 
+fn elf_selected_evidence_text(
+	loaded: &LoadedJob,
+	stored_corpus: &[CorpusText],
+	evidence_ids: &[String],
+	ingested: &IngestedCorpus,
+	capture_failure: &Option<String>,
+) -> (
+	SelectedEvidenceText,
+	Option<TemporalReconciliationMaterializationEvidence>,
+	Option<Vec<TraceStageOutput>>,
+) {
+	if let Some(failure) = capture_failure {
+		return (
+			SelectedEvidenceText { content: failure.clone(), evidence_ids: Vec::new() },
+			None,
+			None,
+		);
+	}
+	if let Some(selection) =
+		temporal_reconciliation_selection(loaded, stored_corpus, evidence_ids, ingested)
+	{
+		return (selection.selected, Some(selection.evidence), Some(selection.trace_stages));
+	}
+
+	(selected_required_corpus_texts(loaded, stored_corpus, evidence_ids), None, None)
+}
+
 async fn run_lightrag_async(args: LightragArgs) -> color_eyre::Result<()> {
 	let jobs = load_jobs(&args.fixtures)?;
 	let run_slug = short_hash(format!("{}:{}", args.adapter_id, Uuid::new_v4()).as_str());
@@ -3178,6 +3692,8 @@ async fn materialize_lightrag_job(
 			consolidation_response: None,
 			consolidation: None,
 			knowledge: None,
+			temporal_reconciliation: None,
+			trace_stages: None,
 		},
 	))
 }
@@ -3438,11 +3954,13 @@ async fn materialize_elf_job(
 		&capture,
 		&runtime_capture,
 	);
-	let selected = if let Some(failure) = &capture_failure {
-		SelectedEvidenceText { content: failure.clone(), evidence_ids: Vec::new() }
-	} else {
-		selected_required_corpus_texts(loaded, &stored_corpus, &evidence_ids)
-	};
+	let (selected, temporal_reconciliation, trace_stages) = elf_selected_evidence_text(
+		loaded,
+		&stored_corpus,
+		&evidence_ids,
+		&ingested,
+		&capture_failure,
+	);
 	let replay_command = elf_replay_command(response.trace_id, project_id.as_str());
 	let (operator_debug, operator_debug_evidence) = operator_debug_output(
 		AdapterKind::ElfServiceRuntime,
@@ -3498,6 +4016,8 @@ async fn materialize_elf_job(
 			consolidation_response,
 			consolidation,
 			knowledge,
+			temporal_reconciliation,
+			trace_stages,
 		},
 	))
 }
