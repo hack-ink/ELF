@@ -418,6 +418,9 @@ args = [
 # | real-world-memory-consolidation        | composite |     |
 # | real-world-memory-consolidation-json   | command   |     |
 # | real-world-memory-consolidation-report | command   |     |
+# | real-world-memory-summary              | composite |     |
+# | real-world-memory-summary-json         | command   |     |
+# | real-world-memory-summary-report       | command   |     |
 # | real-world-memory-live-consolidation   | command   |     |
 # | real-world-job-operator-ux             | composite |     |
 # | real-world-job-operator-ux-json        | command   |     |
@@ -829,6 +832,55 @@ args = [
 	"tmp/real-world-memory/consolidation/report.json",
 	"--out",
 	"tmp/real-world-memory/consolidation/report.md",
+]
+
+[tasks.real-world-memory-summary]
+workspace = false
+dependencies = [
+	"real-world-memory-summary-report",
+]
+
+[tasks.real-world-memory-summary-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_memory/memory_summary",
+	"--out",
+	"tmp/real-world-memory/memory-summary/report.json",
+	"--run-id",
+	"real-world-memory-summary",
+	"--adapter-id",
+	"fixture_memory_summary",
+	"--adapter-name",
+	"ELF memory summary fixture",
+]
+
+[tasks.real-world-memory-summary-report]
+workspace = false
+dependencies = [
+	"real-world-memory-summary-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-memory/memory-summary/report.json",
+	"--out",
+	"tmp/real-world-memory/memory-summary/report.md",
 ]
 
 [tasks.real-world-memory-live-consolidation]

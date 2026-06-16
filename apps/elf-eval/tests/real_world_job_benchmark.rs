@@ -56,6 +56,10 @@ fn consolidation_fixture_dir() -> PathBuf {
 	real_world_memory_fixture_dir().join("consolidation")
 }
 
+fn memory_summary_fixture_dir() -> PathBuf {
+	real_world_memory_fixture_dir().join("memory_summary")
+}
+
 fn knowledge_fixture_dir() -> PathBuf {
 	real_world_memory_fixture_dir().join("knowledge")
 }
@@ -291,6 +295,10 @@ fn run_json_report_from(fixtures: PathBuf) -> Result<Value> {
 
 fn run_json_report() -> Result<Value> {
 	run_json_report_from(fixture_dir())
+}
+
+fn load_json(path: &Path) -> Result<Value> {
+	Ok(serde_json::from_str::<Value>(&fs::read_to_string(path)?)?)
 }
 
 fn array_at<'a>(value: &'a Value, pointer: &str) -> Result<&'a Vec<Value>> {
@@ -1014,10 +1022,11 @@ fn assert_elf_fixture_adapter_record(adapter: &Value) -> Result<()> {
 	assert_eq!(adapter.pointer("/evidence_class").and_then(Value::as_str), Some("fixture_backed"));
 	assert_eq!(adapter.pointer("/overall_status").and_then(Value::as_str), Some("blocked"));
 	assert!(adapter.pointer("/run/evidence").and_then(Value::as_str).is_some_and(|evidence| {
-		evidence.contains("49 jobs across 13 suites")
-			&& evidence.contains("44 pass")
+		evidence.contains("50 jobs across 14 suites")
+			&& evidence.contains("45 pass")
 			&& evidence.contains("5 blocked")
 			&& evidence.contains("core_archival_memory")
+			&& evidence.contains("memory_summary")
 			&& evidence.contains("context_trajectory")
 	}));
 
@@ -2222,7 +2231,7 @@ fn assert_live_sweep_record(adapter: &Value, production_ops_status: &str) -> Res
 fn runner_discovers_nested_fixture_layout() -> Result<()> {
 	let report = run_json_report_from(fixture_root())?;
 
-	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(49));
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(50));
 
 	Ok(())
 }
@@ -2676,11 +2685,11 @@ fn assert_current_report_text_boundaries(
 		comparison_external_projects
 			.contains("Benchmark-grounded for local same-corpus retrieval, reindex/update/delete")
 	);
-	assert!(iteration_direction.contains("| Jobs | `49` |"));
-	assert!(iteration_direction.contains("| Encoded suites | `13` |"));
-	assert!(iteration_direction.contains("| Pass | `44` |"));
-	assert!(iteration_direction.contains("| Evidence coverage | `111/111` |"));
-	assert!(iteration_direction.contains("| Expected evidence recall | `100/100` |"));
+	assert!(iteration_direction.contains("| Jobs | `50` |"));
+	assert!(iteration_direction.contains("| Encoded suites | `14` |"));
+	assert!(iteration_direction.contains("| Pass | `45` |"));
+	assert!(iteration_direction.contains("| Evidence coverage | `115/115` |"));
+	assert!(iteration_direction.contains("| Expected evidence recall | `107/107` |"));
 
 	for stale_phrase in [
 		"same live sweep shape as ELF",
@@ -3663,14 +3672,14 @@ fn assert_measurement_audit_adapter_status_counts(markdown: &str) {
 
 fn assert_iteration_direction_current_measurement_counts(markdown: &str) {
 	for expected in [
-		"| Jobs | `49` |",
-		"| Encoded suites | `13` |",
+		"| Jobs | `50` |",
+		"| Encoded suites | `14` |",
 		"| Blocked | `5` |",
-		"| Mean score | `0.898` |",
-		"| Evidence coverage | `111/111` |",
-		"| Source-ref coverage | `111/111` |",
-		"| Quote coverage | `111/111` |",
-		"| Expected evidence recall | `100/100` |",
+		"| Mean score | `0.900` |",
+		"| Evidence coverage | `115/115` |",
+		"| Source-ref coverage | `115/115` |",
+		"| Quote coverage | `115/115` |",
+		"| Expected evidence recall | `107/107` |",
 		"| `blocked` | `7` |",
 		"| `not_encoded` | `5` |",
 		"`live_baseline_only`, `fixture_backed`, and `research_gate`",
@@ -4109,23 +4118,55 @@ fn assert_dreaming_readiness_baseline_counts(ledger: &Value, stages: &[Value]) -
 	assert!(array_contains_str(ledger, "/summary/improved", "current_vs_historical_correctness")?);
 	assert!(array_contains_str(ledger, "/summary/improved", "preference_evolution")?);
 	assert!(array_contains_str(ledger, "/summary/improved", "reviewable_consolidation")?);
+	assert!(array_contains_str(
+		ledger,
+		"/summary/improved",
+		"memory_summary_top_of_mind_behavior"
+	)?);
 	assert!(array_at(ledger, "/summary/regressed")?.is_empty());
 	assert!(array_contains_str(ledger, "/summary/unchanged", "deletion_ttl_tombstone_behavior")?);
 	assert!(array_contains_str(ledger, "/summary/unchanged", "final_competitor_retest_status")?);
 	assert!(array_contains_str(ledger, "/summary/blocked", "scheduled_memory_task_readiness")?);
 	assert!(array_contains_str(ledger, "/summary/not_tested", "proactive_brief_readiness")?);
 
+	assert_dreaming_memory_summary_stage(stages)?;
+
+	Ok(())
+}
+
+fn assert_dreaming_memory_summary_stage(stages: &[Value]) -> Result<()> {
+	let summary_stage = find_by_field(stages, "/stage_id", "memory_summary_top_of_mind_behavior")?;
+
+	assert_eq!(
+		summary_stage.pointer("/comparison_judgment").and_then(Value::as_str),
+		Some("improved")
+	);
+	assert_eq!(summary_stage.pointer("/post_stage_counts/pass").and_then(Value::as_u64), Some(9));
+	assert_eq!(
+		summary_stage.pointer("/post_stage_counts/not_tested").and_then(Value::as_u64),
+		Some(0)
+	);
+	assert!(
+		summary_stage
+			.pointer("/post_stage_basis")
+			.and_then(Value::as_str)
+			.is_some_and(|basis| basis.contains("fixture-backed memory_summary job")
+				&& basis.contains("unsupported-claim flags"))
+	);
+
 	Ok(())
 }
 
 fn assert_dreaming_readiness_markdown_boundaries(markdown: &str) {
 	assert!(
-		markdown
-			.contains("`improved`: current-vs-historical correctness, preference evolution, and")
-			&& markdown.contains("reviewable consolidation")
+		markdown.contains("`improved`: current-vs-historical correctness, preference evolution")
+			&& markdown.contains("reviewable")
+			&& markdown.contains("consolidation, and memory-summary/top-of-mind fixture readback")
 	);
+	assert!(markdown.contains("memory-summary/top-of-mind fixture readback"));
 	assert!(markdown.contains("`regressed`: none"));
 	assert!(markdown.contains("the XY-905 run passes all six memory-evolution jobs"));
+	assert!(markdown.contains("XY-952 adds a reviewable `elf.memory_summary/v1`"));
 	assert!(markdown.contains("XY-905"));
 	assert!(
 		markdown
@@ -4168,6 +4209,267 @@ fn knowledge_json_report_renders_markdown_metrics() -> Result<()> {
 	assert!(markdown.contains("Unsupported summary count"));
 	assert!(markdown.contains("knowledge-project-page-001"));
 	assert!(markdown.contains("knowledge-entity-concept-002"));
+
+	Ok(())
+}
+
+#[test]
+fn memory_summary_fixtures_score_reviewable_source_trace_contract() -> Result<()> {
+	let report = run_json_report_from(memory_summary_fixture_dir())?;
+
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(1));
+	assert_eq!(report.pointer("/summary/encoded_suite_count").and_then(Value::as_u64), Some(1));
+	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(1));
+	assert_eq!(report.pointer("/summary/wrong_result").and_then(Value::as_u64), Some(0));
+	assert_eq!(report.pointer("/summary/unsupported_claim").and_then(Value::as_u64), Some(0));
+	assert_eq!(
+		report.pointer("/summary/memory_summary/summary_count").and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
+		report.pointer("/summary/memory_summary/entry_count").and_then(Value::as_u64),
+		Some(7)
+	);
+	assert_eq!(
+		report
+			.pointer("/summary/memory_summary/covered_required_category_count")
+			.and_then(Value::as_u64),
+		Some(6)
+	);
+	assert_eq!(
+		report.pointer("/summary/memory_summary/source_ref_coverage").and_then(Value::as_f64),
+		Some(1.0)
+	);
+	assert_eq!(
+		report.pointer("/summary/memory_summary/freshness_coverage").and_then(Value::as_f64),
+		Some(1.0)
+	);
+	assert_eq!(
+		report.pointer("/summary/memory_summary/rationale_coverage").and_then(Value::as_f64),
+		Some(1.0)
+	);
+	assert_eq!(
+		report.pointer("/summary/memory_summary/invalid_top_of_mind_count").and_then(Value::as_u64),
+		Some(0)
+	);
+	assert_eq!(
+		report
+			.pointer("/summary/memory_summary/unsupported_derived_entry_count")
+			.and_then(Value::as_u64),
+		Some(1)
+	);
+
+	let suites = array_at(&report, "/suites")?;
+	let memory_summary = find_by_field(suites, "/suite_id", "memory_summary")?;
+
+	assert_eq!(memory_summary.pointer("/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(memory_summary.pointer("/encoded_job_count").and_then(Value::as_u64), Some(1));
+
+	let jobs = array_at(&report, "/jobs")?;
+	let job = find_by_field(jobs, "/job_id", "memory-summary-source-trace-001")?;
+
+	assert_eq!(job.pointer("/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(job.pointer("/memory_summary/top_of_mind_count").and_then(Value::as_u64), Some(1));
+	assert_eq!(job.pointer("/memory_summary/tombstone_ref_count").and_then(Value::as_u64), Some(1));
+
+	Ok(())
+}
+
+#[test]
+fn memory_summary_markdown_renders_source_trace_metrics() -> Result<()> {
+	let report = run_json_report_from(memory_summary_fixture_dir())?;
+	let temp_dir =
+		env::temp_dir().join(format!("elf-real-world-memory-summary-test-{}", process::id()));
+
+	fs::create_dir_all(&temp_dir)?;
+
+	let report_path = temp_dir.join("memory-summary-report.json");
+	let markdown_path = temp_dir.join("memory-summary-report.md");
+
+	fs::write(&report_path, serde_json::to_vec_pretty(&report)?)?;
+
+	let output = Command::new(env!("CARGO_BIN_EXE_real_world_job_benchmark"))
+		.arg("publish")
+		.arg("--report")
+		.arg(&report_path)
+		.arg("--out")
+		.arg(&markdown_path)
+		.output()?;
+
+	assert!(
+		output.status.success(),
+		"real_world_job publisher failed: {}",
+		String::from_utf8_lossy(&output.stderr),
+	);
+
+	let markdown = fs::read_to_string(markdown_path)?;
+
+	assert!(markdown.contains("Memory Summary Metrics"));
+	assert!(markdown.contains("memory-summary-source-trace-001"));
+	assert!(markdown.contains("Memory summary source-ref coverage"));
+	assert!(markdown.contains("Invalid Top-of-Mind"));
+	assert!(markdown.contains("Derived Unsupported"));
+
+	Ok(())
+}
+
+#[test]
+fn memory_summary_fixture_fails_stale_top_of_mind_entries() -> Result<()> {
+	let fixture_path = memory_summary_fixture_dir().join("reviewable_summary_source_trace.json");
+	let mut fixture = load_json(&fixture_path)?;
+
+	fixture["corpus"]["adapter_response"]["answer"]["memory_summaries"][0]["entries"][2]["category"] =
+		Value::String("top_of_mind".to_string());
+	fixture["corpus"]["adapter_response"]["answer"]["memory_summaries"][0]["entries"][2]["freshness"]
+		["status"] = Value::String("current".to_string());
+
+	let temp_dir =
+		env::temp_dir().join(format!("elf-memory-summary-stale-current-test-{}", process::id()));
+
+	fs::create_dir_all(&temp_dir)?;
+	fs::write(temp_dir.join("stale_current_summary.json"), serde_json::to_vec_pretty(&fixture)?)?;
+
+	let report = run_json_report_from(temp_dir)?;
+	let jobs = array_at(&report, "/jobs")?;
+	let job = find_by_field(jobs, "/job_id", "memory-summary-source-trace-001")?;
+
+	assert_eq!(job.pointer("/status").and_then(Value::as_str), Some("wrong_result"));
+	assert_eq!(
+		job.pointer("/memory_summary/invalid_top_of_mind_count").and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(report.pointer("/summary/wrong_result").and_then(Value::as_u64), Some(1));
+
+	Ok(())
+}
+
+#[test]
+fn memory_summary_fixture_fails_tombstoned_top_of_mind_entries() -> Result<()> {
+	let fixture_path = memory_summary_fixture_dir().join("reviewable_summary_source_trace.json");
+	let mut fixture = load_json(&fixture_path)?;
+
+	fixture["corpus"]["adapter_response"]["answer"]["memory_summaries"][0]["entries"][4]["category"] =
+		Value::String("top_of_mind".to_string());
+	fixture["corpus"]["adapter_response"]["answer"]["memory_summaries"][0]["entries"][4]["freshness"]
+		["status"] = Value::String("current".to_string());
+
+	let temp_dir = env::temp_dir()
+		.join(format!("elf-memory-summary-tombstone-current-test-{}", process::id()));
+
+	fs::create_dir_all(&temp_dir)?;
+	fs::write(
+		temp_dir.join("tombstone_current_summary.json"),
+		serde_json::to_vec_pretty(&fixture)?,
+	)?;
+
+	let report = run_json_report_from(temp_dir)?;
+	let jobs = array_at(&report, "/jobs")?;
+	let job = find_by_field(jobs, "/job_id", "memory-summary-source-trace-001")?;
+
+	assert_eq!(job.pointer("/status").and_then(Value::as_str), Some("wrong_result"));
+	assert_eq!(
+		job.pointer("/memory_summary/invalid_top_of_mind_count").and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(report.pointer("/summary/wrong_result").and_then(Value::as_u64), Some(1));
+
+	Ok(())
+}
+
+#[test]
+fn memory_summary_fixture_fails_untraced_derived_profile_entries() -> Result<()> {
+	let fixture_path = memory_summary_fixture_dir().join("reviewable_summary_source_trace.json");
+	let mut fixture = load_json(&fixture_path)?;
+
+	fixture["corpus"]["adapter_response"]["answer"]["memory_summaries"][0]["entries"][6]["unsupported_claim_flags"] =
+		Value::Array(Vec::new());
+
+	let temp_dir =
+		env::temp_dir().join(format!("elf-memory-summary-untraced-derived-test-{}", process::id()));
+
+	fs::create_dir_all(&temp_dir)?;
+	fs::write(
+		temp_dir.join("untraced_derived_summary.json"),
+		serde_json::to_vec_pretty(&fixture)?,
+	)?;
+
+	let report = run_json_report_from(temp_dir)?;
+	let jobs = array_at(&report, "/jobs")?;
+	let job = find_by_field(jobs, "/job_id", "memory-summary-source-trace-001")?;
+
+	assert_eq!(job.pointer("/status").and_then(Value::as_str), Some("unsupported_claim"));
+	assert_eq!(
+		job.pointer("/memory_summary/derived_missing_source_or_unsupported_count")
+			.and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(report.pointer("/summary/unsupported_claim").and_then(Value::as_u64), Some(1));
+
+	Ok(())
+}
+
+#[test]
+fn memory_summary_fixture_fails_unsupported_current_derived_entries() -> Result<()> {
+	let fixture_path = memory_summary_fixture_dir().join("reviewable_summary_source_trace.json");
+	let mut fixture = load_json(&fixture_path)?;
+
+	fixture["corpus"]["adapter_response"]["answer"]["memory_summaries"][0]["entries"][6]["source_refs"] =
+		Value::Array(vec![Value::String("summary-contract-non-parity-boundary".to_string())]);
+	fixture["corpus"]["adapter_response"]["answer"]["memory_summaries"][0]["entries"][6]["freshness"]
+		["status"] = Value::String("current".to_string());
+	fixture["corpus"]["adapter_response"]["answer"]["memory_summaries"][0]["entries"][6]["rationale"]
+		["decision"] = Value::String("included".to_string());
+
+	let temp_dir = env::temp_dir()
+		.join(format!("elf-memory-summary-unsupported-current-test-{}", process::id()));
+
+	fs::create_dir_all(&temp_dir)?;
+	fs::write(
+		temp_dir.join("unsupported_current_summary.json"),
+		serde_json::to_vec_pretty(&fixture)?,
+	)?;
+
+	let report = run_json_report_from(temp_dir)?;
+	let jobs = array_at(&report, "/jobs")?;
+	let job = find_by_field(jobs, "/job_id", "memory-summary-source-trace-001")?;
+
+	assert_eq!(job.pointer("/status").and_then(Value::as_str), Some("wrong_result"));
+	assert_eq!(
+		job.pointer("/memory_summary/unsupported_current_entry_count").and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(report.pointer("/summary/wrong_result").and_then(Value::as_u64), Some(1));
+
+	Ok(())
+}
+
+#[test]
+fn memory_summary_fixture_fails_tombstone_entries_without_tombstone_refs() -> Result<()> {
+	let fixture_path = memory_summary_fixture_dir().join("reviewable_summary_source_trace.json");
+	let mut fixture = load_json(&fixture_path)?;
+
+	fixture["corpus"]["adapter_response"]["answer"]["memory_summaries"][0]["entries"][4]["freshness"]
+		["tombstone_refs"] = Value::Array(Vec::new());
+
+	let temp_dir =
+		env::temp_dir().join(format!("elf-memory-summary-tombstone-refs-test-{}", process::id()));
+
+	fs::create_dir_all(&temp_dir)?;
+	fs::write(
+		temp_dir.join("missing_tombstone_refs_summary.json"),
+		serde_json::to_vec_pretty(&fixture)?,
+	)?;
+
+	let report = run_json_report_from(temp_dir)?;
+	let jobs = array_at(&report, "/jobs")?;
+	let job = find_by_field(jobs, "/job_id", "memory-summary-source-trace-001")?;
+
+	assert_eq!(job.pointer("/status").and_then(Value::as_str), Some("wrong_result"));
+	assert_eq!(
+		job.pointer("/memory_summary/freshness_coverage").and_then(Value::as_f64),
+		Some(0.857)
+	);
+	assert_eq!(report.pointer("/summary/wrong_result").and_then(Value::as_u64), Some(1));
 
 	Ok(())
 }
@@ -4331,9 +4633,9 @@ fn assert_root_knowledge_summary(report: &Value) {
 }
 
 fn assert_root_aggregate_summary(report: &Value) {
-	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(49));
-	assert_eq!(report.pointer("/summary/encoded_suite_count").and_then(Value::as_u64), Some(13));
-	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(44));
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(50));
+	assert_eq!(report.pointer("/summary/encoded_suite_count").and_then(Value::as_u64), Some(14));
+	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(45));
 	assert_eq!(report.pointer("/summary/wrong_result").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/incomplete").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/blocked").and_then(Value::as_u64), Some(5));
@@ -4376,11 +4678,11 @@ fn assert_root_aggregate_summary(report: &Value) {
 	);
 	assert_eq!(
 		report.pointer("/summary/evidence_required_count").and_then(Value::as_u64),
-		Some(111)
+		Some(115)
 	);
 	assert_eq!(
 		report.pointer("/summary/evidence_covered_count").and_then(Value::as_u64),
-		Some(111)
+		Some(115)
 	);
 	assert_eq!(report.pointer("/summary/evidence_coverage").and_then(Value::as_f64), Some(1.0));
 	assert_eq!(report.pointer("/summary/source_ref_coverage").and_then(Value::as_f64), Some(1.0));
@@ -4407,6 +4709,18 @@ fn assert_root_aggregate_summary(report: &Value) {
 			.and_then(Value::as_u64),
 		Some(1)
 	);
+	assert_eq!(
+		report.pointer("/summary/memory_summary/job_count").and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
+		report.pointer("/summary/memory_summary/invalid_top_of_mind_count").and_then(Value::as_u64),
+		Some(0)
+	);
+	assert_eq!(
+		report.pointer("/summary/memory_summary/source_ref_coverage").and_then(Value::as_f64),
+		Some(1.0)
+	);
 
 	assert_root_knowledge_summary(report);
 }
@@ -4422,6 +4736,7 @@ fn assert_root_aggregate_suites(report: &Value) -> Result<()> {
 		"capture_integration",
 		"personalization",
 		"consolidation",
+		"memory_summary",
 		"knowledge_compilation",
 		"operator_debugging_ux",
 		"memory_evolution",
