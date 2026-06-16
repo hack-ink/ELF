@@ -110,6 +110,11 @@ cleanup, use `docs/guide/single_user_production.md`.
   personalization, and export-readback comparison with normalized
   win/tie/loss/not-tested/blocked/non-goal outcomes and explicit hosted/UI/graph
   non-claims.
+- `2026-06-16-dreaming-readiness-stage-ledger.md`: XY-951 stage-gate ledger for
+  Dreaming-inspired memory improvements, with the required current baseline,
+  post-stage command matrix, typed improved/regressed/unchanged/blocked/not-tested
+  buckets, and machine-readable companion file
+  `docs/research/2026-06-16-dreaming-readiness-stage-ledger.json`.
 - `real_world_agent_memory_benchmark.md`: operator overview for the v1 real-world
   agent memory benchmark contract, including suite taxonomy, typed report states,
   knowledge-compilation fixture tasks, and the production-ops fixture target.
