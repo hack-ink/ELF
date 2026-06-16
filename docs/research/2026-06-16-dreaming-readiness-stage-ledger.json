@@ -4,7 +4,7 @@
   "authority": "XY-951",
   "created_at": "2026-06-16T00:00:00Z",
   "purpose": "Define the benchmark evidence gate that every Dreaming-inspired ELF optimization stage must update before claiming completion.",
-  "source_evidence_cutoff": "Checked-in benchmark and research evidence through the XY-905 live temporal reconciliation run and XY-934 live consolidation proposal scoring run on 2026-06-16; no private-corpus or provider-backed production pass is claimed by this ledger.",
+  "source_evidence_cutoff": "Checked-in benchmark and research evidence through the XY-905 live temporal reconciliation run, XY-934 live consolidation proposal scoring run, and XY-952 fixture-backed memory summary/source-trace contract on 2026-06-16; no private-corpus or provider-backed production pass is claimed by this ledger.",
   "typed_status_terms": [
     "pass",
     "wrong_result",
@@ -43,7 +43,8 @@
     "improved": [
       "current_vs_historical_correctness",
       "preference_evolution",
-      "reviewable_consolidation"
+      "reviewable_consolidation",
+      "memory_summary_top_of_mind_behavior"
     ],
     "regressed": [],
     "unchanged": [
@@ -54,7 +55,6 @@
       "scheduled_memory_task_readiness"
     ],
     "not_tested": [
-      "memory_summary_top_of_mind_behavior",
       "proactive_brief_readiness"
     ]
   },
@@ -288,7 +288,7 @@
     {
       "stage_id": "memory_summary_top_of_mind_behavior",
       "stage_name": "Memory summary and top-of-mind behavior",
-      "dependent_issue": "XY-926",
+      "dependent_issue": "XY-952",
       "evidence_class": "fixture_backed",
       "baseline_commands": [
         {
@@ -304,6 +304,10 @@
       ],
       "post_stage_commands": [
         {
+          "command": "cargo make real-world-memory-summary",
+          "required_artifact": "tmp/real-world-memory/memory-summary/report.json"
+        },
+        {
           "command": "cargo make real-world-memory-knowledge",
           "required_artifact": "tmp/real-world-memory/knowledge-report.json"
         },
@@ -317,6 +321,8 @@
         }
       ],
       "evidence_files": [
+        "docs/spec/system_memory_summary_v1.md",
+        "apps/elf-eval/fixtures/real_world_memory/memory_summary/",
         "docs/guide/benchmarking/2026-06-11-competitor-strength-adoption-report.md",
         "apps/elf-eval/fixtures/real_world_memory/knowledge/",
         "apps/elf-eval/fixtures/real_world_memory/core_archival_memory/"
@@ -329,10 +335,18 @@
         "not_encoded": 1
       },
       "baseline_basis": "Knowledge and core/archival fixtures pass, but live knowledge compilation and top-of-mind product behavior are not encoded.",
-      "comparison_judgment": "not_tested",
+      "post_stage_counts": {
+        "pass": 9,
+        "wrong_result": 0,
+        "blocked": 0,
+        "not_tested": 0,
+        "not_encoded": 0
+      },
+      "post_stage_basis": "XY-952 adds one fixture-backed memory_summary job with top-of-mind, background, stale, superseded, tombstone, and derived project-profile entries, source refs, freshness metadata, rationale, and unsupported-claim flags.",
+      "comparison_judgment": "improved",
       "regression_rule": "Any stale summary, unsupported section, missing source id, or stale core block presented as current is a regression.",
-      "improvement_rule": "An improvement requires live top-of-mind or summary readback that remains source-linked and linted for stale/unsupported claims.",
-      "next_optimization_direction": "Build summaries as derived, cited, rebuildable pages or core blocks; do not replace authoritative notes with hidden summaries."
+      "improvement_rule": "An improvement requires top-of-mind or summary readback that remains source-linked, exposes freshness and rationale, and fails stale-current or unsupported-derived claims.",
+      "next_optimization_direction": "Move from fixture-backed summary/source-trace readback into service-native admin readback and later live top-of-mind behavior without replacing authoritative notes with hidden summaries."
     },
     {
       "stage_id": "proactive_brief_readiness",

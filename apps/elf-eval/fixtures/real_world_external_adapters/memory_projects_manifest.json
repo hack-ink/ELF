@@ -29,7 +29,7 @@
       },
       "run": {
         "status": "blocked",
-        "evidence": "The current fixture set reports 49 jobs across 13 suites: 44 pass, 0 incomplete, 5 blocked, 0 wrong_result, 0 not_encoded, and 0 unsupported_claim. The six core_archival_memory jobs pass as ELF fixture evidence, not as live Letta comparison evidence; context_trajectory remains blocked behind OpenViking staged-artifact materialization.",
+        "evidence": "The current fixture set reports 50 jobs across 14 suites: 45 pass, 0 incomplete, 5 blocked, 0 wrong_result, 0 not_encoded, and 0 unsupported_claim. The six core_archival_memory jobs pass as ELF fixture evidence, not as live Letta comparison evidence; the one memory_summary job passes as fixture-backed source-trace evidence, not as managed-memory parity evidence; context_trajectory remains blocked behind OpenViking staged-artifact materialization.",
         "command": "cargo make real-world-memory",
         "artifact": "tmp/real-world-memory/real-world-memory-report.json"
       },

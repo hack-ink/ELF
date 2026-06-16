@@ -49,6 +49,7 @@ const SUITES: &[&str] = &[
 	"retrieval",
 	"memory_evolution",
 	"consolidation",
+	"memory_summary",
 	"knowledge_compilation",
 	"operator_debugging_ux",
 	"capture_integration",
@@ -148,6 +149,7 @@ struct RealWorldJob {
 	#[serde(default)]
 	encoding: JobEncoding,
 	memory_evolution: Option<MemoryEvolution>,
+	memory_summary: Option<MemorySummaryExpectation>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -356,6 +358,12 @@ struct HistoryReadback {
 }
 
 #[derive(Debug, Deserialize)]
+struct MemorySummaryExpectation {
+	#[serde(default)]
+	required_categories: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
 struct ScoringRubric {
 	#[serde(default)]
 	dimensions: BTreeMap<String, RubricDimension>,
@@ -395,6 +403,8 @@ struct ProducedAnswer {
 	evidence_ids: Vec<String>,
 	#[serde(default)]
 	pages: Vec<DerivedPageArtifact>,
+	#[serde(default)]
+	memory_summaries: Vec<MemorySummaryArtifact>,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	latency_ms: Option<f64>,
 	#[serde(skip_serializing_if = "Option::is_none")]
@@ -464,6 +474,84 @@ struct DerivedPageRebuild {
 	deterministic: bool,
 	#[serde(default)]
 	allowed_variance: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct MemorySummaryArtifact {
+	summary_id: String,
+	contract_schema: String,
+	generated_at: String,
+	tenant_id: String,
+	project_id: String,
+	agent_id: String,
+	read_profile: String,
+	#[serde(default)]
+	entries: Vec<MemorySummaryEntry>,
+	source_trace: MemorySummarySourceTrace,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct MemorySummaryEntry {
+	entry_id: String,
+	category: String,
+	text: String,
+	#[serde(default)]
+	source_refs: Vec<String>,
+	freshness: MemorySummaryFreshness,
+	rationale: MemorySummaryRationale,
+	#[serde(default)]
+	unsupported_claim_flags: Vec<Value>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct MemorySummaryFreshness {
+	status: String,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	observed_at: Option<String>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	valid_from: Option<String>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	valid_to: Option<String>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	last_confirmed_at: Option<String>,
+	#[serde(default)]
+	superseded_by: Vec<String>,
+	#[serde(default)]
+	tombstone_refs: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct MemorySummaryRationale {
+	decision: String,
+	reason_code: String,
+	reason: String,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct MemorySummarySourceTrace {
+	#[serde(default)]
+	selected_source_refs: Vec<MemorySummarySourceTraceItem>,
+	#[serde(default)]
+	dropped_source_refs: Vec<MemorySummarySourceTraceItem>,
+	#[serde(default)]
+	stale_source_refs: Vec<MemorySummarySourceTraceItem>,
+	#[serde(default)]
+	superseded_source_refs: Vec<MemorySummarySourceTraceItem>,
+	#[serde(default)]
+	tombstone_source_refs: Vec<MemorySummarySourceTraceItem>,
+	#[serde(default)]
+	unsupported_claim_flags: Vec<Value>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct MemorySummarySourceTraceItem {
+	evidence_id: String,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	status: Option<String>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	reason: Option<String>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	superseded_by: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -945,6 +1033,8 @@ struct ReportSummary {
 	#[serde(default)]
 	consolidation: ConsolidationSummaryReport,
 	#[serde(skip_serializing_if = "Option::is_none")]
+	memory_summary: Option<MemorySummaryReport>,
+	#[serde(skip_serializing_if = "Option::is_none")]
 	knowledge: Option<KnowledgeSummary>,
 }
 
@@ -957,6 +1047,41 @@ struct ConsolidationSummaryReport {
 	source_mutation_count: usize,
 	proposal_unsupported_claim_count: usize,
 	executable_gap_count: usize,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct MemorySummaryReport {
+	job_count: usize,
+	summary_count: usize,
+	entry_count: usize,
+	required_category_count: usize,
+	covered_required_category_count: usize,
+	missing_required_category_count: usize,
+	top_of_mind_count: usize,
+	background_count: usize,
+	stale_count: usize,
+	superseded_count: usize,
+	tombstone_count: usize,
+	derived_project_profile_count: usize,
+	source_ref_required_count: usize,
+	source_ref_entry_count: usize,
+	source_ref_coverage: f64,
+	freshness_marker_count: usize,
+	freshness_coverage: f64,
+	rationale_count: usize,
+	rationale_coverage: f64,
+	invalid_top_of_mind_count: usize,
+	untraced_entry_count: usize,
+	derived_with_source_or_unsupported_count: usize,
+	derived_missing_source_or_unsupported_count: usize,
+	unsupported_derived_entry_count: usize,
+	unsupported_current_entry_count: usize,
+	tombstone_ref_count: usize,
+	source_trace_selected_count: usize,
+	source_trace_dropped_count: usize,
+	source_trace_stale_count: usize,
+	source_trace_superseded_count: usize,
+	source_trace_tombstone_count: usize,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -1033,6 +1158,8 @@ struct JobReport {
 	trace_explainability: Option<TraceExplainability>,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	knowledge: Option<KnowledgeJobMetrics>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	memory_summary: Option<MemorySummaryJobMetrics>,
 	trap_ids_used: Vec<String>,
 	dimension_scores: Vec<DimensionScoreReport>,
 	reason: String,
@@ -1162,6 +1289,40 @@ struct KnowledgeJobMetrics {
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct MemorySummaryJobMetrics {
+	summary_count: usize,
+	entry_count: usize,
+	required_category_count: usize,
+	covered_required_category_count: usize,
+	missing_required_category_count: usize,
+	top_of_mind_count: usize,
+	background_count: usize,
+	stale_count: usize,
+	superseded_count: usize,
+	tombstone_count: usize,
+	derived_project_profile_count: usize,
+	source_ref_required_count: usize,
+	source_ref_entry_count: usize,
+	source_ref_coverage: f64,
+	freshness_marker_count: usize,
+	freshness_coverage: f64,
+	rationale_count: usize,
+	rationale_coverage: f64,
+	invalid_top_of_mind_count: usize,
+	untraced_entry_count: usize,
+	derived_with_source_or_unsupported_count: usize,
+	derived_missing_source_or_unsupported_count: usize,
+	unsupported_derived_entry_count: usize,
+	unsupported_current_entry_count: usize,
+	tombstone_ref_count: usize,
+	source_trace_selected_count: usize,
+	source_trace_dropped_count: usize,
+	source_trace_stale_count: usize,
+	source_trace_superseded_count: usize,
+	source_trace_tombstone_count: usize,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 struct EvolutionSummary {
 	stale_answer_count: usize,
 	conflict_detection_count: usize,
@@ -1226,6 +1387,7 @@ struct JobScoring {
 	reason: String,
 	evolution: Option<EvolutionJobReport>,
 	consolidation: Option<ConsolidationJobReport>,
+	memory_summary: Option<MemorySummaryJobMetrics>,
 }
 
 #[derive(Debug, Default)]
@@ -1248,6 +1410,12 @@ struct FailureCounts {
 	review_action_failures: usize,
 	source_mutations: usize,
 	blocking_executable_gaps: usize,
+	memory_summary_invalid_current_entries: usize,
+	memory_summary_untraced_entries: usize,
+	memory_summary_missing_freshness: usize,
+	memory_summary_missing_rationale: usize,
+	memory_summary_missing_categories: usize,
+	memory_summary_unsupported_current_entries: usize,
 	untraced_page_sections: usize,
 	missed_stale_findings: usize,
 	rebuild_failures: usize,
@@ -1375,6 +1543,7 @@ fn validate_job(job: &RealWorldJob, path: &Path) -> Result<()> {
 	validate_operator_debug(job, path)?;
 	validate_job_encoding(job, path)?;
 	validate_memory_evolution(job, path)?;
+	validate_memory_summary_expectation(job, path)?;
 	validate_trace_explainability(job, path)?;
 
 	Ok(())
@@ -1651,6 +1820,19 @@ fn validate_adapter_response(job: &RealWorldJob, path: &Path) -> Result<()> {
 	for page in &adapter_response.answer.pages {
 		validate_page_artifact(page, path, &evidence_ids, &event_ids)?;
 	}
+	for summary in &adapter_response.answer.memory_summaries {
+		validate_memory_summary_artifact(summary, path, &evidence_ids)?;
+	}
+
+	if job.suite == "memory_summary"
+		&& adapter_response.answer.memory_summaries.is_empty()
+		&& job.encoding.status.is_none()
+	{
+		return Err(eyre::eyre!(
+			"{} memory_summary jobs must provide adapter_response.answer.memory_summaries.",
+			path.display()
+		));
+	}
 
 	Ok(())
 }
@@ -1726,6 +1908,172 @@ fn validate_page_artifact(
 	}
 
 	Ok(())
+}
+
+fn validate_memory_summary_artifact(
+	summary: &MemorySummaryArtifact,
+	path: &Path,
+	evidence_ids: &BTreeSet<String>,
+) -> Result<()> {
+	if summary.summary_id.trim().is_empty()
+		|| summary.contract_schema != "elf.memory_summary/v1"
+		|| summary.generated_at.trim().is_empty()
+		|| summary.tenant_id.trim().is_empty()
+		|| summary.project_id.trim().is_empty()
+		|| summary.agent_id.trim().is_empty()
+		|| summary.read_profile.trim().is_empty()
+		|| summary.entries.is_empty()
+	{
+		return Err(eyre::eyre!("{} has an incomplete memory summary.", path.display()));
+	}
+
+	validate_optional_rfc3339(&summary.generated_at, path, summary.summary_id.as_str())?;
+
+	for entry in &summary.entries {
+		validate_memory_summary_entry(entry, path, evidence_ids)?;
+	}
+
+	validate_memory_summary_source_trace(&summary.source_trace, path, evidence_ids)?;
+
+	Ok(())
+}
+
+fn validate_memory_summary_entry(
+	entry: &MemorySummaryEntry,
+	path: &Path,
+	evidence_ids: &BTreeSet<String>,
+) -> Result<()> {
+	if entry.entry_id.trim().is_empty()
+		|| entry.category.trim().is_empty()
+		|| entry.text.trim().is_empty()
+	{
+		return Err(eyre::eyre!("{} has an incomplete memory summary entry.", path.display()));
+	}
+	if !is_memory_summary_category(entry.category.as_str()) {
+		return Err(eyre::eyre!(
+			"{} has unknown memory summary category {}.",
+			path.display(),
+			entry.category
+		));
+	}
+	if !is_memory_summary_freshness_status(entry.freshness.status.as_str()) {
+		return Err(eyre::eyre!(
+			"{} has unknown memory summary freshness status {}.",
+			path.display(),
+			entry.freshness.status
+		));
+	}
+	if !is_memory_summary_rationale_decision(entry.rationale.decision.as_str()) {
+		return Err(eyre::eyre!(
+			"{} has unknown memory summary rationale decision {}.",
+			path.display(),
+			entry.rationale.decision
+		));
+	}
+
+	for evidence_id in &entry.source_refs {
+		ensure_known_evidence(path, evidence_ids, evidence_id)?;
+	}
+	for evidence_id in &entry.freshness.tombstone_refs {
+		ensure_known_evidence(path, evidence_ids, evidence_id)?;
+	}
+	for flag in &entry.unsupported_claim_flags {
+		if !flag.is_object() {
+			return Err(eyre::eyre!(
+				"{} memory summary unsupported-claim flags must be JSON objects.",
+				path.display()
+			));
+		}
+	}
+
+	validate_optional_summary_time(
+		path,
+		entry.freshness.observed_at.as_deref(),
+		entry.entry_id.as_str(),
+	)?;
+	validate_optional_summary_time(
+		path,
+		entry.freshness.valid_from.as_deref(),
+		entry.entry_id.as_str(),
+	)?;
+	validate_optional_summary_time(
+		path,
+		entry.freshness.valid_to.as_deref(),
+		entry.entry_id.as_str(),
+	)?;
+	validate_optional_summary_time(
+		path,
+		entry.freshness.last_confirmed_at.as_deref(),
+		entry.entry_id.as_str(),
+	)?;
+
+	Ok(())
+}
+
+fn validate_memory_summary_source_trace(
+	trace: &MemorySummarySourceTrace,
+	path: &Path,
+	evidence_ids: &BTreeSet<String>,
+) -> Result<()> {
+	for item in trace
+		.selected_source_refs
+		.iter()
+		.chain(trace.dropped_source_refs.iter())
+		.chain(trace.stale_source_refs.iter())
+		.chain(trace.superseded_source_refs.iter())
+		.chain(trace.tombstone_source_refs.iter())
+	{
+		if item.evidence_id.trim().is_empty() {
+			return Err(eyre::eyre!("{} has an empty memory summary trace item.", path.display()));
+		}
+
+		ensure_known_evidence(path, evidence_ids, item.evidence_id.as_str())?;
+	}
+	for flag in &trace.unsupported_claim_flags {
+		if !flag.is_object() {
+			return Err(eyre::eyre!(
+				"{} memory summary source-trace unsupported-claim flags must be JSON objects.",
+				path.display()
+			));
+		}
+	}
+
+	Ok(())
+}
+
+fn validate_optional_summary_time(path: &Path, value: Option<&str>, id: &str) -> Result<()> {
+	if let Some(value) = value {
+		validate_optional_rfc3339(value, path, id)?;
+	}
+
+	Ok(())
+}
+
+fn is_memory_summary_category(category: &str) -> bool {
+	matches!(
+		category,
+		"top_of_mind"
+			| "background"
+			| "stale" | "superseded"
+			| "tombstone"
+			| "derived_project_profile"
+	)
+}
+
+fn is_memory_summary_freshness_status(status: &str) -> bool {
+	matches!(
+		status,
+		"current"
+			| "background"
+			| "historical"
+			| "stale" | "superseded"
+			| "tombstoned"
+			| "unsupported"
+	)
+}
+
+fn is_memory_summary_rationale_decision(decision: &str) -> bool {
+	matches!(decision, "included" | "downgraded" | "excluded")
 }
 
 fn validate_scoring_rubric(job: &RealWorldJob, path: &Path) -> Result<()> {
@@ -1900,6 +2248,31 @@ fn validate_memory_evolution(job: &RealWorldJob, path: &Path) -> Result<()> {
 	}
 	if let Some(temporal) = &evolution.temporal_validity {
 		validate_temporal_validity(job, path, temporal)?;
+	}
+
+	Ok(())
+}
+
+fn validate_memory_summary_expectation(job: &RealWorldJob, path: &Path) -> Result<()> {
+	let Some(summary) = &job.memory_summary else {
+		if job.suite == "memory_summary" && job.encoding.status.is_none() {
+			return Err(eyre::eyre!(
+				"{} memory_summary jobs must provide memory_summary expectations.",
+				path.display()
+			));
+		}
+
+		return Ok(());
+	};
+
+	for category in &summary.required_categories {
+		if !is_memory_summary_category(category.as_str()) {
+			return Err(eyre::eyre!(
+				"{} memory_summary expectation references unknown category {}.",
+				path.display(),
+				category
+			));
+		}
 	}
 
 	Ok(())
@@ -2162,32 +2535,18 @@ fn score_job(job: &RealWorldJob) -> JobScoring {
 	if let Some(status) = job.encoding.status {
 		let evolution = evolution_job_report(job, answer, &trap_ids_used, 0);
 
-		return JobScoring {
-			status,
-			normalized_score: 0.0,
-			hard_fail_hits: Vec::new(),
-			unsupported_claims: Vec::new(),
-			wrong_result_count: 0,
-			knowledge: None,
-			trap_ids_used,
-			dimension_scores: declared_not_encoded_dimension_scores(job),
-			reason: job
-				.encoding
-				.reason
-				.clone()
-				.unwrap_or_else(|| "Job did not reach a runnable scoring state.".to_string()),
-			evolution,
-			consolidation,
-		};
+		return score_declared_job(job, status, trap_ids_used, evolution, consolidation);
 	}
 
 	let missing_claims = missing_required_claims(job, answer);
 	let forbidden_claims = forbidden_claim_hits(job, answer);
 	let missing_evidence = missing_required_evidence(job, &produced_evidence);
 	let knowledge = knowledge_metrics(job, answer);
+	let memory_summary = memory_summary_metrics(job, answer);
 	let mut unsupported_claims = unsupported_claims(job, answer);
 
 	unsupported_claims.extend(unsupported_page_claims(answer));
+	unsupported_claims.extend(unsupported_memory_summary_claims(job, answer));
 
 	let operator_counts = operator_debug_failure_counts(job);
 	let latency_violations = latency_violations(job, answer);
@@ -2217,6 +2576,24 @@ fn score_job(job: &RealWorldJob) -> JobScoring {
 		review_action_failures: review_action_failures(consolidation.as_ref()),
 		source_mutations: consolidation.as_ref().map_or(0, |report| report.source_mutation_count),
 		blocking_executable_gaps: blocking_executable_gaps(consolidation.as_ref()),
+		memory_summary_invalid_current_entries: memory_summary
+			.as_ref()
+			.map_or(0, |metrics| metrics.invalid_top_of_mind_count),
+		memory_summary_untraced_entries: memory_summary
+			.as_ref()
+			.map_or(0, |metrics| metrics.untraced_entry_count),
+		memory_summary_missing_freshness: memory_summary.as_ref().map_or(0, |metrics| {
+			metrics.entry_count.saturating_sub(metrics.freshness_marker_count)
+		}),
+		memory_summary_missing_rationale: memory_summary
+			.as_ref()
+			.map_or(0, |metrics| metrics.entry_count.saturating_sub(metrics.rationale_count)),
+		memory_summary_missing_categories: memory_summary
+			.as_ref()
+			.map_or(0, |metrics| metrics.missing_required_category_count),
+		memory_summary_unsupported_current_entries: memory_summary
+			.as_ref()
+			.map_or(0, |metrics| metrics.unsupported_current_entry_count),
 		untraced_page_sections: knowledge
 			.as_ref()
 			.map_or(0, |metrics| metrics.untraced_section_count),
@@ -2226,23 +2603,7 @@ fn score_job(job: &RealWorldJob) -> JobScoring {
 	};
 	let dimension_scores = dimension_scores(job, &counts);
 	let normalized_score = normalized_score(&dimension_scores);
-	let wrong_result_count = counts.missing_claims
-		+ counts.forbidden_claims
-		+ counts.missing_evidence
-		+ counts.trap_uses
-		+ counts.operator_debug_missing
-		+ counts.operator_debug_raw_sql
-		+ counts.operator_debug_trace_gaps
-		+ counts.operator_debug_repair_unclear
-		+ counts.conflict_detection_missing
-		+ counts.update_rationale_missing
-		+ counts.proposal_usefulness_failures
-		+ counts.lineage_failures
-		+ counts.review_action_failures
-		+ counts.untraced_page_sections
-		+ counts.missed_stale_findings
-		+ counts.rebuild_failures
-		+ counts.page_usefulness_failures;
+	let wrong_result_count = wrong_result_count(&counts);
 	let status = job_status(
 		normalized_score,
 		job.scoring_rubric.pass_threshold,
@@ -2270,7 +2631,61 @@ fn score_job(job: &RealWorldJob) -> JobScoring {
 		reason,
 		evolution,
 		consolidation,
+		memory_summary,
 	}
+}
+
+fn score_declared_job(
+	job: &RealWorldJob,
+	status: TypedStatus,
+	trap_ids_used: Vec<String>,
+	evolution: Option<EvolutionJobReport>,
+	consolidation: Option<ConsolidationJobReport>,
+) -> JobScoring {
+	JobScoring {
+		status,
+		normalized_score: 0.0,
+		hard_fail_hits: Vec::new(),
+		unsupported_claims: Vec::new(),
+		wrong_result_count: 0,
+		knowledge: None,
+		trap_ids_used,
+		dimension_scores: declared_not_encoded_dimension_scores(job),
+		reason: job
+			.encoding
+			.reason
+			.clone()
+			.unwrap_or_else(|| "Job did not reach a runnable scoring state.".to_string()),
+		evolution,
+		consolidation,
+		memory_summary: None,
+	}
+}
+
+fn wrong_result_count(counts: &FailureCounts) -> usize {
+	counts.missing_claims
+		+ counts.forbidden_claims
+		+ counts.missing_evidence
+		+ counts.trap_uses
+		+ counts.operator_debug_missing
+		+ counts.operator_debug_raw_sql
+		+ counts.operator_debug_trace_gaps
+		+ counts.operator_debug_repair_unclear
+		+ counts.conflict_detection_missing
+		+ counts.update_rationale_missing
+		+ counts.proposal_usefulness_failures
+		+ counts.lineage_failures
+		+ counts.review_action_failures
+		+ counts.memory_summary_invalid_current_entries
+		+ counts.memory_summary_untraced_entries
+		+ counts.memory_summary_missing_freshness
+		+ counts.memory_summary_missing_rationale
+		+ counts.memory_summary_missing_categories
+		+ counts.memory_summary_unsupported_current_entries
+		+ counts.untraced_page_sections
+		+ counts.missed_stale_findings
+		+ counts.rebuild_failures
+		+ counts.page_usefulness_failures
 }
 
 fn operator_debug_failure_counts(job: &RealWorldJob) -> FailureCounts {
@@ -2320,6 +2735,7 @@ fn synthetic_answer(job: &RealWorldJob) -> &ProducedAnswer {
 		claims: Vec::new(),
 		evidence_ids: Vec::new(),
 		pages: Vec::new(),
+		memory_summaries: Vec::new(),
 		latency_ms: None,
 		cost: None,
 		trace_explainability: None,
@@ -2801,6 +3217,202 @@ fn page_usefulness_failure_count(metrics: &KnowledgeJobMetrics) -> usize {
 	if metrics.page_usefulness < 0.8 { 1 } else { 0 }
 }
 
+fn memory_summary_metrics(
+	job: &RealWorldJob,
+	answer: &ProducedAnswer,
+) -> Option<MemorySummaryJobMetrics> {
+	if answer.memory_summaries.is_empty() {
+		return None;
+	}
+
+	let mut metrics = MemorySummaryJobMetrics {
+		summary_count: answer.memory_summaries.len(),
+		required_category_count: job
+			.memory_summary
+			.as_ref()
+			.map_or(0, |summary| summary.required_categories.len()),
+		..MemorySummaryJobMetrics::default()
+	};
+	let mut categories = BTreeSet::new();
+
+	for summary in &answer.memory_summaries {
+		accumulate_memory_summary_metrics(summary, &mut metrics, &mut categories);
+	}
+
+	let covered_required_category_count = job.memory_summary.as_ref().map_or(0, |summary| {
+		summary.required_categories.iter().filter(|category| categories.contains(*category)).count()
+	});
+
+	metrics.covered_required_category_count = covered_required_category_count;
+	metrics.missing_required_category_count =
+		metrics.required_category_count.saturating_sub(covered_required_category_count);
+	metrics.source_ref_coverage =
+		ratio(metrics.source_ref_entry_count, metrics.source_ref_required_count);
+	metrics.freshness_coverage = ratio(metrics.freshness_marker_count, metrics.entry_count);
+	metrics.rationale_coverage = ratio(metrics.rationale_count, metrics.entry_count);
+
+	Some(metrics)
+}
+
+fn accumulate_memory_summary_metrics(
+	summary: &MemorySummaryArtifact,
+	metrics: &mut MemorySummaryJobMetrics,
+	categories: &mut BTreeSet<String>,
+) {
+	metrics.source_trace_selected_count += summary.source_trace.selected_source_refs.len();
+	metrics.source_trace_dropped_count += summary.source_trace.dropped_source_refs.len();
+	metrics.source_trace_stale_count += summary.source_trace.stale_source_refs.len();
+	metrics.source_trace_superseded_count += summary.source_trace.superseded_source_refs.len();
+	metrics.source_trace_tombstone_count += summary.source_trace.tombstone_source_refs.len();
+
+	let non_current_source_refs = memory_summary_non_current_trace_refs(&summary.source_trace);
+
+	for entry in &summary.entries {
+		metrics.entry_count += 1;
+
+		categories.insert(entry.category.clone());
+
+		accumulate_memory_summary_category(entry.category.as_str(), metrics);
+
+		if memory_summary_entry_requires_source_ref(entry) {
+			metrics.source_ref_required_count += 1;
+
+			if entry.source_refs.is_empty() {
+				metrics.untraced_entry_count += 1;
+			}
+		}
+		if !entry.source_refs.is_empty() {
+			metrics.source_ref_entry_count += 1;
+		}
+		if memory_summary_entry_has_freshness(entry) {
+			metrics.freshness_marker_count += 1;
+		}
+		if memory_summary_entry_has_rationale(entry) {
+			metrics.rationale_count += 1;
+		}
+		if memory_summary_entry_is_invalid_top_of_mind(entry, &non_current_source_refs) {
+			metrics.invalid_top_of_mind_count += 1;
+		}
+		if entry.category == "derived_project_profile" {
+			let has_support =
+				!entry.source_refs.is_empty() || !entry.unsupported_claim_flags.is_empty();
+
+			if has_support {
+				metrics.derived_with_source_or_unsupported_count += 1;
+			} else {
+				metrics.derived_missing_source_or_unsupported_count += 1;
+			}
+			if !entry.unsupported_claim_flags.is_empty() {
+				metrics.unsupported_derived_entry_count += 1;
+			}
+			if memory_summary_entry_includes_unsupported_current_claim(entry) {
+				metrics.unsupported_current_entry_count += 1;
+			}
+		}
+
+		metrics.tombstone_ref_count += entry.freshness.tombstone_refs.len();
+	}
+}
+
+fn memory_summary_non_current_trace_refs(trace: &MemorySummarySourceTrace) -> BTreeSet<&str> {
+	trace
+		.stale_source_refs
+		.iter()
+		.chain(trace.superseded_source_refs.iter())
+		.chain(trace.tombstone_source_refs.iter())
+		.map(|item| item.evidence_id.as_str())
+		.collect()
+}
+
+fn accumulate_memory_summary_category(category: &str, metrics: &mut MemorySummaryJobMetrics) {
+	match category {
+		"top_of_mind" => metrics.top_of_mind_count += 1,
+		"background" => metrics.background_count += 1,
+		"stale" => metrics.stale_count += 1,
+		"superseded" => metrics.superseded_count += 1,
+		"tombstone" => metrics.tombstone_count += 1,
+		"derived_project_profile" => metrics.derived_project_profile_count += 1,
+		_ => {},
+	}
+}
+
+fn memory_summary_entry_requires_source_ref(entry: &MemorySummaryEntry) -> bool {
+	!(entry.category == "derived_project_profile"
+		&& entry.source_refs.is_empty()
+		&& !entry.unsupported_claim_flags.is_empty()
+		&& entry.rationale.decision == "excluded")
+}
+
+fn memory_summary_entry_is_invalid_top_of_mind(
+	entry: &MemorySummaryEntry,
+	non_current_source_refs: &BTreeSet<&str>,
+) -> bool {
+	entry.category == "top_of_mind"
+		&& (entry.freshness.status != "current"
+			|| entry.rationale.decision != "included"
+			|| !entry.freshness.superseded_by.is_empty()
+			|| !entry.freshness.tombstone_refs.is_empty()
+			|| entry
+				.source_refs
+				.iter()
+				.any(|source_ref| non_current_source_refs.contains(source_ref.as_str())))
+}
+
+fn memory_summary_entry_has_freshness(entry: &MemorySummaryEntry) -> bool {
+	if entry.freshness.status.trim().is_empty() {
+		return false;
+	}
+
+	match entry.category.as_str() {
+		"superseded" => !entry.freshness.superseded_by.is_empty(),
+		"tombstone" =>
+			entry.freshness.status == "tombstoned" && !entry.freshness.tombstone_refs.is_empty(),
+		_ => true,
+	}
+}
+
+fn memory_summary_entry_has_rationale(entry: &MemorySummaryEntry) -> bool {
+	!entry.rationale.decision.trim().is_empty()
+		&& !entry.rationale.reason_code.trim().is_empty()
+		&& !entry.rationale.reason.trim().is_empty()
+}
+
+fn memory_summary_entry_includes_unsupported_current_claim(entry: &MemorySummaryEntry) -> bool {
+	!entry.unsupported_claim_flags.is_empty()
+		&& (entry.rationale.decision != "excluded" || entry.freshness.status == "current")
+}
+
+fn unsupported_memory_summary_claims(
+	job: &RealWorldJob,
+	answer: &ProducedAnswer,
+) -> Vec<UnsupportedClaimReport> {
+	answer
+		.memory_summaries
+		.iter()
+		.flat_map(|summary| {
+			summary.entries.iter().filter_map(|entry| {
+				if entry.category != "derived_project_profile"
+					|| !entry.source_refs.is_empty()
+					|| !entry.unsupported_claim_flags.is_empty()
+				{
+					return None;
+				}
+
+				Some(UnsupportedClaimReport {
+					suite_id: job.suite.clone(),
+					job_id: job.job_id.clone(),
+					claim_id: Some(format!("{}:{}", summary.summary_id, entry.entry_id)),
+					claim_text: bounded_text(entry.text.as_str(), 240),
+					reason:
+						"derived memory summary entry has no source refs and no unsupported-claim flags"
+							.to_string(),
+					evidence_ids: entry.source_refs.clone(),
+				})
+			})
+		})
+		.collect()
+}
+
 fn hard_fail_hits(
 	job: &RealWorldJob,
 	unsupported_claims: &[UnsupportedClaimReport],
@@ -2873,19 +3485,31 @@ fn dimension_score(dimension_id: &str, max_points: f64, counts: &FailureCounts) 
 				|| counts.conflict_detection_missing > 0
 				|| counts.proposal_usefulness_failures > 0
 				|| counts.review_action_failures > 0
+				|| counts.memory_summary_invalid_current_entries > 0
+				|| counts.memory_summary_missing_categories > 0
+				|| counts.memory_summary_unsupported_current_entries > 0
 				|| counts.page_usefulness_failures > 0,
 		"evidence_grounding" =>
 			counts.missing_evidence > 0
 				|| counts.unsupported_claims > 0
 				|| counts.lineage_failures > 0
+				|| counts.memory_summary_untraced_entries > 0
 				|| counts.untraced_page_sections > 0,
-		"trap_avoidance" => counts.trap_uses > 0 || counts.missed_stale_findings > 0,
-		"uncertainty_handling" => counts.unsupported_claims > 0,
+		"trap_avoidance" =>
+			counts.trap_uses > 0
+				|| counts.memory_summary_invalid_current_entries > 0
+				|| counts.missed_stale_findings > 0,
+		"uncertainty_handling" =>
+			counts.unsupported_claims > 0 || counts.memory_summary_unsupported_current_entries > 0,
 		"lifecycle_behavior" =>
 			counts.stale_answers > 0
 				|| counts.conflict_detection_missing > 0
 				|| counts.update_rationale_missing > 0
 				|| counts.source_mutations > 0
+				|| counts.memory_summary_invalid_current_entries > 0
+				|| counts.memory_summary_missing_freshness > 0
+				|| counts.memory_summary_missing_rationale > 0
+				|| counts.memory_summary_unsupported_current_entries > 0
 				|| counts.rebuild_failures > 0,
 		"source_immutability" => counts.source_mutations > 0,
 		"proposal_usefulness" => counts.proposal_usefulness_failures > 0,
@@ -2998,6 +3622,12 @@ fn wrong_result_signal_count(counts: &FailureCounts) -> usize {
 		+ counts.proposal_usefulness_failures
 		+ counts.lineage_failures
 		+ counts.review_action_failures
+		+ counts.memory_summary_invalid_current_entries
+		+ counts.memory_summary_untraced_entries
+		+ counts.memory_summary_missing_freshness
+		+ counts.memory_summary_missing_rationale
+		+ counts.memory_summary_missing_categories
+		+ counts.memory_summary_unsupported_current_entries
 		+ counts.untraced_page_sections
 		+ counts.missed_stale_findings
 		+ counts.rebuild_failures
@@ -3050,6 +3680,7 @@ fn job_report(job: &RealWorldJob, scoring: JobScoring) -> JobReport {
 		cost: answer.cost.clone(),
 		trace_explainability: answer.trace_explainability.clone(),
 		knowledge: scoring.knowledge,
+		memory_summary: scoring.memory_summary,
 		trap_ids_used: scoring.trap_ids_used,
 		dimension_scores: scoring.dimension_scores,
 		reason: scoring.reason,
@@ -3551,6 +4182,7 @@ fn report_summary(jobs: &[JobReport], suites: &[SuiteReport]) -> ReportSummary {
 			.map(|debug| debug.ux_gaps.len())
 			.sum(),
 		consolidation: consolidation_summary(jobs),
+		memory_summary: memory_summary_summary(jobs),
 		knowledge: knowledge_summary(jobs),
 		..ReportSummary::default()
 	};
@@ -3665,6 +4297,99 @@ fn consolidation_summary(jobs: &[JobReport]) -> ConsolidationSummaryReport {
 			.sum(),
 		executable_gap_count,
 	}
+}
+
+fn memory_summary_summary(jobs: &[JobReport]) -> Option<MemorySummaryReport> {
+	let memory_jobs = jobs.iter().filter_map(|job| job.memory_summary.as_ref()).collect::<Vec<_>>();
+
+	if memory_jobs.is_empty() {
+		return None;
+	}
+
+	let job_count = memory_jobs.len();
+	let summary_count = memory_jobs.iter().map(|metrics| metrics.summary_count).sum();
+	let entry_count = memory_jobs.iter().map(|metrics| metrics.entry_count).sum();
+	let required_category_count =
+		memory_jobs.iter().map(|metrics| metrics.required_category_count).sum();
+	let covered_required_category_count =
+		memory_jobs.iter().map(|metrics| metrics.covered_required_category_count).sum();
+	let source_ref_required_count =
+		memory_jobs.iter().map(|metrics| metrics.source_ref_required_count).sum();
+	let source_ref_entry_count =
+		memory_jobs.iter().map(|metrics| metrics.source_ref_entry_count).sum();
+	let freshness_marker_count =
+		memory_jobs.iter().map(|metrics| metrics.freshness_marker_count).sum();
+	let rationale_count = memory_jobs.iter().map(|metrics| metrics.rationale_count).sum();
+
+	Some(MemorySummaryReport {
+		job_count,
+		summary_count,
+		entry_count,
+		required_category_count,
+		covered_required_category_count,
+		missing_required_category_count: memory_jobs
+			.iter()
+			.map(|metrics| metrics.missing_required_category_count)
+			.sum(),
+		top_of_mind_count: memory_jobs.iter().map(|metrics| metrics.top_of_mind_count).sum(),
+		background_count: memory_jobs.iter().map(|metrics| metrics.background_count).sum(),
+		stale_count: memory_jobs.iter().map(|metrics| metrics.stale_count).sum(),
+		superseded_count: memory_jobs.iter().map(|metrics| metrics.superseded_count).sum(),
+		tombstone_count: memory_jobs.iter().map(|metrics| metrics.tombstone_count).sum(),
+		derived_project_profile_count: memory_jobs
+			.iter()
+			.map(|metrics| metrics.derived_project_profile_count)
+			.sum(),
+		source_ref_required_count,
+		source_ref_entry_count,
+		source_ref_coverage: ratio(source_ref_entry_count, source_ref_required_count),
+		freshness_marker_count,
+		freshness_coverage: ratio(freshness_marker_count, entry_count),
+		rationale_count,
+		rationale_coverage: ratio(rationale_count, entry_count),
+		invalid_top_of_mind_count: memory_jobs
+			.iter()
+			.map(|metrics| metrics.invalid_top_of_mind_count)
+			.sum(),
+		untraced_entry_count: memory_jobs.iter().map(|metrics| metrics.untraced_entry_count).sum(),
+		derived_with_source_or_unsupported_count: memory_jobs
+			.iter()
+			.map(|metrics| metrics.derived_with_source_or_unsupported_count)
+			.sum(),
+		derived_missing_source_or_unsupported_count: memory_jobs
+			.iter()
+			.map(|metrics| metrics.derived_missing_source_or_unsupported_count)
+			.sum(),
+		unsupported_derived_entry_count: memory_jobs
+			.iter()
+			.map(|metrics| metrics.unsupported_derived_entry_count)
+			.sum(),
+		unsupported_current_entry_count: memory_jobs
+			.iter()
+			.map(|metrics| metrics.unsupported_current_entry_count)
+			.sum(),
+		tombstone_ref_count: memory_jobs.iter().map(|metrics| metrics.tombstone_ref_count).sum(),
+		source_trace_selected_count: memory_jobs
+			.iter()
+			.map(|metrics| metrics.source_trace_selected_count)
+			.sum(),
+		source_trace_dropped_count: memory_jobs
+			.iter()
+			.map(|metrics| metrics.source_trace_dropped_count)
+			.sum(),
+		source_trace_stale_count: memory_jobs
+			.iter()
+			.map(|metrics| metrics.source_trace_stale_count)
+			.sum(),
+		source_trace_superseded_count: memory_jobs
+			.iter()
+			.map(|metrics| metrics.source_trace_superseded_count)
+			.sum(),
+		source_trace_tombstone_count: memory_jobs
+			.iter()
+			.map(|metrics| metrics.source_trace_tombstone_count)
+			.sum(),
+	})
 }
 
 fn knowledge_summary(jobs: &[JobReport]) -> Option<KnowledgeSummary> {
@@ -4377,6 +5102,7 @@ fn render_markdown(report: &RealWorldReport, report_path: &Path) -> String {
 	render_markdown_evolution(&mut out, report);
 	render_markdown_trace_explainability(&mut out, report);
 	render_markdown_consolidation(&mut out, report);
+	render_markdown_memory_summary(&mut out, report);
 	render_markdown_knowledge(&mut out, report);
 	render_markdown_unsupported_claims(&mut out, report);
 	render_markdown_follow_ups(&mut out, report);
@@ -4670,7 +5396,16 @@ fn render_markdown_header(out: &mut String, report: &RealWorldReport, report_pat
 	));
 	out.push_str(&format!("- Operator UX gaps: `{}`\n", report.summary.operator_ux_gap_count));
 
-	if let Some(knowledge) = &report.summary.knowledge {
+	render_markdown_optional_summary_metrics(out, &report.summary);
+
+	out.push_str(&format!(
+		"- Private corpus redaction: `{}`\n\n",
+		md_inline(report.private_corpus_redaction.policy.as_str())
+	));
+}
+
+fn render_markdown_optional_summary_metrics(out: &mut String, summary: &ReportSummary) {
+	if let Some(knowledge) = &summary.knowledge {
 		out.push_str(&format!(
 			"- Knowledge citation coverage: `{:.3}`\n",
 			knowledge.citation_coverage
@@ -4690,11 +5425,30 @@ fn render_markdown_header(out: &mut String, report: &RealWorldReport, report_pat
 			knowledge.unsupported_summary_count
 		));
 	}
-
-	out.push_str(&format!(
-		"- Private corpus redaction: `{}`\n\n",
-		md_inline(report.private_corpus_redaction.policy.as_str())
-	));
+	if let Some(memory_summary) = &summary.memory_summary {
+		out.push_str(&format!(
+			"- Memory summary entries: `{}` across `{}` artifact(s)\n",
+			memory_summary.entry_count, memory_summary.summary_count
+		));
+		out.push_str(&format!(
+			"- Memory summary source-ref coverage: `{}/{}` (`{:.3}`)\n",
+			memory_summary.source_ref_entry_count,
+			memory_summary.source_ref_required_count,
+			memory_summary.source_ref_coverage
+		));
+		out.push_str(&format!(
+			"- Memory summary invalid top-of-mind count: `{}`\n",
+			memory_summary.invalid_top_of_mind_count
+		));
+		out.push_str(&format!(
+			"- Memory summary unsupported derived entries: `{}`\n",
+			memory_summary.unsupported_derived_entry_count
+		));
+		out.push_str(&format!(
+			"- Memory summary unsupported current entries: `{}`\n",
+			memory_summary.unsupported_current_entry_count
+		));
+	}
 }
 
 fn render_markdown_quality_summary(out: &mut String, report: &RealWorldReport) {
@@ -5128,6 +5882,46 @@ fn render_markdown_knowledge(out: &mut String, report: &RealWorldReport) {
 	out.push('\n');
 }
 
+fn render_markdown_memory_summary(out: &mut String, report: &RealWorldReport) {
+	let memory_jobs =
+		report.jobs.iter().filter(|job| job.memory_summary.is_some()).collect::<Vec<_>>();
+
+	if memory_jobs.is_empty() {
+		return;
+	}
+
+	out.push_str("## Memory Summary Metrics\n\n");
+	out.push_str("| Job | Summaries | Entries | Categories | Source Coverage | Freshness | Rationale | Invalid Top-of-Mind | Untraced | Derived Unsupported | Unsupported Current | Tombstone Refs |\n");
+	out.push_str(
+		"| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n",
+	);
+
+	for job in memory_jobs {
+		let Some(metrics) = &job.memory_summary else {
+			continue;
+		};
+
+		out.push_str(&format!(
+			"| {} | {} | {} | `{}/{}` | `{:.3}` | `{:.3}` | `{:.3}` | {} | {} | {} | {} | {} |\n",
+			md_cell(job.job_id.as_str()),
+			metrics.summary_count,
+			metrics.entry_count,
+			metrics.covered_required_category_count,
+			metrics.required_category_count,
+			metrics.source_ref_coverage,
+			metrics.freshness_coverage,
+			metrics.rationale_coverage,
+			metrics.invalid_top_of_mind_count,
+			metrics.untraced_entry_count,
+			metrics.unsupported_derived_entry_count,
+			metrics.unsupported_current_entry_count,
+			metrics.tombstone_ref_count
+		));
+	}
+
+	out.push('\n');
+}
+
 fn render_markdown_unsupported_claims(out: &mut String, report: &RealWorldReport) {
 	out.push_str("## Unsupported Claims\n\n");
 
@@ -5198,6 +5992,7 @@ fn render_markdown_semantics(out: &mut String, report: &RealWorldReport) {
 	out.push_str("- `unsupported_claim`: a job produced a substantive claim not supported by the fixture evidence links.\n");
 	out.push_str("- `not_encoded`: a suite has no checked-in fixture, or an encoded fixture declares a capability gap so no pass/fail claim is allowed.\n\n");
 	out.push_str("For `knowledge_compilation` jobs, generated pages are benchmark artifacts. Page sections must cite source evidence or timeline events, or be explicitly flagged as unsupported. Flagged unsupported summaries are counted separately from hidden unsupported claims.\n\n");
+	out.push_str("For `memory_summary` jobs, summary artifacts are derived review surfaces. Top-of-mind entries must be current, included or downgraded entries must carry source refs, and derived project-profile entries must either cite sources or be explicitly flagged as unsupported.\n\n");
 	out.push_str("## Suites With `not_encoded` Status\n\n");
 
 	if report.not_encoded_suites.is_empty() {
