@@ -1,0 +1,251 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "proactive-resume-work-brief-001",
+  "suite": "proactive_brief",
+  "title": "Generate a resume-work brief from current handoff memory",
+  "corpus": {
+    "corpus_id": "real-world-memory-proactive-brief-2026-06-16",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "resume-current-handoff",
+        "kind": "handoff",
+        "text": "Current handoff: continue in branch y/elf-xy-953, add proactive brief fixtures and scoring, then run the proactive brief benchmark command.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "resume_work_brief",
+            "evidence_id": "resume-current-handoff"
+          },
+          "locator": {
+            "quote": "add proactive brief fixtures and scoring"
+          }
+        },
+        "created_at": "2026-06-16T05:00:00Z"
+      },
+      {
+        "evidence_id": "resume-current-validation",
+        "kind": "plan",
+        "text": "Current validation plan: run cargo make real-world-memory-proactive-brief and targeted elf-eval real_world_job_benchmark tests before phase completion.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "resume_work_brief",
+            "evidence_id": "resume-current-validation"
+          },
+          "locator": {
+            "quote": "real-world-memory-proactive-brief"
+          }
+        },
+        "created_at": "2026-06-16T05:03:00Z"
+      },
+      {
+        "evidence_id": "resume-stale-validation",
+        "kind": "note",
+        "text": "Stale handoff: only run the work_resume smoke and skip proactive brief scoring.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "resume_work_brief",
+            "evidence_id": "resume-stale-validation"
+          }
+        },
+        "created_at": "2026-06-15T05:00:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_proactive_brief",
+      "answer": {
+        "content": "Resume brief: stay on y/elf-xy-953, finish proactive brief fixture/scoring work, and validate with cargo make real-world-memory-proactive-brief plus targeted elf-eval tests.",
+        "claims": [
+          {
+            "claim_id": "resume_current_handoff",
+            "text": "The current resume point is branch y/elf-xy-953 with proactive brief fixture and scoring work.",
+            "evidence_ids": ["resume-current-handoff"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "resume_validation",
+            "text": "The validation plan includes cargo make real-world-memory-proactive-brief.",
+            "evidence_ids": ["resume-current-validation"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["resume-current-handoff", "resume-current-validation"],
+        "proactive_briefs": [
+          {
+            "brief_id": "brief-resume-work-2026-06-16",
+            "contract_schema": "elf.proactive_project_brief/v1",
+            "generated_at": "2026-06-16T05:30:00Z",
+            "tenant_id": "fixture-tenant",
+            "project_id": "elf",
+            "agent_id": "xy-953-fixture-agent",
+            "read_profile": "private_plus_project",
+            "brief_kind": "resume_work",
+            "suggestions": [
+              {
+                "suggestion_id": "resume-continue-proactive-brief",
+                "suggestion_kind": "resume_work",
+                "title": "Continue proactive brief scoring",
+                "body": "Continue the XY-953 fixture and runner scoring work on y/elf-xy-953, then run the proactive brief benchmark command.",
+                "evidence_refs": ["resume-current-handoff", "resume-current-validation"],
+                "freshness": {
+                  "status": "current",
+                  "observed_at": "2026-06-16T05:03:00Z",
+                  "valid_from": "2026-06-16T05:00:00Z",
+                  "valid_to": null,
+                  "last_confirmed_at": "2026-06-16T05:30:00Z",
+                  "superseded_by": [],
+                  "tombstone_refs": []
+                },
+                "action": {
+                  "decision": "recommend",
+                  "reason_code": "RECOMMEND_CURRENT_HANDOFF",
+                  "reason": "The current handoff and validation plan agree on the same proactive brief work."
+                },
+                "unsupported_claim_flags": []
+              }
+            ],
+            "source_trace": {
+              "selected_source_refs": [
+                {
+                  "evidence_id": "resume-current-handoff",
+                  "status": "current",
+                  "reason": "Current work handoff."
+                },
+                {
+                  "evidence_id": "resume-current-validation",
+                  "status": "current",
+                  "reason": "Current validation command."
+                }
+              ],
+              "dropped_source_refs": [],
+              "stale_source_refs": [
+                {
+                  "evidence_id": "resume-stale-validation",
+                  "status": "stale",
+                  "reason": "The proactive brief lane now has a direct command."
+                }
+              ],
+              "superseded_source_refs": [],
+              "tombstone_source_refs": [],
+              "unsupported_claim_flags": []
+            }
+          }
+        ],
+        "latency_ms": 2.0,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "resume-handoff-recorded",
+      "ts": "2026-06-16T05:00:00Z",
+      "actor": "agent",
+      "action": "recorded_handoff",
+      "evidence_ids": ["resume-current-handoff"],
+      "summary": "The current handoff pointed at proactive brief scoring."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Generate a resume-work brief that identifies the current next action and validation command.",
+    "job_mode": "proactive_brief",
+    "constraints": ["cite_evidence", "mark_currentness", "include_action_rationale"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "resume_current_handoff",
+        "text": "The current resume point is branch y/elf-xy-953 with proactive brief fixture and scoring work."
+      },
+      {
+        "claim_id": "resume_validation",
+        "text": "The validation plan includes cargo make real-world-memory-proactive-brief."
+      }
+    ],
+    "must_not_include": ["skip proactive brief scoring"],
+    "evidence_links": {
+      "resume_current_handoff": ["resume-current-handoff"],
+      "resume_validation": ["resume-current-validation"]
+    },
+    "answer_type": "proactive_project_brief",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "resume-current-handoff",
+      "claim_id": "resume_current_handoff",
+      "requirement": "cite",
+      "quote": "proactive brief fixtures and scoring"
+    },
+    {
+      "evidence_id": "resume-current-validation",
+      "claim_id": "resume_validation",
+      "requirement": "cite",
+      "quote": "cargo make real-world-memory-proactive-brief"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "resume-stale-validation-trap",
+      "type": "stale_fact",
+      "evidence_ids": ["resume-stale-validation"],
+      "failure_if_used": true
+    }
+  ],
+  "proactive_brief": {
+    "required_suggestion_kinds": ["resume_work"]
+  },
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Brief identifies the current handoff and validation command."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "The resume suggestion carries evidence refs."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "The stale validation trap is not used."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "The brief gives a concrete resume action."
+      },
+      "lifecycle_behavior": {
+        "weight": 0.1,
+        "max_points": 1.0,
+        "criteria": "Currentness markers keep stale handoff content out."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": true,
+    "acceptable_phrases": ["No current handoff evidence is available."],
+    "fallback_action": "defer_resume_brief"
+  },
+  "tags": ["synthetic", "proactive_brief", "resume_work", "fixture_backed"]
+}
