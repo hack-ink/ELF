@@ -181,6 +181,14 @@ provider-backed ELF evidence was required.
   evidence fields. qmd remains `wrong_result` on the same slice, but this is not a
   broad qmd, Graphiti/Zep, mem0/OpenMemory, Letta, hosted-memory, or private-corpus
   superiority claim.
+- Live consolidation proposal scoring after XY-934: `cargo make
+  real-world-memory-live-consolidation` runs the consolidation fixture slice through
+  `ElfService` consolidation run creation, worker proposal materialization, and
+  apply/defer/discard review audit transitions. ELF passes 4/4 live consolidation jobs
+  with complete lineage, one unsupported-claim flag preserved, and zero source
+  mutations. Managed dreaming and Always-On Memory Agent patterns remain product
+  references, not direct live competitors, because no contained runner emits comparable
+  artifacts.
 - Live operator-debugging slice after XY-932: `cargo make
   real-world-job-operator-ux-live-adapters` emits narrow Docker-isolated
   `live_real_world` records for ELF and qmd over the operator-debugging fixtures.
@@ -255,6 +263,7 @@ Detailed evidence and interpretation:
 - [Graph/RAG Scored Smoke Adapter Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-graph-rag-scored-smoke-adapter-report.md)
 - [mem0/OpenMemory History and UI Export Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-mem0-openmemory-history-ui-export-report.md)
 - [Capture/Write-Policy Live Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-capture-write-policy-live-report.md)
+- [Live Consolidation Proposal Scoring Report - June 16, 2026](docs/guide/benchmarking/2026-06-16-live-consolidation-proposal-scoring-report.md)
 - [First-Generation OSS Continuity and Source-Store Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-first-generation-oss-continuity-source-store-report.md)
 - [Live Temporal Reconciliation Report - June 16, 2026](docs/guide/benchmarking/2026-06-16-live-temporal-reconciliation-report.md)
 - [Live Baseline Benchmark Runbook](docs/guide/benchmarking/live_baseline_benchmark.md)
@@ -335,6 +344,7 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [Graph/RAG Scored Smoke Adapter Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-graph-rag-scored-smoke-adapter-report.md)
 - [mem0/OpenMemory History and UI Export Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-mem0-openmemory-history-ui-export-report.md)
 - [Capture/Write-Policy Live Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-capture-write-policy-live-report.md)
+- [Live Consolidation Proposal Scoring Report - June 16, 2026](docs/guide/benchmarking/2026-06-16-live-consolidation-proposal-scoring-report.md)
 - [First-Generation OSS Continuity and Source-Store Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-first-generation-oss-continuity-source-store-report.md)
 - [Live Temporal Reconciliation Report - June 16, 2026](docs/guide/benchmarking/2026-06-16-live-temporal-reconciliation-report.md)
 - [Live Baseline Benchmark Runbook](docs/guide/benchmarking/live_baseline_benchmark.md)
@@ -347,7 +357,8 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [RAG/Graph Adapter Feasibility Research Run](docs/research/2026-06-10-xy-882-rag-graph-adapter-feasibility.json)
 
 Latest real-world benchmark report: June 16, 2026. Latest external research refresh:
-June 11, 2026.
+June 11, 2026; June 16 adds live temporal reconciliation and live consolidation
+self-check evidence.
 
 ## Documentation
 
