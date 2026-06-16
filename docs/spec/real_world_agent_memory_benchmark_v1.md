@@ -428,6 +428,10 @@ Fields:
 - `current_evidence_ids`: evidence ids that support the current answer.
 - `historical_evidence_ids`: evidence ids that are historically true but not current
   answers unless the prompt asks for history.
+- `tombstone_evidence_ids`: evidence ids that prove a deleted memory, TTL expiry, or
+  DELETE outbox tombstone should suppress an older fact.
+- `invalidation_evidence_ids`: evidence ids that prove a fact was invalidated by a
+  higher-priority lifecycle event even if it remains available as history.
 - `stale_trap_ids`: negative trap ids that represent stale answers.
 - `conflicts`: array of conflicts with `conflict_id`, `claim_id`,
   `current_evidence_id`, `historical_evidence_id`, and optional
