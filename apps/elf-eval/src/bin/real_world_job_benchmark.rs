@@ -50,6 +50,7 @@ const SUITES: &[&str] = &[
 	"memory_evolution",
 	"consolidation",
 	"memory_summary",
+	"proactive_brief",
 	"knowledge_compilation",
 	"operator_debugging_ux",
 	"capture_integration",
@@ -150,6 +151,7 @@ struct RealWorldJob {
 	encoding: JobEncoding,
 	memory_evolution: Option<MemoryEvolution>,
 	memory_summary: Option<MemorySummaryExpectation>,
+	proactive_brief: Option<ProactiveBriefExpectation>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -364,6 +366,12 @@ struct MemorySummaryExpectation {
 }
 
 #[derive(Debug, Deserialize)]
+struct ProactiveBriefExpectation {
+	#[serde(default)]
+	required_suggestion_kinds: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
 struct ScoringRubric {
 	#[serde(default)]
 	dimensions: BTreeMap<String, RubricDimension>,
@@ -405,6 +413,8 @@ struct ProducedAnswer {
 	pages: Vec<DerivedPageArtifact>,
 	#[serde(default)]
 	memory_summaries: Vec<MemorySummaryArtifact>,
+	#[serde(default)]
+	proactive_briefs: Vec<ProactiveBriefArtifact>,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	latency_ms: Option<f64>,
 	#[serde(skip_serializing_if = "Option::is_none")]
@@ -552,6 +562,42 @@ struct MemorySummarySourceTraceItem {
 	reason: Option<String>,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	superseded_by: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct ProactiveBriefArtifact {
+	brief_id: String,
+	contract_schema: String,
+	generated_at: String,
+	tenant_id: String,
+	project_id: String,
+	agent_id: String,
+	read_profile: String,
+	brief_kind: String,
+	#[serde(default)]
+	suggestions: Vec<ProactiveSuggestion>,
+	source_trace: MemorySummarySourceTrace,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct ProactiveSuggestion {
+	suggestion_id: String,
+	suggestion_kind: String,
+	title: String,
+	body: String,
+	#[serde(default)]
+	evidence_refs: Vec<String>,
+	freshness: MemorySummaryFreshness,
+	action: ProactiveSuggestionAction,
+	#[serde(default)]
+	unsupported_claim_flags: Vec<Value>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct ProactiveSuggestionAction {
+	decision: String,
+	reason_code: String,
+	reason: String,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -1035,6 +1081,8 @@ struct ReportSummary {
 	#[serde(skip_serializing_if = "Option::is_none")]
 	memory_summary: Option<MemorySummaryReport>,
 	#[serde(skip_serializing_if = "Option::is_none")]
+	proactive_brief: Option<ProactiveBriefSummaryReport>,
+	#[serde(skip_serializing_if = "Option::is_none")]
 	knowledge: Option<KnowledgeSummary>,
 }
 
@@ -1077,6 +1125,38 @@ struct MemorySummaryReport {
 	unsupported_derived_entry_count: usize,
 	unsupported_current_entry_count: usize,
 	tombstone_ref_count: usize,
+	source_trace_selected_count: usize,
+	source_trace_dropped_count: usize,
+	source_trace_stale_count: usize,
+	source_trace_superseded_count: usize,
+	source_trace_tombstone_count: usize,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct ProactiveBriefSummaryReport {
+	job_count: usize,
+	brief_count: usize,
+	suggestion_count: usize,
+	required_suggestion_kind_count: usize,
+	covered_required_suggestion_kind_count: usize,
+	missing_required_suggestion_kind_count: usize,
+	evidence_ref_required_count: usize,
+	evidence_ref_suggestion_count: usize,
+	evidence_ref_coverage: f64,
+	freshness_marker_count: usize,
+	freshness_coverage: f64,
+	action_rationale_count: usize,
+	action_rationale_coverage: f64,
+	recommended_count: usize,
+	deferred_count: usize,
+	rejected_count: usize,
+	current_suggestion_count: usize,
+	non_current_suggestion_count: usize,
+	stale_warning_count: usize,
+	invalid_current_suggestion_count: usize,
+	untraced_suggestion_count: usize,
+	unsupported_current_suggestion_count: usize,
+	tombstone_violation_count: usize,
 	source_trace_selected_count: usize,
 	source_trace_dropped_count: usize,
 	source_trace_stale_count: usize,
@@ -1160,6 +1240,8 @@ struct JobReport {
 	knowledge: Option<KnowledgeJobMetrics>,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	memory_summary: Option<MemorySummaryJobMetrics>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	proactive_brief: Option<ProactiveBriefJobMetrics>,
 	trap_ids_used: Vec<String>,
 	dimension_scores: Vec<DimensionScoreReport>,
 	reason: String,
@@ -1323,6 +1405,37 @@ struct MemorySummaryJobMetrics {
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct ProactiveBriefJobMetrics {
+	brief_count: usize,
+	suggestion_count: usize,
+	required_suggestion_kind_count: usize,
+	covered_required_suggestion_kind_count: usize,
+	missing_required_suggestion_kind_count: usize,
+	evidence_ref_required_count: usize,
+	evidence_ref_suggestion_count: usize,
+	evidence_ref_coverage: f64,
+	freshness_marker_count: usize,
+	freshness_coverage: f64,
+	action_rationale_count: usize,
+	action_rationale_coverage: f64,
+	recommended_count: usize,
+	deferred_count: usize,
+	rejected_count: usize,
+	current_suggestion_count: usize,
+	non_current_suggestion_count: usize,
+	stale_warning_count: usize,
+	invalid_current_suggestion_count: usize,
+	untraced_suggestion_count: usize,
+	unsupported_current_suggestion_count: usize,
+	tombstone_violation_count: usize,
+	source_trace_selected_count: usize,
+	source_trace_dropped_count: usize,
+	source_trace_stale_count: usize,
+	source_trace_superseded_count: usize,
+	source_trace_tombstone_count: usize,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 struct EvolutionSummary {
 	stale_answer_count: usize,
 	conflict_detection_count: usize,
@@ -1388,6 +1501,7 @@ struct JobScoring {
 	evolution: Option<EvolutionJobReport>,
 	consolidation: Option<ConsolidationJobReport>,
 	memory_summary: Option<MemorySummaryJobMetrics>,
+	proactive_brief: Option<ProactiveBriefJobMetrics>,
 }
 
 #[derive(Debug, Default)]
@@ -1416,6 +1530,13 @@ struct FailureCounts {
 	memory_summary_missing_rationale: usize,
 	memory_summary_missing_categories: usize,
 	memory_summary_unsupported_current_entries: usize,
+	proactive_brief_invalid_current_suggestions: usize,
+	proactive_brief_untraced_suggestions: usize,
+	proactive_brief_missing_freshness: usize,
+	proactive_brief_missing_action_rationale: usize,
+	proactive_brief_missing_kinds: usize,
+	proactive_brief_unsupported_current_suggestions: usize,
+	proactive_brief_tombstone_violations: usize,
 	untraced_page_sections: usize,
 	missed_stale_findings: usize,
 	rebuild_failures: usize,
@@ -1544,6 +1665,7 @@ fn validate_job(job: &RealWorldJob, path: &Path) -> Result<()> {
 	validate_job_encoding(job, path)?;
 	validate_memory_evolution(job, path)?;
 	validate_memory_summary_expectation(job, path)?;
+	validate_proactive_brief_expectation(job, path)?;
 	validate_trace_explainability(job, path)?;
 
 	Ok(())
@@ -1823,6 +1945,9 @@ fn validate_adapter_response(job: &RealWorldJob, path: &Path) -> Result<()> {
 	for summary in &adapter_response.answer.memory_summaries {
 		validate_memory_summary_artifact(summary, path, &evidence_ids)?;
 	}
+	for brief in &adapter_response.answer.proactive_briefs {
+		validate_proactive_brief_artifact(brief, path, &evidence_ids)?;
+	}
 
 	if job.suite == "memory_summary"
 		&& adapter_response.answer.memory_summaries.is_empty()
@@ -1830,6 +1955,15 @@ fn validate_adapter_response(job: &RealWorldJob, path: &Path) -> Result<()> {
 	{
 		return Err(eyre::eyre!(
 			"{} memory_summary jobs must provide adapter_response.answer.memory_summaries.",
+			path.display()
+		));
+	}
+	if job.suite == "proactive_brief"
+		&& adapter_response.answer.proactive_briefs.is_empty()
+		&& job.encoding.status.is_none()
+	{
+		return Err(eyre::eyre!(
+			"{} proactive_brief jobs must provide adapter_response.answer.proactive_briefs.",
 			path.display()
 		));
 	}
@@ -2041,6 +2175,112 @@ fn validate_memory_summary_source_trace(
 	Ok(())
 }
 
+fn validate_proactive_brief_artifact(
+	brief: &ProactiveBriefArtifact,
+	path: &Path,
+	evidence_ids: &BTreeSet<String>,
+) -> Result<()> {
+	if brief.brief_id.trim().is_empty()
+		|| brief.contract_schema != "elf.proactive_project_brief/v1"
+		|| brief.generated_at.trim().is_empty()
+		|| brief.tenant_id.trim().is_empty()
+		|| brief.project_id.trim().is_empty()
+		|| brief.agent_id.trim().is_empty()
+		|| brief.read_profile.trim().is_empty()
+		|| brief.brief_kind.trim().is_empty()
+		|| brief.suggestions.is_empty()
+	{
+		return Err(eyre::eyre!("{} has an incomplete proactive brief.", path.display()));
+	}
+
+	validate_optional_rfc3339(&brief.generated_at, path, brief.brief_id.as_str())?;
+
+	for suggestion in &brief.suggestions {
+		validate_proactive_suggestion(suggestion, path, evidence_ids)?;
+	}
+
+	validate_memory_summary_source_trace(&brief.source_trace, path, evidence_ids)?;
+
+	Ok(())
+}
+
+fn validate_proactive_suggestion(
+	suggestion: &ProactiveSuggestion,
+	path: &Path,
+	evidence_ids: &BTreeSet<String>,
+) -> Result<()> {
+	if suggestion.suggestion_id.trim().is_empty()
+		|| suggestion.suggestion_kind.trim().is_empty()
+		|| suggestion.title.trim().is_empty()
+		|| suggestion.body.trim().is_empty()
+	{
+		return Err(eyre::eyre!("{} has an incomplete proactive suggestion.", path.display()));
+	}
+	if !is_proactive_suggestion_kind(suggestion.suggestion_kind.as_str()) {
+		return Err(eyre::eyre!(
+			"{} has unknown proactive suggestion kind {}.",
+			path.display(),
+			suggestion.suggestion_kind
+		));
+	}
+	if !is_memory_summary_freshness_status(suggestion.freshness.status.as_str()) {
+		return Err(eyre::eyre!(
+			"{} has unknown proactive freshness status {}.",
+			path.display(),
+			suggestion.freshness.status
+		));
+	}
+	if !is_proactive_action_decision(suggestion.action.decision.as_str()) {
+		return Err(eyre::eyre!(
+			"{} has unknown proactive action decision {}.",
+			path.display(),
+			suggestion.action.decision
+		));
+	}
+	if suggestion.action.reason_code.trim().is_empty() || suggestion.action.reason.trim().is_empty()
+	{
+		return Err(eyre::eyre!("{} has incomplete proactive action rationale.", path.display()));
+	}
+
+	for evidence_id in &suggestion.evidence_refs {
+		ensure_known_evidence(path, evidence_ids, evidence_id)?;
+	}
+	for evidence_id in &suggestion.freshness.tombstone_refs {
+		ensure_known_evidence(path, evidence_ids, evidence_id)?;
+	}
+	for flag in &suggestion.unsupported_claim_flags {
+		if !flag.is_object() {
+			return Err(eyre::eyre!(
+				"{} proactive unsupported-claim flags must be JSON objects.",
+				path.display()
+			));
+		}
+	}
+
+	validate_optional_summary_time(
+		path,
+		suggestion.freshness.observed_at.as_deref(),
+		suggestion.suggestion_id.as_str(),
+	)?;
+	validate_optional_summary_time(
+		path,
+		suggestion.freshness.valid_from.as_deref(),
+		suggestion.suggestion_id.as_str(),
+	)?;
+	validate_optional_summary_time(
+		path,
+		suggestion.freshness.valid_to.as_deref(),
+		suggestion.suggestion_id.as_str(),
+	)?;
+	validate_optional_summary_time(
+		path,
+		suggestion.freshness.last_confirmed_at.as_deref(),
+		suggestion.suggestion_id.as_str(),
+	)?;
+
+	Ok(())
+}
+
 fn validate_optional_summary_time(path: &Path, value: Option<&str>, id: &str) -> Result<()> {
 	if let Some(value) = value {
 		validate_optional_rfc3339(value, path, id)?;
@@ -2074,6 +2314,21 @@ fn is_memory_summary_freshness_status(status: &str) -> bool {
 
 fn is_memory_summary_rationale_decision(decision: &str) -> bool {
 	matches!(decision, "included" | "downgraded" | "excluded")
+}
+
+fn is_proactive_suggestion_kind(kind: &str) -> bool {
+	matches!(
+		kind,
+		"daily_project_brief"
+			| "resume_work"
+			| "stale_decision_audit"
+			| "stale_plan_preference_warning"
+			| "private_corpus_refresh"
+	)
+}
+
+fn is_proactive_action_decision(decision: &str) -> bool {
+	matches!(decision, "recommend" | "defer" | "reject")
 }
 
 fn validate_scoring_rubric(job: &RealWorldJob, path: &Path) -> Result<()> {
@@ -2271,6 +2526,31 @@ fn validate_memory_summary_expectation(job: &RealWorldJob, path: &Path) -> Resul
 				"{} memory_summary expectation references unknown category {}.",
 				path.display(),
 				category
+			));
+		}
+	}
+
+	Ok(())
+}
+
+fn validate_proactive_brief_expectation(job: &RealWorldJob, path: &Path) -> Result<()> {
+	let Some(brief) = &job.proactive_brief else {
+		if job.suite == "proactive_brief" && job.encoding.status.is_none() {
+			return Err(eyre::eyre!(
+				"{} proactive_brief jobs must provide proactive_brief expectations.",
+				path.display()
+			));
+		}
+
+		return Ok(());
+	};
+
+	for kind in &brief.required_suggestion_kinds {
+		if !is_proactive_suggestion_kind(kind.as_str()) {
+			return Err(eyre::eyre!(
+				"{} proactive_brief expectation references unknown suggestion kind {}.",
+				path.display(),
+				kind
 			));
 		}
 	}
@@ -2543,10 +2823,12 @@ fn score_job(job: &RealWorldJob) -> JobScoring {
 	let missing_evidence = missing_required_evidence(job, &produced_evidence);
 	let knowledge = knowledge_metrics(job, answer);
 	let memory_summary = memory_summary_metrics(job, answer);
+	let proactive_brief = proactive_brief_metrics(job, answer);
 	let mut unsupported_claims = unsupported_claims(job, answer);
 
 	unsupported_claims.extend(unsupported_page_claims(answer));
 	unsupported_claims.extend(unsupported_memory_summary_claims(job, answer));
+	unsupported_claims.extend(unsupported_proactive_suggestions(job, answer));
 
 	let operator_counts = operator_debug_failure_counts(job);
 	let latency_violations = latency_violations(job, answer);
@@ -2557,7 +2839,7 @@ fn score_job(job: &RealWorldJob) -> JobScoring {
 		.as_ref()
 		.map_or(0, |report| report.conflict_count - report.conflict_detection_count);
 	let update_rationale_missing = evolution.as_ref().map_or(0, update_rationale_missing_count);
-	let counts = FailureCounts {
+	let mut counts = FailureCounts {
 		missing_claims: missing_claims.len(),
 		forbidden_claims: forbidden_claims.len(),
 		missing_evidence: missing_evidence.len(),
@@ -2576,31 +2858,18 @@ fn score_job(job: &RealWorldJob) -> JobScoring {
 		review_action_failures: review_action_failures(consolidation.as_ref()),
 		source_mutations: consolidation.as_ref().map_or(0, |report| report.source_mutation_count),
 		blocking_executable_gaps: blocking_executable_gaps(consolidation.as_ref()),
-		memory_summary_invalid_current_entries: memory_summary
-			.as_ref()
-			.map_or(0, |metrics| metrics.invalid_top_of_mind_count),
-		memory_summary_untraced_entries: memory_summary
-			.as_ref()
-			.map_or(0, |metrics| metrics.untraced_entry_count),
-		memory_summary_missing_freshness: memory_summary.as_ref().map_or(0, |metrics| {
-			metrics.entry_count.saturating_sub(metrics.freshness_marker_count)
-		}),
-		memory_summary_missing_rationale: memory_summary
-			.as_ref()
-			.map_or(0, |metrics| metrics.entry_count.saturating_sub(metrics.rationale_count)),
-		memory_summary_missing_categories: memory_summary
-			.as_ref()
-			.map_or(0, |metrics| metrics.missing_required_category_count),
-		memory_summary_unsupported_current_entries: memory_summary
-			.as_ref()
-			.map_or(0, |metrics| metrics.unsupported_current_entry_count),
 		untraced_page_sections: knowledge
 			.as_ref()
 			.map_or(0, |metrics| metrics.untraced_section_count),
 		missed_stale_findings: knowledge.as_ref().map_or(0, missed_stale_finding_count),
 		rebuild_failures: knowledge.as_ref().map_or(0, |metrics| metrics.rebuild_failure_count),
 		page_usefulness_failures: knowledge.as_ref().map_or(0, page_usefulness_failure_count),
+		..FailureCounts::default()
 	};
+
+	apply_memory_summary_failure_counts(&mut counts, memory_summary.as_ref());
+	apply_proactive_brief_failure_counts(&mut counts, proactive_brief.as_ref());
+
 	let dimension_scores = dimension_scores(job, &counts);
 	let normalized_score = normalized_score(&dimension_scores);
 	let wrong_result_count = wrong_result_count(&counts);
@@ -2632,7 +2901,46 @@ fn score_job(job: &RealWorldJob) -> JobScoring {
 		evolution,
 		consolidation,
 		memory_summary,
+		proactive_brief,
 	}
+}
+
+fn apply_memory_summary_failure_counts(
+	counts: &mut FailureCounts,
+	metrics: Option<&MemorySummaryJobMetrics>,
+) {
+	let Some(metrics) = metrics else {
+		return;
+	};
+
+	counts.memory_summary_invalid_current_entries = metrics.invalid_top_of_mind_count;
+	counts.memory_summary_untraced_entries = metrics.untraced_entry_count;
+	counts.memory_summary_missing_freshness =
+		metrics.entry_count.saturating_sub(metrics.freshness_marker_count);
+	counts.memory_summary_missing_rationale =
+		metrics.entry_count.saturating_sub(metrics.rationale_count);
+	counts.memory_summary_missing_categories = metrics.missing_required_category_count;
+	counts.memory_summary_unsupported_current_entries = metrics.unsupported_current_entry_count;
+}
+
+fn apply_proactive_brief_failure_counts(
+	counts: &mut FailureCounts,
+	metrics: Option<&ProactiveBriefJobMetrics>,
+) {
+	let Some(metrics) = metrics else {
+		return;
+	};
+
+	counts.proactive_brief_invalid_current_suggestions = metrics.invalid_current_suggestion_count;
+	counts.proactive_brief_untraced_suggestions = metrics.untraced_suggestion_count;
+	counts.proactive_brief_missing_freshness =
+		metrics.suggestion_count.saturating_sub(metrics.freshness_marker_count);
+	counts.proactive_brief_missing_action_rationale =
+		metrics.suggestion_count.saturating_sub(metrics.action_rationale_count);
+	counts.proactive_brief_missing_kinds = metrics.missing_required_suggestion_kind_count;
+	counts.proactive_brief_unsupported_current_suggestions =
+		metrics.unsupported_current_suggestion_count;
+	counts.proactive_brief_tombstone_violations = metrics.tombstone_violation_count;
 }
 
 fn score_declared_job(
@@ -2659,6 +2967,7 @@ fn score_declared_job(
 		evolution,
 		consolidation,
 		memory_summary: None,
+		proactive_brief: None,
 	}
 }
 
@@ -2682,6 +2991,13 @@ fn wrong_result_count(counts: &FailureCounts) -> usize {
 		+ counts.memory_summary_missing_rationale
 		+ counts.memory_summary_missing_categories
 		+ counts.memory_summary_unsupported_current_entries
+		+ counts.proactive_brief_invalid_current_suggestions
+		+ counts.proactive_brief_untraced_suggestions
+		+ counts.proactive_brief_missing_freshness
+		+ counts.proactive_brief_missing_action_rationale
+		+ counts.proactive_brief_missing_kinds
+		+ counts.proactive_brief_unsupported_current_suggestions
+		+ counts.proactive_brief_tombstone_violations
 		+ counts.untraced_page_sections
 		+ counts.missed_stale_findings
 		+ counts.rebuild_failures
@@ -2736,6 +3052,7 @@ fn synthetic_answer(job: &RealWorldJob) -> &ProducedAnswer {
 		evidence_ids: Vec::new(),
 		pages: Vec::new(),
 		memory_summaries: Vec::new(),
+		proactive_briefs: Vec::new(),
 		latency_ms: None,
 		cost: None,
 		trace_explainability: None,
@@ -2747,6 +3064,11 @@ fn produced_evidence_ids(answer: &ProducedAnswer) -> BTreeSet<String> {
 
 	for claim in &answer.claims {
 		evidence.extend(claim.evidence_ids.iter().cloned());
+	}
+	for brief in &answer.proactive_briefs {
+		for suggestion in &brief.suggestions {
+			evidence.extend(suggestion.evidence_refs.iter().cloned());
+		}
 	}
 
 	evidence
@@ -3413,6 +3735,219 @@ fn unsupported_memory_summary_claims(
 		.collect()
 }
 
+fn proactive_brief_metrics(
+	job: &RealWorldJob,
+	answer: &ProducedAnswer,
+) -> Option<ProactiveBriefJobMetrics> {
+	if answer.proactive_briefs.is_empty() {
+		return None;
+	}
+
+	let mut metrics = ProactiveBriefJobMetrics {
+		brief_count: answer.proactive_briefs.len(),
+		required_suggestion_kind_count: job
+			.proactive_brief
+			.as_ref()
+			.map_or(0, |brief| brief.required_suggestion_kinds.len()),
+		..ProactiveBriefJobMetrics::default()
+	};
+	let mut suggestion_kinds = BTreeSet::new();
+
+	for brief in &answer.proactive_briefs {
+		accumulate_proactive_brief_metrics(brief, &mut metrics, &mut suggestion_kinds);
+	}
+
+	let covered_required_suggestion_kind_count = job.proactive_brief.as_ref().map_or(0, |brief| {
+		brief
+			.required_suggestion_kinds
+			.iter()
+			.filter(|kind| suggestion_kinds.contains(*kind))
+			.count()
+	});
+
+	metrics.covered_required_suggestion_kind_count = covered_required_suggestion_kind_count;
+	metrics.missing_required_suggestion_kind_count = metrics
+		.required_suggestion_kind_count
+		.saturating_sub(covered_required_suggestion_kind_count);
+	metrics.evidence_ref_coverage =
+		ratio(metrics.evidence_ref_suggestion_count, metrics.evidence_ref_required_count);
+	metrics.freshness_coverage = ratio(metrics.freshness_marker_count, metrics.suggestion_count);
+	metrics.action_rationale_coverage =
+		ratio(metrics.action_rationale_count, metrics.suggestion_count);
+
+	Some(metrics)
+}
+
+fn accumulate_proactive_brief_metrics(
+	brief: &ProactiveBriefArtifact,
+	metrics: &mut ProactiveBriefJobMetrics,
+	suggestion_kinds: &mut BTreeSet<String>,
+) {
+	metrics.source_trace_selected_count += brief.source_trace.selected_source_refs.len();
+	metrics.source_trace_dropped_count += brief.source_trace.dropped_source_refs.len();
+	metrics.source_trace_stale_count += brief.source_trace.stale_source_refs.len();
+	metrics.source_trace_superseded_count += brief.source_trace.superseded_source_refs.len();
+	metrics.source_trace_tombstone_count += brief.source_trace.tombstone_source_refs.len();
+
+	let non_current_refs = memory_summary_non_current_trace_refs(&brief.source_trace);
+	let tombstone_refs = proactive_tombstone_trace_refs(&brief.source_trace);
+
+	for suggestion in &brief.suggestions {
+		metrics.suggestion_count += 1;
+		metrics.evidence_ref_required_count += 1;
+
+		suggestion_kinds.insert(suggestion.suggestion_kind.clone());
+
+		if suggestion.evidence_refs.is_empty() {
+			metrics.untraced_suggestion_count += 1;
+		} else {
+			metrics.evidence_ref_suggestion_count += 1;
+		}
+		if proactive_suggestion_has_freshness(suggestion) {
+			metrics.freshness_marker_count += 1;
+		}
+		if proactive_suggestion_has_action_rationale(suggestion) {
+			metrics.action_rationale_count += 1;
+		}
+
+		accumulate_proactive_action_decision(suggestion.action.decision.as_str(), metrics);
+
+		if suggestion.freshness.status == "current" {
+			metrics.current_suggestion_count += 1;
+		} else {
+			metrics.non_current_suggestion_count += 1;
+		}
+		if proactive_suggestion_is_stale_warning(suggestion) {
+			metrics.stale_warning_count += 1;
+		}
+		if proactive_suggestion_is_invalid_current(suggestion, &non_current_refs) {
+			metrics.invalid_current_suggestion_count += 1;
+		}
+		if proactive_suggestion_is_unsupported_current(suggestion) {
+			metrics.unsupported_current_suggestion_count += 1;
+		}
+		if proactive_suggestion_is_tombstone_violation(suggestion, &tombstone_refs) {
+			metrics.tombstone_violation_count += 1;
+		}
+	}
+}
+
+fn proactive_tombstone_trace_refs(trace: &MemorySummarySourceTrace) -> BTreeSet<&str> {
+	trace.tombstone_source_refs.iter().map(|item| item.evidence_id.as_str()).collect()
+}
+
+fn accumulate_proactive_action_decision(decision: &str, metrics: &mut ProactiveBriefJobMetrics) {
+	match decision {
+		"recommend" => metrics.recommended_count += 1,
+		"defer" => metrics.deferred_count += 1,
+		"reject" => metrics.rejected_count += 1,
+		_ => {},
+	}
+}
+
+fn proactive_suggestion_has_freshness(suggestion: &ProactiveSuggestion) -> bool {
+	if suggestion.freshness.status.trim().is_empty() {
+		return false;
+	}
+
+	match suggestion.freshness.status.as_str() {
+		"superseded" => !suggestion.freshness.superseded_by.is_empty(),
+		"tombstoned" => !suggestion.freshness.tombstone_refs.is_empty(),
+		_ => true,
+	}
+}
+
+fn proactive_suggestion_has_action_rationale(suggestion: &ProactiveSuggestion) -> bool {
+	!suggestion.action.decision.trim().is_empty()
+		&& !suggestion.action.reason_code.trim().is_empty()
+		&& !suggestion.action.reason.trim().is_empty()
+}
+
+fn proactive_suggestion_is_stale_warning(suggestion: &ProactiveSuggestion) -> bool {
+	matches!(
+		suggestion.suggestion_kind.as_str(),
+		"stale_decision_audit" | "stale_plan_preference_warning"
+	) && suggestion.freshness.status != "current"
+}
+
+fn proactive_suggestion_is_invalid_current(
+	suggestion: &ProactiveSuggestion,
+	non_current_refs: &BTreeSet<&str>,
+) -> bool {
+	suggestion.freshness.status == "current"
+		&& (!suggestion.freshness.superseded_by.is_empty()
+			|| !suggestion.freshness.tombstone_refs.is_empty()
+			|| suggestion
+				.evidence_refs
+				.iter()
+				.any(|evidence_id| non_current_refs.contains(evidence_id.as_str())))
+}
+
+fn proactive_suggestion_is_unsupported_current(suggestion: &ProactiveSuggestion) -> bool {
+	!suggestion.unsupported_claim_flags.is_empty()
+		&& (suggestion.action.decision == "recommend" || suggestion.freshness.status == "current")
+}
+
+fn proactive_suggestion_is_tombstone_violation(
+	suggestion: &ProactiveSuggestion,
+	tombstone_refs: &BTreeSet<&str>,
+) -> bool {
+	suggestion.freshness.status == "current"
+		&& (!suggestion.freshness.tombstone_refs.is_empty()
+			|| suggestion
+				.evidence_refs
+				.iter()
+				.any(|evidence_id| tombstone_refs.contains(evidence_id.as_str())))
+}
+
+fn unsupported_proactive_suggestions(
+	job: &RealWorldJob,
+	answer: &ProducedAnswer,
+) -> Vec<UnsupportedClaimReport> {
+	answer
+		.proactive_briefs
+		.iter()
+		.flat_map(|brief| {
+			brief.suggestions.iter().filter_map(|suggestion| {
+				if suggestion.evidence_refs.is_empty() {
+					return Some(proactive_unsupported_claim_report(
+						job,
+						brief,
+						suggestion,
+						"proactive suggestion has no evidence refs",
+					));
+				}
+				if proactive_suggestion_is_unsupported_current(suggestion) {
+					return Some(proactive_unsupported_claim_report(
+						job,
+						brief,
+						suggestion,
+						"unsupported proactive claim is still recommended or marked current",
+					));
+				}
+
+				None
+			})
+		})
+		.collect()
+}
+
+fn proactive_unsupported_claim_report(
+	job: &RealWorldJob,
+	brief: &ProactiveBriefArtifact,
+	suggestion: &ProactiveSuggestion,
+	reason: &str,
+) -> UnsupportedClaimReport {
+	UnsupportedClaimReport {
+		suite_id: job.suite.clone(),
+		job_id: job.job_id.clone(),
+		claim_id: Some(format!("{}:{}", brief.brief_id, suggestion.suggestion_id)),
+		claim_text: bounded_text(suggestion.body.as_str(), 240),
+		reason: reason.to_string(),
+		evidence_ids: suggestion.evidence_refs.clone(),
+	}
+}
+
 fn hard_fail_hits(
 	job: &RealWorldJob,
 	unsupported_claims: &[UnsupportedClaimReport],
@@ -3488,19 +4023,28 @@ fn dimension_score(dimension_id: &str, max_points: f64, counts: &FailureCounts) 
 				|| counts.memory_summary_invalid_current_entries > 0
 				|| counts.memory_summary_missing_categories > 0
 				|| counts.memory_summary_unsupported_current_entries > 0
+				|| counts.proactive_brief_invalid_current_suggestions > 0
+				|| counts.proactive_brief_missing_kinds > 0
+				|| counts.proactive_brief_unsupported_current_suggestions > 0
+				|| counts.proactive_brief_tombstone_violations > 0
 				|| counts.page_usefulness_failures > 0,
 		"evidence_grounding" =>
 			counts.missing_evidence > 0
 				|| counts.unsupported_claims > 0
 				|| counts.lineage_failures > 0
 				|| counts.memory_summary_untraced_entries > 0
+				|| counts.proactive_brief_untraced_suggestions > 0
 				|| counts.untraced_page_sections > 0,
 		"trap_avoidance" =>
 			counts.trap_uses > 0
 				|| counts.memory_summary_invalid_current_entries > 0
+				|| counts.proactive_brief_invalid_current_suggestions > 0
+				|| counts.proactive_brief_tombstone_violations > 0
 				|| counts.missed_stale_findings > 0,
 		"uncertainty_handling" =>
-			counts.unsupported_claims > 0 || counts.memory_summary_unsupported_current_entries > 0,
+			counts.unsupported_claims > 0
+				|| counts.memory_summary_unsupported_current_entries > 0
+				|| counts.proactive_brief_unsupported_current_suggestions > 0,
 		"lifecycle_behavior" =>
 			counts.stale_answers > 0
 				|| counts.conflict_detection_missing > 0
@@ -3510,6 +4054,11 @@ fn dimension_score(dimension_id: &str, max_points: f64, counts: &FailureCounts) 
 				|| counts.memory_summary_missing_freshness > 0
 				|| counts.memory_summary_missing_rationale > 0
 				|| counts.memory_summary_unsupported_current_entries > 0
+				|| counts.proactive_brief_invalid_current_suggestions > 0
+				|| counts.proactive_brief_missing_freshness > 0
+				|| counts.proactive_brief_missing_action_rationale > 0
+				|| counts.proactive_brief_unsupported_current_suggestions > 0
+				|| counts.proactive_brief_tombstone_violations > 0
 				|| counts.rebuild_failures > 0,
 		"source_immutability" => counts.source_mutations > 0,
 		"proposal_usefulness" => counts.proposal_usefulness_failures > 0,
@@ -3681,6 +4230,7 @@ fn job_report(job: &RealWorldJob, scoring: JobScoring) -> JobReport {
 		trace_explainability: answer.trace_explainability.clone(),
 		knowledge: scoring.knowledge,
 		memory_summary: scoring.memory_summary,
+		proactive_brief: scoring.proactive_brief,
 		trap_ids_used: scoring.trap_ids_used,
 		dimension_scores: scoring.dimension_scores,
 		reason: scoring.reason,
@@ -4183,6 +4733,7 @@ fn report_summary(jobs: &[JobReport], suites: &[SuiteReport]) -> ReportSummary {
 			.sum(),
 		consolidation: consolidation_summary(jobs),
 		memory_summary: memory_summary_summary(jobs),
+		proactive_brief: proactive_brief_summary(jobs),
 		knowledge: knowledge_summary(jobs),
 		..ReportSummary::default()
 	};
@@ -4386,6 +4937,100 @@ fn memory_summary_summary(jobs: &[JobReport]) -> Option<MemorySummaryReport> {
 			.map(|metrics| metrics.source_trace_superseded_count)
 			.sum(),
 		source_trace_tombstone_count: memory_jobs
+			.iter()
+			.map(|metrics| metrics.source_trace_tombstone_count)
+			.sum(),
+	})
+}
+
+fn proactive_brief_summary(jobs: &[JobReport]) -> Option<ProactiveBriefSummaryReport> {
+	let proactive_jobs =
+		jobs.iter().filter_map(|job| job.proactive_brief.as_ref()).collect::<Vec<_>>();
+
+	if proactive_jobs.is_empty() {
+		return None;
+	}
+
+	let job_count = proactive_jobs.len();
+	let suggestion_count =
+		proactive_jobs.iter().map(|metrics| metrics.suggestion_count).sum::<usize>();
+	let evidence_ref_required_count =
+		proactive_jobs.iter().map(|metrics| metrics.evidence_ref_required_count).sum();
+	let evidence_ref_suggestion_count =
+		proactive_jobs.iter().map(|metrics| metrics.evidence_ref_suggestion_count).sum();
+	let freshness_marker_count =
+		proactive_jobs.iter().map(|metrics| metrics.freshness_marker_count).sum();
+	let action_rationale_count =
+		proactive_jobs.iter().map(|metrics| metrics.action_rationale_count).sum();
+
+	Some(ProactiveBriefSummaryReport {
+		job_count,
+		brief_count: proactive_jobs.iter().map(|metrics| metrics.brief_count).sum(),
+		suggestion_count,
+		required_suggestion_kind_count: proactive_jobs
+			.iter()
+			.map(|metrics| metrics.required_suggestion_kind_count)
+			.sum(),
+		covered_required_suggestion_kind_count: proactive_jobs
+			.iter()
+			.map(|metrics| metrics.covered_required_suggestion_kind_count)
+			.sum(),
+		missing_required_suggestion_kind_count: proactive_jobs
+			.iter()
+			.map(|metrics| metrics.missing_required_suggestion_kind_count)
+			.sum(),
+		evidence_ref_required_count,
+		evidence_ref_suggestion_count,
+		evidence_ref_coverage: ratio(evidence_ref_suggestion_count, evidence_ref_required_count),
+		freshness_marker_count,
+		freshness_coverage: ratio(freshness_marker_count, suggestion_count),
+		action_rationale_count,
+		action_rationale_coverage: ratio(action_rationale_count, suggestion_count),
+		recommended_count: proactive_jobs.iter().map(|metrics| metrics.recommended_count).sum(),
+		deferred_count: proactive_jobs.iter().map(|metrics| metrics.deferred_count).sum(),
+		rejected_count: proactive_jobs.iter().map(|metrics| metrics.rejected_count).sum(),
+		current_suggestion_count: proactive_jobs
+			.iter()
+			.map(|metrics| metrics.current_suggestion_count)
+			.sum(),
+		non_current_suggestion_count: proactive_jobs
+			.iter()
+			.map(|metrics| metrics.non_current_suggestion_count)
+			.sum(),
+		stale_warning_count: proactive_jobs.iter().map(|metrics| metrics.stale_warning_count).sum(),
+		invalid_current_suggestion_count: proactive_jobs
+			.iter()
+			.map(|metrics| metrics.invalid_current_suggestion_count)
+			.sum(),
+		untraced_suggestion_count: proactive_jobs
+			.iter()
+			.map(|metrics| metrics.untraced_suggestion_count)
+			.sum(),
+		unsupported_current_suggestion_count: proactive_jobs
+			.iter()
+			.map(|metrics| metrics.unsupported_current_suggestion_count)
+			.sum(),
+		tombstone_violation_count: proactive_jobs
+			.iter()
+			.map(|metrics| metrics.tombstone_violation_count)
+			.sum(),
+		source_trace_selected_count: proactive_jobs
+			.iter()
+			.map(|metrics| metrics.source_trace_selected_count)
+			.sum(),
+		source_trace_dropped_count: proactive_jobs
+			.iter()
+			.map(|metrics| metrics.source_trace_dropped_count)
+			.sum(),
+		source_trace_stale_count: proactive_jobs
+			.iter()
+			.map(|metrics| metrics.source_trace_stale_count)
+			.sum(),
+		source_trace_superseded_count: proactive_jobs
+			.iter()
+			.map(|metrics| metrics.source_trace_superseded_count)
+			.sum(),
+		source_trace_tombstone_count: proactive_jobs
 			.iter()
 			.map(|metrics| metrics.source_trace_tombstone_count)
 			.sum(),
@@ -5103,6 +5748,7 @@ fn render_markdown(report: &RealWorldReport, report_path: &Path) -> String {
 	render_markdown_trace_explainability(&mut out, report);
 	render_markdown_consolidation(&mut out, report);
 	render_markdown_memory_summary(&mut out, report);
+	render_markdown_proactive_brief(&mut out, report);
 	render_markdown_knowledge(&mut out, report);
 	render_markdown_unsupported_claims(&mut out, report);
 	render_markdown_follow_ups(&mut out, report);
@@ -5447,6 +6093,30 @@ fn render_markdown_optional_summary_metrics(out: &mut String, summary: &ReportSu
 		out.push_str(&format!(
 			"- Memory summary unsupported current entries: `{}`\n",
 			memory_summary.unsupported_current_entry_count
+		));
+	}
+	if let Some(proactive) = &summary.proactive_brief {
+		out.push_str(&format!(
+			"- Proactive brief suggestions: `{}` across `{}` artifact(s)\n",
+			proactive.suggestion_count, proactive.brief_count
+		));
+		out.push_str(&format!(
+			"- Proactive evidence-ref coverage: `{}/{}` (`{:.3}`)\n",
+			proactive.evidence_ref_suggestion_count,
+			proactive.evidence_ref_required_count,
+			proactive.evidence_ref_coverage
+		));
+		out.push_str(&format!(
+			"- Proactive freshness/action rationale coverage: `{:.3}` / `{:.3}`\n",
+			proactive.freshness_coverage, proactive.action_rationale_coverage
+		));
+		out.push_str(&format!(
+			"- Proactive stale/currentness violations: `{}` invalid current, `{}` tombstone violation(s)\n",
+			proactive.invalid_current_suggestion_count, proactive.tombstone_violation_count
+		));
+		out.push_str(&format!(
+			"- Proactive rejected/deferred suggestions: `{}` rejected, `{}` deferred\n",
+			proactive.rejected_count, proactive.deferred_count
 		));
 	}
 }
@@ -5922,6 +6592,47 @@ fn render_markdown_memory_summary(out: &mut String, report: &RealWorldReport) {
 	out.push('\n');
 }
 
+fn render_markdown_proactive_brief(out: &mut String, report: &RealWorldReport) {
+	let proactive_jobs =
+		report.jobs.iter().filter(|job| job.proactive_brief.is_some()).collect::<Vec<_>>();
+
+	if proactive_jobs.is_empty() {
+		return;
+	}
+
+	out.push_str("## Proactive Brief Metrics\n\n");
+	out.push_str("| Job | Briefs | Suggestions | Kinds | Evidence Coverage | Freshness | Action Rationale | Invalid Current | Untraced | Unsupported Current | Tombstone Violations | Rejected | Deferred |\n");
+	out.push_str(
+		"| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n",
+	);
+
+	for job in proactive_jobs {
+		let Some(metrics) = &job.proactive_brief else {
+			continue;
+		};
+
+		out.push_str(&format!(
+			"| {} | {} | {} | `{}/{}` | `{:.3}` | `{:.3}` | `{:.3}` | {} | {} | {} | {} | {} | {} |\n",
+			md_cell(job.job_id.as_str()),
+			metrics.brief_count,
+			metrics.suggestion_count,
+			metrics.covered_required_suggestion_kind_count,
+			metrics.required_suggestion_kind_count,
+			metrics.evidence_ref_coverage,
+			metrics.freshness_coverage,
+			metrics.action_rationale_coverage,
+			metrics.invalid_current_suggestion_count,
+			metrics.untraced_suggestion_count,
+			metrics.unsupported_current_suggestion_count,
+			metrics.tombstone_violation_count,
+			metrics.rejected_count,
+			metrics.deferred_count
+		));
+	}
+
+	out.push('\n');
+}
+
 fn render_markdown_unsupported_claims(out: &mut String, report: &RealWorldReport) {
 	out.push_str("## Unsupported Claims\n\n");
 
@@ -5993,6 +6704,7 @@ fn render_markdown_semantics(out: &mut String, report: &RealWorldReport) {
 	out.push_str("- `not_encoded`: a suite has no checked-in fixture, or an encoded fixture declares a capability gap so no pass/fail claim is allowed.\n\n");
 	out.push_str("For `knowledge_compilation` jobs, generated pages are benchmark artifacts. Page sections must cite source evidence or timeline events, or be explicitly flagged as unsupported. Flagged unsupported summaries are counted separately from hidden unsupported claims.\n\n");
 	out.push_str("For `memory_summary` jobs, summary artifacts are derived review surfaces. Top-of-mind entries must be current, included or downgraded entries must carry source refs, and derived project-profile entries must either cite sources or be explicitly flagged as unsupported.\n\n");
+	out.push_str("For `proactive_brief` jobs, brief artifacts are fixture-scored derived outputs, not scheduled UI behavior. Every suggestion must carry evidence refs, freshness/currentness metadata, and an action rationale; stale, superseded, or tombstoned sources must not be presented as current recommendations.\n\n");
 	out.push_str("## Suites With `not_encoded` Status\n\n");
 
 	if report.not_encoded_suites.is_empty() {

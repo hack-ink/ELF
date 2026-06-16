@@ -29,7 +29,7 @@
       },
       "run": {
         "status": "blocked",
-        "evidence": "The current fixture set reports 50 jobs across 14 suites: 45 pass, 0 incomplete, 5 blocked, 0 wrong_result, 0 not_encoded, and 0 unsupported_claim. The six core_archival_memory jobs pass as ELF fixture evidence, not as live Letta comparison evidence; the one memory_summary job passes as fixture-backed source-trace evidence, not as managed-memory parity evidence; context_trajectory remains blocked behind OpenViking staged-artifact materialization.",
+        "evidence": "The current fixture set reports 55 jobs across 15 suites: 49 pass, 0 incomplete, 6 blocked, 0 wrong_result, 0 not_encoded, and 0 unsupported_claim. The six core_archival_memory jobs pass as ELF fixture evidence, not as live Letta comparison evidence; the one memory_summary job passes as fixture-backed source-trace evidence, not as managed-memory parity evidence; the proactive_brief suite scores 4 passing evidence-linked suggestions plus one blocked private-corpus refresh case tied to XY-930, not Pulse or hosted managed-memory parity; context_trajectory remains blocked behind OpenViking staged-artifact materialization.",
         "command": "cargo make real-world-memory",
         "artifact": "tmp/real-world-memory/real-world-memory-report.json"
       },
@@ -85,6 +85,16 @@
           "suite_id": "consolidation",
           "status": "pass",
           "evidence": "Proposal-only consolidation fixtures are encoded and passing without source mutation."
+        },
+        {
+          "suite_id": "memory_summary",
+          "status": "pass",
+          "evidence": "The source-trace memory summary fixture is encoded and passing with freshness, rationale, tombstone, and unsupported-claim guards."
+        },
+        {
+          "suite_id": "proactive_brief",
+          "status": "blocked",
+          "evidence": "The proactive brief suite scores 4 passing source-linked suggestions and 1 typed private-corpus refresh blocker tied to XY-930."
         },
         {
           "suite_id": "knowledge_compilation",
