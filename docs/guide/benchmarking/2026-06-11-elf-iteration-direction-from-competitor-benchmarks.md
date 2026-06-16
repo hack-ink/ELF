@@ -79,11 +79,12 @@ Interpretation:
 - Both pass `trust_source_of_truth`, `work_resume`, `project_decisions`,
   `retrieval`, and `personalization`.
 - Both fail most `memory_evolution` live conflict evidence with `wrong_result`.
-- ELF now passes live `capture_integration`; qmd keeps that suite `not_encoded`.
-  Both leave consolidation, knowledge compilation, and production-ops operator
-  boundaries as `not_encoded` or `blocked`. Operator debugging has a separate narrow
-  live slice: ELF passes it, while qmd remains `wrong_result` for trace hydration and
-  candidate-drop stage visibility.
+- ELF now passes live `capture_integration`. A separate XY-934 narrow run adds live
+  consolidation proposal review evidence for ELF; qmd keeps consolidation
+  `not_encoded` in the live sweep. Knowledge compilation and production-ops operator
+  boundaries remain typed `not_encoded` or `blocked`. Operator debugging has a
+  separate narrow live slice: ELF passes it, while qmd remains `wrong_result` for
+  trace hydration and candidate-drop stage visibility.
 
 ### Production Evidence
 
@@ -134,7 +135,7 @@ one misleading score.
 | Project decisions | ELF and qmd live project-decision suites pass; ELF fixture-backed `core_archival_memory` also scores project-decision recovery, while Letta remains blocked without export evidence. | Run the Letta core/archival export/readback contract before treating project-decision recovery as comparable. |
 | Source of truth | ELF has the strongest measured source-of-truth evidence. | Borrow memsearch's local canonical-store ergonomics without making files or vectors authoritative. |
 | Temporal memory | ELF fixture passes, but live memory evolution is wrong_result. | Prioritize current-vs-historical evidence links and Graphiti/Zep-style validity windows. |
-| Consolidation | ELF fixture passes, but live proposal generation is not encoded. | Build reviewable derived proposals with source refs, confidence, unsupported-claim flags, and apply/defer/discard audit. |
+| Consolidation | ELF fixture passes and XY-934 adds live service-backed proposal materialization, lineage, confidence/usefulness, unsupported-claim flags, and apply/defer/discard audit; direct competitor runners remain untested. | Keep derived proposal review as the safety boundary and add competitor/reference runners only when they emit comparable artifacts. |
 | Knowledge pages | ELF fixture pages pass; live knowledge generation is not encoded. | Borrow llm-wiki lint/query-save loops, gbrain timelines, and graphify reports behind rebuild/lint benchmarks. |
 | Operator debugging | Fixture UX passes and the narrow live trace/viewer slice is scored: ELF passes, qmd ties replay/repair clarity but is wrong_result for trace hydration and candidate-drop visibility. | Expand coverage to OpenMemory and claude-mem UI/export or viewer runners before any broader operator-UX claim. |
 | Capture/write policy | ELF live capture/write-policy self-check passes with zero redaction leaks; qmd is `not_encoded`; agentmemory is `blocked`; claude-mem is `not_encoded`. | Borrow agentmemory/claude-mem capture breadth only after durable local hook/viewer evidence exists, while preserving redaction and evidence binding. |
@@ -213,9 +214,13 @@ These improve day-to-day usefulness while preserving ELF's evidence-bound core.
 
 2. Reviewable consolidation
    - Borrow from: managed memory dreaming and Always-On Memory Agent scheduling.
+   - Current state: ELF now has live service-backed proposal scoring for the
+     consolidation fixture slice; direct competitor/reference runners are still
+     untested.
    - ELF shape: derived proposals only; source notes are not silently rewritten.
-   - Benchmark gate: consolidation proposals include lineage, confidence,
-     unsupported-claim flags, and apply/defer/discard audit.
+   - Benchmark gate: preserve lineage, confidence, unsupported-claim flags,
+     apply/defer/discard audit, and zero source mutations; do not add scheduling until
+     it can remain derived and reviewable.
 
 3. Knowledge pages
    - Borrow from: llm-wiki, gbrain, graphify, and GraphRAG.
