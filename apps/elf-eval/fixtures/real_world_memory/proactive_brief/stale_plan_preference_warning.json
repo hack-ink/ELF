@@ -1,0 +1,316 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "proactive-stale-plan-preference-warning-001",
+  "suite": "proactive_brief",
+  "title": "Reject stale plan and preference suggestions after TTL invalidation",
+  "corpus": {
+    "corpus_id": "real-world-memory-proactive-brief-2026-06-16",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "stale-plan-old",
+        "kind": "plan",
+        "text": "Old plan: publish the proactive brief report without running the new proactive brief benchmark.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "stale_plan_preference_warning",
+            "evidence_id": "stale-plan-old"
+          }
+        },
+        "created_at": "2026-06-15T12:00:00Z"
+      },
+      {
+        "evidence_id": "stale-plan-ttl",
+        "kind": "trace",
+        "text": "TTL invalidation: the old proactive report publishing plan expired at 2026-06-16T00:00:00Z and must not be recommended as current work.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "stale_plan_preference_warning",
+            "evidence_id": "stale-plan-ttl"
+          },
+          "locator": {
+            "quote": "must not be recommended as current work"
+          }
+        },
+        "created_at": "2026-06-16T00:00:00Z"
+      },
+      {
+        "evidence_id": "current-plan-run-gate",
+        "kind": "plan",
+        "text": "Current plan: run the proactive brief benchmark command and targeted tests before publishing the report.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "stale_plan_preference_warning",
+            "evidence_id": "current-plan-run-gate"
+          },
+          "locator": {
+            "quote": "run the proactive brief benchmark command"
+          }
+        },
+        "created_at": "2026-06-16T06:00:00Z"
+      },
+      {
+        "evidence_id": "old-preference-long-brief",
+        "kind": "preference",
+        "text": "Historical preference: write long proactive briefs with broad product comparisons.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "stale_plan_preference_warning",
+            "evidence_id": "old-preference-long-brief"
+          }
+        },
+        "created_at": "2026-06-15T12:05:00Z"
+      },
+      {
+        "evidence_id": "current-preference-concise-brief",
+        "kind": "preference",
+        "text": "Current preference: proactive briefs should be concise, evidence-linked, and avoid broad hosted-product parity claims.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "stale_plan_preference_warning",
+            "evidence_id": "current-preference-concise-brief"
+          },
+          "locator": {
+            "quote": "concise, evidence-linked"
+          }
+        },
+        "created_at": "2026-06-16T06:02:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_proactive_brief",
+      "answer": {
+        "content": "Stale plan/preference warning: reject the expired publish-first plan, use the current run-gate plan, and prefer concise evidence-linked briefs without broad hosted-product parity claims.",
+        "claims": [
+          {
+            "claim_id": "stale_plan_rejected",
+            "text": "The expired publish-first plan must not be recommended as current work.",
+            "evidence_ids": ["stale-plan-ttl"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "current_preference_concise",
+            "text": "The current brief preference is concise and evidence-linked.",
+            "evidence_ids": ["current-preference-concise-brief"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["stale-plan-ttl", "current-plan-run-gate", "current-preference-concise-brief"],
+        "proactive_briefs": [
+          {
+            "brief_id": "brief-stale-plan-preference-2026-06-16",
+            "contract_schema": "elf.proactive_project_brief/v1",
+            "generated_at": "2026-06-16T06:10:00Z",
+            "tenant_id": "fixture-tenant",
+            "project_id": "elf",
+            "agent_id": "xy-953-fixture-agent",
+            "read_profile": "private_plus_project",
+            "brief_kind": "stale_plan_preference_warning",
+            "suggestions": [
+              {
+                "suggestion_id": "reject-expired-publish-first-plan",
+                "suggestion_kind": "stale_plan_preference_warning",
+                "title": "Reject the expired publish-first plan",
+                "body": "Do not publish the proactive report before running the new proactive brief benchmark; the old plan expired under TTL.",
+                "evidence_refs": ["stale-plan-old", "stale-plan-ttl", "current-plan-run-gate"],
+                "freshness": {
+                  "status": "tombstoned",
+                  "observed_at": "2026-06-16T00:00:00Z",
+                  "valid_from": "2026-06-15T12:00:00Z",
+                  "valid_to": "2026-06-16T00:00:00Z",
+                  "last_confirmed_at": "2026-06-16T06:10:00Z",
+                  "superseded_by": ["current-plan-run-gate"],
+                  "tombstone_refs": ["stale-plan-ttl"]
+                },
+                "action": {
+                  "decision": "reject",
+                  "reason_code": "REJECT_TTL_INVALIDATED_PLAN",
+                  "reason": "The old publish-first plan has explicit TTL invalidation and a current replacement plan exists."
+                },
+                "unsupported_claim_flags": []
+              },
+              {
+                "suggestion_id": "defer-long-comparison-preference",
+                "suggestion_kind": "stale_plan_preference_warning",
+                "title": "Defer long product-comparison prose",
+                "body": "Use concise evidence-linked proactive briefs and avoid broad hosted-product parity claims.",
+                "evidence_refs": ["old-preference-long-brief", "current-preference-concise-brief"],
+                "freshness": {
+                  "status": "superseded",
+                  "observed_at": "2026-06-16T06:02:00Z",
+                  "valid_from": "2026-06-15T12:05:00Z",
+                  "valid_to": "2026-06-16T06:02:00Z",
+                  "last_confirmed_at": "2026-06-16T06:10:00Z",
+                  "superseded_by": ["current-preference-concise-brief"],
+                  "tombstone_refs": []
+                },
+                "action": {
+                  "decision": "defer",
+                  "reason_code": "DEFER_SUPERSEDED_PREFERENCE",
+                  "reason": "The old long-comparison preference is superseded by a concise evidence-linked preference."
+                },
+                "unsupported_claim_flags": []
+              }
+            ],
+            "source_trace": {
+              "selected_source_refs": [
+                {
+                  "evidence_id": "current-plan-run-gate",
+                  "status": "current",
+                  "reason": "Replacement current plan."
+                },
+                {
+                  "evidence_id": "current-preference-concise-brief",
+                  "status": "current",
+                  "reason": "Replacement current preference."
+                }
+              ],
+              "dropped_source_refs": [],
+              "stale_source_refs": [],
+              "superseded_source_refs": [
+                {
+                  "evidence_id": "old-preference-long-brief",
+                  "status": "superseded",
+                  "reason": "Replaced by concise evidence-linked preference.",
+                  "superseded_by": "current-preference-concise-brief"
+                }
+              ],
+              "tombstone_source_refs": [
+                {
+                  "evidence_id": "stale-plan-ttl",
+                  "status": "tombstoned",
+                  "reason": "TTL invalidation for old publish-first plan."
+                }
+              ],
+              "unsupported_claim_flags": []
+            }
+          }
+        ],
+        "latency_ms": 2.0,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "stale-plan-ttl-recorded",
+      "ts": "2026-06-16T00:00:00Z",
+      "actor": "agent",
+      "action": "ttl_invalidated_plan",
+      "evidence_ids": ["stale-plan-old", "stale-plan-ttl"],
+      "summary": "The old publish-first plan expired and must not be current work."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Warn me about stale plans or preferences before making proactive suggestions.",
+    "job_mode": "proactive_brief",
+    "constraints": ["cite_evidence", "mark_tombstones", "include_reject_or_defer_reason"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "stale_plan_rejected",
+        "text": "The expired publish-first plan must not be recommended as current work."
+      },
+      {
+        "claim_id": "current_preference_concise",
+        "text": "The current brief preference is concise and evidence-linked."
+      }
+    ],
+    "must_not_include": [
+      "publish the proactive brief report without running the new proactive brief benchmark",
+      "write long proactive briefs with broad product comparisons"
+    ],
+    "evidence_links": {
+      "stale_plan_rejected": ["stale-plan-old", "stale-plan-ttl", "current-plan-run-gate"],
+      "current_preference_concise": [
+        "old-preference-long-brief",
+        "current-preference-concise-brief"
+      ]
+    },
+    "answer_type": "proactive_project_brief",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "stale-plan-ttl",
+      "claim_id": "stale_plan_rejected",
+      "requirement": "cite",
+      "quote": "must not be recommended as current work"
+    },
+    {
+      "evidence_id": "current-preference-concise-brief",
+      "claim_id": "current_preference_concise",
+      "requirement": "cite",
+      "quote": "concise, evidence-linked"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "ttl-plan-current-trap",
+      "type": "stale_fact",
+      "evidence_ids": ["stale-plan-old"],
+      "failure_if_used": false
+    }
+  ],
+  "proactive_brief": {
+    "required_suggestion_kinds": ["stale_plan_preference_warning"]
+  },
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Brief rejects the expired plan and names current preference."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Every stale warning carries source refs."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "TTL-invalidated content is not current."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "The warning gives reject and defer rationale."
+      },
+      "lifecycle_behavior": {
+        "weight": 0.1,
+        "max_points": 1.0,
+        "criteria": "TTL tombstone and supersession markers are preserved."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": true,
+    "acceptable_phrases": ["No TTL invalidation evidence is available."],
+    "fallback_action": "defer_stale_plan_warning"
+  },
+  "tags": ["synthetic", "proactive_brief", "stale_plan_preference_warning", "fixture_backed"]
+}

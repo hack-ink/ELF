@@ -4,7 +4,7 @@
   "authority": "XY-951",
   "created_at": "2026-06-16T00:00:00Z",
   "purpose": "Define the benchmark evidence gate that every Dreaming-inspired ELF optimization stage must update before claiming completion.",
-  "source_evidence_cutoff": "Checked-in benchmark and research evidence through the XY-905 live temporal reconciliation run, XY-934 live consolidation proposal scoring run, and XY-952 fixture-backed memory summary/source-trace contract on 2026-06-16; no private-corpus or provider-backed production pass is claimed by this ledger.",
+  "source_evidence_cutoff": "Checked-in benchmark and research evidence through the XY-905 live temporal reconciliation run, XY-934 live consolidation proposal scoring run, XY-952 fixture-backed memory summary/source-trace contract, and XY-953 fixture-backed proactive brief scoring on 2026-06-16; no private-corpus or provider-backed production pass is claimed by this ledger.",
   "typed_status_terms": [
     "pass",
     "wrong_result",
@@ -37,14 +37,16 @@
     "Fixture-backed evidence may prove benchmark shape but must not be promoted into live_real_world product quality.",
     "Private-corpus and provider-backed production gates remain typed blocked unless the operator supplies explicit inputs; those blockers are tracked under XY-930.",
     "The XY-905 post-stage live memory_evolution result is a narrow temporal reconciliation improvement only; it must not be converted into private-corpus, hosted memory, or broad competitor superiority claims.",
-    "The XY-934 live consolidation result is a narrow ELF self-check only; it must not be converted into broad managed dreaming, Always-On Memory Agent, qmd, agentmemory, or llm-wiki superiority claims without comparable contained runners."
+    "The XY-934 live consolidation result is a narrow ELF self-check only; it must not be converted into broad managed dreaming, Always-On Memory Agent, qmd, agentmemory, or llm-wiki superiority claims without comparable contained runners.",
+    "The XY-953 proactive brief result is fixture-backed benchmark-shape evidence only; it must not be converted into OpenAI Pulse, hosted managed-memory, scheduler, or private-corpus parity claims."
   ],
   "summary": {
     "improved": [
       "current_vs_historical_correctness",
       "preference_evolution",
       "reviewable_consolidation",
-      "memory_summary_top_of_mind_behavior"
+      "memory_summary_top_of_mind_behavior",
+      "proactive_brief_readiness"
     ],
     "regressed": [],
     "unchanged": [
@@ -54,9 +56,7 @@
     "blocked": [
       "scheduled_memory_task_readiness"
     ],
-    "not_tested": [
-      "proactive_brief_readiness"
-    ]
+    "not_tested": []
   },
   "stage_gates": [
     {
@@ -351,8 +351,8 @@
     {
       "stage_id": "proactive_brief_readiness",
       "stage_name": "Proactive brief readiness",
-      "dependent_issue": "XY-926",
-      "evidence_class": "not_encoded",
+      "dependent_issue": "XY-953",
+      "evidence_class": "fixture_backed",
       "baseline_commands": [
         {
           "command": "cargo make real-world-first-generation-oss",
@@ -367,19 +367,22 @@
       ],
       "post_stage_commands": [
         {
-          "command": "cargo make real-world-first-generation-oss",
-          "required_artifact": "tmp/real-world-memory/first-generation-oss/report.json"
+          "command": "cargo make real-world-memory-proactive-brief",
+          "required_artifact": "tmp/real-world-memory/proactive-brief/report.json"
         },
         {
-          "command": "cargo make real-world-job-operator-ux",
-          "required_artifact": "tmp/real-world-job/real-world-job-operator-ux-report.json"
+          "command": "cargo make real-world-memory",
+          "required_artifact": "tmp/real-world-memory/real-world-memory-report.json"
         },
         {
-          "command": "cargo make real-world-memory-live-adapters",
-          "required_artifact": "tmp/real-world-memory/live-adapters/"
+          "command": "cargo test -p elf-eval --test real_world_job_benchmark -- --test-threads=1",
+          "required_artifact": "test output"
         }
       ],
       "evidence_files": [
+        "docs/guide/benchmarking/2026-06-16-proactive-brief-scoring-report.md",
+        "docs/research/2026-06-16-proactive-brief-scoring-report.json",
+        "apps/elf-eval/fixtures/real_world_memory/proactive_brief/",
         "docs/research/2026-06-08-agent-memory-selection.json",
         "docs/guide/benchmarking/2026-06-11-first-generation-oss-continuity-source-store-report.md",
         "docs/guide/benchmarking/2026-06-11-competitor-strength-adoption-report.md"
@@ -392,10 +395,25 @@
         "not_encoded": 1
       },
       "baseline_basis": "No direct proactive-brief real_world_job suite exists; adjacent progressive-disclosure and operator-debug fixtures are reference guards only.",
-      "comparison_judgment": "not_tested",
-      "regression_rule": "A proactive brief that is uncited, leaks excluded content, or cannot explain source selection is a regression.",
-      "improvement_rule": "An improvement requires a direct proactive-brief fixture or live adapter report with cited source ids and typed non-pass handling.",
-      "next_optimization_direction": "Add proactive briefs only as source-linked derived output with repair guidance and no secret or excluded-span leakage."
+      "post_stage_counts": {
+        "pass": 4,
+        "wrong_result": 0,
+        "blocked": 1,
+        "not_tested": 0,
+        "not_encoded": 0,
+        "suggestions": 5,
+        "evidence_ref_coverage": 1.0,
+        "freshness_coverage": 1.0,
+        "action_rationale_coverage": 1.0,
+        "invalid_current_suggestion_count": 0,
+        "unsupported_current_suggestion_count": 0,
+        "tombstone_violation_count": 0
+      },
+      "post_stage_basis": "XY-953 adds five proactive_brief fixture jobs: daily project brief, resume-work brief, stale decision audit, stale plan/preference warning, and a typed private-corpus refresh blocker tied to XY-930. The four runnable jobs pass with five evidence-linked suggestions, freshness/currentness markers, action rationale, stale/superseded/tombstone source traces, and no unsupported-current or tombstone violations.",
+      "comparison_judgment": "improved",
+      "regression_rule": "A proactive brief that is uncited, lacks freshness/currentness metadata, omits reject/defer rationale, presents stale or tombstoned facts as current, ignores TTL invalidations, leaks excluded content, or claims Pulse/private-corpus parity is a regression.",
+      "improvement_rule": "An improvement requires direct proactive-brief fixture or live adapter evidence with cited source ids, freshness/currentness markers, reject/defer rationale, and typed non-pass handling for unavailable private inputs.",
+      "next_optimization_direction": "Move from fixture-backed proactive brief scoring into service-native generated brief readback and later live adapter materialization; keep scheduling and private-corpus refresh behind their owned lanes and operator inputs."
     },
     {
       "stage_id": "scheduled_memory_task_readiness",
