@@ -1115,6 +1115,23 @@ Behavior:
   knowledge page snippets wherever surfaced.
 - The detailed contract is defined in `system_knowledge_pages_v1.md`.
 
+Admin reviewable memory summary readback:
+
+Behavior:
+- Memory summary readback is a derived, reviewable artifact surface, not
+  authoritative note search and not a hidden note rewrite path.
+- Summary entries must follow `elf.memory_summary/v1`, carry source refs, freshness or
+  validity metadata, and inclusion/downgrade/exclusion rationale for top-of-mind,
+  background, stale, superseded, tombstoned, and derived project-profile entries.
+- Stale, superseded, or tombstoned entries must not be returned as current
+  top-of-mind facts.
+- Derived project-profile entries must either cite source refs or carry explicit
+  unsupported-claim flags when excluded.
+- Memory summaries must not call provider adapters, mutate authoritative source notes,
+  create Qdrant points, create search sessions, or record note hits in v1 contract
+  validation.
+- The detailed contract is defined in `system_memory_summary_v1.md`.
+
 POST /v2/admin/qdrant/rebuild
 
 Behavior:

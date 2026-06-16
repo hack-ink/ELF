@@ -229,12 +229,15 @@ research gates. Its `external_adapters` report section distinguishes:
 - `research_gate`: checked-in source/setup/runtime/resource/retry metadata for a
   future adapter path, not fixture-backed or live execution evidence.
 
-Current fixture state: `cargo make real-world-memory` covers 49 jobs across 13 suites,
-with 44 pass and 5 blocked. The added `core_archival_memory` suite contributes six
-passing fixture jobs for core block attachment, scope, provenance, stale-core
-detection, archival fallback, and project-decision recovery. The blocked jobs are
-production-ops operator boundaries plus the XY-928 OpenViking `context_trajectory`
-gates for staged retrieval, hierarchy selection, and recursive/context expansion.
+Current fixture state: `cargo make real-world-memory` covers 50 jobs across 14 suites,
+with 45 pass and 5 blocked. The `core_archival_memory` suite contributes six passing
+fixture jobs for core block attachment, scope, provenance, stale-core detection,
+archival fallback, and project-decision recovery. The `memory_summary` suite
+contributes one passing fixture-backed source-trace job for reviewable current,
+background, stale, superseded, tombstoned, and derived project-profile entries. The
+blocked jobs are production-ops operator boundaries plus the XY-928 OpenViking
+`context_trajectory` gates for staged retrieval, hierarchy selection, and recursive
+context expansion.
 
 Current live-adapter state: the `elf_live_real_world` and `qmd_live_real_world` adapters run a full
 checked-in suite sweep through `cargo make real-world-memory-live-adapters`. Each adapter

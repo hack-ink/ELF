@@ -40,7 +40,12 @@
     {
       "command": "cargo make real-world-memory",
       "artifact": "docs/guide/benchmarking/2026-06-11-measurement-coverage-audit.md",
-      "claim": "ELF fixture aggregate covers 49 jobs across 13 suites with 44 pass and 5 blocked production-ops or OpenViking context-trajectory measurement gates, including 6 passing core_archival_memory jobs."
+      "claim": "ELF fixture aggregate covers 50 jobs across 14 suites with 45 pass and 5 blocked production-ops or OpenViking context-trajectory measurement gates, including 6 passing core_archival_memory jobs and 1 passing memory_summary source-trace job."
+    },
+    {
+      "command": "cargo make real-world-memory-summary",
+      "artifact": "tmp/real-world-memory/memory-summary/report.json",
+      "claim": "The memory summary fixture scores reviewable top-of-mind, background, stale, superseded, tombstoned, and derived project-profile entries with source refs, freshness metadata, rationale, and unsupported-claim flags; this is fixture-backed contract evidence, not managed-memory parity."
     },
     {
       "command": "cargo make real-world-memory-core-archival",
