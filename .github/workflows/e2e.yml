@@ -79,12 +79,12 @@ jobs:
           sudo apt-get install -y --no-install-recommends postgresql-client jq
 
       - name: Install taplo
-        uses: taiki-e/install-action@0631aa6515c7d545823c67cfae7ef4fc7f490154
+        uses: taiki-e/install-action@15449e3094499af05d8d964a1c884208e4b8b595
         with:
           tool: taplo
 
       - name: Install cargo-make
-        uses: taiki-e/install-action@0631aa6515c7d545823c67cfae7ef4fc7f490154
+        uses: taiki-e/install-action@15449e3094499af05d8d964a1c884208e4b8b595
         with:
           tool: cargo-make
 
