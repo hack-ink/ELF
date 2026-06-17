@@ -141,7 +141,7 @@ ELF_PG_DSN="postgres://elf_dev:elf_dev_password@127.0.0.1:51888/postgres" \
 ELF_QDRANT_GRPC_URL="http://127.0.0.1:51890" \
 ELF_QDRANT_HTTP_URL="http://127.0.0.1:51889" \
 ELF_HARNESS_VECTOR_DIM=256 \
-cargo make e2e
+cargo make test-e2e
 ```
 
 ## 8. Development workflow
@@ -150,17 +150,17 @@ Use `cargo make` tasks from repository root.
 
 ```sh
 cargo make fmt
-cargo make lint
-cargo make test
-cargo make test-integration
-cargo make e2e
+cargo make check
+cargo make test-rust
+cargo make test-rust-integration
+cargo make test-e2e
 ```
 
 Notes:
 
-- `cargo make test-integration` runs ignored tests that require external Postgres and Qdrant.
+- `cargo make test-rust-integration` runs ignored tests that require external Postgres and Qdrant.
   Set `ELF_PG_DSN` and `ELF_QDRANT_GRPC_URL`.
-- `cargo make e2e` runs the context misranking harness.
+- `cargo make test-e2e` runs the context misranking harness.
   Set `ELF_PG_DSN`, `ELF_QDRANT_GRPC_URL`, and `ELF_QDRANT_HTTP_URL`.
 - Stop local dependencies with `docker compose -f docker-compose.yml down`.
   Add `-v` only when you intentionally want to delete the local development volumes.

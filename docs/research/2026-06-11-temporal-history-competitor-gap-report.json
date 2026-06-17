@@ -7,7 +7,7 @@
   "role_boundary": "No ELF optimization implementation is included; this report records evidence, claim boundaries, and future optimization directions.",
   "commands": [
     {
-      "command": "ELF_GRAPHITI_ZEP_SMOKE_START=1 ELF_GRAPHITI_ZEP_SMOKE_RUN=1 cargo make graphiti-zep-docker-temporal-smoke",
+      "command": "ELF_GRAPHITI_ZEP_SMOKE_START=1 ELF_GRAPHITI_ZEP_SMOKE_RUN=1 cargo make smoke-graphiti-zep-docker-temporal",
       "status": "blocked",
       "typed_status": "provider_api_key_missing",
       "runtime_seconds": 3.5,

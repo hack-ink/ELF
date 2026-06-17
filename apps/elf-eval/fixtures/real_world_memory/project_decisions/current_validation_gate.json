@@ -24,7 +24,7 @@
       {
         "evidence_id": "validation-gate-current-decodex",
         "kind": "decision",
-        "text": "Current validation gate: before pushing a refreshed PR head, run cargo make fmt, cargo make lint-fix, and cargo make checks.",
+        "text": "Current validation gate: before pushing a refreshed PR head, run cargo make fmt, cargo make lint-fix, and cargo make check.",
         "source_ref": {
           "schema": "source_ref/v1",
           "resolver": "real_world_memory_fixture/v1",
@@ -67,11 +67,11 @@
     "adapter_response": {
       "adapter_id": "fixture_project_decisions",
       "answer": {
-        "content": "The current validation gate is cargo make fmt, cargo make lint-fix, and cargo make checks before pushing a refreshed PR head. The older lint-and-test gate is historical; the current gate adds formatting, automatic lint repair, and full checks to prevent avoidable review churn before Decodex review handoff.",
+        "content": "The current validation gate is cargo make fmt, cargo make lint-fix, and cargo make check before pushing a refreshed PR head. The older lint-and-test gate is historical; the current gate adds formatting, automatic lint repair, and full checks to prevent avoidable review churn before Decodex review handoff.",
         "claims": [
           {
             "claim_id": "current_validation_gate",
-            "text": "The current validation gate is cargo make fmt, cargo make lint-fix, and cargo make checks before pushing a refreshed PR head.",
+            "text": "The current validation gate is cargo make fmt, cargo make lint-fix, and cargo make check before pushing a refreshed PR head.",
             "evidence_ids": [
               "validation-gate-current-decodex",
               "validation-gate-old-lint-test",
@@ -136,7 +136,7 @@
     "must_include": [
       {
         "claim_id": "current_validation_gate",
-        "text": "The current validation gate is cargo make fmt, cargo make lint-fix, and cargo make checks before pushing a refreshed PR head."
+        "text": "The current validation gate is cargo make fmt, cargo make lint-fix, and cargo make check before pushing a refreshed PR head."
       },
       {
         "claim_id": "validation_gate_rationale",
@@ -164,7 +164,7 @@
       "evidence_id": "validation-gate-current-decodex",
       "claim_id": "current_validation_gate",
       "requirement": "cite",
-      "quote": "run cargo make fmt, cargo make lint-fix, and cargo make checks"
+      "quote": "run cargo make fmt, cargo make lint-fix, and cargo make check"
     },
     {
       "evidence_id": "validation-gate-old-lint-test",

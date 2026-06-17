@@ -93,12 +93,12 @@
       "claim": "mem0 local OSS passes preference correction history, entity-scoped personalization, local get_all export-style readback, and deletion audit history; OpenMemory export-helper setup emits a separate blocked artifact with DOCKER_UNAVAILABLE_IN_BASELINE_RUNNER, and hosted Platform export remains non-goal."
     },
     {
-      "command": "ELF_GRAPHITI_ZEP_SMOKE_START=1 ELF_GRAPHITI_ZEP_SMOKE_RUN=1 cargo make graphiti-zep-docker-temporal-smoke",
+      "command": "ELF_GRAPHITI_ZEP_SMOKE_START=1 ELF_GRAPHITI_ZEP_SMOKE_RUN=1 cargo make smoke-graphiti-zep-docker-temporal",
       "artifact": "docs/guide/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md",
       "claim": "Graphiti/Zep temporal smoke remains blocked by provider_api_key_missing when live provider execution is explicitly enabled without credentials."
     },
     {
-      "command": "cargo make graphify-docker-graph-report-smoke",
+      "command": "cargo make smoke-graphify-docker-graph-report",
       "artifact": "docs/guide/benchmarking/2026-06-11-graph-rag-scored-smoke-adapter-report.md",
       "claim": "graphify reaches tiny Docker graph/report scoring but remains wrong_result; broad graph/RAG quality is not tested."
     },

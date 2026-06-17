@@ -405,7 +405,7 @@ tmp/real-world-memory/live-adapters/summary.json
 To run the checked-in real-world job smoke fixture and render its Markdown report:
 
 ```sh
-cargo make real-world-job-smoke
+cargo make smoke-real-world-job
 ```
 
 To run the checked-in work-resume, source-of-truth, lifecycle, redaction,
@@ -508,7 +508,7 @@ benchmark artifacts, not source-truth replacements.
 ## Clean Up
 
 ```sh
-cargo make baseline-live-docker-clean
+cargo make clean-baseline-live-docker
 ```
 
 This removes Docker-managed Postgres, Qdrant, npm, pip, cargo, and target volumes used
