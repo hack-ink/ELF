@@ -4,7 +4,7 @@
   "authority": "XY-951",
   "created_at": "2026-06-16T00:00:00Z",
   "purpose": "Define the benchmark evidence gate that every Dreaming-inspired ELF optimization stage must update before claiming completion.",
-  "source_evidence_cutoff": "Checked-in benchmark and research evidence through the XY-905 live temporal reconciliation run, XY-934 live consolidation proposal scoring run, XY-952 fixture-backed memory summary/source-trace contract, and XY-953 fixture-backed proactive brief scoring on 2026-06-16; no private-corpus or provider-backed production pass is claimed by this ledger.",
+  "source_evidence_cutoff": "Checked-in benchmark and research evidence through the XY-905 live temporal reconciliation run, XY-934 live consolidation proposal scoring run, XY-952 fixture-backed memory summary/source-trace contract, XY-953 fixture-backed proactive brief scoring, and XY-954 fixture-backed scheduled-memory task scoring on 2026-06-16; no private-corpus or provider-backed production pass is claimed by this ledger.",
   "typed_status_terms": [
     "pass",
     "wrong_result",
@@ -38,7 +38,8 @@
     "Private-corpus and provider-backed production gates remain typed blocked unless the operator supplies explicit inputs; those blockers are tracked under XY-930.",
     "The XY-905 post-stage live memory_evolution result is a narrow temporal reconciliation improvement only; it must not be converted into private-corpus, hosted memory, or broad competitor superiority claims.",
     "The XY-934 live consolidation result is a narrow ELF self-check only; it must not be converted into broad managed dreaming, Always-On Memory Agent, qmd, agentmemory, or llm-wiki superiority claims without comparable contained runners.",
-    "The XY-953 proactive brief result is fixture-backed benchmark-shape evidence only; it must not be converted into OpenAI Pulse, hosted managed-memory, scheduler, or private-corpus parity claims."
+    "The XY-953 proactive brief result is fixture-backed benchmark-shape evidence only; it must not be converted into OpenAI Pulse, hosted managed-memory, scheduler, or private-corpus parity claims.",
+    "The XY-954 scheduled-memory result is fixture-backed benchmark-shape evidence only; it must not be converted into hosted scheduler, ChatGPT Tasks, Pulse, provider-backed private-corpus, notification, or silent source-mutation claims."
   ],
   "summary": {
     "improved": [
@@ -46,16 +47,15 @@
       "preference_evolution",
       "reviewable_consolidation",
       "memory_summary_top_of_mind_behavior",
-      "proactive_brief_readiness"
+      "proactive_brief_readiness",
+      "scheduled_memory_task_readiness"
     ],
     "regressed": [],
     "unchanged": [
       "deletion_ttl_tombstone_behavior",
       "final_competitor_retest_status"
     ],
-    "blocked": [
-      "scheduled_memory_task_readiness"
-    ],
+    "blocked": [],
     "not_tested": []
   },
   "stage_gates": [
@@ -418,8 +418,8 @@
     {
       "stage_id": "scheduled_memory_task_readiness",
       "stage_name": "Scheduled memory task readiness",
-      "dependent_issue": "XY-926",
-      "evidence_class": "blocked",
+      "dependent_issue": "XY-954",
+      "evidence_class": "fixture_backed",
       "baseline_commands": [
         {
           "command": "cargo make real-world-memory-consolidation",
@@ -429,15 +429,22 @@
       ],
       "post_stage_commands": [
         {
-          "command": "cargo make real-world-memory-consolidation",
-          "required_artifact": "tmp/real-world-memory/consolidation/report.json"
+          "command": "cargo make real-world-memory-scheduled",
+          "required_artifact": "tmp/real-world-memory/scheduled/report.json"
         },
         {
-          "command": "cargo make real-world-memory-live-adapters",
-          "required_artifact": "tmp/real-world-memory/live-adapters/"
+          "command": "cargo make real-world-memory",
+          "required_artifact": "tmp/real-world-memory/real-world-memory-report.json"
+        },
+        {
+          "command": "cargo test -p elf-eval --test real_world_job_benchmark scheduled_memory -- --test-threads=1",
+          "required_artifact": "target/debug/deps/real_world_job_benchmark-*"
         }
       ],
       "evidence_files": [
+        "apps/elf-eval/fixtures/real_world_memory/scheduled_memory/",
+        "docs/guide/benchmarking/2026-06-16-scheduled-memory-task-scoring-report.md",
+        "docs/research/2026-06-16-scheduled-memory-task-scoring-report.json",
         "docs/spec/system_consolidation_proposals_v1.md",
         "docs/research/2026-06-08-agent-memory-selection.json"
       ],
@@ -449,10 +456,28 @@
         "not_encoded": 0
       },
       "baseline_basis": "The consolidation spec permits fixture and manual job_kind only; scheduled is explicitly future work and no scheduled-memory-task benchmark is encoded.",
-      "comparison_judgment": "blocked",
-      "regression_rule": "Adding scheduled tasks without reviewable output, immutable source snapshots, and explicit operator review is a regression.",
-      "improvement_rule": "An improvement requires a scheduled-task fixture or live report that keeps task output reviewable and records provider/private boundaries as typed blockers.",
-      "next_optimization_direction": "Model scheduled tasks as queued derived proposal runs first; do not allow a scheduler to mutate authoritative memory silently."
+      "post_stage_counts": {
+        "pass": 4,
+        "wrong_result": 0,
+        "blocked": 1,
+        "not_tested": 0,
+        "not_encoded": 0,
+        "task_runs": 4,
+        "outputs": 5,
+        "evidence_ref_coverage": 1.0,
+        "freshness_coverage": 1.0,
+        "action_rationale_coverage": 1.0,
+        "trace_coverage": 1.0,
+        "invalid_current_output_count": 0,
+        "unsupported_current_output_count": 0,
+        "tombstone_violation_count": 0,
+        "source_mutation_count": 0
+      },
+      "post_stage_basis": "XY-954 adds five scheduled_memory fixture jobs: weekly project status summary, stale preference/plan audit, stale decision audit, knowledge-page refresh suggestion, and a typed private/provider scheduler blocker tied to XY-930. The four runnable jobs pass with five evidence-linked outputs, freshness/currentness metadata, action rationale, completed execution trace readback, stale/superseded/tombstone source traces, and zero source mutations.",
+      "comparison_judgment": "improved",
+      "regression_rule": "A scheduled-memory task that omits source refs, freshness/currentness markers, execution trace/readback, reviewable action rationale, or silently mutates source memory is a regression.",
+      "improvement_rule": "An improvement requires direct scheduled-memory fixture or live adapter evidence with source refs, freshness/currentness markers, execution trace/readback, source immutability, and typed blockers for unavailable private/provider scheduler prerequisites.",
+      "next_optimization_direction": "Move from fixture-backed scheduled task scoring into service-native queued task materialization and operator-visible readback; keep hosted/private/provider scheduler gates behind XY-930 inputs."
     },
     {
       "stage_id": "final_competitor_retest_status",

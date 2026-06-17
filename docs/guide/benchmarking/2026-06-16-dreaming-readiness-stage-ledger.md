@@ -8,8 +8,8 @@ report shape required before claiming the stage improved.
 Inputs: `docs/research/2026-06-16-dreaming-readiness-stage-ledger.json`, the June 11
 competitor-strength, temporal-history, and iteration-direction reports, the XY-905
 June 16 live temporal reconciliation report, the consolidation proposal spec, the
-memory summary spec, the XY-953 proactive brief scoring report, and the checked-in
-real-world fixture suites.
+memory summary spec, the XY-953 proactive brief scoring report, the XY-954 scheduled
+memory task scoring report, and the checked-in real-world fixture suites.
 Outputs: A stage-by-stage ledger that downstream issues can update with
 `improved`, `regressed`, `unchanged`, `blocked`, or `not_tested` judgments.
 
@@ -22,12 +22,12 @@ and now includes the XY-905 post-stage result for live temporal reconciliation.
 Current stage status:
 
 - `improved`: current-vs-historical correctness, preference evolution, reviewable
-  consolidation, memory-summary/top-of-mind fixture readback, and proactive brief
-  fixture scoring.
+  consolidation, memory-summary/top-of-mind fixture readback, proactive brief fixture
+  scoring, and scheduled-memory task fixture scoring.
 - `regressed`: none.
 - `unchanged`: deletion/TTL/tombstone behavior and the final competitor retest
   baseline.
-- `blocked`: scheduled-memory-task readiness.
+- `blocked`: none.
 - `not_tested`: none.
 
 The known live `memory_evolution` loss is now repaired for the encoded ELF live
@@ -52,6 +52,13 @@ XY-953 adds a direct `proactive_brief` suite with daily project brief, resume-wo
 brief, stale decision audit, stale plan/preference warning, and private-corpus refresh
 blocker scenarios. It does not prove OpenAI Pulse parity, hosted managed-memory
 parity, background scheduling, or private-corpus production quality.
+
+Scheduled-memory task readiness is improved only at the fixture-backed benchmark
+level: XY-954 adds a direct `scheduled_memory` suite with weekly project status
+summary, stale preference/plan audit, stale decision audit, knowledge-page refresh
+suggestion, and private/provider scheduler blocker scenarios. It does not prove a
+hosted scheduler, ChatGPT Tasks parity, Pulse parity, notification delivery,
+provider-backed private-corpus quality, or silent source mutation safety.
 
 ## Ledger Rules
 
@@ -79,7 +86,7 @@ parity, background scheduling, or private-corpus production quality.
 | Reviewable consolidation | `cargo make real-world-memory-consolidation` | `cargo make real-world-memory-consolidation`; `cargo make real-world-memory-live-consolidation`; `cargo make real-world-memory-live-adapters` | `pass=4`, `wrong_result=0`, `blocked=0`, `not_tested=1`, `not_encoded=1` | `pass=4`, `wrong_result=0`, `blocked=0`, `not_tested=0`, `not_encoded=0` | `improved` | Keep Dreaming output derived and reviewable, and add direct competitor/reference runners only when they emit comparable source ids, confidence, unsupported-claim flags, and review audit artifacts. |
 | Memory summary and top-of-mind behavior | `cargo make real-world-memory-knowledge`; `cargo make real-world-memory-core-archival` | `cargo make real-world-memory-summary`; `cargo make real-world-memory-knowledge`; `cargo make real-world-memory-core-archival`; `cargo make real-world-memory-live-adapters` | `pass=8`, `wrong_result=0`, `blocked=0`, `not_tested=1`, `not_encoded=1` | `pass=9`, `wrong_result=0`, `blocked=0`, `not_tested=0`, `not_encoded=0` | `improved` | Move from fixture-backed summary/source-trace readback into service-native admin readback and later live top-of-mind behavior; do not turn hidden summaries into authoritative memory. |
 | Proactive brief readiness | `cargo make real-world-first-generation-oss`; `cargo make real-world-job-operator-ux` | `cargo make real-world-memory-proactive-brief`; `cargo make real-world-memory`; `cargo test -p elf-eval --test real_world_job_benchmark -- --test-threads=1` | `pass=0`, `wrong_result=0`, `blocked=0`, `not_tested=1`, `not_encoded=1` | `pass=4`, `wrong_result=0`, `blocked=1`, `not_tested=0`, `not_encoded=0`; evidence-ref/freshness/rationale coverage `1.000`; invalid-current and tombstone violations `0` | `improved` | Move from fixture-backed proactive brief scoring into service-native generated brief readback and later live adapter materialization; keep scheduling and private-corpus refresh behind owned lanes and operator inputs. |
-| Scheduled memory task readiness | `cargo make real-world-memory-consolidation` | `cargo make real-world-memory-consolidation`; `cargo make real-world-memory-live-adapters` | `pass=0`, `wrong_result=0`, `blocked=1`, `not_tested=0`, `not_encoded=0` | not run by XY-905 | `blocked` | Scheduled runs are future work; start with queued derived proposal runs and keep operator review mandatory. |
+| Scheduled memory task readiness | `cargo make real-world-memory-consolidation` | `cargo make real-world-memory-scheduled`; `cargo make real-world-memory`; `cargo test -p elf-eval --test real_world_job_benchmark scheduled_memory -- --test-threads=1` | `pass=0`, `wrong_result=0`, `blocked=1`, `not_tested=0`, `not_encoded=0` | `pass=4`, `wrong_result=0`, `blocked=1`, `not_tested=0`, `not_encoded=0`; evidence-ref/freshness/action/trace coverage `1.000`; invalid-current, unsupported-current, tombstone, and source-mutation violations `0` | `improved` | Move from fixture-backed scheduled task scoring into service-native queued task materialization and operator-visible readback; keep hosted/private/provider scheduler gates behind XY-930 inputs. |
 | Final competitor retest status | `cargo make real-world-memory-live-adapters`; `cargo make real-world-first-generation-oss`; `cargo make real-world-memory-graph-rag`; `cargo make openmemory-ui-export-readback`; `cargo make baseline-production-private-addendum` when operator input exists | Same commands; private/provider commands may remain typed blocked under XY-930 | `pass=22`, `wrong_result=5`, `blocked=2`, `not_tested=11`, `not_encoded=11` | partial XY-905 evidence: ELF live adapter `pass=40`, `wrong_result=0`, `blocked=5`, `not_encoded=10` | `unchanged` | Rerun the broader competitor matrix after each optimization; the XY-905 live adapter improvement does not replace private/provider or external competitor gates. |
 
 ## Evidence Anchors
@@ -92,7 +99,7 @@ parity, background scheduling, or private-corpus production quality.
 | Reviewable consolidation | `docs/spec/system_consolidation_proposals_v1.md`; `apps/elf-eval/fixtures/real_world_memory/consolidation/`; `docs/guide/benchmarking/2026-06-16-live-consolidation-proposal-scoring-report.md`; `docs/research/2026-06-16-live-consolidation-proposal-scoring-report.json` |
 | Memory summary and top-of-mind behavior | `docs/spec/system_memory_summary_v1.md`; `apps/elf-eval/fixtures/real_world_memory/memory_summary/`; `apps/elf-eval/fixtures/real_world_memory/knowledge/`; `apps/elf-eval/fixtures/real_world_memory/core_archival_memory/`; `docs/guide/benchmarking/2026-06-11-competitor-strength-adoption-report.md` |
 | Proactive brief readiness | `docs/guide/benchmarking/2026-06-16-proactive-brief-scoring-report.md`; `docs/research/2026-06-16-proactive-brief-scoring-report.json`; `apps/elf-eval/fixtures/real_world_memory/proactive_brief/`; `docs/research/2026-06-08-agent-memory-selection.json`; `docs/guide/benchmarking/2026-06-11-first-generation-oss-continuity-source-store-report.md` |
-| Scheduled memory task readiness | `docs/spec/system_consolidation_proposals_v1.md`; `docs/research/2026-06-08-agent-memory-selection.json` |
+| Scheduled memory task readiness | `docs/guide/benchmarking/2026-06-16-scheduled-memory-task-scoring-report.md`; `docs/research/2026-06-16-scheduled-memory-task-scoring-report.json`; `apps/elf-eval/fixtures/real_world_memory/scheduled_memory/`; `docs/research/2026-06-08-agent-memory-selection.json` |
 | Final competitor retest status | `docs/guide/benchmarking/2026-06-11-competitor-strength-adoption-report.md`; `docs/research/2026-06-11-competitor-strength-adoption-report.json`; `docs/guide/benchmarking/2026-06-11-graph-rag-scored-smoke-adapter-report.md`; `docs/guide/benchmarking/2026-06-11-first-generation-oss-continuity-source-store-report.md` |
 
 ## Report Shape For Downstream Issues
@@ -127,6 +134,9 @@ Allowed:
 - The current ledger records the XY-953 fixture-backed proactive brief scoring
   improvement with source refs, freshness/currentness markers, reject/defer rationale,
   and typed private-corpus blocking.
+- The current ledger records the XY-954 fixture-backed scheduled-memory scoring
+  improvement with source refs, freshness/currentness markers, action rationale,
+  completed trace readback, zero source mutations, and typed private/provider blocking.
 - Fixture-backed knowledge and core/archival jobs can be used as regression guards for
   report shape.
 - Reviewable consolidation now has ELF live service-backed proposal scoring evidence,
@@ -135,11 +145,14 @@ Allowed:
 Not allowed:
 
 - Do not claim this ledger proves preference history against mem0/OpenMemory,
-  live top-of-mind behavior, live proactive brief behavior, scheduled tasks,
+  live top-of-mind behavior, live proactive brief behavior, hosted scheduled tasks,
   private-corpus gates, hosted memory, broad consolidation superiority, or competitor
   adapters.
 - Do not claim fixture-backed proactive brief scoring proves OpenAI Pulse parity or
   hosted managed-memory parity.
+- Do not claim fixture-backed scheduled-memory scoring proves ChatGPT Tasks, Pulse,
+  hosted scheduler, notification, provider-backed private-corpus, or silent-mutation
+  parity.
 - Do not claim ELF has full-suite live real-world pass evidence.
 - Do not claim private-corpus or provider-backed production quality without the
   operator-owned inputs required by XY-930.

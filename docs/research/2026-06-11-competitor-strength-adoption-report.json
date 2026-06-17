@@ -40,7 +40,7 @@
     {
       "command": "cargo make real-world-memory",
       "artifact": "docs/guide/benchmarking/2026-06-11-measurement-coverage-audit.md",
-      "claim": "ELF fixture aggregate covers 55 jobs across 15 suites with 49 pass and 6 blocked production-ops, private-corpus, or OpenViking context-trajectory measurement gates, including 6 passing core_archival_memory jobs, 1 passing memory_summary source-trace job, and 4 passing proactive_brief suggestion jobs plus 1 private-corpus blocker."
+      "claim": "ELF fixture aggregate covers 60 jobs across 16 suites with 53 pass and 7 blocked production-ops, private-corpus, private/provider scheduler, or OpenViking context-trajectory measurement gates, including 6 passing core_archival_memory jobs, 1 passing memory_summary source-trace job, 4 passing proactive_brief suggestion jobs plus 1 private-corpus blocker, and 4 passing scheduled_memory task-readback jobs plus 1 private/provider scheduler blocker."
     },
     {
       "command": "cargo make real-world-memory-summary",
@@ -51,6 +51,11 @@
       "command": "cargo make real-world-memory-proactive-brief",
       "artifact": "tmp/real-world-memory/proactive-brief/report.json",
       "claim": "The proactive brief fixture scores daily project brief, resume-work brief, stale decision audit, stale plan/preference warning, and private-corpus refresh blocker scenarios with evidence refs, freshness/currentness markers, action rationale, and stale/tombstone guards; this is fixture-backed contract evidence, not Pulse or hosted managed-memory parity."
+    },
+    {
+      "command": "cargo make real-world-memory-scheduled",
+      "artifact": "tmp/real-world-memory/scheduled/report.json",
+      "claim": "The scheduled-memory fixture scores weekly project status summary, stale preference/plan audit, stale decision audit, knowledge-page refresh suggestion, and private/provider scheduler blocker scenarios with evidence refs, freshness/currentness markers, action rationale, execution trace/readback, source-mutation guards, and stale/tombstone guards; this is fixture-backed contract evidence, not hosted scheduler, ChatGPT Tasks, Pulse, notification, or provider-backed private-corpus parity."
     },
     {
       "command": "cargo make real-world-memory-core-archival",

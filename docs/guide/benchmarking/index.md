@@ -123,6 +123,10 @@ cleanup, use `docs/guide/single_user_production.md`.
   project brief scoring report with source refs, freshness/currentness markers,
   reject/defer rationale, stale/tombstone guards, and the private-corpus blocker tied
   to XY-930.
+- `2026-06-16-scheduled-memory-task-scoring-report.md`: XY-954 fixture-backed
+  scheduled-memory task scoring report with source refs, freshness/currentness
+  markers, action rationale, execution trace/readback, source-mutation guards, and
+  the private/provider scheduler blocker tied to XY-930.
 - `2026-06-16-live-temporal-reconciliation-report.md`: XY-905 live temporal
   reconciliation follow-up showing ELF live `memory_evolution` moving from
   `pass=1`, `wrong_result=5` to `pass=6`, `wrong_result=0`, with trace/readback

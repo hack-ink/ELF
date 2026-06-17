@@ -1,0 +1,412 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "scheduled-stale-preference-plan-audit-001",
+  "suite": "scheduled_memory",
+  "title": "Audit stale preferences and plans during a scheduled task",
+  "corpus": {
+    "corpus_id": "real-world-memory-scheduled-2026-06-17",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "scheduled-stale-old-plan",
+        "kind": "plan",
+        "text": "Old scheduled plan: publish the scheduled-memory report by reusing proactive-brief fixtures and skipping execution trace readback.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "stale_preference_plan_audit",
+            "evidence_id": "scheduled-stale-old-plan"
+          },
+          "locator": {
+            "quote": "skipping execution trace readback"
+          }
+        },
+        "created_at": "2026-06-16T09:00:00Z"
+      },
+      {
+        "evidence_id": "scheduled-stale-plan-expired",
+        "kind": "tombstone",
+        "text": "TTL invalidation: the old scheduled-memory report plan expired at 2026-06-17T00:00:00Z and must not be recommended as current work.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "stale_preference_plan_audit",
+            "evidence_id": "scheduled-stale-plan-expired"
+          },
+          "locator": {
+            "quote": "expired at 2026-06-17T00:00:00Z"
+          }
+        },
+        "created_at": "2026-06-17T00:00:00Z"
+      },
+      {
+        "evidence_id": "scheduled-current-trace-plan",
+        "kind": "plan",
+        "text": "Current scheduled plan: scheduled-memory tasks must record execution trace/readback and source-linked output before the lane is validation-ready.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "stale_preference_plan_audit",
+            "evidence_id": "scheduled-current-trace-plan"
+          },
+          "locator": {
+            "quote": "record execution trace/readback"
+          }
+        },
+        "created_at": "2026-06-17T00:15:00Z"
+      },
+      {
+        "evidence_id": "scheduled-old-silent-mutation-preference",
+        "kind": "preference",
+        "text": "Historical preference: scheduled audits may silently rewrite stale plans after detecting them.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "stale_preference_plan_audit",
+            "evidence_id": "scheduled-old-silent-mutation-preference"
+          }
+        },
+        "created_at": "2026-06-16T09:10:00Z"
+      },
+      {
+        "evidence_id": "scheduled-current-reviewable-preference",
+        "kind": "preference",
+        "text": "Current preference: scheduled audits should produce reviewable derived output and must not mutate source notes silently.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "stale_preference_plan_audit",
+            "evidence_id": "scheduled-current-reviewable-preference"
+          },
+          "locator": {
+            "quote": "must not mutate source notes silently"
+          }
+        },
+        "created_at": "2026-06-17T00:18:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_scheduled_memory",
+      "answer": {
+        "content": "Scheduled stale preference/plan audit: the old report plan is expired, the silent-mutation preference is historical, and the current path requires trace/readback plus reviewable derived output.",
+        "claims": [
+          {
+            "claim_id": "scheduled_stale_plan_expired",
+            "text": "The old scheduled-memory report plan is expired and superseded by the trace/readback requirement.",
+            "evidence_ids": [
+              "scheduled-stale-old-plan",
+              "scheduled-stale-plan-expired",
+              "scheduled-current-trace-plan"
+            ],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "scheduled_silent_mutation_rejected",
+            "text": "Scheduled audits must not mutate source notes silently; they should produce reviewable derived output.",
+            "evidence_ids": [
+              "scheduled-old-silent-mutation-preference",
+              "scheduled-current-reviewable-preference"
+            ],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": [
+          "scheduled-stale-old-plan",
+          "scheduled-stale-plan-expired",
+          "scheduled-current-trace-plan",
+          "scheduled-old-silent-mutation-preference",
+          "scheduled-current-reviewable-preference"
+        ],
+        "scheduled_tasks": [
+          {
+            "task_run_id": "scheduled-stale-plan-audit-2026-06-17",
+            "contract_schema": "elf.scheduled_memory_task/v1",
+            "generated_at": "2026-06-17T00:35:00Z",
+            "scheduled_for": "2026-06-17T00:32:00Z",
+            "tenant_id": "fixture-tenant",
+            "project_id": "elf",
+            "agent_id": "xy-954-fixture-agent",
+            "read_profile": "private_plus_project",
+            "task_kind": "stale_preference_plan_audit",
+            "outputs": [
+              {
+                "output_id": "scheduled-defer-expired-report-plan",
+                "output_kind": "stale_preference_plan_audit",
+                "text": "Defer the old scheduled-memory report plan because it expired; use the current trace/readback requirement instead.",
+                "evidence_refs": [
+                  "scheduled-stale-old-plan",
+                  "scheduled-stale-plan-expired",
+                  "scheduled-current-trace-plan"
+                ],
+                "freshness": {
+                  "status": "superseded",
+                  "observed_at": "2026-06-17T00:15:00Z",
+                  "valid_from": "2026-06-16T09:00:00Z",
+                  "valid_to": "2026-06-17T00:00:00Z",
+                  "last_confirmed_at": "2026-06-17T00:35:00Z",
+                  "superseded_by": ["scheduled-current-trace-plan"],
+                  "tombstone_refs": ["scheduled-stale-plan-expired"]
+                },
+                "action": {
+                  "decision": "defer",
+                  "reason_code": "DEFER_EXPIRED_PLAN",
+                  "reason": "The old plan is retained as history and must not be recommended as current work."
+                },
+                "unsupported_claim_flags": []
+              },
+              {
+                "output_id": "scheduled-reject-silent-source-mutation",
+                "output_kind": "stale_preference_plan_audit",
+                "text": "Reject silent source-note mutation during scheduled audits and keep the audit output reviewable.",
+                "evidence_refs": [
+                  "scheduled-old-silent-mutation-preference",
+                  "scheduled-current-reviewable-preference"
+                ],
+                "freshness": {
+                  "status": "superseded",
+                  "observed_at": "2026-06-17T00:18:00Z",
+                  "valid_from": "2026-06-16T09:10:00Z",
+                  "valid_to": "2026-06-17T00:18:00Z",
+                  "last_confirmed_at": "2026-06-17T00:35:00Z",
+                  "superseded_by": ["scheduled-current-reviewable-preference"],
+                  "tombstone_refs": []
+                },
+                "action": {
+                  "decision": "reject",
+                  "reason_code": "REJECT_SILENT_SOURCE_MUTATION",
+                  "reason": "The current preference requires reviewable derived output rather than silent source rewrites."
+                },
+                "unsupported_claim_flags": []
+              }
+            ],
+            "source_trace": {
+              "selected_source_refs": [
+                {
+                  "evidence_id": "scheduled-current-trace-plan",
+                  "status": "current",
+                  "reason": "Current trace/readback requirement."
+                },
+                {
+                  "evidence_id": "scheduled-current-reviewable-preference",
+                  "status": "current",
+                  "reason": "Current reviewable-output boundary."
+                }
+              ],
+              "dropped_source_refs": [],
+              "stale_source_refs": [],
+              "superseded_source_refs": [
+                {
+                  "evidence_id": "scheduled-stale-old-plan",
+                  "status": "superseded",
+                  "reason": "Replaced by current trace/readback requirement.",
+                  "superseded_by": "scheduled-current-trace-plan"
+                },
+                {
+                  "evidence_id": "scheduled-old-silent-mutation-preference",
+                  "status": "superseded",
+                  "reason": "Replaced by current reviewable-output preference.",
+                  "superseded_by": "scheduled-current-reviewable-preference"
+                }
+              ],
+              "tombstone_source_refs": [
+                {
+                  "evidence_id": "scheduled-stale-plan-expired",
+                  "status": "tombstoned",
+                  "reason": "TTL invalidation for the old report plan."
+                }
+              ],
+              "unsupported_claim_flags": []
+            },
+            "execution_trace": {
+              "trace_id": "trace-scheduled-stale-plan-audit-2026-06-17",
+              "trigger_kind": "fixture_schedule",
+              "status": "completed",
+              "started_at": "2026-06-17T00:32:00Z",
+              "completed_at": "2026-06-17T00:35:00Z",
+              "output_ref": "scheduled-defer-expired-report-plan",
+              "stages": [
+                {
+                  "stage_name": "memory_read",
+                  "summary": "Read old and current plan/preference sources.",
+                  "evidence_refs": [
+                    "scheduled-stale-old-plan",
+                    "scheduled-current-trace-plan",
+                    "scheduled-current-reviewable-preference"
+                  ]
+                },
+                {
+                  "stage_name": "ttl_filter",
+                  "summary": "Detected TTL invalidation before action selection.",
+                  "evidence_refs": ["scheduled-stale-plan-expired"]
+                },
+                {
+                  "stage_name": "output_readback",
+                  "summary": "Recorded reviewable audit output without source mutation.",
+                  "evidence_refs": [
+                    "scheduled-current-trace-plan",
+                    "scheduled-current-reviewable-preference"
+                  ]
+                }
+              ]
+            },
+            "source_mutations": [],
+            "unsupported_claim_flags": []
+          }
+        ],
+        "latency_ms": 2.0,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "scheduled-stale-plan-expired",
+      "ts": "2026-06-17T00:00:00Z",
+      "actor": "gc_fixture",
+      "action": "recorded_ttl_invalidation",
+      "evidence_ids": ["scheduled-stale-plan-expired"],
+      "summary": "The old scheduled-memory plan expired before the scheduled audit ran."
+    },
+    {
+      "event_id": "scheduled-stale-audit-output-recorded",
+      "ts": "2026-06-17T00:35:00Z",
+      "actor": "scheduler_fixture",
+      "action": "recorded_source_linked_output",
+      "evidence_ids": [
+        "scheduled-current-trace-plan",
+        "scheduled-current-reviewable-preference"
+      ],
+      "summary": "The stale preference/plan audit was recorded as reviewable output."
+    }
+  ],
+  "prompt": {
+    "role": "system",
+    "content": "Run the scheduled stale preference and plan audit.",
+    "job_mode": "scheduled_memory",
+    "constraints": [
+      "cite_evidence",
+      "mark_currentness",
+      "do_not_recommend_expired_plans",
+      "do_not_mutate_source_notes_silently"
+    ]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "scheduled_stale_plan_expired",
+        "text": "The old scheduled-memory report plan is expired and superseded by the trace/readback requirement."
+      },
+      {
+        "claim_id": "scheduled_silent_mutation_rejected",
+        "text": "Scheduled audits must not mutate source notes silently; they should produce reviewable derived output."
+      }
+    ],
+    "must_not_include": [
+      "publish the scheduled-memory report by reusing proactive-brief fixtures",
+      "scheduled audits may silently rewrite stale plans"
+    ],
+    "evidence_links": {
+      "scheduled_stale_plan_expired": [
+        "scheduled-stale-old-plan",
+        "scheduled-stale-plan-expired",
+        "scheduled-current-trace-plan"
+      ],
+      "scheduled_silent_mutation_rejected": [
+        "scheduled-old-silent-mutation-preference",
+        "scheduled-current-reviewable-preference"
+      ]
+    },
+    "answer_type": "scheduled_memory_task",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "scheduled-stale-old-plan",
+      "claim_id": "scheduled_stale_plan_expired",
+      "requirement": "cite",
+      "quote": "skipping execution trace readback"
+    },
+    {
+      "evidence_id": "scheduled-stale-plan-expired",
+      "claim_id": "scheduled_stale_plan_expired",
+      "requirement": "cite",
+      "quote": "expired at 2026-06-17T00:00:00Z"
+    },
+    {
+      "evidence_id": "scheduled-current-trace-plan",
+      "claim_id": "scheduled_stale_plan_expired",
+      "requirement": "cite",
+      "quote": "record execution trace/readback"
+    },
+    {
+      "evidence_id": "scheduled-current-reviewable-preference",
+      "claim_id": "scheduled_silent_mutation_rejected",
+      "requirement": "cite",
+      "quote": "must not mutate source notes silently"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "scheduled-stale-plan-current-trap",
+      "type": "stale_fact",
+      "evidence_ids": ["scheduled-stale-old-plan"],
+      "failure_if_used": false
+    }
+  ],
+  "scheduled_memory": {
+    "required_task_kinds": ["stale_preference_plan_audit"]
+  },
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Audit identifies the expired plan and rejected silent-mutation preference."
+      },
+      "evidence_grounding": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Audit cites old, current, and invalidation evidence."
+      },
+      "trace_readback": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Execution trace includes output readback."
+      },
+      "trap_avoidance": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "The expired plan is not treated as current."
+      },
+      "lifecycle_behavior": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Supersession and tombstone markers are present."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "scheduled task output lacks execution trace readback",
+      "source mutation count must remain zero"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": true,
+    "acceptable_phrases": ["No current replacement plan is available."],
+    "fallback_action": "defer_expired_plan"
+  },
+  "tags": ["synthetic", "scheduled_memory", "stale_preference_plan_audit", "fixture_backed"]
+}
