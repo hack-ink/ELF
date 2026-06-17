@@ -424,6 +424,9 @@ args = [
 # | real-world-memory-proactive-brief      | composite |     |
 # | real-world-memory-proactive-brief-json | command   |     |
 # | real-world-memory-proactive-brief-report | command |     |
+# | real-world-memory-scheduled            | composite |     |
+# | real-world-memory-scheduled-json       | command   |     |
+# | real-world-memory-scheduled-report     | command   |     |
 # | real-world-memory-live-consolidation   | command   |     |
 # | real-world-job-operator-ux             | composite |     |
 # | real-world-job-operator-ux-json        | command   |     |
@@ -933,6 +936,55 @@ args = [
 	"tmp/real-world-memory/proactive-brief/report.json",
 	"--out",
 	"tmp/real-world-memory/proactive-brief/report.md",
+]
+
+[tasks.real-world-memory-scheduled]
+workspace = false
+dependencies = [
+	"real-world-memory-scheduled-report",
+]
+
+[tasks.real-world-memory-scheduled-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_memory/scheduled_memory",
+	"--out",
+	"tmp/real-world-memory/scheduled/report.json",
+	"--run-id",
+	"real-world-memory-scheduled",
+	"--adapter-id",
+	"fixture_scheduled_memory",
+	"--adapter-name",
+	"ELF scheduled memory fixture",
+]
+
+[tasks.real-world-memory-scheduled-report]
+workspace = false
+dependencies = [
+	"real-world-memory-scheduled-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-memory/scheduled/report.json",
+	"--out",
+	"tmp/real-world-memory/scheduled/report.md",
 ]
 
 [tasks.real-world-memory-live-consolidation]
