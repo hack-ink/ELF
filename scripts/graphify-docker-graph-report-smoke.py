@@ -1209,13 +1209,13 @@ def write_manifest(status: StatusState) -> dict[str, Any]:
                 "setup": {
                     "status": status.setup,
                     "evidence": "The smoke installs graphify in a container-local Python venv and runs with isolated assistant config paths.",
-                    "command": "cargo make graphify-docker-graph-report-smoke",
+                    "command": "cargo make smoke-graphify-docker-graph-report",
                     "artifact": rel(OUT),
                 },
                 "run": {
                     "status": status.run,
                     "evidence": "The live path builds graphify graph/report artifacts from a generated public corpus and runs graphify query over graph.json.",
-                    "command": "cargo make graphify-docker-graph-report-smoke",
+                    "command": "cargo make smoke-graphify-docker-graph-report",
                     "artifact": rel(OUT),
                 },
                 "result": {
@@ -1298,11 +1298,11 @@ def write_manifest(status: StatusState) -> dict[str, Any]:
                             "evidence": "Official package referenced by the graphify README.",
                         },
                     ],
-                    "setup_path": "Run cargo make graphify-docker-graph-report-smoke to install graphify in a container-local venv and build graph/report artifacts over generated public files.",
+                    "setup_path": "Run cargo make smoke-graphify-docker-graph-report to install graphify in a container-local venv and build graph/report artifacts over generated public files.",
                     "runtime_boundary": "docker-compose.baseline.yml baseline-runner, isolated HOME/config paths, generated corpus, and artifacts under tmp/real-world-memory/graphify-smoke.",
                     "resource_expectation": f"graphify package {GRAPHIFY_REF}, generated_files=4, timeout_seconds={TIMEOUT_SECONDS}, query_budget={QUERY_BUDGET}.",
                     "retry_guidance": [
-                        "Rerun cargo make graphify-docker-graph-report-smoke after dependency or runtime fixes.",
+                        "Rerun cargo make smoke-graphify-docker-graph-report after dependency or runtime fixes.",
                         "Do not use graphify install hooks, host-global Codex/Claude/Gemini config, or private corpora as proof.",
                         "Score only when graph.json, GRAPH_REPORT.md, and graphify query output map to generated evidence ids.",
                     ],
@@ -1404,7 +1404,7 @@ def main() -> int:
         status.result = "incomplete"
         status.overall = "incomplete"
         status.failure_class = "not_running_in_docker"
-        status.failure_reason = "graphify smoke must run inside Docker; use cargo make graphify-docker-graph-report-smoke."
+        status.failure_reason = "graphify smoke must run inside Docker; use cargo make smoke-graphify-docker-graph-report."
     elif not command_available("python3"):
         status.setup = "incomplete"
         status.result = "incomplete"

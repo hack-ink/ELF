@@ -13,13 +13,13 @@
       "evidence_id": "pr-110-review",
       "category": "pr",
       "title": "PR 110 Review Status",
-      "text": "PR #110 is review-ready for the ELF viewer lane. It passed `cargo make checks` and waits for the non-draft review handoff."
+      "text": "PR #110 is review-ready for the ELF viewer lane. It passed `cargo make check` and waits for the non-draft review handoff."
     },
     {
       "evidence_id": "worktree-xy791-repair",
       "category": "worktree",
       "title": "XY-791 Strict Config Repair",
-      "text": "Worktree XY-791 recovered strict-config repair after rebase. The exact gate was `cargo make fmt && cargo make lint-fix && cargo make checks`."
+      "text": "Worktree XY-791 recovered strict-config repair after rebase. The exact gate was `cargo make fmt && cargo make lint-fix && cargo make check`."
     },
     {
       "evidence_id": "runbook-live-baseline",
@@ -67,7 +67,7 @@
       "query": "Recover the exact repair gate command for XY-791 strict config.",
       "expected_evidence_ids": ["worktree-xy791-repair"],
       "allowed_alternate_evidence_ids": ["runbook-live-baseline"],
-      "expected_terms": ["XY-791", "cargo make fmt && cargo make lint-fix && cargo make checks"]
+      "expected_terms": ["XY-791", "cargo make fmt && cargo make lint-fix && cargo make check"]
     },
     {
       "query_id": "q-explain-stale-blocker",

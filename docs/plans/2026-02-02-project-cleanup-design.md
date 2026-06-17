@@ -1,6 +1,6 @@
 # Project Cleanup Architecture Design
 
-**Goal:** Restructure each app into a library-plus-binary layout, remove `#[path]` test imports, and make `cargo make lint` pass without suppressing lints.
+**Goal:** Restructure each app into a library-plus-binary layout, remove `#[path]` test imports, and make `cargo make lint-rust` pass without suppressing lints.
 
 **Scope (Option 2):**
 - Apply the `lib + bin` layout to `elf-api`, `elf-mcp`, and `elf-worker`.
@@ -19,5 +19,5 @@
 - Any remaining clippy errors will be fixed by small structural adjustments rather than `#[allow]` attributes.
 
 **Testing and Verification:**
-- Run `cargo make lint` to confirm workspace linting passes.
+- Run `cargo make lint-rust` to confirm workspace linting passes.
 - Do not change test behavior; only update import paths and shared wiring required by the new layout.

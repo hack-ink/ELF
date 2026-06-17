@@ -155,7 +155,7 @@ Example:
 ELF_PG_DSN="postgres://elf_dev:elf_dev_password@127.0.0.1:51888/postgres" \
 ELF_QDRANT_GRPC_URL="http://127.0.0.1:51890" \
 ELF_QDRANT_HTTP_URL="http://127.0.0.1:51889" \
-cargo make e2e
+cargo make test-e2e
 ```
 
 ## Troubleshooting

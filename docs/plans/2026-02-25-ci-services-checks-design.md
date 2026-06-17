@@ -43,7 +43,7 @@ Update `.github/workflows/integration.yml` to run on PR and merge queue (in addi
 
 In this workflow, run the full workspace test suite including ignored tests:
 
-- `cargo nextest run --workspace --all-targets --all-features --run-ignored all`
+- `cargo make test-rust-all`
 
 Rationale:
 
@@ -54,7 +54,7 @@ Rationale:
 
 Add a new workflow to run the lightweight, deterministic E2E harness:
 
-- `cargo make e2e` (which runs `scripts/context-misranking-harness.sh`)
+- `cargo make test-e2e` (which runs `scripts/context-misranking-harness.sh`)
 
 Key properties:
 
@@ -73,7 +73,6 @@ Do not change `.github/workflows/nightly-harness-signals.yml` scope: it remains 
 - `Integration Tests` runs with `--run-ignored all` and succeeds on `main`.
 - A new E2E workflow runs on:
   - `pull_request`, `merge_group`, `workflow_dispatch`
-- E2E job starts Postgres + Qdrant via GitHub Actions services and successfully runs `cargo make e2e` without external secrets.
+- E2E job starts Postgres + Qdrant via GitHub Actions services and successfully runs `cargo make test-e2e` without external secrets.
 - Both workflows use `paths-ignore` for docs-only changes (`docs/**`, `**/*.md`, `.gitignore`).
 - Local docs reflect the updated meaning of “E2E harness” vs “nightly harness signals”.
-

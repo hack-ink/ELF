@@ -59,6 +59,11 @@ jobs:
           cache: true
           rustflags: ''
 
+      - name: Install cargo-make
+        uses: taiki-e/install-action@15449e3094499af05d8d964a1c884208e4b8b595
+        with:
+          tool: cargo-make
+
       - name: Install Postgres client
         run: |
           sudo apt-get update
@@ -73,39 +78,8 @@ jobs:
           echo "Postgres did not become ready in time."
           exit 1
 
-      - name: Create schema
-        run: |
-          python3 - <<'PY' > tmp.schema.sql
-          from pathlib import Path
-          
-          vector_dim = 4
-          root = Path(".")
-          sql_dir = root / "sql"
-          
-          out = []
-          for raw_line in (sql_dir / "init.sql").read_text(encoding="utf-8").splitlines():
-            line = raw_line.strip()
-            if line.startswith(r"\ir "):
-              rel = line[len(r"\ir ") :].strip()
-              out.append((sql_dir / rel).read_text(encoding="utf-8"))
-            else:
-              out.append(raw_line)
-          
-          expanded = "\n".join(out) + "\n"
-          print(expanded.replace("<VECTOR_DIM>", str(vector_dim)), end="")
-          PY
-          
-          psql "${PG_DSN}" -v ON_ERROR_STOP=1 -f tmp.schema.sql
-
-      - name: Load trace gate fixture
-        run: psql "${PG_DSN}" -v ON_ERROR_STOP=1 -f .github/fixtures/trace_gate/fixture.sql
-
       - name: Run trace regression gate
-        run: |
-          cargo run -p elf-eval --bin trace_regression_gate -- \
-            --config .github/fixtures/trace_gate/config.toml \
-            --gate .github/fixtures/trace_gate/gate.json \
-            --out trace_gate.report.json
+        run: TRACE_GATE_REPORT_PATH=trace_gate.report.json cargo make check-trace-gate
 
       - name: Upload trace gate report
         if: always()

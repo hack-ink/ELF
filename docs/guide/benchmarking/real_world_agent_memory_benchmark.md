@@ -117,7 +117,7 @@ Recommended first increments:
 Current checked-in smoke increment:
 
 ```sh
-cargo make real-world-job-smoke
+cargo make smoke-real-world-job
 ```
 
 This parses `apps/elf-eval/fixtures/real_world_memory/work_resume/`, writes

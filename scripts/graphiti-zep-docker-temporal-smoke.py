@@ -1003,13 +1003,13 @@ def write_manifest(status: StatusState) -> dict[str, Any]:
                 "setup": {
                     "status": status.setup,
                     "evidence": "The smoke runs inside the baseline Docker runner and uses Docker-local FalkorDB plus a container-local Python venv.",
-                    "command": "cargo make graphiti-zep-docker-temporal-smoke",
+                    "command": "cargo make smoke-graphiti-zep-docker-temporal",
                     "artifact": rel(OUT),
                 },
                 "run": {
                     "status": status.run,
                     "evidence": "The live path adds generated temporal fact triples and searches Graphiti/Zep for UUID, fact, valid_at, invalid_at, and source node evidence.",
-                    "command": "ELF_GRAPHITI_ZEP_SMOKE_START=1 ELF_GRAPHITI_ZEP_SMOKE_RUN=1 cargo make graphiti-zep-docker-temporal-smoke",
+                    "command": "ELF_GRAPHITI_ZEP_SMOKE_START=1 ELF_GRAPHITI_ZEP_SMOKE_RUN=1 cargo make smoke-graphiti-zep-docker-temporal",
                     "artifact": rel(OUT),
                 },
                 "result": {
@@ -1101,7 +1101,7 @@ def write_manifest(status: StatusState) -> dict[str, Any]:
                             "evidence": "Official manual fact-triple ingest contract.",
                         },
                     ],
-                    "setup_path": "Run cargo make graphiti-zep-docker-temporal-smoke for a typed artifact; set ELF_GRAPHITI_ZEP_SMOKE_START=1 ELF_GRAPHITI_ZEP_SMOKE_RUN=1 with explicit provider configuration for a live attempt.",
+                    "setup_path": "Run cargo make smoke-graphiti-zep-docker-temporal for a typed artifact; set ELF_GRAPHITI_ZEP_SMOKE_START=1 ELF_GRAPHITI_ZEP_SMOKE_RUN=1 with explicit provider configuration for a live attempt.",
                     "runtime_boundary": "docker-compose.baseline.yml baseline-runner plus graphiti-zep FalkorDB profile, container-local Python venv, generated public temporal facts, and report artifacts under tmp/real-world-memory/graphiti-zep-smoke.",
                     "resource_expectation": f"Graphiti package {GRAPHITI_REF}, fact_count=3, timeout_seconds={TIMEOUT_SECONDS}, FalkorDB host={FALKORDB_HOST}:{FALKORDB_PORT}.",
                     "retry_guidance": [
@@ -1185,7 +1185,7 @@ def main() -> int:
         status.result = "incomplete"
         status.overall = "incomplete"
         status.failure_class = "not_running_in_docker"
-        status.failure_reason = "Graphiti/Zep smoke must run inside Docker; use cargo make graphiti-zep-docker-temporal-smoke."
+        status.failure_reason = "Graphiti/Zep smoke must run inside Docker; use cargo make smoke-graphiti-zep-docker-temporal."
         mapping["status"] = status.result
         mapping["reason"] = status.failure_reason
     elif not command_available("python3"):

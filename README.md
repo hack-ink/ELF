@@ -254,7 +254,7 @@ provider-backed ELF evidence was required.
   `cargo make baseline-soak-docker`, `cargo make baseline-live-report`,
   `cargo make real-world-memory-live-adapters`,
   `cargo make real-world-first-generation-oss`, and
-  `cargo make baseline-live-docker-clean`. Expensive 100k and long-soak profiles
+  `cargo make clean-baseline-live-docker`. Expensive 100k and long-soak profiles
   are opt-in and do not run in normal checks.
 
 Detailed evidence and interpretation:
@@ -390,8 +390,8 @@ self-check evidence, and fixture-backed scheduled-memory task scoring.
 
 ```sh
 cargo make fmt
-cargo make lint
-cargo make test
+cargo make check
+cargo make test-rust
 ```
 
 For integration and E2E workflows, use `docs/guide/getting_started.md` and `docs/guide/integration-testing.md`.

@@ -151,7 +151,7 @@ write_report() {
         },
         cleanup: {
           status: "documented",
-          command: "cargo make parity-docker-clean"
+          command: "cargo make clean-parity-docker"
         }
       },
       thresholds: {

@@ -2,7 +2,7 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Refactor each app into a lib+bin layout, remove `#[path]` test imports, and keep CLI/logging behavior unchanged while ensuring `cargo make lint` passes.
+**Goal:** Refactor each app into a lib+bin layout, remove `#[path]` test imports, and keep CLI/logging behavior unchanged while ensuring `cargo make lint-rust` passes.
 
 **Architecture:** Each app exposes a small `lib.rs` with its CLI `Args` and `run` entrypoint plus existing modules. `main.rs` becomes a thin wrapper that parses CLI args and calls the library. Tests import the library modules instead of using `#[path]`.
 
@@ -250,7 +250,7 @@ git commit -m "refactor: move elf-mcp entrypoint into lib"
 - Modify: None
 
 **Step 1: Run lint**
-Run: `cargo make lint`
+Run: `cargo make lint-rust`
 Expected: PASS.
 
 **Step 2: Run targeted app tests**
