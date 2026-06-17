@@ -152,12 +152,14 @@ provider-backed ELF evidence was required.
   its pinned Docker local embedding path and is reported as `wrong_result` when
   same-corpus evidence terms are missed; claude-mem and OpenViking non-retrieval
   coverage remain typed non-pass states.
-- Real-world agent memory aggregate after XY-953: 55 fixture-backed
-  jobs across 15 suites, 49 pass, 0 incomplete, 6 blocked, 0 wrong-result,
+- Real-world agent memory aggregate after XY-954: 60 fixture-backed
+  jobs across 16 suites, 53 pass, 0 incomplete, 7 blocked, 0 wrong-result,
   0 not-encoded, and 0 unsupported-claim results. The remaining non-pass jobs are
   production-ops operator boundaries plus blocked OpenViking staged trajectory,
   hierarchy selection, recursive/context expansion measurement gates, and the
-  private-corpus refresh blocker tied to XY-930, not hidden benchmark wins. The
+  private-corpus/private-provider scheduler blockers tied to XY-930, not hidden benchmark wins. The
+  `scheduled_memory` suite contributes four passing source-linked scheduled task
+  readbacks plus one typed private/provider scheduler blocker tied to XY-930. The
   `core_archival_memory` suite passes 6 fixture jobs for core block attachment, scope,
   provenance, stale-core detection, archival fallback, and project-decision recovery;
   it does not create an ELF-over-Letta claim. The
@@ -272,6 +274,7 @@ Detailed evidence and interpretation:
 - [First-Generation OSS Continuity and Source-Store Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-first-generation-oss-continuity-source-store-report.md)
 - [Live Temporal Reconciliation Report - June 16, 2026](docs/guide/benchmarking/2026-06-16-live-temporal-reconciliation-report.md)
 - [Proactive Brief Scoring Report - June 16, 2026](docs/guide/benchmarking/2026-06-16-proactive-brief-scoring-report.md)
+- [Scheduled Memory Task Scoring Report - June 16, 2026](docs/guide/benchmarking/2026-06-16-scheduled-memory-task-scoring-report.md)
 - [Live Baseline Benchmark Runbook](docs/guide/benchmarking/live_baseline_benchmark.md)
 - [Single-User Production Runbook](docs/guide/single_user_production.md)
 - Benchmark contract:
@@ -354,6 +357,7 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [First-Generation OSS Continuity and Source-Store Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-first-generation-oss-continuity-source-store-report.md)
 - [Live Temporal Reconciliation Report - June 16, 2026](docs/guide/benchmarking/2026-06-16-live-temporal-reconciliation-report.md)
 - [Proactive Brief Scoring Report - June 16, 2026](docs/guide/benchmarking/2026-06-16-proactive-brief-scoring-report.md)
+- [Scheduled Memory Task Scoring Report - June 16, 2026](docs/guide/benchmarking/2026-06-16-scheduled-memory-task-scoring-report.md)
 - [Live Baseline Benchmark Runbook](docs/guide/benchmarking/live_baseline_benchmark.md)
 - [Real-World Agent Memory Benchmark](docs/guide/benchmarking/real_world_agent_memory_benchmark.md)
 - [External Memory Improvement Plan](docs/guide/research/external_memory_improvement_plan.md)
@@ -364,8 +368,8 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [RAG/Graph Adapter Feasibility Research Run](docs/research/2026-06-10-xy-882-rag-graph-adapter-feasibility.json)
 
 Latest real-world benchmark report: June 16, 2026. Latest external research refresh:
-June 11, 2026; June 16 adds live temporal reconciliation and live consolidation
-self-check evidence.
+June 11, 2026; June 16 adds live temporal reconciliation, live consolidation
+self-check evidence, and fixture-backed scheduled-memory task scoring.
 
 ## Documentation
 
