@@ -30,8 +30,8 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
-  rust:
-    name: Rust checks
+  repo:
+    name: Repository checks
     runs-on: ubuntu-latest
     steps:
       - name: Fetch latest code
@@ -72,37 +72,10 @@ jobs:
         with:
           tool: nextest
 
-      - name: Run lint
-        run: cargo make lint
-
-      - name: Run Rust format checks
-        run: cargo make fmt-rust-check
-
-      - name: Run tests
-        run: cargo make test-rust
-
-  toml:
-    name: TOML checks
-    runs-on: ubuntu-latest
-    steps:
-      - name: Fetch latest code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
-
-      - name: Set up Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6
-        with:
-          cache: true
-          rustflags: ''
-
-      - name: Install cargo-make
-        uses: taiki-e/install-action@15449e3094499af05d8d964a1c884208e4b8b595
-        with:
-          tool: cargo-make
-
       - name: Install taplo
         uses: taiki-e/install-action@15449e3094499af05d8d964a1c884208e4b8b595
         with:
           tool: taplo
 
-      - name: Run TOML format checks
-        run: cargo make fmt-toml-check
+      - name: Run repository checks
+        run: cargo make check

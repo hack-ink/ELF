@@ -53,7 +53,7 @@ clear answer and trace.
 
 | Command | Result | Runtime | Main artifact |
 | --- | --- | ---: | --- |
-| `ELF_GRAPHITI_ZEP_SMOKE_START=1 ELF_GRAPHITI_ZEP_SMOKE_RUN=1 cargo make graphiti-zep-docker-temporal-smoke` | typed blocked | 3.5 seconds | `tmp/real-world-memory/graphiti-zep-smoke/summary.json` |
+| `ELF_GRAPHITI_ZEP_SMOKE_START=1 ELF_GRAPHITI_ZEP_SMOKE_RUN=1 cargo make smoke-graphiti-zep-docker-temporal` | typed blocked | 3.5 seconds | `tmp/real-world-memory/graphiti-zep-smoke/summary.json` |
 | `ELF_BASELINE_PROJECTS=ELF,mem0 cargo make baseline-live-docker` | pass | 50.14 seconds | `tmp/live-baseline/live-baseline-report.json` |
 | `cargo make real-world-memory-evolution` | pass | 59.65 seconds | `tmp/real-world-memory/evolution-report.json` |
 | `cargo make real-world-memory-live-adapters` | pass | 166.61 seconds | `tmp/real-world-memory/live-adapters/` |

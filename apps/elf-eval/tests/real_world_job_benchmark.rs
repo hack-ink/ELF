@@ -944,7 +944,7 @@ fn assert_graph_rag_research_gate_records(ragflow: &Value, lightrag: &Value, gra
 	);
 	assert_eq!(
 		ragflow.pointer("/setup/command").and_then(Value::as_str),
-		Some("cargo make ragflow-docker-smoke")
+		Some("cargo make smoke-ragflow-docker")
 	);
 	assert_eq!(
 		ragflow.pointer("/result/artifact").and_then(Value::as_str),
@@ -958,11 +958,11 @@ fn assert_graph_rag_research_gate_records(ragflow: &Value, lightrag: &Value, gra
 	assert_eq!(lightrag.pointer("/overall_status").and_then(Value::as_str), Some("blocked"));
 	assert_eq!(
 		lightrag.pointer("/setup/command").and_then(Value::as_str),
-		Some("cargo make lightrag-docker-context-smoke")
+		Some("cargo make smoke-lightrag-docker-context")
 	);
 	assert_eq!(
 		lightrag.pointer("/run/command").and_then(Value::as_str),
-		Some("ELF_LIGHTRAG_CONTEXT_START=1 cargo make lightrag-docker-context-smoke")
+		Some("ELF_LIGHTRAG_CONTEXT_START=1 cargo make smoke-lightrag-docker-context")
 	);
 	assert_eq!(
 		lightrag.pointer("/capabilities/3/status").and_then(Value::as_str),
@@ -971,7 +971,7 @@ fn assert_graph_rag_research_gate_records(ragflow: &Value, lightrag: &Value, gra
 	assert_eq!(graphrag.pointer("/evidence_class").and_then(Value::as_str), Some("research_gate"));
 	assert_eq!(
 		graphrag.pointer("/setup/command").and_then(Value::as_str),
-		Some("cargo make graphrag-docker-smoke")
+		Some("cargo make smoke-graphrag-docker")
 	);
 	assert_eq!(graphrag.pointer("/suites/1/status").and_then(Value::as_str), Some("not_encoded"));
 }
@@ -1389,12 +1389,12 @@ fn assert_graphiti_zep_adapter(adapter: &Value) {
 	assert_eq!(adapter.pointer("/overall_status").and_then(Value::as_str), Some("blocked"));
 	assert_eq!(
 		adapter.pointer("/setup/command").and_then(Value::as_str),
-		Some("cargo make graphiti-zep-docker-temporal-smoke")
+		Some("cargo make smoke-graphiti-zep-docker-temporal")
 	);
 	assert_eq!(
 		adapter.pointer("/run/command").and_then(Value::as_str),
 		Some(
-			"ELF_GRAPHITI_ZEP_SMOKE_START=1 ELF_GRAPHITI_ZEP_SMOKE_RUN=1 cargo make graphiti-zep-docker-temporal-smoke"
+			"ELF_GRAPHITI_ZEP_SMOKE_START=1 ELF_GRAPHITI_ZEP_SMOKE_RUN=1 cargo make smoke-graphiti-zep-docker-temporal"
 		)
 	);
 	assert_eq!(
@@ -1418,7 +1418,7 @@ fn assert_graphify_adapter(adapter: &Value) -> Result<()> {
 	assert_eq!(adapter.pointer("/result/status").and_then(Value::as_str), Some("wrong_result"));
 	assert_eq!(
 		adapter.pointer("/setup/command").and_then(Value::as_str),
-		Some("cargo make graphify-docker-graph-report-smoke")
+		Some("cargo make smoke-graphify-docker-graph-report")
 	);
 	assert_eq!(
 		adapter.pointer("/suites/0/suite_id").and_then(Value::as_str),
@@ -1526,13 +1526,13 @@ fn graphify_generated_manifest_keeps_retrieval_unscored() -> Result<()> {
 			"setup": {
 				"status": "pass",
 				"evidence": "setup evidence",
-				"command": "cargo make graphify-docker-graph-report-smoke",
+				"command": "cargo make smoke-graphify-docker-graph-report",
 				"artifact": "tmp/real-world-memory/graphify-smoke/graphify-smoke.json"
 			},
 			"run": {
 				"status": "pass",
 				"evidence": "run evidence",
-				"command": "cargo make graphify-docker-graph-report-smoke",
+				"command": "cargo make smoke-graphify-docker-graph-report",
 				"artifact": "tmp/real-world-memory/graphify-smoke/summary.json"
 			},
 			"result": {
@@ -1559,7 +1559,7 @@ fn graphify_generated_manifest_keeps_retrieval_unscored() -> Result<()> {
 			],
 			"evidence": [],
 			"execution_metadata": {
-				"setup_path": "cargo make graphify-docker-graph-report-smoke",
+				"setup_path": "cargo make smoke-graphify-docker-graph-report",
 				"runtime_boundary": "Docker-only generated graph/report smoke.",
 				"resource_expectation": "Tiny generated corpus only.",
 				"retry_guidance": [],
@@ -1673,9 +1673,16 @@ fn graph_rag_representative_fixtures_report_typed_non_pass_states() -> Result<()
 
 #[test]
 fn live_adapter_aggregate_forwards_graph_rag_smoke_controls() -> Result<()> {
-	let makefile = fs::read_to_string(
-		Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..").join("Makefile.toml"),
-	)?;
+	let workspace = workspace_root()?;
+	let makefile = fs::read_to_string(workspace.join("Makefile.toml"))?;
+	let docker_script = fs::read_to_string(workspace.join("scripts/real-world-docker.sh"))?;
+
+	assert!(
+		makefile.contains("[tasks.real-world-memory-live-adapters]")
+			&& makefile.contains("scripts/real-world-docker.sh")
+			&& makefile.contains("memory-live-adapters"),
+		"Makefile should expose the live-adapter command and delegate Docker details to a script",
+	);
 
 	for env_name in [
 		"ELF_REAL_WORLD_LIVE_ENABLE_RAGFLOW",
@@ -1693,17 +1700,17 @@ fn live_adapter_aggregate_forwards_graph_rag_smoke_controls() -> Result<()> {
 		"ELF_GRAPHIFY_SMOKE_RUN",
 	] {
 		assert!(
-			makefile.contains(&format!("-e {env_name}")),
+			docker_script.contains(&format!("-e {env_name}")),
 			"real-world-memory-live-adapters must forward {env_name}",
 		);
 	}
 
 	assert!(
-		makefile.contains("--profile lightrag up -d lightrag"),
+		docker_script.contains("--profile lightrag up -d lightrag"),
 		"aggregate task should start LightRAG profile when ELF_LIGHTRAG_CONTEXT_START=1",
 	);
 	assert!(
-		makefile.contains("--profile graphiti-zep up -d graphiti-falkordb"),
+		docker_script.contains("--profile graphiti-zep up -d graphiti-falkordb"),
 		"aggregate task should start Graphiti/Zep profile when ELF_GRAPHITI_ZEP_SMOKE_START=1",
 	);
 
@@ -1714,6 +1721,7 @@ fn live_adapter_aggregate_forwards_graph_rag_smoke_controls() -> Result<()> {
 fn openmemory_ui_export_probe_has_dedicated_docker_task() -> Result<()> {
 	let workspace_root = workspace_root()?;
 	let makefile = fs::read_to_string(workspace_root.join("Makefile.toml"))?;
+	let docker_script = fs::read_to_string(workspace_root.join("scripts/baseline-docker.sh"))?;
 	let compose = fs::read_to_string(workspace_root.join("docker-compose.baseline.yml"))?;
 	let script = fs::read_to_string(workspace_root.join("scripts/live-baseline-benchmark.sh"))?;
 	let report = serde_json::from_str::<Value>(&fs::read_to_string(
@@ -1721,7 +1729,9 @@ fn openmemory_ui_export_probe_has_dedicated_docker_task() -> Result<()> {
 	)?)?;
 
 	assert!(makefile.contains("[tasks.openmemory-ui-export-readback]"));
-	assert!(makefile.contains("export ELF_BASELINE_PROJECTS=mem0"));
+	assert!(makefile.contains("scripts/baseline-docker.sh"));
+	assert!(makefile.contains("openmemory-ui-export-readback"));
+	assert!(docker_script.contains("export ELF_BASELINE_PROJECTS=mem0"));
 	assert!(compose.contains("ELF_MEM0_OPENMEMORY_EXPORT_USER_ID"));
 	assert!(compose.contains("ELF_MEM0_OPENMEMORY_EXPORT_CONTAINER"));
 	assert!(script.contains("probe_mem0_openmemory_ui_export"));
@@ -1756,6 +1766,7 @@ fn openmemory_ui_export_probe_has_dedicated_docker_task() -> Result<()> {
 fn operator_debug_live_adapter_task_is_docker_scoped() -> Result<()> {
 	let workspace = workspace_root()?;
 	let makefile = fs::read_to_string(workspace.join("Makefile.toml"))?;
+	let docker_script = fs::read_to_string(workspace.join("scripts/real-world-docker.sh"))?;
 	let script = fs::read_to_string(
 		workspace.join("scripts").join("real-world-operator-debug-live-adapters.sh"),
 	)?;
@@ -1765,8 +1776,12 @@ fn operator_debug_live_adapter_task_is_docker_scoped() -> Result<()> {
 		fs::read_to_string(workspace.join("apps/elf-eval/src/bin/real_world_job_benchmark.rs"))?;
 
 	assert!(makefile.contains("[tasks.real-world-job-operator-ux-live-adapters]"));
-	assert!(makefile.contains("docker compose -f docker-compose.baseline.yml run --build --rm"));
-	assert!(makefile.contains("scripts/real-world-operator-debug-live-adapters.sh"));
+	assert!(makefile.contains("scripts/real-world-docker.sh"));
+	assert!(makefile.contains("job-operator-ux-live-adapters"));
+	assert!(
+		docker_script.contains("docker compose -f docker-compose.baseline.yml run --build --rm")
+	);
+	assert!(docker_script.contains("scripts/real-world-operator-debug-live-adapters.sh"));
 	assert!(script.contains("apps/elf-eval/fixtures/real_world_job/operator_debugging_ux"));
 	assert!(script.contains("elf_operator_debug_live"));
 	assert!(script.contains("qmd_operator_debug_live"));
@@ -2169,7 +2184,11 @@ fn live_consolidation_report_preserves_reviewable_output_boundaries() -> Result<
 	assert!(benchmark_guide.contains("Current live consolidation increment"));
 	assert!(benchmark_guide.contains("tmp/real-world-memory/live-consolidation/summary.json"));
 	assert!(makefile.contains("[tasks.real-world-memory-live-consolidation]"));
-	assert!(makefile.contains("scripts/real-world-consolidation-live-adapter.sh"));
+	assert!(makefile.contains("scripts/real-world-docker.sh"));
+
+	let docker_script = fs::read_to_string(workspace.join("scripts/real-world-docker.sh"))?;
+
+	assert!(docker_script.contains("scripts/real-world-consolidation-live-adapter.sh"));
 	assert!(live_script.contains("elf.real_world_consolidation_live_adapter_sweep/v1"));
 	assert!(live_script.contains("real_world_live_adapter -- elf"));
 	assert!(!live_script.contains("real_world_live_adapter -- qmd"));

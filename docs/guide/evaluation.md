@@ -172,7 +172,7 @@ To measure cross-scope misranking before and after enabling context boosting, us
 script:
 
 ```bash
-cargo make e2e
+cargo make test-e2e
 ```
 
 Or run the script directly:
@@ -338,12 +338,6 @@ What it does:
 ## Consolidation Harness
 
 To validate the reflection/consolidation loop with stable query assertions, use the harness:
-
-```bash
-cargo make e2e-consolidation-harness
-```
-
-Or run directly:
 
 ```bash
 scripts/consolidation-harness.sh

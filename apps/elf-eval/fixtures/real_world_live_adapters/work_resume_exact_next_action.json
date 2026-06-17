@@ -10,7 +10,7 @@
       {
         "evidence_id": "xy868-current-next-action",
         "kind": "runbook",
-        "text": "Exact next action for XY-868: run `cargo make real-world-memory-live-adapters`, then run `cargo make fmt`, `cargo make lint-fix`, and `cargo make checks` before pushing branch y/elf-xy-868.",
+        "text": "Exact next action for XY-868: run `cargo make real-world-memory-live-adapters`, then run `cargo make fmt`, `cargo make lint-fix`, and `cargo make check` before pushing branch y/elf-xy-868.",
         "source_ref": {
           "schema": "source_ref/v1",
           "resolver": "real_world_live_adapter_fixture/v1",
@@ -65,7 +65,7 @@
     "must_include": [
       {
         "claim_id": "next_action",
-        "text": "Exact next action for XY-868: run `cargo make real-world-memory-live-adapters`, then run `cargo make fmt`, `cargo make lint-fix`, and `cargo make checks` before pushing branch y/elf-xy-868."
+        "text": "Exact next action for XY-868: run `cargo make real-world-memory-live-adapters`, then run `cargo make fmt`, `cargo make lint-fix`, and `cargo make check` before pushing branch y/elf-xy-868."
       }
     ],
     "must_not_include": [

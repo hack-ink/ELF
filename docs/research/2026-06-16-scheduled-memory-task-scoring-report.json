@@ -1847,13 +1847,13 @@
         "setup": {
           "status": "blocked",
           "evidence": "XY-900 promotes the Docker-safe tiny-corpus evidence smoke into a generated real_world_job report while the checked-in row remains smoke-only research_gate evidence.",
-          "command": "cargo make ragflow-docker-smoke",
+          "command": "cargo make smoke-ragflow-docker",
           "artifact": "tmp/real-world-memory/ragflow-smoke/ragflow-smoke.json"
         },
         "run": {
           "status": "blocked",
           "evidence": "The live path requires explicit resource-envelope opt-in and a local self-hosted RAGFlow API key; setup failures stay typed in the generated smoke artifact.",
-          "command": "ELF_RAGFLOW_SMOKE_START=1 ELF_RAGFLOW_SMOKE_ACCEPT_RESOURCE_ENVELOPE=1 cargo make ragflow-docker-smoke",
+          "command": "ELF_RAGFLOW_SMOKE_START=1 ELF_RAGFLOW_SMOKE_ACCEPT_RESOURCE_ENVELOPE=1 cargo make smoke-ragflow-docker",
           "artifact": "tmp/real-world-memory/ragflow-smoke/memory_projects_manifest.ragflow-smoke.json"
         },
         "result": {
@@ -1965,7 +1965,7 @@
           "runtime_boundary": "Run scripts/ragflow-docker-evidence-smoke.sh through cargo make; the live path uses the official RAGFlow Docker Compose service boundary without host-global RAGFlow installs.",
           "resource_expectation": "Large multi-service RAG stack; generated artifacts record CPU/GPU mode, memory, disk, image size, expanded disk notes, startup time, vm.max_map_count handling, and provider boundaries before scoring.",
           "retry_guidance": [
-            "Run cargo make ragflow-docker-smoke first to produce a typed preflight artifact.",
+            "Run cargo make smoke-ragflow-docker first to produce a typed preflight artifact.",
             "Start the live path only with ELF_RAGFLOW_SMOKE_START=1 and ELF_RAGFLOW_SMOKE_ACCEPT_RESOURCE_ENVELOPE=1.",
             "Keep private corpora and operator-owned provider credentials out of this smoke; map only generated public corpus reference chunks to evidence ids."
           ],
@@ -1991,13 +1991,13 @@
         "setup": {
           "status": "blocked",
           "evidence": "XY-886 adds a Docker-profile context-export smoke command, and XY-900 keeps its generated retrieval fixtures scored through real_world_job_benchmark. The checked-in row remains smoke-only research_gate evidence.",
-          "command": "cargo make lightrag-docker-context-smoke",
+          "command": "cargo make smoke-lightrag-docker-context",
           "artifact": "tmp/real-world-memory/lightrag-context/lightrag-materialization.json"
         },
         "run": {
           "status": "blocked",
           "evidence": "The default smoke records a typed setup/runtime failure if the LightRAG API is unavailable; set ELF_LIGHTRAG_CONTEXT_START=1 to start the opt-in Docker service profile.",
-          "command": "ELF_LIGHTRAG_CONTEXT_START=1 cargo make lightrag-docker-context-smoke",
+          "command": "ELF_LIGHTRAG_CONTEXT_START=1 cargo make smoke-lightrag-docker-context",
           "artifact": "tmp/real-world-memory/lightrag-context/summary.json"
         },
         "result": {
@@ -2078,7 +2078,7 @@
           },
           {
             "kind": "command",
-            "ref": "cargo make lightrag-docker-context-smoke",
+            "ref": "cargo make smoke-lightrag-docker-context",
             "status": "blocked"
           },
           {
@@ -2115,11 +2115,11 @@
               "evidence": "Official source-id and file-path citation reference."
             }
           ],
-          "setup_path": "Run cargo make lightrag-docker-context-smoke for a typed preflight artifact; set ELF_LIGHTRAG_CONTEXT_START=1 to start the opt-in LightRAG Docker profile and attempt live context export.",
+          "setup_path": "Run cargo make smoke-lightrag-docker-context for a typed preflight artifact; set ELF_LIGHTRAG_CONTEXT_START=1 to start the opt-in LightRAG Docker profile and attempt live context export.",
           "runtime_boundary": "docker-compose.baseline.yml baseline-runner plus opt-in lightrag and lightrag-mock-provider services; generated source files and LightRAG data stay in Docker-mounted artifact paths and Docker volumes.",
           "resource_expectation": "The default profile uses the official LightRAG image, a local OpenAI-compatible mock provider, 64-dimensional embeddings, rerank disabled for context queries, cargo/pip/Hugging Face caches, and Docker volumes for rag_storage, inputs, and prompts.",
           "retry_guidance": [
-            "Run cargo make lightrag-docker-context-smoke first; a missing API must remain a typed incomplete artifact, not a pass claim.",
+            "Run cargo make smoke-lightrag-docker-context first; a missing API must remain a typed incomplete artifact, not a pass claim.",
             "Set ELF_LIGHTRAG_CONTEXT_START=1 only when Docker may pull/start the LightRAG service profile.",
             "Score retrieval only when returned context, references.file_path, or references.content map to required evidence ids."
           ],
@@ -2145,13 +2145,13 @@
         "setup": {
           "status": "blocked",
           "evidence": "XY-900 promotes the Docker-safe generated-corpus GraphRAG smoke into a scored knowledge_compilation report while the checked-in row remains smoke-only research_gate evidence.",
-          "command": "cargo make graphrag-docker-smoke",
+          "command": "cargo make smoke-graphrag-docker",
           "artifact": "tmp/real-world-memory/graphrag-smoke/graphrag-smoke.json"
         },
         "run": {
           "status": "blocked",
           "evidence": "The default smoke records a typed blocked artifact without model calls; set ELF_GRAPHRAG_SMOKE_RUN=1 with explicit provider configuration to attempt live GraphRAG index/query.",
-          "command": "ELF_GRAPHRAG_SMOKE_RUN=1 cargo make graphrag-docker-smoke",
+          "command": "ELF_GRAPHRAG_SMOKE_RUN=1 cargo make smoke-graphrag-docker",
           "artifact": "tmp/real-world-memory/graphrag-smoke/summary.json"
         },
         "result": {
@@ -2237,7 +2237,7 @@
           },
           {
             "kind": "command",
-            "ref": "cargo make graphrag-docker-smoke",
+            "ref": "cargo make smoke-graphrag-docker",
             "status": "blocked"
           },
           {
@@ -2279,11 +2279,11 @@
               "evidence": "Official local-search context and graph traversal reference."
             }
           ],
-          "setup_path": "Run cargo make graphrag-docker-smoke for a typed preflight artifact; set ELF_GRAPHRAG_SMOKE_RUN=1 with explicit provider configuration for a live GraphRAG index/query attempt.",
+          "setup_path": "Run cargo make smoke-graphrag-docker for a typed preflight artifact; set ELF_GRAPHRAG_SMOKE_RUN=1 with explicit provider configuration for a live GraphRAG index/query attempt.",
           "runtime_boundary": "docker-compose.baseline.yml baseline-runner, container-local Python venv, generated public corpus, and report artifacts under tmp/real-world-memory/graphrag-smoke.",
           "resource_expectation": "The default profile uses a generated public corpus capped by ELF_GRAPHRAG_MAX_DOCS and ELF_GRAPHRAG_MAX_INPUT_CHARS, pins GraphRAG through ELF_GRAPHRAG_PACKAGE, and records elapsed time, cache size, output size, and observed cache entries.",
           "retry_guidance": [
-            "Run cargo make graphrag-docker-smoke first; missing provider configuration must remain a typed blocked artifact, not a pass claim.",
+            "Run cargo make smoke-graphrag-docker first; missing provider configuration must remain a typed blocked artifact, not a pass claim.",
             "Enable ELF_GRAPHRAG_SMOKE_RUN=1 only for generated public corpus indexing with explicit provider configuration.",
             "Fail typed if source document or text_unit identifiers cannot be mapped to expected evidence IDs."
           ],
@@ -2309,13 +2309,13 @@
         "setup": {
           "status": "blocked",
           "evidence": "XY-900 promotes the Docker-contained Graphiti/Zep temporal smoke into a scored memory_evolution report while the checked-in row remains smoke-only research_gate evidence.",
-          "command": "cargo make graphiti-zep-docker-temporal-smoke",
+          "command": "cargo make smoke-graphiti-zep-docker-temporal",
           "artifact": "tmp/real-world-memory/graphiti-zep-smoke/graphiti-zep-smoke.json"
         },
         "run": {
           "status": "blocked",
           "evidence": "The default smoke records a typed setup/runtime failure if live execution is not explicitly enabled. Set ELF_GRAPHITI_ZEP_SMOKE_START=1 and ELF_GRAPHITI_ZEP_SMOKE_RUN=1 with explicit provider configuration to start Docker-local FalkorDB and run Graphiti.",
-          "command": "ELF_GRAPHITI_ZEP_SMOKE_START=1 ELF_GRAPHITI_ZEP_SMOKE_RUN=1 cargo make graphiti-zep-docker-temporal-smoke",
+          "command": "ELF_GRAPHITI_ZEP_SMOKE_START=1 ELF_GRAPHITI_ZEP_SMOKE_RUN=1 cargo make smoke-graphiti-zep-docker-temporal",
           "artifact": "tmp/real-world-memory/graphiti-zep-smoke/summary.json"
         },
         "result": {
@@ -2396,7 +2396,7 @@
           },
           {
             "kind": "command",
-            "ref": "cargo make graphiti-zep-docker-temporal-smoke",
+            "ref": "cargo make smoke-graphiti-zep-docker-temporal",
             "status": "blocked"
           },
           {
@@ -2438,11 +2438,11 @@
               "evidence": "Official manual fact-triple ingest contract."
             }
           ],
-          "setup_path": "Run cargo make graphiti-zep-docker-temporal-smoke for a typed artifact; set ELF_GRAPHITI_ZEP_SMOKE_START=1 ELF_GRAPHITI_ZEP_SMOKE_RUN=1 with explicit provider configuration for a live attempt.",
+          "setup_path": "Run cargo make smoke-graphiti-zep-docker-temporal for a typed artifact; set ELF_GRAPHITI_ZEP_SMOKE_START=1 ELF_GRAPHITI_ZEP_SMOKE_RUN=1 with explicit provider configuration for a live attempt.",
           "runtime_boundary": "docker-compose.baseline.yml baseline-runner plus graphiti-zep FalkorDB profile, container-local Python venv, generated public temporal facts, and report artifacts under tmp/real-world-memory/graphiti-zep-smoke.",
           "resource_expectation": "Requires Docker-local FalkorDB plus LLM/embedding configuration; generated artifacts record service startup, storage size, provider boundaries, fact count, and timeout before scoring.",
           "retry_guidance": [
-            "Run cargo make graphiti-zep-docker-temporal-smoke first to produce a typed blocked artifact.",
+            "Run cargo make smoke-graphiti-zep-docker-temporal first to produce a typed blocked artifact.",
             "Start the live path only with ELF_GRAPHITI_ZEP_SMOKE_START=1, ELF_GRAPHITI_ZEP_SMOKE_RUN=1, and explicit provider configuration.",
             "Treat missing validity windows or unmapped current/historical facts as wrong_result, not pass."
           ],
@@ -2954,13 +2954,13 @@
         "setup": {
           "status": "pass",
           "evidence": "XY-900 validation reached the Docker-only graph/report smoke setup inside the baseline runner without host-global assistant hooks.",
-          "command": "cargo make graphify-docker-graph-report-smoke",
+          "command": "cargo make smoke-graphify-docker-graph-report",
           "artifact": "tmp/real-world-memory/graphify-smoke/graphify-smoke.json"
         },
         "run": {
           "status": "pass",
           "evidence": "The smoke installed graphify in a container-local venv, ran over a generated public corpus, and produced graph/report/query output for scoring.",
-          "command": "cargo make graphify-docker-graph-report-smoke",
+          "command": "cargo make smoke-graphify-docker-graph-report",
           "artifact": "tmp/real-world-memory/graphify-smoke/summary.json"
         },
         "result": {
@@ -3041,7 +3041,7 @@
           },
           {
             "kind": "command",
-            "ref": "cargo make graphify-docker-graph-report-smoke",
+            "ref": "cargo make smoke-graphify-docker-graph-report",
             "status": "wrong_result"
           },
           {
@@ -3068,11 +3068,11 @@
               "evidence": "Official CLI, output artifact, query, and source-location contract."
             }
           ],
-          "setup_path": "Run cargo make graphify-docker-graph-report-smoke to install graphify in Docker, build graph/report artifacts from a generated public corpus, and export query evidence without installing host-global assistant hooks.",
+          "setup_path": "Run cargo make smoke-graphify-docker-graph-report to install graphify in Docker, build graph/report artifacts from a generated public corpus, and export query evidence without installing host-global assistant hooks.",
           "runtime_boundary": "docker-compose.baseline.yml baseline-runner, container-local Python venv, isolated HOME/config paths, generated public corpus, and artifacts under tmp/real-world-memory/graphify-smoke.",
           "resource_expectation": "Graph build cost scales with corpus and model choices; generated artifacts record package reference, provider/model boundary, build time, graph size, report size, cache size, timeout, and retry behavior.",
           "retry_guidance": [
-            "Run cargo make graphify-docker-graph-report-smoke first; setup/runtime failures must remain typed artifacts, not pass claims.",
+            "Run cargo make smoke-graphify-docker-graph-report first; setup/runtime failures must remain typed artifacts, not pass claims.",
             "Do not use graphify host assistant hook installs or operator-owned assistant configuration as proof.",
             "Score graph-guided answers only when graph.json, GRAPH_REPORT.md, and graphify query output map to generated evidence ids."
           ],
