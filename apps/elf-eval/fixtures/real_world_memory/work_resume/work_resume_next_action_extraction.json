@@ -10,7 +10,7 @@
       {
         "evidence_id": "xy844-next-action-handoff",
         "kind": "runbook",
-        "text": "XY-844 handoff note: after adding the six work-resume continuity and capture/integration fixtures, run `cargo make real-world-job-smoke`, then run `cargo make fmt`, `cargo make lint-fix`, and `cargo make checks` before pushing branch y/elf-xy-844.",
+        "text": "XY-844 handoff note: after adding the six work-resume continuity and capture/integration fixtures, run `cargo make smoke-real-world-job`, then run `cargo make fmt`, `cargo make lint-fix`, and `cargo make check` before pushing branch y/elf-xy-844.",
         "source_ref": {
           "schema": "source_ref/v1",
           "resolver": "real_world_job_fixture/v1",
@@ -39,7 +39,7 @@
     "adapter_response": {
       "adapter_id": "fixture_work_resume",
       "answer": {
-        "content": "The exact next action is to add the six work-resume continuity and capture/integration fixtures, run `cargo make real-world-job-smoke`, then run the pre-push gate: `cargo make fmt`, `cargo make lint-fix`, and `cargo make checks` before pushing y/elf-xy-844.",
+        "content": "The exact next action is to add the six work-resume continuity and capture/integration fixtures, run `cargo make smoke-real-world-job`, then run the pre-push gate: `cargo make fmt`, `cargo make lint-fix`, and `cargo make check` before pushing y/elf-xy-844.",
         "claims": [
           {
             "claim_id": "exact_next_action",
@@ -49,7 +49,7 @@
           },
           {
             "claim_id": "validation_sequence",
-            "text": "Run `cargo make real-world-job-smoke`, then `cargo make fmt`, `cargo make lint-fix`, and `cargo make checks` before pushing.",
+            "text": "Run `cargo make smoke-real-world-job`, then `cargo make fmt`, `cargo make lint-fix`, and `cargo make check` before pushing.",
             "evidence_ids": ["xy844-next-action-handoff"],
             "confidence": "high"
           }
@@ -101,7 +101,7 @@
       },
       {
         "claim_id": "validation_sequence",
-        "text": "Run `cargo make real-world-job-smoke`, then `cargo make fmt`, `cargo make lint-fix`, and `cargo make checks` before pushing."
+        "text": "Run `cargo make smoke-real-world-job`, then `cargo make fmt`, `cargo make lint-fix`, and `cargo make check` before pushing."
       }
     ],
     "must_not_include": [
@@ -127,7 +127,7 @@
       "evidence_id": "xy844-next-action-handoff",
       "claim_id": "validation_sequence",
       "requirement": "use",
-      "quote": "run `cargo make real-world-job-smoke`, then run `cargo make fmt`, `cargo make lint-fix`, and `cargo make checks`"
+      "quote": "run `cargo make smoke-real-world-job`, then run `cargo make fmt`, `cargo make lint-fix`, and `cargo make check`"
     }
   ],
   "negative_traps": [

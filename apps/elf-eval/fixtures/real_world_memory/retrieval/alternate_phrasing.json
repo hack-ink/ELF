@@ -10,7 +10,7 @@
       {
         "evidence_id": "xy840-current-handoff",
         "kind": "issue",
-        "text": "XY-840 trace schema lane uses branch y/elf-xy-840. Before review handoff, run `cargo make checks` after the trace schema update is complete.",
+        "text": "XY-840 trace schema lane uses branch y/elf-xy-840. Before review handoff, run `cargo make check` after the trace schema update is complete.",
         "source_ref": {
           "schema": "source_ref/v1",
           "resolver": "real_world_job_fixture/v1",
@@ -39,7 +39,7 @@
     "adapter_response": {
       "adapter_id": "fixture_retrieval",
       "answer": {
-        "content": "Use branch y/elf-xy-840 for XY-840 and run `cargo make checks` before review handoff.",
+        "content": "Use branch y/elf-xy-840 for XY-840 and run `cargo make check` before review handoff.",
         "claims": [
           {
             "claim_id": "branch",
@@ -49,7 +49,7 @@
           },
           {
             "claim_id": "gate",
-            "text": "Run `cargo make checks` before review handoff.",
+            "text": "Run `cargo make check` before review handoff.",
             "evidence_ids": ["xy840-current-handoff"],
             "confidence": "high"
           }
@@ -97,7 +97,7 @@
       },
       {
         "claim_id": "gate",
-        "text": "Run `cargo make checks` before review handoff."
+        "text": "Run `cargo make check` before review handoff."
       }
     ],
     "must_not_include": [
@@ -124,7 +124,7 @@
       "evidence_id": "xy840-current-handoff",
       "claim_id": "gate",
       "requirement": "use",
-      "quote": "run `cargo make checks`"
+      "quote": "run `cargo make check`"
     }
   ],
   "negative_traps": [

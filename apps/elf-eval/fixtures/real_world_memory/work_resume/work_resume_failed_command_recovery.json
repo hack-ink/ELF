@@ -10,7 +10,7 @@
       {
         "evidence_id": "xy844-current-command-failure",
         "kind": "trace",
-        "text": "Command log: cargo make real-world-job-smoke failed because apps/elf-eval/fixtures/real_world_memory/work_resume/ did not contain the required suite fixtures. Earlier lint warnings had already been repaired. The exact recovery action is to create the missing fixtures, then rerun cargo make real-world-job-smoke.",
+        "text": "Command log: cargo make smoke-real-world-job failed because apps/elf-eval/fixtures/real_world_memory/work_resume/ did not contain the required suite fixtures. Earlier lint warnings had already been repaired. The exact recovery action is to create the missing fixtures, then rerun cargo make smoke-real-world-job.",
         "source_ref": {
           "schema": "source_ref/v1",
           "resolver": "real_world_job_fixture/v1",
@@ -39,7 +39,7 @@
     "adapter_response": {
       "adapter_id": "fixture_work_resume",
       "answer": {
-        "content": "The current stop is the missing work_resume fixture suite, not the old lint warning. Create the missing fixtures under apps/elf-eval/fixtures/real_world_memory/work_resume/, then rerun `cargo make real-world-job-smoke`.",
+        "content": "The current stop is the missing work_resume fixture suite, not the old lint warning. Create the missing fixtures under apps/elf-eval/fixtures/real_world_memory/work_resume/, then rerun `cargo make smoke-real-world-job`.",
         "claims": [
           {
             "claim_id": "current_stop",
@@ -49,7 +49,7 @@
           },
           {
             "claim_id": "recovery_action",
-            "text": "Create the missing fixtures, then rerun `cargo make real-world-job-smoke`.",
+            "text": "Create the missing fixtures, then rerun `cargo make smoke-real-world-job`.",
             "evidence_ids": ["xy844-current-command-failure"],
             "confidence": "high"
           },
@@ -107,7 +107,7 @@
       },
       {
         "claim_id": "recovery_action",
-        "text": "Create the missing fixtures, then rerun `cargo make real-world-job-smoke`."
+        "text": "Create the missing fixtures, then rerun `cargo make smoke-real-world-job`."
       },
       {
         "claim_id": "stale_blocker",
@@ -139,7 +139,7 @@
       "evidence_id": "xy844-current-command-failure",
       "claim_id": "recovery_action",
       "requirement": "use",
-      "quote": "The exact recovery action is to create the missing fixtures, then rerun cargo make real-world-job-smoke."
+      "quote": "The exact recovery action is to create the missing fixtures, then rerun cargo make smoke-real-world-job."
     }
   ],
   "negative_traps": [

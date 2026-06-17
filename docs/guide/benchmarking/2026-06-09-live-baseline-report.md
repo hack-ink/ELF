@@ -230,7 +230,7 @@ cargo make baseline-live-report
 Clean Docker-owned state:
 
 ```sh
-cargo make baseline-live-docker-clean
+cargo make clean-baseline-live-docker
 ```
 
 The only host report directory is `tmp/live-baseline/`. Raw generated JSON stays there

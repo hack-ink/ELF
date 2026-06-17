@@ -41,7 +41,7 @@
       {
         "evidence_id": "current-benchmark-plan",
         "kind": "decision",
-        "text": "Current plan: add real_world_memory trust and personalization cases, then run cargo make real-world-job-smoke and cargo make real-world-memory.",
+        "text": "Current plan: add real_world_memory trust and personalization cases, then run cargo make smoke-real-world-job and cargo make real-world-memory.",
         "source_ref": {
           "schema": "source_ref/v1",
           "resolver": "real_world_job_fixture/v1",
@@ -59,7 +59,7 @@
     "adapter_response": {
       "adapter_id": "elf_real_world_memory_fixture",
       "answer": {
-        "content": "Do not use the expired Redis branch plan. The tombstone says deleted-temp-plan expired and search must suppress it after the worker DELETE outbox completes. The current plan is to add real_world_memory trust and personalization cases, then run cargo make real-world-job-smoke and cargo make real-world-memory.",
+        "content": "Do not use the expired Redis branch plan. The tombstone says deleted-temp-plan expired and search must suppress it after the worker DELETE outbox completes. The current plan is to add real_world_memory trust and personalization cases, then run cargo make smoke-real-world-job and cargo make real-world-memory.",
         "claims": [
           {
             "claim_id": "deleted_fact_suppressed",
@@ -69,7 +69,7 @@
           },
           {
             "claim_id": "current_plan",
-            "text": "Add real_world_memory trust and personalization cases, then run cargo make real-world-job-smoke and cargo make real-world-memory.",
+            "text": "Add real_world_memory trust and personalization cases, then run cargo make smoke-real-world-job and cargo make real-world-memory.",
             "evidence_ids": ["current-benchmark-plan"],
             "confidence": "high"
           }
@@ -125,7 +125,7 @@
       },
       {
         "claim_id": "current_plan",
-        "text": "Add real_world_memory trust and personalization cases, then run cargo make real-world-job-smoke and cargo make real-world-memory."
+        "text": "Add real_world_memory trust and personalization cases, then run cargo make smoke-real-world-job and cargo make real-world-memory."
       }
     ],
     "must_not_include": [

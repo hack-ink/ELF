@@ -10,9 +10,9 @@ Outputs: A consistent test-category name and the matching command or workflow.
 
 - `unit` — Tests inside `#[cfg(test)]` modules in `src/`. Run with `cargo make test`.
 - `integration` — Rust integration tests under `tests/*.rs`. Run with `cargo make test`.
-- `integration (ignored)` — Integration tests that require external services and are marked `#[ignore]`.
+- `integration (ignored)` — Integration tests that require external services and are marked `#[ignore]`. Run with `cargo make test-rust-integration`.
 - `acceptance` — The integration suite in `packages/elf-service/tests/acceptance.rs` and `packages/elf-service/tests/acceptance/*.rs`. These are usually `#[ignore]` and require external services.
-- `E2E harness` — Deterministic harness scripts for memory retrieval/ranking. Run locally with `cargo make e2e` and in CI via `.github/workflows/e2e.yml`.
+- `E2E harness` — Deterministic harness scripts for memory retrieval/ranking. Run locally with `cargo make test-e2e` and in CI via `.github/workflows/e2e.yml`.
 
 Note: Some integration tests require external services such as Postgres or Qdrant and are marked `#[ignore]`. When requesting those, say "integration (ignored)" so the ignored set is included.
 

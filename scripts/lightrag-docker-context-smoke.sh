@@ -14,7 +14,7 @@ INDEX_ATTEMPTS="${ELF_LIGHTRAG_INDEX_ATTEMPTS:-60}"
 INDEX_INTERVAL_SECONDS="${ELF_LIGHTRAG_INDEX_INTERVAL_SECONDS:-2}"
 
 if [[ ! -f "/.dockerenv" && "${ELF_LIGHTRAG_CONTEXT_ALLOW_HOST:-0}" != "1" ]]; then
-  echo "Refusing to run LightRAG context smoke outside Docker. Use cargo make lightrag-docker-context-smoke." >&2
+  echo "Refusing to run LightRAG context smoke outside Docker. Use cargo make smoke-lightrag-docker-context." >&2
   exit 1
 fi
 
