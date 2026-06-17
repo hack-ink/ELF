@@ -535,9 +535,10 @@
       ],
       "evidence_files": [
         "docs/evidence/benchmarking/2026-06-11-competitor-strength-adoption-report.md",
-        "docs/evidence/benchmarking/2026-06-11-competitor-strength-adoption-report.md",
         "docs/evidence/benchmarking/2026-06-11-graph-rag-scored-smoke-adapter-report.md",
-        "docs/evidence/benchmarking/2026-06-11-first-generation-oss-continuity-source-store-report.md"
+        "docs/evidence/benchmarking/2026-06-11-first-generation-oss-continuity-source-store-report.md",
+        "docs/evidence/benchmarking/2026-06-17-dreaming-competitor-strength-retest-report.md",
+        "apps/elf-eval/fixtures/report_snapshots/2026-06-17-dreaming-competitor-strength-retest-report.json"
       ],
       "baseline_counts": {
         "pass": 22,
@@ -547,6 +548,23 @@
         "not_encoded": 11
       },
       "baseline_basis": "ELF full live real-world sweep: 22 pass, 5 wrong_result, 2 blocked, and 11 not_encoded jobs. The not_encoded jobs are represented as not_tested for this stage gate while preserving the raw not_encoded count.",
+      "post_stage_counts": {
+        "pass": 40,
+        "wrong_result": 0,
+        "blocked": 7,
+        "not_tested": 0,
+        "not_encoded": 19,
+        "incomplete": 0
+      },
+      "post_stage_basis": "XY-955 closeout retest: aggregate fixture retest passes 53/60 with 7 typed blockers; representative graph/RAG remains 0 pass, 1 wrong_result, 1 incomplete, and 3 blocked; first-generation OSS fixture slice is 4 pass and 2 blocked; ELF live adapter materialization is 40 pass, 0 wrong_result, 7 blocked, and 19 not_encoded; qmd live adapter materialization is 17 pass, 13 wrong_result, 7 blocked, and 29 not_encoded; private/provider gates remain under XY-930.",
+      "qmd_post_stage_counts": {
+        "pass": 17,
+        "wrong_result": 13,
+        "blocked": 7,
+        "not_tested": 0,
+        "not_encoded": 29,
+        "incomplete": 0
+      },
       "comparison_judgment": "unchanged",
       "regression_rule": "Any higher wrong_result/blocked/not_tested count, missing typed blocker, or unsupported broad competitor win claim is a regression.",
       "improvement_rule": "An improvement requires reduced live wrong_result or not_tested counts with no weakened evidence-class boundary and no private/provider claim without inputs.",

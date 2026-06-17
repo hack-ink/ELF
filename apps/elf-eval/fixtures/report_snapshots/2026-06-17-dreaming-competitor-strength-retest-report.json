@@ -1,0 +1,504 @@
+{
+  "schema": "elf.dreaming_competitor_strength_retest_report/v1",
+  "report_id": "xy-955-dreaming-competitor-strength-retest-2026-06-17",
+  "authority": "XY-955",
+  "created_at": "2026-06-17T00:00:00Z",
+  "purpose": "Close out the Dreaming-readiness benchmark program pass by comparing the XY-951 baseline and downstream stage evidence against a fresh local/public retest without converting blockers or fixture-only evidence into wins.",
+  "source_evidence_cutoff": "2026-06-17",
+  "source_baseline": {
+    "stage_ledger": "apps/elf-eval/fixtures/report_snapshots/2026-06-16-dreaming-readiness-stage-ledger.json",
+    "competitor_strength_adoption_report": "apps/elf-eval/fixtures/report_snapshots/2026-06-11-competitor-strength-adoption-report.json",
+    "competitor_strength_matrix": "apps/elf-eval/fixtures/report_snapshots/2026-06-11-xy-897-competitor-strength-matrix.json"
+  },
+  "judgment_terms": [
+    "improved",
+    "regressed",
+    "unchanged",
+    "blocked",
+    "not_tested"
+  ],
+  "status_terms": [
+    "pass",
+    "wrong_result",
+    "blocked",
+    "not_tested",
+    "not_encoded",
+    "incomplete",
+    "typed_non_pass",
+    "non_goal",
+    "product_reference"
+  ],
+  "summary": {
+    "overall_judgment": "locally_and_partially_stronger_only",
+    "broader_superiority": "not_proven",
+    "improved_stage_count": 6,
+    "regressed_stage_count": 0,
+    "unchanged_stage_count": 2,
+    "blocked_stage_count": 0,
+    "not_tested_stage_count": 0,
+    "unsupported_claims_rejected": [
+      "ELF does not broadly beat qmd from this retest.",
+      "ELF does not beat mem0/OpenMemory on UI/export, hosted Platform behavior, or optional graph memory.",
+      "ELF does not beat Letta on core/archive memory until a contained Letta export/readback runner exists.",
+      "ELF does not beat OpenViking on staged trajectory, hierarchy selection, or recursive context expansion.",
+      "ELF does not prove graph/RAG citation or navigation parity from representative typed non-pass fixtures.",
+      "ELF does not prove private-corpus or credentialed provider quality without XY-930 operator inputs."
+    ]
+  },
+  "commands": [
+    {
+      "command": "cargo make real-world-memory",
+      "status": "pass",
+      "artifact": "tmp/real-world-memory/real-world-memory-report.json",
+      "summary": {
+        "job_count": 60,
+        "pass": 53,
+        "wrong_result": 0,
+        "blocked": 7,
+        "not_encoded": 0,
+        "mean_score": 0.883,
+        "evidence_coverage": 1.0,
+        "source_ref_coverage": 1.0,
+        "quote_coverage": 1.0
+      }
+    },
+    {
+      "command": "cargo make real-world-memory-graph-rag",
+      "status": "pass",
+      "artifact": "tmp/real-world-memory/graph-rag/report.json",
+      "summary": {
+        "job_count": 5,
+        "pass": 0,
+        "wrong_result": 1,
+        "incomplete": 1,
+        "blocked": 3,
+        "not_encoded": 0,
+        "evidence_coverage": 0.25
+      }
+    },
+    {
+      "command": "cargo make real-world-first-generation-oss",
+      "status": "pass",
+      "artifact": "tmp/real-world-memory/first-generation-oss/report.json",
+      "summary": {
+        "job_count": 6,
+        "pass": 4,
+        "wrong_result": 0,
+        "blocked": 2,
+        "not_encoded": 0,
+        "evidence_coverage": 1.0
+      }
+    },
+    {
+      "command": "cargo make real-world-memory-live-adapters",
+      "status": "pass",
+      "artifact": "tmp/real-world-memory/live-adapters/summary.json",
+      "partial_summary": {
+        "elf_live_real_world": {
+          "job_count": 66,
+          "pass": 40,
+          "wrong_result": 0,
+          "blocked": 7,
+          "not_encoded": 19,
+          "incomplete": 0,
+          "mean_score": 0.606,
+          "evidence_coverage": 0.571,
+          "memory_evolution_status": "pass",
+          "consolidation_status": "pass",
+          "knowledge_compilation_status": "pass",
+          "operator_debugging_ux_status": "pass",
+          "capture_integration_status": "pass",
+          "proactive_brief_status": "blocked",
+          "scheduled_memory_status": "blocked",
+          "production_ops_status": "blocked",
+          "context_trajectory_status": "blocked"
+        },
+        "qmd_live_real_world": {
+          "job_count": 66,
+          "pass": 17,
+          "wrong_result": 13,
+          "blocked": 7,
+          "not_encoded": 29,
+          "incomplete": 0,
+          "mean_score": 0.352,
+          "evidence_coverage": 0.379,
+          "memory_evolution_status": "wrong_result",
+          "retrieval_status": "pass",
+          "work_resume_status": "pass",
+          "project_decisions_status": "pass",
+          "operator_debugging_ux_status": "wrong_result",
+          "production_ops_status": "blocked",
+          "context_trajectory_status": "blocked"
+        }
+      }
+    }
+  ],
+  "stage_closeout": [
+    {
+      "stage_id": "current_vs_historical_correctness",
+      "baseline_counts": {
+        "pass": 1,
+        "wrong_result": 5,
+        "blocked": 0,
+        "not_tested": 0,
+        "not_encoded": 0
+      },
+      "current_counts": {
+        "pass": 6,
+        "wrong_result": 0,
+        "blocked": 0,
+        "not_tested": 0,
+        "not_encoded": 0
+      },
+      "judgment": "improved",
+      "evidence": [
+        "apps/elf-eval/fixtures/report_snapshots/2026-06-16-live-temporal-reconciliation-report.json",
+        "tmp/real-world-memory/live-adapters/elf-report.json"
+      ],
+      "boundary": "Improved for the encoded ELF live memory_evolution slice; not a Graphiti/Zep, mem0/OpenMemory, Letta, private-corpus, or broad qmd superiority claim."
+    },
+    {
+      "stage_id": "preference_evolution",
+      "baseline_counts": {
+        "pass": 0,
+        "wrong_result": 1,
+        "blocked": 0,
+        "not_tested": 0,
+        "not_encoded": 0
+      },
+      "current_counts": {
+        "pass": 1,
+        "wrong_result": 0,
+        "blocked": 0,
+        "not_tested": 0,
+        "not_encoded": 0
+      },
+      "judgment": "improved",
+      "evidence": [
+        "apps/elf-eval/fixtures/report_snapshots/2026-06-16-live-temporal-reconciliation-report.json",
+        "docs/evidence/benchmarking/2026-06-11-mem0-openmemory-history-ui-export-report.md"
+      ],
+      "boundary": "ELF's encoded current-vs-historical preference case improved; mem0/OpenMemory local OSS history remains a measured strength and UI/export remains separately blocked or non-goal."
+    },
+    {
+      "stage_id": "deletion_ttl_tombstone_behavior",
+      "baseline_counts": {
+        "pass": 1,
+        "wrong_result": 0,
+        "blocked": 0,
+        "not_tested": 0,
+        "not_encoded": 0
+      },
+      "current_counts": {
+        "pass": 1,
+        "wrong_result": 0,
+        "blocked": 0,
+        "not_tested": 0,
+        "not_encoded": 0
+      },
+      "judgment": "unchanged",
+      "evidence": [
+        "apps/elf-eval/fixtures/report_snapshots/2026-06-16-live-temporal-reconciliation-report.json"
+      ],
+      "boundary": "The single encoded tombstone/TTL job remains passing; broader update/delete/recreate history remains follow-up work."
+    },
+    {
+      "stage_id": "reviewable_consolidation",
+      "baseline_counts": {
+        "pass": 4,
+        "wrong_result": 0,
+        "blocked": 0,
+        "not_tested": 1,
+        "not_encoded": 1
+      },
+      "current_counts": {
+        "pass": 4,
+        "wrong_result": 0,
+        "blocked": 0,
+        "not_tested": 0,
+        "not_encoded": 0
+      },
+      "judgment": "improved",
+      "evidence": [
+        "apps/elf-eval/fixtures/report_snapshots/2026-06-16-live-consolidation-proposal-scoring-report.json",
+        "tmp/real-world-memory/live-adapters/elf-report.json"
+      ],
+      "boundary": "ELF has live service-backed self-check evidence; direct competitor consolidation runners remain untested or product-reference only."
+    },
+    {
+      "stage_id": "memory_summary_top_of_mind_behavior",
+      "baseline_counts": {
+        "pass": 8,
+        "wrong_result": 0,
+        "blocked": 0,
+        "not_tested": 1,
+        "not_encoded": 1
+      },
+      "current_counts": {
+        "pass": 9,
+        "wrong_result": 0,
+        "blocked": 0,
+        "not_tested": 0,
+        "not_encoded": 0
+      },
+      "judgment": "improved",
+      "evidence": [
+        "tmp/real-world-memory/real-world-memory-report.json",
+        "docs/spec/system_memory_summary_v1.md"
+      ],
+      "boundary": "Improved as fixture-backed source-trace contract evidence only; service-native top-of-mind behavior remains future work."
+    },
+    {
+      "stage_id": "proactive_brief_readiness",
+      "baseline_counts": {
+        "pass": 0,
+        "wrong_result": 0,
+        "blocked": 0,
+        "not_tested": 1,
+        "not_encoded": 1
+      },
+      "current_counts": {
+        "pass": 4,
+        "wrong_result": 0,
+        "blocked": 1,
+        "not_tested": 0,
+        "not_encoded": 0
+      },
+      "judgment": "improved",
+      "evidence": [
+        "apps/elf-eval/fixtures/report_snapshots/2026-06-16-proactive-brief-scoring-report.json",
+        "tmp/real-world-memory/real-world-memory-report.json"
+      ],
+      "boundary": "Improved as fixture-backed proactive brief scoring only; private-corpus refresh stays blocked under XY-930 and Pulse parity is not proven."
+    },
+    {
+      "stage_id": "scheduled_memory_task_readiness",
+      "baseline_counts": {
+        "pass": 0,
+        "wrong_result": 0,
+        "blocked": 1,
+        "not_tested": 0,
+        "not_encoded": 0
+      },
+      "current_counts": {
+        "pass": 4,
+        "wrong_result": 0,
+        "blocked": 1,
+        "not_tested": 0,
+        "not_encoded": 0
+      },
+      "judgment": "improved",
+      "evidence": [
+        "apps/elf-eval/fixtures/report_snapshots/2026-06-16-scheduled-memory-task-scoring-report.json",
+        "tmp/real-world-memory/real-world-memory-report.json"
+      ],
+      "boundary": "Improved as fixture-backed scheduled task readback only; hosted scheduler, notification, provider-backed private-corpus, and silent-mutation parity are not proven."
+    },
+    {
+      "stage_id": "final_competitor_retest_status",
+      "baseline_counts": {
+        "pass": 22,
+        "wrong_result": 5,
+        "blocked": 2,
+        "not_tested": 11,
+        "not_encoded": 11
+      },
+      "current_counts": {
+        "pass": 40,
+        "wrong_result": 0,
+        "blocked": 7,
+        "not_tested": 0,
+        "not_encoded": 19,
+        "incomplete": 0
+      },
+      "judgment": "unchanged",
+      "evidence": [
+        "tmp/real-world-memory/live-adapters/elf-report.json",
+        "tmp/real-world-memory/live-adapters/qmd-report.json",
+        "tmp/real-world-memory/live-adapters/summary.json",
+        "tmp/real-world-memory/graph-rag/report.json",
+        "tmp/real-world-memory/first-generation-oss/report.json"
+      ],
+      "qmd_current_counts": {
+        "pass": 17,
+        "wrong_result": 13,
+        "blocked": 7,
+        "not_tested": 0,
+        "not_encoded": 29,
+        "incomplete": 0
+      },
+      "boundary": "ELF live wrong_result count improved in the fresh local retest and qmd now has a fresh scored live report, but qmd debug ergonomics remains a measured ELF loss, Graph/RAG remains typed non-pass, OpenViking/Letta/private/provider gates remain blocked or not tested, and broader superiority is not proven."
+    }
+  ],
+  "scenario_retests": [
+    {
+      "scenario_id": "qmd_debug_ergonomics",
+      "baseline_outcome": "loss",
+      "current_outcome": "unchanged",
+      "current_status": "pass",
+      "evidence_class": "live_baseline_only",
+      "evidence": "Fresh qmd live materialization produced a scored full-suite report with 17 pass, 13 wrong_result, 7 blocked, and 29 not_encoded jobs. That full-suite typed non-pass result does not retest or erase the prior qmd top-10/replay ergonomics advantage, which remains the authoritative debug-ergonomics evidence.",
+      "follow_up": "XY-923"
+    },
+    {
+      "scenario_id": "mem0_openmemory_preference_history_export",
+      "baseline_outcome": "loss_for_preference_history_tie_for_scoped_personalization_blocked_for_ui_export",
+      "current_outcome": "unchanged",
+      "current_status": "blocked",
+      "evidence_class": "live_baseline_only",
+      "evidence": "ELF temporal preference case improved, but mem0/OpenMemory local OSS history/export-style readback evidence remains stronger for history and OpenMemory UI/export remains setup-blocked.",
+      "follow_up": "XY-930 for private/provider gates; dedicated OpenMemory UI/export runner remains a measured blocker."
+    },
+    {
+      "scenario_id": "letta_core_archive",
+      "baseline_outcome": "blocked",
+      "current_outcome": "unchanged",
+      "current_status": "blocked",
+      "evidence_class": "fixture_backed",
+      "evidence": "ELF core_archival_memory fixture passes locally, but no contained Letta export/readback artifact maps core and archival source ids.",
+      "follow_up": "Decodex-ready issue brief: build a contained Letta core/archive export-readback adapter before win/tie/loss claims."
+    },
+    {
+      "scenario_id": "graphiti_zep_temporal_graph_validity",
+      "baseline_outcome": "blocked",
+      "current_outcome": "unchanged",
+      "current_status": "blocked",
+      "evidence_class": "research_gate",
+      "evidence": "Graphiti/Zep remains blocked by provider/graph-store setup in the representative Graph/RAG slice; ELF temporal reconciliation improvement does not prove graph temporal validity parity.",
+      "follow_up": "Graph/RAG adapter follow-up; provider inputs remain explicit."
+    },
+    {
+      "scenario_id": "openviking_trajectory_hierarchy",
+      "baseline_outcome": "blocked",
+      "current_outcome": "unchanged",
+      "current_status": "blocked",
+      "evidence_class": "fixture_backed",
+      "evidence": "OpenViking staged retrieval, hierarchy selection, and recursive expansion remain encoded blocked fixtures behind missing evidence-bearing staged artifacts.",
+      "follow_up": "XY-928"
+    },
+    {
+      "scenario_id": "graph_rag_citation_navigation_knowledge_surfaces",
+      "baseline_outcome": "not_tested",
+      "current_outcome": "unchanged",
+      "current_status": "typed_non_pass",
+      "evidence_class": "fixture_backed",
+      "evidence": "The representative graph/RAG retest has 0 pass, 1 wrong_result, 1 incomplete, and 3 blocked jobs; this is not graph/RAG quality parity.",
+      "follow_up": "XY-929"
+    },
+    {
+      "scenario_id": "private_provider_production_gates",
+      "baseline_outcome": "blocked",
+      "current_outcome": "unchanged",
+      "current_status": "blocked",
+      "evidence_class": "blocked",
+      "evidence": "No operator-owned private manifest or explicit credentialed provider setup was supplied in this lane.",
+      "follow_up": "XY-930"
+    }
+  ],
+  "optimization_queue": [
+    {
+      "priority": "P0",
+      "issue": "XY-923",
+      "status": "existing",
+      "brief": "Re-run qmd trace/replay diagnostics with comparable immediate top-k/replay, expansion, fusion, rerank, and candidate-drop artifacts; preserve the qmd debug ergonomics loss unless ELF produces comparable artifacts."
+    },
+    {
+      "priority": "P1",
+      "issue": "XY-930",
+      "status": "existing",
+      "brief": "Run private-corpus and credentialed provider gates only after operator-owned manifest and explicit provider setup exist; otherwise keep typed blockers."
+    },
+    {
+      "priority": "P1",
+      "issue": "XY-928",
+      "status": "existing",
+      "brief": "Materialize OpenViking staged trajectory, hierarchy selection, and recursive expansion evidence before claiming ELF ties or beats those strengths."
+    },
+    {
+      "priority": "P1",
+      "issue": "letta-core-archive-adapter-brief",
+      "status": "proposed",
+      "brief": "Add a contained Letta core/archive export-readback adapter that emits source ids for core blocks and archival memories; non-goals are ELF product changes and broad Letta claims."
+    },
+    {
+      "priority": "P2",
+      "issue": "XY-929",
+      "status": "existing",
+      "brief": "Promote Graph/RAG citation, navigation, stale-source lint, and knowledge-surface cases only when adapters emit comparable evidence-linked outputs; keep blocked, incomplete, wrong_result, and not_tested states typed."
+    },
+    {
+      "priority": "P2",
+      "issue": "service-native-dreaming-outputs-brief",
+      "status": "proposed",
+      "brief": "Move fixture-backed memory summary, proactive brief, and scheduled task contracts into service-native readback/materialization with the same source-ref, freshness, rationale, trace, and no-source-mutation gates."
+    }
+  ],
+  "claim_boundaries": {
+    "allowed": [
+      "ELF is locally and partially stronger after the Dreaming stages on encoded temporal reconciliation, reviewable consolidation self-checks, fixture-backed memory summary, proactive brief, and scheduled-memory task scoring.",
+      "The public/local aggregate fixture retest remains 53 pass, 0 wrong_result, and 7 typed blocked jobs across 60 jobs.",
+      "The representative graph/RAG slice remains typed non-pass.",
+      "Private/provider gates remain blocked under XY-930."
+    ],
+    "not_allowed": [
+      "Do not claim broad ELF-over-qmd superiority.",
+      "Do not claim ELF beats managed Dreaming, Pulse, ChatGPT Tasks, mem0/OpenMemory, Letta, OpenViking, Graphiti/Zep, or graph/RAG systems from fixture-only, partial live, blocked, or smoke-only evidence.",
+      "Do not collapse scenario-level outcomes into a leaderboard.",
+      "Do not treat qmd full-suite wrong_result counts as a regression of qmd debug ergonomics."
+    ]
+  },
+  "follow_up_issue_briefs": {
+    "existing": [
+      {
+        "issue": "XY-923",
+        "title": "qmd trace/replay diagnostics and debug ergonomics comparison",
+        "reason": "qmd remains the measured local retrieval-debug ergonomics loss; the fresh qmd full-suite live report does not provide comparable immediate top-k, replay, expansion, fusion, rerank, and candidate-drop debug artifacts.",
+        "scope": "Re-run qmd trace/replay diagnostics with comparable immediate top-k, replay, expansion, fusion, rerank, and candidate-drop artifacts.",
+        "non_goal": "Do not reinterpret qmd full-suite wrong_result counts as a regression of qmd debug ergonomics.",
+        "validation": "A scored qmd/ELF debug ergonomics artifact that preserves pass, wrong_result, blocked, and not_encoded states."
+      },
+      {
+        "issue": "XY-930",
+        "title": "private-corpus and credentialed provider gates",
+        "reason": "operator-owned private manifest and explicit provider setup remain absent.",
+        "scope": "Run private-corpus and credentialed provider gates only when operator inputs exist; otherwise publish typed blockers.",
+        "non_goal": "Do not infer credentials or promote synthetic/provider smoke evidence into private-corpus pass evidence.",
+        "validation": "A public-safe report that states whether the private/provider caveats are removed or still blocked."
+      },
+      {
+        "issue": "XY-928",
+        "title": "OpenViking trajectory and hierarchy evidence",
+        "reason": "OpenViking staged retrieval, hierarchy selection, and recursive expansion remain blocked by missing evidence-bearing staged artifacts.",
+        "scope": "Materialize same-corpus evidence ids and staged trajectory outputs before scoring hierarchy/recursive retrieval.",
+        "non_goal": "Do not claim ELF ties or beats OpenViking from fixture-only blocked rows.",
+        "validation": "Scored context-trajectory reports with typed pass, wrong_result, blocked, or incomplete outcomes."
+      },
+      {
+        "issue": "XY-929",
+        "title": "Graph/RAG citation and navigation adapter promotion",
+        "reason": "The representative graph/RAG retest remains 0 pass, 1 wrong_result, 1 incomplete, and 3 blocked.",
+        "scope": "Promote graph/RAG citation, navigation, stale-source lint, and knowledge-surface cases only when adapters emit comparable evidence-linked outputs.",
+        "non_goal": "Do not convert research gates, tiny smokes, blocked setup, or graphify wrong_result into graph/RAG parity evidence.",
+        "validation": "Representative graph/RAG reports that keep blocked, incomplete, wrong_result, not_tested, and non_goal states typed."
+      }
+    ],
+    "proposed": [
+      {
+        "issue": "letta-core-archive-adapter-brief",
+        "title": "contained Letta core/archive export-readback adapter",
+        "reason": "ELF has fixture-backed core/archival memory evidence, but no contained Letta artifact maps core blocks, archival readback, and source ids.",
+        "scope": "Create a Docker-contained Letta export/readback adapter over benchmark-owned data and score only mapped core/archive evidence.",
+        "non_goal": "Do not change ELF product behavior or make broad Letta win/tie/loss claims before comparable evidence exists.",
+        "validation": "A scored artifact containing Letta core block JSON, archival search/readback JSON, source ids, and typed outcome states."
+      },
+      {
+        "issue": "service-native-dreaming-outputs-brief",
+        "title": "service-native memory summary, proactive brief, and scheduled task materialization",
+        "reason": "The Dreaming output improvements are currently fixture-backed contracts, not service-native generated/readback behavior.",
+        "scope": "Move memory summary, proactive brief, and scheduled task outputs into service-native materialization with source refs, freshness, rationale, trace, and no-source-mutation gates.",
+        "non_goal": "Do not build a polished hosted scheduler, Pulse clone, notification product, or private/provider path in this follow-up.",
+        "validation": "Service-native scored reports that preserve fixture boundaries and fail stale, tombstoned, unsupported, or untraced current claims."
+      }
+    ]
+  }
+}
