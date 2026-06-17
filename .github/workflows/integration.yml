@@ -91,4 +91,4 @@ jobs:
           exit 1
 
       - name: Run integration tests
-        run: cargo make test-all
+        run: cargo make test-rust-all

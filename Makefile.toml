@@ -1,271 +1,143 @@
 # Rust workspace tasks.
 
-# Lint
-# | task          | type      | cwd |
-# | ------------- | --------- | --- |
-# | lint          | composite |     |
-# | lint-fix      | composite |     |
-# | lint-rust     | command   |     |
-# | lint-fix-rust | extend    |     |
-# | lint-vstyle   | command   |     |
-# | lint-fix-vstyle | command |     |
+# Benchmark
+# | task                                       | type      | cwd |
+# | ------------------------------------------ | --------- | --- |
+# | baseline-backfill-100k-docker              | command   |     |
+# | baseline-backfill-10k-docker               | command   |     |
+# | baseline-backfill-docker                   | command   |     |
+# | baseline-live-docker                       | command   |     |
+# | baseline-live-report                       | command   |     |
+# | baseline-production-private                | command   |     |
+# | baseline-production-private-addendum       | command   |     |
+# | baseline-production-synthetic              | command   |     |
+# | baseline-soak-docker                       | command   |     |
+# | openmemory-ui-export-readback              | command   |     |
+# | parity-docker                              | command   |     |
+# | real-world-first-generation-oss            | composite |     |
+# | real-world-first-generation-oss-json       | command   |     |
+# | real-world-first-generation-oss-report     | command   |     |
+# | real-world-job-operator-ux                 | composite |     |
+# | real-world-job-operator-ux-json            | command   |     |
+# | real-world-job-operator-ux-live-adapters   | command   |     |
+# | real-world-job-operator-ux-report          | command   |     |
+# | real-world-memory                          | composite |     |
+# | real-world-memory-consolidation            | composite |     |
+# | real-world-memory-consolidation-json       | command   |     |
+# | real-world-memory-consolidation-report     | command   |     |
+# | real-world-memory-core-archival            | composite |     |
+# | real-world-memory-core-archival-json       | command   |     |
+# | real-world-memory-core-archival-report     | command   |     |
+# | real-world-memory-evolution                | composite |     |
+# | real-world-memory-evolution-json           | command   |     |
+# | real-world-memory-evolution-report         | command   |     |
+# | real-world-memory-graph-rag                | composite |     |
+# | real-world-memory-graph-rag-json           | command   |     |
+# | real-world-memory-graph-rag-report         | command   |     |
+# | real-world-memory-json                     | command   |     |
+# | real-world-memory-knowledge                | composite |     |
+# | real-world-memory-knowledge-json           | command   |     |
+# | real-world-memory-knowledge-report         | command   |     |
+# | real-world-memory-live-adapters            | command   |     |
+# | real-world-memory-live-consolidation       | command   |     |
+# | real-world-memory-proactive-brief          | composite |     |
+# | real-world-memory-proactive-brief-json     | command   |     |
+# | real-world-memory-proactive-brief-report   | command   |     |
+# | real-world-memory-production-ops           | composite |     |
+# | real-world-memory-production-ops-json      | command   |     |
+# | real-world-memory-production-ops-report    | command   |     |
+# | real-world-memory-project-decisions        | composite |     |
+# | real-world-memory-project-decisions-json   | command   |     |
+# | real-world-memory-project-decisions-report | command   |     |
+# | real-world-memory-report                   | command   |     |
+# | real-world-memory-retrieval                | composite |     |
+# | real-world-memory-retrieval-json           | command   |     |
+# | real-world-memory-retrieval-report         | command   |     |
+# | real-world-memory-scheduled                | composite |     |
+# | real-world-memory-scheduled-json           | command   |     |
+# | real-world-memory-scheduled-report         | command   |     |
+# | real-world-memory-summary                  | composite |     |
+# | real-world-memory-summary-json             | command   |     |
+# | real-world-memory-summary-report           | command   |     |
 
-[tasks.lint]
-workspace = false
-dependencies = [
-	"lint-rust",
-	"lint-vstyle",
-]
-
-[tasks.lint-fix]
-workspace = false
-dependencies = [
-	"lint-fix-rust",
-	"lint-fix-vstyle",
-]
-
-[tasks.lint-rust]
-workspace = false
-command = "cargo"
-args = [
-	"clippy",
-	"--all-features",
-	"--all-targets",
-	"--workspace",
-	"--",
-	"-D",
-	"clippy::all",
-	"-D",
-	"clippy::too_many_lines",
-	"-D",
-	"clippy::unwrap_used",
-	"-D",
-	"clippy::use_self",
-	"-D",
-	"clippy::wildcard_imports",
-	"-D",
-	"missing-docs",
-	"-D",
-	"unused-crate-dependencies",
-	"-D",
-	"warnings",
-]
-
-[tasks.lint-fix-rust]
-extend = "lint-rust"
-args = [
-	"clippy",
-	"--fix",
-	"--allow-dirty",
-	"--all-features",
-	"--all-targets",
-	"--workspace",
-	"--",
-	"-D",
-	"clippy::all",
-	"-D",
-	"clippy::too_many_lines",
-	"-D",
-	"clippy::unwrap_used",
-	"-D",
-	"clippy::use_self",
-	"-D",
-	"clippy::wildcard_imports",
-	"-D",
-	"missing-docs",
-	"-D",
-	"unused-crate-dependencies",
-	"-D",
-	"warnings",
-]
-
-[tasks.lint-vstyle]
-workspace = false
-command = "cargo"
-args = [
-	"vstyle",
-	"curate",
-	"--language",
-	"rust",
-	"--workspace",
-	"--all-features"
-]
-
-[tasks.lint-fix-vstyle]
-workspace = false
-command = "cargo"
-args = [
-	"vstyle",
-	"tune",
-	"--language",
-	"rust",
-	"--workspace",
-	"--all-features",
-	"--strict",
-]
-
-
-# Test
-# | task      | type      | cwd       |
-# | --------- | --------- | ---       |
-# | test      | composite |           |
-# | test-rust | command   |           |
-# | test-all  | composite |           |
-# | test-rust-all | command |         |
-# | test-integration      | composite |
-# | test-integration-rust | command   |
-
-[tasks.test]
-workspace = false
-dependencies = [
-	"test-rust",
-]
-
-[tasks.test-rust]
-workspace = false
-command = "cargo"
-args = [
-	"nextest",
-	"run",
-	"--workspace",
-	"--all-targets",
-	"--all-features",
-]
-
-[tasks.test-all]
-workspace = false
-dependencies = [
-	"test-rust-all",
-]
-
-[tasks.test-rust-all]
-workspace = false
-command = "cargo"
-args = [
-	"nextest",
-	"run",
-	"--workspace",
-	"--all-targets",
-	"--all-features",
-	"--run-ignored",
-	"all",
-]
-
-[tasks.test-integration]
-workspace = false
-dependencies = [
-	"test-integration-rust",
-]
-
-[tasks.test-integration-rust]
-workspace = false
-command = "cargo"
-args = [
-	"nextest",
-	"run",
-	"--workspace",
-	"--all-targets",
-	"--all-features",
-	"--run-ignored",
-	"only",
-]
-
-
-# Format
-# | task           | type      | cwd |
-# | -------------- | --------- | --- |
-# | fmt            | composite |     |
-# | fmt-check      | composite |     |
-# | fmt-rust       | command   |     |
-# | fmt-rust-check | extend    |     |
-# | fmt-toml       | command   |     |
-# | fmt-toml-check | extend    |     |
-
-[tasks.fmt]
-workspace = false
-dependencies = [
-	"fmt-rust",
-	"fmt-toml",
-]
-
-[tasks.fmt-check]
-workspace = false
-dependencies = [
-	"fmt-rust-check",
-	"fmt-toml-check",
-]
-
-[tasks.fmt-rust]
-workspace = false
-command = "rustup"
-args = [
-	"run",
-	"nightly",
-	"cargo",
-	"fmt",
-	"--all",
-]
-
-[tasks.fmt-rust-check]
-workspace = false
-command = "rustup"
-args = [
-	"run",
-	"nightly",
-	"cargo",
-	"fmt",
-	"--all",
-	"--",
-	"--check",
-]
-
-[tasks.fmt-toml]
-workspace = false
-command = "taplo"
-args = [
-	"fmt",
-]
-
-[tasks.fmt-toml-check]
-extend = "fmt-toml"
-args = [
-	"fmt",
-	"--check",
-]
-
-# E2E
-# | task                           | type      | cwd |
-# | ------------------------------ | --------- | --- |
-# | e2e                            | composite |     |
-# | e2e-context-misranking-harness | command   |     |
-# | e2e-consolidation-harness      | command   |     |
-
-[tasks.e2e]
-workspace = false
-dependencies = [
-	"e2e-context-misranking-harness",
-]
-
-[tasks.e2e-context-misranking-harness]
+[tasks.baseline-backfill-100k-docker]
 workspace = false
 command = "bash"
 args = [
-	"scripts/context-misranking-harness.sh",
+	"scripts/baseline-docker.sh",
+	"backfill-100k",
 ]
 
-[tasks.e2e-consolidation-harness]
+[tasks.baseline-backfill-10k-docker]
 workspace = false
 command = "bash"
 args = [
-	"scripts/consolidation-harness.sh",
+	"scripts/baseline-docker.sh",
+	"backfill-10k",
 ]
 
+[tasks.baseline-backfill-docker]
+workspace = false
+command = "bash"
+args = [
+	"scripts/baseline-docker.sh",
+	"backfill",
+]
 
-# Competitive parity
-# | task                | type    | cwd |
-# | ------------------- | ------- | --- |
-# | parity-docker       | command |     |
-# | parity-docker-clean | command |     |
+[tasks.baseline-live-docker]
+workspace = false
+command = "bash"
+args = [
+	"scripts/baseline-docker.sh",
+	"live",
+]
+
+[tasks.baseline-live-report]
+workspace = false
+command = "bash"
+args = [
+	"scripts/live-baseline-report-to-md.sh",
+]
+
+[tasks.baseline-production-private]
+workspace = false
+command = "bash"
+args = [
+	"scripts/baseline-docker.sh",
+	"production-private",
+]
+
+[tasks.baseline-production-private-addendum]
+workspace = false
+command = "bash"
+args = [
+	"scripts/baseline-docker.sh",
+	"production-private-addendum",
+]
+
+[tasks.baseline-production-synthetic]
+workspace = false
+command = "bash"
+args = [
+	"scripts/baseline-docker.sh",
+	"production-synthetic",
+]
+
+[tasks.baseline-soak-docker]
+workspace = false
+command = "bash"
+args = [
+	"scripts/baseline-docker.sh",
+	"soak",
+]
+
+[tasks.openmemory-ui-export-readback]
+workspace = false
+command = "bash"
+args = [
+	"scripts/baseline-docker.sh",
+	"openmemory-ui-export-readback",
+]
 
 [tasks.parity-docker]
 workspace = false
@@ -278,931 +150,6 @@ args = [
 	"--build",
 	"--rm",
 	"parity-runner",
-]
-
-[tasks.parity-docker-clean]
-workspace = false
-command = "docker"
-args = [
-	"compose",
-	"-f",
-	"docker-compose.parity.yml",
-	"down",
-	"-v",
-	"--remove-orphans",
-]
-
-
-# Live external baseline benchmark
-# | task                       | type    | cwd |
-# | -------------------------- | ------- | --- |
-# | baseline-live-docker       | command |     |
-# | baseline-backfill-docker   | command |     |
-# | baseline-live-report       | command |     |
-# | baseline-live-docker-clean | command |     |
-# | baseline-production-synthetic | command | |
-# | baseline-production-private | command |   |
-# | baseline-production-private-addendum | command | |
-# | baseline-backfill-10k-docker | command |  |
-# | baseline-backfill-100k-docker | command | |
-# | baseline-soak-docker       | command |     |
-# | openmemory-ui-export-readback | command |   |
-
-[tasks.baseline-live-docker]
-workspace = false
-command = "bash"
-args = [
-	"-lc",
-	"set -euo pipefail; head=\"$(git rev-parse HEAD)\"; if [ -n \"$(git status --porcelain)\" ]; then head=\"$head+dirty\"; fi; export ELF_BASELINE_ELF_HEAD=\"$head\"; docker compose -f docker-compose.baseline.yml run --build --rm baseline-runner",
-]
-
-[tasks.baseline-backfill-docker]
-workspace = false
-command = "bash"
-args = [
-	"-lc",
-	"set -euo pipefail; head=\"$(git rev-parse HEAD)\"; if [ -n \"$(git status --porcelain)\" ]; then head=\"$head+dirty\"; fi; selected_projects=\"$(printenv ELF_BASELINE_PROJECTS || true)\"; if [ -z \"$selected_projects\" ]; then selected_projects=\"ELF\"; fi; selected_profile=\"$(printenv ELF_BASELINE_PROFILE || true)\"; if [ -z \"$selected_profile\" ]; then selected_profile=\"backfill\"; fi; backfill_docs=\"$(printenv ELF_BASELINE_BACKFILL_DOCS || true)\"; if [ -z \"$backfill_docs\" ]; then backfill_docs=\"2000\"; fi; elf_timeout=\"$(printenv ELF_BASELINE_ELF_TIMEOUT_SECONDS || true)\"; if [ -z \"$elf_timeout\" ]; then elf_timeout=\"3600\"; fi; max_elf_seconds=\"$(printenv ELF_BASELINE_MAX_ELF_SECONDS || true)\"; if [ -z \"$max_elf_seconds\" ]; then max_elf_seconds=\"3600\"; fi; export ELF_BASELINE_ELF_HEAD=\"$head\"; export ELF_BASELINE_PROJECTS=\"$selected_projects\"; export ELF_BASELINE_PROFILE=\"$selected_profile\"; export ELF_BASELINE_BACKFILL_DOCS=\"$backfill_docs\"; export ELF_BASELINE_ELF_TIMEOUT_SECONDS=\"$elf_timeout\"; export ELF_BASELINE_MAX_ELF_SECONDS=\"$max_elf_seconds\"; docker compose -f docker-compose.baseline.yml run --build --rm baseline-runner",
-]
-
-[tasks.baseline-live-report]
-workspace = false
-command = "bash"
-args = [
-	"scripts/live-baseline-report-to-md.sh",
-]
-
-[tasks.baseline-live-docker-clean]
-workspace = false
-command = "docker"
-args = [
-	"compose",
-	"-f",
-	"docker-compose.baseline.yml",
-	"down",
-	"-v",
-	"--remove-orphans",
-]
-
-[tasks.openmemory-ui-export-readback]
-workspace = false
-command = "bash"
-args = [
-	"-lc",
-	"set -euo pipefail; head=\"$(git rev-parse HEAD)\"; if [ -n \"$(git status --porcelain)\" ]; then head=\"$head+dirty\"; fi; export ELF_BASELINE_ELF_HEAD=\"$head\"; export ELF_BASELINE_PROJECTS=mem0; docker compose -f docker-compose.baseline.yml run --build --rm baseline-runner",
-]
-
-[tasks.baseline-production-synthetic]
-workspace = false
-command = "bash"
-args = [
-	"-lc",
-	"set -euo pipefail; head=\"$(git rev-parse HEAD)\"; if [ -n \"$(git status --porcelain)\" ]; then head=\"$head+dirty\"; fi; selected_projects=\"$(printenv ELF_BASELINE_PROJECTS || true)\"; if [ -z \"$selected_projects\" ]; then selected_projects=\"ELF\"; fi; export ELF_BASELINE_ELF_HEAD=\"$head\"; export ELF_BASELINE_PROJECTS=\"$selected_projects\"; export ELF_BASELINE_PROFILE=production-synthetic; docker compose -f docker-compose.baseline.yml run --build --rm baseline-runner",
-]
-
-[tasks.baseline-production-private]
-workspace = false
-command = "bash"
-args = [
-	"-lc",
-	"set -euo pipefail; manifest=\"$(printenv ELF_BASELINE_PRODUCTION_CORPUS_MANIFEST || true)\"; if [ -z \"$manifest\" ]; then echo \"ELF_BASELINE_PRODUCTION_CORPUS_MANIFEST is required for baseline-production-private\" >&2; exit 1; fi; head=\"$(git rev-parse HEAD)\"; if [ -n \"$(git status --porcelain)\" ]; then head=\"$head+dirty\"; fi; selected_projects=\"$(printenv ELF_BASELINE_PROJECTS || true)\"; if [ -z \"$selected_projects\" ]; then selected_projects=\"ELF\"; fi; export ELF_BASELINE_ELF_HEAD=\"$head\"; export ELF_BASELINE_PROJECTS=\"$selected_projects\"; export ELF_BASELINE_PROFILE=production-private; docker compose -f docker-compose.baseline.yml run --build --rm baseline-runner",
-]
-
-[tasks.baseline-production-private-addendum]
-workspace = false
-command = "bash"
-args = [
-	"-lc",
-	"set -euo pipefail; manifest=\"$(printenv ELF_BASELINE_PRODUCTION_CORPUS_MANIFEST || true)\"; if [ -z \"$manifest\" ]; then echo \"ELF_BASELINE_PRODUCTION_CORPUS_MANIFEST is required for baseline-production-private-addendum\" >&2; exit 1; fi; head=\"$(git rev-parse HEAD)\"; if [ -n \"$(git status --porcelain)\" ]; then head=\"$head+dirty\"; fi; selected_projects=\"$(printenv ELF_BASELINE_PROJECTS || true)\"; if [ -z \"$selected_projects\" ]; then selected_projects=\"ELF\"; fi; addendum=\"$(printenv ELF_BASELINE_PRIVATE_ADDENDUM || true)\"; if [ -z \"$addendum\" ]; then addendum=\"tmp/live-baseline/private-production-addendum.md\"; fi; export ELF_BASELINE_ELF_HEAD=\"$head\"; export ELF_BASELINE_PROJECTS=\"$selected_projects\"; export ELF_BASELINE_PROFILE=production-private; docker compose -f docker-compose.baseline.yml run --build --rm baseline-runner; ELF_BASELINE_MARKDOWN_REPORT=\"$addendum\" cargo make baseline-live-report; echo \"Private production addendum: $addendum\"",
-]
-
-[tasks.baseline-backfill-10k-docker]
-workspace = false
-command = "bash"
-args = [
-	"-lc",
-	"set -euo pipefail; head=\"$(git rev-parse HEAD)\"; if [ -n \"$(git status --porcelain)\" ]; then head=\"$head+dirty\"; fi; backfill_docs=\"$(printenv ELF_BASELINE_BACKFILL_DOCS || true)\"; if [ -z \"$backfill_docs\" ]; then backfill_docs=\"10000\"; fi; elf_timeout=\"$(printenv ELF_BASELINE_ELF_TIMEOUT_SECONDS || true)\"; if [ -z \"$elf_timeout\" ]; then elf_timeout=\"14400\"; fi; max_elf_seconds=\"$(printenv ELF_BASELINE_MAX_ELF_SECONDS || true)\"; if [ -z \"$max_elf_seconds\" ]; then max_elf_seconds=\"$elf_timeout\"; fi; export ELF_BASELINE_ELF_HEAD=\"$head\"; export ELF_BASELINE_PROJECTS=ELF; export ELF_BASELINE_PROFILE=backfill; export ELF_BASELINE_BACKFILL_DOCS=\"$backfill_docs\"; export ELF_BASELINE_ELF_TIMEOUT_SECONDS=\"$elf_timeout\"; export ELF_BASELINE_MAX_ELF_SECONDS=\"$max_elf_seconds\"; docker compose -f docker-compose.baseline.yml run --build --rm baseline-runner",
-]
-
-[tasks.baseline-backfill-100k-docker]
-workspace = false
-command = "bash"
-args = [
-	"-lc",
-	"set -euo pipefail; enabled=\"$(printenv ELF_BASELINE_ENABLE_EXPENSIVE || true)\"; if [ \"$enabled\" != \"1\" ]; then echo \"ELF_BASELINE_ENABLE_EXPENSIVE=1 is required for baseline-backfill-100k-docker\" >&2; exit 1; fi; head=\"$(git rev-parse HEAD)\"; if [ -n \"$(git status --porcelain)\" ]; then head=\"$head+dirty\"; fi; backfill_docs=\"$(printenv ELF_BASELINE_BACKFILL_DOCS || true)\"; if [ -z \"$backfill_docs\" ]; then backfill_docs=\"100000\"; fi; elf_timeout=\"$(printenv ELF_BASELINE_ELF_TIMEOUT_SECONDS || true)\"; if [ -z \"$elf_timeout\" ]; then elf_timeout=\"86400\"; fi; max_elf_seconds=\"$(printenv ELF_BASELINE_MAX_ELF_SECONDS || true)\"; if [ -z \"$max_elf_seconds\" ]; then max_elf_seconds=\"$elf_timeout\"; fi; export ELF_BASELINE_ELF_HEAD=\"$head\"; export ELF_BASELINE_PROJECTS=ELF; export ELF_BASELINE_PROFILE=backfill; export ELF_BASELINE_BACKFILL_DOCS=\"$backfill_docs\"; export ELF_BASELINE_ELF_TIMEOUT_SECONDS=\"$elf_timeout\"; export ELF_BASELINE_MAX_ELF_SECONDS=\"$max_elf_seconds\"; docker compose -f docker-compose.baseline.yml run --build --rm baseline-runner",
-]
-
-[tasks.baseline-soak-docker]
-workspace = false
-command = "bash"
-args = [
-	"-lc",
-	"set -euo pipefail; head=\"$(git rev-parse HEAD)\"; if [ -n \"$(git status --porcelain)\" ]; then head=\"$head+dirty\"; fi; soak_seconds=\"$(printenv ELF_BASELINE_SOAK_SECONDS || true)\"; if [ -z \"$soak_seconds\" ]; then soak_seconds=\"3600\"; fi; elf_timeout=\"$(printenv ELF_BASELINE_ELF_TIMEOUT_SECONDS || true)\"; if [ -z \"$elf_timeout\" ]; then elf_timeout=\"$((soak_seconds + 1800))\"; fi; max_elf_seconds=\"$(printenv ELF_BASELINE_MAX_ELF_SECONDS || true)\"; if [ -z \"$max_elf_seconds\" ]; then max_elf_seconds=\"$elf_timeout\"; fi; export ELF_BASELINE_ELF_HEAD=\"$head\"; export ELF_BASELINE_PROJECTS=ELF; export ELF_BASELINE_PROFILE=stress; export ELF_BASELINE_SOAK_SECONDS=\"$soak_seconds\"; export ELF_BASELINE_ELF_TIMEOUT_SECONDS=\"$elf_timeout\"; export ELF_BASELINE_MAX_ELF_SECONDS=\"$max_elf_seconds\"; docker compose -f docker-compose.baseline.yml run --build --rm baseline-runner",
-]
-
-
-# Real-world job benchmark smoke
-# | task                                   | type      | cwd |
-# | -------------------------------------- | --------- | --- |
-# | real-world-job-smoke                   | composite |     |
-# | real-world-job-smoke-json              | command   |     |
-# | real-world-job-smoke-report            | command   |     |
-# | real-world-memory                      | composite |     |
-# | real-world-memory-json                 | command   |     |
-# | real-world-memory-report               | command   |     |
-# | real-world-memory-project-decisions        | composite | |
-# | real-world-memory-project-decisions-json   | command   | |
-# | real-world-memory-project-decisions-report | command   | |
-# | real-world-memory-evolution            | composite |     |
-# | real-world-memory-evolution-json       | command   |     |
-# | real-world-memory-evolution-report     | command   |     |
-# | real-world-memory-consolidation        | composite |     |
-# | real-world-memory-consolidation-json   | command   |     |
-# | real-world-memory-consolidation-report | command   |     |
-# | real-world-memory-summary              | composite |     |
-# | real-world-memory-summary-json         | command   |     |
-# | real-world-memory-summary-report       | command   |     |
-# | real-world-memory-proactive-brief      | composite |     |
-# | real-world-memory-proactive-brief-json | command   |     |
-# | real-world-memory-proactive-brief-report | command |     |
-# | real-world-memory-scheduled            | composite |     |
-# | real-world-memory-scheduled-json       | command   |     |
-# | real-world-memory-scheduled-report     | command   |     |
-# | real-world-memory-live-consolidation   | command   |     |
-# | real-world-job-operator-ux             | composite |     |
-# | real-world-job-operator-ux-json        | command   |     |
-# | real-world-job-operator-ux-report      | command   |     |
-# | real-world-job-operator-ux-live-adapters | command |     |
-# | real-world-memory-retrieval            | composite |     |
-# | real-world-memory-retrieval-json       | command   |     |
-# | real-world-memory-retrieval-report     | command   |     |
-# | real-world-memory-production-ops        | composite |     |
-# | real-world-memory-production-ops-json   | command   |     |
-# | real-world-memory-production-ops-report | command   |     |
-# | real-world-memory-core-archival         | composite |     |
-# | real-world-memory-core-archival-json    | command   |     |
-# | real-world-memory-core-archival-report  | command   |     |
-# | real-world-memory-graph-rag             | composite |     |
-# | real-world-memory-graph-rag-json        | command   |     |
-# | real-world-memory-graph-rag-report      | command   |     |
-# | real-world-memory-live-adapters         | command   |     |
-
-[tasks.real-world-job-smoke]
-workspace = false
-dependencies = [
-	"real-world-job-smoke-report",
-]
-
-[tasks.real-world-job-smoke-json]
-workspace = false
-command = "cargo"
-args = [
-	"run",
-	"-p",
-	"elf-eval",
-	"--bin",
-	"real_world_job_benchmark",
-	"--",
-	"run",
-	"--fixtures",
-	"apps/elf-eval/fixtures/real_world_memory/work_resume",
-	"--out",
-	"tmp/real-world-job/real-world-job-smoke-report.json",
-]
-
-[tasks.real-world-job-smoke-report]
-workspace = false
-dependencies = [
-	"real-world-job-smoke-json",
-]
-command = "cargo"
-args = [
-	"run",
-	"-p",
-	"elf-eval",
-	"--bin",
-	"real_world_job_benchmark",
-	"--",
-	"publish",
-	"--report",
-	"tmp/real-world-job/real-world-job-smoke-report.json",
-	"--out",
-	"tmp/real-world-job/real-world-job-smoke-report.md",
-]
-
-[tasks.real-world-memory]
-workspace = false
-dependencies = [
-	"real-world-memory-report",
-]
-
-[tasks.real-world-memory-json]
-workspace = false
-command = "cargo"
-args = [
-	"run",
-	"-p",
-	"elf-eval",
-	"--bin",
-	"real_world_job_benchmark",
-	"--",
-	"run",
-	"--fixtures",
-	"apps/elf-eval/fixtures/real_world_memory",
-	"--out",
-	"tmp/real-world-memory/real-world-memory-report.json",
-	"--run-id",
-	"real-world-memory",
-	"--adapter-id",
-	"elf_real_world_memory_fixture",
-	"--adapter-name",
-	"ELF real-world memory fixture",
-]
-
-[tasks.real-world-memory-report]
-workspace = false
-dependencies = [
-	"real-world-memory-json",
-]
-command = "cargo"
-args = [
-	"run",
-	"-p",
-	"elf-eval",
-	"--bin",
-	"real_world_job_benchmark",
-	"--",
-	"publish",
-	"--report",
-	"tmp/real-world-memory/real-world-memory-report.json",
-	"--out",
-	"tmp/real-world-memory/real-world-memory-report.md",
-]
-
-[tasks.real-world-memory-project-decisions]
-workspace = false
-dependencies = [
-	"real-world-memory-project-decisions-report",
-]
-
-[tasks.real-world-memory-project-decisions-json]
-workspace = false
-command = "cargo"
-args = [
-	"run",
-	"-p",
-	"elf-eval",
-	"--bin",
-	"real_world_job_benchmark",
-	"--",
-	"run",
-	"--fixtures",
-	"apps/elf-eval/fixtures/real_world_memory/project_decisions",
-	"--out",
-	"tmp/real-world-memory/project-decisions/report.json",
-	"--run-id",
-	"real-world-memory-project-decisions",
-	"--adapter-id",
-	"fixture_project_decisions",
-	"--adapter-name",
-	"ELF project decision fixture",
-]
-
-[tasks.real-world-memory-project-decisions-report]
-workspace = false
-dependencies = [
-	"real-world-memory-project-decisions-json",
-]
-command = "cargo"
-args = [
-	"run",
-	"-p",
-	"elf-eval",
-	"--bin",
-	"real_world_job_benchmark",
-	"--",
-	"publish",
-	"--report",
-	"tmp/real-world-memory/project-decisions/report.json",
-	"--out",
-	"tmp/real-world-memory/project-decisions/report.md",
-]
-
-[tasks.real-world-memory-evolution]
-workspace = false
-dependencies = [
-	"real-world-memory-evolution-report",
-]
-
-[tasks.real-world-memory-evolution-json]
-workspace = false
-command = "cargo"
-args = [
-	"run",
-	"-p",
-	"elf-eval",
-	"--bin",
-	"real_world_job_benchmark",
-	"--",
-	"run",
-	"--fixtures",
-	"apps/elf-eval/fixtures/real_world_memory/evolution",
-	"--out",
-	"tmp/real-world-memory/evolution-report.json",
-	"--run-id",
-	"real-world-memory-evolution",
-	"--adapter-id",
-	"fixture_memory_evolution",
-	"--adapter-name",
-	"ELF fixture memory evolution",
-]
-
-[tasks.real-world-memory-evolution-report]
-workspace = false
-dependencies = [
-	"real-world-memory-evolution-json",
-]
-command = "cargo"
-args = [
-	"run",
-	"-p",
-	"elf-eval",
-	"--bin",
-	"real_world_job_benchmark",
-	"--",
-	"publish",
-	"--report",
-	"tmp/real-world-memory/evolution-report.json",
-	"--out",
-	"tmp/real-world-memory/evolution-report.md",
-]
-
-[tasks.real-world-job-operator-ux]
-workspace = false
-dependencies = [
-	"real-world-job-operator-ux-report",
-]
-
-[tasks.real-world-job-operator-ux-json]
-workspace = false
-command = "cargo"
-args = [
-	"run",
-	"-p",
-	"elf-eval",
-	"--bin",
-	"real_world_job_benchmark",
-	"--",
-	"run",
-	"--fixtures",
-	"apps/elf-eval/fixtures/real_world_job/operator_debugging_ux",
-	"--out",
-	"tmp/real-world-job/real-world-job-operator-ux-report.json",
-	"--run-id",
-	"real-world-job-operator-ux",
-	"--adapter-id",
-	"fixture_operator_ux",
-	"--adapter-name",
-	"ELF operator UX fixture",
-]
-
-[tasks.real-world-job-operator-ux-report]
-workspace = false
-dependencies = [
-	"real-world-job-operator-ux-json",
-]
-command = "cargo"
-args = [
-	"run",
-	"-p",
-	"elf-eval",
-	"--bin",
-	"real_world_job_benchmark",
-	"--",
-	"publish",
-	"--report",
-	"tmp/real-world-job/real-world-job-operator-ux-report.json",
-	"--out",
-	"tmp/real-world-job/real-world-job-operator-ux-report.md",
-]
-
-[tasks.real-world-job-operator-ux-live-adapters]
-workspace = false
-command = "bash"
-args = [
-	"-lc",
-	"docker compose -f docker-compose.baseline.yml run --build --rm -e ELF_OPERATOR_DEBUG_LIVE_REPORT_DIR -e ELF_OPERATOR_DEBUG_LIVE_FIXTURES -e ELF_OPERATOR_DEBUG_LIVE_WORK_DIR -e ELF_OPERATOR_DEBUG_QMD_DIR baseline-runner bash scripts/real-world-operator-debug-live-adapters.sh",
-]
-
-[tasks.real-world-memory-retrieval]
-workspace = false
-dependencies = [
-	"real-world-memory-retrieval-report",
-]
-
-[tasks.real-world-memory-retrieval-json]
-workspace = false
-command = "cargo"
-args = [
-	"run",
-	"-p",
-	"elf-eval",
-	"--bin",
-	"real_world_job_benchmark",
-	"--",
-	"run",
-	"--fixtures",
-	"apps/elf-eval/fixtures/real_world_memory/retrieval",
-	"--run-id",
-	"real-world-memory-retrieval",
-	"--adapter-id",
-	"fixture_retrieval",
-	"--adapter-name",
-	"ELF fixture retrieval cases",
-	"--out",
-	"tmp/real-world-memory/retrieval-report.json",
-]
-
-[tasks.real-world-memory-retrieval-report]
-workspace = false
-dependencies = [
-	"real-world-memory-retrieval-json",
-]
-command = "cargo"
-args = [
-	"run",
-	"-p",
-	"elf-eval",
-	"--bin",
-	"real_world_job_benchmark",
-	"--",
-	"publish",
-	"--report",
-	"tmp/real-world-memory/retrieval-report.json",
-	"--out",
-	"tmp/real-world-memory/retrieval-report.md",
-]
-
-[tasks.real-world-memory-production-ops]
-workspace = false
-dependencies = [
-	"real-world-memory-production-ops-report",
-]
-
-[tasks.real-world-memory-production-ops-json]
-workspace = false
-command = "cargo"
-args = [
-	"run",
-	"-p",
-	"elf-eval",
-	"--bin",
-	"real_world_job_benchmark",
-	"--",
-	"run",
-	"--fixtures",
-	"apps/elf-eval/fixtures/real_world_memory/production_ops",
-	"--run-id",
-	"real-world-memory-production-ops",
-	"--adapter-id",
-	"fixture_production_ops",
-	"--adapter-name",
-	"ELF production-ops fixture",
-	"--out",
-	"tmp/real-world-memory/production-ops-report.json",
-]
-
-[tasks.real-world-memory-production-ops-report]
-workspace = false
-dependencies = [
-	"real-world-memory-production-ops-json",
-]
-command = "cargo"
-args = [
-	"run",
-	"-p",
-	"elf-eval",
-	"--bin",
-	"real_world_job_benchmark",
-	"--",
-	"publish",
-	"--report",
-	"tmp/real-world-memory/production-ops-report.json",
-	"--out",
-	"tmp/real-world-memory/production-ops-report.md",
-]
-
-[tasks.real-world-memory-consolidation]
-workspace = false
-dependencies = [
-	"real-world-memory-consolidation-report",
-]
-
-[tasks.real-world-memory-consolidation-json]
-workspace = false
-command = "cargo"
-args = [
-	"run",
-	"-p",
-	"elf-eval",
-	"--bin",
-	"real_world_job_benchmark",
-	"--",
-	"run",
-	"--fixtures",
-	"apps/elf-eval/fixtures/real_world_memory/consolidation",
-	"--out",
-	"tmp/real-world-memory/consolidation/report.json",
-	"--run-id",
-	"real-world-memory-consolidation",
-	"--adapter-id",
-	"fixture_consolidation",
-	"--adapter-name",
-	"ELF consolidation fixture",
-]
-
-[tasks.real-world-memory-consolidation-report]
-workspace = false
-dependencies = [
-	"real-world-memory-consolidation-json",
-]
-command = "cargo"
-args = [
-	"run",
-	"-p",
-	"elf-eval",
-	"--bin",
-	"real_world_job_benchmark",
-	"--",
-	"publish",
-	"--report",
-	"tmp/real-world-memory/consolidation/report.json",
-	"--out",
-	"tmp/real-world-memory/consolidation/report.md",
-]
-
-[tasks.real-world-memory-summary]
-workspace = false
-dependencies = [
-	"real-world-memory-summary-report",
-]
-
-[tasks.real-world-memory-summary-json]
-workspace = false
-command = "cargo"
-args = [
-	"run",
-	"-p",
-	"elf-eval",
-	"--bin",
-	"real_world_job_benchmark",
-	"--",
-	"run",
-	"--fixtures",
-	"apps/elf-eval/fixtures/real_world_memory/memory_summary",
-	"--out",
-	"tmp/real-world-memory/memory-summary/report.json",
-	"--run-id",
-	"real-world-memory-summary",
-	"--adapter-id",
-	"fixture_memory_summary",
-	"--adapter-name",
-	"ELF memory summary fixture",
-]
-
-[tasks.real-world-memory-summary-report]
-workspace = false
-dependencies = [
-	"real-world-memory-summary-json",
-]
-command = "cargo"
-args = [
-	"run",
-	"-p",
-	"elf-eval",
-	"--bin",
-	"real_world_job_benchmark",
-	"--",
-	"publish",
-	"--report",
-	"tmp/real-world-memory/memory-summary/report.json",
-	"--out",
-	"tmp/real-world-memory/memory-summary/report.md",
-]
-
-[tasks.real-world-memory-proactive-brief]
-workspace = false
-dependencies = [
-	"real-world-memory-proactive-brief-report",
-]
-
-[tasks.real-world-memory-proactive-brief-json]
-workspace = false
-command = "cargo"
-args = [
-	"run",
-	"-p",
-	"elf-eval",
-	"--bin",
-	"real_world_job_benchmark",
-	"--",
-	"run",
-	"--fixtures",
-	"apps/elf-eval/fixtures/real_world_memory/proactive_brief",
-	"--out",
-	"tmp/real-world-memory/proactive-brief/report.json",
-	"--run-id",
-	"real-world-memory-proactive-brief",
-	"--adapter-id",
-	"fixture_proactive_brief",
-	"--adapter-name",
-	"ELF proactive brief fixture",
-]
-
-[tasks.real-world-memory-proactive-brief-report]
-workspace = false
-dependencies = [
-	"real-world-memory-proactive-brief-json",
-]
-command = "cargo"
-args = [
-	"run",
-	"-p",
-	"elf-eval",
-	"--bin",
-	"real_world_job_benchmark",
-	"--",
-	"publish",
-	"--report",
-	"tmp/real-world-memory/proactive-brief/report.json",
-	"--out",
-	"tmp/real-world-memory/proactive-brief/report.md",
-]
-
-[tasks.real-world-memory-scheduled]
-workspace = false
-dependencies = [
-	"real-world-memory-scheduled-report",
-]
-
-[tasks.real-world-memory-scheduled-json]
-workspace = false
-command = "cargo"
-args = [
-	"run",
-	"-p",
-	"elf-eval",
-	"--bin",
-	"real_world_job_benchmark",
-	"--",
-	"run",
-	"--fixtures",
-	"apps/elf-eval/fixtures/real_world_memory/scheduled_memory",
-	"--out",
-	"tmp/real-world-memory/scheduled/report.json",
-	"--run-id",
-	"real-world-memory-scheduled",
-	"--adapter-id",
-	"fixture_scheduled_memory",
-	"--adapter-name",
-	"ELF scheduled memory fixture",
-]
-
-[tasks.real-world-memory-scheduled-report]
-workspace = false
-dependencies = [
-	"real-world-memory-scheduled-json",
-]
-command = "cargo"
-args = [
-	"run",
-	"-p",
-	"elf-eval",
-	"--bin",
-	"real_world_job_benchmark",
-	"--",
-	"publish",
-	"--report",
-	"tmp/real-world-memory/scheduled/report.json",
-	"--out",
-	"tmp/real-world-memory/scheduled/report.md",
-]
-
-[tasks.real-world-memory-live-consolidation]
-workspace = false
-command = "bash"
-args = [
-	"-lc",
-	"docker compose -f docker-compose.baseline.yml run --build --rm -e ELF_CONSOLIDATION_LIVE_REPORT_DIR -e ELF_CONSOLIDATION_LIVE_FIXTURES baseline-runner bash scripts/real-world-consolidation-live-adapter.sh",
-]
-
-[tasks.real-world-memory-core-archival]
-workspace = false
-dependencies = [
-	"real-world-memory-core-archival-report",
-]
-
-[tasks.real-world-memory-core-archival-json]
-workspace = false
-command = "cargo"
-args = [
-	"run",
-	"-p",
-	"elf-eval",
-	"--bin",
-	"real_world_job_benchmark",
-	"--",
-	"run",
-	"--fixtures",
-	"apps/elf-eval/fixtures/real_world_memory/core_archival_memory",
-	"--out",
-	"tmp/real-world-memory/core-archival/report.json",
-	"--run-id",
-	"real-world-memory-core-archival",
-	"--adapter-id",
-	"fixture_core_archival_memory",
-	"--adapter-name",
-	"ELF core and archival memory fixture",
-]
-
-[tasks.real-world-memory-core-archival-report]
-workspace = false
-dependencies = [
-	"real-world-memory-core-archival-json",
-]
-command = "cargo"
-args = [
-	"run",
-	"-p",
-	"elf-eval",
-	"--bin",
-	"real_world_job_benchmark",
-	"--",
-	"publish",
-	"--report",
-	"tmp/real-world-memory/core-archival/report.json",
-	"--out",
-	"tmp/real-world-memory/core-archival/report.md",
-]
-
-[tasks.real-world-memory-graph-rag]
-workspace = false
-dependencies = [
-	"real-world-memory-graph-rag-report",
-]
-
-[tasks.real-world-memory-graph-rag-json]
-workspace = false
-command = "cargo"
-args = [
-	"run",
-	"-p",
-	"elf-eval",
-	"--bin",
-	"real_world_job_benchmark",
-	"--",
-	"run",
-	"--fixtures",
-	"apps/elf-eval/fixtures/real_world_external_adapters/graph_rag",
-	"--out",
-	"tmp/real-world-memory/graph-rag/report.json",
-	"--run-id",
-	"real-world-memory-graph-rag",
-	"--adapter-id",
-	"fixture_graph_rag_external_adapters",
-	"--adapter-name",
-	"Graph/RAG representative external-adapter fixtures",
-]
-
-[tasks.real-world-memory-graph-rag-report]
-workspace = false
-dependencies = [
-	"real-world-memory-graph-rag-json",
-]
-command = "cargo"
-args = [
-	"run",
-	"-p",
-	"elf-eval",
-	"--bin",
-	"real_world_job_benchmark",
-	"--",
-	"publish",
-	"--report",
-	"tmp/real-world-memory/graph-rag/report.json",
-	"--out",
-	"tmp/real-world-memory/graph-rag/report.md",
-]
-
-[tasks.real-world-memory-live-adapters]
-workspace = false
-command = "bash"
-args = [
-	"-lc",
-	"set -euo pipefail; lightrag_start=\"$(printenv ELF_LIGHTRAG_CONTEXT_START || true)\"; graphiti_start=\"$(printenv ELF_GRAPHITI_ZEP_SMOKE_START || true)\"; status=0; if [ \"$lightrag_start\" = \"1\" ]; then docker compose -f docker-compose.baseline.yml --profile lightrag up -d lightrag; fi; if [ \"$graphiti_start\" = \"1\" ]; then docker compose -f docker-compose.baseline.yml --profile graphiti-zep up -d graphiti-falkordb; fi; docker compose -f docker-compose.baseline.yml run --build --rm -e ELF_REAL_WORLD_LIVE_ENABLE_RAGFLOW -e ELF_REAL_WORLD_LIVE_ENABLE_LIGHTRAG -e ELF_REAL_WORLD_LIVE_ENABLE_GRAPHRAG -e ELF_REAL_WORLD_LIVE_ENABLE_GRAPHITI_ZEP -e ELF_REAL_WORLD_LIVE_ENABLE_GRAPHIFY -e ELF_RAGFLOW_SMOKE_START -e ELF_RAGFLOW_SMOKE_ACCEPT_RESOURCE_ENVELOPE -e ELF_RAGFLOW_SMOKE_ALLOW_ARM -e ELF_RAGFLOW_SMOKE_PULL_IMAGE -e ELF_RAGFLOW_SMOKE_CLEANUP -e ELF_RAGFLOW_SMOKE_DEVICE -e ELF_RAGFLOW_API_PORT -e ELF_RAGFLOW_API_BASE -e ELF_RAGFLOW_API_KEY -e RAGFLOW_API_KEY -e ELF_RAGFLOW_SMOKE_STARTUP_ATTEMPTS -e ELF_RAGFLOW_SMOKE_STARTUP_INTERVAL_SECONDS -e ELF_RAGFLOW_SMOKE_COMPOSE_TIMEOUT_SECONDS -e ELF_RAGFLOW_REPO_URL -e ELF_RAGFLOW_REF -e ELF_RAGFLOW_IMAGE -e ELF_RAGFLOW_COMPOSE_PROJECT -e ELF_LIGHTRAG_CONTEXT_START -e ELF_LIGHTRAG_API_BASE -e ELF_LIGHTRAG_ADAPTER_ID -e ELF_LIGHTRAG_ADAPTER_NAME -e ELF_LIGHTRAG_STARTUP_ATTEMPTS -e ELF_LIGHTRAG_STARTUP_INTERVAL_SECONDS -e ELF_LIGHTRAG_INDEX_ATTEMPTS -e ELF_LIGHTRAG_INDEX_INTERVAL_SECONDS -e ELF_GRAPHRAG_SMOKE_RUN -e ELF_GRAPHRAG_SMOKE_WORK_DIR -e ELF_GRAPHRAG_SMOKE_INSTALL -e ELF_GRAPHRAG_VERSION -e ELF_GRAPHRAG_PACKAGE -e ELF_GRAPHRAG_REF -e ELF_GRAPHRAG_CHAT_MODEL -e ELF_GRAPHRAG_EMBEDDING_MODEL -e ELF_GRAPHRAG_API_BASE -e ELF_GRAPHRAG_API_KEY -e ELF_GRAPHRAG_INDEX_METHOD -e ELF_GRAPHRAG_QUERY_METHOD -e ELF_GRAPHRAG_TIMEOUT_SECONDS -e ELF_GRAPHRAG_MAX_DOCS -e ELF_GRAPHRAG_MAX_INPUT_CHARS -e ELF_GRAPHITI_ZEP_SMOKE_START -e ELF_GRAPHITI_ZEP_SMOKE_RUN -e ELF_GRAPHITI_ZEP_SMOKE_WORK_DIR -e ELF_GRAPHITI_ZEP_SMOKE_INSTALL -e ELF_GRAPHITI_ZEP_VERSION -e ELF_GRAPHITI_ZEP_PACKAGE -e ELF_GRAPHITI_ZEP_REF -e ELF_GRAPHITI_ZEP_API_BASE -e ELF_GRAPHITI_ZEP_API_KEY -e ELF_GRAPHITI_ZEP_LLM_MODEL -e ELF_GRAPHITI_ZEP_EMBEDDING_MODEL -e ELF_GRAPHITI_ZEP_FALKORDB_HOST -e ELF_GRAPHITI_ZEP_FALKORDB_PORT -e ELF_GRAPHITI_ZEP_FALKORDB_DATABASE -e ELF_GRAPHITI_ZEP_TIMEOUT_SECONDS -e ELF_GRAPHITI_ZEP_STARTUP_ATTEMPTS -e ELF_GRAPHITI_ZEP_STARTUP_INTERVAL_SECONDS -e ELF_GRAPHIFY_SMOKE_RUN -e ELF_GRAPHIFY_SMOKE_WORK_DIR -e ELF_GRAPHIFY_SMOKE_INSTALL -e ELF_GRAPHIFY_PACKAGE -e ELF_GRAPHIFY_REF -e ELF_GRAPHIFY_TIMEOUT_SECONDS -e ELF_GRAPHIFY_QUERY_BUDGET baseline-runner bash scripts/real-world-live-adapters.sh || status=$?; if [ \"$lightrag_start\" = \"1\" ]; then docker compose -f docker-compose.baseline.yml --profile lightrag stop lightrag lightrag-mock-provider >/dev/null 2>&1 || true; fi; if [ \"$graphiti_start\" = \"1\" ]; then docker compose -f docker-compose.baseline.yml --profile graphiti-zep stop graphiti-falkordb >/dev/null 2>&1 || true; fi; exit \"$status\"",
-]
-
-
-# Real-world memory knowledge benchmark
-# | task                           | type      | cwd |
-# | ------------------------------ | --------- | --- |
-# | real-world-memory-knowledge        | composite | |
-# | real-world-memory-knowledge-json   | command   | |
-# | real-world-memory-knowledge-report | command   | |
-# | real-world-first-generation-oss        | composite | |
-# | real-world-first-generation-oss-json   | command   | |
-# | real-world-first-generation-oss-report | command   | |
-# | ragflow-docker-smoke                    | command   | |
-# | lightrag-docker-context-smoke           | command   | |
-# | graphrag-docker-smoke                   | command   | |
-# | graphiti-zep-docker-temporal-smoke      | command   | |
-# | graphify-docker-graph-report-smoke      | command   | |
-
-[tasks.ragflow-docker-smoke]
-workspace = false
-command = "bash"
-args = [
-	"scripts/ragflow-docker-evidence-smoke.sh",
-]
-
-[tasks.lightrag-docker-context-smoke]
-workspace = false
-command = "bash"
-args = [
-	"-lc",
-	"set -euo pipefail; start=\"$(printenv ELF_LIGHTRAG_CONTEXT_START || true)\"; status=0; if [ \"$start\" = \"1\" ]; then docker compose -f docker-compose.baseline.yml --profile lightrag up -d lightrag; fi; docker compose -f docker-compose.baseline.yml run --build --rm baseline-runner bash scripts/lightrag-docker-context-smoke.sh || status=$?; if [ \"$start\" = \"1\" ]; then docker compose -f docker-compose.baseline.yml --profile lightrag stop lightrag lightrag-mock-provider >/dev/null 2>&1 || true; fi; exit \"$status\"",
-]
-
-[tasks.graphrag-docker-smoke]
-workspace = false
-command = "bash"
-args = [
-	"-lc",
-	"set -euo pipefail; docker compose -f docker-compose.baseline.yml run --build --rm -e ELF_GRAPHRAG_SMOKE_RUN -e ELF_GRAPHRAG_SMOKE_REPORT_DIR -e ELF_GRAPHRAG_SMOKE_WORK_DIR -e ELF_GRAPHRAG_SMOKE_INSTALL -e ELF_GRAPHRAG_VERSION -e ELF_GRAPHRAG_PACKAGE -e ELF_GRAPHRAG_REF -e ELF_GRAPHRAG_CHAT_MODEL -e ELF_GRAPHRAG_EMBEDDING_MODEL -e ELF_GRAPHRAG_API_BASE -e ELF_GRAPHRAG_API_KEY -e ELF_GRAPHRAG_INDEX_METHOD -e ELF_GRAPHRAG_QUERY_METHOD -e ELF_GRAPHRAG_TIMEOUT_SECONDS -e ELF_GRAPHRAG_MAX_DOCS -e ELF_GRAPHRAG_MAX_INPUT_CHARS baseline-runner python3 scripts/graphrag-docker-smoke.py",
-]
-
-[tasks.graphiti-zep-docker-temporal-smoke]
-workspace = false
-command = "bash"
-args = [
-	"-lc",
-	"set -euo pipefail; start=\"$(printenv ELF_GRAPHITI_ZEP_SMOKE_START || true)\"; status=0; if [ \"$start\" = \"1\" ]; then docker compose -f docker-compose.baseline.yml --profile graphiti-zep up -d graphiti-falkordb; fi; docker compose -f docker-compose.baseline.yml run --build --rm -e ELF_GRAPHITI_ZEP_SMOKE_RUN -e ELF_GRAPHITI_ZEP_SMOKE_REPORT_DIR -e ELF_GRAPHITI_ZEP_SMOKE_WORK_DIR -e ELF_GRAPHITI_ZEP_SMOKE_INSTALL -e ELF_GRAPHITI_ZEP_VERSION -e ELF_GRAPHITI_ZEP_PACKAGE -e ELF_GRAPHITI_ZEP_REF -e ELF_GRAPHITI_ZEP_API_BASE -e ELF_GRAPHITI_ZEP_API_KEY -e ELF_GRAPHITI_ZEP_LLM_MODEL -e ELF_GRAPHITI_ZEP_EMBEDDING_MODEL -e ELF_GRAPHITI_ZEP_FALKORDB_HOST -e ELF_GRAPHITI_ZEP_FALKORDB_PORT -e ELF_GRAPHITI_ZEP_FALKORDB_DATABASE -e ELF_GRAPHITI_ZEP_TIMEOUT_SECONDS -e ELF_GRAPHITI_ZEP_STARTUP_ATTEMPTS -e ELF_GRAPHITI_ZEP_STARTUP_INTERVAL_SECONDS baseline-runner python3 scripts/graphiti-zep-docker-temporal-smoke.py || status=$?; if [ \"$start\" = \"1\" ]; then docker compose -f docker-compose.baseline.yml --profile graphiti-zep stop graphiti-falkordb >/dev/null 2>&1 || true; fi; exit \"$status\"",
-]
-
-[tasks.graphify-docker-graph-report-smoke]
-workspace = false
-command = "bash"
-args = [
-	"-lc",
-	"set -euo pipefail; docker compose -f docker-compose.baseline.yml run --build --rm -e ELF_GRAPHIFY_SMOKE_RUN -e ELF_GRAPHIFY_SMOKE_REPORT_DIR -e ELF_GRAPHIFY_SMOKE_WORK_DIR -e ELF_GRAPHIFY_SMOKE_INSTALL -e ELF_GRAPHIFY_PACKAGE -e ELF_GRAPHIFY_REF -e ELF_GRAPHIFY_TIMEOUT_SECONDS -e ELF_GRAPHIFY_QUERY_BUDGET baseline-runner python3 scripts/graphify-docker-graph-report-smoke.py",
-]
-
-[tasks.real-world-memory-knowledge]
-workspace = false
-dependencies = [
-	"real-world-memory-knowledge-report",
-]
-
-[tasks.real-world-memory-knowledge-json]
-workspace = false
-command = "cargo"
-args = [
-	"run",
-	"-p",
-	"elf-eval",
-	"--bin",
-	"real_world_job_benchmark",
-	"--",
-	"run",
-	"--fixtures",
-	"apps/elf-eval/fixtures/real_world_memory/knowledge",
-	"--out",
-	"tmp/real-world-memory/knowledge-report.json",
-	"--run-id",
-	"real-world-memory-knowledge",
-	"--adapter-id",
-	"fixture_knowledge",
-	"--adapter-name",
-	"ELF knowledge fixture",
-]
-
-[tasks.real-world-memory-knowledge-report]
-workspace = false
-dependencies = [
-	"real-world-memory-knowledge-json",
-]
-command = "cargo"
-args = [
-	"run",
-	"-p",
-	"elf-eval",
-	"--bin",
-	"real_world_job_benchmark",
-	"--",
-	"publish",
-	"--report",
-	"tmp/real-world-memory/knowledge-report.json",
-	"--out",
-	"tmp/real-world-memory/knowledge-report.md",
 ]
 
 [tasks.real-world-first-generation-oss]
@@ -1254,18 +201,906 @@ args = [
 	"tmp/real-world-memory/first-generation-oss/report.md",
 ]
 
+[tasks.real-world-job-operator-ux]
+workspace = false
+dependencies = [
+	"real-world-job-operator-ux-report",
+]
 
-# External memory pattern radar
-# | task                               | type      | cwd |
-# | ---------------------------------- | --------- | --- |
-# | external-memory-radar              | command   |     |
-# | external-memory-radar-artifact     | composite |     |
-# | external-memory-radar-artifact-json | command  |     |
-# | external-memory-radar-artifact-validate | command | |
-# | external-memory-radar-dry-run      | composite |     |
-# | external-memory-radar-dry-run-json | command   |     |
-# | external-memory-radar-dry-run-validate | command |  |
-# | external-memory-radar-validate     | command   |     |
+[tasks.real-world-job-operator-ux-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_job/operator_debugging_ux",
+	"--out",
+	"tmp/real-world-job/real-world-job-operator-ux-report.json",
+	"--run-id",
+	"real-world-job-operator-ux",
+	"--adapter-id",
+	"fixture_operator_ux",
+	"--adapter-name",
+	"ELF operator UX fixture",
+]
+
+[tasks.real-world-job-operator-ux-live-adapters]
+workspace = false
+command = "bash"
+args = [
+	"scripts/real-world-docker.sh",
+	"job-operator-ux-live-adapters",
+]
+
+[tasks.real-world-job-operator-ux-report]
+workspace = false
+dependencies = [
+	"real-world-job-operator-ux-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-job/real-world-job-operator-ux-report.json",
+	"--out",
+	"tmp/real-world-job/real-world-job-operator-ux-report.md",
+]
+
+[tasks.real-world-memory]
+workspace = false
+dependencies = [
+	"real-world-memory-report",
+]
+
+[tasks.real-world-memory-consolidation]
+workspace = false
+dependencies = [
+	"real-world-memory-consolidation-report",
+]
+
+[tasks.real-world-memory-consolidation-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_memory/consolidation",
+	"--out",
+	"tmp/real-world-memory/consolidation/report.json",
+	"--run-id",
+	"real-world-memory-consolidation",
+	"--adapter-id",
+	"fixture_consolidation",
+	"--adapter-name",
+	"ELF consolidation fixture",
+]
+
+[tasks.real-world-memory-consolidation-report]
+workspace = false
+dependencies = [
+	"real-world-memory-consolidation-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-memory/consolidation/report.json",
+	"--out",
+	"tmp/real-world-memory/consolidation/report.md",
+]
+
+[tasks.real-world-memory-core-archival]
+workspace = false
+dependencies = [
+	"real-world-memory-core-archival-report",
+]
+
+[tasks.real-world-memory-core-archival-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_memory/core_archival_memory",
+	"--out",
+	"tmp/real-world-memory/core-archival/report.json",
+	"--run-id",
+	"real-world-memory-core-archival",
+	"--adapter-id",
+	"fixture_core_archival_memory",
+	"--adapter-name",
+	"ELF core and archival memory fixture",
+]
+
+[tasks.real-world-memory-core-archival-report]
+workspace = false
+dependencies = [
+	"real-world-memory-core-archival-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-memory/core-archival/report.json",
+	"--out",
+	"tmp/real-world-memory/core-archival/report.md",
+]
+
+[tasks.real-world-memory-evolution]
+workspace = false
+dependencies = [
+	"real-world-memory-evolution-report",
+]
+
+[tasks.real-world-memory-evolution-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_memory/evolution",
+	"--out",
+	"tmp/real-world-memory/evolution-report.json",
+	"--run-id",
+	"real-world-memory-evolution",
+	"--adapter-id",
+	"fixture_memory_evolution",
+	"--adapter-name",
+	"ELF fixture memory evolution",
+]
+
+[tasks.real-world-memory-evolution-report]
+workspace = false
+dependencies = [
+	"real-world-memory-evolution-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-memory/evolution-report.json",
+	"--out",
+	"tmp/real-world-memory/evolution-report.md",
+]
+
+[tasks.real-world-memory-graph-rag]
+workspace = false
+dependencies = [
+	"real-world-memory-graph-rag-report",
+]
+
+[tasks.real-world-memory-graph-rag-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_external_adapters/graph_rag",
+	"--out",
+	"tmp/real-world-memory/graph-rag/report.json",
+	"--run-id",
+	"real-world-memory-graph-rag",
+	"--adapter-id",
+	"fixture_graph_rag_external_adapters",
+	"--adapter-name",
+	"Graph/RAG representative external-adapter fixtures",
+]
+
+[tasks.real-world-memory-graph-rag-report]
+workspace = false
+dependencies = [
+	"real-world-memory-graph-rag-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-memory/graph-rag/report.json",
+	"--out",
+	"tmp/real-world-memory/graph-rag/report.md",
+]
+
+[tasks.real-world-memory-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_memory",
+	"--out",
+	"tmp/real-world-memory/real-world-memory-report.json",
+	"--run-id",
+	"real-world-memory",
+	"--adapter-id",
+	"elf_real_world_memory_fixture",
+	"--adapter-name",
+	"ELF real-world memory fixture",
+]
+
+[tasks.real-world-memory-knowledge]
+workspace = false
+dependencies = [
+	"real-world-memory-knowledge-report",
+]
+
+[tasks.real-world-memory-knowledge-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_memory/knowledge",
+	"--out",
+	"tmp/real-world-memory/knowledge-report.json",
+	"--run-id",
+	"real-world-memory-knowledge",
+	"--adapter-id",
+	"fixture_knowledge",
+	"--adapter-name",
+	"ELF knowledge fixture",
+]
+
+[tasks.real-world-memory-knowledge-report]
+workspace = false
+dependencies = [
+	"real-world-memory-knowledge-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-memory/knowledge-report.json",
+	"--out",
+	"tmp/real-world-memory/knowledge-report.md",
+]
+
+[tasks.real-world-memory-live-adapters]
+workspace = false
+command = "bash"
+args = [
+	"scripts/real-world-docker.sh",
+	"memory-live-adapters",
+]
+
+[tasks.real-world-memory-live-consolidation]
+workspace = false
+command = "bash"
+args = [
+	"scripts/real-world-docker.sh",
+	"memory-live-consolidation",
+]
+
+[tasks.real-world-memory-proactive-brief]
+workspace = false
+dependencies = [
+	"real-world-memory-proactive-brief-report",
+]
+
+[tasks.real-world-memory-proactive-brief-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_memory/proactive_brief",
+	"--out",
+	"tmp/real-world-memory/proactive-brief/report.json",
+	"--run-id",
+	"real-world-memory-proactive-brief",
+	"--adapter-id",
+	"fixture_proactive_brief",
+	"--adapter-name",
+	"ELF proactive brief fixture",
+]
+
+[tasks.real-world-memory-proactive-brief-report]
+workspace = false
+dependencies = [
+	"real-world-memory-proactive-brief-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-memory/proactive-brief/report.json",
+	"--out",
+	"tmp/real-world-memory/proactive-brief/report.md",
+]
+
+[tasks.real-world-memory-production-ops]
+workspace = false
+dependencies = [
+	"real-world-memory-production-ops-report",
+]
+
+[tasks.real-world-memory-production-ops-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_memory/production_ops",
+	"--run-id",
+	"real-world-memory-production-ops",
+	"--adapter-id",
+	"fixture_production_ops",
+	"--adapter-name",
+	"ELF production-ops fixture",
+	"--out",
+	"tmp/real-world-memory/production-ops-report.json",
+]
+
+[tasks.real-world-memory-production-ops-report]
+workspace = false
+dependencies = [
+	"real-world-memory-production-ops-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-memory/production-ops-report.json",
+	"--out",
+	"tmp/real-world-memory/production-ops-report.md",
+]
+
+[tasks.real-world-memory-project-decisions]
+workspace = false
+dependencies = [
+	"real-world-memory-project-decisions-report",
+]
+
+[tasks.real-world-memory-project-decisions-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_memory/project_decisions",
+	"--out",
+	"tmp/real-world-memory/project-decisions/report.json",
+	"--run-id",
+	"real-world-memory-project-decisions",
+	"--adapter-id",
+	"fixture_project_decisions",
+	"--adapter-name",
+	"ELF project decision fixture",
+]
+
+[tasks.real-world-memory-project-decisions-report]
+workspace = false
+dependencies = [
+	"real-world-memory-project-decisions-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-memory/project-decisions/report.json",
+	"--out",
+	"tmp/real-world-memory/project-decisions/report.md",
+]
+
+[tasks.real-world-memory-report]
+workspace = false
+dependencies = [
+	"real-world-memory-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-memory/real-world-memory-report.json",
+	"--out",
+	"tmp/real-world-memory/real-world-memory-report.md",
+]
+
+[tasks.real-world-memory-retrieval]
+workspace = false
+dependencies = [
+	"real-world-memory-retrieval-report",
+]
+
+[tasks.real-world-memory-retrieval-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_memory/retrieval",
+	"--run-id",
+	"real-world-memory-retrieval",
+	"--adapter-id",
+	"fixture_retrieval",
+	"--adapter-name",
+	"ELF fixture retrieval cases",
+	"--out",
+	"tmp/real-world-memory/retrieval-report.json",
+]
+
+[tasks.real-world-memory-retrieval-report]
+workspace = false
+dependencies = [
+	"real-world-memory-retrieval-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-memory/retrieval-report.json",
+	"--out",
+	"tmp/real-world-memory/retrieval-report.md",
+]
+
+[tasks.real-world-memory-scheduled]
+workspace = false
+dependencies = [
+	"real-world-memory-scheduled-report",
+]
+
+[tasks.real-world-memory-scheduled-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_memory/scheduled_memory",
+	"--out",
+	"tmp/real-world-memory/scheduled/report.json",
+	"--run-id",
+	"real-world-memory-scheduled",
+	"--adapter-id",
+	"fixture_scheduled_memory",
+	"--adapter-name",
+	"ELF scheduled memory fixture",
+]
+
+[tasks.real-world-memory-scheduled-report]
+workspace = false
+dependencies = [
+	"real-world-memory-scheduled-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-memory/scheduled/report.json",
+	"--out",
+	"tmp/real-world-memory/scheduled/report.md",
+]
+
+[tasks.real-world-memory-summary]
+workspace = false
+dependencies = [
+	"real-world-memory-summary-report",
+]
+
+[tasks.real-world-memory-summary-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_memory/memory_summary",
+	"--out",
+	"tmp/real-world-memory/memory-summary/report.json",
+	"--run-id",
+	"real-world-memory-summary",
+	"--adapter-id",
+	"fixture_memory_summary",
+	"--adapter-name",
+	"ELF memory summary fixture",
+]
+
+[tasks.real-world-memory-summary-report]
+workspace = false
+dependencies = [
+	"real-world-memory-summary-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-memory/memory-summary/report.json",
+	"--out",
+	"tmp/real-world-memory/memory-summary/report.md",
+]
+
+# Check
+# | task             | type      | cwd |
+# | ---------------- | --------- | --- |
+# | check            | composite |     |
+# | check-docs       | command   |     |
+# | check-rust       | command   |     |
+# | check-trace-gate | command   |     |
+
+[tasks.check]
+clear = true
+workspace = false
+dependencies = [
+	"fmt-check",
+	"check-docs",
+	"check-rust",
+	"lint",
+	"test",
+]
+
+[tasks.check-docs]
+workspace = false
+command = "python3"
+args = [
+	"scripts/check-docs.py",
+]
+
+[tasks.check-rust]
+workspace = false
+command = "cargo"
+args = [
+	"check",
+	"--workspace",
+	"--all-targets",
+	"--all-features",
+]
+
+[tasks.check-trace-gate]
+workspace = false
+command = "bash"
+args = [
+	"scripts/trace-gate.sh",
+]
+
+# Clean
+# | task                       | type    | cwd |
+# | -------------------------- | ------- | --- |
+# | clean-baseline-live-docker | command |     |
+# | clean-parity-docker        | command |     |
+
+[tasks.clean-baseline-live-docker]
+workspace = false
+command = "docker"
+args = [
+	"compose",
+	"-f",
+	"docker-compose.baseline.yml",
+	"down",
+	"-v",
+	"--remove-orphans",
+]
+
+[tasks.clean-parity-docker]
+workspace = false
+command = "docker"
+args = [
+	"compose",
+	"-f",
+	"docker-compose.parity.yml",
+	"down",
+	"-v",
+	"--remove-orphans",
+]
+
+# Format
+# | task           | type      | cwd |
+# | -------------- | --------- | --- |
+# | fmt            | composite |     |
+# | fmt-check      | composite |     |
+# | fmt-rust       | command   |     |
+# | fmt-rust-check | extend    |     |
+# | fmt-toml       | command   |     |
+# | fmt-toml-check | extend    |     |
+
+[tasks.fmt]
+workspace = false
+dependencies = [
+	"fmt-rust",
+	"fmt-toml",
+]
+
+[tasks.fmt-check]
+workspace = false
+dependencies = [
+	"fmt-rust-check",
+	"fmt-toml-check",
+]
+
+[tasks.fmt-rust]
+workspace = false
+script = "cargo +nightly fmt --all"
+
+[tasks.fmt-rust-check]
+extend = "fmt-rust"
+script = "cargo +nightly fmt --all -- --check"
+
+[tasks.fmt-toml]
+workspace = false
+command = "taplo"
+args = [
+	"fmt",
+]
+
+[tasks.fmt-toml-check]
+extend = "fmt-toml"
+args = [
+	"fmt",
+	"--check",
+]
+
+# Lint
+# | task        | type      | cwd |
+# | ----------- | --------- | --- |
+# | lint        | composite |     |
+# | lint-rust   | command   |     |
+# | lint-vstyle | command   |     |
+
+[tasks.lint]
+workspace = false
+dependencies = [
+	"lint-rust",
+	"lint-vstyle",
+]
+
+[tasks.lint-rust]
+workspace = false
+command = "cargo"
+args = [
+	"clippy",
+	"--all-features",
+	"--all-targets",
+	"--workspace",
+	"--",
+	"-D",
+	"clippy::all",
+	"-D",
+	"clippy::too_many_lines",
+	"-D",
+	"clippy::unwrap_used",
+	"-D",
+	"clippy::use_self",
+	"-D",
+	"clippy::wildcard_imports",
+	"-D",
+	"missing-docs",
+	"-D",
+	"unused-crate-dependencies",
+	"-D",
+	"warnings",
+]
+
+[tasks.lint-vstyle]
+workspace = false
+command = "cargo"
+args = [
+	"vstyle",
+	"curate",
+	"--language",
+	"rust",
+	"--workspace",
+	"--all-features",
+]
+
+# Lint Fix
+# | task            | type      | cwd |
+# | --------------- | --------- | --- |
+# | lint-fix        | composite |     |
+# | lint-fix-rust   | command   |     |
+# | lint-fix-vstyle | command   |     |
+
+[tasks.lint-fix]
+workspace = false
+dependencies = [
+	"lint-fix-rust",
+	"lint-fix-vstyle",
+]
+
+[tasks.lint-fix-rust]
+workspace = false
+command = "cargo"
+args = [
+	"clippy",
+	"--fix",
+	"--allow-dirty",
+	"--all-features",
+	"--all-targets",
+	"--workspace",
+	"--",
+	"-D",
+	"clippy::all",
+	"-D",
+	"clippy::too_many_lines",
+	"-D",
+	"clippy::unwrap_used",
+	"-D",
+	"clippy::use_self",
+	"-D",
+	"clippy::wildcard_imports",
+	"-D",
+	"missing-docs",
+	"-D",
+	"unused-crate-dependencies",
+	"-D",
+	"warnings",
+]
+
+[tasks.lint-fix-vstyle]
+workspace = false
+command = "cargo"
+args = [
+	"vstyle",
+	"tune",
+	"--language",
+	"rust",
+	"--workspace",
+	"--all-features",
+	"--strict",
+]
+
+# Research
+# | task                                    | type      | cwd |
+# | --------------------------------------- | --------- | --- |
+# | external-memory-radar                   | command   |     |
+# | external-memory-radar-artifact          | composite |     |
+# | external-memory-radar-artifact-json     | command   |     |
+# | external-memory-radar-artifact-validate | command   |     |
+# | external-memory-radar-dry-run           | composite |     |
+# | external-memory-radar-dry-run-json      | command   |     |
+# | external-memory-radar-dry-run-validate  | command   |     |
+# | external-memory-radar-validate          | command   |     |
 
 [tasks.external-memory-radar]
 workspace = false
@@ -1383,30 +1218,156 @@ args = [
 	"docs/research/external_memory_pattern_radar/cursor.json",
 ]
 
+# Smoke
+# | task                               | type      | cwd |
+# | ---------------------------------- | --------- | --- |
+# | smoke-graphify-docker-graph-report | command   |     |
+# | smoke-graphiti-zep-docker-temporal | command   |     |
+# | smoke-graphrag-docker              | command   |     |
+# | smoke-lightrag-docker-context      | command   |     |
+# | smoke-ragflow-docker               | command   |     |
+# | smoke-real-world-job               | composite |     |
+# | smoke-real-world-job-json          | command   |     |
+# | smoke-real-world-job-report        | command   |     |
 
-# Meta
-# | task   | type      | cwd |
-# | ------ | --------- | --- |
-# | checks | composite |     |
-
-[tasks.checks]
-workspace = false
-dependencies = [
-	"lint",
-	"test",
-	"fmt-check",
-]
-
-
-# Quality utilities
-# | task      | type    | cwd |
-# | --------- | ------- | --- |
-# | trace-gate | command |     |
-
-[tasks.trace-gate]
+[tasks.smoke-graphify-docker-graph-report]
 workspace = false
 command = "bash"
 args = [
-	"-lc",
-	"set -euo pipefail; DSN=\"${TRACE_GATE_PG_DSN:-postgres://postgres:postgres@127.0.0.1:5432/elf}\"; psql \"${DSN}\" -v ON_ERROR_STOP=1 -f sql/init.sql; psql \"${DSN}\" -v ON_ERROR_STOP=1 -f .github/fixtures/trace_gate/fixture.sql; cargo run -p elf-eval --bin trace_regression_gate -- --config .github/fixtures/trace_gate/config.toml --gate .github/fixtures/trace_gate/gate.json --out tmp/trace_gate.report.json",
+	"scripts/smoke-docker.sh",
+	"graphify-docker-graph-report",
+]
+
+[tasks.smoke-graphiti-zep-docker-temporal]
+workspace = false
+command = "bash"
+args = [
+	"scripts/smoke-docker.sh",
+	"graphiti-zep-docker-temporal",
+]
+
+[tasks.smoke-graphrag-docker]
+workspace = false
+command = "bash"
+args = [
+	"scripts/smoke-docker.sh",
+	"graphrag-docker",
+]
+
+[tasks.smoke-lightrag-docker-context]
+workspace = false
+command = "bash"
+args = [
+	"scripts/smoke-docker.sh",
+	"lightrag-docker-context",
+]
+
+[tasks.smoke-ragflow-docker]
+workspace = false
+command = "bash"
+args = [
+	"scripts/ragflow-docker-evidence-smoke.sh",
+]
+
+[tasks.smoke-real-world-job]
+workspace = false
+dependencies = [
+	"smoke-real-world-job-report",
+]
+
+[tasks.smoke-real-world-job-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_memory/work_resume",
+	"--out",
+	"tmp/real-world-job/real-world-job-smoke-report.json",
+]
+
+[tasks.smoke-real-world-job-report]
+workspace = false
+dependencies = [
+	"smoke-real-world-job-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-job/real-world-job-smoke-report.json",
+	"--out",
+	"tmp/real-world-job/real-world-job-smoke-report.md",
+]
+
+# Test
+# | task                  | type      | cwd |
+# | --------------------- | --------- | --- |
+# | test                  | composite |     |
+# | test-e2e              | command   |     |
+# | test-rust             | command   |     |
+# | test-rust-all         | command   |     |
+# | test-rust-integration | command   |     |
+
+[tasks.test]
+clear = true
+workspace = false
+dependencies = [
+	"test-rust",
+]
+
+[tasks.test-e2e]
+workspace = false
+command = "bash"
+args = [
+	"scripts/context-misranking-harness.sh",
+]
+
+[tasks.test-rust]
+workspace = false
+command = "cargo"
+args = [
+	"nextest",
+	"run",
+	"--workspace",
+	"--all-targets",
+	"--all-features",
+]
+
+[tasks.test-rust-all]
+workspace = false
+command = "cargo"
+args = [
+	"nextest",
+	"run",
+	"--workspace",
+	"--all-targets",
+	"--all-features",
+	"--run-ignored",
+	"all",
+]
+
+[tasks.test-rust-integration]
+workspace = false
+command = "cargo"
+args = [
+	"nextest",
+	"run",
+	"--workspace",
+	"--all-targets",
+	"--all-features",
+	"--run-ignored",
+	"only",
 ]

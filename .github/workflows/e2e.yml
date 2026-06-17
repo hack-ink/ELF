@@ -109,7 +109,7 @@ jobs:
       - name: Run context misranking harness
         run: |
           mkdir -p tmp
-          cargo make e2e
+          cargo make test-e2e
 
       - name: Upload harness outputs
         if: always()

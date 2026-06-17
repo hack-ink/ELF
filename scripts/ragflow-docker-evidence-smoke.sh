@@ -687,8 +687,8 @@ write_artifact() {
 			},
 			setup: {
 				status: $setup_status,
-				command: "cargo make ragflow-docker-smoke",
-				live_command: "ELF_RAGFLOW_SMOKE_START=1 ELF_RAGFLOW_SMOKE_ACCEPT_RESOURCE_ENVELOPE=1 cargo make ragflow-docker-smoke",
+				command: "cargo make smoke-ragflow-docker",
+				live_command: "ELF_RAGFLOW_SMOKE_START=1 ELF_RAGFLOW_SMOKE_ACCEPT_RESOURCE_ENVELOPE=1 cargo make smoke-ragflow-docker",
 				started: ($started == "true"),
 				startup_time_ms: (if $startup_time_ms == "" then null else ($startup_time_ms | tonumber) end),
 				vm_max_map_count: {
@@ -847,13 +847,13 @@ write_manifest() {
 					setup: {
 						status: $setup_status,
 						evidence: "Official RAGFlow Docker Compose boundary and resource envelope were evaluated for the tiny evidence smoke.",
-						command: "cargo make ragflow-docker-smoke",
+						command: "cargo make smoke-ragflow-docker",
 						artifact: $out_rel
 					},
 					run: {
 						status: $run_status,
 						evidence: "The smoke attempts dataset creation, empty-document corpus ingest, chunk insert, retrieval query, and reference chunk extraction.",
-						command: "ELF_RAGFLOW_SMOKE_START=1 ELF_RAGFLOW_SMOKE_ACCEPT_RESOURCE_ENVELOPE=1 cargo make ragflow-docker-smoke",
+						command: "ELF_RAGFLOW_SMOKE_START=1 ELF_RAGFLOW_SMOKE_ACCEPT_RESOURCE_ENVELOPE=1 cargo make smoke-ragflow-docker",
 						artifact: $out_rel
 					},
 					result: {

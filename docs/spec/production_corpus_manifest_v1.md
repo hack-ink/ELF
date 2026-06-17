@@ -82,7 +82,7 @@ evidence ID. It must not silently fall back to the checked-in synthetic corpus.
       "evidence_id": "issue-xy123-resume",
       "category": "issue",
       "title": "XY-123 Resume State",
-      "text": "XY-123 resumes on branch y/example with command `cargo make checks`."
+      "text": "XY-123 resumes on branch y/example with command `cargo make check`."
     }
   ],
   "queries": [
@@ -92,7 +92,7 @@ evidence ID. It must not silently fall back to the checked-in synthetic corpus.
       "query": "How do I resume XY-123?",
       "expected_evidence_ids": ["issue-xy123-resume"],
       "allowed_alternate_evidence_ids": [],
-      "expected_terms": ["XY-123", "cargo make checks"]
+      "expected_terms": ["XY-123", "cargo make check"]
     }
   ]
 }
