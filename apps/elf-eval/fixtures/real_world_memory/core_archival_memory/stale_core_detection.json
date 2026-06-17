@@ -24,7 +24,7 @@
       {
         "evidence_id": "archival-current-validation-gate",
         "kind": "decision",
-        "text": "Archival decision update: before pushing a refreshed PR head, run cargo make fmt, cargo make lint-fix, and cargo make checks.",
+        "text": "Archival decision update: before pushing a refreshed PR head, run cargo make fmt, cargo make lint-fix, and cargo make check.",
         "source_ref": {
           "schema": "source_ref/v1",
           "resolver": "real_world_job_fixture/v1",
@@ -33,7 +33,7 @@
             "evidence_id": "archival-current-validation-gate"
           },
           "locator": {
-            "quote": "cargo make fmt, cargo make lint-fix, and cargo make checks"
+            "quote": "cargo make fmt, cargo make lint-fix, and cargo make check"
           }
         },
         "created_at": "2026-06-11T04:30:00Z"
@@ -73,7 +73,7 @@
     "adapter_response": {
       "adapter_id": "fixture_core_archival_memory",
       "answer": {
-        "content": "Treat the attached validation-gate core block as stale. The current archival decision says to run cargo make fmt, cargo make lint-fix, and cargo make checks before pushing a refreshed PR head, and the archival rationale says that evidence supersedes the core block until it is updated from source-of-truth state.",
+        "content": "Treat the attached validation-gate core block as stale. The current archival decision says to run cargo make fmt, cargo make lint-fix, and cargo make check before pushing a refreshed PR head, and the archival rationale says that evidence supersedes the core block until it is updated from source-of-truth state.",
         "claims": [
           {
             "claim_id": "stale_core_detected",
@@ -83,7 +83,7 @@
           },
           {
             "claim_id": "archival_current_gate",
-            "text": "The current archival validation gate is cargo make fmt, cargo make lint-fix, and cargo make checks.",
+            "text": "The current archival validation gate is cargo make fmt, cargo make lint-fix, and cargo make check.",
             "evidence_ids": ["archival-current-validation-gate"],
             "confidence": "high"
           }
@@ -131,7 +131,7 @@
       },
       {
         "claim_id": "archival_current_gate",
-        "text": "The current archival validation gate is cargo make fmt, cargo make lint-fix, and cargo make checks."
+        "text": "The current archival validation gate is cargo make fmt, cargo make lint-fix, and cargo make check."
       }
     ],
     "must_not_include": [
@@ -151,7 +151,7 @@
       "evidence_id": "archival-current-validation-gate",
       "claim_id": "archival_current_gate",
       "requirement": "cite",
-      "quote": "cargo make fmt, cargo make lint-fix, and cargo make checks"
+      "quote": "cargo make fmt, cargo make lint-fix, and cargo make check"
     },
     {
       "evidence_id": "archival-supersedes-core-rationale",

@@ -29,7 +29,7 @@ tmp/parity/competitive-parity-report.json
 Remove parity containers and Docker-managed volumes:
 
 ```sh
-cargo make parity-docker-clean
+cargo make clean-parity-docker
 ```
 
 The cleanup command removes Postgres, Qdrant, Cargo cache, and Rust target volumes

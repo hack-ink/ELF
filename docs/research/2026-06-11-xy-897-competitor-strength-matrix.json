@@ -237,7 +237,7 @@
       ],
       "measured_status": "blocked",
       "proof": {
-        "command": "ELF_RAGFLOW_SMOKE_START=1 ELF_RAGFLOW_SMOKE_ACCEPT_RESOURCE_ENVELOPE=1 cargo make ragflow-docker-smoke",
+        "command": "ELF_RAGFLOW_SMOKE_START=1 ELF_RAGFLOW_SMOKE_ACCEPT_RESOURCE_ENVELOPE=1 cargo make smoke-ragflow-docker",
         "artifact": "tmp/real-world-memory/ragflow-smoke/ragflow-smoke.json"
       },
       "unsupported_or_blocked_status": {
@@ -257,7 +257,7 @@
       ],
       "measured_status": "blocked",
       "proof": {
-        "command": "ELF_LIGHTRAG_CONTEXT_START=1 cargo make lightrag-docker-context-smoke",
+        "command": "ELF_LIGHTRAG_CONTEXT_START=1 cargo make smoke-lightrag-docker-context",
         "artifact": "tmp/real-world-memory/lightrag-context/summary.json"
       },
       "unsupported_or_blocked_status": {
@@ -277,7 +277,7 @@
       ],
       "measured_status": "blocked",
       "proof": {
-        "command": "ELF_GRAPHRAG_SMOKE_RUN=1 cargo make graphrag-docker-smoke",
+        "command": "ELF_GRAPHRAG_SMOKE_RUN=1 cargo make smoke-graphrag-docker",
         "artifact": "tmp/real-world-memory/graphrag-smoke/summary.json"
       },
       "unsupported_or_blocked_status": {
@@ -297,7 +297,7 @@
       ],
       "measured_status": "blocked",
       "proof": {
-        "command": "ELF_GRAPHITI_ZEP_SMOKE_START=1 ELF_GRAPHITI_ZEP_SMOKE_RUN=1 cargo make graphiti-zep-docker-temporal-smoke",
+        "command": "ELF_GRAPHITI_ZEP_SMOKE_START=1 ELF_GRAPHITI_ZEP_SMOKE_RUN=1 cargo make smoke-graphiti-zep-docker-temporal",
         "artifact": "tmp/real-world-memory/graphiti-zep-smoke/summary.json"
       },
       "unsupported_or_blocked_status": {
@@ -417,7 +417,7 @@
       ],
       "measured_status": "wrong_result",
       "proof": {
-        "command": "cargo make graphify-docker-graph-report-smoke",
+        "command": "cargo make smoke-graphify-docker-graph-report",
         "artifact": "tmp/real-world-memory/graphify-smoke/graphify-report.json"
       },
       "unsupported_or_blocked_status": {

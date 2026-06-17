@@ -1186,13 +1186,13 @@ def write_manifest(status: StatusState) -> dict[str, Any]:
                 "setup": {
                     "status": status.setup,
                     "evidence": "The smoke runs inside the baseline Docker runner and installs or invokes GraphRAG only in the container-local work directory.",
-                    "command": "cargo make graphrag-docker-smoke",
+                    "command": "cargo make smoke-graphrag-docker",
                     "artifact": rel(OUT),
                 },
                 "run": {
                     "status": status.run,
                     "evidence": "The live path generates a tiny public corpus, initializes GraphRAG, indexes with bounded inputs, and runs local search when provider config is supplied.",
-                    "command": "ELF_GRAPHRAG_SMOKE_RUN=1 cargo make graphrag-docker-smoke",
+                    "command": "ELF_GRAPHRAG_SMOKE_RUN=1 cargo make smoke-graphrag-docker",
                     "artifact": rel(OUT),
                 },
                 "result": {
@@ -1286,7 +1286,7 @@ def write_manifest(status: StatusState) -> dict[str, Any]:
                             "evidence": "Official local-search context and graph traversal reference.",
                         },
                     ],
-                    "setup_path": "Run cargo make graphrag-docker-smoke for a typed artifact; set ELF_GRAPHRAG_SMOKE_RUN=1 with explicit provider configuration for a live index/query attempt.",
+                    "setup_path": "Run cargo make smoke-graphrag-docker for a typed artifact; set ELF_GRAPHRAG_SMOKE_RUN=1 with explicit provider configuration for a live index/query attempt.",
                     "runtime_boundary": "docker-compose.baseline.yml baseline-runner, container-local Python venv, generated public corpus, and report artifacts under tmp/real-world-memory/graphrag-smoke.",
                     "resource_expectation": f"GraphRAG package {GRAPH_RAG_REF}, max_docs={MAX_DOCS}, max_input_chars={MAX_INPUT_CHARS}, timeout_seconds={TIMEOUT_SECONDS}, index_method={INDEX_METHOD}.",
                     "retry_guidance": [
@@ -1378,7 +1378,7 @@ def main() -> int:
         status.result = "incomplete"
         status.overall = "incomplete"
         status.failure_class = "not_running_in_docker"
-        status.failure_reason = "GraphRAG smoke must run inside Docker; use cargo make graphrag-docker-smoke."
+        status.failure_reason = "GraphRAG smoke must run inside Docker; use cargo make smoke-graphrag-docker."
     elif not command_available("python3"):
         status.setup = "incomplete"
         status.result = "incomplete"

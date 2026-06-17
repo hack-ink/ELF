@@ -39,11 +39,11 @@ contract, not the quality claim.
 
 | Project | Scored scenario | Command | Current scored status | Claim boundary |
 | --- | --- | --- | --- | --- |
-| RAGFlow | `retrieval`: reference chunks mapped to generated evidence ids | `cargo make ragflow-docker-smoke` | `blocked` or `incomplete` by execution boundary | Smoke-only. No RAGFlow quality claim until returned reference chunks map to `ragflow-smoke-anchor`. |
-| LightRAG | `retrieval`: context/source export mapped to fixture evidence ids | `cargo make lightrag-docker-context-smoke` | `incomplete` when the API service is not started | Smoke-only. No graph-RAG quality claim until context or references map to generated evidence ids. |
-| GraphRAG | `knowledge_compilation`: output tables mapped to generated evidence ids | `cargo make graphrag-docker-smoke` | `blocked` | Smoke-only. No graph-navigation or synthesis claim until output tables map to generated evidence ids. |
-| Graphiti/Zep | `memory_evolution`: current and historical validity facts | `cargo make graphiti-zep-docker-temporal-smoke` | `blocked` before live opt-in; `provider_api_key_missing` when live path is enabled without explicit credentials | Provider-bound. No ELF-over-Graphiti/Zep claim until temporal output maps to scored evidence ids. |
-| graphify | `knowledge_compilation`: `graph.json`, `GRAPH_REPORT.md`, and query output mapping | `cargo make graphify-docker-graph-report-smoke` | `wrong_result` after setup/run pass | Scored tiny smoke. The graph/report output maps to evidence ids, but the job remains non-pass; no broad graph-navigation quality claim follows. |
+| RAGFlow | `retrieval`: reference chunks mapped to generated evidence ids | `cargo make smoke-ragflow-docker` | `blocked` or `incomplete` by execution boundary | Smoke-only. No RAGFlow quality claim until returned reference chunks map to `ragflow-smoke-anchor`. |
+| LightRAG | `retrieval`: context/source export mapped to fixture evidence ids | `cargo make smoke-lightrag-docker-context` | `incomplete` when the API service is not started | Smoke-only. No graph-RAG quality claim until context or references map to generated evidence ids. |
+| GraphRAG | `knowledge_compilation`: output tables mapped to generated evidence ids | `cargo make smoke-graphrag-docker` | `blocked` | Smoke-only. No graph-navigation or synthesis claim until output tables map to generated evidence ids. |
+| Graphiti/Zep | `memory_evolution`: current and historical validity facts | `cargo make smoke-graphiti-zep-docker-temporal` | `blocked` before live opt-in; `provider_api_key_missing` when live path is enabled without explicit credentials | Provider-bound. No ELF-over-Graphiti/Zep claim until temporal output maps to scored evidence ids. |
+| graphify | `knowledge_compilation`: `graph.json`, `GRAPH_REPORT.md`, and query output mapping | `cargo make smoke-graphify-docker-graph-report` | `wrong_result` after setup/run pass | Scored tiny smoke. The graph/report output maps to evidence ids, but the job remains non-pass; no broad graph-navigation quality claim follows. |
 
 ## Artifact Contract
 
