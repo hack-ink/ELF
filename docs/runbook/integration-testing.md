@@ -1,0 +1,327 @@
+---
+type: Runbook
+title: "Integration Testing (Memory Retrieval)"
+description: "Provide a repeatable E2E test for memory ingestion, indexing, and retrieval."
+resource: docs/runbook/integration-testing.md
+status: active
+authority: procedural
+owner: runbook
+last_verified: 2026-06-18
+tags:
+  - docs
+  - runbook
+---
+# Integration Testing (Memory Retrieval)
+
+Goal: Provide a repeatable E2E test for memory ingestion, indexing, and retrieval.
+Read this when: You need to validate retrieval behavior after changing ingestion, ranking, or storage logic.
+Inputs: External Postgres and Qdrant services plus the repository test commands.
+Depends on: `docs/runbook/testing.md` and `Makefile.toml`.
+Verification: The integration or E2E commands complete without regressions.
+
+Name: This flow is the E2E test in `docs/runbook/testing.md`.
+
+## When to use
+
+- After adding or changing memory ingestion, ranking, or storage behavior.
+- Before shipping changes that affect retrieval quality or service wiring.
+
+## Fast path (automated)
+
+Run the ignored integration suite (requires external Postgres and Qdrant):
+
+```bash
+ELF_PG_DSN="postgres://postgres:postgres@127.0.0.1:51888/postgres" \
+ELF_QDRANT_GRPC_URL="http://127.0.0.1:51890" \
+cargo make test-rust-integration
+```
+
+Run the context misranking harness (creates and drops a dedicated database and collection):
+
+```bash
+ELF_PG_DSN="postgres://postgres:postgres@127.0.0.1:51888/postgres" \
+ELF_QDRANT_GRPC_URL="http://127.0.0.1:51890" \
+ELF_QDRANT_HTTP_URL="http://127.0.0.1:51889" \
+cargo make test-e2e
+```
+
+CI also runs this harness as a required check for code changes (see `.github/workflows/e2e.yml`).
+
+Note: The harness builds binaries first and then starts `elf-worker` and `elf-api` by executing the
+compiled artifacts under `target/debug/`. This avoids slow startup and Cargo lock contention that can
+happen when running multiple `cargo run` processes concurrently.
+
+## Preconditions
+
+- Postgres is running and reachable.
+- Qdrant is running and reachable.
+- You have a config file with valid storage and provider settings.
+- You can create and drop databases on your Postgres instance.
+
+Note: The automated harness creates a dedicated Qdrant collection per run and deletes it on exit. The ignored integration suite uses per-test collections and cleans them up during teardown.
+Note: Qdrant exposes a REST API (default: 6333) and a gRPC API (default: 6334). The `storage.qdrant.url` field is the gRPC base URL. In this repository's local setup, REST is commonly mapped to port 51889 and gRPC to port 51890.
+Note: The local Postgres instance in this repository typically runs on port `51888`. Adjust the DSN if your setup differs.
+
+## Step 1: Prepare a dedicated integration config
+
+Create a dedicated config file for integration tests (for example, `tmp/elf.integration.toml`) and point it to your running services. If `tmp/elf.integration.toml` already exists at the repository root, reuse it and update the DSN and service URLs as needed. Use `api_base` for provider endpoints.
+
+```toml
+[service]
+admin_bind = "127.0.0.1:51891"
+http_bind  = "127.0.0.1:51892"
+mcp_bind   = "127.0.0.1:51893"
+log_level  = "info"
+
+[storage.postgres]
+dsn            = "postgres://postgres:postgres@127.0.0.1:51888/elf_e2e"
+pool_max_conns = 10
+
+[storage.qdrant]
+collection = "mem_notes_v2"
+url        = "http://127.0.0.1:51890"
+vector_dim = 4096
+
+[providers.embedding]
+api_base        = "https://provider.example"
+api_key         = "REPLACE_ME"
+model           = "embedding-model"
+path            = "/embeddings"
+provider_id     = "provider-id"
+dimensions      = 4096
+timeout_ms      = 20000
+
+default_headers = {}
+
+[providers.rerank]
+api_base        = "https://provider.example"
+api_key         = "REPLACE_ME"
+model           = "rerank-model"
+path            = "/rerank"
+provider_id     = "provider-id"
+timeout_ms      = 20000
+
+default_headers = {}
+
+[providers.llm_extractor]
+api_base        = "https://provider.example"
+api_key         = "REPLACE_ME"
+model           = "llm-model"
+path            = "/chat/completions"
+provider_id     = "provider-id"
+temperature     = 0.1
+timeout_ms      = 30000
+
+default_headers = {}
+
+[scopes]
+allowed = ["agent_private", "org_shared", "project_shared"]
+
+[scopes.read_profiles]
+all_scopes           = ["agent_private", "org_shared", "project_shared"]
+private_only         = ["agent_private"]
+private_plus_project = ["agent_private", "project_shared"]
+
+[scopes.precedence]
+agent_private  = 30
+org_shared     = 10
+project_shared = 20
+
+[scopes.write_allowed]
+agent_private  = true
+org_shared     = true
+project_shared = true
+
+[memory]
+candidate_k             = 60
+dup_sim_threshold       = 0.92
+max_note_chars          = 240
+max_notes_per_add_event = 3
+top_k                   = 12
+update_sim_threshold    = 0.85
+
+[chunking]
+enabled        = true
+max_tokens     = 512
+overlap_tokens = 128
+# If empty, uses providers.embedding.model.
+tokenizer_repo = ""
+
+[search.expansion]
+mode             = "dynamic"
+max_queries      = 4
+include_original = true
+
+[search.dynamic]
+min_candidates = 10
+min_top_score  = 0.12
+
+[search.prefilter]
+max_candidates = 0
+
+[ranking]
+recency_tau_days   = 60
+tie_breaker_weight = 0.1
+
+[lifecycle.ttl_days]
+constraint = 0
+decision   = 0
+fact       = 180
+plan       = 14
+preference = 0
+profile    = 0
+
+[lifecycle]
+purge_deleted_after_days    = 30
+purge_deprecated_after_days = 180
+
+[security]
+bind_localhost_only      = true
+evidence_max_quote_chars = 320
+evidence_max_quotes      = 2
+evidence_min_quotes      = 1
+redact_secrets_on_write  = true
+reject_non_english       = true
+```
+
+## Step 2: Start the worker and API
+
+From the repository root:
+
+```bash
+cargo run -p elf-worker -- -c tmp/elf.integration.toml
+```
+
+In a second terminal:
+
+```bash
+cargo run -p elf-api -- -c tmp/elf.integration.toml
+```
+
+Note: If you see long "waiting for file lock" messages or slow startup, build once and run the
+binaries directly:
+`cargo build -p elf-worker -p elf-api`, then `target/debug/elf-worker -c ...` and
+`target/debug/elf-api -c ...`.
+
+## Step 3: Add test notes
+
+Use a dedicated tenant, project, and agent to isolate test data.
+
+```bash
+curl -sS http://127.0.0.1:51892/v2/notes/ingest \
+  -H 'content-type: application/json' \
+  -H 'X-ELF-Tenant-Id: it-tenant' \
+  -H 'X-ELF-Project-Id: it-project' \
+  -H 'X-ELF-Agent-Id: it-agent' \
+  -d '{
+    "scope": "project_shared",
+    "notes": [
+      {
+        "type": "fact",
+        "key": "embeddings_storage",
+        "text": "Embeddings are stored in Postgres and indexed in Qdrant.",
+        "importance": 0.7,
+        "confidence": 0.9,
+        "ttl_days": 180,
+        "source_ref": {"run": "integration-test"}
+      },
+      {
+        "type": "fact",
+        "key": "rerank_order",
+        "text": "Search uses reranking after hybrid retrieval.",
+        "importance": 0.7,
+        "confidence": 0.9,
+        "ttl_days": 180,
+        "source_ref": {"run": "integration-test"}
+      }
+    ]
+  }'
+```
+
+Record the returned `note_id` values from `results[].note_id`. These are required for the evaluation dataset and cleanup.
+
+Note: Requests reject non-English content. Use English-only text and keys.
+
+## Step 4: Create the evaluation dataset
+
+Create `tmp/eval.json` with expected note IDs from the add-note call.
+
+```json
+{
+  "name": "integration",
+  "defaults": {
+    "tenant_id": "it-tenant",
+    "project_id": "it-project",
+    "agent_id": "it-agent",
+    "read_profile": "all_scopes",
+    "top_k": 12,
+    "candidate_k": 60
+  },
+  "queries": [
+    {
+      "id": "q-1",
+      "query": "Where are embeddings stored?",
+      "expected_note_ids": ["NOTE_ID_1"]
+    },
+    {
+      "id": "q-2",
+      "query": "How does ranking work in search?",
+      "expected_note_ids": ["NOTE_ID_2"]
+    }
+  ]
+}
+```
+
+## Step 5: Run the evaluation
+
+```bash
+cargo run -p elf-eval -- -c tmp/elf.integration.toml --dataset tmp/eval.json
+```
+
+Review the JSON output for recall, precision, and latency metrics.
+
+## Acceptance criteria
+
+Use these criteria as a starting point. Adjust thresholds based on your provider and workload.
+
+Required (integration smoke):
+- The evaluation completes without errors.
+- Each query returns at least one expected note in `top_k`.
+
+Recommended (quality signal):
+- Mean recall@k across queries is at least 0.8.
+- p95 latency is within 2x of the last known baseline for the same environment.
+
+## Step 6: Clean up test notes
+
+Use the returned note IDs from Step 3.
+
+```bash
+curl -sS -X DELETE http://127.0.0.1:51892/v2/notes/NOTE_ID_1 \
+  -H 'X-ELF-Tenant-Id: it-tenant' \
+  -H 'X-ELF-Project-Id: it-project' \
+  -H 'X-ELF-Agent-Id: it-agent'
+
+curl -sS -X DELETE http://127.0.0.1:51892/v2/notes/NOTE_ID_2 \
+  -H 'X-ELF-Tenant-Id: it-tenant' \
+  -H 'X-ELF-Project-Id: it-project' \
+  -H 'X-ELF-Agent-Id: it-agent'
+```
+
+## Troubleshooting
+
+- If results do not appear immediately, wait a few seconds for the outbox worker to index, then re-run the evaluation.
+- If Qdrant connectivity warnings appear, verify the configured `storage.qdrant.url` and that the service is reachable.
+
+## Integration test scheduling decision for Doc v1 acceptance checks
+
+The Doc v1 acceptance coverage in `packages/elf-service/tests/acceptance/docs_extension_v1.rs`
+(filter behavior, source_ref non-English boundary, and Qdrant payload-index assertions) remains
+`#[ignore]` by design and is not enabled in default CI because it requires external PostgreSQL/Qdrant
+services and acceptance-style provisioning. Run it intentionally with:
+
+```bash
+ELF_PG_DSN="postgres://postgres:postgres@127.0.0.1:51888/postgres" \
+ELF_QDRANT_GRPC_URL="http://127.0.0.1:51890" \
+cargo test -p elf-service --test acceptance -- docs_extension_v1 --ignored
+```
