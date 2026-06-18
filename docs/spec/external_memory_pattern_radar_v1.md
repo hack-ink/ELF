@@ -1,3 +1,21 @@
+---
+type: Spec
+title: "External Memory Pattern Radar v1"
+description: "Normative contract for external memory pattern radar cursors, runs, and issue decisions."
+resource: docs/spec/external_memory_pattern_radar_v1.md
+status: active
+authority: normative
+owner: spec
+last_verified: 2026-06-18
+tags:
+  - docs
+  - spec
+source_refs: []
+code_refs: []
+related: []
+drift_watch:
+  - docs/spec/external_memory_pattern_radar_v1.md
+---
 # External Memory Pattern Radar v1
 
 Purpose: Define the durable cursor, run, and issue-decision contract for ELF's external
@@ -21,8 +39,8 @@ The radar is a decision-support workflow. It is not an adoption workflow.
 
 Canonical checked-in paths:
 
-- Cursor: `docs/research/external_memory_pattern_radar/cursor.json`
-- Latest prose summary: `docs/research/external_memory_pattern_radar/latest.md`
+- Cursor: `apps/elf-eval/fixtures/external_memory_pattern_radar/cursor.json`
+- Latest prose summary: `docs/evidence/external_memory_pattern_radar_latest.md`
 
 Temporary dry-run outputs may be written under `tmp/external-memory-pattern-radar/`.
 
