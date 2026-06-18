@@ -1,3 +1,21 @@
+---
+type: Spec
+title: "Competitive Parity Gate v1 Specification"
+description: "Define the adoption gate ELF must pass before it can be treated as production-eligible memory infrastructure."
+resource: docs/spec/system_competitive_parity_gate_v1.md
+status: active
+authority: normative
+owner: spec
+last_verified: 2026-06-18
+tags:
+  - docs
+  - spec
+source_refs: []
+code_refs: []
+related: []
+drift_watch:
+  - docs/spec/system_competitive_parity_gate_v1.md
+---
 # Competitive Parity Gate v1 Specification
 
 Purpose: Define the adoption gate ELF must pass before it can be treated as production-eligible memory infrastructure.
@@ -8,9 +26,9 @@ Defines: `elf.competitive_parity_gate/v1` dimensions, Docker isolation rules, ba
 
 Related inputs:
 
-- `docs/research/2026-06-08-agent-memory-selection.json`
-- `docs/guide/research/comparison_external_projects.md`
-- `docs/guide/research/agentmemory_adapter.md`
+- `docs/decisions/2026-06-08-agent-memory-selection.md`
+- `docs/evidence/external_memory/comparison_external_projects.md`
+- `docs/evidence/external_memory/agentmemory_adapter.md`
 - `docs/spec/system_elf_memory_service_v2.md`
 - `docs/spec/system_consolidation_proposals_v1.md`
 

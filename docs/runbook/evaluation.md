@@ -1,0 +1,409 @@
+---
+type: Runbook
+title: "Retrieval Evaluation"
+description: "Provide a repeatable way to measure memory retrieval quality and prevent regressions."
+resource: docs/runbook/evaluation.md
+status: active
+authority: procedural
+owner: runbook
+last_verified: 2026-06-18
+tags:
+  - docs
+  - runbook
+---
+# Retrieval Evaluation
+
+Goal: Provide a repeatable way to measure memory retrieval quality and prevent regressions.
+Read this when: You need to run retrieval evaluations or compare quality before and after a change.
+Inputs: An ELF config file plus an evaluation dataset or saved trace fixture.
+Depends on: `elf-eval`, `Makefile.toml`, and the search-related system specs.
+Verification: Evaluation commands complete and produce metrics or regression outputs you can compare.
+
+## Tool
+
+Use the `elf-eval` app to run an evaluation against a dataset of queries and expected notes.
+
+Example:
+
+```bash
+cargo run -p elf-eval -- -c ./elf.toml --dataset ./apps/elf-eval/fixtures/evaluation/eval-sample.json
+```
+
+Search-mode selection:
+
+```bash
+# Run the evaluation using the quick_find (faster) search mode.
+cargo run -p elf-eval -- -c ./elf.toml --dataset ./apps/elf-eval/fixtures/evaluation/eval-sample.json --search-mode quick_find
+
+# Compare two configs while forcing different modes per side (A vs B).
+cargo run -p elf-eval -- \
+  -c ./elf.a.toml \
+  --config-b ./elf.b.toml \
+  --dataset ./apps/elf-eval/fixtures/evaluation/eval-sample.json \
+  --search-mode planned_search \
+  --search-mode-b quick_find
+```
+
+## Dataset format
+
+The dataset is JSON with optional defaults and a list of queries.
+
+```json
+{
+  "name": "baseline",
+  "defaults": {
+    "tenant_id": "tenant-1",
+    "project_id": "project-1",
+    "agent_id": "agent-1",
+    "read_profile": "all_scopes",
+    "top_k": 12,
+    "candidate_k": 60
+  },
+  "queries": [
+    {
+      "id": "q-1",
+      "query": "where do we store embeddings",
+      "expected_note_ids": [
+        "11111111-1111-1111-1111-111111111111",
+        "22222222-2222-2222-2222-222222222222"
+      ]
+    },
+    {
+      "id": "q-2",
+      "query": "how do we consolidate duplicate incident notes",
+      "expected_keys": ["incident_merge_protocol"]
+    }
+  ]
+}
+```
+
+Each query supports these fields:
+
+- `id` (optional): A human-friendly identifier for the query.
+- `query` (required): The search query text.
+- `expected_note_ids` (optional): One or more note IDs expected in the results.
+- `expected_keys` (optional): One or more semantic note keys expected in the results.
+- Exactly one of `expected_note_ids` or `expected_keys` must be set per query.
+- `tenant_id`, `project_id`, `agent_id`, `read_profile` (optional): Override defaults.
+- `top_k`, `candidate_k` (optional): Override defaults.
+- `ranking` (optional): A request-scoped ranking override (for example, `ranking.blend.enabled`,
+  `ranking.blend.segments`, or normalization settings).
+
+Resolution order for `top_k` and `candidate_k` is:
+
+1. CLI flags (`--top-k`, `--candidate-k`)
+2. Per-query overrides
+3. Dataset defaults
+4. `elf.toml` values
+
+## Output
+
+The command prints a JSON report containing summary metrics and per-query details:
+
+- `avg_recall_at_k`
+- `avg_precision_at_k`
+- `mean_rr`
+- `mean_ndcg`
+- `latency_ms_p50` and `latency_ms_p95`
+- `queries[].trace_id` (and `queries[].trace_ids` when `runs_per_query > 1`) for trace-based replay.
+
+## Notes
+
+- The evaluation tool uses the configured embedding and rerank providers.
+- The evaluation tool can run in either search mode:
+  - `--search-mode quick_find` (lower latency)
+  - `--search-mode planned_search` (planning-enabled path; useful when you need query plans and staged trajectory metadata)
+  - When running a config comparison with `--config-b`, you can set `--search-mode-b` to override the mode for the B side.
+- To compare against sanitized agentmemory session fixtures without running an agentmemory server, use
+  `docs/evidence/external_memory/agentmemory_adapter.md`.
+- The dataset should avoid secrets and sensitive data.
+- To persist traces for later replay without running `elf-worker`, set `search.explain.write_mode = "inline"`
+  in the config used by `elf-eval`.
+- To compare ranking policies on a fixed candidate set without re-running Qdrant, use trace compare mode:
+  - Run: `cargo run -p elf-eval -- -c ./elf.a.toml --config-b ./elf.b.toml --trace-id <uuid1> <uuid2>`
+  - Requirements: `search.explain.capture_candidates = true` when generating traces, and candidates must not be
+    expired by `search.explain.candidate_retention_days`.
+
+## CI Trace Regression Gate
+
+CI runs a trace regression gate to catch unintended ranking changes on a fixed candidate set.
+
+What it checks:
+
+- Replays ranking from stored `search_trace_candidates` for each `trace_id` (no Qdrant or external providers).
+- Compares the replayed top-k `note_id`s against the baseline `search_trace_items` for the same trace.
+- Enforces thresholds from a gate JSON file:
+  - `max_positional_churn_at_k` and `max_set_churn_at_k`.
+  - `min_retrieval_top_rank_retention` (retention over candidates with `retrieval_rank <= retrieval_retention_rank`).
+- Fails if the baseline or replay returns fewer than `top_k` items.
+
+Run locally:
+
+```bash
+# Load the CI fixture into a local Postgres database.
+psql "postgres://postgres:postgres@127.0.0.1:5432/elf" -v ON_ERROR_STOP=1 -f sql/init.sql
+psql "postgres://postgres:postgres@127.0.0.1:5432/elf" -v ON_ERROR_STOP=1 -f .github/fixtures/trace_gate/fixture.sql
+
+# Run the gate (reads Postgres DSN from the config).
+cargo run -p elf-eval --bin trace_regression_gate -- \
+  -c .github/fixtures/trace_gate/config.toml \
+  -g .github/fixtures/trace_gate/gate.json \
+  --out tmp/trace-regression-gate.report.json
+```
+
+Update baseline:
+
+- Re-record the baseline trace items/candidates with the intended baseline build/config, regenerate the fixture,
+  then update the gate JSON (trace IDs and thresholds) used by CI.
+
+Export fixtures:
+
+- Use `elf-eval` to export one or more trace IDs into a deterministic SQL fixture (assumes an empty database):
+
+```bash
+cargo run -p elf-eval --bin trace_gate_export -- \
+  -c ./elf.toml \
+  --trace-id <uuid1> --trace-id <uuid2> \
+  --out tmp/trace-gate.fixture.sql
+```
+
+- If you also want stage data for trace compare mode, add `--include-stages`.
+
+Notes:
+
+- Keep fixtures sanitized (no secrets, no customer data, no proprietary content).
+- Treat fixture updates like snapshot updates: update only when a ranking change is intentional, and review the
+  diff in Git.
+
+Artifacts:
+
+- The gate outputs a JSON report (stdout, or the `--out` file) with per-trace metrics and any breached thresholds.
+
+## Context Misranking Harness
+
+To measure cross-scope misranking before and after enabling context boosting, use the harness
+script:
+
+```bash
+cargo make test-e2e
+```
+
+Or run the script directly:
+
+```bash
+scripts/context-misranking-harness.sh
+```
+
+What it does:
+
+- Creates a dedicated database (default: `elf_e2e`).
+- Creates a dedicated Qdrant collection for the run (default: `elf_harness_<run_id>`).
+- Starts `elf-worker` and `elf-api` with deterministic local providers:
+  - `providers.embedding.provider_id = "local"` (token-hash embedding).
+  - `providers.rerank.provider_id = "local"` (token overlap rerank).
+- Inserts two notes with identical text in different scopes (`org_shared` and `project_shared`),
+  with importance configured to intentionally produce baseline misranking.
+- Runs `elf-eval` twice:
+  - Baseline: no `[context]`.
+  - Context: `context.scope_descriptions` + `context.scope_boost_weight`.
+- Prints `recall@1` and the top-ranked note ID for both runs, then deletes the notes.
+- Deletes the dedicated database and collection unless `ELF_HARNESS_KEEP_DB=1` or
+  `ELF_HARNESS_KEEP_COLLECTION=1` is set.
+
+Prerequisites:
+
+- Postgres is running and reachable.
+- Qdrant is running and reachable.
+- Environment variables are set:
+  - `ELF_PG_DSN` (base DSN, typically ending in `/postgres`)
+  - `ELF_QDRANT_GRPC_URL` (Qdrant gRPC URL, commonly `http://127.0.0.1:51890` in this repository)
+  - `ELF_QDRANT_HTTP_URL` (Qdrant REST URL, commonly `http://127.0.0.1:51889` in this repository)
+
+Operational notes:
+
+- The harness builds once and then starts `elf-worker` and `elf-api` by executing `target/debug/...`.
+  If you are running the services manually, prefer `cargo build` plus direct binary execution over
+  running multiple `cargo run` processes concurrently, which can lead to Cargo lock contention and
+  slow startup.
+- If the health check does not become ready, inspect `tmp/elf.harness.api.log` and
+  `tmp/elf.harness.worker.log` for the first startup error.
+- `psql`, `curl`, `taplo`, and `jaq` (or `jq`) are installed.
+
+## Search Modes Latency Benchmark
+
+To validate the search-modes acceptance criterion that `quick_find` has **lower p95 latency** than
+`planned_search`, run a small benchmark using `elf-eval` search-mode selection.
+
+This procedure uses the ranking-stability harness to seed a deterministic dataset (local providers),
+then runs `elf-eval` twice on the same queries.
+
+### 1) Seed a benchmark dataset (kept for follow-up eval runs)
+
+```bash
+ELF_PG_DSN="postgres://postgres:postgres@127.0.0.1:51888/postgres" \
+ELF_QDRANT_GRPC_URL="http://127.0.0.1:51890" \
+ELF_QDRANT_HTTP_URL="http://127.0.0.1:51889" \
+ELF_HARNESS_DB_NAME="elf_search_mode_bench" \
+ELF_HARNESS_COLLECTION="elf_search_mode_bench_$(date +%s)" \
+ELF_HARNESS_VECTOR_DIM=256 \
+ELF_HARNESS_KEEP_DB=1 \
+ELF_HARNESS_KEEP_COLLECTION=1 \
+scripts/ranking-stability-harness.sh
+```
+
+Notes:
+
+- The harness writes `tmp/elf.stability.base.toml` and `tmp/elf.stability.dataset.json`.
+- With `ELF_HARNESS_KEEP_DB=1` and `ELF_HARNESS_KEEP_COLLECTION=1`, you must clean up manually (see
+  cleanup section below).
+
+### 2) Create a multi-query dataset (for meaningful percentiles)
+
+`elf-eval` reports p50/p95 over per-query latencies. Duplicate the seeded query into N entries:
+
+```bash
+python - <<'PY'
+import json
+from pathlib import Path
+
+src = Path("tmp/elf.stability.dataset.json")
+data = json.loads(src.read_text())
+base_query = data["queries"][0]["query"]
+expected = data["queries"][0].get("expected_note_ids") or []
+
+N = 50
+data["name"] = "search-modes-latency-bench"
+data["queries"] = [
+  {"id": f"mode-lat-{i+1:02d}", "query": base_query, "expected_note_ids": expected}
+  for i in range(N)
+]
+
+out = Path("tmp/elf.search_modes_latency.dataset.json")
+out.write_text(json.dumps(data, indent=2) + "\n")
+print(out)
+PY
+```
+
+### 3) Run `elf-eval` in each mode and compare p95
+
+Quick:
+
+```bash
+(cargo run -q -p elf-eval -- -c tmp/elf.stability.base.toml --dataset tmp/elf.search_modes_latency.dataset.json --search-mode quick_find) \
+  | awk 'BEGIN{started=0} /^\{/{started=1} {if(started) print}' \
+  > tmp/elf.search_modes_latency.quick.json
+
+jq -r '.summary.latency_ms_p50, .summary.latency_ms_p95' tmp/elf.search_modes_latency.quick.json
+```
+
+Planned:
+
+```bash
+(cargo run -q -p elf-eval -- -c tmp/elf.stability.base.toml --dataset tmp/elf.search_modes_latency.dataset.json --search-mode planned_search) \
+  | awk 'BEGIN{started=0} /^\{/{started=1} {if(started) print}' \
+  > tmp/elf.search_modes_latency.planned.json
+
+jq -r '.summary.latency_ms_p50, .summary.latency_ms_p95' tmp/elf.search_modes_latency.planned.json
+```
+
+Acceptance check:
+
+- `quick_find.summary.latency_ms_p95 < planned_search.summary.latency_ms_p95` on the same dataset.
+
+Reference run (2026-03-04, macOS local Postgres/Qdrant, local providers, `vector_dim=256`, N=50,
+`top_k=10`, `candidate_k=60`):
+
+- `quick_find`: p50 ≈ 9.82ms, p95 ≈ 12.55ms
+- `planned_search`: p50 ≈ 9.45ms, p95 ≈ 22.76ms
+
+### 4) Cleanup
+
+Drop the benchmark database and delete the benchmark collection (replace the collection name with
+the one you used in `ELF_HARNESS_COLLECTION`):
+
+```bash
+psql "postgres://postgres:postgres@127.0.0.1:51888/postgres" -tAc \
+  "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'elf_search_mode_bench' AND pid <> pg_backend_pid();" >/dev/null
+psql "postgres://postgres:postgres@127.0.0.1:51888/postgres" -v ON_ERROR_STOP=1 -c \
+  "DROP DATABASE IF EXISTS elf_search_mode_bench;" >/dev/null
+curl -sS -X DELETE "http://127.0.0.1:51889/collections/<collection>?wait=true" >/dev/null
+```
+
+## Ranking Stability Harness
+
+To empirically measure rank churn reduction from deterministic ranking terms, use the harness
+script:
+
+```bash
+ELF_PG_DSN="postgres://postgres:postgres@127.0.0.1:51888/postgres" \
+ELF_QDRANT_GRPC_URL="http://127.0.0.1:51890" \
+ELF_QDRANT_HTTP_URL="http://127.0.0.1:51889" \
+scripts/ranking-stability-harness.sh
+```
+
+What it does:
+
+- Creates a dedicated database and Qdrant collection for the run.
+- Ingests a synthetic dataset with many near-tied candidates.
+- Enables a local noisy rerank model to simulate reranker instability.
+- Compares `elf-eval` stability metrics with deterministic ranking disabled vs enabled.
+
+## Consolidation Harness
+
+To validate the reflection/consolidation loop with stable query assertions, use the harness:
+
+```bash
+scripts/consolidation-harness.sh
+```
+
+What it does:
+
+- Creates a dedicated database (default: `elf_consolidation`) and Qdrant collection.
+- Ingests notes using a shared `key` (`incident_merge_protocol`) to create duplicate legacy notes, then ingests a
+  consolidated canonical note with the same key.
+- Waits for ingestion/deindexing with the worker outbox lifecycle.
+- Runs `elf-eval` twice with `expected_keys`:
+  - `tmp/elf.consolidation.out.base.json` (before consolidation).
+  - `tmp/elf.consolidation.out.after.json` (after consolidation).
+- Prints baseline/after recall and retrieved key signals to stdout.
+- Cleans up database and collection by default.
+
+Prerequisites:
+
+- Postgres and Qdrant are reachable, and local service binds are available.
+- Environment variables are set (or `.env` loaded):
+  - `ELF_PG_DSN` (base DSN, typically ending in `/postgres`)
+  - `ELF_QDRANT_HTTP_URL` (for example `http://127.0.0.1:51889`)
+  - `ELF_QDRANT_GRPC_URL` (for example `http://127.0.0.1:51890`)
+
+Optional controls:
+
+- `ELF_HARNESS_KEEP_DB=1`: keep the created database after run.
+- `ELF_HARNESS_KEEP_COLLECTION=1`: keep the created Qdrant collection after run.
+- `ELF_HARNESS_DB_NAME`, `ELF_HARNESS_COLLECTION`, `ELF_HARNESS_RUN_ID`: override generated values.
+- `ELF_HARNESS_TOP_K`, `ELF_HARNESS_CANDIDATE_K`: override retrieval cutoffs.
+- `ELF_HARNESS_VECTOR_DIM`: override vector dimension used by generated config.
+
+## Nightly Harness Signals
+
+CI also runs the harness scripts on a schedule and uploads the JSON outputs and logs as artifacts.
+
+Rationale:
+
+- The trace regression gate is a deterministic merge gate for ranking-policy changes.
+- The harness scripts cover integration surfaces (Postgres + Qdrant + worker/api orchestration) and are better
+  suited to a scheduled job than a per-PR gate.
+
+Configuration:
+
+- Control rerank noise with `ELF_HARNESS_NOISE_STD`.
+- Control stability sampling with `ELF_HARNESS_RUNS_PER_QUERY`.
+- Control ranking cutoffs with `ELF_HARNESS_TOP_K` and `ELF_HARNESS_CANDIDATE_K`.
+
+Configuration:
+
+- Override the database name with `ELF_HARNESS_DB_NAME`.
+- Override the run identifier with `ELF_HARNESS_RUN_ID`.
+- Override the collection name with `ELF_HARNESS_COLLECTION` (must start with `elf_harness_`).
+- Override the API binds with `ELF_HARNESS_HTTP_BIND`, `ELF_HARNESS_ADMIN_BIND`,
+  and `ELF_HARNESS_MCP_BIND`.

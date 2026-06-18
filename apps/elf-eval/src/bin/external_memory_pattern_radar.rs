@@ -19,8 +19,8 @@ use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
 const CURSOR_SCHEMA: &str = "elf.external_memory_pattern_radar_cursor/v1";
 const RUN_SCHEMA: &str = "elf.external_memory_pattern_radar_run/v1";
-const DEFAULT_CURSOR: &str = "docs/research/external_memory_pattern_radar/cursor.json";
-const DEFAULT_SUMMARY: &str = "docs/research/external_memory_pattern_radar/latest.md";
+const DEFAULT_CURSOR: &str = "apps/elf-eval/fixtures/external_memory_pattern_radar/cursor.json";
+const DEFAULT_SUMMARY: &str = "docs/evidence/external_memory_pattern_radar_latest.md";
 
 #[derive(Debug, Parser)]
 #[command(
@@ -634,13 +634,36 @@ fn validate_create_issue(decision: &RadarDecision, errors: &mut Vec<String>) {
 
 fn render_summary(cursor: &RadarCursor) -> Result<String> {
 	let run = cursor.last_run.as_ref().ok_or_else(|| eyre::eyre!("cursor has no last_run"))?;
+	let last_verified = run.generated_at.get(..10).unwrap_or("unknown");
 	let mut out = String::new();
 
+	out.push_str("---\n");
+	out.push_str("type: Evidence\n");
+	out.push_str("title: \"External Memory Pattern Radar Summary\"\n");
+	out.push_str("description: \"Latest weekly ELF external memory pattern radar outcome.\"\n");
+	out.push_str("resource: docs/evidence/external_memory_pattern_radar_latest.md\n");
+	out.push_str("status: active\n");
+	out.push_str("authority: current_state\n");
+	out.push_str("owner: evidence\n");
+	out.push_str(&format!("last_verified: {last_verified}\n"));
+	out.push_str("tags:\n");
+	out.push_str("  - docs\n");
+	out.push_str("  - external-memory-pattern-radar\n");
+	out.push_str("  - evidence\n");
+	out.push_str("source_refs: []\n");
+	out.push_str("code_refs:\n");
+	out.push_str("  - apps/elf-eval/fixtures/external_memory_pattern_radar/cursor.json\n");
+	out.push_str("  - apps/elf-eval/src/bin/external_memory_pattern_radar.rs\n");
+	out.push_str("related: []\n");
+	out.push_str("drift_watch:\n");
+	out.push_str("  - apps/elf-eval/fixtures/external_memory_pattern_radar/cursor.json\n");
+	out.push_str("  - apps/elf-eval/src/bin/external_memory_pattern_radar.rs\n");
+	out.push_str("---\n\n");
 	out.push_str("# External Memory Pattern Radar Summary\n\n");
 	out.push_str("Goal: Preserve the latest weekly ELF external memory pattern radar outcome.\n");
 	out.push_str("Read this when: Feeding the next full comparison report or deciding whether a watched upstream memory project created an ELF follow-up.\n");
-	out.push_str("Inputs: `docs/research/external_memory_pattern_radar/cursor.json`, GitHub repository metadata, checked-in ELF comparison evidence, and any Codex source-review notes.\n");
-	out.push_str("Depends on: `docs/spec/external_memory_pattern_radar_v1.md` and `docs/guide/research/external_memory_pattern_radar.md`.\n");
+	out.push_str("Inputs: `apps/elf-eval/fixtures/external_memory_pattern_radar/cursor.json`, GitHub repository metadata, checked-in ELF comparison evidence, and any Codex source-review notes.\n");
+	out.push_str("Depends on: `docs/spec/external_memory_pattern_radar_v1.md` and `docs/runbook/external_memory_pattern_radar.md`.\n");
 	out.push_str("Outputs: Latest no-issue, rejection, or issue-ready radar decisions.\n\n");
 	out.push_str(&format!("- Run id: `{}`\n", run.run_id));
 	out.push_str(&format!("- Generated at: `{}`\n", run.generated_at));

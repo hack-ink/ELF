@@ -1,3 +1,21 @@
+---
+type: Spec
+title: "System: Note Provenance Mapping (v1)"
+description: "Define the provenance bundle contract used by admin operations and traceability workflows."
+resource: docs/spec/system_provenance_mapping_v1.md
+status: active
+authority: normative
+owner: spec
+last_verified: 2026-06-18
+tags:
+  - docs
+  - spec
+source_refs: []
+code_refs: []
+related: []
+drift_watch:
+  - docs/spec/system_provenance_mapping_v1.md
+---
 # System: Note Provenance Mapping (v1)
 
 Purpose: Define the provenance bundle contract used by admin operations and traceability workflows.

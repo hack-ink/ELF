@@ -1,3 +1,21 @@
+---
+type: Spec
+title: "System Version Registry"
+description: "Provide a single registry for versioned identifiers used across ELF."
+resource: docs/spec/system_version_registry.md
+status: active
+authority: normative
+owner: spec
+last_verified: 2026-06-18
+tags:
+  - docs
+  - spec
+source_refs: []
+code_refs: []
+related: []
+drift_watch:
+  - docs/spec/system_version_registry.md
+---
 # System Version Registry
 
 Purpose: Provide a single registry for versioned identifiers used across ELF.

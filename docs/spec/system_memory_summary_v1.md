@@ -1,3 +1,21 @@
+---
+type: Spec
+title: "Reviewable Memory Summary v1 Specification"
+description: "Define the reviewable memory summary and source-trace contract."
+resource: docs/spec/system_memory_summary_v1.md
+status: active
+authority: normative
+owner: spec
+last_verified: 2026-06-18
+tags:
+  - docs
+  - spec
+source_refs: []
+code_refs: []
+related: []
+drift_watch:
+  - docs/spec/system_memory_summary_v1.md
+---
 # Reviewable Memory Summary v1 Specification
 
 Purpose: Define the reviewable memory summary and source-trace contract.

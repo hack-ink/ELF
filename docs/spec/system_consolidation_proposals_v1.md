@@ -1,3 +1,21 @@
+---
+type: Spec
+title: "Consolidation Proposals v1 Specification"
+description: "Define the reviewable consolidation run and proposal contract for derived memory output."
+resource: docs/spec/system_consolidation_proposals_v1.md
+status: active
+authority: normative
+owner: spec
+last_verified: 2026-06-18
+tags:
+  - docs
+  - spec
+source_refs: []
+code_refs: []
+related: []
+drift_watch:
+  - docs/spec/system_consolidation_proposals_v1.md
+---
 # Consolidation Proposals v1 Specification
 
 Purpose: Define the reviewable consolidation run and proposal contract for derived memory output.
@@ -8,8 +26,8 @@ Defines: `elf.consolidation/v1` runs, proposals, source snapshots, lineage, revi
 
 Related inputs:
 
-- `docs/research/2026-06-08-agent-memory-selection.json`
-- `docs/guide/research/comparison_external_projects.md`
+- `docs/decisions/2026-06-08-agent-memory-selection.md`
+- `docs/evidence/external_memory/comparison_external_projects.md`
 - `docs/spec/system_elf_memory_service_v2.md`
 
 ## Core Rule
