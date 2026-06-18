@@ -1,3 +1,21 @@
+---
+type: Spec
+title: "Real-World Agent Memory Benchmark v1"
+description: "Normative contract for real-world agent memory benchmark jobs and reports."
+resource: docs/spec/real_world_agent_memory_benchmark_v1.md
+status: active
+authority: normative
+owner: spec
+last_verified: 2026-06-18
+tags:
+  - docs
+  - spec
+source_refs: []
+code_refs: []
+related: []
+drift_watch:
+  - docs/spec/real_world_agent_memory_benchmark_v1.md
+---
 # Real-World Agent Memory Benchmark v1
 
 Purpose: Define the v1 benchmark contract for evaluating agent memory systems through
