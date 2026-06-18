@@ -373,7 +373,7 @@
       "result": {
         "status": "pass",
         "evidence": "This live_baseline_only record is same-corpus evidence only; cite qmd_live_real_world for the full live real-world sweep.",
-        "artifact": "docs/guide/benchmarking/live_baseline_benchmark.md"
+        "artifact": "docs/runbook/benchmarking/live_baseline_benchmark.md"
       },
       "capabilities": [
         {
@@ -973,8 +973,8 @@
       ],
       "evidence": [
         {
-          "kind": "guide",
-          "ref": "docs/guide/research/agentmemory_adapter.md",
+          "kind": "evidence",
+          "ref": "docs/evidence/external_memory/agentmemory_adapter.md",
           "status": "real"
         },
         {
@@ -1107,9 +1107,9 @@
           "status": "pass",
           "elf_position": "loses",
           "comparison_outcome": "loss",
-          "evidence": "Fresh scoped baseline run live-baseline-20260611122416 reports mem0 preference_correction_history as pass. ELF-side evidence comes from cargo make real-world-memory-live-adapters as summarized in docs/guide/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md, which records ELF live memory-evolution preference as wrong_result. The current measured comparison is therefore an ELF loss on this history dimension until ELF temporal reconciliation is fixed.",
+          "evidence": "Fresh scoped baseline run live-baseline-20260611122416 reports mem0 preference_correction_history as pass. ELF-side evidence comes from cargo make real-world-memory-live-adapters as summarized in docs/evidence/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md, which records ELF live memory-evolution preference as wrong_result. The current measured comparison is therefore an ELF loss on this history dimension until ELF temporal reconciliation is fixed.",
           "command": "mem0: ELF_BASELINE_PROJECTS=mem0 cargo make baseline-live-docker; ELF: cargo make real-world-memory-live-adapters",
-          "artifact": "mem0: tmp/live-baseline/mem0-checks.json; ELF: tmp/real-world-memory/live-adapters/ and docs/guide/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md"
+          "artifact": "mem0: tmp/live-baseline/mem0-checks.json; ELF: tmp/real-world-memory/live-adapters/ and docs/evidence/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md"
         },
         {
           "scenario_id": "entity_scoped_personalization",
@@ -1117,9 +1117,9 @@
           "status": "pass",
           "elf_position": "ties",
           "comparison_outcome": "tie",
-          "evidence": "Fresh scoped baseline run live-baseline-20260611122416 reports mem0 entity_scoped_personalization as pass. ELF-side evidence comes from cargo make real-world-memory-live-adapters as summarized in docs/guide/benchmarking/2026-06-11-competitor-strength-adoption-report.md, which records ELF and qmd passing the encoded personalization slice. This is a measured tie on the current scoped-preference surface.",
+          "evidence": "Fresh scoped baseline run live-baseline-20260611122416 reports mem0 entity_scoped_personalization as pass. ELF-side evidence comes from cargo make real-world-memory-live-adapters as summarized in docs/evidence/benchmarking/2026-06-11-competitor-strength-adoption-report.md, which records ELF and qmd passing the encoded personalization slice. This is a measured tie on the current scoped-preference surface.",
           "command": "mem0: ELF_BASELINE_PROJECTS=mem0 cargo make baseline-live-docker; ELF: cargo make real-world-memory-live-adapters",
-          "artifact": "mem0: tmp/live-baseline/mem0-checks.json; ELF: tmp/real-world-memory/live-adapters/ and docs/guide/benchmarking/2026-06-11-competitor-strength-adoption-report.md"
+          "artifact": "mem0: tmp/live-baseline/mem0-checks.json; ELF: tmp/real-world-memory/live-adapters/ and docs/evidence/benchmarking/2026-06-11-competitor-strength-adoption-report.md"
         },
         {
           "scenario_id": "delete_audit_readback",
@@ -1127,9 +1127,9 @@
           "status": "pass",
           "elf_position": "ties",
           "comparison_outcome": "tie",
-          "evidence": "Fresh scoped baseline run live-baseline-20260611122416 reports mem0 delete_history_audit_readback as pass. ELF-side evidence comes from cargo make real-world-memory-live-adapters as summarized in docs/guide/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md, which records ELF passing the delete/TTL tombstone job. The current measured delete-audit comparison is a tie.",
+          "evidence": "Fresh scoped baseline run live-baseline-20260611122416 reports mem0 delete_history_audit_readback as pass. ELF-side evidence comes from cargo make real-world-memory-live-adapters as summarized in docs/evidence/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md, which records ELF passing the delete/TTL tombstone job. The current measured delete-audit comparison is a tie.",
           "command": "mem0: ELF_BASELINE_PROJECTS=mem0 cargo make baseline-live-docker; ELF: cargo make real-world-memory-live-adapters",
-          "artifact": "mem0: tmp/live-baseline/mem0-checks.json; ELF: tmp/real-world-memory/live-adapters/ and docs/guide/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md"
+          "artifact": "mem0: tmp/live-baseline/mem0-checks.json; ELF: tmp/real-world-memory/live-adapters/ and docs/evidence/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md"
         },
         {
           "scenario_id": "local_get_all_export_readback",
@@ -1333,7 +1333,7 @@
       "result": {
         "status": "wrong_result",
         "evidence": "The current OpenViking Docker evidence is a behavioral wrong_result, not a local embedding setup blocker and not a real_world_job pass.",
-        "artifact": "docs/guide/benchmarking/live_baseline_benchmark.md"
+        "artifact": "docs/runbook/benchmarking/live_baseline_benchmark.md"
       },
       "capabilities": [
         {
@@ -1593,7 +1593,7 @@
       "result": {
         "status": "not_encoded",
         "evidence": "The XY-899 report records qmd scenario-level retrieval/debug/replay outcomes and wrong-result diagnosis taxonomy, while expansion/fusion/rerank scoring remains not_encoded.",
-        "artifact": "docs/research/2026-06-11-qmd-openviking-strength-profile-report.json"
+        "artifact": "docs/evidence/benchmarking/2026-06-11-qmd-openviking-strength-profile-report.md"
       },
       "capabilities": [
         {
@@ -1678,7 +1678,7 @@
       "result": {
         "status": "blocked",
         "evidence": "No OpenViking deep context-trajectory result is claimed from the current wrong-result smoke run; the XY-928 fixtures preserve trajectory surfaces as blocked/not_tested.",
-        "artifact": "docs/research/2026-06-11-qmd-openviking-strength-profile-report.json"
+        "artifact": "docs/evidence/benchmarking/2026-06-11-qmd-openviking-strength-profile-report.md"
       },
       "capabilities": [
         {

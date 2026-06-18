@@ -1,3 +1,21 @@
+---
+type: Spec
+title: "Production Corpus Manifest v1"
+description: "Normative contract for sanitized and private coding-agent production corpus manifests."
+resource: docs/spec/production_corpus_manifest_v1.md
+status: active
+authority: normative
+owner: spec
+last_verified: 2026-06-18
+tags:
+  - docs
+  - spec
+source_refs: []
+code_refs: []
+related: []
+drift_watch:
+  - docs/spec/production_corpus_manifest_v1.md
+---
 # Production Corpus Manifest v1
 
 Purpose: Define the sanitized/private coding-agent production corpus manifest used by
@@ -98,7 +116,7 @@ evidence ID. It must not silently fall back to the checked-in synthetic corpus.
 }
 ```
 
-## Related Guides
+## Related Runbooks
 
-- `docs/guide/benchmarking/live_baseline_benchmark.md`: run commands, private fixture
+- `docs/runbook/benchmarking/live_baseline_benchmark.md`: run commands, private fixture
   placement, and report publication.

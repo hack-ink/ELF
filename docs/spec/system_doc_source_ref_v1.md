@@ -1,3 +1,21 @@
+---
+type: Spec
+title: "System: `doc_source_ref/v1` for `docs_put`"
+description: "Normative contract for source_ref values accepted by docs_put."
+resource: docs/spec/system_doc_source_ref_v1.md
+status: active
+authority: normative
+owner: spec
+last_verified: 2026-06-18
+tags:
+  - docs
+  - spec
+source_refs: []
+code_refs: []
+related: []
+drift_watch:
+  - docs/spec/system_doc_source_ref_v1.md
+---
 # System: `doc_source_ref/v1` for `docs_put`
 
 Purpose: Define a minimal, versioned `source_ref` convention for docs ingested

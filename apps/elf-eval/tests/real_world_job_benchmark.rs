@@ -105,17 +105,23 @@ fn collapse_whitespace(text: &str) -> String {
 	text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-fn strength_profile_report_path() -> Result<PathBuf> {
+fn report_snapshot_path(file_name: &str) -> Result<PathBuf> {
 	Ok(workspace_root()?
-		.join("docs")
-		.join("research")
-		.join("2026-06-11-qmd-openviking-strength-profile-report.json"))
+		.join("apps")
+		.join("elf-eval")
+		.join("fixtures")
+		.join("report_snapshots")
+		.join(file_name))
+}
+
+fn strength_profile_report_path() -> Result<PathBuf> {
+	report_snapshot_path("2026-06-11-qmd-openviking-strength-profile-report.json")
 }
 
 fn strength_profile_markdown_path() -> Result<PathBuf> {
 	Ok(workspace_root()?
 		.join("docs")
-		.join("guide")
+		.join("evidence")
 		.join("benchmarking")
 		.join("2026-06-11-qmd-openviking-strength-profile-report.md"))
 }
@@ -123,36 +129,27 @@ fn strength_profile_markdown_path() -> Result<PathBuf> {
 fn measurement_coverage_audit_path() -> Result<PathBuf> {
 	Ok(workspace_root()?
 		.join("docs")
-		.join("guide")
+		.join("evidence")
 		.join("benchmarking")
 		.join("2026-06-11-measurement-coverage-audit.md"))
 }
 
 fn measurement_coverage_audit_json_path() -> Result<PathBuf> {
-	Ok(workspace_root()?
-		.join("docs")
-		.join("research")
-		.join("2026-06-11-measurement-coverage-audit.json"))
+	report_snapshot_path("2026-06-11-measurement-coverage-audit.json")
 }
 
 fn retrieval_debug_profile_json_path() -> Result<PathBuf> {
-	Ok(workspace_root()?
-		.join("docs")
-		.join("research")
-		.join("2026-06-11-elf-qmd-retrieval-debug-profile.json"))
+	report_snapshot_path("2026-06-11-elf-qmd-retrieval-debug-profile.json")
 }
 
 fn trace_replay_diagnostics_report_path() -> Result<PathBuf> {
-	Ok(workspace_root()?
-		.join("docs")
-		.join("research")
-		.join("2026-06-11-elf-qmd-trace-replay-diagnostics-report.json"))
+	report_snapshot_path("2026-06-11-elf-qmd-trace-replay-diagnostics-report.json")
 }
 
 fn trace_replay_diagnostics_markdown_path() -> Result<PathBuf> {
 	Ok(workspace_root()?
 		.join("docs")
-		.join("guide")
+		.join("evidence")
 		.join("benchmarking")
 		.join("2026-06-11-elf-qmd-trace-replay-diagnostics-report.md"))
 }
@@ -160,81 +157,63 @@ fn trace_replay_diagnostics_markdown_path() -> Result<PathBuf> {
 fn competitor_strength_adoption_report_path() -> Result<PathBuf> {
 	Ok(workspace_root()?
 		.join("docs")
-		.join("guide")
+		.join("evidence")
 		.join("benchmarking")
 		.join("2026-06-11-competitor-strength-adoption-report.md"))
 }
 
 fn competitor_strength_adoption_report_json_path() -> Result<PathBuf> {
-	Ok(workspace_root()?
-		.join("docs")
-		.join("research")
-		.join("2026-06-11-competitor-strength-adoption-report.json"))
+	report_snapshot_path("2026-06-11-competitor-strength-adoption-report.json")
 }
 
 fn capture_write_policy_live_report_path() -> Result<PathBuf> {
-	Ok(workspace_root()?
-		.join("docs")
-		.join("research")
-		.join("2026-06-11-capture-write-policy-live-report.json"))
+	report_snapshot_path("2026-06-11-capture-write-policy-live-report.json")
 }
 
 fn capture_write_policy_live_markdown_path() -> Result<PathBuf> {
 	Ok(workspace_root()?
 		.join("docs")
-		.join("guide")
+		.join("evidence")
 		.join("benchmarking")
 		.join("2026-06-11-capture-write-policy-live-report.md"))
 }
 
 fn live_consolidation_proposal_scoring_report_path() -> Result<PathBuf> {
-	Ok(workspace_root()?
-		.join("docs")
-		.join("research")
-		.join("2026-06-16-live-consolidation-proposal-scoring-report.json"))
+	report_snapshot_path("2026-06-16-live-consolidation-proposal-scoring-report.json")
 }
 
 fn live_consolidation_proposal_scoring_markdown_path() -> Result<PathBuf> {
 	Ok(workspace_root()?
 		.join("docs")
-		.join("guide")
+		.join("evidence")
 		.join("benchmarking")
 		.join("2026-06-16-live-consolidation-proposal-scoring-report.md"))
 }
 
 fn temporal_history_competitor_gap_json_path() -> Result<PathBuf> {
-	Ok(workspace_root()?
-		.join("docs")
-		.join("research")
-		.join("2026-06-11-temporal-history-competitor-gap-report.json"))
+	report_snapshot_path("2026-06-11-temporal-history-competitor-gap-report.json")
 }
 
 fn dreaming_readiness_stage_ledger_json_path() -> Result<PathBuf> {
-	Ok(workspace_root()?
-		.join("docs")
-		.join("research")
-		.join("2026-06-16-dreaming-readiness-stage-ledger.json"))
+	report_snapshot_path("2026-06-16-dreaming-readiness-stage-ledger.json")
 }
 
 fn dreaming_readiness_stage_ledger_markdown_path() -> Result<PathBuf> {
 	Ok(workspace_root()?
 		.join("docs")
-		.join("guide")
+		.join("evidence")
 		.join("benchmarking")
 		.join("2026-06-16-dreaming-readiness-stage-ledger.md"))
 }
 
 fn live_temporal_reconciliation_report_json_path() -> Result<PathBuf> {
-	Ok(workspace_root()?
-		.join("docs")
-		.join("research")
-		.join("2026-06-16-live-temporal-reconciliation-report.json"))
+	report_snapshot_path("2026-06-16-live-temporal-reconciliation-report.json")
 }
 
 fn live_temporal_reconciliation_report_markdown_path() -> Result<PathBuf> {
 	Ok(workspace_root()?
 		.join("docs")
-		.join("guide")
+		.join("evidence")
 		.join("benchmarking")
 		.join("2026-06-16-live-temporal-reconciliation-report.md"))
 }
@@ -242,16 +221,13 @@ fn live_temporal_reconciliation_report_markdown_path() -> Result<PathBuf> {
 fn competitor_strength_matrix_path() -> Result<PathBuf> {
 	Ok(workspace_root()?
 		.join("docs")
-		.join("guide")
+		.join("evidence")
 		.join("benchmarking")
 		.join("2026-06-11-competitor-strength-evidence-matrix.md"))
 }
 
 fn competitor_strength_matrix_json_path() -> Result<PathBuf> {
-	Ok(workspace_root()?
-		.join("docs")
-		.join("research")
-		.join("2026-06-11-xy-897-competitor-strength-matrix.json"))
+	report_snapshot_path("2026-06-11-xy-897-competitor-strength-matrix.json")
 }
 
 fn readme_path() -> Result<PathBuf> {
@@ -261,19 +237,19 @@ fn readme_path() -> Result<PathBuf> {
 fn comparison_external_projects_path() -> Result<PathBuf> {
 	Ok(workspace_root()?
 		.join("docs")
-		.join("guide")
-		.join("research")
+		.join("evidence")
+		.join("external_memory")
 		.join("comparison_external_projects.md"))
 }
 
 fn benchmarking_index_path() -> Result<PathBuf> {
-	Ok(workspace_root()?.join("docs").join("guide").join("benchmarking").join("index.md"))
+	Ok(workspace_root()?.join("docs").join("evidence").join("benchmarking").join("index.md"))
 }
 
 fn iteration_direction_report_path() -> Result<PathBuf> {
 	Ok(workspace_root()?
 		.join("docs")
-		.join("guide")
+		.join("evidence")
 		.join("benchmarking")
 		.join("2026-06-11-elf-iteration-direction-from-competitor-benchmarks.md"))
 }
@@ -916,7 +892,7 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 	);
 	assert_eq!(
 		qmd_deep.pointer("/result/artifact").and_then(Value::as_str),
-		Some("docs/research/2026-06-11-qmd-openviking-strength-profile-report.json")
+		Some("docs/evidence/benchmarking/2026-06-11-qmd-openviking-strength-profile-report.md")
 	);
 	assert_eq!(
 		openviking_deep.pointer("/adapter_kind").and_then(Value::as_str),
@@ -927,7 +903,7 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 
 	assert_eq!(
 		openviking_deep.pointer("/result/artifact").and_then(Value::as_str),
-		Some("docs/research/2026-06-11-qmd-openviking-strength-profile-report.json")
+		Some("docs/evidence/benchmarking/2026-06-11-qmd-openviking-strength-profile-report.md")
 	);
 
 	Ok(())
@@ -1724,9 +1700,9 @@ fn openmemory_ui_export_probe_has_dedicated_docker_task() -> Result<()> {
 	let docker_script = fs::read_to_string(workspace_root.join("scripts/baseline-docker.sh"))?;
 	let compose = fs::read_to_string(workspace_root.join("docker-compose.baseline.yml"))?;
 	let script = fs::read_to_string(workspace_root.join("scripts/live-baseline-benchmark.sh"))?;
-	let report = serde_json::from_str::<Value>(&fs::read_to_string(
-		workspace_root.join("docs/research/2026-06-11-xy-931-openmemory-ui-export-readback.json"),
-	)?)?;
+	let report = serde_json::from_str::<Value>(&fs::read_to_string(workspace_root.join(
+		"apps/elf-eval/fixtures/report_snapshots/2026-06-11-xy-931-openmemory-ui-export-readback.json",
+	))?)?;
 
 	assert!(makefile.contains("[tasks.openmemory-ui-export-readback]"));
 	assert!(makefile.contains("scripts/baseline-docker.sh"));
@@ -2085,10 +2061,10 @@ fn live_consolidation_report_preserves_reviewable_output_boundaries() -> Result<
 	let markdown = fs::read_to_string(live_consolidation_proposal_scoring_markdown_path()?)?;
 	let benchmarking_index = fs::read_to_string(benchmarking_index_path()?)?;
 	let readme = fs::read_to_string(readme_path()?)?;
-	let benchmark_guide = fs::read_to_string(
+	let benchmark_runbook = fs::read_to_string(
 		workspace
 			.join("docs")
-			.join("guide")
+			.join("runbook")
 			.join("benchmarking")
 			.join("real_world_agent_memory_benchmark.md"),
 	)?;
@@ -2181,8 +2157,8 @@ fn live_consolidation_report_preserves_reviewable_output_boundaries() -> Result<
 	);
 	assert!(readme.contains("Live Consolidation Proposal Scoring Report - June 16, 2026"));
 	assert!(readme.contains("real-world-memory-live-consolidation"));
-	assert!(benchmark_guide.contains("Current live consolidation increment"));
-	assert!(benchmark_guide.contains("tmp/real-world-memory/live-consolidation/summary.json"));
+	assert!(benchmark_runbook.contains("Current live consolidation increment"));
+	assert!(benchmark_runbook.contains("tmp/real-world-memory/live-consolidation/summary.json"));
 	assert!(makefile.contains("[tasks.real-world-memory-live-consolidation]"));
 	assert!(makefile.contains("scripts/real-world-docker.sh"));
 
@@ -3081,7 +3057,7 @@ fn assert_trace_replay_adoption_json(adoption: &Value) -> Result<()> {
 	assert!(array_contains_str(
 		local_debug,
 		"/command_artifacts",
-		"docs/guide/benchmarking/2026-06-11-elf-qmd-trace-replay-diagnostics-report.md"
+		"docs/evidence/benchmarking/2026-06-11-elf-qmd-trace-replay-diagnostics-report.md"
 	)?);
 	assert!(array_contains_str(
 		adoption,

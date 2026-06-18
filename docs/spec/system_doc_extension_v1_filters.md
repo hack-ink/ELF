@@ -1,3 +1,21 @@
+---
+type: Spec
+title: "System: Document Extension v1 Filter and Payload Contract"
+description: "Normative contract for Doc Extension v1 search filters and payloads."
+resource: docs/spec/system_doc_extension_v1_filters.md
+status: active
+authority: normative
+owner: spec
+last_verified: 2026-06-18
+tags:
+  - docs
+  - spec
+source_refs: []
+code_refs: []
+related: []
+drift_watch:
+  - docs/spec/system_doc_extension_v1_filters.md
+---
 # System: Document Extension v1 Filter and Payload Contract
 
 Purpose: Define the `docs_search_filters/v1` filter contract for

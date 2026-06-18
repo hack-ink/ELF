@@ -1,3 +1,21 @@
+---
+type: Spec
+title: "System: Doc Extension v1 Retrieval Trajectory (`doc_retrieval_trajectory/v1`)"
+description: "Normative contract for Doc Extension v1 retrieval trajectory traces."
+resource: docs/spec/system_doc_extension_v1_trajectory.md
+status: active
+authority: normative
+owner: spec
+last_verified: 2026-06-18
+tags:
+  - docs
+  - spec
+source_refs: []
+code_refs: []
+related: []
+drift_watch:
+  - docs/spec/system_doc_extension_v1_trajectory.md
+---
 # System: Doc Extension v1 Retrieval Trajectory (`doc_retrieval_trajectory/v1`)
 
 Purpose: Define the optional, response-only stage traces for Doc Extension v1 retrieval

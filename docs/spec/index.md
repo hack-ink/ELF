@@ -13,13 +13,13 @@ Question this index answers: "what must remain true?"
 - You need an invariant, contract, schema, enum, state model, interface, or required
   behavior.
 - You are deciding whether code or data is correct.
-- A guide says "see the governing spec" and you need the authoritative source.
+- A runbook says "see the governing spec" and you need the authoritative source.
 
 ## Do not use this index when
 
 - You need step-by-step instructions, maintenance actions, migrations, or incident
   response.
-- You need a planning-tool artifact or a saved execution plan under `docs/plans/`.
+- You need a planning-tool artifact or a saved execution plan under `docs/reference/plans/`.
 - You want rationale only, without an authoritative contract.
 
 ## What belongs in `docs/spec/`
@@ -31,23 +31,23 @@ Question this index answers: "what must remain true?"
 
 ## Documents
 
-- `system_elf_memory_service_v2.md`: Core ELF memory service contract, API semantics,
-  and storage invariants.
-- `system_consolidation_proposals_v1.md`: Reviewable derived consolidation run and
-  proposal contract over immutable source evidence.
-- `system_memory_summary_v1.md`: Reviewable current/background/stale/superseded/
-  tombstoned/derived memory summary and source-trace contract.
-- `system_knowledge_pages_v1.md`: Derived project/entity/concept/issue/decision page
-  storage, rebuild, citation, and stale-source lint contract.
-- `system_competitive_parity_gate_v1.md`: Docker-only adoption gate that decides
-  whether ELF meets or exceeds selected external memory-system baselines.
-- `production_corpus_manifest_v1.md`: Sanitized/private coding-agent production
-  corpus manifest schema for adoption benchmark runs.
-- `real_world_agent_memory_benchmark_v1.md`: Real-world agent memory benchmark job
-  schema, suite taxonomy, scoring dimensions, and report state semantics.
-- `external_memory_pattern_radar_v1.md`: Weekly external memory pattern radar cursor,
-  run, decision, and issue-creation boundary schema.
-
+- `external_memory_pattern_radar_v1.md`: External Memory Pattern Radar v1.
+- `production_corpus_manifest_v1.md`: Production Corpus Manifest v1.
+- `real_world_agent_memory_benchmark_v1.md`: Real-World Agent Memory Benchmark v1.
+- `system_competitive_parity_gate_v1.md`: Competitive Parity Gate v1 Specification.
+- `system_consolidation_proposals_v1.md`: Consolidation Proposals v1 Specification.
+- `system_doc_chunking_profiles_v1.md`: System: `doc_chunking_profiles/v1` for `docs_put`.
+- `system_doc_extension_v1_filters.md`: System: Document Extension v1 Filter and Payload Contract.
+- `system_doc_extension_v1_trajectory.md`: System: Doc Extension v1 Retrieval Trajectory (`doc_retrieval_trajectory/v1`).
+- `system_doc_source_ref_v1.md`: System: `doc_source_ref/v1` for `docs_put`.
+- `system_elf_memory_service_v2.md`: ELF Memory Service v2.0 Specification.
+- `system_graph_memory_postgres_v1.md`: Graph Memory Postgres v1.0 Specification.
+- `system_knowledge_pages_v1.md`: Derived Knowledge Pages v1 Specification.
+- `system_memory_summary_v1.md`: Reviewable Memory Summary v1 Specification.
+- `system_provenance_mapping_v1.md`: System: Note Provenance Mapping (v1).
+- `system_search_filter_expr_v1.md`: System: Search Filter Expression Contract v1.
+- `system_source_ref_doc_pointer_v1.md`: System: `source_ref` Doc Pointer Resolver (v1).
+- `system_version_registry.md`: System Version Registry.
 ## Spec document contract
 
 Start each spec with a compact routing header:
@@ -64,7 +64,7 @@ Then keep the body explicit:
 - Separate facts from rationale.
 - Include canonical names exactly as code or data uses them.
 - Include a small example when it removes ambiguity.
-- Link to related guides instead of embedding procedures.
+- Link to related runbooks instead of embedding procedures.
 
 ## Structure policy
 
@@ -73,4 +73,4 @@ Then keep the body explicit:
   ambiguity.
 - Do not require fixed filename prefixes up front.
 - Choose names for topic clarity and retrieval quality, not visual uniformity.
-- If a guide depends on a spec, the guide links back to the governing spec.
+- If a runbook depends on a spec, the runbook links back to the governing spec.

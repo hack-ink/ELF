@@ -1,3 +1,21 @@
+---
+type: Spec
+title: "Derived Knowledge Pages v1 Specification"
+description: "Define derived knowledge page storage, rebuild, citation, and lint contracts."
+resource: docs/spec/system_knowledge_pages_v1.md
+status: active
+authority: normative
+owner: spec
+last_verified: 2026-06-18
+tags:
+  - docs
+  - spec
+source_refs: []
+code_refs: []
+related: []
+drift_watch:
+  - docs/spec/system_knowledge_pages_v1.md
+---
 # Derived Knowledge Pages v1 Specification
 
 Purpose: Define derived knowledge page storage, rebuild, citation, and lint contracts.

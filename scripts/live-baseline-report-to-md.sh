@@ -33,7 +33,7 @@ render_report() {
     "Goal: Publish a Markdown summary for one generated live baseline aggregate report.",
     "Read this when: You need a durable, reviewable summary of a live baseline JSON report.",
     ("Inputs: `" + $report_path + "`."),
-    "Depends on: `scripts/live-baseline-benchmark.sh` and `docs/guide/benchmarking/live_baseline_benchmark.md`.",
+    "Depends on: `scripts/live-baseline-benchmark.sh` and `docs/runbook/benchmarking/live_baseline_benchmark.md`.",
     "Verification: Compare this Markdown summary with the source JSON before committing.",
     "",
     "## Summary",

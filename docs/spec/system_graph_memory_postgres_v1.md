@@ -1,3 +1,21 @@
+---
+type: Spec
+title: "Graph Memory Postgres v1.0 Specification"
+description: "Define the canonical entity/fact temporal memory schema and invariants for PostgreSQL-backed graph memory."
+resource: docs/spec/system_graph_memory_postgres_v1.md
+status: active
+authority: normative
+owner: spec
+last_verified: 2026-06-18
+tags:
+  - docs
+  - spec
+source_refs: []
+code_refs: []
+related: []
+drift_watch:
+  - docs/spec/system_graph_memory_postgres_v1.md
+---
 # Graph Memory Postgres v1.0 Specification
 
 Purpose: Define the canonical entity/fact temporal memory schema and invariants for PostgreSQL-backed graph memory.
