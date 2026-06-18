@@ -1,3 +1,21 @@
+---
+type: Spec
+title: "ELF Memory Service v2.0 Specification"
+description: "Define the ELF Memory Service v2.0 contract, invariants, and storage model."
+resource: docs/spec/system_elf_memory_service_v2.md
+status: active
+authority: normative
+owner: spec
+last_verified: 2026-06-18
+tags:
+  - docs
+  - spec
+source_refs: []
+code_refs: []
+related: []
+drift_watch:
+  - docs/spec/system_elf_memory_service_v2.md
+---
 # ELF Memory Service v2.0 Specification
 
 Purpose: Define the ELF Memory Service v2.0 contract, invariants, and storage model.

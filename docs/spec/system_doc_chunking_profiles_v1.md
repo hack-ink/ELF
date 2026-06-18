@@ -1,3 +1,21 @@
+---
+type: Spec
+title: "System: `doc_chunking_profiles/v1` for `docs_put`"
+description: "Define token-based chunking profiles used by Doc Extension v1 ingestion."
+resource: docs/spec/system_doc_chunking_profiles_v1.md
+status: active
+authority: normative
+owner: spec
+last_verified: 2026-06-18
+tags:
+  - docs
+  - spec
+source_refs: []
+code_refs: []
+related: []
+drift_watch:
+  - docs/spec/system_doc_chunking_profiles_v1.md
+---
 # System: `doc_chunking_profiles/v1` for `docs_put`
 
 Purpose: Define token-based chunking profiles used by Doc Extension v1 ingestion.

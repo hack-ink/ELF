@@ -1,3 +1,21 @@
+---
+type: Spec
+title: "System: Search Filter Expression Contract v1"
+description: "Define the structured filter payload used by search endpoints via `search_filter_expr/v1`."
+resource: docs/spec/system_search_filter_expr_v1.md
+status: active
+authority: normative
+owner: spec
+last_verified: 2026-06-18
+tags:
+  - docs
+  - spec
+source_refs: []
+code_refs: []
+related: []
+drift_watch:
+  - docs/spec/system_search_filter_expr_v1.md
+---
 # System: Search Filter Expression Contract v1
 
 Purpose: Define the structured filter payload used by search endpoints via `search_filter_expr/v1`.

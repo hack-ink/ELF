@@ -1,3 +1,21 @@
+---
+type: Spec
+title: "System: `source_ref` Doc Pointer Resolver (v1)"
+description: "Define a concrete, versioned `source_ref` schema for document pointers so agents can reliably hydrate long-form evidence after a note is retrieved."
+resource: docs/spec/system_source_ref_doc_pointer_v1.md
+status: active
+authority: normative
+owner: spec
+last_verified: 2026-06-18
+tags:
+  - docs
+  - spec
+source_refs: []
+code_refs: []
+related: []
+drift_watch:
+  - docs/spec/system_source_ref_doc_pointer_v1.md
+---
 # System: `source_ref` Doc Pointer Resolver (v1)
 
 Purpose: Define a concrete, versioned `source_ref` schema for document pointers so agents can reliably hydrate long-form evidence after a note is retrieved.

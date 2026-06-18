@@ -36,11 +36,11 @@ ELF is a memory service for LLM agents that stores short, evidence-linked facts 
 
 ## Quickstart
 
-Use the canonical setup guide:
+Use the canonical setup runbook:
 
-- `docs/guide/getting_started.md`
+- `docs/runbook/getting_started.md`
 - For single-user production operation, backup, restore, and Qdrant rebuild, use
-  [docs/guide/single_user_production.md](docs/guide/single_user_production.md).
+  [docs/runbook/single_user_production.md](docs/runbook/single_user_production.md).
 
 Fast path:
 
@@ -259,24 +259,24 @@ provider-backed ELF evidence was required.
 
 Detailed evidence and interpretation:
 
-- [Live Baseline Benchmark Report - June 9, 2026](docs/guide/benchmarking/2026-06-09-live-baseline-report.md)
-- [Synthetic Production Corpus Benchmark Report - June 9, 2026](docs/guide/benchmarking/2026-06-09-production-corpus-report.md)
-- [Production Adoption Gate Report - June 9, 2026](docs/guide/benchmarking/2026-06-09-production-adoption-gate-report.md)
-- [Real-World Comparison Report - June 10, 2026](docs/guide/benchmarking/2026-06-10-real-world-comparison-report.md)
-- [Live Real-World Adapter Sweep Report - June 10, 2026](docs/guide/benchmarking/2026-06-10-live-real-world-sweep-report.md)
-- [Post-Adapter Production Adoption Refresh - June 10, 2026](docs/guide/benchmarking/2026-06-10-production-adoption-refresh.md)
-- [qmd and OpenViking Strength-Profile Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-qmd-openviking-strength-profile-report.md)
-- [ELF/qmd Trace Replay Diagnostics Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-elf-qmd-trace-replay-diagnostics-report.md)
-- [Graph/RAG Scored Smoke Adapter Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-graph-rag-scored-smoke-adapter-report.md)
-- [mem0/OpenMemory History and UI Export Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-mem0-openmemory-history-ui-export-report.md)
-- [Capture/Write-Policy Live Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-capture-write-policy-live-report.md)
-- [Live Consolidation Proposal Scoring Report - June 16, 2026](docs/guide/benchmarking/2026-06-16-live-consolidation-proposal-scoring-report.md)
-- [First-Generation OSS Continuity and Source-Store Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-first-generation-oss-continuity-source-store-report.md)
-- [Live Temporal Reconciliation Report - June 16, 2026](docs/guide/benchmarking/2026-06-16-live-temporal-reconciliation-report.md)
-- [Proactive Brief Scoring Report - June 16, 2026](docs/guide/benchmarking/2026-06-16-proactive-brief-scoring-report.md)
-- [Scheduled Memory Task Scoring Report - June 16, 2026](docs/guide/benchmarking/2026-06-16-scheduled-memory-task-scoring-report.md)
-- [Live Baseline Benchmark Runbook](docs/guide/benchmarking/live_baseline_benchmark.md)
-- [Single-User Production Runbook](docs/guide/single_user_production.md)
+- [Live Baseline Benchmark Report - June 9, 2026](docs/evidence/benchmarking/2026-06-09-live-baseline-report.md)
+- [Synthetic Production Corpus Benchmark Report - June 9, 2026](docs/evidence/benchmarking/2026-06-09-production-corpus-report.md)
+- [Production Adoption Gate Report - June 9, 2026](docs/evidence/benchmarking/2026-06-09-production-adoption-gate-report.md)
+- [Real-World Comparison Report - June 10, 2026](docs/evidence/benchmarking/2026-06-10-real-world-comparison-report.md)
+- [Live Real-World Adapter Sweep Report - June 10, 2026](docs/evidence/benchmarking/2026-06-10-live-real-world-sweep-report.md)
+- [Post-Adapter Production Adoption Refresh - June 10, 2026](docs/evidence/benchmarking/2026-06-10-production-adoption-refresh.md)
+- [qmd and OpenViking Strength-Profile Report - June 11, 2026](docs/evidence/benchmarking/2026-06-11-qmd-openviking-strength-profile-report.md)
+- [ELF/qmd Trace Replay Diagnostics Report - June 11, 2026](docs/evidence/benchmarking/2026-06-11-elf-qmd-trace-replay-diagnostics-report.md)
+- [Graph/RAG Scored Smoke Adapter Report - June 11, 2026](docs/evidence/benchmarking/2026-06-11-graph-rag-scored-smoke-adapter-report.md)
+- [mem0/OpenMemory History and UI Export Report - June 11, 2026](docs/evidence/benchmarking/2026-06-11-mem0-openmemory-history-ui-export-report.md)
+- [Capture/Write-Policy Live Report - June 11, 2026](docs/evidence/benchmarking/2026-06-11-capture-write-policy-live-report.md)
+- [Live Consolidation Proposal Scoring Report - June 16, 2026](docs/evidence/benchmarking/2026-06-16-live-consolidation-proposal-scoring-report.md)
+- [First-Generation OSS Continuity and Source-Store Report - June 11, 2026](docs/evidence/benchmarking/2026-06-11-first-generation-oss-continuity-source-store-report.md)
+- [Live Temporal Reconciliation Report - June 16, 2026](docs/evidence/benchmarking/2026-06-16-live-temporal-reconciliation-report.md)
+- [Proactive Brief Scoring Report - June 16, 2026](docs/evidence/benchmarking/2026-06-16-proactive-brief-scoring-report.md)
+- [Scheduled Memory Task Scoring Report - June 16, 2026](docs/evidence/benchmarking/2026-06-16-scheduled-memory-task-scoring-report.md)
+- [Live Baseline Benchmark Runbook](docs/runbook/benchmarking/live_baseline_benchmark.md)
+- [Single-User Production Runbook](docs/runbook/single_user_production.md)
 - Benchmark contract:
   [Real-World Agent Memory Benchmark v1](docs/spec/real_world_agent_memory_benchmark_v1.md).
   This contract defines job-level suites for agent work. `cargo make real-world-memory`
@@ -341,31 +341,33 @@ Project signature strengths (what each does especially well):
 
 Detailed comparison, mechanism-level analysis, and source map:
 
-- [Live Baseline Benchmark Report - June 9, 2026](docs/guide/benchmarking/2026-06-09-live-baseline-report.md)
-- [Synthetic Production Corpus Benchmark Report - June 9, 2026](docs/guide/benchmarking/2026-06-09-production-corpus-report.md)
-- [Production Adoption Gate Report - June 9, 2026](docs/guide/benchmarking/2026-06-09-production-adoption-gate-report.md)
-- [Real-World Comparison Report - June 10, 2026](docs/guide/benchmarking/2026-06-10-real-world-comparison-report.md)
-- [Live Real-World Adapter Sweep Report - June 10, 2026](docs/guide/benchmarking/2026-06-10-live-real-world-sweep-report.md)
-- [Post-Adapter Production Adoption Refresh - June 10, 2026](docs/guide/benchmarking/2026-06-10-production-adoption-refresh.md)
-- [Competitor Strength Evidence Matrix - June 11, 2026](docs/guide/benchmarking/2026-06-11-competitor-strength-evidence-matrix.md)
-- [Temporal History Competitor Gap Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md)
-- [ELF/qmd Trace Replay Diagnostics Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-elf-qmd-trace-replay-diagnostics-report.md)
-- [Graph/RAG Scored Smoke Adapter Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-graph-rag-scored-smoke-adapter-report.md)
-- [mem0/OpenMemory History and UI Export Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-mem0-openmemory-history-ui-export-report.md)
-- [Capture/Write-Policy Live Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-capture-write-policy-live-report.md)
-- [Live Consolidation Proposal Scoring Report - June 16, 2026](docs/guide/benchmarking/2026-06-16-live-consolidation-proposal-scoring-report.md)
-- [First-Generation OSS Continuity and Source-Store Report - June 11, 2026](docs/guide/benchmarking/2026-06-11-first-generation-oss-continuity-source-store-report.md)
-- [Live Temporal Reconciliation Report - June 16, 2026](docs/guide/benchmarking/2026-06-16-live-temporal-reconciliation-report.md)
-- [Proactive Brief Scoring Report - June 16, 2026](docs/guide/benchmarking/2026-06-16-proactive-brief-scoring-report.md)
-- [Scheduled Memory Task Scoring Report - June 16, 2026](docs/guide/benchmarking/2026-06-16-scheduled-memory-task-scoring-report.md)
-- [Live Baseline Benchmark Runbook](docs/guide/benchmarking/live_baseline_benchmark.md)
-- [Real-World Agent Memory Benchmark](docs/guide/benchmarking/real_world_agent_memory_benchmark.md)
-- [External Memory Improvement Plan](docs/guide/research/external_memory_improvement_plan.md)
-- [Detailed External Comparison](docs/guide/research/comparison_external_projects.md)
-- [Research Projects Inventory](docs/guide/research/research_projects_inventory.md)
-- [Agent Memory Selection Research Run](docs/research/2026-06-08-agent-memory-selection.json)
-- [Real-World Benchmark Dimension Research Run](docs/research/2026-06-09-xy-841-external-memory-benchmark-dimensions.json)
-- [RAG/Graph Adapter Feasibility Research Run](docs/research/2026-06-10-xy-882-rag-graph-adapter-feasibility.json)
+- [Live Baseline Benchmark Report - June 9, 2026](docs/evidence/benchmarking/2026-06-09-live-baseline-report.md)
+- [Synthetic Production Corpus Benchmark Report - June 9, 2026](docs/evidence/benchmarking/2026-06-09-production-corpus-report.md)
+- [Production Adoption Gate Report - June 9, 2026](docs/evidence/benchmarking/2026-06-09-production-adoption-gate-report.md)
+- [Real-World Comparison Report - June 10, 2026](docs/evidence/benchmarking/2026-06-10-real-world-comparison-report.md)
+- [Live Real-World Adapter Sweep Report - June 10, 2026](docs/evidence/benchmarking/2026-06-10-live-real-world-sweep-report.md)
+- [Post-Adapter Production Adoption Refresh - June 10, 2026](docs/evidence/benchmarking/2026-06-10-production-adoption-refresh.md)
+- [Competitor Strength Evidence Matrix - June 11, 2026](docs/evidence/benchmarking/2026-06-11-competitor-strength-evidence-matrix.md)
+- [Temporal History Competitor Gap Report - June 11, 2026](docs/evidence/benchmarking/2026-06-11-temporal-history-competitor-gap-report.md)
+- [ELF/qmd Trace Replay Diagnostics Report - June 11, 2026](docs/evidence/benchmarking/2026-06-11-elf-qmd-trace-replay-diagnostics-report.md)
+- [Graph/RAG Scored Smoke Adapter Report - June 11, 2026](docs/evidence/benchmarking/2026-06-11-graph-rag-scored-smoke-adapter-report.md)
+- [mem0/OpenMemory History and UI Export Report - June 11, 2026](docs/evidence/benchmarking/2026-06-11-mem0-openmemory-history-ui-export-report.md)
+- [Capture/Write-Policy Live Report - June 11, 2026](docs/evidence/benchmarking/2026-06-11-capture-write-policy-live-report.md)
+- [Live Consolidation Proposal Scoring Report - June 16, 2026](docs/evidence/benchmarking/2026-06-16-live-consolidation-proposal-scoring-report.md)
+- [First-Generation OSS Continuity and Source-Store Report - June 11, 2026](docs/evidence/benchmarking/2026-06-11-first-generation-oss-continuity-source-store-report.md)
+- [Live Temporal Reconciliation Report - June 16, 2026](docs/evidence/benchmarking/2026-06-16-live-temporal-reconciliation-report.md)
+- [Proactive Brief Scoring Report - June 16, 2026](docs/evidence/benchmarking/2026-06-16-proactive-brief-scoring-report.md)
+- [Scheduled Memory Task Scoring Report - June 16, 2026](docs/evidence/benchmarking/2026-06-16-scheduled-memory-task-scoring-report.md)
+- [Live Baseline Benchmark Runbook](docs/runbook/benchmarking/live_baseline_benchmark.md)
+- [Real-World Agent Memory Benchmark](docs/runbook/benchmarking/real_world_agent_memory_benchmark.md)
+- [External Memory Improvement Plan](docs/evidence/external_memory/external_memory_improvement_plan.md)
+- [Detailed External Comparison](docs/evidence/external_memory/comparison_external_projects.md)
+- [Research Projects Inventory](docs/evidence/external_memory/research_projects_inventory.md)
+- [Agent Memory Selection Decision](docs/decisions/2026-06-08-agent-memory-selection.md)
+- [Real-World Agent Memory Benchmark Spec](docs/spec/real_world_agent_memory_benchmark_v1.md)
+- [Graph/RAG Adapter Follow-Up Research](docs/research/graph_rag_adapter_followup.md)
+- [Derived Knowledge Page Follow-Up Research](docs/research/derived_knowledge_page_followup.md)
+- [Dreaming Product Surface Follow-Up Research](docs/research/dreaming_product_surface_followup.md)
 
 Latest real-world benchmark report: June 16, 2026. Latest external research refresh:
 June 11, 2026; June 16 adds live temporal reconciliation, live consolidation
@@ -374,17 +376,18 @@ self-check evidence, and fixture-backed scheduled-memory task scoring.
 ## Documentation
 
 - Start here: `docs/index.md`
-- Operational guide index: `docs/guide/index.md`
+- Runbook index: `docs/runbook/index.md`
 - Single-user production runbook:
-  [docs/guide/single_user_production.md](docs/guide/single_user_production.md)
-- Benchmarking guides and reports: `docs/guide/benchmarking/index.md`
-- Research index: `docs/guide/research/index.md`
+  [docs/runbook/single_user_production.md](docs/runbook/single_user_production.md)
+- Benchmarking runbooks: `docs/runbook/benchmarking/index.md`
+- Benchmarking evidence: `docs/evidence/benchmarking/index.md`
+- External memory evidence: `docs/evidence/external_memory/index.md`
 - Specifications: `docs/spec/index.md`
 - System contract: `docs/spec/system_elf_memory_service_v2.md`
 - Ingest policy: `policy_decision` values (`remember`, `update`, `ignore`, `reject`) are returned for each note result in `add_note` and `add_event`.
 - All ingest decisions are also written to `memory_ingest_decisions` with policy inputs and thresholds for auditability.
-- Evaluation guide: `docs/guide/evaluation.md`
-- Integration testing: `docs/guide/integration-testing.md`
+- Evaluation runbook: `docs/runbook/evaluation.md`
+- Integration testing: `docs/runbook/integration-testing.md`
 
 ## Development
 
@@ -394,7 +397,7 @@ cargo make check
 cargo make test-rust
 ```
 
-For integration and E2E workflows, use `docs/guide/getting_started.md` and `docs/guide/integration-testing.md`.
+For integration and E2E workflows, use `docs/runbook/getting_started.md` and `docs/runbook/integration-testing.md`.
 
 ## Support Me
 
