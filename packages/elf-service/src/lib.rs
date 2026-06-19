@@ -10,6 +10,7 @@ pub mod consolidation;
 pub mod core_blocks;
 pub mod delete;
 pub mod docs;
+pub mod dreaming_review_queue;
 pub mod entity_memory;
 pub mod graph;
 pub mod graph_query;
@@ -60,6 +61,11 @@ pub use self::{
 		DocType, DocsExcerptResponse, DocsExcerptsGetRequest, DocsGetRequest, DocsGetResponse,
 		DocsPutRequest, DocsPutResponse, DocsSearchL0Request, DocsSearchL0Response,
 		TextPositionSelector, TextQuoteSelector,
+	},
+	dreaming_review_queue::{
+		DreamingReviewQueueAudit, DreamingReviewQueueItem, DreamingReviewQueueItemPolicy,
+		DreamingReviewQueuePolicy, DreamingReviewQueueRequest, DreamingReviewQueueResponse,
+		DreamingReviewQueueSummary, ELF_DREAMING_REVIEW_QUEUE_SCHEMA_V1,
 	},
 	entity_memory::{
 		ELF_ENTITY_MEMORY_VIEW_SCHEMA_V1, EntityMemoryEntity, EntityMemoryItem,

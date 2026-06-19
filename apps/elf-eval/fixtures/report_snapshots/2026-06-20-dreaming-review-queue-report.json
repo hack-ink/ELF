@@ -1,0 +1,109 @@
+{
+  "schema": "elf.dreaming_review_queue_report/v1",
+  "authority": "XY-1021",
+  "generated_at": "2026-06-20T00:00:00Z",
+  "summary": {
+    "queue_schema": "elf.dreaming_review_queue/v1",
+    "source_mutation_allowed": false,
+    "high_impact_requires_review": true,
+    "review_audit_required": true,
+    "auto_apply_policy": "approved_low_risk_derived_organization_only",
+    "variant_count": 9,
+    "covered_existing_suites": [
+      "memory_summary",
+      "proactive_brief",
+      "scheduled_memory",
+      "consolidation"
+    ],
+    "covered_future_variants": [
+      "tag",
+      "duplicate_merge",
+      "page_rebuild",
+      "memory_promotion",
+      "graph_fact",
+      "correction"
+    ]
+  },
+  "service_paths": [
+    "ElfService::dreaming_review_queue",
+    "GET /v2/admin/dreaming/review-queue",
+    "MCP elf_dreaming_review_queue"
+  ],
+  "required_item_fields": [
+    "source_refs",
+    "affected_refs",
+    "confidence",
+    "unsupported_claim_flags",
+    "diff",
+    "policy",
+    "review_audit"
+  ],
+  "queue_variants": [
+    {
+      "variant": "memory_summary",
+      "source": "existing_suite",
+      "auto_apply_allowed": false,
+      "reason": "reviewable derived summary"
+    },
+    {
+      "variant": "proactive_brief",
+      "source": "existing_suite",
+      "auto_apply_allowed": false,
+      "reason": "reviewable derived brief"
+    },
+    {
+      "variant": "scheduled_memory",
+      "source": "existing_suite",
+      "auto_apply_allowed": false,
+      "reason": "reviewable scheduled derived output"
+    },
+    {
+      "variant": "tag",
+      "source": "future_queue_variant",
+      "auto_apply_allowed": "after_approval_when_confidence_gte_0_9_and_no_lint",
+      "reason": "low-risk derived organization"
+    },
+    {
+      "variant": "duplicate_merge",
+      "source": "future_queue_variant",
+      "auto_apply_allowed": "after_approval_when_confidence_gte_0_9_and_no_lint",
+      "reason": "low-risk derived organization"
+    },
+    {
+      "variant": "page_rebuild",
+      "source": "future_queue_variant",
+      "auto_apply_allowed": false,
+      "reason": "derived knowledge page output stays reviewable"
+    },
+    {
+      "variant": "memory_promotion",
+      "source": "future_queue_variant",
+      "auto_apply_allowed": false,
+      "reason": "high-impact memory note proposals require review"
+    },
+    {
+      "variant": "graph_fact",
+      "source": "future_queue_variant",
+      "auto_apply_allowed": false,
+      "reason": "high-impact graph fact proposals require review"
+    },
+    {
+      "variant": "correction",
+      "source": "future_queue_variant",
+      "auto_apply_allowed": false,
+      "reason": "correction proposals are high impact"
+    }
+  ],
+  "claim_boundaries": {
+    "allowed": [
+      "ELF exposes a source-backed Dreaming review queue over consolidation proposals.",
+      "The queue item contract includes source refs, affected refs, confidence, unsupported-claim lint, diff, policy, and review audit.",
+      "Auto-apply is limited to approved low-risk derived organization candidates and never permits authoritative source mutation."
+    ],
+    "not_allowed": [
+      "Do not claim provider-backed private corpus Dreaming readiness from this queue surface.",
+      "Do not claim source documents, notes, traces, or graph facts can be silently mutated by the queue.",
+      "Do not claim broad Dreaming product superiority without external competitor queue artifacts."
+    ]
+  }
+}

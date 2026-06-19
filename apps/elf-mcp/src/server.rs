@@ -362,6 +362,18 @@ impl ElfMcp {
 	}
 
 	#[rmcp::tool(
+		name = "elf_dreaming_review_queue",
+		description = "List source-backed Dreaming review queue proposals with variants, affected refs, lint flags, policy gates, and review audit.",
+		input_schema = dreaming_review_queue_schema()
+	)]
+	async fn elf_dreaming_review_queue(
+		&self,
+		params: JsonObject,
+	) -> Result<CallToolResult, ErrorData> {
+		self.forward(HttpMethod::Get, "/v2/admin/dreaming/review-queue", params, None).await
+	}
+
+	#[rmcp::tool(
 		name = "elf_searches_create",
 		description = "Create a search session using quick-find or planned-search mode. Response includes optional trajectory_summary for staged retrieval progress.",
 		input_schema = searches_create_schema()
@@ -1237,6 +1249,25 @@ fn entity_memory_get_schema() -> Arc<JsonObject> {
 	}))
 }
 
+fn dreaming_review_queue_schema() -> Arc<JsonObject> {
+	Arc::new(rmcp::object!({
+		"type": "object",
+		"additionalProperties": true,
+		"properties": {
+			"run_id": { "type": ["string", "null"], "format": "uuid" },
+			"review_state": {
+				"type": ["string", "null"],
+				"enum": ["proposed", "approved", "rejected", "applied", "archived", null]
+			},
+			"limit": {
+				"type": ["integer", "null"],
+				"minimum": 1,
+				"maximum": 200
+			}
+		}
+	}))
+}
+
 fn searches_create_schema() -> Arc<JsonObject> {
 	let filter_schema = rmcp::object!({
 		"type": "object",
@@ -1616,7 +1647,7 @@ mod tests {
 
 	type RequestRecorder = Arc<Mutex<Option<oneshot::Sender<RecordedRequest>>>>;
 
-	const ALL_TOOL_DEFINITIONS: [ToolDefinition; 32] = [
+	const ALL_TOOL_DEFINITIONS: [ToolDefinition; 33] = [
 		ToolDefinition::new(
 			"elf_notes_ingest",
 			HttpMethod::Post,
@@ -1658,6 +1689,12 @@ mod tests {
 			HttpMethod::Get,
 			"/v2/entity-memory",
 			"Fetch an entity-scoped memory view across attached core blocks and graph-linked archival notes.",
+		),
+		ToolDefinition::new(
+			"elf_dreaming_review_queue",
+			HttpMethod::Get,
+			"/v2/admin/dreaming/review-queue",
+			"List source-backed Dreaming review queue proposals with variants, affected refs, lint flags, policy gates, and review audit.",
 		),
 		ToolDefinition::new(
 			"elf_searches_get",
@@ -1865,6 +1902,7 @@ mod tests {
 			"elf_space_grant_upsert",
 			"elf_space_grant_revoke",
 			"elf_admin_traces_recent_list",
+			"elf_dreaming_review_queue",
 			"elf_admin_trace_get",
 			"elf_admin_trajectory_get",
 			"elf_admin_trace_item_get",
