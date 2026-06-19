@@ -1,0 +1,98 @@
+{
+  "schema": "elf.openmemory_ui_export_product_recheck_report/v1",
+  "report_id": "xy-987-openmemory-ui-export-product-readback-2026-06-19",
+  "authority": "XY-987",
+  "created_at": "2026-06-19T06:56:58Z",
+  "goal": "Recheck OpenMemory UI/export readback with a product-level local runner or publish a fresh typed setup blocker with concrete evidence.",
+  "command": {
+    "command": "cargo make openmemory-ui-export-readback",
+    "status": "pass",
+    "runtime_seconds": 78.02,
+    "report_artifact": "tmp/live-baseline/live-baseline-report.json",
+    "probe_artifact": "tmp/live-baseline/mem0-openmemory-ui-export.json",
+    "attempt_log": "tmp/live-baseline/mem0-openmemory-export-attempt.log"
+  },
+  "source_baseline": {
+    "previous_report": "docs/evidence/benchmarking/2026-06-11-mem0-openmemory-history-ui-export-report.md",
+    "previous_snapshot": "apps/elf-eval/fixtures/report_snapshots/2026-06-11-xy-931-openmemory-ui-export-readback.json",
+    "previous_status": "blocked",
+    "previous_reason_code": "DOCKER_UNAVAILABLE_IN_BASELINE_RUNNER"
+  },
+  "run": {
+    "run_id": "live-baseline-20260619065543",
+    "project_filter": "mem0",
+    "sdk_baseline_status": "pass",
+    "sdk_check_summary": {
+      "total": 8,
+      "pass": 8,
+      "fail": 0,
+      "wrong_result": 0,
+      "blocked": 0
+    },
+    "ui_export_status": "blocked",
+    "ui_export_reason_code": "DOCKER_UNAVAILABLE_IN_BASELINE_RUNNER"
+  },
+  "same_corpus_boundary": {
+    "sdk_result_artifact": "tmp/live-baseline/mem0-search.json",
+    "sdk_get_all_check_status": "pass",
+    "sdk_get_all_is_ui_export_evidence": false,
+    "openmemory_ui_export_is_separate_product_ux_scenario": true
+  },
+  "openmemory_product_surface": {
+    "tree_present": true,
+    "ui_package_present": true,
+    "compose_file_present": true,
+    "export_script_present": true,
+    "sunsetting_notice_present": true,
+    "requires_openai_api_key": true,
+    "requires_docker_compose": true,
+    "export_requires_running_container": true,
+    "default_export_container": "openmemory-openmemory-mcp-1"
+  },
+  "openmemory_probe": {
+    "attempt": {
+      "command": "timeout 30 bash openmemory/backup-scripts/export_openmemory.sh --user-id elf-history-user --container openmemory-openmemory-mcp-1",
+      "exit_code": 1,
+      "log_artifact": "tmp/live-baseline/mem0-openmemory-export-attempt.log",
+      "output_excerpt": "openmemory/backup-scripts/export_openmemory.sh: line 52: docker: command not found\nERROR: Container 'openmemory-openmemory-mcp-1' not found/running. Pass --container <NAME_OR_ID> if different."
+    },
+    "export_validation": {}
+  },
+  "classification": {
+    "status": "blocked",
+    "comparison_judgment": "unchanged",
+    "reason_code": "DOCKER_UNAVAILABLE_IN_BASELINE_RUNNER",
+    "reason": "The OpenMemory export helper requires Docker access to a running OpenMemory product container, but Docker is not available inside the baseline-runner container; browser/dashboard readback is not reached.",
+    "next_action": "Add a dedicated OpenMemory Docker Compose profile that imports the generated mem0 corpus into the OpenMemory app database, starts the API/UI with explicit local or provider configuration, then rerun the export helper and validate exported memories."
+  },
+  "improvement_regression_readback": {
+    "judgment": "unchanged",
+    "improved": [
+      "The OpenMemory UI/export blocker has a fresh June 19 command run, JSON artifact, and attempt log."
+    ],
+    "unchanged": [
+      "mem0 local OSS SDK history and get_all readback remain pass-only SDK evidence.",
+      "OpenMemory product UI/export readback remains blocked before same-corpus product app database validation.",
+      "No ELF win, tie, or loss is allowed for OpenMemory UI/export."
+    ],
+    "regressed": []
+  },
+  "claim_boundary": {
+    "elf_can_compare_against_openmemory_ui_export_after_this_run": false,
+    "hosted_platform_claim": false,
+    "optional_graph_memory_enabled": false,
+    "sdk_get_all_is_ui_export_evidence": false,
+    "product_browser_or_dashboard_readback_reached": false
+  },
+  "next_optimization_direction": {
+    "required_fields": [
+      "dedicated_openmemory_compose_profile",
+      "same_corpus_import_into_openmemory_app_database",
+      "openmemory_api_or_ui_readback_artifact",
+      "export_zip_validation_against_elf_history_user",
+      "explicit_provider_or_local_model_configuration",
+      "separate_sdk_get_all_and_product_export_scorers"
+    ],
+    "non_goal": "Do not use hosted mem0 Platform export or private operator data in this local OSS lane."
+  }
+}
