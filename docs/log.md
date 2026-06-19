@@ -55,3 +55,7 @@ logs.
 - Added the graph/RAG citation/navigation promotion report and snapshot for XY-985,
   preserving representative graph/RAG outcomes as typed non-pass while recording
   graphify evidence-linked output and the remaining adapter-specific blockers.
+- Added the operator-approved public-proxy production-private addendum report and
+  snapshot for XY-930, recording `baseline-production-private-addendum` as 8/8 pass
+  on the simulated/public-proxy corpus while preserving real private-corpus and
+  provider-backed production quality as unproven.
