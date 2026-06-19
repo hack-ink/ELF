@@ -585,6 +585,55 @@ args = [
 	"tmp/real-world-memory/knowledge-report.md",
 ]
 
+[tasks.real-world-memory-source-library]
+workspace = false
+dependencies = [
+	"real-world-memory-source-library-report",
+]
+
+[tasks.real-world-memory-source-library-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_memory/source_library",
+	"--out",
+	"tmp/real-world-memory/source-library-report.json",
+	"--run-id",
+	"real-world-memory-source-library",
+	"--adapter-id",
+	"fixture_source_library",
+	"--adapter-name",
+	"ELF source library fixture",
+]
+
+[tasks.real-world-memory-source-library-report]
+workspace = false
+dependencies = [
+	"real-world-memory-source-library-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-memory/source-library-report.json",
+	"--out",
+	"tmp/real-world-memory/source-library-report.md",
+]
+
 [tasks.real-world-memory-live-adapters]
 workspace = false
 command = "bash"

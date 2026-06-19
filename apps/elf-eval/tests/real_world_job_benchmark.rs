@@ -72,6 +72,10 @@ fn knowledge_fixture_dir() -> PathBuf {
 	real_world_memory_fixture_dir().join("knowledge")
 }
 
+fn source_library_fixture_dir() -> PathBuf {
+	real_world_memory_fixture_dir().join("source_library")
+}
+
 fn production_ops_fixture_dir() -> PathBuf {
 	real_world_memory_fixture_dir().join("production_ops")
 }
@@ -594,6 +598,42 @@ fn capture_integration_fixtures_score_redaction_and_source_ids() -> Result<()> {
 			.pointer("/produced_answer")
 			.and_then(Value::as_str)
 			.is_some_and(|answer| !answer.contains("orchid-envelope"))
+	);
+
+	Ok(())
+}
+
+#[test]
+fn source_library_fixtures_score_saved_sources_without_memory_promotion() -> Result<()> {
+	let report = run_json_report_from(source_library_fixture_dir())?;
+
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(2));
+	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(2));
+	assert_eq!(report.pointer("/summary/source_ref_coverage").and_then(Value::as_f64), Some(1.0));
+	assert_eq!(report.pointer("/summary/quote_coverage").and_then(Value::as_f64), Some(1.0));
+
+	let suites = array_at(&report, "/suites")?;
+	let source_library = find_by_field(suites, "/suite_id", "source_library")?;
+
+	assert_eq!(source_library.pointer("/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(source_library.pointer("/encoded_job_count").and_then(Value::as_u64), Some(2));
+
+	let jobs = array_at(&report, "/jobs")?;
+	let long_doc = find_by_field(jobs, "/job_id", "source-library-long-doc-001")?;
+	let thread = find_by_field(jobs, "/job_id", "source-library-social-thread-001")?;
+
+	assert!(array_contains_str(long_doc, "/produced_evidence", "article-source-record")?);
+	assert!(array_contains_str(long_doc, "/produced_evidence", "article-hydrated-excerpt")?);
+	assert!(array_contains_str(thread, "/produced_evidence", "thread-source-record")?);
+	assert!(array_contains_str(thread, "/produced_evidence", "thread-promotion-boundary")?);
+	assert!(long_doc.pointer("/produced_answer").and_then(Value::as_str).is_some_and(|answer| {
+		answer.contains("does not automatically create a durable Memory Note")
+	}));
+	assert!(
+		thread
+			.pointer("/produced_answer")
+			.and_then(Value::as_str)
+			.is_some_and(|answer| answer.contains("explicit add_note or reviewed promotion"))
 	);
 
 	Ok(())
@@ -2367,7 +2407,7 @@ fn assert_live_sweep_record(adapter: &Value, production_ops_status: &str) -> Res
 fn runner_discovers_nested_fixture_layout() -> Result<()> {
 	let report = run_json_report_from(fixture_root())?;
 
-	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(60));
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(62));
 
 	Ok(())
 }
@@ -6408,9 +6448,9 @@ fn assert_root_knowledge_summary(report: &Value) {
 }
 
 fn assert_root_aggregate_summary(report: &Value) {
-	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(60));
-	assert_eq!(report.pointer("/summary/encoded_suite_count").and_then(Value::as_u64), Some(16));
-	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(53));
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(62));
+	assert_eq!(report.pointer("/summary/encoded_suite_count").and_then(Value::as_u64), Some(17));
+	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(55));
 	assert_eq!(report.pointer("/summary/wrong_result").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/incomplete").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/blocked").and_then(Value::as_u64), Some(7));
@@ -6453,11 +6493,11 @@ fn assert_root_aggregate_summary(report: &Value) {
 	);
 	assert_eq!(
 		report.pointer("/summary/evidence_required_count").and_then(Value::as_u64),
-		Some(133)
+		Some(137)
 	);
 	assert_eq!(
 		report.pointer("/summary/evidence_covered_count").and_then(Value::as_u64),
-		Some(133)
+		Some(137)
 	);
 	assert_eq!(report.pointer("/summary/evidence_coverage").and_then(Value::as_f64), Some(1.0));
 	assert_eq!(report.pointer("/summary/source_ref_coverage").and_then(Value::as_f64), Some(1.0));
@@ -6641,6 +6681,11 @@ fn assert_root_aggregate_suites(report: &Value) -> Result<()> {
 
 	assert_eq!(scheduled.pointer("/status").and_then(Value::as_str), Some("blocked"));
 	assert_eq!(scheduled.pointer("/encoded_job_count").and_then(Value::as_u64), Some(5));
+
+	let source_library = find_by_field(suites, "/suite_id", "source_library")?;
+
+	assert_eq!(source_library.pointer("/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(source_library.pointer("/encoded_job_count").and_then(Value::as_u64), Some(2));
 
 	let context_trajectory = find_by_field(suites, "/suite_id", "context_trajectory")?;
 

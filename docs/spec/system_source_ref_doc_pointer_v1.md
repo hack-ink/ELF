@@ -6,7 +6,7 @@ resource: docs/spec/system_source_ref_doc_pointer_v1.md
 status: active
 authority: normative
 owner: spec
-last_verified: 2026-06-18
+last_verified: 2026-06-20
 tags:
   - docs
   - spec
@@ -101,6 +101,15 @@ Notes:
 
 If provided, these fields allow agents to detect drift and to report stronger provenance.
 
+`docs_search_l0` returns both `state` and `hashes` in its pointer payload:
+
+- `state.content_hash` and `hashes.content_hash` are the authoritative document
+  content hash for the stored bytes.
+- `state.chunk_hash` and `hashes.chunk_hash` are the authoritative chunk hash
+  for the returned hit.
+- `state.doc_updated_at` is the document update timestamp used for cache and
+  staleness checks.
+
 ### 3.4 `locator` (optional)
 
 `locator` carries excerpt selector hints. The canonical selector vocabulary is:
@@ -119,6 +128,10 @@ Rules:
 
 Optional fields:
 - `level` (string): `"L0"`, `"L1"` or `"L2"` as a suggested excerpt size tier for hydration. If omitted, agents should choose based on context budget.
+
+`docs_search_l0` returns a `locator.position` selector for the hit chunk. Agents
+may pass this selector, the returned `ref.chunk_id`, or their own quote selector
+to `docs_excerpts_get` for verified hydration.
 
 ### 3.5 `hashes` (optional)
 
@@ -200,6 +213,16 @@ The agent SHOULD:
   "state": {
     "content_hash": "baf7cfd2d5b71f5b0f5d5a08a3c38d7b43cf7a2e5a4f75d5c1b4a9072f6dd3b8",
     "chunk_hash": "bd85b0e07464bde3a7f3a2b2f3c2d5d4c1c9f0d0c1a2b3c4d5e6f7a8b9c0d1e2"
+  },
+  "hashes": {
+    "content_hash": "baf7cfd2d5b71f5b0f5d5a08a3c38d7b43cf7a2e5a4f75d5c1b4a9072f6dd3b8",
+    "chunk_hash": "bd85b0e07464bde3a7f3a2b2f3c2d5d4c1c9f0d0c1a2b3c4d5e6f7a8b9c0d1e2"
+  },
+  "locator": {
+    "position": {
+      "start": 128,
+      "end": 384
+    }
   }
 }
 ```

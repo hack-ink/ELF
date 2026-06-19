@@ -1,0 +1,221 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "source-library-long-doc-001",
+  "suite": "source_library",
+  "title": "Saved long-form article keeps stable source metadata and hydrates an excerpt pointer",
+  "corpus": {
+    "corpus_id": "real-world-memory-source-library-2026-06-20",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "article-source-record",
+        "kind": "source_library_record",
+        "text": "Source Library record: canonical_uri=https://example.com/research/agent-memory-os, source_kind=article, author=Example Research Group, captured_at=2026-06-20T01:10:00Z, source_created_at=2026-06-19T21:00:00Z, trust_label=public_web. The record is stored as a Doc Extension document, not as a durable Memory Note.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "elf_doc_ext/v1",
+          "ref": {
+            "doc_id": "11111111-1111-4111-8111-111111111111",
+            "chunk_id": "22222222-2222-4222-8222-222222222222"
+          },
+          "state": {
+            "content_hash": "long-doc-content-hash",
+            "chunk_hash": "long-doc-chunk-hash"
+          },
+          "hashes": {
+            "content_hash": "long-doc-content-hash",
+            "chunk_hash": "long-doc-chunk-hash"
+          },
+          "locator": {
+            "position": {
+              "start": 0,
+              "end": 128
+            }
+          }
+        },
+        "created_at": "2026-06-20T01:10:00Z"
+      },
+      {
+        "evidence_id": "article-hydrated-excerpt",
+        "kind": "hydrated_excerpt",
+        "text": "Hydrated excerpt: The article says source libraries preserve long-form evidence while agents promote only selected facts into memory. Verification: verified=true, content_hash=long-doc-content-hash, excerpt_hash=long-doc-excerpt-hash.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "elf_doc_ext/v1",
+          "ref": {
+            "doc_id": "11111111-1111-4111-8111-111111111111",
+            "chunk_id": "22222222-2222-4222-8222-222222222222"
+          },
+          "locator": {
+            "quote": {
+              "exact": "source libraries preserve long-form evidence"
+            }
+          },
+          "hashes": {
+            "content_hash": "long-doc-content-hash",
+            "excerpt_hash": "long-doc-excerpt-hash"
+          }
+        },
+        "created_at": "2026-06-20T01:11:00Z"
+      },
+      {
+        "evidence_id": "auto-memory-decoy",
+        "kind": "decoy",
+        "text": "Decoy: saving the article automatically created a durable Memory Note and made the whole article top-of-mind.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "source_library",
+            "evidence_id": "auto-memory-decoy"
+          }
+        },
+        "created_at": "2026-06-20T01:12:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "elf_real_world_memory_fixture",
+      "answer": {
+        "content": "The saved article is a Source Library document with canonical_uri=https://example.com/research/agent-memory-os, source_kind=article, author=Example Research Group, captured_at=2026-06-20T01:10:00Z, source_created_at=2026-06-19T21:00:00Z, and trust_label=public_web. Hydration uses the source_ref/v1 pointer with resolver elf_doc_ext/v1 and the verified excerpt says source libraries preserve long-form evidence. This source-only ingest does not automatically create a durable Memory Note.",
+        "claims": [
+          {
+            "claim_id": "long_doc_metadata",
+            "text": "The saved article keeps canonical URI, source kind, author, captured/source-created timestamps, and trust label metadata.",
+            "evidence_ids": ["article-source-record"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "long_doc_hydration",
+            "text": "The hydrated excerpt is verified through a source_ref/v1 pointer resolved by elf_doc_ext/v1.",
+            "evidence_ids": ["article-hydrated-excerpt"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "source_not_memory",
+            "text": "Source-only ingest does not automatically create a durable Memory Note.",
+            "evidence_ids": ["article-source-record"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["article-source-record", "article-hydrated-excerpt"],
+        "latency_ms": 1.0,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "article-captured",
+      "ts": "2026-06-20T01:10:00Z",
+      "actor": "agent",
+      "action": "docs_put_source_library_record",
+      "evidence_ids": ["article-source-record"],
+      "summary": "The long article was captured as a Source Library document."
+    },
+    {
+      "event_id": "article-hydrated",
+      "ts": "2026-06-20T01:11:00Z",
+      "actor": "agent",
+      "action": "docs_excerpts_get_verified",
+      "evidence_ids": ["article-hydrated-excerpt"],
+      "summary": "The article pointer hydrated a verified excerpt."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "What did we save for the agent memory OS article, how can it be cited later, and did saving it create a Memory Note?",
+    "job_mode": "answer",
+    "constraints": ["cite_evidence", "preserve_source_metadata", "do_not_promote_source_to_memory"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "long_doc_metadata",
+        "text": "The saved article keeps canonical URI, source kind, author, captured/source-created timestamps, and trust label metadata."
+      },
+      {
+        "claim_id": "long_doc_hydration",
+        "text": "The hydrated excerpt is verified through a source_ref/v1 pointer resolved by elf_doc_ext/v1."
+      },
+      {
+        "claim_id": "source_not_memory",
+        "text": "Source-only ingest does not automatically create a durable Memory Note."
+      }
+    ],
+    "must_not_include": [
+      "automatically created a durable Memory Note",
+      "made the whole article top-of-mind"
+    ],
+    "evidence_links": {
+      "long_doc_metadata": ["article-source-record"],
+      "long_doc_hydration": ["article-hydrated-excerpt"],
+      "source_not_memory": ["article-source-record"]
+    },
+    "answer_type": "direct_answer",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "article-source-record",
+      "claim_id": "long_doc_metadata",
+      "requirement": "cite",
+      "quote": "canonical_uri=https://example.com/research/agent-memory-os"
+    },
+    {
+      "evidence_id": "article-hydrated-excerpt",
+      "claim_id": "long_doc_hydration",
+      "requirement": "cite",
+      "quote": "verified=true"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "source-auto-memory",
+      "type": "decoy_evidence",
+      "evidence_ids": ["auto-memory-decoy"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.35,
+        "max_points": 1.0,
+        "criteria": "Reports source metadata and the source-only memory boundary."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Cites both source record and hydrated excerpt evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Does not use the auto-memory decoy."
+      },
+      "lifecycle_behavior": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Separates Source Library ingest from explicit memory promotion."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "claiming a source-only ingest automatically created durable memory",
+      "missing source_ref hydration evidence"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "state_blocker"
+  },
+  "tags": ["synthetic", "source_library", "long_document", "source_ref", "no_memory_autopromotion"]
+}
