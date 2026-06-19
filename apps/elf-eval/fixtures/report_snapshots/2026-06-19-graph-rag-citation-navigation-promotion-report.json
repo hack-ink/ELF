@@ -1,0 +1,168 @@
+{
+  "schema": "elf.graph_rag_citation_navigation_promotion_report/v1",
+  "report_id": "xy-985-graph-rag-citation-navigation-promotion-2026-06-19",
+  "authority": "XY-985",
+  "created_at": "2026-06-19T07:17:34Z",
+  "goal": "Promote graph/RAG citation, navigation, stale-source lint, and knowledge-surface cases only when adapters emit comparable evidence-linked outputs while preserving typed non-pass outcomes.",
+  "command": {
+    "command": "cargo make real-world-memory-graph-rag",
+    "status": "pass",
+    "report_artifact": "tmp/real-world-memory/graph-rag/report.json",
+    "markdown_artifact": "tmp/real-world-memory/graph-rag/report.md",
+    "run_id": "real-world-memory-graph-rag",
+    "adapter_id": "fixture_graph_rag_external_adapters"
+  },
+  "source_baseline": {
+    "previous_report": "docs/evidence/benchmarking/2026-06-17-dreaming-competitor-strength-retest-report.md",
+    "previous_graph_rag_report": "docs/evidence/benchmarking/2026-06-11-graph-rag-scored-smoke-adapter-report.md",
+    "previous_status": "typed_non_pass",
+    "previous_counts": {
+      "pass": 0,
+      "wrong_result": 1,
+      "incomplete": 1,
+      "blocked": 3
+    }
+  },
+  "summary": {
+    "overall_judgment": "unchanged_typed_non_pass",
+    "broader_graph_rag_parity": "not_proven",
+    "job_count": 5,
+    "encoded_suite_count": 3,
+    "pass": 0,
+    "wrong_result": 1,
+    "incomplete": 1,
+    "blocked": 3,
+    "not_encoded": 0,
+    "wrong_result_count": 2,
+    "regressed_scenario_count": 0,
+    "evidence_coverage": 0.25,
+    "source_ref_coverage": 0.25,
+    "quote_coverage": 0.25,
+    "knowledge_citation_coverage": 0.667,
+    "stale_claim_detection": 0.0,
+    "unsupported_summary_count": 1,
+    "mean_score": 0.06
+  },
+  "scenario_outcomes": [
+    {
+      "project": "RAGFlow",
+      "scenario_id": "reference_chunk_citation_mapping",
+      "fixture": "apps/elf-eval/fixtures/real_world_external_adapters/graph_rag/ragflow_reference_chunks_blocked.json",
+      "required_output": "Returned reference chunks must include generated document ids, chunk ids, content, and document metadata mapped to benchmark evidence ids.",
+      "current_status": "blocked",
+      "judgment": "unchanged",
+      "artifact": "tmp/real-world-memory/graph-rag/report.json",
+      "blocker": "resource_api_setup_and_reference_chunks_missing",
+      "claim_boundary": "No RAGFlow citation quality or ELF-over-RAGFlow claim is allowed."
+    },
+    {
+      "project": "LightRAG",
+      "scenario_id": "context_source_reference_mapping",
+      "fixture": "apps/elf-eval/fixtures/real_world_external_adapters/graph_rag/lightrag_context_sources_incomplete.json",
+      "required_output": "Context/source export must expose generated file paths, snippets, or references mapped to evidence ids.",
+      "current_status": "incomplete",
+      "judgment": "unchanged",
+      "artifact": "tmp/real-world-memory/graph-rag/report.json",
+      "blocker": "default_api_export_not_available",
+      "claim_boundary": "No LightRAG graph/RAG quality claim is allowed until source references map to generated evidence."
+    },
+    {
+      "project": "GraphRAG",
+      "scenario_id": "output_table_citation_mapping",
+      "fixture": "apps/elf-eval/fixtures/real_world_external_adapters/graph_rag/graphrag_output_tables_blocked.json",
+      "required_output": "Output tables must map documents, text units, communities, reports, entities, and relationships to generated evidence ids.",
+      "current_status": "blocked",
+      "judgment": "unchanged",
+      "artifact": "tmp/real-world-memory/graph-rag/report.json",
+      "blocker": "provider_backed_output_tables_missing",
+      "claim_boundary": "No GraphRAG citation, synthesis, or navigation claim is allowed without mapped output tables."
+    },
+    {
+      "project": "Graphiti/Zep",
+      "scenario_id": "temporal_graph_validity_mapping",
+      "fixture": "apps/elf-eval/fixtures/real_world_external_adapters/graph_rag/graphiti_temporal_validity_blocked.json",
+      "required_output": "Current and historical graph facts must carry validity windows and evidence ids.",
+      "current_status": "blocked",
+      "judgment": "unchanged",
+      "artifact": "tmp/real-world-memory/graph-rag/report.json",
+      "blocker": "provider_backed_temporal_graph_output_missing",
+      "claim_boundary": "Graphiti/Zep remains the temporal-validity reference; no ELF superiority claim is allowed."
+    },
+    {
+      "project": "graphify",
+      "scenario_id": "graph_report_navigation_lint",
+      "fixture": "apps/elf-eval/fixtures/real_world_external_adapters/graph_rag/graphify_graph_report_wrong_result.json",
+      "required_output": "graph.json, source-location sections, unsupported-claim lint, and stale-source lint must all be scored.",
+      "current_status": "wrong_result",
+      "judgment": "unchanged",
+      "artifact": "tmp/real-world-memory/graph-rag/report.json",
+      "produced_evidence": [
+        "graphify-derived-report-boundary",
+        "graphify-graph-summary-output",
+        "graphify-source-location-output"
+      ],
+      "blocker": "stale_claim_detection_missing_and_unsupported_summary_present",
+      "claim_boundary": "graphify has evidence-linked output but remains wrong_result; do not convert this into an ELF win."
+    },
+    {
+      "project": "llm-wiki",
+      "scenario_id": "wiki_page_citation_lint",
+      "fixture": null,
+      "required_output": "Contained page generation must emit cited sections plus stale-source and unsupported-claim lint.",
+      "current_status": "not_encoded",
+      "judgment": "unchanged",
+      "artifact": null,
+      "blocker": "no_contained_page_materializer",
+      "claim_boundary": "llm-wiki remains a reference workflow until a contained materializer exists."
+    },
+    {
+      "project": "gbrain",
+      "scenario_id": "compiled_truth_timeline_export",
+      "fixture": null,
+      "required_output": "Docker-local brain repository import must emit compiled-truth or timeline pages with source evidence.",
+      "current_status": "blocked",
+      "judgment": "unchanged",
+      "artifact": null,
+      "blocker": "docker_local_brain_repo_and_database_setup_missing",
+      "claim_boundary": "gbrain remains blocked until setup/export readback is proven."
+    }
+  ],
+  "improvement_regression_readback": {
+    "judgment": "unchanged",
+    "improved": [
+      "The fresh June 19 report records graphify evidence-linked output and typed blockers in a checked-in XY-985 companion."
+    ],
+    "unchanged": [
+      "No graph/RAG scenario moved to pass.",
+      "RAGFlow, GraphRAG, and Graphiti/Zep remain blocked.",
+      "LightRAG remains incomplete.",
+      "graphify remains wrong_result.",
+      "llm-wiki remains not_encoded and gbrain remains blocked."
+    ],
+    "regressed": []
+  },
+  "claim_boundaries": {
+    "allowed": [
+      "The representative graph/RAG command is reproducible and emits typed non-pass outcomes.",
+      "graphify emits evidence-linked graph/report output but remains wrong_result.",
+      "The comparison status is unchanged relative to XY-955."
+    ],
+    "not_allowed": [
+      "Do not claim graph/RAG parity or broad graph-navigation quality.",
+      "Do not convert research gates, tiny smokes, blocked setup, incomplete output, or graphify wrong_result into a win.",
+      "Do not use private providers, hosted services, or unrecorded credentials for this lane."
+    ]
+  },
+  "next_optimization_direction": {
+    "required_fields": [
+      "ragflow_reference_chunk_ids_and_document_metadata",
+      "lightrag_context_source_paths_or_snippets",
+      "graphrag_output_table_rows_with_generated_evidence_ids",
+      "graphiti_zep_valid_at_invalid_at_evidence_mapping",
+      "graphify_stale_source_lint_pass",
+      "llm_wiki_contained_page_materializer",
+      "gbrain_docker_local_brain_repo_export"
+    ],
+    "non_goal": "Do not implement broad ELF graph/RAG product features in this benchmark/report lane."
+  }
+}
