@@ -338,6 +338,21 @@ impl ElfMcp {
 	}
 
 	#[rmcp::tool(
+		name = "elf_entity_memory_get",
+		description = "Fetch an entity-scoped memory view across attached core blocks and graph-linked archival notes.",
+		input_schema = entity_memory_get_schema()
+	)]
+	async fn elf_entity_memory_get(
+		&self,
+		mut params: JsonObject,
+	) -> Result<CallToolResult, ErrorData> {
+		// read_profile is part of the MCP server configuration and is not client-controlled.
+		let _ = take_optional_string(&mut params, "read_profile")?;
+
+		self.forward(HttpMethod::Get, "/v2/entity-memory", params, None).await
+	}
+
+	#[rmcp::tool(
 		name = "elf_searches_create",
 		description = "Create a search session using quick-find or planned-search mode. Response includes optional trajectory_summary for staged retrieval progress.",
 		input_schema = searches_create_schema()
@@ -1197,6 +1212,18 @@ fn core_blocks_get_schema() -> Arc<JsonObject> {
 	}))
 }
 
+fn entity_memory_get_schema() -> Arc<JsonObject> {
+	Arc::new(rmcp::object!({
+		"type": "object",
+		"additionalProperties": true,
+		"properties": {
+			"entity_id": { "type": ["string", "null"], "format": "uuid" },
+			"entity_surface": { "type": ["string", "null"] },
+			"read_profile": { "type": ["string", "null"] }
+		}
+	}))
+}
+
 fn searches_create_schema() -> Arc<JsonObject> {
 	let filter_schema = rmcp::object!({
 		"type": "object",
@@ -1576,7 +1603,7 @@ mod tests {
 
 	type RequestRecorder = Arc<Mutex<Option<oneshot::Sender<RecordedRequest>>>>;
 
-	const ALL_TOOL_DEFINITIONS: [ToolDefinition; 30] = [
+	const ALL_TOOL_DEFINITIONS: [ToolDefinition; 31] = [
 		ToolDefinition::new(
 			"elf_notes_ingest",
 			HttpMethod::Post,
@@ -1606,6 +1633,12 @@ mod tests {
 			HttpMethod::Get,
 			"/v2/core-blocks",
 			"Fetch core memory blocks explicitly attached to the configured agent and read profile.",
+		),
+		ToolDefinition::new(
+			"elf_entity_memory_get",
+			HttpMethod::Get,
+			"/v2/entity-memory",
+			"Fetch an entity-scoped memory view across attached core blocks and graph-linked archival notes.",
 		),
 		ToolDefinition::new(
 			"elf_searches_get",
@@ -1797,6 +1830,7 @@ mod tests {
 			"elf_graph_query",
 			"elf_events_ingest",
 			"elf_core_blocks_get",
+			"elf_entity_memory_get",
 			"elf_searches_create",
 			"elf_searches_get",
 			"elf_searches_timeline",

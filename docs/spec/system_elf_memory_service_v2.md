@@ -1949,6 +1949,85 @@ Notes:
   tenant/project/agent/read_profile and the block is readable under that read_profile's
   scopes and shared grants.
 
+GET /v2/entity-memory
+
+Headers:
+- X-ELF-Tenant-Id (required)
+- X-ELF-Project-Id (required)
+- X-ELF-Agent-Id (required)
+- X-ELF-Read-Profile (required)
+
+Query:
+- entity_id: uuid, optional.
+- entity_surface: string, optional canonical or alias surface.
+- Exactly one of entity_id or entity_surface is required.
+
+Response:
+{
+  "schema": "elf.entity_memory_view/v1",
+  "tenant_id": "string",
+  "project_id": "string",
+  "agent_id": "requesting-agent",
+  "read_profile": "private_only|private_plus_project|all_scopes",
+  "as_of": "...",
+  "entity": {
+    "entity_id": "uuid",
+    "canonical": "Alice",
+    "kind": "person|null",
+    "surfaces": ["Alice", "Alicia"]
+  },
+  "summary": {
+    "current_count": 0,
+    "stale_count": 0,
+    "superseded_count": 0,
+    "tombstoned_count": 0,
+    "top_of_mind_count": 0,
+    "background_count": 0,
+    "core_block_count": 0,
+    "archival_note_count": 0
+  },
+  "items": [
+    {
+      "source": "core_block|archival_note",
+      "lifecycle": "current|stale|superseded|tombstoned",
+      "read_bucket": "top_of_mind|background",
+      "scope": "agent_private|project_shared|org_shared",
+      "agent_id": "source-owner-agent",
+      "note_id": "uuid|null",
+      "block_id": "uuid|null",
+      "attachment_id": "uuid|null",
+      "note_type": "string|null",
+      "key": "string|null",
+      "title": "string|null",
+      "text": "string",
+      "importance": 0.0,
+      "confidence": 0.0,
+      "source_ref": { ... },
+      "updated_at": "...",
+      "expires_at": "...|null",
+      "relations": [
+        {
+          "fact_id": "uuid",
+          "predicate": "prefers",
+          "scope": "agent_private|project_shared|org_shared",
+          "actor": "fact-owner-agent",
+          "valid_from": "...",
+          "valid_to": "...|null",
+          "temporal_status": "current|historical|future"
+        }
+      ]
+    }
+  ]
+}
+
+Behavior:
+- The endpoint resolves a graph entity by id or canonical/alias surface within the request tenant/project.
+- It returns graph evidence notes linked through `graph_facts` and `graph_fact_evidence`, including stale, superseded, and tombstoned lifecycle buckets for authority readback.
+- It also returns attached core blocks for the exact tenant/project/agent/read_profile when block key/title/content/source_ref mentions the canonical entity or one of its aliases.
+- Read access is still governed by read_profile scopes and shared grants. `agent_private` rows are visible only to their owning agent.
+- Core blocks are classified as `current` and `top_of_mind`; archival notes are `top_of_mind` only when they are current and importance is at least 0.8.
+- This endpoint is read-only. It does not embed, rerank, mutate notes or blocks, create search sessions, write Qdrant points, or record note hits.
+
 POST /v2/searches
 
 Headers:
@@ -2283,6 +2362,7 @@ Original query:
   - elf_notes_ingest -> POST /v2/notes/ingest
   - elf_events_ingest -> POST /v2/events/ingest
   - elf_core_blocks_get -> GET /v2/core-blocks
+  - elf_entity_memory_get -> GET /v2/entity-memory
   - elf_graph_query -> POST /v2/graph/query
   - elf_searches_create -> POST /v2/searches
   - elf_searches_get -> GET /v2/searches/{search_id}

@@ -10,6 +10,7 @@ pub mod consolidation;
 pub mod core_blocks;
 pub mod delete;
 pub mod docs;
+pub mod entity_memory;
 pub mod graph;
 pub mod graph_query;
 pub mod knowledge;
@@ -58,6 +59,11 @@ pub use self::{
 		DocType, DocsExcerptResponse, DocsExcerptsGetRequest, DocsGetRequest, DocsGetResponse,
 		DocsPutRequest, DocsPutResponse, DocsSearchL0Request, DocsSearchL0Response,
 		TextPositionSelector, TextQuoteSelector,
+	},
+	entity_memory::{
+		ELF_ENTITY_MEMORY_VIEW_SCHEMA_V1, EntityMemoryEntity, EntityMemoryItem,
+		EntityMemoryRelation, EntityMemorySummary, EntityMemoryViewRequest,
+		EntityMemoryViewResponse,
 	},
 	error::{Error, Result},
 	graph::RelationTemporalStatus,
