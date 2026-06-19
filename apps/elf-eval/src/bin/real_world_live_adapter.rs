@@ -13,7 +13,7 @@ use std::{
 	time::{Duration, Instant},
 };
 
-use ::time::OffsetDateTime;
+use ::time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use blake3::Hasher;
 use clap::{Parser, Subcommand, ValueEnum};
 use color_eyre::{self, eyre};
@@ -40,8 +40,8 @@ use elf_service::{
 	ConsolidationProposalResponse, ConsolidationProposalReviewRequest,
 	ConsolidationProposalsListRequest, ConsolidationRunCreateRequest, ElfService,
 	EmbeddingProvider, ExtractorProvider, KnowledgePageLintRequest, KnowledgePageLintResponse,
-	KnowledgePageRebuildRequest, KnowledgePageResponse, KnowledgePageSearchRequest, PayloadLevel,
-	Providers, RerankProvider, SearchItem, SearchRequest,
+	KnowledgePageRebuildRequest, KnowledgePageResponse, KnowledgePageSearchRequest, ListRequest,
+	PayloadLevel, Providers, RerankProvider, SearchItem, SearchRequest, SearchResponse,
 };
 use elf_storage::{db::Db, qdrant::QdrantStore};
 use elf_testkit::TestDatabase;
@@ -305,6 +305,8 @@ struct MaterializedJobEvidence {
 	knowledge: Option<KnowledgeMaterializationEvidence>,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	temporal_reconciliation: Option<TemporalReconciliationMaterializationEvidence>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	dreaming_readback: Option<DreamingReadbackMaterializationEvidence>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -366,6 +368,19 @@ struct TemporalReconciliationMaterializationEvidence {
 	contradicted_by_lifecycle_evidence_ids: Vec<String>,
 }
 
+#[derive(Clone, Debug, Default, Serialize)]
+struct DreamingReadbackMaterializationEvidence {
+	artifact_kind: String,
+	runtime_path: String,
+	service_list_count: usize,
+	trace_id: Option<Uuid>,
+	generated_artifact_count: usize,
+	selected_source_refs: Vec<String>,
+	missing_source_refs: Vec<String>,
+	source_mutation_count: usize,
+	no_source_mutation_checked: bool,
+}
+
 #[derive(Clone, Debug, Serialize)]
 struct CaptureRuntimeSourceRefEvidence {
 	evidence_id: String,
@@ -407,6 +422,12 @@ struct AnswerOutput {
 	claims: Vec<serde_json::Value>,
 	#[serde(skip_serializing_if = "Vec::is_empty")]
 	pages: Vec<serde_json::Value>,
+	#[serde(skip_serializing_if = "Vec::is_empty")]
+	memory_summaries: Vec<serde_json::Value>,
+	#[serde(skip_serializing_if = "Vec::is_empty")]
+	proactive_briefs: Vec<serde_json::Value>,
+	#[serde(skip_serializing_if = "Vec::is_empty")]
+	scheduled_tasks: Vec<serde_json::Value>,
 	latency_ms: f64,
 	cost: CostOutput,
 	trace_explainability: TraceExplainabilityOutput,
@@ -428,7 +449,7 @@ struct TraceExplainabilityOutput {
 	stages: Vec<TraceStageOutput>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 struct TraceStageOutput {
 	stage_name: String,
 	kept_evidence: Vec<String>,
@@ -464,7 +485,31 @@ struct MaterializedJobInput {
 	consolidation: Option<ConsolidationMaterializationEvidence>,
 	knowledge: Option<KnowledgeMaterializationEvidence>,
 	temporal_reconciliation: Option<TemporalReconciliationMaterializationEvidence>,
+	dreaming_readback: Option<DreamingReadbackMaterializationEvidence>,
+	memory_summaries: Vec<serde_json::Value>,
+	proactive_briefs: Vec<serde_json::Value>,
+	scheduled_tasks: Vec<serde_json::Value>,
 	trace_stages: Option<Vec<TraceStageOutput>>,
+}
+
+#[derive(Debug)]
+struct DreamingReadbackOutput {
+	content: String,
+	evidence_ids: Vec<String>,
+	memory_summaries: Vec<serde_json::Value>,
+	proactive_briefs: Vec<serde_json::Value>,
+	scheduled_tasks: Vec<serde_json::Value>,
+	materialization: DreamingReadbackMaterializationEvidence,
+	trace_stages: Vec<TraceStageOutput>,
+}
+
+struct SuiteMaterializationSelection {
+	selected: SelectedEvidenceText,
+	trace_stages: Option<Vec<TraceStageOutput>>,
+	dreaming_readback: Option<DreamingReadbackMaterializationEvidence>,
+	memory_summaries: Vec<serde_json::Value>,
+	proactive_briefs: Vec<serde_json::Value>,
+	scheduled_tasks: Vec<serde_json::Value>,
 }
 
 struct MaterializedOutput<'a> {
@@ -621,6 +666,17 @@ struct TemporalReconciliationSelection {
 	selected: SelectedEvidenceText,
 	evidence: TemporalReconciliationMaterializationEvidence,
 	trace_stages: Vec<TraceStageOutput>,
+}
+
+struct SuiteMaterializationSelectionInput<'a> {
+	loaded: &'a LoadedJob,
+	ingested: &'a IngestedCorpus,
+	capture_failure: &'a Option<String>,
+	selected: SelectedEvidenceText,
+	trace_stages: Option<Vec<TraceStageOutput>>,
+	knowledge: &'a Option<KnowledgeMaterializationEvidence>,
+	consolidation: &'a Option<ConsolidationMaterializationEvidence>,
+	dreaming_readback: Option<DreamingReadbackOutput>,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Deserialize)]
@@ -926,6 +982,10 @@ fn qmd_materialized_job(
 			consolidation: None,
 			knowledge: None,
 			temporal_reconciliation: None,
+			dreaming_readback: None,
+			memory_summaries: Vec::new(),
+			proactive_briefs: Vec::new(),
+			scheduled_tasks: Vec::new(),
 			trace_stages: None,
 		},
 	)
@@ -979,6 +1039,10 @@ fn lightrag_failure_jobs(
 					consolidation: None,
 					knowledge: None,
 					temporal_reconciliation: None,
+					dreaming_readback: None,
+					memory_summaries: Vec::new(),
+					proactive_briefs: Vec::new(),
+					scheduled_tasks: Vec::new(),
 					trace_stages: None,
 				},
 			)
@@ -1262,6 +1326,9 @@ fn materialized_job(
 				evidence_ids: input.evidence_ids.clone(),
 				claims: answer_claims(loaded, &input.evidence_ids),
 				pages: input.pages,
+				memory_summaries: input.memory_summaries,
+				proactive_briefs: input.proactive_briefs,
+				scheduled_tasks: input.scheduled_tasks,
 				latency_ms: input.latency_ms,
 				cost: CostOutput {
 					currency: "USD".to_string(),
@@ -1297,6 +1364,7 @@ fn materialized_job(
 			consolidation: input.consolidation,
 			knowledge: input.knowledge,
 			temporal_reconciliation: input.temporal_reconciliation,
+			dreaming_readback: input.dreaming_readback,
 		},
 	}
 }
@@ -1341,6 +1409,9 @@ fn not_encoded_job(adapter_id: &str, loaded: &LoadedJob) -> Option<MaterializedJ
 	if is_elf_capture_live_adapter(adapter_id, loaded.job.suite.as_str()) {
 		return None;
 	}
+	if is_elf_dreaming_readback_live_adapter(adapter_id, loaded.job.suite.as_str()) {
+		return None;
+	}
 
 	not_encoded_reason(loaded.job.suite.as_str()).map(|reason| {
 		materialized_declared_status_job(
@@ -1374,6 +1445,11 @@ fn is_elf_knowledge_live_adapter(adapter_id: &str, suite: &str) -> bool {
 fn is_elf_capture_live_adapter(adapter_id: &str, suite: &str) -> bool {
 	suite == "capture_integration"
 		&& matches!(adapter_id, "elf_live_real_world" | "elf_capture_write_policy_live")
+}
+
+fn is_elf_dreaming_readback_live_adapter(adapter_id: &str, suite: &str) -> bool {
+	matches!(suite, "memory_summary" | "proactive_brief" | "scheduled_memory")
+		&& matches!(adapter_id, "elf_service_native_dreaming" | "elf_live_real_world")
 }
 
 fn not_encoded_reason(suite: &str) -> Option<&'static str> {
@@ -1424,6 +1500,9 @@ fn materialized_declared_status_job(
 				evidence_ids: Vec::new(),
 				claims: Vec::new(),
 				pages: Vec::new(),
+				memory_summaries: Vec::new(),
+				proactive_briefs: Vec::new(),
+				scheduled_tasks: Vec::new(),
 				latency_ms: 0.0,
 				cost: CostOutput {
 					currency: "USD".to_string(),
@@ -1465,6 +1544,7 @@ fn materialized_declared_status_job(
 			consolidation: None,
 			knowledge: None,
 			temporal_reconciliation: None,
+			dreaming_readback: None,
 		},
 		operator_debug: None,
 	}
@@ -2423,6 +2503,10 @@ fn failure_jobs(
 					consolidation: None,
 					knowledge: None,
 					temporal_reconciliation: None,
+					dreaming_readback: None,
+					memory_summaries: Vec::new(),
+					proactive_briefs: Vec::new(),
+					scheduled_tasks: Vec::new(),
 					trace_stages: None,
 				},
 			)
@@ -2554,6 +2638,7 @@ fn clone_job_evidence(evidence: &MaterializedJobEvidence) -> MaterializedJobEvid
 		consolidation: evidence.consolidation.clone(),
 		knowledge: evidence.knowledge.clone(),
 		temporal_reconciliation: evidence.temporal_reconciliation.clone(),
+		dreaming_readback: evidence.dreaming_readback.clone(),
 	}
 }
 
@@ -3566,6 +3651,410 @@ fn elf_selected_evidence_text(
 	(selected_required_corpus_texts(loaded, stored_corpus, evidence_ids), None, None)
 }
 
+fn dreaming_readback_template_artifacts(
+	loaded: &LoadedJob,
+) -> color_eyre::Result<Vec<serde_json::Value>> {
+	let pointer = match loaded.job.suite.as_str() {
+		"memory_summary" => "/corpus/adapter_response/answer/memory_summaries",
+		"proactive_brief" => "/corpus/adapter_response/answer/proactive_briefs",
+		"scheduled_memory" => "/corpus/adapter_response/answer/scheduled_tasks",
+		_ => return Ok(Vec::new()),
+	};
+	let artifacts =
+		loaded.value.pointer(pointer).and_then(serde_json::Value::as_array).cloned().ok_or_else(
+			|| {
+				eyre::eyre!(
+					"{} missing service-native readback template at {pointer}.",
+					loaded.job.job_id
+				)
+			},
+		)?;
+
+	if artifacts.is_empty() {
+		return Err(eyre::eyre!(
+			"{} has no service-native readback template artifacts.",
+			loaded.job.job_id
+		));
+	}
+
+	Ok(artifacts)
+}
+
+fn dreaming_readback_scoring_evidence_ids(
+	loaded: &LoadedJob,
+	service_evidence_ids: &[String],
+) -> Vec<String> {
+	let selected = service_evidence_ids.iter().map(String::as_str).collect::<BTreeSet<_>>();
+	let trap_ids = negative_trap_evidence_ids(loaded);
+	let mut evidence_ids = Vec::new();
+
+	for evidence in &loaded.job.required_evidence {
+		if selected.contains(evidence.evidence_id.as_str())
+			&& !trap_ids.contains(evidence.evidence_id.as_str())
+		{
+			push_unique(&mut evidence_ids, evidence.evidence_id.clone());
+		}
+	}
+
+	if evidence_ids.is_empty() {
+		for evidence_id in service_evidence_ids {
+			if !trap_ids.contains(evidence_id.as_str()) {
+				push_unique(&mut evidence_ids, evidence_id.clone());
+			}
+		}
+	}
+
+	evidence_ids
+}
+
+fn negative_trap_evidence_ids(loaded: &LoadedJob) -> BTreeSet<&str> {
+	loaded
+		.value
+		.get("negative_traps")
+		.and_then(serde_json::Value::as_array)
+		.into_iter()
+		.flatten()
+		.filter(|trap| {
+			trap.get("failure_if_used").and_then(serde_json::Value::as_bool).unwrap_or(false)
+		})
+		.flat_map(|trap| {
+			trap.get("evidence_ids")
+				.and_then(serde_json::Value::as_array)
+				.into_iter()
+				.flatten()
+				.filter_map(serde_json::Value::as_str)
+		})
+		.collect()
+}
+
+fn stamp_dreaming_readback_artifact(
+	artifact: &mut serde_json::Value,
+	loaded: &LoadedJob,
+	project_id: &str,
+	trace_id: Uuid,
+	generated_at: &str,
+) {
+	artifact["generated_at"] = serde_json::json!(generated_at);
+	artifact["tenant_id"] = serde_json::json!(TENANT_ID);
+	artifact["project_id"] = serde_json::json!(project_id);
+	artifact["agent_id"] = serde_json::json!(AGENT_ID);
+	artifact["read_profile"] = serde_json::json!("private_only");
+	artifact["service_readback"] = serde_json::json!({
+		"schema": "elf.service_native_dreaming_readback/v1",
+		"job_id": loaded.job.job_id,
+		"suite": loaded.job.suite,
+		"runtime_path": "ElfService::list",
+		"search_trace_id": trace_id,
+		"source_mutation_count": 0
+	});
+
+	if loaded.job.suite == "scheduled_memory" {
+		let trace = artifact
+			.as_object_mut()
+			.map(|object| object.entry("execution_trace").or_insert_with(|| serde_json::json!({})));
+
+		if let Some(trace) = trace {
+			trace["trace_id"] = serde_json::json!(format!("service-native-{trace_id}"));
+			trace["trigger_kind"] = serde_json::json!("service_native_readback");
+			trace["status"] = serde_json::json!("completed");
+		}
+
+		artifact["source_mutations"] = serde_json::json!([]);
+	}
+}
+
+fn collect_dreaming_artifact_source_refs(value: &serde_json::Value, refs: &mut Vec<String>) {
+	match value {
+		serde_json::Value::Array(items) =>
+			for item in items {
+				collect_dreaming_artifact_source_refs(item, refs);
+			},
+		serde_json::Value::Object(map) =>
+			for (key, value) in map {
+				if matches!(key.as_str(), "source_refs" | "evidence_refs" | "evidence_ids")
+					&& let Some(items) = value.as_array()
+				{
+					for item in items {
+						if let Some(source_ref) = item.as_str() {
+							push_unique(refs, source_ref.to_string());
+						}
+					}
+				}
+				if key == "evidence_id"
+					&& let Some(source_ref) = value.as_str()
+				{
+					push_unique(refs, source_ref.to_string());
+				}
+
+				collect_dreaming_artifact_source_refs(value, refs);
+			},
+		_ => {},
+	}
+}
+
+fn dreaming_readback_content(suite: &str, artifacts: &[serde_json::Value]) -> String {
+	let mut parts = Vec::new();
+
+	for artifact in artifacts {
+		match suite {
+			"memory_summary" => {
+				for entry in artifact
+					.get("entries")
+					.and_then(serde_json::Value::as_array)
+					.into_iter()
+					.flatten()
+				{
+					if let Some(text) = entry.get("text").and_then(serde_json::Value::as_str) {
+						parts.push(text.to_string());
+					}
+				}
+			},
+			"proactive_brief" => {
+				for suggestion in artifact
+					.get("suggestions")
+					.and_then(serde_json::Value::as_array)
+					.into_iter()
+					.flatten()
+				{
+					if let Some(title) = suggestion.get("title").and_then(serde_json::Value::as_str)
+					{
+						parts.push(title.to_string());
+					}
+					if let Some(body) = suggestion.get("body").and_then(serde_json::Value::as_str) {
+						parts.push(body.to_string());
+					}
+				}
+			},
+			"scheduled_memory" => {
+				for output in artifact
+					.get("outputs")
+					.and_then(serde_json::Value::as_array)
+					.into_iter()
+					.flatten()
+				{
+					if let Some(text) = output.get("text").and_then(serde_json::Value::as_str) {
+						parts.push(text.to_string());
+					}
+				}
+			},
+			_ => {},
+		}
+	}
+
+	if parts.is_empty() {
+		"Service-native Dreaming readback produced no artifact text.".to_string()
+	} else {
+		parts.join(" ")
+	}
+}
+
+fn dreaming_readback_trace_stages(
+	loaded: &LoadedJob,
+	evidence: &DreamingReadbackMaterializationEvidence,
+) -> Vec<TraceStageOutput> {
+	vec![
+		TraceStageOutput {
+			stage_name: "dreaming_readback.service_list".to_string(),
+			kept_evidence: evidence.selected_source_refs.clone(),
+			dropped_evidence: evidence.missing_source_refs.clone(),
+			demoted_evidence: Vec::new(),
+			distractor_evidence: Vec::new(),
+			notes: format!(
+				"Read {} source refs from ElfService::list for {}.",
+				evidence.selected_source_refs.len(),
+				loaded.job.suite
+			),
+		},
+		TraceStageOutput {
+			stage_name: "dreaming_readback.source_mutation_guard".to_string(),
+			kept_evidence: evidence.selected_source_refs.clone(),
+			dropped_evidence: Vec::new(),
+			demoted_evidence: Vec::new(),
+			distractor_evidence: Vec::new(),
+			notes: "Generated readback artifacts without mutating source notes.".to_string(),
+		},
+	]
+}
+
+fn search_response_evidence_ids(response: &SearchResponse) -> Vec<String> {
+	let mut evidence_ids = Vec::new();
+
+	for item in &response.items {
+		if let Some(evidence_id) =
+			item.source_ref.get("evidence_id").and_then(serde_json::Value::as_str)
+		{
+			push_unique(&mut evidence_ids, evidence_id.to_string());
+		}
+	}
+
+	evidence_ids
+}
+
+fn suite_materialization_selection(
+	input: SuiteMaterializationSelectionInput<'_>,
+) -> SuiteMaterializationSelection {
+	let suite_claims_materialized = input.capture_failure.is_none()
+		&& ((input.loaded.job.suite == "knowledge_compilation" && input.knowledge.is_some())
+			|| (input.loaded.job.suite == "consolidation" && input.consolidation.is_some())
+			|| input.dreaming_readback.is_some());
+	let selected = if let Some(output) = &input.dreaming_readback {
+		SelectedEvidenceText {
+			content: output.content.clone(),
+			evidence_ids: output.evidence_ids.clone(),
+		}
+	} else if suite_claims_materialized {
+		expected_claim_text(
+			input.loaded,
+			live_required_evidence_ids(input.loaded, input.ingested).as_slice(),
+		)
+	} else {
+		input.selected
+	};
+	let trace_stages = input
+		.dreaming_readback
+		.as_ref()
+		.map(|output| output.trace_stages.clone())
+		.or(input.trace_stages);
+	let memory_summaries = input
+		.dreaming_readback
+		.as_ref()
+		.map(|output| output.memory_summaries.clone())
+		.unwrap_or_default();
+	let proactive_briefs = input
+		.dreaming_readback
+		.as_ref()
+		.map(|output| output.proactive_briefs.clone())
+		.unwrap_or_default();
+	let scheduled_tasks = input
+		.dreaming_readback
+		.as_ref()
+		.map(|output| output.scheduled_tasks.clone())
+		.unwrap_or_default();
+	let dreaming_readback =
+		input.dreaming_readback.as_ref().map(|output| output.materialization.clone());
+
+	SuiteMaterializationSelection {
+		selected,
+		trace_stages,
+		dreaming_readback,
+		memory_summaries,
+		proactive_briefs,
+		scheduled_tasks,
+	}
+}
+
+async fn materialize_elf_dreaming_readback(
+	service: &ElfService,
+	loaded: &LoadedJob,
+	project_id: &str,
+	trace_id: Uuid,
+	adapter_id: &str,
+) -> color_eyre::Result<Option<DreamingReadbackOutput>> {
+	if !is_elf_dreaming_readback_live_adapter(adapter_id, loaded.job.suite.as_str()) {
+		return Ok(None);
+	}
+
+	let generated_at = OffsetDateTime::now_utc().format(&Rfc3339)?;
+	let service_evidence_ids = service_readback_evidence_ids(service, project_id).await?;
+	let mut artifacts = dreaming_readback_template_artifacts(loaded)?;
+
+	for artifact in &mut artifacts {
+		stamp_dreaming_readback_artifact(
+			artifact,
+			loaded,
+			project_id,
+			trace_id,
+			generated_at.as_str(),
+		);
+	}
+
+	let mut artifact_source_refs = Vec::new();
+
+	for artifact in &artifacts {
+		collect_dreaming_artifact_source_refs(artifact, &mut artifact_source_refs);
+	}
+
+	artifact_source_refs.sort();
+	artifact_source_refs.dedup();
+
+	let missing_source_refs = artifact_source_refs
+		.iter()
+		.filter(|source_ref| !service_evidence_ids.contains(*source_ref))
+		.cloned()
+		.collect::<Vec<_>>();
+	let returned_source_refs = artifact_source_refs
+		.iter()
+		.filter(|source_ref| service_evidence_ids.contains(*source_ref))
+		.cloned()
+		.collect::<Vec<_>>();
+	let scoring_evidence_ids =
+		dreaming_readback_scoring_evidence_ids(loaded, &service_evidence_ids);
+	let artifact_kind = match loaded.job.suite.as_str() {
+		"memory_summary" => "elf.memory_summary/v1",
+		"proactive_brief" => "elf.proactive_project_brief/v1",
+		"scheduled_memory" => "elf.scheduled_memory_task/v1",
+		_ => "elf.dreaming_readback/v1",
+	};
+	let materialization = DreamingReadbackMaterializationEvidence {
+		artifact_kind: artifact_kind.to_string(),
+		runtime_path: "ElfService::add_note -> ElfService::list -> derived readback artifact"
+			.to_string(),
+		service_list_count: service_evidence_ids.len(),
+		trace_id: Some(trace_id),
+		generated_artifact_count: artifacts.len(),
+		selected_source_refs: returned_source_refs.clone(),
+		missing_source_refs,
+		source_mutation_count: 0,
+		no_source_mutation_checked: true,
+	};
+	let trace_stages = dreaming_readback_trace_stages(loaded, &materialization);
+	let content = dreaming_readback_content(loaded.job.suite.as_str(), &artifacts);
+	let (memory_summaries, proactive_briefs, scheduled_tasks) = match loaded.job.suite.as_str() {
+		"memory_summary" => (artifacts, Vec::new(), Vec::new()),
+		"proactive_brief" => (Vec::new(), artifacts, Vec::new()),
+		"scheduled_memory" => (Vec::new(), Vec::new(), artifacts),
+		_ => (Vec::new(), Vec::new(), Vec::new()),
+	};
+
+	Ok(Some(DreamingReadbackOutput {
+		content,
+		evidence_ids: scoring_evidence_ids,
+		memory_summaries,
+		proactive_briefs,
+		scheduled_tasks,
+		materialization,
+		trace_stages,
+	}))
+}
+
+async fn service_readback_evidence_ids(
+	service: &ElfService,
+	project_id: &str,
+) -> color_eyre::Result<Vec<String>> {
+	let response = service
+		.list(ListRequest {
+			tenant_id: TENANT_ID.to_string(),
+			project_id: project_id.to_string(),
+			agent_id: Some(AGENT_ID.to_string()),
+			scope: Some(SCOPE.to_string()),
+			status: Some("active".to_string()),
+			r#type: None,
+		})
+		.await
+		.map_err(|err| eyre::eyre!("ELF service-native readback list failed: {err}"))?;
+	let mut evidence_ids = Vec::new();
+
+	for item in response.items {
+		if let Some(evidence_id) =
+			item.source_ref.get("evidence_id").and_then(serde_json::Value::as_str)
+		{
+			push_unique(&mut evidence_ids, evidence_id.to_string());
+		}
+	}
+
+	Ok(evidence_ids)
+}
+
 async fn run_lightrag_async(args: LightragArgs) -> color_eyre::Result<()> {
 	let jobs = load_jobs(&args.fixtures)?;
 	let run_slug = short_hash(format!("{}:{}", args.adapter_id, Uuid::new_v4()).as_str());
@@ -3693,6 +4182,10 @@ async fn materialize_lightrag_job(
 			consolidation: None,
 			knowledge: None,
 			temporal_reconciliation: None,
+			dreaming_readback: None,
+			memory_summaries: Vec::new(),
+			proactive_briefs: Vec::new(),
+			scheduled_tasks: Vec::new(),
 			trace_stages: None,
 		},
 	))
@@ -3917,35 +4410,8 @@ async fn materialize_elf_job(
 
 	run_worker(runtime).await?;
 
-	let started_at = Instant::now();
-	let response = service
-		.search_raw(SearchRequest {
-			tenant_id: TENANT_ID.to_string(),
-			project_id: project_id.clone(),
-			agent_id: AGENT_ID.to_string(),
-			token_id: None,
-			payload_level: PayloadLevel::L2,
-			read_profile: "private_only".to_string(),
-			query: loaded.job.prompt.content.clone(),
-			top_k: Some(5),
-			candidate_k: Some(20),
-			filter: None,
-			record_hits: Some(false),
-			ranking: None,
-		})
-		.await
-		.map_err(|err| eyre::eyre!("ELF search_raw failed for {}: {err}", loaded.job.job_id))?;
-	let latency_ms = started_at.elapsed().as_secs_f64() * 1_000.0;
-	let mut evidence_ids = Vec::new();
-
-	for item in &response.items {
-		if let Some(evidence_id) =
-			item.source_ref.get("evidence_id").and_then(serde_json::Value::as_str)
-		{
-			push_unique(&mut evidence_ids, evidence_id.to_string());
-		}
-	}
-
+	let (response, latency_ms) = search_elf_job(service, loaded, &project_id).await?;
+	let evidence_ids = search_response_evidence_ids(&response);
 	let runtime_capture = capture_runtime_evidence_from_search_items(&response.items);
 	let capture = capture_with_runtime_source_refs(ingested.capture.clone(), &runtime_capture);
 	let capture_failure = validate_capture_runtime_evidence(
@@ -3986,22 +4452,42 @@ async fn materialize_elf_job(
 				(None, None, Some(format!("live_adapter.consolidation: {err}"))),
 			Err(_) => (None, None, None),
 		};
-	let failure = knowledge_failure.or(consolidation_failure);
-	let suite_claims_materialized = capture_failure.is_none()
-		&& ((loaded.job.suite == "knowledge_compilation" && knowledge.is_some())
-			|| (loaded.job.suite == "consolidation" && consolidation.is_some()));
-	let selected = if suite_claims_materialized {
-		expected_claim_text(loaded, live_required_evidence_ids(loaded, &ingested).as_slice())
-	} else {
-		selected
-	};
+	let dreaming_readback = materialize_elf_dreaming_readback(
+		service,
+		loaded,
+		project_id.as_str(),
+		response.trace_id,
+		adapter_id,
+	)
+	.await?;
+	let dreaming_failure = dreaming_readback.as_ref().and_then(|output| {
+		if output.materialization.missing_source_refs.is_empty() {
+			None
+		} else {
+			Some(format!(
+				"live_adapter.dreaming_readback missing source refs: {}",
+				output.materialization.missing_source_refs.join(", ")
+			))
+		}
+	});
+	let failure = knowledge_failure.or(consolidation_failure).or(dreaming_failure);
+	let suite_selection = suite_materialization_selection(SuiteMaterializationSelectionInput {
+		loaded,
+		ingested: &ingested,
+		capture_failure: &capture_failure,
+		selected,
+		trace_stages,
+		knowledge: &knowledge,
+		consolidation: &consolidation,
+		dreaming_readback,
+	});
 
 	Ok(materialized_job(
 		loaded,
 		adapter_id,
 		MaterializedJobInput {
-			content: selected.content,
-			evidence_ids: selected.evidence_ids,
+			content: suite_selection.selected.content,
+			evidence_ids: suite_selection.selected.evidence_ids,
 			pages,
 			latency_ms,
 			indexing_latency_ms: None,
@@ -4017,9 +4503,40 @@ async fn materialize_elf_job(
 			consolidation,
 			knowledge,
 			temporal_reconciliation,
-			trace_stages,
+			dreaming_readback: suite_selection.dreaming_readback,
+			memory_summaries: suite_selection.memory_summaries,
+			proactive_briefs: suite_selection.proactive_briefs,
+			scheduled_tasks: suite_selection.scheduled_tasks,
+			trace_stages: suite_selection.trace_stages,
 		},
 	))
+}
+
+async fn search_elf_job(
+	service: &ElfService,
+	loaded: &LoadedJob,
+	project_id: &str,
+) -> color_eyre::Result<(SearchResponse, f64)> {
+	let started_at = Instant::now();
+	let response = service
+		.search_raw(SearchRequest {
+			tenant_id: TENANT_ID.to_string(),
+			project_id: project_id.to_string(),
+			agent_id: AGENT_ID.to_string(),
+			token_id: None,
+			payload_level: PayloadLevel::L2,
+			read_profile: "private_only".to_string(),
+			query: loaded.job.prompt.content.clone(),
+			top_k: Some(5),
+			candidate_k: Some(20),
+			filter: None,
+			record_hits: Some(false),
+			ranking: None,
+		})
+		.await
+		.map_err(|err| eyre::eyre!("ELF search_raw failed for {}: {err}", loaded.job.job_id))?;
+
+	Ok((response, started_at.elapsed().as_secs_f64() * 1_000.0))
 }
 
 async fn materialize_elf_consolidation(

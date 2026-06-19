@@ -45,3 +45,7 @@ logs.
   for XY-984, plus `cargo make smoke-letta-core-archive-export-readback`, preserving
   all six Letta comparison scenarios as typed blockers until exported core block JSON,
   archival readback/search JSON, and fixture source ids exist.
+- Added the service-native Dreaming readback report and snapshots for XY-986, plus
+  `cargo make real-world-memory-service-native-dreaming`, proving public/local
+  memory summary, proactive brief, and scheduled-memory artifacts can be materialized
+  through `ElfService` readback while preserving XY-930 private/provider blockers.
