@@ -234,12 +234,24 @@ fn openviking_trajectory_materialization_report_json_path() -> Result<PathBuf> {
 	report_snapshot_path("2026-06-19-openviking-trajectory-materialization-report.json")
 }
 
+fn letta_core_archive_export_readback_report_json_path() -> Result<PathBuf> {
+	report_snapshot_path("2026-06-19-letta-core-archive-export-readback-report.json")
+}
+
 fn openviking_trajectory_materialization_report_markdown_path() -> Result<PathBuf> {
 	Ok(workspace_root()?
 		.join("docs")
 		.join("evidence")
 		.join("benchmarking")
 		.join("2026-06-19-openviking-trajectory-materialization-report.md"))
+}
+
+fn letta_core_archive_export_readback_report_markdown_path() -> Result<PathBuf> {
+	Ok(workspace_root()?
+		.join("docs")
+		.join("evidence")
+		.join("benchmarking")
+		.join("2026-06-19-letta-core-archive-export-readback-report.md"))
 }
 
 fn live_temporal_reconciliation_report_json_path() -> Result<PathBuf> {
@@ -602,7 +614,7 @@ fn external_adapter_run_summarizes_nonzero_scenario_losses() -> Result<()> {
 		report
 			.pointer("/external_adapters/summary/scenario_outcome_counts/not_tested")
 			.and_then(Value::as_u64),
-		Some(16)
+		Some(12)
 	);
 
 	let adapters = array_at(&report, "/external_adapters/adapters")?;
@@ -721,7 +733,7 @@ fn assert_external_adapter_manifest_status_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/suite_status_counts/blocked")
 			.and_then(Value::as_u64),
-		Some(23)
+		Some(24)
 	);
 	assert_eq!(
 		report
@@ -739,7 +751,7 @@ fn assert_external_adapter_manifest_status_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/suite_status_counts/not_encoded")
 			.and_then(Value::as_u64),
-		Some(38)
+		Some(37)
 	);
 }
 
@@ -766,7 +778,7 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/scenario_status_counts/blocked")
 			.and_then(Value::as_u64),
-		Some(12)
+		Some(16)
 	);
 	assert_eq!(
 		report
@@ -796,7 +808,7 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/scenario_status_counts/not_encoded")
 			.and_then(Value::as_u64),
-		Some(11)
+		Some(7)
 	);
 	assert_eq!(
 		report
@@ -844,13 +856,13 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/scenario_outcome_counts/not_tested")
 			.and_then(Value::as_u64),
-		Some(17)
+		Some(13)
 	);
 	assert_eq!(
 		report
 			.pointer("/external_adapters/summary/scenario_outcome_counts/blocked")
 			.and_then(Value::as_u64),
-		Some(13)
+		Some(17)
 	);
 	assert_eq!(
 		report
@@ -994,16 +1006,33 @@ fn assert_letta_core_archival_gate(adapter: &Value) -> Result<()> {
 		adapter
 			.pointer("/setup/evidence")
 			.and_then(Value::as_str)
-			.is_some_and(|evidence| evidence.contains("Docker-only benchmark-created agent export"))
+			.is_some_and(|evidence| evidence.contains("smoke-letta-core-archive-export-readback")
+				&& evidence.contains("Docker-only benchmark-created agent export/readback"))
+	);
+	assert_eq!(
+		adapter.pointer("/setup/command").and_then(Value::as_str),
+		Some("cargo make smoke-letta-core-archive-export-readback")
+	);
+	assert_eq!(
+		adapter.pointer("/run/command").and_then(Value::as_str),
+		Some(
+			"ELF_LETTA_SMOKE_START=1 ELF_LETTA_SMOKE_RUN=1 cargo make smoke-letta-core-archive-export-readback"
+		)
 	);
 	assert!(adapter.pointer("/execution_metadata/setup_path").and_then(Value::as_str).is_some_and(
 		|setup| setup.contains("exports core block JSON plus archival search/readback JSON")
+			&& setup.contains("typed artifact")
 	));
 
 	let suites = array_at(adapter, "/suites")?;
 	let core_suite = find_by_field(suites, "/suite_id", "core_archival_memory")?;
 
 	assert_eq!(core_suite.pointer("/status").and_then(Value::as_str), Some("blocked"));
+	assert_eq!(
+		adapter.pointer("/capabilities/2/capability").and_then(Value::as_str),
+		Some("real_world_job_adapter")
+	);
+	assert_eq!(adapter.pointer("/capabilities/2/status").and_then(Value::as_str), Some("blocked"));
 
 	let scenarios = array_at(adapter, "/scenarios")?;
 	let attachment = find_by_field(scenarios, "/scenario_id", "core_block_attachment_readback")?;
@@ -1017,21 +1046,23 @@ fn assert_letta_core_archival_gate(adapter: &Value) -> Result<()> {
 	assert_eq!(scenarios.len(), 6);
 
 	for scenario in [attachment, scope, provenance, stale, fallback, decision] {
+		assert_eq!(scenario.pointer("/status").and_then(Value::as_str), Some("blocked"));
 		assert_eq!(scenario.pointer("/elf_position").and_then(Value::as_str), Some("untested"));
-		assert!(
-			["not_tested", "blocked"].contains(
-				&scenario
-					.pointer("/comparison_outcome")
-					.and_then(Value::as_str)
-					.ok_or_else(|| eyre::eyre!("missing Letta comparison_outcome"))?
-			)
+		assert_eq!(
+			scenario.pointer("/comparison_outcome").and_then(Value::as_str),
+			Some("blocked")
+		);
+		assert_eq!(
+			scenario.pointer("/command").and_then(Value::as_str),
+			Some("cargo make smoke-letta-core-archive-export-readback")
+		);
+		assert_eq!(
+			scenario.pointer("/artifact").and_then(Value::as_str),
+			Some("tmp/real-world-memory/letta-core-archive/summary.json")
 		);
 	}
 
-	assert_eq!(
-		attachment.pointer("/comparison_outcome").and_then(Value::as_str),
-		Some("not_tested")
-	);
+	assert_eq!(attachment.pointer("/comparison_outcome").and_then(Value::as_str), Some("blocked"));
 	assert_eq!(stale.pointer("/comparison_outcome").and_then(Value::as_str), Some("blocked"));
 	assert_eq!(fallback.pointer("/comparison_outcome").and_then(Value::as_str), Some("blocked"));
 
@@ -1817,7 +1848,11 @@ fn operator_debug_live_adapter_task_is_docker_scoped() -> Result<()> {
 fn external_adapter_manifest_rejects_unmeasured_win_loss_scenario_outcomes() -> Result<()> {
 	let output = run_external_manifest_with_letta_attachment_mutation(
 		"invalid-scenario-outcome-test",
-		|scenario| set_json_pointer(scenario, "/comparison_outcome", serde_json::json!("win")),
+		|scenario| {
+			set_json_pointer(scenario, "/status", serde_json::json!("not_encoded"))?;
+
+			set_json_pointer(scenario, "/comparison_outcome", serde_json::json!("win"))
+		},
 	)?;
 
 	assert!(!output.status.success(), "invalid scenario outcome unexpectedly passed");
@@ -3093,6 +3128,104 @@ fn openviking_trajectory_materialization_report_preserves_blocked_gates() -> Res
 		&benchmarking_index,
 		&readme,
 	);
+
+	Ok(())
+}
+
+#[test]
+fn letta_core_archive_export_readback_report_preserves_blocked_gates() -> Result<()> {
+	let report = serde_json::from_str::<Value>(&fs::read_to_string(
+		letta_core_archive_export_readback_report_json_path()?,
+	)?)?;
+	let markdown = fs::read_to_string(letta_core_archive_export_readback_report_markdown_path()?)?;
+	let benchmarking_index = fs::read_to_string(benchmarking_index_path()?)?;
+	let readme = fs::read_to_string(readme_path()?)?;
+
+	assert_eq!(
+		report.pointer("/schema").and_then(Value::as_str),
+		Some("elf.letta_core_archive_export_readback_summary/v1")
+	);
+	assert_eq!(
+		report.pointer("/adapter_id").and_then(Value::as_str),
+		Some("letta_core_archive_export_readback")
+	);
+	assert_eq!(
+		report.pointer("/materialization/status/failure_class").and_then(Value::as_str),
+		Some("letta_live_run_disabled")
+	);
+	assert_eq!(
+		report.pointer("/materialization/status/overall").and_then(Value::as_str),
+		Some("blocked")
+	);
+	assert_eq!(
+		report.pointer("/materialization/scored_benchmark/status").and_then(Value::as_str),
+		Some("blocked")
+	);
+	assert_eq!(
+		report.pointer("/materialization/scored_benchmark/counts/blocked").and_then(Value::as_u64),
+		Some(6)
+	);
+	assert_eq!(
+		report.pointer("/materialization/scored_benchmark/counts/pass").and_then(Value::as_u64),
+		Some(0)
+	);
+	assert_eq!(
+		report
+			.pointer("/materialization/scored_benchmark/counts/wrong_result")
+			.and_then(Value::as_u64),
+		Some(0)
+	);
+	assert_eq!(
+		report
+			.pointer("/materialization/scored_benchmark/evidence_coverage")
+			.and_then(Value::as_f64),
+		Some(1.0)
+	);
+	assert_eq!(
+		report
+			.pointer("/materialization/benchmark_input/core_blocks")
+			.and_then(Value::as_array)
+			.map(Vec::len),
+		Some(9)
+	);
+	assert_eq!(
+		report
+			.pointer("/materialization/benchmark_input/archival_passages")
+			.and_then(Value::as_array)
+			.map(Vec::len),
+		Some(6)
+	);
+	assert_eq!(
+		report
+			.pointer("/materialization/evidence_mapping/expected_evidence_ids")
+			.and_then(Value::as_array)
+			.map(Vec::len),
+		Some(14)
+	);
+	assert_eq!(
+		report
+			.pointer("/materialization/evidence_mapping/mapped_evidence_ids")
+			.and_then(Value::as_array)
+			.map(Vec::len),
+		Some(0)
+	);
+	assert_eq!(
+		report
+			.pointer("/materialization/improvement_regression_readback/judgment")
+			.and_then(Value::as_str),
+		Some("unchanged")
+	);
+	assert!(array_contains_str(
+		&report,
+		"/materialization/claim_boundaries/not_allowed",
+		"Do not claim ELF beats Letta on core-vs-archival memory from fixture-only ELF evidence."
+	)?);
+	assert!(markdown.contains("The Letta follow-up is now reproducible"));
+	assert!(markdown.contains("6 typed blocked"));
+	assert!(markdown.contains("competitive status is unchanged"));
+	assert!(benchmarking_index.contains("2026-06-19-letta-core-archive-export-readback-report.md"));
+	assert!(readme.contains("Letta core/archive materialization after XY-984"));
+	assert!(readme.contains("smoke-letta-core-archive-export-readback"));
 
 	Ok(())
 }
@@ -4381,7 +4514,7 @@ fn generated_json_report_renders_markdown() -> Result<()> {
 	assert!(markdown.contains("### Adapter Scenario Judgments"));
 	assert!(markdown.contains("ELF scenario positions: `wins=10, ties=11, loses=1, untested=35`"));
 	assert!(markdown.contains(
-		"Scenario comparison outcomes: `win=10, tie=11, loss=1, not_tested=17, blocked=13, non_goal=5`"
+		"Scenario comparison outcomes: `win=10, tie=11, loss=1, not_tested=13, blocked=17, non_goal=5`"
 	));
 	assert!(markdown.contains("| `claude_mem_live_baseline` | `same_corpus_retrieval`"));
 	assert!(markdown.contains("| `memsearch_live_baseline` | `ttl_expiry_lifecycle`"));
