@@ -461,6 +461,29 @@ be explicitly flagged unsupported. The report publishes citation coverage, stale
 detection, rebuild determinism, aggregate backlink counts and page coverage, page
 usefulness, unsupported summary count, and untraced section count.
 
+Current live knowledge-page rebuild/lint increment:
+
+```sh
+cargo make real-world-memory-live-knowledge
+```
+
+Artifacts:
+
+```text
+tmp/real-world-memory/live-knowledge/elf-materialization.json
+tmp/real-world-memory/live-knowledge/elf-report.json
+tmp/real-world-memory/live-knowledge/elf-report.md
+tmp/real-world-memory/live-knowledge/summary.json
+```
+
+The live increment runs inside the Docker baseline runner and materializes the
+knowledge fixtures through `ElfService::knowledge_page_rebuild`,
+`knowledge_page_lint`, and `knowledge_pages_search` before scoring them with the
+real-world job benchmark. It proves ELF service-native rebuild/lint/search behavior
+for the checked-in `knowledge_compilation` pack. It does not claim llm-wiki, gbrain,
+GraphRAG, RAGFlow, LightRAG, or graphify parity unless those projects emit comparable
+page sections, source ids, citation mappings, lint findings, and typed statuses.
+
 Current checked-in production-ops increment:
 
 ```sh

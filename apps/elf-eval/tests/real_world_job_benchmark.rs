@@ -2339,6 +2339,61 @@ fn live_consolidation_report_preserves_reviewable_output_boundaries() -> Result<
 	Ok(())
 }
 
+#[test]
+fn live_knowledge_page_rebuild_lint_has_dedicated_docker_task() -> Result<()> {
+	let workspace = workspace_root()?;
+	let makefile = fs::read_to_string(workspace.join("Makefile.toml"))?;
+	let docker_script = fs::read_to_string(workspace.join("scripts/real-world-docker.sh"))?;
+	let live_script =
+		fs::read_to_string(workspace.join("scripts/real-world-knowledge-live-adapter.sh"))?;
+	let live_adapter =
+		fs::read_to_string(workspace.join("apps/elf-eval/src/bin/real_world_live_adapter.rs"))?;
+	let benchmark_runbook = fs::read_to_string(
+		workspace
+			.join("docs")
+			.join("runbook")
+			.join("benchmarking")
+			.join("real_world_agent_memory_benchmark.md"),
+	)?;
+	let live_runbook = fs::read_to_string(
+		workspace
+			.join("docs")
+			.join("runbook")
+			.join("benchmarking")
+			.join("live_baseline_benchmark.md"),
+	)?;
+	let benchmarking_index = fs::read_to_string(benchmarking_index_path()?)?;
+	let readme = fs::read_to_string(readme_path()?)?;
+
+	assert!(makefile.contains("[tasks.real-world-memory-live-knowledge]"));
+	assert!(makefile.contains("scripts/real-world-docker.sh"));
+	assert!(makefile.contains("memory-live-knowledge"));
+	assert!(docker_script.contains("memory-live-knowledge)"));
+	assert!(docker_script.contains("-e ELF_KNOWLEDGE_LIVE_REPORT_DIR"));
+	assert!(docker_script.contains("-e ELF_KNOWLEDGE_LIVE_FIXTURES"));
+	assert!(docker_script.contains("scripts/real-world-knowledge-live-adapter.sh"));
+	assert!(live_script.contains("elf.real_world_knowledge_live_adapter_sweep/v1"));
+	assert!(live_script.contains("apps/elf-eval/fixtures/real_world_memory/knowledge"));
+	assert!(live_script.contains("tmp/real-world-memory/live-knowledge"));
+	assert!(live_script.contains("real-world-memory-live-knowledge"));
+	assert!(live_script.contains("ElfService knowledge_page_rebuild"));
+	assert!(live_script.contains("knowledge_page_lint"));
+	assert!(live_script.contains("knowledge_pages_search"));
+	assert!(live_script.contains("pages remain derived benchmark artifacts"));
+	assert!(live_adapter.contains("fn materialize_elf_knowledge("));
+	assert!(live_adapter.contains("KnowledgePageRebuildRequest"));
+	assert!(live_adapter.contains("KnowledgePageLintRequest"));
+	assert!(live_adapter.contains("KnowledgePageSearchRequest"));
+	assert!(benchmark_runbook.contains("Current live knowledge-page rebuild/lint increment"));
+	assert!(benchmark_runbook.contains("cargo make real-world-memory-live-knowledge"));
+	assert!(benchmark_runbook.contains("tmp/real-world-memory/live-knowledge/summary.json"));
+	assert!(live_runbook.contains("cargo make real-world-memory-live-knowledge"));
+	assert!(benchmarking_index.contains("2026-06-20-live-knowledge-page-rebuild-lint-report.md"));
+	assert!(readme.contains("Live Knowledge-Page Rebuild/Lint Report - June 20, 2026"));
+
+	Ok(())
+}
+
 fn assert_live_sweep_record(adapter: &Value, production_ops_status: &str) -> Result<()> {
 	let suites = array_at(adapter, "/suites")?;
 	let capabilities = array_at(adapter, "/capabilities")?;
@@ -3199,7 +3254,7 @@ fn assert_qmd_debug_retest_markdown_and_indexes(
 		benchmarking_index.contains("2026-06-19-qmd-debug-ergonomics-dreaming-retest-report.md")
 	);
 	assert!(readme.contains("qmd Debug-Ergonomics Dreaming Retest Report - June 19, 2026"));
-	assert!(readme.contains("Latest real-world benchmark report: June 19, 2026"));
+	assert!(readme.contains("Latest real-world benchmark report: June 20, 2026"));
 	assert!(readme.contains("keeps the qmd edge unchanged"));
 }
 
