@@ -59,6 +59,7 @@
 # | real-world-memory-scheduled                | composite |     |
 # | real-world-memory-scheduled-json           | command   |     |
 # | real-world-memory-scheduled-report         | command   |     |
+# | real-world-memory-service-native-dreaming  | command   |     |
 # | real-world-memory-summary                  | composite |     |
 # | real-world-memory-summary-json             | command   |     |
 # | real-world-memory-summary-report           | command   |     |
@@ -863,6 +864,14 @@ args = [
 	"tmp/real-world-memory/scheduled/report.json",
 	"--out",
 	"tmp/real-world-memory/scheduled/report.md",
+]
+
+[tasks.real-world-memory-service-native-dreaming]
+workspace = false
+command = "bash"
+args = [
+	"scripts/real-world-docker.sh",
+	"memory-service-native-dreaming",
 ]
 
 [tasks.real-world-memory-summary]

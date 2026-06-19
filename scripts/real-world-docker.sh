@@ -22,6 +22,12 @@ memory-live-consolidation)
 		-e ELF_CONSOLIDATION_LIVE_FIXTURES \
 		baseline-runner bash scripts/real-world-consolidation-live-adapter.sh
 	;;
+memory-service-native-dreaming)
+	docker compose -f docker-compose.baseline.yml run --build --rm \
+		-e ELF_DREAMING_SERVICE_NATIVE_REPORT_DIR \
+		-e ELF_DREAMING_SERVICE_NATIVE_FIXTURES \
+		baseline-runner bash scripts/real-world-dreaming-service-native.sh
+	;;
 memory-live-adapters)
 	lightrag_start="$(printenv ELF_LIGHTRAG_CONTEXT_START || true)"
 	graphiti_start="$(printenv ELF_GRAPHITI_ZEP_SMOKE_START || true)"
