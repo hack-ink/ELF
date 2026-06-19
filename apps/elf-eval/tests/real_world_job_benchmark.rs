@@ -2894,7 +2894,7 @@ fn dreaming_competitor_strength_retest_report_closes_xy955_without_overclaims() 
 		benchmarking_index.contains("2026-06-17-dreaming-competitor-strength-retest-report.md")
 	);
 	assert!(readme.contains("Dreaming Competitor-Strength Retest Report - June 17, 2026"));
-	assert!(readme.contains("Latest real-world benchmark report: June 17, 2026"));
+	assert!(readme.contains("17 competitor-strength closeout"));
 
 	Ok(())
 }
