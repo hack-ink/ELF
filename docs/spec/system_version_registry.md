@@ -83,6 +83,14 @@ This document is normative. When a new versioned identifier is introduced, it mu
 - Consumers: Admin tooling and MCP adapter (`elf_admin_memory_history_get`), diagnostics runbooks, lifecycle benchmarks.
 - Bump rule: Introduce a new history version only when event shape or ordering semantics become incompatible with v1 clients.
 
+### Entity memory view schema
+
+- Identifier: `elf.entity_memory_view/v1`.
+- Type: Entity-scoped readback envelope that joins attached core memory blocks with graph-linked archival notes.
+- Defined in: `docs/spec/system_elf_memory_service_v2.md`.
+- Consumers: HTTP API (`GET /v2/entity-memory`), MCP adapter (`elf_entity_memory_get`), memory-authority benchmarks.
+- Bump rule: Introduce a new view version when item lifecycle/read-bucket semantics, relation shape, or required response keys become incompatible with v1 clients.
+
 ### Doc Extension v1 docs filters contract
 
 - Identifier: `docs_search_filters/v1`.
