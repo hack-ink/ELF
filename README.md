@@ -191,6 +191,14 @@ provider-backed ELF evidence was required.
   as 0 pass, 0 wrong_result, and 3 typed blockers with 9/9 evidence coverage. This
   improves auditability but does not remove the OpenViking context-trajectory gap or
   support any ELF win, tie, or loss claim on those strengths.
+- Letta core/archive materialization after XY-984: the June 19 follow-up adds
+  `cargo make smoke-letta-core-archive-export-readback`, a Docker-contained
+  materialization/report command for the six `core_archival_memory` scenarios. The
+  default run scores 0 pass, 0 wrong_result, and 6 typed blockers with 14/14 evidence,
+  source-ref, and quote coverage. This improves the Letta audit path but keeps the
+  competitive status unchanged: no ELF-over-Letta win, tie, or loss is allowed until
+  exported Letta core block JSON, archival readback/search JSON, and fixture source ids
+  are present.
 - Full-suite live real-world adapter sweep after XY-926: ELF and qmd emit
   Docker-isolated `live_real_world` records for all 55 checked-in jobs across 13 suites
   through `cargo make real-world-memory-live-adapters`. Both keep the original
