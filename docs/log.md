@@ -67,3 +67,7 @@ logs.
   fixture pack can be materialized through `ElfService` rebuild, lint, and page
   search before scoring while keeping external wiki/graph/RAG product comparisons
   separate.
+- Added the Knowledge Workspace version-diff report for XY-1019. Knowledge page
+  rebuild metadata now exposes `elf.knowledge_page.version_diff/v1`, live benchmark
+  artifacts expose `page_version_diff`, and the Docker-contained live knowledge
+  report now publishes `version_diff_coverage`.

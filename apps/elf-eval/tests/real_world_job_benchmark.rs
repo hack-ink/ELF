@@ -2348,6 +2348,16 @@ fn live_knowledge_page_rebuild_lint_has_dedicated_docker_task() -> Result<()> {
 		fs::read_to_string(workspace.join("scripts/real-world-knowledge-live-adapter.sh"))?;
 	let live_adapter =
 		fs::read_to_string(workspace.join("apps/elf-eval/src/bin/real_world_live_adapter.rs"))?;
+	let knowledge_spec = fs::read_to_string(
+		workspace.join("docs").join("spec").join("system_knowledge_pages_v1.md"),
+	)?;
+	let version_diff_report = fs::read_to_string(
+		workspace
+			.join("docs")
+			.join("evidence")
+			.join("benchmarking")
+			.join("2026-06-20-knowledge-workspace-version-diff-report.md"),
+	)?;
 	let benchmark_runbook = fs::read_to_string(
 		workspace
 			.join("docs")
@@ -2380,16 +2390,29 @@ fn live_knowledge_page_rebuild_lint_has_dedicated_docker_task() -> Result<()> {
 	assert!(live_script.contains("knowledge_page_lint"));
 	assert!(live_script.contains("knowledge_pages_search"));
 	assert!(live_script.contains("pages remain derived benchmark artifacts"));
+	assert!(live_adapter.contains("\"page_version_diff\""));
+	assert!(live_adapter.contains("version_diff_available"));
 	assert!(live_adapter.contains("fn materialize_elf_knowledge("));
 	assert!(live_adapter.contains("KnowledgePageRebuildRequest"));
 	assert!(live_adapter.contains("KnowledgePageLintRequest"));
 	assert!(live_adapter.contains("KnowledgePageSearchRequest"));
+	assert!(
+		fs::read_to_string(workspace.join("apps/elf-eval/src/bin/real_world_job_benchmark.rs"))?
+			.contains("version_diff_coverage")
+	);
+	assert!(knowledge_spec.contains("elf.knowledge_page.version_diff/v1"));
+	assert!(
+		version_diff_report.contains("Knowledge Workspace Version-Diff Report - June 20, 2026")
+	);
+	assert!(version_diff_report.contains("version_diff_coverage = 1.000"));
 	assert!(benchmark_runbook.contains("Current live knowledge-page rebuild/lint increment"));
 	assert!(benchmark_runbook.contains("cargo make real-world-memory-live-knowledge"));
 	assert!(benchmark_runbook.contains("tmp/real-world-memory/live-knowledge/summary.json"));
 	assert!(live_runbook.contains("cargo make real-world-memory-live-knowledge"));
 	assert!(benchmarking_index.contains("2026-06-20-live-knowledge-page-rebuild-lint-report.md"));
+	assert!(benchmarking_index.contains("2026-06-20-knowledge-workspace-version-diff-report.md"));
 	assert!(readme.contains("Live Knowledge-Page Rebuild/Lint Report - June 20, 2026"));
+	assert!(readme.contains("Knowledge Workspace Version-Diff Report - June 20, 2026"));
 
 	Ok(())
 }

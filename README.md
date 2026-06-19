@@ -168,7 +168,8 @@ provider-backed ELF evidence was required.
   does not create a managed-memory parity claim. The new `proactive_brief` fixture
   scores 5 jobs, with 4 pass and 1 blocked private-corpus case; it does not create
   Pulse or hosted managed-memory parity.
-- Dreaming competitor-strength closeout after XY-955: the June 17 retest keeps ELF
+- Dreaming competitor-strength closeout after XY-955: the June 17 competitor-strength closeout
+  retest keeps ELF
   locally and partially stronger only. The aggregate fixture retest remains 53 pass
   and 7 typed blockers, the representative graph/RAG slice remains typed non-pass,
   first-generation OSS fixture coverage remains 4 pass and 2 blocked, and the fresh
@@ -216,6 +217,11 @@ provider-backed ELF evidence was required.
   boundaries. This upgrades ELF's own knowledge-page evidence from fixture-only to
   service-native proof, but it does not claim llm-wiki, gbrain, GraphRAG, RAGFlow,
   LightRAG, or graphify parity without comparable contained adapter outputs.
+- Knowledge Workspace version diffs after XY-1019: the June 20 follow-up adds
+  `elf.knowledge_page.version_diff/v1` readback under knowledge page rebuild metadata
+  and surfaces it as `page_version_diff` in benchmark artifacts. The live command now
+  reports `version_diff_coverage = 1.000` while preserving deterministic page content
+  hashes and `source_mutation_allowed = false`.
 - Operator-approved public-proxy addendum after XY-930: the June 19 follow-up runs
   `cargo make baseline-production-private-addendum` with a simulated/public-proxy
   production corpus manifest approved for this stage. The run records 12 documents,
@@ -342,6 +348,8 @@ Detailed evidence and interpretation:
 - [Service-Native Dreaming Readback Report - June 19, 2026](docs/evidence/benchmarking/2026-06-19-service-native-dreaming-readback-report.md)
 - [OpenMemory UI/Export Product Readback Report - June 19, 2026](docs/evidence/benchmarking/2026-06-19-openmemory-ui-export-product-readback-report.md)
 - [Operator-Approved Public-Proxy Production-Private Addendum - June 19, 2026](docs/evidence/benchmarking/2026-06-19-operator-approved-public-proxy-production-private-addendum.md)
+- [Knowledge Workspace Version-Diff Report - June 20, 2026](docs/evidence/benchmarking/2026-06-20-knowledge-workspace-version-diff-report.md)
+- [Live Knowledge-Page Rebuild/Lint Report - June 20, 2026](docs/evidence/benchmarking/2026-06-20-live-knowledge-page-rebuild-lint-report.md)
 - [Live Baseline Benchmark Runbook](docs/runbook/benchmarking/live_baseline_benchmark.md)
 - [Single-User Production Runbook](docs/runbook/single_user_production.md)
 - Benchmark contract:
@@ -443,11 +451,12 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [Dreaming Product Surface Follow-Up Research](docs/research/dreaming_product_surface_followup.md)
 
 Latest real-world benchmark report: June 20, 2026. Latest external research refresh:
-June 11, 2026; June 20 adds the Live Knowledge-Page Rebuild/Lint Report - June 20, 2026
-after the June 19 XY-930 operator-approved public-proxy production addendum and
-service-native Dreaming readback, the qmd debug-ergonomics Dreaming retest, the
-June 17 competitor-strength closeout, and the June 16 temporal reconciliation,
-live consolidation self-check, proactive-brief, and scheduled-memory scoring evidence.
+June 11, 2026; June 20 adds the Knowledge Workspace Version-Diff Report - June 20, 2026
+and the Live Knowledge-Page Rebuild/Lint Report - June 20, 2026 after the June 19
+XY-930 operator-approved public-proxy production addendum and service-native Dreaming
+readback, the qmd debug-ergonomics Dreaming retest, the June 17 competitor-strength
+closeout, and the June 16 temporal reconciliation, live consolidation self-check,
+proactive-brief, and scheduled-memory scoring evidence.
 
 ## Documentation
 
