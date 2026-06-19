@@ -235,14 +235,24 @@ provider-backed ELF evidence was required.
   ambiguous, stale, and superseded markers without introducing a separate graph
   database or replacing source evidence.
 - Recall/debug panel after XY-1022: the June 20 follow-up adds
-	  `elf.recall_debug_panel/v1` through service, HTTP, and MCP readback. The panel
-	  groups Memory Note trace selected rows and retained dropped replay candidates,
-	  Source Library document candidates, Knowledge Workspace page snippets, graph facts,
-	  and Dreaming proposals with
-	  authority layer, freshness state, source refs, stage reason, evidence class, and
-	  replay command. Missing anchors remain explicit `not_requested` layers, so the
-	  panel improves debug ergonomics without turning untested or blocked layers into
-	  pass claims.
+  `elf.recall_debug_panel/v1` through service, HTTP, and MCP readback. The panel
+  groups Memory Note trace selected rows and retained dropped replay candidates,
+  Source Library document candidates, Knowledge Workspace page snippets, graph facts,
+  and Dreaming proposals with
+  authority layer, freshness state, source refs, stage reason, evidence class, and
+  replay command. Missing anchors remain explicit `not_requested` layers, so the
+  panel improves debug ergonomics without turning untested or blocked layers into
+  pass claims.
+- Agent Knowledge OS closeout after XY-1023: the June 20 closeout report publishes
+  the full product/scenario matrix for 19 tracked products and six Agent Knowledge OS
+  layers, after rerunning `cargo make real-world-memory` at 62 jobs, 55 pass,
+  0 wrong_result, and 7 typed blockers. ELF is the strongest measured integrated
+  Agent Knowledge OS product because all six ELF-owned layers have checked-in
+  evidence, but the report preserves qmd
+  retrieval/debug ergonomics, OpenViking trajectory, mem0/OpenMemory history and
+  UI/export, Letta core/archive, graph/RAG temporal-citation, agentmemory/claude-mem
+  capture/viewer, and VectifyAI PageIndex/OpenKB long-document knowledge-library
+  advantages as optimization inputs rather than false pass claims.
 - Operator-approved public-proxy addendum after XY-930: the June 19 follow-up runs
   `cargo make baseline-production-private-addendum` with a simulated/public-proxy
   production corpus manifest approved for this stage. The run records 12 documents,
@@ -373,6 +383,7 @@ Detailed evidence and interpretation:
 - [Graph Topic-Map Report - June 20, 2026](docs/evidence/benchmarking/2026-06-20-graph-topic-map-report.md)
 - [Knowledge Workspace Version-Diff Report - June 20, 2026](docs/evidence/benchmarking/2026-06-20-knowledge-workspace-version-diff-report.md)
 - [Live Knowledge-Page Rebuild/Lint Report - June 20, 2026](docs/evidence/benchmarking/2026-06-20-live-knowledge-page-rebuild-lint-report.md)
+- [Agent Knowledge OS Closeout Benchmark Report - June 20, 2026](docs/evidence/benchmarking/2026-06-20-agent-knowledge-os-closeout-benchmark-report.md)
 - [Live Baseline Benchmark Runbook](docs/runbook/benchmarking/live_baseline_benchmark.md)
 - [Single-User Production Runbook](docs/runbook/single_user_production.md)
 - Benchmark contract:
@@ -474,9 +485,9 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [Dreaming Product Surface Follow-Up Research](docs/research/dreaming_product_surface_followup.md)
 
 Latest real-world benchmark report: June 20, 2026. Latest external research refresh:
-June 11, 2026; June 20 adds the Graph Topic-Map Report - June 20, 2026,
-Knowledge Workspace Version-Diff Report - June 20, 2026, and the Live
-Knowledge-Page Rebuild/Lint Report - June 20, 2026 after the June 19
+June 11, 2026; June 20 adds the Agent Knowledge OS Closeout Benchmark Report,
+the Graph Topic-Map Report - June 20, 2026, Knowledge Workspace Version-Diff
+Report - June 20, 2026, and the Live Knowledge-Page Rebuild/Lint Report - June 20, 2026 after the June 19
 XY-930 operator-approved public-proxy production addendum and service-native Dreaming
 readback, the qmd debug-ergonomics Dreaming retest, the June 17 competitor-strength
 closeout, and the June 16 temporal reconciliation, live consolidation self-check,
