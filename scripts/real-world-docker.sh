@@ -22,6 +22,12 @@ memory-live-consolidation)
 		-e ELF_CONSOLIDATION_LIVE_FIXTURES \
 		baseline-runner bash scripts/real-world-consolidation-live-adapter.sh
 	;;
+memory-live-knowledge)
+	docker compose -f docker-compose.baseline.yml run --build --rm \
+		-e ELF_KNOWLEDGE_LIVE_REPORT_DIR \
+		-e ELF_KNOWLEDGE_LIVE_FIXTURES \
+		baseline-runner bash scripts/real-world-knowledge-live-adapter.sh
+	;;
 memory-service-native-dreaming)
 	docker compose -f docker-compose.baseline.yml run --build --rm \
 		-e ELF_DREAMING_SERVICE_NATIVE_REPORT_DIR \

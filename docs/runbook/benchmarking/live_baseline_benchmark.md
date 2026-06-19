@@ -519,6 +519,26 @@ citation coverage, stale-claim linting, rebuild determinism, backlink coverage, 
 usefulness, and explicitly flagged unsupported summaries. Generated pages are
 benchmark artifacts, not source-truth replacements.
 
+To run the Docker-contained live knowledge-page rebuild/lint materialization:
+
+```sh
+cargo make real-world-memory-live-knowledge
+```
+
+Artifacts:
+
+```text
+tmp/real-world-memory/live-knowledge/elf-materialization.json
+tmp/real-world-memory/live-knowledge/elf-report.json
+tmp/real-world-memory/live-knowledge/elf-report.md
+tmp/real-world-memory/live-knowledge/summary.json
+```
+
+This command materializes the same knowledge fixture pack through
+`ElfService::knowledge_page_rebuild`, `knowledge_page_lint`, and
+`knowledge_pages_search` inside the baseline Docker runner before publishing the
+scored report. It is an ELF service self-check, not a direct competitor win.
+
 ## Clean Up
 
 ```sh
