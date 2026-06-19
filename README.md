@@ -267,7 +267,9 @@ provider-backed ELF evidence was required.
   comparison blocked; graphify is `wrong_result`; llm-wiki is not_tested; gbrain is
   blocked; private and hosted graph/RAG profiles are non_goal. These reports preserve
   the smoke and typed non-pass boundaries and do not create an ELF win claim against
-  graph/RAG strengths.
+  graph/RAG strengths. Graph/RAG citation/navigation promotion after XY-985 refreshes
+  this state as 0 pass, 1 wrong_result, 1 incomplete, and 3 blocked, with graphify
+  evidence-linked output still scoring wrong_result.
 - mem0/OpenMemory history follow-up after XY-924 and XY-931: the local OSS mem0
   adapter now passes encoded preference correction history, entity-scoped
   personalization, local `get_all` export-style readback, and deletion audit history.
@@ -318,6 +320,7 @@ Detailed evidence and interpretation:
 - [Proactive Brief Scoring Report - June 16, 2026](docs/evidence/benchmarking/2026-06-16-proactive-brief-scoring-report.md)
 - [Scheduled Memory Task Scoring Report - June 16, 2026](docs/evidence/benchmarking/2026-06-16-scheduled-memory-task-scoring-report.md)
 - [Dreaming Competitor-Strength Retest Report - June 17, 2026](docs/evidence/benchmarking/2026-06-17-dreaming-competitor-strength-retest-report.md)
+- [Graph/RAG Citation and Navigation Promotion Report - June 19, 2026](docs/evidence/benchmarking/2026-06-19-graph-rag-citation-navigation-promotion-report.md)
 - [qmd Debug-Ergonomics Dreaming Retest Report - June 19, 2026](docs/evidence/benchmarking/2026-06-19-qmd-debug-ergonomics-dreaming-retest-report.md)
 - [OpenViking Trajectory Materialization Report - June 19, 2026](docs/evidence/benchmarking/2026-06-19-openviking-trajectory-materialization-report.md)
 - [Service-Native Dreaming Readback Report - June 19, 2026](docs/evidence/benchmarking/2026-06-19-service-native-dreaming-readback-report.md)
@@ -406,6 +409,7 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [Proactive Brief Scoring Report - June 16, 2026](docs/evidence/benchmarking/2026-06-16-proactive-brief-scoring-report.md)
 - [Scheduled Memory Task Scoring Report - June 16, 2026](docs/evidence/benchmarking/2026-06-16-scheduled-memory-task-scoring-report.md)
 - [Dreaming Competitor-Strength Retest Report - June 17, 2026](docs/evidence/benchmarking/2026-06-17-dreaming-competitor-strength-retest-report.md)
+- [Graph/RAG Citation and Navigation Promotion Report - June 19, 2026](docs/evidence/benchmarking/2026-06-19-graph-rag-citation-navigation-promotion-report.md)
 - [qmd Debug-Ergonomics Dreaming Retest Report - June 19, 2026](docs/evidence/benchmarking/2026-06-19-qmd-debug-ergonomics-dreaming-retest-report.md)
 - [OpenMemory UI/Export Product Readback Report - June 19, 2026](docs/evidence/benchmarking/2026-06-19-openmemory-ui-export-product-readback-report.md)
 - [Live Baseline Benchmark Runbook](docs/runbook/benchmarking/live_baseline_benchmark.md)
