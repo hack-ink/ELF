@@ -45,6 +45,7 @@ Question this index answers: "what must remain true?"
 - `system_knowledge_pages_v1.md`: Derived Knowledge Pages v1 Specification.
 - `system_memory_summary_v1.md`: Reviewable Memory Summary v1 Specification.
 - `system_provenance_mapping_v1.md`: System: Note Provenance Mapping (v1).
+- `system_recall_debug_panel_v1.md`: Recall Debug Panel v1 Specification.
 - `system_search_filter_expr_v1.md`: System: Search Filter Expression Contract v1.
 - `system_source_ref_doc_pointer_v1.md`: System: `source_ref` Doc Pointer Resolver (v1).
 - `system_version_registry.md`: System Version Registry.

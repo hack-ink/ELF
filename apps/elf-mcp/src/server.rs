@@ -374,6 +374,20 @@ impl ElfMcp {
 	}
 
 	#[rmcp::tool(
+		name = "elf_recall_debug_panel",
+		description = "Build a cross-layer recall/debug panel over memory traces, source documents, knowledge pages, graph facts, and Dreaming proposals.",
+		input_schema = recall_debug_panel_schema()
+	)]
+	async fn elf_recall_debug_panel(
+		&self,
+		params: JsonObject,
+	) -> Result<CallToolResult, ErrorData> {
+		reject_context_override_params(&params)?;
+
+		self.forward(HttpMethod::Post, "/v2/admin/recall-debug/panel", params, None).await
+	}
+
+	#[rmcp::tool(
 		name = "elf_searches_create",
 		description = "Create a search session using quick-find or planned-search mode. Response includes optional trajectory_summary for staged retrieval progress.",
 		input_schema = searches_create_schema()
@@ -868,6 +882,19 @@ fn take_optional_string(params: &mut JsonObject, key: &str) -> Result<Option<Str
 	Ok(Some(text.to_string()))
 }
 
+fn reject_context_override_params(params: &JsonObject) -> Result<(), ErrorData> {
+	for key in ["tenant_id", "project_id", "agent_id", "read_profile"] {
+		if params.contains_key(key) {
+			return Err(ErrorData::invalid_params(
+				format!("{key} is configured by the MCP server and must not be supplied."),
+				None,
+			));
+		}
+	}
+
+	Ok(())
+}
+
 fn notes_structured_entity_schema() -> Value {
 	serde_json::json!({
 		"type": "object",
@@ -1268,6 +1295,73 @@ fn dreaming_review_queue_schema() -> Arc<JsonObject> {
 	}))
 }
 
+fn recall_debug_panel_schema() -> Arc<JsonObject> {
+	Arc::new(rmcp::object!({
+		"type": "object",
+		"additionalProperties": false,
+		"properties": {
+			"trace_id": { "type": ["string", "null"], "format": "uuid" },
+			"query": { "type": ["string", "null"] },
+			"docs_query": { "type": ["string", "null"] },
+			"knowledge_query": { "type": ["string", "null"] },
+			"graph_subject": {
+				"oneOf": [
+					{
+						"type": "object",
+						"additionalProperties": false,
+						"required": ["entity_id"],
+						"properties": {
+							"entity_id": {
+								"type": "string",
+								"format": "uuid"
+							}
+						}
+					},
+					{
+						"type": "object",
+						"additionalProperties": false,
+						"required": ["surface"],
+						"properties": {
+							"surface": { "type": "string" }
+						}
+					},
+					{ "type": "null" }
+				]
+			},
+			"graph_predicate": {
+				"oneOf": [
+					{
+						"type": "object",
+						"additionalProperties": false,
+						"required": ["predicate_id"],
+						"properties": {
+							"predicate_id": {
+								"type": "string",
+								"format": "uuid"
+							}
+						}
+					},
+					{
+						"type": "object",
+						"additionalProperties": false,
+						"required": ["surface"],
+						"properties": {
+							"surface": { "type": "string" }
+						}
+					},
+					{ "type": "null" }
+				]
+			},
+			"include_dreaming": { "type": ["boolean", "null"] },
+			"limit": {
+				"type": ["integer", "null"],
+				"minimum": 1,
+				"maximum": 100
+			}
+		}
+	}))
+}
+
 fn searches_create_schema() -> Arc<JsonObject> {
 	let filter_schema = rmcp::object!({
 		"type": "object",
@@ -1647,7 +1741,7 @@ mod tests {
 
 	type RequestRecorder = Arc<Mutex<Option<oneshot::Sender<RecordedRequest>>>>;
 
-	const ALL_TOOL_DEFINITIONS: [ToolDefinition; 33] = [
+	const ALL_TOOL_DEFINITIONS: [ToolDefinition; 34] = [
 		ToolDefinition::new(
 			"elf_notes_ingest",
 			HttpMethod::Post,
@@ -1695,6 +1789,12 @@ mod tests {
 			HttpMethod::Get,
 			"/v2/admin/dreaming/review-queue",
 			"List source-backed Dreaming review queue proposals with variants, affected refs, lint flags, policy gates, and review audit.",
+		),
+		ToolDefinition::new(
+			"elf_recall_debug_panel",
+			HttpMethod::Post,
+			"/v2/admin/recall-debug/panel",
+			"Build a cross-layer recall/debug panel over memory traces, source documents, knowledge pages, graph facts, and Dreaming proposals.",
 		),
 		ToolDefinition::new(
 			"elf_searches_get",
@@ -1903,6 +2003,7 @@ mod tests {
 			"elf_space_grant_revoke",
 			"elf_admin_traces_recent_list",
 			"elf_dreaming_review_queue",
+			"elf_recall_debug_panel",
 			"elf_admin_trace_get",
 			"elf_admin_trajectory_get",
 			"elf_admin_trace_item_get",
@@ -2021,6 +2122,39 @@ mod tests {
 		);
 		assert_eq!(mcp.api_base_for_path("/v2/admin/notes/abcd/history"), "http://127.0.0.1:9001");
 		assert_eq!(mcp.api_base_for_path("/v2/searches"), "http://127.0.0.1:9000");
+	}
+
+	#[test]
+	fn recall_debug_panel_schema_rejects_context_override_fields() {
+		let schema = super::recall_debug_panel_schema();
+		let properties = schema
+			.get("properties")
+			.and_then(Value::as_object)
+			.expect("recall debug panel schema is missing properties.");
+
+		assert_eq!(schema.get("additionalProperties"), Some(&Value::Bool(false)));
+
+		for key in ["tenant_id", "project_id", "agent_id", "read_profile"] {
+			assert!(!properties.contains_key(key), "{key} must not be a tool param.");
+		}
+		for key in ["graph_subject", "graph_predicate"] {
+			let one_of = properties
+				.get(key)
+				.and_then(Value::as_object)
+				.and_then(|schema| schema.get("oneOf"))
+				.and_then(Value::as_array)
+				.expect("selector schema is missing oneOf.");
+
+			for branch in one_of.iter().filter_map(Value::as_object) {
+				if branch.get("type").and_then(Value::as_str) == Some("object") {
+					assert_eq!(
+						branch.get("additionalProperties"),
+						Some(&Value::Bool(false)),
+						"{key} selector object branches must be closed."
+					);
+				}
+			}
+		}
 	}
 
 	#[test]
@@ -2214,6 +2348,30 @@ mod tests {
 		assert!(description.contains("l2"));
 		assert!(description.contains("source_ref"));
 		assert!(description.contains("structured"));
+	}
+
+	#[tokio::test]
+	async fn recall_debug_panel_rejects_context_override_params() {
+		let context = McpContext {
+			tenant_id: "tenant-a".to_string(),
+			project_id: "project-a".to_string(),
+			agent_id: "agent-a".to_string(),
+			read_profile: "private_plus_project".to_string(),
+		};
+		let mcp = ElfMcp::new(
+			"http://127.0.0.1:1".to_string(),
+			"http://127.0.0.1:1".to_string(),
+			ElfContextHeaders::new(&context),
+			McpAuthState::Off,
+		);
+		let params = serde_json::Map::from_iter([(
+			"tenant_id".to_string(),
+			Value::String("tenant-override".to_string()),
+		)]);
+		let result = mcp.elf_recall_debug_panel(params).await;
+		let err = result.expect_err("context override params must fail before forwarding.");
+
+		assert!(format!("{err:?}").contains("tenant_id"));
 	}
 
 	#[tokio::test]

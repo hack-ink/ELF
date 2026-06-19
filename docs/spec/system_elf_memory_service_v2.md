@@ -1123,6 +1123,23 @@ Behavior:
 - They must not mutate authoritative source notes, docs, events, traces, graph facts,
   or search traces.
 
+Admin recall/debug panel:
+- POST /v2/admin/recall-debug/panel
+
+Behavior:
+- The endpoint returns `elf.recall_debug_panel/v1`, a read-only cross-layer panel
+  over Memory Note trace bundles, Source Library document search, Knowledge Workspace
+  page search, graph reports, and Dreaming review queue proposals.
+- Each row must expose selection state, authority layer, freshness state, source refs
+  or source snapshots, score/rank where available, stage reason, evidence class, and
+  replay command or deterministic artifact path when available.
+- Missing anchors must be represented as `not_requested` layers. The panel must not
+  collapse not-requested, incomplete, blocked, or wrong-result layers into a broad
+  pass claim.
+- Requested layer failures must be represented as blocked layer evidence, so one
+  unavailable readback surface does not hide the other layer states.
+- The detailed contract is defined in `system_recall_debug_panel_v1.md`.
+
 Admin derived knowledge pages:
 - POST /v2/admin/knowledge/pages/rebuild
 - GET /v2/admin/knowledge/pages
@@ -2368,7 +2385,7 @@ Original query:
   - X-ELF-Tenant-Id
   - X-ELF-Project-Id
   - X-ELF-Agent-Id
-  - X-ELF-Read-Profile (defaults to mcp.read_profile; may be overridden per tool call)
+  - X-ELF-Read-Profile (server-configured from mcp.read_profile; not client-controlled)
 - Tools map 1:1 to v2 endpoints:
   - elf_notes_ingest -> POST /v2/notes/ingest
   - elf_events_ingest -> POST /v2/events/ingest
@@ -2403,6 +2420,7 @@ Original query:
   - elf_admin_trajectory_get -> GET /v2/admin/trajectories/{trace_id}
   - elf_admin_trace_item_get -> GET /v2/admin/trace-items/{item_id}
   - elf_admin_trace_bundle_get -> GET /v2/admin/traces/{trace_id}/bundle
+  - elf_recall_debug_panel -> POST /v2/admin/recall-debug/panel
   - elf_admin_note_provenance_get -> GET /v2/admin/notes/{note_id}/provenance
   - elf_admin_memory_history_get -> GET /v2/admin/notes/{note_id}/history
 - The MCP server must contain zero business logic or policy.
