@@ -36,5 +36,6 @@ Routes to: Benchmarking evidence concepts under `docs/evidence/benchmarking/`.
 - `2026-06-16-proactive-brief-scoring-report.md`: Proactive Brief Scoring Report - June 16, 2026.
 - `2026-06-16-scheduled-memory-task-scoring-report.md`: Real-World Job Benchmark Report.
 - `2026-06-17-dreaming-competitor-strength-retest-report.md`: Dreaming Competitor-Strength Retest Report - June 17, 2026.
+- `2026-06-19-letta-core-archive-export-readback-report.md`: Letta Core/Archive Export-Readback Report - June 19, 2026; adds a Docker-contained Letta materialization/report command while preserving all six core/archive comparison scenarios as typed blockers until exported core block JSON, archival readback/search JSON, and source ids exist.
 - `2026-06-19-openviking-trajectory-materialization-report.md`: OpenViking Trajectory Materialization Report - June 19, 2026; materializes the context-trajectory fixture slice through a dedicated repo task while preserving staged retrieval, hierarchy selection, and recursive/context expansion as typed blockers.
 - `2026-06-19-qmd-debug-ergonomics-dreaming-retest-report.md`: qmd Debug-Ergonomics Dreaming Retest Report - June 19, 2026; confirms qmd's default top-k/replay edge is unchanged while ELF keeps the narrow operator-debug trace/stage visibility wins.
