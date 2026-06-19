@@ -1,0 +1,324 @@
+{
+  "schema": "elf.real_world_live_adapter_materialization/v1",
+  "adapter_id": "elf_service_native_dreaming",
+  "adapter_kind": "elf_service_runtime",
+  "status": "blocked",
+  "fixtures": "/workspace/tmp/real-world-memory/service-native-dreaming/input-fixtures",
+  "generated_fixtures": "/workspace/tmp/real-world-memory/service-native-dreaming/elf-fixtures",
+  "command_evidence": [
+    {
+      "label": "elf_service_runtime",
+      "status": "blocked",
+      "command": "cargo run -p elf-eval --bin real_world_live_adapter -- elf",
+      "artifact": "/workspace/tmp/real-world-memory/service-native-dreaming/elf-materialization.json",
+      "reason": "ELF live adapter used ElfService, worker indexing, and search_raw."
+    }
+  ],
+  "jobs": [
+    {
+      "job_id": "memory-summary-source-trace-001",
+      "suite": "memory_summary",
+      "title": "Read back a reviewable current memory summary with source trace",
+      "status": "pass",
+      "query": "Show the current memory summary surface and explain why stale, tombstoned, and unsupported derived memories are not top-of-mind current facts.",
+      "evidence_ids": [
+        "summary-contract-current",
+        "xy952-summary-contract",
+        "summary-ttl-tombstone",
+        "summary-contract-non-parity-boundary"
+      ],
+      "returned_count": 5,
+      "latency_ms": 51.676775,
+      "trace_id": "2e80669d-2bcf-4238-b780-9b42aa72d2a2",
+      "failure": null,
+      "dreaming_readback": {
+        "artifact_kind": "elf.memory_summary/v1",
+        "runtime_path": "ElfService::add_note -> ElfService::list -> derived readback artifact",
+        "service_list_count": 9,
+        "trace_id": "2e80669d-2bcf-4238-b780-9b42aa72d2a2",
+        "generated_artifact_count": 1,
+        "selected_source_refs": [
+          "stale-summary-gap",
+          "summary-background-sot",
+          "summary-contract-current",
+          "summary-contract-non-parity-boundary",
+          "summary-temporary-claim",
+          "summary-ttl-tombstone",
+          "superseded-live-evolution-loss",
+          "xy952-summary-contract"
+        ],
+        "missing_source_refs": [],
+        "source_mutation_count": 0,
+        "no_source_mutation_checked": true
+      }
+    },
+    {
+      "job_id": "proactive-daily-project-brief-001",
+      "suite": "proactive_brief",
+      "title": "Generate a daily project brief from current project memory",
+      "status": "pass",
+      "query": "Generate a daily project brief with only source-linked current recommendations.",
+      "evidence_ids": [
+        "daily-current-validation-gate",
+        "daily-current-ledger-update"
+      ],
+      "returned_count": 3,
+      "latency_ms": 6.884306,
+      "trace_id": "fc854889-2ac4-436b-a885-b43053922cb9",
+      "failure": null,
+      "dreaming_readback": {
+        "artifact_kind": "elf.proactive_project_brief/v1",
+        "runtime_path": "ElfService::add_note -> ElfService::list -> derived readback artifact",
+        "service_list_count": 3,
+        "trace_id": "fc854889-2ac4-436b-a885-b43053922cb9",
+        "generated_artifact_count": 1,
+        "selected_source_refs": [
+          "daily-current-ledger-update",
+          "daily-current-validation-gate",
+          "daily-old-parity-trap"
+        ],
+        "missing_source_refs": [],
+        "source_mutation_count": 0,
+        "no_source_mutation_checked": true
+      }
+    },
+    {
+      "job_id": "proactive-private-corpus-refresh-blocked-001",
+      "suite": "proactive_brief",
+      "title": "Block private-corpus refresh suggestions when no operator manifest exists",
+      "status": "blocked",
+      "query": "Suggest a private-corpus refresh when private inputs exist.",
+      "evidence_ids": [],
+      "returned_count": 0,
+      "latency_ms": 0.0,
+      "trace_id": null,
+      "failure": "No operator-owned private production corpus manifest is available; private-corpus refresh suggestions stay blocked under XY-930."
+    },
+    {
+      "job_id": "proactive-resume-work-brief-001",
+      "suite": "proactive_brief",
+      "title": "Generate a resume-work brief from current handoff memory",
+      "status": "pass",
+      "query": "Generate a resume-work brief that identifies the current next action and validation command.",
+      "evidence_ids": [
+        "resume-current-handoff",
+        "resume-current-validation"
+      ],
+      "returned_count": 3,
+      "latency_ms": 7.336724,
+      "trace_id": "c77d3ddb-d0c0-4168-a528-a585adfc8a7f",
+      "failure": null,
+      "dreaming_readback": {
+        "artifact_kind": "elf.proactive_project_brief/v1",
+        "runtime_path": "ElfService::add_note -> ElfService::list -> derived readback artifact",
+        "service_list_count": 3,
+        "trace_id": "c77d3ddb-d0c0-4168-a528-a585adfc8a7f",
+        "generated_artifact_count": 1,
+        "selected_source_refs": [
+          "resume-current-handoff",
+          "resume-current-validation",
+          "resume-stale-validation"
+        ],
+        "missing_source_refs": [],
+        "source_mutation_count": 0,
+        "no_source_mutation_checked": true
+      }
+    },
+    {
+      "job_id": "proactive-stale-decision-audit-001",
+      "suite": "proactive_brief",
+      "title": "Warn about a stale project decision before suggesting work",
+      "status": "pass",
+      "query": "Audit stale project decisions before generating proactive suggestions.",
+      "evidence_ids": [
+        "stale-decision-old-gate",
+        "stale-decision-new-gate"
+      ],
+      "returned_count": 2,
+      "latency_ms": 9.269810999999999,
+      "trace_id": "d7decd9a-d635-41b5-9dcc-c6e3c5c44fb7",
+      "failure": null,
+      "dreaming_readback": {
+        "artifact_kind": "elf.proactive_project_brief/v1",
+        "runtime_path": "ElfService::add_note -> ElfService::list -> derived readback artifact",
+        "service_list_count": 2,
+        "trace_id": "d7decd9a-d635-41b5-9dcc-c6e3c5c44fb7",
+        "generated_artifact_count": 1,
+        "selected_source_refs": [
+          "stale-decision-new-gate",
+          "stale-decision-old-gate"
+        ],
+        "missing_source_refs": [],
+        "source_mutation_count": 0,
+        "no_source_mutation_checked": true
+      }
+    },
+    {
+      "job_id": "proactive-stale-plan-preference-warning-001",
+      "suite": "proactive_brief",
+      "title": "Reject stale plan and preference suggestions after TTL invalidation",
+      "status": "pass",
+      "query": "Warn me about stale plans or preferences before making proactive suggestions.",
+      "evidence_ids": [
+        "stale-plan-ttl",
+        "current-preference-concise-brief"
+      ],
+      "returned_count": 5,
+      "latency_ms": 7.991892,
+      "trace_id": "f2e795b5-7ac4-4f7d-ab49-75392f6ba8a8",
+      "failure": null,
+      "dreaming_readback": {
+        "artifact_kind": "elf.proactive_project_brief/v1",
+        "runtime_path": "ElfService::add_note -> ElfService::list -> derived readback artifact",
+        "service_list_count": 5,
+        "trace_id": "f2e795b5-7ac4-4f7d-ab49-75392f6ba8a8",
+        "generated_artifact_count": 1,
+        "selected_source_refs": [
+          "current-plan-run-gate",
+          "current-preference-concise-brief",
+          "old-preference-long-brief",
+          "stale-plan-old",
+          "stale-plan-ttl"
+        ],
+        "missing_source_refs": [],
+        "source_mutation_count": 0,
+        "no_source_mutation_checked": true
+      }
+    },
+    {
+      "job_id": "scheduled-knowledge-page-refresh-suggestion-001",
+      "suite": "scheduled_memory",
+      "title": "Suggest a knowledge-page refresh from scheduled memory",
+      "status": "pass",
+      "query": "Run the scheduled knowledge-page refresh suggestion task.",
+      "evidence_ids": [
+        "scheduled-knowledge-page-stale-finding",
+        "scheduled-knowledge-reviewable-refresh"
+      ],
+      "returned_count": 3,
+      "latency_ms": 6.31843,
+      "trace_id": "df5b34bc-b8bd-427c-a531-7c37ff2444c8",
+      "failure": null,
+      "dreaming_readback": {
+        "artifact_kind": "elf.scheduled_memory_task/v1",
+        "runtime_path": "ElfService::add_note -> ElfService::list -> derived readback artifact",
+        "service_list_count": 3,
+        "trace_id": "df5b34bc-b8bd-427c-a531-7c37ff2444c8",
+        "generated_artifact_count": 1,
+        "selected_source_refs": [
+          "scheduled-knowledge-page-stale-finding",
+          "scheduled-knowledge-reviewable-refresh",
+          "scheduled-knowledge-silent-rewrite-trap"
+        ],
+        "missing_source_refs": [],
+        "source_mutation_count": 0,
+        "no_source_mutation_checked": true
+      }
+    },
+    {
+      "job_id": "scheduled-private-provider-scheduler-blocked-001",
+      "suite": "scheduled_memory",
+      "title": "Block private/provider scheduled tasks without operator inputs",
+      "status": "blocked",
+      "query": "Run private/provider scheduled memory tasks when operator inputs exist.",
+      "evidence_ids": [],
+      "returned_count": 0,
+      "latency_ms": 0.0,
+      "trace_id": null,
+      "failure": "No operator-owned private production corpus manifest, provider credentials, or hosted scheduler configuration is available; private/provider scheduled tasks stay blocked under XY-930."
+    },
+    {
+      "job_id": "scheduled-stale-decision-audit-001",
+      "suite": "scheduled_memory",
+      "title": "Audit a stale project decision during a scheduled task",
+      "status": "pass",
+      "query": "Run the scheduled stale decision audit.",
+      "evidence_ids": [
+        "scheduled-old-consolidation-only-decision",
+        "scheduled-current-direct-suite-decision"
+      ],
+      "returned_count": 2,
+      "latency_ms": 5.7482619999999995,
+      "trace_id": "3ca5cf35-007e-4c15-9dce-3983a7053e9a",
+      "failure": null,
+      "dreaming_readback": {
+        "artifact_kind": "elf.scheduled_memory_task/v1",
+        "runtime_path": "ElfService::add_note -> ElfService::list -> derived readback artifact",
+        "service_list_count": 2,
+        "trace_id": "3ca5cf35-007e-4c15-9dce-3983a7053e9a",
+        "generated_artifact_count": 1,
+        "selected_source_refs": [
+          "scheduled-current-direct-suite-decision",
+          "scheduled-old-consolidation-only-decision"
+        ],
+        "missing_source_refs": [],
+        "source_mutation_count": 0,
+        "no_source_mutation_checked": true
+      }
+    },
+    {
+      "job_id": "scheduled-stale-preference-plan-audit-001",
+      "suite": "scheduled_memory",
+      "title": "Audit stale preferences and plans during a scheduled task",
+      "status": "pass",
+      "query": "Run the scheduled stale preference and plan audit.",
+      "evidence_ids": [
+        "scheduled-stale-old-plan",
+        "scheduled-stale-plan-expired",
+        "scheduled-current-trace-plan",
+        "scheduled-current-reviewable-preference"
+      ],
+      "returned_count": 5,
+      "latency_ms": 7.603808,
+      "trace_id": "8e5741df-c5d5-4e82-a32d-dc8606e8b876",
+      "failure": null,
+      "dreaming_readback": {
+        "artifact_kind": "elf.scheduled_memory_task/v1",
+        "runtime_path": "ElfService::add_note -> ElfService::list -> derived readback artifact",
+        "service_list_count": 5,
+        "trace_id": "8e5741df-c5d5-4e82-a32d-dc8606e8b876",
+        "generated_artifact_count": 1,
+        "selected_source_refs": [
+          "scheduled-current-reviewable-preference",
+          "scheduled-current-trace-plan",
+          "scheduled-old-silent-mutation-preference",
+          "scheduled-stale-old-plan",
+          "scheduled-stale-plan-expired"
+        ],
+        "missing_source_refs": [],
+        "source_mutation_count": 0,
+        "no_source_mutation_checked": true
+      }
+    },
+    {
+      "job_id": "scheduled-weekly-project-status-summary-001",
+      "suite": "scheduled_memory",
+      "title": "Run a weekly project status summary from current memory",
+      "status": "pass",
+      "query": "Run the weekly project status summary scheduled task.",
+      "evidence_ids": [
+        "scheduled-weekly-current-gate",
+        "scheduled-weekly-ledger-update"
+      ],
+      "returned_count": 3,
+      "latency_ms": 5.362345,
+      "trace_id": "12bcc69c-4971-4cd5-9f58-16ae45772e7f",
+      "failure": null,
+      "dreaming_readback": {
+        "artifact_kind": "elf.scheduled_memory_task/v1",
+        "runtime_path": "ElfService::add_note -> ElfService::list -> derived readback artifact",
+        "service_list_count": 3,
+        "trace_id": "12bcc69c-4971-4cd5-9f58-16ae45772e7f",
+        "generated_artifact_count": 1,
+        "selected_source_refs": [
+          "scheduled-weekly-current-gate",
+          "scheduled-weekly-hosted-parity-trap",
+          "scheduled-weekly-ledger-update"
+        ],
+        "missing_source_refs": [],
+        "source_mutation_count": 0,
+        "no_source_mutation_checked": true
+      }
+    }
+  ]
+}
