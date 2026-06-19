@@ -222,6 +222,11 @@ provider-backed ELF evidence was required.
   and surfaces it as `page_version_diff` in benchmark artifacts. The live command now
   reports `version_diff_coverage = 1.000` while preserving deterministic page content
   hashes and `source_mutation_allowed = false`.
+- Graph topic-map reports after XY-1020: the June 20 follow-up adds
+  `elf.graph_report/v1` through service, HTTP, and MCP readback. Reports use
+  Postgres graph-lite facts to show current, historical, future, sourced, inferred,
+  ambiguous, stale, and superseded markers without introducing a separate graph
+  database or replacing source evidence.
 - Operator-approved public-proxy addendum after XY-930: the June 19 follow-up runs
   `cargo make baseline-production-private-addendum` with a simulated/public-proxy
   production corpus manifest approved for this stage. The run records 12 documents,
@@ -348,6 +353,7 @@ Detailed evidence and interpretation:
 - [Service-Native Dreaming Readback Report - June 19, 2026](docs/evidence/benchmarking/2026-06-19-service-native-dreaming-readback-report.md)
 - [OpenMemory UI/Export Product Readback Report - June 19, 2026](docs/evidence/benchmarking/2026-06-19-openmemory-ui-export-product-readback-report.md)
 - [Operator-Approved Public-Proxy Production-Private Addendum - June 19, 2026](docs/evidence/benchmarking/2026-06-19-operator-approved-public-proxy-production-private-addendum.md)
+- [Graph Topic-Map Report - June 20, 2026](docs/evidence/benchmarking/2026-06-20-graph-topic-map-report.md)
 - [Knowledge Workspace Version-Diff Report - June 20, 2026](docs/evidence/benchmarking/2026-06-20-knowledge-workspace-version-diff-report.md)
 - [Live Knowledge-Page Rebuild/Lint Report - June 20, 2026](docs/evidence/benchmarking/2026-06-20-live-knowledge-page-rebuild-lint-report.md)
 - [Live Baseline Benchmark Runbook](docs/runbook/benchmarking/live_baseline_benchmark.md)
@@ -451,8 +457,9 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [Dreaming Product Surface Follow-Up Research](docs/research/dreaming_product_surface_followup.md)
 
 Latest real-world benchmark report: June 20, 2026. Latest external research refresh:
-June 11, 2026; June 20 adds the Knowledge Workspace Version-Diff Report - June 20, 2026
-and the Live Knowledge-Page Rebuild/Lint Report - June 20, 2026 after the June 19
+June 11, 2026; June 20 adds the Graph Topic-Map Report - June 20, 2026,
+Knowledge Workspace Version-Diff Report - June 20, 2026, and the Live
+Knowledge-Page Rebuild/Lint Report - June 20, 2026 after the June 19
 XY-930 operator-approved public-proxy production addendum and service-native Dreaming
 readback, the qmd debug-ergonomics Dreaming retest, the June 17 competitor-strength
 closeout, and the June 16 temporal reconciliation, live consolidation self-check,
