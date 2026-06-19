@@ -1,0 +1,521 @@
+{
+  "schema": "elf.agent_knowledge_os_closeout_benchmark_report/v1",
+  "authority": "XY-1023",
+  "source_contract": "elf-agent-knowledge-os-2026-06-20",
+  "source_issue": "XY-286",
+  "generated_at": "2026-06-20T00:00:00Z",
+  "report_markdown": "docs/evidence/benchmarking/2026-06-20-agent-knowledge-os-closeout-benchmark-report.md",
+  "all_project_fixture_rerun": {
+    "command": "cargo make real-world-memory",
+    "status": "pass",
+    "run_id": "real-world-memory",
+    "job_count": 62,
+    "encoded_suite_count": 17,
+    "pass": 55,
+    "wrong_result": 0,
+    "incomplete": 0,
+    "blocked": 7,
+    "not_encoded": 0,
+    "evidence_coverage": 1.0,
+    "source_ref_coverage": 1.0,
+    "quote_coverage": 1.0,
+    "mean_score": 0.887
+  },
+  "summary": {
+    "strongest_measured_integrated_product": "ELF integrated Agent Knowledge OS",
+    "strongest_product_qualification": "ELF is the strongest measured integrated product in the checked-in Agent Knowledge OS matrix because all six ELF-owned layers now have source-linked readback, tests, and docs evidence. This is not a broad claim that ELF beats every competitor on every competitor-owned specialty.",
+    "complete_same_corpus_product_count": 1,
+    "product_count": 19,
+    "scenario_count": 6,
+    "matrix_cell_count": 114,
+    "coverage_statement": "Only ELF has complete same-repo coverage across all six Agent Knowledge OS layers. qmd, agentmemory, OpenViking, mem0/OpenMemory, claude-mem, memsearch, Letta, graph/RAG projects, llm-wiki, gbrain, PageIndex, and OpenKB have partial, blocked, or reference-only coverage depending on the scenario.",
+    "not_every_product_has_complete_live_coverage": true,
+    "evidence_class_counts": {
+      "pass": 9,
+      "wrong_result": 7,
+      "incomplete": 6,
+      "blocked": 14,
+      "not_tested": 78
+    }
+  },
+  "supported_scenarios": [
+    {
+      "id": "source_library_ingest_hydration",
+      "layer": "Source Library",
+      "elf_evidence": "docs/evidence/benchmarking/2026-06-20-recall-debug-panel-report.md and source-library fixture coverage",
+      "completion_rule": "Captured sources remain documents with source refs, hydration, search, and bounded replay; they are not silently converted into authoritative memory notes."
+    },
+    {
+      "id": "memory_authority_history_read_profiles",
+      "layer": "Memory Authority",
+      "elf_evidence": "docs/evidence/benchmarking/2026-06-16-live-temporal-reconciliation-report.md and service-native Dreaming readback",
+      "completion_rule": "Current, historical, tombstoned, stale, superseded, selected, and dropped evidence stays explicit under read-profile policy."
+    },
+    {
+      "id": "knowledge_workspace_pages",
+      "layer": "Knowledge Workspace",
+      "elf_evidence": "docs/evidence/benchmarking/2026-06-20-live-knowledge-page-rebuild-lint-report.md and 2026-06-20-knowledge-workspace-version-diff-report.md",
+      "completion_rule": "Knowledge pages are rebuildable derived artifacts with source refs, lint, version diffs, and no hidden source-of-truth mutation."
+    },
+    {
+      "id": "temporal_topic_graph_lite",
+      "layer": "Graph-lite Facts",
+      "elf_evidence": "docs/evidence/benchmarking/2026-06-20-graph-topic-map-report.md",
+      "completion_rule": "Graph facts are typed Postgres readback over sourced, inferred, ambiguous, stale, and superseded markers, not a second graph database authority."
+    },
+    {
+      "id": "dreaming_review_queue",
+      "layer": "Dreaming Review Queue",
+      "elf_evidence": "docs/evidence/benchmarking/2026-06-20-dreaming-review-queue-report.md",
+      "completion_rule": "Background proposals stay reviewable with source refs, affected refs, lint, diff, policy, and review audit before high-impact mutation."
+    },
+    {
+      "id": "recall_debug_panel",
+      "layer": "Recall and Debug",
+      "elf_evidence": "docs/evidence/benchmarking/2026-06-20-recall-debug-panel-report.md",
+      "completion_rule": "Selected, dropped, available, reviewable, not_requested, and blocked rows remain visible across memory, docs, pages, graph facts, and proposals."
+    }
+  ],
+  "product_matrix": [
+    {
+      "product": "ELF",
+      "coverage": "complete_same_repo",
+      "statuses": {
+        "source_library_ingest_hydration": "pass",
+        "memory_authority_history_read_profiles": "pass",
+        "knowledge_workspace_pages": "pass",
+        "temporal_topic_graph_lite": "pass",
+        "dreaming_review_queue": "pass",
+        "recall_debug_panel": "pass"
+      },
+      "strongest_advantage": "Policy-gated, source-linked, replayable memory and knowledge authority across all six layers.",
+      "remaining_gap": "Needs a richer operator UI and more same-corpus adapters for competitor specialties.",
+      "evidence": "README checked-in live benchmark snapshot plus June 20 component reports."
+    },
+    {
+      "product": "qmd",
+      "coverage": "partial_same_corpus",
+      "statuses": {
+        "source_library_ingest_hydration": "not_tested",
+        "memory_authority_history_read_profiles": "wrong_result",
+        "knowledge_workspace_pages": "wrong_result",
+        "temporal_topic_graph_lite": "not_tested",
+        "dreaming_review_queue": "wrong_result",
+        "recall_debug_panel": "wrong_result"
+      },
+      "strongest_advantage": "Local retrieval pipeline, query expansion, weighted fusion, rerank, short CLI replay, and top-k debug ergonomics.",
+      "remaining_gap": "Does not expose ELF-style source-authority, dropped-candidate, service trace, page rebuild, graph-lite, or review queue semantics in the current adapter.",
+      "evidence": "docs/evidence/benchmarking/2026-06-19-qmd-debug-ergonomics-dreaming-retest-report.md"
+    },
+    {
+      "product": "agentmemory",
+      "coverage": "partial_same_corpus",
+      "statuses": {
+        "source_library_ingest_hydration": "incomplete",
+        "memory_authority_history_read_profiles": "incomplete",
+        "knowledge_workspace_pages": "not_tested",
+        "temporal_topic_graph_lite": "not_tested",
+        "dreaming_review_queue": "blocked",
+        "recall_debug_panel": "not_tested"
+      },
+      "strongest_advantage": "Cross-agent hooks, MCP/REST packaging, local viewer, and coding-agent continuity workflow references.",
+      "remaining_gap": "Durable storage, lifecycle/cold-start proof, and capture breadth remain incomplete or blocked in the checked-in evidence.",
+      "evidence": "docs/evidence/benchmarking/2026-06-11-first-generation-oss-continuity-source-store-report.md"
+    },
+    {
+      "product": "OpenViking",
+      "coverage": "partial_same_corpus",
+      "statuses": {
+        "source_library_ingest_hydration": "wrong_result",
+        "memory_authority_history_read_profiles": "blocked",
+        "knowledge_workspace_pages": "not_tested",
+        "temporal_topic_graph_lite": "not_tested",
+        "dreaming_review_queue": "not_tested",
+        "recall_debug_panel": "not_tested"
+      },
+      "strongest_advantage": "Filesystem-like context URIs, hierarchy, staged trajectory, and recursive context expansion as a product idea.",
+      "remaining_gap": "Same-corpus staged trajectory, hierarchy selection, and recursive expansion stay blocked until evidence-bearing stage artifacts exist.",
+      "evidence": "docs/evidence/benchmarking/2026-06-19-openviking-trajectory-materialization-report.md"
+    },
+    {
+      "product": "mem0/OpenMemory",
+      "coverage": "partial_same_corpus",
+      "statuses": {
+        "source_library_ingest_hydration": "not_tested",
+        "memory_authority_history_read_profiles": "pass",
+        "knowledge_workspace_pages": "not_tested",
+        "temporal_topic_graph_lite": "blocked",
+        "dreaming_review_queue": "not_tested",
+        "recall_debug_panel": "blocked"
+      },
+      "strongest_advantage": "Entity-scoped memory history, hosted ecosystem, OpenMemory UI/export direction, and optional graph memory concept.",
+      "remaining_gap": "OpenMemory product UI/export remains blocked locally; hosted Platform and optional graph memory are non-goals for this lane.",
+      "evidence": "docs/evidence/benchmarking/2026-06-19-openmemory-ui-export-product-readback-report.md"
+    },
+    {
+      "product": "claude-mem",
+      "coverage": "partial_reference",
+      "statuses": {
+        "source_library_ingest_hydration": "blocked",
+        "memory_authority_history_read_profiles": "incomplete",
+        "knowledge_workspace_pages": "not_tested",
+        "temporal_topic_graph_lite": "not_tested",
+        "dreaming_review_queue": "blocked",
+        "recall_debug_panel": "not_tested"
+      },
+      "strongest_advantage": "Progressive disclosure UX, local inspection, and automatic capture-loop reference behavior.",
+      "remaining_gap": "Hook/viewer capture proof is still blocked in Docker-contained checked-in evidence.",
+      "evidence": "docs/evidence/benchmarking/2026-06-11-first-generation-oss-continuity-source-store-report.md"
+    },
+    {
+      "product": "memsearch",
+      "coverage": "partial_same_corpus",
+      "statuses": {
+        "source_library_ingest_hydration": "pass",
+        "memory_authority_history_read_profiles": "pass",
+        "knowledge_workspace_pages": "not_tested",
+        "temporal_topic_graph_lite": "not_tested",
+        "dreaming_review_queue": "not_tested",
+        "recall_debug_panel": "not_tested"
+      },
+      "strongest_advantage": "Markdown-first canonical store, incremental reindex, and practical hybrid retrieval workflow.",
+      "remaining_gap": "Broader prompt behavior, TTL, knowledge-page rebuild, graph, and review queue coverage are not encoded.",
+      "evidence": "docs/evidence/benchmarking/2026-06-11-first-generation-oss-continuity-source-store-report.md"
+    },
+    {
+      "product": "Letta",
+      "coverage": "blocked_materialization",
+      "statuses": {
+        "source_library_ingest_hydration": "not_tested",
+        "memory_authority_history_read_profiles": "blocked",
+        "knowledge_workspace_pages": "not_tested",
+        "temporal_topic_graph_lite": "not_tested",
+        "dreaming_review_queue": "blocked",
+        "recall_debug_panel": "not_tested"
+      },
+      "strongest_advantage": "Core versus archival memory model and export/readback product concept.",
+      "remaining_gap": "Contained Letta export/readback remains disabled by default and blocked until core block JSON, archival readback/search JSON, and source ids exist.",
+      "evidence": "docs/evidence/benchmarking/2026-06-19-letta-core-archive-export-readback-report.md"
+    },
+    {
+      "product": "Graphiti/Zep",
+      "coverage": "blocked_reference",
+      "statuses": {
+        "source_library_ingest_hydration": "not_tested",
+        "memory_authority_history_read_profiles": "not_tested",
+        "knowledge_workspace_pages": "not_tested",
+        "temporal_topic_graph_lite": "blocked",
+        "dreaming_review_queue": "not_tested",
+        "recall_debug_panel": "not_tested"
+      },
+      "strongest_advantage": "Temporal graph validity vocabulary and graph-memory product reference.",
+      "remaining_gap": "Representative graph/RAG slice remains blocked by provider/graph-store setup and lacks comparable same-corpus fact artifacts.",
+      "evidence": "docs/evidence/benchmarking/2026-06-19-graph-rag-citation-navigation-promotion-report.md"
+    },
+    {
+      "product": "GraphRAG",
+      "coverage": "partial_reference",
+      "statuses": {
+        "source_library_ingest_hydration": "not_tested",
+        "memory_authority_history_read_profiles": "not_tested",
+        "knowledge_workspace_pages": "incomplete",
+        "temporal_topic_graph_lite": "blocked",
+        "dreaming_review_queue": "not_tested",
+        "recall_debug_panel": "not_tested"
+      },
+      "strongest_advantage": "Graph-oriented retrieval and citation/navigation reference direction.",
+      "remaining_gap": "No contained same-corpus page/fact artifact comparable to ELF knowledge and graph reports exists yet.",
+      "evidence": "docs/evidence/benchmarking/2026-06-19-graph-rag-citation-navigation-promotion-report.md"
+    },
+    {
+      "product": "RAGFlow",
+      "coverage": "blocked_reference",
+      "statuses": {
+        "source_library_ingest_hydration": "not_tested",
+        "memory_authority_history_read_profiles": "not_tested",
+        "knowledge_workspace_pages": "blocked",
+        "temporal_topic_graph_lite": "blocked",
+        "dreaming_review_queue": "not_tested",
+        "recall_debug_panel": "not_tested"
+      },
+      "strongest_advantage": "RAG workflow and document processing product reference.",
+      "remaining_gap": "Representative graph/RAG comparison remains blocked until contained adapter outputs exist.",
+      "evidence": "docs/evidence/benchmarking/2026-06-19-graph-rag-citation-navigation-promotion-report.md"
+    },
+    {
+      "product": "LightRAG",
+      "coverage": "incomplete_reference",
+      "statuses": {
+        "source_library_ingest_hydration": "not_tested",
+        "memory_authority_history_read_profiles": "not_tested",
+        "knowledge_workspace_pages": "incomplete",
+        "temporal_topic_graph_lite": "incomplete",
+        "dreaming_review_queue": "not_tested",
+        "recall_debug_panel": "not_tested"
+      },
+      "strongest_advantage": "Lightweight graph/RAG architecture reference.",
+      "remaining_gap": "Representative comparison is incomplete, so no parity or loss claim is allowed.",
+      "evidence": "docs/evidence/benchmarking/2026-06-19-graph-rag-citation-navigation-promotion-report.md"
+    },
+    {
+      "product": "graphify",
+      "coverage": "scored_smoke",
+      "statuses": {
+        "source_library_ingest_hydration": "not_tested",
+        "memory_authority_history_read_profiles": "not_tested",
+        "knowledge_workspace_pages": "wrong_result",
+        "temporal_topic_graph_lite": "wrong_result",
+        "dreaming_review_queue": "not_tested",
+        "recall_debug_panel": "not_tested"
+      },
+      "strongest_advantage": "Tiny scored graph/RAG smoke target that can expose artifact-shape mismatches.",
+      "remaining_gap": "Current scored smoke is wrong_result; it is not graph/RAG parity evidence.",
+      "evidence": "docs/evidence/benchmarking/2026-06-19-graph-rag-citation-navigation-promotion-report.md"
+    },
+    {
+      "product": "llm-wiki",
+      "coverage": "reference_only",
+      "statuses": {
+        "source_library_ingest_hydration": "not_tested",
+        "memory_authority_history_read_profiles": "not_tested",
+        "knowledge_workspace_pages": "not_tested",
+        "temporal_topic_graph_lite": "not_tested",
+        "dreaming_review_queue": "not_tested",
+        "recall_debug_panel": "not_tested"
+      },
+      "strongest_advantage": "Compiled wiki and knowledge-page workflow reference.",
+      "remaining_gap": "No comparable same-corpus scored page artifacts are checked in.",
+      "evidence": "docs/evidence/benchmarking/2026-06-20-live-knowledge-page-rebuild-lint-report.md"
+    },
+    {
+      "product": "gbrain",
+      "coverage": "reference_only",
+      "statuses": {
+        "source_library_ingest_hydration": "not_tested",
+        "memory_authority_history_read_profiles": "not_tested",
+        "knowledge_workspace_pages": "not_tested",
+        "temporal_topic_graph_lite": "not_tested",
+        "dreaming_review_queue": "not_tested",
+        "recall_debug_panel": "not_tested"
+      },
+      "strongest_advantage": "Personal knowledge-base and query-save/lint loop reference.",
+      "remaining_gap": "No comparable scored adapter output is checked in.",
+      "evidence": "docs/evidence/benchmarking/2026-06-20-live-knowledge-page-rebuild-lint-report.md"
+    },
+    {
+      "product": "LangGraph",
+      "coverage": "blocked_reference",
+      "statuses": {
+        "source_library_ingest_hydration": "not_tested",
+        "memory_authority_history_read_profiles": "not_tested",
+        "knowledge_workspace_pages": "not_tested",
+        "temporal_topic_graph_lite": "blocked",
+        "dreaming_review_queue": "not_tested",
+        "recall_debug_panel": "not_tested"
+      },
+      "strongest_advantage": "Agent graph orchestration reference for stateful workflows.",
+      "remaining_gap": "No comparable Agent Knowledge OS memory/page/graph artifact is checked in for this matrix.",
+      "evidence": "docs/runbook/benchmarking/real_world_agent_memory_benchmark.md"
+    },
+    {
+      "product": "nanograph",
+      "coverage": "blocked_reference",
+      "statuses": {
+        "source_library_ingest_hydration": "not_tested",
+        "memory_authority_history_read_profiles": "not_tested",
+        "knowledge_workspace_pages": "not_tested",
+        "temporal_topic_graph_lite": "blocked",
+        "dreaming_review_queue": "not_tested",
+        "recall_debug_panel": "not_tested"
+      },
+      "strongest_advantage": "Typed relation and small-graph memory reference.",
+      "remaining_gap": "No comparable same-corpus typed fact artifact is checked in.",
+      "evidence": "docs/runbook/benchmarking/real_world_agent_memory_benchmark.md"
+    },
+    {
+      "product": "VectifyAI PageIndex",
+      "coverage": "reference_only",
+      "statuses": {
+        "source_library_ingest_hydration": "not_tested",
+        "memory_authority_history_read_profiles": "not_tested",
+        "knowledge_workspace_pages": "not_tested",
+        "temporal_topic_graph_lite": "not_tested",
+        "dreaming_review_queue": "not_tested",
+        "recall_debug_panel": "not_tested"
+      },
+      "strongest_advantage": "Vectorless, reasoning-based long-document tree retrieval and PageIndex MCP ecosystem direction.",
+      "remaining_gap": "No same-corpus PageIndex adapter or long-PDF tree artifact is checked into ELF yet.",
+      "evidence": "https://github.com/VectifyAI/PageIndex"
+    },
+    {
+      "product": "VectifyAI OpenKB",
+      "coverage": "reference_only",
+      "statuses": {
+        "source_library_ingest_hydration": "not_tested",
+        "memory_authority_history_read_profiles": "not_tested",
+        "knowledge_workspace_pages": "not_tested",
+        "temporal_topic_graph_lite": "not_tested",
+        "dreaming_review_queue": "not_tested",
+        "recall_debug_panel": "not_tested"
+      },
+      "strongest_advantage": "Document-to-wiki compilation, concept/entity pages, cross-links, lint reports, watch/recompile workflow, and PageIndex-backed long PDF handling.",
+      "remaining_gap": "OpenKB is a direct knowledge-library reference, but no same-corpus ELF benchmark adapter has run it yet.",
+      "evidence": "https://github.com/VectifyAI/OpenKB"
+    }
+  ],
+  "competitor_strengths": [
+    {
+      "product": "qmd",
+      "strength": "Transparent local retrieval pipeline and compact replay ergonomics.",
+      "elf_response": "Add user-facing retrieval/fusion/rerank knobs and short replay artifacts on top of the recall debug panel.",
+      "evidence_class": "wrong_result"
+    },
+    {
+      "product": "VectifyAI PageIndex",
+      "strength": "Long-document tree search without a vector database and PageIndex MCP ecosystem.",
+      "elf_response": "Add a long-document tree adapter path for Source Library and compare it against ELF source refs and page rebuilds.",
+      "evidence_class": "not_tested"
+    },
+    {
+      "product": "VectifyAI OpenKB",
+      "strength": "Compiled Markdown wiki, concept/entity pages, saved explorations, lint, watch, and recompile workflows.",
+      "elf_response": "Fold OpenKB-style library management into Knowledge Workspace without weakening ELF source-of-truth boundaries.",
+      "evidence_class": "not_tested"
+    },
+    {
+      "product": "OpenViking",
+      "strength": "Staged context trajectory, hierarchy selection, and recursive expansion.",
+      "elf_response": "Emit comparable stage artifacts from ELF recall planning and source-library hydration.",
+      "evidence_class": "blocked"
+    },
+    {
+      "product": "mem0/OpenMemory",
+      "strength": "Entity-scoped memory history, hosted ecosystem, UI/export direction, and optional graph memory.",
+      "elf_response": "Strengthen history/event APIs, export UX, and optional graph-context channel while preserving policy-gated writes.",
+      "evidence_class": "blocked"
+    },
+    {
+      "product": "Letta",
+      "strength": "Core/archive memory split and productized memory export/readback model.",
+      "elf_response": "Keep ELF core/archive source refs, but add contained adapter output before win/tie/loss claims.",
+      "evidence_class": "blocked"
+    },
+    {
+      "product": "Graphiti/Zep and graph/RAG projects",
+      "strength": "Temporal graph validity, citation/navigation, and graph retrieval product references.",
+      "elf_response": "Expand graph-lite reports into adapter-backed temporal fact comparison without replacing Postgres authority.",
+      "evidence_class": "blocked"
+    },
+    {
+      "product": "agentmemory and claude-mem",
+      "strength": "Capture hooks, local viewers, and practical continuity UX.",
+      "elf_response": "Build the operator viewer around Source Library, Memory Authority, Dreaming queue, and recall debug surfaces.",
+      "evidence_class": "incomplete"
+    }
+  ],
+  "optimization_queue": [
+    {
+      "key": "pageindex_openkb_source_library_adapter",
+      "priority": "P0",
+      "generated_from_delta": true,
+      "delta": "VectifyAI PageIndex/OpenKB are reference-only but directly target long-document library management and knowledge compilation.",
+      "next_action": "Create a contained PageIndex/OpenKB adapter over benchmark-owned sources and compare tree/wiki artifacts against ELF source refs, knowledge pages, and recall debug rows.",
+      "mapping": "issue_seed"
+    },
+    {
+      "key": "qmd_retrieval_knobs_and_short_replay",
+      "priority": "P0",
+      "generated_from_delta": true,
+      "delta": "qmd keeps the measured retrieval-debug ergonomics edge despite ELF's trace/stage visibility wins.",
+      "next_action": "Expose retrieval expansion, fusion, rerank, top-k, and compact replay artifacts in ELF recall/debug surfaces.",
+      "mapping": "docs/evidence/benchmarking/2026-06-19-qmd-debug-ergonomics-dreaming-retest-report.md"
+    },
+    {
+      "key": "operator_knowledge_library_ui",
+      "priority": "P0",
+      "generated_from_delta": true,
+      "delta": "ELF now has source, page, graph, proposal, and debug APIs but no unified knowledge-library management surface.",
+      "next_action": "Build a library UI that can ingest saved articles/threads, show source docs, derived pages, graph facts, proposal queue, and replayable recall traces.",
+      "mapping": "XY-1022 follow-up"
+    },
+    {
+      "key": "openviking_context_trajectory_artifacts",
+      "priority": "P1",
+      "generated_from_delta": true,
+      "delta": "OpenViking-style hierarchy and recursive trajectory remain blocked because comparable stage artifacts are missing.",
+      "next_action": "Emit same-corpus stage trajectory, hierarchy selection, rejected siblings, and recursive expansion artifacts.",
+      "mapping": "docs/evidence/benchmarking/2026-06-19-openviking-trajectory-materialization-report.md"
+    },
+    {
+      "key": "letta_core_archive_export_readback",
+      "priority": "P1",
+      "generated_from_delta": true,
+      "delta": "Letta core/archive comparison remains blocked until export/search/readback source ids exist.",
+      "next_action": "Run contained Letta adapter materialization with core block JSON, archival search/readback JSON, and source ids.",
+      "mapping": "docs/evidence/benchmarking/2026-06-19-letta-core-archive-export-readback-report.md"
+    },
+    {
+      "key": "openmemory_ui_export_and_history_parity",
+      "priority": "P1",
+      "generated_from_delta": true,
+      "delta": "OpenMemory UI/export remains blocked and mem0 history remains a measured reference advantage.",
+      "next_action": "Add product-container UI/export readback and strengthen ELF history/export APIs without weakening write policy.",
+      "mapping": "docs/evidence/benchmarking/2026-06-19-openmemory-ui-export-product-readback-report.md"
+    },
+    {
+      "key": "graph_rag_temporal_adapter_matrix",
+      "priority": "P1",
+      "generated_from_delta": true,
+      "delta": "Graphiti/Zep, GraphRAG, RAGFlow, LightRAG, graphify, LangGraph, and nanograph remain typed non-pass or reference-only.",
+      "next_action": "Produce contained same-corpus graph fact/page/citation artifacts while keeping ELF graph-lite as readback over source authority.",
+      "mapping": "docs/evidence/benchmarking/2026-06-19-graph-rag-citation-navigation-promotion-report.md"
+    },
+    {
+      "key": "agentmemory_claude_mem_capture_viewer",
+      "priority": "P2",
+      "generated_from_delta": true,
+      "delta": "agentmemory and claude-mem still point to practical capture/viewer UX that ELF has not productized.",
+      "next_action": "Add a local operator viewer and capture audit flow across Source Library, Memory Authority, and recall debug traces.",
+      "mapping": "docs/evidence/benchmarking/2026-06-11-first-generation-oss-continuity-source-store-report.md"
+    },
+    {
+      "key": "private_provider_production_refresh",
+      "priority": "P2",
+      "generated_from_delta": true,
+      "delta": "XY-930 proxy/public-corpus evidence cannot prove real private-corpus or provider-backed quality.",
+      "next_action": "Run operator-approved private/provider benchmark only when routed private corpus and provider setup exist.",
+      "mapping": "docs/evidence/benchmarking/2026-06-19-operator-approved-public-proxy-production-private-addendum.md"
+    }
+  ],
+  "claim_boundaries": {
+    "no_broad_superiority_claim": true,
+    "no_private_corpus_claim": true,
+    "no_hosted_provider_claim": true,
+    "reference_only_projects_do_not_count_as_pass": true,
+    "not_tested_is_not_pass": true,
+    "blocked_is_not_pass": true
+  },
+  "source_evidence": [
+    "docs/evidence/benchmarking/2026-06-20-recall-debug-panel-report.md",
+    "docs/evidence/benchmarking/2026-06-20-dreaming-review-queue-report.md",
+    "docs/evidence/benchmarking/2026-06-20-graph-topic-map-report.md",
+    "docs/evidence/benchmarking/2026-06-20-knowledge-workspace-version-diff-report.md",
+    "docs/evidence/benchmarking/2026-06-20-live-knowledge-page-rebuild-lint-report.md",
+    "docs/evidence/benchmarking/2026-06-19-qmd-debug-ergonomics-dreaming-retest-report.md",
+    "docs/evidence/benchmarking/2026-06-19-openviking-trajectory-materialization-report.md",
+    "docs/evidence/benchmarking/2026-06-19-letta-core-archive-export-readback-report.md",
+    "docs/evidence/benchmarking/2026-06-19-openmemory-ui-export-product-readback-report.md",
+    "docs/evidence/benchmarking/2026-06-19-graph-rag-citation-navigation-promotion-report.md",
+    "https://github.com/VectifyAI/PageIndex",
+    "https://github.com/VectifyAI/OpenKB",
+    "https://github.com/VectifyAI"
+  ],
+  "validation_expectations": [
+    "cargo make fmt",
+    "cargo make test",
+    "cargo make check-docs",
+    "decodex docs check",
+    "cargo test -p elf-eval --test real_world_job_benchmark",
+    "git diff --check"
+  ]
+}
