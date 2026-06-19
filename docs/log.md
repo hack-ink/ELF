@@ -41,3 +41,7 @@ logs.
 - Added `cargo make real-world-memory-context-trajectory` as the reproducible
   context-trajectory benchmark entrypoint and linked the new report from the
   benchmarking evidence index and README.
+- Added the Letta core/archive export-readback materialization report and snapshot
+  for XY-984, plus `cargo make smoke-letta-core-archive-export-readback`, preserving
+  all six Letta comparison scenarios as typed blockers until exported core block JSON,
+  archival readback/search JSON, and fixture source ids exist.
