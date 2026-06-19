@@ -177,6 +177,13 @@ provider-backed ELF evidence was required.
   rejects broad superiority claims and leaves qmd debug ergonomics,
   OpenViking trajectory, Letta core/archive, graph/RAG quality, and XY-930
   private/provider gates as follow-up work.
+- qmd debug-ergonomics retest after XY-982: the June 19 operator-debug live retest
+  keeps the qmd edge unchanged. ELF scores 6 pass/0 wrong_result with trace and
+  candidate-drop visibility across all six jobs, while qmd keeps replay commands on
+  all six jobs but records 0 pass/6 wrong_result because service trace hydration and
+  intermediate candidate-drop stages are not exposed. This confirms ELF's narrow
+  trace/stage visibility wins without erasing qmd's default top-k JSON and short CLI
+  replay advantage.
 - Full-suite live real-world adapter sweep after XY-926: ELF and qmd emit
   Docker-isolated `live_real_world` records for all 55 checked-in jobs across 13 suites
   through `cargo make real-world-memory-live-adapters`. Both keep the original
@@ -285,6 +292,7 @@ Detailed evidence and interpretation:
 - [Proactive Brief Scoring Report - June 16, 2026](docs/evidence/benchmarking/2026-06-16-proactive-brief-scoring-report.md)
 - [Scheduled Memory Task Scoring Report - June 16, 2026](docs/evidence/benchmarking/2026-06-16-scheduled-memory-task-scoring-report.md)
 - [Dreaming Competitor-Strength Retest Report - June 17, 2026](docs/evidence/benchmarking/2026-06-17-dreaming-competitor-strength-retest-report.md)
+- [qmd Debug-Ergonomics Dreaming Retest Report - June 19, 2026](docs/evidence/benchmarking/2026-06-19-qmd-debug-ergonomics-dreaming-retest-report.md)
 - [Live Baseline Benchmark Runbook](docs/runbook/benchmarking/live_baseline_benchmark.md)
 - [Single-User Production Runbook](docs/runbook/single_user_production.md)
 - Benchmark contract:
@@ -369,6 +377,7 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [Proactive Brief Scoring Report - June 16, 2026](docs/evidence/benchmarking/2026-06-16-proactive-brief-scoring-report.md)
 - [Scheduled Memory Task Scoring Report - June 16, 2026](docs/evidence/benchmarking/2026-06-16-scheduled-memory-task-scoring-report.md)
 - [Dreaming Competitor-Strength Retest Report - June 17, 2026](docs/evidence/benchmarking/2026-06-17-dreaming-competitor-strength-retest-report.md)
+- [qmd Debug-Ergonomics Dreaming Retest Report - June 19, 2026](docs/evidence/benchmarking/2026-06-19-qmd-debug-ergonomics-dreaming-retest-report.md)
 - [Live Baseline Benchmark Runbook](docs/runbook/benchmarking/live_baseline_benchmark.md)
 - [Real-World Agent Memory Benchmark](docs/runbook/benchmarking/real_world_agent_memory_benchmark.md)
 - [External Memory Improvement Plan](docs/evidence/external_memory/external_memory_improvement_plan.md)
@@ -380,10 +389,10 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [Derived Knowledge Page Follow-Up Research](docs/research/derived_knowledge_page_followup.md)
 - [Dreaming Product Surface Follow-Up Research](docs/research/dreaming_product_surface_followup.md)
 
-Latest real-world benchmark report: June 17, 2026. Latest external research refresh:
-June 11, 2026; June 17 adds the Dreaming competitor-strength closeout retest and
-optimization queue after the June 16 temporal reconciliation, live consolidation
-self-check, proactive-brief, and scheduled-memory scoring evidence.
+Latest real-world benchmark report: June 19, 2026. Latest external research refresh:
+June 11, 2026; June 19 adds the qmd debug-ergonomics Dreaming retest after the June
+17 competitor-strength closeout and the June 16 temporal reconciliation, live
+consolidation self-check, proactive-brief, and scheduled-memory scoring evidence.
 
 ## Documentation
 
