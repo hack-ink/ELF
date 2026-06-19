@@ -52,18 +52,19 @@ use elf_service::{
 	CoreBlockUpsertRequest, CoreBlockUpsertResponse, CoreBlocksGetRequest, CoreBlocksResponse,
 	DeleteRequest, DeleteResponse, DocType, DocsExcerptResponse, DocsExcerptsGetRequest,
 	DocsGetRequest, DocsGetResponse, DocsPutRequest, DocsPutResponse, DocsSearchL0Request,
-	DocsSearchL0Response, Error, EventMessage, GranteeKind, GraphQueryEntityRef,
-	GraphQueryPredicateRef, GraphQueryRequest, GraphQueryResponse, IngestionProfileSelector,
-	KnowledgePageGetRequest, KnowledgePageLintRequest, KnowledgePageLintResponse,
-	KnowledgePageRebuildRequest, KnowledgePageRebuildResponse, KnowledgePageResponse,
-	KnowledgePageSearchRequest, KnowledgePageSearchResponse, KnowledgePagesListRequest,
-	KnowledgePagesListResponse, ListRequest, ListResponse, MemoryHistoryGetRequest,
-	MemoryHistoryResponse, NoteFetchRequest, NoteFetchResponse, NoteProvenanceBundleResponse,
-	NoteProvenanceGetRequest, PayloadLevel, PublishNoteRequest, QueryPlan, RankingRequestOverride,
-	RebuildReport, SearchDetailsRequest, SearchDetailsResult, SearchExplainRequest,
-	SearchExplainResponse, SearchIndexItem, SearchRequest, SearchResponse, SearchSessionGetRequest,
-	SearchTimelineGroup, SearchTimelineRequest, SearchTrajectoryResponse, SearchTrajectorySummary,
-	ShareScope, SpaceGrantRevokeRequest, SpaceGrantRevokeResponse, SpaceGrantUpsertRequest,
+	DocsSearchL0Response, EntityMemoryViewRequest, EntityMemoryViewResponse, Error, EventMessage,
+	GranteeKind, GraphQueryEntityRef, GraphQueryPredicateRef, GraphQueryRequest,
+	GraphQueryResponse, IngestionProfileSelector, KnowledgePageGetRequest,
+	KnowledgePageLintRequest, KnowledgePageLintResponse, KnowledgePageRebuildRequest,
+	KnowledgePageRebuildResponse, KnowledgePageResponse, KnowledgePageSearchRequest,
+	KnowledgePageSearchResponse, KnowledgePagesListRequest, KnowledgePagesListResponse,
+	ListRequest, ListResponse, MemoryHistoryGetRequest, MemoryHistoryResponse, NoteFetchRequest,
+	NoteFetchResponse, NoteProvenanceBundleResponse, NoteProvenanceGetRequest, PayloadLevel,
+	PublishNoteRequest, QueryPlan, RankingRequestOverride, RebuildReport, SearchDetailsRequest,
+	SearchDetailsResult, SearchExplainRequest, SearchExplainResponse, SearchIndexItem,
+	SearchRequest, SearchResponse, SearchSessionGetRequest, SearchTimelineGroup,
+	SearchTimelineRequest, SearchTrajectoryResponse, SearchTrajectorySummary, ShareScope,
+	SpaceGrantRevokeRequest, SpaceGrantRevokeResponse, SpaceGrantUpsertRequest,
 	SpaceGrantsListRequest, TextPositionSelector, TextQuoteSelector, TraceBundleGetRequest,
 	TraceBundleResponse, TraceGetRequest, TraceGetResponse, TraceRecentListRequest,
 	TraceRecentListResponse, TraceTrajectoryGetRequest, UnpublishNoteRequest, UpdateRequest,
@@ -115,6 +116,7 @@ const VIEWER_HTML: &str = include_str!("../static/viewer.html");
 		docs_search_l0,
 		docs_excerpts_get,
 		core_blocks_get,
+		entity_memory_get,
 		admin_core_block_upsert,
 		admin_core_block_attach,
 		admin_core_block_detach,
@@ -630,6 +632,12 @@ enum SearchMode {
 	PlannedSearch,
 }
 
+#[derive(Clone, Debug, Deserialize)]
+struct EntityMemoryQuery {
+	entity_id: Option<Uuid>,
+	entity_surface: Option<String>,
+}
+
 /// Builds the authenticated public API router.
 pub fn router(state: AppState) -> Router {
 	let auth_state = state.clone();
@@ -638,6 +646,7 @@ pub fn router(state: AppState) -> Router {
 		.route("/v2/notes/ingest", routing::post(notes_ingest))
 		.route("/v2/events/ingest", routing::post(events_ingest))
 		.route("/v2/core-blocks", routing::get(core_blocks_get))
+		.route("/v2/entity-memory", routing::get(entity_memory_get))
 		.route("/v2/searches", routing::post(searches_create))
 		.route("/v2/searches/{search_id}", routing::get(searches_get))
 		.route("/v2/searches/{search_id}/timeline", routing::get(searches_timeline))
@@ -1420,6 +1429,55 @@ async fn core_blocks_get(
 			project_id: ctx.project_id,
 			agent_id: ctx.agent_id,
 			read_profile,
+		})
+		.await?;
+
+	Ok(Json(response))
+}
+
+#[utoipa::path(
+	get,
+	path = "/v2/entity-memory",
+	tag = "graph",
+	params(
+		("entity_id" = Option<Uuid>, Query, description = "Graph entity id. Exactly one of entity_id or entity_surface is required."),
+		("entity_surface" = Option<String>, Query, description = "Canonical or alias entity surface. Exactly one of entity_id or entity_surface is required."),
+	),
+	responses(
+		(status = 200, description = "Entity-scoped memory authority view.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Scope denied.", body = ErrorBody),
+		(status = 404, description = "Entity was not found.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
+async fn entity_memory_get(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	query: Result<Query<EntityMemoryQuery>, QueryRejection>,
+) -> Result<Json<EntityMemoryViewResponse>, ApiError> {
+	let ctx = RequestContext::from_headers(&headers)?;
+	let read_profile = required_read_profile(&headers)?;
+	let Query(query) = query.map_err(|err| {
+		tracing::warn!(error = %err, "Invalid query parameters.");
+
+		ApiError::new(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid query parameters.".to_string(),
+			None,
+		)
+	})?;
+	let response = state
+		.service
+		.entity_memory_view(EntityMemoryViewRequest {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+			agent_id: ctx.agent_id,
+			read_profile,
+			entity_id: query.entity_id,
+			entity_surface: query.entity_surface,
 		})
 		.await?;
 
