@@ -269,6 +269,15 @@ impl ElfMcp {
 	}
 
 	#[rmcp::tool(
+		name = "elf_graph_report",
+		description = "Build a source-backed graph topic map with current, historical, future, inferred, ambiguous, stale, and superseded fact markers.",
+		input_schema = graph_report_schema()
+	)]
+	async fn elf_graph_report(&self, params: JsonObject) -> Result<CallToolResult, ErrorData> {
+		self.forward(HttpMethod::Post, "/v2/graph/report", params, None).await
+	}
+
+	#[rmcp::tool(
 		name = "elf_events_ingest",
 		description = "Ingest an event by extracting evidence-bound notes using the configured LLM extractor.",
 		input_schema = events_ingest_schema()
@@ -1024,6 +1033,10 @@ fn graph_query_schema() -> Arc<JsonObject> {
 	}))
 }
 
+fn graph_report_schema() -> Arc<JsonObject> {
+	graph_query_schema()
+}
+
 fn events_ingest_schema() -> Arc<JsonObject> {
 	Arc::new(rmcp::object!({
 		"type": "object",
@@ -1603,7 +1616,7 @@ mod tests {
 
 	type RequestRecorder = Arc<Mutex<Option<oneshot::Sender<RecordedRequest>>>>;
 
-	const ALL_TOOL_DEFINITIONS: [ToolDefinition; 31] = [
+	const ALL_TOOL_DEFINITIONS: [ToolDefinition; 32] = [
 		ToolDefinition::new(
 			"elf_notes_ingest",
 			HttpMethod::Post,
@@ -1615,6 +1628,12 @@ mod tests {
 			HttpMethod::Post,
 			"/v2/graph/query",
 			"Query graph entities and relations by structured criteria.",
+		),
+		ToolDefinition::new(
+			"elf_graph_report",
+			HttpMethod::Post,
+			"/v2/graph/report",
+			"Build a source-backed graph topic map with current, historical, future, inferred, ambiguous, stale, and superseded fact markers.",
 		),
 		ToolDefinition::new(
 			"elf_events_ingest",
@@ -1828,6 +1847,7 @@ mod tests {
 		let expected = [
 			"elf_notes_ingest",
 			"elf_graph_query",
+			"elf_graph_report",
 			"elf_events_ingest",
 			"elf_core_blocks_get",
 			"elf_entity_memory_get",
