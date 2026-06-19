@@ -1,3 +1,17 @@
+---
+type: Evidence
+title: "Dreaming Competitor-Strength Retest Report - June 17, 2026"
+description: "Checked-in benchmark evidence record: Dreaming Competitor-Strength Retest Report - June 17, 2026."
+resource: docs/evidence/benchmarking/2026-06-17-dreaming-competitor-strength-retest-report.md
+status: active
+authority: current_state
+owner: evidence
+last_verified: 2026-06-19
+tags:
+  - docs
+  - evidence
+  - benchmarking
+---
 # Dreaming Competitor-Strength Retest Report - June 17, 2026
 
 Goal: Close out the XY-955 Dreaming-readiness benchmark program pass with a
