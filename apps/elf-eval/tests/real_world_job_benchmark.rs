@@ -206,6 +206,18 @@ fn dreaming_readiness_stage_ledger_markdown_path() -> Result<PathBuf> {
 		.join("2026-06-16-dreaming-readiness-stage-ledger.md"))
 }
 
+fn dreaming_competitor_strength_retest_report_json_path() -> Result<PathBuf> {
+	report_snapshot_path("2026-06-17-dreaming-competitor-strength-retest-report.json")
+}
+
+fn dreaming_competitor_strength_retest_report_markdown_path() -> Result<PathBuf> {
+	Ok(workspace_root()?
+		.join("docs")
+		.join("evidence")
+		.join("benchmarking")
+		.join("2026-06-17-dreaming-competitor-strength-retest-report.md"))
+}
+
 fn live_temporal_reconciliation_report_json_path() -> Result<PathBuf> {
 	report_snapshot_path("2026-06-16-live-temporal-reconciliation-report.json")
 }
@@ -2818,6 +2830,241 @@ fn live_temporal_reconciliation_report_records_xy905_before_after() -> Result<()
 }
 
 #[test]
+fn dreaming_competitor_strength_retest_report_closes_xy955_without_overclaims() -> Result<()> {
+	let report = serde_json::from_str::<Value>(&fs::read_to_string(
+		dreaming_competitor_strength_retest_report_json_path()?,
+	)?)?;
+	let markdown = fs::read_to_string(dreaming_competitor_strength_retest_report_markdown_path()?)?;
+	let benchmarking_index = fs::read_to_string(benchmarking_index_path()?)?;
+	let readme = fs::read_to_string(readme_path()?)?;
+
+	assert_eq!(
+		report.pointer("/schema").and_then(Value::as_str),
+		Some("elf.dreaming_competitor_strength_retest_report/v1")
+	);
+	assert_eq!(report.pointer("/authority").and_then(Value::as_str), Some("XY-955"));
+	assert_eq!(
+		report.pointer("/summary/overall_judgment").and_then(Value::as_str),
+		Some("locally_and_partially_stronger_only")
+	);
+	assert_eq!(
+		report.pointer("/summary/broader_superiority").and_then(Value::as_str),
+		Some("not_proven")
+	);
+	assert_eq!(report.pointer("/summary/regressed_stage_count").and_then(Value::as_u64), Some(0));
+	assert!(array_contains_str(&report, "/status_terms", "typed_non_pass")?);
+	assert!(array_contains_str(
+		&report,
+		"/summary/unsupported_claims_rejected",
+		"ELF does not broadly beat qmd from this retest."
+	)?);
+
+	assert_xy955_commands(&report)?;
+	assert_xy955_stage_closeout(&report)?;
+	assert_xy955_scenario_retests(&report)?;
+	assert_xy955_optimization_queue(&report)?;
+	assert_xy955_follow_up_issue_briefs(&report)?;
+
+	assert!(markdown.contains("ELF is locally and partially stronger"));
+	assert!(
+		markdown.contains("The full live-adapter command now has fresh ELF and qmd scored reports")
+	);
+	assert!(
+		markdown.contains(
+			"Do not treat qmd full-suite wrong_result counts as a regression of qmd debug"
+		)
+	);
+	assert!(markdown.contains("## Follow-Up Issue Briefs"));
+	assert!(markdown.contains(
+		"| GraphRAG/LightRAG/RAGFlow/llm-wiki/gbrain/graphify citation/navigation/knowledge surfaces |"
+	));
+	assert!(
+		benchmarking_index.contains("2026-06-17-dreaming-competitor-strength-retest-report.md")
+	);
+	assert!(readme.contains("Dreaming Competitor-Strength Retest Report - June 17, 2026"));
+	assert!(readme.contains("Latest real-world benchmark report: June 17, 2026"));
+
+	Ok(())
+}
+
+fn assert_xy955_commands(report: &Value) -> Result<()> {
+	let commands = array_at(report, "/commands")?;
+	let aggregate = find_by_field(commands, "/command", "cargo make real-world-memory")?;
+	let graph_rag = find_by_field(commands, "/command", "cargo make real-world-memory-graph-rag")?;
+	let first_generation =
+		find_by_field(commands, "/command", "cargo make real-world-first-generation-oss")?;
+	let live = find_by_field(commands, "/command", "cargo make real-world-memory-live-adapters")?;
+
+	assert_eq!(aggregate.pointer("/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(aggregate.pointer("/summary/pass").and_then(Value::as_u64), Some(53));
+	assert_eq!(aggregate.pointer("/summary/blocked").and_then(Value::as_u64), Some(7));
+	assert_eq!(graph_rag.pointer("/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(graph_rag.pointer("/summary/wrong_result").and_then(Value::as_u64), Some(1));
+	assert_eq!(graph_rag.pointer("/summary/incomplete").and_then(Value::as_u64), Some(1));
+	assert_eq!(graph_rag.pointer("/summary/blocked").and_then(Value::as_u64), Some(3));
+	assert_eq!(first_generation.pointer("/summary/pass").and_then(Value::as_u64), Some(4));
+	assert_eq!(first_generation.pointer("/summary/blocked").and_then(Value::as_u64), Some(2));
+	assert_eq!(live.pointer("/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(
+		live.pointer("/partial_summary/elf_live_real_world/pass").and_then(Value::as_u64),
+		Some(40)
+	);
+	assert_eq!(
+		live.pointer("/partial_summary/elf_live_real_world/wrong_result").and_then(Value::as_u64),
+		Some(0)
+	);
+	assert_eq!(
+		live.pointer("/partial_summary/qmd_live_real_world/pass").and_then(Value::as_u64),
+		Some(17)
+	);
+	assert_eq!(
+		live.pointer("/partial_summary/qmd_live_real_world/wrong_result").and_then(Value::as_u64),
+		Some(13)
+	);
+
+	Ok(())
+}
+
+fn assert_xy955_stage_closeout(report: &Value) -> Result<()> {
+	let stages = array_at(report, "/stage_closeout")?;
+
+	assert_eq!(stages.len(), 8);
+
+	let current = find_by_field(stages, "/stage_id", "current_vs_historical_correctness")?;
+	let proactive = find_by_field(stages, "/stage_id", "proactive_brief_readiness")?;
+	let scheduled = find_by_field(stages, "/stage_id", "scheduled_memory_task_readiness")?;
+	let final_retest = find_by_field(stages, "/stage_id", "final_competitor_retest_status")?;
+
+	assert_eq!(current.pointer("/judgment").and_then(Value::as_str), Some("improved"));
+	assert_eq!(current.pointer("/current_counts/pass").and_then(Value::as_u64), Some(6));
+	assert_eq!(current.pointer("/current_counts/wrong_result").and_then(Value::as_u64), Some(0));
+	assert_eq!(proactive.pointer("/judgment").and_then(Value::as_str), Some("improved"));
+	assert_eq!(proactive.pointer("/current_counts/blocked").and_then(Value::as_u64), Some(1));
+	assert_eq!(scheduled.pointer("/current_counts/pass").and_then(Value::as_u64), Some(4));
+	assert_eq!(scheduled.pointer("/current_counts/blocked").and_then(Value::as_u64), Some(1));
+	assert_eq!(final_retest.pointer("/judgment").and_then(Value::as_str), Some("unchanged"));
+	assert_eq!(final_retest.pointer("/current_counts/pass").and_then(Value::as_u64), Some(40));
+	assert_eq!(
+		final_retest.pointer("/current_counts/wrong_result").and_then(Value::as_u64),
+		Some(0)
+	);
+	assert_eq!(final_retest.pointer("/current_counts/blocked").and_then(Value::as_u64), Some(7));
+	assert_eq!(
+		final_retest.pointer("/current_counts/not_encoded").and_then(Value::as_u64),
+		Some(19)
+	);
+	assert!(final_retest.pointer("/boundary").and_then(Value::as_str).is_some_and(|boundary| {
+		boundary.contains("qmd now has a fresh scored live report")
+			&& boundary.contains("broader superiority is not proven")
+	}));
+	assert_eq!(final_retest.pointer("/qmd_current_counts/pass").and_then(Value::as_u64), Some(17));
+	assert_eq!(
+		final_retest.pointer("/qmd_current_counts/wrong_result").and_then(Value::as_u64),
+		Some(13)
+	);
+
+	Ok(())
+}
+
+fn assert_xy955_scenario_retests(report: &Value) -> Result<()> {
+	let scenarios = array_at(report, "/scenario_retests")?;
+	let qmd = find_by_field(scenarios, "/scenario_id", "qmd_debug_ergonomics")?;
+	let mem0 =
+		find_by_field(scenarios, "/scenario_id", "mem0_openmemory_preference_history_export")?;
+	let letta = find_by_field(scenarios, "/scenario_id", "letta_core_archive")?;
+	let graph_rag = find_by_field(
+		scenarios,
+		"/scenario_id",
+		"graph_rag_citation_navigation_knowledge_surfaces",
+	)?;
+	let private_provider =
+		find_by_field(scenarios, "/scenario_id", "private_provider_production_gates")?;
+
+	assert_eq!(qmd.pointer("/current_outcome").and_then(Value::as_str), Some("unchanged"));
+	assert_eq!(qmd.pointer("/current_status").and_then(Value::as_str), Some("pass"));
+	assert!(qmd.pointer("/evidence").and_then(Value::as_str).is_some_and(|evidence| {
+		evidence.contains("17 pass")
+			&& evidence.contains("13 wrong_result")
+			&& evidence.contains("does not retest or erase")
+	}));
+	assert_eq!(mem0.pointer("/current_outcome").and_then(Value::as_str), Some("unchanged"));
+	assert!(mem0.pointer("/evidence").and_then(Value::as_str).is_some_and(|evidence| {
+		evidence.contains("mem0/OpenMemory local OSS history")
+			&& evidence.contains("OpenMemory UI/export remains setup-blocked")
+	}));
+	assert_eq!(letta.pointer("/current_status").and_then(Value::as_str), Some("blocked"));
+	assert_eq!(
+		graph_rag.pointer("/current_status").and_then(Value::as_str),
+		Some("typed_non_pass")
+	);
+	assert!(graph_rag.pointer("/evidence").and_then(Value::as_str).is_some_and(|evidence| {
+		evidence.contains("0 pass")
+			&& evidence.contains("1 wrong_result")
+			&& evidence.contains("3 blocked")
+	}));
+	assert_eq!(private_provider.pointer("/follow_up").and_then(Value::as_str), Some("XY-930"));
+
+	Ok(())
+}
+
+fn assert_xy955_optimization_queue(report: &Value) -> Result<()> {
+	let queue = array_at(report, "/optimization_queue")?;
+	let qmd = find_by_field(queue, "/issue", "XY-923")?;
+	let private_provider = find_by_field(queue, "/issue", "XY-930")?;
+	let openviking = find_by_field(queue, "/issue", "XY-928")?;
+	let letta = find_by_field(queue, "/issue", "letta-core-archive-adapter-brief")?;
+	let service_native = find_by_field(queue, "/issue", "service-native-dreaming-outputs-brief")?;
+
+	assert_eq!(qmd.pointer("/status").and_then(Value::as_str), Some("existing"));
+	assert_eq!(private_provider.pointer("/status").and_then(Value::as_str), Some("existing"));
+	assert_eq!(openviking.pointer("/status").and_then(Value::as_str), Some("existing"));
+	assert_eq!(letta.pointer("/status").and_then(Value::as_str), Some("proposed"));
+	assert_eq!(service_native.pointer("/status").and_then(Value::as_str), Some("proposed"));
+	assert!(array_contains_str(
+		report,
+		"/claim_boundaries/not_allowed",
+		"Do not treat qmd full-suite wrong_result counts as a regression of qmd debug ergonomics."
+	)?);
+
+	Ok(())
+}
+
+fn assert_xy955_follow_up_issue_briefs(report: &Value) -> Result<()> {
+	let existing = array_at(report, "/follow_up_issue_briefs/existing")?;
+	let proposed = array_at(report, "/follow_up_issue_briefs/proposed")?;
+	let qmd = find_by_field(existing, "/issue", "XY-923")?;
+	let private_provider = find_by_field(existing, "/issue", "XY-930")?;
+	let letta = find_by_field(proposed, "/issue", "letta-core-archive-adapter-brief")?;
+	let service_native =
+		find_by_field(proposed, "/issue", "service-native-dreaming-outputs-brief")?;
+
+	assert!(qmd.pointer("/scope").and_then(Value::as_str).is_some_and(|scope| {
+		scope.contains("immediate top-k") && scope.contains("candidate-drop artifacts")
+	}));
+	assert!(qmd.pointer("/non_goal").and_then(Value::as_str).is_some_and(|non_goal| {
+		non_goal.contains("qmd full-suite wrong_result counts")
+			&& non_goal.contains("debug ergonomics")
+	}));
+	assert!(
+		private_provider
+			.pointer("/non_goal")
+			.and_then(Value::as_str)
+			.is_some_and(|non_goal| non_goal.contains("Do not infer credentials"))
+	);
+	assert!(letta.pointer("/validation").and_then(Value::as_str).is_some_and(|validation| {
+		validation.contains("Letta core block JSON") && validation.contains("typed outcome states")
+	}));
+	assert!(
+		service_native
+			.pointer("/non_goal")
+			.and_then(Value::as_str)
+			.is_some_and(|non_goal| non_goal.contains("Pulse clone"))
+	);
+
+	Ok(())
+}
+
+#[test]
 fn qmd_trace_replay_diagnostics_report_preserves_claim_boundaries() -> Result<()> {
 	let report = serde_json::from_str::<Value>(&fs::read_to_string(
 		trace_replay_diagnostics_report_path()?,
@@ -4139,6 +4386,14 @@ fn assert_dreaming_readiness_baseline_counts(ledger: &Value, stages: &[Value]) -
 		Some(0)
 	);
 
+	assert_dreaming_final_competitor_retest_stage(ledger, stages)?;
+	assert_dreaming_memory_summary_stage(stages)?;
+	assert_dreaming_proactive_brief_stage(stages)?;
+
+	Ok(())
+}
+
+fn assert_dreaming_final_competitor_retest_stage(ledger: &Value, stages: &[Value]) -> Result<()> {
 	let retest = find_by_field(stages, "/stage_id", "final_competitor_retest_status")?;
 
 	assert_eq!(retest.pointer("/baseline_counts/pass").and_then(Value::as_u64), Some(22));
@@ -4146,6 +4401,24 @@ fn assert_dreaming_readiness_baseline_counts(ledger: &Value, stages: &[Value]) -
 	assert_eq!(retest.pointer("/baseline_counts/blocked").and_then(Value::as_u64), Some(2));
 	assert_eq!(retest.pointer("/baseline_counts/not_tested").and_then(Value::as_u64), Some(11));
 	assert_eq!(retest.pointer("/baseline_counts/not_encoded").and_then(Value::as_u64), Some(11));
+	assert_eq!(retest.pointer("/post_stage_counts/pass").and_then(Value::as_u64), Some(40));
+	assert_eq!(retest.pointer("/post_stage_counts/wrong_result").and_then(Value::as_u64), Some(0));
+	assert_eq!(retest.pointer("/post_stage_counts/blocked").and_then(Value::as_u64), Some(7));
+	assert_eq!(retest.pointer("/post_stage_counts/not_encoded").and_then(Value::as_u64), Some(19));
+	assert_eq!(retest.pointer("/qmd_post_stage_counts/pass").and_then(Value::as_u64), Some(17));
+	assert_eq!(
+		retest.pointer("/qmd_post_stage_counts/wrong_result").and_then(Value::as_u64),
+		Some(13)
+	);
+	assert!(retest.pointer("/post_stage_basis").and_then(Value::as_str).is_some_and(|basis| {
+		basis.contains("XY-955 closeout retest")
+			&& basis.contains("qmd live adapter materialization is 17 pass")
+	}));
+
+	assert_dreaming_readiness_summary_buckets(ledger)
+}
+
+fn assert_dreaming_readiness_summary_buckets(ledger: &Value) -> Result<()> {
 	assert!(array_contains_str(ledger, "/summary/improved", "current_vs_historical_correctness")?);
 	assert!(array_contains_str(ledger, "/summary/improved", "preference_evolution")?);
 	assert!(array_contains_str(ledger, "/summary/improved", "reviewable_consolidation")?);
@@ -4161,9 +4434,6 @@ fn assert_dreaming_readiness_baseline_counts(ledger: &Value, stages: &[Value]) -
 	assert!(array_contains_str(ledger, "/summary/unchanged", "final_competitor_retest_status")?);
 	assert!(array_at(ledger, "/summary/blocked")?.is_empty());
 	assert!(array_at(ledger, "/summary/not_tested")?.is_empty());
-
-	assert_dreaming_memory_summary_stage(stages)?;
-	assert_dreaming_proactive_brief_stage(stages)?;
 
 	Ok(())
 }
@@ -4253,7 +4523,9 @@ fn assert_dreaming_readiness_markdown_boundaries(markdown: &str) {
 	assert!(markdown.contains("`regressed`: none"));
 	assert!(markdown.contains("the XY-905 run passes all six memory-evolution jobs"));
 	assert!(markdown.contains("XY-952 adds a reviewable `elf.memory_summary/v1`"));
+	assert!(markdown.contains("XY-955 closes the final competitor retest row"));
 	assert!(markdown.contains("XY-905"));
+	assert!(markdown.contains("qmd live `pass=17`, `wrong_result=13`"));
 	assert!(
 		markdown
 			.contains("Do not claim this ledger proves preference history against mem0/OpenMemory")

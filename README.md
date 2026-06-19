@@ -168,6 +168,15 @@ provider-backed ELF evidence was required.
   does not create a managed-memory parity claim. The new `proactive_brief` fixture
   scores 5 jobs, with 4 pass and 1 blocked private-corpus case; it does not create
   Pulse or hosted managed-memory parity.
+- Dreaming competitor-strength closeout after XY-955: the June 17 retest keeps ELF
+  locally and partially stronger only. The aggregate fixture retest remains 53 pass
+  and 7 typed blockers, the representative graph/RAG slice remains typed non-pass,
+  first-generation OSS fixture coverage remains 4 pass and 2 blocked, and the fresh
+  full live-adapter rerun reports ELF at 40 pass/0 wrong_result versus qmd at 17
+  pass/13 wrong_result while preserving qmd's separate debug-ergonomics edge. This
+  rejects broad superiority claims and leaves qmd debug ergonomics,
+  OpenViking trajectory, Letta core/archive, graph/RAG quality, and XY-930
+  private/provider gates as follow-up work.
 - Full-suite live real-world adapter sweep after XY-926: ELF and qmd emit
   Docker-isolated `live_real_world` records for all 55 checked-in jobs across 13 suites
   through `cargo make real-world-memory-live-adapters`. Both keep the original
@@ -275,6 +284,7 @@ Detailed evidence and interpretation:
 - [Live Temporal Reconciliation Report - June 16, 2026](docs/evidence/benchmarking/2026-06-16-live-temporal-reconciliation-report.md)
 - [Proactive Brief Scoring Report - June 16, 2026](docs/evidence/benchmarking/2026-06-16-proactive-brief-scoring-report.md)
 - [Scheduled Memory Task Scoring Report - June 16, 2026](docs/evidence/benchmarking/2026-06-16-scheduled-memory-task-scoring-report.md)
+- [Dreaming Competitor-Strength Retest Report - June 17, 2026](docs/evidence/benchmarking/2026-06-17-dreaming-competitor-strength-retest-report.md)
 - [Live Baseline Benchmark Runbook](docs/runbook/benchmarking/live_baseline_benchmark.md)
 - [Single-User Production Runbook](docs/runbook/single_user_production.md)
 - Benchmark contract:
@@ -358,6 +368,7 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [Live Temporal Reconciliation Report - June 16, 2026](docs/evidence/benchmarking/2026-06-16-live-temporal-reconciliation-report.md)
 - [Proactive Brief Scoring Report - June 16, 2026](docs/evidence/benchmarking/2026-06-16-proactive-brief-scoring-report.md)
 - [Scheduled Memory Task Scoring Report - June 16, 2026](docs/evidence/benchmarking/2026-06-16-scheduled-memory-task-scoring-report.md)
+- [Dreaming Competitor-Strength Retest Report - June 17, 2026](docs/evidence/benchmarking/2026-06-17-dreaming-competitor-strength-retest-report.md)
 - [Live Baseline Benchmark Runbook](docs/runbook/benchmarking/live_baseline_benchmark.md)
 - [Real-World Agent Memory Benchmark](docs/runbook/benchmarking/real_world_agent_memory_benchmark.md)
 - [External Memory Improvement Plan](docs/evidence/external_memory/external_memory_improvement_plan.md)
@@ -369,9 +380,10 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [Derived Knowledge Page Follow-Up Research](docs/research/derived_knowledge_page_followup.md)
 - [Dreaming Product Surface Follow-Up Research](docs/research/dreaming_product_surface_followup.md)
 
-Latest real-world benchmark report: June 16, 2026. Latest external research refresh:
-June 11, 2026; June 16 adds live temporal reconciliation, live consolidation
-self-check evidence, and fixture-backed scheduled-memory task scoring.
+Latest real-world benchmark report: June 17, 2026. Latest external research refresh:
+June 11, 2026; June 17 adds the Dreaming competitor-strength closeout retest and
+optimization queue after the June 16 temporal reconciliation, live consolidation
+self-check, proactive-brief, and scheduled-memory scoring evidence.
 
 ## Documentation
 
