@@ -273,10 +273,13 @@ provider-backed ELF evidence was required.
   personalization, local `get_all` export-style readback, and deletion audit history.
   The separate OpenMemory export-helper setup probe in `live-baseline-20260611122416`
   records `blocked` with `DOCKER_UNAVAILABLE_IN_BASELINE_RUNNER`, so SDK `get_all`
-  is still not UI/export evidence. The comparison records ELF as a loss on preference
-  correction history, ties on scoped personalization and delete audit, `not_tested`
-  for local SDK export-style parity, `blocked` for OpenMemory UI/export, and
-  `non_goal` for hosted Platform export and optional graph memory in the local OSS
+  is still not UI/export evidence. OpenMemory UI/export product recheck after XY-987
+  refreshed that blocker in `live-baseline-20260619065543`; product browser/dashboard
+  readback is still not reached because the export helper needs Docker access to a
+  running OpenMemory product container. The comparison records ELF as a loss on
+  preference correction history, ties on scoped personalization and delete audit,
+  `not_tested` for local SDK export-style parity, `blocked` for OpenMemory UI/export,
+  and `non_goal` for hosted Platform export and optional graph memory in the local OSS
   lane.
 - Capture/write-policy live follow-up after XY-933: ELF now passes 4/4 live
   `capture_integration` jobs with zero redaction leaks, source ids preserved in
@@ -318,6 +321,7 @@ Detailed evidence and interpretation:
 - [qmd Debug-Ergonomics Dreaming Retest Report - June 19, 2026](docs/evidence/benchmarking/2026-06-19-qmd-debug-ergonomics-dreaming-retest-report.md)
 - [OpenViking Trajectory Materialization Report - June 19, 2026](docs/evidence/benchmarking/2026-06-19-openviking-trajectory-materialization-report.md)
 - [Service-Native Dreaming Readback Report - June 19, 2026](docs/evidence/benchmarking/2026-06-19-service-native-dreaming-readback-report.md)
+- [OpenMemory UI/Export Product Readback Report - June 19, 2026](docs/evidence/benchmarking/2026-06-19-openmemory-ui-export-product-readback-report.md)
 - [Live Baseline Benchmark Runbook](docs/runbook/benchmarking/live_baseline_benchmark.md)
 - [Single-User Production Runbook](docs/runbook/single_user_production.md)
 - Benchmark contract:
@@ -403,6 +407,7 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [Scheduled Memory Task Scoring Report - June 16, 2026](docs/evidence/benchmarking/2026-06-16-scheduled-memory-task-scoring-report.md)
 - [Dreaming Competitor-Strength Retest Report - June 17, 2026](docs/evidence/benchmarking/2026-06-17-dreaming-competitor-strength-retest-report.md)
 - [qmd Debug-Ergonomics Dreaming Retest Report - June 19, 2026](docs/evidence/benchmarking/2026-06-19-qmd-debug-ergonomics-dreaming-retest-report.md)
+- [OpenMemory UI/Export Product Readback Report - June 19, 2026](docs/evidence/benchmarking/2026-06-19-openmemory-ui-export-product-readback-report.md)
 - [Live Baseline Benchmark Runbook](docs/runbook/benchmarking/live_baseline_benchmark.md)
 - [Real-World Agent Memory Benchmark](docs/runbook/benchmarking/real_world_agent_memory_benchmark.md)
 - [External Memory Improvement Plan](docs/evidence/external_memory/external_memory_improvement_plan.md)
