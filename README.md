@@ -207,6 +207,13 @@ provider-backed ELF evidence was required.
   This improves local Dreaming runtime authority and auditability, but it does not
   prove Pulse, ChatGPT Tasks, Claude Dreams, hosted managed-memory, or private-corpus
   parity.
+- Operator-approved public-proxy addendum after XY-930: the June 19 follow-up runs
+  `cargo make baseline-production-private-addendum` with a simulated/public-proxy
+  production corpus manifest approved for this stage. The run records 12 documents,
+  8 queries, 8/8 query passes, 8/8 full checks, 0 wrong_result, and 0 blocked while
+  using local `local-hash` embeddings. This closes the proxy/simulated-corpus stage;
+  it does not prove real private-corpus production quality or provider-backed
+  embedding quality.
 - Full-suite live real-world adapter sweep after XY-926: ELF and qmd emit
   Docker-isolated `live_real_world` records for all 55 checked-in jobs across 13 suites
   through `cargo make real-world-memory-live-adapters`. Both keep the original
@@ -325,6 +332,7 @@ Detailed evidence and interpretation:
 - [OpenViking Trajectory Materialization Report - June 19, 2026](docs/evidence/benchmarking/2026-06-19-openviking-trajectory-materialization-report.md)
 - [Service-Native Dreaming Readback Report - June 19, 2026](docs/evidence/benchmarking/2026-06-19-service-native-dreaming-readback-report.md)
 - [OpenMemory UI/Export Product Readback Report - June 19, 2026](docs/evidence/benchmarking/2026-06-19-openmemory-ui-export-product-readback-report.md)
+- [Operator-Approved Public-Proxy Production-Private Addendum - June 19, 2026](docs/evidence/benchmarking/2026-06-19-operator-approved-public-proxy-production-private-addendum.md)
 - [Live Baseline Benchmark Runbook](docs/runbook/benchmarking/live_baseline_benchmark.md)
 - [Single-User Production Runbook](docs/runbook/single_user_production.md)
 - Benchmark contract:
@@ -346,7 +354,8 @@ Evidence-backed position after the June 16 temporal reconciliation report:
   the local retrieval-debug baseline and now has full-suite live sweep evidence with
   typed non-pass states, while ELF has the stronger service and provenance contract.
 - ELF is still behind or not yet proven on full-suite live real-world pass parity,
-  private-corpus production quality, credentialed production-ops gates,
+  real private-corpus production quality, provider-backed private-corpus quality,
+  credentialed production-ops gates,
   qmd-style local debug knobs, agentmemory/claude-mem/OpenMemory-style capture and
   continuity UX,
   OpenViking-style context trajectory, and hosted managed memory.
@@ -412,6 +421,7 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [Graph/RAG Citation and Navigation Promotion Report - June 19, 2026](docs/evidence/benchmarking/2026-06-19-graph-rag-citation-navigation-promotion-report.md)
 - [qmd Debug-Ergonomics Dreaming Retest Report - June 19, 2026](docs/evidence/benchmarking/2026-06-19-qmd-debug-ergonomics-dreaming-retest-report.md)
 - [OpenMemory UI/Export Product Readback Report - June 19, 2026](docs/evidence/benchmarking/2026-06-19-openmemory-ui-export-product-readback-report.md)
+- [Operator-Approved Public-Proxy Production-Private Addendum - June 19, 2026](docs/evidence/benchmarking/2026-06-19-operator-approved-public-proxy-production-private-addendum.md)
 - [Live Baseline Benchmark Runbook](docs/runbook/benchmarking/live_baseline_benchmark.md)
 - [Real-World Agent Memory Benchmark](docs/runbook/benchmarking/real_world_agent_memory_benchmark.md)
 - [External Memory Improvement Plan](docs/evidence/external_memory/external_memory_improvement_plan.md)
@@ -424,10 +434,11 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [Dreaming Product Surface Follow-Up Research](docs/research/dreaming_product_surface_followup.md)
 
 Latest real-world benchmark report: June 19, 2026. Latest external research refresh:
-June 11, 2026; June 19 adds service-native Dreaming readback after the qmd
-debug-ergonomics Dreaming retest, the June 17 competitor-strength closeout, and the
-June 16 temporal reconciliation, live consolidation self-check, proactive-brief, and
-scheduled-memory scoring evidence.
+June 11, 2026; June 19 adds the XY-930 operator-approved public-proxy production
+addendum and service-native Dreaming readback after the qmd debug-ergonomics Dreaming
+retest, the June 17 competitor-strength closeout, and the June 16 temporal
+reconciliation, live consolidation self-check, proactive-brief, and scheduled-memory
+scoring evidence.
 
 ## Documentation
 

@@ -254,6 +254,12 @@ fn graph_rag_citation_navigation_promotion_report_json_path() -> Result<PathBuf>
 	report_snapshot_path("2026-06-19-graph-rag-citation-navigation-promotion-report.json")
 }
 
+fn operator_approved_public_proxy_private_addendum_report_json_path() -> Result<PathBuf> {
+	report_snapshot_path(
+		"2026-06-19-operator-approved-public-proxy-production-private-addendum.json",
+	)
+}
+
 fn openviking_trajectory_materialization_report_markdown_path() -> Result<PathBuf> {
 	Ok(workspace_root()?
 		.join("docs")
@@ -292,6 +298,14 @@ fn graph_rag_citation_navigation_promotion_report_markdown_path() -> Result<Path
 		.join("evidence")
 		.join("benchmarking")
 		.join("2026-06-19-graph-rag-citation-navigation-promotion-report.md"))
+}
+
+fn operator_approved_public_proxy_private_addendum_report_markdown_path() -> Result<PathBuf> {
+	Ok(workspace_root()?
+		.join("docs")
+		.join("evidence")
+		.join("benchmarking")
+		.join("2026-06-19-operator-approved-public-proxy-production-private-addendum.md"))
 }
 
 fn live_temporal_reconciliation_report_json_path() -> Result<PathBuf> {
@@ -3435,6 +3449,105 @@ fn assert_service_native_dreaming_docs(markdown: &str, benchmarking_index: &str,
 	assert!(benchmarking_index.contains("2026-06-19-service-native-dreaming-readback-report.md"));
 	assert!(readme.contains("Service-native Dreaming readback after XY-986"));
 	assert!(readme.contains("real-world-memory-service-native-dreaming"));
+}
+
+#[test]
+fn operator_approved_public_proxy_private_addendum_preserves_boundary() -> Result<()> {
+	let report = serde_json::from_str::<Value>(&fs::read_to_string(
+		operator_approved_public_proxy_private_addendum_report_json_path()?,
+	)?)?;
+	let markdown = fs::read_to_string(
+		operator_approved_public_proxy_private_addendum_report_markdown_path()?,
+	)?;
+	let benchmarking_index = fs::read_to_string(benchmarking_index_path()?)?;
+	let readme = fs::read_to_string(readme_path()?)?;
+
+	assert_eq!(
+		report.pointer("/schema").and_then(Value::as_str),
+		Some("elf.operator_approved_public_proxy_baseline_report/v1")
+	);
+	assert_eq!(report.pointer("/authority").and_then(Value::as_str), Some("XY-930"));
+	assert_eq!(report.pointer("/command/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(
+		report.pointer("/command/run_id").and_then(Value::as_str),
+		Some("live-baseline-20260619143959")
+	);
+	assert_eq!(
+		report.pointer("/corpus/profile").and_then(Value::as_str),
+		Some("production-private")
+	);
+	assert_eq!(
+		report.pointer("/corpus/runner_track").and_then(Value::as_str),
+		Some("private_production")
+	);
+	assert_eq!(
+		report.pointer("/corpus/manifest_kind").and_then(Value::as_str),
+		Some("operator_approved_public_proxy")
+	);
+	assert_eq!(
+		report.pointer("/corpus/manifest_id").and_then(Value::as_str),
+		Some("operator-approved-public-proxy-prod-corpus-2026-06-19")
+	);
+	assert_eq!(report.pointer("/embedding/mode").and_then(Value::as_str), Some("local"));
+	assert_eq!(
+		report.pointer("/embedding/provider_backed_quality_proven").and_then(Value::as_bool),
+		Some(false)
+	);
+	assert_eq!(report.pointer("/summary/project_status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(report.pointer("/summary/wrong_result").and_then(Value::as_u64), Some(0));
+	assert_eq!(report.pointer("/summary/blocked").and_then(Value::as_u64), Some(0));
+	assert_eq!(report.pointer("/summary/incomplete").and_then(Value::as_u64), Some(0));
+	assert_eq!(report.pointer("/check_summary/total").and_then(Value::as_u64), Some(8));
+	assert_eq!(report.pointer("/check_summary/pass").and_then(Value::as_u64), Some(8));
+	assert_eq!(
+		report.pointer("/query_summary/wrong_result_count").and_then(Value::as_u64),
+		Some(0)
+	);
+	assert_eq!(report.pointer("/backfill/completed_count").and_then(Value::as_u64), Some(12));
+	assert_eq!(report.pointer("/backfill/duplicate_source_notes").and_then(Value::as_u64), Some(0));
+
+	let queries = array_at(&report, "/queries")?;
+	let provider = find_by_field(queries, "/id", "q-explain-provider-blocker")?;
+
+	assert_eq!(queries.len(), 8);
+	assert_eq!(
+		provider.pointer("/top_evidence").and_then(Value::as_str),
+		Some("blocker-provider-missing")
+	);
+	assert_eq!(provider.pointer("/matched").and_then(Value::as_bool), Some(true));
+	assert!(array_contains_str(
+		&report,
+		"/claim_boundaries/not_allowed",
+		"Do not call this real private-corpus production proof."
+	)?);
+	assert!(array_contains_str(
+		&report,
+		"/claim_boundaries/not_allowed",
+		"Do not claim provider-backed production quality; embedding mode was local."
+	)?);
+	assert!(array_contains_str(
+		&report,
+		"/improvement_regression_readback/unchanged",
+		"Real private-corpus production quality is still not proven."
+	)?);
+	assert!(array_contains_str(
+		&report,
+		"/next_optimization_direction/when_operator_inputs_exist",
+		"Run provider-backed embeddings with ELF_BASELINE_ELF_EMBEDDING_MODE=provider and a routed provider setup."
+	)?);
+	assert!(markdown.contains("proxy corpus pass"));
+	assert!(markdown.contains("Do not call this real private-corpus production proof."));
+	assert!(markdown.contains("| Embedding mode | `local` |"));
+	assert!(
+		benchmarking_index
+			.contains("2026-06-19-operator-approved-public-proxy-production-private-addendum.md")
+	);
+	assert!(benchmarking_index.contains("not real private-corpus or provider-backed proof"));
+	assert!(readme.contains("Operator-approved public-proxy addendum after XY-930"));
+	assert!(readme.contains("8/8 query passes"));
+	assert!(readme.contains("does not prove real private-corpus production quality"));
+
+	Ok(())
 }
 
 #[test]
