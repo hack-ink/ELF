@@ -1,0 +1,163 @@
+{
+  "schema": "elf.openviking_trajectory_materialization_report/v1",
+  "report_id": "2026-06-19-openviking-trajectory-materialization",
+  "authority": "XY-983",
+  "created_at": "2026-06-19T05:23:25Z",
+  "purpose": "Materialize the OpenViking context-trajectory follow-up into scored benchmark evidence without converting blocked fixture rows into ELF win, tie, or loss claims.",
+  "source_baseline": {
+    "strength_profile_report": "apps/elf-eval/fixtures/report_snapshots/2026-06-11-qmd-openviking-strength-profile-report.json",
+    "dreaming_retest_report": "apps/elf-eval/fixtures/report_snapshots/2026-06-17-dreaming-competitor-strength-retest-report.json",
+    "context_trajectory_fixtures": "apps/elf-eval/fixtures/real_world_memory/context_trajectory/",
+    "june_17_follow_up_reference": "XY-928",
+    "current_follow_up_authority": "XY-983"
+  },
+  "summary": {
+    "overall_judgment": "materialized_blocked_context_trajectory_evidence",
+    "broader_superiority": "not_proven",
+    "blockers_removed_count": 0,
+    "blocked_scenario_count": 3,
+    "pass_count": 0,
+    "wrong_result_count": 0,
+    "incomplete_count": 0,
+    "regressed_scenario_count": 0,
+    "unchanged_scenario_count": 3,
+    "evidence_coverage": 1.0,
+    "source_ref_coverage": 1.0,
+    "quote_coverage": 1.0,
+    "expected_evidence_recall": 1.0,
+    "unsupported_claim_count": 0,
+    "unsupported_claims_rejected": [
+      "ELF does not beat OpenViking staged retrieval trajectory from fixture-only blocked rows.",
+      "ELF does not tie or beat OpenViking hierarchy selection until selected hierarchy nodes and evidence ids are materialized.",
+      "ELF does not tie or beat OpenViking recursive/context expansion until expansion paths and same-corpus evidence ids are materialized.",
+      "OpenViking setup reachability and same-corpus wrong_result evidence do not score its context-trajectory strengths."
+    ]
+  },
+  "commands": [
+    {
+      "command": "cargo make real-world-memory-context-trajectory",
+      "status": "pass",
+      "artifact_json": "tmp/real-world-memory/context-trajectory/report.json",
+      "artifact_markdown": "tmp/real-world-memory/context-trajectory/report.md",
+      "summary": {
+        "schema": "elf.real_world_job_report/v1",
+        "run_id": "real-world-memory-context-trajectory",
+        "job_count": 3,
+        "encoded_suite_count": 1,
+        "pass": 0,
+        "wrong_result": 0,
+        "blocked": 3,
+        "not_encoded": 0,
+        "evidence_required_count": 9,
+        "evidence_covered_count": 9,
+        "source_ref_required_count": 9,
+        "source_ref_covered_count": 9,
+        "quote_required_count": 9,
+        "quote_covered_count": 9
+      }
+    }
+  ],
+  "scenario_materialization": [
+    {
+      "scenario_id": "openviking_staged_retrieval_trajectory",
+      "job_id": "context-trajectory-openviking-staged-retrieval-001",
+      "surface": "staged retrieval trajectory",
+      "previous_status": "blocked",
+      "current_status": "blocked",
+      "judgment": "unchanged",
+      "blocker": "same_corpus_output_and_comparable_stage_artifacts_missing",
+      "materialized_artifact": "tmp/real-world-memory/context-trajectory/report.json",
+      "produced_evidence": [
+        "openviking-evidence-id-output-contract",
+        "openviking-same-corpus-precondition-blocked",
+        "elf-comparison-requires-comparable-trajectory"
+      ],
+      "required_next_artifacts": [
+        "OpenViking expected_evidence_ids, matched_evidence_ids, and missing_evidence_ids per same-corpus query.",
+        "OpenViking stage-level context trajectory output.",
+        "Equivalent ELF trace or search-session trajectory output for the same scenario."
+      ],
+      "claim_boundary": "No ELF win, tie, or loss is allowed until both systems publish comparable stage artifacts for the same context-trajectory scenario."
+    },
+    {
+      "scenario_id": "openviking_hierarchy_selection",
+      "job_id": "context-trajectory-openviking-hierarchy-selection-001",
+      "surface": "hierarchy selection",
+      "previous_status": "blocked",
+      "current_status": "blocked",
+      "judgment": "unchanged",
+      "blocker": "selected_hierarchy_nodes_and_evidence_ids_missing",
+      "materialized_artifact": "tmp/real-world-memory/context-trajectory/report.json",
+      "produced_evidence": [
+        "hierarchy-selection-output-contract",
+        "same-corpus-before-hierarchy",
+        "hierarchy-comparison-requires-elf-equivalent"
+      ],
+      "required_next_artifacts": [
+        "Selected parent context.",
+        "Selected child context.",
+        "Final resource evidence ids.",
+        "Rejected sibling or decoy context."
+      ],
+      "claim_boundary": "OpenViking's hierarchy design remains a reference, not a scored win, tie, or loss, until comparable output exists."
+    },
+    {
+      "scenario_id": "openviking_recursive_context_expansion",
+      "job_id": "context-trajectory-openviking-recursive-expansion-001",
+      "surface": "recursive/context expansion",
+      "previous_status": "blocked",
+      "current_status": "blocked",
+      "judgment": "unchanged",
+      "blocker": "expansion_paths_and_same_corpus_evidence_ids_missing",
+      "materialized_artifact": "tmp/real-world-memory/context-trajectory/report.json",
+      "produced_evidence": [
+        "recursive-expansion-output-contract",
+        "recursive-same-corpus-gate",
+        "recursive-elf-comparison-gate"
+      ],
+      "required_next_artifacts": [
+        "Seed context.",
+        "Expanded child contexts.",
+        "Final evidence ids.",
+        "Pruned branches."
+      ],
+      "claim_boundary": "No ELF tie, win, or loss is allowed until both systems publish comparable expansion-path artifacts for the same scenario."
+    }
+  ],
+  "improvement_regression_readback": {
+    "improved": 0,
+    "regressed": 0,
+    "unchanged": 3,
+    "blocked": 3,
+    "conclusion": "The follow-up improved auditability by materializing the context-trajectory benchmark slice, but it did not improve the competitive status because all three OpenViking context-trajectory strengths remain blocked."
+  },
+  "claim_boundaries": {
+    "allowed": [
+      "The context-trajectory slice is now reproducible through cargo make real-world-memory-context-trajectory.",
+      "The three OpenViking context-trajectory fixtures preserve typed blocked states with 9/9 evidence coverage.",
+      "The current result is unchanged versus the June 11 and June 17 reports: OpenViking trajectory, hierarchy, and recursive/context expansion strengths are still not scored."
+    ],
+    "not_allowed": [
+      "Do not claim ELF beats OpenViking on staged retrieval trajectory.",
+      "Do not claim ELF ties or beats OpenViking hierarchy selection.",
+      "Do not claim ELF ties or beats OpenViking recursive/context expansion.",
+      "Do not convert OpenViking same-corpus wrong_result evidence into a context-trajectory comparison win."
+    ]
+  },
+  "next_optimization_direction": {
+    "recommended_lane": "OpenViking live adapter materializer",
+    "required_fields": [
+      "expected_evidence_ids",
+      "matched_evidence_ids",
+      "missing_evidence_ids",
+      "stage_outputs",
+      "selected_parent_context",
+      "selected_child_context",
+      "final_resource_evidence_ids",
+      "rejected_or_pruned_contexts",
+      "expansion_path"
+    ],
+    "success_condition": "At least one OpenViking context-trajectory job moves from blocked to pass, wrong_result, or incomplete based on materialized staged, hierarchy, or expansion artifacts.",
+    "non_goal": "No ELF product change or superiority claim is authorized by this materialization-only report."
+  }
+}
