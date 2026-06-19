@@ -273,6 +273,62 @@ async fn docs_put_get_excerpts_and_search_l0_work_end_to_end() {
 
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL (or ELF_QDRANT_GRPC_URL) to run."]
+async fn docs_put_source_library_records_do_not_create_memory_notes() {
+	let Some(ctx) = setup_docs_context().await else { return };
+	let DocsContext { test_db, service } = ctx;
+	let before: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM memory_notes")
+		.fetch_one(&service.db.pool)
+		.await
+		.expect("Failed to count notes before docs_put.");
+	let put = put_test_doc_with(
+		&service,
+		"owner",
+		"project_shared",
+		Some("chat"),
+		"Captured thread",
+		serde_json::json!({
+			"schema": "doc_source_ref/v1",
+			"doc_type": "chat",
+			"ts": "2026-02-25T12:00:00Z",
+			"thread_id": "thread-source-library-1",
+			"role": "user",
+			"source_kind": "social_thread",
+			"canonical_uri": "https://example.com/thread/source-library-1",
+			"captured_at": "2026-02-25T12:10:00Z",
+			"source_created_at": "2026-02-25T11:55:00Z",
+			"trust_label": "public_web",
+			"author": "Example Researcher",
+			"handle": "example-researcher",
+			"excerpt_locator": {
+				"quote": {
+					"exact": "Source libraries should preserve thread context."
+				}
+			}
+		}),
+		"Source libraries should preserve thread context. Agents can later promote only selected facts.",
+	)
+	.await;
+	let after: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM memory_notes")
+		.fetch_one(&service.db.pool)
+		.await
+		.expect("Failed to count notes after docs_put.");
+	let doc_exists: bool =
+		sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM doc_documents WHERE doc_id = $1)")
+			.bind(put.doc_id)
+			.fetch_one(&service.db.pool)
+			.await
+			.expect("Failed to verify doc row.");
+
+	assert!(doc_exists);
+	assert_eq!(after, before, "docs_put must not create durable Memory Notes.");
+
+	drop(service);
+
+	test_db.cleanup().await.expect("Failed to cleanup test database.");
+}
+
+#[tokio::test]
+#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL (or ELF_QDRANT_GRPC_URL) to run."]
 async fn docs_search_l0_respects_scope_doc_type_agent_id_and_updated_after_filters() {
 	let Some(ctx) = setup_docs_context().await else { return };
 	let (

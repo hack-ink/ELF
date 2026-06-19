@@ -6,7 +6,7 @@ resource: docs/spec/system_version_registry.md
 status: active
 authority: normative
 owner: spec
-last_verified: 2026-06-18
+last_verified: 2026-06-20
 tags:
   - docs
   - spec
@@ -50,6 +50,10 @@ This document is normative. When a new versioned identifier is introduced, it mu
 - Type: `docs_put.source_ref` JSON envelope schema identifier.
 - Defined in: `docs/spec/system_doc_source_ref_v1.md`.
 - Consumers: Docs ingestion (`POST /v2/docs`, MCP `elf_docs_put`) and any doc evidence consumers that need durable source provenance.
+- Source Library profile: optional profile fields in `doc_source_ref/v1` cover
+  saved articles, social threads, PDFs, text exports, repository files, chat
+  excerpts, and web pages with canonical URI, source kind, timestamps, trust
+  label, and excerpt locator metadata.
 - Bump rule: Introduce `doc_source_ref/v2` only when the required/optional key contract becomes incompatible with v1. Keep older identifiers immutable.
 
 ### source_ref resolver: Doc Extension v1 doc pointer
@@ -58,6 +62,9 @@ This document is normative. When a new versioned identifier is introduced, it mu
 - Type: `source_ref.resolver` identifier for Doc Extension v1 pointers.
 - Defined in: `docs/spec/system_source_ref_doc_pointer_v1.md`.
 - Consumers: Agents that hydrate doc excerpts and build evidence-linked facts; Doc Extension v1 excerpt endpoints.
+- Pointer payloads returned by `docs_search_l0` include document/chunk ids,
+  state hashes, hash aliases, and a position locator for verified excerpt
+  hydration.
 - Bump rule: Introduce `elf_doc_ext/v2` only when the dereference contract (required fields, semantics, or verification surface) becomes incompatible.
 
 ### Note provenance bundle schema
