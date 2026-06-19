@@ -70,6 +70,31 @@ graphrag-docker)
 		-e ELF_GRAPHRAG_MAX_INPUT_CHARS \
 		baseline-runner python3 scripts/graphrag-docker-smoke.py
 	;;
+letta-core-archive-export-readback)
+	start="$(printenv ELF_LETTA_SMOKE_START || true)"
+	status=0
+	if [ "$start" = "1" ]; then
+		docker compose -f docker-compose.baseline.yml --profile letta up -d letta
+	fi
+	docker compose -f docker-compose.baseline.yml run --build --rm \
+		-e ELF_LETTA_SMOKE_RUN \
+		-e ELF_LETTA_SMOKE_REPORT_DIR \
+		-e ELF_LETTA_SMOKE_WORK_DIR \
+		-e ELF_LETTA_SMOKE_INSTALL_CLIENT \
+		-e ELF_LETTA_CLIENT_PACKAGE \
+		-e ELF_LETTA_CLIENT_REF \
+		-e ELF_LETTA_BASE_URL \
+		-e ELF_LETTA_MODEL \
+		-e ELF_LETTA_EMBEDDING \
+		-e ELF_LETTA_TIMEOUT_SECONDS \
+		-e ELF_LETTA_STARTUP_ATTEMPTS \
+		-e ELF_LETTA_STARTUP_INTERVAL_SECONDS \
+		baseline-runner python3 scripts/letta-core-archive-export-readback-smoke.py || status=$?
+	if [ "$start" = "1" ]; then
+		docker compose -f docker-compose.baseline.yml --profile letta stop letta >/dev/null 2>&1 || true
+	fi
+	exit "$status"
+	;;
 lightrag-docker-context)
 	start="$(printenv ELF_LIGHTRAG_CONTEXT_START || true)"
 	status=0
