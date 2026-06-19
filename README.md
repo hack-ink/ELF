@@ -208,6 +208,13 @@ provider-backed ELF evidence was required.
   This improves local Dreaming runtime authority and auditability, but it does not
   prove Pulse, ChatGPT Tasks, Claude Dreams, hosted managed-memory, or private-corpus
   parity.
+- Dreaming review queue after XY-1021: the June 20 follow-up adds
+  `elf.dreaming_review_queue/v1` through service, HTTP, and MCP readback. The queue
+  sits over consolidation proposals and exposes source refs, affected refs,
+  confidence, unsupported-claim lint, diff, policy, and review audit for existing
+  Dreaming suites plus tag, duplicate-merge, page-rebuild, memory-promotion,
+  graph-fact, and correction variants. It keeps source mutation disallowed and limits
+  auto-apply to approved low-risk derived organization candidates.
 - Live knowledge-page rebuild/lint after XY-935: the June 20 follow-up adds
   `cargo make real-world-memory-live-knowledge`, a Docker-contained ELF service
   materialization command for `knowledge_compilation`. The slice runs
@@ -353,6 +360,7 @@ Detailed evidence and interpretation:
 - [Service-Native Dreaming Readback Report - June 19, 2026](docs/evidence/benchmarking/2026-06-19-service-native-dreaming-readback-report.md)
 - [OpenMemory UI/Export Product Readback Report - June 19, 2026](docs/evidence/benchmarking/2026-06-19-openmemory-ui-export-product-readback-report.md)
 - [Operator-Approved Public-Proxy Production-Private Addendum - June 19, 2026](docs/evidence/benchmarking/2026-06-19-operator-approved-public-proxy-production-private-addendum.md)
+- [Dreaming Review Queue Report - June 20, 2026](docs/evidence/benchmarking/2026-06-20-dreaming-review-queue-report.md)
 - [Graph Topic-Map Report - June 20, 2026](docs/evidence/benchmarking/2026-06-20-graph-topic-map-report.md)
 - [Knowledge Workspace Version-Diff Report - June 20, 2026](docs/evidence/benchmarking/2026-06-20-knowledge-workspace-version-diff-report.md)
 - [Live Knowledge-Page Rebuild/Lint Report - June 20, 2026](docs/evidence/benchmarking/2026-06-20-live-knowledge-page-rebuild-lint-report.md)
