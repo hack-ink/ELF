@@ -59,3 +59,11 @@ logs.
   snapshot for XY-930, recording `baseline-production-private-addendum` as 8/8 pass
   on the simulated/public-proxy corpus while preserving real private-corpus and
   provider-backed production quality as unproven.
+
+## 2026-06-20
+
+- Added the live knowledge-page rebuild/lint report for XY-935, plus
+  `cargo make real-world-memory-live-knowledge`, proving the checked-in knowledge
+  fixture pack can be materialized through `ElfService` rebuild, lint, and page
+  search before scoring while keeping external wiki/graph/RAG product comparisons
+  separate.

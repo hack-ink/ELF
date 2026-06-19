@@ -207,6 +207,15 @@ provider-backed ELF evidence was required.
   This improves local Dreaming runtime authority and auditability, but it does not
   prove Pulse, ChatGPT Tasks, Claude Dreams, hosted managed-memory, or private-corpus
   parity.
+- Live knowledge-page rebuild/lint after XY-935: the June 20 follow-up adds
+  `cargo make real-world-memory-live-knowledge`, a Docker-contained ELF service
+  materialization command for `knowledge_compilation`. The slice runs
+  `ElfService::knowledge_page_rebuild`, `knowledge_page_lint`, and
+  `knowledge_pages_search` before scoring citation coverage, stale-source lint,
+  unsupported-section flags, rebuild metadata, backlinks, and source-of-truth
+  boundaries. This upgrades ELF's own knowledge-page evidence from fixture-only to
+  service-native proof, but it does not claim llm-wiki, gbrain, GraphRAG, RAGFlow,
+  LightRAG, or graphify parity without comparable contained adapter outputs.
 - Operator-approved public-proxy addendum after XY-930: the June 19 follow-up runs
   `cargo make baseline-production-private-addendum` with a simulated/public-proxy
   production corpus manifest approved for this stage. The run records 12 documents,
@@ -433,12 +442,12 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [Derived Knowledge Page Follow-Up Research](docs/research/derived_knowledge_page_followup.md)
 - [Dreaming Product Surface Follow-Up Research](docs/research/dreaming_product_surface_followup.md)
 
-Latest real-world benchmark report: June 19, 2026. Latest external research refresh:
-June 11, 2026; June 19 adds the XY-930 operator-approved public-proxy production
-addendum and service-native Dreaming readback after the qmd debug-ergonomics Dreaming
-retest, the June 17 competitor-strength closeout, and the June 16 temporal
-reconciliation, live consolidation self-check, proactive-brief, and scheduled-memory
-scoring evidence.
+Latest real-world benchmark report: June 20, 2026. Latest external research refresh:
+June 11, 2026; June 20 adds the Live Knowledge-Page Rebuild/Lint Report - June 20, 2026
+after the June 19 XY-930 operator-approved public-proxy production addendum and
+service-native Dreaming readback, the qmd debug-ergonomics Dreaming retest, the
+June 17 competitor-strength closeout, and the June 16 temporal reconciliation,
+live consolidation self-check, proactive-brief, and scheduled-memory scoring evidence.
 
 ## Documentation
 

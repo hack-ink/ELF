@@ -270,13 +270,14 @@
         "blocked",
         "not_encoded"
       ],
-      "measured_claim": "ELF fixture knowledge pages pass, but live knowledge compilation is not encoded. The XY-929 graph/RAG representative slice scores graphify as wrong_result and keeps GraphRAG, llm-wiki, and gbrain as blocked or not_tested references.",
+      "measured_claim": "ELF fixture knowledge pages pass, and XY-935 adds a Docker-contained ELF service-native rebuild/lint/search command for the checked-in knowledge pack. The XY-929 graph/RAG representative slice still scores graphify as wrong_result and keeps GraphRAG, llm-wiki, and gbrain as blocked or not_tested references, so broad external knowledge-product comparison remains unproven.",
       "command_artifacts": [
         "docs/evidence/benchmarking/2026-06-11-measurement-coverage-audit.md",
+        "docs/evidence/benchmarking/2026-06-20-live-knowledge-page-rebuild-lint-report.md",
         "docs/evidence/benchmarking/2026-06-11-graph-rag-scored-smoke-adapter-report.md"
       ],
       "follow_up_issues": [
-        "XY-926",
+        "XY-935",
         "XY-929"
       ],
       "caveat": "GraphRAG, graphify, llm-wiki, and gbrain remain references until contained citation, graph-report, and lint jobs produce passable evidence-linked output."
