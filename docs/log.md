@@ -49,3 +49,6 @@ logs.
   `cargo make real-world-memory-service-native-dreaming`, proving public/local
   memory summary, proactive brief, and scheduled-memory artifacts can be materialized
   through `ElfService` readback while preserving XY-930 private/provider blockers.
+- Added the OpenMemory UI/export product readback recheck report and snapshot for
+  XY-987, preserving the product UI/export scenario as blocked while keeping mem0 SDK
+  `get_all` evidence separate from OpenMemory product evidence.
