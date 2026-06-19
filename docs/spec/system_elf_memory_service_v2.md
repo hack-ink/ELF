@@ -1093,6 +1093,7 @@ Admin consolidation proposal review:
 - GET /v2/admin/consolidation/proposals
 - GET /v2/admin/consolidation/proposals/{proposal_id}
 - POST /v2/admin/consolidation/proposals/{proposal_id}/review
+- GET /v2/admin/dreaming/review-queue
 
 Behavior:
 - These endpoints expose fixture-driven or manually supplied consolidation runs and
@@ -1108,6 +1109,16 @@ Behavior:
   starts from `proposed`.
 - Every review action writes append-only review audit events returned by proposal
   detail readback.
+- `GET /v2/admin/dreaming/review-queue` exposes
+  `elf.dreaming_review_queue/v1`, a read-only policy view over consolidation
+  proposals for Dreaming variants such as memory summaries, proactive briefs,
+  scheduled memories, tags, duplicate merges, page rebuilds, memory promotions,
+  graph facts, and corrections.
+- Dreaming queue items must include source refs, affected refs, confidence,
+  unsupported-claim lint, diff, policy, and review audit. The queue must report
+  `source_mutation_allowed = false`; low-risk derived organization auto-apply is
+  limited to approved tag or duplicate-merge candidates with no lint or source
+  mutation request.
 - These endpoints must not call LLM, embedding, rerank, or external provider adapters.
 - They must not mutate authoritative source notes, docs, events, traces, graph facts,
   or search traces.

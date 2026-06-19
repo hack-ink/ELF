@@ -52,19 +52,20 @@ use elf_service::{
 	CoreBlockUpsertRequest, CoreBlockUpsertResponse, CoreBlocksGetRequest, CoreBlocksResponse,
 	DeleteRequest, DeleteResponse, DocType, DocsExcerptResponse, DocsExcerptsGetRequest,
 	DocsGetRequest, DocsGetResponse, DocsPutRequest, DocsPutResponse, DocsSearchL0Request,
-	DocsSearchL0Response, EntityMemoryViewRequest, EntityMemoryViewResponse, Error, EventMessage,
-	GranteeKind, GraphQueryEntityRef, GraphQueryPredicateRef, GraphQueryRequest,
-	GraphQueryResponse, GraphReportRequest, GraphReportResponse, IngestionProfileSelector,
-	KnowledgePageGetRequest, KnowledgePageLintRequest, KnowledgePageLintResponse,
-	KnowledgePageRebuildRequest, KnowledgePageRebuildResponse, KnowledgePageResponse,
-	KnowledgePageSearchRequest, KnowledgePageSearchResponse, KnowledgePagesListRequest,
-	KnowledgePagesListResponse, ListRequest, ListResponse, MemoryHistoryGetRequest,
-	MemoryHistoryResponse, NoteFetchRequest, NoteFetchResponse, NoteProvenanceBundleResponse,
-	NoteProvenanceGetRequest, PayloadLevel, PublishNoteRequest, QueryPlan, RankingRequestOverride,
-	RebuildReport, SearchDetailsRequest, SearchDetailsResult, SearchExplainRequest,
-	SearchExplainResponse, SearchIndexItem, SearchRequest, SearchResponse, SearchSessionGetRequest,
-	SearchTimelineGroup, SearchTimelineRequest, SearchTrajectoryResponse, SearchTrajectorySummary,
-	ShareScope, SpaceGrantRevokeRequest, SpaceGrantRevokeResponse, SpaceGrantUpsertRequest,
+	DocsSearchL0Response, DreamingReviewQueueRequest, DreamingReviewQueueResponse,
+	EntityMemoryViewRequest, EntityMemoryViewResponse, Error, EventMessage, GranteeKind,
+	GraphQueryEntityRef, GraphQueryPredicateRef, GraphQueryRequest, GraphQueryResponse,
+	GraphReportRequest, GraphReportResponse, IngestionProfileSelector, KnowledgePageGetRequest,
+	KnowledgePageLintRequest, KnowledgePageLintResponse, KnowledgePageRebuildRequest,
+	KnowledgePageRebuildResponse, KnowledgePageResponse, KnowledgePageSearchRequest,
+	KnowledgePageSearchResponse, KnowledgePagesListRequest, KnowledgePagesListResponse,
+	ListRequest, ListResponse, MemoryHistoryGetRequest, MemoryHistoryResponse, NoteFetchRequest,
+	NoteFetchResponse, NoteProvenanceBundleResponse, NoteProvenanceGetRequest, PayloadLevel,
+	PublishNoteRequest, QueryPlan, RankingRequestOverride, RebuildReport, SearchDetailsRequest,
+	SearchDetailsResult, SearchExplainRequest, SearchExplainResponse, SearchIndexItem,
+	SearchRequest, SearchResponse, SearchSessionGetRequest, SearchTimelineGroup,
+	SearchTimelineRequest, SearchTrajectoryResponse, SearchTrajectorySummary, ShareScope,
+	SpaceGrantRevokeRequest, SpaceGrantRevokeResponse, SpaceGrantUpsertRequest,
 	SpaceGrantsListRequest, TextPositionSelector, TextQuoteSelector, TraceBundleGetRequest,
 	TraceBundleResponse, TraceGetRequest, TraceGetResponse, TraceRecentListRequest,
 	TraceRecentListResponse, TraceTrajectoryGetRequest, UnpublishNoteRequest, UpdateRequest,
@@ -146,6 +147,7 @@ const VIEWER_HTML: &str = include_str!("../static/viewer.html");
 		consolidation_proposals_list,
 		consolidation_proposal_get,
 		consolidation_proposal_review,
+		dreaming_review_queue,
 		knowledge_page_rebuild,
 		knowledge_pages_list,
 		knowledge_pages_search,
@@ -178,6 +180,7 @@ const VIEWER_HTML: &str = include_str!("../static/viewer.html");
 		(name = "search", description = "Progressive search sessions and raw search diagnostics."),
 		(name = "graph", description = "Graph query and predicate administration."),
 		(name = "consolidation", description = "Reviewable derived consolidation proposals."),
+		(name = "dreaming", description = "Dreaming review queue and derived memory organization."),
 		(name = "knowledge", description = "Derived knowledge page rebuild and lint readback."),
 		(name = "admin", description = "Local admin and operator inspection routes."),
 	)
@@ -409,6 +412,13 @@ struct ConsolidationProposalsListQuery {
 struct ConsolidationProposalReviewBody {
 	action: ConsolidationReviewAction,
 	review_comment: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct DreamingReviewQueueQuery {
+	run_id: Option<Uuid>,
+	review_state: Option<ConsolidationReviewState>,
+	limit: Option<u32>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -742,6 +752,7 @@ pub fn admin_router(state: AppState) -> Router {
 			"/v2/admin/consolidation/proposals/{proposal_id}/review",
 			routing::post(consolidation_proposal_review),
 		)
+		.route("/v2/admin/dreaming/review-queue", routing::get(dreaming_review_queue))
 		.route("/v2/admin/knowledge/pages", routing::get(knowledge_pages_list))
 		.route("/v2/admin/knowledge/pages/rebuild", routing::post(knowledge_page_rebuild))
 		.route("/v2/admin/knowledge/pages/search", routing::post(knowledge_pages_search))
@@ -3054,6 +3065,53 @@ async fn consolidation_proposal_review(
 			proposal_id,
 			review_action: payload.action,
 			review_comment: payload.review_comment,
+		})
+		.await?;
+
+	Ok(Json(response))
+}
+
+#[utoipa::path(
+	get,
+	path = "/v2/admin/dreaming/review-queue",
+	tag = "dreaming",
+	params(
+		("run_id" = Option<Uuid>, Query, description = "Optional consolidation run filter."),
+		("review_state" = Option<String>, Query, description = "Optional review-state filter."),
+		("limit" = Option<u32>, Query, description = "Maximum queue items to return."),
+	),
+	responses(
+		(status = 200, description = "Dreaming review queue items.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Admin access required.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
+async fn dreaming_review_queue(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	query: Result<Query<DreamingReviewQueueQuery>, QueryRejection>,
+) -> Result<Json<DreamingReviewQueueResponse>, ApiError> {
+	let ctx = RequestContext::from_headers(&headers)?;
+	let Query(query) = query.map_err(|err| {
+		tracing::warn!(error = %err, "Invalid query parameters.");
+
+		json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid query parameters.".to_string(),
+			None,
+		)
+	})?;
+	let response = state
+		.service
+		.dreaming_review_queue(DreamingReviewQueueRequest {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+			run_id: query.run_id,
+			review_state: query.review_state,
+			limit: query.limit,
 		})
 		.await?;
 
