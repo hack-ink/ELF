@@ -1,0 +1,229 @@
+{
+  "schema": "elf.qmd_debug_ergonomics_dreaming_retest_report/v1",
+  "report_id": "xy-982-qmd-debug-ergonomics-dreaming-retest-2026-06-19",
+  "authority": "XY-982",
+  "created_at": "2026-06-19T04:48:00Z",
+  "purpose": "Retest qmd debug ergonomics after the Dreaming-readiness stages and XY-955 closeout while preserving local-debug artifact boundaries.",
+  "source_evidence_cutoff": "2026-06-19",
+  "source_baseline": {
+    "trace_replay_diagnostics_report": "docs/evidence/benchmarking/2026-06-11-elf-qmd-trace-replay-diagnostics-report.md",
+    "trace_replay_diagnostics_snapshot": "apps/elf-eval/fixtures/report_snapshots/2026-06-11-elf-qmd-trace-replay-diagnostics-report.json",
+    "dreaming_competitor_strength_retest_report": "docs/evidence/benchmarking/2026-06-17-dreaming-competitor-strength-retest-report.md",
+    "dreaming_competitor_strength_retest_snapshot": "apps/elf-eval/fixtures/report_snapshots/2026-06-17-dreaming-competitor-strength-retest-report.json",
+    "fresh_live_operator_debug_summary": "tmp/real-world-job/operator-ux-live-adapters/summary.json"
+  },
+  "judgment_terms": [
+    "improved",
+    "regressed",
+    "unchanged",
+    "not_tested",
+    "non_goal"
+  ],
+  "status_terms": [
+    "pass",
+    "wrong_result",
+    "not_tested",
+    "not_encoded",
+    "typed_non_pass",
+    "non_goal"
+  ],
+  "summary": {
+    "overall_judgment": "unchanged_with_live_operator_debug_confirmation",
+    "debug_ergonomics_edge": "qmd_default_top10_and_short_cli_replay_preserved",
+    "broader_superiority": "not_proven",
+    "improved_scenario_count": 0,
+    "regressed_scenario_count": 0,
+    "unchanged_scenario_count": 6,
+    "not_tested_scenario_count": 3,
+    "non_goal_scenario_count": 1,
+    "unsupported_claims_rejected": [
+      "ELF does not broadly beat qmd from this retest.",
+      "qmd's live operator-debug wrong_result rows do not erase qmd's default top-k and short CLI replay edge.",
+      "ELF trace/admin endpoint availability is not proof that the default stress report emits qmd-level candidate visibility.",
+      "Expansion, dense/sparse contribution, fusion, and rerank-on quality remain unproven until comparable artifacts are emitted."
+    ]
+  },
+  "commands": [
+    {
+      "command": "cargo make real-world-job-operator-ux-live-adapters",
+      "status": "pass",
+      "artifact": "tmp/real-world-job/operator-ux-live-adapters/summary.json",
+      "summary": {
+        "schema": "elf.real_world_operator_debug_live_adapter_sweep/v1",
+        "generated_at": "2026-06-19T04:48:00Z",
+        "boundary": "This narrow sweep scores operator-debugging fixtures only. It does not change core ranking, launch OpenMemory or claude-mem UI flows, or convert fixture-only UX evidence into broad product superiority."
+      }
+    }
+  ],
+  "adapter_summaries": [
+    {
+      "adapter_id": "elf_operator_debug_live",
+      "evidence_class": "live_real_world",
+      "job_count": 6,
+      "pass": 6,
+      "wrong_result": 0,
+      "expected_evidence_recall": 1.0,
+      "trace_available_count": 6,
+      "trace_incomplete_count": 0,
+      "replay_command_available_count": 6,
+      "candidate_drop_visibility": "stage visibility present across all jobs",
+      "repair_action_clear_count": 6,
+      "raw_sql_needed_count": 0,
+      "mean_score": 1.0,
+      "mean_latency_ms": 17.494
+    },
+    {
+      "adapter_id": "qmd_operator_debug_live",
+      "evidence_class": "live_real_world",
+      "job_count": 6,
+      "pass": 0,
+      "wrong_result": 6,
+      "expected_evidence_recall": 1.0,
+      "trace_available_count": 0,
+      "trace_incomplete_count": 6,
+      "replay_command_available_count": 6,
+      "candidate_drop_visibility": "qmd top-k replay output is available, but intermediate candidate-drop stages are not exposed",
+      "repair_action_clear_count": 6,
+      "raw_sql_needed_count": 0,
+      "mean_score": 0.658,
+      "mean_latency_ms": 1231.328
+    }
+  ],
+  "scenario_retests": [
+    {
+      "scenario_id": "qmd_default_top10_candidate_artifact",
+      "baseline_outcome": "loss",
+      "current_outcome": "loss",
+      "judgment": "unchanged",
+      "evidence": [
+        "docs/evidence/benchmarking/2026-06-11-elf-qmd-trace-replay-diagnostics-report.md"
+      ],
+      "boundary": "qmd still exposes direct top-10 rows; ELF has trace ids and admin surfaces but no default qmd-like candidate artifact in the stress report."
+    },
+    {
+      "scenario_id": "qmd_short_cli_replay",
+      "baseline_outcome": "loss",
+      "current_outcome": "loss",
+      "judgment": "unchanged",
+      "evidence": [
+        "docs/evidence/benchmarking/2026-06-11-elf-qmd-trace-replay-diagnostics-report.md"
+      ],
+      "boundary": "qmd replay remains a short local CLI path; ELF replay still depends on service config, headers, traces, and bundle hydration."
+    },
+    {
+      "scenario_id": "elf_operator_debug_trace_hydration",
+      "baseline_outcome": "win",
+      "current_outcome": "win",
+      "judgment": "unchanged",
+      "evidence": [
+        "tmp/real-world-job/operator-ux-live-adapters/summary.json"
+      ],
+      "current_counts": {
+        "elf_trace_available": 6,
+        "qmd_trace_available": 0,
+        "qmd_trace_incomplete": 6
+      },
+      "boundary": "ELF has trace visibility on 6/6 jobs; qmd has replay commands but no service trace hydration in this slice."
+    },
+    {
+      "scenario_id": "operator_debug_replay_command_availability",
+      "baseline_outcome": "tie",
+      "current_outcome": "tie",
+      "judgment": "unchanged",
+      "evidence": [
+        "tmp/real-world-job/operator-ux-live-adapters/summary.json"
+      ],
+      "current_counts": {
+        "elf_replay_command_available": 6,
+        "qmd_replay_command_available": 6
+      },
+      "boundary": "Both adapters emit replay commands on 6/6 jobs; this does not score equivalent UI quality."
+    },
+    {
+      "scenario_id": "operator_debug_candidate_drop_visibility",
+      "baseline_outcome": "win",
+      "current_outcome": "win",
+      "judgment": "unchanged",
+      "evidence": [
+        "tmp/real-world-job/operator-ux-live-adapters/summary.json"
+      ],
+      "current_counts": {
+        "elf_visible_jobs": 6,
+        "qmd_intermediate_stage_visible_jobs": 0
+      },
+      "typed_non_pass_states": [
+        "retrieved_but_dropped"
+      ],
+      "boundary": "ELF exposes stage visibility; qmd exposes top-k output but not intermediate drops."
+    },
+    {
+      "scenario_id": "operator_debug_selected_but_not_narrated_visibility",
+      "baseline_outcome": "win",
+      "current_outcome": "win",
+      "judgment": "unchanged",
+      "evidence": [
+        "tmp/real-world-job/operator-ux-live-adapters/summary.json"
+      ],
+      "typed_non_pass_states": [
+        "selected_but_not_narrated"
+      ],
+      "boundary": "ELF exposes final results and narration-stage details for the selected-but-not-narrated case; qmd does not expose an equivalent service trace surface."
+    },
+    {
+      "scenario_id": "query_expansion_attribution",
+      "baseline_outcome": "not_tested",
+      "current_outcome": "not_tested",
+      "judgment": "not_tested",
+      "boundary": "No comparable expansion-variant artifact exists for both systems."
+    },
+    {
+      "scenario_id": "dense_sparse_channel_attribution",
+      "baseline_outcome": "not_tested",
+      "current_outcome": "not_tested",
+      "judgment": "not_tested",
+      "boundary": "Current artifacts still do not expose comparable dense-only and sparse-only contribution data."
+    },
+    {
+      "scenario_id": "fusion_attribution",
+      "baseline_outcome": "not_tested",
+      "current_outcome": "not_tested",
+      "judgment": "not_tested",
+      "boundary": "Current artifacts still do not expose comparable fusion inputs, rank deltas, or dropped candidates."
+    },
+    {
+      "scenario_id": "rerank_attribution",
+      "baseline_outcome": "non_goal",
+      "current_outcome": "non_goal",
+      "judgment": "non_goal",
+      "boundary": "The qmd materializer path remains a --no-rerank path for this evidence line."
+    }
+  ],
+  "claim_boundaries": {
+    "allowed": [
+      "qmd's default local-debug edge remains: top-10 candidate rows plus short CLI replay.",
+      "ELF still wins the narrow live operator-debug trace hydration, candidate-drop visibility, and selected-but-not-narrated visibility slice.",
+      "Both systems still expose replay commands for the operator-debug fixtures.",
+      "The Dreaming-stage retest did not find a debug-ergonomics regression."
+    ],
+    "not_allowed": [
+      "Do not claim ELF broadly beats qmd from this retest.",
+      "Do not treat qmd's 0 pass/6 wrong_result live operator-debug slice as proof that qmd's default top-k/replay edge is gone.",
+      "Do not claim expansion, fusion, dense/sparse contribution, or rerank parity until directly comparable artifacts are emitted.",
+      "Do not collapse not_tested, non_goal, or wrong_result into pass evidence."
+    ]
+  },
+  "next_optimization_direction": {
+    "priority": "P0",
+    "summary": "Emit comparable candidate-replay artifacts for both ELF and qmd before rerunning any broad debug-ergonomics claim.",
+    "required_fields": [
+      "immediate_top_k_rows",
+      "expansion_variants",
+      "dense_only_candidates",
+      "sparse_only_candidates",
+      "fusion_rank_deltas",
+      "rerank_score_or_disabled_marker",
+      "dropped_or_demoted_expected_evidence",
+      "one_command_replay_for_each_system"
+    ]
+  }
+}

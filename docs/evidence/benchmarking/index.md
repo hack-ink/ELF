@@ -36,3 +36,4 @@ Routes to: Benchmarking evidence concepts under `docs/evidence/benchmarking/`.
 - `2026-06-16-proactive-brief-scoring-report.md`: Proactive Brief Scoring Report - June 16, 2026.
 - `2026-06-16-scheduled-memory-task-scoring-report.md`: Real-World Job Benchmark Report.
 - `2026-06-17-dreaming-competitor-strength-retest-report.md`: Dreaming Competitor-Strength Retest Report - June 17, 2026.
+- `2026-06-19-qmd-debug-ergonomics-dreaming-retest-report.md`: qmd Debug-Ergonomics Dreaming Retest Report - June 19, 2026; confirms qmd's default top-k/replay edge is unchanged while ELF keeps the narrow operator-debug trace/stage visibility wins.
