@@ -112,6 +112,19 @@ Unreviewed consolidation proposals must not be used as source input for persiste
 - `deterministic`
 - `provider_metadata`
 - `allowed_variance`
+- `previous_version_diff`
+
+`previous_version_diff` must use schema `elf.knowledge_page.version_diff/v1`.
+Initial rebuilds must set `available = false` and explain that no previous version
+exists. Later rebuilds must set `available = true` and include previous and new
+content/source hashes, title/source/content changed booleans, added/removed/changed/
+unchanged section key lists and counts, a human-readable summary, and
+`source_mutation_allowed = false`.
+
+Previous-version diff metadata is rebuild readback metadata, not source content. Page
+content hashes must not include `previous_version_diff`; otherwise repeating the same
+source rebuild would appear nondeterministic solely because the previous-version
+metadata changed.
 
 When future provider-backed or LLM-derived page text is persisted,
 `rebuild_metadata.deterministic` must be false unless the provider output is fully
@@ -161,6 +174,7 @@ Page search results must include:
 - bounded section snippet
 - section citations and normalized source backlinks
 - page source coverage metadata
+- rebuild metadata, including previous-version diff metadata when present
 - lint summary and trust state that distinguishes clean, warning, error, and low
   coverage results
 - a derived-result notice that source notes, event audits, relation facts, and applied
