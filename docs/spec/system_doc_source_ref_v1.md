@@ -6,7 +6,7 @@ resource: docs/spec/system_doc_source_ref_v1.md
 status: active
 authority: normative
 owner: spec
-last_verified: 2026-06-18
+last_verified: 2026-06-20
 tags:
   - docs
   - spec
@@ -141,7 +141,56 @@ Backward compatibility:
   mappings are not performed.
 
 ==================================================
-5) Examples
+5) Source Library profile
+==================================================
+
+`doc_source_ref/v1` also defines a first-class Source Library profile for
+saved long-form material. This profile is opt-in: a payload enters the profile
+when it provides any Source Library field below. Once it enters the profile,
+the required profile keys below MUST be present and valid.
+
+Required Source Library profile keys:
+
+- `source_kind` (string): one of `article`, `social_thread`, `pdf`,
+  `text_export`, `repo_file`, `chat_excerpt`, or `web_page`.
+- `canonical_uri` (string): stable URL, URN, file URI, repo URI, or source
+  identifier that can be used for deduplication and operator inspection.
+- `captured_at` (string): timezone-aware RFC3339 timestamp for when ELF
+  captured the source.
+- `trust_label` (string): one of `trusted`, `user_captured`, `public_web`,
+  `third_party`, or `unverified`.
+
+Optional Source Library profile keys:
+
+- `source_created_at` (string): timezone-aware RFC3339 source publication or
+  creation time when available.
+- `author` (string): author or source display name when available.
+- `handle` (string): stable social/repository/source handle when available.
+- `source_content_hash` (string): producer-supplied source hash when available.
+  ELF also stores and returns its own canonical `content_hash` for the persisted
+  document bytes.
+- `excerpt_locator` (object): selector hints for the saved source. It MAY
+  include:
+  - `quote`: object with required `exact` and optional `prefix`/`suffix`.
+  - `position`: object with integer `start` and `end` byte offsets, where
+    `start < end`.
+
+Compatibility with `doc_type`:
+
+- `source_kind = "social_thread"` and `source_kind = "chat_excerpt"` require
+  `doc_type = "chat"`.
+- `source_kind = "repo_file"` requires `doc_type = "dev"`.
+- Other source kinds may use the normal `knowledge` or `search` document
+  classes based on caller workflow.
+
+Boundary:
+
+- Source Library ingest stores a document and document chunks. It MUST NOT
+  create or mutate durable Memory Notes unless the caller separately invokes an
+  explicit memory-write or reviewed promotion path.
+
+==================================================
+6) Examples
 ==================================================
 
 Chat:
@@ -204,5 +253,49 @@ Knowledge:
   "doc_type": "knowledge",
   "ts": "2026-02-25T19:05:15Z",
   "uri": "docs://kb/architecture/2026/02/overview"
+}
+```
+
+Source Library article:
+
+```json
+{
+  "schema": "doc_source_ref/v1",
+  "doc_type": "knowledge",
+  "ts": "2026-06-20T01:10:00Z",
+  "source_kind": "article",
+  "canonical_uri": "https://example.com/research/agent-memory-os",
+  "captured_at": "2026-06-20T01:10:00Z",
+  "source_created_at": "2026-06-19T21:00:00Z",
+  "trust_label": "public_web",
+  "author": "Example Research Group",
+  "excerpt_locator": {
+    "quote": {
+      "exact": "source libraries preserve long-form evidence"
+    },
+    "position": {
+      "start": 0,
+      "end": 128
+    }
+  }
+}
+```
+
+Source Library social thread:
+
+```json
+{
+  "schema": "doc_source_ref/v1",
+  "doc_type": "chat",
+  "ts": "2026-06-20T02:00:00Z",
+  "thread_id": "thread-agent-knowledge-os",
+  "role": "user",
+  "source_kind": "social_thread",
+  "canonical_uri": "https://example.com/thread/agent-knowledge-os",
+  "captured_at": "2026-06-20T02:00:00Z",
+  "source_created_at": "2026-06-20T01:45:00Z",
+  "trust_label": "public_web",
+  "author": "Example Builder",
+  "handle": "example-builder"
 }
 ```
