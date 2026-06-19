@@ -61,11 +61,11 @@ use elf_service::{
 	KnowledgePageSearchResponse, KnowledgePagesListRequest, KnowledgePagesListResponse,
 	ListRequest, ListResponse, MemoryHistoryGetRequest, MemoryHistoryResponse, NoteFetchRequest,
 	NoteFetchResponse, NoteProvenanceBundleResponse, NoteProvenanceGetRequest, PayloadLevel,
-	PublishNoteRequest, QueryPlan, RankingRequestOverride, RebuildReport, SearchDetailsRequest,
-	SearchDetailsResult, SearchExplainRequest, SearchExplainResponse, SearchIndexItem,
-	SearchRequest, SearchResponse, SearchSessionGetRequest, SearchTimelineGroup,
-	SearchTimelineRequest, SearchTrajectoryResponse, SearchTrajectorySummary, ShareScope,
-	SpaceGrantRevokeRequest, SpaceGrantRevokeResponse, SpaceGrantUpsertRequest,
+	PublishNoteRequest, QueryPlan, RankingRequestOverride, RebuildReport, RecallDebugPanelRequest,
+	RecallDebugPanelResponse, SearchDetailsRequest, SearchDetailsResult, SearchExplainRequest,
+	SearchExplainResponse, SearchIndexItem, SearchRequest, SearchResponse, SearchSessionGetRequest,
+	SearchTimelineGroup, SearchTimelineRequest, SearchTrajectoryResponse, SearchTrajectorySummary,
+	ShareScope, SpaceGrantRevokeRequest, SpaceGrantRevokeResponse, SpaceGrantUpsertRequest,
 	SpaceGrantsListRequest, TextPositionSelector, TextQuoteSelector, TraceBundleGetRequest,
 	TraceBundleResponse, TraceGetRequest, TraceGetResponse, TraceRecentListRequest,
 	TraceRecentListResponse, TraceTrajectoryGetRequest, UnpublishNoteRequest, UpdateRequest,
@@ -148,6 +148,7 @@ const VIEWER_HTML: &str = include_str!("../static/viewer.html");
 		consolidation_proposal_get,
 		consolidation_proposal_review,
 		dreaming_review_queue,
+		recall_debug_panel,
 		knowledge_page_rebuild,
 		knowledge_pages_list,
 		knowledge_pages_search,
@@ -181,6 +182,7 @@ const VIEWER_HTML: &str = include_str!("../static/viewer.html");
 		(name = "graph", description = "Graph query and predicate administration."),
 		(name = "consolidation", description = "Reviewable derived consolidation proposals."),
 		(name = "dreaming", description = "Dreaming review queue and derived memory organization."),
+		(name = "recall", description = "Cross-layer recall and debug readback."),
 		(name = "knowledge", description = "Derived knowledge page rebuild and lint readback."),
 		(name = "admin", description = "Local admin and operator inspection routes."),
 	)
@@ -516,6 +518,18 @@ struct TraceBundleGetQuery {
 }
 
 #[derive(Clone, Debug, Deserialize)]
+struct RecallDebugPanelBody {
+	trace_id: Option<Uuid>,
+	query: Option<String>,
+	docs_query: Option<String>,
+	knowledge_query: Option<String>,
+	graph_subject: Option<GraphQueryEntityRef>,
+	graph_predicate: Option<GraphQueryPredicateRef>,
+	include_dreaming: Option<bool>,
+	limit: Option<u32>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
 struct ShareScopeBody {
 	space: String,
 }
@@ -753,6 +767,7 @@ pub fn admin_router(state: AppState) -> Router {
 			routing::post(consolidation_proposal_review),
 		)
 		.route("/v2/admin/dreaming/review-queue", routing::get(dreaming_review_queue))
+		.route("/v2/admin/recall-debug/panel", routing::post(recall_debug_panel))
 		.route("/v2/admin/knowledge/pages", routing::get(knowledge_pages_list))
 		.route("/v2/admin/knowledge/pages/rebuild", routing::post(knowledge_page_rebuild))
 		.route("/v2/admin/knowledge/pages/search", routing::post(knowledge_pages_search))
@@ -3112,6 +3127,52 @@ async fn dreaming_review_queue(
 			run_id: query.run_id,
 			review_state: query.review_state,
 			limit: query.limit,
+		})
+		.await?;
+
+	Ok(Json(response))
+}
+
+#[utoipa::path(
+	post,
+	path = "/v2/admin/recall-debug/panel",
+	tag = "recall",
+	request_body = Value,
+	responses(
+		(status = 200, description = "Cross-layer recall/debug panel.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Admin access required.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
+async fn recall_debug_panel(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	payload: Result<Json<RecallDebugPanelBody>, JsonRejection>,
+) -> Result<Json<RecallDebugPanelResponse>, ApiError> {
+	let ctx = RequestContext::from_headers(&headers)?;
+	let read_profile = required_read_profile(&headers)?;
+	let Json(payload) = payload.map_err(|err| {
+		tracing::warn!(error = %err, "Invalid request payload.");
+
+		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+	})?;
+	let response = state
+		.service
+		.recall_debug_panel(RecallDebugPanelRequest {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+			agent_id: ctx.agent_id,
+			read_profile,
+			trace_id: payload.trace_id,
+			query: payload.query,
+			docs_query: payload.docs_query,
+			knowledge_query: payload.knowledge_query,
+			graph_subject: payload.graph_subject,
+			graph_predicate: payload.graph_predicate,
+			include_dreaming: payload.include_dreaming,
+			limit: payload.limit,
 		})
 		.await?;
 
