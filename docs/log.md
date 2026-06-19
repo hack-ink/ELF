@@ -71,3 +71,7 @@ logs.
   rebuild metadata now exposes `elf.knowledge_page.version_diff/v1`, live benchmark
   artifacts expose `page_version_diff`, and the Docker-contained live knowledge
   report now publishes `version_diff_coverage`.
+- Added the Graph Topic-Map report for XY-1020. ELF now exposes
+  `elf.graph_report/v1` through service, HTTP, and MCP readback, using existing
+  Postgres graph-lite facts with sourced, inferred, ambiguous, stale, and superseded
+  markers while keeping `valid_from`/`valid_to` as the internal temporal vocabulary.

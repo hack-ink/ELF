@@ -217,6 +217,13 @@ Supersession rule (write-time):
   - `historical` when `valid_to <= read_at`.
   - `future` when `valid_from > read_at`.
 - Search relation context may include historical facts when they are evidence-linked to a returned note, but it must label them as historical instead of silently treating them as current.
+- Graph report APIs expose `elf.graph_report/v1` topic maps from the same Postgres
+  graph-lite tables. Report facts must retain `valid_from`, `valid_to`,
+  `evidence_note_ids`, and supersession links, and must mark sourced, inferred,
+  ambiguous, stale, and superseded states distinctly.
+- Graphiti/Zep `valid_at` and `invalid_at` vocabulary is adapter-boundary
+  terminology only. ELF internal schema, reports, docs, and service payloads use
+  `valid_from` and `valid_to`.
 
 ============================================================
 7. CALL EXAMPLES

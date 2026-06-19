@@ -54,17 +54,17 @@ use elf_service::{
 	DocsGetRequest, DocsGetResponse, DocsPutRequest, DocsPutResponse, DocsSearchL0Request,
 	DocsSearchL0Response, EntityMemoryViewRequest, EntityMemoryViewResponse, Error, EventMessage,
 	GranteeKind, GraphQueryEntityRef, GraphQueryPredicateRef, GraphQueryRequest,
-	GraphQueryResponse, IngestionProfileSelector, KnowledgePageGetRequest,
-	KnowledgePageLintRequest, KnowledgePageLintResponse, KnowledgePageRebuildRequest,
-	KnowledgePageRebuildResponse, KnowledgePageResponse, KnowledgePageSearchRequest,
-	KnowledgePageSearchResponse, KnowledgePagesListRequest, KnowledgePagesListResponse,
-	ListRequest, ListResponse, MemoryHistoryGetRequest, MemoryHistoryResponse, NoteFetchRequest,
-	NoteFetchResponse, NoteProvenanceBundleResponse, NoteProvenanceGetRequest, PayloadLevel,
-	PublishNoteRequest, QueryPlan, RankingRequestOverride, RebuildReport, SearchDetailsRequest,
-	SearchDetailsResult, SearchExplainRequest, SearchExplainResponse, SearchIndexItem,
-	SearchRequest, SearchResponse, SearchSessionGetRequest, SearchTimelineGroup,
-	SearchTimelineRequest, SearchTrajectoryResponse, SearchTrajectorySummary, ShareScope,
-	SpaceGrantRevokeRequest, SpaceGrantRevokeResponse, SpaceGrantUpsertRequest,
+	GraphQueryResponse, GraphReportRequest, GraphReportResponse, IngestionProfileSelector,
+	KnowledgePageGetRequest, KnowledgePageLintRequest, KnowledgePageLintResponse,
+	KnowledgePageRebuildRequest, KnowledgePageRebuildResponse, KnowledgePageResponse,
+	KnowledgePageSearchRequest, KnowledgePageSearchResponse, KnowledgePagesListRequest,
+	KnowledgePagesListResponse, ListRequest, ListResponse, MemoryHistoryGetRequest,
+	MemoryHistoryResponse, NoteFetchRequest, NoteFetchResponse, NoteProvenanceBundleResponse,
+	NoteProvenanceGetRequest, PayloadLevel, PublishNoteRequest, QueryPlan, RankingRequestOverride,
+	RebuildReport, SearchDetailsRequest, SearchDetailsResult, SearchExplainRequest,
+	SearchExplainResponse, SearchIndexItem, SearchRequest, SearchResponse, SearchSessionGetRequest,
+	SearchTimelineGroup, SearchTimelineRequest, SearchTrajectoryResponse, SearchTrajectorySummary,
+	ShareScope, SpaceGrantRevokeRequest, SpaceGrantRevokeResponse, SpaceGrantUpsertRequest,
 	SpaceGrantsListRequest, TextPositionSelector, TextQuoteSelector, TraceBundleGetRequest,
 	TraceBundleResponse, TraceGetRequest, TraceGetResponse, TraceRecentListRequest,
 	TraceRecentListResponse, TraceTrajectoryGetRequest, UnpublishNoteRequest, UpdateRequest,
@@ -277,6 +277,16 @@ struct DocsExcerptsGetBody {
 
 #[derive(Clone, Debug, Deserialize)]
 struct GraphQueryBody {
+	subject: GraphQueryEntityRef,
+	predicate: Option<GraphQueryPredicateRef>,
+	scopes: Option<Vec<String>>,
+	as_of: Option<String>,
+	limit: Option<u32>,
+	explain: Option<bool>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct GraphReportBody {
 	subject: GraphQueryEntityRef,
 	predicate: Option<GraphQueryPredicateRef>,
 	scopes: Option<Vec<String>>,
@@ -652,6 +662,7 @@ pub fn router(state: AppState) -> Router {
 		.route("/v2/searches/{search_id}/timeline", routing::get(searches_timeline))
 		.route("/v2/searches/{search_id}/notes", routing::post(searches_notes))
 		.route("/v2/graph/query", routing::post(graph_query))
+		.route("/v2/graph/report", routing::post(graph_report))
 		.route("/v2/notes", routing::get(notes_list))
 		.route(
 			"/v2/notes/{note_id}",
@@ -1830,6 +1841,52 @@ async fn graph_query(
 	let response = state
 		.service
 		.graph_query(GraphQueryRequest {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+			agent_id: ctx.agent_id,
+			read_profile,
+			subject: payload.subject,
+			predicate: payload.predicate,
+			scopes: payload.scopes,
+			as_of,
+			limit: payload.limit,
+			explain: payload.explain,
+		})
+		.await?;
+
+	Ok(Json(response))
+}
+
+#[utoipa::path(
+	post,
+	path = "/v2/graph/report",
+	tag = "graph",
+	request_body = Value,
+	responses(
+		(status = 200, description = "Source-backed graph topic-map report.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Scope denied.", body = ErrorBody),
+		(status = 422, description = "Non-English input rejected.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
+async fn graph_report(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	payload: Result<Json<GraphReportBody>, JsonRejection>,
+) -> Result<Json<GraphReportResponse>, ApiError> {
+	let ctx = RequestContext::from_headers(&headers)?;
+	let read_profile = required_read_profile(&headers)?;
+	let Json(payload) = payload.map_err(|err| {
+		tracing::warn!(error = %err, "Invalid request payload.");
+
+		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+	})?;
+	let as_of = parse_optional_rfc3339(payload.as_of.as_ref(), "$.as_of")?;
+	let response = state
+		.service
+		.graph_report(GraphReportRequest {
 			tenant_id: ctx.tenant_id,
 			project_id: ctx.project_id,
 			agent_id: ctx.agent_id,
