@@ -1,0 +1,206 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "source-library-social-thread-001",
+  "suite": "source_library",
+  "title": "Saved social thread keeps handle metadata and remains source-only until promoted",
+  "corpus": {
+    "corpus_id": "real-world-memory-source-library-2026-06-20",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "thread-source-record",
+        "kind": "source_library_record",
+        "text": "Thread capture: canonical_uri=https://example.com/thread/agent-knowledge-os, source_kind=social_thread, author=Example Builder, handle=example-builder, captured_at=2026-06-20T02:00:00Z, source_created_at=2026-06-20T01:45:00Z, trust_label=public_web, doc_type=chat, thread_id=thread-agent-knowledge-os.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "elf_doc_ext/v1",
+          "ref": {
+            "doc_id": "33333333-3333-4333-8333-333333333333",
+            "chunk_id": "44444444-4444-4444-8444-444444444444"
+          },
+          "state": {
+            "content_hash": "thread-content-hash",
+            "chunk_hash": "thread-chunk-hash"
+          },
+          "hashes": {
+            "content_hash": "thread-content-hash",
+            "chunk_hash": "thread-chunk-hash"
+          },
+          "locator": {
+            "position": {
+              "start": 42,
+              "end": 140
+            }
+          }
+        },
+        "created_at": "2026-06-20T02:00:00Z"
+      },
+      {
+        "evidence_id": "thread-promotion-boundary",
+        "kind": "policy_boundary",
+        "text": "Promotion boundary: The thread remains a Source Library record. Durable Memory Notes are created only through explicit add_note or reviewed promotion; background organization may propose tags or summaries without mutating memory.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "source_library",
+            "evidence_id": "thread-promotion-boundary"
+          },
+          "locator": {
+            "quote": {
+              "exact": "Durable Memory Notes are created only through explicit add_note or reviewed promotion"
+            }
+          }
+        },
+        "created_at": "2026-06-20T02:01:00Z"
+      },
+      {
+        "evidence_id": "silent-promotion-decoy",
+        "kind": "decoy",
+        "text": "Decoy: the background organizer silently promoted every post in the thread into permanent memory.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "source_library",
+            "evidence_id": "silent-promotion-decoy"
+          }
+        },
+        "created_at": "2026-06-20T02:02:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "elf_real_world_memory_fixture",
+      "answer": {
+        "content": "The social thread was saved as a Source Library chat document with canonical_uri=https://example.com/thread/agent-knowledge-os, source_kind=social_thread, author=Example Builder, handle=example-builder, captured/source-created timestamps, trust_label=public_web, and thread_id=thread-agent-knowledge-os. It stays source-only until an explicit add_note or reviewed promotion path creates Memory Notes; background organization may propose tags or summaries without mutating memory.",
+        "claims": [
+          {
+            "claim_id": "thread_metadata",
+            "text": "The saved thread keeps canonical URI, source kind, author, handle, timestamps, trust label, and thread id metadata.",
+            "evidence_ids": ["thread-source-record"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "thread_promotion_boundary",
+            "text": "The thread remains source-only until explicit add_note or reviewed promotion creates Memory Notes.",
+            "evidence_ids": ["thread-promotion-boundary"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["thread-source-record", "thread-promotion-boundary"],
+        "latency_ms": 1.0,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "thread-captured",
+      "ts": "2026-06-20T02:00:00Z",
+      "actor": "agent",
+      "action": "docs_put_social_thread",
+      "evidence_ids": ["thread-source-record"],
+      "summary": "The social thread was captured as a Source Library chat document."
+    },
+    {
+      "event_id": "promotion-boundary-checked",
+      "ts": "2026-06-20T02:01:00Z",
+      "actor": "agent",
+      "action": "checked_memory_promotion_boundary",
+      "evidence_ids": ["thread-promotion-boundary"],
+      "summary": "The memory promotion boundary was preserved."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "What did we capture from this thread, and can the agent remember it without silently turning every post into Memory Notes?",
+    "job_mode": "answer",
+    "constraints": ["cite_evidence", "preserve_social_source_metadata", "require_explicit_memory_promotion"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "thread_metadata",
+        "text": "The saved thread keeps canonical URI, source kind, author, handle, timestamps, trust label, and thread id metadata."
+      },
+      {
+        "claim_id": "thread_promotion_boundary",
+        "text": "The thread remains source-only until explicit add_note or reviewed promotion creates Memory Notes."
+      }
+    ],
+    "must_not_include": [
+      "silently promoted every post",
+      "permanent memory without review"
+    ],
+    "evidence_links": {
+      "thread_metadata": ["thread-source-record"],
+      "thread_promotion_boundary": ["thread-promotion-boundary"]
+    },
+    "answer_type": "direct_answer",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "thread-source-record",
+      "claim_id": "thread_metadata",
+      "requirement": "cite",
+      "quote": "source_kind=social_thread"
+    },
+    {
+      "evidence_id": "thread-promotion-boundary",
+      "claim_id": "thread_promotion_boundary",
+      "requirement": "cite",
+      "quote": "explicit add_note or reviewed promotion"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "silent-background-promotion",
+      "type": "decoy_evidence",
+      "evidence_ids": ["silent-promotion-decoy"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.35,
+        "max_points": 1.0,
+        "criteria": "Reports social-thread metadata and the explicit memory promotion boundary."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Cites thread metadata and promotion-boundary evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Rejects silent background memory promotion."
+      },
+      "lifecycle_behavior": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Keeps source capture, review proposals, and durable memory writes separate."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "claiming background organization can silently mutate durable memory",
+      "missing source metadata evidence"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "state_blocker"
+  },
+  "tags": ["synthetic", "source_library", "social_thread", "source_ref", "no_silent_memory_mutation"]
+}

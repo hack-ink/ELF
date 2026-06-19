@@ -53,6 +53,7 @@ const SUITES: &[&str] = &[
 	"proactive_brief",
 	"scheduled_memory",
 	"knowledge_compilation",
+	"source_library",
 	"operator_debugging_ux",
 	"capture_integration",
 	"production_ops",
@@ -7514,6 +7515,7 @@ fn render_markdown_semantics(out: &mut String, report: &RealWorldReport) {
 	out.push_str("- `unsupported_claim`: a job produced a substantive claim not supported by the fixture evidence links.\n");
 	out.push_str("- `not_encoded`: a suite has no checked-in fixture, or an encoded fixture declares a capability gap so no pass/fail claim is allowed.\n\n");
 	out.push_str("For `knowledge_compilation` jobs, generated pages are benchmark artifacts. Page sections must cite source evidence or timeline events, or be explicitly flagged as unsupported. Flagged unsupported summaries are counted separately from hidden unsupported claims.\n\n");
+	out.push_str("For `source_library` jobs, saved long-form material and social/thread captures are source records, not durable Memory Notes. Source records must preserve canonical source metadata, source_ref hydration pointers, and explicit promotion boundaries before any memory write is claimed.\n\n");
 	out.push_str("For `memory_summary` jobs, summary artifacts are derived review surfaces. Top-of-mind entries must be current, included or downgraded entries must carry source refs, and derived project-profile entries must either cite sources or be explicitly flagged as unsupported.\n\n");
 	out.push_str("For `proactive_brief` jobs, brief artifacts are fixture-scored derived outputs, not scheduled UI behavior. Every suggestion must carry evidence refs, freshness/currentness metadata, and an action rationale; stale, superseded, or tombstoned sources must not be presented as current recommendations.\n\n");
 	out.push_str("For `scheduled_memory` jobs, task artifacts are deterministic fixture-scored stand-ins for asynchronous work. Every output must carry evidence refs, freshness/currentness metadata, action rationale, and execution trace/readback evidence; scheduled tasks must not mutate source notes silently or claim hosted scheduler/private-provider parity from fixture-only output.\n\n");

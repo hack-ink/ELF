@@ -46,6 +46,21 @@ const DOC_RETRIEVAL_TRAJECTORY_SCHEMA_V1: &str = "doc_retrieval_trajectory/v1";
 const DOC_SOURCE_REF_SCHEMA_V1: &str = "source_ref/v1";
 const DOC_SOURCE_REF_RESOLVER_V1: &str = "elf_doc_ext/v1";
 const DOC_STATUSES: [&str; 2] = ["active", "deleted"];
+const SOURCE_LIBRARY_FIELD_KEYS: [&str; 9] = [
+	"source_kind",
+	"canonical_uri",
+	"captured_at",
+	"source_created_at",
+	"trust_label",
+	"author",
+	"handle",
+	"excerpt_locator",
+	"source_content_hash",
+];
+const SOURCE_LIBRARY_KINDS: [&str; 7] =
+	["article", "social_thread", "pdf", "text_export", "repo_file", "chat_excerpt", "web_page"];
+const SOURCE_LIBRARY_TRUST_LABELS: [&str; 5] =
+	["trusted", "user_captured", "public_web", "third_party", "unverified"];
 
 /// Document classification used for persistence and retrieval filters.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
@@ -269,6 +284,10 @@ pub struct DocsSearchL0ItemPointer {
 	pub reference: DocsSearchL0ItemReference,
 	/// Freshness guard for the pointer target.
 	pub state: DocsSearchL0ItemState,
+	/// Hash aliases for simpler pointer consumers.
+	pub hashes: DocsSearchL0ItemHashes,
+	/// Selector hints that can hydrate this chunk through `docs_excerpts_get`.
+	pub locator: DocsSearchL0ItemLocator,
 }
 
 /// Logical identifiers for a document-search hit.
@@ -290,6 +309,22 @@ pub struct DocsSearchL0ItemState {
 	#[serde(with = "crate::time_serde")]
 	/// Last update timestamp for the document.
 	pub doc_updated_at: OffsetDateTime,
+}
+
+/// Hash values carried with a document-search pointer.
+#[derive(Clone, Debug, Serialize)]
+pub struct DocsSearchL0ItemHashes {
+	/// Whole-document BLAKE3 hash.
+	pub content_hash: String,
+	/// Chunk-level BLAKE3 hash.
+	pub chunk_hash: String,
+}
+
+/// Locator hints carried with a document-search pointer.
+#[derive(Clone, Debug, Serialize)]
+pub struct DocsSearchL0ItemLocator {
+	/// Chunk byte position in the authoritative document content.
+	pub position: TextPositionSelector,
 }
 
 /// Explain payload for a document retrieval run.
@@ -512,6 +547,8 @@ struct DocSearchRow {
 	updated_at: OffsetDateTime,
 	content_hash: String,
 	chunk_hash: String,
+	start_offset: i32,
+	end_offset: i32,
 	chunk_text: String,
 }
 
@@ -1211,14 +1248,26 @@ fn docs_excerpt_locator(
 }
 
 fn build_docs_l0_pointer(row: &DocSearchRow, chunk_id: Uuid) -> DocsSearchL0ItemPointer {
+	let hashes = DocsSearchL0ItemHashes {
+		content_hash: row.content_hash.clone(),
+		chunk_hash: row.chunk_hash.clone(),
+	};
+
 	DocsSearchL0ItemPointer {
 		schema: DOC_SOURCE_REF_SCHEMA_V1.to_string(),
 		resolver: DOC_SOURCE_REF_RESOLVER_V1.to_string(),
 		reference: DocsSearchL0ItemReference { doc_id: row.doc_id, chunk_id },
 		state: DocsSearchL0ItemState {
-			content_hash: row.content_hash.clone(),
-			chunk_hash: row.chunk_hash.clone(),
+			content_hash: hashes.content_hash.clone(),
+			chunk_hash: hashes.chunk_hash.clone(),
 			doc_updated_at: row.updated_at,
+		},
+		hashes,
+		locator: DocsSearchL0ItemLocator {
+			position: TextPositionSelector {
+				start: row.start_offset.max(0) as usize,
+				end: row.end_offset.max(0) as usize,
+			},
 		},
 	}
 }
@@ -1337,6 +1386,7 @@ fn validate_docs_put(req: &DocsPutRequest) -> Result<ValidatedDocsPut> {
 	};
 
 	validate_doc_source_ref_requirements(source_ref_doc_type.as_str(), source_ref)?;
+	validate_source_library_metadata(source_ref_doc_type.as_str(), source_ref)?;
 
 	let write_policy =
 		writegate::apply_write_policy(req.content.as_str(), req.write_policy.as_ref()).map_err(
@@ -1431,6 +1481,194 @@ fn validate_doc_source_ref_requirements(
 	}
 
 	Ok(())
+}
+
+fn validate_source_library_metadata(
+	source_doc_type: &str,
+	source_ref: &Map<String, Value>,
+) -> Result<()> {
+	if !source_library_metadata_present(source_ref) {
+		return Ok(());
+	}
+
+	let source_kind =
+		extract_source_ref_string(source_ref, "source_kind", "$.source_ref[\"source_kind\"]")?;
+
+	if !SOURCE_LIBRARY_KINDS.contains(&source_kind.as_str()) {
+		return Err(Error::InvalidRequest {
+			message: format!(
+				"$.source_ref[\"source_kind\"] must be one of: {}.",
+				SOURCE_LIBRARY_KINDS.join("|")
+			),
+		});
+	}
+
+	validate_source_kind_doc_type(source_kind.as_str(), source_doc_type)?;
+	extract_source_ref_string(source_ref, "canonical_uri", "$.source_ref[\"canonical_uri\"]")?;
+	validate_source_ref_rfc3339(source_ref, "captured_at")?;
+
+	if source_ref.contains_key("source_created_at") {
+		validate_source_ref_rfc3339(source_ref, "source_created_at")?;
+	}
+
+	let trust_label =
+		extract_source_ref_string(source_ref, "trust_label", "$.source_ref[\"trust_label\"]")?;
+
+	if !SOURCE_LIBRARY_TRUST_LABELS.contains(&trust_label.as_str()) {
+		return Err(Error::InvalidRequest {
+			message: format!(
+				"$.source_ref[\"trust_label\"] must be one of: {}.",
+				SOURCE_LIBRARY_TRUST_LABELS.join("|")
+			),
+		});
+	}
+
+	validate_optional_source_ref_string(source_ref, "author")?;
+	validate_optional_source_ref_string(source_ref, "handle")?;
+	validate_optional_source_ref_string(source_ref, "source_content_hash")?;
+
+	if let Some(locator) = source_ref.get("excerpt_locator") {
+		validate_source_library_excerpt_locator(locator)?;
+	}
+
+	Ok(())
+}
+
+fn source_library_metadata_present(source_ref: &Map<String, Value>) -> bool {
+	SOURCE_LIBRARY_FIELD_KEYS.iter().any(|key| source_ref.contains_key(*key))
+}
+
+fn validate_source_kind_doc_type(source_kind: &str, source_doc_type: &str) -> Result<()> {
+	let expected_doc_type = match source_kind {
+		"social_thread" | "chat_excerpt" => Some("chat"),
+		"repo_file" => Some("dev"),
+		_ => None,
+	};
+
+	if let Some(expected_doc_type) = expected_doc_type
+		&& source_doc_type != expected_doc_type
+	{
+		return Err(Error::InvalidRequest {
+			message: format!(
+				"$.source_ref[\"source_kind\"]={source_kind} requires doc_type={expected_doc_type}."
+			),
+		});
+	}
+
+	Ok(())
+}
+
+fn validate_source_ref_rfc3339(source_ref: &Map<String, Value>, key: &str) -> Result<()> {
+	let path = format!("$.source_ref[\"{key}\"]");
+	let value = extract_source_ref_string(source_ref, key, path.as_str())?;
+
+	OffsetDateTime::parse(value.as_str(), &Rfc3339).map_err(|_| Error::InvalidRequest {
+		message: format!("{path} must be an RFC3339 datetime string."),
+	})?;
+
+	Ok(())
+}
+
+fn validate_optional_source_ref_string(source_ref: &Map<String, Value>, key: &str) -> Result<()> {
+	let path = format!("$.source_ref[\"{key}\"]");
+
+	validate_optional_source_ref_string_at(source_ref, key, path.as_str())
+}
+
+fn validate_optional_source_ref_string_at(
+	source_ref: &Map<String, Value>,
+	key: &str,
+	path: &str,
+) -> Result<()> {
+	let Some(value) = source_ref.get(key) else {
+		return Ok(());
+	};
+
+	value.as_str().map(str::trim).filter(|value| !value.is_empty()).ok_or_else(|| {
+		Error::InvalidRequest { message: format!("{path} must be a non-empty string.") }
+	})?;
+
+	Ok(())
+}
+
+fn validate_source_library_excerpt_locator(locator: &Value) -> Result<()> {
+	let locator = locator.as_object().ok_or_else(|| Error::InvalidRequest {
+		message: "$.source_ref[\"excerpt_locator\"] must be a JSON object.".to_string(),
+	})?;
+	let has_quote = locator.contains_key("quote");
+	let has_position = locator.contains_key("position");
+
+	if !has_quote && !has_position {
+		return Err(Error::InvalidRequest {
+			message: "$.source_ref[\"excerpt_locator\"] requires quote or position.".to_string(),
+		});
+	}
+
+	if let Some(quote) = locator.get("quote") {
+		validate_source_library_quote_locator(quote)?;
+	}
+	if let Some(position) = locator.get("position") {
+		validate_source_library_position_locator(position)?;
+	}
+
+	Ok(())
+}
+
+fn validate_source_library_quote_locator(quote: &Value) -> Result<()> {
+	let quote = quote.as_object().ok_or_else(|| Error::InvalidRequest {
+		message: "$.source_ref[\"excerpt_locator\"][\"quote\"] must be a JSON object.".to_string(),
+	})?;
+
+	extract_source_ref_string(
+		quote,
+		"exact",
+		"$.source_ref[\"excerpt_locator\"][\"quote\"][\"exact\"]",
+	)?;
+	validate_optional_source_ref_string_at(
+		quote,
+		"prefix",
+		"$.source_ref[\"excerpt_locator\"][\"quote\"][\"prefix\"]",
+	)?;
+	validate_optional_source_ref_string_at(
+		quote,
+		"suffix",
+		"$.source_ref[\"excerpt_locator\"][\"quote\"][\"suffix\"]",
+	)?;
+
+	Ok(())
+}
+
+fn validate_source_library_position_locator(position: &Value) -> Result<()> {
+	let position = position.as_object().ok_or_else(|| Error::InvalidRequest {
+		message: "$.source_ref[\"excerpt_locator\"][\"position\"] must be a JSON object."
+			.to_string(),
+	})?;
+	let start = source_ref_u64(
+		position,
+		"start",
+		"$.source_ref[\"excerpt_locator\"][\"position\"][\"start\"]",
+	)?;
+	let end = source_ref_u64(
+		position,
+		"end",
+		"$.source_ref[\"excerpt_locator\"][\"position\"][\"end\"]",
+	)?;
+
+	if start >= end {
+		return Err(Error::InvalidRequest {
+			message: "$.source_ref[\"excerpt_locator\"][\"position\"] start must be before end."
+				.to_string(),
+		});
+	}
+
+	Ok(())
+}
+
+fn source_ref_u64(source_ref: &Map<String, Value>, key: &str, path: &str) -> Result<u64> {
+	source_ref
+		.get(key)
+		.and_then(Value::as_u64)
+		.ok_or_else(|| Error::InvalidRequest { message: format!("{path} must be an integer.") })
 }
 
 fn validate_docs_search_l0(req: &DocsSearchL0Request) -> Result<DocsSearchL0Filters> {
@@ -2285,6 +2523,8 @@ SELECT
 	d.updated_at,
 	d.content_hash,
 	c.chunk_hash,
+	c.start_offset,
+	c.end_offset,
 	c.chunk_text
 FROM doc_chunks c
 JOIN doc_documents d ON d.doc_id = c.doc_id
@@ -2322,6 +2562,7 @@ mod tests {
 	use tokenizers::{
 		Tokenizer, models::wordlevel::WordLevel, pre_tokenizers::whitespace::Whitespace,
 	};
+	use uuid::Uuid;
 
 	use crate::docs::{
 		self, DocType, DocsPutRequest, DocsSearchL0Filters, DocsSearchL0Request, DocsSparseMode,
@@ -3049,6 +3290,131 @@ mod tests {
 		.expect("Expected valid source_ref to resolve doc_type.");
 
 		assert_eq!(resolved_doc_type.doc_type, DocType::Chat);
+	}
+
+	#[test]
+	fn validate_docs_put_accepts_source_library_article_metadata() {
+		let validated = docs::validate_docs_put(&DocsPutRequest {
+			tenant_id: "t".to_string(),
+			project_id: "p".to_string(),
+			agent_id: "a".to_string(),
+			scope: "project_shared".to_string(),
+			doc_type: Some(DocType::Knowledge.as_str().to_string()),
+			title: Some("Saved article".to_string()),
+			write_policy: None,
+			source_ref: serde_json::json!({
+				"schema": "doc_source_ref/v1",
+				"doc_type": "knowledge",
+				"ts": "2026-02-25T12:00:00Z",
+				"source_kind": "article",
+				"canonical_uri": "https://example.com/research/source-library",
+				"captured_at": "2026-02-25T12:10:00Z",
+				"source_created_at": "2026-02-24T09:00:00Z",
+				"trust_label": "public_web",
+				"author": "Example Author",
+				"handle": "example-author",
+				"excerpt_locator": {
+					"quote": {
+						"exact": "Source libraries preserve long-form evidence."
+					},
+					"position": {
+						"start": 0,
+						"end": 48
+					}
+				}
+			}),
+			content: "Source libraries preserve long-form evidence. Agents can hydrate exact excerpts later.".to_string(),
+		})
+		.expect("Expected source library metadata to be accepted.");
+
+		assert_eq!(validated.doc_type, DocType::Knowledge);
+	}
+
+	#[test]
+	fn validate_docs_put_rejects_incomplete_source_library_metadata() {
+		let err = docs::validate_docs_put(&DocsPutRequest {
+			tenant_id: "t".to_string(),
+			project_id: "p".to_string(),
+			agent_id: "a".to_string(),
+			scope: "project_shared".to_string(),
+			doc_type: Some(DocType::Knowledge.as_str().to_string()),
+			title: Some("Saved article".to_string()),
+			write_policy: None,
+			source_ref: serde_json::json!({
+				"schema": "doc_source_ref/v1",
+				"doc_type": "knowledge",
+				"ts": "2026-02-25T12:00:00Z",
+				"source_kind": "article",
+				"captured_at": "2026-02-25T12:10:00Z",
+				"trust_label": "public_web"
+			}),
+			content: "Source libraries preserve long-form evidence.".to_string(),
+		})
+		.expect_err("Expected canonical_uri to be required for source library metadata.");
+
+		match err {
+			Error::InvalidRequest { message } => assert!(message.contains("canonical_uri")),
+			other => panic!("Unexpected error: {other:?}"),
+		}
+
+		let err = docs::validate_docs_put(&DocsPutRequest {
+			tenant_id: "t".to_string(),
+			project_id: "p".to_string(),
+			agent_id: "a".to_string(),
+			scope: "project_shared".to_string(),
+			doc_type: Some(DocType::Knowledge.as_str().to_string()),
+			title: Some("Saved thread".to_string()),
+			write_policy: None,
+			source_ref: serde_json::json!({
+				"schema": "doc_source_ref/v1",
+				"doc_type": "knowledge",
+				"ts": "2026-02-25T12:00:00Z",
+				"source_kind": "social_thread",
+				"canonical_uri": "https://example.com/thread/123",
+				"captured_at": "2026-02-25T12:10:00Z",
+				"trust_label": "public_web"
+			}),
+			content: "The thread says source libraries need social captures.".to_string(),
+		})
+		.expect_err("Expected social_thread source_kind to require chat doc_type.");
+
+		match err {
+			Error::InvalidRequest { message } =>
+				assert!(message.contains("requires doc_type=chat")),
+			other => panic!("Unexpected error: {other:?}"),
+		}
+	}
+
+	#[test]
+	fn docs_l0_pointer_carries_hashes_and_position_locator() {
+		let now = OffsetDateTime::parse("2026-02-25T12:00:00Z", &Rfc3339)
+			.expect("Expected test timestamp to parse.");
+		let row = super::DocSearchRow {
+			chunk_id: Uuid::parse_str("11111111-1111-4111-8111-111111111111")
+				.expect("Expected chunk UUID."),
+			doc_id: Uuid::parse_str("22222222-2222-4222-8222-222222222222")
+				.expect("Expected doc UUID."),
+			scope: "project_shared".to_string(),
+			doc_type: "knowledge".to_string(),
+			project_id: "project".to_string(),
+			agent_id: "agent".to_string(),
+			updated_at: now,
+			content_hash: "doc-hash".to_string(),
+			chunk_hash: "chunk-hash".to_string(),
+			start_offset: 12,
+			end_offset: 64,
+			chunk_text: "Source libraries preserve long-form evidence.".to_string(),
+		};
+		let pointer = super::build_docs_l0_pointer(&row, row.chunk_id);
+
+		assert_eq!(pointer.schema, "source_ref/v1");
+		assert_eq!(pointer.resolver, "elf_doc_ext/v1");
+		assert_eq!(pointer.hashes.content_hash, "doc-hash");
+		assert_eq!(pointer.hashes.chunk_hash, "chunk-hash");
+		assert_eq!(pointer.locator.position.start, 12);
+		assert_eq!(pointer.locator.position.end, 64);
+		assert_eq!(pointer.state.content_hash, pointer.hashes.content_hash);
+		assert_eq!(pointer.state.chunk_hash, pointer.hashes.chunk_hash);
 	}
 
 	#[test]
