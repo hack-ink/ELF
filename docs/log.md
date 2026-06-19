@@ -52,3 +52,6 @@ logs.
 - Added the OpenMemory UI/export product readback recheck report and snapshot for
   XY-987, preserving the product UI/export scenario as blocked while keeping mem0 SDK
   `get_all` evidence separate from OpenMemory product evidence.
+- Added the graph/RAG citation/navigation promotion report and snapshot for XY-985,
+  preserving representative graph/RAG outcomes as typed non-pass while recording
+  graphify evidence-linked output and the remaining adapter-specific blockers.
