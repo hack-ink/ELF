@@ -161,6 +161,18 @@ This document is normative. When a new versioned identifier is introduced, it mu
 - Consumers: `GET /v2/admin/traces/{trace_id}/bundle` API response, `apps/elf-api`, `apps/elf-mcp`.
 - Bump rule: Introduce a new identifier only if this response payload becomes incompatible.
 
+### Recall debug panel schema
+
+- Identifier: `elf.recall_debug_panel/v1`.
+- Type: Cross-layer recall/debug panel response payload identifier.
+- Defined in: `packages/elf-service/src/recall_debug.rs`
+  (`ELF_RECALL_DEBUG_PANEL_SCHEMA_V1`) and
+  `docs/spec/system_recall_debug_panel_v1.md`.
+- Consumers: `POST /v2/admin/recall-debug/panel` API response, `apps/elf-api`,
+  `apps/elf-mcp`, operator debugging workflows, and benchmark closeout reports.
+- Bump rule: Introduce a new identifier only if layer names, selection states,
+  evidence-class semantics, replay fields, or required row keys become incompatible.
+
 ### Search filter expression schema
 
 - Identifier: `search_filter_expr/v1`.

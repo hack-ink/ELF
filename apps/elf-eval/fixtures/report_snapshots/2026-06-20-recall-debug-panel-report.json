@@ -1,0 +1,115 @@
+{
+  "schema": "elf.recall_debug_panel_report/v1",
+  "authority": "XY-1022",
+  "generated_at": "2026-06-20T00:00:00Z",
+  "service_contract": {
+    "response_schema": "elf.recall_debug_panel/v1",
+    "service_module": "packages/elf-service/src/recall_debug.rs",
+    "http_endpoint": "POST /v2/admin/recall-debug/panel",
+    "mcp_tool": "elf_recall_debug_panel",
+    "spec": "docs/spec/system_recall_debug_panel_v1.md",
+    "read_model_only": true,
+    "raw_sql_needed": false
+  },
+  "layer_contract": {
+    "layer_count": 5,
+    "layers": [
+      {
+        "layer": "memory_notes",
+        "anchor": "trace_id",
+        "selection_states": ["selected", "dropped"],
+        "authority_layer": "memory_note",
+        "source_ref_surface": "memory_notes.source_ref",
+        "replay_surface": "elf_admin_trace_bundle_get",
+        "evidence_class": "pass"
+      },
+      {
+        "layer": "source_documents",
+        "anchor": "docs_query or query",
+        "selection_states": ["selected"],
+        "authority_layer": "source_library",
+        "source_ref_surface": "source_ref/v1 resolver elf_doc_ext/v1",
+        "replay_surface": "elf_docs_search_l0",
+        "effective_limit": 32,
+        "evidence_class": "pass"
+      },
+      {
+        "layer": "knowledge_pages",
+        "anchor": "knowledge_query or query",
+        "selection_states": ["selected"],
+        "authority_layer": "derived_knowledge_page",
+        "source_ref_surface": "source_coverage plus section source refs",
+        "replay_surface": "elf_recall_debug_panel",
+        "evidence_class": "pass"
+      },
+      {
+        "layer": "graph_facts",
+        "anchor": "graph_subject",
+        "selection_states": ["available"],
+        "authority_layer": "graph_fact",
+        "source_ref_surface": "evidence_note_ids and supersession ids",
+        "replay_surface": "elf_graph_report",
+        "evidence_class": "pass"
+      },
+      {
+        "layer": "dreaming_proposals",
+        "anchor": "include_dreaming",
+        "selection_states": ["reviewable"],
+        "authority_layer": "reviewable_dreaming_proposal",
+        "source_ref_surface": "source_refs, source_snapshot, affected_refs",
+        "replay_surface": "elf_dreaming_review_queue",
+        "evidence_class": "pass"
+      }
+    ]
+  },
+  "debug_invariants": {
+    "not_requested_layers_preserved": true,
+    "requested_layer_failures_preserved_as_blocked": true,
+    "selected_and_dropped_memory_candidates": true,
+    "evidence_class_counts_preserved": true,
+    "authority_layer_required": true,
+    "freshness_state_required": true,
+    "stage_reason_required": true,
+    "source_refs_required": true,
+    "replay_command_or_artifact_path_required_when_available": true,
+    "no_source_mutation": true,
+    "no_graph_mutation": true,
+    "no_proposal_review_mutation": true
+  },
+  "command_evidence": [
+    {
+      "command": "cargo test -p elf-service recall_debug -- --nocapture",
+      "status": "pass",
+      "purpose": "Unit-check summary counters and not_requested layer behavior."
+    },
+    {
+      "command": "cargo test -p elf-mcp registers_all_tools -- --nocapture",
+      "status": "pass",
+      "purpose": "Guard MCP registration for elf_recall_debug_panel."
+    },
+    {
+      "command": "cargo test -p elf-eval --test real_world_job_benchmark recall_debug_panel_report_wires_cross_layer_debug_contract -- --nocapture",
+      "status": "pass",
+      "purpose": "Guard service/API/MCP/docs/snapshot coverage for XY-1022."
+    }
+  ],
+  "claim_boundaries": {
+    "allowed": [
+      "ELF exposes a typed cross-layer recall/debug read model.",
+      "Memory trace selected rows and retained dropped replay candidates are visible through trace bundles when candidate capture/retention preserved them.",
+      "Source documents, knowledge pages, graph facts, and Dreaming proposals can be inspected from one panel response when their anchors are supplied.",
+      "not_requested layers remain explicit instead of being hidden behind aggregate pass claims."
+    ],
+    "not_allowed": [
+      "Do not claim the panel is a mutating UI.",
+      "Do not claim external competitor UI parity from this read model alone.",
+      "Do not claim graph facts, source documents, or high-impact memories can be changed through the panel.",
+      "Do not treat missing anchors as pass evidence."
+    ]
+  },
+  "next_optimization_direction": [
+    "Add a visual operator panel that groups rows by layer, authority, freshness, and stage reason.",
+    "Attach one-click replay to trace bundles, docs search, graph reports, and Dreaming queue filters.",
+    "Use XY-1023 to score full benchmark deltas and keep competitor debug advantages separate from ELF's typed cross-layer readback."
+  ]
+}

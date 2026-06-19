@@ -20,6 +20,7 @@ pub mod list;
 pub mod notes;
 pub mod progressive_search;
 pub mod provenance;
+pub mod recall_debug;
 pub mod search;
 pub mod sharing;
 pub mod structured_fields;
@@ -112,6 +113,11 @@ pub use self::{
 		NoteProvenanceBundleResponse, NoteProvenanceGetRequest, NoteProvenanceIndexingOutbox,
 		NoteProvenanceIngestDecision, NoteProvenanceNote, NoteProvenanceNoteVersion,
 		NoteProvenanceRecentTrace,
+	},
+	recall_debug::{
+		ELF_RECALL_DEBUG_PANEL_SCHEMA_V1, RecallDebugLayer, RecallDebugPanelRequest,
+		RecallDebugPanelRequestEcho, RecallDebugPanelResponse, RecallDebugPanelSummary,
+		RecallDebugRow,
 	},
 	search::{
 		BlendRankingOverride, BlendSegmentOverride, PayloadLevel, QueryPlan, QueryPlanBlendSegment,
