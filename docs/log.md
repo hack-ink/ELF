@@ -32,3 +32,12 @@ logs.
 - Moved retained plan artifacts from the legacy plans top-level lane to
   `docs/reference/plans/` so the
   top-level docs directories match the Decodex docs lane set.
+
+## 2026-06-19
+
+- Added the OpenViking trajectory materialization evidence report and snapshot for
+  XY-983, preserving staged retrieval, hierarchy selection, and recursive/context
+  expansion as typed blockers until comparable staged artifacts exist.
+- Added `cargo make real-world-memory-context-trajectory` as the reproducible
+  context-trajectory benchmark entrypoint and linked the new report from the
+  benchmarking evidence index and README.

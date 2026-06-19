@@ -184,6 +184,13 @@ provider-backed ELF evidence was required.
   intermediate candidate-drop stages are not exposed. This confirms ELF's narrow
   trace/stage visibility wins without erasing qmd's default top-k JSON and short CLI
   replay advantage.
+- OpenViking trajectory materialization after XY-983: the June 19 context-trajectory
+  follow-up now has a dedicated repo task,
+  `cargo make real-world-memory-context-trajectory`, and a checked-in report
+  snapshot. The slice materializes 3 OpenViking trajectory/hierarchy/recursive jobs
+  as 0 pass, 0 wrong_result, and 3 typed blockers with 9/9 evidence coverage. This
+  improves auditability but does not remove the OpenViking context-trajectory gap or
+  support any ELF win, tie, or loss claim on those strengths.
 - Full-suite live real-world adapter sweep after XY-926: ELF and qmd emit
   Docker-isolated `live_real_world` records for all 55 checked-in jobs across 13 suites
   through `cargo make real-world-memory-live-adapters`. Both keep the original
@@ -293,6 +300,7 @@ Detailed evidence and interpretation:
 - [Scheduled Memory Task Scoring Report - June 16, 2026](docs/evidence/benchmarking/2026-06-16-scheduled-memory-task-scoring-report.md)
 - [Dreaming Competitor-Strength Retest Report - June 17, 2026](docs/evidence/benchmarking/2026-06-17-dreaming-competitor-strength-retest-report.md)
 - [qmd Debug-Ergonomics Dreaming Retest Report - June 19, 2026](docs/evidence/benchmarking/2026-06-19-qmd-debug-ergonomics-dreaming-retest-report.md)
+- [OpenViking Trajectory Materialization Report - June 19, 2026](docs/evidence/benchmarking/2026-06-19-openviking-trajectory-materialization-report.md)
 - [Live Baseline Benchmark Runbook](docs/runbook/benchmarking/live_baseline_benchmark.md)
 - [Single-User Production Runbook](docs/runbook/single_user_production.md)
 - Benchmark contract:
