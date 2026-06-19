@@ -23,6 +23,8 @@ Status: normative
 Read this when: You are implementing, validating, or reviewing dreaming-inspired consolidation storage, jobs, proposals, or review flows.
 Not this document: Live LLM consolidation generation, viewer UI behavior, retrieval observability panels, or agentmemory import adapters.
 Defines: `elf.consolidation/v1` runs, proposals, source snapshots, lineage, review lifecycle, and source immutability rules.
+Also defines: `elf.dreaming_review_queue/v1` readback as a policy view over
+consolidation proposals.
 
 Related inputs:
 
@@ -286,6 +288,57 @@ The first implementation exposes fixture-driven service flows:
   actions with review-event readback
 
 These flows must not call LLM, embedding, rerank, or external provider adapters.
+
+## Dreaming Review Queue
+
+The Dreaming review queue is a readback and policy surface over
+`consolidation_proposals`. It does not create a new source-of-truth table and does not
+run provider generation. The canonical response schema is:
+
+```text
+elf.dreaming_review_queue/v1
+```
+
+Queue items must expose:
+
+- proposal id, run id, proposal kind, queue variant, apply intent, and review state
+- `source_refs` and `source_snapshot`
+- `target_ref` and derived `affected_refs`
+- `confidence`
+- `unsupported_claim_flags`, contradiction markers, and staleness markers
+- reviewable `diff`
+- proposed derived payload
+- per-item policy readback
+- current review state, available review actions, reviewer metadata, and append-only
+  review events
+
+The queue variant is inferred from explicit proposal payload metadata first, then from
+`proposal_kind`, then from `apply_intent`. The required supported variants are:
+
+- `memory_summary`
+- `proactive_brief`
+- `scheduled_memory`
+- `tag`
+- `duplicate_merge`
+- `page_rebuild`
+- `memory_promotion`
+- `graph_fact`
+- `correction`
+
+Policy rules:
+
+- `source_mutation_allowed` must be `false`.
+- Source mutation keys in `diff`, `target_ref`, or `proposed_payload` must prevent
+  auto-apply.
+- High-impact variants such as `memory_promotion`, `graph_fact`, and `correction`
+  require explicit review.
+- `tag` and `duplicate_merge` are the only low-risk derived organization variants.
+- Low-risk derived organization may be marked auto-applyable only after approval, with
+  confidence at or above the queue threshold, no unsupported-claim flags, no
+  contradiction or staleness markers, and no source mutation request.
+- Applying a queue item still means applying a derived target or marking review state;
+  it must not update, delete, overwrite, or deprecate authoritative notes, docs,
+  events, traces, graph facts, or source pointers.
 
 ## Future Connections
 
