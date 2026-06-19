@@ -234,6 +234,15 @@ provider-backed ELF evidence was required.
   Postgres graph-lite facts to show current, historical, future, sourced, inferred,
   ambiguous, stale, and superseded markers without introducing a separate graph
   database or replacing source evidence.
+- Recall/debug panel after XY-1022: the June 20 follow-up adds
+	  `elf.recall_debug_panel/v1` through service, HTTP, and MCP readback. The panel
+	  groups Memory Note trace selected rows and retained dropped replay candidates,
+	  Source Library document candidates, Knowledge Workspace page snippets, graph facts,
+	  and Dreaming proposals with
+	  authority layer, freshness state, source refs, stage reason, evidence class, and
+	  replay command. Missing anchors remain explicit `not_requested` layers, so the
+	  panel improves debug ergonomics without turning untested or blocked layers into
+	  pass claims.
 - Operator-approved public-proxy addendum after XY-930: the June 19 follow-up runs
   `cargo make baseline-production-private-addendum` with a simulated/public-proxy
   production corpus manifest approved for this stage. The run records 12 documents,

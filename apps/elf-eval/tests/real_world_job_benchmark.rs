@@ -254,6 +254,10 @@ fn dreaming_review_queue_report_json_path() -> Result<PathBuf> {
 	report_snapshot_path("2026-06-20-dreaming-review-queue-report.json")
 }
 
+fn recall_debug_panel_report_json_path() -> Result<PathBuf> {
+	report_snapshot_path("2026-06-20-recall-debug-panel-report.json")
+}
+
 fn openmemory_ui_export_product_readback_report_json_path() -> Result<PathBuf> {
 	report_snapshot_path("2026-06-19-openmemory-ui-export-product-readback-report.json")
 }
@@ -298,6 +302,14 @@ fn dreaming_review_queue_report_markdown_path() -> Result<PathBuf> {
 		.join("evidence")
 		.join("benchmarking")
 		.join("2026-06-20-dreaming-review-queue-report.md"))
+}
+
+fn recall_debug_panel_report_markdown_path() -> Result<PathBuf> {
+	Ok(workspace_root()?
+		.join("docs")
+		.join("evidence")
+		.join("benchmarking")
+		.join("2026-06-20-recall-debug-panel-report.md"))
 }
 
 fn openmemory_ui_export_product_readback_report_markdown_path() -> Result<PathBuf> {
@@ -3672,6 +3684,127 @@ fn dreaming_review_queue_report_wires_reviewable_policy_contract() -> Result<()>
 	assert!(benchmarking_index.contains("2026-06-20-dreaming-review-queue-report.md"));
 	assert!(readme.contains("Dreaming review queue after XY-1021"));
 	assert!(readme.contains("elf.dreaming_review_queue/v1"));
+
+	Ok(())
+}
+
+#[test]
+fn recall_debug_panel_report_wires_cross_layer_debug_contract() -> Result<()> {
+	let report = serde_json::from_str::<Value>(&fs::read_to_string(
+		recall_debug_panel_report_json_path()?,
+	)?)?;
+	let markdown = fs::read_to_string(recall_debug_panel_report_markdown_path()?)?;
+	let benchmarking_index = fs::read_to_string(benchmarking_index_path()?)?;
+	let readme = fs::read_to_string(readme_path()?)?;
+	let workspace = workspace_root()?;
+	let service = fs::read_to_string(workspace.join("packages/elf-service/src/recall_debug.rs"))?;
+	let service_lib = fs::read_to_string(workspace.join("packages/elf-service/src/lib.rs"))?;
+	let routes = fs::read_to_string(workspace.join("apps/elf-api/src/routes.rs"))?;
+	let mcp = fs::read_to_string(workspace.join("apps/elf-mcp/src/server.rs"))?;
+	let recall_spec =
+		fs::read_to_string(workspace.join("docs/spec/system_recall_debug_panel_v1.md"))?;
+	let service_spec =
+		fs::read_to_string(workspace.join("docs/spec/system_elf_memory_service_v2.md"))?;
+	let version_registry =
+		fs::read_to_string(workspace.join("docs/spec/system_version_registry.md"))?;
+
+	assert_eq!(
+		report.pointer("/schema").and_then(Value::as_str),
+		Some("elf.recall_debug_panel_report/v1")
+	);
+	assert_eq!(report.pointer("/authority").and_then(Value::as_str), Some("XY-1022"));
+	assert_eq!(
+		report.pointer("/service_contract/response_schema").and_then(Value::as_str),
+		Some("elf.recall_debug_panel/v1")
+	);
+	assert_eq!(
+		report.pointer("/service_contract/read_model_only").and_then(Value::as_bool),
+		Some(true)
+	);
+	assert_eq!(
+		report.pointer("/service_contract/raw_sql_needed").and_then(Value::as_bool),
+		Some(false)
+	);
+	assert_eq!(report.pointer("/layer_contract/layer_count").and_then(Value::as_u64), Some(5));
+
+	let layers = array_at(&report, "/layer_contract/layers")?;
+
+	for (layer, authority, replay) in [
+		("memory_notes", "memory_note", "elf_admin_trace_bundle_get"),
+		("source_documents", "source_library", "elf_docs_search_l0"),
+		("knowledge_pages", "derived_knowledge_page", "elf_recall_debug_panel"),
+		("graph_facts", "graph_fact", "elf_graph_report"),
+		("dreaming_proposals", "reviewable_dreaming_proposal", "elf_dreaming_review_queue"),
+	] {
+		let row = find_by_field(layers, "/layer", layer)?;
+
+		assert_eq!(row.pointer("/authority_layer").and_then(Value::as_str), Some(authority));
+		assert_eq!(row.pointer("/replay_surface").and_then(Value::as_str), Some(replay));
+		assert_eq!(row.pointer("/evidence_class").and_then(Value::as_str), Some("pass"));
+	}
+
+	let memory = find_by_field(layers, "/layer", "memory_notes")?;
+	let docs = find_by_field(layers, "/layer", "source_documents")?;
+
+	assert!(array_contains_str(memory, "/selection_states", "selected")?);
+	assert!(array_contains_str(memory, "/selection_states", "dropped")?);
+	assert_eq!(docs.pointer("/effective_limit").and_then(Value::as_u64), Some(32));
+	assert_eq!(
+		report.pointer("/debug_invariants/not_requested_layers_preserved").and_then(Value::as_bool),
+		Some(true)
+	);
+	assert_eq!(
+		report
+			.pointer("/debug_invariants/selected_and_dropped_memory_candidates")
+			.and_then(Value::as_bool),
+		Some(true)
+	);
+	assert_eq!(
+		report
+			.pointer("/debug_invariants/requested_layer_failures_preserved_as_blocked")
+			.and_then(Value::as_bool),
+		Some(true)
+	);
+	assert_eq!(
+		report.pointer("/debug_invariants/no_source_mutation").and_then(Value::as_bool),
+		Some(true)
+	);
+	assert!(service.contains("ELF_RECALL_DEBUG_PANEL_SCHEMA_V1"));
+	assert!(service.contains("pub async fn recall_debug_panel"));
+	assert!(service.contains("not_requested_layer"));
+	assert!(service.contains("blocked_layer"));
+	assert!(service.contains("public_error_class"));
+	assert!(service.contains("candidate_identity"));
+	assert!(service.contains("ORG_PROJECT_ID"));
+	assert!(service.contains("trace_bundle_get"));
+	assert!(service.contains("docs_search_l0"));
+	assert!(service.contains("knowledge_pages_search"));
+	assert!(service.contains("graph_report"));
+	assert!(service.contains("dreaming_review_queue"));
+	assert!(service_lib.contains("pub mod recall_debug"));
+	assert!(service_lib.contains("RecallDebugPanelResponse"));
+	assert!(routes.contains("/v2/admin/recall-debug/panel"));
+	assert!(routes.contains("async fn recall_debug_panel"));
+	assert!(routes.contains("RecallDebugPanelRequest"));
+	assert!(mcp.contains("elf_recall_debug_panel"));
+	assert!(mcp.contains("recall_debug_panel_schema"));
+	assert!(mcp.contains("/v2/admin/recall-debug/panel"));
+	assert!(recall_spec.contains("elf.recall_debug_panel/v1"));
+	assert!(recall_spec.contains("not_requested"));
+	assert!(recall_spec.contains("evidence_class = \"blocked\""));
+	assert!(recall_spec.contains("effective `top_k` cap of 32"));
+	assert!(recall_spec.contains("selected`, `dropped`, `available`, or `reviewable`"));
+	assert!(service_spec.contains("POST /v2/admin/recall-debug/panel"));
+	assert!(service_spec.contains("system_recall_debug_panel_v1.md"));
+	assert!(version_registry.contains("elf.recall_debug_panel/v1"));
+	assert!(markdown.contains("Recall Debug Panel Report"));
+	assert!(markdown.contains("Missing anchors stay visible as `not_requested`"));
+	assert!(markdown.contains("retained dropped replay candidates"));
+	assert!(markdown.contains("effective cap of 32 rows"));
+	assert!(benchmarking_index.contains("2026-06-20-recall-debug-panel-report.md"));
+	assert!(readme.contains("Recall/debug panel after XY-1022"));
+	assert!(readme.contains("elf.recall_debug_panel/v1"));
+	assert!(readme.contains("retained dropped replay candidates"));
 
 	Ok(())
 }
