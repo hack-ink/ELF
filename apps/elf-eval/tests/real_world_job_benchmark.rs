@@ -304,6 +304,14 @@ fn graph_rag_citation_navigation_promotion_report_markdown_path() -> Result<Path
 		.join("2026-06-19-graph-rag-citation-navigation-promotion-report.md"))
 }
 
+fn graph_topic_map_report_markdown_path() -> Result<PathBuf> {
+	Ok(workspace_root()?
+		.join("docs")
+		.join("evidence")
+		.join("benchmarking")
+		.join("2026-06-20-graph-topic-map-report.md"))
+}
+
 fn operator_approved_public_proxy_private_addendum_report_markdown_path() -> Result<PathBuf> {
 	Ok(workspace_root()?
 		.join("docs")
@@ -3818,6 +3826,43 @@ fn graph_rag_citation_navigation_promotion_preserves_typed_non_passes() -> Resul
 	);
 	assert!(readme.contains("Graph/RAG Citation and Navigation Promotion Report - June 19, 2026"));
 	assert!(readme.contains("Graph/RAG citation/navigation promotion after XY-985"));
+
+	Ok(())
+}
+
+#[test]
+fn graph_topic_map_report_wires_source_backed_graph_lite_readback() -> Result<()> {
+	let markdown = fs::read_to_string(graph_topic_map_report_markdown_path()?)?;
+	let benchmarking_index = fs::read_to_string(benchmarking_index_path()?)?;
+	let readme = fs::read_to_string(readme_path()?)?;
+	let graph_report_service =
+		fs::read_to_string(workspace_root()?.join("packages/elf-service/src/graph_report.rs"))?;
+	let api_routes = fs::read_to_string(workspace_root()?.join("apps/elf-api/src/routes.rs"))?;
+	let mcp_server = fs::read_to_string(workspace_root()?.join("apps/elf-mcp/src/server.rs"))?;
+	let graph_spec =
+		fs::read_to_string(workspace_root()?.join("docs/spec/system_graph_memory_postgres_v1.md"))?;
+
+	assert!(markdown.contains("Graph Topic-Map Report - June 20, 2026"));
+	assert!(markdown.contains("elf.graph_report/v1"));
+	assert!(markdown.contains("sourced"));
+	assert!(markdown.contains("inferred"));
+	assert!(markdown.contains("ambiguous"));
+	assert!(markdown.contains("stale"));
+	assert!(markdown.contains("superseded"));
+	assert!(markdown.contains("valid_from"));
+	assert!(markdown.contains("valid_to"));
+	assert!(markdown.contains("valid_at"));
+	assert!(markdown.contains("invalid_at"));
+	assert!(graph_report_service.contains("ELF_GRAPH_REPORT_SCHEMA_V1"));
+	assert!(graph_report_service.contains("GraphReportSummary"));
+	assert!(graph_report_service.contains("build_topic_map"));
+	assert!(api_routes.contains("/v2/graph/report"));
+	assert!(mcp_server.contains("elf_graph_report"));
+	assert!(graph_spec.contains("elf.graph_report/v1"));
+	assert!(graph_spec.contains("Graphiti/Zep `valid_at` and `invalid_at`"));
+	assert!(benchmarking_index.contains("2026-06-20-graph-topic-map-report.md"));
+	assert!(readme.contains("Graph Topic-Map Report - June 20, 2026"));
+	assert!(readme.contains("Graph topic-map reports after XY-1020"));
 
 	Ok(())
 }

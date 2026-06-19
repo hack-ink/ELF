@@ -13,6 +13,7 @@ pub mod docs;
 pub mod entity_memory;
 pub mod graph;
 pub mod graph_query;
+pub mod graph_report;
 pub mod knowledge;
 pub mod list;
 pub mod notes;
@@ -71,6 +72,11 @@ pub use self::{
 		ELF_GRAPH_QUERY_SCHEMA_V1, GraphQueryEntity, GraphQueryEntityRef, GraphQueryExplain,
 		GraphQueryFact, GraphQueryObject, GraphQueryObjectEntity, GraphQueryPredicate,
 		GraphQueryPredicateRef, GraphQueryRequest, GraphQueryResponse,
+	},
+	graph_report::{
+		ELF_GRAPH_REPORT_SCHEMA_V1, GraphReportEntity, GraphReportExplain, GraphReportFact,
+		GraphReportPredicate, GraphReportRequest, GraphReportResponse, GraphReportSummary,
+		GraphTopicEdge, GraphTopicMap, GraphTopicNode,
 	},
 	ingestion_profiles::{
 		AdminIngestionProfileCreateRequest, AdminIngestionProfileDefaultGetRequest,
