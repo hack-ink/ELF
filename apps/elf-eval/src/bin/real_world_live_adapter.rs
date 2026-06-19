@@ -350,6 +350,7 @@ struct KnowledgeMaterializationEvidence {
 	unsupported_claim_count: usize,
 	citation_count: usize,
 	source_ref_count: usize,
+	version_diff_available: bool,
 }
 
 #[derive(Clone, Debug, Default, Serialize)]
@@ -3455,6 +3456,7 @@ fn knowledge_page_artifact(
 		"sections": sections,
 		"backlinks": source_backlinks(ingested),
 		"lint_findings": lint_findings_for_page(loaded, ingested, lint),
+		"page_version_diff": second.page.previous_version_diff.clone(),
 		"rebuild": {
 			"first_hash": first.page.content_hash.clone(),
 			"second_hash": second.page.content_hash.clone(),
@@ -3485,6 +3487,13 @@ fn knowledge_materialization_evidence(
 		unsupported_claim_count,
 		citation_count: page.sections.iter().map(|section| section.citation_count).sum(),
 		source_ref_count: page.source_refs.len(),
+		version_diff_available: page
+			.page
+			.previous_version_diff
+			.as_ref()
+			.and_then(|diff| diff.get("available"))
+			.and_then(serde_json::Value::as_bool)
+			.unwrap_or(false),
 	}
 }
 

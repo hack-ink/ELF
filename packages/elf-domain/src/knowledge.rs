@@ -8,6 +8,8 @@ pub const KNOWLEDGE_PAGE_CONTRACT_SCHEMA_V1: &str = "elf.knowledge_page/v1";
 pub const KNOWLEDGE_PAGE_REBUILD_SCHEMA_V1: &str = "elf.knowledge_page.rebuild/v1";
 /// Current source coverage metadata schema identifier.
 pub const KNOWLEDGE_PAGE_SOURCE_COVERAGE_SCHEMA_V1: &str = "elf.knowledge_page.source_coverage/v1";
+/// Current previous-version diff metadata schema identifier.
+pub const KNOWLEDGE_PAGE_VERSION_DIFF_SCHEMA_V1: &str = "elf.knowledge_page.version_diff/v1";
 
 /// Derived knowledge page category.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]

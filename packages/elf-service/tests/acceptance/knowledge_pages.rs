@@ -333,6 +333,15 @@ async fn rebuilds_pages_with_citations_and_detects_stale_sources() {
 	}));
 	assert_eq!(first.page.page.source_coverage["coverage_complete"], true);
 	assert_eq!(first.page.page.rebuild_metadata["deterministic"], true);
+	assert_eq!(
+		first
+			.page
+			.page
+			.previous_version_diff
+			.as_ref()
+			.expect("initial rebuild should expose no-previous diff")["available"],
+		false
+	);
 
 	let second = service
 		.knowledge_page_rebuild(KnowledgePageRebuildRequest {
@@ -354,6 +363,18 @@ async fn rebuilds_pages_with_citations_and_detects_stale_sources() {
 	assert_eq!(first.page.page.page_id, second.page.page.page_id);
 	assert_eq!(first.page.page.rebuild_source_hash, second.page.page.rebuild_source_hash);
 	assert_eq!(first.page.page.content_hash, second.page.page.content_hash);
+
+	let second_diff = second
+		.page
+		.page
+		.previous_version_diff
+		.as_ref()
+		.expect("second rebuild should expose previous-version diff");
+
+	assert_eq!(second_diff["schema"], "elf.knowledge_page.version_diff/v1");
+	assert_eq!(second_diff["available"], true);
+	assert_eq!(second_diff["source_mutation_allowed"], false);
+	assert_eq!(second_diff["content_changed"], false);
 
 	sqlx::query(
 		"\

@@ -18,7 +18,7 @@ Goal: Close XY-935 by moving ELF knowledge-page rebuild/lint scoring from fixtur
 evidence into a Docker-contained service materialization command.
 Read this when: You need to know whether ELF has service-native evidence for
 derived knowledge pages, citation coverage, stale-source lint, unsupported sections,
-rebuild metadata, backlinks, and page search.
+rebuild metadata, previous-version diffs, backlinks, and page search.
 Inputs: `cargo make real-world-memory-knowledge`,
 `cargo make real-world-memory-live-knowledge`,
 `apps/elf-eval/fixtures/real_world_memory/knowledge/`, and
@@ -37,7 +37,7 @@ This improves ELF's own knowledge-page authority from fixture-only page artifact
 service-backed rebuild/lint/search evidence. It does not prove parity or superiority
 against llm-wiki, gbrain, GraphRAG, RAGFlow, LightRAG, or graphify. Those comparisons
 remain valid only when a contained adapter emits comparable page sections, source ids,
-citation mappings, lint findings, and typed benchmark statuses.
+citation mappings, lint findings, previous-version diffs, and typed benchmark statuses.
 
 ## Command Evidence
 
@@ -68,6 +68,7 @@ The command is intentionally Docker-scoped. Host execution is refused unless
 | Stale-source lint | Stale source updates after rebuild produce lint findings instead of silently rewriting truth. |
 | Unsupported sections | Unsupported summaries remain visible as unsupported, not hidden claims. |
 | Rebuild metadata | First and second rebuild hashes, deterministic status, and allowed variance remain explicit. |
+| Previous-version diff | Repeated rebuilds expose `elf.knowledge_page.version_diff/v1` metadata without changing page content hashes. |
 | Backlinks and search | Page artifacts expose backlinks, and `knowledge_pages_search` returns the materialized page surface. |
 | Source-of-truth boundary | Knowledge pages remain derived benchmark artifacts and do not replace Memory Notes or source records. |
 
@@ -95,6 +96,8 @@ The command is intentionally Docker-scoped. Host execution is refused unless
   command for the checked-in `knowledge_compilation` fixture pack.
 - The command exercises `knowledge_page_rebuild`, `knowledge_page_lint`, and
   `knowledge_pages_search` before scoring.
+- The current service-native artifact includes previous-version diff metadata and
+  reports `version_diff_coverage = 1.000`.
 - ELF's own knowledge-page evidence is stronger than fixture-only proof for this
   narrow slice.
 
