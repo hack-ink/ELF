@@ -199,6 +199,14 @@ provider-backed ELF evidence was required.
   competitive status unchanged: no ELF-over-Letta win, tie, or loss is allowed until
   exported Letta core block JSON, archival readback/search JSON, and fixture source ids
   are present.
+- Service-native Dreaming readback after XY-986: the June 19 follow-up adds
+  `cargo make real-world-memory-service-native-dreaming`, a Docker-contained ELF
+  service readback command for `memory_summary`, `proactive_brief`, and
+  `scheduled_memory`. The slice scores 9 pass, 0 wrong_result, and 2 typed XY-930
+  private/provider blockers with 22/22 evidence, source-ref, and quote coverage.
+  This improves local Dreaming runtime authority and auditability, but it does not
+  prove Pulse, ChatGPT Tasks, Claude Dreams, hosted managed-memory, or private-corpus
+  parity.
 - Full-suite live real-world adapter sweep after XY-926: ELF and qmd emit
   Docker-isolated `live_real_world` records for all 55 checked-in jobs across 13 suites
   through `cargo make real-world-memory-live-adapters`. Both keep the original
@@ -309,6 +317,7 @@ Detailed evidence and interpretation:
 - [Dreaming Competitor-Strength Retest Report - June 17, 2026](docs/evidence/benchmarking/2026-06-17-dreaming-competitor-strength-retest-report.md)
 - [qmd Debug-Ergonomics Dreaming Retest Report - June 19, 2026](docs/evidence/benchmarking/2026-06-19-qmd-debug-ergonomics-dreaming-retest-report.md)
 - [OpenViking Trajectory Materialization Report - June 19, 2026](docs/evidence/benchmarking/2026-06-19-openviking-trajectory-materialization-report.md)
+- [Service-Native Dreaming Readback Report - June 19, 2026](docs/evidence/benchmarking/2026-06-19-service-native-dreaming-readback-report.md)
 - [Live Baseline Benchmark Runbook](docs/runbook/benchmarking/live_baseline_benchmark.md)
 - [Single-User Production Runbook](docs/runbook/single_user_production.md)
 - Benchmark contract:
@@ -406,9 +415,10 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [Dreaming Product Surface Follow-Up Research](docs/research/dreaming_product_surface_followup.md)
 
 Latest real-world benchmark report: June 19, 2026. Latest external research refresh:
-June 11, 2026; June 19 adds the qmd debug-ergonomics Dreaming retest after the June
-17 competitor-strength closeout and the June 16 temporal reconciliation, live
-consolidation self-check, proactive-brief, and scheduled-memory scoring evidence.
+June 11, 2026; June 19 adds service-native Dreaming readback after the qmd
+debug-ergonomics Dreaming retest, the June 17 competitor-strength closeout, and the
+June 16 temporal reconciliation, live consolidation self-check, proactive-brief, and
+scheduled-memory scoring evidence.
 
 ## Documentation
 
