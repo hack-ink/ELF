@@ -1,0 +1,764 @@
+{
+  "adapter_id": "letta_core_archive_export_readback",
+  "evidence_class": "research_gate",
+  "generated_at": "2026-06-19T05:50:58Z",
+  "manifest": {
+    "json": "tmp/real-world-memory/letta-core-archive/memory_projects_manifest.letta-core-archive.json",
+    "status_source": "external_adapter_manifest_score_aligned",
+    "suites": [
+      {
+        "evidence": "Only the six checked-in core_archival_memory scenarios are represented.",
+        "status": "blocked",
+        "suite_id": "core_archival_memory"
+      },
+      {
+        "evidence": "Scoped preference behavior is outside this core/archive export smoke.",
+        "status": "not_encoded",
+        "suite_id": "personalization"
+      },
+      {
+        "evidence": "Project-decision recovery is scored only through the core_archival_memory fixture that requires core routing plus archival rationale source ids.",
+        "status": "blocked",
+        "suite_id": "project_decisions"
+      },
+      {
+        "evidence": "Agent resumption across sessions is not encoded by this export/readback smoke.",
+        "status": "not_encoded",
+        "suite_id": "work_resume"
+      }
+    ],
+    "summary": "blocked"
+  },
+  "materialization": {
+    "adapter_id": "letta_core_archive_export_readback",
+    "artifacts": {
+      "generated_fixture_dir": "tmp/real-world-memory/letta-core-archive/letta-fixtures/core_archival_memory",
+      "live_output": null,
+      "manifest": "tmp/real-world-memory/letta-core-archive/memory_projects_manifest.letta-core-archive.json",
+      "materialization": "tmp/real-world-memory/letta-core-archive/letta-core-archive-export.json",
+      "scored_report_json": "tmp/real-world-memory/letta-core-archive/report.json",
+      "scored_report_markdown": "tmp/real-world-memory/letta-core-archive/report.md",
+      "summary": "tmp/real-world-memory/letta-core-archive/summary.json"
+    },
+    "benchmark_input": {
+      "archival_passages": [
+        {
+          "fixture_source": "apps/elf-eval/fixtures/real_world_memory/core_archival_memory/archival_fallback.json",
+          "job_id": "core-archival-archival-fallback-001",
+          "kind": "runbook",
+          "source_id": "fallback-archival-runbook",
+          "text": "Archival rollback note: restore the Postgres backup, rebuild Qdrant from Postgres chunk vectors, and verify search recovers the restored note."
+        },
+        {
+          "fixture_source": "apps/elf-eval/fixtures/real_world_memory/core_archival_memory/project_decision_recovery.json",
+          "job_id": "core-archival-project-decision-recovery-001",
+          "kind": "decision",
+          "source_id": "decision-archival-outcome-policy",
+          "text": "Archival decision record: scenario outcomes use win, tie, loss, not_tested, blocked, or non_goal only when scenario evidence supports them."
+        },
+        {
+          "fixture_source": "apps/elf-eval/fixtures/real_world_memory/core_archival_memory/project_decision_recovery.json",
+          "job_id": "core-archival-project-decision-recovery-001",
+          "kind": "decision",
+          "source_id": "decision-archival-core-search-boundary",
+          "text": "Archival project decision: core blocks stay separate from archival note search and Qdrant-derived retrieval."
+        },
+        {
+          "fixture_source": "apps/elf-eval/fixtures/real_world_memory/core_archival_memory/project_decision_recovery.json",
+          "job_id": "core-archival-project-decision-recovery-001",
+          "kind": "comparison_boundary",
+          "source_id": "decision-letta-export-boundary",
+          "text": "Letta comparison boundary: no contained export/readback artifact maps core block JSON, archival search/readback JSON, and source ids, so Letta remains blocked or not_tested and no win, tie, or loss claim is allowed."
+        },
+        {
+          "fixture_source": "apps/elf-eval/fixtures/real_world_memory/core_archival_memory/stale_core_detection.json",
+          "job_id": "core-archival-stale-core-detection-001",
+          "kind": "decision",
+          "source_id": "archival-current-validation-gate",
+          "text": "Archival decision update: before pushing a refreshed PR head, run cargo make fmt, cargo make lint-fix, and cargo make check."
+        },
+        {
+          "fixture_source": "apps/elf-eval/fixtures/real_world_memory/core_archival_memory/stale_core_detection.json",
+          "job_id": "core-archival-stale-core-detection-001",
+          "kind": "decision",
+          "source_id": "archival-supersedes-core-rationale",
+          "text": "Rationale: archival note evidence supersedes the attached core block until the core block is updated from source-of-truth state."
+        }
+      ],
+      "core_blocks": [
+        {
+          "fixture_source": "apps/elf-eval/fixtures/real_world_memory/core_archival_memory/archival_fallback.json",
+          "job_id": "core-archival-archival-fallback-001",
+          "kind": "core_block",
+          "label": "fallback-core-insufficient",
+          "source_id": "fallback-core-insufficient",
+          "text": "Core block summary: a rollback runbook exists for single-user production, but this core block intentionally omits the rollback steps.",
+          "value": "Source ID: fallback-core-insufficient\nCore block summary: a rollback runbook exists for single-user production, but this core block intentionally omits the rollback steps."
+        },
+        {
+          "fixture_source": "apps/elf-eval/fixtures/real_world_memory/core_archival_memory/core_block_attachment.json",
+          "job_id": "core-archival-core-block-attachment-001",
+          "kind": "core_block",
+          "label": "core-attachment-active",
+          "source_id": "core-attachment-active",
+          "text": "Core block attachment: key project_style has an active attachment for tenant local-tenant project ELF agent local-agent read_profile private_plus_project.",
+          "value": "Source ID: core-attachment-active\nCore block attachment: key project_style has an active attachment for tenant local-tenant project ELF agent local-agent read_profile private_plus_project."
+        },
+        {
+          "fixture_source": "apps/elf-eval/fixtures/real_world_memory/core_archival_memory/core_block_attachment.json",
+          "job_id": "core-archival-core-block-attachment-001",
+          "kind": "core_block_contract",
+          "label": "core-attachment-not-search",
+          "source_id": "core-attachment-not-search",
+          "text": "Core block readback is not archival search; it does not embed, rerank, search Qdrant, create a search session, or record note hits.",
+          "value": "Source ID: core-attachment-not-search\nCore block readback is not archival search; it does not embed, rerank, search Qdrant, create a search session, or record note hits."
+        },
+        {
+          "fixture_source": "apps/elf-eval/fixtures/real_world_memory/core_archival_memory/core_block_provenance.json",
+          "job_id": "core-archival-core-block-provenance-001",
+          "kind": "core_block",
+          "label": "core-provenance-source-ref",
+          "source_id": "core-provenance-source-ref",
+          "text": "Provenance evidence: core block release_policy returns source_ref schema source_ref/v1 with resolver real_world_job_fixture/v1 and locator quote retained for reviewer inspection.",
+          "value": "Source ID: core-provenance-source-ref\nProvenance evidence: core block release_policy returns source_ref schema source_ref/v1 with resolver real_world_job_fixture/v1 and locator quote retained for reviewer inspection."
+        },
+        {
+          "fixture_source": "apps/elf-eval/fixtures/real_world_memory/core_archival_memory/core_block_provenance.json",
+          "job_id": "core-archival-core-block-provenance-001",
+          "kind": "core_block_event",
+          "label": "core-provenance-audit-events",
+          "source_id": "core-provenance-audit-events",
+          "text": "Audit evidence: release_policy has append-only events block_created, block_updated, and attachment_added returned in audit_history.",
+          "value": "Source ID: core-provenance-audit-events\nAudit evidence: release_policy has append-only events block_created, block_updated, and attachment_added returned in audit_history."
+        },
+        {
+          "fixture_source": "apps/elf-eval/fixtures/real_world_memory/core_archival_memory/core_block_scope.json",
+          "job_id": "core-archival-core-block-scope-001",
+          "kind": "core_block",
+          "label": "core-scope-project-shared-readable",
+          "source_id": "core-scope-project-shared-readable",
+          "text": "Scope evidence: project_shared block release_gate is readable for tenant local-tenant project ELF agent local-agent only when the active attachment and read_profile all_scopes allow project_shared.",
+          "value": "Source ID: core-scope-project-shared-readable\nScope evidence: project_shared block release_gate is readable for tenant local-tenant project ELF agent local-agent only when the active attachment and read_profile all_scopes allow project_shared."
+        },
+        {
+          "fixture_source": "apps/elf-eval/fixtures/real_world_memory/core_archival_memory/core_block_scope.json",
+          "job_id": "core-archival-core-block-scope-001",
+          "kind": "core_block",
+          "label": "core-scope-private-owner",
+          "source_id": "core-scope-private-owner",
+          "text": "Private owner evidence: agent_private block agent_a_workflow belongs to agent-a and must not be returned to agent-b even if agent-b has a matching read_profile label.",
+          "value": "Source ID: core-scope-private-owner\nPrivate owner evidence: agent_private block agent_a_workflow belongs to agent-a and must not be returned to agent-b even if agent-b has a matching read_profile label."
+        },
+        {
+          "fixture_source": "apps/elf-eval/fixtures/real_world_memory/core_archival_memory/project_decision_recovery.json",
+          "job_id": "core-archival-project-decision-recovery-001",
+          "kind": "core_block",
+          "label": "decision-core-routing-block",
+          "source_id": "decision-core-routing-block",
+          "text": "Core decision routing block: keep the benchmark outcome policy always attached and route detailed rationale to archival notes.",
+          "value": "Source ID: decision-core-routing-block\nCore decision routing block: keep the benchmark outcome policy always attached and route detailed rationale to archival notes."
+        },
+        {
+          "fixture_source": "apps/elf-eval/fixtures/real_world_memory/core_archival_memory/stale_core_detection.json",
+          "job_id": "core-archival-stale-core-detection-001",
+          "kind": "core_block",
+          "label": "stale-core-validation-gate",
+          "source_id": "stale-core-validation-gate",
+          "text": "Stale core block: the validation gate is cargo make lint and cargo make test.",
+          "value": "Source ID: stale-core-validation-gate\nStale core block: the validation gate is cargo make lint and cargo make test."
+        }
+      ],
+      "required_evidence_ids": [
+        "fallback-core-insufficient",
+        "fallback-archival-runbook",
+        "core-attachment-active",
+        "core-attachment-not-search",
+        "core-provenance-source-ref",
+        "core-provenance-audit-events",
+        "core-scope-project-shared-readable",
+        "core-scope-private-owner",
+        "decision-core-routing-block",
+        "decision-archival-outcome-policy",
+        "decision-archival-core-search-boundary",
+        "decision-letta-export-boundary",
+        "archival-current-validation-gate",
+        "archival-supersedes-core-rationale"
+      ],
+      "source_id_count": 21
+    },
+    "claim_boundaries": {
+      "allowed": [
+        "The Letta comparison now has a reproducible Docker-contained materialization/report command.",
+        "The current default report may preserve typed blockers when live Letta/provider setup cannot produce export/readback evidence."
+      ],
+      "not_allowed": [
+        "Do not claim ELF beats Letta on core-vs-archival memory from fixture-only ELF evidence.",
+        "Do not score Letta pass, win, tie, or loss unless exported core block JSON, archival readback/search JSON, and fixture source ids are present."
+      ]
+    },
+    "commands": [],
+    "docker_boundary": {
+      "compose_file": "docker-compose.baseline.yml",
+      "docker_only": true,
+      "host_global_installs_required": false,
+      "host_global_letta_state_used": false,
+      "hosted_letta_state_used": false,
+      "runner": "scripts/letta-core-archive-export-readback-smoke.py",
+      "runner_service": "baseline-runner",
+      "service_profile": "letta"
+    },
+    "evidence_class": "research_gate",
+    "evidence_mapping": {
+      "expected_evidence_ids": [
+        "fallback-core-insufficient",
+        "fallback-archival-runbook",
+        "core-attachment-active",
+        "core-attachment-not-search",
+        "core-provenance-source-ref",
+        "core-provenance-audit-events",
+        "core-scope-project-shared-readable",
+        "core-scope-private-owner",
+        "decision-core-routing-block",
+        "decision-archival-outcome-policy",
+        "decision-archival-core-search-boundary",
+        "decision-letta-export-boundary",
+        "archival-current-validation-gate",
+        "archival-supersedes-core-rationale"
+      ],
+      "jobs": [
+        {
+          "expected_evidence_ids": [
+            "fallback-core-insufficient",
+            "fallback-archival-runbook"
+          ],
+          "job_id": "core-archival-archival-fallback-001",
+          "mapped_evidence_ids": [],
+          "missing_evidence_ids": [
+            "fallback-core-insufficient",
+            "fallback-archival-runbook"
+          ],
+          "reason": "Letta live export/readback is disabled by default; run ELF_LETTA_SMOKE_START=1 ELF_LETTA_SMOKE_RUN=1 cargo make smoke-letta-core-archive-export-readback with explicit Docker/provider configuration.",
+          "source_fixture": "apps/elf-eval/fixtures/real_world_memory/core_archival_memory/archival_fallback.json",
+          "status": "blocked"
+        },
+        {
+          "expected_evidence_ids": [
+            "core-attachment-active",
+            "core-attachment-not-search"
+          ],
+          "job_id": "core-archival-core-block-attachment-001",
+          "mapped_evidence_ids": [],
+          "missing_evidence_ids": [
+            "core-attachment-active",
+            "core-attachment-not-search"
+          ],
+          "reason": "Letta live export/readback is disabled by default; run ELF_LETTA_SMOKE_START=1 ELF_LETTA_SMOKE_RUN=1 cargo make smoke-letta-core-archive-export-readback with explicit Docker/provider configuration.",
+          "source_fixture": "apps/elf-eval/fixtures/real_world_memory/core_archival_memory/core_block_attachment.json",
+          "status": "blocked"
+        },
+        {
+          "expected_evidence_ids": [
+            "core-provenance-source-ref",
+            "core-provenance-audit-events"
+          ],
+          "job_id": "core-archival-core-block-provenance-001",
+          "mapped_evidence_ids": [],
+          "missing_evidence_ids": [
+            "core-provenance-source-ref",
+            "core-provenance-audit-events"
+          ],
+          "reason": "Letta live export/readback is disabled by default; run ELF_LETTA_SMOKE_START=1 ELF_LETTA_SMOKE_RUN=1 cargo make smoke-letta-core-archive-export-readback with explicit Docker/provider configuration.",
+          "source_fixture": "apps/elf-eval/fixtures/real_world_memory/core_archival_memory/core_block_provenance.json",
+          "status": "blocked"
+        },
+        {
+          "expected_evidence_ids": [
+            "core-scope-project-shared-readable",
+            "core-scope-private-owner"
+          ],
+          "job_id": "core-archival-core-block-scope-001",
+          "mapped_evidence_ids": [],
+          "missing_evidence_ids": [
+            "core-scope-project-shared-readable",
+            "core-scope-private-owner"
+          ],
+          "reason": "Letta live export/readback is disabled by default; run ELF_LETTA_SMOKE_START=1 ELF_LETTA_SMOKE_RUN=1 cargo make smoke-letta-core-archive-export-readback with explicit Docker/provider configuration.",
+          "source_fixture": "apps/elf-eval/fixtures/real_world_memory/core_archival_memory/core_block_scope.json",
+          "status": "blocked"
+        },
+        {
+          "expected_evidence_ids": [
+            "decision-core-routing-block",
+            "decision-archival-outcome-policy",
+            "decision-archival-core-search-boundary",
+            "decision-letta-export-boundary"
+          ],
+          "job_id": "core-archival-project-decision-recovery-001",
+          "mapped_evidence_ids": [],
+          "missing_evidence_ids": [
+            "decision-core-routing-block",
+            "decision-archival-outcome-policy",
+            "decision-archival-core-search-boundary",
+            "decision-letta-export-boundary"
+          ],
+          "reason": "Letta live export/readback is disabled by default; run ELF_LETTA_SMOKE_START=1 ELF_LETTA_SMOKE_RUN=1 cargo make smoke-letta-core-archive-export-readback with explicit Docker/provider configuration.",
+          "source_fixture": "apps/elf-eval/fixtures/real_world_memory/core_archival_memory/project_decision_recovery.json",
+          "status": "blocked"
+        },
+        {
+          "expected_evidence_ids": [
+            "archival-current-validation-gate",
+            "archival-supersedes-core-rationale"
+          ],
+          "job_id": "core-archival-stale-core-detection-001",
+          "mapped_evidence_ids": [],
+          "missing_evidence_ids": [
+            "archival-current-validation-gate",
+            "archival-supersedes-core-rationale"
+          ],
+          "reason": "Letta live export/readback is disabled by default; run ELF_LETTA_SMOKE_START=1 ELF_LETTA_SMOKE_RUN=1 cargo make smoke-letta-core-archive-export-readback with explicit Docker/provider configuration.",
+          "source_fixture": "apps/elf-eval/fixtures/real_world_memory/core_archival_memory/stale_core_detection.json",
+          "status": "blocked"
+        }
+      ],
+      "mapped_evidence_ids": [],
+      "missing_evidence_ids": [
+        "fallback-core-insufficient",
+        "fallback-archival-runbook",
+        "core-attachment-active",
+        "core-attachment-not-search",
+        "core-provenance-source-ref",
+        "core-provenance-audit-events",
+        "core-scope-project-shared-readable",
+        "core-scope-private-owner",
+        "decision-core-routing-block",
+        "decision-archival-outcome-policy",
+        "decision-archival-core-search-boundary",
+        "decision-letta-export-boundary",
+        "archival-current-validation-gate",
+        "archival-supersedes-core-rationale"
+      ],
+      "reason": "Letta live export/readback is disabled by default; run ELF_LETTA_SMOKE_START=1 ELF_LETTA_SMOKE_RUN=1 cargo make smoke-letta-core-archive-export-readback with explicit Docker/provider configuration.",
+      "status": "blocked"
+    },
+    "generated_at": "2026-06-19T05:50:58Z",
+    "improvement_regression_readback": {
+      "baseline": "XY-955 left Letta core/archive comparison blocked because no contained export/readback artifact existed.",
+      "current": "unchanged: the benchmark now has a Docker-contained materialization command and typed report, but the default run still preserves Letta comparison as blocked until live export/search data maps source ids.",
+      "judgment": "unchanged"
+    },
+    "letta_export": {
+      "agent": null,
+      "archival_readback_json": null,
+      "archival_search_json": [],
+      "core_block_json": [],
+      "status": "blocked"
+    },
+    "project": "Letta",
+    "provider_configuration": {
+      "base_url": "http://letta:8283",
+      "client_package": "pypi:letta-client",
+      "embedding": "openai/text-embedding-3-small",
+      "live_run_enabled": false,
+      "model": "openai/gpt-4o-mini",
+      "operator_owned_provider_credentials_used": false
+    },
+    "resource_bounds": {
+      "archival_passage_count": 6,
+      "core_block_count": 9,
+      "elapsed_ms": 10933.304,
+      "source_fixture_count": 6,
+      "timeout_seconds": 600
+    },
+    "run_id": "letta-core-archive-20260619055047",
+    "schema": "elf.letta_core_archive_export_readback/v1",
+    "scored_benchmark": {
+      "counts": {
+        "blocked": 6,
+        "incomplete": 0,
+        "lifecycle_fail": 0,
+        "not_encoded": 0,
+        "pass": 0,
+        "wrong_result": 0
+      },
+      "evidence_coverage": 1.0,
+      "job_count": 6,
+      "mean_score": 0.0,
+      "schema": "elf.scored_benchmark_status/v1",
+      "source": "real_world_job_benchmark",
+      "status": "blocked"
+    },
+    "status": {
+      "failure_class": "letta_live_run_disabled",
+      "failure_reason": "Letta live export/readback is disabled by default; run ELF_LETTA_SMOKE_START=1 ELF_LETTA_SMOKE_RUN=1 cargo make smoke-letta-core-archive-export-readback with explicit Docker/provider configuration.",
+      "overall": "blocked",
+      "result": "blocked",
+      "run": "not_encoded",
+      "setup": "blocked",
+      "source": "smoke_materialization"
+    }
+  },
+  "report": {
+    "json": "tmp/real-world-memory/letta-core-archive/report.json",
+    "markdown": "tmp/real-world-memory/letta-core-archive/report.md",
+    "suites": [
+      {
+        "conflict_detection_count": 0,
+        "encoded_job_count": 0,
+        "expected_evidence_recall": null,
+        "history_readback_encoded_count": 0,
+        "irrelevant_context_ratio": null,
+        "reason": "No checked-in real_world_job fixture is encoded for this suite.",
+        "score_mean": null,
+        "stale_answer_count": 0,
+        "status": "not_encoded",
+        "suite_id": "trust_source_of_truth",
+        "temporal_validity_not_encoded_count": 0,
+        "trace_explainability_count": 0,
+        "unsupported_claim_count": 0,
+        "update_rationale_available_count": 0,
+        "wrong_result_count": 0
+      },
+      {
+        "conflict_detection_count": 0,
+        "encoded_job_count": 0,
+        "expected_evidence_recall": null,
+        "history_readback_encoded_count": 0,
+        "irrelevant_context_ratio": null,
+        "reason": "No checked-in real_world_job fixture is encoded for this suite.",
+        "score_mean": null,
+        "stale_answer_count": 0,
+        "status": "not_encoded",
+        "suite_id": "work_resume",
+        "temporal_validity_not_encoded_count": 0,
+        "trace_explainability_count": 0,
+        "unsupported_claim_count": 0,
+        "update_rationale_available_count": 0,
+        "wrong_result_count": 0
+      },
+      {
+        "conflict_detection_count": 0,
+        "encoded_job_count": 0,
+        "expected_evidence_recall": null,
+        "history_readback_encoded_count": 0,
+        "irrelevant_context_ratio": null,
+        "reason": "No checked-in real_world_job fixture is encoded for this suite.",
+        "score_mean": null,
+        "stale_answer_count": 0,
+        "status": "not_encoded",
+        "suite_id": "project_decisions",
+        "temporal_validity_not_encoded_count": 0,
+        "trace_explainability_count": 0,
+        "unsupported_claim_count": 0,
+        "update_rationale_available_count": 0,
+        "wrong_result_count": 0
+      },
+      {
+        "conflict_detection_count": 0,
+        "encoded_job_count": 0,
+        "expected_evidence_recall": null,
+        "history_readback_encoded_count": 0,
+        "irrelevant_context_ratio": null,
+        "reason": "No checked-in real_world_job fixture is encoded for this suite.",
+        "score_mean": null,
+        "stale_answer_count": 0,
+        "status": "not_encoded",
+        "suite_id": "retrieval",
+        "temporal_validity_not_encoded_count": 0,
+        "trace_explainability_count": 0,
+        "unsupported_claim_count": 0,
+        "update_rationale_available_count": 0,
+        "wrong_result_count": 0
+      },
+      {
+        "conflict_detection_count": 0,
+        "encoded_job_count": 0,
+        "expected_evidence_recall": null,
+        "history_readback_encoded_count": 0,
+        "irrelevant_context_ratio": null,
+        "reason": "No checked-in real_world_job fixture is encoded for this suite.",
+        "score_mean": null,
+        "stale_answer_count": 0,
+        "status": "not_encoded",
+        "suite_id": "memory_evolution",
+        "temporal_validity_not_encoded_count": 0,
+        "trace_explainability_count": 0,
+        "unsupported_claim_count": 0,
+        "update_rationale_available_count": 0,
+        "wrong_result_count": 0
+      },
+      {
+        "conflict_detection_count": 0,
+        "encoded_job_count": 0,
+        "expected_evidence_recall": null,
+        "history_readback_encoded_count": 0,
+        "irrelevant_context_ratio": null,
+        "reason": "No checked-in real_world_job fixture is encoded for this suite.",
+        "score_mean": null,
+        "stale_answer_count": 0,
+        "status": "not_encoded",
+        "suite_id": "consolidation",
+        "temporal_validity_not_encoded_count": 0,
+        "trace_explainability_count": 0,
+        "unsupported_claim_count": 0,
+        "update_rationale_available_count": 0,
+        "wrong_result_count": 0
+      },
+      {
+        "conflict_detection_count": 0,
+        "encoded_job_count": 0,
+        "expected_evidence_recall": null,
+        "history_readback_encoded_count": 0,
+        "irrelevant_context_ratio": null,
+        "reason": "No checked-in real_world_job fixture is encoded for this suite.",
+        "score_mean": null,
+        "stale_answer_count": 0,
+        "status": "not_encoded",
+        "suite_id": "memory_summary",
+        "temporal_validity_not_encoded_count": 0,
+        "trace_explainability_count": 0,
+        "unsupported_claim_count": 0,
+        "update_rationale_available_count": 0,
+        "wrong_result_count": 0
+      },
+      {
+        "conflict_detection_count": 0,
+        "encoded_job_count": 0,
+        "expected_evidence_recall": null,
+        "history_readback_encoded_count": 0,
+        "irrelevant_context_ratio": null,
+        "reason": "No checked-in real_world_job fixture is encoded for this suite.",
+        "score_mean": null,
+        "stale_answer_count": 0,
+        "status": "not_encoded",
+        "suite_id": "proactive_brief",
+        "temporal_validity_not_encoded_count": 0,
+        "trace_explainability_count": 0,
+        "unsupported_claim_count": 0,
+        "update_rationale_available_count": 0,
+        "wrong_result_count": 0
+      },
+      {
+        "conflict_detection_count": 0,
+        "encoded_job_count": 0,
+        "expected_evidence_recall": null,
+        "history_readback_encoded_count": 0,
+        "irrelevant_context_ratio": null,
+        "reason": "No checked-in real_world_job fixture is encoded for this suite.",
+        "score_mean": null,
+        "stale_answer_count": 0,
+        "status": "not_encoded",
+        "suite_id": "scheduled_memory",
+        "temporal_validity_not_encoded_count": 0,
+        "trace_explainability_count": 0,
+        "unsupported_claim_count": 0,
+        "update_rationale_available_count": 0,
+        "wrong_result_count": 0
+      },
+      {
+        "conflict_detection_count": 0,
+        "encoded_job_count": 0,
+        "expected_evidence_recall": null,
+        "history_readback_encoded_count": 0,
+        "irrelevant_context_ratio": null,
+        "reason": "No checked-in real_world_job fixture is encoded for this suite.",
+        "score_mean": null,
+        "stale_answer_count": 0,
+        "status": "not_encoded",
+        "suite_id": "knowledge_compilation",
+        "temporal_validity_not_encoded_count": 0,
+        "trace_explainability_count": 0,
+        "unsupported_claim_count": 0,
+        "update_rationale_available_count": 0,
+        "wrong_result_count": 0
+      },
+      {
+        "conflict_detection_count": 0,
+        "encoded_job_count": 0,
+        "expected_evidence_recall": null,
+        "history_readback_encoded_count": 0,
+        "irrelevant_context_ratio": null,
+        "reason": "No checked-in real_world_job fixture is encoded for this suite.",
+        "score_mean": null,
+        "stale_answer_count": 0,
+        "status": "not_encoded",
+        "suite_id": "operator_debugging_ux",
+        "temporal_validity_not_encoded_count": 0,
+        "trace_explainability_count": 0,
+        "unsupported_claim_count": 0,
+        "update_rationale_available_count": 0,
+        "wrong_result_count": 0
+      },
+      {
+        "conflict_detection_count": 0,
+        "encoded_job_count": 0,
+        "expected_evidence_recall": null,
+        "history_readback_encoded_count": 0,
+        "irrelevant_context_ratio": null,
+        "reason": "No checked-in real_world_job fixture is encoded for this suite.",
+        "score_mean": null,
+        "stale_answer_count": 0,
+        "status": "not_encoded",
+        "suite_id": "capture_integration",
+        "temporal_validity_not_encoded_count": 0,
+        "trace_explainability_count": 0,
+        "unsupported_claim_count": 0,
+        "update_rationale_available_count": 0,
+        "wrong_result_count": 0
+      },
+      {
+        "conflict_detection_count": 0,
+        "encoded_job_count": 0,
+        "expected_evidence_recall": null,
+        "history_readback_encoded_count": 0,
+        "irrelevant_context_ratio": null,
+        "reason": "No checked-in real_world_job fixture is encoded for this suite.",
+        "score_mean": null,
+        "stale_answer_count": 0,
+        "status": "not_encoded",
+        "suite_id": "production_ops",
+        "temporal_validity_not_encoded_count": 0,
+        "trace_explainability_count": 0,
+        "unsupported_claim_count": 0,
+        "update_rationale_available_count": 0,
+        "wrong_result_count": 0
+      },
+      {
+        "conflict_detection_count": 0,
+        "encoded_job_count": 0,
+        "expected_evidence_recall": null,
+        "history_readback_encoded_count": 0,
+        "irrelevant_context_ratio": null,
+        "reason": "No checked-in real_world_job fixture is encoded for this suite.",
+        "score_mean": null,
+        "stale_answer_count": 0,
+        "status": "not_encoded",
+        "suite_id": "personalization",
+        "temporal_validity_not_encoded_count": 0,
+        "trace_explainability_count": 0,
+        "unsupported_claim_count": 0,
+        "update_rationale_available_count": 0,
+        "wrong_result_count": 0
+      },
+      {
+        "conflict_detection_count": 0,
+        "encoded_job_count": 6,
+        "expected_evidence_recall": 1.0,
+        "history_readback_encoded_count": 0,
+        "irrelevant_context_ratio": 0.0,
+        "reason": "At least one encoded job is blocked.",
+        "score_mean": 0.0,
+        "stale_answer_count": 0,
+        "status": "blocked",
+        "suite_id": "core_archival_memory",
+        "temporal_validity_not_encoded_count": 0,
+        "trace_explainability_count": 0,
+        "unsupported_claim_count": 0,
+        "update_rationale_available_count": 0,
+        "wrong_result_count": 0
+      },
+      {
+        "conflict_detection_count": 0,
+        "encoded_job_count": 0,
+        "expected_evidence_recall": null,
+        "history_readback_encoded_count": 0,
+        "irrelevant_context_ratio": null,
+        "reason": "No checked-in real_world_job fixture is encoded for this suite.",
+        "score_mean": null,
+        "stale_answer_count": 0,
+        "status": "not_encoded",
+        "suite_id": "context_trajectory",
+        "temporal_validity_not_encoded_count": 0,
+        "trace_explainability_count": 0,
+        "unsupported_claim_count": 0,
+        "update_rationale_available_count": 0,
+        "wrong_result_count": 0
+      }
+    ],
+    "summary": {
+      "blocked": 6,
+      "conflict_detection_count": 0,
+      "consolidation": {
+        "executable_gap_count": 0,
+        "lineage_completeness": null,
+        "proposal_count": 0,
+        "proposal_unsupported_claim_count": 0,
+        "proposal_usefulness": null,
+        "review_action_correctness": null,
+        "source_mutation_count": 0
+      },
+      "encoded_suite_count": 1,
+      "evidence_coverage": 1.0,
+      "evidence_covered_count": 14,
+      "evidence_required_count": 14,
+      "expected_evidence_matched": 14,
+      "expected_evidence_recall": 1.0,
+      "expected_evidence_total": 14,
+      "history_readback_encoded_count": 0,
+      "incomplete": 0,
+      "irrelevant_context_count": 0,
+      "irrelevant_context_ratio": 0.0,
+      "job_count": 6,
+      "lifecycle_fail": 0,
+      "mean_latency_ms": 0.0,
+      "mean_score": 0.0,
+      "not_encoded": 0,
+      "operator_debug_job_count": 0,
+      "operator_ux_gap_count": 0,
+      "pass": 0,
+      "qdrant_rebuild_case_count": 0,
+      "qdrant_rebuild_pass_count": 0,
+      "quote_coverage": 1.0,
+      "quote_covered_count": 14,
+      "quote_required_count": 14,
+      "raw_sql_needed_count": 0,
+      "redaction_leak_count": 0,
+      "scope_check_count": 1,
+      "scope_correct_count": 1,
+      "scope_correctness": 1.0,
+      "scope_violation_count": 0,
+      "source_ref_coverage": 1.0,
+      "source_ref_covered_count": 14,
+      "source_ref_required_count": 14,
+      "stale_answer_count": 0,
+      "stale_retrieval_count": 0,
+      "temporal_validity_not_encoded_count": 0,
+      "total_cost": {
+        "amount": 0.0,
+        "currency": "USD",
+        "input_tokens": 0,
+        "output_tokens": 0
+      },
+      "trace_explainability_count": 0,
+      "trace_incomplete_count": 0,
+      "unsupported_claim": 0,
+      "unsupported_claim_count": 0,
+      "update_rationale_available_count": 0,
+      "wrong_result": 0,
+      "wrong_result_count": 0,
+      "wrong_result_stage_attribution_count": 0
+    }
+  },
+  "schema": "elf.letta_core_archive_export_readback_summary/v1",
+  "scored_benchmark": {
+    "counts": {
+      "blocked": 6,
+      "incomplete": 0,
+      "lifecycle_fail": 0,
+      "not_encoded": 0,
+      "pass": 0,
+      "wrong_result": 0
+    },
+    "evidence_coverage": 1.0,
+    "job_count": 6,
+    "mean_score": 0.0,
+    "schema": "elf.scored_benchmark_status/v1",
+    "source": "real_world_job_benchmark",
+    "status": "blocked"
+  },
+  "status_boundary": {
+    "manifest": "external adapter declaration consumed by the scorer",
+    "materialization": "setup/run/evidence-mapping state emitted by the smoke runner",
+    "scored_benchmark": "post-score real_world_job outcome; use this for quality status"
+  }
+}

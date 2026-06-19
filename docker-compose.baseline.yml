@@ -79,6 +79,19 @@ services:
     volumes:
       - elf-live-baseline-graphiti-falkordb:/data
 
+  letta:
+    profiles:
+      - letta
+    image: ${ELF_LETTA_IMAGE:-letta/letta:latest}
+    environment:
+      OPENAI_API_BASE: ${ELF_LETTA_OPENAI_API_BASE:-}
+      OPENAI_API_KEY: ${ELF_LETTA_OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ELF_LETTA_ANTHROPIC_API_KEY:-}
+      OLLAMA_BASE_URL: ${ELF_LETTA_OLLAMA_BASE_URL:-}
+      LETTA_MEMFS_SERVICE_URL: ${ELF_LETTA_MEMFS_SERVICE_URL:-}
+    volumes:
+      - elf-live-baseline-letta-pgdata:/var/lib/postgresql/data
+
   baseline-runner:
     build:
       context: .
@@ -160,6 +173,7 @@ volumes:
   elf-live-baseline-cargo-registry:
   elf-live-baseline-graphiti-falkordb:
   elf-live-baseline-huggingface-cache:
+  elf-live-baseline-letta-pgdata:
   elf-live-baseline-lightrag-inputs:
   elf-live-baseline-lightrag-prompts:
   elf-live-baseline-lightrag-rag-storage:

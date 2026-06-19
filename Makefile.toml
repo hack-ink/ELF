@@ -1276,6 +1276,7 @@ args = [
 # | smoke-graphify-docker-graph-report | command   |     |
 # | smoke-graphiti-zep-docker-temporal | command   |     |
 # | smoke-graphrag-docker              | command   |     |
+# | smoke-letta-core-archive-export-readback | command   |     |
 # | smoke-lightrag-docker-context      | command   |     |
 # | smoke-ragflow-docker               | command   |     |
 # | smoke-real-world-job               | composite |     |
@@ -1304,6 +1305,14 @@ command = "bash"
 args = [
 	"scripts/smoke-docker.sh",
 	"graphrag-docker",
+]
+
+[tasks.smoke-letta-core-archive-export-readback]
+workspace = false
+command = "bash"
+args = [
+	"scripts/smoke-docker.sh",
+	"letta-core-archive-export-readback",
 ]
 
 [tasks.smoke-lightrag-docker-context]
