@@ -1,0 +1,227 @@
+{
+  "schema": "elf.operator_approved_public_proxy_baseline_report/v1",
+  "report_id": "xy-930-operator-approved-public-proxy-production-private-addendum-2026-06-19",
+  "authority": "XY-930",
+  "created_at": "2026-06-19T14:40:13Z",
+  "goal": "Record the operator-approved simulated/public-proxy production-corpus run through the fail-closed production-private addendum path while preserving private-corpus and provider-backed claim boundaries.",
+  "command": {
+    "command": "ELF_BASELINE_PROJECTS=ELF ELF_BASELINE_PRODUCTION_CORPUS_MANIFEST=/workspace/tmp/<operator-approved-public-proxy-manifest>.json ELF_BASELINE_PRIVATE_ADDENDUM=tmp/live-baseline/operator-approved-public-proxy-addendum.md cargo make baseline-production-private-addendum",
+    "status": "pass",
+    "run_id": "live-baseline-20260619143959",
+    "report_artifact": "tmp/live-baseline/live-baseline-report.json",
+    "markdown_artifact": "tmp/live-baseline/operator-approved-public-proxy-addendum.md",
+    "project_head": "56c68e6518ed7c255d6c21b867315277670fc995"
+  },
+  "corpus": {
+    "profile": "production-private",
+    "runner_track": "private_production",
+    "manifest_kind": "operator_approved_public_proxy",
+    "manifest_id": "operator-approved-public-proxy-prod-corpus-2026-06-19",
+    "document_count": 12,
+    "query_count": 8,
+    "source_boundary": "The manifest is sanitized generated/public-proxy material approved for this run; source text and local manifest paths are not checked in.",
+    "runner_label_boundary": "The runner labels the track private_production because the fail-closed production-private entrypoint was exercised. This report does not convert the proxy corpus into real private-corpus proof."
+  },
+  "embedding": {
+    "mode": "local",
+    "provider_id": "local",
+    "model": "local-hash",
+    "dimensions": 256,
+    "timeout_ms": 1000,
+    "api_base": "http://127.0.0.1",
+    "path": "/embeddings",
+    "provider_backed_quality_proven": false
+  },
+  "summary": {
+    "project": "ELF",
+    "project_status": "pass",
+    "retrieval_status": "retrieval_pass",
+    "total": 1,
+    "pass": 1,
+    "fail": 0,
+    "wrong_result": 0,
+    "lifecycle_fail": 0,
+    "incomplete": 0,
+    "blocked": 0,
+    "not_encoded": 0,
+    "reason": "ELF added the operator-approved public-proxy corpus, rebuilt Qdrant, and returned expected evidence for every query."
+  },
+  "check_summary": {
+    "total": 8,
+    "pass": 8,
+    "fail": 0,
+    "wrong_result": 0,
+    "lifecycle_fail": 0,
+    "incomplete": 0,
+    "blocked": 0,
+    "not_encoded": 0
+  },
+  "query_summary": {
+    "total": 8,
+    "pass": 8,
+    "fail": 0,
+    "wrong_result_count": 0,
+    "latency_ms_mean": 10.842727625,
+    "latency_ms_p50": 8.186716,
+    "latency_ms_p95": 30.443385,
+    "latency_ms_p99": 30.443385,
+    "latency_ms_max": 30.443385
+  },
+  "queries": [
+    {
+      "id": "q-resume-xy930-policy",
+      "task": "resume_lane",
+      "trace_id": "882fc41f-7ea0-42c1-a04e-a62713b8e7d0",
+      "expected_evidence": "issue-xy930-policy",
+      "top_evidence": "issue-xy930-policy",
+      "matched": true,
+      "latency_ms": 9.300164
+    },
+    {
+      "id": "q-recover-private-command",
+      "task": "recover_exact_command",
+      "trace_id": "929516c3-03d9-4d9f-aa7d-cc5a5c76e9d3",
+      "expected_evidence": "runbook-private-command",
+      "top_evidence": "runbook-private-command",
+      "matched": true,
+      "latency_ms": 30.443385
+    },
+    {
+      "id": "q-explain-provider-blocker",
+      "task": "explain_stale_blocker",
+      "trace_id": "66e32fc2-71b1-40bf-b1d3-7e60427a2573",
+      "expected_evidence": "blocker-provider-missing",
+      "top_evidence": "blocker-provider-missing",
+      "matched": true,
+      "latency_ms": 8.186716
+    },
+    {
+      "id": "q-find-proxy-boundary",
+      "task": "find_prior_decision",
+      "trace_id": "93651b26-6584-4883-ae30-ff9928cace59",
+      "expected_evidence": "decision-proxy-boundary",
+      "top_evidence": "decision-proxy-boundary",
+      "matched": true,
+      "latency_ms": 7.743761
+    },
+    {
+      "id": "q-compare-dreaming-graphrag",
+      "task": "compare_project_status",
+      "trace_id": "b4a71e95-1571-4b7d-9fa6-e6e8be1b62a1",
+      "expected_evidence": "issue-xy986-dreaming",
+      "top_evidence": "issue-xy986-dreaming",
+      "matched": true,
+      "latency_ms": 7.350473
+    },
+    {
+      "id": "q-detect-sdk-ui-export",
+      "task": "detect_contradiction_update",
+      "trace_id": "6790eab4-561c-4c9e-abc4-728580f359c5",
+      "expected_evidence": "issue-xy987-openmemory",
+      "top_evidence": "issue-xy987-openmemory",
+      "matched": true,
+      "latency_ms": 7.606096
+    },
+    {
+      "id": "q-recover-addendum-safety",
+      "task": "recover_exact_command",
+      "trace_id": "11fa7d80-7a95-4b6f-861f-ae43acf469e0",
+      "expected_evidence": "runbook-addendum-safety",
+      "top_evidence": "runbook-addendum-safety",
+      "matched": true,
+      "latency_ms": 7.805386
+    },
+    {
+      "id": "q-resume-cleanup",
+      "task": "resume_lane",
+      "trace_id": "7e44260b-330d-4168-ab98-7fae99e5318f",
+      "expected_evidence": "worktree-cleanup",
+      "top_evidence": "worktree-cleanup",
+      "matched": true,
+      "latency_ms": 8.30584
+    }
+  ],
+  "backfill": {
+    "source_count": 12,
+    "completed_count": 12,
+    "batch_size": 32,
+    "worker_concurrency": 1,
+    "attempts": 2,
+    "interrupted_after": 6,
+    "completed_before_resume": 6,
+    "completed_after_resume": 12,
+    "skipped_completed": 6,
+    "duplicate_source_notes": 0,
+    "elapsed_seconds": 0.175270381
+  },
+  "resource_envelope": {
+    "elapsed_seconds": 1.313984156,
+    "rss_kb": 37656,
+    "max_rss_kb": 1500000,
+    "postgres_database_bytes": 11867839,
+    "corpus_dir_bytes": 1422,
+    "report_dir_bytes": 15289,
+    "checkpoint_file_bytes": 3094
+  },
+  "cost_proxy": {
+    "scope": "primary corpus note text plus declared same-corpus query text",
+    "estimated_input_chars": 1542,
+    "estimated_input_tokens": 386,
+    "configured_usd_per_1k_tokens": null,
+    "estimated_usd": null
+  },
+  "improvement_regression_readback": {
+    "previous_state": [
+      "XY-930 was blocked on the absent operator-owned production corpus manifest and absent credentialed provider setup."
+    ],
+    "improved": [
+      "The fail-closed production-private manifest path is now exercised with an operator-approved public-proxy corpus.",
+      "Same-corpus retrieval improved from blocked by missing manifest to 8/8 pass on the approved proxy corpus.",
+      "Backfill resume, update, delete, cold-start, concurrent write/search, and resource-envelope checks all remained pass."
+    ],
+    "unchanged": [
+      "Real private-corpus production quality is still not proven.",
+      "Provider-backed embedding quality is still not proven because this run used local-hash embeddings.",
+      "Broad competitor superiority is unchanged; this run only covers the ELF private-entrypoint proxy signal."
+    ],
+    "regressed": []
+  },
+  "claim_boundaries": {
+    "allowed": [
+      "The production-private addendum entrypoint passed on the operator-approved public-proxy corpus.",
+      "The run produced 8/8 query passes, 0 wrong_result, 0 lifecycle_fail, 0 blocked, 0 incomplete, and 0 not_encoded.",
+      "The run is useful as a proxy signal for XY-930 planning and benchmark continuity."
+    ],
+    "not_allowed": [
+      "Do not call this real private-corpus production proof.",
+      "Do not claim provider-backed production quality; embedding mode was local.",
+      "Do not treat the runner track private_production as a private data authority claim.",
+      "Do not use this single ELF proxy run as broad competitor-superiority evidence."
+    ]
+  },
+  "public_dataset_candidates": [
+    {
+      "name": "SWE-bench",
+      "url": "https://github.com/swe-bench/SWE-bench",
+      "used_in_this_run": false,
+      "note": "Candidate public issue/PR corpus for a future downloadable proxy expansion."
+    },
+    {
+      "name": "SWE-bench original dataset description",
+      "url": "https://www.swebench.com/original.html",
+      "used_in_this_run": false,
+      "note": "Describes the public 12-repository, 2294-task benchmark; not downloaded for this run."
+    }
+  ],
+  "next_optimization_direction": {
+    "immediate": [
+      "Keep this report as the XY-930 public-proxy closure evidence.",
+      "Use the same addendum path for future public/downloaded corpora before any real private corpus is introduced."
+    ],
+    "when_operator_inputs_exist": [
+      "Run the same profile with a real private production corpus manifest.",
+      "Run provider-backed embeddings with ELF_BASELINE_ELF_EMBEDDING_MODE=provider and a routed provider setup.",
+      "Compare proxy, real-private, and provider-backed results for retrieval deltas before claiming production quality."
+    ]
+  }
+}
