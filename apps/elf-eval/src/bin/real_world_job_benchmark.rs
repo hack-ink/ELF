@@ -460,6 +460,8 @@ struct DerivedPageArtifact {
 	lint_findings: Vec<DerivedPageLintFinding>,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	rebuild: Option<DerivedPageRebuild>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	page_version_diff: Option<Value>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -1271,10 +1273,12 @@ struct KnowledgeSummary {
 	section_count: usize,
 	backlink_count: usize,
 	pages_with_backlinks: usize,
+	pages_with_version_diff: usize,
 	citation_coverage: f64,
 	stale_claim_detection: f64,
 	rebuild_determinism: f64,
 	backlink_coverage: f64,
+	version_diff_coverage: f64,
 	page_usefulness: f64,
 	unsupported_summary_count: usize,
 	untraced_section_count: usize,
@@ -1459,6 +1463,7 @@ struct KnowledgeJobMetrics {
 	unsupported_summary_count: usize,
 	backlink_count: usize,
 	pages_with_backlinks: usize,
+	pages_with_version_diff: usize,
 	stale_trap_count: usize,
 	stale_traps_detected: usize,
 	rebuild_page_count: usize,
@@ -1469,6 +1474,7 @@ struct KnowledgeJobMetrics {
 	stale_claim_detection: f64,
 	rebuild_determinism: f64,
 	backlink_coverage: f64,
+	version_diff_coverage: f64,
 	page_usefulness: f64,
 }
 
@@ -2194,6 +2200,23 @@ fn validate_page_artifact(
 			path.display(),
 			page.page_id
 		));
+	}
+	if let Some(diff) = &page.page_version_diff {
+		if !diff.is_object() {
+			return Err(eyre::eyre!(
+				"{} page {} previous-version diff must be a JSON object.",
+				path.display(),
+				page.page_id
+			));
+		}
+		if diff.get("schema").and_then(Value::as_str) != Some("elf.knowledge_page.version_diff/v1")
+		{
+			return Err(eyre::eyre!(
+				"{} page {} previous-version diff has an unexpected schema.",
+				path.display(),
+				page.page_id
+			));
+		}
 	}
 
 	Ok(())
@@ -3854,6 +3877,7 @@ fn knowledge_metrics(job: &RealWorldJob, answer: &ProducedAnswer) -> Option<Know
 		ratio_or_full(metrics.stale_traps_detected, metrics.stale_trap_count);
 	metrics.rebuild_determinism = ratio(metrics.deterministic_rebuild_count, metrics.page_count);
 	metrics.backlink_coverage = ratio(metrics.pages_with_backlinks, metrics.page_count);
+	metrics.version_diff_coverage = ratio(metrics.pages_with_version_diff, metrics.page_count);
 	metrics.page_usefulness = round3(
 		(metrics.citation_coverage
 			+ metrics.stale_claim_detection
@@ -3875,6 +3899,9 @@ fn stale_traps(job: &RealWorldJob) -> Vec<&NegativeTrap> {
 fn accumulate_page_metrics(page: &DerivedPageArtifact, metrics: &mut KnowledgeJobMetrics) {
 	if !page.backlinks.is_empty() {
 		metrics.pages_with_backlinks += 1;
+	}
+	if page_has_version_diff(page) {
+		metrics.pages_with_version_diff += 1;
 	}
 
 	metrics.backlink_count += page.backlinks.len();
@@ -3909,6 +3936,13 @@ fn accumulate_page_metrics(page: &DerivedPageArtifact, metrics: &mut KnowledgeJo
 	}
 
 	metrics.rebuild_page_count += 1;
+}
+
+fn page_has_version_diff(page: &DerivedPageArtifact) -> bool {
+	page.page_version_diff.as_ref().is_some_and(|diff| {
+		diff.get("schema").and_then(Value::as_str) == Some("elf.knowledge_page.version_diff/v1")
+			&& diff.get("available").and_then(Value::as_bool).unwrap_or(false)
+	})
 }
 
 fn section_is_traced(section: &DerivedPageSection) -> bool {
@@ -5804,6 +5838,8 @@ fn knowledge_summary(jobs: &[JobReport]) -> Option<KnowledgeSummary> {
 	let backlink_count = knowledge_jobs.iter().map(|metrics| metrics.backlink_count).sum::<usize>();
 	let pages_with_backlinks =
 		knowledge_jobs.iter().map(|metrics| metrics.pages_with_backlinks).sum::<usize>();
+	let pages_with_version_diff =
+		knowledge_jobs.iter().map(|metrics| metrics.pages_with_version_diff).sum::<usize>();
 	let page_usefulness = round3(
 		knowledge_jobs.iter().map(|metrics| metrics.page_usefulness).sum::<f64>()
 			/ job_count as f64,
@@ -5815,10 +5851,12 @@ fn knowledge_summary(jobs: &[JobReport]) -> Option<KnowledgeSummary> {
 		section_count,
 		backlink_count,
 		pages_with_backlinks,
+		pages_with_version_diff,
 		citation_coverage: ratio(traced_section_count, section_count),
 		stale_claim_detection: ratio_or_full(stale_traps_detected, stale_trap_count),
 		rebuild_determinism: ratio(deterministic_rebuild_count, rebuild_page_count),
 		backlink_coverage: ratio(pages_with_backlinks, page_count),
+		version_diff_coverage: ratio(pages_with_version_diff, page_count),
 		page_usefulness,
 		unsupported_summary_count: knowledge_jobs
 			.iter()
@@ -6810,6 +6848,10 @@ fn render_markdown_optional_summary_metrics(out: &mut String, summary: &ReportSu
 			"- Backlinks: `{}` total, `{:.3}` page coverage\n",
 			knowledge.backlink_count, knowledge.backlink_coverage
 		));
+		out.push_str(&format!(
+			"- Version diff coverage: `{:.3}`\n",
+			knowledge.version_diff_coverage
+		));
 		out.push_str(&format!("- Page usefulness: `{:.3}`\n", knowledge.page_usefulness));
 		out.push_str(&format!(
 			"- Unsupported summary count: `{}`\n",
@@ -7296,8 +7338,10 @@ fn render_markdown_knowledge(out: &mut String, report: &RealWorldReport) {
 	}
 
 	out.push_str("## Knowledge Page Metrics\n\n");
-	out.push_str("| Job | Pages | Sections | Citation Coverage | Stale Claim Detection | Rebuild Determinism | Page Usefulness | Backlinks | Unsupported Summaries | Untraced Sections | Allowed Variance |\n");
-	out.push_str("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n");
+	out.push_str("| Job | Pages | Sections | Citation Coverage | Stale Claim Detection | Rebuild Determinism | Version Diff Coverage | Page Usefulness | Backlinks | Unsupported Summaries | Untraced Sections | Allowed Variance |\n");
+	out.push_str(
+		"| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n",
+	);
 
 	for job in knowledge_jobs {
 		let Some(knowledge) = &job.knowledge else {
@@ -7305,13 +7349,14 @@ fn render_markdown_knowledge(out: &mut String, report: &RealWorldReport) {
 		};
 
 		out.push_str(&format!(
-			"| {} | {} | {} | `{:.3}` | `{:.3}` | `{:.3}` | `{:.3}` | {} | {} | {} | {} |\n",
+			"| {} | {} | {} | `{:.3}` | `{:.3}` | `{:.3}` | `{:.3}` | `{:.3}` | {} | {} | {} | {} |\n",
 			md_cell(job.job_id.as_str()),
 			knowledge.page_count,
 			knowledge.section_count,
 			knowledge.citation_coverage,
 			knowledge.stale_claim_detection,
 			knowledge.rebuild_determinism,
+			knowledge.version_diff_coverage,
 			knowledge.page_usefulness,
 			knowledge.backlink_count,
 			knowledge.unsupported_summary_count,

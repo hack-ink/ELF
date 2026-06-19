@@ -583,6 +583,53 @@ LIMIT 1",
 	Ok(row)
 }
 
+/// Fetches one knowledge page by stable page key.
+pub async fn get_knowledge_page_by_key<'e, E>(
+	executor: E,
+	tenant_id: &str,
+	project_id: &str,
+	page_kind: &str,
+	page_key: &str,
+) -> Result<Option<KnowledgePage>>
+where
+	E: PgExecutor<'e>,
+{
+	let row = sqlx::query_as::<_, KnowledgePage>(
+		"\
+SELECT
+	page_id,
+	tenant_id,
+	project_id,
+	page_kind,
+	page_key,
+	title,
+	contract_schema,
+	status,
+	rebuild_source_hash,
+	content_hash,
+	source_coverage,
+	source_snapshot,
+	rebuild_metadata,
+	created_at,
+	updated_at,
+	rebuilt_at
+FROM knowledge_pages
+WHERE tenant_id = $1
+	AND project_id = $2
+	AND page_kind = $3
+	AND page_key = $4
+LIMIT 1",
+	)
+	.bind(tenant_id)
+	.bind(project_id)
+	.bind(page_kind)
+	.bind(page_key)
+	.fetch_optional(executor)
+	.await?;
+
+	Ok(row)
+}
+
 /// Lists knowledge pages for a tenant and project.
 pub async fn list_knowledge_pages<'e, E>(
 	executor: E,

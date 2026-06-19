@@ -480,9 +480,12 @@ The live increment runs inside the Docker baseline runner and materializes the
 knowledge fixtures through `ElfService::knowledge_page_rebuild`,
 `knowledge_page_lint`, and `knowledge_pages_search` before scoring them with the
 real-world job benchmark. It proves ELF service-native rebuild/lint/search behavior
-for the checked-in `knowledge_compilation` pack. It does not claim llm-wiki, gbrain,
-GraphRAG, RAGFlow, LightRAG, or graphify parity unless those projects emit comparable
-page sections, source ids, citation mappings, lint findings, and typed statuses.
+for the checked-in `knowledge_compilation` pack. The current productized workspace
+increment also requires `page_version_diff` artifacts under
+`elf.knowledge_page.version_diff/v1` and reports `version_diff_coverage` in the
+knowledge summary. It does not claim llm-wiki, gbrain, GraphRAG, RAGFlow, LightRAG,
+or graphify parity unless those projects emit comparable page sections, source ids,
+citation mappings, lint findings, previous-version diffs, and typed statuses.
 
 Current checked-in production-ops increment:
 

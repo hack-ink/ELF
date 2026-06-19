@@ -537,7 +537,10 @@ tmp/real-world-memory/live-knowledge/summary.json
 This command materializes the same knowledge fixture pack through
 `ElfService::knowledge_page_rebuild`, `knowledge_page_lint`, and
 `knowledge_pages_search` inside the baseline Docker runner before publishing the
-scored report. It is an ELF service self-check, not a direct competitor win.
+scored report. The report now includes `version_diff_coverage` and each generated
+page artifact includes `page_version_diff` under `elf.knowledge_page.version_diff/v1`,
+with `source_mutation_allowed = false`. It is an ELF service self-check, not a direct
+competitor win.
 
 ## Clean Up
 

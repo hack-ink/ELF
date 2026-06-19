@@ -13,7 +13,8 @@ use elf_domain::{
 	english_gate,
 	knowledge::{
 		KNOWLEDGE_PAGE_CONTRACT_SCHEMA_V1, KNOWLEDGE_PAGE_REBUILD_SCHEMA_V1,
-		KNOWLEDGE_PAGE_SOURCE_COVERAGE_SCHEMA_V1, KnowledgePageKind, KnowledgeSourceKind,
+		KNOWLEDGE_PAGE_SOURCE_COVERAGE_SCHEMA_V1, KNOWLEDGE_PAGE_VERSION_DIFF_SCHEMA_V1,
+		KnowledgePageKind, KnowledgeSourceKind,
 	},
 };
 use elf_storage::{
@@ -30,6 +31,7 @@ use elf_storage::{
 const DEFAULT_LIST_LIMIT: i64 = 50;
 const MAX_LIST_LIMIT: i64 = 200;
 const SEARCH_SNIPPET_CHARS: usize = 280;
+const PREVIOUS_VERSION_DIFF_KEY: &str = "previous_version_diff";
 
 /// Request to rebuild one derived knowledge page from explicit source ids.
 #[derive(Clone, Debug, Deserialize)]
@@ -170,6 +172,8 @@ pub struct KnowledgePageSummary {
 	pub source_coverage: Value,
 	/// Rebuild metadata.
 	pub rebuild_metadata: Value,
+	/// Previous-version diff metadata, when present.
+	pub previous_version_diff: Option<Value>,
 	/// Creation timestamp.
 	pub created_at: OffsetDateTime,
 	/// Last update timestamp.
@@ -191,6 +195,7 @@ impl From<KnowledgePage> for KnowledgePageSummary {
 			rebuild_source_hash: page.rebuild_source_hash,
 			content_hash: page.content_hash,
 			source_coverage: page.source_coverage,
+			previous_version_diff: previous_version_diff_from_metadata(&page.rebuild_metadata),
 			rebuild_metadata: page.rebuild_metadata,
 			created_at: page.created_at,
 			updated_at: page.updated_at,
@@ -425,6 +430,8 @@ pub struct KnowledgePageSearchItem {
 	pub source_coverage: Value,
 	/// Page-level rebuild metadata.
 	pub rebuild_metadata: Value,
+	/// Previous-version diff metadata, when present.
+	pub previous_version_diff: Option<Value>,
 	/// Lint summary for distinguishing clean, stale, and unsupported pages.
 	pub lint_summary: KnowledgePageLintSummary,
 	/// Trust state discriminator for viewer/search clients.
@@ -591,6 +598,19 @@ impl ElfService {
 		let ids = SourceIds::from_request(&req)?;
 		let title =
 			req.title.clone().unwrap_or_else(|| generated_title(req.page_kind, &req.page_key));
+		let previous_page = knowledge::get_knowledge_page_by_key(
+			&self.db.pool,
+			req.tenant_id.as_str(),
+			req.project_id.as_str(),
+			req.page_kind.as_str(),
+			req.page_key.as_str(),
+		)
+		.await?;
+		let previous_sections = match &previous_page {
+			Some(page) =>
+				knowledge::list_knowledge_page_sections(&self.db.pool, page.page_id).await?,
+			None => Vec::new(),
+		};
 		let sources = self.resolve_sources(&req, &ids).await?;
 		let now = OffsetDateTime::now_utc();
 		let source_snapshot = source_snapshot_value(&sources);
@@ -605,9 +625,21 @@ impl ElfService {
 
 		let source_coverage =
 			source_coverage_value(req.page_kind, &req.page_key, &sections, &sources);
-		let rebuild_metadata = rebuild_metadata(&source_hash, &req.provider_metadata);
+		let base_rebuild_metadata = rebuild_metadata(&source_hash, &req.provider_metadata);
 		let content_hash =
-			page_content_hash(&title, &sections, &source_coverage, &rebuild_metadata)?;
+			page_content_hash(&title, &sections, &source_coverage, &base_rebuild_metadata)?;
+		let previous_version_diff = previous_version_diff_value(
+			previous_page.as_ref(),
+			&previous_sections,
+			title.as_str(),
+			source_hash.as_str(),
+			content_hash.as_str(),
+			&sections,
+		);
+		let rebuild_metadata = rebuild_metadata_with_previous_version_diff(
+			base_rebuild_metadata,
+			previous_version_diff,
+		);
 		let page_id = Uuid::new_v4();
 		let mut tx = self.db.pool.begin().await?;
 		let page = knowledge::upsert_knowledge_page(
@@ -977,6 +1009,7 @@ fn knowledge_page_search_item(
 		row.source_coverage.get("coverage_complete").and_then(Value::as_bool).unwrap_or(false);
 	let trust_state = search_trust_state(&lint_summary, coverage_complete, &row);
 	let repair_guidance = search_repair_guidance(&trust_state);
+	let previous_version_diff = previous_version_diff_from_metadata(&row.rebuild_metadata);
 
 	KnowledgePageSearchItem {
 		result_kind: "knowledge_page_section".to_string(),
@@ -996,6 +1029,7 @@ fn knowledge_page_search_item(
 		source_refs: source_refs.into_iter().map(KnowledgePageSourceRefResponse::from).collect(),
 		source_coverage: row.source_coverage,
 		rebuild_metadata: row.rebuild_metadata,
+		previous_version_diff,
 		lint_summary,
 		trust_state,
 		derived_notice:
@@ -1497,6 +1531,148 @@ fn rebuild_metadata(source_hash: &str, provider_metadata: &Value) -> Value {
 	})
 }
 
+fn rebuild_metadata_with_previous_version_diff(mut metadata: Value, diff: Value) -> Value {
+	let Some(object) = metadata.as_object_mut() else {
+		return serde_json::json!({ PREVIOUS_VERSION_DIFF_KEY: diff });
+	};
+
+	object.insert(PREVIOUS_VERSION_DIFF_KEY.to_string(), diff);
+
+	metadata
+}
+
+fn previous_version_diff_from_metadata(metadata: &Value) -> Option<Value> {
+	metadata
+		.get(PREVIOUS_VERSION_DIFF_KEY)
+		.filter(|diff| diff.as_object().is_some_and(|object| !object.is_empty()))
+		.cloned()
+}
+
+fn previous_version_diff_value(
+	previous: Option<&KnowledgePage>,
+	previous_sections: &[KnowledgePageSection],
+	new_title: &str,
+	new_source_hash: &str,
+	new_content_hash: &str,
+	new_sections: &[DraftSection],
+) -> Value {
+	let Some(previous) = previous else {
+		return serde_json::json!({
+			"schema": KNOWLEDGE_PAGE_VERSION_DIFF_SCHEMA_V1,
+			"available": false,
+			"reason": "no_previous_version",
+			"summary": "Initial rebuild; no previous knowledge page version exists.",
+			"source_mutation_allowed": false,
+		});
+	};
+	let previous_by_key = previous_sections
+		.iter()
+		.map(|section| (section.section_key.as_str(), section))
+		.collect::<BTreeMap<_, _>>();
+	let new_by_key = new_sections
+		.iter()
+		.map(|section| (section.section_key.as_str(), section))
+		.collect::<BTreeMap<_, _>>();
+	let previous_keys = previous_by_key.keys().copied().collect::<BTreeSet<_>>();
+	let new_keys = new_by_key.keys().copied().collect::<BTreeSet<_>>();
+	let added_section_keys = sorted_strings(new_keys.difference(&previous_keys).copied());
+	let removed_section_keys = sorted_strings(previous_keys.difference(&new_keys).copied());
+	let mut changed_section_keys = Vec::new();
+	let mut unchanged_section_keys = Vec::new();
+
+	for key in previous_keys.intersection(&new_keys).copied() {
+		let previous_section = previous_by_key[key];
+		let new_section = new_by_key[key];
+
+		if previous_section.content_hash == new_section.content_hash
+			&& previous_section.heading == new_section.heading
+			&& previous_section.role == new_section.role
+			&& previous_section.unsupported_reason == new_section.unsupported_reason
+		{
+			unchanged_section_keys.push(key.to_string());
+		} else {
+			changed_section_keys.push(key.to_string());
+		}
+	}
+
+	let title_changed = previous.title != new_title;
+	let source_changed = previous.rebuild_source_hash != new_source_hash;
+	let content_changed = previous.content_hash != new_content_hash;
+	let summary = version_diff_summary(
+		title_changed,
+		source_changed,
+		content_changed,
+		added_section_keys.len(),
+		removed_section_keys.len(),
+		changed_section_keys.len(),
+	);
+
+	serde_json::json!({
+		"schema": KNOWLEDGE_PAGE_VERSION_DIFF_SCHEMA_V1,
+		"available": true,
+		"previous_page_id": previous.page_id,
+		"previous_content_hash": previous.content_hash,
+		"new_content_hash": new_content_hash,
+		"previous_source_hash": previous.rebuild_source_hash,
+		"new_source_hash": new_source_hash,
+		"title_changed": title_changed,
+		"source_changed": source_changed,
+		"content_changed": content_changed,
+		"section_added_count": added_section_keys.len(),
+		"section_removed_count": removed_section_keys.len(),
+		"section_changed_count": changed_section_keys.len(),
+		"section_unchanged_count": unchanged_section_keys.len(),
+		"added_section_keys": added_section_keys,
+		"removed_section_keys": removed_section_keys,
+		"changed_section_keys": changed_section_keys,
+		"unchanged_section_keys": unchanged_section_keys,
+		"source_mutation_allowed": false,
+		"summary": summary,
+	})
+}
+
+fn sorted_strings<'a>(items: impl Iterator<Item = &'a str>) -> Vec<String> {
+	let mut out = items.map(ToString::to_string).collect::<Vec<_>>();
+
+	out.sort();
+
+	out
+}
+
+fn version_diff_summary(
+	title_changed: bool,
+	source_changed: bool,
+	content_changed: bool,
+	added: usize,
+	removed: usize,
+	changed: usize,
+) -> String {
+	if !title_changed
+		&& !source_changed
+		&& !content_changed
+		&& added == 0
+		&& removed == 0
+		&& changed == 0
+	{
+		return "No page-level or section-level changes from the previous rebuild.".to_string();
+	}
+
+	format!(
+		"Previous rebuild diff: title_changed={title_changed}, source_changed={source_changed}, content_changed={content_changed}, sections added={added}, removed={removed}, changed={changed}."
+	)
+}
+
+fn content_hash_rebuild_metadata(rebuild_metadata: &Value) -> Value {
+	let Some(object) = rebuild_metadata.as_object() else {
+		return rebuild_metadata.clone();
+	};
+	let mut stable = object.clone();
+
+	stable.remove(PREVIOUS_VERSION_DIFF_KEY);
+
+	Value::Object(stable)
+}
+
 fn section_hash_payload(section: &DraftSection) -> Value {
 	serde_json::json!({
 		"section_key": section.section_key.clone(),
@@ -1514,11 +1690,13 @@ fn page_content_hash(
 	source_coverage: &Value,
 	rebuild_metadata: &Value,
 ) -> Result<String> {
+	let stable_rebuild_metadata = content_hash_rebuild_metadata(rebuild_metadata);
+
 	hash_json(&serde_json::json!({
 		"title": title,
 		"sections": sections.iter().map(section_hash_payload).collect::<Vec<_>>(),
 		"source_coverage": source_coverage,
-		"rebuild_metadata": rebuild_metadata,
+		"rebuild_metadata": stable_rebuild_metadata,
 	}))
 }
 
@@ -1853,8 +2031,9 @@ async fn insert_lint_finding(
 #[cfg(test)]
 mod tests {
 	use crate::knowledge::{
-		self, KnowledgePage, KnowledgePageKind, KnowledgePageSearchRow, KnowledgePageSection,
-		KnowledgePageSourceRef, KnowledgeSourceKind, OffsetDateTime, SourceSnapshot, Uuid,
+		self, DraftSection, KnowledgePage, KnowledgePageKind, KnowledgePageSearchRow,
+		KnowledgePageSection, KnowledgePageSourceRef, KnowledgeSourceKind, OffsetDateTime,
+		SourceSnapshot, Uuid,
 	};
 
 	fn test_source(kind: KnowledgeSourceKind, raw_id: u128, line: &str) -> SourceSnapshot {
@@ -1933,6 +2112,55 @@ mod tests {
 		assert_eq!(metadata["deterministic"], false);
 		assert!(metadata["allowed_variance"].as_array().is_some_and(|items| !items.is_empty()));
 		assert_eq!(metadata["provider_metadata"]["provider_id"], "fixture");
+	}
+
+	#[test]
+	fn previous_version_diff_records_delta_without_changing_content_hash() {
+		let previous = test_page();
+		let previous_section =
+			test_section(Uuid::from_u128(10), "source-notes", serde_json::json!([]), None);
+		let sections = vec![DraftSection {
+			section_id: Uuid::from_u128(12),
+			section_key: "source-notes".to_string(),
+			heading: "source-notes".to_string(),
+			role: "current_truth".to_string(),
+			content: "Updated section content.".to_string(),
+			ordinal: 0,
+			source_indexes: vec![0],
+			unsupported_reason: None,
+			content_hash: "new-section-hash".to_string(),
+			citations: serde_json::json!([{ "source_kind": "note" }]),
+		}];
+		let base_metadata =
+			knowledge::rebuild_metadata("new-source-hash", &knowledge::empty_object());
+		let coverage = serde_json::json!({ "coverage_complete": true });
+		let hash_without_diff =
+			knowledge::page_content_hash("ELF", &sections, &coverage, &base_metadata)
+				.expect("stable hash should serialize");
+		let diff = knowledge::previous_version_diff_value(
+			Some(&previous),
+			&[previous_section],
+			"ELF",
+			"new-source-hash",
+			hash_without_diff.as_str(),
+			&sections,
+		);
+		let metadata_with_diff =
+			knowledge::rebuild_metadata_with_previous_version_diff(base_metadata, diff.clone());
+		let hash_with_diff =
+			knowledge::page_content_hash("ELF", &sections, &coverage, &metadata_with_diff)
+				.expect("hash should ignore previous-version diff metadata");
+
+		assert_eq!(hash_without_diff, hash_with_diff);
+		assert_eq!(diff["schema"], "elf.knowledge_page.version_diff/v1");
+		assert_eq!(diff["available"], true);
+		assert_eq!(diff["source_mutation_allowed"], false);
+		assert_eq!(diff["section_changed_count"], 1);
+		assert_eq!(
+			knowledge::previous_version_diff_from_metadata(&metadata_with_diff)
+				.expect("diff should be extractable")["section_changed_count"],
+			1
+		);
 	}
 
 	#[test]
