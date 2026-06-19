@@ -43,6 +43,7 @@
 # | real-world-memory-knowledge-report         | command   |     |
 # | real-world-memory-live-adapters            | command   |     |
 # | real-world-memory-live-consolidation       | command   |     |
+# | real-world-memory-live-knowledge           | command   |     |
 # | real-world-memory-proactive-brief          | composite |     |
 # | real-world-memory-proactive-brief-json     | command   |     |
 # | real-world-memory-proactive-brief-report   | command   |     |
@@ -648,6 +649,14 @@ command = "bash"
 args = [
 	"scripts/real-world-docker.sh",
 	"memory-live-consolidation",
+]
+
+[tasks.real-world-memory-live-knowledge]
+workspace = false
+command = "bash"
+args = [
+	"scripts/real-world-docker.sh",
+	"memory-live-knowledge",
 ]
 
 [tasks.real-world-memory-proactive-brief]
