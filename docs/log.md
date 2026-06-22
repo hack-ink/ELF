@@ -99,3 +99,11 @@ logs.
   plus a drift audit covering the new admin rebuild endpoint, changed/unchanged/
   stale/blocked section output, stale-section/changed-claim/missing-citation/conflict
   classifications, and reviewable memory-candidate proposal routing.
+
+## 2026-06-23
+
+- Added the P3 competitor-strength absorption closeout report for XY-1072, plus a
+  checked-in snapshot and guard test that keeps qmd, PageIndex/OpenKB,
+  mem0/OpenMemory, Letta, Graphiti/Zep, OpenViking, RAGFlow, GraphRAG, and LightRAG
+  claim boundaries explicit while leaving P4 queue labels unapplied pending
+  main-thread acceptance.
