@@ -287,6 +287,10 @@ fn graph_rag_citation_navigation_promotion_report_json_path() -> Result<PathBuf>
 	report_snapshot_path("2026-06-19-graph-rag-citation-navigation-promotion-report.json")
 }
 
+fn graph_rag_adapter_matrix_report_json_path() -> Result<PathBuf> {
+	report_snapshot_path("2026-06-23-graph-rag-adapter-matrix-report.json")
+}
+
 fn operator_approved_public_proxy_private_addendum_report_json_path() -> Result<PathBuf> {
 	report_snapshot_path(
 		"2026-06-19-operator-approved-public-proxy-production-private-addendum.json",
@@ -363,6 +367,14 @@ fn graph_rag_citation_navigation_promotion_report_markdown_path() -> Result<Path
 		.join("evidence")
 		.join("benchmarking")
 		.join("2026-06-19-graph-rag-citation-navigation-promotion-report.md"))
+}
+
+fn graph_rag_adapter_matrix_report_markdown_path() -> Result<PathBuf> {
+	Ok(workspace_root()?
+		.join("docs")
+		.join("evidence")
+		.join("benchmarking")
+		.join("2026-06-23-graph-rag-adapter-matrix-report.md"))
 }
 
 fn graph_topic_map_report_markdown_path() -> Result<PathBuf> {
@@ -765,7 +777,7 @@ fn external_adapter_run_summarizes_nonzero_scenario_losses() -> Result<()> {
 		report
 			.pointer("/external_adapters/summary/scenario_position_counts/untested")
 			.and_then(Value::as_u64),
-		Some(34)
+		Some(49)
 	);
 	assert_eq!(
 		report
@@ -777,7 +789,7 @@ fn external_adapter_run_summarizes_nonzero_scenario_losses() -> Result<()> {
 		report
 			.pointer("/external_adapters/summary/scenario_outcome_counts/not_tested")
 			.and_then(Value::as_u64),
-		Some(12)
+		Some(18)
 	);
 
 	let adapters = array_at(&report, "/external_adapters/adapters")?;
@@ -941,13 +953,13 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/scenario_status_counts/blocked")
 			.and_then(Value::as_u64),
-		Some(16)
+		Some(21)
 	);
 	assert_eq!(
 		report
 			.pointer("/external_adapters/summary/scenario_status_counts/incomplete")
 			.and_then(Value::as_u64),
-		Some(1)
+		Some(5)
 	);
 	assert_eq!(
 		report
@@ -971,7 +983,7 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/scenario_status_counts/not_encoded")
 			.and_then(Value::as_u64),
-		Some(7)
+		Some(13)
 	);
 	assert_eq!(
 		report
@@ -995,7 +1007,7 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/scenario_position_counts/untested")
 			.and_then(Value::as_u64),
-		Some(35)
+		Some(50)
 	);
 	assert_eq!(
 		report
@@ -1019,13 +1031,13 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/scenario_outcome_counts/not_tested")
 			.and_then(Value::as_u64),
-		Some(13)
+		Some(19)
 	);
 	assert_eq!(
 		report
 			.pointer("/external_adapters/summary/scenario_outcome_counts/blocked")
 			.and_then(Value::as_u64),
-		Some(17)
+		Some(26)
 	);
 	assert_eq!(
 		report
@@ -1704,6 +1716,57 @@ fn assert_graph_rag_representative_scenarios(
 			.and_then(Value::as_str)
 			.is_some_and(|evidence| evidence.contains("not an ELF victory claim"))
 	);
+
+	assert_adapter_matrix_rows(
+		ragflow_scenarios,
+		&[
+			("reference_chunk_citation_mapping", "blocked", "blocked"),
+			("retrieval_quality_reference_recall", "blocked", "blocked"),
+			("navigation_quality_document_chunks", "blocked", "blocked"),
+			("answer_faithfulness_reference_chunks", "blocked", "blocked"),
+			("stale_source_behavior", "not_encoded", "not_tested"),
+			("knowledge_compilation_quality", "not_encoded", "not_tested"),
+		],
+	)?;
+	assert_adapter_matrix_rows(
+		lightrag_scenarios,
+		&[
+			("context_source_reference_mapping", "incomplete", "blocked"),
+			("retrieval_quality_context_recall", "incomplete", "blocked"),
+			("citation_quality_context_references", "incomplete", "blocked"),
+			("navigation_quality_graph_context", "incomplete", "blocked"),
+			("answer_faithfulness_context_refs", "incomplete", "blocked"),
+			("stale_source_behavior", "not_encoded", "not_tested"),
+			("knowledge_compilation_quality", "not_encoded", "not_tested"),
+		],
+	)?;
+	assert_adapter_matrix_rows(
+		graphrag_scenarios,
+		&[
+			("output_table_citation_mapping", "blocked", "blocked"),
+			("retrieval_quality_local_search", "not_encoded", "not_tested"),
+			("navigation_quality_community_graph", "blocked", "blocked"),
+			("answer_faithfulness_output_tables", "blocked", "blocked"),
+			("stale_source_behavior", "not_encoded", "not_tested"),
+			("graph_summary_synthesis_quality", "not_encoded", "not_tested"),
+		],
+	)?;
+
+	Ok(())
+}
+
+fn assert_adapter_matrix_rows(scenarios: &[Value], expected: &[(&str, &str, &str)]) -> Result<()> {
+	for (scenario_id, status, outcome) in expected {
+		let row = find_by_field(scenarios, "/scenario_id", scenario_id)?;
+
+		assert_eq!(row.pointer("/status").and_then(Value::as_str), Some(*status));
+		assert_eq!(row.pointer("/comparison_outcome").and_then(Value::as_str), Some(*outcome));
+		assert!(
+			row.pointer("/evidence")
+				.and_then(Value::as_str)
+				.is_some_and(|evidence| !evidence.trim().is_empty())
+		);
+	}
 
 	Ok(())
 }
@@ -4440,6 +4503,63 @@ fn graph_rag_citation_navigation_promotion_preserves_typed_non_passes() -> Resul
 }
 
 #[test]
+fn graph_rag_adapter_matrix_report_preserves_no_parity_claims() -> Result<()> {
+	let report = serde_json::from_str::<Value>(&fs::read_to_string(
+		graph_rag_adapter_matrix_report_json_path()?,
+	)?)?;
+	let markdown = fs::read_to_string(graph_rag_adapter_matrix_report_markdown_path()?)?;
+	let benchmarking_index = fs::read_to_string(benchmarking_index_path()?)?;
+	let readme = fs::read_to_string(readme_path()?)?;
+
+	assert_eq!(
+		report.pointer("/schema").and_then(Value::as_str),
+		Some("elf.graph_rag_adapter_matrix_report/v1")
+	);
+	assert_eq!(report.pointer("/authority").and_then(Value::as_str), Some("XY-1071"));
+	assert_eq!(report.pointer("/summary/matrix_row_count").and_then(Value::as_u64), Some(18));
+	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(0));
+	assert_eq!(report.pointer("/summary/blocked").and_then(Value::as_u64), Some(8));
+	assert_eq!(report.pointer("/summary/incomplete").and_then(Value::as_u64), Some(4));
+	assert_eq!(report.pointer("/summary/not_encoded").and_then(Value::as_u64), Some(6));
+	assert_eq!(
+		report.pointer("/summary/broad_graph_rag_parity").and_then(Value::as_str),
+		Some("not_proven")
+	);
+
+	let rows = array_at(&report, "/adapter_matrix")?;
+	let ragflow_citation = find_matrix_row(rows, "RAGFlow", "citation_quality")?;
+	let lightrag_retrieval = find_matrix_row(rows, "LightRAG", "retrieval_quality")?;
+	let graphrag_navigation = find_matrix_row(rows, "GraphRAG", "navigation_quality")?;
+	let graphrag_retrieval = find_matrix_row(rows, "GraphRAG", "retrieval_quality")?;
+
+	assert_eq!(ragflow_citation.pointer("/status").and_then(Value::as_str), Some("blocked"));
+	assert_eq!(lightrag_retrieval.pointer("/status").and_then(Value::as_str), Some("incomplete"));
+	assert_eq!(graphrag_navigation.pointer("/status").and_then(Value::as_str), Some("blocked"));
+	assert_eq!(graphrag_retrieval.pointer("/status").and_then(Value::as_str), Some("not_encoded"));
+	assert!(array_contains_str(
+		&report,
+		"/claim_boundaries/not_allowed",
+		"Do not reposition ELF as a generic RAG platform from this adapter matrix."
+	)?);
+	assert!(markdown.contains("The graph/RAG comparison remains typed non-pass"));
+	assert!(markdown.contains("| RAGFlow | `blocked`: answer text plus selected reference chunks"));
+	assert!(benchmarking_index.contains("2026-06-23-graph-rag-adapter-matrix-report.md"));
+	assert!(readme.contains("RAGFlow/GraphRAG/LightRAG adapter matrix after XY-1071"));
+	assert!(readme.contains("Graph/RAG Adapter Matrix Report - June 23, 2026"));
+
+	Ok(())
+}
+
+fn find_matrix_row<'a>(rows: &'a [Value], adapter: &str, dimension: &str) -> Result<&'a Value> {
+	rows.iter()
+		.find(|row| {
+			row.pointer("/adapter").and_then(Value::as_str) == Some(adapter)
+				&& row.pointer("/dimension").and_then(Value::as_str) == Some(dimension)
+		})
+		.ok_or_else(|| eyre::eyre!("missing matrix row for {adapter} {dimension}"))
+}
+
+#[test]
 fn graph_topic_map_report_wires_source_backed_graph_lite_readback() -> Result<()> {
 	let markdown = fs::read_to_string(graph_topic_map_report_markdown_path()?)?;
 	let benchmarking_index = fs::read_to_string(benchmarking_index_path()?)?;
@@ -5758,9 +5878,9 @@ fn generated_json_report_renders_markdown() -> Result<()> {
 	assert!(markdown.contains("xy844-current-worktree"));
 	assert!(markdown.contains("Existing live-baseline reports remain valid"));
 	assert!(markdown.contains("### Adapter Scenario Judgments"));
-	assert!(markdown.contains("ELF scenario positions: `wins=10, ties=11, loses=1, untested=35`"));
+	assert!(markdown.contains("ELF scenario positions: `wins=10, ties=11, loses=1, untested=50`"));
 	assert!(markdown.contains(
-		"Scenario comparison outcomes: `win=10, tie=11, loss=1, not_tested=13, blocked=17, non_goal=5`"
+		"Scenario comparison outcomes: `win=10, tie=11, loss=1, not_tested=19, blocked=26, non_goal=5`"
 	));
 	assert!(markdown.contains("| `claude_mem_live_baseline` | `same_corpus_retrieval`"));
 	assert!(markdown.contains("| `memsearch_live_baseline` | `ttl_expiry_lifecycle`"));

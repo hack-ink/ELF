@@ -1824,6 +1824,54 @@
           "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/graph_rag/ragflow_reference_chunks_blocked.json"
         },
         {
+          "scenario_id": "retrieval_quality_reference_recall",
+          "suite_id": "retrieval",
+          "status": "blocked",
+          "elf_position": "untested",
+          "comparison_outcome": "blocked",
+          "evidence": "XY-1071 keeps RAGFlow retrieval quality blocked until the same generated corpus returns answer text and selected reference chunks whose document ids, chunk ids, content, and metadata map to expected evidence ids; setup or API reachability alone is not retrieval quality evidence.",
+          "command": "cargo make real-world-memory-graph-rag",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/graph_rag/ragflow_reference_chunks_blocked.json"
+        },
+        {
+          "scenario_id": "navigation_quality_document_chunks",
+          "suite_id": "retrieval",
+          "status": "blocked",
+          "elf_position": "untested",
+          "comparison_outcome": "blocked",
+          "evidence": "RAGFlow document/chunk navigation remains blocked until returned references expose stable document metadata plus chunk identifiers that can be followed back to same-corpus source evidence.",
+          "command": "cargo make real-world-memory-graph-rag",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/graph_rag/ragflow_reference_chunks_blocked.json"
+        },
+        {
+          "scenario_id": "answer_faithfulness_reference_chunks",
+          "suite_id": "retrieval",
+          "status": "blocked",
+          "elf_position": "untested",
+          "comparison_outcome": "blocked",
+          "evidence": "RAGFlow answer faithfulness is blocked until generated answers can be checked against returned reference chunk content and decoy/stale chunks are absent from cited support.",
+          "command": "cargo make real-world-memory-graph-rag",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/graph_rag/ragflow_reference_chunks_blocked.json"
+        },
+        {
+          "scenario_id": "stale_source_behavior",
+          "suite_id": "retrieval",
+          "status": "not_encoded",
+          "elf_position": "untested",
+          "comparison_outcome": "not_tested",
+          "evidence": "RAGFlow stale-source replacement, invalidation, or lint behavior is not encoded by the current same-corpus reference-chunk blocker; no stale-source quality claim is made.",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json"
+        },
+        {
+          "scenario_id": "knowledge_compilation_quality",
+          "suite_id": "knowledge_compilation",
+          "status": "not_encoded",
+          "elf_position": "untested",
+          "comparison_outcome": "not_tested",
+          "evidence": "RAGFlow knowledge compilation quality is not scored because no checked-in same-corpus RAGFlow page, section, citation, or stale-source lint artifact exists.",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json"
+        },
+        {
           "scenario_id": "private_or_large_corpus_ragflow_quality",
           "suite_id": "retrieval",
           "status": "not_encoded",
@@ -1966,6 +2014,64 @@
           "evidence": "XY-929 adds a representative incomplete fixture for LightRAG context/source-reference scoring. The job cannot score until the opt-in Docker API exports generated source file paths, snippets, or reference content.",
           "command": "cargo make real-world-memory-graph-rag",
           "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/graph_rag/lightrag_context_sources_incomplete.json"
+        },
+        {
+          "scenario_id": "retrieval_quality_context_recall",
+          "suite_id": "retrieval",
+          "status": "incomplete",
+          "elf_position": "untested",
+          "comparison_outcome": "blocked",
+          "evidence": "XY-1071 keeps LightRAG retrieval quality incomplete until the opt-in Docker API exports same-corpus context or references that can be joined to expected evidence ids; service startup alone is not a retrieval-quality result.",
+          "command": "cargo make real-world-memory-graph-rag",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/graph_rag/lightrag_context_sources_incomplete.json"
+        },
+        {
+          "scenario_id": "citation_quality_context_references",
+          "suite_id": "retrieval",
+          "status": "incomplete",
+          "elf_position": "untested",
+          "comparison_outcome": "blocked",
+          "evidence": "LightRAG citation quality is incomplete until returned context, references.file_path, references.content, or equivalent source snippets map to generated evidence ids.",
+          "command": "cargo make real-world-memory-graph-rag",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/graph_rag/lightrag_context_sources_incomplete.json"
+        },
+        {
+          "scenario_id": "navigation_quality_graph_context",
+          "suite_id": "retrieval",
+          "status": "incomplete",
+          "elf_position": "untested",
+          "comparison_outcome": "blocked",
+          "evidence": "LightRAG graph/context navigation remains incomplete until exported context exposes source paths or graph-derived source snippets that can be followed back to same-corpus evidence.",
+          "command": "cargo make real-world-memory-graph-rag",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/graph_rag/lightrag_context_sources_incomplete.json"
+        },
+        {
+          "scenario_id": "answer_faithfulness_context_refs",
+          "suite_id": "retrieval",
+          "status": "incomplete",
+          "elf_position": "untested",
+          "comparison_outcome": "blocked",
+          "evidence": "LightRAG answer faithfulness is incomplete until generated answers and only_need_context output can be checked for required evidence, decoy exclusion, and source-reference alignment.",
+          "command": "cargo make real-world-memory-graph-rag",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/graph_rag/lightrag_context_sources_incomplete.json"
+        },
+        {
+          "scenario_id": "stale_source_behavior",
+          "suite_id": "retrieval",
+          "status": "not_encoded",
+          "elf_position": "untested",
+          "comparison_outcome": "not_tested",
+          "evidence": "LightRAG stale-source replacement, invalidation, or lint behavior is not encoded by the current context-source blocker; no stale-source quality claim is made.",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json"
+        },
+        {
+          "scenario_id": "knowledge_compilation_quality",
+          "suite_id": "knowledge_compilation",
+          "status": "not_encoded",
+          "elf_position": "untested",
+          "comparison_outcome": "not_tested",
+          "evidence": "LightRAG knowledge compilation quality is not scored because no checked-in same-corpus page, section, citation, or stale-source lint artifact exists.",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json"
         },
         {
           "scenario_id": "graph_rag_navigation_quality",
@@ -2125,6 +2231,44 @@
           "evidence": "XY-929 adds a representative blocked fixture for GraphRAG output-table citation scoring. The job requires provider-backed Docker output tables whose document, text-unit, community, report, entity, and relationship identifiers map to generated evidence ids.",
           "command": "cargo make real-world-memory-graph-rag",
           "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/graph_rag/graphrag_output_tables_blocked.json"
+        },
+        {
+          "scenario_id": "retrieval_quality_local_search",
+          "suite_id": "retrieval",
+          "status": "not_encoded",
+          "elf_position": "untested",
+          "comparison_outcome": "not_tested",
+          "evidence": "XY-1071 keeps GraphRAG retrieval quality not tested because the current smoke records output-table and local-search reachability contracts but does not score same-corpus retrieval answers beyond mapped output prerequisites.",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json"
+        },
+        {
+          "scenario_id": "navigation_quality_community_graph",
+          "suite_id": "knowledge_compilation",
+          "status": "blocked",
+          "elf_position": "untested",
+          "comparison_outcome": "blocked",
+          "evidence": "GraphRAG community/entity/relationship navigation remains blocked until provider-backed output tables expose community, entity, relationship, text-unit, and document identifiers that map to generated evidence ids.",
+          "command": "cargo make real-world-memory-graph-rag",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/graph_rag/graphrag_output_tables_blocked.json"
+        },
+        {
+          "scenario_id": "answer_faithfulness_output_tables",
+          "suite_id": "knowledge_compilation",
+          "status": "blocked",
+          "elf_position": "untested",
+          "comparison_outcome": "blocked",
+          "evidence": "GraphRAG answer faithfulness is blocked until summaries or local-search answers can be checked against mapped documents, text units, and community report rows while excluding unsupported or stale claims.",
+          "command": "cargo make real-world-memory-graph-rag",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/graph_rag/graphrag_output_tables_blocked.json"
+        },
+        {
+          "scenario_id": "stale_source_behavior",
+          "suite_id": "knowledge_compilation",
+          "status": "not_encoded",
+          "elf_position": "untested",
+          "comparison_outcome": "not_tested",
+          "evidence": "GraphRAG stale-source replacement, invalidation, or lint behavior is not encoded by the current output-table blocker; no stale-source quality claim is made.",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json"
         },
         {
           "scenario_id": "graph_summary_synthesis_quality",

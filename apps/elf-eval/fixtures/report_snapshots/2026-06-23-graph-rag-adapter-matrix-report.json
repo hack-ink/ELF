@@ -1,0 +1,229 @@
+{
+  "schema": "elf.graph_rag_adapter_matrix_report/v1",
+  "report_id": "xy-1071-graph-rag-adapter-matrix-2026-06-23",
+  "authority": "XY-1071",
+  "created_at": "2026-06-23T00:00:00Z",
+  "goal": "Record same-corpus citation, navigation, stale-source, faithfulness, retrieval, and knowledge-compilation adapter coverage for RAGFlow, GraphRAG, and LightRAG without claiming graph/RAG parity.",
+  "source_artifacts": {
+    "manifest": "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json",
+    "fixture_dir": "apps/elf-eval/fixtures/real_world_external_adapters/graph_rag",
+    "representative_report": "tmp/real-world-memory/graph-rag/report.json",
+    "representative_markdown": "tmp/real-world-memory/graph-rag/report.md"
+  },
+  "summary": {
+    "adapter_count": 3,
+    "matrix_row_count": 18,
+    "pass": 0,
+    "wrong_result": 0,
+    "incomplete": 4,
+    "blocked": 8,
+    "not_encoded": 6,
+    "retrieval_quality_rows": 3,
+    "citation_quality_rows": 3,
+    "navigation_quality_rows": 3,
+    "stale_source_behavior_rows": 3,
+    "answer_faithfulness_rows": 3,
+    "knowledge_compilation_quality_rows": 3,
+    "broad_graph_rag_parity": "not_proven",
+    "claim_boundary": "Matrix rows are coverage and blocker evidence only; no graph/RAG win, tie, loss, or parity claim is made without scored same-corpus outputs."
+  },
+  "adapter_matrix": [
+    {
+      "adapter": "RAGFlow",
+      "dimension": "retrieval_quality",
+      "scenario_id": "retrieval_quality_reference_recall",
+      "status": "blocked",
+      "suite_id": "retrieval",
+      "required_output": "Answer text and selected reference chunks whose document ids, chunk ids, content, and metadata map to expected same-corpus evidence ids.",
+      "current_artifact": "apps/elf-eval/fixtures/real_world_external_adapters/graph_rag/ragflow_reference_chunks_blocked.json",
+      "claim_boundary": "No RAGFlow retrieval-quality result is claimed from setup reachability or a smoke without mapped reference chunks."
+    },
+    {
+      "adapter": "RAGFlow",
+      "dimension": "citation_quality",
+      "scenario_id": "reference_chunk_citation_mapping",
+      "status": "blocked",
+      "suite_id": "retrieval",
+      "required_output": "Returned reference chunks with generated document ids, chunk ids, content, and document metadata.",
+      "current_artifact": "apps/elf-eval/fixtures/real_world_external_adapters/graph_rag/ragflow_reference_chunks_blocked.json",
+      "claim_boundary": "No RAGFlow citation-quality pass or ELF-over-RAGFlow claim is allowed."
+    },
+    {
+      "adapter": "RAGFlow",
+      "dimension": "navigation_quality",
+      "scenario_id": "navigation_quality_document_chunks",
+      "status": "blocked",
+      "suite_id": "retrieval",
+      "required_output": "Stable document metadata plus chunk identifiers that can be followed back to same-corpus source evidence.",
+      "current_artifact": "apps/elf-eval/fixtures/real_world_external_adapters/graph_rag/ragflow_reference_chunks_blocked.json",
+      "claim_boundary": "Document/chunk navigation remains blocked until reference handles are returned and mapped."
+    },
+    {
+      "adapter": "RAGFlow",
+      "dimension": "stale_source_behavior",
+      "scenario_id": "stale_source_behavior",
+      "status": "not_encoded",
+      "suite_id": "retrieval",
+      "required_output": "A stale or superseded same-corpus source update plus returned citations/lint proving current-source selection.",
+      "current_artifact": "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json",
+      "claim_boundary": "No stale-source behavior claim is made."
+    },
+    {
+      "adapter": "RAGFlow",
+      "dimension": "answer_faithfulness",
+      "scenario_id": "answer_faithfulness_reference_chunks",
+      "status": "blocked",
+      "suite_id": "retrieval",
+      "required_output": "Generated answers checked against returned reference chunk content with decoy and stale chunks excluded.",
+      "current_artifact": "apps/elf-eval/fixtures/real_world_external_adapters/graph_rag/ragflow_reference_chunks_blocked.json",
+      "claim_boundary": "No answer-faithfulness score exists until cited chunks are available."
+    },
+    {
+      "adapter": "RAGFlow",
+      "dimension": "knowledge_compilation_quality",
+      "scenario_id": "knowledge_compilation_quality",
+      "status": "not_encoded",
+      "suite_id": "knowledge_compilation",
+      "required_output": "Same-corpus pages, sections, citations, and stale-source lint emitted by RAGFlow or a contained adapter.",
+      "current_artifact": "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json",
+      "claim_boundary": "RAGFlow knowledge compilation quality is not scored."
+    },
+    {
+      "adapter": "LightRAG",
+      "dimension": "retrieval_quality",
+      "scenario_id": "retrieval_quality_context_recall",
+      "status": "incomplete",
+      "suite_id": "retrieval",
+      "required_output": "Opt-in Docker API query output with same-corpus context or references joined to expected evidence ids.",
+      "current_artifact": "apps/elf-eval/fixtures/real_world_external_adapters/graph_rag/lightrag_context_sources_incomplete.json",
+      "claim_boundary": "No LightRAG retrieval-quality result is claimed from service startup alone."
+    },
+    {
+      "adapter": "LightRAG",
+      "dimension": "citation_quality",
+      "scenario_id": "citation_quality_context_references",
+      "status": "incomplete",
+      "suite_id": "retrieval",
+      "required_output": "Returned context, references.file_path, references.content, or equivalent snippets mapped to generated evidence ids.",
+      "current_artifact": "apps/elf-eval/fixtures/real_world_external_adapters/graph_rag/lightrag_context_sources_incomplete.json",
+      "claim_boundary": "LightRAG citation quality remains incomplete until source references export."
+    },
+    {
+      "adapter": "LightRAG",
+      "dimension": "navigation_quality",
+      "scenario_id": "navigation_quality_graph_context",
+      "status": "incomplete",
+      "suite_id": "retrieval",
+      "required_output": "Graph/context source paths or graph-derived snippets that can be followed back to same-corpus evidence.",
+      "current_artifact": "apps/elf-eval/fixtures/real_world_external_adapters/graph_rag/lightrag_context_sources_incomplete.json",
+      "claim_boundary": "No LightRAG navigation-quality claim is made without exported source paths or snippets."
+    },
+    {
+      "adapter": "LightRAG",
+      "dimension": "stale_source_behavior",
+      "scenario_id": "stale_source_behavior",
+      "status": "not_encoded",
+      "suite_id": "retrieval",
+      "required_output": "A stale or superseded same-corpus source update plus context/citation output showing current-source selection or lint.",
+      "current_artifact": "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json",
+      "claim_boundary": "No stale-source behavior claim is made."
+    },
+    {
+      "adapter": "LightRAG",
+      "dimension": "answer_faithfulness",
+      "scenario_id": "answer_faithfulness_context_refs",
+      "status": "incomplete",
+      "suite_id": "retrieval",
+      "required_output": "Generated answers and only_need_context output checked for required evidence, decoy exclusion, and source-reference alignment.",
+      "current_artifact": "apps/elf-eval/fixtures/real_world_external_adapters/graph_rag/lightrag_context_sources_incomplete.json",
+      "claim_boundary": "No LightRAG answer-faithfulness score exists until context refs export."
+    },
+    {
+      "adapter": "LightRAG",
+      "dimension": "knowledge_compilation_quality",
+      "scenario_id": "knowledge_compilation_quality",
+      "status": "not_encoded",
+      "suite_id": "knowledge_compilation",
+      "required_output": "Same-corpus pages, sections, citations, and stale-source lint emitted by LightRAG or a contained adapter.",
+      "current_artifact": "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json",
+      "claim_boundary": "LightRAG knowledge compilation quality is not scored."
+    },
+    {
+      "adapter": "GraphRAG",
+      "dimension": "retrieval_quality",
+      "scenario_id": "retrieval_quality_local_search",
+      "status": "not_encoded",
+      "suite_id": "retrieval",
+      "required_output": "Provider-backed local-search answers over the generated corpus with mapped source rows and expected evidence recall.",
+      "current_artifact": "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json",
+      "claim_boundary": "GraphRAG retrieval quality is not tested by the current output-table blocker."
+    },
+    {
+      "adapter": "GraphRAG",
+      "dimension": "citation_quality",
+      "scenario_id": "output_table_citation_mapping",
+      "status": "blocked",
+      "suite_id": "knowledge_compilation",
+      "required_output": "Documents, text_units, communities, community_reports, entities, and relationships tables mapped to generated evidence ids.",
+      "current_artifact": "apps/elf-eval/fixtures/real_world_external_adapters/graph_rag/graphrag_output_tables_blocked.json",
+      "claim_boundary": "No GraphRAG citation-quality score exists without mapped output tables."
+    },
+    {
+      "adapter": "GraphRAG",
+      "dimension": "navigation_quality",
+      "scenario_id": "navigation_quality_community_graph",
+      "status": "blocked",
+      "suite_id": "knowledge_compilation",
+      "required_output": "Community, entity, relationship, text-unit, and document identifiers that support graph/community navigation back to evidence ids.",
+      "current_artifact": "apps/elf-eval/fixtures/real_world_external_adapters/graph_rag/graphrag_output_tables_blocked.json",
+      "claim_boundary": "No GraphRAG graph/community navigation claim is made until output tables map."
+    },
+    {
+      "adapter": "GraphRAG",
+      "dimension": "stale_source_behavior",
+      "scenario_id": "stale_source_behavior",
+      "status": "not_encoded",
+      "suite_id": "knowledge_compilation",
+      "required_output": "A stale or superseded source update plus output tables or report lint showing current-source selection.",
+      "current_artifact": "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json",
+      "claim_boundary": "No GraphRAG stale-source behavior claim is made."
+    },
+    {
+      "adapter": "GraphRAG",
+      "dimension": "answer_faithfulness",
+      "scenario_id": "answer_faithfulness_output_tables",
+      "status": "blocked",
+      "suite_id": "knowledge_compilation",
+      "required_output": "Summaries or local-search answers checked against mapped documents, text units, and community report rows while unsupported or stale claims are excluded.",
+      "current_artifact": "apps/elf-eval/fixtures/real_world_external_adapters/graph_rag/graphrag_output_tables_blocked.json",
+      "claim_boundary": "No GraphRAG answer-faithfulness score exists until output tables map."
+    },
+    {
+      "adapter": "GraphRAG",
+      "dimension": "knowledge_compilation_quality",
+      "scenario_id": "graph_summary_synthesis_quality",
+      "status": "not_encoded",
+      "suite_id": "knowledge_compilation",
+      "required_output": "Provider-backed graph-summary output with mapped tables, citations, unsupported-claim lint, and stale-source handling.",
+      "current_artifact": "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json",
+      "claim_boundary": "GraphRAG graph-summary synthesis quality remains not tested."
+    }
+  ],
+  "feed_back_to_elf": [
+    "Knowledge Workspace should keep citation coverage separate from knowledge compilation quality; source refs alone do not prove answer faithfulness.",
+    "Recall Debug should expose missing adapter source handles as typed blocker evidence rather than hiding them behind aggregate retrieval scores.",
+    "Stale-source behavior needs explicit changed-source or validity-window artifacts before any graph/RAG comparison can move beyond not_encoded or blocked."
+  ],
+  "claim_boundaries": {
+    "allowed": [
+      "RAGFlow, GraphRAG, and LightRAG now have checked-in matrix rows for retrieval, citation, navigation, stale-source behavior, answer faithfulness, and knowledge compilation coverage.",
+      "The matrix records typed blockers and not-encoded rows for missing same-corpus outputs.",
+      "The representative graph/RAG command still reports typed non-pass outcomes."
+    ],
+    "not_allowed": [
+      "Do not claim graph/RAG parity or broad graph-navigation quality.",
+      "Do not claim RAGFlow, GraphRAG, or LightRAG pass retrieval, citation, navigation, stale-source, faithfulness, or knowledge-compilation quality until scored artifacts exist.",
+      "Do not reposition ELF as a generic RAG platform from this adapter matrix."
+    ]
+  }
+}
