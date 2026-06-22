@@ -1,0 +1,238 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "p1-closeout-stale-decision-suppression-001",
+  "suite": "memory_evolution",
+  "title": "Suppress a stale P2 queue decision and keep the current phase gate",
+  "corpus": {
+    "corpus_id": "real-world-memory-p1-closeout-2026-06-22",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "p1-old-skip-decision",
+        "kind": "decision",
+        "text": "Historical decision: P2 Knowledge Workspace may be queued immediately after P0 because P1 can be skipped.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "p1_closeout/stale_decision_suppression",
+            "evidence_id": "p1-old-skip-decision"
+          }
+        },
+        "created_at": "2026-06-21T00:00:00Z"
+      },
+      {
+        "evidence_id": "p1-current-phase-gate",
+        "kind": "decision",
+        "text": "Current decision: P2 Knowledge Workspace must not receive decodex:queued:elf until XY-1063 P1 closeout benchmark and self-assessment pass and the main thread accepts the next phase.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "p1_closeout/stale_decision_suppression",
+            "evidence_id": "p1-current-phase-gate"
+          }
+        },
+        "created_at": "2026-06-22T02:20:00Z"
+      },
+      {
+        "evidence_id": "p1-phase-gate-rationale",
+        "kind": "decision",
+        "text": "Update rationale: P1 implementation issues landed, but phase closeout still must prove stale/correction behavior, unsupported-claim refusal, work-resume memory use, and no broad competitor wins.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "p1_closeout/stale_decision_suppression",
+            "evidence_id": "p1-phase-gate-rationale"
+          }
+        },
+        "created_at": "2026-06-22T02:21:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_p1_closeout",
+      "answer": {
+        "content": "Use the current phase gate: P2 Knowledge Workspace must not receive decodex:queued:elf until the XY-1063 P1 closeout benchmark and self-assessment pass and the main thread accepts the next phase. The older P1-skip decision is historical because the closeout still must prove stale/correction behavior, unsupported-claim refusal, work-resume memory use, and no broad competitor wins.",
+        "claims": [
+          {
+            "claim_id": "current_phase_gate",
+            "text": "P2 Knowledge Workspace must not receive decodex:queued:elf until the P1 closeout benchmark and self-assessment pass and the main thread accepts the next phase.",
+            "evidence_ids": ["p1-current-phase-gate", "p1-old-skip-decision", "p1-phase-gate-rationale"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "stale_decision_suppressed",
+            "text": "The older P1-skip decision is historical and must not be used as the current queue decision.",
+            "evidence_ids": ["p1-old-skip-decision", "p1-phase-gate-rationale"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "closeout_rationale",
+            "text": "The closeout must prove stale/correction behavior, unsupported-claim refusal, work-resume memory use, and no broad competitor wins.",
+            "evidence_ids": ["p1-phase-gate-rationale"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["p1-current-phase-gate", "p1-phase-gate-rationale"],
+        "latency_ms": 1.7,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "p1-skip-decision-recorded",
+      "ts": "2026-06-21T00:00:00Z",
+      "actor": "agent",
+      "action": "recorded_historical_decision",
+      "evidence_ids": ["p1-old-skip-decision"],
+      "summary": "An older decision claimed P1 could be skipped."
+    },
+    {
+      "event_id": "p1-phase-gate-updated",
+      "ts": "2026-06-22T02:20:00Z",
+      "actor": "agent",
+      "action": "updated_phase_gate",
+      "evidence_ids": ["p1-current-phase-gate", "p1-phase-gate-rationale"],
+      "summary": "The current decision requires XY-1063 closeout evidence and main-thread acceptance before P2 queueing."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Can P2 Knowledge Workspace be queued now, or is there a current P1 closeout gate that supersedes the older decision?",
+    "job_mode": "decide",
+    "constraints": ["cite_evidence", "distinguish_current_from_historical", "avoid_stale_decisions"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "current_phase_gate",
+        "text": "P2 Knowledge Workspace must not receive decodex:queued:elf until the P1 closeout benchmark and self-assessment pass and the main thread accepts the next phase."
+      },
+      {
+        "claim_id": "stale_decision_suppressed",
+        "text": "The older P1-skip decision is historical and must not be used as the current queue decision."
+      },
+      {
+        "claim_id": "closeout_rationale",
+        "text": "The closeout must prove stale/correction behavior, unsupported-claim refusal, work-resume memory use, and no broad competitor wins."
+      }
+    ],
+    "must_not_include": [
+      "P1 can be skipped",
+      "P2 Knowledge Workspace may be queued immediately after P0"
+    ],
+    "evidence_links": {
+      "current_phase_gate": [
+        "p1-current-phase-gate",
+        "p1-old-skip-decision",
+        "p1-phase-gate-rationale"
+      ],
+      "stale_decision_suppressed": ["p1-old-skip-decision", "p1-phase-gate-rationale"],
+      "closeout_rationale": ["p1-phase-gate-rationale"]
+    },
+    "answer_type": "decision_record",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "p1-current-phase-gate",
+      "claim_id": "current_phase_gate",
+      "requirement": "cite",
+      "quote": "must not receive decodex:queued:elf until XY-1063 P1 closeout benchmark and self-assessment pass"
+    },
+    {
+      "evidence_id": "p1-phase-gate-rationale",
+      "claim_id": "closeout_rationale",
+      "requirement": "explain",
+      "quote": "prove stale/correction behavior, unsupported-claim refusal, work-resume memory use"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "p1-skip-decision-current",
+      "type": "stale_fact",
+      "evidence_ids": ["p1-old-skip-decision"],
+      "failure_if_used": false
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "lifecycle_behavior": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Suppresses the stale P1-skip decision and selects the current phase gate."
+      },
+      "answer_correctness": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "States the current P2 queue boundary and closeout rationale."
+      },
+      "evidence_grounding": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Cites current decision and rationale evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Does not use the stale P1-skip decision as current."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.1,
+        "max_points": 1.0,
+        "criteria": "Turns the phase gate into an actionable queue decision."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "state_blocker"
+  },
+  "memory_evolution": {
+    "current_evidence_ids": ["p1-current-phase-gate"],
+    "historical_evidence_ids": ["p1-old-skip-decision"],
+    "tombstone_evidence_ids": [],
+    "invalidation_evidence_ids": ["p1-phase-gate-rationale"],
+    "stale_trap_ids": ["p1-skip-decision-current"],
+    "conflicts": [
+      {
+        "conflict_id": "p1-closeout-queue-gate-supersedes-skip-decision",
+        "claim_id": "current_phase_gate",
+        "current_evidence_id": "p1-current-phase-gate",
+        "historical_evidence_id": "p1-old-skip-decision",
+        "resolved_by_evidence_id": "p1-phase-gate-rationale"
+      }
+    ],
+    "update_rationale": {
+      "claim_id": "closeout_rationale",
+      "evidence_ids": ["p1-phase-gate-rationale"],
+      "available": true
+    },
+    "temporal_validity": {
+      "required": false,
+      "encoded": false,
+      "follow_up": null
+    },
+    "history_readback": {
+      "encoded": true,
+      "required_event_types": ["decision_superseded", "phase_gate_updated"],
+      "requires_note_version_links": true
+    }
+  },
+  "tags": ["synthetic", "p1_closeout", "stale_decision", "phase_gate", "no_p2_queue"]
+}

@@ -1,0 +1,390 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "p1-closeout-source-candidate-approval-recall-001",
+  "suite": "consolidation",
+  "title": "Promote a source-linked P1 closeout candidate and recall it with trace evidence",
+  "corpus": {
+    "corpus_id": "real-world-memory-p1-closeout-2026-06-22",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "p1-source-library-record",
+        "kind": "document",
+        "text": "Source Library record: XY-1063 captures the P1 closeout requirement to cover stale decision suppression, correction persistence, unsupported claim refusal, and work-resume memory use before any P2 queueing decision.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "elf_doc_ext/v1",
+          "ref": {
+            "doc_id": "10631063-1063-4063-8063-106310631063",
+            "chunk_id": "20632063-2063-4063-8063-206320632063"
+          },
+          "state": {
+            "content_hash": "p1-closeout-source-library-hash",
+            "chunk_hash": "p1-closeout-source-library-chunk-hash"
+          },
+          "locator": {
+            "quote": {
+              "exact": "cover stale decision suppression, correction persistence, unsupported claim refusal, and work-resume memory use"
+            }
+          }
+        },
+        "created_at": "2026-06-22T02:00:00Z"
+      },
+      {
+        "evidence_id": "p1-memory-candidate",
+        "kind": "message",
+        "text": "Memory Candidate: promote the source-linked closeout requirement only after review; the candidate cites p1-source-library-record and must not mutate captured source documents.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "p1_closeout/source_candidate_approval_recall",
+            "evidence_id": "p1-memory-candidate"
+          }
+        },
+        "created_at": "2026-06-22T02:05:00Z"
+      },
+      {
+        "evidence_id": "p1-approved-memory",
+        "kind": "note",
+        "text": "Approved memory: P1 closeout requires benchmark evidence across Source Library, Memory Candidate, approved memory, recall/debug, correction, and rollback before P2 queueing is allowed.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "elf.memory_promotion/v1",
+          "ref": {
+            "proposal_id": "p1-memory-candidate-approval",
+            "source_evidence_ids": ["p1-source-library-record", "p1-memory-candidate"]
+          },
+          "state": {
+            "review_action": "apply",
+            "reviewed_at": "2026-06-22T02:10:00Z"
+          }
+        },
+        "created_at": "2026-06-22T02:10:00Z"
+      },
+      {
+        "evidence_id": "p1-recall-debug-trace",
+        "kind": "trace",
+        "text": "Recall debug panel: selected approved memory p1-approved-memory, retained source record p1-source-library-record, dropped stale P2 queue decoy, and exposed replay command cargo make real-world-memory-p1-closeout.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "elf.recall_debug_panel/v1",
+          "ref": {
+            "trace_id": "10631063-3000-4063-8063-106310631063"
+          }
+        },
+        "created_at": "2026-06-22T02:15:00Z"
+      },
+      {
+        "evidence_id": "p1-source-mutation-trap",
+        "kind": "message",
+        "text": "Bad shortcut: rewrite the captured source document to look like approved memory and skip candidate review.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "p1_closeout/source_candidate_approval_recall",
+            "evidence_id": "p1-source-mutation-trap"
+          }
+        },
+        "created_at": "2026-06-22T02:16:00Z"
+      },
+      {
+        "evidence_id": "p2-queue-decoy",
+        "kind": "decision",
+        "text": "Stale decoy: P2 Knowledge Workspace issues already received decodex:queued:elf before P1 closeout passed self-assessment.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "p1_closeout/source_candidate_approval_recall",
+            "evidence_id": "p2-queue-decoy"
+          }
+        },
+        "created_at": "2026-06-22T02:17:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_p1_closeout",
+      "answer": {
+        "content": "Promote the P1 closeout requirement through a reviewed memory candidate, not by mutating source records. The approved memory says the P1 closeout requires benchmark evidence across Source Library, Memory Candidate, approved memory, recall/debug, correction, and rollback before P2 queueing is allowed, and the recall/debug panel selected that approved memory while dropping the stale P2 queue decoy.",
+        "claims": [
+          {
+            "claim_id": "source_to_candidate",
+            "text": "The Source Library record produced a reviewed Memory Candidate without source mutation.",
+            "evidence_ids": ["p1-source-library-record", "p1-memory-candidate"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "approved_memory_recalled",
+            "text": "The approved memory was selected by recall/debug trace evidence.",
+            "evidence_ids": ["p1-approved-memory", "p1-recall-debug-trace"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "p2_queue_boundary",
+            "text": "P2 queueing is not allowed before the P1 closeout self-assessment passes.",
+            "evidence_ids": ["p1-approved-memory"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": [
+          "p1-source-library-record",
+          "p1-memory-candidate",
+          "p1-approved-memory",
+          "p1-recall-debug-trace"
+        ],
+        "latency_ms": 2.1,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        },
+        "trace_explainability": {
+          "trace_id": "10631063-3000-4063-8063-106310631063",
+          "failure_stage": null,
+          "failure_reason": null,
+          "stages": [
+            {
+              "stage_name": "source.search",
+              "kept_evidence": ["p1-source-library-record"],
+              "dropped_evidence": [],
+              "demoted_evidence": [],
+              "distractor_evidence": [],
+              "notes": "Source Library evidence was retained as the authority root."
+            },
+            {
+              "stage_name": "memory.candidate_review",
+              "kept_evidence": ["p1-memory-candidate"],
+              "dropped_evidence": ["p1-source-mutation-trap"],
+              "demoted_evidence": [],
+              "distractor_evidence": ["p1-source-mutation-trap"],
+              "notes": "Candidate review rejected source mutation."
+            },
+            {
+              "stage_name": "recall.selection",
+              "kept_evidence": ["p1-approved-memory", "p1-recall-debug-trace"],
+              "dropped_evidence": ["p2-queue-decoy"],
+              "demoted_evidence": [],
+              "distractor_evidence": ["p2-queue-decoy"],
+              "notes": "Recall selected approved memory and dropped stale P2 queue evidence."
+            }
+          ]
+        }
+      },
+      "consolidation": {
+        "proposals": [
+          {
+            "proposal_id": "p1-memory-candidate-approval",
+            "proposal_kind": "memory_candidate",
+            "source_refs": ["p1-source-library-record", "p1-memory-candidate"],
+            "expected_source_refs": ["p1-source-library-record", "p1-memory-candidate"],
+            "usefulness_score": 0.95,
+            "min_usefulness_score": 0.8,
+            "expected_review_action": "apply",
+            "actual_review_action": "apply",
+            "source_mutations": [],
+            "unsupported_claim_count": 0,
+            "diff": {
+              "summary": "Promote the reviewed P1 closeout requirement into approved memory.",
+              "before": {
+                "candidate_state": "proposed"
+              },
+              "after": {
+                "target": "approved_memory",
+                "source_changes_allowed": false,
+                "content": "P1 closeout requires benchmark evidence across Source Library, Memory Candidate, approved memory, recall/debug, correction, and rollback before P2 queueing is allowed."
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "p1-source-captured",
+      "ts": "2026-06-22T02:00:00Z",
+      "actor": "agent",
+      "action": "captured_source_library_record",
+      "evidence_ids": ["p1-source-library-record"],
+      "summary": "The P1 closeout requirement was captured as source evidence."
+    },
+    {
+      "event_id": "p1-candidate-proposed",
+      "ts": "2026-06-22T02:05:00Z",
+      "actor": "agent",
+      "action": "proposed_memory_candidate",
+      "evidence_ids": ["p1-memory-candidate"],
+      "summary": "A memory candidate was proposed from the source record."
+    },
+    {
+      "event_id": "p1-candidate-approved",
+      "ts": "2026-06-22T02:10:00Z",
+      "actor": "reviewer",
+      "action": "applied_memory_candidate",
+      "evidence_ids": ["p1-approved-memory"],
+      "summary": "The reviewed candidate became approved memory."
+    },
+    {
+      "event_id": "p1-recall-debug-readback",
+      "ts": "2026-06-22T02:15:00Z",
+      "actor": "agent",
+      "action": "read_recall_debug_panel",
+      "evidence_ids": ["p1-recall-debug-trace"],
+      "summary": "Recall/debug selected approved memory and dropped the stale P2 queue decoy."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Can the P1 closeout source be promoted into memory, and can recall/debug prove what was selected or dropped?",
+    "job_mode": "compile",
+    "constraints": ["cite_evidence", "preserve_source_records", "show_recall_debug_selection"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "source_to_candidate",
+        "text": "The Source Library record produced a reviewed Memory Candidate without source mutation."
+      },
+      {
+        "claim_id": "approved_memory_recalled",
+        "text": "The approved memory was selected by recall/debug trace evidence."
+      },
+      {
+        "claim_id": "p2_queue_boundary",
+        "text": "P2 queueing is not allowed before the P1 closeout self-assessment passes."
+      }
+    ],
+    "must_not_include": [
+      "rewrite the captured source document",
+      "P2 Knowledge Workspace issues already received decodex:queued:elf"
+    ],
+    "evidence_links": {
+      "source_to_candidate": ["p1-source-library-record", "p1-memory-candidate"],
+      "approved_memory_recalled": ["p1-approved-memory", "p1-recall-debug-trace"],
+      "p2_queue_boundary": ["p1-approved-memory"]
+    },
+    "answer_type": "compiled_knowledge",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "p1-source-library-record",
+      "claim_id": "source_to_candidate",
+      "requirement": "cite",
+      "quote": "cover stale decision suppression, correction persistence, unsupported claim refusal, and work-resume memory use"
+    },
+    {
+      "evidence_id": "p1-memory-candidate",
+      "claim_id": "source_to_candidate",
+      "requirement": "use",
+      "quote": "must not mutate captured source documents"
+    },
+    {
+      "evidence_id": "p1-approved-memory",
+      "claim_id": "p2_queue_boundary",
+      "requirement": "cite",
+      "quote": "before P2 queueing is allowed"
+    },
+    {
+      "evidence_id": "p1-recall-debug-trace",
+      "claim_id": "approved_memory_recalled",
+      "requirement": "explain",
+      "quote": "selected approved memory p1-approved-memory"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "p1-source-mutation-shortcut",
+      "type": "unsafe_action",
+      "evidence_ids": ["p1-source-mutation-trap"],
+      "failure_if_used": true
+    },
+    {
+      "trap_id": "p2-already-queued",
+      "type": "stale_fact",
+      "evidence_ids": ["p2-queue-decoy"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Explains the reviewed source-to-memory promotion and P2 queue boundary."
+      },
+      "evidence_grounding": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Cites source, candidate, approved memory, and recall/debug evidence."
+      },
+      "proposal_usefulness": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Memory candidate proposal usefulness meets the fixture threshold."
+      },
+      "lineage_completeness": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Proposal lineage includes every expected source ref."
+      },
+      "review_action_correctness": {
+        "weight": 0.1,
+        "max_points": 1.0,
+        "criteria": "The reviewed memory candidate is applied."
+      },
+      "source_immutability": {
+        "weight": 0.1,
+        "max_points": 1.0,
+        "criteria": "Source mutation count remains zero."
+      },
+      "debuggability": {
+        "weight": 0.1,
+        "max_points": 1.0,
+        "criteria": "Recall/debug exposes selected and dropped evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.05,
+        "max_points": 1.0,
+        "criteria": "Does not use source-mutation or stale P2 queue traps."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true",
+      "source mutation count must remain zero for proposal-only consolidation cases"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "state_blocker"
+  },
+  "operator_debug": {
+    "failure_mode": "none_closeout_trace_readback",
+    "trace_id": "10631063-3000-4063-8063-106310631063",
+    "viewer_url": "/viewer?trace_id=10631063-3000-4063-8063-106310631063",
+    "admin_trace_bundle_url": "/v2/admin/traces/10631063-3000-4063-8063-106310631063/bundle?mode=full&stage_items_limit=128&candidates_limit=200",
+    "root_cause": "Recall/debug selected the approved P1 closeout memory and dropped the stale P2 queue decoy.",
+    "steps_to_root_cause": 2,
+    "raw_sql_needed": false,
+    "dropped_candidate_visibility": "visible in trace_explainability recall.selection",
+    "trace_completeness": "complete",
+    "repair_action_clarity": "clear",
+    "trace_available": true,
+    "replay_command_available": true,
+    "replay_command": "cargo make real-world-memory-p1-closeout",
+    "replay_artifact": "tmp/real-world-memory/p1-closeout/report.json",
+    "viewer_panels": ["Recall Debug", "Source Library", "Memory Candidate", "Approved Memory"],
+    "cli_steps": ["run p1 closeout benchmark", "inspect generated report", "verify P2 queue boundary"],
+    "trace_evidence": ["p1-source-library-record", "p1-memory-candidate", "p1-approved-memory", "p1-recall-debug-trace"],
+    "ux_gaps": []
+  },
+  "tags": ["synthetic", "p1_closeout", "source_library", "memory_candidate", "approved_memory", "recall_debug", "no_live_claim"]
+}

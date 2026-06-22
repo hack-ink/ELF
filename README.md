@@ -253,6 +253,15 @@ provider-backed ELF evidence was required.
   UI/export, Letta core/archive, graph/RAG temporal-citation, agentmemory/claude-mem
   capture/viewer, and VectifyAI PageIndex/OpenKB long-document knowledge-library
   advantages as optimization inputs rather than false pass claims.
+- P1 Memory Authority closeout after XY-1063: the June 22 closeout adds
+  `cargo make real-world-memory-p1-closeout` and a checked-in self-assessment report.
+  The slice scores 4 pass, 0 wrong_result, 0 unsupported claims, 0 stale answers,
+  2 conflict detections, 2 update rationales, 2 history readbacks, full evidence,
+  source-ref, and quote coverage, one recall/debug trace, and zero source mutations.
+  It covers Source Library -> Memory Candidate -> approved memory -> recall/debug ->
+  correction/rollback, but remains fixture-backed and does not claim private-corpus,
+  provider-backed, live-adapter, hosted-memory, or broad competitor parity. P2
+  queueing remains conditional on main-thread acceptance of the closeout.
 - Operator-approved public-proxy addendum after XY-930: the June 19 follow-up runs
   `cargo make baseline-production-private-addendum` with a simulated/public-proxy
   production corpus manifest approved for this stage. The run records 12 documents,
@@ -384,6 +393,7 @@ Detailed evidence and interpretation:
 - [Knowledge Workspace Version-Diff Report - June 20, 2026](docs/evidence/benchmarking/2026-06-20-knowledge-workspace-version-diff-report.md)
 - [Live Knowledge-Page Rebuild/Lint Report - June 20, 2026](docs/evidence/benchmarking/2026-06-20-live-knowledge-page-rebuild-lint-report.md)
 - [Agent Knowledge OS Closeout Benchmark Report - June 20, 2026](docs/evidence/benchmarking/2026-06-20-agent-knowledge-os-closeout-benchmark-report.md)
+- [P1 Memory Authority Closeout Report - June 22, 2026](docs/evidence/benchmarking/2026-06-22-p1-memory-authority-closeout-report.md)
 - [Live Baseline Benchmark Runbook](docs/runbook/benchmarking/live_baseline_benchmark.md)
 - [Single-User Production Runbook](docs/runbook/single_user_production.md)
 - Benchmark contract:
@@ -473,6 +483,7 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [qmd Debug-Ergonomics Dreaming Retest Report - June 19, 2026](docs/evidence/benchmarking/2026-06-19-qmd-debug-ergonomics-dreaming-retest-report.md)
 - [OpenMemory UI/Export Product Readback Report - June 19, 2026](docs/evidence/benchmarking/2026-06-19-openmemory-ui-export-product-readback-report.md)
 - [Operator-Approved Public-Proxy Production-Private Addendum - June 19, 2026](docs/evidence/benchmarking/2026-06-19-operator-approved-public-proxy-production-private-addendum.md)
+- [P1 Memory Authority Closeout Report - June 22, 2026](docs/evidence/benchmarking/2026-06-22-p1-memory-authority-closeout-report.md)
 - [Live Baseline Benchmark Runbook](docs/runbook/benchmarking/live_baseline_benchmark.md)
 - [Real-World Agent Memory Benchmark](docs/runbook/benchmarking/real_world_agent_memory_benchmark.md)
 - [External Memory Improvement Plan](docs/evidence/external_memory/external_memory_improvement_plan.md)
@@ -484,10 +495,11 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [Derived Knowledge Page Follow-Up Research](docs/research/derived_knowledge_page_followup.md)
 - [Dreaming Product Surface Follow-Up Research](docs/research/dreaming_product_surface_followup.md)
 
-Latest real-world benchmark report: June 20, 2026. Latest external research refresh:
+Latest real-world benchmark report: June 22, 2026. Latest external research refresh:
 June 11, 2026; June 20 adds the Agent Knowledge OS Closeout Benchmark Report,
 the Graph Topic-Map Report - June 20, 2026, Knowledge Workspace Version-Diff
-Report - June 20, 2026, and the Live Knowledge-Page Rebuild/Lint Report - June 20, 2026 after the June 19
+Report - June 20, 2026, and the Live Knowledge-Page Rebuild/Lint Report - June 20,
+2026; June 22 adds the P1 Memory Authority Closeout Report after the June 19
 XY-930 operator-approved public-proxy production addendum and service-native Dreaming
 readback, the qmd debug-ergonomics Dreaming retest, the June 17 competitor-strength
 closeout, and the June 16 temporal reconciliation, live consolidation self-check,

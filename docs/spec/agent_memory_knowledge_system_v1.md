@@ -14,6 +14,7 @@ tags:
   - knowledge
 source_refs:
   - docs/evidence/benchmarking/2026-06-20-agent-knowledge-os-closeout-benchmark-report.md
+  - docs/evidence/benchmarking/2026-06-22-p1-memory-authority-closeout-report.md
   - docs/runbook/benchmarking/real_world_agent_memory_benchmark.md
   - docs/spec/real_world_agent_memory_benchmark_v1.md
   - docs/spec/system_elf_memory_service_v2.md
@@ -181,8 +182,9 @@ Decodex execution for this project is single-phase gated:
   to start additional phases.
 - `In Review` is a PR-backed handoff state. It is not phase acceptance by itself.
 
-P0 is the current phase for this contract. No P1 issue should be queued until the P0
-change is reviewed and accepted by the main thread.
+As of the June 22, 2026 XY-1063 closeout, P1 has fixture-backed self-assessment
+evidence for the memory-authority MVP loop. P2 queueing remains conditional on
+main-thread acceptance of that closeout and selection of one narrow next P2 issue.
 
 ## Competitor Absorption Rules
 

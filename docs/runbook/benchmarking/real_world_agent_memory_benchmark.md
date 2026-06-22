@@ -186,6 +186,10 @@ including the retrieval-quality slice below. The suite currently encodes:
 - `context_trajectory`: OpenViking staged retrieval, hierarchy selection, and
   recursive/context expansion jobs encoded as `blocked` until same-corpus expected
   evidence ids and comparable stage artifacts are available.
+- `p1_closeout` fixture slice: four jobs across the existing `consolidation`,
+  `memory_evolution`, and `work_resume` suites for Source Library -> Memory Candidate
+  -> approved memory -> recall/debug -> correction/rollback, stale decision
+  suppression, unsupported-claim refusal, and work-resume next action.
 
 The generated report includes evidence coverage, source-ref coverage, quote coverage,
 unsupported-claim count, stale retrieval count, stale-answer count, conflict detection
@@ -201,6 +205,26 @@ context, project-decision stale reuse, missing rationale, uncited current policy
 claims, overconfident unsupported decision answers, distractor context,
 index-only restore claims, private-corpus pass claims without a manifest, and
 checked-in credential leakage.
+
+Current checked-in P1 closeout increment:
+
+```sh
+cargo make real-world-memory-p1-closeout
+```
+
+This parses `apps/elf-eval/fixtures/real_world_memory/p1_closeout/`, writes
+`tmp/real-world-memory/p1-closeout/report.json`, and renders
+`tmp/real-world-memory/p1-closeout/report.md`. The checked-in evidence report is
+`docs/evidence/benchmarking/2026-06-22-p1-memory-authority-closeout-report.md`, and
+the checked-in JSON snapshot is
+`apps/elf-eval/fixtures/report_snapshots/2026-06-22-p1-memory-authority-closeout-report.json`.
+
+The slice scores four jobs as pass with zero wrong results, zero unsupported claims,
+zero stale answers, two conflict detections, two update rationales, two history
+readbacks, full evidence/source-ref/quote coverage, one recall/debug trace, and zero
+source mutations. It is fixture-backed closeout evidence only; it does not claim a
+live adapter sweep, private-corpus quality, provider-backed quality, or broad
+competitor wins.
 
 Current checked-in project-decisions increment:
 
@@ -243,10 +267,12 @@ research gates. Its `external_adapters` report section distinguishes:
 - `research_gate`: checked-in source/setup/runtime/resource/retry metadata for a
   future adapter path, not fixture-backed or live execution evidence.
 
-Current fixture state: `cargo make real-world-memory` covers 60 jobs across 16 suites,
-with 53 pass and 7 blocked. The `core_archival_memory` suite contributes six passing
-fixture jobs for core block attachment, scope, provenance, stale-core detection,
-archival fallback, and project-decision recovery. The `memory_summary` suite
+Current fixture state: `cargo make real-world-memory-json` covers 66 jobs across 17
+suites, with 59 pass and 7 blocked. The P1 closeout fixture slice contributes four
+passing jobs for memory-authority closeout evidence. The `core_archival_memory` suite
+contributes six passing fixture jobs for core block attachment, scope, provenance,
+stale-core detection, archival fallback, and project-decision recovery. The
+`memory_summary` suite
 contributes one passing fixture-backed source-trace job for reviewable current,
 background, stale, superseded, tombstoned, and derived project-profile entries. The
 `proactive_brief` suite contributes four passing source-linked proactive suggestions
