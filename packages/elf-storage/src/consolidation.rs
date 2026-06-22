@@ -97,6 +97,20 @@ pub struct ConsolidationProposalReviewUpdate<'a> {
 	pub now: OffsetDateTime,
 }
 
+/// Arguments for updating a consolidation proposal target reference.
+pub struct ConsolidationProposalTargetRefUpdate<'a> {
+	/// Tenant that owns the proposal.
+	pub tenant_id: &'a str,
+	/// Project that owns the proposal.
+	pub project_id: &'a str,
+	/// Proposal identifier.
+	pub proposal_id: Uuid,
+	/// New target reference.
+	pub target_ref: &'a Value,
+	/// Update timestamp.
+	pub now: OffsetDateTime,
+}
+
 /// Arguments for inserting a consolidation proposal review event.
 pub struct ConsolidationProposalReviewEventInsert<'a> {
 	/// Review event identifier.
@@ -538,6 +552,57 @@ where
 	Ok(row)
 }
 
+/// Locks one consolidation proposal by tenant and proposal identifier.
+pub async fn lock_consolidation_proposal<'e, E>(
+	executor: E,
+	tenant_id: &str,
+	project_id: &str,
+	proposal_id: Uuid,
+) -> Result<Option<ConsolidationProposal>>
+where
+	E: PgExecutor<'e>,
+{
+	let row = sqlx::query_as::<_, ConsolidationProposal>(
+		"\
+SELECT
+	proposal_id,
+	run_id,
+	tenant_id,
+	project_id,
+	agent_id,
+	contract_schema,
+	proposal_kind,
+	apply_intent,
+	review_state,
+	source_refs,
+	source_snapshot,
+	lineage,
+	diff,
+	confidence,
+	COALESCE(unsupported_claim_flags, '[]'::jsonb) AS unsupported_claim_flags,
+	COALESCE(contradiction_markers, '[]'::jsonb) AS contradiction_markers,
+	COALESCE(staleness_markers, '[]'::jsonb) AS staleness_markers,
+	COALESCE(target_ref, '{}'::jsonb) AS target_ref,
+	COALESCE(proposed_payload, '{}'::jsonb) AS proposed_payload,
+	reviewer_agent_id,
+	review_comment,
+	reviewed_at,
+	created_at,
+	updated_at
+FROM consolidation_proposals
+WHERE tenant_id = $1 AND project_id = $2 AND proposal_id = $3
+LIMIT 1
+FOR UPDATE",
+	)
+	.bind(tenant_id)
+	.bind(project_id)
+	.bind(proposal_id)
+	.fetch_optional(executor)
+	.await?;
+
+	Ok(row)
+}
+
 /// Lists consolidation proposals for one tenant and project.
 pub async fn list_consolidation_proposals<'e, E>(
 	executor: E,
@@ -643,6 +708,56 @@ RETURNING
 	.bind(args.review_state)
 	.bind(args.reviewer_agent_id)
 	.bind(args.review_comment)
+	.bind(args.now)
+	.bind(args.tenant_id)
+	.bind(args.project_id)
+	.bind(args.proposal_id)
+	.fetch_optional(executor)
+	.await?;
+
+	Ok(row)
+}
+
+/// Updates one proposal target reference.
+pub async fn update_consolidation_proposal_target_ref<'e, E>(
+	executor: E,
+	args: ConsolidationProposalTargetRefUpdate<'_>,
+) -> Result<Option<ConsolidationProposal>>
+where
+	E: PgExecutor<'e>,
+{
+	let row = sqlx::query_as::<_, ConsolidationProposal>(
+		"\
+UPDATE consolidation_proposals
+SET target_ref = $1, updated_at = $2
+WHERE tenant_id = $3 AND project_id = $4 AND proposal_id = $5
+RETURNING
+	proposal_id,
+	run_id,
+	tenant_id,
+	project_id,
+	agent_id,
+	contract_schema,
+	proposal_kind,
+	apply_intent,
+	review_state,
+	source_refs,
+	source_snapshot,
+	lineage,
+	diff,
+	confidence,
+	COALESCE(unsupported_claim_flags, '[]'::jsonb) AS unsupported_claim_flags,
+	COALESCE(contradiction_markers, '[]'::jsonb) AS contradiction_markers,
+	COALESCE(staleness_markers, '[]'::jsonb) AS staleness_markers,
+	COALESCE(target_ref, '{}'::jsonb) AS target_ref,
+	COALESCE(proposed_payload, '{}'::jsonb) AS proposed_payload,
+	reviewer_agent_id,
+	review_comment,
+	reviewed_at,
+	created_at,
+	updated_at",
+	)
+	.bind(args.target_ref)
 	.bind(args.now)
 	.bind(args.tenant_id)
 	.bind(args.project_id)
