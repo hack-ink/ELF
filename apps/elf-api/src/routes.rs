@@ -691,6 +691,7 @@ pub fn router(state: AppState) -> Router {
 		.route("/v2/events/ingest", routing::post(events_ingest))
 		.route("/v2/core-blocks", routing::get(core_blocks_get))
 		.route("/v2/entity-memory", routing::get(entity_memory_get))
+		.route("/v2/recall-debug/panel", routing::post(recall_debug_panel))
 		.route("/v2/searches", routing::post(searches_create))
 		.route("/v2/searches/{search_id}", routing::get(searches_get))
 		.route("/v2/searches/{search_id}/timeline", routing::get(searches_timeline))
@@ -3190,14 +3191,14 @@ async fn dreaming_review_queue(
 
 #[utoipa::path(
 	post,
-	path = "/v2/admin/recall-debug/panel",
+	path = "/v2/recall-debug/panel",
 	tag = "recall",
 	request_body = Value,
 	responses(
-		(status = 200, description = "Cross-layer recall/debug panel.", body = Value),
+		(status = 200, description = "Agent-facing cross-layer recall/debug panel.", body = Value),
 		(status = 400, description = "Invalid request.", body = ErrorBody),
 		(status = 401, description = "Authentication required.", body = ErrorBody),
-		(status = 403, description = "Admin access required.", body = ErrorBody),
+		(status = 403, description = "Scope denied.", body = ErrorBody),
 		(status = 500, description = "Internal error.", body = ErrorBody),
 	)
 )]

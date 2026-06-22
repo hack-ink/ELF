@@ -6,7 +6,7 @@ resource: docs/spec/system_recall_debug_panel_v1.md
 status: active
 authority: normative
 owner: memory-service
-last_verified: 2026-06-20
+last_verified: 2026-06-22
 tags:
   - spec
   - recall
@@ -40,6 +40,18 @@ authority/freshness fields for the recall/debug panel.
 
 The response schema is `elf.recall_debug_panel/v1`.
 
+Agent-facing endpoint:
+
+- `POST /v2/recall-debug/panel`
+
+Operator mirror:
+
+- `POST /v2/admin/recall-debug/panel`
+
+Both routes use the same service read model. The admin route is a mirror for local
+operator tooling; the public route is the agent-facing recall/debug API and remains
+read-only.
+
 The panel is a read model over existing authoritative surfaces:
 
 - Memory Notes: search traces, trace items, trajectory stages, replay candidates, and
@@ -51,6 +63,13 @@ The panel is a read model over existing authoritative surfaces:
 - Dreaming proposals: `elf.dreaming_review_queue/v1` reviewable proposal rows.
 
 The panel MUST NOT mutate notes, documents, pages, graph facts, or proposals.
+
+The response includes:
+
+- `summary`: aggregate layer counters.
+- `recall_trace`: deterministic `elf.recall_trace/v1` projection for agent use,
+  fixture assertions, and compact debug readback.
+- `layers`: full layer rows for detailed operator inspection.
 
 ## Request Anchors
 
@@ -107,6 +126,39 @@ Allowed layer evidence classes are:
 
 The panel summary MUST preserve evidence class counts. Aggregate success MUST NOT
 hide `not_requested`, `incomplete`, `blocked`, or `wrong_result` layers.
+
+## Recall Trace
+
+`recall_trace` is a compact, deterministic projection over the returned layers. It
+MUST be stable in layer order and row order for the same persisted trace and backing
+readback inputs. It MUST NOT include a generation timestamp.
+
+Each trace entry MUST include:
+
+- `layer`
+- `context_state`: `selected`, `dropped`, `available`, `reviewable`, `stale`,
+  `blocked`, `not_requested`, `incomplete`, or `wrong_result`.
+- `selection_state`: the original row selection state or layer evidence class.
+- `authority_layer`
+- `freshness_state`
+- `item_ref`
+- `source_refs`
+- `score` and `rank` when available.
+- `policy_reason`: compact stage, drop, lint, temporal, review, blocked, or
+  not-requested reason.
+- `replay_command` when available.
+- `evidence_class`
+- `raw_sql_needed`
+
+Rows with stale or non-current freshness such as `stale`, `deprecated`, `deleted`,
+`superseded`, `tombstoned`, `historical`, `archived`, `lint_warning`, or `lint_error`
+MUST appear in the trace with `context_state = "stale"` while preserving their
+original `selection_state`.
+
+Layers without rows but with `blocked`, `not_requested`, `incomplete`, or
+`wrong_result` evidence MUST still contribute a trace entry carrying the layer summary
+as `policy_reason`. This lets agents and reports distinguish absent anchors,
+blocked readback, and actual empty pass results without raw database inspection.
 
 ## Replay Boundary
 

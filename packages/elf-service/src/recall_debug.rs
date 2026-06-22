@@ -19,6 +19,8 @@ use crate::{
 
 /// Schema identifier for recall/debug panel responses.
 pub const ELF_RECALL_DEBUG_PANEL_SCHEMA_V1: &str = "elf.recall_debug_panel/v1";
+/// Schema identifier for deterministic recall trace projections.
+pub const ELF_RECALL_TRACE_SCHEMA_V1: &str = "elf.recall_trace/v1";
 
 const DEFAULT_RECALL_DEBUG_LIMIT: u32 = 25;
 const MAX_RECALL_DEBUG_LIMIT: u32 = 100;
@@ -65,8 +67,73 @@ pub struct RecallDebugPanelResponse {
 	pub request: RecallDebugPanelRequestEcho,
 	/// Aggregate panel summary.
 	pub summary: RecallDebugPanelSummary,
+	/// Deterministic flat trace projection for agents and fixture assertions.
+	pub recall_trace: RecallTrace,
 	/// Cross-layer rows grouped by source layer.
 	pub layers: Vec<RecallDebugLayer>,
+}
+
+/// Deterministic flat recall trace over all requested layers.
+#[derive(Clone, Debug, Serialize)]
+pub struct RecallTrace {
+	/// Trace schema identifier.
+	pub schema: String,
+	/// Aggregate trace counters.
+	pub summary: RecallTraceSummary,
+	/// Stable trace entries in layer and row order.
+	pub entries: Vec<RecallTraceEntry>,
+}
+
+/// Aggregate counters for a recall trace.
+#[derive(Clone, Debug, Default, Serialize)]
+pub struct RecallTraceSummary {
+	/// Number of trace entries.
+	pub entry_count: usize,
+	/// Entries whose row selection state is selected.
+	pub selected_count: usize,
+	/// Entries whose row selection state is dropped.
+	pub dropped_count: usize,
+	/// Entries whose freshness state indicates stale or non-current evidence.
+	pub stale_count: usize,
+	/// Entries representing blocked layers.
+	pub blocked_count: usize,
+	/// Entries representing layers that were not requested.
+	pub not_requested_count: usize,
+	/// Entries that require raw SQL for diagnosis.
+	pub raw_sql_needed_count: usize,
+	/// Entries with a replay command or deterministic artifact path.
+	pub replay_command_count: usize,
+}
+
+/// One compact recall trace entry.
+#[derive(Clone, Debug, Serialize)]
+pub struct RecallTraceEntry {
+	/// Layer identifier.
+	pub layer: String,
+	/// Primary trace state for compact assertions.
+	pub context_state: String,
+	/// Original row selection state or layer evidence class.
+	pub selection_state: String,
+	/// Authority layer that owns the context.
+	pub authority_layer: String,
+	/// Freshness or temporal state.
+	pub freshness_state: String,
+	/// Stable identifiers for replay or hydration.
+	pub item_ref: Value,
+	/// Source refs or source snapshots supporting the context.
+	pub source_refs: Value,
+	/// Optional score.
+	pub score: Option<f32>,
+	/// Optional rank.
+	pub rank: Option<u32>,
+	/// Compact policy or stage reason for the state.
+	pub policy_reason: Option<String>,
+	/// Replay command or deterministic artifact path.
+	pub replay_command: Option<String>,
+	/// Layer or row evidence class.
+	pub evidence_class: String,
+	/// Whether raw SQL is required to diagnose this entry.
+	pub raw_sql_needed: bool,
 }
 
 /// Stable request echo for panel responses.
@@ -252,6 +319,7 @@ impl ElfService {
 		);
 
 		let summary = summarize_layers(&layers);
+		let recall_trace = build_recall_trace(&layers);
 
 		Ok(RecallDebugPanelResponse {
 			schema: ELF_RECALL_DEBUG_PANEL_SCHEMA_V1.to_string(),
@@ -265,6 +333,7 @@ impl ElfService {
 				limit,
 			},
 			summary,
+			recall_trace,
 			layers,
 		})
 	}
@@ -782,6 +851,123 @@ fn summarize_layers(layers: &[RecallDebugLayer]) -> RecallDebugPanelSummary {
 	summary
 }
 
+fn build_recall_trace(layers: &[RecallDebugLayer]) -> RecallTrace {
+	let mut entries = Vec::new();
+
+	for layer in layers {
+		if layer.rows.is_empty() {
+			if matches!(
+				layer.evidence_class.as_str(),
+				"blocked" | "not_requested" | "incomplete" | "wrong_result"
+			) {
+				entries.push(layer_trace_entry(layer));
+			}
+
+			continue;
+		}
+
+		entries.extend(layer.rows.iter().map(row_trace_entry));
+	}
+
+	let summary = summarize_trace_entries(&entries);
+
+	RecallTrace { schema: ELF_RECALL_TRACE_SCHEMA_V1.to_string(), summary, entries }
+}
+
+fn summarize_trace_entries(entries: &[RecallTraceEntry]) -> RecallTraceSummary {
+	let mut summary = RecallTraceSummary { entry_count: entries.len(), ..Default::default() };
+
+	for entry in entries {
+		match entry.selection_state.as_str() {
+			"selected" => summary.selected_count += 1,
+			"dropped" => summary.dropped_count += 1,
+			"blocked" => summary.blocked_count += 1,
+			"not_requested" => summary.not_requested_count += 1,
+			_ => {},
+		}
+
+		if entry.context_state == "stale" || stale_freshness_state(&entry.freshness_state) {
+			summary.stale_count += 1;
+		}
+		if entry.raw_sql_needed {
+			summary.raw_sql_needed_count += 1;
+		}
+		if entry.replay_command.as_ref().is_some_and(|value| !value.is_empty()) {
+			summary.replay_command_count += 1;
+		}
+	}
+
+	summary
+}
+
+fn layer_trace_entry(layer: &RecallDebugLayer) -> RecallTraceEntry {
+	let context_state = match layer.evidence_class.as_str() {
+		"not_requested" => "not_requested",
+		"blocked" => "blocked",
+		"incomplete" => "incomplete",
+		"wrong_result" => "wrong_result",
+		_ => "available",
+	};
+
+	RecallTraceEntry {
+		layer: layer.layer.clone(),
+		context_state: context_state.to_string(),
+		selection_state: layer.evidence_class.clone(),
+		authority_layer: layer.layer.clone(),
+		freshness_state: layer.evidence_class.clone(),
+		item_ref: serde_json::json!({
+			"layer": layer.layer.clone(),
+			"anchor": layer.anchor.clone(),
+		}),
+		source_refs: serde_json::json!([]),
+		score: None,
+		rank: None,
+		policy_reason: Some(layer.summary.clone()),
+		replay_command: None,
+		evidence_class: layer.evidence_class.clone(),
+		raw_sql_needed: layer.raw_sql_needed,
+	}
+}
+
+fn row_trace_entry(row: &RecallDebugRow) -> RecallTraceEntry {
+	let context_state = if stale_freshness_state(&row.freshness_state) {
+		"stale"
+	} else {
+		row.selection_state.as_str()
+	};
+
+	RecallTraceEntry {
+		layer: row.layer.clone(),
+		context_state: context_state.to_string(),
+		selection_state: row.selection_state.clone(),
+		authority_layer: row.authority_layer.clone(),
+		freshness_state: row.freshness_state.clone(),
+		item_ref: row.item_ref.clone(),
+		source_refs: row.source_refs.clone(),
+		score: row.score,
+		rank: row.rank,
+		policy_reason: row.stage_reason.clone().or_else(|| row.rationale.clone()),
+		replay_command: row.replay_command.clone(),
+		evidence_class: row.evidence_class.clone(),
+		raw_sql_needed: false,
+	}
+}
+
+fn stale_freshness_state(freshness_state: &str) -> bool {
+	matches!(
+		freshness_state,
+		"stale"
+			| "deprecated"
+			| "deleted"
+			| "superseded"
+			| "tombstoned"
+			| "historical"
+			| "archived"
+			| "lint_warning"
+			| "lint_error"
+	)
+}
+
 fn layer_from_rows(
 	layer: &str,
 	evidence_class: &str,
@@ -1036,5 +1222,91 @@ mod tests {
 
 		assert!(selected.contains(&recall_debug::candidate_identity(note_id, selected_chunk_id)));
 		assert!(!selected.contains(&recall_debug::candidate_identity(note_id, dropped_chunk_id)));
+	}
+
+	#[test]
+	fn recall_trace_flattens_stale_and_dropped_context() {
+		let layers = vec![
+			recall_debug::layer_from_rows(
+				"memory_notes",
+				"pass",
+				Some("trace".to_string()),
+				"trace rows",
+				vec![
+					RecallDebugRow {
+						layer: "memory_notes".to_string(),
+						item_ref: serde_json::json!({"note_id": "selected-stale"}),
+						selection_state: "selected".to_string(),
+						authority_layer: "memory_note".to_string(),
+						freshness_state: "deprecated".to_string(),
+						source_refs: serde_json::json!([{"schema": "source_ref/v1"}]),
+						score: Some(0.9),
+						rank: Some(1),
+						rationale: Some("selected but stale".to_string()),
+						stage_reason: Some("status=deprecated".to_string()),
+						replay_command: Some("elf_trace".to_string()),
+						evidence_class: "pass".to_string(),
+						debug_artifacts: serde_json::json!({}),
+					},
+					RecallDebugRow {
+						layer: "memory_notes".to_string(),
+						item_ref: serde_json::json!({"note_id": "dropped"}),
+						selection_state: "dropped".to_string(),
+						authority_layer: "memory_note".to_string(),
+						freshness_state: "active".to_string(),
+						source_refs: serde_json::json!([]),
+						score: Some(0.4),
+						rank: Some(4),
+						rationale: Some("candidate not narrated".to_string()),
+						stage_reason: Some("not_in_final_top_k".to_string()),
+						replay_command: Some("elf_trace".to_string()),
+						evidence_class: "pass".to_string(),
+						debug_artifacts: serde_json::json!({}),
+					},
+				],
+			),
+			recall_debug::not_requested_layer("graph_facts", "missing graph subject"),
+		];
+		let trace = recall_debug::build_recall_trace(&layers);
+
+		assert_eq!(trace.schema, "elf.recall_trace/v1");
+		assert_eq!(trace.summary.entry_count, 3);
+		assert_eq!(trace.summary.selected_count, 1);
+		assert_eq!(trace.summary.dropped_count, 1);
+		assert_eq!(trace.summary.stale_count, 1);
+		assert_eq!(trace.summary.not_requested_count, 1);
+		assert_eq!(trace.summary.replay_command_count, 2);
+		assert_eq!(trace.entries[0].context_state, "stale");
+		assert_eq!(trace.entries[0].policy_reason.as_deref(), Some("status=deprecated"));
+		assert_eq!(trace.entries[1].context_state, "dropped");
+		assert_eq!(trace.entries[1].policy_reason.as_deref(), Some("not_in_final_top_k"));
+		assert_eq!(trace.entries[2].context_state, "not_requested");
+	}
+
+	#[test]
+	fn recall_trace_counts_blocked_layers_without_backend_details() {
+		let layer = recall_debug::blocked_layer(
+			"source_documents",
+			Some("alpha".to_string()),
+			"docs search failed",
+			&Error::Storage { message: "password=secret host=db.internal".to_string() },
+		);
+		let trace = recall_debug::build_recall_trace(&[layer]);
+
+		assert_eq!(trace.summary.blocked_count, 1);
+		assert_eq!(trace.entries[0].context_state, "blocked");
+		assert_eq!(trace.entries[0].selection_state, "blocked");
+		assert!(
+			trace.entries[0]
+				.policy_reason
+				.as_deref()
+				.is_some_and(|reason| reason.contains("error_class=storage_unavailable"))
+		);
+		assert!(
+			trace.entries[0]
+				.policy_reason
+				.as_deref()
+				.is_some_and(|reason| !reason.contains("password=secret"))
+		);
 	}
 }

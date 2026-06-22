@@ -180,9 +180,22 @@ This document is normative. When a new versioned identifier is introduced, it mu
   (`ELF_RECALL_DEBUG_PANEL_SCHEMA_V1`) and
   `docs/spec/system_recall_debug_panel_v1.md`.
 - Consumers: `POST /v2/admin/recall-debug/panel` API response, `apps/elf-api`,
-  `apps/elf-mcp`, operator debugging workflows, and benchmark closeout reports.
+  `POST /v2/recall-debug/panel` API response, `apps/elf-mcp`, operator debugging
+  workflows, and benchmark closeout reports.
 - Bump rule: Introduce a new identifier only if layer names, selection states,
   evidence-class semantics, replay fields, or required row keys become incompatible.
+
+### Recall trace schema
+
+- Identifier: `elf.recall_trace/v1`.
+- Type: Deterministic compact recall trace projection embedded in
+  `elf.recall_debug_panel/v1`.
+- Defined in: `packages/elf-service/src/recall_debug.rs`
+  (`ELF_RECALL_TRACE_SCHEMA_V1`) and `docs/spec/system_recall_debug_panel_v1.md`.
+- Consumers: `POST /v2/recall-debug/panel`, `POST /v2/admin/recall-debug/panel`,
+  `apps/elf-api`, `apps/elf-mcp`, fixture assertions, and benchmark reports.
+- Bump rule: Introduce a new identifier only if trace entry states, source-ref fields,
+  policy-reason semantics, or deterministic ordering become incompatible.
 
 ### Search filter expression schema
 
