@@ -271,6 +271,14 @@ provider-backed ELF evidence was required.
   reviewable memory-candidate boundaries. VectifyAI PageIndex and OpenKB remain
   `not_tested` reference-only rows until contained adapters emit comparable tree/wiki
   artifacts; no P3 issue is queued by this closeout.
+- PageIndex/OpenKB same-corpus adapter blockers after XY-1068: the June 22 follow-up
+  adds `cargo make real-world-memory-pageindex-openkb`, two checked-in typed setup
+  blocker fixtures, and a checked-in evidence report. PageIndex is blocked until
+  tree artifacts, cited node paths, traversal output, and MCP readback map to ELF
+  Source Library source ids. OpenKB is blocked until wiki pages, entity/concept
+  indexes, lint output, saved exploration state, and watch/recompile traces map to
+  ELF Knowledge Workspace source ids. The report makes no PageIndex/OpenKB parity,
+  win, tie, or loss claim.
 - Operator-approved public-proxy addendum after XY-930: the June 19 follow-up runs
   `cargo make baseline-production-private-addendum` with a simulated/public-proxy
   production corpus manifest approved for this stage. The run records 12 documents,
@@ -404,6 +412,7 @@ Detailed evidence and interpretation:
 - [Agent Knowledge OS Closeout Benchmark Report - June 20, 2026](docs/evidence/benchmarking/2026-06-20-agent-knowledge-os-closeout-benchmark-report.md)
 - [P1 Memory Authority Closeout Report - June 22, 2026](docs/evidence/benchmarking/2026-06-22-p1-memory-authority-closeout-report.md)
 - [P2 Knowledge Workspace PageIndex/OpenKB Closeout Report - June 22, 2026](docs/evidence/benchmarking/2026-06-22-p2-knowledge-workspace-pageindex-openkb-closeout-report.md)
+- [PageIndex/OpenKB Same-Corpus Adapter Report - June 22, 2026](docs/evidence/benchmarking/2026-06-22-pageindex-openkb-same-corpus-adapter-report.md)
 - [Live Baseline Benchmark Runbook](docs/runbook/benchmarking/live_baseline_benchmark.md)
 - [Single-User Production Runbook](docs/runbook/single_user_production.md)
 - Benchmark contract:
@@ -510,8 +519,9 @@ Latest real-world benchmark report: June 22, 2026. Latest external research refr
 June 11, 2026; June 20 adds the Agent Knowledge OS Closeout Benchmark Report,
 the Graph Topic-Map Report - June 20, 2026, Knowledge Workspace Version-Diff
 Report - June 20, 2026, and the Live Knowledge-Page Rebuild/Lint Report - June 20,
-2026; June 22 adds the P1 Memory Authority Closeout Report and P2 Knowledge
-Workspace PageIndex/OpenKB Closeout Report after the June 19
+2026; June 22 adds the P1 Memory Authority Closeout Report, P2 Knowledge
+Workspace PageIndex/OpenKB Closeout Report, and PageIndex/OpenKB Same-Corpus Adapter
+Report after the June 19
 XY-930 operator-approved public-proxy production addendum and service-native Dreaming
 readback, the qmd debug-ergonomics Dreaming retest, the June 17 competitor-strength
 closeout, and the June 16 temporal reconciliation, live consolidation self-check,
