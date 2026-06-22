@@ -1,0 +1,242 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "production-ops-public-proxy-addendum-001",
+  "suite": "production_ops",
+  "title": "Separate operator-approved public-proxy evidence from private and provider proof",
+  "corpus": {
+    "corpus_id": "real-world-memory-production-ops-2026-06-19-public-proxy",
+    "profile": "generated_public",
+    "items": [
+      {
+        "evidence_id": "public-proxy-addendum-pass",
+        "kind": "benchmark_report",
+        "text": "The operator-approved public-proxy production-private addendum passed 8/8 query checks with 0 wrong_result, 0 lifecycle_fail, 0 blocked, 0 incomplete, and 0 not_encoded.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "public_proxy_production_private_addendum",
+            "evidence_id": "public-proxy-addendum-pass"
+          },
+          "locator": {
+            "quote": "passed 8/8 query checks with 0 wrong_result"
+          }
+        },
+        "created_at": "2026-06-19T14:40:13Z"
+      },
+      {
+        "evidence_id": "public-proxy-latency-resource-cost",
+        "kind": "benchmark_report",
+        "text": "The public-proxy addendum recorded query mean latency 10.842727625 ms, P95 30.443385 ms, elapsed 1.313984156 seconds, RSS 37656 KB, and 386 estimated input tokens with no configured cost rate.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "public_proxy_production_private_addendum",
+            "evidence_id": "public-proxy-latency-resource-cost"
+          },
+          "locator": {
+            "quote": "query mean latency 10.842727625 ms"
+          }
+        },
+        "created_at": "2026-06-19T14:40:13Z"
+      },
+      {
+        "evidence_id": "public-proxy-claim-boundary",
+        "kind": "decision",
+        "text": "The public-proxy addendum is not real private-corpus production proof and does not prove provider-backed production quality because embedding mode was local-hash.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "public_proxy_production_private_addendum",
+            "evidence_id": "public-proxy-claim-boundary"
+          },
+          "locator": {
+            "quote": "not real private-corpus production proof"
+          }
+        },
+        "created_at": "2026-06-19T14:40:13Z"
+      },
+      {
+        "evidence_id": "public-proxy-private-proof-decoy",
+        "kind": "decision",
+        "text": "Decoy: the public-proxy addendum proves real private-corpus production quality and provider-backed embedding quality.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "public_proxy_production_private_addendum",
+            "evidence_id": "public-proxy-private-proof-decoy"
+          }
+        },
+        "created_at": "2026-06-19T14:40:13Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_production_ops",
+      "answer": {
+        "content": "The operator-approved public-proxy addendum passed 8/8 query checks with 0 wrong_result. It recorded query mean latency 10.842727625 ms, P95 30.443385 ms, elapsed 1.313984156 seconds, RSS 37656 KB, and 386 estimated input tokens. This is public-proxy evidence only: it is not real private-corpus production proof and does not prove provider-backed production quality because embedding mode was local-hash.",
+        "claims": [
+          {
+            "claim_id": "public_proxy_passed",
+            "text": "The operator-approved public-proxy addendum passed 8/8 query checks with 0 wrong_result.",
+            "evidence_ids": [
+              "public-proxy-addendum-pass"
+            ],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "public_proxy_operational_envelope",
+            "text": "The public-proxy addendum recorded latency, resource, and token cost-proxy metrics.",
+            "evidence_ids": [
+              "public-proxy-latency-resource-cost"
+            ],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "public_proxy_boundary",
+            "text": "The public-proxy addendum is not private-corpus or provider-backed production proof.",
+            "evidence_ids": [
+              "public-proxy-claim-boundary"
+            ],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": [
+          "public-proxy-addendum-pass",
+          "public-proxy-latency-resource-cost",
+          "public-proxy-claim-boundary"
+        ],
+        "latency_ms": 10.842727625,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 386,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "negative_traps": [
+    {
+      "trap_id": "public-proxy-as-private-proof",
+      "type": "unsupported_claim",
+      "evidence_ids": [
+        "public-proxy-private-proof-decoy"
+      ],
+      "failure_if_used": true
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "What operational evidence did the public-proxy production-private addendum add, and what must it not be called?",
+    "job_mode": "operate",
+    "constraints": [
+      "cite_evidence",
+      "record_latency_cost_resource",
+      "separate_public_proxy_from_private_provider_proof"
+    ]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "public_proxy_passed",
+        "text": "The operator-approved public-proxy addendum passed 8/8 query checks with 0 wrong_result."
+      },
+      {
+        "claim_id": "public_proxy_operational_envelope",
+        "text": "The public-proxy addendum recorded latency, resource, and token cost-proxy metrics."
+      },
+      {
+        "claim_id": "public_proxy_boundary",
+        "text": "The public-proxy addendum is not private-corpus or provider-backed production proof."
+      }
+    ],
+    "must_not_include": [
+      "proves real private-corpus production quality",
+      "provider-backed embedding quality"
+    ],
+    "evidence_links": {
+      "public_proxy_passed": [
+        "public-proxy-addendum-pass"
+      ],
+      "public_proxy_operational_envelope": [
+        "public-proxy-latency-resource-cost"
+      ],
+      "public_proxy_boundary": [
+        "public-proxy-claim-boundary"
+      ]
+    },
+    "answer_type": "direct_answer",
+    "accepted_alternates": [],
+    "requires_caveat": true,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "public-proxy-addendum-pass",
+      "claim_id": "public_proxy_passed",
+      "requirement": "cite",
+      "quote": "passed 8/8 query checks with 0 wrong_result"
+    },
+    {
+      "evidence_id": "public-proxy-latency-resource-cost",
+      "claim_id": "public_proxy_operational_envelope",
+      "requirement": "cite",
+      "quote": "query mean latency 10.842727625 ms"
+    },
+    {
+      "evidence_id": "public-proxy-claim-boundary",
+      "claim_id": "public_proxy_boundary",
+      "requirement": "cite",
+      "quote": "not real private-corpus production proof"
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "latency_resource": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": {
+          "max_latency_ms": 50.0,
+          "resource_expectation": "Report public-proxy latency, resource, and token cost-proxy metrics."
+        }
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Cites public-proxy pass, operational envelope, and claim-boundary evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Does not convert public-proxy evidence into private or provider proof."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Explains how to use the proxy evidence safely."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [
+      "not real private-corpus production proof"
+    ],
+    "fallback_action": "state_blocker"
+  },
+  "tags": [
+    "generated_public",
+    "public_proxy",
+    "production_ops",
+    "resource_envelope",
+    "no_live_claim"
+  ]
+}

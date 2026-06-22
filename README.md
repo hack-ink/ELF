@@ -308,6 +308,14 @@ provider-backed ELF evidence was required.
   OpenViking trajectory, and graph/RAG citation/navigation remain optimization inputs
   or typed blockers. The report makes P4 queue items inspectable but applies no
   `decodex:queued:elf` label.
+- P4 production-readiness evidence gates after XY-1074: the June 23 follow-up adds
+  `cargo make real-world-memory-p4-production-readiness`, a checked-in evidence
+  report, and `elf.operational_evidence_gates/v1`. The production-ops slice scores
+  7 jobs, 5 pass, 0 wrong_result, 0 incomplete, and 2 typed blockers while separating
+  local fixture, public-proxy, private-corpus, and provider-backed tiers. It records
+  latency, cost, resource, cold-start, restore, and Qdrant rebuild metrics, but keeps
+  missing private-corpus manifests and provider credentials as typed blockers rather
+  than private/provider-backed pass proof.
 - Operator-approved public-proxy addendum after XY-930: the June 19 follow-up runs
   `cargo make baseline-production-private-addendum` with a simulated/public-proxy
   production corpus manifest approved for this stage. The run records 12 documents,
@@ -451,6 +459,7 @@ Detailed evidence and interpretation:
 - [Temporal and Trajectory Adapter Coverage Report - June 23, 2026](docs/evidence/benchmarking/2026-06-23-temporal-trajectory-adapter-coverage-report.md)
 - [Graph/RAG Adapter Matrix Report - June 23, 2026](docs/evidence/benchmarking/2026-06-23-graph-rag-adapter-matrix-report.md)
 - [P3 Competitor-Strength Absorption Report - June 23, 2026](docs/evidence/benchmarking/2026-06-23-p3-competitor-strength-absorption-report.md)
+- [P4 Production-Readiness Evidence Gates Report - June 23, 2026](docs/evidence/benchmarking/2026-06-23-p4-production-readiness-evidence-gates-report.md)
 - [Live Baseline Benchmark Runbook](docs/runbook/benchmarking/live_baseline_benchmark.md)
 - [Single-User Production Runbook](docs/runbook/single_user_production.md)
 - Benchmark contract:
@@ -547,6 +556,7 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [Temporal and Trajectory Adapter Coverage Report - June 23, 2026](docs/evidence/benchmarking/2026-06-23-temporal-trajectory-adapter-coverage-report.md)
 - [Graph/RAG Adapter Matrix Report - June 23, 2026](docs/evidence/benchmarking/2026-06-23-graph-rag-adapter-matrix-report.md)
 - [P3 Competitor-Strength Absorption Report - June 23, 2026](docs/evidence/benchmarking/2026-06-23-p3-competitor-strength-absorption-report.md)
+- [P4 Production-Readiness Evidence Gates Report - June 23, 2026](docs/evidence/benchmarking/2026-06-23-p4-production-readiness-evidence-gates-report.md)
 - [Live Baseline Benchmark Runbook](docs/runbook/benchmarking/live_baseline_benchmark.md)
 - [Real-World Agent Memory Benchmark](docs/runbook/benchmarking/real_world_agent_memory_benchmark.md)
 - [External Memory Improvement Plan](docs/evidence/external_memory/external_memory_improvement_plan.md)
@@ -566,7 +576,8 @@ Report - June 20, 2026, and the Live Knowledge-Page Rebuild/Lint Report - June 2
 Workspace PageIndex/OpenKB Closeout Report, PageIndex/OpenKB Same-Corpus Adapter
 Report, and mem0/OpenMemory and Letta Memory-History/Core-Archive Adapter Report;
 June 23 adds the Temporal and Trajectory Adapter Coverage Report, the Graph/RAG
-Adapter Matrix Report, and the P3 Competitor-Strength Absorption Report after the
+Adapter Matrix Report, the P3 Competitor-Strength Absorption Report, and the P4
+Production-Readiness Evidence Gates Report after the
 June 19 XY-930 operator-approved public-proxy production addendum and service-native
 Dreaming readback, the qmd debug-ergonomics Dreaming retest, the June 17
 competitor-strength closeout, and the June 16 temporal reconciliation, live
