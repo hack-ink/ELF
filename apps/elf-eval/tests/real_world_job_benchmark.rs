@@ -291,6 +291,10 @@ fn graph_rag_adapter_matrix_report_json_path() -> Result<PathBuf> {
 	report_snapshot_path("2026-06-23-graph-rag-adapter-matrix-report.json")
 }
 
+fn p3_competitor_strength_absorption_report_json_path() -> Result<PathBuf> {
+	report_snapshot_path("2026-06-23-p3-competitor-strength-absorption-report.json")
+}
+
 fn operator_approved_public_proxy_private_addendum_report_json_path() -> Result<PathBuf> {
 	report_snapshot_path(
 		"2026-06-19-operator-approved-public-proxy-production-private-addendum.json",
@@ -375,6 +379,14 @@ fn graph_rag_adapter_matrix_report_markdown_path() -> Result<PathBuf> {
 		.join("evidence")
 		.join("benchmarking")
 		.join("2026-06-23-graph-rag-adapter-matrix-report.md"))
+}
+
+fn p3_competitor_strength_absorption_report_markdown_path() -> Result<PathBuf> {
+	Ok(workspace_root()?
+		.join("docs")
+		.join("evidence")
+		.join("benchmarking")
+		.join("2026-06-23-p3-competitor-strength-absorption-report.md"))
 }
 
 fn graph_topic_map_report_markdown_path() -> Result<PathBuf> {
@@ -4546,6 +4558,140 @@ fn graph_rag_adapter_matrix_report_preserves_no_parity_claims() -> Result<()> {
 	assert!(benchmarking_index.contains("2026-06-23-graph-rag-adapter-matrix-report.md"));
 	assert!(readme.contains("RAGFlow/GraphRAG/LightRAG adapter matrix after XY-1071"));
 	assert!(readme.contains("Graph/RAG Adapter Matrix Report - June 23, 2026"));
+
+	Ok(())
+}
+
+#[test]
+fn p3_competitor_strength_absorption_report_preserves_claim_boundaries() -> Result<()> {
+	let report = serde_json::from_str::<Value>(&fs::read_to_string(
+		p3_competitor_strength_absorption_report_json_path()?,
+	)?)?;
+	let markdown = fs::read_to_string(p3_competitor_strength_absorption_report_markdown_path()?)?;
+	let benchmarking_index = fs::read_to_string(benchmarking_index_path()?)?;
+	let readme = fs::read_to_string(readme_path()?)?;
+
+	assert_eq!(
+		report.pointer("/schema").and_then(Value::as_str),
+		Some("elf.p3_competitor_strength_absorption_report/v1")
+	);
+	assert_eq!(report.pointer("/authority").and_then(Value::as_str), Some("XY-1072"));
+	assert_eq!(
+		report.pointer("/self_assessment/verdict").and_then(Value::as_str),
+		Some("pass_with_p4_queue_ready_after_main_thread_acceptance")
+	);
+	assert_eq!(
+		report.pointer("/self_assessment/p4_queued_label_applied").and_then(Value::as_bool),
+		Some(false)
+	);
+	assert_eq!(
+		report
+			.pointer("/self_assessment/typed_non_pass_states_are_not_wins")
+			.and_then(Value::as_bool),
+		Some(true)
+	);
+
+	let products = array_at(&report, "/product_strengths")?;
+
+	for product in [
+		"qmd",
+		"VectifyAI PageIndex",
+		"VectifyAI OpenKB",
+		"mem0/OpenMemory",
+		"Letta",
+		"Graphiti/Zep",
+		"OpenViking",
+		"RAGFlow",
+		"GraphRAG",
+		"LightRAG",
+	] {
+		find_by_field(products, "/product", product)?;
+	}
+
+	let qmd = find_by_field(products, "/product", "qmd")?;
+	let pageindex = find_by_field(products, "/product", "VectifyAI PageIndex")?;
+	let mem0 = find_by_field(products, "/product", "mem0/OpenMemory")?;
+	let graphiti = find_by_field(products, "/product", "Graphiti/Zep")?;
+	let lightrag = find_by_field(products, "/product", "LightRAG")?;
+
+	assert_eq!(qmd.pointer("/current_status").and_then(Value::as_str), Some("mixed"));
+	assert!(
+		qmd.pointer("/remains_stronger_elsewhere")
+			.and_then(Value::as_str)
+			.is_some_and(|value| value.contains("top-k JSON"))
+	);
+	assert_eq!(pageindex.pointer("/current_status").and_then(Value::as_str), Some("blocked"));
+	assert_eq!(
+		mem0.pointer("/current_status").and_then(Value::as_str),
+		Some("split_pass_and_blocked")
+	);
+	assert_eq!(graphiti.pointer("/current_status").and_then(Value::as_str), Some("blocked"));
+	assert_eq!(
+		lightrag.pointer("/current_status").and_then(Value::as_str),
+		Some("incomplete_or_not_encoded")
+	);
+
+	let queue = array_at(&report, "/p4_optimization_queue")?;
+
+	for key in [
+		"qmd_candidate_replay_parity",
+		"adapter_outcome_grammar_and_metrics",
+		"source_library_tree_and_wiki_adapters",
+		"memory_history_export_and_core_archive",
+		"temporal_trajectory_graph_rag_adapters",
+	] {
+		let item = find_by_field(queue, "/key", key)?;
+
+		assert_eq!(
+			item.pointer("/ready_after_main_thread_acceptance").and_then(Value::as_bool),
+			Some(true)
+		);
+		assert_eq!(item.pointer("/queued_label_applied").and_then(Value::as_bool), Some(false));
+	}
+
+	assert_product_queue_items_reference_queue(products, queue)?;
+
+	assert!(array_contains_str(
+		&report,
+		"/claim_boundaries/not_allowed",
+		"Typed non-pass states are not wins."
+	)?);
+	assert!(array_contains_str(
+		&report,
+		"/claim_boundaries/not_allowed",
+		"Do not apply decodex:queued:elf to a P4 issue until the main thread accepts the P3 closeout."
+	)?);
+	assert!(markdown.contains("P3 is decision-ready for main-thread inspection"));
+	assert!(markdown.contains("Typed non-pass states are not wins"));
+	assert!(markdown.contains("No P4 issue receives `decodex:queued:elf`"));
+	assert!(benchmarking_index.contains("2026-06-23-p3-competitor-strength-absorption-report.md"));
+	assert!(readme.contains("P3 competitor-strength absorption closeout after XY-1072"));
+	assert!(readme.contains("`decodex:queued:elf` label"));
+
+	Ok(())
+}
+
+fn assert_product_queue_items_reference_queue(products: &[Value], queue: &[Value]) -> Result<()> {
+	let queue_keys = queue
+		.iter()
+		.filter_map(|item| item.pointer("/key").and_then(Value::as_str))
+		.collect::<Vec<_>>();
+
+	for product in products {
+		let product_name = product
+			.pointer("/product")
+			.and_then(Value::as_str)
+			.ok_or_else(|| eyre::eyre!("product row is missing product name"))?;
+		let queue_item = product
+			.pointer("/p4_queue_item")
+			.and_then(Value::as_str)
+			.ok_or_else(|| eyre::eyre!("product {product_name} is missing p4_queue_item"))?;
+
+		assert!(
+			queue_keys.contains(&queue_item),
+			"product {product_name} references missing P4 queue item {queue_item}"
+		);
+	}
 
 	Ok(())
 }
