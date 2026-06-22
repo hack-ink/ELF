@@ -1,0 +1,232 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "adversarial-quality-conflicting-source-authority-001",
+  "suite": "adversarial_quality",
+  "title": "Prefer authoritative current source over conflicting stale source",
+  "corpus": {
+    "corpus_id": "real-world-memory-adversarial-quality-2026-06-23",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "old-provider-note",
+        "kind": "note",
+        "text": "Old provider note: the production embedding dimension is 1536 for the checked-in adoption gate.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "adversarial_quality/conflicting_source_authority",
+            "evidence_id": "old-provider-note"
+          }
+        },
+        "created_at": "2026-06-09T03:00:00Z"
+      },
+      {
+        "evidence_id": "current-provider-report",
+        "kind": "decision",
+        "text": "Authoritative current report: the production provider path uses Qwen3-Embedding-8B with 4096-dimensional embeddings for provider-backed ELF evidence.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "adversarial_quality/conflicting_source_authority",
+            "evidence_id": "current-provider-report"
+          }
+        },
+        "created_at": "2026-06-23T01:20:00Z"
+      },
+      {
+        "evidence_id": "authority-ordering-rule",
+        "kind": "runbook",
+        "text": "Authority rule: when benchmark notes conflict, use the latest checked-in report with source refs and keep the older note as historical evidence only.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "adversarial_quality/conflicting_source_authority",
+            "evidence_id": "authority-ordering-rule"
+          }
+        },
+        "created_at": "2026-06-23T01:21:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_adversarial_quality",
+      "answer": {
+        "content": "Use the authoritative current report: provider-backed ELF evidence uses Qwen3-Embedding-8B with 4096-dimensional embeddings. The older 1536-dimensional note is historical because the authority rule says to prefer the latest checked-in report with source refs.",
+        "claims": [
+          {
+            "claim_id": "current_provider_dimension",
+            "text": "Provider-backed ELF evidence uses Qwen3-Embedding-8B with 4096-dimensional embeddings.",
+            "evidence_ids": [
+              "current-provider-report",
+              "old-provider-note",
+              "authority-ordering-rule"
+            ],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "authority_rationale",
+            "text": "The older 1536-dimensional note is historical because the latest checked-in report with source refs is authoritative.",
+            "evidence_ids": ["authority-ordering-rule"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": [
+          "current-provider-report",
+          "old-provider-note",
+          "authority-ordering-rule"
+        ],
+        "latency_ms": 1.2,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "old-provider-note-recorded",
+      "ts": "2026-06-09T03:00:00Z",
+      "actor": "agent",
+      "action": "recorded_old_provider_note",
+      "evidence_ids": ["old-provider-note"],
+      "summary": "An older provider dimension note was recorded."
+    },
+    {
+      "event_id": "current-provider-report-published",
+      "ts": "2026-06-23T01:20:00Z",
+      "actor": "agent",
+      "action": "published_current_provider_report",
+      "evidence_ids": ["current-provider-report", "authority-ordering-rule"],
+      "summary": "The current report and authority rule superseded the older note."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Which embedding dimension should the provider-backed benchmark claim use when old notes conflict with the current report?",
+    "job_mode": "decide",
+    "constraints": ["cite_evidence", "prefer_authoritative_current_report", "preserve_historical_context"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "current_provider_dimension",
+        "text": "Provider-backed ELF evidence uses Qwen3-Embedding-8B with 4096-dimensional embeddings."
+      },
+      {
+        "claim_id": "authority_rationale",
+        "text": "The older 1536-dimensional note is historical because the latest checked-in report with source refs is authoritative."
+      }
+    ],
+    "must_not_include": [
+      "the production embedding dimension is 1536"
+    ],
+    "evidence_links": {
+      "current_provider_dimension": [
+        "current-provider-report",
+        "old-provider-note",
+        "authority-ordering-rule"
+      ],
+      "authority_rationale": ["authority-ordering-rule"]
+    },
+    "answer_type": "decision_record",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "current-provider-report",
+      "claim_id": "current_provider_dimension",
+      "requirement": "cite",
+      "quote": "4096-dimensional embeddings"
+    },
+    {
+      "evidence_id": "authority-ordering-rule",
+      "claim_id": "authority_rationale",
+      "requirement": "explain",
+      "quote": "use the latest checked-in report"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "old-provider-dimension-current",
+      "type": "stale_fact",
+      "evidence_ids": ["old-provider-note"],
+      "failure_if_used": false
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Selects the current provider dimension."
+      },
+      "evidence_grounding": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Cites current report and authority ordering evidence."
+      },
+      "lifecycle_behavior": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Keeps older conflicting evidence historical instead of current."
+      },
+      "trap_avoidance": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Does not promote the stale 1536-dimensional note."
+      },
+      "uncertainty_handling": {
+        "weight": 0.1,
+        "max_points": 1.0,
+        "criteria": "States the authority boundary without overclaiming provider quality."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "state_blocker"
+  },
+  "memory_evolution": {
+    "current_evidence_ids": ["current-provider-report"],
+    "historical_evidence_ids": ["old-provider-note"],
+    "stale_trap_ids": ["old-provider-dimension-current"],
+    "conflicts": [
+      {
+        "conflict_id": "provider-dimension-authority-conflict",
+        "claim_id": "current_provider_dimension",
+        "current_evidence_id": "current-provider-report",
+        "historical_evidence_id": "old-provider-note",
+        "resolved_by_evidence_id": "authority-ordering-rule"
+      }
+    ],
+    "update_rationale": {
+      "claim_id": "authority_rationale",
+      "evidence_ids": ["authority-ordering-rule"],
+      "available": true
+    },
+    "temporal_validity": {
+      "required": false,
+      "encoded": false,
+      "follow_up": null
+    },
+    "history_readback": {
+      "encoded": false,
+      "required_event_types": [],
+      "requires_note_version_links": false
+    }
+  },
+  "tags": ["synthetic", "adversarial_quality", "conflicting_source_authority", "current_authority", "no_live_claim"]
+}

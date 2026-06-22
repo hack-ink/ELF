@@ -22,6 +22,9 @@
 # | real-world-job-operator-ux-live-adapters   | command   |     |
 # | real-world-job-operator-ux-report          | command   |     |
 # | real-world-memory                          | composite |     |
+# | real-world-memory-adversarial-quality      | composite |     |
+# | real-world-memory-adversarial-quality-json | command   |     |
+# | real-world-memory-adversarial-quality-report | command |     |
 # | real-world-memory-consolidation            | composite |     |
 # | real-world-memory-consolidation-json       | command   |     |
 # | real-world-memory-consolidation-report     | command   |     |
@@ -277,6 +280,55 @@ args = [
 workspace = false
 dependencies = [
 	"real-world-memory-report",
+]
+
+[tasks.real-world-memory-adversarial-quality]
+workspace = false
+dependencies = [
+	"real-world-memory-adversarial-quality-report",
+]
+
+[tasks.real-world-memory-adversarial-quality-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_memory/adversarial_quality",
+	"--out",
+	"tmp/real-world-memory/adversarial-quality/report.json",
+	"--run-id",
+	"real-world-memory-adversarial-quality",
+	"--adapter-id",
+	"fixture_adversarial_quality",
+	"--adapter-name",
+	"ELF adversarial quality fixture",
+]
+
+[tasks.real-world-memory-adversarial-quality-report]
+workspace = false
+dependencies = [
+	"real-world-memory-adversarial-quality-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-memory/adversarial-quality/report.json",
+	"--out",
+	"tmp/real-world-memory/adversarial-quality/report.md",
 ]
 
 [tasks.real-world-memory-consolidation]

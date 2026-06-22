@@ -101,6 +101,10 @@ fn context_trajectory_fixture_dir() -> PathBuf {
 	real_world_memory_fixture_dir().join("context_trajectory")
 }
 
+fn adversarial_quality_fixture_dir() -> PathBuf {
+	real_world_memory_fixture_dir().join("adversarial_quality")
+}
+
 fn graph_rag_external_fixture_dir() -> PathBuf {
 	Path::new(env!("CARGO_MANIFEST_DIR"))
 		.join("fixtures")
@@ -728,6 +732,265 @@ fn source_library_fixtures_score_saved_sources_without_memory_promotion() -> Res
 			.and_then(Value::as_str)
 			.is_some_and(|answer| answer.contains("explicit add_note or reviewed promotion"))
 	);
+
+	Ok(())
+}
+
+#[test]
+fn adversarial_quality_fixtures_score_scoreboard_gates() -> Result<()> {
+	let report = run_json_report_from(adversarial_quality_fixture_dir())?;
+
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(5));
+	assert_eq!(report.pointer("/summary/encoded_suite_count").and_then(Value::as_u64), Some(1));
+	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(5));
+	assert_eq!(report.pointer("/summary/wrong_result").and_then(Value::as_u64), Some(0));
+	assert_eq!(report.pointer("/summary/unsupported_claim").and_then(Value::as_u64), Some(0));
+	assert_eq!(report.pointer("/summary/stale_answer_count").and_then(Value::as_u64), Some(0));
+	assert_eq!(report.pointer("/summary/redaction_leak_count").and_then(Value::as_u64), Some(0));
+	assert_eq!(
+		report.pointer("/summary/conflict_detection_count").and_then(Value::as_u64),
+		Some(2)
+	);
+	assert_eq!(
+		report.pointer("/summary/update_rationale_available_count").and_then(Value::as_u64),
+		Some(3)
+	);
+	assert_eq!(
+		report.pointer("/summary/history_readback_encoded_count").and_then(Value::as_u64),
+		Some(1)
+	);
+
+	let result_states = string_array_at(&report, "/scoreboard/result_states")?;
+	let evidence_classes = string_array_at(&report, "/scoreboard/evidence_classes")?;
+
+	assert_eq!(
+		result_states,
+		[
+			"pass",
+			"wrong_result",
+			"incomplete",
+			"blocked",
+			"not_tested",
+			"not_encoded",
+			"unsupported_claim",
+		]
+		.map(str::to_owned)
+	);
+	assert_eq!(
+		evidence_classes,
+		["fixture_backed", "live_baseline", "live_real_world", "research_gate"].map(str::to_owned)
+	);
+	assert_eq!(
+		report.pointer("/scoreboard/summary_claim").and_then(Value::as_str),
+		Some("typed_non_pass_present")
+	);
+	assert_eq!(
+		report.pointer("/scoreboard/job_summary_claim").and_then(Value::as_str),
+		Some("all_encoded_jobs_passed")
+	);
+	assert_eq!(
+		report.pointer("/scoreboard/job_typed_non_pass_count").and_then(Value::as_u64),
+		Some(0)
+	);
+	assert_eq!(
+		report.pointer("/scoreboard/external_adapter_typed_non_pass_count").and_then(Value::as_u64),
+		Some(220)
+	);
+	assert_eq!(
+		report.pointer("/scoreboard/typed_non_pass_count").and_then(Value::as_u64),
+		Some(220)
+	);
+	assert_eq!(
+		string_array_at(&report, "/scoreboard/job_typed_non_pass_states_present")?,
+		Vec::<String>::new()
+	);
+
+	for state in ["blocked", "incomplete", "not_encoded", "not_tested", "wrong_result"] {
+		assert!(array_contains_str(&report, "/scoreboard/typed_non_pass_states_present", state)?);
+		assert!(array_contains_str(
+			&report,
+			"/scoreboard/external_adapter_typed_non_pass_states_present",
+			state
+		)?);
+	}
+
+	assert_eq!(
+		report.pointer("/scoreboard/unqualified_win_claim_allowed").and_then(Value::as_bool),
+		Some(false)
+	);
+	assert_eq!(
+		report.pointer("/scoreboard/evidence_class_counts/live_baseline").and_then(Value::as_u64),
+		Some(6)
+	);
+
+	let suites = array_at(&report, "/suites")?;
+	let adversarial = find_by_field(suites, "/suite_id", "adversarial_quality")?;
+
+	assert_eq!(adversarial.pointer("/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(adversarial.pointer("/encoded_job_count").and_then(Value::as_u64), Some(5));
+
+	Ok(())
+}
+
+#[test]
+fn adversarial_quality_fixture_catches_unsupported_and_stale_regressions() -> Result<()> {
+	let temp_dir =
+		env::temp_dir().join(format!("elf-adversarial-quality-regression-{}", process::id()));
+
+	fs::create_dir_all(&temp_dir)?;
+
+	assert_stale_regression_is_wrong_result(&temp_dir)?;
+	assert_unsupported_regression_is_unsupported_claim(&temp_dir)?;
+
+	Ok(())
+}
+
+fn assert_stale_regression_is_wrong_result(temp_dir: &Path) -> Result<()> {
+	let stale_fixture = adversarial_quality_fixture_dir().join("stale_fact_current_answer.json");
+	let mut stale = load_json(&stale_fixture)?;
+
+	set_json_pointer(
+		&mut stale,
+		"/corpus/adapter_response/answer/content",
+		Value::String(
+			"Run cargo make check before review handoff because that is the current gate."
+				.to_string(),
+		),
+	)?;
+	set_json_pointer(
+		&mut stale,
+		"/corpus/adapter_response/answer/evidence_ids",
+		serde_json::json!(["stale-ops-runbook-v1"]),
+	)?;
+	set_json_pointer(
+		&mut stale,
+		"/corpus/adapter_response/answer/claims",
+		serde_json::json!([
+			{
+				"claim_id": "current_gate_sequence",
+				"text": "Run cargo make check before review handoff.",
+				"evidence_ids": ["stale-ops-runbook-v1"],
+				"confidence": "high"
+			}
+		]),
+	)?;
+
+	fs::write(temp_dir.join("stale_regression.json"), serde_json::to_vec_pretty(&stale)?)?;
+
+	let stale_report = run_json_report_from(temp_dir.to_path_buf())?;
+	let stale_jobs = array_at(&stale_report, "/jobs")?;
+	let stale_job =
+		find_by_field(stale_jobs, "/job_id", "adversarial-quality-stale-fact-current-answer-001")?;
+
+	assert_eq!(stale_job.pointer("/status").and_then(Value::as_str), Some("wrong_result"));
+	assert_eq!(stale_job.pointer("/stale_answer_count").and_then(Value::as_u64), Some(1));
+	assert_eq!(
+		stale_report.pointer("/scoreboard/summary_claim").and_then(Value::as_str),
+		Some("typed_non_pass_present")
+	);
+	assert_eq!(
+		stale_report.pointer("/scoreboard/job_summary_claim").and_then(Value::as_str),
+		Some("typed_non_pass_present")
+	);
+	assert_eq!(
+		stale_report.pointer("/scoreboard/job_typed_non_pass_count").and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
+		stale_report.pointer("/scoreboard/typed_non_pass_count").and_then(Value::as_u64),
+		Some(221)
+	);
+	assert!(array_contains_str(
+		&stale_report,
+		"/scoreboard/typed_non_pass_states_present",
+		"wrong_result"
+	)?);
+	assert!(array_contains_str(
+		&stale_report,
+		"/scoreboard/job_typed_non_pass_states_present",
+		"wrong_result"
+	)?);
+
+	fs::remove_file(temp_dir.join("stale_regression.json"))?;
+
+	Ok(())
+}
+
+fn assert_unsupported_regression_is_unsupported_claim(temp_dir: &Path) -> Result<()> {
+	let unsupported_fixture =
+		adversarial_quality_fixture_dir().join("unsupported_claim_refusal.json");
+	let mut unsupported = load_json(&unsupported_fixture)?;
+
+	set_json_pointer(
+		&mut unsupported,
+		"/corpus/adapter_response/answer/content",
+		Value::String(
+			"The fixture proves private-corpus production quality and broad competitor superiority."
+				.to_string(),
+		),
+	)?;
+	set_json_pointer(
+		&mut unsupported,
+		"/corpus/adapter_response/answer/evidence_ids",
+		serde_json::json!(["unsupported-production-quality-trap"]),
+	)?;
+	set_json_pointer(
+		&mut unsupported,
+		"/corpus/adapter_response/answer/claims",
+		serde_json::json!([
+			{
+				"claim_id": "production_quality_proven",
+				"text": "The fixture proves private-corpus production quality and broad competitor superiority.",
+				"evidence_ids": ["unsupported-production-quality-trap"],
+				"confidence": "high"
+			}
+		]),
+	)?;
+
+	fs::write(
+		temp_dir.join("unsupported_regression.json"),
+		serde_json::to_vec_pretty(&unsupported)?,
+	)?;
+
+	let unsupported_report = run_json_report_from(temp_dir.to_path_buf())?;
+	let unsupported_jobs = array_at(&unsupported_report, "/jobs")?;
+	let unsupported_job = find_by_field(
+		unsupported_jobs,
+		"/job_id",
+		"adversarial-quality-unsupported-claim-refusal-001",
+	)?;
+
+	assert_eq!(
+		unsupported_job.pointer("/status").and_then(Value::as_str),
+		Some("unsupported_claim")
+	);
+	assert_eq!(
+		unsupported_report.pointer("/summary/unsupported_claim").and_then(Value::as_u64),
+		Some(1)
+	);
+	assert!(array_contains_str(
+		&unsupported_report,
+		"/scoreboard/typed_non_pass_states_present",
+		"unsupported_claim"
+	)?);
+	assert!(array_contains_str(
+		&unsupported_report,
+		"/scoreboard/job_typed_non_pass_states_present",
+		"unsupported_claim"
+	)?);
+
+	Ok(())
+}
+
+#[test]
+fn adversarial_quality_repeated_fixture_run_is_deterministic() -> Result<()> {
+	let first = run_json_report_from(adversarial_quality_fixture_dir())?;
+	let second = run_json_report_from(adversarial_quality_fixture_dir())?;
+
+	assert_eq!(first.pointer("/scoreboard"), second.pointer("/scoreboard"));
+	assert_eq!(first.pointer("/summary"), second.pointer("/summary"));
+	assert_eq!(first.pointer("/suites"), second.pointer("/suites"));
+	assert_eq!(first.pointer("/jobs"), second.pointer("/jobs"));
 
 	Ok(())
 }
@@ -2644,7 +2907,7 @@ fn assert_live_sweep_record(adapter: &Value, production_ops_status: &str) -> Res
 fn runner_discovers_nested_fixture_layout() -> Result<()> {
 	let report = run_json_report_from(fixture_root())?;
 
-	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(67));
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(72));
 
 	Ok(())
 }
@@ -7403,7 +7666,7 @@ fn memory_authority_benchmark_covers_entity_history_and_core_archive_strengths()
 
 	assert_eq!(
 		report.pointer("/summary/history_readback_encoded_count").and_then(Value::as_u64),
-		Some(3)
+		Some(4)
 	);
 
 	let suites = array_at(&report, "/suites")?;
@@ -7555,10 +7818,10 @@ fn assert_root_knowledge_summary(report: &Value) {
 	);
 }
 
-fn assert_root_aggregate_summary(report: &Value) {
-	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(67));
-	assert_eq!(report.pointer("/summary/encoded_suite_count").and_then(Value::as_u64), Some(17));
-	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(60));
+fn assert_root_aggregate_summary(report: &Value) -> Result<()> {
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(72));
+	assert_eq!(report.pointer("/summary/encoded_suite_count").and_then(Value::as_u64), Some(18));
+	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(65));
 	assert_eq!(report.pointer("/summary/wrong_result").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/incomplete").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/blocked").and_then(Value::as_u64), Some(7));
@@ -7577,11 +7840,11 @@ fn assert_root_aggregate_summary(report: &Value) {
 	assert_eq!(report.pointer("/summary/stale_answer_count").and_then(Value::as_u64), Some(0));
 	assert_eq!(
 		report.pointer("/summary/conflict_detection_count").and_then(Value::as_u64),
-		Some(9)
+		Some(11)
 	);
 	assert_eq!(
 		report.pointer("/summary/update_rationale_available_count").and_then(Value::as_u64),
-		Some(13)
+		Some(16)
 	);
 	assert_eq!(
 		report.pointer("/summary/temporal_validity_not_encoded_count").and_then(Value::as_u64),
@@ -7601,11 +7864,11 @@ fn assert_root_aggregate_summary(report: &Value) {
 	);
 	assert_eq!(
 		report.pointer("/summary/evidence_required_count").and_then(Value::as_u64),
-		Some(152)
+		Some(162)
 	);
 	assert_eq!(
 		report.pointer("/summary/evidence_covered_count").and_then(Value::as_u64),
-		Some(152)
+		Some(162)
 	);
 	assert_eq!(report.pointer("/summary/evidence_coverage").and_then(Value::as_f64), Some(1.0));
 	assert_eq!(report.pointer("/summary/source_ref_coverage").and_then(Value::as_f64), Some(1.0));
@@ -7618,6 +7881,9 @@ fn assert_root_aggregate_summary(report: &Value) {
 		report.pointer("/summary/wrong_result_stage_attribution_count").and_then(Value::as_u64),
 		Some(0)
 	);
+
+	assert_root_scoreboard_summary(report)?;
+
 	assert_eq!(
 		report.pointer("/summary/consolidation/proposal_count").and_then(Value::as_u64),
 		Some(5)
@@ -7648,6 +7914,54 @@ fn assert_root_aggregate_summary(report: &Value) {
 	assert_root_knowledge_summary(report);
 	assert_root_proactive_brief_summary(report);
 	assert_root_scheduled_memory_summary(report);
+
+	Ok(())
+}
+
+fn assert_root_scoreboard_summary(report: &Value) -> Result<()> {
+	assert_eq!(
+		report.pointer("/scoreboard/summary_claim").and_then(Value::as_str),
+		Some("typed_non_pass_present")
+	);
+	assert_eq!(
+		report.pointer("/scoreboard/job_summary_claim").and_then(Value::as_str),
+		Some("typed_non_pass_present")
+	);
+	assert_eq!(
+		report.pointer("/scoreboard/job_typed_non_pass_count").and_then(Value::as_u64),
+		Some(7)
+	);
+	assert_eq!(
+		report.pointer("/scoreboard/external_adapter_typed_non_pass_count").and_then(Value::as_u64),
+		Some(220)
+	);
+	assert_eq!(
+		report.pointer("/scoreboard/typed_non_pass_count").and_then(Value::as_u64),
+		Some(227)
+	);
+	assert_eq!(
+		report.pointer("/scoreboard/unqualified_win_claim_allowed").and_then(Value::as_bool),
+		Some(false)
+	);
+
+	for state in ["blocked", "incomplete", "not_encoded", "not_tested", "wrong_result"] {
+		assert!(array_contains_str(report, "/scoreboard/typed_non_pass_states_present", state)?);
+	}
+
+	assert_eq!(
+		string_array_at(report, "/scoreboard/job_typed_non_pass_states_present")?,
+		["blocked"].map(str::to_owned)
+	);
+
+	for state in ["blocked", "incomplete", "not_encoded", "not_tested", "wrong_result"] {
+		assert!(array_contains_str(
+			report,
+			"/scoreboard/external_adapter_typed_non_pass_states_present",
+			state
+		)?);
+	}
+
+	Ok(())
 }
 
 fn assert_root_proactive_brief_summary(report: &Value) {
@@ -7747,6 +8061,7 @@ fn assert_root_aggregate_suites(report: &Value) -> Result<()> {
 		"knowledge_compilation",
 		"operator_debugging_ux",
 		"memory_evolution",
+		"adversarial_quality",
 		"core_archival_memory",
 	] {
 		let suite = find_by_field(suites, "/suite_id", suite_id)?;
@@ -7774,6 +8089,11 @@ fn assert_root_aggregate_suites(report: &Value) -> Result<()> {
 
 	assert_eq!(core_suite.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(core_suite.pointer("/encoded_job_count").and_then(Value::as_u64), Some(6));
+
+	let adversarial = find_by_field(suites, "/suite_id", "adversarial_quality")?;
+
+	assert_eq!(adversarial.pointer("/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(adversarial.pointer("/encoded_job_count").and_then(Value::as_u64), Some(5));
 
 	let production_ops = find_by_field(suites, "/suite_id", "production_ops")?;
 
@@ -7857,7 +8177,7 @@ fn assert_root_aggregate_jobs(report: &Value) -> Result<()> {
 fn real_world_memory_fixtures_report_aggregate_metrics() -> Result<()> {
 	let report = run_json_report_from(real_world_memory_fixture_dir())?;
 
-	assert_root_aggregate_summary(&report);
+	assert_root_aggregate_summary(&report)?;
 	assert_root_aggregate_suites(&report)?;
 	assert_root_aggregate_jobs(&report)?;
 
