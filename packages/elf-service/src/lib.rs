@@ -119,9 +119,9 @@ pub use self::{
 		NoteProvenanceRecentTrace,
 	},
 	recall_debug::{
-		ELF_RECALL_DEBUG_PANEL_SCHEMA_V1, RecallDebugLayer, RecallDebugPanelRequest,
-		RecallDebugPanelRequestEcho, RecallDebugPanelResponse, RecallDebugPanelSummary,
-		RecallDebugRow,
+		ELF_RECALL_DEBUG_PANEL_SCHEMA_V1, ELF_RECALL_TRACE_SCHEMA_V1, RecallDebugLayer,
+		RecallDebugPanelRequest, RecallDebugPanelRequestEcho, RecallDebugPanelResponse,
+		RecallDebugPanelSummary, RecallDebugRow, RecallTrace, RecallTraceEntry, RecallTraceSummary,
 	},
 	search::{
 		BlendRankingOverride, BlendSegmentOverride, PayloadLevel, QueryPlan, QueryPlanBlendSegment,

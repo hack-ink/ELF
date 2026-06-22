@@ -4,8 +4,10 @@
   "generated_at": "2026-06-20T00:00:00Z",
   "service_contract": {
     "response_schema": "elf.recall_debug_panel/v1",
+    "trace_schema": "elf.recall_trace/v1",
     "service_module": "packages/elf-service/src/recall_debug.rs",
-    "http_endpoint": "POST /v2/admin/recall-debug/panel",
+    "http_endpoint": "POST /v2/recall-debug/panel",
+    "admin_http_mirror": "POST /v2/admin/recall-debug/panel",
     "mcp_tool": "elf_recall_debug_panel",
     "spec": "docs/spec/system_recall_debug_panel_v1.md",
     "read_model_only": true,
@@ -71,12 +73,19 @@
     "freshness_state_required": true,
     "stage_reason_required": true,
     "source_refs_required": true,
+    "deterministic_recall_trace": true,
+    "stale_context_visible": true,
     "replay_command_or_artifact_path_required_when_available": true,
     "no_source_mutation": true,
     "no_graph_mutation": true,
     "no_proposal_review_mutation": true
   },
   "command_evidence": [
+    {
+      "command": "cargo test -p elf-service recall_trace --lib",
+      "status": "pass",
+      "purpose": "Unit-check deterministic recall_trace stale, dropped, blocked, and not_requested projection."
+    },
     {
       "command": "cargo test -p elf-service recall_debug -- --nocapture",
       "status": "pass",

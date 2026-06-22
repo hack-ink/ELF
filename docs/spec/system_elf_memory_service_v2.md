@@ -1157,16 +1157,22 @@ Behavior:
 - Normal recall remains active-only; `deprecated` and `deleted` notes are visible
   through provenance/history or explicit non-active list filters, not ordinary search.
 
-Admin recall/debug panel:
+Recall/debug panel:
+- POST /v2/recall-debug/panel
 - POST /v2/admin/recall-debug/panel
 
 Behavior:
-- The endpoint returns `elf.recall_debug_panel/v1`, a read-only cross-layer panel
+- The endpoints return `elf.recall_debug_panel/v1`, a read-only cross-layer panel
   over Memory Note trace bundles, Source Library document search, Knowledge Workspace
   page search, graph reports, and Dreaming review queue proposals.
+- The public route is the agent-facing recall/debug API. The admin route is an
+  operator mirror over the same service read model.
 - Each row must expose selection state, authority layer, freshness state, source refs
   or source snapshots, score/rank where available, stage reason, evidence class, and
   replay command or deterministic artifact path when available.
+- Responses must include `recall_trace` with schema `elf.recall_trace/v1`: a compact
+  deterministic projection over selected, dropped, stale, blocked, and not-requested
+  context for agent and fixture/report assertions.
 - Missing anchors must be represented as `not_requested` layers. The panel must not
   collapse not-requested, incomplete, blocked, or wrong-result layers into a broad
   pass claim.
@@ -2457,7 +2463,7 @@ Original query:
   - elf_admin_trajectory_get -> GET /v2/admin/trajectories/{trace_id}
   - elf_admin_trace_item_get -> GET /v2/admin/trace-items/{item_id}
   - elf_admin_trace_bundle_get -> GET /v2/admin/traces/{trace_id}/bundle
-  - elf_recall_debug_panel -> POST /v2/admin/recall-debug/panel
+  - elf_recall_debug_panel -> POST /v2/recall-debug/panel
   - elf_admin_note_provenance_get -> GET /v2/admin/notes/{note_id}/provenance
   - elf_admin_memory_history_get -> GET /v2/admin/notes/{note_id}/history
 - The MCP server must contain zero business logic or policy.
