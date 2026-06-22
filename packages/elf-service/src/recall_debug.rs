@@ -10,7 +10,7 @@ use uuid::Uuid;
 use crate::{
 	DocsSearchL0Request, DreamingReviewQueueRequest, ElfService, Error, GraphQueryEntityRef,
 	GraphQueryPredicateRef, GraphReportRequest, KnowledgePageSearchItem,
-	KnowledgePageSearchRequest, Result, SearchExplainItem, SearchTrajectoryStage,
+	KnowledgePageSearchRequest, Result, SearchExplainItem, SearchTrace, SearchTrajectoryStage,
 	TraceBundleGetRequest,
 	access::{self, ORG_PROJECT_ID, SharedSpaceGrantKey},
 	search::{self, TraceBundleMode, TraceReplayCandidate},
@@ -204,6 +204,8 @@ pub struct RecallDebugLayer {
 	pub raw_sql_needed: bool,
 	/// Whether the layer includes replay commands or deterministic artifact paths.
 	pub replayable: bool,
+	/// Compact layer-level debug artifacts.
+	pub debug_artifacts: Value,
 	/// Returned layer rows.
 	pub rows: Vec<RecallDebugRow>,
 }
@@ -392,6 +394,17 @@ impl ElfService {
 			.filter(|candidate| !candidate_is_selected(&selected_candidate_keys, candidate))
 			.filter(|candidate| source_refs.contains_key(&candidate.note_id))
 			.collect::<Vec<_>>();
+		let compact_replay = serde_json::json!({
+		"compact_replay": memory_compact_replay_artifact(
+			&bundle.trace,
+				bundle.stages.as_slice(),
+				bundle.candidates.as_deref().unwrap_or_default(),
+				visible_items.as_slice(),
+				&selected_candidate_keys,
+				&source_refs,
+				replay_command.as_str(),
+			),
+		});
 		let selected_cap = if !dropped_candidates.is_empty() && limit > 1 {
 			limit as usize - 1
 		} else {
@@ -439,12 +452,13 @@ impl ElfService {
 			));
 		}
 
-		Ok(layer_from_rows(
+		Ok(layer_from_rows_with_artifacts(
 			"memory_notes",
 			"pass",
 			Some(trace_id.to_string()),
 			"Search trace bundle with selected results and replay candidates.",
 			rows,
+			compact_replay,
 		))
 	}
 
@@ -634,12 +648,13 @@ WHERE trace_id = $1
 			})
 			.collect();
 
-		Ok(layer_from_rows(
+		Ok(layer_from_rows_with_artifacts(
 			"knowledge_pages",
 			"pass",
 			Some(query.to_string()),
 			"Knowledge Workspace sections selected by page search.",
 			rows,
+			serde_json::json!({}),
 		))
 	}
 
@@ -706,12 +721,13 @@ WHERE trace_id = $1
 			})
 			.collect();
 
-		Ok(layer_from_rows(
+		Ok(layer_from_rows_with_artifacts(
 			"graph_facts",
 			"pass",
 			Some(subject_anchor),
 			"Graph facts from source-backed graph report.",
 			rows,
+			serde_json::json!({}),
 		))
 	}
 
@@ -777,12 +793,13 @@ WHERE trace_id = $1
 			})
 			.collect();
 
-		Ok(layer_from_rows(
+		Ok(layer_from_rows_with_artifacts(
 			"dreaming_proposals",
 			"pass",
 			None,
 			"Dreaming review queue proposals available for reviewer action.",
 			rows,
+			serde_json::json!({}),
 		))
 	}
 
@@ -922,6 +939,192 @@ fn candidate_debug_row(
 			"diversity_missing_embedding": candidate.diversity_missing_embedding,
 		}),
 	}
+}
+
+fn memory_compact_replay_artifact(
+	trace: &SearchTrace,
+	stages: &[SearchTrajectoryStage],
+	candidates: &[TraceReplayCandidate],
+	selected_items: &[&SearchExplainItem],
+	selected_candidate_keys: &BTreeSet<(Uuid, Uuid)>,
+	source_refs: &BTreeMap<Uuid, NoteDebugSourceRow>,
+	replay_command: &str,
+) -> Value {
+	serde_json::json!({
+		"schema": "elf.recall_debug.compact_replay/v1",
+		"trace_id": trace.trace_id,
+		"query": trace.query,
+		"replay_command": replay_command,
+		"controls": compact_replay_controls(trace),
+		"stage_movement": compact_stage_movement(stages),
+		"candidate_replay": compact_candidate_replay(candidates, selected_candidate_keys, source_refs),
+		"selected_context": compact_selected_context(selected_items, source_refs),
+		"authority": {
+			"source_refs_visible": true,
+			"policy_reasons_visible": true,
+			"raw_sql_needed": false,
+		},
+	})
+}
+
+fn compact_replay_controls(trace: &SearchTrace) -> Value {
+	serde_json::json!({
+		"top_k": trace.top_k,
+		"candidate_count": trace.candidate_count,
+		"expansion_mode": trace.expansion_mode,
+		"expanded_query_count": trace.expanded_queries.len(),
+		"expanded_queries": trace.expanded_queries,
+		"allowed_scopes": trace.allowed_scopes,
+		"search": compact_pointer(&trace.config_snapshot, "/search"),
+		"ranking": {
+			"policy_id": compact_pointer(&trace.config_snapshot, "/ranking/policy_id"),
+			"blend": compact_pointer(&trace.config_snapshot, "/ranking/blend"),
+			"diversity": compact_pointer(&trace.config_snapshot, "/ranking/diversity"),
+			"retrieval_sources": compact_pointer(&trace.config_snapshot, "/ranking/retrieval_sources"),
+			"override": compact_pointer(&trace.config_snapshot, "/ranking/override"),
+		},
+	})
+}
+
+fn compact_stage_movement(stages: &[SearchTrajectoryStage]) -> Vec<Value> {
+	stages
+		.iter()
+		.map(|stage| {
+			serde_json::json!({
+				"stage_order": stage.stage_order,
+				"stage_name": stage.stage_name,
+				"item_count": stage.items.len(),
+				"stats": compact_pointer(&stage.stage_payload, "/stats"),
+				"decisions": compact_pointer(&stage.stage_payload, "/decisions"),
+				"filter_impact": compact_pointer(&stage.stage_payload, "/filter_impact"),
+			})
+		})
+		.collect()
+}
+
+fn compact_candidate_replay(
+	candidates: &[TraceReplayCandidate],
+	selected_candidate_keys: &BTreeSet<(Uuid, Uuid)>,
+	source_refs: &BTreeMap<Uuid, NoteDebugSourceRow>,
+) -> Value {
+	let rerank_ranks = candidate_rerank_ranks(candidates);
+	let rows = candidates
+		.iter()
+		.map(|candidate| {
+			let key = candidate_identity(candidate.note_id, candidate.chunk_id);
+			let rerank_rank = rerank_ranks.get(&key).copied();
+			let selection_state =
+				if selected_candidate_keys.contains(&key) { "selected" } else { "dropped" };
+			let stage_reason = candidate_stage_reason(candidate, selection_state);
+			let source_ref =
+				source_refs.get(&candidate.note_id).map(|source| source.source_ref.clone());
+
+			serde_json::json!({
+				"note_id": candidate.note_id,
+				"chunk_id": candidate.chunk_id,
+				"source_ref": source_ref,
+				"source_ref_available": source_ref.is_some(),
+				"retrieval_rank": candidate.retrieval_rank,
+				"rerank_rank": rerank_rank,
+				"rerank_delta": rerank_rank.map(|rank| candidate.retrieval_rank as i64 - i64::from(rank)),
+				"rerank_score": candidate.rerank_score,
+				"retrieval_score": candidate.retrieval_score,
+				"selection_state": selection_state,
+				"stage_reason": stage_reason,
+				"policy_reason": stage_reason,
+				"note_scope": candidate.note_scope,
+				"diversity_selected": candidate.diversity_selected,
+				"diversity_skipped_reason": candidate.diversity_skipped_reason,
+			})
+		})
+		.collect::<Vec<_>>();
+	let selected_count = rows
+		.iter()
+		.filter(|row| row.get("selection_state").and_then(Value::as_str) == Some("selected"))
+		.count();
+
+	serde_json::json!({
+		"candidate_count": candidates.len(),
+		"selected_count": selected_count,
+		"dropped_count": rows.len().saturating_sub(selected_count),
+		"rows": rows,
+	})
+}
+
+fn candidate_rerank_ranks(candidates: &[TraceReplayCandidate]) -> BTreeMap<(Uuid, Uuid), u32> {
+	let mut ordered = candidates.iter().collect::<Vec<_>>();
+
+	ordered.sort_by(|a, b| {
+		b.rerank_score
+			.total_cmp(&a.rerank_score)
+			.then_with(|| a.retrieval_rank.cmp(&b.retrieval_rank))
+			.then_with(|| a.note_id.cmp(&b.note_id))
+			.then_with(|| a.chunk_id.cmp(&b.chunk_id))
+	});
+
+	ordered
+		.into_iter()
+		.enumerate()
+		.map(|(index, candidate)| {
+			(candidate_identity(candidate.note_id, candidate.chunk_id), index as u32 + 1)
+		})
+		.collect()
+}
+
+fn candidate_stage_reason(candidate: &TraceReplayCandidate, selection_state: &str) -> String {
+	if selection_state == "selected" {
+		candidate.diversity_selected_reason.clone().unwrap_or_else(|| "selection.final".to_string())
+	} else {
+		candidate
+			.diversity_skipped_reason
+			.clone()
+			.unwrap_or_else(|| "not_in_final_top_k".to_string())
+	}
+}
+
+fn compact_selected_context(
+	selected_items: &[&SearchExplainItem],
+	source_refs: &BTreeMap<Uuid, NoteDebugSourceRow>,
+) -> Vec<Value> {
+	selected_items
+		.iter()
+		.map(|item| {
+			let source = source_refs.get(&item.note_id);
+
+			serde_json::json!({
+				"result_handle": item.result_handle,
+				"note_id": item.note_id,
+				"chunk_id": item.chunk_id,
+				"source_ref": source.map(|row| row.source_ref.clone()),
+				"source_ref_available": source.is_some(),
+				"freshness_state": freshness_from_note_source(source),
+				"final_rank": item.rank,
+				"final_score": item.explain.ranking.final_score,
+				"policy_id": item.explain.ranking.policy_id,
+				"policy_reason": "final ranked search result",
+				"ranking_terms": item
+					.explain
+					.ranking
+					.terms
+					.iter()
+					.map(|term| serde_json::json!({
+						"name": term.name,
+						"value": term.value,
+					}))
+					.collect::<Vec<_>>(),
+				"relation_context_count": item
+					.explain
+					.relation_context
+					.as_ref()
+					.map(Vec::len)
+					.unwrap_or_default(),
+			})
+		})
+		.collect()
+}
+
+fn compact_pointer(value: &Value, pointer: &str) -> Value {
+	value.pointer(pointer).cloned().unwrap_or(Value::Null)
 }
 
 fn summarize_layers(layers: &[RecallDebugLayer]) -> RecallDebugPanelSummary {
@@ -1078,6 +1281,24 @@ fn layer_from_rows(
 	summary: &str,
 	rows: Vec<RecallDebugRow>,
 ) -> RecallDebugLayer {
+	layer_from_rows_with_artifacts(
+		layer,
+		evidence_class,
+		anchor,
+		summary,
+		rows,
+		serde_json::json!({}),
+	)
+}
+
+fn layer_from_rows_with_artifacts(
+	layer: &str,
+	evidence_class: &str,
+	anchor: Option<String>,
+	summary: &str,
+	rows: Vec<RecallDebugRow>,
+	debug_artifacts: Value,
+) -> RecallDebugLayer {
 	let selected_count = rows.iter().filter(|row| row.selection_state == "selected").count();
 	let dropped_count = rows.iter().filter(|row| row.selection_state == "dropped").count();
 	let available_count = rows
@@ -1097,6 +1318,7 @@ fn layer_from_rows(
 		available_count,
 		raw_sql_needed: false,
 		replayable,
+		debug_artifacts,
 		rows,
 	}
 }
@@ -1113,6 +1335,7 @@ fn not_requested_layer(layer: &str, summary: &str) -> RecallDebugLayer {
 		available_count: 0,
 		raw_sql_needed: false,
 		replayable: false,
+		debug_artifacts: serde_json::json!({}),
 		rows: Vec::new(),
 	}
 }
@@ -1134,6 +1357,7 @@ fn blocked_layer(
 		available_count: 0,
 		raw_sql_needed: false,
 		replayable: false,
+		debug_artifacts: serde_json::json!({}),
 		rows: Vec::new(),
 	}
 }
@@ -1216,14 +1440,15 @@ fn graph_temporal_status(status: crate::RelationTemporalStatus) -> String {
 
 #[cfg(test)]
 mod tests {
-	use std::collections::HashSet;
+	use std::collections::{BTreeMap, HashSet};
 
 	use time::OffsetDateTime;
 
 	use crate::{
 		RecallDebugRow,
 		access::SharedSpaceGrantKey,
-		recall_debug::{self, BTreeSet, Error, Uuid},
+		recall_debug::{self, BTreeSet, Error, NoteDebugSourceRow, Uuid},
+		search::{SearchTrace, SearchTrajectoryStage, TraceReplayCandidate},
 	};
 	use elf_storage::models::MemoryNote;
 
@@ -1331,6 +1556,260 @@ mod tests {
 
 		assert!(selected.contains(&recall_debug::candidate_identity(note_id, selected_chunk_id)));
 		assert!(!selected.contains(&recall_debug::candidate_identity(note_id, dropped_chunk_id)));
+	}
+
+	fn compact_replay_trace(trace_id: Uuid, now: OffsetDateTime) -> SearchTrace {
+		SearchTrace {
+			trace_id,
+			tenant_id: "tenant".to_string(),
+			project_id: "project".to_string(),
+			agent_id: "agent".to_string(),
+			read_profile: "private_plus_project".to_string(),
+			query: "release handoff".to_string(),
+			expansion_mode: "dynamic".to_string(),
+			expanded_queries: vec!["release handoff".to_string(), "owner transfer".to_string()],
+			allowed_scopes: vec!["agent_private".to_string(), "project_shared".to_string()],
+			candidate_count: 2,
+			top_k: 1,
+			config_snapshot: serde_json::json!({
+				"search": {
+					"expansion": {
+						"mode": "dynamic",
+						"max_queries": 3,
+						"include_original": true
+					}
+				},
+				"ranking": {
+					"policy_id": "ranking_v2:test",
+					"blend": {
+						"enabled": true
+					},
+					"diversity": {
+						"enabled": true
+					},
+					"retrieval_sources": {
+						"fusion_weight": 1.0
+					},
+					"override": {
+						"blend": {
+							"enabled": false
+						}
+					}
+				}
+			}),
+			created_at: now,
+			trace_version: 3,
+		}
+	}
+
+	fn compact_replay_stages() -> Vec<SearchTrajectoryStage> {
+		vec![
+			SearchTrajectoryStage {
+				stage_order: 2,
+				stage_name: "recall.candidates".to_string(),
+				stage_payload: serde_json::json!({
+					"stats": {
+						"candidate_count_before_filter": 2,
+						"candidate_count_after_filter": 2
+					}
+				}),
+				items: Vec::new(),
+			},
+			SearchTrajectoryStage {
+				stage_order: 4,
+				stage_name: "rerank.score".to_string(),
+				stage_payload: serde_json::json!({
+					"stats": {
+						"reranked_count": 2
+					},
+					"decisions": {
+						"blend_enabled": true,
+						"diversity_enabled": true
+					}
+				}),
+				items: Vec::new(),
+			},
+		]
+	}
+
+	fn compact_replay_selected_candidate(
+		note_id: Uuid,
+		chunk_id: Uuid,
+		now: OffsetDateTime,
+	) -> TraceReplayCandidate {
+		TraceReplayCandidate {
+			note_id,
+			chunk_id,
+			chunk_index: 0,
+			snippet: "selected".to_string(),
+			retrieval_rank: 2,
+			retrieval_score: Some(0.4),
+			rerank_score: 0.9,
+			note_scope: "project_shared".to_string(),
+			note_importance: 0.7,
+			note_updated_at: now,
+			note_hit_count: 0,
+			note_last_hit_at: None,
+			diversity_selected: Some(true),
+			diversity_selected_rank: Some(1),
+			diversity_selected_reason: Some("mmr".to_string()),
+			diversity_skipped_reason: None,
+			diversity_nearest_selected_note_id: None,
+			diversity_similarity: None,
+			diversity_mmr_score: Some(0.8),
+			diversity_missing_embedding: Some(false),
+		}
+	}
+
+	fn compact_replay_dropped_candidate(
+		note_id: Uuid,
+		chunk_id: Uuid,
+		selected_note_id: Uuid,
+		now: OffsetDateTime,
+	) -> TraceReplayCandidate {
+		TraceReplayCandidate {
+			note_id,
+			chunk_id,
+			chunk_index: 0,
+			snippet: "dropped".to_string(),
+			retrieval_rank: 1,
+			retrieval_score: Some(0.8),
+			rerank_score: 0.1,
+			note_scope: "project_shared".to_string(),
+			note_importance: 0.3,
+			note_updated_at: now,
+			note_hit_count: 0,
+			note_last_hit_at: None,
+			diversity_selected: Some(false),
+			diversity_selected_rank: None,
+			diversity_selected_reason: None,
+			diversity_skipped_reason: Some("not_in_final_top_k".to_string()),
+			diversity_nearest_selected_note_id: Some(selected_note_id),
+			diversity_similarity: Some(0.92),
+			diversity_mmr_score: Some(0.1),
+			diversity_missing_embedding: Some(false),
+		}
+	}
+
+	fn compact_replay_source_refs(
+		selected_note_id: Uuid,
+		dropped_note_id: Uuid,
+		now: OffsetDateTime,
+	) -> BTreeMap<Uuid, NoteDebugSourceRow> {
+		BTreeMap::from([
+			(
+				selected_note_id,
+				NoteDebugSourceRow {
+					status: "active".to_string(),
+					source_ref: serde_json::json!({"schema": "source_ref/v1", "ref": {"id": "selected"}}),
+					updated_at: now,
+				},
+			),
+			(
+				dropped_note_id,
+				NoteDebugSourceRow {
+					status: "active".to_string(),
+					source_ref: serde_json::json!({"schema": "source_ref/v1", "ref": {"id": "dropped"}}),
+					updated_at: now,
+				},
+			),
+		])
+	}
+
+	fn assert_compact_replay_artifact(artifact: &serde_json::Value) {
+		assert_eq!(
+			artifact.pointer("/schema").and_then(serde_json::Value::as_str),
+			Some("elf.recall_debug.compact_replay/v1")
+		);
+		assert_eq!(
+			artifact.pointer("/controls/top_k").and_then(serde_json::Value::as_u64),
+			Some(1)
+		);
+		assert_eq!(
+			artifact.pointer("/controls/expanded_query_count").and_then(serde_json::Value::as_u64),
+			Some(2)
+		);
+		assert_eq!(
+			artifact.pointer("/controls/ranking/policy_id").and_then(serde_json::Value::as_str),
+			Some("ranking_v2:test")
+		);
+		assert_eq!(
+			artifact.pointer("/stage_movement/1/stage_name").and_then(serde_json::Value::as_str),
+			Some("rerank.score")
+		);
+		assert_eq!(
+			artifact
+				.pointer("/candidate_replay/selected_count")
+				.and_then(serde_json::Value::as_u64),
+			Some(1)
+		);
+		assert_eq!(
+			artifact
+				.pointer("/candidate_replay/rows/0/selection_state")
+				.and_then(serde_json::Value::as_str),
+			Some("selected")
+		);
+		assert_eq!(
+			artifact
+				.pointer("/candidate_replay/rows/0/source_ref_available")
+				.and_then(serde_json::Value::as_bool),
+			Some(true)
+		);
+		assert_eq!(
+			artifact
+				.pointer("/candidate_replay/rows/0/rerank_delta")
+				.and_then(serde_json::Value::as_i64),
+			Some(1)
+		);
+		assert_eq!(
+			artifact
+				.pointer("/candidate_replay/rows/0/policy_reason")
+				.and_then(serde_json::Value::as_str),
+			Some("mmr")
+		);
+		assert_eq!(
+			artifact
+				.pointer("/candidate_replay/rows/1/selection_state")
+				.and_then(serde_json::Value::as_str),
+			Some("dropped")
+		);
+		assert_eq!(
+			artifact.pointer("/authority/raw_sql_needed").and_then(serde_json::Value::as_bool),
+			Some(false)
+		);
+	}
+
+	#[test]
+	fn compact_replay_artifact_exposes_controls_stage_movement_and_rerank_effects() {
+		let trace_id = Uuid::new_v4();
+		let selected_note_id = Uuid::new_v4();
+		let selected_chunk_id = Uuid::new_v4();
+		let dropped_note_id = Uuid::new_v4();
+		let dropped_chunk_id = Uuid::new_v4();
+		let now = OffsetDateTime::from_unix_timestamp(0).expect("Valid timestamp.");
+		let candidates = vec![
+			compact_replay_selected_candidate(selected_note_id, selected_chunk_id, now),
+			compact_replay_dropped_candidate(
+				dropped_note_id,
+				dropped_chunk_id,
+				selected_note_id,
+				now,
+			),
+		];
+		let selected =
+			BTreeSet::from([recall_debug::candidate_identity(selected_note_id, selected_chunk_id)]);
+		let source_refs = compact_replay_source_refs(selected_note_id, dropped_note_id, now);
+		let artifact = recall_debug::memory_compact_replay_artifact(
+			&compact_replay_trace(trace_id, now),
+			compact_replay_stages().as_slice(),
+			candidates.as_slice(),
+			&[],
+			&selected,
+			&source_refs,
+			"elf_admin_trace_bundle_get trace_id=<trace> mode=bounded",
+		);
+
+		assert_compact_replay_artifact(&artifact);
 	}
 
 	#[test]

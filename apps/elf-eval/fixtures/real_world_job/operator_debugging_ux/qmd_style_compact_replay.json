@@ -1,0 +1,240 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "operator-debug-qmd-style-compact-replay-001",
+  "suite": "operator_debugging_ux",
+  "title": "Debug qmd-style compact replay controls and candidate movement",
+  "corpus": {
+    "corpus_id": "operator-debugging-ux-2026-06-23",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "compact-replay-artifact",
+        "kind": "trace",
+        "text": "Trace 77777777-7777-4777-8777-777777777777 compact_replay artifact exposes top-k, candidate-k, expansion mode, fusion decisions, rerank effects, dropped candidates, and selected final context while keeping source refs and policy reasons visible.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "operator_debugging_ux",
+            "evidence_id": "compact-replay-artifact"
+          }
+        },
+        "created_at": "2026-06-23T02:00:00Z"
+      },
+      {
+        "evidence_id": "qmd-short-replay-reference",
+        "kind": "comparison_note",
+        "text": "qmd remains the reference for a short local CLI replay command when comparing replay ergonomics; this fixture only proves ELF's compact typed trace artifact.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "operator_debugging_ux",
+            "evidence_id": "qmd-short-replay-reference"
+          }
+        },
+        "created_at": "2026-06-23T02:01:00Z"
+      },
+      {
+        "evidence_id": "broad-qmd-win-trap",
+        "kind": "trap",
+        "text": "Trap note: ELF now broadly beats qmd on local replay ergonomics and no longer needs qmd as a reference.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "operator_debugging_ux",
+            "evidence_id": "broad-qmd-win-trap"
+          }
+        },
+        "created_at": "2026-06-23T02:02:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_operator_ux",
+      "answer": {
+        "content": "ELF compact replay artifacts expose qmd-style recall controls and stage-level candidate movement while preserving qmd as the short CLI replay reference.",
+        "claims": [
+          {
+            "claim_id": "compact_replay_boundary",
+            "text": "ELF compact replay artifacts expose qmd-style recall controls and stage-level candidate movement while preserving qmd as the short CLI replay reference.",
+            "evidence_ids": ["compact-replay-artifact", "qmd-short-replay-reference"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["compact-replay-artifact", "qmd-short-replay-reference"],
+        "latency_ms": 2.9,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        },
+        "trace_explainability": {
+          "trace_id": "77777777-7777-4777-8777-777777777777",
+          "failure_stage": "recall_debug.compact_replay",
+          "failure_reason": "The compact replay artifact is the smallest typed surface for reproducing controls, stage movement, rerank effects, dropped candidates, and selected context.",
+          "stages": [
+            {
+              "stage_name": "rewrite.expansion",
+              "kept_evidence": ["compact-replay-artifact"],
+              "dropped_evidence": [],
+              "demoted_evidence": [],
+              "distractor_evidence": [],
+              "notes": "The artifact records expansion mode and expanded query count."
+            },
+            {
+              "stage_name": "recall.candidates",
+              "kept_evidence": ["compact-replay-artifact"],
+              "dropped_evidence": [],
+              "demoted_evidence": [],
+              "distractor_evidence": [],
+              "notes": "The artifact records candidate count and candidate-stage movement."
+            },
+            {
+              "stage_name": "fusion.merge",
+              "kept_evidence": ["compact-replay-artifact"],
+              "dropped_evidence": [],
+              "demoted_evidence": [],
+              "distractor_evidence": [],
+              "notes": "The artifact records fusion and retrieval-source decisions."
+            },
+            {
+              "stage_name": "rerank.score",
+              "kept_evidence": ["compact-replay-artifact"],
+              "dropped_evidence": [],
+              "demoted_evidence": [],
+              "distractor_evidence": [],
+              "notes": "The artifact records rerank score, rerank rank, and rerank delta."
+            },
+            {
+              "stage_name": "selection.final",
+              "kept_evidence": ["compact-replay-artifact"],
+              "dropped_evidence": [],
+              "demoted_evidence": [],
+              "distractor_evidence": [],
+              "notes": "The artifact records selected final context for selected-but-not-narrated diagnosis."
+            },
+            {
+              "stage_name": "recall_debug.compact_replay",
+              "kept_evidence": ["compact-replay-artifact", "qmd-short-replay-reference"],
+              "dropped_evidence": [],
+              "demoted_evidence": [],
+              "distractor_evidence": [],
+              "notes": "The compact artifact improves ELF typed debug ergonomics but does not erase qmd's short CLI replay reference."
+            }
+          ]
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "compact-replay-artifact-captured",
+      "ts": "2026-06-23T02:00:00Z",
+      "actor": "system",
+      "action": "captured_trace",
+      "evidence_ids": ["compact-replay-artifact"],
+      "summary": "The trace captured compact replay controls and candidate movement for operator readback."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Can I reproduce this recall decision from a compact qmd-style debug artifact?",
+    "job_mode": "debug",
+    "constraints": ["cite_evidence", "preserve_qmd_claim_boundary"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "compact_replay_boundary",
+        "text": "ELF compact replay artifacts expose qmd-style recall controls and stage-level candidate movement while preserving qmd as the short CLI replay reference."
+      }
+    ],
+    "must_not_include": ["ELF now broadly beats qmd on local replay ergonomics."],
+    "evidence_links": {
+      "compact_replay_boundary": ["compact-replay-artifact", "qmd-short-replay-reference"]
+    },
+    "answer_type": "debug_report",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "compact-replay-artifact",
+      "claim_id": "compact_replay_boundary",
+      "requirement": "explain",
+      "quote": "compact_replay artifact exposes top-k, candidate-k, expansion mode, fusion decisions, rerank effects, dropped candidates, and selected final context"
+    },
+    {
+      "evidence_id": "qmd-short-replay-reference",
+      "claim_id": "compact_replay_boundary",
+      "requirement": "caveat",
+      "quote": "qmd remains the reference for a short local CLI replay command"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "broad-qmd-replay-win-erasure",
+      "type": "unsupported_claim",
+      "evidence_ids": ["broad-qmd-win-trap"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "debuggability": {
+        "weight": 0.35,
+        "max_points": 1.0,
+        "criteria": "Names the compact replay artifact as enough to reproduce controls and candidate movement."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Cites the compact artifact and qmd boundary evidence."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Identifies trace-bundle or recall-debug replay as the repair path."
+      },
+      "answer_correctness": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Does not claim broad ELF-over-qmd replay superiority."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": ["The fixture does not provide that evidence."],
+    "fallback_action": "state_blocker"
+  },
+  "operator_debug": {
+    "failure_mode": "qmd_style_compact_replay",
+    "trace_id": "77777777-7777-4777-8777-777777777777",
+    "viewer_url": "/viewer?trace_id=77777777-7777-4777-8777-777777777777",
+    "admin_trace_bundle_url": "/v2/admin/traces/77777777-7777-4777-8777-777777777777/bundle?mode=full&stage_items_limit=128&candidates_limit=200",
+    "root_cause": "The compact recall-debug artifact carries enough typed controls and candidate movement to reproduce the recall decision without raw SQL.",
+    "steps_to_root_cause": 2,
+    "raw_sql_needed": false,
+    "dropped_candidate_visibility": "visible in compact_replay candidate_replay rows and stage_movement",
+    "trace_completeness": "complete",
+    "repair_action_clarity": "clear",
+    "trace_available": true,
+    "replay_command_available": true,
+    "replay_command": "elf_recall_debug_panel trace_id=77777777-7777-4777-8777-777777777777 layer=memory_notes",
+    "replay_artifact": "elf.recall_debug_panel/v1 layers[memory_notes].debug_artifacts.compact_replay",
+    "viewer_panels": ["Recall Trace", "Compact Replay", "Stage Movement", "Replay Candidates", "Selected Context"],
+    "cli_steps": ["open recall debug panel", "inspect compact_replay controls", "compare candidate_replay rows", "verify qmd boundary"],
+    "trace_evidence": ["compact-replay-artifact", "qmd-short-replay-reference"],
+    "ux_gaps": []
+  },
+  "tags": ["synthetic", "operator_debugging_ux", "qmd_reference", "no_live_claim"]
+}

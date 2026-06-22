@@ -2563,25 +2563,26 @@ fn runner_discovers_nested_fixture_layout() -> Result<()> {
 fn operator_debug_fixture_reports_trace_links_and_failure_details() -> Result<()> {
 	let report = run_json_report_from(operator_debug_fixture_dir())?;
 
-	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(6));
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(7));
 	assert_eq!(
 		report.pointer("/summary/operator_debug_job_count").and_then(Value::as_u64),
-		Some(6)
+		Some(7)
 	);
 	assert_eq!(report.pointer("/summary/raw_sql_needed_count").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/trace_incomplete_count").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/operator_ux_gap_count").and_then(Value::as_u64), Some(0));
-	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(6));
+	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(7));
 	assert_eq!(report.pointer("/summary/unsupported_claim").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/unsupported_claim_count").and_then(Value::as_u64), Some(0));
 	assert_eq!(
 		report.pointer("/summary/trace_explainability_count").and_then(Value::as_u64),
-		Some(2)
+		Some(3)
 	);
 
 	let jobs = array_at(&report, "/jobs")?;
 	let dropped = find_by_field(jobs, "/job_id", "operator-debug-dropped-evidence-001")?;
 	let selected = find_by_field(jobs, "/job_id", "operator-debug-selected-not-narrated-001")?;
+	let compact = find_by_field(jobs, "/job_id", "operator-debug-qmd-style-compact-replay-001")?;
 
 	assert_eq!(dropped.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(
@@ -2620,6 +2621,25 @@ fn operator_debug_fixture_reports_trace_links_and_failure_details() -> Result<()
 		selected.pointer("/operator_debug/failure_mode").and_then(Value::as_str),
 		Some("selected_but_not_narrated")
 	);
+	assert_eq!(compact.pointer("/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(
+		compact.pointer("/operator_debug/failure_mode").and_then(Value::as_str),
+		Some("qmd_style_compact_replay")
+	);
+	assert_eq!(
+		compact.pointer("/operator_debug/replay_command_available").and_then(Value::as_bool),
+		Some(true)
+	);
+	assert_eq!(
+		compact.pointer("/trace_explainability/failure_stage").and_then(Value::as_str),
+		Some("recall_debug.compact_replay")
+	);
+	assert!(array_contains_str(
+		compact,
+		"/trace_explainability/stages/4/kept_evidence",
+		"compact-replay-artifact"
+	)?);
+	assert!(array_contains_str(compact, "/produced_evidence", "qmd-short-replay-reference")?);
 
 	Ok(())
 }
