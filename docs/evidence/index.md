@@ -20,5 +20,7 @@ Routes to: Drift audits and evidence concepts under `docs/evidence/`.
 - `2026-06-22-knowledge-watch-rebuild-drift-audit.md`: Drift audit for the
   changed-source Knowledge Workspace rebuild and reviewable memory-candidate
   proposal contract.
+- `2026-06-23-local-agent-loop-drift-audit.md`: Drift audit for the one-command
+  local setup and agent integration recipes.
 - `external_memory_pattern_radar_latest.md`: Latest weekly external memory pattern
   radar summary.

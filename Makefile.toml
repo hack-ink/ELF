@@ -12,6 +12,7 @@
 # | baseline-production-private-addendum       | command   |     |
 # | baseline-production-synthetic              | command   |     |
 # | baseline-soak-docker                       | command   |     |
+# | local-agent-loop                           | command   |     |
 # | openmemory-ui-export-readback              | command   |     |
 # | parity-docker                              | command   |     |
 # | real-world-first-generation-oss            | composite |     |
@@ -151,6 +152,13 @@ command = "bash"
 args = [
 	"scripts/baseline-docker.sh",
 	"soak",
+]
+
+[tasks.local-agent-loop]
+workspace = false
+command = "bash"
+args = [
+	"scripts/local-agent-loop.sh",
 ]
 
 [tasks.openmemory-ui-export-readback]

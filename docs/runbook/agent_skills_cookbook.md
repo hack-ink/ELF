@@ -6,7 +6,7 @@ resource: docs/runbook/agent_skills_cookbook.md
 status: active
 authority: procedural
 owner: runbook
-last_verified: 2026-06-18
+last_verified: 2026-06-23
 tags:
   - docs
   - runbook
@@ -120,7 +120,12 @@ Minimal example: `elf_docs_put`
   "source_ref": {
     "schema": "doc_source_ref/v1",
     "doc_type": "knowledge",
-    "ts": "2026-02-28T00:00:00Z"
+    "ts": "2026-02-28T00:00:00Z",
+    "source_kind": "text_export",
+    "canonical_uri": "urn:example:decision-record:search-routing",
+    "captured_at": "2026-02-28T00:00:00Z",
+    "trust_label": "user_captured",
+    "notes": "Operator-captured decision record."
   },
   "content": "Long-form English evidence text..."
 }
@@ -157,7 +162,40 @@ Operational guidance:
 - If the fact is expected to evolve, provide a stable `key` so updates are possible.
 - If the doc is sensitive, choose `agent_private` scope and only publish explicitly later.
 
-## 4) Workflow: hydrate_context (note hit -> bounded excerpt)
+## 4) Workflow: local_memory_authority_loop
+
+Goal: Exercise the minimal local memory+knowledge authority chain before wiring an
+agent into daily work.
+
+Run the deterministic local loop:
+
+```sh
+cargo make local-agent-loop
+```
+
+The command writes request/response artifacts under `tmp/local-agent-loop/` and covers
+these agent-facing steps:
+
+1. `elf_docs_put`: import source evidence into Doc Extension v1.
+2. `elf_notes_ingest`: store a compact source-linked fact without invoking an LLM.
+3. `elf_searches_create`: recall the reviewed memory after approval.
+4. `elf_recall_debug_panel`: inspect memory, document, knowledge, graph, and Dreaming
+   layer states.
+
+It also uses admin HTTP review and correction routes that are not exposed as ordinary
+agent write tools in the current local recipe:
+
+1. `POST /v2/admin/consolidation/runs`: register a reviewable memory proposal.
+2. `POST /v2/admin/consolidation/proposals/{proposal_id}/review`: approve and apply
+   the proposal.
+3. `POST /v2/admin/notes/{note_id}/corrections`: supersede and restore the approved
+   memory.
+
+Use this loop as a smoke path for Codex, Claude/Cursor-style MCP clients, generic MCP
+clients, and shell workflows. It proves local wiring only; it does not prove hosted
+provider quality, private-corpus quality, or `elf_events_ingest` extraction quality.
+
+## 5) Workflow: hydrate_context (note hit -> bounded excerpt)
 
 Goal: Given a retrieved note, hydrate supporting evidence only when needed and only in bounded windows.
 
@@ -225,7 +263,7 @@ Verification guidance:
 - Prefer `verified=true` excerpts as evidence.
 - Treat `verified=false` as best-effort context and avoid using it as hard proof without revalidation.
 
-## 5) Workflow: memory_write_policy (when to write and how)
+## 6) Workflow: memory_write_policy (when to write and how)
 
 Goal: Keep writes minimal, consistent, and update-friendly.
 
@@ -258,7 +296,7 @@ Goal: Keep writes minimal, consistent, and update-friendly.
 - `project_shared`: shared team memory inside a project.
 - `org_shared`: shared memory across projects inside a tenant (publish explicitly).
 
-## 6) Workflow: share_workflow (publish + grants)
+## 7) Workflow: share_workflow (publish + grants)
 
 Goal: Make shared memory explicit and reversible.
 
@@ -304,7 +342,7 @@ Revoke that grant:
 }
 ```
 
-## 7) Workflow: reflect_consolidate (episodic -> stable facts)
+## 8) Workflow: reflect_consolidate (episodic -> stable facts)
 
 Goal: Periodically reduce memory noise and keep stable truths current.
 
@@ -329,7 +367,7 @@ Minimal example: `elf_notes_list` (pull candidates)
 }
 ```
 
-## 8) Failure modes and safety checklist
+## 9) Failure modes and safety checklist
 
 - Prompt injection: assume an attacker can influence skill reasoning. Tool-side authz and input gates must still protect you.
 - Over-writing: do not introduce stable keys unless you are willing to overwrite.
@@ -337,7 +375,7 @@ Minimal example: `elf_notes_list` (pull candidates)
 - Hydration blowups: start at L1; upgrade to L2 only on demand.
 - Drift: keep workflows centralized and versioned. When tool contracts change, update the cookbook first.
 
-## 9) Prompt templates (agent-side)
+## 10) Prompt templates (agent-side)
 
 These templates are optional. They are provided to reduce drift across agents.
 Do not treat them as server contracts.
@@ -403,7 +441,7 @@ Given these notes (JSON), produce a plan (English bullets) that includes:
 Notes:
 <NOTES_JSON>
 
-## 10) Pinned references (internal)
+## 11) Pinned references (internal)
 
 - Core contract: `docs/spec/system_elf_memory_service_v2.md`
 - Doc Extension v1 design: `docs/reference/plans/2026-02-24-doc-ext-v1-design.md`
