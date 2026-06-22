@@ -226,6 +226,34 @@ source mutations. It is fixture-backed closeout evidence only; it does not claim
 live adapter sweep, private-corpus quality, provider-backed quality, or broad
 competitor wins.
 
+Current checked-in P2 Knowledge Workspace closeout increment:
+
+```sh
+cargo make real-world-memory-p2-knowledge-closeout
+```
+
+This runs the checked-in Source Library and Knowledge Workspace fixture slices:
+
+```text
+tmp/real-world-memory/source-library-report.json
+tmp/real-world-memory/source-library-report.md
+tmp/real-world-memory/knowledge-report.json
+tmp/real-world-memory/knowledge-report.md
+```
+
+The checked-in evidence report is
+`docs/evidence/benchmarking/2026-06-22-p2-knowledge-workspace-pageindex-openkb-closeout-report.md`,
+and the checked-in JSON snapshot is
+`apps/elf-eval/fixtures/report_snapshots/2026-06-22-p2-knowledge-workspace-pageindex-openkb-closeout-report.json`.
+
+The increment scores the Source Library slice as 2 pass and the Knowledge Workspace
+slice as 3 pass. It covers long-document source refs, hydrated excerpts,
+project/entity/concept/issue pages, stale lint, changed-source watch/rebuild,
+previous-version diff metadata, and reviewable memory-candidate boundaries. VectifyAI
+PageIndex and OpenKB stay `not_tested` reference-only rows until contained adapters
+emit comparable tree/wiki artifacts, source refs, lint/watch output, and typed
+benchmark states. This closeout does not queue any P3 issue.
+
 Current checked-in project-decisions increment:
 
 ```sh
@@ -481,11 +509,12 @@ cargo make real-world-memory-knowledge
 This parses `apps/elf-eval/fixtures/real_world_memory/knowledge/`, writes
 `tmp/real-world-memory/knowledge-report.json`, and renders
 `tmp/real-world-memory/knowledge-report.md`. The fixtures include synthetic project,
-entity, concept, and issue-timeline page artifacts. Generated pages are benchmark
-artifacts only: every section must cite source evidence or timeline events, or it must
-be explicitly flagged unsupported. The report publishes citation coverage, stale claim
-detection, rebuild determinism, aggregate backlink counts and page coverage, page
-usefulness, unsupported summary count, and untraced section count.
+entity, concept, issue-timeline, and changed-source watch/rebuild page artifacts.
+Generated pages are benchmark artifacts only: every section must cite source evidence
+or timeline events, or it must be explicitly flagged unsupported. The report publishes
+citation coverage, stale claim detection, rebuild determinism, aggregate backlink
+counts and page coverage, previous-version diff coverage, page usefulness,
+unsupported summary count, and untraced section count.
 
 Current live knowledge-page rebuild/lint increment:
 

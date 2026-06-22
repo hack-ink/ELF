@@ -1,0 +1,156 @@
+{
+  "schema": "elf.p2_knowledge_workspace_pageindex_openkb_closeout_report/v1",
+  "authority": "XY-1066",
+  "phase": "P2 Knowledge Workspace closeout",
+  "generated_at": "2026-06-22T00:00:00Z",
+  "report_markdown": "docs/evidence/benchmarking/2026-06-22-p2-knowledge-workspace-pageindex-openkb-closeout-report.md",
+  "commands": [
+    {
+      "command": "cargo make real-world-memory-source-library",
+      "status": "pass",
+      "artifact_json": "tmp/real-world-memory/source-library-report.json",
+      "artifact_markdown": "tmp/real-world-memory/source-library-report.md",
+      "proves": [
+        "long_document_source_handling",
+        "source_ref_hydration",
+        "source_only_capture_boundary"
+      ]
+    },
+    {
+      "command": "cargo make real-world-memory-knowledge",
+      "status": "pass",
+      "artifact_json": "tmp/real-world-memory/knowledge-report.json",
+      "artifact_markdown": "tmp/real-world-memory/knowledge-report.md",
+      "proves": [
+        "derived_project_entity_concept_issue_pages",
+        "stale_lint",
+        "changed_source_watch_rebuild",
+        "page_version_diff",
+        "reviewable_memory_candidate_boundary"
+      ]
+    },
+    {
+      "command": "cargo make real-world-memory-p2-knowledge-closeout",
+      "status": "pass",
+      "artifact_json": "tmp/real-world-memory/source-library-report.json and tmp/real-world-memory/knowledge-report.json",
+      "artifact_markdown": "tmp/real-world-memory/source-library-report.md and tmp/real-world-memory/knowledge-report.md",
+      "proves": [
+        "p2_closeout_fixture_bundle_runs"
+      ]
+    }
+  ],
+  "elf_same_corpus_results": [
+    {
+      "suite": "source_library",
+      "status": "pass",
+      "jobs": 2,
+      "pass": 2,
+      "wrong_result": 0,
+      "incomplete": 0,
+      "blocked": 0,
+      "not_tested": 0,
+      "coverage": [
+        "Saved long-form article keeps canonical source metadata.",
+        "Hydrated excerpt keeps source_ref/v1 and elf_doc_ext/v1 evidence.",
+        "Saved social thread keeps source metadata and explicit promotion boundary."
+      ],
+      "artifact": "tmp/real-world-memory/source-library-report.json"
+    },
+    {
+      "suite": "knowledge_compilation",
+      "status": "pass",
+      "jobs": 3,
+      "pass": 3,
+      "wrong_result": 0,
+      "incomplete": 0,
+      "blocked": 0,
+      "not_tested": 0,
+      "coverage": [
+        "Project page rebuild keeps source notes authoritative and flags unsupported sections.",
+        "Entity, concept, and issue timeline pages cite source evidence and lint stale claims.",
+        "Changed-source watch/rebuild reports changed, stale, and reviewable memory-candidate outputs without source mutation."
+      ],
+      "artifact": "tmp/real-world-memory/knowledge-report.json"
+    }
+  ],
+  "comparison_matrix": [
+    {
+      "target": "ELF Source Library",
+      "status": "pass",
+      "evidence_class": "same_corpus_fixture",
+      "reference_expectation": "Long-document source capture with stable metadata and citable excerpts.",
+      "proven": "ELF source fixtures preserve metadata, source refs, hydrated excerpts, and no silent memory promotion.",
+      "remaining_untested": "PageIndex-style vectorless tree reasoning over long PDFs is not exercised."
+    },
+    {
+      "target": "ELF Knowledge Workspace",
+      "status": "pass",
+      "evidence_class": "same_corpus_fixture",
+      "reference_expectation": "Derived wiki/entity/concept pages, lint, watch/rebuild, and source refs.",
+      "proven": "ELF knowledge fixtures compile source-linked pages, detect stale claims, expose rebuild/version-diff metadata, and preserve reviewed memory-candidate boundaries.",
+      "remaining_untested": "OpenKB product compilation, saved explorations, and recompile workflow are not exercised through an OpenKB adapter."
+    },
+    {
+      "target": "VectifyAI PageIndex",
+      "status": "not_tested",
+      "evidence_class": "reference_only",
+      "reference_expectation": "Vectorless long-document tree retrieval and PageIndex MCP ecosystem behavior.",
+      "proven": "No PageIndex contained adapter artifact is checked in for this closeout.",
+      "remaining_untested": "Same-corpus PageIndex tree artifacts, cited node paths, long-PDF traversal output, and MCP readback."
+    },
+    {
+      "target": "VectifyAI OpenKB",
+      "status": "not_tested",
+      "evidence_class": "reference_only",
+      "reference_expectation": "Document-to-wiki compilation, concept/entity pages, lint, watch, and recompile workflow.",
+      "proven": "No OpenKB contained adapter artifact is checked in for this closeout.",
+      "remaining_untested": "Same-corpus OpenKB generated wiki pages, entity/concept index, lint output, watch/recompile trace, and source-ref mapping."
+    },
+    {
+      "target": "P3 PageIndex/OpenKB adapter queue",
+      "status": "blocked",
+      "evidence_class": "process_boundary",
+      "reference_expectation": "Queue only after P2 self-assessment passes and main-thread acceptance selects the next P3 issue.",
+      "proven": "This report makes the P3 adapter work decision-ready but does not apply decodex:queued:elf.",
+      "remaining_untested": "Human-selected P3 issue scope and contained adapter implementation."
+    }
+  ],
+  "typed_state_summary": {
+    "pass": 2,
+    "wrong_result": 0,
+    "incomplete": 0,
+    "blocked": 1,
+    "not_tested": 2
+  },
+  "self_assessment": {
+    "verdict": "pass_with_reference_only_competitor_boundary",
+    "what_elf_can_prove": [
+      "ELF can prove source-only long-document capture, source_ref hydration, and explicit memory-promotion boundaries on the checked-in source_library corpus.",
+      "ELF can prove derived project/entity/concept/issue pages, stale lint, changed-source watch/rebuild, version-diff metadata, and reviewable memory-candidate boundaries on the checked-in knowledge corpus."
+    ],
+    "what_remains_untested": [
+      "PageIndex vectorless tree retrieval, long-PDF node paths, and MCP product behavior.",
+      "OpenKB document-to-wiki compilation, saved exploration, watch/recompile product flow, and source mapping.",
+      "Any win/tie/loss claim against PageIndex or OpenKB."
+    ]
+  },
+  "p3_queue_decision": {
+    "ready_to_queue_after_main_thread_acceptance": true,
+    "queued_in_this_lane": false,
+    "queued_label_applied": false,
+    "next_issue_shape": "one contained PageIndex/OpenKB adapter issue that emits same-corpus tree/wiki artifacts, source refs, lint/watch output, and typed benchmark states"
+  },
+  "claim_boundaries": {
+    "allowed": [
+      "ELF P2 Knowledge Workspace closeout passes its checked-in source_library and knowledge fixture self-assessment.",
+      "ELF can compare its outputs to PageIndex/OpenKB-style expectations only as reference expectations in this closeout.",
+      "P3 adapter work is decision-ready after main-thread acceptance."
+    ],
+    "not_allowed": [
+      "Do not claim ELF beats PageIndex or OpenKB.",
+      "Do not treat reference-only PageIndex/OpenKB rows as pass evidence.",
+      "Do not queue a P3 issue in this lane.",
+      "Do not claim live private-corpus, hosted provider, or product UI quality from this fixture-backed closeout."
+    ]
+  }
+}
