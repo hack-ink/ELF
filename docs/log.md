@@ -75,3 +75,11 @@ logs.
   `elf.graph_report/v1` through service, HTTP, and MCP readback, using existing
   Postgres graph-lite facts with sourced, inferred, ambiguous, stale, and superseded
   markers while keeping `valid_from`/`valid_to` as the internal temporal vocabulary.
+
+## 2026-06-22
+
+- Added `docs/spec/agent_memory_knowledge_system_v1.md` for XY-1059, codifying the
+  Agent Memory + Knowledge System product boundary, P0-P5 roadmap, Decodex
+  phase-gate rule, competitor absorption boundaries, validation expectations, and
+  phase closeout checklist.
+- Linked the new product contract from the docs root index and spec index.

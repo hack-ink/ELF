@@ -496,6 +496,8 @@ proactive-brief, and scheduled-memory scoring evidence.
 ## Documentation
 
 - Start here: `docs/index.md`
+- Agent Memory + Knowledge System product contract:
+  `docs/spec/agent_memory_knowledge_system_v1.md`
 - Runbook index: `docs/runbook/index.md`
 - Single-user production runbook:
   [docs/runbook/single_user_production.md](docs/runbook/single_user_production.md)
