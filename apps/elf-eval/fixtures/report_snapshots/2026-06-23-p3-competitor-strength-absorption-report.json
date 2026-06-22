@@ -1,0 +1,182 @@
+{
+  "schema": "elf.p3_competitor_strength_absorption_report/v1",
+  "authority": "XY-1072",
+  "phase": "P3 competitor-strength adapters closeout",
+  "generated_at": "2026-06-23T00:00:00Z",
+  "report_markdown": "docs/evidence/benchmarking/2026-06-23-p3-competitor-strength-absorption-report.md",
+  "self_assessment": {
+    "verdict": "pass_with_p4_queue_ready_after_main_thread_acceptance",
+    "strongest_at": "ELF is strongest at governed, source-linked, reviewable memory and knowledge authority across Source Library, Memory Authority, Knowledge Workspace, graph-lite reports, Dreaming review queue, and recall/debug readback.",
+    "p4_queue_ready_after_main_thread_acceptance": true,
+    "p4_queued_label_applied": false,
+    "typed_non_pass_states_are_not_wins": true
+  },
+  "rerun_evidence": [
+    {
+      "command": "cargo make real-world-memory-pageindex-openkb",
+      "status": "pass",
+      "artifact_json": "tmp/real-world-memory/pageindex-openkb/report.json",
+      "result": "2 jobs, 0 pass, 0 wrong_result, 0 incomplete, 2 blocked"
+    },
+    {
+      "command": "cargo make real-world-memory-mem0-openmemory-letta",
+      "status": "pass",
+      "artifact_json": "tmp/real-world-memory/mem0-openmemory-letta/report.json",
+      "result": "4 jobs, 1 pass, 0 wrong_result, 0 incomplete, 3 blocked"
+    },
+    {
+      "command": "cargo make real-world-memory-context-trajectory",
+      "status": "pass",
+      "artifact_json": "tmp/real-world-memory/context-trajectory/report.json",
+      "result": "3 jobs, 0 pass, 0 wrong_result, 0 incomplete, 3 blocked"
+    },
+    {
+      "command": "cargo make real-world-memory-graph-rag",
+      "status": "pass",
+      "artifact_json": "tmp/real-world-memory/graph-rag/report.json",
+      "result": "5 jobs, 0 pass, 1 wrong_result, 1 incomplete, 3 blocked"
+    }
+  ],
+  "product_strengths": [
+    {
+      "product": "qmd",
+      "current_status": "mixed",
+      "absorbed_by_elf": "ELF recall/debug now exposes trace hydration, replay commands, candidate-drop visibility, and selected-but-not-narrated evidence in the operator-debug slice.",
+      "remains_stronger_elsewhere": "qmd still has the default top-k JSON artifact and short local CLI replay edge; expansion, dense/sparse, fusion, and rerank attribution parity is not proven.",
+      "blocked_or_missing_adapter": "Comparable qmd-style immediate candidate replay with expansion, fusion, rerank, and dropped-candidate details.",
+      "evidence_report": "docs/evidence/benchmarking/2026-06-19-qmd-debug-ergonomics-dreaming-retest-report.md",
+      "p4_queue_item": "qmd_candidate_replay_parity"
+    },
+    {
+      "product": "VectifyAI PageIndex",
+      "current_status": "blocked",
+      "absorbed_by_elf": "ELF Source Library has long-document source records, hydrated excerpts, source refs, and explicit same-corpus PageIndex blocker requirements.",
+      "remains_stronger_elsewhere": "PageIndex remains the reference for vectorless long-document tree retrieval and PageIndex MCP direction.",
+      "blocked_or_missing_adapter": "Contained PageIndex tree artifact, cited node paths, traversal output, MCP readback, and setup/runtime metadata mapped to ELF source ids.",
+      "evidence_report": "docs/evidence/benchmarking/2026-06-22-pageindex-openkb-same-corpus-adapter-report.md",
+      "p4_queue_item": "source_library_tree_and_wiki_adapters"
+    },
+    {
+      "product": "VectifyAI OpenKB",
+      "current_status": "blocked",
+      "absorbed_by_elf": "ELF Knowledge Workspace has source-linked project/entity/concept/issue pages, stale lint, watch/rebuild, and version-diff readback.",
+      "remains_stronger_elsewhere": "OpenKB remains the reference for compiled wiki export, saved exploration, concept/entity indexes, lint, watch, and recompile workflow.",
+      "blocked_or_missing_adapter": "Contained OpenKB wiki export, entity/concept index export, lint output, saved exploration state, and watch/recompile trace mapped to ELF source ids.",
+      "evidence_report": "docs/evidence/benchmarking/2026-06-22-pageindex-openkb-same-corpus-adapter-report.md",
+      "p4_queue_item": "source_library_tree_and_wiki_adapters"
+    },
+    {
+      "product": "mem0/OpenMemory",
+      "current_status": "split_pass_and_blocked",
+      "absorbed_by_elf": "The P3 slice maps mem0 SDK Memory.history, scoped search, and local get_all export-style output to source ids and keeps OpenMemory product evidence separate.",
+      "remains_stronger_elsewhere": "mem0 remains stronger on explicit local SDK ADD, UPDATE, DELETE history readback; OpenMemory remains the product UI/export reference.",
+      "blocked_or_missing_adapter": "OpenMemory product container, app database export, browser/API/export-helper readback, hosted Platform evidence, and optional graph memory remain unproven.",
+      "evidence_report": "docs/evidence/benchmarking/2026-06-22-mem0-openmemory-letta-memory-history-core-archive-report.md",
+      "p4_queue_item": "memory_history_export_and_core_archive"
+    },
+    {
+      "product": "Letta",
+      "current_status": "blocked",
+      "absorbed_by_elf": "The P3 slice names ELF core-block and archival source ids that a contained Letta export/readback must map before scoring.",
+      "remains_stronger_elsewhere": "Letta remains the reference for core/archive memory product modeling and export/readback shape.",
+      "blocked_or_missing_adapter": "Exported Letta core block JSON, archival passage/readback/search JSON, visibility/provenance metadata, and source ids.",
+      "evidence_report": "docs/evidence/benchmarking/2026-06-22-mem0-openmemory-letta-memory-history-core-archive-report.md",
+      "p4_queue_item": "memory_history_export_and_core_archive"
+    },
+    {
+      "product": "Graphiti/Zep",
+      "current_status": "blocked",
+      "absorbed_by_elf": "The Graphiti/Zep fixture now names current facts, historical facts, provider boundary evidence, and the blocked trace stage.",
+      "remains_stronger_elsewhere": "Graphiti/Zep remains the temporal graph validity reference; hosted Zep and provider-backed graph quality are not proven locally.",
+      "blocked_or_missing_adapter": "Provider-backed Graphiti search output that maps current and historical facts to validity windows and same-corpus source ids.",
+      "evidence_report": "docs/evidence/benchmarking/2026-06-23-temporal-trajectory-adapter-coverage-report.md",
+      "p4_queue_item": "temporal_trajectory_graph_rag_adapters"
+    },
+    {
+      "product": "OpenViking",
+      "current_status": "blocked",
+      "absorbed_by_elf": "The context-trajectory fixtures expose same-corpus, hierarchy, recursive-expansion, rejected-sibling, decoy, and comparison gates as typed blockers.",
+      "remains_stronger_elsewhere": "OpenViking remains the reference for filesystem-like context URIs, hierarchy selection, staged retrieval trajectory, and recursive expansion.",
+      "blocked_or_missing_adapter": "Comparable same-corpus staged artifacts, selected hierarchy nodes, rejected siblings or decoys, pruned branches, and expansion paths.",
+      "evidence_report": "docs/evidence/benchmarking/2026-06-23-temporal-trajectory-adapter-coverage-report.md",
+      "p4_queue_item": "temporal_trajectory_graph_rag_adapters"
+    },
+    {
+      "product": "RAGFlow",
+      "current_status": "blocked_or_not_encoded",
+      "absorbed_by_elf": "The adapter matrix turns RAGFlow retrieval, citation, navigation, stale-source, faithfulness, and knowledge-compilation expectations into explicit rows.",
+      "remains_stronger_elsewhere": "RAGFlow remains a document-processing and RAG workflow reference; no same-corpus quality pass exists.",
+      "blocked_or_missing_adapter": "Answer text and selected reference chunks with document ids, chunk ids, content, metadata, and stale-source outputs mapped to evidence ids.",
+      "evidence_report": "docs/evidence/benchmarking/2026-06-23-graph-rag-adapter-matrix-report.md",
+      "p4_queue_item": "temporal_trajectory_graph_rag_adapters"
+    },
+    {
+      "product": "GraphRAG",
+      "current_status": "blocked_or_not_encoded",
+      "absorbed_by_elf": "The adapter matrix names output-table, citation, graph/community navigation, faithfulness, and stale-source requirements without claiming parity.",
+      "remains_stronger_elsewhere": "GraphRAG remains the reference for graph-oriented retrieval, community reports, and graph summary synthesis.",
+      "blocked_or_missing_adapter": "Mapped documents, text_units, communities, reports, entities, relationships, local-search answers, and unsupported/stale claim lint.",
+      "evidence_report": "docs/evidence/benchmarking/2026-06-23-graph-rag-adapter-matrix-report.md",
+      "p4_queue_item": "temporal_trajectory_graph_rag_adapters"
+    },
+    {
+      "product": "LightRAG",
+      "current_status": "incomplete_or_not_encoded",
+      "absorbed_by_elf": "The adapter matrix records context/source reference, retrieval, navigation, faithfulness, stale-source, and knowledge-compilation coverage gaps.",
+      "remains_stronger_elsewhere": "LightRAG remains the lightweight graph/RAG architecture reference; context export is incomplete in the current evidence.",
+      "blocked_or_missing_adapter": "Opt-in Docker API output with context, file paths, snippets, source references, and answer checking mapped to evidence ids.",
+      "evidence_report": "docs/evidence/benchmarking/2026-06-23-graph-rag-adapter-matrix-report.md",
+      "p4_queue_item": "temporal_trajectory_graph_rag_adapters"
+    }
+  ],
+  "p4_optimization_queue": [
+    {
+      "key": "qmd_candidate_replay_parity",
+      "priority": "P0",
+      "ready_after_main_thread_acceptance": true,
+      "queued_label_applied": false,
+      "scope": "Emit comparable immediate candidate replay artifacts with expansion, dense/sparse, fusion, rerank, dropped evidence, and one-command replay lines."
+    },
+    {
+      "key": "adapter_outcome_grammar_and_metrics",
+      "priority": "P0",
+      "ready_after_main_thread_acceptance": true,
+      "queued_label_applied": false,
+      "scope": "Harden public comparison grammar, typed outcomes, expected evidence recall, irrelevant context ratio, unsupported-claim counts, and resource metrics."
+    },
+    {
+      "key": "source_library_tree_and_wiki_adapters",
+      "priority": "P1",
+      "ready_after_main_thread_acceptance": true,
+      "queued_label_applied": false,
+      "scope": "Materialize PageIndex tree artifacts and OpenKB wiki/index/lint/watch outputs over the same corpus."
+    },
+    {
+      "key": "memory_history_export_and_core_archive",
+      "priority": "P1",
+      "ready_after_main_thread_acceptance": true,
+      "queued_label_applied": false,
+      "scope": "Harden mem0/OpenMemory history/export comparison and Letta core/archive export/readback mapping."
+    },
+    {
+      "key": "temporal_trajectory_graph_rag_adapters",
+      "priority": "P1",
+      "ready_after_main_thread_acceptance": true,
+      "queued_label_applied": false,
+      "scope": "Materialize Graphiti/Zep temporal validity, OpenViking trajectory, and RAGFlow/GraphRAG/LightRAG citation/navigation artifacts."
+    }
+  ],
+  "claim_boundaries": {
+    "allowed": [
+      "ELF is strongest at governed source-linked memory and knowledge authority in the checked-in evidence.",
+      "P3 absorbed competitor strengths into ELF-owned evidence surfaces, same-corpus blockers, and P4 optimization inputs.",
+      "The P4 optimization queue is ready for main-thread inspection after this closeout passes self-assessment."
+    ],
+    "not_allowed": [
+      "Typed non-pass states are not wins.",
+      "Do not claim ELF broadly beats qmd, PageIndex, OpenKB, mem0/OpenMemory, Letta, Graphiti/Zep, OpenViking, RAGFlow, GraphRAG, or LightRAG.",
+      "Do not claim private-corpus, hosted, provider-backed, UI/export, graph/RAG, or core/archive parity from fixture-only, blocked, incomplete, wrong-result, or not-encoded evidence.",
+      "Do not apply decodex:queued:elf to a P4 issue until the main thread accepts the P3 closeout."
+    ]
+  }
+}
