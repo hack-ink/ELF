@@ -1,0 +1,368 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "knowledge-watch-rebuild-003",
+  "suite": "knowledge_compilation",
+  "title": "Rebuild changed-source knowledge pages without mutating source memory",
+  "corpus": {
+    "corpus_id": "real-world-memory-knowledge-synthetic-2026-06-22",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "watch-source-original",
+        "kind": "source_library_record",
+        "text": "Original source: The Knowledge Workspace watch path tracks Source Library document pageindex-openkb-brief and stores normalized source refs for every cited page section.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "elf_doc_ext/v1",
+          "ref": {
+            "doc_id": "55555555-5555-4555-8555-555555555555",
+            "chunk_id": "66666666-6666-4666-8666-666666666666"
+          },
+          "state": {
+            "content_hash": "watch-original-content-hash",
+            "chunk_hash": "watch-original-chunk-hash"
+          },
+          "hashes": {
+            "content_hash": "watch-original-content-hash",
+            "chunk_hash": "watch-original-chunk-hash"
+          },
+          "locator": {
+            "quote": {
+              "exact": "stores normalized source refs"
+            }
+          }
+        },
+        "created_at": "2026-06-22T01:00:00Z"
+      },
+      {
+        "evidence_id": "watch-source-updated",
+        "kind": "source_library_record",
+        "text": "Updated source: PageIndex-style long-document handling remains a reference expectation, while ELF proves Source Library source_ref hydration and Knowledge Workspace changed-source rebuild output on the same synthetic corpus.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "elf_doc_ext/v1",
+          "ref": {
+            "doc_id": "55555555-5555-4555-8555-555555555555",
+            "chunk_id": "77777777-7777-4777-8777-777777777777"
+          },
+          "state": {
+            "content_hash": "watch-updated-content-hash",
+            "chunk_hash": "watch-updated-chunk-hash"
+          },
+          "hashes": {
+            "content_hash": "watch-updated-content-hash",
+            "chunk_hash": "watch-updated-chunk-hash"
+          },
+          "locator": {
+            "quote": {
+              "exact": "changed-source rebuild output"
+            }
+          }
+        },
+        "created_at": "2026-06-22T01:10:00Z"
+      },
+      {
+        "evidence_id": "watch-stale-page-snapshot",
+        "kind": "compiled_page",
+        "text": "Stale page snapshot: The old page says ELF has a contained PageIndex/OpenKB adapter pass and can queue P3 immediately without main-thread acceptance.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_memory_fixture/v1",
+          "ref": {
+            "fixture": "changed_source_watch_rebuild",
+            "evidence_id": "watch-stale-page-snapshot"
+          }
+        },
+        "created_at": "2026-06-22T01:05:00Z"
+      },
+      {
+        "evidence_id": "watch-lint-output",
+        "kind": "lint_finding",
+        "text": "Lint output: The contained PageIndex/OpenKB adapter-pass statement is stale and must not be presented as current truth until a contained adapter emits same-corpus artifacts.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_memory_fixture/v1",
+          "ref": {
+            "fixture": "changed_source_watch_rebuild",
+            "evidence_id": "watch-lint-output"
+          },
+          "locator": {
+            "quote": {
+              "exact": "must not be presented as current truth"
+            }
+          }
+        },
+        "created_at": "2026-06-22T01:11:00Z"
+      },
+      {
+        "evidence_id": "watch-memory-candidate-proposal",
+        "kind": "consolidation_proposal",
+        "text": "Reviewable memory candidate: Knowledge page rebuild deltas may propose a memory candidate, but source documents and Memory Notes are not mutated by the watch/rebuild pass.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_memory_fixture/v1",
+          "ref": {
+            "fixture": "changed_source_watch_rebuild",
+            "evidence_id": "watch-memory-candidate-proposal"
+          },
+          "locator": {
+            "quote": {
+              "exact": "source documents and Memory Notes are not mutated"
+            }
+          }
+        },
+        "created_at": "2026-06-22T01:12:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_knowledge",
+      "answer": {
+        "content": "The changed-source watch/rebuild page selects only pages citing the updated source ref, reports the stale PageIndex/OpenKB adapter claim as lint evidence, preserves a reviewed memory-candidate boundary, and leaves source documents plus Memory Notes unmodified.",
+        "claims": [
+          {
+            "claim_id": "watch_rebuild_scope",
+            "text": "Changed-source rebuild selects only knowledge pages that cite the changed Source Library source refs.",
+            "evidence_ids": ["watch-source-original", "watch-source-updated"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "stale_adapter_lint",
+            "text": "The old contained PageIndex/OpenKB adapter-pass claim is stale lint evidence, not current truth.",
+            "evidence_ids": ["watch-lint-output"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "memory_candidate_boundary",
+            "text": "Knowledge rebuild deltas may propose reviewable memory candidates without mutating source documents or Memory Notes.",
+            "evidence_ids": ["watch-memory-candidate-proposal"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": [
+          "watch-source-original",
+          "watch-source-updated",
+          "watch-lint-output",
+          "watch-memory-candidate-proposal"
+        ],
+        "pages": [
+          {
+            "page_id": "project:knowledge-watch-rebuild",
+            "page_type": "project",
+            "title": "Knowledge Watch/Rebuild Changed-Source Page",
+            "path": "apps/elf-eval/fixtures/real_world_memory/knowledge/pages/watch_rebuild_changed_sources.md",
+            "sections": [
+              {
+                "section_id": "changed-source-scope",
+                "heading": "Changed Source Scope",
+                "role": "current_truth",
+                "content": "Changed-source rebuild selects pages that already cite the updated Source Library source refs and leaves unrelated pages out of the rebuild.",
+                "evidence_ids": ["watch-source-original", "watch-source-updated"],
+                "timeline_event_ids": ["watch-source-updated-event"]
+              },
+              {
+                "section_id": "stale-adapter-claim",
+                "heading": "Stale Adapter Claim",
+                "role": "lint",
+                "content": "The stale claim that ELF has a contained PageIndex/OpenKB adapter pass is retained only as lint evidence.",
+                "evidence_ids": ["watch-stale-page-snapshot"],
+                "timeline_event_ids": ["watch-stale-claim-detected"]
+              },
+              {
+                "section_id": "memory-candidate-boundary",
+                "heading": "Memory Candidate Boundary",
+                "role": "review",
+                "content": "Watch/rebuild may propose a memory candidate from page deltas, but it must not mutate Source Library documents or Memory Notes directly.",
+                "evidence_ids": ["watch-memory-candidate-proposal"],
+                "timeline_event_ids": ["watch-memory-candidate-proposed"]
+              }
+            ],
+            "backlinks": [
+              "project:elf-benchmark-suite",
+              "concept:derived-knowledge-pages"
+            ],
+            "lint_findings": [
+              {
+                "finding_id": "lint-contained-adapter-pass-stale",
+                "finding_type": "stale_claim",
+                "severity": "error",
+                "text": "The contained PageIndex/OpenKB adapter-pass claim conflicts with the current reference-only comparison boundary.",
+                "evidence_ids": ["watch-stale-page-snapshot"],
+                "trap_id": "contained-adapter-pass-stale"
+              }
+            ],
+            "rebuild": {
+              "first_hash": "blake3:5d4ee9d4f1c0c6a1c7e8f9b1a2457777a41fb0a8d64ce0dd7989e6c5a8b6dd01",
+              "second_hash": "blake3:5d4ee9d4f1c0c6a1c7e8f9b1a2457777a41fb0a8d64ce0dd7989e6c5a8b6dd01",
+              "deterministic": true,
+              "allowed_variance": []
+            },
+            "page_version_diff": {
+              "schema": "elf.knowledge_page.version_diff/v1",
+              "available": true,
+              "previous_page_hash": "blake3:old-watch-page-hash",
+              "current_page_hash": "blake3:5d4ee9d4f1c0c6a1c7e8f9b1a2457777a41fb0a8d64ce0dd7989e6c5a8b6dd01",
+              "changed_sections": ["changed-source-scope", "stale-adapter-claim"],
+              "unchanged_sections": ["memory-candidate-boundary"]
+            }
+          }
+        ],
+        "latency_ms": 2.7,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "watch-source-captured",
+      "ts": "2026-06-22T01:00:00Z",
+      "actor": "agent",
+      "action": "captured_source_ref_snapshot",
+      "evidence_ids": ["watch-source-original"],
+      "summary": "The original Source Library document snapshot was captured with normalized source refs."
+    },
+    {
+      "event_id": "watch-source-updated-event",
+      "ts": "2026-06-22T01:10:00Z",
+      "actor": "agent",
+      "action": "changed_source_rebuild",
+    "evidence_ids": ["watch-source-updated"],
+      "summary": "A changed-source rebuild selected cited pages and produced current section output."
+    },
+    {
+      "event_id": "watch-stale-claim-detected",
+      "ts": "2026-06-22T01:11:00Z",
+      "actor": "agent",
+      "action": "linted_stale_adapter_claim",
+      "evidence_ids": ["watch-lint-output"],
+      "summary": "The stale contained-adapter pass claim was retained as lint evidence."
+    },
+    {
+      "event_id": "watch-memory-candidate-proposed",
+      "ts": "2026-06-22T01:12:00Z",
+      "actor": "agent",
+      "action": "queued_reviewable_memory_candidate",
+      "evidence_ids": ["watch-memory-candidate-proposal"],
+      "summary": "The changed page delta created a reviewable memory candidate without mutating source documents or Memory Notes."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Run the Knowledge Workspace changed-source watch/rebuild check for the PageIndex/OpenKB comparison slice and report stale claims plus memory-candidate boundaries.",
+    "job_mode": "compile",
+    "constraints": [
+      "cite_source_refs",
+      "lint_stale_adapter_claims",
+      "preserve_memory_candidate_review_boundary",
+      "do_not_upgrade_reference_only_competitors"
+    ]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "watch_rebuild_scope",
+        "text": "Changed-source rebuild selects only knowledge pages that cite the changed Source Library source refs."
+      },
+      {
+        "claim_id": "stale_adapter_lint",
+        "text": "The old contained PageIndex/OpenKB adapter-pass claim is stale lint evidence, not current truth."
+      },
+      {
+        "claim_id": "memory_candidate_boundary",
+        "text": "Knowledge rebuild deltas may propose reviewable memory candidates without mutating source documents or Memory Notes."
+      }
+    ],
+    "must_not_include": [
+      "ELF has a contained PageIndex/OpenKB adapter pass",
+      "queue P3 immediately without main-thread acceptance",
+      "watch/rebuild mutates source documents directly"
+    ],
+    "evidence_links": {
+      "watch_rebuild_scope": ["watch-source-original", "watch-source-updated"],
+      "stale_adapter_lint": ["watch-lint-output"],
+      "memory_candidate_boundary": ["watch-memory-candidate-proposal"]
+    },
+    "answer_type": "compiled_knowledge",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "watch-source-updated",
+      "claim_id": "watch_rebuild_scope",
+      "requirement": "cite",
+      "quote": "changed-source rebuild output"
+    },
+    {
+      "evidence_id": "watch-lint-output",
+      "claim_id": "stale_adapter_lint",
+      "requirement": "cite",
+      "quote": "must not be presented as current truth"
+    },
+    {
+      "evidence_id": "watch-memory-candidate-proposal",
+      "claim_id": "memory_candidate_boundary",
+      "requirement": "cite",
+      "quote": "source documents and Memory Notes are not mutated"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "contained-adapter-pass-stale",
+      "type": "stale_fact",
+      "evidence_ids": ["watch-stale-page-snapshot"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "States changed-source rebuild scope and does not upgrade reference-only competitors."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Cites changed source refs, stale lint evidence, and memory candidate proposal evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Treats the contained adapter pass claim as stale lint evidence."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Reports changed, stale, and reviewable memory-candidate outputs."
+      },
+      "lifecycle_behavior": {
+        "weight": 0.1,
+        "max_points": 1.0,
+        "criteria": "Preserves source-of-truth and reviewed promotion boundaries."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "claiming PageIndex/OpenKB adapter pass without contained artifacts",
+      "claiming watch/rebuild directly mutates source documents or Memory Notes"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "state_blocker"
+  },
+  "tags": [
+    "synthetic",
+    "knowledge",
+    "watch_rebuild",
+    "pageindex_openkb_reference",
+    "benchmark_artifact"
+  ]
+}
