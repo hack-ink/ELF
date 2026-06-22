@@ -1,0 +1,281 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "pageindex-openkb-pageindex-tree-blocked-001",
+  "suite": "source_library",
+  "title": "Block PageIndex same-corpus tree retrieval until node paths map to ELF source ids",
+  "encoding": {
+    "status": "blocked",
+    "reason": "VectifyAI PageIndex same-corpus scoring is blocked until a contained run emits long-document tree artifacts, cited node paths, and PageIndex MCP readback mapped to the ELF Source Library source ids.",
+    "follow_up": {
+      "title": "Run PageIndex same-corpus long-document tree adapter",
+      "reason": "The fair comparison needs PageIndex tree nodes and traversal output over the source-library long-document corpus with source ids mapped to benchmark evidence ids."
+    }
+  },
+  "corpus": {
+    "corpus_id": "real-world-memory-source-library-2026-06-20",
+    "profile": "external_adapter",
+    "items": [
+      {
+        "evidence_id": "elf-source-library-long-doc-source-record",
+        "kind": "elf_same_corpus_output",
+        "text": "ELF same-corpus source output: source_library job source-library-long-doc-001 materializes source id article-source-record with canonical_uri=https://example.com/research/agent-memory-os, source_kind=article, author=Example Research Group, captured_at=2026-06-20T01:10:00Z, and source_ref resolver elf_doc_ext/v1.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "long_document_source_library",
+            "evidence_id": "article-source-record"
+          },
+          "locator": {
+            "quote": "canonical_uri=https://example.com/research/agent-memory-os"
+          }
+        },
+        "created_at": "2026-06-20T01:10:00Z"
+      },
+      {
+        "evidence_id": "elf-source-library-long-doc-hydrated-excerpt",
+        "kind": "elf_same_corpus_output",
+        "text": "ELF same-corpus source output: source_library job source-library-long-doc-001 materializes source id article-hydrated-excerpt with quote source libraries preserve long-form evidence, verified=true, content_hash=long-doc-content-hash, and excerpt_hash=long-doc-excerpt-hash.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "long_document_source_library",
+            "evidence_id": "article-hydrated-excerpt"
+          },
+          "locator": {
+            "quote": "verified=true"
+          }
+        },
+        "created_at": "2026-06-20T01:11:00Z"
+      },
+      {
+        "evidence_id": "pageindex-adapter-setup-blocker",
+        "kind": "adapter_blocker",
+        "text": "PageIndex setup blocker: XY-1068 has no Docker-contained PageIndex installation, no PageIndex MCP readback, and no emitted tree artifact mapping node paths back to source ids article-source-record and article-hydrated-excerpt.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "pageindex_long_document_tree_blocked",
+            "evidence_id": "pageindex-adapter-setup-blocker"
+          },
+          "locator": {
+            "quote": "no emitted tree artifact mapping node paths"
+          }
+        },
+        "created_at": "2026-06-22T03:00:00Z"
+      },
+      {
+        "evidence_id": "pageindex-required-materialized-output-contract",
+        "kind": "adapter_contract",
+        "text": "PageIndex artifact contract: a runnable same-corpus adapter must emit tree_nodes.json or equivalent, cited node paths, long-document traversal output, source ids, and setup/runtime metadata before PageIndex can be scored.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "pageindex_long_document_tree_blocked",
+            "evidence_id": "pageindex-required-materialized-output-contract"
+          },
+          "locator": {
+            "quote": "tree_nodes.json or equivalent"
+          }
+        },
+        "created_at": "2026-06-22T03:01:00Z"
+      },
+      {
+        "evidence_id": "pageindex-parity-decoy",
+        "kind": "unsupported_claim",
+        "text": "Decoy: the ELF Source Library long-document pass proves PageIndex parity without running PageIndex tree retrieval.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "pageindex_long_document_tree_blocked",
+            "evidence_id": "pageindex-parity-decoy"
+          }
+        },
+        "created_at": "2026-06-22T02:59:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_pageindex_openkb_same_corpus",
+      "answer": {
+        "content": "PageIndex remains blocked on the same source-library corpus. ELF materializes source ids article-source-record and article-hydrated-excerpt with source_ref hydration, but no contained PageIndex run has emitted tree_nodes.json, cited node paths, traversal output, or MCP readback mapped to those source ids. No PageIndex parity, win, tie, or loss is claimed.",
+        "claims": [
+          {
+            "claim_id": "elf_source_outputs_present",
+            "text": "ELF materializes the same-corpus long-document source record and hydrated excerpt source ids.",
+            "evidence_ids": [
+              "elf-source-library-long-doc-source-record",
+              "elf-source-library-long-doc-hydrated-excerpt"
+            ],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "pageindex_setup_blocked",
+            "text": "PageIndex scoring is blocked because no contained PageIndex installation, MCP readback, or tree artifact is checked in.",
+            "evidence_ids": ["pageindex-adapter-setup-blocker"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "pageindex_artifact_contract",
+            "text": "A runnable PageIndex adapter must emit tree nodes, cited node paths, traversal output, source ids, and setup/runtime metadata before scoring.",
+            "evidence_ids": ["pageindex-required-materialized-output-contract"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": [
+          "elf-source-library-long-doc-source-record",
+          "elf-source-library-long-doc-hydrated-excerpt",
+          "pageindex-adapter-setup-blocker",
+          "pageindex-required-materialized-output-contract"
+        ],
+        "latency_ms": 1.0,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "elf-source-library-output-selected",
+      "ts": "2026-06-22T03:00:00Z",
+      "actor": "benchmark",
+      "action": "selected_same_corpus_source_outputs",
+      "evidence_ids": [
+        "elf-source-library-long-doc-source-record",
+        "elf-source-library-long-doc-hydrated-excerpt"
+      ],
+      "summary": "The PageIndex comparison uses the same long-document Source Library corpus ids as the ELF source-library fixture."
+    },
+    {
+      "event_id": "pageindex-blocker-recorded",
+      "ts": "2026-06-22T03:01:00Z",
+      "actor": "benchmark",
+      "action": "recorded_pageindex_setup_blocker",
+      "evidence_ids": [
+        "pageindex-adapter-setup-blocker",
+        "pageindex-required-materialized-output-contract"
+      ],
+      "summary": "PageIndex remains blocked until tree artifacts and MCP readback map back to same-corpus source ids."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Compare PageIndex long-document tree retrieval against the ELF Source Library long-document corpus only if PageIndex emits cited tree artifacts.",
+    "job_mode": "compare",
+    "constraints": [
+      "cite_same_corpus_source_ids",
+      "require_pageindex_tree_artifacts",
+      "typed_setup_blocker",
+      "no_pageindex_parity_claim"
+    ]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "elf_source_outputs_present",
+        "text": "ELF materializes the same-corpus long-document source record and hydrated excerpt source ids."
+      },
+      {
+        "claim_id": "pageindex_setup_blocked",
+        "text": "PageIndex scoring is blocked because no contained PageIndex installation, MCP readback, or tree artifact is checked in."
+      },
+      {
+        "claim_id": "pageindex_artifact_contract",
+        "text": "A runnable PageIndex adapter must emit tree nodes, cited node paths, traversal output, source ids, and setup/runtime metadata before scoring."
+      }
+    ],
+    "must_not_include": [
+      "ELF Source Library long-document pass proves PageIndex parity.",
+      "ELF beats PageIndex on long-document tree retrieval."
+    ],
+    "evidence_links": {
+      "elf_source_outputs_present": [
+        "elf-source-library-long-doc-source-record",
+        "elf-source-library-long-doc-hydrated-excerpt"
+      ],
+      "pageindex_setup_blocked": ["pageindex-adapter-setup-blocker"],
+      "pageindex_artifact_contract": ["pageindex-required-materialized-output-contract"]
+    },
+    "answer_type": "typed_blocker",
+    "accepted_alternates": [],
+    "requires_caveat": true,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "elf-source-library-long-doc-source-record",
+      "claim_id": "elf_source_outputs_present",
+      "requirement": "cite",
+      "quote": "canonical_uri=https://example.com/research/agent-memory-os"
+    },
+    {
+      "evidence_id": "pageindex-adapter-setup-blocker",
+      "claim_id": "pageindex_setup_blocked",
+      "requirement": "cite",
+      "quote": "no emitted tree artifact mapping node paths"
+    },
+    {
+      "evidence_id": "pageindex-required-materialized-output-contract",
+      "claim_id": "pageindex_artifact_contract",
+      "requirement": "cite",
+      "quote": "tree_nodes.json or equivalent"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "pageindex-parity-without-run",
+      "type": "unsupported_claim",
+      "evidence_ids": ["pageindex-parity-decoy"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "uncertainty_handling": {
+        "weight": 0.35,
+        "max_points": 1.0,
+        "criteria": "Keeps PageIndex as blocked until contained tree artifacts exist."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Names the same-corpus ELF source ids and required PageIndex artifact ids."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Identifies the concrete PageIndex output needed for rerun."
+      },
+      "trap_avoidance": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Does not promote ELF long-document evidence into PageIndex parity."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about PageIndex parity",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "state_blocker"
+  },
+  "tags": [
+    "external_adapter",
+    "pageindex",
+    "source_library",
+    "long_document",
+    "typed_blocker",
+    "same_corpus"
+  ]
+}

@@ -1,0 +1,119 @@
+{
+  "schema": "elf.pageindex_openkb_same_corpus_adapter_report/v1",
+  "authority": "XY-1068",
+  "phase": "P3 PageIndex/OpenKB same-corpus adapter blocker",
+  "generated_at": "2026-06-22T00:00:00Z",
+  "report_markdown": "docs/evidence/benchmarking/2026-06-22-pageindex-openkb-same-corpus-adapter-report.md",
+  "command": {
+    "command": "cargo make real-world-memory-pageindex-openkb",
+    "status": "pass",
+    "artifact_json": "tmp/real-world-memory/pageindex-openkb/report.json",
+    "artifact_markdown": "tmp/real-world-memory/pageindex-openkb/report.md",
+    "proves": [
+      "pageindex_same_corpus_typed_setup_blocker",
+      "openkb_same_corpus_typed_setup_blocker",
+      "no_pageindex_openkb_parity_claim_without_materialized_outputs"
+    ]
+  },
+  "checked_in_artifacts": [
+    {
+      "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/pageindex_openkb/pageindex_long_document_tree_blocked.json",
+      "target": "VectifyAI PageIndex",
+      "status": "blocked"
+    },
+    {
+      "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/pageindex_openkb/openkb_wiki_recompile_blocked.json",
+      "target": "VectifyAI OpenKB",
+      "status": "blocked"
+    }
+  ],
+  "scored_status": {
+    "jobs": 2,
+    "pass": 0,
+    "wrong_result": 0,
+    "incomplete": 0,
+    "blocked": 2,
+    "not_encoded": 0,
+    "unsupported_claim": 0
+  },
+  "comparison_results": [
+    {
+      "target": "VectifyAI PageIndex",
+      "suite": "source_library",
+      "status": "blocked",
+      "evidence_class": "same_corpus_typed_setup_blocker",
+      "same_corpus_basis": "real-world-memory-source-library-2026-06-20",
+      "elf_materialized_outputs": [
+        {
+          "source_id": "article-source-record",
+          "fixture_evidence_id": "elf-source-library-long-doc-source-record",
+          "materialized_output": "ELF Source Library long-document source record with canonical URI, source kind, author, capture timestamp, and source_ref resolver."
+        },
+        {
+          "source_id": "article-hydrated-excerpt",
+          "fixture_evidence_id": "elf-source-library-long-doc-hydrated-excerpt",
+          "materialized_output": "ELF Source Library hydrated excerpt with verified=true, content hash, excerpt hash, and source_ref hydration pointer."
+        }
+      ],
+      "required_adapter_outputs": [
+        "tree_nodes.json or equivalent PageIndex tree artifact",
+        "cited node paths mapped to source ids article-source-record and article-hydrated-excerpt",
+        "long-document traversal output",
+        "PageIndex MCP readback",
+        "setup/runtime metadata"
+      ],
+      "blocker": "No contained PageIndex installation, MCP readback, or tree artifact is checked in for the same corpus."
+    },
+    {
+      "target": "VectifyAI OpenKB",
+      "suite": "knowledge_compilation",
+      "status": "blocked",
+      "evidence_class": "same_corpus_typed_setup_blocker",
+      "same_corpus_basis": "real-world-memory-knowledge-synthetic-2026-06-22",
+      "elf_materialized_outputs": [
+        {
+          "source_id": "project:elf-benchmark-suite",
+          "fixture_evidence_id": "elf-knowledge-project-page-output",
+          "materialized_output": "ELF Knowledge Workspace project page with source ids elf-knowledge-current-truth, elf-knowledge-history, and xy848-issue-timeline."
+        },
+        {
+          "source_id": "entity:qdrant-rebuild|concept:derived-knowledge-pages|issue:xy848-knowledge-pages",
+          "fixture_evidence_id": "elf-knowledge-entity-concept-output",
+          "materialized_output": "ELF Knowledge Workspace entity, concept, and issue pages with source ids qdrant-rebuild-entity, derived-pages-concept, and xy848-current-timeline."
+        },
+        {
+          "source_id": "project:knowledge-watch-rebuild",
+          "fixture_evidence_id": "elf-knowledge-watch-rebuild-output",
+          "materialized_output": "ELF changed-source watch/rebuild page with source ids watch-source-original, watch-source-updated, watch-lint-output, and watch-memory-candidate-proposal."
+        }
+      ],
+      "required_adapter_outputs": [
+        "OpenKB generated wiki page export",
+        "entity/concept index export",
+        "lint output",
+        "saved exploration state",
+        "watch/recompile trace mapped to same-corpus source ids",
+        "setup/runtime metadata"
+      ],
+      "blocker": "No contained OpenKB product run, wiki export, entity/concept index export, lint output, saved exploration state, or watch/recompile trace is checked in for the same corpus."
+    }
+  ],
+  "requirements_refinement": [
+    "Source Library comparison jobs must name source ids and source_ref hydration outputs before asking an external long-document tree adapter to score.",
+    "Knowledge Workspace comparison jobs must name generated page ids, source ids, lint/watch outputs, and recompile traces before asking an external wiki adapter to score.",
+    "Reference-only PageIndex/OpenKB rows may become typed blocked adapter jobs only when the blocker records the exact missing materialized outputs and preserves no-parity claim boundaries."
+  ],
+  "claim_boundaries": {
+    "allowed": [
+      "The PageIndex/OpenKB P3 fixture slice emits two same-corpus typed setup blockers.",
+      "The blockers identify the ELF materialized source-library and knowledge outputs plus the exact PageIndex/OpenKB outputs required for future scoring.",
+      "The repo now has a repeatable cargo-make task for the PageIndex/OpenKB blocker slice."
+    ],
+    "not_allowed": [
+      "Do not claim ELF beats PageIndex or OpenKB.",
+      "Do not claim PageIndex or OpenKB parity, win, tie, or loss.",
+      "Do not treat blocked PageIndex/OpenKB adapter jobs as weakness or strength evidence.",
+      "Do not claim PageIndex MCP or OpenKB product UI behavior was run."
+    ]
+  }
+}
