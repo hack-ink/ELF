@@ -7,7 +7,7 @@ use crate::acceptance::{self, SpyExtractor, StubEmbedding, StubRerank};
 use elf_domain::knowledge::KnowledgePageKind;
 use elf_service::{
 	AddNoteInput, AddNoteRequest, ElfService, KnowledgePageLintRequest,
-	KnowledgePageRebuildRequest, Providers,
+	KnowledgePageRebuildRequest, KnowledgePageRebuildResponse, Providers,
 };
 use elf_testkit::TestDatabase;
 
@@ -18,6 +18,67 @@ const AGENT_ID: &str = "agent_knowledge";
 struct KnowledgeFixture {
 	service: ElfService,
 	_test_db: TestDatabase,
+}
+
+#[derive(Clone, Copy)]
+struct KnowledgeSourceIds {
+	note_id: Uuid,
+	event_id: Uuid,
+	doc_id: Uuid,
+	chunk_id: Uuid,
+	fact_id: Uuid,
+	proposal_id: Uuid,
+}
+
+fn knowledge_foundation_request(ids: KnowledgeSourceIds) -> KnowledgePageRebuildRequest {
+	KnowledgePageRebuildRequest {
+		tenant_id: TENANT_ID.to_string(),
+		project_id: PROJECT_ID.to_string(),
+		agent_id: AGENT_ID.to_string(),
+		page_kind: KnowledgePageKind::Project,
+		page_key: "knowledge-foundation".to_string(),
+		title: Some("Knowledge Foundation".to_string()),
+		doc_ids: vec![ids.doc_id],
+		doc_chunk_ids: vec![ids.chunk_id],
+		note_ids: vec![ids.note_id],
+		event_ids: vec![ids.event_id],
+		relation_ids: vec![ids.fact_id],
+		proposal_ids: vec![ids.proposal_id],
+		provider_metadata: serde_json::json!({}),
+	}
+}
+
+fn assert_first_rebuild(first: &KnowledgePageRebuildResponse) {
+	assert_eq!(first.page.sections.len(), 6);
+	assert_eq!(first.page.source_refs.len(), 6);
+	assert!(first.page.sections.iter().all(|section| {
+		section.citations.as_array().is_some_and(|citations| !citations.is_empty())
+	}));
+	assert!(first.page.source_refs.iter().any(|source_ref| source_ref.source_kind == "doc"));
+	assert!(first.page.source_refs.iter().any(|source_ref| source_ref.source_kind == "doc_chunk"));
+	assert_eq!(first.page.page.source_coverage["coverage_complete"], true);
+	assert_eq!(first.page.page.rebuild_metadata["deterministic"], true);
+	assert_eq!(
+		first.page.page.rebuild_metadata["generated_by"]["runtime"],
+		"ElfService::knowledge_page_rebuild"
+	);
+	assert_eq!(
+		first.page.page.rebuild_metadata["memory_candidate_policy"]["direct_memory_ledger_mutation_allowed"],
+		false
+	);
+	assert_eq!(
+		first.page.page.rebuild_metadata["version_identity"]["schema"],
+		"elf.knowledge_page.version_identity/v1"
+	);
+	assert_eq!(
+		first
+			.page
+			.page
+			.previous_version_diff
+			.as_ref()
+			.expect("initial rebuild should expose no-previous diff")["available"],
+		false
+	);
 }
 
 async fn setup_service(test_name: &str) -> Option<KnowledgeFixture> {
@@ -118,6 +179,91 @@ VALUES ($1,$2,$3,$4,'agent_private','add_event','fact','knowledge_event',$5,'rem
 	.expect("event audit should be inserted");
 
 	decision_id
+}
+
+async fn insert_source_document(service: &ElfService) -> (Uuid, Uuid) {
+	let doc_id = Uuid::new_v4();
+	let chunk_id = Uuid::new_v4();
+	let content = "The Knowledge Workspace compiles Source Library spans into cited derived pages.";
+	let content_hash = blake3::hash(content.as_bytes()).to_hex().to_string();
+	let chunk_hash = blake3::hash(content.as_bytes()).to_hex().to_string();
+	let source_ref = serde_json::json!({
+		"schema": "doc_source_ref/v1",
+		"doc_type": "knowledge",
+		"uri": "docs://knowledge/workspace/source-span-fixture",
+		"source_record_id": doc_id,
+		"content_hash": content_hash,
+		"source_spans": [
+			{
+				"schema": "doc_source_span/v1",
+				"span_id": Uuid::new_v4(),
+				"chunk_id": chunk_id,
+				"status": "captured",
+				"start_offset": 0,
+				"end_offset": content.len(),
+				"content_hash": content_hash,
+				"chunk_hash": chunk_hash
+			}
+		]
+	});
+
+	sqlx::query(
+		"\
+INSERT INTO doc_documents (
+	doc_id,
+	tenant_id,
+	project_id,
+	agent_id,
+	scope,
+	doc_type,
+	status,
+	title,
+	source_ref,
+	content,
+	content_bytes,
+	content_hash,
+	created_at,
+	updated_at
+)
+VALUES ($1,$2,$3,$4,'project_shared','knowledge','active','Knowledge Workspace Source',$5,$6,$7,$8,$9,$9)",
+	)
+	.bind(doc_id)
+	.bind(TENANT_ID)
+	.bind(PROJECT_ID)
+	.bind(AGENT_ID)
+	.bind(source_ref)
+	.bind(content)
+	.bind(i32::try_from(content.len()).expect("fixture content length should fit i32"))
+	.bind(content_hash)
+	.bind(OffsetDateTime::UNIX_EPOCH)
+	.execute(&service.db.pool)
+	.await
+	.expect("source document should be inserted");
+	sqlx::query(
+		"\
+INSERT INTO doc_chunks (
+	chunk_id,
+	doc_id,
+	chunk_index,
+	start_offset,
+	end_offset,
+	chunk_text,
+	chunk_hash,
+	created_at
+)
+VALUES ($1,$2,0,0,$3,$4,$5,$6)",
+	)
+	.bind(chunk_id)
+	.bind(doc_id)
+	.bind(i32::try_from(content.len()).expect("fixture content length should fit i32"))
+	.bind(content)
+	.bind(chunk_hash)
+	.bind(OffsetDateTime::UNIX_EPOCH)
+	.execute(&service.db.pool)
+	.await
+	.expect("source document chunk should be inserted");
+
+	(doc_id, chunk_id)
 }
 
 async fn insert_relation(service: &ElfService, note_id: Uuid) -> Uuid {
@@ -291,6 +437,21 @@ VALUES ($1,$2,$3,$4,$5,'elf.consolidation/v1','knowledge_page','create_derived_k
 	proposal_id
 }
 
+async fn insert_rebuild_sources(service: &ElfService) -> KnowledgeSourceIds {
+	let note_id = insert_source_note(
+		service,
+		"knowledge_pages_foundation",
+		"Fact: Derived knowledge pages are rebuilt from authoritative source memory and keep citations.",
+	)
+	.await;
+	let event_id = insert_event_audit(service, note_id).await;
+	let (doc_id, chunk_id) = insert_source_document(service).await;
+	let fact_id = insert_relation(service, note_id).await;
+	let proposal_id = insert_applied_proposal(service, note_id).await;
+
+	KnowledgeSourceIds { note_id, event_id, doc_id, chunk_id, fact_id, proposal_id }
+}
+
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run this test."]
 async fn rebuilds_pages_with_citations_and_detects_stale_sources() {
@@ -300,63 +461,16 @@ async fn rebuilds_pages_with_citations_and_detects_stale_sources() {
 		return;
 	};
 	let service = &fixture.service;
-	let note_id = insert_source_note(
-		service,
-		"knowledge_pages_foundation",
-		"Fact: Derived knowledge pages are rebuilt from authoritative source memory and keep citations.",
-	)
-	.await;
-	let event_id = insert_event_audit(service, note_id).await;
-	let fact_id = insert_relation(service, note_id).await;
-	let proposal_id = insert_applied_proposal(service, note_id).await;
+	let source_ids = insert_rebuild_sources(service).await;
 	let first = service
-		.knowledge_page_rebuild(KnowledgePageRebuildRequest {
-			tenant_id: TENANT_ID.to_string(),
-			project_id: PROJECT_ID.to_string(),
-			agent_id: AGENT_ID.to_string(),
-			page_kind: KnowledgePageKind::Project,
-			page_key: "knowledge-foundation".to_string(),
-			title: Some("Knowledge Foundation".to_string()),
-			note_ids: vec![note_id],
-			event_ids: vec![event_id],
-			relation_ids: vec![fact_id],
-			proposal_ids: vec![proposal_id],
-			provider_metadata: serde_json::json!({}),
-		})
+		.knowledge_page_rebuild(knowledge_foundation_request(source_ids))
 		.await
 		.expect("knowledge page should rebuild");
 
-	assert_eq!(first.page.sections.len(), 4);
-	assert_eq!(first.page.source_refs.len(), 4);
-	assert!(first.page.sections.iter().all(|section| {
-		section.citations.as_array().is_some_and(|citations| !citations.is_empty())
-	}));
-	assert_eq!(first.page.page.source_coverage["coverage_complete"], true);
-	assert_eq!(first.page.page.rebuild_metadata["deterministic"], true);
-	assert_eq!(
-		first
-			.page
-			.page
-			.previous_version_diff
-			.as_ref()
-			.expect("initial rebuild should expose no-previous diff")["available"],
-		false
-	);
+	assert_first_rebuild(&first);
 
 	let second = service
-		.knowledge_page_rebuild(KnowledgePageRebuildRequest {
-			tenant_id: TENANT_ID.to_string(),
-			project_id: PROJECT_ID.to_string(),
-			agent_id: AGENT_ID.to_string(),
-			page_kind: KnowledgePageKind::Project,
-			page_key: "knowledge-foundation".to_string(),
-			title: Some("Knowledge Foundation".to_string()),
-			note_ids: vec![note_id],
-			event_ids: vec![event_id],
-			relation_ids: vec![fact_id],
-			proposal_ids: vec![proposal_id],
-			provider_metadata: serde_json::json!({}),
-		})
+		.knowledge_page_rebuild(knowledge_foundation_request(source_ids))
 		.await
 		.expect("knowledge page should rebuild deterministically");
 
@@ -384,7 +498,7 @@ WHERE note_id = $3",
 	)
 	.bind("Fact: Derived knowledge pages changed after the page snapshot was rebuilt.")
 	.bind(OffsetDateTime::now_utc())
-	.bind(note_id)
+	.bind(source_ids.note_id)
 	.execute(&service.db.pool)
 	.await
 	.expect("source note should update");
@@ -401,6 +515,6 @@ WHERE note_id = $3",
 	assert!(lint.findings.iter().any(|finding| {
 		finding.finding_type == "stale_source_ref"
 			&& finding.source_kind.as_deref() == Some("note")
-			&& finding.source_id == Some(note_id)
+			&& finding.source_id == Some(source_ids.note_id)
 	}));
 }

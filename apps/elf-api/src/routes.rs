@@ -431,6 +431,10 @@ struct KnowledgePageRebuildBody {
 	page_key: String,
 	title: Option<String>,
 	#[serde(default)]
+	doc_ids: Vec<Uuid>,
+	#[serde(default)]
+	doc_chunk_ids: Vec<Uuid>,
+	#[serde(default)]
 	note_ids: Vec<Uuid>,
 	#[serde(default)]
 	event_ids: Vec<Uuid>,
@@ -3286,6 +3290,8 @@ async fn knowledge_page_rebuild(
 			page_kind: payload.page_kind,
 			page_key: payload.page_key,
 			title: payload.title,
+			doc_ids: payload.doc_ids,
+			doc_chunk_ids: payload.doc_chunk_ids,
 			note_ids: payload.note_ids,
 			event_ids: payload.event_ids,
 			relation_ids: payload.relation_ids,
@@ -4045,7 +4051,7 @@ mod tests {
 		assert!(html.contains("Providers And Ranking"));
 		assert!(html.contains("Relation Context"));
 		assert!(html.contains("Knowledge Page Snippets"));
-		assert!(html.contains("Derived page: source notes"));
+		assert!(html.contains("Derived page: source documents"));
 		assert!(html.contains("directTraceId"));
 		assert!(html.contains("trace_id"));
 		assert!(html.contains("loadInitialTrace"));
