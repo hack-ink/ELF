@@ -34,6 +34,7 @@
 # | real-world-memory-p4-production-readiness  | composite |     |
 # | real-world-memory-p4-production-readiness-json | command |     |
 # | real-world-memory-p4-production-readiness-report | command |     |
+# | real-world-memory-p4-quality-hardening-closeout | composite |     |
 # | real-world-memory-p2-knowledge-closeout    | composite |     |
 # | real-world-memory-core-archival            | composite |     |
 # | real-world-memory-core-archival-json       | command   |     |
@@ -479,6 +480,14 @@ args = [
 	"tmp/real-world-memory/p4-production-readiness/report.json",
 	"--out",
 	"tmp/real-world-memory/p4-production-readiness/report.md",
+]
+
+[tasks.real-world-memory-p4-quality-hardening-closeout]
+workspace = false
+dependencies = [
+	"real-world-memory-adversarial-quality-report",
+	"real-world-memory-p2-knowledge-closeout",
+	"real-world-memory-p4-production-readiness-report",
 ]
 
 [tasks.real-world-memory-p2-knowledge-closeout]
