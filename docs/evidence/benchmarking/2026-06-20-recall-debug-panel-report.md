@@ -6,7 +6,7 @@ resource: docs/evidence/benchmarking/2026-06-20-recall-debug-panel-report.md
 status: active
 authority: current_state
 owner: evidence
-last_verified: 2026-06-20
+last_verified: 2026-06-22
 tags:
   - docs
   - evidence
@@ -31,6 +31,11 @@ reviewable across the main Agent Knowledge OS layers. This is a product/debug su
 over existing authority layers, not a new mutating worker and not a replacement for
 the underlying trace, docs, graph, knowledge, or proposal APIs.
 
+The agent-facing endpoint is `POST /v2/recall-debug/panel`. The local admin endpoint
+`POST /v2/admin/recall-debug/panel` remains an operator mirror over the same service
+read model. Responses include `elf.recall_trace/v1`, a compact deterministic
+projection for selected, dropped, stale, blocked, and not-requested context.
+
 ## Layer Coverage
 
 | Layer | Anchor | Selection states | Replay/readback |
@@ -45,6 +50,11 @@ Each row exposes item refs, authority layer, freshness state, source refs or sou
 snapshots, score/rank when available, stage reason, evidence class, replay command,
 and layer-specific debug artifacts.
 
+The embedded `elf.recall_trace/v1` projection flattens these rows into stable
+layer/row order for fixture and report assertions. It carries `context_state`,
+`selection_state`, freshness, source refs, score/rank, policy reason, replay command,
+and evidence class without requiring raw database inspection.
+
 The panel-level `limit` is a per-layer request cap, but the Source Library layer
 inherits the docs-search effective cap of 32 rows and reports requested/effective
 limits in document row debug artifacts.
@@ -53,6 +63,7 @@ limits in document row debug artifacts.
 
 | Command | Status | Purpose |
 | --- | --- | --- |
+| `cargo test -p elf-service recall_trace --lib` | pass | Unit-check deterministic `recall_trace` stale, dropped, blocked, and not-requested projection. |
 | `cargo test -p elf-service recall_debug -- --nocapture` | pass | Unit-check panel summary counters and `not_requested` layer behavior. |
 | `cargo test -p elf-mcp registers_all_tools -- --nocapture` | pass | Guard MCP tool registration for `elf_recall_debug_panel`. |
 | `cargo test -p elf-eval --test real_world_job_benchmark recall_debug_panel_report_wires_cross_layer_debug_contract -- --nocapture` | pass | Guard service, API, MCP, docs, README, and snapshot coverage for XY-1022. |
@@ -66,6 +77,8 @@ Allowed:
   through trace bundles when candidate capture/retention preserved them.
 - Source documents, knowledge pages, graph facts, and Dreaming proposals can be
   inspected from one panel response when their anchors are supplied.
+- The agent-facing panel response includes a deterministic `elf.recall_trace/v1`
+  projection for selected, dropped, stale, blocked, and not-requested context.
 - Missing anchors stay visible as `not_requested` layers instead of hidden pass
   claims.
 - Requested layer readback failures stay visible as `blocked` layers instead of
