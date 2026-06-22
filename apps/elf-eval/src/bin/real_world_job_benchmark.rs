@@ -21,6 +21,7 @@ const REPORT_SCHEMA: &str = "elf.real_world_job_report/v1";
 const EXTERNAL_ADAPTER_MANIFEST_SCHEMA: &str = "elf.real_world_external_adapter_manifest/v1";
 const EXTERNAL_ADAPTER_REPORT_SCHEMA: &str = "elf.real_world_external_adapter_report/v1";
 const SCOREBOARD_SCHEMA: &str = "elf.quality_scoreboard/v1";
+const OPERATIONAL_EVIDENCE_SCHEMA: &str = "elf.operational_evidence_gates/v1";
 const DEFAULT_FIXTURE_PATH: &str = "apps/elf-eval/fixtures/real_world_memory/work_resume";
 const DEFAULT_REPORT_PATH: &str = "tmp/real-world-job/real-world-job-smoke-report.json";
 const DEFAULT_MARKDOWN_PATH: &str = "tmp/real-world-job/real-world-job-smoke-report.md";
@@ -74,6 +75,8 @@ const SCOREBOARD_RESULT_STATES: &[&str] = &[
 ];
 const SCOREBOARD_EVIDENCE_CLASSES: &[&str] =
 	&["fixture_backed", "live_baseline", "live_real_world", "research_gate"];
+const OPERATIONAL_EVIDENCE_TIERS: &[&str] =
+	&["local_fixture", "public_proxy", "private_corpus", "provider_backed"];
 
 #[derive(Debug, Parser)]
 #[command(
@@ -831,6 +834,8 @@ struct RealWorldReport {
 	#[serde(default)]
 	scoreboard: ScoreboardReport,
 	#[serde(default)]
+	operational_evidence: OperationalEvidenceReport,
+	#[serde(default)]
 	external_adapters: ExternalAdapterSection,
 	capture_integration: CaptureIntegrationReport,
 	summary: ReportSummary,
@@ -861,6 +866,84 @@ struct ScoreboardReport {
 	summary_claim: String,
 	unqualified_win_claim_allowed: bool,
 	claim_boundary: String,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct OperationalEvidenceReport {
+	schema: String,
+	#[serde(default)]
+	tiers: Vec<OperationalEvidenceTierReport>,
+	latency: OperationalLatencyReport,
+	cost: OperationalCostSummary,
+	resource: OperationalResourceSummary,
+	cold_start_restore_rebuild: OperationalColdStartRestoreRebuild,
+	missing_private_provider_inputs_are_typed_blockers: bool,
+	private_corpus_pass_claim_allowed: bool,
+	provider_backed_pass_claim_allowed: bool,
+	claim_boundary: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct OperationalEvidenceTierReport {
+	tier: String,
+	status: TypedStatus,
+	job_count: usize,
+	pass: usize,
+	wrong_result: usize,
+	lifecycle_fail: usize,
+	incomplete: usize,
+	blocked: usize,
+	not_encoded: usize,
+	unsupported_claim: usize,
+	mean_latency_ms: Option<f64>,
+	total_cost: Option<CostReport>,
+	resource_evidence_count: usize,
+	cold_start_evidence_count: usize,
+	restore_evidence_count: usize,
+	qdrant_rebuild_evidence_count: usize,
+	pass_claim_allowed: bool,
+	#[serde(default)]
+	blocker_reasons: Vec<String>,
+	#[serde(default)]
+	job_ids: Vec<String>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct OperationalLatencyReport {
+	measured_job_count: usize,
+	missing_latency_job_count: usize,
+	mean_ms: Option<f64>,
+	max_ms: Option<f64>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct OperationalCostSummary {
+	jobs_with_cost_report: usize,
+	missing_cost_job_count: usize,
+	zero_cost_job_count: usize,
+	total: Option<CostReport>,
+	claim_boundary: String,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct OperationalResourceSummary {
+	resource_envelope_job_count: usize,
+	resource_envelope_pass_count: usize,
+	latency_resource_dimension_job_count: usize,
+	#[serde(default)]
+	job_ids: Vec<String>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct OperationalColdStartRestoreRebuild {
+	cold_start_job_count: usize,
+	cold_start_pass_count: usize,
+	restore_job_count: usize,
+	restore_pass_count: usize,
+	qdrant_rebuild_job_count: usize,
+	qdrant_rebuild_pass_count: usize,
+	#[serde(default)]
+	job_ids: Vec<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -1348,6 +1431,7 @@ struct JobReport {
 	job_id: String,
 	title: String,
 	status: TypedStatus,
+	operational_evidence_tier: String,
 	answer_type: String,
 	requires_caveat: bool,
 	requires_refusal: bool,
@@ -3206,6 +3290,7 @@ fn build_report(jobs: &[RealWorldJob], args: &RunArgs) -> Result<RealWorldReport
 		args.skip_external_adapter_manifest,
 	)?;
 	let scoreboard = scoreboard_report(&job_reports, &external_adapters);
+	let operational_evidence = operational_evidence_report(jobs, &job_reports);
 
 	Ok(RealWorldReport {
 		schema: REPORT_SCHEMA.to_string(),
@@ -3215,6 +3300,7 @@ fn build_report(jobs: &[RealWorldJob], args: &RunArgs) -> Result<RealWorldReport
 		corpus_profile: corpus_profile(jobs),
 		adapter: adapter_report(args)?,
 		scoreboard,
+		operational_evidence,
 		external_adapters,
 		capture_integration: capture_integration_report(jobs),
 		summary,
@@ -4904,6 +4990,7 @@ fn job_report(job: &RealWorldJob, scoring: JobScoring) -> JobReport {
 		job_id: job.job_id.clone(),
 		title: job.title.clone(),
 		status: scoring.status,
+		operational_evidence_tier: operational_evidence_tier(job).to_string(),
 		answer_type: job.expected_answer.answer_type.clone(),
 		requires_caveat: job.expected_answer.requires_caveat,
 		requires_refusal: job.expected_answer.requires_refusal,
@@ -5609,6 +5696,220 @@ fn scoreboard_summary_claim(jobs: &[JobReport], typed_non_pass_count: usize) -> 
 	}
 }
 
+fn operational_evidence_report(
+	jobs: &[RealWorldJob],
+	reports: &[JobReport],
+) -> OperationalEvidenceReport {
+	let paired = jobs.iter().zip(reports.iter()).collect::<Vec<_>>();
+	let tiers = OPERATIONAL_EVIDENCE_TIERS
+		.iter()
+		.map(|tier| operational_evidence_tier_report(tier, paired.as_slice()))
+		.collect::<Vec<_>>();
+	let private_tier = tiers.iter().find(|tier| tier.tier == "private_corpus");
+	let provider_tier = tiers.iter().find(|tier| tier.tier == "provider_backed");
+	let private_corpus_pass_claim_allowed =
+		private_tier.is_some_and(|tier| tier.pass_claim_allowed);
+	let provider_backed_pass_claim_allowed =
+		provider_tier.is_some_and(|tier| tier.pass_claim_allowed);
+	let missing_private_provider_inputs_are_typed_blockers = private_tier
+		.is_some_and(operational_tier_has_typed_blocker)
+		&& provider_tier.is_some_and(operational_tier_has_typed_blocker);
+
+	OperationalEvidenceReport {
+		schema: OPERATIONAL_EVIDENCE_SCHEMA.to_string(),
+		tiers,
+		latency: operational_latency_report(reports),
+		cost: operational_cost_summary(reports),
+		resource: operational_resource_summary(paired.as_slice()),
+		cold_start_restore_rebuild: operational_cold_start_restore_rebuild(paired.as_slice()),
+		missing_private_provider_inputs_are_typed_blockers,
+		private_corpus_pass_claim_allowed,
+		provider_backed_pass_claim_allowed,
+		claim_boundary: "Operational evidence tiers are separate: local fixture and public-proxy passes do not prove private-corpus or provider-backed production quality.".to_string(),
+	}
+}
+
+fn operational_evidence_tier_report(
+	tier: &str,
+	paired: &[(&RealWorldJob, &JobReport)],
+) -> OperationalEvidenceTierReport {
+	let tier_jobs = paired
+		.iter()
+		.filter(|(job, _)| operational_evidence_tier(job) == tier)
+		.copied()
+		.collect::<Vec<_>>();
+	let reports = tier_jobs.iter().map(|(_, report)| *report).collect::<Vec<_>>();
+	let status = if reports.is_empty() {
+		TypedStatus::NotEncoded
+	} else {
+		aggregate_status(reports.as_slice())
+	};
+	let job_count = reports.len();
+	let pass = reports.iter().filter(|report| report.status == TypedStatus::Pass).count();
+	let wrong_result =
+		reports.iter().filter(|report| report.status == TypedStatus::WrongResult).count();
+	let lifecycle_fail =
+		reports.iter().filter(|report| report.status == TypedStatus::LifecycleFail).count();
+	let incomplete =
+		reports.iter().filter(|report| report.status == TypedStatus::Incomplete).count();
+	let blocked = reports.iter().filter(|report| report.status == TypedStatus::Blocked).count();
+	let not_encoded = usize::from(reports.is_empty())
+		+ reports.iter().filter(|report| report.status == TypedStatus::NotEncoded).count();
+	let unsupported_claim =
+		reports.iter().filter(|report| report.status == TypedStatus::UnsupportedClaim).count();
+
+	OperationalEvidenceTierReport {
+		tier: tier.to_string(),
+		status,
+		job_count,
+		pass,
+		wrong_result,
+		lifecycle_fail,
+		incomplete,
+		blocked,
+		not_encoded,
+		unsupported_claim,
+		mean_latency_ms: mean_latency_for_reports(reports.as_slice()),
+		total_cost: total_cost_for_reports(reports.as_slice()),
+		resource_evidence_count: tier_jobs
+			.iter()
+			.filter(|(job, _)| job_has_tag(job, "resource_envelope"))
+			.count(),
+		cold_start_evidence_count: tier_jobs
+			.iter()
+			.filter(|(job, _)| job_has_tag(job, "cold_start"))
+			.count(),
+		restore_evidence_count: tier_jobs
+			.iter()
+			.filter(|(job, _)| job_has_tag(job, "restore"))
+			.count(),
+		qdrant_rebuild_evidence_count: tier_jobs
+			.iter()
+			.filter(|(job, report)| {
+				job_has_tag(job, "qdrant_rebuild") || report.qdrant_rebuild_case
+			})
+			.count(),
+		pass_claim_allowed: job_count > 0 && status == TypedStatus::Pass,
+		blocker_reasons: reports
+			.iter()
+			.filter(|report| report.status != TypedStatus::Pass)
+			.map(|report| report.reason.clone())
+			.collect(),
+		job_ids: reports.iter().map(|report| report.job_id.clone()).collect(),
+	}
+}
+
+fn operational_tier_has_typed_blocker(tier: &OperationalEvidenceTierReport) -> bool {
+	tier.blocked + tier.incomplete + tier.not_encoded > 0 && !tier.pass_claim_allowed
+}
+
+fn operational_latency_report(reports: &[JobReport]) -> OperationalLatencyReport {
+	let latencies = reports.iter().filter_map(|report| report.latency_ms).collect::<Vec<_>>();
+
+	OperationalLatencyReport {
+		measured_job_count: latencies.len(),
+		missing_latency_job_count: reports.len().saturating_sub(latencies.len()),
+		mean_ms: mean_latency_for_values(latencies.as_slice()),
+		max_ms: latencies.iter().copied().reduce(f64::max).map(round3),
+	}
+}
+
+fn operational_cost_summary(reports: &[JobReport]) -> OperationalCostSummary {
+	let costs = reports.iter().filter_map(|report| report.cost.as_ref()).collect::<Vec<_>>();
+	let zero_cost_job_count =
+		costs.iter().filter(|cost| cost.amount.is_some_and(|amount| amount == 0.0)).count();
+
+	OperationalCostSummary {
+		jobs_with_cost_report: costs.len(),
+		missing_cost_job_count: reports.len().saturating_sub(costs.len()),
+		zero_cost_job_count,
+		total: total_cost(reports),
+		claim_boundary: "Fixture and local-provider zero-cost reports are execution-accounting evidence only; they do not prove hosted provider spend.".to_string(),
+	}
+}
+
+fn operational_resource_summary(
+	paired: &[(&RealWorldJob, &JobReport)],
+) -> OperationalResourceSummary {
+	let resource_jobs =
+		paired.iter().filter(|(job, _)| job_has_tag(job, "resource_envelope")).collect::<Vec<_>>();
+	let latency_resource_dimension_job_count = paired
+		.iter()
+		.filter(|(_, report)| {
+			report.dimension_scores.iter().any(|score| score.dimension == "latency_resource")
+		})
+		.count();
+
+	OperationalResourceSummary {
+		resource_envelope_job_count: resource_jobs.len(),
+		resource_envelope_pass_count: resource_jobs
+			.iter()
+			.filter(|(_, report)| report.status == TypedStatus::Pass)
+			.count(),
+		latency_resource_dimension_job_count,
+		job_ids: resource_jobs.iter().map(|(_, report)| report.job_id.clone()).collect(),
+	}
+}
+
+fn operational_cold_start_restore_rebuild(
+	paired: &[(&RealWorldJob, &JobReport)],
+) -> OperationalColdStartRestoreRebuild {
+	let cold_start_jobs =
+		paired.iter().filter(|(job, _)| job_has_tag(job, "cold_start")).collect::<Vec<_>>();
+	let restore_jobs =
+		paired.iter().filter(|(job, _)| job_has_tag(job, "restore")).collect::<Vec<_>>();
+	let qdrant_rebuild_jobs = paired
+		.iter()
+		.filter(|(job, report)| job_has_tag(job, "qdrant_rebuild") || report.qdrant_rebuild_case)
+		.collect::<Vec<_>>();
+	let mut job_ids = cold_start_jobs
+		.iter()
+		.chain(restore_jobs.iter())
+		.chain(qdrant_rebuild_jobs.iter())
+		.map(|(_, report)| report.job_id.clone())
+		.collect::<BTreeSet<_>>()
+		.into_iter()
+		.collect::<Vec<_>>();
+
+	job_ids.sort();
+	OperationalColdStartRestoreRebuild {
+		cold_start_job_count: cold_start_jobs.len(),
+		cold_start_pass_count: cold_start_jobs
+			.iter()
+			.filter(|(_, report)| report.status == TypedStatus::Pass)
+			.count(),
+		restore_job_count: restore_jobs.len(),
+		restore_pass_count: restore_jobs
+			.iter()
+			.filter(|(_, report)| report.status == TypedStatus::Pass)
+			.count(),
+		qdrant_rebuild_job_count: qdrant_rebuild_jobs.len(),
+		qdrant_rebuild_pass_count: qdrant_rebuild_jobs
+			.iter()
+			.filter(|(_, report)| report.status == TypedStatus::Pass)
+			.count(),
+		job_ids,
+	}
+}
+
+fn operational_evidence_tier(job: &RealWorldJob) -> &'static str {
+	if job_has_tag(job, "provider_backed") {
+		"provider_backed"
+	} else if job_has_tag(job, "private_corpus")
+		|| matches!(job.corpus.profile, CorpusProfile::PrivateSanitized)
+	{
+		"private_corpus"
+	} else if job_has_tag(job, "public_proxy") {
+		"public_proxy"
+	} else {
+		"local_fixture"
+	}
+}
+
+fn job_has_tag(job: &RealWorldJob, tag: &str) -> bool {
+	job.tags.iter().any(|candidate| candidate == tag)
+}
+
 fn evolution_summary(jobs: &[JobReport]) -> EvolutionSummary {
 	EvolutionSummary {
 		stale_answer_count: jobs.iter().map(|job| job.stale_answer_count).sum(),
@@ -6062,16 +6363,36 @@ fn mean_score(jobs: &[JobReport]) -> f64 {
 fn mean_latency(jobs: &[JobReport]) -> Option<f64> {
 	let latencies = jobs.iter().filter_map(|job| job.latency_ms).collect::<Vec<_>>();
 
-	if latencies.is_empty() {
-		return None;
-	}
+	mean_latency_for_values(latencies.as_slice())
+}
 
-	Some(round3(latencies.iter().sum::<f64>() / latencies.len() as f64))
+fn mean_latency_for_reports(jobs: &[&JobReport]) -> Option<f64> {
+	let latencies = jobs.iter().filter_map(|job| job.latency_ms).collect::<Vec<_>>();
+
+	mean_latency_for_values(latencies.as_slice())
+}
+
+fn mean_latency_for_values(latencies: &[f64]) -> Option<f64> {
+	if latencies.is_empty() {
+		None
+	} else {
+		Some(round3(latencies.iter().sum::<f64>() / latencies.len() as f64))
+	}
 }
 
 fn total_cost(jobs: &[JobReport]) -> Option<CostReport> {
 	let costs = jobs.iter().filter_map(|job| job.cost.as_ref()).collect::<Vec<_>>();
 
+	total_cost_for_values(costs.as_slice())
+}
+
+fn total_cost_for_reports(jobs: &[&JobReport]) -> Option<CostReport> {
+	let costs = jobs.iter().filter_map(|job| job.cost.as_ref()).collect::<Vec<_>>();
+
+	total_cost_for_values(costs.as_slice())
+}
+
+fn total_cost_for_values(costs: &[&CostReport]) -> Option<CostReport> {
 	if costs.is_empty() {
 		return None;
 	}
@@ -6700,6 +7021,7 @@ fn render_markdown(report: &RealWorldReport, report_path: &Path) -> String {
 
 	render_markdown_header(&mut out, report, report_path.as_str());
 	render_markdown_scoreboard(&mut out, report);
+	render_markdown_operational_evidence(&mut out, report);
 	render_markdown_external_adapters(&mut out, report);
 	render_markdown_capture_integration(&mut out, report);
 	render_markdown_suites(&mut out, report);
@@ -6773,6 +7095,99 @@ fn render_markdown_scoreboard(out: &mut String, report: &RealWorldReport) {
 		"- Claim boundary: {}\n\n",
 		md_cell(report.scoreboard.claim_boundary.as_str())
 	));
+}
+
+fn render_markdown_operational_evidence(out: &mut String, report: &RealWorldReport) {
+	let evidence = &report.operational_evidence;
+
+	if evidence.schema.is_empty() {
+		return;
+	}
+
+	out.push_str("## Operational Evidence Gates\n\n");
+	out.push_str("This section separates operational evidence tiers so local fixture or public-proxy passes do not become private-corpus or provider-backed proof.\n\n");
+	out.push_str(&format!("- Schema: `{}`\n", md_inline(evidence.schema.as_str())));
+	out.push_str(&format!("- Claim boundary: {}\n", md_cell(evidence.claim_boundary.as_str())));
+	out.push_str(&format!(
+		"- Missing private/provider inputs are typed blockers: `{}`\n",
+		evidence.missing_private_provider_inputs_are_typed_blockers
+	));
+	out.push_str(&format!(
+		"- Private-corpus pass claim allowed: `{}`\n",
+		evidence.private_corpus_pass_claim_allowed
+	));
+	out.push_str(&format!(
+		"- Provider-backed pass claim allowed: `{}`\n",
+		evidence.provider_backed_pass_claim_allowed
+	));
+	out.push_str(&format!(
+		"- Latency: `{}` measured job(s), `{}` missing, mean `{}`, max `{}`\n",
+		evidence.latency.measured_job_count,
+		evidence.latency.missing_latency_job_count,
+		optional_f64(evidence.latency.mean_ms, " ms"),
+		optional_f64(evidence.latency.max_ms, " ms")
+	));
+	out.push_str(&format!(
+		"- Cost: `{}` job(s) reported cost, `{}` missing, `{}` zero-cost; total `{}`\n",
+		evidence.cost.jobs_with_cost_report,
+		evidence.cost.missing_cost_job_count,
+		evidence.cost.zero_cost_job_count,
+		cost_display(evidence.cost.total.as_ref())
+	));
+	out.push_str(&format!("- Cost boundary: {}\n", md_cell(evidence.cost.claim_boundary.as_str())));
+	out.push_str(&format!(
+		"- Resource envelope jobs: `{}` total, `{}` pass; latency/resource dimensions `{}`\n",
+		evidence.resource.resource_envelope_job_count,
+		evidence.resource.resource_envelope_pass_count,
+		evidence.resource.latency_resource_dimension_job_count
+	));
+	out.push_str(&format!(
+		"- Cold-start/restore/rebuild: cold-start `{}`/`{}` pass, restore `{}`/`{}` pass, Qdrant rebuild `{}`/`{}` pass\n\n",
+		evidence.cold_start_restore_rebuild.cold_start_pass_count,
+		evidence.cold_start_restore_rebuild.cold_start_job_count,
+		evidence.cold_start_restore_rebuild.restore_pass_count,
+		evidence.cold_start_restore_rebuild.restore_job_count,
+		evidence.cold_start_restore_rebuild.qdrant_rebuild_pass_count,
+		evidence.cold_start_restore_rebuild.qdrant_rebuild_job_count
+	));
+	out.push_str("| Evidence Tier | Status | Jobs | Pass | Blocked | Incomplete | Not Encoded | Mean Latency | Cost | Resource | Cold Start | Restore | Qdrant Rebuild | Pass Claim |\n");
+	out.push_str("| --- | --- | ---: | ---: | ---: | ---: | ---: | --- | --- | ---: | ---: | ---: | ---: | --- |\n");
+
+	for tier in &evidence.tiers {
+		out.push_str(&format!(
+			"| `{}` | `{}` | {} | {} | {} | {} | {} | `{}` | `{}` | {} | {} | {} | {} | `{}` |\n",
+			md_inline(tier.tier.as_str()),
+			status_str(tier.status),
+			tier.job_count,
+			tier.pass,
+			tier.blocked,
+			tier.incomplete,
+			tier.not_encoded,
+			optional_f64(tier.mean_latency_ms, " ms"),
+			cost_display(tier.total_cost.as_ref()),
+			tier.resource_evidence_count,
+			tier.cold_start_evidence_count,
+			tier.restore_evidence_count,
+			tier.qdrant_rebuild_evidence_count,
+			tier.pass_claim_allowed
+		));
+	}
+
+	if evidence.tiers.iter().any(|tier| !tier.blocker_reasons.is_empty()) {
+		out.push_str("\nTyped blocker reasons:\n");
+
+		for tier in &evidence.tiers {
+			for reason in &tier.blocker_reasons {
+				out.push_str(&format!(
+					"- `{}`: {}\n",
+					md_inline(tier.tier.as_str()),
+					md_cell(reason)
+				));
+			}
+		}
+	}
+
+	out.push('\n');
 }
 
 fn render_markdown_capture_integration(out: &mut String, report: &RealWorldReport) {
