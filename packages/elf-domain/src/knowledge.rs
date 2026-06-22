@@ -10,6 +10,8 @@ pub const KNOWLEDGE_PAGE_REBUILD_SCHEMA_V1: &str = "elf.knowledge_page.rebuild/v
 pub const KNOWLEDGE_PAGE_SOURCE_COVERAGE_SCHEMA_V1: &str = "elf.knowledge_page.source_coverage/v1";
 /// Current previous-version diff metadata schema identifier.
 pub const KNOWLEDGE_PAGE_VERSION_DIFF_SCHEMA_V1: &str = "elf.knowledge_page.version_diff/v1";
+/// Current changed-source watch/rebuild response schema identifier.
+pub const KNOWLEDGE_PAGE_WATCH_REBUILD_SCHEMA_V1: &str = "elf.knowledge_page.watch_rebuild/v1";
 
 /// Derived knowledge page category.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]

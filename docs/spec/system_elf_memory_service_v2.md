@@ -1182,6 +1182,7 @@ Behavior:
 
 Admin derived knowledge pages:
 - POST /v2/admin/knowledge/pages/rebuild
+- POST /v2/admin/knowledge/pages/rebuild-changed-sources
 - GET /v2/admin/knowledge/pages
 - POST /v2/admin/knowledge/pages/search
 - GET /v2/admin/knowledge/pages/{page_id}
@@ -1192,6 +1193,11 @@ Behavior:
   lint for derived knowledge pages. The search endpoint exposes derived page section
   snippets with visible citations, source coverage, lint summary, trust state, and
   repair/rebuild guidance.
+- The changed-source rebuild endpoint accepts changed source refs, finds only pages
+  already citing those refs, lints before rebuilding, returns changed/unchanged/stale/
+  blocked page and section states, emits stale-section, changed-claim,
+  missing-citation, and conflict outputs, and may queue reviewable memory candidates
+  through consolidation proposals.
 - Page payloads must follow `elf.knowledge_page/v1`, preserve section citations, and
   write normalized source refs for lint.
 - Pages are derived and rebuildable; rebuilding or linting a page must not mutate

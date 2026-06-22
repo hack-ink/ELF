@@ -12,6 +12,7 @@ tags:
   - spec
 source_refs: []
 code_refs:
+  - apps/elf-api/src/routes.rs
   - packages/elf-domain/src/knowledge.rs
   - packages/elf-service/src/knowledge.rs
   - packages/elf-storage/src/knowledge.rs
@@ -20,6 +21,7 @@ code_refs:
 related: []
 drift_watch:
   - docs/spec/system_knowledge_pages_v1.md
+  - apps/elf-api/src/routes.rs
   - packages/elf-domain/src/knowledge.rs
   - packages/elf-service/src/knowledge.rs
   - packages/elf-storage/src/knowledge.rs
@@ -150,6 +152,42 @@ When future provider-backed or LLM-derived page text is persisted,
 `rebuild_metadata.deterministic` must be false unless the provider output is fully
 replayable from recorded metadata.
 
+## Changed-Source Watch/Rebuild Contract
+
+The changed-source watch/rebuild path exposes the deterministic operational loop for
+source changes. Its response schema is `elf.knowledge_page.watch_rebuild/v1`.
+
+Input:
+
+- `changed_sources`: non-empty list of source refs with `source_kind` and `source_id`.
+- `page_kind`: optional page-kind filter.
+- `limit`: optional affected-page limit.
+- `generate_memory_candidates`: optional boolean, default `true`.
+
+Behavior:
+
+- The service must look up only knowledge pages that already cite one of the supplied
+  changed source refs. It must not rebuild unrelated pages.
+- For each affected page, the service must lint the currently stored page first, then
+  rebuild from that page's stored normalized source refs and current authoritative
+  source rows.
+- A page that cannot resolve all stored sources or cannot rebuild must be returned as
+  `blocked` with an operator-readable reason. Other page states are `changed`,
+  `unchanged`, or `stale`.
+- Per-section output must classify `changed`, `unchanged`, `stale`, or `blocked`
+  sections. Classified outputs must include:
+  - `stale_section` for stale or missing stored source snapshots.
+  - `changed_claim` for sections whose derived content changed after rebuild.
+  - `missing_citation` for citation or normalized backlink gaps.
+  - `conflict` when a stale stored section also changes after current-source rebuild.
+- Responses must include operator-readable summary lines with affected, changed,
+  unchanged, stale, blocked, and memory-candidate counts.
+
+The watch/rebuild path is a derived-artifact operation. It may update
+`knowledge_pages`, `knowledge_page_sections`, `knowledge_page_source_refs`, and
+`knowledge_page_lint_findings` for affected pages only. It must not mutate
+authoritative source notes, docs, events, graph facts, traces, or source pointers.
+
 ## Lint Contract
 
 The v1 lint path compares stored normalized source refs with current source rows.
@@ -193,6 +231,13 @@ When a page section becomes candidate memory, the candidate must be represented 
 proposal follows the Memory Promotion Apply Contract in
 `system_consolidation_proposals_v1.md`.
 
+Changed-source watch/rebuild may generate `MemoryCandidate` proposal payloads from
+`changed_claim` or `conflict` knowledge deltas. These candidates must carry source
+refs, source snapshots, a reason, a reviewable diff, and a proposed memory payload.
+The service must route them through a queued consolidation run on the
+`consolidation_proposals` review surface; it must not directly write the memory
+ledger.
+
 ## Search and Viewer Readback
 
 Knowledge page search is a derived-artifact readback surface, not the authoritative
@@ -223,6 +268,7 @@ authoritative memory notes.
 Minimal admin readback endpoints:
 
 - `POST /v2/admin/knowledge/pages/rebuild`
+- `POST /v2/admin/knowledge/pages/rebuild-changed-sources`
 - `GET /v2/admin/knowledge/pages`
 - `POST /v2/admin/knowledge/pages/search`
 - `GET /v2/admin/knowledge/pages/{page_id}`
