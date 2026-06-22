@@ -574,6 +574,15 @@ async fn docs_put_applies_write_policy_and_excerpt_by_chunk_id_is_verified() {
 	assert!(!excerpt.excerpt.is_empty());
 	assert!(!excerpt.excerpt.contains(secret));
 	assert!(!excerpt.locator.span_id.is_nil());
+
+	let captured_chunk_span = put
+		.source_capture
+		.source_spans
+		.iter()
+		.find(|span| span.chunk_id == Some(chunk_id))
+		.expect("Expected captured source span for hydrated chunk.");
+
+	assert_eq!(excerpt.locator.span_id, captured_chunk_span.span_id);
 	assert_eq!(excerpt.verification.content_hash, put.content_hash);
 	assert!(put.write_policy_audit.is_some());
 	assert_eq!(put.source_capture.policy_spans.len(), 1);
