@@ -1,0 +1,276 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "p1-closeout-correction-persistence-rollback-001",
+  "suite": "memory_evolution",
+  "title": "Persist a correction and rollback an overbroad P2-ready memory",
+  "corpus": {
+    "corpus_id": "real-world-memory-p1-closeout-2026-06-22",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "p1-incorrect-p2-ready-memory",
+        "kind": "note",
+        "text": "Incorrect approved memory: P2 is ready to queue because source capture and recall debug are enough without correction rollback evidence.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "elf.memory_record_ref/v1",
+          "ref": {
+            "note_id": "30633063-3063-4063-8063-306330633063",
+            "evidence_id": "p1-incorrect-p2-ready-memory"
+          }
+        },
+        "created_at": "2026-06-22T02:30:00Z"
+      },
+      {
+        "evidence_id": "p1-correction-event",
+        "kind": "trace",
+        "text": "Correction event: reviewer superseded the incorrect P2-ready memory because rollback evidence and unsupported-claim refusal evidence were missing.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "elf.memory_correction/v1",
+          "ref": {
+            "note_id": "30633063-3063-4063-8063-306330633063",
+            "action": "supersede",
+            "review_actor": "fixture-reviewer"
+          }
+        },
+        "created_at": "2026-06-22T02:35:00Z"
+      },
+      {
+        "evidence_id": "p1-rollback-event",
+        "kind": "trace",
+        "text": "Rollback event: restored the prior safe phase gate requiring XY-1063 closeout self-assessment before any P2 decodex queue label.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "elf.memory_correction/v1",
+          "ref": {
+            "note_id": "30633063-3063-4063-8063-306330633063",
+            "action": "restore",
+            "restore_version_id": "40634063-4063-4063-8063-406340634063"
+          }
+        },
+        "created_at": "2026-06-22T02:40:00Z"
+      },
+      {
+        "evidence_id": "p1-current-corrected-memory",
+        "kind": "note",
+        "text": "Current corrected memory: P2 remains unqueued until the P1 closeout report proves correction persistence, rollback, unsupported-claim refusal, and work-resume memory use.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "elf.memory_record_ref/v1",
+          "ref": {
+            "note_id": "50635063-5063-4063-8063-506350635063",
+            "source_evidence_ids": ["p1-correction-event", "p1-rollback-event"]
+          },
+          "state": {
+            "status": "active",
+            "restored_from_version": "40634063-4063-4063-8063-406340634063"
+          }
+        },
+        "created_at": "2026-06-22T02:45:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_p1_closeout",
+      "answer": {
+        "content": "Use the current corrected memory: P2 remains unqueued until the P1 closeout report proves correction persistence, rollback, unsupported-claim refusal, and work-resume memory use. The previous P2-ready memory was superseded because rollback evidence and unsupported-claim refusal evidence were missing, and the rollback restored the prior safe phase gate.",
+        "claims": [
+          {
+            "claim_id": "correction_persisted",
+            "text": "The incorrect P2-ready memory was superseded because rollback and unsupported-claim refusal evidence were missing.",
+            "evidence_ids": ["p1-correction-event"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "rollback_restored_gate",
+            "text": "Rollback restored the prior safe phase gate before any P2 queue label.",
+            "evidence_ids": ["p1-rollback-event"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "current_corrected_memory",
+            "text": "P2 remains unqueued until the P1 closeout report proves correction persistence, rollback, unsupported-claim refusal, and work-resume memory use.",
+            "evidence_ids": [
+              "p1-current-corrected-memory",
+              "p1-incorrect-p2-ready-memory",
+              "p1-correction-event"
+            ],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["p1-correction-event", "p1-rollback-event", "p1-current-corrected-memory"],
+        "latency_ms": 1.9,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "p1-incorrect-memory-applied",
+      "ts": "2026-06-22T02:30:00Z",
+      "actor": "agent",
+      "action": "applied_overbroad_memory",
+      "evidence_ids": ["p1-incorrect-p2-ready-memory"],
+      "summary": "An overbroad P2-ready memory was applied."
+    },
+    {
+      "event_id": "p1-memory-corrected",
+      "ts": "2026-06-22T02:35:00Z",
+      "actor": "reviewer",
+      "action": "superseded_memory",
+      "evidence_ids": ["p1-correction-event"],
+      "summary": "The reviewer superseded the overbroad memory."
+    },
+    {
+      "event_id": "p1-memory-rollback",
+      "ts": "2026-06-22T02:40:00Z",
+      "actor": "reviewer",
+      "action": "restored_safe_gate",
+      "evidence_ids": ["p1-rollback-event", "p1-current-corrected-memory"],
+      "summary": "Rollback restored the safe phase gate as current memory."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Was the overbroad P2-ready memory corrected and rolled back, and what is the current memory now?",
+    "job_mode": "answer",
+    "constraints": ["cite_evidence", "prefer_current_corrected_memory", "avoid_superseded_memory"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "correction_persisted",
+        "text": "The incorrect P2-ready memory was superseded because rollback and unsupported-claim refusal evidence were missing."
+      },
+      {
+        "claim_id": "rollback_restored_gate",
+        "text": "Rollback restored the prior safe phase gate before any P2 queue label."
+      },
+      {
+        "claim_id": "current_corrected_memory",
+        "text": "P2 remains unqueued until the P1 closeout report proves correction persistence, rollback, unsupported-claim refusal, and work-resume memory use."
+      }
+    ],
+    "must_not_include": [
+      "P2 is ready to queue",
+      "source capture and recall debug are enough without correction rollback evidence"
+    ],
+    "evidence_links": {
+      "correction_persisted": ["p1-correction-event"],
+      "rollback_restored_gate": ["p1-rollback-event"],
+      "current_corrected_memory": [
+        "p1-current-corrected-memory",
+        "p1-incorrect-p2-ready-memory",
+        "p1-correction-event"
+      ]
+    },
+    "answer_type": "direct_answer",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "p1-correction-event",
+      "claim_id": "correction_persisted",
+      "requirement": "cite",
+      "quote": "reviewer superseded the incorrect P2-ready memory"
+    },
+    {
+      "evidence_id": "p1-rollback-event",
+      "claim_id": "rollback_restored_gate",
+      "requirement": "cite",
+      "quote": "restored the prior safe phase gate"
+    },
+    {
+      "evidence_id": "p1-current-corrected-memory",
+      "claim_id": "current_corrected_memory",
+      "requirement": "use",
+      "quote": "P2 remains unqueued until the P1 closeout report proves correction persistence"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "overbroad-p2-ready-memory",
+      "type": "stale_fact",
+      "evidence_ids": ["p1-incorrect-p2-ready-memory"],
+      "failure_if_used": false
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "lifecycle_behavior": {
+        "weight": 0.35,
+        "max_points": 1.0,
+        "criteria": "Uses correction and rollback evidence instead of superseded memory."
+      },
+      "answer_correctness": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "States the current corrected memory."
+      },
+      "evidence_grounding": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Cites correction, rollback, and current memory evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Does not use the overbroad superseded memory."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.05,
+        "max_points": 1.0,
+        "criteria": "Converts correction history into the next phase gate."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "state_blocker"
+  },
+  "memory_evolution": {
+    "current_evidence_ids": ["p1-current-corrected-memory"],
+    "historical_evidence_ids": ["p1-incorrect-p2-ready-memory"],
+    "tombstone_evidence_ids": ["p1-correction-event"],
+    "invalidation_evidence_ids": ["p1-correction-event", "p1-rollback-event"],
+    "stale_trap_ids": ["overbroad-p2-ready-memory"],
+    "conflicts": [
+      {
+        "conflict_id": "p1-correction-overbroad-p2-ready-memory",
+        "claim_id": "current_corrected_memory",
+        "current_evidence_id": "p1-current-corrected-memory",
+        "historical_evidence_id": "p1-incorrect-p2-ready-memory",
+        "resolved_by_evidence_id": "p1-correction-event"
+      }
+    ],
+    "update_rationale": {
+      "claim_id": "correction_persisted",
+      "evidence_ids": ["p1-correction-event", "p1-rollback-event"],
+      "available": true
+    },
+    "temporal_validity": {
+      "required": false,
+      "encoded": false,
+      "follow_up": null
+    },
+    "history_readback": {
+      "encoded": true,
+      "required_event_types": ["supersede", "restore", "correction"],
+      "requires_note_version_links": true
+    }
+  },
+  "tags": ["synthetic", "p1_closeout", "correction", "rollback", "memory_history", "no_p2_queue"]
+}

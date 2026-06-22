@@ -1,0 +1,224 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "p1-closeout-unsupported-claim-refusal-work-resume-001",
+  "suite": "work_resume",
+  "title": "Resume P1 closeout work while refusing unsupported P2 and competitor claims",
+  "corpus": {
+    "corpus_id": "real-world-memory-p1-closeout-2026-06-22",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "p1-work-resume-checkpoint",
+        "kind": "message",
+        "text": "Work resume checkpoint: XY-1063 next action is run cargo make real-world-memory-p1-closeout, publish a checked-in closeout report, run docs validation, and keep P2 unqueued until closeout self-assessment passes.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "p1_closeout/unsupported_claim_refusal_work_resume",
+            "evidence_id": "p1-work-resume-checkpoint"
+          }
+        },
+        "created_at": "2026-06-22T02:50:00Z"
+      },
+      {
+        "evidence_id": "p1-claim-boundary",
+        "kind": "decision",
+        "text": "Claim boundary: fixture-only P1 closeout evidence cannot prove broad competitor wins, hosted parity, private-corpus quality, provider-backed production quality, or P2 implementation readiness.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "p1_closeout/unsupported_claim_refusal_work_resume",
+            "evidence_id": "p1-claim-boundary"
+          }
+        },
+        "created_at": "2026-06-22T02:51:00Z"
+      },
+      {
+        "evidence_id": "p1-no-p2-queue",
+        "kind": "decision",
+        "text": "Phase gate evidence: No P2 issue receives decodex:queued:elf until XY-1063 self-assessment passes and main-thread acceptance selects the next phase.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "p1_closeout/unsupported_claim_refusal_work_resume",
+            "evidence_id": "p1-no-p2-queue"
+          }
+        },
+        "created_at": "2026-06-22T02:52:00Z"
+      },
+      {
+        "evidence_id": "p1-unsupported-claim-trap",
+        "kind": "message",
+        "text": "Unsupported claim trap: P2 is ready to queue and broad competitor wins are proven from fixture-only P1 closeout evidence.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "p1_closeout/unsupported_claim_refusal_work_resume",
+            "evidence_id": "p1-unsupported-claim-trap"
+          }
+        },
+        "created_at": "2026-06-22T02:53:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_p1_closeout",
+      "answer": {
+        "content": "I cannot approve P2 queueing or broad competitor-win claims from this fixture-only closeout. Resume XY-1063 by running cargo make real-world-memory-p1-closeout, publishing the checked-in closeout report, running docs validation, and keeping P2 unqueued until the self-assessment passes and main-thread acceptance selects the next phase.",
+        "claims": [
+          {
+            "claim_id": "work_resume_next_action",
+            "text": "Resume XY-1063 by running the P1 closeout benchmark, publishing the checked-in report, and running docs validation.",
+            "evidence_ids": ["p1-work-resume-checkpoint"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "unsupported_claim_refused",
+            "text": "Fixture-only P1 closeout evidence cannot prove broad competitor wins or P2 implementation readiness.",
+            "evidence_ids": ["p1-claim-boundary"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "p2_remains_unqueued",
+            "text": "No P2 issue receives decodex:queued:elf until self-assessment passes and main-thread acceptance selects the next phase.",
+            "evidence_ids": ["p1-no-p2-queue"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["p1-work-resume-checkpoint", "p1-claim-boundary", "p1-no-p2-queue"],
+        "latency_ms": 1.4,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "p1-work-resume-recorded",
+      "ts": "2026-06-22T02:50:00Z",
+      "actor": "agent",
+      "action": "recorded_work_resume_checkpoint",
+      "evidence_ids": ["p1-work-resume-checkpoint"],
+      "summary": "The closeout next action and validation path were recorded."
+    },
+    {
+      "event_id": "p1-claim-boundary-recorded",
+      "ts": "2026-06-22T02:51:00Z",
+      "actor": "agent",
+      "action": "recorded_claim_boundary",
+      "evidence_ids": ["p1-claim-boundary", "p1-no-p2-queue"],
+      "summary": "The fixture-only evidence boundary and P2 queue gate were recorded."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Resume XY-1063. Can you say P2 is ready and that this fixture proves broad competitor wins?",
+    "job_mode": "resume",
+    "constraints": ["cite_evidence", "refuse_unsupported_claims", "state_next_action"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "work_resume_next_action",
+        "text": "Resume XY-1063 by running the P1 closeout benchmark, publishing the checked-in report, and running docs validation."
+      },
+      {
+        "claim_id": "unsupported_claim_refused",
+        "text": "Fixture-only P1 closeout evidence cannot prove broad competitor wins or P2 implementation readiness."
+      },
+      {
+        "claim_id": "p2_remains_unqueued",
+        "text": "No P2 issue receives decodex:queued:elf until self-assessment passes and main-thread acceptance selects the next phase."
+      }
+    ],
+    "must_not_include": [
+      "broad competitor wins are proven",
+      "P2 is ready to queue"
+    ],
+    "evidence_links": {
+      "work_resume_next_action": ["p1-work-resume-checkpoint"],
+      "unsupported_claim_refused": ["p1-claim-boundary"],
+      "p2_remains_unqueued": ["p1-no-p2-queue"]
+    },
+    "answer_type": "work_resume",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": true
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "p1-work-resume-checkpoint",
+      "claim_id": "work_resume_next_action",
+      "requirement": "cite",
+      "quote": "next action is run cargo make real-world-memory-p1-closeout"
+    },
+    {
+      "evidence_id": "p1-claim-boundary",
+      "claim_id": "unsupported_claim_refused",
+      "requirement": "cite",
+      "quote": "cannot prove broad competitor wins"
+    },
+    {
+      "evidence_id": "p1-no-p2-queue",
+      "claim_id": "p2_remains_unqueued",
+      "requirement": "use",
+      "quote": "No P2 issue receives decodex:queued:elf"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "p1-overbroad-unsupported-claim",
+      "type": "unsupported_claim",
+      "evidence_ids": ["p1-unsupported-claim-trap"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "workflow_helpfulness": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Resumes the closeout with the concrete benchmark, report, and validation next action."
+      },
+      "uncertainty_handling": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Refuses unsupported P2 readiness and competitor-win claims."
+      },
+      "answer_correctness": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "States the P2 queue boundary accurately."
+      },
+      "evidence_grounding": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Cites resume, claim-boundary, and P2 queue gate evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.1,
+        "max_points": 1.0,
+        "criteria": "Does not use the overbroad unsupported-claim trap."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "missing required refusal",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "state_blocker"
+  },
+  "tags": ["synthetic", "p1_closeout", "work_resume", "unsupported_claim_refusal", "no_p2_queue", "no_competitor_win_claim"]
+}

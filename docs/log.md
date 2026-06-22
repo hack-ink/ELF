@@ -83,3 +83,7 @@ logs.
   phase-gate rule, competitor absorption boundaries, validation expectations, and
   phase closeout checklist.
 - Linked the new product contract from the docs root index and spec index.
+- Added the P1 memory-authority closeout report for XY-1063, plus
+  `cargo make real-world-memory-p1-closeout`, preserving the Source Library ->
+  Memory Candidate -> approved memory -> recall/debug -> correction/rollback
+  authority chain and keeping P2 queueing conditional on main-thread acceptance.
