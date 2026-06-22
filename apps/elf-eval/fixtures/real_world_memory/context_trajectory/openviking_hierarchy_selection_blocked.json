@@ -113,6 +113,27 @@
           "amount": 0.0,
           "input_tokens": 0,
           "output_tokens": 0
+        },
+        "trace_explainability": {
+          "trace_id": "fixture-openviking-hierarchy-selection-blocked",
+          "failure_stage": "openviking.hierarchy_artifact_gate",
+          "failure_reason": "Selected parent, child, resource, and rejected sibling evidence is not materialized, so hierarchy selection remains a typed blocker.",
+          "stages": [
+            {
+              "stage_name": "openviking.same_corpus_gate",
+              "kept_evidence": ["same-corpus-before-hierarchy"],
+              "notes": "Hierarchy scoring is gated behind same-corpus expected evidence id coverage."
+            },
+            {
+              "stage_name": "openviking.hierarchy_artifact_gate",
+              "kept_evidence": [
+                "hierarchy-selection-output-contract",
+                "hierarchy-comparison-requires-elf-equivalent"
+              ],
+              "dropped_evidence": ["hierarchy-design-win-decoy"],
+              "notes": "The required artifact must show selected hierarchy nodes plus the rejected sibling or decoy context before any ELF/OpenViking comparison is scored."
+            }
+          ]
         }
       }
     }

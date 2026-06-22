@@ -112,6 +112,27 @@
           "amount": 0.0,
           "input_tokens": 0,
           "output_tokens": 0
+        },
+        "trace_explainability": {
+          "trace_id": "fixture-openviking-staged-retrieval-blocked",
+          "failure_stage": "openviking.stage_artifact_gate",
+          "failure_reason": "Stage-level OpenViking trajectory output is not materialized, so the fixture keeps the context-trajectory comparison blocked.",
+          "stages": [
+            {
+              "stage_name": "openviking.same_corpus_gate",
+              "kept_evidence": [
+                "openviking-evidence-id-output-contract",
+                "openviking-same-corpus-precondition-blocked"
+              ],
+              "notes": "Same-corpus expected, matched, and missing evidence ids must be correct before stage scoring is allowed."
+            },
+            {
+              "stage_name": "openviking.stage_artifact_gate",
+              "kept_evidence": ["elf-comparison-requires-comparable-trajectory"],
+              "dropped_evidence": ["trajectory-win-decoy"],
+              "notes": "Comparable stage artifacts are missing, and the decoy ELF win claim is explicitly dropped."
+            }
+          ]
         }
       }
     }

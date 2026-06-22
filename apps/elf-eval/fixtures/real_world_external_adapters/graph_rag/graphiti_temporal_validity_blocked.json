@@ -66,7 +66,57 @@
         },
         "created_at": "2026-06-11T17:17:00Z"
       }
-    ]
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_graphiti_zep_temporal_validity",
+      "answer": {
+        "content": "Graphiti/Zep temporal scoring requires current and historical facts with validity windows. The representative adapter output remains blocked until provider-backed temporal search maps those facts to generated evidence ids.",
+        "claims": [
+          {
+            "claim_id": "graphiti_temporal_contract",
+            "text": "Graphiti/Zep temporal scoring requires current and historical facts with validity windows.",
+            "evidence_ids": [
+              "graphiti-current-fact-contract",
+              "graphiti-historical-fact-contract",
+              "graphiti-provider-boundary"
+            ],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": [
+          "graphiti-current-fact-contract",
+          "graphiti-historical-fact-contract",
+          "graphiti-provider-boundary"
+        ],
+        "trace_explainability": {
+          "trace_id": "fixture-graphiti-zep-temporal-validity-blocked",
+          "failure_stage": "graphiti.provider_boundary",
+          "failure_reason": "provider_api_key_missing blocks live temporal search output, so the fixture records the current/historical validity-window contract instead of scoring parity.",
+          "stages": [
+            {
+              "stage_name": "graphiti.validity_window_contract",
+              "kept_evidence": [
+                "graphiti-current-fact-contract",
+                "graphiti-historical-fact-contract"
+              ],
+              "notes": "The typed blocker still names the current and historical source ids required before scoring."
+            },
+            {
+              "stage_name": "graphiti.provider_boundary",
+              "kept_evidence": ["graphiti-provider-boundary"],
+              "notes": "Missing explicit provider configuration is a valid typed blocker, not a failed ELF graph-memory comparison."
+            }
+          ]
+        },
+        "latency_ms": 0.0,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
   },
   "timeline": [
     {

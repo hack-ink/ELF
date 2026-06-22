@@ -1058,6 +1058,22 @@ def write_manifest(status: StatusState) -> dict[str, Any]:
                         "evidence": "The smoke records setup and provider boundaries but does not encode backup, restore, private corpus, or hosted-service operations.",
                     },
                 ],
+                "scenarios": [
+                    {
+                        "scenario_id": "temporal_validity_window_mapping",
+                        "suite_id": "memory_evolution",
+                        "status": status.result,
+                        "elf_position": "untested",
+                        "comparison_outcome": "blocked"
+                        if status.result == "blocked"
+                        else "not_tested",
+                        "evidence": status.failure_reason
+                        if status.failure_reason
+                        else "Graphiti/Zep temporal search mapped generated current and historical relation facts to validity windows and evidence ids.",
+                        "command": "cargo make smoke-graphiti-zep-docker-temporal",
+                        "artifact": rel(OUT),
+                    }
+                ],
                 "evidence": [
                     {"kind": "artifact", "ref": rel(OUT), "status": status.result},
                     {"kind": "manifest", "ref": rel(MANIFEST_OUT), "status": status.overall},
