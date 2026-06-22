@@ -1,0 +1,207 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "adversarial-quality-stale-fact-current-answer-001",
+  "suite": "adversarial_quality",
+  "title": "Suppress a stale memory when a newer fact supersedes it",
+  "corpus": {
+    "corpus_id": "real-world-memory-adversarial-quality-2026-06-23",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "stale-ops-runbook-v1",
+        "kind": "note",
+        "text": "Historical memory: the ops runbook said to run cargo make check before review handoff.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "adversarial_quality/stale_fact_current_answer",
+            "evidence_id": "stale-ops-runbook-v1"
+          }
+        },
+        "created_at": "2026-06-20T02:00:00Z"
+      },
+      {
+        "evidence_id": "current-ops-runbook-v2",
+        "kind": "runbook",
+        "text": "Current runbook: before review handoff run cargo make fmt, cargo make lint-fix, and then cargo make checks.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "adversarial_quality/stale_fact_current_answer",
+            "evidence_id": "current-ops-runbook-v2"
+          }
+        },
+        "created_at": "2026-06-23T01:00:00Z"
+      },
+      {
+        "evidence_id": "runbook-change-rationale",
+        "kind": "decision",
+        "text": "Change rationale: the Decodex repo gate was expanded so lint-fix canonicalization runs before checks.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "adversarial_quality/stale_fact_current_answer",
+            "evidence_id": "runbook-change-rationale"
+          }
+        },
+        "created_at": "2026-06-23T01:05:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_adversarial_quality",
+      "answer": {
+        "content": "Use the current runbook: before review handoff run cargo make fmt, cargo make lint-fix, and then cargo make checks. The older cargo make check-only memory is historical because the Decodex gate was expanded.",
+        "claims": [
+          {
+            "claim_id": "current_gate_sequence",
+            "text": "Before review handoff run cargo make fmt, cargo make lint-fix, and then cargo make checks.",
+            "evidence_ids": ["current-ops-runbook-v2"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "stale_gate_rationale",
+            "text": "The older cargo make check-only memory is historical because the Decodex gate was expanded.",
+            "evidence_ids": ["runbook-change-rationale"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["current-ops-runbook-v2", "runbook-change-rationale"],
+        "latency_ms": 1.0,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "old-runbook-recorded",
+      "ts": "2026-06-20T02:00:00Z",
+      "actor": "agent",
+      "action": "stored_old_runbook_memory",
+      "evidence_ids": ["stale-ops-runbook-v1"],
+      "summary": "The old gate sequence was stored as memory."
+    },
+    {
+      "event_id": "runbook-updated",
+      "ts": "2026-06-23T01:00:00Z",
+      "actor": "operator",
+      "action": "updated_runbook_gate",
+      "evidence_ids": ["current-ops-runbook-v2", "runbook-change-rationale"],
+      "summary": "The current gate sequence superseded the old memory."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "What validation gate should run before review handoff now?",
+    "job_mode": "answer",
+    "constraints": ["cite_evidence", "prefer_current_evidence", "avoid_stale_memory"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "current_gate_sequence",
+        "text": "Before review handoff run cargo make fmt, cargo make lint-fix, and then cargo make checks."
+      },
+      {
+        "claim_id": "stale_gate_rationale",
+        "text": "The older cargo make check-only memory is historical because the Decodex gate was expanded."
+      }
+    ],
+    "must_not_include": [
+      "run cargo make check before review handoff"
+    ],
+    "evidence_links": {
+      "current_gate_sequence": ["current-ops-runbook-v2", "stale-ops-runbook-v1"],
+      "stale_gate_rationale": ["runbook-change-rationale"]
+    },
+    "answer_type": "direct_answer",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "current-ops-runbook-v2",
+      "claim_id": "current_gate_sequence",
+      "requirement": "cite",
+      "quote": "run cargo make fmt, cargo make lint-fix, and then cargo make checks"
+    },
+    {
+      "evidence_id": "runbook-change-rationale",
+      "claim_id": "stale_gate_rationale",
+      "requirement": "explain",
+      "quote": "repo gate was expanded"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "stale-check-only-gate",
+      "type": "stale_fact",
+      "evidence_ids": ["stale-ops-runbook-v1"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "States the current gate sequence."
+      },
+      "evidence_grounding": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Cites current runbook and change rationale evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Does not use the stale check-only memory as current evidence."
+      },
+      "lifecycle_behavior": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Distinguishes superseded memory from current authority."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "state_blocker"
+  },
+  "memory_evolution": {
+    "current_evidence_ids": ["current-ops-runbook-v2"],
+    "historical_evidence_ids": ["stale-ops-runbook-v1"],
+    "stale_trap_ids": ["stale-check-only-gate"],
+    "conflicts": [],
+    "update_rationale": {
+      "claim_id": "stale_gate_rationale",
+      "evidence_ids": ["runbook-change-rationale"],
+      "available": true
+    },
+    "temporal_validity": {
+      "required": false,
+      "encoded": false,
+      "follow_up": null
+    },
+    "history_readback": {
+      "encoded": false,
+      "required_event_types": [],
+      "requires_note_version_links": false
+    }
+  },
+  "tags": ["synthetic", "adversarial_quality", "stale_fact", "current_authority", "no_live_claim"]
+}

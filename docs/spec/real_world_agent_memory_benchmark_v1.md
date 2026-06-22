@@ -64,6 +64,43 @@ evidence, traps, and scoring rubric first-class. A system can pass retrieval and
 fail a real-world job if it repeats completed work, cites obsolete evidence, omits a
 blocking caveat, or fabricates a decision that is not in the corpus.
 
+## Quality Scoreboard Grammar
+
+The public quality scoreboard is a claim grammar, not a leaderboard. Reports MUST use
+the grammar below when summarizing what is proven, what is not proven, and which
+evidence class supports the claim.
+
+Public result states:
+
+| State | Meaning |
+| --- | --- |
+| `pass` | The encoded job or suite ran to completion, met its threshold, satisfied required evidence, and hit no hard-fail rule. |
+| `wrong_result` | The runner reached the behavioral check but selected the wrong answer, wrong action, stale/current fact, or missed required evidence. |
+| `incomplete` | The runner or adapter did not reach the behavioral check because setup, wiring, parse, build, or runtime execution failed. |
+| `blocked` | The check cannot be run safely without credentials, manual setup, private input, durable product runtime, or host integration outside the run scope. |
+| `not_tested` | No benchmark execution or comparable adapter output exists for the row. |
+| `not_encoded` | The suite, job, adapter path, or scoring dimension is not implemented in the runner, so no pass/fail claim is allowed. |
+| `unsupported_claim` | The system or report made a substantive claim, decision, evidence citation, or capability claim that is not supported by the corpus, required evidence, or report metadata. |
+
+Public evidence classes:
+
+| Evidence class | Meaning |
+| --- | --- |
+| `fixture_backed` | Checked-in fixture evidence was scored. This is useful regression evidence, not live product execution. |
+| `live_baseline` | Docker live-baseline retrieval or lifecycle evidence exists. It is not a real-world suite pass by itself. |
+| `live_real_world` | A live adapter executed the real-world job contract and emitted typed outcomes. |
+| `research_gate` | Research, setup, source mapping, credential, or resource gates are recorded before a fair benchmark can run. |
+
+Report implementations MAY keep narrower internal diagnostic statuses such as
+`lifecycle_fail`, but public scoreboards MUST treat every non-`pass` diagnostic as a
+typed non-pass state. A report MUST NOT collapse `wrong_result`, `incomplete`,
+`blocked`, `not_tested`, `not_encoded`, `unsupported_claim`, `fixture_backed`,
+`live_baseline`, or `research_gate` rows into wins, parity, or proof of broad product
+quality. If any typed non-pass job or external-adapter row is present, the aggregate
+summary claim MUST remain a bounded statement such as `typed_non_pass_present`, not an
+unqualified win. Reports MAY also expose a separate encoded-job-only summary claim, but
+that narrower claim MUST NOT override the aggregate claim boundary.
+
 ## Real-World Job Schema
 
 A `real_world_job` record MUST include the fields below. JSON is the canonical exchange
@@ -586,6 +623,7 @@ Suite ids are stable public names. Each suite MUST contain at least one
 | `project_decisions` | Recover durable decisions, rationale, reversals, and current policy. | Explain why a design was chosen; distinguish old vs current validation gate; cite decision evidence. | Decision records, superseding events, accepted alternatives, current-policy timestamp. | answer_correctness, evidence_grounding, trap_avoidance, uncertainty_handling. | ELF, gbrain, llm-wiki, Letta. |
 | `retrieval` | Measure task-relevant retrieval quality beyond top-k keyword matching. | Answer a task query with expected evidence; find alternate phrasing; avoid near-duplicate project evidence. | Expected evidence ids, allowed alternates, decoy evidence ids, trace ids when available. | answer_correctness, evidence_grounding, trap_avoidance, latency_resource. | qmd, ELF, memsearch, OpenViking. |
 | `memory_evolution` | Verify updates, deletes, expiry, supersession, contradiction handling, and history. | Apply a new preference; suppress a deleted memory; explain what superseded an old fact. | Before/after memory versions, ingest decision rows or adapter history, current timeline event. | lifecycle_behavior, answer_correctness, evidence_grounding, trap_avoidance. | mem0, ELF, Graphiti/Zep, Letta. |
+| `adversarial_quality` | Verify quality-claim grammar under adversarial memory failures. | Suppress stale facts; refuse unsupported claims; choose authoritative current sources; exclude private spans; prove correction persistence. | Current and historical evidence ids, unsupported-claim traps, authority-ordering evidence, write-policy audit, correction and rollback readback. | answer_correctness, evidence_grounding, trap_avoidance, uncertainty_handling, lifecycle_behavior. | ELF, qmd, mem0/OpenMemory, Letta. |
 | `consolidation` | Test reviewable derived memory formation without hidden source mutation. | Produce a consolidation proposal; identify unsupported claims; discard stale synthesis. | Source inputs, derived proposal id, lineage, review state, conflict markers. | answer_correctness, evidence_grounding, uncertainty_handling, debuggability. | Claude Dreams, Gemini CLI Auto Memory, Always-On Memory Agent, ELF. |
 | `memory_summary` | Test reviewable top-of-mind, background, stale, superseded, tombstoned, and derived project-profile memory readback. | Produce a current memory summary; downgrade stale memory; expose a TTL tombstone; refuse an unsupported derived profile claim. | Summary entry source refs, freshness and validity markers, source trace, inclusion/downgrade/exclusion rationale, unsupported-claim flags. | answer_correctness, evidence_grounding, lifecycle_behavior, trap_avoidance, uncertainty_handling. | OpenAI Dreaming, Claude Dreams, Always-On Memory Agent, ELF. |
 | `knowledge_compilation` | Compile evidence into maintained project/entity/concept pages while preserving provenance. | Build a project status page; answer from compiled truth plus timeline; lint a stale page section. | Page section sources, backlinks, timeline entries, lint evidence. | answer_correctness, evidence_grounding, workflow_helpfulness, trap_avoidance. | llm-wiki, gbrain, graphify, OpenKB, ELF. |
@@ -612,6 +650,7 @@ Outcome terms:
 | `lifecycle_fail` | The answer surface may be correct for retrieval, but encoded update, delete, expiry, cold-start, persistence, history, or supersession behavior failed. |
 | `incomplete` | The runner could not reach the behavioral check because install, build, dependency, adapter wiring, parse, or runtime setup failed. |
 | `blocked` | The check cannot be run safely without credentials, manual setup, private corpus input, durable runtime integration, or host integration outside the run scope. |
+| `not_tested` | No benchmark execution or comparable adapter output exists for the row. |
 | `not_encoded` | The suite, job, adapter path, or scoring dimension is not implemented in the runner, so no pass/fail claim is allowed. |
 | `unsupported_claim` | The system produced a substantive claim, decision, evidence citation, or capability claim that is not supported by the job corpus, required evidence, or report metadata. |
 
@@ -634,6 +673,11 @@ Suite status rules:
 
 Reports MUST include:
 
+- quality scoreboard grammar using schema `elf.quality_scoreboard/v1`, including public
+  result states, evidence classes, encoded-job and external-adapter typed non-pass
+  counts, visible typed non-pass states for each bucket and the aggregate report,
+  evidence-class counts, bounded job and aggregate summary claims, and an explicit
+  unqualified-win guard;
 - run id, runner version, corpus profile, job ids, suite ids, project adapter metadata;
 - per-job status, normalized score, hard-fail hits, evidence ids used, trap ids used;
 - per-job `answer_type`, required caveat/refusal flags, and whether an unknown answer

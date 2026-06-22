@@ -6,7 +6,7 @@ resource: docs/runbook/benchmarking/real_world_agent_memory_benchmark.md
 status: active
 authority: procedural
 owner: runbook
-last_verified: 2026-06-18
+last_verified: 2026-06-23
 tags:
   - docs
   - runbook
@@ -74,6 +74,7 @@ compile knowledge, and state honest uncertainty.
 | Personalization | Scoped preferences without cross-tenant leakage. | Apply the user's current preference and ignore another project's note. |
 | Core/archival memory | Always-loaded core memory behavior kept separate from archival note search. | Detect a stale core block and fall back to archival evidence. |
 | Context trajectory | Staged context trajectory, hierarchy selection, rejected sibling/decoy handling, and recursive expansion. | Block OpenViking trajectory scoring until same-corpus evidence ids and comparable stage artifacts exist. |
+| Adversarial quality | Quality-claim grammar under stale facts, unsupported claims, conflicting authority, private spans, and corrections. | Refuse a broad quality claim and preserve typed non-pass states instead of reporting a win. |
 
 ## External Reference Mapping
 
@@ -106,13 +107,24 @@ A real-world benchmark report must preserve typed outcomes:
 
 - `pass`
 - `wrong_result`
-- `lifecycle_fail`
 - `incomplete`
 - `blocked`
+- `not_tested`
 - `not_encoded`
 - `unsupported_claim`
 
-Do not collapse those terms into one leaderboard. `unsupported_claim` is especially
+The public quality scoreboard also reports evidence classes:
+
+- `fixture_backed`
+- `live_baseline`
+- `live_real_world`
+- `research_gate`
+
+Internal diagnostics may keep narrower terms such as `lifecycle_fail`, but the public
+scoreboard must expose typed public non-pass states instead of hiding them behind a
+single win/loss column. Do not collapse `wrong_result`, `incomplete`, `blocked`,
+`not_tested`, `not_encoded`, `unsupported_claim`, `fixture_backed`, `live_baseline`,
+or `research_gate` rows into one leaderboard. `unsupported_claim` is especially
 important: it means the system made a substantive claim that the corpus or evidence did
 not support. That is a different and higher-risk failure than simply missing a result.
 
@@ -189,25 +201,51 @@ including the retrieval-quality slice below. The suite currently encodes:
   stage-level trace readback for the same-corpus gate, missing staged artifact,
   selected hierarchy/rejected sibling gate, and recursive expansion/pruned-branch
   gate so a blocker is reviewable instead of a prose-only limitation.
+- `adversarial_quality`: stale-fact suppression, unsupported-claim refusal,
+  conflicting source authority selection, private/excluded span suppression, and
+  correction persistence. These fixtures gate the quality scoreboard grammar so
+  unsupported, stale, blocked, incomplete, wrong-result, and not-encoded behavior
+  cannot be counted as a win.
 - `p1_closeout` fixture slice: four jobs across the existing `consolidation`,
   `memory_evolution`, and `work_resume` suites for Source Library -> Memory Candidate
   -> approved memory -> recall/debug -> correction/rollback, stale decision
   suppression, unsupported-claim refusal, and work-resume next action.
 
-The generated report includes evidence coverage, source-ref coverage, quote coverage,
-unsupported-claim count, stale retrieval count, stale-answer count, conflict detection
-count, update rationale availability, temporal validity encoding count, scope
-correctness, redaction leak count, capture/integration behavior classes, Qdrant
-rebuild case/pass counts, expected evidence recall, irrelevant context ratio,
-latency/cost, answer-type plus caveat/refusal/uncertainty flags, and trace
-explainability counters, production-ops blocked/wrong-result job states, and
+The generated report includes the public quality scoreboard
+`elf.quality_scoreboard/v1`, encoded-job and external-adapter typed non-pass
+counts/states, aggregate typed non-pass counts/states, evidence-class counts, bounded
+job and aggregate summary claims, the unqualified-win guard, evidence coverage,
+source-ref coverage, quote coverage, unsupported-claim count, stale retrieval count,
+stale-answer count, conflict detection count, update rationale availability, temporal
+validity encoding count, scope correctness, redaction leak count, capture/integration
+behavior classes, Qdrant rebuild case/pass counts, expected evidence recall,
+irrelevant context ratio, latency/cost, answer-type plus
+caveat/refusal/uncertainty flags, trace explainability counters, production-ops
+blocked/wrong-result job states, and
 private-corpus redaction policy. The fixtures include negative traps for stale
 blockers, unsupported prior claims, stale deleted facts, stale historical facts,
 cross-project preference leakage, private/redacted text leakage, obsolete retrieval
 context, project-decision stale reuse, missing rationale, uncited current policy
 claims, overconfident unsupported decision answers, distractor context,
-index-only restore claims, private-corpus pass claims without a manifest, and
-checked-in credential leakage.
+index-only restore claims, private-corpus pass claims without a manifest, checked-in
+credential leakage, and adversarial stale or unsupported scoreboard claims.
+
+Current checked-in adversarial quality increment:
+
+```sh
+cargo make real-world-memory-adversarial-quality
+```
+
+This parses
+`apps/elf-eval/fixtures/real_world_memory/adversarial_quality/`, writes
+`tmp/real-world-memory/adversarial-quality/report.json`, and renders
+`tmp/real-world-memory/adversarial-quality/report.md`.
+
+The slice scores five fixture-backed jobs for stale fact suppression,
+unsupported-claim refusal, conflicting source authority, private/excluded spans, and
+correction persistence. The report is deliberately narrow: it proves that the
+scoreboard grammar and adversarial traps catch stale or unsupported behavior, not that
+ELF has a live-adapter, private-corpus, provider-backed, or broad competitor win.
 
 Current checked-in P1 closeout increment:
 
@@ -320,9 +358,17 @@ research gates. Its `external_adapters` report section distinguishes:
 - `research_gate`: checked-in source/setup/runtime/resource/retry metadata for a
   future adapter path, not fixture-backed or live execution evidence.
 
-Current fixture state: `cargo make real-world-memory-json` covers 66 jobs across 17
-suites, with 59 pass and 7 blocked. The P1 closeout fixture slice contributes four
-passing jobs for memory-authority closeout evidence. The `core_archival_memory` suite
+The public quality scoreboard renders the existing manifest evidence bucket
+`live_baseline_only` as the public evidence class `live_baseline`. When the default
+external adapter manifest is loaded, the scoreboard's typed non-pass count includes
+adapter coverage and scenario rows as well as fixture jobs.
+
+Current fixture state: `cargo make real-world-memory-json` covers 72 jobs across 18
+suites, with 65 pass and 7 blocked. The adversarial quality slice contributes five
+passing fixture-backed jobs that exercise stale fact suppression, unsupported-claim
+refusal, source-authority conflicts, private-span exclusion, and correction
+persistence. The P1 closeout fixture slice contributes four passing jobs for
+memory-authority closeout evidence. The `core_archival_memory` suite
 contributes six passing fixture jobs for core block attachment, scope, provenance,
 stale-core detection, archival fallback, and project-decision recovery. The
 `memory_summary` suite

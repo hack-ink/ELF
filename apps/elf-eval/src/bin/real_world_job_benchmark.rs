@@ -20,6 +20,7 @@ const JOB_SCHEMA: &str = "elf.real_world_job/v1";
 const REPORT_SCHEMA: &str = "elf.real_world_job_report/v1";
 const EXTERNAL_ADAPTER_MANIFEST_SCHEMA: &str = "elf.real_world_external_adapter_manifest/v1";
 const EXTERNAL_ADAPTER_REPORT_SCHEMA: &str = "elf.real_world_external_adapter_report/v1";
+const SCOREBOARD_SCHEMA: &str = "elf.quality_scoreboard/v1";
 const DEFAULT_FIXTURE_PATH: &str = "apps/elf-eval/fixtures/real_world_memory/work_resume";
 const DEFAULT_REPORT_PATH: &str = "tmp/real-world-job/real-world-job-smoke-report.json";
 const DEFAULT_MARKDOWN_PATH: &str = "tmp/real-world-job/real-world-job-smoke-report.md";
@@ -48,6 +49,7 @@ const SUITES: &[&str] = &[
 	"project_decisions",
 	"retrieval",
 	"memory_evolution",
+	"adversarial_quality",
 	"consolidation",
 	"memory_summary",
 	"proactive_brief",
@@ -61,6 +63,17 @@ const SUITES: &[&str] = &[
 	"core_archival_memory",
 	"context_trajectory",
 ];
+const SCOREBOARD_RESULT_STATES: &[&str] = &[
+	"pass",
+	"wrong_result",
+	"incomplete",
+	"blocked",
+	"not_tested",
+	"not_encoded",
+	"unsupported_claim",
+];
+const SCOREBOARD_EVIDENCE_CLASSES: &[&str] =
+	&["fixture_backed", "live_baseline", "live_real_world", "research_gate"];
 
 #[derive(Debug, Parser)]
 #[command(
@@ -816,6 +829,8 @@ struct RealWorldReport {
 	corpus_profile: String,
 	adapter: AdapterReport,
 	#[serde(default)]
+	scoreboard: ScoreboardReport,
+	#[serde(default)]
 	external_adapters: ExternalAdapterSection,
 	capture_integration: CaptureIntegrationReport,
 	summary: ReportSummary,
@@ -828,6 +843,24 @@ struct RealWorldReport {
 	evolution: EvolutionSummary,
 	#[serde(default)]
 	follow_ups: Vec<FollowUpReport>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct ScoreboardReport {
+	schema: String,
+	result_states: Vec<String>,
+	evidence_classes: Vec<String>,
+	job_typed_non_pass_count: usize,
+	job_typed_non_pass_states_present: Vec<String>,
+	job_summary_claim: String,
+	external_adapter_typed_non_pass_count: usize,
+	external_adapter_typed_non_pass_states_present: Vec<String>,
+	typed_non_pass_count: usize,
+	typed_non_pass_states_present: Vec<String>,
+	evidence_class_counts: BTreeMap<String, usize>,
+	summary_claim: String,
+	unqualified_win_claim_allowed: bool,
+	claim_boundary: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -3172,6 +3205,7 @@ fn build_report(jobs: &[RealWorldJob], args: &RunArgs) -> Result<RealWorldReport
 		&args.external_adapter_manifest,
 		args.skip_external_adapter_manifest,
 	)?;
+	let scoreboard = scoreboard_report(&job_reports, &external_adapters);
 
 	Ok(RealWorldReport {
 		schema: REPORT_SCHEMA.to_string(),
@@ -3180,6 +3214,7 @@ fn build_report(jobs: &[RealWorldJob], args: &RunArgs) -> Result<RealWorldReport
 		runner_version: VERSION.to_string(),
 		corpus_profile: corpus_profile(jobs),
 		adapter: adapter_report(args)?,
+		scoreboard,
 		external_adapters,
 		capture_integration: capture_integration_report(jobs),
 		summary,
@@ -5431,6 +5466,149 @@ fn report_summary(jobs: &[JobReport], suites: &[SuiteReport]) -> ReportSummary {
 	summary
 }
 
+fn scoreboard_report(
+	jobs: &[JobReport],
+	external_adapters: &ExternalAdapterSection,
+) -> ScoreboardReport {
+	let job_typed_non_pass_count =
+		jobs.iter().filter(|job| job.status != TypedStatus::Pass).count();
+	let external_typed_non_pass_count = external_typed_non_pass_count(&external_adapters.summary);
+	let job_typed_non_pass_states_present = typed_non_pass_states_present(jobs);
+	let external_adapter_typed_non_pass_states_present =
+		external_typed_non_pass_states_present(&external_adapters.summary);
+	let mut typed_non_pass_states_present = job_typed_non_pass_states_present.clone();
+
+	typed_non_pass_states_present.extend(external_adapter_typed_non_pass_states_present.clone());
+	typed_non_pass_states_present.sort();
+	typed_non_pass_states_present.dedup();
+
+	let typed_non_pass_count = job_typed_non_pass_count + external_typed_non_pass_count;
+
+	ScoreboardReport {
+		schema: SCOREBOARD_SCHEMA.to_string(),
+		result_states: SCOREBOARD_RESULT_STATES.iter().map(ToString::to_string).collect(),
+		evidence_classes: SCOREBOARD_EVIDENCE_CLASSES.iter().map(ToString::to_string).collect(),
+		job_typed_non_pass_count,
+		job_typed_non_pass_states_present,
+		job_summary_claim: scoreboard_summary_claim(jobs, job_typed_non_pass_count).to_string(),
+		external_adapter_typed_non_pass_count: external_typed_non_pass_count,
+		external_adapter_typed_non_pass_states_present,
+		typed_non_pass_count,
+		typed_non_pass_states_present,
+		evidence_class_counts: scoreboard_evidence_class_counts(external_adapters),
+		summary_claim: scoreboard_summary_claim(jobs, typed_non_pass_count).to_string(),
+		unqualified_win_claim_allowed: false,
+		claim_boundary: "Typed non-pass states and non-live evidence classes must remain visible; reports must not collapse them into unqualified wins.".to_string(),
+	}
+}
+
+fn typed_non_pass_states_present(jobs: &[JobReport]) -> Vec<String> {
+	let mut states = BTreeSet::new();
+
+	for job in jobs.iter().filter(|job| job.status != TypedStatus::Pass) {
+		states.insert(scoreboard_result_state(job.status).to_string());
+	}
+
+	states.into_iter().collect()
+}
+
+fn external_typed_non_pass_count(summary: &ExternalAdapterSummary) -> usize {
+	[
+		&summary.overall_status_counts,
+		&summary.capability_status_counts,
+		&summary.suite_status_counts,
+		&summary.scenario_status_counts,
+	]
+	.into_iter()
+	.map(scoreboard_adapter_typed_non_pass_count)
+	.sum::<usize>()
+		+ summary.scenario_outcome_counts.not_tested
+}
+
+fn scoreboard_adapter_typed_non_pass_count(counts: &AdapterStatusCounts) -> usize {
+	counts.blocked
+		+ counts.incomplete
+		+ counts.wrong_result
+		+ counts.lifecycle_fail
+		+ counts.not_encoded
+		+ counts.unsupported
+}
+
+fn external_typed_non_pass_states_present(summary: &ExternalAdapterSummary) -> Vec<String> {
+	let mut states = BTreeSet::new();
+
+	for counts in [
+		&summary.overall_status_counts,
+		&summary.capability_status_counts,
+		&summary.suite_status_counts,
+		&summary.scenario_status_counts,
+	] {
+		if counts.blocked > 0 {
+			states.insert("blocked".to_string());
+		}
+		if counts.incomplete > 0 {
+			states.insert("incomplete".to_string());
+		}
+		if counts.wrong_result + counts.lifecycle_fail > 0 {
+			states.insert("wrong_result".to_string());
+		}
+		if counts.not_encoded + counts.unsupported > 0 {
+			states.insert("not_encoded".to_string());
+		}
+	}
+
+	if summary.scenario_outcome_counts.not_tested > 0 {
+		states.insert("not_tested".to_string());
+	}
+
+	states.into_iter().collect()
+}
+
+fn scoreboard_result_state(status: TypedStatus) -> &'static str {
+	match status {
+		TypedStatus::Pass => "pass",
+		TypedStatus::WrongResult | TypedStatus::LifecycleFail => "wrong_result",
+		TypedStatus::Incomplete => "incomplete",
+		TypedStatus::Blocked => "blocked",
+		TypedStatus::NotEncoded => "not_encoded",
+		TypedStatus::UnsupportedClaim => "unsupported_claim",
+	}
+}
+
+fn scoreboard_evidence_class_counts(
+	external_adapters: &ExternalAdapterSection,
+) -> BTreeMap<String, usize> {
+	let mut counts = SCOREBOARD_EVIDENCE_CLASSES
+		.iter()
+		.map(|state| (state.to_string(), 0))
+		.collect::<BTreeMap<_, _>>();
+
+	for adapter in &external_adapters.adapters {
+		let state = scoreboard_evidence_class(adapter.evidence_class.as_str());
+
+		*counts.entry(state.to_string()).or_insert(0) += 1;
+	}
+
+	counts
+}
+
+fn scoreboard_evidence_class(evidence_class: &str) -> &str {
+	match evidence_class {
+		"live_baseline_only" => "live_baseline",
+		other => other,
+	}
+}
+
+fn scoreboard_summary_claim(jobs: &[JobReport], typed_non_pass_count: usize) -> &'static str {
+	if jobs.is_empty() {
+		"not_tested"
+	} else if typed_non_pass_count > 0 {
+		"typed_non_pass_present"
+	} else {
+		"all_encoded_jobs_passed"
+	}
+}
+
 fn evolution_summary(jobs: &[JobReport]) -> EvolutionSummary {
 	EvolutionSummary {
 		stale_answer_count: jobs.iter().map(|job| job.stale_answer_count).sum(),
@@ -6521,6 +6699,7 @@ fn render_markdown(report: &RealWorldReport, report_path: &Path) -> String {
 	let mut out = String::new();
 
 	render_markdown_header(&mut out, report, report_path.as_str());
+	render_markdown_scoreboard(&mut out, report);
 	render_markdown_external_adapters(&mut out, report);
 	render_markdown_capture_integration(&mut out, report);
 	render_markdown_suites(&mut out, report);
@@ -6538,6 +6717,62 @@ fn render_markdown(report: &RealWorldReport, report_path: &Path) -> String {
 	render_markdown_semantics(&mut out, report);
 
 	out
+}
+
+fn render_markdown_scoreboard(out: &mut String, report: &RealWorldReport) {
+	out.push_str("## Quality Scoreboard Grammar\n\n");
+	out.push_str("The scoreboard is a claim grammar, not a leaderboard. A report may claim only the statuses and evidence classes represented by its source JSON.\n\n");
+	out.push_str(&format!("- Schema: `{}`\n", md_inline(report.scoreboard.schema.as_str())));
+	out.push_str(&format!(
+		"- Result states: `{}`\n",
+		md_inline(report.scoreboard.result_states.join(", ").as_str())
+	));
+	out.push_str(&format!(
+		"- Evidence classes: `{}`\n",
+		md_inline(report.scoreboard.evidence_classes.join(", ").as_str())
+	));
+	out.push_str(&format!(
+		"- Summary claim: `{}`\n",
+		md_inline(report.scoreboard.summary_claim.as_str())
+	));
+	out.push_str(&format!(
+		"- Job summary claim: `{}`\n",
+		md_inline(report.scoreboard.job_summary_claim.as_str())
+	));
+	out.push_str(&format!(
+		"- Job typed non-pass rows: `{}` ({})\n",
+		report.scoreboard.job_typed_non_pass_count,
+		md_inline(
+			scoreboard_state_list(&report.scoreboard.job_typed_non_pass_states_present).as_str()
+		)
+	));
+	out.push_str(&format!(
+		"- External-adapter typed non-pass rows: `{}` ({})\n",
+		report.scoreboard.external_adapter_typed_non_pass_count,
+		md_inline(
+			scoreboard_state_list(
+				&report.scoreboard.external_adapter_typed_non_pass_states_present
+			)
+			.as_str()
+		)
+	));
+	out.push_str(&format!(
+		"- Typed non-pass rows: `{}` ({})\n",
+		report.scoreboard.typed_non_pass_count,
+		md_inline(scoreboard_state_list(&report.scoreboard.typed_non_pass_states_present).as_str())
+	));
+	out.push_str(&format!(
+		"- Evidence class counts: `{}`\n",
+		md_inline(scoreboard_evidence_class_count_display(&report.scoreboard).as_str())
+	));
+	out.push_str(&format!(
+		"- Unqualified win claim allowed: `{}`\n",
+		report.scoreboard.unqualified_win_claim_allowed
+	));
+	out.push_str(&format!(
+		"- Claim boundary: {}\n\n",
+		md_cell(report.scoreboard.claim_boundary.as_str())
+	));
 }
 
 fn render_markdown_capture_integration(out: &mut String, report: &RealWorldReport) {
@@ -7557,8 +7792,20 @@ fn render_markdown_semantics(out: &mut String, report: &RealWorldReport) {
 	out.push_str(
 		"- `wrong_result`: a job completed but missed required answer or evidence expectations.\n",
 	);
+	out.push_str("- `incomplete`: the runner or adapter did not reach the behavioral check.\n");
+	out.push_str("- `blocked`: required credentials, private input, product runtime, or host integration is outside the run scope.\n");
+	out.push_str(
+		"- `not_tested`: a comparison row or report slice has no executed benchmark evidence.\n",
+	);
 	out.push_str("- `unsupported_claim`: a job produced a substantive claim not supported by the fixture evidence links.\n");
-	out.push_str("- `not_encoded`: a suite has no checked-in fixture, or an encoded fixture declares a capability gap so no pass/fail claim is allowed.\n\n");
+	out.push_str("- `not_encoded`: a suite has no checked-in fixture, or an encoded fixture declares a capability gap so no pass/fail claim is allowed.\n");
+	out.push_str(
+		"- `fixture_backed`: checked-in fixtures were scored; no live product execution is implied.\n",
+	);
+	out.push_str("- `live_baseline`: Docker live-baseline retrieval or lifecycle evidence exists, but it is not a real-world suite pass by itself.\n");
+	out.push_str("- `live_real_world`: a live adapter ran the real-world job contract and reported typed outcomes.\n");
+	out.push_str("- `research_gate`: research, setup, source mapping, or resource gates are recorded before a fair benchmark can run.\n\n");
+	out.push_str("Any `wrong_result`, `incomplete`, `blocked`, `not_tested`, `not_encoded`, `unsupported_claim`, or non-live evidence class must remain visible and must not be counted as a win.\n\n");
 	out.push_str("For `knowledge_compilation` jobs, generated pages are benchmark artifacts. Page sections must cite source evidence or timeline events, or be explicitly flagged as unsupported. Flagged unsupported summaries are counted separately from hidden unsupported claims.\n\n");
 	out.push_str("For `source_library` jobs, saved long-form material and social/thread captures are source records, not durable Memory Notes. Source records must preserve canonical source metadata, source_ref hydration pointers, and explicit promotion boundaries before any memory write is claimed.\n\n");
 	out.push_str("For `memory_summary` jobs, summary artifacts are derived review surfaces. Top-of-mind entries must be current, included or downgraded entries must carry source refs, and derived project-profile entries must either cite sources or be explicitly flagged as unsupported.\n\n");
@@ -7573,6 +7820,22 @@ fn render_markdown_semantics(out: &mut String, report: &RealWorldReport) {
 			out.push_str(&format!("- `{}`\n", md_inline(suite.as_str())));
 		}
 	}
+}
+
+fn scoreboard_state_list(states: &[String]) -> String {
+	if states.is_empty() { "none".to_string() } else { states.join(", ") }
+}
+
+fn scoreboard_evidence_class_count_display(scoreboard: &ScoreboardReport) -> String {
+	SCOREBOARD_EVIDENCE_CLASSES
+		.iter()
+		.map(|state| {
+			let count = scoreboard.evidence_class_counts.get(*state).copied().unwrap_or_default();
+
+			format!("{state}={count}")
+		})
+		.collect::<Vec<_>>()
+		.join(", ")
 }
 
 fn status_str(status: TypedStatus) -> &'static str {
