@@ -39,6 +39,9 @@ ELF is a memory service for LLM agents that stores short, evidence-linked facts 
 Use the canonical setup runbook:
 
 - `docs/runbook/getting_started.md`
+- For coding/research agents that want a deterministic local first-value loop, use
+  [docs/runbook/agent-setup.md](docs/runbook/agent-setup.md) or run
+  `cargo make local-agent-loop`.
 - For single-user production operation, backup, restore, and Qdrant rebuild, use
   [docs/runbook/single_user_production.md](docs/runbook/single_user_production.md).
 

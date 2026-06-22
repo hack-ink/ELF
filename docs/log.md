@@ -112,3 +112,8 @@ logs.
   checked-in snapshot that reruns adversarial, source-library, knowledge, and
   production-readiness slices while preserving private/provider blockers and keeping
   P5 queue labels unapplied pending main-thread acceptance.
+- Added the one-command local agent loop for XY-1076, plus agent setup recipes for
+  Codex, Claude/Cursor-style MCP clients, generic MCP clients, and CLI workflows.
+  The new drift audit anchors the deterministic source import -> proposal approval
+  -> recall/debug -> correction/rollback route to current HTTP, MCP, config, and
+  task surfaces.
