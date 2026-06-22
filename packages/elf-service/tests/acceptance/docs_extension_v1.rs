@@ -318,9 +318,29 @@ async fn docs_put_source_library_records_do_not_create_memory_notes() {
 			.fetch_one(&service.db.pool)
 			.await
 			.expect("Failed to verify doc row.");
+	let stored_source_ref: serde_json::Value =
+		sqlx::query_scalar("SELECT source_ref FROM doc_documents WHERE doc_id = $1")
+			.bind(put.doc_id)
+			.fetch_one(&service.db.pool)
+			.await
+			.expect("Failed to fetch normalized source_ref.");
 
 	assert!(doc_exists);
 	assert_eq!(after, before, "docs_put must not create durable Memory Notes.");
+	assert_eq!(put.source_capture.schema, "doc_source_capture/v1");
+	assert_eq!(put.source_capture.source_record_id, put.doc_id);
+	assert_eq!(put.source_capture.origin, "https://example.com/thread/source-library-1");
+	assert_eq!(put.source_capture.source_type, "social_thread");
+	assert_eq!(put.source_capture.visibility_scope, "project_shared");
+	assert!(!put.source_capture.source_spans.is_empty());
+	assert_eq!(put.source_capture.source_spans[0].schema, "doc_source_span/v1");
+	assert_eq!(put.source_capture.source_spans[0].status, "captured");
+	assert_eq!(put.source_capture.source_spans[0].reason_code, None);
+	assert_eq!(stored_source_ref["source_record_id"], put.doc_id.to_string());
+	assert_eq!(stored_source_ref["origin"], "https://example.com/thread/source-library-1");
+	assert_eq!(stored_source_ref["source_type"], "social_thread");
+	assert_eq!(stored_source_ref["content_hash"], put.content_hash);
+	assert!(stored_source_ref["source_spans"].as_array().is_some_and(|spans| !spans.is_empty()));
 
 	drop(service);
 
@@ -553,8 +573,24 @@ async fn docs_put_applies_write_policy_and_excerpt_by_chunk_id_is_verified() {
 	assert!(excerpt.verification.verified);
 	assert!(!excerpt.excerpt.is_empty());
 	assert!(!excerpt.excerpt.contains(secret));
+	assert!(!excerpt.locator.span_id.is_nil());
+
+	let captured_chunk_span = put
+		.source_capture
+		.source_spans
+		.iter()
+		.find(|span| span.chunk_id == Some(chunk_id))
+		.expect("Expected captured source span for hydrated chunk.");
+
+	assert_eq!(excerpt.locator.span_id, captured_chunk_span.span_id);
 	assert_eq!(excerpt.verification.content_hash, put.content_hash);
 	assert!(put.write_policy_audit.is_some());
+	assert_eq!(put.source_capture.policy_spans.len(), 1);
+	assert_eq!(put.source_capture.policy_spans[0].status, "excluded");
+	assert_eq!(
+		put.source_capture.policy_spans[0].reason_code.as_deref(),
+		Some("WRITE_POLICY_EXCLUSION")
+	);
 
 	let _ = shutdown.send(());
 
@@ -1521,7 +1557,16 @@ async fn docs_search_l0_returns_pointer_and_explain_trajectory() {
 	assert!(results.items[0].pointer.schema == "source_ref/v1");
 	assert!(!results.items[0].pointer.reference.doc_id.is_nil());
 	assert!(!results.items[0].pointer.reference.chunk_id.is_nil());
+	assert_eq!(
+		results.items[0].pointer.reference.source_record_id,
+		results.items[0].pointer.reference.doc_id
+	);
+	assert_eq!(
+		results.items[0].pointer.reference.source_span_id,
+		results.items[0].pointer.locator.span_id
+	);
 	assert_eq!(results.items[0].pointer.resolver, "elf_doc_ext/v1");
+	assert!(!results.items[0].pointer.locator.span_id.is_nil());
 	assert!(!results.trace_id.is_nil());
 
 	let _ = shutdown.send(());
@@ -1713,6 +1758,7 @@ async fn docs_excerpts_get_supports_l0_and_returns_locator_and_optional_trajecto
 
 	assert_eq!(excerpt.locator.selector_kind, "quote");
 	assert!(excerpt.locator.match_end_offset > excerpt.locator.match_start_offset);
+	assert!(!excerpt.locator.span_id.is_nil());
 	assert!(excerpt.excerpt.len() <= 256);
 	assert!(excerpt.trajectory.is_some());
 	assert_eq!(

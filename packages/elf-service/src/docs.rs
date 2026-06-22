@@ -45,6 +45,8 @@ const DEFAULT_L2_MAX_BYTES: usize = 32 * 1_024;
 const DOC_RETRIEVAL_TRAJECTORY_SCHEMA_V1: &str = "doc_retrieval_trajectory/v1";
 const DOC_SOURCE_REF_SCHEMA_V1: &str = "source_ref/v1";
 const DOC_SOURCE_REF_RESOLVER_V1: &str = "elf_doc_ext/v1";
+const DOC_SOURCE_CAPTURE_SCHEMA_V1: &str = "doc_source_capture/v1";
+const DOC_SOURCE_SPAN_SCHEMA_V1: &str = "doc_source_span/v1";
 const DOC_STATUSES: [&str; 2] = ["active", "deleted"];
 const SOURCE_LIBRARY_FIELD_KEYS: [&str; 9] = [
 	"source_kind",
@@ -129,6 +131,8 @@ pub struct DocsPutRequest {
 pub struct DocsPutResponse {
 	/// Identifier of the stored document.
 	pub doc_id: Uuid,
+	/// Normalized Source Library capture metadata for the stored document.
+	pub source_capture: DocsSourceCaptureSummary,
 	/// Number of persisted chunks generated from the content.
 	pub chunk_count: u32,
 	/// Byte length of the stored content.
@@ -138,6 +142,59 @@ pub struct DocsPutResponse {
 	#[serde(skip_serializing_if = "Option::is_none")]
 	/// Write-policy audit emitted for the stored document, when applicable.
 	pub write_policy_audit: Option<WritePolicyAudit>,
+}
+
+/// Normalized Source Library capture metadata returned by `docs_put`.
+#[derive(Clone, Debug, Serialize)]
+pub struct DocsSourceCaptureSummary {
+	/// Schema identifier for this capture summary.
+	pub schema: String,
+	/// Stable source record identifier. This is also the stored `doc_id`.
+	pub source_record_id: Uuid,
+	/// Canonical source origin used for operator inspection and deduplication.
+	pub origin: String,
+	/// RFC3339 timestamp when ELF captured the source.
+	pub captured_at: String,
+	/// Whole-document BLAKE3 hash for the persisted content.
+	pub content_hash: String,
+	/// Visibility scope assigned to the source record.
+	pub visibility_scope: String,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	/// Optional display title associated with the source record.
+	pub title: Option<String>,
+	/// Normalized source type, derived from `source_kind` when present.
+	pub source_type: String,
+	/// Stable span references for persisted source chunks.
+	pub source_spans: Vec<DocsSourceSpanRef>,
+	#[serde(skip_serializing_if = "Vec::is_empty")]
+	/// Typed audit records for redacted or excluded source spans.
+	pub policy_spans: Vec<DocsSourceSpanRef>,
+}
+
+/// Stable reference to one captured or policy-affected source span.
+#[derive(Clone, Debug, Serialize)]
+pub struct DocsSourceSpanRef {
+	/// Schema identifier for this span reference.
+	pub schema: String,
+	/// Stable span identifier derived from content hash and byte offsets.
+	pub span_id: Uuid,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	/// Chunk identifier when this span is backed by a persisted chunk.
+	pub chunk_id: Option<Uuid>,
+	/// Span lifecycle status such as `captured`, `excluded`, or `redacted`.
+	pub status: String,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	/// Typed reason code for non-captured spans.
+	pub reason_code: Option<String>,
+	/// Inclusive start byte offset in the relevant content hash.
+	pub start_offset: usize,
+	/// Exclusive end byte offset in the relevant content hash.
+	pub end_offset: usize,
+	/// Whole-content hash that makes the offsets replayable.
+	pub content_hash: String,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	/// Chunk hash when this span is backed by a persisted chunk.
+	pub chunk_hash: Option<String>,
 }
 
 /// Request payload for document metadata lookup.
@@ -297,6 +354,10 @@ pub struct DocsSearchL0ItemReference {
 	pub doc_id: Uuid,
 	/// Chunk identifier.
 	pub chunk_id: Uuid,
+	/// Stable source record identifier.
+	pub source_record_id: Uuid,
+	/// Stable source span identifier for this chunk.
+	pub source_span_id: Uuid,
 }
 
 /// Freshness guard for a document-search hit.
@@ -323,6 +384,8 @@ pub struct DocsSearchL0ItemHashes {
 /// Locator hints carried with a document-search pointer.
 #[derive(Clone, Debug, Serialize)]
 pub struct DocsSearchL0ItemLocator {
+	/// Stable source span identifier for the locator.
+	pub span_id: Uuid,
 	/// Chunk byte position in the authoritative document content.
 	pub position: TextPositionSelector,
 }
@@ -430,6 +493,8 @@ pub struct DocsExcerptResponse {
 /// Selector resolution metadata for an excerpt.
 #[derive(Clone, Debug, Serialize)]
 pub struct DocsExcerptLocator {
+	/// Stable source span identifier for the matched selector span.
+	pub span_id: Uuid,
 	/// Selector kind that produced the match.
 	pub selector_kind: String,
 	/// Inclusive start offset of the matched selector span.
@@ -445,6 +510,19 @@ pub struct DocsExcerptLocator {
 	#[serde(skip_serializing_if = "Option::is_none")]
 	/// Position selector actually used for resolution.
 	pub position: Option<TextPositionSelector>,
+}
+
+struct SourceCaptureSummaryInput<'a> {
+	doc_id: Uuid,
+	source_ref: &'a Map<String, Value>,
+	doc_type: DocType,
+	scope: &'a str,
+	title: Option<&'a str>,
+	content_hash: &'a str,
+	raw_content_hash: &'a str,
+	now: OffsetDateTime,
+	chunks: &'a [DocChunk],
+	write_policy_audit: Option<&'a WritePolicyAudit>,
 }
 
 #[derive(Clone, Copy)]
@@ -592,21 +670,57 @@ impl ElfService {
 		let ValidatedDocsPut { doc_type, content, write_policy_audit } = validate_docs_put(&req)?;
 		let now = OffsetDateTime::now_utc();
 		let embed_version = crate::embedding_version(&self.cfg);
-		let DocsPutRequest { tenant_id, project_id, agent_id, scope, title, source_ref, .. } = req;
 		let chunking_profile = resolve_doc_chunking_profile(doc_type);
 		let tokenizer = load_tokenizer(&self.cfg)?;
+		let tenant_id = req.tenant_id.clone();
+		let project_id = req.project_id.clone();
+		let agent_id = req.agent_id.clone();
+		let scope = req.scope.clone();
+		let title = req.title.clone();
+		let source_ref = req.source_ref.clone();
+		let source_ref_map = source_ref.as_object().ok_or_else(|| Error::InvalidRequest {
+			message: "source_ref must be a JSON object.".to_string(),
+		})?;
 		let effective_project_id =
 			if scope.trim() == "org_shared" { ORG_PROJECT_ID } else { project_id.as_str() };
 		let content_bytes = content.len();
-		let content_hash = blake3::hash(content.as_bytes());
-		let doc_id = Uuid::new_v4();
-		let chunks = split_tokens_by_offsets(
+		let content_hash = blake3::hash(content.as_bytes()).to_hex().to_string();
+		let raw_content_hash = blake3::hash(req.content.as_bytes()).to_hex().to_string();
+		let doc_id = source_record_id_for(
+			tenant_id.as_str(),
+			effective_project_id,
+			agent_id.as_str(),
+			scope.as_str(),
+			doc_type,
+			source_ref_map,
+			content_hash.as_str(),
+		);
+		let mut chunks = split_tokens_by_offsets(
 			content.as_str(),
 			chunking_profile.max_tokens,
 			chunking_profile.overlap_tokens,
 			chunking_profile.max_chunks,
 			&tokenizer,
 		)?;
+
+		for (chunk_index, chunk) in chunks.iter_mut().enumerate() {
+			chunk.chunk_id = doc_chunk_id_for(doc_id, chunk_index as i32);
+		}
+
+		let chunk_rows = build_doc_chunk_rows(doc_id, &chunks, now);
+		let source_capture = build_source_capture_summary(SourceCaptureSummaryInput {
+			doc_id,
+			source_ref: source_ref_map,
+			doc_type,
+			scope: scope.as_str(),
+			title: title.as_deref(),
+			content_hash: content_hash.as_str(),
+			raw_content_hash: raw_content_hash.as_str(),
+			now,
+			chunks: &chunk_rows,
+			write_policy_audit: write_policy_audit.as_ref(),
+		})?;
+		let normalized_source_ref = normalize_source_ref_for_capture(source_ref, &source_capture)?;
 		let doc_row = DocDocument {
 			doc_id,
 			tenant_id: tenant_id.clone(),
@@ -616,10 +730,10 @@ impl ElfService {
 			doc_type: doc_type.as_str().to_string(),
 			status: "active".to_string(),
 			title,
-			source_ref: docs::normalize_source_ref(Some(source_ref)),
+			source_ref: docs::normalize_source_ref(Some(normalized_source_ref)),
 			content,
 			content_bytes: content_bytes as i32,
-			content_hash: content_hash.to_hex().to_string(),
+			content_hash: content_hash.clone(),
 			created_at: now,
 			updated_at: now,
 		};
@@ -627,20 +741,8 @@ impl ElfService {
 
 		docs::insert_doc_document(&mut *tx, &doc_row).await?;
 
-		for (chunk_index, chunk) in chunks.iter().enumerate() {
-			let chunk_hash = blake3::hash(chunk.text.as_bytes());
-			let chunk_row = DocChunk {
-				chunk_id: chunk.chunk_id,
-				doc_id,
-				chunk_index: chunk_index as i32,
-				start_offset: chunk.start_offset as i32,
-				end_offset: chunk.end_offset as i32,
-				chunk_text: chunk.text.clone(),
-				chunk_hash: chunk_hash.to_hex().to_string(),
-				created_at: now,
-			};
-
-			docs::insert_doc_chunk(&mut *tx, &chunk_row).await?;
+		for chunk_row in &chunk_rows {
+			docs::insert_doc_chunk(&mut *tx, chunk_row).await?;
 			doc_outbox::enqueue_doc_outbox(
 				&mut *tx,
 				doc_id,
@@ -666,9 +768,10 @@ impl ElfService {
 
 		Ok(DocsPutResponse {
 			doc_id,
-			chunk_count: chunks.len() as u32,
+			source_capture,
+			chunk_count: chunk_rows.len() as u32,
 			content_bytes: content_bytes as u32,
-			content_hash: content_hash.to_hex().to_string(),
+			content_hash,
 			write_policy_audit,
 		})
 	}
@@ -1090,6 +1193,7 @@ LIMIT 1",
 				&selector_kind,
 				match_start_offset,
 				match_end_offset,
+				doc.content_hash.as_str(),
 			),
 			verification: DocsExcerptVerification {
 				verified,
@@ -1128,6 +1232,14 @@ impl ExcerptsSelectorKind {
 	fn as_str(&self) -> &'static str {
 		match self {
 			Self::ChunkId => "chunk_id",
+			Self::Quote => "quote",
+			Self::Position => "position",
+		}
+	}
+
+	fn span_kind(&self) -> &'static str {
+		match self {
+			Self::ChunkId => "captured",
 			Self::Quote => "quote",
 			Self::Position => "position",
 		}
@@ -1236,8 +1348,15 @@ fn docs_excerpt_locator(
 	selector_kind: &ExcerptsSelectorKind,
 	match_start_offset: usize,
 	match_end_offset: usize,
+	content_hash: &str,
 ) -> DocsExcerptLocator {
 	DocsExcerptLocator {
+		span_id: source_span_id(
+			content_hash,
+			match_start_offset,
+			match_end_offset,
+			selector_kind.span_kind(),
+		),
 		selector_kind: selector_kind.as_str().to_string(),
 		match_start_offset,
 		match_end_offset,
@@ -1256,7 +1375,17 @@ fn build_docs_l0_pointer(row: &DocSearchRow, chunk_id: Uuid) -> DocsSearchL0Item
 	DocsSearchL0ItemPointer {
 		schema: DOC_SOURCE_REF_SCHEMA_V1.to_string(),
 		resolver: DOC_SOURCE_REF_RESOLVER_V1.to_string(),
-		reference: DocsSearchL0ItemReference { doc_id: row.doc_id, chunk_id },
+		reference: DocsSearchL0ItemReference {
+			doc_id: row.doc_id,
+			chunk_id,
+			source_record_id: row.doc_id,
+			source_span_id: source_span_id(
+				row.content_hash.as_str(),
+				row.start_offset.max(0) as usize,
+				row.end_offset.max(0) as usize,
+				"captured",
+			),
+		},
 		state: DocsSearchL0ItemState {
 			content_hash: hashes.content_hash.clone(),
 			chunk_hash: hashes.chunk_hash.clone(),
@@ -1264,12 +1393,333 @@ fn build_docs_l0_pointer(row: &DocSearchRow, chunk_id: Uuid) -> DocsSearchL0Item
 		},
 		hashes,
 		locator: DocsSearchL0ItemLocator {
+			span_id: source_span_id(
+				row.content_hash.as_str(),
+				row.start_offset.max(0) as usize,
+				row.end_offset.max(0) as usize,
+				"captured",
+			),
 			position: TextPositionSelector {
 				start: row.start_offset.max(0) as usize,
 				end: row.end_offset.max(0) as usize,
 			},
 		},
 	}
+}
+
+fn build_doc_chunk_rows(doc_id: Uuid, chunks: &[ByteChunk], now: OffsetDateTime) -> Vec<DocChunk> {
+	chunks
+		.iter()
+		.enumerate()
+		.map(|(chunk_index, chunk)| DocChunk {
+			chunk_id: doc_chunk_id_for(doc_id, chunk_index as i32),
+			doc_id,
+			chunk_index: chunk_index as i32,
+			start_offset: chunk.start_offset as i32,
+			end_offset: chunk.end_offset as i32,
+			chunk_text: chunk.text.clone(),
+			chunk_hash: blake3::hash(chunk.text.as_bytes()).to_hex().to_string(),
+			created_at: now,
+		})
+		.collect()
+}
+
+fn doc_chunk_id_for(doc_id: Uuid, chunk_index: i32) -> Uuid {
+	let name = format!("elf-doc-chunk/v1:{doc_id}:{chunk_index}");
+
+	Uuid::new_v5(&Uuid::NAMESPACE_OID, name.as_bytes())
+}
+
+fn source_record_id_for(
+	tenant_id: &str,
+	project_id: &str,
+	agent_id: &str,
+	scope: &str,
+	doc_type: DocType,
+	source_ref: &Map<String, Value>,
+	content_hash: &str,
+) -> Uuid {
+	let name = serde_json::json!([
+		"elf-doc-source-record/v1",
+		tenant_id,
+		project_id,
+		agent_id,
+		scope,
+		doc_type.as_str(),
+		source_identity_value(source_ref, doc_type),
+		content_hash,
+	])
+	.to_string();
+
+	Uuid::new_v5(&Uuid::NAMESPACE_URL, name.as_bytes())
+}
+
+fn source_span_id(content_hash: &str, start: usize, end: usize, span_kind: &str) -> Uuid {
+	let name = serde_json::json!(["elf-doc-source-span/v1", content_hash, start, end, span_kind,])
+		.to_string();
+
+	Uuid::new_v5(&Uuid::NAMESPACE_OID, name.as_bytes())
+}
+
+fn build_source_capture_summary(
+	input: SourceCaptureSummaryInput<'_>,
+) -> Result<DocsSourceCaptureSummary> {
+	let SourceCaptureSummaryInput {
+		doc_id,
+		source_ref,
+		doc_type,
+		scope,
+		title,
+		content_hash,
+		raw_content_hash,
+		now,
+		chunks,
+		write_policy_audit,
+	} = input;
+	let captured_at = source_ref
+		.get("captured_at")
+		.and_then(Value::as_str)
+		.map(ToString::to_string)
+		.unwrap_or(format_timestamp(now)?);
+	let source_spans = chunks
+		.iter()
+		.map(|chunk| DocsSourceSpanRef {
+			schema: DOC_SOURCE_SPAN_SCHEMA_V1.to_string(),
+			span_id: source_span_id(
+				content_hash,
+				chunk.start_offset.max(0) as usize,
+				chunk.end_offset.max(0) as usize,
+				"captured",
+			),
+			chunk_id: Some(chunk.chunk_id),
+			status: "captured".to_string(),
+			reason_code: None,
+			start_offset: chunk.start_offset.max(0) as usize,
+			end_offset: chunk.end_offset.max(0) as usize,
+			content_hash: content_hash.to_string(),
+			chunk_hash: Some(chunk.chunk_hash.clone()),
+		})
+		.collect();
+	let policy_spans = source_policy_spans(raw_content_hash, write_policy_audit);
+
+	Ok(DocsSourceCaptureSummary {
+		schema: DOC_SOURCE_CAPTURE_SCHEMA_V1.to_string(),
+		source_record_id: doc_id,
+		origin: source_origin(source_ref, doc_type),
+		captured_at,
+		content_hash: content_hash.to_string(),
+		visibility_scope: scope.to_string(),
+		title: title.map(ToString::to_string),
+		source_type: source_type(source_ref, doc_type),
+		source_spans,
+		policy_spans,
+	})
+}
+
+fn source_policy_spans(
+	raw_content_hash: &str,
+	audit: Option<&WritePolicyAudit>,
+) -> Vec<DocsSourceSpanRef> {
+	let Some(audit) = audit else {
+		return Vec::new();
+	};
+	let mut spans = Vec::with_capacity(audit.exclusions.len() + audit.redactions.len());
+
+	for span in &audit.exclusions {
+		spans.push(policy_span_ref(
+			raw_content_hash,
+			span.start,
+			span.end,
+			"excluded",
+			"WRITE_POLICY_EXCLUSION",
+		));
+	}
+	for redaction in &audit.redactions {
+		spans.push(policy_span_ref(
+			raw_content_hash,
+			redaction.span.start,
+			redaction.span.end,
+			"redacted",
+			"WRITE_POLICY_REDACTION",
+		));
+	}
+
+	spans
+}
+
+fn policy_span_ref(
+	content_hash: &str,
+	start: usize,
+	end: usize,
+	status: &str,
+	reason_code: &str,
+) -> DocsSourceSpanRef {
+	DocsSourceSpanRef {
+		schema: DOC_SOURCE_SPAN_SCHEMA_V1.to_string(),
+		span_id: source_span_id(content_hash, start, end, reason_code),
+		chunk_id: None,
+		status: status.to_string(),
+		reason_code: Some(reason_code.to_string()),
+		start_offset: start,
+		end_offset: end,
+		content_hash: content_hash.to_string(),
+		chunk_hash: None,
+	}
+}
+
+fn normalize_source_ref_for_capture(
+	source_ref: Value,
+	source_capture: &DocsSourceCaptureSummary,
+) -> Result<Value> {
+	let mut source_ref = source_ref.as_object().cloned().ok_or_else(|| Error::InvalidRequest {
+		message: "source_ref must be a JSON object.".to_string(),
+	})?;
+
+	source_ref.insert(
+		"source_record_id".to_string(),
+		Value::String(source_capture.source_record_id.to_string()),
+	);
+	source_ref.insert("origin".to_string(), Value::String(source_capture.origin.clone()));
+	source_ref.insert("captured_at".to_string(), Value::String(source_capture.captured_at.clone()));
+	source_ref
+		.insert("content_hash".to_string(), Value::String(source_capture.content_hash.clone()));
+	source_ref.insert(
+		"visibility_scope".to_string(),
+		Value::String(source_capture.visibility_scope.clone()),
+	);
+
+	if let Some(title) = source_capture.title.as_ref() {
+		source_ref.entry("title".to_string()).or_insert_with(|| Value::String(title.clone()));
+	}
+
+	source_ref.insert("source_type".to_string(), Value::String(source_capture.source_type.clone()));
+	source_ref
+		.insert("source_spans".to_string(), source_spans_to_value(&source_capture.source_spans)?);
+
+	if !source_capture.policy_spans.is_empty() {
+		source_ref.insert(
+			"policy_spans".to_string(),
+			source_spans_to_value(&source_capture.policy_spans)?,
+		);
+	}
+
+	Ok(Value::Object(source_ref))
+}
+
+fn source_spans_to_value(spans: &[DocsSourceSpanRef]) -> Result<Value> {
+	serde_json::to_value(spans).map_err(|err| Error::InvalidRequest {
+		message: format!("failed to encode source span metadata: {err}"),
+	})
+}
+
+fn source_type(source_ref: &Map<String, Value>, doc_type: DocType) -> String {
+	source_ref
+		.get("source_kind")
+		.and_then(Value::as_str)
+		.filter(|value| !value.trim().is_empty())
+		.unwrap_or_else(|| doc_type.as_str())
+		.to_string()
+}
+
+fn source_origin(source_ref: &Map<String, Value>, doc_type: DocType) -> String {
+	if let Some(origin) = source_ref_string(source_ref, "canonical_uri")
+		.or_else(|| source_ref_string(source_ref, "url"))
+		.or_else(|| source_ref_string(source_ref, "uri"))
+	{
+		return origin.to_string();
+	}
+
+	match doc_type {
+		DocType::Chat => source_ref_string(source_ref, "message_id")
+			.map(|message_id| {
+				format!(
+					"thread:{}#{}",
+					source_ref_string(source_ref, "thread_id").unwrap_or("unknown"),
+					message_id
+				)
+			})
+			.unwrap_or_else(|| {
+				format!(
+					"thread:{}",
+					source_ref_string(source_ref, "thread_id").unwrap_or("unknown")
+				)
+			}),
+		DocType::Search => source_ref_string(source_ref, "domain")
+			.map(|domain| format!("search:{domain}"))
+			.unwrap_or_else(|| "search:unknown".to_string()),
+		DocType::Dev => dev_origin(source_ref),
+		DocType::Knowledge => source_ref_string(source_ref, "ts")
+			.map(|ts| format!("knowledge:{ts}"))
+			.unwrap_or_else(|| "knowledge:unknown".to_string()),
+	}
+}
+
+fn dev_origin(source_ref: &Map<String, Value>) -> String {
+	let repo = source_ref_string(source_ref, "repo").unwrap_or("unknown");
+	let path = source_ref_string(source_ref, "path").unwrap_or("");
+	let revision = source_ref_string(source_ref, "commit_sha")
+		.map(|commit| format!("@{commit}"))
+		.or_else(|| source_ref_i64(source_ref, "pr_number").map(|pr| format!("#pr-{pr}")))
+		.or_else(|| {
+			source_ref_i64(source_ref, "issue_number").map(|issue| format!("#issue-{issue}"))
+		})
+		.unwrap_or_default();
+
+	if path.is_empty() {
+		format!("repo:{repo}{revision}")
+	} else {
+		format!("repo:{repo}/{path}{revision}")
+	}
+}
+
+fn source_identity_value(source_ref: &Map<String, Value>, doc_type: DocType) -> Value {
+	if let Some(canonical_uri) = source_ref_string(source_ref, "canonical_uri") {
+		return serde_json::json!(["canonical_uri", canonical_uri]);
+	}
+
+	match doc_type {
+		DocType::Chat => serde_json::json!([
+			"chat",
+			source_ref_string(source_ref, "thread_id"),
+			source_ref_string(source_ref, "message_id"),
+			source_ref_string(source_ref, "role"),
+			source_ref_string(source_ref, "ts"),
+		]),
+		DocType::Search => serde_json::json!([
+			"search",
+			source_ref_string(source_ref, "url"),
+			source_ref_string(source_ref, "domain"),
+			source_ref_string(source_ref, "query"),
+			source_ref_string(source_ref, "ts"),
+		]),
+		DocType::Dev => serde_json::json!([
+			"dev",
+			source_ref_string(source_ref, "repo"),
+			source_ref_string(source_ref, "path"),
+			source_ref_string(source_ref, "commit_sha"),
+			source_ref_i64(source_ref, "pr_number"),
+			source_ref_i64(source_ref, "issue_number"),
+		]),
+		DocType::Knowledge => serde_json::json!([
+			"knowledge",
+			source_ref_string(source_ref, "uri"),
+			source_ref_string(source_ref, "ts"),
+		]),
+	}
+}
+
+fn source_ref_string<'a>(source_ref: &'a Map<String, Value>, key: &str) -> Option<&'a str> {
+	source_ref.get(key).and_then(Value::as_str).filter(|value| !value.trim().is_empty())
+}
+
+fn source_ref_i64(source_ref: &Map<String, Value>, key: &str) -> Option<i64> {
+	source_ref.get(key).and_then(Value::as_i64)
+}
+
+fn format_timestamp(ts: OffsetDateTime) -> Result<String> {
+	ts.format(&Rfc3339).map_err(|err| Error::InvalidRequest {
+		message: format!("failed to format RFC3339 timestamp: {err}"),
+	})
 }
 
 fn resolve_doc_chunking_profile(doc_type: DocType) -> DocChunkingProfile {
@@ -2568,7 +3018,8 @@ mod tests {
 		self, DocType, DocsPutRequest, DocsSearchL0Filters, DocsSearchL0Request, DocsSparseMode,
 		Error,
 	};
-	use elf_domain::writegate::{WritePolicy, WriteSpan};
+	use elf_domain::writegate::{WritePolicy, WritePolicyAudit, WriteRedactionResult, WriteSpan};
+	use elf_storage::models::DocChunk;
 
 	const TENANT_ID: &str = "tenant";
 	const PROJECT_ID: &str = "project";
@@ -3331,6 +3782,144 @@ mod tests {
 	}
 
 	#[test]
+	fn source_capture_metadata_uses_stable_record_and_span_ids() {
+		let now = OffsetDateTime::parse("2026-02-25T12:15:00Z", &Rfc3339)
+			.expect("Expected test timestamp to parse.");
+		let source_ref = serde_json::json!({
+			"schema": "doc_source_ref/v1",
+			"doc_type": "knowledge",
+			"ts": "2026-02-25T12:00:00Z",
+			"source_kind": "article",
+			"canonical_uri": "https://example.com/research/source-library",
+			"captured_at": "2026-02-25T12:10:00Z",
+			"trust_label": "public_web",
+		});
+		let source_ref = source_ref.as_object().expect("Expected source_ref object.");
+		let content_hash = "doc-content-hash";
+		let doc_id = super::source_record_id_for(
+			TENANT_ID,
+			PROJECT_ID,
+			"owner",
+			"project_shared",
+			DocType::Knowledge,
+			source_ref,
+			content_hash,
+		);
+		let repeated_doc_id = super::source_record_id_for(
+			TENANT_ID,
+			PROJECT_ID,
+			"owner",
+			"project_shared",
+			DocType::Knowledge,
+			source_ref,
+			content_hash,
+		);
+		let chunk_id = super::doc_chunk_id_for(doc_id, 0);
+		let chunk = DocChunk {
+			chunk_id,
+			doc_id,
+			chunk_index: 0,
+			start_offset: 0,
+			end_offset: 42,
+			chunk_text: "Source libraries preserve long-form evidence.".to_string(),
+			chunk_hash: "chunk-content-hash".to_string(),
+			created_at: now,
+		};
+		let capture = super::build_source_capture_summary(super::SourceCaptureSummaryInput {
+			doc_id,
+			source_ref,
+			doc_type: DocType::Knowledge,
+			scope: "project_shared",
+			title: Some("Saved article"),
+			content_hash,
+			raw_content_hash: "raw-content-hash",
+			now,
+			chunks: &[chunk],
+			write_policy_audit: None,
+		})
+		.expect("Expected source capture summary.");
+
+		assert_eq!(doc_id, repeated_doc_id);
+		assert_eq!(capture.schema, "doc_source_capture/v1");
+		assert_eq!(capture.source_record_id, doc_id);
+		assert_eq!(capture.origin, "https://example.com/research/source-library");
+		assert_eq!(capture.captured_at, "2026-02-25T12:10:00Z");
+		assert_eq!(capture.content_hash, content_hash);
+		assert_eq!(capture.visibility_scope, "project_shared");
+		assert_eq!(capture.title.as_deref(), Some("Saved article"));
+		assert_eq!(capture.source_type, "article");
+		assert_eq!(capture.source_spans.len(), 1);
+		assert_eq!(capture.source_spans[0].schema, "doc_source_span/v1");
+		assert_eq!(capture.source_spans[0].chunk_id, Some(chunk_id));
+		assert_eq!(capture.source_spans[0].status, "captured");
+		assert_eq!(capture.source_spans[0].reason_code, None);
+		assert_eq!(capture.source_spans[0].start_offset, 0);
+		assert_eq!(capture.source_spans[0].end_offset, 42);
+		assert_eq!(
+			capture.source_spans[0].span_id,
+			super::source_span_id(content_hash, 0, 42, "captured")
+		);
+	}
+
+	#[test]
+	fn normalized_source_ref_records_policy_span_reasons() {
+		let now = OffsetDateTime::parse("2026-02-25T12:15:00Z", &Rfc3339)
+			.expect("Expected test timestamp to parse.");
+		let source_ref = serde_json::json!({
+			"schema": "doc_source_ref/v1",
+			"doc_type": "knowledge",
+			"ts": "2026-02-25T12:00:00Z",
+			"uri": "file:///tmp/source.txt",
+		});
+		let source_ref_map = source_ref.as_object().expect("Expected source_ref object.");
+		let audit = WritePolicyAudit {
+			exclusions: vec![WriteSpan { start: 6, end: 12 }],
+			redactions: vec![WriteRedactionResult {
+				span: WriteSpan { start: 20, end: 30 },
+				replacement: "[redacted]".to_string(),
+			}],
+		};
+		let doc_id = super::source_record_id_for(
+			TENANT_ID,
+			PROJECT_ID,
+			"owner",
+			"project_shared",
+			DocType::Knowledge,
+			source_ref_map,
+			"stored-hash",
+		);
+		let capture = super::build_source_capture_summary(super::SourceCaptureSummaryInput {
+			doc_id,
+			source_ref: source_ref_map,
+			doc_type: DocType::Knowledge,
+			scope: "project_shared",
+			title: None,
+			content_hash: "stored-hash",
+			raw_content_hash: "raw-hash",
+			now,
+			chunks: &[],
+			write_policy_audit: Some(&audit),
+		})
+		.expect("Expected source capture summary.");
+		let normalized = super::normalize_source_ref_for_capture(source_ref, &capture)
+			.expect("Expected normalized source_ref");
+
+		assert_eq!(capture.policy_spans.len(), 2);
+		assert_eq!(capture.policy_spans[0].status, "excluded");
+		assert_eq!(capture.policy_spans[0].reason_code.as_deref(), Some("WRITE_POLICY_EXCLUSION"));
+		assert_eq!(capture.policy_spans[1].status, "redacted");
+		assert_eq!(capture.policy_spans[1].reason_code.as_deref(), Some("WRITE_POLICY_REDACTION"));
+		assert_eq!(normalized["source_record_id"], doc_id.to_string());
+		assert_eq!(normalized["origin"], "file:///tmp/source.txt");
+		assert_eq!(normalized["captured_at"], "2026-02-25T12:15:00Z");
+		assert_eq!(normalized["content_hash"], "stored-hash");
+		assert_eq!(normalized["visibility_scope"], "project_shared");
+		assert_eq!(normalized["source_type"], "knowledge");
+		assert_eq!(normalized["policy_spans"][0]["reason_code"], "WRITE_POLICY_EXCLUSION");
+		assert_eq!(normalized["policy_spans"][1]["reason_code"], "WRITE_POLICY_REDACTION");
+	}
+
+	#[test]
 	fn validate_docs_put_rejects_incomplete_source_library_metadata() {
 		let err = docs::validate_docs_put(&DocsPutRequest {
 			tenant_id: "t".to_string(),
@@ -3411,8 +4000,11 @@ mod tests {
 		assert_eq!(pointer.resolver, "elf_doc_ext/v1");
 		assert_eq!(pointer.hashes.content_hash, "doc-hash");
 		assert_eq!(pointer.hashes.chunk_hash, "chunk-hash");
+		assert_eq!(pointer.reference.source_record_id, row.doc_id);
+		assert_eq!(pointer.reference.source_span_id, pointer.locator.span_id);
 		assert_eq!(pointer.locator.position.start, 12);
 		assert_eq!(pointer.locator.position.end, 64);
+		assert_eq!(pointer.locator.span_id, super::source_span_id("doc-hash", 12, 64, "captured"));
 		assert_eq!(pointer.state.content_hash, pointer.hashes.content_hash);
 		assert_eq!(pointer.state.chunk_hash, pointer.hashes.chunk_hash);
 	}
