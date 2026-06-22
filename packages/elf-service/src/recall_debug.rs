@@ -1,10 +1,9 @@
 //! Cross-layer recall/debug panel readback.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sqlx::FromRow;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
@@ -13,12 +12,15 @@ use crate::{
 	GraphQueryPredicateRef, GraphReportRequest, KnowledgePageSearchItem,
 	KnowledgePageSearchRequest, Result, SearchExplainItem, SearchTrajectoryStage,
 	TraceBundleGetRequest,
-	access::ORG_PROJECT_ID,
-	search::{TraceBundleMode, TraceReplayCandidate},
+	access::{self, ORG_PROJECT_ID, SharedSpaceGrantKey},
+	search::{self, TraceBundleMode, TraceReplayCandidate},
 };
+use elf_storage::models::MemoryNote;
 
 /// Schema identifier for recall/debug panel responses.
 pub const ELF_RECALL_DEBUG_PANEL_SCHEMA_V1: &str = "elf.recall_debug_panel/v1";
+/// Schema identifier for deterministic recall trace projections.
+pub const ELF_RECALL_TRACE_SCHEMA_V1: &str = "elf.recall_trace/v1";
 
 const DEFAULT_RECALL_DEBUG_LIMIT: u32 = 25;
 const MAX_RECALL_DEBUG_LIMIT: u32 = 100;
@@ -51,6 +53,9 @@ pub struct RecallDebugPanelRequest {
 	pub include_dreaming: Option<bool>,
 	/// Maximum rows per layer.
 	pub limit: Option<u32>,
+	#[serde(skip)]
+	/// Whether project-scoped trace anchors are allowed for an admin mirror request.
+	pub allow_project_trace_debug: bool,
 }
 
 /// Cross-layer recall/debug panel response.
@@ -65,8 +70,73 @@ pub struct RecallDebugPanelResponse {
 	pub request: RecallDebugPanelRequestEcho,
 	/// Aggregate panel summary.
 	pub summary: RecallDebugPanelSummary,
+	/// Deterministic flat trace projection for agents and fixture assertions.
+	pub recall_trace: RecallTrace,
 	/// Cross-layer rows grouped by source layer.
 	pub layers: Vec<RecallDebugLayer>,
+}
+
+/// Deterministic flat recall trace over all requested layers.
+#[derive(Clone, Debug, Serialize)]
+pub struct RecallTrace {
+	/// Trace schema identifier.
+	pub schema: String,
+	/// Aggregate trace counters.
+	pub summary: RecallTraceSummary,
+	/// Stable trace entries in layer and row order.
+	pub entries: Vec<RecallTraceEntry>,
+}
+
+/// Aggregate counters for a recall trace.
+#[derive(Clone, Debug, Default, Serialize)]
+pub struct RecallTraceSummary {
+	/// Number of trace entries.
+	pub entry_count: usize,
+	/// Entries whose row selection state is selected.
+	pub selected_count: usize,
+	/// Entries whose row selection state is dropped.
+	pub dropped_count: usize,
+	/// Entries whose freshness state indicates stale or non-current evidence.
+	pub stale_count: usize,
+	/// Entries representing blocked layers.
+	pub blocked_count: usize,
+	/// Entries representing layers that were not requested.
+	pub not_requested_count: usize,
+	/// Entries that require raw SQL for diagnosis.
+	pub raw_sql_needed_count: usize,
+	/// Entries with a replay command or deterministic artifact path.
+	pub replay_command_count: usize,
+}
+
+/// One compact recall trace entry.
+#[derive(Clone, Debug, Serialize)]
+pub struct RecallTraceEntry {
+	/// Layer identifier.
+	pub layer: String,
+	/// Primary trace state for compact assertions.
+	pub context_state: String,
+	/// Original row selection state or layer evidence class.
+	pub selection_state: String,
+	/// Authority layer that owns the context.
+	pub authority_layer: String,
+	/// Freshness or temporal state.
+	pub freshness_state: String,
+	/// Stable identifiers for replay or hydration.
+	pub item_ref: Value,
+	/// Source refs or source snapshots supporting the context.
+	pub source_refs: Value,
+	/// Optional score.
+	pub score: Option<f32>,
+	/// Optional rank.
+	pub rank: Option<u32>,
+	/// Compact policy or stage reason for the state.
+	pub policy_reason: Option<String>,
+	/// Replay command or deterministic artifact path.
+	pub replay_command: Option<String>,
+	/// Layer or row evidence class.
+	pub evidence_class: String,
+	/// Whether raw SQL is required to diagnose this entry.
+	pub raw_sql_needed: bool,
 }
 
 /// Stable request echo for panel responses.
@@ -169,9 +239,8 @@ pub struct RecallDebugRow {
 	pub debug_artifacts: Value,
 }
 
-#[derive(Clone, Debug, FromRow)]
+#[derive(Clone, Debug)]
 struct NoteDebugSourceRow {
-	note_id: Uuid,
 	status: String,
 	source_ref: Value,
 	updated_at: OffsetDateTime,
@@ -252,6 +321,7 @@ impl ElfService {
 		);
 
 		let summary = summarize_layers(&layers);
+		let recall_trace = build_recall_trace(&layers);
 
 		Ok(RecallDebugPanelResponse {
 			schema: ELF_RECALL_DEBUG_PANEL_SCHEMA_V1.to_string(),
@@ -265,6 +335,7 @@ impl ElfService {
 				limit,
 			},
 			summary,
+			recall_trace,
 			layers,
 		})
 	}
@@ -280,6 +351,11 @@ impl ElfService {
 				"Supply trace_id to show selected and dropped Memory Note candidates.",
 			));
 		};
+
+		if !req.allow_project_trace_debug {
+			self.ensure_public_recall_trace_allowed(req, trace_id).await?;
+		}
+
 		let bundle = self
 			.trace_bundle_get(TraceBundleGetRequest {
 				tenant_id: req.tenant_id.clone(),
@@ -303,12 +379,18 @@ impl ElfService {
 			.load_memory_note_debug_sources(req, all_note_ids.iter().copied().collect())
 			.await?;
 		let replay_command = format!("elf_admin_trace_bundle_get trace_id={trace_id} mode=bounded");
+		let visible_items = bundle
+			.items
+			.iter()
+			.filter(|item| source_refs.contains_key(&item.note_id))
+			.collect::<Vec<_>>();
 		let dropped_candidates = bundle
 			.candidates
 			.as_deref()
 			.unwrap_or_default()
 			.iter()
 			.filter(|candidate| !candidate_is_selected(&selected_candidate_keys, candidate))
+			.filter(|candidate| source_refs.contains_key(&candidate.note_id))
 			.collect::<Vec<_>>();
 		let selected_cap = if !dropped_candidates.is_empty() && limit > 1 {
 			limit as usize - 1
@@ -317,7 +399,7 @@ impl ElfService {
 		};
 		let mut rows = Vec::new();
 
-		for item in bundle.items.iter().take(selected_cap) {
+		for item in visible_items.iter().take(selected_cap) {
 			let source = source_refs.get(&item.note_id);
 
 			rows.push(RecallDebugRow {
@@ -364,6 +446,38 @@ impl ElfService {
 			"Search trace bundle with selected results and replay candidates.",
 			rows,
 		))
+	}
+
+	async fn ensure_public_recall_trace_allowed(
+		&self,
+		req: &RecallDebugPanelRequest,
+		trace_id: Uuid,
+	) -> Result<()> {
+		let row: Option<(i64,)> = sqlx::query_as(
+			"\
+SELECT 1
+FROM search_traces
+WHERE trace_id = $1
+  AND tenant_id = $2
+  AND project_id = $3
+  AND agent_id = $4
+  AND read_profile = $5",
+		)
+		.bind(trace_id)
+		.bind(req.tenant_id.trim())
+		.bind(req.project_id.trim())
+		.bind(req.agent_id.trim())
+		.bind(req.read_profile.trim())
+		.fetch_optional(&self.db.pool)
+		.await?;
+
+		if row.is_some() {
+			Ok(())
+		} else {
+			Err(Error::InvalidRequest {
+				message: "Unknown trace_id for this recall context.".to_string(),
+			})
+		}
 	}
 
 	async fn recall_docs_layer(
@@ -681,9 +795,9 @@ impl ElfService {
 			return Ok(BTreeMap::new());
 		}
 
-		let rows = sqlx::query_as::<_, NoteDebugSourceRow>(
+		let rows = sqlx::query_as::<_, MemoryNote>(
 			"\
-SELECT note_id, status, source_ref, updated_at
+SELECT *
 FROM memory_notes
 	WHERE tenant_id = $1
 	  AND note_id = ANY($3::uuid[])
@@ -699,8 +813,66 @@ FROM memory_notes
 		.fetch_all(&self.db.pool)
 		.await?;
 
-		Ok(rows.into_iter().map(|row| (row.note_id, row)).collect())
+		if req.allow_project_trace_debug {
+			return Ok(rows.into_iter().map(note_debug_source_pair).collect());
+		}
+
+		let allowed_scopes =
+			search::resolve_read_profile_scopes(&self.cfg, req.read_profile.trim())?;
+		let org_shared_allowed = allowed_scopes.iter().any(|scope| scope == "org_shared");
+		let shared_grants = access::load_shared_read_grants_with_org_shared(
+			&self.db.pool,
+			req.tenant_id.trim(),
+			req.project_id.trim(),
+			req.agent_id.trim(),
+			org_shared_allowed,
+		)
+		.await?;
+
+		Ok(rows
+			.into_iter()
+			.filter(|note| {
+				note_debug_read_allowed(note, req.agent_id.trim(), &allowed_scopes, &shared_grants)
+			})
+			.map(note_debug_source_pair)
+			.collect())
 	}
+}
+
+fn note_debug_source_pair(note: MemoryNote) -> (Uuid, NoteDebugSourceRow) {
+	(
+		note.note_id,
+		NoteDebugSourceRow {
+			status: note.status,
+			source_ref: note.source_ref,
+			updated_at: note.updated_at,
+		},
+	)
+}
+
+fn note_debug_read_allowed(
+	note: &MemoryNote,
+	requester_agent_id: &str,
+	allowed_scopes: &[String],
+	shared_grants: &HashSet<SharedSpaceGrantKey>,
+) -> bool {
+	if !allowed_scopes.iter().any(|scope| scope == &note.scope) {
+		return false;
+	}
+	if note.scope == "agent_private" {
+		return note.agent_id == requester_agent_id;
+	}
+	if !matches!(note.scope.as_str(), "project_shared" | "org_shared") {
+		return false;
+	}
+	if note.agent_id == requester_agent_id {
+		return true;
+	}
+
+	shared_grants.contains(&SharedSpaceGrantKey {
+		scope: note.scope.clone(),
+		space_owner_agent_id: note.agent_id.clone(),
+	})
 }
 
 fn candidate_debug_row(
@@ -780,6 +952,123 @@ fn summarize_layers(layers: &[RecallDebugLayer]) -> RecallDebugPanelSummary {
 	}
 
 	summary
+}
+
+fn build_recall_trace(layers: &[RecallDebugLayer]) -> RecallTrace {
+	let mut entries = Vec::new();
+
+	for layer in layers {
+		if layer.rows.is_empty() {
+			if matches!(
+				layer.evidence_class.as_str(),
+				"blocked" | "not_requested" | "incomplete" | "wrong_result"
+			) {
+				entries.push(layer_trace_entry(layer));
+			}
+
+			continue;
+		}
+
+		entries.extend(layer.rows.iter().map(row_trace_entry));
+	}
+
+	let summary = summarize_trace_entries(&entries);
+
+	RecallTrace { schema: ELF_RECALL_TRACE_SCHEMA_V1.to_string(), summary, entries }
+}
+
+fn summarize_trace_entries(entries: &[RecallTraceEntry]) -> RecallTraceSummary {
+	let mut summary = RecallTraceSummary { entry_count: entries.len(), ..Default::default() };
+
+	for entry in entries {
+		match entry.selection_state.as_str() {
+			"selected" => summary.selected_count += 1,
+			"dropped" => summary.dropped_count += 1,
+			"blocked" => summary.blocked_count += 1,
+			"not_requested" => summary.not_requested_count += 1,
+			_ => {},
+		}
+
+		if entry.context_state == "stale" || stale_freshness_state(&entry.freshness_state) {
+			summary.stale_count += 1;
+		}
+		if entry.raw_sql_needed {
+			summary.raw_sql_needed_count += 1;
+		}
+		if entry.replay_command.as_ref().is_some_and(|value| !value.is_empty()) {
+			summary.replay_command_count += 1;
+		}
+	}
+
+	summary
+}
+
+fn layer_trace_entry(layer: &RecallDebugLayer) -> RecallTraceEntry {
+	let context_state = match layer.evidence_class.as_str() {
+		"not_requested" => "not_requested",
+		"blocked" => "blocked",
+		"incomplete" => "incomplete",
+		"wrong_result" => "wrong_result",
+		_ => "available",
+	};
+
+	RecallTraceEntry {
+		layer: layer.layer.clone(),
+		context_state: context_state.to_string(),
+		selection_state: layer.evidence_class.clone(),
+		authority_layer: layer.layer.clone(),
+		freshness_state: layer.evidence_class.clone(),
+		item_ref: serde_json::json!({
+			"layer": layer.layer.clone(),
+			"anchor": layer.anchor.clone(),
+		}),
+		source_refs: serde_json::json!([]),
+		score: None,
+		rank: None,
+		policy_reason: Some(layer.summary.clone()),
+		replay_command: None,
+		evidence_class: layer.evidence_class.clone(),
+		raw_sql_needed: layer.raw_sql_needed,
+	}
+}
+
+fn row_trace_entry(row: &RecallDebugRow) -> RecallTraceEntry {
+	let context_state = if stale_freshness_state(&row.freshness_state) {
+		"stale"
+	} else {
+		row.selection_state.as_str()
+	};
+
+	RecallTraceEntry {
+		layer: row.layer.clone(),
+		context_state: context_state.to_string(),
+		selection_state: row.selection_state.clone(),
+		authority_layer: row.authority_layer.clone(),
+		freshness_state: row.freshness_state.clone(),
+		item_ref: row.item_ref.clone(),
+		source_refs: row.source_refs.clone(),
+		score: row.score,
+		rank: row.rank,
+		policy_reason: row.stage_reason.clone().or_else(|| row.rationale.clone()),
+		replay_command: row.replay_command.clone(),
+		evidence_class: row.evidence_class.clone(),
+		raw_sql_needed: false,
+	}
+}
+
+fn stale_freshness_state(freshness_state: &str) -> bool {
+	matches!(
+		freshness_state,
+		"stale"
+			| "deprecated"
+			| "deleted"
+			| "superseded"
+			| "tombstoned"
+			| "historical"
+			| "archived"
+			| "lint_warning"
+			| "lint_error"
+	)
 }
 
 fn layer_from_rows(
@@ -927,10 +1216,16 @@ fn graph_temporal_status(status: crate::RelationTemporalStatus) -> String {
 
 #[cfg(test)]
 mod tests {
+	use std::collections::HashSet;
+
+	use time::OffsetDateTime;
+
 	use crate::{
 		RecallDebugRow,
+		access::SharedSpaceGrantKey,
 		recall_debug::{self, BTreeSet, Error, Uuid},
 	};
+	use elf_storage::models::MemoryNote;
 
 	#[test]
 	fn summary_preserves_not_requested_and_replay_counts() {
@@ -1036,5 +1331,157 @@ mod tests {
 
 		assert!(selected.contains(&recall_debug::candidate_identity(note_id, selected_chunk_id)));
 		assert!(!selected.contains(&recall_debug::candidate_identity(note_id, dropped_chunk_id)));
+	}
+
+	#[test]
+	fn debug_note_readability_preserves_stale_owner_context_only() {
+		let allowed_scopes = vec!["agent_private".to_string(), "project_shared".to_string()];
+		let shared_grants = HashSet::new();
+		let mut note = note_for_debug_visibility("owner-agent", "agent_private", "deprecated");
+
+		assert!(recall_debug::note_debug_read_allowed(
+			&note,
+			"owner-agent",
+			&allowed_scopes,
+			&shared_grants
+		));
+		assert!(!recall_debug::note_debug_read_allowed(
+			&note,
+			"other-agent",
+			&allowed_scopes,
+			&shared_grants
+		));
+
+		note.scope = "project_shared".to_string();
+
+		assert!(!recall_debug::note_debug_read_allowed(
+			&note,
+			"other-agent",
+			&allowed_scopes,
+			&shared_grants
+		));
+
+		let shared_grants = HashSet::from([SharedSpaceGrantKey {
+			scope: "project_shared".to_string(),
+			space_owner_agent_id: "owner-agent".to_string(),
+		}]);
+
+		assert!(recall_debug::note_debug_read_allowed(
+			&note,
+			"other-agent",
+			&allowed_scopes,
+			&shared_grants
+		));
+	}
+
+	#[test]
+	fn recall_trace_flattens_stale_and_dropped_context() {
+		let layers = vec![
+			recall_debug::layer_from_rows(
+				"memory_notes",
+				"pass",
+				Some("trace".to_string()),
+				"trace rows",
+				vec![
+					RecallDebugRow {
+						layer: "memory_notes".to_string(),
+						item_ref: serde_json::json!({"note_id": "selected-stale"}),
+						selection_state: "selected".to_string(),
+						authority_layer: "memory_note".to_string(),
+						freshness_state: "deprecated".to_string(),
+						source_refs: serde_json::json!([{"schema": "source_ref/v1"}]),
+						score: Some(0.9),
+						rank: Some(1),
+						rationale: Some("selected but stale".to_string()),
+						stage_reason: Some("status=deprecated".to_string()),
+						replay_command: Some("elf_trace".to_string()),
+						evidence_class: "pass".to_string(),
+						debug_artifacts: serde_json::json!({}),
+					},
+					RecallDebugRow {
+						layer: "memory_notes".to_string(),
+						item_ref: serde_json::json!({"note_id": "dropped"}),
+						selection_state: "dropped".to_string(),
+						authority_layer: "memory_note".to_string(),
+						freshness_state: "active".to_string(),
+						source_refs: serde_json::json!([]),
+						score: Some(0.4),
+						rank: Some(4),
+						rationale: Some("candidate not narrated".to_string()),
+						stage_reason: Some("not_in_final_top_k".to_string()),
+						replay_command: Some("elf_trace".to_string()),
+						evidence_class: "pass".to_string(),
+						debug_artifacts: serde_json::json!({}),
+					},
+				],
+			),
+			recall_debug::not_requested_layer("graph_facts", "missing graph subject"),
+		];
+		let trace = recall_debug::build_recall_trace(&layers);
+
+		assert_eq!(trace.schema, "elf.recall_trace/v1");
+		assert_eq!(trace.summary.entry_count, 3);
+		assert_eq!(trace.summary.selected_count, 1);
+		assert_eq!(trace.summary.dropped_count, 1);
+		assert_eq!(trace.summary.stale_count, 1);
+		assert_eq!(trace.summary.not_requested_count, 1);
+		assert_eq!(trace.summary.replay_command_count, 2);
+		assert_eq!(trace.entries[0].context_state, "stale");
+		assert_eq!(trace.entries[0].policy_reason.as_deref(), Some("status=deprecated"));
+		assert_eq!(trace.entries[1].context_state, "dropped");
+		assert_eq!(trace.entries[1].policy_reason.as_deref(), Some("not_in_final_top_k"));
+		assert_eq!(trace.entries[2].context_state, "not_requested");
+	}
+
+	#[test]
+	fn recall_trace_counts_blocked_layers_without_backend_details() {
+		let layer = recall_debug::blocked_layer(
+			"source_documents",
+			Some("alpha".to_string()),
+			"docs search failed",
+			&Error::Storage { message: "password=secret host=db.internal".to_string() },
+		);
+		let trace = recall_debug::build_recall_trace(&[layer]);
+
+		assert_eq!(trace.summary.blocked_count, 1);
+		assert_eq!(trace.entries[0].context_state, "blocked");
+		assert_eq!(trace.entries[0].selection_state, "blocked");
+		assert!(
+			trace.entries[0]
+				.policy_reason
+				.as_deref()
+				.is_some_and(|reason| reason.contains("error_class=storage_unavailable"))
+		);
+		assert!(
+			trace.entries[0]
+				.policy_reason
+				.as_deref()
+				.is_some_and(|reason| !reason.contains("password=secret"))
+		);
+	}
+
+	fn note_for_debug_visibility(agent_id: &str, scope: &str, status: &str) -> MemoryNote {
+		let now = OffsetDateTime::now_utc();
+
+		MemoryNote {
+			note_id: Uuid::new_v4(),
+			tenant_id: "tenant-a".to_string(),
+			project_id: "project-a".to_string(),
+			agent_id: agent_id.to_string(),
+			scope: scope.to_string(),
+			r#type: "fact".to_string(),
+			key: None,
+			text: "Fact: debug visibility test note.".to_string(),
+			importance: 0.7,
+			confidence: 0.9,
+			status: status.to_string(),
+			created_at: now,
+			updated_at: now,
+			expires_at: None,
+			embedding_version: "test:v1".to_string(),
+			source_ref: serde_json::json!({"schema": "source_ref/v1"}),
+			hit_count: 0,
+			last_hit_at: None,
+		}
 	}
 }

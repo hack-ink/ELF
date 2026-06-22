@@ -375,7 +375,7 @@ impl ElfMcp {
 
 	#[rmcp::tool(
 		name = "elf_recall_debug_panel",
-		description = "Build a cross-layer recall/debug panel over memory traces, source documents, knowledge pages, graph facts, and Dreaming proposals.",
+		description = "Build an agent-facing cross-layer recall/debug panel and deterministic recall_trace over memory traces, source documents, knowledge pages, graph facts, and Dreaming proposals.",
 		input_schema = recall_debug_panel_schema()
 	)]
 	async fn elf_recall_debug_panel(
@@ -384,7 +384,7 @@ impl ElfMcp {
 	) -> Result<CallToolResult, ErrorData> {
 		reject_context_override_params(&params)?;
 
-		self.forward(HttpMethod::Post, "/v2/admin/recall-debug/panel", params, None).await
+		self.forward(HttpMethod::Post, "/v2/recall-debug/panel", params, None).await
 	}
 
 	#[rmcp::tool(
@@ -1793,8 +1793,8 @@ mod tests {
 		ToolDefinition::new(
 			"elf_recall_debug_panel",
 			HttpMethod::Post,
-			"/v2/admin/recall-debug/panel",
-			"Build a cross-layer recall/debug panel over memory traces, source documents, knowledge pages, graph facts, and Dreaming proposals.",
+			"/v2/recall-debug/panel",
+			"Build an agent-facing cross-layer recall/debug panel and deterministic recall_trace over memory traces, source documents, knowledge pages, graph facts, and Dreaming proposals.",
 		),
 		ToolDefinition::new(
 			"elf_searches_get",
@@ -2122,6 +2122,16 @@ mod tests {
 		);
 		assert_eq!(mcp.api_base_for_path("/v2/admin/notes/abcd/history"), "http://127.0.0.1:9001");
 		assert_eq!(mcp.api_base_for_path("/v2/searches"), "http://127.0.0.1:9000");
+		assert_eq!(mcp.api_base_for_path("/v2/recall-debug/panel"), "http://127.0.0.1:9000");
+	}
+
+	#[test]
+	fn recall_debug_tool_uses_public_agent_route() {
+		let tools = build_tools();
+		let tool = tools.get("elf_recall_debug_panel").expect("Missing recall debug panel tool.");
+
+		assert_eq!(tool.path, "/v2/recall-debug/panel");
+		assert!(tool.description.contains("recall_trace"));
 	}
 
 	#[test]
