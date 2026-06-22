@@ -6,7 +6,7 @@ resource: docs/spec/system_version_registry.md
 status: active
 authority: normative
 owner: spec
-last_verified: 2026-06-20
+last_verified: 2026-06-23
 tags:
   - docs
   - spec
@@ -196,6 +196,18 @@ This document is normative. When a new versioned identifier is introduced, it mu
   `apps/elf-api`, `apps/elf-mcp`, fixture assertions, and benchmark reports.
 - Bump rule: Introduce a new identifier only if trace entry states, source-ref fields,
   policy-reason semantics, or deterministic ordering become incompatible.
+
+### Recall debug compact replay schema
+
+- Identifier: `elf.recall_debug.compact_replay/v1`.
+- Type: Compact replay artifact embedded under
+  `elf.recall_debug_panel/v1` Memory Notes layer debug artifacts.
+- Defined in: `packages/elf-service/src/recall_debug.rs` and
+  `docs/spec/system_recall_debug_panel_v1.md`.
+- Consumers: `POST /v2/recall-debug/panel`, `POST /v2/admin/recall-debug/panel`,
+  operator debugging workflows, qmd-style replay comparisons, and benchmark reports.
+- Bump rule: Introduce a new identifier only if controls, stage movement,
+  candidate replay, selected-context, or authority fields become incompatible.
 
 ### Search filter expression schema
 
