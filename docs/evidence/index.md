@@ -17,5 +17,8 @@ Routes to: Drift audits and evidence concepts under `docs/evidence/`.
   migration.
 - `2026-06-18-research-artifact-disposition.md`: Evidence record for promoted,
   carried-forward, moved, and deleted legacy research JSON artifacts.
+- `2026-06-22-knowledge-watch-rebuild-drift-audit.md`: Drift audit for the
+  changed-source Knowledge Workspace rebuild and reviewable memory-candidate
+  proposal contract.
 - `external_memory_pattern_radar_latest.md`: Latest weekly external memory pattern
   radar summary.
