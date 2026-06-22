@@ -6,21 +6,31 @@ resource: docs/spec/system_knowledge_pages_v1.md
 status: active
 authority: normative
 owner: spec
-last_verified: 2026-06-18
+last_verified: 2026-06-22
 tags:
   - docs
   - spec
 source_refs: []
-code_refs: []
+code_refs:
+  - packages/elf-domain/src/knowledge.rs
+  - packages/elf-service/src/knowledge.rs
+  - packages/elf-storage/src/knowledge.rs
+  - sql/tables/035_knowledge_pages.sql
+  - sql/tables/037_knowledge_page_source_refs.sql
 related: []
 drift_watch:
   - docs/spec/system_knowledge_pages_v1.md
+  - packages/elf-domain/src/knowledge.rs
+  - packages/elf-service/src/knowledge.rs
+  - packages/elf-storage/src/knowledge.rs
+  - sql/tables/035_knowledge_pages.sql
+  - sql/tables/037_knowledge_page_source_refs.sql
 ---
 # Derived Knowledge Pages v1 Specification
 
-Purpose: Define derived knowledge page storage, rebuild, citation, and lint contracts.
+Purpose: Define derived knowledge page storage, rebuild, citation, source-span, and lint contracts.
 Status: normative
-Read this when: You are implementing, validating, or reviewing project/entity/concept/issue/decision page rebuild behavior.
+Read this when: You are implementing, validating, or reviewing project/entity/concept/issue/decision/author/timeline page rebuild behavior.
 Not this document: Viewer integration, search ranking, live LLM page generation, or source-note mutation.
 Defines: `elf.knowledge_page/v1` pages, sections, source refs, lint findings, and deterministic rebuild metadata.
 
@@ -52,9 +62,13 @@ Allowed `knowledge_pages.page_kind` values:
 - `concept`
 - `issue`
 - `decision`
+- `author`
+- `timeline`
 
 Allowed `knowledge_page_source_refs.source_kind` values:
 
+- `doc`
+- `doc_chunk`
 - `note`
 - `event`
 - `relation`
@@ -76,6 +90,7 @@ The normalized source ref must preserve:
 
 - `source_kind`
 - `source_id`
+- Source Library document id and chunk/span locator when `source_kind = "doc_chunk"`
 - source status when available
 - source `updated_at` or equivalent freshness timestamp when available
 - source content hash when available
@@ -87,6 +102,8 @@ The v1 rebuild path is deterministic for the same explicit source snapshot.
 
 Rebuild input sources may include:
 
+- active Source Library `doc_documents`
+- active Source Library `doc_chunks` as cited source spans
 - active or historical `memory_notes`
 - durable `add_event` audit rows from `memory_ingest_decisions`
 - `graph_facts` plus `graph_fact_evidence`
@@ -110,6 +127,9 @@ Unreviewed consolidation proposals must not be used as source input for persiste
 - `schema = "elf.knowledge_page.rebuild/v1"`
 - `source_snapshot_hash`
 - `deterministic`
+- `generated_by` metadata with actor agent id, runtime path, mode, and per-kind source input counts
+- `version_identity` with schema `elf.knowledge_page.version_identity/v1`, page kind, page key, source snapshot hash, content hash, section hashes, and `source_mutation_allowed = false`
+- `memory_candidate_policy` with schema `elf.knowledge_page.memory_candidate_policy/v1`, `review_required = true`, `review_surface = "consolidation_proposals"`, allowed memory-promotion apply intents, `direct_memory_ledger_mutation_allowed = false`, and `source_mutation_allowed = false`
 - `provider_metadata`
 - `allowed_variance`
 - `previous_version_diff`
@@ -122,9 +142,9 @@ unchanged section key lists and counts, a human-readable summary, and
 `source_mutation_allowed = false`.
 
 Previous-version diff metadata is rebuild readback metadata, not source content. Page
-content hashes must not include `previous_version_diff`; otherwise repeating the same
-source rebuild would appear nondeterministic solely because the previous-version
-metadata changed.
+content hashes must not include `previous_version_diff`, `generated_by`,
+`version_identity`, or `memory_candidate_policy`; otherwise repeating the same source
+rebuild would appear nondeterministic solely because readback metadata changed.
 
 When future provider-backed or LLM-derived page text is persisted,
 `rebuild_metadata.deterministic` must be false unless the provider output is fully
@@ -160,6 +180,19 @@ advisory and must not mutate source memory.
 Lint findings are derived diagnostics. They must not mutate authoritative source
 memory.
 
+## Memory Candidate Boundary
+
+Generated knowledge page content may feed memory candidates only through reviewable
+consolidation proposals. Knowledge page rebuild, list, detail, search, and lint
+readback must not insert, update, delete, deprecate, restore, or enqueue indexing for
+`memory_notes`.
+
+When a page section becomes candidate memory, the candidate must be represented as a
+`consolidation_proposals` row with `contract_schema = "elf.consolidation/v1"` and
+`apply_intent` of `create_derived_note` or `update_derived_note`. Applying that
+proposal follows the Memory Promotion Apply Contract in
+`system_consolidation_proposals_v1.md`.
+
 ## Search and Viewer Readback
 
 Knowledge page search is a derived-artifact readback surface, not the authoritative
@@ -177,8 +210,8 @@ Page search results must include:
 - rebuild metadata, including previous-version diff metadata when present
 - lint summary and trust state that distinguishes clean, warning, error, and low
   coverage results
-- a derived-result notice that source notes, event audits, relation facts, and applied
-  proposals remain authoritative
+- a derived-result notice that source documents, spans, approved memory notes, event
+  audits, relation facts, and applied proposals remain authoritative
 - repair or rebuild guidance when lint or source coverage indicates stale,
   unsupported, missing, or weakly covered content
 

@@ -433,7 +433,7 @@ pub struct KnowledgePage {
 	pub tenant_id: String,
 	/// Project that owns the page.
 	pub project_id: String,
-	/// Page kind, such as project, entity, concept, issue, or decision.
+	/// Page kind, such as project, entity, concept, issue, decision, author, or timeline.
 	pub page_kind: String,
 	/// Stable page key within the tenant/project/kind namespace.
 	pub page_key: String,
@@ -499,7 +499,7 @@ pub struct KnowledgePageSourceRef {
 	pub page_id: Uuid,
 	/// Section that cites the source, if section-scoped.
 	pub section_id: Option<Uuid>,
-	/// Source kind, such as note, relation, proposal, or event.
+	/// Source kind, such as doc, doc_chunk, note, relation, proposal, or event.
 	pub source_kind: String,
 	/// Authoritative source identifier.
 	pub source_id: Uuid,

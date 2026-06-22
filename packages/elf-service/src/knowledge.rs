@@ -19,9 +19,10 @@ use elf_domain::{
 };
 use elf_storage::{
 	knowledge::{
-		self, KnowledgeEventSource, KnowledgeNoteSource, KnowledgePageLintFindingInsert,
-		KnowledgePageSearchRow, KnowledgePageSectionInsert, KnowledgePageSourceRefInsert,
-		KnowledgePageUpsert, KnowledgeProposalSource, KnowledgeRelationSource,
+		self, KnowledgeDocChunkSource, KnowledgeDocSource, KnowledgeEventSource,
+		KnowledgeNoteSource, KnowledgePageLintFindingInsert, KnowledgePageSearchRow,
+		KnowledgePageSectionInsert, KnowledgePageSourceRefInsert, KnowledgePageUpsert,
+		KnowledgeProposalSource, KnowledgeRelationSource,
 	},
 	models::{
 		KnowledgePage, KnowledgePageLintFinding, KnowledgePageSection, KnowledgePageSourceRef,
@@ -48,6 +49,12 @@ pub struct KnowledgePageRebuildRequest {
 	pub page_key: String,
 	/// Optional display title; a deterministic title is generated when omitted.
 	pub title: Option<String>,
+	#[serde(default)]
+	/// Source Library documents to compile into the page.
+	pub doc_ids: Vec<Uuid>,
+	#[serde(default)]
+	/// Source Library document chunks or spans to compile into the page.
+	pub doc_chunk_ids: Vec<Uuid>,
 	#[serde(default)]
 	/// Memory note sources to compile into the page.
 	pub note_ids: Vec<Uuid>,
@@ -500,6 +507,8 @@ struct LintDraft {
 
 #[derive(Clone, Debug)]
 struct SourceIds {
+	doc_ids: Vec<Uuid>,
+	doc_chunk_ids: Vec<Uuid>,
 	note_ids: Vec<Uuid>,
 	event_ids: Vec<Uuid>,
 	relation_ids: Vec<Uuid>,
@@ -508,6 +517,8 @@ struct SourceIds {
 impl SourceIds {
 	fn from_request(req: &KnowledgePageRebuildRequest) -> Result<Self> {
 		let ids = Self {
+			doc_ids: sorted_unique(&req.doc_ids),
+			doc_chunk_ids: sorted_unique(&req.doc_chunk_ids),
 			note_ids: sorted_unique(&req.note_ids),
 			event_ids: sorted_unique(&req.event_ids),
 			relation_ids: sorted_unique(&req.relation_ids),
@@ -520,6 +531,8 @@ impl SourceIds {
 	}
 
 	fn from_source_refs(source_refs: &[KnowledgePageSourceRef]) -> Result<Self> {
+		let mut doc_ids = Vec::new();
+		let mut doc_chunk_ids = Vec::new();
 		let mut note_ids = Vec::new();
 		let mut event_ids = Vec::new();
 		let mut relation_ids = Vec::new();
@@ -527,6 +540,8 @@ impl SourceIds {
 
 		for source_ref in source_refs {
 			match KnowledgeSourceKind::parse(source_ref.source_kind.as_str()) {
+				Some(KnowledgeSourceKind::Doc) => doc_ids.push(source_ref.source_id),
+				Some(KnowledgeSourceKind::DocChunk) => doc_chunk_ids.push(source_ref.source_id),
 				Some(KnowledgeSourceKind::Note) => note_ids.push(source_ref.source_id),
 				Some(KnowledgeSourceKind::Event) => event_ids.push(source_ref.source_id),
 				Some(KnowledgeSourceKind::Relation) => relation_ids.push(source_ref.source_id),
@@ -540,6 +555,8 @@ impl SourceIds {
 		}
 
 		Ok(Self {
+			doc_ids: sorted_unique(&doc_ids),
+			doc_chunk_ids: sorted_unique(&doc_chunk_ids),
 			note_ids: sorted_unique(&note_ids),
 			event_ids: sorted_unique(&event_ids),
 			relation_ids: sorted_unique(&relation_ids),
@@ -548,7 +565,9 @@ impl SourceIds {
 	}
 
 	fn validate_non_empty(&self) -> Result<()> {
-		if self.note_ids.is_empty()
+		if self.doc_ids.is_empty()
+			&& self.doc_chunk_ids.is_empty()
+			&& self.note_ids.is_empty()
 			&& self.event_ids.is_empty()
 			&& self.relation_ids.is_empty()
 			&& self.proposal_ids.is_empty()
@@ -564,19 +583,23 @@ impl SourceIds {
 
 	fn require_counts(
 		&self,
+		docs: usize,
+		doc_chunks: usize,
 		notes: usize,
 		events: usize,
 		relations: usize,
 		proposals: usize,
 	) -> Result<()> {
-		if notes != self.note_ids.len()
+		if docs != self.doc_ids.len()
+			|| doc_chunks != self.doc_chunk_ids.len()
+			|| notes != self.note_ids.len()
 			|| events != self.event_ids.len()
 			|| relations != self.relation_ids.len()
 			|| proposals != self.proposal_ids.len()
 		{
 			return Err(Error::InvalidRequest {
 				message:
-					"all requested knowledge page sources must exist and proposals must be applied"
+					"all requested knowledge page sources must exist, document sources must be active, and proposals must be applied"
 						.to_string(),
 			});
 		}
@@ -625,7 +648,7 @@ impl ElfService {
 
 		let source_coverage =
 			source_coverage_value(req.page_kind, &req.page_key, &sections, &sources);
-		let base_rebuild_metadata = rebuild_metadata(&source_hash, &req.provider_metadata);
+		let base_rebuild_metadata = rebuild_metadata(&source_hash, &req.provider_metadata, &req);
 		let content_hash =
 			page_content_hash(&title, &sections, &source_coverage, &base_rebuild_metadata)?;
 		let previous_version_diff = previous_version_diff_value(
@@ -636,9 +659,17 @@ impl ElfService {
 			content_hash.as_str(),
 			&sections,
 		);
+		let version_identity = version_identity_value(
+			req.page_kind,
+			req.page_key.as_str(),
+			source_hash.as_str(),
+			content_hash.as_str(),
+			&sections,
+		);
 		let rebuild_metadata = rebuild_metadata_with_previous_version_diff(
 			base_rebuild_metadata,
 			previous_version_diff,
+			version_identity,
 		);
 		let page_id = Uuid::new_v4();
 		let mut tx = self.db.pool.begin().await?;
@@ -824,13 +855,20 @@ impl ElfService {
 		req: &KnowledgePageRebuildRequest,
 		ids: &SourceIds,
 	) -> Result<Vec<SourceSnapshot>> {
-		let (notes, events, relations, proposals) = self
+		let (docs, doc_chunks, notes, events, relations, proposals) = self
 			.resolve_existing_source_rows(req.tenant_id.as_str(), req.project_id.as_str(), ids)
 			.await?;
 
-		ids.require_counts(notes.len(), events.len(), relations.len(), proposals.len())?;
+		ids.require_counts(
+			docs.len(),
+			doc_chunks.len(),
+			notes.len(),
+			events.len(),
+			relations.len(),
+			proposals.len(),
+		)?;
 
-		Ok(source_snapshots(notes, events, relations, proposals))
+		Ok(source_snapshots(docs, doc_chunks, notes, events, relations, proposals))
 	}
 
 	async fn resolve_existing_source_rows(
@@ -839,11 +877,27 @@ impl ElfService {
 		project_id: &str,
 		ids: &SourceIds,
 	) -> Result<(
+		Vec<KnowledgeDocSource>,
+		Vec<KnowledgeDocChunkSource>,
 		Vec<KnowledgeNoteSource>,
 		Vec<KnowledgeEventSource>,
 		Vec<KnowledgeRelationSource>,
 		Vec<KnowledgeProposalSource>,
 	)> {
+		let docs = knowledge::fetch_knowledge_doc_sources(
+			&self.db.pool,
+			tenant_id,
+			project_id,
+			&ids.doc_ids,
+		)
+		.await?;
+		let doc_chunks = knowledge::fetch_knowledge_doc_chunk_sources(
+			&self.db.pool,
+			tenant_id,
+			project_id,
+			&ids.doc_chunk_ids,
+		)
+		.await?;
 		let notes = knowledge::fetch_knowledge_note_sources(
 			&self.db.pool,
 			tenant_id,
@@ -873,7 +927,7 @@ impl ElfService {
 		)
 		.await?;
 
-		Ok((notes, events, relations, proposals))
+		Ok((docs, doc_chunks, notes, events, relations, proposals))
 	}
 
 	async fn lint_source_refs(
@@ -909,16 +963,18 @@ impl ElfService {
 		let _page_kind = KnowledgePageKind::parse(page.page_kind.as_str()).ok_or_else(|| {
 			Error::InvalidRequest { message: "stored knowledge page kind is invalid".to_string() }
 		})?;
-		let (notes, events, relations, proposals) = self
+		let (docs, doc_chunks, notes, events, relations, proposals) = self
 			.resolve_existing_source_rows(page.tenant_id.as_str(), page.project_id.as_str(), ids)
 			.await?;
-		let mut sources = source_snapshots(notes, events, relations, proposals);
+		let mut sources = source_snapshots(docs, doc_chunks, notes, events, relations, proposals);
 
 		Ok(sources.drain(..).map(|source| (source_key(&source), source)).collect())
 	}
 }
 
 fn source_snapshots(
+	docs: Vec<KnowledgeDocSource>,
+	doc_chunks: Vec<KnowledgeDocChunkSource>,
 	notes: Vec<KnowledgeNoteSource>,
 	events: Vec<KnowledgeEventSource>,
 	relations: Vec<KnowledgeRelationSource>,
@@ -926,6 +982,8 @@ fn source_snapshots(
 ) -> Vec<SourceSnapshot> {
 	let mut sources = Vec::new();
 
+	sources.extend(docs.into_iter().map(doc_source_snapshot));
+	sources.extend(doc_chunks.into_iter().map(doc_chunk_source_snapshot));
 	sources.extend(notes.into_iter().map(note_source_snapshot));
 	sources.extend(events.into_iter().map(event_source_snapshot));
 	sources.extend(relations.into_iter().map(relation_source_snapshot));
@@ -1033,8 +1091,8 @@ fn knowledge_page_search_item(
 		lint_summary,
 		trust_state,
 		derived_notice:
-			"Derived knowledge page snippet. Verify cited source notes, events, relations, or proposals before treating it as authoritative."
-				.to_string(),
+				"Derived knowledge page snippet. Verify cited source documents, spans, memory notes, events, relations, or proposals before treating it as authoritative."
+					.to_string(),
 		repair_guidance,
 		updated_at: row.page_updated_at,
 		rebuilt_at: row.rebuilt_at,
@@ -1079,12 +1137,30 @@ fn search_repair_guidance(trust_state: &str) -> Option<String> {
 }
 
 fn build_sections(sources: &[SourceSnapshot]) -> Result<Vec<DraftSection>> {
+	let doc_indexes = source_indexes(sources, KnowledgeSourceKind::Doc);
+	let doc_chunk_indexes = source_indexes(sources, KnowledgeSourceKind::DocChunk);
 	let note_indexes = source_indexes(sources, KnowledgeSourceKind::Note);
 	let event_indexes = source_indexes(sources, KnowledgeSourceKind::Event);
 	let relation_indexes = source_indexes(sources, KnowledgeSourceKind::Relation);
 	let proposal_indexes = source_indexes(sources, KnowledgeSourceKind::Proposal);
 	let mut sections = Vec::new();
 
+	push_section(
+		&mut sections,
+		"source-documents",
+		"Source Documents",
+		"source_documents",
+		sources,
+		doc_indexes,
+	);
+	push_section(
+		&mut sections,
+		"source-spans",
+		"Source Spans",
+		"source_spans",
+		sources,
+		doc_chunk_indexes,
+	);
 	push_section(
 		&mut sections,
 		"source-notes",
@@ -1312,6 +1388,99 @@ fn citations_value(section: &DraftSection, sources: &[SourceSnapshot]) -> Value 
 	)
 }
 
+fn doc_source_snapshot(row: KnowledgeDocSource) -> SourceSnapshot {
+	let title = row.title.clone().unwrap_or_else(|| "Untitled source document".to_string());
+	let excerpt = truncate_chars(normalize_whitespace(row.content.as_str()).as_str(), 240);
+	let line = format!("[doc:{}] {title}: {excerpt}", row.doc_type);
+	let snapshot = serde_json::json!({
+		"kind": "doc",
+		"doc_id": row.doc_id,
+		"agent_id": row.agent_id.clone(),
+		"scope": row.scope.clone(),
+		"doc_type": row.doc_type.clone(),
+		"status": row.status.clone(),
+		"title": row.title.clone(),
+		"content_bytes": row.content_bytes,
+		"content_hash": row.content_hash.clone(),
+		"source_ref": row.source_ref.clone(),
+		"created_at": row.created_at,
+		"updated_at": row.updated_at,
+	});
+
+	SourceSnapshot {
+		kind: KnowledgeSourceKind::Doc,
+		id: row.doc_id,
+		status: Some(row.status),
+		updated_at: Some(row.updated_at),
+		content_hash: Some(row.content_hash),
+		snapshot,
+		citation_metadata: serde_json::json!({ "section_role": "source_document" }),
+		line,
+	}
+}
+
+fn doc_chunk_source_snapshot(row: KnowledgeDocChunkSource) -> SourceSnapshot {
+	let title = row.title.clone().unwrap_or_else(|| "Untitled source document".to_string());
+	let excerpt = truncate_chars(normalize_whitespace(row.chunk_text.as_str()).as_str(), 240);
+	let span_id = source_span_id(
+		row.doc_content_hash.as_str(),
+		row.start_offset.max(0) as usize,
+		row.end_offset.max(row.start_offset).max(0) as usize,
+		"captured",
+	);
+	let line = format!(
+		"[doc_chunk:{}:{}-{}] {title}: {excerpt}",
+		row.chunk_index, row.start_offset, row.end_offset
+	);
+	let source_span = serde_json::json!({
+		"schema": "doc_source_span/v1",
+		"span_id": span_id,
+		"chunk_id": row.chunk_id,
+		"status": "captured",
+		"reason_code": null,
+		"start_offset": row.start_offset,
+		"end_offset": row.end_offset,
+		"content_hash": row.doc_content_hash.clone(),
+		"chunk_hash": row.chunk_hash.clone(),
+	});
+	let snapshot = serde_json::json!({
+		"kind": "doc_chunk",
+		"chunk_id": row.chunk_id,
+		"doc_id": row.doc_id,
+		"agent_id": row.agent_id.clone(),
+		"scope": row.scope.clone(),
+		"doc_type": row.doc_type.clone(),
+		"status": row.status.clone(),
+		"title": row.title.clone(),
+		"source_ref": row.source_ref.clone(),
+		"doc_content_hash": row.doc_content_hash.clone(),
+		"doc_updated_at": row.doc_updated_at,
+		"chunk_index": row.chunk_index,
+		"start_offset": row.start_offset,
+		"end_offset": row.end_offset,
+		"chunk_hash": row.chunk_hash.clone(),
+		"chunk_created_at": row.chunk_created_at,
+		"source_span": source_span,
+	});
+
+	SourceSnapshot {
+		kind: KnowledgeSourceKind::DocChunk,
+		id: row.chunk_id,
+		status: Some(row.status),
+		updated_at: Some(row.doc_updated_at),
+		content_hash: Some(row.chunk_hash),
+		snapshot,
+		citation_metadata: serde_json::json!({
+			"section_role": "source_span",
+			"doc_id": row.doc_id,
+			"span_id": span_id,
+			"start_offset": row.start_offset,
+			"end_offset": row.end_offset,
+		}),
+		line,
+	}
+}
+
 fn note_source_snapshot(row: KnowledgeNoteSource) -> SourceSnapshot {
 	let content_hash = hash_text(row.text.as_str());
 	let line = format!("{}{}", note_prefix(&row), row.text);
@@ -1514,7 +1683,11 @@ fn source_counts(sources: &[SourceSnapshot]) -> Value {
 	serde_json::json!(counts)
 }
 
-fn rebuild_metadata(source_hash: &str, provider_metadata: &Value) -> Value {
+fn rebuild_metadata(
+	source_hash: &str,
+	provider_metadata: &Value,
+	req: &KnowledgePageRebuildRequest,
+) -> Value {
 	let llm_derived =
 		provider_metadata.get("llm_derived").and_then(Value::as_bool).unwrap_or(false);
 
@@ -1523,6 +1696,29 @@ fn rebuild_metadata(source_hash: &str, provider_metadata: &Value) -> Value {
 		"source_snapshot_hash": source_hash,
 		"deterministic": !llm_derived,
 		"provider_metadata": provider_metadata,
+		"generated_by": {
+			"schema": "elf.knowledge_page.generated_by/v1",
+			"runtime": "ElfService::knowledge_page_rebuild",
+			"actor_agent_id": req.agent_id,
+			"mode": if llm_derived { "provider_metadata_declared_llm" } else { "deterministic_service" },
+			"source_input_counts": {
+				"doc": req.doc_ids.len(),
+				"doc_chunk": req.doc_chunk_ids.len(),
+				"note": req.note_ids.len(),
+				"event": req.event_ids.len(),
+				"relation": req.relation_ids.len(),
+				"proposal": req.proposal_ids.len(),
+			},
+		},
+		"memory_candidate_policy": {
+			"schema": "elf.knowledge_page.memory_candidate_policy/v1",
+			"review_required": true,
+			"review_surface": "consolidation_proposals",
+			"proposal_contract_schema": "elf.consolidation/v1",
+			"allowed_apply_intents": ["create_derived_note", "update_derived_note"],
+			"direct_memory_ledger_mutation_allowed": false,
+			"source_mutation_allowed": false,
+		},
 		"allowed_variance": if llm_derived {
 			serde_json::json!(["LLM-derived page text may vary; provider metadata records the nondeterministic input path."])
 		} else {
@@ -1531,12 +1727,20 @@ fn rebuild_metadata(source_hash: &str, provider_metadata: &Value) -> Value {
 	})
 }
 
-fn rebuild_metadata_with_previous_version_diff(mut metadata: Value, diff: Value) -> Value {
+fn rebuild_metadata_with_previous_version_diff(
+	mut metadata: Value,
+	diff: Value,
+	version_identity: Value,
+) -> Value {
 	let Some(object) = metadata.as_object_mut() else {
-		return serde_json::json!({ PREVIOUS_VERSION_DIFF_KEY: diff });
+		return serde_json::json!({
+			PREVIOUS_VERSION_DIFF_KEY: diff,
+			"version_identity": version_identity,
+		});
 	};
 
 	object.insert(PREVIOUS_VERSION_DIFF_KEY.to_string(), diff);
+	object.insert("version_identity".to_string(), version_identity);
 
 	metadata
 }
@@ -1631,6 +1835,33 @@ fn previous_version_diff_value(
 	})
 }
 
+fn version_identity_value(
+	page_kind: KnowledgePageKind,
+	page_key: &str,
+	source_hash: &str,
+	content_hash: &str,
+	sections: &[DraftSection],
+) -> Value {
+	serde_json::json!({
+		"schema": "elf.knowledge_page.version_identity/v1",
+		"contract_schema": KNOWLEDGE_PAGE_CONTRACT_SCHEMA_V1,
+		"page_kind": page_kind.as_str(),
+		"page_key": page_key,
+		"source_snapshot_hash": source_hash,
+		"content_hash": content_hash,
+		"section_hashes": sections
+			.iter()
+			.map(|section| {
+				serde_json::json!({
+					"section_key": section.section_key.clone(),
+					"content_hash": section.content_hash.clone(),
+				})
+			})
+			.collect::<Vec<_>>(),
+		"source_mutation_allowed": false,
+	})
+}
+
 fn sorted_strings<'a>(items: impl Iterator<Item = &'a str>) -> Vec<String> {
 	let mut out = items.map(ToString::to_string).collect::<Vec<_>>();
 
@@ -1669,6 +1900,9 @@ fn content_hash_rebuild_metadata(rebuild_metadata: &Value) -> Value {
 	let mut stable = object.clone();
 
 	stable.remove(PREVIOUS_VERSION_DIFF_KEY);
+	stable.remove("generated_by");
+	stable.remove("memory_candidate_policy");
+	stable.remove("version_identity");
 
 	Value::Object(stable)
 }
@@ -1866,6 +2100,8 @@ fn title_kind(page_kind: KnowledgePageKind) -> &'static str {
 		KnowledgePageKind::Concept => "Concept",
 		KnowledgePageKind::Issue => "Issue",
 		KnowledgePageKind::Decision => "Decision",
+		KnowledgePageKind::Author => "Author",
+		KnowledgePageKind::Timeline => "Timeline",
 	}
 }
 
@@ -1920,6 +2156,13 @@ fn hash_json(value: &Value) -> Result<String> {
 	})?;
 
 	Ok(blake3::hash(&raw).to_hex().to_string())
+}
+
+fn source_span_id(content_hash: &str, start: usize, end: usize, span_kind: &str) -> Uuid {
+	let name = serde_json::json!(["elf-doc-source-span/v1", content_hash, start, end, span_kind])
+		.to_string();
+
+	Uuid::new_v5(&Uuid::NAMESPACE_OID, name.as_bytes())
 }
 
 async fn replace_page_children(
@@ -2058,13 +2301,35 @@ mod tests {
 		}
 	}
 
+	fn test_rebuild_request(
+		page_kind: KnowledgePageKind,
+	) -> knowledge::KnowledgePageRebuildRequest {
+		knowledge::KnowledgePageRebuildRequest {
+			tenant_id: "tenant".to_string(),
+			project_id: "project".to_string(),
+			agent_id: "agent".to_string(),
+			page_kind,
+			page_key: "elf".to_string(),
+			title: Some("ELF".to_string()),
+			doc_ids: Vec::new(),
+			doc_chunk_ids: Vec::new(),
+			note_ids: Vec::new(),
+			event_ids: Vec::new(),
+			relation_ids: Vec::new(),
+			proposal_ids: Vec::new(),
+			provider_metadata: knowledge::empty_object(),
+		}
+	}
+
 	#[test]
 	fn build_sections_preserves_citations_and_deterministic_hashes() {
 		let sources = vec![
-			test_source(KnowledgeSourceKind::Note, 1, "A source note supports the page."),
-			test_source(KnowledgeSourceKind::Event, 2, "An event audit supports the page."),
-			test_source(KnowledgeSourceKind::Relation, 3, "A relation supports the page."),
-			test_source(KnowledgeSourceKind::Proposal, 4, "An applied proposal supports the page."),
+			test_source(KnowledgeSourceKind::Doc, 1, "A source document supports the page."),
+			test_source(KnowledgeSourceKind::DocChunk, 2, "A source span supports the page."),
+			test_source(KnowledgeSourceKind::Note, 3, "A source note supports the page."),
+			test_source(KnowledgeSourceKind::Event, 4, "An event audit supports the page."),
+			test_source(KnowledgeSourceKind::Relation, 5, "A relation supports the page."),
+			test_source(KnowledgeSourceKind::Proposal, 6, "An applied proposal supports the page."),
 		];
 		let mut first_sections =
 			knowledge::build_sections(&sources).expect("sections should build");
@@ -2075,7 +2340,7 @@ mod tests {
 				.expect("section hash should serialize");
 		}
 
-		assert_eq!(first_sections.len(), 4);
+		assert_eq!(first_sections.len(), 6);
 		assert!(first_sections.iter().all(|section| {
 			section.citations.as_array().is_some_and(|citations| !citations.is_empty())
 		}));
@@ -2086,7 +2351,9 @@ mod tests {
 			&first_sections,
 			&sources,
 		);
-		let metadata = knowledge::rebuild_metadata("source-hash", &knowledge::empty_object());
+		let request = test_rebuild_request(KnowledgePageKind::Project);
+		let metadata =
+			knowledge::rebuild_metadata("source-hash", &knowledge::empty_object(), &request);
 		let first_hash = knowledge::page_content_hash("ELF", &first_sections, &coverage, &metadata)
 			.expect("page hash should serialize");
 		let second_hash =
@@ -2095,6 +2362,10 @@ mod tests {
 
 		assert_eq!(coverage["coverage_complete"], true);
 		assert_eq!(metadata["deterministic"], true);
+		assert_eq!(
+			metadata["memory_candidate_policy"]["direct_memory_ledger_mutation_allowed"],
+			false
+		);
 		assert_eq!(first_hash, second_hash);
 	}
 
@@ -2107,11 +2378,25 @@ mod tests {
 				"provider_id": "fixture",
 				"model": "fixture-model",
 			}),
+			&test_rebuild_request(KnowledgePageKind::Timeline),
 		);
 
 		assert_eq!(metadata["deterministic"], false);
 		assert!(metadata["allowed_variance"].as_array().is_some_and(|items| !items.is_empty()));
 		assert_eq!(metadata["provider_metadata"]["provider_id"], "fixture");
+		assert_eq!(metadata["generated_by"]["actor_agent_id"], "agent");
+	}
+
+	#[test]
+	fn generated_titles_cover_author_and_timeline_pages() {
+		assert_eq!(
+			knowledge::generated_title(KnowledgePageKind::Author, "ada"),
+			"Author Knowledge Page: ada"
+		);
+		assert_eq!(
+			knowledge::generated_title(KnowledgePageKind::Timeline, "release-plan"),
+			"Timeline Knowledge Page: release-plan"
+		);
 	}
 
 	#[test]
@@ -2131,8 +2416,9 @@ mod tests {
 			content_hash: "new-section-hash".to_string(),
 			citations: serde_json::json!([{ "source_kind": "note" }]),
 		}];
+		let request = test_rebuild_request(KnowledgePageKind::Project);
 		let base_metadata =
-			knowledge::rebuild_metadata("new-source-hash", &knowledge::empty_object());
+			knowledge::rebuild_metadata("new-source-hash", &knowledge::empty_object(), &request);
 		let coverage = serde_json::json!({ "coverage_complete": true });
 		let hash_without_diff =
 			knowledge::page_content_hash("ELF", &sections, &coverage, &base_metadata)
@@ -2145,8 +2431,18 @@ mod tests {
 			hash_without_diff.as_str(),
 			&sections,
 		);
-		let metadata_with_diff =
-			knowledge::rebuild_metadata_with_previous_version_diff(base_metadata, diff.clone());
+		let version_identity = knowledge::version_identity_value(
+			KnowledgePageKind::Project,
+			"elf",
+			"new-source-hash",
+			hash_without_diff.as_str(),
+			&sections,
+		);
+		let metadata_with_diff = knowledge::rebuild_metadata_with_previous_version_diff(
+			base_metadata,
+			diff.clone(),
+			version_identity,
+		);
 		let hash_with_diff =
 			knowledge::page_content_hash("ELF", &sections, &coverage, &metadata_with_diff)
 				.expect("hash should ignore previous-version diff metadata");
@@ -2160,6 +2456,10 @@ mod tests {
 			knowledge::previous_version_diff_from_metadata(&metadata_with_diff)
 				.expect("diff should be extractable")["section_changed_count"],
 			1
+		);
+		assert_eq!(
+			metadata_with_diff["version_identity"]["schema"],
+			"elf.knowledge_page.version_identity/v1"
 		);
 	}
 

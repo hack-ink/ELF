@@ -252,6 +252,72 @@ pub struct KnowledgeProposalSource {
 	pub updated_at: OffsetDateTime,
 }
 
+/// Source Library document row used by the knowledge page rebuilder.
+#[derive(Debug, FromRow)]
+pub struct KnowledgeDocSource {
+	/// Document identifier.
+	pub doc_id: Uuid,
+	/// Agent that captured the document.
+	pub agent_id: String,
+	/// Document scope.
+	pub scope: String,
+	/// Document type.
+	pub doc_type: String,
+	/// Document lifecycle status.
+	pub status: String,
+	/// Optional document title.
+	pub title: Option<String>,
+	/// Document source reference.
+	pub source_ref: Value,
+	/// Persisted document content.
+	pub content: String,
+	/// Persisted byte length.
+	pub content_bytes: i32,
+	/// Whole-document content hash.
+	pub content_hash: String,
+	/// Document creation timestamp.
+	pub created_at: OffsetDateTime,
+	/// Document update timestamp.
+	pub updated_at: OffsetDateTime,
+}
+
+/// Source Library document chunk row used by the knowledge page rebuilder.
+#[derive(Debug, FromRow)]
+pub struct KnowledgeDocChunkSource {
+	/// Chunk identifier.
+	pub chunk_id: Uuid,
+	/// Parent document identifier.
+	pub doc_id: Uuid,
+	/// Agent that captured the document.
+	pub agent_id: String,
+	/// Document scope.
+	pub scope: String,
+	/// Document type.
+	pub doc_type: String,
+	/// Document lifecycle status.
+	pub status: String,
+	/// Optional document title.
+	pub title: Option<String>,
+	/// Document source reference.
+	pub source_ref: Value,
+	/// Whole-document content hash.
+	pub doc_content_hash: String,
+	/// Document update timestamp.
+	pub doc_updated_at: OffsetDateTime,
+	/// Zero-based chunk index.
+	pub chunk_index: i32,
+	/// Inclusive start byte offset.
+	pub start_offset: i32,
+	/// Exclusive end byte offset.
+	pub end_offset: i32,
+	/// Chunk text.
+	pub chunk_text: String,
+	/// Chunk content hash.
+	pub chunk_hash: String,
+	/// Chunk creation timestamp.
+	pub chunk_created_at: OffsetDateTime,
+}
+
 /// Searchable knowledge page section row with page and lint metadata.
 #[derive(Debug, FromRow)]
 pub struct KnowledgePageSearchRow {
@@ -1107,6 +1173,101 @@ ORDER BY updated_at ASC, proposal_id ASC",
 	.bind(tenant_id)
 	.bind(project_id)
 	.bind(proposal_ids)
+	.fetch_all(executor)
+	.await?;
+
+	Ok(rows)
+}
+
+/// Fetches active Source Library documents by identifier for a knowledge page rebuild.
+pub async fn fetch_knowledge_doc_sources<'e, E>(
+	executor: E,
+	tenant_id: &str,
+	project_id: &str,
+	doc_ids: &[Uuid],
+) -> Result<Vec<KnowledgeDocSource>>
+where
+	E: PgExecutor<'e>,
+{
+	if doc_ids.is_empty() {
+		return Ok(Vec::new());
+	}
+
+	let rows = sqlx::query_as::<_, KnowledgeDocSource>(
+		"\
+SELECT
+	doc_id,
+	agent_id,
+	scope,
+	doc_type,
+	status,
+	title,
+	COALESCE(source_ref, '{}'::jsonb) AS source_ref,
+	content,
+	content_bytes,
+	content_hash,
+	created_at,
+	updated_at
+FROM doc_documents
+WHERE tenant_id = $1
+	AND project_id = $2
+	AND doc_id = ANY($3::uuid[])
+	AND status = 'active'
+ORDER BY updated_at ASC, doc_id ASC",
+	)
+	.bind(tenant_id)
+	.bind(project_id)
+	.bind(doc_ids)
+	.fetch_all(executor)
+	.await?;
+
+	Ok(rows)
+}
+
+/// Fetches active Source Library document chunks by identifier for a knowledge page rebuild.
+pub async fn fetch_knowledge_doc_chunk_sources<'e, E>(
+	executor: E,
+	tenant_id: &str,
+	project_id: &str,
+	chunk_ids: &[Uuid],
+) -> Result<Vec<KnowledgeDocChunkSource>>
+where
+	E: PgExecutor<'e>,
+{
+	if chunk_ids.is_empty() {
+		return Ok(Vec::new());
+	}
+
+	let rows = sqlx::query_as::<_, KnowledgeDocChunkSource>(
+		"\
+SELECT
+	c.chunk_id,
+	c.doc_id,
+	d.agent_id,
+	d.scope,
+	d.doc_type,
+	d.status,
+	d.title,
+	COALESCE(d.source_ref, '{}'::jsonb) AS source_ref,
+	d.content_hash AS doc_content_hash,
+	d.updated_at AS doc_updated_at,
+	c.chunk_index,
+	c.start_offset,
+	c.end_offset,
+	c.chunk_text,
+	c.chunk_hash,
+	c.created_at AS chunk_created_at
+FROM doc_chunks c
+JOIN doc_documents d ON d.doc_id = c.doc_id
+WHERE d.tenant_id = $1
+	AND d.project_id = $2
+	AND c.chunk_id = ANY($3::uuid[])
+	AND d.status = 'active'
+ORDER BY d.updated_at ASC, c.chunk_index ASC, c.chunk_id ASC",
+	)
+	.bind(tenant_id)
+	.bind(project_id)
+	.bind(chunk_ids)
 	.fetch_all(executor)
 	.await?;
 

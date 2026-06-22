@@ -21,7 +21,7 @@ ALTER TABLE knowledge_pages
 	DROP CONSTRAINT IF EXISTS ck_knowledge_pages_page_kind;
 ALTER TABLE knowledge_pages
 	ADD CONSTRAINT ck_knowledge_pages_page_kind
-		CHECK (page_kind IN ('project', 'entity', 'concept', 'issue', 'decision'));
+		CHECK (page_kind IN ('project', 'entity', 'concept', 'issue', 'decision', 'author', 'timeline'));
 
 ALTER TABLE knowledge_pages
 	DROP CONSTRAINT IF EXISTS ck_knowledge_pages_status;
