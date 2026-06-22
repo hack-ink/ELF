@@ -48,6 +48,9 @@
 # | real-world-memory-live-adapters            | command   |     |
 # | real-world-memory-live-consolidation       | command   |     |
 # | real-world-memory-live-knowledge           | command   |     |
+# | real-world-memory-mem0-openmemory-letta    | composite |     |
+# | real-world-memory-mem0-openmemory-letta-json | command |     |
+# | real-world-memory-mem0-openmemory-letta-report | command |     |
 # | real-world-memory-pageindex-openkb         | composite |     |
 # | real-world-memory-pageindex-openkb-json    | command   |     |
 # | real-world-memory-pageindex-openkb-report  | command   |     |
@@ -647,6 +650,63 @@ args = [
 	"tmp/real-world-memory/knowledge-report.json",
 	"--out",
 	"tmp/real-world-memory/knowledge-report.md",
+]
+
+[tasks.real-world-memory-mem0-openmemory-letta]
+workspace = false
+dependencies = [
+	"real-world-memory-mem0-openmemory-letta-report",
+]
+
+[tasks.real-world-memory-mem0-openmemory-letta-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_external_adapters/mem0_openmemory_letta",
+	"--out",
+	"tmp/real-world-memory/mem0-openmemory-letta/report.json",
+	"--run-id",
+	"real-world-memory-mem0-openmemory-letta",
+	"--adapter-id",
+	"fixture_mem0_openmemory_letta",
+	"--adapter-name",
+	"mem0/OpenMemory and Letta memory-history/core-archive adapters",
+	"--adapter-behavior",
+	"same_corpus_adapter_fixture",
+	"--adapter-storage-status",
+	"blocked",
+	"--adapter-runtime-status",
+	"blocked",
+	"--adapter-notes",
+	"Offline fixtures map mem0 SDK history/export outputs to source ids and preserve OpenMemory UI/export plus Letta core/archive blockers until contained product exports map source ids.",
+]
+
+[tasks.real-world-memory-mem0-openmemory-letta-report]
+workspace = false
+dependencies = [
+	"real-world-memory-mem0-openmemory-letta-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-memory/mem0-openmemory-letta/report.json",
+	"--out",
+	"tmp/real-world-memory/mem0-openmemory-letta/report.md",
 ]
 
 [tasks.real-world-memory-pageindex-openkb]

@@ -254,6 +254,28 @@ PageIndex and OpenKB stay `not_tested` reference-only rows until contained adapt
 emit comparable tree/wiki artifacts, source refs, lint/watch output, and typed
 benchmark states. This closeout does not queue any P3 issue.
 
+Current checked-in P3 mem0/OpenMemory and Letta adapter increment:
+
+```sh
+cargo make real-world-memory-mem0-openmemory-letta
+```
+
+This parses
+`apps/elf-eval/fixtures/real_world_external_adapters/mem0_openmemory_letta/`, writes
+`tmp/real-world-memory/mem0-openmemory-letta/report.json`, and renders
+`tmp/real-world-memory/mem0-openmemory-letta/report.md`. The checked-in evidence
+report is
+`docs/evidence/benchmarking/2026-06-22-mem0-openmemory-letta-memory-history-core-archive-report.md`,
+and the checked-in JSON snapshot is
+`apps/elf-eval/fixtures/report_snapshots/2026-06-22-mem0-openmemory-letta-memory-history-core-archive-report.json`.
+
+The increment scores four jobs: one mem0 SDK history/export job as pass and three
+typed blockers for OpenMemory UI/export, Letta core block export, and Letta archival
+readback/search. It maps mem0 SDK `Memory.history`, scoped search, and local
+`Memory.get_all` output to source ids, preserves OpenMemory UI/export as a product
+container/app-database blocker, preserves Letta core/archive as export/readback
+blockers, and makes no hosted/product parity claim.
+
 Current checked-in project-decisions increment:
 
 ```sh

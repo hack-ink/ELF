@@ -1,0 +1,277 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "mem0-openmemory-letta-letta-archival-readback-blocked-001",
+  "suite": "core_archival_memory",
+  "title": "Block Letta archival search/readback until fallback, stale-core, and project-decision source ids map",
+  "encoding": {
+    "status": "blocked",
+    "reason": "Letta archival readback scoring is blocked until a contained Letta run exports archival passage/readback/search JSON that maps archival fallback, stale-core supersession, and project-decision recovery source ids.",
+    "follow_up": {
+      "title": "Run Letta archival search and readback adapter",
+      "reason": "The fair comparison needs Letta archival search/readback output with source ids for fallback runbook, stale-core supersession, and core-routing plus archival decision rationale."
+    }
+  },
+  "corpus": {
+    "corpus_id": "real-world-memory-mem0-openmemory-letta-2026-06-22",
+    "profile": "external_adapter",
+    "items": [
+      {
+        "evidence_id": "elf-archival-fallback-output",
+        "kind": "elf_same_corpus_output",
+        "text": "ELF same-corpus archival output: core-archival-archival-fallback-001 maps insufficient core source id fallback-core-insufficient to archival source id fallback-archival-runbook.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "archival_fallback",
+            "evidence_id": "fallback-archival-runbook"
+          },
+          "locator": {
+            "quote": "fallback-archival-runbook"
+          }
+        },
+        "created_at": "2026-06-11T04:41:00Z"
+      },
+      {
+        "evidence_id": "elf-stale-core-output",
+        "kind": "elf_same_corpus_output",
+        "text": "ELF same-corpus stale-core output: core-archival-stale-core-detection-001 maps stale core source id stale-core-validation-gate to current archival source ids archival-current-validation-gate and archival-supersedes-core-rationale.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "stale_core_detection",
+            "evidence_id": "archival-current-validation-gate"
+          },
+          "locator": {
+            "quote": "archival-current-validation-gate"
+          }
+        },
+        "created_at": "2026-06-11T04:30:00Z"
+      },
+      {
+        "evidence_id": "elf-project-decision-recovery-output",
+        "kind": "elf_same_corpus_output",
+        "text": "ELF same-corpus project-decision output: core-archival-project-decision-recovery-001 maps core routing source id decision-core-routing-block to archival source ids decision-archival-outcome-policy and decision-archival-core-search-boundary.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "project_decision_recovery",
+            "evidence_id": "decision-archival-outcome-policy"
+          },
+          "locator": {
+            "quote": "decision-archival-outcome-policy"
+          }
+        },
+        "created_at": "2026-06-11T04:51:00Z"
+      },
+      {
+        "evidence_id": "letta-archival-readback-blocker",
+        "kind": "adapter_blocker",
+        "text": "Letta archival readback blocker: no contained Letta output has emitted archival passage JSON, archival readback JSON, or archival search JSON mapped to fallback-archival-runbook, archival-current-validation-gate, archival-supersedes-core-rationale, decision-core-routing-block, and decision-archival-outcome-policy.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "letta_archival_readback_blocked",
+            "evidence_id": "letta-archival-readback-blocker"
+          },
+          "locator": {
+            "quote": "no contained Letta output has emitted archival passage JSON"
+          }
+        },
+        "created_at": "2026-06-22T04:05:00Z"
+      },
+      {
+        "evidence_id": "letta-archival-score-decoy",
+        "kind": "unsupported_claim",
+        "text": "Decoy: the ELF archival fallback, stale-core, and project-decision fixture passes prove Letta archival search is a measured loss.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "letta_archival_readback_blocked",
+            "evidence_id": "letta-archival-score-decoy"
+          }
+        },
+        "created_at": "2026-06-22T04:04:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_mem0_openmemory_letta",
+      "answer": {
+        "content": "Letta archival readback remains blocked. The same-corpus ELF rows identify fallback-archival-runbook for archival fallback, archival-current-validation-gate and archival-supersedes-core-rationale for stale-core detection, and decision-core-routing-block plus decision-archival-outcome-policy for project-decision recovery. No contained Letta output has emitted archival passage, readback, or search JSON mapped to those ids, so no Letta archival win, tie, or loss is claimed.",
+        "claims": [
+          {
+            "claim_id": "elf_archival_outputs_present",
+            "text": "ELF same-corpus archival fallback, stale-core, and project-decision source ids are identified.",
+            "evidence_ids": [
+              "elf-archival-fallback-output",
+              "elf-stale-core-output",
+              "elf-project-decision-recovery-output"
+            ],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "letta_archival_readback_blocked",
+            "text": "Letta archival scoring is blocked because no contained passage, readback, or search JSON maps those source ids.",
+            "evidence_ids": ["letta-archival-readback-blocker"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": [
+          "elf-archival-fallback-output",
+          "elf-stale-core-output",
+          "elf-project-decision-recovery-output",
+          "letta-archival-readback-blocker"
+        ],
+        "latency_ms": 1.1,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "letta-archival-same-corpus-selected",
+      "ts": "2026-06-22T04:05:00Z",
+      "actor": "benchmark",
+      "action": "selected_letta_archival_source_ids",
+      "evidence_ids": [
+        "elf-archival-fallback-output",
+        "elf-stale-core-output",
+        "elf-project-decision-recovery-output"
+      ],
+      "summary": "The Letta archival comparison selected fallback, stale-core, and project-decision source ids from the same core_archival_memory corpus."
+    },
+    {
+      "event_id": "letta-archival-readback-blocker-recorded",
+      "ts": "2026-06-22T04:06:00Z",
+      "actor": "benchmark",
+      "action": "recorded_letta_archival_readback_blocker",
+      "evidence_ids": ["letta-archival-readback-blocker"],
+      "summary": "Letta remains blocked until archival passage/readback/search JSON maps those source ids."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Can Letta archival memory be scored for fallback, stale-core detection, and project-decision recovery?",
+    "job_mode": "compare",
+    "constraints": [
+      "cite_same_corpus_source_ids",
+      "require_letta_archival_search_readback",
+      "no_letta_win_tie_loss_without_export"
+    ]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "elf_archival_outputs_present",
+        "text": "ELF same-corpus archival fallback, stale-core, and project-decision source ids are identified."
+      },
+      {
+        "claim_id": "letta_archival_readback_blocked",
+        "text": "Letta archival scoring is blocked because no contained passage, readback, or search JSON maps those source ids."
+      }
+    ],
+    "must_not_include": [
+      "ELF archival fallback, stale-core, and project-decision fixture passes prove Letta archival search is a measured loss",
+      "Letta archival search parity is proven"
+    ],
+    "evidence_links": {
+      "elf_archival_outputs_present": [
+        "elf-archival-fallback-output",
+        "elf-stale-core-output",
+        "elf-project-decision-recovery-output"
+      ],
+      "letta_archival_readback_blocked": ["letta-archival-readback-blocker"]
+    },
+    "answer_type": "typed_blocker",
+    "accepted_alternates": [],
+    "requires_caveat": true,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "elf-archival-fallback-output",
+      "claim_id": "elf_archival_outputs_present",
+      "requirement": "cite",
+      "quote": "fallback-archival-runbook"
+    },
+    {
+      "evidence_id": "elf-stale-core-output",
+      "claim_id": "elf_archival_outputs_present",
+      "requirement": "cite",
+      "quote": "archival-current-validation-gate"
+    },
+    {
+      "evidence_id": "elf-project-decision-recovery-output",
+      "claim_id": "elf_archival_outputs_present",
+      "requirement": "cite",
+      "quote": "decision-archival-outcome-policy"
+    },
+    {
+      "evidence_id": "letta-archival-readback-blocker",
+      "claim_id": "letta_archival_readback_blocked",
+      "requirement": "cite",
+      "quote": "no contained Letta output has emitted archival passage JSON"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "elf-archival-pass-letta-loss",
+      "type": "unsupported_claim",
+      "evidence_ids": ["letta-archival-score-decoy"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "uncertainty_handling": {
+        "weight": 0.35,
+        "max_points": 1.0,
+        "criteria": "Keeps Letta archival comparison blocked until direct readback/search output exists."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Cites fallback, stale-core, project-decision, and Letta blocker source ids."
+      },
+      "claim_boundary": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Does not convert ELF fixture pass evidence into a Letta outcome."
+      },
+      "trap_avoidance": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Avoids unsupported Letta loss or parity claims."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "state_blocker"
+  },
+  "tags": [
+    "external_adapter",
+    "letta",
+    "core_archival_memory",
+    "archival_search",
+    "stale_core",
+    "project_decision_recovery",
+    "blocked",
+    "no_live_claim"
+  ]
+}
