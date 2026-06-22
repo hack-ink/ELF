@@ -6,7 +6,7 @@ resource: docs/spec/system_recall_debug_panel_v1.md
 status: active
 authority: normative
 owner: memory-service
-last_verified: 2026-06-22
+last_verified: 2026-06-23
 tags:
   - spec
   - recall
@@ -69,7 +69,8 @@ The response includes:
 - `summary`: aggregate layer counters.
 - `recall_trace`: deterministic `elf.recall_trace/v1` projection for agent use,
   fixture assertions, and compact debug readback.
-- `layers`: full layer rows for detailed operator inspection.
+- `layers`: full layer rows and layer-level debug artifacts for detailed operator
+  inspection.
 
 ## Request Anchors
 
@@ -93,7 +94,37 @@ The Source Library layer inherits the docs-search effective `top_k` cap of 32
 rows even when the panel-level `limit` is higher; returned document rows expose
 the requested and effective limits in `debug_artifacts`.
 
-## Layer Rows
+## Layers And Rows
+
+Each returned layer MUST include:
+
+- `layer`: one of `memory_notes`, `source_documents`, `knowledge_pages`,
+  `graph_facts`, or `dreaming_proposals`.
+- `evidence_class`, `summary`, `anchor`, row counters, `raw_sql_needed`, and
+  `replayable`.
+- `debug_artifacts`: compact layer-level replay or diagnosis payloads. Layers without
+  layer-level artifacts return an empty object.
+
+For the Memory Notes layer, `debug_artifacts.compact_replay` is an
+`elf.recall_debug.compact_replay/v1` artifact derived from the persisted trace
+metadata, trajectory stages, replay candidates, final selected rows, and source refs.
+It MUST expose:
+
+- `controls`: `top_k`, `candidate_count`, expansion mode, expanded queries, allowed
+  scopes, search snapshot, ranking policy id, blend/diversity/retrieval-source
+  decisions, and any stored ranking override.
+- `stage_movement`: ordered stage names with item counts, stats, decisions, and
+  filter impact when present.
+- `candidate_replay`: selected and dropped candidate rows with retrieval rank,
+  rerank rank, rerank delta, rerank score, retrieval score, selection state, stage
+  reason, policy reason, source-ref availability, source ref, scope, and diversity
+  decision fields.
+- `selected_context`: final selected result handles, note/chunk ids, source-ref
+  availability, source ref, freshness, final rank, final score, ranking policy id,
+  compact ranking terms, policy reason, and relation-context count so
+  answer-composition can diagnose selected-but-not-narrated context.
+- `authority`: source/policy/raw-SQL flags showing that source refs and policy
+  reasons remain visible and raw SQL is not required.
 
 Each returned row MUST include:
 
