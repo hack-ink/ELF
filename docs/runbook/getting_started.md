@@ -101,7 +101,8 @@ After `elf-api` starts, the API process serves:
 
 - `GET /openapi.json` for the generated OpenAPI contract.
 - `GET /docs` for the Scalar API reference UI.
-- `GET /viewer` on the admin bind for the local read-only search, note, and trace viewer.
+- `GET /viewer` on the admin bind for the local operator viewer, including Source Library,
+  Memory Inbox, Memory History, Recall Debug, search, note, and trace panels.
 
 Use the host and port from `service.http_bind` in your config.
 For example:
