@@ -28,6 +28,17 @@ This document is normative. When a new versioned identifier is introduced, it mu
 
 ## Registry
 
+### Agent Memory + Knowledge System product contract
+
+- Identifier: `elf.agent_memory_knowledge_system/v1`.
+- Type: Product boundary, roadmap, phase-gate, and claim-boundary contract.
+- Defined in: `docs/spec/agent_memory_knowledge_system_v1.md`.
+- Consumers: Decodex phase planning, issue scoping, product documentation, benchmark
+  closeout review, and implementation agents deciding which phase may be queued.
+- Bump rule: Introduce a new identifier only when product phases, phase-gate
+  semantics, authority-layer boundaries, or claim-boundary rules become incompatible
+  with this contract.
+
 ### HTTP API version
 
 - Identifier: `/v2` (URL path prefix).
