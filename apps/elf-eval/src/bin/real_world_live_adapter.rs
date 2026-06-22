@@ -4645,6 +4645,8 @@ async fn materialize_elf_knowledge(
 		page_kind: KnowledgePageKind::Project,
 		page_key,
 		title: Some(loaded.job.title.clone()),
+		doc_ids: Vec::new(),
+		doc_chunk_ids: Vec::new(),
 		note_ids: note_ids.clone(),
 		event_ids: Vec::new(),
 		relation_ids: Vec::new(),

@@ -21,7 +21,7 @@ ALTER TABLE knowledge_page_lint_findings
 	DROP CONSTRAINT IF EXISTS ck_knowledge_page_lint_findings_source_kind;
 ALTER TABLE knowledge_page_lint_findings
 	ADD CONSTRAINT ck_knowledge_page_lint_findings_source_kind
-		CHECK (source_kind IS NULL OR source_kind IN ('note', 'event', 'relation', 'proposal'));
+		CHECK (source_kind IS NULL OR source_kind IN ('doc', 'doc_chunk', 'note', 'event', 'relation', 'proposal'));
 
 ALTER TABLE knowledge_page_lint_findings
 	DROP CONSTRAINT IF EXISTS ck_knowledge_page_lint_findings_details;
