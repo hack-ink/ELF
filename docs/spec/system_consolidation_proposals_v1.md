@@ -6,7 +6,7 @@ resource: docs/spec/system_consolidation_proposals_v1.md
 status: active
 authority: normative
 owner: spec
-last_verified: 2026-06-18
+last_verified: 2026-06-22
 tags:
   - docs
   - spec
@@ -37,10 +37,11 @@ Related inputs:
 Consolidation output is derived and reviewable. It must never destructively rewrite
 authoritative source notes, events, docs, traces, graph facts, or search traces.
 
-The authoritative source-of-truth remains the ELF Core storage defined by
+The raw evidence source-of-truth remains the ELF Core storage defined by
 `docs/spec/system_elf_memory_service_v2.md`. Consolidation stores proposals over
-immutable input snapshots. A proposal may later create or update a derived artifact,
-but source evidence remains inspectable and unchanged.
+immutable input snapshots. A reviewed proposal may later create or update an approved
+operational memory record or another derived artifact, but source evidence remains
+inspectable and unchanged.
 
 ## Contract Schema
 
@@ -261,8 +262,10 @@ Allowed review transitions:
 
 Terminal states are `rejected`, `applied`, and `archived`.
 
-`applied` means the proposal has been approved and marked as applied to the derived
-target. It does not mean authoritative source memory was changed.
+`applied` means the proposal has been approved and marked as applied to the target.
+For `create_derived_note` and `update_derived_note`, applying the proposal creates or
+updates an approved operational memory note. It never mutates the raw source notes,
+docs, events, traces, graph facts, or source pointers that justified the proposal.
 
 Operator review actions map to the lifecycle states:
 
@@ -275,6 +278,29 @@ Operator review actions map to the lifecycle states:
 Every review transition must write an append-only audit event with proposal id, run id,
 reviewer agent id, action, prior state, next state, optional comment, and timestamp.
 
+## Memory Promotion Apply Contract
+
+`create_derived_note` and `update_derived_note` are the only proposal apply intents
+that may write to `memory_notes`. They are the Memory Inbox promotion path:
+
+- The proposal must first receive an explicit `apply` review action. If it starts from
+  `proposed`, the service records both `approve` and `apply` review events.
+- The proposed payload must validate as a normal memory note payload with English text,
+  allowed type, allowed writable scope, and finite confidence/importance scores.
+- The promoted memory note must be `active`, write `memory_note_versions`, and enqueue
+  the normal indexing outbox `UPSERT`.
+- The promoted note `source_ref` must use `elf.memory_promotion/v1` and include
+  proposal id, run id, apply intent, source refs, source snapshot, lineage,
+  unsupported-claim flags, review actor/comment/timestamp, and any payload-level
+  source ref.
+- The proposal `target_ref` must be updated to `elf.memory_record_ref/v1` with
+  `kind = "note"` and the accepted memory `id`.
+- `update_derived_note` may update only an active target note identified by
+  `target_ref.id` or `target_ref.note_id`.
+
+Promoted memory records are approved operational memory. They do not replace or edit
+the Source Library/raw evidence that supplied `source_refs`.
+
 ## Service Boundary
 
 The first implementation exposes fixture-driven service flows:
@@ -286,6 +312,8 @@ The first implementation exposes fixture-driven service flows:
 - get a consolidation proposal
 - transition proposal review state through `approve`, `apply`, `discard`, and `defer`
   actions with review-event readback
+- apply reviewed `create_derived_note` and `update_derived_note` proposals into
+  approved memory notes with `target_ref` readback
 
 These flows must not call LLM, embedding, rerank, or external provider adapters.
 

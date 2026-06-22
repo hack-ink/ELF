@@ -748,7 +748,9 @@ fn version_event_type(op: &str, reason: &str) -> &'static str {
 		"DELETE" if reason.contains("expire") => "expire",
 		"DELETE" => "delete",
 		"PUBLISH" | "UNPUBLISH" => "related",
-		"DEPRECATE" | "INVALIDATE" => "invalidated",
+		"DEPRECATE" => "superseded",
+		"RESTORE" => "restored",
+		"INVALIDATE" => "invalidated",
 		_ => "related",
 	}
 }
@@ -772,7 +774,8 @@ fn decision_event_type(decision: &NoteProvenanceIngestDecision) -> &'static str 
 fn proposal_review_event_type(action: &str) -> &'static str {
 	match action {
 		"apply" => "applied",
-		"discard" | "defer" => "invalidated",
+		"discard" => "reject",
+		"defer" => "defer",
 		"approve" => "related",
 		_ => "related",
 	}
@@ -784,6 +787,8 @@ fn version_summary(event_type: &str, reason: &str) -> String {
 		"update" => format!("Note was updated by {reason}."),
 		"delete" => format!("Note was deleted by {reason}."),
 		"expire" => format!("Note expired through {reason}."),
+		"superseded" => format!("Note was superseded by {reason}."),
+		"restored" => format!("Note was restored by {reason}."),
 		"invalidated" => format!("Note was invalidated by {reason}."),
 		_ => format!("Note recorded related transition {reason}."),
 	}
@@ -953,8 +958,9 @@ async fn load_memory_history_events(
 	let decisions = load_ingest_decisions(pool, req).await?;
 	let versions = load_note_versions(pool, &req.tenant_id, &req.project_id, req.note_id).await?;
 	let proposal_ref = serde_json::json!([{ "kind": "note", "id": req.note_id }]);
-	let proposals = load_derived_proposals_for_note(pool, req, &proposal_ref).await?;
-	let reviews = load_proposal_reviews_for_note(pool, req, &proposal_ref).await?;
+	let target_ref = serde_json::json!({ "kind": "note", "id": req.note_id });
+	let proposals = load_derived_proposals_for_note(pool, req, &proposal_ref, &target_ref).await?;
+	let reviews = load_proposal_reviews_for_note(pool, req, &proposal_ref, &target_ref).await?;
 	let mut decision_by_version = HashMap::new();
 
 	for decision in &decisions {
@@ -1007,6 +1013,7 @@ async fn load_derived_proposals_for_note(
 	pool: &PgPool,
 	req: &ValidatedNoteProvenanceRequest,
 	proposal_ref: &Value,
+	target_ref: &Value,
 ) -> Result<Vec<NoteDerivedProposalRow>> {
 	let rows = sqlx::query_as::<_, NoteDerivedProposalRow>(
 		"\
@@ -1028,13 +1035,14 @@ SELECT
 FROM consolidation_proposals
 WHERE tenant_id = $1
 	AND project_id = $2
-	AND source_refs @> $3
+	AND (source_refs @> $3 OR target_ref @> $4)
 ORDER BY created_at DESC, proposal_id DESC
-LIMIT $4",
+LIMIT $5",
 	)
 	.bind(&req.tenant_id)
 	.bind(&req.project_id)
 	.bind(proposal_ref)
+	.bind(target_ref)
 	.bind(NOTE_PROVENANCE_HISTORY_LIMIT)
 	.fetch_all(pool)
 	.await?;
@@ -1046,6 +1054,7 @@ async fn load_proposal_reviews_for_note(
 	pool: &PgPool,
 	req: &ValidatedNoteProvenanceRequest,
 	proposal_ref: &Value,
+	target_ref: &Value,
 ) -> Result<Vec<NoteProposalReviewRow>> {
 	let rows = sqlx::query_as::<_, NoteProposalReviewRow>(
 		"\
@@ -1067,13 +1076,14 @@ JOIN consolidation_proposals proposals
 	ON proposals.proposal_id = reviews.proposal_id
 WHERE reviews.tenant_id = $1
 	AND reviews.project_id = $2
-	AND proposals.source_refs @> $3
+	AND (proposals.source_refs @> $3 OR proposals.target_ref @> $4)
 ORDER BY reviews.created_at DESC, reviews.review_id DESC
-LIMIT $4",
+LIMIT $5",
 	)
 	.bind(&req.tenant_id)
 	.bind(&req.project_id)
 	.bind(proposal_ref)
+	.bind(target_ref)
 	.bind(NOTE_PROVENANCE_HISTORY_LIMIT)
 	.fetch_all(pool)
 	.await?;

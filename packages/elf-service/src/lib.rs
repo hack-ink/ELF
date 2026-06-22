@@ -17,6 +17,7 @@ pub mod graph_query;
 pub mod graph_report;
 pub mod knowledge;
 pub mod list;
+pub mod memory_corrections;
 pub mod notes;
 pub mod progressive_search;
 pub mod provenance;
@@ -102,6 +103,9 @@ pub use self::{
 		KnowledgePagesListRequest, KnowledgePagesListResponse,
 	},
 	list::{ListItem, ListRequest, ListResponse},
+	memory_corrections::{
+		MemoryCorrectionAction, MemoryCorrectionRequest, MemoryCorrectionResponse,
+	},
 	notes::{NoteFetchRequest, NoteFetchResponse},
 	progressive_search::{
 		SearchDetailsError, SearchDetailsRequest, SearchDetailsResponse, SearchDetailsResult,

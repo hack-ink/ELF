@@ -2,23 +2,32 @@
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+use sqlx::{Postgres, Transaction};
 use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
-use crate::{ElfService, Error, Result};
-use elf_domain::consolidation::{
-	self, CONSOLIDATION_CONTRACT_SCHEMA_V1, ConsolidationApplyIntent, ConsolidationInputRef,
-	ConsolidationJobPayload, ConsolidationLineage, ConsolidationMarkers,
-	ConsolidationProposalContract, ConsolidationProposalDiff, ConsolidationReviewAction,
-	ConsolidationReviewState, ConsolidationRunState, ConsolidationUnsupportedClaimFlag,
-	ConsolidationValidationError,
+use crate::{ElfService, Error, InsertVersionArgs, Result};
+use elf_config::Config;
+use elf_domain::{
+	consolidation::{
+		self, CONSOLIDATION_CONTRACT_SCHEMA_V1, ConsolidationApplyIntent, ConsolidationInputRef,
+		ConsolidationJobPayload, ConsolidationLineage, ConsolidationMarkers,
+		ConsolidationProposalContract, ConsolidationProposalDiff, ConsolidationReviewAction,
+		ConsolidationReviewState, ConsolidationRunState, ConsolidationUnsupportedClaimFlag,
+		ConsolidationValidationError,
+	},
+	ttl,
+	writegate::{self, NoteInput},
 };
 use elf_storage::{
 	consolidation::{
 		ConsolidationProposalReviewEventInsert, ConsolidationProposalReviewUpdate,
-		ConsolidationRunJobInsert,
+		ConsolidationProposalTargetRefUpdate, ConsolidationRunJobInsert,
 	},
-	models::{ConsolidationProposal, ConsolidationProposalReviewEvent, ConsolidationRun},
+	models::{
+		ConsolidationProposal, ConsolidationProposalReviewEvent, ConsolidationRun, MemoryNote,
+	},
+	queries,
 };
 
 const DEFAULT_LIST_LIMIT: i64 = 50;
@@ -369,6 +378,20 @@ impl From<ConsolidationProposal> for ConsolidationProposalResponse {
 	}
 }
 
+#[derive(Clone, Debug, Deserialize)]
+struct PromotedMemoryPayload {
+	#[serde(rename = "type")]
+	note_type: String,
+	text: String,
+	scope: Option<String>,
+	key: Option<String>,
+	importance: Option<f32>,
+	confidence: Option<f32>,
+	ttl_days: Option<i64>,
+	#[serde(default = "empty_object")]
+	source_ref: Value,
+}
+
 impl ElfService {
 	/// Creates a fixture-backed consolidation run and optional proposals.
 	pub async fn consolidation_run_create(
@@ -598,6 +621,19 @@ impl ElfService {
 			.ok_or_else(|| Error::NotFound {
 				message: "consolidation proposal not found".to_string(),
 			})?;
+
+			if action == ConsolidationReviewAction::Apply {
+				updated = self
+					.apply_consolidation_proposal_to_memory(
+						&mut tx,
+						updated,
+						req.reviewer_agent_id.as_str(),
+						req.review_comment.as_deref(),
+						transition_time,
+					)
+					.await?;
+			}
+
 			last_state = next_state;
 		}
 
@@ -615,6 +651,53 @@ impl ElfService {
 		response.review_events = review_events;
 
 		Ok(response)
+	}
+
+	async fn apply_consolidation_proposal_to_memory(
+		&self,
+		tx: &mut Transaction<'_, Postgres>,
+		proposal: ConsolidationProposal,
+		reviewer_agent_id: &str,
+		review_comment: Option<&str>,
+		now: OffsetDateTime,
+	) -> Result<ConsolidationProposal> {
+		let note_id = match proposal.apply_intent.as_str() {
+			"create_derived_note" =>
+				create_promoted_memory_note(
+					tx,
+					&proposal,
+					reviewer_agent_id,
+					review_comment,
+					&self.cfg,
+					now,
+				)
+				.await?,
+			"update_derived_note" =>
+				update_promoted_memory_note(
+					tx,
+					&proposal,
+					reviewer_agent_id,
+					review_comment,
+					&self.cfg,
+					now,
+				)
+				.await?,
+			_ => return Ok(proposal),
+		};
+		let target_ref = promoted_memory_target_ref(note_id, now);
+
+		elf_storage::consolidation::update_consolidation_proposal_target_ref(
+			&mut **tx,
+			ConsolidationProposalTargetRefUpdate {
+				tenant_id: proposal.tenant_id.as_str(),
+				project_id: proposal.project_id.as_str(),
+				proposal_id: proposal.proposal_id,
+				target_ref: &target_ref,
+				now,
+			},
+		)
+		.await?
+		.ok_or_else(|| Error::NotFound { message: "consolidation proposal not found".to_string() })
 	}
 
 	async fn consolidation_proposal_review_events(
@@ -708,6 +791,107 @@ fn review_steps(
 	Ok(steps)
 }
 
+fn promoted_memory_payload(
+	proposal: &ConsolidationProposal,
+	cfg: &Config,
+) -> Result<PromotedMemoryPayload> {
+	let payload: PromotedMemoryPayload = serde_json::from_value(proposal.proposed_payload.clone())
+		.map_err(|err| Error::InvalidRequest {
+			message: format!("proposed_payload is not a memory note payload: {err}"),
+		})?;
+	let scope = payload.scope.as_deref().unwrap_or("agent_private");
+	let gate = NoteInput {
+		note_type: payload.note_type.clone(),
+		scope: scope.to_string(),
+		text: payload.text.clone(),
+	};
+
+	if let Err(code) = writegate::writegate(&gate, cfg) {
+		return Err(Error::InvalidRequest {
+			message: format!(
+				"proposed memory failed writegate: {}",
+				crate::writegate_reason_code(code)
+			),
+		});
+	}
+
+	if !matches!(payload.source_ref, Value::Object(_)) {
+		return Err(Error::InvalidRequest {
+			message: "proposed_payload.source_ref must be a JSON object when provided.".to_string(),
+		});
+	}
+	if payload.importance.is_some_and(invalid_score)
+		|| payload.confidence.is_some_and(invalid_score)
+	{
+		return Err(Error::InvalidRequest {
+			message: "proposed memory scores must be finite values in 0.0..=1.0.".to_string(),
+		});
+	}
+
+	Ok(payload)
+}
+
+fn invalid_score(score: f32) -> bool {
+	!score.is_finite() || !(0.0..=1.0).contains(&score)
+}
+
+fn target_note_id(proposal: &ConsolidationProposal) -> Result<Uuid> {
+	let raw = proposal
+		.target_ref
+		.get("id")
+		.or_else(|| proposal.target_ref.get("note_id"))
+		.and_then(Value::as_str)
+		.ok_or_else(|| Error::InvalidRequest {
+			message: "update_derived_note requires target_ref.id or target_ref.note_id."
+				.to_string(),
+		})?;
+
+	Uuid::parse_str(raw).map_err(|err| Error::InvalidRequest {
+		message: format!("target_ref note id is invalid: {err}"),
+	})
+}
+
+fn normalized_optional_string(value: Option<String>) -> Option<String> {
+	value.map(|raw| raw.trim().to_string()).filter(|trimmed| !trimmed.is_empty())
+}
+
+fn promotion_source_ref(
+	proposal: &ConsolidationProposal,
+	proposed_source_ref: &Value,
+	reviewer_agent_id: &str,
+	review_comment: Option<&str>,
+	now: OffsetDateTime,
+) -> Value {
+	serde_json::json!({
+		"schema": "elf.memory_promotion/v1",
+		"proposal_id": proposal.proposal_id,
+		"run_id": proposal.run_id,
+		"proposal_kind": proposal.proposal_kind,
+		"apply_intent": proposal.apply_intent,
+		"source_refs": proposal.source_refs,
+		"source_snapshot": proposal.source_snapshot,
+		"lineage": proposal.lineage,
+		"unsupported_claim_flags": proposal.unsupported_claim_flags,
+		"review": {
+			"action": "apply",
+			"reviewer_agent_id": reviewer_agent_id,
+			"review_comment": review_comment,
+			"applied_at": now,
+		},
+		"proposed_source_ref": proposed_source_ref,
+	})
+}
+
+fn promoted_memory_target_ref(note_id: Uuid, now: OffsetDateTime) -> Value {
+	serde_json::json!({
+		"schema": "elf.memory_record_ref/v1",
+		"kind": "note",
+		"id": note_id,
+		"status": "active",
+		"applied_at": now,
+	})
+}
+
 fn bounded_limit(limit: Option<u32>) -> i64 {
 	limit.map(i64::from).unwrap_or(DEFAULT_LIST_LIMIT).clamp(1, MAX_LIST_LIMIT)
 }
@@ -732,4 +916,163 @@ fn terminal_time(state: ConsolidationRunState, now: OffsetDateTime) -> Option<Of
 		| ConsolidationRunState::Cancelled => Some(now),
 		ConsolidationRunState::Pending | ConsolidationRunState::Running => None,
 	}
+}
+
+async fn create_promoted_memory_note(
+	tx: &mut Transaction<'_, Postgres>,
+	proposal: &ConsolidationProposal,
+	reviewer_agent_id: &str,
+	review_comment: Option<&str>,
+	cfg: &Config,
+	now: OffsetDateTime,
+) -> Result<Uuid> {
+	let payload = promoted_memory_payload(proposal, cfg)?;
+	let scope = payload.scope.clone().unwrap_or_else(|| "agent_private".to_string());
+	let note_type = payload.note_type;
+	let expires_at = ttl::compute_expires_at(payload.ttl_days, &note_type, cfg, now);
+	let source_ref =
+		promotion_source_ref(proposal, &payload.source_ref, reviewer_agent_id, review_comment, now);
+	let note_id = Uuid::new_v4();
+	let note = MemoryNote {
+		note_id,
+		tenant_id: proposal.tenant_id.clone(),
+		project_id: proposal.project_id.clone(),
+		agent_id: reviewer_agent_id.to_string(),
+		scope,
+		r#type: note_type,
+		key: normalized_optional_string(payload.key),
+		text: payload.text,
+		importance: payload.importance.unwrap_or(proposal.confidence),
+		confidence: payload.confidence.unwrap_or(proposal.confidence),
+		status: "active".to_string(),
+		created_at: now,
+		updated_at: now,
+		expires_at,
+		embedding_version: crate::embedding_version(cfg),
+		source_ref,
+		hit_count: 0,
+		last_hit_at: None,
+	};
+
+	queries::insert_note(&mut **tx, &note).await?;
+	crate::insert_version(
+		&mut **tx,
+		InsertVersionArgs {
+			note_id,
+			op: "ADD",
+			prev_snapshot: None,
+			new_snapshot: Some(crate::note_snapshot(&note)),
+			reason: "consolidation_apply.create_derived_note",
+			actor: reviewer_agent_id,
+			ts: now,
+		},
+	)
+	.await?;
+	crate::enqueue_outbox_tx(&mut **tx, note_id, "UPSERT", &note.embedding_version, now).await?;
+
+	Ok(note_id)
+}
+
+async fn update_promoted_memory_note(
+	tx: &mut Transaction<'_, Postgres>,
+	proposal: &ConsolidationProposal,
+	reviewer_agent_id: &str,
+	review_comment: Option<&str>,
+	cfg: &Config,
+	now: OffsetDateTime,
+) -> Result<Uuid> {
+	let payload = promoted_memory_payload(proposal, cfg)?;
+	let note_id = target_note_id(proposal)?;
+	let mut note = sqlx::query_as::<_, MemoryNote>(
+		"\
+SELECT *
+FROM memory_notes
+WHERE note_id = $1 AND tenant_id = $2 AND project_id = $3
+FOR UPDATE",
+	)
+	.bind(note_id)
+	.bind(proposal.tenant_id.as_str())
+	.bind(proposal.project_id.as_str())
+	.fetch_optional(&mut **tx)
+	.await?
+	.ok_or_else(|| Error::InvalidRequest {
+		message: "Target memory note was not found.".to_string(),
+	})?;
+
+	if note.status != "active" {
+		return Err(Error::InvalidRequest {
+			message: "Only active target memory can be updated by proposal apply.".to_string(),
+		});
+	}
+
+	let prev_snapshot = crate::note_snapshot(&note);
+
+	note.scope = payload.scope.unwrap_or(note.scope);
+	note.r#type = payload.note_type;
+	note.key = normalized_optional_string(payload.key);
+	note.text = payload.text;
+	note.importance = payload.importance.unwrap_or(note.importance);
+	note.confidence = payload.confidence.unwrap_or(note.confidence);
+
+	if payload.ttl_days.is_some() {
+		note.expires_at = ttl::compute_expires_at(payload.ttl_days, &note.r#type, cfg, now);
+	}
+
+	note.updated_at = now;
+	note.source_ref =
+		promotion_source_ref(proposal, &payload.source_ref, reviewer_agent_id, review_comment, now);
+
+	update_promoted_note_row(tx, &note).await?;
+
+	crate::insert_version(
+		&mut **tx,
+		InsertVersionArgs {
+			note_id,
+			op: "UPDATE",
+			prev_snapshot: Some(prev_snapshot),
+			new_snapshot: Some(crate::note_snapshot(&note)),
+			reason: "consolidation_apply.update_derived_note",
+			actor: reviewer_agent_id,
+			ts: now,
+		},
+	)
+	.await?;
+	crate::enqueue_outbox_tx(&mut **tx, note_id, "UPSERT", &note.embedding_version, now).await?;
+
+	Ok(note_id)
+}
+
+async fn update_promoted_note_row(
+	tx: &mut Transaction<'_, Postgres>,
+	note: &MemoryNote,
+) -> Result<()> {
+	sqlx::query(
+		"\
+UPDATE memory_notes
+SET
+	scope = $1,
+	type = $2,
+	key = $3,
+	text = $4,
+	importance = $5,
+	confidence = $6,
+	updated_at = $7,
+	expires_at = $8,
+	source_ref = $9
+WHERE note_id = $10",
+	)
+	.bind(note.scope.as_str())
+	.bind(note.r#type.as_str())
+	.bind(note.key.as_deref())
+	.bind(note.text.as_str())
+	.bind(note.importance)
+	.bind(note.confidence)
+	.bind(note.updated_at)
+	.bind(note.expires_at)
+	.bind(&note.source_ref)
+	.bind(note.note_id)
+	.execute(&mut **tx)
+	.await?;
+
+	Ok(())
 }

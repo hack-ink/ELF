@@ -59,7 +59,8 @@ use elf_service::{
 	KnowledgePageLintRequest, KnowledgePageLintResponse, KnowledgePageRebuildRequest,
 	KnowledgePageRebuildResponse, KnowledgePageResponse, KnowledgePageSearchRequest,
 	KnowledgePageSearchResponse, KnowledgePagesListRequest, KnowledgePagesListResponse,
-	ListRequest, ListResponse, MemoryHistoryGetRequest, MemoryHistoryResponse, NoteFetchRequest,
+	ListRequest, ListResponse, MemoryCorrectionAction, MemoryCorrectionRequest,
+	MemoryCorrectionResponse, MemoryHistoryGetRequest, MemoryHistoryResponse, NoteFetchRequest,
 	NoteFetchResponse, NoteProvenanceBundleResponse, NoteProvenanceGetRequest, PayloadLevel,
 	PublishNoteRequest, QueryPlan, RankingRequestOverride, RebuildReport, RecallDebugPanelRequest,
 	RecallDebugPanelResponse, SearchDetailsRequest, SearchDetailsResult, SearchExplainRequest,
@@ -163,11 +164,12 @@ const VIEWER_HTML: &str = include_str!("../static/viewer.html");
 		trace_item_get,
 		admin_graph_predicates_list,
 		admin_graph_predicate_patch,
-		admin_graph_predicate_alias_add,
-		admin_graph_predicate_aliases_list,
-		admin_note_provenance_get,
-		admin_note_history_get,
-	),
+			admin_graph_predicate_alias_add,
+			admin_graph_predicate_aliases_list,
+			admin_note_provenance_get,
+			admin_note_history_get,
+			admin_note_correction_apply,
+		),
 	components(schemas(
 		AdminIngestionProfileDefaultResponseV2,
 		AdminIngestionProfileDefaultSetBody,
@@ -484,6 +486,14 @@ struct NotePatchRequest {
 }
 
 #[derive(Clone, Debug, Deserialize)]
+struct AdminNoteCorrectionBody {
+	action: MemoryCorrectionAction,
+	reason: String,
+	source_ref: Value,
+	restore_version_id: Option<Uuid>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
 struct AdminGraphPredicatesListQuery {
 	scope: Option<String>,
 }
@@ -791,6 +801,7 @@ pub fn admin_router(state: AppState) -> Router {
 		)
 		.route("/v2/admin/notes/{note_id}/provenance", routing::get(admin_note_provenance_get))
 		.route("/v2/admin/notes/{note_id}/history", routing::get(admin_note_history_get))
+		.route("/v2/admin/notes/{note_id}/corrections", routing::post(admin_note_correction_apply))
 		.with_state(state)
 		.layer(DefaultBodyLimit::max(MAX_REQUEST_BYTES))
 		.layer(middleware::from_fn_with_state(auth_state, admin_auth_middleware));
@@ -2845,6 +2856,50 @@ async fn admin_note_history_get(
 			tenant_id: ctx.tenant_id,
 			project_id: ctx.project_id,
 			note_id,
+		})
+		.await?;
+
+	Ok(Json(response))
+}
+
+#[utoipa::path(
+	post,
+	path = "/v2/admin/notes/{note_id}/corrections",
+	tag = "admin",
+	params(("note_id" = Uuid, Path, description = "Note ID.")),
+	request_body = Value,
+	responses(
+		(status = 200, description = "Memory correction was applied.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Admin access required.", body = ErrorBody),
+		(status = 404, description = "Note was not found.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
+async fn admin_note_correction_apply(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	Path(note_id): Path<Uuid>,
+	payload: Result<Json<AdminNoteCorrectionBody>, JsonRejection>,
+) -> Result<Json<MemoryCorrectionResponse>, ApiError> {
+	let ctx = RequestContext::from_headers(&headers)?;
+	let Json(payload) = payload.map_err(|err| {
+		tracing::warn!(error = %err, "Invalid request payload.");
+
+		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+	})?;
+	let response = state
+		.service
+		.memory_correction_apply(MemoryCorrectionRequest {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+			actor_agent_id: ctx.agent_id,
+			note_id,
+			action: payload.action,
+			reason: payload.reason,
+			source_ref: payload.source_ref,
+			restore_version_id: payload.restore_version_id,
 		})
 		.await?;
 

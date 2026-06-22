@@ -6,7 +6,7 @@ resource: docs/spec/system_elf_memory_service_v2.md
 status: active
 authority: normative
 owner: spec
-last_verified: 2026-06-18
+last_verified: 2026-06-22
 tags:
   - docs
   - spec
@@ -1107,6 +1107,11 @@ Behavior:
 - Review action values are `approve`, `apply`, `discard`, and `defer`.
 - `apply` records an approval transition before the applied transition when a proposal
   starts from `proposed`.
+- For `create_derived_note` and `update_derived_note`, `apply` promotes the reviewed
+  proposal into an approved operational memory note. The promoted note source ref
+  must use `elf.memory_promotion/v1`, include the proposal source refs and review
+  actor/timestamp, write `memory_note_versions`, enqueue `UPSERT`, and update the
+  proposal `target_ref` to `elf.memory_record_ref/v1` with `kind = "note"`.
 - Every review action writes append-only review audit events returned by proposal
   detail readback.
 - `GET /v2/admin/dreaming/review-queue` exposes
@@ -1120,8 +1125,37 @@ Behavior:
   limited to approved tag or duplicate-merge candidates with no lint or source
   mutation request.
 - These endpoints must not call LLM, embedding, rerank, or external provider adapters.
-- They must not mutate authoritative source notes, docs, events, traces, graph facts,
-  or search traces.
+- They must not mutate raw source notes, docs, events, traces, graph facts, or search
+  traces. Applied note proposals may create or update approved operational memory
+  records only through the explicit review path above.
+
+Admin memory correction loop:
+- POST /v2/admin/notes/{note_id}/corrections
+
+Body:
+{
+  "action": "supersede|delete|restore",
+  "reason": "non-empty reviewer or policy reason",
+  "source_ref": { "...": "non-empty source or review reference" },
+  "restore_version_id": "uuid|null"
+}
+
+Behavior:
+- `supersede` sets the note status to `deprecated`, writes a `DEPRECATE`
+  `memory_note_versions` row, stores `elf.memory_correction/v1` source-ref evidence,
+  and enqueues an indexing `DELETE` so normal recall suppresses the note.
+- `delete` sets the note status to `deleted`, writes a `DELETE`
+  `memory_note_versions` row, stores `elf.memory_correction/v1` source-ref evidence,
+  and enqueues an indexing `DELETE`.
+- `restore` restores the latest prior active snapshot from a `DELETE` or `DEPRECATE`
+  version, or the supplied `restore_version_id`, writes a `RESTORE`
+  `memory_note_versions` row, stores `elf.memory_correction/v1` source-ref evidence,
+  and enqueues an indexing `UPSERT`.
+- Correction actions require a non-empty reason and non-empty JSON object
+  `source_ref`. They do not mutate raw source notes, docs, events, traces, graph
+  facts, or source pointers.
+- Normal recall remains active-only; `deprecated` and `deleted` notes are visible
+  through provenance/history or explicit non-active list filters, not ordinary search.
 
 Admin recall/debug panel:
 - POST /v2/admin/recall-debug/panel
@@ -1580,7 +1614,7 @@ Response:
   "events": [
     {
       "event_id": "string",
-      "event_type": "add|update|ignore|reject|expire|delete|derived|applied|invalidated|related",
+      "event_type": "add|update|ignore|reject|expire|delete|derived|applied|superseded|restored|defer|invalidated|related",
       "subject_type": "note",
       "note_id": "uuid",
       "source_table": "string",
@@ -1602,8 +1636,11 @@ Notes:
 - History events are a chronological read-only projection over durable source tables.
 - Ingest decisions that produce note versions should set `note_version_id` so history
   can link the decision to the resulting note version.
-- Derived, applied, and invalidated events come from consolidation proposals and
-  review events that reference the note in `source_refs`.
+- Derived, applied, rejected, and deferred events come from consolidation proposals
+  and review events that reference the note in `source_refs` or the proposal
+  `target_ref`.
+- Superseded, deleted, and restored events come from correction-backed note version
+  rows.
 
 ============================================================
 15. HTTP API (PUBLIC)
