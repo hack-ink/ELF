@@ -988,6 +988,7 @@ args = [
 # | check-docs       | command   |     |
 # | check-rust       | command   |     |
 # | check-trace-gate | command   |     |
+# | checks           | composite |     |
 
 [tasks.check]
 clear = true
@@ -1022,6 +1023,12 @@ workspace = false
 command = "bash"
 args = [
 	"scripts/trace-gate.sh",
+]
+
+[tasks.checks]
+workspace = false
+dependencies = [
+	"check",
 ]
 
 # Clean
