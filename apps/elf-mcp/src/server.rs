@@ -1143,7 +1143,44 @@ fn docs_put_schema() -> Arc<JsonObject> {
 				"repo": { "type": "string" },
 				"commit_sha": { "type": "string" },
 				"pr_number": { "type": "integer" },
-				"issue_number": { "type": "integer" }
+				"issue_number": { "type": "integer" },
+				"source_kind": {
+					"type": "string",
+					"enum": ["article", "social_thread", "pdf", "text_export", "repo_file", "chat_excerpt", "web_page"]
+				},
+				"canonical_uri": { "type": "string" },
+				"captured_at": { "type": "string", "format": "date-time" },
+				"source_created_at": { "type": "string", "format": "date-time" },
+				"trust_label": {
+					"type": "string",
+					"enum": ["trusted", "user_captured", "public_web", "third_party", "unverified"]
+				},
+				"author": { "type": "string" },
+				"handle": { "type": "string" },
+				"source_content_hash": { "type": "string" },
+				"excerpt_locator": {
+					"type": "object",
+					"additionalProperties": true,
+					"properties": {
+						"quote": {
+							"type": "object",
+							"required": ["exact"],
+							"properties": {
+								"exact": { "type": "string" },
+								"prefix": { "type": "string" },
+								"suffix": { "type": "string" }
+							}
+						},
+						"position": {
+							"type": "object",
+							"required": ["start", "end"],
+							"properties": {
+								"start": { "type": "integer" },
+								"end": { "type": "integer" }
+							}
+						}
+					}
+				}
 			},
 			"allOf": [
 				{
@@ -2287,6 +2324,11 @@ mod tests {
 		}
 
 		let write_policy = properties.get("write_policy").and_then(serde_json::Value::as_object);
+		let source_ref_properties = properties
+			.get("source_ref")
+			.and_then(|value| value.get("properties"))
+			.and_then(serde_json::Value::as_object)
+			.expect("docs_put source_ref schema is missing properties.");
 
 		assert!(
 			write_policy.is_some_and(|field| {
@@ -2297,6 +2339,15 @@ mod tests {
 			}),
 			"Missing write_policy object/null type in docs_put schema."
 		);
+
+		for field in
+			["source_kind", "canonical_uri", "captured_at", "trust_label", "excerpt_locator"]
+		{
+			assert!(
+				source_ref_properties.contains_key(field),
+				"Missing source_ref field: {field}."
+			);
+		}
 	}
 
 	#[test]

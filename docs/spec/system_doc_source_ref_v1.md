@@ -6,12 +6,15 @@ resource: docs/spec/system_doc_source_ref_v1.md
 status: active
 authority: normative
 owner: spec
-last_verified: 2026-06-20
+last_verified: 2026-06-22
 tags:
   - docs
   - spec
 source_refs: []
-code_refs: []
+code_refs:
+  - apps/elf-mcp/src/server.rs
+  - packages/elf-service/src/docs.rs
+  - packages/elf-storage/src/docs.rs
 related: []
 drift_watch:
   - docs/spec/system_doc_source_ref_v1.md
@@ -188,6 +191,71 @@ Boundary:
 - Source Library ingest stores a document and document chunks. It MUST NOT
   create or mutate durable Memory Notes unless the caller separately invokes an
   explicit memory-write or reviewed promotion path.
+
+Normalized capture output:
+
+- `docs_put` MUST return `source_capture.schema = "doc_source_capture/v1"`.
+- `source_capture.source_record_id` MUST equal the stored `doc_documents.doc_id`.
+- `source_capture.origin` MUST be the canonical source origin used for operator
+  inspection and deduplication. Source Library `canonical_uri` takes precedence
+  over legacy URL, URI, thread, search, or repo-derived origins.
+- `source_capture.captured_at` MUST be the Source Library `captured_at` value
+  when present. If the Source Library profile is not active, the service may use
+  the service capture timestamp.
+- `source_capture.content_hash` MUST be the BLAKE3 hex hash of the persisted
+  document content after write-policy transforms.
+- `source_capture.visibility_scope` MUST be the document scope.
+- `source_capture.title` SHOULD be copied from the request title when present.
+- `source_capture.source_type` MUST be `source_kind` when present, otherwise the
+  normalized `doc_type`.
+- `source_capture.source_spans` MUST list stable span references for persisted
+  chunks.
+- `source_capture.policy_spans` MUST list excluded or redacted spans when
+  write-policy hooks remove or transform source content.
+
+Stable source records and spans:
+
+- `doc_documents.doc_id` is the Source Library source record id for captured
+  docs. It MUST be deterministic for the same tenant, effective project, agent,
+  scope, doc type, source identity, and persisted content hash.
+- Persisted chunk ids MUST be deterministic for the same source record id and
+  chunk index.
+- Captured source span ids MUST be deterministic for the same persisted content
+  hash, byte offsets, and span status.
+- Captured span offsets are byte offsets into the persisted document content.
+- Policy span offsets are byte offsets into the original request content before
+  write-policy transforms.
+
+`doc_source_span/v1` fields:
+
+- `schema` (string): exact value `doc_source_span/v1`.
+- `span_id` (string UUID): stable span identifier.
+- `chunk_id` (string UUID, optional): present for persisted captured chunks.
+- `status` (string): `captured`, `excluded`, or `redacted`.
+- `reason_code` (string, optional): required for non-captured spans.
+- `start_offset` and `end_offset` (integers): byte offsets, with
+  `start_offset <= end_offset`.
+- `content_hash` (string): BLAKE3 hex hash for the content the offsets address.
+- `chunk_hash` (string, optional): BLAKE3 hex hash for captured chunk text.
+
+Typed policy span reasons:
+
+- Excluded spans MUST use `reason_code = "WRITE_POLICY_EXCLUSION"`.
+- Redacted spans MUST use `reason_code = "WRITE_POLICY_REDACTION"`.
+- Unsupported or policy-removed content MUST be represented through a typed span
+  reason or a typed validation error. It MUST NOT disappear silently from Source
+  Library audit surfaces.
+
+Persisted normalized `source_ref`:
+
+- The stored `doc_documents.source_ref` MUST retain the caller-provided
+  `doc_source_ref/v1` fields and add normalized capture fields:
+  `source_record_id`, `origin`, `captured_at`, `content_hash`,
+  `visibility_scope`, `source_type`, and `source_spans`.
+- When policy spans exist, stored `doc_documents.source_ref` MUST include
+  `policy_spans`.
+- Normalized capture fields are evidence metadata only. They MUST NOT promote a
+  source record into approved Memory Authority.
 
 ==================================================
 6) Examples

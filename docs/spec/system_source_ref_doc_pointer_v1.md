@@ -6,12 +6,13 @@ resource: docs/spec/system_source_ref_doc_pointer_v1.md
 status: active
 authority: normative
 owner: spec
-last_verified: 2026-06-20
+last_verified: 2026-06-22
 tags:
   - docs
   - spec
 source_refs: []
-code_refs: []
+code_refs:
+  - packages/elf-service/src/docs.rs
 related: []
 drift_watch:
   - docs/spec/system_source_ref_doc_pointer_v1.md
@@ -86,10 +87,16 @@ All keys and string values SHOULD be ASCII-safe and stable over time.
 `ref` MAY include:
 
 - `chunk_id` (string): UUID of a specific chunk. Use when the pointer came from `docs_search_l0`.
+- `source_record_id` (string): stable Source Library source record id. For Doc
+  Extension v1 this MUST match `doc_id`.
+- `source_span_id` (string): stable Source Library span id for the returned
+  chunk or selector span.
 
 Notes:
 - `doc_id` is the canonical lookup key for hydration.
 - `chunk_id` is an optional anchor that can help choose a small search neighborhood.
+- `source_record_id` and `source_span_id` are audit identifiers. They MUST NOT
+  be treated as a memory-promotion signal.
 
 ### 3.3 `state` (optional but recommended)
 
@@ -128,10 +135,15 @@ Rules:
 
 Optional fields:
 - `level` (string): `"L0"`, `"L1"` or `"L2"` as a suggested excerpt size tier for hydration. If omitted, agents should choose based on context budget.
+- `span_id` (string): stable Source Library span id for the selector span.
 
 `docs_search_l0` returns a `locator.position` selector for the hit chunk. Agents
 may pass this selector, the returned `ref.chunk_id`, or their own quote selector
 to `docs_excerpts_get` for verified hydration.
+
+`docs_search_l0` MUST return `ref.source_span_id` equal to `locator.span_id` for
+the selected chunk span. `docs_excerpts_get` MUST return `locator.span_id` for
+the matched quote, position, or chunk selector span.
 
 ### 3.5 `hashes` (optional)
 
@@ -208,7 +220,9 @@ The agent SHOULD:
   "resolver": "elf_doc_ext/v1",
   "ref": {
     "doc_id": "6b5b2f08-9a89-4c6c-9b6b-9c0c2f0b1f2d",
-    "chunk_id": "b2e8a8d2-4c10-4a1b-98f8-7a8702fd0cc1"
+    "chunk_id": "b2e8a8d2-4c10-4a1b-98f8-7a8702fd0cc1",
+    "source_record_id": "6b5b2f08-9a89-4c6c-9b6b-9c0c2f0b1f2d",
+    "source_span_id": "3190ca88-6f24-5d55-bf8f-9cecfba95b72"
   },
   "state": {
     "content_hash": "baf7cfd2d5b71f5b0f5d5a08a3c38d7b43cf7a2e5a4f75d5c1b4a9072f6dd3b8",
@@ -219,6 +233,7 @@ The agent SHOULD:
     "chunk_hash": "bd85b0e07464bde3a7f3a2b2f3c2d5d4c1c9f0d0c1a2b3c4d5e6f7a8b9c0d1e2"
   },
   "locator": {
+    "span_id": "3190ca88-6f24-5d55-bf8f-9cecfba95b72",
     "position": {
       "start": 128,
       "end": 384
