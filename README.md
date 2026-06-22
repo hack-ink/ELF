@@ -369,6 +369,11 @@ provider-backed ELF evidence was required.
   graph/RAG strengths. Graph/RAG citation/navigation promotion after XY-985 refreshes
   this state as 0 pass, 1 wrong_result, 1 incomplete, and 3 blocked, with graphify
   evidence-linked output still scoring wrong_result.
+- RAGFlow/GraphRAG/LightRAG adapter matrix after XY-1071: the June 23 matrix adds
+  manifest-backed rows for retrieval quality, citation quality, navigation quality,
+  stale-source behavior, answer faithfulness, and knowledge compilation quality. It
+  records 0 pass rows, preserves blocked/incomplete/not-encoded typed states, and
+  does not make a graph/RAG parity or generic RAG-platform claim.
 - mem0/OpenMemory history follow-up after XY-924 and XY-931: the local OSS mem0
   adapter now passes encoded preference correction history, entity-scoped
   personalization, local `get_all` export-style readback, and deletion audit history.
@@ -435,6 +440,7 @@ Detailed evidence and interpretation:
 - [PageIndex/OpenKB Same-Corpus Adapter Report - June 22, 2026](docs/evidence/benchmarking/2026-06-22-pageindex-openkb-same-corpus-adapter-report.md)
 - [mem0/OpenMemory and Letta Memory-History/Core-Archive Adapter Report - June 22, 2026](docs/evidence/benchmarking/2026-06-22-mem0-openmemory-letta-memory-history-core-archive-report.md)
 - [Temporal and Trajectory Adapter Coverage Report - June 23, 2026](docs/evidence/benchmarking/2026-06-23-temporal-trajectory-adapter-coverage-report.md)
+- [Graph/RAG Adapter Matrix Report - June 23, 2026](docs/evidence/benchmarking/2026-06-23-graph-rag-adapter-matrix-report.md)
 - [Live Baseline Benchmark Runbook](docs/runbook/benchmarking/live_baseline_benchmark.md)
 - [Single-User Production Runbook](docs/runbook/single_user_production.md)
 - Benchmark contract:
@@ -529,6 +535,7 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [PageIndex/OpenKB Same-Corpus Adapter Report - June 22, 2026](docs/evidence/benchmarking/2026-06-22-pageindex-openkb-same-corpus-adapter-report.md)
 - [mem0/OpenMemory and Letta Memory-History/Core-Archive Adapter Report - June 22, 2026](docs/evidence/benchmarking/2026-06-22-mem0-openmemory-letta-memory-history-core-archive-report.md)
 - [Temporal and Trajectory Adapter Coverage Report - June 23, 2026](docs/evidence/benchmarking/2026-06-23-temporal-trajectory-adapter-coverage-report.md)
+- [Graph/RAG Adapter Matrix Report - June 23, 2026](docs/evidence/benchmarking/2026-06-23-graph-rag-adapter-matrix-report.md)
 - [Live Baseline Benchmark Runbook](docs/runbook/benchmarking/live_baseline_benchmark.md)
 - [Real-World Agent Memory Benchmark](docs/runbook/benchmarking/real_world_agent_memory_benchmark.md)
 - [External Memory Improvement Plan](docs/evidence/external_memory/external_memory_improvement_plan.md)
@@ -547,11 +554,12 @@ Report - June 20, 2026, and the Live Knowledge-Page Rebuild/Lint Report - June 2
 2026; June 22 adds the P1 Memory Authority Closeout Report, P2 Knowledge
 Workspace PageIndex/OpenKB Closeout Report, PageIndex/OpenKB Same-Corpus Adapter
 Report, and mem0/OpenMemory and Letta Memory-History/Core-Archive Adapter Report;
-June 23 adds the Temporal and Trajectory Adapter Coverage Report after the June 19
-XY-930 operator-approved public-proxy production addendum and service-native Dreaming
-readback, the qmd debug-ergonomics Dreaming retest, the June 17 competitor-strength
-closeout, and the June 16 temporal reconciliation, live consolidation self-check,
-proactive-brief, and scheduled-memory scoring evidence.
+June 23 adds the Temporal and Trajectory Adapter Coverage Report and the Graph/RAG
+Adapter Matrix Report after the June 19 XY-930 operator-approved public-proxy
+production addendum and service-native Dreaming readback, the qmd debug-ergonomics
+Dreaming retest, the June 17 competitor-strength closeout, and the June 16 temporal
+reconciliation, live consolidation self-check, proactive-brief, and scheduled-memory
+scoring evidence.
 
 ## Documentation
 
