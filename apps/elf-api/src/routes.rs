@@ -30,7 +30,7 @@ use elf_domain::{
 		ConsolidationReviewState,
 	},
 	english_gate,
-	knowledge::KnowledgePageKind,
+	knowledge::{KnowledgePageKind, KnowledgeSourceKind},
 	writegate::WritePolicy,
 };
 use elf_service::{
@@ -55,10 +55,11 @@ use elf_service::{
 	DocsSearchL0Response, DreamingReviewQueueRequest, DreamingReviewQueueResponse,
 	EntityMemoryViewRequest, EntityMemoryViewResponse, Error, EventMessage, GranteeKind,
 	GraphQueryEntityRef, GraphQueryPredicateRef, GraphQueryRequest, GraphQueryResponse,
-	GraphReportRequest, GraphReportResponse, IngestionProfileSelector, KnowledgePageGetRequest,
-	KnowledgePageLintRequest, KnowledgePageLintResponse, KnowledgePageRebuildRequest,
-	KnowledgePageRebuildResponse, KnowledgePageResponse, KnowledgePageSearchRequest,
-	KnowledgePageSearchResponse, KnowledgePagesListRequest, KnowledgePagesListResponse,
+	GraphReportRequest, GraphReportResponse, IngestionProfileSelector, KnowledgePageChangedSource,
+	KnowledgePageGetRequest, KnowledgePageLintRequest, KnowledgePageLintResponse,
+	KnowledgePageRebuildRequest, KnowledgePageRebuildResponse, KnowledgePageResponse,
+	KnowledgePageSearchRequest, KnowledgePageSearchResponse, KnowledgePageWatchRebuildRequest,
+	KnowledgePageWatchRebuildResponse, KnowledgePagesListRequest, KnowledgePagesListResponse,
 	ListRequest, ListResponse, MemoryCorrectionAction, MemoryCorrectionRequest,
 	MemoryCorrectionResponse, MemoryHistoryGetRequest, MemoryHistoryResponse, NoteFetchRequest,
 	NoteFetchResponse, NoteProvenanceBundleResponse, NoteProvenanceGetRequest, PayloadLevel,
@@ -151,6 +152,7 @@ const VIEWER_HTML: &str = include_str!("../static/viewer.html");
 		dreaming_review_queue,
 		recall_debug_panel,
 		knowledge_page_rebuild,
+		knowledge_pages_watch_rebuild,
 		knowledge_pages_list,
 		knowledge_pages_search,
 		knowledge_page_get,
@@ -444,6 +446,20 @@ struct KnowledgePageRebuildBody {
 	proposal_ids: Vec<Uuid>,
 	#[serde(default = "empty_json_object")]
 	provider_metadata: Value,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct KnowledgePageChangedSourceBody {
+	source_kind: KnowledgeSourceKind,
+	source_id: Uuid,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct KnowledgePageWatchRebuildBody {
+	changed_sources: Vec<KnowledgePageChangedSourceBody>,
+	page_kind: Option<KnowledgePageKind>,
+	limit: Option<u32>,
+	generate_memory_candidates: Option<bool>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -785,6 +801,10 @@ pub fn admin_router(state: AppState) -> Router {
 		.route("/v2/admin/recall-debug/panel", routing::post(admin_recall_debug_panel))
 		.route("/v2/admin/knowledge/pages", routing::get(knowledge_pages_list))
 		.route("/v2/admin/knowledge/pages/rebuild", routing::post(knowledge_page_rebuild))
+		.route(
+			"/v2/admin/knowledge/pages/rebuild-changed-sources",
+			routing::post(knowledge_pages_watch_rebuild),
+		)
 		.route("/v2/admin/knowledge/pages/search", routing::post(knowledge_pages_search))
 		.route("/v2/admin/knowledge/pages/{page_id}", routing::get(knowledge_page_get))
 		.route("/v2/admin/knowledge/pages/{page_id}/lint", routing::post(knowledge_page_lint))
@@ -3297,6 +3317,54 @@ async fn knowledge_page_rebuild(
 			relation_ids: payload.relation_ids,
 			proposal_ids: payload.proposal_ids,
 			provider_metadata: payload.provider_metadata,
+		})
+		.await?;
+
+	Ok(Json(response))
+}
+
+#[utoipa::path(
+	post,
+	path = "/v2/admin/knowledge/pages/rebuild-changed-sources",
+	tag = "knowledge",
+	request_body = Value,
+	responses(
+		(status = 200, description = "Affected knowledge pages were rebuilt.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Admin access required.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
+async fn knowledge_pages_watch_rebuild(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	payload: Result<Json<KnowledgePageWatchRebuildBody>, JsonRejection>,
+) -> Result<Json<KnowledgePageWatchRebuildResponse>, ApiError> {
+	let ctx = RequestContext::from_headers(&headers)?;
+	let Json(payload) = payload.map_err(|err| {
+		tracing::warn!(error = %err, "Invalid request payload.");
+
+		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+	})?;
+	let changed_sources = payload
+		.changed_sources
+		.into_iter()
+		.map(|source| KnowledgePageChangedSource {
+			source_kind: source.source_kind,
+			source_id: source.source_id,
+		})
+		.collect();
+	let response = state
+		.service
+		.knowledge_pages_watch_rebuild(KnowledgePageWatchRebuildRequest {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+			agent_id: ctx.agent_id,
+			changed_sources,
+			page_kind: payload.page_kind,
+			limit: payload.limit,
+			generate_memory_candidates: payload.generate_memory_candidates.unwrap_or(true),
 		})
 		.await?;
 

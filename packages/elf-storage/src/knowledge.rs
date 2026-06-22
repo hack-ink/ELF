@@ -743,6 +743,66 @@ LIMIT $4",
 	Ok(rows)
 }
 
+/// Lists knowledge pages that cite at least one changed source.
+pub async fn list_knowledge_pages_for_sources<'e, E>(
+	executor: E,
+	tenant_id: &str,
+	project_id: &str,
+	page_kind: Option<&str>,
+	source_kinds: &[String],
+	source_ids: &[Uuid],
+	limit: i64,
+) -> Result<Vec<KnowledgePage>>
+where
+	E: PgExecutor<'e>,
+{
+	if source_kinds.is_empty() || source_ids.is_empty() {
+		return Ok(Vec::new());
+	}
+
+	let rows = sqlx::query_as::<_, KnowledgePage>(
+		"\
+SELECT DISTINCT
+	p.page_id,
+	p.tenant_id,
+	p.project_id,
+	p.page_kind,
+	p.page_key,
+	p.title,
+	p.contract_schema,
+	p.status,
+	p.rebuild_source_hash,
+	p.content_hash,
+	p.source_coverage,
+	p.source_snapshot,
+	p.rebuild_metadata,
+	p.created_at,
+	p.updated_at,
+	p.rebuilt_at
+FROM knowledge_pages p
+JOIN knowledge_page_source_refs r ON r.page_id = p.page_id
+JOIN unnest($4::text[], $5::uuid[]) AS changed(source_kind, source_id)
+	ON changed.source_kind = r.source_kind
+	AND changed.source_id = r.source_id
+WHERE p.tenant_id = $1
+	AND p.project_id = $2
+	AND ($3::text IS NULL OR p.page_kind = $3)
+	AND p.status IN ('active', 'stale')
+ORDER BY p.updated_at DESC, p.page_id DESC
+LIMIT $6",
+	)
+	.bind(tenant_id)
+	.bind(project_id)
+	.bind(page_kind)
+	.bind(source_kinds)
+	.bind(source_ids)
+	.bind(limit)
+	.fetch_all(executor)
+	.await?;
+
+	Ok(rows)
+}
+
 /// Lists sections for one knowledge page.
 pub async fn list_knowledge_page_sections<'e, E>(
 	executor: E,
