@@ -1,0 +1,283 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "adversarial-quality-correction-persistence-001",
+  "suite": "adversarial_quality",
+  "title": "Keep a correction persistent across rollback readback",
+  "corpus": {
+    "corpus_id": "real-world-memory-adversarial-quality-2026-06-23",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "obsolete-scoreboard-memory",
+        "kind": "note",
+        "text": "Obsolete memory: reports may label the overall result as a win whenever pass count is greater than wrong_result count.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "elf.memory_record_ref/v1",
+          "ref": {
+            "note_id": "10731073-1073-4073-8073-107310731073",
+            "evidence_id": "obsolete-scoreboard-memory"
+          }
+        },
+        "created_at": "2026-06-23T01:40:00Z"
+      },
+      {
+        "evidence_id": "scoreboard-correction-event",
+        "kind": "trace",
+        "text": "Correction event: reviewer superseded the win-by-majority memory because typed non-pass states must remain visible and cannot be collapsed into wins.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "elf.memory_correction/v1",
+          "ref": {
+            "note_id": "10731073-1073-4073-8073-107310731073",
+            "action": "supersede"
+          }
+        },
+        "created_at": "2026-06-23T01:41:00Z"
+      },
+      {
+        "evidence_id": "scoreboard-rollback-readback",
+        "kind": "trace",
+        "text": "Rollback readback: restored the corrected scoreboard rule that typed non-pass states remain visible and unqualified win claims are disallowed.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "elf.memory_correction/v1",
+          "ref": {
+            "note_id": "20732073-2073-4073-8073-207320732073",
+            "action": "restore",
+            "restore_version_id": "30733073-3073-4073-8073-307330733073"
+          }
+        },
+        "created_at": "2026-06-23T01:42:00Z"
+      },
+      {
+        "evidence_id": "current-scoreboard-rule",
+        "kind": "decision",
+        "text": "Current corrected rule: reports must show typed non-pass states and must not collapse wrong_result, incomplete, blocked, not_tested, not_encoded, unsupported_claim, fixture_backed, live_baseline, or research_gate evidence into wins.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "elf.memory_record_ref/v1",
+          "ref": {
+            "note_id": "40734073-4073-4073-8073-407340734073",
+            "source_evidence_ids": [
+              "scoreboard-correction-event",
+              "scoreboard-rollback-readback"
+            ]
+          },
+          "state": {
+            "status": "active"
+          }
+        },
+        "created_at": "2026-06-23T01:43:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_adversarial_quality",
+      "answer": {
+        "content": "Use the current corrected rule: reports must show typed non-pass states and must not collapse wrong_result, incomplete, blocked, not_tested, not_encoded, unsupported_claim, fixture_backed, live_baseline, or research_gate evidence into wins. The win-by-majority memory was superseded, and rollback readback restored the corrected scoreboard rule.",
+        "claims": [
+          {
+            "claim_id": "correction_persisted",
+            "text": "The win-by-majority memory was superseded because typed non-pass states must remain visible.",
+            "evidence_ids": ["scoreboard-correction-event"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "rollback_restored_scoreboard_rule",
+            "text": "Rollback readback restored the corrected scoreboard rule.",
+            "evidence_ids": ["scoreboard-rollback-readback"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "current_scoreboard_rule",
+            "text": "Reports must show typed non-pass states and must not collapse wrong_result, incomplete, blocked, not_tested, not_encoded, unsupported_claim, fixture_backed, live_baseline, or research_gate evidence into wins.",
+            "evidence_ids": [
+              "current-scoreboard-rule",
+              "obsolete-scoreboard-memory",
+              "scoreboard-correction-event"
+            ],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": [
+          "scoreboard-correction-event",
+          "scoreboard-rollback-readback",
+          "current-scoreboard-rule"
+        ],
+        "latency_ms": 1.1,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "obsolete-scoreboard-rule-stored",
+      "ts": "2026-06-23T01:40:00Z",
+      "actor": "agent",
+      "action": "stored_obsolete_scoreboard_rule",
+      "evidence_ids": ["obsolete-scoreboard-memory"],
+      "summary": "An obsolete win-by-majority rule was stored."
+    },
+    {
+      "event_id": "scoreboard-rule-corrected",
+      "ts": "2026-06-23T01:41:00Z",
+      "actor": "reviewer",
+      "action": "superseded_memory",
+      "evidence_ids": ["scoreboard-correction-event"],
+      "summary": "The obsolete rule was superseded."
+    },
+    {
+      "event_id": "scoreboard-rule-restored",
+      "ts": "2026-06-23T01:42:00Z",
+      "actor": "reviewer",
+      "action": "restored_corrected_rule",
+      "evidence_ids": ["scoreboard-rollback-readback", "current-scoreboard-rule"],
+      "summary": "Rollback restored the corrected scoreboard rule as current memory."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "After correction and rollback, what scoreboard rule is current?",
+    "job_mode": "answer",
+    "constraints": ["cite_evidence", "prefer_current_corrected_memory", "avoid_superseded_memory"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "correction_persisted",
+        "text": "The win-by-majority memory was superseded because typed non-pass states must remain visible."
+      },
+      {
+        "claim_id": "rollback_restored_scoreboard_rule",
+        "text": "Rollback readback restored the corrected scoreboard rule."
+      },
+      {
+        "claim_id": "current_scoreboard_rule",
+        "text": "Reports must show typed non-pass states and must not collapse wrong_result, incomplete, blocked, not_tested, not_encoded, unsupported_claim, fixture_backed, live_baseline, or research_gate evidence into wins."
+      }
+    ],
+    "must_not_include": [
+      "reports may label the overall result as a win whenever pass count is greater than wrong_result count"
+    ],
+    "evidence_links": {
+      "correction_persisted": ["scoreboard-correction-event"],
+      "rollback_restored_scoreboard_rule": ["scoreboard-rollback-readback"],
+      "current_scoreboard_rule": [
+        "current-scoreboard-rule",
+        "obsolete-scoreboard-memory",
+        "scoreboard-correction-event"
+      ]
+    },
+    "answer_type": "direct_answer",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "scoreboard-correction-event",
+      "claim_id": "correction_persisted",
+      "requirement": "cite",
+      "quote": "reviewer superseded the win-by-majority memory"
+    },
+    {
+      "evidence_id": "scoreboard-rollback-readback",
+      "claim_id": "rollback_restored_scoreboard_rule",
+      "requirement": "cite",
+      "quote": "restored the corrected scoreboard rule"
+    },
+    {
+      "evidence_id": "current-scoreboard-rule",
+      "claim_id": "current_scoreboard_rule",
+      "requirement": "use",
+      "quote": "must not collapse wrong_result"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "obsolete-win-by-majority-rule",
+      "type": "stale_fact",
+      "evidence_ids": ["obsolete-scoreboard-memory"],
+      "failure_if_used": false
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "lifecycle_behavior": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Uses correction and rollback evidence instead of superseded memory."
+      },
+      "answer_correctness": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "States the corrected scoreboard rule."
+      },
+      "evidence_grounding": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Cites correction, rollback, and current rule evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Does not present the obsolete win-by-majority rule as current."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.05,
+        "max_points": 1.0,
+        "criteria": "Turns correction history into an actionable claim boundary."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "state_blocker"
+  },
+  "memory_evolution": {
+    "current_evidence_ids": ["current-scoreboard-rule"],
+    "historical_evidence_ids": ["obsolete-scoreboard-memory"],
+    "tombstone_evidence_ids": ["scoreboard-correction-event"],
+    "invalidation_evidence_ids": [
+      "scoreboard-correction-event",
+      "scoreboard-rollback-readback"
+    ],
+    "stale_trap_ids": ["obsolete-win-by-majority-rule"],
+    "conflicts": [
+      {
+        "conflict_id": "scoreboard-win-collapse-correction",
+        "claim_id": "current_scoreboard_rule",
+        "current_evidence_id": "current-scoreboard-rule",
+        "historical_evidence_id": "obsolete-scoreboard-memory",
+        "resolved_by_evidence_id": "scoreboard-correction-event"
+      }
+    ],
+    "update_rationale": {
+      "claim_id": "correction_persisted",
+      "evidence_ids": ["scoreboard-correction-event", "scoreboard-rollback-readback"],
+      "available": true
+    },
+    "temporal_validity": {
+      "required": false,
+      "encoded": false,
+      "follow_up": null
+    },
+    "history_readback": {
+      "encoded": true,
+      "required_event_types": ["supersede", "restore", "correction"],
+      "requires_note_version_links": true
+    }
+  },
+  "tags": ["synthetic", "adversarial_quality", "correction_persistence", "rollback", "scoreboard", "no_live_claim"]
+}

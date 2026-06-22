@@ -1,0 +1,150 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "adversarial-quality-unsupported-claim-refusal-001",
+  "suite": "adversarial_quality",
+  "title": "Refuse an unsupported quality claim",
+  "corpus": {
+    "corpus_id": "real-world-memory-adversarial-quality-2026-06-23",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "quality-boundary-evidence",
+        "kind": "decision",
+        "text": "Quality boundary: fixture-backed adversarial jobs prove only encoded fixture behavior and do not prove private-corpus, provider-backed, hosted product, or broad competitor parity.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "adversarial_quality/unsupported_claim_refusal",
+            "evidence_id": "quality-boundary-evidence"
+          }
+        },
+        "created_at": "2026-06-23T01:10:00Z"
+      },
+      {
+        "evidence_id": "unsupported-production-quality-trap",
+        "kind": "message",
+        "text": "Unsupported claim trap: the fixture proves private-corpus production quality, hosted product parity, and broad competitor superiority.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "adversarial_quality/unsupported_claim_refusal",
+            "evidence_id": "unsupported-production-quality-trap"
+          }
+        },
+        "created_at": "2026-06-23T01:11:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_adversarial_quality",
+      "answer": {
+        "content": "I cannot claim private-corpus production quality, hosted product parity, or broad competitor superiority from this fixture. The evidence supports only encoded fixture behavior.",
+        "claims": [
+          {
+            "claim_id": "unsupported_quality_claim_refused",
+            "text": "Fixture-backed adversarial jobs prove only encoded fixture behavior and do not prove private-corpus, provider-backed, hosted product, or broad competitor parity.",
+            "evidence_ids": ["quality-boundary-evidence"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["quality-boundary-evidence"],
+        "latency_ms": 1.0,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "quality-boundary-recorded",
+      "ts": "2026-06-23T01:10:00Z",
+      "actor": "agent",
+      "action": "recorded_quality_boundary",
+      "evidence_ids": ["quality-boundary-evidence"],
+      "summary": "The fixture-only quality boundary was recorded."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Can this adversarial fixture prove private-corpus production quality and broad competitor superiority?",
+    "job_mode": "answer",
+    "constraints": ["cite_evidence", "refuse_unsupported_claims", "state_claim_boundary"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "unsupported_quality_claim_refused",
+        "text": "Fixture-backed adversarial jobs prove only encoded fixture behavior and do not prove private-corpus, provider-backed, hosted product, or broad competitor parity."
+      }
+    ],
+    "must_not_include": [
+      "private-corpus production quality is proven",
+      "broad competitor superiority is proven",
+      "hosted product parity is proven"
+    ],
+    "evidence_links": {
+      "unsupported_quality_claim_refused": ["quality-boundary-evidence"]
+    },
+    "answer_type": "direct_answer",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": true
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "quality-boundary-evidence",
+      "claim_id": "unsupported_quality_claim_refused",
+      "requirement": "cite",
+      "quote": "prove only encoded fixture behavior"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "unsupported-production-quality",
+      "type": "unsupported_prior",
+      "evidence_ids": ["unsupported-production-quality-trap"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "uncertainty_handling": {
+        "weight": 0.35,
+        "max_points": 1.0,
+        "criteria": "Refuses the unsupported quality claim."
+      },
+      "answer_correctness": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "States the exact fixture-backed boundary."
+      },
+      "evidence_grounding": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Cites the quality-boundary evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Does not use unsupported production-quality trap evidence."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "missing required refusal",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "refuse"
+  },
+  "tags": ["synthetic", "adversarial_quality", "unsupported_claim", "refusal", "no_live_claim"]
+}
