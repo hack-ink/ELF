@@ -279,6 +279,16 @@ provider-backed ELF evidence was required.
   indexes, lint output, saved exploration state, and watch/recompile traces map to
   ELF Knowledge Workspace source ids. The report makes no PageIndex/OpenKB parity,
   win, tie, or loss claim.
+- mem0/OpenMemory and Letta same-corpus adapter evidence after XY-1069: the June 22
+  follow-up adds `cargo make real-world-memory-mem0-openmemory-letta`, four
+  checked-in adapter fixtures, and a checked-in evidence report. The slice maps mem0
+  SDK `Memory.history`, scoped search, and local `Memory.get_all` export-style
+  readback to source ids with 1 pass and 1 history readback encoded. OpenMemory
+  UI/export remains blocked until a running product container and app database export
+  same-corpus rows. Letta core blocks and archival readback remain blocked until
+  exported core block JSON, archival passage/readback/search JSON, and source ids are
+  present. The report makes no hosted mem0 Platform, OpenMemory UI/export, or Letta
+  parity, win, tie, or loss claim.
 - Operator-approved public-proxy addendum after XY-930: the June 19 follow-up runs
   `cargo make baseline-production-private-addendum` with a simulated/public-proxy
   production corpus manifest approved for this stage. The run records 12 documents,
@@ -413,6 +423,7 @@ Detailed evidence and interpretation:
 - [P1 Memory Authority Closeout Report - June 22, 2026](docs/evidence/benchmarking/2026-06-22-p1-memory-authority-closeout-report.md)
 - [P2 Knowledge Workspace PageIndex/OpenKB Closeout Report - June 22, 2026](docs/evidence/benchmarking/2026-06-22-p2-knowledge-workspace-pageindex-openkb-closeout-report.md)
 - [PageIndex/OpenKB Same-Corpus Adapter Report - June 22, 2026](docs/evidence/benchmarking/2026-06-22-pageindex-openkb-same-corpus-adapter-report.md)
+- [mem0/OpenMemory and Letta Memory-History/Core-Archive Adapter Report - June 22, 2026](docs/evidence/benchmarking/2026-06-22-mem0-openmemory-letta-memory-history-core-archive-report.md)
 - [Live Baseline Benchmark Runbook](docs/runbook/benchmarking/live_baseline_benchmark.md)
 - [Single-User Production Runbook](docs/runbook/single_user_production.md)
 - Benchmark contract:
@@ -504,6 +515,8 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [Operator-Approved Public-Proxy Production-Private Addendum - June 19, 2026](docs/evidence/benchmarking/2026-06-19-operator-approved-public-proxy-production-private-addendum.md)
 - [P1 Memory Authority Closeout Report - June 22, 2026](docs/evidence/benchmarking/2026-06-22-p1-memory-authority-closeout-report.md)
 - [P2 Knowledge Workspace PageIndex/OpenKB Closeout Report - June 22, 2026](docs/evidence/benchmarking/2026-06-22-p2-knowledge-workspace-pageindex-openkb-closeout-report.md)
+- [PageIndex/OpenKB Same-Corpus Adapter Report - June 22, 2026](docs/evidence/benchmarking/2026-06-22-pageindex-openkb-same-corpus-adapter-report.md)
+- [mem0/OpenMemory and Letta Memory-History/Core-Archive Adapter Report - June 22, 2026](docs/evidence/benchmarking/2026-06-22-mem0-openmemory-letta-memory-history-core-archive-report.md)
 - [Live Baseline Benchmark Runbook](docs/runbook/benchmarking/live_baseline_benchmark.md)
 - [Real-World Agent Memory Benchmark](docs/runbook/benchmarking/real_world_agent_memory_benchmark.md)
 - [External Memory Improvement Plan](docs/evidence/external_memory/external_memory_improvement_plan.md)
@@ -520,8 +533,9 @@ June 11, 2026; June 20 adds the Agent Knowledge OS Closeout Benchmark Report,
 the Graph Topic-Map Report - June 20, 2026, Knowledge Workspace Version-Diff
 Report - June 20, 2026, and the Live Knowledge-Page Rebuild/Lint Report - June 20,
 2026; June 22 adds the P1 Memory Authority Closeout Report, P2 Knowledge
-Workspace PageIndex/OpenKB Closeout Report, and PageIndex/OpenKB Same-Corpus Adapter
-Report after the June 19
+Workspace PageIndex/OpenKB Closeout Report, PageIndex/OpenKB Same-Corpus Adapter
+Report, and mem0/OpenMemory and Letta Memory-History/Core-Archive Adapter Report
+after the June 19
 XY-930 operator-approved public-proxy production addendum and service-native Dreaming
 readback, the qmd debug-ergonomics Dreaming retest, the June 17 competitor-strength
 closeout, and the June 16 temporal reconciliation, live consolidation self-check,
