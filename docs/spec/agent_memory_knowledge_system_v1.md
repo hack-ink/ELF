@@ -12,15 +12,14 @@ tags:
   - spec
   - agent-memory
   - knowledge
-source_refs:
+source_refs: []
+code_refs:
+  - Makefile.toml
+related:
   - docs/evidence/benchmarking/2026-06-20-agent-knowledge-os-closeout-benchmark-report.md
   - docs/evidence/benchmarking/2026-06-22-p1-memory-authority-closeout-report.md
   - docs/runbook/benchmarking/real_world_agent_memory_benchmark.md
   - docs/spec/real_world_agent_memory_benchmark_v1.md
-  - docs/spec/system_elf_memory_service_v2.md
-code_refs:
-  - Makefile.toml
-related:
   - docs/spec/system_elf_memory_service_v2.md
   - docs/spec/system_knowledge_pages_v1.md
   - docs/spec/system_recall_debug_panel_v1.md
@@ -64,7 +63,7 @@ The product is composed of six typed layers:
 | --- | --- | --- |
 | Source Library | Captured documents, excerpts, imports, and source refs. | Sources remain evidence. Derived memory and pages must cite sources instead of replacing them. |
 | Memory Authority | Notes, core blocks, ingest decisions, history, corrections, and rollback evidence. | Memory writes are policy-gated, evidence-linked, auditable, and reversible. |
-| Knowledge Workspace | Derived project, entity, concept, issue, and decision pages. | Pages are rebuildable derived artifacts with citations, lint, and stale-source detection. |
+| Knowledge Workspace | Derived project, entity, concept, issue, decision, author, and timeline pages. | Pages are rebuildable derived artifacts with citations, lint, and stale-source detection. |
 | Graph-lite Facts | Postgres-backed relation facts and temporal markers. | Graph facts are source-backed context, not a separate authority store. |
 | Dreaming Review | Reviewable consolidation, summary, brief, tag, correction, and promotion proposals. | Derived proposals must be reviewable and must not mutate sources without an explicit accepted transition. |
 | Recall Debug | Search traces, dropped candidates, source/doc/page/graph/proposal rows, and replay aids. | Recall must expose why context was selected, dropped, unavailable, blocked, or not requested. |
@@ -151,7 +150,7 @@ implement every item in a phase at once.
 | --- | --- | --- | --- |
 | P0 | Product contract and phase gate | Codify this product boundary, roadmap, competitor absorption rules, validation expectations, and closeout checklist. | Docs are reviewed, repo docs validation passes, claim boundaries match the June 20 closeout evidence, and the main thread accepts the next phase. |
 | P1 | Memory Authority MVP loop | Deliver one source-backed memory-authority vertical slice: capture source evidence, create/review one proposal through a proposal inbox, record the authority ledger, apply/correct/rollback, recall through agent-facing tools, and debug stale/correction behavior. | The slice has service tests, provenance/history evidence, recall/debug readback, and at least one real-world stale/correction benchmark job. |
-| P2 | Knowledge Workspace | Promote source-linked project/entity/concept/timeline pages with rebuild, lint, watch, search, and version-diff readback. | Pages stay derived, every section is cited or explicitly unsupported, stale-source lint runs, and benchmark reports publish citation/staleness metrics. |
+| P2 | Knowledge Workspace | Promote source-linked project/entity/concept/issue/decision/author/timeline pages with rebuild, lint, watch, search, and version-diff readback. | Pages stay derived, every section is cited or explicitly unsupported, stale-source lint runs, and benchmark reports publish citation/staleness metrics. |
 | P3 | Competitor-strength adapters | Add contained comparison adapters for qmd replay, PageIndex/OpenKB, mem0/OpenMemory, Letta, Graphiti/Zep, OpenViking, graph/RAG references, and other accepted deltas. | Each adapter preserves typed non-pass states and emits same-corpus evidence before any parity, win, tie, or loss claim. |
 | P4 | Benchmark and quality hardening | Expand adversarial jobs, public comparison grammar, quality metrics, latency/cost/resource reporting, and unsupported-claim detection. | Reports preserve job/suite/project typed states, expected evidence recall, irrelevant context ratio, unsupported claims, and resource metrics. |
 | P5 | Productization | Improve local setup, agent recipes, operator UI, privacy/delete/export boundaries, and production-quality workflows. | Operator workflows have documented setup, privacy/delete/export semantics, and validation evidence without weakening source authority. |
