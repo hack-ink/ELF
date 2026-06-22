@@ -12,7 +12,8 @@ Routes to: Runbook concepts under `docs/runbook/`.
 - `getting_started.md`: canonical setup and local run flow.
 - `single_user_production.md`: single-user production operation, backup, restore,
   Qdrant rebuild, rollback, and cleanup.
-- `agent-setup.md`: agent-oriented local installation flow.
+- `agent-setup.md`: agent-oriented local installation flow, one-command local
+  memory+knowledge loop, and Codex/Claude/Cursor/MCP/CLI recipes.
 - `evaluation.md`: retrieval evaluation commands and interpretation flow.
 - `integration-testing.md`: integration and E2E test workflow.
 - `testing.md`: test names, scopes, and matching commands.
