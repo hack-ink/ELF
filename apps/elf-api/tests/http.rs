@@ -960,6 +960,7 @@ async fn openapi_json_route_serves_generated_contract() {
 	assert_openapi_method(&spec, "/v2/admin/consolidation/proposals", "get");
 	assert_openapi_method(&spec, "/v2/admin/consolidation/proposals/{proposal_id}", "get");
 	assert_openapi_method(&spec, "/v2/admin/consolidation/proposals/{proposal_id}/review", "post");
+	assert_openapi_method(&spec, "/v2/admin/notes/{note_id}/corrections", "post");
 	assert_openapi_method(&spec, "/v2/admin/knowledge/pages/rebuild", "post");
 	assert_openapi_method(&spec, "/v2/admin/knowledge/pages", "get");
 	assert_openapi_method(&spec, "/v2/admin/knowledge/pages/search", "post");
