@@ -316,6 +316,15 @@ provider-backed ELF evidence was required.
   latency, cost, resource, cold-start, restore, and Qdrant rebuild metrics, but keeps
   missing private-corpus manifests and provider credentials as typed blockers rather
   than private/provider-backed pass proof.
+- P4 quality hardening and productization readiness after XY-1075: the June 23
+  closeout adds `cargo make real-world-memory-p4-quality-hardening-closeout`, a
+  checked-in report, and a snapshot tying together adversarial quality,
+  Source Library, Knowledge Workspace, and production-readiness reruns. The aggregate
+  slice scores 17 jobs, 15 pass, 0 wrong_result, 0 unsupported claims, 0 stale
+  answers, 0 redaction leaks, and 2 typed private/provider blockers, with full
+  evidence/source-ref/quote coverage and 0.000 irrelevant context ratio. P5
+  productization is narrowed to proven local/public workflows and remains unqueued
+  until main-thread acceptance.
 - Operator-approved public-proxy addendum after XY-930: the June 19 follow-up runs
   `cargo make baseline-production-private-addendum` with a simulated/public-proxy
   production corpus manifest approved for this stage. The run records 12 documents,
@@ -460,6 +469,7 @@ Detailed evidence and interpretation:
 - [Graph/RAG Adapter Matrix Report - June 23, 2026](docs/evidence/benchmarking/2026-06-23-graph-rag-adapter-matrix-report.md)
 - [P3 Competitor-Strength Absorption Report - June 23, 2026](docs/evidence/benchmarking/2026-06-23-p3-competitor-strength-absorption-report.md)
 - [P4 Production-Readiness Evidence Gates Report - June 23, 2026](docs/evidence/benchmarking/2026-06-23-p4-production-readiness-evidence-gates-report.md)
+- [P4 Quality Hardening and Productization Readiness Report - June 23, 2026](docs/evidence/benchmarking/2026-06-23-p4-quality-hardening-productization-readiness-report.md)
 - [Live Baseline Benchmark Runbook](docs/runbook/benchmarking/live_baseline_benchmark.md)
 - [Single-User Production Runbook](docs/runbook/single_user_production.md)
 - Benchmark contract:
@@ -557,6 +567,7 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [Graph/RAG Adapter Matrix Report - June 23, 2026](docs/evidence/benchmarking/2026-06-23-graph-rag-adapter-matrix-report.md)
 - [P3 Competitor-Strength Absorption Report - June 23, 2026](docs/evidence/benchmarking/2026-06-23-p3-competitor-strength-absorption-report.md)
 - [P4 Production-Readiness Evidence Gates Report - June 23, 2026](docs/evidence/benchmarking/2026-06-23-p4-production-readiness-evidence-gates-report.md)
+- [P4 Quality Hardening and Productization Readiness Report - June 23, 2026](docs/evidence/benchmarking/2026-06-23-p4-quality-hardening-productization-readiness-report.md)
 - [Live Baseline Benchmark Runbook](docs/runbook/benchmarking/live_baseline_benchmark.md)
 - [Real-World Agent Memory Benchmark](docs/runbook/benchmarking/real_world_agent_memory_benchmark.md)
 - [External Memory Improvement Plan](docs/evidence/external_memory/external_memory_improvement_plan.md)
@@ -576,8 +587,9 @@ Report - June 20, 2026, and the Live Knowledge-Page Rebuild/Lint Report - June 2
 Workspace PageIndex/OpenKB Closeout Report, PageIndex/OpenKB Same-Corpus Adapter
 Report, and mem0/OpenMemory and Letta Memory-History/Core-Archive Adapter Report;
 June 23 adds the Temporal and Trajectory Adapter Coverage Report, the Graph/RAG
-Adapter Matrix Report, the P3 Competitor-Strength Absorption Report, and the P4
-Production-Readiness Evidence Gates Report after the
+Adapter Matrix Report, the P3 Competitor-Strength Absorption Report, the P4
+Production-Readiness Evidence Gates Report, and the P4 Quality Hardening and
+Productization Readiness Report after the
 June 19 XY-930 operator-approved public-proxy production addendum and service-native
 Dreaming readback, the qmd debug-ergonomics Dreaming retest, the June 17
 competitor-strength closeout, and the June 16 temporal reconciliation, live

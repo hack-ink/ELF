@@ -6,7 +6,7 @@ resource: docs/spec/agent_memory_knowledge_system_v1.md
 status: active
 authority: normative
 owner: spec
-last_verified: 2026-06-22
+last_verified: 2026-06-23
 tags:
   - docs
   - spec
@@ -18,6 +18,7 @@ code_refs:
 related:
   - docs/evidence/benchmarking/2026-06-20-agent-knowledge-os-closeout-benchmark-report.md
   - docs/evidence/benchmarking/2026-06-22-p1-memory-authority-closeout-report.md
+  - docs/evidence/benchmarking/2026-06-23-p4-quality-hardening-productization-readiness-report.md
   - docs/runbook/benchmarking/real_world_agent_memory_benchmark.md
   - docs/spec/real_world_agent_memory_benchmark_v1.md
   - docs/spec/system_elf_memory_service_v2.md
@@ -28,6 +29,7 @@ related:
 drift_watch:
   - docs/spec/agent_memory_knowledge_system_v1.md
   - docs/evidence/benchmarking/2026-06-20-agent-knowledge-os-closeout-benchmark-report.md
+  - docs/evidence/benchmarking/2026-06-23-p4-quality-hardening-productization-readiness-report.md
   - docs/runbook/benchmarking/real_world_agent_memory_benchmark.md
   - Makefile.toml
 ---
@@ -184,6 +186,14 @@ Decodex execution for this project is single-phase gated:
 As of the June 22, 2026 XY-1063 closeout, P1 has fixture-backed self-assessment
 evidence for the memory-authority MVP loop. P2 queueing remains conditional on
 main-thread acceptance of that closeout and selection of one narrow next P2 issue.
+
+As of the June 23, 2026 XY-1075 closeout, P4 has fixture-backed quality hardening
+and production-readiness self-assessment evidence across adversarial memory,
+Source Library, Knowledge Workspace, and production-ops slices. P5 productization
+work may be queued only after main-thread acceptance of that closeout, and only for
+the proven local/public workflows named there. Private-corpus quality,
+provider-backed quality, hosted managed-memory parity, external adapter parity, and
+broad competitor superiority remain unqueued until their own evidence gates pass.
 
 ## Competitor Absorption Rules
 

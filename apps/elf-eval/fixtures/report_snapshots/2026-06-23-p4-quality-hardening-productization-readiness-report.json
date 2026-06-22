@@ -1,0 +1,183 @@
+{
+  "schema": "elf.p4_quality_hardening_closeout/v1",
+  "issue": "XY-1075",
+  "title": "P4 Quality Hardening and Productization Readiness",
+  "generated_at": "2026-06-22T22:21:08.724467Z",
+  "commands": [
+    {
+      "command": "cargo make real-world-memory-adversarial-quality",
+      "artifacts": [
+        "tmp/real-world-memory/adversarial-quality/report.json",
+        "tmp/real-world-memory/adversarial-quality/report.md"
+      ]
+    },
+    {
+      "command": "cargo make real-world-memory-p2-knowledge-closeout",
+      "artifacts": [
+        "tmp/real-world-memory/source-library-report.json",
+        "tmp/real-world-memory/source-library-report.md",
+        "tmp/real-world-memory/knowledge-report.json",
+        "tmp/real-world-memory/knowledge-report.md"
+      ]
+    },
+    {
+      "command": "cargo make real-world-memory-p4-production-readiness",
+      "artifacts": [
+        "tmp/real-world-memory/p4-production-readiness/report.json",
+        "tmp/real-world-memory/p4-production-readiness/report.md"
+      ]
+    },
+    {
+      "command": "cargo make real-world-memory-p4-quality-hardening-closeout",
+      "artifacts": [
+        "tmp/real-world-memory/adversarial-quality/report.md",
+        "tmp/real-world-memory/source-library-report.md",
+        "tmp/real-world-memory/knowledge-report.md",
+        "tmp/real-world-memory/p4-production-readiness/report.md"
+      ]
+    }
+  ],
+  "source_runs": [
+    {
+      "run_id": "real-world-memory-adversarial-quality",
+      "suite": "adversarial_quality",
+      "jobs": 5,
+      "pass": 5,
+      "wrong_result": 0,
+      "blocked": 0,
+      "unsupported_claim_count": 0,
+      "stale_answer_count": 0,
+      "redaction_leak_count": 0,
+      "conflict_detection_count": 2,
+      "update_rationale_available_count": 3,
+      "history_readback_encoded_count": 1,
+      "evidence_coverage": 1.0,
+      "source_ref_coverage": 1.0,
+      "quote_coverage": 1.0,
+      "expected_evidence_recall": 1.0,
+      "irrelevant_context_ratio": 0.0,
+      "mean_latency_ms": 1.06,
+      "total_cost_usd": 0.0
+    },
+    {
+      "run_id": "real-world-memory-source-library",
+      "suite": "source_library",
+      "jobs": 2,
+      "pass": 2,
+      "wrong_result": 0,
+      "blocked": 0,
+      "unsupported_claim_count": 0,
+      "stale_answer_count": 0,
+      "redaction_leak_count": 0,
+      "evidence_coverage": 1.0,
+      "source_ref_coverage": 1.0,
+      "quote_coverage": 1.0,
+      "expected_evidence_recall": 1.0,
+      "irrelevant_context_ratio": 0.0,
+      "mean_latency_ms": 1.0,
+      "total_cost_usd": 0.0
+    },
+    {
+      "run_id": "real-world-memory-knowledge",
+      "suite": "knowledge_compilation",
+      "jobs": 3,
+      "pass": 3,
+      "wrong_result": 0,
+      "blocked": 0,
+      "unsupported_claim_count": 0,
+      "stale_answer_count": 0,
+      "redaction_leak_count": 0,
+      "evidence_coverage": 1.0,
+      "source_ref_coverage": 1.0,
+      "quote_coverage": 1.0,
+      "expected_evidence_recall": 1.0,
+      "irrelevant_context_ratio": 0.0,
+      "mean_latency_ms": 2.767,
+      "total_cost_usd": 0.0,
+      "citation_coverage": 0.923,
+      "stale_claim_detection": 1.0,
+      "rebuild_determinism": 1.0,
+      "unsupported_summary_count": 1
+    },
+    {
+      "run_id": "real-world-memory-p4-production-readiness",
+      "suite": "production_ops",
+      "jobs": 7,
+      "pass": 5,
+      "wrong_result": 0,
+      "blocked": 2,
+      "unsupported_claim_count": 0,
+      "stale_answer_count": 0,
+      "redaction_leak_count": 0,
+      "evidence_coverage": 1.0,
+      "source_ref_coverage": 1.0,
+      "quote_coverage": 1.0,
+      "expected_evidence_recall": 1.0,
+      "irrelevant_context_ratio": 0.0,
+      "mean_latency_ms": 3.192,
+      "total_cost_usd": 0.0,
+      "resource_envelope_job_count": 2,
+      "resource_envelope_pass_count": 2,
+      "cold_start_job_count": 2,
+      "cold_start_pass_count": 2,
+      "restore_job_count": 1,
+      "restore_pass_count": 1,
+      "qdrant_rebuild_job_count": 1,
+      "qdrant_rebuild_pass_count": 1,
+      "typed_blockers": [
+        {
+          "tier": "private_corpus",
+          "status": "blocked",
+          "reason": "No operator-owned private production corpus manifest is checked in or available to this fixture; no private-corpus pass can be claimed."
+        },
+        {
+          "tier": "provider_backed",
+          "status": "blocked",
+          "reason": "Provider-backed production operations require operator-owned credentials; checked-in fixtures must not include or require secrets."
+        }
+      ]
+    }
+  ],
+  "aggregate": {
+    "jobs": 17,
+    "pass": 15,
+    "wrong_result": 0,
+    "blocked": 2,
+    "unsupported_claim_count": 0,
+    "stale_answer_count": 0,
+    "redaction_leak_count": 0,
+    "evidence_coverage": 1.0,
+    "source_ref_coverage": 1.0,
+    "quote_coverage": 1.0,
+    "expected_evidence_recall": 1.0,
+    "irrelevant_context_ratio": 0.0,
+    "weighted_mean_latency_ms": 2.232,
+    "total_cost_usd": 0.0
+  },
+  "quality_hardening_verdict": {
+    "close_p4": true,
+    "self_assessment": "pass_with_typed_blockers",
+    "claim_boundary": "The closeout supports local fixture and public-proxy productization planning only. It does not prove private-corpus production quality, provider-backed quality, hosted managed-memory parity, broad competitor superiority, or external adapter parity.",
+    "typed_non_pass_preserved": true
+  },
+  "p5_productization_decision": {
+    "ready_for_main_thread_inspection": true,
+    "ready_to_queue_after_main_thread_acceptance": true,
+    "queued_in_this_lane": false,
+    "queued_label_applied": false,
+    "queued_label": "decodex:queued:elf",
+    "allowed_initial_scope": [
+      "Local setup and agent recipes that run the checked-in fixture and report commands without weakening source authority.",
+      "Operator UI/readback over proven Source Library, Memory Authority, Knowledge Workspace, Dreaming review, graph-lite report, and recall/debug surfaces.",
+      "Privacy, delete, correction, rollback, export-style readback, and typed blocker presentation for source-linked local workflows.",
+      "Latency, cost, and resource envelope presentation for local fixture and public-proxy evidence tiers."
+    ],
+    "excluded_until_new_evidence": [
+      "Private-corpus production-quality claims.",
+      "Provider-backed production-quality claims.",
+      "Hosted managed-memory parity or broad competitor superiority.",
+      "External adapter parity, win, tie, or loss claims where current rows are blocked, incomplete, wrong_result, not_tested, or not_encoded.",
+      "Product workflows that mutate sources, hide review state, or collapse typed non-pass rows into pass claims."
+    ]
+  }
+}
