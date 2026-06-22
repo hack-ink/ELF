@@ -25,6 +25,9 @@
 # | real-world-memory-consolidation            | composite |     |
 # | real-world-memory-consolidation-json       | command   |     |
 # | real-world-memory-consolidation-report     | command   |     |
+# | real-world-memory-p1-closeout              | composite |     |
+# | real-world-memory-p1-closeout-json         | command   |     |
+# | real-world-memory-p1-closeout-report       | command   |     |
 # | real-world-memory-core-archival            | composite |     |
 # | real-world-memory-core-archival-json       | command   |     |
 # | real-world-memory-core-archival-report     | command   |     |
@@ -316,6 +319,55 @@ args = [
 	"tmp/real-world-memory/consolidation/report.json",
 	"--out",
 	"tmp/real-world-memory/consolidation/report.md",
+]
+
+[tasks.real-world-memory-p1-closeout]
+workspace = false
+dependencies = [
+	"real-world-memory-p1-closeout-report",
+]
+
+[tasks.real-world-memory-p1-closeout-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_memory/p1_closeout",
+	"--out",
+	"tmp/real-world-memory/p1-closeout/report.json",
+	"--run-id",
+	"real-world-memory-p1-closeout",
+	"--adapter-id",
+	"fixture_p1_closeout",
+	"--adapter-name",
+	"ELF P1 closeout fixture",
+]
+
+[tasks.real-world-memory-p1-closeout-report]
+workspace = false
+dependencies = [
+	"real-world-memory-p1-closeout-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-memory/p1-closeout/report.json",
+	"--out",
+	"tmp/real-world-memory/p1-closeout/report.md",
 ]
 
 [tasks.real-world-memory-core-archival]
