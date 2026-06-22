@@ -1,0 +1,307 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "pageindex-openkb-openkb-wiki-blocked-001",
+  "suite": "knowledge_compilation",
+  "title": "Block OpenKB same-corpus wiki comparison until pages, lint, and recompile trace map to ELF source ids",
+  "encoding": {
+    "status": "blocked",
+    "reason": "VectifyAI OpenKB same-corpus scoring is blocked until a contained OpenKB run emits generated wiki pages, concept/entity indexes, lint output, saved exploration state, and watch/recompile traces mapped to the ELF Knowledge Workspace source ids.",
+    "follow_up": {
+      "title": "Run OpenKB same-corpus wiki and watch/recompile adapter",
+      "reason": "The fair comparison needs OpenKB wiki/entity/concept outputs and watch/recompile artifacts over the same knowledge corpus with source ids mapped to benchmark evidence ids."
+    }
+  },
+  "corpus": {
+    "corpus_id": "real-world-memory-knowledge-synthetic-2026-06-22",
+    "profile": "external_adapter",
+    "items": [
+      {
+        "evidence_id": "elf-knowledge-project-page-output",
+        "kind": "elf_same_corpus_output",
+        "text": "ELF same-corpus knowledge output: knowledge job knowledge-project-page-001 materializes page project:elf-benchmark-suite at path apps/elf-eval/fixtures/real_world_memory/knowledge/pages/project_elf_benchmark_suite.md with source ids elf-knowledge-current-truth, elf-knowledge-history, and xy848-issue-timeline.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "project_page_rebuild",
+            "page_id": "project:elf-benchmark-suite"
+          },
+          "locator": {
+            "quote": "project:elf-benchmark-suite"
+          }
+        },
+        "created_at": "2026-06-09T01:10:00Z"
+      },
+      {
+        "evidence_id": "elf-knowledge-entity-concept-output",
+        "kind": "elf_same_corpus_output",
+        "text": "ELF same-corpus knowledge output: knowledge job knowledge-entity-concept-002 materializes entity:qdrant-rebuild, concept:derived-knowledge-pages, and issue:xy848-knowledge-pages pages with source ids qdrant-rebuild-entity, derived-pages-concept, and xy848-current-timeline.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "entity_concept_issue_pages",
+            "page_ids": [
+              "entity:qdrant-rebuild",
+              "concept:derived-knowledge-pages",
+              "issue:xy848-knowledge-pages"
+            ]
+          },
+          "locator": {
+            "quote": "entity:qdrant-rebuild, concept:derived-knowledge-pages"
+          }
+        },
+        "created_at": "2026-06-09T02:10:00Z"
+      },
+      {
+        "evidence_id": "elf-knowledge-watch-rebuild-output",
+        "kind": "elf_same_corpus_output",
+        "text": "ELF same-corpus watch output: knowledge job knowledge-watch-rebuild-003 materializes changed-source watch/rebuild with source ids watch-source-original, watch-source-updated, watch-lint-output, and watch-memory-candidate-proposal.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "changed_source_watch_rebuild",
+            "page_id": "project:knowledge-watch-rebuild"
+          },
+          "locator": {
+            "quote": "changed-source watch/rebuild"
+          }
+        },
+        "created_at": "2026-06-22T01:12:00Z"
+      },
+      {
+        "evidence_id": "openkb-adapter-setup-blocker",
+        "kind": "adapter_blocker",
+        "text": "OpenKB setup blocker: XY-1068 has no Docker-contained OpenKB product run, no generated wiki page export, no entity/concept index export, and no watch/recompile trace mapped back to the same corpus source ids.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "openkb_wiki_recompile_blocked",
+            "evidence_id": "openkb-adapter-setup-blocker"
+          },
+          "locator": {
+            "quote": "no generated wiki page export"
+          }
+        },
+        "created_at": "2026-06-22T03:05:00Z"
+      },
+      {
+        "evidence_id": "openkb-required-materialized-output-contract",
+        "kind": "adapter_contract",
+        "text": "OpenKB artifact contract: a runnable same-corpus adapter must emit wiki pages, concept/entity indexes, lint output, saved exploration state, watch/recompile trace, source ids, and setup/runtime metadata before OpenKB can be scored.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "openkb_wiki_recompile_blocked",
+            "evidence_id": "openkb-required-materialized-output-contract"
+          },
+          "locator": {
+            "quote": "wiki pages, concept/entity indexes, lint output"
+          }
+        },
+        "created_at": "2026-06-22T03:06:00Z"
+      },
+      {
+        "evidence_id": "openkb-parity-decoy",
+        "kind": "unsupported_claim",
+        "text": "Decoy: the ELF Knowledge Workspace page pass proves OpenKB document-to-wiki and recompile parity without running OpenKB.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "openkb_wiki_recompile_blocked",
+            "evidence_id": "openkb-parity-decoy"
+          }
+        },
+        "created_at": "2026-06-22T03:04:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_pageindex_openkb_same_corpus",
+      "answer": {
+        "content": "OpenKB remains blocked on the same knowledge corpus. ELF materializes project, entity, concept, issue, and changed-source watch/rebuild outputs with source ids including elf-knowledge-current-truth, qdrant-rebuild-entity, derived-pages-concept, xy848-current-timeline, watch-source-updated, watch-lint-output, and watch-memory-candidate-proposal. No contained OpenKB run has emitted wiki page export, entity/concept index export, saved exploration state, lint output, or watch/recompile trace mapped to those source ids. No OpenKB parity, win, tie, or loss is claimed.",
+        "claims": [
+          {
+            "claim_id": "elf_knowledge_outputs_present",
+            "text": "ELF materializes same-corpus project, entity, concept, issue, and changed-source watch/rebuild knowledge outputs.",
+            "evidence_ids": [
+              "elf-knowledge-project-page-output",
+              "elf-knowledge-entity-concept-output",
+              "elf-knowledge-watch-rebuild-output"
+            ],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "openkb_setup_blocked",
+            "text": "OpenKB scoring is blocked because no contained OpenKB product run, wiki export, entity/concept index export, or watch/recompile trace is checked in.",
+            "evidence_ids": ["openkb-adapter-setup-blocker"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "openkb_artifact_contract",
+            "text": "A runnable OpenKB adapter must emit wiki pages, concept/entity indexes, lint output, saved exploration state, watch/recompile trace, source ids, and setup/runtime metadata before scoring.",
+            "evidence_ids": ["openkb-required-materialized-output-contract"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": [
+          "elf-knowledge-project-page-output",
+          "elf-knowledge-entity-concept-output",
+          "elf-knowledge-watch-rebuild-output",
+          "openkb-adapter-setup-blocker",
+          "openkb-required-materialized-output-contract"
+        ],
+        "latency_ms": 1.0,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "elf-knowledge-outputs-selected",
+      "ts": "2026-06-22T03:05:00Z",
+      "actor": "benchmark",
+      "action": "selected_same_corpus_knowledge_outputs",
+      "evidence_ids": [
+        "elf-knowledge-project-page-output",
+        "elf-knowledge-entity-concept-output",
+        "elf-knowledge-watch-rebuild-output"
+      ],
+      "summary": "The OpenKB comparison uses the same project/entity/concept/issue and watch/rebuild corpus ids as the ELF knowledge fixtures."
+    },
+    {
+      "event_id": "openkb-blocker-recorded",
+      "ts": "2026-06-22T03:06:00Z",
+      "actor": "benchmark",
+      "action": "recorded_openkb_setup_blocker",
+      "evidence_ids": [
+        "openkb-adapter-setup-blocker",
+        "openkb-required-materialized-output-contract"
+      ],
+      "summary": "OpenKB remains blocked until wiki, lint, saved exploration, and watch/recompile artifacts map back to same-corpus source ids."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Compare OpenKB document-to-wiki, concept/entity, lint, watch, and recompile behavior against ELF Knowledge Workspace only if OpenKB emits same-corpus artifacts.",
+    "job_mode": "compare",
+    "constraints": [
+      "cite_same_corpus_source_ids",
+      "require_openkb_wiki_artifacts",
+      "typed_setup_blocker",
+      "no_openkb_parity_claim"
+    ]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "elf_knowledge_outputs_present",
+        "text": "ELF materializes same-corpus project, entity, concept, issue, and changed-source watch/rebuild knowledge outputs."
+      },
+      {
+        "claim_id": "openkb_setup_blocked",
+        "text": "OpenKB scoring is blocked because no contained OpenKB product run, wiki export, entity/concept index export, or watch/recompile trace is checked in."
+      },
+      {
+        "claim_id": "openkb_artifact_contract",
+        "text": "A runnable OpenKB adapter must emit wiki pages, concept/entity indexes, lint output, saved exploration state, watch/recompile trace, source ids, and setup/runtime metadata before scoring."
+      }
+    ],
+    "must_not_include": [
+      "ELF Knowledge Workspace page pass proves OpenKB document-to-wiki and recompile parity.",
+      "ELF beats OpenKB on wiki compilation."
+    ],
+    "evidence_links": {
+      "elf_knowledge_outputs_present": [
+        "elf-knowledge-project-page-output",
+        "elf-knowledge-entity-concept-output",
+        "elf-knowledge-watch-rebuild-output"
+      ],
+      "openkb_setup_blocked": ["openkb-adapter-setup-blocker"],
+      "openkb_artifact_contract": ["openkb-required-materialized-output-contract"]
+    },
+    "answer_type": "typed_blocker",
+    "accepted_alternates": [],
+    "requires_caveat": true,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "elf-knowledge-project-page-output",
+      "claim_id": "elf_knowledge_outputs_present",
+      "requirement": "cite",
+      "quote": "project:elf-benchmark-suite"
+    },
+    {
+      "evidence_id": "openkb-adapter-setup-blocker",
+      "claim_id": "openkb_setup_blocked",
+      "requirement": "cite",
+      "quote": "no generated wiki page export"
+    },
+    {
+      "evidence_id": "openkb-required-materialized-output-contract",
+      "claim_id": "openkb_artifact_contract",
+      "requirement": "cite",
+      "quote": "wiki pages, concept/entity indexes, lint output"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "openkb-parity-without-run",
+      "type": "unsupported_claim",
+      "evidence_ids": ["openkb-parity-decoy"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "uncertainty_handling": {
+        "weight": 0.35,
+        "max_points": 1.0,
+        "criteria": "Keeps OpenKB as blocked until contained wiki/recompile artifacts exist."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Names the same-corpus ELF knowledge source ids and required OpenKB artifact ids."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Identifies the concrete OpenKB output needed for rerun."
+      },
+      "trap_avoidance": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Does not promote ELF knowledge page evidence into OpenKB parity."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about OpenKB parity",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "state_blocker"
+  },
+  "tags": [
+    "external_adapter",
+    "openkb",
+    "knowledge_compilation",
+    "wiki",
+    "watch_recompile",
+    "typed_blocker",
+    "same_corpus"
+  ]
+}
