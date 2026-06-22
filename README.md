@@ -299,6 +299,15 @@ provider-backed ELF evidence was required.
   comparison gates. This improves auditability only: no graph-memory parity,
   OpenViking trajectory win/tie/loss, hosted Zep, private-corpus, or provider-backed
   quality claim is made.
+- P3 competitor-strength absorption closeout after XY-1072: the June 23 closeout
+  publishes a product-by-product absorption report for qmd, PageIndex/OpenKB,
+  mem0/OpenMemory, Letta, Graphiti/Zep, OpenViking, RAGFlow, GraphRAG, and LightRAG.
+  ELF is strongest at governed source-linked memory and knowledge authority, while
+  qmd replay/debug ergonomics, PageIndex/OpenKB tree/wiki artifacts, mem0/OpenMemory
+  history and UI/export, Letta core/archive, Graphiti/Zep temporal graph validity,
+  OpenViking trajectory, and graph/RAG citation/navigation remain optimization inputs
+  or typed blockers. The report makes P4 queue items inspectable but applies no
+  `decodex:queued:elf` label.
 - Operator-approved public-proxy addendum after XY-930: the June 19 follow-up runs
   `cargo make baseline-production-private-addendum` with a simulated/public-proxy
   production corpus manifest approved for this stage. The run records 12 documents,
@@ -441,6 +450,7 @@ Detailed evidence and interpretation:
 - [mem0/OpenMemory and Letta Memory-History/Core-Archive Adapter Report - June 22, 2026](docs/evidence/benchmarking/2026-06-22-mem0-openmemory-letta-memory-history-core-archive-report.md)
 - [Temporal and Trajectory Adapter Coverage Report - June 23, 2026](docs/evidence/benchmarking/2026-06-23-temporal-trajectory-adapter-coverage-report.md)
 - [Graph/RAG Adapter Matrix Report - June 23, 2026](docs/evidence/benchmarking/2026-06-23-graph-rag-adapter-matrix-report.md)
+- [P3 Competitor-Strength Absorption Report - June 23, 2026](docs/evidence/benchmarking/2026-06-23-p3-competitor-strength-absorption-report.md)
 - [Live Baseline Benchmark Runbook](docs/runbook/benchmarking/live_baseline_benchmark.md)
 - [Single-User Production Runbook](docs/runbook/single_user_production.md)
 - Benchmark contract:
@@ -536,6 +546,7 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [mem0/OpenMemory and Letta Memory-History/Core-Archive Adapter Report - June 22, 2026](docs/evidence/benchmarking/2026-06-22-mem0-openmemory-letta-memory-history-core-archive-report.md)
 - [Temporal and Trajectory Adapter Coverage Report - June 23, 2026](docs/evidence/benchmarking/2026-06-23-temporal-trajectory-adapter-coverage-report.md)
 - [Graph/RAG Adapter Matrix Report - June 23, 2026](docs/evidence/benchmarking/2026-06-23-graph-rag-adapter-matrix-report.md)
+- [P3 Competitor-Strength Absorption Report - June 23, 2026](docs/evidence/benchmarking/2026-06-23-p3-competitor-strength-absorption-report.md)
 - [Live Baseline Benchmark Runbook](docs/runbook/benchmarking/live_baseline_benchmark.md)
 - [Real-World Agent Memory Benchmark](docs/runbook/benchmarking/real_world_agent_memory_benchmark.md)
 - [External Memory Improvement Plan](docs/evidence/external_memory/external_memory_improvement_plan.md)
@@ -554,12 +565,12 @@ Report - June 20, 2026, and the Live Knowledge-Page Rebuild/Lint Report - June 2
 2026; June 22 adds the P1 Memory Authority Closeout Report, P2 Knowledge
 Workspace PageIndex/OpenKB Closeout Report, PageIndex/OpenKB Same-Corpus Adapter
 Report, and mem0/OpenMemory and Letta Memory-History/Core-Archive Adapter Report;
-June 23 adds the Temporal and Trajectory Adapter Coverage Report and the Graph/RAG
-Adapter Matrix Report after the June 19 XY-930 operator-approved public-proxy
-production addendum and service-native Dreaming readback, the qmd debug-ergonomics
-Dreaming retest, the June 17 competitor-strength closeout, and the June 16 temporal
-reconciliation, live consolidation self-check, proactive-brief, and scheduled-memory
-scoring evidence.
+June 23 adds the Temporal and Trajectory Adapter Coverage Report, the Graph/RAG
+Adapter Matrix Report, and the P3 Competitor-Strength Absorption Report after the
+June 19 XY-930 operator-approved public-proxy production addendum and service-native
+Dreaming readback, the qmd debug-ergonomics Dreaming retest, the June 17
+competitor-strength closeout, and the June 16 temporal reconciliation, live
+consolidation self-check, proactive-brief, and scheduled-memory scoring evidence.
 
 ## Documentation
 
