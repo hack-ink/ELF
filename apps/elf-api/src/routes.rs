@@ -778,7 +778,7 @@ pub fn admin_router(state: AppState) -> Router {
 			routing::post(consolidation_proposal_review),
 		)
 		.route("/v2/admin/dreaming/review-queue", routing::get(dreaming_review_queue))
-		.route("/v2/admin/recall-debug/panel", routing::post(recall_debug_panel))
+		.route("/v2/admin/recall-debug/panel", routing::post(admin_recall_debug_panel))
 		.route("/v2/admin/knowledge/pages", routing::get(knowledge_pages_list))
 		.route("/v2/admin/knowledge/pages/rebuild", routing::post(knowledge_page_rebuild))
 		.route("/v2/admin/knowledge/pages/search", routing::post(knowledge_pages_search))
@@ -3207,6 +3207,23 @@ async fn recall_debug_panel(
 	headers: HeaderMap,
 	payload: Result<Json<RecallDebugPanelBody>, JsonRejection>,
 ) -> Result<Json<RecallDebugPanelResponse>, ApiError> {
+	recall_debug_panel_inner(state, headers, payload, false).await
+}
+
+async fn admin_recall_debug_panel(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	payload: Result<Json<RecallDebugPanelBody>, JsonRejection>,
+) -> Result<Json<RecallDebugPanelResponse>, ApiError> {
+	recall_debug_panel_inner(state, headers, payload, true).await
+}
+
+async fn recall_debug_panel_inner(
+	state: AppState,
+	headers: HeaderMap,
+	payload: Result<Json<RecallDebugPanelBody>, JsonRejection>,
+	allow_project_trace_debug: bool,
+) -> Result<Json<RecallDebugPanelResponse>, ApiError> {
 	let ctx = RequestContext::from_headers(&headers)?;
 	let read_profile = required_read_profile(&headers)?;
 	let Json(payload) = payload.map_err(|err| {
@@ -3229,6 +3246,7 @@ async fn recall_debug_panel(
 			graph_predicate: payload.graph_predicate,
 			include_dreaming: payload.include_dreaming,
 			limit: payload.limit,
+			allow_project_trace_debug,
 		})
 		.await?;
 
