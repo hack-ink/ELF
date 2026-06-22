@@ -6,7 +6,7 @@ resource: docs/spec/real_world_agent_memory_benchmark_v1.md
 status: active
 authority: normative
 owner: spec
-last_verified: 2026-06-18
+last_verified: 2026-06-23
 tags:
   - docs
   - spec
@@ -463,6 +463,35 @@ Fields:
   `encoding.status = "not_encoded"` or `encoding.status = "blocked"`.
   When `encoded = true`, the job is scored normally and must include concrete
   produced evidence for current and historical validity behavior.
+  Graphiti/Zep-style temporal jobs MUST NOT set `encoded = true` from a prose
+  contract alone; they need materialized current fact ids, historical fact ids,
+  validity windows, source ids, and rationale/update evidence, or an explicit typed
+  provider/setup blocker.
+
+### `trace_explainability`
+
+`corpus.adapter_response.answer.trace_explainability` is optional for most jobs but
+SHOULD be present when a fixture's main value is a blocked or wrong-result retrieval
+path. It records the stage movement needed to audit the answer without treating hidden
+debug notes as evidence.
+
+Fields:
+
+- `trace_id`: optional stable fixture or runtime trace handle.
+- `failure_stage`: optional stage name that must match one of `stages[].stage_name`
+  when stages are provided.
+- `failure_reason`: optional concise reason for the blocked, incomplete, or
+  wrong-result stage.
+- `stages`: ordered stage records.
+
+Each `stages[]` record MUST include `stage_name` and MAY include
+`kept_evidence`, `dropped_evidence`, `demoted_evidence`, `distractor_evidence`, and
+`notes`. Evidence ids in stage arrays MUST refer to corpus items. OpenViking-style
+context trajectory jobs SHOULD use trace stages to expose the same-corpus gate, staged
+retrieval artifact gate, hierarchy selected-node gate, rejected sibling or decoy
+handling, recursive expansion paths, and pruned branches. A blocked trajectory fixture
+MUST keep the comparison outcome blocked or not tested; trace stages do not create an
+ELF win, tie, or loss claim.
 
 ### `operator_debug`
 
@@ -566,7 +595,7 @@ Suite ids are stable public names. Each suite MUST contain at least one
 | `production_ops` | Prove safe operation under backup, restore, backfill, cold start, resource, and credential boundaries. | Resume interrupted import; restore from backup; report missing private manifest as bounded caveat. | Command/report artifacts, resource envelope, checkpoint state, failure guard evidence. | lifecycle_behavior, latency_resource, uncertainty_handling, evidence_grounding. | ELF, qmd, memsearch, LangGraph. |
 | `personalization` | Apply user/project preferences correctly without leaking across scopes or overfitting stale preferences. | Remember preferred response style; avoid using another project tenant's note; update a preference. | Scoped memory ids, preference versions, tenant/project/agent context, negative cross-scope traps. | personalization_fit, trap_avoidance, evidence_grounding, answer_correctness. | mem0, Letta, agentmemory, ELF. |
 | `core_archival_memory` | Verify always-loaded core memory behavior separately from archival note search and derived retrieval indexes. | Read an attached core block; enforce core block scope; detect stale core state from archival evidence; fall back to archival notes; recover a decision from core routing plus archival rationale. | Core block ids, attachment ids, read_profile/scope metadata, source_ref and audit history, archival note evidence ids, stale-core traps, and explicit no-Qdrant-core-block boundary evidence. | answer_correctness, evidence_grounding, trap_avoidance, lifecycle_behavior, workflow_helpfulness. | Letta, ELF. |
-| `context_trajectory` | Measure staged context trajectory, hierarchy selection, and recursive/context expansion without converting setup or retrieval preconditions into trajectory wins. | Explain whether a staged trajectory can be scored; identify selected hierarchy nodes; report recursive expansion paths and pruned branches. | Same-corpus expected evidence ids, matched/missing evidence ids, stage artifacts, selected hierarchy nodes, expansion paths, comparable ELF trace/session artifacts when a comparison is claimed. | answer_correctness, evidence_grounding, trap_avoidance, debuggability, workflow_helpfulness. | OpenViking, ELF, qmd. |
+| `context_trajectory` | Measure staged context trajectory, hierarchy selection, and recursive/context expansion without converting setup or retrieval preconditions into trajectory wins. | Explain whether a staged trajectory can be scored; identify selected hierarchy nodes; report recursive expansion paths and pruned branches. | Same-corpus expected evidence ids, matched/missing evidence ids, stage artifacts, selected hierarchy nodes, rejected siblings or decoys, expansion paths, pruned branches, comparable ELF trace/session artifacts when a comparison is claimed. | answer_correctness, evidence_grounding, trap_avoidance, debuggability, workflow_helpfulness. | OpenViking, ELF, qmd. |
 
 ## Report Semantics
 
@@ -634,7 +663,10 @@ Reports MUST include:
 Reports that encode `memory_evolution` jobs SHOULD also include stale-answer counts,
 conflict detection counts, update rationale availability, and temporal-validity
 `not_encoded` counts. A temporal graph validity job MUST NOT be reported as `pass`
-unless the runner can evaluate current-only versus historical relation facts.
+unless the runner can evaluate current-only versus historical relation facts with
+source ids and validity windows. ELF graph-lite report evidence remains a derived
+projection over authoritative sources; external temporal graph adapter evidence MUST
+NOT replace ELF source authority.
 
 Reports that encode `memory_summary` jobs MUST also include:
 

@@ -73,7 +73,7 @@ compile knowledge, and state honest uncertainty.
 | Production ops | Backfill, restore, cold start, resource, and bounded-failure behavior. | Resume interrupted import without duplicate source notes. |
 | Personalization | Scoped preferences without cross-tenant leakage. | Apply the user's current preference and ignore another project's note. |
 | Core/archival memory | Always-loaded core memory behavior kept separate from archival note search. | Detect a stale core block and fall back to archival evidence. |
-| Context trajectory | Staged context trajectory, hierarchy selection, and recursive expansion. | Block OpenViking trajectory scoring until same-corpus evidence ids and comparable stage artifacts exist. |
+| Context trajectory | Staged context trajectory, hierarchy selection, rejected sibling/decoy handling, and recursive expansion. | Block OpenViking trajectory scoring until same-corpus evidence ids and comparable stage artifacts exist. |
 
 ## External Reference Mapping
 
@@ -185,7 +185,10 @@ including the retrieval-quality slice below. The suite currently encodes:
   plus archival rationale.
 - `context_trajectory`: OpenViking staged retrieval, hierarchy selection, and
   recursive/context expansion jobs encoded as `blocked` until same-corpus expected
-  evidence ids and comparable stage artifacts are available.
+  evidence ids and comparable stage artifacts are available. The fixtures expose
+  stage-level trace readback for the same-corpus gate, missing staged artifact,
+  selected hierarchy/rejected sibling gate, and recursive expansion/pruned-branch
+  gate so a blocker is reviewable instead of a prose-only limitation.
 - `p1_closeout` fixture slice: four jobs across the existing `consolidation`,
   `memory_evolution`, and `work_resume` suites for Source Library -> Memory Candidate
   -> approved memory -> recall/debug -> correction/rollback, stale decision
@@ -440,6 +443,44 @@ This parses `apps/elf-eval/fixtures/real_world_memory/evolution/` and reports on
 the cases added for current-versus-historical interpretation and temporal staleness.
 The relation temporal-validity fixture is encoded and scores current owner,
 historical owner, update rationale, and stale-owner trap behavior.
+
+Graphiti/Zep temporal adapter refresh:
+
+```sh
+cargo make smoke-graphiti-zep-docker-temporal
+```
+
+Default artifacts:
+
+```text
+tmp/real-world-memory/graphiti-zep-smoke/graphiti-zep-report.json
+tmp/real-world-memory/graphiti-zep-smoke/graphiti-zep-report.md
+tmp/real-world-memory/graphiti-zep-smoke/summary.json
+```
+
+The default command emits a typed blocker. A live attempt is opt-in:
+
+```sh
+ELF_GRAPHITI_ZEP_SMOKE_START=1 ELF_GRAPHITI_ZEP_SMOKE_RUN=1 cargo make smoke-graphiti-zep-docker-temporal
+```
+
+The live path can pass only if generated current and historical temporal relation
+facts map to validity windows and source evidence ids. Missing provider credentials,
+FalkorDB startup failure, Graphiti setup failure, or unmapped validity windows stay
+typed as `blocked`, `incomplete`, or `wrong_result`; no hosted Zep or ELF graph-memory
+parity claim is allowed from this smoke.
+
+OpenViking context-trajectory refresh:
+
+```sh
+cargo make real-world-memory-context-trajectory
+```
+
+The command scores the checked-in staged retrieval, hierarchy selection, and
+recursive/context expansion fixtures. Current blocked fixtures include trace-stage
+artifacts that name the same-corpus gate, missing stage/hierarchy/recursive artifact,
+dropped decoy or rejected sibling evidence, and comparison gate. These trace stages
+make the missing artifacts auditable; they do not create an ELF win, tie, or loss.
 
 Current checked-in retrieval-quality increment:
 
