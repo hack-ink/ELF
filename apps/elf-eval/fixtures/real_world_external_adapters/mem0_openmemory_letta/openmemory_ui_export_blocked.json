@@ -1,0 +1,215 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "mem0-openmemory-letta-openmemory-ui-export-blocked-001",
+  "suite": "production_ops",
+  "title": "Keep OpenMemory UI/export blocked until product readback maps the same corpus",
+  "encoding": {
+    "status": "blocked",
+    "reason": "OpenMemory UI/export scoring is blocked until a contained OpenMemory product container imports the same mem0 SDK corpus, reaches app or browser readback, runs export, and maps exported rows to the benchmark source ids.",
+    "follow_up": {
+      "title": "Run OpenMemory product UI/export same-corpus adapter",
+      "reason": "The fair product comparison needs API/browser or export-helper output from a running OpenMemory product database, not only mem0 SDK get_all output."
+    }
+  },
+  "corpus": {
+    "corpus_id": "real-world-memory-mem0-openmemory-letta-2026-06-22",
+    "profile": "external_adapter",
+    "items": [
+      {
+        "evidence_id": "openmemory-product-files-found",
+        "kind": "adapter_probe",
+        "text": "OpenMemory setup probe output: the product tree, UI package, compose file, and export helper were found for the local OSS project.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "openmemory_ui_export_blocked",
+            "evidence_id": "openmemory-product-files-found"
+          },
+          "locator": {
+            "quote": "product tree, UI package, compose file, and export helper were found"
+          }
+        },
+        "created_at": "2026-06-19T06:55:43Z"
+      },
+      {
+        "evidence_id": "openmemory-ui-export-container-blocker",
+        "kind": "adapter_blocker",
+        "text": "OpenMemory product blocker: the export helper still needs Docker access to a running OpenMemory product container and app database before exported memories can map to source ids elf-current-stable-preference, elf-old-preference, and other-project-preference.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "openmemory_ui_export_blocked",
+            "evidence_id": "openmemory-ui-export-container-blocker"
+          },
+          "locator": {
+            "quote": "needs Docker access to a running OpenMemory product container"
+          }
+        },
+        "created_at": "2026-06-19T06:55:44Z"
+      },
+      {
+        "evidence_id": "openmemory-sdk-export-decoy",
+        "kind": "unsupported_claim",
+        "text": "Decoy: mem0 SDK get_all readback is equivalent to OpenMemory product browser export and proves product UI/export parity.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "openmemory_ui_export_blocked",
+            "evidence_id": "openmemory-sdk-export-decoy"
+          }
+        },
+        "created_at": "2026-06-19T06:55:42Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_mem0_openmemory_letta",
+      "answer": {
+        "content": "OpenMemory UI/export remains blocked for the same mem0 corpus. The setup probe found the product tree, UI package, compose file, and export helper, but the export helper still needs Docker access to a running OpenMemory product container and app database before exported rows can map to elf-current-stable-preference, elf-old-preference, and other-project-preference. mem0 SDK get_all is not product UI/export evidence.",
+        "claims": [
+          {
+            "claim_id": "openmemory_product_probe_present",
+            "text": "The OpenMemory product tree, UI package, compose file, and export helper were found.",
+            "evidence_ids": ["openmemory-product-files-found"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "openmemory_ui_export_blocked",
+            "text": "OpenMemory UI/export is blocked until a running product container and app database export rows mapped to same-corpus source ids.",
+            "evidence_ids": ["openmemory-ui-export-container-blocker"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": [
+          "openmemory-product-files-found",
+          "openmemory-ui-export-container-blocker"
+        ],
+        "latency_ms": 1.0,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "openmemory-product-probe-recorded",
+      "ts": "2026-06-19T06:55:43Z",
+      "actor": "benchmark",
+      "action": "recorded_product_probe",
+      "evidence_ids": ["openmemory-product-files-found"],
+      "summary": "The bounded probe found the product files needed for a future UI/export attempt."
+    },
+    {
+      "event_id": "openmemory-ui-export-blocker-recorded",
+      "ts": "2026-06-19T06:55:44Z",
+      "actor": "benchmark",
+      "action": "recorded_product_export_blocker",
+      "evidence_ids": ["openmemory-ui-export-container-blocker"],
+      "summary": "The product UI/export path remains blocked until a running product container exports same-corpus rows."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Can OpenMemory UI/export be scored from the mem0 SDK get_all evidence?",
+    "job_mode": "compare",
+    "constraints": [
+      "separate_sdk_from_product_ui",
+      "require_same_corpus_export_ids",
+      "typed_setup_blocker"
+    ]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "openmemory_product_probe_present",
+        "text": "The OpenMemory product tree, UI package, compose file, and export helper were found."
+      },
+      {
+        "claim_id": "openmemory_ui_export_blocked",
+        "text": "OpenMemory UI/export is blocked until a running product container and app database export rows mapped to same-corpus source ids."
+      }
+    ],
+    "must_not_include": [
+      "mem0 SDK get_all readback is equivalent to OpenMemory product browser export",
+      "OpenMemory product UI/export parity is proven"
+    ],
+    "evidence_links": {
+      "openmemory_product_probe_present": ["openmemory-product-files-found"],
+      "openmemory_ui_export_blocked": ["openmemory-ui-export-container-blocker"]
+    },
+    "answer_type": "typed_blocker",
+    "accepted_alternates": [],
+    "requires_caveat": true,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "openmemory-product-files-found",
+      "claim_id": "openmemory_product_probe_present",
+      "requirement": "cite",
+      "quote": "product tree, UI package, compose file, and export helper were found"
+    },
+    {
+      "evidence_id": "openmemory-ui-export-container-blocker",
+      "claim_id": "openmemory_ui_export_blocked",
+      "requirement": "cite",
+      "quote": "needs Docker access to a running OpenMemory product container"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "sdk-export-is-ui-export",
+      "type": "unsupported_claim",
+      "evidence_ids": ["openmemory-sdk-export-decoy"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "uncertainty_handling": {
+        "weight": 0.35,
+        "max_points": 1.0,
+        "criteria": "Keeps product UI/export blocked until direct product evidence exists."
+      },
+      "evidence_grounding": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Cites setup probe and product-container blocker evidence."
+      },
+      "claim_boundary": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Separates mem0 SDK output from OpenMemory UI/export."
+      },
+      "trap_avoidance": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Does not promote SDK get_all into product export proof."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "state_blocker"
+  },
+  "tags": [
+    "external_adapter",
+    "openmemory",
+    "production_ops",
+    "ui_export",
+    "blocked",
+    "no_hosted_claim"
+  ]
+}
