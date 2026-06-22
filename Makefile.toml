@@ -31,6 +31,9 @@
 # | real-world-memory-p1-closeout              | composite |     |
 # | real-world-memory-p1-closeout-json         | command   |     |
 # | real-world-memory-p1-closeout-report       | command   |     |
+# | real-world-memory-p4-production-readiness  | composite |     |
+# | real-world-memory-p4-production-readiness-json | command |     |
+# | real-world-memory-p4-production-readiness-report | command |     |
 # | real-world-memory-p2-knowledge-closeout    | composite |     |
 # | real-world-memory-core-archival            | composite |     |
 # | real-world-memory-core-archival-json       | command   |     |
@@ -427,6 +430,55 @@ args = [
 	"tmp/real-world-memory/p1-closeout/report.json",
 	"--out",
 	"tmp/real-world-memory/p1-closeout/report.md",
+]
+
+[tasks.real-world-memory-p4-production-readiness]
+workspace = false
+dependencies = [
+	"real-world-memory-p4-production-readiness-report",
+]
+
+[tasks.real-world-memory-p4-production-readiness-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_memory/production_ops",
+	"--out",
+	"tmp/real-world-memory/p4-production-readiness/report.json",
+	"--run-id",
+	"real-world-memory-p4-production-readiness",
+	"--adapter-id",
+	"fixture_production_ops",
+	"--adapter-name",
+	"ELF P4 production-readiness fixture",
+]
+
+[tasks.real-world-memory-p4-production-readiness-report]
+workspace = false
+dependencies = [
+	"real-world-memory-p4-production-readiness-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-memory/p4-production-readiness/report.json",
+	"--out",
+	"tmp/real-world-memory/p4-production-readiness/report.md",
 ]
 
 [tasks.real-world-memory-p2-knowledge-closeout]

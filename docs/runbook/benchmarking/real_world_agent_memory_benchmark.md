@@ -187,8 +187,9 @@ including the retrieval-quality slice below. The suite currently encodes:
   source-id preservation, evidence binding, no secret leakage, and fixture-backed
   capture/integration boundary classification.
 - `production_ops`: interrupted generated backfill resume, backup/restore plus
-  cold-start readback, resource-envelope interpretation, pinned OpenViking local
-  embedding runtime/wrong-result classification, missing private manifest `blocked`
+  cold-start readback, resource-envelope interpretation, public-proxy
+  production-private addendum readback, pinned OpenViking local embedding
+  runtime/wrong-result classification, missing private manifest `blocked`
   classification, and provider credential boundary `blocked` classification.
 - `personalization`: scoped stable preference correction without temporary or
   cross-project preference leakage.
@@ -214,10 +215,12 @@ including the retrieval-quality slice below. The suite currently encodes:
 The generated report includes the public quality scoreboard
 `elf.quality_scoreboard/v1`, encoded-job and external-adapter typed non-pass
 counts/states, aggregate typed non-pass counts/states, evidence-class counts, bounded
-job and aggregate summary claims, the unqualified-win guard, evidence coverage,
-source-ref coverage, quote coverage, unsupported-claim count, stale retrieval count,
-stale-answer count, conflict detection count, update rationale availability, temporal
-validity encoding count, scope correctness, redaction leak count, capture/integration
+job and aggregate summary claims, the unqualified-win guard, operational evidence
+gates with `local_fixture`, `public_proxy`, `private_corpus`, and `provider_backed`
+tiers, evidence coverage, source-ref coverage, quote coverage, unsupported-claim
+count, stale retrieval count, stale-answer count, conflict detection count, update
+rationale availability, temporal validity encoding count, scope correctness,
+redaction leak count, capture/integration
 behavior classes, Qdrant rebuild case/pass counts, expected evidence recall,
 irrelevant context ratio, latency/cost, answer-type plus
 caveat/refusal/uncertainty flags, trace explainability counters, production-ops
@@ -363,8 +366,8 @@ The public quality scoreboard renders the existing manifest evidence bucket
 external adapter manifest is loaded, the scoreboard's typed non-pass count includes
 adapter coverage and scenario rows as well as fixture jobs.
 
-Current fixture state: `cargo make real-world-memory-json` covers 72 jobs across 18
-suites, with 65 pass and 7 blocked. The adversarial quality slice contributes five
+Current fixture state: `cargo make real-world-memory-json` covers 73 jobs across 18
+suites, with 66 pass and 7 blocked. The adversarial quality slice contributes five
 passing fixture-backed jobs that exercise stale fact suppression, unsupported-claim
 refusal, source-authority conflicts, private-span exclusion, and correction
 persistence. The P1 closeout fixture slice contributes four passing jobs for
@@ -657,11 +660,19 @@ Current checked-in production-ops increment:
 cargo make real-world-memory-production-ops
 ```
 
+Current P4 production-readiness evidence-gate slice:
+
+```sh
+cargo make real-world-memory-p4-production-readiness
+```
+
 Artifacts:
 
 ```text
 tmp/real-world-memory/production-ops-report.json
 tmp/real-world-memory/production-ops-report.md
+tmp/real-world-memory/p4-production-readiness/report.json
+tmp/real-world-memory/p4-production-readiness/report.md
 ```
 
 The production-ops fixtures live under
@@ -669,7 +680,9 @@ The production-ops fixtures live under
 readback over existing public benchmark and restore evidence: interrupted backfill
 resume from checkpoint, clean-run comparison, backup/restore readback, Qdrant rebuild
 from Postgres-held vectors, cold-start search recovery, and resource-envelope
-interpretation.
+interpretation. The P4 slice also encodes the operator-approved public-proxy
+production-private addendum and emits `elf.operational_evidence_gates/v1` so local
+fixture, public-proxy, private-corpus, and provider-backed evidence remain separate.
 
 The same slice deliberately keeps non-pass boundaries typed. A missing private
 production manifest is `blocked`, unavailable provider credentials are `blocked`, and
@@ -679,6 +692,10 @@ embedding path that reaches `OpenViking.add_resource` and `OpenViking.find` but 
 import on a Docker platform, that setup boundary remains `incomplete`. These states
 are evidence for operator caveats, not proof of private-corpus, provider-backed
 production, or external-adapter quality success.
+
+Public-proxy passes are useful production-readiness signals, but they do not satisfy a
+real private-corpus gate. Local-hash or fixture-backed cost/latency records are
+operational accounting evidence, not hosted provider-spend or provider-quality proof.
 
 This suite does not run private corpus data, does not require or publish credentials,
 does not perform live Docker restore/backfill work, and does not reinterpret older
