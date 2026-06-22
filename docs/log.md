@@ -87,3 +87,7 @@ logs.
   `cargo make real-world-memory-p1-closeout`, preserving the Source Library ->
   Memory Candidate -> approved memory -> recall/debug -> correction/rollback
   authority chain and keeping P2 queueing conditional on main-thread acceptance.
+- Added the Knowledge Workspace changed-source watch/rebuild contract for XY-1065,
+  plus a drift audit covering the new admin rebuild endpoint, changed/unchanged/
+  stale/blocked section output, stale-section/changed-claim/missing-citation/conflict
+  classifications, and reviewable memory-candidate proposal routing.
