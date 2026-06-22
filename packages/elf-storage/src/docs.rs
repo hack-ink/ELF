@@ -22,23 +22,37 @@ where
 {
 	sqlx::query(
 		"\
-	INSERT INTO doc_documents (
-		doc_id,
-		tenant_id,
-		project_id,
-		agent_id,
-		scope,
-		doc_type,
-		status,
-		title,
-		source_ref,
-		content,
-		content_bytes,
-		content_hash,
-		created_at,
-		updated_at
-	)
-	VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)",
+INSERT INTO doc_documents (
+	doc_id,
+	tenant_id,
+	project_id,
+	agent_id,
+	scope,
+	doc_type,
+	status,
+	title,
+	source_ref,
+	content,
+	content_bytes,
+	content_hash,
+	created_at,
+	updated_at
+)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+ON CONFLICT (doc_id) DO UPDATE
+SET
+	tenant_id = EXCLUDED.tenant_id,
+	project_id = EXCLUDED.project_id,
+	agent_id = EXCLUDED.agent_id,
+	scope = EXCLUDED.scope,
+	doc_type = EXCLUDED.doc_type,
+	status = EXCLUDED.status,
+	title = EXCLUDED.title,
+	source_ref = EXCLUDED.source_ref,
+	content = EXCLUDED.content,
+	content_bytes = EXCLUDED.content_bytes,
+	content_hash = EXCLUDED.content_hash,
+	updated_at = EXCLUDED.updated_at",
 	)
 	.bind(doc.doc_id)
 	.bind(doc.tenant_id.as_str())
@@ -115,7 +129,15 @@ INSERT INTO doc_chunks (
 	chunk_hash,
 	created_at
 )
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+ON CONFLICT (chunk_id) DO UPDATE
+SET
+	doc_id = EXCLUDED.doc_id,
+	chunk_index = EXCLUDED.chunk_index,
+	start_offset = EXCLUDED.start_offset,
+	end_offset = EXCLUDED.end_offset,
+	chunk_text = EXCLUDED.chunk_text,
+	chunk_hash = EXCLUDED.chunk_hash",
 	)
 	.bind(chunk.chunk_id)
 	.bind(chunk.doc_id)
