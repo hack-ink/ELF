@@ -1236,6 +1236,14 @@ impl ExcerptsSelectorKind {
 			Self::Position => "position",
 		}
 	}
+
+	fn span_kind(&self) -> &'static str {
+		match self {
+			Self::ChunkId => "captured",
+			Self::Quote => "quote",
+			Self::Position => "position",
+		}
+	}
 }
 
 fn docs_search_l0_deduplicated_chunks(
@@ -1347,7 +1355,7 @@ fn docs_excerpt_locator(
 			content_hash,
 			match_start_offset,
 			match_end_offset,
-			selector_kind.as_str(),
+			selector_kind.span_kind(),
 		),
 		selector_kind: selector_kind.as_str().to_string(),
 		match_start_offset,
