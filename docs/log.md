@@ -87,6 +87,10 @@ logs.
   `cargo make real-world-memory-p1-closeout`, preserving the Source Library ->
   Memory Candidate -> approved memory -> recall/debug -> correction/rollback
   authority chain and keeping P2 queueing conditional on main-thread acceptance.
+- Added the P2 Knowledge Workspace PageIndex/OpenKB closeout report for XY-1066,
+  plus `cargo make real-world-memory-p2-knowledge-closeout` and a changed-source
+  watch/rebuild fixture, preserving PageIndex/OpenKB as reference-only `not_tested`
+  rows until contained adapters emit comparable artifacts.
 - Added the Knowledge Workspace changed-source watch/rebuild contract for XY-1065,
   plus a drift audit covering the new admin rebuild endpoint, changed/unchanged/
   stale/blocked section output, stale-section/changed-claim/missing-citation/conflict

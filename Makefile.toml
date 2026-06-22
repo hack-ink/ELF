@@ -28,6 +28,7 @@
 # | real-world-memory-p1-closeout              | composite |     |
 # | real-world-memory-p1-closeout-json         | command   |     |
 # | real-world-memory-p1-closeout-report       | command   |     |
+# | real-world-memory-p2-knowledge-closeout    | composite |     |
 # | real-world-memory-core-archival            | composite |     |
 # | real-world-memory-core-archival-json       | command   |     |
 # | real-world-memory-core-archival-report     | command   |     |
@@ -368,6 +369,13 @@ args = [
 	"tmp/real-world-memory/p1-closeout/report.json",
 	"--out",
 	"tmp/real-world-memory/p1-closeout/report.md",
+]
+
+[tasks.real-world-memory-p2-knowledge-closeout]
+workspace = false
+dependencies = [
+	"real-world-memory-source-library-report",
+	"real-world-memory-knowledge-report",
 ]
 
 [tasks.real-world-memory-core-archival]

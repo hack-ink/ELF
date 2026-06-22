@@ -262,6 +262,15 @@ provider-backed ELF evidence was required.
   correction/rollback, but remains fixture-backed and does not claim private-corpus,
   provider-backed, live-adapter, hosted-memory, or broad competitor parity. P2
   queueing remains conditional on main-thread acceptance of the closeout.
+- P2 Knowledge Workspace PageIndex/OpenKB closeout after XY-1066: the June 22
+  closeout adds `cargo make real-world-memory-p2-knowledge-closeout`, a checked-in
+  same-corpus self-assessment report, and a changed-source watch/rebuild knowledge
+  fixture. The source-library slice remains 2 pass/0 wrong_result and the knowledge
+  slice is now 3 pass/0 wrong_result, covering long-document source refs, hydrated
+  excerpts, project/entity/concept/issue pages, stale lint, version diff, and
+  reviewable memory-candidate boundaries. VectifyAI PageIndex and OpenKB remain
+  `not_tested` reference-only rows until contained adapters emit comparable tree/wiki
+  artifacts; no P3 issue is queued by this closeout.
 - Operator-approved public-proxy addendum after XY-930: the June 19 follow-up runs
   `cargo make baseline-production-private-addendum` with a simulated/public-proxy
   production corpus manifest approved for this stage. The run records 12 documents,
@@ -394,6 +403,7 @@ Detailed evidence and interpretation:
 - [Live Knowledge-Page Rebuild/Lint Report - June 20, 2026](docs/evidence/benchmarking/2026-06-20-live-knowledge-page-rebuild-lint-report.md)
 - [Agent Knowledge OS Closeout Benchmark Report - June 20, 2026](docs/evidence/benchmarking/2026-06-20-agent-knowledge-os-closeout-benchmark-report.md)
 - [P1 Memory Authority Closeout Report - June 22, 2026](docs/evidence/benchmarking/2026-06-22-p1-memory-authority-closeout-report.md)
+- [P2 Knowledge Workspace PageIndex/OpenKB Closeout Report - June 22, 2026](docs/evidence/benchmarking/2026-06-22-p2-knowledge-workspace-pageindex-openkb-closeout-report.md)
 - [Live Baseline Benchmark Runbook](docs/runbook/benchmarking/live_baseline_benchmark.md)
 - [Single-User Production Runbook](docs/runbook/single_user_production.md)
 - Benchmark contract:
@@ -484,6 +494,7 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [OpenMemory UI/Export Product Readback Report - June 19, 2026](docs/evidence/benchmarking/2026-06-19-openmemory-ui-export-product-readback-report.md)
 - [Operator-Approved Public-Proxy Production-Private Addendum - June 19, 2026](docs/evidence/benchmarking/2026-06-19-operator-approved-public-proxy-production-private-addendum.md)
 - [P1 Memory Authority Closeout Report - June 22, 2026](docs/evidence/benchmarking/2026-06-22-p1-memory-authority-closeout-report.md)
+- [P2 Knowledge Workspace PageIndex/OpenKB Closeout Report - June 22, 2026](docs/evidence/benchmarking/2026-06-22-p2-knowledge-workspace-pageindex-openkb-closeout-report.md)
 - [Live Baseline Benchmark Runbook](docs/runbook/benchmarking/live_baseline_benchmark.md)
 - [Real-World Agent Memory Benchmark](docs/runbook/benchmarking/real_world_agent_memory_benchmark.md)
 - [External Memory Improvement Plan](docs/evidence/external_memory/external_memory_improvement_plan.md)
@@ -499,7 +510,8 @@ Latest real-world benchmark report: June 22, 2026. Latest external research refr
 June 11, 2026; June 20 adds the Agent Knowledge OS Closeout Benchmark Report,
 the Graph Topic-Map Report - June 20, 2026, Knowledge Workspace Version-Diff
 Report - June 20, 2026, and the Live Knowledge-Page Rebuild/Lint Report - June 20,
-2026; June 22 adds the P1 Memory Authority Closeout Report after the June 19
+2026; June 22 adds the P1 Memory Authority Closeout Report and P2 Knowledge
+Workspace PageIndex/OpenKB Closeout Report after the June 19
 XY-930 operator-approved public-proxy production addendum and service-native Dreaming
 readback, the qmd debug-ergonomics Dreaming retest, the June 17 competitor-strength
 closeout, and the June 16 temporal reconciliation, live consolidation self-check,

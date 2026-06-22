@@ -275,6 +275,10 @@ fn agent_knowledge_os_closeout_benchmark_report_json_path() -> Result<PathBuf> {
 	report_snapshot_path("2026-06-20-agent-knowledge-os-closeout-benchmark-report.json")
 }
 
+fn p2_knowledge_workspace_pageindex_openkb_closeout_report_json_path() -> Result<PathBuf> {
+	report_snapshot_path("2026-06-22-p2-knowledge-workspace-pageindex-openkb-closeout-report.json")
+}
+
 fn openmemory_ui_export_product_readback_report_json_path() -> Result<PathBuf> {
 	report_snapshot_path("2026-06-19-openmemory-ui-export-product-readback-report.json")
 }
@@ -335,6 +339,14 @@ fn agent_knowledge_os_closeout_benchmark_report_markdown_path() -> Result<PathBu
 		.join("evidence")
 		.join("benchmarking")
 		.join("2026-06-20-agent-knowledge-os-closeout-benchmark-report.md"))
+}
+
+fn p2_knowledge_workspace_pageindex_openkb_closeout_report_markdown_path() -> Result<PathBuf> {
+	Ok(workspace_root()?
+		.join("docs")
+		.join("evidence")
+		.join("benchmarking")
+		.join("2026-06-22-p2-knowledge-workspace-pageindex-openkb-closeout-report.md"))
 }
 
 fn openmemory_ui_export_product_readback_report_markdown_path() -> Result<PathBuf> {
@@ -2542,7 +2554,7 @@ fn assert_live_sweep_record(adapter: &Value, production_ops_status: &str) -> Res
 fn runner_discovers_nested_fixture_layout() -> Result<()> {
 	let report = run_json_report_from(fixture_root())?;
 
-	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(66));
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(67));
 
 	Ok(())
 }
@@ -2682,18 +2694,18 @@ fn consolidation_fixtures_report_reviewable_proposal_metrics() -> Result<()> {
 fn knowledge_fixtures_report_page_metrics() -> Result<()> {
 	let report = run_json_report_from(knowledge_fixture_dir())?;
 
-	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(2));
-	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(2));
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(3));
+	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(3));
 	assert_eq!(report.pointer("/summary/unsupported_claim_count").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/wrong_result_count").and_then(Value::as_u64), Some(0));
-	assert_eq!(report.pointer("/summary/knowledge/page_count").and_then(Value::as_u64), Some(4));
+	assert_eq!(report.pointer("/summary/knowledge/page_count").and_then(Value::as_u64), Some(5));
 	assert_eq!(
 		report.pointer("/summary/knowledge/section_count").and_then(Value::as_u64),
-		Some(10)
+		Some(13)
 	);
 	assert_eq!(
 		report.pointer("/summary/knowledge/citation_coverage").and_then(Value::as_f64),
-		Some(0.9)
+		Some(0.923)
 	);
 	assert_eq!(
 		report.pointer("/summary/knowledge/stale_claim_detection").and_then(Value::as_f64),
@@ -2705,11 +2717,11 @@ fn knowledge_fixtures_report_page_metrics() -> Result<()> {
 	);
 	assert_eq!(
 		report.pointer("/summary/knowledge/backlink_count").and_then(Value::as_u64),
-		Some(9)
+		Some(11)
 	);
 	assert_eq!(
 		report.pointer("/summary/knowledge/pages_with_backlinks").and_then(Value::as_u64),
-		Some(4)
+		Some(5)
 	);
 	assert_eq!(
 		report.pointer("/summary/knowledge/backlink_coverage").and_then(Value::as_f64),
@@ -2717,7 +2729,11 @@ fn knowledge_fixtures_report_page_metrics() -> Result<()> {
 	);
 	assert_eq!(
 		report.pointer("/summary/knowledge/page_usefulness").and_then(Value::as_f64),
-		Some(0.969)
+		Some(0.979)
+	);
+	assert_eq!(
+		report.pointer("/summary/knowledge/pages_with_version_diff").and_then(Value::as_u64),
+		Some(1)
 	);
 	assert_eq!(
 		report.pointer("/summary/knowledge/unsupported_summary_count").and_then(Value::as_u64),
@@ -2732,10 +2748,11 @@ fn knowledge_fixtures_report_page_metrics() -> Result<()> {
 	let knowledge_suite = find_by_field(suites, "/suite_id", "knowledge_compilation")?;
 
 	assert_eq!(knowledge_suite.pointer("/status").and_then(Value::as_str), Some("pass"));
-	assert_eq!(knowledge_suite.pointer("/encoded_job_count").and_then(Value::as_u64), Some(2));
+	assert_eq!(knowledge_suite.pointer("/encoded_job_count").and_then(Value::as_u64), Some(3));
 
 	let jobs = array_at(&report, "/jobs")?;
 	let project_page_job = find_by_field(jobs, "/job_id", "knowledge-project-page-001")?;
+	let watch_rebuild_job = find_by_field(jobs, "/job_id", "knowledge-watch-rebuild-003")?;
 
 	assert_eq!(
 		project_page_job.pointer("/knowledge/unsupported_summary_count").and_then(Value::as_u64),
@@ -2744,6 +2761,18 @@ fn knowledge_fixtures_report_page_metrics() -> Result<()> {
 	assert_eq!(
 		project_page_job.pointer("/knowledge/untraced_section_count").and_then(Value::as_u64),
 		Some(0)
+	);
+	assert_eq!(
+		watch_rebuild_job.pointer("/knowledge/pages_with_version_diff").and_then(Value::as_u64),
+		Some(1)
+	);
+	assert!(
+		watch_rebuild_job
+			.pointer("/produced_answer")
+			.and_then(Value::as_str)
+			.is_some_and(|answer| answer
+				.contains("PageIndex/OpenKB adapter claim as lint evidence")
+				&& answer.contains("leaves source documents plus Memory Notes unmodified"))
 	);
 
 	Ok(())
@@ -4020,6 +4049,103 @@ fn agent_knowledge_os_closeout_benchmark_wires_docs_and_optimization_queue() -> 
 	assert!(readme.contains("62 jobs, 55 pass"));
 	assert!(readme.contains("VectifyAI PageIndex/OpenKB"));
 	assert!(readme.contains("strongest measured integrated"));
+
+	Ok(())
+}
+
+#[test]
+fn p2_knowledge_workspace_closeout_preserves_pageindex_openkb_boundaries() -> Result<()> {
+	let report = serde_json::from_str::<Value>(&fs::read_to_string(
+		p2_knowledge_workspace_pageindex_openkb_closeout_report_json_path()?,
+	)?)?;
+	let markdown = fs::read_to_string(
+		p2_knowledge_workspace_pageindex_openkb_closeout_report_markdown_path()?,
+	)?;
+	let makefile = fs::read_to_string(workspace_root()?.join("Makefile.toml"))?;
+	let benchmarking_index = fs::read_to_string(benchmarking_index_path()?)?;
+	let readme = fs::read_to_string(readme_path()?)?;
+	let benchmark_runbook = fs::read_to_string(
+		workspace_root()?
+			.join("docs")
+			.join("runbook")
+			.join("benchmarking")
+			.join("real_world_agent_memory_benchmark.md"),
+	)?;
+
+	assert_eq!(
+		report.pointer("/schema").and_then(Value::as_str),
+		Some("elf.p2_knowledge_workspace_pageindex_openkb_closeout_report/v1")
+	);
+	assert_eq!(report.pointer("/authority").and_then(Value::as_str), Some("XY-1066"));
+	assert_eq!(
+		report.pointer("/self_assessment/verdict").and_then(Value::as_str),
+		Some("pass_with_reference_only_competitor_boundary")
+	);
+	assert_eq!(report.pointer("/typed_state_summary/pass").and_then(Value::as_u64), Some(2));
+	assert_eq!(
+		report.pointer("/typed_state_summary/wrong_result").and_then(Value::as_u64),
+		Some(0)
+	);
+	assert_eq!(report.pointer("/typed_state_summary/incomplete").and_then(Value::as_u64), Some(0));
+	assert_eq!(report.pointer("/typed_state_summary/blocked").and_then(Value::as_u64), Some(1));
+	assert_eq!(report.pointer("/typed_state_summary/not_tested").and_then(Value::as_u64), Some(2));
+
+	let results = array_at(&report, "/elf_same_corpus_results")?;
+	let source_library = find_by_field(results, "/suite", "source_library")?;
+	let knowledge = find_by_field(results, "/suite", "knowledge_compilation")?;
+
+	assert_eq!(source_library.pointer("/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(source_library.pointer("/jobs").and_then(Value::as_u64), Some(2));
+	assert_eq!(knowledge.pointer("/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(knowledge.pointer("/jobs").and_then(Value::as_u64), Some(3));
+	assert!(array_contains_str(
+		knowledge,
+		"/coverage",
+		"Changed-source watch/rebuild reports changed, stale, and reviewable memory-candidate outputs without source mutation."
+	)?);
+
+	let matrix = array_at(&report, "/comparison_matrix")?;
+	let pageindex = find_by_field(matrix, "/target", "VectifyAI PageIndex")?;
+	let openkb = find_by_field(matrix, "/target", "VectifyAI OpenKB")?;
+	let p3 = find_by_field(matrix, "/target", "P3 PageIndex/OpenKB adapter queue")?;
+
+	assert_eq!(pageindex.pointer("/status").and_then(Value::as_str), Some("not_tested"));
+	assert_eq!(openkb.pointer("/status").and_then(Value::as_str), Some("not_tested"));
+	assert_eq!(p3.pointer("/status").and_then(Value::as_str), Some("blocked"));
+	assert_eq!(
+		report
+			.pointer("/p3_queue_decision/ready_to_queue_after_main_thread_acceptance")
+			.and_then(Value::as_bool),
+		Some(true)
+	);
+	assert_eq!(
+		report.pointer("/p3_queue_decision/queued_label_applied").and_then(Value::as_bool),
+		Some(false)
+	);
+	assert!(array_contains_str(
+		&report,
+		"/claim_boundaries/not_allowed",
+		"Do not claim ELF beats PageIndex or OpenKB."
+	)?);
+	assert!(array_contains_str(
+		&report,
+		"/claim_boundaries/not_allowed",
+		"Do not queue a P3 issue in this lane."
+	)?);
+	assert!(markdown.contains("P2 Knowledge Workspace PageIndex/OpenKB Closeout Report"));
+	assert!(markdown.contains("VectifyAI PageIndex"));
+	assert!(markdown.contains("VectifyAI OpenKB"));
+	assert!(markdown.contains("This report does not apply `decodex:queued:elf`"));
+	assert!(makefile.contains("[tasks.real-world-memory-p2-knowledge-closeout]"));
+	assert!(makefile.contains("\"real-world-memory-source-library-report\""));
+	assert!(makefile.contains("\"real-world-memory-knowledge-report\""));
+	assert!(
+		benchmarking_index
+			.contains("2026-06-22-p2-knowledge-workspace-pageindex-openkb-closeout-report.md")
+	);
+	assert!(readme.contains("P2 Knowledge Workspace PageIndex/OpenKB closeout after XY-1066"));
+	assert!(readme.contains("real-world-memory-p2-knowledge-closeout"));
+	assert!(benchmark_runbook.contains("cargo make real-world-memory-p2-knowledge-closeout"));
 
 	Ok(())
 }
@@ -6147,10 +6273,11 @@ fn knowledge_json_report_renders_markdown_metrics() -> Result<()> {
 
 	assert!(markdown.contains("Knowledge Page Metrics"));
 	assert!(markdown.contains("Knowledge citation coverage"));
-	assert!(markdown.contains("Backlinks: `9` total"));
+	assert!(markdown.contains("Backlinks: `11` total"));
 	assert!(markdown.contains("Unsupported summary count"));
 	assert!(markdown.contains("knowledge-project-page-001"));
 	assert!(markdown.contains("knowledge-entity-concept-002"));
+	assert!(markdown.contains("knowledge-watch-rebuild-003"));
 
 	Ok(())
 }
@@ -7080,18 +7207,18 @@ fn context_trajectory_fixtures_report_blocked_openviking_gates() -> Result<()> {
 }
 
 fn assert_root_knowledge_summary(report: &Value) {
-	assert_eq!(report.pointer("/summary/knowledge/job_count").and_then(Value::as_u64), Some(2));
-	assert_eq!(report.pointer("/summary/knowledge/page_count").and_then(Value::as_u64), Some(4));
+	assert_eq!(report.pointer("/summary/knowledge/job_count").and_then(Value::as_u64), Some(3));
+	assert_eq!(report.pointer("/summary/knowledge/page_count").and_then(Value::as_u64), Some(5));
 	assert_eq!(
 		report.pointer("/summary/knowledge/page_usefulness").and_then(Value::as_f64),
-		Some(0.969)
+		Some(0.979)
 	);
 }
 
 fn assert_root_aggregate_summary(report: &Value) {
-	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(66));
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(67));
 	assert_eq!(report.pointer("/summary/encoded_suite_count").and_then(Value::as_u64), Some(17));
-	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(59));
+	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(60));
 	assert_eq!(report.pointer("/summary/wrong_result").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/incomplete").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/blocked").and_then(Value::as_u64), Some(7));
@@ -7134,11 +7261,11 @@ fn assert_root_aggregate_summary(report: &Value) {
 	);
 	assert_eq!(
 		report.pointer("/summary/evidence_required_count").and_then(Value::as_u64),
-		Some(149)
+		Some(152)
 	);
 	assert_eq!(
 		report.pointer("/summary/evidence_covered_count").and_then(Value::as_u64),
-		Some(149)
+		Some(152)
 	);
 	assert_eq!(report.pointer("/summary/evidence_coverage").and_then(Value::as_f64), Some(1.0));
 	assert_eq!(report.pointer("/summary/source_ref_coverage").and_then(Value::as_f64), Some(1.0));
