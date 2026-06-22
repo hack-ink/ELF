@@ -1,0 +1,269 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "mem0-openmemory-letta-letta-core-blocks-blocked-001",
+  "suite": "core_archival_memory",
+  "title": "Block Letta core block comparison until exported core memory maps source ids",
+  "encoding": {
+    "status": "blocked",
+    "reason": "Letta core block scoring is blocked until a contained Letta run exports benchmark-owned core memory blocks with source ids for attachment, scope, provenance, and audit-equivalent readback.",
+    "follow_up": {
+      "title": "Run Letta core block export adapter",
+      "reason": "The fair comparison needs exported Letta core block JSON containing same-corpus source ids, visibility metadata, and provenance or audit-equivalent fields."
+    }
+  },
+  "corpus": {
+    "corpus_id": "real-world-memory-mem0-openmemory-letta-2026-06-22",
+    "profile": "external_adapter",
+    "items": [
+      {
+        "evidence_id": "elf-core-attachment-output",
+        "kind": "elf_same_corpus_output",
+        "text": "ELF same-corpus core output: core-archival-core-block-attachment-001 returns source id core-attachment-active and keeps core block readback separate from archival search.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "core_block_attachment",
+            "evidence_id": "core-attachment-active"
+          },
+          "locator": {
+            "quote": "core-attachment-active"
+          }
+        },
+        "created_at": "2026-06-11T04:00:00Z"
+      },
+      {
+        "evidence_id": "elf-core-scope-output",
+        "kind": "elf_same_corpus_output",
+        "text": "ELF same-corpus core output: core-archival-core-block-scope-001 returns source ids core-scope-project-shared-readable and core-scope-private-owner for read_profile and private-owner boundaries.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "core_block_scope",
+            "evidence_id": "core-scope-project-shared-readable"
+          },
+          "locator": {
+            "quote": "core-scope-project-shared-readable"
+          }
+        },
+        "created_at": "2026-06-11T04:10:00Z"
+      },
+      {
+        "evidence_id": "elf-core-provenance-output",
+        "kind": "elf_same_corpus_output",
+        "text": "ELF same-corpus core output: core-archival-core-block-provenance-001 returns source ids core-provenance-source-ref and core-provenance-audit-events for source_ref and audit_history readback.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "core_block_provenance",
+            "evidence_id": "core-provenance-source-ref"
+          },
+          "locator": {
+            "quote": "core-provenance-source-ref"
+          }
+        },
+        "created_at": "2026-06-11T04:20:00Z"
+      },
+      {
+        "evidence_id": "letta-core-export-blocker",
+        "kind": "adapter_blocker",
+        "text": "Letta core block blocker: no contained Letta export has emitted core block JSON with source ids core-attachment-active, core-scope-project-shared-readable, core-scope-private-owner, core-provenance-source-ref, and core-provenance-audit-events.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "letta_core_blocks_blocked",
+            "evidence_id": "letta-core-export-blocker"
+          },
+          "locator": {
+            "quote": "no contained Letta export has emitted core block JSON"
+          }
+        },
+        "created_at": "2026-06-22T04:00:00Z"
+      },
+      {
+        "evidence_id": "letta-core-win-decoy",
+        "kind": "unsupported_claim",
+        "text": "Decoy: ELF core block fixture passes prove Letta core memory is a measured loss.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "letta_core_blocks_blocked",
+            "evidence_id": "letta-core-win-decoy"
+          }
+        },
+        "created_at": "2026-06-22T03:59:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_mem0_openmemory_letta",
+      "answer": {
+        "content": "Letta core block comparison remains blocked. ELF same-corpus fixture outputs identify core-attachment-active, core-scope-project-shared-readable, core-scope-private-owner, core-provenance-source-ref, and core-provenance-audit-events. No contained Letta export has emitted core block JSON with those source ids, visibility metadata, and provenance or audit-equivalent fields, so no Letta win, tie, or loss is claimed.",
+        "claims": [
+          {
+            "claim_id": "elf_core_outputs_present",
+            "text": "ELF core block attachment, scope, and provenance source ids are identified for the same corpus.",
+            "evidence_ids": [
+              "elf-core-attachment-output",
+              "elf-core-scope-output",
+              "elf-core-provenance-output"
+            ],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "letta_core_export_blocked",
+            "text": "Letta core block scoring is blocked because no contained export maps core block JSON to those source ids.",
+            "evidence_ids": ["letta-core-export-blocker"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": [
+          "elf-core-attachment-output",
+          "elf-core-scope-output",
+          "elf-core-provenance-output",
+          "letta-core-export-blocker"
+        ],
+        "latency_ms": 1.0,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "letta-core-same-corpus-selected",
+      "ts": "2026-06-22T04:00:00Z",
+      "actor": "benchmark",
+      "action": "selected_letta_core_block_source_ids",
+      "evidence_ids": [
+        "elf-core-attachment-output",
+        "elf-core-scope-output",
+        "elf-core-provenance-output"
+      ],
+      "summary": "The Letta core comparison selected ELF core block source ids from the same core_archival_memory corpus."
+    },
+    {
+      "event_id": "letta-core-export-blocker-recorded",
+      "ts": "2026-06-22T04:01:00Z",
+      "actor": "benchmark",
+      "action": "recorded_letta_core_export_blocker",
+      "evidence_ids": ["letta-core-export-blocker"],
+      "summary": "Letta remains blocked until exported core block JSON maps those source ids."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Can Letta core memory be scored against ELF core blocks from the same corpus?",
+    "job_mode": "compare",
+    "constraints": [
+      "cite_same_corpus_source_ids",
+      "require_letta_core_export",
+      "no_letta_win_tie_loss_without_export"
+    ]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "elf_core_outputs_present",
+        "text": "ELF core block attachment, scope, and provenance source ids are identified for the same corpus."
+      },
+      {
+        "claim_id": "letta_core_export_blocked",
+        "text": "Letta core block scoring is blocked because no contained export maps core block JSON to those source ids."
+      }
+    ],
+    "must_not_include": [
+      "ELF core block fixture passes prove Letta core memory is a measured loss",
+      "Letta core memory parity is proven"
+    ],
+    "evidence_links": {
+      "elf_core_outputs_present": [
+        "elf-core-attachment-output",
+        "elf-core-scope-output",
+        "elf-core-provenance-output"
+      ],
+      "letta_core_export_blocked": ["letta-core-export-blocker"]
+    },
+    "answer_type": "typed_blocker",
+    "accepted_alternates": [],
+    "requires_caveat": true,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "elf-core-attachment-output",
+      "claim_id": "elf_core_outputs_present",
+      "requirement": "cite",
+      "quote": "core-attachment-active"
+    },
+    {
+      "evidence_id": "elf-core-provenance-output",
+      "claim_id": "elf_core_outputs_present",
+      "requirement": "cite",
+      "quote": "core-provenance-source-ref"
+    },
+    {
+      "evidence_id": "letta-core-export-blocker",
+      "claim_id": "letta_core_export_blocked",
+      "requirement": "cite",
+      "quote": "no contained Letta export has emitted core block JSON"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "elf-core-pass-letta-loss",
+      "type": "unsupported_claim",
+      "evidence_ids": ["letta-core-win-decoy"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "uncertainty_handling": {
+        "weight": 0.35,
+        "max_points": 1.0,
+        "criteria": "Keeps Letta core block comparison blocked until direct export exists."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Cites ELF source ids and Letta export blocker."
+      },
+      "claim_boundary": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Does not convert ELF fixture pass evidence into a Letta outcome."
+      },
+      "trap_avoidance": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Avoids unsupported Letta loss or parity claims."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "state_blocker"
+  },
+  "tags": [
+    "external_adapter",
+    "letta",
+    "core_archival_memory",
+    "core_blocks",
+    "blocked",
+    "no_live_claim"
+  ]
+}

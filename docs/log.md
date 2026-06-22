@@ -91,6 +91,10 @@ logs.
   plus `cargo make real-world-memory-p2-knowledge-closeout` and a changed-source
   watch/rebuild fixture, preserving PageIndex/OpenKB as reference-only `not_tested`
   rows until contained adapters emit comparable artifacts.
+- Added the mem0/OpenMemory and Letta P3 adapter report for XY-1069, plus
+  `cargo make real-world-memory-mem0-openmemory-letta` and same-corpus fixtures that
+  map mem0 SDK history/export outputs to source ids while preserving OpenMemory
+  UI/export and Letta core/archive as typed blockers.
 - Added the Knowledge Workspace changed-source watch/rebuild contract for XY-1065,
   plus a drift audit covering the new admin rebuild endpoint, changed/unchanged/
   stale/blocked section output, stale-section/changed-claim/missing-citation/conflict

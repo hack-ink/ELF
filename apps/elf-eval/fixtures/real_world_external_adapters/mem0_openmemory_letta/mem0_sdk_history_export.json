@@ -1,0 +1,347 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "mem0-openmemory-letta-mem0-sdk-history-export-001",
+  "suite": "memory_evolution",
+  "title": "Map mem0 SDK entity-scoped history and local export readback to same-corpus source ids",
+  "corpus": {
+    "corpus_id": "real-world-memory-mem0-openmemory-letta-2026-06-22",
+    "profile": "external_adapter",
+    "items": [
+      {
+        "evidence_id": "mem0-sdk-original-preference-history",
+        "kind": "adapter_artifact",
+        "text": "mem0 SDK same-corpus history output: Memory.history for user_id elf-history-user agent_id local-agent run_id xy-1069 contains an ADD event for original source id elf-old-preference with text provide long tutorial explanations for every answer.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "mem0_sdk_history_export",
+            "evidence_id": "mem0-sdk-original-preference-history"
+          },
+          "locator": {
+            "quote": "ADD event for original source id elf-old-preference"
+          }
+        },
+        "created_at": "2026-06-11T12:24:16Z"
+      },
+      {
+        "evidence_id": "mem0-sdk-corrected-preference-history",
+        "kind": "adapter_artifact",
+        "text": "mem0 SDK same-corpus history output: Memory.history contains an UPDATE event for current source id elf-current-stable-preference with text answer concisely with evidence-linked bullets.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "mem0_sdk_history_export",
+            "evidence_id": "mem0-sdk-corrected-preference-history"
+          },
+          "locator": {
+            "quote": "UPDATE event for current source id elf-current-stable-preference"
+          }
+        },
+        "created_at": "2026-06-11T12:24:17Z"
+      },
+      {
+        "evidence_id": "mem0-sdk-delete-history-readback",
+        "kind": "adapter_artifact",
+        "text": "mem0 SDK same-corpus delete output: Memory.history exposes a DELETE event for deleted source id mem0-deleted-demo-preference and post-delete search suppresses that deleted memory.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "mem0_sdk_history_export",
+            "evidence_id": "mem0-sdk-delete-history-readback"
+          },
+          "locator": {
+            "quote": "Memory.history exposes a DELETE event"
+          }
+        },
+        "created_at": "2026-06-11T12:24:18Z"
+      },
+      {
+        "evidence_id": "mem0-sdk-entity-scope-filter",
+        "kind": "adapter_artifact",
+        "text": "mem0 SDK same-corpus scope output: search with user_id elf-history-user, agent_id local-agent, and run_id xy-1069 returns the ELF-scoped current preference and omits other-project source id other-project-preference.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "mem0_sdk_history_export",
+            "evidence_id": "mem0-sdk-entity-scope-filter"
+          },
+          "locator": {
+            "quote": "returns the ELF-scoped current preference and omits other-project"
+          }
+        },
+        "created_at": "2026-06-11T12:24:19Z"
+      },
+      {
+        "evidence_id": "mem0-sdk-local-get-all-export",
+        "kind": "adapter_artifact",
+        "text": "mem0 SDK local export output: Memory.get_all returns current source id elf-current-stable-preference for the scoped entity and omits other-project source id other-project-preference; this is SDK export-style readback, not OpenMemory UI export.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "mem0_sdk_history_export",
+            "evidence_id": "mem0-sdk-local-get-all-export"
+          },
+          "locator": {
+            "quote": "this is SDK export-style readback, not OpenMemory UI export"
+          }
+        },
+        "created_at": "2026-06-11T12:24:20Z"
+      },
+      {
+        "evidence_id": "mem0-sdk-ui-export-decoy",
+        "kind": "unsupported_claim",
+        "text": "Decoy: mem0 SDK Memory.get_all proves OpenMemory browser UI export and hosted mem0 Platform export for the same corpus.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "mem0_sdk_history_export",
+            "evidence_id": "mem0-sdk-ui-export-decoy"
+          }
+        },
+        "created_at": "2026-06-11T12:24:15Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_mem0_openmemory_letta",
+      "answer": {
+        "content": "The mem0 local OSS SDK evidence maps to same-corpus source ids. Memory.history exposes ADD for elf-old-preference, UPDATE for elf-current-stable-preference, and DELETE for mem0-deleted-demo-preference. Scoped search for user_id elf-history-user, agent_id local-agent, and run_id xy-1069 returns the ELF current preference while omitting other-project-preference. Memory.get_all returns elf-current-stable-preference as local SDK export-style readback, but that is not OpenMemory UI export or hosted mem0 Platform evidence.",
+        "claims": [
+          {
+            "claim_id": "mem0_history_add_update_delete",
+            "text": "mem0 SDK Memory.history exposes ADD, UPDATE, and DELETE events for mapped same-corpus source ids.",
+            "evidence_ids": [
+              "mem0-sdk-original-preference-history",
+              "mem0-sdk-corrected-preference-history",
+              "mem0-sdk-delete-history-readback"
+            ],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "mem0_entity_scope_filter",
+            "text": "mem0 SDK scoped search returns the ELF current preference and omits the other-project preference.",
+            "evidence_ids": ["mem0-sdk-entity-scope-filter"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "mem0_sdk_export_readback",
+            "text": "mem0 SDK Memory.get_all provides local export-style readback for the scoped current preference.",
+            "evidence_ids": ["mem0-sdk-local-get-all-export"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "mem0_ui_hosted_boundary",
+            "text": "The local SDK export-style readback is not OpenMemory UI export or hosted Platform evidence.",
+            "evidence_ids": ["mem0-sdk-local-get-all-export"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": [
+          "mem0-sdk-original-preference-history",
+          "mem0-sdk-corrected-preference-history",
+          "mem0-sdk-delete-history-readback",
+          "mem0-sdk-entity-scope-filter",
+          "mem0-sdk-local-get-all-export"
+        ],
+        "latency_ms": 1.2,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "mem0-sdk-history-recorded",
+      "ts": "2026-06-11T12:24:16Z",
+      "actor": "benchmark",
+      "action": "recorded_mem0_sdk_history_output",
+      "evidence_ids": [
+        "mem0-sdk-original-preference-history",
+        "mem0-sdk-corrected-preference-history",
+        "mem0-sdk-delete-history-readback"
+      ],
+      "summary": "The mem0 SDK run exposed history events mapped to source ids."
+    },
+    {
+      "event_id": "mem0-sdk-scope-export-recorded",
+      "ts": "2026-06-11T12:24:20Z",
+      "actor": "benchmark",
+      "action": "recorded_mem0_sdk_scope_and_export_readback",
+      "evidence_ids": [
+        "mem0-sdk-entity-scope-filter",
+        "mem0-sdk-local-get-all-export"
+      ],
+      "summary": "The mem0 SDK run exposed scoped search and local get_all export-style readback."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "What same-corpus mem0 SDK history and export/readback evidence exists, and does it prove OpenMemory UI or hosted export?",
+    "job_mode": "compare",
+    "constraints": [
+      "cite_same_corpus_source_ids",
+      "separate_sdk_from_ui_export",
+      "separate_local_from_hosted_platform"
+    ]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "mem0_history_add_update_delete",
+        "text": "mem0 SDK Memory.history exposes ADD, UPDATE, and DELETE events for mapped same-corpus source ids."
+      },
+      {
+        "claim_id": "mem0_entity_scope_filter",
+        "text": "mem0 SDK scoped search returns the ELF current preference and omits the other-project preference."
+      },
+      {
+        "claim_id": "mem0_sdk_export_readback",
+        "text": "mem0 SDK Memory.get_all provides local export-style readback for the scoped current preference."
+      },
+      {
+        "claim_id": "mem0_ui_hosted_boundary",
+        "text": "The local SDK export-style readback is not OpenMemory UI export or hosted Platform evidence."
+      }
+    ],
+    "must_not_include": [
+      "Memory.get_all proves OpenMemory browser UI export",
+      "Memory.get_all proves hosted mem0 Platform export"
+    ],
+    "evidence_links": {
+      "mem0_history_add_update_delete": [
+        "mem0-sdk-original-preference-history",
+        "mem0-sdk-corrected-preference-history",
+        "mem0-sdk-delete-history-readback"
+      ],
+      "mem0_entity_scope_filter": ["mem0-sdk-entity-scope-filter"],
+      "mem0_sdk_export_readback": ["mem0-sdk-local-get-all-export"],
+      "mem0_ui_hosted_boundary": ["mem0-sdk-local-get-all-export"]
+    },
+    "answer_type": "scoped_adapter_evidence",
+    "accepted_alternates": [],
+    "requires_caveat": true,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "mem0-sdk-corrected-preference-history",
+      "claim_id": "mem0_history_add_update_delete",
+      "requirement": "cite",
+      "quote": "UPDATE event for current source id elf-current-stable-preference"
+    },
+    {
+      "evidence_id": "mem0-sdk-delete-history-readback",
+      "claim_id": "mem0_history_add_update_delete",
+      "requirement": "cite",
+      "quote": "Memory.history exposes a DELETE event"
+    },
+    {
+      "evidence_id": "mem0-sdk-entity-scope-filter",
+      "claim_id": "mem0_entity_scope_filter",
+      "requirement": "cite",
+      "quote": "returns the ELF-scoped current preference and omits other-project"
+    },
+    {
+      "evidence_id": "mem0-sdk-local-get-all-export",
+      "claim_id": "mem0_sdk_export_readback",
+      "requirement": "cite",
+      "quote": "Memory.get_all returns current source id elf-current-stable-preference"
+    },
+    {
+      "evidence_id": "mem0-sdk-local-get-all-export",
+      "claim_id": "mem0_ui_hosted_boundary",
+      "requirement": "explain",
+      "quote": "not OpenMemory UI export"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "sdk-get-all-ui-hosted-export",
+      "type": "unsupported_claim",
+      "evidence_ids": ["mem0-sdk-ui-export-decoy"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "history_readback": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Names ADD, UPDATE, and DELETE history evidence."
+      },
+      "scope_correctness": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Preserves user, agent, and run scope boundaries."
+      },
+      "evidence_grounding": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Cites mapped same-corpus source ids."
+      },
+      "trap_avoidance": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Does not promote SDK get_all into UI or hosted export evidence."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "state_blocker"
+  },
+  "memory_evolution": {
+    "current_evidence_ids": ["mem0-sdk-corrected-preference-history"],
+    "historical_evidence_ids": ["mem0-sdk-original-preference-history"],
+    "tombstone_evidence_ids": ["mem0-sdk-delete-history-readback"],
+    "stale_trap_ids": ["sdk-get-all-ui-hosted-export"],
+    "conflicts": [
+      {
+        "conflict_id": "mem0-preference-history-supersession",
+        "claim_id": "mem0_history_add_update_delete",
+        "current_evidence_id": "mem0-sdk-corrected-preference-history",
+        "historical_evidence_id": "mem0-sdk-original-preference-history",
+        "resolved_by_evidence_id": "mem0-sdk-corrected-preference-history"
+      }
+    ],
+    "update_rationale": {
+      "claim_id": "mem0_history_add_update_delete",
+      "evidence_ids": ["mem0-sdk-corrected-preference-history"],
+      "available": true
+    },
+    "temporal_validity": {
+      "required": false,
+      "encoded": false,
+      "follow_up": null
+    },
+    "history_readback": {
+      "encoded": true,
+      "required_event_types": ["add", "update", "delete"],
+      "requires_note_version_links": false
+    }
+  },
+  "tags": [
+    "external_adapter",
+    "mem0",
+    "openmemory",
+    "memory_evolution",
+    "history_readback",
+    "sdk_export_readback",
+    "no_hosted_claim"
+  ]
+}
