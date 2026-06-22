@@ -113,6 +113,29 @@
           "amount": 0.0,
           "input_tokens": 0,
           "output_tokens": 0
+        },
+        "trace_explainability": {
+          "trace_id": "fixture-openviking-recursive-expansion-blocked",
+          "failure_stage": "openviking.recursive_expansion_gate",
+          "failure_reason": "Seed, expanded child, final evidence, and pruned-branch artifacts are not materialized, so recursive/context expansion remains blocked.",
+          "stages": [
+            {
+              "stage_name": "openviking.same_corpus_gate",
+              "kept_evidence": ["recursive-same-corpus-gate"],
+              "notes": "Recursive expansion scoring remains gated behind expected evidence id coverage."
+            },
+            {
+              "stage_name": "openviking.recursive_expansion_gate",
+              "kept_evidence": ["recursive-expansion-output-contract"],
+              "dropped_evidence": ["recursive-expansion-win-decoy"],
+              "notes": "The missing expansion-path artifact must show seed context, expanded child contexts, final evidence ids, and pruned branches."
+            },
+            {
+              "stage_name": "openviking.comparison_gate",
+              "kept_evidence": ["recursive-elf-comparison-gate"],
+              "notes": "No ELF tie, win, or loss is allowed until both systems publish comparable expansion-path artifacts for the same scenario."
+            }
+          ]
         }
       }
     }
