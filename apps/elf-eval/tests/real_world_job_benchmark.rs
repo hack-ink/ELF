@@ -1847,6 +1847,10 @@ fn graph_rag_representative_fixtures_report_typed_non_pass_states() -> Result<()
 		report.pointer("/summary/temporal_validity_not_encoded_count").and_then(Value::as_u64),
 		Some(1)
 	);
+	assert_eq!(
+		report.pointer("/summary/trace_explainability_count").and_then(Value::as_u64),
+		Some(1)
+	);
 
 	let jobs = array_at(&report, "/jobs")?;
 	let ragflow = find_by_field(jobs, "/job_id", "graph-rag-ragflow-reference-chunks-001")?;
@@ -1872,6 +1876,17 @@ fn graph_rag_representative_fixtures_report_typed_non_pass_states() -> Result<()
 		graphiti.pointer("/evolution/temporal_validity_not_encoded").and_then(Value::as_bool),
 		Some(true)
 	);
+	assert_eq!(
+		graphiti.pointer("/trace_explainability/failure_stage").and_then(Value::as_str),
+		Some("graphiti.provider_boundary")
+	);
+	assert!(array_contains_str(graphiti, "/produced_evidence", "graphiti-current-fact-contract")?);
+	assert!(array_contains_str(
+		graphiti,
+		"/produced_evidence",
+		"graphiti-historical-fact-contract"
+	)?);
+	assert!(array_contains_str(graphiti, "/produced_evidence", "graphiti-provider-boundary")?);
 	assert!(array_contains_str(graphify, "/produced_evidence", "graphify-source-location-output")?);
 
 	Ok(())
@@ -3383,7 +3398,8 @@ fn assert_qmd_debug_retest_markdown_and_indexes(
 		benchmarking_index.contains("2026-06-19-qmd-debug-ergonomics-dreaming-retest-report.md")
 	);
 	assert!(readme.contains("qmd Debug-Ergonomics Dreaming Retest Report - June 19, 2026"));
-	assert!(readme.contains("Latest real-world benchmark report: June 22, 2026"));
+	assert!(readme.contains("Temporal and Trajectory Adapter Coverage Report - June 23, 2026"));
+	assert!(readme.contains("Latest real-world benchmark report: June 23, 2026"));
 	assert!(readme.contains("keeps the qmd edge unchanged"));
 }
 
@@ -7199,6 +7215,10 @@ fn context_trajectory_fixtures_report_blocked_openviking_gates() -> Result<()> {
 		report.pointer("/summary/expected_evidence_recall").and_then(Value::as_f64),
 		Some(1.0)
 	);
+	assert_eq!(
+		report.pointer("/summary/trace_explainability_count").and_then(Value::as_u64),
+		Some(3)
+	);
 
 	let suites = array_at(&report, "/suites")?;
 	let context = find_by_field(suites, "/suite_id", "context_trajectory")?;
@@ -7217,6 +7237,40 @@ fn context_trajectory_fixtures_report_blocked_openviking_gates() -> Result<()> {
 	assert_eq!(staged.pointer("/status").and_then(Value::as_str), Some("blocked"));
 	assert_eq!(hierarchy.pointer("/status").and_then(Value::as_str), Some("blocked"));
 	assert_eq!(recursive.pointer("/status").and_then(Value::as_str), Some("blocked"));
+	assert_eq!(
+		staged.pointer("/trace_explainability/failure_stage").and_then(Value::as_str),
+		Some("openviking.stage_artifact_gate")
+	);
+	assert_eq!(
+		hierarchy.pointer("/trace_explainability/failure_stage").and_then(Value::as_str),
+		Some("openviking.hierarchy_artifact_gate")
+	);
+	assert_eq!(
+		recursive.pointer("/trace_explainability/failure_stage").and_then(Value::as_str),
+		Some("openviking.recursive_expansion_gate")
+	);
+
+	let staged_stages = array_at(staged, "/trace_explainability/stages")?;
+	let staged_gate =
+		find_by_field(staged_stages, "/stage_name", "openviking.stage_artifact_gate")?;
+
+	assert!(array_contains_str(staged_gate, "/dropped_evidence", "trajectory-win-decoy")?);
+
+	let hierarchy_stages = array_at(hierarchy, "/trace_explainability/stages")?;
+	let hierarchy_gate =
+		find_by_field(hierarchy_stages, "/stage_name", "openviking.hierarchy_artifact_gate")?;
+
+	assert!(array_contains_str(hierarchy_gate, "/dropped_evidence", "hierarchy-design-win-decoy")?);
+
+	let recursive_stages = array_at(recursive, "/trace_explainability/stages")?;
+	let recursive_gate =
+		find_by_field(recursive_stages, "/stage_name", "openviking.recursive_expansion_gate")?;
+
+	assert!(array_contains_str(
+		recursive_gate,
+		"/dropped_evidence",
+		"recursive-expansion-win-decoy"
+	)?);
 	assert!(
 		staged.pointer("/reason").and_then(Value::as_str).is_some_and(
 			|reason| reason.contains("same-corpus output returns expected evidence ids")
@@ -7292,7 +7346,7 @@ fn assert_root_aggregate_summary(report: &Value) {
 	assert_eq!(report.pointer("/summary/quote_coverage").and_then(Value::as_f64), Some(1.0));
 	assert_eq!(
 		report.pointer("/summary/trace_explainability_count").and_then(Value::as_u64),
-		Some(2)
+		Some(5)
 	);
 	assert_eq!(
 		report.pointer("/summary/wrong_result_stage_attribution_count").and_then(Value::as_u64),
