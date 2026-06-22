@@ -6,7 +6,7 @@ resource: docs/runbook/getting_started.md
 status: active
 authority: procedural
 owner: runbook
-last_verified: 2026-06-18
+last_verified: 2026-06-23
 tags:
   - docs
   - runbook
@@ -18,6 +18,19 @@ Read this when: You are bootstrapping a local ELF environment or resetting a bro
 Inputs: This repository checkout, Docker Compose for local dependencies, and optional provider credentials.
 Depends on: `Makefile.toml`, `docker-compose.yml`, `config/local/elf.docker.toml`, `elf.example.toml`, and the relevant service binaries.
 Verification: Configuration is in place and the local ELF stack can start successfully.
+
+## Agent Fast Path
+
+For a one-command local memory+knowledge loop aimed at coding/research agents, run:
+
+```sh
+cargo make local-agent-loop
+```
+
+That command starts the local Docker dependencies, runs the ELF services with the
+checked-in local config, imports a source, creates and applies a reviewable memory
+proposal, recalls it, inspects recall debug, and exercises correction/rollback. See
+`docs/runbook/agent-setup.md` for agent integration recipes and unsupported paths.
 
 ## Prerequisites
 

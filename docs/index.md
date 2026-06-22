@@ -33,6 +33,9 @@ The split below is by question type, not by human-versus-agent audience.
   `docs/spec/agent_memory_knowledge_system_v1.md`
 - Need runbooks, migrations, validation steps, troubleshooting, or operational sequences ->
   `docs/runbook/`
+- Need one-command local setup, the minimal memory+knowledge demo loop, or
+  Codex/Claude/Cursor/MCP/CLI agent integration recipes ->
+  `docs/runbook/agent-setup.md`
 - Need the single-user production backup, restore, and Qdrant rebuild path ->
   `docs/runbook/single_user_production.md`
 - Need benchmark commands or interpretation steps -> `docs/runbook/benchmarking/`
