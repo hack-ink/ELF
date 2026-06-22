@@ -2542,7 +2542,7 @@ fn assert_live_sweep_record(adapter: &Value, production_ops_status: &str) -> Res
 fn runner_discovers_nested_fixture_layout() -> Result<()> {
 	let report = run_json_report_from(fixture_root())?;
 
-	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(62));
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(66));
 
 	Ok(())
 }
@@ -3334,7 +3334,7 @@ fn assert_qmd_debug_retest_markdown_and_indexes(
 		benchmarking_index.contains("2026-06-19-qmd-debug-ergonomics-dreaming-retest-report.md")
 	);
 	assert!(readme.contains("qmd Debug-Ergonomics Dreaming Retest Report - June 19, 2026"));
-	assert!(readme.contains("Latest real-world benchmark report: June 20, 2026"));
+	assert!(readme.contains("Latest real-world benchmark report: June 22, 2026"));
 	assert!(readme.contains("keeps the qmd edge unchanged"));
 }
 
@@ -6974,7 +6974,7 @@ fn memory_authority_benchmark_covers_entity_history_and_core_archive_strengths()
 
 	assert_eq!(
 		report.pointer("/summary/history_readback_encoded_count").and_then(Value::as_u64),
-		Some(1)
+		Some(3)
 	);
 
 	let suites = array_at(&report, "/suites")?;
@@ -6985,7 +6985,7 @@ fn memory_authority_benchmark_covers_entity_history_and_core_archive_strengths()
 	assert_eq!(core_archival.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(
 		memory_evolution.pointer("/history_readback_encoded_count").and_then(Value::as_u64),
-		Some(1)
+		Some(3)
 	);
 	assert_eq!(core_archival.pointer("/encoded_job_count").and_then(Value::as_u64), Some(6));
 
@@ -7089,9 +7089,9 @@ fn assert_root_knowledge_summary(report: &Value) {
 }
 
 fn assert_root_aggregate_summary(report: &Value) {
-	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(62));
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(66));
 	assert_eq!(report.pointer("/summary/encoded_suite_count").and_then(Value::as_u64), Some(17));
-	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(55));
+	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(59));
 	assert_eq!(report.pointer("/summary/wrong_result").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/incomplete").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/blocked").and_then(Value::as_u64), Some(7));
@@ -7110,11 +7110,11 @@ fn assert_root_aggregate_summary(report: &Value) {
 	assert_eq!(report.pointer("/summary/stale_answer_count").and_then(Value::as_u64), Some(0));
 	assert_eq!(
 		report.pointer("/summary/conflict_detection_count").and_then(Value::as_u64),
-		Some(7)
+		Some(9)
 	);
 	assert_eq!(
 		report.pointer("/summary/update_rationale_available_count").and_then(Value::as_u64),
-		Some(11)
+		Some(13)
 	);
 	assert_eq!(
 		report.pointer("/summary/temporal_validity_not_encoded_count").and_then(Value::as_u64),
@@ -7134,18 +7134,18 @@ fn assert_root_aggregate_summary(report: &Value) {
 	);
 	assert_eq!(
 		report.pointer("/summary/evidence_required_count").and_then(Value::as_u64),
-		Some(137)
+		Some(149)
 	);
 	assert_eq!(
 		report.pointer("/summary/evidence_covered_count").and_then(Value::as_u64),
-		Some(137)
+		Some(149)
 	);
 	assert_eq!(report.pointer("/summary/evidence_coverage").and_then(Value::as_f64), Some(1.0));
 	assert_eq!(report.pointer("/summary/source_ref_coverage").and_then(Value::as_f64), Some(1.0));
 	assert_eq!(report.pointer("/summary/quote_coverage").and_then(Value::as_f64), Some(1.0));
 	assert_eq!(
 		report.pointer("/summary/trace_explainability_count").and_then(Value::as_u64),
-		Some(1)
+		Some(2)
 	);
 	assert_eq!(
 		report.pointer("/summary/wrong_result_stage_attribution_count").and_then(Value::as_u64),
@@ -7153,7 +7153,7 @@ fn assert_root_aggregate_summary(report: &Value) {
 	);
 	assert_eq!(
 		report.pointer("/summary/consolidation/proposal_count").and_then(Value::as_u64),
-		Some(4)
+		Some(5)
 	);
 	assert_eq!(
 		report.pointer("/summary/consolidation/source_mutation_count").and_then(Value::as_u64),
