@@ -1,10 +1,9 @@
 //! Cross-layer recall/debug panel readback.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sqlx::FromRow;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
@@ -13,9 +12,10 @@ use crate::{
 	GraphQueryPredicateRef, GraphReportRequest, KnowledgePageSearchItem,
 	KnowledgePageSearchRequest, Result, SearchExplainItem, SearchTrajectoryStage,
 	TraceBundleGetRequest,
-	access::ORG_PROJECT_ID,
-	search::{TraceBundleMode, TraceReplayCandidate},
+	access::{self, ORG_PROJECT_ID, SharedSpaceGrantKey},
+	search::{self, TraceBundleMode, TraceReplayCandidate},
 };
+use elf_storage::models::MemoryNote;
 
 /// Schema identifier for recall/debug panel responses.
 pub const ELF_RECALL_DEBUG_PANEL_SCHEMA_V1: &str = "elf.recall_debug_panel/v1";
@@ -53,6 +53,9 @@ pub struct RecallDebugPanelRequest {
 	pub include_dreaming: Option<bool>,
 	/// Maximum rows per layer.
 	pub limit: Option<u32>,
+	#[serde(skip)]
+	/// Whether project-scoped trace anchors are allowed for an admin mirror request.
+	pub allow_project_trace_debug: bool,
 }
 
 /// Cross-layer recall/debug panel response.
@@ -236,9 +239,8 @@ pub struct RecallDebugRow {
 	pub debug_artifacts: Value,
 }
 
-#[derive(Clone, Debug, FromRow)]
+#[derive(Clone, Debug)]
 struct NoteDebugSourceRow {
-	note_id: Uuid,
 	status: String,
 	source_ref: Value,
 	updated_at: OffsetDateTime,
@@ -349,6 +351,11 @@ impl ElfService {
 				"Supply trace_id to show selected and dropped Memory Note candidates.",
 			));
 		};
+
+		if !req.allow_project_trace_debug {
+			self.ensure_public_recall_trace_allowed(req, trace_id).await?;
+		}
+
 		let bundle = self
 			.trace_bundle_get(TraceBundleGetRequest {
 				tenant_id: req.tenant_id.clone(),
@@ -372,12 +379,18 @@ impl ElfService {
 			.load_memory_note_debug_sources(req, all_note_ids.iter().copied().collect())
 			.await?;
 		let replay_command = format!("elf_admin_trace_bundle_get trace_id={trace_id} mode=bounded");
+		let visible_items = bundle
+			.items
+			.iter()
+			.filter(|item| source_refs.contains_key(&item.note_id))
+			.collect::<Vec<_>>();
 		let dropped_candidates = bundle
 			.candidates
 			.as_deref()
 			.unwrap_or_default()
 			.iter()
 			.filter(|candidate| !candidate_is_selected(&selected_candidate_keys, candidate))
+			.filter(|candidate| source_refs.contains_key(&candidate.note_id))
 			.collect::<Vec<_>>();
 		let selected_cap = if !dropped_candidates.is_empty() && limit > 1 {
 			limit as usize - 1
@@ -386,7 +399,7 @@ impl ElfService {
 		};
 		let mut rows = Vec::new();
 
-		for item in bundle.items.iter().take(selected_cap) {
+		for item in visible_items.iter().take(selected_cap) {
 			let source = source_refs.get(&item.note_id);
 
 			rows.push(RecallDebugRow {
@@ -433,6 +446,38 @@ impl ElfService {
 			"Search trace bundle with selected results and replay candidates.",
 			rows,
 		))
+	}
+
+	async fn ensure_public_recall_trace_allowed(
+		&self,
+		req: &RecallDebugPanelRequest,
+		trace_id: Uuid,
+	) -> Result<()> {
+		let row: Option<(i64,)> = sqlx::query_as(
+			"\
+SELECT 1
+FROM search_traces
+WHERE trace_id = $1
+  AND tenant_id = $2
+  AND project_id = $3
+  AND agent_id = $4
+  AND read_profile = $5",
+		)
+		.bind(trace_id)
+		.bind(req.tenant_id.trim())
+		.bind(req.project_id.trim())
+		.bind(req.agent_id.trim())
+		.bind(req.read_profile.trim())
+		.fetch_optional(&self.db.pool)
+		.await?;
+
+		if row.is_some() {
+			Ok(())
+		} else {
+			Err(Error::InvalidRequest {
+				message: "Unknown trace_id for this recall context.".to_string(),
+			})
+		}
 	}
 
 	async fn recall_docs_layer(
@@ -750,9 +795,9 @@ impl ElfService {
 			return Ok(BTreeMap::new());
 		}
 
-		let rows = sqlx::query_as::<_, NoteDebugSourceRow>(
+		let rows = sqlx::query_as::<_, MemoryNote>(
 			"\
-SELECT note_id, status, source_ref, updated_at
+SELECT *
 FROM memory_notes
 	WHERE tenant_id = $1
 	  AND note_id = ANY($3::uuid[])
@@ -768,8 +813,66 @@ FROM memory_notes
 		.fetch_all(&self.db.pool)
 		.await?;
 
-		Ok(rows.into_iter().map(|row| (row.note_id, row)).collect())
+		if req.allow_project_trace_debug {
+			return Ok(rows.into_iter().map(note_debug_source_pair).collect());
+		}
+
+		let allowed_scopes =
+			search::resolve_read_profile_scopes(&self.cfg, req.read_profile.trim())?;
+		let org_shared_allowed = allowed_scopes.iter().any(|scope| scope == "org_shared");
+		let shared_grants = access::load_shared_read_grants_with_org_shared(
+			&self.db.pool,
+			req.tenant_id.trim(),
+			req.project_id.trim(),
+			req.agent_id.trim(),
+			org_shared_allowed,
+		)
+		.await?;
+
+		Ok(rows
+			.into_iter()
+			.filter(|note| {
+				note_debug_read_allowed(note, req.agent_id.trim(), &allowed_scopes, &shared_grants)
+			})
+			.map(note_debug_source_pair)
+			.collect())
 	}
+}
+
+fn note_debug_source_pair(note: MemoryNote) -> (Uuid, NoteDebugSourceRow) {
+	(
+		note.note_id,
+		NoteDebugSourceRow {
+			status: note.status,
+			source_ref: note.source_ref,
+			updated_at: note.updated_at,
+		},
+	)
+}
+
+fn note_debug_read_allowed(
+	note: &MemoryNote,
+	requester_agent_id: &str,
+	allowed_scopes: &[String],
+	shared_grants: &HashSet<SharedSpaceGrantKey>,
+) -> bool {
+	if !allowed_scopes.iter().any(|scope| scope == &note.scope) {
+		return false;
+	}
+	if note.scope == "agent_private" {
+		return note.agent_id == requester_agent_id;
+	}
+	if !matches!(note.scope.as_str(), "project_shared" | "org_shared") {
+		return false;
+	}
+	if note.agent_id == requester_agent_id {
+		return true;
+	}
+
+	shared_grants.contains(&SharedSpaceGrantKey {
+		scope: note.scope.clone(),
+		space_owner_agent_id: note.agent_id.clone(),
+	})
 }
 
 fn candidate_debug_row(
@@ -1113,10 +1216,16 @@ fn graph_temporal_status(status: crate::RelationTemporalStatus) -> String {
 
 #[cfg(test)]
 mod tests {
+	use std::collections::HashSet;
+
+	use time::OffsetDateTime;
+
 	use crate::{
 		RecallDebugRow,
+		access::SharedSpaceGrantKey,
 		recall_debug::{self, BTreeSet, Error, Uuid},
 	};
+	use elf_storage::models::MemoryNote;
 
 	#[test]
 	fn summary_preserves_not_requested_and_replay_counts() {
@@ -1225,6 +1334,47 @@ mod tests {
 	}
 
 	#[test]
+	fn debug_note_readability_preserves_stale_owner_context_only() {
+		let allowed_scopes = vec!["agent_private".to_string(), "project_shared".to_string()];
+		let shared_grants = HashSet::new();
+		let mut note = note_for_debug_visibility("owner-agent", "agent_private", "deprecated");
+
+		assert!(recall_debug::note_debug_read_allowed(
+			&note,
+			"owner-agent",
+			&allowed_scopes,
+			&shared_grants
+		));
+		assert!(!recall_debug::note_debug_read_allowed(
+			&note,
+			"other-agent",
+			&allowed_scopes,
+			&shared_grants
+		));
+
+		note.scope = "project_shared".to_string();
+
+		assert!(!recall_debug::note_debug_read_allowed(
+			&note,
+			"other-agent",
+			&allowed_scopes,
+			&shared_grants
+		));
+
+		let shared_grants = HashSet::from([SharedSpaceGrantKey {
+			scope: "project_shared".to_string(),
+			space_owner_agent_id: "owner-agent".to_string(),
+		}]);
+
+		assert!(recall_debug::note_debug_read_allowed(
+			&note,
+			"other-agent",
+			&allowed_scopes,
+			&shared_grants
+		));
+	}
+
+	#[test]
 	fn recall_trace_flattens_stale_and_dropped_context() {
 		let layers = vec![
 			recall_debug::layer_from_rows(
@@ -1308,5 +1458,30 @@ mod tests {
 				.as_deref()
 				.is_some_and(|reason| !reason.contains("password=secret"))
 		);
+	}
+
+	fn note_for_debug_visibility(agent_id: &str, scope: &str, status: &str) -> MemoryNote {
+		let now = OffsetDateTime::now_utc();
+
+		MemoryNote {
+			note_id: Uuid::new_v4(),
+			tenant_id: "tenant-a".to_string(),
+			project_id: "project-a".to_string(),
+			agent_id: agent_id.to_string(),
+			scope: scope.to_string(),
+			r#type: "fact".to_string(),
+			key: None,
+			text: "Fact: debug visibility test note.".to_string(),
+			importance: 0.7,
+			confidence: 0.9,
+			status: status.to_string(),
+			created_at: now,
+			updated_at: now,
+			expires_at: None,
+			embedding_version: "test:v1".to_string(),
+			source_ref: serde_json::json!({"schema": "source_ref/v1"}),
+			hit_count: 0,
+			last_hit_at: None,
+		}
 	}
 }
