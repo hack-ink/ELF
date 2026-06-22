@@ -149,7 +149,7 @@ runner execution.
 | `encoding` | object | Optional job-level limitation declaration. Only `not_encoded`, `blocked`, and `incomplete` statuses are allowed here. |
 | `memory_evolution` | object or null | Optional for most suites; used by `memory_evolution` jobs to report current evidence, historical evidence, stale traps, conflicts, update rationale, and temporal-validity limitations. |
 | `memory_summary` | object or null | Optional for most suites; used by `memory_summary` jobs to report reviewable summary/source-trace metrics defined in `system_memory_summary_v1.md`. |
-| `tags` | array | Optional labels such as `private_corpus`, `synthetic`, `adapter_required`, or `no_live_claim`. |
+| `tags` | array | Optional labels such as `private_corpus`, `public_proxy`, `provider_backed`, `synthetic`, `adapter_required`, or `no_live_claim`. |
 
 ### `corpus`
 
@@ -678,6 +678,14 @@ Reports MUST include:
   counts, visible typed non-pass states for each bucket and the aggregate report,
   evidence-class counts, bounded job and aggregate summary claims, and an explicit
   unqualified-win guard;
+- operational evidence gates using schema `elf.operational_evidence_gates/v1`,
+  separating `local_fixture`, `public_proxy`, `private_corpus`, and
+  `provider_backed` tiers. The gates MUST report tier status, job counts, pass and
+  typed non-pass counts, mean latency, cost summary, resource-envelope counts,
+  cold-start/restore/Qdrant-rebuild counts, typed blocker reasons, and explicit
+  booleans for whether private-corpus or provider-backed pass claims are allowed.
+  Local fixture and public-proxy passes MUST NOT satisfy private-corpus or
+  provider-backed proof.
 - run id, runner version, corpus profile, job ids, suite ids, project adapter metadata;
 - per-job status, normalized score, hard-fail hits, evidence ids used, trap ids used;
 - per-job `answer_type`, required caveat/refusal flags, and whether an unknown answer
@@ -747,6 +755,10 @@ claiming scheduled provider-backed generation.
 - A project MAY claim a suite pass only for suites with encoded jobs and a published
   report using this contract.
 - A project MUST NOT use generated public jobs to claim private production readiness.
+- A project MUST NOT use local-hash, mock-provider, fixture-only, or public-proxy
+  evidence to claim provider-backed production behavior. Missing private manifests or
+  provider credentials MUST remain typed `blocked`, `incomplete`, or `not_encoded`
+  rows with visible blocker reasons.
 - A project MUST NOT treat `blocked`, `incomplete`, or `not_encoded` as evidence of
   weakness or strength; those states only describe benchmark coverage.
 - A project MUST NOT claim "best memory system" from this suite. Reports SHOULD describe
