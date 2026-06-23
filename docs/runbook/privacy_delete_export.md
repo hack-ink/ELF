@@ -14,12 +14,15 @@ tags:
   - retention
 source_refs: []
 code_refs:
+  - apps/elf-api/src/routes.rs
+  - apps/elf-mcp/src/server.rs
   - packages/elf-service/src/delete.rs
   - packages/elf-service/src/docs.rs
   - packages/elf-service/src/graph_query.rs
   - packages/elf-service/src/graph_report.rs
   - packages/elf-service/src/knowledge.rs
   - packages/elf-service/src/search.rs
+  - packages/elf-storage/src/docs.rs
   - packages/elf-storage/src/knowledge.rs
   - apps/elf-worker/src/worker.rs
 related:
@@ -29,12 +32,15 @@ related:
   - docs/spec/system_knowledge_pages_v1.md
 drift_watch:
   - docs/runbook/privacy_delete_export.md
+  - apps/elf-api/src/routes.rs
+  - apps/elf-mcp/src/server.rs
   - packages/elf-service/src/delete.rs
   - packages/elf-service/src/docs.rs
   - packages/elf-service/src/graph_query.rs
   - packages/elf-service/src/graph_report.rs
   - packages/elf-service/src/knowledge.rs
   - packages/elf-service/src/search.rs
+  - packages/elf-storage/src/docs.rs
   - packages/elf-storage/src/knowledge.rs
 ---
 # Privacy, Delete, Export, and Retention Boundaries
@@ -76,12 +82,14 @@ and Knowledge Workspace page search must treat deleted or expired notes as
 non-recallable. Provenance and history endpoints may still show deleted, deprecated,
 or restored rows as audit evidence until lifecycle purge policy removes them.
 
-Source Library delete marks source documents non-active and the worker removes
-derived doc vectors. Direct document reads, L0 search, excerpt hydration, and derived
-Knowledge Workspace page search must resolve only active source rows. A stored page
-may still exist after its source is deleted, but page search must suppress snippets
-whose normalized source refs no longer resolve to current sources readable under the
-caller's read profile and shared-scope grants.
+Source Library delete uses `DELETE /v2/docs/{doc_id}` or the MCP
+`elf_docs_delete` tool. It marks source documents non-active and enqueues
+per-chunk doc-index `DELETE` work so the worker removes derived doc vectors. Direct
+document reads, L0 search, excerpt hydration, and derived Knowledge Workspace page
+search must resolve only active source rows. A stored page may still exist after its
+source is deleted, but page search must suppress snippets whose normalized source
+refs no longer resolve to current sources readable under the caller's read profile
+and shared-scope grants.
 
 Applied consolidation proposals are not a shortcut around source visibility. If a
 Knowledge Workspace page cites a proposal, normal page search/export may expose only
@@ -161,8 +169,9 @@ through normal agent-facing recall-debug.
 - Delete a memory note and verify ordinary search no longer returns it.
 - Query graph facts for the deleted note's entity and verify facts without active
   readable evidence are absent from graph query/report and relation context.
-- Delete or deactivate a Source Library document and verify direct doc reads, L0
-  search, excerpts, and Knowledge Workspace page search no longer surface its spans.
+- Delete a Source Library document through `DELETE /v2/docs/{doc_id}` or
+  `elf_docs_delete` and verify direct doc reads, L0 search, excerpts, doc-vector
+  points, and Knowledge Workspace page search no longer surface its spans.
 - Verify Knowledge Workspace lint or changed-source rebuild reports stale or missing
   source refs instead of treating stale derived text as current authority.
 - Verify exported reports and benchmark artifacts contain only public-safe ids,

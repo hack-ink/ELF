@@ -50,24 +50,25 @@ use elf_service::{
 	ConsolidationRunsListRequest, ConsolidationRunsListResponse, CoreBlockAttachRequest,
 	CoreBlockAttachResponse, CoreBlockDetachRequest, CoreBlockDetachResponse,
 	CoreBlockUpsertRequest, CoreBlockUpsertResponse, CoreBlocksGetRequest, CoreBlocksResponse,
-	DeleteRequest, DeleteResponse, DocType, DocsExcerptResponse, DocsExcerptsGetRequest,
-	DocsGetRequest, DocsGetResponse, DocsPutRequest, DocsPutResponse, DocsSearchL0Request,
-	DocsSearchL0Response, DreamingReviewQueueRequest, DreamingReviewQueueResponse,
-	EntityMemoryViewRequest, EntityMemoryViewResponse, Error, EventMessage, GranteeKind,
-	GraphQueryEntityRef, GraphQueryPredicateRef, GraphQueryRequest, GraphQueryResponse,
-	GraphReportRequest, GraphReportResponse, IngestionProfileSelector, KnowledgePageChangedSource,
-	KnowledgePageGetRequest, KnowledgePageLintRequest, KnowledgePageLintResponse,
-	KnowledgePageRebuildRequest, KnowledgePageRebuildResponse, KnowledgePageResponse,
-	KnowledgePageSearchRequest, KnowledgePageSearchResponse, KnowledgePageWatchRebuildRequest,
-	KnowledgePageWatchRebuildResponse, KnowledgePagesListRequest, KnowledgePagesListResponse,
-	ListRequest, ListResponse, MemoryCorrectionAction, MemoryCorrectionRequest,
-	MemoryCorrectionResponse, MemoryHistoryGetRequest, MemoryHistoryResponse, NoteFetchRequest,
-	NoteFetchResponse, NoteProvenanceBundleResponse, NoteProvenanceGetRequest, PayloadLevel,
-	PublishNoteRequest, QueryPlan, RankingRequestOverride, RebuildReport, RecallDebugPanelRequest,
-	RecallDebugPanelResponse, SearchDetailsRequest, SearchDetailsResult, SearchExplainRequest,
-	SearchExplainResponse, SearchIndexItem, SearchRequest, SearchResponse, SearchSessionGetRequest,
-	SearchTimelineGroup, SearchTimelineRequest, SearchTrajectoryResponse, SearchTrajectorySummary,
-	ShareScope, SpaceGrantRevokeRequest, SpaceGrantRevokeResponse, SpaceGrantUpsertRequest,
+	DeleteRequest, DeleteResponse, DocType, DocsDeleteRequest, DocsDeleteResponse,
+	DocsExcerptResponse, DocsExcerptsGetRequest, DocsGetRequest, DocsGetResponse, DocsPutRequest,
+	DocsPutResponse, DocsSearchL0Request, DocsSearchL0Response, DreamingReviewQueueRequest,
+	DreamingReviewQueueResponse, EntityMemoryViewRequest, EntityMemoryViewResponse, Error,
+	EventMessage, GranteeKind, GraphQueryEntityRef, GraphQueryPredicateRef, GraphQueryRequest,
+	GraphQueryResponse, GraphReportRequest, GraphReportResponse, IngestionProfileSelector,
+	KnowledgePageChangedSource, KnowledgePageGetRequest, KnowledgePageLintRequest,
+	KnowledgePageLintResponse, KnowledgePageRebuildRequest, KnowledgePageRebuildResponse,
+	KnowledgePageResponse, KnowledgePageSearchRequest, KnowledgePageSearchResponse,
+	KnowledgePageWatchRebuildRequest, KnowledgePageWatchRebuildResponse, KnowledgePagesListRequest,
+	KnowledgePagesListResponse, ListRequest, ListResponse, MemoryCorrectionAction,
+	MemoryCorrectionRequest, MemoryCorrectionResponse, MemoryHistoryGetRequest,
+	MemoryHistoryResponse, NoteFetchRequest, NoteFetchResponse, NoteProvenanceBundleResponse,
+	NoteProvenanceGetRequest, PayloadLevel, PublishNoteRequest, QueryPlan, RankingRequestOverride,
+	RebuildReport, RecallDebugPanelRequest, RecallDebugPanelResponse, SearchDetailsRequest,
+	SearchDetailsResult, SearchExplainRequest, SearchExplainResponse, SearchIndexItem,
+	SearchRequest, SearchResponse, SearchSessionGetRequest, SearchTimelineGroup,
+	SearchTimelineRequest, SearchTrajectoryResponse, SearchTrajectorySummary, ShareScope,
+	SpaceGrantRevokeRequest, SpaceGrantRevokeResponse, SpaceGrantUpsertRequest,
 	SpaceGrantsListRequest, TextPositionSelector, TextQuoteSelector, TraceBundleGetRequest,
 	TraceBundleResponse, TraceGetRequest, TraceGetResponse, TraceRecentListRequest,
 	TraceRecentListResponse, TraceTrajectoryGetRequest, UnpublishNoteRequest, UpdateRequest,
@@ -116,6 +117,7 @@ const VIEWER_HTML: &str = include_str!("../static/viewer.html");
 		events_ingest,
 		docs_put,
 		docs_get,
+		docs_delete,
 		docs_search_l0,
 		docs_excerpts_get,
 		core_blocks_get,
@@ -737,7 +739,7 @@ pub fn router(state: AppState) -> Router {
 		.layer(DefaultBodyLimit::max(MAX_REQUEST_BYTES));
 	let docs_router = Router::new()
 		.route("/v2/docs", routing::post(docs_put))
-		.route("/v2/docs/{doc_id}", routing::get(docs_get))
+		.route("/v2/docs/{doc_id}", routing::get(docs_get).delete(docs_delete))
 		.route("/v2/docs/search/l0", routing::post(docs_search_l0))
 		.route("/v2/docs/excerpts", routing::post(docs_excerpts_get))
 		.with_state(state)
@@ -1749,6 +1751,39 @@ async fn docs_get_inner(
 			project_id: ctx.project_id,
 			agent_id: ctx.agent_id,
 			read_profile,
+			doc_id,
+		})
+		.await?;
+
+	Ok(Json(response))
+}
+
+#[utoipa::path(
+	delete,
+	path = "/v2/docs/{doc_id}",
+	tag = "docs",
+	params(("doc_id" = Uuid, Path, description = "Document ID.")),
+	responses(
+		(status = 200, description = "Document was deleted.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Scope denied.", body = ErrorBody),
+		(status = 404, description = "Document was not found.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
+async fn docs_delete(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	Path(doc_id): Path<Uuid>,
+) -> Result<Json<DocsDeleteResponse>, ApiError> {
+	let ctx = RequestContext::from_headers(&headers)?;
+	let response = state
+		.service
+		.docs_delete(DocsDeleteRequest {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+			agent_id: ctx.agent_id,
 			doc_id,
 		})
 		.await?;

@@ -15,11 +15,16 @@ tags:
 source_refs:
   - docs/runbook/privacy_delete_export.md
 code_refs:
+  - apps/elf-api/src/routes.rs
+  - apps/elf-mcp/src/server.rs
+  - packages/elf-service/src/docs.rs
   - packages/elf-service/src/graph_query.rs
   - packages/elf-service/src/graph_report.rs
   - packages/elf-service/src/knowledge.rs
   - packages/elf-service/src/search.rs
+  - packages/elf-storage/src/docs.rs
   - packages/elf-storage/src/knowledge.rs
+  - packages/elf-service/tests/acceptance/docs_extension_v1.rs
   - packages/elf-service/tests/acceptance/graph_ingestion.rs
   - packages/elf-service/tests/acceptance/knowledge_pages.rs
 related:
@@ -33,10 +38,14 @@ drift_watch:
   - docs/spec/system_elf_memory_service_v2.md
   - docs/spec/system_graph_memory_postgres_v1.md
   - docs/spec/system_knowledge_pages_v1.md
+  - apps/elf-api/src/routes.rs
+  - apps/elf-mcp/src/server.rs
+  - packages/elf-service/src/docs.rs
   - packages/elf-service/src/graph_query.rs
   - packages/elf-service/src/graph_report.rs
   - packages/elf-service/src/knowledge.rs
   - packages/elf-service/src/search.rs
+  - packages/elf-storage/src/docs.rs
   - packages/elf-storage/src/knowledge.rs
 ---
 # Privacy, Delete, Export, and Retention Boundaries Drift Audit
@@ -54,6 +63,8 @@ Library, Knowledge Workspace, graph memory, and core service specs.
 
 - Source Library direct and derived readback uses current active source rows for
   recallable snippets.
+- Source Library delete has an explicit public HTTP and MCP path that marks the
+  source non-active and enqueues derived doc-vector deletion.
 - Knowledge Workspace page search suppresses snippets whose normalized source refs
   are deleted, expired, unreadable, ignored, rejected, unapplied, or contain
   non-captured spans.
@@ -66,6 +77,14 @@ Library, Knowledge Workspace, graph memory, and core service specs.
 
 ## Implementation Evidence
 
+- `apps/elf-api/src/routes.rs` exposes `DELETE /v2/docs/{doc_id}` through the public
+  docs router and OpenAPI path list.
+- `apps/elf-mcp/src/server.rs` exposes `elf_docs_delete` as a thin MCP forwarding
+  tool with no policy logic.
+- `packages/elf-service/src/docs.rs` marks owned Source Library documents deleted and
+  enqueues one doc-index `DELETE` outbox job per persisted chunk.
+- `packages/elf-storage/src/docs.rs` provides the status update used by the service
+  delete path.
 - `packages/elf-storage/src/knowledge.rs` now resolves Knowledge Workspace note,
   event, relation, document, and chunk sources through active/readable source rows.
 - `packages/elf-service/src/knowledge.rs` resolves current source keys before page
@@ -88,6 +107,10 @@ Library, Knowledge Workspace, graph memory, and core service specs.
   report facts without readable evidence.
 - `packages/elf-service/src/search.rs` has pure coverage for suppressing relation
   context rows without evidence.
+- `packages/elf-service/tests/acceptance/docs_extension_v1.rs` adds an ignored
+  integration case for Source Library delete marking the doc deleted, enqueueing
+  doc-vector deletion, suppressing direct/search readback, and removing Qdrant doc
+  points.
 - `packages/elf-service/tests/acceptance/knowledge_pages.rs` adds an ignored
   integration case for Source Library document deletion suppressing page search.
 - `packages/elf-service/tests/acceptance/graph_ingestion.rs` adds an ignored

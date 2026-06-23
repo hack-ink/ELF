@@ -1835,6 +1835,76 @@ Notes:
 - `ingestion_profile.id` is required when profile override is provided, and when `version` is omitted, latest version for that id is used.
 - If `ingestion_profile` is omitted, the tenant/project default profile is used.
 
+POST /v2/docs
+
+Headers:
+- X-ELF-Tenant-Id, X-ELF-Project-Id, X-ELF-Agent-Id
+
+Behavior:
+- Stores a Source Library document, persists normalized source capture metadata,
+  writes doc chunks, and enqueues doc-index `UPSERT` jobs for derived Qdrant points.
+- The request may include write-policy redactions or exclusions; excluded spans are
+  retained as policy metadata but are not captured source spans.
+- This endpoint must not create Memory Ledger notes, graph facts, knowledge pages,
+  search traces, or recall hits.
+
+GET /v2/docs/{doc_id}
+
+Headers:
+- X-ELF-Tenant-Id, X-ELF-Project-Id, X-ELF-Agent-Id
+- X-ELF-Read-Profile
+
+Behavior:
+- Returns active Source Library document metadata only when the caller's read profile
+  and shared grants can read the document scope.
+- Deleted documents are not returned through this current readback path.
+
+DELETE /v2/docs/{doc_id}
+
+Headers:
+- X-ELF-Tenant-Id, X-ELF-Project-Id, X-ELF-Agent-Id
+
+Response:
+{
+  "doc_id": "uuid",
+  "op": "ADD|UPDATE|NONE|DELETE|REJECTED",
+  "chunk_delete_count": 0
+}
+
+Behavior:
+- Marks the Source Library document `deleted` when the caller owns the document and
+  the document scope is writable.
+- Enqueues a doc-index `DELETE` job for every persisted document chunk so the worker
+  removes derived Qdrant doc-vector points.
+- Repeating delete on an already deleted document returns `op = NONE`.
+- Delete does not mutate Memory Ledger notes, graph facts, knowledge pages, recall
+  traces, benchmark artifacts, or retained audit rows. Those derived/readback
+  surfaces must independently suppress deleted document spans during current recall.
+
+POST /v2/docs/search/l0
+
+Headers:
+- X-ELF-Tenant-Id, X-ELF-Project-Id, X-ELF-Agent-Id
+- X-ELF-Read-Profile
+
+Behavior:
+- Runs chunk-level Source Library search over active docs by default, with service
+  read-profile and shared-grant checks after candidate retrieval.
+- Deleted docs may be inspected only through explicit non-current audit or debugging
+  paths; normal Source Library search and derived Knowledge Workspace search must not
+  surface deleted source spans as current context.
+
+POST /v2/docs/excerpts
+
+Headers:
+- X-ELF-Tenant-Id, X-ELF-Project-Id, X-ELF-Agent-Id
+- X-ELF-Read-Profile
+
+Behavior:
+- Hydrates bounded excerpts only from active, readable Source Library documents and
+  verifies the requested chunk, quote, or position selector against current source
+  content.
+
 GET /v2/admin/events/ingestion-profiles
 
 Headers:
@@ -2475,6 +2545,7 @@ Original query:
   - elf_searches_notes -> POST /v2/searches/{search_id}/notes
   - elf_docs_put -> POST /v2/docs
   - elf_docs_get -> GET /v2/docs/{doc_id}
+  - elf_docs_delete -> DELETE /v2/docs/{doc_id}
   - elf_docs_search_l0 -> POST /v2/docs/search/l0
   - elf_docs_excerpts_get -> POST /v2/docs/excerpts
   - elf_notes_list -> GET /v2/notes
