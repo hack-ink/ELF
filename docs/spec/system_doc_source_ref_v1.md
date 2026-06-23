@@ -6,7 +6,7 @@ resource: docs/spec/system_doc_source_ref_v1.md
 status: active
 authority: normative
 owner: spec
-last_verified: 2026-06-22
+last_verified: 2026-06-23
 tags:
   - docs
   - spec
@@ -14,10 +14,14 @@ source_refs: []
 code_refs:
   - apps/elf-mcp/src/server.rs
   - packages/elf-service/src/docs.rs
+  - packages/elf-service/src/knowledge.rs
   - packages/elf-storage/src/docs.rs
-related: []
+related:
+  - docs/runbook/privacy_delete_export.md
 drift_watch:
   - docs/spec/system_doc_source_ref_v1.md
+  - packages/elf-service/src/docs.rs
+  - packages/elf-service/src/knowledge.rs
 ---
 # System: `doc_source_ref/v1` for `docs_put`
 
@@ -256,6 +260,23 @@ Persisted normalized `source_ref`:
   `policy_spans`.
 - Normalized capture fields are evidence metadata only. They MUST NOT promote a
   source record into approved Memory Authority.
+
+Delete, export, and private-span boundary:
+
+- Source Library direct reads, L0 search, excerpt hydration, and derived
+  Knowledge Workspace search MUST resolve only active source documents and chunks
+  readable under the caller's scope context.
+- Deleting or deactivating a Source Library document makes its document and chunk
+  refs non-recallable. Derived pages may retain stored stale text until rebuild, but
+  page search MUST suppress snippets whose source refs no longer resolve to active
+  readable document or chunk rows.
+- `doc_source_span/v1` entries with `status = "excluded"` or `status = "redacted"`
+  are audit evidence for write-policy handling. They MUST NOT be treated as captured
+  source evidence for derived page search, memory promotion, graph facts, or export
+  payloads that claim to contain current recallable source text.
+- Export of Source Library material is an authorized API readback of current
+  source rows and payload levels. It MUST NOT bypass scope, document status,
+  write-policy spans, or source visibility rules.
 
 ==================================================
 6) Examples

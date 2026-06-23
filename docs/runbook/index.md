@@ -14,6 +14,8 @@ Routes to: Runbook concepts under `docs/runbook/`.
   Qdrant rebuild, rollback, and cleanup.
 - `agent-setup.md`: agent-oriented local installation flow, one-command local
   memory+knowledge loop, and Codex/Claude/Cursor/MCP/CLI recipes.
+- `privacy_delete_export.md`: privacy, delete/forget, export, retention, and source
+  visibility operating boundaries.
 - `evaluation.md`: retrieval evaluation commands and interpretation flow.
 - `integration-testing.md`: integration and E2E test workflow.
 - `testing.md`: test names, scopes, and matching commands.

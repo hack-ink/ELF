@@ -6,7 +6,7 @@ resource: docs/spec/system_elf_memory_service_v2.md
 status: active
 authority: normative
 owner: spec
-last_verified: 2026-06-22
+last_verified: 2026-06-23
 tags:
   - docs
   - spec
@@ -1187,6 +1187,10 @@ Behavior:
 - Each row must expose selection state, authority layer, freshness state, source refs
   or source snapshots, score/rank where available, stage reason, evidence class, and
   replay command or deterministic artifact path when available.
+- Public recall-debug memory-note source refs must resolve through current active,
+  unexpired, readable `memory_notes` at read time. Historical trace items for
+  deleted, deprecated, expired, or unreadable notes may remain retained audit data,
+  but public recall-debug must not hydrate their stored `source_ref` payloads.
 - Responses must include `recall_trace` with schema `elf.recall_trace/v1`: a compact
   deterministic projection over selected, dropped, stale, blocked, and not-requested
   context for agent and fixture/report assertions.
@@ -1222,6 +1226,9 @@ Behavior:
   traces, or source pointers.
 - Page snippets are not authoritative note search hits and must be labeled as derived
   knowledge page snippets wherever surfaced.
+- Page search must use `X-ELF-Read-Profile` and shared-scope grants to resolve
+  readable source scopes before returning snippets; sections with source refs outside
+  that effective visibility are suppressed.
 - The detailed contract is defined in `system_knowledge_pages_v1.md`.
 
 Admin reviewable memory summary readback:
@@ -1346,6 +1353,9 @@ Notes:
 - `relation_context` is omitted unless `search.graph_context.enabled` is true.
 - When present, relation context is evidence-bound and bounded by `search.graph_context.max_facts_per_item` and
   `search.graph_context.max_evidence_notes_per_fact`.
+- Relation context must include only graph facts backed by active, unexpired,
+  readable evidence notes at read time. Deleted, expired, or unreadable evidence
+  note ids must be omitted.
 - `relation_context.temporal_status` is derived from the graph fact validity window at the search read timestamp.
   Historical facts may be returned when they are evidence-linked to a selected note; they must be labeled
   `historical` instead of being presented as current.
@@ -1999,7 +2009,8 @@ Notes:
 - Shared scopes still apply grant checks; unreadable shared facts are not returned.
 - `limit` defaults to 50 and must be in the range 1..200.
 - `truncated = true` means additional facts matched but were clipped by `limit`.
-- `evidence_note_ids` is ordered by evidence creation time and capped to 16 IDs per fact.
+- `evidence_note_ids` is ordered by evidence creation time, capped to 16 IDs per
+  fact, and includes only active, unexpired, readable evidence notes.
 - `explain` defaults to false; when true, response includes `explain.schema = "elf.graph_query/v1"`.
 
 GET /v2/core-blocks

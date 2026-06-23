@@ -47,6 +47,19 @@ pub(crate) fn note_read_allowed(
 	})
 }
 
+pub(crate) fn shared_scope_key_strings(
+	shared_grants: &HashSet<SharedSpaceGrantKey>,
+) -> Vec<String> {
+	let mut keys = shared_grants
+		.iter()
+		.map(|item| format!("{}:{}", item.scope, item.space_owner_agent_id))
+		.collect::<Vec<_>>();
+
+	keys.sort();
+
+	keys
+}
+
 pub(crate) async fn load_shared_read_grants<'e, E>(
 	executor: E,
 	tenant_id: &str,

@@ -3532,6 +3532,7 @@ async fn knowledge_pages_search(
 	payload: Result<Json<KnowledgePagesSearchBody>, JsonRejection>,
 ) -> Result<Json<KnowledgePageSearchResponse>, ApiError> {
 	let ctx = RequestContext::from_headers(&headers)?;
+	let read_profile = required_read_profile(&headers)?;
 	let Json(payload) = payload.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid request payload.");
 
@@ -3542,6 +3543,8 @@ async fn knowledge_pages_search(
 		.knowledge_pages_search(KnowledgePageSearchRequest {
 			tenant_id: ctx.tenant_id,
 			project_id: ctx.project_id,
+			agent_id: ctx.agent_id,
+			read_profile,
 			query: payload.query,
 			page_kind: payload.page_kind,
 			limit: payload.limit,
