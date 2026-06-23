@@ -42,10 +42,22 @@ SELECT
 	COALESCE(
 		(SELECT ARRAY_AGG(e.note_id ORDER BY e.created_at ASC, e.note_id ASC)
 		 FROM (
-		 	SELECT note_id, created_at
-		 	FROM graph_fact_evidence
-		 	WHERE fact_id = gf.fact_id
-		 	ORDER BY created_at ASC, note_id ASC
+		 	SELECT evidence.note_id, evidence.created_at
+		 	FROM graph_fact_evidence evidence
+			JOIN memory_notes note ON note.note_id = evidence.note_id
+		 	WHERE evidence.fact_id = gf.fact_id
+				AND note.tenant_id = gf.tenant_id
+				AND note.project_id = gf.project_id
+				AND note.status = 'active'
+				AND (note.expires_at IS NULL OR note.expires_at > now())
+				AND note.scope = ANY($4::text[])
+				AND (
+					(note.scope = 'agent_private' AND note.agent_id = $6)
+					OR (note.scope <> 'agent_private' AND (
+						note.agent_id = $6 OR (note.scope || ':' || note.agent_id) = ANY($7::text[])
+					))
+				)
+		 	ORDER BY evidence.created_at ASC, evidence.note_id ASC
 		 	LIMIT $9
 		 ) e),
 		'{}'::uuid[]
@@ -79,6 +91,23 @@ WHERE gf.tenant_id = $1
 		OR (gf.scope <> 'agent_private' AND (
 			gf.agent_id = $6 OR (gf.scope || ':' || gf.agent_id) = ANY($7::text[])
 		))
+	)
+	AND EXISTS (
+		SELECT 1
+		FROM graph_fact_evidence evidence
+		JOIN memory_notes note ON note.note_id = evidence.note_id
+		WHERE evidence.fact_id = gf.fact_id
+			AND note.tenant_id = gf.tenant_id
+			AND note.project_id = gf.project_id
+			AND note.status = 'active'
+			AND (note.expires_at IS NULL OR note.expires_at > now())
+			AND note.scope = ANY($4::text[])
+			AND (
+				(note.scope = 'agent_private' AND note.agent_id = $6)
+				OR (note.scope <> 'agent_private' AND (
+					note.agent_id = $6 OR (note.scope || ':' || note.agent_id) = ANY($7::text[])
+				))
+			)
 	)
 ORDER BY gf.valid_from DESC, gf.fact_id ASC
 LIMIT $8";
@@ -528,6 +557,8 @@ fn build_report_facts(
 	rows: Vec<GraphReportFactRow>,
 	as_of: OffsetDateTime,
 ) -> Vec<GraphReportFact> {
+	let rows: Vec<GraphReportFactRow> =
+		rows.into_iter().filter(|row| !row.evidence_note_ids.is_empty()).collect();
 	let current_single_counts = current_single_predicate_counts(&rows, as_of);
 
 	rows.into_iter()
@@ -907,6 +938,26 @@ mod tests {
 		assert_eq!(facts[0].temporal_status, RelationTemporalStatus::Historical);
 		assert!(facts[0].status_markers.iter().any(|marker| marker == "superseded"));
 		assert!(facts[2].status_markers.iter().any(|marker| marker == "inferred"));
+	}
+
+	#[test]
+	fn graph_report_suppresses_facts_without_readable_evidence() {
+		let mut deleted_source =
+			row(1, "Deleted Source Inc.", 10, None, "active", "single", vec![]);
+
+		deleted_source.evidence_note_ids = vec![];
+
+		let facts = graph_report::build_report_facts(
+			vec![
+				deleted_source,
+				row(2, "Active Source Inc.", 20, None, "active", "single", vec![]),
+			],
+			ts(25),
+		);
+
+		assert_eq!(facts.len(), 1);
+		assert_eq!(facts[0].fact_id, Uuid::from_u128(2));
+		assert_eq!(facts[0].object.value.as_deref(), Some("Active Source Inc."));
 	}
 
 	#[test]

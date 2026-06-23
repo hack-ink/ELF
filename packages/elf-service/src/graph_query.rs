@@ -37,10 +37,22 @@ SELECT
 	COALESCE(
 		(SELECT ARRAY_AGG(e.note_id ORDER BY e.created_at ASC, e.note_id ASC)
 		 FROM (
-		 	SELECT note_id, created_at
-		 	FROM graph_fact_evidence
-		 	WHERE fact_id = gf.fact_id
-		 	ORDER BY created_at ASC, note_id ASC
+		 	SELECT evidence.note_id, evidence.created_at
+		 	FROM graph_fact_evidence evidence
+			JOIN memory_notes note ON note.note_id = evidence.note_id
+		 	WHERE evidence.fact_id = gf.fact_id
+				AND note.tenant_id = gf.tenant_id
+				AND note.project_id = gf.project_id
+				AND note.status = 'active'
+				AND (note.expires_at IS NULL OR note.expires_at > now())
+				AND note.scope = ANY($4::text[])
+				AND (
+					(note.scope = 'agent_private' AND note.agent_id = $6)
+					OR (note.scope <> 'agent_private' AND (
+						note.agent_id = $6 OR (note.scope || ':' || note.agent_id) = ANY($7::text[])
+					))
+				)
+		 	ORDER BY evidence.created_at ASC, evidence.note_id ASC
 		 	LIMIT $9
 		 ) e),
 		'{}'::uuid[]
@@ -62,6 +74,23 @@ WHERE gf.tenant_id = $1
 		OR (gf.scope <> 'agent_private' AND (
 			gf.agent_id = $6 OR (gf.scope || ':' || gf.agent_id) = ANY($7::text[])
 		))
+	)
+	AND EXISTS (
+		SELECT 1
+		FROM graph_fact_evidence evidence
+		JOIN memory_notes note ON note.note_id = evidence.note_id
+		WHERE evidence.fact_id = gf.fact_id
+			AND note.tenant_id = gf.tenant_id
+			AND note.project_id = gf.project_id
+			AND note.status = 'active'
+			AND (note.expires_at IS NULL OR note.expires_at > now())
+			AND note.scope = ANY($4::text[])
+			AND (
+				(note.scope = 'agent_private' AND note.agent_id = $6)
+				OR (note.scope <> 'agent_private' AND (
+					note.agent_id = $6 OR (note.scope || ':' || note.agent_id) = ANY($7::text[])
+				))
+			)
 	)
 ORDER BY gf.valid_from DESC, gf.fact_id ASC
 LIMIT $8";
@@ -347,40 +376,7 @@ impl ElfService {
 			},
 		)
 		.await?;
-		let facts: Vec<GraphQueryFact> = rows
-			.into_iter()
-			.map(|row| {
-				let object = if let Some(entity_id) = row.object_entity_id {
-					GraphQueryObject {
-						entity: Some(GraphQueryObjectEntity {
-							entity_id,
-							canonical: row.object_canonical.unwrap_or_else(|| "".to_string()),
-							kind: row.object_kind,
-						}),
-						value: None,
-					}
-				} else {
-					GraphQueryObject { entity: None, value: row.object_value }
-				};
-
-				GraphQueryFact {
-					fact_id: row.fact_id,
-					scope: row.scope,
-					actor: row.actor,
-					predicate: row.predicate,
-					predicate_id: row.predicate_id,
-					valid_from: row.valid_from,
-					valid_to: row.valid_to,
-					temporal_status: crate::graph::relation_temporal_status(
-						row.valid_from,
-						row.valid_to,
-						read_at,
-					),
-					object,
-					evidence_note_ids: row.evidence_note_ids,
-				}
-			})
-			.collect();
+		let facts = graph_query_facts_from_rows(rows, read_at);
 		let queried_rows = facts.len();
 		let (facts, truncated) = truncate_graph_query_facts(facts, prepared.limit);
 		let explain = if prepared.explain {
@@ -491,6 +487,46 @@ pub(crate) fn build_graph_query_explain(
 		returned_rows,
 		truncated,
 	}
+}
+
+fn graph_query_facts_from_rows(
+	rows: Vec<GraphQueryFactRow>,
+	read_at: OffsetDateTime,
+) -> Vec<GraphQueryFact> {
+	rows.into_iter()
+		.filter(|row| !row.evidence_note_ids.is_empty())
+		.map(|row| {
+			let object = if let Some(entity_id) = row.object_entity_id {
+				GraphQueryObject {
+					entity: Some(GraphQueryObjectEntity {
+						entity_id,
+						canonical: row.object_canonical.unwrap_or_else(|| "".to_string()),
+						kind: row.object_kind,
+					}),
+					value: None,
+				}
+			} else {
+				GraphQueryObject { entity: None, value: row.object_value }
+			};
+
+			GraphQueryFact {
+				fact_id: row.fact_id,
+				scope: row.scope,
+				actor: row.actor,
+				predicate: row.predicate,
+				predicate_id: row.predicate_id,
+				valid_from: row.valid_from,
+				valid_to: row.valid_to,
+				temporal_status: crate::graph::relation_temporal_status(
+					row.valid_from,
+					row.valid_to,
+					read_at,
+				),
+				object,
+				evidence_note_ids: row.evidence_note_ids,
+			}
+		})
+		.collect()
 }
 
 fn validate_graph_query_request(req: GraphQueryRequest) -> Result<PreparedGraphQuery> {
@@ -825,5 +861,46 @@ mod tests {
 
 		assert_eq!(resolved, vec!["project_shared".to_string()]);
 		assert_eq!(deduped.len(), 1);
+	}
+
+	#[test]
+	fn graph_query_rows_without_readable_evidence_are_suppressed() {
+		let read_at = OffsetDateTime::from_unix_timestamp(30).expect("valid timestamp");
+		let rows = vec![
+			super::GraphQueryFactRow {
+				fact_id: Uuid::from_u128(1),
+				scope: "agent_private".to_string(),
+				actor: "agent".to_string(),
+				predicate: "works at".to_string(),
+				predicate_id: None,
+				object_entity_id: None,
+				object_canonical: None,
+				object_kind: None,
+				object_value: Some("Deleted Source Inc.".to_string()),
+				valid_from: OffsetDateTime::from_unix_timestamp(10).expect("valid timestamp"),
+				valid_to: None,
+				evidence_note_ids: vec![],
+			},
+			super::GraphQueryFactRow {
+				fact_id: Uuid::from_u128(2),
+				scope: "agent_private".to_string(),
+				actor: "agent".to_string(),
+				predicate: "works at".to_string(),
+				predicate_id: None,
+				object_entity_id: None,
+				object_canonical: None,
+				object_kind: None,
+				object_value: Some("Active Source Inc.".to_string()),
+				valid_from: OffsetDateTime::from_unix_timestamp(20).expect("valid timestamp"),
+				valid_to: None,
+				evidence_note_ids: vec![Uuid::from_u128(200)],
+			},
+		];
+		let facts = super::graph_query_facts_from_rows(rows, read_at);
+
+		assert_eq!(facts.len(), 1);
+		assert_eq!(facts[0].fact_id, Uuid::from_u128(2));
+		assert_eq!(facts[0].object.value.as_deref(), Some("Active Source Inc."));
+		assert_eq!(facts[0].evidence_note_ids, vec![Uuid::from_u128(200)]);
 	}
 }

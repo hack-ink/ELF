@@ -117,3 +117,7 @@ logs.
   The new drift audit anchors the deterministic source import -> proposal approval
   -> recall/debug -> correction/rollback route to current HTTP, MCP, config, and
   task surfaces.
+- Added the privacy, delete, export, and retention boundary runbook for XY-1078,
+  plus a drift audit and spec updates for Source Library span suppression, Knowledge
+  Workspace source visibility, graph evidence readback, and relation-context
+  evidence filtering.
