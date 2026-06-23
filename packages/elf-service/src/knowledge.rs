@@ -1,18 +1,19 @@
 //! Deterministic derived knowledge page rebuild and readback service APIs.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
-use serde_json::{self, Map, Value};
+use serde_json::{self, Map, Number, Value};
 use sqlx::{Postgres, Transaction};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
 use crate::{
-	ElfService, Error, Result,
+	ElfService, Error, Result, access,
 	consolidation::{
 		ConsolidationProposalInput, ConsolidationRunCreateRequest, ConsolidationRunCreateResponse,
 	},
+	search,
 };
 use elf_domain::{
 	consolidation::{
@@ -32,7 +33,7 @@ use elf_storage::{
 		self, KnowledgeDocChunkSource, KnowledgeDocSource, KnowledgeEventSource,
 		KnowledgeNoteSource, KnowledgePageLintFindingInsert, KnowledgePageSearchRow,
 		KnowledgePageSectionInsert, KnowledgePageSourceRefInsert, KnowledgePageUpsert,
-		KnowledgeProposalSource, KnowledgeRelationSource,
+		KnowledgeProposalSource, KnowledgeRelationSource, KnowledgeRelationSourcesFetch,
 	},
 	models::{
 		KnowledgePage, KnowledgePageLintFinding, KnowledgePageSection, KnowledgePageSourceRef,
@@ -138,6 +139,10 @@ pub struct KnowledgePageSearchRequest {
 	pub tenant_id: String,
 	/// Project that owns the pages.
 	pub project_id: String,
+	/// Agent requesting the page search.
+	pub agent_id: String,
+	/// Read profile controlling source visibility.
+	pub read_profile: String,
 	/// English-only query for page title, key, heading, or section content.
 	pub query: String,
 	/// Optional page-kind filter.
@@ -770,7 +775,7 @@ impl SourceIds {
 		{
 			return Err(Error::InvalidRequest {
 				message:
-					"all requested knowledge page sources must exist, document sources must be active, and proposals must be applied"
+					"all requested knowledge page sources must exist, source rows must be active and readable, and proposals must be applied"
 						.to_string(),
 			});
 		}
@@ -970,12 +975,25 @@ impl ElfService {
 	) -> Result<KnowledgePageSearchResponse> {
 		validate_non_empty("tenant_id", req.tenant_id.as_str())?;
 		validate_non_empty("project_id", req.project_id.as_str())?;
+		validate_non_empty("agent_id", req.agent_id.as_str())?;
+		validate_non_empty("read_profile", req.read_profile.as_str())?;
 		validate_non_empty("query", req.query.as_str())?;
 
 		if !english_gate::is_english_natural_language(req.query.as_str()) {
 			return Err(Error::NonEnglishInput { field: "$.query".to_string() });
 		}
 
+		let allowed_scopes =
+			search::resolve_read_profile_scopes(&self.cfg, req.read_profile.as_str())?;
+		let org_shared_allowed = allowed_scopes.iter().any(|scope| scope == "org_shared");
+		let shared_grants = access::load_shared_read_grants_with_org_shared(
+			&self.db.pool,
+			req.tenant_id.as_str(),
+			req.project_id.as_str(),
+			req.agent_id.as_str(),
+			org_shared_allowed,
+		)
+		.await?;
 		let query = req.query.trim().to_ascii_lowercase();
 		let query_pattern = format!("%{query}%");
 		let page_kind = req.page_kind.map(KnowledgePageKind::as_str);
@@ -991,13 +1009,24 @@ impl ElfService {
 		let page_ids = sorted_unique(&rows.iter().map(|row| row.page_id).collect::<Vec<_>>());
 		let source_refs =
 			knowledge::list_knowledge_page_source_refs_for_pages(&self.db.pool, &page_ids).await?;
+		let current_source_keys = self
+			.resolve_current_recallable_source_keys(
+				req.tenant_id.as_str(),
+				req.project_id.as_str(),
+				req.agent_id.as_str(),
+				&allowed_scopes,
+				&shared_grants,
+				&source_refs,
+			)
+			.await?;
 		let source_refs_by_section = source_refs_by_section(&source_refs);
 		let items = rows
 			.into_iter()
-			.map(|row| {
+			.filter_map(|row| {
 				let refs = cloned_source_refs(source_refs_by_section.get(&row.section_id));
 
-				knowledge_page_search_item(row, refs, req.query.as_str())
+				recallable_source_refs(refs.as_slice(), &current_source_keys)
+					.then(|| knowledge_page_search_item(row, refs, req.query.as_str()))
 			})
 			.collect();
 
@@ -1079,8 +1108,25 @@ impl ElfService {
 		req: &KnowledgePageRebuildRequest,
 		ids: &SourceIds,
 	) -> Result<Vec<SourceSnapshot>> {
+		let allowed_scopes = self.cfg.scopes.allowed.as_slice();
+		let org_shared_allowed = allowed_scopes.iter().any(|scope| scope == "org_shared");
+		let shared_grants = access::load_shared_read_grants_with_org_shared(
+			&self.db.pool,
+			req.tenant_id.as_str(),
+			req.project_id.as_str(),
+			req.agent_id.as_str(),
+			org_shared_allowed,
+		)
+		.await?;
 		let (docs, doc_chunks, notes, events, relations, proposals) = self
-			.resolve_existing_source_rows(req.tenant_id.as_str(), req.project_id.as_str(), ids)
+			.resolve_existing_source_rows(
+				req.tenant_id.as_str(),
+				req.project_id.as_str(),
+				Some(req.agent_id.as_str()),
+				allowed_scopes,
+				&shared_grants,
+				ids,
+			)
 			.await?;
 
 		ids.require_counts(
@@ -1099,6 +1145,9 @@ impl ElfService {
 		&self,
 		tenant_id: &str,
 		project_id: &str,
+		agent_id: Option<&str>,
+		allowed_scopes: &[String],
+		shared_grants: &HashSet<access::SharedSpaceGrantKey>,
 		ids: &SourceIds,
 	) -> Result<(
 		Vec<KnowledgeDocSource>,
@@ -1112,35 +1161,99 @@ impl ElfService {
 			&self.db.pool,
 			tenant_id,
 			project_id,
+			agent_id,
+			allowed_scopes,
 			&ids.doc_ids,
 		)
 		.await?;
+		let docs = docs
+			.into_iter()
+			.filter(|source| {
+				source_row_read_allowed(
+					source.agent_id.as_str(),
+					source.scope.as_str(),
+					agent_id,
+					allowed_scopes,
+					shared_grants,
+				)
+			})
+			.collect();
 		let doc_chunks = knowledge::fetch_knowledge_doc_chunk_sources(
 			&self.db.pool,
 			tenant_id,
 			project_id,
+			agent_id,
+			allowed_scopes,
 			&ids.doc_chunk_ids,
 		)
 		.await?;
+		let doc_chunks = doc_chunks
+			.into_iter()
+			.filter(|source| {
+				source_row_read_allowed(
+					source.agent_id.as_str(),
+					source.scope.as_str(),
+					agent_id,
+					allowed_scopes,
+					shared_grants,
+				)
+			})
+			.collect();
 		let notes = knowledge::fetch_knowledge_note_sources(
 			&self.db.pool,
 			tenant_id,
 			project_id,
+			agent_id,
+			allowed_scopes,
 			&ids.note_ids,
 		)
 		.await?;
+		let notes = notes
+			.into_iter()
+			.filter(|source| {
+				source_row_read_allowed(
+					source.agent_id.as_str(),
+					source.scope.as_str(),
+					agent_id,
+					allowed_scopes,
+					shared_grants,
+				)
+			})
+			.collect();
 		let events = knowledge::fetch_knowledge_event_sources(
 			&self.db.pool,
 			tenant_id,
 			project_id,
+			agent_id,
+			allowed_scopes,
 			&ids.event_ids,
 		)
 		.await?;
+		let events = events
+			.into_iter()
+			.filter(|source| {
+				source_row_read_allowed(
+					source.agent_id.as_str(),
+					source.scope.as_str(),
+					agent_id,
+					allowed_scopes,
+					shared_grants,
+				)
+			})
+			.collect();
+		let shared_scope_keys = access::shared_scope_key_strings(shared_grants);
+		let private_allowed = allowed_scopes.iter().any(|scope| scope == "agent_private");
 		let relations = knowledge::fetch_knowledge_relation_sources(
 			&self.db.pool,
-			tenant_id,
-			project_id,
-			&ids.relation_ids,
+			KnowledgeRelationSourcesFetch {
+				tenant_id,
+				project_id,
+				agent_id,
+				allowed_scopes,
+				shared_scope_keys: shared_scope_keys.as_slice(),
+				private_allowed,
+				fact_ids: &ids.relation_ids,
+			},
 		)
 		.await?;
 		let proposals = knowledge::fetch_knowledge_proposal_sources(
@@ -1188,11 +1301,45 @@ impl ElfService {
 			Error::InvalidRequest { message: "stored knowledge page kind is invalid".to_string() }
 		})?;
 		let (docs, doc_chunks, notes, events, relations, proposals) = self
-			.resolve_existing_source_rows(page.tenant_id.as_str(), page.project_id.as_str(), ids)
+			.resolve_existing_source_rows(
+				page.tenant_id.as_str(),
+				page.project_id.as_str(),
+				None,
+				self.cfg.scopes.allowed.as_slice(),
+				&HashSet::new(),
+				ids,
+			)
 			.await?;
 		let mut sources = source_snapshots(docs, doc_chunks, notes, events, relations, proposals);
 
 		Ok(sources.drain(..).map(|source| (source_key(&source), source)).collect())
+	}
+
+	async fn resolve_current_recallable_source_keys(
+		&self,
+		tenant_id: &str,
+		project_id: &str,
+		agent_id: &str,
+		allowed_scopes: &[String],
+		shared_grants: &HashSet<access::SharedSpaceGrantKey>,
+		source_refs: &[KnowledgePageSourceRef],
+	) -> Result<BTreeSet<String>> {
+		let ids = SourceIds::from_source_refs(source_refs)?;
+		let (docs, doc_chunks, notes, events, relations, proposals) = self
+			.resolve_existing_source_rows(
+				tenant_id,
+				project_id,
+				Some(agent_id),
+				allowed_scopes,
+				shared_grants,
+				&ids,
+			)
+			.await?;
+
+		Ok(source_snapshots(docs, doc_chunks, notes, events, relations, proposals)
+			.into_iter()
+			.map(|source| source_key(&source))
+			.collect())
 	}
 
 	async fn watch_rebuild_page(
@@ -2122,6 +2269,93 @@ fn source_refs_by_section(
 	by_section
 }
 
+fn recallable_source_refs(
+	source_refs: &[KnowledgePageSourceRef],
+	current_source_keys: &BTreeSet<String>,
+) -> bool {
+	!source_refs.is_empty()
+		&& source_refs.iter().all(|source_ref| {
+			current_source_keys
+				.contains(&current_key(source_ref.source_kind.as_str(), source_ref.source_id))
+				&& recallable_source_ref(source_ref)
+		})
+}
+
+fn source_row_read_allowed(
+	owner_agent_id: &str,
+	scope: &str,
+	requester_agent_id: Option<&str>,
+	allowed_scopes: &[String],
+	shared_grants: &HashSet<access::SharedSpaceGrantKey>,
+) -> bool {
+	if !allowed_scopes.iter().any(|allowed_scope| allowed_scope == scope) {
+		return false;
+	}
+
+	let Some(requester_agent_id) = requester_agent_id else {
+		return true;
+	};
+
+	if scope == "agent_private" {
+		return owner_agent_id == requester_agent_id;
+	}
+	if !matches!(scope, "project_shared" | "org_shared") {
+		return false;
+	}
+	if owner_agent_id == requester_agent_id {
+		return true;
+	}
+
+	shared_grants.contains(&access::SharedSpaceGrantKey {
+		scope: scope.to_string(),
+		space_owner_agent_id: owner_agent_id.to_string(),
+	})
+}
+
+fn recallable_source_ref(source_ref: &KnowledgePageSourceRef) -> bool {
+	let Some(status) = source_ref.source_status.as_deref().map(str::trim) else {
+		return false;
+	};
+
+	if !matches!(status, "active" | "remember" | "update" | "current" | "historical" | "applied") {
+		return false;
+	}
+
+	!has_non_recallable_span(&source_ref.source_snapshot)
+}
+
+fn has_non_recallable_span(source_snapshot: &Value) -> bool {
+	match source_snapshot {
+		Value::Object(object) =>
+			policy_spans_are_non_recallable(object.get("policy_spans"))
+				|| object.get("source_span").is_some_and(span_is_non_recallable)
+				|| source_spans_are_non_recallable(object.get("source_spans"))
+				|| object.values().any(has_non_recallable_span),
+		Value::Array(items) => items.iter().any(has_non_recallable_span),
+		_ => false,
+	}
+}
+
+fn policy_spans_are_non_recallable(policy_spans: Option<&Value>) -> bool {
+	match policy_spans {
+		Some(Value::Array(spans)) => !spans.is_empty(),
+		Some(Value::Null) | None => false,
+		Some(_) => true,
+	}
+}
+
+fn source_spans_are_non_recallable(source_spans: Option<&Value>) -> bool {
+	match source_spans {
+		Some(Value::Array(spans)) => spans.iter().any(span_is_non_recallable),
+		Some(Value::Null) | None => false,
+		Some(_) => true,
+	}
+}
+
+fn span_is_non_recallable(span: &Value) -> bool {
+	!matches!(span.get("status").and_then(Value::as_str), Some("captured"))
+}
+
 fn cloned_source_refs(
 	source_refs: Option<&Vec<KnowledgePageSourceRef>>,
 ) -> Vec<KnowledgePageSourceRef> {
@@ -2194,10 +2428,10 @@ fn knowledge_page_search_item(
 		heading: row.heading,
 		role: row.role,
 		snippet: snippet_for_query(row.content.as_str(), query, SEARCH_SNIPPET_CHARS),
-		citations: row.citations,
+		citations: sanitize_search_citations(row.citations),
 		citation_count,
 		source_ref_count,
-		source_refs: source_refs.into_iter().map(KnowledgePageSourceRefResponse::from).collect(),
+		source_refs: source_refs.into_iter().map(search_source_ref_response).collect(),
 		source_coverage: row.source_coverage,
 		rebuild_metadata: row.rebuild_metadata,
 		previous_version_diff,
@@ -2210,6 +2444,45 @@ fn knowledge_page_search_item(
 		updated_at: row.page_updated_at,
 		rebuilt_at: row.rebuilt_at,
 	}
+}
+
+fn search_source_ref_response(
+	source_ref: KnowledgePageSourceRef,
+) -> KnowledgePageSourceRefResponse {
+	let mut response = KnowledgePageSourceRefResponse::from(source_ref);
+
+	if response.source_kind == KnowledgeSourceKind::Proposal.as_str() {
+		response.source_snapshot = sanitize_proposal_snapshot(&response.source_snapshot);
+	}
+
+	response
+}
+
+fn sanitize_search_citations(citations: Value) -> Value {
+	let Value::Array(citations) = citations else {
+		return citations;
+	};
+
+	Value::Array(citations.into_iter().map(sanitize_search_citation).collect())
+}
+
+fn sanitize_search_citation(mut citation: Value) -> Value {
+	let is_proposal = citation
+		.get("source_kind")
+		.and_then(Value::as_str)
+		.is_some_and(|kind| kind == KnowledgeSourceKind::Proposal.as_str());
+
+	if !is_proposal {
+		return citation;
+	}
+
+	if let Some(object) = citation.as_object_mut()
+		&& let Some(source_snapshot) = object.get_mut("source_snapshot")
+	{
+		*source_snapshot = sanitize_proposal_snapshot(source_snapshot);
+	}
+
+	citation
 }
 
 fn search_trust_state(
@@ -2706,10 +2979,8 @@ fn proposal_source_snapshot(row: KnowledgeProposalSource) -> SourceSnapshot {
 		"proposed_payload": row.proposed_payload.clone(),
 		"review_state": row.review_state.clone(),
 	}));
-	let summary =
-		row.diff.get("summary").and_then(Value::as_str).unwrap_or("Applied consolidation proposal");
-	let line = format!("Applied proposal {}: {summary}", row.proposal_kind);
-	let snapshot = serde_json::json!({
+	let line = format!("Applied proposal {}", row.proposal_kind);
+	let snapshot = sanitize_proposal_snapshot(&serde_json::json!({
 		"kind": "proposal",
 		"proposal_id": row.proposal_id,
 		"run_id": row.run_id,
@@ -2728,7 +2999,7 @@ fn proposal_source_snapshot(row: KnowledgeProposalSource) -> SourceSnapshot {
 		"target_ref": row.target_ref.clone(),
 		"proposed_payload_hash": content_hash,
 		"updated_at": row.updated_at,
-	});
+	}));
 
 	SourceSnapshot {
 		kind: KnowledgeSourceKind::Proposal,
@@ -2740,6 +3011,61 @@ fn proposal_source_snapshot(row: KnowledgeProposalSource) -> SourceSnapshot {
 		citation_metadata: serde_json::json!({ "section_role": "reviewed_proposal" }),
 		line,
 	}
+}
+
+fn sanitize_proposal_snapshot(source_snapshot: &Value) -> Value {
+	let Some(object) = source_snapshot.as_object() else {
+		return serde_json::json!({
+			"kind": "proposal",
+			"sanitized": true,
+			"source_visibility": "proposal_metadata_only",
+		});
+	};
+	let nested_source_count =
+		object.get("source_refs").and_then(Value::as_array).map(Vec::len).unwrap_or_default();
+	let mut sanitized = Map::new();
+
+	for key in [
+		"kind",
+		"proposal_id",
+		"run_id",
+		"agent_id",
+		"proposal_kind",
+		"apply_intent",
+		"review_state",
+		"confidence",
+		"proposed_payload_hash",
+		"updated_at",
+	] {
+		if let Some(value) = object.get(key) {
+			sanitized.insert(key.to_string(), value.clone());
+		}
+	}
+
+	sanitized.insert("sanitized".to_string(), Value::Bool(true));
+	sanitized.insert(
+		"source_visibility".to_string(),
+		Value::String("proposal_metadata_only".to_string()),
+	);
+	sanitized.insert(
+		"omitted_fields".to_string(),
+		serde_json::json!([
+			"source_refs",
+			"source_snapshot",
+			"lineage",
+			"diff",
+			"unsupported_claim_flags",
+			"contradiction_markers",
+			"staleness_markers",
+			"target_ref"
+		]),
+	);
+	sanitized.insert(
+		"nested_source_ref_count".to_string(),
+		Value::Number(Number::from(nested_source_count)),
+	);
+
+	Value::Object(sanitized)
 }
 
 fn source_citation_value(source: &SourceSnapshot) -> Value {
@@ -3386,11 +3712,20 @@ async fn insert_lint_finding(
 
 #[cfg(test)]
 mod tests {
-	use crate::knowledge::{
-		self, DraftSection, KnowledgeDeltaMemoryCandidate, KnowledgePage, KnowledgePageKind,
-		KnowledgePageResponse, KnowledgePageSearchRow, KnowledgePageSection,
-		KnowledgePageSectionResponse, KnowledgePageSourceRef, KnowledgePageSourceRefResponse,
-		KnowledgePageSummary, KnowledgeSourceKind, LintDraft, OffsetDateTime, SourceSnapshot, Uuid,
+	use std::{
+		collections::{BTreeSet, HashSet},
+		slice,
+	};
+
+	use crate::{
+		access::SharedSpaceGrantKey,
+		knowledge::{
+			self, DraftSection, KnowledgeDeltaMemoryCandidate, KnowledgePage, KnowledgePageKind,
+			KnowledgePageResponse, KnowledgePageSearchRow, KnowledgePageSection,
+			KnowledgePageSectionResponse, KnowledgePageSourceRef, KnowledgePageSourceRefResponse,
+			KnowledgePageSummary, KnowledgeSourceKind, LintDraft, OffsetDateTime, SourceSnapshot,
+			Uuid,
+		},
 	};
 	use elf_domain::consolidation::ConsolidationApplyIntent;
 
@@ -3757,6 +4092,241 @@ mod tests {
 		assert!(item.snippet.contains("source notes"));
 	}
 
+	#[test]
+	fn search_source_refs_suppress_deleted_and_unreviewed_sources() {
+		let section_id = Uuid::from_u128(70);
+		let mut active = test_source_ref(section_id);
+		let mut deleted = test_source_ref(section_id);
+		let mut ignored = test_source_ref(section_id);
+		let current_keys = current_source_keys_for(&[&active, &deleted, &ignored]);
+
+		deleted.source_status = Some("deleted".to_string());
+		ignored.source_status = Some("ignore".to_string());
+
+		assert!(knowledge::recallable_source_refs(slice::from_ref(&active), &current_keys));
+		assert!(!knowledge::recallable_source_refs(&[deleted], &current_keys));
+		assert!(!knowledge::recallable_source_refs(&[ignored], &current_keys));
+
+		active.source_status = None;
+
+		assert!(!knowledge::recallable_source_refs(&[active], &current_keys));
+	}
+
+	#[test]
+	fn search_source_refs_suppress_non_captured_spans() {
+		let section_id = Uuid::from_u128(71);
+		let mut excluded = test_source_ref(section_id);
+		let mut source_ref_span = test_source_ref(section_id);
+		let mut policy_span = test_source_ref(section_id);
+		let mut malformed_span = test_source_ref(section_id);
+		let current_keys =
+			current_source_keys_for(&[&excluded, &source_ref_span, &policy_span, &malformed_span]);
+
+		excluded.source_snapshot = serde_json::json!({
+			"source_span": {
+				"schema": "doc_source_span/v1",
+				"status": "excluded",
+				"reason_code": "WRITE_POLICY_EXCLUSION"
+			}
+		});
+		source_ref_span.source_snapshot = serde_json::json!({
+			"source_ref": {
+				"source_spans": [
+					{
+						"schema": "doc_source_span/v1",
+						"status": "redacted",
+						"reason_code": "WRITE_POLICY_REDACTION"
+					}
+				]
+			}
+		});
+		policy_span.source_snapshot = serde_json::json!({
+			"source_ref": {
+				"policy_spans": [
+					{
+						"schema": "doc_source_span/v1",
+						"status": "excluded",
+						"reason_code": "WRITE_POLICY_EXCLUSION"
+					}
+				]
+			}
+		});
+		malformed_span.source_snapshot = serde_json::json!({
+			"source_span": {
+				"schema": "doc_source_span/v1",
+				"reason_code": "WRITE_POLICY_REDACTION"
+			}
+		});
+
+		assert!(!knowledge::recallable_source_refs(&[excluded], &current_keys));
+		assert!(!knowledge::recallable_source_refs(&[source_ref_span], &current_keys));
+		assert!(!knowledge::recallable_source_refs(&[policy_span], &current_keys));
+		assert!(!knowledge::recallable_source_refs(&[malformed_span], &current_keys));
+	}
+
+	#[test]
+	fn search_source_refs_suppress_nested_proposal_non_captured_spans() {
+		let section_id = Uuid::from_u128(73);
+		let mut proposal = test_source_ref_for(section_id, Uuid::from_u128(74), "proposal-hash");
+
+		proposal.source_kind = KnowledgeSourceKind::Proposal.as_str().to_string();
+		proposal.source_status = Some("applied".to_string());
+		proposal.source_snapshot = serde_json::json!({
+			"kind": "proposal",
+			"proposal_id": proposal.source_id,
+			"source_refs": [
+				{
+					"kind": "doc_chunk",
+					"source_ref": {
+						"policy_spans": [
+							{
+								"schema": "doc_source_span/v1",
+								"status": "excluded",
+								"reason_code": "WRITE_POLICY_EXCLUSION"
+							}
+						]
+					}
+				}
+			],
+			"source_snapshot": {
+				"sources": [
+					{
+						"source_snapshot": {
+							"source_span": {
+								"schema": "doc_source_span/v1",
+								"status": "redacted",
+								"reason_code": "WRITE_POLICY_REDACTION"
+							}
+						}
+					}
+				]
+			},
+			"diff": {
+				"after": {
+					"source_ref": {
+						"source_spans": [
+							{
+								"schema": "doc_source_span/v1",
+								"status": "excluded",
+								"reason_code": "WRITE_POLICY_EXCLUSION"
+							}
+						]
+					}
+				}
+			}
+		});
+
+		let current_keys = current_source_keys_for(&[&proposal]);
+
+		assert!(!knowledge::recallable_source_refs(&[proposal], &current_keys));
+	}
+
+	#[test]
+	fn search_item_sanitizes_proposal_citations_and_source_refs() {
+		let section_id = Uuid::from_u128(75);
+		let mut source_ref = test_source_ref_for(section_id, Uuid::from_u128(76), "proposal-hash");
+
+		source_ref.source_kind = KnowledgeSourceKind::Proposal.as_str().to_string();
+		source_ref.source_status = Some("applied".to_string());
+		source_ref.source_snapshot = serde_json::json!({
+			"kind": "proposal",
+			"proposal_id": source_ref.source_id,
+			"proposal_kind": "create_derived_note",
+			"source_refs": [{ "kind": "doc", "source_id": Uuid::from_u128(77) }],
+			"source_snapshot": { "sources": [{ "source_snapshot": { "text": "private raw source" } }] },
+			"lineage": { "parents": ["private"] },
+			"diff": { "summary": "private raw diff" },
+			"unsupported_claim_flags": [{ "quote": "private raw flag" }],
+			"target_ref": { "text": "private raw target" }
+		});
+
+		let row = KnowledgePageSearchRow {
+			page_id: Uuid::from_u128(78),
+			page_kind: "project".to_string(),
+			page_key: "elf".to_string(),
+			title: "ELF Knowledge".to_string(),
+			status: "active".to_string(),
+			source_coverage: serde_json::json!({
+				"source_count": 1,
+				"cited_source_count": 1,
+				"coverage_complete": true
+			}),
+			rebuild_metadata: serde_json::json!({ "deterministic": true }),
+			page_updated_at: OffsetDateTime::UNIX_EPOCH,
+			rebuilt_at: OffsetDateTime::UNIX_EPOCH,
+			section_id,
+			section_key: "reviewed-proposals".to_string(),
+			heading: "Reviewed Proposals".to_string(),
+			role: "proposals".to_string(),
+			content: "Applied proposal create_derived_note".to_string(),
+			ordinal: 0,
+			citations: serde_json::json!([{
+				"source_kind": "proposal",
+				"source_id": source_ref.source_id,
+				"source_snapshot": source_ref.source_snapshot.clone()
+			}]),
+			unsupported_reason: None,
+			lint_error_count: 0,
+			lint_warning_count: 0,
+			lint_info_count: 0,
+			section_source_ref_count: 1,
+		};
+		let item = knowledge::knowledge_page_search_item(row, vec![source_ref], "proposal");
+		let citation_snapshot = &item.citations[0]["source_snapshot"];
+		let source_ref_snapshot = &item.source_refs[0].source_snapshot;
+
+		assert_eq!(citation_snapshot["sanitized"], true);
+		assert_eq!(source_ref_snapshot["sanitized"], true);
+		assert!(citation_snapshot.get("source_refs").is_none());
+		assert!(citation_snapshot.get("source_snapshot").is_none());
+		assert!(citation_snapshot.get("diff").is_none());
+		assert!(source_ref_snapshot.get("source_refs").is_none());
+		assert!(source_ref_snapshot.get("source_snapshot").is_none());
+		assert!(source_ref_snapshot.get("diff").is_none());
+	}
+
+	#[test]
+	fn search_source_refs_suppress_missing_current_sources() {
+		let section_id = Uuid::from_u128(72);
+		let source_ref = test_source_ref(section_id);
+
+		assert!(!knowledge::recallable_source_refs(&[source_ref], &BTreeSet::new()));
+	}
+
+	#[test]
+	fn source_row_read_allowed_requires_shared_grant_for_other_agent_sources() {
+		let allowed_scopes = vec!["agent_private".to_string(), "project_shared".to_string()];
+		let shared_grants = HashSet::new();
+
+		assert!(knowledge::source_row_read_allowed(
+			"owner-agent",
+			"project_shared",
+			Some("owner-agent"),
+			&allowed_scopes,
+			&shared_grants
+		));
+		assert!(!knowledge::source_row_read_allowed(
+			"owner-agent",
+			"project_shared",
+			Some("reader-agent"),
+			&allowed_scopes,
+			&shared_grants
+		));
+
+		let shared_grants = HashSet::from([SharedSpaceGrantKey {
+			scope: "project_shared".to_string(),
+			space_owner_agent_id: "owner-agent".to_string(),
+		}]);
+
+		assert!(knowledge::source_row_read_allowed(
+			"owner-agent",
+			"project_shared",
+			Some("reader-agent"),
+			&allowed_scopes,
+			&shared_grants
+		));
+	}
+
 	fn test_page() -> KnowledgePage {
 		KnowledgePage {
 			page_id: Uuid::from_u128(1),
@@ -3830,6 +4400,15 @@ mod tests {
 			citation_metadata: serde_json::json!({}),
 			created_at: OffsetDateTime::UNIX_EPOCH,
 		}
+	}
+
+	fn current_source_keys_for(source_refs: &[&KnowledgePageSourceRef]) -> BTreeSet<String> {
+		source_refs
+			.iter()
+			.map(|source_ref| {
+				knowledge::current_key(source_ref.source_kind.as_str(), source_ref.source_id)
+			})
+			.collect()
 	}
 
 	fn test_page_response(section_id: Uuid, source_id: Uuid) -> KnowledgePageResponse {

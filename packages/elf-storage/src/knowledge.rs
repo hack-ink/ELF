@@ -120,6 +120,24 @@ pub struct KnowledgePageLintFindingInsert<'a> {
 	pub now: OffsetDateTime,
 }
 
+/// Parameters for fetching graph relation sources for knowledge pages.
+pub struct KnowledgeRelationSourcesFetch<'a> {
+	/// Tenant that owns the relation sources.
+	pub tenant_id: &'a str,
+	/// Project that owns the relation sources.
+	pub project_id: &'a str,
+	/// Agent requesting source readback, when visibility should be caller-scoped.
+	pub agent_id: Option<&'a str>,
+	/// Scopes allowed by the caller read profile.
+	pub allowed_scopes: &'a [String],
+	/// Shared owner/scope grant keys readable by the caller.
+	pub shared_scope_keys: &'a [String],
+	/// Whether private scope is readable by the caller.
+	pub private_allowed: bool,
+	/// Graph fact identifiers to fetch.
+	pub fact_ids: &'a [Uuid],
+}
+
 /// Authoritative note source row used by the knowledge page rebuilder.
 #[derive(Debug, FromRow)]
 pub struct KnowledgeNoteSource {
@@ -1031,6 +1049,8 @@ pub async fn fetch_knowledge_note_sources<'e, E>(
 	executor: E,
 	tenant_id: &str,
 	project_id: &str,
+	agent_id: Option<&str>,
+	allowed_scopes: &[String],
 	note_ids: &[Uuid],
 ) -> Result<Vec<KnowledgeNoteSource>>
 where
@@ -1060,11 +1080,17 @@ SELECT
 FROM memory_notes
 WHERE tenant_id = $1
 	AND project_id = $2
-	AND note_id = ANY($3::uuid[])
+	AND ($3::text IS NULL OR scope <> 'agent_private' OR agent_id = $3)
+	AND scope = ANY($4::text[])
+	AND note_id = ANY($5::uuid[])
+	AND status = 'active'
+	AND (expires_at IS NULL OR expires_at > now())
 ORDER BY updated_at ASC, note_id ASC",
 	)
 	.bind(tenant_id)
 	.bind(project_id)
+	.bind(agent_id)
+	.bind(allowed_scopes)
 	.bind(note_ids)
 	.fetch_all(executor)
 	.await?;
@@ -1077,6 +1103,8 @@ pub async fn fetch_knowledge_event_sources<'e, E>(
 	executor: E,
 	tenant_id: &str,
 	project_id: &str,
+	agent_id: Option<&str>,
+	allowed_scopes: &[String],
 	decision_ids: &[Uuid],
 ) -> Result<Vec<KnowledgeEventSource>>
 where
@@ -1089,27 +1117,39 @@ where
 	let rows = sqlx::query_as::<_, KnowledgeEventSource>(
 		"\
 SELECT
-	decision_id,
-	agent_id,
-	scope,
-	pipeline,
-	note_type,
-	note_key,
-	note_id,
-	policy_decision,
-	note_op,
-	reason_code,
-	details,
-	ts
+	memory_ingest_decisions.decision_id,
+	memory_ingest_decisions.agent_id,
+	memory_ingest_decisions.scope,
+	memory_ingest_decisions.pipeline,
+	memory_ingest_decisions.note_type,
+	memory_ingest_decisions.note_key,
+	memory_ingest_decisions.note_id,
+	memory_ingest_decisions.policy_decision,
+	memory_ingest_decisions.note_op,
+	memory_ingest_decisions.reason_code,
+	memory_ingest_decisions.details,
+	memory_ingest_decisions.ts
 FROM memory_ingest_decisions
-WHERE tenant_id = $1
-	AND project_id = $2
-	AND decision_id = ANY($3::uuid[])
-	AND pipeline = 'add_event'
-ORDER BY ts ASC, decision_id ASC",
+JOIN memory_notes note ON note.note_id = memory_ingest_decisions.note_id
+WHERE memory_ingest_decisions.tenant_id = $1
+	AND memory_ingest_decisions.project_id = $2
+	AND ($3::text IS NULL OR memory_ingest_decisions.scope <> 'agent_private' OR memory_ingest_decisions.agent_id = $3)
+	AND memory_ingest_decisions.scope = ANY($4::text[])
+	AND memory_ingest_decisions.decision_id = ANY($5::uuid[])
+	AND memory_ingest_decisions.pipeline = 'add_event'
+	AND memory_ingest_decisions.policy_decision IN ('remember', 'update')
+	AND note.tenant_id = memory_ingest_decisions.tenant_id
+	AND note.project_id = memory_ingest_decisions.project_id
+	AND note.status = 'active'
+	AND (note.expires_at IS NULL OR note.expires_at > now())
+	AND ($3::text IS NULL OR note.scope <> 'agent_private' OR note.agent_id = $3)
+	AND note.scope = ANY($4::text[])
+ORDER BY memory_ingest_decisions.ts ASC, memory_ingest_decisions.decision_id ASC",
 	)
 	.bind(tenant_id)
 	.bind(project_id)
+	.bind(agent_id)
+	.bind(allowed_scopes)
 	.bind(decision_ids)
 	.fetch_all(executor)
 	.await?;
@@ -1120,14 +1160,12 @@ ORDER BY ts ASC, decision_id ASC",
 /// Fetches relation sources by graph fact identifier for a knowledge page rebuild.
 pub async fn fetch_knowledge_relation_sources<'e, E>(
 	executor: E,
-	tenant_id: &str,
-	project_id: &str,
-	fact_ids: &[Uuid],
+	params: KnowledgeRelationSourcesFetch<'_>,
 ) -> Result<Vec<KnowledgeRelationSource>>
 where
 	E: PgExecutor<'e>,
 {
-	if fact_ids.is_empty() {
+	if params.fact_ids.is_empty() {
 		return Ok(Vec::new());
 	}
 
@@ -1154,7 +1192,25 @@ SELECT
 				'updated_at', note.updated_at
 			)
 			ORDER BY evidence.created_at ASC, evidence.note_id ASC
-		) FILTER (WHERE evidence.note_id IS NOT NULL),
+		) FILTER (
+			WHERE evidence.note_id IS NOT NULL
+				AND note.tenant_id = gf.tenant_id
+				AND note.project_id = gf.project_id
+				AND note.status = 'active'
+				AND (note.expires_at IS NULL OR note.expires_at > now())
+				AND note.scope = ANY($4::text[])
+				AND (
+					$3::text IS NULL
+					OR ($6 AND note.scope = 'agent_private' AND note.agent_id = $3)
+					OR (
+						note.scope <> 'agent_private'
+						AND (
+							note.agent_id = $3
+							OR concat(note.scope, ':', note.agent_id) = ANY($5::text[])
+						)
+					)
+				)
+		),
 		'[]'::jsonb
 	) AS evidence_notes
 FROM graph_facts gf
@@ -1164,7 +1220,42 @@ LEFT JOIN graph_fact_evidence evidence ON evidence.fact_id = gf.fact_id
 LEFT JOIN memory_notes note ON note.note_id = evidence.note_id
 WHERE gf.tenant_id = $1
 	AND gf.project_id = $2
-	AND gf.fact_id = ANY($3::uuid[])
+	AND gf.scope = ANY($4::text[])
+	AND (
+		$3::text IS NULL
+		OR ($6 AND gf.scope = 'agent_private' AND gf.agent_id = $3)
+		OR (
+			gf.scope <> 'agent_private'
+			AND (
+				gf.agent_id = $3
+				OR concat(gf.scope, ':', gf.agent_id) = ANY($5::text[])
+			)
+		)
+	)
+	AND gf.fact_id = ANY($7::uuid[])
+	AND EXISTS (
+		SELECT 1
+		FROM graph_fact_evidence readable_evidence
+		JOIN memory_notes readable_note
+			ON readable_note.note_id = readable_evidence.note_id
+		WHERE readable_evidence.fact_id = gf.fact_id
+			AND readable_note.tenant_id = gf.tenant_id
+			AND readable_note.project_id = gf.project_id
+			AND readable_note.status = 'active'
+			AND (readable_note.expires_at IS NULL OR readable_note.expires_at > now())
+			AND readable_note.scope = ANY($4::text[])
+			AND (
+				$3::text IS NULL
+				OR ($6 AND readable_note.scope = 'agent_private' AND readable_note.agent_id = $3)
+				OR (
+					readable_note.scope <> 'agent_private'
+					AND (
+						readable_note.agent_id = $3
+						OR concat(readable_note.scope, ':', readable_note.agent_id) = ANY($5::text[])
+					)
+				)
+			)
+	)
 GROUP BY
 	gf.fact_id,
 	gf.agent_id,
@@ -1180,9 +1271,13 @@ GROUP BY
 	gf.updated_at
 ORDER BY gf.updated_at ASC, gf.fact_id ASC",
 	)
-	.bind(tenant_id)
-	.bind(project_id)
-	.bind(fact_ids)
+	.bind(params.tenant_id)
+	.bind(params.project_id)
+	.bind(params.agent_id)
+	.bind(params.allowed_scopes)
+	.bind(params.shared_scope_keys)
+	.bind(params.private_allowed)
+	.bind(params.fact_ids)
 	.fetch_all(executor)
 	.await?;
 
@@ -1244,6 +1339,8 @@ pub async fn fetch_knowledge_doc_sources<'e, E>(
 	executor: E,
 	tenant_id: &str,
 	project_id: &str,
+	agent_id: Option<&str>,
+	allowed_scopes: &[String],
 	doc_ids: &[Uuid],
 ) -> Result<Vec<KnowledgeDocSource>>
 where
@@ -1271,12 +1368,16 @@ SELECT
 FROM doc_documents
 WHERE tenant_id = $1
 	AND project_id = $2
-	AND doc_id = ANY($3::uuid[])
+	AND ($3::text IS NULL OR scope <> 'agent_private' OR agent_id = $3)
+	AND scope = ANY($4::text[])
+	AND doc_id = ANY($5::uuid[])
 	AND status = 'active'
 ORDER BY updated_at ASC, doc_id ASC",
 	)
 	.bind(tenant_id)
 	.bind(project_id)
+	.bind(agent_id)
+	.bind(allowed_scopes)
 	.bind(doc_ids)
 	.fetch_all(executor)
 	.await?;
@@ -1289,6 +1390,8 @@ pub async fn fetch_knowledge_doc_chunk_sources<'e, E>(
 	executor: E,
 	tenant_id: &str,
 	project_id: &str,
+	agent_id: Option<&str>,
+	allowed_scopes: &[String],
 	chunk_ids: &[Uuid],
 ) -> Result<Vec<KnowledgeDocChunkSource>>
 where
@@ -1321,12 +1424,16 @@ FROM doc_chunks c
 JOIN doc_documents d ON d.doc_id = c.doc_id
 WHERE d.tenant_id = $1
 	AND d.project_id = $2
-	AND c.chunk_id = ANY($3::uuid[])
+	AND ($3::text IS NULL OR d.scope <> 'agent_private' OR d.agent_id = $3)
+	AND d.scope = ANY($4::text[])
+	AND c.chunk_id = ANY($5::uuid[])
 	AND d.status = 'active'
 ORDER BY d.updated_at ASC, c.chunk_index ASC, c.chunk_id ASC",
 	)
 	.bind(tenant_id)
 	.bind(project_id)
+	.bind(agent_id)
+	.bind(allowed_scopes)
 	.bind(chunk_ids)
 	.fetch_all(executor)
 	.await?;

@@ -6,7 +6,7 @@ resource: docs/spec/system_knowledge_pages_v1.md
 status: active
 authority: normative
 owner: spec
-last_verified: 2026-06-22
+last_verified: 2026-06-23
 tags:
   - docs
   - spec
@@ -18,7 +18,8 @@ code_refs:
   - packages/elf-storage/src/knowledge.rs
   - sql/tables/035_knowledge_pages.sql
   - sql/tables/037_knowledge_page_source_refs.sql
-related: []
+related:
+  - docs/runbook/privacy_delete_export.md
 drift_watch:
   - docs/spec/system_knowledge_pages_v1.md
   - apps/elf-api/src/routes.rs
@@ -106,12 +107,51 @@ Rebuild input sources may include:
 
 - active Source Library `doc_documents`
 - active Source Library `doc_chunks` as cited source spans
-- active or historical `memory_notes`
-- durable `add_event` audit rows from `memory_ingest_decisions`
-- `graph_facts` plus `graph_fact_evidence`
+- active, unexpired, readable `memory_notes`
+- durable `add_event` audit rows from `memory_ingest_decisions` that remain linked
+  to active, unexpired, readable notes and policy decisions of `remember` or `update`
+- `graph_facts` plus active, unexpired, readable `graph_fact_evidence` notes
 - applied `consolidation_proposals`
 
 Unreviewed consolidation proposals must not be used as source input for persisted pages.
+
+## Source Visibility And Delete Suppression
+
+Knowledge pages are stored derived artifacts, so an already persisted page can outlive
+one of its source rows. Readback must not treat that stale derived text as current
+source authority.
+
+Knowledge page rebuild, lint, changed-source rebuild, and search must resolve stored
+normalized source refs through current authoritative source rows. Search must resolve
+the caller's `read_profile` to allowed source scopes and enforce shared-scope grants
+before deciding whether a stored section is recallable. A source ref is current and
+recallable only when:
+
+- Source Library document and chunk refs point to active rows readable by the caller.
+- Memory note refs point to active, unexpired rows readable by the caller.
+- Event refs point to `remember` or `update` ingest decisions still linked to active,
+  unexpired, readable notes.
+- Relation refs point to graph facts with at least one active, unexpired, readable
+  evidence note.
+- Proposal refs point to applied consolidation proposals and their nested proposal
+  inputs do not carry deleted, private, excluded, redacted, or otherwise
+  non-recallable source spans.
+- Source snapshots with Source Library spans contain only `captured` spans for the
+  cited derived content.
+
+Knowledge page search must suppress a section snippet when any normalized source ref
+for that section is deleted, expired, unreadable under the caller's read profile,
+unreadable under the shared-grant owner/scope model, ignored, rejected, unapplied, or
+contains a non-captured private/excluded span. Lint and changed-source rebuild may
+still report stale or missing refs as operator diagnostics, but ordinary page search
+must not surface the stale derived text as current recall.
+
+Proposal-backed source refs are review artifacts. Ordinary page search and export
+must not return raw proposal `source_refs`, nested `source_snapshot`, `lineage`,
+`diff`, flags, markers, target refs, or proposed payload bodies. Search/export
+readback may expose bounded proposal metadata such as proposal id, run id, kind,
+review state, confidence, payload hash, update timestamp, and a count of omitted
+nested source refs.
 
 `knowledge_pages.source_coverage` must include:
 
@@ -250,7 +290,8 @@ Page search results must include:
 - result type discriminator `knowledge_page_section`
 - page id, page kind, page key, title, status, section id, section key, heading, role
 - bounded section snippet
-- section citations and normalized source backlinks
+- section citations and normalized source backlinks, with proposal-backed citations
+  reduced to bounded metadata
 - page source coverage metadata
 - rebuild metadata, including previous-version diff metadata when present
 - lint summary and trust state that distinguishes clean, warning, error, and low

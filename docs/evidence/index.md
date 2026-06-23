@@ -22,5 +22,8 @@ Routes to: Drift audits and evidence concepts under `docs/evidence/`.
   proposal contract.
 - `2026-06-23-local-agent-loop-drift-audit.md`: Drift audit for the one-command
   local setup and agent integration recipes.
+- `2026-06-23-privacy-delete-export-boundaries-drift-audit.md`: Drift audit for
+  privacy, delete/forget, export, retention, source visibility, and graph evidence
+  suppression boundaries.
 - `external_memory_pattern_radar_latest.md`: Latest weekly external memory pattern
   radar summary.

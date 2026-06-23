@@ -308,6 +308,18 @@ impl ElfMcp {
 	}
 
 	#[rmcp::tool(
+		name = "elf_docs_delete",
+		description = "Delete a Source Library document by doc_id and enqueue derived doc-vector removal.",
+		input_schema = docs_get_schema()
+	)]
+	async fn elf_docs_delete(&self, mut params: JsonObject) -> Result<CallToolResult, ErrorData> {
+		let doc_id = take_required_string(&mut params, "doc_id")?;
+		let path = format!("/v2/docs/{doc_id}");
+
+		self.forward(HttpMethod::Delete, &path, JsonObject::new(), None).await
+	}
+
+	#[rmcp::tool(
 		name = "elf_docs_search_l0",
 		description = "Run a minimal Doc search (L0): chunk-level results with short snippets.",
 		input_schema = docs_search_l0_schema()

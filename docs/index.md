@@ -36,6 +36,8 @@ The split below is by question type, not by human-versus-agent audience.
 - Need one-command local setup, the minimal memory+knowledge demo loop, or
   Codex/Claude/Cursor/MCP/CLI agent integration recipes ->
   `docs/runbook/agent-setup.md`
+- Need privacy, delete/forget, export, retention, connected-source, provider, or
+  private-span operating boundaries -> `docs/runbook/privacy_delete_export.md`
 - Need the single-user production backup, restore, and Qdrant rebuild path ->
   `docs/runbook/single_user_production.md`
 - Need benchmark commands or interpretation steps -> `docs/runbook/benchmarking/`

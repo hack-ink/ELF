@@ -7,7 +7,8 @@ use crate::acceptance::{self, SpyExtractor, StubEmbedding, StubRerank};
 use elf_domain::knowledge::KnowledgePageKind;
 use elf_service::{
 	AddNoteInput, AddNoteRequest, ElfService, KnowledgePageLintRequest,
-	KnowledgePageRebuildRequest, KnowledgePageRebuildResponse, Providers,
+	KnowledgePageRebuildRequest, KnowledgePageRebuildResponse, KnowledgePageSearchRequest,
+	Providers,
 };
 use elf_testkit::TestDatabase;
 
@@ -517,4 +518,113 @@ WHERE note_id = $3",
 			&& finding.source_kind.as_deref() == Some("note")
 			&& finding.source_id == Some(source_ids.note_id)
 	}));
+}
+
+#[tokio::test]
+#[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run this test."]
+async fn knowledge_page_search_suppresses_deleted_source_library_spans() {
+	let Some(fixture) =
+		setup_service("knowledge_page_search_suppresses_deleted_source_library_spans").await
+	else {
+		return;
+	};
+	let service = &fixture.service;
+	let source_ids = insert_rebuild_sources(service).await;
+	let page = service
+		.knowledge_page_rebuild(knowledge_foundation_request(source_ids))
+		.await
+		.expect("knowledge page should rebuild");
+	let before_delete = service
+		.knowledge_pages_search(KnowledgePageSearchRequest {
+			tenant_id: TENANT_ID.to_string(),
+			project_id: PROJECT_ID.to_string(),
+			agent_id: AGENT_ID.to_string(),
+			read_profile: "private_plus_project".to_string(),
+			query: "Source Library spans".to_string(),
+			page_kind: Some(KnowledgePageKind::Project),
+			limit: Some(10),
+		})
+		.await
+		.expect("knowledge page search should run");
+
+	assert!(
+		before_delete.items.iter().any(|item| item.page_id == page.page.page.page_id
+			&& item.source_refs.iter().any(|source_ref| {
+				source_ref.source_kind == "doc" || source_ref.source_kind == "doc_chunk"
+			})),
+		"expected search to return the Source Library-backed page section before delete"
+	);
+
+	let private_only = service
+		.knowledge_pages_search(KnowledgePageSearchRequest {
+			tenant_id: TENANT_ID.to_string(),
+			project_id: PROJECT_ID.to_string(),
+			agent_id: AGENT_ID.to_string(),
+			read_profile: "private_only".to_string(),
+			query: "Source Library spans".to_string(),
+			page_kind: Some(KnowledgePageKind::Project),
+			limit: Some(10),
+		})
+		.await
+		.expect("knowledge page search should run");
+
+	assert!(
+		private_only.items.iter().all(|item| {
+			!item.source_refs.iter().any(|source_ref| {
+				source_ref.source_kind == "doc" || source_ref.source_kind == "doc_chunk"
+			})
+		}),
+		"private_only search must not recall project-shared Source Library snippets"
+	);
+
+	let ungranted_shared_reader = service
+		.knowledge_pages_search(KnowledgePageSearchRequest {
+			tenant_id: TENANT_ID.to_string(),
+			project_id: PROJECT_ID.to_string(),
+			agent_id: "agent_without_source_grant".to_string(),
+			read_profile: "private_plus_project".to_string(),
+			query: "Source Library spans".to_string(),
+			page_kind: Some(KnowledgePageKind::Project),
+			limit: Some(10),
+		})
+		.await
+		.expect("knowledge page search should run");
+
+	assert!(
+		ungranted_shared_reader.items.iter().all(|item| {
+			!item.source_refs.iter().any(|source_ref| {
+				source_ref.source_kind == "doc" || source_ref.source_kind == "doc_chunk"
+			})
+		}),
+		"project-shared Source Library snippets require an owner or active shared grant"
+	);
+
+	sqlx::query("UPDATE doc_documents SET status = 'deleted', updated_at = $1 WHERE doc_id = $2")
+		.bind(OffsetDateTime::now_utc())
+		.bind(source_ids.doc_id)
+		.execute(&service.db.pool)
+		.await
+		.expect("source document should be marked deleted");
+
+	let after_delete = service
+		.knowledge_pages_search(KnowledgePageSearchRequest {
+			tenant_id: TENANT_ID.to_string(),
+			project_id: PROJECT_ID.to_string(),
+			agent_id: AGENT_ID.to_string(),
+			read_profile: "private_plus_project".to_string(),
+			query: "Source Library spans".to_string(),
+			page_kind: Some(KnowledgePageKind::Project),
+			limit: Some(10),
+		})
+		.await
+		.expect("knowledge page search should run");
+
+	assert!(
+		after_delete.items.iter().all(|item| {
+			!item.source_refs.iter().any(|source_ref| {
+				source_ref.source_kind == "doc" || source_ref.source_kind == "doc_chunk"
+			})
+		}),
+		"deleted Source Library docs and chunks must not be recalled through derived page search"
+	);
 }

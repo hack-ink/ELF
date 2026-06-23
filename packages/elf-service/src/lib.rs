@@ -60,9 +60,9 @@ pub use self::{
 	},
 	delete::{DeleteRequest, DeleteResponse},
 	docs::{
-		DocType, DocsExcerptResponse, DocsExcerptsGetRequest, DocsGetRequest, DocsGetResponse,
-		DocsPutRequest, DocsPutResponse, DocsSearchL0Request, DocsSearchL0Response,
-		TextPositionSelector, TextQuoteSelector,
+		DocType, DocsDeleteRequest, DocsDeleteResponse, DocsExcerptResponse,
+		DocsExcerptsGetRequest, DocsGetRequest, DocsGetResponse, DocsPutRequest, DocsPutResponse,
+		DocsSearchL0Request, DocsSearchL0Response, TextPositionSelector, TextQuoteSelector,
 	},
 	dreaming_review_queue::{
 		DreamingReviewQueueAudit, DreamingReviewQueueItem, DreamingReviewQueueItemPolicy,

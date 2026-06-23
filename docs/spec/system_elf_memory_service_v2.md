@@ -6,7 +6,7 @@ resource: docs/spec/system_elf_memory_service_v2.md
 status: active
 authority: normative
 owner: spec
-last_verified: 2026-06-22
+last_verified: 2026-06-23
 tags:
   - docs
   - spec
@@ -1187,6 +1187,10 @@ Behavior:
 - Each row must expose selection state, authority layer, freshness state, source refs
   or source snapshots, score/rank where available, stage reason, evidence class, and
   replay command or deterministic artifact path when available.
+- Public recall-debug memory-note source refs must resolve through current active,
+  unexpired, readable `memory_notes` at read time. Historical trace items for
+  deleted, deprecated, expired, or unreadable notes may remain retained audit data,
+  but public recall-debug must not hydrate their stored `source_ref` payloads.
 - Responses must include `recall_trace` with schema `elf.recall_trace/v1`: a compact
   deterministic projection over selected, dropped, stale, blocked, and not-requested
   context for agent and fixture/report assertions.
@@ -1222,6 +1226,9 @@ Behavior:
   traces, or source pointers.
 - Page snippets are not authoritative note search hits and must be labeled as derived
   knowledge page snippets wherever surfaced.
+- Page search must use `X-ELF-Read-Profile` and shared-scope grants to resolve
+  readable source scopes before returning snippets; sections with source refs outside
+  that effective visibility are suppressed.
 - The detailed contract is defined in `system_knowledge_pages_v1.md`.
 
 Admin reviewable memory summary readback:
@@ -1346,6 +1353,9 @@ Notes:
 - `relation_context` is omitted unless `search.graph_context.enabled` is true.
 - When present, relation context is evidence-bound and bounded by `search.graph_context.max_facts_per_item` and
   `search.graph_context.max_evidence_notes_per_fact`.
+- Relation context must include only graph facts backed by active, unexpired,
+  readable evidence notes at read time. Deleted, expired, or unreadable evidence
+  note ids must be omitted.
 - `relation_context.temporal_status` is derived from the graph fact validity window at the search read timestamp.
   Historical facts may be returned when they are evidence-linked to a selected note; they must be labeled
   `historical` instead of being presented as current.
@@ -1825,6 +1835,76 @@ Notes:
 - `ingestion_profile.id` is required when profile override is provided, and when `version` is omitted, latest version for that id is used.
 - If `ingestion_profile` is omitted, the tenant/project default profile is used.
 
+POST /v2/docs
+
+Headers:
+- X-ELF-Tenant-Id, X-ELF-Project-Id, X-ELF-Agent-Id
+
+Behavior:
+- Stores a Source Library document, persists normalized source capture metadata,
+  writes doc chunks, and enqueues doc-index `UPSERT` jobs for derived Qdrant points.
+- The request may include write-policy redactions or exclusions; excluded spans are
+  retained as policy metadata but are not captured source spans.
+- This endpoint must not create Memory Ledger notes, graph facts, knowledge pages,
+  search traces, or recall hits.
+
+GET /v2/docs/{doc_id}
+
+Headers:
+- X-ELF-Tenant-Id, X-ELF-Project-Id, X-ELF-Agent-Id
+- X-ELF-Read-Profile
+
+Behavior:
+- Returns active Source Library document metadata only when the caller's read profile
+  and shared grants can read the document scope.
+- Deleted documents are not returned through this current readback path.
+
+DELETE /v2/docs/{doc_id}
+
+Headers:
+- X-ELF-Tenant-Id, X-ELF-Project-Id, X-ELF-Agent-Id
+
+Response:
+{
+  "doc_id": "uuid",
+  "op": "ADD|UPDATE|NONE|DELETE|REJECTED",
+  "chunk_delete_count": 0
+}
+
+Behavior:
+- Marks the Source Library document `deleted` when the caller owns the document and
+  the document scope is writable.
+- Enqueues a doc-index `DELETE` job for every persisted document chunk so the worker
+  removes derived Qdrant doc-vector points.
+- Repeating delete on an already deleted document returns `op = NONE`.
+- Delete does not mutate Memory Ledger notes, graph facts, knowledge pages, recall
+  traces, benchmark artifacts, or retained audit rows. Those derived/readback
+  surfaces must independently suppress deleted document spans during current recall.
+
+POST /v2/docs/search/l0
+
+Headers:
+- X-ELF-Tenant-Id, X-ELF-Project-Id, X-ELF-Agent-Id
+- X-ELF-Read-Profile
+
+Behavior:
+- Runs chunk-level Source Library search over active docs by default, with service
+  read-profile and shared-grant checks after candidate retrieval.
+- Deleted docs may be inspected only through explicit non-current audit or debugging
+  paths; normal Source Library search and derived Knowledge Workspace search must not
+  surface deleted source spans as current context.
+
+POST /v2/docs/excerpts
+
+Headers:
+- X-ELF-Tenant-Id, X-ELF-Project-Id, X-ELF-Agent-Id
+- X-ELF-Read-Profile
+
+Behavior:
+- Hydrates bounded excerpts only from active, readable Source Library documents and
+  verifies the requested chunk, quote, or position selector against current source
+  content.
+
 GET /v2/admin/events/ingestion-profiles
 
 Headers:
@@ -1999,7 +2079,8 @@ Notes:
 - Shared scopes still apply grant checks; unreadable shared facts are not returned.
 - `limit` defaults to 50 and must be in the range 1..200.
 - `truncated = true` means additional facts matched but were clipped by `limit`.
-- `evidence_note_ids` is ordered by evidence creation time and capped to 16 IDs per fact.
+- `evidence_note_ids` is ordered by evidence creation time, capped to 16 IDs per
+  fact, and includes only active, unexpired, readable evidence notes.
 - `explain` defaults to false; when true, response includes `explain.schema = "elf.graph_query/v1"`.
 
 GET /v2/core-blocks
@@ -2464,6 +2545,7 @@ Original query:
   - elf_searches_notes -> POST /v2/searches/{search_id}/notes
   - elf_docs_put -> POST /v2/docs
   - elf_docs_get -> GET /v2/docs/{doc_id}
+  - elf_docs_delete -> DELETE /v2/docs/{doc_id}
   - elf_docs_search_l0 -> POST /v2/docs/search/l0
   - elf_docs_excerpts_get -> POST /v2/docs/excerpts
   - elf_notes_list -> GET /v2/notes

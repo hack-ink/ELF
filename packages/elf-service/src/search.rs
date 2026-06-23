@@ -73,6 +73,8 @@ WITH selected_facts AS (
 		gf.valid_to,
 		(gf.valid_from <= $4 AND (gf.valid_to IS NULL OR gf.valid_to > $4)) AS is_current
 	FROM unnest($7::uuid[]) AS snc(selected_note_id)
+	JOIN memory_notes selected_note
+		ON selected_note.note_id = snc.selected_note_id
 	JOIN graph_fact_evidence gfe
 		ON gfe.note_id = snc.selected_note_id
 	JOIN graph_facts gf
@@ -87,9 +89,32 @@ WITH selected_facts AS (
 		AND object_entity.project_id = $2
 	WHERE gf.tenant_id = $1
 		AND gf.project_id = $2
+		AND selected_note.tenant_id = $1
+		AND selected_note.project_id = $2
+		AND selected_note.status = 'active'
+		AND (
+			selected_note.expires_at IS NULL
+			OR selected_note.expires_at > $4
+		)
+		AND (
+			($5 AND selected_note.scope = 'agent_private' AND selected_note.agent_id = $3)
+			OR (
+				selected_note.scope = ANY($6::text[])
+				AND (
+					selected_note.agent_id = $3
+					OR concat(selected_note.scope, ':', selected_note.agent_id) = ANY($10::text[])
+				)
+			)
+		)
 		AND (
 			($5 AND gf.scope = 'agent_private' AND gf.agent_id = $3)
-			OR gf.scope = ANY($6::text[])
+			OR (
+				gf.scope = ANY($6::text[])
+				AND (
+					gf.agent_id = $3
+					OR concat(gf.scope, ':', gf.agent_id) = ANY($10::text[])
+				)
+			)
 		)
 		AND gf.valid_from <= $4
 	ORDER BY
@@ -164,6 +189,25 @@ evidence_ranked AS (
 	FROM bounded_facts bf
 	JOIN graph_fact_evidence e
 		ON e.fact_id = bf.fact_id
+	JOIN memory_notes evidence_note
+		ON evidence_note.note_id = e.note_id
+		AND evidence_note.tenant_id = $1
+		AND evidence_note.project_id = $2
+		AND evidence_note.status = 'active'
+		AND (
+			evidence_note.expires_at IS NULL
+			OR evidence_note.expires_at > $4
+		)
+		AND (
+			($5 AND evidence_note.scope = 'agent_private' AND evidence_note.agent_id = $3)
+			OR (
+				evidence_note.scope = ANY($6::text[])
+				AND (
+					evidence_note.agent_id = $3
+					OR concat(evidence_note.scope, ':', evidence_note.agent_id) = ANY($10::text[])
+				)
+			)
+		)
 ),
 fact_contexts AS (
 	SELECT
@@ -4675,6 +4719,16 @@ WHERE note_id = ANY($1::uuid[])
 		let private_allowed = allowed_scopes.iter().any(|scope| scope == "agent_private");
 		let non_private_scopes: Vec<String> =
 			allowed_scopes.iter().filter(|scope| *scope != "agent_private").cloned().collect();
+		let org_shared_allowed = allowed_scopes.iter().any(|scope| scope == "org_shared");
+		let shared_grants = access::load_shared_read_grants_with_org_shared(
+			&self.db.pool,
+			tenant_id,
+			project_id,
+			agent_id,
+			org_shared_allowed,
+		)
+		.await?;
+		let shared_scope_keys = access::shared_scope_key_strings(&shared_grants);
 		let (max_evidence_notes_per_fact, max_facts_per_item) = self.relation_context_bounds();
 		let rows = self
 			.fetch_relation_context_rows(
@@ -4683,6 +4737,7 @@ WHERE note_id = ANY($1::uuid[])
 				project_id,
 				agent_id,
 				&non_private_scopes,
+				shared_scope_keys.as_slice(),
 				private_allowed,
 				now,
 				max_evidence_notes_per_fact,
@@ -4711,6 +4766,7 @@ WHERE note_id = ANY($1::uuid[])
 		project_id: &str,
 		agent_id: &str,
 		non_private_scopes: &[String],
+		shared_scope_keys: &[String],
 		private_allowed: bool,
 		now: OffsetDateTime,
 		max_evidence_notes_per_fact: i32,
@@ -4726,6 +4782,7 @@ WHERE note_id = ANY($1::uuid[])
 			.bind(note_ids)
 			.bind(max_evidence_notes_per_fact)
 			.bind(max_facts_per_item)
+			.bind(shared_scope_keys)
 			.fetch_all(&self.db.pool)
 			.await?)
 	}
@@ -4737,6 +4794,10 @@ WHERE note_id = ANY($1::uuid[])
 			HashMap::new();
 
 		for row in rows {
+			if row.evidence_note_ids.is_empty() {
+				continue;
+			}
+
 			let object = if row.object_entity_id.is_some() {
 				SearchExplainRelationContextObject {
 					entity: Some(SearchExplainRelationEntityRef {
@@ -6595,6 +6656,43 @@ mod tests {
 
 		assert_eq!(audit.get("actor_id"), Some(&Value::from("agent-a")));
 		assert!(audit.get("token_id").is_none());
+	}
+
+	#[test]
+	fn relation_context_rows_without_evidence_are_suppressed() {
+		let now = OffsetDateTime::from_unix_timestamp(100).expect("valid timestamp");
+		let note_id = Uuid::from_u128(1);
+		let contexts = crate::ElfService::group_relation_context_rows(vec![
+			search::SearchRelationContextRow {
+				note_id,
+				fact_id: Uuid::from_u128(2),
+				scope: "project_shared".to_string(),
+				subject_canonical: Some("Alice".to_string()),
+				subject_kind: Some("person".to_string()),
+				predicate: "prefers".to_string(),
+				object_entity_id: None,
+				object_canonical: None,
+				object_kind: None,
+				object_value: Some("source-bound recall".to_string()),
+				valid_from: now,
+				valid_to: None,
+				is_current: true,
+				evidence_note_ids: Vec::new(),
+			},
+		]);
+
+		assert!(!contexts.contains_key(&note_id));
+	}
+
+	#[test]
+	fn relation_context_sql_enforces_shared_grant_keys() {
+		assert!(
+			search::RELATION_CONTEXT_SQL
+				.contains("concat(gf.scope, ':', gf.agent_id) = ANY($10::text[])")
+		);
+		assert!(search::RELATION_CONTEXT_SQL.contains(
+			"concat(evidence_note.scope, ':', evidence_note.agent_id) = ANY($10::text[])"
+		));
 	}
 
 	fn test_chunk_candidate(note_id: Uuid, retrieval_rank: u32) -> ChunkCandidate {

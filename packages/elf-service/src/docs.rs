@@ -20,7 +20,7 @@ use tokenizers::Tokenizer;
 use uuid::Uuid;
 
 use crate::{
-	ElfService, Error, Result,
+	ElfService, Error, NoteOp, Result,
 	access::{self, ORG_PROJECT_ID, SharedSpaceGrantKey},
 	search,
 };
@@ -241,6 +241,30 @@ pub struct DocsGetResponse {
 	pub created_at: OffsetDateTime,
 	/// Last update timestamp.
 	pub updated_at: OffsetDateTime,
+}
+
+/// Request payload for Source Library document deletion.
+#[derive(Clone, Debug, Deserialize)]
+pub struct DocsDeleteRequest {
+	/// Tenant that owns the document.
+	pub tenant_id: String,
+	/// Project that owns the document.
+	pub project_id: String,
+	/// Agent requesting the deletion.
+	pub agent_id: String,
+	/// Identifier of the document to delete.
+	pub doc_id: Uuid,
+}
+
+/// Response payload for Source Library document deletion.
+#[derive(Clone, Debug, Serialize)]
+pub struct DocsDeleteResponse {
+	/// Identifier of the affected document.
+	pub doc_id: Uuid,
+	/// Operation that was applied.
+	pub op: NoteOp,
+	/// Number of persisted chunks queued for derived-index deletion.
+	pub chunk_delete_count: u32,
 }
 
 /// Request payload for L0 document retrieval.
@@ -869,6 +893,104 @@ LIMIT 1",
 			content_hash: row.content_hash,
 			created_at: row.created_at,
 			updated_at: row.updated_at,
+		})
+	}
+
+	/// Soft-deletes one Source Library document and enqueues doc-vector deletion.
+	pub async fn docs_delete(&self, req: DocsDeleteRequest) -> Result<DocsDeleteResponse> {
+		let now = OffsetDateTime::now_utc();
+		let embed_version = crate::embedding_version(&self.cfg);
+		let tenant_id = req.tenant_id.trim();
+		let project_id = req.project_id.trim();
+		let agent_id = req.agent_id.trim();
+
+		if tenant_id.is_empty() || project_id.is_empty() || agent_id.is_empty() {
+			return Err(Error::InvalidRequest {
+				message: "tenant_id, project_id, and agent_id are required.".to_string(),
+			});
+		}
+
+		let mut tx = self.db.pool.begin().await?;
+		let row: DocDocument = sqlx::query_as::<_, DocDocument>(
+			"\
+SELECT
+	doc_id,
+	tenant_id,
+	project_id,
+	agent_id,
+	scope,
+	doc_type,
+	status,
+	title,
+	COALESCE(source_ref, '{}'::jsonb) AS source_ref,
+	content,
+	content_bytes,
+	content_hash,
+	created_at,
+	updated_at
+FROM doc_documents
+WHERE doc_id = $1
+	AND tenant_id = $2
+	AND (
+		project_id = $3
+		OR (project_id = $4 AND scope = 'org_shared')
+	)
+FOR UPDATE",
+		)
+		.bind(req.doc_id)
+		.bind(tenant_id)
+		.bind(project_id)
+		.bind(ORG_PROJECT_ID)
+		.fetch_optional(&mut *tx)
+		.await?
+		.ok_or_else(|| Error::NotFound { message: "Doc not found.".to_string() })?;
+
+		if row.agent_id != agent_id {
+			return Err(Error::NotFound { message: "Doc not found.".to_string() });
+		}
+
+		let scope_allowed = self.cfg.scopes.allowed.iter().any(|scope| scope == &row.scope);
+		let write_allowed = match row.scope.as_str() {
+			"agent_private" => self.cfg.scopes.write_allowed.agent_private,
+			"project_shared" => self.cfg.scopes.write_allowed.project_shared,
+			"org_shared" => self.cfg.scopes.write_allowed.org_shared,
+			_ => false,
+		};
+
+		if !scope_allowed || !write_allowed {
+			return Err(Error::ScopeDenied { message: "Scope is not allowed.".to_string() });
+		}
+		if row.status == "deleted" {
+			tx.commit().await?;
+
+			return Ok(DocsDeleteResponse {
+				doc_id: row.doc_id,
+				op: NoteOp::None,
+				chunk_delete_count: 0,
+			});
+		}
+
+		let chunks = docs::list_doc_chunks(&mut *tx, row.doc_id).await?;
+
+		docs::mark_doc_deleted(&mut *tx, tenant_id, row.doc_id, now).await?;
+
+		for chunk in &chunks {
+			doc_outbox::enqueue_doc_outbox(
+				&mut *tx,
+				row.doc_id,
+				chunk.chunk_id,
+				"DELETE",
+				embed_version.as_str(),
+			)
+			.await?;
+		}
+
+		tx.commit().await?;
+
+		Ok(DocsDeleteResponse {
+			doc_id: row.doc_id,
+			op: NoteOp::Delete,
+			chunk_delete_count: chunks.len() as u32,
 		})
 	}
 
