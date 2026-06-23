@@ -532,7 +532,10 @@
 
 			<nav class="nav" aria-label="Viewer sections">
 				<button class="active" type="button" data-tab="searchView">Search</button>
-				<button type="button" data-tab="notesView">Notes</button>
+				<button type="button" data-tab="sourceView">Source Library</button>
+				<button type="button" data-tab="inboxView">Memory Inbox</button>
+				<button type="button" data-tab="notesView">Memory History</button>
+				<button type="button" data-tab="recallView">Recall Debug</button>
 				<button type="button" data-tab="tracesView">Traces</button>
 			</nav>
 
@@ -663,10 +666,105 @@
 					</div>
 				</section>
 
+				<section class="view" id="sourceView">
+					<div class="panel">
+						<div class="panel-head">
+							<h2>Source Library</h2>
+							<button class="primary" type="button" id="searchSourcesButton">Search Sources</button>
+						</div>
+						<div class="panel-body split-stack">
+							<label>Source Query
+								<textarea id="sourceQuery">local development stack</textarea>
+							</label>
+							<div class="form-row">
+								<label>Doc Type
+									<select id="sourceDocType">
+										<option value="">all</option>
+										<option value="chat">chat</option>
+										<option value="web">web</option>
+										<option value="dev">dev</option>
+										<option value="knowledge">knowledge</option>
+										<option value="search">search</option>
+									</select>
+								</label>
+								<label>Status
+									<select id="sourceStatus">
+										<option value="active" selected>active</option>
+										<option value="deleted">deleted</option>
+									</select>
+								</label>
+								<label>Top K
+									<input id="sourceTopK" type="number" min="1" max="100" value="12">
+								</label>
+								<label>Excerpt
+									<select id="sourceExcerptLevel">
+										<option value="L0" selected>L0</option>
+										<option value="L1">L1</option>
+										<option value="L2">L2</option>
+									</select>
+								</label>
+							</div>
+						</div>
+					</div>
+					<div class="grid-2">
+						<div class="panel">
+							<div class="panel-head"><h2>Captured Sources</h2></div>
+							<div class="panel-body"><div id="sourceResults" class="list"><div class="empty">No source search loaded.</div></div></div>
+						</div>
+						<div class="panel">
+							<div class="panel-head"><h2>Hydration And Spans</h2></div>
+							<div class="panel-body" id="sourceDetail"><div class="empty">Select a source span.</div></div>
+						</div>
+					</div>
+				</section>
+
+				<section class="view" id="inboxView">
+					<div class="panel">
+						<div class="panel-head">
+							<h2>Memory Inbox</h2>
+							<button class="primary" type="button" id="loadInboxButton">Load Inbox</button>
+						</div>
+						<div class="panel-body split-stack">
+							<div class="grid-3">
+								<label>Review State
+									<select id="inboxReviewState">
+										<option value="">all</option>
+										<option value="proposed" selected>proposed</option>
+										<option value="approved">approved</option>
+										<option value="applied">applied</option>
+										<option value="rejected">rejected</option>
+										<option value="archived">archived</option>
+									</select>
+								</label>
+								<label>Limit
+									<input id="inboxLimit" type="number" min="1" max="100" value="25">
+								</label>
+								<label>Run ID
+									<input id="inboxRunId" autocomplete="off">
+								</label>
+							</div>
+							<label>Review Comment
+								<textarea id="inboxReviewComment">Reviewed from the ELF operator viewer.</textarea>
+							</label>
+							<div id="inboxSummary" class="chips"></div>
+						</div>
+					</div>
+					<div class="grid-2">
+						<div class="panel">
+							<div class="panel-head"><h2>Candidates</h2></div>
+							<div class="panel-body"><div id="inboxList" class="list"><div class="empty">No candidates loaded.</div></div></div>
+						</div>
+						<div class="panel">
+							<div class="panel-head"><h2>Candidate Detail</h2></div>
+							<div class="panel-body" id="inboxDetail"><div class="empty">Select a candidate.</div></div>
+						</div>
+					</div>
+				</section>
+
 				<section class="view" id="notesView">
 					<div class="panel">
 						<div class="panel-head">
-							<h2>Notes</h2>
+							<h2>Memory History</h2>
 							<button class="primary" type="button" id="loadNotesButton">Load Notes</button>
 						</div>
 						<div class="panel-body">
@@ -707,9 +805,49 @@
 							<div class="panel-body"><div id="notesList" class="list"><div class="empty">No notes loaded.</div></div></div>
 						</div>
 						<div class="panel">
-							<div class="panel-head"><h2>Note Metadata</h2></div>
+							<div class="panel-head"><h2>Ledger And Correction</h2></div>
 							<div class="panel-body" id="browseNoteDetail"><div class="empty">Select a note.</div></div>
 						</div>
+					</div>
+				</section>
+
+				<section class="view" id="recallView">
+					<div class="panel">
+						<div class="panel-head">
+							<h2>Recall Debug</h2>
+							<button class="primary" type="button" id="loadRecallDebugButton">Build Panel</button>
+						</div>
+						<div class="panel-body split-stack">
+							<div class="grid-3">
+								<label>Trace ID
+									<input id="recallTraceId" autocomplete="off">
+								</label>
+								<label>Limit
+									<input id="recallLimit" type="number" min="1" max="100" value="25">
+								</label>
+								<label>Dreaming
+									<select id="recallIncludeDreaming">
+										<option value="true" selected>include</option>
+										<option value="false">skip</option>
+									</select>
+								</label>
+							</div>
+							<label>Memory Query
+								<input id="recallQuery" autocomplete="off" value="local development stack">
+							</label>
+							<div class="grid-2">
+								<label>Source Query
+									<input id="recallDocsQuery" autocomplete="off" value="local development stack">
+								</label>
+								<label>Knowledge Query
+									<input id="recallKnowledgeQuery" autocomplete="off" value="local development stack">
+								</label>
+							</div>
+						</div>
+					</div>
+					<div class="panel">
+						<div class="panel-head"><h2>Selected, Dropped, Stale, And Blocked Evidence</h2></div>
+						<div class="panel-body" id="recallDebugDetail"><div class="empty">No recall-debug panel loaded.</div></div>
 					</div>
 				</section>
 
@@ -765,7 +903,11 @@
 		const state = {
 			activeTab: "searchView",
 			session: null,
+			sourceItems: [],
+			inboxItems: [],
 			selectedNoteId: null,
+			selectedSourceKey: null,
+			selectedInboxProposalId: null,
 			selectedKnowledgePageId: null,
 			traceBundle: null,
 			traceMetrics: {}
@@ -1209,6 +1351,344 @@
 			]));
 		}
 
+		function sourceKey(item) {
+			return `${item.doc_id}:${item.chunk_id}`;
+		}
+
+		function sourceRow(item) {
+			const key = sourceKey(item);
+			const button = make("button", { type: "button", text: "Hydrate" });
+			button.addEventListener("click", (event) => {
+				event.stopPropagation();
+				openSourceSpan(item);
+			});
+			const pointer = item.pointer || {};
+			const ref = pointer.ref || pointer.reference || {};
+			const locator = pointer.locator || {};
+			const row = make("div", {
+				className: `row clickable ${state.selectedSourceKey === key ? "selected" : ""}`.trim()
+			}, [
+				make("div", { className: "row-head" }, [
+					make("div", { className: "title", text: item.snippet || item.doc_id }),
+					button
+				]),
+				make("div", { className: "chips" }, [
+					chip(item.doc_type, "teal"),
+					chip(item.scope),
+					chip(`score ${score(item.score)}`, "amber"),
+					chip(`span ${ref.source_span_id || locator.span_id || "none"}`),
+					chip(`updated ${dateText(item.updated_at)}`)
+				]),
+				make("div", { className: "summary", text: `${item.doc_id} | chunk ${item.chunk_id} | content ${item.content_hash || "none"}` })
+			]);
+			row.addEventListener("click", () => openSourceSpan(item));
+			return row;
+		}
+
+		function renderSourceResults(items) {
+			state.sourceItems = items || [];
+			const target = $("#sourceResults");
+			if (!state.sourceItems.length) {
+				target.replaceChildren(empty("No captured sources matched."));
+				return;
+			}
+			target.replaceChildren(...state.sourceItems.map(sourceRow));
+		}
+
+		async function searchSources() {
+			const query = $("#sourceQuery").value.trim();
+			if (!query) {
+				setStatus("Source query is required.", true);
+				return;
+			}
+			setStatus("Searching Source Library...");
+			try {
+				const data = await api("/v2/admin/docs/search/l0", {
+					method: "POST",
+					body: JSON.stringify({
+						query,
+						doc_type: $("#sourceDocType").value || null,
+						status: $("#sourceStatus").value || null,
+						top_k: Number($("#sourceTopK").value || 12),
+						candidate_k: Math.max(Number($("#sourceTopK").value || 12) * 4, 24),
+						explain: true
+					})
+				});
+				renderSourceResults(data.items || []);
+				$("#sourceDetail").replaceChildren(
+					data.trajectory ? renderDocTrajectory(data.trajectory) : empty("Select a source span to hydrate.")
+				);
+				setStatus(`Loaded ${data.items ? data.items.length : 0} source spans.`);
+			} catch (err) {
+				setStatus(err.message, true);
+				$("#sourceResults").replaceChildren(empty(err.message));
+			}
+		}
+
+		async function openSourceSpan(item) {
+			if (!item) {
+				return;
+			}
+			state.selectedSourceKey = sourceKey(item);
+			renderSourceResults(state.sourceItems);
+			const pointer = item.pointer || {};
+			const locator = pointer.locator || {};
+			const position = locator.position || null;
+			setStatus(`Hydrating source ${item.doc_id}...`);
+			try {
+				const [doc, excerpt] = await Promise.all([
+					api(`/v2/admin/docs/${encodeURIComponent(item.doc_id)}`),
+					api("/v2/admin/docs/excerpts", {
+						method: "POST",
+						body: JSON.stringify({
+							doc_id: item.doc_id,
+							level: $("#sourceExcerptLevel").value || "L0",
+							chunk_id: item.chunk_id,
+							position,
+							explain: true
+						})
+					})
+				]);
+				renderSourceDetail($("#sourceDetail"), item, doc, excerpt);
+				setStatus(`Hydrated source ${item.doc_id}.`);
+			} catch (err) {
+				setStatus(err.message, true);
+				$("#sourceDetail").replaceChildren(empty(err.message));
+			}
+		}
+
+		function renderSourceDetail(target, item, doc, excerpt) {
+			const pointer = item.pointer || {};
+			const ref = pointer.ref || pointer.reference || {};
+			const locator = pointer.locator || {};
+			const verification = excerpt && excerpt.verification ? excerpt.verification : {};
+			target.replaceChildren(
+				make("div", { className: "split-stack" }, [
+					section("Source Record", [
+						kvTable([
+							["doc_id", item.doc_id],
+							["doc_type / scope", `${doc.doc_type || item.doc_type} / ${doc.scope || item.scope}`],
+							["status", doc.status || "captured"],
+							["title", doc.title || "none"],
+							["agent", doc.agent_id || item.agent_id],
+							["updated_at", dateText(doc.updated_at || item.updated_at)],
+							["content_hash", doc.content_hash || item.content_hash],
+							["bytes", doc.content_bytes ?? "none"]
+						]),
+						make("div", { className: "title", text: "source_ref" }),
+						pre(doc.source_ref || {})
+					]),
+					section("Source Span", [
+						table(["span_id", "chunk_id", "status", "start", "end", "chunk_hash"], [[
+							ref.source_span_id || locator.span_id || "none",
+							item.chunk_id,
+							"captured",
+							getPath(locator, ["position", "start"]) ?? "none",
+							getPath(locator, ["position", "end"]) ?? "none",
+							item.chunk_hash || getPath(pointer, ["hashes", "chunk_hash"]) || "none"
+						]])
+					]),
+					section("Hydrated Excerpt", [
+						kvTable([
+							["trace_id", excerpt.trace_id],
+							["window", `${excerpt.start_offset} -> ${excerpt.end_offset}`],
+							["matched span", getPath(excerpt, ["locator", "span_id"]) || "none"],
+							["selector", getPath(excerpt, ["locator", "selector_kind"]) || "none"],
+							["verified", verification.verified === true ? "true" : "false"],
+							["failures", (verification.verification_errors || []).join(", ") || "none"],
+							["excerpt_hash", verification.excerpt_hash || "none"]
+						]),
+						pre(excerpt.excerpt || "")
+					]),
+					excerpt.trajectory ? renderDocTrajectory(excerpt.trajectory) : empty("No excerpt trajectory.")
+				])
+			);
+		}
+
+		function renderDocTrajectory(trajectory) {
+			const stages = trajectory && trajectory.stages ? trajectory.stages : [];
+			if (!stages.length) {
+				return empty("No Source Library trajectory.");
+			}
+			return section("Source Retrieval Trajectory", [
+				table(["Stage", "Stats"], stages.map((stage) => [
+					`${stage.stage_order}. ${stage.stage_name}`,
+					{ value: formatJson(stage.stats || {}), wrap: true }
+				]))
+			]);
+		}
+
+		function reviewActionLabel(action) {
+			if (action === "discard") {
+				return "Reject";
+			}
+			if (action === "apply") {
+				return "Apply / Supersede";
+			}
+			return action.replace(/_/g, " ").replace(/^\w/, (letter) => letter.toUpperCase());
+		}
+
+		function inboxItemRow(item) {
+			const row = make("div", {
+				className: `row clickable ${item.proposal_id === state.selectedInboxProposalId ? "selected" : ""}`.trim()
+			}, [
+				make("div", { className: "row-head" }, [
+					make("div", { className: "title", text: `${item.queue_variant || item.proposal_kind} / ${item.apply_intent}` }),
+					make("button", { type: "button", text: "Inspect" })
+				]),
+				make("div", { className: "chips" }, [
+					chip(item.review_state, item.review_state === "proposed" ? "amber" : "teal"),
+					chip(`confidence ${score(item.confidence)}`),
+					chip(item.policy && item.policy.high_impact ? "high impact" : "normal impact", item.policy && item.policy.high_impact ? "danger" : ""),
+					chip(item.policy && item.policy.source_mutation_requested ? "source mutation blocked" : "source mutation disallowed", item.policy && item.policy.source_mutation_requested ? "danger" : "teal")
+				]),
+				make("div", { className: "summary", text: `${item.proposal_id} | run ${item.run_id} | updated ${dateText(item.updated_at)}` }),
+				make("div", { className: "summary", text: getPath(item, ["policy", "reason"]) || "No policy reason." })
+			]);
+			row.addEventListener("click", () => openInboxItem(item));
+			return row;
+		}
+
+		function renderInboxSummary(data) {
+			const summary = data && data.summary ? data.summary : {};
+			const policy = data && data.policy ? data.policy : {};
+			$("#inboxSummary").replaceChildren(
+				chip(`items ${summary.item_count ?? 0}`, "teal"),
+				chip(`proposed ${summary.proposed_count ?? 0}`, "amber"),
+				chip(`approved ${summary.approved_count ?? 0}`),
+				chip(`applied ${summary.applied_count ?? 0}`),
+				chip(`high impact ${summary.high_impact_count ?? 0}`, summary.high_impact_count ? "danger" : ""),
+				chip(policy.source_mutation_allowed ? "source mutation allowed" : "source mutation disallowed", policy.source_mutation_allowed ? "danger" : "teal")
+			);
+		}
+
+		async function loadMemoryInbox() {
+			setStatus("Loading Memory Inbox...");
+			const params = queryString({
+				review_state: $("#inboxReviewState").value,
+				run_id: $("#inboxRunId").value,
+				limit: $("#inboxLimit").value || 25
+			});
+			try {
+				const data = await api(`/v2/admin/dreaming/review-queue${params}`);
+				state.inboxItems = data.items || [];
+				renderInboxSummary(data);
+				$("#inboxList").replaceChildren(...(state.inboxItems.length ? state.inboxItems.map(inboxItemRow) : [empty("No review candidates matched.")]));
+				if (state.selectedInboxProposalId) {
+					const selected = state.inboxItems.find((item) => item.proposal_id === state.selectedInboxProposalId);
+					if (selected) {
+						renderInboxDetail($("#inboxDetail"), selected);
+					}
+				}
+				setStatus(`Loaded ${state.inboxItems.length} memory candidates.`);
+			} catch (err) {
+				setStatus(err.message, true);
+				$("#inboxList").replaceChildren(empty(err.message));
+			}
+		}
+
+		async function openInboxItem(item) {
+			if (!item) {
+				return;
+			}
+			state.selectedInboxProposalId = item.proposal_id;
+			$("#inboxList").replaceChildren(...state.inboxItems.map(inboxItemRow));
+			setStatus(`Loading proposal ${item.proposal_id}...`);
+			try {
+				const proposal = await api(`/v2/admin/consolidation/proposals/${encodeURIComponent(item.proposal_id)}`);
+				renderInboxDetail($("#inboxDetail"), { ...item, ...proposal });
+				setStatus(`Loaded proposal ${item.proposal_id}.`);
+			} catch (err) {
+				renderInboxDetail($("#inboxDetail"), item);
+				setStatus(`Loaded queue item ${item.proposal_id}; proposal detail failed: ${err.message}`, true);
+			}
+		}
+
+		function renderInboxDetail(target, item) {
+			if (!item) {
+				target.replaceChildren(empty("Select a candidate."));
+				return;
+			}
+			const audit = item.review_audit || {};
+			const actions = audit.available_actions || [];
+			const actionButtons = actions.length ? actions.map((action) => {
+				const button = make("button", { type: "button", text: reviewActionLabel(action) });
+				if (action === "approve" || action === "apply") {
+					button.classList.add("primary");
+				}
+				button.addEventListener("click", () => reviewMemoryCandidate(item.proposal_id, action));
+				return button;
+			}) : [empty("No review actions are currently available.")];
+			target.replaceChildren(
+				make("div", { className: "split-stack" }, [
+					section("Candidate", [
+						kvTable([
+							["proposal_id", item.proposal_id],
+							["run_id", item.run_id],
+							["kind / variant", `${item.proposal_kind} / ${item.queue_variant || "none"}`],
+							["intent", item.apply_intent],
+							["review_state", item.review_state],
+							["confidence", score(item.confidence)],
+							["updated_at", dateText(item.updated_at)],
+							["policy", getPath(item, ["policy", "reason"]) || "none"]
+						])
+					]),
+					section("Review Actions", [
+						make("div", { className: "actions" }, actionButtons)
+					]),
+					section("Diff", [pre(item.diff || {})]),
+					section("Source Refs", [pre(item.source_refs || {})]),
+					section("Affected Refs", [pre(item.affected_refs || item.target_ref || {})]),
+					section("Unsupported Claims And Markers", [
+						table(["Unsupported", "Contradictions", "Staleness"], [[
+							{ value: formatJson(item.unsupported_claim_flags || []), wrap: true },
+							{ value: formatJson(item.contradiction_markers || []), wrap: true },
+							{ value: formatJson(item.staleness_markers || []), wrap: true }
+						]])
+					]),
+					section("Proposed Payload", [pre(item.proposed_payload || {})]),
+					renderReviewEvents(audit.review_events || item.review_events || [])
+				])
+			);
+		}
+
+		function renderReviewEvents(events) {
+			if (!events.length) {
+				return section("Review Audit", [empty("No review events.")]);
+			}
+			return section("Review Audit", [
+				table(["Action", "From", "To", "Reviewer", "Comment", "Time"], events.map((event) => [
+					event.action,
+					event.from_review_state,
+					event.to_review_state,
+					event.reviewer_agent_id,
+					{ value: event.review_comment || "none", wrap: true },
+					dateText(event.created_at)
+				]))
+			]);
+		}
+
+		async function reviewMemoryCandidate(proposalId, action) {
+			if (!proposalId || !action) {
+				return;
+			}
+			setStatus(`${reviewActionLabel(action)} for proposal ${proposalId}...`);
+			try {
+				const proposal = await api(`/v2/admin/consolidation/proposals/${encodeURIComponent(proposalId)}/review`, {
+					method: "POST",
+					body: JSON.stringify({
+						action,
+						review_comment: $("#inboxReviewComment").value.trim() || null
+					})
+				});
+				renderInboxDetail($("#inboxDetail"), proposal);
+				await loadMemoryInbox();
+				setStatus(`Applied ${action} to proposal ${proposalId}.`);
+			} catch (err) {
+				setStatus(err.message, true);
+			}
+		}
+
 		async function runSearch() {
 			const query = $("#searchQuery").value.trim();
 			if (!query) {
@@ -1305,17 +1785,20 @@
 			renderSearchSession(state.session);
 			setStatus(`Loading note ${noteId}...`);
 			try {
-				const detail = await api(`/v2/admin/searches/${encodeURIComponent(state.session.search_id)}/notes`, {
-					method: "POST",
-					body: JSON.stringify({
-						note_ids: [noteId],
-						payload_level: "l2",
-						record_hits: false
-					})
-				});
-				const provenance = await api(`/v2/admin/notes/${encodeURIComponent(noteId)}/provenance`);
+				const [detail, provenance, history] = await Promise.all([
+					api(`/v2/admin/searches/${encodeURIComponent(state.session.search_id)}/notes`, {
+						method: "POST",
+						body: JSON.stringify({
+							note_ids: [noteId],
+							payload_level: "l2",
+							record_hits: false
+						})
+					}),
+					api(`/v2/admin/notes/${encodeURIComponent(noteId)}/provenance`),
+					api(`/v2/admin/notes/${encodeURIComponent(noteId)}/history`)
+				]);
 				const result = detail.results && detail.results[0] ? detail.results[0] : null;
-				renderNoteDetail($("#noteDetail"), result && result.note ? result.note : null, provenance);
+				renderNoteDetail($("#noteDetail"), result && result.note ? result.note : null, provenance, history);
 				setStatus(`Loaded note ${noteId}.`);
 			} catch (err) {
 				setStatus(err.message, true);
@@ -1323,13 +1806,14 @@
 			}
 		}
 
-		function renderNoteDetail(target, note, provenance) {
+		function renderNoteDetail(target, note, provenance, history) {
 			const fullNote = provenance && provenance.note ? provenance.note : note;
 			if (!fullNote) {
 				target.replaceChildren(empty("Note detail unavailable."));
 				return;
 			}
 			const recentTraces = provenance && provenance.recent_traces ? provenance.recent_traces : [];
+			const historyEvents = history && history.events ? history.events : provenance && provenance.history ? provenance.history : [];
 			target.replaceChildren(
 				kvTable([
 					["note_id", fullNote.note_id],
@@ -1349,10 +1833,93 @@
 					pre(fullNote.text || note?.text || ""),
 					make("div", { className: "title", text: "source_ref" }),
 					pre(fullNote.source_ref || {}),
+					make("div", { className: "title", text: "Memory Ledger Events" }),
+					historyEvents.length ? renderMemoryHistoryEvents(historyEvents) : empty("No history events."),
+					make("div", { className: "title", text: "Correction" }),
+					correctionControls(fullNote, target),
 					make("div", { className: "title", text: "Recent traces" }),
 					recentTraces.length ? make("div", { className: "list" }, recentTraces.map(traceRow)) : empty("No recent traces.")
 				])
 			);
+		}
+
+		function renderMemoryHistoryEvents(events) {
+			return table(["Time", "Event", "Summary", "Actor", "Source", "Reason"], events.map((event) => [
+				dateText(event.ts),
+				event.event_type,
+				{ value: event.summary || "none", wrap: true },
+				event.actor || "none",
+				`${event.source_table || "none"}:${event.source_id || event.event_id || "none"}`,
+				event.reason_code || event.op || "none"
+			]));
+		}
+
+		function correctionControls(note, target) {
+			const form = make("div", { className: "split-stack" });
+			const action = make("select", { className: "correction-action" }, [
+				make("option", { value: "supersede", text: "supersede" }),
+				make("option", { value: "delete", text: "delete" }),
+				make("option", { value: "restore", text: "restore" })
+			]);
+			const restoreVersion = make("input", { className: "correction-restore-version", autocomplete: "off", placeholder: "optional version_id for restore" });
+			const reason = make("textarea", { className: "correction-reason" });
+			reason.value = "Operator correction from Memory History.";
+			const sourceRef = make("textarea", { className: "correction-source-ref" });
+			sourceRef.value = JSON.stringify({
+				schema: "elf.viewer_correction/v1",
+				ref: { note_id: note.note_id },
+				hints: { surface: "admin_viewer" }
+			}, null, 2);
+			const applyButton = make("button", { type: "button", className: "primary", text: "Apply Ledger Correction" });
+			applyButton.addEventListener("click", () => applyMemoryCorrection(note.note_id, form, target));
+			form.replaceChildren(
+				make("div", { className: "grid-3" }, [
+					make("label", {}, [make("span", { text: "Action" }), action]),
+					make("label", {}, [make("span", { text: "Restore Version" }), restoreVersion]),
+					make("label", {}, [make("span", { text: "Current Status" }), make("input", { value: note.status || "active", readonly: "readonly" })])
+				]),
+				make("label", {}, [make("span", { text: "Reason" }), reason]),
+				make("label", {}, [make("span", { text: "Correction source_ref" }), sourceRef]),
+				make("div", { className: "actions" }, [applyButton])
+			);
+			return form;
+		}
+
+		async function applyMemoryCorrection(noteId, form, target) {
+			const action = $(".correction-action", form).value;
+			const reason = $(".correction-reason", form).value.trim();
+			const restoreVersion = $(".correction-restore-version", form).value.trim();
+			let sourceRef;
+			try {
+				sourceRef = JSON.parse($(".correction-source-ref", form).value);
+			} catch (_err) {
+				setStatus("Correction source_ref must be a JSON object.", true);
+				return;
+			}
+			if (!sourceRef || typeof sourceRef !== "object" || Array.isArray(sourceRef)) {
+				setStatus("Correction source_ref must be a JSON object.", true);
+				return;
+			}
+			if (!reason) {
+				setStatus("Correction reason is required.", true);
+				return;
+			}
+			setStatus(`Applying ${action} correction to ${noteId}...`);
+			try {
+				await api(`/v2/admin/notes/${encodeURIComponent(noteId)}/corrections`, {
+					method: "POST",
+					body: JSON.stringify({
+						action,
+						reason,
+						source_ref: sourceRef,
+						restore_version_id: restoreVersion || null
+					})
+				});
+				await loadNoteProvenance(noteId, target);
+				setStatus(`Applied ${action} correction to ${noteId}.`);
+			} catch (err) {
+				setStatus(err.message, true);
+			}
 		}
 
 		function traceRow(trace) {
@@ -1423,8 +1990,11 @@
 		async function loadNoteProvenance(noteId, target) {
 			setStatus(`Loading note ${noteId}...`);
 			try {
-				const provenance = await api(`/v2/admin/notes/${encodeURIComponent(noteId)}/provenance`);
-				renderNoteDetail(target, null, provenance);
+				const [provenance, history] = await Promise.all([
+					api(`/v2/admin/notes/${encodeURIComponent(noteId)}/provenance`),
+					api(`/v2/admin/notes/${encodeURIComponent(noteId)}/history`)
+				]);
+				renderNoteDetail(target, null, provenance, history);
 				setStatus(`Loaded note ${noteId}.`);
 			} catch (err) {
 				setStatus(err.message, true);
@@ -1678,6 +2248,106 @@
 			]);
 		}
 
+		async function loadRecallDebugPanel() {
+			setStatus("Building recall-debug panel...");
+			const traceId = $("#recallTraceId").value.trim();
+			const query = $("#recallQuery").value.trim();
+			const docsQuery = $("#recallDocsQuery").value.trim();
+			const knowledgeQuery = $("#recallKnowledgeQuery").value.trim();
+			const body = {
+				trace_id: traceId || null,
+				query: query || null,
+				docs_query: docsQuery || null,
+				knowledge_query: knowledgeQuery || null,
+				include_dreaming: $("#recallIncludeDreaming").value === "true",
+				limit: Number($("#recallLimit").value || 25)
+			};
+			try {
+				const data = await api("/v2/admin/recall-debug/panel", {
+					method: "POST",
+					body: JSON.stringify(body)
+				});
+				renderRecallDebugPanel($("#recallDebugDetail"), data);
+				setStatus(`Loaded recall-debug panel with ${data.summary ? data.summary.row_count : 0} rows.`);
+			} catch (err) {
+				setStatus(err.message, true);
+				$("#recallDebugDetail").replaceChildren(empty(err.message));
+			}
+		}
+
+		function renderRecallDebugPanel(target, data) {
+			if (!data) {
+				target.replaceChildren(empty("Recall-debug panel unavailable."));
+				return;
+			}
+			const summary = data.summary || {};
+			const traceSummary = getPath(data, ["recall_trace", "summary"]) || {};
+			target.replaceChildren(
+				make("div", { className: "split-stack" }, [
+					metricGrid([
+						["Layers", summary.layer_count ?? "none"],
+						["Rows", summary.row_count ?? "none"],
+						["Selected", summary.selected_count ?? "none"],
+						["Dropped", summary.dropped_count ?? "none"],
+						["Stale", traceSummary.stale_count ?? "none"],
+						["Blocked", traceSummary.blocked_count ?? "none"],
+						["Not Requested", summary.not_requested_layer_count ?? "none"],
+						["Replayable", summary.replay_command_count ?? "none"]
+					]),
+					section("Request Anchors", [
+						kvTable([
+							["schema", data.schema],
+							["generated_at", dateText(data.generated_at)],
+							["trace_id", getPath(data, ["request", "trace_id"]) || "none"],
+							["docs_query", getPath(data, ["request", "docs_query"]) || "none"],
+							["knowledge_query", getPath(data, ["request", "knowledge_query"]) || "none"],
+							["include_dreaming", String(getPath(data, ["request", "include_dreaming"]))],
+							["raw_sql_needed", summary.raw_sql_needed_count ?? 0]
+						])
+					]),
+					...(data.layers || []).map(renderRecallLayer),
+					section("Compact Recall Trace", [
+						table(["Layer", "State", "Freshness", "Reason", "Replay", "Raw SQL"], (getPath(data, ["recall_trace", "entries"]) || []).map((entry) => [
+							entry.layer,
+							entry.context_state,
+							entry.freshness_state,
+							{ value: entry.policy_reason || entry.selection_state || "none", wrap: true },
+							{ value: entry.replay_command || "none", wrap: true },
+							entry.raw_sql_needed ? "yes" : "no"
+						]))
+					])
+				])
+			);
+		}
+
+		function renderRecallLayer(layer) {
+			const rows = layer.rows || [];
+			return section(`${layer.layer} / ${layer.evidence_class}`, [
+				make("div", { className: "chips" }, [
+					chip(`rows ${layer.row_count ?? rows.length}`, "teal"),
+					chip(`selected ${layer.selected_count ?? 0}`),
+					chip(`dropped ${layer.dropped_count ?? 0}`, layer.dropped_count ? "amber" : ""),
+					chip(layer.raw_sql_needed ? "raw SQL needed" : "no raw SQL", layer.raw_sql_needed ? "danger" : "teal"),
+					chip(layer.replayable ? "replayable" : "not replayable")
+				]),
+				make("div", { className: "summary", text: layer.summary || "" }),
+				rows.length ? table(
+					["State", "Freshness", "Authority", "Rank", "Score", "Reason", "Refs", "Replay"],
+					rows.map((row) => [
+						row.selection_state,
+						row.freshness_state,
+						row.authority_layer,
+						row.rank ?? "none",
+						score(row.score),
+						{ value: row.stage_reason || row.rationale || "none", wrap: true },
+						{ value: formatJson({ item_ref: row.item_ref || {}, source_refs: row.source_refs || {} }), wrap: true },
+						{ value: row.replay_command || "none", wrap: true }
+					])
+				) : empty("No rows in this layer."),
+				pre(layer.debug_artifacts || {})
+			]);
+		}
+
 		function showTab(tabId) {
 			state.activeTab = tabId;
 			$$(".view").forEach((node) => node.classList.toggle("active", node.id === tabId));
@@ -1715,8 +2385,14 @@
 				} else {
 					await searchKnowledgePages();
 				}
+			} else if (state.activeTab === "sourceView") {
+				await searchSources();
+			} else if (state.activeTab === "inboxView") {
+				await loadMemoryInbox();
 			} else if (state.activeTab === "notesView") {
 				await loadNotes();
+			} else if (state.activeTab === "recallView") {
+				await loadRecallDebugPanel();
 			} else if (state.activeTab === "tracesView") {
 				await loadRecentTraces();
 			}
@@ -1734,7 +2410,10 @@
 			$("#loadSessionButton").addEventListener("click", loadSession);
 			$("#loadTimelineButton").addEventListener("click", loadTimeline);
 			$("#searchKnowledgeButton").addEventListener("click", () => searchKnowledgePages());
+			$("#searchSourcesButton").addEventListener("click", searchSources);
+			$("#loadInboxButton").addEventListener("click", loadMemoryInbox);
 			$("#loadNotesButton").addEventListener("click", loadNotes);
+			$("#loadRecallDebugButton").addEventListener("click", loadRecallDebugPanel);
 			$("#loadTracesButton").addEventListener("click", loadRecentTraces);
 			$("#loadTraceByIdButton").addEventListener("click", loadTraceById);
 			$("#refreshActive").addEventListener("click", refreshActive);
