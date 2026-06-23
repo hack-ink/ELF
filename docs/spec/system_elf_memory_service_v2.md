@@ -1051,10 +1051,15 @@ Request correlation:
 GET /viewer
 
 Behavior:
-- Serves the local read-only web viewer from the admin bind only.
+- Serves the local operator viewer from the admin bind only.
 - Must not be mounted on the public HTTP bind by default.
-- The viewer uses admin-bind same-origin requests and only calls read-only endpoints.
-- In `static_keys` mode, the viewer page may load without credentials, but data requests still require an admin bearer token.
+- The viewer uses admin-bind same-origin requests. Readback panels call admin
+  read-only endpoints. Review and correction controls may call only Memory Ledger
+  authority endpoints such as consolidation proposal review and note correction;
+  the viewer must not call raw note/event ingest, direct note patch/delete, publish,
+  source mutation, or database bypass paths.
+- In `static_keys` mode, the viewer page may load without credentials, but data
+  and operator-action requests still require an admin bearer token.
 
 Admin read-only session mirror:
 - POST /v2/admin/searches
@@ -1074,6 +1079,18 @@ Admin read-only note mirror:
 Behavior:
 - These endpoints mirror the public note list/detail reads for local admin viewer use.
 - Note metadata that includes `created_at`, `hit_count`, and `last_hit_at` is available through `GET /v2/admin/notes/{note_id}/provenance`.
+
+Admin Source Library read-only mirror:
+- GET /v2/admin/docs/{doc_id}
+- POST /v2/admin/docs/search/l0
+- POST /v2/admin/docs/excerpts
+
+Behavior:
+- These endpoints mirror the public Source Library document metadata, L0 search, and
+  excerpt hydration reads for local admin viewer use.
+- They are read-only and must use the same scope, read_profile, English gate, and
+  source/excerpt verification rules as the public `/v2/docs/*` routes.
+- They must not create, mutate, delete, or reindex source documents.
 
 Admin core memory block management:
 - POST /v2/admin/core-blocks
