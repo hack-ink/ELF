@@ -6,15 +6,22 @@ resource: docs/spec/system_graph_memory_postgres_v1.md
 status: active
 authority: normative
 owner: spec
-last_verified: 2026-06-18
+last_verified: 2026-06-23
 tags:
   - docs
   - spec
 source_refs: []
-code_refs: []
-related: []
+code_refs:
+  - packages/elf-service/src/graph_query.rs
+  - packages/elf-service/src/graph_report.rs
+  - packages/elf-service/src/search.rs
+related:
+  - docs/runbook/privacy_delete_export.md
 drift_watch:
   - docs/spec/system_graph_memory_postgres_v1.md
+  - packages/elf-service/src/graph_query.rs
+  - packages/elf-service/src/graph_report.rs
+  - packages/elf-service/src/search.rs
 ---
 # Graph Memory Postgres v1.0 Specification
 
@@ -216,6 +223,12 @@ Supersession rule (write-time):
   - `current` when `valid_from <= read_at AND (valid_to IS NULL OR valid_to > read_at)`.
   - `historical` when `valid_to <= read_at`.
   - `future` when `valid_from > read_at`.
+- Graph query, graph report, and search relation context readbacks must return a
+  fact only when at least one linked evidence note is active, unexpired, and readable
+  under the caller's scope context at read time.
+- Evidence note id lists in graph readbacks must include only active, unexpired,
+  readable evidence notes. Deleted, expired, or unreadable evidence notes may remain
+  as stored audit rows but must not be serialized as current graph evidence.
 - Search relation context may include historical facts when they are evidence-linked to a returned note, but it must label them as historical instead of silently treating them as current.
 - Graph report APIs expose `elf.graph_report/v1` topic maps from the same Postgres
   graph-lite tables. Report facts must retain `valid_from`, `valid_to`,

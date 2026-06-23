@@ -4681,6 +4681,8 @@ async fn materialize_elf_knowledge(
 		.knowledge_pages_search(KnowledgePageSearchRequest {
 			tenant_id: TENANT_ID.to_string(),
 			project_id,
+			agent_id: AGENT_ID.to_string(),
+			read_profile: "private_only".to_string(),
 			query: "source notes".to_string(),
 			page_kind: Some(KnowledgePageKind::Project),
 			limit: Some(10),

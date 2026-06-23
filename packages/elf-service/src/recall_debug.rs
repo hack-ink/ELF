@@ -603,6 +603,8 @@ WHERE trace_id = $1
 			.knowledge_pages_search(KnowledgePageSearchRequest {
 				tenant_id: req.tenant_id.clone(),
 				project_id: req.project_id.clone(),
+				agent_id: req.agent_id.clone(),
+				read_profile: req.read_profile.clone(),
 				query: query.to_string(),
 				page_kind: None,
 				limit: Some(limit),
@@ -845,11 +847,18 @@ FROM memory_notes
 			org_shared_allowed,
 		)
 		.await?;
+		let now = OffsetDateTime::now_utc();
 
 		Ok(rows
 			.into_iter()
 			.filter(|note| {
-				note_debug_read_allowed(note, req.agent_id.trim(), &allowed_scopes, &shared_grants)
+				note_debug_read_allowed(
+					note,
+					req.agent_id.trim(),
+					&allowed_scopes,
+					&shared_grants,
+					now,
+				)
 			})
 			.map(note_debug_source_pair)
 			.collect())
@@ -872,7 +881,11 @@ fn note_debug_read_allowed(
 	requester_agent_id: &str,
 	allowed_scopes: &[String],
 	shared_grants: &HashSet<SharedSpaceGrantKey>,
+	now: OffsetDateTime,
 ) -> bool {
+	if note.status != "active" || note.expires_at.is_some_and(|expires_at| expires_at <= now) {
+		return false;
+	}
 	if !allowed_scopes.iter().any(|scope| scope == &note.scope) {
 		return false;
 	}
@@ -1813,31 +1826,67 @@ mod tests {
 	}
 
 	#[test]
-	fn debug_note_readability_preserves_stale_owner_context_only() {
+	fn debug_note_readability_requires_current_note_and_scope_access() {
 		let allowed_scopes = vec!["agent_private".to_string(), "project_shared".to_string()];
 		let shared_grants = HashSet::new();
-		let mut note = note_for_debug_visibility("owner-agent", "agent_private", "deprecated");
+		let now = OffsetDateTime::now_utc();
+		let mut note = note_for_debug_visibility("owner-agent", "agent_private", "active");
 
 		assert!(recall_debug::note_debug_read_allowed(
 			&note,
 			"owner-agent",
 			&allowed_scopes,
-			&shared_grants
+			&shared_grants,
+			now
 		));
 		assert!(!recall_debug::note_debug_read_allowed(
 			&note,
 			"other-agent",
 			&allowed_scopes,
-			&shared_grants
+			&shared_grants,
+			now
 		));
 
+		note.status = "deleted".to_string();
+
+		assert!(!recall_debug::note_debug_read_allowed(
+			&note,
+			"owner-agent",
+			&allowed_scopes,
+			&shared_grants,
+			now
+		));
+
+		note.status = "deprecated".to_string();
+
+		assert!(!recall_debug::note_debug_read_allowed(
+			&note,
+			"owner-agent",
+			&allowed_scopes,
+			&shared_grants,
+			now
+		));
+
+		note.status = "active".to_string();
+		note.expires_at = Some(now);
+
+		assert!(!recall_debug::note_debug_read_allowed(
+			&note,
+			"owner-agent",
+			&allowed_scopes,
+			&shared_grants,
+			now
+		));
+
+		note.expires_at = None;
 		note.scope = "project_shared".to_string();
 
 		assert!(!recall_debug::note_debug_read_allowed(
 			&note,
 			"other-agent",
 			&allowed_scopes,
-			&shared_grants
+			&shared_grants,
+			now
 		));
 
 		let shared_grants = HashSet::from([SharedSpaceGrantKey {
@@ -1849,7 +1898,8 @@ mod tests {
 			&note,
 			"other-agent",
 			&allowed_scopes,
-			&shared_grants
+			&shared_grants,
+			now
 		));
 	}
 
