@@ -101,6 +101,8 @@ fn expand_includes(sql: &str) -> String {
 				)),
 				"tables/041_core_memory_block_events.sql" => out
 					.push_str(include_str!("../../../sql/tables/041_core_memory_block_events.sql")),
+				"tables/042_work_journal_entries.sql" =>
+					out.push_str(include_str!("../../../sql/tables/042_work_journal_entries.sql")),
 				"tables/023_memory_ingest_decisions.sql" => out
 					.push_str(include_str!("../../../sql/tables/023_memory_ingest_decisions.sql")),
 				"tables/024_memory_space_grants.sql" =>
@@ -136,5 +138,6 @@ mod tests {
 		assert!(schema.contains("CREATE TABLE IF NOT EXISTS core_memory_blocks"));
 		assert!(schema.contains("CREATE TABLE IF NOT EXISTS core_memory_block_attachments"));
 		assert!(schema.contains("CREATE TABLE IF NOT EXISTS core_memory_block_events"));
+		assert!(schema.contains("CREATE TABLE IF NOT EXISTS work_journal_entries"));
 	}
 }

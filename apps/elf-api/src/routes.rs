@@ -72,7 +72,9 @@ use elf_service::{
 	SpaceGrantsListRequest, TextPositionSelector, TextQuoteSelector, TraceBundleGetRequest,
 	TraceBundleResponse, TraceGetRequest, TraceGetResponse, TraceRecentListRequest,
 	TraceRecentListResponse, TraceTrajectoryGetRequest, UnpublishNoteRequest, UpdateRequest,
-	UpdateResponse, search::TraceBundleMode,
+	UpdateResponse, WorkJournalEntryCreateRequest, WorkJournalEntryCreateResponse,
+	WorkJournalEntryFamily, WorkJournalEntryGetRequest, WorkJournalEntryResponse,
+	WorkJournalSessionReadbackRequest, WorkJournalSessionReadbackResponse, search::TraceBundleMode,
 };
 
 /// JSON OpenAPI contract route.
@@ -139,6 +141,9 @@ const VIEWER_HTML: &str = include_str!("../static/viewer.html");
 		notes_delete,
 		notes_publish,
 		notes_unpublish,
+		work_journal_entry_create,
+		work_journal_entry_get,
+		work_journal_session_readback,
 		space_grants_list,
 		space_grant_upsert,
 		space_grant_revoke,
@@ -193,6 +198,7 @@ const VIEWER_HTML: &str = include_str!("../static/viewer.html");
 		(name = "dreaming", description = "Dreaming review queue and derived memory organization."),
 		(name = "recall", description = "Cross-layer recall and debug readback."),
 		(name = "knowledge", description = "Derived knowledge page rebuild and lint readback."),
+		(name = "work_journal", description = "Source-adjacent Work Journal capture and session readback."),
 		(name = "admin", description = "Local admin and operator inspection routes."),
 	)
 )]
@@ -238,6 +244,34 @@ struct DocsPutBody {
 
 	write_policy: Option<WritePolicy>,
 	content: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct WorkJournalEntryCreateBody {
+	entry_id: Option<Uuid>,
+	scope: String,
+	session_id: String,
+	family: WorkJournalEntryFamily,
+	title: Option<String>,
+	body: String,
+	source_refs: Vec<Value>,
+	write_policy: Option<WritePolicy>,
+	#[serde(default)]
+	explicit_next_steps: Vec<String>,
+	#[serde(default)]
+	inferred_next_steps: Vec<String>,
+	#[serde(default)]
+	rejected_options: Vec<String>,
+	#[serde(default = "empty_json_object")]
+	promotion_boundary: Value,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct WorkJournalSessionReadbackBody {
+	session_id: String,
+	#[serde(default)]
+	families: Vec<WorkJournalEntryFamily>,
+	limit: Option<u32>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -730,6 +764,9 @@ pub fn router(state: AppState) -> Router {
 		)
 		.route("/v2/notes/{note_id}/publish", routing::post(notes_publish))
 		.route("/v2/notes/{note_id}/unpublish", routing::post(notes_unpublish))
+		.route("/v2/work-journal/entries", routing::post(work_journal_entry_create))
+		.route("/v2/work-journal/entries/{entry_id}", routing::get(work_journal_entry_get))
+		.route("/v2/work-journal/readback", routing::post(work_journal_session_readback))
 		.route(
 			"/v2/spaces/{space}/grants",
 			routing::get(space_grants_list).post(space_grant_upsert),
@@ -1479,6 +1516,138 @@ async fn docs_put(
 			source_ref: payload.source_ref,
 			write_policy: payload.write_policy,
 			content: payload.content,
+		})
+		.await?;
+
+	Ok(Json(response))
+}
+
+#[utoipa::path(
+	post,
+	path = "/v2/work-journal/entries",
+	tag = "work_journal",
+	request_body = Value,
+	responses(
+		(status = 200, description = "Work Journal entry was stored.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Scope denied.", body = ErrorBody),
+		(status = 422, description = "Non-English input rejected.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
+async fn work_journal_entry_create(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	role: Option<Extension<SecurityAuthRole>>,
+	payload: Result<Json<WorkJournalEntryCreateBody>, JsonRejection>,
+) -> Result<Json<WorkJournalEntryCreateResponse>, ApiError> {
+	let ctx = RequestContext::from_headers(&headers)?;
+	let Json(payload) = payload.map_err(|err| {
+		tracing::warn!(error = %err, "Invalid request payload.");
+
+		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+	})?;
+	let role = role.map(|Extension(role)| role);
+
+	if payload.scope.trim() == "org_shared" {
+		require_admin_for_org_shared_writes(state.service.cfg.security.auth_mode.as_str(), role)?;
+	}
+
+	let response = state
+		.service
+		.work_journal_entry_create(WorkJournalEntryCreateRequest {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+			agent_id: ctx.agent_id,
+			entry_id: payload.entry_id,
+			scope: payload.scope,
+			session_id: payload.session_id,
+			family: payload.family,
+			title: payload.title,
+			body: payload.body,
+			source_refs: payload.source_refs,
+			write_policy: payload.write_policy,
+			explicit_next_steps: payload.explicit_next_steps,
+			inferred_next_steps: payload.inferred_next_steps,
+			rejected_options: payload.rejected_options,
+			promotion_boundary: payload.promotion_boundary,
+		})
+		.await?;
+
+	Ok(Json(response))
+}
+
+#[utoipa::path(
+	get,
+	path = "/v2/work-journal/entries/{entry_id}",
+	tag = "work_journal",
+	responses(
+		(status = 200, description = "Work Journal entry metadata.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Scope denied.", body = ErrorBody),
+		(status = 404, description = "Work Journal entry not found.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
+async fn work_journal_entry_get(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	Path(entry_id): Path<Uuid>,
+) -> Result<Json<WorkJournalEntryResponse>, ApiError> {
+	let ctx = RequestContext::from_headers(&headers)?;
+	let read_profile = required_read_profile(&headers)?;
+	let response = state
+		.service
+		.work_journal_entry_get(WorkJournalEntryGetRequest {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+			agent_id: ctx.agent_id,
+			read_profile,
+			entry_id,
+		})
+		.await?;
+
+	Ok(Json(response))
+}
+
+#[utoipa::path(
+	post,
+	path = "/v2/work-journal/readback",
+	tag = "work_journal",
+	request_body = Value,
+	responses(
+		(status = 200, description = "Work Journal session readback.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Scope denied.", body = ErrorBody),
+		(status = 422, description = "Non-English input rejected.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
+async fn work_journal_session_readback(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	payload: Result<Json<WorkJournalSessionReadbackBody>, JsonRejection>,
+) -> Result<Json<WorkJournalSessionReadbackResponse>, ApiError> {
+	let ctx = RequestContext::from_headers(&headers)?;
+	let read_profile = required_read_profile(&headers)?;
+	let Json(payload) = payload.map_err(|err| {
+		tracing::warn!(error = %err, "Invalid request payload.");
+
+		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+	})?;
+	let response = state
+		.service
+		.work_journal_session_readback(WorkJournalSessionReadbackRequest {
+			tenant_id: ctx.tenant_id,
+			project_id: ctx.project_id,
+			agent_id: ctx.agent_id,
+			read_profile,
+			session_id: payload.session_id,
+			families: payload.families,
+			limit: payload.limit,
 		})
 		.await?;
 

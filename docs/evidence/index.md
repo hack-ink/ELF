@@ -25,5 +25,7 @@ Routes to: Drift audits and evidence concepts under `docs/evidence/`.
 - `2026-06-23-privacy-delete-export-boundaries-drift-audit.md`: Drift audit for
   privacy, delete/forget, export, retention, source visibility, and graph evidence
   suppression boundaries.
+- `2026-06-27-work-journal-drift-audit.md`: Drift audit for Work Journal
+  source-adjacent capture, readback, redaction, and promotion-boundary behavior.
 - `external_memory_pattern_radar_latest.md`: Latest weekly external memory pattern
   radar summary.

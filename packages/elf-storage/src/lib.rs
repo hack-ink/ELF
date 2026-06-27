@@ -13,6 +13,7 @@ pub mod outbox;
 pub mod qdrant;
 pub mod queries;
 pub mod schema;
+pub mod work_journal;
 
 mod error;
 

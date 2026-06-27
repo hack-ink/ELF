@@ -14,6 +14,7 @@ mod rebuild_qdrant;
 mod sot_vectors;
 mod structured_field_retrieval;
 mod trace_admin_observability;
+mod work_journal;
 
 use std::{
 	env, fs,
