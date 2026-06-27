@@ -63,6 +63,7 @@ compile knowledge, and state honest uncertainty.
 | --- | --- | --- |
 | Trust/source-of-truth | Provenance, rebuildability, and derived-index boundaries. | Restore a note after index rebuild and cite authoritative source evidence. |
 | Work resume | Resuming agent work without repeating completed steps. | Identify the next action after a retained lane failure. |
+| Work continuity | Source-adjacent Work Journal reset/resume, rationale, rejected-option, next-step, handoff, redaction, and janitor boundaries. | Resume a session from Work Journal readback without promoting journal-only content to current memory authority. |
 | Project decisions | Current decisions, rationale, reversals, and caveats. | Explain why a benchmark gate uses typed failures. |
 | Retrieval | Task-relevant search with decoys and alternates. | Answer a task query while avoiding near-duplicate project evidence. |
 | Memory evolution | Update, delete, expiry, contradiction, and history behavior. | Report what superseded an old fact and suppress deleted memory. |
@@ -174,6 +175,10 @@ including the retrieval-quality slice below. The suite currently encodes:
   Postgres-held chunk embeddings before answering.
 - `work_resume`: stale worktree resume, Decodex/Linear lane status, failed command
   recovery, PR review blocker recovery, and exact next-action extraction.
+- `work_continuity`: Work Journal reset/resume readback, decision-rationale recall,
+  rejected-option suppression, explicit next-step precision, inferred next-step
+  labeling, handoff source-ref coverage, redaction, and janitor false-promotion
+  guards while keeping journal-only content source-adjacent.
 - `project_decisions`: accepted durable decisions, superseded/reversed decisions,
   old-versus-current validation gates, tradeoff rationale, and bounded caveat or
   uncertainty handling.
@@ -224,7 +229,10 @@ redaction leak count, capture/integration
 behavior classes, Qdrant rebuild case/pass counts, expected evidence recall,
 irrelevant context ratio, latency/cost, answer-type plus
 caveat/refusal/uncertainty flags, trace explainability counters, production-ops
-blocked/wrong-result job states, and
+blocked/wrong-result job states, Work Continuity rates for reset/resume,
+decision-rationale recall, rejected-option suppression, explicit next-step precision,
+inferred next-step labeling, handoff source-ref coverage, redaction, and janitor
+false-promotion, Work Continuity hard-fail counters, and
 private-corpus redaction policy. The fixtures include negative traps for stale
 blockers, unsupported prior claims, stale deleted facts, stale historical facts,
 cross-project preference leakage, private/redacted text leakage, obsolete retrieval
@@ -232,6 +240,21 @@ context, project-decision stale reuse, missing rationale, uncited current policy
 claims, overconfident unsupported decision answers, distractor context,
 index-only restore claims, private-corpus pass claims without a manifest, checked-in
 credential leakage, and adversarial stale or unsupported scoreboard claims.
+
+Current checked-in Work Continuity increment:
+
+```sh
+cargo make real-world-memory-work-continuity
+```
+
+This parses `apps/elf-eval/fixtures/real_world_memory/work_continuity/`, writes
+`tmp/real-world-memory/work-continuity/report.json`, and renders
+`tmp/real-world-memory/work-continuity/report.md`. The slice scores eight
+fixture-backed jobs for reset/resume readback, decision rationale, rejected-option
+suppression, explicit next-step precision, inferred next-step labeling, handoff
+source-ref coverage, redaction, and janitor false-promotion prevention. It does not
+claim diary-product behavior, current-fact authority from journal-only content,
+provider-backed private-corpus quality, or competitor-wide superiority.
 
 Current checked-in adversarial quality increment:
 
@@ -366,8 +389,8 @@ The public quality scoreboard renders the existing manifest evidence bucket
 external adapter manifest is loaded, the scoreboard's typed non-pass count includes
 adapter coverage and scenario rows as well as fixture jobs.
 
-Current fixture state: `cargo make real-world-memory-json` covers 73 jobs across 18
-suites, with 66 pass and 7 blocked. The adversarial quality slice contributes five
+Current fixture state: `cargo make real-world-memory-json` covers 81 jobs across 19
+suites, with 74 pass and 7 blocked. The adversarial quality slice contributes five
 passing fixture-backed jobs that exercise stale fact suppression, unsupported-claim
 refusal, source-authority conflicts, private-span exclusion, and correction
 persistence. The P1 closeout fixture slice contributes four passing jobs for
@@ -377,6 +400,9 @@ stale-core detection, archival fallback, and project-decision recovery. The
 `memory_summary` suite
 contributes one passing fixture-backed source-trace job for reviewable current,
 background, stale, superseded, tombstoned, and derived project-profile entries. The
+`work_continuity` suite contributes eight passing fixture-backed Work Journal rows
+for reset/resume, rationale, rejected-option, explicit/inferred next-step, handoff
+source-ref, redaction, and janitor false-promotion boundaries. The
 `proactive_brief` suite contributes four passing source-linked proactive suggestions
 and one typed private-corpus refresh blocker tied to XY-930. The blocked jobs are
 production-ops operator boundaries, the private-corpus refresh blocker, the

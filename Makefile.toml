@@ -82,6 +82,9 @@
 # | real-world-memory-summary                  | composite |     |
 # | real-world-memory-summary-json             | command   |     |
 # | real-world-memory-summary-report           | command   |     |
+# | real-world-memory-work-continuity          | composite |     |
+# | real-world-memory-work-continuity-json     | command   |     |
+# | real-world-memory-work-continuity-report   | command   |     |
 
 [tasks.baseline-backfill-100k-docker]
 workspace = false
@@ -1223,6 +1226,55 @@ args = [
 	"tmp/real-world-memory/scheduled/report.json",
 	"--out",
 	"tmp/real-world-memory/scheduled/report.md",
+]
+
+[tasks.real-world-memory-work-continuity]
+workspace = false
+dependencies = [
+	"real-world-memory-work-continuity-report",
+]
+
+[tasks.real-world-memory-work-continuity-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_memory/work_continuity",
+	"--out",
+	"tmp/real-world-memory/work-continuity/report.json",
+	"--run-id",
+	"real-world-memory-work-continuity",
+	"--adapter-id",
+	"fixture_work_continuity",
+	"--adapter-name",
+	"ELF Work Continuity fixture",
+]
+
+[tasks.real-world-memory-work-continuity-report]
+workspace = false
+dependencies = [
+	"real-world-memory-work-continuity-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-memory/work-continuity/report.json",
+	"--out",
+	"tmp/real-world-memory/work-continuity/report.md",
 ]
 
 [tasks.real-world-memory-service-native-dreaming]

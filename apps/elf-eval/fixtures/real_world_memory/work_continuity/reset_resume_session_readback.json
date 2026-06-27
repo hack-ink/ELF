@@ -1,0 +1,151 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "work-continuity-reset-resume-001",
+  "suite": "work_continuity",
+  "title": "Reset and resume reads the last Work Journal checkpoint",
+  "corpus": {
+    "corpus_id": "real-world-memory-work-continuity-2026-06-27",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "wj-reset-resume-checkpoint",
+        "kind": "work_journal_entry",
+        "text": "Work Journal reset checkpoint: after reset, resume from entry wj-reset-entry and rerun cargo make real-world-memory-work-continuity before review.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "reset_resume_session_readback",
+            "evidence_id": "wj-reset-resume-checkpoint"
+          },
+          "locator": {
+            "quote": "resume from entry wj-reset-entry"
+          }
+        },
+        "created_at": "2026-06-27T00:00:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_work_continuity",
+      "answer": {
+        "content": "After reset, resume from Work Journal entry wj-reset-entry and rerun cargo make real-world-memory-work-continuity before review.",
+        "claims": [
+          {
+            "claim_id": "reset_resume_readback",
+            "text": "Reset/resume readback returns entry wj-reset-entry as the current stopping point.",
+            "evidence_ids": ["wj-reset-resume-checkpoint"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["wj-reset-resume-checkpoint"],
+        "work_journal_readbacks": [
+          {
+            "readback_id": "wj-readback-reset-resume",
+            "contract_schema": "elf.work_journal/v1",
+            "generated_at": "2026-06-27T00:01:00Z",
+            "session_id": "work-continuity-session",
+            "tenant_id": "fixture-tenant",
+            "project_id": "elf",
+            "agent_id": "xy-1118-fixture-agent",
+            "read_profile": "private_plus_project",
+            "items": [
+              {
+                "entry_id": "wj-reset-entry",
+                "family": "handoff",
+                "title": "Reset resume checkpoint",
+                "body": "Resume from this Work Journal checkpoint after reset.",
+                "source_refs": ["wj-reset-resume-checkpoint"]
+              }
+            ],
+            "where_stopped": {
+              "reset_resume_entry_ids": ["wj-reset-entry"],
+              "decision_rationale_evidence_ids": [],
+              "current_explicit_next_step_ids": [],
+              "labeled_inferred_next_step_ids": [],
+              "handoff_source_refs": ["wj-reset-resume-checkpoint"],
+              "journal_only_authority_claims": []
+            },
+            "promotion_boundary": {
+              "journal_entry_authority": "source_adjacent_only",
+              "memory_promotion_required": true,
+              "accepted_refs": []
+            },
+            "janitor_candidates": []
+          }
+        ],
+        "latency_ms": 1.0,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "prompt": {
+    "role": "user",
+    "content": "Where did the session stop after reset?",
+    "job_mode": "work_continuity",
+    "constraints": ["cite_evidence", "use_work_journal_readback"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "reset_resume_readback",
+        "text": "Reset/resume readback returns entry wj-reset-entry as the current stopping point."
+      }
+    ],
+    "must_not_include": ["journal entry is current fact authority"],
+    "evidence_links": {
+      "reset_resume_readback": ["wj-reset-resume-checkpoint"]
+    },
+    "answer_type": "work_journal_readback",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "wj-reset-resume-checkpoint",
+      "claim_id": "reset_resume_readback",
+      "requirement": "cite",
+      "quote": "resume from entry wj-reset-entry"
+    }
+  ],
+  "work_continuity": {
+    "required_reset_resume_entry_ids": ["wj-reset-entry"]
+  },
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.35,
+        "max_points": 1.0,
+        "criteria": "Returns the reset/resume Work Journal entry."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Cites the Work Journal checkpoint source ref."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Does not claim journal-only authority."
+      },
+      "lifecycle_behavior": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Keeps the entry source-adjacent."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": ["journal-only authority claim"]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "state_blocker"
+  },
+  "tags": ["synthetic", "work_continuity", "reset_resume"]
+}
