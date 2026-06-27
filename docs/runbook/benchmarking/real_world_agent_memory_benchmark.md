@@ -711,11 +711,13 @@ from Postgres-held vectors, cold-start search recovery, recoverable authority-pl
 drills, and resource-envelope interpretation. Authority recovery drills use
 `elf.authority_recovery_drill/v1` under `adapter_response.answer.recovery_drills[]`
 to report topology, failure injection, backup/PITR, degraded-read labels, RPO/RTO
-targets and measurements, before/after authority record counts, idempotent outbox
-replay, Qdrant rebuild completeness, migration repair, and dead-letter handling. The
-P4 slice also encodes the operator-approved public-proxy production-private addendum
-and emits `elf.operational_evidence_gates/v1` so local fixture, public-proxy,
-private-corpus, and provider-backed evidence remain separate.
+targets and measurements, matching before/after authority record counts, idempotent
+outbox replay, Qdrant rebuild completeness, migration repair, and dead-letter
+handling. The generated `operational_evidence.authority_recovery` report includes
+backup/PITR restored and record-count preservation counters. The P4 slice also
+encodes the operator-approved public-proxy production-private addendum and emits
+`elf.operational_evidence_gates/v1` so local fixture, public-proxy, private-corpus,
+and provider-backed evidence remain separate.
 
 The same slice deliberately keeps non-pass boundaries typed. A missing private
 production manifest is `blocked`, unavailable provider credentials are `blocked`, and
