@@ -31,6 +31,7 @@ Question this index answers: "what must remain true?"
 
 ## Documents
 
+- `agent_memory_quantitative_benchmark_v1.md`: Agent Memory Quantitative Benchmark v1.
 - `agent_memory_knowledge_system_v1.md`: Agent Memory and Knowledge System v1.
 - `external_memory_pattern_radar_v1.md`: External Memory Pattern Radar v1.
 - `production_corpus_manifest_v1.md`: Production Corpus Manifest v1.

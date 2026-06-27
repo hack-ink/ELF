@@ -71,6 +71,9 @@
 # | real-world-memory-project-decisions        | composite |     |
 # | real-world-memory-project-decisions-json   | command   |     |
 # | real-world-memory-project-decisions-report | command   |     |
+# | real-world-memory-quantitative-scoreboard  | composite |     |
+# | real-world-memory-quantitative-scoreboard-json | command |     |
+# | real-world-memory-quantitative-scoreboard-report | command |     |
 # | real-world-memory-report                   | command   |     |
 # | real-world-memory-retrieval                | composite |     |
 # | real-world-memory-retrieval-json           | command   |     |
@@ -1108,6 +1111,55 @@ args = [
 	"tmp/real-world-memory/project-decisions/report.json",
 	"--out",
 	"tmp/real-world-memory/project-decisions/report.md",
+]
+
+[tasks.real-world-memory-quantitative-scoreboard]
+workspace = false
+dependencies = [
+	"real-world-memory-quantitative-scoreboard-report",
+]
+
+[tasks.real-world-memory-quantitative-scoreboard-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_memory",
+	"--out",
+	"tmp/real-world-memory/quantitative-scoreboard/report.json",
+	"--run-id",
+	"public-quantitative-competitor-scoreboard",
+	"--adapter-id",
+	"elf_real_world_memory_fixture",
+	"--adapter-name",
+	"ELF real-world memory fixture",
+]
+
+[tasks.real-world-memory-quantitative-scoreboard-report]
+workspace = false
+dependencies = [
+	"real-world-memory-quantitative-scoreboard-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-memory/quantitative-scoreboard/report.json",
+	"--out",
+	"tmp/real-world-memory/quantitative-scoreboard/report.md",
 ]
 
 [tasks.real-world-memory-report]
