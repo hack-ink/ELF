@@ -11,10 +11,15 @@ tags:
   - docs
   - spec
 source_refs: []
-code_refs: []
+code_refs:
+  - Makefile.toml
+  - apps/elf-eval/src/bin/real_world_job_benchmark.rs
+  - apps/elf-eval/fixtures/real_world_memory/
 related: []
 drift_watch:
   - docs/spec/real_world_agent_memory_benchmark_v1.md
+  - apps/elf-eval/src/bin/real_world_job_benchmark.rs
+  - apps/elf-eval/fixtures/real_world_memory/
 ---
 # Real-World Agent Memory Benchmark v1
 
@@ -125,6 +130,7 @@ runner execution.
   "encoding": {},
   "memory_evolution": {},
   "memory_summary": {},
+  "work_continuity": {},
   "tags": []
 }
 ```
@@ -149,6 +155,7 @@ runner execution.
 | `encoding` | object | Optional job-level limitation declaration. Only `not_encoded`, `blocked`, and `incomplete` statuses are allowed here. |
 | `memory_evolution` | object or null | Optional for most suites; used by `memory_evolution` jobs to report current evidence, historical evidence, stale traps, conflicts, update rationale, and temporal-validity limitations. |
 | `memory_summary` | object or null | Optional for most suites; used by `memory_summary` jobs to report reviewable summary/source-trace metrics defined in `system_memory_summary_v1.md`. |
+| `work_continuity` | object or null | Optional for most suites; required for encoded `work_continuity` jobs. Records expected Work Journal reset/resume entries, decision-rationale evidence, rejected options, explicit/inferred next steps, handoff source refs, redaction markers, and janitor candidates. |
 | `tags` | array | Optional labels such as `private_corpus`, `public_proxy`, `provider_backed`, `synthetic`, `adapter_required`, or `no_live_claim`. |
 
 ### `corpus`
@@ -620,6 +627,7 @@ Suite ids are stable public names. Each suite MUST contain at least one
 | --- | --- | --- | --- | --- | --- |
 | `trust_source_of_truth` | Verify authoritative storage, provenance, rebuild, and non-authoritative derived index handling. | Restore a note after Qdrant rebuild; identify whether a compiled page is derived; explain why a source ref supports a claim. | Source note/document ids, restore or rebuild trace, source_ref lineage, no hidden index-only evidence. | answer_correctness, evidence_grounding, trap_avoidance, lifecycle_behavior. | ELF, memsearch, OpenViking. |
 | `work_resume` | Help an agent resume real work without repeating completed steps or losing blockers. | Resume a retained lane; identify next command after a failed run; summarize what remains blocked. | Timeline events, issue/PR ids, run summaries, latest blocker evidence. | answer_correctness, workflow_helpfulness, uncertainty_handling, trap_avoidance. | agentmemory, claude-mem, OpenViking. |
+| `work_continuity` | Verify source-adjacent Work Journal reset/resume, rationale, rejected-option, next-step, handoff, redaction, and janitor boundaries. | Resume a session from Work Journal readback; recall why a decision was made; suppress a rejected option; label inferred next steps as non-instructions; preserve handoff source refs; keep janitor candidates review-only. | Work Journal readback ids, entry ids, source refs, decision-rationale evidence ids, redaction marker ids, rejected option ids, explicit and inferred next-step ids, janitor candidate ids, promotion-boundary evidence. | answer_correctness, evidence_grounding, trap_avoidance, lifecycle_behavior, uncertainty_handling. | ELF, agentmemory, claude-mem, Always-On Memory Agent. |
 | `project_decisions` | Recover durable decisions, rationale, reversals, and current policy. | Explain why a design was chosen; distinguish old vs current validation gate; cite decision evidence. | Decision records, superseding events, accepted alternatives, current-policy timestamp. | answer_correctness, evidence_grounding, trap_avoidance, uncertainty_handling. | ELF, gbrain, llm-wiki, Letta. |
 | `retrieval` | Measure task-relevant retrieval quality beyond top-k keyword matching. | Answer a task query with expected evidence; find alternate phrasing; avoid near-duplicate project evidence. | Expected evidence ids, allowed alternates, decoy evidence ids, trace ids when available. | answer_correctness, evidence_grounding, trap_avoidance, latency_resource. | qmd, ELF, memsearch, OpenViking. |
 | `memory_evolution` | Verify updates, deletes, expiry, supersession, contradiction handling, and history. | Apply a new preference; suppress a deleted memory; explain what superseded an old fact. | Before/after memory versions, ingest decision rows or adapter history, current timeline event. | lifecycle_behavior, answer_correctness, evidence_grounding, trap_avoidance. | mem0, ELF, Graphiti/Zep, Letta. |
@@ -700,6 +708,12 @@ Reports MUST include:
 - for encoded knowledge-compilation jobs with page artifacts: citation coverage, stale
   claim detection, rebuild determinism, page usefulness, backlink counts, unsupported
   summary count, and untraced section count;
+- for encoded Work Continuity jobs with Work Journal readbacks: reset/resume success
+  rate, decision-rationale recall rate, rejected-option suppression rate, explicit
+  next-step precision, inferred next-step labeling rate, handoff source-ref coverage,
+  redaction rate, janitor false-promotion rate, and hard-fail counters for sensitive
+  marker persistence, rejected-option resurrection, inferred-step-as-instruction, and
+  journal-only authority claims;
 - explicit `not_encoded` suite list;
 - private-corpus redaction policy when private fixtures are used.
 - capture/integration coverage classes when any fixture declares `capture_behaviors`,
@@ -735,6 +749,25 @@ presented as current top-of-mind facts. A derived project-profile entry MUST NOT
 unless it has source refs or explicit unsupported-claim flags. A derived entry with
 unsupported-claim flags MUST NOT pass when it is included as current memory instead of
 being excluded or downgraded for review.
+
+Reports that encode `work_continuity` jobs MUST also include:
+
+- Work Journal readback artifact count and entry count;
+- reset/resume required and successful entry counts;
+- decision-rationale required and recalled evidence counts;
+- rejected-option required, suppressed, and resurrected counts;
+- explicit next-step required, returned, and correct counts;
+- inferred next-step required, labeled, and instruction-violation counts;
+- handoff source-ref required and covered counts;
+- redaction required, applied, and persisted-sensitive-marker counts;
+- janitor candidate and false-promotion counts;
+- journal-only authority claim count.
+
+A `work_continuity` job MUST NOT pass when a sensitive marker persists after redaction,
+a rejected option is resurrected as current work, an inferred next step is surfaced as
+an instruction, or journal-only content is claimed as current authority. Janitor
+candidates may be reported as review-required Work Journal evidence, but automatic
+promotion to Memory Authority without accepted promotion evidence is a hard fail.
 
 Consolidation suite reports MUST also include:
 
