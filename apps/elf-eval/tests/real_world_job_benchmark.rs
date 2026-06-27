@@ -1652,8 +1652,8 @@ fn assert_elf_fixture_adapter_record(adapter: &Value) -> Result<()> {
 	assert_eq!(adapter.pointer("/evidence_class").and_then(Value::as_str), Some("fixture_backed"));
 	assert_eq!(adapter.pointer("/overall_status").and_then(Value::as_str), Some("blocked"));
 	assert!(adapter.pointer("/run/evidence").and_then(Value::as_str).is_some_and(|evidence| {
-		evidence.contains("60 jobs across 16 suites")
-			&& evidence.contains("53 pass")
+		evidence.contains("82 jobs across 19 suites")
+			&& evidence.contains("75 pass")
 			&& evidence.contains("7 blocked")
 			&& evidence.contains("core_archival_memory")
 			&& evidence.contains("memory_summary")
@@ -8760,6 +8760,10 @@ fn assert_root_scoreboard_rows(report: &Value) -> Result<()> {
 		assert_eq!(
 			competitor.pointer("/evidence_class").and_then(Value::as_str),
 			Some("live_real_world")
+		);
+		assert_eq!(
+			competitor.pointer("/result_state").and_then(Value::as_str),
+			Some("wrong_result")
 		);
 		assert_eq!(competitor.pointer("/product_runtime").and_then(Value::as_bool), Some(true));
 		assert_eq!(

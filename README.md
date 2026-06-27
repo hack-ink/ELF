@@ -330,9 +330,10 @@ provider-backed ELF evidence was required.
   until main-thread acceptance.
 - Public quantitative competitor scoreboard after XY-1120: the June 27 report adds
   `cargo make real-world-memory-quantitative-scoreboard` and
-  `elf.quality_scoreboard/v1` rows for 20 tracked products with recall@5,
-  precision@5, MRR, nDCG, stale suppression, update/delete correctness, source-ref
-  coverage, latency, typed blockers, source provenance, and next-evidence metadata.
+	  `elf.quality_scoreboard/v1` rows for 20 tracked products. Rows expose recall@5,
+	  precision@5, MRR, nDCG, stale suppression, update/delete correctness, source-ref
+	  coverage, and latency where measured, and typed blockers plus source provenance
+	  and next-evidence metadata where comparable metrics are not yet available.
   VectifyAI PageIndex, VectifyAI OpenKB, and plastic-labs Honcho are explicit typed
   non-pass rows; PageIndex/OpenKB use existing fixture/source provenance, while
   Honcho remains a source-provenance research gate until product-runtime evidence is

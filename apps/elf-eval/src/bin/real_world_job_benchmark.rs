@@ -7518,9 +7518,9 @@ fn strongest_scoreboard_evidence_class(adapters: &[&ExternalAdapterReport]) -> S
 
 fn external_project_result_state(adapters: &[&ExternalAdapterReport]) -> String {
 	for status in [
+		AdapterCoverageStatus::WrongResult,
 		AdapterCoverageStatus::Blocked,
 		AdapterCoverageStatus::Incomplete,
-		AdapterCoverageStatus::WrongResult,
 		AdapterCoverageStatus::LifecycleFail,
 		AdapterCoverageStatus::NotEncoded,
 		AdapterCoverageStatus::Unsupported,
