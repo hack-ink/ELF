@@ -42,13 +42,15 @@ or multi-region failover evidence.
 - `elf.authority_recovery_drill/v1` is a benchmark artifact under
   `adapter_response.answer.recovery_drills[]`.
 - The runner validates drill topology, failure injections, backup/PITR restored
-  evidence, degraded-read labels, RPO/RTO measurements, matching authority record
-  counts for source, journal, memory, knowledge, proposal, trace, and audit planes,
-  idempotent outbox replay, Qdrant rebuild completeness, migration repair, and
-  dead-letter handling.
+  evidence, degraded-read labels with visible source-of-truth records, RPO/RTO
+  measurements that meet targets, matching authority record counts for source,
+  journal, memory, knowledge, proposal, trace, and audit planes, preserved source
+  refs and lifecycle history, idempotent outbox replay without duplicate writes,
+  Qdrant rebuild completeness without missing vectors or errors, applied migration
+  repair, and dead-letter handling.
 - Reports expose those drill counts through
-  `operational_evidence.authority_recovery`, including backup/PITR restored and
-  record-count preservation counters.
+  `operational_evidence.authority_recovery`, including backup/PITR restored,
+  record-count preservation, and predicate-gated drill pass counters.
 - The checked-in fixture is local synthetic evidence only. It does not prove private
   corpus quality, provider-backed behavior, hosted HA, standby failover, or
   multi-region SLA.
