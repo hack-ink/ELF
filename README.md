@@ -328,6 +328,20 @@ provider-backed ELF evidence was required.
   evidence/source-ref/quote coverage and 0.000 irrelevant context ratio. P5
   productization is narrowed to proven local/public workflows and remains unqueued
   until main-thread acceptance.
+- Public quantitative competitor scoreboard after XY-1120: the June 27 report adds
+  `cargo make real-world-memory-quantitative-scoreboard` and
+	  `elf.quality_scoreboard/v1` rows for 20 tracked products. Rows expose recall@5,
+	  precision@5, MRR, nDCG, stale suppression, update/delete correctness, source-ref
+	  coverage, and latency where measured, and typed blockers plus source provenance
+	  and next-evidence metadata where comparable metrics are not yet available.
+  VectifyAI PageIndex, VectifyAI OpenKB, and plastic-labs Honcho are explicit typed
+  non-pass rows; PageIndex/OpenKB use existing fixture/source provenance, while
+  Honcho remains a source-provenance research gate until product-runtime evidence is
+  checked in.
+  The full ELF fixture run scores 75 pass, 0 wrong_result, 0 unsupported claims, and
+  7 blocked jobs with aggregate evidence/source-ref/quote coverage at 1.000, while
+  every public product row remains non-comparable until held-out, leakage-audited,
+  digest-identified product-runtime evidence exists.
 - Operator-approved public-proxy addendum after XY-930: the June 19 follow-up runs
   `cargo make baseline-production-private-addendum` with a simulated/public-proxy
   production corpus manifest approved for this stage. The run records 12 documents,
@@ -473,6 +487,7 @@ Detailed evidence and interpretation:
 - [P3 Competitor-Strength Absorption Report - June 23, 2026](docs/evidence/benchmarking/2026-06-23-p3-competitor-strength-absorption-report.md)
 - [P4 Production-Readiness Evidence Gates Report - June 23, 2026](docs/evidence/benchmarking/2026-06-23-p4-production-readiness-evidence-gates-report.md)
 - [P4 Quality Hardening and Productization Readiness Report - June 23, 2026](docs/evidence/benchmarking/2026-06-23-p4-quality-hardening-productization-readiness-report.md)
+- [Public Quantitative Competitor Scoreboard Report - June 27, 2026](docs/evidence/benchmarking/2026-06-27-public-quantitative-competitor-scoreboard-report.md)
 - [Live Baseline Benchmark Runbook](docs/runbook/benchmarking/live_baseline_benchmark.md)
 - [Single-User Production Runbook](docs/runbook/single_user_production.md)
 - Benchmark contract:
@@ -571,6 +586,7 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [P3 Competitor-Strength Absorption Report - June 23, 2026](docs/evidence/benchmarking/2026-06-23-p3-competitor-strength-absorption-report.md)
 - [P4 Production-Readiness Evidence Gates Report - June 23, 2026](docs/evidence/benchmarking/2026-06-23-p4-production-readiness-evidence-gates-report.md)
 - [P4 Quality Hardening and Productization Readiness Report - June 23, 2026](docs/evidence/benchmarking/2026-06-23-p4-quality-hardening-productization-readiness-report.md)
+- [Public Quantitative Competitor Scoreboard Report - June 27, 2026](docs/evidence/benchmarking/2026-06-27-public-quantitative-competitor-scoreboard-report.md)
 - [Live Baseline Benchmark Runbook](docs/runbook/benchmarking/live_baseline_benchmark.md)
 - [Real-World Agent Memory Benchmark](docs/runbook/benchmarking/real_world_agent_memory_benchmark.md)
 - [External Memory Improvement Plan](docs/evidence/external_memory/external_memory_improvement_plan.md)
@@ -582,7 +598,7 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [Derived Knowledge Page Follow-Up Research](docs/research/derived_knowledge_page_followup.md)
 - [Dreaming Product Surface Follow-Up Research](docs/research/dreaming_product_surface_followup.md)
 
-Latest real-world benchmark report: June 23, 2026. Latest external research refresh:
+Latest real-world benchmark report: June 27, 2026. Latest external research refresh:
 June 11, 2026; June 20 adds the Agent Knowledge OS Closeout Benchmark Report,
 the Graph Topic-Map Report - June 20, 2026, Knowledge Workspace Version-Diff
 Report - June 20, 2026, and the Live Knowledge-Page Rebuild/Lint Report - June 20,
@@ -597,6 +613,8 @@ June 19 XY-930 operator-approved public-proxy production addendum and service-na
 Dreaming readback, the qmd debug-ergonomics Dreaming retest, the June 17
 competitor-strength closeout, and the June 16 temporal reconciliation, live
 consolidation self-check, proactive-brief, and scheduled-memory scoring evidence.
+June 27 adds the public quantitative competitor scoreboard report with row-level
+comparability gates and no universal leaderboard claim.
 
 ## Documentation
 
