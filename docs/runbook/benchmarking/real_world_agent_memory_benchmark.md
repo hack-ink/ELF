@@ -6,7 +6,7 @@ resource: docs/runbook/benchmarking/real_world_agent_memory_benchmark.md
 status: active
 authority: procedural
 owner: runbook
-last_verified: 2026-06-23
+last_verified: 2026-06-27
 tags:
   - docs
   - runbook
@@ -192,10 +192,12 @@ including the retrieval-quality slice below. The suite currently encodes:
   source-id preservation, evidence binding, no secret leakage, and fixture-backed
   capture/integration boundary classification.
 - `production_ops`: interrupted generated backfill resume, backup/restore plus
-  cold-start readback, resource-envelope interpretation, public-proxy
-  production-private addendum readback, pinned OpenViking local embedding
-  runtime/wrong-result classification, missing private manifest `blocked`
-  classification, and provider credential boundary `blocked` classification.
+  cold-start readback, recoverable authority-plane drill evidence over source,
+  journal, memory, knowledge, proposal, trace, and audit records,
+  resource-envelope interpretation, public-proxy production-private addendum readback,
+  pinned OpenViking local embedding runtime/wrong-result classification, missing
+  private manifest `blocked` classification, and provider credential boundary
+  `blocked` classification.
 - `personalization`: scoped stable preference correction without temporary or
   cross-project preference leakage.
 - `core_archival_memory`: core block attachment, scope, provenance, stale-core
@@ -705,10 +707,24 @@ The production-ops fixtures live under
 `apps/elf-eval/fixtures/real_world_memory/production_ops/`. They encode user-job
 readback over existing public benchmark and restore evidence: interrupted backfill
 resume from checkpoint, clean-run comparison, backup/restore readback, Qdrant rebuild
-from Postgres-held vectors, cold-start search recovery, and resource-envelope
-interpretation. The P4 slice also encodes the operator-approved public-proxy
-production-private addendum and emits `elf.operational_evidence_gates/v1` so local
-fixture, public-proxy, private-corpus, and provider-backed evidence remain separate.
+from Postgres-held vectors, cold-start search recovery, recoverable authority-plane
+drills, and resource-envelope interpretation. Authority recovery drills use
+`elf.authority_recovery_drill/v1` under `adapter_response.answer.recovery_drills[]`
+to report topology, failure injection, backup/PITR, degraded-read labels, RPO/RTO
+targets and measurements, matching before/after authority record counts, idempotent
+outbox replay, Qdrant rebuild completeness, migration repair, and dead-letter
+handling. The runner fails drills whose predicates are false: backup/PITR must be
+restored, source-of-truth records must stay visible during degraded reads, RPO/RTO
+measurements must meet targets, authority counts/source refs/lifecycle history must
+be preserved, outbox replay must be idempotent without duplicate writes, Qdrant
+rebuilds must complete without missing vectors or errors, migration repair must be
+applied, and dead-letter rows must be handled. The generated
+`operational_evidence.authority_recovery` report includes backup/PITR restored,
+record-count preservation, and per-predicate recovery counters; drill pass counts
+require both a passing job and successful recovery predicates. The P4 slice also
+encodes the operator-approved public-proxy production-private addendum and emits
+`elf.operational_evidence_gates/v1` so local fixture, public-proxy, private-corpus,
+and provider-backed evidence remain separate.
 
 The same slice deliberately keeps non-pass boundaries typed. A missing private
 production manifest is `blocked`, unavailable provider credentials are `blocked`, and
