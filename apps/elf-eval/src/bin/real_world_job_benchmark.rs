@@ -59,6 +59,7 @@ const SUITES: &[&str] = &[
 	"source_library",
 	"operator_debugging_ux",
 	"capture_integration",
+	"work_continuity",
 	"production_ops",
 	"personalization",
 	"core_archival_memory",
@@ -171,6 +172,7 @@ struct RealWorldJob {
 	memory_summary: Option<MemorySummaryExpectation>,
 	proactive_brief: Option<ProactiveBriefExpectation>,
 	scheduled_memory: Option<ScheduledMemoryExpectation>,
+	work_continuity: Option<WorkContinuityExpectation>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -397,6 +399,26 @@ struct ScheduledMemoryExpectation {
 }
 
 #[derive(Debug, Deserialize)]
+struct WorkContinuityExpectation {
+	#[serde(default)]
+	required_reset_resume_entry_ids: Vec<String>,
+	#[serde(default)]
+	required_decision_rationale_evidence_ids: Vec<String>,
+	#[serde(default)]
+	required_rejected_option_ids: Vec<String>,
+	#[serde(default)]
+	required_explicit_next_step_ids: Vec<String>,
+	#[serde(default)]
+	required_inferred_next_step_ids: Vec<String>,
+	#[serde(default)]
+	required_handoff_source_ref_ids: Vec<String>,
+	#[serde(default)]
+	required_redaction_marker_ids: Vec<String>,
+	#[serde(default)]
+	required_janitor_candidate_ids: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
 struct ScoringRubric {
 	#[serde(default)]
 	dimensions: BTreeMap<String, RubricDimension>,
@@ -442,6 +464,8 @@ struct ProducedAnswer {
 	proactive_briefs: Vec<ProactiveBriefArtifact>,
 	#[serde(default)]
 	scheduled_tasks: Vec<ScheduledMemoryTaskArtifact>,
+	#[serde(default)]
+	work_journal_readbacks: Vec<WorkJournalReadbackArtifact>,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	latency_ms: Option<f64>,
 	#[serde(skip_serializing_if = "Option::is_none")]
@@ -682,6 +706,116 @@ struct ScheduledMemoryTraceStage {
 	summary: String,
 	#[serde(default)]
 	evidence_refs: Vec<String>,
+}
+
+struct WorkContinuityObserved<'a> {
+	reset_resume_entry_ids: BTreeSet<&'a str>,
+	decision_rationale_evidence_ids: BTreeSet<&'a str>,
+	rejected_options: Vec<&'a WorkJournalRejectedOptionArtifact>,
+	explicit_next_steps: Vec<&'a WorkJournalNextStepArtifact>,
+	inferred_next_steps: Vec<&'a WorkJournalNextStepArtifact>,
+	handoff_source_refs: BTreeSet<&'a str>,
+	redacted_marker_ids: BTreeSet<&'a str>,
+	janitor_candidates: Vec<&'a WorkJournalJanitorCandidateArtifact>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct WorkJournalReadbackArtifact {
+	readback_id: String,
+	contract_schema: String,
+	generated_at: String,
+	session_id: String,
+	tenant_id: String,
+	project_id: String,
+	agent_id: String,
+	read_profile: String,
+	#[serde(default)]
+	items: Vec<WorkJournalEntryArtifact>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	where_stopped: Option<WorkJournalWhereStoppedArtifact>,
+	promotion_boundary: WorkJournalPromotionBoundaryArtifact,
+	#[serde(default)]
+	janitor_candidates: Vec<WorkJournalJanitorCandidateArtifact>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct WorkJournalEntryArtifact {
+	entry_id: String,
+	family: String,
+	title: String,
+	body: String,
+	#[serde(default)]
+	source_refs: Vec<String>,
+	#[serde(default)]
+	redaction_audit: WorkJournalRedactionAuditArtifact,
+	#[serde(default)]
+	explicit_next_steps: Vec<WorkJournalNextStepArtifact>,
+	#[serde(default)]
+	inferred_next_steps: Vec<WorkJournalNextStepArtifact>,
+	#[serde(default)]
+	rejected_options: Vec<WorkJournalRejectedOptionArtifact>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct WorkJournalRedactionAuditArtifact {
+	#[serde(default)]
+	required_marker_ids: Vec<String>,
+	#[serde(default)]
+	redacted_marker_ids: Vec<String>,
+	#[serde(default)]
+	persisted_sensitive_marker_ids: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct WorkJournalNextStepArtifact {
+	step_id: String,
+	text: String,
+	label: String,
+	instruction: bool,
+	#[serde(default)]
+	evidence_refs: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct WorkJournalRejectedOptionArtifact {
+	option_id: String,
+	text: String,
+	#[serde(default)]
+	evidence_refs: Vec<String>,
+	resurrected_as_current: bool,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct WorkJournalWhereStoppedArtifact {
+	#[serde(default)]
+	reset_resume_entry_ids: Vec<String>,
+	#[serde(default)]
+	decision_rationale_evidence_ids: Vec<String>,
+	#[serde(default)]
+	current_explicit_next_step_ids: Vec<String>,
+	#[serde(default)]
+	labeled_inferred_next_step_ids: Vec<String>,
+	#[serde(default)]
+	handoff_source_refs: Vec<String>,
+	#[serde(default)]
+	journal_only_authority_claims: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct WorkJournalPromotionBoundaryArtifact {
+	journal_entry_authority: String,
+	memory_promotion_required: bool,
+	#[serde(default)]
+	accepted_refs: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct WorkJournalJanitorCandidateArtifact {
+	candidate_id: String,
+	#[serde(default)]
+	evidence_refs: Vec<String>,
+	review_required: bool,
+	promoted_to_memory: bool,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -1269,6 +1403,8 @@ struct ReportSummary {
 	#[serde(skip_serializing_if = "Option::is_none")]
 	scheduled_memory: Option<ScheduledMemorySummaryReport>,
 	#[serde(skip_serializing_if = "Option::is_none")]
+	work_continuity: Option<WorkContinuitySummaryReport>,
+	#[serde(skip_serializing_if = "Option::is_none")]
 	knowledge: Option<KnowledgeSummary>,
 }
 
@@ -1383,6 +1519,42 @@ struct ScheduledMemorySummaryReport {
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct WorkContinuitySummaryReport {
+	job_count: usize,
+	readback_count: usize,
+	entry_count: usize,
+	reset_resume_required_count: usize,
+	reset_resume_success_count: usize,
+	reset_resume_success_rate: f64,
+	decision_rationale_required_count: usize,
+	decision_rationale_recalled_count: usize,
+	decision_rationale_recall_rate: f64,
+	rejected_option_required_count: usize,
+	rejected_option_suppressed_count: usize,
+	rejected_option_resurrection_count: usize,
+	rejected_option_suppression_rate: f64,
+	explicit_next_step_required_count: usize,
+	explicit_next_step_returned_count: usize,
+	explicit_next_step_correct_count: usize,
+	explicit_next_step_precision: f64,
+	inferred_next_step_required_count: usize,
+	inferred_next_step_labeled_count: usize,
+	inferred_step_instruction_count: usize,
+	inferred_next_step_labeling_rate: f64,
+	handoff_source_ref_required_count: usize,
+	handoff_source_ref_covered_count: usize,
+	handoff_source_ref_coverage: f64,
+	redaction_required_count: usize,
+	redaction_applied_count: usize,
+	sensitive_marker_persistence_count: usize,
+	redaction_rate: f64,
+	janitor_candidate_count: usize,
+	janitor_false_promotion_count: usize,
+	janitor_false_promotion_rate: f64,
+	journal_only_authority_claim_count: usize,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 struct KnowledgeSummary {
 	job_count: usize,
 	page_count: usize,
@@ -1465,6 +1637,8 @@ struct JobReport {
 	proactive_brief: Option<ProactiveBriefJobMetrics>,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	scheduled_memory: Option<ScheduledMemoryJobMetrics>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	work_continuity: Option<WorkContinuityJobMetrics>,
 	trap_ids_used: Vec<String>,
 	dimension_scores: Vec<DimensionScoreReport>,
 	reason: String,
@@ -1692,6 +1866,41 @@ struct ScheduledMemoryJobMetrics {
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct WorkContinuityJobMetrics {
+	readback_count: usize,
+	entry_count: usize,
+	reset_resume_required_count: usize,
+	reset_resume_success_count: usize,
+	reset_resume_success_rate: f64,
+	decision_rationale_required_count: usize,
+	decision_rationale_recalled_count: usize,
+	decision_rationale_recall_rate: f64,
+	rejected_option_required_count: usize,
+	rejected_option_suppressed_count: usize,
+	rejected_option_resurrection_count: usize,
+	rejected_option_suppression_rate: f64,
+	explicit_next_step_required_count: usize,
+	explicit_next_step_returned_count: usize,
+	explicit_next_step_correct_count: usize,
+	explicit_next_step_precision: f64,
+	inferred_next_step_required_count: usize,
+	inferred_next_step_labeled_count: usize,
+	inferred_step_instruction_count: usize,
+	inferred_next_step_labeling_rate: f64,
+	handoff_source_ref_required_count: usize,
+	handoff_source_ref_covered_count: usize,
+	handoff_source_ref_coverage: f64,
+	redaction_required_count: usize,
+	redaction_applied_count: usize,
+	sensitive_marker_persistence_count: usize,
+	redaction_rate: f64,
+	janitor_candidate_count: usize,
+	janitor_false_promotion_count: usize,
+	janitor_false_promotion_rate: f64,
+	journal_only_authority_claim_count: usize,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 struct EvolutionSummary {
 	stale_answer_count: usize,
 	conflict_detection_count: usize,
@@ -1759,6 +1968,7 @@ struct JobScoring {
 	memory_summary: Option<MemorySummaryJobMetrics>,
 	proactive_brief: Option<ProactiveBriefJobMetrics>,
 	scheduled_memory: Option<ScheduledMemoryJobMetrics>,
+	work_continuity: Option<WorkContinuityJobMetrics>,
 }
 
 #[derive(Debug, Default)]
@@ -1802,6 +2012,19 @@ struct FailureCounts {
 	scheduled_memory_unsupported_current_outputs: usize,
 	scheduled_memory_tombstone_violations: usize,
 	scheduled_memory_missing_trace: usize,
+	work_continuity_reset_resume_missing: usize,
+	work_continuity_decision_rationale_missing: usize,
+	work_continuity_rejected_option_unsuppressed: usize,
+	work_continuity_rejected_option_resurrection: usize,
+	work_continuity_explicit_next_step_missing: usize,
+	work_continuity_explicit_next_step_extra: usize,
+	work_continuity_inferred_step_unlabeled: usize,
+	work_continuity_inferred_step_as_instruction: usize,
+	work_continuity_handoff_source_ref_missing: usize,
+	work_continuity_redaction_missing: usize,
+	work_continuity_sensitive_marker_persistence: usize,
+	work_continuity_janitor_false_promotion: usize,
+	work_continuity_journal_only_authority_claim: usize,
 	untraced_page_sections: usize,
 	missed_stale_findings: usize,
 	rebuild_failures: usize,
@@ -1932,6 +2155,7 @@ fn validate_job(job: &RealWorldJob, path: &Path) -> Result<()> {
 	validate_memory_summary_expectation(job, path)?;
 	validate_proactive_brief_expectation(job, path)?;
 	validate_scheduled_memory_expectation(job, path)?;
+	validate_work_continuity_expectation(job, path)?;
 	validate_trace_explainability(job, path)?;
 
 	Ok(())
@@ -2217,6 +2441,9 @@ fn validate_adapter_response(job: &RealWorldJob, path: &Path) -> Result<()> {
 	for task in &adapter_response.answer.scheduled_tasks {
 		validate_scheduled_memory_artifact(task, path, &evidence_ids)?;
 	}
+	for readback in &adapter_response.answer.work_journal_readbacks {
+		validate_work_journal_readback_artifact(readback, path, &evidence_ids)?;
+	}
 
 	if job.suite == "memory_summary"
 		&& adapter_response.answer.memory_summaries.is_empty()
@@ -2242,6 +2469,15 @@ fn validate_adapter_response(job: &RealWorldJob, path: &Path) -> Result<()> {
 	{
 		return Err(eyre::eyre!(
 			"{} scheduled_memory jobs must provide adapter_response.answer.scheduled_tasks.",
+			path.display()
+		));
+	}
+	if job.suite == "work_continuity"
+		&& adapter_response.answer.work_journal_readbacks.is_empty()
+		&& job.encoding.status.is_none()
+	{
+		return Err(eyre::eyre!(
+			"{} work_continuity jobs must provide adapter_response.answer.work_journal_readbacks.",
 			path.display()
 		));
 	}
@@ -2749,6 +2985,161 @@ fn validate_scheduled_memory_trace(
 	Ok(())
 }
 
+fn validate_work_journal_readback_artifact(
+	readback: &WorkJournalReadbackArtifact,
+	path: &Path,
+	evidence_ids: &BTreeSet<String>,
+) -> Result<()> {
+	if readback.readback_id.trim().is_empty()
+		|| readback.contract_schema != "elf.work_journal/v1"
+		|| readback.generated_at.trim().is_empty()
+		|| readback.session_id.trim().is_empty()
+		|| readback.tenant_id.trim().is_empty()
+		|| readback.project_id.trim().is_empty()
+		|| readback.agent_id.trim().is_empty()
+		|| readback.read_profile.trim().is_empty()
+		|| readback.items.is_empty()
+	{
+		return Err(eyre::eyre!("{} has an incomplete Work Journal readback.", path.display()));
+	}
+
+	validate_optional_rfc3339(&readback.generated_at, path, readback.readback_id.as_str())?;
+
+	if readback.promotion_boundary.journal_entry_authority.trim().is_empty() {
+		return Err(eyre::eyre!(
+			"{} Work Journal readback {} has an incomplete promotion boundary.",
+			path.display(),
+			readback.readback_id
+		));
+	}
+
+	for accepted_ref in &readback.promotion_boundary.accepted_refs {
+		if accepted_ref.trim().is_empty() {
+			return Err(eyre::eyre!(
+				"{} Work Journal readback {} has an empty accepted ref.",
+				path.display(),
+				readback.readback_id
+			));
+		}
+	}
+	for item in &readback.items {
+		validate_work_journal_entry(item, path, evidence_ids)?;
+	}
+
+	if let Some(where_stopped) = &readback.where_stopped {
+		validate_work_journal_where_stopped(where_stopped, path, evidence_ids)?;
+	}
+
+	for candidate in &readback.janitor_candidates {
+		if candidate.candidate_id.trim().is_empty() {
+			return Err(eyre::eyre!(
+				"{} Work Journal readback {} has an empty janitor candidate id.",
+				path.display(),
+				readback.readback_id
+			));
+		}
+
+		for evidence_ref in &candidate.evidence_refs {
+			ensure_known_evidence(path, evidence_ids, evidence_ref)?;
+		}
+	}
+
+	Ok(())
+}
+
+fn validate_work_journal_entry(
+	entry: &WorkJournalEntryArtifact,
+	path: &Path,
+	evidence_ids: &BTreeSet<String>,
+) -> Result<()> {
+	if entry.entry_id.trim().is_empty()
+		|| entry.family.trim().is_empty()
+		|| entry.title.trim().is_empty()
+		|| entry.body.trim().is_empty()
+		|| entry.source_refs.is_empty()
+	{
+		return Err(eyre::eyre!("{} has an incomplete Work Journal entry.", path.display()));
+	}
+
+	for source_ref in &entry.source_refs {
+		ensure_known_evidence(path, evidence_ids, source_ref)?;
+	}
+	for marker_id in entry
+		.redaction_audit
+		.required_marker_ids
+		.iter()
+		.chain(entry.redaction_audit.redacted_marker_ids.iter())
+		.chain(entry.redaction_audit.persisted_sensitive_marker_ids.iter())
+	{
+		if marker_id.trim().is_empty() {
+			return Err(eyre::eyre!(
+				"{} Work Journal entry {} has an empty redaction marker id.",
+				path.display(),
+				entry.entry_id
+			));
+		}
+	}
+	for step in entry.explicit_next_steps.iter().chain(entry.inferred_next_steps.iter()) {
+		validate_work_journal_next_step(step, path, evidence_ids)?;
+	}
+	for option in &entry.rejected_options {
+		if option.option_id.trim().is_empty() || option.text.trim().is_empty() {
+			return Err(eyre::eyre!(
+				"{} Work Journal entry {} has an incomplete rejected option.",
+				path.display(),
+				entry.entry_id
+			));
+		}
+
+		for evidence_ref in &option.evidence_refs {
+			ensure_known_evidence(path, evidence_ids, evidence_ref)?;
+		}
+	}
+
+	Ok(())
+}
+
+fn validate_work_journal_next_step(
+	step: &WorkJournalNextStepArtifact,
+	path: &Path,
+	evidence_ids: &BTreeSet<String>,
+) -> Result<()> {
+	if step.step_id.trim().is_empty() || step.text.trim().is_empty() || step.label.trim().is_empty()
+	{
+		return Err(eyre::eyre!("{} has an incomplete Work Journal next step.", path.display()));
+	}
+
+	for evidence_ref in &step.evidence_refs {
+		ensure_known_evidence(path, evidence_ids, evidence_ref)?;
+	}
+
+	Ok(())
+}
+
+fn validate_work_journal_where_stopped(
+	where_stopped: &WorkJournalWhereStoppedArtifact,
+	path: &Path,
+	evidence_ids: &BTreeSet<String>,
+) -> Result<()> {
+	for evidence_ref in where_stopped
+		.decision_rationale_evidence_ids
+		.iter()
+		.chain(where_stopped.handoff_source_refs.iter())
+	{
+		ensure_known_evidence(path, evidence_ids, evidence_ref)?;
+	}
+	for claim in &where_stopped.journal_only_authority_claims {
+		if claim.trim().is_empty() {
+			return Err(eyre::eyre!(
+				"{} has an empty Work Journal journal-only authority claim.",
+				path.display()
+			));
+		}
+	}
+
+	Ok(())
+}
+
 fn validate_optional_summary_time(path: &Path, value: Option<&str>, id: &str) -> Result<()> {
 	if let Some(value) = value {
 		validate_optional_rfc3339(value, path, id)?;
@@ -3062,6 +3453,46 @@ fn validate_scheduled_memory_expectation(job: &RealWorldJob, path: &Path) -> Res
 	Ok(())
 }
 
+fn validate_work_continuity_expectation(job: &RealWorldJob, path: &Path) -> Result<()> {
+	let Some(work_continuity) = &job.work_continuity else {
+		if job.suite == "work_continuity" && job.encoding.status.is_none() {
+			return Err(eyre::eyre!(
+				"{} work_continuity jobs must provide work_continuity expectations.",
+				path.display()
+			));
+		}
+
+		return Ok(());
+	};
+	let evidence_ids = corpus_evidence_ids(job);
+
+	for value in work_continuity
+		.required_reset_resume_entry_ids
+		.iter()
+		.chain(work_continuity.required_rejected_option_ids.iter())
+		.chain(work_continuity.required_explicit_next_step_ids.iter())
+		.chain(work_continuity.required_inferred_next_step_ids.iter())
+		.chain(work_continuity.required_redaction_marker_ids.iter())
+		.chain(work_continuity.required_janitor_candidate_ids.iter())
+	{
+		if value.trim().is_empty() {
+			return Err(eyre::eyre!(
+				"{} work_continuity expectations contain an empty required id.",
+				path.display()
+			));
+		}
+	}
+	for evidence_ref in work_continuity
+		.required_decision_rationale_evidence_ids
+		.iter()
+		.chain(work_continuity.required_handoff_source_ref_ids.iter())
+	{
+		ensure_known_evidence(path, &evidence_ids, evidence_ref)?;
+	}
+
+	Ok(())
+}
+
 fn validate_evolution_conflict(
 	path: &Path,
 	evidence_ids: &BTreeSet<String>,
@@ -3333,6 +3764,7 @@ fn score_job(job: &RealWorldJob) -> JobScoring {
 	let memory_summary = memory_summary_metrics(job, answer);
 	let proactive_brief = proactive_brief_metrics(job, answer);
 	let scheduled_memory = scheduled_memory_metrics(job, answer);
+	let work_continuity = work_continuity_metrics(job, answer);
 	let mut unsupported_claims = unsupported_claims(job, answer);
 
 	unsupported_claims.extend(unsupported_page_claims(answer));
@@ -3380,6 +3812,7 @@ fn score_job(job: &RealWorldJob) -> JobScoring {
 	apply_memory_summary_failure_counts(&mut counts, memory_summary.as_ref());
 	apply_proactive_brief_failure_counts(&mut counts, proactive_brief.as_ref());
 	apply_scheduled_memory_failure_counts(&mut counts, scheduled_memory.as_ref());
+	apply_work_continuity_failure_counts(&mut counts, work_continuity.as_ref());
 
 	let dimension_scores = dimension_scores(job, &counts);
 	let normalized_score = normalized_score(&dimension_scores);
@@ -3414,6 +3847,7 @@ fn score_job(job: &RealWorldJob) -> JobScoring {
 		memory_summary,
 		proactive_brief,
 		scheduled_memory,
+		work_continuity,
 	}
 }
 
@@ -3477,6 +3911,46 @@ fn apply_scheduled_memory_failure_counts(
 	counts.source_mutations += metrics.source_mutation_count;
 }
 
+fn apply_work_continuity_failure_counts(
+	counts: &mut FailureCounts,
+	metrics: Option<&WorkContinuityJobMetrics>,
+) {
+	let Some(metrics) = metrics else {
+		return;
+	};
+
+	counts.work_continuity_reset_resume_missing =
+		metrics.reset_resume_required_count.saturating_sub(metrics.reset_resume_success_count);
+	counts.work_continuity_decision_rationale_missing = metrics
+		.decision_rationale_required_count
+		.saturating_sub(metrics.decision_rationale_recalled_count);
+	counts.work_continuity_rejected_option_unsuppressed = metrics
+		.rejected_option_required_count
+		.saturating_sub(metrics.rejected_option_suppressed_count);
+	counts.work_continuity_rejected_option_resurrection =
+		metrics.rejected_option_resurrection_count;
+	counts.work_continuity_explicit_next_step_missing = metrics
+		.explicit_next_step_required_count
+		.saturating_sub(metrics.explicit_next_step_correct_count);
+	counts.work_continuity_explicit_next_step_extra = metrics
+		.explicit_next_step_returned_count
+		.saturating_sub(metrics.explicit_next_step_correct_count);
+	counts.work_continuity_inferred_step_unlabeled = metrics
+		.inferred_next_step_required_count
+		.saturating_sub(metrics.inferred_next_step_labeled_count);
+	counts.work_continuity_inferred_step_as_instruction = metrics.inferred_step_instruction_count;
+	counts.work_continuity_handoff_source_ref_missing = metrics
+		.handoff_source_ref_required_count
+		.saturating_sub(metrics.handoff_source_ref_covered_count);
+	counts.work_continuity_redaction_missing =
+		metrics.redaction_required_count.saturating_sub(metrics.redaction_applied_count);
+	counts.work_continuity_sensitive_marker_persistence =
+		metrics.sensitive_marker_persistence_count;
+	counts.work_continuity_janitor_false_promotion = metrics.janitor_false_promotion_count;
+	counts.work_continuity_journal_only_authority_claim =
+		metrics.journal_only_authority_claim_count;
+}
+
 fn score_declared_job(
 	job: &RealWorldJob,
 	status: TypedStatus,
@@ -3503,6 +3977,7 @@ fn score_declared_job(
 		memory_summary: None,
 		proactive_brief: None,
 		scheduled_memory: None,
+		work_continuity: None,
 	}
 }
 
@@ -3541,6 +4016,7 @@ fn wrong_result_count(counts: &FailureCounts) -> usize {
 		+ counts.scheduled_memory_unsupported_current_outputs
 		+ counts.scheduled_memory_tombstone_violations
 		+ counts.scheduled_memory_missing_trace
+		+ work_continuity_wrong_result_count(counts)
 		+ counts.untraced_page_sections
 		+ counts.missed_stale_findings
 		+ counts.rebuild_failures
@@ -3597,6 +4073,7 @@ fn synthetic_answer(job: &RealWorldJob) -> &ProducedAnswer {
 		memory_summaries: Vec::new(),
 		proactive_briefs: Vec::new(),
 		scheduled_tasks: Vec::new(),
+		work_journal_readbacks: Vec::new(),
 		latency_ms: None,
 		cost: None,
 		trace_explainability: None,
@@ -3617,6 +4094,27 @@ fn produced_evidence_ids(answer: &ProducedAnswer) -> BTreeSet<String> {
 	for task in &answer.scheduled_tasks {
 		for output in &task.outputs {
 			evidence.extend(output.evidence_refs.iter().cloned());
+		}
+	}
+	for readback in &answer.work_journal_readbacks {
+		for entry in &readback.items {
+			evidence.extend(entry.source_refs.iter().cloned());
+
+			for step in entry.explicit_next_steps.iter().chain(entry.inferred_next_steps.iter()) {
+				evidence.extend(step.evidence_refs.iter().cloned());
+			}
+			for option in &entry.rejected_options {
+				evidence.extend(option.evidence_refs.iter().cloned());
+			}
+		}
+
+		if let Some(where_stopped) = &readback.where_stopped {
+			evidence.extend(where_stopped.decision_rationale_evidence_ids.iter().cloned());
+			evidence.extend(where_stopped.handoff_source_refs.iter().cloned());
+		}
+
+		for candidate in &readback.janitor_candidates {
+			evidence.extend(candidate.evidence_refs.iter().cloned());
 		}
 	}
 
@@ -4712,6 +5210,281 @@ fn scheduled_unsupported_claim_report(
 	}
 }
 
+fn work_continuity_metrics(
+	job: &RealWorldJob,
+	answer: &ProducedAnswer,
+) -> Option<WorkContinuityJobMetrics> {
+	if job.work_continuity.is_none() && answer.work_journal_readbacks.is_empty() {
+		return None;
+	}
+
+	let expectation = job.work_continuity.as_ref();
+	let observed = work_continuity_observed(answer);
+	let mut metrics = initial_work_continuity_metrics(expectation, answer);
+
+	if let Some(expected) = expectation {
+		apply_expected_work_continuity_counts(&mut metrics, expected, &observed);
+	}
+
+	apply_observed_work_continuity_counts(&mut metrics, answer, &observed);
+	apply_work_continuity_rates(&mut metrics);
+
+	Some(metrics)
+}
+
+fn work_continuity_observed(answer: &ProducedAnswer) -> WorkContinuityObserved<'_> {
+	WorkContinuityObserved {
+		reset_resume_entry_ids: work_journal_reset_resume_entry_ids(answer),
+		decision_rationale_evidence_ids: work_journal_decision_rationale_evidence_ids(answer),
+		rejected_options: work_journal_rejected_options(answer),
+		explicit_next_steps: work_journal_explicit_next_steps(answer),
+		inferred_next_steps: work_journal_inferred_next_steps(answer),
+		handoff_source_refs: work_journal_handoff_source_refs(answer),
+		redacted_marker_ids: work_journal_redacted_marker_ids(answer),
+		janitor_candidates: work_journal_janitor_candidates(answer),
+	}
+}
+
+fn initial_work_continuity_metrics(
+	expectation: Option<&WorkContinuityExpectation>,
+	answer: &ProducedAnswer,
+) -> WorkContinuityJobMetrics {
+	WorkContinuityJobMetrics {
+		readback_count: answer.work_journal_readbacks.len(),
+		entry_count: answer
+			.work_journal_readbacks
+			.iter()
+			.map(|readback| readback.items.len())
+			.sum(),
+		reset_resume_required_count: expectation
+			.map_or(0, |expected| expected.required_reset_resume_entry_ids.len()),
+		decision_rationale_required_count: expectation
+			.map_or(0, |expected| expected.required_decision_rationale_evidence_ids.len()),
+		rejected_option_required_count: expectation
+			.map_or(0, |expected| expected.required_rejected_option_ids.len()),
+		explicit_next_step_required_count: expectation
+			.map_or(0, |expected| expected.required_explicit_next_step_ids.len()),
+		inferred_next_step_required_count: expectation
+			.map_or(0, |expected| expected.required_inferred_next_step_ids.len()),
+		handoff_source_ref_required_count: expectation
+			.map_or(0, |expected| expected.required_handoff_source_ref_ids.len()),
+		redaction_required_count: expectation
+			.map_or(0, |expected| expected.required_redaction_marker_ids.len()),
+		janitor_candidate_count: expectation
+			.map_or(0, |expected| expected.required_janitor_candidate_ids.len()),
+		..WorkContinuityJobMetrics::default()
+	}
+}
+
+fn apply_expected_work_continuity_counts(
+	metrics: &mut WorkContinuityJobMetrics,
+	expected: &WorkContinuityExpectation,
+	observed: &WorkContinuityObserved<'_>,
+) {
+	metrics.reset_resume_success_count = expected
+		.required_reset_resume_entry_ids
+		.iter()
+		.filter(|entry_id| observed.reset_resume_entry_ids.contains(entry_id.as_str()))
+		.count();
+	metrics.decision_rationale_recalled_count = expected
+		.required_decision_rationale_evidence_ids
+		.iter()
+		.filter(|evidence_id| {
+			observed.decision_rationale_evidence_ids.contains(evidence_id.as_str())
+		})
+		.count();
+	metrics.rejected_option_suppressed_count = expected
+		.required_rejected_option_ids
+		.iter()
+		.filter(|option_id| {
+			observed
+				.rejected_options
+				.iter()
+				.any(|option| option.option_id == **option_id && !option.resurrected_as_current)
+		})
+		.count();
+	metrics.explicit_next_step_correct_count = expected
+		.required_explicit_next_step_ids
+		.iter()
+		.filter(|step_id| {
+			observed.explicit_next_steps.iter().any(|step| {
+				step.step_id == **step_id && step.label == "explicit" && step.instruction
+			})
+		})
+		.count();
+	metrics.inferred_next_step_labeled_count = expected
+		.required_inferred_next_step_ids
+		.iter()
+		.filter(|step_id| {
+			observed.inferred_next_steps.iter().any(|step| {
+				step.step_id == **step_id && step.label == "inferred" && !step.instruction
+			})
+		})
+		.count();
+	metrics.handoff_source_ref_covered_count = expected
+		.required_handoff_source_ref_ids
+		.iter()
+		.filter(|source_ref| observed.handoff_source_refs.contains(source_ref.as_str()))
+		.count();
+	metrics.redaction_applied_count = expected
+		.required_redaction_marker_ids
+		.iter()
+		.filter(|marker_id| observed.redacted_marker_ids.contains(marker_id.as_str()))
+		.count();
+}
+
+fn apply_observed_work_continuity_counts(
+	metrics: &mut WorkContinuityJobMetrics,
+	answer: &ProducedAnswer,
+	observed: &WorkContinuityObserved<'_>,
+) {
+	metrics.janitor_candidate_count =
+		metrics.janitor_candidate_count.max(observed.janitor_candidates.len());
+	metrics.janitor_false_promotion_count = observed
+		.janitor_candidates
+		.iter()
+		.filter(|candidate| candidate.promoted_to_memory || !candidate.review_required)
+		.count();
+	metrics.explicit_next_step_returned_count = observed.explicit_next_steps.len();
+	metrics.rejected_option_resurrection_count =
+		observed.rejected_options.iter().filter(|option| option.resurrected_as_current).count();
+	metrics.inferred_step_instruction_count =
+		observed.inferred_next_steps.iter().filter(|step| step.instruction).count();
+	metrics.sensitive_marker_persistence_count = answer
+		.work_journal_readbacks
+		.iter()
+		.flat_map(|readback| readback.items.iter())
+		.map(|entry| entry.redaction_audit.persisted_sensitive_marker_ids.len())
+		.sum();
+	metrics.journal_only_authority_claim_count =
+		answer.work_journal_readbacks.iter().map(work_journal_authority_claim_count).sum();
+}
+
+fn apply_work_continuity_rates(metrics: &mut WorkContinuityJobMetrics) {
+	metrics.reset_resume_success_rate =
+		ratio(metrics.reset_resume_success_count, metrics.reset_resume_required_count);
+	metrics.decision_rationale_recall_rate =
+		ratio(metrics.decision_rationale_recalled_count, metrics.decision_rationale_required_count);
+	metrics.rejected_option_suppression_rate =
+		ratio(metrics.rejected_option_suppressed_count, metrics.rejected_option_required_count);
+	metrics.explicit_next_step_precision = ratio_or(
+		metrics.explicit_next_step_correct_count,
+		metrics.explicit_next_step_returned_count,
+		usize::from(metrics.explicit_next_step_required_count == 0) as f64,
+	);
+	metrics.inferred_next_step_labeling_rate =
+		ratio(metrics.inferred_next_step_labeled_count, metrics.inferred_next_step_required_count);
+	metrics.handoff_source_ref_coverage =
+		ratio(metrics.handoff_source_ref_covered_count, metrics.handoff_source_ref_required_count);
+	metrics.redaction_rate =
+		ratio(metrics.redaction_applied_count, metrics.redaction_required_count);
+	metrics.janitor_false_promotion_rate =
+		ratio(metrics.janitor_false_promotion_count, metrics.janitor_candidate_count);
+}
+
+fn work_journal_reset_resume_entry_ids(answer: &ProducedAnswer) -> BTreeSet<&str> {
+	answer
+		.work_journal_readbacks
+		.iter()
+		.filter_map(|readback| readback.where_stopped.as_ref())
+		.flat_map(|where_stopped| where_stopped.reset_resume_entry_ids.iter().map(String::as_str))
+		.collect()
+}
+
+fn work_journal_decision_rationale_evidence_ids(answer: &ProducedAnswer) -> BTreeSet<&str> {
+	answer
+		.work_journal_readbacks
+		.iter()
+		.filter_map(|readback| readback.where_stopped.as_ref())
+		.flat_map(|where_stopped| {
+			where_stopped.decision_rationale_evidence_ids.iter().map(String::as_str)
+		})
+		.collect()
+}
+
+fn work_journal_rejected_options(
+	answer: &ProducedAnswer,
+) -> Vec<&WorkJournalRejectedOptionArtifact> {
+	answer
+		.work_journal_readbacks
+		.iter()
+		.flat_map(|readback| readback.items.iter())
+		.flat_map(|entry| entry.rejected_options.iter())
+		.collect()
+}
+
+fn work_journal_explicit_next_steps(answer: &ProducedAnswer) -> Vec<&WorkJournalNextStepArtifact> {
+	answer
+		.work_journal_readbacks
+		.iter()
+		.flat_map(|readback| readback.items.iter())
+		.flat_map(|entry| entry.explicit_next_steps.iter())
+		.collect()
+}
+
+fn work_journal_inferred_next_steps(answer: &ProducedAnswer) -> Vec<&WorkJournalNextStepArtifact> {
+	answer
+		.work_journal_readbacks
+		.iter()
+		.flat_map(|readback| readback.items.iter())
+		.flat_map(|entry| entry.inferred_next_steps.iter())
+		.collect()
+}
+
+fn work_journal_handoff_source_refs(answer: &ProducedAnswer) -> BTreeSet<&str> {
+	let mut refs = answer
+		.work_journal_readbacks
+		.iter()
+		.flat_map(|readback| readback.items.iter())
+		.flat_map(|entry| entry.source_refs.iter().map(String::as_str))
+		.collect::<BTreeSet<_>>();
+
+	for source_ref in answer
+		.work_journal_readbacks
+		.iter()
+		.filter_map(|readback| readback.where_stopped.as_ref())
+		.flat_map(|where_stopped| where_stopped.handoff_source_refs.iter().map(String::as_str))
+	{
+		refs.insert(source_ref);
+	}
+
+	refs
+}
+
+fn work_journal_redacted_marker_ids(answer: &ProducedAnswer) -> BTreeSet<&str> {
+	answer
+		.work_journal_readbacks
+		.iter()
+		.flat_map(|readback| readback.items.iter())
+		.flat_map(|entry| entry.redaction_audit.redacted_marker_ids.iter().map(String::as_str))
+		.collect()
+}
+
+fn work_journal_janitor_candidates(
+	answer: &ProducedAnswer,
+) -> Vec<&WorkJournalJanitorCandidateArtifact> {
+	answer
+		.work_journal_readbacks
+		.iter()
+		.flat_map(|readback| readback.janitor_candidates.iter())
+		.collect()
+}
+
+fn work_journal_authority_claim_count(readback: &WorkJournalReadbackArtifact) -> usize {
+	let boundary_claim_count =
+		usize::from(readback.promotion_boundary.journal_entry_authority != "source_adjacent_only");
+	let missing_promotion_boundary_count = usize::from(
+		!readback.promotion_boundary.memory_promotion_required
+			&& !readback.promotion_boundary.accepted_refs.is_empty(),
+	);
+	let where_stopped_claim_count = readback
+		.where_stopped
+		.as_ref()
+		.map_or(0, |where_stopped| where_stopped.journal_only_authority_claims.len());
+
+	boundary_claim_count + missing_promotion_boundary_count + where_stopped_claim_count
+}
+
 fn hard_fail_hits(
 	job: &RealWorldJob,
 	unsupported_claims: &[UnsupportedClaimReport],
@@ -4735,6 +5508,23 @@ fn hard_fail_hits(
 		hits.push("missing required refusal".to_string());
 	}
 
+	if let Some(work_continuity) = work_continuity_metrics(job, produced_answer(job)) {
+		if work_continuity.sensitive_marker_persistence_count > 0 {
+			hits.push("sensitive-marker persistence in Work Journal output".to_string());
+		}
+		if work_continuity.rejected_option_resurrection_count > 0 {
+			hits.push("rejected-option resurrection in Work Journal readback".to_string());
+		}
+		if work_continuity.inferred_step_instruction_count > 0 {
+			hits.push("inferred Work Journal next step surfaced as an instruction".to_string());
+		}
+		if work_continuity.journal_only_authority_claim_count > 0 {
+			hits.push("journal-only Work Journal content claimed as current authority".to_string());
+		}
+		if work_continuity.janitor_false_promotion_count > 0 {
+			hits.push("janitor Work Journal candidate promoted without review".to_string());
+		}
+	}
 	if let Some(consolidation) = consolidation_job_report(job) {
 		if consolidation.source_mutation_count > 0 {
 			hits.push(
@@ -4796,6 +5586,16 @@ fn dimension_score(dimension_id: &str, max_points: f64, counts: &FailureCounts) 
 				|| counts.scheduled_memory_unsupported_current_outputs > 0
 				|| counts.scheduled_memory_tombstone_violations > 0
 				|| counts.scheduled_memory_missing_trace > 0
+				|| counts.work_continuity_reset_resume_missing > 0
+				|| counts.work_continuity_decision_rationale_missing > 0
+				|| counts.work_continuity_rejected_option_unsuppressed > 0
+				|| counts.work_continuity_rejected_option_resurrection > 0
+				|| counts.work_continuity_explicit_next_step_missing > 0
+				|| counts.work_continuity_explicit_next_step_extra > 0
+				|| counts.work_continuity_inferred_step_unlabeled > 0
+				|| counts.work_continuity_inferred_step_as_instruction > 0
+				|| counts.work_continuity_janitor_false_promotion > 0
+				|| counts.work_continuity_journal_only_authority_claim > 0
 				|| counts.page_usefulness_failures > 0,
 		"evidence_grounding" =>
 			counts.missing_evidence > 0
@@ -4805,6 +5605,10 @@ fn dimension_score(dimension_id: &str, max_points: f64, counts: &FailureCounts) 
 				|| counts.proactive_brief_untraced_suggestions > 0
 				|| counts.scheduled_memory_untraced_outputs > 0
 				|| counts.scheduled_memory_missing_trace > 0
+				|| counts.work_continuity_decision_rationale_missing > 0
+				|| counts.work_continuity_handoff_source_ref_missing > 0
+				|| counts.work_continuity_redaction_missing > 0
+				|| counts.work_continuity_sensitive_marker_persistence > 0
 				|| counts.untraced_page_sections > 0,
 		"trap_avoidance" =>
 			counts.trap_uses > 0
@@ -4813,12 +5617,15 @@ fn dimension_score(dimension_id: &str, max_points: f64, counts: &FailureCounts) 
 				|| counts.proactive_brief_tombstone_violations > 0
 				|| counts.scheduled_memory_invalid_current_outputs > 0
 				|| counts.scheduled_memory_tombstone_violations > 0
+				|| counts.work_continuity_rejected_option_resurrection > 0
+				|| counts.work_continuity_sensitive_marker_persistence > 0
 				|| counts.missed_stale_findings > 0,
 		"uncertainty_handling" =>
 			counts.unsupported_claims > 0
 				|| counts.memory_summary_unsupported_current_entries > 0
 				|| counts.proactive_brief_unsupported_current_suggestions > 0
-				|| counts.scheduled_memory_unsupported_current_outputs > 0,
+				|| counts.scheduled_memory_unsupported_current_outputs > 0
+				|| counts.work_continuity_journal_only_authority_claim > 0,
 		"lifecycle_behavior" =>
 			counts.stale_answers > 0
 				|| counts.conflict_detection_missing > 0
@@ -4839,6 +5646,10 @@ fn dimension_score(dimension_id: &str, max_points: f64, counts: &FailureCounts) 
 				|| counts.scheduled_memory_unsupported_current_outputs > 0
 				|| counts.scheduled_memory_tombstone_violations > 0
 				|| counts.scheduled_memory_missing_trace > 0
+				|| counts.work_continuity_reset_resume_missing > 0
+				|| counts.work_continuity_inferred_step_as_instruction > 0
+				|| counts.work_continuity_janitor_false_promotion > 0
+				|| counts.work_continuity_journal_only_authority_claim > 0
 				|| counts.rebuild_failures > 0,
 		"source_immutability" => counts.source_mutations > 0,
 		"proposal_usefulness" => counts.proposal_usefulness_failures > 0,
@@ -4850,7 +5661,8 @@ fn dimension_score(dimension_id: &str, max_points: f64, counts: &FailureCounts) 
 				|| counts.operator_debug_missing > 0
 				|| counts.operator_debug_raw_sql > 0
 				|| counts.operator_debug_trace_gaps > 0
-				|| counts.scheduled_memory_missing_trace > 0,
+				|| counts.scheduled_memory_missing_trace > 0
+				|| counts.work_continuity_reset_resume_missing > 0,
 		"trace_readback" => counts.scheduled_memory_missing_trace > 0,
 		"latency_resource" => counts.latency_violations > 0,
 		"personalization_fit" | "ownership_correctness" =>
@@ -4974,10 +5786,27 @@ fn wrong_result_signal_count(counts: &FailureCounts) -> usize {
 		+ counts.scheduled_memory_unsupported_current_outputs
 		+ counts.scheduled_memory_tombstone_violations
 		+ counts.scheduled_memory_missing_trace
+		+ work_continuity_wrong_result_count(counts)
 		+ counts.untraced_page_sections
 		+ counts.missed_stale_findings
 		+ counts.rebuild_failures
 		+ counts.page_usefulness_failures
+}
+
+fn work_continuity_wrong_result_count(counts: &FailureCounts) -> usize {
+	counts.work_continuity_reset_resume_missing
+		+ counts.work_continuity_decision_rationale_missing
+		+ counts.work_continuity_rejected_option_unsuppressed
+		+ counts.work_continuity_rejected_option_resurrection
+		+ counts.work_continuity_explicit_next_step_missing
+		+ counts.work_continuity_explicit_next_step_extra
+		+ counts.work_continuity_inferred_step_unlabeled
+		+ counts.work_continuity_inferred_step_as_instruction
+		+ counts.work_continuity_handoff_source_ref_missing
+		+ counts.work_continuity_redaction_missing
+		+ counts.work_continuity_sensitive_marker_persistence
+		+ counts.work_continuity_janitor_false_promotion
+		+ counts.work_continuity_journal_only_authority_claim
 }
 
 fn job_report(job: &RealWorldJob, scoring: JobScoring) -> JobReport {
@@ -5030,6 +5859,7 @@ fn job_report(job: &RealWorldJob, scoring: JobScoring) -> JobReport {
 		memory_summary: scoring.memory_summary,
 		proactive_brief: scoring.proactive_brief,
 		scheduled_memory: scoring.scheduled_memory,
+		work_continuity: scoring.work_continuity,
 		trap_ids_used: scoring.trap_ids_used,
 		dimension_scores: scoring.dimension_scores,
 		reason: scoring.reason,
@@ -5534,6 +6364,7 @@ fn report_summary(jobs: &[JobReport], suites: &[SuiteReport]) -> ReportSummary {
 		memory_summary: memory_summary_summary(jobs),
 		proactive_brief: proactive_brief_summary(jobs),
 		scheduled_memory: scheduled_memory_summary(jobs),
+		work_continuity: work_continuity_summary(jobs),
 		knowledge: knowledge_summary(jobs),
 		..ReportSummary::default()
 	};
@@ -6294,6 +7125,113 @@ fn scheduled_memory_summary(jobs: &[JobReport]) -> Option<ScheduledMemorySummary
 	})
 }
 
+fn work_continuity_summary(jobs: &[JobReport]) -> Option<WorkContinuitySummaryReport> {
+	let work_jobs = jobs.iter().filter_map(|job| job.work_continuity.as_ref()).collect::<Vec<_>>();
+
+	if work_jobs.is_empty() {
+		return None;
+	}
+
+	let reset_resume_required_count =
+		work_jobs.iter().map(|metrics| metrics.reset_resume_required_count).sum();
+	let reset_resume_success_count =
+		work_jobs.iter().map(|metrics| metrics.reset_resume_success_count).sum();
+	let decision_rationale_required_count =
+		work_jobs.iter().map(|metrics| metrics.decision_rationale_required_count).sum();
+	let decision_rationale_recalled_count =
+		work_jobs.iter().map(|metrics| metrics.decision_rationale_recalled_count).sum();
+	let rejected_option_required_count =
+		work_jobs.iter().map(|metrics| metrics.rejected_option_required_count).sum();
+	let rejected_option_suppressed_count =
+		work_jobs.iter().map(|metrics| metrics.rejected_option_suppressed_count).sum();
+	let explicit_next_step_returned_count =
+		work_jobs.iter().map(|metrics| metrics.explicit_next_step_returned_count).sum();
+	let explicit_next_step_correct_count =
+		work_jobs.iter().map(|metrics| metrics.explicit_next_step_correct_count).sum();
+	let inferred_next_step_required_count =
+		work_jobs.iter().map(|metrics| metrics.inferred_next_step_required_count).sum();
+	let inferred_next_step_labeled_count =
+		work_jobs.iter().map(|metrics| metrics.inferred_next_step_labeled_count).sum();
+	let handoff_source_ref_required_count =
+		work_jobs.iter().map(|metrics| metrics.handoff_source_ref_required_count).sum();
+	let handoff_source_ref_covered_count =
+		work_jobs.iter().map(|metrics| metrics.handoff_source_ref_covered_count).sum();
+	let redaction_required_count =
+		work_jobs.iter().map(|metrics| metrics.redaction_required_count).sum();
+	let redaction_applied_count =
+		work_jobs.iter().map(|metrics| metrics.redaction_applied_count).sum();
+	let janitor_candidate_count =
+		work_jobs.iter().map(|metrics| metrics.janitor_candidate_count).sum();
+	let janitor_false_promotion_count =
+		work_jobs.iter().map(|metrics| metrics.janitor_false_promotion_count).sum();
+
+	Some(WorkContinuitySummaryReport {
+		job_count: work_jobs.len(),
+		readback_count: work_jobs.iter().map(|metrics| metrics.readback_count).sum(),
+		entry_count: work_jobs.iter().map(|metrics| metrics.entry_count).sum(),
+		reset_resume_required_count,
+		reset_resume_success_count,
+		reset_resume_success_rate: ratio(reset_resume_success_count, reset_resume_required_count),
+		decision_rationale_required_count,
+		decision_rationale_recalled_count,
+		decision_rationale_recall_rate: ratio(
+			decision_rationale_recalled_count,
+			decision_rationale_required_count,
+		),
+		rejected_option_required_count,
+		rejected_option_suppressed_count,
+		rejected_option_resurrection_count: work_jobs
+			.iter()
+			.map(|metrics| metrics.rejected_option_resurrection_count)
+			.sum(),
+		rejected_option_suppression_rate: ratio(
+			rejected_option_suppressed_count,
+			rejected_option_required_count,
+		),
+		explicit_next_step_required_count: work_jobs
+			.iter()
+			.map(|metrics| metrics.explicit_next_step_required_count)
+			.sum(),
+		explicit_next_step_returned_count,
+		explicit_next_step_correct_count,
+		explicit_next_step_precision: ratio_or(
+			explicit_next_step_correct_count,
+			explicit_next_step_returned_count,
+			1.0,
+		),
+		inferred_next_step_required_count,
+		inferred_next_step_labeled_count,
+		inferred_step_instruction_count: work_jobs
+			.iter()
+			.map(|metrics| metrics.inferred_step_instruction_count)
+			.sum(),
+		inferred_next_step_labeling_rate: ratio(
+			inferred_next_step_labeled_count,
+			inferred_next_step_required_count,
+		),
+		handoff_source_ref_required_count,
+		handoff_source_ref_covered_count,
+		handoff_source_ref_coverage: ratio(
+			handoff_source_ref_covered_count,
+			handoff_source_ref_required_count,
+		),
+		redaction_required_count,
+		redaction_applied_count,
+		sensitive_marker_persistence_count: work_jobs
+			.iter()
+			.map(|metrics| metrics.sensitive_marker_persistence_count)
+			.sum(),
+		redaction_rate: ratio(redaction_applied_count, redaction_required_count),
+		janitor_candidate_count,
+		janitor_false_promotion_count,
+		janitor_false_promotion_rate: ratio(janitor_false_promotion_count, janitor_candidate_count),
+		journal_only_authority_claim_count: work_jobs
+			.iter()
+			.map(|metrics| metrics.journal_only_authority_claim_count)
+			.sum(),
+	})
+}
+
 fn knowledge_summary(jobs: &[JobReport]) -> Option<KnowledgeSummary> {
 	let knowledge_jobs = jobs.iter().filter_map(|job| job.knowledge.as_ref()).collect::<Vec<_>>();
 
@@ -7033,6 +7971,7 @@ fn render_markdown(report: &RealWorldReport, report_path: &Path) -> String {
 	render_markdown_memory_summary(&mut out, report);
 	render_markdown_proactive_brief(&mut out, report);
 	render_markdown_scheduled_memory(&mut out, report);
+	render_markdown_work_continuity(&mut out, report);
 	render_markdown_knowledge(&mut out, report);
 	render_markdown_unsupported_claims(&mut out, report);
 	render_markdown_follow_ups(&mut out, report);
@@ -7485,103 +8424,152 @@ fn render_markdown_header(out: &mut String, report: &RealWorldReport, report_pat
 
 fn render_markdown_optional_summary_metrics(out: &mut String, summary: &ReportSummary) {
 	if let Some(knowledge) = &summary.knowledge {
-		out.push_str(&format!(
-			"- Knowledge citation coverage: `{:.3}`\n",
-			knowledge.citation_coverage
-		));
-		out.push_str(&format!(
-			"- Stale claim detection: `{:.3}`\n",
-			knowledge.stale_claim_detection
-		));
-		out.push_str(&format!("- Rebuild determinism: `{:.3}`\n", knowledge.rebuild_determinism));
-		out.push_str(&format!(
-			"- Backlinks: `{}` total, `{:.3}` page coverage\n",
-			knowledge.backlink_count, knowledge.backlink_coverage
-		));
-		out.push_str(&format!(
-			"- Version diff coverage: `{:.3}`\n",
-			knowledge.version_diff_coverage
-		));
-		out.push_str(&format!("- Page usefulness: `{:.3}`\n", knowledge.page_usefulness));
-		out.push_str(&format!(
-			"- Unsupported summary count: `{}`\n",
-			knowledge.unsupported_summary_count
-		));
+		render_markdown_knowledge_summary_metrics(out, knowledge);
 	}
 	if let Some(memory_summary) = &summary.memory_summary {
-		out.push_str(&format!(
-			"- Memory summary entries: `{}` across `{}` artifact(s)\n",
-			memory_summary.entry_count, memory_summary.summary_count
-		));
-		out.push_str(&format!(
-			"- Memory summary source-ref coverage: `{}/{}` (`{:.3}`)\n",
-			memory_summary.source_ref_entry_count,
-			memory_summary.source_ref_required_count,
-			memory_summary.source_ref_coverage
-		));
-		out.push_str(&format!(
-			"- Memory summary invalid top-of-mind count: `{}`\n",
-			memory_summary.invalid_top_of_mind_count
-		));
-		out.push_str(&format!(
-			"- Memory summary unsupported derived entries: `{}`\n",
-			memory_summary.unsupported_derived_entry_count
-		));
-		out.push_str(&format!(
-			"- Memory summary unsupported current entries: `{}`\n",
-			memory_summary.unsupported_current_entry_count
-		));
+		render_markdown_memory_summary_metrics(out, memory_summary);
 	}
 	if let Some(proactive) = &summary.proactive_brief {
-		out.push_str(&format!(
-			"- Proactive brief suggestions: `{}` across `{}` artifact(s)\n",
-			proactive.suggestion_count, proactive.brief_count
-		));
-		out.push_str(&format!(
-			"- Proactive evidence-ref coverage: `{}/{}` (`{:.3}`)\n",
-			proactive.evidence_ref_suggestion_count,
-			proactive.evidence_ref_required_count,
-			proactive.evidence_ref_coverage
-		));
-		out.push_str(&format!(
-			"- Proactive freshness/action rationale coverage: `{:.3}` / `{:.3}`\n",
-			proactive.freshness_coverage, proactive.action_rationale_coverage
-		));
-		out.push_str(&format!(
-			"- Proactive stale/currentness violations: `{}` invalid current, `{}` tombstone violation(s)\n",
-			proactive.invalid_current_suggestion_count, proactive.tombstone_violation_count
-		));
-		out.push_str(&format!(
-			"- Proactive rejected/deferred suggestions: `{}` rejected, `{}` deferred\n",
-			proactive.rejected_count, proactive.deferred_count
-		));
+		render_markdown_proactive_summary_metrics(out, proactive);
 	}
 	if let Some(scheduled) = &summary.scheduled_memory {
-		out.push_str(&format!(
-			"- Scheduled memory outputs: `{}` across `{}` task run(s)\n",
-			scheduled.output_count, scheduled.task_run_count
-		));
-		out.push_str(&format!(
-			"- Scheduled memory evidence-ref coverage: `{}/{}` (`{:.3}`)\n",
-			scheduled.evidence_ref_output_count,
-			scheduled.evidence_ref_required_count,
-			scheduled.evidence_ref_coverage
-		));
-		out.push_str(&format!(
-			"- Scheduled memory freshness/action/trace coverage: `{:.3}` / `{:.3}` / `{:.3}`\n",
-			scheduled.freshness_coverage,
-			scheduled.action_rationale_coverage,
-			scheduled.trace_coverage
-		));
-		out.push_str(&format!(
-			"- Scheduled memory stale/currentness violations: `{}` invalid current, `{}` tombstone violation(s)\n",
-			scheduled.invalid_current_output_count, scheduled.tombstone_violation_count
-		));
-		out.push_str(&format!(
-			"- Scheduled memory source mutations: `{}`\n",
-			scheduled.source_mutation_count
-		));
+		render_markdown_scheduled_summary_metrics(out, scheduled);
 	}
+	if let Some(work_continuity) = &summary.work_continuity {
+		render_markdown_work_continuity_summary_metrics(out, work_continuity);
+	}
+}
+
+fn render_markdown_knowledge_summary_metrics(out: &mut String, knowledge: &KnowledgeSummary) {
+	out.push_str(&format!("- Knowledge citation coverage: `{:.3}`\n", knowledge.citation_coverage));
+	out.push_str(&format!("- Stale claim detection: `{:.3}`\n", knowledge.stale_claim_detection));
+	out.push_str(&format!("- Rebuild determinism: `{:.3}`\n", knowledge.rebuild_determinism));
+	out.push_str(&format!(
+		"- Backlinks: `{}` total, `{:.3}` page coverage\n",
+		knowledge.backlink_count, knowledge.backlink_coverage
+	));
+	out.push_str(&format!("- Version diff coverage: `{:.3}`\n", knowledge.version_diff_coverage));
+	out.push_str(&format!("- Page usefulness: `{:.3}`\n", knowledge.page_usefulness));
+	out.push_str(&format!(
+		"- Unsupported summary count: `{}`\n",
+		knowledge.unsupported_summary_count
+	));
+}
+
+fn render_markdown_memory_summary_metrics(out: &mut String, memory_summary: &MemorySummaryReport) {
+	out.push_str(&format!(
+		"- Memory summary entries: `{}` across `{}` artifact(s)\n",
+		memory_summary.entry_count, memory_summary.summary_count
+	));
+	out.push_str(&format!(
+		"- Memory summary source-ref coverage: `{}/{}` (`{:.3}`)\n",
+		memory_summary.source_ref_entry_count,
+		memory_summary.source_ref_required_count,
+		memory_summary.source_ref_coverage
+	));
+	out.push_str(&format!(
+		"- Memory summary invalid top-of-mind count: `{}`\n",
+		memory_summary.invalid_top_of_mind_count
+	));
+	out.push_str(&format!(
+		"- Memory summary unsupported derived entries: `{}`\n",
+		memory_summary.unsupported_derived_entry_count
+	));
+	out.push_str(&format!(
+		"- Memory summary unsupported current entries: `{}`\n",
+		memory_summary.unsupported_current_entry_count
+	));
+}
+
+fn render_markdown_proactive_summary_metrics(
+	out: &mut String,
+	proactive: &ProactiveBriefSummaryReport,
+) {
+	out.push_str(&format!(
+		"- Proactive brief suggestions: `{}` across `{}` artifact(s)\n",
+		proactive.suggestion_count, proactive.brief_count
+	));
+	out.push_str(&format!(
+		"- Proactive evidence-ref coverage: `{}/{}` (`{:.3}`)\n",
+		proactive.evidence_ref_suggestion_count,
+		proactive.evidence_ref_required_count,
+		proactive.evidence_ref_coverage
+	));
+	out.push_str(&format!(
+		"- Proactive freshness/action rationale coverage: `{:.3}` / `{:.3}`\n",
+		proactive.freshness_coverage, proactive.action_rationale_coverage
+	));
+	out.push_str(&format!(
+		"- Proactive stale/currentness violations: `{}` invalid current, `{}` tombstone violation(s)\n",
+		proactive.invalid_current_suggestion_count, proactive.tombstone_violation_count
+	));
+	out.push_str(&format!(
+		"- Proactive rejected/deferred suggestions: `{}` rejected, `{}` deferred\n",
+		proactive.rejected_count, proactive.deferred_count
+	));
+}
+
+fn render_markdown_scheduled_summary_metrics(
+	out: &mut String,
+	scheduled: &ScheduledMemorySummaryReport,
+) {
+	out.push_str(&format!(
+		"- Scheduled memory outputs: `{}` across `{}` task run(s)\n",
+		scheduled.output_count, scheduled.task_run_count
+	));
+	out.push_str(&format!(
+		"- Scheduled memory evidence-ref coverage: `{}/{}` (`{:.3}`)\n",
+		scheduled.evidence_ref_output_count,
+		scheduled.evidence_ref_required_count,
+		scheduled.evidence_ref_coverage
+	));
+	out.push_str(&format!(
+		"- Scheduled memory freshness/action/trace coverage: `{:.3}` / `{:.3}` / `{:.3}`\n",
+		scheduled.freshness_coverage, scheduled.action_rationale_coverage, scheduled.trace_coverage
+	));
+	out.push_str(&format!(
+		"- Scheduled memory stale/currentness violations: `{}` invalid current, `{}` tombstone violation(s)\n",
+		scheduled.invalid_current_output_count, scheduled.tombstone_violation_count
+	));
+	out.push_str(&format!(
+		"- Scheduled memory source mutations: `{}`\n",
+		scheduled.source_mutation_count
+	));
+}
+
+fn render_markdown_work_continuity_summary_metrics(
+	out: &mut String,
+	work_continuity: &WorkContinuitySummaryReport,
+) {
+	out.push_str(&format!(
+		"- Work continuity readbacks: `{}` entries across `{}` artifact(s)\n",
+		work_continuity.entry_count, work_continuity.readback_count
+	));
+	out.push_str(&format!(
+		"- Work continuity reset/resume and rationale recall: `{:.3}` / `{:.3}`\n",
+		work_continuity.reset_resume_success_rate, work_continuity.decision_rationale_recall_rate
+	));
+	out.push_str(&format!(
+		"- Work continuity rejected-option suppression and explicit next-step precision: `{:.3}` / `{:.3}`\n",
+		work_continuity.rejected_option_suppression_rate,
+		work_continuity.explicit_next_step_precision
+	));
+	out.push_str(&format!(
+		"- Work continuity inferred-step labeling and handoff source-ref coverage: `{:.3}` / `{:.3}`\n",
+		work_continuity.inferred_next_step_labeling_rate,
+		work_continuity.handoff_source_ref_coverage
+	));
+	out.push_str(&format!(
+		"- Work continuity redaction and janitor false-promotion rates: `{:.3}` / `{:.3}`\n",
+		work_continuity.redaction_rate, work_continuity.janitor_false_promotion_rate
+	));
+	out.push_str(&format!(
+		"- Work continuity hard-fail markers: `{}` sensitive persistence, `{}` rejected resurrection, `{}` inferred instructions, `{}` journal-only authority claim(s)\n",
+		work_continuity.sensitive_marker_persistence_count,
+		work_continuity.rejected_option_resurrection_count,
+		work_continuity.inferred_step_instruction_count,
+		work_continuity.journal_only_authority_claim_count
+	));
 }
 
 fn render_markdown_quality_summary(out: &mut String, report: &RealWorldReport) {
@@ -8140,6 +9128,62 @@ fn render_markdown_scheduled_memory(out: &mut String, report: &RealWorldReport) 
 	out.push('\n');
 }
 
+fn render_markdown_work_continuity(out: &mut String, report: &RealWorldReport) {
+	let work_jobs =
+		report.jobs.iter().filter(|job| job.work_continuity.is_some()).collect::<Vec<_>>();
+
+	if work_jobs.is_empty() {
+		return;
+	}
+
+	out.push_str("## Work Continuity Metrics\n\n");
+	out.push_str("| Job | Readbacks | Entries | Reset/Resume | Decision Rationale | Rejected Suppression | Explicit Precision | Inferred Labeling | Handoff Sources | Redaction | Janitor False Promotion | Sensitive Persistence | Journal Authority Claims |\n");
+	out.push_str(
+		"| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n",
+	);
+
+	for job in work_jobs {
+		let Some(metrics) = &job.work_continuity else {
+			continue;
+		};
+
+		out.push_str(&format!(
+			"| {} | {} | {} | `{}/{}` (`{:.3}`) | `{}/{}` (`{:.3}`) | `{}/{}` (`{:.3}`) | `{}/{}` (`{:.3}`) | `{}/{}` (`{:.3}`) | `{}/{}` (`{:.3}`) | `{}/{}` (`{:.3}`) | `{}/{}` (`{:.3}`) | {} | {} |\n",
+			md_cell(job.job_id.as_str()),
+			metrics.readback_count,
+			metrics.entry_count,
+			metrics.reset_resume_success_count,
+			metrics.reset_resume_required_count,
+			metrics.reset_resume_success_rate,
+			metrics.decision_rationale_recalled_count,
+			metrics.decision_rationale_required_count,
+			metrics.decision_rationale_recall_rate,
+			metrics.rejected_option_suppressed_count,
+			metrics.rejected_option_required_count,
+			metrics.rejected_option_suppression_rate,
+			metrics.explicit_next_step_correct_count,
+			metrics.explicit_next_step_returned_count,
+			metrics.explicit_next_step_precision,
+			metrics.inferred_next_step_labeled_count,
+			metrics.inferred_next_step_required_count,
+			metrics.inferred_next_step_labeling_rate,
+			metrics.handoff_source_ref_covered_count,
+			metrics.handoff_source_ref_required_count,
+			metrics.handoff_source_ref_coverage,
+			metrics.redaction_applied_count,
+			metrics.redaction_required_count,
+			metrics.redaction_rate,
+			metrics.janitor_false_promotion_count,
+			metrics.janitor_candidate_count,
+			metrics.janitor_false_promotion_rate,
+			metrics.sensitive_marker_persistence_count,
+			metrics.journal_only_authority_claim_count
+		));
+	}
+
+	out.push('\n');
+}
+
 fn render_markdown_unsupported_claims(out: &mut String, report: &RealWorldReport) {
 	out.push_str("## Unsupported Claims\n\n");
 
@@ -8226,6 +9270,7 @@ fn render_markdown_semantics(out: &mut String, report: &RealWorldReport) {
 	out.push_str("For `memory_summary` jobs, summary artifacts are derived review surfaces. Top-of-mind entries must be current, included or downgraded entries must carry source refs, and derived project-profile entries must either cite sources or be explicitly flagged as unsupported.\n\n");
 	out.push_str("For `proactive_brief` jobs, brief artifacts are fixture-scored derived outputs, not scheduled UI behavior. Every suggestion must carry evidence refs, freshness/currentness metadata, and an action rationale; stale, superseded, or tombstoned sources must not be presented as current recommendations.\n\n");
 	out.push_str("For `scheduled_memory` jobs, task artifacts are deterministic fixture-scored stand-ins for asynchronous work. Every output must carry evidence refs, freshness/currentness metadata, action rationale, and execution trace/readback evidence; scheduled tasks must not mutate source notes silently or claim hosted scheduler/private-provider parity from fixture-only output.\n\n");
+	out.push_str("For `work_continuity` jobs, Work Journal entries are source-adjacent readback artifacts, not current fact authority. Reset/resume, decisions, rejected options, next steps, handoff refs, redactions, and janitor candidates must preserve source refs and promotion boundaries; sensitive marker persistence, rejected-option resurrection, inferred next steps treated as instructions, and journal-only authority claims are hard fails.\n\n");
 	out.push_str("## Suites With `not_encoded` Status\n\n");
 
 	if report.not_encoded_suites.is_empty() {

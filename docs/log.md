@@ -135,3 +135,8 @@ logs.
 - Tightened the Work Journal promotion-boundary contract so accepted references must
   resolve to storage-backed Memory Authority or Dreaming Review evidence instead of
   granting authority from JSON shape alone.
+- Added the XY-1118 Work Continuity benchmark slice, documenting the
+  `work_continuity` real-world suite, `cargo make real-world-memory-work-continuity`,
+  Work Journal oracle fields, report rates, and hard-fail counters for redaction,
+  rejected-option, inferred-step, journal-authority, and janitor false-promotion
+  boundaries.

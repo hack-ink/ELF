@@ -1,0 +1,160 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "work-continuity-inferred-next-step-001",
+  "suite": "work_continuity",
+  "title": "Inferred next steps are labeled and not treated as instructions",
+  "corpus": {
+    "corpus_id": "real-world-memory-work-continuity-2026-06-27",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "wj-inferred-step-source",
+        "kind": "inferred_next_step",
+        "text": "Inferred next step candidate: compare Work Continuity rates against the Work Journal spec, but this was not an operator instruction.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "inferred_next_step_labeling",
+            "evidence_id": "wj-inferred-step-source"
+          },
+          "locator": {
+            "quote": "Inferred next step candidate"
+          }
+        },
+        "created_at": "2026-06-27T00:08:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_work_continuity",
+      "answer": {
+        "content": "The comparison task is labeled as inferred and is not an operator instruction.",
+        "claims": [
+          {
+            "claim_id": "inferred_next_step_label",
+            "text": "The comparison task is an inferred next-step candidate, not an instruction.",
+            "evidence_ids": ["wj-inferred-step-source"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["wj-inferred-step-source"],
+        "work_journal_readbacks": [
+          {
+            "readback_id": "wj-readback-inferred-next-step",
+            "contract_schema": "elf.work_journal/v1",
+            "generated_at": "2026-06-27T00:09:00Z",
+            "session_id": "work-continuity-session",
+            "tenant_id": "fixture-tenant",
+            "project_id": "elf",
+            "agent_id": "xy-1118-fixture-agent",
+            "read_profile": "private_plus_project",
+            "items": [
+              {
+                "entry_id": "wj-inferred-step-entry",
+                "family": "inferred_next_step",
+                "title": "Compare benchmark rates",
+                "body": "The possible comparison was inferred from context.",
+                "source_refs": ["wj-inferred-step-source"],
+                "inferred_next_steps": [
+                  {
+                    "step_id": "wj-inferred-compare-rates",
+                    "text": "Compare Work Continuity rates against the Work Journal spec.",
+                    "label": "inferred",
+                    "instruction": false,
+                    "evidence_refs": ["wj-inferred-step-source"]
+                  }
+                ]
+              }
+            ],
+            "where_stopped": {
+              "reset_resume_entry_ids": [],
+              "decision_rationale_evidence_ids": [],
+              "current_explicit_next_step_ids": [],
+              "labeled_inferred_next_step_ids": ["wj-inferred-compare-rates"],
+              "handoff_source_refs": ["wj-inferred-step-source"],
+              "journal_only_authority_claims": []
+            },
+            "promotion_boundary": {
+              "journal_entry_authority": "source_adjacent_only",
+              "memory_promotion_required": true,
+              "accepted_refs": []
+            },
+            "janitor_candidates": []
+          }
+        ],
+        "latency_ms": 1.0,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "prompt": {
+    "role": "user",
+    "content": "Was the comparison task explicit or inferred?",
+    "job_mode": "work_continuity",
+    "constraints": ["cite_evidence", "label_inferred_next_steps"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "inferred_next_step_label",
+        "text": "The comparison task is an inferred next-step candidate, not an instruction."
+      }
+    ],
+    "must_not_include": ["The operator instructed the agent to compare Work Continuity rates"],
+    "evidence_links": {
+      "inferred_next_step_label": ["wj-inferred-step-source"]
+    },
+    "answer_type": "work_journal_readback",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "wj-inferred-step-source",
+      "claim_id": "inferred_next_step_label",
+      "requirement": "cite",
+      "quote": "Inferred next step candidate"
+    }
+  ],
+  "work_continuity": {
+    "required_inferred_next_step_ids": ["wj-inferred-compare-rates"]
+  },
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.35,
+        "max_points": 1.0,
+        "criteria": "Labels inferred next steps correctly."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Cites the inferred-step evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Does not treat inferred work as instruction."
+      },
+      "lifecycle_behavior": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Keeps inferred status visible."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": ["inferred-step-as-instruction"]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "state_blocker"
+  },
+  "tags": ["synthetic", "work_continuity", "inferred_next_step"]
+}

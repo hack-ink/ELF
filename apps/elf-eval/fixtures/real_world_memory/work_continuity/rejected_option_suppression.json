@@ -1,0 +1,159 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "work-continuity-rejected-option-001",
+  "suite": "work_continuity",
+  "title": "Rejected options remain suppressed on resume",
+  "corpus": {
+    "corpus_id": "real-world-memory-work-continuity-2026-06-27",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "wj-rejected-option-source",
+        "kind": "rejected_option",
+        "text": "Rejected option: do not rewrite Work Journal entries into durable Memory Notes during janitor cleanup.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "rejected_option_suppression",
+            "evidence_id": "wj-rejected-option-source"
+          },
+          "locator": {
+            "quote": "Rejected option"
+          }
+        },
+        "created_at": "2026-06-27T00:04:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_work_continuity",
+      "answer": {
+        "content": "The rejected janitor rewrite option remains suppressed and is not presented as a current instruction.",
+        "claims": [
+          {
+            "claim_id": "rejected_option_suppressed",
+            "text": "The janitor rewrite option was rejected and must not be resurrected as current work.",
+            "evidence_ids": ["wj-rejected-option-source"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["wj-rejected-option-source"],
+        "work_journal_readbacks": [
+          {
+            "readback_id": "wj-readback-rejected-option",
+            "contract_schema": "elf.work_journal/v1",
+            "generated_at": "2026-06-27T00:05:00Z",
+            "session_id": "work-continuity-session",
+            "tenant_id": "fixture-tenant",
+            "project_id": "elf",
+            "agent_id": "xy-1118-fixture-agent",
+            "read_profile": "private_plus_project",
+            "items": [
+              {
+                "entry_id": "wj-rejected-entry",
+                "family": "rejected_option",
+                "title": "Rejected janitor rewrite",
+                "body": "The janitor rewrite option remains rejected.",
+                "source_refs": ["wj-rejected-option-source"],
+                "rejected_options": [
+                  {
+                    "option_id": "wj-reject-autopromote",
+                    "text": "Rewrite Work Journal entries into durable Memory Notes during janitor cleanup.",
+                    "evidence_refs": ["wj-rejected-option-source"],
+                    "resurrected_as_current": false
+                  }
+                ]
+              }
+            ],
+            "where_stopped": {
+              "reset_resume_entry_ids": [],
+              "decision_rationale_evidence_ids": [],
+              "current_explicit_next_step_ids": [],
+              "labeled_inferred_next_step_ids": [],
+              "handoff_source_refs": ["wj-rejected-option-source"],
+              "journal_only_authority_claims": []
+            },
+            "promotion_boundary": {
+              "journal_entry_authority": "source_adjacent_only",
+              "memory_promotion_required": true,
+              "accepted_refs": []
+            },
+            "janitor_candidates": []
+          }
+        ],
+        "latency_ms": 1.0,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "prompt": {
+    "role": "user",
+    "content": "Should the rejected janitor rewrite become a current next step?",
+    "job_mode": "work_continuity",
+    "constraints": ["cite_evidence", "suppress_rejected_options"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "rejected_option_suppressed",
+        "text": "The janitor rewrite option was rejected and must not be resurrected as current work."
+      }
+    ],
+    "must_not_include": ["Rewrite Work Journal entries into durable Memory Notes during janitor cleanup."],
+    "evidence_links": {
+      "rejected_option_suppressed": ["wj-rejected-option-source"]
+    },
+    "answer_type": "work_journal_readback",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "wj-rejected-option-source",
+      "claim_id": "rejected_option_suppressed",
+      "requirement": "cite",
+      "quote": "Rejected option"
+    }
+  ],
+  "work_continuity": {
+    "required_rejected_option_ids": ["wj-reject-autopromote"]
+  },
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.35,
+        "max_points": 1.0,
+        "criteria": "Suppresses rejected options."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Cites the rejected option evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Does not resurrect rejected work."
+      },
+      "lifecycle_behavior": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Preserves source-adjacent state."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": ["rejected-option resurrection"]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "state_blocker"
+  },
+  "tags": ["synthetic", "work_continuity", "rejected_option"]
+}
