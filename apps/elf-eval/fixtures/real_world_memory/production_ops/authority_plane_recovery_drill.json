@@ -1,0 +1,556 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "production-ops-authority-plane-recovery-001",
+  "suite": "production_ops",
+  "title": "Recover authority-plane records with degraded derived indexes labeled",
+  "corpus": {
+    "corpus_id": "real-world-memory-production-ops-2026-06-27",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "authority-recovery-topology",
+        "kind": "trace",
+        "text": "Authority-plane drill topology used one Postgres authority store with Qdrant memory and document indexes treated as rebuildable derived indexes; failover was not_encoded because no standby authority service was part of the drill.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "authority_plane_recovery_drill",
+            "evidence_id": "authority-recovery-topology"
+          },
+          "locator": {
+            "quote": "one Postgres authority store with Qdrant memory and document indexes treated as rebuildable derived indexes"
+          }
+        },
+        "created_at": "2026-06-27T09:00:00Z"
+      },
+      {
+        "evidence_id": "authority-recovery-backup-pitr",
+        "kind": "trace",
+        "text": "Backup/PITR drill restored the authority store from backup backup-20260627T090000Z to PITR target 2026-06-27T09:12:00Z before replaying pending outbox work.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "authority_plane_recovery_drill",
+            "evidence_id": "authority-recovery-backup-pitr"
+          },
+          "locator": {
+            "quote": "restored the authority store from backup backup-20260627T090000Z to PITR target 2026-06-27T09:12:00Z"
+          }
+        },
+        "created_at": "2026-06-27T09:12:00Z"
+      },
+      {
+        "evidence_id": "authority-recovery-counts",
+        "kind": "trace",
+        "text": "Before and after recovery, authority counts matched for source=3, journal=2, memory=4, knowledge=2, proposal=2, trace=3, and audit=5; source refs and lifecycle history were preserved on every plane.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "authority_plane_recovery_drill",
+            "evidence_id": "authority-recovery-counts"
+          },
+          "locator": {
+            "quote": "source refs and lifecycle history were preserved on every plane"
+          }
+        },
+        "created_at": "2026-06-27T09:14:00Z"
+      },
+      {
+        "evidence_id": "authority-recovery-degraded-read",
+        "kind": "trace",
+        "text": "During degraded read, unavailable Qdrant memory index, document index, and external adapter rows were labeled unavailable_derived_index or unavailable_adapter while Postgres source-of-truth records remained visible.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "authority_plane_recovery_drill",
+            "evidence_id": "authority-recovery-degraded-read"
+          },
+          "locator": {
+            "quote": "unavailable Qdrant memory index, document index, and external adapter rows were labeled"
+          }
+        },
+        "created_at": "2026-06-27T09:15:00Z"
+      },
+      {
+        "evidence_id": "authority-recovery-replay-rebuild",
+        "kind": "trace",
+        "text": "Idempotent outbox replay processed 6 pending jobs with zero duplicate writes; Qdrant rebuild returned rebuilt_count=9, missing_vector_count=0, error_count=0.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "authority_plane_recovery_drill",
+            "evidence_id": "authority-recovery-replay-rebuild"
+          },
+          "locator": {
+            "quote": "processed 6 pending jobs with zero duplicate writes"
+          }
+        },
+        "created_at": "2026-06-27T09:16:00Z"
+      },
+      {
+        "evidence_id": "authority-recovery-repair-dead-letter",
+        "kind": "trace",
+        "text": "Migration repair fixed 1 recoverable Work Journal source-ref shape without promoting journal-only content, and 2 dead-letter rows were handled without hiding the failed job history.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "authority_plane_recovery_drill",
+            "evidence_id": "authority-recovery-repair-dead-letter"
+          },
+          "locator": {
+            "quote": "2 dead-letter rows were handled without hiding the failed job history"
+          }
+        },
+        "created_at": "2026-06-27T09:17:00Z"
+      },
+      {
+        "evidence_id": "authority-recovery-rpo-rto",
+        "kind": "trace",
+        "text": "The drill reported RPO target 60 seconds with measured 12 seconds and RTO target 300 seconds with measured 184 seconds.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "authority_plane_recovery_drill",
+            "evidence_id": "authority-recovery-rpo-rto"
+          },
+          "locator": {
+            "quote": "RPO target 60 seconds with measured 12 seconds and RTO target 300 seconds with measured 184 seconds"
+          }
+        },
+        "created_at": "2026-06-27T09:18:00Z"
+      },
+      {
+        "evidence_id": "authority-recovery-failover-decoy",
+        "kind": "adapter_state",
+        "text": "Decoy: the drill proves multi-region failover with a standby authority service.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "authority_plane_recovery_drill",
+            "evidence_id": "authority-recovery-failover-decoy"
+          }
+        },
+        "created_at": "2026-06-27T09:01:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_production_ops",
+      "answer": {
+        "content": "The authority-plane recovery drill restored the Postgres authority store from backup/PITR, preserved source refs and lifecycle history for source, journal, memory, knowledge, proposal, trace, and audit records, labeled unavailable derived indexes and adapters during degraded read, replayed outbox work idempotently, completed Qdrant rebuild with rebuilt_count=9, missing_vector_count=0, error_count=0, handled 2 dead-letter rows, applied 1 migration repair, and met RPO 12/60 seconds plus RTO 184/300 seconds. Failover remains not_encoded because no standby authority service was part of the drill.",
+        "claims": [
+          {
+            "claim_id": "backup_pitr_restored",
+            "text": "The authority-plane recovery drill restored the Postgres authority store from backup/PITR.",
+            "evidence_ids": ["authority-recovery-backup-pitr"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "authority_counts_preserved",
+            "text": "The authority-plane recovery drill preserved source refs and lifecycle history for source, journal, memory, knowledge, proposal, trace, and audit records.",
+            "evidence_ids": ["authority-recovery-counts"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "degraded_read_labeled",
+            "text": "Unavailable derived indexes and adapters were labeled during degraded read while source-of-truth records remained visible.",
+            "evidence_ids": ["authority-recovery-degraded-read"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "replay_rebuild_dead_letter",
+            "text": "Outbox replay was idempotent, Qdrant rebuild was complete, and 2 dead-letter rows were handled without hiding failure history.",
+            "evidence_ids": ["authority-recovery-replay-rebuild", "authority-recovery-repair-dead-letter"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "rpo_rto_reported",
+            "text": "The drill met RPO 12/60 seconds and RTO 184/300 seconds.",
+            "evidence_ids": ["authority-recovery-rpo-rto"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "failover_not_encoded",
+            "text": "Failover remains not_encoded because no standby authority service was part of the drill.",
+            "evidence_ids": ["authority-recovery-topology"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": [
+          "authority-recovery-topology",
+          "authority-recovery-backup-pitr",
+          "authority-recovery-counts",
+          "authority-recovery-degraded-read",
+          "authority-recovery-replay-rebuild",
+          "authority-recovery-repair-dead-letter",
+          "authority-recovery-rpo-rto"
+        ],
+        "recovery_drills": [
+          {
+            "drill_id": "authority-plane-drill-20260627",
+            "contract_schema": "elf.authority_recovery_drill/v1",
+            "generated_at": "2026-06-27T09:18:00Z",
+            "topology": {
+              "authority_store": "postgres",
+              "derived_indexes": ["qdrant_memory", "qdrant_docs"],
+              "adapters": ["external_adapter_probe"],
+              "failover": "not_encoded_no_standby_authority_service"
+            },
+            "failure_injections": [
+              {
+                "injection_id": "qdrant-memory-index-unavailable",
+                "target": "qdrant_memory",
+                "fault": "derived_index_unavailable",
+                "started_at": "2026-06-27T09:15:00Z",
+                "completed_at": "2026-06-27T09:16:00Z",
+                "evidence_refs": ["authority-recovery-degraded-read"]
+              },
+              {
+                "injection_id": "outbox-replay-after-pitr",
+                "target": "indexing_outbox",
+                "fault": "pending_jobs_replayed_after_restore",
+                "started_at": "2026-06-27T09:16:00Z",
+                "completed_at": "2026-06-27T09:17:00Z",
+                "evidence_refs": ["authority-recovery-replay-rebuild"]
+              }
+            ],
+            "backup_pitr": {
+              "backup_ref": "backup-20260627T090000Z",
+              "pitr_target": "2026-06-27T09:12:00Z",
+              "restored": true,
+              "evidence_refs": ["authority-recovery-backup-pitr"]
+            },
+            "degraded_read": {
+              "source_of_truth_visible": true,
+              "unavailable_derived_indexes": ["qdrant_memory", "qdrant_docs"],
+              "unavailable_adapters": ["external_adapter_probe"],
+              "unavailable_labels": ["unavailable_derived_index", "unavailable_adapter"],
+              "evidence_refs": ["authority-recovery-degraded-read"]
+            },
+            "rpo": {
+              "target_seconds": 60.0,
+              "measured_seconds": 12.0,
+              "evidence_refs": ["authority-recovery-rpo-rto"]
+            },
+            "rto": {
+              "target_seconds": 300.0,
+              "measured_seconds": 184.0,
+              "evidence_refs": ["authority-recovery-rpo-rto"]
+            },
+            "authority_record_counts": [
+              {
+                "plane": "source",
+                "before_count": 3,
+                "after_count": 3,
+                "source_refs_preserved": true,
+                "lifecycle_history_preserved": true,
+                "evidence_refs": ["authority-recovery-counts"]
+              },
+              {
+                "plane": "journal",
+                "before_count": 2,
+                "after_count": 2,
+                "source_refs_preserved": true,
+                "lifecycle_history_preserved": true,
+                "evidence_refs": ["authority-recovery-counts"]
+              },
+              {
+                "plane": "memory",
+                "before_count": 4,
+                "after_count": 4,
+                "source_refs_preserved": true,
+                "lifecycle_history_preserved": true,
+                "evidence_refs": ["authority-recovery-counts"]
+              },
+              {
+                "plane": "knowledge",
+                "before_count": 2,
+                "after_count": 2,
+                "source_refs_preserved": true,
+                "lifecycle_history_preserved": true,
+                "evidence_refs": ["authority-recovery-counts"]
+              },
+              {
+                "plane": "proposal",
+                "before_count": 2,
+                "after_count": 2,
+                "source_refs_preserved": true,
+                "lifecycle_history_preserved": true,
+                "evidence_refs": ["authority-recovery-counts"]
+              },
+              {
+                "plane": "trace",
+                "before_count": 3,
+                "after_count": 3,
+                "source_refs_preserved": true,
+                "lifecycle_history_preserved": true,
+                "evidence_refs": ["authority-recovery-counts"]
+              },
+              {
+                "plane": "audit",
+                "before_count": 5,
+                "after_count": 5,
+                "source_refs_preserved": true,
+                "lifecycle_history_preserved": true,
+                "evidence_refs": ["authority-recovery-counts"]
+              }
+            ],
+            "outbox_replay": {
+              "idempotent": true,
+              "replayed_count": 6,
+              "duplicate_write_count": 0,
+              "evidence_refs": ["authority-recovery-replay-rebuild"]
+            },
+            "qdrant_rebuild": {
+              "complete": true,
+              "rebuilt_count": 9,
+              "missing_vector_count": 0,
+              "error_count": 0,
+              "evidence_refs": ["authority-recovery-replay-rebuild"]
+            },
+            "migration_repair": {
+              "applied": true,
+              "repaired_count": 1,
+              "evidence_refs": ["authority-recovery-repair-dead-letter"]
+            },
+            "dead_letter": {
+              "dead_letter_count": 2,
+              "handled_count": 2,
+              "evidence_refs": ["authority-recovery-repair-dead-letter"]
+            }
+          }
+        ],
+        "latency_ms": 2.4,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "authority-drill-topology-recorded",
+      "ts": "2026-06-27T09:00:00Z",
+      "actor": "tool",
+      "action": "recorded_recovery_topology",
+      "evidence_ids": ["authority-recovery-topology"],
+      "summary": "The drill recorded authority store, derived index, adapter, and failover boundaries."
+    },
+    {
+      "event_id": "authority-drill-pitr-restored",
+      "ts": "2026-06-27T09:12:00Z",
+      "actor": "tool",
+      "action": "restored_backup_pitr",
+      "evidence_ids": ["authority-recovery-backup-pitr"],
+      "summary": "The authority store was restored from the backup to the PITR target."
+    },
+    {
+      "event_id": "authority-drill-counts-checked",
+      "ts": "2026-06-27T09:14:00Z",
+      "actor": "tool",
+      "action": "checked_authority_record_counts",
+      "evidence_ids": ["authority-recovery-counts"],
+      "summary": "Before and after counts matched for source, journal, memory, knowledge, proposal, trace, and audit records."
+    },
+    {
+      "event_id": "authority-drill-degraded-read",
+      "ts": "2026-06-27T09:15:00Z",
+      "actor": "tool",
+      "action": "read_degraded_authority_records",
+      "evidence_ids": ["authority-recovery-degraded-read"],
+      "summary": "Derived index and adapter unavailability were labeled while source-of-truth records stayed visible."
+    },
+    {
+      "event_id": "authority-drill-replay-rebuild",
+      "ts": "2026-06-27T09:16:00Z",
+      "actor": "tool",
+      "action": "replayed_outbox_and_rebuilt_qdrant",
+      "evidence_ids": ["authority-recovery-replay-rebuild"],
+      "summary": "Outbox replay was idempotent and Qdrant rebuild completed."
+    },
+    {
+      "event_id": "authority-drill-repair-dead-letter",
+      "ts": "2026-06-27T09:17:00Z",
+      "actor": "tool",
+      "action": "repaired_migration_and_handled_dead_letters",
+      "evidence_ids": ["authority-recovery-repair-dead-letter"],
+      "summary": "Recoverable migration repair and dead-letter handling were recorded without hiding history."
+    },
+    {
+      "event_id": "authority-drill-rpo-rto",
+      "ts": "2026-06-27T09:18:00Z",
+      "actor": "tool",
+      "action": "reported_rpo_rto",
+      "evidence_ids": ["authority-recovery-rpo-rto"],
+      "summary": "RPO and RTO targets and measurements were reported."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "What does the authority-plane recovery drill prove, and what remains unencoded?",
+    "job_mode": "operate",
+    "constraints": [
+      "cite_evidence",
+      "state_authority_planes",
+      "label_degraded_indexes",
+      "do_not_claim_failover_without_standby"
+    ]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "backup_pitr_restored",
+        "text": "The authority-plane recovery drill restored the Postgres authority store from backup/PITR."
+      },
+      {
+        "claim_id": "authority_counts_preserved",
+        "text": "The authority-plane recovery drill preserved source refs and lifecycle history for source, journal, memory, knowledge, proposal, trace, and audit records."
+      },
+      {
+        "claim_id": "degraded_read_labeled",
+        "text": "Unavailable derived indexes and adapters were labeled during degraded read while source-of-truth records remained visible."
+      },
+      {
+        "claim_id": "replay_rebuild_dead_letter",
+        "text": "Outbox replay was idempotent, Qdrant rebuild was complete, and 2 dead-letter rows were handled without hiding failure history."
+      },
+      {
+        "claim_id": "rpo_rto_reported",
+        "text": "The drill met RPO 12/60 seconds and RTO 184/300 seconds."
+      },
+      {
+        "claim_id": "failover_not_encoded",
+        "text": "Failover remains not_encoded because no standby authority service was part of the drill."
+      }
+    ],
+    "must_not_include": [
+      "proves multi-region failover",
+      "has a standby authority service"
+    ],
+    "evidence_links": {
+      "backup_pitr_restored": ["authority-recovery-backup-pitr"],
+      "authority_counts_preserved": ["authority-recovery-counts"],
+      "degraded_read_labeled": ["authority-recovery-degraded-read"],
+      "replay_rebuild_dead_letter": ["authority-recovery-replay-rebuild", "authority-recovery-repair-dead-letter"],
+      "rpo_rto_reported": ["authority-recovery-rpo-rto"],
+      "failover_not_encoded": ["authority-recovery-topology"]
+    },
+    "answer_type": "direct_answer",
+    "accepted_alternates": [],
+    "requires_caveat": true,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "authority-recovery-backup-pitr",
+      "claim_id": "backup_pitr_restored",
+      "requirement": "cite",
+      "quote": "Backup/PITR drill restored the authority store from backup backup-20260627T090000Z to PITR target 2026-06-27T09:12:00Z"
+    },
+    {
+      "evidence_id": "authority-recovery-counts",
+      "claim_id": "authority_counts_preserved",
+      "requirement": "cite",
+      "quote": "source refs and lifecycle history were preserved on every plane"
+    },
+    {
+      "evidence_id": "authority-recovery-degraded-read",
+      "claim_id": "degraded_read_labeled",
+      "requirement": "cite",
+      "quote": "unavailable Qdrant memory index, document index, and external adapter rows were labeled"
+    },
+    {
+      "evidence_id": "authority-recovery-replay-rebuild",
+      "claim_id": "replay_rebuild_dead_letter",
+      "requirement": "cite",
+      "quote": "processed 6 pending jobs with zero duplicate writes"
+    },
+    {
+      "evidence_id": "authority-recovery-repair-dead-letter",
+      "claim_id": "replay_rebuild_dead_letter",
+      "requirement": "cite",
+      "quote": "2 dead-letter rows were handled without hiding the failed job history"
+    },
+    {
+      "evidence_id": "authority-recovery-rpo-rto",
+      "claim_id": "rpo_rto_reported",
+      "requirement": "cite",
+      "quote": "RPO target 60 seconds with measured 12 seconds and RTO target 300 seconds with measured 184 seconds"
+    },
+    {
+      "evidence_id": "authority-recovery-topology",
+      "claim_id": "failover_not_encoded",
+      "requirement": "cite",
+      "quote": "failover was not_encoded because no standby authority service was part of the drill"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "multi-region-failover-decoy",
+      "type": "unsupported_claim",
+      "evidence_ids": ["authority-recovery-failover-decoy"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "lifecycle_behavior": {
+        "weight": 0.35,
+        "max_points": 1.0,
+        "criteria": "Explains backup/PITR, idempotent replay, rebuild, repair, dead-letter, and authority history preservation."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Cites authority counts, degraded read, replay/rebuild, repair/dead-letter, RPO/RTO, and topology evidence."
+      },
+      "uncertainty_handling": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Preserves the failover not_encoded caveat."
+      },
+      "trap_avoidance": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Does not claim standby or multi-region failover."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [
+      "Failover remains not_encoded because no standby authority service was part of the drill."
+    ],
+    "fallback_action": "state_blocker"
+  },
+  "tags": [
+    "synthetic",
+    "production_ops",
+    "authority_recovery",
+    "recovery_drill",
+    "backup_pitr",
+    "restore",
+    "qdrant_rebuild",
+    "degraded_read",
+    "outbox_replay",
+    "dead_letter",
+    "migration_repair",
+    "rpo_rto",
+    "no_live_claim"
+  ]
+}

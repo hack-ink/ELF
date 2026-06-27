@@ -27,5 +27,7 @@ Routes to: Drift audits and evidence concepts under `docs/evidence/`.
   suppression boundaries.
 - `2026-06-27-work-journal-drift-audit.md`: Drift audit for Work Journal
   source-adjacent capture, readback, redaction, and promotion-boundary behavior.
+- `2026-06-27-authority-recovery-drill-drift-audit.md`: Drift audit for
+  production-ops authority recovery drill benchmark artifacts and reports.
 - `external_memory_pattern_radar_latest.md`: Latest weekly external memory pattern
   radar summary.
