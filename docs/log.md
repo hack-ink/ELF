@@ -140,3 +140,7 @@ logs.
   Work Journal oracle fields, report rates, and hard-fail counters for redaction,
   rejected-option, inferred-step, journal-authority, and janitor false-promotion
   boundaries.
+- Added the XY-1119 authority recovery drill production-ops slice, defining
+  `elf.authority_recovery_drill/v1` report artifacts, validating topology, degraded
+  reads, RPO/RTO, authority record counts, idempotent outbox replay, Qdrant rebuild,
+  migration repair, and dead-letter handling, and linking the drift audit.

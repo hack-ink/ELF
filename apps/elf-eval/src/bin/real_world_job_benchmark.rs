@@ -22,6 +22,7 @@ const EXTERNAL_ADAPTER_MANIFEST_SCHEMA: &str = "elf.real_world_external_adapter_
 const EXTERNAL_ADAPTER_REPORT_SCHEMA: &str = "elf.real_world_external_adapter_report/v1";
 const SCOREBOARD_SCHEMA: &str = "elf.quality_scoreboard/v1";
 const OPERATIONAL_EVIDENCE_SCHEMA: &str = "elf.operational_evidence_gates/v1";
+const AUTHORITY_RECOVERY_DRILL_SCHEMA: &str = "elf.authority_recovery_drill/v1";
 const DEFAULT_FIXTURE_PATH: &str = "apps/elf-eval/fixtures/real_world_memory/work_resume";
 const DEFAULT_REPORT_PATH: &str = "tmp/real-world-job/real-world-job-smoke-report.json";
 const DEFAULT_MARKDOWN_PATH: &str = "tmp/real-world-job/real-world-job-smoke-report.md";
@@ -466,6 +467,8 @@ struct ProducedAnswer {
 	scheduled_tasks: Vec<ScheduledMemoryTaskArtifact>,
 	#[serde(default)]
 	work_journal_readbacks: Vec<WorkJournalReadbackArtifact>,
+	#[serde(default)]
+	recovery_drills: Vec<AuthorityRecoveryDrillArtifact>,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	latency_ms: Option<f64>,
 	#[serde(skip_serializing_if = "Option::is_none")]
@@ -818,6 +821,123 @@ struct WorkJournalJanitorCandidateArtifact {
 	promoted_to_memory: bool,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct AuthorityRecoveryDrillArtifact {
+	drill_id: String,
+	contract_schema: String,
+	generated_at: String,
+	topology: RecoveryDrillTopology,
+	#[serde(default)]
+	failure_injections: Vec<RecoveryFailureInjection>,
+	backup_pitr: RecoveryBackupPitr,
+	degraded_read: RecoveryDegradedRead,
+	rpo: RecoveryMeasurement,
+	rto: RecoveryMeasurement,
+	#[serde(default)]
+	authority_record_counts: Vec<AuthorityRecordCount>,
+	outbox_replay: RecoveryOutboxReplay,
+	qdrant_rebuild: RecoveryQdrantRebuild,
+	migration_repair: RecoveryMigrationRepair,
+	dead_letter: RecoveryDeadLetterHandling,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct RecoveryDrillTopology {
+	authority_store: String,
+	#[serde(default)]
+	derived_indexes: Vec<String>,
+	#[serde(default)]
+	adapters: Vec<String>,
+	failover: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct RecoveryFailureInjection {
+	injection_id: String,
+	target: String,
+	fault: String,
+	started_at: String,
+	completed_at: String,
+	#[serde(default)]
+	evidence_refs: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct RecoveryBackupPitr {
+	backup_ref: String,
+	pitr_target: String,
+	restored: bool,
+	#[serde(default)]
+	evidence_refs: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct RecoveryDegradedRead {
+	source_of_truth_visible: bool,
+	#[serde(default)]
+	unavailable_derived_indexes: Vec<String>,
+	#[serde(default)]
+	unavailable_adapters: Vec<String>,
+	#[serde(default)]
+	unavailable_labels: Vec<String>,
+	#[serde(default)]
+	evidence_refs: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct RecoveryMeasurement {
+	target_seconds: f64,
+	measured_seconds: f64,
+	#[serde(default)]
+	evidence_refs: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct AuthorityRecordCount {
+	plane: String,
+	before_count: u64,
+	after_count: u64,
+	source_refs_preserved: bool,
+	lifecycle_history_preserved: bool,
+	#[serde(default)]
+	evidence_refs: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct RecoveryOutboxReplay {
+	idempotent: bool,
+	replayed_count: u64,
+	duplicate_write_count: u64,
+	#[serde(default)]
+	evidence_refs: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct RecoveryQdrantRebuild {
+	complete: bool,
+	rebuilt_count: u64,
+	missing_vector_count: u64,
+	error_count: u64,
+	#[serde(default)]
+	evidence_refs: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct RecoveryMigrationRepair {
+	applied: bool,
+	repaired_count: u64,
+	#[serde(default)]
+	evidence_refs: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct RecoveryDeadLetterHandling {
+	dead_letter_count: u64,
+	handled_count: u64,
+	#[serde(default)]
+	evidence_refs: Vec<String>,
+}
+
 #[derive(Clone, Debug, Deserialize)]
 struct ConsolidationFixture {
 	#[serde(default)]
@@ -1011,6 +1131,8 @@ struct OperationalEvidenceReport {
 	cost: OperationalCostSummary,
 	resource: OperationalResourceSummary,
 	cold_start_restore_rebuild: OperationalColdStartRestoreRebuild,
+	#[serde(default)]
+	authority_recovery: OperationalAuthorityRecoveryReport,
 	missing_private_provider_inputs_are_typed_blockers: bool,
 	private_corpus_pass_claim_allowed: bool,
 	provider_backed_pass_claim_allowed: bool,
@@ -1076,6 +1198,29 @@ struct OperationalColdStartRestoreRebuild {
 	restore_pass_count: usize,
 	qdrant_rebuild_job_count: usize,
 	qdrant_rebuild_pass_count: usize,
+	#[serde(default)]
+	job_ids: Vec<String>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct OperationalAuthorityRecoveryReport {
+	drill_count: usize,
+	drill_pass_count: usize,
+	topology_reported_count: usize,
+	failure_injection_count: usize,
+	degraded_read_labeled_count: usize,
+	source_of_truth_visible_count: usize,
+	rpo_target_count: usize,
+	rpo_met_count: usize,
+	rto_target_count: usize,
+	rto_met_count: usize,
+	authority_plane_count: usize,
+	source_ref_preserved_count: usize,
+	lifecycle_history_preserved_count: usize,
+	idempotent_outbox_replay_count: usize,
+	qdrant_rebuild_complete_count: usize,
+	migration_repair_count: usize,
+	dead_letter_handled_count: usize,
 	#[serde(default)]
 	job_ids: Vec<String>,
 }
@@ -1639,6 +1784,8 @@ struct JobReport {
 	scheduled_memory: Option<ScheduledMemoryJobMetrics>,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	work_continuity: Option<WorkContinuityJobMetrics>,
+	#[serde(default, skip_serializing_if = "Vec::is_empty")]
+	recovery_drills: Vec<AuthorityRecoveryDrillArtifact>,
 	trap_ids_used: Vec<String>,
 	dimension_scores: Vec<DimensionScoreReport>,
 	reason: String,
@@ -2444,6 +2591,9 @@ fn validate_adapter_response(job: &RealWorldJob, path: &Path) -> Result<()> {
 	for readback in &adapter_response.answer.work_journal_readbacks {
 		validate_work_journal_readback_artifact(readback, path, &evidence_ids)?;
 	}
+	for drill in &adapter_response.answer.recovery_drills {
+		validate_authority_recovery_drill_artifact(drill, path, &evidence_ids)?;
+	}
 
 	if job.suite == "memory_summary"
 		&& adapter_response.answer.memory_summaries.is_empty()
@@ -3135,6 +3285,234 @@ fn validate_work_journal_where_stopped(
 				path.display()
 			));
 		}
+	}
+
+	Ok(())
+}
+
+fn validate_authority_recovery_drill_artifact(
+	drill: &AuthorityRecoveryDrillArtifact,
+	path: &Path,
+	evidence_ids: &BTreeSet<String>,
+) -> Result<()> {
+	if drill.drill_id.trim().is_empty()
+		|| drill.contract_schema != AUTHORITY_RECOVERY_DRILL_SCHEMA
+		|| drill.generated_at.trim().is_empty()
+	{
+		return Err(eyre::eyre!("{} has an incomplete authority recovery drill.", path.display()));
+	}
+
+	validate_optional_rfc3339(&drill.generated_at, path, drill.drill_id.as_str())?;
+	validate_recovery_topology(&drill.topology, path, drill.drill_id.as_str())?;
+	validate_recovery_backup_pitr(&drill.backup_pitr, path, evidence_ids)?;
+	validate_recovery_degraded_read(&drill.degraded_read, path, evidence_ids)?;
+	validate_recovery_measurement("rpo", &drill.rpo, path, evidence_ids)?;
+	validate_recovery_measurement("rto", &drill.rto, path, evidence_ids)?;
+	validate_recovery_authority_record_counts(drill, path, evidence_ids)?;
+	validate_recovery_outbox_replay(&drill.outbox_replay, path, evidence_ids)?;
+	validate_recovery_qdrant_rebuild(&drill.qdrant_rebuild, path, evidence_ids)?;
+	validate_recovery_migration_repair(&drill.migration_repair, path, evidence_ids)?;
+	validate_recovery_dead_letter(&drill.dead_letter, path, evidence_ids)?;
+
+	for injection in &drill.failure_injections {
+		if injection.injection_id.trim().is_empty()
+			|| injection.target.trim().is_empty()
+			|| injection.fault.trim().is_empty()
+			|| injection.started_at.trim().is_empty()
+			|| injection.completed_at.trim().is_empty()
+			|| injection.evidence_refs.is_empty()
+		{
+			return Err(eyre::eyre!(
+				"{} authority recovery drill {} has an incomplete failure injection.",
+				path.display(),
+				drill.drill_id
+			));
+		}
+
+		validate_optional_rfc3339(&injection.started_at, path, injection.injection_id.as_str())?;
+		validate_optional_rfc3339(&injection.completed_at, path, injection.injection_id.as_str())?;
+		ensure_known_evidence_refs(path, evidence_ids, &injection.evidence_refs)?;
+	}
+
+	if drill.failure_injections.is_empty() {
+		return Err(eyre::eyre!(
+			"{} authority recovery drill {} must include failure injection evidence.",
+			path.display(),
+			drill.drill_id
+		));
+	}
+
+	Ok(())
+}
+
+fn validate_recovery_topology(
+	topology: &RecoveryDrillTopology,
+	path: &Path,
+	drill_id: &str,
+) -> Result<()> {
+	if topology.authority_store.trim().is_empty()
+		|| topology.derived_indexes.is_empty()
+		|| topology.failover.trim().is_empty()
+	{
+		return Err(eyre::eyre!(
+			"{} authority recovery drill {} has incomplete topology.",
+			path.display(),
+			drill_id
+		));
+	}
+
+	Ok(())
+}
+
+fn validate_recovery_backup_pitr(
+	backup_pitr: &RecoveryBackupPitr,
+	path: &Path,
+	evidence_ids: &BTreeSet<String>,
+) -> Result<()> {
+	if backup_pitr.backup_ref.trim().is_empty()
+		|| backup_pitr.pitr_target.trim().is_empty()
+		|| backup_pitr.evidence_refs.is_empty()
+	{
+		return Err(eyre::eyre!("{} has incomplete backup/PITR drill evidence.", path.display()));
+	}
+
+	validate_optional_rfc3339(&backup_pitr.pitr_target, path, backup_pitr.backup_ref.as_str())?;
+
+	ensure_known_evidence_refs(path, evidence_ids, &backup_pitr.evidence_refs)
+}
+
+fn validate_recovery_degraded_read(
+	degraded_read: &RecoveryDegradedRead,
+	path: &Path,
+	evidence_ids: &BTreeSet<String>,
+) -> Result<()> {
+	if degraded_read.unavailable_labels.is_empty() || degraded_read.evidence_refs.is_empty() {
+		return Err(eyre::eyre!("{} has incomplete degraded-read drill evidence.", path.display()));
+	}
+
+	ensure_known_evidence_refs(path, evidence_ids, &degraded_read.evidence_refs)
+}
+
+fn validate_recovery_measurement(
+	label: &str,
+	measurement: &RecoveryMeasurement,
+	path: &Path,
+	evidence_ids: &BTreeSet<String>,
+) -> Result<()> {
+	if !measurement.target_seconds.is_finite()
+		|| !measurement.measured_seconds.is_finite()
+		|| measurement.target_seconds < 0.0
+		|| measurement.measured_seconds < 0.0
+		|| measurement.evidence_refs.is_empty()
+	{
+		return Err(eyre::eyre!("{} has invalid {label} recovery measurement.", path.display()));
+	}
+
+	ensure_known_evidence_refs(path, evidence_ids, &measurement.evidence_refs)
+}
+
+fn validate_recovery_authority_record_counts(
+	drill: &AuthorityRecoveryDrillArtifact,
+	path: &Path,
+	evidence_ids: &BTreeSet<String>,
+) -> Result<()> {
+	let required_planes =
+		["source", "journal", "memory", "knowledge", "proposal", "trace", "audit"];
+	let present_planes = drill
+		.authority_record_counts
+		.iter()
+		.map(|count| count.plane.as_str())
+		.collect::<BTreeSet<_>>();
+
+	for plane in required_planes {
+		if !present_planes.contains(plane) {
+			return Err(eyre::eyre!(
+				"{} authority recovery drill {} is missing {} authority counts.",
+				path.display(),
+				drill.drill_id,
+				plane
+			));
+		}
+	}
+	for count in &drill.authority_record_counts {
+		if count.plane.trim().is_empty() || count.evidence_refs.is_empty() {
+			return Err(eyre::eyre!(
+				"{} authority recovery drill {} has incomplete authority record counts.",
+				path.display(),
+				drill.drill_id
+			));
+		}
+
+		ensure_known_evidence_refs(path, evidence_ids, &count.evidence_refs)?;
+	}
+
+	Ok(())
+}
+
+fn validate_recovery_outbox_replay(
+	replay: &RecoveryOutboxReplay,
+	path: &Path,
+	evidence_ids: &BTreeSet<String>,
+) -> Result<()> {
+	if replay.evidence_refs.is_empty() {
+		return Err(eyre::eyre!("{} has incomplete outbox replay drill evidence.", path.display()));
+	}
+
+	ensure_known_evidence_refs(path, evidence_ids, &replay.evidence_refs)
+}
+
+fn validate_recovery_qdrant_rebuild(
+	rebuild: &RecoveryQdrantRebuild,
+	path: &Path,
+	evidence_ids: &BTreeSet<String>,
+) -> Result<()> {
+	if rebuild.evidence_refs.is_empty() {
+		return Err(eyre::eyre!(
+			"{} has incomplete Qdrant rebuild drill evidence.",
+			path.display()
+		));
+	}
+
+	ensure_known_evidence_refs(path, evidence_ids, &rebuild.evidence_refs)
+}
+
+fn validate_recovery_migration_repair(
+	repair: &RecoveryMigrationRepair,
+	path: &Path,
+	evidence_ids: &BTreeSet<String>,
+) -> Result<()> {
+	if repair.evidence_refs.is_empty() {
+		return Err(eyre::eyre!(
+			"{} has incomplete migration repair drill evidence.",
+			path.display()
+		));
+	}
+
+	ensure_known_evidence_refs(path, evidence_ids, &repair.evidence_refs)
+}
+
+fn validate_recovery_dead_letter(
+	dead_letter: &RecoveryDeadLetterHandling,
+	path: &Path,
+	evidence_ids: &BTreeSet<String>,
+) -> Result<()> {
+	if dead_letter.evidence_refs.is_empty() {
+		return Err(eyre::eyre!(
+			"{} has incomplete dead-letter handling drill evidence.",
+			path.display()
+		));
+	}
+
+	ensure_known_evidence_refs(path, evidence_ids, &dead_letter.evidence_refs)
+}
+
+fn ensure_known_evidence_refs(
+	path: &Path,
+	evidence_ids: &BTreeSet<String>,
+	refs: &[String],
+) -> Result<()> {
+	for evidence_ref in refs {
+		ensure_known_evidence(path, evidence_ids, evidence_ref)?;
 	}
 
 	Ok(())
@@ -4074,6 +4452,7 @@ fn synthetic_answer(job: &RealWorldJob) -> &ProducedAnswer {
 		proactive_briefs: Vec::new(),
 		scheduled_tasks: Vec::new(),
 		work_journal_readbacks: Vec::new(),
+		recovery_drills: Vec::new(),
 		latency_ms: None,
 		cost: None,
 		trace_explainability: None,
@@ -4115,6 +4494,23 @@ fn produced_evidence_ids(answer: &ProducedAnswer) -> BTreeSet<String> {
 
 		for candidate in &readback.janitor_candidates {
 			evidence.extend(candidate.evidence_refs.iter().cloned());
+		}
+	}
+	for drill in &answer.recovery_drills {
+		evidence.extend(drill.backup_pitr.evidence_refs.iter().cloned());
+		evidence.extend(drill.degraded_read.evidence_refs.iter().cloned());
+		evidence.extend(drill.rpo.evidence_refs.iter().cloned());
+		evidence.extend(drill.rto.evidence_refs.iter().cloned());
+		evidence.extend(drill.outbox_replay.evidence_refs.iter().cloned());
+		evidence.extend(drill.qdrant_rebuild.evidence_refs.iter().cloned());
+		evidence.extend(drill.migration_repair.evidence_refs.iter().cloned());
+		evidence.extend(drill.dead_letter.evidence_refs.iter().cloned());
+
+		for injection in &drill.failure_injections {
+			evidence.extend(injection.evidence_refs.iter().cloned());
+		}
+		for count in &drill.authority_record_counts {
+			evidence.extend(count.evidence_refs.iter().cloned());
 		}
 	}
 
@@ -5860,6 +6256,7 @@ fn job_report(job: &RealWorldJob, scoring: JobScoring) -> JobReport {
 		proactive_brief: scoring.proactive_brief,
 		scheduled_memory: scoring.scheduled_memory,
 		work_continuity: scoring.work_continuity,
+		recovery_drills: answer.recovery_drills.clone(),
 		trap_ids_used: scoring.trap_ids_used,
 		dimension_scores: scoring.dimension_scores,
 		reason: scoring.reason,
@@ -6553,6 +6950,7 @@ fn operational_evidence_report(
 		cost: operational_cost_summary(reports),
 		resource: operational_resource_summary(paired.as_slice()),
 		cold_start_restore_rebuild: operational_cold_start_restore_rebuild(paired.as_slice()),
+		authority_recovery: operational_authority_recovery(reports),
 		missing_private_provider_inputs_are_typed_blockers,
 		private_corpus_pass_claim_allowed,
 		provider_backed_pass_claim_allowed,
@@ -6718,6 +7116,86 @@ fn operational_cold_start_restore_rebuild(
 		qdrant_rebuild_pass_count: qdrant_rebuild_jobs
 			.iter()
 			.filter(|(_, report)| report.status == TypedStatus::Pass)
+			.count(),
+		job_ids,
+	}
+}
+
+fn operational_authority_recovery(reports: &[JobReport]) -> OperationalAuthorityRecoveryReport {
+	let recovery_jobs =
+		reports.iter().filter(|report| !report.recovery_drills.is_empty()).collect::<Vec<_>>();
+	let drills =
+		recovery_jobs.iter().flat_map(|report| report.recovery_drills.iter()).collect::<Vec<_>>();
+	let authority_counts =
+		drills.iter().flat_map(|drill| drill.authority_record_counts.iter()).collect::<Vec<_>>();
+	let mut job_ids = recovery_jobs
+		.iter()
+		.map(|report| report.job_id.clone())
+		.collect::<BTreeSet<_>>()
+		.into_iter()
+		.collect::<Vec<_>>();
+
+	job_ids.sort();
+	OperationalAuthorityRecoveryReport {
+		drill_count: drills.len(),
+		drill_pass_count: recovery_jobs
+			.iter()
+			.filter(|report| report.status == TypedStatus::Pass)
+			.map(|report| report.recovery_drills.len())
+			.sum(),
+		topology_reported_count: drills
+			.iter()
+			.filter(|drill| !drill.topology.authority_store.trim().is_empty())
+			.count(),
+		failure_injection_count: drills.iter().map(|drill| drill.failure_injections.len()).sum(),
+		degraded_read_labeled_count: drills
+			.iter()
+			.filter(|drill| !drill.degraded_read.unavailable_labels.is_empty())
+			.count(),
+		source_of_truth_visible_count: drills
+			.iter()
+			.filter(|drill| drill.degraded_read.source_of_truth_visible)
+			.count(),
+		rpo_target_count: drills.len(),
+		rpo_met_count: drills
+			.iter()
+			.filter(|drill| drill.rpo.measured_seconds <= drill.rpo.target_seconds)
+			.count(),
+		rto_target_count: drills.len(),
+		rto_met_count: drills
+			.iter()
+			.filter(|drill| drill.rto.measured_seconds <= drill.rto.target_seconds)
+			.count(),
+		authority_plane_count: authority_counts.len(),
+		source_ref_preserved_count: authority_counts
+			.iter()
+			.filter(|count| count.source_refs_preserved)
+			.count(),
+		lifecycle_history_preserved_count: authority_counts
+			.iter()
+			.filter(|count| count.lifecycle_history_preserved)
+			.count(),
+		idempotent_outbox_replay_count: drills
+			.iter()
+			.filter(|drill| {
+				drill.outbox_replay.idempotent && drill.outbox_replay.duplicate_write_count == 0
+			})
+			.count(),
+		qdrant_rebuild_complete_count: drills
+			.iter()
+			.filter(|drill| {
+				drill.qdrant_rebuild.complete
+					&& drill.qdrant_rebuild.missing_vector_count == 0
+					&& drill.qdrant_rebuild.error_count == 0
+			})
+			.count(),
+		migration_repair_count: drills
+			.iter()
+			.filter(|drill| drill.migration_repair.applied)
+			.count(),
+		dead_letter_handled_count: drills
+			.iter()
+			.filter(|drill| drill.dead_letter.handled_count >= drill.dead_letter.dead_letter_count)
 			.count(),
 		job_ids,
 	}
@@ -8088,6 +8566,27 @@ fn render_markdown_operational_evidence(out: &mut String, report: &RealWorldRepo
 		evidence.cold_start_restore_rebuild.restore_job_count,
 		evidence.cold_start_restore_rebuild.qdrant_rebuild_pass_count,
 		evidence.cold_start_restore_rebuild.qdrant_rebuild_job_count
+	));
+	out.push_str(&format!(
+		"- Authority recovery drills: `{}`/`{}` pass, topology `{}`, failure injections `{}`, degraded reads labeled `{}`, source-of-truth visible `{}`, RPO `{}`/`{}` met, RTO `{}`/`{}` met, source refs `{}`/`{}` preserved, lifecycle histories `{}`/`{}` preserved, idempotent replay `{}`, complete Qdrant rebuild `{}`, migration repair `{}`, dead-letter handled `{}`\n\n",
+		evidence.authority_recovery.drill_pass_count,
+		evidence.authority_recovery.drill_count,
+		evidence.authority_recovery.topology_reported_count,
+		evidence.authority_recovery.failure_injection_count,
+		evidence.authority_recovery.degraded_read_labeled_count,
+		evidence.authority_recovery.source_of_truth_visible_count,
+		evidence.authority_recovery.rpo_met_count,
+		evidence.authority_recovery.rpo_target_count,
+		evidence.authority_recovery.rto_met_count,
+		evidence.authority_recovery.rto_target_count,
+		evidence.authority_recovery.source_ref_preserved_count,
+		evidence.authority_recovery.authority_plane_count,
+		evidence.authority_recovery.lifecycle_history_preserved_count,
+		evidence.authority_recovery.authority_plane_count,
+		evidence.authority_recovery.idempotent_outbox_replay_count,
+		evidence.authority_recovery.qdrant_rebuild_complete_count,
+		evidence.authority_recovery.migration_repair_count,
+		evidence.authority_recovery.dead_letter_handled_count
 	));
 	out.push_str("| Evidence Tier | Status | Jobs | Pass | Blocked | Incomplete | Not Encoded | Mean Latency | Cost | Resource | Cold Start | Restore | Qdrant Rebuild | Pass Claim |\n");
 	out.push_str("| --- | --- | ---: | ---: | ---: | ---: | ---: | --- | --- | ---: | ---: | ---: | ---: | --- |\n");
