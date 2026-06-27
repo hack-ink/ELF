@@ -73,10 +73,12 @@ const SCOREBOARD_RESULT_STATES: &[&str] = &[
 	"blocked",
 	"not_tested",
 	"not_encoded",
+	"not_comparable",
 	"unsupported_claim",
 ];
 const SCOREBOARD_EVIDENCE_CLASSES: &[&str] =
 	&["fixture_backed", "live_baseline", "live_real_world", "research_gate"];
+const SCOREBOARD_RETRIEVAL_K: usize = 5;
 const OPERATIONAL_EVIDENCE_TIERS: &[&str] =
 	&["local_fixture", "public_proxy", "private_corpus", "provider_backed"];
 const REQUIRED_AUTHORITY_PLANES: [&str; 7] =
@@ -1026,6 +1028,8 @@ struct ScoreboardReport {
 	schema: String,
 	result_states: Vec<String>,
 	evidence_classes: Vec<String>,
+	metric_basis: String,
+	retrieval_k: usize,
 	job_typed_non_pass_count: usize,
 	job_typed_non_pass_states_present: Vec<String>,
 	job_summary_claim: String,
@@ -1037,6 +1041,106 @@ struct ScoreboardReport {
 	summary_claim: String,
 	unqualified_win_claim_allowed: bool,
 	claim_boundary: String,
+	#[serde(default)]
+	rows: Vec<ScoreboardRow>,
+	#[serde(default)]
+	optimization_roadmap: Vec<String>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct ScoreboardRow {
+	product_id: String,
+	product_name: String,
+	row_source: String,
+	evidence_class: String,
+	result_state: String,
+	comparable: bool,
+	same_corpus: bool,
+	source_id_mapped: bool,
+	held_out: bool,
+	leakage_audited: bool,
+	product_runtime: bool,
+	container_digest_identified: bool,
+	metrics: ScoreboardMetrics,
+	#[serde(default)]
+	strengths: Vec<String>,
+	#[serde(default)]
+	weaknesses: Vec<String>,
+	#[serde(default)]
+	next_evidence: Vec<String>,
+	#[serde(default)]
+	source_provenance: Vec<String>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct ScoreboardMetrics {
+	retrieval: ScoreboardRetrievalMetrics,
+	lifecycle: ScoreboardLifecycleMetrics,
+	answer_safety: ScoreboardAnswerSafetyMetrics,
+	operations: ScoreboardOperationalMetrics,
+	coverage: ScoreboardCoverageMetrics,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct ScoreboardRetrievalMetrics {
+	k: usize,
+	metric_basis: String,
+	recall_at_k: Option<f64>,
+	precision_at_k: Option<f64>,
+	mrr: Option<f64>,
+	ndcg: Option<f64>,
+	expected_evidence_recall: Option<f64>,
+	citation_source_ref_coverage: Option<f64>,
+	expected_evidence_matched: usize,
+	expected_evidence_total: usize,
+	produced_evidence_total: usize,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct ScoreboardLifecycleMetrics {
+	stale_suppression: Option<f64>,
+	stale_suppressed_count: usize,
+	stale_check_count: usize,
+	update_correctness: Option<f64>,
+	update_correct_count: usize,
+	update_check_count: usize,
+	delete_correctness: Option<f64>,
+	delete_correct_count: usize,
+	delete_check_count: usize,
+	rollback_history_readback_rate: Option<f64>,
+	rollback_history_readback_count: usize,
+	rollback_history_check_count: usize,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct ScoreboardAnswerSafetyMetrics {
+	unsupported_claim_rate: Option<f64>,
+	unsupported_claim_count: usize,
+	stale_answer_rate: Option<f64>,
+	stale_answer_count: usize,
+	hallucinated_evidence_rate: Option<f64>,
+	redaction_leak_count: usize,
+	irrelevant_context_ratio: Option<f64>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct ScoreboardOperationalMetrics {
+	mean_latency_ms: Option<f64>,
+	total_cost: Option<CostReport>,
+	resource_envelope_status: String,
+	resource_envelope_job_count: usize,
+	resource_envelope_pass_count: usize,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct ScoreboardCoverageMetrics {
+	job_count: usize,
+	encoded_suite_count: usize,
+	pass_count: usize,
+	typed_non_pass_count: usize,
+	source_ref_coverage: Option<f64>,
+	evidence_coverage: Option<f64>,
+	evidence_class: String,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -2077,6 +2181,13 @@ struct JobMetrics {
 	scope_violation_count: usize,
 	redaction_leak_count: usize,
 	qdrant_rebuild_case: bool,
+}
+
+struct ScoreboardRankedMetrics {
+	relevant_at_k: usize,
+	precision_denominator_at_k: usize,
+	reciprocal_rank: f64,
+	ndcg: f64,
 }
 
 #[derive(Debug, Subcommand)]
@@ -4187,7 +4298,7 @@ fn build_report(jobs: &[RealWorldJob], args: &RunArgs) -> Result<RealWorldReport
 		&args.external_adapter_manifest,
 		args.skip_external_adapter_manifest,
 	)?;
-	let scoreboard = scoreboard_report(&job_reports, &external_adapters);
+	let scoreboard = scoreboard_report(jobs, &job_reports, &summary, &external_adapters);
 	let operational_evidence = operational_evidence_report(jobs, &job_reports);
 
 	Ok(RealWorldReport {
@@ -4549,61 +4660,115 @@ fn synthetic_answer(job: &RealWorldJob) -> &ProducedAnswer {
 }
 
 fn produced_evidence_ids(answer: &ProducedAnswer) -> BTreeSet<String> {
-	let mut evidence = answer.evidence_ids.iter().cloned().collect::<BTreeSet<_>>();
+	ordered_produced_evidence_ids(answer).into_iter().collect()
+}
 
+fn ordered_produced_evidence_ids(answer: &ProducedAnswer) -> Vec<String> {
+	let mut seen = BTreeSet::new();
+	let mut evidence = Vec::new();
+
+	for evidence_id in &answer.evidence_ids {
+		push_ordered_evidence(&mut evidence, &mut seen, evidence_id);
+	}
 	for claim in &answer.claims {
-		evidence.extend(claim.evidence_ids.iter().cloned());
+		for evidence_id in &claim.evidence_ids {
+			push_ordered_evidence(&mut evidence, &mut seen, evidence_id);
+		}
 	}
 	for brief in &answer.proactive_briefs {
 		for suggestion in &brief.suggestions {
-			evidence.extend(suggestion.evidence_refs.iter().cloned());
+			for evidence_id in &suggestion.evidence_refs {
+				push_ordered_evidence(&mut evidence, &mut seen, evidence_id);
+			}
 		}
 	}
 	for task in &answer.scheduled_tasks {
 		for output in &task.outputs {
-			evidence.extend(output.evidence_refs.iter().cloned());
+			for evidence_id in &output.evidence_refs {
+				push_ordered_evidence(&mut evidence, &mut seen, evidence_id);
+			}
 		}
 	}
 	for readback in &answer.work_journal_readbacks {
 		for entry in &readback.items {
-			evidence.extend(entry.source_refs.iter().cloned());
-
+			for evidence_id in &entry.source_refs {
+				push_ordered_evidence(&mut evidence, &mut seen, evidence_id);
+			}
 			for step in entry.explicit_next_steps.iter().chain(entry.inferred_next_steps.iter()) {
-				evidence.extend(step.evidence_refs.iter().cloned());
+				for evidence_id in &step.evidence_refs {
+					push_ordered_evidence(&mut evidence, &mut seen, evidence_id);
+				}
 			}
 			for option in &entry.rejected_options {
-				evidence.extend(option.evidence_refs.iter().cloned());
+				for evidence_id in &option.evidence_refs {
+					push_ordered_evidence(&mut evidence, &mut seen, evidence_id);
+				}
 			}
 		}
 
 		if let Some(where_stopped) = &readback.where_stopped {
-			evidence.extend(where_stopped.decision_rationale_evidence_ids.iter().cloned());
-			evidence.extend(where_stopped.handoff_source_refs.iter().cloned());
+			for evidence_id in &where_stopped.decision_rationale_evidence_ids {
+				push_ordered_evidence(&mut evidence, &mut seen, evidence_id);
+			}
+			for evidence_id in &where_stopped.handoff_source_refs {
+				push_ordered_evidence(&mut evidence, &mut seen, evidence_id);
+			}
 		}
 
 		for candidate in &readback.janitor_candidates {
-			evidence.extend(candidate.evidence_refs.iter().cloned());
+			for evidence_id in &candidate.evidence_refs {
+				push_ordered_evidence(&mut evidence, &mut seen, evidence_id);
+			}
 		}
 	}
 	for drill in &answer.recovery_drills {
-		evidence.extend(drill.backup_pitr.evidence_refs.iter().cloned());
-		evidence.extend(drill.degraded_read.evidence_refs.iter().cloned());
-		evidence.extend(drill.rpo.evidence_refs.iter().cloned());
-		evidence.extend(drill.rto.evidence_refs.iter().cloned());
-		evidence.extend(drill.outbox_replay.evidence_refs.iter().cloned());
-		evidence.extend(drill.qdrant_rebuild.evidence_refs.iter().cloned());
-		evidence.extend(drill.migration_repair.evidence_refs.iter().cloned());
-		evidence.extend(drill.dead_letter.evidence_refs.iter().cloned());
-
+		for evidence_id in &drill.backup_pitr.evidence_refs {
+			push_ordered_evidence(&mut evidence, &mut seen, evidence_id);
+		}
+		for evidence_id in &drill.degraded_read.evidence_refs {
+			push_ordered_evidence(&mut evidence, &mut seen, evidence_id);
+		}
+		for evidence_id in &drill.rpo.evidence_refs {
+			push_ordered_evidence(&mut evidence, &mut seen, evidence_id);
+		}
+		for evidence_id in &drill.rto.evidence_refs {
+			push_ordered_evidence(&mut evidence, &mut seen, evidence_id);
+		}
+		for evidence_id in &drill.outbox_replay.evidence_refs {
+			push_ordered_evidence(&mut evidence, &mut seen, evidence_id);
+		}
+		for evidence_id in &drill.qdrant_rebuild.evidence_refs {
+			push_ordered_evidence(&mut evidence, &mut seen, evidence_id);
+		}
+		for evidence_id in &drill.migration_repair.evidence_refs {
+			push_ordered_evidence(&mut evidence, &mut seen, evidence_id);
+		}
+		for evidence_id in &drill.dead_letter.evidence_refs {
+			push_ordered_evidence(&mut evidence, &mut seen, evidence_id);
+		}
 		for injection in &drill.failure_injections {
-			evidence.extend(injection.evidence_refs.iter().cloned());
+			for evidence_id in &injection.evidence_refs {
+				push_ordered_evidence(&mut evidence, &mut seen, evidence_id);
+			}
 		}
 		for count in &drill.authority_record_counts {
-			evidence.extend(count.evidence_refs.iter().cloned());
+			for evidence_id in &count.evidence_refs {
+				push_ordered_evidence(&mut evidence, &mut seen, evidence_id);
+			}
 		}
 	}
 
 	evidence
+}
+
+fn push_ordered_evidence(
+	evidence: &mut Vec<String>,
+	seen: &mut BTreeSet<String>,
+	evidence_id: &str,
+) {
+	if seen.insert(evidence_id.to_string()) {
+		evidence.push(evidence_id.to_string());
+	}
 }
 
 fn missing_required_claims(job: &RealWorldJob, answer: &ProducedAnswer) -> Vec<String> {
@@ -6871,13 +7036,15 @@ fn report_summary(jobs: &[JobReport], suites: &[SuiteReport]) -> ReportSummary {
 }
 
 fn scoreboard_report(
-	jobs: &[JobReport],
+	raw_jobs: &[RealWorldJob],
+	job_reports: &[JobReport],
+	summary: &ReportSummary,
 	external_adapters: &ExternalAdapterSection,
 ) -> ScoreboardReport {
 	let job_typed_non_pass_count =
-		jobs.iter().filter(|job| job.status != TypedStatus::Pass).count();
+		job_reports.iter().filter(|job| job.status != TypedStatus::Pass).count();
 	let external_typed_non_pass_count = external_typed_non_pass_count(&external_adapters.summary);
-	let job_typed_non_pass_states_present = typed_non_pass_states_present(jobs);
+	let job_typed_non_pass_states_present = typed_non_pass_states_present(job_reports);
 	let external_adapter_typed_non_pass_states_present =
 		external_typed_non_pass_states_present(&external_adapters.summary);
 	let mut typed_non_pass_states_present = job_typed_non_pass_states_present.clone();
@@ -6892,18 +7059,797 @@ fn scoreboard_report(
 		schema: SCOREBOARD_SCHEMA.to_string(),
 		result_states: SCOREBOARD_RESULT_STATES.iter().map(ToString::to_string).collect(),
 		evidence_classes: SCOREBOARD_EVIDENCE_CLASSES.iter().map(ToString::to_string).collect(),
+		metric_basis: "produced_evidence_order".to_string(),
+		retrieval_k: SCOREBOARD_RETRIEVAL_K,
 		job_typed_non_pass_count,
 		job_typed_non_pass_states_present,
-		job_summary_claim: scoreboard_summary_claim(jobs, job_typed_non_pass_count).to_string(),
+		job_summary_claim: scoreboard_summary_claim(job_reports, job_typed_non_pass_count).to_string(),
 		external_adapter_typed_non_pass_count: external_typed_non_pass_count,
 		external_adapter_typed_non_pass_states_present,
 		typed_non_pass_count,
 		typed_non_pass_states_present,
 		evidence_class_counts: scoreboard_evidence_class_counts(external_adapters),
-		summary_claim: scoreboard_summary_claim(jobs, typed_non_pass_count).to_string(),
+		summary_claim: scoreboard_summary_claim(job_reports, typed_non_pass_count).to_string(),
 		unqualified_win_claim_allowed: false,
 		claim_boundary: "Typed non-pass states and non-live evidence classes must remain visible; reports must not collapse them into unqualified wins.".to_string(),
+		rows: scoreboard_rows(raw_jobs, job_reports, summary, external_adapters),
+		optimization_roadmap: scoreboard_optimization_roadmap(),
 	}
+}
+
+fn scoreboard_rows(
+	raw_jobs: &[RealWorldJob],
+	job_reports: &[JobReport],
+	summary: &ReportSummary,
+	external_adapters: &ExternalAdapterSection,
+) -> Vec<ScoreboardRow> {
+	let mut rows = vec![elf_scoreboard_row(raw_jobs, job_reports, summary)];
+
+	rows.extend(external_project_scoreboard_rows(&external_adapters.adapters));
+
+	rows
+}
+
+fn elf_scoreboard_row(
+	raw_jobs: &[RealWorldJob],
+	job_reports: &[JobReport],
+	summary: &ReportSummary,
+) -> ScoreboardRow {
+	let source_id_mapped =
+		summary.source_ref_required_count > 0 && summary.source_ref_coverage >= 1.0;
+	let result_state = aggregate_job_report_state(job_reports);
+	let metrics = scoreboard_metrics_for_reports(raw_jobs, job_reports, summary);
+	let typed_non_pass_count =
+		job_reports.iter().filter(|job| job.status != TypedStatus::Pass).count();
+	let mut row = ScoreboardRow {
+		product_id: "elf_current_report".to_string(),
+		product_name: "ELF".to_string(),
+		row_source: "current_real_world_job_report".to_string(),
+		evidence_class: "fixture_backed".to_string(),
+		result_state,
+		comparable: false,
+		same_corpus: true,
+		source_id_mapped,
+		held_out: jobs_have_tag(raw_jobs, "held_out"),
+		leakage_audited: jobs_have_tag(raw_jobs, "leakage_audited"),
+		product_runtime: false,
+		container_digest_identified: false,
+		metrics,
+		strengths: elf_scoreboard_strengths(summary),
+		weaknesses: Vec::new(),
+		next_evidence: Vec::new(),
+		source_provenance: vec![
+			"apps/elf-eval/fixtures/real_world_memory/".to_string(),
+			"apps/elf-eval/src/bin/real_world_job_benchmark.rs".to_string(),
+		],
+	};
+
+	if typed_non_pass_count > 0 {
+		row.weaknesses
+			.push(format!("{typed_non_pass_count} encoded job row(s) are typed non-pass."));
+	}
+
+	scoreboard_apply_comparability_gaps(&mut row);
+
+	row
+}
+
+fn aggregate_job_report_state(job_reports: &[JobReport]) -> String {
+	if job_reports.is_empty() {
+		return "not_tested".to_string();
+	}
+
+	let refs = job_reports.iter().collect::<Vec<_>>();
+
+	scoreboard_result_state(aggregate_status(&refs)).to_string()
+}
+
+fn jobs_have_tag(jobs: &[RealWorldJob], tag: &str) -> bool {
+	!jobs.is_empty() && jobs.iter().all(|job| job.tags.iter().any(|candidate| candidate == tag))
+}
+
+fn scoreboard_metrics_for_reports(
+	raw_jobs: &[RealWorldJob],
+	job_reports: &[JobReport],
+	summary: &ReportSummary,
+) -> ScoreboardMetrics {
+	ScoreboardMetrics {
+		retrieval: scoreboard_retrieval_metrics(job_reports, summary),
+		lifecycle: scoreboard_lifecycle_metrics(raw_jobs, job_reports),
+		answer_safety: scoreboard_answer_safety_metrics(summary),
+		operations: scoreboard_operational_metrics(raw_jobs, job_reports, summary),
+		coverage: ScoreboardCoverageMetrics {
+			job_count: summary.job_count,
+			encoded_suite_count: summary.encoded_suite_count,
+			pass_count: summary.pass,
+			typed_non_pass_count: job_reports
+				.iter()
+				.filter(|job| job.status != TypedStatus::Pass)
+				.count(),
+			source_ref_coverage: Some(summary.source_ref_coverage),
+			evidence_coverage: Some(summary.evidence_coverage),
+			evidence_class: "fixture_backed".to_string(),
+		},
+	}
+}
+
+fn scoreboard_retrieval_metrics(
+	job_reports: &[JobReport],
+	summary: &ReportSummary,
+) -> ScoreboardRetrievalMetrics {
+	let produced_evidence_total =
+		job_reports.iter().map(|job| job.retrieval_quality.produced_evidence_total).sum();
+	let mut relevant_at_k = 0;
+	let mut precision_denominator_at_k = 0;
+	let mut reciprocal_rank_sum = 0.0;
+	let mut ndcg_sum = 0.0;
+	let mut ranked_job_count = 0;
+
+	for job in job_reports {
+		let expected = job
+			.expected_evidence
+			.iter()
+			.map(|evidence| evidence.evidence_id.as_str())
+			.collect::<BTreeSet<_>>();
+		let ranked = scoreboard_ranked_metrics_for_job(job, &expected);
+
+		relevant_at_k += ranked.relevant_at_k;
+		precision_denominator_at_k += ranked.precision_denominator_at_k;
+		reciprocal_rank_sum += ranked.reciprocal_rank;
+		ndcg_sum += ranked.ndcg;
+		ranked_job_count += 1;
+	}
+
+	ScoreboardRetrievalMetrics {
+		k: SCOREBOARD_RETRIEVAL_K,
+		metric_basis: "produced_evidence_order".to_string(),
+		recall_at_k: Some(ratio_or(relevant_at_k, summary.expected_evidence_total, 1.0)),
+		precision_at_k: Some(ratio_or(relevant_at_k, precision_denominator_at_k, 1.0)),
+		mrr: Some(scoreboard_mean_metric(reciprocal_rank_sum, ranked_job_count)),
+		ndcg: Some(scoreboard_mean_metric(ndcg_sum, ranked_job_count)),
+		expected_evidence_recall: Some(summary.expected_evidence_recall),
+		citation_source_ref_coverage: Some(summary.source_ref_coverage),
+		expected_evidence_matched: summary.expected_evidence_matched,
+		expected_evidence_total: summary.expected_evidence_total,
+		produced_evidence_total,
+	}
+}
+
+fn scoreboard_ranked_metrics_for_job(
+	job: &JobReport,
+	expected: &BTreeSet<&str>,
+) -> ScoreboardRankedMetrics {
+	let precision_denominator_at_k = SCOREBOARD_RETRIEVAL_K;
+	let relevant_at_k = job
+		.produced_evidence
+		.iter()
+		.take(SCOREBOARD_RETRIEVAL_K)
+		.filter(|evidence_id| expected.contains(evidence_id.as_str()))
+		.count();
+	let reciprocal_rank = job
+		.produced_evidence
+		.iter()
+		.position(|evidence_id| expected.contains(evidence_id.as_str()))
+		.map_or_else(|| f64::from(expected.is_empty()), |index| 1.0 / (index + 1) as f64);
+	let ndcg = scoreboard_ndcg(job.produced_evidence.as_slice(), expected);
+
+	ScoreboardRankedMetrics { relevant_at_k, precision_denominator_at_k, reciprocal_rank, ndcg }
+}
+
+fn scoreboard_ndcg(produced_evidence: &[String], expected: &BTreeSet<&str>) -> f64 {
+	if expected.is_empty() {
+		return 1.0;
+	}
+
+	let dcg = produced_evidence
+		.iter()
+		.take(SCOREBOARD_RETRIEVAL_K)
+		.enumerate()
+		.filter(|(_, evidence_id)| expected.contains(evidence_id.as_str()))
+		.map(|(index, _)| 1.0 / ((index + 2) as f64).log2())
+		.sum::<f64>();
+	let ideal_hits = expected.len().min(SCOREBOARD_RETRIEVAL_K);
+	let idcg = (0..ideal_hits).map(|index| 1.0 / ((index + 2) as f64).log2()).sum::<f64>();
+
+	if idcg > 0.0 { dcg / idcg } else { 0.0 }
+}
+
+fn scoreboard_mean_metric(sum: f64, count: usize) -> f64 {
+	if count == 0 { 1.0 } else { round3(sum / count as f64) }
+}
+
+fn scoreboard_lifecycle_metrics(
+	raw_jobs: &[RealWorldJob],
+	job_reports: &[JobReport],
+) -> ScoreboardLifecycleMetrics {
+	let stale_check_count: usize = raw_jobs
+		.iter()
+		.map(|job| {
+			job.negative_traps
+				.iter()
+				.filter(|trap| trap.failure_if_used && trap.trap_type == "stale_fact")
+				.count()
+		})
+		.sum();
+	let stale_failure_count = job_reports
+		.iter()
+		.map(|job| job.stale_answer_count + job.stale_retrieval_count)
+		.sum::<usize>();
+	let update_check_count = scoreboard_lifecycle_check_count(raw_jobs, scoreboard_is_update_job);
+	let update_correct_count =
+		scoreboard_lifecycle_correct_count(raw_jobs, job_reports, scoreboard_is_update_job);
+	let delete_check_count = scoreboard_lifecycle_check_count(raw_jobs, scoreboard_is_delete_job);
+	let delete_correct_count =
+		scoreboard_lifecycle_correct_count(raw_jobs, job_reports, scoreboard_is_delete_job);
+	let rollback_history_check_count =
+		scoreboard_lifecycle_check_count(raw_jobs, scoreboard_is_rollback_history_job);
+	let rollback_history_readback_count = raw_jobs
+		.iter()
+		.zip(job_reports.iter())
+		.filter(|(job, report)| {
+			scoreboard_is_rollback_history_job(job) && report.status == TypedStatus::Pass
+		})
+		.count();
+
+	ScoreboardLifecycleMetrics {
+		stale_suppression: Some(ratio_or(
+			stale_check_count.saturating_sub(stale_failure_count),
+			stale_check_count,
+			1.0,
+		)),
+		stale_suppressed_count: stale_check_count.saturating_sub(stale_failure_count),
+		stale_check_count,
+		update_correctness: Some(ratio_or(update_correct_count, update_check_count, 1.0)),
+		update_correct_count,
+		update_check_count,
+		delete_correctness: Some(ratio_or(delete_correct_count, delete_check_count, 1.0)),
+		delete_correct_count,
+		delete_check_count,
+		rollback_history_readback_rate: Some(ratio_or(
+			rollback_history_readback_count,
+			rollback_history_check_count,
+			1.0,
+		)),
+		rollback_history_readback_count,
+		rollback_history_check_count,
+	}
+}
+
+fn scoreboard_lifecycle_check_count(
+	jobs: &[RealWorldJob],
+	predicate: fn(&RealWorldJob) -> bool,
+) -> usize {
+	jobs.iter().filter(|job| predicate(job)).count()
+}
+
+fn scoreboard_lifecycle_correct_count(
+	raw_jobs: &[RealWorldJob],
+	job_reports: &[JobReport],
+	predicate: fn(&RealWorldJob) -> bool,
+) -> usize {
+	raw_jobs
+		.iter()
+		.zip(job_reports.iter())
+		.filter(|(job, report)| predicate(job) && report.status == TypedStatus::Pass)
+		.count()
+}
+
+fn scoreboard_is_update_job(job: &RealWorldJob) -> bool {
+	scoreboard_has_any_tag(
+		job,
+		&["update", "correction_persistence", "current_authority", "conflicting_source_authority"],
+	)
+}
+
+fn scoreboard_is_delete_job(job: &RealWorldJob) -> bool {
+	scoreboard_has_any_tag(job, &["delete", "ttl", "tombstone"])
+}
+
+fn scoreboard_is_rollback_history_job(job: &RealWorldJob) -> bool {
+	scoreboard_has_any_tag(job, &["rollback", "correction_persistence"])
+}
+
+fn scoreboard_has_any_tag(job: &RealWorldJob, tags: &[&str]) -> bool {
+	job.tags.iter().any(|tag| tags.contains(&tag.as_str()))
+}
+
+fn scoreboard_answer_safety_metrics(summary: &ReportSummary) -> ScoreboardAnswerSafetyMetrics {
+	ScoreboardAnswerSafetyMetrics {
+		unsupported_claim_rate: Some(ratio(summary.unsupported_claim_count, summary.job_count)),
+		unsupported_claim_count: summary.unsupported_claim_count,
+		stale_answer_rate: Some(ratio(summary.stale_answer_count, summary.job_count)),
+		stale_answer_count: summary.stale_answer_count,
+		hallucinated_evidence_rate: Some(summary.irrelevant_context_ratio),
+		redaction_leak_count: summary.redaction_leak_count,
+		irrelevant_context_ratio: Some(summary.irrelevant_context_ratio),
+	}
+}
+
+fn scoreboard_operational_metrics(
+	raw_jobs: &[RealWorldJob],
+	job_reports: &[JobReport],
+	summary: &ReportSummary,
+) -> ScoreboardOperationalMetrics {
+	let resource_envelope_job_count =
+		raw_jobs.iter().filter(|job| scoreboard_has_any_tag(job, &["resource_envelope"])).count();
+	let resource_envelope_pass_count = raw_jobs
+		.iter()
+		.zip(job_reports.iter())
+		.filter(|(job, report)| {
+			scoreboard_has_any_tag(job, &["resource_envelope"])
+				&& report.status == TypedStatus::Pass
+		})
+		.count();
+
+	ScoreboardOperationalMetrics {
+		mean_latency_ms: summary.mean_latency_ms,
+		total_cost: summary.total_cost.clone(),
+		resource_envelope_status: if resource_envelope_job_count == resource_envelope_pass_count {
+			"pass".to_string()
+		} else {
+			"typed_non_pass_present".to_string()
+		},
+		resource_envelope_job_count,
+		resource_envelope_pass_count,
+	}
+}
+
+fn elf_scoreboard_strengths(summary: &ReportSummary) -> Vec<String> {
+	let mut strengths = Vec::new();
+
+	if summary.expected_evidence_recall >= 1.0 {
+		strengths.push("Expected evidence recall is complete for encoded jobs.".to_string());
+	}
+	if summary.source_ref_coverage >= 1.0 {
+		strengths
+			.push("Source-ref coverage is complete for encoded required evidence.".to_string());
+	}
+	if summary.stale_answer_count == 0 && summary.stale_retrieval_count == 0 {
+		strengths.push("Encoded stale-answer and stale-retrieval counters are zero.".to_string());
+	}
+	if summary.redaction_leak_count == 0 {
+		strengths.push("Encoded redaction leak count is zero.".to_string());
+	}
+	if summary.work_continuity.is_some() {
+		strengths.push("Work Continuity readback metrics are encoded in the report.".to_string());
+	}
+
+	strengths
+}
+
+fn external_project_scoreboard_rows(adapters: &[ExternalAdapterReport]) -> Vec<ScoreboardRow> {
+	let mut by_project: BTreeMap<String, Vec<&ExternalAdapterReport>> = BTreeMap::new();
+
+	for adapter in adapters.iter().filter(|adapter| adapter.project != "ELF") {
+		by_project.entry(adapter.project.clone()).or_default().push(adapter);
+	}
+
+	by_project
+		.into_iter()
+		.map(|(project, adapters)| external_project_scoreboard_row(project, adapters.as_slice()))
+		.collect()
+}
+
+fn external_project_scoreboard_row(
+	project: String,
+	adapters: &[&ExternalAdapterReport],
+) -> ScoreboardRow {
+	let evidence_class = strongest_scoreboard_evidence_class(adapters);
+	let result_state = external_project_result_state(adapters);
+	let source_id_mapped = external_project_source_id_mapped(adapters);
+	let same_corpus = external_project_same_corpus(adapters);
+	let product_runtime =
+		adapters.iter().any(|adapter| adapter.evidence_class == "live_real_world");
+	let container_digest_identified =
+		adapters.iter().any(|adapter| adapter_has_container_digest(adapter));
+	let typed_non_pass_count =
+		adapters.iter().map(|adapter| adapter_typed_non_pass_count(adapter)).sum();
+	let mut row = ScoreboardRow {
+		product_id: scoreboard_project_id(project.as_str()),
+		product_name: project,
+		row_source: "external_adapter_manifest".to_string(),
+		evidence_class: evidence_class.clone(),
+		result_state,
+		comparable: false,
+		same_corpus,
+		source_id_mapped,
+		held_out: false,
+		leakage_audited: false,
+		product_runtime,
+		container_digest_identified,
+		metrics: external_project_scoreboard_metrics(
+			adapters,
+			evidence_class.as_str(),
+			typed_non_pass_count,
+		),
+		strengths: external_project_strengths(adapters),
+		weaknesses: external_project_weaknesses(adapters),
+		next_evidence: Vec::new(),
+		source_provenance: external_project_source_provenance(adapters),
+	};
+
+	scoreboard_apply_comparability_gaps(&mut row);
+
+	row
+}
+
+fn external_project_scoreboard_metrics(
+	adapters: &[&ExternalAdapterReport],
+	evidence_class: &str,
+	typed_non_pass_count: usize,
+) -> ScoreboardMetrics {
+	let pass_count = adapters
+		.iter()
+		.flat_map(|adapter| adapter.suites.iter())
+		.filter(|suite| suite.status == AdapterCoverageStatus::Pass)
+		.count();
+	let suite_count = adapters.iter().map(|adapter| adapter.suites.len()).sum();
+
+	ScoreboardMetrics {
+		retrieval: ScoreboardRetrievalMetrics {
+			k: SCOREBOARD_RETRIEVAL_K,
+			metric_basis: "external_adapter_manifest_no_ordered_evidence".to_string(),
+			..ScoreboardRetrievalMetrics::default()
+		},
+		coverage: ScoreboardCoverageMetrics {
+			job_count: 0,
+			encoded_suite_count: suite_count,
+			pass_count,
+			typed_non_pass_count,
+			source_ref_coverage: None,
+			evidence_coverage: None,
+			evidence_class: evidence_class.to_string(),
+		},
+		..ScoreboardMetrics::default()
+	}
+}
+
+fn strongest_scoreboard_evidence_class(adapters: &[&ExternalAdapterReport]) -> String {
+	for evidence_class in ["live_real_world", "live_baseline", "fixture_backed", "research_gate"] {
+		if adapters.iter().any(|adapter| {
+			scoreboard_evidence_class(adapter.evidence_class.as_str()) == evidence_class
+		}) {
+			return evidence_class.to_string();
+		}
+	}
+
+	"research_gate".to_string()
+}
+
+fn external_project_result_state(adapters: &[&ExternalAdapterReport]) -> String {
+	for status in [
+		AdapterCoverageStatus::Blocked,
+		AdapterCoverageStatus::Incomplete,
+		AdapterCoverageStatus::WrongResult,
+		AdapterCoverageStatus::LifecycleFail,
+		AdapterCoverageStatus::NotEncoded,
+		AdapterCoverageStatus::Unsupported,
+	] {
+		if adapters.iter().any(|adapter| adapter_has_status(adapter, status)) {
+			return adapter_status_to_scoreboard_state(status).to_string();
+		}
+	}
+
+	"not_comparable".to_string()
+}
+
+fn adapter_has_status(adapter: &ExternalAdapterReport, status: AdapterCoverageStatus) -> bool {
+	adapter.overall_status == status
+		|| adapter.setup.status == status
+		|| adapter.run.status == status
+		|| adapter.result.status == status
+		|| adapter.capabilities.iter().any(|capability| capability.status == status)
+		|| adapter.suites.iter().any(|suite| suite.status == status)
+		|| adapter.scenarios.iter().any(|scenario| scenario.status == status)
+}
+
+fn external_project_same_corpus(adapters: &[&ExternalAdapterReport]) -> bool {
+	let needles = &["same-corpus", "same corpus", "same_corpus", "shared corpus"];
+
+	adapters.iter().any(|adapter| {
+		text_mentions_any(adapter.adapter_kind.as_str(), needles)
+			|| adapter_has_reported_same_corpus_text(adapter, needles)
+	})
+}
+
+fn external_project_source_id_mapped(adapters: &[&ExternalAdapterReport]) -> bool {
+	let needles = &[
+		"source-id mapped",
+		"source ids mapped",
+		"maps to source ids",
+		"mapped to source ids",
+		"maps back to source ids",
+		"map to generated evidence ids",
+		"mapped to generated evidence ids",
+		"evidence ids match",
+	];
+
+	adapters.iter().any(|adapter| adapter_has_passing_text(adapter, needles))
+}
+
+fn adapter_has_passing_text(adapter: &ExternalAdapterReport, needles: &[&str]) -> bool {
+	adapter_status_mentions_any(adapter.setup.status, adapter.setup.evidence.as_str(), needles)
+		|| adapter_status_mentions_any(adapter.run.status, adapter.run.evidence.as_str(), needles)
+		|| adapter_status_mentions_any(
+			adapter.result.status,
+			adapter.result.evidence.as_str(),
+			needles,
+		) || adapter.capabilities.iter().any(|capability| {
+		adapter_status_mentions_any(capability.status, capability.capability.as_str(), needles)
+			|| adapter_status_mentions_any(capability.status, capability.evidence.as_str(), needles)
+	}) || adapter.suites.iter().any(|suite| {
+		adapter_status_mentions_any(suite.status, suite.suite_id.as_str(), needles)
+			|| adapter_status_mentions_any(suite.status, suite.evidence.as_str(), needles)
+	}) || adapter.scenarios.iter().any(|scenario| {
+		adapter_status_mentions_any(scenario.status, scenario.scenario_id.as_str(), needles)
+			|| adapter_status_mentions_any(scenario.status, scenario.evidence.as_str(), needles)
+	})
+}
+
+fn adapter_has_reported_same_corpus_text(
+	adapter: &ExternalAdapterReport,
+	needles: &[&str],
+) -> bool {
+	adapter_status_reports_same_corpus(
+		adapter.setup.status,
+		adapter.setup.evidence.as_str(),
+		needles,
+	) || adapter_status_reports_same_corpus(
+		adapter.run.status,
+		adapter.run.evidence.as_str(),
+		needles,
+	) || adapter_status_reports_same_corpus(
+		adapter.result.status,
+		adapter.result.evidence.as_str(),
+		needles,
+	) || adapter.capabilities.iter().any(|capability| {
+		adapter_status_reports_same_corpus(
+			capability.status,
+			capability.capability.as_str(),
+			needles,
+		) || adapter_status_reports_same_corpus(
+			capability.status,
+			capability.evidence.as_str(),
+			needles,
+		)
+	}) || adapter.suites.iter().any(|suite| {
+		adapter_status_reports_same_corpus(suite.status, suite.suite_id.as_str(), needles)
+			|| adapter_status_reports_same_corpus(suite.status, suite.evidence.as_str(), needles)
+	}) || adapter.scenarios.iter().any(|scenario| {
+		adapter_status_reports_same_corpus(scenario.status, scenario.scenario_id.as_str(), needles)
+			|| adapter_status_reports_same_corpus(
+				scenario.status,
+				scenario.evidence.as_str(),
+				needles,
+			)
+	})
+}
+
+fn adapter_status_reports_same_corpus(
+	status: AdapterCoverageStatus,
+	text: &str,
+	needles: &[&str],
+) -> bool {
+	matches!(
+		status,
+		AdapterCoverageStatus::Pass
+			| AdapterCoverageStatus::Real
+			| AdapterCoverageStatus::WrongResult
+			| AdapterCoverageStatus::LifecycleFail
+	) && text_mentions_any(text, needles)
+}
+
+fn adapter_status_mentions_any(
+	status: AdapterCoverageStatus,
+	text: &str,
+	needles: &[&str],
+) -> bool {
+	matches!(status, AdapterCoverageStatus::Pass | AdapterCoverageStatus::Real)
+		&& text_mentions_any(text, needles)
+}
+
+fn text_mentions_any(text: &str, needles: &[&str]) -> bool {
+	let text = text.to_ascii_lowercase();
+
+	needles.iter().any(|needle| text.contains(&needle.to_ascii_lowercase()))
+}
+
+fn adapter_status_to_scoreboard_state(status: AdapterCoverageStatus) -> &'static str {
+	match status {
+		AdapterCoverageStatus::WrongResult | AdapterCoverageStatus::LifecycleFail => "wrong_result",
+		AdapterCoverageStatus::Blocked => "blocked",
+		AdapterCoverageStatus::Incomplete => "incomplete",
+		AdapterCoverageStatus::NotEncoded | AdapterCoverageStatus::Unsupported => "not_encoded",
+		AdapterCoverageStatus::Real
+		| AdapterCoverageStatus::Mocked
+		| AdapterCoverageStatus::Pass => "not_comparable",
+	}
+}
+
+fn adapter_typed_non_pass_count(adapter: &ExternalAdapterReport) -> usize {
+	let direct_statuses =
+		[adapter.overall_status, adapter.setup.status, adapter.run.status, adapter.result.status];
+	let direct = direct_statuses
+		.into_iter()
+		.filter(|status| adapter_status_is_typed_non_pass(*status))
+		.count();
+	let capability = adapter
+		.capabilities
+		.iter()
+		.filter(|capability| adapter_status_is_typed_non_pass(capability.status))
+		.count();
+	let suites = adapter
+		.suites
+		.iter()
+		.filter(|suite| adapter_status_is_typed_non_pass(suite.status))
+		.count();
+	let scenarios = adapter
+		.scenarios
+		.iter()
+		.filter(|scenario| adapter_status_is_typed_non_pass(scenario.status))
+		.count();
+
+	direct + capability + suites + scenarios
+}
+
+fn adapter_status_is_typed_non_pass(status: AdapterCoverageStatus) -> bool {
+	matches!(
+		status,
+		AdapterCoverageStatus::Unsupported
+			| AdapterCoverageStatus::Blocked
+			| AdapterCoverageStatus::Incomplete
+			| AdapterCoverageStatus::WrongResult
+			| AdapterCoverageStatus::LifecycleFail
+			| AdapterCoverageStatus::NotEncoded
+	)
+}
+
+fn adapter_has_container_digest(adapter: &ExternalAdapterReport) -> bool {
+	adapter.setup.evidence.contains("sha256:")
+		|| adapter.run.evidence.contains("sha256:")
+		|| adapter.result.evidence.contains("sha256:")
+		|| adapter.evidence.iter().any(|evidence| {
+			evidence.reference.contains("sha256:") || evidence.reference.contains("digest")
+		})
+}
+
+fn external_project_strengths(adapters: &[&ExternalAdapterReport]) -> Vec<String> {
+	let mut strengths = BTreeSet::new();
+
+	for adapter in adapters {
+		for capability in &adapter.capabilities {
+			if matches!(
+				capability.status,
+				AdapterCoverageStatus::Pass | AdapterCoverageStatus::Real
+			) {
+				strengths.insert(format!(
+					"{} capability is {}.",
+					capability.capability,
+					adapter_status_str(capability.status)
+				));
+			}
+		}
+		for scenario in &adapter.scenarios {
+			if scenario_comparison_outcome(scenario) == ScenarioComparisonOutcome::Loss {
+				strengths.insert(format!(
+					"Scenario {} is recorded as a competitor strength.",
+					scenario.scenario_id
+				));
+			}
+		}
+	}
+
+	strengths.into_iter().take(6).collect()
+}
+
+fn external_project_weaknesses(adapters: &[&ExternalAdapterReport]) -> Vec<String> {
+	let mut weaknesses = BTreeSet::new();
+
+	for adapter in adapters {
+		if adapter.overall_status != AdapterCoverageStatus::Pass {
+			weaknesses.insert(format!(
+				"Adapter {} overall status is {}.",
+				adapter.adapter_id,
+				adapter_status_str(adapter.overall_status)
+			));
+		}
+
+		for suite in &adapter.suites {
+			if adapter_status_is_typed_non_pass(suite.status) {
+				weaknesses.insert(format!(
+					"Suite {} is {}.",
+					suite.suite_id,
+					adapter_status_str(suite.status)
+				));
+			}
+		}
+	}
+
+	weaknesses.into_iter().take(8).collect()
+}
+
+fn external_project_source_provenance(adapters: &[&ExternalAdapterReport]) -> Vec<String> {
+	let mut provenance = BTreeSet::new();
+
+	for adapter in adapters {
+		for evidence in &adapter.evidence {
+			provenance.insert(evidence.reference.clone());
+		}
+		for artifact in [&adapter.setup.artifact, &adapter.run.artifact, &adapter.result.artifact]
+			.into_iter()
+			.flatten()
+		{
+			provenance.insert(artifact.clone());
+		}
+	}
+
+	provenance.into_iter().take(12).collect()
+}
+
+fn scoreboard_project_id(project: &str) -> String {
+	project
+		.chars()
+		.map(|ch| if ch.is_ascii_alphanumeric() { ch.to_ascii_lowercase() } else { '_' })
+		.collect::<String>()
+		.split('_')
+		.filter(|part| !part.is_empty())
+		.collect::<Vec<_>>()
+		.join("_")
+}
+
+fn scoreboard_apply_comparability_gaps(row: &mut ScoreboardRow) {
+	if !row.same_corpus {
+		row.next_evidence.push("Map this product to the same corpus.".to_string());
+	}
+	if !row.source_id_mapped {
+		row.next_evidence.push("Map returned evidence to stable source ids.".to_string());
+	}
+	if !row.held_out {
+		row.next_evidence.push("Publish a held-out split for this row.".to_string());
+	}
+	if !row.leakage_audited {
+		row.next_evidence.push("Publish leakage-audit evidence for this row.".to_string());
+	}
+	if !row.product_runtime {
+		row.next_evidence
+			.push("Run a Docker-contained product-runtime adapter for this row.".to_string());
+	}
+	if !row.container_digest_identified {
+		row.next_evidence.push("Record container image digest evidence.".to_string());
+	}
+	if row.result_state != "pass" {
+		row.next_evidence
+			.push("Resolve typed non-pass state before claiming a comparable pass.".to_string());
+	}
+
+	row.comparable = row.same_corpus
+		&& row.source_id_mapped
+		&& row.held_out
+		&& row.leakage_audited
+		&& row.product_runtime
+		&& row.container_digest_identified
+		&& row.result_state == "pass"
+		&& row.metrics.retrieval.recall_at_k.is_some()
+		&& row.metrics.retrieval.precision_at_k.is_some()
+		&& row.metrics.retrieval.mrr.is_some()
+		&& row.metrics.retrieval.ndcg.is_some();
+
+	if !row.comparable && row.result_state == "pass" {
+		row.result_state = "not_comparable".to_string();
+	}
+	if !row.comparable {
+		row.weaknesses
+			.push("This row is not a comparable product-runtime scoreboard pass.".to_string());
+	}
+}
+
+fn scoreboard_optimization_roadmap() -> Vec<String> {
+	vec![
+		"Capture Docker image digests and runtime metadata for product-runtime rows.".to_string(),
+		"Add held-out and leakage-audit manifests before broad competitor comparisons.".to_string(),
+		"Promote external adapters from typed blockers to same-corpus source-id-mapped runtime rows only after they emit comparable evidence.".to_string(),
+		"Use row-level metrics for optimization direction; do not claim a universal leaderboard.".to_string(),
+	]
 }
 
 fn typed_non_pass_states_present(jobs: &[JobReport]) -> Vec<String> {
@@ -8557,6 +9503,11 @@ fn render_markdown_scoreboard(out: &mut String, report: &RealWorldReport) {
 		md_inline(report.scoreboard.evidence_classes.join(", ").as_str())
 	));
 	out.push_str(&format!(
+		"- Metric basis: `{}` at k=`{}`\n",
+		md_inline(report.scoreboard.metric_basis.as_str()),
+		report.scoreboard.retrieval_k
+	));
+	out.push_str(&format!(
 		"- Summary claim: `{}`\n",
 		md_inline(report.scoreboard.summary_claim.as_str())
 	));
@@ -8598,6 +9549,40 @@ fn render_markdown_scoreboard(out: &mut String, report: &RealWorldReport) {
 		"- Claim boundary: {}\n\n",
 		md_cell(report.scoreboard.claim_boundary.as_str())
 	));
+	out.push_str("| Product | State | Evidence | Comparable | Runtime Gates | Recall@k | Precision@k | MRR | nDCG | Stale Suppression | Update/Delete | Source Refs | Latency | Next Evidence |\n");
+	out.push_str(
+		"| --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- | ---: | --- | --- |\n",
+	);
+
+	for row in &report.scoreboard.rows {
+		out.push_str(&format!(
+			"| {} | `{}` | `{}` | `{}` | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |\n",
+			md_cell(row.product_name.as_str()),
+			md_inline(row.result_state.as_str()),
+			md_inline(row.evidence_class.as_str()),
+			row.comparable,
+			scoreboard_runtime_gate_cell(row),
+			scoreboard_optional_f64(row.metrics.retrieval.recall_at_k),
+			scoreboard_optional_f64(row.metrics.retrieval.precision_at_k),
+			scoreboard_optional_f64(row.metrics.retrieval.mrr),
+			scoreboard_optional_f64(row.metrics.retrieval.ndcg),
+			scoreboard_optional_f64(row.metrics.lifecycle.stale_suppression),
+			scoreboard_update_delete_cell(row),
+			scoreboard_optional_f64(row.metrics.coverage.source_ref_coverage),
+			scoreboard_latency_cell(row),
+			md_cell(scoreboard_list_cell(&row.next_evidence).as_str())
+		));
+	}
+
+	if !report.scoreboard.optimization_roadmap.is_empty() {
+		out.push_str("\nOptimization direction:\n");
+
+		for item in &report.scoreboard.optimization_roadmap {
+			out.push_str(&format!("- {}\n", md_cell(item.as_str())));
+		}
+
+		out.push('\n');
+	}
 }
 
 fn render_markdown_operational_evidence(out: &mut String, report: &RealWorldReport) {
@@ -9884,6 +10869,45 @@ fn scoreboard_evidence_class_count_display(scoreboard: &ScoreboardReport) -> Str
 		})
 		.collect::<Vec<_>>()
 		.join(", ")
+}
+
+fn scoreboard_optional_f64(value: Option<f64>) -> String {
+	value.map_or_else(|| "`n/a`".to_string(), |value| format!("`{}`", round3(value)))
+}
+
+fn scoreboard_optional_f64_plain(value: Option<f64>) -> String {
+	value.map_or_else(|| "n/a".to_string(), |value| round3(value).to_string())
+}
+
+fn scoreboard_runtime_gate_cell(row: &ScoreboardRow) -> String {
+	format!(
+		"`same_corpus={}`<br>`source_ids={}`<br>`held_out={}`<br>`leakage={}`<br>`runtime={}`<br>`digest={}`",
+		row.same_corpus,
+		row.source_id_mapped,
+		row.held_out,
+		row.leakage_audited,
+		row.product_runtime,
+		row.container_digest_identified
+	)
+}
+
+fn scoreboard_update_delete_cell(row: &ScoreboardRow) -> String {
+	format!(
+		"`update={}`<br>`delete={}`",
+		scoreboard_optional_f64_plain(row.metrics.lifecycle.update_correctness),
+		scoreboard_optional_f64_plain(row.metrics.lifecycle.delete_correctness)
+	)
+}
+
+fn scoreboard_latency_cell(row: &ScoreboardRow) -> String {
+	row.metrics
+		.operations
+		.mean_latency_ms
+		.map_or_else(|| "`n/a`".to_string(), |latency| format!("`{} ms`", round3(latency)))
+}
+
+fn scoreboard_list_cell(values: &[String]) -> String {
+	if values.is_empty() { "none".to_string() } else { values.join("; ") }
 }
 
 fn status_str(status: TypedStatus) -> &'static str {

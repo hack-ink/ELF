@@ -39,6 +39,18 @@ This document is normative. When a new versioned identifier is introduced, it mu
   semantics, authority-layer boundaries, or claim-boundary rules become incompatible
   with this contract.
 
+### Agent memory quantitative scoreboard schema
+
+- Identifier: `elf.quality_scoreboard/v1`.
+- Type: Public quantitative competitor scoreboard report and row schema.
+- Defined in: `docs/spec/agent_memory_quantitative_benchmark_v1.md`.
+- Consumers: `apps/elf-eval/src/bin/real_world_job_benchmark.rs`, checked-in
+  benchmark report snapshots, public benchmarking evidence reports, and agents
+  deciding whether a product row is comparable or only a typed blocker.
+- Bump rule: Introduce a new identifier only when row states, comparability gates,
+  metric names, metric basis semantics, evidence classes, or required row fields
+  become incompatible with this contract.
+
 ### HTTP API version
 
 - Identifier: `/v2` (URL path prefix).

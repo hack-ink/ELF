@@ -144,3 +144,9 @@ logs.
   `elf.authority_recovery_drill/v1` report artifacts, validating topology, degraded
   reads, RPO/RTO, authority record counts, idempotent outbox replay, Qdrant rebuild,
   migration repair, and dead-letter handling, and linking the drift audit.
+- Added the XY-1120 public quantitative competitor scoreboard contract and report,
+  defining `elf.quality_scoreboard/v1` row metrics, comparability gates, typed
+  `not_comparable` boundaries, source-provenance and next-evidence metadata, and a
+  checked-in snapshot covering 20 tracked products, including explicit VectifyAI
+  PageIndex, VectifyAI OpenKB, and plastic-labs Honcho typed rows, without promoting
+  any row to a universal product leaderboard claim.

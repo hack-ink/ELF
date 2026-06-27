@@ -15,7 +15,8 @@ code_refs:
   - Makefile.toml
   - apps/elf-eval/src/bin/real_world_job_benchmark.rs
   - apps/elf-eval/fixtures/real_world_memory/production_ops/authority_plane_recovery_drill.json
-related: []
+related:
+  - docs/spec/agent_memory_quantitative_benchmark_v1.md
 drift_watch:
   - docs/spec/real_world_agent_memory_benchmark_v1.md
   - apps/elf-eval/src/bin/real_world_job_benchmark.rs
@@ -73,7 +74,9 @@ blocking caveat, or fabricates a decision that is not in the corpus.
 
 The public quality scoreboard is a claim grammar, not a leaderboard. Reports MUST use
 the grammar below when summarizing what is proven, what is not proven, and which
-evidence class supports the claim.
+evidence class supports the claim. The quantitative row schema, metric definitions,
+comparability gates, and optimization-direction fields are defined in
+`docs/spec/agent_memory_quantitative_benchmark_v1.md`.
 
 Public result states:
 
@@ -85,6 +88,7 @@ Public result states:
 | `blocked` | The check cannot be run safely without credentials, manual setup, private input, durable product runtime, or host integration outside the run scope. |
 | `not_tested` | No benchmark execution or comparable adapter output exists for the row. |
 | `not_encoded` | The suite, job, adapter path, or scoring dimension is not implemented in the runner, so no pass/fail claim is allowed. |
+| `not_comparable` | Useful row evidence exists but one or more comparability gates are missing, so no product-runtime comparison pass may be claimed. |
 | `unsupported_claim` | The system or report made a substantive claim, decision, evidence citation, or capability claim that is not supported by the corpus, required evidence, or report metadata. |
 
 Public evidence classes:
@@ -719,7 +723,12 @@ Reports MUST include:
   result states, evidence classes, encoded-job and external-adapter typed non-pass
   counts, visible typed non-pass states for each bucket and the aggregate report,
   evidence-class counts, bounded job and aggregate summary claims, and an explicit
-  unqualified-win guard;
+  unqualified-win guard. Public quantitative scoreboard reports MUST also include
+  row-level recall@k, precision@k, MRR, nDCG, expected evidence recall, source-ref
+  coverage, stale suppression, update correctness, delete correctness, latency, cost,
+  resource-envelope status, comparability gates, strengths, weaknesses, source
+  provenance, and row-level next-evidence metadata as defined in
+  `docs/spec/agent_memory_quantitative_benchmark_v1.md`;
 - operational evidence gates using schema `elf.operational_evidence_gates/v1`,
   separating `local_fixture`, `public_proxy`, `private_corpus`, and
   `provider_backed` tiers. The gates MUST report tier status, job counts, pass and
