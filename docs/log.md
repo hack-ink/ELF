@@ -121,3 +121,17 @@ logs.
   plus a drift audit and spec updates for Source Library span suppression, Knowledge
   Workspace source visibility, graph evidence readback, and relation-context
   evidence filtering.
+
+## 2026-06-27
+
+- Added `docs/spec/system_work_journal_v1.md` for XY-1117, defining
+  source-adjacent Work Journal capture and readback, canonical entry families,
+  redaction, source refs, promotion-boundary metadata, and the non-authoritative
+  memory boundary.
+- Linked the Work Journal contract from the spec index, version registry, and ELF v2
+  service/MCP endpoint map.
+- Added the Work Journal drift audit tying the new service, storage, HTTP, MCP, and
+  test surfaces to the source-adjacent promotion-boundary contract.
+- Tightened the Work Journal promotion-boundary contract so accepted references must
+  resolve to storage-backed Memory Authority or Dreaming Review evidence instead of
+  granting authority from JSON shape alone.
