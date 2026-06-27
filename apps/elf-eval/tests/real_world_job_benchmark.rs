@@ -625,7 +625,7 @@ fn smoke_fixture_produces_typed_json_report() -> Result<()> {
 	assert_eq!(report.pointer("/summary/wrong_result_count").and_then(Value::as_u64), Some(0));
 	assert_eq!(
 		report.pointer("/external_adapters/summary/adapter_count").and_then(Value::as_u64),
-		Some(23)
+		Some(26)
 	);
 	assert_eq!(
 		report.pointer("/external_adapters/summary/live_real_world_count").and_then(Value::as_u64),
@@ -633,7 +633,7 @@ fn smoke_fixture_produces_typed_json_report() -> Result<()> {
 	);
 	assert_eq!(
 		report.pointer("/external_adapters/summary/research_gate_count").and_then(Value::as_u64),
-		Some(11)
+		Some(14)
 	);
 
 	let jobs = array_at(&report, "/jobs")?;
@@ -792,6 +792,7 @@ fn adversarial_quality_fixtures_score_scoreboard_gates() -> Result<()> {
 			"blocked",
 			"not_tested",
 			"not_encoded",
+			"not_comparable",
 			"unsupported_claim",
 		]
 		.map(str::to_owned)
@@ -814,11 +815,11 @@ fn adversarial_quality_fixtures_score_scoreboard_gates() -> Result<()> {
 	);
 	assert_eq!(
 		report.pointer("/scoreboard/external_adapter_typed_non_pass_count").and_then(Value::as_u64),
-		Some(220)
+		Some(240)
 	);
 	assert_eq!(
 		report.pointer("/scoreboard/typed_non_pass_count").and_then(Value::as_u64),
-		Some(220)
+		Some(240)
 	);
 	assert_eq!(
 		string_array_at(&report, "/scoreboard/job_typed_non_pass_states_present")?,
@@ -842,12 +843,120 @@ fn adversarial_quality_fixtures_score_scoreboard_gates() -> Result<()> {
 		report.pointer("/scoreboard/evidence_class_counts/live_baseline").and_then(Value::as_u64),
 		Some(6)
 	);
+	assert_eq!(
+		report.pointer("/scoreboard/metric_basis").and_then(Value::as_str),
+		Some("produced_evidence_order")
+	);
+	assert_eq!(report.pointer("/scoreboard/retrieval_k").and_then(Value::as_u64), Some(5));
+
+	assert_scoreboard_rows_expose_quantitative_and_blocker_contract(&report)?;
 
 	let suites = array_at(&report, "/suites")?;
 	let adversarial = find_by_field(suites, "/suite_id", "adversarial_quality")?;
 
 	assert_eq!(adversarial.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(adversarial.pointer("/encoded_job_count").and_then(Value::as_u64), Some(5));
+
+	Ok(())
+}
+
+fn assert_scoreboard_rows_expose_quantitative_and_blocker_contract(report: &Value) -> Result<()> {
+	let rows = array_at(report, "/scoreboard/rows")?;
+	let elf = find_by_field(rows, "/product_id", "elf_current_report")?;
+	let qmd = find_by_field(rows, "/product_id", "qmd")?;
+	let pageindex = find_by_field(rows, "/product_id", "vectifyai_pageindex")?;
+	let openkb = find_by_field(rows, "/product_id", "vectifyai_openkb")?;
+	let honcho = find_by_field(rows, "/product_id", "plastic_labs_honcho")?;
+
+	assert_eq!(rows.len(), 20);
+	assert_eq!(elf.pointer("/product_name").and_then(Value::as_str), Some("ELF"));
+	assert_eq!(elf.pointer("/evidence_class").and_then(Value::as_str), Some("fixture_backed"));
+	assert_eq!(elf.pointer("/result_state").and_then(Value::as_str), Some("not_comparable"));
+	assert_eq!(elf.pointer("/comparable").and_then(Value::as_bool), Some(false));
+	assert_eq!(elf.pointer("/same_corpus").and_then(Value::as_bool), Some(true));
+	assert_eq!(elf.pointer("/source_id_mapped").and_then(Value::as_bool), Some(true));
+	assert_eq!(elf.pointer("/held_out").and_then(Value::as_bool), Some(false));
+	assert_eq!(elf.pointer("/leakage_audited").and_then(Value::as_bool), Some(false));
+	assert_eq!(elf.pointer("/product_runtime").and_then(Value::as_bool), Some(false));
+	assert_eq!(elf.pointer("/container_digest_identified").and_then(Value::as_bool), Some(false));
+	assert_eq!(
+		elf.pointer("/metrics/retrieval/metric_basis").and_then(Value::as_str),
+		Some("produced_evidence_order")
+	);
+	assert_eq!(elf.pointer("/metrics/retrieval/k").and_then(Value::as_u64), Some(5));
+	assert!(elf.pointer("/metrics/retrieval/recall_at_k").and_then(Value::as_f64).is_some());
+	assert!(elf.pointer("/metrics/retrieval/precision_at_k").and_then(Value::as_f64).is_some());
+	assert!(elf.pointer("/metrics/retrieval/mrr").and_then(Value::as_f64).is_some());
+	assert!(elf.pointer("/metrics/retrieval/ndcg").and_then(Value::as_f64).is_some());
+	assert_eq!(
+		elf.pointer("/metrics/lifecycle/stale_suppression").and_then(Value::as_f64),
+		Some(1.0)
+	);
+	assert_eq!(
+		elf.pointer("/metrics/coverage/source_ref_coverage").and_then(Value::as_f64),
+		Some(1.0)
+	);
+	assert!(array_contains_str(
+		elf,
+		"/next_evidence",
+		"Run a Docker-contained product-runtime adapter for this row."
+	)?);
+	assert!(array_contains_str(elf, "/next_evidence", "Record container image digest evidence.")?);
+	assert_eq!(qmd.pointer("/product_name").and_then(Value::as_str), Some("qmd"));
+	assert_eq!(qmd.pointer("/evidence_class").and_then(Value::as_str), Some("live_real_world"));
+	assert_eq!(qmd.pointer("/comparable").and_then(Value::as_bool), Some(false));
+	assert_eq!(qmd.pointer("/product_runtime").and_then(Value::as_bool), Some(true));
+	assert_eq!(qmd.pointer("/container_digest_identified").and_then(Value::as_bool), Some(false));
+	assert!(qmd.pointer("/metrics/retrieval/recall_at_k").is_some_and(Value::is_null));
+	assert!(array_contains_str(qmd, "/next_evidence", "Record container image digest evidence.")?);
+
+	assert_tracked_external_blocker_row(pageindex, "VectifyAI PageIndex", true)?;
+	assert_tracked_external_blocker_row(openkb, "VectifyAI OpenKB", true)?;
+	assert_tracked_external_blocker_row(honcho, "plastic-labs Honcho", false)?;
+
+	Ok(())
+}
+
+fn assert_tracked_external_blocker_row(
+	row: &Value,
+	product_name: &str,
+	same_corpus: bool,
+) -> Result<()> {
+	assert_eq!(row.pointer("/product_name").and_then(Value::as_str), Some(product_name));
+	assert_eq!(row.pointer("/result_state").and_then(Value::as_str), Some("blocked"));
+	assert_eq!(row.pointer("/evidence_class").and_then(Value::as_str), Some("research_gate"));
+	assert_eq!(row.pointer("/comparable").and_then(Value::as_bool), Some(false));
+	assert_eq!(row.pointer("/same_corpus").and_then(Value::as_bool), Some(same_corpus));
+	assert_eq!(row.pointer("/source_id_mapped").and_then(Value::as_bool), Some(false));
+	assert_eq!(row.pointer("/held_out").and_then(Value::as_bool), Some(false));
+	assert_eq!(row.pointer("/leakage_audited").and_then(Value::as_bool), Some(false));
+	assert_eq!(row.pointer("/product_runtime").and_then(Value::as_bool), Some(false));
+	assert_eq!(row.pointer("/container_digest_identified").and_then(Value::as_bool), Some(false));
+	assert!(row.pointer("/metrics/retrieval/recall_at_k").is_some_and(Value::is_null));
+	assert!(row.pointer("/metrics/retrieval/precision_at_k").is_some_and(Value::is_null));
+	assert!(row.pointer("/metrics/retrieval/mrr").is_some_and(Value::is_null));
+	assert!(row.pointer("/metrics/retrieval/ndcg").is_some_and(Value::is_null));
+	assert!(array_contains_str(
+		row,
+		"/next_evidence",
+		"Map returned evidence to stable source ids."
+	)?);
+	assert!(array_contains_str(
+		row,
+		"/next_evidence",
+		"Run a Docker-contained product-runtime adapter for this row."
+	)?);
+	assert!(array_contains_str(row, "/next_evidence", "Record container image digest evidence.")?);
+
+	if same_corpus {
+		assert!(!array_contains_str(
+			row,
+			"/next_evidence",
+			"Map this product to the same corpus."
+		)?);
+	} else {
+		assert!(array_contains_str(row, "/next_evidence", "Map this product to the same corpus.")?);
+	}
 
 	Ok(())
 }
@@ -918,7 +1027,7 @@ fn assert_stale_regression_is_wrong_result(temp_dir: &Path) -> Result<()> {
 	);
 	assert_eq!(
 		stale_report.pointer("/scoreboard/typed_non_pass_count").and_then(Value::as_u64),
-		Some(221)
+		Some(241)
 	);
 	assert!(array_contains_str(
 		&stale_report,
@@ -1072,7 +1181,7 @@ fn external_adapter_run_summarizes_nonzero_scenario_losses() -> Result<()> {
 		report
 			.pointer("/external_adapters/summary/scenario_position_counts/untested")
 			.and_then(Value::as_u64),
-		Some(49)
+		Some(52)
 	);
 	assert_eq!(
 		report
@@ -1121,11 +1230,11 @@ fn assert_external_adapter_manifest_summary(report: &Value) {
 	);
 	assert_eq!(
 		report.pointer("/external_adapters/summary/adapter_count").and_then(Value::as_u64),
-		Some(23)
+		Some(26)
 	);
 	assert_eq!(
 		report.pointer("/external_adapters/summary/external_project_count").and_then(Value::as_u64),
-		Some(16)
+		Some(19)
 	);
 	assert_eq!(
 		report.pointer("/external_adapters/summary/fixture_backed_count").and_then(Value::as_u64),
@@ -1143,7 +1252,7 @@ fn assert_external_adapter_manifest_summary(report: &Value) {
 	);
 	assert_eq!(
 		report.pointer("/external_adapters/summary/research_gate_count").and_then(Value::as_u64),
-		Some(11)
+		Some(14)
 	);
 
 	assert_external_adapter_manifest_status_summary(report);
@@ -1179,7 +1288,7 @@ fn assert_external_adapter_manifest_status_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/overall_status_counts/blocked")
 			.and_then(Value::as_u64),
-		Some(7)
+		Some(10)
 	);
 	assert_eq!(
 		report
@@ -1203,7 +1312,7 @@ fn assert_external_adapter_manifest_status_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/suite_status_counts/blocked")
 			.and_then(Value::as_u64),
-		Some(24)
+		Some(29)
 	);
 	assert_eq!(
 		report
@@ -1248,7 +1357,7 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/scenario_status_counts/blocked")
 			.and_then(Value::as_u64),
-		Some(21)
+		Some(24)
 	);
 	assert_eq!(
 		report
@@ -1302,7 +1411,7 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/scenario_position_counts/untested")
 			.and_then(Value::as_u64),
-		Some(50)
+		Some(53)
 	);
 	assert_eq!(
 		report
@@ -1332,7 +1441,7 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 		report
 			.pointer("/external_adapters/summary/scenario_outcome_counts/blocked")
 			.and_then(Value::as_u64),
-		Some(26)
+		Some(29)
 	);
 	assert_eq!(
 		report
@@ -3757,7 +3866,7 @@ fn assert_qmd_debug_retest_markdown_and_indexes(
 	);
 	assert!(readme.contains("qmd Debug-Ergonomics Dreaming Retest Report - June 19, 2026"));
 	assert!(readme.contains("Temporal and Trajectory Adapter Coverage Report - June 23, 2026"));
-	assert!(readme.contains("Latest real-world benchmark report: June 23, 2026"));
+	assert!(readme.contains("Latest real-world benchmark report: June 27, 2026"));
 	assert!(readme.contains("keeps the qmd edge unchanged"));
 }
 
@@ -6307,9 +6416,9 @@ fn generated_json_report_renders_markdown() -> Result<()> {
 	assert!(markdown.contains("xy844-current-worktree"));
 	assert!(markdown.contains("Existing live-baseline reports remain valid"));
 	assert!(markdown.contains("### Adapter Scenario Judgments"));
-	assert!(markdown.contains("ELF scenario positions: `wins=10, ties=11, loses=1, untested=50`"));
+	assert!(markdown.contains("ELF scenario positions: `wins=10, ties=11, loses=1, untested=53`"));
 	assert!(markdown.contains(
-		"Scenario comparison outcomes: `win=10, tie=11, loss=1, not_tested=19, blocked=26, non_goal=5`"
+		"Scenario comparison outcomes: `win=10, tie=11, loss=1, not_tested=19, blocked=29, non_goal=5`"
 	));
 	assert!(markdown.contains("| `claude_mem_live_baseline` | `same_corpus_retrieval`"));
 	assert!(markdown.contains("| `memsearch_live_baseline` | `ttl_expiry_lifecycle`"));
@@ -8563,16 +8672,24 @@ fn assert_root_scoreboard_summary(report: &Value) -> Result<()> {
 	);
 	assert_eq!(
 		report.pointer("/scoreboard/external_adapter_typed_non_pass_count").and_then(Value::as_u64),
-		Some(220)
+		Some(240)
 	);
 	assert_eq!(
 		report.pointer("/scoreboard/typed_non_pass_count").and_then(Value::as_u64),
-		Some(227)
+		Some(247)
 	);
 	assert_eq!(
 		report.pointer("/scoreboard/unqualified_win_claim_allowed").and_then(Value::as_bool),
 		Some(false)
 	);
+	assert!(array_contains_str(report, "/scoreboard/result_states", "not_comparable")?);
+	assert_eq!(
+		report.pointer("/scoreboard/metric_basis").and_then(Value::as_str),
+		Some("produced_evidence_order")
+	);
+	assert_eq!(report.pointer("/scoreboard/retrieval_k").and_then(Value::as_u64), Some(5));
+
+	assert_root_scoreboard_rows(report)?;
 
 	for state in ["blocked", "incomplete", "not_encoded", "not_tested", "wrong_result"] {
 		assert!(array_contains_str(report, "/scoreboard/typed_non_pass_states_present", state)?);
@@ -8590,6 +8707,76 @@ fn assert_root_scoreboard_summary(report: &Value) -> Result<()> {
 			state
 		)?);
 	}
+
+	Ok(())
+}
+
+fn assert_root_scoreboard_rows(report: &Value) -> Result<()> {
+	let rows = array_at(report, "/scoreboard/rows")?;
+	let elf = find_by_field(rows, "/product_id", "elf_current_report")?;
+	let qmd = find_by_field(rows, "/product_id", "qmd")?;
+	let graphify = find_by_field(rows, "/product_id", "graphify")?;
+	let pageindex = find_by_field(rows, "/product_id", "vectifyai_pageindex")?;
+	let openkb = find_by_field(rows, "/product_id", "vectifyai_openkb")?;
+	let honcho = find_by_field(rows, "/product_id", "plastic_labs_honcho")?;
+
+	assert_eq!(rows.len(), 20);
+	assert_eq!(elf.pointer("/result_state").and_then(Value::as_str), Some("blocked"));
+	assert_eq!(elf.pointer("/evidence_class").and_then(Value::as_str), Some("fixture_backed"));
+	assert_eq!(elf.pointer("/comparable").and_then(Value::as_bool), Some(false));
+	assert_eq!(elf.pointer("/same_corpus").and_then(Value::as_bool), Some(true));
+	assert_eq!(elf.pointer("/source_id_mapped").and_then(Value::as_bool), Some(true));
+	assert_eq!(elf.pointer("/product_runtime").and_then(Value::as_bool), Some(false));
+	assert_eq!(elf.pointer("/metrics/retrieval/recall_at_k").and_then(Value::as_f64), Some(0.988));
+	assert_eq!(
+		elf.pointer("/metrics/retrieval/precision_at_k").and_then(Value::as_f64),
+		Some(0.415)
+	);
+	assert_eq!(elf.pointer("/metrics/retrieval/mrr").and_then(Value::as_f64), Some(0.988));
+	assert_eq!(elf.pointer("/metrics/retrieval/ndcg").and_then(Value::as_f64), Some(0.985));
+	assert_eq!(
+		elf.pointer("/metrics/lifecycle/stale_suppression").and_then(Value::as_f64),
+		Some(1.0)
+	);
+	assert_eq!(
+		elf.pointer("/metrics/lifecycle/update_correctness").and_then(Value::as_f64),
+		Some(1.0)
+	);
+	assert_eq!(
+		elf.pointer("/metrics/lifecycle/delete_correctness").and_then(Value::as_f64),
+		Some(1.0)
+	);
+	assert_eq!(
+		elf.pointer("/metrics/coverage/typed_non_pass_count").and_then(Value::as_u64),
+		Some(7)
+	);
+	assert!(array_contains_str(
+		elf,
+		"/next_evidence",
+		"Run a Docker-contained product-runtime adapter for this row."
+	)?);
+
+	for competitor in [qmd, graphify] {
+		assert_eq!(
+			competitor.pointer("/evidence_class").and_then(Value::as_str),
+			Some("live_real_world")
+		);
+		assert_eq!(competitor.pointer("/product_runtime").and_then(Value::as_bool), Some(true));
+		assert_eq!(
+			competitor.pointer("/container_digest_identified").and_then(Value::as_bool),
+			Some(false)
+		);
+		assert!(competitor.pointer("/metrics/retrieval/recall_at_k").is_some_and(Value::is_null));
+		assert!(array_contains_str(
+			competitor,
+			"/next_evidence",
+			"Record container image digest evidence."
+		)?);
+	}
+
+	assert_tracked_external_blocker_row(pageindex, "VectifyAI PageIndex", true)?;
+	assert_tracked_external_blocker_row(openkb, "VectifyAI OpenKB", true)?;
+	assert_tracked_external_blocker_row(honcho, "plastic-labs Honcho", false)?;
 
 	Ok(())
 }

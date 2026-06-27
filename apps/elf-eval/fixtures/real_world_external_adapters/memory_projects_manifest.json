@@ -3171,6 +3171,330 @@
         "title": "[ELF benchmark adapter] Implement graphify Docker graph-report adapter",
         "reason": "Created as XY-889. XY-882 found a Docker-only CLI/materializer path and source-file/source-location output contract."
       }
+    },
+    {
+      "adapter_id": "vectifyai_pageindex_same_corpus_blocker",
+      "project": "VectifyAI PageIndex",
+      "adapter_kind": "typed_same_corpus_setup_blocker",
+      "evidence_class": "research_gate",
+      "docker_default": true,
+      "host_global_installs_required": false,
+      "overall_status": "blocked",
+      "setup": {
+        "status": "blocked",
+        "evidence": "XY-1068 records a same-corpus PageIndex blocker: no contained PageIndex product installation, PageIndex MCP readback, or emitted tree artifact maps node paths back to ELF Source Library source ids.",
+        "command": "cargo make real-world-memory-pageindex-openkb",
+        "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/pageindex_openkb/pageindex_long_document_tree_blocked.json"
+      },
+      "run": {
+        "status": "blocked",
+        "evidence": "The checked-in blocker uses the same source-library long-document corpus ids as ELF but does not run PageIndex product runtime or emit PageIndex tree_nodes.json, cited node paths, traversal output, or MCP readback.",
+        "command": "cargo make real-world-memory-pageindex-openkb",
+        "artifact": "tmp/real-world-memory/pageindex-openkb/report.json"
+      },
+      "result": {
+        "status": "blocked",
+        "evidence": "No PageIndex parity, win, tie, loss, or comparable pass claim is allowed until a contained PageIndex run emits source-id-mapped tree artifacts and setup/runtime metadata.",
+        "artifact": "docs/evidence/benchmarking/2026-06-22-pageindex-openkb-same-corpus-adapter-report.md"
+      },
+      "capabilities": [
+        {
+          "capability": "long_document_tree_retrieval",
+          "status": "blocked",
+          "evidence": "PageIndex remains the vectorless long-document tree retrieval reference, but no contained tree retrieval product output is checked in."
+        },
+        {
+          "capability": "pageindex_mcp_readback",
+          "status": "blocked",
+          "evidence": "No PageIndex MCP readback artifact maps to ELF source ids."
+        },
+        {
+          "capability": "source_id_mapping",
+          "status": "blocked",
+          "evidence": "A runnable adapter must emit tree nodes, cited node paths, traversal output, source ids, and setup/runtime metadata before scoring."
+        }
+      ],
+      "suites": [
+        {
+          "suite_id": "source_library",
+          "status": "blocked",
+          "evidence": "The PageIndex blocker compares against the same ELF Source Library long-document corpus ids, but PageIndex product artifacts are missing."
+        }
+      ],
+      "scenarios": [
+        {
+          "scenario_id": "pageindex_long_document_tree_blocked",
+          "suite_id": "source_library",
+          "status": "blocked",
+          "elf_position": "untested",
+          "comparison_outcome": "blocked",
+          "evidence": "PageIndex remains blocked until tree artifacts and MCP readback map back to same-corpus source ids.",
+          "command": "cargo make real-world-memory-pageindex-openkb",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/pageindex_openkb/pageindex_long_document_tree_blocked.json"
+        }
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "ref": "https://github.com/VectifyAI/PageIndex",
+          "status": "real"
+        },
+        {
+          "kind": "fixture",
+          "ref": "apps/elf-eval/fixtures/real_world_external_adapters/pageindex_openkb/pageindex_long_document_tree_blocked.json",
+          "status": "blocked"
+        },
+        {
+          "kind": "report",
+          "ref": "docs/evidence/benchmarking/2026-06-22-pageindex-openkb-same-corpus-adapter-report.md",
+          "status": "blocked"
+        }
+      ],
+      "execution_metadata": {
+        "sources": [
+          {
+            "label": "PageIndex repository",
+            "url": "https://github.com/VectifyAI/PageIndex",
+            "evidence": "Repository provenance for the tracked PageIndex product row."
+          }
+        ],
+        "setup_path": "Resolve the XY-1068 setup blocker by running PageIndex in a contained runtime over the same Source Library corpus.",
+        "runtime_boundary": "Future evidence must run in Docker or another contained product-runtime boundary and emit PageIndex tree artifacts, MCP readback, source ids, and runtime metadata.",
+        "resource_expectation": "Unknown until PageIndex product runtime is materialized for the same corpus.",
+        "retry_guidance": [
+          "Run cargo make real-world-memory-pageindex-openkb to regenerate the typed blocker report.",
+          "Do not claim PageIndex parity, win, tie, or loss from ELF Source Library fixture evidence.",
+          "Score PageIndex only after emitted tree artifacts and MCP readback map to benchmark source ids."
+        ],
+        "research_depth": "Typed same-corpus setup blocker from XY-1068"
+      },
+      "notes": [
+        "This row is intentionally non-comparable and preserves PageIndex as a blocked tracked product row."
+      ],
+      "follow_up": {
+        "title": "Run PageIndex same-corpus long-document tree adapter",
+        "reason": "The fair comparison needs PageIndex tree nodes and traversal output over the source-library long-document corpus with source ids mapped to benchmark evidence ids."
+      }
+    },
+    {
+      "adapter_id": "vectifyai_openkb_same_corpus_blocker",
+      "project": "VectifyAI OpenKB",
+      "adapter_kind": "typed_same_corpus_setup_blocker",
+      "evidence_class": "research_gate",
+      "docker_default": true,
+      "host_global_installs_required": false,
+      "overall_status": "blocked",
+      "setup": {
+        "status": "blocked",
+        "evidence": "XY-1068 records a same-corpus OpenKB blocker: no contained OpenKB product run, generated wiki page export, entity/concept index export, saved exploration state, lint output, or watch/recompile trace maps back to ELF Knowledge Workspace source ids.",
+        "command": "cargo make real-world-memory-pageindex-openkb",
+        "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/pageindex_openkb/openkb_wiki_recompile_blocked.json"
+      },
+      "run": {
+        "status": "blocked",
+        "evidence": "The checked-in blocker uses the same knowledge corpus ids as ELF but does not run OpenKB product runtime or emit wiki, lint, saved exploration, or watch/recompile artifacts.",
+        "command": "cargo make real-world-memory-pageindex-openkb",
+        "artifact": "tmp/real-world-memory/pageindex-openkb/report.json"
+      },
+      "result": {
+        "status": "blocked",
+        "evidence": "No OpenKB parity, win, tie, loss, or comparable pass claim is allowed until a contained OpenKB run emits source-id-mapped wiki/index/lint/watch artifacts and setup/runtime metadata.",
+        "artifact": "docs/evidence/benchmarking/2026-06-22-pageindex-openkb-same-corpus-adapter-report.md"
+      },
+      "capabilities": [
+        {
+          "capability": "compiled_wiki_export",
+          "status": "blocked",
+          "evidence": "OpenKB remains the compiled wiki/export reference, but no contained wiki export is checked in."
+        },
+        {
+          "capability": "concept_entity_index_lint_watch",
+          "status": "blocked",
+          "evidence": "No entity/concept index export, lint output, saved exploration state, or watch/recompile trace maps to ELF Knowledge Workspace source ids."
+        },
+        {
+          "capability": "source_id_mapping",
+          "status": "blocked",
+          "evidence": "A runnable adapter must emit wiki pages, concept/entity indexes, lint output, saved exploration state, watch/recompile trace, source ids, and setup/runtime metadata before scoring."
+        }
+      ],
+      "suites": [
+        {
+          "suite_id": "knowledge_compilation",
+          "status": "blocked",
+          "evidence": "The OpenKB blocker compares against the same ELF Knowledge Workspace corpus ids, but OpenKB product artifacts are missing."
+        }
+      ],
+      "scenarios": [
+        {
+          "scenario_id": "openkb_wiki_recompile_blocked",
+          "suite_id": "knowledge_compilation",
+          "status": "blocked",
+          "elf_position": "untested",
+          "comparison_outcome": "blocked",
+          "evidence": "OpenKB remains blocked until wiki, lint, saved exploration, and watch/recompile artifacts map back to same-corpus source ids.",
+          "command": "cargo make real-world-memory-pageindex-openkb",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/pageindex_openkb/openkb_wiki_recompile_blocked.json"
+        }
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "ref": "https://github.com/VectifyAI/OpenKB",
+          "status": "real"
+        },
+        {
+          "kind": "fixture",
+          "ref": "apps/elf-eval/fixtures/real_world_external_adapters/pageindex_openkb/openkb_wiki_recompile_blocked.json",
+          "status": "blocked"
+        },
+        {
+          "kind": "report",
+          "ref": "docs/evidence/benchmarking/2026-06-22-pageindex-openkb-same-corpus-adapter-report.md",
+          "status": "blocked"
+        }
+      ],
+      "execution_metadata": {
+        "sources": [
+          {
+            "label": "OpenKB repository",
+            "url": "https://github.com/VectifyAI/OpenKB",
+            "evidence": "Repository provenance for the tracked OpenKB product row."
+          }
+        ],
+        "setup_path": "Resolve the XY-1068 setup blocker by running OpenKB in a contained runtime over the same Knowledge Workspace corpus.",
+        "runtime_boundary": "Future evidence must run in Docker or another contained product-runtime boundary and emit OpenKB wiki, index, lint, watch/recompile, source id, and runtime metadata artifacts.",
+        "resource_expectation": "Unknown until OpenKB product runtime is materialized for the same corpus.",
+        "retry_guidance": [
+          "Run cargo make real-world-memory-pageindex-openkb to regenerate the typed blocker report.",
+          "Do not claim OpenKB parity, win, tie, or loss from ELF Knowledge Workspace fixture evidence.",
+          "Score OpenKB only after emitted wiki/index/lint/watch artifacts map to benchmark source ids."
+        ],
+        "research_depth": "Typed same-corpus setup blocker from XY-1068"
+      },
+      "notes": [
+        "This row is intentionally non-comparable and preserves OpenKB as a blocked tracked product row."
+      ],
+      "follow_up": {
+        "title": "Run OpenKB same-corpus wiki and watch/recompile adapter",
+        "reason": "The fair comparison needs OpenKB wiki/entity/concept outputs and watch/recompile artifacts over the same knowledge corpus with source ids mapped to benchmark evidence ids."
+      }
+    },
+    {
+      "adapter_id": "plastic_labs_honcho_research_gate",
+      "project": "plastic-labs Honcho",
+      "adapter_kind": "research_gate",
+      "evidence_class": "research_gate",
+      "docker_default": true,
+      "host_global_installs_required": false,
+      "overall_status": "blocked",
+      "setup": {
+        "status": "blocked",
+        "evidence": "No Docker-contained Honcho product-runtime adapter, benchmark fixture, source-id mapping, held-out split, leakage audit, or container digest is checked in for this scoreboard.",
+        "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json"
+      },
+      "run": {
+        "status": "blocked",
+        "evidence": "Honcho is tracked as a requested public comparison row, but no same-task product surface has been materialized against the ELF real_world_job corpus.",
+        "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json"
+      },
+      "result": {
+        "status": "blocked",
+        "evidence": "No Honcho parity, win, tie, loss, or comparable pass claim is allowed until product-runtime evidence maps returned context to benchmark source ids.",
+        "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json"
+      },
+      "capabilities": [
+        {
+          "capability": "stateful_agent_memory_runtime",
+          "status": "blocked",
+          "evidence": "Honcho is a requested memory/runtime comparison target, but no contained benchmark runtime evidence is checked in."
+        },
+        {
+          "capability": "source_id_mapping",
+          "status": "blocked",
+          "evidence": "No Honcho output maps returned context to ELF benchmark source ids."
+        },
+        {
+          "capability": "container_digest_evidence",
+          "status": "blocked",
+          "evidence": "No Honcho container image digest or runtime metadata is recorded for the public scoreboard."
+        }
+      ],
+      "suites": [
+        {
+          "suite_id": "memory_evolution",
+          "status": "blocked",
+          "evidence": "Honcho memory-quality behavior is not scored until benchmark runtime output exists."
+        },
+        {
+          "suite_id": "work_resume",
+          "status": "blocked",
+          "evidence": "Honcho work-continuity or resume behavior is not scored until benchmark runtime output exists."
+        },
+        {
+          "suite_id": "retrieval",
+          "status": "blocked",
+          "evidence": "Honcho retrieval/context output is not scored until returned context maps to expected evidence ids."
+        }
+      ],
+      "scenarios": [
+        {
+          "scenario_id": "honcho_product_runtime_blocked",
+          "suite_id": "retrieval",
+          "status": "blocked",
+          "elf_position": "untested",
+          "comparison_outcome": "blocked",
+          "evidence": "Honcho remains blocked until a contained product-runtime adapter emits benchmark retrieved context, source ids, latency/cost/resource metadata, and container digest evidence.",
+          "artifact": "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json"
+        }
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "ref": "https://github.com/plastic-labs/honcho",
+          "status": "real"
+        },
+        {
+          "kind": "source",
+          "ref": "https://honcho.dev/docs/v3/documentation/introduction/vibecoding",
+          "status": "real"
+        },
+        {
+          "kind": "manifest",
+          "ref": "apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json",
+          "status": "blocked"
+        }
+      ],
+      "execution_metadata": {
+        "sources": [
+          {
+            "label": "Honcho repository",
+            "url": "https://github.com/plastic-labs/honcho",
+            "evidence": "Repository provenance for the tracked Honcho product row."
+          },
+          {
+            "label": "Honcho documentation",
+            "url": "https://honcho.dev/docs/v3/documentation/introduction/vibecoding",
+            "evidence": "Documentation provenance for Honcho as a stateful agent-memory/runtime comparison target."
+          }
+        ],
+        "setup_path": "Create a Docker-contained Honcho adapter over the real_world_job corpus before scoring.",
+        "runtime_boundary": "Future evidence must run in Docker or another contained product-runtime boundary and emit Honcho context/memory output, source ids, latency/cost/resource metadata, and container digest evidence.",
+        "resource_expectation": "Unknown until Honcho product runtime is materialized for the benchmark corpus.",
+        "retry_guidance": [
+          "Do not claim Honcho parity, win, tie, or loss from the research-gate row.",
+          "Score Honcho only after product-runtime output maps to benchmark source ids.",
+          "Record held-out, leakage-audit, and container digest metadata before comparability."
+        ],
+        "research_depth": "D0 tracked product row with typed runtime blocker"
+      },
+      "notes": [
+        "This row is intentionally non-comparable and records the user-requested Honcho comparison target as a typed blocker."
+      ],
+      "follow_up": {
+        "title": "Run Honcho product-runtime adapter",
+        "reason": "The fair comparison needs Honcho runtime context output, source-id mapping, held-out/leakage evidence, and container digest metadata over the ELF real_world_job corpus."
+      }
     }
   ]
 }
