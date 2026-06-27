@@ -1210,11 +1210,13 @@ struct OperationalAuthorityRecoveryReport {
 	failure_injection_count: usize,
 	degraded_read_labeled_count: usize,
 	source_of_truth_visible_count: usize,
+	backup_pitr_restored_count: usize,
 	rpo_target_count: usize,
 	rpo_met_count: usize,
 	rto_target_count: usize,
 	rto_met_count: usize,
 	authority_plane_count: usize,
+	record_count_preserved_count: usize,
 	source_ref_preserved_count: usize,
 	lifecycle_history_preserved_count: usize,
 	idempotent_outbox_replay_count: usize,
@@ -3372,6 +3374,7 @@ fn validate_recovery_backup_pitr(
 	if backup_pitr.backup_ref.trim().is_empty()
 		|| backup_pitr.pitr_target.trim().is_empty()
 		|| backup_pitr.evidence_refs.is_empty()
+		|| !backup_pitr.restored
 	{
 		return Err(eyre::eyre!("{} has incomplete backup/PITR drill evidence.", path.display()));
 	}
@@ -3440,6 +3443,14 @@ fn validate_recovery_authority_record_counts(
 				"{} authority recovery drill {} has incomplete authority record counts.",
 				path.display(),
 				drill.drill_id
+			));
+		}
+		if count.before_count != count.after_count {
+			return Err(eyre::eyre!(
+				"{} authority recovery drill {} lost or gained {} authority records.",
+				path.display(),
+				drill.drill_id,
+				count.plane
 			));
 		}
 
@@ -7156,6 +7167,10 @@ fn operational_authority_recovery(reports: &[JobReport]) -> OperationalAuthority
 			.iter()
 			.filter(|drill| drill.degraded_read.source_of_truth_visible)
 			.count(),
+		backup_pitr_restored_count: drills
+			.iter()
+			.filter(|drill| drill.backup_pitr.restored)
+			.count(),
 		rpo_target_count: drills.len(),
 		rpo_met_count: drills
 			.iter()
@@ -7167,6 +7182,10 @@ fn operational_authority_recovery(reports: &[JobReport]) -> OperationalAuthority
 			.filter(|drill| drill.rto.measured_seconds <= drill.rto.target_seconds)
 			.count(),
 		authority_plane_count: authority_counts.len(),
+		record_count_preserved_count: authority_counts
+			.iter()
+			.filter(|count| count.before_count == count.after_count)
+			.count(),
 		source_ref_preserved_count: authority_counts
 			.iter()
 			.filter(|count| count.source_refs_preserved)
@@ -8568,17 +8587,20 @@ fn render_markdown_operational_evidence(out: &mut String, report: &RealWorldRepo
 		evidence.cold_start_restore_rebuild.qdrant_rebuild_job_count
 	));
 	out.push_str(&format!(
-		"- Authority recovery drills: `{}`/`{}` pass, topology `{}`, failure injections `{}`, degraded reads labeled `{}`, source-of-truth visible `{}`, RPO `{}`/`{}` met, RTO `{}`/`{}` met, source refs `{}`/`{}` preserved, lifecycle histories `{}`/`{}` preserved, idempotent replay `{}`, complete Qdrant rebuild `{}`, migration repair `{}`, dead-letter handled `{}`\n\n",
+		"- Authority recovery drills: `{}`/`{}` pass, topology `{}`, failure injections `{}`, backup/PITR restored `{}`, degraded reads labeled `{}`, source-of-truth visible `{}`, RPO `{}`/`{}` met, RTO `{}`/`{}` met, record counts `{}`/`{}` preserved, source refs `{}`/`{}` preserved, lifecycle histories `{}`/`{}` preserved, idempotent replay `{}`, complete Qdrant rebuild `{}`, migration repair `{}`, dead-letter handled `{}`\n\n",
 		evidence.authority_recovery.drill_pass_count,
 		evidence.authority_recovery.drill_count,
 		evidence.authority_recovery.topology_reported_count,
 		evidence.authority_recovery.failure_injection_count,
+		evidence.authority_recovery.backup_pitr_restored_count,
 		evidence.authority_recovery.degraded_read_labeled_count,
 		evidence.authority_recovery.source_of_truth_visible_count,
 		evidence.authority_recovery.rpo_met_count,
 		evidence.authority_recovery.rpo_target_count,
 		evidence.authority_recovery.rto_met_count,
 		evidence.authority_recovery.rto_target_count,
+		evidence.authority_recovery.record_count_preserved_count,
+		evidence.authority_recovery.authority_plane_count,
 		evidence.authority_recovery.source_ref_preserved_count,
 		evidence.authority_recovery.authority_plane_count,
 		evidence.authority_recovery.lifecycle_history_preserved_count,

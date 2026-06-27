@@ -41,12 +41,14 @@ or multi-region failover evidence.
 
 - `elf.authority_recovery_drill/v1` is a benchmark artifact under
   `adapter_response.answer.recovery_drills[]`.
-- The runner validates drill topology, failure injections, backup/PITR evidence,
-  degraded-read labels, RPO/RTO measurements, authority record counts for source,
-  journal, memory, knowledge, proposal, trace, and audit planes, idempotent outbox
-  replay, Qdrant rebuild completeness, migration repair, and dead-letter handling.
+- The runner validates drill topology, failure injections, backup/PITR restored
+  evidence, degraded-read labels, RPO/RTO measurements, matching authority record
+  counts for source, journal, memory, knowledge, proposal, trace, and audit planes,
+  idempotent outbox replay, Qdrant rebuild completeness, migration repair, and
+  dead-letter handling.
 - Reports expose those drill counts through
-  `operational_evidence.authority_recovery`.
+  `operational_evidence.authority_recovery`, including backup/PITR restored and
+  record-count preservation counters.
 - The checked-in fixture is local synthetic evidence only. It does not prove private
   corpus quality, provider-backed behavior, hosted HA, standby failover, or
   multi-region SLA.
@@ -58,8 +60,8 @@ or multi-region failover evidence.
   `OperationalAuthorityRecoveryReport`.
 - `apps/elf-eval/fixtures/real_world_memory/production_ops/authority_plane_recovery_drill.json`
   encodes one production-ops job with topology, degraded-read labels, RPO/RTO,
-  before/after authority record counts, replay, rebuild, migration repair, and
-  dead-letter evidence.
+  matching before/after authority record counts, replay, rebuild, migration repair,
+  and dead-letter evidence.
 - `docs/spec/real_world_agent_memory_benchmark_v1.md` defines the artifact schema and
   production-ops/report semantics.
 - `docs/runbook/benchmarking/real_world_agent_memory_benchmark.md` routes operators to

@@ -484,6 +484,22 @@ fn run_json_report_from(fixtures: PathBuf) -> Result<Value> {
 	Ok(serde_json::from_slice(&output.stdout)?)
 }
 
+fn run_json_report_from_failure(fixtures: PathBuf) -> Result<String> {
+	let output = Command::new(env!("CARGO_BIN_EXE_real_world_job_benchmark"))
+		.arg("run")
+		.arg("--fixtures")
+		.arg(fixtures)
+		.output()?;
+
+	assert!(
+		!output.status.success(),
+		"real_world_job runner unexpectedly passed: {}",
+		String::from_utf8_lossy(&output.stdout),
+	);
+
+	Ok(String::from_utf8_lossy(&output.stderr).to_string())
+}
+
 fn run_json_report() -> Result<Value> {
 	run_json_report_from(fixture_dir())
 }
@@ -8041,6 +8057,18 @@ fn assert_authority_recovery_operational_evidence(report: &Value) {
 	);
 	assert_eq!(
 		report
+			.pointer("/operational_evidence/authority_recovery/backup_pitr_restored_count")
+			.and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
+		report
+			.pointer("/operational_evidence/authority_recovery/record_count_preserved_count")
+			.and_then(Value::as_u64),
+		Some(7)
+	);
+	assert_eq!(
+		report
 			.pointer("/operational_evidence/authority_recovery/source_ref_preserved_count")
 			.and_then(Value::as_u64),
 		Some(7)
@@ -8087,6 +8115,61 @@ fn assert_authority_recovery_operational_evidence(report: &Value) {
 			.and_then(Value::as_u64),
 		Some(1)
 	);
+}
+
+#[test]
+fn authority_recovery_fixture_rejects_unrestored_backup_or_record_count_loss() -> Result<()> {
+	assert_authority_recovery_fixture_failure(
+		"unrestored-backup",
+		|fixture| {
+			set_json_pointer(
+				fixture,
+				"/corpus/adapter_response/answer/recovery_drills/0/backup_pitr/restored",
+				serde_json::json!(false),
+			)
+		},
+		"incomplete backup/PITR drill evidence",
+	)?;
+
+	assert_authority_recovery_fixture_failure(
+		"record-count-loss",
+		|fixture| {
+			set_json_pointer(
+				fixture,
+				"/corpus/adapter_response/answer/recovery_drills/0/authority_record_counts/0/after_count",
+				serde_json::json!(2),
+			)
+		},
+		"lost or gained source authority records",
+	)
+}
+
+fn assert_authority_recovery_fixture_failure<F>(
+	slug: &str,
+	mutate: F,
+	expected_error: &str,
+) -> Result<()>
+where
+	F: FnOnce(&mut Value) -> Result<()>,
+{
+	let fixture_path = production_ops_fixture_dir().join("authority_plane_recovery_drill.json");
+	let mut fixture = load_json(&fixture_path)?;
+
+	mutate(&mut fixture)?;
+
+	let temp_dir = env::temp_dir().join(format!("elf-authority-recovery-{slug}-{}", process::id()));
+
+	fs::create_dir_all(&temp_dir)?;
+	fs::write(temp_dir.join("fixture.json"), serde_json::to_vec_pretty(&fixture)?)?;
+
+	let stderr = run_json_report_from_failure(temp_dir)?;
+
+	assert!(
+		stderr.contains(expected_error),
+		"missing expected error `{expected_error}` in stderr: {stderr}",
+	);
+
+	Ok(())
 }
 
 #[test]

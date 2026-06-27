@@ -464,13 +464,14 @@ Each recovery drill MUST include:
 - `topology` with the authority store, derived indexes, adapters, and failover
   boundary;
 - one or more `failure_injections` with target, fault, timestamps, and evidence refs;
-- `backup_pitr` with backup reference, PITR target, restored flag, and evidence refs;
+- `backup_pitr` with backup reference, PITR target, `restored = true`, and evidence
+  refs;
 - `degraded_read` with unavailable derived indexes or adapters labeled separately
   from visible source-of-truth records;
 - `rpo` and `rto` targets and measured seconds with evidence refs;
 - `authority_record_counts` for `source`, `journal`, `memory`, `knowledge`,
-  `proposal`, `trace`, and `audit`, including before/after counts plus source-ref
-  and lifecycle-history preservation booleans;
+  `proposal`, `trace`, and `audit`, including matching before/after counts plus
+  source-ref and lifecycle-history preservation booleans;
 - `outbox_replay`, `qdrant_rebuild`, `migration_repair`, and `dead_letter` sections
   with evidence refs.
 
@@ -720,12 +721,13 @@ Reports MUST include:
   typed non-pass counts, mean latency, cost summary, resource-envelope counts,
   cold-start/restore/Qdrant-rebuild counts, authority recovery drill counts,
   topology coverage, failure-injection counts, degraded-read label counts, visible
-  source-of-truth counts, RPO/RTO target and met counts, source-ref and lifecycle
-  preservation counts, idempotent replay counts, complete Qdrant rebuild counts,
-  migration repair counts, dead-letter handling counts, typed blocker reasons, and
-  explicit booleans for whether private-corpus or provider-backed pass claims are
-  allowed. Local fixture and public-proxy passes MUST NOT satisfy private-corpus or
-  provider-backed proof.
+  source-of-truth counts, backup/PITR restored counts, RPO/RTO target and met counts,
+  authority record-count preservation counts, source-ref and lifecycle preservation
+  counts, idempotent replay counts, complete Qdrant rebuild counts, migration repair
+  counts, dead-letter handling counts, typed blocker reasons, and explicit booleans
+  for whether private-corpus or provider-backed pass claims are allowed. Local
+  fixture and public-proxy passes MUST NOT satisfy private-corpus or provider-backed
+  proof.
 - run id, runner version, corpus profile, job ids, suite ids, project adapter metadata;
 - per-job status, normalized score, hard-fail hits, evidence ids used, trap ids used;
 - per-job `answer_type`, required caveat/refusal flags, and whether an unknown answer
