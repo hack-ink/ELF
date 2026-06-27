@@ -1,0 +1,160 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "work-continuity-explicit-next-step-001",
+  "suite": "work_continuity",
+  "title": "Explicit next steps are returned as instructions",
+  "corpus": {
+    "corpus_id": "real-world-memory-work-continuity-2026-06-27",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "wj-explicit-step-source",
+        "kind": "next_step",
+        "text": "Explicit next step: run cargo make real-world-memory-work-continuity after adding the fixtures.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "explicit_next_step_precision",
+            "evidence_id": "wj-explicit-step-source"
+          },
+          "locator": {
+            "quote": "Explicit next step"
+          }
+        },
+        "created_at": "2026-06-27T00:06:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_work_continuity",
+      "answer": {
+        "content": "The explicit next step is to run cargo make real-world-memory-work-continuity after adding the fixtures.",
+        "claims": [
+          {
+            "claim_id": "explicit_next_step",
+            "text": "The explicit next step is run cargo make real-world-memory-work-continuity.",
+            "evidence_ids": ["wj-explicit-step-source"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["wj-explicit-step-source"],
+        "work_journal_readbacks": [
+          {
+            "readback_id": "wj-readback-explicit-next-step",
+            "contract_schema": "elf.work_journal/v1",
+            "generated_at": "2026-06-27T00:07:00Z",
+            "session_id": "work-continuity-session",
+            "tenant_id": "fixture-tenant",
+            "project_id": "elf",
+            "agent_id": "xy-1118-fixture-agent",
+            "read_profile": "private_plus_project",
+            "items": [
+              {
+                "entry_id": "wj-explicit-step-entry",
+                "family": "next_step",
+                "title": "Run Work Continuity slice",
+                "body": "The next step was explicitly recorded by the operator.",
+                "source_refs": ["wj-explicit-step-source"],
+                "explicit_next_steps": [
+                  {
+                    "step_id": "wj-explicit-run-slice",
+                    "text": "Run cargo make real-world-memory-work-continuity.",
+                    "label": "explicit",
+                    "instruction": true,
+                    "evidence_refs": ["wj-explicit-step-source"]
+                  }
+                ]
+              }
+            ],
+            "where_stopped": {
+              "reset_resume_entry_ids": [],
+              "decision_rationale_evidence_ids": [],
+              "current_explicit_next_step_ids": ["wj-explicit-run-slice"],
+              "labeled_inferred_next_step_ids": [],
+              "handoff_source_refs": ["wj-explicit-step-source"],
+              "journal_only_authority_claims": []
+            },
+            "promotion_boundary": {
+              "journal_entry_authority": "source_adjacent_only",
+              "memory_promotion_required": true,
+              "accepted_refs": []
+            },
+            "janitor_candidates": []
+          }
+        ],
+        "latency_ms": 1.0,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "prompt": {
+    "role": "user",
+    "content": "What is the explicit next step?",
+    "job_mode": "work_continuity",
+    "constraints": ["cite_evidence", "label_explicit_next_steps"]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "explicit_next_step",
+        "text": "The explicit next step is run cargo make real-world-memory-work-continuity."
+      }
+    ],
+    "must_not_include": ["This step was inferred"],
+    "evidence_links": {
+      "explicit_next_step": ["wj-explicit-step-source"]
+    },
+    "answer_type": "work_journal_readback",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "wj-explicit-step-source",
+      "claim_id": "explicit_next_step",
+      "requirement": "cite",
+      "quote": "Explicit next step"
+    }
+  ],
+  "work_continuity": {
+    "required_explicit_next_step_ids": ["wj-explicit-run-slice"]
+  },
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.35,
+        "max_points": 1.0,
+        "criteria": "Returns only correct explicit next steps."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Cites the explicit step evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.2,
+        "max_points": 1.0,
+        "criteria": "Does not mislabel explicit steps."
+      },
+      "lifecycle_behavior": {
+        "weight": 0.15,
+        "max_points": 1.0,
+        "criteria": "Keeps source ref attached."
+      }
+    },
+    "pass_threshold": 0.85,
+    "hard_fail_rules": ["missing explicit next step"]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "state_blocker"
+  },
+  "tags": ["synthetic", "work_continuity", "explicit_next_step"]
+}
