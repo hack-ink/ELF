@@ -50,6 +50,7 @@ Question this index answers: "what must remain true?"
 - `system_search_filter_expr_v1.md`: System: Search Filter Expression Contract v1.
 - `system_source_ref_doc_pointer_v1.md`: System: `source_ref` Doc Pointer Resolver (v1).
 - `system_version_registry.md`: System Version Registry.
+- `system_work_journal_v1.md`: Work Journal v1 Specification.
 ## Spec document contract
 
 Start each spec with a compact routing header:

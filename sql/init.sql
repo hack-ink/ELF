@@ -40,3 +40,4 @@
 \ir tables/039_core_memory_blocks.sql
 \ir tables/040_core_memory_block_attachments.sql
 \ir tables/041_core_memory_block_events.sql
+\ir tables/042_work_journal_entries.sql

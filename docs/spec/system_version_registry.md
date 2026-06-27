@@ -197,6 +197,28 @@ This document is normative. When a new versioned identifier is introduced, it mu
 - Bump rule: Introduce a new identifier only if trace entry states, source-ref fields,
   policy-reason semantics, or deterministic ordering become incompatible.
 
+### Work Journal readback schema
+
+- Identifier: `elf.work_journal/v1`.
+- Type: Source-adjacent Work Journal entry and session readback envelope.
+- Defined in: `packages/elf-service/src/work_journal.rs`
+  (`ELF_WORK_JOURNAL_SCHEMA_V1`) and `docs/spec/system_work_journal_v1.md`.
+- Consumers: HTTP routes under `/v2/work-journal/*`, MCP Work Journal tools, and
+  agents answering "where did we stop?" with session-log evidence.
+- Bump rule: Introduce a new identifier only when entry fields, family semantics,
+  readback ordering, or where-stopped projection semantics become incompatible.
+
+### Work Journal promotion boundary schema
+
+- Identifier: `elf.work_journal.promotion_boundary/v1`.
+- Type: Promotion-boundary metadata for source-adjacent journal entries.
+- Defined in: `packages/elf-service/src/work_journal.rs` and
+  `docs/spec/system_work_journal_v1.md`.
+- Consumers: Work Journal create/readback, Memory Authority promotion checks, and
+  Dreaming Review integrations.
+- Bump rule: Introduce a new identifier only when authority-allowance or accepted
+  promotion-reference semantics become incompatible.
+
 ### Recall debug compact replay schema
 
 - Identifier: `elf.recall_debug.compact_replay/v1`.

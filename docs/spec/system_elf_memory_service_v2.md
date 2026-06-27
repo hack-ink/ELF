@@ -1905,6 +1905,23 @@ Behavior:
   verifies the requested chunk, quote, or position selector against current source
   content.
 
+Work Journal capture and readback:
+- POST /v2/work-journal/entries
+- GET /v2/work-journal/entries/{entry_id}
+- POST /v2/work-journal/readback
+
+Behavior:
+- These endpoints persist and read source-adjacent Work Journal entries for session
+  logs, handoff briefs, janitor reports, explicit next steps, inferred next steps,
+  and rejected options.
+- Work Journal rows carry source refs, redaction audit, and promotion-boundary
+  metadata, but they are not authoritative memory. They must not write
+  `memory_notes`, `indexing_outbox`, search sessions, traces, or Qdrant points.
+- Session readback may answer "where did we stop?" with journal evidence. Current
+  fact answers must still route through accepted Memory Authority, Knowledge
+  Workspace, graph, or reviewed Dreaming surfaces.
+- The detailed contract is defined in `system_work_journal_v1.md`.
+
 GET /v2/admin/events/ingestion-profiles
 
 Headers:
@@ -2548,6 +2565,9 @@ Original query:
   - elf_docs_delete -> DELETE /v2/docs/{doc_id}
   - elf_docs_search_l0 -> POST /v2/docs/search/l0
   - elf_docs_excerpts_get -> POST /v2/docs/excerpts
+  - elf_work_journal_entry_create -> POST /v2/work-journal/entries
+  - elf_work_journal_entry_get -> GET /v2/work-journal/entries/{entry_id}
+  - elf_work_journal_session_readback -> POST /v2/work-journal/readback
   - elf_notes_list -> GET /v2/notes
   - elf_notes_get -> GET /v2/notes/{note_id}
   - elf_notes_patch -> PATCH /v2/notes/{note_id}
