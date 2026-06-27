@@ -79,6 +79,8 @@ const SCOREBOARD_EVIDENCE_CLASSES: &[&str] =
 	&["fixture_backed", "live_baseline", "live_real_world", "research_gate"];
 const OPERATIONAL_EVIDENCE_TIERS: &[&str] =
 	&["local_fixture", "public_proxy", "private_corpus", "provider_backed"];
+const REQUIRED_AUTHORITY_PLANES: [&str; 7] =
+	["source", "journal", "memory", "knowledge", "proposal", "trace", "audit"];
 
 #[derive(Debug, Parser)]
 #[command(
@@ -89,15 +91,6 @@ const OPERATIONAL_EVIDENCE_TIERS: &[&str] =
 struct Args {
 	#[command(subcommand)]
 	command: Command,
-}
-
-#[derive(Debug, Subcommand)]
-#[command(rename_all = "kebab")]
-enum Command {
-	/// Parse and score real_world_job fixtures, then emit a JSON report.
-	Run(RunArgs),
-	/// Render Markdown from a generated real_world_job JSON report.
-	Publish(PublishArgs),
 }
 
 #[derive(Debug, Parser)]
@@ -188,25 +181,6 @@ struct Corpus {
 	adapter_response: Option<AdapterResponse>,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
-enum CorpusProfile {
-	Synthetic,
-	PrivateSanitized,
-	GeneratedPublic,
-	ExternalAdapter,
-}
-impl CorpusProfile {
-	fn as_str(&self) -> &'static str {
-		match self {
-			Self::Synthetic => "synthetic",
-			Self::PrivateSanitized => "private_sanitized",
-			Self::GeneratedPublic => "generated_public",
-			Self::ExternalAdapter => "external_adapter",
-		}
-	}
-}
-
 #[derive(Debug, Deserialize)]
 struct CorpusItem {
 	evidence_id: String,
@@ -256,43 +230,6 @@ struct ExpectedAnswer {
 	requires_caveat: bool,
 	#[serde(default)]
 	requires_refusal: bool,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-#[serde(untagged)]
-enum ExpectedClaim {
-	Text(String),
-	Object { claim_id: Option<String>, text: String },
-}
-impl ExpectedClaim {
-	fn claim_id(&self) -> Option<&str> {
-		match self {
-			Self::Text(_) => None,
-			Self::Object { claim_id, .. } => claim_id.as_deref(),
-		}
-	}
-
-	fn text(&self) -> &str {
-		match self {
-			Self::Text(text) => text,
-			Self::Object { text, .. } => text,
-		}
-	}
-}
-
-#[derive(Clone, Debug, Deserialize)]
-#[serde(untagged)]
-enum EvidenceLink {
-	One(String),
-	Many(Vec<String>),
-}
-impl EvidenceLink {
-	fn ids(&self) -> BTreeSet<String> {
-		match self {
-			Self::One(id) => BTreeSet::from([id.clone()]),
-			Self::Many(ids) => ids.iter().cloned().collect(),
-		}
-	}
 }
 
 #[derive(Debug, Deserialize)]
@@ -968,14 +905,6 @@ struct ConsolidationProposalFixture {
 	diff: Value,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
-enum ConsolidationReviewAction {
-	Apply,
-	Discard,
-	Defer,
-}
-
 #[derive(Clone, Debug, Deserialize)]
 struct ConsolidationExecutableGap {
 	primitive: String,
@@ -1063,18 +992,6 @@ struct TraceStageExplainability {
 	distractor_evidence: Vec<String>,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	notes: Option<String>,
-}
-
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
-enum TypedStatus {
-	Pass,
-	WrongResult,
-	LifecycleFail,
-	Incomplete,
-	Blocked,
-	NotEncoded,
-	UnsupportedClaim,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -1235,40 +1152,6 @@ struct AdapterReport {
 	storage: TypedStatus,
 	runtime: TypedStatus,
 	notes: String,
-}
-
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
-enum AdapterCoverageStatus {
-	Real,
-	Mocked,
-	Unsupported,
-	Blocked,
-	Incomplete,
-	WrongResult,
-	LifecycleFail,
-	Pass,
-	NotEncoded,
-}
-
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
-enum ElfScenarioPosition {
-	Wins,
-	Ties,
-	Loses,
-	Untested,
-}
-
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
-enum ScenarioComparisonOutcome {
-	Win,
-	Tie,
-	Loss,
-	NotTested,
-	Blocked,
-	NonGoal,
 }
 
 #[derive(Debug, Deserialize)]
@@ -2194,6 +2077,125 @@ struct JobMetrics {
 	scope_violation_count: usize,
 	redaction_leak_count: usize,
 	qdrant_rebuild_case: bool,
+}
+
+#[derive(Debug, Subcommand)]
+#[command(rename_all = "kebab")]
+enum Command {
+	/// Parse and score real_world_job fixtures, then emit a JSON report.
+	Run(RunArgs),
+	/// Render Markdown from a generated real_world_job JSON report.
+	Publish(PublishArgs),
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum CorpusProfile {
+	Synthetic,
+	PrivateSanitized,
+	GeneratedPublic,
+	ExternalAdapter,
+}
+impl CorpusProfile {
+	fn as_str(&self) -> &'static str {
+		match self {
+			Self::Synthetic => "synthetic",
+			Self::PrivateSanitized => "private_sanitized",
+			Self::GeneratedPublic => "generated_public",
+			Self::ExternalAdapter => "external_adapter",
+		}
+	}
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(untagged)]
+enum ExpectedClaim {
+	Text(String),
+	Object { claim_id: Option<String>, text: String },
+}
+impl ExpectedClaim {
+	fn claim_id(&self) -> Option<&str> {
+		match self {
+			Self::Text(_) => None,
+			Self::Object { claim_id, .. } => claim_id.as_deref(),
+		}
+	}
+
+	fn text(&self) -> &str {
+		match self {
+			Self::Text(text) => text,
+			Self::Object { text, .. } => text,
+		}
+	}
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(untagged)]
+enum EvidenceLink {
+	One(String),
+	Many(Vec<String>),
+}
+impl EvidenceLink {
+	fn ids(&self) -> BTreeSet<String> {
+		match self {
+			Self::One(id) => BTreeSet::from([id.clone()]),
+			Self::Many(ids) => ids.iter().cloned().collect(),
+		}
+	}
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum ConsolidationReviewAction {
+	Apply,
+	Discard,
+	Defer,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum TypedStatus {
+	Pass,
+	WrongResult,
+	LifecycleFail,
+	Incomplete,
+	Blocked,
+	NotEncoded,
+	UnsupportedClaim,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum AdapterCoverageStatus {
+	Real,
+	Mocked,
+	Unsupported,
+	Blocked,
+	Incomplete,
+	WrongResult,
+	LifecycleFail,
+	Pass,
+	NotEncoded,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum ElfScenarioPosition {
+	Wins,
+	Ties,
+	Loses,
+	Untested,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum ScenarioComparisonOutcome {
+	Win,
+	Tie,
+	Loss,
+	NotTested,
+	Blocked,
+	NonGoal,
 }
 
 fn main() -> Result<()> {
@@ -3392,6 +3394,12 @@ fn validate_recovery_degraded_read(
 	if degraded_read.unavailable_labels.is_empty() || degraded_read.evidence_refs.is_empty() {
 		return Err(eyre::eyre!("{} has incomplete degraded-read drill evidence.", path.display()));
 	}
+	if !degraded_read.source_of_truth_visible {
+		return Err(eyre::eyre!(
+			"{} has hidden source-of-truth records during degraded read.",
+			path.display()
+		));
+	}
 
 	ensure_known_evidence_refs(path, evidence_ids, &degraded_read.evidence_refs)
 }
@@ -3410,6 +3418,9 @@ fn validate_recovery_measurement(
 	{
 		return Err(eyre::eyre!("{} has invalid {label} recovery measurement.", path.display()));
 	}
+	if !recovery_measurement_met(measurement) {
+		return Err(eyre::eyre!("{} exceeded {label} recovery target.", path.display()));
+	}
 
 	ensure_known_evidence_refs(path, evidence_ids, &measurement.evidence_refs)
 }
@@ -3419,15 +3430,13 @@ fn validate_recovery_authority_record_counts(
 	path: &Path,
 	evidence_ids: &BTreeSet<String>,
 ) -> Result<()> {
-	let required_planes =
-		["source", "journal", "memory", "knowledge", "proposal", "trace", "audit"];
 	let present_planes = drill
 		.authority_record_counts
 		.iter()
 		.map(|count| count.plane.as_str())
 		.collect::<BTreeSet<_>>();
 
-	for plane in required_planes {
+	for plane in REQUIRED_AUTHORITY_PLANES {
 		if !present_planes.contains(plane) {
 			return Err(eyre::eyre!(
 				"{} authority recovery drill {} is missing {} authority counts.",
@@ -3453,6 +3462,22 @@ fn validate_recovery_authority_record_counts(
 				count.plane
 			));
 		}
+		if !count.source_refs_preserved {
+			return Err(eyre::eyre!(
+				"{} authority recovery drill {} did not preserve {} authority source refs.",
+				path.display(),
+				drill.drill_id,
+				count.plane
+			));
+		}
+		if !count.lifecycle_history_preserved {
+			return Err(eyre::eyre!(
+				"{} authority recovery drill {} did not preserve {} authority lifecycle history.",
+				path.display(),
+				drill.drill_id,
+				count.plane
+			));
+		}
 
 		ensure_known_evidence_refs(path, evidence_ids, &count.evidence_refs)?;
 	}
@@ -3465,7 +3490,7 @@ fn validate_recovery_outbox_replay(
 	path: &Path,
 	evidence_ids: &BTreeSet<String>,
 ) -> Result<()> {
-	if replay.evidence_refs.is_empty() {
+	if replay.evidence_refs.is_empty() || !recovery_outbox_replay_succeeded(replay) {
 		return Err(eyre::eyre!("{} has incomplete outbox replay drill evidence.", path.display()));
 	}
 
@@ -3477,7 +3502,7 @@ fn validate_recovery_qdrant_rebuild(
 	path: &Path,
 	evidence_ids: &BTreeSet<String>,
 ) -> Result<()> {
-	if rebuild.evidence_refs.is_empty() {
+	if rebuild.evidence_refs.is_empty() || !recovery_qdrant_rebuild_succeeded(rebuild) {
 		return Err(eyre::eyre!(
 			"{} has incomplete Qdrant rebuild drill evidence.",
 			path.display()
@@ -3492,7 +3517,7 @@ fn validate_recovery_migration_repair(
 	path: &Path,
 	evidence_ids: &BTreeSet<String>,
 ) -> Result<()> {
-	if repair.evidence_refs.is_empty() {
+	if repair.evidence_refs.is_empty() || !recovery_migration_repair_succeeded(repair) {
 		return Err(eyre::eyre!(
 			"{} has incomplete migration repair drill evidence.",
 			path.display()
@@ -3507,7 +3532,7 @@ fn validate_recovery_dead_letter(
 	path: &Path,
 	evidence_ids: &BTreeSet<String>,
 ) -> Result<()> {
-	if dead_letter.evidence_refs.is_empty() {
+	if dead_letter.evidence_refs.is_empty() || !recovery_dead_letter_succeeded(dead_letter) {
 		return Err(eyre::eyre!(
 			"{} has incomplete dead-letter handling drill evidence.",
 			path.display()
@@ -3515,6 +3540,59 @@ fn validate_recovery_dead_letter(
 	}
 
 	ensure_known_evidence_refs(path, evidence_ids, &dead_letter.evidence_refs)
+}
+
+fn recovery_drill_succeeded(drill: &AuthorityRecoveryDrillArtifact) -> bool {
+	drill.backup_pitr.restored
+		&& drill.degraded_read.source_of_truth_visible
+		&& recovery_measurement_met(&drill.rpo)
+		&& recovery_measurement_met(&drill.rto)
+		&& recovery_authority_record_counts_succeeded(drill)
+		&& recovery_outbox_replay_succeeded(&drill.outbox_replay)
+		&& recovery_qdrant_rebuild_succeeded(&drill.qdrant_rebuild)
+		&& recovery_migration_repair_succeeded(&drill.migration_repair)
+		&& recovery_dead_letter_succeeded(&drill.dead_letter)
+}
+
+fn recovery_measurement_met(measurement: &RecoveryMeasurement) -> bool {
+	measurement.measured_seconds <= measurement.target_seconds
+}
+
+fn recovery_authority_record_counts_succeeded(drill: &AuthorityRecoveryDrillArtifact) -> bool {
+	let present_planes = drill
+		.authority_record_counts
+		.iter()
+		.map(|count| count.plane.as_str())
+		.collect::<BTreeSet<_>>();
+
+	REQUIRED_AUTHORITY_PLANES.iter().all(|plane| present_planes.contains(*plane))
+		&& drill.authority_record_counts.iter().all(authority_record_count_succeeded)
+}
+
+fn authority_record_count_succeeded(count: &AuthorityRecordCount) -> bool {
+	authority_record_count_balanced(count)
+		&& count.source_refs_preserved
+		&& count.lifecycle_history_preserved
+}
+
+fn authority_record_count_balanced(count: &AuthorityRecordCount) -> bool {
+	count.before_count == count.after_count
+}
+
+fn recovery_outbox_replay_succeeded(replay: &RecoveryOutboxReplay) -> bool {
+	replay.idempotent && replay.duplicate_write_count == 0
+}
+
+fn recovery_qdrant_rebuild_succeeded(rebuild: &RecoveryQdrantRebuild) -> bool {
+	rebuild.complete && rebuild.missing_vector_count == 0 && rebuild.error_count == 0
+}
+
+fn recovery_migration_repair_succeeded(repair: &RecoveryMigrationRepair) -> bool {
+	repair.applied
+}
+
+fn recovery_dead_letter_succeeded(dead_letter: &RecoveryDeadLetterHandling) -> bool {
+	dead_letter.handled_count >= dead_letter.dead_letter_count
 }
 
 fn ensure_known_evidence_refs(
@@ -7152,8 +7230,9 @@ fn operational_authority_recovery(reports: &[JobReport]) -> OperationalAuthority
 		drill_pass_count: recovery_jobs
 			.iter()
 			.filter(|report| report.status == TypedStatus::Pass)
-			.map(|report| report.recovery_drills.len())
-			.sum(),
+			.flat_map(|report| report.recovery_drills.iter())
+			.filter(|drill| recovery_drill_succeeded(drill))
+			.count(),
 		topology_reported_count: drills
 			.iter()
 			.filter(|drill| !drill.topology.authority_store.trim().is_empty())
@@ -7172,19 +7251,13 @@ fn operational_authority_recovery(reports: &[JobReport]) -> OperationalAuthority
 			.filter(|drill| drill.backup_pitr.restored)
 			.count(),
 		rpo_target_count: drills.len(),
-		rpo_met_count: drills
-			.iter()
-			.filter(|drill| drill.rpo.measured_seconds <= drill.rpo.target_seconds)
-			.count(),
+		rpo_met_count: drills.iter().filter(|drill| recovery_measurement_met(&drill.rpo)).count(),
 		rto_target_count: drills.len(),
-		rto_met_count: drills
-			.iter()
-			.filter(|drill| drill.rto.measured_seconds <= drill.rto.target_seconds)
-			.count(),
+		rto_met_count: drills.iter().filter(|drill| recovery_measurement_met(&drill.rto)).count(),
 		authority_plane_count: authority_counts.len(),
 		record_count_preserved_count: authority_counts
 			.iter()
-			.filter(|count| count.before_count == count.after_count)
+			.filter(|count| authority_record_count_balanced(count))
 			.count(),
 		source_ref_preserved_count: authority_counts
 			.iter()
@@ -7196,25 +7269,19 @@ fn operational_authority_recovery(reports: &[JobReport]) -> OperationalAuthority
 			.count(),
 		idempotent_outbox_replay_count: drills
 			.iter()
-			.filter(|drill| {
-				drill.outbox_replay.idempotent && drill.outbox_replay.duplicate_write_count == 0
-			})
+			.filter(|drill| recovery_outbox_replay_succeeded(&drill.outbox_replay))
 			.count(),
 		qdrant_rebuild_complete_count: drills
 			.iter()
-			.filter(|drill| {
-				drill.qdrant_rebuild.complete
-					&& drill.qdrant_rebuild.missing_vector_count == 0
-					&& drill.qdrant_rebuild.error_count == 0
-			})
+			.filter(|drill| recovery_qdrant_rebuild_succeeded(&drill.qdrant_rebuild))
 			.count(),
 		migration_repair_count: drills
 			.iter()
-			.filter(|drill| drill.migration_repair.applied)
+			.filter(|drill| recovery_migration_repair_succeeded(&drill.migration_repair))
 			.count(),
 		dead_letter_handled_count: drills
 			.iter()
-			.filter(|drill| drill.dead_letter.handled_count >= drill.dead_letter.dead_letter_count)
+			.filter(|drill| recovery_dead_letter_succeeded(&drill.dead_letter))
 			.count(),
 		job_ids,
 	}

@@ -467,13 +467,18 @@ Each recovery drill MUST include:
 - `backup_pitr` with backup reference, PITR target, `restored = true`, and evidence
   refs;
 - `degraded_read` with unavailable derived indexes or adapters labeled separately
-  from visible source-of-truth records;
-- `rpo` and `rto` targets and measured seconds with evidence refs;
+  from visible source-of-truth records, and `source_of_truth_visible = true`;
+- `rpo` and `rto` targets and measured seconds with evidence refs, where measured
+  seconds are less than or equal to the target seconds;
 - `authority_record_counts` for `source`, `journal`, `memory`, `knowledge`,
   `proposal`, `trace`, and `audit`, including matching before/after counts plus
-  source-ref and lifecycle-history preservation booleans;
-- `outbox_replay`, `qdrant_rebuild`, `migration_repair`, and `dead_letter` sections
-  with evidence refs.
+  `source_refs_preserved = true` and `lifecycle_history_preserved = true`;
+- `outbox_replay` with `idempotent = true`, zero duplicate writes, and evidence refs;
+- `qdrant_rebuild` with `complete = true`, zero missing vectors, zero errors, and
+  evidence refs;
+- `migration_repair` with `applied = true` and evidence refs;
+- `dead_letter` with handled count greater than or equal to dead-letter count and
+  evidence refs.
 
 A recovery drill MUST NOT claim failover unless a standby or replacement authority
 service is actually part of the topology. Qdrant and document indexes remain derived
@@ -719,7 +724,8 @@ Reports MUST include:
   separating `local_fixture`, `public_proxy`, `private_corpus`, and
   `provider_backed` tiers. The gates MUST report tier status, job counts, pass and
   typed non-pass counts, mean latency, cost summary, resource-envelope counts,
-  cold-start/restore/Qdrant-rebuild counts, authority recovery drill counts,
+  cold-start/restore/Qdrant-rebuild counts, authority recovery drill counts where a
+  pass requires the job to pass and every drill predicate above to succeed,
   topology coverage, failure-injection counts, degraded-read label counts, visible
   source-of-truth counts, backup/PITR restored counts, RPO/RTO target and met counts,
   authority record-count preservation counts, source-ref and lifecycle preservation

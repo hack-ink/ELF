@@ -713,8 +713,15 @@ drills, and resource-envelope interpretation. Authority recovery drills use
 to report topology, failure injection, backup/PITR, degraded-read labels, RPO/RTO
 targets and measurements, matching before/after authority record counts, idempotent
 outbox replay, Qdrant rebuild completeness, migration repair, and dead-letter
-handling. The generated `operational_evidence.authority_recovery` report includes
-backup/PITR restored and record-count preservation counters. The P4 slice also
+handling. The runner fails drills whose predicates are false: backup/PITR must be
+restored, source-of-truth records must stay visible during degraded reads, RPO/RTO
+measurements must meet targets, authority counts/source refs/lifecycle history must
+be preserved, outbox replay must be idempotent without duplicate writes, Qdrant
+rebuilds must complete without missing vectors or errors, migration repair must be
+applied, and dead-letter rows must be handled. The generated
+`operational_evidence.authority_recovery` report includes backup/PITR restored,
+record-count preservation, and per-predicate recovery counters; drill pass counts
+require both a passing job and successful recovery predicates. The P4 slice also
 encodes the operator-approved public-proxy production-private addendum and emits
 `elf.operational_evidence_gates/v1` so local fixture, public-proxy, private-corpus,
 and provider-backed evidence remain separate.
