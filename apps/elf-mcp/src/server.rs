@@ -344,6 +344,48 @@ impl ElfMcp {
 	}
 
 	#[rmcp::tool(
+		name = "elf_work_journal_entry_create",
+		description = "Capture one source-adjacent Work Journal entry with source refs, redaction, next-step, rejected-option, and promotion-boundary metadata. Journal content is not authoritative memory.",
+		input_schema = work_journal_entry_create_schema()
+	)]
+	async fn elf_work_journal_entry_create(
+		&self,
+		params: JsonObject,
+	) -> Result<CallToolResult, ErrorData> {
+		self.forward(HttpMethod::Post, "/v2/work-journal/entries", params, None).await
+	}
+
+	#[rmcp::tool(
+		name = "elf_work_journal_entry_get",
+		description = "Fetch one readable Work Journal entry by entry_id.",
+		input_schema = work_journal_entry_get_schema()
+	)]
+	async fn elf_work_journal_entry_get(
+		&self,
+		mut params: JsonObject,
+	) -> Result<CallToolResult, ErrorData> {
+		let entry_id = take_required_string(&mut params, "entry_id")?;
+		let path = format!("/v2/work-journal/entries/{entry_id}");
+
+		self.forward(HttpMethod::Get, &path, JsonObject::new(), None).await
+	}
+
+	#[rmcp::tool(
+		name = "elf_work_journal_session_readback",
+		description = "Read newest Work Journal entries for a session and return a where_stopped projection with journal evidence. Current-fact answers still require accepted memory or knowledge authority.",
+		input_schema = work_journal_session_readback_schema()
+	)]
+	async fn elf_work_journal_session_readback(
+		&self,
+		mut params: JsonObject,
+	) -> Result<CallToolResult, ErrorData> {
+		// read_profile is part of the MCP server configuration and is not client-controlled.
+		let _ = take_optional_string(&mut params, "read_profile")?;
+
+		self.forward(HttpMethod::Post, "/v2/work-journal/readback", params, None).await
+	}
+
+	#[rmcp::tool(
 		name = "elf_core_blocks_get",
 		description = "Fetch core memory blocks explicitly attached to the configured agent and read profile. This is separate from archival search.",
 		input_schema = core_blocks_get_schema()
@@ -1303,6 +1345,97 @@ fn docs_excerpts_get_schema() -> Arc<JsonObject> {
 	}))
 }
 
+fn work_journal_entry_create_schema() -> Arc<JsonObject> {
+	Arc::new(rmcp::object!({
+		"type": "object",
+		"additionalProperties": true,
+		"required": ["scope", "session_id", "family", "body", "source_refs"],
+		"properties": {
+			"entry_id": { "type": ["string", "null"] },
+			"scope": { "type": "string", "enum": ["agent_private", "project_shared", "org_shared"] },
+			"session_id": { "type": "string" },
+			"family": {
+				"type": "string",
+				"enum": [
+					"session_log",
+					"handoff_brief",
+					"janitor_report",
+					"explicit_next_step",
+					"inferred_next_step",
+					"rejected_option"
+				]
+			},
+			"title": { "type": ["string", "null"] },
+			"body": { "type": "string" },
+			"source_refs": {
+				"type": "array",
+				"items": { "type": "object", "additionalProperties": true },
+				"minItems": 1
+			},
+			"write_policy": { "type": ["object", "null"] },
+			"explicit_next_steps": {
+				"type": "array",
+				"items": { "type": "string" }
+			},
+			"inferred_next_steps": {
+				"type": "array",
+				"items": { "type": "string" }
+			},
+			"rejected_options": {
+				"type": "array",
+				"items": { "type": "string" }
+			},
+			"promotion_boundary": {
+				"type": ["object", "null"],
+				"additionalProperties": true,
+				"properties": {
+					"authoritative_memory_allowed": { "type": "boolean" },
+					"accepted_memory_authority_ref": { "type": "object", "additionalProperties": true },
+					"accepted_dreaming_review_ref": { "type": "object", "additionalProperties": true }
+				}
+			}
+		}
+	}))
+}
+
+fn work_journal_entry_get_schema() -> Arc<JsonObject> {
+	Arc::new(rmcp::object!({
+		"type": "object",
+		"additionalProperties": true,
+		"required": ["entry_id"],
+		"properties": {
+			"entry_id": { "type": "string" }
+		}
+	}))
+}
+
+fn work_journal_session_readback_schema() -> Arc<JsonObject> {
+	Arc::new(rmcp::object!({
+		"type": "object",
+		"additionalProperties": true,
+		"required": ["session_id"],
+		"properties": {
+			"session_id": { "type": "string" },
+			"families": {
+				"type": "array",
+				"items": {
+					"type": "string",
+					"enum": [
+						"session_log",
+						"handoff_brief",
+						"janitor_report",
+						"explicit_next_step",
+						"inferred_next_step",
+						"rejected_option"
+					]
+				}
+			},
+			"limit": { "type": ["integer", "null"] },
+			"read_profile": { "type": ["string", "null"] }
+		}
+	}))
+}
+
 fn core_blocks_get_schema() -> Arc<JsonObject> {
 	Arc::new(rmcp::object!({
 		"type": "object",
@@ -1790,7 +1923,7 @@ mod tests {
 
 	type RequestRecorder = Arc<Mutex<Option<oneshot::Sender<RecordedRequest>>>>;
 
-	const ALL_TOOL_DEFINITIONS: [ToolDefinition; 34] = [
+	const ALL_TOOL_DEFINITIONS: [ToolDefinition; 37] = [
 		ToolDefinition::new(
 			"elf_notes_ingest",
 			HttpMethod::Post,
@@ -1844,6 +1977,24 @@ mod tests {
 			HttpMethod::Post,
 			"/v2/recall-debug/panel",
 			"Build an agent-facing cross-layer recall/debug panel and deterministic recall_trace over memory traces, source documents, knowledge pages, graph facts, and Dreaming proposals.",
+		),
+		ToolDefinition::new(
+			"elf_work_journal_entry_create",
+			HttpMethod::Post,
+			"/v2/work-journal/entries",
+			"Capture one source-adjacent Work Journal entry with source refs, redaction, next-step, rejected-option, and promotion-boundary metadata.",
+		),
+		ToolDefinition::new(
+			"elf_work_journal_entry_get",
+			HttpMethod::Get,
+			"/v2/work-journal/entries/{entry_id}",
+			"Fetch one readable Work Journal entry by entry_id.",
+		),
+		ToolDefinition::new(
+			"elf_work_journal_session_readback",
+			HttpMethod::Post,
+			"/v2/work-journal/readback",
+			"Read newest Work Journal entries for a session and return a where_stopped projection with journal evidence.",
 		),
 		ToolDefinition::new(
 			"elf_searches_get",
@@ -2053,6 +2204,9 @@ mod tests {
 			"elf_admin_traces_recent_list",
 			"elf_dreaming_review_queue",
 			"elf_recall_debug_panel",
+			"elf_work_journal_entry_create",
+			"elf_work_journal_entry_get",
+			"elf_work_journal_session_readback",
 			"elf_admin_trace_get",
 			"elf_admin_trajectory_get",
 			"elf_admin_trace_item_get",
@@ -2360,6 +2514,34 @@ mod tests {
 				"Missing source_ref field: {field}."
 			);
 		}
+	}
+
+	#[test]
+	fn work_journal_schemas_include_families_and_source_refs() {
+		let create_schema = super::work_journal_entry_create_schema();
+		let create_properties = create_schema
+			.get("properties")
+			.and_then(serde_json::Value::as_object)
+			.expect("work_journal_entry_create schema is missing properties.");
+		let readback_schema = super::work_journal_session_readback_schema();
+		let readback_properties = readback_schema
+			.get("properties")
+			.and_then(serde_json::Value::as_object)
+			.expect("work_journal_session_readback schema is missing properties.");
+
+		for field in ["scope", "session_id", "family", "body", "source_refs"] {
+			assert!(
+				create_schema.get("required").and_then(serde_json::Value::as_array).is_some_and(
+					|fields| { fields.iter().any(|value| value.as_str() == Some(field)) }
+				),
+				"Missing Work Journal required field {field}."
+			);
+		}
+
+		assert!(create_properties.contains_key("write_policy"));
+		assert!(create_properties.contains_key("promotion_boundary"));
+		assert!(readback_properties.contains_key("session_id"));
+		assert!(readback_properties.contains_key("families"));
 	}
 
 	#[test]

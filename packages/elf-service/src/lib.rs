@@ -27,6 +27,7 @@ pub mod sharing;
 pub mod structured_fields;
 pub mod time_serde;
 pub mod update;
+pub mod work_journal;
 
 mod access;
 mod error;
@@ -146,6 +147,12 @@ pub use self::{
 	},
 	structured_fields::StructuredFields,
 	update::{UpdateRequest, UpdateResponse},
+	work_journal::{
+		ELF_WORK_JOURNAL_SCHEMA_V1, WorkJournalEntryCreateRequest, WorkJournalEntryCreateResponse,
+		WorkJournalEntryFamily, WorkJournalEntryGetRequest, WorkJournalEntryResponse,
+		WorkJournalSessionReadbackRequest, WorkJournalSessionReadbackResponse,
+		WorkJournalWhereStopped,
+	},
 };
 
 use std::{future::Future, pin::Pin, sync::Arc};

@@ -947,6 +947,9 @@ async fn openapi_json_route_serves_generated_contract() {
 	assert_openapi_method(&spec, "/v2/core-blocks", "get");
 	assert_openapi_method(&spec, "/v2/entity-memory", "get");
 	assert_openapi_method(&spec, "/v2/docs/search/l0", "post");
+	assert_openapi_method(&spec, "/v2/work-journal/entries", "post");
+	assert_openapi_method(&spec, "/v2/work-journal/entries/{entry_id}", "get");
+	assert_openapi_method(&spec, "/v2/work-journal/readback", "post");
 	assert_openapi_method(&spec, "/v2/searches/{search_id}/notes", "post");
 	assert_openapi_method(&spec, "/v2/admin/core-blocks", "post");
 	assert_openapi_method(&spec, "/v2/admin/core-blocks/{block_id}/attachments", "post");
@@ -997,6 +1000,7 @@ async fn scalar_docs_route_serves_api_reference_html() {
 	assert!(html.contains("/v2/admin/docs/search/l0"));
 	assert!(html.contains("/v2/admin/knowledge/pages"));
 	assert!(html.contains("/v2/admin/knowledge/pages/search"));
+	assert!(html.contains("/v2/work-journal/readback"));
 }
 
 #[tokio::test]
