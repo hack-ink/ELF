@@ -6,7 +6,7 @@ resource: docs/spec/real_world_agent_memory_benchmark_v1.md
 status: active
 authority: normative
 owner: spec
-last_verified: 2026-06-23
+last_verified: 2026-06-27
 tags:
   - docs
   - spec
@@ -14,7 +14,7 @@ source_refs: []
 code_refs:
   - Makefile.toml
   - apps/elf-eval/src/bin/real_world_job_benchmark.rs
-  - apps/elf-eval/fixtures/real_world_memory/
+  - apps/elf-eval/fixtures/real_world_memory/production_ops/authority_plane_recovery_drill.json
 related: []
 drift_watch:
   - docs/spec/real_world_agent_memory_benchmark_v1.md
@@ -451,6 +451,34 @@ untraced section count. Rebuild results are acceptable only when repeated output
 deterministic enough for regression comparison or every allowed variance is explicitly
 reported.
 
+### Optional `adapter_response.answer.recovery_drills`
+
+Production-ops fixtures MAY include authority recovery drill artifacts in
+`corpus.adapter_response.answer.recovery_drills[]`. These artifacts use schema
+`elf.authority_recovery_drill/v1` and are fixture/report evidence, not proof of a
+multi-region or hosted HA topology.
+
+Each recovery drill MUST include:
+
+- `drill_id`, `contract_schema`, and `generated_at`;
+- `topology` with the authority store, derived indexes, adapters, and failover
+  boundary;
+- one or more `failure_injections` with target, fault, timestamps, and evidence refs;
+- `backup_pitr` with backup reference, PITR target, restored flag, and evidence refs;
+- `degraded_read` with unavailable derived indexes or adapters labeled separately
+  from visible source-of-truth records;
+- `rpo` and `rto` targets and measured seconds with evidence refs;
+- `authority_record_counts` for `source`, `journal`, `memory`, `knowledge`,
+  `proposal`, `trace`, and `audit`, including before/after counts plus source-ref
+  and lifecycle-history preservation booleans;
+- `outbox_replay`, `qdrant_rebuild`, `migration_repair`, and `dead_letter` sections
+  with evidence refs.
+
+A recovery drill MUST NOT claim failover unless a standby or replacement authority
+service is actually part of the topology. Qdrant and document indexes remain derived
+and rebuildable; degraded read must label unavailable derived indexes or adapters
+without hiding Postgres source-of-truth records.
+
 ### `negative_traps`
 
 Negative traps MUST be explicit so systems are tested against realistic memory failure
@@ -638,7 +666,7 @@ Suite ids are stable public names. Each suite MUST contain at least one
 | `source_library` | Preserve long-form source records and citable excerpts without silently promoting them to memory. | Capture a long document; hydrate a source_ref excerpt; preserve a social/thread source boundary. | Source ids, canonical source metadata, source_ref hydration pointers, verified excerpts, explicit no-autopromotion boundary. | answer_correctness, evidence_grounding, lifecycle_behavior, trap_avoidance. | PageIndex, ELF. |
 | `operator_debugging_ux` | Show whether a wrong or ambiguous memory result can be debugged without raw store spelunking. | Explain why a result ranked first; inspect a trace; identify which stage dropped expected evidence. | Trace bundle, retrieval trajectory, candidate metrics, viewer or CLI readback. | debuggability, evidence_grounding, workflow_helpfulness, answer_correctness. | claude-mem, qmd, agentmemory, ELF. |
 | `capture_integration` | Evaluate how accurately work observations become usable memory across agents and tools. | Capture a session decision; exclude private spans; import external agent observations. | Hook/import logs, write policy audits, excluded spans, resulting note ids. | answer_correctness, evidence_grounding, trap_avoidance, lifecycle_behavior. | agentmemory, claude-mem, memsearch, mem0. |
-| `production_ops` | Prove safe operation under backup, restore, backfill, cold start, resource, and credential boundaries. | Resume interrupted import; restore from backup; report missing private manifest as bounded caveat. | Command/report artifacts, resource envelope, checkpoint state, failure guard evidence. | lifecycle_behavior, latency_resource, uncertainty_handling, evidence_grounding. | ELF, qmd, memsearch, LangGraph. |
+| `production_ops` | Prove safe operation under backup, restore, backfill, cold start, authority recovery, resource, and credential boundaries. | Resume interrupted import; restore from backup; report missing private manifest as bounded caveat; report authority-plane degraded read and replay drills. | Command/report artifacts, resource envelope, checkpoint state, failure guard evidence, authority record counts, RPO/RTO measurements, degraded-read labels. | lifecycle_behavior, latency_resource, uncertainty_handling, evidence_grounding. | ELF, qmd, memsearch, LangGraph. |
 | `personalization` | Apply user/project preferences correctly without leaking across scopes or overfitting stale preferences. | Remember preferred response style; avoid using another project tenant's note; update a preference. | Scoped memory ids, preference versions, tenant/project/agent context, negative cross-scope traps. | personalization_fit, trap_avoidance, evidence_grounding, answer_correctness. | mem0, Letta, agentmemory, ELF. |
 | `core_archival_memory` | Verify always-loaded core memory behavior separately from archival note search and derived retrieval indexes. | Read an attached core block; enforce core block scope; detect stale core state from archival evidence; fall back to archival notes; recover a decision from core routing plus archival rationale. | Core block ids, attachment ids, read_profile/scope metadata, source_ref and audit history, archival note evidence ids, stale-core traps, and explicit no-Qdrant-core-block boundary evidence. | answer_correctness, evidence_grounding, trap_avoidance, lifecycle_behavior, workflow_helpfulness. | Letta, ELF. |
 | `context_trajectory` | Measure staged context trajectory, hierarchy selection, and recursive/context expansion without converting setup or retrieval preconditions into trajectory wins. | Explain whether a staged trajectory can be scored; identify selected hierarchy nodes; report recursive expansion paths and pruned branches. | Same-corpus expected evidence ids, matched/missing evidence ids, stage artifacts, selected hierarchy nodes, rejected siblings or decoys, expansion paths, pruned branches, comparable ELF trace/session artifacts when a comparison is claimed. | answer_correctness, evidence_grounding, trap_avoidance, debuggability, workflow_helpfulness. | OpenViking, ELF, qmd. |
@@ -690,9 +718,13 @@ Reports MUST include:
   separating `local_fixture`, `public_proxy`, `private_corpus`, and
   `provider_backed` tiers. The gates MUST report tier status, job counts, pass and
   typed non-pass counts, mean latency, cost summary, resource-envelope counts,
-  cold-start/restore/Qdrant-rebuild counts, typed blocker reasons, and explicit
-  booleans for whether private-corpus or provider-backed pass claims are allowed.
-  Local fixture and public-proxy passes MUST NOT satisfy private-corpus or
+  cold-start/restore/Qdrant-rebuild counts, authority recovery drill counts,
+  topology coverage, failure-injection counts, degraded-read label counts, visible
+  source-of-truth counts, RPO/RTO target and met counts, source-ref and lifecycle
+  preservation counts, idempotent replay counts, complete Qdrant rebuild counts,
+  migration repair counts, dead-letter handling counts, typed blocker reasons, and
+  explicit booleans for whether private-corpus or provider-backed pass claims are
+  allowed. Local fixture and public-proxy passes MUST NOT satisfy private-corpus or
   provider-backed proof.
 - run id, runner version, corpus profile, job ids, suite ids, project adapter metadata;
 - per-job status, normalized score, hard-fail hits, evidence ids used, trap ids used;

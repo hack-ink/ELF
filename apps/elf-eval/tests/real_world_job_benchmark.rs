@@ -2911,7 +2911,7 @@ fn assert_live_sweep_record(adapter: &Value, production_ops_status: &str) -> Res
 fn runner_discovers_nested_fixture_layout() -> Result<()> {
 	let report = run_json_report_from(fixture_root())?;
 
-	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(81));
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(82));
 
 	Ok(())
 }
@@ -7880,28 +7880,42 @@ fn assert_hard_fail_hit(job: &Value, expected_hit: &str) {
 fn production_ops_fixtures_report_bounded_typed_states() -> Result<()> {
 	let report = run_json_report_from(production_ops_fixture_dir())?;
 
-	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(7));
-	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(5));
+	assert_production_ops_summary(&report)?;
+	assert_production_ops_jobs(&report)?;
+	assert_production_ops_operational_evidence(&report)?;
+
+	Ok(())
+}
+
+fn assert_production_ops_summary(report: &Value) -> Result<()> {
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(8));
+	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(6));
 	assert_eq!(report.pointer("/summary/incomplete").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/blocked").and_then(Value::as_u64), Some(2));
 	assert_eq!(report.pointer("/summary/not_encoded").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/evidence_coverage").and_then(Value::as_f64), Some(1.0));
 	assert_eq!(
 		report.pointer("/summary/qdrant_rebuild_case_count").and_then(Value::as_u64),
-		Some(1)
+		Some(2)
 	);
 	assert_eq!(
 		report.pointer("/private_corpus_redaction/private_fixture_count").and_then(Value::as_u64),
 		Some(1)
 	);
 
-	let suites = array_at(&report, "/suites")?;
+	let suites = array_at(report, "/suites")?;
 	let production_ops = find_by_field(suites, "/suite_id", "production_ops")?;
 
 	assert_eq!(production_ops.pointer("/status").and_then(Value::as_str), Some("blocked"));
-	assert_eq!(production_ops.pointer("/encoded_job_count").and_then(Value::as_u64), Some(7));
+	assert_eq!(production_ops.pointer("/encoded_job_count").and_then(Value::as_u64), Some(8));
 
-	let jobs = array_at(&report, "/jobs")?;
+	Ok(())
+}
+
+fn assert_production_ops_jobs(report: &Value) -> Result<()> {
+	let jobs = array_at(report, "/jobs")?;
+	let authority_recovery =
+		find_by_field(jobs, "/job_id", "production-ops-authority-plane-recovery-001")?;
 	let backfill = find_by_field(jobs, "/job_id", "production-ops-backfill-resume-001")?;
 	let restore = find_by_field(jobs, "/job_id", "production-ops-restore-cold-start-001")?;
 	let public_proxy = find_by_field(jobs, "/job_id", "production-ops-public-proxy-addendum-001")?;
@@ -7910,6 +7924,9 @@ fn production_ops_fixtures_report_bounded_typed_states() -> Result<()> {
 	let credentials = find_by_field(jobs, "/job_id", "production-ops-credential-boundary-001")?;
 	let dependency = find_by_field(jobs, "/job_id", "production-ops-cold-start-dependency-001")?;
 
+	assert_authority_recovery_job(authority_recovery)?;
+
+	assert_eq!(authority_recovery.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(backfill.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(restore.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(restore.pointer("/qdrant_rebuild_case").and_then(Value::as_bool), Some(true));
@@ -7929,6 +7946,23 @@ fn production_ops_fixtures_report_bounded_typed_states() -> Result<()> {
 		Some("provider_backed")
 	);
 	assert_eq!(dependency.pointer("/status").and_then(Value::as_str), Some("pass"));
+
+	Ok(())
+}
+
+fn assert_authority_recovery_job(job: &Value) -> Result<()> {
+	assert_eq!(job.pointer("/qdrant_rebuild_case").and_then(Value::as_bool), Some(true));
+	assert_eq!(job.pointer("/requires_caveat").and_then(Value::as_bool), Some(true));
+	assert_eq!(
+		job.pointer("/recovery_drills/0/contract_schema").and_then(Value::as_str),
+		Some("elf.authority_recovery_drill/v1")
+	);
+	assert!(array_at(job, "/hard_fail_hits")?.is_empty());
+
+	Ok(())
+}
+
+fn assert_production_ops_operational_evidence(report: &Value) -> Result<()> {
 	assert_eq!(
 		report.pointer("/operational_evidence/schema").and_then(Value::as_str),
 		Some("elf.operational_evidence_gates/v1")
@@ -7953,11 +7987,11 @@ fn production_ops_fixtures_report_bounded_typed_states() -> Result<()> {
 	);
 	assert_eq!(
 		report.pointer("/operational_evidence/latency/measured_job_count").and_then(Value::as_u64),
-		Some(7)
+		Some(8)
 	);
 	assert_eq!(
 		report.pointer("/operational_evidence/cost/jobs_with_cost_report").and_then(Value::as_u64),
-		Some(7)
+		Some(8)
 	);
 	assert_eq!(
 		report
@@ -7969,17 +8003,19 @@ fn production_ops_fixtures_report_bounded_typed_states() -> Result<()> {
 		report
 			.pointer("/operational_evidence/cold_start_restore_rebuild/qdrant_rebuild_pass_count")
 			.and_then(Value::as_u64),
-		Some(1)
+		Some(2)
 	);
 
-	let tiers = array_at(&report, "/operational_evidence/tiers")?;
+	assert_authority_recovery_operational_evidence(report);
+
+	let tiers = array_at(report, "/operational_evidence/tiers")?;
 	let local_fixture = find_by_field(tiers, "/tier", "local_fixture")?;
 	let public_proxy_tier = find_by_field(tiers, "/tier", "public_proxy")?;
 	let private_corpus = find_by_field(tiers, "/tier", "private_corpus")?;
 	let provider_backed = find_by_field(tiers, "/tier", "provider_backed")?;
 
 	assert_eq!(local_fixture.pointer("/status").and_then(Value::as_str), Some("pass"));
-	assert_eq!(local_fixture.pointer("/job_count").and_then(Value::as_u64), Some(4));
+	assert_eq!(local_fixture.pointer("/job_count").and_then(Value::as_u64), Some(5));
 	assert_eq!(public_proxy_tier.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(public_proxy_tier.pointer("/job_count").and_then(Value::as_u64), Some(1));
 	assert_eq!(private_corpus.pointer("/status").and_then(Value::as_str), Some("blocked"));
@@ -7988,6 +8024,69 @@ fn production_ops_fixtures_report_bounded_typed_states() -> Result<()> {
 	assert_eq!(provider_backed.pointer("/blocked").and_then(Value::as_u64), Some(1));
 
 	Ok(())
+}
+
+fn assert_authority_recovery_operational_evidence(report: &Value) {
+	assert_eq!(
+		report
+			.pointer("/operational_evidence/authority_recovery/drill_count")
+			.and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
+		report
+			.pointer("/operational_evidence/authority_recovery/authority_plane_count")
+			.and_then(Value::as_u64),
+		Some(7)
+	);
+	assert_eq!(
+		report
+			.pointer("/operational_evidence/authority_recovery/source_ref_preserved_count")
+			.and_then(Value::as_u64),
+		Some(7)
+	);
+	assert_eq!(
+		report
+			.pointer("/operational_evidence/authority_recovery/lifecycle_history_preserved_count")
+			.and_then(Value::as_u64),
+		Some(7)
+	);
+	assert_eq!(
+		report
+			.pointer("/operational_evidence/authority_recovery/rpo_met_count")
+			.and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
+		report
+			.pointer("/operational_evidence/authority_recovery/rto_met_count")
+			.and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
+		report
+			.pointer("/operational_evidence/authority_recovery/idempotent_outbox_replay_count")
+			.and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
+		report
+			.pointer("/operational_evidence/authority_recovery/qdrant_rebuild_complete_count")
+			.and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
+		report
+			.pointer("/operational_evidence/authority_recovery/migration_repair_count")
+			.and_then(Value::as_u64),
+		Some(1)
+	);
+	assert_eq!(
+		report
+			.pointer("/operational_evidence/authority_recovery/dead_letter_handled_count")
+			.and_then(Value::as_u64),
+		Some(1)
+	);
 }
 
 #[test]
@@ -8215,9 +8314,9 @@ fn assert_root_knowledge_summary(report: &Value) {
 }
 
 fn assert_root_aggregate_summary(report: &Value) -> Result<()> {
-	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(81));
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(82));
 	assert_eq!(report.pointer("/summary/encoded_suite_count").and_then(Value::as_u64), Some(19));
-	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(74));
+	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(75));
 	assert_eq!(report.pointer("/summary/wrong_result").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/incomplete").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/blocked").and_then(Value::as_u64), Some(7));
@@ -8252,19 +8351,19 @@ fn assert_root_aggregate_summary(report: &Value) -> Result<()> {
 	assert_eq!(report.pointer("/summary/scope_violation_count").and_then(Value::as_u64), Some(0));
 	assert_eq!(
 		report.pointer("/summary/qdrant_rebuild_case_count").and_then(Value::as_u64),
-		Some(2)
+		Some(3)
 	);
 	assert_eq!(
 		report.pointer("/summary/qdrant_rebuild_pass_count").and_then(Value::as_u64),
-		Some(2)
+		Some(3)
 	);
 	assert_eq!(
 		report.pointer("/summary/evidence_required_count").and_then(Value::as_u64),
-		Some(173)
+		Some(180)
 	);
 	assert_eq!(
 		report.pointer("/summary/evidence_covered_count").and_then(Value::as_u64),
-		Some(173)
+		Some(180)
 	);
 	assert_eq!(report.pointer("/summary/evidence_coverage").and_then(Value::as_f64), Some(1.0));
 	assert_eq!(report.pointer("/summary/source_ref_coverage").and_then(Value::as_f64), Some(1.0));
@@ -8545,7 +8644,7 @@ fn assert_root_aggregate_suites(report: &Value) -> Result<()> {
 	let production_ops = find_by_field(suites, "/suite_id", "production_ops")?;
 
 	assert_eq!(production_ops.pointer("/status").and_then(Value::as_str), Some("blocked"));
-	assert_eq!(production_ops.pointer("/encoded_job_count").and_then(Value::as_u64), Some(7));
+	assert_eq!(production_ops.pointer("/encoded_job_count").and_then(Value::as_u64), Some(8));
 
 	let proactive = find_by_field(suites, "/suite_id", "proactive_brief")?;
 
@@ -8585,6 +8684,8 @@ fn assert_root_aggregate_jobs(report: &Value) -> Result<()> {
 	let stage_job = find_by_field(jobs, "/job_id", "operator-debug-stage-attribution-001")?;
 	let production_restore =
 		find_by_field(jobs, "/job_id", "production-ops-restore-cold-start-001")?;
+	let production_authority =
+		find_by_field(jobs, "/job_id", "production-ops-authority-plane-recovery-001")?;
 	let core_fallback = find_by_field(jobs, "/job_id", "core-archival-archival-fallback-001")?;
 	let stale_core = find_by_field(jobs, "/job_id", "core-archival-stale-core-detection-001")?;
 	let scheduled_weekly =
@@ -8594,6 +8695,15 @@ fn assert_root_aggregate_jobs(report: &Value) -> Result<()> {
 	assert_eq!(
 		production_restore.pointer("/qdrant_rebuild_case").and_then(Value::as_bool),
 		Some(true)
+	);
+	assert_eq!(
+		production_authority.pointer("/qdrant_rebuild_case").and_then(Value::as_bool),
+		Some(true)
+	);
+	assert_eq!(production_authority.pointer("/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(
+		production_authority.pointer("/recovery_drills/0/contract_schema").and_then(Value::as_str),
+		Some("elf.authority_recovery_drill/v1")
 	);
 	assert_eq!(redaction.pointer("/redaction_leak_count").and_then(Value::as_u64), Some(0));
 	assert_eq!(personalization.pointer("/scope_check_count").and_then(Value::as_u64), Some(1));
