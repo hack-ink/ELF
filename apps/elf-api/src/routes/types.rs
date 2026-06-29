@@ -1,17 +1,17 @@
-#[path = "types/consolidation.rs"] mod consolidation;
-#[path = "types/core_memory.rs"] mod core_memory;
-#[path = "types/docs.rs"] mod docs;
-#[path = "types/errors.rs"] mod errors;
-#[path = "types/events.rs"] mod events;
-#[path = "types/graph.rs"] mod graph;
-#[path = "types/ingestion_profiles.rs"] mod ingestion_profiles;
-#[path = "types/knowledge.rs"] mod knowledge;
-#[path = "types/notes.rs"] mod notes;
-#[path = "types/recall.rs"] mod recall;
-#[path = "types/search.rs"] mod search;
-#[path = "types/sharing.rs"] mod sharing;
-#[path = "types/trace.rs"] mod trace;
-#[path = "types/work_journal.rs"] mod work_journal;
+mod consolidation;
+mod core_memory;
+mod docs;
+mod errors;
+mod events;
+mod graph;
+mod ingestion_profiles;
+mod knowledge;
+mod notes;
+mod recall;
+mod search;
+mod sharing;
+mod trace;
+mod work_journal;
 
 pub(in crate::routes) use self::{
 	consolidation::{

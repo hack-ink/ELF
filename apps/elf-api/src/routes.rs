@@ -1,24 +1,31 @@
 //! HTTP route builders and request handlers.
 
-#[path = "routes/admin_notes.rs"] mod admin_notes;
-#[path = "routes/admin_ops.rs"] mod admin_ops;
-#[path = "routes/consolidation.rs"] mod consolidation;
-#[path = "routes/core_memory.rs"] mod core_memory;
-#[path = "routes/docs.rs"] mod docs;
-#[path = "routes/dreaming.rs"] mod dreaming;
-#[path = "routes/events.rs"] mod events;
-#[path = "routes/graph.rs"] mod graph;
-#[path = "routes/health.rs"] mod health;
-#[path = "routes/ingestion_profiles.rs"] mod ingestion_profiles;
-#[path = "routes/knowledge.rs"] mod knowledge;
-#[path = "routes/notes.rs"] mod notes;
-#[path = "routes/recall.rs"] mod recall;
-#[path = "routes/search.rs"] mod search;
-#[path = "routes/sharing.rs"] mod sharing;
-#[path = "routes/support.rs"] mod support;
-#[path = "routes/trace.rs"] mod trace;
-#[path = "routes/types.rs"] mod types;
-#[path = "routes/work_journal.rs"] mod work_journal;
+mod admin_notes;
+mod admin_ops;
+mod consolidation;
+mod contract;
+mod core_memory;
+mod docs;
+mod dreaming;
+mod events;
+mod graph;
+mod health;
+mod ingestion_profiles;
+mod knowledge;
+mod notes;
+mod recall;
+mod search;
+mod sharing;
+mod support;
+mod trace;
+mod types;
+mod viewer;
+mod work_journal;
+
+pub use self::{
+	contract::{ApiDoc, OPENAPI_JSON_PATH, SCALAR_DOCS_PATH, contract_router},
+	viewer::ADMIN_VIEWER_PATH,
+};
 
 use axum::{
 	Json, Router,
@@ -28,8 +35,8 @@ use axum::{
 		rejection::{JsonRejection, QueryRejection},
 	},
 	http::{
-		HeaderMap, HeaderValue, Request, StatusCode,
-		header::{CACHE_CONTROL, CONTENT_LENGTH, CONTENT_TYPE},
+		HeaderMap, Request, StatusCode,
+		header::{CONTENT_LENGTH, CONTENT_TYPE},
 	},
 	middleware::{self, Next},
 	response::{IntoResponse, Response},
@@ -38,36 +45,24 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
-use utoipa::OpenApi;
-use utoipa_scalar::{Scalar, Servable};
 use uuid::Uuid;
 
 use crate::state::AppState;
-use admin_notes::{
-	__path_admin_note_correction_apply, __path_admin_note_history_get,
-	__path_admin_note_provenance_get, admin_note_correction_apply, admin_note_history_get,
-	admin_note_provenance_get,
-};
-use admin_ops::{__path_rebuild_qdrant, rebuild_qdrant};
+use admin_notes::{admin_note_correction_apply, admin_note_history_get, admin_note_provenance_get};
+use admin_ops::rebuild_qdrant;
 use consolidation::{
-	__path_consolidation_proposal_get, __path_consolidation_proposal_review,
-	__path_consolidation_proposals_list, __path_consolidation_run_create,
-	__path_consolidation_run_get, __path_consolidation_runs_list, consolidation_proposal_get,
-	consolidation_proposal_review, consolidation_proposals_list, consolidation_run_create,
-	consolidation_run_get, consolidation_runs_list,
+	consolidation_proposal_get, consolidation_proposal_review, consolidation_proposals_list,
+	consolidation_run_create, consolidation_run_get, consolidation_runs_list,
 };
 use core_memory::{
-	__path_admin_core_block_attach, __path_admin_core_block_detach, __path_admin_core_block_upsert,
-	__path_core_blocks_get, __path_entity_memory_get, admin_core_block_attach,
-	admin_core_block_detach, admin_core_block_upsert, core_blocks_get, entity_memory_get,
+	admin_core_block_attach, admin_core_block_detach, admin_core_block_upsert, core_blocks_get,
+	entity_memory_get,
 };
 use docs::{
-	__path_admin_docs_excerpts_get, __path_admin_docs_get, __path_admin_docs_search_l0,
-	__path_docs_delete, __path_docs_excerpts_get, __path_docs_get, __path_docs_put,
-	__path_docs_search_l0, admin_docs_excerpts_get, admin_docs_get, admin_docs_search_l0,
-	docs_delete, docs_excerpts_get, docs_get, docs_put, docs_search_l0,
+	admin_docs_excerpts_get, admin_docs_get, admin_docs_search_l0, docs_delete, docs_excerpts_get,
+	docs_get, docs_put, docs_search_l0,
 };
-use dreaming::{__path_dreaming_review_queue, dreaming_review_queue};
+use dreaming::dreaming_review_queue;
 use elf_config::{SecurityAuthKey, SecurityAuthRole};
 use elf_domain::{
 	consolidation::{
@@ -121,44 +116,27 @@ use elf_service::{
 	WorkJournalEntryFamily, WorkJournalEntryGetRequest, WorkJournalEntryResponse,
 	WorkJournalSessionReadbackRequest, WorkJournalSessionReadbackResponse, search::TraceBundleMode,
 };
-use events::{__path_events_ingest, events_ingest};
+use events::events_ingest;
 use graph::{
-	__path_admin_graph_predicate_alias_add, __path_admin_graph_predicate_aliases_list,
-	__path_admin_graph_predicate_patch, __path_admin_graph_predicates_list, __path_graph_query,
 	admin_graph_predicate_alias_add, admin_graph_predicate_aliases_list,
 	admin_graph_predicate_patch, admin_graph_predicates_list, graph_query, graph_report,
 };
-use health::{__path_health, health};
+use health::health;
 use ingestion_profiles::{
-	__path_admin_ingestion_profile_create, __path_admin_ingestion_profile_default_get,
-	__path_admin_ingestion_profile_default_set, __path_admin_ingestion_profile_get,
-	__path_admin_ingestion_profile_versions_list, __path_admin_ingestion_profiles_list,
 	admin_ingestion_profile_create, admin_ingestion_profile_default_get,
 	admin_ingestion_profile_default_set, admin_ingestion_profile_get,
 	admin_ingestion_profile_versions_list, admin_ingestion_profiles_list,
 };
 use knowledge::{
-	__path_knowledge_page_get, __path_knowledge_page_lint, __path_knowledge_page_rebuild,
-	__path_knowledge_pages_list, __path_knowledge_pages_search,
-	__path_knowledge_pages_watch_rebuild, knowledge_page_get, knowledge_page_lint,
-	knowledge_page_rebuild, knowledge_pages_list, knowledge_pages_search,
-	knowledge_pages_watch_rebuild,
+	knowledge_page_get, knowledge_page_lint, knowledge_page_rebuild, knowledge_pages_list,
+	knowledge_pages_search, knowledge_pages_watch_rebuild,
 };
 use notes::{
-	__path_notes_delete, __path_notes_get, __path_notes_ingest, __path_notes_list,
-	__path_notes_patch, __path_notes_publish, __path_notes_unpublish, notes_delete, notes_get,
-	notes_ingest, notes_list, notes_patch, notes_publish, notes_unpublish,
+	notes_delete, notes_get, notes_ingest, notes_list, notes_patch, notes_publish, notes_unpublish,
 };
-use recall::{__path_recall_debug_panel, admin_recall_debug_panel, recall_debug_panel};
-use search::{
-	__path_searches_create, __path_searches_get, __path_searches_notes, __path_searches_raw,
-	__path_searches_timeline, searches_create, searches_get, searches_notes, searches_raw,
-	searches_timeline,
-};
-use sharing::{
-	__path_space_grant_revoke, __path_space_grant_upsert, __path_space_grants_list,
-	space_grant_revoke, space_grant_upsert, space_grants_list,
-};
+use recall::{admin_recall_debug_panel, recall_debug_panel};
+use search::{searches_create, searches_get, searches_notes, searches_raw, searches_timeline};
+use sharing::{space_grant_revoke, space_grant_upsert, space_grants_list};
 use support::{
 	ApiError, EntityMemoryQuery, RequestContext, SearchMode, admin_auth_middleware,
 	api_auth_middleware, effective_token_id, empty_json_object, format_scope, format_space,
@@ -170,11 +148,7 @@ use support::{
 	apply_auth_key_context, inject_request_id_into_json_body, parse_request_id_from_headers,
 	resolve_auth_key, sanitize_trusted_token_header,
 };
-use trace::{
-	__path_trace_bundle_get, __path_trace_get, __path_trace_item_get, __path_trace_recent_list,
-	__path_trace_trajectory_get, trace_bundle_get, trace_get, trace_item_get, trace_recent_list,
-	trace_trajectory_get,
-};
+use trace::{trace_bundle_get, trace_get, trace_item_get, trace_recent_list, trace_trajectory_get};
 use types::{
 	AdminGraphPredicateAliasAddBody, AdminGraphPredicatePatchBody, AdminGraphPredicatesListQuery,
 	AdminIngestionProfileCreateBody, AdminIngestionProfileDefaultResponseV2,
@@ -191,18 +165,11 @@ use types::{
 	TraceBundleGetQuery, TraceRecentListQuery, WorkJournalEntryCreateBody,
 	WorkJournalSessionReadbackBody,
 };
+#[cfg(test)] use viewer::VIEWER_HTML;
+use viewer::admin_viewer;
 use work_journal::{
-	__path_work_journal_entry_create, __path_work_journal_entry_get,
-	__path_work_journal_session_readback, work_journal_entry_create, work_journal_entry_get,
-	work_journal_session_readback,
+	work_journal_entry_create, work_journal_entry_get, work_journal_session_readback,
 };
-
-/// JSON OpenAPI contract route.
-pub const OPENAPI_JSON_PATH: &str = "/openapi.json";
-/// Scalar API reference route.
-pub const SCALAR_DOCS_PATH: &str = "/docs";
-/// Local read-only admin viewer route.
-pub const ADMIN_VIEWER_PATH: &str = "/viewer";
 
 const HEADER_TENANT_ID: &str = "X-ELF-Tenant-Id";
 const HEADER_PROJECT_ID: &str = "X-ELF-Project-Id";
@@ -223,106 +190,6 @@ const MAX_NOTE_IDS_PER_DETAILS: usize = 256;
 const MAX_TOP_K: u32 = 100;
 const MAX_CANDIDATE_K: u32 = 1_000;
 const MAX_ERROR_LOG_CHARS: usize = 1_024;
-const VIEWER_HTML: &str = include_str!("../static/viewer.html");
-
-/// Generated OpenAPI document for the ELF HTTP API.
-#[derive(OpenApi)]
-#[openapi(
-	info(
-		title = "ELF API",
-		version = env!("CARGO_PKG_VERSION"),
-		description = "Evidence-linked fact memory HTTP and admin API."
-	),
-	paths(
-		health,
-		notes_ingest,
-		events_ingest,
-		docs_put,
-		docs_get,
-		docs_delete,
-		docs_search_l0,
-		docs_excerpts_get,
-		core_blocks_get,
-		entity_memory_get,
-		admin_core_block_upsert,
-		admin_core_block_attach,
-		admin_core_block_detach,
-		admin_docs_get,
-		admin_docs_search_l0,
-		admin_docs_excerpts_get,
-		graph_query,
-		searches_create,
-		searches_get,
-		searches_timeline,
-		searches_notes,
-		notes_list,
-		notes_get,
-		notes_patch,
-		notes_delete,
-		notes_publish,
-		notes_unpublish,
-		work_journal_entry_create,
-		work_journal_entry_get,
-		work_journal_session_readback,
-		space_grants_list,
-		space_grant_upsert,
-		space_grant_revoke,
-		admin_ingestion_profiles_list,
-		admin_ingestion_profile_create,
-		admin_ingestion_profile_get,
-		admin_ingestion_profile_versions_list,
-		admin_ingestion_profile_default_get,
-		admin_ingestion_profile_default_set,
-		consolidation_run_create,
-		consolidation_runs_list,
-		consolidation_run_get,
-		consolidation_proposals_list,
-		consolidation_proposal_get,
-		consolidation_proposal_review,
-		dreaming_review_queue,
-		recall_debug_panel,
-		knowledge_page_rebuild,
-		knowledge_pages_watch_rebuild,
-		knowledge_pages_list,
-		knowledge_pages_search,
-		knowledge_page_get,
-		knowledge_page_lint,
-		rebuild_qdrant,
-		searches_raw,
-		trace_recent_list,
-		trace_get,
-		trace_bundle_get,
-		trace_trajectory_get,
-		trace_item_get,
-		admin_graph_predicates_list,
-		admin_graph_predicate_patch,
-			admin_graph_predicate_alias_add,
-			admin_graph_predicate_aliases_list,
-			admin_note_provenance_get,
-			admin_note_history_get,
-			admin_note_correction_apply,
-		),
-	components(schemas(
-		AdminIngestionProfileDefaultResponseV2,
-		AdminIngestionProfileDefaultSetBody,
-		ErrorBody,
-	)),
-	tags(
-		(name = "health", description = "Health and process liveness."),
-		(name = "notes", description = "Memory note ingestion, listing, mutation, and sharing."),
-		(name = "events", description = "Event ingestion through the extractor pipeline."),
-		(name = "docs", description = "Document extension ingestion, search, and excerpt retrieval."),
-		(name = "search", description = "Progressive search sessions and raw search diagnostics."),
-		(name = "graph", description = "Graph query and predicate administration."),
-		(name = "consolidation", description = "Reviewable derived consolidation proposals."),
-		(name = "dreaming", description = "Dreaming review queue and derived memory organization."),
-		(name = "recall", description = "Cross-layer recall and debug readback."),
-		(name = "knowledge", description = "Derived knowledge page rebuild and lint readback."),
-		(name = "work_journal", description = "Source-adjacent Work Journal capture and session readback."),
-		(name = "admin", description = "Local admin and operator inspection routes."),
-	)
-)]
-pub struct ApiDoc;
 
 /// Builds the authenticated public API router.
 pub fn router(state: AppState) -> Router {
@@ -465,37 +332,4 @@ pub fn admin_router(state: AppState) -> Router {
 		.merge(protected_router)
 }
 
-/// Builds the API contract router.
-pub fn contract_router<S>() -> Router<S>
-where
-	S: Clone + Send + Sync + 'static,
-{
-	Router::new()
-		.route(OPENAPI_JSON_PATH, routing::get(openapi_json))
-		.merge(Scalar::with_url(SCALAR_DOCS_PATH, <ApiDoc as OpenApi>::openapi()))
-}
-
-async fn openapi_json() -> Response {
-	let mut response = Json(<ApiDoc as OpenApi>::openapi()).into_response();
-
-	response
-		.headers_mut()
-		.insert(CONTENT_TYPE, HeaderValue::from_static("application/vnd.oai.openapi+json"));
-
-	response
-}
-
-async fn admin_viewer() -> Response {
-	let mut response = VIEWER_HTML.into_response();
-
-	response
-		.headers_mut()
-		.insert(CONTENT_TYPE, HeaderValue::from_static("text/html; charset=utf-8"));
-	response.headers_mut().insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
-
-	response
-}
-
-#[cfg(test)]
-#[path = "routes/tests.rs"]
-mod tests;
+#[cfg(test)] mod tests;

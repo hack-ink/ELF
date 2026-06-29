@@ -33,6 +33,7 @@ async fn openapi_json_route_serves_generated_contract() {
 	crate::assert_openapi_method(&spec, "/v2/admin/docs/{doc_id}", "get");
 	crate::assert_openapi_method(&spec, "/v2/admin/docs/search/l0", "post");
 	crate::assert_openapi_method(&spec, "/v2/admin/docs/excerpts", "post");
+	crate::assert_openapi_method(&spec, "/v2/graph/report", "post");
 	crate::assert_openapi_method(&spec, "/v2/admin/searches/raw", "post");
 	crate::assert_openapi_method(&spec, "/v2/admin/events/ingestion-profiles/default", "get");
 	crate::assert_openapi_method(&spec, "/v2/admin/events/ingestion-profiles/default", "put");
